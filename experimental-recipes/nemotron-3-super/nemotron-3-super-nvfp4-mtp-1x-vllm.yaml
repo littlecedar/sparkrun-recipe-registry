@@ -1,0 +1,50 @@
+recipe_version: "2"
+model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+metadata:
+  description: Nemotron-3-Super NVFP4 single node — marlin MoE, MTP nst=3 (23.6 t/s tg128 c1 at image tag 2026072302; receipts at https://github.com/maxspevack/spark-rocky/tree/main/receipts)
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.88
+  max_model_len: 131072
+  max_num_seqs: 4
+  max_num_batched_tokens: 16384
+  kv_cache_dtype: fp8
+  quantization: fp4
+  moe_backend: marlin
+  mamba_ssm_cache_dtype: float32
+  tool_call_parser: qwen3_coder
+  reasoning_parser: nemotron_v3
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
+
+env:
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  VLLM_USE_FLASHINFER_MOE_FP4: "0"
+  VLLM_NVFP4_GEMM_BACKEND: marlin
+
+command: |
+  vllm serve {model} \
+    --tensor-parallel-size {tensor_parallel} \
+    --port {port} \
+    --host {host} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --quantization {quantization} \
+    --moe-backend {moe_backend} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --mamba-ssm-cache-dtype {mamba_ssm_cache_dtype} \
+    --async-scheduling \
+    --enable-chunked-prefill \
+    --reasoning-parser {reasoning_parser} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --speculative-config '{speculative_config}' \
+    --trust-remote-code
