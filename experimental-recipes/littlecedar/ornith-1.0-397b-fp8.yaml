@@ -69,6 +69,4 @@ command: |
     --mm-encoder-tp-mode {media_encoder_tp_mode} \
     --trust-remote-code \
     -tp {tensor_parallel} \
-    --override-generation-config.top-p {top_p} \
-    --override-generation-config.top-k {top_k} \
-    --override-generation-config.temperature {temperature}
+    --generation-config auto
