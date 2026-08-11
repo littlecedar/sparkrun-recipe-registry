@@ -19,7 +19,7 @@ defaults:
   max_model_len: 262144
   served_model_name: ornith-397b-mxfp4
   tool_call_parser: qwen3_xml
-  kv_cache_dtype: fp8
+  kv_cache_dtype: auto
   load_format: fastsafetensors
   attention_backend: flashinfer
   reasoning_parser: qwen3
@@ -40,6 +40,8 @@ defaults:
 
 env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  VLLM_MARLIN_USE_ATOMIC_ADD: "1"
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0"  # memory calc may cause crashes
 
 command: |
   vllm serve {model} \

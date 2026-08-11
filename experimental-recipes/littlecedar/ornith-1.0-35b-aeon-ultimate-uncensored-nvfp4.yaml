@@ -19,7 +19,7 @@ defaults:
   max_model_len: 262144
   served_model_name: ornith-35b-uncensored
   tool_call_parser: qwen3_xml
-  kv_cache_dtype: fp8
+  kv_cache_dtype: auto
   load_format: fastsafetensors
   attention_backend: flashinfer
   reasoning_parser: qwen3
