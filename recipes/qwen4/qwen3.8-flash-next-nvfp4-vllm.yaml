@@ -1,0 +1,68 @@
+recipe_version: "2"
+model: nvidia/Qwen3.8-Flash-Next-NVFP4
+runtime: vllm
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+min_nodes: 2
+
+metadata:
+  description: Qwen3.8-Flash-Next-NVFP4 - mixed NVFP4/BF16/FP8 checkpoint with MTP
+  model_url: https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "125B"
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: fp8
+  tags: lcg_favorite
+
+mods:
+  - drop-caches
+  - cap-flashinfer-ninja-parallelism
+  - instanttensor-hybrid-draft-loader
+  - fix-qwen3.8-flash-next-vllm
+
+env:
+  SAFETENSORS_FAST_GPU: 1
+  OMP_NUM_THREADS: 1
+  CUTE_DSL_ARCH: sm_121a
+  MAX_JOBS: 2
+  FLASHINFER_NVCC_THREADS: 1
+  FLASHINFER_DISABLE_VERSION_CHECK: 1
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
+  VLLM_USE_FLASHINFER_MOE_FP4: 1
+  VLLM_SLEEP_WHEN_IDLE: 0
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+  VLLM_SSM_CONV_STATE_LAYOUT: DS
+  VLLM_PLE_FP8_CHECKPOINT: 1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_batched_tokens: 8192
+  max_num_seqs: 12
+  dtype: bfloat16
+  moe_backend: b12x
+  load_format: instanttensor
+  quantization: modelopt
+  speculative_tokens: 3
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --host {host}
+  --port {port}
+  --quantization {quantization}
+  --load-format {load_format}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --dtype {dtype}
+  --max-model-len {max_model_len}
+  --moe-backend {moe_backend}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --speculative-config '{"method":"mtp","num_speculative_tokens":{speculative_tokens}}'
