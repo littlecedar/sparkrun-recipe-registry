@@ -72,4 +72,3 @@ command: |
     --override-generation-config.top-p {top_p} \
     --override-generation-config.top-k {top_k} \
     --override-generation-config.temperature {temperature}
-  
