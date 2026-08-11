@@ -52,6 +52,7 @@ command: |
     --port {port} \
     --kv-cache-dtype {kv_cache_dtype} \
     --mamba-cache-dtype {mamba_cache_dtype} \
+    --mamba-cache-mode align \
     --max-num-batched-tokens {max_batched_tokens} \
     --load-format {load_format} \
     --attention-backend {attention_backend} \
