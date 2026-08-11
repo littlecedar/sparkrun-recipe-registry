@@ -18,7 +18,7 @@ defaults:
   gpu_memory_utilization: 0.25
   max_model_len: 262144
   served_model_name: ornith-35b-uncensored
-  tool_call_parser: qwen3_coder
+  tool_call_parser: qwen3_xml
   kv_cache_dtype: fp8
   load_format: fastsafetensors
   attention_backend: flashinfer
@@ -34,6 +34,9 @@ defaults:
   media_limit_image_width: 1920
   media_limit_image_height: 1080
   media_encoder_tp_mode: data
+  top_p: 0.95
+  top_k: 20
+  temperature: 0.6
 
 env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -65,4 +68,8 @@ command: |
     --limit-mm-per-prompt.image.height {media_limit_image_height} \
     --mm-encoder-tp-mode {media_encoder_tp_mode} \
     --trust-remote-code \
-    -tp {tensor_parallel}
+    -tp {tensor_parallel} \
+    --top-p {top_p} \
+    --top-k {top_k} \
+    --temperature {temperature}
+  
