@@ -1,0 +1,57 @@
+recipe_version: "2"
+model: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
+model_revision: 85ffd2d
+model_url: https://huggingface.co/AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
+runtime: vllm
+min_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+metadata:
+  description: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
+  maintainer: Little Cedar Group <ai@littlecedar.net>
+  model_params: 35B
+  model_dtype: nvfp4
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.7
+  max_model_len: 262144
+  served_model_name: ornith-35b-uncensored
+  tool_call_parser: qwen3_coder
+  kv_cache_dtype: nvfp4
+  load_format: fastsafetensors
+  attention_backend: flashinfer
+  reasoning_parser: qwen3
+  quantization: compressed-tensors
+  max_batched_tokens: 16384
+  mamba_cache_dtype: float32
+  media_per_prompt: '{"image":4,"video":2}'
+  media_encoder_tp_mode: data
+
+env:
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --quantization {quantization} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --host {host} \
+    --port {port} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --mamba-cache-dtype {mamba_cache_dtype}
+    --max-num-batched-tokens {max_batched_tokens} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
+    --enable-prefix-caching \
+    --enable-chunked-prefill \
+    --max-model-len {max_model_len} \
+    --reasoning-parser {reasoning_parser} \
+    --limit-mm-per-prompt {media_per_prompt} \
+    --mm-encoder-tp-mode {media_encoder_tp_mode} \
+    --trust-remote-code \
+    -tp {tensor_parallel}
