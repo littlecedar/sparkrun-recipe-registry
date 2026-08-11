@@ -1,0 +1,68 @@
+recipe_version: "2"
+model: olka-fi/Ornith-1.0-397B-MXFP4
+model_url: https://huggingface.co/olka-fi/Ornith-1.0-397B-MXFP4
+runtime: vllm-ray
+min_nodes: 3
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+metadata:
+  description: Ornith-1.0-397B-MXFP4
+  maintainer: Little Cedar Group <ai@littlecedar.net>
+  model_params: 397B
+  model_dtype: mxfp4
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  gpu_memory_utilization: 0.90
+  max_model_len: 262144
+  served_model_name: ornith-397b-mxfp4
+  tool_call_parser: qwen3_xml
+  kv_cache_dtype: nvfp4
+  load_format: fastsafetensors
+  attention_backend: flashinfer
+  reasoning_parser: qwen3
+  quantization: compressed-tensors
+  max_batched_tokens: 16384
+  mamba_cache_dtype: float32
+  media_limit_video_count: 2
+  media_limit_video_frames: 1024
+  media_limit_video_width: 1920
+  media_limit_video_height: 1080
+  media_limit_image_count: 4
+  media_limit_image_width: 1920
+  media_limit_image_height: 1080
+  media_encoder_tp_mode: data
+
+env:
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --quantization {quantization} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --host {host} \
+    --port {port} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --mamba-cache-dtype {mamba_cache_dtype} \
+    --max-num-batched-tokens {max_batched_tokens} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
+    --enable-prefix-caching \
+    --enable-chunked-prefill \
+    --max-model-len {max_model_len} \
+    --reasoning-parser {reasoning_parser} \
+    --limit-mm-per-prompt.video.count {media_limit_video_count} \
+    --limit-mm-per-prompt.video.num_frames {media_limit_video_frames} \
+    --limit-mm-per-prompt.video.width {media_limit_video_width} \
+    --limit-mm-per-prompt.video.height {media_limit_video_height} \  
+    --limit-mm-per-prompt.image.count {media_limit_image_count} \
+    --limit-mm-per-prompt.image.width {media_limit_image_width} \
+    --limit-mm-per-prompt.image.height {media_limit_image_height} \
+    --mm-encoder-tp-mode {media_encoder_tp_mode} \
+    --trust-remote-code \
+    -tp {tensor_parallel}
