@@ -1,0 +1,64 @@
+recipe_version: "2"
+model: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+runtime: vllm
+min_nodes: 4
+
+metadata:
+  description: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "397B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
+
+env:
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
+  OMP_NUM_THREADS: 1
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_batched_tokens: 16384
+  max_num_seqs: 12
+  performance_mode: throughput
+  kv_cache_dtype: fp8
+  load_format: instanttensor
+  attention_backend: flashinfer
+  moe_backend: marlin
+  linear_backend: flashinfer_cutlass
+  speculative_moe_backend: flashinfer_cutlass
+  speculative_tokens: 3
+  mm_encoder_tp_mode: data
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --performance-mode {performance_mode}
+  --kv-cache-dtype {kv_cache_dtype}
+  --attention-backend {attention_backend}
+  --moe-backend {moe_backend}
+  --linear-backend {linear_backend}
+  --load-format {load_format}
+  --speculative-config '{"method":"mtp","num_speculative_tokens":{speculative_tokens},"max_model_len":{max_model_len},"attention_backend":"{attention_backend}","moe_backend":"{speculative_moe_backend}"}'
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --tool-call-parser qwen3_xml
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --async-scheduling
+  --enable-expert-parallel

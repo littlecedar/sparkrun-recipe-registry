@@ -1,0 +1,50 @@
+recipe_version: '2'
+model: Intel/Qwen3-Coder-Next-int4-AutoRound
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+cluster_only: false
+#solo_only: true
+
+metadata:
+  name: qwen3-coder-next-int4-autoround-1M
+  description: Qwen3-Coder-Next-int4-Autoround — 1M context
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  original_recipe_url: https://spark-arena.com/api/recipes/16d87e41-212a-44f6-a820-506bd342817f
+  original_recipe_author: Bjarke Bolding @bjarke
+
+mods:
+  - mods/fix-qwen3-next-autoround
+
+env:
+  SAFETENSORS_FAST_GPU: 1
+  VLLM_USE_FLASHINFER_MOE_FP8: 1
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+  VLLM_SLEEP_WHEN_IDLE: 0
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: 1
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.7
+  max_model_len: 262144
+
+command: >
+  vllm serve Intel/Qwen3-Coder-Next-int4-AutoRound
+  --max-model-len {max_model_len}
+  --enable-auto-tool-choice
+  --tool-call-parser qwen3_coder
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --load-format fastsafetensors
+  --language-model-only
+  --enable-prefix-caching
+  --enable-chunked-prefill
+  --max-num-batched-tokens 49152
+  --max-num-seqs 384
+  --kv-cache-dtype fp8
+  --optimization-level 3
+  --performance-mode throughput
+  --mamba-cache-mode align
+  --hf-overrides '{{"rope_scaling": {{"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 262144}}}}'

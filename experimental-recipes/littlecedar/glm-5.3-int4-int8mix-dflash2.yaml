@@ -1,0 +1,196 @@
+# ============================================================================
+# GLM-5.3-Int4-Int8Mix (743B MoE / ~40B active) on 4x DGX Spark (GB10 / sm_121)
+# DFlash2 speculative-decoding recipe -- FAIR-COMPARISON MIRROR of the MTP baseline.
+#
+#   Model       : Tech2wild/GLM-5.3-Int4-Int8Mix  (compressed-tensors / pack-quantized)
+#   Draft model : incoai/GLM-5.3-DFlash2          (2B block-diffusion drafter, BF16, gated)
+#   Parallelism : TP=4, PP=1, DP=1, EP=routed     (1 GPU per DGX Spark => TP4 == 4 nodes)
+#   Weights     : W4A16 experts (L3-77) + W8A16 dense/attn (L1-77) + BF16 sacred modules
+#   KV cache    : fp8_ds_mla (default) / nvfp4_ds_mla (balanced -o lane); MLA compressed latent
+#   Context     : 200K default (max_model_len); 80K DFlash2 structured lane; ~600K is MTP-only (DCP)
+#   Spec decode : EXTERNAL DFlash2 draft model, k=7 (block_size 8), draft tp=1
+#   CUDA graphs : cudagraph_mode FULL + pinned capture sizes (kills two-graph-set OOM + first-chat KeyError)
+#   Interconnect: NCCL-over-RoCE ring on ConnectX-7 QSFP (200 Gbps, ~25 GB/s best / ~12.5 typical)
+#
+#   WHY THIS MIRRORS THE BASELINE (fair comparison, one variable changed):
+#     Same backend (vLLM compressed-tensors), same container, same TP4/EP topology, same NCCL env,
+#     same gmu 0.91 + drop-caches mod + swappiness, same KV dtype lane (fp8_ds_mla) and same pinned
+#     10.95 GB KV budget, same FULL CUDA-graph set. The ONLY difference vs the MTP baseline is the
+#     draft method: an external 2B DFlash2 block-diffusion model instead of the native layer-78 head.
+#     DFlash2 ALSO produces a uniform batch, so CUDA graphs stay at ONE set -- same memory safeguard.
+#
+#   Fit per node @ gmu 0.91 (116.5 GB usable):
+#     weights 94.5 + replicated BF16 2.5 + KV(fp8,200K) 9.0 = 106.0 GB  -> 10.5 GB headroom  [V]
+#     (the 2B BF16 drafter is loaded on draft_tensor_parallel_size=1 => off the cross-node ring,
+#      and slot-shares the MLA KV tensors, so it adds ~0 net KV cost -- see DFLASH2_RESEARCH.md)
+#
+#   Override lanes (do NOT bake into defaults -- see README):
+#     Balanced/best aggregate : -o kv_cache_dtype=nvfp4_ds_mla -o max_model_len=300000
+#                                 -o speculative_config='{"method":"dflash","model":"incoai/GLM-5.3-DFlash2","num_speculative_tokens":7,"draft_tensor_parallel_size":1,"attention_backend":"FLASHMLA_SPARSE"}'
+#                                 -o extra_args="--kv-cache-dtype-skip-layers sliding_window"
+#     ~600K single-request (MTP only): switch to the MTP recipe and add
+#                                 -o max_model_len=600000 -o extra_args="--decode-context-parallel-size 4"
+#
+# Validate (on a machine with sparkrun installed -- not present in this workspace):
+#   sparkrun show recipes/dflash2/glm-5.3-dflash2.yaml
+#   sparkrun recipe vram recipes/dflash2/glm-5.3-dflash2.yaml
+#   sparkrun run recipes/dflash2/glm-5.3-dflash2.yaml -H host1,host2,host3,host4 --tp 4
+# ============================================================================
+
+recipe_version: "2"
+
+model: Tech2wild/GLM-5.3-Int4-Int8Mix   # HF repo id; 282 safetensors shards (~378 GB) via index.json
+# compressed-tensors/pack-quantized => vLLM loader only (not GGUF/AWQ/GPTQ)
+runtime: vllm               # native multi-node vLLM (--nnodes/--node-rank/--master-addr/--master-port, --headless workers); no Ray
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+# GB10/sm_121 image + sm12x Triton kernel overlays
+# stock vLLM v0.27.1 has no native sm_121 build; overlays are mandatory
+# NOTE: DFlash2 needs vLLM >= v0.28.0 OR the overlay patches in DFLASH2_RESEARCH.md;
+# this image is v0.27.1-era, so the DFlash2 overlay (qwen3_dflash2.py + registry/select)
+# MUST be applied -- see README step 2.
+
+# ---- Topology: 4 single-GPU nodes -> 4 GPUs -> TP=4, PP=1, DP=1 ----------------
+# Required hosts = tp * pp * dp = 4*1*1 = 4. TP4 is the MINIMUM that fits the 743B
+# weight set (~94.5 GB/node). Going to TP8 would need 8 Sparks and only shrinks the
+# weight shard while replicating the MLA latent cache on every extra rank (no KV win).
+min_nodes: 4
+max_nodes: 4
+
+metadata:
+  description: "GLM-5.3-Int4-Int8Mix 743B MoE/~40B active, DSA+MLA, 4-node DGX Spark GB10, TP=4/PP=1/DP=1, fp8_ds_mla KV, EXTERNAL DFlash2 (incoai, 2B) k=7 spec decode, FULL CUDA graphs"
+  model_params: 743000000000          # 743B backbone (INT4-Int8 mix)
+  model_dtype: int4                   # weight dtype for the VRAM estimator (INT4 experts dominate the footprint)
+  quantization: compressed-tensors    # the loader path; W4A16 + W8A16 + BF16 ignore-list baked into config_groups
+  num_layers: 78                      # layers 0-77 (0-2 dense, 3-77 sparse MoE)
+  num_kv_heads: 64
+  head_dim: 192
+  # MLA latent-cache markers -> sparkrun sizes KV with the compressed-latent formula,
+  # NOT the generic 2*layers*heads*head_dim one (which over-estimates ~100x). [V]
+  kv_lora_rank: 512
+  qk_rope_head_dim: 64
+  kv_dtype: fp8_ds_mla                # default KV dtype; plain "fp8" is aliased; fp8_e4m3 is REJECTED by the sparse MLA backend
+  model_vram: 388                     # pin weight VRAM (matches the MTP baseline; avoids an HF fetch; 388/4 = 97 GB/node).
+  # KV is sized by the MLA markers below (kv_lora_rank/qk_rope_head_dim), NOT kv_vram_per_token:
+  # sparkrun reads kv_vram_per_token as *GB/token* and multiplies by max_model_len, so a
+  # bytes-per-token value there inflates the KV estimate ~1e9x and forces "EXCEEDS 121 GB". [V]
+  draft_model: incoai/GLM-5.3-DFlash2 # the external block-diffusion drafter (2B, BF16); sparkrun pre-syncs it to all hosts
+  # because it appears in defaults.speculative_config.model (see detect_spec_config_draft_model)
+  draft_params: 2000000000            # 2B drafter footprint marker (loaded at draft_tensor_parallel_size=1, off the cross-node ring)
+  draft_dtype: bf16                   # DFlash2 ships BF16 only; its KV stays BF16 (nvfp4_ds_mla is MLA-record-only)
+
+defaults:
+  # --- Parallelism (TP=4, PP=1, DP=1): one tensor shard per node -----------------
+  tensor_parallel: 4                  # 1 GPU/node => 4 nodes; shards the ~94.5 GB weight set per rank
+  pipeline_parallel: 1                # no PP: 4 nodes are all consumed by TP, and PP would add all-to-all expert traffic on the slow link
+  data_parallel: 1                    # DP>1 replicates the full weight set (2x 378 GB) -> cannot fit in 4x128 GB
+
+  # --- Precision / KV cache (DESIGN §5) ------------------------------------------
+  quantization: compressed-tensors    # vllm --quantization; preserves the BF16 sacred-module ignore-list from the checkpoint
+  load_format: instanttensor          # vllm --load-format; loads the checkpoint via the instanttensor loader (in VLLM_FLAG_MAP, -o-overridable)
+  kv_cache_dtype: fp8_ds_mla          # default lane; MLA latent cache replicated per TP rank (raising --tp does NOT shrink it)
+  kv_cache_memory_bytes: 10950000000  # pin KV for deterministic boots (vLLM skips the rest of mem profiling).
+  # holds 200K fp8 (243,723 max slots) OR 300K nvfp4 (487,447 max slots); leaves the ~2.5 GB
+  # non-sharded BF16 modules counted against the general allocation, not the KV pin. [V]
+
+  # --- Context + batching --------------------------------------------------------
+  max_model_len: 262144               # proven serve-time setting (arch max is 1,048,576 but 1M is not a serving target here)
+  max_num_seqs: 256                   # scheduler cap; REAL concurrency is KV-pool-limited, not seq-limited
+  max_num_batched_tokens: 8192        # prefill chunk cap: bounds TTFT without starving decode on the interconnect-bound box
+  gpu_memory_utilization: 0.91        # ~116.5 GB usable/node. REQUIRES the shared `mods/drop-caches` mod (60s cadence, see
+  # `mods:` below) + vm.swappiness=10 on every node, else GB10 unified memory caps gmu near
+  # ~0.61 (~78 GB) and the KV pool collapses. [V]
+  enable_prefix_caching: true         # reuse shared-prefix KV (agent/RAG win); directly cuts per-request KV pressure
+
+  # --- Speculative decoding: EXTERNAL DFlash2 draft model, k=7 (DESIGN §5 / DFLASH2_RESEARCH §5) -
+  # method "dflash" needs vLLM >= v0.28.0 (native) OR the overlay patches on our v0.27.1 image.
+  # "model" points sparkrun at the drafter checkpoint (it pre-syncs it to every host).
+  # num_speculative_tokens = block_size(8) - 1 = 7. draft_tensor_parallel_size=1 keeps the
+  # small drafter OFF the cross-node ring. DFlash2 produces a uniform batch, so -- like MTP --
+  # it keeps CUDA graphs to ONE set (memory safeguard, not just throughput).
+  # NOTE: DFlash2's 6 sliding-window layers trip "DCP not support sliding window", so the
+  # nvfp4_ds_mla lane MUST add --kv-cache-dtype-skip-layers sliding_window (drafter KV stays BF16).
+  speculative_config: '{"method":"dflash","model":"incoai/GLM-5.3-DFlash2","num_speculative_tokens":7,"draft_tensor_parallel_size":1,"attention_backend":"FLASHMLA_SPARSE"}'
+
+  # --- Reasoning / tool parsers (GLM-5.3 chat template) --------------------------
+  # Stock template: [gMASK]<sop> + <|role|> + <think></think> + <tool_call></tool_call>.
+  reasoning_parser: glm45
+  tool_call_parser: glm47
+
+  # --- Misc ----------------------------------------------------------------------
+  served_model_name: glm-5.3-int4-int8mix
+  trust_remote_code: true             # GLM-5.3 DSA-MoE modeling code (GlmMoeDsaForCausalLM)
+
+  # ---- Free-form CLI passthrough (DFlash2) ---------------------------------------
+  # Empty by default (no-op). The nvfp4_ds_mla lane injects
+  # --kv-cache-dtype-skip-layers sliding_window here so the drafter's sliding-window
+  # layers keep BF16 KV (nvfp4_ds_mla is an MLA-record-only dtype). Default lane = "". [V]
+  extra_args: ""
+
+  # ---- CUDA graphs: FULL + pinned capture sizes (DESIGN §5) ----------------------
+  # cudagraph_mode FULL is required for perf. Pinned capture sizes kill the
+  # first-concurrent-chat `KeyError: 'chatcmpl-<id>'` crash seen under bare FULL.
+  # Written as a defaults value; {cudagraph_capture_sizes} resolves inside the JSON. [V]
+  compilation-config: '{"cudagraph_mode":"FULL","cudagraph_capture_sizes":[6,12,18,24,30,36]}'
+
+# ---- Interconnect tuning: NCCL over RoCE on ConnectX-7 (DESIGN §6) ----------------
+# Site-specific: set NCCL_IB_HCA / *_IFNAME to match YOUR NIC layout. Passed literally
+# (no ${} expansion). A QSFP switch is REQUIRED — 4 nodes need the ConnectX-7 links on a
+# common 200 Gbps fabric; point-to-point cabling alone cannot form the TP4 ring. [V]
+env:
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"   # DGX Spark/GB10 platform default; cuts fragmentation
+  NCCL_NET: "IB"                                        # force RDMA (RoCE) over the ConnectX-7 QSFP, not TCP
+  NCCL_IB_HCA: "^rocep1s0f0"                            # bind to the 200 Gbps QSFP RoCE HCA (adjust to your NIC; ^ = exclude-all-but)
+  NCCL_IB_GID_INDEX: "3"                                # RoCE v2 GID index (avoids wrong-subnet routing)
+  NCCL_CROSS_NIC: "0"                                   # keep a single NIC island; avoids split-brain across NICs
+  #NCCL_ALGO: "Ring"                                     # ring all-reduce is bandwidth-optimal for TP on a slow ring
+  NCCL_SOCKET_IFNAME: "enP7s7"                          # 10 GbE control-plane socket interface (adjust per node)
+  GLOO_SOCKET_IFNAME: "enP7s7"                          # rendezvous plane on the same iface
+  NCCL_DEBUG: "WARN"                                    # surface hangs without log flooding; bump to INFO only while tuning the fabric
+  NCCL_TIMEOUT: "3600"                                  # large-batch all-reduces must not trip the watchdog
+
+# ---- Explicit serve command -------------------------------------------------------
+# Mirrors what vllm-distributed needs for a 4-node TP4 run. {placeholder}s resolve from
+# the config chain (CLI > defaults > runtime). JSON-valued flags pass through with literal
+# braces; a nested {placeholder} still resolves. sparkrun appends --nnodes/--node-rank/
+# --master-addr/--master-port (workers get --headless) via the distributed runtime.
+#
+# DFlash2 additions vs the MTP baseline command:
+#   * --speculative-config carries method:"dflash" + "model" (the external drafter).
+#   * {extra_args} is a free-form passthrough so the nvfp4_ds_mla lane can inject
+#     --kv-cache-dtype-skip-layers sliding_window (the drafter's sliding-window layers must
+#     keep BF16 KV; nvfp4_ds_mla is an MLA-record-only dtype). Default is empty.
+command: >
+  vllm serve {model}
+  --tensor-parallel-size {tensor_parallel}
+  --pipeline-parallel-size {pipeline_parallel}
+  --data-parallel-size {data_parallel}
+  --kv-cache-dtype {kv_cache_dtype}
+  --kv-cache-memory-bytes {kv_cache_memory_bytes}
+  --quantization {quantization}
+  --load-format {load_format}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --enable-prefix-caching {enable_prefix_caching}
+  --speculative-config '{speculative_config}'
+  --compilation-config '{compilation-config}'
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --served-model-name {served_model_name}
+  --trust-remote-code
+  { extra_args }
+
+# ---- Cache-flusher mod (trust-gated pre-serve hook; NOT a hand-rolled pre_exec) ----
+# GB10 unified memory: the host page cache eats CUDA-visible memory 1:1, so without an
+# active flusher gpu_memory_utilization caps near ~0.61 (~78 GB) and the KV pool collapses.
+# This recipe uses the shared `mods/drop-caches` sparkrun mod (declared below) instead of a
+# hand-rolled `echo > /proc/sys/vm/drop_caches` loop: sparkrun stages + execs the mod's
+# run.sh in every node's container before `vllm serve`, daemonizing a 60s `sync; echo 3`
+# page-cache drop for the container's lifetime. Mods are trust-gated, so launch with
+# --trust. vm.swappiness=10 is the ONE prerequisite this mod CANNOT set -- it runs inside
+# the container and cannot touch the host sysctl; set it on every node out of band before
+# launch: `sudo sysctl -w vm.swappiness=10` (the 0-1 default parks swap and can wedge the box).
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader

@@ -1,0 +1,75 @@
+recipe_version: "2"
+model: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+executor: docker
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+runtime: vllm
+min_nodes: 1
+
+metadata:
+  description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4 Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
+
+env:
+  OMP_NUM_THREADS: 1
+
+defaults:
+  served_model_name: ornith-ai/Ornith-1.5-35B-A3B-NVFP4-b12x
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.5
+  max_model_len: 262144
+  max_num_batched_tokens: 16384
+  max_num_seqs: 32
+  performance_mode: interactivity
+  kv_cache_dtype: fp8
+  # Measured
+  #kv_cache_memory: 38042672824
+  # Fill RAM * 0.8
+  #kv_cache_memory: 55704589927
+  # Fill RAM * 1.0
+  #kv_cache_memory: 62823079936
+  load_format: instanttensor
+  attention_backend: flashinfer
+  moe_backend: flashinfer_b12x
+  linear_backend: flashinfer_b12x
+  mm_encoder_tp_mode: data
+  speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --performance-mode {performance_mode}
+  --kv-cache-dtype {kv_cache_dtype}
+  --attention-backend {attention_backend}
+  --moe-backend {moe_backend}
+  --linear-backend {linear_backend}
+  --load-format {load_format}
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --tool-call-parser qwen3_coder
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --async-scheduling
+  --mamba-backend flashinfer
+  --mamba-ssm-cache-dtype auto
+  --mamba-cache-philox-rounds 5
+  --mamba-cache-mode align
+  --mm-encoder-tp-mode {mm_encoder_tp_mode}
+  --speculative-config '{speculative_config}'
+  -tp {tensor_parallel}
+  -pp {pipeline_parallel}
+
+#  --kv-cache-memory {kv_cache_memory}

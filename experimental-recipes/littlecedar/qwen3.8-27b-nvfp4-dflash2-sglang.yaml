@@ -1,0 +1,47 @@
+recipe_version: "2"
+model: RadixArk/Qwen3.8-27B-NVFP4
+runtime: sglang
+container: lmsysorg/sglang:dev-qwen38-27b-dflash2
+min_nodes: 1
+
+metadata:
+  description: Qwen3.8-27B-NVFP4-DFlash2
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.5
+  max_model_len: 262144
+  max_num_seqs: 32
+  max_mamba_cache_size: 128
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 2048
+  attention_backend: flashinfer
+  speculative_algorithm: DFLASH
+  speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
+  speculative_draft_tokens: 8
+
+command: >
+  sglang serve
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --model-path {model}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-draft-model-path {speculative_draft_model}
+  --speculative-num-draft-tokens {speculative_draft_tokens}

@@ -1,0 +1,83 @@
+recipe_version: "2"
+model: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+runtime: vllm
+min_nodes: 4
+
+metadata:
+  description: vLLM Serving littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: 397B
+  model_dtype: nvfp4
+  kv_dtype: fp8
+
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
+
+env:
+  OMP_NUM_THREADS: 1
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1
+  CUTE_DSL_ARCH: sm_121a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  TORCH_CUDA_ARCH_LIST: 12.1f
+  VLLM_USE_AOT_COMPILE: 1
+  VLLM_USE_BREAKABLE_CUDAGRAPH: 0
+  VLLM_MEMORY_PROFILE_INCLUDE_ATTN: 1
+  VLLM_USE_FLASHINFER_SAMPLER: 1
+  VLLM_USE_B12X_WO_PROJECTION: 1
+  VLLM_USE_B12X_MHC: 1
+  VLLM_USE_B12X_MOE: 1
+  VLLM_MOE_SKIP_PADDING: 0
+  VLLM_USE_V2_MODEL_RUNNER: 1
+  B12X_MLA_SM120_UNIFIED: 1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_batched_tokens: 16384
+  max_num_seqs: 10
+  performance_mode: throughput
+  num_speculative_tokens: 2
+  kv_cache_dtype: fp8
+  load_format: instanttensor
+  attention_backend: flashinfer
+  moe_backend: b12x
+  linear_backend: marlin
+  mtp_moe_backend: flashinfer_cutlass
+  mm_encoder_tp_mode: data
+  thinking: "true"
+  reasoning_effort: "xhigh"
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --performance-mode {performance_mode}
+  --kv-cache-dtype {kv_cache_dtype}
+  --attention-backend {attention_backend}
+  --moe-backend {moe_backend}
+  --linear-backend {linear_backend}
+  --load-format {load_format}
+  --default-chat-template-kwargs.thinking={thinking}
+  --default-chat-template-kwargs.reasoning_effort={reasoning_effort}
+  --speculative-config '{"method":"mtp","num_speculative_tokens":{num_speculative_tokens},"max_model_len":{max_model_len},"attention_backend":"{attention_backend}","moe_backend":"{mtp_moe_backend}"}'
+  --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"]}'
+  --no-enable-flashinfer-autotune  
+  --tool-call-parser qwen3_xml
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --async-scheduling
+  --trust-remote-code

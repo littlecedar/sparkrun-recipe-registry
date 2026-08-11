@@ -1,0 +1,40 @@
+recipe_version: "2"
+model: Qwen/Qwen3-VL-Reranker-2B
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+
+metadata:
+  description: Qwen/Qwen3-VL-Reranker-2B — vision-language reranker model for multimodal retrieval
+  model_url: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+
+mods:
+  - mods/pip-install-orjson
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.2
+  max_model_len: 32768
+  max_num_batched_tokens: 16384
+  max_num_seqs: 32
+  load_format: instanttensor
+  attention_backend: b12x_attn
+
+command: >
+  vllm serve {model}
+  --runner pooling
+  --gpu-memory-utilization {gpu_memory_utilization}
+  -tp {tensor_parallel}
+  --host {host}
+  --port {port}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --load-format {load_format}
+  --attention-backend {attention_backend}
+  --async-scheduling
+  --trust-remote-code
+
+#  --max-num-seqs {max_num_seqs}

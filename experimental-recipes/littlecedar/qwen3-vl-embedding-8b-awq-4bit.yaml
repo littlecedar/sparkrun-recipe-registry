@@ -1,0 +1,39 @@
+recipe_version: "2"
+model: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+
+metadata:
+  description: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit — vision-language embedding model for multimodal retrieval
+  model_url: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+
+mods:
+  - mods/pip-install-orjson
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.2
+  max_model_len: 32768
+  max_num_batched_tokens: 16384
+  max_num_seqs: 32
+  attention_backend: flashinfer-b12x
+  load_format: instanttensor
+
+command: >
+  vllm serve {model}
+  --runner pooling
+  --gpu-memory-utilization {gpu_memory_utilization}
+  -tp {tensor_parallel}
+  --host {host}
+  --port {port}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --attention-backend {attention_backend}
+  --load-format {load_format}
+  --async-scheduling
+  --trust-remote-code
