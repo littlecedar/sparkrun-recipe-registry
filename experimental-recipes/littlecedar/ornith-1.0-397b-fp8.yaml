@@ -21,7 +21,7 @@ defaults:
   tool_call_parser: qwen3_xml
   kv_cache_dtype: auto
   load_format: fastsafetensors
-  #load_format: fastsafetensors  attention_backend: flashinfer
+  attention_backend: flashinfer
   reasoning_parser: qwen3
   quantization: compressed-tensors
   max_batched_tokens: 16384
