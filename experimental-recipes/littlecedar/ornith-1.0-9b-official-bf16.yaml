@@ -22,9 +22,7 @@ defaults:
   load_format: fastsafetensors
   attention_backend: flashinfer
   reasoning_parser: qwen3
-  quantization: compressed-tensors
   max_batched_tokens: 16384
-  mamba_cache_dtype: float32
   media_limit_video_count: 2
   media_limit_video_frames: 2
   media_limit_video_width: 1920
@@ -33,9 +31,6 @@ defaults:
   media_limit_image_width: 1920
   media_limit_image_height: 1080
   media_encoder_tp_mode: data
-  top_p: 0.95
-  top_k: 20
-  temperature: 0.6
 
 env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -45,15 +40,11 @@ env:
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --quantization {quantization} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
     --gpu-memory-utilization {gpu_memory_utilization} \
     --host {host} \
     --port {port} \
-    --kv-cache-dtype auto \
-    --mamba-cache-dtype {mamba_cache_dtype} \
-    --mamba-cache-mode align \
     --max-num-batched-tokens {max_batched_tokens} \
     --load-format {load_format} \
     --attention-backend {attention_backend} \
@@ -70,5 +61,4 @@ command: |
     --limit-mm-per-prompt.image.height {media_limit_image_height} \
     --mm-encoder-tp-mode {media_encoder_tp_mode} \
     --trust-remote-code \
-    -tp {tensor_parallel} \
-    --generation-config auto
+    -tp {tensor_parallel}
