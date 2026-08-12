@@ -19,7 +19,6 @@ defaults:
   max_model_len: 262144
   served_model_name: ornith-small
   tool_call_parser: qwen3_xml
-  kv_cache_dtype: auto
   load_format: fastsafetensors
   attention_backend: flashinfer
   reasoning_parser: qwen3
@@ -52,7 +51,7 @@ command: |
     --gpu-memory-utilization {gpu_memory_utilization} \
     --host {host} \
     --port {port} \
-    --kv-cache-dtype {kv_cache_dtype} \
+    --kv-cache-dtype auto \
     --mamba-cache-dtype {mamba_cache_dtype} \
     --mamba-cache-mode align \
     --max-num-batched-tokens {max_batched_tokens} \
