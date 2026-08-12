@@ -27,7 +27,7 @@ defaults:
   max_batched_tokens: 16384
   mamba_cache_dtype: float32
   media_limit_video_count: 2
-  media_limit_video_frames: 1024
+  media_limit_video_frames: 2
   media_limit_video_width: 1920
   media_limit_video_height: 1080
   media_limit_image_count: 4
