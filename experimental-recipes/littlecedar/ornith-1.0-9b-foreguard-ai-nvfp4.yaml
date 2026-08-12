@@ -1,0 +1,57 @@
+recipe_version: "2"
+model: forgeguard-ai/Ornith-1.0-9B-NVFP4
+model_url: https://huggingface.co/forgeguard-ai/Ornith-1.0-9B-NVFP4
+runtime: vllm
+min_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+metadata:
+  description: |
+    Ornith-1.0-9B — NVFP4 (W4A4, calibrated) + MTP
+
+    Calibrated NVFP4 quantization of deepreinforce-ai/Ornith-1.0-9B for vLLM — with the MTP draft head included as a bf16 sidecar for lossless speculative decoding out of the box.
+
+    10.4 GB (from 19 GB bf16) · ~1.5× faster than bf16+MTP under identical load · full release-gate parity vs bf16 · coherence-verified to 60K context. Quantized and gate-verified by protoLabs on RTX PRO 6000 Blackwell (sm120), vLLM 0.22.1.
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: 9B
+  model_dtype: bf16
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  gpu_memory_utilization: 0.2
+  max_model_len: 262144
+  served_model_name: ornith-9b-nvfp4-mpt
+  tool_call_parser: qwen3_xml
+  load_format: fastsafetensors
+  attention_backend: flashinfer
+  reasoning_parser: qwen3
+  quantization: compressed-tensors
+  max_batched_tokens: 16384
+  speculative_config: '{"method":"mtp","num_speculative_tokens":1}'
+
+env:
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  VLLM_MARLIN_USE_ATOMIC_ADD: "1"
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0"
+  VLLM_USE_FLASHINFER_MOE_FP4: "0"
+  VLLM_NVFP4_GEMM_BACKEND: marlin
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --quantization {quantization} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --host {host} \
+    --port {port} \
+    --max-num-batched-tokens {max_batched_tokens} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
+    --enable-prefix-caching \
+    --enable-chunked-prefill \
+    --max-model-len {max_model_len} \
+    --reasoning-parser {reasoning_parser} \
+    --trust-remote-code \
+    --speculative-config '{speculative_config}'
