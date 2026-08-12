@@ -14,7 +14,7 @@ metadata:
 defaults:
   port: 8000
   host: 0.0.0.0
-  tensor_parallel: 0
+  tensor_parallel: 1
   gpu_memory_utilization: 0.4
   max_model_len: 262144
   served_model_name: ornith-medium
@@ -41,7 +41,9 @@ defaults:
 env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
   VLLM_MARLIN_USE_ATOMIC_ADD: "1"
-  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0"  # memory calc may cause crashes
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0"
+  VLLM_USE_FLASHINFER_MOE_FP4: "0"
+  VLLM_NVFP4_GEMM_BACKEND: marlin
 
 command: |
   vllm serve {model} \
