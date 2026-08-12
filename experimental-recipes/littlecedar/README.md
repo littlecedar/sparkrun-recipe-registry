@@ -26,8 +26,8 @@ averages higher Everest, and everything goes _hnnnnnnnggg_ for a while. This is 
 |-------|------------|-------|-----------|-------|---------|----|------------------------------------------------------|
 | ✅    | 397b       | FP8   | 405.2     | 4     | 0.8     | 4  | ornith-ai/Ornith-1.0-397B-FP8                        |
 | ❌    | 397b       | MXFP4 | 225.9     | 2     | 0.8     | 2  | model/olka-fi/Ornith-1.0-397B-MXFP4                  |
-| ✅    | 35b        | BF16  |           | 2     | 0.8     | 0  | ornith-ai/Ornith-1.0-35B                             |
-| ✅    | 35b        | FP8   | 70.3      | 1     | 0.8     | 0  | ornith-ai/Ornith-1.0-35B-FP8                         |
+| ✅    | 35b        | BF16  | 70.3G     | 1     | 0.8     | 0  | ornith-ai/Ornith-1.0-35B                             |
+| ✅    | 35b        | FP8   | 37.7      | 1     | 0.4     | 0  | ornith-ai/Ornith-1.0-35B-FP8                         |
 | ❌🔥  | 35b        | NVFP4 | 23.8      | 1     | 0.4     | 0  | AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4 |
 | ✅    | 9b         | BF16  | 18.8      | 1     | 0.4     | 0  | ornith-ai/Ornith-1.0-9B                              |
 
