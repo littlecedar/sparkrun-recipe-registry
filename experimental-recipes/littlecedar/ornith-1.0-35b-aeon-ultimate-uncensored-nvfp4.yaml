@@ -1,13 +1,13 @@
 recipe_version: "2"
 model: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
 model_url: https://huggingface.co/AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
-runtime: vllm
+runtime: vllm-distributed
 min_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
 metadata:
   description: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
-  maintainer: Little Cedar Group <ai@littlecedar.net>
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: 35B
   model_dtype: nvfp4
 
@@ -15,9 +15,9 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
-  gpu_memory_utilization: 0.3
+  gpu_memory_utilization: 0.4
   max_model_len: 262144
-  served_model_name: ornith-35b-uncensored
+  served_model_name: ornith-medium
   tool_call_parser: qwen3_xml
   kv_cache_dtype: auto
   load_format: fastsafetensors
