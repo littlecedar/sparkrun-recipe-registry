@@ -20,7 +20,7 @@ defaults:
   served_model_name: ornith-397b-fp8
   tool_call_parser: qwen3_xml
   kv_cache_dtype: auto
-  load_format: safetensors
+  load_format: fastsafetensors
   #load_format: fastsafetensors  attention_backend: flashinfer
   reasoning_parser: qwen3
   quantization: compressed-tensors
