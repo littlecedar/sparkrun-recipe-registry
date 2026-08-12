@@ -4,11 +4,11 @@ _Brought to you by Little Cedar Group._
 
 # Notes
 
-## FastSafeTensors
+## FastSafeTensors go _hnnnnnnnnggg_
 
 TL;DR -- `fastsafetensors` will make it look like your machine is hung until the model shards finish loading.  **This can take a long time on large models** (30+ minutes for 397b models)**!**  Nothing is wrong with your Spark(s).  Be patient.
 
-To speed up model loading, we specify `load_format: fastsafetensors` in the recipes.  The (mostly cosmetic) downside of [`fastsafetensors`](https://github.com/foundation-model-stack/fastsafetensors/blob/main/README.md) is that it loads all model shards simultaneously which causes a massive amount of CPU and IO load.  Even on the DGX Spark, which is the perfect candidate for `fastsafetensors`, this will cause the machine to _appear_ to be hung while model shards load.  If you're observing this with `sudo nice --20 btop`, for example, you can expect to see CPU utilization ramp up to 100% and load averages higher than anything you thought possible. 
+To speed up model loading, we specify `load_format: fastsafetensors` in the recipes.  The (mostly cosmetic) downside of [`fastsafetensors`](https://github.com/foundation-model-stack/fastsafetensors/blob/main/README.md) is that it loads all model shards simultaneously which causes a massive amount of CPU and IO load.  Even on the DGX Spark, which is the perfect candidate for `fastsafetensors`, this will cause the machine to _appear_ to be hung while model shards load.  Even if you're observing this with `sudo nice --20 btop`, you can expect to see CPU utilization ramp up to 100%, load averages higher Everest, and everything goes _hnnnnnnnggg_ for a while.  This is _normal_.  idfk.
 
 # Recipes
 
