@@ -2,7 +2,7 @@ recipe_version: "2"
 model: ornith-ai/Ornith-1.0-35B
 model_url: https://huggingface.co/ornith-ai/Ornith-1.0-35B
 runtime: vllm-distributed
-min_nodes: 1
+min_nodes: 2
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
 metadata:
@@ -14,7 +14,7 @@ metadata:
 defaults:
   port: 8000
   host: 0.0.0.0
-  tensor_parallel: 1
+  tensor_parallel: 2
   gpu_memory_utilization: 0.8
   max_model_len: 262144
   served_model_name: ornith-medium
