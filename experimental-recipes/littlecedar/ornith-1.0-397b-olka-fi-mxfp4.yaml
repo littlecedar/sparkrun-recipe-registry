@@ -2,7 +2,7 @@ recipe_version: "2"
 model: olka-fi/Ornith-1.0-397B-MXFP4
 model_url: https://huggingface.co/olka-fi/Ornith-1.0-397B-MXFP4
 runtime: vllm
-min_nodes: 3
+min_nodes: 4
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
 metadata:
@@ -14,7 +14,7 @@ metadata:
 defaults:
   port: 8000
   host: 0.0.0.0
-  tensor_parallel: 3
+  tensor_parallel: 4
   gpu_memory_utilization: 0.8
   max_model_len: 262144
   served_model_name: olka-fi/Ornith-1.0-397B-MXFP4
