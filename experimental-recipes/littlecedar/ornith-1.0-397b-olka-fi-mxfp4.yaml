@@ -51,4 +51,4 @@ command: |
     --reasoning-parser {reasoning_parser} \
     --mm-encoder-tp-mode {media_encoder_tp_mode} \  
     --trust-remote-code \
-    -tp {tensor_parallel} \
+    -tp {tensor_parallel}
