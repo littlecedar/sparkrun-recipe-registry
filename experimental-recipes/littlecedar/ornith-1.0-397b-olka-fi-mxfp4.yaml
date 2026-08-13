@@ -9,7 +9,7 @@ metadata:
   description: Ornith-1.0-397B-MXFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: 397B
-  model_dtype: nvfp4
+  model_dtype: mxfp4
 
 defaults:
   port: 8000
