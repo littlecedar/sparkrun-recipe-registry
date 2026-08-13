@@ -9,7 +9,7 @@ metadata:
   description: Ornith-1.0-397B-MXFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: 397B
-  model_dtype: mxfp4
+  model_dtype: nvfp4
 
 defaults:
   port: 8000
@@ -24,6 +24,7 @@ defaults:
   reasoning_parser: qwen3
   quantization: compressed-tensors
   max_batched_tokens: 16384
+  media_encoder_tp_mode: data
 
 env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -48,5 +49,6 @@ command: |
     --enable-chunked-prefill \
     --max-model-len {max_model_len} \
     --reasoning-parser {reasoning_parser} \
+    --mm-encoder-tp-mode {media_encoder_tp_mode} \  
     --trust-remote-code \
     -tp {tensor_parallel} \
