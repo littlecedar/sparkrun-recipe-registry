@@ -35,7 +35,7 @@ _Flags indicate characteristics of the model._
 
 | Flags | Parameters | Quant | Size (GB) | Nodes | GPU Mem | TP | Model Card                                             |
 |-------|------------|-------|-----------|-------|---------|----|--------------------------------------------------------|
-| ✅    | 397b       | FP8   | 405.2     | 4     | 0.8     | 4  | [ornith-ai/Ornith-1.0-397B-FP8]                        |
+| ✅    | 397b       | FP8   | 405.2     | 5     | 0.8     | 5  | [ornith-ai/Ornith-1.0-397B-FP8]                        |
 | ❌    | 397b       | MXFP4 | 225.9     | 3     | 0.8     | 3  | [model/olka-fi/Ornith-1.0-397B-MXFP4]                  |
 | ✅    | 35b        | FP8   | 37.7      | 1     | 0.4     | 0  | [ornith-ai/Ornith-1.0-35B-FP8]                         |
 | ❌🔥  | 35b        | NVFP4 | 23.8      | 1     | 0.4     | 0  | [AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4] |
