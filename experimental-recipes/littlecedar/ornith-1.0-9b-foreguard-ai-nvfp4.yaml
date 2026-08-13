@@ -19,7 +19,7 @@ metadata:
 defaults:
   port: 8000
   host: 0.0.0.0
-  gpu_memory_utilization: 0.42
+  gpu_memory_utilization: 0.4
   max_model_len: 262144
   served_model_name: ornith-9b-nvfp4-mpt
   tool_call_parser: qwen3_xml
@@ -34,7 +34,6 @@ env:
   VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
   VLLM_MARLIN_USE_ATOMIC_ADD: "1"
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0"
-  VLLM_USE_FLASHINFER_MOE_FP4: "0"
   VLLM_NVFP4_GEMM_BACKEND: marlin
 
 command: |
