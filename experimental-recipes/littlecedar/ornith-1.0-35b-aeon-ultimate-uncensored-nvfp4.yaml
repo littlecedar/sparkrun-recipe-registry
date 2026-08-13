@@ -1,7 +1,7 @@
 recipe_version: "2"
 model: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
 model_url: https://huggingface.co/AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
-runtime: vllm-distributed
+runtime: vllm
 min_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
