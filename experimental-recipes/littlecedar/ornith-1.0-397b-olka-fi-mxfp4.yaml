@@ -3,7 +3,8 @@ model: olka-fi/Ornith-1.0-397B-MXFP4
 model_url: https://huggingface.co/olka-fi/Ornith-1.0-397B-MXFP4
 runtime: vllm
 min_nodes: 4
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+#container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+container: vllm-node
 
 metadata:
   description: Ornith-1.0-397B-MXFP4
@@ -51,4 +52,5 @@ command: |
     --reasoning-parser {reasoning_parser} \
     --mm-encoder-tp-mode {media_encoder_tp_mode} \  
     --trust-remote-code \
-    -tp {tensor_parallel}
+    -tp {tensor_parallel} \
+    --distributed-executor-backend ray
