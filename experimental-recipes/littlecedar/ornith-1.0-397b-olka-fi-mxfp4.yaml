@@ -17,6 +17,7 @@ defaults:
   tensor_parallel: 4
   gpu_memory_utilization: 0.8
   max_model_len: 262144
+  max_num_seqs: 128
   served_model_name: olka-fi/Ornith-1.0-397B-MXFP4
   tool_call_parser: qwen3_xml
   load_format: fastsafetensors
@@ -48,6 +49,7 @@ command: |
     --enable-prefix-caching \
     --enable-chunked-prefill \
     --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
     --reasoning-parser {reasoning_parser} \
     --mm-encoder-tp-mode {media_encoder_tp_mode} \  
     --trust-remote-code \
