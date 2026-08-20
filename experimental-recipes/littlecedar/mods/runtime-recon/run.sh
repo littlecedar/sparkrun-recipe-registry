@@ -66,10 +66,10 @@ if [[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]]; then
 fi
 if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
   gzip  "${LOGDIR}/${MOD_NAME}.log"
-  reown "${LOGDIR}/${MOD_NAME}.log.gz"
   touch "${LOGDIR}/${MOD_NAME}.log"
-  reown "${LOGDIR}/${MOD_NAME}.log"
 fi
+reown "${LOGDIR}"
+
 
 #####
 
