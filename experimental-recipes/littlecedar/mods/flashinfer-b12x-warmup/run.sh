@@ -67,7 +67,7 @@ log_cmd flashinfer collect-env
 
 log "=== precompile ==="
 log "Precompiling FlashInfer & SM121 CuTe-DSL kernels..."
-2>&1 python3 -vc "
+2>&1 python3 -c "
 import flashinfer
 import b12x
 " | log
