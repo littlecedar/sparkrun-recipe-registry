@@ -14,7 +14,7 @@ MOD_DESCRIPTION="Pre-compile FlashInfer b12x/SM121 CuTe-DSL kernels"
 MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 # Mod Config
-MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-1}"
+MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-16}"
 export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
 LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"

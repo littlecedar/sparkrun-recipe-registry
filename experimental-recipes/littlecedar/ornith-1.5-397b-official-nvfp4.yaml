@@ -20,16 +20,8 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
 mods:
-  - runtime-recon
+  # Trigger lazy compilations at startup rather than OOMing the box later.
   - flashinfer-b12x-warmup
-
-# Possible fix for OOM on CuTe-DSL compilation
-env:
-  MAX_JOBS: 1
-  NINJAFLAGS: -j1
-  MAKEFLAGS: -j1
-  CMAKE_BUILD_PARALLEL_LEVEL: 1
-  FLASHINFER_LOGLEVEL: 1
 
 defaults:
   port: 8000
@@ -82,11 +74,3 @@ command: |
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
-
-
-# If you're using the b12x library directly, also warm up shapes before serving:
-#MAX_JOBS=4 python -c "
-#import flashinfer
-#import b12x
-# trigger all lazy compilations at startup
-#"
