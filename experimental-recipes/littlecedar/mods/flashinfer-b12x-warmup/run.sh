@@ -4,17 +4,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # README
-# Pre-compile FlashInfer SM121 CuTe-DSL kernels with a capped ninja job count
+# Compile FlashInfer SM121 CuTe-DSL kernels with a capped ninja job count
 # to avoid OOMing the DGX Spark's 128 GB unified memory during compilation.
-# Kernels are cached to ~/.cache/flashinfer/ and reused on subsequent launches.
 
 # Metadata
 MOD_NAME="flashinfer-b12x-warmup"
-MOD_DESCRIPTION="Pre-compile FlashInfer b12x/SM121 CuTe-DSL kernels"
+MOD_DESCRIPTION="Cap ninja jobs when compiling flashinfer kernels"
 MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 # Mod Config
-MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-16}"
+MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-4}"
 export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
 LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"
@@ -75,28 +74,15 @@ if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
 fi
 reown "${LOGDIR}"
 
-
 #####
 log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 log_var MAX_JOBS
 
-log_cmd flashinfer collect-env
+BUILD_BACKEND_PY="$(find /usr/local/lib -name build_backend.py | grep flashinfer)"
 
-log "=== precompile ==="
-log "Precompiling FlashInfer & SM121 CuTe-DSL kernels..."
-2>&1 python3 -c "
-import flashinfer
-import b12x
-" | log
-
-log_cmd flashinfer module-status
-
-# ERROR 08-20 18:21:37 [multiproc_executor.py:942] PermissionError: [Errno 13] Permission denied: '/tmp/.cache/flashinfer/0.6.18/121a/flashinfer_jit.log'
-reown /tmp
-
-flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
-log_cmd stat "$flashinfer_log"
-log_cmd cat "$flashinfer_log"
+log "Capping ninja max build jobs by patching ${BUILD_BACKEND_PY}"
+log_cmd sed -i.bak -e "s/\[\"ninja\", \"-C\",/[\"ninja\", \"-j${MAX_JOBS}\", \"-C\",/" "${BUILD_BACKEND_PY}"
+log_cmd grep 'ninja_cmd.*"-j' "${BUILD_BACKEND_PY}"
 
 log "Done."
