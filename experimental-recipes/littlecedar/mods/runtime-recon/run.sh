@@ -13,6 +13,7 @@ MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 # Mod Config
 TIMEOUT="${RUNTIME_RECON_TIMEOUT:-180}"
+LOGDIR="${RUNTIME_RECON_LOGDIR:-/cache/logs}"
 
 # Helpers
 log() {
@@ -23,7 +24,8 @@ log() {
     local _ts _message
     _message="${*}"
     _ts="$(date -Ins)"
-    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}" | tee -a ~/runtime-recon.log
+    ! [[ -d "${LOGDIR}" ]] && mkdir -p "${LOGDIR}"
+    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}" | tee -a "${LOGDIR}/${MOD_NAME}.log"
     [[ -x "$(type -fp logger)" ]] && logger -t "${MOD_NAME}" -- "${_message}"
   }
 
@@ -58,6 +60,7 @@ cap_cmd whoami
 log_var UID
 log_var GID
 cap_cmd env
-cap_cmd find ~/.cache
+cap_cmd flashinfer collect-env
+cap_cmd flashinfer module-status
 
 log "Done."
