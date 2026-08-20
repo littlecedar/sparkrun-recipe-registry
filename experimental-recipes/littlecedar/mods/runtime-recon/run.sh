@@ -45,22 +45,20 @@ log_var() {
   log "${_key}=${_val}"
 }
 
-#####
-
-cap_cmd() {
+log_cmd() {
   log "=== ${1} ==="
   "${@}" | log
 }
 
-log "mod description: ${MOD_DESCRIPTION}"
-log "mod maintainer: ${MOD_MAINTAINER}"
+#####
+
+log "${MOD_NAME} - ${MOD_DESCRIPTION}"
+log "${MOD_MAINTAINER}"
 
 log "Gathering environment info..."
-cap_cmd whoami
+log_cmd whoami
 log_var UID
 log_var GID
-cap_cmd env
-cap_cmd flashinfer collect-env
-cap_cmd flashinfer module-status
+log_cmd env
 
 log "Done."

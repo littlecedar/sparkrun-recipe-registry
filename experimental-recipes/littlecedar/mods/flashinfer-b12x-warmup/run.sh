@@ -14,9 +14,10 @@ MOD_DESCRIPTION="Pre-compile FlashInfer b12x/SM121 CuTe-DSL kernels"
 MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 # Mod Config
-MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-8}"
+MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-1}"
 export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
+LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/logs}"
 
 # Helpers
 log() {
@@ -27,7 +28,8 @@ log() {
     local _ts _message
     _message="${*}"
     _ts="$(date -Ins)"
-    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}"
+    ! [[ -d "${LOGDIR}" ]] && mkdir -p "${LOGDIR}"
+    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}" | tee -a "${LOGDIR}/${MOD_NAME}.log"
     [[ -x "$(type -fp logger)" ]] && logger -t "${MOD_NAME}" -- "${_message}"
   }
 
@@ -47,17 +49,25 @@ log_var() {
   log "${_key}=${_val}"
 }
 
+log_cmd() {
+  log "=== ${1} ==="
+  "${@}" | log
+}
+
 #####
 
-log "mod description: ${MOD_DESCRIPTION}"
-log "mod maintainer: ${MOD_MAINTAINER}"
+log "${MOD_NAME} - ${MOD_DESCRIPTION}"
+log "${MOD_MAINTAINER}"
 log_var MAX_JOBS
 
 log "Precompiling FlashInfer SM121 CuTe-DSL kernels..."
 
-python3 -vvc "
+log_cmd flashinfer collect-env
+log_cmd flashinfer module-status
+
+log_cmd python3 -vvc "
 import flashinfer
 import b12x
-" | log
+"
 
 log "Done."
