@@ -20,16 +20,20 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
+  pipeline_parallel: 1
   gpu_memory_utilization: 0.8
   max_model_len: 262144
-  served_model_name: ornith-ai/Ornith-1.5-397B-NVFP4
-  tool_call_parser: qwen3_xml
-  load_format: fastsafetensors
+  max_num_batched_tokens: 16384
+  kv_cache_dtype: fp8
+  served_model_name: Ornith-1.5-397B-NVFP4
+  load_format: instanttensor
   attention_backend: flashinfer
-  reasoning_parser: qwen3
-  quantization: compressed-tensors
-  max_batched_tokens: 163840
-  media_encoder_tp_mode: data
+  moe_backend: flashinfer_b12x
+  max_batched_tokens: 16384
+  max_num_seqs: 8
+  performance_mode: interactivity
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":524288,"moe_backend":"flashinfer_b12x"}'
+  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
 
 #env:
 #  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
@@ -39,13 +43,29 @@ defaults:
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --gpu-memory-utilization {gpu_memory_utilization} \
-    --tensor-parallel-size {tensor_parallel} \ 
+    --gpu-memory-utilization {gpu_memory_utilization} \ 
     --host {host} \
     --port {port} \
     --max-model-len {max_model_len} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --max-num-seqs {max_num_seqs} \
+    --performance-mode {performance_mode} \  
+    --kv-cache-dtype {kv_cache_dtype} \
+    --attention-backend {attention_backend} \
+    --moe-backend {moe_backend} \
+    --load-format {load_format} \
     --enable-prefix-caching \
     --enable-auto-tool-choice \
-    --tool-call-parser {tool_call_parser} \
-    --reasoning-parser {reasoning_parser} \
-    --trust-remote-code
+    --tool-call-parser qwen3_xml \
+    --reasoning-parser qwen3 \
+    --trust-remote-code \
+    --async-scheduling \
+    --mamba-backend flashinfer \
+    --mamba-ssm-cache-dtype float16 \
+    --enable-mamba-cache-stochastic-rounding \
+    --mamba-cache-philox-rounds 5 \
+    --mamba-cache-mode all \ 
+    --speculative-config '{speculative_config}' \
+    --compilation-config '{compilation_config}' \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel}
