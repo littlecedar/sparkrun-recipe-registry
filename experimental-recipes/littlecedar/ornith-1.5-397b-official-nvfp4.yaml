@@ -29,13 +29,19 @@ defaults:
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
+  all-reduce-backend: flashinfer
+
   max_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
+  # add to compilation_config: only if CUDA invalid argument:
+  # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
-#env:
+env:
+  VLLM_ALLREDUCE_USE_FLASHINFER=1
+  VLLM_FLASHINFER_ALLREDUCE_BACKEND=auto
 #  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
 #  VLLM_USE_FLASHINFER_MOE_FP4: "0"
 #  VLLM_NVFP4_GEMM_BACKEND: marlin
