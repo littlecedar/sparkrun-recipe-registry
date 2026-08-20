@@ -50,8 +50,8 @@ log_var() {
 }
 
 log_cmd() {
-  log "=== ${1} ==="
-  "${@}" | log
+  log "\n\n=== ${1} ==="
+  "${@}" 2>&1 | log
 }
 
 #####
@@ -69,10 +69,11 @@ import flashinfer
 import b12x
 " | log
 
-flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log)"
+flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
 
 log_cmd stat "$flashinfer_log"
 log_cmd cat "$flashinfer_log"
+log_cmd rm -fv "$flashinfer_log"
 
 log_cmd flashinfer module-status
 
