@@ -93,7 +93,7 @@ import b12x
 log_cmd flashinfer module-status
 
 # ERROR 08-20 18:21:37 [multiproc_executor.py:942] PermissionError: [Errno 13] Permission denied: '/tmp/.cache/flashinfer/0.6.18/121a/flashinfer_jit.log'
-reown /tmp/.cache
+reown /tmp
 
 flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
 log_cmd stat "$flashinfer_log"
