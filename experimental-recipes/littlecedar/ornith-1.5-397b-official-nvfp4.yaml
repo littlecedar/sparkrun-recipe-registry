@@ -1,10 +1,13 @@
 recipe_version: "2"
+
 model: ornith-ai/Ornith-1.5-397B-NVFP4
-model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
-runtime: vllm
-min_nodes: 4
+model_revision: c4117555cec0158f908b43cbde6448b9f75984e2
+
+executor: docker
 #container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+runtime: vllm
+min_nodes: 4
 
 metadata:
   description: |
@@ -13,16 +16,20 @@ metadata:
     Chirp Chirp! 🐦 We are introducing Ornith-1.5, a major step toward building foundation models through end-to-end self-improvement.
 
     Ornith-1.5 extends Ornith-1.0 by expanding the self-improvement loop from scaffold and rollout optimization to jointly optimizing task generation, scaffold construction, and solution rollouts. Rather than relying on a fixed set of human-curated tasks and manually designed harnesses, Ornith-1.5 continuously generates new training tasks, discovers effective strategies for solving them, and improves the policy through reinforcement learning. For more details on the task, harness, and rollout reward design, please refer to our [blog](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  model_params: 397B
-  model_dtype: nvfp4
+  #model_params: 397B
+  #model_dtype: nvfp4
+
+mods:
+  - precompile-cutedsl
 
 defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.70
+  gpu_memory_utilization: 0.5
   max_model_len: 262144
   max_num_batched_tokens: 16384
   max_num_seqs: 8
@@ -68,3 +75,11 @@ command: |
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
+
+
+# If you're using the b12x library directly, also warm up shapes before serving:
+#MAX_JOBS=4 python -c "
+#import flashinfer
+#import b12x
+# trigger all lazy compilations at startup
+#"
