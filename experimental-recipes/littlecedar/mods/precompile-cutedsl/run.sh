@@ -5,7 +5,7 @@
 
 echo "[ninja-warmup] Pre-compiling FlashInfer SM121 CuTe-DSL kernels (MAX_JOBS=4)..."
 
-MAX_JOBS=4 python -c "
+MAX_JOBS=4 python3 -c "
 import flashinfer
 import b12x
 print('[ninja-warmup] FlashInfer kernel compilation complete.')
