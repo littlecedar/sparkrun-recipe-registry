@@ -67,7 +67,7 @@ log_cmd python3 -vc "
 import flashinfer
 import b12x
 "
-log_cmd "find /tmp/.cache/flashinfer/ -name flashinfer_jit.log -exec cat {} \\;"
+log_cmd "find /tmp/.cache/flashinfer/ -name flashinfer_jit.log -exec ls -la {} \\;"
 log_cmd flashinfer module-status
 
 
