@@ -36,8 +36,9 @@ defaults:
   performance_mode: interactivity
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
-  # add to compilation_config: only if CUDA invalid argument:
-  # '{"pass_config": {"fuse_allreduce_rms": false}}'
+
+# add to compilation_config: only if CUDA invalid argument:
+# '{"pass_config": {"fuse_allreduce_rms": false}}'
 
 env:
   VLLM_ALLREDUCE_USE_FLASHINFER=1
