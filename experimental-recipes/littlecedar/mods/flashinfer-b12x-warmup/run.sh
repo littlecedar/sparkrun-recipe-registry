@@ -77,10 +77,16 @@ import b12x
 
 log_cmd flashinfer module-status
 
-flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
+##### NOTE
+# Mods run as root and we can't tell the real uid:gid from environment,
+# so we have to infer from /cache/runtime ownership.
+#
+# ERROR 08-20 18:21:37 [multiproc_executor.py:942] PermissionError: [Errno 13] Permission denied: '/tmp/.cache/flashinfer/0.6.18/121a/flashinfer_jit.log'
+#
+log_cmd chown -R "$(stat -c '%u:%g' /cache/runtime)" /tmp/.cache
 
+flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
 log_cmd stat "$flashinfer_log"
 log_cmd cat "$flashinfer_log"
-log_cmd rm -fv "$flashinfer_log"
 
 log "Done."
