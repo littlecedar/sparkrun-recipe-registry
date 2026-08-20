@@ -3,9 +3,9 @@
 # to avoid OOMing the DGX Spark's 128 GB unified memory during compilation.
 # Kernels are cached to ~/.cache/flashinfer/ and reused on subsequent launches.
 
-echo "[ninja-warmup] Pre-compiling FlashInfer SM121 CuTe-DSL kernels (MAX_JOBS=4)..."
+echo "[ninja-warmup] Pre-compiling FlashInfer SM121 CuTe-DSL kernels (MAX_JOBS=8)..."
 
-MAX_JOBS=4 python3 -c "
+MAX_JOBS=8 python3 -c "
 import flashinfer
 import b12x
 print('[ninja-warmup] FlashInfer kernel compilation complete.')
