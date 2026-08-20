@@ -20,8 +20,8 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
 mods:
-  - mods/instanttensor-hybrid-draft-loader
-#  - flashinfer-b12x-warmup
+  #- mods/instanttensor-hybrid-draft-loader
+  - flashinfer-b12x-warmup
 
 defaults:
   port: 8000
