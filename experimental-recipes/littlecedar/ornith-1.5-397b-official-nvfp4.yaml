@@ -21,7 +21,7 @@ metadata:
 
 mods:
   - mods/instanttensor-hybrid-draft-loader
-  - flashinfer-b12x-warmup
+#  - flashinfer-b12x-warmup
 
 defaults:
   port: 8000
