@@ -46,6 +46,8 @@ log_var() {
 }
 
 log_cmd() {
+  log "            "
+  log "            "
   log "=== ${1} ==="
   "${@}" | log
 }

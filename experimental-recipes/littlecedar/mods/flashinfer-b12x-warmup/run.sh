@@ -50,6 +50,8 @@ log_var() {
 }
 
 log_cmd() {
+  log "            "
+  log "            "
   log "=== ${1} ==="
   "${@}" 2>&1 | log
 }
@@ -60,21 +62,22 @@ log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 log_var MAX_JOBS
 
-log "Precompiling FlashInfer SM121 CuTe-DSL kernels..."
 
 log_cmd flashinfer collect-env
+
 log "=== precompile ==="
-python3 -vc "
+log "Precompiling FlashInfer & SM121 CuTe-DSL kernels..."
+2>&1 python3 -vc "
 import flashinfer
 import b12x
 " | log
+
+log_cmd flashinfer module-status
 
 flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
 
 log_cmd stat "$flashinfer_log"
 log_cmd cat "$flashinfer_log"
 log_cmd rm -fv "$flashinfer_log"
-
-log_cmd flashinfer module-status
 
 log "Done."
