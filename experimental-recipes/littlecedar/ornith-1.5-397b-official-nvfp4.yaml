@@ -64,7 +64,7 @@ command: |
     --mamba-ssm-cache-dtype float16 \
     --enable-mamba-cache-stochastic-rounding \
     --mamba-cache-philox-rounds 5 \
-    --mamba-cache-mode all \ 
+    --mamba-cache-mode align \ 
     --speculative-config '{speculative_config}' \
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
