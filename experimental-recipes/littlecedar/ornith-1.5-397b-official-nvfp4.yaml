@@ -41,8 +41,8 @@ defaults:
 # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
 env:
-  VLLM_ALLREDUCE_USE_FLASHINFER=1
-  VLLM_FLASHINFER_ALLREDUCE_BACKEND=auto
+  VLLM_ALLREDUCE_USE_FLASHINFER: 1
+  VLLM_FLASHINFER_ALLREDUCE_BACKEND: auto
 
 command: |
   vllm serve {model} \
