@@ -3,7 +3,8 @@ model: ornith-ai/Ornith-1.5-397B-NVFP4
 model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
 runtime: vllm
 min_nodes: 4
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+#container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 
 metadata:
   description: |
@@ -28,13 +29,13 @@ defaults:
   served_model_name: Ornith-1.5-397B-NVFP4
   load_format: instanttensor
   attention_backend: flashinfer
-  #moe_backend: flashinfer_b12x
-  moe_backend: marlin
+  moe_backend: flashinfer_b12x
+  #moe_backend: marlin
   max_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
-  #speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
+  #speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
