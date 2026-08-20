@@ -20,7 +20,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
 mods:
-  # Trigger lazy compilations at startup rather than OOMing the box later.
+  - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
 
 defaults:
@@ -29,7 +29,8 @@ defaults:
   tensor_parallel: 4
   pipeline_parallel: 1
   gpu_memory_utilization: 0.8
-  max_model_len: 262144
+  #max_model_len: 262144
+  max_model_len: auto
   max_num_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
@@ -39,8 +40,9 @@ defaults:
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   #moe_backend: marlin
-  #speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
+  linear_backend: b12x
+  #speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"moe_backend":"marlin"}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
@@ -58,6 +60,7 @@ command: |
     --kv-cache-dtype {kv_cache_dtype} \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
+    --linear-backend {linear_backend} \
     --load-format {load_format} \
     --enable-prefix-caching \
     --enable-auto-tool-choice \
