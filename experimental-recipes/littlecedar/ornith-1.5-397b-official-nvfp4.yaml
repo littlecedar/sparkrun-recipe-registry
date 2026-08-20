@@ -1,0 +1,51 @@
+recipe_version: "2"
+model: ornith-ai/Ornith-1.5-397B-NVFP4
+model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
+runtime: vllm
+min_nodes: 4
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+metadata:
+  description: |
+    Ornith-1.5-397B
+
+    Chirp Chirp! 🐦 We are introducing Ornith-1.5, a major step toward building foundation models through end-to-end self-improvement.
+
+    Ornith-1.5 extends Ornith-1.0 by expanding the self-improvement loop from scaffold and rollout optimization to jointly optimizing task generation, scaffold construction, and solution rollouts. Rather than relying on a fixed set of human-curated tasks and manually designed harnesses, Ornith-1.5 continuously generates new training tasks, discovers effective strategies for solving them, and improves the policy through reinforcement learning. For more details on the task, harness, and rollout reward design, please refer to our [blog](https://ornith.ai/ornith_1_5.html).
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: 397B
+  model_dtype: nvfp4
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+  served_model_name: ornith-ai/Ornith-1.5-397B-NVFP4
+  tool_call_parser: qwen3_xml
+  load_format: fastsafetensors
+  attention_backend: flashinfer
+  reasoning_parser: qwen3
+  quantization: compressed-tensors
+  max_batched_tokens: 163840
+  media_encoder_tp_mode: data
+
+#env:
+#  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+#  VLLM_USE_FLASHINFER_MOE_FP4: "0"
+#  VLLM_NVFP4_GEMM_BACKEND: marlin
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --tensor-parallel-size {tensor_parallel} \ 
+    --host {host} \
+    --port {port} \
+    --max-model-len {max_model_len} \
+    --enable-prefix-caching \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --reasoning-parser {reasoning_parser} \
+    --trust-remote-code
