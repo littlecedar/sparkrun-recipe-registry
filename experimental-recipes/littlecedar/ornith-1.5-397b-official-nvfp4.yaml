@@ -22,7 +22,13 @@ metadata:
   #model_dtype: nvfp4
 
 mods:
-  - precompile-cutedsl
+  - runtime-recon
+#  - flashinfer-b12x-warmup
+
+# Possible fix for OOM on CuTe-DSL compilation
+env:
+  MAX_JOBS: 4
+  NINJAFLAGS: -j4
 
 defaults:
   port: 8000
