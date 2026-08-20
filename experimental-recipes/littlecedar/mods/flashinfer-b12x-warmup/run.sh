@@ -63,11 +63,12 @@ log_var MAX_JOBS
 log "Precompiling FlashInfer SM121 CuTe-DSL kernels..."
 
 log_cmd flashinfer collect-env
-log_cmd flashinfer module-status
-
-log_cmd python3 -vvc "
+log_cmd python3 -vc "
 import flashinfer
 import b12x
 "
+log_cmd "find /tmp/.cache/flashinfer/ -name flashinfer_jit.log -exec cat {} \\;"
+log_cmd flashinfer module-status
+
 
 log "Done."
