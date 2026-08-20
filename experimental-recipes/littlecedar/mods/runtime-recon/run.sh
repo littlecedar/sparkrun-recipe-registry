@@ -15,6 +15,10 @@ MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 TIMEOUT="${RUNTIME_RECON_TIMEOUT:-180}"
 LOGDIR="${RUNTIME_RECON_LOGDIR:-/cache/runtime/modlogs}"
 
+# Rotate logs
+[[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]] && rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
+[[ -f "${LOGDIR}/${MOD_NAME}.log" ]]    && gzip  "${LOGDIR}/${MOD_NAME}.log"
+
 # Helpers
 log() {
   local _message

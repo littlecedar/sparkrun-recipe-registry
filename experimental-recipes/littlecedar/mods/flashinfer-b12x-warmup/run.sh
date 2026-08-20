@@ -19,6 +19,10 @@ export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
 LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"
 
+# Rotate logs
+[[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]] && rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
+[[ -f "${LOGDIR}/${MOD_NAME}.log" ]]    && gzip  "${LOGDIR}/${MOD_NAME}.log"
+
 # Helpers
 log() {
   local _message
@@ -61,7 +65,6 @@ log_cmd() {
 log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 log_var MAX_JOBS
-
 
 log_cmd flashinfer collect-env
 
