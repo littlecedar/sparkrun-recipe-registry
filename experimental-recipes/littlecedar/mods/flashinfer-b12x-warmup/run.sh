@@ -18,10 +18,15 @@ MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-16}"
 export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
 LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"
+# Mods run as root and we can't tell the real uid:gid from environment,
+# so we have to infer from /cache/runtime ownership.
+USER_UID="$(stat -c '%u' /cache/runtime)"
+USER_GID="$(stat -c '%g' /cache/runtime)"
 
-# Rotate logs
-[[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]] && rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
-[[ -f "${LOGDIR}/${MOD_NAME}.log" ]]    && gzip  "${LOGDIR}/${MOD_NAME}.log"
+# Helpers
+reown() {
+  chown -R "${USER_UID}:${USER_GID}" "${@}"
+}
 
 # Helpers
 log() {
@@ -60,6 +65,17 @@ log_cmd() {
   "${@}" 2>&1 | log
 }
 
+# Rotate logs
+if [[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]]; then
+  rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
+fi
+if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
+  gzip  "${LOGDIR}/${MOD_NAME}.log"
+  reown "${LOGDIR}/${MOD_NAME}.log.gz"
+  touch "${LOGDIR}/${MOD_NAME}.log"
+  reown "${LOGDIR}/${MOD_NAME}.log"
+fi
+
 #####
 
 log "${MOD_NAME} - ${MOD_DESCRIPTION}"
@@ -77,13 +93,8 @@ import b12x
 
 log_cmd flashinfer module-status
 
-##### NOTE
-# Mods run as root and we can't tell the real uid:gid from environment,
-# so we have to infer from /cache/runtime ownership.
-#
 # ERROR 08-20 18:21:37 [multiproc_executor.py:942] PermissionError: [Errno 13] Permission denied: '/tmp/.cache/flashinfer/0.6.18/121a/flashinfer_jit.log'
-#
-log_cmd chown -R "$(stat -c '%u:%g' /cache/runtime)" /tmp/.cache
+reown /tmp/.cache
 
 flashinfer_log="$(find /tmp/.cache/flashinfer/ -name flashinfer_jit.log 2>/dev/null)"
 log_cmd stat "$flashinfer_log"

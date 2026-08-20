@@ -14,12 +14,16 @@ MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 # Mod Config
 TIMEOUT="${RUNTIME_RECON_TIMEOUT:-180}"
 LOGDIR="${RUNTIME_RECON_LOGDIR:-/cache/runtime/modlogs}"
-
-# Rotate logs
-[[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]] && rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
-[[ -f "${LOGDIR}/${MOD_NAME}.log" ]]    && gzip  "${LOGDIR}/${MOD_NAME}.log"
+# Mods run as root and we can't tell the real uid:gid from environment,
+# so we have to infer from /cache/runtime ownership.
+USER_UID="$(stat -c '%u' /cache/runtime)"
+USER_GID="$(stat -c '%g' /cache/runtime)"
 
 # Helpers
+reown() {
+  chown -R "${USER_UID}:${USER_GID}" "${@}"
+}
+
 log() {
   local _message
   _message="${*}"
@@ -55,6 +59,17 @@ log_cmd() {
   log "=== ${1} ==="
   "${@}" | log
 }
+
+# Rotate logs
+if [[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]]; then
+  rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
+fi
+if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
+  gzip  "${LOGDIR}/${MOD_NAME}.log"
+  reown "${LOGDIR}/${MOD_NAME}.log.gz"
+  touch "${LOGDIR}/${MOD_NAME}.log"
+  reown "${LOGDIR}/${MOD_NAME}.log"
+fi
 
 #####
 
