@@ -13,7 +13,7 @@ MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 # Mod Config
 TIMEOUT="${RUNTIME_RECON_TIMEOUT:-180}"
-LOGDIR="${RUNTIME_RECON_LOGDIR:-/cache/logs}"
+LOGDIR="${RUNTIME_RECON_LOGDIR:-/cache/runtime/modlogs}"
 
 # Helpers
 log() {

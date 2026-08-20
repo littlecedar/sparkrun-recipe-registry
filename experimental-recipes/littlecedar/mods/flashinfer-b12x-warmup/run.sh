@@ -17,7 +17,7 @@ MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-1}"
 export MAX_JOBS
 TIMEOUT="${FLASHINFER_B12X_WARMUP_TIMEOUT:-180}"
-LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/logs}"
+LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"
 
 # Helpers
 log() {
