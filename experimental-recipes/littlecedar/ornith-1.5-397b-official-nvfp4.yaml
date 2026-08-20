@@ -40,10 +40,6 @@ defaults:
 # add to compilation_config: only if CUDA invalid argument:
 # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
-env:
-  VLLM_ALLREDUCE_USE_FLASHINFER: 1
-  VLLM_FLASHINFER_ALLREDUCE_BACKEND: auto
-
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
