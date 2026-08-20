@@ -23,7 +23,7 @@ log() {
     local _ts _message
     _message="${*}"
     _ts="$(date -Ins)"
-    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}"
+    printf '%s [%s] %s\n' "$_ts" "${MOD_NAME}" "${_message}" | tee -a ~/.cache/sparkrun/runtime-cache/runtime-recon.log
     [[ -x "$(type -fp logger)" ]] && logger -t "${MOD_NAME}" -- "${_message}"
   }
 
