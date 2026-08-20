@@ -24,16 +24,15 @@ defaults:
   pipeline_parallel: 1
   gpu_memory_utilization: 0.75
   max_model_len: 262144
-  max_num_batched_tokens: 16384
+  max_num_batched_tokens: 8192
+  max_num_seqs: 8
+  performance_mode: interactivity
   kv_cache_dtype: fp8
   served_model_name: Ornith-1.5-397B-NVFP4
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   #moe_backend: marlin
-  max_batched_tokens: 16384
-  max_num_seqs: 8
-  performance_mode: interactivity
   #speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
