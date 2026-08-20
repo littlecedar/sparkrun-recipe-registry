@@ -21,7 +21,7 @@ metadata:
 
 mods:
   - runtime-recon
-#  - flashinfer-b12x-warmup
+  - flashinfer-b12x-warmup
 
 # Possible fix for OOM on CuTe-DSL compilation
 env:
