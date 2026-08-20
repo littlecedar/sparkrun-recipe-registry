@@ -1,0 +1,79 @@
+recipe_version: "2"
+
+model: ornith-ai/Ornith-1.5-397B-NVFP4
+model_revision: c4117555cec0158f908b43cbde6448b9f75984e2
+
+executor: docker
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+runtime: vllm
+min_nodes: 4
+
+metadata:
+  description: |
+    Ornith-1.5-397B
+
+    Chirp Chirp! 🐦 We are introducing Ornith-1.5, a major step toward building foundation models through end-to-end self-improvement.
+
+    Ornith-1.5 extends Ornith-1.0 by expanding the self-improvement loop from scaffold and rollout optimization to jointly optimizing task generation, scaffold construction, and solution rollouts. Rather than relying on a fixed set of human-curated tasks and manually designed harnesses, Ornith-1.5 continuously generates new training tasks, discovers effective strategies for solving them, and improves the policy through reinforcement learning. For more details on the task, harness, and rollout reward design, please refer to our [blog](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+
+mods:
+  #- mods/instanttensor-hybrid-draft-loader
+  - flashinfer-b12x-warmup
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.7
+  #max_model_len: 262144
+  max_model_len: auto
+  #max_num_batched_tokens: 16384
+  max_num_batched_tokens: 2048
+  max_num_seqs: 8
+  performance_mode: interactivity
+  kv_cache_dtype: fp8
+  kv_cache_memory_gb: 16
+  served_model_name: Ornith-1.5-397B-NVFP4
+  load_format: instanttensor
+  attention_backend: flashinfer
+  moe_backend: flashinfer_b12x
+  linear_backend: b12x
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
+  # add to compilation_config: only if getting CUDA invalid argument errors:
+  # '{"pass_config": {"fuse_allreduce_rms": false}}'
+
+# --kv-cache-memory "{kv_cache_memory_gb} GiB" \
+# --speculative-config '{speculative_config}' \
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --gpu-memory-utilization {gpu_memory_utilization} \ 
+    --host {host} \
+    --port {port} \
+    --max-model-len {max_model_len} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --max-num-seqs {max_num_seqs} \
+    --performance-mode {performance_mode} \  
+    --kv-cache-dtype {kv_cache_dtype} \
+    --attention-backend {attention_backend} \
+    --moe-backend {moe_backend} \
+    --linear-backend {linear_backend} \
+    --load-format {load_format} \
+    --enable-prefix-caching \
+    --enable-auto-tool-choice \
+    --tool-call-parser qwen3_xml \
+    --reasoning-parser qwen3 \
+    --trust-remote-code \
+    --async-scheduling \
+    --mamba-backend flashinfer \
+    --mamba-ssm-cache-dtype float16 \
+    --enable-mamba-cache-stochastic-rounding \
+    --mamba-cache-philox-rounds 5 \
+    --mamba-cache-mode align \ 
+    --compilation-config '{compilation_config}' \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel}
