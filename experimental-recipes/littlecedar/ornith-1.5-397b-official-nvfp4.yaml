@@ -4,8 +4,7 @@ model: ornith-ai/Ornith-1.5-397B-NVFP4
 model_revision: c4117555cec0158f908b43cbde6448b9f75984e2
 
 executor: docker
-#container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 runtime: vllm
 min_nodes: 4
 
@@ -18,10 +17,6 @@ metadata:
     Ornith-1.5 extends Ornith-1.0 by expanding the self-improvement loop from scaffold and rollout optimization to jointly optimizing task generation, scaffold construction, and solution rollouts. Rather than relying on a fixed set of human-curated tasks and manually designed harnesses, Ornith-1.5 continuously generates new training tasks, discovers effective strategies for solving them, and improves the policy through reinforcement learning. For more details on the task, harness, and rollout reward design, please refer to our [blog](https://ornith.ai/ornith_1_5.html).
   model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-
-mods:
-  #- mods/instanttensor-hybrid-draft-loader
-  - flashinfer-b12x-warmup
 
 defaults:
   port: 8000
@@ -38,14 +33,9 @@ defaults:
   served_model_name: Ornith-1.5-397B-NVFP4
   load_format: instanttensor
   attention_backend: flashinfer
-  moe_backend: flashinfer_b12x
-  #moe_backend: marlin
-  linear_backend: b12x
-  #speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"moe_backend":"marlin"}'
-  speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+  moe_backend: marlin
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
-  # add to compilation_config: only if getting CUDA invalid argument errors:
-  # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
 command: |
   vllm serve {model} \
