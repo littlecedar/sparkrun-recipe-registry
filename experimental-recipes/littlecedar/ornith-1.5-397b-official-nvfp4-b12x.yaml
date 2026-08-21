@@ -20,7 +20,7 @@ metadata:
 
 mods:
   - mods/drop-caches
-  - mods/instanttensor-hybrid-draft-loader
+  #- mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
 
 defaults:
@@ -28,24 +28,28 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.70
-  max_model_len: 262144
-  max_num_batched_tokens: 8192
-  max_num_seqs: 2
+  gpu_memory_utilization: 0.8
+  #max_model_len: 262144
+  max_model_len: 32767
+  #max_num_batched_tokens: 16384
+  max_num_batched_tokens: 512
+  max_num_seqs: 1
   performance_mode: interactivity
   kv_cache_dtype: fp8
   #kv_cache_memory: 21474836480
-  kv_cache_memory: 17179869184
-  served_model_name: Ornith-1.5-397B-NVFP4
+  #kv_cache_memory: 17179869184
+  served_model_name: ornith-ai/Ornith-1.5-397B-NVFP4-b12x
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
-  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":32767,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
+#--kv-cache-memory {kv_cache_memory} \
+#--speculative-config '{speculative_config}' \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
@@ -57,7 +61,6 @@ command: |
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
     --kv-cache-dtype {kv_cache_dtype} \
-    --kv-cache-memory {kv_cache_memory} \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \
@@ -73,7 +76,6 @@ command: |
     --enable-mamba-cache-stochastic-rounding \
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
-    --speculative-config '{speculative_config}' \
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
