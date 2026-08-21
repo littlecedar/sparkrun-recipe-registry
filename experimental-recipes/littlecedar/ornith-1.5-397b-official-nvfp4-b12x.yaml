@@ -20,8 +20,8 @@ metadata:
 
 mods:
   - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
-#  - mods/instanttensor-hybrid-draft-loader
 
 defaults:
   port: 8000
@@ -40,7 +40,7 @@ defaults:
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
-  speculative_config: '{"method":"mtp","num_speculative_tokens":1,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
