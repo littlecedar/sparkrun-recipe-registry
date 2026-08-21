@@ -8,6 +8,11 @@ metadata:
   description: Qwen3.8-27B-FP8 — native FP8 format w/ MTP
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
+  - flashinfer-b12x-warmup
+
 defaults:
   port: 8000
   host: 0.0.0.0
