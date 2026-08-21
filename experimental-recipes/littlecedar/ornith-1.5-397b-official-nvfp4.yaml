@@ -34,6 +34,7 @@ defaults:
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: marlin
+  linear_backend: marlin
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
 
