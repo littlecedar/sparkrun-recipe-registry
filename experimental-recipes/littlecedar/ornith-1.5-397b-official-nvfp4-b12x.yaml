@@ -51,7 +51,6 @@ defaults:
 
 # --speculative-config '{speculative_config}' \
 # --compilation-config '{compilation_config}' \
-# --gpu-memory-utilization {gpu_memory_utilization} \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
