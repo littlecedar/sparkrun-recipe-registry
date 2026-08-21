@@ -5,7 +5,7 @@ container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 min_nodes: 1
 
 metadata:
-  description: Qwen3.8-27B-FP8 — native FP8 format w/ MTP
+  description: Qwen3.8-27B-FP8 — native FP8 format w/ MTP using b12x backends
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
 mods:
@@ -19,24 +19,25 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 1
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.80
+  gpu_memory_utilization: 0.8
   max_model_len: 262144
   max_num_batched_tokens: 16384
   max_num_seqs: 32
   performance_mode: interactivity
   kv_cache_dtype: fp8
-  kv_cache_memory: 38042672824
+  # Measured
+  #kv_cache_memory: 38042672824
+  # Fill RAM * 0.8
+  kv_cache_memory: 55704589927
+  # Fill RAM * 1.0
+  #kv_cache_memory: 62823079936
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
   mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
-#  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
-  # add to compilation_config: only if getting CUDA invalid argument errors:
-  # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
-# --compilation-config '{compilation_config}' \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
@@ -68,3 +69,5 @@ command: |
     --speculative-config '{speculative_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
+
+# (EngineCore pid=453) INFO 08-21 18:15:04 [gpu_worker.py:918] Free memory on device (103.98/121.69 GiB) on startup. Desired GPU memory utilization is (0.8, 97.35 GiB). Actual usage is 35.43 GiB for consumed memory (weights + non-torch), 6.28 GiB for peak activation, and 3.62 GiB for CUDAGraph memory.Replace gpu_memory_utilization config with `--kv-cache-memory-bytes=55704589927` (51.88 GiB) to fit into requested memory, or `--kv-cache-memory-bytes=62823079936` (58.51 GiB) to fully utilize gpu memory. Current kv cache memory in use is 56.49 GiB.
