@@ -18,6 +18,9 @@ metadata:
   model_url: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
+mods:
+  - mods/drop-caches
+
 defaults:
   port: 8000
   host: 0.0.0.0

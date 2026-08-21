@@ -20,8 +20,8 @@ metadata:
 
 mods:
   - mods/drop-caches
-  - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
+#  - mods/instanttensor-hybrid-draft-loader
 
 defaults:
   port: 8000
@@ -33,8 +33,8 @@ defaults:
   max_model_len: 262144
   #max_model_len: 131072
   #max_model_len: auto
-  #max_num_batched_tokens: 16384
-  max_num_batched_tokens: 2048
+  max_num_batched_tokens: 16384
+  #max_num_batched_tokens: 2048
   max_num_seqs: 2
   performance_mode: interactivity
   kv_cache_dtype: fp8
@@ -49,16 +49,17 @@ defaults:
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
-# --kv-cache-memory "{kv_cache_memory_gb} GiB" \
+
 # --speculative-config '{speculative_config}' \
 # --compilation-config '{compilation_config}' \
 # --gpu-memory-utilization {gpu_memory_utilization} \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --gpu-memory-utilization-gb {gpu_memory_utilization_gb} \
     --host {host} \
     --port {port} \
+    --gpu-memory-utilization-gb {gpu_memory_utilization_gb} \
+    --kv-cache-memory "{kv_cache_memory_gb} GiB" \
     --max-model-len {max_model_len} \
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
