@@ -24,22 +24,21 @@ defaults:
   max_num_seqs: 32
   performance_mode: interactivity
   kv_cache_dtype: fp8
-  #kv_cache_memory: 17179869184
-  served_model_name: Qwen3.8-27B-FP8
+  #kv_cache_memory: 36142149800
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
   mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
-  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
+#  compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
+# --compilation-config '{compilation_config}' \
 # --kv-cache-memory {kv_cache_memory} \
 command: |
   vllm serve {model} \
-    --served-model-name {served_model_name} \
     --host {host} \
     --port {port} \
     --gpu-memory-utilization {gpu_memory_utilization} \
@@ -65,6 +64,5 @@ command: |
     --mamba-cache-mode align \ 
     --mm-encoder-tp-mode {mm_encoder_tp_mode} \
     --speculative-config '{speculative_config}' \
-    --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
