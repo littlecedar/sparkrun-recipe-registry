@@ -41,7 +41,7 @@ defaults:
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
-  linear_backend: b12x
+  linear_backend: flashinfer_b12x
   speculative_config: '{"method":"mtp","num_speculative_tokens":1,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
@@ -49,6 +49,7 @@ defaults:
 
 # --kv-cache-memory "{kv_cache_memory_gb} GiB" \
 # --speculative-config '{speculative_config}' \
+# --compilation-config '{compilation_config}' \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
@@ -75,6 +76,5 @@ command: |
     --enable-mamba-cache-stochastic-rounding \
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
-    --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
