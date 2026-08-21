@@ -23,9 +23,9 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.8
-  #max_model_len: 262144
-  max_model_len: auto
+  gpu_memory_utilization_gb: 112
+  max_model_len: 262144
+  #max_model_len: auto
   max_num_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
@@ -40,7 +40,7 @@ defaults:
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --gpu-memory-utilization {gpu_memory_utilization} \ 
+    --gpu-memory-utilization-gb {gpu_memory_utilization_gb} \ 
     --host {host} \
     --port {port} \
     --max-model-len {max_model_len} \
@@ -64,6 +64,7 @@ command: |
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
     --speculative-config '{speculative_config}' \
-    --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
+
+#     --compilation-config '{compilation_config}' \

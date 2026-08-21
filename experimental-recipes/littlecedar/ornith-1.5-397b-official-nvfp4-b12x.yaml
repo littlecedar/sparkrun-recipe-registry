@@ -19,6 +19,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
 mods:
+  - mods/drop-caches
   - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
 
@@ -28,8 +29,9 @@ defaults:
   tensor_parallel: 4
   pipeline_parallel: 1
   gpu_memory_utilization: 0.5
-  #max_model_len: 262144
-  max_model_len: 131072
+  gpu_memory_utilization_gb: 64
+  max_model_len: 262144
+  #max_model_len: 131072
   #max_model_len: auto
   #max_num_batched_tokens: 16384
   max_num_batched_tokens: 2048
@@ -50,10 +52,11 @@ defaults:
 # --kv-cache-memory "{kv_cache_memory_gb} GiB" \
 # --speculative-config '{speculative_config}' \
 # --compilation-config '{compilation_config}' \
+# --gpu-memory-utilization {gpu_memory_utilization} \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --gpu-memory-utilization {gpu_memory_utilization} \ 
+    --gpu-memory-utilization-gb {gpu_memory_utilization_gb} \
     --host {host} \
     --port {port} \
     --max-model-len {max_model_len} \
