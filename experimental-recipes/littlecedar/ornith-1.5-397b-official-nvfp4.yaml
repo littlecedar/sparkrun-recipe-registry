@@ -26,7 +26,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization_gb: 112
+  gpu_memory_utilization: 0.8
   max_model_len: 262144
   #max_model_len: auto
   max_num_batched_tokens: 16384
@@ -44,9 +44,9 @@ defaults:
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
-    --gpu-memory-utilization-gb {gpu_memory_utilization_gb} \ 
     --host {host} \
     --port {port} \
+    --gpu-memory-utilization {gpu_memory_utilization} \  
     --max-model-len {max_model_len} \
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
