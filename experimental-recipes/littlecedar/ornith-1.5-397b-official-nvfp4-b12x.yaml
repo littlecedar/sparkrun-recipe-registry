@@ -34,7 +34,8 @@ defaults:
   max_num_seqs: 2
   performance_mode: interactivity
   kv_cache_dtype: fp8
-  kv_cache_memory: 21474836480
+  #kv_cache_memory: 21474836480
+  kv_cache_memory: 17179869184
   served_model_name: Ornith-1.5-397B-NVFP4
   load_format: instanttensor
   attention_backend: flashinfer
