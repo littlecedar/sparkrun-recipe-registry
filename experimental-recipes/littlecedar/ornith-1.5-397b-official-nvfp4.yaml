@@ -70,13 +70,13 @@ command: |
     --async-scheduling \
     --mamba-backend flashinfer \
     --mamba-ssm-cache-dtype {mamba_ssm_cache_dtype} \
-    --enable-mamba-cache-stochastic-rounding \
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
 
+# --enable-mamba-cache-stochastic-rounding \
 # --kv-cache-dtype {kv_cache_dtype} \
 # --speculative-config '{speculative_config}' \
 
