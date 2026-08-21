@@ -29,10 +29,10 @@ defaults:
   pipeline_parallel: 1
   gpu_memory_utilization: 0.5
   #max_model_len: 262144
-  max_model_len: 262144
+  max_model_len: 131072
   #max_model_len: auto
   #max_num_batched_tokens: 16384
-  max_num_batched_tokens: 1024
+  max_num_batched_tokens: 2048
   max_num_seqs: 2
   performance_mode: interactivity
   kv_cache_dtype: fp8
