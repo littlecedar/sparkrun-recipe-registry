@@ -24,7 +24,7 @@ defaults:
   max_num_seqs: 32
   performance_mode: interactivity
   kv_cache_dtype: fp8
-  #kv_cache_memory: 36142149800
+  kv_cache_memory: 38042672824
   load_format: instanttensor
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
@@ -36,7 +36,6 @@ defaults:
   # '{"pass_config": {"fuse_allreduce_rms": false}}'
 
 # --compilation-config '{compilation_config}' \
-# --kv-cache-memory {kv_cache_memory} \
 command: |
   vllm serve {model} \
     --host {host} \
@@ -47,6 +46,7 @@ command: |
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
     --kv-cache-dtype {kv_cache_dtype} \
+    --kv-cache-memory {kv_cache_memory} \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \
