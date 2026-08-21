@@ -26,12 +26,13 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.75
+  gpu_memory_utilization: 0.77
   max_model_len: 262144
   max_num_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
   kv_cache_dtype: fp8
+  kv_cache_memory_gb: 20
   served_model_name: Ornith-1.5-397B-NVFP4
   load_format: instanttensor
   attention_backend: flashinfer
@@ -39,6 +40,9 @@ defaults:
   linear_backend: marlin
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
+
+env:
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
 
 command: |
   vllm serve {model} \
@@ -51,6 +55,7 @@ command: |
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
     --kv-cache-dtype {kv_cache_dtype} \
+    --kv-cache-memory "{kv_cache_memory_gb} GiB" \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \
@@ -70,3 +75,6 @@ command: |
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
+
+# (Worker_TP0 pid=225) INFO 08-21 03:18:00 [gpu_worker.py:624] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.7500 is equivalent to --gpu-memory-utilization=0.7357 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.7643. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
+# (Worker_TP0 pid=225) INFO 08-21 03:18:09 [gpu_worker.py:852] Free memory on device (93.74/121.69 GiB) on startup. Desired GPU memory utilization is (0.75, 91.27 GiB). Actual usage is 68.44 GiB for consumed memory (weights + non-torch), 3.2 GiB for peak activation, and 0.13 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=20780792832` (19.35 GiB) to fit into requested memory, or `--kv-cache-memory=23432837120` (21.82 GiB) to fully utilize gpu memory. Current kv cache memory in use is 19.1 GiB.
