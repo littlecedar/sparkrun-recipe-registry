@@ -41,7 +41,7 @@ defaults:
   linear_backend: marlin
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
-  mamba_ssm_cache_dtype: bf16 #float16
+  mamba_ssm_cache_dtype: bfloat16 #float16
 
 env:
   VLLM_MARLIN_USE_ATOMIC_ADD: 1
