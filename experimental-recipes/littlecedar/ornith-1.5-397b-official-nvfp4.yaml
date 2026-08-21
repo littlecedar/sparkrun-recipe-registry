@@ -28,7 +28,6 @@ defaults:
   pipeline_parallel: 1
   gpu_memory_utilization: 0.8
   max_model_len: 262144
-  #max_model_len: auto
   max_num_batched_tokens: 16384
   max_num_seqs: 8
   performance_mode: interactivity
@@ -68,7 +67,6 @@ command: |
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
     --speculative-config '{speculative_config}' \
+    --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
-
-#     --compilation-config '{compilation_config}' \
