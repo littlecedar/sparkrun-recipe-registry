@@ -57,7 +57,6 @@ command: |
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
-    --kv-cache-dtype {kv_cache_dtype} \
     --kv-cache-memory {kv_cache_memory} \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
@@ -78,6 +77,7 @@ command: |
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
 
+# --kv-cache-dtype {kv_cache_dtype} \
 # --speculative-config '{speculative_config}' \
 
 # (Worker_TP0 pid=225) INFO 08-21 03:18:00 [gpu_worker.py:624] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.7500 is equivalent to --gpu-memory-utilization=0.7357 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.7643. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
