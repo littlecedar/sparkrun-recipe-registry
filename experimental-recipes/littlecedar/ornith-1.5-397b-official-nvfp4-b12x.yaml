@@ -46,6 +46,7 @@ defaults:
   attention_backend: flashinfer
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
+  mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":32767,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8]}'
   # add to compilation_config: only if getting CUDA invalid argument errors:
@@ -53,6 +54,7 @@ defaults:
 
 #--kv-cache-memory {kv_cache_memory} \
 #--speculative-config '{speculative_config}' \
+#--enable-mamba-cache-stochastic-rounding \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
@@ -64,6 +66,7 @@ command: |
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
     --kv-cache-dtype {kv_cache_dtype} \
+    \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \
@@ -75,10 +78,10 @@ command: |
     --trust-remote-code \
     --async-scheduling \
     --mamba-backend flashinfer \
-    --mamba-ssm-cache-dtype float16 \
-    --enable-mamba-cache-stochastic-rounding \
+    --mamba-ssm-cache-dtype auto \
     --mamba-cache-philox-rounds 5 \
-    --mamba-cache-mode align \ 
+    --mamba-cache-mode align \
+    --mm-encoder-tp-mode {mm_encoder_tp_mode} \
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
