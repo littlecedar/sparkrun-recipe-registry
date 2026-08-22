@@ -31,7 +31,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.77
+  gpu_memory_utilization: 0.5
   #max_model_len: 262144
   max_model_len: 32767
   #max_num_batched_tokens: 16384
@@ -66,7 +66,6 @@ command: |
     --max-num-seqs {max_num_seqs} \
     --performance-mode {performance_mode} \  
     --kv-cache-dtype {kv_cache_dtype} \
-    \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \

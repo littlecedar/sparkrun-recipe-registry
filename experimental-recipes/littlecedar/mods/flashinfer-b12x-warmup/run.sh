@@ -3,14 +3,19 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+set -euo pipefail
+
+
 # README
 # Compile FlashInfer SM121 CuTe-DSL kernels with a capped ninja job count
 # to avoid OOMing the DGX Spark's 128 GB unified memory during compilation.
+
 
 # Metadata
 MOD_NAME="flashinfer-b12x-warmup"
 MOD_DESCRIPTION="Cap ninja jobs when compiling flashinfer kernels"
 MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
+
 
 # Mod Config
 MAX_JOBS="${FLASHINFER_B12X_WARMUP_MAX_JOBS:-4}"
@@ -20,14 +25,17 @@ LOGDIR="${FLASHINFER_B12X_WARMUP_LOGDIR:-/cache/runtime/modlogs}"
 # Mods run as root and we can't tell the real uid:gid from environment,
 # so we have to infer from /cache/runtime ownership.
 USER_UID="$(stat -c '%u' /cache/runtime)"
+USER_NAME="$(stat -c '%U' /cache/runtime)"
 USER_GID="$(stat -c '%g' /cache/runtime)"
+USER_GROUP="$(stat -c '%G' /cache/runtime)"
+MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 
 # Helpers
 reown() {
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
 
-# Helpers
 log() {
   local _message
   _message="${*}"
@@ -74,7 +82,8 @@ if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
 fi
 reown "${LOGDIR}"
 
-#####
+
+##### Script
 log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 log_var MAX_JOBS
@@ -85,4 +94,8 @@ log "Capping ninja max build jobs by patching ${BUILD_BACKEND_PY}"
 log_cmd sed -i.bak -e "s/\[\"ninja\", \"-C\",/[\"ninja\", \"-j${MAX_JOBS}\", \"-C\",/" "${BUILD_BACKEND_PY}"
 log_cmd grep 'ninja_cmd.*"-j' "${BUILD_BACKEND_PY}"
 
-log "Done."
+log "preheat flashinfer b12x kernel"
+log_cmd runuser -u "${USER_NAME}" -g "${USER_GROUP}" -- python3 "${MOD_DIR}/flashinfer-preheat.py"
+log_cmd rm -fv payload.py
+
+log "mod complete"
