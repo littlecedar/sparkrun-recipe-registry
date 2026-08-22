@@ -1,8 +1,8 @@
 import torch
 import flashinfer.fused_moe.cute_dsl.blackwell_sm12x.moe_dispatch as md
-from transformers import AutoConfig
+#from transformers import AutoConfig
 
-print(AutoConfig.from_pretrained('ornith-ai/Ornith-1.5-397B-NVFP4', trust_remote_code=True))
+#print(AutoConfig.from_pretrained('ornith-ai/Ornith-1.5-397B-NVFP4', trust_remote_code=True))
 
 print("Pre-warming b12x MoE kernel: E=512 k=4096 n=256 num_topk=10 max_rows=16384")
 
