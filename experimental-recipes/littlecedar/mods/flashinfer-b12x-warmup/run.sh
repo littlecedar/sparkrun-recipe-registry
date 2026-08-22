@@ -94,10 +94,7 @@ log "Capping ninja max build jobs by patching ${BUILD_BACKEND_PY}"
 log_cmd sed -i.bak -e "s/\[\"ninja\", \"-C\",/[\"ninja\", \"-j${MAX_JOBS}\", \"-C\",/" "${BUILD_BACKEND_PY}"
 log_cmd grep 'ninja_cmd.*"-j' "${BUILD_BACKEND_PY}"
 
-sleep 5
-
-log "preheat flashinfer b12x kernel"
+log "Preheating flashinfer b12x kernel"
 log_cmd runuser -m -u "${USER_NAME}" -g "${USER_GROUP}" -- python3 "${MOD_DIR}/flashinfer-preheat.py"
-log_cmd rm -fv payload.py
 
 log "mod complete"
