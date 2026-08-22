@@ -24,7 +24,7 @@ mods:
 
 env:
   VLLM_MARLIN_USE_ATOMIC_ADD: 1
-  #OMP_NUM_THREADS: 1
+  OMP_NUM_THREADS: 1
 
 defaults:
   port: 8000
