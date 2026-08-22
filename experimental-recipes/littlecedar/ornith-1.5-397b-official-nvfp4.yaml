@@ -31,7 +31,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.77
+  gpu_memory_utilization: 0.8
   max_model_len: 262144
   max_num_batched_tokens: 16384
   max_num_seqs: 32
@@ -44,7 +44,7 @@ defaults:
   moe_backend: marlin
   linear_backend: marlin
   mm_encoder_tp_mode: data
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"marlin"}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
 
 command: >
@@ -68,18 +68,19 @@ command: >
   --reasoning-parser qwen3
   --trust-remote-code
   --async-scheduling
-  --mamba-backend flashinfer
-  --mamba-ssm-cache-dtype auto
-  --mamba-cache-philox-rounds 5
-  --mamba-cache-mode align
-  --mm-encoder-tp-mode {mm_encoder_tp_mode}
   --speculative-config '{speculative_config}'
   -tp {tensor_parallel}
   -pp {pipeline_parallel}
 
-# --compilation-config '{compilation_config}'
-# --kv-cache-memory {kv_cache_memory}
-# --enable-mamba-cache-stochastic-rounding
+
+#  --mamba-backend flashinfer
+#  --mamba-ssm-cache-dtype auto
+#  --mamba-cache-philox-rounds 5
+#  --mamba-cache-mode align
+#  --mm-encoder-tp-mode {mm_encoder_tp_mode}
+#  --compilation-config '{compilation_config}'
+#  --kv-cache-memory {kv_cache_memory}
+#  --enable-mamba-cache-stochastic-rounding
 #
 # (Worker_TP0 pid=225) INFO 08-21 03:18:00 [gpu_worker.py:624] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.7500 is equivalent to --gpu-memory-utilization=0.7357 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.7643. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
 # (Worker_TP0 pid=225) INFO 08-21 03:18:09 [gpu_worker.py:852] Free memory on device (93.74/121.69 GiB) on startup. Desired GPU memory utilization is (0.75, 91.27 GiB). Actual usage is 68.44 GiB for consumed memory (weights + non-torch), 3.2 GiB for peak activation, and 0.13 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=20780792832` (19.35 GiB) to fit into requested memory, or `--kv-cache-memory=23432837120` (21.82 GiB) to fully utilize gpu memory. Current kv cache memory in use is 19.1 GiB.
