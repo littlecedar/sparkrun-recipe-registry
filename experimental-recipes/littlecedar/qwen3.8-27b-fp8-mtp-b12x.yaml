@@ -39,7 +39,7 @@ defaults:
   moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
   mm_encoder_tp_mode: data
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
 
 # --enable-mamba-cache-stochastic-rounding \
 command: |
@@ -51,7 +51,7 @@ command: |
     --max-model-len {max_model_len} \
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
-    --performance-mode {performance_mode} \  
+    --performance-mode {performance_mode} \
     --kv-cache-dtype {kv_cache_dtype} \
     --kv-cache-memory {kv_cache_memory} \
     --attention-backend {attention_backend} \
@@ -67,7 +67,7 @@ command: |
     --mamba-backend flashinfer \
     --mamba-ssm-cache-dtype auto \
     --mamba-cache-philox-rounds 5 \
-    --mamba-cache-mode align \ 
+    --mamba-cache-mode align \
     --mm-encoder-tp-mode {mm_encoder_tp_mode} \
     --speculative-config '{speculative_config}' \
     -tp {tensor_parallel} \
