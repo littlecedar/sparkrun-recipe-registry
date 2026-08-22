@@ -25,6 +25,8 @@ mods:
 
 env:
   OMP_NUM_THREADS: 1
+  VLLM_DIST_TIMEOUT: 1800
+  TORCH_DIST_INIT_BARRIER_TIMEOUT: 1800
 
 defaults:
   port: 8000
