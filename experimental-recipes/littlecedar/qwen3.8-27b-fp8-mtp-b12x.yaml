@@ -13,6 +13,9 @@ mods:
   - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
 
+env:
+  OMP_NUM_THREADS: 1
+
 defaults:
   served_model_name: Qwen/Qwen3.8-27B-FP8-b12x
   port: 8000

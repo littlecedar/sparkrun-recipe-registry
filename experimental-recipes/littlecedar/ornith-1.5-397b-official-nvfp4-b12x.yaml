@@ -20,15 +20,18 @@ metadata:
 
 mods:
   - mods/drop-caches
-  #- mods/instanttensor-hybrid-draft-loader
+  - mods/instanttensor-hybrid-draft-loader
   - flashinfer-b12x-warmup
+
+env:
+  OMP_NUM_THREADS: 1
 
 defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.8
+  gpu_memory_utilization: 0.77
   #max_model_len: 262144
   max_model_len: 32767
   #max_num_batched_tokens: 16384
