@@ -41,36 +41,36 @@ defaults:
   mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
 
-# --enable-mamba-cache-stochastic-rounding \
-command: |
-  vllm serve {model} \
-    --served-model-name {served_model_name} \
-    --host {host} \
-    --port {port} \
-    --gpu-memory-utilization {gpu_memory_utilization} \
-    --max-model-len {max_model_len} \
-    --max-num-batched-tokens {max_num_batched_tokens} \
-    --max-num-seqs {max_num_seqs} \
-    --performance-mode {performance_mode} \
-    --kv-cache-dtype {kv_cache_dtype} \
-    --kv-cache-memory {kv_cache_memory} \
-    --attention-backend {attention_backend} \
-    --moe-backend {moe_backend} \
-    --linear-backend {linear_backend} \
-    --load-format {load_format} \
-    --enable-prefix-caching \
-    --enable-auto-tool-choice \
-    --tool-call-parser qwen3_coder \
-    --reasoning-parser qwen3 \
-    --trust-remote-code \
-    --async-scheduling \
-    --mamba-backend flashinfer \
-    --mamba-ssm-cache-dtype auto \
-    --mamba-cache-philox-rounds 5 \
-    --mamba-cache-mode align \
-    --mm-encoder-tp-mode {mm_encoder_tp_mode} \
-    --speculative-config '{speculative_config}' \
-    -tp {tensor_parallel} \
-    -pp {pipeline_parallel}
+# --enable-mamba-cache-stochastic-rounding
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --performance-mode {performance_mode}
+  --kv-cache-dtype {kv_cache_dtype}
+  --kv-cache-memory {kv_cache_memory}
+  --attention-backend {attention_backend}
+  --moe-backend {moe_backend}
+  --linear-backend {linear_backend}
+  --load-format {load_format}
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --tool-call-parser qwen3_coder
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --async-scheduling
+  --mamba-backend flashinfer
+  --mamba-ssm-cache-dtype auto
+  --mamba-cache-philox-rounds 5
+  --mamba-cache-mode align
+  --mm-encoder-tp-mode {mm_encoder_tp_mode}
+  --speculative-config '{speculative_config}'
+  -tp {tensor_parallel}
+  -pp {pipeline_parallel}
 
 # (EngineCore pid=453) INFO 08-21 18:15:04 [gpu_worker.py:918] Free memory on device (103.98/121.69 GiB) on startup. Desired GPU memory utilization is (0.8, 97.35 GiB). Actual usage is 35.43 GiB for consumed memory (weights + non-torch), 6.28 GiB for peak activation, and 3.62 GiB for CUDAGraph memory.Replace gpu_memory_utilization config with `--kv-cache-memory-bytes=55704589927` (51.88 GiB) to fit into requested memory, or `--kv-cache-memory-bytes=62823079936` (58.51 GiB) to fully utilize gpu memory. Current kv cache memory in use is 56.49 GiB.
