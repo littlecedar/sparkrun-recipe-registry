@@ -45,7 +45,7 @@ defaults:
   attention_backend: flashinfer
   # flashinfer_b12x MoE backend is currently broken
   # https://github.com/vllm-project/vllm/issues/49476
-  moe_backend: marlin
+  moe_backend: flashinfer_b12x
   linear_backend: flashinfer_b12x
   mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"marlin"}'
