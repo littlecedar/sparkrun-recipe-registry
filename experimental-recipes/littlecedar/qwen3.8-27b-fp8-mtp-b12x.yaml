@@ -41,6 +41,7 @@ defaults:
   mm_encoder_tp_mode: data
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
 
+# --enable-mamba-cache-stochastic-rounding \
 command: |
   vllm serve {model} \
     --served-model-name {served_model_name} \
@@ -64,8 +65,7 @@ command: |
     --trust-remote-code \
     --async-scheduling \
     --mamba-backend flashinfer \
-    --mamba-ssm-cache-dtype float16 \
-    --enable-mamba-cache-stochastic-rounding \
+    --mamba-ssm-cache-dtype auto \
     --mamba-cache-philox-rounds 5 \
     --mamba-cache-mode align \ 
     --mm-encoder-tp-mode {mm_encoder_tp_mode} \

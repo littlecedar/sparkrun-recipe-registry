@@ -43,9 +43,9 @@ defaults:
   attention_backend: flashinfer
   moe_backend: marlin
   linear_backend: marlin
-  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"moe_backend":"marlin"}'
+  mm_encoder_tp_mode: data
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"marlin"}'
   compilation_config: '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1, 2, 4, 8, 16, 32]}'
-  mamba_ssm_cache_dtype: auto
 
 command: |
   vllm serve {model} \
@@ -56,8 +56,8 @@ command: |
     --max-model-len {max_model_len} \
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
-    --performance-mode {performance_mode} \  
-    --kv-cache-memory {kv_cache_memory} \
+    --performance-mode {performance_mode} \
+    --kv-cache-dtype {kv_cache_dtype} \
     --attention-backend {attention_backend} \
     --moe-backend {moe_backend} \
     --linear-backend {linear_backend} \
@@ -69,16 +69,17 @@ command: |
     --trust-remote-code \
     --async-scheduling \
     --mamba-backend flashinfer \
-    --mamba-ssm-cache-dtype {mamba_ssm_cache_dtype} \
+    --mamba-ssm-cache-dtype auto \
     --mamba-cache-philox-rounds 5 \
-    --mamba-cache-mode align \ 
+    --mamba-cache-mode align \
+    --mm-encoder-tp-mode {mm_encoder_tp_mode} \
+    --speculative-config '{speculative_config}' \
     --compilation-config '{compilation_config}' \
     -tp {tensor_parallel} \
     -pp {pipeline_parallel}
 
+#     --kv-cache-memory {kv_cache_memory} \
 # --enable-mamba-cache-stochastic-rounding \
-# --kv-cache-dtype {kv_cache_dtype} \
-# --speculative-config '{speculative_config}' \
-
+#
 # (Worker_TP0 pid=225) INFO 08-21 03:18:00 [gpu_worker.py:624] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.7500 is equivalent to --gpu-memory-utilization=0.7357 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.7643. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
 # (Worker_TP0 pid=225) INFO 08-21 03:18:09 [gpu_worker.py:852] Free memory on device (93.74/121.69 GiB) on startup. Desired GPU memory utilization is (0.75, 91.27 GiB). Actual usage is 68.44 GiB for consumed memory (weights + non-torch), 3.2 GiB for peak activation, and 0.13 GiB for CUDAGraph memory. Replace gpu_memory_utilization config with `--kv-cache-memory=20780792832` (19.35 GiB) to fit into requested memory, or `--kv-cache-memory=23432837120` (21.82 GiB) to fully utilize gpu memory. Current kv cache memory in use is 19.1 GiB.
