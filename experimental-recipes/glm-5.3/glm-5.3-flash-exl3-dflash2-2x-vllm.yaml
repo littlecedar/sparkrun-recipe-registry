@@ -27,7 +27,7 @@ defaults:
   pipeline_parallel: 1
   distributed_executor_backend: mp
   gpu_memory_utilization: 0.84
-  max_model_len: 1000000
+  max_model_len: 262144
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: exl3
