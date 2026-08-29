@@ -1,0 +1,113 @@
+# GLM-5.3-Flash EXL3/TR3 4 bpw with DFlash2 on two DGX Sparks.
+# Baseline source: https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks
+
+recipe_version: "2"
+model: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
+model_revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+runtime: vllm
+container: ghcr.io/spark-arena/glm-5.3-flash-2x-dgx-sparks:exl3-79f10b9
+min_nodes: 2
+max_nodes: 2
+cluster_only: true
+
+metadata:
+  description: GLM-5.3-Flash EXL3/TR3 4 bpw with DFlash2 k=7 on two DGX Sparks
+  image_source_revision: 79f10b91f84779b2b1ff2c9327b1a5847cd97f70
+  model_vram: 164.0
+  kv_dtype: fp8_ds_mla
+  kv_vram_per_token: 0.000007331371307373047
+  kv_lora_rank: 512
+
+defaults:
+  port: 8888
+  host: 0.0.0.0
+  served_model_name: GLM-5.3-Flash-EXL3
+  revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+  tensor_parallel: 2
+  pipeline_parallel: 1
+  distributed_executor_backend: mp
+  gpu_memory_utilization: 0.87
+  max_model_len: 1000000
+  max_num_seqs: 4
+  max_num_batched_tokens: 2048
+  quantization: exl3
+  kv_cache_dtype: fp8
+  speculative_config: '{"method":"dflash","model":"incoai/GLM-5.3-Flash-DFlash2","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
+  local_speculative_config: '{"method":"dflash","model":"/cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
+
+env:
+  EXL3_FUSED_MOE: "1"
+  EXL3_MOE_ROW_TILE: "0"
+  EXL3_TEMP_ROWS_FUSED: "128"
+  FLASHINFER_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_DISABLE_VERSION_CHECK: "1"
+  GLM53_MIXED_PREFILL_CHUNK: skip
+  GLM53_SUPPRESS_STOPS_IN_REASONING: "1"
+  NCCL_CROSS_NIC: "0"
+  NCCL_CUMEM_ENABLE: "0"
+  NCCL_IB_MERGE_NICS: "0"
+  NCCL_NET_PLUGIN: none
+  NCCL_NVLS_ENABLE: "0"
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: "1800"
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "1"
+  VLLM_NO_USAGE_STATS: "1"
+  DO_NOT_TRACK: "1"
+
+executor_config:
+  entrypoint: ""
+  user: root
+  shm_size: 32gb
+  cap_add:
+    - IPC_LOCK
+    - SYS_PTRACE
+  ulimit:
+    - memlock=-1:-1
+    - stack=67108864
+    - nofile=65535:65535
+
+distribution_config:
+  models:
+    entries:
+      - name: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
+        target: [-1]
+        revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+      - name: incoai/GLM-5.3-Flash-DFlash2
+        target: [-1]
+        revision: dc77ff1c99eeb2df044ee3d4f0094eb033fee410
+
+pre_exec:
+  - python3 /opt/glm53/patch_glm_video_placeholders.py
+  - python3 /opt/glm53/patch_suppress_stops_in_reasoning.py
+  - python3 /opt/glm53/patch_scheduler_decode_floor.py
+  - python3 /opt/glm53/patch_glm5_drafter_group.py
+  - python3 /opt/glm53/patch_hybrid_prefix_hit.py
+  - python3 /opt/glm53/patch_xgrammar_termination.py
+  - EXL3_SELFCHECK_GPU=1 python3 /opt/glm53/test_exl3_overlay.py
+
+command: |
+  vllm serve {model} \
+    --revision {revision} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --pipeline-parallel-size {pipeline_parallel} \
+    --distributed-executor-backend {distributed_executor_backend} \
+    --quantization {quantization} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --tool-call-parser glm47 \
+    --enable-auto-tool-choice \
+    --reasoning-parser glm45 \
+    --enable-prefix-caching \
+    --no-enable-flashinfer-autotune \
+    --chat-template /opt/glm53/chat_template.jinja \
+    --limit-mm-per-prompt '{"image":4,"video":1}' \
+    --skip-mm-profiling \
+    --cudagraph-capture-sizes 1 2 4 8 16 24 32 \
+    --speculative-config '{local_speculative_config}'
