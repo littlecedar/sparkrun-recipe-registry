@@ -5,14 +5,14 @@ recipe_version: "2"
 model: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
 model_revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
 runtime: vllm
-container: ghcr.io/spark-arena/glm-5.3-flash-2x-dgx-sparks:exl3-79f10b9
+container: ghcr.io/spark-arena/glm-5.3-flash-2x-dgx-sparks:exl3-b536ff7
 min_nodes: 2
 max_nodes: 2
 cluster_only: true
 
 metadata:
   description: GLM-5.3-Flash EXL3/TR3 4 bpw with DFlash2 k=7 on two DGX Sparks
-  image_source_revision: 79f10b91f84779b2b1ff2c9327b1a5847cd97f70
+  image_source_revision: b536ff7156a33b8aa2386774462819e156119529
   model_vram: 164.0
   kv_dtype: fp8_ds_mla
   kv_vram_per_token: 0.000007331371307373047
@@ -31,6 +31,7 @@ defaults:
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: exl3
+  load_format: instanttensor
   kv_cache_dtype: fp8
   speculative_config: '{"method":"dflash","model":"incoai/GLM-5.3-Flash-DFlash2","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
   local_speculative_config: '{"method":"dflash","model":"/cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
@@ -96,6 +97,7 @@ command: |
     --pipeline-parallel-size {pipeline_parallel} \
     --distributed-executor-backend {distributed_executor_backend} \
     --quantization {quantization} \
+    --load-format {load_format} \
     --kv-cache-dtype {kv_cache_dtype} \
     --max-model-len {max_model_len} \
     --max-num-seqs {max_num_seqs} \
