@@ -5,14 +5,14 @@ recipe_version: "2"
 model: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
 model_revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
 runtime: vllm
-container: ghcr.io/spark-arena/glm-5.3-flash-2x-dgx-sparks:exl3-b536ff7
+container: ghcr.io/spark-arena/glm-5.3-flash-2x-dgx-sparks:exl3-94f5d38
 min_nodes: 2
 max_nodes: 2
 cluster_only: true
 
 metadata:
   description: GLM-5.3-Flash EXL3/TR3 4 bpw with DFlash2 k=7 on two DGX Sparks
-  image_source_revision: b536ff7156a33b8aa2386774462819e156119529
+  image_source_revision: 94f5d38bfa8792e3ac2fe5dc75075440a21db7c7
   model_vram: 164.0
   kv_dtype: fp8_ds_mla
   kv_vram_per_token: 0.000007331371307373047
