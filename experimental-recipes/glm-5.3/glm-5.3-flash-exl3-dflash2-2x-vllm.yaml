@@ -31,7 +31,6 @@ defaults:
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: exl3
-  load_format: fastsafetensors
   kv_cache_dtype: fp8
   speculative_config: '{"method":"dflash","model":"incoai/GLM-5.3-Flash-DFlash2","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
   local_speculative_config: '{"method":"dflash","model":"/cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/dc77ff1c99eeb2df044ee3d4f0094eb033fee410","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":1,"draft_sample_method":"probabilistic","rejection_sample_method":"standard"}'
@@ -51,7 +50,6 @@ env:
   NCCL_NVLS_ENABLE: "0"
   PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
   TORCH_CUDA_ARCH_LIST: "12.1a"
-  VLLM_FASTSAFETENSORS_QUEUE_SIZE: "0"
   VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: "1800"
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "1"
   VLLM_NO_USAGE_STATS: "1"
@@ -80,9 +78,6 @@ distribution_config:
         revision: dc77ff1c99eeb2df044ee3d4f0094eb033fee410
 
 pre_exec:
-  - test "$(grep -c '^            nogds=nogds,$' /usr/local/lib/python3.12/dist-packages/vllm/model_executor/model_loader/weight_utils.py)" -eq 1
-  - sed -i '/^            nogds=nogds,$/a\            all_local=True,' /usr/local/lib/python3.12/dist-packages/vllm/model_executor/model_loader/weight_utils.py
-  - test "$(grep -c '^            all_local=True,$' /usr/local/lib/python3.12/dist-packages/vllm/model_executor/model_loader/weight_utils.py)" -eq 1
   - python3 /opt/glm53/patch_glm_video_placeholders.py
   - python3 /opt/glm53/patch_suppress_stops_in_reasoning.py
   - python3 /opt/glm53/patch_scheduler_decode_floor.py
@@ -101,7 +96,6 @@ command: |
     --pipeline-parallel-size {pipeline_parallel} \
     --distributed-executor-backend {distributed_executor_backend} \
     --quantization {quantization} \
-    --load-format {load_format} \
     --kv-cache-dtype {kv_cache_dtype} \
     --max-model-len {max_model_len} \
     --max-num-seqs {max_num_seqs} \
