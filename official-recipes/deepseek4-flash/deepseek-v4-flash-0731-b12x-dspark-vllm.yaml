@@ -23,7 +23,7 @@ defaults:
   block_size: 256
   max_num_seqs: 8
   max_num_batched_tokens: 8192
-  max_cudagraph_capture_size: 64
+  max_cudagraph_capture_size: 48
   num_speculative_tokens: 5
   thinking: "true"
   reasoning_effort: "high"
@@ -32,7 +32,7 @@ env:
   CUTE_DSL_ARCH: "sm_121a"
   VLLM_USE_AOT_COMPILE: "1"
   VLLM_USE_BREAKABLE_CUDAGRAPH: "0"
-  VLLM_USE_MEGA_AOT_ARTIFACT: "-1"
+  VLLM_USE_MEGA_AOT_ARTIFACT: "1"
   VLLM_MEMORY_PROFILE_INCLUDE_ATTN: "1"
   VLLM_USE_FLASHINFER_SAMPLER: "1"
   VLLM_USE_B12X_WO_PROJECTION: "1"
@@ -68,7 +68,7 @@ command: |
       --load-format instanttensor \
       --moe-backend b12x \
       --linear-backend b12x \
-      --attention-backend B12X_MLA_SPARSE \
+      --attention-backend B12X \
       --max-cudagraph-capture-size {max_cudagraph_capture_size} \
-      --compilation-config '{{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"]}}' \
-      --speculative-config '{{"method":"dspark","num_speculative_tokens":{num_speculative_tokens},"draft_sample_method":"probabilistic","attention_backend":"B12X_MLA_SPARSE"}}'
+      --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"]}' \
+      --speculative-config '{"method":"dspark","num_speculative_tokens":{num_speculative_tokens},"draft_sample_method":"probabilistic","attention_backend":"B12X"}'
