@@ -8,14 +8,19 @@ metadata:
   description: Qwen3.8-27B-NVFP4-DFlash2
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
 
+mods:
+  - drop-caches
+
 defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
   gpu_memory_utilization: 0.8
   max_model_len: 262144
-  max_num_seqs: 32
-  max_mamba_cache_size: 128
+  rope_factor: 4.0
+  context_length: 1010000
+  max_num_seqs: 48
+  mamba_full_memory_ratio: 3.51
   mamba_ssm_dtype: bfloat16
   mamba_radix_cache_strategy: extra_buffer_lazy
   kv_cache_dtype: fp8_e4m3
@@ -24,6 +29,9 @@ defaults:
   speculative_algorithm: DFLASH
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
   speculative_draft_tokens: 8
+
+env:
+  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
 
 command: >
   sglang serve
@@ -34,14 +42,17 @@ command: >
   --host {host}
   --port {port}
   --tp {tensor_parallel}
+  --context-length {max_model_len}
   --max-running-requests {max_num_seqs}
   --kv-cache-dtype {kv_cache_dtype}
   --chunked-prefill-size {chunked_prefill_size}
   --mem-fraction-static {gpu_memory_utilization}
   --attention-backend {attention_backend}
   --max-mamba-cache-size {max_mamba_cache_size}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
   --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
   --mamba-ssm-dtype {mamba_ssm_dtype}
   --speculative-algorithm {speculative_algorithm}
   --speculative-draft-model-path {speculative_draft_model}
   --speculative-num-draft-tokens {speculative_draft_tokens}
+  --json-model-override-args '{"rope_scaling":{"rope_type":"yarn","factor":{rope_factor},"original_max_position_embeddings":{max_model_len}}}'
