@@ -7,6 +7,11 @@ min_nodes: 1
 metadata:
   description: Qwen3.8-27B-NVFP4-DFlash2
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27B"
+  model_dtype: nvfp4
+  model_draft_dtype: bf16
+  kv_dtype: fp8_e4m3
+  tags: lcg_favorite, fast, large-context
 
 mods:
   - drop-caches
@@ -24,7 +29,7 @@ defaults:
   mamba_ssm_dtype: bfloat16
   mamba_radix_cache_strategy: extra_buffer_lazy
   kv_cache_dtype: fp8_e4m3
-  chunked_prefill_size: 8192
+  chunked_prefill_size: 4096 # Max new tokens for incoai/Qwen3.8-27B-DFlash2
   attention_backend: flashinfer
   speculative_algorithm: DFLASH
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
