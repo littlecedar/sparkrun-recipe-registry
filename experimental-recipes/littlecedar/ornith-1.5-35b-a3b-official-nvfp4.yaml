@@ -18,7 +18,6 @@ env:
   OMP_NUM_THREADS: 1
 
 defaults:
-  served_model_name: ornith-ai/Ornith-1.5-35B-A3B-NVFP4-b12x
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
@@ -43,8 +42,7 @@ defaults:
   speculative_config: '{"method":"mtp","num_speculative_tokens":5,"max_model_len":262144,"draft_sample_method":"probabilistic","moe_backend":"flashinfer_b12x"}'
 
 command: >
-  vllm serve {model}
-  --served-model-name {served_model_name}
+  taskset -c 5-9,15-19 vllm serve {model}
   --host {host}
   --port {port}
   --gpu-memory-utilization {gpu_memory_utilization}

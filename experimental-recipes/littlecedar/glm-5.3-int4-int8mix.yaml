@@ -151,7 +151,7 @@ env:
 # `mods/drop-caches` mod (60s) + vm.swappiness=10 prerequisites below; without them the box
 # caps near ~0.61 and the [EXCEEDS] warning becomes real. [V]
 command: >
-  vllm serve {model}
+  taskset -c 5-9,15-19 vllm serve {model}
   --host {host}
   --port {port}
   --tensor-parallel-size {tensor_parallel}

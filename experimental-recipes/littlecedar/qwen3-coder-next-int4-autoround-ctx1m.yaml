@@ -30,7 +30,8 @@ defaults:
   max_model_len: 262144
 
 command: >
-  vllm serve Intel/Qwen3-Coder-Next-int4-AutoRound
+  taskset -c 5-9,15-19 vllm serve
+  Intel/Qwen3-Coder-Next-int4-AutoRound
   --max-model-len {max_model_len}
   --enable-auto-tool-choice
   --tool-call-parser qwen3_coder

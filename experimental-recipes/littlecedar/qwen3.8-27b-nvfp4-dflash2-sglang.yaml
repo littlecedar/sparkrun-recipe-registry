@@ -34,7 +34,7 @@ env:
   SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: 1
 
 command: >
-  sglang serve
+  taskset -c 5-9,15-19 sglang serve
   --trust-remote-code
   --reasoning-parser qwen3
   --tool-call-parser qwen3_coder

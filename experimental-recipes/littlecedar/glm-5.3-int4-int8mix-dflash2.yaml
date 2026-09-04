@@ -160,7 +160,7 @@ env:
 #     --kv-cache-dtype-skip-layers sliding_window (the drafter's sliding-window layers must
 #     keep BF16 KV; nvfp4_ds_mla is an MLA-record-only dtype). Default is empty.
 command: >
-  vllm serve {model}
+  taskset -c 5-9,15-19 vllm serve {model}
   --tensor-parallel-size {tensor_parallel}
   --pipeline-parallel-size {pipeline_parallel}
   --data-parallel-size {data_parallel}

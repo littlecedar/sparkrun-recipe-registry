@@ -24,7 +24,7 @@ defaults:
   load_format: instanttensor
 
 command: >
-  vllm serve {model}
+  taskset -c 5-9,15-19 vllm serve {model}
   --runner pooling
   --gpu-memory-utilization {gpu_memory_utilization}
   -tp {tensor_parallel}
