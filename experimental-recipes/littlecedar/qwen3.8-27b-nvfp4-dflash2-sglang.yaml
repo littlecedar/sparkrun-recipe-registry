@@ -42,13 +42,12 @@ command: >
   --host {host}
   --port {port}
   --tp {tensor_parallel}
-  --context-length {max_model_len}
+  --context-length {context_length}
   --max-running-requests {max_num_seqs}
   --kv-cache-dtype {kv_cache_dtype}
   --chunked-prefill-size {chunked_prefill_size}
   --mem-fraction-static {gpu_memory_utilization}
   --attention-backend {attention_backend}
-  --max-mamba-cache-size {max_mamba_cache_size}
   --mamba-full-memory-ratio {mamba_full_memory_ratio}
   --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
   --mamba-ssm-dtype {mamba_ssm_dtype}
