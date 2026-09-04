@@ -31,7 +31,7 @@ defaults:
   speculative_draft_tokens: 8
 
 env:
-  - SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1
+  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: 1
 
 command: >
   sglang serve
