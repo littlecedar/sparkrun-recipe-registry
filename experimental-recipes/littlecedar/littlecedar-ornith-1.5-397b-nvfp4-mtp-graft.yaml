@@ -10,11 +10,13 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "397B"
   model_dtype: nvfp4
+  model_mtp_dtype: bfp16
   kv_dtype: fp8
+  tags: lcg_favorite
 
 mods:
-  - mods/drop-caches
-  - mods/instanttensor-hybrid-draft-loader
+  - drop-caches
+  - instanttensor-hybrid-draft-loader
 
 env:
   VLLM_MARLIN_USE_ATOMIC_ADD: 1
