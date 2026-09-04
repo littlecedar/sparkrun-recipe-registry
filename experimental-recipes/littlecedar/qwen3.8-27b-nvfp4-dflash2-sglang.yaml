@@ -24,7 +24,7 @@ defaults:
   mamba_ssm_dtype: bfloat16
   mamba_radix_cache_strategy: extra_buffer_lazy
   kv_cache_dtype: fp8_e4m3
-  chunked_prefill_size: 2048
+  chunked_prefill_size: 32768
   attention_backend: flashinfer
   speculative_algorithm: DFLASH
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
