@@ -1,52 +1,45 @@
 # Little Cedar Sparkrun Recipes
 
 _Brought to you by Little Cedar Group._
-These are recipes we are using in addition to other recipes already provided, such as eugr's wonderful
-qwen3-coder-next-fp8-vllm recipe that helped us bootstrap some of our inference infrastructure. Greetz and thank you, eugr!
 
-# Notes
-
-## b12x
-There are a few flashinfer-b12x bugs which can lead to OOMs under the right conditions.  Trying to get Ornith-1.5-397b-NVFP4 to run with b12x backends, for example, is a fool's errand right now.  Immediately after the CuTe-DSL kernels finish compiling, RAM usage jumps by >32GB, for example.  Reasonably sure it's the flashinfer-b12x MoE backend bug already reported upstream: https://github.com/vllm-project/vllm/issues/49476
-
-# Model Flags
-
-| Flag | Meaning           |
-|------|-------------------|
-| ✅   | Official          |
-| ✨   | Fast (>50t/s)     |
-| ❌   | Unofficial        |
-| 🔥   | Uncensored/unsafe |
-| 💀   | Currently broken  |
-
-_Flags indicate characteristics of the model._
+These are the recipes we are using in the office on our humble 6-node DGX Spark cluster.
 
 # Recipes
 
-## Ornith
-
-| Flags | Params | Quant | Size GB | N | Mem | PP | TP | Backend    | t/s | Model Card                           |
-|-------|--------|-------|---------|---|-----|----|----|------------|-----|--------------------------------------|
-| ✅    | 397b   | FP8   | 405.2   | 4 | 0.8 | 1  | 4  | flashinfer |     | [ornith-ai/Ornith-1.5-397B-FP8]      |
-| ✅    | 397b   | NVFP4 | 225.9   | 4 | 0.8 | 1  | 4  | marlin     |     | [ornith-ai/Ornith-1.5-397B-NVFP4]    |
-| ✅💀  | 397b   | NVFP4 | 225.9   | 4 | 0.8 | 1  | 4  | fi-b12x    |     | [ornith-ai/Ornith-1.5-397B-NVFP4]    |
-| ✅    | 35b    | FP8   | 37.7    | 1 | 0.4 | 1  | 1  | flashinfer |     | [ornith-ai/Ornith-1.5-35B-A3B-FP8]   |
-| ✅    | 35b    | NVFP4 | 23.8    | 1 | 0.4 | 1  | 1  | marlin     |     | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] |
-| ✅    | 35b    | NVFP4 | 23.8    | 1 | 0.4 | 1  | 1  | fi-b12x    |     | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] |
-
 ## Qwen
 
-| Flags | Params | Quant | Size GB | N | Mem | PP | TP | Backend    | t/s | Model Card                  |
-|-------|--------|-------|---------|---|-----|----|----|------------|-----|-----------------------------|
-| ✅    | 397b   | FP8   | 405.2   | 1 | 0.4 | 1  | 1  | flashinfer |     | [Qwen/Qwen3.8-27B-FP8]      |
-| ✅🔥  | 80b    | FP8   |         | 1 | 0.8 | 1  | 1  | flashinfer |     | [Qwen/Qwen3-Coder-Next-FP8] |
+| Recipe                           | Flags  |   t/s | Size | Mem | TP | Model Cards                                                             |
+|:---------------------------------|:-------|------:|-----:|----:|---:|:------------------------------------------------------------------------|
+| qwen3.8-27b-nvfp4-dflash2-sglang | 🌲🚚🚀 |    50 | 21GB | 0.8 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
+
+## Ornith
+
+| Recipe                                      | Flags |   t/s |  Size | Mem | TP | Model Cards                                          |
+|:--------------------------------------------|:------|------:|------:|----:|---:|:-----------------------------------------------------|
+| littlecedar-ornith-1.5-397b-nvfp4-mtp-graft | 🌲    | 41.86 | 235GB | 0.8 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft] |
+
+# Notes
+
+# Model Flags
+
+| Flag  | Tag           | Description                          |
+|:------|:--------------|:-------------------------------------|
+| ✨    | official      | Uses official weights                |
+| 🌲    | lcg_favorite  | Little Cedar Group:tm: Favorite      |
+| 🚀    | fast          | Fast (> 60t/s avg)                   |
+| 🐢    | slow          | Slow (< 30t/s avg)                   |
+| 🚚    | large_context | Large context (> 1000000 tkns)       |
+| 🏴    | uncensored    | Uncensored model                     |
+| 🚩    | dangerous     | Dangerous and may crash your Sparks! |    
+| 💀    | broken        | Currently broken                     |
+
+_Flags indicate characteristics of the model._
 
 # References
 
+* https://spark-arena.com
 
-
-[ornith-ai/Ornith-1.5-397B-FP8]: https://huggingface.co/ornith-ai/Ornith-1.5-397B-FP8
-[ornith-ai/Ornith-1.5-397B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-397B-NVFP4
-[ornith-ai/Ornith-1.5-35B-A3B-FP8]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-FP8
-[ornith-ai/Ornith-1.5-35B-A3B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
-[Qwen/Qwen3.8-27B-FP8]: https://huggingface.co/Qwen/Qwen3.8-27B-FP8
+<!-- Links -->
+[RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
+[incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
+[littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
