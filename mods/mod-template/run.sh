@@ -17,19 +17,22 @@ set -euo pipefail
 #####################################################################
 # Metadata
 #####################################################################
-MOD_NAME="mod-template"
-MOD_DESCRIPTION="A sparkrun mod template for making your own mods"
-MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
+export MOD_NAME="mod-template"
+export MOD_DESCRIPTION="A sparkrun mod template for making your own mods"
+export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 #####################################################################
 # Config
 #####################################################################
-TIMEOUT="${MOD_TIMEOUT:-180}"
-LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
+export TIMEOUT="${MOD_TIMEOUT:-180}"
+export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export CACHEDIR="${MOD_CACHEDIR:-/cache/runtime}"
+export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
 # Mods run as root and we can't tell the real uid:gid from environment,
 # so we have to infer from /cache/runtime ownership.
-USER_UID="$(stat -c '%u' /cache/runtime)"
-USER_GID="$(stat -c '%g' /cache/runtime)"
+export USER_UID="$(stat -c '%u' /cache/runtime)"
+export USER_GID="$(stat -c '%g' /cache/runtime)"
+export UV_LINK_MODE=copy
 
 #####################################################################
 # Helpers

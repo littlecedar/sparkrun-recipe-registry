@@ -10,16 +10,18 @@ set -euo pipefail
 # Install fastsafetensors Python module
 #####################################################################
 
-MOD_NAME="pip-install-fastsafetensors"
-MOD_DESCRIPTION="Install fastsafetensors"
-MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
-TIMEOUT="${MOD_TIMEOUT:-180}"
-LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
-USER_UID="$(stat -c '%u' /cache/runtime)"
-USER_NAME="$(stat -c '%U' /cache/runtime)"
-USER_GID="$(stat -c '%g' /cache/runtime)"
-USER_GROUP="$(stat -c '%G' /cache/runtime)"
-MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export MOD_NAME="pip-install-fastsafetensors"
+export MOD_DESCRIPTION="Install fastsafetensors"
+export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
+export TIMEOUT="${MOD_TIMEOUT:-180}"
+export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
+export USER_UID="$(stat -c '%u' /cache/runtime)"
+export USER_NAME="$(stat -c '%U' /cache/runtime)"
+export USER_GID="$(stat -c '%g' /cache/runtime)"
+export USER_GROUP="$(stat -c '%G' /cache/runtime)"
+export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export UV_LINK_MODE=copy
+
 
 reown() {
   chown -R "${USER_UID}:${USER_GID}" "${@}"
@@ -76,6 +78,6 @@ log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 
 log "Installing fastsafetensors"
-log_cmd pip install --force fastsafetensors
+log_cmd uv pip install fastsafetensors
 
 log "mod complete"
