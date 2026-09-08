@@ -1,0 +1,85 @@
+recipe_version: "2"
+model: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+runtime: vllm
+min_nodes: 4
+
+metadata:
+  description: vLLM Serving littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  model_url: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: 397B
+  model_dtype: nvfp4
+  #kv_dtype: fp8
+  tags: broken
+
+mods:
+  - mods/drop-caches
+  - mods/instanttensor-hybrid-draft-loader
+
+env:
+  OMP_NUM_THREADS: 1
+  CUTE_DSL_ARCH: sm_121a
+  MAX_JOBS: 2
+  FLASHINFER_NVCC_THREADS: 1
+  FLASHINFER_DISABLE_VERSION_CHECK: 1
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_MARLIN_USE_ATOMIC_ADD: 1
+  VLLM_USE_FLASHINFER_MOE_FP4: 1
+  VLLM_SLEEP_WHEN_IDLE: 0
+  #FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  #TORCH_CUDA_ARCH_LIST: 12.1f
+  #VLLM_USE_AOT_COMPILE: 1
+  #VLLM_USE_BREAKABLE_CUDAGRAPH: 0
+  #VLLM_MEMORY_PROFILE_INCLUDE_ATTN: 1
+  #VLLM_USE_FLASHINFER_SAMPLER: 1
+  #VLLM_USE_B12X_WO_PROJECTION: 1
+  #VLLM_USE_B12X_MHC: 1
+  #VLLM_USE_B12X_MOE: 1
+  #VLLM_MOE_SKIP_PADDING: 0
+  #VLLM_USE_V2_MODEL_RUNNER: 1
+  #B12X_MLA_SM120_UNIFIED: 1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_batched_tokens: 8192
+  max_num_seqs: 10
+  performance_mode: throughput
+  num_speculative_tokens: 1
+  #kv_cache_dtype: fp8_e4m3
+  load_format: instanttensor
+  #attention_backend: flashinfer
+  moe_backend: b12x
+  #linear_backend: marlin
+  #mtp_moe_backend: flashinfer_cutlass
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --performance-mode {performance_mode}
+  --moe-backend {moe_backend}
+  --load-format {load_format}
+  --spec-method mtp 
+  --spec-tokens {speculative_tokens}
+  --no-enable-flashinfer-autotune
+  --tool-call-parser qwen3_xml
+  --reasoning-parser qwen3
+  --trust-remote-code
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --async-scheduling
+  --trust-remote-code
+
+#  --kv-cache-dtype {kv_cache_dtype}
+#   --speculative-config '{"method":"mtp","num_speculative_tokens":{num_speculative_tokens},"max_model_len":{max_model_len},"attention_backend":"{attention_backend}","moe_backend":"{mtp_moe_backend}"}'

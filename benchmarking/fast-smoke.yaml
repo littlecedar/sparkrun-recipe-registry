@@ -1,0 +1,9 @@
+framework: llama-benchy
+metadata:
+  description: Little Cedar Group Fast Smoke v1
+args:
+  depth: [ 0, 8192, 100000 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
