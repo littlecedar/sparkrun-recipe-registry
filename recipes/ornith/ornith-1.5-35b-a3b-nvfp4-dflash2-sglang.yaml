@@ -1,0 +1,66 @@
+recipe_version: 2
+model: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+container: lmsysorg/sglang:dev-cu13
+runtime: sglang
+min_nodes: 1
+
+metadata:
+  description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4 Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+  draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
+  model_params: "35B"
+  model_dtype: nvfp4
+  model_draft_dtype: bf16
+  kv_dtype: fp8_e4m3
+  tags: lcg_favorite, fast, large-context
+
+mods:
+  - drop-caches
+  - pip-install-fastsafetensors
+
+env:
+  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: 1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_seqs: 24
+  mamba_full_memory_ratio: 3.51
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: flashinfer_cutlass
+  speculative_algorithm: DFLASH
+  speculative_draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
+  speculative_draft_tokens: 4
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format fastsafetensors
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-draft-model-path {speculative_draft_model}
+  --speculative-num-draft-tokens {speculative_draft_tokens}
+  --model-loader-extra-config '{ "enable_gds": false }'

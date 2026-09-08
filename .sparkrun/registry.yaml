@@ -1,13 +1,7 @@
 registries:
-  - name: official
-    description: Official Spark Arena registry for recipes, tuning configs, and benchmark profiles
-    recipes: official-recipes
+  - name: littlecedar
+    description: Little Cedar Group's registry for sparkrun recipes, tuning configs, and benchmark profiles
+    recipes: recipes
     tuning: tuning
     benchmarks: benchmarking
-    mods: official-mods
-
-  - name: experimental
-    description: Spark Arena registry for experimental recipes
-    recipes: experimental-recipes
-    visible: false
-    mods: experimental-mods
+    mods: mods

@@ -1,0 +1,62 @@
+recipe_version: "2"
+model: nvidia/Qwen3.8-Flash-Next-NVFP4
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local
+min_nodes: 2
+
+metadata:
+  description: Qwen3.8-Flash-Next-NVFP4 - mixed NVFP4/BF16/FP8 checkpoint with MTP
+  model_url: https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "125B"
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: fp8_e4m3
+  tags: lcg_favorite
+
+mods:
+  - drop-caches
+  - pip-install-fastsafetensors
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_seqs: 12
+  quantization: modelopt_fp4
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  linear_attn_prefill_backend: triton
+  linear_attn_decode_backend: flashinfer
+  speculative_algorithm: NEXTN
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format fastsafetensors  
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --linear-attn-prefill-backend {linear_attn_prefill_backend}
+  --linear-attn-decode-backend {linear_attn_decode_backend}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --allow-auto-truncate
