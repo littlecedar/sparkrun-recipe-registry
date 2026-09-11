@@ -15,8 +15,8 @@ metadata:
   tags: lcg_favorite, fast, large-context
 
 mods:
-  - drop-caches
-  - pip-install-fastsafetensors
+  - "@official/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
 
 defaults:
   port: 8000

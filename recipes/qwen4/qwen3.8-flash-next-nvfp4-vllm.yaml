@@ -15,10 +15,10 @@ metadata:
   tags: lcg_favorite
 
 mods:
-  - drop-caches
-  - cap-flashinfer-ninja-parallelism
-  - instanttensor-hybrid-draft-loader
-  - fix-qwen3.8-flash-next-vllm
+  - "@official/mods/drop-caches"
+  - "@official/mods/instanttensor-hybrid-draft-loader"
+  - "@official/mods/fix-qwen3.8-flash-next-vllm"
+  - "@littlecedar/mods/cap-flashinfer-ninja-parallelism"
 
 env:
   SAFETENSORS_FAST_GPU: 1

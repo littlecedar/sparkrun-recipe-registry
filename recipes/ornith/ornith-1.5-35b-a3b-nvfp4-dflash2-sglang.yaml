@@ -1,6 +1,6 @@
 recipe_version: 2
 model: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
-container: lmsysorg/sglang:dev-cu13
+container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
 runtime: sglang
 min_nodes: 1
 
@@ -16,11 +16,13 @@ metadata:
   tags: lcg_favorite, fast, large-context
 
 mods:
-  - drop-caches
-  - pip-install-fastsafetensors
+  - "@official/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
 
 env:
-  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: 1
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
 
 defaults:
   port: 8000
@@ -41,7 +43,7 @@ defaults:
   speculative_draft_tokens: 4
 
 command: >
-  taskset -c 5-9,15-19 sglang serve
+  source /cache/runtime/.env.roce && taskset -c 5-9,15-19 sglang serve
   --model-path {model}
   --trust-remote-code
   --reasoning-parser qwen3
