@@ -11,7 +11,7 @@ metadata:
   tags: fast, lcg_favorite
 
 mods:
-  - mods/pip-install-orjson
+  - "@littlecedar/mods/pip-install-orjson"
 
 defaults:
   port: 8000

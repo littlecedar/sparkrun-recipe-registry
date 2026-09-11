@@ -15,8 +15,8 @@ metadata:
   tags: lcg_favorite
 
 mods:
-  - drop-caches
-  - instanttensor-hybrid-draft-loader
+  - "@official/mods/drop-caches"
+  - "@official/mods/instanttensor-hybrid-draft-loader"
 
 env:
   SAFETENSORS_FAST_GPU: 1
