@@ -14,8 +14,8 @@ metadata:
   tags: broken
 
 mods:
-  - "@official/mods/drop-caches"
-  - "@official/mods/instanttensor-hybrid-draft-loader"
+  - "@eugr/mods/drop-caches"
+  - "@eugr/mods/instanttensor-hybrid-draft-loader"
 
 env:
   OMP_NUM_THREADS: 1
