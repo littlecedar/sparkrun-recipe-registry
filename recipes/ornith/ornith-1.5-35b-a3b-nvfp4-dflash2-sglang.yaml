@@ -43,7 +43,7 @@ defaults:
   speculative_draft_tokens: 4
 
 command: >
-  source /cache/runtime/.env.roce && taskset -c 5-9,15-19 sglang serve
+  taskset -c 5-9,15-19 sglang serve
   --model-path {model}
   --trust-remote-code
   --reasoning-parser qwen3
