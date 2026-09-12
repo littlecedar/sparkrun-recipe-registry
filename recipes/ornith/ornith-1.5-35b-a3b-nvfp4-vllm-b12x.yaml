@@ -12,8 +12,8 @@ metadata:
   tags: official, fast, lcg_favorite
 
 mods:
-  - "@official/mods/drop-caches"
-  - "@official/mods/instanttensor-hybrid-draft-loader"
+  - "@eugr/mods/drop-caches"
+  - "@eugr/mods/instanttensor-hybrid-draft-loader"
 
 env:
   OMP_NUM_THREADS: 1

@@ -9,7 +9,7 @@ metadata:
   tags: lcg_favorite, fast
 
 mods:
-  - "@official/mods/fix-qwen3-next-autoround"
+  - "@eugr/mods/fix-qwen3-next-autoround"
 
 env:
   VLLM_USE_FLASHINFER_MOE_FP8: 1

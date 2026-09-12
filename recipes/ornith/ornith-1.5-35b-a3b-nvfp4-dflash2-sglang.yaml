@@ -16,7 +16,7 @@ metadata:
   tags: lcg_favorite, fast, large-context
 
 mods:
-  - "@official/mods/drop-caches"
+  - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/pip-install-fastsafetensors"
 
 env:
