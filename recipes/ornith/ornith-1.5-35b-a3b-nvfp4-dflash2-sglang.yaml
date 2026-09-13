@@ -30,7 +30,7 @@ defaults:
   tensor_parallel: 1
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  max_num_seqs: 24
+  max_num_seqs: 48
   mamba_full_memory_ratio: 3.51
   mamba_ssm_dtype: bfloat16
   mamba_radix_cache_strategy: extra_buffer_lazy
