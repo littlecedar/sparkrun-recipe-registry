@@ -77,6 +77,6 @@ log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 
 log "Installing orjson"
-log_cmd pip install --force orjson --break-system-packages.
+log_cmd pip install --force --break-system-packages orjson
 
 log "mod complete"
