@@ -78,6 +78,6 @@ log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 
 log "Installing fastsafetensors"
-log_cmd pip install --force fastsafetensors
+log_cmd pip install --force fastsafetensors --break-system-packages.
 
 log "mod complete"
