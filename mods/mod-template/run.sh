@@ -28,11 +28,14 @@ export TIMEOUT="${MOD_TIMEOUT:-180}"
 export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CACHEDIR="${MOD_CACHEDIR:-/cache/runtime}"
 export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
+# uv's symlinking gets messed up across permissions boundaries, so we copy.
+export UV_LINK_MODE=copy
 # Mods run as root and we can't tell the real uid:gid from environment,
 # so we have to infer from /cache/runtime ownership.
 export USER_UID="$(stat -c '%u' /cache/runtime)"
+export USER_NAME="$(stat -c '%U' /cache/runtime)"
 export USER_GID="$(stat -c '%g' /cache/runtime)"
-export UV_LINK_MODE=copy
+export USER_GROUP="$(stat -c '%G' /cache/runtime)"
 
 #####################################################################
 # Helpers
