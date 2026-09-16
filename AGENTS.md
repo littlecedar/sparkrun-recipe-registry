@@ -86,6 +86,8 @@ If you need to run models, build aarch64 code, or pull docker containers, you ca
 - You can stop a recipe with `sparkrun stop <task ID>`.
 - You can get logs from `sparkrun logs <task ID>`.
 - You can get <task ID> from `sparkrun status`.
+- This repo is automatically synchronized to `${WOPR_HEAD_NODE}` in `${WOPR_SRC_DIR}`.
+- To run recipes under development, symlink them from `${WOPR_SRC_DIR}` into `${WOPR_RUN_FROM_DIR}` and run `sparkrun` from `${WOPR_RUN_FROM_DIR}`.  The `mods` directory in `${WOPR_SRC_DIR}` is symlinked into `${WOPR_RUN_FROM_DIR}` so mods under development are reachable by `sparkrun`.
 
 ### 2.4: Hugging Face Cache
 
@@ -253,11 +255,7 @@ if __name__ == "__main__":
 ```
 
 ### 5.5 Live Experiments
-If you need to run models, aarch64 code, or pull docker containers, you can connect to `${WOPR_HEAD_NODE} via `ssh` and use
-`sparkrun status` to find idle nodes and then specify them with `-H <node1>,<node2>,<etc>` when running a recipe with `sparkrun run <recipename>`.
-- You can stop a recipe with `sparkrun stop <task ID>`.
-- You can get logs from `sparkrun logs <task ID>`.
-- You can get <task ID> from `sparkrun status`.
+Refer to the info in **§2.3: Remote Build & Work**
 
 ---
 
