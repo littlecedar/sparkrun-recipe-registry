@@ -1,5 +1,5 @@
 recipe_version: "2"
-model: nvidia/Qwen3.8-Flash-Next-NVFP4
+model: RadixArk/Qwen3.8-Flash-Next-NVFP4
 runtime: vllm
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 min_nodes: 2
@@ -18,7 +18,6 @@ mods:
   - "@eugr/mods/drop-caches"
   - "@eugr/mods/instanttensor-hybrid-draft-loader"
   - "@eugr/mods/fix-qwen3.8-flash-next-vllm"
-  - "@littlecedar/mods/cap-flashinfer-ninja-parallelism"
 
 env:
   SAFETENSORS_FAST_GPU: 1
