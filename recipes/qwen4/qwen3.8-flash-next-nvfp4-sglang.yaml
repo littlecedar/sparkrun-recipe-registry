@@ -1,7 +1,7 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-Flash-Next-NVFP4
 runtime: sglang
-container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local #@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 2
 
 metadata:
@@ -16,7 +16,6 @@ metadata:
 
 mods:
   - "@eugr/mods/drop-caches"
-  - "@littlecedar/mods/pip-install-fastsafetensors"
 
 defaults:
   port: 8000
@@ -24,46 +23,47 @@ defaults:
   tensor_parallel: 2
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  max_num_seqs: 12
+  max_num_seqs: 24
   quantization: modelopt_fp4
   fp4_gemm_backend: flashinfer_cutlass
   page_size: 64
   chunked_prefill_size: 4096
-  linear_attn_prefill_backend: triton
-  linear_attn_decode_backend: flashinfer
+  #linear_attn_prefill_backend: triton
+  #linear_attn_decode_backend: flashinfer
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  max_mamba_cache_size: 384
+  load_format: safetensors #fastsafetensors
   speculative_algorithm: NEXTN
   speculative_num_steps: 3
   speculative_eagle_topk: 1
-  speculative_num_draft_tokens: 4
+  speculative_num_draft_tokens: 8
 
 command: >
-  taskset -c 5-9,15-19
-# Multi-node (2 nodes). Run the same command on every node with:
-#   <node-rank> = 0 on the head node, 1..1 on the others
-#   <node0-ip>  = IP of the head node (reachable from all others)
-# Run the same command on both Sparks: rank 1 first, then rank 0 (node 0 = --dist-init-addr host).
-# Point the rendezvous and NCCL at the ConnectX-7 link, not the management NIC:
-#   NCCL_SOCKET_IFNAME=<200GbE-nic>  GLOO_SOCKET_IFNAME=<200GbE-nic>
-# Cross-node decode CUDA graphs verified with the NCCL these images load (2.29.7 in dev-qwen38-next-local, 2.30.7 in qwen38flashnext);
-# confirm with the startup log line 'sglang is using nccl=='.
+  taskset -c 5-9,15-19 sglang serve
+  --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4
+  --mem-fraction-static {gpu_memory_utilization}
+  --host 0.0.0.0
+  --port 8000
+  --tp {tensor_parallel}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --max-running-requests {max_num_seqs}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --no-ple-offload-embedding
 
-  lmsysorg/sglang:dev-qwen38-next-local \
-  sglang serve \
-    --model-path RadixArk/Qwen3.8-Flash-Next-NVFP4 \
-    --tp 2 \
-    --nnodes 2 \
-    --node-rank <node-rank> \
-    --dist-init-addr <node0-ip>:20000 \
-    --quantization modelopt_fp4 \
-    --fp4-gemm-backend flashinfer_cutlass \
-    --page-size 64 \
-    --chunked-prefill-size 4096 \
-    --context-length 262144 \
-    --mamba-radix-cache-strategy extra_buffer_lazy \
-    --max-running-requests 96 \
-    --max-mamba-cache-size 384 \
-    --reasoning-parser qwen3 \
-    --mem-fraction-static 0.85 \
-    --host 0.0.0.0 \
-    --port 30000 \
-    --no-ple-offload-embedding
+#    --node-rank <node-rank>
+#    --dist-init-addr <node0-ip>:20000
+#    --linear-attn-prefill-backend {linear_attn_prefill_backend}
+#    --linear-attn-decode-backend {linear_attn_decode_backend}
+
