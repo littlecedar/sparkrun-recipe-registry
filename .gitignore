@@ -2,3 +2,5 @@
 /.venv/
 /.junie/
 /.swival/
+.logs/*
+
