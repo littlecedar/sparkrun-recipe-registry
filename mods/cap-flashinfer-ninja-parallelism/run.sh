@@ -27,6 +27,7 @@ MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export MAX_JOBS
 
 reown() {
+  log "resetting permissions to ${USER_UID}:${USER_GID} on ${*}"
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
 
