@@ -35,7 +35,7 @@ defaults:
   mamba_radix_cache_strategy: extra_buffer_lazy
   mamba_ssm_dtype: bfloat16
   max_mamba_cache_size: 112
-  load_format: fastsafetensors
+  load_format: safetensors
   speculative_algorithm: NEXTN
   speculative_attention_mode: decode
   speculative_num_steps: 3

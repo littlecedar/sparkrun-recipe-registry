@@ -65,3 +65,6 @@ command: >
   --reasoning-parser qwen3
   --trust-remote-code
   --speculative-config '{"method":"mtp","num_speculative_tokens":{speculative_tokens}}'
+
+# If you want to use long max model length, please uncomment the following line
+# --hf-overrides '{"text_config": {"rope_parameters": {"mrope_interleaved": true, "mrope_section": [11, 11, 10], "rope_type": "yarn", "rope_theta": 10000000, "partial_rotary_factor": 0.25, "factor": 4.0, "original_max_position_embeddings": 262144}}}' --max-model-len 1000000
