@@ -7,3 +7,4 @@ args:
   tg: [ 128 ]
   concurrency: [ 1 ]
   prefix_caching: true
+  runs: 3
