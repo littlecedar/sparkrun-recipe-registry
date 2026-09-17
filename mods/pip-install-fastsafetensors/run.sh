@@ -24,6 +24,7 @@ export UV_LINK_MODE=copy
 
 
 reown() {
+  log "resetting permissions to ${USER_UID}:${USER_GID} on ${*}"
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
 
@@ -79,5 +80,7 @@ log "${MOD_MAINTAINER}"
 
 log "Installing fastsafetensors"
 log_cmd pip install --force --break-system-packages fastsafetensors
+
+reown /cache/runtime
 
 log "mod complete"

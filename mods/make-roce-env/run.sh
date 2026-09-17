@@ -46,6 +46,7 @@ export USER_GID="$(stat -c '%g' /cache/runtime)"
 # user access may fail if owned by root. Use this to fix that.
 #--------------------------------------------------------------------
 reown() {
+  log "resetting permissions to ${USER_UID}:${USER_GID} on ${*}"
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
 

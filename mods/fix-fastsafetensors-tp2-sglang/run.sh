@@ -214,7 +214,6 @@ for line in src.splitlines():
         print('OK:', line.strip())
 "
 
-#####################################################################
-# Log Completion
-#####################################################################
-log "Done."
+reown /cache/runtime
+
+log "mod complete"

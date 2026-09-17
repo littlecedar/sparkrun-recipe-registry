@@ -23,6 +23,7 @@ export USER_GROUP="$(stat -c '%G' /cache/runtime)"
 export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 reown() {
+  log "resetting permissions to ${USER_UID}:${USER_GID} on ${*}"
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
 
