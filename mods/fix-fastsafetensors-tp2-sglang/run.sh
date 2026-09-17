@@ -7,33 +7,53 @@ set -euo pipefail
 #####################################################################
 # README
 #####################################################################
-# Make --load-format fastsafetensors work under multi-node tensor
-# parallel on DGX Spark.
+# Make --load-format fastsafetensors usable for multi-node tensor
+# parallel on DGX Spark. Fixes two independent defects in SGLang's
+# fastsafetensors_weights_iterator, both invisible on the single-node
+# multi-GPU boxes upstream tests on:
 #
-# SGLang derives the CUDA device for the fastsafetensors pool from the
-# global process-group rank instead of the local device index. DGX Spark
-# is 1 GPU per node, so at TP=2 the rank-1 host is asked for cuda:1 and
-# dies with "invalid device ordinal". It works at TP=1 only because rank
-# 0 happens to be a valid device index.
+#   1. Device selection. The CUDA device is derived from the GLOBAL
+#      process-group rank, not the local device index. DGX Spark is 1 GPU
+#      per node, so at TP=2 the rank-1 host asks for cuda:1 and dies with
+#      "invalid device ordinal". Works at TP=1 only because rank 0 happens
+#      to be a valid device index.
+#      Upstream: https://github.com/sgl-project/sglang/issues/29272
+#      (open, unmerged; duplicate PRs #26597 and #29717 are stalled).
 #
-# Upstream: https://github.com/sgl-project/sglang/issues/29272
-# (open, unmerged as of 2026-09-15; PRs #26597 and #29717 are duplicate
-# one-line fixes that have stalled).
+#   2. The device staging buffer is never released. Upstream's inner
+#      `finally:` block is literally `pass`, so the FilesBufferOnDevice
+#      returned by copy_files_to_device() is never closed and its buffers
+#      stay resident. On a discrete GPU that is merely wasteful; on a GB10
+#      the buffer is carved from the same 128 GB pool as the weights and
+#      the KV cache, so it comes straight out of the KV budget.
 #
-# This mod patches the installed sglang in place. SGLang ships as source
-# in the pinned image, so no bytecode cache invalidation is needed.
+#      Measured on this recipe, same container and weights, after both
+#      loads complete:
+#          load_format=safetensors      avail mem = 47.54 GB
+#          load_format=fastsafetensors  avail mem = 20.78 GB
+#      ~26.9 GB retained, which tipped --mem-fraction-static 0.85 past the
+#      point where the KV pool fits: "Loaded weights leave no GPU memory
+#      for the KV cache". The scheduler aborted on both ranks.
 #
-# Companion mod: pip-install-fastsafetensors (the module is not installed
-# in the pinned container; both are required to use the loader).
+# This mod patches the installed sglang in place. SGLang ships as source in
+# the pinned image, so no bytecode cache invalidation is needed.
+#
+# Companion mod: pip-install-fastsafetensors (the module is NOT installed
+# in the pinned container; both mods are required to use the loader).
 #
 # Use with:
 #   load_format: fastsafetensors
 #   mods:
-#     - fix-fastsafetensors-tp2-sglang
 #     - pip-install-fastsafetensors
+#     - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
 #
 # Order matters: mods resolve into sequential pre_exec entries, so the
 # patch listed after the pip install runs against the final tree.
+#
+# To A/B the two fixes independently, set
+#   SPARKRUN_ALLOW_PARTIAL_FASTSAFETENSORS_PATCH=1
+# in the recipe environment. Without it the mod refuses to apply only half
+# the fix, so a moved anchor cannot silently reproduce either failure.
 #####################################################################
 
 #####################################################################
