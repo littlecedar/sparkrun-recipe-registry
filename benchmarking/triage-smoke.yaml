@@ -5,6 +5,6 @@ args:
   depth: [ 0, 8192, 100000 ]
   pp: [ 2048 ]
   tg: [ 128 ]
-  concurrency: [ 1 ]
+  concurrency: [ 1, 2 ]
   prefix_caching: true
-  runs: 3
+  runs: 5
