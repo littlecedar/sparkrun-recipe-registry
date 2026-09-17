@@ -129,8 +129,8 @@ log "${MOD_MAINTAINER}"
 
 log "Gathering environment info..."
 log_cmd whoami
-log_var UID
-log_var GID
+log_var USER_NAME
+log_var USER_GROUP
 log_cmd env
 
 #####################################################################
