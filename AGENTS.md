@@ -83,6 +83,7 @@ registries:
 
 If you need to run models, build aarch64 code, or pull docker containers, you can connect to `${WOPR_HEAD_NODE}` via `ssh` and use
 `sparkrun status` to find idle nodes and then specify them with `-H <node1>,<node2>,<etc>` when running a recipe with `sparkrun run <recipename>`.
+- The username is `${WOPR_USERNAME}`
 - You can stop a recipe with `sparkrun stop <task ID>`.
 - You can get logs from `sparkrun logs <task ID>`.
 - You can get <task ID> from `sparkrun status`.
