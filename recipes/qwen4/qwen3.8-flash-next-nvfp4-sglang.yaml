@@ -11,7 +11,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"
   model_dtype: nvfp4
-  model_mtp_dtype: fp8
+  model_mtp_dtype: bf16
   kv_dtype: bf16
   tags: lcg_favorite, fast
 
@@ -41,6 +41,11 @@ defaults:
   speculative_num_steps: 3
   speculative_eagle_topk: 1
   speculative_num_draft_tokens: 4
+  # Escape hatch for one-off experimentation.  `sparkrun benchmark` silently drops
+  # trailing EXTRA_ARGS (click nargs=-1 arg is accepted then discarded in
+  # cli/_benchmark.py), so un-parameterised server flags cannot be injected from the
+  # command line.  Empty string is the no-op default; quoted so YAML keeps it a str.
+  extra_args: ""
 
 command: >
   taskset -c 5-9,15-19 sglang serve
@@ -68,6 +73,7 @@ command: >
   --speculative-eagle-topk {speculative_eagle_topk}
   --speculative-num-draft-tokens {speculative_num_draft_tokens}
   --no-ple-offload-embedding
+  {extra_args}
 
 # Proposed Changes:
 #  --enable-int8-mamba-checkpoint
