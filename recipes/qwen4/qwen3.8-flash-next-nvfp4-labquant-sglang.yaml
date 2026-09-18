@@ -1,0 +1,187 @@
+recipe_version: "2"
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+# Pinned 2026-09-18 to the populated snapshot verified present on the shared NFS cache
+# (99 GB, 37 shard files).  Do NOT unpin: this repo's `main` changed contents under us
+# once already (see caveats), and an unpinned pull can land on a weights-free snapshot.
+revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 2
+
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - MXFP8 attention/GDN + FP8 PLE, lower weight bytes/token
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  # Verified against safetensors headers on the ada4da32 snapshot: this export
+  # quantizes the MTP draft head (1.60 GB) where RadixArk leaves it BF16 (5.21 GB),
+  # and quantizes self_attn.*/linear_attn.* to MXFP8 where RadixArk leaves those
+  # BF16.  ~4.25 GB of weights touched per decode token vs ~7.1 GB for RadixArk.
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+  tags: lcg_favorite, fast
+  caveats: >
+    Checkpoint is more aggressively quantized than the RadixArk export in exactly
+    the attention/GDN and PLE-n-gram paths. No accuracy evaluation exists on this
+    cluster for this export; benchmark wins here are NOT evidence of equal quality.
+    Run an eval before adopting for anything user-facing.
+    Revision note, corrected 2026-09-18: the HF repo's `main` branch was pointing at a
+    weights-free 45 MB snapshot during the 2026-09-17 session. It now points at the
+    populated snapshot `7c4f1bc1a2d6...` (99 GB, 36 shards, VERIFIED via the HF API and
+    against the local cache), so `revision:` below pins that value explicitly. Re-check
+    before any re-pull: an unpinned pull of this repo has already silently changed
+    contents once.
+
+mods:
+  - "@eugr/mods/drop-caches"
+  # Builds /cache/runtime/labq-patched: a symlink tree over the HF snapshot with one
+  # patched config.json, so SGLang's modelopt_mixed loader will accept this checkpoint.
+  # Without it the server dies in model load with KeyError: 'quantization' at
+  # srt/model_loader/weight_utils.py:410.  See mods/…/README.md for the mechanism.
+  - "mods/fix-labquant-modelopt-mixed-flat-schema"
+  # Rewrites the 128 PLE n-gram shards in that same tree from packed NVFP4 to plain
+  # fp8 e4m3 and sets text_config.ple_embedding_dtype=float8_e4m3fn, so the engine
+  # uses its own tested fp8 PLE path.  Without it the server gets past config parse
+  # and then dies in copy_ple_rows_to_tp_embedding with
+  #   RuntimeError: The size of tensor a (160) must match the size of tensor b (80)
+  # ORDER MATTERS: this mod writes real files into the tree the config mod builds,
+  # and the config mod only rebuilds (rm -rf) that tree when its revision stamp
+  # changes.  Keep the config mod first.  Cold cost is 51.2 GB / ~50 s per node.
+  # Requires --no-ple-offload-embedding, which is set in the command below.
+  - "mods/unpack-labquant-ple-nvfp4-to-fp8"
+  # DIAGNOSTIC ONLY -- removable once the shared-expert scale blocker is understood.
+  # Inserts a logging call in front of the assert at qwen4_exp.py:2136 so a failed
+  # load prints which _scale tensor was unplaceable and what parameters the model
+  # actually built. It does not change control flow: the assert still fires. See
+  # mods/diag-qwen4-unplaced-scales/README.md. Harmless once the blocker is fixed
+  # (it is a no-op when every _scale finds a destination).
+  - "mods/diag-qwen4-unplaced-scales"
+  - "mods/fix-labquant-mxfp8-weight-scale-name"
+  # REQUIRED for this export to boot at all. Its GDN `linear_attn.in_proj_a`/`in_proj_b`
+  # are MXFP8 at 48 rows each; fused into in_proj_ba that is n=96 (48/rank at TP=2),
+  # under CUTLASS's MXFP8 floor of 128, so the load dies with
+  #   ValueError: MXFP8 requires n >= 128 and k >= 128 for CUTLASS MXFP8.
+  #                 got m=8, n=96, k=2560
+  # This mod demotes exactly those 72 tensors (in_proj_a + in_proj_b on the 36
+  # linear_attn layers) to BF16 and drops their scales: it adds them to
+  # quantization_config.ignore AND rewrites the shard bytes, because `ignore` alone
+  # would leave F8_E4M3 bytes landing in a BF16 parameter via default_weight_loader's
+  # `param.data.copy_()`, which torch casts silently -- a server that serves, answers,
+  # benchmarks, and is numerically wrong. The MXFP8->BF16 decode is bit-exact (4
+  # significand bits in a power-of-two scale fit in bf16's 8) and the mod asserts that
+  # per tensor. in_proj_qkv/in_proj_z/out_proj and all of self_attn stay MXFP8.
+  # Must run LAST: it layers onto the tree the config mod builds and reads its
+  # config.json. Cost: +0.14 MB of weights per node, ~6 s. RadixArk ships these same
+  # two projections BF16, so this matches the reference export rather than diverging.
+  - "mods/demote-labquant-narrow-mxfp8-to-bf16"
+  # Marks the patched config `language_model_only: true`, so the engine sets
+  # self.visual=None (qwen3_vl.py:1243) and skips the vision tensors at load
+  # (qwen4_exp.py:2004).  REQUIRED: unlike RadixArk (which leaves the vision tower BF16
+  # and puts `model.visual.*` in its ignore list), this export QUANTISES the vision
+  # tower -- 110 F8_E4M3 layers plus 110 U8 MXFP8 block scales -- while SGLang builds
+  # the vision tower with quant_config=None (qwen3_vl.py:1251), so those scale tensors
+  # have no destination parameter and the load aborts.  No name remap can help; the
+  # parameter does not exist.  Consequence: this recipe serves TEXT ONLY.  That costs
+  # nothing for the benchmarks here (all text), but it is a real capability difference
+  # vs the RadixArk recipe and must be stated in any comparison between them.
+  # The CLI route is unavailable: --language-model-only is refused for this arch
+  # (server_args.py:7724 allows only MuseGlimmerForConditionalGeneration), so the value
+  # has to come from config.json, which model_config.py:331 reads directly.
+  - "mods/skip-labquant-vision-tower"
+  # NB: the two fastsafetensors mods are deliberately NOT listed here even though
+  # the parent recipe lists them.  This recipe benchmarks with
+  # load_format=safetensors, so they accomplish nothing -- and worse, they exec as
+  # root and leave a root-owned
+  # .cache/flashinfer/<ver>/<arch>/flashinfer_jit.log inside the persisted
+  # per-model runtime cache, which makes the FIRST launch of any new model key die
+  # as uid 1000 with PermissionError (host-local, and sticky: uid 1000 cannot even
+  # unlink it).  See mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
+  # and the reown fix.  Add them back only if you actually set
+  # load_format=fastsafetensors.
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 24
+  kv_dtype: bf16
+  quantization: modelopt_mixed
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  max_mamba_cache_size: 112
+  load_format: safetensors
+  # Serves the mod-built patched tree, NOT the raw HF snapshot. The mod
+  # (mods/fix-labquant-modelopt-mixed-flat-schema) creates this in the
+  # host-local runtime cache on every node, as a symlink farm over the snapshot with
+  # one patched config.json. The raw snapshot is never modified. If you bypass the
+  # mod (--skip-run against a container that never ran it) this path will not exist.
+  served_model_dir: /cache/runtime/labq-patched
+  speculative_algorithm: NEXTN
+  speculative_attention_mode: decode
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  # Escape hatch for one-off experimentation.  `sparkrun benchmark` silently drops
+  # trailing EXTRA_ARGS (click nargs=-1 arg is accepted then discarded in
+  # cli/_benchmark.py), so un-parameterised server flags cannot be injected from the
+  # command line.  Empty string is the no-op default; quoted so YAML keeps it a str.
+  #
+  # Two earlier candidates were tried and are recorded as dead ends so they are not
+  # re-litigated: `--language-model-only` raises ValueError because server_args gates it
+  # on a LANGUAGE_MODEL_ONLY_ARCHITECTURES allowlist that does not contain this model's
+  # architectures, so it is refused at startup regardless of the load-time skip in
+  # qwen4_exp.py:2004 -- and it would also have been a confound, since this export needs
+  # it to load while RadixArk does not. `mods/…skip-visual` was rejected on the same
+  # confound grounds. The visual MXFP8 scales are handled by mods/skip-labquant-vision-tower
+  # instead, which changes nothing about what the two arms build.
+  #
+  # --moe-runner-backend flashinfer_cutlass is REQUIRED here, not tuning:
+  #   With `auto` the NVFP4 MoE resolves to MoeRunnerBackend.FLASHINFER_TRTLLM and the
+  #   server dies ~13 minutes in, during the draft-model warmup, at modelopt_quant.py:2912
+  #   with "Unsupported moe_runner_backend for NVFP4 MoE: MoeRunnerBackend.FLASHINFER_TRTLLM".
+  #   VERIFIED 2026-09-18 on 10.0.4.34/35 with this checkpoint (job 11b2c8b941e89cb9).
+  #   This settles work doc 6 item 2 for THIS checkpoint: `auto` really does pick trtllm,
+  #   which a probe earlier today failed to reproduce. flashinfer_cutlass is the backend
+  #   the exception message itself names, and the archive already records explicit
+  #   flashinfer_trtllm as dead on SM121 (no runnable cubins) -- so there is no arm here
+  #   in which trtllm is reachable.
+  extra_args: "--moe-runner-backend flashinfer_cutlass"
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {served_model_dir}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --speculative-attention-mode {speculative_attention_mode} 
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --no-ple-offload-embedding
+  {extra_args}
+
+# Proposed Changes:
+#  --enable-int8-mamba-checkpoint
+#  --int8-mamba-ckpt-size <size?>
+#  --revision {revision}
