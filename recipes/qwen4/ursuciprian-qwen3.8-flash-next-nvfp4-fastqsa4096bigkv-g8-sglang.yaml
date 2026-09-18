@@ -1,0 +1,81 @@
+recipe_version: '2'
+
+description: Qwen3.8-Flash-Next NVFP4 TP=2 - fast QSA, BF16 mamba, chunked prefill 4096, decode graphs 1/2/4/8, enlarged KV pool
+name: qwen38-flash-next-nvfp4-fastqsa4096bigkv-g8-sglang
+model: RadixArk/Qwen3.8-Flash-Next-NVFP4
+runtime: sglang
+container: lmsysorg/sglang:qwen38flashnext
+min_nodes: 2
+
+metadata:
+  description: Based on MiaAI and ursuciprian recipes.
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: asdf
+  model_params: "35B"
+  quantization: nvfp4
+  model_dtype: nvfp4
+  model_draft_dtype: bf16
+  kv_dtype: fp8_e4m3
+  tags: lcg_favorite, large-context
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.8
+  max_model_len: 110000
+  max_num_seqs: 10
+  served_model_name: qwen3.8-flash-next
+  revision: 7b719225242aacd3dbd3f9407468c2ee9a9d2594
+  max_total_tokens: 900000
+  chunked_prefill_size: 4096
+  speculative_num_steps: 3
+  speculative_num_draft_tokens: 4
+
+executor_config:
+  cap_add:
+    - SYS_PTRACE
+  volumes:
+    - /home/nvidia/GEN-AI/flashnext/patches/qsa_upstream_fix.py:/sgl-workspace/sglang/python/sglang/srt/layers/attention/qwen_sparse_attn_backend.py:ro
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+command: >
+  taskset -c 5-9,15-19 python3 -m sglang.launch_server
+  --model-path {model}
+  --revision {revision}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --tp-size {tensor_parallel}
+  --quantization modelopt_fp4
+  --attention-backend flashinfer
+  --fp4-gemm-backend flashinfer_cutlass
+  --page-size 64
+  --mamba-ssm-dtype bfloat16
+  --mamba-radix-cache-strategy extra_buffer
+  --mamba-track-interval 64
+  --max-mamba-cache-size 97
+  --mem-fraction-static {gpu_memory_utilization}
+  --context-length {max_model_len}
+  --max-total-tokens {max_total_tokens}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --speculative-algorithm NEXTN
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk 1
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --speculative-attention-mode decode
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --allow-auto-truncate
+  --enable-metrics
+  --enable-cache-report
+  --ple-offload-embedding
+  --disable-prefill-cuda-graph
+  --cuda-graph-bs-decode 1 2 4 8
+  --disable-cuda-graph-padding
+  --trust-remote-code
