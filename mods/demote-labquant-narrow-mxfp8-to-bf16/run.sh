@@ -248,7 +248,17 @@ wm = json.load(open(idx_path))["weight_map"]
 # It is NOT proof of the cause. The crash is arguably a sglang bug (a D2H inside graph
 # capture), and RadixArk's forward may simply take a different route through the same
 # code. Treat "demoting it made it serve" as evidence about placement, not diagnosis.
-DEFAULT_ON = {"index_qk_proj"}
+# Why index_qk_proj is OFF by default, and what that costs us: it was ON, and the test
+# it was designed for was run. Boot 11b2c8b941e89cb9 on 2026-09-18 22:05 loaded with
+# `index_qk_proj` demoted to BF16 (VERIFIED from the live tree: 84 tensors demoted, 84
+# scales dropped, 168 ignore entries, the projection present as BF16 [640,2560] with no
+# surviving scale) and CUDA-graph capture died with the identical
+# `Cannot copy between CPU and CUDA tensors during CUDA graph capture` in the QSA indexer.
+# So MXFP8 placement of that projection is NOT what triggers (f). It is off because the
+# arm should differ from the reference export only where the engine mechanically forces
+# it to, and nothing forces this one. The knob stays: (f) is unresolved, this was the
+# cheapest hypothesis, and a future bisect may want it.
+DEFAULT_ON: set = set()
 EXTRA_LEAVES_RAW = os.environ.get("MOD_DEMOTE_EXTRA_LEAVES", "")
 _LEAF_FILE = "/cache/runtime/demote_extra_leaves"
 if os.path.isfile(_LEAF_FILE):

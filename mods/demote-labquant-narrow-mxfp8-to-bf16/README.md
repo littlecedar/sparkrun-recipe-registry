@@ -87,26 +87,30 @@ pinned revision that is exactly **72 tensors** — `in_proj_a` + `in_proj_b` for
 `out_proj` (2560) and every `self_attn` projection stay MXFP8, so this is not
 "we dequantised the attention".
 
-**2. Named leaves (`EXTRA_LEAVES`, which includes `index_qk_proj` by default).** Below the
-floor is not the only reason to move a projection, and this one deserves scepticism:
-`index_qk_proj` is 640×2560, comfortably *above* the floor, so nothing in the engine requires
-it to move. It is demoted because labquant MXFP8s it where RadixArk ships the same tensor
-BF16 (VERIFIED from both checkpoints' headers:
-`layers.11.self_attn.indexer.index_qk_proj.weight` is `F8_E4M3 [640,2560]` + U8 scale here,
-`BF16 [640,2560]` there), and both boots that reached CUDA-graph capture died inside the QSA
-prefill path. Demoting it makes this arm match the reference export's placement, which is the
-cheapest control available. **If the arm then serves, that is evidence about MXFP8
-*placement* — it is not a diagnosis of the crash**, which reads more like an sglang bug (a
-D2H `tolist()` inside graph capture). Set `MOD_DEMOTE_EXTRA_LEAVES=""` for pure floor-test
-behaviour, or a comma list to add more; a one-line file at
-`/cache/runtime/demote_extra_leaves` does the same for a real launch, since a pre_exec mod
-has no clean way to receive an env var. That file is deliberately **not** self-deleting:
-pre_exec runs once per node against the same host-mounted `/cache/runtime`, so a file that
-deletes itself gives the first node one override and every later node another — a
-split-brain TP group that would present as a numerical mystery rather than an error.
+**2. Named leaves (`EXTRA_LEAVES`, empty by default).** Below the floor is not the only
+possible reason to move a projection, so the mechanism exists — but it ships **empty**, and
+the history of why is the useful part. The first candidate was `index_qk_proj`: labquant
+MXFP8s it (`F8_E4M3 [640,2560]` + U8 scale) where RadixArk ships the same tensor
+`BF16 [640,2560]`, and both boots that reached CUDA-graph capture died inside the QSA prefill
+path. It was on by default as the cheapest control for that crash. The control was run —
+boot `11b2c8b941e89cb9`, 2026-09-18 22:05 — and the live tree was checked to confirm it
+actually took effect (84 tensors demoted, 84 scales dropped, 168 ignore entries, the
+projection present as `BF16 [640,2560]` with no surviving scale). CUDA-graph capture died
+with the **identical** pinned-memory error in the same frames. So MXFP8 placement of
+`index_qk_proj` does not cause it, and the demotion is off: this arm should differ from the
+reference export only where the engine mechanically forces it to, and nothing forces this.
+The knob stays because that crash is unresolved and a future bisect may want the lever back.
 
-Weight bytes: 4.72 MB of BF16 replaces 2.46 MB of MXFP8+scale → **+0.14 MB per node**, plus
-~19 MB for the 12 indexer tensors. Negligible.
+Set `MOD_DEMOTE_EXTRA_LEAVES` to a comma list to name leaves (empty string = floor test
+only). A one-line file at `/cache/runtime/demote_extra_leaves` does the same for a real
+launch, since a pre_exec mod has no clean way to receive an env var. That file is
+deliberately **not** self-deleting: pre_exec runs once per node against the same host-mounted
+`/cache/runtime`, so a file that deletes itself gives the first node one override and every
+later node another — a split-brain TP group that would present as a numerical mystery rather
+than an error.
+
+Weight bytes: 4.72 MB of BF16 replaces 2.46 MB of MXFP8+scale → **+0.14 MB per node**.
+Negligible.
 
 Runtime cost: **none measured, and none expected** — but the reasoning is worth
 recording because it nearly went the other way. `finalize_fused_in_proj()`
