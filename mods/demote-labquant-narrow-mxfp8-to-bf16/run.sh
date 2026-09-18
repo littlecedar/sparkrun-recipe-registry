@@ -228,27 +228,26 @@ wm = json.load(open(idx_path))["weight_map"]
 # MOD_DEMOTE_EXTRA_LEAVES (comma-separated). See the reasoning at the decision point
 # below; the short version is that labquant MXFP8s the QSA indexer projection while
 # RadixArk ships it BF16, and matching the reference export's placement is the control.
-# Leaves beyond the CUTLASS floor that are demoted anyway, to match the reference
-# export's placement. DEFAULT_ON holds the ones this project currently believes in and
-# WHY; MOD_DEMOTE_EXTRA_LEAVES (or a one-line file at /cache/runtime/demote_extra_leaves)
-# overrides the set completely -- set it to the empty string to get pure floor-test
-# behaviour, or to a comma list to add more.
+# Leaves beyond the CUTLASS floor that are demoted anyway. DEFAULT_ON is EMPTY and the
+# reason is an experiment that ran and lost, so it is recorded here rather than in a
+# commit message nobody will read. MOD_DEMOTE_EXTRA_LEAVES (or a one-line file at
+# /cache/runtime/demote_extra_leaves) overrides the set completely -- a comma list to
+# name leaves, the empty string for pure floor-test behaviour.
 #
-# Why index_qk_proj is on by default, and why that is a judgement call rather than a
-# rule: it is 640x2560, comfortably ABOVE the floor, so nothing in the engine requires
-# it to move. But labquant MXFP8s it while RadixArk ships the same tensor BF16 (VERIFIED
-# from both checkpoints' safetensors headers: labquant has
-# `layers.11.self_attn.indexer.index_qk_proj.weight` F8_E4M3 [640,2560] + a U8 scale,
-# RadixArk has it BF16 [640,2560]), and both boots that got as far as CUDA-graph capture
-# died inside the QSA prefill path -- `metadata.py:141 get_prefill_mqa_inputs`, which does
-# `sequence_lengths.tolist()`, a D2H sync, during capture. Making this arm's placement
-# match the reference export is the cheapest control for that. It is 12 tensors
-# (one per full-attention layer) x ~1.6 MB, so the memory cost is ~19 MB per node.
-#
-# It is NOT proof of the cause. The crash is arguably a sglang bug (a D2H inside graph
-# capture), and RadixArk's forward may simply take a different route through the same
-# code. Treat "demoting it made it serve" as evidence about placement, not diagnosis.
-# Why index_qk_proj is OFF by default, and what that costs us: it was ON, and the test
+# Why index_qk_proj is OFF, and what that costs us: it was ON, as the control for blocker
+# (f). It is 640x2560, comfortably ABOVE the floor, so nothing in the engine requires it to
+# move; the reason to try it was that labquant MXFP8s it while RadixArk ships the same
+# tensor BF16 (VERIFIED from both checkpoints' safetensors headers), and both boots that got
+# as far as CUDA-graph capture died inside the QSA prefill path -- `metadata.py:141
+# get_prefill_mqa_inputs`, which does `sequence_lengths.tolist()`, a D2H sync, during
+# capture. Boot 11b2c8b941e89cb9 on 2026-09-18 22:05 loaded with it demoted (VERIFIED from
+# the live tree: 84 tensors demoted, 84 scales dropped, 168 ignore entries, the projection
+# present as BF16 [640,2560] with no surviving scale) and CUDA-graph capture died with the
+# identical pinned-memory error in the same frames. So MXFP8 placement of that projection is
+# NOT what triggers (f). It is off because the arm should differ from the reference export
+# only where the engine mechanically forces it to, and nothing forces this one. The knob
+# stays: (f) is unresolved, this was the cheapest hypothesis, and a bisect may want it back.
+DEFAULT_ON: set = set()
 # it was designed for was run. Boot 11b2c8b941e89cb9 on 2026-09-18 22:05 loaded with
 # `index_qk_proj` demoted to BF16 (VERIFIED from the live tree: 84 tensors demoted, 84
 # scales dropped, 168 ignore entries, the projection present as BF16 [640,2560] with no
