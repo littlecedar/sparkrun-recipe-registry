@@ -273,3 +273,5 @@ Refer to the info in **§2.3: Remote Build & Work**
 
 ### 6.3. Multi-Node Communication
 - Sparkrun handles multi-node tensor parallelism over 200 GbE RoCE by settings the required environment variables, such as `NCCL_NET=IB`, `NCCL_IB_ROCE_VERSION_NUM=2`, and proper `NCCL_IB_HCA` device list.  `mods/make-roce-env` is for compatibility patching with legacy and alternative runners, not Sparkrun.  Do not use `mods/make-roce-env` when building Sparkrun recipes.
+
+@RTK.md
