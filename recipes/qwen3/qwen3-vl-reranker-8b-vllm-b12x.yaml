@@ -5,7 +5,13 @@ max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 
 metadata:
-  description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier; boots colocated with the 8B AWQ encoder on one DGX Spark"
+  # Deliberately not tagged `fast`: measured 28.76 units/s solo on a GB10 against the 2B
+  # reranker's 119.29 units/s on the same traffic shape (concurrency 8, 10 docs/query, 128
+  # tokens/document) -- about 4x slower per scored document, which is what 4x the parameters
+  # costs on a prefill-bound cross-encoder. This is a quality-tier option; F22 in
+  # QWEN3-EMBED-OPTIMIZATION-WORK.md is the evidence that it colocates with the 8B encoder on
+  # one box. Tagging it `fast` would point people at the slower sibling.
+  description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier. Boots and serves colocated with the 8B AWQ encoder on one DGX Spark: 65.03 GiB of 121.69 total at the shipped caps."
   model_url: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B
   model_params: "8B"
   model_dtype: bf16
