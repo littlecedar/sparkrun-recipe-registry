@@ -5,28 +5,68 @@ max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 
 metadata:
-  description: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit — vision-language embedding model for multimodal retrieval
+  description: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit — 4-bit W4A16 quant of the 8B multimodal embedding encoder, for the quality tier that still fits one DGX Spark
   model_url: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
+  model_params: "8B"
+  model_dtype: awq4
+  kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   tags: fast, lcg_favorite
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"
 
+# See the 2B embedding recipe for the reasoning; identical here. A pooling engine has no
+# chat endpoint, so the chat-completion inference probe can only ever time out.
+readiness:
+  inference: false
+
 defaults:
-  port: 8000
+  # Third slot in the single-node port plan: 8010 embed-2B, 8011 rerank-2B, 8012 embed-8B.
+  # Two 8B-scale engines will not fit a single Spark's memory budget, so this recipe is a
+  # *replacement* for the 2B encoder, not an addition to it.
+  port: 8012
   host: 0.0.0.0
   tensor_parallel: 1
-  gpu_memory_utilization: 0.2
+  # Whole fast cluster: this recipe is written to run solo (see the note on
+  # gpu_memory_utilization). Colocating it with the reranker would need
+  # `-o cpu_mask=5-9` here and the reranker left at 15-19.
+  cpu_mask: 5-9,15-19
+  # Larger than the 2B's cap on purpose: this is the encoder-only tier, run without a
+  # colocated reranker on the same engine budget. Do NOT size this from
+  # `sparkrun recipe vram`'s "Model weights" line: for a 4-bit checkpoint that line falls back
+  # to param_count x dtype_bytes (0.5 B/param for awq4) and printed 3.73 GB here — the same
+  # number it prints for the 2B bf16 model — against a real 6.01 GB on disk. Verify against
+  # model.safetensors.index.json metadata.total_size instead:
+  #   curl -s https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit/raw/main/model.safetensors.index.json \
+  #     | python3 -c 'import json,sys;print(json.load(sys.stdin)["metadata"]["total_size"]/1e9)'
+  # See QWEN3-EMBED-OPTIMIZATION-WORK.md §2 F12.
+  gpu_memory_utilization: 0.30
   max_model_len: 32768
   max_num_batched_tokens: 16384
   max_num_seqs: 32
-  attention_backend: flashinfer-b12x
+  dtype: bfloat16
   load_format: instanttensor
+  attention_backend: b12x
+  # See the 2B embedding recipe: pins the auto-resolved conversion (pooling + embed)
+  # instead of relying on vLLM's default-detection for a checkpoint whose `architectures`
+  # is the plain generative class.
+  convert: embed
+  # Cap multimodal inputs per prompt (vLLM's default is 999 images per prompt) so the
+  # profiled multimodal peak stays bounded on a shared-memory box.
+  # NOTE: no sparkrun flag-map entry for `convert`/`limit_mm_per_prompt`; they reach vLLM
+  # only through the placeholders below.
+  # Folded style is load-bearing here: a plain YAML single-quoted scalar would eat the
+  # quotes that keep the JSON together as ONE shell word once the placeholder is rendered.
+  limit_mm_per_prompt: >-
+    '{"image": 4, "video": 1}'
 
 command: >
-  taskset -c 5-9,15-19 vllm serve {model}
+  taskset -c {cpu_mask} vllm serve {model}
   --runner pooling
+  --convert {convert}
+  --limit-mm-per-prompt {limit_mm_per_prompt}
+  --dtype {dtype}
   --gpu-memory-utilization {gpu_memory_utilization}
   -tp {tensor_parallel}
   --host {host}
@@ -36,5 +76,18 @@ command: >
   --max-num-seqs {max_num_seqs}
   --attention-backend {attention_backend}
   --load-format {load_format}
-  --async-scheduling
   --trust-remote-code
+
+# Corrections carried over from the 2B recipe, applied here for the same reasons:
+#   * attention_backend was `flashinfer-b12x`, which is not a member of vLLM's
+#     AttentionBackendEnum — the enum member is `B12X` (case-insensitive on the CLI), so the
+#     flag as previously written cannot resolve to a backend. Same for the 2B recipe's old
+#     `b12x_attn`. Both were wrong in the same way and are now `b12x`.
+#   * --async-scheduling removed: vLLM disables it for pooling runners itself.
+#   * taskset mask narrowed to the X925 (fast) cluster only, via {cpu_mask}.
+#
+# Open question with real teeth: this checkpoint carries a compressed-tensors
+# quantization_config (scheme W4A16_ASYM). Whether vLLM's compressed-tensors path accepts
+# that scheme *inside* a multimodal Qwen3-VL model whose vision tower is deliberately
+# excluded from quantization, and whether the pooling/classify adapters coexist with it, is
+# unverified. If this recipe fails to load, that interaction is the first hypothesis.

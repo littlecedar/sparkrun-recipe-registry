@@ -1,41 +1,127 @@
-recipe_version: 2
+recipe_version: "2"
 model: Qwen/Qwen3-VL-Embedding-2B
 runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 
 metadata:
-  description: Qwen/Qwen3-VL-Embedding-2B — vision-language embedding model for multimodal retrieval
+  description: Qwen/Qwen3-VL-Embedding-2B — multimodal embedding encoder, sized to colocate with the 2B reranker on one DGX Spark
   model_url: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
+  model_params: "2B"
+  model_dtype: bf16
+  kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   tags: fast, lcg_favorite
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"
 
+# sparkrun's default readiness probe streams a chat completion and requires a non-empty
+# token. A pooling engine serves /v1/embeddings and has no chat endpoint, so the probe can
+# only time out — and `sparkrun run` then exits 1 on a server that is up and serving
+# correctly. Port + /health readiness is kept; the inference probe is not. Pair it with a
+# smoke test against the endpoint you actually serve (QWEN3-EMBED-OPTIMIZATION-WORK.md §5).
+readiness:
+  inference: false
+
 defaults:
-  port: 8000
+  # Distinct from the reranker's 8011 so both can be up at once on the same host.
+  port: 8010
   host: 0.0.0.0
   tensor_parallel: 1
-  gpu_memory_utilization: 0.2
+  # Colocation rule: vLLM's --gpu-memory-utilization is an ABSOLUTE cap on total device
+  # usage (free + already used by other processes), not a slice of what is left, and the
+  # check at engine init is a hard ValueError. So the two engines' caps must SUM to a safe
+  # fraction. This engine at 0.25 plus the reranker at 0.30 = 0.55 of 121 GB (~66 GB),
+  # leaving ~54 GB for the OS and the page cache that feeds safetensors reads, in either
+  # startup order. Raising this without lowering the reranker's cap risks a startup
+  # ValueError in whichever engine launches second.
+  gpu_memory_utilization: 0.25
+  # Advertised context is 32k for both models (native position capacity is 262,144, so
+  # this is a deliberate cap, not a ceiling). 32k is what a long-document embed needs.
   max_model_len: 32768
+  # Prefill-bound workload: the batch token budget, not max_num_seqs, sets the peak
+  # activation footprint that vLLM profiles. 16384 leaves a wide margin inside the 0.25
+  # cap; it is the first knob to move if we want more throughput per step.
   max_num_batched_tokens: 16384
   max_num_seqs: 32
+  # Explicit bfloat16 rather than trusting config.json dtype resolution: the reranker
+  # siblings in this family declare float32 inside text_config, and an fp32 load of a
+  # model we intend to colocate would double its footprint for nothing.
+  dtype: bfloat16
   load_format: instanttensor
-  attention_backend: b12x_attn
+  attention_backend: b12x
+  # CPU affinity for this engine, as a taskset mask. Half of the fast cluster by
+  # default so the colocated reranker (15-19) has the other half. Run this engine
+  # solo with `-o cpu_mask=5-9,15-19`.
+  cpu_mask: 5-9
+  # Say what we mean: this checkpoint's `architectures` is the plain
+  # "<Base>ForConditionalGeneration" generative class, and vLLM only reaches the pooling
+  # path for it by *guessing* (convert=auto -> "embed" for an unmatched pooling model).
+  # Pinning the conversion makes the intent explicit and stops a registry or default-table
+  # change from silently changing what this recipe serves.
+  convert: embed
+  # Cap multimodal inputs per prompt. vLLM's default is 999 images per prompt, which is a
+  # memory-profiling liability on a box where we are deliberately packing two engines: the
+  # profiled multimodal peak scales with what a single request is *allowed* to carry. Text
+  # retrieval and screenshot/document embedding both fit well inside 4.
+  # NOTE: sparkrun has no flag-map entry for either `convert` or `limit_mm_per_prompt`, so
+  # they reach vLLM only through the placeholders below; `-o limit_mm_per_prompt=...` warns
+  # "unmapped" while still taking effect. Do not delete the placeholder to silence it.
+  # Folded style is load-bearing here: a plain YAML single-quoted scalar would eat the
+  # quotes that keep the JSON together as ONE shell word once the placeholder is rendered.
+  limit_mm_per_prompt: >-
+    '{"image": 4, "video": 1}'
 
 command: >
-  taskset -c 5-9,15-19 vllm serve {model}
+  taskset -c {cpu_mask} vllm serve {model}
   --runner pooling
+  --convert {convert}
+  --limit-mm-per-prompt {limit_mm_per_prompt}
+  --dtype {dtype}
   --gpu-memory-utilization {gpu_memory_utilization}
   -tp {tensor_parallel}
   --host {host}
   --port {port}
   --max-model-len {max_model_len}
   --max-num-batched-tokens {max_num_batched_tokens}
-  --load-format {load_format}
+  --max-num-seqs {max_num_seqs}
   --attention-backend {attention_backend}
-  --async-scheduling
+  --load-format {load_format}
   --trust-remote-code
 
-#  --max-num-seqs {max_num_seqs}
+# Client contract, and the reason a "200 OK with a 2048-dim vector" smoke test is not
+# enough: the checkpoint ships config_sentence_transformers.json with
+# prompts {"default": "Represent the user's input."}, which is the instruction the encoder was
+# TRAINED to expect. vLLM loads that file and logs "Loaded prompt prefixes for input_type:
+# ['default']", but applies the prefix only on the Cohere /v2/embed path and only when the
+# request sets input_type. A plain POST /v1/embeddings {"input": "..."} body resolves to
+# EmbeddingCompletionRequest, which reaches the base pooling path: no task prefix and no chat
+# template. It returns vectors. They are computed from a prompt the model was not trained on.
+#
+# Use one of these two forms from the caller (both are supported by this recipe as written):
+#   1. chat form — {"input": {"messages": [{"role": "system", "content":
+#      "Represent the user's input."}, {"role": "user", "content": "..."}]}}
+#      -> applies the model's ChatML template; matches Qwen's own published vLLM example.
+#   2. POST /v2/embed with {"texts": [...], "input_type": "default"}
+#      -> vLLM prepends the checkpoint's own instruction for you.
+# The two are NOT byte-identical prompts (system message vs prefix); pick one after
+# comparing retrieval quality, not before. See QWEN3-EMBED-OPTIMIZATION-WORK.md §2 F11.
+#
+# Two deliberate omissions, both cheap to re-test and both expensive to get wrong:
+#
+# 1. --async-scheduling is NOT set. vLLM decides this itself for pooling runners
+#    ("The current implementation of asynchronous scheduling negatively impacts performance
+#    of pooling models, so we disable by default"), and the explicit-true branch hard-fails
+#    on other incompatibilities, so the flag is at best a no-op and at worst a launch
+#    failure. The 0.4.0 recipes shipped with it; that is corrected here.
+#
+# 2. CPU placement is pinned to the FAST cluster only. GB10 is big.LITTLE with the
+#    clusters interleaved in the CPU numbering: the 10 X925 cores @ 3.9 GHz are 5-9 and
+#    15-19, the 10 A725 cores @ 2.8 GHz are 0-4 and 10-14. This engine owns half the fast
+#    cluster (5-9); the colocated reranker owns the other half (15-19), so neither engine's
+#    tokenizer / image-preprocessing / API worker lands on a slow core or contends with the
+#    other. Never use a mask that spans both clusters for a latency-sensitive engine.
+#    Solo (no reranker on the box): `-o cpu_mask=5-9,15-19` to take the whole fast
+#    cluster. Note `cpu_mask` is not in sparkrun's VLLM_FLAG_MAP — it reaches vLLM only
+#    through the {cpu_mask} placeholder below, exactly like convert/limit_mm_per_prompt.
