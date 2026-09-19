@@ -53,6 +53,13 @@ defaults:
   dtype: bfloat16
   load_format: instanttensor
   attention_backend: b12x
+  # VERIFIED on hardware 2026-09-19 (authorized DGX Spark trial node, same failure booting
+  # the encoder; host in EMBED-JOURNAL.md, which is git-ignored): b12x
+  # aborts at cache-config time with "b12x requires --block-size in (64, 128), got 16".
+  # 128 is _B12X_PREFERRED_PAGE_SIZE in vllm/v1/attention/backends/b12x.py at the pinned
+  # commit. A score pair is one long prefill, so the larger page costs nothing meaningful
+  # in partial-page waste and the backend asks for it.
+  block_size: 128
   # The shipped `architectures` is the base generative class. This is NOT a launch error:
   # with --convert auto, vLLM's resolver falls through to its pooling catch-all and serves
   # this checkpoint as a generic LAST-pooling *embedding* model, so /v1/score answers as a
@@ -116,6 +123,7 @@ command: >
   --max-num-batched-tokens {max_num_batched_tokens}
   --max-num-seqs {max_num_seqs}
   --attention-backend {attention_backend}
+  --block-size {block_size}
   --load-format {load_format}
   --trust-remote-code
 
