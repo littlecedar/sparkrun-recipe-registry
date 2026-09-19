@@ -23,14 +23,30 @@ readiness:
 
 defaults:
   # Third slot in the single-node port plan: 8010 embed-2B, 8011 rerank-2B, 8012 embed-8B.
-  # Two 8B-scale engines will not fit a single Spark's memory budget, so this recipe is a
-  # *replacement* for the 2B encoder, not an addition to it.
+  #
+  # CORRECTION (2026-09-19, measured): an earlier version of this comment asserted "two
+  # 8B-scale engines will not fit a single Spark's memory budget", making this recipe a
+  # *replacement* for the 2B encoder rather than an addition to it. That was never tested and
+  # it is false. This encoder and `Qwen/Qwen3-VL-Reranker-8B` both booted and served
+  # colocated on one GB10 trial node at the shipped 0.30/0.30 caps, using 32.80 + 32.24 =
+  # 65.03 GiB of 121.69 GiB (53%), with ~57 GiB still free, no memory error, and the
+  # reranker passing the cross-encoder symmetry check. So an 8B encoder + 8B reranker pair is
+  # a real option on one box; this recipe is not a forced either/or.
+  #
+  # What the correction does NOT change: the throughput cost of running them together. Under
+  # simultaneous load the encoder fell 22.52 -> 9.89 units/s (2.28x) and the reranker
+  # 28.76 -> 22.57 (1.27x), matching the 2B-pair penalty in QWEN3-EMBED-OPTIMIZATION-WORK.md
+  # §5 item 5. Fit is not free. Size capacity from the colocated numbers, never from solo.
   port: 8012
   host: 0.0.0.0
   tensor_parallel: 1
-  # Whole fast cluster: this recipe is written to run solo (see the note on
-  # gpu_memory_utilization). Colocating it with the reranker would need
-  # `-o cpu_mask=5-9` here and the reranker left at 15-19.
+  # Whole fast cluster by default, for the solo case. When colocating, drop to
+  # `-o cpu_mask=5-9` and leave the reranker on 15-19 so the two engines do not share a
+  # core. Note that the 8B+8B colocation measurement above was taken with the SHIPPED
+  # defaults (encoder 5-9,15-19, reranker 15-19), i.e. the two engines overlapped on 15-19 —
+  # that is the honest qualifier on those numbers, and it is also a second, independent
+  # confirmation that masks are not the contended resource here: sharing five cores changed
+  # nothing measurable, exactly as §5 item 5(b) found (0.7% between shared and disjoint).
   cpu_mask: 5-9,15-19
   # Larger than the 2B's cap on purpose: this is the encoder-only tier, run without a
   # colocated reranker on the same engine budget. Do NOT size this from
@@ -97,3 +113,16 @@ command: >
 # that scheme *inside* a multimodal Qwen3-VL model whose vision tower is deliberately
 # excluded from quantization, and whether the pooling/classify adapters coexist with it, is
 # unverified. If this recipe fails to load, that interaction is the first hypothesis.
+#
+# RESOLVED — it loads and serves correctly. Booted on an authorized DGX Spark trial node
+# (host in EMBED-JOURNAL.md, which is git-ignored); the serve log reports
+# `Using MarlinLinearKernel for CompressedTensorsWNA16` with no error or traceback, and the
+# vectors pass the 4096-dim, distinct-inputs, and repeat-stability checks in
+# tools/pooling-bench.py. See QWEN3-EMBED-OPTIMIZATION-WORK.md F21.
+#
+# Worth knowing before you "optimize" this: 4-bit is not what makes this encoder slow. The
+# same engine in native BF16 (16 GB of weights, no quantization anywhere) prefills within
+# 1.2% of this one at its own best concurrency, while consuming 108% more memory and leaving
+# 41% less KV at an identical `gpu_memory_utilization`. The encoder is prefill-bound at
+# roughly 3,900 tokens/s on a GB10 regardless of format or batching. Keep this recipe at
+# 4-bit: it is free, and the memory it saves is the batch headroom.

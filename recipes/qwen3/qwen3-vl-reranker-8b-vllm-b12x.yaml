@@ -1,0 +1,143 @@
+recipe_version: "2"
+model: Qwen/Qwen3-VL-Reranker-8B
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+
+metadata:
+  description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier; boots colocated with the 8B AWQ encoder on one DGX Spark"
+  model_url: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B
+  model_params: "8B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: fast, lcg_favorite
+
+mods:
+  - "@littlecedar/mods/pip-install-orjson"
+  - "@littlecedar/mods/provide-qwen3-vl-rerank-template"
+
+# sparkrun's default readiness probe streams a chat completion and requires a non-empty
+# token. A pooling engine serves /v1/embeddings and /v1/score and has no chat endpoint, so
+# the probe can only ever time out — and `sparkrun run` then exits 1 on a server that is
+# up and serving correctly. Endpoint (port + /health) readiness is kept; the inference
+# probe is not. See QWEN3-EMBED-OPTIMIZATION-WORK.md §2 F6.
+readiness:
+  inference: false
+
+defaults:
+  port: 8015
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Two engines share this device's unified memory and vLLM's budget is an ABSOLUTE cap
+  # on total device usage (free + already used), not a slice of what is left — see
+  # QWEN3-EMBED-OPTIMIZATION-WORK.md §2 F1. So the pair's caps must SUM to something safe:
+  # this engine at 0.30 plus the encoder at 0.25 = 0.55 of 121 GB (~66 GB), leaving ~54 GB
+  # for the OS and the page cache, in either startup order. Raising this without lowering
+  # the encoder's cap risks a startup ValueError in whichever engine launches second.
+  gpu_memory_utilization: 0.30
+  # CPU affinity, as a taskset mask. Half of the fast cluster (the X925 cores at
+  # 15-19) so this engine never lands on a 2.8 GHz A725 and never shares a core with
+  # the colocated encoder (5-9). Reranking is latency-critical; do not move this to a
+  # mixed mask. Solo run: `-o cpu_mask=5-9,15-19`.
+  cpu_mask: 15-19
+  # Port 8015: outside the shipped 8010/8011/8012 plan so this never shadows the
+# 2B reranker; the two are alternatives, not co-residents.
+# Trained/advertised context is 32k, but a reranker scores (query, document) pairs and
+  # every pair pays the template + instruction overhead. 8192 bounds the worst-case pair
+  # and keeps the profiled activation peak small; raise with -o if you score long docs.
+  max_model_len: 8192
+  max_num_batched_tokens: 8192
+  max_num_seqs: 32
+  # Explicit bfloat16: this checkpoint's config.json declares dtype bfloat16 at the top
+  # level but float32 inside text_config. Say what we mean rather than depend on which
+  # level vLLM's dtype resolution reads (see QWEN3-EMBED-OPTIMIZATION-WORK.md §6 D3).
+  dtype: bfloat16
+  load_format: auto
+  attention_backend: b12x
+  # VERIFIED on hardware 2026-09-19 (authorized DGX Spark trial node, same failure booting
+  # the encoder; host in EMBED-JOURNAL.md, which is git-ignored): b12x
+  # aborts at cache-config time with "b12x requires --block-size in (64, 128), got 16".
+  # 128 is _B12X_PREFERRED_PAGE_SIZE in vllm/v1/attention/backends/b12x.py at the pinned
+  # commit. A score pair is one long prefill, so the larger page costs nothing meaningful
+  # in partial-page waste and the backend asks for it.
+  block_size: 128
+  # The shipped `architectures` is the base generative class. This is NOT a launch error:
+  # with --convert auto, vLLM's resolver falls through to its pooling catch-all and serves
+  # this checkpoint as a generic LAST-pooling *embedding* model, so /v1/score answers as a
+  # bi-encoder (SCORE_TYPE_MAP: embed -> bi-encoder, classify -> cross-encoder) instead of
+  # the trained cross-encoder. Wrong scores, HTTP 200, no warning. Rewrite to the
+  # sequence-classification arch and seed the 2-way-softmax classifier from the "no"/"yes"
+  # token logits — exactly the hf_overrides the Qwen model card publishes.
+  # DERIVE this string, never retype it:
+  #   config["architectures"][0].replace("ConditionalGeneration", "SequenceClassification")
+  # It must match vLLM's _CONFIG_REGISTRY key, which is also what enables the
+  # is_original_qwen3_reranker / from_2_way_softmax pooler hook.
+  # Sanity check on the launch log: vLLM prints "Resolved architecture: ..." and must NOT
+  # print "Resolved `--convert auto` to `--convert embed`" for this recipe.
+  # NOTE: sparkrun does not map hf_overrides to a flag, so it reaches vLLM only through the
+  # {hf_overrides} placeholder below. `sparkrun run -o hf_overrides=...` will warn that the
+  # key is unmapped while the substitution still applies — do not "fix" this by deleting
+  # the placeholder.
+  hf_overrides: >-
+    '{"architectures": ["Qwen3VLForSequenceClassification"],
+    "classifier_from_token": ["no", "yes"],
+    "is_original_qwen3_reranker": true}'
+  # Written by mods/provide-qwen3-vl-rerank-template before the serve line runs. Do not
+  # point this at the checkpoint's chat_template.jinja: that template has no `query` /
+  # `document` role handling and would silently score an empty pair.
+  # The mod resolves its output directory as ${MOD_CACHEDIR:-${XDG_CACHE_HOME:-/cache/runtime}}
+  # and mods cannot export variables into the serve command, so if you ever set MOD_CACHEDIR
+  # to something other than the runtime-cache root you MUST override this path to match —
+  # otherwise the mod publishes a template the serve line never reads and vLLM falls back to
+  # the checkpoint's wrong one, quietly. Relocating via `runtime_cache:` in sparkrun config
+  # keeps them aligned automatically, because that moves XDG_CACHE_HOME and leaves
+  # MOD_CACHEDIR unset.
+  reranker_chat_template: ${XDG_CACHE_HOME:-/cache/runtime}/templates/qwen3-vl-reranker-query-document.jinja
+  # Pin the conversion instead of letting it fall out of the architecture suffix table. The
+  # hf_overrides rewrite above ends in "ForSequenceClassification", which the table maps to
+  # (pooling, classify) — writing it down means a default-table change cannot quietly turn
+  # this into a different pooling task, and the launch fails loudly instead.
+  convert: classify
+  # A score request is one query against N documents, and every document may carry an image.
+  # vLLM's default allows 999 images per prompt; the profiled multimodal peak scales with
+  # what a request is allowed to carry, and on a shared-memory box that is exactly the
+  # number we do not want to leave open. NOTE: no sparkrun flag-map entry for
+  # `convert`/`limit_mm_per_prompt` — they reach vLLM only through the placeholders below.
+  # Folded style is load-bearing here: a plain YAML single-quoted scalar would eat the
+  # quotes that keep the JSON together as ONE shell word once the placeholder is rendered.
+  limit_mm_per_prompt: >-
+    '{"image": 4, "video": 1}'
+
+command: >
+  taskset -c {cpu_mask} vllm serve {model}
+  --runner pooling
+  --convert {convert}
+  --hf-overrides {hf_overrides}
+  --limit-mm-per-prompt {limit_mm_per_prompt}
+  --chat-template {reranker_chat_template}
+  --dtype {dtype}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  -tp {tensor_parallel}
+  --host {host}
+  --port {port}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --attention-backend {attention_backend}
+  --block-size {block_size}
+  --load-format {load_format}
+  --trust-remote-code
+
+# CPU placement is deliberate and is the reason this pair can colocate at all. GB10 is
+# big.LITTLE with the clusters INTERLEAVED in the CPU numbering: the 10 X925 cores @ 3.9 GHz
+# are 5-9 and 15-19, the 10 A725 cores @ 2.8 GHz are 0-4 and 10-14. This engine owns half the
+# fast cluster (15-19) and the colocated encoder owns the other half (5-9), so neither
+# engine's tokenizer / chat-templating / image-decode / API worker lands on a slow core or
+# contends with the other. A score request is one forward pass over a long prompt:
+# prefill-bound, and the CPU-side work is exactly what leaves the GPU idle between steps.
+#
+# --async-scheduling is deliberately NOT set: vLLM disables it for pooling runners itself
+# ("The current implementation of asynchronous scheduling negatively impacts performance of
+# pooling models, so we disable by default"), so the flag is at best a no-op and at worst
+# a hard failure under an explicitly-true value.

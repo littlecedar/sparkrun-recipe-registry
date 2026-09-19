@@ -32,7 +32,10 @@ RECIPE_DIR = REPO_ROOT / "recipes" / "qwen3"
 EMBED_2B = RECIPE_DIR / "qwen3-vl-embedding-2b-vllm-b12x.yaml"
 EMBED_8B = RECIPE_DIR / "qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml"
 RERANK_2B = RECIPE_DIR / "qwen3-vl-reranker-2b-vllm-b12x.yaml"
-RECIPES = [EMBED_2B, EMBED_8B, RERANK_2B]
+# The 8B reranker is derived from the 2B one (same hf_overrides, same template mod), so it is
+# held to the same invariants rather than to a separate standard.
+RERANK_8B = RECIPE_DIR / "qwen3-vl-reranker-8b-vllm-b12x.yaml"
+RECIPES = [EMBED_2B, EMBED_8B, RERANK_2B, RERANK_8B]
 
 # Assembled rather than written as one literal, so a redacting tool in the pipeline
 # cannot silently rewrite it and so a reader can check it character by character.
@@ -574,13 +577,46 @@ class TestRecipeInvariants(unittest.TestCase):
 
     def test_hf_overrides_arch_is_a_single_token(self):
         """Structural check on the value that selects both the model class and the pooler hook."""
-        text = self._text(RERANK_2B)
-        m = re.search(r'"architectures":\s*\["([A-Za-z0-9_]+)"\]', text)
-        self.assertIsNotNone(m, "architectures rewrite not found")
-        arch = m.group(1)
-        self.assertTrue(arch.startswith("Qwen3VLFor"), arch)
-        self.assertTrue(arch.endswith("ForSequenceClassification"), arch)
-        self.assertNotIn(" ", arch)
+        archs = {}
+        for p in (RERANK_2B, RERANK_8B):
+            text = self._text(p)
+            m = re.search(r'"architectures":\s*\["([A-Za-z0-9_]+)"\]', text)
+            self.assertIsNotNone(m, (p, "architectures rewrite not found"))
+            arch = m.group(1)
+            archs[p.name] = arch
+            self.assertTrue(arch.startswith("Qwen3VLFor"), (p, arch))
+            self.assertTrue(arch.endswith("ForSequenceClassification"), (p, arch))
+            self.assertNotIn(" ", arch, p)
+        # The 8B recipe was derived from the 2B one and the class name renders redacted in
+        # some editors, so it is asserted against its sibling rather than against a literal:
+        # a hand-typed copy that silently shipped the placeholder would fail here, and a
+        # legitimate rename of the class would not.
+        self.assertEqual(archs[RERANK_2B.name], archs[RERANK_8B.name])
+
+    def test_b12x_block_size_is_legal(self):
+        """b12x aborts at cache-config time unless --block-size is 64 or 128.
+
+        This is F17, and it is the guard that should have existed from the start: the
+        shipped pair could not boot at all because vLLM's default block size is 16 while
+        b12x accepts only 64 or 128 (_B12X_PREFERRED_PAGE_SIZE in b12x.py). A day of reading
+        the backend source missed it because the reading was aimed at the enum, not the
+        cache config. Pinned here because the failure is loud but late — it costs a full
+        container launch to discover.
+
+        Non-vacuity is checked by injecting `block_size: 16`; see EMBED-JOURNAL.md.
+        """
+        legal = {"64", "128"}
+        for p in RECIPES:
+            text = self._text(p)
+            backend = re.search(r"^  attention_backend: (\S+)$", text, re.M)
+            self.assertIsNotNone(backend, p)
+            if backend.group(1).upper() != "B12X":
+                continue
+            bs = re.search(r"^  block_size: (\S+)$", text, re.M)
+            self.assertIsNotNone(bs, (p, "b12x without an explicit block_size"))
+            self.assertIn(bs.group(1), legal, (p, bs.group(1)))
+            # The default must actually reach the command line, not just sit in defaults:.
+            self.assertIn("--block-size {block_size}", text, p)
 
     @staticmethod
     def _rendered_scalar(text: str, key: str):
