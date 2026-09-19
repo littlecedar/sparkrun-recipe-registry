@@ -4,3 +4,9 @@
 /.swival/
 **/.logs/**
 /.local/
+/.upstream-cache/
+/.codex/
+**/*JOURNAL.md
+**/*-WORK.md
+**/*-WORK-ARCHIVE.md
+/.logs/
