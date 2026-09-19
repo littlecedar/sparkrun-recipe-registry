@@ -51,6 +51,18 @@ defaults:
   dtype: bfloat16
   load_format: instanttensor
   attention_backend: b12x
+  # VERIFIED on hardware 2026-09-19 (an authorized DGX Spark trial node; host named in
+  # EMBED-JOURNAL.md, which is git-ignored — keep IPs out of this file, it ships in a
+  # git-distributed registry): the b12x backend refuses to start at
+  # vLLM's default block size — "ValueError: b12x requires --block-size in (64, 128), got
+  # 16." It never reaches weight loading, so the flag combination that shipped could not
+  # boot regardless of anything else. _B12X_SUPPORTED_PAGE_SIZES = (64, 128) and
+  # _B12X_PREFERRED_PAGE_SIZE = 128 in vllm/v1/attention/backends/b12x.py at the pinned
+  # commit, so 128 is what the backend asks for. Drop to 64 only to A/B partial-page KV
+  # waste on short-text-heavy traffic; it is not a lever to reach without measuring.
+  # `block_size` IS in sparkrun's VLLM_FLAG_MAP (runtimes/_vllm_common.py:371), so
+  # `-o block_size=64` works without the "unmapped" warning the other knobs print.
+  block_size: 128
   # CPU affinity for this engine, as a taskset mask. Half of the fast cluster by
   # default so the colocated reranker (15-19) has the other half. Run this engine
   # solo with `-o cpu_mask=5-9,15-19`.
@@ -87,6 +99,7 @@ command: >
   --max-num-batched-tokens {max_num_batched_tokens}
   --max-num-seqs {max_num_seqs}
   --attention-backend {attention_backend}
+  --block-size {block_size}
   --load-format {load_format}
   --trust-remote-code
 
