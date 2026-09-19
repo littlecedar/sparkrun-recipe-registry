@@ -13,6 +13,7 @@ and does it survive multimodal content without leaking a Python repr.
 
 from __future__ import annotations
 
+import base64
 import os
 import re
 import shutil
@@ -293,6 +294,225 @@ class TestSymmetryCheck(unittest.TestCase):
     def test_float_noise_does_not_count_as_asymmetry(self):
         check = self.pb.check_symmetry([(0.5, 0.5 + 1e-9)], 1e-4)
         self.assertFalse(check.ok, "float noise must not be read as a cross-encoder")
+
+
+class TestSyntheticImageSalting(unittest.TestCase):
+    """Per-DOCUMENT image variation, which is the only kind that defeats the KV cache here.
+
+    Regression guard for a measurement that was wrong by 7.2x and looked fine. The first
+    --synthetic-images implementation generated one distinct image per REQUEST and put it on
+    all 10 documents of that request. Every (query, document) pair is scored as its own
+    sequence, so those 10 pairs still shared the same query plus the same ~1240-token image
+    placeholder run -- roughly 80% of each sequence -- and the run reported a 82.1%
+    prefix-cache hit rate at 44.5 units/s. Varying the image per document took the hit rate
+    to 2.3% and the honest throughput to 6.2 units/s.
+
+    Also pins the two related facts that make this the right fix:
+      * mutating an image URL does nothing, because vLLM's multimodal cache is keyed on
+        CONTENT (450 distinct URLs of one photo still hit the cache, 81.5% -> 81.5%);
+      * solid-colour PNGs are a legitimate stand-in, because what the encoder charges for is
+        the patch grid, not image entropy.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pb = load_bench()
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "synthetic_png", REPO_ROOT / "tools" / "synthetic_png.py")
+        cls.png = importlib.util.module_from_spec(spec)
+        sys.modules["synthetic_png"] = cls.png
+        spec.loader.exec_module(cls.png)
+
+    def test_same_nonce_same_image_different_nonce_different_image(self):
+        a = self.pb._synthetic_image_url(64, 64, "nonce-a")
+        b = self.pb._synthetic_image_url(64, 64, "nonce-a")
+        c = self.pb._synthetic_image_url(64, 64, "nonce-b")
+        self.assertEqual(a, b, "a nonce must be reproducible or payloads cannot be re-derived")
+        self.assertNotEqual(a, c, "distinct nonces must give distinct bytes, or the cache wins")
+        self.assertTrue(a.startswith("data:image/png;base64,"))
+
+    def test_per_document_urls_are_distinct_and_correct_count(self):
+        cfg = {"synthetic_images": True, "synthetic_size": (64, 64), "image_url": None}
+        urls = self.pb.effective_image_urls(cfg, 10)
+        self.assertIsInstance(urls, list)
+        self.assertEqual(len(urls), 10)
+        self.assertEqual(len(set(urls)), 10, "shared images are the bug this class exists for")
+
+    def test_without_synthetic_flag_single_url_is_returned(self):
+        cfg = {"synthetic_images": False, "image_url": "https://example.invalid/x.jpg"}
+        self.assertEqual(
+            self.pb.effective_image_urls(cfg, 10), "https://example.invalid/x.jpg")
+        cfg_none = {"synthetic_images": False, "image_url": None}
+        self.assertIsNone(self.pb.effective_image_urls(cfg_none, 10))
+
+    def test_score_request_gives_each_document_its_own_image(self):
+        """The exact defect: one image repeated across documents leaves a huge shared prefix."""
+        docs = [f"document number {i}" for i in range(4)]
+        urls = [self.pb._synthetic_image_url(64, 64, f"n{i}") for i in range(4)]
+        _, payload = self.pb.build_score_request("m", "the query", docs, urls)
+        got = [
+            part["image_url"]["url"]
+            for doc in payload["documents"]
+            for part in doc["content"] if part["type"] == "image_url"
+        ]
+        self.assertEqual(len(got), 4)
+        self.assertEqual(len(set(got)), 4, "each document must carry its own image")
+        texts = [
+            part["text"] for doc in payload["documents"]
+            for part in doc["content"] if part["type"] == "text"
+        ]
+        self.assertEqual(texts, docs, "document text must survive the content-part rewrite")
+
+    def test_score_request_rejects_mismatched_image_count(self):
+        """A silent zip() truncation here would quietly shrink the batch being measured."""
+        with self.assertRaises(ValueError):
+            self.pb.build_score_request("m", "q", ["a", "b", "c"], ["u1", "u2"])
+
+    def test_single_image_url_still_applies_to_every_document(self):
+        """Back-compat: a scalar URL must still fan out, not drop the image."""
+        _, payload = self.pb.build_score_request(
+            "m", "q", ["a", "b"], "https://example.invalid/x.jpg")
+        urls = [
+            part["image_url"]["url"] for doc in payload["documents"]
+            for part in doc["content"] if part["type"] == "image_url"
+        ]
+        self.assertEqual(urls, ["https://example.invalid/x.jpg"] * 2)
+
+    def test_text_only_path_unchanged(self):
+        _, payload = self.pb.build_score_request("m", "q", ["a", "b"], None)
+        self.assertEqual(payload["documents"], ["a", "b"], "no-image path must stay plain strings")
+
+    def test_png_generator_produces_distinct_bytes_per_colour(self):
+        a = self.png.solid_png_b64(32, 32, (255, 0, 0))
+        b = self.png.solid_png_b64(32, 32, (0, 255, 0))
+        self.assertNotEqual(a, b)
+        self.assertEqual(self.png.solid_png_b64(32, 32, (255, 0, 0)), a)
+
+    def test_png_generator_rejects_bad_input(self):
+        for bad in ((0, 8, (0, 0, 0)), (8, 0, (0, 0, 0)), (8, 8, (0, 256, 0))):
+            with self.assertRaises(ValueError):
+                self.png.solid_png_b64(*bad)
+
+    def test_png_walker_detects_corruption(self):
+        """Non-vacuity for the walker the generator's own self-check relies on."""
+        good = base64.b64decode(self.png.solid_png_b64(16, 16, (9, 9, 9)))
+        broken = bytearray(good)
+        broken[len(good) // 2] ^= 0x01
+        with self.assertRaises(ValueError):
+            for _ in self.png.iter_chunks(bytes(broken)):
+                pass
+
+
+class TestPrefixCacheCounterMatching(unittest.TestCase):
+    """The /metrics parser must read the LOCAL prefix-cache counters, not the external ones.
+
+    This is a regression guard for a bug that produced a confident wrong answer rather than
+    an error, which is the class of defect this suite exists for. vLLM exports both
+    `vllm:prefix_cache_hits_total` (the local KV radix cache) and
+    `vllm:external_prefix_cache_hits_total` (a KV connector, 0.0 on a single node). A first
+    implementation matched with `name.endswith("prefix_cache_hits_total")`, so the external
+    zeroes overwrote the local values and the tool reported "0.0% of 0 token-chunks
+    cache-served" for a server whose real hit rate was 68% -- exactly the situation the flag
+    exists to warn about, silently disarmed. The exposition lines below are copied from a
+    live reranker's /metrics.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pb = load_bench()
+
+    # Real lines, live server, verbatim except for model-name truncation.
+    LIVE = "\n".join([
+        "# HELP vll:prefix_cache_hits_total Prefix cache hits",
+        'vllm:prefix_cache_hits_total{engine="0",model_name="Qwen/Qwen3-VL-Reranker-2B"} 4.65408e+06',
+        'vllm:prefix_cache_queries_total{engine="0",model_name="Qwen/Qwen3-VL-Reranker-2B"} 6.813608e+06',
+        'vllm:external_prefix_cache_hits_total{engine="0",model_name="Q"} 0.0',
+        'vllm:external_prefix_cache_queries_total{engine="0",model_name="Q"} 0.0',
+        'vllm:prefix_cache_hits_created{engine="0",model_name="Q"} 1.7897922401741378e+09',
+        'vllm:mm_cache_hits_total{engine="0",model_name="Q"} 0.0',
+        'vllm:kv_cache_usage_perc{engine="0",model_name="Q"} 0.0',
+    ])
+
+    def _match(self, name: str):
+        hits = bool(self.pb._LOCAL_PREFIX_HITS.match(name))
+        queries = bool(self.pb._LOCAL_PREFIX_QUERIES.match(name))
+        return hits, queries
+
+    def test_local_counters_match(self):
+        self.assertEqual(self._match("vllm:prefix_cache_hits_total"), (True, False))
+        self.assertEqual(self._match("vllm:prefix_cache_queries_total"), (False, True))
+
+    def test_external_counters_do_not_match(self):
+        """The bug: `external_` shares the suffix, so suffix matching reads the wrong one."""
+        self.assertEqual(self._match("vllm:external_prefix_cache_hits_total"), (False, False))
+        self.assertEqual(self._match("vllm:external_prefix_cache_queries_total"), (False, False))
+
+    def test_created_and_other_caches_do_not_match(self):
+        self.assertEqual(self._match("vllm:prefix_cache_hits_created"), (False, False))
+        self.assertEqual(self._match("vllm:mm_cache_hits_total"), (False, False))
+
+    def test_other_namespaces_still_match(self):
+        """Forks rename the namespace; the matcher must not hard-code `vllm`."""
+        self.assertEqual(self._match("myfork:prefix_cache_hits_total"), (True, False))
+        self.assertEqual(self._match("prefix_cache_hits_total"), (True, False))
+
+    def test_parsing_live_exposition_yields_local_values(self):
+        """End-to-end on real bytes: 4.65e6/6.81e6, not the external zeroes."""
+        hits = queries = None
+        for line in self.LIVE.splitlines():
+            if line.startswith("#"):
+                continue
+            name = line.split("{", 1)[0].split(" ", 1)[0].strip()
+            if self.pb._LOCAL_PREFIX_HITS.match(name):
+                hits = self.pb._prom_val(line)
+            elif self.pb._LOCAL_PREFIX_QUERIES.match(name):
+                queries = self.pb._prom_val(line)
+        self.assertEqual(hits, 4.65408e6)
+        self.assertEqual(queries, 6.813608e6)
+        self.assertGreater(hits, 0.0, "a 0.0 here means the external counter won again")
+
+    def test_prom_val_survives_junk(self):
+        self.assertIsNone(self.pb._prom_val("garbage"))
+        self.assertIsNone(self.pb._prom_val("vllm:x_total not-a-number"))
+        self.assertEqual(self.pb._prom_val("vllm:x_total 1.5e+03"), 1500.0)
+
+
+class TestSaltDefeatsPrefixReuse(unittest.TestCase):
+    """--salt must make payloads non-reproducible, or the A/B gate has no teeth.
+
+    The gate in the work doc's §5 rests on salted traffic; if salt were a no-op (or merely
+    reseated the same RNG), prefix caching would keep answering from KV and every mask/cap
+    measurement would silently measure KV residency again. Determinism WITHOUT salt is
+    asserted too, because the two modes must not be confused: same seed means comparable
+    runs only when salt is off.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pb = load_bench()
+
+    def test_unsalted_is_reproducible(self):
+        a = self.pb.make_texts(1234, 6, 64, salt=False)
+        b = self.pb.make_texts(1234, 6, 64, salt=False)
+        self.assertEqual(a, b, "unsalted payloads must be reproducible or two runs cannot compare")
+        self.assertEqual(len(set(a)), len(a))
+
+    def test_salted_is_unique_within_and_across_runs(self):
+        first = self.pb.make_texts(1234, 6, 64, salt=True)
+        second = self.pb.make_texts(1234, 6, 64, salt=True)
+        self.assertEqual(len(set(first)), len(first))
+        self.assertNotEqual(first, second, "same seed + salt must NOT reproduce: that is the reuse we avoid")
+        self.assertFalse(set(first) & set(second), "salted corpora must not overlap across runs")
+
+    def test_rerank_jobs_are_salted(self):
+        cfg = dict(seed=7, input_tokens=64, docs_per_query=3, model="m",
+                   image_url=None, multimodal="off")
+        for salt, expect_equal in ((False, True), (True, False)):
+            a = [j[1] for j in self.pb.jobs_rerank(dict(cfg, salt=salt), 4)]
+            b = [j[1] for j in self.pb.jobs_rerank(dict(cfg, salt=salt), 4)]
+            self.assertEqual(a == b, expect_equal, f"salt={salt}")
 
 
 class TestRecipeInvariants(unittest.TestCase):

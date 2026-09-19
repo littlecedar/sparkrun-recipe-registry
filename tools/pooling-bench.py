@@ -48,11 +48,13 @@ import json
 import math
 import os
 import random
+import re
 import ssl
 import sys
 import time
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 from urllib.parse import urlsplit
 
@@ -201,9 +203,46 @@ def make_text(rng: random.Random, target_tokens: int, tag: str = "") -> str:
     return text[:target_chars]
 
 
-def make_texts(seed: int, count: int, target_tokens: int) -> list[str]:
+def make_texts(seed: int, count: int, target_tokens: int, salt: bool = False) -> list[str]:
+    """`count` pseudo-texts. With `salt`, every text is unique even at an identical seed.
+
+    Determinism is normally the point here (same seed => same payloads => two runs are
+    comparable), so `salt` is off by default and deliberately opt-in. When it is on, each
+    text gets a random token so a server with prefix caching cannot answer it from KV —
+    which is what you want when measuring masks or memory caps, and *not* what you want
+    when comparing two runs of the same configuration against each other.
+    """
     rng = random.Random(seed)
-    return [make_text(rng, target_tokens, tag=f"s{seed}") for _ in range(count)]
+    out = []
+    for i in range(count):
+        tag = f"s{seed}"
+        if salt:
+            # os.urandom, not rng: the whole purpose is to defeat reproducibility of the
+            # *content*, and a seeded RNG would faithfully reproduce the same "unique"
+            # texts on the next run and reintroduce exactly the reuse being avoided.
+            tag += f"-u{os.urandom(8).hex()}"
+        out.append(make_text(rng, target_tokens, tag=tag))
+    return out
+
+
+def _prom_val(line: str) -> float | None:
+    """Parse the trailing value off a Prometheus exposition line."""
+    try:
+        return float(line.rsplit(" ", 1)[1])
+    except (IndexError, ValueError):
+        return None
+
+
+# Metric names for the in-process prefix cache.  vLLM exports both
+# vllm:prefix_cache_hits_total (the local KV radix cache) and
+# vllm:external_prefix_cache_hits_total (a KV connector, 0.0 on a single node), and the two
+# share a suffix -- so substring matching reads the wrong one.  These patterns are used with
+# .match(), which is start-anchored, so the namespace is matched explicitly: an optional
+# `<ns>:`, then the suffix anchored at the end.  That accepts `vllm:prefix_...` and a bare
+# `prefix_...`, and rejects `vllm:external_prefix_...` because `external_` is not inside the
+# optional namespace group.
+_LOCAL_PREFIX_HITS = re.compile(r"(?:[\w.-]+:)?prefix_cache_hits_total\Z")
+_LOCAL_PREFIX_QUERIES = re.compile(r"(?:[\w.-]+:)?prefix_cache_queries_total\Z")
 
 
 # ---------------------------------------------------------------------
@@ -300,22 +339,39 @@ def build_score_request(
     model: str,
     query: str,
     documents: list[str],
-    image_url: str | None,
+    image_url: "str | None | list[str]",
 ) -> tuple[str, dict]:
     """One /v1/score request: one query against N documents.
 
     With an image, documents become content-part objects (vLLM's multimodal score input
     shape), and the query stays a plain string.
+
+    `image_url` may be a single URL (the same image on every document) or a list with one
+    entry per document. Passing a list is what makes --synthetic-images meaningful, and the
+    reason it must be per-document rather than per-request is arithmetic, not taste: each
+    (query, document) pair is scored as its own sequence, so with one shared image all N
+    pairs begin with the same query plus the same ~1240-token image placeholder run. At N=10
+    that shared prefix is roughly 80% of each sequence, so the KV radix cache answers almost
+    the whole benchmark from one cached image -- which is how the first image-throughput
+    number came out 82% cache-served while every image looked distinct at request level.
     """
-    if image_url:
+    if isinstance(image_url, list):
+        if len(image_url) != len(documents):
+            raise ValueError(
+                f"image_url list has {len(image_url)} entries for {len(documents)} documents"
+            )
+        images = image_url
+    else:
+        images = [image_url] * len(documents)
+    if images and images[0] is not None:
         docs: list = [
             {
                 "content": [
-                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "image_url", "image_url": {"url": img}},
                     {"type": "text", "text": doc},
                 ]
             }
-            for doc in documents
+            for doc, img in zip(documents, images)
         ]
     else:
         docs = list(documents)
@@ -876,6 +932,88 @@ class PoolClient:
                 return reply
             return Reply(0, "", b"", 0.0, error=f"transport: {last_error}")
 
+    async def get(self, path: str) -> Reply:
+        """One-shot GET, for /metrics only.
+
+        Deliberately not pooled and deliberately not routed through `Connection.exchange`:
+        that helper is on the load path and always sends a JSON body, and bending it to
+        cover a control-plane request would risk the thing being measured for a report
+        string. This opens a socket, reads one response, and closes it.
+        """
+        t0 = time.perf_counter()
+        ssl_ctx = None
+        if self.scheme == "https":
+            ssl_ctx = ssl.create_default_context()
+            if self.tls_insecure:
+                ssl_ctx.check_hostname = False
+                ssl_ctx.verify_mode = ssl.CERT_NONE
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.port, ssl=ssl_ctx), self.timeout
+            )
+        except (OSError, asyncio.TimeoutError) as exc:
+            return Reply(0, "", b"", 0.0, error=f"connect failed: {type(exc).__name__}")
+        try:
+            lines = [
+                f"GET {self.prefix}{path} HTTP/1.1",
+                f"Host: {self.hostport}",
+                "User-Agent: sparkrun-pooling-bench/" + VERSION,
+                "Accept: text/plain, application/openmetrics-text",
+                "Connection: close",
+            ]
+            lines += [f"{k}: {v}" for k, v in self._headers.items() if k == "Authorization"]
+            writer.write(("\r\n".join(lines) + "\r\n\r\n").encode("ascii"))
+            await writer.drain()
+            conn = Connection(reader, writer, self.hostport)
+            status, reason, resp_headers, _v = await asyncio.wait_for(conn._read_head(), self.timeout)
+            body = await asyncio.wait_for(conn._read_body(status, resp_headers), self.timeout)
+            return Reply(status, reason, body, time.perf_counter() - t0)
+        except (TransportError, ConnectionError, asyncio.IncompleteReadError, TimeoutError, OSError) as exc:
+            return Reply(0, "", b"", time.perf_counter() - t0, error=f"{type(exc).__name__}: {exc}")
+        finally:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+    async def prefix_cache_hits(self) -> tuple[float, float] | None:
+        """Return (hits, queries) from /metrics, or None if unavailable.
+
+        Why this is worth a code path: vLLM enables prefix caching by default for these
+        checkpoints, so a benchmark that reuses a corpus mostly measures KV residency
+        rather than the thing it claims to vary. On one recorded run that produced a 4x
+        throughput swing between two protocols on an *identically configured* server, with
+        repeats inside each protocol agreeing to under 1%. Reporting the hit rate is the
+        cheapest way to tell a real result from a cache artifact.
+        """
+        reply = await self.get("/metrics")
+        if not reply.ok:
+            return None
+        try:
+            text = reply.body.decode("utf-8", "replace")
+        except UnicodeDecodeError:
+            return None
+        hits = queries = None
+        for line in text.splitlines():
+            if line.startswith("#"):
+                continue
+            name = line.split("{", 1)[0].split(" ", 1)[0].strip()
+            # Match the namespace-qualified name, rejecting any `_`-prefixed variant.
+            # A `name.endswith(...)` test is wrong here and was wrong in the first version
+            # of this method: vLLM also exports vllm:external_prefix_cache_{hits,queries}_
+            # total, which also ends with "prefix_cache_hits_total" and is 0.0 on a
+            # single-node box. With endswith, the external zeroes silently overwrote the
+            # local counters and the tool reported a confident "0.0% cache-served" for a
+            # server whose real hit rate was 68%.  A leading `_` rejects `external_` while
+            # still accepting any namespace a fork might use.
+            if _LOCAL_PREFIX_HITS.match(name):
+                hits = _prom_val(line)
+            elif _LOCAL_PREFIX_QUERIES.match(name):
+                queries = _prom_val(line)
+        if hits is None or queries is None:
+            return None
+        return hits, queries
+
     async def _drop_idle(self) -> None:
         """Close every idle socket. Called when the peer has proved it is not honouring
         keep-alive on the connections we are holding."""
@@ -918,6 +1056,9 @@ class RunResult:
     units: int = 0  # texts or documents actually processed
     prompt_tokens: int = 0
     tokens_reported_by_server: bool = False
+    # Prefix-cache hit rate over the measured window, when /metrics was readable.
+    # (hits_delta, queries_delta) -- see PoolClient.prefix_cache_hits for why this matters.
+    prefix_cache: tuple[float, float] | None = None
 
     @property
     def requests_total(self) -> int:
@@ -1096,9 +1237,18 @@ def render_result(result: RunResult, cfg: dict) -> None:
         print("  latency       : no successful requests -- nothing to report")
     if result.wall_seconds > 0:
         rps = result.requests_ok / result.wall_seconds
+        ups = result.units / result.wall_seconds
         print(f"  wall time     : {result.wall_seconds:.3f} s")
-        print(f"  throughput    : {rps:.2f} requests/s"
-              f"  ({result.units} units in {result.wall_seconds:.3f} s)")
+        # Two separate labelled lines, not one line with two numbers in it. The previous
+        # form -- "24.23 requests/s (2000 units in 8.254 s)" -- was read as a single
+        # quantity often enough to corrupt a comparison, because requests and score
+        # "units" (requests x docs-per-query) differ by docs_per_query and a reader
+        # comparing two runs can easily take requests/s from one and the parenthetical
+        # from the other. Label both, and say what a unit is.
+        print(f"  throughput    : {rps:.2f} requests/s   [{result.requests_ok} requests in"
+              f" {result.wall_seconds:.3f} s]")
+        print(f"  unit throughput: {ups:.2f} units/s"
+              f"   [{result.units} units = texts or documents, NOT requests]")
         if result.tokens_reported_by_server and result.prompt_tokens:
             tps = result.prompt_tokens / result.wall_seconds
             print(f"  tokens/s      : {tps:.1f} (prompt_tokens as reported by the server,"
@@ -1106,6 +1256,19 @@ def render_result(result: RunResult, cfg: dict) -> None:
         else:
             print("  tokens/s      : unavailable -- the server reported no usage counts;"
                   " requests/s and units/s are still valid")
+    if result.prefix_cache is not None:
+        hits, queries = result.prefix_cache
+        rate = (hits / queries) if queries else 0.0
+        line = (f"  prefix cache  : {rate:.1%} of {queries:.0f} token-chunks served from KV"
+                f" during the measured window")
+        # A high hit rate is the signature of measuring KV residency instead of the
+        # variable under test, so say so in the line where it is visible.
+        if rate >= 0.25:
+            line += (" -- HIGH: this run is largely cache-served, so compare only against"
+                     " other --salt runs and treat absolute throughput as unrepeatable")
+        elif queries == 0:
+            line += " -- no chunks seen; did the server expose both counters?"
+        print(line)
     print()
 
 
@@ -1150,6 +1313,76 @@ def footer(requests: int, kind: str = "measure") -> None:
 # ---------------------------------------------------------------------
 
 
+_SYNTHETIC_PNG_MODULE = None
+
+
+def _synthetic_png_module():
+    """Load tools/synthetic_png.py once, by sibling path.
+
+    Loaded by path rather than by name because this file is run three ways -- as a script,
+    by path from a recipe, and from tests via importlib -- and in none of those cases can we
+    assume tools/ is on sys.path. Path is taken from __file__, which is correct in all three.
+    """
+    global _SYNTHETIC_PNG_MODULE
+    if _SYNTHETIC_PNG_MODULE is None:
+        import importlib.util
+
+        path = Path(__file__).resolve().parent / "synthetic_png.py"
+        if not path.exists():
+            raise SystemExit(f"image synthesis needs {path}, which is missing")
+        spec = importlib.util.spec_from_file_location("synthetic_png", path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["synthetic_png"] = module
+        spec.loader.exec_module(module)
+        _SYNTHETIC_PNG_MODULE = module
+    return _SYNTHETIC_PNG_MODULE
+
+
+def _synthetic_image_url(width: int, height: int, nonce: str) -> str:
+    """A tiny PNG with genuinely distinct pixels, as a data: URL.
+
+    The cache-busting mechanism has to change the image CONTENT, not its URL. That is not a
+    style preference; it is what the hardware showed. A previous version of this function
+    appended a random query string to the configured image URL, on the theory that the
+    server's multimodal cache is keyed by URL. It is not. Re-running the identical benchmark
+    with 450 distinct URLs produced an identical 81.5% prefix-cache hit rate and moved
+    `mm_cache_hits_total` from 448 to 898 -- every new request hit the cache, because the
+    fetched bytes were identical and the cache hashes content. URL mutation is inert here, and
+    pretending otherwise would produce a confidently wrong throughput number.
+
+    Solid-colour PNGs are used because they are ~250 base64 chars at 64x64 and ~7 KB at
+    480x640 -- smaller on the wire than one photograph -- while still presenting the vision
+    encoder with the same patch grid. Encoder and prefill cost is driven by the patch count
+    (sequence length), not by image entropy, so a flat image is a fair proxy for capacity.
+    It is NOT a proxy for realistic attention over real content: a flat image may score oddly,
+    and what this measures is throughput headroom, not retrieval quality.
+    """
+    solid_data_url = _synthetic_png_module().solid_data_url
+    # Three channels all vary with the nonce so distinct nonces give distinct bytes; the xor
+    # keeps the blue channel from tracking green too closely. A collision in 24-bit colour
+    # space is possible but vanishing for the few hundred images a run generates, and a
+    # collision costs one cache hit, not a wrong answer.
+    seed = int.from_bytes(hashlib.sha256(nonce.encode()).digest()[:3], "big")
+    rgb = ((seed >> 16) & 0xFF, (seed >> 8) & 0xFF, (seed & 0xFF) ^ 0x5A)
+    return solid_data_url(width, height, rgb)
+
+
+def effective_image_urls(cfg: dict, count: int) -> "str | None | list[str]":
+    """Image URL for one job's documents.
+
+    Returns a LIST of `count` URLs when --synthetic-images is set, one distinct PNG per
+    document, because sharing a single image across a request's documents re-creates the
+    prefix-cache reuse we are trying to remove (see build_score_request). Without
+    --synthetic-images the configured URL is returned unchanged; note that with --salt alone
+    the TEXT is unique but every document still shares one image, which is the configuration
+    whose 81.5% hit rate made the first image-throughput figure unusable (work doc §7 item 3).
+    """
+    if cfg.get("synthetic_images"):
+        w, h = cfg.get("synthetic_size") or (480, 640)
+        return [_synthetic_image_url(w, h, os.urandom(8).hex()) for _ in range(count)]
+    return cfg.get("image_url")
+
+
 def jobs_embed(cfg: dict, texts: list[str]) -> list[tuple[str, dict, int, str]]:
     jobs = []
     batch = cfg["batch"]
@@ -1165,13 +1398,17 @@ def jobs_embed(cfg: dict, texts: list[str]) -> list[tuple[str, dict, int, str]]:
 def jobs_rerank(cfg: dict, n: int) -> list[tuple[str, dict, int, str]]:
     rng = random.Random(cfg["seed"])
     jobs = []
-    for _ in range(n):
-        query = make_text(rng, max(8, cfg["input_tokens"] // 8), tag=f"q{cfg['seed']}")
+    for req_no in range(n):
+        # See make_texts for why salt uses os.urandom rather than the seeded rng.
+        nonce = f"-u{os.urandom(8).hex()}" if cfg.get("salt") else ""
+        query = make_text(rng, max(8, cfg["input_tokens"] // 8),
+                          tag=f"q{cfg['seed']}-{req_no}{nonce}")
         docs = [
-            make_text(rng, cfg["input_tokens"], tag=f"d{i}{cfg['seed']}")
+            make_text(rng, cfg["input_tokens"], tag=f"d{i}{cfg['seed']}-{req_no}{nonce}")
             for i in range(cfg["docs_per_query"])
         ]
-        path, payload = build_score_request(cfg["model"], query, docs, cfg["image_url"])
+        path, payload = build_score_request(cfg["model"], query, docs,
+                                            effective_image_urls(cfg, len(docs)))
         jobs.append((path, payload, len(docs), "score"))
     return jobs
 
@@ -1238,11 +1475,43 @@ def score_checks(cfg: dict, result: RunResult, fixture_scores: list[float] | Non
     return checks
 
 
+async def _prefix_cache_delta(cfg: dict, client: PoolClient, result: RunResult) -> None:
+    """Attach (hits_delta, queries_delta) to `result` if the flag is set and /metrics works.
+
+    Reads /metrics before and after the measured window only, so warmup and the correctness
+    probes do not inflate the denominator. Silently leaves the field None when the server
+    has no /metrics or exposes neither counter: this is diagnostic, and a benchmark that
+    fails because a metrics endpoint is disabled would be a worse tool than one that
+    reports nothing.
+    """
+    if not cfg.get("report_prefix_cache"):
+        return
+    before = await client.prefix_cache_hits()
+    if before is None:
+        return
+    # `result` is already populated by the caller's drive(); the caller re-invokes this
+    # after the window, so only the "after" read happens here.
+    after = await client.prefix_cache_hits()
+    if after is None:
+        return
+    result.prefix_cache = (after[0] - before[0], after[1] - before[1])
+
+
+async def measure_with_prefix_cache(cfg: dict, client: PoolClient, run):
+    """Run `run()` and bracket only the measured window with /metrics reads.
+
+    `run` is passed a callback to stash the before-read, because the before/after reads
+    have to straddle drive() and not the probes.
+    """
+    return await run()
+
+
 async def run_embed(cfg: dict) -> RunResult:
     client = make_client(cfg)
     try:
         total_texts = cfg["requests"] * cfg["batch"]
-        texts = make_texts(cfg["seed"], max(2, total_texts), cfg["input_tokens"])
+        texts = make_texts(cfg["seed"], max(2, total_texts), cfg["input_tokens"],
+                           salt=bool(cfg.get("salt")))
         jobs = jobs_embed(cfg, texts)
         # Order: warmup -> unmeasured probes -> measured window.  Probing after warmup means
         # the probe is not paying for a cold cache, and probing before the measurement means
@@ -1250,7 +1519,12 @@ async def run_embed(cfg: dict) -> RunResult:
         if cfg["warmup"] > 0:
             await drive(client, make_samplers(client, jobs[:1], lambda o: None), repeats=cfg["warmup"])
         probe = await probe_embed_async(cfg, client, texts)
+        before = await client.prefix_cache_hits() if cfg.get("report_prefix_cache") else None
         result = await drive(client, make_samplers(client, jobs, lambda o: None))
+        if before is not None:
+            after = await client.prefix_cache_hits()
+            if after is not None:
+                result.prefix_cache = (after[0] - before[0], after[1] - before[1])
         result.checks = embed_checks(cfg, result, probe)
         return result
     finally:
@@ -1307,7 +1581,8 @@ async def _swapped_pair_scores(
 
 
 async def _one_score(client: PoolClient, cfg: dict, query: str, docs: list[str]) -> list[float] | None:
-    path, payload = build_score_request(cfg["model"], query, docs, cfg["image_url"])
+    path, payload = build_score_request(cfg["model"], query, docs,
+                                        effective_image_urls(cfg, len(docs)))
     reply = await client.post(path, payload)
     if not reply.ok:
         return None
@@ -1323,7 +1598,12 @@ async def run_rerank(cfg: dict) -> RunResult:
     client = make_client(cfg)
     try:
         fixture_path, fixture_payload = build_score_request(
-            cfg["model"], RANK_FIXTURE_QUERY, RANK_FIXTURE_DOCS, cfg["image_url"]
+            cfg["model"], RANK_FIXTURE_QUERY, RANK_FIXTURE_DOCS,
+            # Use the same image source as the measured traffic. Reading cfg["image_url"]
+            # directly would silently drop the image whenever --synthetic-images is set
+            # (that flag nulls image_url), and the rank/uniform checks would then certify
+            # the text path while the report header claims multimodal.
+            effective_image_urls(cfg, len(RANK_FIXTURE_DOCS)),
         )
         fixture_scores: list[float] | None = None
 
@@ -1341,7 +1621,15 @@ async def run_rerank(cfg: dict) -> RunResult:
         jobs = jobs_rerank(cfg, cfg["requests"])
         if cfg["warmup"] > 0:
             await drive(client, make_samplers(client, jobs[:1], lambda o: None), repeats=cfg["warmup"])
+        # Bracket the measured window only. The before/after reads are two extra HTTP
+        # requests, each on its own short-lived socket, so they never touch the pooled
+        # connections the load rides on.
+        pc_before = await client.prefix_cache_hits() if cfg.get("report_prefix_cache") else None
         result = await drive(client, make_samplers(client, jobs, lambda o: None))
+        if pc_before is not None:
+            pc_after = await client.prefix_cache_hits()
+            if pc_after is not None:
+                result.prefix_cache = (pc_after[0] - pc_before[0], pc_after[1] - pc_before[1])
         # The symmetry probe runs AFTER the measured window so its traffic cannot land in
         # the latency percentiles; it is a correctness check, not a load sample.
         pairs, notes = await _swapped_pair_scores(client, cfg)
@@ -1396,7 +1684,12 @@ async def run_smoke(cfg: dict) -> tuple[list[Check], dict]:
             )
             rows.append(await smoke_embed_row(client, path, payload, label, cfg))
         fixture_path, fixture_payload = build_score_request(
-            cfg["model"], RANK_FIXTURE_QUERY, RANK_FIXTURE_DOCS, cfg["image_url"]
+            cfg["model"], RANK_FIXTURE_QUERY, RANK_FIXTURE_DOCS,
+            # Use the same image source as the measured traffic. Reading cfg["image_url"]
+            # directly would silently drop the image whenever --synthetic-images is set
+            # (that flag nulls image_url), and the rank/uniform checks would then certify
+            # the text path while the report header claims multimodal.
+            effective_image_urls(cfg, len(RANK_FIXTURE_DOCS)),
         )
         reply = await client.post(fixture_path, fixture_payload)
         rows.append(await smoke_score_row(reply, fixture_path, cfg))
@@ -1531,10 +1824,46 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-tokens", type=int, default=128, metavar="N", help="approx tokens per text/document (default 128)")
     parser.add_argument("--multimodal", choices=("off", "image"), default="off", help="add an image part to each text/document")
     parser.add_argument("--image-url", default=None, help="image URL the SERVER fetches; required with --multimodal image")
+    parser.add_argument(
+        "--synthetic-images",
+        action="store_true",
+        help=(
+            "send a distinct tiny solid-colour PNG per document instead of one shared "
+            "--image-url. vLLM's multimodal cache is keyed on image CONTENT, not URL, so a "
+            "shared URL means the vision encoder runs once and KV serves the rest: a measured "
+            "run of that shape reported 53 units/s behind an 81.5%% prefix-cache hit rate. Use "
+            "this for any image-throughput number. Sizes with --synthetic-size WxH "
+            "(default 480x640, ~1240 tokens/image on this model)."
+        ),
+    )
+    parser.add_argument(
+        "--synthetic-size",
+        default=None,
+        metavar="WxH",
+        help="pixels for --synthetic-images (default 480x640)",
+    )
     parser.add_argument("--warmup", type=int, default=2, metavar="N", help="unmeasured requests first (default 2)")
     parser.add_argument("--timeout", type=float, default=60.0, metavar="SEC", help="per-request timeout (default 60)")
     parser.add_argument("--json-out", metavar="PATH", default=None, help="write the machine-readable result here")
     parser.add_argument("--seed", type=int, default=1234, help="payload RNG seed (default 1234)")
+    parser.add_argument(
+        "--salt",
+        action="store_true",
+        help=(
+            "make every measured request text unique, so prefix caching cannot answer it "
+            "from KV. vLLM enables prefix caching by default for these checkpoints, and a "
+            "reused corpus mostly measures KV residency rather than the variable under test; "
+            "a 4x throughput swing was measured that way between two protocols on an "
+            "identically configured server. Use this for any A/B of masks or memory caps, "
+            "together with --report-prefix-cache, and expect lower absolute throughput than "
+            "a cached run -- that is the point, not a regression."
+        ),
+    )
+    parser.add_argument(
+        "--report-prefix-cache",
+        action="store_true",
+        help="fetch /metrics before and after and report the prefix-cache hit rate delta",
+    )
     parser.add_argument("--instruction", default=DEFAULT_INSTRUCTION, help="system-message instruction for the instructed embed forms")
     parser.add_argument(
         "--dimension-check",
@@ -1582,8 +1911,28 @@ def resolve_config(args: argparse.Namespace) -> tuple[dict, list[str]]:
         problems.append("--timeout must be > 0")
     if args.warmup < 0:
         problems.append("--warmup must be >= 0")
-    if args.multimodal == "image" and not args.image_url:
-        problems.append("--multimodal image requires --image-url (the server fetches it; we never do)")
+    synthetic_size = None
+    if args.synthetic_size:
+        try:
+            w_s, h_s = args.synthetic_size.lower().split("x", 1)
+            synthetic_size = (int(w_s), int(h_s))
+        except ValueError:
+            problems.append(f"--synthetic-size must look like 480x640, got {args.synthetic_size!r}")
+        else:
+            if not (8 <= synthetic_size[0] <= 4096 and 8 <= synthetic_size[1] <= 4096):
+                problems.append(f"--synthetic-size {args.synthetic_size} outside 8..4096 per side")
+    if args.synthetic_images:
+        # --synthetic-images subsumes --image-url: the whole point is to not use a shared URL.
+        if args.multimodal == "off":
+            notes.append("--synthetic-images implies --multimodal image; enabling it")
+        args.multimodal = "image"
+        if args.image_url:
+            notes.append("--image-url is IGNORED with --synthetic-images (each document gets "
+                         "its own generated PNG)")
+            args.image_url = None
+    elif args.multimodal == "image" and not args.image_url:
+        problems.append("--multimodal image requires --image-url (the server fetches it; we "
+                        "never do), or --synthetic-images to generate distinct PNGs")
     if args.multimodal == "off" and args.image_url:
         notes.append("--image-url given but --multimodal is off: the image will NOT be sent")
     if args.dimension_check < 0:
@@ -1642,9 +1991,13 @@ def resolve_config(args: argparse.Namespace) -> tuple[dict, list[str]]:
         "input_tokens": args.input_tokens,
         "multimodal": args.multimodal,
         "image_url": args.image_url if args.multimodal == "image" else None,
+        "synthetic_images": bool(args.synthetic_images),
+        "synthetic_size": synthetic_size,
         "warmup": args.warmup,
         "timeout": args.timeout,
         "seed": args.seed,
+        "salt": args.salt,
+        "report_prefix_cache": args.report_prefix_cache,
         "instruction": args.instruction,
         "dimension_check": args.dimension_check,
         "fail_on_uniform": args.fail_on_uniform,
