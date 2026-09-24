@@ -75,12 +75,14 @@ defaults:
   speculative_dspark_block_size: 5
   cuda_graph_max_bs_decode: 32
   load_format: safetensors
-  # The scheduler watchdog defaults to 300 s and KILLED the scheduler mid-load on
-  # our first boot: weight load began 06:32:20 and the process died at 06:37:27
-  # (exactly 5m07s, exit -15, OOMKilled=false) while still in the load-time
-  # FP8->FP4 shared-expert conversion. This checkpoint is 167 GB and the
-  # load-time shared-expert quant is slow on GB10, so a 5-min watchdog is far too
-  # short. Raised well past any plausible load; verified 2026-09-24 (boot 1).
+  # Boot 1 (2026-09-24) died 5m07s into load while in the load-time FP8->FP4
+  # shared-expert conversion; boot 2 with this raised to 3600 lived past that
+  # (8+ min) and then died at the SAME step anyway. So the watchdog was NOT the
+  # cause -- keep it generous (the default 300 s is too short for a 167 GB load
+  # on GB10 regardless) but do not record it as the fix. No host OOM
+  # (`OOMKilled=false`, 117 GB free, dmesg OOM entries predate the boot by
+  # hours). This is an upstream load-path fault on the shared-expert quant; it
+  # needs a debugging session, not another flag.
   watchdog_timeout: 3600
   extra_args: ""
 
