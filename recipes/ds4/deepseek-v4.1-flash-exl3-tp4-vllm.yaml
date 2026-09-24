@@ -22,6 +22,14 @@ metadata:
 mods:
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 
+# The image declares ENTRYPOINT ["vllm","serve"], which would parse sparkrun's
+# appended launcher as its own flags and never run the workload. sparkrun
+# detects this and refuses to launch until it is cleared (verified on 10.0.4.32
+# 2026-09-24: the same command runs once the entrypoint is empty). This is the
+# durable place to declare it; `-o entrypoint=''` is the one-off equivalent.
+executor_config:
+  entrypoint: ""
+
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE BURNING A BOOT
 # ---------------------------------------------------------------------------
