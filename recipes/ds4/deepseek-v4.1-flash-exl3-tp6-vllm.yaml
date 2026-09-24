@@ -1,0 +1,158 @@
+recipe_version: "2"
+model: bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+runtime: vllm
+container: littlecedar/dgx-spark-dsv41:exl3a
+min_nodes: 6
+
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash at TP=6 across six DGX Sparks, EXL3 3.5 bpw experts,
+    Engram streamed from disk, 300K context. TP=6 is mechanically the *cleanest*
+    large split for this model -- moe_intermediate_size 2304 / 6 = 384, which is
+    128-aligned, so the MoE needs NO uneven expert split (TP=4 needed
+    512/640/640/512 precisely because 2304/4 = 576 is not a multiple of 128).
+    The cost is attention: 8 output groups do not divide by 6, so heads pad
+    64->96 (8->12 groups) and 2 of the 6 ranks carry pure-padding attention
+    shards. DSpark is off (the drafter's 128 experts and 64 heads do not divide
+    by 6). See the header.
+  model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp4
+  tags: research_preview
+
+mods:
+  - "@littlecedar/mods/mount-dsv41-exl3-patches"
+
+# The image declares ENTRYPOINT ["vllm","serve"], which would swallow sparkrun's
+# appended launcher. Clear it (see the TP=4 recipe header for the full note).
+executor_config:
+  entrypoint: ""
+
+# ---------------------------------------------------------------------------
+# TP=6 — why it is interesting, and what it costs
+# ---------------------------------------------------------------------------
+# Divergence check, computed from THIS checkpoint's config.json (2026-09-24):
+#   num_attention_heads 64 | o_groups 8 | moe_intermediate_size 2304
+#   n_routed_experts 384  | dspark_n_routed_experts 128 | vocab 129280
+#
+#   MoE experts:  384 / 6 = 64          exact
+#   MoE width:    2304 / 6 = 384  = 128 x 3   ALIGNED -> no uneven split needed
+#                  (TP=4 needed the 512/640/640/512 hack: 2304/4 = 576, not a
+#                   multiple of 128, so the FlashInfer-Cutlass MXFP4 MoE refuses
+#                   TP=4 entirely -- that is what killed the SGLang TP=4 boot)
+#   heads/groups: 64 and 8 are NOT divisible by 6 -> virtual heads 64->96, 8->12
+#   DSpark:       128 and 64 not divisible by 6 -> speculative decoding OFF
+#   vocab:        129280 -> 129408 (multiple of lcm(64,6)=192), as at TP=3
+#   Engram:       24 hash columns / 6 = 4 per rank, exact
+#
+# THE ATTENTION COST, stated plainly. The virtual-heads mechanism pads the 8 REAL
+# output groups to 12 so each of the 6 ranks gets 2 whole groups. But only 8 of
+# those 12 groups are real: ranks receive groups {0,1}, {2,3}, {4,5}, {6,7}
+# (real) and {8,9}, {10,11} (padded, wo_b zeroed). So TWO OF THE SIX RANKS run
+# attention that contributes exactly nothing, and still pay their all-reduce.
+# That is a 33 % attention-flop tax on a third of the fleet -- the price of an
+# even expert split. Whether the even-128-aligned MoE split pays for it is the
+# empirical question this recipe exists to answer; do not assume either way.
+#
+# Compare the alternatives: TP=4 needs an uneven expert split but no attention
+# padding; TP=3 pads one group (64->72) and beats TP=4 on throughput upstream;
+# TP=8 fails the MoE /128 check (2304/8 = 288). TP=6 is the only split that is
+# *both* MoE-perfect and available on six nodes.
+
+env:
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True,garbage_collection_threshold:0.6
+  VLLM_USE_RUST_FRONTEND: "0"
+  VLLM_HAS_FLASHINFER_CUBIN: "1"
+  MAX_JOBS: "2"
+  FLASHINFER_NVCC_THREADS: "1"
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_DISABLE_VERSION_CHECK: "1"
+  VLLM_USE_BREAKABLE_CUDAGRAPH: "1"
+  DSV41_ENGRAM_DISK: "1"
+  DSV41_ENGRAM_DISK_THREADS: "32"
+  DSV41_ENGRAM_DISK_CHUNK: "16"
+  DSV41_ENGRAM_DIR: /engram-local
+  # NCCL transport vars deliberately unset — sparkrun's IB probe fills them per
+  # cluster (see the TP=4 recipe header).
+  NCCL_MAX_NCHANNELS: "8"
+  NCCL_CUMEM_ENABLE: "0"
+  NCCL_NVLS_ENABLE: "0"
+  NCCL_IB_ROCE_VERSION_NUM: "2"
+  NCCL_IB_ADDR_FAMILY: AF_INET
+  NCCL_DEBUG: WARN
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 6
+  gpu_memory_utilization: 0.80
+  max_model_len: 300000
+  max_num_seqs: 8
+  max_num_batched_tokens: 4096
+  block_size: 128
+  # Flat, NOT nested under text_config: DeepseekV41Config flattens text_config
+  # before vLLM applies hf_overrides (verified 2026-09-24). heads 96 = 12 groups
+  # x 8 heads; 12 % 6 == 0 and 96 % 6 == 0. 12 is the MINIMAL group count that
+  # works (g must be a multiple of 6 AND 8g a multiple of 6  =>  g % 3 == 0).
+  hf_overrides: '{"num_attention_heads":96,"o_groups":12,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
+  # NO --speculative-config: DSpark cannot run at TP=6 (drafter 128 experts and
+  # 64 heads do not divide by 6). Same wall as TP=3. Upstream's TP=6 does not
+  # exist; nobody has patched the drafter for a 6-way split.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}'
+  mm_encoder_tp_mode: data
+  extra_args: ""
+
+command: >
+  CUDA_EXL3_MODEL_PATH=/cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
+  vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --block-size {block_size}
+  --hf-overrides '{hf_overrides}'
+  --engram-config '{"cpu_offload": false}'
+  --default-chat-template-kwargs '{"thinking": false}'
+  --compilation-config '{compilation_config}'
+  --limit-mm-per-prompt '{"image":4}'
+  --mm-encoder-tp-mode {mm_encoder_tp_mode}
+  --tool-call-parser deepseek_v41
+  --enable-auto-tool-choice
+  --reasoning-parser deepseek_v41
+  --trust-remote-code
+  {extra_args}
+
+readiness:
+  port_timeout_s: 7200
+  health_timeout_s: 1800
+
+# Deliberately NOT set, and why:
+#   --quantization: config.json declares quant_method exl3; the cuda_exl3 plugin
+#     picks it up. A flag is wrong.
+#   --speculative-config: DSpark cannot run at TP=6 (see header).
+#   --enable-expert-parallel: 384 experts do divide by 6, so EP is *possible*
+#     here in a way it is not at TP=3 — but EP over RoCE is unmeasured for this
+#     model and the drafter patch assumes EP off. Pure TP first; EP is a
+#     separate experiment.
+#
+# Boot-log checklist:
+#   * the mod wraps 3 params/layer with virtual-head loaders; a config that never
+#     declares virtual_heads_from logs no padding and the head count is wrong,
+#     not merely slow.
+#   * per-rank Engram row ranges must DIFFER across the six ranks (4 hash columns
+#     each at TP=6).
+#   * the MoE must NOT hit the FlashInfer-Cutlass /128 partition error — at TP=6
+#     the width is 384 = 128x3, so it should not. If it does, the split is not
+#     what we assumed and this whole recipe's premise is wrong.
+#   * read `GPU KV cache size` before any throughput number.

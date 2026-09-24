@@ -56,12 +56,13 @@ V41_TP8 = RECIPE_DIR / "deepseek-v4.1-flash-mxfp4-tp8-sglang.yaml"
 EXL3_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
 EXL3_TP4_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml"
 EXL3_TP3 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp3-vllm.yaml"
+EXL3_TP6 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-vllm.yaml"
 
 ALL = [MXFP4_TP2, NVFP4_TP2, V41_TP4, V41_TP8,
        EXL3_TP4, EXL3_TP4_1M, EXL3_TP3]
 V4F_RECIPES = [MXFP4_TP2, NVFP4_TP2]   # the V4-Flash family
 V41_RECIPES = [V41_TP4, V41_TP8]       # the V4.1-Flash SGLang family
-EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3]  # the V4.1 vLLM/EXL3 lane
+EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6]  # the V4.1 vLLM/EXL3 lane
 
 # Placeholders sparkrun fills from its own resolution rather than `defaults:`.
 ENGINE_PLACEHOLDERS = {"model", "model_path", "host", "port"}
@@ -556,21 +557,25 @@ class Exl3LaneContract(unittest.TestCase):
             )
 
     def test_dspark_spec_config(self):
-        """Every EXL3 recipe ships DSpark EXCEPT the TP=3 arm, which cannot.
+        """DSpark requires a TP that divides the drafter's 128 experts and 64 heads.
 
         The DSpark drafter's own SpeculativeConfig validates its 64 attention
-        heads against the TP size, so at TP=3 it fails ("must be divisible by
-        tensor parallel size (3)") unless the drafter is head-padded too.
-        Verified 2026-09-24. The TP=3 recipe is no-spec on purpose.
+        heads against the TP size, and the drafter's 128 experts must divide too.
+        Both hold at TP=2 and TP=4 (64%4==0, 128%4==0) but NOT at TP=3 or TP=6
+        (64%3, 64%6, 128%3, 128%6 are all nonzero). Our virtual-heads override
+        pads the MAIN model, not the drafter, so those arms are no-spec.
+        Verified 2026-09-24. TP=3 and TP=6 are no-spec on purpose.
         """
+        no_spec = {EXL3_TP3, EXL3_TP6}
         for p in EXL3_RECIPES:
             r = load(p)
             has_spec = "--speculative-config" in r.flags()
-            if p is EXL3_TP3:
+            if p in no_spec:
                 self.assertFalse(
                     has_spec,
-                    f"{p.name}: TP=3 + DSpark fails SpeculativeConfig validation "
-                    "on the drafter's 64 heads; this arm is no-spec (see header)",
+                    f"{p.name}: TP={r.default('tensor_parallel')} + DSpark fails "
+                    "SpeculativeConfig validation on the drafter's 64 heads / 128 "
+                    "experts; this arm is no-spec (see its header)",
                 )
                 continue
             self.assertTrue(has_spec, p.name)
