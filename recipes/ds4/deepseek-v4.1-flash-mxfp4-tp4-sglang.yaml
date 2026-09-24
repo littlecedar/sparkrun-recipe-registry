@@ -22,30 +22,40 @@ metadata:
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE BURNING A BOOT
 # ---------------------------------------------------------------------------
-# There are THREE independent things that can stop this booting, and they are
-# ordered by how likely each is to be the one. Work top to bottom; each is
-# checkable in the first minutes of a log.
+# THERE ARE TWO KNOWN BLOCKERS, both measured 2026-09-24. If you are
+# considering booting this recipe, read them first -- they are not tuning, they
+# are reasons the boot cannot succeed as written.
+#
+#  0. THIS RECIPE CANNOT SERVE V4.1 ON SGLANG TODAY (work doc 8.2, §7.5.3).
+#     Probed read-only: `lmsysorg/sglang:dev-dsv41` HAS `DeepseekV41Config` but
+#     NO `b12x`; `dev-v4f-2dgx-v2` HAS `b12x` but NO V4.1 config class. NO
+#     PUBLISHED IMAGE IS BOTH. So on `dev-dsv41` the b12x MoE/compressed-MLA
+#     kernels are absent (item 1 below is now a fact, not a risk), and the V4.1
+#     SGLang lane needs a container build before it can serve. The vLLM/EXL3
+#     lane (`deepseek-v4.1-flash-exl3-tp4-vllm`) is the proven alternative and
+#     DOES serve on our hardware -- prefer it. See work doc 7.5.1.
 #
 #  1. KERNELS. Upstream's DGX Spark kernels (b12x MoE, compressed-MLA) live in
 #     the `dev-v4f-2dgx-v2` image, which is pinned to branch `b12x-vision` @
-#     `452239a74f` -- a pre-V4.1 branch. `dev-dsv41` has V4.1 support. As far as
-#     we can tell these are DIFFERENT IMAGES and we need one that is both.
+#     `452239a74f` -- a pre-V4.1 branch. `dev-dsv41` has V4.1 support. These are
+#     DIFFERENT IMAGES and no published one is both (item 0).
 #     If `dev-dsv41` has no b12x package, the dense FP8 projections fall back to
 #     Triton at ~52 ms/step instead of ~17 and the whole exercise is moot.
 #     Check before launching:  docker run --rm <img> python -c "import b12x"
 #     See DS4-MODEL-OPTIMIZATION-WORK.md 8.2.
 #
-#  2. THE DEEPGEMM SM121 CLIFF. deep_gemm/_C.so allows SM100 and SM120 but NOT
-#     SM121 (GB10), so the hot decode kernel fp8_paged_mqa_logits raises
-#     "Unsupported architecture (attention.hpp:219)" and SGLang falls back to a
-#     pure-torch dispatch OUTSIDE the CUDA graph at ~18 ms/step over the 20 DSA
-#     layers. That is a HARD ~13-18 t/s ceiling independent of batch size, TP
-#     degree and quantisation. Measured on 4x GB10 by an outside party: 13.5 t/s
-#     at n=1 on the fallback, 18.7 t/s with the TileLang indexer. Set
-#     SGLANG_OPT_USE_TILELANG_INDEXER=1 and SGLANG_DISABLE_DEEP_GEMM=1 below.
-#     This recipe ships them ON by default; if your build's DeepGEMM does
-#     support SM121, turn both off and measure -- it is likely faster.
-#     See DS4-MODEL-OPTIMIZATION-WORK.md 4.3.
+#  2. THE DEEPGEMM SM121 CLIFF. Upstream's DeepGEMM hard-blocks SM121 (GB10),
+#     so the hot decode kernel fp8_paged_mqa_logits falls back to a pure-torch
+#     dispatch OUTSIDE the CUDA graph at ~18 ms/step over the 20 DSA layers --
+#     a HARD ~13-18 t/s ceiling independent of batch size, TP degree and
+#     quantisation. Measured on 4x GB10 by an outside party: 13.5 t/s at n=1 on
+#     the fallback, 18.7 t/s with the TileLang indexer. **Partially resolved
+#     2026-09-24:** the `_C.so` in BOTH `dev-dsv41` and `dev-v4f-2dgx-v2` gates
+#     on `arch_major == 10 or arch_major == 12` (GB10 reports major 12), so this
+#     build is LIKELY NOT blocked -- but that proves the gate, not that a kernel
+#     compiled for SM121. Set SGLANG_OPT_USE_TILELANG_INDEXER=1 and
+#     SGLANG_DISABLE_DEEP_GEMM=1 as insurance; turn them off once a boot log
+#     shows the native kernel ran. See work doc 4.3, 8.1.
 #
 #  3. MEMORY. This is where the honest arithmetic differs from the naive guess,
 #     so it is spelled out below rather than left to a comment.
