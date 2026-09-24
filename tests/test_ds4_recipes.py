@@ -534,6 +534,22 @@ class Exl3LaneContract(unittest.TestCase):
                           f"{p.name}: the mod that installs tonyd2wild's "
                           "engram.py is what makes this boot fit")
 
+    def test_consuming_entrypoint_cleared(self):
+        """The image's ENTRYPOINT ["vllm","serve"] swallows sparkrun's command.
+
+        sparkrun refuses to launch when an image entrypoint is *confirmed*
+        consuming (containers/entrypoint.py), and the fix is an empty
+        `executor_config.entrypoint`. Without this key every launch of these
+        recipes fails at the pre-launch check, before any GPU is touched.
+        """
+        for p in EXL3_RECIPES:
+            self.assertRegex(
+                _strip_comment_lines(p.read_text()),
+                r"(?m)^executor_config:\s*\n\s+entrypoint:\s*(\"\"|''|)$",
+                f"{p.name}: missing `executor_config: entrypoint: \"\"`; the "
+                "exl3a image's entrypoint consumes the appended command",
+            )
+
     def test_dspark_spec_config(self):
         for p in EXL3_RECIPES:
             r = load(p)
