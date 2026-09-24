@@ -166,7 +166,7 @@ defaults:
   extra_args: ""
 
 command: >
-  CUDA_EXL3_MODEL_PATH=/cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/*
+  CUDA_EXL3_MODEL_PATH=/cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
   vllm serve {model}
   --host {host}
   --port {port}
