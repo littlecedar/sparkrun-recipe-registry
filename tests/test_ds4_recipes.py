@@ -310,19 +310,24 @@ class SpeculativeDecoding(unittest.TestCase):
                                  f"{p.name}: NEXTN in the speculative-config")
 
     def test_allowed_algorithms(self):
-        """SGLang names the algorithm in a flag; vLLM passes a JSON blob."""
+        """SGLang names the algorithm in a flag; vLLM passes a JSON blob.
+
+        A vLLM recipe with no speculative method at all (the TP=3 arm, which
+        cannot run DSpark) is legal and is not tested here.
+        """
         for p in ALL:
             r = load(p)
             val = r.flag_value("--speculative-algorithm")
             if val is not None:
                 self.assertIn(val, ("DSPARK", "EAGLE"), f"{p.name}: unexpected {val=}")
-            else:
-                self.assertIn(
-                    "dspark",
-                    r.defaults.get("speculative_config", "").lower(),
-                    f"{p.name}: neither --speculative-algorithm nor a dspark "
-                    "speculative_config -- the recipe names no speculative method",
-                )
+                continue
+            if "--speculative-config" not in r.flags():
+                continue  # no-spec arm
+            self.assertIn(
+                "dspark",
+                r.defaults.get("speculative_config", "").lower(),
+                f"{p.name}: --speculative-config present but names no dspark method",
+            )
 
     def test_eagle_only_on_non_dspark_head(self):
         """EAGLE against a DSpark head is the silent zero-acceptance case."""
@@ -551,9 +556,24 @@ class Exl3LaneContract(unittest.TestCase):
             )
 
     def test_dspark_spec_config(self):
+        """Every EXL3 recipe ships DSpark EXCEPT the TP=3 arm, which cannot.
+
+        The DSpark drafter's own SpeculativeConfig validates its 64 attention
+        heads against the TP size, so at TP=3 it fails ("must be divisible by
+        tensor parallel size (3)") unless the drafter is head-padded too.
+        Verified 2026-09-24. The TP=3 recipe is no-spec on purpose.
+        """
         for p in EXL3_RECIPES:
             r = load(p)
-            self.assertIn("--speculative-config", r.flags(), p.name)
+            has_spec = "--speculative-config" in r.flags()
+            if p is EXL3_TP3:
+                self.assertFalse(
+                    has_spec,
+                    f"{p.name}: TP=3 + DSpark fails SpeculativeConfig validation "
+                    "on the drafter's 64 heads; this arm is no-spec (see header)",
+                )
+                continue
+            self.assertTrue(has_spec, p.name)
             self.assertIn("dspark", r.default("speculative_config"), p.name)
             # Adaptive verification must stay off: padded spec batches hang
             # SM120 sparse MLA (FlashInfer #5015).
@@ -569,6 +589,8 @@ class Exl3LaneContract(unittest.TestCase):
             self.assertIn("FULL_AND_PIECEWISE", cc, p.name)
             sizes = re.findall(r"\d+", cc.split("cudagraph_capture_sizes")[-1])
             self.assertTrue(sizes, f"{p.name}: no cudagraph_capture_sizes")
+            if "--speculative-config" not in r.flags():
+                continue  # no-spec arm: k=0, any non-empty list is enough
             k = 5  # num_speculative_tokens in the dspark config
             need = int(r.default("max_num_seqs")) * (k + 1)
             self.assertGreaterEqual(
