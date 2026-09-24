@@ -30,19 +30,18 @@ mods:
 executor_config:
   entrypoint: ""
 
-# Serve the weights straight off the shared HF cache instead of re-staging 429 GB
-# on the control machine. `cluster_config.resolved_model_path` is sparkrun's
-# escape hatch for pre-placed weights: it repoints `model:` at the on-disk
-# snapshot, identity-mounts it into the container at the SAME path, and skips
-# download/distribution entirely. This ALSO makes `{model}` (and therefore
-# CUDA_EXL3_MODEL_PATH in the command) resolve to a real path in the container --
-# without it, cuda-exl3's spawned DSpark-drafter worker cannot find
-# quantization_config.json and the boot dies at engine init with
-# "EXL3: could not find tensor_storage". Verified 2026-09-24 (boot 1): see
-# JOURNAL. The path is the node's HF cache directory, which every node of this
-# cluster sees (the head exports it over NFS), so it is identical everywhere.
-cluster_config:
-  resolved_model_path: /home/red/.cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
+# CUDA_EXL3_MODEL_PATH: cuda-exl3's DSpark-drafter worker is spawned fresh and
+# rebuilds its quant config from the *summary* inlined into config.json, which
+# omits `tensor_storage`; with no path hint it then dies at engine init with
+# "EXL3: could not find tensor_storage". exl3_config.py:437-439 falls back to
+# this env var to find the full `quantization_config.json` next to the weights,
+# so the command below exports it, globbing the snapshot hash at run time (the
+# serve line is executed by bash). Verified 2026-09-24, boot 2/3: see JOURNAL.
+#
+# Do NOT solve this with cluster_config.resolved_model_path: an HF snapshot dir
+# is a tree of SYMLINKS into ../../blobs, so identity-mounting only the snapshot
+# leaves config.json dangling and vLLM rejects it ("Invalid repository ID or
+# local directory"). The managed /cache/huggingface mount is the correct one.
 
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE BURNING A BOOT
@@ -167,7 +166,7 @@ defaults:
   extra_args: ""
 
 command: >
-  CUDA_EXL3_MODEL_PATH={model}
+  CUDA_EXL3_MODEL_PATH=/cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/*
   vllm serve {model}
   --host {host}
   --port {port}
