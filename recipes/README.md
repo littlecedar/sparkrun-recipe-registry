@@ -12,8 +12,9 @@ Nothing here has been measured on our own hardware yet, so every t/s is `?` —
 they are placeholders awaiting a real boot, not slow results. The TP=2 pair ports
 upstream-verified SGLang DGX Spark cells; the V4.1-Flash pair has **no upstream
 cell for this hardware** and is our own work. The three `exl3-*-vllm` rows port
-tonyd2wild/bot-lab-21's **measured** 4× Spark vLLM lane (upstream t/s shown as
-reported, not measured here). See `recipes/ds4/JOURNAL.md`.
+tonyd2wild/bot-lab-21's **measured** 4× Spark vLLM lane and **HAVE been booted
+on our nodes (2026-09-24)**: the t/s shown are measured here (C8 aggregate).
+See `recipes/ds4/JOURNAL.md`.
 
 | Recipe | Flags | t/s | Size | Mem | TP | Model Cards |
 |:-------|:------|----:|-----:|----:|---:|:------------|
@@ -22,9 +23,9 @@ reported, not measured here). See `recipes/ds4/JOURNAL.md`.
 | deepseek-v4-flash-0731-mxfp4-tp2-nospec-sglang | ✨ | ? | 167GB | 0.80 | 2 | [Model][deepseek-ai/DeepSeek-V4-Flash-0731] |
 | deepseek-v4.1-flash-mxfp4-tp4-sglang | 🚩✨ | ? | 510GB | 0.80 | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash] |
 | deepseek-v4.1-flash-mxfp4-tp8-sglang | 🚩✨ | ? | 510GB | 0.80 | 8 | [Model][deepseek-ai/DeepSeek-V4.1-Flash] |
-| deepseek-v4.1-flash-exl3-tp4-vllm | 🚩 | ? (41-57 upstream) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚩 | ? (56-62 upstream) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp3-vllm | 🚩 | ? (46-153 upstream) | 460GB | 0.80 | 3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-vllm | 🚩 | 76 (C8) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚩 | 1M ctx, 746 t/s prefill @799K | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp3-vllm | 🚩 | 69 (C8, no-spec) | 460GB | 0.80 | 3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 
 `tags: control, measurement_only` on the nospec arm marks it as a benchmark
 denominator, not a shipping recipe — see its header.
