@@ -108,8 +108,24 @@ defaults:
   max_num_seqs: 8
   max_num_batched_tokens: 4096
   block_size: 128
+  # The head count lives in `text_config` in the checkpoint's config.json, BUT
+  # the override must be given at the TOP level: DeepseekV41Config flattens
+  # text_config onto itself, and vLLM applies hf_overrides to the flattened
+  # config. Verified device-free 2026-09-24 by loading both spellings:
+  #   nested {"text_config":{"num_attention_heads":72}} -> 64 (IGNORED)
+  #   flat   {"num_attention_heads":72, ...}            -> 72 (applied)
+  # So flat is correct despite the checkpoint's nesting.
   hf_overrides: '{"num_attention_heads":72,"o_groups":9,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
-  speculative_config: '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # DSpark is OFF for TP=3. Upstream's TP=3 lane needed a patch to load the
+  # 128-expert drafter (128 not divisible by 3) AND the drafter's SpeculativeConfig
+  # still validates its own 64 attention heads against TP=3, which fails:
+  # "Total number of attention heads (64) must be divisible by tensor parallel
+  # size (3)". Our virtual-heads override pads the MAIN model to 72, not the
+  # drafter. Upstream's working TP=3 config (exl3tp3a11) carried DSpark because
+  # they patched dsv4_nvidia_model.py; without re-deriving that, ship no-spec.
+  # NO --speculative-config line. A future TP=3+DSpark recipe needs the drafter
+  # head-padding path too. Measured no-spec context upstream (try 10):
+  # KV 1,995,725 tokens vs 678,950 with DSpark.
   # max_num_seqs*(k+1) = 48 as at TP=4.
   compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
   mm_encoder_tp_mode: data
@@ -129,7 +145,6 @@ command: >
   --hf-overrides '{hf_overrides}'
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
-  --speculative-config '{speculative_config}'
   --compilation-config '{compilation_config}'
   --limit-mm-per-prompt '{"image":4}'
   --mm-encoder-tp-mode {mm_encoder_tp_mode}
