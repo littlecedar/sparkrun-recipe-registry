@@ -32,17 +32,17 @@ executor_config:
 
 # Serve the weights straight off the shared HF cache instead of re-staging 429 GB
 # on the control machine. `cluster_config.resolved_model_path` is sparkrun's
-# documented escape hatch for pre-placed weights: it repoints `model:` at the
-# on-disk snapshot, identity-mounts it into the container at the same path, and
-# skips download/distribution entirely. The path below is the HF cache snapshot
-# under `/cache` (the NFS export the head already serves), so it is identical on
-# every node of this cluster. This ALSO makes `{model}` (and therefore
+# escape hatch for pre-placed weights: it repoints `model:` at the on-disk
+# snapshot, identity-mounts it into the container at the SAME path, and skips
+# download/distribution entirely. This ALSO makes `{model}` (and therefore
 # CUDA_EXL3_MODEL_PATH in the command) resolve to a real path in the container --
-# without it, cuda-exl3's DSpark drafter cannot find quantization_config.json and
-# the boot dies at engine init with "EXL3: could not find tensor_storage".
-# Verified 2026-09-24 (boot 1, 10.0.4.32): see JOURNAL.
+# without it, cuda-exl3's spawned DSpark-drafter worker cannot find
+# quantization_config.json and the boot dies at engine init with
+# "EXL3: could not find tensor_storage". Verified 2026-09-24 (boot 1): see
+# JOURNAL. The path is the node's HF cache directory, which every node of this
+# cluster sees (the head exports it over NFS), so it is identical everywhere.
 cluster_config:
-  resolved_model_path: /cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
+  resolved_model_path: /home/red/.cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
 
 # ---------------------------------------------------------------------------
 # READ THIS BEFORE BURNING A BOOT
