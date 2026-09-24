@@ -75,6 +75,9 @@ defaults:
   speculative_dspark_block_size: 5
   cuda_graph_max_bs_decode: 32
   load_format: safetensors
+  # Default 300 s is too short for a 176 GB load on GB10 (the MXFP4 sibling dies
+  # well past that). See the mxfp4 recipe header.
+  watchdog_timeout: 3600
   # Escape hatch for one-off experimentation. Empty string is the no-op default;
   # quoted so YAML keeps it a str.
   extra_args: ""
@@ -98,6 +101,7 @@ command: >
   --cuda-graph-max-bs-decode {cuda_graph_max_bs_decode}
   --max-running-requests {max_num_seqs}
   --load-format {load_format}
+  --watchdog-timeout {watchdog_timeout}
   --reasoning-parser auto
   --tool-call-parser auto
   {extra_args}
