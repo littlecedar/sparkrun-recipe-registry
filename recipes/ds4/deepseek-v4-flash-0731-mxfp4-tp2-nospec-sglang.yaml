@@ -54,6 +54,10 @@ defaults:
   moe_runner_backend: b12x
   cuda_graph_max_bs_decode: 32
   load_format: safetensors
+  # Kept equal to the DSpark sibling so the only difference between the two arms
+  # stays the three --speculative-* lines (this recipe's whole reason to exist).
+  # The default 300 s is too short for a 167 GB load on GB10 regardless of spec.
+  watchdog_timeout: 3600
   extra_args: ""
 
 command: >
@@ -71,6 +75,7 @@ command: >
   --cuda-graph-max-bs-decode {cuda_graph_max_bs_decode}
   --max-running-requests {max_num_seqs}
   --load-format {load_format}
+  --watchdog-timeout {watchdog_timeout}
   --reasoning-parser auto
   --tool-call-parser auto
   {extra_args}
