@@ -64,3 +64,46 @@ the bi-encoder; uniform failing while rank passes is a depth or temperature prob
 
 Latency at low `--requests` is an anecdote and the tool says so; compare medians of
 repeated runs before believing a delta.
+
+## quality-battery.py
+
+`sparkrun`'s benchmarking path measures **speed** only. A quantized checkpoint can
+lose quality without losing a single token/s, so the DeepSeek-V4.1-Flash EXL3 work
+needed a quality instrument and had none — the only published numbers were the
+checkpoint author's own in-domain calibration rows. This is that instrument.
+
+Two deterministic, exact-match tiers over `/v1/chat/completions`:
+
+- **`easy` (19 tasks)** — arithmetic, word problems, simple logic, factual recall,
+  formatting, code basics, one needle. Proves a server answers and is not
+  degenerate. It **saturates** (a competent model scores 100 %), so its number
+  **cannot rank quality**; do not quote it as one.
+- **`hard` (18 tasks)** — multi-step arithmetic with a required intermediate,
+  exact constraint-following (count, reverse, case, JSON-only), false-premise
+  traps (feathers-vs-steel, bat-and-ball, machines-and-widgets), in-prompt recall
+  with a distractor, and longer code comprehension. Built to fail, so a
+  non-perfect score is the informative result.
+
+Why it is not just `curl`: every failure that matters returns **200 with plausible
+text**, so scoring is exact-match/regex, `temperature` is pinned to 0, prompts are
+unique (no shared prefix, so a radix cache cannot flatter a run), and **every raw
+reply is kept and printed**. Two ground-truth bugs in this file's own history
+(a forgotten 10 % tax; `'sparkrun'[::-1]` mis-typed as `nurknaps`) were caught
+*only* because the raw answers were visible — read the failures, do not just read
+the score.
+
+Determinism caveat: DeepSeek-V4.1 is documented as not bitwise-stable across
+batch composition, so a task can differ run-to-run at `temperature 0`. Use
+`--repeat N`; a task that flips is reported as `FLAKY` and should be treated as
+unstable, not scored.
+
+```sh
+python3 tools/quality-battery.py http://<head>:8000 --tier both --repeat 3 --json q.json
+```
+
+Measured on `deepseek-v4.1-flash-exl3-tp4-vllm` (2026-09-24): easy 19/19, hard
+17/18 = 94.4 %, stable over 3 repeats; the single hard failure is character
+reversal of an uncommon word (`sparkrun`), which common and long words pass —
+a checkpoint weakness, **not** a proven quantization defect (no release-checkpoint
+comparator was run). Full write-up: `recipes/ds4/DS4-MODEL-OPTIMIZATION-WORK.md`
+§7.5.6.
