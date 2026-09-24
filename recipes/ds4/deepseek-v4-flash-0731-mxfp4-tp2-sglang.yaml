@@ -75,6 +75,13 @@ defaults:
   speculative_dspark_block_size: 5
   cuda_graph_max_bs_decode: 32
   load_format: safetensors
+  # The scheduler watchdog defaults to 300 s and KILLED the scheduler mid-load on
+  # our first boot: weight load began 06:32:20 and the process died at 06:37:27
+  # (exactly 5m07s, exit -15, OOMKilled=false) while still in the load-time
+  # FP8->FP4 shared-expert conversion. This checkpoint is 167 GB and the
+  # load-time shared-expert quant is slow on GB10, so a 5-min watchdog is far too
+  # short. Raised well past any plausible load; verified 2026-09-24 (boot 1).
+  watchdog_timeout: 3600
   extra_args: ""
 
 command: >
@@ -95,6 +102,7 @@ command: >
   --cuda-graph-max-bs-decode {cuda_graph_max_bs_decode}
   --max-running-requests {max_num_seqs}
   --load-format {load_format}
+  --watchdog-timeout {watchdog_timeout}
   --reasoning-parser auto
   --tool-call-parser auto
   {extra_args}
