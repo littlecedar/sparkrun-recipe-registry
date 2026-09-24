@@ -1,0 +1,150 @@
+recipe_version: "2"
+model: bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+runtime: vllm
+container: littlecedar/dgx-spark-dsv41:exl3a
+min_nodes: 3
+
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash at TP=3 across three DGX Sparks, EXL3 3.5 bpw experts,
+    Engram streamed from disk, DSpark k=5. TP=3 is only possible because the
+    model's 64 attention heads are padded to 72 (virtual heads). Faster than the
+    TP=4 lane at every concurrency upstream; it simply holds less context.
+    UNBOOTED on our cluster as of 2026-09-23: see work doc sections 4.5, 7.5.
+  model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp4
+  tags: research_preview
+
+mods:
+  - "@littlecedar/mods/mount-dsv41-exl3-patches"
+
+# ---------------------------------------------------------------------------
+# WHY TP=3 NEEDS MORE THAN --tensor-parallel-size 3
+# ---------------------------------------------------------------------------
+# V4.1-Flash has 64 attention heads in 8 output groups. Neither divides by 3, so
+# a plain `--tp 3` fails or silently mis-shards. tonyd2wild (2026-09-11) made it
+# work with "virtual heads": the serving copy's config declares 72 heads / 9
+# groups (24 heads = 3 whole groups per rank), and at load time the 64-head
+# tensors are padded before vLLM slices them --
+#   wq_b / wo_a: pad rows by repeating the last real group
+#   wo_b:        pad cols with ZERO weights (scale 1.0) so the padded group
+#                contributes nothing and no all-zero block reaches the FP8
+#                activation quantizers
+# Offline check upstream vs the 64-head math: max relative error 3.4e-6, all
+# finite. Mechanism and code: mods/mount-dsv41-exl3-patches/files/virtual_heads.py.
+#
+# TWO WAYS TO DECLARE THE 72 HEADS, and this recipe picks the unproven one:
+#
+#   (a) upstream's way -- an actual 72-head model COPY
+#       (/var/tmp/models/DeepSeek-V4.1-Flash-EXL3-TP3 = hardlinks + an edited
+#       config.json declaring num_attention_heads 72, o_groups 9 and
+#       virtual_heads_from {64, 8}). PROVEN. Needs ~48 GB of hardlink dir per
+#       node and the upstream prep script.
+#   (b) this recipe -- pass the same fields through vLLM's `--hf-overrides`
+#       so the HF checkpoint is used as-is and no 460 GB copy is needed.
+#       SPECULATIVE / UNVERIFIED: nobody upstream does it this way, and it is
+#       not known whether vLLM's deepseek_v4_1 config path honors
+#       num_attention_heads / o_groups / a custom virtual_heads_from key from
+#       hf-overrides at model-build time. If the boot fails at config or at the
+#       attention shard, fall back to (a): set `model:` to the TP3 copy path and
+#       drop the --hf-overrides line.
+#
+# Everything else is the TP=4 recipe: same image, same mod, same Engram-on-disk
+# requirement (WITHOUT THE MOD THIS OOMS -- see the TP=4 recipe header), same
+# DSpark and graph settings, except --max-num-batched-tokens 4096 (upstream's
+# TP=3 value) and 3 nodes.
+
+env:
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+  # Upstream's TP3 lane adds garbage_collection_threshold to the alloc conf.
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True,garbage_collection_threshold:0.6
+  VLLM_USE_RUST_FRONTEND: "0"
+  VLLM_HAS_FLASHINFER_CUBIN: "1"
+  MAX_JOBS: "2"
+  FLASHINFER_NVCC_THREADS: "1"
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_DISABLE_VERSION_CHECK: "1"
+  VLLM_USE_BREAKABLE_CUDAGRAPH: "1"
+  DSV41_ENGRAM_DISK: "1"
+  DSV41_ENGRAM_DISK_THREADS: "32"
+  DSV41_ENGRAM_DISK_CHUNK: "16"
+  DSV41_ENGRAM_DIR: /engram-local
+  # NCCL transport vars (NET/HCA/GID_INDEX/DISABLE/CROSS_NIC/MERGE_NICS/
+  # IGNORE_CPU_AFFINITY) are deliberately NOT set: sparkrun's InfiniBand probe
+  # fills them per cluster and a recipe value overrides that detection.
+  # See deepseek-v4.1-flash-exl3-tp4-vllm.yaml for the full note.
+  NCCL_MAX_NCHANNELS: "8"
+  NCCL_CUMEM_ENABLE: "0"
+  NCCL_NVLS_ENABLE: "0"
+  NCCL_IB_ROCE_VERSION_NUM: "2"
+  NCCL_IB_ADDR_FAMILY: AF_INET
+  NCCL_DEBUG: WARN
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 3
+  gpu_memory_utilization: 0.80
+  # Upstream's TP=3 lane serves 300K; with DSpark the pool is ~679K tokens
+  # (2.26 requests at 300K) against the TP=4 lane's 3.3M. TP=3 trades context
+  # for speed.
+  max_model_len: 300000
+  max_num_seqs: 8
+  max_num_batched_tokens: 4096
+  block_size: 128
+  hf_overrides: '{"num_attention_heads":72,"o_groups":9,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
+  speculative_config: '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # max_num_seqs*(k+1) = 48 as at TP=4.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
+  mm_encoder_tp_mode: data
+  extra_args: ""
+
+command: >
+  vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --block-size {block_size}
+  --hf-overrides '{hf_overrides}'
+  --engram-config '{"cpu_offload": false}'
+  --default-chat-template-kwargs '{"thinking": false}'
+  --speculative-config '{speculative_config}'
+  --compilation-config '{compilation_config}'
+  --limit-mm-per-prompt '{"image":4}'
+  --mm-encoder-tp-mode {mm_encoder_tp_mode}
+  --tool-call-parser deepseek_v41
+  --enable-auto-tool-choice
+  --reasoning-parser deepseek_v41
+  --trust-remote-code
+  {extra_args}
+
+readiness:
+  port_timeout_s: 7200
+  health_timeout_s: 1800
+
+# Deliberately NOT set, and why:
+#   --quantization: config.json declares quant_method exl3; the cuda_exl3 plugin
+#     picks it up. A flag is wrong.
+#   --enable-expert-parallel: the DSpark drafter's 128 experts do not divide by
+#     3, and upstream's fix for that is the dsv4_nvidia_model.py patch (in the
+#     mod) which only relaxes the check when EP is OFF (all experts local). Do
+#     not turn EP on here.
+#
+# Boot-log checklist: as the TP=4 recipe, plus --
+#   * the mod must wrap 3 params per attention layer (wq_b, wo_a, wo_b) with the
+#     virtual-head loaders; a config that never declares virtual_heads_from logs
+#     no padding and the head count will be wrong, not merely slow.
+#   * per-rank Engram row ranges must DIFFER across the three ranks (8 hash
+#     columns each at TP=3, vs 6 at TP=4).
