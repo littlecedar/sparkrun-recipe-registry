@@ -57,12 +57,13 @@ EXL3_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
 EXL3_TP4_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml"
 EXL3_TP3 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp3-vllm.yaml"
 EXL3_TP6 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-vllm.yaml"
+EXL3_TP6_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml"
 
 ALL = [MXFP4_TP2, NVFP4_TP2, V41_TP4, V41_TP8,
        EXL3_TP4, EXL3_TP4_1M, EXL3_TP3]
 V4F_RECIPES = [MXFP4_TP2, NVFP4_TP2]   # the V4-Flash family
 V41_RECIPES = [V41_TP4, V41_TP8]       # the V4.1-Flash SGLang family
-EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6]  # the V4.1 vLLM/EXL3 lane
+EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # the V4.1 vLLM/EXL3 lane
 
 # Placeholders sparkrun fills from its own resolution rather than `defaults:`.
 ENGINE_PLACEHOLDERS = {"model", "model_path", "host", "port"}
@@ -485,11 +486,11 @@ class TP2Feasibility(unittest.TestCase):
 
 
 class MillionTokenContext(unittest.TestCase):
-    """The objective requires at least one recipe at 1M context.
+    """A 1M-context recipe must ship, and every 1M recipe must render 1M.
 
     Guarded as a shipped-artifact invariant so it cannot be silently dropped by
-    a future retune. The 1M recipe is the only one that must exceed 1M; the
-    others are deliberately 300K (context is traded for nothing below 1M once
+    a future retune. Only the recipes named 1M carry the long context; the others
+    are deliberately 300K (context is traded for nothing below 1M once
     fresh-vs-fresh, upstream measured 500K free over 300K).
     """
 
@@ -498,10 +499,49 @@ class MillionTokenContext(unittest.TestCase):
                    if int(load(p).default("max_model_len")) >= 1000000]
         self.assertTrue(million, "no EXL3 recipe ships a 1M context")
 
-    def test_the_1m_recipe_is_1m(self):
-        r = load(EXL3_TP4_1M)
-        self.assertGreaterEqual(int(r.default("max_model_len")), 1000000)
-        self.assertIn("--max-model-len 1000000", r.rendered())
+    def test_every_1m_recipe_is_1m(self):
+        """Every recipe whose filename says 1m must actually ask for 1M.
+
+        Covers both the TP=4 and TP=6 1M arms. A copy-paste that forgot to change
+        max_model_len would otherwise ship a "1M" recipe that serves 300K.
+        """
+        named_1m = [p for p in EXL3_RECIPES if "1m" in p.name]
+        self.assertTrue(named_1m, "no filename contains 1m")
+        for p in named_1m:
+            r = load(p)
+            self.assertGreaterEqual(
+                int(r.default("max_model_len")), 1000000,
+                f"{p.name}: filename says 1m but max_model_len is "
+                f"{r.default('max_model_len')}",
+            )
+            self.assertIn("--max-model-len 1000000", r.rendered(), p.name)
+
+    def test_each_1m_recipe_matches_its_300k_sibling_apart_from_context(self):
+        """A 1M sibling must differ from its 300K twin in max_model_len ONLY.
+
+        The whole point of shipping a -1m copy is that context is the single
+        variable. If a sibling also differs in TP, hf_overrides, spec config or
+        the capture sizes, the 1M-vs-300K comparison it exists to support is
+        confounded, and the difference should be documented as a new recipe
+        rather than hidden in a copy.
+        """
+        pairs = [
+            (EXL3_TP4, EXL3_TP4_1M),
+            (EXL3_TP6, EXL3_TP6_1M),
+        ]
+        # Keys that may legitimately differ (context is the intended one).
+        allowed = {"max_model_len"}
+        for base, one_m in pairs:
+            b, m = load(base), load(one_m)
+            self.assertEqual(b.default("tensor_parallel"), m.default("tensor_parallel"),
+                             f"{one_m.name}: TP differs from {base.name}")
+            shared = set(b.defaults) & set(m.defaults)
+            for key in shared - allowed:
+                self.assertEqual(
+                    b.default(key), m.default(key),
+                    f"{one_m.name}: defaults[{key!r}] differs from {base.name} "
+                    "— a 1M copy must differ in context only",
+                )
 
 
 class Exl3LaneContract(unittest.TestCase):
@@ -566,7 +606,7 @@ class Exl3LaneContract(unittest.TestCase):
         pads the MAIN model, not the drafter, so those arms are no-spec.
         Verified 2026-09-24. TP=3 and TP=6 are no-spec on purpose.
         """
-        no_spec = {EXL3_TP3, EXL3_TP6}
+        no_spec = {EXL3_TP3, EXL3_TP6, EXL3_TP6_1M}
         for p in EXL3_RECIPES:
             r = load(p)
             has_spec = "--speculative-config" in r.flags()
