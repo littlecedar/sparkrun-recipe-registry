@@ -24,6 +24,7 @@ metadata:
   tags: research_preview
 
 mods:
+  # See the TP=4 recipe header for why this is listed but inert under rootless.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 

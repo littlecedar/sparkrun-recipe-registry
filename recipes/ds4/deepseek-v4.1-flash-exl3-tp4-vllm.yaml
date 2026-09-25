@@ -20,6 +20,11 @@ metadata:
   tags: large-context, research_preview
 
 mods:
+  # Periodic page-cache drops while the Engram-on-disk reader grows the cache with
+  # row reads. INERT under sparkrun's default rootless launch (privileged:false,
+  # /proc/sys mounted ro => the mod cannot write drop_caches; its log is never
+  # created). Listed for parity with the other DeepSeek/Qwen GB10 recipes, not as
+  # a working flusher. Full note: DS4-MODEL-OPTIMIZATION-WORK.md §7.5.10.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 

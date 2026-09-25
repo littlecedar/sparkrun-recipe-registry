@@ -389,18 +389,21 @@ class Exl3LaneContract(unittest.TestCase):
     def test_drop_caches_mod_present(self):
         """Every EXL3 recipe must carry @eugr/mods/drop-caches.
 
-        The Engram-on-disk reader makes the page cache grow with row reads and
-        drives MemFree into the zone where the GB10 allocator stalls (upstream
-        measured MemFree 1.5-3.7 GiB; a one-shot drop restored it). The mod runs
-        `sync; echo 3 > drop_caches` every 60 s, so it is a correctness-adjacent
-        prerequisite for this lane, not an optimisation. Same house precedent as
-        the qwen4 GB10 recipes.
+        The Engram-on-disk reader grows the page cache with row reads and can
+        drive MemFree into the zone where the GB10 allocator stalls, and the mod
+        is the house mechanism for periodic cache drops (same precedent as the
+        qwen4 GB10 recipes). NOTE, verified 2026-09-25: under sparkrun's default
+        **rootless** launch (`privileged: false`, `/proc/sys` mounted `ro`) the
+        mod cannot write `/proc/sys/vm/drop_caches`, so it is inert in practice --
+        the qwen4 lane documented this independently. This guard asserts the mod
+        is LISTED (the recipe contract + precedent), not that it takes effect; a
+        real cache drop needs a host-level `drop_caches` or a `--rootful` launch.
         """
         for p in EXL3_RECIPES:
             self.assertIn(
                 "@eugr/mods/drop-caches", p.read_text(),
-                f"{p.name}: missing @eugr/mods/drop-caches -- Engram row reads "
-                "grow the page cache and stall the GB10 allocator",
+                f"{p.name}: missing @eugr/mods/drop-caches (house mechanism for "
+                "periodic cache drops; inert under rootless, see docstring)",
             )
 
     def test_mod_order_drop_caches_before_patch(self):
