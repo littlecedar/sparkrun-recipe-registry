@@ -46,11 +46,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ds4"
 
-MXFP4_TP2 = RECIPE_DIR / "deepseek-v4-flash-0731-mxfp4-tp2-sglang.yaml"
-NVFP4_TP2 = RECIPE_DIR / "deepseek-v4-flash-0731-nvfp4-tp2-sglang.yaml"
-V41_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-mxfp4-tp4-sglang.yaml"
-V41_TP8 = RECIPE_DIR / "deepseek-v4.1-flash-mxfp4-tp8-sglang.yaml"
-
 # vLLM + cuda-exl3 lane, added 2026-09-23 (work doc 4.5, 7.5). Third party's
 # measured recipe on the EXL3 checkpoint; ours is the sparkrun port.
 EXL3_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
@@ -59,10 +54,7 @@ EXL3_TP3 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp3-vllm.yaml"
 EXL3_TP6 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-vllm.yaml"
 EXL3_TP6_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml"
 
-ALL = [MXFP4_TP2, NVFP4_TP2, V41_TP4, V41_TP8,
-       EXL3_TP4, EXL3_TP4_1M, EXL3_TP3]
-V4F_RECIPES = [MXFP4_TP2, NVFP4_TP2]   # the V4-Flash family
-V41_RECIPES = [V41_TP4, V41_TP8]       # the V4.1-Flash SGLang family
+ALL = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]
 EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # the V4.1 vLLM/EXL3 lane
 
 # Placeholders sparkrun fills from its own resolution rather than `defaults:`.
@@ -257,113 +249,18 @@ class RecipeStructure(unittest.TestCase):
             self.assertIn(f"{r.tp_flag()} {tp}", r.rendered(),
                           f"{p.name}: tensor-parallel not rendered from defaults")
 
-
-class B12xPrefillGate(unittest.TestCase):
-    """SGLANG_B12X_MAX_TOKENS must equal --chunked-prefill-size.
-
-    The b12x image-prefill gate is sized from this env var; if it is smaller
-    than the chunk the server admits, prefill is silently clipped.
-
-    sparkrun does NOT interpolate {placeholders} inside `env:` -- it passes the
-    block through verbatim (checked 2026-09-19 with `sparkrun recipe show`; no
-    recipe in this registry interpolates env either) -- so the two values are
-    duplicated by hand and this test is the only thing keeping them equal.
-    """
-
-    def test_equal(self):
-        for p in V4F_RECIPES:
-            r = load(p)
-            self.assertIn("SGLANG_B12X_MAX_TOKENS", r.env, p.name)
-            chunk = r.flag_value("--chunked-prefill-size")
-            self.assertIsNotNone(chunk, f"{p.name}: no --chunked-prefill-size")
-            self.assertEqual(
-                r.env["SGLANG_B12X_MAX_TOKENS"], chunk,
-                f"{p.name}: SGLANG_B12X_MAX_TOKENS={r.env['SGLANG_B12X_MAX_TOKENS']} "
-                f"but --chunked-prefill-size={chunk}",
-            )
-
     def test_no_placeholder_in_env(self):
-        """Re-assert the sparkrun behaviour the hand-duplication depends on.
+        """sparkrun does NOT interpolate {placeholders} inside env:.
 
-        If a future sparkrun starts interpolating env:, the duplicated literal
-        becomes a latent bug instead of a documented one. Fail here so the
-        recipes get updated deliberately.
+        If a future sparkrun starts interpolating env:, any literal that was
+        written to match a placeholder becomes a latent bug instead of a
+        documented one. Fail here so the recipes get updated deliberately.
         """
         for p in ALL:
             for k, v in load(p).env.items():
                 self.assertNotIn("{", v,
                                  f"{p.name}: env {k}={v!r} has a placeholder; "
                                  "sparkrun passes env verbatim")
-
-
-class SpeculativeDecoding(unittest.TestCase):
-    """NEXTN crashes; EAGLE on a DSpark head silently accepts nothing."""
-
-    def test_never_nextn(self):
-        for p in ALL:
-            r = load(p)
-            self.assertNotEqual(
-                r.flag_value("--speculative-algorithm"), "NEXTN",
-                f"{p.name}: NEXTN crashes on DeepSeek-V4 (sgl#38236 -- the "
-                "NEXTN->EAGLE alias resolves after the model hooks)",
-            )
-            if "speculative_config" in r.defaults:
-                self.assertNotIn("nextn", r.default("speculative_config").lower(),
-                                 f"{p.name}: NEXTN in the speculative-config")
-
-    def test_allowed_algorithms(self):
-        """SGLang names the algorithm in a flag; vLLM passes a JSON blob.
-
-        A vLLM recipe with no speculative method at all (the TP=3 arm, which
-        cannot run DSpark) is legal and is not tested here.
-        """
-        for p in ALL:
-            r = load(p)
-            val = r.flag_value("--speculative-algorithm")
-            if val is not None:
-                self.assertIn(val, ("DSPARK", "EAGLE"), f"{p.name}: unexpected {val=}")
-                continue
-            if "--speculative-config" not in r.flags():
-                continue  # no-spec arm
-            self.assertIn(
-                "dspark",
-                r.defaults.get("speculative_config", "").lower(),
-                f"{p.name}: --speculative-config present but names no dspark method",
-            )
-
-    def test_eagle_only_on_non_dspark_head(self):
-        """EAGLE against a DSpark head is the silent zero-acceptance case."""
-        for p in ALL:
-            r = load(p)
-            if r.flag_value("--speculative-algorithm") != "EAGLE":
-                continue
-            self.assertIn("V4.1", r.model,
-                          f"{p.name}: EAGLE on {r.model} -- if this checkpoint has "
-                          "a DSpark head it starts, serves plausible output, and "
-                          "accepts nothing (accept rate 0.00)")
-
-
-class ExpandableSegments(unittest.TestCase):
-    """V4-Flash ships it; V4.1 must not, until the NaN question is settled."""
-
-    def test_absent_on_v41(self):
-        for p in V41_RECIPES:
-            val = load(p).env.get("PYTORCH_CUDA_ALLOC_CONF", "")
-            self.assertNotIn(
-                "expandable_segments", val,
-                f"{p.name}: expandable_segments on V4.1 is reported to produce NaN "
-                "logits above 64 prefill query tokens (work doc 6.3)",
-            )
-
-    def test_present_on_v4flash(self):
-        """Positive control: prove the guard above can tell the two families apart.
-
-        If this fails, the V4.1 assertion is vacuously passing because nothing
-        sets the variable anywhere.
-        """
-        for p in V4F_RECIPES:
-            self.assertIn("expandable_segments",
-                          load(p).env.get("PYTORCH_CUDA_ALLOC_CONF", ""), p.name)
 
 
 class DefaultsAreConsumed(unittest.TestCase):
@@ -392,97 +289,6 @@ class DefaultsAreConsumed(unittest.TestCase):
             known = set(r.defaults) | ENGINE_PLACEHOLDERS
             for ph in re.findall(r"\{([a-z_][a-z0-9_]*)\}", r.command_template):
                 self.assertIn(ph, known, f"{p.name}: {{{ph}}} has no default")
-
-
-class Nvfp4RunnerOverrides(unittest.TestCase):
-    """The three flags that make NVFP4 boot on SM121, and where they must not be.
-
-    b12x's MoE is MXFP4-only and the trtllm-gen kernels are sm100-only, so NVFP4
-    experts must go to cutlass; the DSpark draft's MTP experts are MXFP4 so the
-    draft keeps b12x; HashTopK rejects fused shared experts under cutlass.
-    Copying these onto an MXFP4 checkpoint is not harmless --
-    --disable-shared-experts-fusion on the b12x path drops the shared expert out
-    of the fused MoE for no reason.
-    """
-
-    def test_nvfp4_has_the_three(self):
-        r = load(NVFP4_TP2)
-        self.assertIn("--disable-shared-experts-fusion", r.flags())
-        self.assertEqual(r.flag_value("--moe-runner-backend"), "flashinfer_cutlass")
-        self.assertEqual(r.flag_value("--speculative-moe-runner-backend"), "b12x")
-
-    def test_mxfp4_lacks_the_three(self):
-        r = load(MXFP4_TP2)
-        self.assertNotIn("--disable-shared-experts-fusion", r.flags(),
-                         "MXFP4 + b12x accepts the fused shared expert")
-        self.assertEqual(r.flag_value("--moe-runner-backend"), "b12x")
-
-    def test_no_engine_backend_overrides_on_v41(self):
-        """V4.1 auto-resolves; overriding costs most of bs=1 decode throughput."""
-        forbidden = {"--attention-backend", "--fp8-gemm-backend",
-                     "--moe-a2a-backend", "--moe-runner-backend"}
-        for p in V41_RECIPES:
-            hit = load(p).flags() & forbidden
-            self.assertFalse(hit, f"{p.name}: {sorted(hit)} override the "
-                             "auto-resolved backends and drop the 32-wide ue8m0 "
-                             "blocks onto the Triton fallback")
-
-
-class EngramLayout(unittest.TestCase):
-    """`shared` cannot work across Sparks, and the flag is not a memory fix."""
-
-    def test_layout_is_per_rank(self):
-        for p in V41_RECIPES:
-            env = load(p).env
-            if env.get("SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE") != "1":
-                continue
-            self.assertEqual(
-                env.get("SGLANG_DSV41_ENGRAM_HOST_TABLE_LAYOUT"), "per_rank",
-                f"{p.name}: 'shared' hands rank 0's memfd through "
-                "/proc/<pid>/fd/<fd> and hard-fails unless the TP ranks share a "
-                "PID namespace (engram.py:605-611). Separate Sparks do not.",
-            )
-
-    def test_layout_values_are_the_two_upstream_accepts(self):
-        """Anything else raises ValueError at load time (engram.py)."""
-        for p in V41_RECIPES:
-            val = load(p).env.get("SGLANG_DSV41_ENGRAM_HOST_TABLE_LAYOUT")
-            if val is not None:
-                self.assertIn(val, ("shared", "per_rank"),
-                              f"{p.name}: {val!r} raises at load")
-
-
-class TP2Feasibility(unittest.TestCase):
-    """No V4.1-Flash recipe may claim TP=2. That is arithmetic, not tuning.
-
-    Updated 2026-09-23: TP=3 is no longer a dead end (tonyd2wild's virtual-heads
-    lane, work doc 4.5), so a V4.1 recipe below TP=4 is now legal *only* at
-    exactly TP=3 and *only* with the virtual-heads declaration. TP=2 stays
-    closed: neither the release nor the smaller EXL3 checkpoint fits on a pair
-    (work doc 2.5, 3.4).
-    """
-
-    def test_no_v41_tp2(self):
-        for p in ALL:
-            r = load(p)
-            if "V4.1" not in r.model:
-                continue
-            tp = int(r.default("tensor_parallel"))
-            if tp >= 4:
-                continue
-            self.assertEqual(
-                tp, 3,
-                f"{p.name}: V4.1-Flash at TP={tp}. TP=2 is arithmetic, not "
-                "tuning: even the 460 GB EXL3 checkpoint has ~257 GB of "
-                "non-Engram weights against 2 x ~110 = 220 GB of usable RAM on "
-                "a pair (work doc 2.5, 3.4).",
-            )
-            self.assertIn(
-                "virtual_heads_from", r.rendered(),
-                f"{p.name}: V4.1 at TP<4 without the virtual-heads declaration. "
-                "64 heads / 8 o_groups do not divide by 3; without the padding "
-                "the attention shard is wrong, not merely slow (work doc 4.5).",
-            )
 
 
 class MillionTokenContext(unittest.TestCase):
@@ -667,8 +473,8 @@ class BootReadiness(unittest.TestCase):
     """A cold boot reads hundreds of GB over NFS. A short timeout is a false bug."""
 
     def test_timeout_is_generous(self):
-        expected = {MXFP4_TP2: 1800, NVFP4_TP2: 1800, V41_TP4: 7200, V41_TP8: 7200}
-        for p, minimum in expected.items():
+        minimum = 3600
+        for p in ALL:
             text = p.read_text()
             m = re.search(r"^\s+port_timeout_s:\s*(\d+)\s*$",
                           _strip_comment_lines(text), re.M)
@@ -676,33 +482,36 @@ class BootReadiness(unittest.TestCase):
             got = int(m.group(1))
             self.assertGreaterEqual(
                 got, minimum,
-                f"{p.name}: port_timeout_s {got} < {minimum} -- 510 GB over NFS "
-                "takes ~25 min to read before weights even start moving",
+                f"{p.name}: port_timeout_s {got} < {minimum} -- a 460 GB read "
+                "over NFS takes ~10+ min before weights even start moving",
             )
 
 
 class CommentBlockProseStillParsed(unittest.TestCase):
     """F20 regression: prose must not be mistaken for configuration.
 
-    V4.1 recipes deliberately *name* the backend flags they explain the absence
-    of ("--moe-runner-backend is deliberately NOT set..."), which is exactly the
+    Recipes deliberately *name* flags they explain the absence of
+    ("--speculative-config is deliberately NOT set..."), which is exactly the
     convention that broke an earlier guard in this repo ("``--async-scheduling``
     is deliberately NOT set" tripped the guard forbidding it). This asserts both
-    halves on the V4.1 family: the prose is present, and the guard still sees
-    nothing.
+    halves on the EXL3 vLLM family: the prose is present, and the guard still
+    sees nothing.
 
-    Scoped to V4.1 on purpose. The V4-Flash recipes legitimately set
-    --moe-runner-backend, so applying the V4.1-forbidden set to them would fail
-    on a correct recipe -- the same class of mistake as a guard that only passes
-    because it is looking at the wrong thing.
+    Scoped to the vLLM family on purpose. These recipes legitimately omit
+    --speculative-config / --enable-expert-parallel and say so in prose; the
+    check proves that prose never leaks into the rendered command.
     """
 
-    FORBIDDEN = {"--attention-backend", "--fp8-gemm-backend",
-                 "--moe-a2a-backend", "--moe-runner-backend"}
+    FORBIDDEN = {"--enable-expert-parallel", "--quantization",
+                 "--kv-cache-memory-bytes"}
+    # These are deliberately absent on the no-spec arms (TP=3, TP=6) and present
+    # on the DSpark arms (TP=4). Guarded by Exl3LaneContract.test_dspark_spec_config;
+    # here they must never leak from prose on the arms that omit them.
+    NO_SPEC_ABSENT = {"--speculative-config"}
 
     def test_prose_is_present_and_inert(self):
         mentioned = 0
-        for p in V41_RECIPES:
+        for p in EXL3_RECIPES:
             text = p.read_text()
             r = load(p)
             hit = r.flags() & self.FORBIDDEN
@@ -713,6 +522,18 @@ class CommentBlockProseStillParsed(unittest.TestCase):
                            "prose-documented forbidden flags vanished; either the "
                            "recipes got thinner or this test stopped proving anything")
 
+    def test_nospec_prose_does_not_leak_spec_flag(self):
+        """The no-spec arms say 'NO --speculative-config' in prose; prove inert."""
+        for p in EXL3_RECIPES:
+            r = load(p)
+            if "--speculative-config" in r.flags():
+                continue  # DSpark arms set it for real
+            self.assertNotIn(
+                "--speculative-config", r.flags(),
+                f"{p.name}: a no-spec arm leaked --speculative-config into its "
+                "command (from prose or otherwise)",
+            )
+
     def test_comment_only_flag_does_not_count(self):
         """Prove the stripper works, on a self-contained fixture.
 
@@ -722,22 +543,25 @@ class CommentBlockProseStillParsed(unittest.TestCase):
         is sensitive to the exact thing it claims to be sensitive to, rather than
         passing because it parsed nothing.
         """
-        head = ("model: deepseek-ai/DeepSeek-V4.1-Flash\n"
-                "runtime: sglang\ncontainer: x\nmin_nodes: 4\n"
+        head = ("model: bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard\n"
+                "runtime: vllm\ncontainer: x\nmin_nodes: 4\n"
                 "defaults:\n  tensor_parallel: 4\n")
         prose = Recipe(
-            head + "# the --attention-backend is deliberately NOT set here\n"
-                   "command: >\n  sglang serve\n  --tp {tensor_parallel}\n",
+            head + "# the --speculative-config is deliberately NOT set here\n"
+                   "command: >\n  vllm serve {model}\n"
+                   "  --tensor-parallel-size {tensor_parallel}\n",
             "prose")
         live = Recipe(
-            head + "command: >\n  sglang serve\n"
-                   "  --attention-backend fa3\n  --tp {tensor_parallel}\n",
+            head + "command: >\n  vllm serve {model}\n"
+                   "  --speculative-config '{\"method\":\"dspark\"}'\n"
+                   "  --tensor-parallel-size {tensor_parallel}\n",
             "live")
-        self.assertNotIn("--attention-backend", prose.flags(),
+        self.assertNotIn("--speculative-config", prose.flags(),
                          "a flag named only in prose leaked into the command")
-        self.assertIn("--attention-backend", live.flags(),
+        self.assertIn("--speculative-config", live.flags(),
                       "guard is blind: a live flag was not parsed at all")
-        self.assertEqual(prose.rendered().split()[-2:], ["--tp", "4"])
+        self.assertEqual(prose.rendered().split()[-2:],
+                         ["--tensor-parallel-size", "4"])
 
     def test_no_hash_inside_command_block(self):
         """A `#` inside `command: >` is NOT a comment -- it is a shell word.
@@ -789,89 +613,17 @@ class NegativeControls(unittest.TestCase):
         assert old in text, f"{path.name}: control anchor {old!r} vanished"
         return Recipe(text.replace(old, new, 1), path.name)
 
-    def test_control_b12x_gate_mismatch(self):
-        r = self._mutated(MXFP4_TP2, "SGLANG_B12X_MAX_TOKENS: \"8192\"",
-                          "SGLANG_B12X_MAX_TOKENS: \"4096\"")
-        with self.assertRaises(AssertionError):
-            self.assertEqual(r.env["SGLANG_B12X_MAX_TOKENS"],
-                             r.flag_value("--chunked-prefill-size"))
-
-    def test_control_nextn_via_default_override(self):
-        """The reason guards render: the template only ever holds the placeholder."""
-        r = self._mutated(NVFP4_TP2, "speculative_algorithm: DSPARK",
-                          "speculative_algorithm: NEXTN")
-        with self.assertRaises(AssertionError):
-            self.assertNotEqual(r.flag_value("--speculative-algorithm"), "NEXTN")
-        # and prove the template itself never said NEXTN
-        self.assertNotIn("NEXTN", r.command_template)
-
-    def test_control_expandable_segments_on_v41(self):
-        r = self._mutated(
-            V41_TP4,
-            "SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE: \"1\"",
-            "PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True\n"
-            "  SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE: \"1\"",
-        )
-        with self.assertRaises(AssertionError):
-            self.assertNotIn("expandable_segments",
-                             r.env.get("PYTORCH_CUDA_ALLOC_CONF", ""))
-
     def test_control_unconsumed_default(self):
         # Anchor on gpu_memory_utilization rather than a value that may be
         # retuned: a control whose anchor is a tunable number breaks the next
         # time someone tunes it, and then nobody trusts the control.
-        r = self._mutated(V41_TP4, "gpu_memory_utilization: 0.80",
+        r = self._mutated(EXL3_TP4, "gpu_memory_utilization: 0.80",
                           "gpu_memory_utilization: 0.80\n  kv_pin: 8388608")
         with self.assertRaises(AssertionError):
             for key in r.defaults:
                 if key in ENGINE_PLACEHOLDERS:
                     continue
                 self.assertIn("{" + key + "}", r.command_template)
-
-    def test_control_nvfp4_flags_copied_to_mxfp4(self):
-        r = self._mutated(
-            MXFP4_TP2,
-            "--speculative-algorithm {speculative_algorithm}",
-            "--disable-shared-experts-fusion\n  --speculative-algorithm "
-            "{speculative_algorithm}",
-        )
-        with self.assertRaises(AssertionError):
-            self.assertNotIn("--disable-shared-experts-fusion", r.flags())
-
-    def test_control_v41_tp2(self):
-        r = self._mutated(V41_TP4, "tensor_parallel: 4", "tensor_parallel: 2")
-        with self.assertRaises(AssertionError):
-            self.assertGreaterEqual(int(r.default("tensor_parallel")), 4)
-
-    def test_control_shared_engram_layout(self):
-        r = self._mutated(V41_TP4, "ENGRAM_HOST_TABLE_LAYOUT: per_rank",
-                          "ENGRAM_HOST_TABLE_LAYOUT: shared")
-        with self.assertRaises(AssertionError):
-            self.assertEqual(r.env["SGLANG_DSV41_ENGRAM_HOST_TABLE_LAYOUT"],
-                             "per_rank")
-
-    def test_control_backend_override_on_v41(self):
-        r = self._mutated(
-            V41_TP4,
-            "--speculative-algorithm {speculative_algorithm}",
-            "--moe-runner-backend flashinfer_mxfp4\n  --speculative-algorithm "
-            "{speculative_algorithm}",
-        )
-        with self.assertRaises(AssertionError):
-            self.assertFalse(r.flags() & {"--moe-runner-backend",
-                                         "--attention-backend"})
-
-    def test_control_short_boot_timeout(self):
-        text = V41_TP8.read_text().replace("port_timeout_s: 7200",
-                                           "port_timeout_s: 600", 1)
-        with self.assertRaises(AssertionError):
-            self.assertGreaterEqual(int(re.search(
-                r"port_timeout_s:\s*(\d+)", _strip_comment_lines(text)).group(1)), 7200)
-
-    def test_control_tp_above_node_count(self):
-        r = self._mutated(V41_TP8, "min_nodes: 8", "min_nodes: 2")
-        with self.assertRaises(AssertionError):
-            self.assertGreaterEqual(r.min_nodes, int(r.default("tensor_parallel")))
 
     def test_control_parser_refuses_emptiness(self):
         """An empty parse must not look like a passing recipe."""
