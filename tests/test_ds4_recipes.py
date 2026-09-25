@@ -389,21 +389,21 @@ class Exl3LaneContract(unittest.TestCase):
     def test_drop_caches_mod_present(self):
         """Every EXL3 recipe must carry @eugr/mods/drop-caches.
 
-        The Engram-on-disk reader grows the page cache with row reads and can
-        drive MemFree into the zone where the GB10 allocator stalls, and the mod
-        is the house mechanism for periodic cache drops (same precedent as the
-        qwen4 GB10 recipes). NOTE, verified 2026-09-25: under sparkrun's default
-        **rootless** launch (`privileged: false`, `/proc/sys` mounted `ro`) the
-        mod cannot write `/proc/sys/vm/drop_caches`, so it is inert in practice --
-        the qwen4 lane documented this independently. This guard asserts the mod
-        is LISTED (the recipe contract + precedent), not that it takes effect; a
-        real cache drop needs a host-level `drop_caches` or a `--rootful` launch.
+        Listed for recipe-contract parity with the qwen4 GB10 recipes. VERIFIED
+        INERT 2026-09-25 in every launch mode, for two independent reasons:
+        (1) under rootless (sparkrun's default: privileged false, /proc/sys
+        mounted `ro`) the write to drop_caches is refused; and (2) the mod's own
+        line `echo 3 > /proc/sys/vm/drop_caches >> /tmp/drop_caches.log 2>&1` has
+        a redirection-order bug -- the LAST redirect wins, so `3` goes to the log
+        and never to drop_caches (reproduced: target 0 bytes, log "3"). `--rootful`
+        does not fix it. This guard asserts the mod is LISTED, not that it works;
+        a real cache drop must be host-level.
         """
         for p in EXL3_RECIPES:
             self.assertIn(
                 "@eugr/mods/drop-caches", p.read_text(),
-                f"{p.name}: missing @eugr/mods/drop-caches (house mechanism for "
-                "periodic cache drops; inert under rootless, see docstring)",
+                f"{p.name}: missing @eugr/mods/drop-caches (listed for parity; "
+                "inert, see docstring)",
             )
 
     def test_mod_order_drop_caches_before_patch(self):
