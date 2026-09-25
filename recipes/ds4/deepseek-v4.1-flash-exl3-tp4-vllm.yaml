@@ -20,11 +20,17 @@ metadata:
   tags: large-context, research_preview
 
 mods:
-  # Periodic page-cache drops while the Engram-on-disk reader grows the cache with
-  # row reads. INERT under sparkrun's default rootless launch (privileged:false,
-  # /proc/sys mounted ro => the mod cannot write drop_caches; its log is never
-  # created). Listed for parity with the other DeepSeek/Qwen GB10 recipes, not as
-  # a working flusher. Full note: DS4-MODEL-OPTIMIZATION-WORK.md §7.5.10.
+  # Page-cache drops while the Engram-on-disk reader grows the cache with row
+  # reads. VERIFIED INERT 2026-09-25, in every launch mode, for two independent
+  # reasons: (1) rootless (sparkrun default) moots it -- /proc/sys is mounted ro
+  # and opening drop_caches for write aborts the command; (2) the mod's own line
+  # `echo 3 > /proc/sys/vm/drop_caches >> /tmp/drop_caches.log 2>&1` is a
+  # redirection-order bug -- bash applies redirects left-to-right, the LAST wins,
+  # so `3` is written to the LOG and never to drop_caches (reproduced: target file
+  # 0 bytes, log = "3"). `--rootful` does NOT fix it. Listed for parity with the
+  # other DeepSeek/Qwen GB10 recipes only; do not rely on it. Real drops must be
+  # host-level (`sync; echo 3 > .../drop_caches` over ssh) or a fixed mod.
+  # Detail: DS4-MODEL-OPTIMIZATION-WORK.md §7.5.10.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 
