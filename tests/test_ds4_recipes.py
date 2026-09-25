@@ -368,6 +368,40 @@ class Exl3LaneContract(unittest.TestCase):
             self.assertIn("bot-lab-21", r.model,
                           f"{p.name}: the EXL3 checkpoint is the point of the lane")
 
+    def test_description_matches_spec_config(self):
+        """`metadata.description` must not contradict the spec-config line.
+
+        Caught in the field 2026-09-25: the TP=3 recipe's description advertised
+        "DSpark k=5" while its own body ships NO --speculative-config (the
+        drafter's 64 heads and 128 experts do not divide by 3), and three recipes
+        still said "UNBOOTED" months after they booted and served. The
+        description is prose, so no flag guard sees it; it drifted silently.
+        Assert the two halves agree: a no-spec arm must not claim DSpark, a
+        DSpark arm must not deny it, and a recipe that has booted must not say
+        "UNBOOTED".
+        """
+        for p in EXL3_RECIPES:
+            r = load(p)
+            desc = _folded(r.raw, "metadata").lower()
+            has_spec = "--speculative-config" in r.flags()
+            if has_spec:
+                self.assertNotIn(
+                    "no dspark", desc,
+                    f"{p.name}: ships --speculative-config but the description "
+                    "says 'NO DSpark'",
+                )
+            else:
+                self.assertNotIn(
+                    "dspark k=", desc,
+                    f"{p.name}: no --speculative-config but the description "
+                    "advertises a DSpark k value",
+                )
+            self.assertNotIn(
+                "unbooted", desc,
+                f"{p.name}: description still says UNBOOTED; all five EXL3 "
+                "recipes booted and served on 2026-09-24",
+            )
+
     def test_engram_on_disk_env(self):
         """Without these the 203 GB Engram stays in RAM and the boot OOMs."""
         for p in EXL3_RECIPES:
@@ -689,6 +723,17 @@ class NegativeControls(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             self.assertIn("virtual_heads_from", r.rendered())
+
+    def test_control_description_spec_drift(self):
+        """Prove the description/spec-config guard can fail."""
+        # A no-spec recipe (TP=3) whose description re-advertises DSpark k=5.
+        r = self._mutated(
+            EXL3_TP3,
+            "Engram streamed from disk, NO DSpark",
+            "Engram streamed from disk, DSpark k=5",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertNotIn("dspark k=", _folded(r.raw, "metadata").lower())
 
     def test_control_engram_disk_off(self):
         r = self._mutated(EXL3_TP4, "DSV41_ENGRAM_DISK: \"1\"",

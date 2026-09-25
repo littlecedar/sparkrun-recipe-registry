@@ -7,10 +7,12 @@ min_nodes: 3
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=3 across three DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, DSpark k=5. TP=3 is only possible because the
+    Engram streamed from disk, NO DSpark (the drafter's 64 heads and 128 experts
+    do not divide by 3; see the header). TP=3 is only possible because the
     model's 64 attention heads are padded to 72 (virtual heads). Faster than the
     TP=4 lane at every concurrency upstream; it simply holds less context.
-    UNBOOTED on our cluster as of 2026-09-23: see work doc sections 4.5, 7.5.
+    Booted and serving on our cluster 2026-09-24 (no-spec KV 2,798,624 tokens,
+    C1/C4/C8 15.8/47.1/69.1 t/s): see work doc sections 4.5, 7.5.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -66,8 +68,8 @@ executor_config:
 #
 # Everything else is the TP=4 recipe: same image, same mod, same Engram-on-disk
 # requirement (WITHOUT THE MOD THIS OOMS -- see the TP=4 recipe header), same
-# DSpark and graph settings, except --max-num-batched-tokens 4096 (upstream's
-# TP=3 value) and 3 nodes.
+# graph settings, except --max-num-batched-tokens 4096 (upstream's TP=3 value),
+# NO DSpark (see the defaults note below), and 3 nodes.
 
 env:
   HF_HUB_OFFLINE: "1"
