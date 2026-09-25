@@ -29,7 +29,9 @@ MoE partition check (`moe_intermediate_size 2304/4 = 576`, not a multiple of 128
 **The `exl3-*-vllm` rows** use the EXL3 3.5 bpw checkpoint and
 `littlecedar/dgx-spark-dsv41:exl3a` with `mods/mount-dsv41-exl3-patches`
 (Engram-on-disk; without it the boot OOMs). The t/s column is C1 / C4 / C8
-aggregate, greedy, distinct prompts. C8 on TP=6 is the fleet's best. TP=6 is
+aggregate, greedy, distinct prompts, on a **warm** server; a cold first boot is
+consistently lower (the TP=4 row measured 36.4 / 58.0 / 76.1 on its first boot
+vs 37.5 / 61.9 / 88.5 warm). C8 on TP=6 is the fleet's best. TP=6 is
 no-spec (the DSpark drafter's 128 experts don't divide by 6); TP=4 carries DSpark.
 Quality battery (measured on TP=3, TP=4 and TP=6): 19/19 easy, 17/18 hard,
 identical across all three — no measured quality cost from the padding.
