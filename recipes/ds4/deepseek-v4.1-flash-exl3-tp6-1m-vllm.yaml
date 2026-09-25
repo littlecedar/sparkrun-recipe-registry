@@ -21,6 +21,7 @@ metadata:
   tags: large-context, research_preview
 
 mods:
+  - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 
 # The image declares ENTRYPOINT ["vllm","serve"], which would swallow sparkrun's

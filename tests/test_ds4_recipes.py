@@ -386,6 +386,41 @@ class Exl3LaneContract(unittest.TestCase):
                           f"{p.name}: the mod that installs tonyd2wild's "
                           "engram.py is what makes this boot fit")
 
+    def test_drop_caches_mod_present(self):
+        """Every EXL3 recipe must carry @eugr/mods/drop-caches.
+
+        The Engram-on-disk reader makes the page cache grow with row reads and
+        drives MemFree into the zone where the GB10 allocator stalls (upstream
+        measured MemFree 1.5-3.7 GiB; a one-shot drop restored it). The mod runs
+        `sync; echo 3 > drop_caches` every 60 s, so it is a correctness-adjacent
+        prerequisite for this lane, not an optimisation. Same house precedent as
+        the qwen4 GB10 recipes.
+        """
+        for p in EXL3_RECIPES:
+            self.assertIn(
+                "@eugr/mods/drop-caches", p.read_text(),
+                f"{p.name}: missing @eugr/mods/drop-caches -- Engram row reads "
+                "grow the page cache and stall the GB10 allocator",
+            )
+
+    def test_mod_order_drop_caches_before_patch(self):
+        """drop-caches must come first in the mods: list.
+
+        The `mods:` list is an ORDERED chain, not a set. drop-caches only starts a
+        background flusher, so it has no dependency on the patch mod -- but the
+        house convention (qwen4) puts it first, and keeping the order stable
+        avoids a silent reordering becoming a confound between recipes.
+        """
+        for p in EXL3_RECIPES:
+            mods = re.findall(r'^\s*-\s*"(@[^"]+)"', p.read_text(), re.M)
+            self.assertIn("@eugr/mods/drop-caches", mods, p.name)
+            self.assertIn("@littlecedar/mods/mount-dsv41-exl3-patches", mods, p.name)
+            self.assertLess(
+                mods.index("@eugr/mods/drop-caches"),
+                mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"),
+                f"{p.name}: drop-caches must precede the patch mod (qwen4 order)",
+            )
+
     def test_consuming_entrypoint_cleared(self):
         """The image's ENTRYPOINT ["vllm","serve"] swallows sparkrun's command.
 
@@ -657,6 +692,26 @@ class NegativeControls(unittest.TestCase):
                           "DSV41_ENGRAM_DISK: \"0\"")
         with self.assertRaises(AssertionError):
             self.assertEqual(r.env.get("DSV41_ENGRAM_DISK"), "1")
+
+    def test_control_drop_caches_mod_removed(self):
+        """Prove the drop-caches guard can fail."""
+        r = self._mutated(EXL3_TP4, '  - "@eugr/mods/drop-caches"\n', "")
+        with self.assertRaises(AssertionError):
+            self.assertIn("@eugr/mods/drop-caches", r.raw)
+
+    def test_control_drop_caches_wrong_order(self):
+        """Prove the order guard can fail."""
+        r = self._mutated(
+            EXL3_TP4,
+            '  - "@eugr/mods/drop-caches"\n'
+            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"',
+            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"\n'
+            '  - "@eugr/mods/drop-caches"',
+        )
+        mods = re.findall(r'^\s*-\s*"(@[^"]+)"', r.raw, re.M)
+        with self.assertRaises(AssertionError):
+            self.assertLess(mods.index("@eugr/mods/drop-caches"),
+                            mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"))
 
     def test_control_no_1m_recipe(self):
         r = self._mutated(EXL3_TP4_1M, "max_model_len: 1000000",
