@@ -34,12 +34,6 @@ mods:
   # Detail: DS4-MODEL-OPTIMIZATION-WORK.md §7.5.10.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
-  # Lets a *same-checkpoint* speculative draft load lazily while the target stays
-  # on InstantTensor. NO-OP on this recipe (the DSpark drafter is a separate
-  # model path, so `auto` mode does not flip), listed so a future embedded-MTP
-  # draft benefits without a recipe change. Verified portable to the exl3a image
-  # 2026-09-25 (patcher `--check` matches the image's get_model byte-for-byte).
-  - "@littlecedar/mods/instanttensor-hybrid-draft-loader"
 
 # The image declares ENTRYPOINT ["vllm","serve"], which would parse sparkrun's
 # appended launcher as its own flags and never run the workload. sparkrun
@@ -157,11 +151,6 @@ env:
   NCCL_IB_ROCE_VERSION_NUM: "2"
   NCCL_IB_ADDR_FAMILY: AF_INET
   NCCL_DEBUG: WARN
-  # Read by the *patched vLLM* at runtime (get_model), so it must reach the serve
-  # process -- env: is the right channel, the mod itself cannot set it. auto =
-  # switch a draft to lazy safetensors only when it shares the target path AND
-  # revision. Set `instanttensor` to disable the hybrid behavior entirely.
-  INSTANTTENSOR_DRAFT_LOADER: auto
 
 defaults:
   port: 8000
@@ -187,16 +176,6 @@ defaults:
   # A truncated list (e.g. stopping at 40) cost upstream 12% at C=6.
   compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
   mm_processor_cache_gb: 1
-  # InstantTensor: distributed, direct-I/O Safetensors read for the 460 GB
-  # checkpoint. Its only precondition is that the weights ARE safetensors (our
-  # checkpoint is 48 *.safetensors shards) and it is orthogonal to the cuda-exl3
-  # quant plugin -- InstantTensor yields raw tensors, dtype-agnostic, exactly as
-  # the default/fastsafetensors iterators do. It is already installed in the
-  # exl3a image and wired as a vLLM load format, so this needs no build.
-  # NB the Engram tables still stream through the mod's own preadv reader, which
-  # InstantTensor does NOT touch -- so this speeds the model read, not the
-  # Engram read; do not expect the full load time to fall.
-  load_format: instanttensor
   extra_args: ""
 
 command: >
@@ -210,7 +189,6 @@ command: >
   --max-num-seqs {max_num_seqs}
   --max-num-batched-tokens {max_num_batched_tokens}
   --block-size {block_size}
-  --load-format {load_format}
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
   --speculative-config '{speculative_config}'
