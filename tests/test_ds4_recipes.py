@@ -505,7 +505,13 @@ class Exl3LaneContract(unittest.TestCase):
                           f"{p.name}: adaptive verification off is required")
 
     def test_graph_capture_covers_max_seqs(self):
-        """Capture sizes must reach max_num_seqs*(k+1); a truncation cost -12%."""
+        """Capture sizes must reach max_num_seqs*(k+1); a truncation cost -12%.
+
+        k is read from the recipe's own speculative_config, NOT hardcoded: the
+        measured optimum is k=3 (work doc §7.5.11) and the ladder MUST track k
+        (k*n and (k+1)*n up to max_num_seqs*(k+1)). A hardcoded k=5 here would
+        have silently validated a wrong ladder after the k change.
+        """
         for p in EXL3_RECIPES:
             r = load(p)
             cc = r.default("compilation_config")
@@ -514,13 +520,39 @@ class Exl3LaneContract(unittest.TestCase):
             self.assertTrue(sizes, f"{p.name}: no cudagraph_capture_sizes")
             if "--speculative-config" not in r.flags():
                 continue  # no-spec arm: k=0, any non-empty list is enough
-            k = 5  # num_speculative_tokens in the dspark config
+            m = re.search(r"num_speculative_tokens\D+(\d+)",
+                          r.default("speculative_config"))
+            self.assertIsNotNone(
+                m, f"{p.name}: dspark config has no num_speculative_tokens")
+            k = int(m.group(1))
             need = int(r.default("max_num_seqs")) * (k + 1)
             self.assertGreaterEqual(
                 max(int(s) for s in sizes), need,
                 f"{p.name}: capture sizes top out at {max(map(int, sizes))} < "
                 f"{need} = max_num_seqs*(k+1); requests above the max run eager",
             )
+
+    def test_dspark_k_is_measured_optimum(self):
+        """The DSpark arms must ship k in the measured-optimal set {1,2,3}.
+
+        A 13-boot sweep (work doc §7.5.11, 2026-09-26) found every k in {1,2,3}
+        beats the upstream-default k=5 at every concurrency >=4, with the best C1
+        at k=3. k=4 is dominated; k=5 is the worst tested. k must also satisfy the
+        drafter constraint (k<=5 or k%5==0) -- vLLM rejects k=6 with
+        "must be divisible by n_predict=5".
+        """
+        for p in EXL3_RECIPES:
+            r = load(p)
+            if "--speculative-config" not in r.flags():
+                continue  # no-spec arm (TP=3/TP=6): drafter does not divide
+            m = re.search(r"num_speculative_tokens\D+(\d+)",
+                          r.default("speculative_config"))
+            self.assertIsNotNone(m, f"{p.name}: no num_speculative_tokens")
+            k = int(m.group(1))
+            self.assertIn(k, (1, 2, 3),
+                          f"{p.name}: k={k} is not in the measured-optimal set "
+                          "{1,2,3}; k=4 is dominated and k=5 is the worst tested "
+                          "(work doc §7.5.11)")
 
 
 class NoHostBindMounts(unittest.TestCase):
@@ -769,12 +801,13 @@ class NegativeControls(unittest.TestCase):
 
     def test_control_truncated_capture_sizes(self):
         r = self._mutated(EXL3_TP4,
-                          "cudagraph_capture_sizes\":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]",
-                          "cudagraph_capture_sizes\":[5,6,10,12,15,18,20,24]")
+                          "cudagraph_capture_sizes\":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]",
+                          "cudagraph_capture_sizes\":[3,4,6,8,9,12,15,16]")
         with self.assertRaises(AssertionError):
             cc = r.default("compilation_config")
             sizes = [int(s) for s in re.findall(r"\d+", cc.split("cudagraph_capture_sizes")[-1])]
-            self.assertGreaterEqual(max(sizes), int(r.default("max_num_seqs")) * 6)
+            # must reach max_num_seqs*(k+1); for the shipped k=3 that is 32
+            self.assertGreaterEqual(max(sizes), int(r.default("max_num_seqs")) * 4)
 
 
 if __name__ == "__main__":

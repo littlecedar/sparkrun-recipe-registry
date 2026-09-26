@@ -21,7 +21,7 @@ MoE partition check (`moe_intermediate_size 2304/4 = 576`, not a multiple of 128
 | Recipe | Flags | t/s (C1 / C4 / C8) | Size | Mem | TP | Model Cards |
 |:-------|:------|------:|-----:|----:|---:|:------------|
 | deepseek-v4.1-flash-exl3-tp3-vllm | | 15.8 / 47.1 / 69.1 | 460GB | 0.80 | 3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-vllm | | 37.5 / 61.9 / 88.5 | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-vllm | | 36.7 / 72.8 / 96.1 (k=3) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚚 | 1M ctx; needle ✓@799K; 746 t/s prefill | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp6-vllm | | 29.4 / 63.8 / 108.0 | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚 | 1M ctx; KV 14.0M; needle ✓@799K | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
@@ -35,6 +35,20 @@ vs 37.5 / 61.9 / 88.5 warm). C8 on TP=6 is the fleet's best. TP=6 is
 no-spec (the DSpark drafter's 128 experts don't divide by 6); TP=4 carries DSpark.
 Quality battery (measured on TP=3, TP=4 and TP=6): 19/19 easy, 17/18 hard,
 identical across all three — no measured quality cost from the padding.
+
+**Watch the harness when comparing the TP=4 row.** Its shipped config changed to
+k=3 and its numbers (36.7 / 72.8 / 96.1) come from the §7.5.11 k-sweep harness —
+the same harness measured k=5 at 33.3 / 62.1 / 84.4 on four boots. The earlier
+k=5 "warm repeat" row (37.5 / 61.9 / 88.5) is a *different* harness and is NOT
+directly comparable to the k=3 row; compare within the sweep, not across it.
+
+**The DSpark draft depth is k=3, and that is measured, not inherited.** A 13-boot
+sweep over k ∈ {1..5} on the TP=4 lane (work doc §7.5.11) found every k in {1,2,3}
+beats the upstream-default k=5 at every concurrency ≥4: k=3 has the best C1
+(+10% over k=5) and k=1 the best C8 (+27%). k=5 accepts *more* tokens per step
+(2.44 vs 2.25) and is still *slower* — its 4th/5th verify slots land only 12%/5%
+of the time. The TP=4 rows ship k=3; k=1 is the batch-serving arm. (k=6 is
+illegal: vLLM rejects it, `must be divisible by n_predict=5`.)
 
 V4.1-Flash is 510 GB, of which **203 GB is two Engram embedding tables**, and it
 will not fit at TP=2 on any amount of RAM a Spark pair has.
