@@ -7,11 +7,12 @@ min_nodes: 4
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=4 across four DGX Sparks, EXL3 3.5 bpw routed
-    experts, Engram tables streamed from disk, DSpark k=5, 300K context.
+    experts, Engram tables streamed from disk, DSpark k=3 (the measured optimum,
+    work doc 7.5.11), 300K context.
     Adaptation of tonyd2wild's measured 4x-Spark lane (MIT) onto sparkrun.
-    Booted and serving on our cluster 2026-09-24 (KV 3,879,721 tokens; warm
-    repeat C1/C4/C8 37.5/61.9/88.5 t/s, cold first boot 36.4/58.0/76.1): see
-    DS4-MODEL-OPTIMIZATION-WORK.md sections 2.5, 4.5 and 7.5.
+    Booted and serving on our cluster 2026-09-24 (KV 3,879,721 tokens; k=3 sweep
+    C1/C4/C8 36.7/72.8/96.1 t/s warm): see DS4-MODEL-OPTIMIZATION-WORK.md
+    sections 2.5, 4.5, 7.5 and 7.5.11.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -167,14 +168,22 @@ defaults:
   # Multiple of the 128 block size (64x128); a non-multiple wastes budget.
   max_num_batched_tokens: 8192
   block_size: 128
-  # DSpark k=5 is the shipped default. Block size 5 costs context (the drafter
-  # reserve) but 1.4-1.9x throughput; upstream's k=3 is -40% (tenaiaiai).
+  # DSpark k=3 is the MEASURED optimum on our hardware (work doc §7.5.11, 2026-09-26):
+  # a 13-boot sweep across k in {1..5} put the best C1 at k=3 (36.7 agg vs 33.3 at
+  # the upstream-default k=5, +10%) and the best C8 at k=1 (107.3 vs 84.4, +27%).
+  # k=5 accepts MORE tokens/step (2.44 vs 2.25) and is STILL slower: its 4th/5th
+  # verify slots land only 12%/5% of the time, so they cost more than they return.
+  # The optimum moves with concurrency (C1 k=3, C4 k=2, C8 k=1), so k=3 is the
+  # conservative default that captures the whole win at every concurrency >=4.
+  # For batch-serving use k=1 (-o speculative_config=...). Do NOT use k=4 or k=5.
   # Adaptive verification MUST stay off: padded spec batches hang SM120 sparse
-  # MLA (FlashInfer #5015).
-  speculative_config: '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
-  # Capture sizes are multiples of k=5 and k+1=6 up to max_num_seqs*(k+1)=48.
-  # A truncated list (e.g. stopping at 40) cost upstream 12% at C=6.
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
+  # MLA (FlashInfer #5015). (k must be <=5 or divisible by 5: the DSpark drafter
+  # fixes n_predict=5 and vLLM rejects e.g. k=6 at arg validation.)
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # Capture sizes are multiples of k and k+1 up to max_num_seqs*(k+1)=8*4=32.
+  # A truncated list (e.g. stopping at 24) costs decode throughput; the ladder
+  # MUST match k, so changing k is not a one-line edit (guard: KCaptureSizes).
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_processor_cache_gb: 1
   extra_args: ""
 

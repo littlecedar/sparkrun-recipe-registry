@@ -7,7 +7,8 @@ min_nodes: 4
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=4 across four DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, DSpark k=5, ONE MILLION token context. This is
+    Engram streamed from disk, DSpark k=3 (the measured optimum, work doc 7.5.11),
+    ONE MILLION token context. This is
     the context lane: upstream measured a 3.3M-token KV pool at 300K and ~3.41M
     tokens at 1M on this stack, versus 1.07M for the release checkpoint on the
     same four nodes. Booted and serving on our cluster 2026-09-24 (KV 4,200,885
@@ -102,8 +103,11 @@ defaults:
   max_num_seqs: 8
   max_num_batched_tokens: 8192
   block_size: 128
-  speculative_config: '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
+  # k=3 = measured optimum, same as the 300K twin (work doc §7.5.11). A 1M
+  # sibling must differ from its 300K twin in max_model_len ONLY (guard), so this
+  # line is deliberately identical to the TP=4 300K recipe's.
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_processor_cache_gb: 1
   extra_args: ""
 
