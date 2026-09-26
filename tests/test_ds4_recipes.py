@@ -402,6 +402,32 @@ class Exl3LaneContract(unittest.TestCase):
                 "recipes booted and served on 2026-09-24",
             )
 
+    def test_instanttensor_load_and_hybrid_mod(self):
+        """Every EXL3 recipe reads safetensors through InstantTensor, and the
+        hybrid-draft mod is present and spelled correctly.
+
+        InstantTensor is a vLLM `--load-format` value (Present in the image's
+        vLLM LoadFormats already), and the checkpoint IS 48 *.safetensors shards,
+        so the precondition holds. The mod is a NO-OP unless the effective loader
+        is instanttensor AND a real draft shares the target path/revision; a
+        misspelled `load_format` would silently fall back to `auto` and read the
+        460 GB via the slow default iterator with no error.
+        """
+        for p in EXL3_RECIPES:
+            r = load(p)
+            self.assertEqual(r.default("load_format"), "instanttensor",
+                             f"{p.name}: EXL3 checkpoints must load via "
+                             "InstantTensor (48 safetensors shards; the flag is "
+                             "valid in the exl3a image's vLLM)")
+            self.assertIn("--load-format instanttensor", r.rendered(), p.name)
+            self.assertIn("instanttensor-hybrid-draft-loader", p.read_text(),
+                          f"{p.name}: the hybrid-draft mod is missing")
+            # The mod reads this at runtime (patched get_model), so it must be set
+            # in env:, not only in the mod's own environment.
+            self.assertEqual(r.env.get("INSTANTTENSOR_DRAFT_LOADER"), "auto",
+                             f"{p.name}: INSTANTTENSOR_DRAFT_LOADER must reach "
+                             "the serve process via env:")
+
     def test_engram_on_disk_env(self):
         """Without these the 203 GB Engram stays in RAM and the boot OOMs."""
         for p in EXL3_RECIPES:
@@ -701,6 +727,30 @@ class NegativeControls(unittest.TestCase):
         """An empty parse must not look like a passing recipe."""
         with self.assertRaises(AssertionError):
             self.assertGreater(len(Recipe("").env), 3)
+
+    def test_control_instanttensor_load_format_typo(self):
+        """A typo'd or dropped load_format must fail the guard.
+
+        This is the silent-slow case: `--load-format autto` (or the key removed
+        from defaults) leaves the flag absent from the rendered line, so vLLM
+        falls back to the default iterator and the 460 GB read is slow with no
+        error at all.
+        """
+        r = self._mutated(EXL3_TP6, "load_format: instanttensor",
+                          "load_format: autto")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.default("load_format"), "instanttensor")
+
+    def test_control_instanttensor_env_dropped(self):
+        """Dropping INSTANTTENSOR_DRAFT_LOADER from env: must fail the guard.
+
+        The patched vLLM reads it at runtime; without it the mod's mode falls to
+        `auto` -- which is the default anyway, so this guards against the *env
+        channel* being lost, not against a wrong value.
+        """
+        r = self._mutated(EXL3_TP4, "  INSTANTTENSOR_DRAFT_LOADER: auto\n", "")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.env.get("INSTANTTENSOR_DRAFT_LOADER"), "auto")
 
     # -- EXL3 vLLM lane (added 2026-09-23) ---------------------------------
 

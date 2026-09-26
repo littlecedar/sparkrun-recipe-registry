@@ -25,6 +25,9 @@ mods:
   # mod's own redirect order sends '3' to its log, not drop_caches). Header: TP=4.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
+  # NO-OP here (this arm is no-spec, so there is no draft at all); listed for
+  # parity with the TP=4 recipes. See the TP=4 300K recipe header.
+  - "@littlecedar/mods/instanttensor-hybrid-draft-loader"
 
 # The image declares ENTRYPOINT ["vllm","serve"], which would swallow sparkrun's
 # appended launcher. Clear it (see the TP=4 recipe header for the full note).
@@ -96,6 +99,8 @@ env:
   NCCL_IB_ROCE_VERSION_NUM: "2"
   NCCL_IB_ADDR_FAMILY: AF_INET
   NCCL_DEBUG: WARN
+  # Read by the patched vLLM at runtime (get_model). See the TP=4 300K header.
+  INSTANTTENSOR_DRAFT_LOADER: auto
 
 defaults:
   port: 8000
@@ -119,6 +124,10 @@ defaults:
   # 64 heads do not divide by 6). Same wall as TP=3.
   compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}'
   mm_encoder_tp_mode: data
+  # Distributed direct-I/O Safetensors read (460 GB checkpoint is 48 shards).
+  # Orthogonal to cuda-exl3; already in the exl3a image. See the TP=4 300K header
+  # for why this does NOT speed the Engram read.
+  load_format: instanttensor
   extra_args: ""
 
 command: >
@@ -132,6 +141,7 @@ command: >
   --max-num-seqs {max_num_seqs}
   --max-num-batched-tokens {max_num_batched_tokens}
   --block-size {block_size}
+  --load-format {load_format}
   --hf-overrides '{hf_overrides}'
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
