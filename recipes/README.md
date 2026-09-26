@@ -28,7 +28,13 @@ MoE partition check (`moe_intermediate_size 2304/4 = 576`, not a multiple of 128
 
 **The `exl3-*-vllm` rows** use the EXL3 3.5 bpw checkpoint and
 `littlecedar/dgx-spark-dsv41:exl3a` with `mods/mount-dsv41-exl3-patches`
-(Engram-on-disk; without it the boot OOMs). The t/s column is C1 / C4 / C8
+(Engram-on-disk; without it the boot OOMs) and
+`mods/instanttensor-hybrid-draft-loader` (a no-op on these recipes — our DSpark
+drafter is a separate model path — listed for parity). Weights load with
+`--load-format instanttensor` (distributed, direct-I/O Safetensors; already
+installed in the image). NB the 203 GB Engram tables still stream through the
+patch mod's own reader, which InstantTensor does not touch, so the win is on the
+model read only. The t/s column is C1 / C4 / C8
 aggregate, greedy, distinct prompts, on a **warm** server; a cold first boot is
 consistently lower (the TP=4 row measured 36.4 / 58.0 / 76.1 on its first boot
 vs 37.5 / 61.9 / 88.5 warm). C8 on TP=6 is the fleet's best. TP=6 is
