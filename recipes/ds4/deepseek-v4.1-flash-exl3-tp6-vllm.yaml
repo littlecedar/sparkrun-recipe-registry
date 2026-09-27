@@ -7,14 +7,19 @@ min_nodes: 6
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=6 across six DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, 300K context. TP=6 is mechanically the *cleanest*
-    large split for this model -- moe_intermediate_size 2304 / 6 = 384, which is
-    128-aligned, so the MoE needs NO uneven expert split (TP=4 needed
-    512/640/640/512 precisely because 2304/4 = 576 is not a multiple of 128).
-    The cost is attention: 8 output groups do not divide by 6, so heads pad
-    64->96 (8->12 groups) and 2 of the 6 ranks carry pure-padding attention
-    shards. DSpark is off (the drafter's 128 experts and 64 heads do not divide
-    by 6). See AGENTS.md §§7.4, 7.7.
+    Engram streamed from disk, DSpark k=3 (the measured optimum), 300K context.
+    TP=6 is mechanically the *cleanest* large split for this model --
+    moe_intermediate_size 2304 / 6 = 384, which is 128-aligned, so the MoE needs
+    NO uneven expert split (TP=4 needed 512/640/640/512 precisely because
+    2304/4 = 576 is not a multiple of 128). The cost is attention: 8 output
+    groups do not divide by 6, so heads pad 64->96 (8->12 groups) and 2 of the 6
+    ranks carry pure-padding attention shards. DSpark runs here because the
+    mount-dsv41-exl3-patches mod applies that same 96/12 declaration to the
+    drafter, whose raw 64 heads would otherwise fail SpeculativeConfig
+    validation. First boot ever of DSpark at TP=6 (any cluster) on 2026-09-27:
+    KV 12,006,501 tokens (vs 12,783,985 no-spec), DSpark mean acceptance length
+    2.43-2.50, C1/C4/C8 44.5/72.5/115.3 t/s (vs 29.4/63.8/108.0 no-spec).
+    See AGENTS.md §§7.4, 7.7.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -41,7 +46,9 @@ executor_config:
 #   MoE experts:  384 / 6 = 64  exact;  MoE width 2304 / 6 = 384 = 128x3 ALIGNED
 #     -> no uneven split (TP=4 needed 512/640/640/512: 2304/4 = 576).
 #   heads/groups: not divisible by 6 -> virtual heads 64->96, 8->12.
-#   DSpark: 128 and 64 not divisible by 6 -> speculative decoding OFF.
+#   DSpark: the drafter's 64 heads / 8 groups are declared as 96/12 by the mod's
+#     config_speculative.py, and its 128 experts are kept all-local (no-EP path),
+#     so speculative decoding is ON at k=3.
 #   Engram: 24 hash columns / 6 = 4 per rank, exact.
 #
 # THE ATTENTION COST: only 8 of the 12 padded groups are real, so ranks 4-5 run
@@ -90,10 +97,14 @@ defaults:
   # Flat, NOT nested under text_config; heads 96 = 12 groups x 8, 12 is the
   # MINIMAL working group count (g % 3 == 0). See AGENTS.md §7.4.
   hf_overrides: '{"num_attention_heads":96,"o_groups":12,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
-  # NO --speculative-config: DSpark cannot run at TP=6 (drafter 128 experts and
-  # 64 heads do not divide by 6). Same wall as TP=3; no TP=6+DSpark boot was
-  # ever attempted. See AGENTS.md §§7.3, 10 (E7/E8).
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}'
+  # DSpark k=3 = measured optimum (13-boot sweep; AGENTS.md §7.7). k is legal
+  # because 3 <= dspark_block_size (n_predict=5). Adaptive verification MUST stay
+  # off (padded spec batches hang SM120 sparse MLA, FlashInfer #5015). The
+  # drafter sees the 96/12 declaration through the mod's config_speculative.py.
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # Capture sizes are multiples of k and k+1 and must reach max_num_seqs*(k+1)=32
+  # (guard: KCaptureSizes); a k change is not a one-line edit.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_encoder_tp_mode: data
   extra_args: ""
 
@@ -111,6 +122,7 @@ command: >
   --hf-overrides '{hf_overrides}'
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
+  --speculative-config '{speculative_config}'
   --compilation-config '{compilation_config}'
   --limit-mm-per-prompt '{"image":4}'
   --mm-encoder-tp-mode {mm_encoder_tp_mode}
@@ -125,10 +137,13 @@ readiness:
   health_timeout_s: 1800
 
 # Deliberately NOT set: --quantization (config.json declares exl3; the plugin
-# picks it up); --speculative-config (DSpark cannot run at TP=6); --enable-expert-
-# parallel (possible at TP=6 but unmeasured over RoCE; pure TP first).
+# picks it up); --enable-expert-parallel (the drafter's 128 experts are kept
+# all-local by the mod's no-EP path; EP at TP=6 is unmeasured over RoCE).
 #
-# Boot-log checklist: as AGENTS.md §6.7, plus — the mod must wrap 3 params/layer
-# with virtual-head loaders; per-rank Engram row ranges must DIFFER across the
-# six ranks (4 hash columns each); the MoE must NOT hit the FlashInfer-Cutlass
-# /128 error (width 384 = 128x3).
+# Boot-log checklist: as AGENTS.md §6.7, plus — the mod must report
+# config_speculative.py installed AND the DSpark draft-model log line; the mod
+# must wrap 3 params/layer with virtual-head loaders; per-rank Engram row ranges
+# must DIFFER across the six ranks (4 hash columns each); the MoE must NOT hit
+# the FlashInfer-Cutlass /128 error (width 384 = 128x3); `Capturing dspark CUDA
+# graphs (FULL)` present; a `Mean acceptance length` > 1 on `Decode batch` lines
+# (accepts nothing = the EAGLE-on-DSpark-head failure mode, not a win).
