@@ -32,8 +32,8 @@ context, priority **quality > speed > context > TP**. Measured outcome:
 |:--|:--|:--|
 | **TP=4 + 1M** | buildable, serves | `…-exl3-tp4-1m-vllm`, KV 4,200,885 tok, needle ✓ @799K |
 | **TP=4 (300K)** | serves | `…-exl3-tp4-vllm`, KV 3,879,721 tok, C8 76.1 cold / 88.5 warm |
-| **TP=3** | serves (no-spec) | `…-exl3-tp3-vllm`, KV 2,798,624 tok, C8 69.1 on one fewer node |
-| **TP=6** | serves, fastest | `…-exl3-tp6-vllm`, KV 12,783,985 tok, C8 108.0 |
+| **TP=3** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp3-vllm`, KV 1,896,721 tok, C1/C4/C8 34.3/59.1/77.7, accept 2.40–2.50 |
+| **TP=6** | serves, fastest; DSpark (measured 2026-09-27) | `…-exl3-tp6-vllm`, KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50 |
 | **TP=6 + 1M** | serves | `…-exl3-tp6-1m-vllm`, KV 14,038,103 tok, needle ✓ @199K & 799K |
 | **TP=2** | **impossible, not hard** | §3 — ~257 GB non-Engram weights vs 220 GB usable on a pair |
 
@@ -292,17 +292,21 @@ measurement, not the arithmetic, is the reason. See §7.7.
 
 ## 5. The Engram-on-disk mod — the one non-negotiable piece
 
-**All five recipes need `mods/mount-dsv41-exl3-patches`.** It installs 13 files
-from `tonyd2wild/patch/exl3-tp3/` over the image's `vllm/` and `cuda_exl3/` paths.
+**All five recipes need `mods/mount-dsv41-exl3-patches`.** It installs 14 files
+from `tonyd2wild/patch/exl3-tp3/` over the image's `vllm/` and `cuda_exl3/` paths
+(13 upstream files plus our own `config/speculative.py`, which propagates the
+virtual-heads dict `hf_overrides` to the DSpark draft config — see §7.3, §10 E7).
 The load-bearing one is `engram.py`: the image ships the V4.1 model tree and the
 `cuda-exl3` plugin but **not** the Engram-on-disk reader (probed read-only
 2026-09-23). Without it the two 203 GB Engram tables cannot leave unified RAM and
 the 4-node boot dies ~25 minutes into the checkpoint read.
 
-The mod is **fail-closed**: it md5-verifies all 13 files, backs up each target once
+The mod is **fail-closed**: it md5-verifies all 14 files, backs up each target once
 (`.sparkrun-orig`), installs `virtual_heads.py` as NEW, and dies if
-`DSV41_ENGRAM_DISK` is absent from the installed `engram.py`. A half-applied patch
-tree is worse than none and the failure it prevents is slow and confusing.
+`DSV41_ENGRAM_DISK` is absent from the installed `engram.py` or
+`DSV41_DRAFT_VIRTUAL_HEADS` is absent from the installed `config/speculative.py`.
+A half-applied patch tree is worse than none and the failure it prevents is slow
+and confusing.
 
 Repo provenance: `tonyd2wild/DeepSeek-V4.1-Flash-vLLM-DGX-Spark` (MIT; patch files
 are `SPDX: Apache-2.0` vLLM derivatives), cloned to `.scratch/ds4/tonyd2wild-vllm/`.
@@ -425,14 +429,19 @@ using it needs a patch, full stop. We do not use it.
 
 ### 6.7 Boot-log checklist (in order), and boot time
 
-1. The mod installed 13 files and asserted `DSV41_ENGRAM_DISK` — if the log does
-   not say the Engram-on-disk reader is present, **stop**.
+1. The mod installed 14 files and asserted `DSV41_ENGRAM_DISK` **and**
+   `DSV41_DRAFT_VIRTUAL_HEADS` — if the log does not say both readers are present,
+   **stop**.
 2. `Engram DISK mode … rows [start,end)` per rank must **DIFFER per rank**;
    identical ranges means staging is wrong and lookups are wrong. (6 hash columns at
    TP=4, 8 at TP=3, 4 at TP=6.)
 3. `GPU KV cache size` token count (expect ~3.3M at 300K on the tightest rank;
    far less means KV accounting is off — §6.5 trap).
-4. Resolved backends in the startup log, not assumed.
+4. Resolved backends in the startup log, not assumed. On a DSpark arm, the
+   drafter must load (`DSpark draft model loaded`), capture
+   (`Capturing dspark CUDA graphs`), and log a **Mean acceptance length > 1** on
+   `Decode batch` lines — a boot that serves but accepts nothing is the
+   EAGLE-on-DSpark-head failure mode, not a win (§10 E7/E8).
 5. Accept length on `Decode batch` lines. **A DSpark number without an accept
    length is not a number.**
 6. `free -h` per rank while serving (upstream runs 7–12 GiB free on the wide ranks).
@@ -485,24 +494,37 @@ upstream's ~673–1449 t/s band). `max_model_len: 1000000` confirmed on `/v1/mod
 KV-grouping patch (`DSV41_KV_GROUPING=fine`) takes the pool to 5.57M (+63%) for
 −6% single-stream / −8% C6 — a further patch, not part of the mod.
 
-### 7.3 TP=3 (no-spec) — `…-exl3-tp3-vllm`
+### 7.3 TP=3 — `…-exl3-tp3-vllm`
 
-**Our arm is no-spec:** the DSpark drafter's own 64 heads fail `SpeculativeConfig`
-validation at TP=3 (`vllm/config/model.py:1420`, `64 % 3 = 1`), and the drafter's
-128 experts don't divide by 3 either; our `virtual_heads` override pads the **main**
-model to 72, not the drafter. Upstream's `exl3tp3a11` carried DSpark because they
-also patched `dsv4_nvidia_model.py`; re-deriving that is a separate job (§8, E7/E8).
+**DSpark is ON since 2026-09-27 (k=3).** Until then this arm was no-spec: the
+DSpark drafter's own 64 heads fail `SpeculativeConfig` validation at TP=3
+(`vllm/config/model.py:1420`, `64 % 3 = 1`), and its 128 experts don't divide by
+3 either. The root cause and fix are characterized in `DSPARK-TP3-STUDY.md`:
+dict `hf_overrides` are **target-only** (`compose_draft_hf_overrides`,
+`speculative.py:1044-1067`), so the drafter never saw the 72/9 virtual-heads
+declaration. The mod's new `config_speculative.py` propagates that dict to the
+draft config; the drafter then reuses the target's modded attention and pads
+exactly like the main model, while the mod's `dsv4_nvidia_model.py` already
+relaxes the 128-expert assert on the no-EP path. Upstream reached the same
+end-state with a 72-head `config.json` copy (`exl3tp3a11`, measured).
 
-Two faults fixed before it booted: **`hf-overrides` must be flat, not nested under
-`text_config`** (`DeepseekV41Config` flattens `text_config` before vLLM applies
-overrides — proved device-free both ways: nested → 64 heads IGNORED, flat → 72
-applied), and DSpark has to come off. (The kwarg is `hf_overrides_kw`, not
-`hf_overrides` — passing the latter is a `TypeError` "multiple values".)
+Two faults fixed before the no-spec arm booted: **`hf-overrides` must be flat,
+not nested under `text_config`** (`DeepseekV41Config` flattens `text_config`
+before vLLM applies overrides — proved device-free both ways: nested → 64 heads
+IGNORED, flat → 72 applied), and DSpark had to come off (no longer true). (The
+kwarg is `hf_overrides_kw`, not `hf_overrides` — passing the latter is a
+`TypeError` "multiple values".)
 
-Measured: KV **2,798,624 tokens**, C1 15.8 / C4 47.1 / **C8 69.1 t/s**, correct.
-Lower C1 than TP=4 because no speculative decoding; the no-spec C8 69.1 is within
-9% **on one fewer node** — matching upstream's "the fourth Spark buys context, not
-speed" on EXL3. No-spec context: 1,995,725 tokens vs 678,950 with DSpark.
+Measured (**DSpark k=3**, 2026-09-27, `ds4tp3` = .32/.33/.34, booted before the
+recipe edit on `-o` overrides): KV **1,896,721 tokens**, C1 **34.3** / C4 **59.1** /
+**C8 77.7 t/s**, DSpark mean acceptance length **2.40–2.50**. That is **+117% C1,
++25% C4, +12% C8** over the no-spec arm below, on the same node count — DSpark
+turns TP=3 from the slowest single-stream topology into a competitive one. Prior
+**no-spec** measurement (2026-09-24): KV 2,798,624 tokens, C1 15.8 / C4 47.1 /
+C8 69.1; that arm's C8 69.1 was within 9% of TP=4 **on one fewer node**. No-spec
+context was 1,995,725 tokens vs 678,950 with DSpark (upstream). Raw:
+`.scratch/ds4/dspark_tp36/live/`. Every §7.3 boot gate held (draft `97 params`,
+dspark graphs `8/8`, Engram rows differ per rank).
 
 ### 7.4 TP=6 — `…-exl3-tp6-vllm` (fastest topology)
 
@@ -511,25 +533,38 @@ speed" on EXL3. No-spec context: 1,995,725 tokens vs 678,950 with DSpark.
 killed SGLang TP=4 (576). `world_size=6`, weights 41.98 GiB/rank (lightest of any
 split), engine init 152 s.
 
-| | TP=4 (DSpark) | TP=3 (no-spec) | **TP=6 (no-spec)** |
+**DSpark is ON and measured since 2026-09-27 (k=3)**, same mechanism as TP=3 (the
+mod applies the 96/12 declaration to the drafter). **This was the first DSpark boot
+at TP=6 on any cluster.** Measured: KV **12,006,501 tokens**, C1 **44.5** /
+C4 **72.5** / **C8 115.3 t/s**, DSpark mean acceptance length **2.43–2.50** — above
+its own no-spec baseline at *every* concurrency (see the table). The two
+pure-padding ranks cost nothing at steady state. Raw:
+`.scratch/ds4/dspark_tp36/live/`. Every §7.3 boot gate held.
+
+| | TP=4 (DSpark) | TP=3 (DSpark k=3) | **TP=6 (DSpark k=3)** |
 |:--|--:|--:|--:|
-| `GPU KV cache size` | 3,879,721 | 2,798,624 | **12,783,985** |
-| Available KV | 31.82 GiB | — | **48.9 GiB** |
-| weights/rank | 60.6 GiB | — | **41.98 GiB** |
-| C1 / C4 / C8 agg | 36.4 / 58.0 / 76.1 | 15.8 / 47.1 / 69.1 | 29.4 / 63.8 / **108.0** |
-| quality easy / hard | 19/19, 17/18 | 19/19, 17/18 | 19/19, 17/18 |
+| `GPU KV cache size` | 3,879,721 | 1,896,721 | **12,006,501** |
+| Available KV | 31.82 GiB | — | **47.5 GiB** |
+| C1 / C4 / C8 agg | 36.4 / 58.0 / 76.1 | 34.3 / 59.1 / 77.7 | 44.5 / 72.5 / **115.3** |
+| accept length | 2.40–2.64 | 2.40–2.50 | 2.43–2.50 |
+
+Prior **no-spec** baselines (2026-09-24): TP=3 KV 2,798,624 / 15.8 / 47.1 / 69.1;
+TP=6 KV 12,783,985 / 29.4 / 63.8 / 108.0 (weights 41.98 GiB/rank, quality 19/19
+easy + 17/18 hard on both). DSpark costs TP=3 ~32% of its KV pool (2.80M→1.90M)
+and TP=6 only ~6% (12.78M→12.01M).
 
 Three findings: (1) **quality is unaffected by the two pure-padding ranks** — 8
 groups pad to 12, only 8 are real, ranks 4–5 run attention that contributes nothing,
 yet the battery is identical to TP=4/TP=3; (2) **the padding tax is
-concurrency-dependent** — C1 (29.4) is *below* TP=4's 36.4 (and TP=4 also has
-DSpark), but by C8 TP=6 is 108 vs 76.1/69.1, so the even 128-aligned expert split
-wins once there is batch; **TP=6 is a throughput topology, not a latency one**;
-(3) **context is 3.3× the TP=4 pool for free** (KV is replicated, per-rank weights
-smallest). Caveats: no DSpark (so the C1 comparison is not like-for-like); prefill
-553 t/s @35K vs TP=4's 1128 @191K is a *depth* difference; one boot, two sweeps.
-Engram `heads [0,4) of 24`. Raw: `.scratch/ds4/{quality_tp6.json, tp6conc.out,
-tp6conc2.out}`.
+concurrency-dependent** — no-spec C1 (29.4) was *below* TP=4's 36.4, but by C8
+no-spec TP=6 was 108 vs 76.1/69.1, so the even 128-aligned expert split wins once
+there is batch; **TP=6 is a throughput topology, not a latency one**. Adding DSpark
+k=3 removed the C1 weakness entirely (44.5, above TP=4's 36.4); (3) **context is
+3.3× the TP=4 pool for free** (KV is replicated, per-rank weights smallest).
+Caveats: prefill 553 t/s @35K vs TP=4's 1128 @191K is a *depth* difference; one
+no-spec boot, one DSpark boot. Engram `heads [0,4) of 24`. Raw:
+`.scratch/ds4/{quality_tp6.json, tp6conc.out, tp6conc2.out}` plus the DSpark arm in
+`.scratch/ds4/dspark_tp36/live/`.
 
 ### 7.5 TP=6 at 1M — `…-exl3-tp6-1m-vllm`
 
@@ -539,7 +574,12 @@ prompt correctly returns HTTP **400** (over the ceiling — the limit working, n
 bug). The TP=6 300K recipe with `max_model_len: 1000000` and nothing else changed
 (guard-enforced). Guards caught two real omissions in the first draft: a missing
 `mods:` block (the Engram stays in RAM and the boot OOMs) and the no-spec
-classification.
+classification. **2026-09-27:** the no-spec classification is retired — this
+sibling now ships DSpark k=3 like its 300K twin (identical except context,
+guard-enforced). The **300K** TP=6 DSpark arm booted 2026-09-27 (§7.4); the **1M**
+arm has not been booted with DSpark, but it differs only in `max_model_len` and
+the 300K arm's DSpark cost was ~6% of KV, so the 1M pool should land near
+~13.2M (SPECULATIVE — read the actual number from the log).
 
 ### 7.6 Quality — our own held-out battery (E5, 2026-09-24)
 
@@ -617,15 +657,18 @@ Our k=4 boots are the only k=4 points anyone has on this model.
 `C8 ratio ≥ 1.03` AND `C1 ratio ≥ 0.97`. k=3 fired (C8 1.139, C1 1.100), k=2 (1.207,
 1.063), k=1 (1.272, 0.999 — flat C1, the throughput choice).
 
-**Shipped:** `num_speculative_tokens: 3` on both TP=4 recipes — best-C1 point, loses
-nothing at C4 vs k=2, beats k=5 by ~11% at C4 and ~14% at C8 (the most conservative
-departure that captures the whole win). Capture ladders rebuilt for k=3
-(`[3,4,6,8,9,12,15,16,18,20,21,24,28,32]`). **Offer k=1 as a documented
-throughput arm** for batch-serving (`-o speculative_config='{…,"num_speculative_tokens":1,…}'`),
-+27% at C8. **Do not ship k=4 or k=5.** The capture ladder must change with k
-(`k·n` and `(k+1)·n` up to `8·(k+1)`), so a k change is not a one-line edit
-(guard: `KCaptureSizes`). Adaptive verification MUST stay off (padded spec batches
-hang SM120 sparse MLA, FlashInfer #5015).
+**Shipped:** `num_speculative_tokens: 3` on all five EXL3 recipes — best-C1 point,
+loses nothing at C4 vs k=2, beats k=5 by ~11% at C4 and ~14% at C8 (the most
+conservative departure that captures the whole win). TP=3 and TP=6 gained it on
+2026-09-27 (§7.3/§7.4, §10 E7); **both those arms booted and measured 2026-09-27**
+(TP=3 C1 34.3, TP=6 C1 44.5). The k-sweep below was TP=4-only, so the TP=3/TP=6
+k=3 choice is a port of the optimum, now confirmed by their own boots. Capture
+ladders rebuilt for k=3 (`[3,4,6,8,9,12,15,16,18,20,21,24,28,32]`). **Offer k=1 as a
+documented throughput arm** for batch-serving
+(`-o speculative_config='{…,"num_speculative_tokens":1,…}'`), +27% at C8. **Do not
+ship k=4 or k=5.** The capture ladder must change with k (`k·n` and `(k+1)·n` up to
+`8·(k+1)`), so a k change is not a one-line edit (guard: `KCaptureSizes`). Adaptive
+verification MUST stay off (padded spec batches hang SM120 sparse MLA, FlashInfer #5015).
 
 **Caveats:** one content mix (blended technical prose) — the optimum moves with
 content, so a code-heavy mix may shift it up. Weight load is NFS-bound and varied
@@ -640,9 +683,9 @@ consistent with our C1 result. Cohere measured that the marginal verify token is
 a full expert pass. Artifacts: `.scratch/ds4/ksweep/` (`ALL_BOOTS.json`, `table.py`,
 `PREREGISTRATION.md`, `RESEARCH-external.md`, per-arm logs).
 
-### 7.8 The `drop-caches` mod: required by contract, inert in fact (2026-09-25)
+### 7.8 The `drop-caches` mod: not useful here, and not a mitigation (2026-09-25 / 2026-09-27)
 
-All five recipes list `@eugr/mods/drop-caches` for parity. **It does nothing, in
+All five recipes list `@eugr/mods/drop-caches`. **It does nothing, in
 every launch mode, for two independent reasons, both reproduced:**
 1. **Rootless (sparkrun default) blocks the write.** `launcher.py:837` defaults
    `rootless=True` → `privileged: false` + `no-new-privileges`; `/proc/sys` is
@@ -660,6 +703,48 @@ over ssh on each node). Two transferable rules: a mod's effect must be verified 
 the point of use, not by the presence of its process; and when a shell line writes
 to a file AND redirects output, check which redirect wins (`> target >> log` silently
 voids the `> target`).
+
+**2026-09-27 — is `@littlecedar/mods/drop-caches` useful for these recipes? No,
+so the recipes are UNCHANGED.** The objective asked to switch from
+`@eugr/mods/drop-caches` *if* the littlecedar mod mitigates the cache growth. It
+does not. **The reference itself is fine** — the mod is pushed (`mods/drop-caches/run.sh`
+in the littlecedar `origin/main`) and the canonical head resolves it (VERIFIED on
+`spark-head`, 2026-09-27: registry `trusted: true`, `sparkrun registry list` row
+`Trusted=yes`, `~/.cache/sparkrun/registries/littlecedar/mods/drop-caches/run.sh`
+present). So the decision is deliberate, not a resolution failure, for three reasons:
+
+1. **The replacement would abort every shipped launch.** sparkrun launches these
+   recipes **rootless** (`api/_run.py:474` sets `rootless = not options.rootful`;
+   the recipe passes no `--rootful`), and `DockerExecutor.apply_runtime_adjustments`
+   then sets `privileged: false` (`orchestration/executors/docker.py:311-313`).
+   `mods/drop-caches` is **fail-closed**: with `/proc/sys` mounted `ro` its write
+   returns non-zero → `die` → non-zero `docker exec`, which `run_pre_exec` turns
+   into a hard `RuntimeError` ("pre_exec[1] failed", `orchestration/hooks.py:411`).
+   Sharing one `pre_exec` chain across all nodes means **one refusal kills the whole
+   launch**. eugr's mod is a silent no-op here; the littlecedar mod is a launch
+   failure. Parity wants the no-op.
+2. **A recipe cannot authorize it, and trust is a local decision.** `privileged`
+   is trust-gated (`core/launcher.py:157` `_TRUST_GATED_EXECUTOR_KEYS`), and a
+   registry is untrusted unless the user opts in (`registries.yaml`), so an
+   in-recipe `executor_config: {privileged: true}` fails closed for an untrusted
+   recipe. **Even with the registry trusted, we deliberately do not set it**: the
+   mod has nothing to drop at launch (reason 3), and forcing every launch
+   `--privileged` is a sandbox change and a standing privilege grant bought for a
+   no-op — the opposite of what parity wants.
+3. **There is no in-container cache growth at launch to drop.** The one
+   authenticated mechanism is **Engram row reads during serving** growing the page
+   cache (upstream: `Cached` 6→10 GiB, `MemFree` → 3.7 GiB, "the zone where GB10's
+   GPU allocator can stall", one drop returns 8 GiB — `.scratch/ds4/tonyd2wild-vllm/docs/EXL3-TP3.md:74`).
+   At launch the rows have not been read yet, and even at serving the drop is a
+   **bench action between legs** (§11), not a per-boot recipe step.
+
+**The mod itself is mechanically correct** — one stdout redirect, and the write is
+verified at the point of use and made to fail closed — unlike eugr's, which writes
+`3` to its log. So it is the right tool for an **explicit** privileged drop
+(`sparkrun run … --rootful`, or a host `sync; echo 3 > /proc/sys/vm/drop_caches`
+over ssh); it is simply **not a drop-in recipe mod** for the default launch, and
+NOT a mitigation for anything the shipped recipes see. "The mod works" ≠ "the mod
+is useful in this recipe."
 
 ### 7.9 The InstantTensor load-path change was tried and REVERTED (2026-09-25)
 
@@ -744,7 +829,10 @@ NVFP4 runner overrides present on NVFP4 and absent on MXFP4; no `--*-backend`
 overrides on V4.1; Engram layout `per_rank`; no V4.1-Flash recipe may claim TP=2
 (`NoTP2`); `MillionTokenContext` (1M siblings differ from their 300K twin in
 `max_model_len` only); `KCaptureSizes` (capture ladder matches k);
-`test_dspark_k_is_measured_optimum`; `test_consuming_entrypoint_cleared`;
+`test_dspark_k_is_measured_optimum`; `test_dspark_spec_config` (every EXL3 arm
+ships DSpark; TP=3/TP=6 must carry `virtual_heads_from`); `ModDraftConfigContract`
+(the mod keeps `config_speculative.py` mapped and md5-listed — pruning it silently
+reverts TP=3/TP=6 to the retired no-spec failure); `test_consuming_entrypoint_cleared`;
 `test_description_matches_spec_config`; `test_instanttensor_load_and_hybrid_mod`
 (now asserting the reverted state).
 
@@ -898,29 +986,40 @@ grep is `--tensor-parallel-size N`.
   NFS-cached model files and worked; upstream measures 129 s local vs 309/470 s over
   NFS for the weight load, so `tools/engram_local.py` rows are a **throughput**
   follow-up, not a correctness one. Deliberately deferred.
-- **E7. TP=3 + DSpark.** Our TP=3 arm is no-spec because the drafter's own 64 heads
-  fail `SpeculativeConfig` at TP=3 and its 128 experts don't divide by 3. Upstream
-  patched `dsv4_nvidia_model.py` (and, for TP=3, `dsv4_nvidia_model.py`) to carry
-  DSpark; a TP=3+DSpark recipe needs the drafter head-padding path re-derived.
-  **RE-CHECKED 2026-09-26, pinned to lines** (image `exl3a`): `_verify_and_get_draft_tp`
+- **E7. TP=3/TP=6 + DSpark — SOLVED AND MEASURED (2026-09-27).**
+  Both arms ship DSpark k=3 and both **booted and served** on 2026-09-27:
+  TP=3 KV 1,896,721 tok, C1/C4/C8 34.3/59.1/77.7, accept 2.40–2.50;
+  TP=6 KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50.
+  Root cause (characterized 2026-09-26/27, image `exl3a`): `_verify_and_get_draft_tp`
   (`vllm/config/speculative.py:1665`) sets the drafter's TP to the **target's TP**
   unless the draft is an `mlp_speculator`; `draft_tensor_parallel_size` may be **1 or
-  the target TP only** (`speculative.py:395`); the actual failure is
-  `vllm/config/model.py:1420` `total_num_attention_heads % tp != 0`. Arithmetic:
-  `64%3=1`, `64%6=4`, `128%6=2` — **TP=3 and TP=6 both fail on the drafter's 64
-  heads, TP=6 twice over.** The mod's `virtual_heads.py` names `mtp`/`draft` nowhere
-  (grep = 0 hits), so it cannot cover the drafter. **Whether TP=6+DSpark was ever
-  booted: NO** — treat "DSpark cannot run at TP=6" as **LIKELY arithmetic, verified
-  at the validation line but never boot-tested**.
-- **E8 (highest-value remaining draft question). `draft_tensor_parallel_size: 1` —
-  the cheap unlock for TP=3/TP=6 + DSpark.** The divisibility failure is the
-  drafter's 64 heads checked against the *inherited* TP; running the drafter at
-  **TP=1 under a TP=3/TP=6 target** skips the check, and the drafter is only
-  **7.93 GB**. If it works, TP=6 gains DSpark = ~14% at C8 on top of its already-best
-  108 t/s. Cost: one boot. Gate: the boot must reach `Capturing dspark CUDA graphs`
-  and log a **non-zero** `Mean acceptance length`; a `draft_tp=1` that boots but
-  accepts nothing is the EAGLE-on-DSpark-head failure mode and must be reported as
-  such, not as a win.
+  the target TP only** (`speculative.py:395`); the failure is
+  `vllm/config/model.py:1420` `total_num_attention_heads % tp != 0` (`64%3=1`,
+  `64%6=4`). The **fix**: dict `hf_overrides` are target-only
+  (`compose_draft_hf_overrides`, `speculative.py:1044-1067`), so the drafter never
+  saw the 72/9 (TP=3) or 96/12 (TP=6) virtual-heads declaration. The mod's
+  `config/speculative.py` applies that dict to the draft config; the drafter reuses
+  the target's modded attention and pads like the main model, and the mod's
+  `dsv4_nvidia_model.py` already relaxes the 128-expert assert on the no-EP path.
+  Evidence: device-free probe (`.scratch/ds4/dspark_tp36/`), then live boots
+  (`.scratch/ds4/dspark_tp36/live/`: `RESULTS.md`, `tp3_serve.log`, `tp6_serve.log`,
+  `*_accept.txt`, `measure_*.out`). Every §7.3 gate held — draft `97 params`, dspark
+  graphs `8/8`, Engram rows differ per rank, acceptance > 1. Upstream served the
+  TP=3 end-state (72/9, `exl3tp3a11`); the TP=6 (96/12) arm was first-of-kind.
+  See `DSPARK-TP3-STUDY.md`.
+- **E8. `draft_tensor_parallel_size: 1` — does NOT unlock DSpark (CLOSED, dead end).**
+  Probed and traced 2026-09-27: it passes `SpeculativeConfig` validation
+  (`speculative.py:1686-1692` allows 1), but DSpark is an **in-worker** speculator —
+  `model_runner.py:262` builds it from the worker's config, and the drafter model is
+  built inside every TP worker (`spec_decode/dspark/utils.py:34-76`), while
+  `draft_parallel_config` is consumed only by the v1 *proposer* path for eagle-style
+  separate draft workers (`v1/spec_decode/draft_model.py:72-89`). So validation
+  passes and the drafter then dies at build on `assert 64 % tp_size == 0`
+  (`deepseek_v4_1/attention.py:227`) with the target's TP. **Do not spend a boot on
+  it.** The accepted gate for the shipped design (E7) is unchanged: the boot must
+  reach `Capturing dspark CUDA graphs` and log a **non-zero** `Mean acceptance
+  length`; a boot that serves but accepts nothing is the EAGLE-on-DSpark-head failure
+  mode and must be reported as such, not as a win.
 
 ### SGLang lane (second engine)
 

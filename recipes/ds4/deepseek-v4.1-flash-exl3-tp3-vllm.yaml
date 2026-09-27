@@ -7,12 +7,16 @@ min_nodes: 3
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=3 across three DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, NO DSpark (the drafter's 64 heads and 128 experts
-    do not divide by 3; see AGENTS.md §7.3). TP=3 is only possible because the
-    model's 64 attention heads are padded to 72 (virtual heads). Faster than the
-    TP=4 lane at every concurrency upstream; it simply holds less context.
-    Booted and serving on our cluster 2026-09-24 (no-spec KV 2,798,624 tokens,
-    C1/C4/C8 15.8/47.1/69.1 t/s): see AGENTS.md §§7.3, 7.7.
+    Engram streamed from disk, DSpark k=3 (the measured optimum), 300K context.
+    TP=3 exists because the model's 64 attention heads and 8 output groups do
+    not divide by 3: it declares 72 heads / 9 groups (virtual heads), and the
+    mount-dsv41-exl3-patches mod applies that same declaration to the DSpark
+    drafter, which would otherwise fail SpeculativeConfig validation on its raw
+    64 heads. Booted and serving on our cluster 2026-09-27: KV 1,896,721 tokens
+    (vs 2,798,624 no-spec), DSpark mean acceptance length 2.40-2.50, C1/C4/C8
+    34.3/59.1/77.7 t/s (vs 15.8/47.1/69.1 no-spec). Upstream served the same
+    config (tonyd2wild EXL3-TP3.md, exl3tp3a11).
+    See AGENTS.md §§7.3, 7.7 and DSPARK-TP3-STUDY.md.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -41,9 +45,20 @@ executor_config:
 # fields via `--hf-overrides` (flat, not nested) instead of a ~48 GB model copy.
 # Mechanism: mods/mount-dsv41-exl3-patches/files/virtual_heads.py.
 #
+# DSpark AT TP=3 (2026-09-27). The same declaration must reach the DSpark
+# drafter. vLLM applies *callable* target hf_overrides to the draft config but
+# NOT dict ones, so the drafter kept its raw 64 heads and died at
+# ModelConfig.verify_with_parallel_config (64 % 3 != 0). The installed
+# mods/mount-dsv41-exl3-patches/files/config_speculative.py propagates this
+# dict's virtual-heads keys to the draft config (gate: the `virtual_heads_from`
+# key; toggle DSV41_DRAFT_VIRTUAL_HEADS, default on). The drafter reuses the
+# target's model code, so its attention then pads exactly like the main model's,
+# and the no-EP drafter MoE (128 experts) is already handled by the mod. See
+# DSPARK-TP3-STUDY.md.
+#
 # Everything else is the TP=4 recipe: same image, same mod, same Engram-on-disk
 # requirement (WITHOUT THE MOD THIS OOMs), except --max-num-batched-tokens 4096
-# (upstream's TP=3 value), NO DSpark, and 3 nodes.
+# (upstream's TP=3 value) and 3 nodes.
 
 env:
   HF_HUB_OFFLINE: "1"
@@ -87,11 +102,15 @@ defaults:
   # Flat, NOT nested under text_config: DeepseekV41Config flattens text_config
   # before vLLM applies hf_overrides. See AGENTS.md §7.3.
   hf_overrides: '{"num_attention_heads":72,"o_groups":9,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
-  # DSpark is OFF for TP=3: the drafter's own 64 heads fail SpeculativeConfig at
-  # TP=3 (vllm/config/model.py:1420; 64 % 3 = 1) and its 128 experts don't divide
-  # by 3 either. Our virtual-heads override pads the MAIN model, not the drafter.
-  # No --speculative-config line. See AGENTS.md §§7.3, 10 (E7/E8).
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,6,10,12,15,18,20,24,25,30,35,36,40,42,48]}'
+  # DSpark k=3 = measured optimum (13-boot sweep; AGENTS.md §7.7). Use k=1 for
+  # batch-serving; do NOT use k=4 or k=5. Adaptive verification MUST stay off
+  # (padded spec batches hang SM120 sparse MLA, FlashInfer #5015). The drafter
+  # sees the 72/9 declaration through the mod's config_speculative.py; its own
+  # 128-expert MoE is kept all-local by the mod's no-EP path.
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # Capture sizes are multiples of k and k+1; the ladder MUST match k
+  # (guard: KCaptureSizes), so changing k is not a one-line edit.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_encoder_tp_mode: data
   extra_args: ""
 
@@ -109,6 +128,7 @@ command: >
   --hf-overrides '{hf_overrides}'
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
+  --speculative-config '{speculative_config}'
   --compilation-config '{compilation_config}'
   --limit-mm-per-prompt '{"image":4}'
   --mm-encoder-tp-mode {mm_encoder_tp_mode}
@@ -123,9 +143,15 @@ readiness:
   health_timeout_s: 1800
 
 # Deliberately NOT set: --quantization (config.json declares exl3; the plugin
-# picks it up); --enable-expert-parallel (the drafter's 128 experts don't divide
-# by 3 and upstream's fix only relaxes the check when EP is OFF).
+# picks it up); --enable-expert-parallel (the drafter's 128 experts do not divide
+# by 3, and the mod's fix only relaxes the check when EP is OFF); the
+# DSV41_DRAFT_VIRTUAL_HEADS toggle (default on — set it to 0 only to reproduce
+# the pre-2026-09-27 no-spec failure).
 #
-# Boot-log checklist: as AGENTS.md §6.7, plus — the mod must wrap 3 params/layer
-# (wq_b, wo_a, wo_b) with the virtual-head loaders, and per-rank Engram row
-# ranges must DIFFER across the three ranks (8 hash columns each at TP=3).
+# Boot-log checklist: as AGENTS.md §6.7, plus — the mod must report
+# config_speculative.py installed AND the DSpark draft-model log line; the mod
+# must wrap 3 params/layer (wq_b, wo_a, wo_b) with the virtual-head loaders;
+# per-rank Engram row ranges must DIFFER across the three ranks (8 hash columns
+# each at TP=3); `Capturing dspark CUDA graphs (FULL): 8/8`; a
+# `Mean acceptance length` > 1 on `Decode batch` lines (a boot that serves but
+# accepts nothing is the EAGLE-on-DSpark-head failure mode, not a win).

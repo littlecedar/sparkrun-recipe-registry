@@ -7,11 +7,14 @@ min_nodes: 6
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=6 across six DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, ONE MILLION token context. The 1M sibling of
-    deepseek-v4.1-flash-exl3-tp6-vllm: identical except --max-model-len. TP=6
-    gives the largest KV pool of any measured topology, so it is the natural
-    host for the longest context -- the measured TP=6 pool at 300K was 12.78M
-    tokens vs 3.88M at TP=4.
+    Engram streamed from disk, DSpark k=3 (the measured optimum), ONE MILLION
+    token context. The 1M sibling of deepseek-v4.1-flash-exl3-tp6-vllm:
+    identical except --max-model-len. TP=6 gives the largest KV pool of any
+    measured topology, so it is the natural host for the longest context -- the
+    measured TP=6 pool at 300K was 12.78M tokens vs 3.88M at TP=4. DSpark at
+    TP=6 first booted 2026-09-27 (300K twin: KV 12.0M, accept length 2.4-2.5,
+    C1/C4/C8 44.5/72.5/115.3 t/s); the mod applies the 96/12 virtual-heads
+    declaration to the drafter so it validates.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -81,10 +84,15 @@ defaults:
   # Flat, NOT nested under text_config; heads 96 = 12 groups x 8, 12 is the
   # MINIMAL working group count (g % 3 == 0). See AGENTS.md §7.4.
   hf_overrides: '{"num_attention_heads":96,"o_groups":12,"virtual_heads_from":{"num_attention_heads":64,"o_groups":8}}'
-  # NO --speculative-config: DSpark cannot run at TP=6 (drafter 128 experts and
-  # 64 heads do not divide by 6). Same wall as TP=3; no TP=6+DSpark boot was
-  # ever attempted. See AGENTS.md §§7.3, 10 (E7/E8).
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}'
+  # DSpark k=3 = measured optimum (13-boot sweep; AGENTS.md §7.7). k is legal
+  # because 3 <= dspark_block_size (n_predict=5). Adaptive verification MUST stay
+  # off (padded spec batches hang SM120 sparse MLA, FlashInfer #5015). The
+  # drafter sees the 96/12 declaration through the mod's config_speculative.py.
+  # Kept identical to the 300K twin (guard-enforced: context is the only variable).
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # Capture sizes are multiples of k and k+1 and must reach max_num_seqs*(k+1)=32
+  # (guard: KCaptureSizes); a k change is not a one-line edit.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_encoder_tp_mode: data
   extra_args: ""
 
@@ -102,6 +110,7 @@ command: >
   --hf-overrides '{hf_overrides}'
   --engram-config '{"cpu_offload": false}'
   --default-chat-template-kwargs '{"thinking": false}'
+  --speculative-config '{speculative_config}'
   --compilation-config '{compilation_config}'
   --limit-mm-per-prompt '{"image":4}'
   --mm-encoder-tp-mode {mm_encoder_tp_mode}
@@ -116,12 +125,13 @@ readiness:
   health_timeout_s: 1800
 
 # Deliberately NOT set: --quantization (config.json declares exl3; the plugin
-# picks it up); --speculative-config (DSpark cannot run at TP=6); --enable-expert-
-# parallel (possible but unmeasured over RoCE; pure TP first);
+# picks it up); --enable-expert-parallel (the drafter's 128 experts are kept
+# all-local by the mod's no-EP path; EP at TP=6 is unmeasured over RoCE);
 # --kv-cache-memory-bytes (a pin changes the pool; §6.5).
 #
 # Boot-log checklist: as AGENTS.md §6.7, plus — max_model_len 1000000 must show
 # on /v1/models; the granted pool should be multi-M-token (a pool below ~1M means
-# one full-length request does not fit); the mod wrapped 3 params/layer and
-# per-rank Engram ranges DIFFER across the six ranks; the MoE must not raise the
-# FlashInfer-Cutlass /128 error; verify a 1M-scale needle.
+# one full-length request does not fit); the mod wrapped 3 params/layer, applied
+# the 96/12 declaration to the drafter, and per-rank Engram ranges DIFFER across
+# the six ranks; the MoE must not raise the FlashInfer-Cutlass /128 error; verify
+# a 1M-scale needle; a `Mean acceptance length` > 1 on `Decode batch` lines.

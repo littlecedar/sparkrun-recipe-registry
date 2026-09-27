@@ -23,16 +23,16 @@ _parse() strips whole-line comments before anything reads a block, so the prose
 cannot trip the guard that forbids it. CommentBlockProseStillParsed is the
 regression test for that.
 
-Sources for the invariants (DS4-MODEL-OPTIMIZATION-WORK.md, same directory):
-  SGLANG_B12X_MAX_TOKENS == --chunked-prefill-size ....... sec 4.1: the image's
+Sources for the invariants (recipes/ds4/AGENTS.md, same directory):
+  SGLANG_B12X_MAX_TOKENS == --chunked-prefill-size ....... §9.1: the image's
       b12x prefill gate is sized from this env var
   never --speculative-algorithm NEXTN ..................... sgl#38236 -- crashes
       at arg validation on DeepSeek-V4, unfixed on main 2c05ed4e7
-  never EAGLE on a DSpark head ............................ upstream cookbook:
-      starts, serves, accepts nothing, logs "accept rate: 0.00"
-  no expandable_segments on V4.1 .......................... sec 6.3: the 4x Spark
+  never EAGLE on a DSpark head ............................ §9: starts, serves,
+      accepts nothing, logs "accept rate: 0.00"
+  no expandable_segments on V4.1 .......................... §6.4: the 4x Spark
       V4.1 deployment reports NaN logits above 64 prefill query tokens
-  every defaults: key consumed by a placeholder ........... sec 7.4: a defaults
+  every defaults: key consumed by a placeholder ........... §8.3: a defaults
       key with no placeholder is silently not a setting, and this shipped an
       unbootable pair once in this registry
 """
@@ -46,7 +46,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ds4"
 
-# vLLM + cuda-exl3 lane, added 2026-09-23 (work doc 4.5, 7.5). Third party's
+# vLLM + cuda-exl3 lane, added 2026-09-23 (AGENTS.md §§5, 7). Third party's
 # measured recipe on the EXL3 checkpoint; ours is the sparkrun port.
 EXL3_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
 EXL3_TP4_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml"
@@ -56,6 +56,15 @@ EXL3_TP6_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml"
 
 ALL = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]
 EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # the V4.1 vLLM/EXL3 lane
+
+# The mod whose config/speculative.py makes DSpark validate at TP=3/TP=6 by
+# applying the recipe's virtual-heads dict overrides to the draft config
+# (DSPARK-TP3-STUDY.md, AGENTS.md §10 E7/E8). Pruning this file silently
+# reintroduces the "64 heads must be divisible by 3" SpeculativeConfig failure.
+MOD_PATCH_DIR = REPO_ROOT / "mods" / "mount-dsv41-exl3-patches"
+MOD_PATCH_MOUNTS = MOD_PATCH_DIR / "files" / "mounts.txt"
+MOD_PATCH_MD5S = MOD_PATCH_DIR / "files" / "MD5SUMS.txt"
+MOD_PATCH_FILE = MOD_PATCH_DIR / "files" / "config_speculative.py"
 
 # Placeholders sparkrun fills from its own resolution rather than `defaults:`.
 ENGINE_PLACEHOLDERS = {"model", "model_path", "host", "port"}
@@ -408,7 +417,7 @@ class Exl3LaneContract(unittest.TestCase):
             r = load(p)
             self.assertEqual(r.env.get("DSV41_ENGRAM_DISK"), "1",
                              f"{p.name}: Engram-on-disk reader must be enabled "
-                             "(work doc 3.1, 6.5)")
+                             "(AGENTS.md §5, §6.5)")
             for key in ("DSV41_ENGRAM_DISK_THREADS", "DSV41_ENGRAM_DISK_CHUNK",
                         "DSV41_ENGRAM_DIR"):
                 self.assertIn(key, r.env, f"{p.name}: missing {key}")
@@ -475,40 +484,44 @@ class Exl3LaneContract(unittest.TestCase):
             )
 
     def test_dspark_spec_config(self):
-        """DSpark requires a TP that divides the drafter's 128 experts and 64 heads.
+        """Every EXL3 recipe ships DSpark on the measured-optimal k, adaptive off.
 
-        The DSpark drafter's own SpeculativeConfig validates its 64 attention
-        heads against the TP size, and the drafter's 128 experts must divide too.
-        Both hold at TP=2 and TP=4 (64%4==0, 128%4==0) but NOT at TP=3 or TP=6
-        (64%3, 64%6, 128%3, 128%6 are all nonzero). Our virtual-heads override
-        pads the MAIN model, not the drafter, so those arms are no-spec.
-        Verified 2026-09-24. TP=3 and TP=6 are no-spec on purpose.
+        Until 2026-09-27 the TP=3 and TP=6 arms were no-spec: the DSpark drafter's
+        own 64 attention heads and 128 experts do not divide by 3 or 6, and
+        SpeculativeConfig validates the drafter at the target's TP. The fix
+        (DSPARK-TP3-STUDY.md, AGENTS.md §10 E7/E8) is the mod's
+        config_speculative.py, which applies the recipe's virtual-heads dict
+        overrides to the DRAFT config. So all five arms are DSpark arms now;
+        assert the positive contract instead of the retired negative one.
         """
-        no_spec = {EXL3_TP3, EXL3_TP6, EXL3_TP6_1M}
         for p in EXL3_RECIPES:
             r = load(p)
-            has_spec = "--speculative-config" in r.flags()
-            if p in no_spec:
-                self.assertFalse(
-                    has_spec,
-                    f"{p.name}: TP={r.default('tensor_parallel')} + DSpark fails "
-                    "SpeculativeConfig validation on the drafter's 64 heads / 128 "
-                    "experts; this arm is no-spec (see its header)",
-                )
-                continue
-            self.assertTrue(has_spec, p.name)
-            self.assertIn("dspark", r.default("speculative_config"), p.name)
+            self.assertIn(
+                "--speculative-config", r.flags(),
+                f"{p.name}: every EXL3 arm ships DSpark since 2026-09-27 "
+                "(DSPARK-TP3-STUDY.md); a no-spec arm is the old negative result",
+            )
+            spec = r.default("speculative_config")
+            self.assertIn("dspark", spec, p.name)
             # Adaptive verification must stay off: padded spec batches hang
             # SM120 sparse MLA (FlashInfer #5015).
             self.assertIn('"enable_adaptive_verification":false',
-                          r.default("speculative_config").replace(" ", ""),
+                          spec.replace(" ", ""),
                           f"{p.name}: adaptive verification off is required")
+            # A TP=3/TP=6 DSpark arm only validates because the drafter receives
+            # the virtual-heads declaration; the recipe must carry it.
+            if int(r.default("tensor_parallel")) in (3, 6):
+                self.assertIn(
+                    "virtual_heads_from", r.defaults.get("hf_overrides", ""),
+                    f"{p.name}: TP={r.default('tensor_parallel')} + DSpark needs "
+                    "the virtual_heads_from declaration for the drafter to see",
+                )
 
     def test_graph_capture_covers_max_seqs(self):
         """Capture sizes must reach max_num_seqs*(k+1); a truncation cost -12%.
 
         k is read from the recipe's own speculative_config, NOT hardcoded: the
-        measured optimum is k=3 (work doc §7.5.11) and the ladder MUST track k
+        measured optimum is k=3 (AGENTS.md §7.7) and the ladder MUST track k
         (k*n and (k+1)*n up to max_num_seqs*(k+1)). A hardcoded k=5 here would
         have silently validated a wrong ladder after the k change.
         """
@@ -519,7 +532,7 @@ class Exl3LaneContract(unittest.TestCase):
             sizes = re.findall(r"\d+", cc.split("cudagraph_capture_sizes")[-1])
             self.assertTrue(sizes, f"{p.name}: no cudagraph_capture_sizes")
             if "--speculative-config" not in r.flags():
-                continue  # no-spec arm: k=0, any non-empty list is enough
+                continue  # no-spec arm (none today): k=0, any non-empty list is enough
             m = re.search(r"num_speculative_tokens\D+(\d+)",
                           r.default("speculative_config"))
             self.assertIsNotNone(
@@ -535,7 +548,7 @@ class Exl3LaneContract(unittest.TestCase):
     def test_dspark_k_is_measured_optimum(self):
         """The DSpark arms must ship k in the measured-optimal set {1,2,3}.
 
-        A 13-boot sweep (work doc §7.5.11, 2026-09-26) found every k in {1,2,3}
+        A 13-boot sweep (AGENTS.md §7.7, 2026-09-26) found every k in {1,2,3}
         beats the upstream-default k=5 at every concurrency >=4, with the best C1
         at k=3. k=4 is dominated; k=5 is the worst tested. k must also satisfy the
         drafter constraint (k<=5 or k%5==0) -- vLLM rejects k=6 with
@@ -544,7 +557,7 @@ class Exl3LaneContract(unittest.TestCase):
         for p in EXL3_RECIPES:
             r = load(p)
             if "--speculative-config" not in r.flags():
-                continue  # no-spec arm (TP=3/TP=6): drafter does not divide
+                continue  # no-spec arm (none today): no k to check
             m = re.search(r"num_speculative_tokens\D+(\d+)",
                           r.default("speculative_config"))
             self.assertIsNotNone(m, f"{p.name}: no num_speculative_tokens")
@@ -552,7 +565,50 @@ class Exl3LaneContract(unittest.TestCase):
             self.assertIn(k, (1, 2, 3),
                           f"{p.name}: k={k} is not in the measured-optimal set "
                           "{1,2,3}; k=4 is dominated and k=5 is the worst tested "
-                          "(work doc §7.5.11)")
+                          "(AGENTS.md §7.7)")
+
+
+class ModDraftConfigContract(unittest.TestCase):
+    """The mod must keep shipping the DSpark draft-config patch.
+
+    `<mod>/files/config_speculative.py` is what makes DSpark validate at TP=3 and
+    TP=6: it applies the recipe's virtual-heads dict overrides to the DRAFT
+    config, which stock vLLM deliberately does not (dict hf_overrides are
+    target-only). Delete or prune the file from the mod and every TP=3/TP=6
+    DSpark arm silently reverts to the "64 heads must be divisible by 3" failure
+    the recipes now depend on being fixed. See DSPARK-TP3-STUDY.md, AGENTS.md §10.
+    """
+
+    def test_patch_file_present(self):
+        self.assertTrue(MOD_PATCH_FILE.is_file(),
+                        "the mod's config_speculative.py is what makes TP=3/TP=6 "
+                        "+ DSpark validate; it must ship with the mod")
+
+    def test_patch_file_is_whole_file_replacement_with_marker(self):
+        """The mod mounts whole files, so the image's own file + our block."""
+        text = MOD_PATCH_FILE.read_text()
+        self.assertIn("DSV41_DRAFT_VIRTUAL_HEADS", text,
+                      "the toggle marker must be present (run.sh asserts it)")
+        self.assertIn("compose_draft_hf_overrides", text,
+                      "the wrap target must be present, else the patch is inert")
+        self.assertIn("virtual_heads_from", text,
+                      "the gate key must be present, else the patch is inert")
+
+    def test_registered_in_mounts_and_md5(self):
+        mounts = MOD_PATCH_MOUNTS.read_text()
+        self.assertIn("config_speculative.py config/speculative.py", mounts,
+                      "config_speculative.py must be mapped to config/speculative.py")
+        md5s = MOD_PATCH_MD5S.read_text()
+        self.assertRegex(
+            md5s, r"(?m)^[0-9a-f]{8} +config_speculative\.py$",
+            "config_speculative.py must have an md5 entry or the fail-closed "
+            "gate does not cover it",
+        )
+
+    def test_run_sh_asserts_marker(self):
+        run_sh = (MOD_PATCH_DIR / "run.sh").read_text()
+        self.assertIn("DSV41_DRAFT_VIRTUAL_HEADS", run_sh,
+                      "run.sh must fail closed if the draft-config patch is absent")
 
 
 class NoHostBindMounts(unittest.TestCase):
@@ -602,15 +658,17 @@ class CommentBlockProseStillParsed(unittest.TestCase):
     sees nothing.
 
     Scoped to the vLLM family on purpose. These recipes legitimately omit
-    --speculative-config / --enable-expert-parallel and say so in prose; the
-    check proves that prose never leaks into the rendered command.
+    --enable-expert-parallel and say so in prose; the check proves that prose
+    never leaks into the rendered command.
     """
 
     FORBIDDEN = {"--enable-expert-parallel", "--quantization",
                  "--kv-cache-memory-bytes"}
-    # These are deliberately absent on the no-spec arms (TP=3, TP=6) and present
-    # on the DSpark arms (TP=4). Guarded by Exl3LaneContract.test_dspark_spec_config;
-    # here they must never leak from prose on the arms that omit them.
+    # Since 2026-09-27 every EXL3 arm ships DSpark (TP=3/TP=6 included), so this
+    # set is empty today. It stays as a tripwire: if a future retune makes an arm
+    # no-spec again, the prose that explains it ("--speculative-config is
+    # deliberately NOT set") must still not leak into the command. Guarded by
+    # Exl3LaneContract.test_dspark_spec_config.
     NO_SPEC_ABSENT = {"--speculative-config"}
 
     def test_prose_is_present_and_inert(self):
@@ -627,7 +685,12 @@ class CommentBlockProseStillParsed(unittest.TestCase):
                            "recipes got thinner or this test stopped proving anything")
 
     def test_nospec_prose_does_not_leak_spec_flag(self):
-        """The no-spec arms say 'NO --speculative-config' in prose; prove inert."""
+        """If an arm says 'NO --speculative-config' in prose, prove it is inert.
+
+        No arm is no-spec today (all five ship DSpark, 2026-09-27), so this is a
+        tripwire for a future retune: an arm that documents the absence of the
+        flag must not actually render it from that prose.
+        """
         for p in EXL3_RECIPES:
             r = load(p)
             if "--speculative-config" in r.flags():
@@ -758,14 +821,53 @@ class NegativeControls(unittest.TestCase):
 
     def test_control_description_spec_drift(self):
         """Prove the description/spec-config guard can fail."""
-        # A no-spec recipe (TP=3) whose description re-advertises DSpark k=5.
+        # A DSpark recipe whose description denies it (the inverse of the
+        # 2026-09-25 field bug, where a no-spec arm advertised DSpark).
         r = self._mutated(
             EXL3_TP3,
+            "Engram streamed from disk, DSpark k=3 (the measured optimum)",
             "Engram streamed from disk, NO DSpark",
-            "Engram streamed from disk, DSpark k=5",
         )
         with self.assertRaises(AssertionError):
-            self.assertNotIn("dspark k=", _folded(r.raw, "metadata").lower())
+            has_spec = "--speculative-config" in r.flags()
+            self.assertTrue(has_spec)
+            self.assertNotIn("no dspark", _folded(r.raw, "metadata").lower())
+
+    def test_control_dspark_spec_config_missing_on_tp3(self):
+        """Prove the positive DSpark contract can fail: drop the spec line."""
+        r = self._mutated(EXL3_TP3, "  --speculative-config '{speculative_config}'\n", "")
+        with self.assertRaises(AssertionError):
+            self.assertIn("--speculative-config", r.flags())
+
+    def test_control_tp3_dspark_without_virtual_heads_decl(self):
+        """A TP=3 DSpark arm needs virtual_heads_from for the drafter to validate."""
+        r = self._mutated(
+            EXL3_TP3,
+            ",\"virtual_heads_from\":{\"num_attention_heads\":64,\"o_groups\":8}",
+            "",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertIn("virtual_heads_from", r.defaults.get("hf_overrides", ""))
+
+    def test_control_mod_patch_file_removed(self):
+        """Prove the mod-contract guard can fail: drop the config_speculative line."""
+        r = self._mutated(
+            MOD_PATCH_MOUNTS,
+            "config_speculative.py config/speculative.py",
+            "",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertIn("config_speculative.py", r.raw)
+
+    def test_control_mod_md5_entry_removed(self):
+        """Prove the md5-table guard can fail."""
+        r = self._mutated(
+            MOD_PATCH_MD5S,
+            "c542580c config_speculative.py",
+            "",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertIn("config_speculative.py", r.raw)
 
     def test_control_engram_disk_off(self):
         r = self._mutated(EXL3_TP4, "DSV41_ENGRAM_DISK: \"1\"",
