@@ -23,18 +23,18 @@ MoE partition check (`moe_intermediate_size 2304/4 = 576`, not a multiple of 128
 | deepseek-v4.1-flash-exl3-tp4-vllm | | 36.7 / 72.8 / 96.1 (k=3) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚚 | 1M ctx; needle ✓@799K; 746 t/s prefill | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp6-vllm | | 44.5 / 72.5 / 115.3 (k=3, DSpark) | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚 | 1M ctx; KV 14.0M; needle ✓@799K | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚 | 1M ctx; KV 13.05M; C8 118.4 (k=3, DSpark); needle ✓@799K | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 
 **The `exl3-*-vllm` rows** use the EXL3 3.5 bpw checkpoint and
 `littlecedar/dgx-spark-dsv41:exl3a` with `mods/mount-dsv41-exl3-patches`
 (Engram-on-disk; without it the boot OOMs). The t/s column is C1 / C4 / C8
 aggregate, greedy, distinct prompts. **All five rows ship DSpark k=3**
 (2026-09-27): TP=3 and TP=6 included, via the mod's `config_speculative.py`,
-which applies the virtual-heads declaration to the drafter. **TP=3 and TP=6
-DSpark k=3 booted and were measured 2026-09-27** — TP=3 34.3/59.1/77.7, TP=6
-44.5/72.5/115.3 t/s, accept length ~2.4–2.5; those are single **cold** boots,
-while the TP=4 row and the 1M rows are warm figures — compare within a regime.
-C8 on TP=6 is the fleet's best.
+which applies the virtual-heads declaration to the drafter. **All three
+DSpark-eligible arms booted and were measured 2026-09-27** — TP=3 34.3/59.1/77.7,
+TP=6 300K 44.5/72.5/115.3, TP=6 1M 35.3/–/118.4 t/s, accept length ~2.4–2.5.
+The TP=3/TP=6 single boots are **cold**; the TP=4 row and the 1M no-spec figures
+are warm — compare within a regime. C8 on TP=6 (118.4 at 1M) is the fleet's best.
 Quality battery (measured on TP=3, TP=4 and TP=6): 19/19 easy, 17/18 hard,
 identical across all three — no measured quality cost from the padding.
 

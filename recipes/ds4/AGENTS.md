@@ -34,7 +34,7 @@ context, priority **quality > speed > context > TP**. Measured outcome:
 | **TP=4 (300K)** | serves | `…-exl3-tp4-vllm`, KV 3,879,721 tok, C8 76.1 cold / 88.5 warm |
 | **TP=3** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp3-vllm`, KV 1,896,721 tok, C1/C4/C8 34.3/59.1/77.7, accept 2.40–2.50 |
 | **TP=6** | serves, fastest; DSpark (measured 2026-09-27) | `…-exl3-tp6-vllm`, KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50 |
-| **TP=6 + 1M** | serves | `…-exl3-tp6-1m-vllm`, KV 14,038,103 tok, needle ✓ @199K & 799K |
+| **TP=6 + 1M** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp6-1m-vllm`, KV 13,054,046 tok, C8 118.4, accept 2.37–2.44, needle ✓ @199K & 799K |
 | **TP=2** | **impossible, not hard** | §3 — ~257 GB non-Engram weights vs 220 GB usable on a pair |
 
 TP=2 is a documented negative result and is guarded (`NoTP2`). The
@@ -575,11 +575,12 @@ bug). The TP=6 300K recipe with `max_model_len: 1000000` and nothing else change
 (guard-enforced). Guards caught two real omissions in the first draft: a missing
 `mods:` block (the Engram stays in RAM and the boot OOMs) and the no-spec
 classification. **2026-09-27:** the no-spec classification is retired — this
-sibling now ships DSpark k=3 like its 300K twin (identical except context,
-guard-enforced). The **300K** TP=6 DSpark arm booted 2026-09-27 (§7.4); the **1M**
-arm has not been booted with DSpark, but it differs only in `max_model_len` and
-the 300K arm's DSpark cost was ~6% of KV, so the 1M pool should land near
-~13.2M (SPECULATIVE — read the actual number from the log).
+sibling ships DSpark k=3 like its 300K twin (identical except context,
+guard-enforced). **Both TP=6 arms booted with DSpark on 2026-09-27**; this 1M arm
+was booted **exactly as shipped** (no `-o`) after the edit: KV **13,054,046 tokens**
+(no-spec 14,038,103 → −7%), accept length **2.37–2.44**, C1 35.3 / C8 **118.4 t/s**
+(the largest C8 measured here), `max_model_len 1000000` on `/v1/models`, quality
+correct. Raw: `.scratch/ds4/dspark_tp36/live/`.
 
 ### 7.6 Quality — our own held-out battery (E5, 2026-09-24)
 
@@ -987,9 +988,12 @@ grep is `--tensor-parallel-size N`.
   NFS for the weight load, so `tools/engram_local.py` rows are a **throughput**
   follow-up, not a correctness one. Deliberately deferred.
 - **E7. TP=3/TP=6 + DSpark — SOLVED AND MEASURED (2026-09-27).**
-  Both arms ship DSpark k=3 and both **booted and served** on 2026-09-27:
+  All three DSpark-eligible arms ship DSpark k=3 and **booted and served** on
+  2026-09-27 — TP=3, TP=6 300K, and TP=6 1M (the last booted exactly as shipped):
   TP=3 KV 1,896,721 tok, C1/C4/C8 34.3/59.1/77.7, accept 2.40–2.50;
-  TP=6 KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50.
+  TP=6 KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50;
+  TP=6 1M KV 13,054,046 tok, C1/C8 35.3/118.4, accept 2.37–2.44. (TP=4 already
+  shipped DSpark k=3 and was measured earlier.)
   Root cause (characterized 2026-09-26/27, image `exl3a`): `_verify_and_get_draft_tp`
   (`vllm/config/speculative.py:1665`) sets the drafter's TP to the **target's TP**
   unless the draft is an `mlp_speculator`; `draft_tensor_parallel_size` may be **1 or
