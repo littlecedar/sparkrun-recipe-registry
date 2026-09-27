@@ -7,13 +7,11 @@ min_nodes: 4
 metadata:
   description: >-
     DeepSeek-V4.1-Flash at TP=4 across four DGX Sparks, EXL3 3.5 bpw experts,
-    Engram streamed from disk, DSpark k=3 (the measured optimum, work doc 7.5.11),
-    ONE MILLION token context. This is
-    the context lane: upstream measured a 3.3M-token KV pool at 300K and ~3.41M
+    Engram streamed from disk, DSpark k=3 (the measured optimum),
+    ONE MILLION token context. This is the context lane: upstream measured ~3.41M
     tokens at 1M on this stack, versus 1.07M for the release checkpoint on the
     same four nodes. Booted and serving on our cluster 2026-09-24 (KV 4,200,885
-    tokens, needle correct at 799K prompt tokens): see
-    DS4-MODEL-OPTIMIZATION-WORK.md sections 2.5, 4.5 and 7.5.
+    tokens, needle correct at 799K prompt tokens): see AGENTS.md §§2.5, 7.2.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -23,43 +21,25 @@ metadata:
   tags: large-context, research_preview
 
 mods:
-  # Listed for parity; INERT in every mode (rootless blocks the write, and the
-  # mod's own redirect order sends '3' to its log, not drop_caches). Header: TP=4.
+  # drop-caches is INERT in every mode (see AGENTS.md §7.8); listed for parity.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
 
-# The image declares ENTRYPOINT ["vllm","serve"], which would parse sparkrun's
-# appended launcher as its own flags and never run the workload. sparkrun
-# detects this and refuses to launch until it is cleared (verified on 10.0.4.32
-# 2026-09-24: the same command runs once the entrypoint is empty). This is the
-# durable place to declare it; `-o entrypoint=''` is the one-off equivalent.
+# The image declares ENTRYPOINT ["vllm","serve"]; clear it or sparkrun refuses
+# to launch. See AGENTS.md §6.1.
 executor_config:
   entrypoint: ""
 
 # ---------------------------------------------------------------------------
-# 1M CONTEXT — what is proven and what is not
+# 1M CONTEXT — see AGENTS.md §§7.2, 3.3.
 # ---------------------------------------------------------------------------
-# PROVEN (third party, same hardware):
-#   * tonyd2wild proved 1M at TP=4 on the release checkpoint with a
-#     1,078,380-token DSpark KV pool, as a separate boot from the 300K default.
-#   * bot-lab-21 published a 1M-context serving row on THIS checkpoint with
-#     3.41M tokens of KV ("3.4 full-length requests") at C1 55.9/61.4,
-#     C4 147.2, C6 192.0, prefill 1142/1326/1385/1406 tok/s.
-#   * A KV-grouping patch (`DSV41_KV_GROUPING=fine`) takes it to 5.57M tokens
-#     (+63%) for -6% single-stream / -8% C6. NOT shipped here; it is a further
-#     patch, not part of the mod. Work doc 4.5.
-# NOT PROVEN: that 1M *works* on our nodes. Nothing in this file is measured
-# here. The Engram-on-disk requirement is the same as the TP=4 recipe and is
-# STILL LOAD-BEARING: without the mod's engram.py replacement the boot OOMs.
+# The only difference from the 300K twin is `--max-model-len 1000000` plus a
+# graph ladder covering max_num_seqs*(k+1). The Engram-on-disk mod is still
+# LOAD-BEARING: without its engram.py replacement the boot OOMs.
 #
-# The difference from the 300K recipe is exactly two numbers: --max-model-len
-# 1000000 and the graph capture sizes, which must cover max_num_seqs*(k+1).
-# Everything else is deliberate and mirrored from the upstream 300K lane.
-#
-# READ THE KV POOL FROM THE BOOT LOG, NOT FROM THIS FILE. `sparkrun recipe vram`
-# computes 0.6 GB for this model because it cannot read the EXL3/Engram layout
-# and its MLA estimate excludes the sparse-indexer and SWA caches (work doc 3.3).
-# The only trustworthy number is the engine's own "GPU KV cache size" line.
+# READ THE KV POOL FROM THE BOOT LOG: `sparkrun recipe vram` cannot read the
+# EXL3/Engram layout. Not shipped: a KV-grouping patch (DSV41_KV_GROUPING=fine,
+# +63% pool for -6%/-8%) — a further patch, not part of the mod.
 
 env:
   HF_HUB_OFFLINE: "1"
@@ -81,8 +61,7 @@ env:
   DSV41_ENGRAM_DIR: /engram-local
   # NCCL transport vars (NET/HCA/GID_INDEX/DISABLE/CROSS_NIC/MERGE_NICS/
   # IGNORE_CPU_AFFINITY) are deliberately NOT set: sparkrun's InfiniBand probe
-  # fills them per cluster and a recipe value overrides that detection.
-  # See deepseek-v4.1-flash-exl3-tp4-vllm.yaml for the full note.
+  # fills them per cluster. See AGENTS.md §6.3.
   NCCL_MAX_NCHANNELS: "8"
   NCCL_CUMEM_ENABLE: "0"
   NCCL_NVLS_ENABLE: "0"
@@ -97,15 +76,13 @@ defaults:
   gpu_memory_utilization: 0.80
   # THE POINT OF THIS RECIPE.
   max_model_len: 1000000
-  # Keep 8: the pool is ~3.41M tokens, so 8 concurrent 300K requests fit; a
-  # handful of full-length ones do not (3.41M / 1M = 3.4). This is a context
-  # recipe, not a concurrency one.
+  # Keep 8: ~3.4 concurrent full-length requests; a context recipe, not a
+  # concurrency one.
   max_num_seqs: 8
   max_num_batched_tokens: 8192
   block_size: 128
-  # k=3 = measured optimum, same as the 300K twin (work doc §7.5.11). A 1M
-  # sibling must differ from its 300K twin in max_model_len ONLY (guard), so this
-  # line is deliberately identical to the TP=4 300K recipe's.
+  # k=3 = measured optimum (AGENTS.md §7.7); identical to the 300K twin, which
+  # the 1M-vs-300K guard requires (differ in max_model_len ONLY).
   speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
   compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
   mm_processor_cache_gb: 1
@@ -138,14 +115,8 @@ readiness:
   port_timeout_s: 7200
   health_timeout_s: 1800
 
-# Deliberately NOT set, and why:
-#   --kv-cache-memory-bytes: upstream's older 1M lane mentioned a KV pin, but
-#     the served configs size the pool from the tightest rank. A pin changes the
-#     pool, so it is a measurement variable, not a default (work doc 3.3).
-#   --enable-prefix-caching: on by default in this vLLM; a vLLM issue reports it
-#     once collapsing DSpark acceptance (#47930). A/B it, do not assume.
-#
-# Long-context bench discipline (work doc 10): unique prompts per context length
-# (radix-cache reuse produces absurd TTFT), and drop the page cache between legs
-# on these boxes -- Engram row reads grow the page cache and push MemFree into
-# the zone where the GB10 allocator stalls (upstream: MemFree 1.5-3.7 GiB).
+# Deliberately NOT set: --kv-cache-memory-bytes (a pin changes the pool, §6.5);
+# --enable-prefix-caching (on by default; a vLLM issue reports it collapsing
+# DSpark acceptance, #47930 — A/B it). Long-context bench discipline: AGENTS.md
+# §11 (unique prompts; drop the page cache between legs — Engram row reads push
+# MemFree into the zone where the GB10 allocator stalls).
