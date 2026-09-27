@@ -11,3 +11,4 @@ exl3_moe.py /usr/local/lib/python3.12/dist-packages/cuda_exl3/moe.py
 vocab_parallel_embedding.py model_executor/layers/vocab_parallel_embedding.py
 vl_model.py models/deepseek_v4_1/nvidia/vl_model.py
 dsv4_nvidia_model.py models/deepseek_v4/nvidia/model.py
+config_speculative.py config/speculative.py
