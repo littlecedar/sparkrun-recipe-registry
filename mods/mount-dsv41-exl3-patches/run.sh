@@ -16,6 +16,8 @@ set -euo pipefail
 # for the source->target map. The Engram-on-disk reader (engram.py +
 # model_state.py + weight_utils.py) is the load-bearing one: without it the
 # 203 GB Engram tables cannot leave unified RAM and a 4-node TP=4 boot OOMs.
+# config/speculative.py is ours: it propagates the recipe's dict hf_overrides
+# (virtual heads) to the DSpark draft config so TP=3/TP=6 + DSpark validates.
 #
 # Contract, fail-closed:
 #   * Every vendored file is md5-verified against files/MD5SUMS.txt.
@@ -193,6 +195,21 @@ if [[ -f "${VLLM_BASE}/models/deepseek_v4_1/common/engram.py" ]]; then
   log "verified: Engram-on-disk reader present (DSV41_ENGRAM_DISK)"
 else
   die "engram.py target missing after install"
+fi
+
+# Sanity: the DSpark draft-config patch must have landed too. Without it a
+# TP=3/TP=6 DSpark arm dies at ModelConfig.verify_with_parallel_config on the
+# drafter's raw 64 heads (see DSPARK-TP3-STUDY.md, recipes/ds4/).
+if [[ -f "${VLLM_BASE}/config/speculative.py" ]]; then
+  if ! grep -q "DSV41_DRAFT_VIRTUAL_HEADS" "${VLLM_BASE}/config/speculative.py"; then
+    die "speculative.py installed but DSV41_DRAFT_VIRTUAL_HEADS absent -- wrong patch tree?"
+  fi
+  if ! grep -q "compose_draft_hf_overrides" "${VLLM_BASE}/config/speculative.py"; then
+    die "speculative.py lost compose_draft_hf_overrides -- patch applied to the wrong file?"
+  fi
+  log "verified: DSpark draft-config virtual-heads patch present"
+else
+  die "speculative.py target missing after install"
 fi
 
 reown "${LOGDIR}"
