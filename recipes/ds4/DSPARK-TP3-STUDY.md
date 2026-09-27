@@ -2,10 +2,11 @@
 
 **Status:** study complete 2026-09-27. Verdict: **feasible**. One design survives; it is
 a ~25-line mod addition plus recipe edits, not a kernel or engine project.
-**IMPLEMENTED AND BOOTED 2026-09-27 (§12).** Design A shipped; TP=3/TP=6 recipes carry
-DSpark k=3; **both arms booted and served live** — TP=3 C1/C4/C8 34.3/59.1/77.7 t/s
-(accept 2.40–2.50), TP=6 44.5/72.5/115.3 (accept 2.43–2.50), every §7.3 gate held.
-Results: `.scratch/ds4/dspark_tp36/live/RESULTS.md`.
+**IMPLEMENTED AND BOOTED 2026-09-27 (§12).** Design A shipped; the TP=3/TP=6
+recipes carry DSpark k=3; **all three DSpark-eligible arms booted and served live** —
+TP=3 C1/C4/C8 34.3/59.1/77.7 t/s (accept 2.40–2.50), TP=6 300K 44.5/72.5/115.3
+(accept 2.43–2.50), TP=6 1M 35.3/—/118.4 (accept 2.37–2.44, booted as shipped),
+every §7.3 gate held. Results: `.scratch/ds4/dspark_tp36/live/RESULTS.md`.
 **Audience:** the agent who writes the mod next. Everything below is either cited to a
 primary artifact or labelled. Do not build on anything labelled SPECULATIVE.
 
@@ -430,6 +431,9 @@ HOME="$H" sparkrun run recipes/ds4/deepseek-v4.1-flash-exl3-tp3-vllm --cluster d
 - [x] Probe boot TP=6 the same way (first-of-kind; single boot, all gates).
       **DONE 2026-09-27** — first DSpark boot at TP=6 anywhere; KV 12,006,501,
       accept 2.43–2.50, C1/C4/C8 44.5/72.5/115.3.
+- [x] Boot the TP=6 **1M** sibling with DSpark, since it ships the spec config in its
+      own defaults. **DONE 2026-09-27** — booted exactly as shipped (no `-o`); KV
+      13,054,046, accept 2.37–2.44, C1/C8 35.3/118.4, quality smoke correct.
 - [x] Edit the three recipes + descriptions; update guards (§9) **with negative
       controls**; run the full ritual (AGENTS.md §8.3): unittest discover,
       `sparkrun recipe validate` (no `--strict`) on all five, rendered-line grep.
