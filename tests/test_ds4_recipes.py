@@ -467,6 +467,24 @@ class Exl3LaneContract(unittest.TestCase):
                 f"{p.name}: drop-caches must precede the patch mod (qwen4 order)",
             )
 
+    def test_bound_engram_cache_after_patch_mod(self):
+        """Every EXL3 recipe must list bound-engram-cache AFTER mount-dsv41.
+
+        `mods:` is an ORDERED chain. `bound-engram-cache` post-patches the engram.py
+        that `mount-dsv41-exl3-patches` installs, so it MUST run after it -- reversed,
+        it would fire on a missing/unpatched target and (fail-closed) abort the
+        launch. It is listed now that it is boot-verified safe/neutral (AGENTS.md
+        §7.8.1; MEMORY-RECLAIM-PLAN.md §7).
+        """
+        for p in EXL3_RECIPES:
+            mods = re.findall(r'^\s*-\s*"(@[^"]+)"', p.read_text(), re.M)
+            self.assertIn("@littlecedar/mods/bound-engram-cache", mods, p.name)
+            self.assertLess(
+                mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"),
+                mods.index("@littlecedar/mods/bound-engram-cache"),
+                f"{p.name}: bound-engram-cache must follow the patch mod it patches",
+            )
+
     def test_consuming_entrypoint_cleared(self):
         """The image's ENTRYPOINT ["vllm","serve"] swallows sparkrun's command.
 
@@ -781,11 +799,13 @@ class NegativeControls(unittest.TestCase):
         return Recipe(text.replace(old, new, 1), path.name)
 
     def test_control_unconsumed_default(self):
-        # Anchor on gpu_memory_utilization rather than a value that may be
-        # retuned: a control whose anchor is a tunable number breaks the next
-        # time someone tunes it, and then nobody trusts the control.
-        r = self._mutated(EXL3_TP4, "gpu_memory_utilization: 0.80",
-                          "gpu_memory_utilization: 0.80\n  kv_pin: 8388608")
+        # Anchor on tensor_parallel (a structural property of this recipe, not a
+        # tunable number): a control whose anchor is a tunable value breaks the
+        # next time someone tunes it, and then nobody trusts the control. (The
+        # old anchor, `gpu_memory_utilization: 0.80`, duly broke on the
+        # 2026-09-27 retune to 0.85.)
+        r = self._mutated(EXL3_TP4, "tensor_parallel: 4",
+                          "tensor_parallel: 4\n  kv_pin: 8388608")
         with self.assertRaises(AssertionError):
             for key in r.defaults:
                 if key in ENGINE_PLACEHOLDERS:
@@ -895,6 +915,29 @@ class NegativeControls(unittest.TestCase):
             self.assertLess(mods.index("@eugr/mods/drop-caches"),
                             mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"))
 
+    def test_control_bound_engram_cache_before_patch_mod(self):
+        """Prove the bound-engram-cache ordering guard can fail.
+
+        Reorders the two entries (the comment block moves with bound-engram-cache)
+        so bound-engram-cache precedes the patch mod it post-patches.
+        """
+        r = self._mutated(
+            EXL3_TP4,
+            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"\n'
+            '  # Bounds the Engram reader\'s host page cache (POSIX_FADV_DONTNEED per batch).\n'
+            '  # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral\n'
+            '  # 2026-09-27 (KV 4.11M vs 3.97M baseline, 27*43->1161). See AGENTS.md §7.8.1,\n'
+            '  # MEMORY-RECLAIM-PLAN.md §7.\n'
+            '  - "@littlecedar/mods/bound-engram-cache"',
+            '  # Bounds the Engram reader\'s host page cache (POSIX_FADV_DONTNEED per batch).\n'
+            '  - "@littlecedar/mods/bound-engram-cache"\n'
+            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"',
+        )
+        mods = re.findall(r'^\s*-\s*"(@[^"]+)"', r.raw, re.M)
+        with self.assertRaises(AssertionError):
+            self.assertLess(mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"),
+                            mods.index("@littlecedar/mods/bound-engram-cache"))
+
     def test_control_no_1m_recipe(self):
         r = self._mutated(EXL3_TP4_1M, "max_model_len: 1000000",
                           "max_model_len: 300000")
@@ -903,12 +946,13 @@ class NegativeControls(unittest.TestCase):
 
     def test_control_truncated_capture_sizes(self):
         r = self._mutated(EXL3_TP4,
-                          "cudagraph_capture_sizes\":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]",
+                          "cudagraph_capture_sizes\":[3,4,6,8,9,12,15,16,18,20,21,24,28,32,36,40,44,48,52,56,60,64]",
                           "cudagraph_capture_sizes\":[3,4,6,8,9,12,15,16]")
         with self.assertRaises(AssertionError):
             cc = r.default("compilation_config")
             sizes = [int(s) for s in re.findall(r"\d+", cc.split("cudagraph_capture_sizes")[-1])]
-            # must reach max_num_seqs*(k+1); for the shipped k=3 that is 32
+            # must reach max_num_seqs*(k+1); for the shipped k=3, max_num_seqs=16
+            # that is 64
             self.assertGreaterEqual(max(sizes), int(r.default("max_num_seqs")) * 4)
 
 

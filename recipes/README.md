@@ -17,32 +17,51 @@ watchdog each ruled out by a control), and the two V4.1 rows fail the MXFP4-Cutl
 MoE partition check (`moe_intermediate_size 2304/4 = 576`, not a multiple of 128)
 — plus `dev-dsv41` lacks the `b12x` kernels. See `recipes/ds4/AGENTS.md` §9.
 
-| Recipe | Flags | t/s (C1 / C4 / C8) | Size | Mem | TP | Model Cards |
+| Recipe | Flags | t/s (C1 / C4 / C8 / C16) | Size | Mem | TP | Model Cards |
 |:-------|:------|------:|-----:|----:|---:|:------------|
 | deepseek-v4.1-flash-exl3-tp3-vllm | | 34.3 / 59.1 / 77.7 (k=3, DSpark) | 460GB | 0.80 | 3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-vllm | | 36.7 / 72.8 / 96.1 (k=3) | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚚 | 1M ctx; needle ✓@799K; 746 t/s prefill | 460GB | 0.80 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-vllm | | 44.5 / 72.5 / 115.3 (k=3, DSpark) | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚 | 1M ctx; KV 13.05M; C8 118.4 (k=3, DSpark); needle ✓@799K | 460GB | 0.80 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-vllm | | 38.8 / 66.3 / 88.5 / 122.0 (k=3) | 460GB | 0.85 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚚 | 40.7 / 65.4 / 84.5 / 121.3 (k=3); 1M ctx; needle ✓@799K | 460GB | 0.85 | 4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp6-vllm | | 40.0 / 78.0 / 107.9 / 151.1 (k=3, DSpark) | 460GB | 0.85 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚 | 43.4 / 72.7 / 110.2 / 149.1 (k=3, DSpark); 1M ctx; needle ✓@799K | 460GB | 0.85 | 6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 
 **The `exl3-*-vllm` rows** use the EXL3 3.5 bpw checkpoint and
 `littlecedar/dgx-spark-dsv41:exl3a` with `mods/mount-dsv41-exl3-patches`
-(Engram-on-disk; without it the boot OOMs). The t/s column is C1 / C4 / C8
-aggregate, greedy, distinct prompts. **All five rows ship DSpark k=3**
-(2026-09-27): TP=3 and TP=6 included, via the mod's `config_speculative.py`,
-which applies the virtual-heads declaration to the drafter. **All three
-DSpark-eligible arms booted and were measured 2026-09-27** — TP=3 34.3/59.1/77.7,
-TP=6 300K 44.5/72.5/115.3, TP=6 1M 35.3/–/118.4 t/s, accept length ~2.4–2.5.
-The TP=3/TP=6 single boots are **cold**; the TP=4 row and the 1M no-spec figures
-are warm — compare within a regime. C8 on TP=6 (118.4 at 1M) is the fleet's best.
-Quality battery (measured on TP=3, TP=4 and TP=6): 19/19 easy, 17/18 hard,
-identical across all three — no measured quality cost from the padding.
+(Engram-on-disk; without it the boot OOMs). The t/s column is C1 / C4 / C8 / C16
+aggregate, greedy, distinct prompts, **cold** server, non-streaming decode
+(`usage.completion_tokens`/elapsed — NOT an SSE chunk count, which under-reports
+~3.5× under spec decode). **All five rows ship DSpark k=3** (2026-09-27): TP=3
+and TP=6 included, via the mod's `config_speculative.py`, which applies the
+virtual-heads declaration to the drafter.
 
-**Watch the harness when comparing the TP=4 row.** Its shipped config changed to
-k=3 and its numbers (36.7 / 72.8 / 96.1) come from the AGENTS.md §7.7 k-sweep harness —
-the same harness measured k=5 at 33.3 / 62.1 / 84.4 on four boots. The earlier
-k=5 "warm repeat" row (37.5 / 61.9 / 88.5) is a *different* harness and is NOT
-directly comparable to the k=3 row; compare within the sweep, not across it.
+**Retune 2026-09-27 (this row set): the four TP=4/TP=6 recipes ship
+`max_num_seqs: 16` and `gpu_memory_utilization: 0.85`, with the CUDA-graph
+capture ladder extended to `16·(k+1) = 64`.** Every number above is from a boot
+of the recipe **exactly as shipped**. Effect: the granted KV pool rose on every
+arm — TP=4 300K 3.88M→**5.20M** tok (+34 %), TP=4 1M 4.20M→**5.75M** (+37 %),
+TP=6 300K 12.0M→**13.6M** (+13 %), TP=6 1M 13.1M→**15.0M** (+15 %) — and C16 is
+newly reachable (the old 8-seq cap queued it). `max_num_seqs` is the resident
+slot count; **maximum concurrency is pool/ctx** (AGENTS.md §6.5), so the TP=4 1M
+arm's 16 slots *queue* a full-1M workload rather than running it 16-wide, while
+the other three run 16 concurrent requests outright. TP=3 is unchanged (8, 0.80)
+— outside the retune's TP=4/TP=6 scope.
+
+**The 1M rows now carry a 🚀 note in the prose, not a flag:** their C16
+aggregate exceeds 60 t/s (121.3 / 149.1), so a case could be made for the `fast`
+tag. **We did not add it**: the flag legend's own threshold is an *average*
+("> 60t/s avg"), these are C16-*aggregate* figures, and the single-stream rates
+(C1 40.7 / 43.4) sit below it. Tagging on an aggregate would be the exact
+`tg t/s` misreading `benchmarking/README.md` warns against. A future retune may
+promote it deliberately; this one does not.
+
+**Watch the harness when comparing.** These C1/C4/C8/C16 come from one cold boot
+each on the same bench script (`.scratch/ds4/gmu/measure_arm.py`, distinct
+prompts, greedy, non-streaming). The earlier rows' 36.7/72.8/96.1 (TP=4) and
+44.5/72.5/115.3 (TP=6 300K) came from the AGENTS.md §7.7 k-sweep harness at
+gmu 0.80 / 8 seqs and are **NOT directly comparable** — compare within a harness,
+and prefer the retune rows above. Inter-boot scatter on GB10 is 7–25 %; a single
+boot per arm ranks nothing, so the C16 column (the least-scattered, most
+capacity-bound cell) is the one to trust for the retune's effect.
 
 **The DSpark draft depth is k=3, and that is measured, not inherited.** A 13-boot
 sweep over k ∈ {1..5} on the TP=4 lane (AGENTS.md §7.7) found every k in {1,2,3}

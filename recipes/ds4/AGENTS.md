@@ -30,12 +30,16 @@ context, priority **quality > speed > context > TP**. Measured outcome:
 
 | target | verdict | basis |
 |:--|:--|:--|
-| **TP=4 + 1M** | buildable, serves | `…-exl3-tp4-1m-vllm`, KV 4,200,885 tok, needle ✓ @799K |
-| **TP=4 (300K)** | serves | `…-exl3-tp4-vllm`, KV 3,879,721 tok, C8 76.1 cold / 88.5 warm |
+| **TP=4 + 1M** | buildable, serves | `…-exl3-tp4-1m-vllm`, KV 5,750,109 tok (@gmu 0.85), needle ✓ @799K |
+| **TP=4 (300K)** | serves | `…-exl3-tp4-vllm`, KV 5,203,288 tok, C1/C4/C8/C16 38.8/66.3/88.5/122.0 |
 | **TP=3** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp3-vllm`, KV 1,896,721 tok, C1/C4/C8 34.3/59.1/77.7, accept 2.40–2.50 |
-| **TP=6** | serves, fastest; DSpark (measured 2026-09-27) | `…-exl3-tp6-vllm`, KV 12,006,501 tok, C1/C4/C8 44.5/72.5/115.3, accept 2.43–2.50 |
-| **TP=6 + 1M** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp6-1m-vllm`, KV 13,054,046 tok, C8 118.4, accept 2.37–2.44, needle ✓ @199K & 799K |
+| **TP=6** | serves, fastest; DSpark (measured 2026-09-27) | `…-exl3-tp6-vllm`, KV 13,594,187 tok, C1/C4/C8/C16 40.0/78.0/107.9/151.1 |
+| **TP=6 + 1M** | serves + DSpark (measured 2026-09-27) | `…-exl3-tp6-1m-vllm`, KV 15,034,010 tok, C1/C8/C16 43.4/110.2/149.1, needle ✓ @799K |
 | **TP=2** | **impossible, not hard** | §3 — ~257 GB non-Engram weights vs 220 GB usable on a pair |
+
+All four TP=4/TP=6 rows were retuned 2026-09-27 to `max_num_seqs: 16` and
+`gpu_memory_utilization: 0.85` (§7.12); the KV/C1/C8 figures above are from
+boots of the recipes **exactly as shipped** after that retune.
 
 TP=2 is a documented negative result and is guarded (`NoTP2`). The
 `MillionTokenContext` guard makes the 1M requirement a shipped-artifact invariant.
@@ -458,6 +462,13 @@ weights, KV pool, CUDA-graph capture). `readiness.port_timeout_s: 7200` /
 All five recipes serve. Engram rows are read from the NFS-cached model files;
 node-local rows are a throughput follow-up only, correctness unaffected.
 
+> **§§7.1–7.5 below predate the 2026-09-27/28 `max_num_seqs=16` / `gmu 0.85`
+> retune** and quote the gmu-0.80 KV pools and 8-seq throughput. They remain
+> valid as the *history* and the TPs' mechanism, but for shipped numbers read
+> **§7.12** and the current `recipes/README.md` table. Their KV figures are
+> superseded (e.g. TP=4 300K 3.88M → 5.20M); their fingerprints of the arms
+> (mod gates, Engram rows, drafter, o_groups) still hold.
+
 ### 7.1 TP=4 (300K) — `…-exl3-tp4-vllm`
 
 Image `exl3a`, checkpoint off the shared HF cache, 4 nodes as one TP=4 group,
@@ -709,10 +720,11 @@ voids the `> target`).
 so the recipes are UNCHANGED.** The objective asked to switch from
 `@eugr/mods/drop-caches` *if* the littlecedar mod mitigates the cache growth. It
 does not. **The reference itself is fine** — the mod is pushed (`mods/drop-caches/run.sh`
-in the littlecedar `origin/main`) and the canonical head resolves it (VERIFIED on
-`spark-head`, 2026-09-27: registry `trusted: true`, `sparkrun registry list` row
-`Trusted=yes`, `~/.cache/sparkrun/registries/littlecedar/mods/drop-caches/run.sh`
-present). So the decision is deliberate, not a resolution failure, for three reasons:
+in the littlecedar `origin/main`) and the canonical head resolves it (registry
+`trusted: true`, `sparkrun registry list` row `Trusted=yes`, and
+`~/.cache/sparkrun/registries/littlecedar/mods/drop-caches/run.sh` present, VERIFIED
+on the canonical head 2026-09-27). So the decision is deliberate, not a resolution
+failure, for three reasons:
 
 1. **The replacement would abort every shipped launch.** sparkrun launches these
    recipes **rootless** (`api/_run.py:474` sets `rootless = not options.rootful`;
@@ -732,12 +744,12 @@ present). So the decision is deliberate, not a resolution failure, for three rea
    mod has nothing to drop at launch (reason 3), and forcing every launch
    `--privileged` is a sandbox change and a standing privilege grant bought for a
    no-op — the opposite of what parity wants.
-3. **There is no in-container cache growth at launch to drop.** The one
-   authenticated mechanism is **Engram row reads during serving** growing the page
-   cache (upstream: `Cached` 6→10 GiB, `MemFree` → 3.7 GiB, "the zone where GB10's
-   GPU allocator can stall", one drop returns 8 GiB — `.scratch/ds4/tonyd2wild-vllm/docs/EXL3-TP3.md:74`).
-   At launch the rows have not been read yet, and even at serving the drop is a
-   **bench action between legs** (§11), not a per-boot recipe step.
+3. **A drop at launch, even if it ran, would buy nothing measured.** The cache
+   *does* grow hugely at launch — ~45–58 GiB/node from the weight load (§7.8.1) —
+   and it is clean/reclaimable, but a **load-window drop bought +0.9% KV (noise)
+   and less available KV** in a controlled A/B (§7.8.1). The serving-time Engram
+   contribution is small and a between-legs bench concern (§11). So a recipe mod
+   here is a sandbox change for a measured non-effect, not a mitigation.
 
 **The mod itself is mechanically correct** — one stdout redirect, and the write is
 verified at the point of use and made to fail closed — unlike eugr's, which writes
@@ -746,6 +758,77 @@ verified at the point of use and made to fail closed — unlike eugr's, which wr
 over ssh); it is simply **not a drop-in recipe mod** for the default launch, and
 NOT a mitigation for anything the shipped recipes see. "The mod works" ≠ "the mod
 is useful in this recipe."
+
+### 7.8.1 Live boots: where the host memory actually goes, and a load-flusher that is NOT worth it (2026-09-27)
+
+Two live boots of `…-exl3-tp4-vllm` on `.32`–`.35` (fresh, all four idle),
+measuring host `Cached`/`MemFree`/`MemAvailable` through load and serving. This
+section **corrects a claim I made earlier in this session** (that the Engram row
+reads, not the weight load, dominate the cache) and **refutes** the
+"unconditional load flusher → +55% KV" lever carried in `TUNING_BACKLOG.md` B1.3.
+
+**1. The weight load is what fills the cache, not serving.** Boot A (no flusher),
+`Cached` per node: **1.5 → 28–39 → 45–58 GiB in the first ~2.5 min**, with
+`MemFree` collapsing to **~1 GiB** while `MemAvailable` stayed at 41–54 GiB. There
+is **no plateau** — it kept growing until the instantaneous pre-KV read. That is
+the 460 GB checkpoint streaming through the 95 GB Engram shards' mmaps and the
+NFS shard pages the loader retains; **Engram row reads cannot be the cause here
+because no request had been served yet.** After readiness the cache *fell* to a
+steady ~14–27 GiB (`MemFree` ~2–6 GiB).
+
+**2. Serving adds little.** 30 short + 4 long (~95 K prompt-token) requests moved
+`Cached` by **≈0** (`.32/.35` even fell 2 GiB; the workers rose ~0.1 GiB); the
+`MemFree` dip to ~2 GiB was activation footprint, not cache. The reader already
+issues `POSIX_FADV_RANDOM` (`mount-dsv41-exl3-patches/files/engram.py:768`), and a
+few hundred MB of rows is small against ~24 GiB of resident load cache. **Engram
+rows are a prefill-scale follow-up, not the launch-time memory story.**
+
+**3. The cache is reclaimable and is exactly the budget.** A host `drop_caches`
+at serving-time jumped `MemFree` **2–6 → 15–28 GiB/node** (~24–28 GiB reclaimable),
+i.e. the resident checkpoint pages are clean and freeable. So the *mechanism* the
+flusher targets is real.
+
+**4. But the load-window flusher does NOT buy KV — the lever is refuted here.**
+Boot B ran the same recipe with a host-side flusher dropping clean page cache
+whenever `MemFree < 8 GiB` (the `[B1.3]`/memfree-flusher design), 18 drops across
+the load:
+
+| boot | `Available KV cache memory` | `GPU KV cache size` |
+|:--|--:|--:|
+| A (no flusher) | **32.2 GiB** | **3,973,172 tok** |
+| B (load flusher) | 29.32 GiB | 4,008,344 tok |
+
+**+0.9% tokens — inside the +6% boot-to-boot spread (§6.5, §7.1) — and *less*
+available KV.** The B1.3 "+55% pool" did not reproduce on this stack. Likely why
+(`SPECULATIVE`): the load is NFS/syscall-bound, so evicting cache does not speed
+it, and `MemAvailable` was already ≥41 GiB throughout load, so the allocator was
+never actually starved during the KV sizing. **Decision: do not ship a load-window
+flusher mod, and treat B1.3 as unconfirmed.** The ingredients that *did* hold:
+post-load cache is ~24 GiB/node of clean, reclaimable checkpoint pages, and the
+only validated drop action is **host-level** (the mod path is §7.8).
+
+**Machine-checked (no boot): the reader can be made cache-neutral.** Against the
+real `model-00047` over the real NFS mount, over random 64 KiB reads:
+buffered → `Cached` **+0.50 GiB** (all of it); `fadvise(DONTNEED)` per read →
+**+0.01 GiB**; `O_DIRECT` → **+0.00 GiB**. Throughput was statistically identical
+(100–109 MiB/s). So bounding the reader works and costs nothing measurable
+at this scale — but given finding (2) it would bound a small serving-time delta,
+while the large load-time cache remains (and is proven not to move KV). The
+reader change is therefore **low-priority**; the load cache is the real subject.
+
+**Implemented and BOOTED (2026-09-27): `mods/bound-engram-cache`** — a post-patch,
+opt-in mod that adds `POSIX_FADV_DONTNEED` (once per gathered batch) to the installed
+Engram reader. Fail-closed (md5-pinned patcher, `--check` before write, one backup,
+marker-idempotent). Live-verified on a one-off variant recipe (`.32`–`.35`): mod
+applied, 48/48 weights, ready, KV 4.11M vs 3.97M baseline (noise), `27*43→1161`,
+~33 t/s C1. **Listed on all five EXL3 recipes** (after `mount-dsv41-exl3-patches`;
+ordering guarded by `test_bound_engram_cache_after_patch_mod`) even though it buys no
+KV — the user asked for it wired in. Guards in `tests/test_bound_engram_cache.py`
+(negative controls included).
+
+**Recommendation and action plan: `MEMORY-RECLAIM-PLAN.md` (same directory).** The
+`instanttensor` question is **CLOSED — incompatible with this checkpoint** (§7.9);
+cache drops are not a mitigation; **no recipe change**.
 
 ### 7.9 The InstantTensor load-path change was tried and REVERTED (2026-09-25)
 
@@ -772,6 +855,31 @@ TP/`torch.distributed` init; (3) does InstantTensor's memory accounting
 unified-memory pool. **Process lesson: for a fleet-wide change, a single-node smoke
 boot must precede the full-fleet recipe.**
 
+**ANSWERED 2026-09-27 — it is the FLAG, and the mechanism is fatal: InstantTensor
+sizes a GPU buffer to the single largest tensor, which here is a 91.56 GiB Engram
+table.** Reproduced **boot-free on one node** (no recipe, no TP) by opening the real
+shards with the image's `instanttensor` 0.1.9:
+- The checkpoint's largest tensor is `layers.14.engram.embed.weight` = **91.56 GiB**
+  (measured from the safetensors headers; 6 tensors >1 GiB, 2 >8 GiB).
+- `safe_open` sets its **GPU** buffer to the largest tensor and **refuses to go
+  below it** (`instanttensor/_impl.py:593-620`, `_determine_buffer_size`; the buffer
+  is the `GPU buffer` of `:331`, passed to native `open()` at `:664`). Observed:
+  `buffer=91.55 GiB` for one Engram shard, **`183.11 GiB` for all 48 shards**
+  (default overlap heuristic `:270-301`) — larger than a 128 GB GB10 node.
+- Then the native loader **aborts**: `Failed to submit aio: Invalid argument` →
+  `Loader thread exception: std::exception` → SIGABRT, on **both** a 4.0 GiB-buffer
+  shard and the 91.55 GiB one. **Mechanism for the six-node crash (LIKELY, not
+  boot-verified):** every rank opens a ≥91.56 GiB GPU buffer that cannot coexist with
+  the weights — fatal independent of TP or the mod. The single-node abort itself is
+  VERIFIED.
+- **Answer to (1): the flag. The vendored hybrid-draft mod was a documented NO-OP**
+  (its `auto` mode only flips for a same-path/same-revision draft; the DSpark drafter
+  is a separate path), so it is neither necessary nor sufficient. (3) is moot: the
+  collision is the buffer, not `INSTANTTENSOR_MAX_FREE_MEM_USAGE`.
+- **Verdict: InstantTensor is incompatible with an Engram-class checkpoint on GB10
+  and there is no version of this lever to ship. Do not re-apply.** See
+  `MEMORY-RECLAIM-PLAN.md` §6 for the repro command.
+
 ### 7.10 The `mxfp8_gemm` autotuner warning — investigated, NOT worth fixing (negative)
 
 Every TP=6 boot logged 8–9 instances of `[AutoTuner]: No tuned config covers
@@ -796,6 +904,58 @@ three recipes still said "UNBOOTED" after they had booted. Fixed, and guarded by
 value, a DSpark arm may not deny it, no recipe may say "UNBOOTED"). Lesson: when a
 recipe body changes, the description is a **second artifact that does not update
 itself**.
+
+### 7.12 The `max_num_seqs=16` / `gmu 0.85` retune (2026-09-27/28)
+
+The four TP=4/TP=6 recipes shipped `max_num_seqs: 8` / `gpu_memory_utilization:
+0.80`. Retuned to **16** and **0.85** with the CUDA-graph ladder rebuilt to reach
+`16·(k+1) = 64`; every arm was then **booted exactly as shipped** and measured.
+TP=3 is unchanged (8 / 0.80) — outside the retune's scope.
+
+**Why 0.85, and why 16, from the boot log — not arithmetic.** vLLM prints the real
+per-rank budget: `Free memory on device (112.x/121.69 GiB) … Desired GPU memory
+utilization is (gmu, gmu·121.69) … Actual usage is W for consumed memory (weights
++ non-torch), A for peak activation, Z for CUDAGraph memory … Current kv cache
+memory in use is K`. The measured per-rank footprint is small on every TP=4/TP=6
+arm (W ≈ 47–64 GiB), so 0.85 (103.44 GiB promised) leaves ~18 GiB of the 121.69 GiB
+device beneath the promise — and the TP=3 arm already consumed ~94 GiB of 121.69 at
+0.80 and boots. `max_num_seqs` bounds resident slot objects; **max concurrency is
+pool/ctx** (§6.5), so on TP=4 1M (pool only ~5.75× a full-1M request) the 16 slots
+queue rather than run 16-wide, while TP=4 300K (17.34×), TP=6 300K (45.31×) and
+TP=6 1M (15.03×) run 16 concurrent requests outright.
+
+| arm | weights+non-torch | act | graph | **KV GiB** | **KV tokens** | conc | was (0.80) | C1/C4/C8/C16 t/s |
+|:--|--:|--:|--:|--:|--:|--:|--:|:--|
+| TP=4 300K | 59.54 | 5.83 | 1.0 | **38.06** | **5,203,288** | 17.34× | 3,879,721 | 38.8 / 66.3 / 88.5 / **122.0** |
+| TP=4 1M | 63.75 | 5.84 | 1.11 | **33.84** | **5,750,109** | 5.75× | 4,200,885 | 40.7 / 65.4 / 84.5 / **121.3** |
+| TP=6 300K | 47.17 | 3.49 | 1.21 | **52.78** | **13,594,187** | 45.31× | 12,006,501 | 40.0 / 78.0 / 107.9 / **151.1** |
+| TP=6 1M | 50.18 | 3.85 | 1.13 | **49.41** | **15,034,010** | 15.03× | 13,054,046 | 43.4 / 72.7 / 110.2 / **149.1** |
+
+Pool rose (+13 % to +37 %) on every arm and **C16 is newly reachable** (the old
+8-seq cap queued it). Bench: one cold boot per arm, distinct prompts, greedy,
+non-streaming (`usage.completion_tokens`/elapsed — §11). Single boots rank
+nothing (7–25 % inter-boot scatter); the C16 column is the least-scattered,
+capacity-bound cell and the one to trust for the retune's effect. **These rows
+come from a different harness than the §7.7 sweep (36.7/72.8/96.1 at k=5→3), so
+do not compare across harnesses.** Quality smoke (`27*43→1161`, planets) correct
+on all four; needle at **799K prompt tokens** correct on both 1M arms (TP=4 1M
+639 t/s, TP=6 1M 579 t/s prefill).
+
+**Guards updated with the retune:** `test_graph_capture_covers_max_seqs` and the
+`KCaptureSizes` control derive from the recipe's own `max_num_seqs`, so they need
+no literal; `test_control_truncated_capture_sizes` now mutates the 64-topped
+ladder, and `test_control_unconsumed_default` was **re-anchored on
+`tensor_parallel: 4`** because its old `gpu_memory_utilization: 0.80` anchor was a
+tunable value that the retune broke — the control's own comment had warned
+against exactly that.
+
+**Process note (a false alarm recorded on purpose).** A ~799K prefill at ~600 t/s
+takes **20–23 min**, and killing the client does **not** cancel the in-flight
+prefill: the worker keeps burning CPU to finish it (`/proc/<worker>/stat` ticks
+climbing). A 20–30 s probe therefore "times out" on a *busy* engine, which twice
+read as a wedge before the worker cpu ticks were checked. On a GB10 deep-prefill
+arm, never call a state a "hang" from a single timed-out probe (§11) — check
+worker progress first.
 
 ---
 
@@ -979,6 +1139,14 @@ grep is `--tensor-parallel-size N`.
 
 ### EXL3 / vLLM lane (the shipped deliverable)
 
+- **E9. Host-memory reclaim — CLOSED: leave the recipes alone.** Two live boots
+  (§7.8.1) show the launch weight load, not serving, fills 45–58 GiB/node of clean
+  reclaimable cache, but `MemAvailable` stayed ≥41 GiB and the KV pool sized
+  correctly *with* it; a load-window flusher bought **+0.9 % KV (noise)** — refuting
+  TUNING_BACKLOG B1.3. And the one lever that would prevent the cache,
+  `--load-format instanttensor`, is **incompatible with this checkpoint** (91.56 GiB
+  tensor → InstantTensor's ≥91.56 GiB GPU buffer → SIGABRT; §7.9, reproduced
+  boot-free). **No recipe change.** Full plan: `MEMORY-RECLAIM-PLAN.md`.
 - **E5 comparator (still open).** We cannot say how much of the 94.4% hard score is
   quantization vs the base model without the release checkpoint on the same battery
   — which needs the (blocked) SGLang lane or an EXL3-vs-release A/B we have not
