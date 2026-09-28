@@ -11,7 +11,9 @@ metadata:
     ONE MILLION token context. This is the context lane: upstream measured ~3.41M
     tokens at 1M on this stack, versus 1.07M for the release checkpoint on the
     same four nodes. Booted and serving on our cluster 2026-09-24 (KV 4,200,885
-    tokens, needle correct at 799K prompt tokens): see AGENTS.md §§2.5, 7.2.
+    tokens, needle correct at 799K prompt tokens); retuned 2026-09-27 to
+    max_num_seqs 16, gmu 0.85, capture ladder to 64 (lockstep with the 300K
+    twin). See AGENTS.md §§2.5, 7.2.
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -24,6 +26,11 @@ mods:
   # drop-caches is INERT in every mode (see AGENTS.md §7.8); listed for parity.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
+  # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
+  # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
+  # 2026-09-27 (KV 4.11M vs 3.97M baseline, 27*43->1161). See AGENTS.md §7.8.1,
+  # MEMORY-RECLAIM-PLAN.md §7.
+  - "@littlecedar/mods/bound-engram-cache"
 
 # The image declares ENTRYPOINT ["vllm","serve"]; clear it or sparkrun refuses
 # to launch. See AGENTS.md §6.1.
@@ -73,18 +80,25 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
-  gpu_memory_utilization: 0.80
+  # Kept in lockstep with the 300K twin (guard: the 1M copy may differ only in
+  # max_model_len). 0.85 aligns with the registry's pinned recipes and the
+  # measured per-rank usage (weights+non-torch 63.6 GiB, activation 5.4, graph
+  # 0.7 at gmu 0.80). See AGENTS.md §6.5 — read the pool from the log.
+  gpu_memory_utilization: 0.85
   # THE POINT OF THIS RECIPE.
   max_model_len: 1000000
-  # Keep 8: ~3.4 concurrent full-length requests; a context recipe, not a
-  # concurrency one.
-  max_num_seqs: 8
+  # 16, matching the 300K twin (guard-enforced lockstep). At 1M the pool is only
+  # ~4-5x a full-length request, so the 16 slots QUEUE rather than run 16 full-1M
+  # requests at once — max concurrency is pool/ctx (AGENTS.md §6.5), not this.
+  # The extra slots still serve many medium-length 1M-context-era requests.
+  max_num_seqs: 16
   max_num_batched_tokens: 8192
   block_size: 128
   # k=3 = measured optimum (AGENTS.md §7.7); identical to the 300K twin, which
   # the 1M-vs-300K guard requires (differ in max_model_len ONLY).
   speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
+  # Must reach max_num_seqs*(k+1) = 64 (guard: KCaptureSizes); lockstep with 300K.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32,36,40,44,48,52,56,60,64]}'
   mm_processor_cache_gb: 1
   extra_args: ""
 

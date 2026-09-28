@@ -29,6 +29,11 @@ mods:
   # drop-caches is INERT in every mode (see AGENTS.md §7.8); listed for parity.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
+  # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
+  # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
+  # 2026-09-27 (KV 4.11M vs 3.97M baseline, 27*43->1161). See AGENTS.md §7.8.1,
+  # MEMORY-RECLAIM-PLAN.md §7.
+  - "@littlecedar/mods/bound-engram-cache"
 
 # The image declares ENTRYPOINT ["vllm","serve"]; clear it or sparkrun refuses
 # to launch. See AGENTS.md §6.1.

@@ -14,7 +14,9 @@ metadata:
     measured TP=6 pool at 300K was 12.78M tokens vs 3.88M at TP=4. DSpark at
     TP=6 first booted 2026-09-27 (300K twin: KV 12.0M, accept length 2.4-2.5,
     C1/C4/C8 44.5/72.5/115.3 t/s); the mod applies the 96/12 virtual-heads
-    declaration to the drafter so it validates.
+    declaration to the drafter so it validates. Retuned 2026-09-27 to
+    max_num_seqs 16, gmu 0.85, capture ladder to 64 (lockstep with the 300K
+    twin).
   model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -27,6 +29,11 @@ mods:
   # drop-caches is INERT in every mode (see AGENTS.md §7.8); listed for parity.
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
+  # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
+  # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
+  # 2026-09-27 (KV 4.11M vs 3.97M baseline, 27*43->1161). See AGENTS.md §7.8.1,
+  # MEMORY-RECLAIM-PLAN.md §7.
+  - "@littlecedar/mods/bound-engram-cache"
 
 # The image declares ENTRYPOINT ["vllm","serve"]; clear it or sparkrun refuses
 # to launch. See AGENTS.md §6.1.
@@ -74,11 +81,15 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 6
-  gpu_memory_utilization: 0.80
+  # Kept in lockstep with the 300K twin (guard: the 1M copy may differ only in
+  # max_model_len). 0.85; measured per-rank footprint is the lightest of any
+  # split (weights+non-torch 48.5 GiB, activation 2.6, graph 0.25 at gmu 0.80).
+  gpu_memory_utilization: 0.85
   max_model_len: 1000000
-  # Keep 8: the 300K pool was 12.78M tokens, so even 1M-length requests get
-  # multiple slots. A context recipe, not a concurrency one.
-  max_num_seqs: 8
+  # 16, matching the 300K twin (guard-enforced lockstep). The 300K pool was
+  # 12.0M tokens, so even at 1M the pool is ~13x a full-length request — 16 slots
+  # run concurrently here, unlike the TP=4 1M arm. Context is the variable.
+  max_num_seqs: 16
   max_num_batched_tokens: 4096
   block_size: 128
   # Flat, NOT nested under text_config; heads 96 = 12 groups x 8, 12 is the
@@ -90,9 +101,9 @@ defaults:
   # drafter sees the 96/12 declaration through the mod's config_speculative.py.
   # Kept identical to the 300K twin (guard-enforced: context is the only variable).
   speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
-  # Capture sizes are multiples of k and k+1 and must reach max_num_seqs*(k+1)=32
-  # (guard: KCaptureSizes); a k change is not a one-line edit.
-  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32]}'
+  # Capture sizes are multiples of k and k+1 and must reach
+  # max_num_seqs*(k+1) = 16*4 = 64 (guard: KCaptureSizes); lockstep with 300K.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32,36,40,44,48,52,56,60,64]}'
   mm_encoder_tp_mode: data
   extra_args: ""
 
