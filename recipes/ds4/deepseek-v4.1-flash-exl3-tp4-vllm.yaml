@@ -22,10 +22,6 @@ metadata:
   tags: large-context, research_preview
 
 mods:
-  # drop-caches is INERT in every launch mode -- rootless blocks the write and
-  # the mod's own redirect order sends '3' to its log, not drop_caches. Listed
-  # for parity only; a real cache drop must be host-level. See AGENTS.md §7.8.
-  - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
   # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
   # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
