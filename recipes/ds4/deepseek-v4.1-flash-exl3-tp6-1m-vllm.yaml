@@ -26,8 +26,6 @@ metadata:
   tags: large-context, research_preview
 
 mods:
-  # drop-caches is INERT in every mode (see AGENTS.md §7.8); listed for parity.
-  - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
   # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
   # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
