@@ -25,6 +25,10 @@ metadata:
   kv_dtype: fp4
   tags: large-context, research_preview
 
+tuning:
+  vllm_tune_repo: https://github.com/SeraphimSerapis/vllm-tune.git
+  vllm_tune_ref: main
+
 mods:
   - "@littlecedar/mods/mount-dsv41-exl3-patches"
   # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
