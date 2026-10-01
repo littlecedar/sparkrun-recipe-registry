@@ -1,0 +1,13 @@
+{
+    "model": "bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard",
+    "tp": 6,
+    "dtype": "fp8_w8a8",
+    "tuned_at": "2026-09-30T20:49:42-04:00",
+    "hostname": "spark-3578",
+    "container": "sparkrun_9df1420922c5f0b7_84275660db7e_node_3",
+    "mode": "fp8",
+    "vllm_version": "0.28.1rc1.dev388+g8a728663c",
+    "triton_version": "3.7.1",
+    "moe_configs": 0,
+    "fp8_configs": 1
+}
