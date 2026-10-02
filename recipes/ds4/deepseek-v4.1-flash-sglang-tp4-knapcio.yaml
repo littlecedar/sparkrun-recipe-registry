@@ -1,7 +1,7 @@
 recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash
 runtime: sglang
-container: dsv41-4x-spark:canary-roce
+container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825
 min_nodes: 4
 
 metadata:
@@ -12,14 +12,14 @@ metadata:
     knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
     MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
     design are theirs, kept under the upstream licences). See
-    docs/knapcio-integration.md in this directory for provenance and limits.
+    KNAPCIO-SGLANG-INTEGRATION.md in this directory for provenance and limits.
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
   model_dtype: mxfp4
   model_mtp_dtype: mxfp4
   kv_dtype: fp8
-  tags: official, large-context, research_preview
+  tags: official, large-context
 
 mods:
   # Copies launcher.py into /workspace/mods/dsv41-sglang-overlay and fails closed
@@ -33,38 +33,17 @@ executor_config:
   entrypoint: ""
   # Rootless defaults already give IPC_LOCK / memlock=-1 and /dev/infiniband.
   shm_size: 32gb
-  volumes:
-    # list of `host:container` specs. Packed per-rank Engram shards on node-local
-    # NVMe, and a writable dir for boot.py's launch.json / api-key.
-    - /home/red/dsv41-engram:/engram-local
-    - /home/red/dsv41-state:/state
-
-distribution_config:
-  containers:
-    # dsv41-4x-spark:canary-roce is a node-local overlay image, built from the
-    # knapcio Dockerfile on every node and published to no registry. Without
-    # `enabled: false` sparkrun's distribution step tries to pull the tag and
-    # the launch aborts with "pull access denied".
-    enabled: false
-  models:
-    # The checkpoint is a shared HF cache, mounted at /cache/huggingface on every
-    # node; never re-download or fan out.
-    enabled: false
-
-# ---------------------------------------------------------------------------
-# READ docs/knapcio-integration.md BEFORE BURNING A BOOT.
-# ---------------------------------------------------------------------------
-# The engine is knapcio's `dsv41-4x-spark:canary-roce` image: upstream SGLang
-# `dsv4.1` branch @ f80c91a4b + the adapter overlay (/opt/dsv41/adapter, on
-# PYTHONPATH via the image ENV) + b12x / b12x_next kernels + boot.py. The recipe
-# does NOT re-plumb the serve line: boot.py builds the full sglang argv from the
-# environment below, and mods/dsv41-sglang-overlay/launcher.py maps sparkrun's
-# appended --dist-init-addr/--nnodes/--node-rank onto boot.py's env.
-#
-# Fabric (verified on our fleet): two RoCE planes, 192.168.0.0/24 and
-# 192.168.1.0/24, FULL MESH on both, RoCEv2 on port GID index 3. So this is a
-# SWITCHED fabric, not a ring, and RoCEnante (SGLANG_ROCE_ALLREDUCE) is ON --
-# it measured 1.7x C1 over NCCL. The switchless-ring path is NOT needed.
+  # NO volumes:. Every cacheable artifact lives under sparkrun's managed runtime
+  # cache, which sparkrun creates and chowns per node and mounts read-write:
+  #   <host> ~/.cache/sparkrun/runtime-cache/sglang/<model_dir> -> /cache/runtime
+  # (model_dir = deepseek-ai__DeepSeek-V4.1-Flash-9a74d993, keyed by model and
+  # revision; sparkrun owns the name, the recipe never spells it). So this recipe
+  # carries no machine-specific host path. The launcher shim materializes the
+  # per-rank Engram shards under /cache/runtime/engram and the mod chowns the
+  # subdirs; boot.py's launch.json / api-key go to /cache/runtime/state; the
+  # b12x JIT caches go beside them. The model itself stays in the shared HF
+  # cache mounted at /cache/huggingface. See KNAPCIO-SGLANG-INTEGRATION.md
+  # ("Portability") and the mod README.
 
 env:
   # --- checkpoint / placement ---------------------------------------------
@@ -72,7 +51,9 @@ env:
   # snapshot path (a bare assignment does not glob).
   MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
   DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
-  STATE_PATH: /state
+  # boot.py writes launch.json / api-key here; under the managed runtime cache so
+  # nothing lands in a user's home directory and nothing needs a bind mount.
+  STATE_PATH: /cache/runtime/state
   SKIP_PREPARE: "1"
   SKIP_VERIFY: "1"
   SKIP_SMOKE: "0"
@@ -82,9 +63,10 @@ env:
   SERVED_MODEL_NAME: deepseek-v4.1-flash
 
   # --- Engram on NVMe (the whole point: the 203 GB tables cannot live in the
-  # unified 128 GB pool). Packed per-rank shards at /engram-local. ---------------
+  # unified 128 GB pool). Packed per-rank shards under the managed cache; the
+  # launcher materializes them (see the mod). ----------------------------------
   OFFLOAD_MODE: nvme
-  DSV41_PACKED_DIR: /engram-local
+  DSV41_PACKED_DIR: /cache/runtime/engram
   DSV41_CACHE_GIB: "4"
   DSV41_CACHE_WAYS: "16"
   DSV41_IO_THREADS: "96"
@@ -157,7 +139,7 @@ env:
   # `AssertionError: engram target-verify expects one equal block per request,
   # got 84 tokens for 16 requests of 6`. Without the file boot.py stays on the
   # verify-all schedule (upstream's production behaviour). See
-  # docs/knapcio-integration.md.
+  # KNAPCIO-SGLANG-INTEGRATION.md.
   # RoCEnante: TP all-reduces and all-gathers up to 2 MiB over the one-shot RDMA
   # kernel on both rails. Our fabric is switched (full mesh), so this is legal.
   # This is the piece with b12x's open #313 wedge report; the result-boundary
@@ -167,8 +149,11 @@ env:
   SGLANG_ROCE_MAX_SIZE: "2097152"
   DSV41_ROCE_GATHER: "2097152"
   B12X_ROCE_HCA: rocep1s0f0,roceP2p1s0f0
-  B12X_ROCE_CACHE_DIR: /state/b12x-roce
-  B12X_COMPILE_CACHE_DIR: /state/b12x-compile
+  # JIT / autotune caches under the managed runtime cache (they are cacheable
+  # objects, not image content, and must survive --rm). B12X_NEXT_COMPILE_CACHE_DIR
+  # is derived from STATE_PATH by adapter/moe_b12x_next.py:243-248.
+  B12X_ROCE_CACHE_DIR: /cache/runtime/b12x-roce
+  B12X_COMPILE_CACHE_DIR: /cache/runtime/b12x-compile
   # Deliberately OFF on the first boot:
   #   SGLANG_ROCE_ALLREDUCE / DSV41_ROCE_GATHER -- one-shot RDMA all-gather; the
   #     open b12x#313 wedge. Turn on only as an A/B after NCCL is baselined.
@@ -227,12 +212,13 @@ readiness:
   port_timeout_s: 7200
   health_timeout_s: 3600
 
-# Boot-log checklist (see docs/knapcio-integration.md, "Boot gates"):
+# Boot-log checklist (see KNAPCIO-SGLANG-INTEGRATION.md, "Boot gates"):
 #   1. `[dsv41-sglang-overlay] overlay gate OK` and `launcher: boot.py run ...`
 #      with NNODES=4 and the right NODE_RANK per node.
 #   2. `Exact nvme Engram layer=... rank=... rows=[a,b)` must DIFFER per rank and
-#      report packed=<the /engram-local shard>. A "could not open" or an
-#      identical range is a stop.
+#      report packed=<the /cache/runtime/engram shard>. A "could not open" or an
+#      identical range is a stop. `packed=False` on a cold cache is not an error
+#      (the launcher packs in the background and the next boot picks it up).
 #   3. `[moe_b12x_next] armed` and `RoCEnante ready: world=4 ...`.
 #   4. `DSV4 memory calculation: ... full_token=<N>` -- the granted KV pool.
 #   5. DSpark acceptance on Decode batch lines (>1; workload dependent).
