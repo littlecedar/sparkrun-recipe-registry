@@ -264,7 +264,14 @@ upstream production line (b12x_next), a follow-up A/B.
 - **Fabric is full-mesh, not a ring**: two RoCE planes (192.168.0.0/24 on
   `rocep1s0f0`, 192.168.1.0/24 on `roceP2p1s0f0`), all six pairwise pings OK,
   port 1 ACTIVE (port 2 DOWN — do not use `*s0f1`), **RoCEv2 GID index 3**.
-  So the switchless-ring path is not needed; RoCEnante is left OFF the first boot.
+  So the switchless-ring path is not needed.
+
+**EP_SIZE: use 1, not 2.** EP=2 *loads* (2304/2 = 1152 = 9×128, clearing the
+MXFP4-MoE `%128` check) but **dies at the first decode plan**:
+`dsv41-moe-E192-N1152-k6-M5 failed to prepare … planned dynamic direct routing is
+unsupported for this launch shape`. `adapter/moe_b12x_next.py` states it plainly:
+"the production profile is EP_SIZE=1, EP>1 is an A/B setup". All measured numbers
+below are EP=1.
 
 **Sparkrun wiring (the load-bearing bits):**
 - The image's entrypoint is `boot.py`, which builds the whole `sglang.launch_server`
@@ -281,11 +288,27 @@ upstream production line (b12x_next), a follow-up A/B.
 - Rootless sparkrun already grants `IPC_LOCK`, `memlock=-1`, `/dev/infiniband`,
   `shm_size 32gb` — so no `privileged`/`cap_add`/`user` override is needed.
 
-**Boot progress (VERIFIED in the serve log):** overlay adapters all ARM —
-`shared-expert K padding … (5120,576)->(5120,640)`, `fast load ARMED`,
-`MXFP8 dense linears routed to FlashInfer backend 'b12x'`, `replicated_split
-armed`, `autotune_keep`, `REPLAY_GUARD`, and `launcher: boot.py run NNODES=4
-NODE_RANK=0 …`. Reached `Init torch distributed begin` → the ~8-min weight load.
-Throughput numbers are PENDING until the boot gates and a bench pass; see the
-integration doc for the gate list. **The 89.7 t/s upstream figure is a port, not
-our measurement.**
+**Measured (boot #4/#5 this session; bench `.scratch/ds4/knapcio/bench_sglang.py`,
+two discarded warm-ups, non-streaming 200-token, distinct prompts, greedy):**
+
+| t/s aggregate | C1 | C4 | C8 | C16 |
+|:--|--:|--:|--:|--:|
+| NCCL only (boot #4) | 27.4 | 62.5 | 73.2 | 155.0 |
+| **+ RoCEnante (boot #5, SHIPPED)** | **46.6** | **105.6** | **132.5** | **191.0** |
+| upstream v2.3 (their fabric/clock) | 89.7 | 165.9 | 244.6 | 357.2 |
+
+**RoCEnante is the single biggest win this session: 1.70×/1.69×/1.81×/1.23× over
+NCCL**, far beyond the 7–25% GB10 inter-boot spread. **C1 46.6 beats our shipped
+vLLM/EXL3 TP=4 lane (40.7) on the same four nodes.** Boot log:
+`RoCEnante ready: world=4 hcas=rocep1s0f0,roceP2p1s0f0 gid_index=3
+max_size=2097152`. Correctness smoke `27*43 -> 1161`, planets correct; DSpark
+acceptance 2.4–2.8 unchanged. Rollback is one env line (`SGLANG_ROCE_ALLREDUCE=0`).
+
+**Remaining gap to upstream 89.7 c1 (~2×):** the **SPS table** (ragged/compact
+verify; upstream: without it "the planner falls back to verify-all and the whole
+thing is a no-op"). Boot #6 is generating it in-image with
+`python3 -m sglang.benchmark.dspark_sps_profiler all --out /state/dspark_sps.json`
+against a server booted with `SGLANG_RAGGED_VERIFY_MODE=static
+SGLANG_DSPARK_ENABLE_SPS_RECORD=1`. Table must be present on every node. Also
+unaccounted: upstream runs a 2200 MHz clock cap convention (we are uncapped), and
+their fabric/clock differ. **89.7 remains a port, not our measurement.**
