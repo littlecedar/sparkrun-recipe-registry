@@ -973,10 +973,17 @@ from the repo's `Dockerfile.canary-roce`; ~10 min/node incl. the in-image tests)
 
 | t/s aggregate | C1 | C4 | C8 | C16 |
 |:--|--:|--:|--:|--:|
-| this lane (RoCEnante ON, verify-all) | **46.5** | **106.2** | **132.6** | **192.8** |
+| this lane, short-prompt harness (RoCEnante ON, verify-all) | **46.5** | **106** | **133** | **193** |
 | same, NCCL only (boot #4) | 27.4 | 62.5 | 73.2 | 155.0 |
+| `sparkrun benchmark` std profile (pp=2048, 3 runs) | 43.6 | 91.3 | 99.4 | 102.1 |
 | shipped EXL3 TP=4 300K (§7.1 warm) | 37.5 | 61.9 | 88.5 | — |
 | upstream v2.3 (their fabric/clock) | 89.7 | 165.9 | 244.6 | 357.2 |
+
+The std-profile row is `benchmarking/ds4-sglang-depth0-ladder.yaml`
+(`.scratch/ds4/knapcio/bench-sglang-depth0.json`). Its concurrency cells are lower
+than the short-prompt row because llama-benchy uses **2048-token** prompts while the
+short-prompt harness uses ~17; the two agree at c1. **Quote the ladder with its
+prompt length attached.**
 
 **RoCEnante is the single biggest win: 1.70×/1.69×/1.81×/1.23×** over NCCL, far
 outside the 7–25 % boot spread. **C1 46.5 beats the shipped vLLM/EXL3 TP=4 lane

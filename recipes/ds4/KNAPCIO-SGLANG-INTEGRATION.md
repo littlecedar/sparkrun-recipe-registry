@@ -295,3 +295,40 @@ grain for this question.
    upstream reports needle PASS at 1M on their fleet. Do not claim our lane has a
    verified 1M retrieval until it is run (`bench_needle.py` /
    `scripts/verify/needle*.py` in the upstream repo).
+
+
+## Standardized `sparkrun benchmark` cross-check (2026-10-02)
+
+Ran the repo's own tool against the live boot, to have an auditable artifact
+alongside the custom bench. New profile
+`benchmarking/ds4-sglang-depth0-ladder.yaml` (llama-benchy, `depth: [0]`,
+`pp: [2048]`, `tg: [128]`, `concurrency: [1,4,8,16]`, `runs: 3`), invoked as
+
+```bash
+sparkrun benchmark --cluster ds4tp4v2   --profile benchmarking/ds4-sglang-depth0-ladder.yaml   --skip-run --output .scratch/ds4/knapcio/bench-sglang-depth0   recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml
+```
+
+Artifact: `.scratch/ds4/knapcio/bench-sglang-depth0.json`.
+(`--skip-run` needed the *head* pinned to `.32`; sparkrun's stale-deployment
+lookup pointed at a worker, which 404s — and `--skip-run`'s host detection
+resolves `ssh_user` from config, so `~/.ssh/config` must pin `User red` for
+`.32/.33` too.)
+
+| t/s (decode-phase `tg_throughput`, mean of 3) | c1 | c4 | c8 | c16 |
+|:--|--:|--:|--:|--:|
+| **standardized profile** (pp=2048 prompts) | 43.6 | 91.3 | 99.4 | 102.1 |
+| per-stream (`tg_req_throughput`) | 43.6 | 29.1 | 16.6 | 10.7 |
+| short-prompt harness (README C1 contract) | 46.6 | 105.6 | 132.5 | 191.0 |
+
+**The harnesses diverge, and the reason is prompt length.** llama-benchy's
+depth-0 cell uses 2048-token prompts; the short-prompt harness uses ~17-token
+prompts. At c1 they agree (43.6 vs 46.6, well inside llama-benchy's own c1 run
+spread of 35.7–48.4); at c16 they diverge 1.9× because the concurrency cell in
+the standardized profile is dominated by 16×2048 tokens of prefill. **So quote the
+concurrency ladder only with its prompt length attached.** The README's `C1 t/s`
+column keeps the short-prompt number (matching the column's contract); the
+standardized profile is the auditable cross-check.
+
+Also visible in the artifact: `tg_req_throughput` at c16 is bimodal (7.4–20.5),
+i.e. the same per-request scheduling scatter the EXL3 lane documents (§11) — read
+the JSON's `tg_req_*`, not the aggregate column, when comparing configurations.
