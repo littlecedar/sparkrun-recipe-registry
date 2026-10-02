@@ -151,13 +151,14 @@ env:
   DSV41_L2_PREFETCH_WOA: "1"
   DSV41_SPEC_SYNC_FREE: all
   DSV41_EAGER_GLUE: all
-  # Ragged-verify cost table. boot.py enables the compact ragged scheduler only
-  # when this file exists; absent, it stays on verify-all (correct, slower).
-  # Generate it with the in-image profiler against a server booted with
-  # SGLANG_RAGGED_VERIFY_MODE=static SGLANG_DSPARK_ENABLE_SPS_RECORD=1, then
-  # place it on every node. See docs/knapcio-integration.md.
-  DSPARK_SPS_TABLE: /state/dspark_sps.json
-  DSPARK_STS_TABLE: /state/dspark_sts.json
+  # DSPARK_SPS_TABLE / DSPARK_STS_TABLE are DELIBERATELY NOT SET. Upstream lists
+  # the SPS table under "Not used: ... crashes the Engram path", and that is
+  # confirmed here: with a fitted table present, boot.py enables the compact
+  # ragged-verify scheduler and the first mixed batch dies with
+  # `AssertionError: engram target-verify expects one equal block per request,
+  # got 84 tokens for 16 requests of 6`. Without the file boot.py stays on the
+  # verify-all schedule (upstream's production behaviour). See
+  # docs/knapcio-integration.md.
   # RoCEnante: TP all-reduces and all-gathers up to 2 MiB over the one-shot RDMA
   # kernel on both rails. Our fabric is switched (full mesh), so this is legal.
   # This is the piece with b12x's open #313 wedge report; the result-boundary
