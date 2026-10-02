@@ -304,11 +304,25 @@ vLLM/EXL3 TP=4 lane (40.7) on the same four nodes.** Boot log:
 max_size=2097152`. Correctness smoke `27*43 -> 1161`, planets correct; DSpark
 acceptance 2.4–2.8 unchanged. Rollback is one env line (`SGLANG_ROCE_ALLREDUCE=0`).
 
-**Remaining gap to upstream 89.7 c1 (~2×):** the **SPS table** (ragged/compact
-verify; upstream: without it "the planner falls back to verify-all and the whole
-thing is a no-op"). Boot #6 is generating it in-image with
-`python3 -m sglang.benchmark.dspark_sps_profiler all --out /state/dspark_sps.json`
-against a server booted with `SGLANG_RAGGED_VERIFY_MODE=static
-SGLANG_DSPARK_ENABLE_SPS_RECORD=1`. Table must be present on every node. Also
-unaccounted: upstream runs a 2200 MHz clock cap convention (we are uncapped), and
-their fabric/clock differ. **89.7 remains a port, not our measurement.**
+**Remaining gap to upstream 89.7 c1 — resolved as "no knob left".** The SPS
+ragged-verify table **crashes the Engram path** (upstream's own README lists it
+under "Not used"; our fit → `AssertionError: engram target-verify expects one
+equal block per request, got 84 tokens for 16 requests of 6`), so **upstream
+production is verify-all** and our recipe is already the production line. The
+200+ MHz clock-cap convention and fabric differ. **89.7 remains their number.**
+
+**Boot #9 (recipe exactly as shipped) reproduced the numbers within 2 %:**
+46.3/106.8/132.7/194.6 t/s at C1/C4/C8/C16 — the lane is stable across boots.
+
+**E5 CLOSED — the headline result.** `quality_hard_sglang.py` (the hard 18-task
+tier) against the release checkpoint, two runs: **17/18 = 94.4 %, the same score
+and the same single failure (`hard-rev`) as the EXL3 lane** (§7.6). Verdict: the
+EXL3 3.5 bpw quantization costs nothing measurable on that battery; the one
+failure is a base-model limitation. Artifacts:
+`.scratch/ds4/knapcio/quality_hard_sglang{,_rep2}.json`.
+
+**Verdict for the recipes:** the SGLang lane is a working, measured **second
+engine** — `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`, shipped with RoCEnante
+ON and no SPS table — and the EXL3/vLLM lane remains the default. Full details,
+boot gates, provenance and limits: `KNAPCIO-SGLANG-INTEGRATION.md`; durable
+summary: `AGENTS.md` §7.13.
