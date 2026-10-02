@@ -151,6 +151,24 @@ env:
   DSV41_L2_PREFETCH_WOA: "1"
   DSV41_SPEC_SYNC_FREE: all
   DSV41_EAGER_GLUE: all
+  # Ragged-verify cost table. boot.py enables the compact ragged scheduler only
+  # when this file exists; absent, it stays on verify-all (correct, slower).
+  # Generate it with the in-image profiler against a server booted with
+  # SGLANG_RAGGED_VERIFY_MODE=static SGLANG_DSPARK_ENABLE_SPS_RECORD=1, then
+  # place it on every node. See docs/knapcio-integration.md.
+  DSPARK_SPS_TABLE: /state/dspark_sps.json
+  DSPARK_STS_TABLE: /state/dspark_sts.json
+  # RoCEnante: TP all-reduces and all-gathers up to 2 MiB over the one-shot RDMA
+  # kernel on both rails. Our fabric is switched (full mesh), so this is legal.
+  # This is the piece with b12x's open #313 wedge report; the result-boundary
+  # health check fails the step rather than hanging. Set SGLANG_ROCE_ALLREDUCE=0
+  # to fall back to NCCL in one env change.
+  SGLANG_ROCE_ALLREDUCE: "1"
+  SGLANG_ROCE_MAX_SIZE: "2097152"
+  DSV41_ROCE_GATHER: "2097152"
+  B12X_ROCE_HCA: rocep1s0f0,roceP2p1s0f0
+  B12X_ROCE_CACHE_DIR: /state/b12x-roce
+  B12X_COMPILE_CACHE_DIR: /state/b12x-compile
   # Deliberately OFF on the first boot:
   #   SGLANG_ROCE_ALLREDUCE / DSV41_ROCE_GATHER -- one-shot RDMA all-gather; the
   #     open b12x#313 wedge. Turn on only as an A/B after NCCL is baselined.
