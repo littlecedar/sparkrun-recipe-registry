@@ -957,6 +957,65 @@ read as a wedge before the worker cpu ticks were checked. On a GB10 deep-prefill
 arm, never call a state a "hang" from a single timed-out probe (§11) — check
 worker progress first.
 
+### 7.13 The SGLang lane — knapcio's native-checkpoint overlay (2026-10-02)
+
+A **second engine lane**, not a replacement for the EXL3/vLLM path. Source:
+`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` @ `58f2321` (downstream of
+MiaAI-Lab's recipe). Recipe `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`, mod
+`mods/dsv41-sglang-overlay/`, full write-up `KNAPCIO-SGLANG-INTEGRATION.md`.
+
+**It boots and serves on our four free Sparks** (`.32`–`.35`), TP=4, EP=1,
+native MXFP4/F8 checkpoint, Engram on node-local NVMe, DSpark k=5, 1M context,
+RoCEnante RDMA. Image `dsv41-4x-spark:canary-roce` (33.5 GB, node-local, built
+from the repo's `Dockerfile.canary-roce`; ~10 min/node incl. the in-image tests).
+
+**Measured (our bench; boots #5 and #9 agree within 2 %):**
+
+| t/s aggregate | C1 | C4 | C8 | C16 |
+|:--|--:|--:|--:|--:|
+| this lane (RoCEnante ON, verify-all) | **46.5** | **106.2** | **132.6** | **192.8** |
+| same, NCCL only (boot #4) | 27.4 | 62.5 | 73.2 | 155.0 |
+| shipped EXL3 TP=4 300K (§7.1 warm) | 37.5 | 61.9 | 88.5 | — |
+| upstream v2.3 (their fabric/clock) | 89.7 | 165.9 | 244.6 | 357.2 |
+
+**RoCEnante is the single biggest win: 1.70×/1.69×/1.81×/1.23×** over NCCL, far
+outside the 7–25 % boot spread. **C1 46.5 beats the shipped vLLM/EXL3 TP=4 lane
+(37.5–40.7 warm) on the same four nodes**, at the cost of a node-local image and
+~47 GiB/node of packed Engram shards.
+
+**Three findings that are load-bearing and easy to get wrong:**
+1. **`EP_SIZE=1`, never 2.** EP=2 loads (clears the MXFP4 `%128` check) but dies at
+   the first decode plan: `planned dynamic direct routing is unsupported for this
+   launch shape` (E192-N1152). The adapter says so: "the production profile is
+   EP_SIZE=1".
+2. **The SPS ragged-verify table crashes the Engram path** — upstream's own
+   README lists it under "Not used". With a fitted `/state/dspark_sps.json` the
+   scheduler enables and the first mixed batch dies with `AssertionError: engram
+   target-verify expects one equal block per request, got 84 tokens for 16
+   requests of 6`. **Upstream production is verify-all**, so the shipped recipe
+   sets no table. (The table needs a dedicated record boot with
+   `SGLANG_RAGGED_VERIFY_MODE=static SGLANG_DSPARK_ENABLE_SPS_RECORD=1
+   SGLANG_SIMULATE_ACC_LEN=1.0` and `SKIP_SMOKE=1`, and the sweep must be capped
+   to the graph tier: `--max-batch-size 16`.)
+3. **Sparkrun mechanics:** a node-local image needs
+   `distribution_config.containers.enabled: false` (top-level key is
+   `distribution_config`, not `distribution`); `executor_config.volumes` is a
+   **list of `host:container` strings**; the HF cache uses the two-level
+   `hub/blobs/<xx>/<sha>` layout so the **whole `hub/` dir** must be mounted for
+   `pack_engram.py`. `/state` must be bind-mounted writable.
+
+**E5 is now CLOSED by this lane.** The release checkpoint scores **17/18 = 94.4 %**
+on the hard tier (two runs), the *same* score and the *same* single failure
+(`hard-rev`) as the EXL3 lane. So the EXL3 3.5 bpw quantization costs nothing
+measurable on that battery, and the one failure is a base-model limitation, not
+quantization damage — see §7.6 and `KNAPCIO-SGLANG-INTEGRATION.md`.
+
+**Remaining gap to upstream 89.7 c1** (~1.9×) is *not* a knob we have left: the
+SPS table is a crash, and upstream additionally runs a 2200 MHz clock cap
+convention (we are uncapped) on their own fabric. Treat 89.7 as their number.
+
+---
+
 ---
 
 ## 8. Guards, layout ABI, and the verification ritual
@@ -1030,14 +1089,21 @@ grep is `--tensor-parallel-size N`.
 
 **2026-09-24/25 (each cost a boot or an hour):**
 
-- **Serving V4.1-Flash on SGLang with any published image — do not try.** Three
+- **Serving V4.1-Flash on SGLang with any published image — do not try.**
+  ~~SUPERSEDED 2026-10-02 for a purpose-built image~~ — the blockers below were
+  real *for the images published at the time*; they are solved by building
+  `dsv41-4x-spark:canary-roce` from `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`
+  (V4.1 branch + adapter overlay + b12x_next, built on every node) and running
+  `EP_SIZE=1` (every rank a 576-wide slice of all 384 experts, so the `%128`
+  check is moot). That lane **boots and serves**; see
+  `KNAPCIO-SGLANG-INTEGRATION.md` and §7.13. Three
   independent blockers: no single published image is both V4.1 and `b12x`
   (`dev-dsv41` has `DeepseekV41Config` + an SM121-accepting DeepGEMM gate but **no
   `b12x`**; `dev-v4f-2dgx-v2` has `b12x` but **no V4.1 config**); the MXFP4-Cutlass
   MoE rejects the TP=4 expert partition (`2304/4 = 576`, not a multiple of 128) and
   TP=8 (`288`); and the DeepGEMM SM121 question. Any one makes it an
-  image-build/code-patch project, not a config. **The vLLM/EXL3 lane is the proven
-  path.**
+  image-build/code-patch project, not a config. **The vLLM/EXL3 lane remains the
+  shipped default path.**
 - **The five removed SGLang recipes** (archived under
   `.swival/trash/ds4-sglang-removed-2026-09-25/`): the three V4-Flash-0731 TP=2 rows
   (MXFP4, MXFP4-nospec, NVFP4) all die with **one signature — rank-0 scheduler
@@ -1147,10 +1213,12 @@ grep is `--tensor-parallel-size N`.
   `--load-format instanttensor`, is **incompatible with this checkpoint** (91.56 GiB
   tensor → InstantTensor's ≥91.56 GiB GPU buffer → SIGABRT; §7.9, reproduced
   boot-free). **No recipe change.** Full plan: `MEMORY-RECLAIM-PLAN.md`.
-- **E5 comparator (still open).** We cannot say how much of the 94.4% hard score is
-  quantization vs the base model without the release checkpoint on the same battery
-  — which needs the (blocked) SGLang lane or an EXL3-vs-release A/B we have not
-  built.
+- **E5 comparator — CLOSED (2026-10-02, §7.13).** The SGLang lane runs the release
+  checkpoint on the same hard tier and scores **17/18 = 94.4 %** (two runs) — the
+  *same* score and the *same* single failure (`hard-rev`) as EXL3. So the 3.5 bpw
+  quantization costs nothing measurable on this battery; the one failure is a
+  base-model limitation. The old "cannot say without the (blocked) SGLang lane" is
+  resolved: the lane is no longer blocked.
 - **E6. Provision node-local Engram rows.** All boots so far read rows from the
   NFS-cached model files and worked; upstream measures 129 s local vs 309/470 s over
   NFS for the weight load, so `tools/engram_local.py` rows are a **throughput**
@@ -1194,6 +1262,12 @@ grep is `--tensor-parallel-size N`.
   mode and must be reported as such, not as a win.
 
 ### SGLang lane (second engine)
+
+> **ANSWERED 2026-10-02 by the knapcio overlay lane (§7.13).** Q1 monkey-answered:
+> the lane uses `b12x`/`b12x_next` and boots. Q2 superseded: no *published* image
+> is both, but the repo **builds** one. Q3 answered yes — it captures CUDA graphs
+> and serves. See `KNAPCIO-SGLANG-INTEGRATION.md`; the items below are kept as the
+> pre-lane state.
 
 1. **Does our container's DeepGEMM support SM121?** Largely answered for the Spark
    image (see §9.1); only a boot log settles it.

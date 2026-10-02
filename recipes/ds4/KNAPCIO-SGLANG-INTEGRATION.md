@@ -241,3 +241,37 @@ no SPS table) *is* the production line, not a degraded one. Remove the table
 `SGLANG_SIMULATE_ACC_LEN=1.0` boot.py's own smoke checks the completion equals
 `42`, and simulated decoding returns `42!;`. That is a boot.py-independent
 artifact of record mode, not a recipe defect.
+
+
+## E5 CLOSED — the official checkpoint scores 94.4% too, same failure
+
+AGENTS.md E5 was open because we could not separate EXL3 quantization damage from
+base-model limits without running the **release** checkpoint on our own hard
+battery. This lane runs the release checkpoint (`deepseek-ai/DeepSeek-V4.1-Flash`,
+native MXFP4/F8), so the comparator now exists.
+
+`.scratch/ds4/knapcio/quality_hard_sglang.py` (the hard 18-task tier, adapted to
+send `chat_template_kwargs {"thinking": false}`), two independent runs on boot #9:
+
+| arm | hard score | failure |
+|:--|:--|:--|
+| **EXL3 3.5 bpw (vLLM, shipped lane)** | **17/18 = 94.4%** | `hard-rev` |
+| **release checkpoint (SGLang, this lane)** | **17/18 = 94.4%** (run 1 and run 2) | `hard-rev` |
+
+Both miss **the same single task**, `hard-rev` (print a word reversed): EXL3
+returned `nurknaps`/`nrukreps`/`nurcraps`; the release checkpoint returns
+`nrukrkaps` — wrong the same way. Categories are identical (arith 5/5, code 3/3,
+format 3/4, reason 4/4, recall 2/2).
+
+**Verdict: the EXL3 3.5 bpw quantization costs nothing measurable on this
+battery — the one failure is a base-model limitation, not quantization damage.**
+This is stronger than the earlier "we have NOT shown EXL3 causes it" hedge in
+AGENTS.md §7.6: the release checkpoint, independently quantized and served by a
+different engine, reproduces the failure at the same task and rate. It also
+re-confirms the EXL3 lane as safe to ship as the default-quality lane.
+
+**Caveat:** this is the 18-task hard tier (a discriminating but small battery),
+and the SGLang path runs with decoder SWA bounded replay, so prompt-token
+logprobs are unavailable and "bitwise vs the release checkpoint" is not
+measurable through it. The comparator is exact-match behavior, which is the right
+grain for this question.
