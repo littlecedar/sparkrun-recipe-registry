@@ -186,3 +186,27 @@ next A/Bs (in priority order):
    line and a large part of the c1 gap.
 
 Either or both may be needed to reach README-class numbers; state them as PENDING.
+
+
+## RoCEnante A/B (2026-10-02) — the single biggest win, VERIFIED
+
+Both arms: same recipe, same boot shape, SPS table absent (verify-all), only
+`SGLANG_ROCE_ALLREDUCE`/`DSV41_ROCE_GATHER`/`B12X_ROCE_HCA` flipped. Bench after
+two discarded warm-ups, non-streaming, 200 tokens, distinct prompts, greedy.
+Boot #5 log: `RoCEnante ready: world=4 hcas=rocep1s0f0,roceP2p1s0f0 gid_index=3
+max_size=2097152`.
+
+| t/s (aggregate) | C1 | C4 | C8 | C16 |
+|:--|--:|--:|--:|--:|
+| NCCL (boot #4) | 27.4 | 62.5 | 73.2 | 155.0 |
+| **RoCEnante (boot #5)** | **46.6** | **105.6** | **132.5** | **191.0** |
+| ratio | **1.70×** | **1.69×** | **1.81×** | **1.23×** |
+
+The effect is far outside the 7–25% GB10 boot-to-boot spread, so it is real.
+**C1 46.6 now exceeds our shipped vLLM/EXL3 TP=4 lane (40.7)** on the same four
+nodes. Upstream's 89.7 c1 is still ~2× away; the remaining lever is the SPS
+table and their 2200 MHz clock cap convention (ours is uncapped).
+
+**Decision: RoCEnante is shipped in the recipe** (`SGLANG_ROCE_ALLREDUCE=1`).
+Rollback is one env line (`SGLANG_ROCE_ALLREDUCE=0`). Correctness smoke still
+`27*43 -> 1161`, planets correct; DSpark acceptance unchanged.
