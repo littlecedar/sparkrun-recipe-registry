@@ -27,23 +27,27 @@ mods:
   - "@littlecedar/mods/dsv41-sglang-overlay"
 
 executor_config:
+  # The image entrypoint is `python3 -u /opt/dsv41/boot.py`; clear it so the
+  # recipe command (the launcher shim) is what runs.
   entrypoint: ""
-  # The container entrypoint is `python3 -u /opt/dsv41/boot.py`; clear it so the
-  # recipe command (the launcher shim) is what runs. The image is built for
-  # --privileged (RDMA, HUGEPAGE, IPC_LOCK) and is run rootful: this recipe is
-  # loaded from a local path, so the launcher's trust gate honours it.
-  privileged: true
-  user: root
-  cap_add:
-    - IPC_LOCK
+  # Rootless defaults already give IPC_LOCK / memlock=-1 and /dev/infiniband.
   shm_size: 32gb
-  ulimit:
-    - memlock=-1:-1
-    - stack=67108864
   volumes:
-    # Per-rank packed Engram shards on node-local NVMe (see docs/knapcio-integration.md
-    # §"Engram packing"). Must exist on every node before the boot.
+    # Per-rank packed Engram shards on node-local NVMe (see
+    # docs/knapcio-integration.md). Must exist on every node before the boot.
     /home/red/dsv41-engram: /engram-local
+
+distribution_config:
+  containers:
+    # dsv41-4x-spark:canary-roce is a node-local overlay image, built from the
+    # knapcio Dockerfile on every node and published to no registry. Without
+    # `enabled: false` sparkrun's distribution step tries to pull the tag and
+    # the launch aborts with "pull access denied".
+    enabled: false
+  models:
+    # The checkpoint is a shared HF cache, mounted at /cache/huggingface on every
+    # node; never re-download or fan out.
+    enabled: false
 
 # ---------------------------------------------------------------------------
 # READ docs/knapcio-integration.md BEFORE BURNING A BOOT.
