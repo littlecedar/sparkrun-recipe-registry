@@ -192,7 +192,6 @@ command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot
   --port {port}
-  --model-path {model}
 
 readiness:
   # boot.py reads 476 GiB, builds the DSpark draft, sizes KV and captures graphs.
