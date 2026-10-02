@@ -7,8 +7,9 @@ min_nodes: 4
 metadata:
   description: >-
     DeepSeek-V4.1-Flash on 4x DGX Spark (GB10), SGLang, native MXFP4/F8
-    checkpoint with the Engram on NVMe, TP=4 EP=2, DSpark k=5, 1M context.
-    Adaptation of knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
+    checkpoint with the Engram on NVMe, TP=4 EP=1, DSpark k=5, 1M context,
+    RoCEnante RDMA transport. Adaptation of
+    knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
     MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
     design are theirs, kept under the upstream licences). See
     docs/knapcio-integration.md in this directory for provenance and limits.
@@ -62,10 +63,8 @@ distribution_config:
 #
 # Fabric (verified on our fleet): two RoCE planes, 192.168.0.0/24 and
 # 192.168.1.0/24, FULL MESH on both, RoCEv2 on port GID index 3. So this is a
-# SWITCHED fabric, not a ring, and RoCEnante (SGLANG_ROCE_ALLREDUCE) is left OFF
-# for the first boot: enabling it also pulls in DSV41_ROCE_GATHER=<2 MiB> in the
-# upstream production line, and the one-shot RDMA all-gather is the piece with
-# the open b12x#313 wedge report. Collectives stay on NCCL first.
+# SWITCHED fabric, not a ring, and RoCEnante (SGLANG_ROCE_ALLREDUCE) is ON --
+# it measured 1.7x C1 over NCCL. The switchless-ring path is NOT needed.
 
 env:
   # --- checkpoint / placement ---------------------------------------------
@@ -177,6 +176,8 @@ env:
   #     boot.py stays on the verify-all schedule (correct, slower).
   #   DSV41_CERT_HEAD -- v2.3 certified head; -0.5 ms/step at c1, slower >= c10.
   #   DSV41_ENGRAM_DRM_NODE -- needs a host display-reserve change.
+  #   DSPARK_SPS_TABLE / DSPARK_STS_TABLE -- see the comment above; they crash the
+  #     Engram path.
 
   # --- RoCE / NCCL ---------------------------------------------------------
   # sparkrun's InfiniBand probe fills the generic NCCL_NET/HCA/GID/DISABLE vars
@@ -232,6 +233,6 @@ readiness:
 #   2. `Exact nvme Engram layer=... rank=... rows=[a,b)` must DIFFER per rank and
 #      report packed=<the /engram-local shard>. A "could not open" or an
 #      identical range is a stop.
-#   3. `[moe_b12x_next] armed` and `RoCEnante ready` ABSENT (RoCEnante is off).
+#   3. `[moe_b12x_next] armed` and `RoCEnante ready: world=4 ...`.
 #   4. `DSV4 memory calculation: ... full_token=<N>` -- the granted KV pool.
 #   5. DSpark acceptance on Decode batch lines (>1; workload dependent).
