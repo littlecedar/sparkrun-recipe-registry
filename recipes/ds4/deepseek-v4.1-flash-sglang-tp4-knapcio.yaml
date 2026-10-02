@@ -1,0 +1,213 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash
+runtime: sglang
+container: dsv41-4x-spark:canary-roce
+min_nodes: 4
+
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash on 4x DGX Spark (GB10), SGLang, native MXFP4/F8
+    checkpoint with the Engram on NVMe, TP=4 EP=2, DSpark k=5, 1M context.
+    Adaptation of knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
+    MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
+    design are theirs, kept under the upstream licences). See
+    docs/knapcio-integration.md in this directory for provenance and limits.
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: official, large-context, research_preview
+
+mods:
+  # Copies launcher.py into /workspace/mods/dsv41-sglang-overlay and fails closed
+  # unless the container really is the knapcio overlay image. The image already
+  # bakes /opt/dsv41/adapter (on PYTHONPATH) and /opt/dsv41/boot.py.
+  - "@littlecedar/mods/dsv41-sglang-overlay"
+
+executor_config:
+  entrypoint: ""
+  # The container entrypoint is `python3 -u /opt/dsv41/boot.py`; clear it so the
+  # recipe command (the launcher shim) is what runs. The image is built for
+  # --privileged (RDMA, HUGEPAGE, IPC_LOCK) and is run rootful: this recipe is
+  # loaded from a local path, so the launcher's trust gate honours it.
+  privileged: true
+  user: root
+  cap_add:
+    - IPC_LOCK
+  shm_size: 32gb
+  ulimit:
+    - memlock=-1:-1
+    - stack=67108864
+  volumes:
+    # Per-rank packed Engram shards on node-local NVMe (see docs/knapcio-integration.md
+    # §"Engram packing"). Must exist on every node before the boot.
+    /home/red/dsv41-engram: /engram-local
+
+# ---------------------------------------------------------------------------
+# READ docs/knapcio-integration.md BEFORE BURNING A BOOT.
+# ---------------------------------------------------------------------------
+# The engine is knapcio's `dsv41-4x-spark:canary-roce` image: upstream SGLang
+# `dsv4.1` branch @ f80c91a4b + the adapter overlay (/opt/dsv41/adapter, on
+# PYTHONPATH via the image ENV) + b12x / b12x_next kernels + boot.py. The recipe
+# does NOT re-plumb the serve line: boot.py builds the full sglang argv from the
+# environment below, and mods/dsv41-sglang-overlay/launcher.py maps sparkrun's
+# appended --dist-init-addr/--nnodes/--node-rank onto boot.py's env.
+#
+# Fabric (verified on our fleet): two RoCE planes, 192.168.0.0/24 and
+# 192.168.1.0/24, FULL MESH on both, RoCEv2 on port GID index 3. So this is a
+# SWITCHED fabric, not a ring, and RoCEnante (SGLANG_ROCE_ALLREDUCE) is left OFF
+# for the first boot: enabling it also pulls in DSV41_ROCE_GATHER=<2 MiB> in the
+# upstream production line, and the one-shot RDMA all-gather is the piece with
+# the open b12x#313 wedge report. Collectives stay on NCCL first.
+
+env:
+  # --- checkpoint / placement ---------------------------------------------
+  # The HF cache is mounted by sparkrun at /cache/huggingface. Use the literal
+  # snapshot path (a bare assignment does not glob).
+  MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
+  DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
+  STATE_PATH: /state
+  SKIP_PREPARE: "1"
+  SKIP_VERIFY: "1"
+  SKIP_SMOKE: "0"
+  WARMUP: "1"
+  READY_TIMEOUT_S: "3600"
+  HOST: 0.0.0.0
+  SERVED_MODEL_NAME: deepseek-v4.1-flash
+
+  # --- Engram on NVMe (the whole point: the 203 GB tables cannot live in the
+  # unified 128 GB pool). Packed per-rank shards at /engram-local. ---------------
+  OFFLOAD_MODE: nvme
+  DSV41_PACKED_DIR: /engram-local
+  DSV41_CACHE_GIB: "4"
+  DSV41_CACHE_WAYS: "16"
+  DSV41_IO_THREADS: "96"
+  DSV41_RESIDENT_SCALES: "0"
+  DSV41_STATS_SECONDS: "60"
+  DSV41_ENGRAM_PREFETCH: "1"
+
+  # --- parallelism / serving (boot.py reads these) -------------------------
+  NNODES: "4"
+  TP_SIZE: "4"
+  # EP=2, NOT EP=4: the base/canary images' MXFP4-Cutlass MoE needs
+  # moe_intermediate_size/EP to be a multiple of 128 (2304/2 = 1152 = 9x128).
+  # Under b12x_next (DSV41_MOE_B12X_NEXT=1) EP=1 is what upstream runs; kept at
+  # 2 for the first boot and flipped later as a measured A/B.
+  EP_SIZE: "2"
+  CONTEXT_LENGTH: "1048576"
+  # 0.80 keeps ~24 GiB/rank outside the static pool for the prefill indexer
+  # transient at 1M context.
+  MEM_FRACTION_STATIC: "0.80"
+  MAX_RUNNING_REQUESTS: "16"
+  # 4096-token chunks are safe only with the indexer backport below.
+  CHUNKED_PREFILL_SIZE: "4096"
+  CUDA_GRAPH_MAX_BS_DECODE: "16"
+  # Conservative pin (< upstream's 8M) so a tighter memory budget cannot wedge
+  # the boot; read `full_token=` from the boot log and raise once it is known.
+  MAX_TOTAL_TOKENS: "4000000"
+  SPEC_ALGO: DSPARK
+  DSPARK_BLOCK_SIZE: "5"
+
+  # --- overlay adapters (upstream production line, minus the RoCEnante
+  # all-gather and the two table-gated switches below) ------------------------
+  DSV41_INDEXER_CHUNKED: "1"
+  SGLANG_DSPARK_FOLDED_SAMPLING: "2"
+  SGLANG_RUST_BUILD_MODE: never
+  SPARK_PREFILL_TP_SPLIT: "1"
+  SPARK_PREFILL_TP_MIN_CONTEXT: "32768"
+  SPARK_PREFILL_TP_MIN_ROWS: "1024"
+  DSV41_FAST_LOAD: "1"
+  DSV41_FAST_LOAD_TP_SLICE: auto
+  DSV41_FAST_LOAD_N_EXPERTS: "384"
+  DSV41_FAST_LOAD_INFLIGHT_GB: "6"
+  DSV41_SHARED_PAD_K: "1"
+  DSV41_WO_A_W8: "1"
+  DSV41_WO_A_W8_MID: "1"
+  DSV41_WO_A_W8_DROP: "1"
+  DSV41_DRAFT_TAU: "0.7"
+  DSV41_DRAFT_HEAD_FP8: "1"
+  DSV41_BLOCK_VERIFY: "1"
+  DSV41_FOLDED_FENCE: "1"
+  DSV41_VERIFY_CAP: "conf:0.1"
+  DSV41_AUTOTUNE_KEEP: "1"
+  DSV41_REPLICATED_SPLIT: "wqkv_a,engram.wkv"
+  DSV41_DRAFT_MAIN_PROJ_SPLIT: "1"
+  DSV41_SPLIT_COMPACT_GATHER: "1"
+  DSV41_ROUTER_LIVE: "1"
+  DSV41_MOE_B12X_NEXT: "1"
+  DSV41_MOE_B12X_NEXT_DETERMINISTIC: "1"
+  DSV41_HC_FUSED: "1"
+  DSV41_PREFILL_SP: "1"
+  DSV41_PREFILL_SP_FP8: "1"
+  DSV41_L2_PREFETCH: "1"
+  DSV41_L2_PREFETCH_WOA: "1"
+  DSV41_SPEC_SYNC_FREE: all
+  DSV41_EAGER_GLUE: all
+  # Deliberately OFF on the first boot:
+  #   SGLANG_ROCE_ALLREDUCE / DSV41_ROCE_GATHER -- one-shot RDMA all-gather; the
+  #     open b12x#313 wedge. Turn on only as an A/B after NCCL is baselined.
+  #   DSPARK_SPS_TABLE / DSPARK_STS_TABLE -- ragged-verify cost tables; absent,
+  #     boot.py stays on the verify-all schedule (correct, slower).
+  #   DSV41_CERT_HEAD -- v2.3 certified head; -0.5 ms/step at c1, slower >= c10.
+  #   DSV41_ENGRAM_DRM_NODE -- needs a host display-reserve change.
+
+  # --- RoCE / NCCL ---------------------------------------------------------
+  # sparkrun's InfiniBand probe fills the generic NCCL_NET/HCA/GID/DISABLE vars
+  # per cluster; these are the levers the upstream profile sets. GID index 3 is
+  # the RoCEv2 IPv4 entry on both HCAs here (verified on our nodes).
+  NCCL_IB_GID_INDEX: "3"
+  NCCL_NET: IB
+  NCCL_IB_DISABLE: "0"
+  NCCL_IB_HCA: rocep1s0f0,roceP2p1s0f0
+  NCCL_P2P_DISABLE: "1"
+  NCCL_SHM_DISABLE: "1"
+  NCCL_CROSS_NIC: "1"
+  NCCL_CUMEM_ENABLE: "0"
+  NCCL_BUFFSIZE: "1048576"
+  NCCL_LL128_BUFFSIZE: "262144"
+  NCCL_PROTO: ^LL128
+  NCCL_MAX_NCHANNELS: "8"
+  NCCL_DEBUG: WARN
+  NCCL_DEBUG_SUBSYS: INIT,ENV
+
+  # expandable_segments is deliberately False: the V4.1 SGLang lane reports NaN
+  # logits above 64 prefill query tokens with it on (AGENTS.md §6.4). boot.py
+  # sets the same default.
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:False
+
+defaults:
+  port: 8888
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Kept for sparkrun's topology/rendezvous bookkeeping; boot.py takes TP_SIZE
+  # from the env above. Not emitted as a flag (the command is a template).
+  max_model_len: 1048576
+  served_model_name: deepseek-v4.1-flash
+
+# The launcher shim consumes sparkrun's appended
+# `--dist-init-addr H:P --nnodes N --node-rank R` and execs boot.py.
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --port {port}
+  --model-path {model}
+
+readiness:
+  # boot.py reads 476 GiB, builds the DSpark draft, sizes KV and captures graphs.
+  # inference is off because readiness drives /chat/completions, and the engine
+  # answers /health from the moment the HTTP server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
+
+# Boot-log checklist (see docs/knapcio-integration.md, "Boot gates"):
+#   1. `[dsv41-sglang-overlay] overlay gate OK` and `launcher: boot.py run ...`
+#      with NNODES=4 and the right NODE_RANK per node.
+#   2. `Exact nvme Engram layer=... rank=... rows=[a,b)` must DIFFER per rank and
+#      report packed=<the /engram-local shard>. A "could not open" or an
+#      identical range is a stop.
+#   3. `[moe_b12x_next] armed` and `RoCEnante ready` ABSENT (RoCEnante is off).
+#   4. `DSV4 memory calculation: ... full_token=<N>` -- the granted KV pool.
+#   5. DSpark acceptance on Decode batch lines (>1; workload dependent).
