@@ -33,12 +33,10 @@ executor_config:
   # Rootless defaults already give IPC_LOCK / memlock=-1 and /dev/infiniband.
   shm_size: 32gb
   volumes:
-    # Per-rank packed Engram shards on node-local NVMe (see
-    # docs/knapcio-integration.md). Must exist on every node before the boot.
-    /home/red/dsv41-engram: /engram-local
-    # boot.py writes launch.json / api-key here; /state is not writable in the
-    # image as an unprivileged user, so give it a node-local dir.
-    /home/red/dsv41-state: /state
+    # list of `host:container` specs. Packed per-rank Engram shards on node-local
+    # NVMe, and a writable dir for boot.py's launch.json / api-key.
+    - /home/red/dsv41-engram:/engram-local
+    - /home/red/dsv41-state:/state
 
 distribution_config:
   containers:
