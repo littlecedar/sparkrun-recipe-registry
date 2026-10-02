@@ -956,5 +956,132 @@ class NegativeControls(unittest.TestCase):
             self.assertGreaterEqual(max(sizes), int(r.default("max_num_seqs")) * 4)
 
 
+# --------------------------------------------------------------------------
+# The SGLang lane: knapcio's native-checkpoint overlay (AGENTS.md §7.13,
+# KNAPCIO-SGLANG-INTEGRATION.md). Separate file + separate assumptions from the
+# EXL3 lane: this recipe drives boot.py through a mod shim, needs a node-local
+# image, a writable /state and per-rank NVMe Engram shards, and must NOT enable
+# the SPS ragged-verify table (it crashes the Engram path).
+# --------------------------------------------------------------------------
+
+SGLANG_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-sglang-tp4-knapcio.yaml"
+SGLANG_MOD_DIR = REPO_ROOT / "mods" / "dsv41-sglang-overlay"
+
+
+def _clean(path: Path) -> str:
+    return _strip_comment_lines(path.read_text())
+
+
+class SglangLaneContract(unittest.TestCase):
+    """The knapcio SGLang recipe's invariants, all of them boot-learned."""
+
+    def setUp(self):
+        self.text = SGLANG_RECIPE.read_text()
+        self.r = Recipe(self.text, SGLANG_RECIPE.name)
+        self.clean = _strip_comment_lines(self.text)
+        self.ec = "\n".join(_section(self.clean, "executor_config"))
+        self.dc = "\n".join(_section(self.clean, "distribution_config"))
+
+    def test_runtime_image_model(self):
+        self.assertEqual(self.r.runtime, "sglang")
+        self.assertEqual(self.r.container, "dsv41-4x-spark:canary-roce")
+        self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(self.r.min_nodes, 4)
+
+    def test_ep_size_is_one(self):
+        # EP=2 loads but dies at the first decode plan under b12x_next.
+        self.assertEqual(self.r.env["EP_SIZE"], "1")
+
+    def test_port_consumed(self):
+        self.assertEqual(self.r.default("port"), "8888")
+        self.assertIn("{port}", self.r.command_template)
+
+    def test_launcher_shim_invoked(self):
+        self.assertIn("launcher.py", self.r.command_template)
+        self.assertIn("/workspace/mods/dsv41-sglang-overlay", self.r.command_template)
+
+    def test_node_local_image_not_distributed(self):
+        # Without this the launch aborts with "pull access denied".
+        self.assertRegex(self.dc, r"containers:\s*\n\s+enabled:\s*false")
+        self.assertRegex(self.dc, r"models:\s*\n\s+enabled:\s*false")
+
+    def test_volumes_are_list_form(self):
+        # A dict form mounts source->same-path (silently wrong) and /state fails.
+        self.assertRegex(self.ec, r"-\s+/home/red/dsv41-engram:/engram-local")
+        self.assertRegex(self.ec, r"-\s+/home/red/dsv41-state:/state")
+
+    def test_entrypoint_cleared(self):
+        self.assertIn('entrypoint: ""', self.ec)
+
+    def test_engram_nvme_env(self):
+        self.assertEqual(self.r.env["OFFLOAD_MODE"], "nvme")
+        self.assertEqual(self.r.env["DSV41_PACKED_DIR"], "/engram-local")
+
+    def test_sps_table_absent(self):
+        # A fitted SPS table arms the ragged scheduler and crashes the Engram path.
+        self.assertNotIn("DSPARK_SPS_TABLE", self.r.env)
+        self.assertNotIn("DSPARK_STS_TABLE", self.r.env)
+
+    def test_roce_nante_on(self):
+        self.assertEqual(self.r.env["SGLANG_ROCE_ALLREDUCE"], "1")
+        self.assertEqual(self.r.env["DSV41_ROCE_GATHER"], "2097152")
+        self.assertEqual(self.r.env["B12X_ROCE_HCA"], "rocep1s0f0,roceP2p1s0f0")
+
+    def test_no_expandable_segments(self):
+        self.assertIn("expandable_segments:False", self.r.env["PYTORCH_CUDA_ALLOC_CONF"])
+
+    def test_mod_present_and_gates_on_boot_py(self):
+        run_sh = (SGLANG_MOD_DIR / "run.sh").read_text()
+        self.assertIn("/opt/dsv41/boot.py", run_sh)
+        self.assertIn("die", run_sh)
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        for flag in ("--dist-init-addr", "--nnodes", "--node-rank"):
+            self.assertIn(flag, launcher)
+
+
+class SglangLaneNegativeControls(unittest.TestCase):
+    """Mutation controls: each must fail if the guarded invariant is broken."""
+
+    def _mutated(self, old, new):
+        text = SGLANG_RECIPE.read_text()
+        assert old in text, "anchor %r not in recipe" % old
+        return Recipe(text.replace(old, new, 1), SGLANG_RECIPE.name)
+
+    def test_control_ep_size_two(self):
+        r = self._mutated('EP_SIZE: "1"', 'EP_SIZE: "2"')
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.env["EP_SIZE"], "1")
+
+    def test_control_image_distribution_enabled(self):
+        # Anchor on the real `enabled: false` line, not the comment that also
+        # mentions the literal (F20: a control that mutates a comment tests
+        # nothing).
+        r = self._mutated(
+            'the launch aborts with "pull access denied".\n    enabled: false',
+            'the launch aborts with "pull access denied".\n    enabled: true',
+        )
+        dc = "\n".join(_section(_strip_comment_lines(r.raw), "distribution_config"))
+        with self.assertRaises(AssertionError):
+            self.assertRegex(dc, r"containers:\s*\n\s+enabled:\s*false")
+
+    def test_control_sps_table_set(self):
+        r = self._mutated(
+            "DSV41_EAGER_GLUE: all",
+            "DSV41_EAGER_GLUE: all\n  DSPARK_SPS_TABLE: /state/dspark_sps.json",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertNotIn("DSPARK_SPS_TABLE", r.env)
+
+    def test_control_volume_dict_form(self):
+        r = self._mutated(
+            "    - /home/red/dsv41-engram:/engram-local",
+            "    /home/red/dsv41-engram: /engram-local",
+        )
+        ec = "\n".join(_section(_strip_comment_lines(r.raw), "executor_config"))
+        with self.assertRaises(AssertionError):
+            self.assertRegex(ec, r"-\s+/home/red/dsv41-engram:/engram-local")
+
+
+
 if __name__ == "__main__":
     unittest.main()
