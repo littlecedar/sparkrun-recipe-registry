@@ -275,3 +275,23 @@ and the SGLang path runs with decoder SWA bounded replay, so prompt-token
 logprobs are unavailable and "bitwise vs the release checkpoint" is not
 measurable through it. The comparator is exact-match behavior, which is the right
 grain for this question.
+
+
+## Two honesty caveats on the measured numbers
+
+1. **The C1 number is completion-length sensitive.** Our bench requests 200
+   tokens but the varied short-answer prompts often `finish_reason=stop` well
+   before 200, so wall time includes prefill/TTFT and dilutes the effective
+   decode rate. On a single long-generation prompt, three same-boot c1 reps were
+   **36.9 / 39.6 / 39.8 t/s**; the varied-prompt aggregate was 46.3–46.6. The
+   steady-state **C4/C8/C16** columns (106/133/193) are the robust numbers and
+   are what should be compared. Upstream's 89.7 prose c1 is a single 256-token
+   sparkDash prompt, so it is not directly comparable to our varied-prompt C1.
+
+2. **The 1M context is *configured and served*, not needle-tested here.** The
+   server reports `context_len=1048576`, `max_model_len: 1048576` on
+   `/v1/models`, and `full_token=6907904` (KV room for ~6.6 full-length
+   requests). A 1M-token needle retrieval is **NOT measured on our cluster**;
+   upstream reports needle PASS at 1M on their fleet. Do not claim our lane has a
+   verified 1M retrieval until it is run (`bench_needle.py` /
+   `scripts/verify/needle*.py` in the upstream repo).
