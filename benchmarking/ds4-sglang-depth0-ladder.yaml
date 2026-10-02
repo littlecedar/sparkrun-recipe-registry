@@ -1,0 +1,16 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    DS4 SGLang (knapcio overlay) TP4 lane: the depth-0 warm concurrency ladder
+    that matches the `recipes/README.md` C1 contract — short warm prompts,
+    greedy, c1/c4/c8/c16 at tg=128. Distinct prompts per stream and
+    prefix_caching true (the serving row is a warm prefix hit). Read the
+    `runs/*.json` named fields (`tg_throughput`, `tg_req_throughput`), not the
+    printed table (benchmarking/README.md).
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1, 4, 8, 16 ]
+  prefix_caching: true
+  runs: 3
