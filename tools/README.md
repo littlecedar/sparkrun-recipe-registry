@@ -105,5 +105,4 @@ Measured on `deepseek-v4.1-flash-exl3-tp4-vllm` (2026-09-24): easy 19/19, hard
 17/18 = 94.4 %, stable over 3 repeats; the single hard failure is character
 reversal of an uncommon word (`sparkrun`), which common and long words pass —
 a checkpoint weakness, **not** a proven quantization defect (no release-checkpoint
-comparator was run). Full write-up: `recipes/ds4/DS4-MODEL-OPTIMIZATION-WORK.md`
-§7.5.6.
+comparator was run). Full write-up: `recipes/ds4/AGENTS.md` §7.6.

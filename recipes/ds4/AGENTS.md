@@ -1004,12 +1004,30 @@ outside the 7–25 % boot spread. **C1 46.5 beats the shipped vLLM/EXL3 TP=4 lan
    `SGLANG_RAGGED_VERIFY_MODE=static SGLANG_DSPARK_ENABLE_SPS_RECORD=1
    SGLANG_SIMULATE_ACC_LEN=1.0` and `SKIP_SMOKE=1`, and the sweep must be capped
    to the graph tier: `--max-batch-size 16`.)
-3. **Sparkrun mechanics:** a node-local image needs
-   `distribution_config.containers.enabled: false` (top-level key is
-   `distribution_config`, not `distribution`); `executor_config.volumes` is a
-   **list of `host:container` strings**; the HF cache uses the two-level
-   `hub/blobs/<xx>/<sha>` layout so the **whole `hub/` dir** must be mounted for
-   `pack_engram.py`. `/state` must be bind-mounted writable.
+3. **Sparkrun mechanics:** `distribution_config` is a top-level key (not
+   `distribution`). A **vendored** image is pulled by setting
+   `containers.enabled: true` and pinning the digest in `container:` (as this
+   lane now does); a **node-local** image needs `containers.enabled: false` so
+   sparkrun does not try to pull a tag that is not in a registry. The HF cache
+   uses the two-level `hub/blobs/<xx>/<sha>` layout so the **whole `hub/` dir**
+   must be mounted for `pack_engram.py`.
+4. **Portability (2026-10-02): the recipe carries NO host bind mounts.** Every
+   non-model, non-image artifact — the per-rank Engram shards, boot.py's
+   `launch.json`/`api-key`, the b12x JIT caches — lives under sparkrun's managed
+   runtime cache
+   (`~/.cache/sparkrun/runtime-cache/sglang/<model_dir>` → `/cache/runtime`),
+   which sparkrun creates and chowns per node. `mods/dsv41-sglang-overlay/run.sh`
+   creates + `reown`s the subdirs; `launcher.py` is the **only** component that
+   learns the rank (sparkrun appends `--node-rank` to every node's serve command;
+   the container env has none) and it packs this rank's Engram shards when absent,
+   **detached** so a cold boot never exceeds sparkrun's ~150 s head-rendezvous
+   wait (first cold boot runs Engram from the checkpoint; next boot is packed).
+   `sparkrun recipe validate` no longer reports `non-portable-mount`. `/state`
+   is no longer a bind mount — it is `/cache/runtime/state`.
+   A mod ref of the form `@littlecedar/mods/…` resolves from the **registry git
+   clone**, not the synced working tree, so iterating on a mod needs the
+   `~/development` symlink layout + a bare ref (QWEN4-WORK §16); the shipped
+   recipe keeps the `@littlecedar/…` form.
 
 **E5 is now CLOSED by this lane.** The release checkpoint scores **17/18 = 94.4 %**
 on the hard tier (two runs), the *same* score and the *same* single failure
@@ -1098,9 +1116,11 @@ grep is `--tensor-parallel-size N`.
 
 - **Serving V4.1-Flash on SGLang with any published image — do not try.**
   ~~SUPERSEDED 2026-10-02 for a purpose-built image~~ — the blockers below were
-  real *for the images published at the time*; they are solved by building
-  `dsv41-4x-spark:canary-roce` from `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`
-  (V4.1 branch + adapter overlay + b12x_next, built on every node) and running
+  real *for the images published at the time*; they are solved by the image built
+  from `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` (V4.1 branch + adapter
+  overlay + b12x_next), now **vendored** as
+  `littlecedar/dgx-spark-dsv41:canary-roce` (digest-pinned) so sparkrun pulls it
+  rather than building on every node, and running
   `EP_SIZE=1` (every rank a 576-wide slice of all 384 experts, so the `%128`
   check is moot). That lane **boots and serves**; see
   `KNAPCIO-SGLANG-INTEGRATION.md` and §7.13. Three
