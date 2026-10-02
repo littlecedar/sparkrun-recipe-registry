@@ -210,3 +210,34 @@ table and their 2200 MHz clock cap convention (ours is uncapped).
 **Decision: RoCEnante is shipped in the recipe** (`SGLANG_ROCE_ALLREDUCE=1`).
 Rollback is one env line (`SGLANG_ROCE_ALLREDUCE=0`). Correctness smoke still
 `27*43 -> 1161`, planets correct; DSpark acceptance unchanged.
+
+
+## SPS ragged-verify table — TESTED, crashes the Engram path (do not ship)
+
+The SPS table is the one remaining lever below upstream's 89.7 c1, and upstream
+itself lists it under **"Not used: … `DSPARK_SPS_TABLE` (crashes the Engram
+path)"**. Confirmed here end to end:
+
+1. Generated it in-image against a server booted
+   `SGLANG_RAGGED_VERIFY_MODE=static SGLANG_DSPARK_ENABLE_SPS_RECORD=1
+   SGLANG_SIMULATE_ACC_LEN=1.0` (the profiler requires all three).
+   `--max-batch-size 16` was needed because the default sweep reaches bs=256
+   while our graphs capture to 16 ("steps beyond it run eager and poison the
+   table"). Result: a 178-byte table, self-check passed.
+2. Copied it to `/state/dspark_sps.json` on all four nodes and booted normally
+   (RoCEnante on, no record env). boot.py then enabled the scheduler:
+   `DSpark ragged-verify scheduler enabled (mode=compact, lag=2, relay_lag=2,
+   sps_table=/state/dspark_sps.json, graph_tier=dynamic)`, **and the first mixed
+   batch died**:
+   `AssertionError: engram target-verify expects one equal block per request, got
+   84 tokens for 16 requests of 6` → `Scheduler hit an exception` → server never
+   healthy.
+
+So **upstream's production line is verify-all**, and our boot #5 (RoCEnante on,
+no SPS table) *is* the production line, not a degraded one. Remove the table
+(and the two `DSPARK_*_TABLE` env vars) to reproduce.
+
+**Caveat on the profiler effort:** the table also needed `SKIP_SMOKE=1` — with
+`SGLANG_SIMULATE_ACC_LEN=1.0` boot.py's own smoke checks the completion equals
+`42`, and simulated decoding returns `42!;`. That is a boot.py-independent
+artifact of record mode, not a recipe defect.
