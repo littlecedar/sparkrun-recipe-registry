@@ -96,11 +96,12 @@ env:
   # --- parallelism / serving (boot.py reads these) -------------------------
   NNODES: "4"
   TP_SIZE: "4"
-  # EP=2, NOT EP=4: the base/canary images' MXFP4-Cutlass MoE needs
-  # moe_intermediate_size/EP to be a multiple of 128 (2304/2 = 1152 = 9x128).
-  # Under b12x_next (DSV41_MOE_B12X_NEXT=1) EP=1 is what upstream runs; kept at
-  # 2 for the first boot and flipped later as a measured A/B.
-  EP_SIZE: "2"
+  # EP=1 is the b12x_next production line (every rank a 576-wide slice of all
+  # 384 experts; see adapter/moe_b12x_next.py: "the production profile is
+  # EP_SIZE=1, EP>1 is an A/B setup"). EP=2 LOADS but dies at the first decode
+  # plan: "planned dynamic direct routing is unsupported for this launch shape"
+  # (E192-N1152). Do not use EP=2 with DSV41_MOE_B12X_NEXT.
+  EP_SIZE: "1"
   CONTEXT_LENGTH: "1048576"
   # 0.80 keeps ~24 GiB/rank outside the static pool for the prefill indexer
   # transient at 1M context.
