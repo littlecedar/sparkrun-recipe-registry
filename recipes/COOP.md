@@ -1143,3 +1143,28 @@ Append newest at the bottom. Format: `YYYY-MM-DD [lane] [TAG] one-liner`.
   config value matters, read it from the boot's own `measurement_overrides` record rather than from prose
   or a filename. A group whose members differ in any knob is not a replication; grouping pool-112 boots
   with labquant and d=0 arms produced a "106% spread" that was pure mixture.
+
+* 2026-10-01 [ds4] [FACT, tooling - how `sparkrun run` reaches the DGX Spark trial nodes this session]. The TP6-1M recipe and every recipe that references `@littlecedar/mods/...` (or `@littlecedar/benchmarks/...`) needs the `littlecedar` registry, and the trial nodes (10.0.4.30-.35) each run `red@` over SSH. Three independent gotchas, each blocked a boot until fixed:
+  1. **The `littlecedar` registry is NOT present on the nodes from prior boots as a usable git clone - sparkrun tries to `git clone` it to each node.** `sparkrun registry add file:///path` fails because the head's `/home/siv/...` is invisible on the workers. The fix is a real remote: `sparkrun registry remove littlecedar` then `sparkrun registry add --trust https://github.com/littlecedar/sparkrun-recipe-registry.git`. (The head's `~/.config/sparkrun` registry config is write-protected for this uid, so the registry has to be added on the head, not on the nodes.)
+  2. **`sparkrun run` resolves the SSH user from its own config, which for the `siv` uid cannot be written to `~/.config/sparkrun`.** The nodes reject `siv@` ("Permission denied (publickey,password)"). The working convention is to pin the user in `~/.ssh/config`: `Host 10.0.4.30 ... 10.0.4.35` -> `User red`. Once pinned, `sparkrun run` resolves `red@` automatically and you pass plain-IP hosts (`--hosts 10.0.4.30,10.0.4.31,...`) - NOT `red@10.0.4.30,...` (that string is then treated as the hostname and fails: "Invalid hostname ... contains shell-unsafe characters"). Only 10.0.4.34/.35 were pinned before this session; the other four need it too.
+  3. **This recipe is `min_nodes: 6` = head (rank 0 of the TP=6 group) + 5 workers.** The `sparkrun` "Per-host fit" block confirms which six: head `.30` carries a rank. Consequence - see the [hardware etiquette] note above - the whole cluster is occupied for the duration of one boot, and the head cannot be touched by other work while it boots / holds a rank.
+
+
+* 2026-10-02 [ds4] [NEW, second engine lane — SGLang] Opened a DeepSeek-V4.1-Flash
+  **SGLang** lane from `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` (native MXFP4,
+  DSpark, Engram-on-NVMe). Recipe `recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`,
+  mod `mods/dsv41-sglang-overlay/`, doc `recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`.
+  This **supersedes the AGENTS.md §9 "SGLang is a dead end"** call for a purpose-built
+  image: the image `dsv41-4x-spark:canary-roce` is built on every node from the repo's
+  `Dockerfile.canary-roce`, and `EP_SIZE=2` clears the `2304/4` MXFP4-MoE blocker.
+  The vLLM/EXL3 lane is unchanged and remains the shipped path.
+  Facts other lanes may want: (a) the native `deepseek-ai/DeepSeek-V4.1-Flash` checkpoint
+  (510.3 GB, 48 shards, snapshot `dba1be0a40aa45a94ad051997016db3960a90277`) is **already
+  in the shared HF cache**; (b) our four free Sparks are **full-mesh on two RoCE planes**
+  (192.168.0.0/24 `rocep1s0f0`, 192.168.1.0/24 `roceP2p1s0f0`; port 1 ACTIVE, port 2 DOWN;
+  **RoCEv2 GID index 3**) — they are a switched fabric, NOT a ring, so the switchless
+  path is unnecessary; (c) sparkrun can run a **node-local image** if the recipe sets
+  `distribution_config.containers.enabled: false` (the top-level key is
+  `distribution_config`, not `distribution`), and `executor_config.volumes` is a **list
+  of `host:container` strings**, not a dict. Using `.32`–`.35` (head `.32`); `.30`/`.31`
+  untouched.
