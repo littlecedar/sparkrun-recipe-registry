@@ -146,3 +146,43 @@ Full mesh ⇒ **switched, not a ring**: the `NCCL_SWITCHLESS_RING_ONLY` path
   prompts diverge run to run.
 - Single-stream prose is bounded by DSpark acceptance (~3 accepted/step on
   prose, ~6 on code).
+
+
+## First measured result (2026-10-02) — boot OK, decode below upstream
+
+Boot #4 (recipe as shipped with `EP_SIZE=1`) reached **healthy in ~9 min**, all
+gates passed: `[moe_b12x_next] armed: routed MoE on b12x_next a7d7d29b (W4A8,
+in-place repack)`, `Exact nvme Engram layer=1/14 rank=0..3 rows=[a,b)` **differing
+per rank** with `packed=True` (rank 3 fixed after a re-pack), DSpark acceptance
+**2.40–2.77**, `max_total_num_tokens=4000000` (KV room `full_token=6907904`),
+`context_len=1048576`, `available_gpu_mem=19.79 GB`.
+
+Correctness smoke (off-head, greedy, thinking off): `27*43 -> 1161`,
+planets `Mercury/Venus/Earth/Mars`. PASS.
+
+Our bench (`.scratch/ds4/knapcio/bench_sglang.py`, non-streaming decode rate):
+
+| | C1 | C4 | C8 | C16 |
+|:--|--:|--:|--:|--:|
+| this recipe (NCCL, no SPS table) | 27.4 | 62.5 | 73.2 | 155.0 |
+| engine's own `gen throughput` c16 | — | — | — | 174 |
+| upstream v2.3 (their fabric/clock) | **89.7** | 165.9 | 244.6 | 357.2 |
+
+**C1 is ~3.3× below upstream and below our own vLLM EXL3 lane (40.7).** The
+engine's aggregate in this work-conserving bench agrees with the engine log, so
+this is real, not a client artifact. Two known levers are missing and are the
+next A/Bs (in priority order):
+
+1. **`DSPARK_SPS_TABLE`** (ragged/compact verify). Upstream: "without [the
+   profiled table] the planner falls back to verify-all and the whole thing is a
+   no-op." Our run is on verify-all. The table is built with
+   `python3 -m sglang.benchmark.dspark_sps_profiler all --out /state/dspark_sps.json`
+   against the live server; it must then be present on **every** node.
+2. **RoCEnante** (`SGLANG_ROCE_ALLREDUCE=1`, `SGLANG_ROCE_MAX_SIZE=2097152`,
+   `DSV41_ROCE_GATHER=2097152`, `B12X_ROCE_HCA=rocep1s0f0,roceP2p1s0f0`,
+   `B12X_ROCE_CACHE_DIR=/state/b12x-roce`, `B12X_COMPILE_CACHE_DIR=/state/b12x-compile`).
+   Our fabric is switched (RoCEnante-capable). This is the RDMA one-shot
+   all-reduce/all-gather — the b12x#313 wedge piece, but upstream's production
+   line and a large part of the c1 gap.
+
+Either or both may be needed to reach README-class numbers; state them as PENDING.
