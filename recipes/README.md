@@ -8,33 +8,14 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 ## DeepSeek V4
 
-| Recipe                               | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                 |
-|:-------------------------------------|:------|-------:|------:|-----:|---:|:------------------------------------------------------------|
-| deepseek-v4.1-flash-exl3-tp3-vllm    |       |   34.3 | 460GB | 0.80 |  3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-vllm    |       |   38.8 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-1m-vllm | 🚚    |   40.7 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-vllm    |       |   40.0 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-1m-vllm | 🚚    |   43.4 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-sglang-tp4-knapcio | 🚚🌲 |  46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash] |
-
-The C1 t/s column is a **warm, short-prompt** number (see `ds4/AGENTS.md` §11).
-The SGLang row is the **native-checkpoint lane** (knapcio's DSV41 overlay image,
-DSpark + Engram-on-NVMe + RoCEnante), benchmarked 2026-10-02: **C1 46.5** t/s
-(short-prompt contract; three boots agree within 2 %), and
-**C4/C8/C16 = 106/133/193** t/s on the same short-prompt harness. The auditable
-standardized cross-check (`sparkrun benchmark`, profile
-`benchmarking/ds4-sglang-depth0-ladder.yaml`, `pp=2048`, 3 runs) gives
-**43.6/91.3/99.4/102.1** t/s — the concurrency cells diverge from the short-prompt
-numbers because llama-benchy uses 2048-token prompts, so quote the ladder with its
-prompt length attached. It needs a node-local 510 GB image and ~47 GiB/node of
-packed Engram shards, so it is not a drop-in. Provenance, wiring and limits:
-`ds4/KNAPCIO-SGLANG-INTEGRATION.md` (and `ds4/AGENTS.md` §7.13).
-Long-context serving has two regimes: **warm-prefix** concurrency is healthy
-(measured 50.5 t/s at 32K, c2 on TP=4 1M, 2026-10-01), while a **cold deep
-prefill** is ~1300 t/s on TP=4 and serialises under concurrency (approx. Σdepth /
-1300 s before decodes are meaningful). `spark-arena-v2` at `depth > 0` measures a
-cold prefill; read its per-phase `sparkrun benchmark` JSON, not the printed table
-row. Full mechanism and A/B: `ds4/PERF-ISSUES.md` §§9–10.
+| Recipe                                 | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                 |
+|:---------------------------------------|:-------|-------:|------:|-----:|---:|:------------------------------------------------------------|
+| deepseek-v4.1-flash-exl3-tp3-vllm      |        |   34.3 | 460GB | 0.80 |  3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-vllm      |        |   38.8 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp4-1m-vllm   | 🚚     |   40.7 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp6-vllm      |        |   40.0 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-exl3-tp6-1m-vllm   | 🚚     |   43.4 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
+| deepseek-v4.1-flash-sglang-tp4-knapcio | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
 
 ## Ornith 1.5
 

@@ -41,6 +41,14 @@ BOOT="/opt/dsv41/boot.py"
 ADAPTER="/opt/dsv41/adapter/sitecustomize.py"
 B12X="/opt/b12x_next/b12x_next"
 ENGINE_PY="/sgl-workspace/sglang/python/sglang/srt/layers/engram.py"
+# Cacheable artifacts, all under the sparkrun-managed runtime cache
+# (<host> ~/.cache/sparkrun/runtime-cache/sglang/<model_dir> -> /cache/runtime).
+# sparkrun creates and chowns the leaf; these subdirs are ours to create.
+CACHE="${MOD_CACHEDIR:-/cache/runtime}"
+PACKED_DIR="${DSV41_PACKED_DIR:-${CACHE}/engram}"
+STATE_DIR="${STATE_PATH:-${CACHE}/state}"
+B12X_COMPILE_DIR="${B12X_COMPILE_CACHE_DIR:-${CACHE}/b12x-compile}"
+B12X_ROCE_DIR="${B12X_ROCE_CACHE_DIR:-${CACHE}/b12x-roce}"
 
 #####################################################################
 # Helpers
@@ -85,6 +93,20 @@ log "${MOD_MAINTAINER}"
 
 # The container(s) run as root (privileged), so /workspace is writable.
 [[ -d /workspace/mods ]] || mkdir -p /workspace/mods
+
+#####################################################################
+# Cacheable-object directories under the managed runtime cache
+#####################################################################
+# This mod runs before the serve command (sparkrun step 5 < steps 6/7), so the
+# directories exist before boot.py's preflight and before the launcher packs the
+# Engram shards. sparkrun owns /cache/runtime itself (it creates and chowns the
+# leaf), but rootless docker would otherwise leave these mkdir'd subdirs
+# root-owned; reown() hands them back so the non-root serve user can write.
+for _dir in "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}"; do
+  mkdir -p "${_dir}"
+  log "cache dir ready: ${_dir}"
+done
+reown "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}"
 
 #####################################################################
 # Fail-closed compatibility gate

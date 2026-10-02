@@ -20,14 +20,119 @@ appended):
         [--dist-init-addr H:P] [--nnodes N] [--node-rank R]
 
 `--health` forwards to boot.py's health probe (used for a manual check).
+
+Engram shards. The overlay serves the two 203 GB Engram tables from node-local
+packed shards, one per rank, under `$DSV41_PACKED_DIR` (the recipe points this at
+`/cache/runtime/engram`, the sparkrun-managed runtime cache). Those shards are a
+cacheable artifact -- ~47 GiB/rank, derived from the checkpoint -- and must not
+live in a user's home directory. They are produced by the image's
+`/opt/dsv41/scripts/pack_engram.py`. This shim materializes *this rank's* shards
+before booting:
+
+  * rank from `--node-rank` (sparkrun passes it to the head and every worker),
+  * if both shards already exist -> nothing to do,
+  * otherwise launch the packer **detached** (flock-guarded, one per node) and
+    boot immediately. boot.py then reads Engram straight from the checkpoint for
+    that boot; the packed shards are picked up on the next boot.
+
+The pack is deliberately not synchronous: a cold pack is minutes long, and
+sparkrun only waits ~150 s for the head to open its rendezvous port before it
+declares the launch dead. Backgrounding keeps every boot inside that budget;
+correctness is unaffected because the checkpoint fallback is exact (see
+`adapter/engram_backend.py`: the packed shard is an optional acceleration, and
+`row_store.cpp` fails closed if a shard does not match the rank's row range).
 """
 from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 
 BOOT = "/opt/dsv41/boot.py"
+PACKER = "/opt/dsv41/scripts/pack_engram.py"
+ENGRAM_LAYERS = (1, 14)
+
+
+def _pack_env(env: dict[str, str]) -> dict[str, str]:
+    """Environment for the background packer (inherit, but pin HOME)."""
+    return dict(env, HOME=env.get("HOME") or "/tmp")
+
+
+def ensure_engram_shards(env: dict[str, str], rank: int | None) -> None:
+    """Materialize this rank's packed Engram shards, detached if absent.
+
+    Never raises: a shard it cannot build costs the checkpoint fallback (correct,
+    slower), while an exception here would cost the launch.
+    """
+    packed_dir = env.get("DSV41_PACKED_DIR", "").strip()
+    if not packed_dir:
+        return
+    if rank is None:
+        print("launcher: no --node-rank/NODE_RANK; skipping Engram pack "
+              "(boot.py will read Engram from the checkpoint)", flush=True)
+        return
+    try:
+        tp = int(env.get("TP_SIZE", "4"))
+    except ValueError:
+        tp = 4
+
+    missing = [
+        layer for layer in ENGRAM_LAYERS
+        if not _shard_complete(os.path.join(packed_dir, "engram-l%d-r%dof%d.bin" % (layer, rank, tp)))
+    ]
+    if not missing:
+        print("launcher: Engram shards present for rank %d/%d at %s" % (rank, tp, packed_dir), flush=True)
+        return
+    if not os.path.isfile(PACKER):
+        print("launcher: packer %s missing; booting without packed Engram" % PACKER, flush=True)
+        return
+
+    os.makedirs(packed_dir, exist_ok=True)
+    lock_path = os.path.join(packed_dir, ".pack.lock")
+    log_path = os.path.join(env.get("STATE_PATH", packed_dir), "engram-pack.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        log = open(log_path, "ab", buffering=0)
+    except OSError:
+        log = subprocess.DEVNULL
+
+    # flock -n: if another pack is already running on this node, leave it alone.
+    # nice/ionice: the pack is background work; keep it behind the cold boot's
+    # weight load (both compete for the same NVMe and the unified memory pool).
+    cmd = [
+        "flock", "-n", lock_path,
+        "nice", "-n", "10", "ionice", "-c", "3",
+        sys.executable, PACKER,
+        "--rank", str(rank), "--tp", str(tp), "--out", packed_dir,
+    ]
+    try:
+        subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env=_pack_env(env),
+            cwd="/opt/dsv41",
+        )
+        print("launcher: Engram shards missing for rank %d/%d (layers %s); "
+              "packing in the background -> %s (log: %s). Booting on the "
+              "checkpoint fallback for this boot." % (rank, tp, missing, packed_dir, log_path), flush=True)
+    except OSError as exc:
+        print("launcher: could not start Engram packer (%r); booting on the "
+              "checkpoint fallback" % (exc,), flush=True)
+
+
+def _shard_complete(path: str) -> bool:
+    """Cheap completeness test: the packer renames the finished file into place,
+    so a non-empty target with no `.partial` sibling is the done state."""
+    try:
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        return not os.path.exists(path.replace(".bin", ".partial"))
+    except OSError:
+        return False
 
 
 def main(argv: list[str]) -> int:
@@ -63,6 +168,9 @@ def main(argv: list[str]) -> int:
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)
+
+    rank = env.get("NODE_RANK")
+    ensure_engram_shards(env, int(rank) if rank is not None and str(rank).lstrip("-").isdigit() else None)
 
     print(
         "launcher: boot.py run "

@@ -1,14 +1,19 @@
 # dsv41-sglang-overlay
 
 Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
-(`dsv41-4x-spark:canary-roce`), used by
+(vendored as `littlecedar/dgx-spark-dsv41:canary-roce`, natively
+`dsv41-4x-spark:canary-roce`), used by
 `recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`.
 
 | | |
 |:--|:--|
 | Kind | Pre-exec mod; **modifies no image file**. |
 | License | AGPL-3.0-or-later (this repo). |
-| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. See `recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`. |
+| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`. |
+
+The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
+(digest-pinned), so sparkrun pulls it and no node builds it. The recipe's
+`distribution_config.containers.enabled: true` drives that pull.
 
 ## Why it exists
 
@@ -37,16 +42,47 @@ really is the overlay build:
 - `/opt/b12x_next/b12x_next` exists,
 - the engine's `engram.py` exists.
 
-It then logs the resolved paths. Nothing in the image is modified — the upstream
-repo's own in-image test suite gates the overlay instead.
+It then logs the resolved paths and creates + `reown`s the cacheable-object
+directories under the sparkrun-managed runtime cache (`/cache/runtime/engram`,
+`/cache/runtime/state`, `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce`)
+so the non-root serve user can write them. Nothing in the image is modified —
+the upstream repo's own in-image test suite gates the overlay instead.
+
+## Portability (the whole point of the `/cache/runtime` wiring)
+
+The recipe carries **no host bind mounts**. Everything that is not the model and
+not image content — the two per-rank Engram shards, boot.py's `launch.json` /
+`api-key`, and the b12x JIT caches — lives under sparkrun's managed runtime
+cache: `<host> ~/.cache/sparkrun/runtime-cache/sglang/<model_dir>/`, mounted at
+`/cache/runtime`. sparkrun creates and chowns that leaf per node; the recipe
+never spells the host path and the container path is constant.
+
+The two pieces that make this work:
+
+- **`run.sh`** creates and `reown`s the subdirectories (it runs before the serve
+  command), so the non-root user can write them.
+- **`launcher.py`** is the only component that learns the node's rank (sparkrun
+  appends `--node-rank` to the serve command on the head *and* every worker; the
+  container env carries no rank). It materializes *this rank's*
+  `engram-l{1,14}-r{rank}of{tp}.bin` under `/cache/runtime/engram`:
+  - present → no-op;
+  - missing → it starts the image's `/opt/dsv41/scripts/pack_engram.py`
+    **detached** (`flock`-guarded, one per node) and boots immediately on the
+    checkpoint Engram fallback. The packed shards are used from the next boot.
+    Synchronicity would blow sparkrun's ~150 s head-rendezvous wait on a cold
+    node; backgrounding keeps every boot inside budget and correctness is
+    unaffected (`adapter/engram_backend.py` treats the packed shard as optional
+    acceleration; `row_store.cpp` fails closed on a range mismatch).
+
+`/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
+Engram reads never traverse the network — the same property the old
+`/home/red/dsv41-engram` bind mount gave, without the machine-specific path.
 
 ## Not in this mod (and why)
 
-The Engram NVMe shards, the node-local image, and the writable `/state` are all
-**host-side wiring in the recipe**, not mod content:
-
-- `/home/red/dsv41-engram:/engram-local` — per-rank packed Engram shards, built
-  with the image's `/opt/dsv41/scripts/pack_engram.py`.
-- `/home/red/dsv41-state:/state` — boot.py writes `launch.json` / `api-key` there.
-- `distribution_config.containers.enabled: false` — the image is node-local and
-  must not be pulled from a registry.
+- The image itself is **vendored** (`littlecedar/dgx-spark-dsv41:canary-roce`,
+  digest-pinned) and pulled by sparkrun with
+  `distribution_config.containers.enabled: true`. A local-only build is the opt
+  out: retag it `dsv41-4x-spark:canary-roce` and set `containers.enabled: false`.
+- The checkpoint is the shared HF cache, mounted by sparkrun at
+  `/cache/huggingface`; never re-download or fan out.
