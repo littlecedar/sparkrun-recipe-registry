@@ -15,7 +15,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | deepseek-v4.1-flash-exl3-tp4-1m-vllm   | 🚚     |   40.7 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp6-vllm      |        |   40.0 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-exl3-tp6-1m-vllm   | 🚚     |   43.4 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-sglang-tp4-knapcio | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
+| deepseek-v4.1-flash-knapcio-tp4-1m-sglang | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
 
 ## Ornith 1.5
 
@@ -53,7 +53,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite      |
 | 🚀   | fast          | C1 Fast (>= 50t/s avg)               |
 | 🐢   | slow          | C1 Slow (< 40t/s avg)                |
-| 🚚   | large_context | Large context (> 1000000 tkns)       |
+| 🚚   | large_context | Large context (>= 512k tokens)       |
 | 🏴   | uncensored    | Uncensored model                     |
 | 🚩   | dangerous     | Dangerous and may crash your Sparks! |    
 | 💀   | broken        | Currently broken                     |
