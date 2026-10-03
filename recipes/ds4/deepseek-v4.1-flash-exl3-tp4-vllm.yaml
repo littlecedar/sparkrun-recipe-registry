@@ -78,7 +78,7 @@ env:
   VLLM_USE_BREAKABLE_CUDAGRAPH: "1"
 
   # --- Engram on disk (see header) ----------------------------------------
-  # DSV41_ENGRAM_DIR is a per-node or NFS row copy (tools/engram_local.py
+  # DSV41_ENGRAM_DIR is a per-node row copy (tools/engram_local.py
   # builds it, ~48 GB); absent, the reader falls back to the model files.
   DSV41_ENGRAM_DISK: "1"
   DSV41_ENGRAM_DISK_THREADS: "32"
@@ -153,7 +153,8 @@ command: >
   {extra_args}
 
 readiness:
-  # 460 GB read over NFS, then draft weights, KV, graph capture. ~12 min warm.
+  # 460 GB read from node-local disk, then draft weights, KV, graph capture.
+  # ~12 min warm.
   port_timeout_s: 7200
   health_timeout_s: 1800
 

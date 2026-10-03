@@ -11,7 +11,7 @@ drops are not a mitigation.** InstantTensor is **incompatible with this checkpoi
 on this hardware**, reproduced on one node in seconds: it sizes a **GPU buffer to
 the checkpoint's largest single tensor — the 91.56 GiB Engram table** (183 GiB by
 its overlap heuristic across all 48 shards) — and then the native loader **aborts**
-(`Failed to submit aio: Invalid argument` → SIGABRT) against the shared NFS cache.
+(`Failed to submit aio: Invalid argument` → SIGABRT) against the checkpoint's shards.
 A ≥91.56 GiB per-rank GPU buffer is **by itself fatal** on a 128 GB node, which is
 the **LIKELY** mechanism of the six-node crash; there is **no version of this lever
 to ship**. A load-window flusher is measured to buy **nothing** for KV.
@@ -48,7 +48,7 @@ cache change is ever wanted, the bounded reader fix (§3B) is the only viable on
   `.scratch/ds4/TUNING_BACKLOG.md` B1.3 is marked REFUTED and AGENTS.md §7.8.1 has
   the table. **No action** (do not build a flusher mod).
 - **The reader-bounding idea works and is now IMPLEMENTED as an opt-in mod (§7).**
-  Against the real `model-00047` over real NFS: buffered reads retain **+0.50 GiB**,
+  Against the real `model-00047` on disk: buffered reads retain **+0.50 GiB**,
   `fadvise(DONTNEED)` per read **+0.01 GiB**, `O_DIRECT` **+0.00 GiB**, throughput
   identical (100–109 MiB/s). Serving-time Engram reads moved `Cached` by **≈0**. So
   bounding the reader is cheap and correct but bounds a negligible term. Shipped as
@@ -85,7 +85,7 @@ allocator, and the KV pool was sized correctly *with* the cache present.
 
 **(B) The only viable cache change, if one is ever wanted**, is to bound the reader
 (`fadvise(DONTNEED)` per read, or `O_DIRECT`, in `engram.py`). It is proven
-cache-neutral on the real NFS path and costs nothing measurable, but it addresses
+cache-neutral on the real files and costs nothing measurable, but it addresses
 only the small serving-time term. Treat it as a minor hygiene mod, not a fix.
 **Implemented (§7) and listed.**
 
@@ -105,7 +105,7 @@ plan is now short by design.
    negative results and move on.
 2. **(Optional, low priority) reader-bounding mod — the only viable cache change.**
    If a serving-time cache bound is wanted for its own sake, add
-   `POSIX_FADV_DONTNEED` per read (preferred over `O_DIRECT` on NFS) to a copy of the
+   `POSIX_FADV_DONTNEED` per read (preferred over `O_DIRECT`) to a copy of the
    shipped `engram.py`; ship as a **new** mod, not an edit to
    `mount-dsv41-exl3-patches` (that mod is md5-pinned to upstream `d45538f6`;
    changing it breaks the pin and the fail-closed check). Add a stdlib guard that the
@@ -117,7 +117,7 @@ plan is now short by design.
 
 **No fleet boot is required by this plan.** The one experiment it would have needed
 was the instanttensor check, and that was answered on a **single** node without a
-recipe boot (a container `safe_open` against the real NFS shards). Any future cache
+recipe boot (a container `safe_open` against the real shards). Any future cache
 change should be smoke-booted on one node first (§7.9's process lesson), never on
 the fleet.
 

@@ -214,7 +214,7 @@ must be the one in §7. (AGENTS.md §10 E8 carries a dated correction pointing h
 | design | verdict | reason |
 |:--|:--|:--|
 | **A. mod patch: apply the dict `hf_overrides` to the draft config (env-toggled)** | **recommended** | smallest correct point; matches the mod's existing toggle style; end-state identical to upstream's proven config (72/9 drafter) |
-| B. 72/96-head config.json hardlink copy of the checkpoint (upstream's approach) | workable, not recommended | zero code, but a second checkpoint identity collides with this repo's conventions: sparkrun `model:` is an HF repo id; `CUDA_EXL3_MODEL_PATH` and Engram row paths must be re-pointed; `MillionTokenContext`/sibling guards assume the 1M twins share a base; and it forks the cache on the NFS server for every future checkpoint update |
+| B. 72/96-head config.json hardlink copy of the checkpoint (upstream's approach) | workable, not recommended | zero code, but a second checkpoint identity collides with this repo's conventions: sparkrun `model:` is an HF repo id; `CUDA_EXL3_MODEL_PATH` and Engram row paths must be re-pointed; `MillionTokenContext`/sibling guards assume the 1M twins share a base; and it forks the cache on every node for each future checkpoint update |
 | C. `draft_tensor_parallel_size=1` | dead | §5 |
 | D. pad the drafter to 129 experts with a dummy expert | unnecessary | the 128-expert assert is already relaxed on the no-EP path (§3.1); upstream considered this in try 8 and chose the relaxation instead |
 | E. patch `vllm/config/model.py` to relax the heads check | rejected | it would let a 64-head drafter *build* at TP=3 and then crash at the attention assert (attention.py:227) — the check is not the only gate, and relaxing it hides the real requirement (padding) |
