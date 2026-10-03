@@ -52,6 +52,10 @@ import sys
 BOOT = "/opt/dsv41/boot.py"
 PACKER = "/opt/dsv41/scripts/pack_engram.py"
 ENGRAM_LAYERS = (1, 14)
+# The HF cache is bind-mounted at a fixed path inside the container (sparkrun's
+# orchestration/primitives.py), so the launcher can resolve the checkpoint here
+# instead of the recipe spelling a snapshot hash in env:.
+HF_HUB = "/cache/huggingface/hub"
 
 # ---------------------------------------------------------------------------
 # Recipe-owned environment.
@@ -250,46 +254,36 @@ def _shard_complete(path: str) -> bool:
         return False
 
 
-def _resolve_checkpoint(model_path: str) -> str | None:
-    """Resolve a hardcoded HF snapshot path to one that exists locally.
+def _repo_cache_dir(model: str) -> str:
+    """`deepseek-ai/DeepSeek-V4.1-Flash` -> its dir under the HF hub cache."""
+    return os.path.join(HF_HUB, "models--" + model.replace("/", "--"))
 
-    The recipe pins a literal snapshot directory because a bare assignment does
-    not glob and a symlinked snapshot tree must be mounted whole. But a shared
-    HF cache is re-resolved whenever the upstream repo moves: the local
-    `snapshots/<hash>` the recipe names can vanish while the model is still
-    fully present under a new hash — the failure is `missing .../config.json`.
 
-    We only need the directory *inside* the container, where the cache is at a
-    fixed mount; the path components are taken from the recipe's literal path so
-    the fallback works for any mount, not just ours. Candidates are picked by
-    the two independent completeness signals HF uses: `refs/main` (what the
-    cache actually resolves to today) and `model.safetensors.index.json` (a
-    complete checkpoint names every shard). First hit wins; ``None`` means "no
-    candidate is complete", and the caller keeps the original path so the
-    engine's own error is the one seen.
+def _resolved_models_dir(model: str) -> str | None:
+    """The local:local dir to serve *model* from, or ``None`` if not resolvable.
+
+    The recipe names the model (``{model}``) and the launcher locates it in the
+    fixed in-container HF cache, so no snapshot hash is spelled in `env:` (where
+    it would read as a path the user must maintain). Robust to the cache
+    re-resolving: prefer `refs/main`, else any snapshot carrying both `config.json`
+    and `model.safetensors.index.json`. ``None`` means "not found", and the caller
+    leaves MODEL_PATH unset so the engine's own error is the one seen.
     """
     import glob
 
-    parts = model_path.rstrip("/").split("/")
-    if "snapshots" not in parts:
-        return None
-    idx = parts.index("snapshots")
-    repo = "/".join(parts[:idx])
+    repo = _repo_cache_dir(model)
     if not os.path.isdir(repo):
         return None
 
     candidates: list[str] = []
-    ref_main = os.path.join(repo, "refs", "main")
     try:
-        with open(ref_main) as handle:
+        with open(os.path.join(repo, "refs", "main")) as handle:
             revision = handle.read().strip()
         if revision:
             candidates.append(os.path.join(repo, "snapshots", revision))
     except OSError:
         pass
-    # Any snapshot dir that carries the shard index, newest first.
-    for snap in sorted(glob.glob(os.path.join(repo, "snapshots", "*")), reverse=True):
-        candidates.append(snap)
+    candidates += sorted(glob.glob(os.path.join(repo, "snapshots", "*")), reverse=True)
 
     seen: set[str] = set()
     for candidate in candidates:
@@ -302,6 +296,32 @@ def _resolve_checkpoint(model_path: str) -> str | None:
     return None
 
 
+def resolve_checkpoint(env: dict[str, str]) -> None:
+    """Set MODEL_PATH / DSV41_SOURCE from the model id in the fixed HF cache.
+
+    Runs before any checkpoint validation. If the caller supplied a valid path
+    (a container bind that is not the HF hub cache — read-only, but boot.py's
+    SKIP_PREPARE only needs it to exist), it is left alone. Otherwise the path is
+    derived from `MODEL_ID` (sparkrun's `{model}`) and the hub cache, so the
+    recipe never spells a snapshot hash.
+    """
+    model = env.get("MODEL_ID", "").strip()
+    supplied = env.get("MODEL_PATH", "").strip()
+    if supplied and os.path.isfile(os.path.join(supplied, "config.json")):
+        env.setdefault("DSV41_SOURCE", supplied)
+        return
+    if not model:
+        return
+    resolved = _resolved_models_dir(model)
+    if resolved:
+        print(f"launcher: resolved checkpoint {model} -> {resolved}", flush=True)
+        env["MODEL_PATH"] = resolved
+        env["DSV41_SOURCE"] = resolved
+    else:
+        print(f"launcher: checkpoint for {model} not found under {HF_HUB}; "
+              "leaving MODEL_PATH unset", flush=True)
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--boot", action="store_true", help="start the engine (default)")
@@ -312,6 +332,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--port", default=None)
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
+    parser.add_argument("--model", default=None,
+                        help="HF repo id (sparkrun's {model}); the checkpoint is "
+                             "located in the fixed HF hub cache from this")
     # Everything else (unused sglang flags, the recipe's own args) is ignored.
     args, _unknown = parser.parse_known_args(argv)
 
@@ -328,28 +351,23 @@ def main(argv: list[str]) -> int:
         env["SERVED_MODEL_NAME"] = args.served_model_name
     if args.model_path:
         env["MODEL_PATH"] = args.model_path
+    if args.model:
+        env["MODEL_ID"] = args.model
 
     if not os.path.isfile(BOOT):
         print(f"launcher: boot.py not found at {BOOT}; is the image dsv41-4x-spark:canary-roce?", file=sys.stderr)
         return 2
 
     # Fill the production env (locations, engine flags, adapter enablement,
-    # RoCEnante, NCCL tuning). Anything already in the container env wins.
+    # RoCEnante, NCCL tuning). The launcher owns these and overrides the image.
     apply_recipe_env(env)
+
+    # Locate the checkpoint in the fixed HF cache (MODEL_ID from `{model}`).
+    # After apply_recipe_env, which is where /cache/runtime paths are set.
+    resolve_checkpoint(env)
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)
-
-    # Heal a stale hardcoded snapshot: if the recipe's literal checkpoint path is
-    # not a complete local snapshot, switch MODEL_PATH/DSV41_SOURCE to the one
-    # the cache resolves to. boot.py reads both from the env it is exec'd with.
-    requested = env.get("MODEL_PATH", "")
-    if requested and not os.path.isfile(os.path.join(requested, "config.json")):
-        resolved = _resolve_checkpoint(requested)
-        if resolved and resolved != requested:
-            print(f"launcher: checkpoint {requested} is not present; resolved to {resolved}", flush=True)
-            env["MODEL_PATH"] = resolved
-            env["DSV41_SOURCE"] = resolved
 
     rank = env.get("NODE_RANK")
     ensure_engram_shards(env, int(rank) if rank is not None and str(rank).lstrip("-").isdigit() else None)

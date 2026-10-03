@@ -74,15 +74,15 @@ The two pieces that make this work:
     unaffected (`adapter/engram_backend.py` treats the packed shard as optional
     acceleration; `row_store.cpp` fails closed on a range mismatch).
 
-It also **resolves a moved checkpoint**. The recipe pins a literal HF snapshot
-path (a bare `X=/path/*` assignment stays literal, §6.1 of the ds4 notes), but a
-shared HF cache is re-resolved whenever the upstream repo moves — the named
-`snapshots/<hash>` can vanish while the model is fully present under a new hash
-(`AssertionError: missing …/config.json`). `launcher.py` treats the literal as a
-*preference*: if it is not a complete local snapshot it switches `MODEL_PATH` /
-`DSV41_SOURCE` to `<repo>/refs/main`, else the newest snapshot carrying
-`model.safetensors.index.json`, before `execve(boot.py)`. Verified live by
-forcing the stale hash.
+It also **locates the checkpoint**. The recipe passes the repo id
+(`--model {model}`); `launcher.py:resolve_checkpoint()` finds it in the fixed
+in-container HF cache (`/cache/huggingface/hub/models--<org>--<name>`) and sets
+`MODEL_PATH` / `DSV41_SOURCE` — preferring `refs/main`, else the newest snapshot
+carrying both `config.json` and `model.safetensors.index.json`. So the recipe
+spells **no snapshot path** (a hardcoded `snapshots/<hash>` is not portable and
+reads as a path a user must maintain), and a shared cache that re-resolves to a
+new hash cannot break the boot. A container bind supplied as `MODEL_PATH` is left
+alone (it is read-only, which is all the `SKIP_PREPARE` existence check needs).
 
 ## The production env lives here, not in the recipe
 
@@ -96,13 +96,13 @@ necessary because the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,
 `PYTORCH_CUDA_ALLOC_CONF=…True`, `SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and
 a `setdefault` would let those win (silently redirecting boot.py state to an
 unwritable `/state`, and re-arming the allocator mode that NaNs above 64 prefill
-query tokens). The override deliberately does **not** include the recipe-owned
-`MODEL_PATH` / `DSV41_SOURCE` / `TP_SIZE`, which pass through.
+query tokens). `TP_SIZE` is the one thing the launcher cannot derive (sparkrun
+passes `--nnodes`, not the TP degree), so it is the only key the recipe sets.
 
-The recipe's own `env:` is therefore thin — checkpoint path + `TP_SIZE` — and
-carries no host device names. `RECIPE_ENV` values that the runtime already
-defaults to (SKIP_SMOKE, WARMUP, HOST, SERVED_MODEL_NAME, the prefill thresholds,
-the fast-load slice/inflight defaults) are **not** set anywhere.
+The recipe's own `env:` is therefore a **single line, `TP_SIZE`**, and carries no
+host device names and no snapshot path. `RECIPE_ENV` values that the runtime
+already defaults to (SKIP_SMOKE, WARMUP, HOST, SERVED_MODEL_NAME, the prefill
+thresholds, the fast-load slice/inflight defaults) are **not** set anywhere.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
