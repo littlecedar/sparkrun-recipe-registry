@@ -84,6 +84,26 @@ shared HF cache is re-resolved whenever the upstream repo moves — the named
 `model.safetensors.index.json`, before `execve(boot.py)`. Verified live by
 forcing the stale hash.
 
+## The production env lives here, not in the recipe
+
+`launcher.py`'s `RECIPE_ENV` carries the whole production configuration —
+locations under `/cache/runtime`, the boot.py read flags, the Engram reader
+tuning, the engine/serving flags, the overlay-adapter enablement, RoCEnante and
+the device-free NCCL transport tuning (`mods/dsv41-sglang-overlay/launcher.py`,
+inventoried in `.scratch/ds4/knapcio/ENV-MIGRATION.md`). It is applied with
+`env.update(RECIPE_ENV)`, i.e. it **overrides** the launcher's process env —
+necessary because the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,
+`PYTORCH_CUDA_ALLOC_CONF=…True`, `SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and
+a `setdefault` would let those win (silently redirecting boot.py state to an
+unwritable `/state`, and re-arming the allocator mode that NaNs above 64 prefill
+query tokens). The override deliberately does **not** include the recipe-owned
+`MODEL_PATH` / `DSV41_SOURCE` / `TP_SIZE`, which pass through.
+
+The recipe's own `env:` is therefore thin — checkpoint path + `TP_SIZE` — and
+carries no host device names. `RECIPE_ENV` values that the runtime already
+defaults to (SKIP_SMOKE, WARMUP, HOST, SERVED_MODEL_NAME, the prefill thresholds,
+the fast-load slice/inflight defaults) are **not** set anywhere.
+
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
 `/home/red/dsv41-engram` bind mount gave, without the machine-specific path.
