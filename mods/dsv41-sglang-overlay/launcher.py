@@ -90,7 +90,7 @@ RECIPE_ENV: dict[str, str] = {
     "B12X_ROCE_CACHE_DIR": f"{_CACHE}/b12x-roce",
     "B12X_COMPILE_CACHE_DIR": f"{_CACHE}/b12x-compile",
     # --- boot.py -----------------------------------------------------------
-    "SKIP_PREPARE": "1",       # checkpoint pre-placed in the shared HF cache
+    "SKIP_PREPARE": "1",       # checkpoint distributed to this node by sparkrun
     "SKIP_VERIFY": "1",
     "READY_TIMEOUT_S": "3600",
     "OFFLOAD_MODE": "nvme",    # Engram on NVMe (host = the GPU's unified memory)
@@ -330,6 +330,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--nnodes", default=None)
     parser.add_argument("--node-rank", default=None)
     parser.add_argument("--port", default=None)
+    parser.add_argument("--tp", default=None,
+                        help="TP degree (sparkrun's {tensor_parallel}); mapped to "
+                             "boot.py's TP_SIZE")
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model", default=None,
@@ -347,6 +350,12 @@ def main(argv: list[str]) -> int:
         env["NODE_RANK"] = args.node_rank
     if args.port:
         env["SERVER_PORT"] = args.port
+    if args.tp:
+        # boot.py reads TP_SIZE from the env; the recipe passes the TP degree as
+        # `--tp {tensor_parallel}` (sparkrun renders the template but does NOT
+        # emit --tp-size when one is present, so this mapping is load-bearing --
+        # without it boot.py would fall back to its default TP=3).
+        env["TP_SIZE"] = args.tp
     if args.served_model_name:
         env["SERVED_MODEL_NAME"] = args.served_model_name
     if args.model_path:

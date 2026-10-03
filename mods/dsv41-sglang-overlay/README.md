@@ -3,7 +3,7 @@
 Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 (vendored as `littlecedar/dgx-spark-dsv41:canary-roce`, natively
 `dsv41-4x-spark:canary-roce`), used by
-`recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`.
+`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`.
 
 | | |
 |:--|:--|
@@ -80,8 +80,9 @@ in-container HF cache (`/cache/huggingface/hub/models--<org>--<name>`) and sets
 `MODEL_PATH` / `DSV41_SOURCE` — preferring `refs/main`, else the newest snapshot
 carrying both `config.json` and `model.safetensors.index.json`. So the recipe
 spells **no snapshot path** (a hardcoded `snapshots/<hash>` is not portable and
-reads as a path a user must maintain), and a shared cache that re-resolves to a
-new hash cannot break the boot. A container bind supplied as `MODEL_PATH` is left
+reads as a path a user must maintain), and a cache that re-resolves to a
+new hash cannot break the boot (each node's cache is independent now — there is
+no shared mount). A container bind supplied as `MODEL_PATH` is left
 alone (it is read-only, which is all the `SKIP_PREPARE` existence check needs).
 
 ## The production env lives here, not in the recipe
@@ -114,5 +115,6 @@ Engram reads never traverse the network — the same property the old
   digest-pinned) and pulled by sparkrun with
   `distribution_config.containers.enabled: true`. A local-only build is the opt
   out: retag it `dsv41-4x-spark:canary-roce` and set `containers.enabled: false`.
-- The checkpoint is the shared HF cache, mounted by sparkrun at
-  `/cache/huggingface`; never re-download or fan out.
+- The checkpoint is **distributed to every node** by sparkrun (the HF cache is
+  per-node, not shared — there is no NFS export). See the recipe's
+  `distribution_config.models`. The image itself is vendored (pulled, not built).
