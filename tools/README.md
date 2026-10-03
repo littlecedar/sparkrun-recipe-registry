@@ -106,3 +106,76 @@ Measured on `deepseek-v4.1-flash-exl3-tp4-vllm` (2026-09-24): easy 19/19, hard
 reversal of an uncommon word (`sparkrun`), which common and long words pass —
 a checkpoint weakness, **not** a proven quantization defect (no release-checkpoint
 comparator was run). Full write-up: `attic/ds4/AGENTS.md` §7.6.
+
+## needle-haystack.py
+
+`sparkrun`'s benchmarking path measures **speed**, and `quality-battery.py` plants
+a single needle in a ~3k-word haystack — a reasoning probe, not a context-window
+probe. Nothing in this repo **exercised** a long context: the go-live DS4 recipe
+serves 1,048,576 tokens, but its own README says the 1M retrieval "is configured
+and served, **not needle-tested here**". This is the missing instrument.
+
+It builds a haystack that reaches a requested context length, plants a needle at
+each requested depth, asks for it, and reports where the window was actually
+reached. The default depth grid is **every 10% of the window** (10…100), the
+standard needle-in-a-haystack shape and the one the mod work cites
+("needle correct at 799K", `attic/ds4/AGENTS.md` §7.5).
+
+```sh
+python3 tools/needle-haystack.py \
+  --model deepseek-ai/DeepSeek-V4.1-Flash \
+  --context-length 1000000 \
+  --api-endpoint http://<head>:8000 \
+  --json needle-1m.json
+
+python3 tools/needle-haystack.py --selftest     # offline, no GPU, ~1 s
+```
+
+**Why it is not just `curl` — a 200 OK proves nothing here.** A server that
+silently truncates, was started with a smaller `max_model_len`, or answers from a
+cached prefix all return 200 with plausible text. So the tool checks what the
+status line cannot:
+
+- the **actual** `usage.prompt_tokens` per request, and whether it reached the
+  requested length — a prompt the server *accepts but reports as short* is a
+  `TRUNCATED` finding, not a pass, because the run did not test the context it
+  claims to;
+- `temperature=0`, and a haystack that is **unique per depth** (a shared prefix
+  would let this fleet's radix cache serve the deeper request from the shallower
+  one and hide a real retrieval failure);
+- the raw reply is kept and printed for every depth, pass or fail, so a scoring
+  bug is visible rather than trusted.
+
+**Sizing is calibrated, not assumed.** The naive estimate (~4.6 chars/token)
+overshoots this endpoint's tokenizer by ~15%; at a 1M target that exceeds
+`max_model_len` and the request 400s. The tool therefore measures the real ratio
+with one small probe first (`--chars-per-token N` overrides it), and a
+too-long-error retries with a shrunk budget rather than failing the depth.
+
+**Exit codes** distinguish *the server errored* from *the server answered
+confidently and wrongly*, so a runbook can use it: `0` all depths retrieved and
+reached the window; `1` transport / unreachable / every request errored; `2` bad
+flags; `3` a check failed — a miss or a short (truncated) prompt.
+
+**The tool carries its own negative controls.** `--selftest` runs the whole
+ladder against an in-process mock with three behaviours — correct, always-wrong,
+and truncating — and asserts each is classified the way it must be. A guard that
+has only ever passed is not a guard (`self-check-your-own-tools.md`), and the
+same three controls are re-run by `tests/test_needle_haystack.py`, which also
+pins determinism across processes (the tool once seeded prompts with Python's
+per-process-randomised `str` hash, which silently broke reproducibility).
+
+Measured (`VERIFIED 2026-10-03`, `http://10.0.4.30:8000`,
+`deepseek-ai/DeepSeek-V4.1-Flash`, TP=4 SGLang, one boot):
+
+| window | depths run | result |
+|---|---|---|
+| 32k | 10 / 50 / 90% | 3/3 retrieved (prompt_tokens ~37.5k, pre-calibration) |
+| 64k | 10 / 50 / 90% | 3/3 retrieved (calibrated 4.037 chars/token, prompt_tokens ~66.0k) |
+| **1M** | **100%** | **1/1 retrieved — prompt_tokens 1,006,665, 362 s cold prefill** |
+
+The 1M row is the edge case that matters: 100% depth is the deepest a prompt can
+sit, it confirmed the calibrated sizing lands *inside* `max_model_len` rather
+than overflowing it, and it retrieves correctly at essentially the full served
+window. A full 1M ladder (all ten depths) is ~10 cold prefills of up to ~20 min
+each and is left to the operator; the tool exists so that run is reproducible.
