@@ -35,10 +35,12 @@ things a 200 cannot tell you:
 * the raw answer is kept and printed for every depth, pass or fail, so a
   scoring bug is visible rather than trusted.
 
-The haystack is sized by measuring the endpoint's real chars-per-token with one
-small probe request (see `calibrate()`); the naive 4.6-char estimate overshoots
-this fleet's tokenizer by ~15%, which at a 1M target exceeds `max_model_len` and
-turns the whole run into HTTP 400s.
+The haystack is sized by reading the served `max_model_len` from `/v1/models`
+and measuring the endpoint's real chars-per-token with one small probe request
+(see `calibrate()`); the naive 4.6-char estimate overshoots this fleet's
+tokenizer by ~15%, and the window is never filled exactly -- a 1,048,576-token
+request always arrives a little over and is rejected, so the tool targets
+`max_model_len` minus a small headroom.
 
 Stdlib only, on purpose.  This has to run on a head node, inside a container,
 and on a laptop with no venv.  The only way a target gets here is
@@ -63,6 +65,10 @@ Usage
         --context-length 1000000 \\
         --api-endpoint http://10.0.4.30:8000 \\
         --json needle-1m.json
+
+    # watch it work: progress on stderr, report and --json stay on stdout
+    python3 tools/needle-haystack.py --model auto --context-length 1m \\
+        --api-endpoint http://10.0.4.30:8000 --verbose
 
     python3 tools/needle-haystack.py --selftest        # offline, no GPU
 
@@ -97,6 +103,18 @@ import urllib.request
 
 VERSION = "0.1"
 
+
+def _vlog(verbose: bool, msg: str) -> None:
+    """Progress line for ``--verbose``.
+
+    Goes to **stderr** and is flushed, for two reasons: the report and the
+    ``--json`` artifact are on stdout and must stay clean and parseable, and a
+    1M-token prefill runs for minutes, so a line buffered until exit would tell
+    the user nothing while they wait -- which is exactly when they want it.
+    """
+    if verbose:
+        print(f"[nh] {msg}", file=sys.stderr, flush=True)
+
 #: Fraction of the requested context that the server must actually report for a
 #: request to count as having reached the window.  Below this, the prompt was
 #: silently truncated -- which is worse than an error, because the answer can
@@ -119,8 +137,20 @@ DEFAULT_CHARS_PER_TOKEN = 4.6
 #: representative of the real prompt's tokenization, small enough to be cheap.
 CALIBRATION_TOKENS = 8192
 
-#: A too-long-error retry shrinks the character budget by this factor.
+#: Character budget reserved for the wrapper (system prompt, question, tags) when
+#: pacing a prompt by a *measured* token count, so the final prompt lands a hair
+#: under the target instead of a hair over it.
+TOKEN_HEADROOM = 24
+
+#: Blind shrink factor, used only when the engine's too-long body carries no
+#: parseable token counts.  When it does, the retry corrects the ratio from them
+#: instead of shrinking blind (see run_depth).
 SHRINK_FACTOR = 0.85
+
+#: Fraction of the served window left unused, so a prompt paced from a
+#: slightly-wrong chars/token ratio does not land over `max_model_len`.  Must
+#: exceed that ratio error; this fleet measured ~1% on the 1M prompt, so 2%.
+HEADROOM_FRACTION = 0.02
 
 #: How many times to shrink-and-retry when the server says the prompt is too
 #: long.  The calibration normally prevents this; the retry is the safety net.
@@ -266,17 +296,20 @@ def build_prompt(
     depth: int,
     needle_count: int,
     seed: int,
-    chars_per_token: float = DEFAULT_CHARS_PER_TOKEN,
+    chars_per_token: float | None = None,
+    token_headroom: int = 24,
 ) -> tuple[str, list[str], list[tuple[str, str, str]]]:
     """Build the full user prompt for one depth.
 
     Returns ``(prompt, question_lines, needles)``.  The haystack is sized from
-    the *estimate*; the real token count comes back from the server's usage and
-    is what run_depth() reports.
+    the chars-per-token ratio; the real token count comes back from the server's
+    usage and is what run_depth() reports.  ``chars_per_token=None`` falls back
+    to the module estimate.
     """
+    cpt = chars_per_token or DEFAULT_CHARS_PER_TOKEN
     needles = make_needles(needle_count, depth, seed)
     overhead_chars = len(SYSTEM_PROMPT) + sum(len(q) for _f, q, _k in needles) + 64
-    hay_chars = max(200, int(target_tokens * chars_per_token) - overhead_chars)
+    hay_chars = max(200, int(target_tokens * cpt) - overhead_chars - token_headroom)
     rng = random.Random(_seed(seed, 2, depth, target_tokens))
     haystack = build_haystack(hay_chars, rng)
     body, _positions = plant(haystack, needles, depth)
@@ -313,6 +346,38 @@ def resolve_model(endpoint: str, model: str, api_key: str | None, timeout: int) 
     with urllib.request.urlopen(req, timeout=timeout) as r:
         data = json.load(r)
     return data["data"][0]["id"]
+
+
+def fetch_max_model_len(
+    endpoint: str, model: str, api_key: str | None, timeout: int
+) -> int | None:
+    """Read the served ``max_model_len`` from /v1/models, so the tool does not
+    build a prompt the server will reject.
+
+    Returns the entry's ``max_model_len`` (or ``max_context_length``) for
+    ``model``, else the first entry's, else ``None`` if the server does not
+    report one.  ``None`` means "pace the request by measured token counts
+    instead" -- the caller handles both.
+    """
+    try:
+        req = urllib.request.Request(models_url(endpoint), headers=_headers(api_key))
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.load(r)
+        entries = data.get("data") or []
+        if not entries:
+            return None
+        for e in entries:
+            if e.get("id") == model:
+                break
+        else:
+            e = entries[0]
+        for key in ("max_model_len", "max_context_length", "context_length"):
+            v = e.get(key)
+            if isinstance(v, int) and v > 0:
+                return v
+    except Exception:
+        return None
+    return None
 
 
 def _headers(api_key: str | None) -> dict:
@@ -367,20 +432,45 @@ def ask(
 
 
 #: Substrings that mean "the prompt was longer than the window", across SGLang
-#: and vLLM.  Matched case-insensitively against an HTTP error body.
+#: and vLLM.  The SGLang/sglang wording observed live is
+#: "The input (1066900 tokens) is longer than the model's context length
+#: (1048576 tokens)." -- so BOTH "longer than" and "context length" must appear
+#: together; "context length" alone would also match a benign warning.
 LENGTH_ERROR_MARKERS = (
     "longer than the maximum model length",
+    "longer than the model's context length",
+    "longer than the model context length",
     "maximum context length",
     "max_model_len",
-    "context length",
     "input length",
     "too long",
 )
 
 
 def length_error(detail: str) -> bool:
+    """True when the body is a real too-long rejection (not a benign mention)."""
     d = (detail or "").lower()
+    if "longer than" in d and "context length" in d:
+        return True
     return any(m in d for m in LENGTH_ERROR_MARKERS)
+
+
+def parse_length_error(detail: str) -> tuple[int | None, int | None]:
+    """Pull ``(input_tokens, window_tokens)`` out of an engine's too-long body.
+
+    SGLang's wording: "The input (1066900 tokens) is longer than the model's
+    context length (1048576 tokens)."  The input count lets the caller correct
+    its chars-per-token ratio to the real one and size the retry exactly, instead
+    of shrinking blind.
+    """
+    nums = [int(n) for n in re.findall(r"\((\d+)\s+tokens?\)", detail or "")]
+    if not nums:
+        nums = [int(n) for n in re.findall(r"(\d+)\s+tokens?\)", detail or "")]
+    if len(nums) >= 2:
+        return nums[0], nums[1]
+    if len(nums) == 1:
+        return nums[0], None
+    return None, None
 
 
 def calibrate(
@@ -447,30 +537,52 @@ def run_depth(
     max_tokens: int,
     timeout: int,
     api_key: str | None,
-    chars_per_token: float,
+    chars_per_token: float | None,
     extra_body: dict | None = None,
+    max_model_len: int | None = None,
+    verbose: bool = False,
 ) -> dict:
     """Exercise one depth.  Never raises: a failure is recorded as a status.
 
-    If the server rejects the prompt as too long (the character estimate ran
-    long, or the window really is smaller than requested), the character budget
-    is shrunk and the request retried a few times before giving up -- so a
-    slightly-off estimate costs one extra prefill instead of a whole failed
-    depth.  A prompt the server *accepts* but reports as short is NOT retried:
-    that is a truncation finding, and hiding it would defeat the tool.
+    The request is paced two ways:
+
+    * ``chars_per_token`` from calibration (or the estimate when calibration
+      could not run) sizes the prompt in characters;
+    * after the first response, the server's *measured* token/char ratio takes
+      over, so the prompt lands on the requested count rather than ~15% over it.
+
+    If the server still rejects the prompt as too long, the token *target* is
+    shrunk and the request retried -- never the chars-per-token ratio, which is a
+    tokenizer property and would rebuild an equally-long prompt.  A prompt the
+    server *accepts* but reports as short is NOT retried: that is a truncation
+    finding, and hiding it would defeat the tool.
     """
-    cpt = chars_per_token
+    # Cap to the advertised window, minus a headroom so a paced prompt that lands a
+    # hair long is not rejected.  The headroom must exceed the chars-per-token
+    # error (this fleet measured ~1% on the 1M prompt), so 2%; without it the
+    # request is a full multi-minute prefill that ends in a 400.
+    if max_model_len:
+        headroom = min(max(1024, int(max_model_len * HEADROOM_FRACTION)),
+                       max_model_len // 2)
+        target = min(context_length, max_model_len - headroom)
+    else:
+        target = context_length
     rec: dict = {"depth": depth, "status": "ERROR", "hits": 0, "of": needle_count}
     last_error = None
+    ratio = chars_per_token  # may be corrected from an engine too-long message
     for attempt in range(SHRINK_RETRIES + 1):
         prompt, questions, needles = build_prompt(
-            context_length, depth, needle_count, seed, cpt
+            target, depth, needle_count, seed, ratio, token_headroom=TOKEN_HEADROOM
         )
+        _vlog(verbose, f"depth {depth}%: attempt {attempt + 1}, "
+                       f"{len(prompt)} chars, ~{target} tokens to send "
+                       f"(ratio {(ratio if ratio is not None else DEFAULT_CHARS_PER_TOKEN):.4f} chars/token)")
         rec = {
             "depth": depth,
             "target_tokens": context_length,
-            "estimated_tokens": int(len(prompt) / cpt),
-            "chars_per_token": round(cpt, 4),
+            "paced_target": target,
+            "estimated_tokens": int(len(prompt) / (ratio or DEFAULT_CHARS_PER_TOKEN)),
+            "chars_per_token": None if ratio is None else round(ratio, 4),
             "prompt_tokens": None,
             "status": "ERROR",
             "hits": 0,
@@ -492,10 +604,22 @@ def run_depth(
                 pass
             last_error = f"HTTP {e.code}: {detail}"
             rec["error"] = last_error
+            _vlog(verbose, f"depth {depth}%: HTTP {e.code}: {detail[:160]}")
             if length_error(detail) and attempt < SHRINK_RETRIES:
-                cpt *= SHRINK_FACTOR
-                rec["note"] = (f"prompt rejected as too long; retrying at "
-                               f"{cpt:.2f} chars/token")
+                # Correct the ratio from the engine's own count, then size the
+                # retry to land under the window instead of shrinking blind.
+                input_tokens, window_tokens = parse_length_error(detail)
+                if input_tokens and input_tokens > 0:
+                    ratio = len(prompt) / input_tokens
+                    cap = window_tokens or max_model_len or target
+                    target = int(cap - max(1024, int(cap * HEADROOM_FRACTION)))
+                    rec["note"] = (f"prompt rejected as too long ({input_tokens} tokens "
+                                   f"> window {cap}); corrected ratio to {ratio:.4f} "
+                                   f"chars/token and retrying a {target}-token target")
+                else:
+                    target = int(target * SHRINK_FACTOR)
+                    rec["note"] = (f"prompt rejected as too long; retrying a "
+                                   f"{target}-token target")
                 continue
             rec["status"] = "ERROR"
             return rec
@@ -508,6 +632,9 @@ def run_depth(
         pt = usage.get("prompt_tokens")
         rec["prompt_tokens"] = pt
         rec["usage"] = usage
+        if pt:
+            # Measured ratio: use it to pace the *next* depth exactly.
+            rec["measured_chars_per_token"] = round(len(prompt) / pt, 4)
 
         # One reply answers all questions at a depth; score each key it contains.
         # (needle_count defaults to 1, which is the objective's "a needle at every
@@ -535,6 +662,9 @@ def run_depth(
                            "request; the window was not reached")
         else:
             rec["status"] = "PASS" if hits == len(needles) else "FAIL"
+        _vlog(verbose, f"depth {depth}%: {rec['status']} "
+                       f"({hits}/{len(needles)} needles, prompt_tokens {pt}, "
+                       f"{rec['latency_s']}s)")
         return rec
 
     rec["status"] = "ERROR"
@@ -545,8 +675,13 @@ def run_depth(
 def run_ladder(cfg: dict) -> dict:
     """Run every requested depth.  One owner of the result set: this function."""
     assert cfg.get("depths"), "run_ladder needs at least one depth"
+    verbose = bool(cfg.get("verbose"))
     model = resolve_model(cfg["endpoint"], cfg["model"], cfg.get("api_key"),
                           cfg.get("timeout", 3600))
+    _vlog(verbose, f"endpoint {cfg['endpoint']}, model {model}")
+    window = fetch_max_model_len(cfg["endpoint"], model, cfg.get("api_key"),
+                                 min(60, cfg.get("timeout", 3600)))
+    _vlog(verbose, f"server max_model_len: {window if window else 'not advertised'}")
     cpt = cfg.get("chars_per_token")
     calibration = None
     if cpt is None:
@@ -554,20 +689,25 @@ def run_ladder(cfg: dict) -> dict:
             cfg["endpoint"], model, cfg.get("api_key"), cfg.get("timeout", 3600),
             DEFAULT_CHARS_PER_TOKEN, cfg.get("extra_body"),
         )
+        _vlog(verbose, f"calibration: {calibration.get('note')}"
+                       + (f"; using {cpt:.4f} chars/token" if cpt else ""))
+    _vlog(verbose, f"depths: {cfg['depths']}  ({len(cfg['depths'])} prefill(s))")
     depths = []
     for depth in cfg["depths"]:
         rec = run_depth(
             cfg["endpoint"], model, cfg["context_length"], depth,
             cfg.get("needle_count", 1), cfg.get("seed", 1234),
             cfg.get("max_tokens", 64), cfg.get("timeout", 3600),
-            cfg.get("api_key"), cpt, cfg.get("extra_body"),
+            cfg.get("api_key"), cpt, cfg.get("extra_body"), max_model_len=window,
+            verbose=verbose,
         )
         depths.append(rec)
     out = {"model": model, "endpoint": cfg["endpoint"],
-           "context_length": cfg["context_length"], "depths": depths}
+           "context_length": cfg["context_length"],
+           "max_model_len": window, "depths": depths}
     if calibration is not None:
         out["calibration"] = calibration
-        out["chars_per_token"] = round(cpt, 4)
+        out["chars_per_token"] = None if cpt is None else round(cpt, 4)
     return out
 
 
@@ -584,13 +724,15 @@ def run_needle_test(
     api_key: str | None = None,
     chars_per_token: float | None = None,
     extra_body: dict | None = None,
+    verbose: bool = False,
 ) -> dict:
     """Run a needle-haystack test.  The keyword-argument entry point.
 
     ``model``, ``context_length``, and ``api_endpoint`` are the three required
     parameters; everything else is optional.  ``context_length`` accepts an int
-    or a string like ``"1m"``.  Returns the full ladder result (the same
-    structure the CLI writes to ``--json``), and does NOT raise on a
+    or a string like ``"1m"``.  ``verbose=True`` prints live progress to
+    **stderr** (stdout is left for the caller).  Returns the full ladder result
+    (the same structure the CLI writes to ``--json``), and does NOT raise on a
     miss/truncation -- call ``classify()`` on the result for the verdict, or use
     the CLI, whose exit code carries it.
     """
@@ -606,6 +748,7 @@ def run_needle_test(
         "api_key": api_key,
         "chars_per_token": chars_per_token,
         "extra_body": extra_body,
+        "verbose": verbose,
     }
     results = run_ladder(cfg)
     results["tool_version"] = VERSION
@@ -633,7 +776,9 @@ def classify(results: dict) -> tuple[str, int]:
 def print_report(results: dict, verdict: str) -> None:
     print(f"model:   {results['model']}")
     print(f"endpoint:{results['endpoint']}")
-    print(f"context: {results['context_length']} tokens requested")
+    window = results.get("max_model_len")
+    print(f"context: {results['context_length']} tokens requested"
+          + (f"  (server max_model_len {window})" if window else ""))
     cal = results.get("calibration")
     if cal:
         print(f"sizing:  {results.get('chars_per_token')} chars/token "
@@ -676,8 +821,9 @@ def _make_handler(mode: dict):
 
         def do_GET(self):
             if self.path.rstrip("/").endswith("/models"):
+                ml = mode.get("window", 1000000)
                 body = json.dumps(
-                    {"object": "list", "data": [{"id": "mock-model", "max_model_len": 1000000}]}
+                    {"object": "list", "data": [{"id": "mock-model", "max_model_len": ml}]}
                 ).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -700,7 +846,7 @@ def _make_handler(mode: dict):
             if mode.get("window") and n_tokens > mode["window"]:
                 err = json.dumps({
                     "error": {"message": f"The input ({n_tokens} tokens) is longer "
-                                         f"than the maximum model length ({mode['window']})"}}
+                                         f"than the model's context length ({mode['window']} tokens)."}}
                 ).encode()
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
@@ -817,6 +963,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="haystack sizing ratio; default: measure it with one small "
                         "probe request (the estimate alone overshoots ~15%% on this "
                         "fleet's tokenizer and a 1M prompt then 400s)")
+    p.add_argument("--verbose", action="store_true",
+                   help="print live progress (endpoint, window, calibration, and per-depth "
+                        "attempt/result) to stderr; stdout stays clean for the report")
     p.add_argument("--json", default=None, help="write the full result (with raw replies) here")
     p.add_argument("--dry-run", action="store_true",
                    help="build prompts and report estimated sizes, send nothing")
@@ -889,7 +1038,9 @@ def main(argv: list[str] | None = None) -> int:
         "timeout": args.timeout,
         "api_key": api_key,
         "chars_per_token": args.chars_per_token,
+        "verbose": args.verbose,
     }
+    _vlog(args.verbose, f"running a {context_length}-token ladder at depths {depths}")
     try:
         results = run_ladder(cfg)
     except urllib.error.URLError as e:

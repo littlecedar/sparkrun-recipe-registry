@@ -131,6 +131,49 @@ python3 tools/needle-haystack.py \
 python3 tools/needle-haystack.py --selftest     # offline, no GPU, ~1 s
 ```
 
+**`--json needle-1m.json`** writes the full result of the run to that file as
+JSON — it is not a mode and it changes nothing about the test. The file is a
+path you choose; the argument names a directory-relative destination, so
+`needle-1m.json` means "write `needle-1m.json` in the current working directory".
+The report the tool prints to stdout is a summary; the JSON is the durable
+artifact and the thing to keep, because it carries what the summary drops:
+
+- `model`, `endpoint`, `context_length`, and the server's `max_model_len`;
+- the `calibration` block (the probe's measured tokens and the chars-per-token
+  ratio actually used to size every prompt);
+- one record per depth with `prompt_tokens` (the server's own count), `hits`/`of`,
+  `latency_s`, `status`, `attempts`, and **the raw reply to every needle**, pass
+  or fail — the replies are the reason it exists: summarised scores hide a wrong
+  answer key, raw replies do not (`self-check-your-own-tools.md`);
+- the final `verdict`.
+
+Pick a filename that encodes the recipe or boot it measured (`needle-1m.json`,
+`needle-knapcio-tp4.json`); the JSON records the *endpoint*, not the recipe name,
+so the filename is the only place the recipe is written down. Omit `--json` and
+the run is identical — you just lose the artifact and keep only the stdout
+report.
+
+**`--verbose`** prints live progress to **stderr**, so you can watch a run that
+otherwise sits silent for minutes on a deep prefill. It narrates the endpoint and
+resolved model, the server's `max_model_len`, the calibration outcome, the depth
+list, and then per depth an `attempt N … ~T tokens to send` line before the
+request and a `PASS/FAIL/TRUNCATED (hits, prompt_tokens, latency)` line after it.
+It is stdout-clean by design — the report and the `--json` redirection stay
+parseable — so `python3 tools/needle-haystack.py … --verbose > report.txt
+2> progress.log` separates them, and `--json` on stdout is never polluted by
+progress:
+
+```
+[nh] endpoint http://10.0.4.30:8000, model deepseek-ai/DeepSeek-V4.1-Flash
+[nh] server max_model_len: 1048576
+[nh] calibration: calibrated from one probe request; using 4.0374 chars/token
+[nh] depths: [10, 50, 90]  (3 prefill(s))
+[nh] depth 10%: attempt 1, 132273 chars, ~32768 tokens to send (ratio 4.0374 chars/token)
+[nh] depth 10%: PASS (1/1 needles, prompt_tokens 33031, 8.41s)
+```
+
+As a library, pass `verbose=True` to `run_needle_test(...)` for the same stream.
+
 **Why it is not just `curl` — a 200 OK proves nothing here.** A server that
 silently truncates, was started with a smaller `max_model_len`, or answers from a
 cached prefix all return 200 with plausible text. So the tool checks what the
@@ -146,11 +189,26 @@ status line cannot:
 - the raw reply is kept and printed for every depth, pass or fail, so a scoring
   bug is visible rather than trusted.
 
-**Sizing is calibrated, not assumed.** The naive estimate (~4.6 chars/token)
-overshoots this endpoint's tokenizer by ~15%; at a 1M target that exceeds
-`max_model_len` and the request 400s. The tool therefore measures the real ratio
-with one small probe first (`--chars-per-token N` overrides it), and a
-too-long-error retries with a shrunk budget rather than failing the depth.
+**Sizing is measured, and capped to the served window.** Two things are
+load-bearing, and the tool got both wrong in its first cut (`VERIFIED`
+2026-10-03 against the live 1M endpoint):
+
+- It reads `max_model_len` from `/v1/models` and **never builds a prompt longer
+  than the server advertises**, leaving a 2 % headroom. Filling exactly the
+  window is not possible — a request for 1,048,576 tokens always arrives a little
+  over and is rejected — so the deepest depth serves ~1.03–1.07M tokens.
+- It **measures** chars-per-token with one small probe request
+  (`--chars-per-token N` overrides it). The naive ~4.6-char estimate overshoots
+  this fleet's tokenizer (~4.04) by ~15 %.
+
+The first cut's failure mode was quiet until you watched the server logs: on a
+too-long error it shrank the *chars-per-token ratio* and rebuilt an equally-long
+prompt, so a 1M request kept arriving as ~892k tokens — still over the window —
+while each rejected attempt paid a full multi-minute prefill. It looked like a
+400 loop, not a wrong answer. The retry now shrinks the **token target**, and
+when the engine's error body carries the counts (`The input (N tokens) is longer
+than the model's context length (M tokens).`) it parses them and corrects the
+ratio exactly instead of guessing.
 
 **Exit codes** distinguish *the server errored* from *the server answered
 confidently and wrongly*, so a runbook can use it: `0` all depths retrieved and
@@ -172,10 +230,12 @@ Measured (`VERIFIED 2026-10-03`, `http://10.0.4.30:8000`,
 |---|---|---|
 | 32k | 10 / 50 / 90% | 3/3 retrieved (prompt_tokens ~37.5k, pre-calibration) |
 | 64k | 10 / 50 / 90% | 3/3 retrieved (calibrated 4.037 chars/token, prompt_tokens ~66.0k) |
-| **1M** | **100%** | **1/1 retrieved — prompt_tokens 1,006,665, 362 s cold prefill** |
+| 1M | 100% | 1/1 retrieved (prompt_tokens 1,006,665, 362 s) — *pre-fix: overwindow, 400* |
+| **1M** | **100%** | **1/1 retrieved — prompt_tokens 1,034,340, 379 s, no rejection** |
 
-The 1M row is the edge case that matters: 100% depth is the deepest a prompt can
-sit, it confirmed the calibrated sizing lands *inside* `max_model_len` rather
-than overflowing it, and it retrieves correctly at essentially the full served
-window. A full 1M ladder (all ten depths) is ~10 cold prefills of up to ~20 min
-each and is left to the operator; the tool exists so that run is reproducible.
+The 1M rows are the edge case that matters: 100 % depth is the deepest a prompt
+can sit, and it is what exposed the overshoot. The final row is the tool run
+exactly as the objective describes it (`--context-length 1048576` against the
+live 1M endpoint) and it lands *inside* `max_model_len` and retrieves correctly.
+A full 1M ladder (all ten depths) is ~10 cold prefills of up to ~20 min each and
+is left to the operator; the tool exists so that run is reproducible.
