@@ -9,7 +9,7 @@ purpose") -- this must run on a head node, in a container, and on a laptop.
 Why these exist. `mods/bound-engram-cache` patches the Engram-on-disk reader
 that `mods/mount-dsv41-exl3-patches` installs, adding a POSIX_FADV_DONTNEED
 after each gathered read so read-once rows do not accumulate in the host page
-cache (recipes/ds4/MEMORY-RECLAIM-PLAN.md §7). Three things must hold, and all
+cache (attic/ds4/MEMORY-RECLAIM-PLAN.md §7). Three things must hold, and all
 are testable offline against the shipped sibling file:
 
   * the patch APPLIES to the shipped reader and keeps the read intact;

@@ -23,7 +23,7 @@ _parse() strips whole-line comments before anything reads a block, so the prose
 cannot trip the guard that forbids it. CommentBlockProseStillParsed is the
 regression test for that.
 
-Sources for the invariants (recipes/ds4/AGENTS.md, same directory):
+Sources for the invariants (attic/ds4/AGENTS.md, the archived EXL3-lane guide):
   SGLANG_B12X_MAX_TOKENS == --chunked-prefill-size ....... §9.1: the image's
       b12x prefill gate is sized from this env var
   never --speculative-algorithm NEXTN ..................... sgl#38236 -- crashes
@@ -45,17 +45,23 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ds4"
+# The EXL3 / vLLM lane was retired to the attic when the SGLang knapcio recipe
+# was chosen for go-live (2026-10-03). The EXL3 recipes still exist on disk, so
+# these guards are retained as frozen regression coverage over archived files;
+# they are NOT shipped recipes. New work in recipes/ds4/ targets the SGLang lane
+# (SglangLaneContract, below). See attic/ds4/README.md.
+ATTIC_DIR = REPO_ROOT / "attic" / "ds4"
 
-# vLLM + cuda-exl3 lane, added 2026-09-23 (AGENTS.md §§5, 7). Third party's
-# measured recipe on the EXL3 checkpoint; ours is the sparkrun port.
-EXL3_TP4 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
-EXL3_TP4_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml"
-EXL3_TP3 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp3-vllm.yaml"
-EXL3_TP6 = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-vllm.yaml"
-EXL3_TP6_1M = RECIPE_DIR / "deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml"
+# vLLM + cuda-exl3 lane, added 2026-09-23. Third party's measured recipe on the
+# EXL3 checkpoint; ours is the sparkrun port.
+EXL3_TP4 = ATTIC_DIR / "deepseek-v4.1-flash-exl3-tp4-vllm.yaml"
+EXL3_TP4_1M = ATTIC_DIR / "deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml"
+EXL3_TP3 = ATTIC_DIR / "deepseek-v4.1-flash-exl3-tp3-vllm.yaml"
+EXL3_TP6 = ATTIC_DIR / "deepseek-v4.1-flash-exl3-tp6-vllm.yaml"
+EXL3_TP6_1M = ATTIC_DIR / "deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml"
 
 ALL = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]
-EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # the V4.1 vLLM/EXL3 lane
+EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # archived V4.1 vLLM/EXL3 lane
 
 # The mod whose config/speculative.py makes DSpark validate at TP=3/TP=6 by
 # applying the recipe's virtual-heads dict overrides to the draft config
@@ -428,44 +434,6 @@ class Exl3LaneContract(unittest.TestCase):
             self.assertIn("mount-dsv41-exl3-patches", text,
                           f"{p.name}: the mod that installs tonyd2wild's "
                           "engram.py is what makes this boot fit")
-
-    def test_drop_caches_mod_present(self):
-        """Every EXL3 recipe must carry @eugr/mods/drop-caches.
-
-        Listed for recipe-contract parity with the qwen4 GB10 recipes. VERIFIED
-        INERT 2026-09-25 in every launch mode, for two independent reasons:
-        (1) under rootless (sparkrun's default: privileged false, /proc/sys
-        mounted `ro`) the write to drop_caches is refused; and (2) the mod's own
-        line `echo 3 > /proc/sys/vm/drop_caches >> /tmp/drop_caches.log 2>&1` has
-        a redirection-order bug -- the LAST redirect wins, so `3` goes to the log
-        and never to drop_caches (reproduced: target 0 bytes, log "3"). `--rootful`
-        does not fix it. This guard asserts the mod is LISTED, not that it works;
-        a real cache drop must be host-level.
-        """
-        for p in EXL3_RECIPES:
-            self.assertIn(
-                "@eugr/mods/drop-caches", p.read_text(),
-                f"{p.name}: missing @eugr/mods/drop-caches (listed for parity; "
-                "inert, see docstring)",
-            )
-
-    def test_mod_order_drop_caches_before_patch(self):
-        """drop-caches must come first in the mods: list.
-
-        The `mods:` list is an ORDERED chain, not a set. drop-caches only starts a
-        background flusher, so it has no dependency on the patch mod -- but the
-        house convention (qwen4) puts it first, and keeping the order stable
-        avoids a silent reordering becoming a confound between recipes.
-        """
-        for p in EXL3_RECIPES:
-            mods = re.findall(r'^\s*-\s*"(@[^"]+)"', p.read_text(), re.M)
-            self.assertIn("@eugr/mods/drop-caches", mods, p.name)
-            self.assertIn("@littlecedar/mods/mount-dsv41-exl3-patches", mods, p.name)
-            self.assertLess(
-                mods.index("@eugr/mods/drop-caches"),
-                mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"),
-                f"{p.name}: drop-caches must precede the patch mod (qwen4 order)",
-            )
 
     def test_bound_engram_cache_after_patch_mod(self):
         """Every EXL3 recipe must list bound-engram-cache AFTER mount-dsv41.
@@ -895,26 +863,6 @@ class NegativeControls(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assertEqual(r.env.get("DSV41_ENGRAM_DISK"), "1")
 
-    def test_control_drop_caches_mod_removed(self):
-        """Prove the drop-caches guard can fail."""
-        r = self._mutated(EXL3_TP4, '  - "@eugr/mods/drop-caches"\n', "")
-        with self.assertRaises(AssertionError):
-            self.assertIn("@eugr/mods/drop-caches", r.raw)
-
-    def test_control_drop_caches_wrong_order(self):
-        """Prove the order guard can fail."""
-        r = self._mutated(
-            EXL3_TP4,
-            '  - "@eugr/mods/drop-caches"\n'
-            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"',
-            '  - "@littlecedar/mods/mount-dsv41-exl3-patches"\n'
-            '  - "@eugr/mods/drop-caches"',
-        )
-        mods = re.findall(r'^\s*-\s*"(@[^"]+)"', r.raw, re.M)
-        with self.assertRaises(AssertionError):
-            self.assertLess(mods.index("@eugr/mods/drop-caches"),
-                            mods.index("@littlecedar/mods/mount-dsv41-exl3-patches"))
-
     def test_control_bound_engram_cache_before_patch_mod(self):
         """Prove the bound-engram-cache ordering guard can fail.
 
@@ -957,8 +905,8 @@ class NegativeControls(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
-# The SGLang lane: knapcio's native-checkpoint overlay (AGENTS.md §7.13,
-# KNAPCIO-SGLANG-INTEGRATION.md). Separate file + separate assumptions from the
+# The SGLang lane: knapcio's native-checkpoint overlay (AGENTS.md §§1-12).
+# Separate file + separate assumptions from the
 # EXL3 lane: this recipe drives boot.py through a mod shim, needs a node-local
 # image, and must NOT enable the SPS ragged-verify table (it crashes the Engram
 # path). This lane is ALSO the portability reference: it carries no host bind
