@@ -11,8 +11,8 @@ metadata:
     RoCEnante RDMA transport. Adaptation of
     knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
     MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
-    design are theirs, kept under the upstream licences). See
-    KNAPCIO-SGLANG-INTEGRATION.md for provenance and limits.
+    design are theirs, kept under the upstream licences). See AGENTS.md and
+    README.md in this directory for provenance, boot gates and limits.
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
