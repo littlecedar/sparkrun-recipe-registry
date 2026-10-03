@@ -9,7 +9,7 @@ Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 |:--|:--|
 | Kind | Pre-exec mod; **modifies no image file**. |
 | License | AGPL-3.0-or-later (this repo). |
-| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`. |
+| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/AGENTS.md`. |
 
 The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
 (digest-pinned), so sparkrun pulls it and no node builds it. sparkrun distributes
