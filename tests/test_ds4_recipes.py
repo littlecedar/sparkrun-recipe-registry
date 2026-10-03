@@ -1048,8 +1048,9 @@ class SglangLaneContract(unittest.TestCase):
         # checkpoint location -- lives in mods/dsv41-sglang-overlay/launcher.py, and
         # the serve parameters (model, tp, context, port) ride in the command
         # template from defaults. In particular SERVER_PORT is NOT set here: the
-        # serve port is 8888 (the image's own port, which the baked HEALTHCHECK
-        # already probes), so no container-level env is needed at all.
+        # serve port (8000, the recipes' default base port) rides in via the
+        # command template and the rebuilt image HEALTHCHECK discovers it at
+        # runtime, so no container-level env is needed at all.
         self.assertEqual(self.r.env, {})
         for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
             self.assertNotIn(key, self.r.env)
@@ -1073,9 +1074,10 @@ class SglangLaneContract(unittest.TestCase):
     def test_port_is_consumed(self):
         # The port is no longer pinned to the image's healthcheck default -- the
         # rebuilt healthcheck follows --port wherever it goes. It still must be
-        # carried to boot.py through the command template.
+        # carried to boot.py through the command template. 8000 is our recipes'
+        # default base port (every ds4 recipe ships it).
         self.assertIn("{port}", self.r.command_template)
-        self.assertEqual(self.r.default("port"), "8888")
+        self.assertEqual(self.r.default("port"), "8000")
 
     def test_context_length_wired_to_launcher(self):
         # `--context-length {max_model_len}` must reach boot.py's CONTEXT_LENGTH.
@@ -1216,6 +1218,34 @@ class SglangLaneContract(unittest.TestCase):
 
     def test_no_expandable_segments(self):
         self.assertIn("expandable_segments:False", self.eff["PYTORCH_CUDA_ALLOC_CONF"])
+
+    def test_torch_2_13_collective_rename_warning_suppressed(self):
+        # The image's torch is 2.13.0+cu130 (VERIFIED by probing the pinned
+        # image), which renamed the collectives all_gather_into_tensor ->
+        # all_gather_single and reduce_scatter_tensor -> reduce_scatter_single
+        # (PyTorch 2.13; the old names remain as aliases behind a FutureWarning).
+        # The image's sglang tree and its vendored kernels still call the old
+        # names, so each call logs, via the _exception_logger wrapper at
+        # torch/distributed/c10d_logger.py:83, a once-per-callsite notice:
+        #   FutureWarning: `torch.distributed.all_gather_into_tensor` is deprecated.
+        #   Please use `torch.distributed.all_gather_single` instead.
+        # (observed in the live boot log .scratch/ds4/knapcio/logs/boot9-head-serve.log).
+        # The launcher silences ONLY that c10d_logger re-emission. The filter is
+        # MODULE-scoped and empirically verified against the pinned image: a bare
+        # `message='is deprecated'` filter does NOT take, because
+        # warnings.filterwarnings() anchors the message with re.match and the
+        # leading backtick defeats it; a module filter is also robust to torch
+        # rewording the message. Assert the scope, so "silence it" cannot later
+        # be "fixed" into a blanket `ignore::FutureWarning` that hides unrelated
+        # torch warnings.
+        pw = self.eff.get("PYTHONWARNINGS", "")
+        self.assertIn("ignore::FutureWarning:torch.distributed.c10d_logger", pw)
+        self.assertNotIn("ignore::FutureWarning\n", pw + "\n",
+                         "PYTHONWARNINGS must stay module-scoped, not a blanket "
+                         "ignore::FutureWarning")
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn("PYTHONWARNINGS", launcher)
+        self.assertIn("torch.distributed.c10d_logger", launcher)
 
     def test_mod_present_and_gates_on_boot_py(self):
         run_sh = (SGLANG_MOD_DIR / "run.sh").read_text()
@@ -1399,18 +1429,32 @@ class SglangLaneNegativeControls(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assertEqual(r.env, {})
 
-    def test_control_port_not_image_native(self):
-        # Changing the serve port back off the image-native 8888 re-breaks Docker's
-        # baked healthcheck (which probes 8888); the guard must fail.
-        r = self._mutated("  port: 8888", "  port: 8000")
+    def test_control_port_moved_off_recipe_default(self):
+        # The shipped recipes serve on 8000 (our default base port). Prove the
+        # guard is sensitive: move the port off it and the expected-default
+        # assertion must fail.
+        r = self._mutated("  port: 8000", "  port: 8888")
         with self.assertRaises(AssertionError):
-            self.assertEqual(r.default("port"), "8888")
+            self.assertEqual(r.default("port"), "8000")
 
     def test_control_context_length_unwired(self):
         # Dropping the placeholder (or the launcher parse) must fail the guard.
         r = self._mutated("  --context-length {max_model_len}\n", "")
         with self.assertRaises(AssertionError):
             self.assertIn("--context-length {max_model_len}", r.command_template)
+
+    def test_control_blanket_futurewarning_suppression(self):
+        # A blanket `ignore::FutureWarning` would hide unrelated torch warnings;
+        # a recipe env that replaces the launcher's module-scoped filter with it
+        # must fail the rename-warning guard (both the module-scope assertion and
+        # the not-blanket assertion).
+        r = self._inject_env(self._ENV_ANCHOR,
+                             'PYTHONWARNINGS: "ignore::FutureWarning"')
+        pw = _resolved_env(r).get("PYTHONWARNINGS", "")
+        with self.assertRaises(AssertionError):
+            self.assertIn("ignore::FutureWarning:torch.distributed.c10d_logger", pw)
+        with self.assertRaises(AssertionError):
+            self.assertNotIn("ignore::FutureWarning\n", pw + "\n")
 
 
 

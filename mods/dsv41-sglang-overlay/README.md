@@ -127,6 +127,37 @@ while the launcher relocates it under `/cache/runtime` — the health probe runs
 from that baked env, so only a fixed path round-trips. Even without the file the
 probe would find the engine's `--port`.
 
+## PyTorch 2.13 collective-rename warning (silenced)
+
+The image's torch is **2.13.0+cu130**. PyTorch 2.13 renamed the distributed
+collectives `all_gather_into_tensor` → `all_gather_single` and
+`reduce_scatter_tensor` → `reduce_scatter_single`, keeping the old names as
+aliases behind a `FutureWarning`. The image's SGLang tree and its vendored
+kernels still call the old names, so a boot logs, from the `_exception_logger`
+wrapper at `torch/distributed/c10d_logger.py:83`:
+
+```
+FutureWarning: `torch.distributed.all_gather_into_tensor` is deprecated. Please use `torch.distributed.all_gather_single` instead.
+```
+
+(and the `reduce_scatter_tensor` twin; both seen in
+`.scratch/ds4/knapcio/logs/boot9-head-serve.log`). It is a benign
+once-per-callsite notice about a rename, not a change in behaviour we depend on,
+and the callers are in the image, so it cannot be patched out here. `launcher.py`
+silences it with a **module-scoped** filter in `RECIPE_ENV`:
+
+```
+PYTHONWARNINGS=ignore::FutureWarning:torch.distributed.c10d_logger
+```
+
+Only the c10d_logger re-emission of these two torch `FutureWarning`s is
+suppressed; other warnings and the c10d debug logger are untouched. The filter is
+module-scoped (not a blanket `ignore::FutureWarning`) and empirically verified
+against the pinned image — a bare `message='is deprecated'` filter does **not**
+take, because `warnings.filterwarnings()` anchors the message with `re.match` and
+the leading backtick defeats it, whereas a module filter is robust to torch
+rewording the message. Rollback is deleting the one line.
+
 ## The production env lives here, not in the recipe
 
 `launcher.py`'s `RECIPE_ENV` carries the whole production configuration —

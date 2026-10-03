@@ -171,6 +171,25 @@ RECIPE_ENV: dict[str, str] = {
     # expandable_segments False: the V4.1 SGLang lane reports NaN logits above 64
     # prefill query tokens with it on (ds4 AGENTS.md §6.4). boot.py's default too.
     "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:False",
+    # The image's torch is 2.13.0+cu130, which renamed the collectives
+    # all_gather_into_tensor -> all_gather_single and reduce_scatter_tensor ->
+    # reduce_scatter_single (PyTorch 2.13 release; the old names remain as
+    # aliases behind a FutureWarning). The overlay and the engine still call the
+    # old names, so every such call logs, via the _exception_logger wrapper at
+    # torch/distributed/c10d_logger.py:83:
+    #   FutureWarning: `torch.distributed.all_gather_into_tensor` is deprecated.
+    #   Please use `torch.distributed.all_gather_single` instead.
+    # (and the reduce_scatter twin). It is a benign once-per-callsite notice
+    # about a rename, not a deprecation of behaviour we rely on, and we cannot
+    # patch it out -- the callers are in the image's sglang tree and its vendored
+    # kernels. Silence ONLY the c10d_logger re-emission of these two torch
+    # FutureWarnings. Module-scoped and empirically verified against the pinned
+    # image (a bare `message='is deprecated'` filter does NOT take: warnings
+    # filterwarnings() anchors the message with re.match, so the leading
+    # backtick defeats it; a module filter is robust to the message rewording).
+    # `::` with an empty message = any message. Other FutureWarnings, and the
+    # c10d debug logger, are untouched. Rollback is deleting this line.
+    "PYTHONWARNINGS": ("ignore::FutureWarning:torch.distributed.c10d_logger"),
 }
 
 
