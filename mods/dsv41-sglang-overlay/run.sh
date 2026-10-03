@@ -44,11 +44,17 @@ ENGINE_PY="/sgl-workspace/sglang/python/sglang/srt/layers/engram.py"
 # Cacheable artifacts, all under the sparkrun-managed runtime cache
 # (<host> ~/.cache/sparkrun/runtime-cache/sglang/<model_dir> -> /cache/runtime).
 # sparkrun creates and chowns the leaf; these subdirs are ours to create.
+#
+# The paths are LITERAL, not read from the env: this mod runs BEFORE the launcher
+# (sparkrun pre_exec precedes the serve exec), so it cannot see the launcher's
+# RECIPE_ENV, and the image bakes STATE_PATH=/state into its own ENV -- reading
+# $STATE_PATH here would chown the wrong directory. These must match launcher.py's
+# RECIPE_ENV; both live in this mod so they move together.
 CACHE="${MOD_CACHEDIR:-/cache/runtime}"
-PACKED_DIR="${DSV41_PACKED_DIR:-${CACHE}/engram}"
-STATE_DIR="${STATE_PATH:-${CACHE}/state}"
-B12X_COMPILE_DIR="${B12X_COMPILE_CACHE_DIR:-${CACHE}/b12x-compile}"
-B12X_ROCE_DIR="${B12X_ROCE_CACHE_DIR:-${CACHE}/b12x-roce}"
+PACKED_DIR="${CACHE}/engram"
+STATE_DIR="${CACHE}/state"
+B12X_COMPILE_DIR="${CACHE}/b12x-compile"
+B12X_ROCE_DIR="${CACHE}/b12x-roce"
 
 #####################################################################
 # Helpers
