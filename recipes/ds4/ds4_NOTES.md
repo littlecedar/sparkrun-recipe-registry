@@ -123,3 +123,124 @@ engine** — `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`, shipped with RoCEnan
 ON and no SPS table — and the EXL3/vLLM lane remains the default. Full details,
 boot gates, provenance and limits: `KNAPCIO-SGLANG-INTEGRATION.md`; durable
 summary: `AGENTS.md` §7.13.
+
+## Session 2026-10-02 (cont.) — PORTABILITY: no host bind mounts
+
+**Objective:** the recipe's `executor_config.volumes` (`/home/red/dsv41-engram`,
+`/home/red/dsv41-state`) was flagged `non-portable-mount`; it must place cacheable
+artifacts only in the sparkrun-managed runtime cache and put everything else in
+the image.
+
+**Shipped (VERIFIED booting, see below):**
+- **No `volumes:` block.** `sparkrun recipe validate` → only the deliberate
+  `managed-comm-env` warning; `non-portable-mount` is gone.
+- Cacheables moved under `/cache/runtime/engram`, `/cache/runtime/state`,
+  `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce` (the sparkrun leaf
+  `~/.cache/sparkrun/runtime-cache/sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993`,
+  computed by sparkrun; the recipe never spells the host path).
+- `mods/dsv41-sglang-overlay/run.sh` creates + `reown`s the subdirs;
+  `launcher.py` is the only rank-aware component (sparkrun appends `--node-rank`
+  to every node; the container env has no rank — VERIFIED in the dry run) and
+  packs this rank's Engram shards when absent, **detached**, so a cold boot never
+  exceeds sparkrun's ~150 s head-rendezvous wait.
+- Cold-cache path: first boot runs Engram from the checkpoint; next boot is
+  packed. Pre-warm by copying shards into the leaf (fast local copy).
+
+**Evidence / artifacts:** `KNAPCIO-SGLANG-INTEGRATION.md` ("Portability"),
+`mods/dsv41-sglang-overlay/README.md`, design note
+`.scratch/ds4/knapcio/PORTABILITY-DESIGN.md`; guards in
+`tests/test_ds4_recipes.py` (SglangLaneContract + negative controls).
+
+**Boot-verified 2026-10-02** (4 Sparks `.32`–`.35`, dry-run-identical recipe with
+the mod ref swapped to the bare form for the uncommitted mod): all gates pass —
+`overlay gate OK`, `cache dir ready` × 4, launcher `NNODES=4 NODE_RANK=0`,
+`Exact nvme Engram … packed=True`, `moe_b12x_next armed`, `RoCEnante ready`,
+`fired up and ready`. TTR 270 s; rendered `docker run` has **no `-v /home/red/…`**
+(only the HF cache + the sparkrun runtime-cache leaf). The `replicated_split …
+slice failed` lines are the adapter's normal try-then-OFF probe, not a defect
+(final state: `armed for ['wqkv_a','engram.wkv']`).
+
+**Mechanic that cost a boot:** `@littlecedar/mods/…` resolves from the node's
+**registry git clone**, not the synced working tree; iterating on a mod needs the
+`~/development` symlink layout + a bare ref (see QWEN4-WORK §16). The shipped
+recipe keeps the `@littlecedar/…` form.
+
+**Cold-cache self-heal VERIFIED in-image** (idle `.32`, throwaway container):
+`ensure_engram_shards(env, rank=0)` with no shards spawned
+`flock -n …/engram/.pack.lock nice -n 10 ionice -c 3 python3 pack_engram.py
+--rank 0 --tp 4 --out …` detached and booted on the fallback; the packer wrote
+`engram-l1-r0of4.partial` at ~498 MiB/s. First cold boot = checkpoint Engram
+(correct, slower); next boot = packed. **Still required of the host:** the shared
+HF checkpoint — **not** the image, which is now vendored (below). Commit/push the
+mod so `@littlecedar/mods/dsv41-sglang-overlay` resolves to the new code.
+
+## Session 2026-10-02 (cont.) — VENDORED IMAGE (build + push to Docker Hub)
+
+**Objective:** build the container on `.30` and push it to the littlecedar repos
+so it is vendored instead of built locally.
+
+**Done (VERIFIED):** cloned `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` @
+`58f232155917d388b6053eca079c617fd306c33c` to `/home/red/dsv41-knapcio` on
+`.30`, `fetch-sglang-canary.sh` (sglang `f80c91a4b`), `docker build -f
+Dockerfile.canary-roce` → exit 0, image `a0e6d103002d` (33.5 GB, arm64). Pushed:
+
+```
+littlecedar/dgx-spark-dsv41:canary-roce
+  digest sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825
+  image  sha256:a0e6d103002db3d2ea0f798b372bb356236acfe59458a5f9cbc9bb720ab2c9c5
+```
+
+Recipe now uses that digest-pinned ref and `distribution_config.containers.enabled:
+true`, so a host **pulls** the exact bytes. Rollback to local build = retag
+`dsv41-4x-spark:canary-roce` + `enabled: false`. Docs: `KNAPCIO-SGLANG-INTEGRATION.md`
+§Image; guards: `test_image_is_vendored_and_pinned` + `test_control_image_unpinned`.
+The `.docker/config.json` on `.30` already carried the `littlecedar` Hub auth.
+
+**Vendored-boot VERIFIED (2026-10-02, clean cluster):** `sparkrun run` on
+`.32`–`.35` pulled `littlecedar/dgx-spark-dsv41@sha256:932dd8c2…`, launched, and
+reached **`fired up and ready`** — `RoCEnante ready: world=4`, `[moe_b12x_next]
+armed`, Engram `packed=True`, no host bind mounts, TTR 244 s (cold). A worker
+(`.33`) also pulled the digest and resolved it to image `a0e6d103002d`, the same
+bytes built on `.30`. **Cluster-cleanliness lesson:** the *first* vendored boot
+falsely reported ready at 74 s because the earlier portable-boot containers were
+never reaped (sparkrun `--rm` removes on clean exit, but a killed/abandoned run
+leaves them) and the head's 8888 was served by the stale container. Always
+`sparkrun status` / `docker ps -a | grep sparkrun` before a boot test.
+
+## Session 2026-10-02 (cont.) — CHECKPOINT MOVED (`dba1be0a` → `2cba9e42`)
+
+**Symptom:** `boot.py:45 AssertionError: missing /cache/huggingface/hub/
+models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a…/config.json`.
+
+**Cause (VERIFIED on all six nodes):** the shared HF cache was re-downloaded and
+`main` now points at snapshot `2cba9e42aa026125f3ed06c6d98c1db82f7ca027`; the
+old `dba1be0a…` is **gone from every node**. The recipe hardcoded the old hash
+(and could not glob: a bare `X=/path/*` assignment stays literal — §6.1). The
+cache itself is fine: the new snapshot is complete (60 entries, 476 GB, 48
+shards, index present). The checkout's `deepseek_v41` / 40-layer / 384-expert /
+`engram_num_embeddings [384006168, 384016682]` shapes are **identical**, so the
+packed Engram shards remain valid and no measured number changes.
+
+**Fix (two layers):**
+1. Recipe literal updated to `2cba9e42…` (the current snapshot).
+2. `mods/dsv41-sglang-overlay/launcher.py` now **self-heals**: if the recipe's
+   `MODEL_PATH` is not a complete local snapshot, it resolves the served one from
+   `<repo>/refs/main` (else the newest snapshot carrying
+   `model.safetensors.index.json`) and rewrites `MODEL_PATH`/`DSV41_SOURCE`
+   before `execve(boot.py)`. The literal encodes a *preference*, not a hard pin;
+   the recipe no longer breaks when the shared cache moves again. Guards:
+   `test_launcher_resolves_stale_checkpoint`; resolver unit-tested offline and
+   against the live cache in-image (stale → `2cba9e42…`).
+
+**Live-boot VERIFIED (2026-10-03):** two clean boots on `.32`–`.35` — (1) recipe
+as shipped (literal `2cba9e42…`) → `fired up and ready`, TTR 191 s; (2) recipe
+edited to force the STALE `dba1be0a…` → launcher logged `checkpoint …dba1be0a…
+is not present; resolved to …2cba9e42…` and booted normally (TTR 181 s), Engram
+`packed=True`, no `missing config.json`. The self-heal works.
+
+**Coordination note:** commit `fd0fb21` (external) captured most of the
+portability+vendoring work but **dropped the `distribution_config:` block** from
+the recipe (the portability rework was written over a base that predated it).
+Re-added it; the recipe now carries `containers.enabled: true` + the digest pin.
+If a later sync/merge clobbers it again, `test_image_is_vendored_and_pinned` and
+`test_control_image_distribution_disabled` will catch it.

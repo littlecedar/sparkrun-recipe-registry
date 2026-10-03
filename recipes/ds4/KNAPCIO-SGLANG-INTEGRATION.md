@@ -43,42 +43,100 @@ do not try", with three blockers:
 The old verdict was correct **for the images available at the time**; it was not
 a claim about a purpose-built overlay build.
 
-## Build
+## Image (vendored — no local build)
 
-Per node (internet required; ~10 min each, includes the upstream in-image test
-suite as the gate):
+The recipe uses the **published** image, pulled by sparkrun:
+
+```
+littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825
+```
+
+It is arm64-only and rebuildable from knapcio's repo:
 
 ```bash
-# from a checkout of the knapcio repo on the node
-bash scripts/fetch-sglang-canary.sh          # stages the dsv4.1 tree @ f80c91a4b
+git clone https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4.git
+cd DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 && git checkout 58f232155917d388b6053eca079c617fd306c33c
+bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91a4b
 docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
 ```
 
-The image is **local-only** (not in a registry). `sparkrun`'s "Distributing
-image" step is a no-op when it is already present on every node, so it must be
-built on **all four** nodes before the launch. Driver:
-`.scratch/ds4/knapcio/build_canary_roce.sh`.
+`distribution_config.containers.enabled: true` makes sparkrun pull the digest on
+each target host. Set it to `false` only when you build locally and retag the
+result `dsv41-4x-spark:canary-roce` (the local-only path this lane originally
+used). The pinned bytes:
+
+| | |
+|:--|:--|
+| Registry digest | `sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825` |
+| Image ID | `sha256:a0e6d103002db3d2ea0f798b372bb356236acfe59458a5f9cbc9bb720ab2c9c5` |
+| Base | `lmsysorg/sglang:dev-dsv41` |
+| Upstream overlay | knapcio `58f2321`, SGLang `dsv4.1` @ `f80c91a4b` |
+| Built | 2026-10-02 on `10.0.4.30` |
+| Size | 33.5 GB (arm64) |
 
 ## Engram packing (required before any boot)
 
 The two Engram tables are 202.76 GB of `F8_E4M3`; on a 128 GB unified Spark they
 **cannot** live in RAM (AGENTS.md §3.1). The overlay serves them from
-**node-local NVMe**, one packed shard per rank:
+**node-local NVMe**, one packed shard per rank, under
+`/cache/runtime/engram` (the sparkrun-managed runtime cache; see "Portability").
+The image's own packer builds them:
 
 ```bash
-# per node, rank = node_rank (0..3)
-docker run --rm --entrypoint python3 \
-  -v /home/red/.cache/huggingface/hub:/hf:ro \
-  -v /home/red/dsv41-engram:/engram \
-  dsv41-4x-spark:canary-roce /opt/dsv41/scripts/pack_engram.py \
-  --model /hf/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277 \
-  --rank <R> --tp 4 --out /engram
+# per node, rank = node_rank (0..3), run inside the serving image.
+# Use the snapshot the cache actually serves ($repo/refs/main):
+python3 /opt/dsv41/scripts/pack_engram.py \
+  --model /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/$(cat /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/refs/main) \
+  --rank <R> --tp 4 --out /cache/runtime/engram
 ```
 
 ~47 GiB/node (two layers × ~23.6 GiB). **Mount the whole `hub/` dir**: this HF
 cache uses the shared two-level `hub/blobs/<xx>/<sha>` layout, so mounting only
 the `models--…` dir leaves every blob symlink dangling (that is what the first
 attempt hit).
+
+You do **not** have to run this by hand: `mods/dsv41-sglang-overlay/launcher.py`
+packs this rank's shards automatically when they are absent (detached; the boot
+proceeds on the checkpoint fallback and the packed shards are used next time).
+The manual command is for pre-warming or debugging.
+
+## Portability (`/cache/runtime`, no host bind mounts)
+
+The recipe ships **no `executor_config.volumes`** — no `/home/red/...` path, and
+`sparkrun recipe validate` no longer reports `non-portable-mount`. Every
+non-model, non-image artifact lives under sparkrun's managed runtime cache:
+
+| artifact | container path | host path |
+|:--|:--|:--|
+| per-rank Engram shards | `/cache/runtime/engram` | `~/.cache/sparkrun/runtime-cache/sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993/engram` |
+| boot.py `launch.json` / `api-key` | `/cache/runtime/state` | `…/state` |
+| b12x JIT caches | `/cache/runtime/b12x-compile`, `…/b12x-roce` | `…/b12x-compile`, `…/b12x-roce` |
+
+`sparkrun` computes the leaf itself (`core/runtime_cache.py:model_key`, family
+`sglang`), creates and chowns it per node, and mounts it at `/cache/runtime`; the
+recipes and env never spell the host path. The leaf is node-local NVMe (not
+NFS), so packed Engram reads stay local.
+
+The two moving parts:
+
+- `mods/dsv41-sglang-overlay/run.sh` creates and `reown`s the subdirs (it runs
+  before the serve command), because mods run as root and the serve user must be
+  able to write them.
+- `mods/dsv41-sglang-overlay/launcher.py` is the only component that learns the
+  node's rank (sparkrun appends `--node-rank` to the serve command on the head
+  **and** every worker; the container env has no rank — verified in the
+  `sparkrun -vvv run --dry-run` output). It materializes the rank's shards,
+  backgrounding the pack when they are absent so a cold boot never exceeds
+  sparkrun's ~150 s head-rendezvous wait. `packed=False` in the Engram boot line
+  on a first cold boot is expected, not a failure.
+
+What is still required of the host: **the shared HF checkpoint** at
+`/cache/huggingface` (never a recipe bind mount). The image is no longer a host
+prerequisite — it is vendored at
+`littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2…` and sparkrun pulls it
+(`distribution_config.containers.enabled: true`). If you prefer to build it
+locally, retag the result `dsv41-4x-spark:canary-roce` and set
+`containers.enabled: false`.
 
 ## Recipe wiring (how sparkrun drives boot.py)
 
@@ -127,7 +185,9 @@ Full mesh ⇒ **switched, not a ring**: the `NCCL_SWITCHLESS_RING_ONLY` path
 1. `[dsv41-sglang-overlay] overlay gate OK` and
    `launcher: boot.py run NNODES=4 NODE_RANK=<r> …` — the rank must differ per node.
 2. `Exact nvme Engram layer=… rows=[a,b)` — the range must **differ per rank**;
-   `packed=` must name the `/engram-local` shard. Missing/identical = stop.
+   `packed=` must name the `/cache/runtime/engram` shard. Missing/identical = stop.
+   (`packed=False` on a first cold boot is expected: the launcher packs in the
+   background and the next boot reports `packed=True`.)
 3. Resolved backends in the startup log — the kernel path must not be the Triton
    fallback (gate: `[moe_b12x_next] armed`).
 4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool.
