@@ -1,5 +1,10 @@
 # ds4_NOTES — DeepSeek V4.1-Flash EXL3 lane: working record
 
+> **Recipe filename (2026-10-03):** the knapcio SGLang recipe is
+> `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` (renamed from
+> `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml` to match the
+> `<model>-<stack>-tpN-<ctx>-<runtime>` convention). All docs/tests use the new name.
+
 Session log for `model_symbol=ds4`. Durable facts graduate into `AGENTS.md` and
 `recipes/README.md`; this file is pruned. Read `AGENTS.md` first.
 
@@ -36,7 +41,7 @@ container (`docker logs` is empty); containers are reaped after a run (use
 `github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` (SGLang, native
 checkpoint, DSpark, Engram-on-NVMe) into this registry. Full provenance/plan:
 **`recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`**. Recipe:
-`deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`; mod: `mods/dsv41-sglang-overlay/`.
+`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; mod: `mods/dsv41-sglang-overlay/`.
 
 Why a new lane at all: it runs the **official** checkpoint (comparator for the
 EXL3 94.4% hard-tier question, AGENTS.md E5) and upstream measures **89.7 t/s
@@ -51,7 +56,7 @@ works), and **`EP_SIZE=2`** gives `2304/2 = 1152 = 9×128`. `EP_SIZE=1` is the
 upstream production line (b12x_next), a follow-up A/B.
 
 **Feasibility verified this session:**
-- The **native checkpoints are already in the shared HF cache**: `deepseek-ai/DeepSeek-V4.1-Flash`
+- The **native checkpoints are already in each node's HF cache**: `deepseek-ai/DeepSeek-V4.1-Flash`
   (snapshot `dba1be0a40aa45a94ad051997016db3960a90277`, 510.30 GB, 48 shards) and
   `deepseek-ai/DeepSeek-V4-Flash-0731`. `lmsysorg/sglang:dev-dsv41` (33.2 GB) is present.
 - **Engram packs built on all four nodes**: `pack_engram.py --rank R --tp 4`,
@@ -119,7 +124,7 @@ failure is a base-model limitation. Artifacts:
 `.scratch/ds4/knapcio/quality_hard_sglang{,_rep2}.json`.
 
 **Verdict for the recipes:** the SGLang lane is a working, measured **second
-engine** — `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`, shipped with RoCEnante
+engine** — `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, shipped with RoCEnante
 ON and no SPS table — and the EXL3/vLLM lane remains the default. Full details,
 boot gates, provenance and limits: `KNAPCIO-SGLANG-INTEGRATION.md`; durable
 summary: `AGENTS.md` §7.13.
@@ -269,6 +274,89 @@ at all** — which reads as "detection is broken here". It is not: detection run
 the real launch, and `ib_detect.sh` standalone returns `IB_DETECTED=1` with the
 HCA list. Do not conclude anything about detection from a dry run.
 
+## Session 2026-10-03 (cont.) — checkpoint path removed from `env:` entirely
+
+**Directive (user):** since the launcher already resolves the snapshot inside the
+container, wire `MODEL_PATH`/`DSV41_SOURCE` to the resolved snapshot instead of
+spelling a snapshot path in `env:` (where it confuses future users).
+
+**Change:** `env:` is now **one line: `TP_SIZE: "4"`.** The recipe passes the repo
+id via the command's `{model}` placeholder (`--model {model}`; `{model}` resolves
+to `recipe.model`, core/recipe.py:276/1326), and
+`mods/dsv41-sglang-overlay/launcher.py:resolve_checkpoint()` derives
+`MODEL_PATH`/`DSV41_SOURCE` from the **fixed in-container** HF cache
+(`/cache/huggingface/hub/models--<org>--<name>` -> `refs/main`, else any snapshot
+with both `config.json` and `model.safetensors.index.json`). No `snapshots/<hash>`
+anywhere in the recipe.
+
+**VERIFIED live** (slimmed recipe, TTR 172 s): launcher logged
+`resolved checkpoint deepseek-ai/DeepSeek-V4.1-Flash ->
+/cache/huggingface/hub/models--…/snapshots/2cba9e42…`; `fired up and ready`,
+`RoCEnante ready`, `moe_b12x_next armed`, Engram `packed=True`. Resolver
+unit-tested offline (no MODEL_PATH -> resolve; supplied valid path -> preserved;
+no `refs/main` -> newest complete; unresolvable -> leave unset).
+Guards: `test_recipe_env_is_thin` (env == `["TP_SIZE"]`),
+`test_launcher_resolves_checkpoint` (`--model {model}` + `resolve_checkpoint`/
+`HF_HUB`/`refs` in the launcher); `test_launcher_resolves_stale_checkpoint`
+removed (superseded). 28 lane tests green.
+
+Note the two moving parts that decide the path: sparkrun mounts each node's own HF
+cache at the fixed `/cache/huggingface` (never a recipe bind), and the launcher's
+`HF_HUB` constant assumes it — both in the mod, so they move together. A container
+bind supplied as `MODEL_PATH` is left alone (it is read-only, which is all the
+`SKIP_PREPARE` existence check needs).
+
+## Session 2026-10-03 (cont.) — TP via `defaults`→`command`; `env:` removed entirely
+
+**User edit made viable:** the recipe now emits `--tp {tensor_parallel}` (from
+`defaults.tensor_parallel: 4`) and `--model {model}`, so `env:` is gone entirely.
+
+**Load-bearing fix the edit required:** sparkrun does **not** emit `--tp-size`
+when a `command:` template is present — `generate_node_command` substitutes the
+placeholder instead (`runtimes/sglang.py: ~415-440`; `tensor_parallel` is in the
+flag map but only used by `_build_base_command`, the no-template branch). The
+launcher previously ignored `--tp` via `parse_known_args`, so `TP_SIZE` would have
+been unset and `boot.py` would have silently defaulted to **TP=3** on this 4-node
+cluster. Fixed: `launcher.py` now parses `--tp` and sets `TP_SIZE`.
+
+**VERIFIED live:** rendered command is `… launcher.py --boot --model
+deepseek-ai/DeepSeek-V4.1-Flash --port 8888 --tp 4 --served-model-name …`;
+launcher logged `NNODES=4 … TP=4`; boot reached `fired up and ready` (TTR 171 s)
+with `RoCEnante ready`, `moe_b12x_next armed`, Engram `packed=True`, checkpoint
+resolved from `--model`. Recipe now carries **no `env:` block** and
+`sparkrun recipe validate` is clean. Guards: `test_recipe_env_is_empty`,
+`test_tp_flows_through_command_to_launcher`; the negative controls inject an
+`env:` block via the `# env: is intentionally EMPTY.` anchor. 29 lane tests green.
+
+## Session 2026-10-03 (cont.) — HF cache is NO LONGER SHARED (NFS removed)
+
+**Change (user):** the NFS-over-RoCE export of `~/.cache/huggingface` has been
+removed; every node's HF cache is now node-local, so **models must be distributed
+across the runner nodes**. All references to a "shared HF cache" are removed from
+docs and comments.
+
+**VERIFIED:** no `huggingface`/`nfs` mount on `.30`, `.32`, `.34` (and `.30`
+exports nothing); each node's cache is node-local ext4 on `/dev/nvme0n1p2`.
+
+**Recipe change (the load-bearing one):** `distribution_config.models.enabled` is
+now **`true`** (was `false`). `false` was correct only while the nodes mounted one
+shared cache; with per-node caches it would leave every worker without the
+checkpoint. `containers.enabled` stays `true` (vendored image).
+
+**Profile change (NOT yet applied to the on-disk cluster files):** the local
+cluster files (`~/.config/sparkrun/clusters/ds4*.yaml`, `WOPR.yaml`) still carry
+`distribution.model.enabled: false, skip_fan_out: true`, which **overrides** the
+recipe. They must drop that block (or set `enabled: true`) or the launch proceeds
+without distributing the checkpoint. `WOPR.yaml` uses `transfer_mode: auto`; the
+ds4* slices use `local`.
+
+**Docs swept:** recipe header + `distribution_config`, `KNAPCIO-SGLANG-INTEGRATION.md`
+(Portability + "required of the host"), `ds4/AGENTS.md` (§6.1 `transfer_mode`,
+§6.3 head-role, §7 preamble, §7.1, §7.7 caveat, §7.8.1, E6, §12 head note), the
+mod README + launcher comment, `MEMORY-RECLAIM-PLAN.md`, `DSPARK-TP3-STUDY.md`,
+and the EXL3 recipe comments. Historical measurements that were *NFS-bound* are
+relabelled "disk-bound"/"remote", not deleted — the numbers stand.
+
 ## Session 2026-10-02 (cont.) — VENDORED IMAGE (build + push to Docker Hub)
 
 **Objective:** build the container on `.30` and push it to the littlecedar repos
@@ -307,7 +395,7 @@ leaves them) and the head's 8888 was served by the stale container. Always
 **Symptom:** `boot.py:45 AssertionError: missing /cache/huggingface/hub/
 models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a…/config.json`.
 
-**Cause (VERIFIED on all six nodes):** the shared HF cache was re-downloaded and
+**Cause (VERIFIED on all six nodes):** the HF cache was re-downloaded and
 `main` now points at snapshot `2cba9e42aa026125f3ed06c6d98c1db82f7ca027`; the
 old `dba1be0a…` is **gone from every node**. The recipe hardcoded the old hash
 (and could not glob: a bare `X=/path/*` assignment stays literal — §6.1). The
@@ -323,8 +411,9 @@ packed Engram shards remain valid and no measured number changes.
    `<repo>/refs/main` (else the newest snapshot carrying
    `model.safetensors.index.json`) and rewrites `MODEL_PATH`/`DSV41_SOURCE`
    before `execve(boot.py)`. The literal encodes a *preference*, not a hard pin;
-   the recipe no longer breaks when the shared cache moves again. Guards:
-   `test_launcher_resolves_stale_checkpoint`; resolver unit-tested offline and
+   the recipe no longer breaks when the cache moves again. Guards:
+   `test_launcher_resolves_stale_checkpoint` (later superseded by
+   `test_launcher_resolves_checkpoint`); resolver unit-tested offline and
    against the live cache in-image (stale → `2cba9e42…`).
 
 **Live-boot VERIFIED (2026-10-03):** two clean boots on `.32`–`.35` — (1) recipe
@@ -339,3 +428,80 @@ the recipe (the portability rework was written over a base that predated it).
 Re-added it; the recipe now carries `containers.enabled: true` + the digest pin.
 If a later sync/merge clobbers it again, `test_image_is_vendored_and_pinned` and
 `test_control_image_distribution_disabled` will catch it.
+
+## Session 2026-10-03 (cont.) — context-length wired; "(unhealthy)" root-caused
+
+**Three requests, all resolved (evidence in `KNAPCIO-SGLANG-INTEGRATION.md`):**
+
+1. **`--context-length {max_model_len}` now reaches the engine.** The template
+   already emitted it but `launcher.py` had no such flag, so `parse_known_args`
+   dropped it and `RECIPE_ENV`'s hardcoded `CONTEXT_LENGTH` won — a
+   `-o max_model_len=…` was silently inert. Fix: launcher parses
+   `--context-length` and sets `CONTEXT_LENGTH` **after** `apply_recipe_env` (so
+   the recipe wins). Guard: `test_context_length_wired_to_launcher`.
+
+2. **`NCCL_BUFFSIZE` is NOT tied to `CONTEXT_LENGTH` — do not wire.** It is a
+   NCCL connection-buffer **byte** size (1 MiB here), not a token count. Upstream
+   `.env.example` pairs `NCCL_BUFFSIZE=1048576` with `CONTEXT_LENGTH=262144`; the
+   TP4 profile's equal 1048576 is coincidence. Left as a fixed byte count in
+   `RECIPE_ENV`. Guard: `test_nccl_buffsize_is_not_context_length`.
+
+3. **The `(unhealthy)` in `sparkrun status` was Docker's baked HEALTHCHECK, not
+   `readiness:`. FIXED IN THE IMAGE.** The original `boot.py health` probed
+   `127.0.0.1:$SERVER_PORT/health` and defaulted to 8888; sparkrun never puts
+   `SERVER_PORT` in the container's creation env, and Docker freezes `Config.Env`
+   at `docker run`, so a launcher/mod value set at runtime is below Docker's view
+   (VERIFIED live: even patching `/proc/1/environ` left the probe at 8888). Any
+   served port other than 8888 → `(unhealthy)`. The user rejected both the
+   `env: {SERVER_PORT}` form and a fixed-8888 serve port as workarounds.
+   **Fix:** patched `boot.py`'s `health` command to **discover the port at
+   runtime** (`HEALTH_PORT`/`SERVER_PORT` env → launcher-persisted
+   `/tmp/sparkrun_health_port` → the engine's own `--port` from
+   `/proc/<pid>/cmdline` → a LISTEN port from `/proc/net/tcp{,6}` → image
+   default), rebuilt on `.30` from `Dockerfile.canary-roce`, and repushed:
+   `littlecedar/dgx-spark-dsv41:canary-roce` digest
+   **`sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05`**
+   (image `sha256:18e36391488e…`, built 2026-10-03). Recipe pin + docs + guards
+   updated. Launcher also writes the rendezvous file (fixed `/tmp` path; the
+   image bakes `STATE_PATH=/state` so a `$STATE_PATH`-relative path would not
+   round-trip). `readiness:` is unrelated and stays.
+
+**Live-boot VERIFIED of the rebuilt image (2026-10-03, `.32`–`.35`):**
+- **port 8888** (recipe default): all four `(healthy)`, `boot.py health` rc 0,
+  `fired up and ready`, `/v1/models` `max_model_len: 1048576`, `27*43 -> 1161`.
+- **port 8123** (`-o port=8123`, non-default): all four `(healthy)`, `boot.py
+  health` rc 0, `Ready: API on port 8123`, `27*43 -> 1161`. **This is the case
+  that was `(unhealthy)` before the rebuild** — the dynamic healthcheck now
+  follows `--port`.
+- Stub-server test on `.30` before pushing: container created with no
+  `SERVER_PORT`, serving 8000 → `health=healthy`.
+
+**Also restored, then removed again by request:** commit `78a099f` had dropped the
+recipe's `distribution_config:` block, so the guards (`test_image_is_vendored_and_pinned`,
+`test_models_are_distributed`) were failing. I re-added it (containers+models
+`enabled: true`); the user then asked to **remove it for good** as development-only.
+Verified it is safe: sparkrun's default is `models` AND `containers` `enabled: true`
+with auto `{model}`/`{container}` entries (`core/recipe.py:_default_distribution_config`),
+so omitting the block is behaviorally identical. The two guards were replaced by
+`test_distribution_config_omitted` (+ a control) which now asserts the block stays
+absent — so a reintroduced `enabled: false` cannot silently strand the workers or
+stop the image pull.
+
+**Test state:** SGLang lane 37/37 green. Full suite 288 tests, **4 failures** —
+all the pre-existing EXL3 `drop-caches` guards owned by another agent, unchanged
+by this work.
+
+**Boot-hygiene trap hit here:** an earlier attempt booted while the *old*
+`(unhealthy)` 4-node deployment was still running. Because sparkrun uses
+`--network=host`, the old server held the serve port, so the new container's
+Docker healthcheck passed against the **old** server (false "healthy") while the
+new server failed to bind (gloo "Connection closed by peer"). Always tear down
+the prior deployment before a boot test (measurement-hygiene rule).
+
+**Build-hygiene note:** the rebuild reuses the base image and the heavy
+overlay/test layers (Docker layer cache), so only the `COPY boot.py` + the in-image
+test `RUN` re-execute; the build ran in ~4–5 min despite the 33.5 GB image. The
+image must then be **distributed to all four workers** (~5 min over the fabric)
+before a new-digest boot; sparkrun does that automatically under the default
+`distribution_config`. The build context is `/home/red/dsv41-knapcio` on `.30`
+(git clean); the boot.py change is preserved as `boot.py.pre-healthport` there.
