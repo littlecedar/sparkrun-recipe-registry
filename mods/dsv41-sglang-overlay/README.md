@@ -12,8 +12,9 @@ Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 | Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`. |
 
 The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
-(digest-pinned), so sparkrun pulls it and no node builds it. The recipe's
-`distribution_config.containers.enabled: true` drives that pull.
+(digest-pinned), so sparkrun pulls it and no node builds it. sparkrun distributes
+the image by default (its `distribution_config` default is `containers.enabled:
+true`), so the recipe carries no `distribution_config:` block.
 
 ## Why it exists
 
@@ -29,8 +30,10 @@ sparkrun's SGLang runtime instead assumes the command is `sglang serve …` and
 appends the per-node rendezvous flags `--dist-init-addr HOST:PORT --nnodes N
 --node-rank R`. `launcher.py` bridges the two: it consumes those three flags,
 maps them onto boot.py's `DIST_INIT_ADDR` / `NNODES` / `NODE_RANK`, and execs
-`boot.py`. The recipe's `command:` is a one-line call to it; every serve
-parameter rides in the recipe's `env:`.
+`boot.py`. The recipe's `command:` is a one-line call to it; serve parameters
+ride either in the command (`--model {model}`, `--tp {tensor_parallel}`,
+`--context-length {max_model_len}`, `--port {port}`) or in the mod's
+`RECIPE_ENV` (everything else).
 
 ## Mechanics (fail-closed)
 
@@ -85,6 +88,45 @@ new hash cannot break the boot (each node's cache is independent now — there i
 no shared mount). A container bind supplied as `MODEL_PATH` is left
 alone (it is read-only, which is all the `SKIP_PREPARE` existence check needs).
 
+It also **maps the recipe's command flags onto boot.py's environment**, for the
+parameters boot.py reads from env rather than argv:
+
+- `--tp {tensor_parallel}` → `TP_SIZE` (sparkrun does *not* emit `--tp-size` when
+  a `command:` template is present, so without this boot.py would fall back to
+  its default TP=3 on a 4-node cluster).
+- `--context-length {max_model_len}` → `CONTEXT_LENGTH`, applied **after**
+  `RECIPE_ENV` so the recipe's value (e.g. `-o max_model_len=…`) wins over the
+  launcher default. Without the mapping the flag would be silently dropped and
+  the server would advertise the launcher's default context.
+- `--port {port}` → `SERVER_PORT` (the launcher's own process env; it also
+  persists the port to `/tmp/sparkrun_health_port` for the image's dynamic
+  healthcheck — see below).
+
+## Docker's HEALTHCHECK and the served port
+
+The image bakes `HEALTHCHECK CMD ["python3","-S","/opt/dsv41/boot.py","health"]`.
+Originally `boot.py health` probed `http://127.0.0.1:$SERVER_PORT/health`,
+defaulting to the image build port 8888 when `SERVER_PORT` was unset. The probe
+reads the **container's creation env** (`docker inspect .Config.Env`), which
+Docker freezes at `docker run` — so a value set at runtime by the launcher
+(`os.execve`) or a mod (even writing `/proc/1/environ`) is *below Docker's view*
+and could not influence it (VERIFIED live), and sparkrun never puts `SERVER_PORT`
+there. A server on any other port therefore reported `Up … (unhealthy)`.
+
+**The 2026-10-03 image rebuild (digest `4e5002ab…`) makes the healthcheck
+discover the port dynamically.** `boot.py health` now resolves the probe port at
+runtime: `HEALTH_PORT`/`SERVER_PORT` env → the port the launcher persists to
+`/tmp/sparkrun_health_port` → the running engine's own `--port` (from
+`/proc/<pid>/cmdline`) → any LISTEN port from `/proc/net/tcp{,6}` → the image
+default. Any served port now probes correctly, and the recipe needs **no `env:`
+block**.
+
+`launcher.py` writes the rendezvous file as belt-and-suspenders. The path is a
+literal (`/tmp`), not `$STATE_PATH`, because the image bakes `STATE_PATH=/state`
+while the launcher relocates it under `/cache/runtime` — the health probe runs
+from that baked env, so only a fixed path round-trips. Even without the file the
+probe would find the engine's `--port`.
+
 ## The production env lives here, not in the recipe
 
 `launcher.py`'s `RECIPE_ENV` carries the whole production configuration —
@@ -97,13 +139,16 @@ necessary because the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,
 `PYTORCH_CUDA_ALLOC_CONF=…True`, `SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and
 a `setdefault` would let those win (silently redirecting boot.py state to an
 unwritable `/state`, and re-arming the allocator mode that NaNs above 64 prefill
-query tokens). `TP_SIZE` is the one thing the launcher cannot derive (sparkrun
-passes `--nnodes`, not the TP degree), so it is the only key the recipe sets.
+query tokens). The TP degree and context length are *not* here: they arrive as
+`--tp {tensor_parallel}` / `--context-length {max_model_len}` from the recipe's
+`command:` and are mapped in `main()` (see above).
 
-The recipe's own `env:` is therefore a **single line, `TP_SIZE`**, and carries no
-host device names and no snapshot path. `RECIPE_ENV` values that the runtime
-already defaults to (SKIP_SMOKE, WARMUP, HOST, SERVED_MODEL_NAME, the prefill
-thresholds, the fast-load slice/inflight defaults) are **not** set anywhere.
+The recipe's own `env:` is therefore **empty** — the TP degree, context length
+and port all arrive via the `command:` template from `defaults`, and the image's
+dynamic healthcheck needs no container-level env (see above). `RECIPE_ENV` values
+that the runtime already defaults to (SKIP_SMOKE,
+WARMUP, HOST, SERVED_MODEL_NAME, the prefill thresholds, the fast-load
+slice/inflight defaults) are **not** set anywhere.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
@@ -112,9 +157,12 @@ Engram reads never traverse the network — the same property the old
 ## Not in this mod (and why)
 
 - The image itself is **vendored** (`littlecedar/dgx-spark-dsv41:canary-roce`,
-  digest-pinned) and pulled by sparkrun with
-  `distribution_config.containers.enabled: true`. A local-only build is the opt
-  out: retag it `dsv41-4x-spark:canary-roce` and set `containers.enabled: false`.
+  digest-pinned) and pulled by sparkrun under its default distribution config
+  (`containers.enabled: true`). To build locally instead, retag the result
+  `dsv41-4x-spark:canary-roce` and add
+  `distribution_config: { containers: { enabled: false } }` to the recipe — the
+  recipe deliberately omits the block otherwise, so there is no dev-only config
+  to drift.
 - The checkpoint is **distributed to every node** by sparkrun (the HF cache is
-  per-node, not shared — there is no NFS export). See the recipe's
-  `distribution_config.models`. The image itself is vendored (pulled, not built).
+  per-node, not shared — there is no NFS export), also under the default config
+  (`models.enabled: true`). The image itself is vendored (pulled, not built).

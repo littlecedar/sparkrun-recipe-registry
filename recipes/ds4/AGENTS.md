@@ -350,14 +350,18 @@ are `SPDX: Apache-2.0` vLLM derivatives), cloned to `.scratch/ds4/tonyd2wild-vll
   serve one: identity-mounting only the snapshot leaves `config.json` dangling and
   vLLM rejects it ("Invalid repository ID or local directory"). Use the managed
   `/cache/huggingface` mount.
-- **`transfer_mode`.** `local` re-downloads the checkpoint to the control machine
-  (wrong for a 429 GB model when nodes share NFS — set `distribution.model.enabled:
-  false`); `local` also pulls the image on an amd64 control host, which fails for an
-  arm64-only image (`no matching manifest for linux/amd64/v4`); `pull` hits a
-  sparkrun 0.3.9 bug (`sync_image_to_hosts() got an unexpected keyword argument
-  'ssh_options'`); **`delegated` works** (builds/pulls on the arm64 head node) — but
-  `delegated` makes the *node* clone a local `file://` registry, which fails, so use
-  `local` when the registry is a local `file://` path.
+- **`transfer_mode`.** The HF cache is **per-node** (no NFS export; verified
+  2026-10-03 — every node's `~/.cache/huggingface` is node-local ext4 on
+  `/dev/nvme0n1p2`), so the checkpoint **must be distributed to every node** and
+  `distribution.model.enabled` stays **true**. (It was `false` when the head
+  exported the cache over NFS; do not restore that.) With a `local` `file://`
+  registry, `transfer_mode: local` fetches on the control machine and pushes —
+  and it pulls the image on an amd64 control host, which fails for an arm64-only
+  image (`no matching manifest for linux/amd64/v4`); `pull` hits a sparkrun 0.3.9
+  bug (`sync_image_to_hosts() got an unexpected keyword argument 'ssh_options'`);
+  **`delegated` works** (builds/pulls on the arm64 head node) — but `delegated`
+  makes the *node* clone a local `file://` registry, which fails, so use `local`
+  when the registry is a local `file://` path.
 - **A bare `--hosts` does not carry the ssh user or transfer mode; a saved
   `--cluster` does.** `--hosts red@10.0.4.32,…` made the *node* try to `git clone`
   our `file://` registry and fail. Fix: `sparkrun cluster create ds4tp4 --user red
@@ -392,7 +396,7 @@ NCCL buffers are the biggest reclaimable host-RAM pool on a spark: VERIFIED 512
 connection buffers × 9.19 MiB (Simple + LL128 + LL) = 4.7 GiB of unreclaimable
 `Shmem` per node; tuning knobs cut it to 139 MB, which turned 0.2–0.8 GB free into
 ~6 GB free and removed the boot-time "KV lottery". The head also runs the HTTP
-server, tokenizer, detokenizer and NFS export — keep load generators and profilers
+server, tokenizer and detokenizer — keep load generators and profilers
 off it.
 
 ### 6.4 `expandable_segments` — a boot-breaking correctness trap, unresolved
@@ -459,8 +463,9 @@ weights, KV pool, CUDA-graph capture). `readiness.port_timeout_s: 7200` /
 
 ## 7. The EXL3 / vLLM lane — what we measured
 
-All five recipes serve. Engram rows are read from the NFS-cached model files;
-node-local rows are a throughput follow-up only, correctness unaffected.
+All five recipes serve. Engram rows are read from the checkpoint files on
+node-local disk; node-local rows are a throughput follow-up only, correctness
+unaffected.
 
 > **§§7.1–7.5 below predate the 2026-09-27/28 `max_num_seqs=16` / `gmu 0.85`
 > retune** and quote the gmu-0.80 KV pools and 8-seq throughput. They remain
@@ -471,8 +476,9 @@ node-local rows are a throughput follow-up only, correctness unaffected.
 
 ### 7.1 TP=4 (300K) — `…-exl3-tp4-vllm`
 
-Image `exl3a`, checkpoint off the shared HF cache, 4 nodes as one TP=4 group,
-boot-to-ready ≈ 13 min. `Resolved architecture: DeepseekV41ForCausalLM`,
+Image `exl3a`, checkpoint distributed to each node before boot (the HF cache is
+per-node), 4 nodes as one TP=4 group, boot-to-ready ≈ 13 min.
+`Resolved architecture: DeepseekV41ForCausalLM`,
 `quantization=exl3` auto-detected, `Engram DISK rows staged … heads [0, 6) of 24`,
 `Capturing dspark CUDA graphs (FULL): 8/8`.
 
@@ -683,7 +689,7 @@ ship k=4 or k=5.** The capture ladder must change with k (`k·n` and `(k+1)·n` 
 verification MUST stay off (padded spec batches hang SM120 sparse MLA, FlashInfer #5015).
 
 **Caveats:** one content mix (blended technical prose) — the optimum moves with
-content, so a code-heavy mix may shift it up. Weight load is NFS-bound and varied
+content, so a code-heavy mix may shift it up. Weight load is disk-bound and varied
 710–1320 s; C8 is the least-scattered cell and was the pre-registered primary
 metric. The k=1 finding is a throughput topology, not a universal win (level with
 k=5 at C1).
@@ -772,7 +778,7 @@ reads, not the weight load, dominate the cache) and **refutes** the
 `MemFree` collapsing to **~1 GiB** while `MemAvailable` stayed at 41–54 GiB. There
 is **no plateau** — it kept growing until the instantaneous pre-KV read. That is
 the 460 GB checkpoint streaming through the 95 GB Engram shards' mmaps and the
-NFS shard pages the loader retains; **Engram row reads cannot be the cause here
+checkpoint shard pages the loader retains; **Engram row reads cannot be the cause here
 because no request had been served yet.** After readiness the cache *fell* to a
 steady ~14–27 GiB (`MemFree` ~2–6 GiB).
 
@@ -800,7 +806,7 @@ the load:
 
 **+0.9% tokens — inside the +6% boot-to-boot spread (§6.5, §7.1) — and *less*
 available KV.** The B1.3 "+55% pool" did not reproduce on this stack. Likely why
-(`SPECULATIVE`): the load is NFS/syscall-bound, so evicting cache does not speed
+(`SPECULATIVE`): the load is disk/syscall-bound, so evicting cache does not speed
 it, and `MemAvailable` was already ≥41 GiB throughout load, so the allocator was
 never actually starved during the KV sizing. **Decision: do not ship a load-window
 flusher mod, and treat B1.3 as unconfirmed.** The ingredients that *did* hold:
@@ -808,7 +814,7 @@ post-load cache is ~24 GiB/node of clean, reclaimable checkpoint pages, and the
 only validated drop action is **host-level** (the mod path is §7.8).
 
 **Machine-checked (no boot): the reader can be made cache-neutral.** Against the
-real `model-00047` over the real NFS mount, over random 64 KiB reads:
+real `model-00047` on node-local disk, over random 64 KiB reads:
 buffered → `Cached` **+0.50 GiB** (all of it); `fadvise(DONTNEED)` per read →
 **+0.01 GiB**; `O_DIRECT` → **+0.00 GiB**. Throughput was statistically identical
 (100–109 MiB/s). So bounding the reader works and costs nothing measurable
@@ -961,7 +967,7 @@ worker progress first.
 
 A **second engine lane**, not a replacement for the EXL3/vLLM path. Source:
 `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` @ `58f2321` (downstream of
-MiaAI-Lab's recipe). Recipe `deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`, mod
+MiaAI-Lab's recipe). Recipe `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, mod
 `mods/dsv41-sglang-overlay/`, full write-up `KNAPCIO-SGLANG-INTEGRATION.md`.
 
 **It boots and serves on our four free Sparks** (`.32`–`.35`), TP=4, EP=1,
@@ -1247,9 +1253,9 @@ grep is `--tensor-parallel-size N`.
   base-model limitation. The old "cannot say without the (blocked) SGLang lane" is
   resolved: the lane is no longer blocked.
 - **E6. Provision node-local Engram rows.** All boots so far read rows from the
-  NFS-cached model files and worked; upstream measures 129 s local vs 309/470 s over
-  NFS for the weight load, so `tools/engram_local.py` rows are a **throughput**
-  follow-up, not a correctness one. Deliberately deferred.
+  checkpoint files on node-local disk and worked; upstream measures 129 s local vs
+  309/470 s when the files are remote for the weight load, so `tools/engram_local.py`
+  rows are a **throughput** follow-up, not a correctness one. Deliberately deferred.
 - **E7. TP=3/TP=6 + DSpark — SOLVED AND MEASURED (2026-09-27).**
   All three DSpark-eligible arms ship DSpark k=3 and **booted and served** on
   2026-09-27 — TP=3, TP=6 300K, and TP=6 1M (the last booted exactly as shipped):
@@ -1349,7 +1355,7 @@ DS4-specific additions.
   neither.** Check the control before believing the number.
 - **Remove probe containers before measuring** (spare containers made rank 2 5–8%
   slower on identical GEMMs). Run load generators/profilers **off the head** (it
-  hosts the server, tokenizer, detokenizer, NFS export; analysis needs a second CUDA
+  hosts the server, tokenizer and detokenizer; analysis needs a second CUDA
   context that cannot be created while a rank is up).
 - **Read the boot log for resolved backends and the KV budget line** before believing
   any config claim (§6.5).

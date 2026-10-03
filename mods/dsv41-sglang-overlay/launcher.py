@@ -16,10 +16,18 @@ the recipe stays a normal sparkrun recipe and the vendored overlay is untouched.
 Usage (rendered by the recipe's `command:` template, with sparkrun's node args
 appended):
 
-    python3 /workspace/mods/dsv41-sglang-overlay/launcher.py --boot --port 8888 \
+    python3 /workspace/mods/dsv41-sglang-overlay/launcher.py --boot --model M \
+        --port 8888 --tp 4 --served-model-name M --context-length 1048576 \
         [--dist-init-addr H:P] [--nnodes N] [--node-rank R]
 
 `--health` forwards to boot.py's health probe (used for a manual check).
+
+The recipe's `--context-length {max_model_len}` maps onto boot.py's
+CONTEXT_LENGTH. This is load-bearing: `boot.py` builds the whole
+`sglang.launch_server` argv from the environment, so a `--context-length` it
+never parses would leave CONTEXT_LENGTH at its default and the server would
+advertise the wrong context. CONTEXT_LENGTH is applied AFTER `apply_recipe_env`
+so the recipe's value wins over the launcher's own default (see main()).
 
 Engram shards. The overlay serves the two 203 GB Engram tables from node-local
 packed shards, one per rank, under `$DSV41_PACKED_DIR` (the recipe points this at
@@ -83,6 +91,10 @@ HF_HUB = "/cache/huggingface/hub"
 # host device here would break portability.
 # ---------------------------------------------------------------------------
 _CACHE = "/cache/runtime"
+# Rendezvous for the image's baked HEALTHCHECK: a fixed path the health probe
+# reads its port from. A literal (not $STATE_PATH) because the image bakes
+# STATE_PATH=/state while the launcher relocates it under /cache/runtime.
+HEALTH_PORT_FILE = "/tmp/sparkrun_health_port"
 RECIPE_ENV: dict[str, str] = {
     # --- locations (all under the sparkrun-managed runtime cache) ----------
     "STATE_PATH": f"{_CACHE}/state",
@@ -333,6 +345,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--tp", default=None,
                         help="TP degree (sparkrun's {tensor_parallel}); mapped to "
                              "boot.py's TP_SIZE")
+    parser.add_argument("--context-length", default=None,
+                        help="served context length (sparkrun's {max_model_len}); "
+                             "mapped to boot.py's CONTEXT_LENGTH")
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model", default=None,
@@ -371,6 +386,15 @@ def main(argv: list[str]) -> int:
     # RoCEnante, NCCL tuning). The launcher owns these and overrides the image.
     apply_recipe_env(env)
 
+    # `--context-length {max_model_len}` is the recipe's context knob. boot.py
+    # builds the whole `sglang.launch_server` argv from the environment and
+    # refuses CONTEXT_LENGTH outside 4096..1048576, so an unparsed flag would
+    # leave the launcher's default in place and the server would advertise the
+    # wrong context. Applied AFTER apply_recipe_env so the recipe's value wins
+    # over the launcher's own default (e.g. `-o max_model_len=…`).
+    if args.context_length is not None:
+        env["CONTEXT_LENGTH"] = args.context_length
+
     # Locate the checkpoint in the fixed HF cache (MODEL_ID from `{model}`).
     # After apply_recipe_env, which is where /cache/runtime paths are set.
     resolve_checkpoint(env)
@@ -381,11 +405,28 @@ def main(argv: list[str]) -> int:
     rank = env.get("NODE_RANK")
     ensure_engram_shards(env, int(rank) if rank is not None and str(rank).lstrip("-").isdigit() else None)
 
+    # Belt-and-suspenders for the image's baked HEALTHCHECK: persist the served
+    # port to the fixed path boot.py's dynamic health probe reads. The healthcheck
+    # runs from the container's *creation* env, so it cannot see SERVER_PORT that
+    # this launcher sets in-process -- but it CAN read this file. The path is a
+    # literal (not $STATE_PATH) because the image bakes STATE_PATH=/state while the
+    # launcher relocates it under /cache/runtime; the health probe only needs a
+    # fixed rendezvous. boot.py's own --port/cmdline/proc-net discovery would also
+    # find the port; this just makes the answer deterministic from the first probe.
+    if env.get("SERVER_PORT"):
+        try:
+            with open(HEALTH_PORT_FILE, "w") as handle:
+                handle.write(str(env["SERVER_PORT"]) + "\n")
+        except OSError as exc:
+            print(f"launcher: could not write {HEALTH_PORT_FILE} ({exc!r}); "
+                  "health probe will discover the port from the process", flush=True)
+
     print(
         "launcher: boot.py run "
         f"NNODES={env.get('NNODES')} NODE_RANK={env.get('NODE_RANK')} "
         f"DIST_INIT_ADDR={env.get('DIST_INIT_ADDR')} TP={env.get('TP_SIZE')} "
-        f"EP={env.get('EP_SIZE')} PORT={env.get('SERVER_PORT')}",
+        f"EP={env.get('EP_SIZE')} PORT={env.get('SERVER_PORT')} "
+        f"CONTEXT={env.get('CONTEXT_LENGTH')}",
         flush=True,
     )
     os.execve(sys.executable, [sys.executable, "-u", BOOT, "run"], env)

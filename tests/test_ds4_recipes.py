@@ -648,7 +648,7 @@ class NoHostBindMounts(unittest.TestCase):
 
 
 class BootReadiness(unittest.TestCase):
-    """A cold boot reads hundreds of GB over NFS. A short timeout is a false bug."""
+    """A cold boot reads hundreds of GB. A short timeout is a false bug."""
 
     def test_timeout_is_generous(self):
         minimum = 3600
@@ -661,7 +661,7 @@ class BootReadiness(unittest.TestCase):
             self.assertGreaterEqual(
                 got, minimum,
                 f"{p.name}: port_timeout_s {got} < {minimum} -- a 460 GB read "
-                "over NFS takes ~10+ min before weights even start moving",
+                "of checkpoint read takes ~10+ min before weights even start moving",
             )
 
 
@@ -960,16 +960,62 @@ class NegativeControls(unittest.TestCase):
 # The SGLang lane: knapcio's native-checkpoint overlay (AGENTS.md §7.13,
 # KNAPCIO-SGLANG-INTEGRATION.md). Separate file + separate assumptions from the
 # EXL3 lane: this recipe drives boot.py through a mod shim, needs a node-local
-# image, a writable /state and per-rank NVMe Engram shards, and must NOT enable
-# the SPS ragged-verify table (it crashes the Engram path).
+# image, and must NOT enable the SPS ragged-verify table (it crashes the Engram
+# path). This lane is ALSO the portability reference: it carries no host bind
+# mounts at all -- every cacheable artifact lives under sparkrun's managed
+# runtime cache (mounted at /cache/runtime), materialized by the mod and the
+# launcher shim.
 # --------------------------------------------------------------------------
 
-SGLANG_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-sglang-tp4-knapcio.yaml"
+SGLANG_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml"
 SGLANG_MOD_DIR = REPO_ROOT / "mods" / "dsv41-sglang-overlay"
 
 
 def _clean(path: Path) -> str:
     return _strip_comment_lines(path.read_text())
+
+
+def _launcher_recipe_env() -> dict:
+    """The env the mod launcher fills into the container (its RECIPE_ENV).
+
+    The recipe's `env:` is deliberately thin (checkpoint path + TP_SIZE); the
+    production configuration lives in mods/dsv41-sglang-overlay/launcher.py so it
+    travels with the mod instead of each recipe. The launcher is stdlib-only, so
+    importing it here keeps tests/ stdlib-only too.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("dsv41_launcher", SGLANG_MOD_DIR / "launcher.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return dict(mod.RECIPE_ENV)
+
+
+def _resolved_env(r: "Recipe") -> dict:
+    """Guard-side view: launcher RECIPE_ENV overlaid by the recipe's own env.
+
+    This is the union the guards inspect for forbidden keys (host device names,
+    managed comm env, DSPARK tables). Note the launcher itself applies RECIPE_ENV
+    with ``env.update`` (launcher value wins over a recipe value for launcher-owned
+    keys), whereas here the recipe is overlaid last so a *bogus* recipe value is
+    visible and the guards can fail on it -- that is the direction these negative
+    controls need.
+    """
+    env = _launcher_recipe_env()
+    env.update(r.env or {})
+    return env
+
+
+# Keys sparkrun's InfiniBand probe fills; a recipe/launcher value wins over the
+# detected one and pins the adapter naming. Mirrors
+# orchestration/infiniband.py:MANAGED_COMM_ENV_KEYS (tests are stdlib-only and
+# must not import sparkrun).
+MANAGED_COMM_ENV = frozenset({
+    "NCCL_NET", "NCCL_IB_HCA", "NCCL_IB_GID_INDEX", "NCCL_IB_DISABLE",
+    "NCCL_CROSS_NIC", "NCCL_SOCKET_IFNAME", "NCCL_IGNORE_CPU_AFFINITY",
+    "UCX_NET_DEVICES", "NODE_IP",
+})
+# A literal host adapter/interface name in any env VALUE (the portability trap).
+_HOST_DEVICE_RE = re.compile(r"\b(roce|enp|ens|enP|eth)\d?\w*s?\d*f\d", re.I)
 
 
 class SglangLaneContract(unittest.TestCase):
@@ -981,54 +1027,195 @@ class SglangLaneContract(unittest.TestCase):
         self.clean = _strip_comment_lines(self.text)
         self.ec = "\n".join(_section(self.clean, "executor_config"))
         self.dc = "\n".join(_section(self.clean, "distribution_config"))
+        self.eff = _resolved_env(self.r)
 
     def test_runtime_image_model(self):
         self.assertEqual(self.r.runtime, "sglang")
-        self.assertEqual(self.r.container, "dsv41-4x-spark:canary-roce")
+        # Vendored, digest-pinned image (built from knapcio's Dockerfile and
+        # pushed to littlecedar); sparkrun pulls it instead of building locally.
+        # This digest (4e5002ab…) is the 2026-10-03 rebuild whose baked
+        # HEALTHCHECK discovers the served port at runtime.
+        self.assertEqual(
+            self.r.container,
+            "littlecedar/dgx-spark-dsv41:canary-roce"
+            "@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05",
+        )
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash")
         self.assertEqual(self.r.min_nodes, 4)
 
+    def test_recipe_env_is_empty(self):
+        # The recipe's env: is EMPTY. Everything -- the production config AND the
+        # checkpoint location -- lives in mods/dsv41-sglang-overlay/launcher.py, and
+        # the serve parameters (model, tp, context, port) ride in the command
+        # template from defaults. In particular SERVER_PORT is NOT set here: the
+        # serve port is 8888 (the image's own port, which the baked HEALTHCHECK
+        # already probes), so no container-level env is needed at all.
+        self.assertEqual(self.r.env, {})
+        for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
+            self.assertNotIn(key, self.r.env)
+
+    def test_healthcheck_discovers_port_so_no_env_needed(self):
+        # The image's baked HEALTHCHECK runs `boot.py health`. The ORIGINAL image
+        # probed 127.0.0.1:$SERVER_PORT/health with SERVER_PORT absent from the
+        # container's creation env, so it fell back to 8888 and mis-reported a
+        # server on any other port as "(unhealthy)". sparkrun cannot template env
+        # values, excludes fast healthchecks, and has no recipe-level healthcheck
+        # override, so the fix is in the IMAGE: the 2026-10-03 rebuild (digest
+        # 4e5002ab…) makes `boot.py health` DISCOVER the served port at runtime
+        # (env override -> persisted port file -> the engine's own --port -> a
+        # LISTEN port from /proc/net/tcp). Guard the recipe-side half: no env, and
+        # the launcher persists the port for the probe.
+        self.assertEqual(self.r.env, {})
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn("HEALTH_PORT_FILE", launcher)
+        self.assertIn("/tmp/sparkrun_health_port", launcher)
+
+    def test_port_is_consumed(self):
+        # The port is no longer pinned to the image's healthcheck default -- the
+        # rebuilt healthcheck follows --port wherever it goes. It still must be
+        # carried to boot.py through the command template.
+        self.assertIn("{port}", self.r.command_template)
+        self.assertEqual(self.r.default("port"), "8888")
+
+    def test_context_length_wired_to_launcher(self):
+        # `--context-length {max_model_len}` must reach boot.py's CONTEXT_LENGTH.
+        # boot.py builds the whole sglang.launch_server argv from the environment,
+        # so an unparsed flag would leave CONTEXT_LENGTH at the launcher default
+        # and the server would advertise the wrong context (silently).
+        self.assertIn("--context-length {max_model_len}", self.r.command_template)
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('add_argument("--context-length"', launcher)
+        self.assertIn('env["CONTEXT_LENGTH"] = args.context_length', launcher)
+
+    def test_nccl_buffsize_is_not_context_length(self):
+        # NCCL_BUFFSIZE is a NCCL *connection buffer* size (pinned memory per
+        # connection), unrelated to the token context length; it is a fixed byte
+        # count, not derived from the context. Upstream proves independence:
+        # .env.example ships NCCL_BUFFSIZE=1048576 with CONTEXT_LENGTH=262144.
+        # 1048576 is coincidentally a plausible context length too, which is why
+        # this guards against someone "simplifying" it into a context-derived
+        # value (or wiring it to --context-length).
+        self.assertEqual(self.eff["NCCL_BUFFSIZE"], "1048576")
+        self.assertEqual(self.eff["NCCL_LL128_BUFFSIZE"], "262144")
+        self.assertNotIn("NCCL_BUFFSIZE", self.r.env)   # owned by the launcher, fixed
+        self.assertNotIn("CONTEXT_LENGTH", self.r.env)  # wired via --context-length
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('"NCCL_BUFFSIZE": "1048576"', launcher)
+
+    def test_tp_flows_through_command_to_launcher(self):
+        # TP must reach boot.py: the template emits --tp {tensor_parallel} and the
+        # launcher maps --tp -> TP_SIZE (sparkrun does NOT emit --tp-size when a
+        # command template is present, so without the mapping boot.py would
+        # silently fall back to its default TP=3).
+        self.assertIn("--tp {tensor_parallel}", self.r.command_template)
+        self.assertEqual(self.r.default("tensor_parallel"), "4")
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('add_argument("--tp"', launcher)
+        self.assertIn('env["TP_SIZE"] = args.tp', launcher)
+
+    def test_launcher_resolves_checkpoint(self):
+        # The recipe must pass the repo id and the launcher must derive
+        # MODEL_PATH/DSV41_SOURCE from the fixed HF hub cache (refs/main, else any
+        # complete snapshot), so a moved checkpoint cannot break the recipe.
+        self.assertIn("--model {model}", self.r.command_template)
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        for needle in ("resolve_checkpoint", "HF_HUB", "refs", "model.safetensors.index.json"):
+            self.assertIn(needle, launcher)
+
     def test_ep_size_is_one(self):
         # EP=2 loads but dies at the first decode plan under b12x_next.
-        self.assertEqual(self.r.env["EP_SIZE"], "1")
-
-    def test_port_consumed(self):
-        self.assertEqual(self.r.default("port"), "8888")
-        self.assertIn("{port}", self.r.command_template)
+        self.assertEqual(self.eff["EP_SIZE"], "1")
 
     def test_launcher_shim_invoked(self):
         self.assertIn("launcher.py", self.r.command_template)
         self.assertIn("/workspace/mods/dsv41-sglang-overlay", self.r.command_template)
 
-    def test_node_local_image_not_distributed(self):
-        # Without this the launch aborts with "pull access denied".
-        self.assertRegex(self.dc, r"containers:\s*\n\s+enabled:\s*false")
-        self.assertRegex(self.dc, r"models:\s*\n\s+enabled:\s*false")
+    def test_image_is_vendored_and_pinned(self):
+        # The image is published to littlecedar and pinned by digest, so a node
+        # pulls the exact bytes rather than building or resolving a mutable tag.
+        self.assertRegex(self.r.container, r"^littlecedar/dgx-spark-dsv41:canary-roce@sha256:[0-9a-f]{64}$")
 
-    def test_volumes_are_list_form(self):
-        # A dict form mounts source->same-path (silently wrong) and /state fails.
-        self.assertRegex(self.ec, r"-\s+/home/red/dsv41-engram:/engram-local")
-        self.assertRegex(self.ec, r"-\s+/home/red/dsv41-state:/state")
+    def test_distribution_config_omitted(self):
+        # The block was development-only (it flipped containers/models during
+        # bring-up). It is gone: sparkrun's default is models AND containers
+        # enabled: true with auto {model}/{container} entries
+        # (core/recipe.py:_default_distribution_config), so omitting it is
+        # behaviorally identical and one less thing to drift. Asserted absent so a
+        # reintroduced `enabled: false` cannot silently strand the workers without
+        # the checkpoint or stop the image pull.
+        self.assertEqual(self.dc.strip(), "",
+                         "distribution_config must stay omitted; the default "
+                         "already distributes both model and container")
+
+    def test_no_host_bind_mounts(self):
+        # Portability: the recipe must carry no machine-specific host path. Every
+        # cacheable artifact lives under the sparkrun-managed runtime cache
+        # (mounted at /cache/runtime), not a home directory and not a bind mount.
+        # `sparkrun recipe validate` warns `non-portable-mount` on the latter.
+        # (?m) matters: a plain `^` would only anchor to the string start, which
+        # made this guard vacuously pass on an indented `volumes:`.
+        self.assertIsNone(re.search(r"(?m)^\s*volumes:", self.clean),
+                          "volumes: with host paths warns non-portable-mount")
+        self.assertNotIn("/home/red", self.clean)
+
+    def test_cache_lives_under_runtime_mount(self):
+        # The cacheables (Engram shards, boot.py state, b12x JIT caches) must be
+        # spelled under /cache/runtime so sparkrun's managed leaf is the only
+        # host directory involved -- see core/runtime_cache.py. Set by the mod.
+        rt = "/cache/runtime"
+        self.assertEqual(self.eff["DSV41_PACKED_DIR"], f"{rt}/engram")
+        self.assertEqual(self.eff["STATE_PATH"], f"{rt}/state")
+        self.assertEqual(self.eff["B12X_COMPILE_CACHE_DIR"], f"{rt}/b12x-compile")
+        self.assertEqual(self.eff["B12X_ROCE_CACHE_DIR"], f"{rt}/b12x-roce")
 
     def test_entrypoint_cleared(self):
         self.assertIn('entrypoint: ""', self.ec)
 
     def test_engram_nvme_env(self):
-        self.assertEqual(self.r.env["OFFLOAD_MODE"], "nvme")
-        self.assertEqual(self.r.env["DSV41_PACKED_DIR"], "/engram-local")
+        self.assertEqual(self.eff["OFFLOAD_MODE"], "nvme")
 
     def test_sps_table_absent(self):
         # A fitted SPS table arms the ragged scheduler and crashes the Engram path.
-        self.assertNotIn("DSPARK_SPS_TABLE", self.r.env)
-        self.assertNotIn("DSPARK_STS_TABLE", self.r.env)
+        # Must be absent from BOTH the recipe and the launcher defaults.
+        for src in (self.r.env, self.eff):
+            self.assertNotIn("DSPARK_SPS_TABLE", src)
+            self.assertNotIn("DSPARK_STS_TABLE", src)
 
     def test_roce_nante_on(self):
-        self.assertEqual(self.r.env["SGLANG_ROCE_ALLREDUCE"], "1")
-        self.assertEqual(self.r.env["DSV41_ROCE_GATHER"], "2097152")
-        self.assertEqual(self.r.env["B12X_ROCE_HCA"], "rocep1s0f0,roceP2p1s0f0")
+        self.assertEqual(self.eff["SGLANG_ROCE_ALLREDUCE"], "1")
+        self.assertEqual(self.eff["DSV41_ROCE_GATHER"], "2097152")
+        # B12X_ROCE_HCA is deliberately NOT set (recipe or launcher): it takes a
+        # literal HCA list (a host device name) and b12x falls back to the
+        # detected NCCL_IB_HCA when unset, so pinning it would break portability.
+        self.assertNotIn("B12X_ROCE_HCA", self.eff)
+
+    def test_no_host_device_names_in_env(self):
+        # Portability: no env value (recipe or launcher) may name a host
+        # adapter/interface -- a list like `rocep1s0f0,roceP2p1s0f0` was the
+        # pre-2026-10-03 failure. Those are exactly what sparkrun's probe fills.
+        for name, src in (("recipe", self.r.env), ("launcher", self.eff)):
+            host_named = [k for k, v in (src or {}).items() if _HOST_DEVICE_RE.search(str(v))]
+            self.assertEqual(host_named, [], f"{name} env pins host device names: {host_named}")
+
+    def test_managed_comm_env_not_pinned(self):
+        # The generic NCCL transport vars are filled per cluster by sparkrun's
+        # InfiniBand probe (which correctly excludes the DOWN *s0f1 ports). A
+        # recipe or launcher value wins over detection, pins the adapter naming,
+        # and would trigger the `managed-comm-env` validate warning.
+        for name, src in (("recipe", self.r.env), ("launcher", self.eff)):
+            pinned = sorted(k for k in (src or {}) if k in MANAGED_COMM_ENV)
+            self.assertEqual(pinned, [], f"{name} pins sparkrun-managed comm env: {pinned}")
+
+    def test_nccl_transport_tuning_present(self):
+        # The non-managed, device-free levers stay (they are the upstream profile's
+        # tuning, not sparkrun-managed, and name no host device).
+        self.assertEqual(self.eff["NCCL_P2P_DISABLE"], "1")
+        self.assertEqual(self.eff["NCCL_SHM_DISABLE"], "1")
+        self.assertEqual(self.eff["NCCL_PROTO"], "^LL128")
+        self.assertEqual(self.eff["NCCL_MAX_NCHANNELS"], "8")
 
     def test_no_expandable_segments(self):
-        self.assertIn("expandable_segments:False", self.r.env["PYTORCH_CUDA_ALLOC_CONF"])
+        self.assertIn("expandable_segments:False", self.eff["PYTORCH_CUDA_ALLOC_CONF"])
 
     def test_mod_present_and_gates_on_boot_py(self):
         run_sh = (SGLANG_MOD_DIR / "run.sh").read_text()
@@ -1037,6 +1224,85 @@ class SglangLaneContract(unittest.TestCase):
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         for flag in ("--dist-init-addr", "--nnodes", "--node-rank"):
             self.assertIn(flag, launcher)
+
+    def test_mod_creates_and_reowns_cache_dirs(self):
+        # A mod runs as root; the cache subdirs it creates must be handed back or
+        # the non-root serve user cannot write the Engram shards / state. run.sh
+        # uses LITERAL ${CACHE}/<sub> paths (it runs before the launcher and so
+        # cannot read the launcher's RECIPE_ENV; the image bakes STATE_PATH=/state),
+        # and those must agree with the launcher's RECIPE_ENV.
+        run_sh = (SGLANG_MOD_DIR / "run.sh").read_text()
+        for sub in ("engram", "state", "b12x-compile", "b12x-roce"):
+            self.assertIn(f"${{CACHE}}/{sub}", run_sh)
+        self.assertIn("reown", run_sh)
+        # Agreement: every path run.sh chowns is a RECIPE_ENV location.
+        eff = _launcher_recipe_env()
+        for key in ("DSV41_PACKED_DIR", "STATE_PATH",
+                    "B12X_COMPILE_CACHE_DIR", "B12X_ROCE_CACHE_DIR"):
+            self.assertIn(eff[key], {f"/cache/runtime/{s}" for s in
+                          ("engram", "state", "b12x-compile", "b12x-roce")})
+
+    def test_launcher_materializes_engram_shards(self):
+        # The launcher is the only place that learns the node's rank (sparkrun
+        # passes --node-rank to every node), so it -- not the mod -- is what
+        # places the per-rank shards under the managed cache.
+        launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn("pack_engram.py", launcher)
+        self.assertIn("ensure_engram_shards", launcher)
+
+    def test_launcher_flag_to_env_mapping(self):
+        """`main()` must map --tp/--context-length/--port onto boot.py's env.
+
+        Executes launcher.main() with os.execve stubbed, so the mapping is proven
+        end to end (argparse -> env) without a container. This is the decisive
+        check for the context-length wiring: the recipe's
+        `--context-length {max_model_len}` only matters if the flag lands in
+        CONTEXT_LENGTH, applied after RECIPE_ENV so the recipe wins.
+        """
+        import importlib.util
+        import os as _os
+        import tempfile
+
+        spec = importlib.util.spec_from_file_location(
+            "dsv41_launcher_map", SGLANG_MOD_DIR / "launcher.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        captured: dict = {}
+
+        def fake_execve(path, argv, env):  # pragma: no cover - records and stops
+            captured["argv"] = argv
+            captured["env"] = env
+            raise SystemExit(0)
+
+        with tempfile.NamedTemporaryFile("w", suffix=".py") as boot:
+            boot.write("# stub\n")
+            boot.flush()
+            orig_boot, orig_execve = mod.BOOT, _os.execve
+            mod.BOOT = boot.name
+            _os.execve = fake_execve
+            try:
+                with self.assertRaises(SystemExit):
+                    mod.main([
+                        "--boot", "--model", "deepseek-ai/DeepSeek-V4.1-Flash",
+                        "--port", "8000", "--tp", "4",
+                        "--served-model-name", "deepseek-ai/DeepSeek-V4.1-Flash",
+                        "--context-length", "524288",
+                        "--nnodes", "4", "--node-rank", "0",
+                        "--dist-init-addr", "10.0.4.32:25000",
+                    ])
+            finally:
+                _os.execve = orig_execve
+                mod.BOOT = orig_boot
+
+        env = captured["env"]
+        self.assertEqual(env["CONTEXT_LENGTH"], "524288",
+                         "the recipe's --context-length must reach boot.py's env")
+        self.assertEqual(env["TP_SIZE"], "4")
+        self.assertEqual(env["SERVER_PORT"], "8000")
+        self.assertEqual(env["NNODES"], "4")
+        self.assertEqual(env["NODE_RANK"], "0")
+        self.assertEqual(env["MODEL_ID"], "deepseek-ai/DeepSeek-V4.1-Flash")
 
 
 class SglangLaneNegativeControls(unittest.TestCase):
@@ -1047,39 +1313,104 @@ class SglangLaneNegativeControls(unittest.TestCase):
         assert old in text, "anchor %r not in recipe" % old
         return Recipe(text.replace(old, new, 1), SGLANG_RECIPE.name)
 
-    def test_control_ep_size_two(self):
-        r = self._mutated('EP_SIZE: "1"', 'EP_SIZE: "2"')
-        with self.assertRaises(AssertionError):
-            self.assertEqual(r.env["EP_SIZE"], "1")
+    # Anchor for controls that inject an env: key. The recipe now carries NO env:
+    # block, so a control prepends one rather than splicing into an existing map.
+    _ENV_ANCHOR = "defaults:"
 
-    def test_control_image_distribution_enabled(self):
-        # Anchor on the real `enabled: false` line, not the comment that also
-        # mentions the literal (F20: a control that mutates a comment tests
-        # nothing).
+    def _inject_env(self, old, line):
+        return self._mutated(old, "env:\n  " + line + "\n\n" + old)
+
+    def test_control_ep_size_two(self):
+        # Inject EP_SIZE=2 via the env: block; it overrides the launcher default
+        # (env.update) so the resolved env no longer satisfies the guard.
+        r = self._inject_env(self._ENV_ANCHOR, 'EP_SIZE: "2"')
+        with self.assertRaises(AssertionError):
+            self.assertEqual(_resolved_env(r)["EP_SIZE"], "1")
+
+    def test_control_image_distribution_disabled(self):
+        # The guard requires the distribution_config block to stay ABSENT. Inject
+        # an `enabled: false` block (the dev-time trap that would strand workers
+        # without the checkpoint) and the guard must fail. Anchor on the real
+        # `executor_config:` header so the injected block lands at top level.
         r = self._mutated(
-            'the launch aborts with "pull access denied".\n    enabled: false',
-            'the launch aborts with "pull access denied".\n    enabled: true',
+            "executor_config:",
+            'distribution_config:\n  models:\n    enabled: false\n\n'
+            "executor_config:",
         )
         dc = "\n".join(_section(_strip_comment_lines(r.raw), "distribution_config"))
         with self.assertRaises(AssertionError):
-            self.assertRegex(dc, r"containers:\s*\n\s+enabled:\s*false")
+            self.assertEqual(dc.strip(), "")
+
+    def test_control_image_unpinned(self):
+        # A mutable tag (no digest) must fail the vendored-and-pinned guard.
+        r = self._mutated(
+            "container: littlecedar/dgx-spark-dsv41:canary-roce"
+            "@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05",
+            "container: littlecedar/dgx-spark-dsv41:canary-roce",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertRegex(
+                r.container,
+                r"^littlecedar/dgx-spark-dsv41:canary-roce@sha256:[0-9a-f]{64}$",
+            )
 
     def test_control_sps_table_set(self):
-        r = self._mutated(
-            "DSV41_EAGER_GLUE: all",
-            "DSV41_EAGER_GLUE: all\n  DSPARK_SPS_TABLE: /state/dspark_sps.json",
-        )
+        r = self._inject_env(self._ENV_ANCHOR, 'DSPARK_SPS_TABLE: /cache/runtime/state/dspark_sps.json')
         with self.assertRaises(AssertionError):
-            self.assertNotIn("DSPARK_SPS_TABLE", r.env)
+            self.assertNotIn("DSPARK_SPS_TABLE", _resolved_env(r))
 
     def test_control_volume_dict_form(self):
+        # A host bind mount of any form must fail the no-host-mount guard.
         r = self._mutated(
-            "    - /home/red/dsv41-engram:/engram-local",
-            "    /home/red/dsv41-engram: /engram-local",
+            'shm_size: 32gb',
+            'shm_size: 32gb\n  volumes:\n    /home/red/dsv41-engram: /engram-local',
         )
-        ec = "\n".join(_section(_strip_comment_lines(r.raw), "executor_config"))
+        clean = _strip_comment_lines(r.raw)
         with self.assertRaises(AssertionError):
-            self.assertRegex(ec, r"-\s+/home/red/dsv41-engram:/engram-local")
+            self.assertIsNone(re.search(r"(?m)^\s*volumes:", clean))
+
+    def test_control_cache_outside_runtime_mount(self):
+        # Injecting a non-/cache/runtime packed dir overrides the launcher default.
+        r = self._inject_env(self._ENV_ANCHOR, "DSV41_PACKED_DIR: /engram-local")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(_resolved_env(r)["DSV41_PACKED_DIR"], "/cache/runtime/engram")
+
+    def test_control_managed_comm_env_pinned(self):
+        # Re-adding a managed NCCL var (recipe or launcher) must fail the guard.
+        r = self._inject_env(self._ENV_ANCHOR, "NCCL_IB_HCA: rocep1s0f0")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(sorted(k for k in _resolved_env(r) if k in MANAGED_COMM_ENV), [])
+
+    def test_control_b12x_hca_pinned(self):
+        # Re-adding B12X_ROCE_HCA (a host device list) must fail both the
+        # absence check and the host-name check.
+        r = self._inject_env(self._ENV_ANCHOR, "B12X_ROCE_HCA: rocep1s0f0,roceP2p1s0f0")
+        eff = _resolved_env(r)
+        with self.assertRaises(AssertionError):
+            self.assertNotIn("B12X_ROCE_HCA", eff)
+        host_named = [k for k, v in eff.items() if _HOST_DEVICE_RE.search(str(v))]
+        with self.assertRaises(AssertionError):
+            self.assertEqual(host_named, [])
+
+    def test_control_server_port_env_reintroduced(self):
+        # The env-free design is the fix. Re-adding a container-level SERVER_PORT
+        # (the redundant form the user removed) must fail the env-empty guard.
+        r = self._inject_env(self._ENV_ANCHOR, 'SERVER_PORT: "8000"')
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.env, {})
+
+    def test_control_port_not_image_native(self):
+        # Changing the serve port back off the image-native 8888 re-breaks Docker's
+        # baked healthcheck (which probes 8888); the guard must fail.
+        r = self._mutated("  port: 8888", "  port: 8000")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.default("port"), "8888")
+
+    def test_control_context_length_unwired(self):
+        # Dropping the placeholder (or the launcher parse) must fail the guard.
+        r = self._mutated("  --context-length {max_model_len}\n", "")
+        with self.assertRaises(AssertionError):
+            self.assertIn("--context-length {max_model_len}", r.command_template)
 
 
 

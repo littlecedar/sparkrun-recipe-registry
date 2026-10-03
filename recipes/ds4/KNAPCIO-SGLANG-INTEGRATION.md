@@ -1,6 +1,6 @@
 # Knapcio DSV41 SGLang TP4 integration — provenance, plan, limits
 
-**Recipe:** `recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml`
+**Recipe:** `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`
 **Mod:** `mods/dsv41-sglang-overlay/`
 **Upstream:** https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4
 (pinned `58f232155917d388b6053eca079c617fd306c33c`, cloned to
@@ -48,7 +48,7 @@ a claim about a purpose-built overlay build.
 The recipe uses the **published** image, pulled by sparkrun:
 
 ```
-littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825
+littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05
 ```
 
 It is arm64-only and rebuildable from knapcio's repo:
@@ -60,18 +60,20 @@ bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91
 docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
 ```
 
-`distribution_config.containers.enabled: true` makes sparkrun pull the digest on
-each target host. Set it to `false` only when you build locally and retag the
-result `dsv41-4x-spark:canary-roce` (the local-only path this lane originally
-used). The pinned bytes:
+sparkrun pulls the digest on each target host under its **default** distribution
+config (`containers.enabled: true`), so the recipe carries **no
+`distribution_config:` block**. To build locally instead, retag the result
+`dsv41-4x-spark:canary-roce` and add
+`distribution_config: { containers: { enabled: false } }` to the recipe (the
+local-only path this lane originally used). The pinned bytes:
 
 | | |
 |:--|:--|
-| Registry digest | `sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825` |
-| Image ID | `sha256:a0e6d103002db3d2ea0f798b372bb356236acfe59458a5f9cbc9bb720ab2c9c5` |
+| Registry digest | `sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05` |
+| Image ID | `sha256:18e36391488edb088cc70e2f8d9a3e16eb82f653496fa565526a6ffd6b7c6890` |
 | Base | `lmsysorg/sglang:dev-dsv41` |
 | Upstream overlay | knapcio `58f2321`, SGLang `dsv4.1` @ `f80c91a4b` |
-| Built | 2026-10-02 on `10.0.4.30` |
+| Built | 2026-10-03 on `10.0.4.30` (rebuilt for the dynamic HEALTHCHECK) |
 | Size | 33.5 GB (arm64) |
 
 ## Engram packing (required before any boot)
@@ -115,8 +117,8 @@ managed runtime cache:
 
 `sparkrun` computes the leaf itself (`core/runtime_cache.py:model_key`, family
 `sglang`), creates and chowns it per node, and mounts it at `/cache/runtime`; the
-recipes and env never spell the host path. The leaf is node-local NVMe (not
-NFS), so packed Engram reads stay local.
+recipes and env never spell the host path. The leaf is node-local NVMe, so packed
+Engram reads stay local.
 
 The two moving parts:
 
@@ -131,42 +133,113 @@ The two moving parts:
   sparkrun's ~150 s head-rendezvous wait. `packed=False` in the Engram boot line
   on a first cold boot is expected, not a failure.
 
-What is still required of the host: **the shared HF checkpoint** at
-`/cache/huggingface` (never a recipe bind mount). The image is no longer a host
-prerequisite — it is vendored at
-`littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2…` and sparkrun pulls it
-(`distribution_config.containers.enabled: true`). If you prefer to build it
-locally, retag the result `dsv41-4x-spark:canary-roce` and set
-`containers.enabled: false`.
+What is still required of the host: **the checkpoint in each node's own HF cache**
+at `/cache/huggingface` (never a recipe bind mount). The cache is **per-node** —
+there is no shared/NFS export — so sparkrun distributes the checkpoint to every
+node under its default `distribution_config` (`models.enabled: true`; see
+"Portability"). The image is no longer a host prerequisite — it is vendored at
+`littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab…` and sparkrun pulls it
+under the same default config. If you prefer to build it locally, retag the
+result `dsv41-4x-spark:canary-roce` and add
+`distribution_config: { containers: { enabled: false } }`.
 
 ## Recipe wiring (how sparkrun drives boot.py)
 
-**The recipe's `env:` is thin: the external checkpoint path (`MODEL_PATH` /
-`DSV41_SOURCE`) and `TP_SIZE` only.** The production configuration — locations
-under `/cache/runtime`, boot.py read flags, Engram/cache tuning, engine/serving
-flags, overlay-adapter enablement, RoCEnante, and the device-free NCCL transport
-tuning — lives in `mods/dsv41-sglang-overlay/launcher.py` (`RECIPE_ENV`), which
-applies it with `env.update()` before `execve(boot.py)`. That override is
-required: the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,
-`PYTORCH_CUDA_ALLOC_CONF=…True`, `SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and
-a `setdefault` would let the image win. Values that match the runtime's own
-defaults are set nowhere. Full inventory: `.scratch/ds4/knapcio/ENV-MIGRATION.md`;
-the mod README lists it too.
+**The recipe has no `env:` block at all.** Everything — the production
+configuration (locations under `/cache/runtime`, boot.py read flags, Engram/cache
+tuning, engine/serving flags, overlay-adapter enablement, RoCEnante, the
+device-free NCCL transport tuning) **and the checkpoint path** — lives in
+`mods/dsv41-sglang-overlay/launcher.py`; the serve parameters (model, TP, context,
+port) ride in the `command:` template from `defaults`. The launcher applies the
+production config with `env.update()`, which is required: the image bakes
+`STATE_PATH=/state`, `DSV41_CACHE_GIB=16`, `PYTORCH_CUDA_ALLOC_CONF=…True`,
+`SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and a `setdefault` would let the image
+win. Values that match the runtime's own defaults are set nowhere. Full inventory:
+`.scratch/ds4/knapcio/ENV-MIGRATION.md`; the mod README lists it too.
+
+**`NCCL_BUFFSIZE` is NOT tied to `CONTEXT_LENGTH`.** It is a NCCL *connection
+buffer* byte size (pinned per connection), unrelated to the token context length;
+the value shipped is **1048576 bytes (1 MiB)**. Upstream demonstrates the two are
+independent: `.env.example` pairs `NCCL_BUFFSIZE=1048576` with
+`CONTEXT_LENGTH=262144`, and `.env.tp4.example` pairs the same 1 MiB with
+`CONTEXT_LENGTH=1048576`. The equality to 1048576 in the TP4 profile is a
+coincidence of the model's max context, not a constraint — so it is left as a
+fixed byte count in the launcher's `RECIPE_ENV`, not wired to `--context-length`.
+
+**The checkpoint is located, not spelled.** The recipe passes the repo id via
+`--model {model}`; the launcher resolves it in the fixed in-container HF cache
+(`/cache/huggingface/hub/models--<org>--<name>` → `refs/main`, else any snapshot
+with both `config.json` and `model.safetensors.index.json`) and sets
+`MODEL_PATH`/`DSV41_SOURCE`. So no `snapshots/<hash>` appears in the recipe, and a
+cache re-resolving to a new hash cannot break it. (The cache is per-node, so
+there is no shared snapshot to coordinate.) (A container bind supplied as
+`MODEL_PATH` is left alone — read-only, which is all the `SKIP_PREPARE` existence
+check needs.)
+
+**The TP degree flows through `defaults` → `command` → launcher.** The recipe sets
+`defaults.tensor_parallel: 4`, the template emits `--tp {tensor_parallel}`, and the
+launcher maps `--tp` onto boot.py's `TP_SIZE`. This is load-bearing: sparkrun does
+**not** emit `--tp-size` when a `command:` template is present (it substitutes the
+placeholder instead), so without the mapping boot.py would fall back to its
+default `TP=3` on a 4-node cluster.
+
+**The context length flows the same way.** The template emits
+`--context-length {max_model_len}` and the launcher maps it onto boot.py's
+`CONTEXT_LENGTH`, applied *after* the launcher's `RECIPE_ENV` so the recipe's
+value (including `-o max_model_len=…`) wins. boot.py builds the whole
+`sglang.launch_server` argv from the environment and asserts
+`4096 ≤ CONTEXT_LENGTH ≤ 1048576`, so an unmapped `--context-length` would be
+silently dropped and the server would advertise the launcher's default.
 
 The image's entrypoint is `python3 -u /opt/dsv41/boot.py run`, which builds the
-**entire** `sglang.launch_server` argv from environment variables. sparkrun
-instead assumes the command is `sglang serve …` and appends per-node
-`--dist-init-addr H:P --nnodes N --node-rank R`.
+**entire** `sglang.launch_server` argv from environment variables. The recipe
+clears it (`executor_config.entrypoint: ""`) so its `command:` runs instead, and
+sparkrun appends per-node `--dist-init-addr H:P --nnodes N --node-rank R`.
 
 `mods/dsv41-sglang-overlay/launcher.py` bridges the two: it consumes those flags,
 maps them onto `DIST_INIT_ADDR`/`NNODES`/`NODE_RANK`/`SERVER_PORT` in the
 environment, and `execve`s `boot.py`. The recipe's `command:` is therefore a
-one-line call to that shim; all serve parameters ride in `env:`.
+one-line call to that shim; the production configuration is the launcher's
+`RECIPE_ENV` (see above), the serve parameters (model, TP, context, port) ride in
+`--model {model}` / `--tp {tensor_parallel}` / `--context-length {max_model_len}`
+/ `--port {port}` from `defaults`, and there is **no recipe `env:` block**.
 
 The mod's `run.sh` is a **fail-closed compatibility gate** (boot.py, the adapter
 `sitecustomize.py`, b12x_next, and the engine's `engram.py` must all exist) plus
 a log of the overlay paths. It modifies **no image file** — the upstream repo's
 own in-image tests gate the overlay instead.
+
+## `sparkrun status` shows "(unhealthy)" on a healthy server — why
+
+Not the `readiness:` block. The image originally baked
+`HEALTHCHECK CMD ["python3","-S","/opt/dsv41/boot.py","health"]`, whose `health`
+command probed `http://127.0.0.1:$SERVER_PORT/health` and defaulted to 8888 when
+`SERVER_PORT` was unset. The probe runs from the **container's creation env**
+(`docker inspect .Config.Env`), which Docker freezes at `docker run` — so a value
+set at runtime by the launcher (`os.execve`) or a mod (even writing
+`/proc/1/environ`) is *below Docker's view*. sparkrun never puts `SERVER_PORT` in
+`Config.Env`, has no recipe-level healthcheck override, and cannot template `env:`
+values. So a server on any port other than 8888 made the baked healthcheck probe
+the wrong socket and report `Up … (unhealthy)` while the model served fine.
+
+**Fix (in the image): the healthcheck now discovers the port dynamically.** The
+2026-10-03 rebuild (digest `4e5002ab…`) changes `boot.py health` to resolve the
+probe port at runtime, in priority order: `HEALTH_PORT`/`SERVER_PORT` env → the
+port the launcher persists to `/tmp/sparkrun_health_port` → the running engine's
+own `--port` (from `/proc/<pid>/cmdline`) → any LISTEN port from
+`/proc/net/tcp{,6}` → the image default. Any served port now probes correctly, so
+the recipe carries **no `env:` block** and the healthcheck is no longer coupled to
+`defaults.port`. `mods/dsv41-sglang-overlay/launcher.py` writes the rendezvous
+file as belt-and-suspenders (fixed `/tmp` path, since the image bakes
+`STATE_PATH=/state` while the launcher relocates it under `/cache/runtime`).
+
+Verified live: a container created with **no** `SERVER_PORT`, serving a stub on
+**8000** (non-default), reports `health=healthy` (`.32`–`.35`; and the earlier
+`docker exec -e SERVER_PORT=8000 … boot.py health` → rc 0 was the original
+evidence that the port, not the readiness config, was the variable). The recipe's
+`readiness:` (governing sparkrun's launch-time wait) played no part — the
+`unhealthy` string is Docker's own `State.Health.Status`, which `sparkrun status`
+prints from `.Status`.
 
 ## Fabric (verified on our fleet)
 
@@ -393,7 +466,7 @@ alongside the custom bench. New profile
 `pp: [2048]`, `tg: [128]`, `concurrency: [1,4,8,16]`, `runs: 3`), invoked as
 
 ```bash
-sparkrun benchmark --cluster ds4tp4v2   --profile benchmarking/ds4-sglang-depth0-ladder.yaml   --skip-run --output .scratch/ds4/knapcio/bench-sglang-depth0   recipes/ds4/deepseek-v4.1-flash-sglang-tp4-knapcio.yaml
+sparkrun benchmark --cluster ds4tp4v2   --profile benchmarking/ds4-sglang-depth0-ladder.yaml   --skip-run --output .scratch/ds4/knapcio/bench-sglang-depth0   recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml
 ```
 
 Artifact: `.scratch/ds4/knapcio/bench-sglang-depth0.json`.

@@ -1,7 +1,7 @@
 recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash
 runtime: sglang
-container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:932dd8c2722b07d3f835cab0be3ce6a43e67fe987e904885876d97539e958825
+container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05
 min_nodes: 4
 
 metadata:
@@ -12,7 +12,7 @@ metadata:
     knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
     MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
     design are theirs, kept under the upstream licences). See
-    KNAPCIO-SGLANG-INTEGRATION.md in this directory for provenance and limits.
+    KNAPCIO-SGLANG-INTEGRATION.md for provenance and limits.
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
@@ -29,11 +29,14 @@ executor_config:
   shm_size: 32gb
 
 defaults:
+  # The image's baked HEALTHCHECK discovers the served port at runtime (the
+  # 2026-10-03 rebuild, digest 4e5002ab…), so the port is free. 8888 is the
+  # image's own EXPOSE / boot.py default and is what this lane has been verified
+  # on; `--port {port}` carries it to boot.py. No env var is needed.
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
   max_model_len: 1048576
-  served_model_name: deepseek-v4.1-flash
 
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
@@ -41,6 +44,8 @@ command: >
   --model {model}
   --port {port}
   --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
 
 readiness:
   # inference must stay false: readiness would otherwise drive /chat/completions,
