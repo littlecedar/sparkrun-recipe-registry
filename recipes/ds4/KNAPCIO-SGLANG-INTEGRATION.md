@@ -241,6 +241,37 @@ evidence that the port, not the readiness config, was the variable). The recipe'
 `unhealthy` string is Docker's own `State.Health.Status`, which `sparkrun status`
 prints from `.Status`.
 
+## PyTorch 2.13 collective-rename FutureWarning (silenced in the launcher)
+
+The image's torch is **2.13.0+cu130** (VERIFIED by probing the pinned image:
+`torch.__version__`). PyTorch 2.13 renamed the distributed collectives
+`all_gather_into_tensor` → `all_gather_single` and `reduce_scatter_tensor` →
+`reduce_scatter_single`; the old names remain functional aliases behind a
+`FutureWarning` emitted through the `_exception_logger` wrapper at
+`torch/distributed/c10d_logger.py:83`. The image's SGLang tree and its vendored
+b12x kernels still call the old names, so a boot logs, at engine startup and on
+the first prefill that takes each path:
+
+```
+/opt/sglang/lib/python3.12/site-packages/torch/distributed/c10d_logger.py:83:
+FutureWarning: `torch.distributed.all_gather_into_tensor` is deprecated. Please
+use `torch.distributed.all_gather_single` instead.
+```
+
+Two `all_gather_into_tensor` and one `reduce_scatter_tensor` instance appear in
+`logs/boot9-head-serve.log`. It is a benign once-per-callsite rename notice, not
+a change in behaviour we depend on, and the callers live in the image (so they
+cannot be patched out from this repo — the mod modifies no image file).
+`launcher.py` silences it with a **module-scoped** filter in `RECIPE_ENV`:
+`PYTHONWARNINGS=ignore::FutureWarning:torch.distributed.c10d_logger`. Only the
+c10d_logger re-emission of these two torch `FutureWarning`s is silenced; other
+warnings and the c10d debug logger are untouched. The scope is deliberate and
+empirically verified against the pinned image — a bare `message='is deprecated'`
+filter does **not** take, because `warnings.filterwarnings()` anchors the message
+with `re.match` and the leading backtick defeats it, whereas a module filter is
+robust to torch rewording the message. Rolling back is deleting the one
+`RECIPE_ENV` line.
+
 ## Fabric (verified on our fleet)
 
 | | |
