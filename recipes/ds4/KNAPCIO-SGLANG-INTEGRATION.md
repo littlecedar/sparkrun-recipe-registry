@@ -102,9 +102,10 @@ The manual command is for pre-warming or debugging.
 
 ## Portability (`/cache/runtime`, no host bind mounts)
 
-The recipe ships **no `executor_config.volumes`** — no `/home/red/...` path, and
-`sparkrun recipe validate` no longer reports `non-portable-mount`. Every
-non-model, non-image artifact lives under sparkrun's managed runtime cache:
+The recipe ships **no `executor_config.volumes`** — no `/home/red/...` path.
+`sparkrun recipe validate` is **clean** (neither `non-portable-mount` nor
+`managed-comm-env`). Every non-model, non-image artifact lives under sparkrun's
+managed runtime cache:
 
 | artifact | container path | host path |
 |:--|:--|:--|
@@ -140,6 +141,18 @@ locally, retag the result `dsv41-4x-spark:canary-roce` and set
 
 ## Recipe wiring (how sparkrun drives boot.py)
 
+**The recipe's `env:` is thin: the external checkpoint path (`MODEL_PATH` /
+`DSV41_SOURCE`) and `TP_SIZE` only.** The production configuration — locations
+under `/cache/runtime`, boot.py read flags, Engram/cache tuning, engine/serving
+flags, overlay-adapter enablement, RoCEnante, and the device-free NCCL transport
+tuning — lives in `mods/dsv41-sglang-overlay/launcher.py` (`RECIPE_ENV`), which
+applies it with `env.update()` before `execve(boot.py)`. That override is
+required: the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,
+`PYTORCH_CUDA_ALLOC_CONF=…True`, `SGLANG_RUST_BUILD_MODE` and `OFFLOAD_MODE`, and
+a `setdefault` would let the image win. Values that match the runtime's own
+defaults are set nowhere. Full inventory: `.scratch/ds4/knapcio/ENV-MIGRATION.md`;
+the mod README lists it too.
+
 The image's entrypoint is `python3 -u /opt/dsv41/boot.py run`, which builds the
 **entire** `sglang.launch_server` argv from environment variables. sparkrun
 instead assumes the command is `sglang serve …` and appends per-node
@@ -167,18 +180,32 @@ own in-image tests gate the overlay instead.
 Full mesh ⇒ **switched, not a ring**: the `NCCL_SWITCHLESS_RING_ONLY` path
 (patched NCCL, `NFS_SHARE=0`, local weights per node) is **not** needed.
 
+**No adapter/interface name is pinned in the recipe — by design.** `NCCL_NET`,
+`NCCL_IB_HCA`, `NCCL_IB_GID_INDEX`, `NCCL_IB_DISABLE` and `NCCL_CROSS_NIC` are
+filled by sparkrun's own InfiniBand probe from the live CX7 firmware — on our
+nodes it detects `NCCL_IB_HCA=roceP2p1s0f0,rocep1s0f0` (**only the ACTIVE ports**,
+so it drops the DOWN `*s0f1` ports, which a hand-written list would include),
+`NCCL_IB_GID_INDEX=3`, `NCCL_NET=IB`, plus `NCCL_IGNORE_CPU_AFFINITY` /
+`NCCL_SOCKET_IFNAME`. **`B12X_ROCE_HCA` is also left unset**: it takes a literal
+HCA list, i.e. a host device name, and b12x's RoCEnante falls back to the detected
+`NCCL_IB_HCA` when it is unset (`roce_oneshot.py:85,99` -> `discover_hcas`).
+Verified on a live boot with `B12X_ROCE_HCA` absent: `RoCEnante ready: world=4
+hcas=roceP2p1s0f0,rocep1s0f0` — the detected list. So no `env:` value in the
+recipe names a host device; every adapter/interface choice comes from detection.
+(`NCCL_P2P_DISABLE`, `NCCL_SHM_DISABLE`, `NCCL_CUMEM_ENABLE`, `NCCL_PROTO`,
+`NCCL_BUFFSIZE`, `NCCL_MAX_NCHANNELS` are transport tuning, not device names.)
+
 ## Deliberately off on the first boot
 
-- **RoCEnante** (`SGLANG_ROCE_ALLREDUCE` / `DSV41_ROCE_GATHER`). Upstream's
-  production line routes TP all-reduces *and* 2 MiB all-gathers over a one-shot
-  RDMA kernel. It is the piece with b12x's open **#313** wedge report. First boot
-  uses plain NCCL; RoCEnante is a follow-up A/B (`SGLANG_ROCE_MAX_SIZE=2097152`,
-  `DSV41_ROCE_GATHER=2097152`, `B12X_ROCE_HCA=rocep1s0f0,roceP2p1s0f0`).
 - **`DSPARK_SPS_TABLE` / `DSPARK_STS_TABLE`** — ragged-verify cost tables. Absent,
   `boot.py` stays on the verify-all schedule (correct, slower). Generating them
   needs `python -m sglang.benchmark.dspark_sps_profiler` against a live server.
 - **`DSV41_CERT_HEAD`** (v2.3) — -0.5 ms/step at c1, slower from ~10 requests.
 - **`DSV41_ENGRAM_DRM_NODE`** — needs a host display-reserve change.
+
+(RoCEnante is **shipped ON** — `SGLANG_ROCE_ALLREDUCE=1`, `SGLANG_ROCE_MAX_SIZE`
+and `DSV41_ROCE_GATHER` are set in the launcher; the HCA list comes from
+detection. Rollback is one line: set `SGLANG_ROCE_ALLREDUCE=0`.)
 
 ## Boot gates (read before believing any number)
 
@@ -239,8 +266,9 @@ next A/Bs (in priority order):
    `python3 -m sglang.benchmark.dspark_sps_profiler all --out /state/dspark_sps.json`
    against the live server; it must then be present on **every** node.
 2. **RoCEnante** (`SGLANG_ROCE_ALLREDUCE=1`, `SGLANG_ROCE_MAX_SIZE=2097152`,
-   `DSV41_ROCE_GATHER=2097152`, `B12X_ROCE_HCA=rocep1s0f0,roceP2p1s0f0`,
-   `B12X_ROCE_CACHE_DIR=/state/b12x-roce`, `B12X_COMPILE_CACHE_DIR=/state/b12x-compile`).
+   `DSV41_ROCE_GATHER=2097152`, `B12X_ROCE_CACHE_DIR=/cache/runtime/b12x-roce`,
+   `B12X_COMPILE_CACHE_DIR=/cache/runtime/b12x-compile`; the HCA list comes from
+   sparkrun's detection — `B12X_ROCE_HCA` is deliberately not set).
    Our fabric is switched (RoCEnante-capable). This is the RDMA one-shot
    all-reduce/all-gather — the b12x#313 wedge piece, but upstream's production
    line and a large part of the c1 gap.
