@@ -53,6 +53,121 @@ BOOT = "/opt/dsv41/boot.py"
 PACKER = "/opt/dsv41/scripts/pack_engram.py"
 ENGRAM_LAYERS = (1, 14)
 
+# ---------------------------------------------------------------------------
+# Recipe-owned environment.
+#
+# The recipe's `env:` block is deliberately thin: it carries only the external
+# checkpoint path and the TP degree. Everything else the engine needs is the
+# production configuration for this stack, and it lives here so the recipe does
+# not have to spell engine internals (and so the values travel with the mod
+# rather than with each recipe that uses it). These OVERRIDE (not setdefault):
+# the image bakes several of them into its ENV (STATE_PATH=/state,
+# DSV41_CACHE_GIB=16, PYTORCH_CUDA_ALLOC_CONF=...True, SGLANG_RUST_BUILD_MODE,
+# OFFLOAD_MODE), and those live in the launcher's process env, so a setdefault
+# would let the image value win and silently undo the production config
+# (unwritable /state, the NaN-logits allocator mode). The keys here are disjoint
+# from the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE, so those pass through.
+#
+# REDUNDANT vars (recipe value == runtime default) are NOT here and are NOT in
+# the recipe: SKIP_SMOKE(0), WARMUP(1), HOST(0.0.0.0), SERVED_MODEL_NAME,
+# SPARK_PREFILL_TP_MIN_CONTEXT(32768), SPARK_PREFILL_TP_MIN_ROWS(1024),
+# DSV41_FAST_LOAD_TP_SLICE(auto), DSV41_FAST_LOAD_INFLIGHT_GB(6).
+#
+# NCCL_NET / NCCL_IB_HCA / NCCL_IB_GID_INDEX / NCCL_IB_DISABLE / NCCL_CROSS_NIC
+# and B12X_ROCE_HCA are also absent on purpose: sparkrun's InfiniBand probe fills
+# them per cluster, and b12x falls back to the detected NCCL_IB_HCA. Naming a
+# host device here would break portability.
+# ---------------------------------------------------------------------------
+_CACHE = "/cache/runtime"
+RECIPE_ENV: dict[str, str] = {
+    # --- locations (all under the sparkrun-managed runtime cache) ----------
+    "STATE_PATH": f"{_CACHE}/state",
+    "DSV41_PACKED_DIR": f"{_CACHE}/engram",
+    "B12X_ROCE_CACHE_DIR": f"{_CACHE}/b12x-roce",
+    "B12X_COMPILE_CACHE_DIR": f"{_CACHE}/b12x-compile",
+    # --- boot.py -----------------------------------------------------------
+    "SKIP_PREPARE": "1",       # checkpoint pre-placed in the shared HF cache
+    "SKIP_VERIFY": "1",
+    "READY_TIMEOUT_S": "3600",
+    "OFFLOAD_MODE": "nvme",    # Engram on NVMe (host = the GPU's unified memory)
+    # --- Engram reader (adapter/engram_backend.py, row_store.cpp) ----------
+    "DSV41_CACHE_GIB": "4",
+    "DSV41_CACHE_WAYS": "16",
+    "DSV41_IO_THREADS": "96",
+    "DSV41_RESIDENT_SCALES": "0",
+    "DSV41_STATS_SECONDS": "60",
+    "DSV41_ENGRAM_PREFETCH": "1",
+    # --- parallelism / serving (boot.py reads these) -----------------------
+    "EP_SIZE": "1",            # b12x_next production line; EP>1 dies at decode
+    "CONTEXT_LENGTH": "1048576",
+    "MEM_FRACTION_STATIC": "0.80",
+    "MAX_RUNNING_REQUESTS": "16",
+    "CHUNKED_PREFILL_SIZE": "4096",
+    "CUDA_GRAPH_MAX_BS_DECODE": "16",
+    "MAX_TOTAL_TOKENS": "4000000",
+    "SPEC_ALGO": "DSPARK",
+    "DSPARK_BLOCK_SIZE": "5",
+    # --- overlay adapters (the upstream production line) -------------------
+    "DSV41_INDEXER_CHUNKED": "1",
+    "SGLANG_DSPARK_FOLDED_SAMPLING": "2",
+    "SGLANG_RUST_BUILD_MODE": "never",
+    "SPARK_PREFILL_TP_SPLIT": "1",
+    "DSV41_FAST_LOAD": "1",
+    "DSV41_FAST_LOAD_N_EXPERTS": "384",
+    "DSV41_SHARED_PAD_K": "1",
+    "DSV41_WO_A_W8": "1",
+    "DSV41_WO_A_W8_MID": "1",
+    "DSV41_WO_A_W8_DROP": "1",
+    "DSV41_DRAFT_TAU": "0.7",
+    "DSV41_DRAFT_HEAD_FP8": "1",
+    "DSV41_BLOCK_VERIFY": "1",
+    "DSV41_FOLDED_FENCE": "1",
+    "DSV41_VERIFY_CAP": "conf:0.1",
+    "DSV41_AUTOTUNE_KEEP": "1",
+    "DSV41_REPLICATED_SPLIT": "wqkv_a,engram.wkv",
+    "DSV41_DRAFT_MAIN_PROJ_SPLIT": "1",
+    "DSV41_SPLIT_COMPACT_GATHER": "1",
+    "DSV41_ROUTER_LIVE": "1",
+    "DSV41_MOE_B12X_NEXT": "1",
+    "DSV41_MOE_B12X_NEXT_DETERMINISTIC": "1",
+    "DSV41_HC_FUSED": "1",
+    "DSV41_PREFILL_SP": "1",
+    "DSV41_PREFILL_SP_FP8": "1",
+    "DSV41_L2_PREFETCH": "1",
+    "DSV41_L2_PREFETCH_WOA": "1",
+    "DSV41_SPEC_SYNC_FREE": "all",
+    "DSV41_EAGER_GLUE": "all",
+    # NOTE: DSPARK_SPS_TABLE / DSPARK_STS_TABLE are deliberately NOT set --
+    # upstream lists the SPS table under "Not used: crashes the Engram path".
+    # --- RoCEnante + NCCL transport (device names come from detection) -----
+    "SGLANG_ROCE_ALLREDUCE": "1",
+    "SGLANG_ROCE_MAX_SIZE": "2097152",
+    "DSV41_ROCE_GATHER": "2097152",
+    "NCCL_P2P_DISABLE": "1",
+    "NCCL_SHM_DISABLE": "1",
+    "NCCL_CUMEM_ENABLE": "0",
+    "NCCL_BUFFSIZE": "1048576",
+    "NCCL_LL128_BUFFSIZE": "262144",
+    "NCCL_PROTO": "^LL128",
+    "NCCL_MAX_NCHANNELS": "8",
+    "NCCL_DEBUG": "WARN",
+    "NCCL_DEBUG_SUBSYS": "INIT,ENV",
+    # expandable_segments False: the V4.1 SGLang lane reports NaN logits above 64
+    # prefill query tokens with it on (ds4 AGENTS.md §6.4). boot.py's default too.
+    "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:False",
+}
+
+
+def apply_recipe_env(env: dict[str, str]) -> None:
+    """Apply the production config, overriding the image's baked ENV.
+
+    Override, not setdefault: the image bakes several of these (STATE_PATH,
+    DSV41_CACHE_GIB, PYTORCH_CUDA_ALLOC_CONF, ...) and those values are in the
+    launcher's process env, so setdefault would let the image win. The keys here
+    never include the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE.
+    """
+    env.update(RECIPE_ENV)
+
 
 def _pack_env(env: dict[str, str]) -> dict[str, str]:
     """Environment for the background packer (inherit, but pin HOME)."""
@@ -217,6 +332,10 @@ def main(argv: list[str]) -> int:
     if not os.path.isfile(BOOT):
         print(f"launcher: boot.py not found at {BOOT}; is the image dsv41-4x-spark:canary-roce?", file=sys.stderr)
         return 2
+
+    # Fill the production env (locations, engine flags, adapter enablement,
+    # RoCEnante, NCCL tuning). Anything already in the container env wins.
+    apply_recipe_env(env)
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)

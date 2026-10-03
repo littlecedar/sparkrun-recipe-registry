@@ -58,151 +58,30 @@ distribution_config:
     enabled: false
 
 env:
-  # --- checkpoint / placement ---------------------------------------------
+  # The env: block is deliberately THIN. mods/dsv41-sglang-overlay/launcher.py
+  # fills the production configuration (locations under /cache/runtime, engine
+  # flags, the adapter enablement, RoCEnante and the NCCL transport tuning) with
+  # setdefault, so a value here or in the container env still wins. Only the
+  # external checkpoint path and the TP degree are recipe-owned, because the
+  # launcher cannot derive them (it gets --nnodes, not the TP degree, and the
+  # checkpoint is the one input that lives outside the image).
+  #
+  # Everything the launcher sets is inventoried in
+  # .scratch/ds4/knapcio/ENV-MIGRATION.md; the mod README lists it too.
+  #
+  # NO NCCL_NET / NCCL_IB_HCA / NCCL_IB_GID_INDEX / NCCL_IB_DISABLE /
+  # NCCL_CROSS_NIC and NO B12X_ROCE_HCA: sparkrun's InfiniBand probe fills them
+  # per cluster from the live CX7 firmware (and b12x falls back to the detected
+  # NCCL_IB_HCA), so naming a host device here would break portability.
+  #
   # The HF cache is mounted by sparkrun at /cache/huggingface. Use the literal
   # snapshot path (a bare assignment does not glob). A shared cache re-resolves
-  # when the upstream repo moves, so this literal is a PREFERENCE, not a hard
-  # requirement: if it is absent/broken, mods/dsv41-sglang-overlay/launcher.py
-  # switches MODEL_PATH/DSV41_SOURCE to the snapshot the cache actually serves
-  # (refs/main, else any complete snapshot). See the mod README.
+  # when the upstream repo moves, so this literal is a PREFERENCE: if it is
+  # absent/broken, the launcher switches MODEL_PATH/DSV41_SOURCE to the snapshot
+  # the cache actually serves (refs/main, else any complete snapshot).
   MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
   DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
-  # boot.py writes launch.json / api-key here; under the managed runtime cache so
-  # nothing lands in a user's home directory and nothing needs a bind mount.
-  STATE_PATH: /cache/runtime/state
-  SKIP_PREPARE: "1"
-  SKIP_VERIFY: "1"
-  SKIP_SMOKE: "0"
-  WARMUP: "1"
-  READY_TIMEOUT_S: "3600"
-  HOST: 0.0.0.0
-  SERVED_MODEL_NAME: deepseek-v4.1-flash
-
-  # --- Engram on NVMe (the whole point: the 203 GB tables cannot live in the
-  # unified 128 GB pool). Packed per-rank shards under the managed cache; the
-  # launcher materializes them (see the mod). ----------------------------------
-  OFFLOAD_MODE: nvme
-  DSV41_PACKED_DIR: /cache/runtime/engram
-  DSV41_CACHE_GIB: "4"
-  DSV41_CACHE_WAYS: "16"
-  DSV41_IO_THREADS: "96"
-  DSV41_RESIDENT_SCALES: "0"
-  DSV41_STATS_SECONDS: "60"
-  DSV41_ENGRAM_PREFETCH: "1"
-
-  # --- parallelism / serving (boot.py reads these) -------------------------
-  NNODES: "4"
   TP_SIZE: "4"
-  # EP=1 is the b12x_next production line (every rank a 576-wide slice of all
-  # 384 experts; see adapter/moe_b12x_next.py: "the production profile is
-  # EP_SIZE=1, EP>1 is an A/B setup"). EP=2 LOADS but dies at the first decode
-  # plan: "planned dynamic direct routing is unsupported for this launch shape"
-  # (E192-N1152). Do not use EP=2 with DSV41_MOE_B12X_NEXT.
-  EP_SIZE: "1"
-  CONTEXT_LENGTH: "1048576"
-  # 0.80 keeps ~24 GiB/rank outside the static pool for the prefill indexer
-  # transient at 1M context.
-  MEM_FRACTION_STATIC: "0.80"
-  MAX_RUNNING_REQUESTS: "16"
-  # 4096-token chunks are safe only with the indexer backport below.
-  CHUNKED_PREFILL_SIZE: "4096"
-  CUDA_GRAPH_MAX_BS_DECODE: "16"
-  # Conservative pin (< upstream's 8M) so a tighter memory budget cannot wedge
-  # the boot; read `full_token=` from the boot log and raise once it is known.
-  MAX_TOTAL_TOKENS: "4000000"
-  SPEC_ALGO: DSPARK
-  DSPARK_BLOCK_SIZE: "5"
-
-  # --- overlay adapters (upstream production line, minus the RoCEnante
-  # all-gather and the two table-gated switches below) ------------------------
-  DSV41_INDEXER_CHUNKED: "1"
-  SGLANG_DSPARK_FOLDED_SAMPLING: "2"
-  SGLANG_RUST_BUILD_MODE: never
-  SPARK_PREFILL_TP_SPLIT: "1"
-  SPARK_PREFILL_TP_MIN_CONTEXT: "32768"
-  SPARK_PREFILL_TP_MIN_ROWS: "1024"
-  DSV41_FAST_LOAD: "1"
-  DSV41_FAST_LOAD_TP_SLICE: auto
-  DSV41_FAST_LOAD_N_EXPERTS: "384"
-  DSV41_FAST_LOAD_INFLIGHT_GB: "6"
-  DSV41_SHARED_PAD_K: "1"
-  DSV41_WO_A_W8: "1"
-  DSV41_WO_A_W8_MID: "1"
-  DSV41_WO_A_W8_DROP: "1"
-  DSV41_DRAFT_TAU: "0.7"
-  DSV41_DRAFT_HEAD_FP8: "1"
-  DSV41_BLOCK_VERIFY: "1"
-  DSV41_FOLDED_FENCE: "1"
-  DSV41_VERIFY_CAP: "conf:0.1"
-  DSV41_AUTOTUNE_KEEP: "1"
-  DSV41_REPLICATED_SPLIT: "wqkv_a,engram.wkv"
-  DSV41_DRAFT_MAIN_PROJ_SPLIT: "1"
-  DSV41_SPLIT_COMPACT_GATHER: "1"
-  DSV41_ROUTER_LIVE: "1"
-  DSV41_MOE_B12X_NEXT: "1"
-  DSV41_MOE_B12X_NEXT_DETERMINISTIC: "1"
-  DSV41_HC_FUSED: "1"
-  DSV41_PREFILL_SP: "1"
-  DSV41_PREFILL_SP_FP8: "1"
-  DSV41_L2_PREFETCH: "1"
-  DSV41_L2_PREFETCH_WOA: "1"
-  DSV41_SPEC_SYNC_FREE: all
-  DSV41_EAGER_GLUE: all
-  # DSPARK_SPS_TABLE / DSPARK_STS_TABLE are DELIBERATELY NOT SET. Upstream lists
-  # the SPS table under "Not used: ... crashes the Engram path", and that is
-  # confirmed here: with a fitted table present, boot.py enables the compact
-  # ragged-verify scheduler and the first mixed batch dies with
-  # `AssertionError: engram target-verify expects one equal block per request,
-  # got 84 tokens for 16 requests of 6`. Without the file boot.py stays on the
-  # verify-all schedule (upstream's production behaviour). See
-  # KNAPCIO-SGLANG-INTEGRATION.md.
-  # RoCEnante: TP all-reduces and all-gathers up to 2 MiB over the one-shot RDMA
-  # kernel on both rails. Our fabric is switched (full mesh), so this is legal.
-  # This is the piece with b12x's open #313 wedge report; the result-boundary
-  # health check fails the step rather than hanging. Set SGLANG_ROCE_ALLREDUCE=0
-  # to fall back to NCCL in one env change.
-  SGLANG_ROCE_ALLREDUCE: "1"
-  SGLANG_ROCE_MAX_SIZE: "2097152"
-  DSV41_ROCE_GATHER: "2097152"
-  B12X_ROCE_HCA: rocep1s0f0,roceP2p1s0f0
-  # JIT / autotune caches under the managed runtime cache (they are cacheable
-  # objects, not image content, and must survive --rm). B12X_NEXT_COMPILE_CACHE_DIR
-  # is derived from STATE_PATH by adapter/moe_b12x_next.py:243-248.
-  B12X_ROCE_CACHE_DIR: /cache/runtime/b12x-roce
-  B12X_COMPILE_CACHE_DIR: /cache/runtime/b12x-compile
-  # Deliberately OFF on the first boot:
-  #   SGLANG_ROCE_ALLREDUCE / DSV41_ROCE_GATHER -- one-shot RDMA all-gather; the
-  #     open b12x#313 wedge. Turn on only as an A/B after NCCL is baselined.
-  #   DSPARK_SPS_TABLE / DSPARK_STS_TABLE -- ragged-verify cost tables; absent,
-  #     boot.py stays on the verify-all schedule (correct, slower).
-  #   DSV41_CERT_HEAD -- v2.3 certified head; -0.5 ms/step at c1, slower >= c10.
-  #   DSV41_ENGRAM_DRM_NODE -- needs a host display-reserve change.
-  #   DSPARK_SPS_TABLE / DSPARK_STS_TABLE -- see the comment above; they crash the
-  #     Engram path.
-
-  # --- RoCE / NCCL ---------------------------------------------------------
-  # sparkrun's InfiniBand probe fills the generic NCCL_NET/HCA/GID/DISABLE vars
-  # per cluster; these are the levers the upstream profile sets. GID index 3 is
-  # the RoCEv2 IPv4 entry on both HCAs here (verified on our nodes).
-  NCCL_IB_GID_INDEX: "3"
-  NCCL_NET: IB
-  NCCL_IB_DISABLE: "0"
-  NCCL_IB_HCA: rocep1s0f0,roceP2p1s0f0
-  NCCL_P2P_DISABLE: "1"
-  NCCL_SHM_DISABLE: "1"
-  NCCL_CROSS_NIC: "1"
-  NCCL_CUMEM_ENABLE: "0"
-  NCCL_BUFFSIZE: "1048576"
-  NCCL_LL128_BUFFSIZE: "262144"
-  NCCL_PROTO: ^LL128
-  NCCL_MAX_NCHANNELS: "8"
-  NCCL_DEBUG: WARN
-  NCCL_DEBUG_SUBSYS: INIT,ENV
-
-  # expandable_segments is deliberately False: the V4.1 SGLang lane reports NaN
-  # logits above 64 prefill query tokens with it on (AGENTS.md §6.4). boot.py
-  # sets the same default.
-  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:False
 
 defaults:
   port: 8888

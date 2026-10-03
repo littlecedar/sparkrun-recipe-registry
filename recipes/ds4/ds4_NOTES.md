@@ -132,8 +132,8 @@ artifacts only in the sparkrun-managed runtime cache and put everything else in
 the image.
 
 **Shipped (VERIFIED booting, see below):**
-- **No `volumes:` block.** `sparkrun recipe validate` → only the deliberate
-  `managed-comm-env` warning; `non-portable-mount` is gone.
+- **No `volumes:` block.** `sparkrun recipe validate` → **clean, zero warnings**
+  (`non-portable-mount` gone; `managed-comm-env` also cleared — see below).
 - Cacheables moved under `/cache/runtime/engram`, `/cache/runtime/state`,
   `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce` (the sparkrun leaf
   `~/.cache/sparkrun/runtime-cache/sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993`,
@@ -173,6 +173,101 @@ recipe keeps the `@littlecedar/…` form.
 (correct, slower); next boot = packed. **Still required of the host:** the shared
 HF checkpoint — **not** the image, which is now vendored (below). Commit/push the
 mod so `@littlecedar/mods/dsv41-sglang-overlay` resolves to the new code.
+
+## Session 2026-10-03 (cont.) — `env:` slimmed: redundant dropped, rest migrated to the launcher
+
+**Directive (user):** remove redundant `env:` vars; migrate the non-redundant
+ones into the launcher.
+
+**Result:** the recipe's `env:` is now **3 lines** — `MODEL_PATH`, `DSV41_SOURCE`
+(the external checkpoint path) and `TP_SIZE` (the launcher gets `--nnodes`, not
+the TP degree). Everything else moved into
+`mods/dsv41-sglang-overlay/launcher.py`'s `RECIPE_ENV`.
+
+- **Dropped as redundant** (recipe value == runtime default): `SKIP_SMOKE=0`,
+  `WARMUP=1`, `HOST=0.0.0.0`, `SERVED_MODEL_NAME`, `SPARK_PREFILL_TP_MIN_CONTEXT`,
+  `SPARK_PREFILL_TP_MIN_ROWS`, `DSV41_FAST_LOAD_TP_SLICE=auto`,
+  `DSV41_FAST_LOAD_INFLIGHT_GB=6`.
+- **Migrated** (adapter flags default OFF, so the recipe sets were the production
+  *enablement*): all `DSV41_*`, `SGLANG_*`, `OFFLOAD_MODE`, `EP_SIZE`, the
+  parallelism/serving flags, `READY_TIMEOUT_S`, `SKIP_PREPARE`/`SKIP_VERIFY`, the
+  locations, RoCEnante, the NCCL transport tuning, `PYTORCH_CUDA_ALLOC_CONF`.
+  Full inventory: `.scratch/ds4/knapcio/ENV-MIGRATION.md`.
+
+**Bug caught live (why the launcher must OVERRIDE, not `setdefault`):** the image
+bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`, `PYTORCH_CUDA_ALLOC_CONF=…True`,
+`SGLANG_RUST_BUILD_MODE`, `OFFLOAD_MODE` into its **ENV**, and those populate the
+launcher's process env (`boot.py` is `execve`'d from it). A first cut used
+`setdefault`, so the image won: `launch.json` went to the unwritable `/state` and
+the allocator mode reverted to `expandable_segments:True` (the NaN-logits mode).
+Fix: `env.update(RECIPE_ENV)`. It is disjoint from the recipe-owned
+`MODEL_PATH`/`DSV41_SOURCE`/`TP_SIZE`, so those still pass through.
+
+**VERIFIED live (boot of the slimmed recipe, TTR 183 s):** `fired up and ready`;
+RoCEnante `hcas=roceP2p1s0f0,rocep1s0f0` (detection); `moe_b12x_next armed`;
+Engram `packed=True io_threads=96`; `state/launch.json` written under
+`/cache/runtime` (image `/state` overridden) — i.e. every migrated value took
+effect. `recipe validate` clean; `docker exec env` is the WRONG probe (the
+launcher rewrites its own env before `execve`) — read the tools, not the container
+env. Guards: `test_recipe_env_is_thin`, `test_nccl_transport_tuning_present`,
+`_resolved_env()` (launcher `RECIPE_ENV` overlaid by the recipe) + updated
+negative controls; 28 lane tests green.
+
+**Follow-up fix — `run.sh` used the image's baked `STATE_PATH`.** The mod runs as
+root BEFORE the launcher, so it cannot see the launcher's `RECIPE_ENV`, and the
+image bakes `STATE_PATH=/state`: `${STATE_PATH:-…}` made the mod `reown` the wrong
+directory. Switched `run.sh` to the same **literal** `${CACHE}/{engram,state,
+b12x-compile,b12x-roce}` paths the launcher uses (both in the mod, so they move
+together). Verified `/cache/runtime/state` is `red:red` and holds boot.py's
+`launch.json` + smoke artifacts (nothing leaked to `/state`). Guard updated:
+`test_mod_creates_and_reowns_cache_dirs` now asserts the literal subdirs and their
+agreement with `RECIPE_ENV`.
+
+## Session 2026-10-03 (cont.) — comm env fully un-pinned (portability)
+
+**Rule (user, 2026-10-03): all recipes must be portable and rely on sparkrun's
+detections. A stanza naming a host device (`B12X_ROCE_HCA: rocep1s0f0,…`) is not
+portable.**
+
+**Change:** removed from `env:` the `managed-comm-env` keys (`NCCL_NET`,
+`NCCL_IB_DISABLE`, `NCCL_IB_HCA`, `NCCL_IB_GID_INDEX`, `NCCL_CROSS_NIC`) **and
+`B12X_ROCE_HCA`** (not sparkrun-managed, but a literal host device list — and it
+falls back to the detected `NCCL_IB_HCA`, so pinning it was contraindicated).
+Kept only transport *tuning* with no device names: `NCCL_P2P_DISABLE`,
+`NCCL_SHM_DISABLE`, `NCCL_CUMEM_ENABLE`, `NCCL_BUFFSIZE`, `NCCL_LL128_BUFFSIZE`,
+`NCCL_PROTO`, `NCCL_MAX_NCHANNELS`, `NCCL_DEBUG`, `NCCL_DEBUG_SUBSYS`.
+`recipe validate` is **clean**, and no `env:` value names a host device.
+
+**Why safe + strictly better (VERIFIED on live boots):**
+
+| var | recipe pin (old) | detected (live) |
+|:--|:--|:--|
+| `NCCL_IB_HCA` | `rocep1s0f0,roceP2p1s0f0` | **`roceP2p1s0f0,rocep1s0f0`** — only the **ACTIVE** ports, so it drops the DOWN `*s0f1` |
+| `NCCL_NET` / `NCCL_IB_DISABLE` / `NCCL_CROSS_NIC` | `IB` / `0` / `1` | same |
+| `NCCL_IB_GID_INDEX` | `3` | `3` |
+| (added by detection) | — | `NCCL_IGNORE_CPU_AFFINITY=1`, `NCCL_SOCKET_IFNAME=…` |
+
+Booted to **`fired up and ready`** with `B12X_ROCE_HCA` **absent**: `RoCEnante
+ready: world=4 hcas=roceP2p1s0f0,rocep1s0f0 gid_index=3` — the detected list.
+b12x's RoCEnante reads `B12X_ROCE_HCA` → else `NCCL_IB_HCA` → else 3
+(`roce_oneshot.py:85,99`), so the fallback is what makes the unset form correct.
+Engram `packed=True`, TTR 183 s.
+Guards: `test_managed_comm_env_not_pinned`, `test_no_host_device_names_in_env`,
+`test_roce_nante_on` (asserts `B12X_ROCE_HCA` absent) + two negative controls.
+
+**`docker exec env` is not a valid probe for anything the launcher sets** — the
+launcher rewrites `os.environ` in-process and `execve`s boot.py; `docker exec`
+starts a FRESH shell from the container's creation env, so it shows the image's
+baked values (`/state`, `expandable_segments:True`), not the launcher's override.
+Read the launcher's own log line and the tools' output (`launch.json` location,
+the Engram line) instead.
+
+**Trap that cost a wrong first reading:** `sparkrun run --dry-run` *skips* the IB
+detection step (`Step 2/7: Detecting InfiniBand` runs in ~0.0 s), so it prints
+`No InfiniBand detected, using default networking` and renders **no NCCL_IB_* env
+at all** — which reads as "detection is broken here". It is not: detection runs on
+the real launch, and `ib_detect.sh` standalone returns `IB_DETECTED=1` with the
+HCA list. Do not conclude anything about detection from a dry run.
 
 ## Session 2026-10-02 (cont.) — VENDORED IMAGE (build + push to Docker Hub)
 
