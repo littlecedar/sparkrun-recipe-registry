@@ -74,6 +74,16 @@ The two pieces that make this work:
     unaffected (`adapter/engram_backend.py` treats the packed shard as optional
     acceleration; `row_store.cpp` fails closed on a range mismatch).
 
+It also **resolves a moved checkpoint**. The recipe pins a literal HF snapshot
+path (a bare `X=/path/*` assignment stays literal, §6.1 of the ds4 notes), but a
+shared HF cache is re-resolved whenever the upstream repo moves — the named
+`snapshots/<hash>` can vanish while the model is fully present under a new hash
+(`AssertionError: missing …/config.json`). `launcher.py` treats the literal as a
+*preference*: if it is not a complete local snapshot it switches `MODEL_PATH` /
+`DSV41_SOURCE` to `<repo>/refs/main`, else the newest snapshot carrying
+`model.safetensors.index.json`, before `execve(boot.py)`. Verified live by
+forcing the stale hash.
+
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
 `/home/red/dsv41-engram` bind mount gave, without the machine-specific path.

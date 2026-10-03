@@ -135,6 +135,58 @@ def _shard_complete(path: str) -> bool:
         return False
 
 
+def _resolve_checkpoint(model_path: str) -> str | None:
+    """Resolve a hardcoded HF snapshot path to one that exists locally.
+
+    The recipe pins a literal snapshot directory because a bare assignment does
+    not glob and a symlinked snapshot tree must be mounted whole. But a shared
+    HF cache is re-resolved whenever the upstream repo moves: the local
+    `snapshots/<hash>` the recipe names can vanish while the model is still
+    fully present under a new hash — the failure is `missing .../config.json`.
+
+    We only need the directory *inside* the container, where the cache is at a
+    fixed mount; the path components are taken from the recipe's literal path so
+    the fallback works for any mount, not just ours. Candidates are picked by
+    the two independent completeness signals HF uses: `refs/main` (what the
+    cache actually resolves to today) and `model.safetensors.index.json` (a
+    complete checkpoint names every shard). First hit wins; ``None`` means "no
+    candidate is complete", and the caller keeps the original path so the
+    engine's own error is the one seen.
+    """
+    import glob
+
+    parts = model_path.rstrip("/").split("/")
+    if "snapshots" not in parts:
+        return None
+    idx = parts.index("snapshots")
+    repo = "/".join(parts[:idx])
+    if not os.path.isdir(repo):
+        return None
+
+    candidates: list[str] = []
+    ref_main = os.path.join(repo, "refs", "main")
+    try:
+        with open(ref_main) as handle:
+            revision = handle.read().strip()
+        if revision:
+            candidates.append(os.path.join(repo, "snapshots", revision))
+    except OSError:
+        pass
+    # Any snapshot dir that carries the shard index, newest first.
+    for snap in sorted(glob.glob(os.path.join(repo, "snapshots", "*")), reverse=True):
+        candidates.append(snap)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.isfile(os.path.join(candidate, "config.json")) and \
+           os.path.isfile(os.path.join(candidate, "model.safetensors.index.json")):
+            return candidate
+    return None
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--boot", action="store_true", help="start the engine (default)")
@@ -168,6 +220,17 @@ def main(argv: list[str]) -> int:
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)
+
+    # Heal a stale hardcoded snapshot: if the recipe's literal checkpoint path is
+    # not a complete local snapshot, switch MODEL_PATH/DSV41_SOURCE to the one
+    # the cache resolves to. boot.py reads both from the env it is exec'd with.
+    requested = env.get("MODEL_PATH", "")
+    if requested and not os.path.isfile(os.path.join(requested, "config.json")):
+        resolved = _resolve_checkpoint(requested)
+        if resolved and resolved != requested:
+            print(f"launcher: checkpoint {requested} is not present; resolved to {resolved}", flush=True)
+            env["MODEL_PATH"] = resolved
+            env["DSV41_SOURCE"] = resolved
 
     rank = env.get("NODE_RANK")
     ensure_engram_shards(env, int(rank) if rank is not None and str(rank).lstrip("-").isdigit() else None)
