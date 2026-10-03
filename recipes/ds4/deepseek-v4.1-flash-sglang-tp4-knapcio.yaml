@@ -59,29 +59,25 @@ distribution_config:
 
 env:
   # The env: block is deliberately THIN. mods/dsv41-sglang-overlay/launcher.py
-  # fills the production configuration (locations under /cache/runtime, engine
-  # flags, the adapter enablement, RoCEnante and the NCCL transport tuning) with
-  # setdefault, so a value here or in the container env still wins. Only the
-  # external checkpoint path and the TP degree are recipe-owned, because the
-  # launcher cannot derive them (it gets --nnodes, not the TP degree, and the
-  # checkpoint is the one input that lives outside the image).
+  # owns the production configuration: the in-container locations, the boot.py
+  # read flags, the Engram/cache tuning, the engine/serving flags, the overlay
+  # adapter enablement, RoCEnante, the device-free NCCL transport tuning, AND the
+  # checkpoint path. It also locates the checkpoint itself: `--model {model}`
+  # passes the HF repo id, and the launcher resolves it in the fixed in-container
+  # HF cache (refs/main, else any complete snapshot), so no `snapshots/<hash>`
+  # appears here. See .scratch/ds4/knapcio/ENV-MIGRATION.md and the mod README.
   #
-  # Everything the launcher sets is inventoried in
-  # .scratch/ds4/knapcio/ENV-MIGRATION.md; the mod README lists it too.
+  # TP_SIZE is the one thing the launcher cannot derive (sparkrun passes
+  # --nnodes, not the TP degree; `defaults.tensor_parallel` is not an env var).
+  TP_SIZE: "4"
+  # NO MODEL_PATH / DSV41_SOURCE: the launcher sets them from `--model {model}`
+  # and the mounted cache. A hardcoded snapshot hash here is not portable and
+  # reads as a path a user must maintain.
   #
   # NO NCCL_NET / NCCL_IB_HCA / NCCL_IB_GID_INDEX / NCCL_IB_DISABLE /
   # NCCL_CROSS_NIC and NO B12X_ROCE_HCA: sparkrun's InfiniBand probe fills them
   # per cluster from the live CX7 firmware (and b12x falls back to the detected
   # NCCL_IB_HCA), so naming a host device here would break portability.
-  #
-  # The HF cache is mounted by sparkrun at /cache/huggingface. Use the literal
-  # snapshot path (a bare assignment does not glob). A shared cache re-resolves
-  # when the upstream repo moves, so this literal is a PREFERENCE: if it is
-  # absent/broken, the launcher switches MODEL_PATH/DSV41_SOURCE to the snapshot
-  # the cache actually serves (refs/main, else any complete snapshot).
-  MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
-  DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
-  TP_SIZE: "4"
 
 defaults:
   port: 8888
@@ -93,11 +89,15 @@ defaults:
   served_model_name: deepseek-v4.1-flash
 
 # The launcher shim consumes sparkrun's appended
-# `--dist-init-addr H:P --nnodes N --node-rank R` and execs boot.py.
+# `--dist-init-addr H:P --nnodes N --node-rank R` and execs boot.py. `--model
+# {model}` passes the HF repo id so the launcher resolves the checkpoint in the
+# mounted cache instead of the recipe hardcoding a snapshot path.
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot
+  --model {model}
   --port {port}
+  --tp {tensor_parallel}
 
 readiness:
   # boot.py reads 476 GiB, builds the DSpark draft, sizes KV and captures graphs.
