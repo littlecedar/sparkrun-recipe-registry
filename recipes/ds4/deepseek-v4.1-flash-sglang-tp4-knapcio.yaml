@@ -45,12 +45,28 @@ executor_config:
   # cache mounted at /cache/huggingface. See KNAPCIO-SGLANG-INTEGRATION.md
   # ("Portability") and the mod README.
 
+distribution_config:
+  containers:
+    # The image is published (littlecedar/dgx-spark-dsv41:canary-roce, pinned by
+    # digest) so it can be vendored/pulled instead of built on every node. It is
+    # arm64-only; set `enabled: false` only if you build it locally as
+    # `dsv41-4x-spark:canary-roce`.
+    enabled: true
+  models:
+    # The checkpoint is a shared HF cache, mounted at /cache/huggingface on every
+    # node; never re-download or fan out.
+    enabled: false
+
 env:
   # --- checkpoint / placement ---------------------------------------------
   # The HF cache is mounted by sparkrun at /cache/huggingface. Use the literal
-  # snapshot path (a bare assignment does not glob).
-  MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
-  DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/dba1be0a40aa45a94ad051997016db3960a90277
+  # snapshot path (a bare assignment does not glob). A shared cache re-resolves
+  # when the upstream repo moves, so this literal is a PREFERENCE, not a hard
+  # requirement: if it is absent/broken, mods/dsv41-sglang-overlay/launcher.py
+  # switches MODEL_PATH/DSV41_SOURCE to the snapshot the cache actually serves
+  # (refs/main, else any complete snapshot). See the mod README.
+  MODEL_PATH: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
+  DSV41_SOURCE: /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/2cba9e42aa026125f3ed06c6d98c1db82f7ca027
   # boot.py writes launch.json / api-key here; under the managed runtime cache so
   # nothing lands in a user's home directory and nothing needs a bind mount.
   STATE_PATH: /cache/runtime/state
