@@ -10,12 +10,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                 | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                 |
 |:---------------------------------------|:-------|-------:|------:|-----:|---:|:------------------------------------------------------------|
-| deepseek-v4.1-flash-exl3-tp3-vllm      |        |   34.3 | 460GB | 0.80 |  3 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-vllm      |        |   38.8 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp4-1m-vllm   | 🚚     |   40.7 | 460GB | 0.85 |  4 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-vllm      |        |   40.0 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
-| deepseek-v4.1-flash-exl3-tp6-1m-vllm   | 🚚     |   43.4 | 460GB | 0.85 |  6 | [Model][bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard] |
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
+
+The DeepSeek V4.1-Flash vLLM / EXL3 recipes (`deepseek-v4.1-flash-exl3-*`) are
+retired and archived under [`attic/ds4/`](../attic/ds4/); see
+[`recipes/ds4/README.md`](ds4/README.md).
 
 ## Ornith 1.5
 
