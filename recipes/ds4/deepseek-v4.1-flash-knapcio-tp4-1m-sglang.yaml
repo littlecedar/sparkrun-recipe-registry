@@ -29,10 +29,6 @@ executor_config:
   shm_size: 32gb
 
 defaults:
-  # The image's baked HEALTHCHECK discovers the served port at runtime (the
-  # 2026-10-03 rebuild, digest 4e5002ab…), so the port is free. 8888 is the
-  # image's own EXPOSE / boot.py default and is what this lane has been verified
-  # on; `--port {port}` carries it to boot.py. No env var is needed.
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 4
