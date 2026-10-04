@@ -81,7 +81,10 @@ These are load-bearing and each has a guard in
 1. **No `env:` block.** Everything — the production config *and* the checkpoint
    location — lives in the launcher, so it travels with the mod rather than with
    each recipe. The recipe passes the repo id via `{model}`; the launcher derives
-   the snapshot path. Guarded by `test_recipe_env_is_empty`.
+   the snapshot path. Guarded by `test_recipe_env_is_empty`. Because the launcher
+   applies `RECIPE_ENV` with `env.update`, this is also where every production
+   switch lives: there is **no recipe-side knob** for e.g. `DSV41_FAST_LOAD`
+   (§7.1) — flip it in the launcher, or not at all.
 2. **TP flows through `defaults` → `command` → launcher.** sparkrun does **not**
    emit `--tp-size` when a `command:` template is present; it substitutes the
    placeholder. The template emits `--tp {tensor_parallel}` and the launcher maps
@@ -250,11 +253,65 @@ token count; it is deliberately not wired to `CONTEXT_LENGTH`. Upstream pairs
   `AssertionError: engram target-verify expects one equal block per request, got
   84 tokens for 16 requests of 6` → server never healthy. Upstream's own README
   lists it as not used. **Do not ship it** (guard: `test_sps_table_absent`).
+- **`DSV41_FAST_LOAD=0` (shipped).** Upstream's eager loader is off: it buys
+  ~220 s per boot and costs 3–13% of the KV pool. Mechanism and the A/B that
+  would replace the number: §7.1 below.
 - **`DSV41_CERT_HEAD`** — -0.5 ms/step at c1 but slower from ~10 requests.
 - **`DSV41_ENGRAM_DRM_NODE`** — needs a host display-reserve change.
 
 RoCEnante is **on** (`SGLANG_ROCE_ALLREDUCE=1`, `SGLANG_ROCE_MAX_SIZE`,
 `DSV41_ROCE_GATHER`); rollback is one line.
+
+### 7.1 Fast load (`DSV41_FAST_LOAD`) — shipped `0`
+
+**Decision.** The launcher sets `"DSV41_FAST_LOAD": "0"`. The image does not set
+the variable (`Dockerfile.canary-roce` `ENV` carries only `PYTHONPATH`,
+`MODEL_PATH`, `STATE_PATH`, `OFFLOAD_MODE`, `DSV41_CACHE_GIB`), and
+`adapter/fast_load.py:enabled()` defaults false, so `0` is the stock SGLang
+safetensors loader. We set it explicitly to record a deliberate choice rather
+than an inherited default.
+
+**What it trades** (upstream's numbers, not ours — `VERIFIED` from the vendored
+source's docs, `.scratch/ds4/knapcio/docs/history.md:121,127` and
+`docs/fast-load.md`, which back the README caveat):
+
+| at EP2, same image, same night (2026-09-18) | stock loader | `DSV41_FAST_LOAD=1` |
+|:--|--:|--:|
+| engine start (`scheduler_e2e`) | 343–354 s | 124–129 s |
+| `max_total_num_tokens` | 7.47–7.82M | 6.71–7.27M |
+| bytes reaching the model | — | bitwise identical |
+| decode / prefill / needle | — | unchanged |
+
+**Mechanism, not a leak.** SGLang sizes the pool from the head's
+`psutil.virtual_memory().available` (`get_available_gpu_memory`, the integrated-GPU
+branch — on GB10 "device memory" is system RAM). The fast loader reads each
+rank's tensors eagerly into pinned host slabs and releases everything before the
+pool is sized, but ~0.8–1.5 GB has still left `MemAvailable` at that instant, and
+it shows in no counter (not shmem, not page cache, not the CUDA allocator —
+upstream traced most of it to driver staging state from pageable buffers and made
+the buffers pinned to close the gap). There is therefore no env knob that gets
+the pool back while keeping the fast path; it is one or the other.
+
+**Not our measurement.** The 3–13% is EP2 on the 2026-09-18 stack. This lane is
+**EP1**, and upstream's later pinned-slab rework moved the pool **+0.73M tokens**
+against its per-tensor precursor at EP1 (`docs/fast-load.md`), so the interval
+here is probably smaller. `SPECULATIVE` on any specific EP1 delta — it has not
+been booted on our fleet.
+
+**A/B if you want the real number** (mirrors §10's discipline; read the pool from
+the boot log, never computed):
+
+1. Boot the shipped recipe; record `DSV4 memory calculation: … full_token=<N>`
+   from `/tmp/sparkrun_serve.log` inside the container.
+2. Flip `"DSV41_FAST_LOAD": "1"` in the launcher, commit it (mod references
+   resolve from the registry git clone, §4), boot again, record the same line.
+3. Three boots each. `full_token` varies boot to boot (upstream saw 6.71–7.27M
+   across fast-loader boots alone); a same-config control on either side is part
+   of the protocol, and a single pair of boots resolves nothing.
+4. `DSV41_FAST_LOAD_N_EXPERTS` was dropped with the gate: it is a fallback for
+   expert-count detection that only `fast_load` reads, and it defaults from
+   `config.json`'s `n_routed_experts` (384) when absent. Restoring the gate needs
+   no restore of this key.
 
 ---
 
@@ -269,12 +326,17 @@ gate is not a win.
    `packed=` names the `/cache/runtime/engram` shard. Missing or identical: stop.
 3. `[moe_b12x_next] armed` — routed MoE on the b12x_next kernel, not a Triton
    fallback.
-4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool.
+4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool. With the
+   stock loader shipped, expect the larger pool (7.47–7.82M on upstream's EP2
+   stack, §7.1); a 6.71–7.27M reading means `DSV41_FAST_LOAD` is on.
 5. `Mean acceptance length > 1` on `Decode batch` lines (DSpark working).
 
 **Timings:** boot to ready **~9 min cold**; TTR observed 171–270 s once the
 checkpoint and image are resident. A first cold boot also packs Engram in the
-background.
+background. **Both of those were observed with the fast loader on**, which is not
+what ships: the stock loader's weight read is the slow one (~220 s more), so a
+fresh boot on the shipped config will land above these figures. They are kept as
+the fast-loader reference, not as the shipped recipe's boot time (§7.1).
 
 **Cluster hygiene before any boot test:** a killed/abandoned `sparkrun run`
 leaves containers holding the serve port. Because sparkrun uses `--network=host`,
@@ -335,7 +397,13 @@ rendered line and the boot log.
 - **DSpark acceptance is workload-dependent** (~3/step on prose, ~6 on code). A
   DSpark number without an accept length is not a number; state the
   reasoning-effort budget too (`chat_template_kwargs {"thinking": false}` here).
-- **Read the served pool from the boot log**, never computed.
+- **Read the served pool from the boot log**, never computed. The loader setting
+  is part of the boot's identity: quote `DSV41_FAST_LOAD` with any pool number,
+  because it moves the pool 3–13% (§7.1). The fast path logs
+  `DSV41 fast load ARMED: …` when it is on and nothing when it is off, so a
+  missing ARMED line is the only in-log hint — a bare pool figure does not
+  identify which loader produced it. (The launcher's env is also invisible to
+  `docker exec env`, §11.)
 - **`sparkrun benchmark --profile` resolves from the registry cache**, not the
   working tree. The serve log is `/tmp/sparkrun_serve.log` **inside** the
   container (`docker logs` is empty). Containers are reaped after a run; use

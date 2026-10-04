@@ -9,7 +9,7 @@ Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 |:--|:--|
 | Kind | Pre-exec mod; **modifies no image file**. |
 | License | AGPL-3.0-or-later (this repo). |
-| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/AGENTS.md`. |
+| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Those boots ran the fast loader, which has since been turned **off** in the launcher (`DSV41_FAST_LOAD=0`, below); the gated boot is otherwise unchanged. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/AGENTS.md`. |
 
 The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
 (digest-pinned), so sparkrun pulls it and no node builds it. sparkrun distributes
@@ -179,7 +179,18 @@ and port all arrive via the `command:` template from `defaults`, and the image's
 dynamic healthcheck needs no container-level env (see above). `RECIPE_ENV` values
 that the runtime already defaults to (SKIP_SMOKE,
 WARMUP, HOST, SERVED_MODEL_NAME, the prefill thresholds, the fast-load
-slice/inflight defaults) are **not** set anywhere.
+slice/inflight defaults) are **not** set anywhere — with one deliberate
+exception: `DSV41_FAST_LOAD=0` is also the runtime default, but it is stated to
+record a production decision (below), not as a no-op, so it is not to be removed
+as redundant.
+
+One production switch is deliberately **off**: `DSV41_FAST_LOAD=0` selects
+SGLang's stock loader over upstream's eager loader. The eager path cuts engine
+start from 343 s to ~124 s but leaves the KV pool 3–13% smaller (it sizes from the
+head's `MemAvailable` right after the loads), and this lane prefers the pool.
+Setting the key is how the decision is recorded — the image does not set it, and
+the loader's own gate defaults false. Rationale, the upstream numbers, and the
+boot-log A/B live in `recipes/ds4/AGENTS.md` §7.1.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
