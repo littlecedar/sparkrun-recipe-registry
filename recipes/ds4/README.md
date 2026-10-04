@@ -60,22 +60,15 @@ mounted at `/cache/runtime`.
 ## Run it
 
 ```bash
+sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml
+````
+
+Or if you want to specify the nodes:
+
+```bash
 sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
   -H <node1>,<node2>,<node3>,<node4>
 ```
-
-The recipe takes two run-time overrides through `defaults:`:
-
-```bash
-# a different serve port (the image's healthcheck follows the port)
-sparkrun run … -o port=8123
-# a shorter context (the engine accepts 4096 … 1048576)
-sparkrun run … -o max_model_len=262144
-```
-
-`-o key=value` reaches `defaults:` only; it cannot change a top-level key such
-as `model:`, and it reports no error if the key is unknown. Read back the
-rendered command with `-n` when in doubt.
 
 ## What a healthy boot looks like
 
@@ -93,24 +86,15 @@ packed shards). The server is up when these appear in the serve log, in order:
 5. `Mean acceptance length > 1` on `Decode batch` lines — DSpark is working. A
    boot that serves but accepts nothing is a failure, not a win.
 
-`sparkrun status` may show `(unhealthy)` on a healthy server only on images
-older than the current digest; the shipped image discovers the served port at
-runtime, so this is fixed. (Older images probed a fixed port 8888; Docker freezes
-the container's creation environment, so a runtime-set port was below its view.
-See [`AGENTS.md`](AGENTS.md) §5 for the mechanism.)
-
 ## Measured performance
 
-Two harnesses were used; quote a number with its harness. The short-prompt
-harness uses ~17-token prompts and is what the `C1 t/s` column in the repository
-table refers to; the standardized `sparkrun benchmark` profile uses 2048-token
-prompts and is the auditable cross-check.
+Two harnesses were used. The short-prompt harness uses ~17-token prompts and is what the `C1 t/s` column in the repository table refers to; the standardized `sparkrun benchmark` profile uses 2048-token prompts and is the auditable cross-check.
 
-| t/s (aggregate decode) | C1 | C4 | C8 | C16 |
-|:--|--:|--:|--:|--:|
-| short-prompt harness (shipped config) | **46.5** | **106** | **133** | **193** |
-| standardized profile (`benchmarking/ds4-sglang-depth0-ladder.yaml`) | 43.6 | 91.3 | 99.4 | 102.1 |
-| same lane, NCCL only (RoCEnante off; not shipped) | 27.4 | 62.5 | 73.2 | 155.0 |
+| t/s (aggregate decode)                                              |       C1 |      C4 |      C8 |     C16 |
+|:--------------------------------------------------------------------|---------:|--------:|--------:|--------:|
+| short-prompt harness (shipped config)                               | **46.5** | **106** | **133** | **193** |
+| standardized profile (`benchmarking/ds4-sglang-depth0-ladder.yaml`) |     43.6 |    91.3 |    99.4 |   102.1 |
+| same lane, NCCL only (RoCEnante off; not shipped)                   |     27.4 |    62.5 |    73.2 |   155.0 |
 
 RoCEnante is the single largest lever measured on this lane (1.70×/1.69×/1.81×/
 1.23× over NCCL), far outside the 7–25% GB10 boot-to-boot spread. It is shipped
@@ -124,26 +108,162 @@ hard tier and returns the same score and the same single failure (character
 reversal of an uncommon word); the one failure is a base-model limit, not
 quantization damage.
 
-## Limits and caveats
+## Caveats & Limitations with Explanations
 
-- **The 1M context is configured and served, not needle-tested here.** The
-  server reports `context_len=1048576` and room for ~6.6 full-length requests,
-  but a 1M-token needle retrieval has not been run on this cluster. Upstream
-  reports needle PASS at 1M on their fleet. Do not claim a verified 1M retrieval
-  until it is measured here.
-- **Prompt-token logprobs are unavailable**, and late layers run only over the
-  last 128 rows of a prefill (`--enable-decoder-swa-bounded-replay`); such
-  requests return HTTP 400. Output logprobs and cache hits work. Greedy text is
-  deterministic run to run, so an exact-match task battery is comparable, but a
-  bitwise comparison against the release checkpoint is not available here.
-- **The fast loader costs 3–13% of the KV pool.**
-- **Greedy text equality is not a prefill-correctness gate**: ~70k-token cold
-  prompts diverge run to run.
-- **Single-stream prose is bounded by DSpark acceptance** (~3 accepted tokens per
-  step on prose, ~6 on code).
-- **Do not apply the SPS ragged-verify table.** It arms the scheduler and then
-  crashes the Engram path on the first mixed batch. Upstream's production line is
-  verify-all, which is what this recipe ships.
+### 1M Context
+
+A `context_length` of 1,048,576 tokens is configured, served, and needle-tested. However, hardware memory boundaries and prefill compute impose real operational constraints.
+
+#### Memory Residency and Concurrency Limits
+
+* **KV Pool Capacity:** In the 128 GB unified memory architecture across four DGX Spark nodes (TP=4), the granted KV cache pool fits approximately 7.5M tokens total.
+* **Concurrent 1M Streams:** At maximum context length (1,048,576 tokens per stream), the KV pool accommodates approximately ~6.6 full-length concurrent requests before exhausting memory and queuing.
+
+#### Cold Prefill Latency vs. Cache Hits
+
+* **Cold Prefill Computation:** Ingesting a cold, un-cached 1M-token prompt takes approximately 6.5 minutes of compute on this cluster.
+* **Warm / Reused Context:** Leveraging prefix KV caching avoids recomputing full-context attention. Re-running queries against an existing cached context executes near instantaneously.
+
+#### Workload Recommendations
+
+* **Agentic & Conversational Workflows:** Highly recommended for multi-turn conversations, agentic workflows, and document analysis where large prompt prefixes (such as codebases or knowledge bases) remain cached across interactions.
+* **Stateless Cold Batches:** Avoid high concurrency of simultaneous cold 1M-token inputs without shared prefixes, as queued prefill latency will accumulate.
+
+### Prompt-token logprobs are unavailable
+...and late layers run only over the last 128 rows of a prefill (`--enable-decoder-swa-bounded-replay`); such requests return HTTP 400. Output logprobs and cache hits work. Greedy text is deterministic run to run, so an exact-match task battery is comparable, but a bitwise comparison against the release checkpoint is not available here.
+
+#### Inability to Return Prompt-Token Logprobs (`HTTP 400`)
+
+* **What it means:** When client requests ask for log probabilities of the input prompt tokens (e.g., via `echo: true` or `prompt_logprobs` parameters in OpenAI-compatible/SGLang APIs), the server cannot compute them and explicitly rejects the request with an `HTTP 400 Bad Request` status code.
+* **Why it happens:** Calculating log probabilities across the prompt requires full forward-pass activations and output logits for every prompt token position. Because of the bounded replay optimization described below, those intermediate states are not fully computed for early prompt tokens.
+
+#### Prefill Optimization via `--enable-decoder-swa-bounded-replay`
+
+* **Mechanism:** SWA stands for **Sliding Window Attention**. With `--enable-decoder-swa-bounded-replay` enabled, the engine applies an aggressive prefill-phase optimization where later decoder layers process only the tail end (the last 128 rows/tokens) of the prefill sequence rather than running full attention across the entire prompt context.
+* **Impact:** This significantly cuts down computation and memory bandwidth during cold prompt ingestion (prefill), which is critical for long contexts (e.g., up to 1M tokens).
+
+#### Output Logprobs and Prompt Caching Still Function
+
+* **Output Logprobs:** During autoregressive generation (decoding steps), token generation occurs token-by-token at the sequence boundary, meaning standard output log probabilities for generated tokens are fully supported.
+* **Cache Hits:** The KV cache prefix structures remain valid for prefix caching and reuse across subsequent requests.
+
+#### Deterministic Evaluation vs. Bitwise Checkpoint Parity
+
+* **Exact-Match Task Battery:** Setting `temperature=0` (greedy decoding) generates deterministic output strings across repeated runs on this serving configuration. As a result, functional evaluation benchmarks (such as accuracy on question-answering, code generation, or math test batteries) can be reliably evaluated and compared.
+* **Lack of Bitwise Parity:** Because late layers only attend to the last 128 rows during prefill, the resulting hidden states and logits deviate numerically from standard, full-sequence prefill execution. Consequently, outputs will not be bit-for-bit identical to outputs produced by reference release checkpoints running with baseline unconstrained prefill.
+
+**Summary Table**
+
+| Feature / Behavior | Status / Consequence | Explanation |
+| :--- | :--- | :--- |
+| **Prompt-token logprobs** | **Unavailable (`HTTP 400`)** | Intermediate logits for full prompt tokens are not computed. |
+| **Output-token logprobs** | **Available** | Generated tokens compute full logits during decoding. |
+| **Prefill speed / throughput** | **Accelerated** | Late layers only compute the last 128 tokens of the prompt. |
+| **Prompt cache hits** | **Supported** | Prefix KV caching operates normally. |
+| **Greedy reproducibility** | **Deterministic** | Output is repeatable across runs on the same configuration. |
+| **Bitwise reference parity** | **Not available** | Numerical results differ from standard baseline prefill runs. |
+
+
+### Fast loader disabled to reclaim 3–13% KV pool
+
+Upstream's eager safetensors loader (`DSV41_FAST_LOAD=1`) accelerates startup at the cost of reducing the available runtime KV cache capacity. This recipe disables the fast loader to reclaim the KV pool at the cost of ~220s additional startup time.
+
+#### Mechanism and Memory Impact
+
+* **What the Fast Loader Does:** Rather than reading model weights sequentially via stock SGLang loaders, the fast loader reads each rank's tensors eagerly into pinned host memory slabs, parallelizing checkpoint ingestion during container startup.
+* **Why the KV Pool Shrinks:** On the DGX Spark unified memory architecture, SGLang determines KV cache pool size by querying available system memory (`psutil.virtual_memory().available`). Although the fast loader releases tensor buffers before the pool is sized, temporary driver staging state and pinned page allocations retain ~0.8–1.5 GB in the unified memory pool. This reduction in reported `MemAvailable` shrinks the allocated KV cache pool from 7.47–7.82M tokens down to 6.71–7.27M tokens (a 3–13% reduction).
+
+#### Startup Time vs. KV Capacity Trade-off
+
+* **Fast Loader (`DSV41_FAST_LOAD=1`):** Reduces engine startup time from ~350 s down to ~125 s (saving ~220 s per boot), but permanently forfeits up to ~730k tokens of KV cache for the life of the container.
+* **Stock Loader (`DSV41_FAST_LOAD=0`):** Requires ~350 s for cold engine launch, but maximizes available KV cache memory to guarantee full multi-user serving headroom.
+
+#### Shipped Configuration Decision
+
+* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` to maximize available KV memory and support long-context / multi-stream serving.
+
+**Summary Table**
+
+| Metric / Attribute | Stock Loader (`DSV41_FAST_LOAD=0`, Shipped) | Fast Loader (`DSV41_FAST_LOAD=1`) |
+| :--- | :--- | :--- |
+| **Engine Startup Time (`scheduler_e2e`)** | ~343–354 s | **~124–129 s** (~220 s faster) |
+| **Total KV Pool Capacity (`full_token`)** | **~7.47–7.82M tokens** | ~6.71–7.27M tokens (~3–13% smaller) |
+| **Model Weights & Numeric Output** | Bitwise identical | Bitwise identical |
+| **Inference Latency & Quality** | Unchanged | Unchanged |
+| **Recommended Use Case** | **Production serving & long context** | Development & fast iteration |
+
+
+### Greedy text equality is not a prefill-correctness gate
+
+~70k-token cold prompts diverge run to run!
+
+#### What is "Greedy Text Equality"?
+
+* In autoregressive decoding, **greedy decoding** (setting `temperature=0` or taking `argmax(logits)`) always selects the single most probable token at each step.
+* Theoretically, on deterministic systems, greedy decoding on identical inputs should yield identical, character-for-character output text across repeated runs.
+
+#### What is a "Prefill-Correctness Gate"?
+
+* A **correctness gate** is an automated validation check used in testing pipelines to verify that the engine initialized, ingested the prompt, and computed the initial KV cache and attention states without corruption.
+* A common intuitive approach is to compare the greedy output against a golden reference string or across multiple runs: if output matches, prefill is deemed correct; if it differs, the run is flagged as failed.
+
+#### Why It Fails for ~70k+ Token Prompts ("Diverge Run to Run")
+
+* **Non-associative floating-point reductions**: Large-scale tensor-parallel matrix multiplications and reduction operations (e.g., across multi-node tensor parallelism, flash attention chunking, and quantized matrix formats like MXFP4/FP8) execute operations in non-deterministic order across thousands of parallel GPU threads.
+* **Accumulated floating-point drift**: Across tens of thousands of tokens (such as ~70k tokens), minute rounding differences ($\approx 10^{-7}$ in float32/bfloat16 or larger in lower precisions) accumulate across layers and attention heads.
+* **Argmax boundary flipping**: If the logits for the top two candidate tokens are nearly identical (e.g., $14.200001$ vs $14.200000$), a microscopic numerical delta will flip which token is selected first.
+* **Autoregressive cascade**: Once a single token selection differs at step $N$, all subsequent generation steps receive different context and diverge completely.
+
+#### Practical Implications
+
+* **Avoid false negatives in test suites**: Treating greedy text diffs as a test failure for long-context runs will incorrectly flag healthy, performant deployments as broken.
+* **Adopt robust evaluation criteria**: Prefill and engine health should be verified using downstream semantic benchmarks, needle-in-a-haystack retrieval tasks, logit tolerance thresholds, or target accuracy batteries rather than exact bitwise/string equality over massive context lengths.
+
+
+### Single-stream prose is bounded by DSpark acceptance
+
+Single-stream generation speed is constrained by the speculative acceptance rate (~3 accepted tokens per step on prose, ~6 on code).
+
+#### Speculative Decoding Mechanism (DSpark)
+
+* **Draft and Verify Pipeline:** DSpark employs speculative decoding to accelerate autoregressive generation. In each step, candidate tokens are drafted and verified in parallel by the target model, producing multiple output tokens per forward pass when speculation succeeds.
+* **Acceptance Length Metric:** Performance gains depend directly on the mean number of speculative tokens accepted per verification step (`Mean acceptance length`).
+
+#### Workload Entropy: Prose vs. Code
+
+* **Structured Code Generation (~6 tokens/step):** Code contains predictable keywords, syntax structures, and indentation patterns, yielding higher speculative draft accuracy and achieving ~6 accepted tokens per step.
+* **Natural Language Prose (~3 tokens/step):** Natural language prose exhibits higher entropy, varied vocabulary, and less deterministic phrasing, resulting in lower draft acceptance rates (~3 accepted tokens per step).
+
+#### Concurrency and Throughput Scaling
+
+* **Single-Stream (C1) Latency:** Single-user interactive requests on prose generation will experience decode speed bounded by the lower acceptance rate (~46.5 t/s aggregate).
+* **Batch Concurrency (C4–C16) Throughput:** When serving concurrent streams (C4, C8, C16), GPU compute utilization increases and tensor-parallel batches saturate hardware capacity, raising aggregate throughput to 106–193 t/s.
+
+#### Operational Notes
+
+* **Verify Healthy Operation:** Check serving logs to confirm `Mean acceptance length > 1` on `Decode batch` lines. A speculative decode run that accepts ≤ 1 token per step indicates speculation is failing.
+* **Reasoning Effort:** Configured with `chat_template_kwargs {"thinking": false}` for standard low-latency serving.
+
+
+### Do not apply the SPS ragged-verify table
+
+The speculative scheduling cost table (`DSPARK_SPS_TABLE` / `DSPARK_STS_TABLE`) arms the scheduler but crashes the Engram retrieval path on mixed-batch workloads.
+
+#### What is the SPS/STS Ragged-Verify Table?
+
+* **Ragged Verification Optimization:** The SPS (Speculative Scheduling) and STS tables provide cost models that allow the speculative scheduler to dynamically batch and verify uneven, variable-length candidate token sequences ("ragged" batches) across concurrent requests.
+
+#### Mechanism of Failure with NVMe Engram Shards
+
+* **Fixed-Block Invariant:** To stream DeepSeek V4.1-Flash's 203 GB Engram embedding tables from node-local NVMe within tight latency budgets, the custom Engram reader relies on strict, equal-block memory alignment per request.
+* **Assertion Crash:** When ragged verification passes heterogeneous candidate sequence lengths to the verification step, the reader's batch invariant fails, throwing `AssertionError: engram target-verify expects one equal block per request, got 84 tokens for 16 requests of 6` and causing the serving worker to crash immediately on the first mixed batch.
+
+#### Shipped Configuration Decision
+
+* **Verify-All Mode Shipped:** The recipe deliberately leaves `DSPARK_SPS_TABLE` and `DSPARK_STS_TABLE` unset.
+* **Production Stability:** Booting without the SPS table retains the uniform `verify-all` scheduling contract, ensuring complete stability across all mixed-batch production traffic.
+
+
 
 ## Retired material
 

@@ -85,6 +85,12 @@ HF_HUB = "/cache/huggingface/hub"
 # SPARK_PREFILL_TP_MIN_CONTEXT(32768), SPARK_PREFILL_TP_MIN_ROWS(1024),
 # DSV41_FAST_LOAD_TP_SLICE(auto), DSV41_FAST_LOAD_INFLIGHT_GB(6).
 #
+# The ONE deliberate exception to that rule is DSV41_FAST_LOAD("0") below: it is
+# also the runtime default, but it is stated to record a decision, not a no-op --
+# upstream ships it on, and "0" is the production choice here. Do not "clean it
+# up" as redundant. (Its N_EXPERTS companion is gone: it only served the fast
+# path and defaults from config.json's n_routed_experts when unset.)
+#
 # NCCL_NET / NCCL_IB_HCA / NCCL_IB_GID_INDEX / NCCL_IB_DISABLE / NCCL_CROSS_NIC
 # and B12X_ROCE_HCA are also absent on purpose: sparkrun's InfiniBand probe fills
 # them per cluster, and b12x falls back to the detected NCCL_IB_HCA. Naming a
@@ -128,8 +134,17 @@ RECIPE_ENV: dict[str, str] = {
     "SGLANG_DSPARK_FOLDED_SAMPLING": "2",
     "SGLANG_RUST_BUILD_MODE": "never",
     "SPARK_PREFILL_TP_SPLIT": "1",
-    "DSV41_FAST_LOAD": "1",
-    "DSV41_FAST_LOAD_N_EXPERTS": "384",
+    # Fast weight loading is OFF BY CHOICE. adapter/fast_load.py cuts engine
+    # start from 343 s to ~124 s, but SGLang sizes the KV pool from the head's
+    # MemAvailable right after the loads and the eager pinned reads leave
+    # 0.8-1.5 GB less of it visible then, so the pool comes out 3-13 % smaller
+    # (upstream's EP2 measurement; see recipes/ds4/AGENTS.md 7.1 and
+    # docs/fast-load.md in the image's source). We prefer the pool and pay
+    # ~220 s per boot. The image does not set this var, so "0" is the stock
+    # loader; it is explicit to record the decision, and "1" is the rollback.
+    # Evidence labels: the 3-13 % and the 343 s -> 124 s are upstream's
+    # (VERIFIED in its docs); the EP1 delta on this lane is UNMEASURED.
+    "DSV41_FAST_LOAD": "0",
     "DSV41_SHARED_PAD_K": "1",
     "DSV41_WO_A_W8": "1",
     "DSV41_WO_A_W8_MID": "1",
