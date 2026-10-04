@@ -153,23 +153,25 @@ so the filename is the only place the recipe is written down. Omit `--json` and
 the run is identical — you just lose the artifact and keep only the stdout
 report.
 
-**`--verbose`** prints live progress to **stderr**, so you can watch a run that
-otherwise sits silent for minutes on a deep prefill. It narrates the endpoint and
-resolved model, the server's `max_model_len`, the calibration outcome, the depth
-list, and then per depth an `attempt N … ~T tokens to send` line before the
-request and a `PASS/FAIL/TRUNCATED (hits, prompt_tokens, latency)` line after it.
-It is stdout-clean by design — the report and the `--json` redirection stay
-parseable — so `python3 tools/needle-haystack.py … --verbose > report.txt
-2> progress.log` separates them, and `--json` on stdout is never polluted by
-progress:
+**`--verbose`** prints live, **timestamped** progress to **stderr**, so you can
+watch a run that otherwise sits silent for minutes on a deep prefill. Each line
+starts with a local-time `[YYYY-MM-DD HH:MM:SS]` stamp (self-contained, no OS
+locale), so a transcript can be correlated with the server log afterwards. It
+narrates the endpoint and resolved model, the server's `max_model_len`, the
+calibration outcome, the depth list, and then per depth an `attempt N … ~T tokens
+to send` line before the request and a `PASS/FAIL/TRUNCATED (hits, prompt_tokens,
+latency)` line after it. It is stdout-clean by design — the report and the
+`--json` redirection stay parseable — so `python3 tools/needle-haystack.py …
+--verbose > report.txt 2> progress.log` separates them, and `--json` on stdout is
+never polluted by progress:
 
 ```
-[nh] endpoint http://10.0.4.30:8000, model deepseek-ai/DeepSeek-V4.1-Flash
-[nh] server max_model_len: 1048576
-[nh] calibration: calibrated from one probe request; using 4.0374 chars/token
-[nh] depths: [10, 50, 90]  (3 prefill(s))
-[nh] depth 10%: attempt 1, 132273 chars, ~32768 tokens to send (ratio 4.0374 chars/token)
-[nh] depth 10%: PASS (1/1 needles, prompt_tokens 33031, 8.41s)
+[2026-10-03 20:04:44] [nh] endpoint http://10.0.4.30:8000, model deepseek-ai/DeepSeek-V4.1-Flash
+[2026-10-03 20:04:44] [nh] server max_model_len: 1048576
+[2026-10-03 20:04:46] [nh] calibration: largest two probes agreed; sweep stopped early [~65536→75283tok; ~32768→37481tok]; using 4.0065 chars/token
+[2026-10-03 20:04:46] [nh] depths: [100]  (1 prefill(s))
+[2026-10-03 20:04:46] [nh] depth 100%: attempt 1, 4120189 chars, ~1027605 tokens to send (ratio 4.0065 chars/token)
+[2026-10-03 20:10:59] [nh] depth 100%: PASS (1/1 needles, prompt_tokens 1026494, 373.22s)
 ```
 
 As a library, pass `verbose=True` to `run_needle_test(...)` for the same stream.
@@ -197,9 +199,18 @@ load-bearing, and the tool got both wrong in its first cut (`VERIFIED`
   than the server advertises**, leaving a 2 % headroom. Filling exactly the
   window is not possible — a request for 1,048,576 tokens always arrives a little
   over and is rejected — so the deepest depth serves ~1.03–1.07M tokens.
-- It **measures** chars-per-token with one small probe request
-  (`--chars-per-token N` overrides it). The naive ~4.6-char estimate overshoots
-  this fleet's tokenizer (~4.04) by ~15 %.
+- It **measures** chars-per-token with a **size sweep** (`--chars-per-token N`
+  overrides it). The naive ~4.6-char estimate overshoots this fleet's tokenizer
+  by ~15 %; more subtly, *each probe size builds a different haystack*, so the
+  measured ratio carries a content variance that shrinks with size (measured on
+  this fleet against the 1M truth of 4.0139: ~0.65 % spread at 8k, ~0.31 % at
+  65k, ~0.09 % at 128k). The sweep (`65536, 32768, 8192`) probes largest-first
+  and takes the ratio from the **largest usable probe**, which reads within
+  ~0.06 % of truth — a few hundred tokens at a 1M target, well inside the 2 %
+  headroom. 128k was tried and dropped: its extra precision cannot change the
+  outcome and costs ~15 s more prefill. Smaller sizes are fallbacks for
+  narrow-window servers, and probe targets are kept well below the window (the
+  build overshoots its target by ~15 %), so a probe is never a request that 400s.
 
 The first cut's failure mode was quiet until you watched the server logs: on a
 too-long error it shrank the *chars-per-token ratio* and rebuilt an equally-long
@@ -229,13 +240,15 @@ Measured (`VERIFIED 2026-10-03`, `http://10.0.4.30:8000`,
 | window | depths run | result |
 |---|---|---|
 | 32k | 10 / 50 / 90% | 3/3 retrieved (prompt_tokens ~37.5k, pre-calibration) |
-| 64k | 10 / 50 / 90% | 3/3 retrieved (calibrated 4.037 chars/token, prompt_tokens ~66.0k) |
-| 1M | 100% | 1/1 retrieved (prompt_tokens 1,006,665, 362 s) — *pre-fix: overwindow, 400* |
-| **1M** | **100%** | **1/1 retrieved — prompt_tokens 1,034,340, 379 s, no rejection** |
+| 64k | 10 / 50 / 90% | 3/3 retrieved (single 8k probe, 4.037 chars/token, ~66.0k) |
+| 1M | 100% | 1/1 retrieved (single 8k probe, prompt_tokens 1,006,665, 362 s) — *over target* |
+| 1M | 100% | 1/1 retrieved (single-probe fix, prompt_tokens 1,034,340, 379 s) |
+| **1M** | **100%** | **1/1 — sweep ratio 4.0173, prompt_tokens 1,029,226 (target 1,027,605, +0.16 %), 377 s** |
 
 The 1M rows are the edge case that matters: 100 % depth is the deepest a prompt
-can sit, and it is what exposed the overshoot. The final row is the tool run
-exactly as the objective describes it (`--context-length 1048576` against the
-live 1M endpoint) and it lands *inside* `max_model_len` and retrieves correctly.
-A full 1M ladder (all ten depths) is ~10 cold prefills of up to ~20 min each and
-is left to the operator; the tool exists so that run is reproducible.
+can sit, and it is what exposed the overshoot. The sizing improved across the three
+fixes — the single 8k probe predicted a 1,036,572-token prompt for a 1,027,605
+target (+0.87 %, a rejection), the sweep predicts 1,020,107 (+0.16 % at the server,
+comfortably inside `max_model_len`). A full 1M ladder (all ten depths) is ~10 cold
+prefills of up to ~20 min each and is left to the operator; the tool exists so
+that run is reproducible.

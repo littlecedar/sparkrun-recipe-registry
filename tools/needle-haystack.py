@@ -36,11 +36,13 @@ things a 200 cannot tell you:
   scoring bug is visible rather than trusted.
 
 The haystack is sized by reading the served `max_model_len` from `/v1/models`
-and measuring the endpoint's real chars-per-token with one small probe request
-(see `calibrate()`); the naive 4.6-char estimate overshoots this fleet's
-tokenizer by ~15%, and the window is never filled exactly -- a 1,048,576-token
-request always arrives a little over and is rejected, so the tool targets
-`max_model_len` minus a small headroom.
+and measuring the endpoint's chars-per-token across a small size sweep (see
+`calibrate()`).  A single small probe is biased -- chars/token drifts with prompt
+size -- and even the ~4.6 estimate overshoots this fleet's tokenizer by ~15%, so
+the tool probes several sizes, largest-first, and uses the largest usable one.
+The window is never filled exactly: a 1,048,576-token request always arrives a
+little over and is rejected, so the tool targets `max_model_len` minus a small
+headroom.
 
 Stdlib only, on purpose.  This has to run on a head node, inside a container,
 and on a laptop with no venv.  The only way a target gets here is
@@ -105,15 +107,20 @@ VERSION = "0.1"
 
 
 def _vlog(verbose: bool, msg: str) -> None:
-    """Progress line for ``--verbose``.
+    """Progress line for ``--verbose``, timestamped.
 
     Goes to **stderr** and is flushed, for two reasons: the report and the
     ``--json`` artifact are on stdout and must stay clean and parseable, and a
     1M-token prefill runs for minutes, so a line buffered until exit would tell
     the user nothing while they wait -- which is exactly when they want it.
+
+    The timestamp is local time to the second and self-contained (a fixed
+    offset, no OS locale), matching the convention the log parsers in this repo
+    expect rather than a bare relative offset.
     """
     if verbose:
-        print(f"[nh] {msg}", file=sys.stderr, flush=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"[{ts}] [nh] {msg}", file=sys.stderr, flush=True)
 
 #: Fraction of the requested context that the server must actually report for a
 #: request to count as having reached the window.  Below this, the prompt was
@@ -133,9 +140,31 @@ DEFAULT_DEPTHS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 #: (calibrate(), below) instead of trusting this value.
 DEFAULT_CHARS_PER_TOKEN = 4.6
 
-#: Token target for the one-shot calibration probe.  Large enough to be
-#: representative of the real prompt's tokenization, small enough to be cheap.
-CALIBRATION_TOKENS = 8192
+#: Token targets for the calibration sweep, largest first.  A *single* small
+#: probe is noisy: each probe size builds a different haystack, so the measured
+#: chars/token has a content spread that shrinks with size -- measured on this
+#: fleet, ~0.65% at 8k, ~0.31% at 65k, ~0.09% at 128k -- against a true value of
+#: ~4.014 (1M).  65k reads within ~0.055% of truth, which at a 1M target is a few
+#: hundred tokens against a 2% (~20k) headroom, so 128k buys precision that
+#: cannot change the outcome and costs ~15 s more prefill.  The smaller sizes are
+#: fallbacks for narrow-window servers, where a large probe would itself 400.
+CALIBRATION_TOKENS = (65536, 32768, 8192)
+
+#: Stop sweeping once the two largest usable ratios agree this closely (the
+#: remaining sizes are unlikely to move it).
+CALIBRATION_AGREE_FRACTION = 0.01
+
+#: A probe is built from the *estimate* (chars_per_token may be up to ~4.6),
+#: so its real token count overshoots its target by est/true (~15%).  A probe
+#: target must therefore stay this far below the window, or the probe itself is
+#: the request that fills (and 400s on) the window -- the waste this whole
+#: mechanism exists to avoid.
+PROBE_SAFETY = 1.4
+
+#: A sweep probe's reported tokens must be within this band of its target to be
+#: trusted -- a truncated probe (a small server asked for 64k) would otherwise
+#: derive a nonsensical ratio and build an even larger prompt.
+CALIBRATION_BAND = 0.30
 
 #: Character budget reserved for the wrapper (system prompt, question, tags) when
 #: pacing a prompt by a *measured* token count, so the final prompt lands a hair
@@ -480,35 +509,89 @@ def calibrate(
     timeout: int,
     chars_per_token: float,
     extra_body: dict | None = None,
+    targets: tuple[int, ...] = CALIBRATION_TOKENS,
+    agree_fraction: float = CALIBRATION_AGREE_FRACTION,
+    max_model_len: int | None = None,
 ) -> tuple[float, dict]:
-    """Measure the server's real chars-per-token once, cheaply.
+    """Measure the server's chars-per-token from a size sweep.
 
-    The default estimate (4.6) overshoots this fleet's tokenizer (~4.0) by ~15%,
-    which at a 1M target exceeds max_model_len.  One small probe fixes the ratio.
-    Returns ``(chars_per_token, record)``; on any error or an implausible result
-    the input value is returned unchanged, and the record says so.
+    chars/token is not perfectly constant: on this fleet it read 4.037 at an 8k
+    prompt, 4.006 at 64k, and ~4.01 at 1M.  A single small probe therefore
+    biases the ratio and sizes the deep prompt ~0.7% too long -- one wasted
+    multi-minute prefill ending in a 400.  This sweeps several sizes, largest
+    first, and returns the ratio from the **largest usable probe** (nearest the
+    scale that matters) rather than extrapolating a fit, which on real data
+    produced an unphysical negative overhead.  Smaller probes are fallbacks if a
+    larger one is rejected or out of band, and their spread is recorded.
+
+    Probes larger than ``max_model_len`` (minus headroom) are skipped so a probe
+    is never itself the request that overfills the window.  Sizes stop early
+    once the two largest usable ratios agree, and the result is sanity-bounded
+    against the single-probe ratio.  Returns ``(ratio, record)``; on any failure
+    the input value is returned unchanged and the record says why.
     """
-    rec: dict = {"probe_tokens": None, "estimated_tokens": None, "chars_per_token": chars_per_token}
-    try:
-        prompt, _q, _n = build_prompt(CALIBRATION_TOKENS, 50, 1, 20261003, chars_per_token)
-        _reply, usage, _elapsed = ask(endpoint, model, prompt, 8, timeout, api_key, extra_body)
-        pt = usage.get("prompt_tokens")
+    rec: dict = {
+        "method": "sweep",
+        "requested_targets": list(targets),
+        "probes": [],
+        "chars_per_token": chars_per_token,
+    }
+    cap = None
+    if max_model_len:
+        cap = max_model_len - max(1024, int(max_model_len * HEADROOM_FRACTION))
+    safe_cap = None if cap is None else cap / PROBE_SAFETY
+    usable_targets = [t for t in targets if safe_cap is None or t <= safe_cap]
+    if not usable_targets:
+        usable_targets = [min(targets)]
+    rec["targets"] = usable_targets
+
+    good: list[tuple[int, int]] = []          # (chars, tokens), largest first
+    for target in usable_targets:
+        try:
+            prompt, _q, _n = build_prompt(target, 50, 1, 20261003, chars_per_token)
+            _reply, usage, _elapsed = ask(endpoint, model, prompt, 8, timeout,
+                                          api_key, extra_body)
+            pt = usage.get("prompt_tokens")
+        except Exception as e:
+            rec["probes"].append({"target": target, "error": f"{type(e).__name__}: {e}"})
+            continue
+        entry = {"target": target, "chars": len(prompt), "tokens": pt}
         if not pt:
-            rec["note"] = "probe returned no usage.prompt_tokens; keeping estimate"
-            return chars_per_token, rec
-        rec["probe_tokens"] = pt
-        rec["estimated_tokens"] = int(len(prompt) / chars_per_token)
-        if abs(pt - CALIBRATION_TOKENS) > CALIBRATION_TOKENS * CALIBRATION_BAND:
-            rec["note"] = (f"probe reported {pt} tokens for a ~{CALIBRATION_TOKENS} target; "
-                           "outside the trusted band, keeping estimate")
-            return chars_per_token, rec
-        measured = len(prompt) / pt
-        rec["chars_per_token"] = round(measured, 4)
-        rec["note"] = "calibrated from one probe request"
-        return measured, rec
-    except Exception as e:
-        rec["note"] = f"calibration failed ({type(e).__name__}); keeping estimate"
+            entry["note"] = "no usage.prompt_tokens"
+            rec["probes"].append(entry)
+            continue
+        if abs(pt - target) > target * CALIBRATION_BAND:
+            entry["note"] = (f"reported {pt} tokens for a ~{target} target; "
+                             "outside the trusted band, dropped")
+            rec["probes"].append(entry)
+            continue
+        entry["ratio"] = round(len(prompt) / pt, 4)
+        rec["probes"].append(entry)
+        good.append((len(prompt), pt))
+        if len(good) >= 2:
+            c_new, t_new = good[-1]
+            c_prev, t_prev = good[-2]
+            if t_new and t_prev:
+                r_new = c_new / t_new
+                r_prev = c_prev / t_prev
+                if abs(r_new - r_prev) <= max(r_prev, 1e-9) * agree_fraction:
+                    rec["note"] = "largest two probes agreed; sweep stopped early"
+                    break
+
+    if not good:
+        rec["note"] = ("no probe produced a usable token count; keeping the "
+                       f"{chars_per_token} estimate")
         return chars_per_token, rec
+
+    c, t = good[0]                            # largest usable probe
+    ratio = c / t
+    rec["basis"] = f"largest usable probe (~{rec['targets'][0]} target, {t} tokens)"
+    if len(good) >= 2:
+        r_small = good[-1][0] / good[-1][1]
+        rec["spread"] = round(ratio - r_small, 4)
+    rec.setdefault("note", "swept largest-first; ratio from the largest usable probe")
+    rec["chars_per_token"] = round(ratio, 4)
+    return ratio, rec
 
 
 # ---------------------------------------------------------------------------
@@ -687,9 +770,14 @@ def run_ladder(cfg: dict) -> dict:
     if cpt is None:
         cpt, calibration = calibrate(
             cfg["endpoint"], model, cfg.get("api_key"), cfg.get("timeout", 3600),
-            DEFAULT_CHARS_PER_TOKEN, cfg.get("extra_body"),
+            DEFAULT_CHARS_PER_TOKEN, cfg.get("extra_body"), max_model_len=window,
+        )
+        probes = "; ".join(
+            f"~{p.get('target')}→{p.get('tokens')}tok"
+            for p in calibration.get("probes", []) if p.get("tokens")
         )
         _vlog(verbose, f"calibration: {calibration.get('note')}"
+                       + (f" [{probes}]" if probes else "")
                        + (f"; using {cpt:.4f} chars/token" if cpt else ""))
     _vlog(verbose, f"depths: {cfg['depths']}  ({len(cfg['depths'])} prefill(s))")
     depths = []
