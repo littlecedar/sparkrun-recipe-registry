@@ -12,10 +12,6 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 |:---------------------------------------|:-------|-------:|------:|-----:|---:|:------------------------------------------------------------|
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
 
-The DeepSeek V4.1-Flash vLLM / EXL3 recipes (`deepseek-v4.1-flash-exl3-*`) are
-retired and archived under [`attic/ds4/`](../attic/ds4/); see
-[`recipes/ds4/README.md`](ds4/README.md).
-
 ## Ornith 1.5
 
 | Recipe                                      | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                                                |
