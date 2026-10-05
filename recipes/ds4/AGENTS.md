@@ -434,7 +434,7 @@ rendered line and the boot log.
 
 ---
 
-## 12. TensorFold TP=2 lane (`deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml`)
+## 12. TensorFold TP=2 lane (`deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`)
 
 A second, independent lane in this directory: DeepSeek-V4.1-Flash on **two**
 GB10 nodes, served by the TensorFold `deepseek_v41` engine over the Mia-AiLab

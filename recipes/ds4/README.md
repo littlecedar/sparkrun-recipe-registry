@@ -283,7 +283,7 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 
 | | |
 |:--|:--|
-| Recipe | `deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml` |
+| Recipe | `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
 | Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
 | Engram | Official DeepSeek shards **47/48** (~95 GB each), distributed out-of-band |

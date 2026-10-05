@@ -12,7 +12,7 @@ NOT a workload node). Restricted: .30/.31/.32/.33.
 | Recon all 3 sources | DONE | NOTES "Source facts"; §12.14 refs |
 | Dockerfile for the engine | DONE | `recipes/ds4/Dockerfile.tensorfold-dsv41` |
 | Image built + pushed | DONE | digest below, on .30/.34/.35 |
-| Recipe (house ds4 naming) | DONE | `deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml` |
+| Recipe (house ds4 naming) | DONE | `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | README brief | DONE | README.md "TensorFold TP=2 lane" |
 | AGENTS docs | DONE | AGENTS.md §12 (13 subsections) |
 | Guard test | DONE | `tests/test_ds4_recipes.py::TensorfoldLaneContract` (21 tests, incl. negative controls) |
