@@ -1,0 +1,52 @@
+recipe_version: '2'
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 2
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - MXFP8 attention/GDN + FP8 PLE, lower weight bytes/token
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: 180B
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+  tags: lcg_favorite, fast
+  caveats: 'Checkpoint is more aggressively quantized than the RadixArk export in exactly the attention/GDN and PLE-n-gram paths. No accuracy evaluation exists on this cluster for this export; benchmark wins here are NOT evidence of equal quality. Run an eval before adopting for anything user-facing. Revision note, corrected 2026-09-18: the HF repo''s `main` branch was pointing at a weights-free 45 MB snapshot during the 2026-09-17 session. It now points at the populated snapshot `7c4f1bc1a2d6...` (99 GB, 36 shards, VERIFIED via the HF API and against the local cache), so `revision:` below pins that value explicitly. Re-check before any re-pull: an unpinned pull of this repo has already silently changed contents once.
+
+    '
+mods:
+- '@eugr/mods/drop-caches'
+- mods/fix-labquant-modelopt-mixed-flat-schema
+- mods/unpack-labquant-ple-nvfp4-to-fp8
+- mods/diag-qwen4-unplaced-scales
+- mods/fix-labquant-mxfp8-weight-scale-name
+- mods/demote-labquant-narrow-mxfp8-to-bf16
+- mods/skip-labquant-vision-tower
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+  max_num_seqs: 24
+  kv_dtype: bf16
+  quantization: modelopt_mixed
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  max_mamba_cache_size: 112
+  load_format: safetensors
+  served_model_dir: /cache/runtime/labq-patched
+  speculative_algorithm: NEXTN
+  speculative_attention_mode: decode
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  extra_args: --moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled
+command: 'taskset -c 5-9,15-19 sglang serve --model-path {served_model_dir} --mem-fraction-static {gpu_memory_utilization} --host {host} --port {port} --tp {tensor_parallel} --max-running-requests {max_num_seqs} --quantization {quantization} --fp4-gemm-backend {fp4_gemm_backend} --page-size {page_size} --chunked-prefill-size {chunked_prefill_size} --context-length {max_model_len} --kv-cache-dtype {kv_dtype} --mamba-radix-cache-strategy {mamba_radix_cache_strategy} --mamba-ssm-dtype {mamba_ssm_dtype} --max-mamba-cache-size {max_mamba_cache_size} --load-format {load_format} --reasoning-parser auto --tool-call-parser auto --speculative-attention-mode {speculative_attention_mode}  --speculative-algorithm {speculative_algorithm} --speculative-num-steps {speculative_num_steps} --speculative-eagle-topk {speculative_eagle_topk} --speculative-num-draft-tokens {speculative_num_draft_tokens} --no-ple-offload-embedding {extra_args}
+
+  '
