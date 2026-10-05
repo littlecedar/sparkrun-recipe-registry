@@ -10,3 +10,5 @@
 **/*-WORK.md
 **/*-WORK-ARCHIVE.md
 /.logs/
+**/__pycache__
+**/*.pyc
