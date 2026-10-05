@@ -3,7 +3,7 @@
 llama-benchy profiles used by `sparkrun benchmark performance <recipe> --profile <this dir>/<name>.yaml`.
 
 **This directory is the curated library, not the archive.** It holds the profiles that are tracked,
-named below, or cited by a recipe/tool/test. The **78 single-use experiment arms** from the finished
+named below, or cited by a recipe/tool/test. The **82 single-use experiment arms** from the finished
 qwen4 and qwen3 optimization campaigns now live in [`../attic/benchmarking/`](../attic/benchmarking/)
 with a per-profile rationale in [`../attic/benchmarking/ARMS-MANIFEST.md`](../attic/benchmarking/ARMS-MANIFEST.md).
 If a `bench_*` id cites a profile that is not here, look there.
@@ -121,10 +121,15 @@ the real loader requirement — when in fact only `bs-sweep-high.yaml` had that 
 | `pp-crossed-identifiability` | 4096/8192 | 2,4,8 | 3 | RUN | Crosses `pp` with `c` to break the `B = c·depth` / `P = c·(depth+pp)` collinearity. Its own selftest found the additive form is the wrong model. |
 | `pp-slope` | 1024/4096 | 8 | 3 | RUN | Single-variable prompt-length sweep: the cleanest measurement of decode step time vs resident tokens. |
 | `depth-slope-decode-metric` | 1024→16384 | 4 | 3 | RUN | Depth sweep scored on the server's OWN `gen throughput` rather than the harness's, removing prefill contamination. |
-| `pp-sweep-c4c8` | 1024/8192 | 4,8 | 3 | **NOT RUN** | Vary `pp` at fixed `c` and `depth`. Superseded in practice by `pp-slope` and `pp-vs-depth-acceptance`. |
-| `a2-depth-gap-c8` | 1024/8192 | 8 | 7 | **NOT RUN** | Is the ~20 % per-stream depth cost at c=8 real or noise? Closed by other means, so this remains unexecuted. |
-| `kv-residency-dissociation` | 4096→26624 | 8,24 | 7 | **NOT RUN** | Dissociates batch size from KV residency. Its `depth: 26624` cell exceeds any pool here — a design note, not a runnable profile. |
-| `d0-baseline-dissociation` | 0 / 8192 | 8,16 | 5 | **NOT RUN** | `depth = 0` baseline to separate prefill admission from decode cost. |
+
+**Archived 2026-10-04 — the four `NOT RUN` rows of this family.** `pp-sweep-c4c8`,
+`a2-depth-gap-c8`, `kv-residency-dissociation`, and `d0-baseline-dissociation` were moved to
+[`../attic/benchmarking/`](../attic/benchmarking/) with manifest rows. They were never executed, so
+they produced no `bench_*` id; their questions are closed by other means (`pp-sweep-c4c8` superseded by
+`pp-slope` / `pp-vs-depth-acceptance`; `a2-depth-gap-c8` closed by the c=8 depth-cost work;
+`kv-residency-dissociation` carries a `depth: 26624` cell that exceeds any pool here — a design note,
+not a runnable profile; `d0-baseline-dissociation`'s question is subsumed by the depth-cost family).
+Their design intent remains documented in the archived copies and in the qwen3 lane's `§N` sections.
 
 **A `NOT RUN` row is the useful kind.** `Status` is read from whether a `.scratch/` benchlog for the
 profile exists — never from the profile's own description, which states intent and cannot know whether
