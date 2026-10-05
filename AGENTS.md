@@ -81,7 +81,8 @@ Confidential information is kept in `.local/CONFIDENTIAL.md`.  References to con
 │   ├── pip-install-orjson/
 │   └── qwen-honed-chat-template/
 ├── tuning/                    # Pre-computed Triton fused MoE kernel tuning configs
-├── benchmarking/              # Sparkrun benchmarking profiles (e.g. fast-smoke.yaml)
+├── benchmarking/              # Curated Sparkrun benchmarking profiles (e.g. fast-smoke.yaml)
+│                              #   + README.md index; single-use arms are in attic/benchmarking/
 ├── pyproject.toml             # Python project definition and dependencies
 ├── uv.lock                    # Dependency lockfile
 └── AGENTS.md                  # This file
