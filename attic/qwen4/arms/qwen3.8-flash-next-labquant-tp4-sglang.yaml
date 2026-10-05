@@ -1,0 +1,87 @@
+---
+# TP=4 attempt on the labquant checkpoint.
+#
+# WHY THIS EXISTS. The decode model predicts that if per-node bandwidth is the
+# binding constraint, splitting the same byte budget across more devices should
+# raise concurrency-1 decode. RadixArk TP=4 measured worse than TP=2 (30.94 vs
+# 39.3), which either falsifies the model or says the TP=4 configuration was bad.
+# It was: --enable-two-batch-overlap is listed UNSUPPORTED for qwen4 by both
+# sglang docs and eugr, and NEXTN is known to be much slower at TP>2 in eugr.
+# This recipe removes both confounds.
+#
+# STATUS: exploratory. If TP=4 loses even with these settings, the model's
+# "split the bytes" implication is wrong for TP and the 175 GB/s/node figure is
+# the thing to re-measure.
+recipe_version: "2"
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
+
+description: >
+  TP=4 control for the labquant checkpoint, with the two known-bad TP>2 knobs
+  removed: no two-batch overlap, and NEXTN dropped (eugr reports NEXTN much
+  slower than plain at TP>2). Answers whether TP=4 loses because of TP itself or
+  because of those flags.
+
+defaults:
+  quantization: modelopt_mixed
+  mem_fraction_static: 0.80
+  tp_size: "4"
+  pp_size: "1"
+  attention_backend: triton
+  moe_runner_backend: auto
+  model_dtype: bfloat16
+  kv_dtype: bfloat16
+  model_mtp_dtype: fp8
+  chunked_prefill_size: "8192"
+  load_format: safetensors
+  model_path: /cache/runtime/labq-patched
+  mamba_radix_cache_strategy: extra_buffer
+  # NOTE: --language-model-only is NOT usable here. server_args gates it on a
+  # LANGUAGE_MODEL_ONLY_ARCHITECTURES allowlist that excludes this model's
+  # architectures, so it raises ValueError at startup. Visual MXFP8 scales are
+  # handled by the scale-name remap mod instead, which also avoids the confound
+  # that flag would have created (needed by this export, not by RadixArk).
+  extra_args: ""
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "mods/fix-labquant-modelopt-mixed-flat-schema"
+  - "mods/unpack-labquant-ple-nvfp4-to-fp8"
+
+# The previous TP=4 attempt (RadixArk, NEXTN on) reported "Available for KV:
+# 75.8 GB" and was then torn down with readiness reason="port", i.e. it never
+# bound the port inside the 1800 s default. Raising the budget here so that a
+# timeout cannot be the thing that decides this experiment; if it still times
+# out, that is itself the finding. Field names are validated at recipe load
+# (core/readiness.py raises on unknown readiness keys), so a typo fails loudly
+# rather than silently reverting to the default.
+readiness:
+  port_timeout_s: 3600
+  health_timeout_s: 900
+
+container:
+  image: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+  use_sudo: false
+  shm_size: 32g
+
+command: |
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model_path}
+  --tp {tp_size}
+  --pp-size {pp_size}
+  --trust-remote-code
+  --mem-fraction-static {mem_fraction_static}
+  --chunked-prefill-size {chunked_prefill_size}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --dtype {model_dtype}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --load-format {load_format}
+  --reasoning-parser qwen4
+  --tool-call-parser qwen4_coding
+  --chat-template /cache/chat_templates/qwen.jinja
+  --host {host}
+  --port {port}
+  --base-gpu-id {base_gpu_id}
+  {extra_args}
