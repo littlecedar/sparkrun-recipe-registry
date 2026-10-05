@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# TensorFold `deepseek_v41` TP=2 engine for DeepSeek-V4.1-Flash on two NVIDIA DGX
+# Spark (GB10) nodes, vendored for the sparkrun `ds4` lane.
+#
+# Provenance: the `deepseek-v41-tp2` branch of bertholomus/TensorFold (a fork of
+# ashhart/TensorFold v0.6.3, Apache-2.0), pinned at a commit. The model math is a
+# clean-room re-implementation of DeepSeek's MIT inference code; see the fork's
+# tools/dsv41/ATTRIBUTION.md. This Dockerfile only packages the engine; the
+# checkpoint is mounted at run time (never baked).
+#
+# Base image: the DGX Spark SGLang image (arm64). It carries what the engine
+# needs to compile its CUDA extensions at first start and to run them:
+#   * CUDA toolkit 13.0 (nvcc) + ninja, and torch 2.13.0+cu130 + triton 3.7.1
+#   * libibverbs (rdma-core) + headers for the RDMA gather (`<infiniband/verbs.h>`)
+#   * libnccl.so.2 for the prompt-chunk all-gather (`tensorfold/cuda/comm.py`)
+#   * python 3.12 with numpy / safetensors / tokenizers / huggingface-hub / jinja2
+# TensorFold's pyproject.toml declares no CUDA dependency on purpose: it uses the
+# container's own torch and triton. Do not `pip install torch` here.
+#
+# Architecture note: the engine refuses GPUs below compute capability 8.9 and
+# builds only for the local device (`-gencode=arch=compute_121a,code=sm_121a` on
+# GB10), so the image is arm64/GB10-only. It is not portable to x86 hosts.
+
+FROM lmsysorg/sglang:dev-cu13@sha256:aa878e8d38f9eefb1ac5a5176e78448705e166dd1bfaf29d02fb8569cfd28b27
+
+# Pin the engine commit, not the branch: the branch moves; this build must not.
+ARG TENSORFOLD_REPO=https://github.com/bertholomus/TensorFold.git
+ARG TENSORFOLD_REF=d5d7bb389ddf4325c1edf4a15dd1c23727040ea1
+
+LABEL org.opencontainers.image.title="TensorFold deepseek_v41 TP2 (DGX Spark)" \
+      org.opencontainers.image.description="TensorFold deepseek_v41 engine for DeepSeek-V4.1-Flash, TP=2 across two NVIDIA DGX Spark (GB10) nodes" \
+      org.opencontainers.image.source="https://github.com/bertholomus/TensorFold" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.revision="${TENSORFOLD_REF}"
+
+# The engine. `--no-deps` is deliberate: the base image already ships every
+# runtime dependency (torch 2.13.0+cu130, triton 3.7.1, numpy 2.3.5, safetensors
+# 0.8.0, tokenizers 0.22.2, huggingface-hub 1.30.0, jinja2 3.1.6) and also the
+# optional ones the server path uses (transformers 5.12.1 for the tokenizer,
+# Pillow 12.3.0 and xgrammar for `--vision`/structured output). Installing with
+# deps would drag a second torch and an nvidia-nccl-cu13 wheel over the base's
+# own; the engine links the base's libnccl.so.2 by name (`cuda/comm.py`).
+RUN git clone --quiet "${TENSORFOLD_REPO}" /opt/tensorfold \
+    && cd /opt/tensorfold \
+    && git checkout --quiet "${TENSORFOLD_REF}" \
+    && test "$(git rev-parse HEAD)" = "${TENSORFOLD_REF}" \
+    && python3 -m pip install --no-cache-dir --no-deps . \
+    && rm -rf /opt/tensorfold/.git
+
+# Build-time gate: the engine imports, its deepseek_v41 family registers, the
+# console script runs, and the packages the server path needs are present. A
+# failure here fails the build rather than a cold boot.
+RUN python3 -c "import tensorfold; print('tensorfold', tensorfold.__version__)" \
+    && python3 -c "from tensorfold import families; import tensorfold.families.deepseek_v41 as f; print('family', f.TITLE, f.MODEL_TYPES, f.QUANT_METHODS)" \
+    && python3 -c "import torch, triton, numpy, safetensors, tokenizers, huggingface_hub, jinja2, transformers, PIL, xgrammar; print('py deps ok')" \
+    && tensorfold --version
+
+# The server binds 0.0.0.0:<port> (sparkrun passes --host/--port); rank 0 serves
+# HTTP, rank 1 follows rank 0. Not an ENTRYPOINT: the recipe's command runs the
+# launcher shim, so this image must not exec anything on its own.
+WORKDIR /workspace

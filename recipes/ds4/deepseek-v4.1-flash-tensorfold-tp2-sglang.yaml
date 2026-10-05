@@ -1,0 +1,58 @@
+recipe_version: "2"
+model: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+runtime: sglang
+container: littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a7449d7335fb85d453cc439985c525495
+builder: docker-pull
+min_nodes: 2
+max_nodes: 2
+
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash on 2x DGX Spark (GB10), TP=2, served by the TensorFold
+    deepseek_v41 engine (bertholomus/TensorFold, branch deepseek-v41-tp2). The
+    EXL3 2.9bpw checkpoint (~197 GB) plus the original FP8 Engram tables from
+    DeepSeek shards 47/48 (~95 GB each), DSpark k=5, 262K served context. The
+    recipe's `runtime: sglang` is the shim path: sparkrun renders the command
+    and appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher
+    maps them onto `tensorfold serve`. See README.md and AGENTS.md.
+  model_url: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: exl3
+  kv_dtype: fp8
+  tags: fast
+
+mods:
+  - "@littlecedar/mods/tensorfold-dsv41-launcher"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+  # The RDMA gather and NCCL over the CX7 fabric need registered (locked) memory.
+  ulimit:
+    - memlock=-1:-1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  max_model_len: 262144
+
+command: >
+  python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context {max_model_len}
+
+readiness:
+  # inference true drives /v1/chat/completions; TensorFold serves the OpenAI API
+  # and /health, so a real readiness answer is available.
+  inference: true
+  # A cold first boot compiles the CUDA extensions and writes the ~106 GiB/rank
+  # weight cache before the serve port opens; later boots are much shorter.
+  port_timeout_s: 3600
+  health_timeout_s: 1800
