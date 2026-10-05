@@ -29,7 +29,7 @@ CONTRACT, fail-closed (mirrors the sibling mods)
 
 Offline-verified against ``mods/mount-dsv41-exl3-patches/files/engram.py``
 2026-09-27: ``--check`` -> compatible -> apply -> ``already patched``. NOT booted.
-See ``recipes/ds4/MEMORY-RECLAIM-PLAN.md`` §7.
+See ``attic/ds4/MEMORY-RECLAIM-PLAN.md`` §7.
 """
 
 from __future__ import annotations

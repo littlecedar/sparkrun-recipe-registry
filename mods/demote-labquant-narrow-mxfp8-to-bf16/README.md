@@ -150,5 +150,5 @@ Refuses to run if: the pinned revision is not cached; `/cache/runtime/labq-patch
 does not exist (i.e. the config mod has not run); a scale tensor is not `U8`; the
 members of a fused group disagree on `k`; a dequantised value is non-finite; the BF16
 round-trip is not bit-exact; or the index does not exist. It never deletes the tree,
-never writes through a symlink into the shared HF snapshot, and is idempotent (it
+never writes through a symlink into the HF snapshot, and is idempotent (it
 recognises an already-demoted shard by dtype + absent scale, not by size).

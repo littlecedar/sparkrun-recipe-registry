@@ -444,7 +444,7 @@ for fname, pairs in sorted(targets.items()):
                                    f.get_tensor(pairs[name]).view(torch.uint8),
                                    name)
             tensors[name] = t.contiguous()
-    # Never write through a symlink: that would rewrite the shared HF snapshot.
+    # Never write through a symlink: that would rewrite the node's HF snapshot.
     if os.path.islink(dst):
         os.unlink(dst)
     tmp = dst + ".tmp"

@@ -55,7 +55,7 @@ which `ModelOptMixedPrecisionConfig.from_config()` accepts, producing all five s
 `get_min_capability() == 80`.
 
 We write a **patched copy** of `config.json` into the container at a fresh snapshot
-directory and symlink every other file from the real snapshot, so **no shared NFS cache
+directory and symlink every other file from the real snapshot, so **no shared cache
 is mutated** — other users and other models are untouched. The recipe then points
 `--model-path` at that directory.
 

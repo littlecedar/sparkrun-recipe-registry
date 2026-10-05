@@ -16,7 +16,7 @@ applies mods per node).
 
 On GB10 the page cache is the *same* 128 GB pool as the weights and KV. Engram
 row reads are read-once random 264-byte rows, and the shipped reader leaves the
-backing pages in the page cache. Measured on the real NFS path (`model-00047`,
+backing pages in the page cache. Measured on the real on-disk path (`model-00047`,
 random 64 KiB reads): buffered reads retain **+0.50 GiB**, `fadvise(DONTNEED)`
 per read **+0.01 GiB**, `O_DIRECT` **+0.00 GiB**, with identical throughput
 (100–109 MiB/s). So bounding the reader is correct and free.
@@ -25,8 +25,8 @@ per read **+0.01 GiB**, `O_DIRECT` **+0.00 GiB**, with identical throughput
 serving — fills 45–58 GiB/node, `MemAvailable` stayed ≥41 GiB throughout, and a
 load-window flusher bought +0.9 % (noise). This mod addresses only the small
 serving-time term. It is boot-verified safe and neutral, and is now **listed on all
-five `recipes/ds4` EXL3 recipes** (after the patch mod), at the user's request.
-See `recipes/ds4/MEMORY-RECLAIM-PLAN.md` §7.
+five `attic/ds4` EXL3 recipes (after the patch mod), at the user's request.
+See `attic/ds4/MEMORY-RECLAIM-PLAN.md` §7.
 
 ## Why a post-patch mod, not an edit to the sibling
 

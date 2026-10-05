@@ -67,7 +67,7 @@ It does not make the checkpoint accurate, and it is not proof the model is numer
 correct. It changes **where a byte array is stored**, not its contents — no arithmetic, no
 requantisation. The correctness question that remains is whether the engine's MXFP8 GEMM
 path interprets `ue8m0` the same way this export produced it. That needs the numerical
-check described in `../../recipes/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` §7, not this mod. Loading is
+check described in `../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` §7, not this mod. Loading is
 necessary, not sufficient.
 
 Independent support that these scales are dequant scales in e8m0 form (not reciprocal, not
