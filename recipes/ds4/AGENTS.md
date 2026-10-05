@@ -295,11 +295,29 @@ the pool back while keeping the fast path; it is one or the other.
 **Not our measurement.** The 3–13% is EP2 on the 2026-09-18 stack. This lane is
 **EP1**, and upstream's later pinned-slab rework moved the pool **+0.73M tokens**
 against its per-tensor precursor at EP1 (`docs/fast-load.md`), so the interval
-here is probably smaller. `SPECULATIVE` on any specific EP1 delta — it has not
-been booted on our fleet.
+here is probably smaller. `SPECULATIVE` on any specific EP1 delta — see the boot9
+receipt below for the one EP1 number we hold.
 
-**A/B if you want the real number** (mirrors §10's discipline; read the pool from
-the boot log, never computed):
+**What our fleet actually measured.** One EP1 head log exists:
+`.scratch/ds4/knapcio/logs/boot9-head-serve.log` (2026-10-02). It booted with
+`DSV41_FAST_LOAD` **on**, so it is not the shipped config, but it is the only real
+receipt we hold:
+
+```
+DSV4 memory calculation: … bytes_per_full_token=1670.75, available_bytes=11.71 GB, full_token=6786560
+DSV4 pool sizes: full=6786560, …            # the budget derived from MemAvailable
+DSV4 pool sizes: full=4000000, …            # after the MAX_TOTAL_TOKENS=4000000 pin
+max_total_num_tokens=4000000, context_len=1048576, available_gpu_mem=21.18 GB
+```
+
+So on our hardware the fast loader left a **6.79M**-token budget (inside upstream's
+6.71–7.27M fast-loader interval), and the server then **pinned the pool to 4,000,000**
+regardless. The 4M pin, not the ~7.5M budget, is what bounds concurrency here: 4M
+tokens ≈ **3.8 full-1M streams**, or 4 streams at ~1M each only if each stays under
+~1,000,000 tokens of prompt+reply.
+
+**A/B if you want the shipped-config number** (mirrors §10's discipline; read the pool
+from the boot log, never computed):
 
 1. Boot the shipped recipe; record `DSV4 memory calculation: … full_token=<N>`
    from `/tmp/sparkrun_serve.log` inside the container.
@@ -462,7 +480,7 @@ above; read this section before touching it.
 ### 12.2 Files and the call chain
 
 ```
-recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml   (runtime: sglang -- the shim path)
+recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml   (runtime: sglang -- the shim path)
   mods: "@littlecedar/mods/tensorfold-dsv41-launcher"
     run.sh        # fail-closed gate: tensorfold on PATH, launcher.py + HF cache present;
                   #   creates + re-owns /cache/runtime/tensorfold/{rank-cache,torch-extensions}
@@ -720,7 +738,7 @@ same model:
 | Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 4000000** in `mods/dsv41-sglang-overlay/launcher.py:129` | **`--context` itself**; no pool flag exists |
 | Window vs pool | `CONTEXT_LENGTH` (per-request, clamped 4096..1048576) **separate** from the pool | same number — `cap = context + max_rows + 8` |
 | B/token/rank | ~1,670 (TP4: ~77 GiB of weights/rank leaves room) | ~2,900 marginal, and only ~2.1 GiB nominal |
-| Pool capacity | ~4M tokens pinned (≈6.6 × 1M); boot line reports the *budget* `full_token≈7.5M` | 1,048,576 total, ever |
+| Pool capacity | `MAX_TOTAL_TOKENS=4000000` pinned; boot line reports the *budget* the host allows | 1,048,576 total, ever |
 
 Confirmations run 2026-10-05: TensorFold exposes **no** pool/total-tokens flag
 (`serve --help` has none) and **no** env that sets one (grep of `families/deepseek_v41` for
@@ -729,9 +747,11 @@ Confirmations run 2026-10-05: TensorFold exposes **no** pool/total-tokens flag
 knapcio *can* hold many 1M streams while TensorFold cannot hold more than one.
 
 The `full_token=` figure in knapcio's boot line is the **maximum budget the host memory allows**,
-not tokens the server holds; the server pins `MAX_TOTAL_TOKENS=4000000` under it (upstream's TP4
-`.env` pins 8,000,000 = 8 Mi tokens, "8 requests at ~1M tokens each"). So "KV pool fits ~7.5M
-tokens" in that README is a budget statement, and ~6.6 × 1M is the pinned working pool.
+not tokens the server holds. The server then pins `MAX_TOTAL_TOKENS=4000000`, which is what bounds
+concurrency — so a "how many 1M streams fit" question is answered by the pin (~3.8), not by the
+budget the host would permit. Our own EP1 receipt shows both numbers in one boot (§7.1). The
+"~7.5M → 6.6 streams" pair once quoted in the README mixed the two: a budget figure divided by 1M,
+ignoring the pin. Corrected there and in §7.1.
 
 **`--context` is the shared KV pool, not a per-request allowance.** At startup rank 0 prints
 

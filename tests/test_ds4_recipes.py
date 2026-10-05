@@ -1414,7 +1414,7 @@ class SglangLaneNegativeControls(unittest.TestCase):
 # the shim mapping --dist-init-addr/--nnodes/--node-rank onto `tensorfold serve`.
 # --------------------------------------------------------------------------
 
-TF_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml"
+TF_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
 TF_MOD_DIR = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher"
 TF_IMAGE = ("littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a"
             "7449d7335fb85d453cc439985c525495")

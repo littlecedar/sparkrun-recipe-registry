@@ -113,17 +113,26 @@ quantization damage.
 > **Scope:** everything in this section describes the **knapcio TP=4 SGLang lane**
 > (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, SGLang + `dsv41-sglang-overlay`). It does
 > **not** apply to the TensorFold TP=2 lane further down — a different engine with a different KV
-> model (`--context` is a single shared pool there; see §"Context window and concurrency"). The
-> numbers below are the knapcio lane's, and several come from upstream.
+> model (`--context` is a single shared pool there; see §"Context window and concurrency").
 
 ### 1M Context
 
-A `context_length` of 1,048,576 tokens is configured, served, and needle-tested. However, hardware memory boundaries and prefill compute impose real operational constraints.
+A `context_length` of 1,048,576 tokens is configured, served, and needle-tested (needle passed at
+985k on the canary image). Hardware memory boundaries and prefill compute impose real operational
+constraints.
 
 #### Memory Residency and Concurrency Limits
 
-* **KV Pool Capacity:** In the 128 GB unified memory architecture across four DGX Spark nodes (TP=4), the granted KV cache pool fits approximately 7.5M tokens total.
-* **Concurrent 1M Streams:** At maximum context length (1,048,576 tokens per stream), the KV pool accommodates approximately ~6.6 full-length concurrent requests before exhausting memory and queuing.
+* **KV Pool Capacity:** the pool is **pinned to 4,000,000 tokens** (`MAX_TOTAL_TOKENS` in the
+  overlay launcher), which is what actually bounds concurrency. The head's `MemAvailable` would
+  permit more — the engine logs both: `full_token=6786560` (budget) then `full=4000000` (the pin)
+  in one of our own EP1 boots (`.scratch/ds4/knapcio/logs/boot9-head-serve.log`, 2026-10-02).
+  Upstream's ~7.5M figure is a *budget under a different configuration* (EP2, stock loader), not
+  tokens this server holds — see [`AGENTS.md`](AGENTS.md) §7.1.
+* **Concurrent 1M Streams:** bounded by the 4M pin, so **≈3.8** full-1,048,576-token streams (four
+  fit only if each stays a little under 1M of prompt+reply). The "~6.6" this section previously
+  carried was a division of the upstream ~7.5M budget by 1M, not an observed concurrency, and it
+  ignored the 4M pin; it has been removed. See [`AGENTS.md`](AGENTS.md) §7.1 for the receipts.
 
 #### Cold Prefill Latency vs. Cache Hits
 
@@ -181,19 +190,25 @@ Upstream's eager safetensors loader (`DSV41_FAST_LOAD=1`) accelerates startup at
 
 #### Startup Time vs. KV Capacity Trade-off
 
-* **Fast Loader (`DSV41_FAST_LOAD=1`):** Reduces engine startup time from ~350 s down to ~125 s (saving ~220 s per boot), but permanently forfeits up to ~730k tokens of KV cache for the life of the container.
-* **Stock Loader (`DSV41_FAST_LOAD=0`):** Requires ~350 s for cold engine launch, but maximizes available KV cache memory to guarantee full multi-user serving headroom.
+The interval below is **upstream's** (EP2, 2026-09-18 stack), not ours — our one EP1 receipt
+(`full_token=6786560` with the fast loader on) sits inside it. It also matters less than it reads:
+the pool is **pinned to 4,000,000** either way, so this difference does not change concurrency at
+the shipped settings. See [`AGENTS.md`](AGENTS.md) §7.1.
+
+* **Fast Loader (`DSV41_FAST_LOAD=1`):** Reduces engine startup time from ~350 s down to ~125 s (saving ~220 s per boot), at the cost of a smaller *budget* (~6.71–7.27M vs ~7.47–7.82M tokens upstream).
+* **Stock Loader (`DSV41_FAST_LOAD=0`):** Requires ~350 s for cold engine launch, and leaves a larger budget — which the 4M pin then absorbs.
 
 #### Shipped Configuration Decision
 
-* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` to maximize available KV memory and support long-context / multi-stream serving.
+* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` (commit `f91fe43`) to keep the larger budget for long-context / multi-stream serving.
 
-**Summary Table**
+**Summary Table** (upstream's measurements for the two loader columns)
 
 | Metric / Attribute | Stock Loader (`DSV41_FAST_LOAD=0`, Shipped) | Fast Loader (`DSV41_FAST_LOAD=1`) |
 | :--- | :--- | :--- |
 | **Engine Startup Time (`scheduler_e2e`)** | ~343–354 s | **~124–129 s** (~220 s faster) |
-| **Total KV Pool Capacity (`full_token`)** | **~7.47–7.82M tokens** | ~6.71–7.27M tokens (~3–13% smaller) |
+| **KV budget the host allows (`full_token`)** | **~7.47–7.82M tokens** | ~6.71–7.27M tokens (~3–13% smaller) |
+| **KV pool actually used** | 4,000,000 (pinned) | 4,000,000 (pinned) |
 | **Model Weights & Numeric Output** | Bitwise identical | Bitwise identical |
 | **Inference Latency & Quality** | Unchanged | Unchanged |
 | **Recommended Use Case** | **Production serving & long context** | Development & fast iteration |
