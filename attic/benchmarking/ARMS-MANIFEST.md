@@ -21,7 +21,7 @@ resolves. This mirrors the `attic/ds4` and `attic/qwen4` convention.
 * named by any tracked file outside `benchmarking/`.
 
 Nothing in `recipes/`, `benchmarking/`, `tools/`, or `tests/` resolves these by directory glob, so a
-move breaks no consumer. **All 125 profiles (47 kept + 78 here) load through sparkrun's own
+move breaks no consumer. **All 129 profiles (43 kept + 86 here) load through sparkrun's own
 `BenchmarkSpec.load`** (checked 2026-10-04), including after redaction.
 
 **Redaction.** Every profile here was scanned and had internal IPs / hostnames / operator paths
@@ -116,3 +116,17 @@ enter tracked files (root `AGENTS.md`). The measurement content is unchanged; on
 | `slot-bound-branch.yaml` | other scratch | Tests whether only the min() matters, or whether WHICH constraint binds also matters. Two configs reach the same 8k capacity by opposite routes: shipp |
 | `symmetric-pair-only.yaml` | qwen3 scratch | REPLICATE §12.46's free control in isolation, with the sweep order REVERSED. Zero boots: run with --skip-run --no-stop against the container already s |
 | `wide-compose-c4.yaml` | qwen3 scratch | WIDE 2x2 to separate the three composition models that DEPTH-COST.md section 12.45 could not tell apart. Zero boots: run with --skip-run --no-stop aga |
+
+### Wave 4 — README-declared dead arms (archived 2026-10-04)
+
+Four profiles that `benchmarking/README.md` itself marked **`NOT RUN`** (and, for two of them,
+"superseded"/"not runnable") were still sitting in the curated directory. They were moved here so the
+curated library holds only run, cited instruments. Their questions are closed by other means and they
+carry no `bench_*` id (they were never executed).
+
+| profile | referenced from | what it asked / why archived |
+|---|---|---|
+| `pp-sweep-c4c8.yaml` | qwen3 scratch | Vary `pp` at fixed `c` and `depth`. Never run; **superseded in practice by `pp-slope` and `pp-vs-depth-acceptance`**. |
+| `a2-depth-gap-c8.yaml` | qwen3 scratch | Is the ~20 % per-stream depth cost at c=8 real or noise? Never run; closed by other means (the c=8 depth-cost work). Its design intent is still cited by qwen3 `§N` (WORK §6 item A2, DEPTH-COST §12.22) — those cite the *design*, and the archived copy preserves it. |
+| `kv-residency-dissociation.yaml` | qwen3 scratch | Dissociate batch size from KV residency. Never run; its `depth: 26624` cell **exceeds any pool here**, so it is a design note, not a runnable profile. |
+| `d0-baseline-dissociation.yaml` | qwen3 scratch | `depth = 0` baseline to separate prefill admission from decode cost. Never run; the question is subsumed by the depth-cost family. |
