@@ -1,0 +1,59 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Causal test for §19s on zz-rk-metrics: is the running-batch ceiling caused by LAZILY RETAINED
+    cache? Requires `-o mamba_radix_cache_strategy=extra_buffer -o max_num_seqs=32 -o
+    chunked_prefill_size=8192`. Throughput is discarded by design (--enable-metrics boots are not
+    quotable, §6 item 0); the plateau value of `run` is the result.
+
+    WHY THIS EXISTS. §19s measured that at k=32 / cap=32 the running batch plateaus at 27 (not the 31
+    that §19l's now-retracted `min(k, cap - 1)` predicted) with 5 requests queued, and that at that
+    plateau `kv_available_tokens` = 8,448 against a per-sequence requirement of 8,457.5 -- free =
+    **0.999 of one sequence** -- while **607,168 tokens (71.8 sequences' worth) sit in `kv_evictable`
+    unreclaimed**. The control that makes it a mechanism rather than a coincidence is the same boot's
+    k=24 cell, where free/per-sequence is 6.59 and `run` reaches its full 24. The obvious suspect is the
+    shipped `mamba_radix_cache_strategy: extra_buffer_lazy`, and §19n independently found the SSM-side
+    analogue (`mamba_available_tokens` reaches 0-1 from k=12 while `evictable` parks 42-76 slots). Both
+    are correlations measured at the plateau, so neither establishes causation. This boot flips the
+    strategy and reads `run`.
+
+    WHY THE FLIP IS NOT AN EXPERIMENT IN UNSUPPORTED TERRITORY. `extra_buffer` is the non-lazy variant of
+    the same option, whose choices are `auto | no_buffer | extra_buffer | extra_buffer_lazy`, and the
+    sibling recipe `qwen3.8-flash-next-labquant-tp4-sglang.yaml` already SHIPS `extra_buffer`. So the arm
+    is a supported configuration for this model family.
+
+    THE NUMERIC PREDICTION, written before the run (per §6 item 0: a prediction written after the result
+    is not a prediction). Total KV accounted for at the plateau = used + available + evictable =
+    228,352 + 8,448 + 607,168 = **843,968 tokens = ~99 sequences' worth** at 8,457.5 each. The pool is
+    therefore NOT short of memory in total; it is short of *reclaimable-now* memory by exactly one
+    sequence. Branches, enumerated so that "worse than expected" cannot be read as "confirmed":
+      * plateau `run` >= 30     -> reclamation was binding. `mamba_radix_cache_strategy` is a CONCURRENCY
+                                  lever, and §19's eleven-boot cap sweep was turning a knob that was never
+                                  binding. Recipe-relevant.
+      * plateau `run` in 28-29  -> partial effect; retention is one constraint among several. Report the
+                                  fraction recovered, do not average the two branches into "helps a bit".
+      * plateau `run` == 27     -> §19s's mechanism sentence is REFUTED. The evictable pool is unavailable
+                                  for a reason other than laziness (fragmentation, page granularity, or a
+                                  scheduler-side limit) and the ceiling returns to unidentified.
+      * plateau `run` < 27      -> the non-lazy strategy is WORSE. Also a result: it would mean lazy
+                                  retention is buying something, and it forecloses the recipe change.
+      * the boot fails to allocate -> informative, not a nuisance: §19o showed the strategy participates
+                                  in the memory-sizing equation that couples `max_num_seqs`,
+                                  `max_mamba_cache_size` and `mem_fraction_static`. Record the error text;
+                                  do NOT retry with a different memory fraction just to obtain a number,
+                                  because that would change the thing under test.
+    NOTE that the pre-registration that produced §19s's k=32 cell offered only run=31 and run=32, and the
+    observation was 27 -- outside both. Three of the five branches here are below the observed value for
+    that reason: the previous failure was under-specifying the downside, so the downside is now explicit.
+
+    WHAT THIS CANNOT SETTLE. It tests whether lazy retention is *a* binding constraint on `run`, not why
+    `chunked_prefill_size` interacts with the cap (§19o), and it is one cell on one checkpoint. If `run`
+    rises, the follow-up is a second boot to separate strategy from the act of overriding, because an
+    override of any kind can perturb memory sizing (§19o).
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 32 ]
+  prefix_caching: true
+  runs: 7

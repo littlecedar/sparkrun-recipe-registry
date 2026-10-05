@@ -1,0 +1,68 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    THE POOL-MATCHED PAIR: two cells with IDENTICAL c*depth and IDENTICAL pool demand, differing
+    only in batch size and prompt length. Arbitrates the last surviving confound on the
+    equal-c*depth falsification in DEPTH-COST.md section 12.29 (whether the ~17-25 % step-time gap
+    is per-byte KV cost, per-sequence cost, or pool residency).
+
+      cell 0: c=4, depth=8192, pp=2048  -> c*depth = 32,768   c*(depth+pp) = 40,960
+      cell 1: c=8, depth=4096, pp=1024  -> c*depth = 32,768   c*(depth+pp) = 40,960
+
+    Bytes read per decode step equal by construction; pool demand equal by construction; batch and
+    prompt length differ 2x. This is the pair section 12.29 wanted and could not build: matching all
+    three of (bytes, prompt length, pool demand) at different c is algebraically impossible, since
+    pool = c*depth + c*pp means equal pool forces pp to halve when c doubles. Something has to give,
+    and what gives here is pp -- which is exactly what isolates the pool term.
+
+    PREDICTIONS, committed before running (read DEPTH-COST.md 12.29/12.33 for the alternatives):
+      * ratio of per-stream decode throughput (cell1/cell0) within ~1.10 -> cost scales with the
+        NUMBER OF RUNNING SEQUENCES, not with tokens resident or bytes read. Cleanest statement
+        this file can make about decode cost.
+      * cell1 slower by 15-25 % -> batch size itself costs something no model here prices.
+      * cell1 FASTER -> suspect prefix caching or scheduling asymmetry; check #running-req and
+        #cached-token per cell before reporting any speedup.
+
+    WHY `schedule:` AND NOT PARALLEL LISTS. Two facts, both measured by `--dry-run` on this tree
+    rather than read off a source file (a source-reading attempt here was abandoned after it
+    contradicted itself, and the empirical check costs three seconds):
+      * `depth` x `concurrency` is expanded as a **CARTESIAN PRODUCT**, not zipped by index. Two
+        depths and two concurrencies give four tasks (measured here: 4 tasks, depth-major). This
+        agrees with DEPTH-COST 12.50, which recorded exactly this correction after a profile here
+        claimed "index zipping yields exactly two cells" and the run then executed a full 2x2.
+      * `pp` IS expanded, per task. A profile with `depth: [8192, 4096]`, `concurrency: [4]`,
+        `pp: [2048, 1024]` reports `Estimated test iterations: 4` for 2 tasks, i.e. both `pp`
+        values run inside each task. So parallel lists cannot pin "this pp with this c".
+    An explicit `schedule:` gives one task per entry, and its extra keys override base args, so
+    the two cells here are exactly `(d=8192, c=4, pp=2048)` and `(d=4096, c=8, pp=1024)`.
+    **Verified: dry-run reports exactly 2 tasks, `Estimated test iterations: 5` (the extra
+    iteration is warmup), and the base `pp` shown at the top is the base arg, not what each cell
+    runs -- per-cell `pp` is only provable from `prompt_size` in the resulting JSON.** That last
+    point is the whole reason the JSON check below is mandatory: DEPTH-COST 12.34 has an unresolved
+    hazard where a `-b pp=...` override silently did not apply, and the filenames looked correct.
+    **Always `--dry-run` before booting; it prints the cells that will actually run and `bash -n`
+    cannot catch a wrong grid.**
+
+    CONTROLS THAT MUST BE READ, NOT ASSUMED:
+      * #running-req per cell must reach 4 and 8. `concurrency` is an OFFER; a cell silently capped
+        below its offer measures the pool ceiling, not concurrency, and corrupts the ratio silently.
+        Pool is ~117.7k tokens so 40,960 slots is ~35 % -- comfortably unbound.
+      * prompt_size in the resulting JSON is the cell's pp. Verify 2048 and 1024 appear; if both
+        cells report the same pp, the schedule override did not apply and the comparison is void.
+        (This is the failure mode behind DEPTH-COST 12.34's unresolved hazard -- "I passed -b" is
+        not evidence; the JSON is.)
+      * Judge on the DECODE-phase row (is_context_prefill_phase false) only; each cell writes a
+        second prefill-phase row whose peak is a different quantity.
+      * --fresh is mandatory: resume state is keyed on (profile, recipe, hosts) and IGNORES
+        --output, so a repeated config re-writes the prior JSON byte-identically with rc = 0.
+schedule:
+  - depth: 8192
+    concurrency: 4
+    pp: 2048
+  - depth: 4096
+    concurrency: 8
+    pp: 1024
+args:
+  tg: [ 256 ]
+  prefix_caching: true
+  runs: 5

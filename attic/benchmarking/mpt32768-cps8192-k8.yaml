@@ -1,0 +1,63 @@
+# cps=8192 + max_prefill_tokens=32768, k=8 ONLY — the cell needed to decide the TTFT regression.
+
+# WHY THIS PROFILE EXISTS, AND WHY IT IS ONE CELL.
+# The cps=8192 candidate is the strongest change this project has (k=24 decode +36–42%, replicated on two
+# checkpoints and both prefill-graph paths), and one of the things blocking it is an unexplained k=8 TTFT
+# regression: median 6.09 → 8.36 s, +37% (bench_371a7bd533cb vs bench_8ec5167a318b, RadixArk, d=8192).
+# Unexplained side effects block changes; explained ones usually do not.
+#
+# `ttft_k8_decompose.py` read the per-request TTFT ladder from those two boots and the shape is not a
+# fattened tail — it is a rising FLOOR, and the ladder is a staircase:
+#   cps=4096: 2.10 ×8 | 3.44 ×8 | 4.79 ×16 | 6.11 ×9 | 7.40 ×14   (clusters ~1.33 s apart)
+#   cps=8192: 3.31 ×5 | 5.87 ×11 | 6.08 ×4 | 7.65 ×5 | 8.45 ×30   (clusters ~2.5 s apart)
+# The *fastest* request waits 2.10 s at cps=4096 and 3.31 s at cps=8192, while the slowest go 7.51 → 8.55.
+# Quantile ratios therefore FALL with the quantile (q05 ×1.59, q50 ×1.38, q95 ×1.14), the opposite of a
+# queueing tail. Discrete clusters = discrete admission groups, and the group size is
+# `max_prefill_tokens / cps`: 16384/4096 = 4 requests prefilled per step at cps=4096, but 16384/8192 = 2 at
+# cps=8192. Halving the group size doubles the wait for everything behind the first group and moves the
+# floor with it. Decomposition: throughput (pp 2195 → 1934) accounts for +13.5% of the +37.3% TTFT rise;
+# the residual +20.9% is the admission-granularity term.
+#
+# PRE-REGISTERED PREDICTION, written before this runs.
+# At mpt=32768 the group size is 32768/8192 = 4 — restored to what cps=4096 had. So at cps=8192 +
+# mpt=32768, k=8:
+#   * TTFT median should fall from 8.36 s back toward the ~6.09 s control (predict ~6.1–7.0 s);
+#   * the staircase cluster spacing should return to ~1.33 s, and the fastest-request floor to ~2.1 s;
+#   * tg at k=8 should stay near 82 (the cps=8192 value), i.e. the latency should be bought back without
+#     giving the throughput back.
+# FALSIFICATION AND WHAT IT WOULD MEAN:
+#   * TTFT median stays ≈ 8.3 s → granularity is NOT the mechanism; the floor rise is inherent to wider
+#     chunks (bigger per-chunk latency), and cps=8192's k=8 cost is real and unfixable by this knob. The
+#     recipe candidate then has to be justified purely on the k=24 gain, which §17 says cannot be
+#     reported as a win without pricing the tail.
+#   * TTFT median overshoots below 6.09 s → mpt=32768 is itself a throughput lever at k=8, independent of
+#     cps, and belongs in its own arm.
+#   * k=8 tg collapses → a 32768-token prefill batch makes steps long enough to stall decode at low
+#     concurrency, which would make mpt=32768 unsafe as a companion change.
+#
+# WHY ONLY k=8. The same recipe + same overrides at k=16 and k=24 already exist
+# (`bench_93b051babd36`: d8192_c16, d8192_c24, verified `chunked_prefill_size: 8192` override and
+# `extra_args: --max-prefill-tokens 32768`). Re-running them would cost ~25 minutes for cells that are
+# already on disk. New profile FILENAME is required, not optional: the bench id hashes
+# (recipe, nodes, overrides, profile path), so reusing an existing filename would reuse a bench id and
+# clobber a completed run — which has already destroyed one archive in this project this week.
+#
+# PASS THE OVERRIDES AS extra_args, NOT -o max_prefill_tokens=. `sparkrun benchmark -o key=value` only
+# substitutes keys the runtime understands; `max_prefill_tokens` is not one of them, and the dry-run
+# warns then CONTINUES, so the wrong form produces a complete, valid dataset for a configuration that was
+# never applied. `chunked_prefill_size` IS a recognised key, so the two knobs must be passed differently —
+# and that asymmetry is exactly the kind of thing that silently voids an experiment.
+framework: llama-benchy
+metadata:
+  description: >
+    Single cell, d=8192 k=8, cps=8192 + --max-prefill-tokens 32768 on RadixArk. Decides whether the
+    k=8 TTFT floor rise attributed to chunk width is really an admission-group-size effect
+    (max_prefill_tokens/cps), which is the pre-registered mechanism in this file's header. Companion to
+    bench_93b051babd36, which supplies k=16 and k=24 for the same configuration.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 7

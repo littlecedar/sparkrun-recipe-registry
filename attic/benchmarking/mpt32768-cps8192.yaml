@@ -1,0 +1,50 @@
+# Does raising `max_prefill_tokens` beat raising `chunked_prefill_size`? The budget model's test.
+#
+# Why this is the discriminating arm now, and not a third replication boot. §19c established that
+# every arm so far was pinned against the SAME hidden ceiling: `--max-prefill-tokens` is verified
+# ABSENT from the shipping serve command, so SGLang's default **16384** governs prefill tokens per
+# step in all of them. The budget model says `chunks/step = min(mpt/min(cps,pp+depth), k)`, so at
+# cps=8192 with a 10,240-token prefill the budget allows only 2 chunks/step regardless of anything
+# else. That is why 8192 helps at k=24 (fewer, fatter chunks) and why 16384 does not help further
+# (one chunk fills the step and the step can only be 10,240 of 16,384 wide -- 62.5% utilisation).
+#
+# This arm raises the ceiling itself: `--max-prefill-tokens 32768` at cps=8192 allows
+# `32768/8192 = 4` chunks/step instead of 2. At k=24 there are 24 requests x 2 chunks = 48 chunks,
+# so steps-to-drain falls from 24 to **12** -- a 2x cut, twice as large a step-count change as the
+# 8192 arm produced, which is what makes it discriminating rather than incremental.
+#
+# Outcomes, pre-registered before launch, and they are NOT symmetric in what they mean:
+#   * k=24 rises clearly above the 71.25 / 73.11 of cps=8192 alone -> the per-step prefill TOKEN
+#     BUDGET is the binding constraint. `max_prefill_tokens` becomes the lever and the recipe
+#     guidance changes to "raise the budget, not the chunk width". Step count is back in play, as a
+#     consequence of the budget rather than of cps.
+#   * k=24 lands near 71-73 -> the budget does NOT bind at k=24 either. Then three knobs have been
+#     varied (cps down, cps up, budget up) and only cps=8192 moved the cell, which is a strong
+#     statement that the mechanism is none of the prefill-accounting quantities I have. Say that;
+#     do not call it a null about "the mechanism".
+#   * k=24 falls -> larger prefill batches per step starve decode harder. Plausible (it is the same
+#     shape as the cps=1024 harm) and would mean the 16384 default is protective.
+#
+# Read TTFT and pp beside tg. §19c's worst error was calling cps=16384's k=24 "no effect" from the
+# tg column alone when its TTFT was 2.0x worse; a throughput figure here with a worse tail is not a
+# win, per §17.
+#
+# FLAG PLUMBING, because this is how boots get wasted. `sparkrun -o max_prefill_tokens=32768` is
+# **silently dropped** -- `--dry-run` prints "Override(s) -o max_prefill_tokens have no effect: the
+# 'sglang' runtime does not understand it" and then continues, so the run would complete and write
+# JSONs for a flag that never reached the server (§7f). It must go through `extra_args`. Verify the
+# booted argv after start, before reading any number.
+framework: llama-benchy
+metadata:
+  description: >
+    Raises the per-step prefill token budget itself (--max-prefill-tokens 32768) at
+    chunked_prefill_size=8192, to test whether the budget rather than the chunk width is the
+    binding constraint on the k=24 cell. Requires
+    -o 'extra_args=--max-prefill-tokens 32768' -o chunked_prefill_size=8192.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,30 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    ORDER-REVERSED twin of benchmarking/composition-pair.yaml. Same two cells, opposite sweep
+    order, so that a gap which reproduces cannot be attributed to sweep position.
+
+    sparkrun ZIPS `depth` and `pp` by index rather than taking their cross product, so listing
+    depth [4096, 1024] against pp [1024, 4096] yields the SAME two cells as the forward file --
+    (4096, 1024) first, then (1024, 4096) -- and nothing else. That is the mechanism being used
+    deliberately here: the diagonal pair is what matches decode-phase context at 5,120 tokens
+    under the semantics of WORK/DEPTH-COST section 12.43 (decode-phase prompt = depth + pp).
+
+    WHY A REVERSED TWIN IS THE POINT. Phase 55 found the (1024, 4096) cell 26 % slower in step
+    time than (4096, 1024) at matched resident tokens, inside one boot. But that boot ran its
+    cells in one fixed order, and phase 60 measured within-boot drift up to 10.6 % across a
+    comparable sweep. If the slow cell is slow because of WHERE it sits in the sweep, reversing
+    the order moves the slowness with it; if it is slow because of what it contains, the slow
+    cell stays slow in the same absolute terms. Only running both orders distinguishes those,
+    and a single profile cannot.
+
+    Judge the DECODE-phase row only. `--fresh` mandatory; verify distinct md5s across the four
+    resulting cell files before analysing (a resumed cell returns rc = 0 and byte-identical
+    output, so a duplicate is otherwise invisible).
+args:
+  depth: [ 4096, 1024 ]
+  pp: [ 1024, 4096 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 5

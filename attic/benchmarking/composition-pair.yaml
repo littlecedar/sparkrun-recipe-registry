@@ -1,0 +1,46 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    REPLICATE a 26 % step-time difference that appeared at MATCHED byte count inside a single
+    boot, and decide whether it is real.
+
+    THE OBSERVATION. Phase 55 (c = 8 fixed, one container, 3 runs/cell) has two cells whose
+    DECODE-PHASE context length is identical at 5,120 tokens -- (depth 1024, pp 4096) and (depth
+    4096, pp 1024) -- because under the semantics established in section 12.43 the decode-phase
+    prompt is `depth + pp`, so what the decoder holds is the SUM. Their step times, from
+    `t = c*TPS/peak_throughput`, are 0.2084 s and 0.1647 s: the small-depth/large-pp cell is
+    **26 % slower holding total resident tokens, batch, boot and profile constant**. Under any
+    per-byte model the two must be equal, so this is either a real composition effect or noise.
+
+    WHY IT IS NOT ALREADY SETTLED. (i) The JSON writes one row per cell = the mean of `runs: 3`,
+    so n = 3 behind a 26 % claim, and the same-regressor noise floor measured across byte-equal
+    groups in the archive is ~10-13 % of median step time. 26 % is above that floor but only
+    about twice it. (ii) Phase 55 ran its six cells in ONE order inside one boot, and phase 60
+    measured up to 10.6 % drift across the same kind of within-boot sweep -- so part of a 26 %
+    gap could be sweep position rather than composition. This profile therefore runs the pair
+    TWICE per boot with the cell order REVERSED between halves, which a single sweep cannot do.
+
+    (iii) The two cells also differ in their PREFILL phase (prompt = depth, so 1024 vs 4096, and
+    pp generated in the opposite amounts), so a difference could ride in through cache state
+    rather than through the decoder. That is not separable here and must not be described as
+    separated if the gap reproduces.
+
+    PRE-REGISTERED PREDICTION, written before the run. Reversed-order half reproduces the gap:
+    small-depth/large-pp slower by 15-35 %. Null: the two are equal within +/-10 %, in which case
+    the phase-55 gap was noise or sweep drift and the byte model stands on this pair. Judge on
+    the DECODE-phase row only (`is_context_prefill_phase` false); the prefill row is a different
+    quantity and pooling the two fabricated a middle value in an earlier draft.
+
+    WHY ONE BOOT SERVES EVERYTHING: depth and pp are per-run arguments, not server arguments, so
+    `--skip-run` reuses one container for all cells -- which is also what makes the order-reversal
+    test possible at all. `--fresh` is mandatory: sparkrun keys resume state on (profile, recipe,
+    hosts) and IGNORES `--output`, re-writing the previous JSON byte-identically with rc = 0.
+    Duplicate-md5 guard in the driver; verify distinct hashes before analysing.
+
+args:
+  depth: [ 1024, 4096 ]
+  pp: [ 4096, 1024 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 5

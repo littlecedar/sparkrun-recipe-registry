@@ -1,0 +1,62 @@
+# Non-lazy cache strategy with MATCHED cell history -- the corrected version of §19t's test.
+#
+# WHY THIS PROFILE EXISTS INSTEAD OF REUSING instr-nonlazy-cap32-k32.yaml.
+# That profile ran `concurrency: [ 32 ]` only, while its lazy comparator
+# (instr-cap32-cps8192-k24-k32.yaml) ran `concurrency: [ 24, 32 ]`. The quantity under test in §19s/§19t is
+# *retained radix cache*, and a preceding cell is precisely what writes it, so the two arms differed in cache
+# history as well as in the flag -- see §19t. This profile matches the history: k=24 runs first, then k=32,
+# so both arms' k=32 plateau is reached through the same sequence of admissions.
+#
+# The comparator does NOT need re-running: bench_aa437f0681b7 already ran lazy at [24, 32] with gauges
+# archived on node-restricted-2. This boot plus that capture is the paired test. One boot, not two.
+#
+# Launch (overrides carry the treatment; they land in extras.measurement_overrides, which is where the
+# booted values live -- defaults.* still report the recipe file's values, and reading those instead is what
+# made nine earlier boots look flag-free):
+#   sparkrun benchmark performance qwen3.8-flash-next-nvfp4-sglang \
+#     --profile .../instr-nonlazy-cap32-k24k32.yaml \
+#     -o mamba_radix_cache_strategy=extra_buffer -o max_num_seqs=32 -o chunked_prefill_size=8192 \
+#     -H node-restricted-2,node-restricted-3
+# VERIFY before interpreting anything: `cells.py` prints org / cps / cap per row, and the live argv on the
+# worker (/home/<user>/serve_argv/<...>) is the only authority on whether the strategy override landed.
+#
+# WHAT DECIDES WHAT (written before launch, per §6 item 0). Plateau = run at its cell maximum AND
+# gen_throughput > 0, per §19s's definition. Lazy comparator: k=24 -> run 24, k=32 -> run 27.
+#   * k=32 run > 27              -> reclamation was binding after all; §19s's mechanism survives once the
+#                                   history confound is removed, and max_mamba_cache_size is the lever.
+#   * k=32 run == 27             -> the strategy flag does not move the ceiling. §19t's 21 was the cold-cache
+#                                   history. Cache strategy is NOT a concurrency lever; drop it.
+#   * k=32 run < 27 again        -> the negative effect is real and survives matched history. Then lazy
+#                                   retention is buying something and the recipe keeps extra_buffer_lazy.
+#   * k=24 run != 24             -> INTERNAL CONTROL FIRED. The lazy arm got exactly 24 at this cell, so any
+#                                   other value here means the arms are not comparable and the k=32 result is
+#                                   uninterpretable. Gate on this before reading k=32 (§19j's lesson: a
+#                                   control that moves invalidates the arm, it does not support it).
+#   * mamba_available > 5 at plateau -> the slot pool is NOT binding. Most interesting of the five, because
+#                                   §19n and §19t both found it exhausted (0 and 5 of 112).
+#   * boot fails to allocate     -> record the error text, do NOT lower mem_fraction_static to get a number:
+#                                   §19o showed the strategy participates in the memory-sizing equation, so
+#                                   changing the fraction changes the thing under test.
+#
+# WHAT THIS CANNOT SETTLE. Whether lazy retention is *a* binding constraint on `run` -- not why
+# chunked_prefill_size interacts with the cap (§19o), and not the KV-pool denominator problem §19t raised
+# (three readings of pool size disagree by 25% and this boot does not adjudicate them). One checkpoint.
+# If run moves, the follow-up is a second boot separating strategy from the act of overriding, since any
+# override can perturb memory sizing (§19o).
+#
+# Throughput from this run is DISCARDED by design (§6 item 0): --enable-metrics perturbs decode ~3.5%.
+# The gauges are the result.
+framework: llama-benchy
+metadata:
+  description: >
+    §19t's causal test re-run with matched cell history: non-lazy mamba_radix_cache_strategy at
+    concurrency [24, 32] under cap 32 / cps 8192, compared against the already-archived lazy capture
+    bench_aa437f0681b7. k=24 is the internal control (lazy got run=24 there). Gauges are the product;
+    throughput is discarded.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 24, 32 ]
+  prefix_caching: true
+  runs: 7

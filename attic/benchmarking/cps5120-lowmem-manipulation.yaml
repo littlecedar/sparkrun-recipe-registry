@@ -1,0 +1,83 @@
+# §19q MANIPULATION TEST: does in-window MemAvailable CAUSE the cps=5120 low mode, or merely co-vary?
+#
+# WHY A MANIPULATION AND NOT ANOTHER OBSERVATION. §19q's separator is correlational at n=1 on the low
+# side: the four tight boots ran at 16.1-17.2 GB available *inside* the timed window and the one low boot
+# at 4.5-5.7 GB. But pmproxy's size co-varies with how much benchmarking preceded a boot, so three stories
+# fit the observational data: (i) activity -> low available -> low tok/s, (ii) activity -> pmproxy big,
+# (iii) bimodal cell and memory is coincidence. Both nodes currently sit at 1-4 GB pmproxy after its ~22:00
+# restart, so the low-memory state will not recur naturally soon and waiting is unbounded. So: produce the
+# condition deliberately with .scratch/q4/mem_holder.py (closed-loop on /proc/meminfo MemAvailable, not
+# open-loop on bytes, because available memory is the quantity the hypothesis is about).
+#
+# RESULT (2026-09-23, bench_e1663c056a1d): k=16 = 67.08, n=7, metrics-FREE (verified: 0 hits in this boot's
+# own state.yaml). Refutes the hypothesis this profile was written to test, and refutes my own §19q framing.
+#   * Pinned MemAvailable to a MANUFACTURED 4.4 GB and the result is the HIGHEST of all six boots at this
+#     cell (+1.7% over the four clean-host ones) -- far above the >=64.5 "tight mode" branch.
+#   * Not a diluted null: across the 21 samples taken while the server was generating, median MemAvailable
+#     was 4.21 GB (IQR 4.17-4.46, mean 5.29) and 19 of 21 were in 4.1-4.9 GB -- i.e. held BELOW the
+#     4.5-5.7 GB band the hypothesis named as causal, which is at least as demanding a test. The two
+#     samples above 8 GB (12.68 mid-allocation, 16.93 before the holder armed) do not move the median.
+#   * WHY the correlation looked real: the separator was a ONE-SAMPLE-PER-BOOT statistic of a quantity whose
+#     WITHIN-boot swing (4.3 -> 15.5 -> 4.3 GB, loader staging being freed) is as large as the between-mode
+#     contrast (16.1-17.2 vs 4.5-5.7 GB) it was invoked to explain. Each boot's single reading was a random
+#     draw from a distribution spanning both modes.
+#   * Transferable rule: before treating a per-run scalar as a discriminator, plot that quantity's
+#     within-run variation and compare the two spreads. If within-run range >= between-group difference, the
+#     scalar cannot separate the groups however clean the correlation looks. Costs one time-series query and
+#     can be run BEFORE the boot.
+#   * Scope of the refutation: pinned in-window host availability of ~4-5 GB does not produce the low mode,
+#     at this depth, n=1 on the manipulated side. Sustained multi-hour squeeze, or pressure inside the
+#     GPU-side allocation path, were NOT tested. Cause of the low mode remains unresolved; do not quote this
+#     cell from a single boot (~1-in-6 odds of drawing the low mode at n=6).
+#
+# PREDICTION, as written before the run (kept verbatim below, per the rule that pre-registrations stay
+# readable after they fail):
+# PREDICTION -- stated as MODE MEMBERSHIP, not as a hypothesis test. This is deliberate and it is the
+# correction to the mistake recorded in cps5120-cleanhost-falsifier.yaml, whose "=> host memory state IS the
+# mechanism" clause was unsatisfiable at its sample size (best achievable Fisher p = 0.20). The cell is
+# BIMODAL with well-separated modes: four boots in a 1.2% band (65.37/65.79/66.10/66.18) and one 7.9%
+# lower (60.71). A single boot therefore lands in one mode or the other with high confidence even though a
+# 2x2 on means can never reach p<0.05 at n=1. So the test is "which mode", decided by a boundary at the
+# midpoint, and the *mechanism* claim is only earned if the manipulated boots reproduce the low mode across
+# TWO boots (best achievable p then 0.067) -- stated here so nobody over-reads the first one.
+#
+#   k=16 <= 63.4  (low mode)    -> in-window available memory is a CAUSE, not a correlate. §19q's lead is
+#                                  promoted, and every bench should record in-window MemAvailable (the
+#                                  mem_watch.sh that launch.sh now arms automatically becomes the instrument).
+#   k=16 >= 64.5  (tight mode)  -> the correlation dies. §19q's memory separator is coincidence, the cell is
+#                                  intrinsically bimodal, and the search for its cause reopens. This is a
+#                                  REFUTATION of my own §19q framing and should be reported as such.
+#   63.4 < k=16 < 64.5          -> ANOMALY: neither mode. Report it; do not average it into either branch.
+#                                  The band is narrow on purpose: it is the gap between modes, not a third
+#                                  predicted value.
+#
+# WHAT WOULD MAKE THIS BOOT UNINTERPRETABLE, checked before launching:
+#   * It must be metrics-FREE (§6 item 0). Verify in THIS boot's own state.yaml, not the launch log.
+#   * The holder must be verified as having actually allocated (mem_holder.py exits 2 on a no-op and prints
+#     "NOT evidence the low-memory condition was reproduced" -- a holder that allocated nothing turns this
+#     into a plain clean-host replicate, which is NOT a null result, it is a missing experiment).
+#   * It must land inside the timed window, not before it. The holder gates on `Decode batch` lines
+#     INCREASING in the container's /tmp/sparkrun_serve.log; sparkrun's client runs on the head, so a
+#     worker-side `pgrep benchy` can never match and would have made this silently do nothing.
+#   * Config must otherwise match the four tight boots exactly: same recipe, cps=5120, d=8192, k=16, n=7.
+#     Any other difference makes the mode membership unattributable.
+#
+# SAFETY. This allocates host RAM on a node that hosts other agents' work. mem_holder.py therefore:
+# waits for the benchmark to be in its decode phase before touching memory (so it cannot starve a server
+# loading its ~110 GB of weights), enforces a hard floor (releases everything rather than dropping below
+# --floor-gb), a hard --max-gb, and a self-release timeout so an abandoned holder cannot cripple the node.
+# Verified by selftest: allocates and releases cleanly, returns 2 on a no-op target, and does not leak.
+framework: llama-benchy
+metadata:
+  description: >
+    labquant, cps=5120, k=16 only, metrics-FREE, with host MemAvailable pinned into the low mode
+    (~5 GB) DURING the timed window by mem_holder.py. Manipulation test for §19q's correlational
+    memory separator. Predict low mode (<=63.4) if in-window available memory causes the bimodality,
+    tight mode (>=64.5) if it does not.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16 ]
+  prefix_caching: true
+  runs: 7

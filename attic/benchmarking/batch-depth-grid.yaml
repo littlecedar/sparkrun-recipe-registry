@@ -1,0 +1,61 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Non-degenerate (c, depth) grid to separate a KV-byte cost from a per-sequence cost.
+    Section 12.28 shows why this specific shape is needed: holding c*(depth+pp) constant makes
+    c*depth an exact linear function of c (slope -pp), so the two candidate models
+        t_step = A + B*(c*depth)     [KV bytes read per step]
+        t_step = A + B*c             [fixed overhead per sequence]
+    are the SAME model reparameterised -- both fit the iso-KV cells with identical R^2 (0.9920)
+    and identical residuals. That experiment could not answer its own question, and the
+    collinearity was computable from the design before running anything.
+
+    THIS DESIGN FIXES IT. Two depths, each swept over four batch sizes, so c*depth and c lie on
+    two distinct lines (slopes 1024 and 4096) rather than one, making the regressors linearly
+    independent and the fit invertible. The archive already covers c = 8..24 at fixed depths,
+    giving corr(c*depth, c) = 0.78 and a usable but fragile fit with a NEGATIVE intercept;
+    this grid is designed to be better-conditioned than that pooled fit, not merely additive to it.
+
+    DEPTH CHOICE IS FORCED BY THE POOL, not by taste. The live container grants cap=21 with
+    #tokens = 118,376, so usable streams = min(21, 118376 // L):
+        L = 1024 -> 115 (cap binds)      L = 4096 -> 28 (cap binds)   both fine at c = 16
+        L = 8192 -> 14 (POOL binds at 14!) -- so c = 16 at depth 8192 CANNOT run 16 streams
+    Depth 8192 was therefore dropped from the grid rather than run and mis-read. Any cell whose
+    #running-req falls below its offered c is not measuring what its label says; gate each cell
+    with .scratch/qwen3-27b/cell_gate.py before use.
+
+    NOTE ON THE CONVENTION, because it decides whether this grid looks feasible: L is taken as
+    `depth` ALONE, not `depth + pp`. That is not sloppiness, it is what the server was observed to
+    do -- at depth 8192 with pp 2048 on a 117,571-token pool it ran exactly **14** streams, and
+    117,571 // 8,192 = 14.4 while 117,571 // 10,240 = 11. Use depth alone; recomputing with +pp
+    makes the c = 16 cells look impossible and would talk someone out of a valid run.
+
+    PRE-REGISTERED PREDICTIONS, committed before the run (from the pooled fit:
+    t_step = -20.4 + 1.737e-03*(c*depth) + 21.0*c ms):
+      1. t_step must rise with c at BOTH depths (a per-sequence term is present).
+      2. t_step must rise with depth at fixed c, and the depth gain must be LARGER at c = 16
+         than at c = 2 -- that interaction IS the KV-byte term. If the depth gain is the SAME at
+         every c, there is no batch x depth term and section 12.27's attribution is wrong.
+      3. Fitted B must stay positive. If it goes negative on this better-conditioned grid, the
+         earlier positive B was an artefact of the pooled design's collinearity, and the honest
+         conclusion is "no KV-byte term detected".
+      4. Intercept should come out POSITIVE. A second negative intercept would mean the two-term
+         form is structurally wrong, not merely noisy, and a third term is needed.
+    Report the residual pattern per cell, not just R^2: the pooled fit hid a +28 % outlier.
+
+    Zero boots (--skip-run against the already-live shipped-config container).
+
+    USED TWO WAYS, deliberately. Run standalone it executes the whole 8-cell grid below. The
+    phase-44 driver instead passes `-b concurrency=.. -b depth=..` to narrow it to ONE cell per
+    invocation, because each cell must be individually gated for foreign load -- and `-b`
+    REPLACES the list rather than extending it (verified: iso-kv.yaml declares three
+    concurrencies and `-b concurrency=8` yields exactly one cell). The args block is present so
+    a human running this profile by hand gets the grid the description promises; a profile whose
+    description and actual cell count disagree has caused real confusion here before.
+args:
+  depth: [ 1024, 4096 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 2, 4, 8, 16 ]
+  prefix_caching: true
+  runs: 3

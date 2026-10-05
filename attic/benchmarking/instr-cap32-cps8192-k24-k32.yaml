@@ -1,0 +1,41 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Instrumented k=24 and k=32 on zz-rk-metrics with BOTH max_num_seqs=32 and
+    chunked_prefill_size=8192 overridden, so the scheduler state behind §19o's cps/cap interaction
+    is finally observed rather than inferred. Requires
+    `-o chunked_prefill_size=8192 -o max_num_seqs=32`. Throughput is discarded by design
+    (--enable-metrics boots are not quotable, §6 item 0); the gauges are the result.
+
+    WHY THIS EXISTS. §19o now says raising max_num_seqs 24->32 buys k=24 throughput only when
+    chunked_prefill_size is also raised (+12.7%, p~0.002 at cps=8192, vs +2.0% p=0.25 at cps=4096),
+    and explains it as the cap's withheld slot paying only once prefill stops binding. That
+    explanation rests on one inference that was never observed and §19o admits it: "neither is queued"
+    is inferred from §19p's k < cap rule, not measured, because the throughput boots that produced the
+    numbers were never instrumented. If cps=8192/cap=32/k=24 does in fact have a queued request, then
+    the clean +46% tg / +56% pp comparison is contaminated the same way the cps=4096 cap-32 prefill
+    number already is (§19e: pp_throughput is a window that charges queueing to prefill) and the
+    mechanism story has to be rebuilt.
+
+    WHAT EACH OUTCOME MEANS (pre-registered before launch, per §6 item 0's rule that a prediction
+    written after the result is not a prediction):
+      * k=24 shows run=24, queue=0  -> the inference holds; §19o's clean comparison stands.
+      * k=24 shows run=23, queue=1  -> §19o's cps=8192 comparison is queue-contaminated. The +56%
+        prefill gain becomes the same window artefact already diagnosed at cps=4096, and the
+        "prefill path itself" reading is withdrawn.
+      * k=32 shows run=31, queue=1  -> §19l's run = min(k, cap-1) holds at a THIRD cap (20, 24, 32),
+        which is the recipe-relevant outcome: "max_num_seqs >= target + 1" becomes branch-wide.
+      * k=32 shows run=32, queue=0  -> the shortfall is SPECIFIC to cap 24, §19l's rule is not a
+        general ceiling, and the guidance weakens to "don't set concurrency exactly to 24".
+    k=32 is the load-bearing cell: it is the only pair that has never been probed at any cap, and the
+    two branches differ by one integer that changes shipped guidance.
+
+    A THIRD THING THIS READS OUT. k=32 exceeds the highest batch size ever observed on this stack
+    (23), so the ceiling gets a direct measurement instead of an extrapolation from two points.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 24, 32 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,40 @@
+# Does a LARGER chunked_prefill_size help? Test cps=8192 against the shipping 4096.
+#
+# WHY THIS DIRECTION. §19a established that the bs>16 "decline" is prefill work, not batch size: at
+# d=0 the batch curve is FLAT (98.75/107.12/106.15) while the same boot at d=8192 falls -40.9%. It also
+# showed the cap penalty's decode half requires prefill work to exist (at d=0 the k==cap cell costs
+# only -0.9% of decode), so prefill starvation is the common factor in both effects.
+#
+# The cps=1024 arm (bench_5e7b5eacbdfd) is the shrink test and its first cell says shrinking HURTS:
+# k=8 gives tg 71.4 vs the 79.27 control, -9.9%, with pp 1840.5 vs 2195.4. That is the expected
+# direction if smaller chunks mean more prefill chunks per request and more switching, i.e. the prefill
+# path being strangled further. So the productive direction is the other one.
+#
+# WHAT THIS PREDICTS AND WHY IT IS NOT OBVIOUS. chunked_prefill_size sets how many prefill tokens the
+# scheduler admits per step. Raising it lets a request's prefill complete in fewer steps (at 4096, a
+# 10,240-token prompt = 8192 depth + 2048 pp needs 3 chunks; at 8192 it needs 2). Fewer chunks means
+# less decode interleaved between them, so each request reaches its first token sooner and the step
+# loop spends a larger fraction of wall clock on useful work. The counter-pressure is real: a big chunk
+# is a long step during which NOTHING decodes, so per-request TTFT for the others grows and decode
+# steps get starved -- which is why the shipping default is not already maxed out. This is a
+# throughput-for-tail-latency trade and §17 requires TTFT to be read beside tg, not just tg.
+#
+# ARMS. cps=8192 vs the shipping 4096. NOT the same boot as the 4096 control, so the comparison is
+# cross-boot and the 12.4% d=8192 inter-boot floor applies: only a change above ~10% on a cell counts
+# as a result, and k=8 is included precisely because it is a cell whose control value (79.27 in the
+# pcontent boot, 79.14 in the original) is now known from three independent boots and can be checked
+# for drift. A 4096 arm re-run in the same window is the clean version of this and is the follow-up if
+# the 8192 cell looks interesting.
+framework: llama-benchy
+metadata:
+  description: >
+    chunked_prefill_size=8192 vs the shipping 4096, at d=8192 k=8/16/24. Tests whether admitting
+    larger prefill chunks recovers the high-concurrency prefill cost. Requires
+    -o chunked_prefill_size=8192.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

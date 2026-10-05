@@ -1,0 +1,146 @@
+# cps scan at k=16 ONLY, labquant: the one measurement that could change the shipping recipe.
+#
+# WHY THIS RUN EXISTS. §19h's honest conclusion is that no configuration quantity predicts the
+# chunked_prefill_size response — work, phase-B step count, prefill-token budget and phase-A admission
+# have each been falsified, two of them on arms already on disk. But the falsifications left a pattern
+# worth one scan, and this run is designed to test **that**, not to be an open-ended sample.
+#
+# THE ARITHMETIC, and a correction to this header's first version.
+# A `depth>0` cell is TWO timed phases (§19d): phase A prefills `depth`=8192, phase B prefills only
+# `pp`=2048, and tg_throughput is measured in **phase B**. An earlier draft of this header computed
+# chunks as `ceil((depth+pp)/cps) = ceil(10240/cps)` — the total prefill per request — which is exactly
+# the conflation §19d withdrew. Recomputed per phase, with `max_prefill_tokens=16384` (verified absent
+# from the serve argv, so SGLang's default governs) and `admit/step = floor(16384/min(cps,depth))`:
+#
+#   cps    phase-A chunks=ceil(8192/cps)   admit/step   budget waste=(16384 mod cps)/16384   k=16 tg (labquant)
+#   2048   4                               8            0.0%                                ?  <- this run
+#   3072   3                               5            6.2%                                (not run, see DROP)
+#   4096   2                               4            0.0%                                91.38 / 90.24
+#   5120   2                               3            6.2%                                65.37 / 66.10
+#   6144   2                               2            25.0%                               ?  <- this run
+#   8192   1                               2            0.0%                                84.91 / 85.55
+#
+# WHAT THE EXISTING ARMS ALREADY REFUTE (read this before crediting the scan with anything).
+# cps=4096 (91.38) and cps=5120 (65.37) have the SAME phase-A chunk count (2). So **chunk count cannot
+# explain the largest gap in the table** — that is §19h's result and this scan does not reopen it.
+# And **admission is refuted by the same arms too**: 8192 admits 2 per step and scores 84.91, while 5120
+# admits 3 and scores 65.37 — better outcome at LOWER admission, so admit/step is not monotone in the
+# outcome either. **What is left standing is only the non-monotone candidate: budget waste.** Of the
+# quantities above, waste is the only one that is non-monotone in cps, and the outcome is non-monotone
+# too (4096 best, 5120 worst, 8192 second-best) — a coincidence of shape, not yet evidence.
+#
+# THEREFORE cps=6144 IS NOT DECISIVE, and this header's first version claimed it was. It said 6144 vs
+# 8192 "differ in divisibility ONLY". **That is false: they differ in phase-A chunk count too (2 vs 1).**
+# Under the correct convention there is **no pair of arms that isolates divisibility**, because chunk
+# count, admission and waste are each monotone in cps and so cannot be separated from one another by
+# moving cps alone; only waste is non-monotone, and it moves jointly with nothing. The scan can still
+# distinguish two live readings, but it is a two-way fork, not a clean isolation:
+#   * 6144 BAD (say <= ~72, i.e. like 5120 rather than like 8192) -> consistent with waste being real
+#     (6144 carries 25% waste, the worst of any arm), but **confounded with phase-A chunk count**, since
+#     6144 has chunks=2 like the bad arm 5120 and unlike the good arm 8192. Report as "waste and chunk
+#     count again move together"; it does not name a mechanism.
+#   * 6144 HEALTHY (~85, i.e. like 8192) -> **waste is refuted**, because 6144 has the most waste of any
+#     arm and would be the worst under it. That is the genuinely informative outcome: it would leave
+#     **no configuration quantity at all** accounting for the cps response, which is the honest
+#     conclusion §19h already reached and would make 6144 the third independent confirmation of it.
+# Either way the scan cannot produce a mechanism. Its value is that the second branch is a real
+# falsification and the first is not. **A scan should be launched knowing which of its outcomes
+# actually refutes something; that is recorded here rather than reconstructed after the number lands.**
+#
+# cps=2048 (the second arm) is the only arm that moves chunk count AWAY from the rest while keeping
+# waste at zero: 4 chunks, admit 8, waste 0%. Healthy => chunk count and admission both harmless (both
+# already refuted above, so this is confirmation). Bad => something about very small chunks, which would
+# be new. Its outcome is worth one boot; it is not decisive either.
+#
+# WHY k=16 AND NOT THE USUAL k=8/16/24. labquant's recommended serving point is bs≈16 (91.38, the
+# aggregate peak, §19/§3c), and every candidate recipe change so far has been a trade: cps=8192 costs
+# 5.5–6.2% exactly there to buy +23.6% at k=24, which is why nothing shipped. **A cps value that is BETTER
+# THAN 4096 at k=16 would be a recipe change with no tail-latency trade attached**, which is the only kind
+# of change this section has not yet produced.
+#
+#   * the same-configuration inter-boot spread at k=16 is 1.4-3.5% on cps=4096/8192 arms (S19g-1), and the
+#     two control boots agree to 1.3%. So **treat anything under ~4% vs the 90.24-91.38 control as no
+#     difference.** NOTE this floor is per-(config,cell) and does NOT generalise: the same stack at
+#     cps=5120 has k=8 IQR 12.2-12.9%, while its k=16 is 2.7-6.9%. Since this scan is k=16-only and the
+#     scanned values are near 4096, the 1.4-3.5% floor is the right yardstick here -- but if a scanned arm
+#     comes back with IQR > 6% at k=16 (as cps=5120 did once), treat that cell as cps=5120-wide and widen
+#     the threshold to its own spread, not the control's.
+#   * a candidate needs >= 5% above control at k=16 to be a recipe candidate at all. **A second gate,
+#     "no regression at k=8", is DELIBERATELY NOT AVAILABLE in this profile: it measures k=16 only, so
+#     that gate can neither pass nor fail here.** An earlier revision of this header required it anyway,
+#     which is how a gate that cannot fail gets reported as passed. A k=16 win therefore licenses exactly
+#     one next step -- a k=8 confirmation boot at the winning cps -- and not adoption.
+#   * if every scanned value is within noise or worse, that is a real result too: it establishes 4096 as
+#     the empirical optimum at the serving point **by scan rather than by model**, which is the strongest
+#     statement available while the mechanism is unknown, and it closes the cps line of investigation.
+#   * read TTFT beside tg. The cps=16384 arm taught us that equal throughput with 2x TTFT is not the same
+#     configuration, and a k=16-only scan has no tail-latency witness unless TTFT is read from the JSON.
+#
+# LAUNCH ORDER. Each value gets its own benchmark_id (the id hashes the OVERRIDES as well as the profile
+# path, S19c), so sequential launches cannot overwrite each other.
+#   1. cps=6144  -- launched first because it is the arm with the only genuinely refuting outcome (see
+#                   above: if it is HEALTHY, waste is refuted outright). It is NOT decisive in the other
+#                   direction; do not describe it as decisive when reporting it.
+#   2. cps=2048  -- chunks=4, admit=8, waste=0%: the only arm that raises chunk count while holding waste
+#                   at zero. Confirmatory, not decisive.
+#   DROPPED: cps=3072. Deliberately removed from this profile. Its outcome is uninformative: chunks=3,
+#   admit=5 and non-zero waste all move together against every neighbour, so "bad" is consistent with each
+#   candidate and "healthy" is consistent with several. A cell whose every outcome is compatible with every
+#   hypothesis costs a boot and answers nothing. **Generalise: before launching a scan arm, ask which OTHER
+#   arm it is compared against and what else differs between them -- an arm that differs from every
+#   neighbour in three variables at once is decoration, not a control.** The same test applied to my own
+#   "decisive" 6144 arm a boot after launching it is what produced the correction above.
+#
+# CORRECTION, appended after cps=6144 landed (2026-09-22, bench_aa5e3357f828, k=16 = 62.88, IQR 4.2%,
+# spread [55.8..68.1], n=7; OVR:6144 verified in its own state.yaml). Two claims above were wrong and
+# both are kept visible rather than edited away:
+#   (a) "6144 vs 8192 differ in divisibility ONLY" -- FALSE. It used ceil((depth+pp)/cps), the total
+#       prefill per request, which is the two-phase conflation S19d withdrew. Per-phase they differ in
+#       chunk count too (2 vs 1), so no pair of arms isolates divisibility.
+#   (b) "Either way the scan cannot produce a mechanism" (line ~46) -- ALSO FALSE, in the conservative
+#       direction. 6144 vs 8192 holds **admit/step constant at 2** across a 26% throughput gap
+#       (85.23 vs 62.88), which kills the admission model outright -- a constant-across-a-large-gap
+#       refutation, stronger than the non-monotonicity argument this header relied on. Line ~44's
+#       "if 6144 is HEALTHY, waste is refuted outright" was the wrong fork: 6144 came back BAD, and the
+#       informative result arrived from the arm this header did not expect to be informative.
+# What survives from (a): waste is the only quantity monotone in outcome order (4096:0%, 8192:0%,
+# 5120:6.25%, 6144:25% against 90.81, 85.23, 65.73, 62.88) where chunks (2,1,2,2) and admit (4,2,3,2)
+# are not -- but its dose-response saturates (0->6.25% costs 27.6%, 6.25->25% costs only 4.3%), and
+# cps=1024 has waste 0% and is catastrophic, so waste is not a complete account either. There is also
+# **no clean pair left in the table**: 6144-vs-8192 varies chunks AND waste together, 4096-vs-5120
+# varies admit AND waste together. Monotone-with-one-variable across four points is a ranking
+# consistent with a candidate, not an isolation of it.
+# THEREFORE cps=2048, this profile's second arm, is now the isolating one rather than "confirmatory, not
+# decisive" as line ~101 said: chunks=4 (worst of any arm) with waste=0%. Waste predicts healthy (~90);
+# chunk/step-count predicts degraded. That is a genuine two-way fork, which is more than any pair above
+# offers. Recorded in S19h.
+#
+# RESULT OF THE SECOND ARM (bench_931727bbacd6, cps=2048, k=16, n=7, OVR:2048 verified): 70.64,
+# -21.7% vs the pooled control 90.27, p=0.00002, DISJOINT. Branch B fired: chunk count was favoured and
+# waste was refuted outright -- cps=2048 has waste EXACTLY 0 (16384 mod 2048 = 0), the same as the two
+# best arms, and sits 21.7% below them. The zero-waste bucket now spans 70.64-90.27 (27.8%), so "waste==0
+# implies healthy" is dead.
+# BUT THE WINNER FAILS IN THE SAME TABLE: within chunks_A = 2 the outcome spans 62.88-90.27 (43.6%),
+# containing both the worst and the best arm. So neither candidate survives five arms, and the durable
+# finding is structural -- phase B (the timed phase) runs one 2048-token chunk with zero waste in ALL
+# five arms, min(cps,2048)=2048 everywhere, yet aggregate decode spans 27.8%. chunked_prefill_size
+# cannot be acting in the phase whose throughput it changes. Full write-up and per-request table in S19i.
+#   Also new: cps=2048 is the only arm with a per-request DECODE slowdown (tg_req 6.27 vs ctl 9.070,
+# -30.9%) AND the only arm where TTFT IMPROVES (9.35s vs 10.22s, -8.5%) while throughput falls. So "smaller
+# chunks never help TTFT" (S19c, established at cps=1024/RadixArk) does not generalise to 2048, and across
+# the labquant arms TTFT ascends with cps (9.35, 10.22, 15.03, 15.66 s) -- TTFT is not a usable proxy for
+# this knob in either direction. Recipe: do not go below 4096 without measuring your own trade. No change.
+framework: llama-benchy
+metadata:
+  description: >
+    labquant at k=16 only, d=8192, n=7, for a chunked_prefill_size scan at the shipping serving point.
+    Launch once per value: -o chunked_prefill_size=6144 then 2048. Read against the cps=4096 control
+    (91.38 / 90.24). NOTE: 6144 is informative only in the HEALTHY branch (it refutes budget-waste);
+    read the header's falsification table before claiming anything.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16 ]
+  prefix_caching: true
+  runs: 7

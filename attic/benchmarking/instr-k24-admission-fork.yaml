@@ -1,0 +1,54 @@
+# Instrumented k=16 AND k=24 at cps=4096 vs cps=8192: is the +38% k=24 recovery admission or per-step cost?
+#
+# WHY THIS IS THE NEXT BOOT AND NOT A SIXTH cps VALUE.
+# §19j measured the running batch properly and found **16.00 in both arms** across a 21% throughput gap,
+# which killed "the server advances fewer sequences". §19k then eliminated every observable state variable
+# (cache bytes, token usage, queue, acceptance length, chunk count, budget utilisation). Seven eliminations,
+# one surviving class: something that makes each step cost more.
+#
+# But §19j tested k=16, and **k=16 cannot show an admission effect.** With `max_num_seqs: 24`, a k=16 load
+# fits entirely: the batch is trivially full in both arms, so num_running is 16 by construction and the
+# measurement is uninformative about admission. The +38% cps effect lives at **k=24**, where the load EQUALS
+# the cap and admission actually has to work — and I have no sourced gauge data there at all.
+#
+# THE TWO HYPOTHESES MAKE OPPOSITE PREDICTIONS AT k=24, AND THAT IS WHY THIS BOOT IS WORTH AN HOUR:
+#   H_admission  (the k=24 cliff is admission-limited)
+#       predicts num_running(4096, k=24) BELOW num_running(8192, k=24). Mechanism: the cps=4096 arm must
+#       prefill 24 requests x ceil(10240/4096) = 3 chunks = 72 chunks before all 24 are running, against 48
+#       for cps=8192, so it spends longer with a partially-filled batch and its steady-state average is lower.
+#       If true, the entire "no mechanism found" result of §19k is an artifact of having measured the one
+#       cell (k=16) where admission cannot bind.
+#   H_percost    (the k=16 finding generalises; each step is genuinely more expensive)
+#       predicts num_running EQUAL in both arms at k=24 as well (~24.0, or equal at whatever the steady state
+#       is), with the same gen_throughput asymmetry seen at k=16. If true, §19k's elimination stands and the
+#       mechanism really is per-step cost, which then needs a GPU-level capture to identify.
+#
+# THE INTERNAL CONTROL IS BUILT IN: the same boot runs k=16 first, and §19j already established what that
+# cell must read — 16.00 at full batch on zz-lq-metrics. If k=16 does NOT reproduce ~16.00 in this boot, the
+# recorder or the arm is wrong and the k=24 numbers are uninterpretable. §19e's lesson, applied: a control is
+# only a control if it is measured, and a control that is *expected to be unchanged* detects setup drift.
+#
+# THROUGHPUT IS DISCARDED BY DESIGN (§6 item 0: never report tok/s from a --enable-metrics boot). The gauge
+# file is the result. Both arms use the identical zz-lq-metrics recipe, so the metrics flag cannot confound
+# a comparison of the two arms with each other.
+#
+# Run this TWICE, once per arm, harvesting the gauge file between arms (launch-instr.sh enforces the harvest
+# by line-count comparison, not by a flag):
+#     .scratch/q4/launch-instr.sh 4096   # control arm
+#     .scratch/q4/launch-instr.sh 8192   # treatment arm
+framework: llama-benchy
+metadata:
+  description: >
+    Instrumented k=16 (internal control, must reproduce 16.00) and k=24 (the question) on zz-lq-metrics,
+    run once per cps value at 4096 and 8192. Decides whether the +38% k=24 recovery is admission-limited
+    (num_running differs between arms at k=24) or per-step cost (num_running equal). Throughput discarded.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 24 ]
+  prefix_caching: true
+  # n=5, not 7: for gauges the quantity of interest is the number of INDEPENDENT full-batch windows, and
+  # five is plenty; k=24 at d=8192 costs ~4 minutes of prefill per repeat, so two saved repeats buy back
+  # ~8 minutes per arm. Stated rather than defaulted so the difference from §19j's n=7 is visible.
+  runs: 5

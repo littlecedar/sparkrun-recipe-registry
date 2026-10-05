@@ -1,0 +1,56 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Depth-vs-acceptance at c=2, to raise the precision of an instrument that currently cannot
+    resolve its own question. Nothing here is a new claim: it is the remedy prescribed by
+    section 12.37's pre-registered outcome 3, and it has NOT been run.
+
+    WHY c=2 AND NOT c=4. Both orderings of the depth sweep (p59 ascending, p61 descending) ran at
+    c=4 and both produced acceptance medians from cells with only 6-41 steady decode lines, with
+    two appearances of the SAME cell disagreeing by 18 % (1024 read 3.685 then 3.070). An
+    instrument whose repeated-cell spread is twice the effect it is testing cannot answer whether
+    acceptance steps at 16k, in either sweep direction -- that is what section 12.36 (sign flips
+    with sweep order) and section 12.37 (step absent, drift 18 %) independently established.
+    At c=2 the same depths cost 33-37 % of the 117,752-token pool instead of 56-63 %, so no cell
+    is pool-limited, the `#running-req >= c` filter is satisfiable for the whole task, and cells
+    should accumulate far more steady lines. Section 12.34 measured acceptance to be flat in batch
+    from 2 to 8, so moving to c=2 costs nothing in the quantity being measured while buying
+    samples. It is a precision change, not a new regime.
+
+    WHAT MAKES THIS RUN SELF-DIAGNOSING, which is the only reason to run it at all. `depth` 1024
+    and 16384 each appear TWICE, at different schedule positions, so the run reports its own
+    within-boot drift. The rule to apply BEFORE interpreting any trend: if the two appearances of a
+    depth still disagree by more than the size of the depth effect, the instrument remains unable
+    to answer and the correct output is that statement, not a median. Sections 12.33/12.36/12.37
+    all skipped that gate and each produced a confident answer that the next run overturned.
+
+    PRE-REGISTERED OUTCOMES, fixed before running:
+      * repeated-cell spread < 5 % and a clear depth trend -> the acceptance decline is real at
+        last, quoteable, and section 12.33's mechanism is restored;
+      * repeated-cell spread < 5 % and NO trend -> acceptance does not step with depth; section
+        12.33's "most of the 16k penalty is acceptance" is withdrawn and section 12.23's
+        prefill-admission term becomes the leading explanation;
+      * repeated-cell spread > 10 % -> still unresolvable. Do NOT quote any acceptance number from
+        this run. The correct conclusion is that per-step `accept len` medians on this harness are
+        not an instrument for a ~10 % effect, and the acceptance mechanism should be called
+        untestable by this route rather than refuted.
+
+    JUDGE ON `accept len` from the server's own Decode batch lines, never on harness throughput:
+    section 12.32 showed the harness `tg_throughput` tracks admission, and section 12.37 nearly
+    published a prefill-phase column as a decode result. Use `analyze_order.py`, whose window
+    derivation is [end - duration, end] and which REFUSES to report unless the window span lies
+    inside the observed log span.
+
+    REQUIREMENTS learned the hard way: `--fresh` (sparkrun keys resume state on
+    profile+recipe+hosts and IGNORES --output, re-writing the prior JSON byte-identically with
+    rc=0); copy the serve log out of the container before teardown; verify per-cell
+    `prompt_size`/`context_size` in the resulting JSON rather than trusting the command line, the
+    profile echo or the filename. Zero boots if run --skip-run against a container already serving
+    the shipped recipe.
+args:
+  depth: [ 1024, 16384, 1024, 16384 ]
+  pp: [ 2048 ]
+  tg: [ 1024 ]
+  concurrency: [ 2 ]
+  prefix_caching: true
+  runs: 3

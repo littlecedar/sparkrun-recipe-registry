@@ -1,0 +1,73 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    p72 REPEATED with the depth order REVERSED. Same profile parameters as
+    benchmarking/depth-sweep-c4.yaml — `pp` 1024, `tg` 1024, `c` 4, five depths, runs 5 — with
+    `depth` listed DESCENDING. The only difference is sweep order, which is the point.
+
+    WHY AN ORDER REPEAT AND NOT MORE RUNS. p72 ran ASCENDING (1024 → 16384), and its own profile
+    said so: drift inside a long-lived container biases the depth slope DOWNWARD, because later
+    cells are slower. That bias direction was stated in advance and it happens to oppose a "depth
+    is expensive" reading, so p72's already-null slope is conservative. But conservative is not the
+    same as clean, and one number in p72 actively needs the reversal: **acceptance came out HIGHER
+    at depth 16384 (3.290) than at every shallower depth (3.235 / 3.060 / 3.090 / 3.070)**, which is
+    the opposite sign to §12.33's reported ~10 % decline at 16384. With ascending order, a rising
+    acceptance at the last cell is exactly what drift would produce, so p72 cannot tell an
+    acceptance effect from a container that changed over an hour. §12.36 already showed acceptance
+    contrasts reversing sign under reversed sweep order, so this is a live confound and not a
+    hypothetical one.
+
+    WHAT IS AT stake AND WHY n MATTERS HERE. §12.40 concluded that settling the acceptance question
+    needs **n ≈ 40–50 decode lines per cell**. p72 delivered **55–74 per cell**, which is ABOVE that
+    bar — so this is the first acceptance measurement in the whole thread with adequate power, and
+    its disagreement with §12.33 is therefore not dismissible as underpowering. Two adequate-power
+    answers in opposite directions is a real problem, and an order-reversed run is the cheapest way
+    to find out whether one of them is drift.
+
+    PRE-REGISTERED, fixed before the data.
+      1. DEPTH SLOPE. If the reversed run's slope is also null, depth is not measurably costly at
+         `c = 4` and the ~20 % figure of §12.22 is confirmed as a congested-batch phenomenon. If the
+         reversed run finds a slope of OPPOSITE sign to p72's, the slope was drift and §12.48's
+         conclusion collapses to "unresolved". Judge at |t| >= 3.182 (dof 3), NOT |t| >= 2 — see
+         §12.48, where using 2.0 manufactured a penalty that was not there.
+      2. ACCEPTANCE DIRECTION. p72 found acceptance highest at the DEEPEST cell. In a descending run
+         the deepest cell comes FIRST, so if acceptance is still highest at depth 16384, drift is
+         excluded and §12.33's decline is contradicted by two adequately-powered runs. If acceptance
+         is instead highest at the FIRST cell regardless of depth, the p72 result was drift and the
+         acceptance question is back to unresolved.
+         **This is the discriminating test and it is decided by the FIRST cell, not the last.**
+      3. REPLICATE CHECK. Compare the (1024, 1024) cell here against p72's. p72's two repeat cells
+         for that configuration drifted by several percent inside one boot, so a large discrepancy
+         here is expected and is the drift meter, not an error. If it matches p72 to within ~3 %,
+         then drift has been overstated in this thread and every "drift" claim needs revisiting.
+
+    CAPACITY IS CLEAN BY CONSTRUCTION (identical arithmetic to p72, restated so this file does not
+    have to be read alongside another). Pool 117,568 tokens, grant 21, usable = min(21,
+    floor(117568/(depth+pp))):
+      depth 16384 -> cost 69,632 = 59.2% of pool -> usable 6
+      depth 12288 -> cost 53,248 = 45.3%         -> usable 21
+      depth  8192 -> cost 36,864 = 31.4%         -> usable 21
+      depth  4096 -> cost 20,480 = 17.4%         -> usable 21
+      depth  1024 -> cost  8,192 =  7.0%         -> usable 21
+    Every cell admits the offered c = 4. Note the order consequence: the 59 %-of-pool cell now runs
+    FIRST instead of last, which is also a mild improvement — it runs on the least-perturbed pool
+    state available. Verify `#running-req` == 4 per cell anyway, because `concurrency` is an OFFER
+    and a capacity-limited cell silently turns a throughput ratio into a capacity ratio.
+
+    CAVEATS. `--skip-run` against the container already serving this recipe, so zero boots and
+    shared with p70/p71/p72 within-container history: this run is ~9 hours into that container's
+    life, so its absolute levels will differ from p72's and only ORDERED comparisons within a run
+    are interpretable. `prefix_caching: true` competes for pool tokens. Requires `--fresh`: sparkrun
+    keys resume state on (profile, recipe, hosts) and IGNORES `--output`, so repeating a
+    configuration silently resumes and re-writes the prior JSON byte-identically with rc = 0 — the
+    guard in the driver checks distinct md5s, and it must pass before anything is analysed. The serve
+    log must be fetched from inside the container before teardown, because `--skip-run` does not copy
+    it out and `/tmp/sparkrun_serve.log` dies with the container.
+
+args:
+  depth: [ 16384, 12288, 8192, 4096, 1024 ]
+  pp: [ 1024 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 5

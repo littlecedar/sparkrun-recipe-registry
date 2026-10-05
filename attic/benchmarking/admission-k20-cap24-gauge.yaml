@@ -1,0 +1,52 @@
+# k=16/20 at the SHIPPED cap (24), instrumented. First capture of `spec_accept_rate`; NOT a discriminator.
+#
+# WHAT THIS PROFILE ORIGINALLY CLAIMED, AND WHY THAT WAS WRONG. It was written to separate
+#   R1  run = min(k, cap - 1)                    from   R2  run = k when k < cap, cap-1 when k == cap
+# by measuring k=20 at cap=24. **The two rules are the same function on the entire reachable domain.**
+# R1 at k=20 gives min(20, 23) = 20. R2 at k=20 gives 20. They agree at every k <= 24, so no k < cap can
+# tell them apart, and the cell I had queued as "the discriminating one" discriminates nothing. Caught by
+# writing the predictions down before launching, which is the only reason it was cheap to catch.
+# **Generalise: before spending a boot on a two-branch test, evaluate BOTH branches on the SAME input and
+# check they differ. A pre-registration whose branches agree is not a prediction, it is a restatement.**
+#
+# WHAT IT DOES TEST, honestly:
+#   1. **A second `k < cap` point, on a second cap, on a second checkpoint.** §19l's claim that the
+#      `cap - 1` shortfall appears *only* at `k == cap` currently rests on one control (k=16 at cap 20,
+#      which filled 16/16 with queue 0). k=20 at cap 24 is a second such control at a different (k, cap)
+#      distance (4 below the cap rather than 4). It is confirmatory, not discriminating. Expected:
+#      **run = 20, queue 0.** If instead it pins at 19 with a queue, then the ceiling is `cap - 1`
+#      regardless of offered concurrency -- which is NOT R1-vs-R2 (that is the pair that collapsed) but a
+#      third and genuinely different claim: the server can never run `cap` sequences at all, and
+#      `max_num_seqs: 24` would then mean "at most 23 running" everywhere. **That is the outcome worth
+#      paying for; the other outcome just confirms what one control already showed.**
+#   2. **`spec_accept_rate` for the first time.** No capture to date has requested it
+#      (§7g, corrected 2026-09-22: the recorder's name list omitted it and asked instead for three names
+#      that do not exist in the pinned image). `spec_accept_length` is LAST-WRITTEN (§3c, §19h), so a
+#      distribution over it is a distribution over poll timing; `spec_accept_rate` is the gauge that can
+#      carry an acceptance statement across an interval. This is the only *new* capability the boot buys,
+#      and it is the reason to run it given that (1) is confirmatory.
+#
+# CONTROL FIRST, as always: k=16 must reach 16/16 with an empty queue. If it does not, the k=20 row is
+# uninterpretable and the arm is void -- a moved control is a warning, not support (§19n).
+#
+# WHY NO `-o max_num_seqs`. Deliberate: stay inside the memory budget the shipped recipe was calibrated
+# for. §19o shows cap 32 does not boot at `mem-fraction 0.8` because the mamba intermediate scratch scales
+# with `max_running_requests`. The cap is read from `state.yaml` after the run and asserted, never assumed.
+#
+# THROUGHPUT IS NOT THE POINT. zz-lq-metrics carries --enable-metrics; §6 item 0 forbids quoting tok/s
+# from such a boot and §19c shows the flag is not free. Throughput for k=20 at cap 24 comes from
+# `bench_cacd14583017` (84.30), not from here.
+framework: llama-benchy
+metadata:
+  description: >
+    k=16/20 at the SHIPPED max_num_seqs (24) on labquant, instrumented. Second k<cap control for §19l, and
+    the first capture of spec_accept_rate. Control k=16 must reach 16/16 with queue 0 or the k=20 row is
+    uninterpretable. Throughput discarded (metrics-enabled boot); no cap override, so the boot stays inside
+    the shipped memory budget.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 20 ]
+  prefix_caching: true
+  runs: 5

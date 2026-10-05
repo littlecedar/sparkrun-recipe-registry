@@ -1,0 +1,25 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Depth-0 twin of same-boot-concurrency-16k.yaml, used as the CONTROL for the prefix-cache
+    hit-rate collapse measured in phase 28. At depth 16384 the prefix-cache hit rate fell
+    monotonically with OFFERED concurrency (20.8% at c=8 -> 3.5% at c=20 on .34, and 42.2% ->
+    6.1% on .35) while `#running-req` stayed FLAT, which is the signature of radix-cache
+    eviction under pool pressure rather than of fewer running streams.
+
+    PREDICTION, written before the run: at depth 0 the same pool holds ~14x more concurrent
+    contexts (117k tokens / ~2.1k per depth-0 request vs 8 at 16k), so there is no pool
+    pressure to evict against and hit rate should stay HIGH and roughly FLAT across c=8..20.
+    With runs=3 and identical prompts, the structural ceiling is ~66% (one cold run of three).
+
+    REFUTED IF: hit rate at depth 0 also collapses with offered concurrency. That would mean
+    the collapse is a property of the harness (fresh prompts per run, or cache disabled in
+    practice) and NOT of KV pool pressure -- in which case the whole phase-28 mechanism story
+    is wrong and the "prefill displaces decode steps" explanation loses its cause.
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8, 12, 16, 20, 8 ]
+  prefix_caching: true
+  runs: 3

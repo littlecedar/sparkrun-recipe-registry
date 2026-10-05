@@ -1,0 +1,26 @@
+# d=0 at cps=8192: the second point on the direction reversal found in bench_0fe8490bc4f6.
+#
+# §19e established that the sign of the chunked_prefill_size effect FLIPS with depth: at d=8192 raising
+# cps 4096->16384 costs decode, at d=0 the same change GAINS (+28%/+31% per-request at k=16/24). One
+# treatment point is not a reversal, so this boot measures the intermediate width at the same depth.
+#
+# Expected under the (now-favoured) "chunk WIDTH matters when the cached prefix is long" reading: d=0 has
+# no 8192-token cached prefix, so 8192 should be flat-to-better than the 4096 control (98.75/107.12/106.15)
+# at every k, and the gain should be smaller than 16384's (142.38/135.00/120.61) -- i.e. monotone in cps.
+# If instead 8192 sits BELOW 4096 while 16384 sits above it, the d=0 response is non-monotone too and the
+# clean "sign flips with depth" story is wrong, because depth would not be the only modifier.
+#
+# Read tg_req_throughput / pp_req_throughput, not the aggregates (SS19e/SS19f): at k>1 both batch columns
+# are windows over submission/first-token/last-token events.
+framework: llama-benchy
+metadata:
+  description: >
+    d=0 with chunked_prefill_size 8192, k=8/16/24. Second treatment point for the depth-dependent sign of
+    the cps effect. Control: d=0 arm of bench_371a7bd533cb (98.75/107.12/106.15 at cps=4096).
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,56 @@
+# Is labquant's negative cps response the FLAG or the WEIGHTS? One boot decides it.
+#
+# Why this profile exists. §19c reports that `chunked_prefill_size` 4096 -> 8192 helps RadixArk at
+# k=24 (+36-42%) but *hurts* labquant at k=8/16 (-7.1%/-5.9%), and I had been calling that "the
+# checkpoints respond oppositely". Diffing the two recipe files shows that phrase hides THREE
+# differences, not one -- 19 of 22 defaults are identical, 24 serve flags are shared, and the delta is
+# exactly:
+#   1. extra_args        RK=(empty)  LQ=--moe-runner-backend flashinfer_cutlass
+#                                     --cuda-graph-backend-prefill disabled
+#   2. quantization      RK=modelopt_fp4     LQ=modelopt_mixed
+#   3. served_model_dir  RK=<unset>          LQ=/cache/runtime/labq-patched
+# So "the checkpoint" is doing a lot of unearned work in that sentence. Two of the three are *flags*,
+# and one of those two has already been excluded (turning the prefill graph off on RadixArk leaves the
+# cps response positive: +7.6%/+2.4%, §19c). That leaves `flashinfer_cutlass` and the weights.
+#
+# Why the MoE backend is NOT already excluded, despite §3b's finding. §3b measured
+# `flashinfer_cutlass` on RadixArk as **inert at bs>=8** -- but that was at the **shipping cps of 4096**.
+# "Inert at one chunk size" does not imply "inert at another": the response to cps is a *prefill-path*
+# property, and the MoE backend changes GEMM selection, so an interaction between the two is exactly
+# what a single-point null cannot rule out. Testing a knob at one setting of a second knob and then
+# declaring it inert everywhere is the error this arm is designed to catch in me.
+#
+# The arm: RadixArk + labquant's exact extra_args, at cps=8192. That is labquant's full flag set on
+# labquant's full chunk size, on the RadixArk weights. Both cells are needed, and the interesting one
+# is k=16, because that is where labquant is negative and RadixArk is positive.
+#   * If RadixArk+cutlass at cps=8192 goes NEGATIVE at k=16 -> the flag (via cps interaction) explains
+#     the reversal, and the checkpoint is exonerated. Recipe consequence: the two extra_args are what
+#     make labquant respond badly to wider chunks, and the fix is about flags, not weights.
+#   * If it stays POSITIVE -> the flags are inert for this response at both chunk sizes, and the cause
+#     is in what labquant changed about the *weights* (quantization scheme modelopt_fp4 vs
+#     modelopt_mixed, and/or the /cache/runtime/labq-patched tree). That is a much less actionable
+#     answer, and it would be the honest one.
+#
+# k=8 is included because that is labquant's most negative cell (-7.1%, the one significant on every
+# test), so a flag-only explanation has to reproduce there too. k=24 is the sanity cell: RadixArk's
+# +36-42% recovery lives there, and it should survive unless the flag also explains the gain.
+#
+# FLAG PLUMBING, per §7f/§19c: `-o extra_args=` must carry BOTH flags together -- overwriting
+# extra_args replaces the recipe's whole string, and passing only one of the two is a different arm.
+# The booted argv is the only proof; `sparkrun -o` silently drops keys the runtime does not know, so
+# `--dry-run` runs inside launch.sh before this boots.
+framework: llama-benchy
+metadata:
+  description: >
+    RadixArk with labquant's exact extra_args (--moe-runner-backend flashinfer_cutlass
+    --cuda-graph-backend-prefill disabled) at chunked_prefill_size=8192, k=8/16/24. Decides whether
+    labquant's negative response to wider chunks is caused by the flags or by the weights.
+    Requires -o 'extra_args=--moe-runner-backend flashinfer_cutlass
+    --cuda-graph-backend-prefill disabled' -o chunked_prefill_size=8192.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

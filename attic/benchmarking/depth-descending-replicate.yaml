@@ -1,0 +1,49 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    ORDER-REVERSED replication of §12.33's depth sweep, run with --skip-run against the live
+    container so it costs ZERO boots. §12.33 swept `depth` ASCENDING (1024, 4096, 8192, 16384) at
+    fixed `c` = 4 and found acceptance falling 3.360 -> 2.925, ~13 %, with a discrete drop at 16384
+    (Mann-Whitney z = -3.71, p = 2e-4). That section is load-bearing: it is the reason the depth
+    penalty is attributed to speculative acceptance rather than to memory or the pool.
+
+    WHY IT NEEDS REPLICATION. §12.36 ran the same kind of measurement with the sweep order reversed
+    and an acceptance effect that was significant in one order (G vs C -6.4 %, p = 0.019) became
+    non-significant in the other (-3.6 %, p = 0.38). The within-task drift measured across those two
+    runs reaches ~10 %, which is LARGER than most effects in this whole depth thread. A sweep whose
+    direction happens to align with the drift can manufacture or conceal a trend, and §12.33's
+    depth-ascending order is exactly the order under which an upward drift would conceal a decline --
+    or, if the decline still appeared, would have to be beaten by it. Either way the current 13 % is
+    untested against schedule position.
+
+    WHAT THE DESIGN ADDS OVER §12.33. `depth` 1024 appears TWICE, at opposite ends of the schedule,
+    so the run carries its own drift measurement. §12.33 had no repeated cell, which is why its
+    ~13 % could never be checked against schedule position at all. Read the two 1024 readings first:
+    if they differ by more than a couple of percent, quote the trend as a sign and not a magnitude.
+
+    PRE-REGISTERED OUTCOMES, fixed before running:
+      * descending-order acceptance still falls monotonically-ish toward 16384 with a similar step
+        -> §12.33's ~13 % is order-robust and can be quoted with two digits;
+      * the fall shrinks materially or the 16384 cell no longer separates -> the decline was
+        substantially a schedule artefact and §12.33 must be reduced to a sign, with its
+        "most of the 16k penalty is acceptance" claim softened accordingly;
+      * the two 1024 readings disagree by >10 % -> this instrument cannot resolve any acceptance
+        effect of this size, in EITHER order, and no acceptance magnitude should be quoted from
+        any single ordered sweep on it again.
+    Judge on the server's own `accept len` from Decode batch lines, not on the harness throughput
+    metric (§12.32's instrument lesson). Use .scratch/qwen3-27b/analyze_order.py, whose window
+    derivation is [end - duration, end] and which REFUSES to report unless the window span lies
+    inside the observed log span -- the check that caught a complete, plausible, wrong table in
+    §12.36's first version.
+
+    REQUIREMENTS learned the hard way: --fresh (sparkrun keys resume state on profile+recipe+hosts
+    and IGNORES --output, re-writing the prior JSON byte-identically with rc = 0); derive the
+    local->UTC offset rather than typing it; check distinct md5s before analysing.
+
+args:
+  depth: [ 16384, 8192, 4096, 1024, 16384, 1024 ]
+  pp: [ 2048 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 3

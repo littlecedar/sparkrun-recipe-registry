@@ -1,0 +1,54 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    qwen3.8-27b depth-0 baseline, for pinning the weight-read coefficient `a` with no depth
+    term present. Updated 2026-09-21: **this profile cannot do the job it was originally
+    written for**, and the reason is worth keeping because it was not obvious.
+
+    WHAT IT WAS WRITTEN TO DO. Separate the two additive depth costs in WORK.md section 12.27:
+    prefill admission per generated token (section 12.23) and KV bytes read per decode step.
+    The plan was to use depth 0 as the "no depth term" condition and check whether the residual
+    concurrency cost is linear in batch.
+
+    WHY THAT CANNOT WORK, AND WHY IT TOOK AN ARCHIVE REFIT TO SEE. The two candidate models are
+
+        A   1/peak = a/c + b + g*depth        (KV bytes;       cost ~ c*depth)
+        B   1/peak = a/c + b + g*c*depth      (superlinear;    cost ~ c^2*depth)
+
+    At depth 0 **both reduce to `1/peak = a/c + b`**. The discriminating term is multiplied by
+    depth in both, so setting depth to zero deletes the quantity under test. A d=0 arm measures
+    `a` and `b` cleanly and has **zero** power over A-vs-B -- it is not a weak test of the
+    distinction, it is one that both hypotheses predict identically. Found by refitting archived
+    depth-0 cells (`c = 2..20`, n>=3 each) and noticing the fit was identical under both models.
+    A phase built on this profile as its discriminator would have returned a confident verdict
+    with nothing behind it. **A control that both hypotheses predict identically is not a
+    control** -- and this one looked like the cleanest cell in the matrix, because depth 0 is
+    where noise is lowest.
+
+    WHAT IT IS GOOD FOR. Pinning `a` over a wide batch range at one boot. The archived depth-0
+    fit gives a = 0.0185; the phase-44 single-boot grid gives 0.0280. That 1.5x disagreement is
+    itself a finding about how boot state enters `a`, and it is only visible because a depth-0
+    fit is unambiguous between the two models (both being the same model there).
+
+    THE TEST THAT DOES DISCRIMINATE. Variation in depth AT FIXED c, with >= 3 depths so depth
+    linearity can be checked rather than assumed. Phase 44 ran 2 depths x 4 batch sizes; its
+    per-c slope statistic had an SE spanning zero and could not arbitrate, and the verdict came
+    from the curvature-vs-c statistic (4 points per depth). Proper closure is 3 depths x 3 batch
+    sizes at one boot, idle-gated per cell. NOT RUN.
+
+    DO NOT CONFUSE WITH benchmarking/prefill-contention-d0-vs-d8192.yaml, which is a **qwen4**
+    profile (its control is "must reproduce 87.66 / 65.34 / 54.23", it assumes NEXTN and k=24).
+    benchmarking/ is shared across recipes in this repo; read a profile's header before reusing
+    it. This recipe caps at `capped to 21`, so k=24 would measure the scheduler cap.
+
+    JUDGE ON `#running-req` in the serve log, never on offered concurrency: the harness does not
+    clamp the server. Requires --fresh, and verify distinct md5s -- sparkrun keys resume state on
+    (profile, recipe, hosts) and ignores --output, so a repeated configuration silently resumes
+    and re-writes byte-identical JSON with rc=0.
+args:
+  depth: [ 0 ]
+  pp: [ 128 ]
+  tg: [ 256 ]
+  concurrency: [ 2, 4, 8, 12, 16, 20 ]
+  prefix_caching: true
+  runs: 5

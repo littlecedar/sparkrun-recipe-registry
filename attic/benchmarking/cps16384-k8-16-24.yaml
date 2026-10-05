@@ -1,0 +1,40 @@
+# One chunk per request: the strongest test of the step-count model, and possibly a better recipe.
+#
+# Why this cell and not another replication. §19c established, from three arms, that high-concurrency
+# cost tracks prefill STEP COUNT rather than prefill work:
+#   cps=1024  -> 10 chunks per 10,240-token request -> k=16 tg 31.06 (-64%)
+#   cps=4096  ->  3 chunks                          -> k=16 tg 87.15, k=24 tg 51.51
+#   cps=8192  ->  2 chunks                          -> k=16 tg 88.42/86.83, k=24 tg 71.25/73.11
+# The k=24 gain from 4096 -> 8192 (+38/+42%, p=0.00054 both boots, disjoint distributions) is the
+# only real throughput lever found in this whole line of work, so the question that matters now is
+# whether it CONTINUES. It is also the sharpest available falsification of the step-count model,
+# because at cps=16384 a 10,240-token prompt fits in a SINGLE chunk and the count hits its floor:
+#   * k=24 improves further  -> step count is the right variable and the optimum is >=16384.
+#   * k=24 unchanged from 8192 -> the benefit saturated at 2 chunks, so something other than step
+#     count carries the remaining gap to the ~87 that k=16 achieves. Either answer is a result,
+#     and the second one is the more likely and more useful (it would mean "stop tuning cps here").
+#
+# A real risk that this run must be read for, not tripped over: `max_prefill_tokens` (SGLang default
+# 16384) caps prefill tokens per batch. With cps=16384 and k=24, admitting ONE 10,240-token prompt per
+# step may serialise admission rather than help it -- i.e. this arm can regress for a reason that is
+# about the *interaction* of the two knobs, not about chunks. So the serve log's resolved
+# `max_prefill_tokens` value is captured alongside the numbers, and a regression here is evidence
+# about the interaction, NOT evidence that the step-count model is wrong.
+#
+# Cells: k=8 (anchor; must reproduce ~82 against cps=8192 and ~79 against the cps=4096 control),
+# k=16 (the peak; expected ~87-88 -- a change here would be surprising and would need a rerun),
+# k=24 (the question). Same profile, depth, image and n=7 as every other §19/§19c sweep, so the
+# three cps arms stay directly comparable cell-for-cell.
+framework: llama-benchy
+metadata:
+  description: >
+    chunked_prefill_size=16384 -> a single prefill chunk per 10,240-token request. Tests whether the
+    k=24 recovery from cps 4096 -> 8192 continues (step count is the causal variable) or saturates
+    (something else carries the remaining gap). Requires -o chunked_prefill_size=16384.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

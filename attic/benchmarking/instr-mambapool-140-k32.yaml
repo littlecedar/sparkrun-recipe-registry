@@ -1,0 +1,71 @@
+# Does the running-batch ceiling move when `max_mamba_cache_size` moves? The causal test of §19u.
+#
+# WHY THIS IS THE EXPERIMENT TO RUN AND NOT ANOTHER OBSERVATION OF run = 27.
+# §19u established, from the server's own startup line, that `max_running_requests is capped to 28 by the
+# mamba state cache (max_mamba_cache_size=112, 4 state slots per request)`. Everything since has been
+# *consistent* with that: the ceiling is 28 at two depths, `mamba_available` is 0 at the plateau, `used`
+# tops out at 84 = 28 x 3.0 slots. But consistency is not causation -- in every boot so far the pool has
+# been 112, so pool size and the number 28 have never been separated. §19s made exactly this mistake with
+# free KV (a resource that read "just barely sufficient" at the one operating point ever measured) and
+# §19u had to refute it.
+#
+# SO: CHANGE THE POOL. This is the only single-variable move that can falsify the slots model, and it also
+# converts §19u's recipe advice from "asserted from the rule" into something measured.
+#
+# THE PREDICTIONS, written before launch (per §6 item 0). Rule: `eff = min(max_num_seqs, pool // slots)`,
+# `run <= eff`, observed plateau usually `eff - 1`. Slots per request = 4 (server-printed, lazy strategy).
+#   pool 112 -> 112 // 4 = 28 -> eff = min(32, 28) = 28 -> plateau ~27, ceiling 28   [ALREADY MEASURED]
+#   pool 140 -> 140 // 4 = 35 -> eff = min(32, 35) = 32 -> plateau ~31, ceiling 32   [THIS BOOT]
+# The server's startup line is the FIRST thing to read, before any gauge: it prints the cap it computed.
+# If it prints "capped to 35" or stops printing the line at all (because 32 < the computed cap, so no cap
+# applies), that is itself the answer and the gauge reading is confirmation, not evidence.
+#   * run reaches 31-32                    -> SLOTS CAUSE THE CEILING. Confirms the rule causally.
+#                                            `max_mamba_cache_size` becomes a validated concurrency knob and
+#                                            the shipping `max_mamba_cache_size: 112` is discarding
+#                                            concurrency at no cost to correctness.
+#   * run stays at 27 (or anywhere <= 28)  -> **the rule is WRONG and the server's printed cap is not the
+#                                            operative limit.** Something else, invariant to the pool,
+#                                            stops the batch near 27. Report which gauges go to zero at the
+#                                            plateau and do NOT rescue the rule by re-deriving slots.
+#   * run lands between 28 and 31          -> partial. Read `mamba_available` and `kv_available` at the
+#                                            plateau: whichever is 0 is what ran out. Do not average.
+#   * boot fails to allocate               -> expected risk: a bigger mamba pool is carved out of the KV
+#                                            cache (the serve log prints both). Record the error text and
+#                                            the `min viable` figure; do NOT lower `--mem-fraction-static`
+#                                            to force a number, because that changes what is being tested.
+#                                            NOTE this is the failure that blocked three boots on 2026-09-23
+#                                            for an unrelated reason (`pmproxy` holding ~54 GB of host RAM;
+#                                            see §19u), so check `MemAvailable` first -- launch.sh gates on it.
+#
+# WHAT IS HELD FIXED, and the one thing that is not.
+# Depth 2048, cps 8192, cap 32, lazy strategy, k=32, n=7, RadixArk `zz-rk-metrics` -- all identical to
+# `bench_8dd13e8ce441`, which measured ceiling 28 / mode 27 / 151 samples at 28. The only intended change
+# is `max_mamba_cache_size` 112 -> 140. **Not held fixed: `depth`.** The comparator that shares depth 8192
+# is `bench_...cap32-cps8192-k24k32`, which plateaued at 27 with `mamba_used` 84 and `kv_available` 192.
+# Depth was chosen at 2048 rather than 8192 because at 8192 the KV pool is nearly exhausted at the plateau
+# (192 tokens free = 0.02 of one sequence), so a bigger mamba pool taking KV could fail to boot or bind KV
+# and confound the result. At 2048 there are ~245 sequences' worth of free KV, so KV cannot bind and a
+# plateau below 31 would be attributable to mamba or to whatever else is going on. **That is a deliberate
+# trade: cleaner attribution against a different depth from the d=8192 comparator. §19u already showed the
+# ceiling is depth-invariant at pool 112, so the comparison remains legitimate.**
+#
+# COST / RISK. +28 slots at ~53 MB/slot ~= +1.5 GB of mamba state, carved from KV. TTFT is the metric to
+# watch, not throughput: a smaller KV cache raises eviction and prefill re-work. The throughput cell here
+# is read for *context* only (per §6 item 0, throughput is measured elsewhere); the product of this boot is
+# `run` and the gauge columns.
+framework: llama-benchy
+metadata:
+  description: >
+    Causal test of §19u's ceiling rule. `max_mamba_cache_size` 112 -> 140 (never varied in this project
+    until now), everything else identical to bench_8dd13e8ce441 (lazy, cap 32, cps 8192, depth 2048,
+    k=32). At 112 the server prints "capped to 28" and run tops out at 28 / mode 27. At 140 the computed
+    cap is 140 // 4 = 35 > cap 32, so the mamba pool should stop binding and max_num_seqs should bind
+    instead: ceiling 32, mode 31. If the ceiling stays at 27-28 the rule is wrong. Gauges only;
+    throughput discarded per §6 item 0.
+args:
+  depth: [ 2048 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 32 ]
+  prefix_caching: true
+  runs: 7
