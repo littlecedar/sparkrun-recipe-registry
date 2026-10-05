@@ -434,7 +434,252 @@ rendered line and the boot log.
 
 ---
 
-## 12. References
+## 12. TensorFold TP=2 lane (`deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml`)
+
+A second, independent lane in this directory: DeepSeek-V4.1-Flash on **two**
+GB10 nodes, served by the TensorFold `deepseek_v41` engine over the Mia-AiLab
+**EXL3 2.9bpw** checkpoint. It does not share code with the knapcio SGLang lane
+above; read this section before touching it.
+
+### 12.1 What it is
+
+- Engine: [`bertholomus/TensorFold`](https://github.com/bertholomus/TensorFold),
+  branch `deepseek-v41-tp2`, a fork of [ashhart/TensorFold](https://github.com/ashhart/TensorFold)
+  v0.6.3 (Apache-2.0). The `deepseek_v41` family is a clean-room re-implementation of DeepSeek's
+  MIT inference code; the fork's `tools/dsv41/ATTRIBUTION.md` records every source.
+- Checkpoint: `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` (~197 GB, 39 shards, MIT).
+  TensorFold's CUDA engine reads **EXL3 only** (`families/deepseek_v41/__init__.py`:
+  `QUANT_METHODS = {"cuda": ("exl3",)}`, `check()` refuses any other `quant_method`), so the
+  official MXFP4 checkpoint will not load here. The EXL3 repo's `config.json` has
+  `model_type: deepseek_v41`, which is what `families.detect()` keys on.
+- Engram: the EXL3 quant left the two FP8 Engram tables native; they are **not** in the EXL3
+  repo. The engine reads them from DeepSeek's original shards **47 and 48** (~95 GB each), which
+  carry `layers.{1,14}.engram.embed.{weight,scale}` and the `q_weight`/`k_weight` linears.
+- Context: the served command ships **262,144** tokens (upstream's measured lane). The engine
+  accepts up to 1,048,576 (upstream found a needle at 1,039,833), but at 1M a fresh prefill costs
+  ~10% more and the KV window is shared by `--parallel` streams.
+
+### 12.2 Files and the call chain
+
+```
+recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml   (runtime: sglang -- the shim path)
+  mods: "@littlecedar/mods/tensorfold-dsv41-launcher"
+    run.sh        # fail-closed gate: tensorfold on PATH, launcher.py + HF cache present;
+                  #   creates + re-owns /cache/runtime/tensorfold/{rank-cache,torch-extensions}
+    launcher.py   # RECIPE_ENV production config; --dist-init-addr/--nnodes/--node-rank -> TensorFold flags
+      -> execvp: tensorfold serve <MODEL_DIR> --tp 2 --rank R --master HOST --master-port PORT ...
+```
+
+The recipe's `command:` is a one-line call to the shim:
+
+```
+python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py --boot
+  --model {model} --port {port} --tp {tensor_parallel}
+  --served-model-name {served_model_name} --context {max_model_len}
+```
+
+sparkrun appends `--dist-init-addr HOST:PORT --nnodes N --node-rank R` to every node's serve
+command; the shim consumes all three.
+
+### 12.3 Why `runtime: sglang` and a shim (not a custom runtime plugin)
+
+sparkrun's runtime vocabulary is a fixed set of in-tree `RuntimePlugin`s plus feature-gated
+external plugins (`core/bootstrap.py`, `core/external_plugins.py`); an unknown `runtime:` name is
+fatal at launch, and there is no YAML-only way to define one. The established house pattern — used
+by the knapcio lane just above — is to declare `runtime: sglang`, give the recipe an explicit
+`command:` template, and let a mod's Python shim consume sparkrun's appended node flags and exec a
+foreign engine. This lane does the same, and inherits sparkrun's model/image distribution, the
+InfiniBand/NCCL env probe, the managed runtime cache, and the readiness watcher for free. A custom
+`RuntimePlugin` would be cleaner in the abstract, but it requires an out-of-tree plugin on every
+node's `plugins.paths`, which is a bigger deployment surface than one mod.
+
+### 12.4 The two load-bearing shim behaviours
+
+1. **The rendezvous port must be passed through.** sparkrun's native-cluster launch waits for the
+   head to open the rendezvous port before it starts the workers, and the port it gates on is the
+   one in `--dist-init-addr` (`runtimes/_cluster_ops.py` `gate_port`; default 25000). TensorFold's
+   `TCPStore` binds `--master-port` (its own default is **29551**). The shim therefore parses
+   `--dist-init-addr HOST:PORT` and emits `--master-port PORT`; if it did not, the head would open
+   29551 while sparkrun polls 25000 and declare the launch dead.
+2. **The rank comes only from `--node-rank`.** sparkrun passes it to the head (0) and the worker
+   (1); the container environment carries no rank. Only the shim sees it, so the shim sets
+   `--rank`. Getting it wrong makes both ranks act as rank 0 (the `TCPStore` then has a duplicate
+   server and the NCCL unique-id handoff breaks).
+
+TensorFold's rank 0 serves HTTP and drives the rounds; rank 1 follows it (`engine.follow()`).
+sparkrun launches the head first and waits for the rendezvous port, then starts the worker in
+parallel; because TensorFold's rank 1 blocks in `TCPStore(...)` until rank 0 opens the store, the
+head-first order is the one that works (do not be misled by upstream's "start rank 1 first" — that
+advice is for starting the *processes* by hand, where the worker must be listening before the head
+connects its `Link`/`Watchdog` sockets).
+
+### 12.5 The mod (`mods/tensorfold-dsv41-launcher/`)
+
+`run.sh` is a fail-closed pre-serve gate. It asserts `tensorfold` is on PATH, `launcher.py` exists,
+and `/cache/huggingface/hub` is mounted; it creates and `reown`s the managed runtime cache
+subdirectories the launcher writes. It modifies no image file and does not fail closed on a missing
+Engram directory (the engine loads without them and only prints a warning — see 12.7).
+
+`launcher.py` owns the production configuration (`RECIPE_ENV`), resolves the checkpoint, and execs
+`tensorfold serve`. The env it sets:
+
+| Env | Value | Why |
+|:--|:--|:--|
+| `TF_DS_REPLAY` | `1` | bounded decoder replay (DeepSeek's deployment mode); the engine default is exact prefill, which is slower and can OOM at 128K |
+| `TF_DS_PREFILL_CHUNK` | `2048` | upstream's served chunk |
+| `TF_DS_RANK_CACHE` | `/cache/runtime/tensorfold/rank-cache` | ~106 GiB/rank weight cache; paid once per host |
+| `TF_DS_RANK_CACHE_READERS` | `32` | upstream's value |
+| `TF_DS_WARM_LENGTHS` | `1,17,33,131,514,1024,2113` | upstream's warm-up lengths |
+| `TORCH_EXTENSIONS_DIR` | `/cache/runtime/tensorfold/torch-extensions` | persist the first-start CUDA-extension compile |
+| `TF_DS_TOKEN_MAP` | `/cache/runtime/tensorfold/token_map.json` | Engram hash table, built once from `tokenizer.json` |
+| `TF_DS_ENGRAM` | `/cache/huggingface/hub/dsv41-engram` | only when shards 47/48 are present |
+| `HOME` | `/cache/runtime/tensorfold` | the container runs as the ssh user, who may lack a writable home |
+
+`serve` always runs with `--parallel 4 --mtp-drafts 5 --temperature 0 --no-update-check`. The first
+three are upstream's served line; `--no-update-check` keeps the boot off the network.
+
+### 12.6 Checkpoint resolution
+
+The recipe passes the repo id in `{model}` (sparkrun does not rewrite it for a custom command). The
+shim derives the in-container snapshot from the fixed HF cache mount:
+`/cache/huggingface/hub/models--Mia-AiLab--DeepSeek-V4.1-Flash-EXL3-2.9bpw/snapshots/<hash>` via
+`refs/main`, else the newest config-bearing snapshot. An absolute path (a pre-placed model, or
+`-o model=...`) is used as-is. No `snapshots/<hash>` appears in the recipe, so a cache re-resolving
+to a new hash cannot break it.
+
+### 12.7 Engram is distributed out-of-band
+
+The two Engram shards are **not** distributed by sparkrun: they belong to the *official*
+`deepseek-ai/DeepSeek-V4.1-Flash` repo, and pulling that whole repo just to fetch shards 47/48 ships
+~285 GB of weights the engine never reads. Instead the shards live alongside the HF cache at
+`/cache/huggingface/hub/dsv41-engram` on each node. To pre-warm a node:
+
+```bash
+# on the head (which already has the official checkpoint cached), copy the two
+# shards from the snapshot (rsync -L follows the symlinks into real files):
+D=~/.cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/<hash>
+rsync -aL "$D"/model-0004{7,8}-of-00048.safetensors \
+  red@<node>:/home/red/.cache/huggingface/hub/dsv41-engram/
+```
+
+If the directory is absent, the engine still boots and serves, with
+`[tensorfold] WARNING: no Engram tables (TF_DS_ENGRAM): output will be degraded`; the mod and shim
+both report the state without failing. `_default_engram()` also looks for a `*Engram*` sibling of
+the model directory, but that location is inside the HF cache and would be wiped by a cache re-sync.
+
+### 12.8 The image
+
+`littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a7449d7335fb85d453cc439985c525495`
+(tag `tensorfold-tp2`), arm64-only, 33.8 GB. Source: `recipes/ds4/Dockerfile.tensorfold-dsv41`.
+
+Base: `lmsysorg/sglang:dev-cu13` (digest `sha256:aa878e8d…`). It already carries everything the
+engine compiles and links against — nvcc 13.0 + ninja, torch 2.13.0+cu130, triton 3.7.1,
+libibverbs + headers (`<infiniband/verbs.h>`), libnccl.so.2, and the Python deps (numpy,
+safetensors, tokenizers, huggingface-hub, jinja2, and also transformers/Pillow/xgrammar for the
+vision and grammar paths). The build therefore does exactly one thing: `git clone` the fork at the
+pinned commit and `pip install --no-deps .`. `--no-deps` is deliberate; installing with deps drags
+a second torch and an `nvidia-nccl-cu13` wheel over the base's own, and the engine links the base's
+libnccl by name (`cuda/comm.py`). The build ends with a gate that imports the engine, registers the
+family, imports every runtime dep, and runs `tensorfold --version`.
+
+Rebuild:
+
+```bash
+# on the arm64 head node, from a clone of the fork (the Dockerfile needs the repo context only
+# if you COPY it; it git-clones the pinned ref itself, so build from an empty dir is fine)
+docker build -f Dockerfile.tensorfold-dsv41 -t littlecedar/dgx-spark-dsv41:tensorfold-tp2 .
+docker push littlecedar/dgx-spark-dsv41:tensorfold-tp2
+# then pin the returned digest in the recipe's container: line
+```
+
+Bumping the engine is one `ARG TENSORFOLD_REF=...` change.
+
+### 12.9 Boot gates and a healthy boot
+
+1. `[tensorfold-dsv41-launcher] overlay gate OK` and `tensorfold: /…/tensorfold 0.6.3`.
+2. `[tensorfold] loading DeepSeek-V4.1-Flash … on CUDA, rank R of 2`.
+3. First boot only: `building CUDA extension …` (torch JIT; subsequent boots reuse
+   `/cache/runtime/tensorfold/torch-extensions`) and the ~106 GiB/rank rank-cache write.
+4. `[tensorfold] rank R: allocator ceiling …`.
+5. `[tensorfold] DeepSeek-V4.1 engine ready: 2 rank(s), context 262144, DSpark 5 drafts`.
+6. `[tensorfold] rank 0 serving … at http://0.0.0.0:8000/v1` and `Mean acceptance length > 1` on
+   decode (DSpark working). A boot that serves but accepts nothing is a failure.
+
+With no Engram shards, expect the degraded warning from 12.7 between 2 and 5.
+
+### 12.10 Guards
+
+`tests/test_ds4_recipes.py` pins this lane with **`TensorfoldLaneContract`** (and
+`TensorfoldLaneNegativeControls` for the mutations). It is stdlib-only and imports the shim
+module directly, so it runs on a head node, in a container, or on a laptop. It pins:
+
+- the image digest (`fabbe861…`) and `builder: docker-pull`;
+- `runtime: sglang` over the **EXL3** checkpoint (`Mia-AiLab/…-EXL3-2.9bpw`) — swapping in the
+  official MXFP4 repo must fail, since the engine's `family.check()` refuses a non-`exl3`
+  `quant_method`;
+- TP=2 = `min_nodes` = `max_nodes` = 2, and every `defaults:` key consumed by a `{placeholder}`;
+- the `@littlecedar/mods/tensorfold-dsv41-launcher` reference, no host bind mounts, no pinned
+  adapter names / sparkrun-managed comm env;
+- the shim's two load-bearing behaviours **by executing `main()`** with `os.execvp` stubbed:
+  `--dist-init-addr HOST:25000` → `--master HOST --master-port 25000` (not the engine's 29551
+  default), and `--node-rank R` → `--rank R`; plus RECIPE_ENV reaching the child and a missing
+  Engram dir leaving `TF_DS_ENGRAM` unset rather than failing.
+
+What the guard **cannot** see is a real boot: the CUDA-extension compile, the rank-cache write, the
+DSpark acceptance rate, and the rendezvous actually meeting. Those still need a render
+(`sparkrun run … -n`) plus a launch and a reading of the boot log. Note that a launch from the
+repo also needs the mod **committed and pushed** first (the `@littlecedar/` form resolves from the
+node's registry clone, §4) — a local trial that must not wait on the push can copy the recipe to a
+scratch dir and use the relative mod ref beside a `mods/` symlink.
+
+### 12.11 Measurement discipline
+
+- Upstream's numbers (2× GB10, greedy, DSpark k=5, 384-token prompts): C1 code 101 / prose 62 /
+  structured 142 t/s; 4 concurrent 112 t/s; prefill 1.7–2.0k t/s at 8K–128K; start-to-ready 36 s
+  warm. These are **upstream's**, measured on their nodes, not ours. Quote them as such.
+- **Our own measurement (2026-10-05, .34/.35).** One greedy request, a mixed code/prose prompt,
+  288 prompt / 256 completion tokens: **73.0 tok/s** decode (`completion_tokens / decode_s`), DSpark
+  95 rounds, 262 drafted / 160 accepted → **mean acceptance 2.76 tokens/round**. 73 t/s sits inside
+  upstream's 62–101 band, as a mixed prompt should. Note the engine's own `tensorfold.prefill_s`
+  (0.94 s for 288 tokens ≈ 305 tok/s) is overhead-dominated at this prompt size — do **not** quote it
+  as a prefill figure; a prefill number needs the 8K–128K shape.
+- **Boot timings, ours.** Cold (first ever): rank-1 weight load 312 s while writing a ~106 GB
+  rank cache, rank-1 ready 507 s, engine `loaded in 511.3 s`. Warm (rank cache present): rank-1
+  weight load **25 s**, rank-1 ready **43.3 s**, sparkrun TTR (port open) **51.4 s**. A first-ever
+  launch also pays a one-time ~510 s head→worker model sync (see 12.12). The rank cache persists
+  across `sparkrun stop`/`run` because it lives under the managed `/cache/runtime`.
+- The EXL3 checkpoint is a lossy quant: its quality on this project's hard tier is **unmeasured**.
+  Do not imply parity with the knapcio lane's 17/18. (The lane now *boots and serves* — the boot
+  is verified; the quality battery is not.)
+- `--parallel 4` shares one 262K window; concurrency and context-length trade off.
+- The rank cache is a boot-time optimization only; its first write is not part of a warm boot.
+
+### 12.12 Negative results / gotchas
+
+- **The official MXFP4 checkpoint will not load**: `check()` rejects `quant_method != "exl3"`.
+- **`--dist-init-addr`'s port is not decorative**: see 12.4; drop the mapping and sparkrun declares
+  the head dead.
+- **sparkrun launches the head first**, not rank 1; see 12.4.
+- **Engram is not sparkrun-distributed**; a fresh node without the shards serves degraded, silently
+  except for one log line. Pre-warm per 12.7.
+- **sparkrun re-syncs the model head→worker on launch even when both nodes already hold it**, over
+  the management net (`192.168.1.x`) at ~400 MiB/s — 510 s for the 196 GiB checkpoint. It is a
+  one-time cost per (head, worker) pair, but it dominates the first launch and is easy to misread
+  as a hang during `[3/6] Distributing resources`. The rsync uses `--copy-unsafe-links`, which
+  materializes the blob symlinks, so on the receiving node the model directory's real bytes must be
+  measured with `find -type f -printf %s`, not `du` on the model dir (which sees only symlinks).
+- **`docker exec <c> env` will not show `RECIPE_ENV`**: the shim rewrites its own environment before
+  `execvp`, so a fresh shell shows the image's env, not the launcher's. Read the launcher's log line.
+
+### 12.13 References
+
+- Engine: [bertholomus/TensorFold, branch `deepseek-v41-tp2`](https://github.com/bertholomus/TensorFold/tree/deepseek-v41-tp2)
+- Design/report: the fork's `tools/dsv41/DESIGN.md`, `REPORT.md`, `ATTRIBUTION.md`
+- Checkpoint: [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw)
+- Upstream recipe: [bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10](https://github.com/bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10)
+- Base image: [`lmsysorg/sglang:dev-cu13`](https://hub.docker.com/r/lmsysorg/sglang)
+
+## 13. References
 
 - Model: [deepseek-ai/DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
 - Upstream lane: [knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4) @ `58f2321` (downstream of [MiaAI-Lab](https://github.com/MiaAI-Lab/DeepSeek-v4.1-Flash-DGX-Sparks))

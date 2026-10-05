@@ -1406,5 +1406,359 @@ class SglangLaneNegativeControls(unittest.TestCase):
 
 
 
+# --------------------------------------------------------------------------
+# The TensorFold TP=2 lane: bertholomus' deepseek_v41 engine over the Mia-AiLab
+# EXL3 checkpoint (AGENTS.md §12). A separate engine and a separate mod, sharing
+# only the shim pattern with the knapcio lane above: `runtime: sglang` carries no
+# SGLang maths here, it is the rendezvous-flag bus, and the whole launch hinges on
+# the shim mapping --dist-init-addr/--nnodes/--node-rank onto `tensorfold serve`.
+# --------------------------------------------------------------------------
+
+TF_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml"
+TF_MOD_DIR = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher"
+TF_IMAGE = ("littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a"
+            "7449d7335fb85d453cc439985c525495")
+TF_MOD_REF = "@littlecedar/mods/tensorfold-dsv41-launcher"
+# The two TensorFold flags the shim MUST emit, and where their values come from.
+TF_RENDEZVOUS_FLAGS = ("--master", "--master-port", "--rank")
+
+
+def _tf_launcher():
+    """Import the shim module. Stdlib-only (imports argparse/os/sys/pathlib)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "tf_dsv41_launcher", TF_MOD_DIR / "launcher.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _run_tf_launcher(argv, checkpoint_dir, cache_dir, engram_dir=None):
+    """Execute launcher.main() with os.execvp stubbed; return (argv, env).
+
+    Proves the argparse -> argv/env mapping end to end without a container. The
+    module constants are redirected onto a temp dir first: prepare_runtime_cache()
+    mkdirs RUNTIME_CACHE, which is /cache/runtime in a real container and
+    unwritable here.
+    """
+    import os as _os
+    import tempfile  # noqa: F401  (kept for parity with the SGLang control)
+
+    mod = _tf_launcher()
+    mod.RUNTIME_CACHE = cache_dir
+    mod.ENGRAM_DIR = engram_dir if engram_dir is not None else str(Path(cache_dir) / "engram")
+    mod.RECIPE_ENV = dict(mod.RECIPE_ENV)
+    mod.RECIPE_ENV["TF_DS_RANK_CACHE"] = str(Path(cache_dir) / "rank-cache")
+    mod.RECIPE_ENV["TORCH_EXTENSIONS_DIR"] = str(Path(cache_dir) / "torch-extensions")
+    mod.RECIPE_ENV["TF_DS_TOKEN_MAP"] = str(Path(cache_dir) / "token_map.json")
+    mod.RECIPE_ENV["HOME"] = str(cache_dir)
+
+    captured: dict = {}
+
+    def fake_execvp(prog, args):  # pragma: no cover - records and stops
+        captured["prog"] = prog
+        captured["argv"] = list(args)
+        captured["env"] = dict(_os.environ)
+        raise SystemExit(0)
+
+    # The launcher does `os.environ.update(env)` and then execs; in production it
+    # never returns to observe that. Here it does, so the mutation would leak into
+    # the NEXT test's env snapshot (and did: an earlier TF_DS_ENGRAM leaked into
+    # the degraded-mode test). Snapshot and restore this process's environment.
+    before = dict(_os.environ)
+    orig = _os.execvp
+    _os.execvp = fake_execvp
+    try:
+        try:
+            mod.main(argv)
+        except SystemExit:
+            pass
+        else:  # pragma: no cover - execvp always raises here
+            raise AssertionError("launcher.main() returned without exec")
+    finally:
+        _os.execvp = orig
+        _os.environ.clear()
+        _os.environ.update(before)
+    return captured["prog"], captured["argv"], captured["env"]
+
+
+class TensorfoldLaneContract(unittest.TestCase):
+    """The TensorFold TP=2 lane's invariants. Each one, dropped, produces a
+    launch that dies at the rendezvous gate or a boot that serves the wrong model
+    -- neither of which is loud."""
+
+    def setUp(self):
+        self.text = TF_RECIPE.read_text()
+        self.r = Recipe(self.text, TF_RECIPE.name)
+        self.clean = _strip_comment_lines(self.text)
+        self.dc = "\n".join(_section(self.clean, "distribution_config"))
+
+    # -- recipe surface ----------------------------------------------------
+    def test_runtime_image_model(self):
+        self.assertEqual(self.r.runtime, "sglang")
+        # Vendored + digest-pinned: the shebang image whose `tensorfold` we built.
+        self.assertEqual(self.r.container, TF_IMAGE)
+        # The engine reads EXL3 ONLY (families/deepseek_v41 QUANT_METHODS); the
+        # official MXFP4 checkpoint would be rejected by family.check().
+        self.assertEqual(self.r.model, "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw")
+
+    def test_image_is_vendored_and_pinned(self):
+        self.assertRegex(
+            self.r.container,
+            r"^littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$",
+        )
+
+    def test_builder_is_docker_pull(self):
+        # The image is published to littlecedar and pulled by digest; nothing is
+        # built at launch. A builder that transforms the image would forbid the
+        # per-machine containers: this lane does not use, but the invariant is
+        # that distribution, not a local build, supplies the bytes.
+        self.assertEqual(_scalar(self.clean, "builder"), "docker-pull")
+
+    def test_two_nodes_tp2(self):
+        # TP=2 == min_nodes == max_nodes == 2: one GB10 per rank, and exactly two.
+        self.assertEqual(self.r.min_nodes, 2)
+        self.assertEqual(_scalar(self.clean, "max_nodes"), "2")
+        self.assertEqual(self.r.default("tensor_parallel"), "2")
+        self.assertIn("--tp {tensor_parallel}", self.r.command_template)
+
+    def test_context_and_port_are_wired(self):
+        self.assertEqual(self.r.default("max_model_len"), "262144")
+        self.assertIn("--context {max_model_len}", self.r.command_template)
+        self.assertEqual(self.r.default("port"), "8000")
+        self.assertIn("--port {port}", self.r.command_template)
+
+    def test_mod_reference(self):
+        self.assertIn(TF_MOD_REF, self.text)
+
+    def test_no_host_bind_mounts(self):
+        # (?m): a bare ^ anchors to string start and would pass vacuously on an
+        # indented volumes:. Cache lives under /cache/runtime, set by the launcher.
+        self.assertIsNone(re.search(r"(?m)^\s*volumes:", self.clean),
+                          "volumes: warns non-portable-mount; the shim owns the cache")
+        self.assertNotIn("/home/red", self.clean)
+
+    def test_entrypoint_cleared_and_shm(self):
+        ec = "\n".join(_section(self.clean, "executor_config"))
+        self.assertIn('entrypoint: ""', ec)
+        self.assertIn("shm_size: 32gb", ec)
+
+    def test_distribution_config_omitted(self):
+        # sparkrun's default distributes both model and container; an explicit
+        # `enabled: false` would strand the workers without either.
+        self.assertEqual(self.dc.strip(), "")
+
+    def test_readiness_timeouts_generous(self):
+        # A cold boot compiles the CUDA extensions and writes a ~106 GiB/rank
+        # weight cache before the serve port opens. A short timeout is a false bug.
+        self.assertRegex(self.clean, r"(?m)^\s+port_timeout_s:\s*(\d+)\s*$")
+        self.assertGreaterEqual(
+            int(re.search(r"(?m)^\s+port_timeout_s:\s*(\d+)\s*$", self.clean).group(1)),
+            3600,
+        )
+
+    def test_every_default_consumed(self):
+        # The same invariant DefaultsAreConsumed enforces for the attic lane, pin
+        # here too so the TensorFold recipe cannot ship a dead defaults key.
+        for key in self.r.defaults:
+            if key in ENGINE_PLACEHOLDERS:
+                continue
+            self.assertIn("{" + key + "}", self.r.command_template,
+                          f"defaults key {key!r} is referenced by no placeholder")
+
+    # -- the mod -----------------------------------------------------------
+    def test_mod_gates_and_reowns(self):
+        run_sh = (TF_MOD_DIR / "run.sh").read_text()
+        self.assertIn("launcher.py", run_sh)
+        self.assertIn("tensorfold", run_sh)          # gates on the engine on PATH
+        self.assertIn("reown", run_sh)               # hands cache back to the serve uid
+        for sub in ("rank-cache", "torch-extensions"):
+            self.assertIn(sub, run_sh)
+        # The launcher's RECIPE_ENV must agree with the two dirs run.sh creates.
+        eff = dict(_tf_launcher().RECIPE_ENV)
+        self.assertEqual(eff["TF_DS_RANK_CACHE"], "/cache/runtime/tensorfold/rank-cache")
+        self.assertEqual(eff["TORCH_EXTENSIONS_DIR"],
+                         "/cache/runtime/tensorfold/torch-extensions")
+
+    def test_no_host_device_names_in_recipe_env(self):
+        # No env value may name a host adapter; sparkrun's InfiniBand probe fills
+        # the transport vars per cluster and a pinned name breaks portability.
+        for k, v in self.r.env.items():
+            self.assertIsNone(_HOST_DEVICE_RE.search(str(v)),
+                              f"recipe env {k}={v!r} pins a host device name")
+        pinned = sorted(k for k in self.r.env if k in MANAGED_COMM_ENV)
+        self.assertEqual(pinned, [], f"recipe pins sparkrun-managed comm env: {pinned}")
+
+    # -- the shim's load-bearing mapping (executed, not read) --------------
+    def test_shim_maps_rendezvous_flags(self):
+        """--dist-init-addr HOST:PORT -> --master HOST --master-port PORT.
+
+        sparkrun's native-cluster launch waits for the head to open the port in
+        --dist-init-addr (default 25000). TensorFold's TCPStore binds
+        --master-port (its own default is 29551). If the shim drops the mapping
+        the head opens 29551 while sparkrun polls 25000 and the launch is
+        declared dead. Asserted by EXECUTING the shim's main().
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            prog, argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "DeepSeek-V4.1-Flash", "--context", "262144",
+                 "--nnodes", "2", "--node-rank", "1",
+                 "--dist-init-addr", "10.0.4.34:25000"],
+                checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
+            )
+        # argv is passed to execvp; prog is the resolved binary ("tensorfold").
+        self.assertEqual(prog, "tensorfold")
+        self.assertEqual(argv[:2], ["tensorfold", "serve"])
+        for flag in TF_RENDEZVOUS_FLAGS:
+            self.assertIn(flag, argv, f"shim must emit {flag}")
+        self.assertEqual(argv[argv.index("--master") + 1], "10.0.4.34")
+        self.assertEqual(argv[argv.index("--master-port") + 1], "25000",
+                         "the --dist-init-addr port must reach --master-port, "
+                         "not the engine's 29551 default")
+        self.assertEqual(argv[argv.index("--rank") + 1], "1",
+                         "the rank comes only from --node-rank")
+        # The upstream served line.
+        self.assertEqual(argv[argv.index("--mtp-drafts") + 1], "5")
+        self.assertEqual(argv[argv.index("--parallel") + 1], "4")
+
+    def test_shim_sets_recipe_env_and_degrades_without_engram(self):
+        """RECIPE_ENV reaches the child, and a missing Engram dir does NOT fail.
+
+        The engine loads and serves without the two Engram shards (degraded,
+        one warning). The shim must therefore leave TF_DS_ENGRAM UNSET rather
+        than point it at an absent dir or abort.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            _prog, _argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "DeepSeek-V4.1-Flash", "--context", "262144"],
+                checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
+                engram_dir=str(Path(d) / "absent-engram"),
+            )
+        self.assertEqual(env.get("TF_DS_REPLAY"), "1")
+        self.assertEqual(env.get("TF_DS_PREFILL_CHUNK"), "2048")
+        self.assertEqual(env.get("TF_DS_RANK_CACHE_READERS"), "32")
+        self.assertNotIn("TF_DS_ENGRAM", env,
+                         "a missing Engram dir must leave TF_DS_ENGRAM unset, "
+                         "not point it at something absent")
+
+    def test_shim_sets_engram_when_present(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            engram = Path(d) / "dsv41-engram"
+            engram.mkdir()
+            (engram / "model-00047-of-00048.safetensors").write_bytes(b"")
+            _prog, _argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "DeepSeek-V4.1-Flash", "--context", "262144"],
+                checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
+                engram_dir=str(engram),
+            )
+        self.assertEqual(env.get("TF_DS_ENGRAM"), str(engram))
+
+
+class TensorfoldLaneNegativeControls(unittest.TestCase):
+    """Mutation controls: each must fail if the guarded invariant is broken."""
+
+    def _mutated(self, old, new):
+        text = TF_RECIPE.read_text()
+        assert old in text, "anchor %r not in recipe" % old
+        return Recipe(text.replace(old, new, 1), TF_RECIPE.name)
+
+    def test_control_image_unpinned(self):
+        r = self._mutated(TF_IMAGE, "littlecedar/dgx-spark-dsv41:tensorfold-tp2")
+        with self.assertRaises(AssertionError):
+            self.assertRegex(r.container, r"^littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$")
+
+    def test_control_official_mxfp4_checkpoint(self):
+        # Swapping in the official (MXFP4) checkpoint must fail the model guard:
+        # the engine's family.check() refuses any quant_method != exl3.
+        r = self._mutated("model: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw",
+                          "model: deepseek-ai/DeepSeek-V4.1-Flash")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.model, "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw")
+
+    def test_control_tp3(self):
+        r = self._mutated("  tensor_parallel: 2", "  tensor_parallel: 3")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.default("tensor_parallel"), "2")
+
+    def test_control_mod_reference_dropped(self):
+        r = self._mutated(TF_MOD_REF, "@littlecedar/mods/not-the-launcher")
+        with self.assertRaises(AssertionError):
+            self.assertIn(TF_MOD_REF, r.raw)
+
+    def test_control_volume_dict_form(self):
+        r = self._mutated(
+            "shm_size: 32gb",
+            "shm_size: 32gb\n  volumes:\n    /home/red/dsv41-engram: /engram-local",
+        )
+        with self.assertRaises(AssertionError):
+            self.assertIsNone(
+                re.search(r"(?m)^\s*volumes:", _strip_comment_lines(r.raw)))
+
+    def test_control_rendezvous_port_not_mapped(self):
+        """Prove the shim's port mapping is load-bearing: the guard must fail if
+        the shim stops emitting --master-port.
+
+        Simulated by running the shim with a --dist-init-addr whose port we then
+        check is actually threaded; the mutation is applied to the shim source in
+        memory and the module re-executed."""
+        import os as _os
+        import tempfile
+        import types
+
+        src = (TF_MOD_DIR / "launcher.py").read_text()
+        # Break the mapping: emit the engine's own default instead of the passed port.
+        broken = src.replace(
+            'cmd += ["--master", master or "127.0.0.1", "--master-port", str(master_port)]',
+            'cmd += ["--master", master or "127.0.0.1"]',
+        )
+        self.assertNotEqual(broken, src, "mapping line vanished; update the control")
+        with tempfile.TemporaryDirectory() as d:
+            module = types.ModuleType("tf_broken")
+            module.__file__ = str(TF_MOD_DIR / "launcher.py")
+            exec(compile(broken, module.__file__, "exec"), module.__dict__)
+            module.RUNTIME_CACHE = str(Path(d) / "runtime")
+            module.ENGRAM_DIR = str(Path(d) / "engram")
+            module.RECIPE_ENV = dict(module.RECIPE_ENV)
+            module.RECIPE_ENV["HOME"] = str(Path(d) / "runtime")
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            captured = {}
+
+            def fake_execvp(prog, args):
+                captured["argv"] = list(args)
+                raise SystemExit(0)
+
+            orig = _os.execvp
+            _os.execvp = fake_execvp
+            try:
+                try:
+                    module.main(["--boot", "--model", str(model), "--port", "8000",
+                                 "--tp", "2", "--served-model-name", "x",
+                                 "--context", "262144", "--node-rank", "0",
+                                 "--dist-init-addr", "10.0.4.34:25000"])
+                except SystemExit:
+                    pass
+            finally:
+                _os.execvp = orig
+        with self.assertRaises(AssertionError):
+            self.assertIn("--master-port", captured["argv"])
+
+
 if __name__ == "__main__":
     unittest.main()

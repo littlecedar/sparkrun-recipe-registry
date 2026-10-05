@@ -265,6 +265,34 @@ The speculative scheduling cost table (`DSPARK_SPS_TABLE` / `DSPARK_STS_TABLE`) 
 
 
 
+## TensorFold TP=2 lane (two nodes)
+
+A second lane in this directory serves the same model on **two** GB10 nodes with a
+different engine. It trades the four-node SGLang lane's 1M context and measured
+quality record for a lower node count and better single-stream speed on a smaller
+(EXL3-quantized) checkpoint.
+
+| | |
+|:--|:--|
+| Recipe | `deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml` |
+| Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
+| Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
+| Engram | Official DeepSeek shards **47/48** (~95 GB each), distributed out-of-band |
+| Nodes | 2 (TP=2, one GB10 per node) |
+| Context | 262,144 tokens served (engine window is configurable up to 1,048,576) |
+| Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
+| Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
+| Measured | C1 101 code / 62 prose / 142 structured t/s; 4 streams 112 t/s (upstream's numbers on 2× GB10) |
+| Boot-verified | 2026-10-05 on 2× GB10: cold ~511 s engine-load, warm **51 s** TTR; **73 tok/s** single-stream (our own number) |
+
+See [`AGENTS.md`](AGENTS.md) §12 for the design, the launcher/rendezvous details, and how to
+rebuild the image. The lane is **boot-verified**: it loads both ranks, serves `/v1/models` and
+`/v1/chat/completions`, and DSpark accepts (mean 2.76 tokens/round) — see §12.11 for our numbers.
+Two caveats remain. First, the EXL3 checkpoint is a lossy quant, so its **quality** on this
+project's hard tier is still unmeasured; do not imply parity with the SGLang lane's 17/18. Second,
+the shipping prerequisite that bites first: the `@littlecedar/mods/…` reference resolves from the
+node's registry clone, so this recipe only launches once the mod is committed and pushed (§12.10).
+
 ## Retired material
 
 The DeepSeek V4.1-Flash **vLLM / EXL3 lane** (five recipes over
