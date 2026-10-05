@@ -1,0 +1,41 @@
+# d=0 at cps=16384: the decisive separation of two mechanisms I have been conflating.
+#
+# Why this cell exists. Reading llama_benchy's runner.py showed that every depth>0 run is TWO phases
+# (a "Context Load" phase that prefills the `depth` tokens, then the real prompt phase), so the
+# `chunked_prefill_size` sweeps in §19c have been varying chunk counts in a phase whose throughput I
+# was not even reading. Per-phase decomposition then showed (§19c) that phase A is flat-to-improving in
+# cps while ALL the damage sits in phase B, whose own prefill work is identical (2048 tokens, one chunk)
+# at every cps >= 2048. So the chunk-count model is refuted, and what is left is two candidates that the
+# depth>0 arms cannot tell apart:
+#
+#   (H1) PER-STEP PREFILL BUDGET. SGLang uses chunked_prefill_size as the per-step prefill token
+#        budget. Larger cps => a step can absorb more prompt tokens at once => longer mixed steps =>
+#        decode sequences wait. This needs NO context and NO cache: at d=0 with pp=2048, cps=4096
+#        admits 2 prompts/step and cps=16384 admits 8. So d=0 at 16384 SHOULD degrade under H1.
+#   (H2) DECODING AGAINST MANY LONG CACHED PREFIXES. The damage lives in the phase where each of k
+#        sequences carries an 8192-token cached prefix (page_size 64, max_mamba_cache_size 112). This
+#        REQUIRES depth>0, so d=0 at 16384 should be UNCHANGED under H2.
+#
+# Both predictions are sharp and opposite at this one cell, which is why one boot settles it:
+#   * d=0 cps=16384 collapses (vs the d=0 cps=4096 control 98.75 / 107.12 / 106.15 in
+#     `bench_371a7bd533cb`) -> H1. Prefill work, chunk count, and cached prefixes are ALL exonerated,
+#     and §19a's "prefill work per request is the driver" is replaced by "the per-step prefill budget
+#     is the driver" -- which is a different knob and a different recipe implication.
+#   * d=0 cps=16384 stays flat -> H2. The effect requires depth>0, putting cached-prefix state back as
+#     the prime suspect, and cps at d=0 becomes a no-op control that validates the whole sweep.
+#
+# Also included: cps=8192 at d=0, because if the answer is "nothing changes at d=0" I want two
+# treatment points rather than one before concluding the arm is a null.
+framework: llama-benchy
+metadata:
+  description: >
+    d=0 with chunked_prefill_size 8192 and 16384, k=8/16/24. Separates the per-step prefill budget
+    (H1, predicts degradation at d=0) from many-long-cached-prefix state (H2, predicts no change).
+    Control is the d=0 arm of bench_371a7bd533cb (98.75/107.12/106.15 at cps=4096).
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

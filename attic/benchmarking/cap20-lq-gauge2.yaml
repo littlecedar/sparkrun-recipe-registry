@@ -1,0 +1,48 @@
+# Second capture of the SAME question as cap20-k16-k20-gauge.yaml: labquant at cap 20, k=16 and k=20.
+#
+# WHY A NEW FILE RATHER THAN RE-RUNNING THE OLD ONE. sparkrun derives the bench id from
+# (recipe, profile path, overrides, nodes), so relaunching `cap20-k16-k20-gauge.yaml` with the same
+# `-o max_num_seqs=20` REUSES bench_c5f52d9b0b72's id and empties its runs/ and state.yaml. That bench is
+# cited in §19l (labquant, cap 20, k=16 88.58 / k=20 78.33) and is the only surviving record of the
+# throughput side of that arm. A new filename is the sanctioned way to vary the id. The previous
+# clobber of bench_674460c253ae happened exactly this way, and the launcher now refuses known
+# signatures -- but the ledger only knows launches made through it, so the profile name is the real guard.
+#
+# WHAT IS ACTUALLY MISSING. The bench ran and its cells are on disk. What was lost is the GAUGE capture:
+# both cap-20 recorders wrote to the same /tmp path and the second harvest re-archived the first
+# capture's file (md5-identical archives), so the "labquant at cap 20" row in §19l's table turned out to
+# be RadixArk data and was struck through. The surviving legs are cap 24 on labquant
+# (bench_f58bd5849317) and cap 20 on RadixArk (bench_523f53938ffd) -- two caps, two checkpoints, but
+# never the same checkpoint at two caps. This boot supplies the missing cell.
+#
+# PREDICTIONS, unchanged from the original profile and restated so a fresh reader need not open it.
+# Control first, then treatment -- a moved control invalidates the arm rather than supporting it:
+#   k=16, cap=20  ->  run = 16, queue 0.  If this cell does NOT reach 16, the comparison is void.
+#   k=20, cap=20  ->  run = 19, queue 1.  The rule `run = min(k, cap-1)` at a second cap on THIS
+#                     checkpoint. 19.0 => the rule is not checkpoint-specific. 20.0 => the rule is a
+#                     coincidence tied to whichever checkpoint/cap pairing produced 23-at-24, and §19l's
+#                     mechanism sentence must be narrowed to the checkpoint that showed it.
+#   k=16 gives 15 ->  the rule is wrong in the other direction and the framing needs redoing.
+#
+# SECOND PRODUCT, and the reason this boot is worth more than the first one was. `instrument_host.py`
+# now requests `spec_accept_rate` and `spec_block_accept_length`, which are emitted by the pinned image
+# from the same block that writes `spec_accept_length` (§7g, verified against the recipe's digest) but
+# which no capture to date has ever requested. So this is the first archive that can carry an
+# interval-based acceptance statement instead of only the last-written `spec_accept_length` gauge.
+#
+# THROUGHPUT IS NOT THE POINT. This runs zz-lq-metrics, which carries --enable-metrics; §6 item 0
+# forbids quoting tok/s from such a boot. The product is the gauge distribution.
+framework: llama-benchy
+metadata:
+  description: >
+    Labquant at max_num_seqs=20 with concurrency [16, 20], second attempt at the gauge capture lost to
+    the shared-/tmp collision. k=16 is the non-binding control (predicted 16/16, queue 0), k=20 the
+    treatment (predicted 19/1). Also the first capture requesting spec_accept_rate. Throughput
+    discarded (metrics-enabled boot). Requires -o max_num_seqs=20.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 20 ]
+  prefix_caching: true
+  runs: 5

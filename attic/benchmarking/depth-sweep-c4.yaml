@@ -1,0 +1,65 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Wide DEPTH sweep at fixed `pp`, to fix a conditioning problem that §12.47 identified and that
+    MORE RUNS CANNOT FIX. `depth` is llama-benchy's GENERATED length and `pp` the PROMPT length.
+
+    WHY THIS EXISTS. §12.46 measured "a prompt token weighs 3.18x a generated token" from two
+    contrasts of similar size. §12.47 replicated it and the ratio moved 3.18x -> 5.42x, with
+    bootstrap CIs [2.0, 4.8] and [1.7, 16.2]. The cause is arithmetic, not noise: the depth
+    coefficient is extracted from `base -> disc`, a 15% RATE change, so it is a difference of two
+    large step times and inherits the intercept's uncertainty divided by a small numerator, while
+    the `pp` coefficient comes from a 37% change divided by a large one. The ratio is dominated by
+    the ill-conditioned side. p71's CI [1.7, 16.2] is that effect showing, and five more runs at
+    the same two depths would not narrow it.
+
+    THE FIX. Sweep DEPTH over a wide range at fixed `pp`, so the depth axis is estimated by
+    regression on 5 points spanning 16x rather than by a two-point difference, and so its
+    conditioning stops depending on the intercept. This ALSO tests something no experiment here has
+    tested: whether cost is LINEAR in depth at all. p69 reported a "kink" but only ever ran depth
+    values {1024, 8192, 16384} and claimed linearity from three points; five points on one axis is
+    the first real linearity test in this thread.
+
+    CAPACITY IS CLEAN BY CONSTRUCTION, which is why c = 4 and not 8. Pool is 117,568 tokens and the
+    grant is 21. Usable concurrency = min(21, floor(117568/(depth+pp))):
+      depth  1024  cost  8,192 =  7.0% of pool -> usable 21
+      depth  4096  cost 20,480 = 17.4%         -> usable 21
+      depth  8192  cost 36,864 = 31.4%         -> usable 21
+      depth 12288  cost 53,248 = 45.3%         -> usable 21
+      depth 16384  cost 69,632 = 59.2%         -> usable  6
+    Every cell admits the offered c = 4 with room to spare, and the deepest cell keeps 4 of its 6.
+    This matters because in p68/p70 the corner cell sat at 84% of pool, and a pool-limited cell
+    silently turns a throughput ratio into a capacity ratio. Here no cell can be pool-limited, so
+    the depth axis is measured rather than confounded. Verify `#running-req` == 4 in every cell
+    anyway -- `concurrency` is an OFFER.
+
+    PRE-REGISTERED PREDICTIONS at depth 16384, all fitted ONLY on the p70 base+corner pair (§12.46's
+    fit: t = 0.009024 + 1.115e-07 * R, R = mean resident tokens), so they are out of sample here:
+      mean resident  c*(pp + depth/2)   ->  76.1
+      depth only     c*depth            ->  82.3   (pp contributes a constant)
+      endpoint       c*(depth + pp)     ->  67.4
+    Spread 67.4 to 82.3 is **22% at one point**, which is a real discriminator -- far better
+    separated than p68's 3.4% or p70's 12%. If the measured value sits near one, the others are
+    refuted. If it sits in the middle, none of the three single-scalar-residency models is right and
+    the correct conclusion is that residency is not one number, not that we need more runs.
+    Secondary check, pre-registered: if cost is linear in depth, `1/peak` must be linear in depth
+    with a POSITIVE slope and R^2 > 0.98. A visible curvature is a finding about the shape, not a
+    nuisance, and it would partly explain why two-point contrasts keep disagreeing.
+
+    CAVEATS. Same container as p70/p71 (up ~5 hours), so this is zero-boot and shares their
+    within-container drift; cells run in ASCENDING depth order, so drift biases the depth slope
+    DOWNWARD (later cells slower) and inflates any apparent depth cost -- the direction of the bias
+    is stated because it is knowable in advance and opposes a "depth is expensive" reading, which
+    makes a positive slope conservative rather than lucky. `prefix_caching: true` competes for the
+    same pool tokens, which is the reason `full token usage` must be read per cell and not assumed.
+    Requires --fresh (sparkrun keys resume state on profile+recipe+hosts and ignores --output,
+    re-writing the prior JSON byte-identically with rc=0) and a manual serve-log fetch, because
+    --skip-run does not copy it out.
+
+args:
+  depth: [ 1024, 4096, 8192, 12288, 16384 ]
+  pp: [ 1024 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 5

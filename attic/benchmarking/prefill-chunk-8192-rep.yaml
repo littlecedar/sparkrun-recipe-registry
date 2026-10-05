@@ -1,0 +1,35 @@
+# Replication: does cps=8192 recover the k=24 collapse? k=16 anchor + k=24 test, one boot.
+#
+# Why this profile exists separately rather than reusing prefill-chunk-8192.yaml: the first run of
+# that profile answered the question at three cells, and re-running it would spend a third of the boot
+# on a cell (k=8) that is not part of the claim. Dropping it cuts the boot without touching the test.
+#
+# The claim under replication (bench_8ec5167a318b vs bench_371a7bd533cb, RadixArk, d=8192, n=7):
+#   k=24:  71.25 (cps 8192)  vs  51.51 (cps 4096)   +37.0%, MWU z=+3.13, perm p=0.0007
+#   zero overlap between the two 7-value distributions: min(8192)=66.82 > max(4096)=58.59
+# That is the strongest single cell this project has produced, and it would be a recipe change
+# (`chunked_prefill_size: 4096` -> `8192`), which is precisely the class of claim this document has
+# repeatedly had to walk back when it rested on ONE boot. Hence a second boot before it is written as
+# anything more than "promising, one boot".
+#
+# k=16 is the ANCHOR, not a test. It must land near 88.42 (first cps=8192 boot) / 87.15 (control).
+# Its job is to bound boot-to-boot drift, the only rival explanation for a cross-boot comparison;
+# the first boot drifted +3.8%/+1.5% at its anchors, so +37% cannot be drift, but showing the anchor
+# twice is better arithmetic than an argument about magnitude. If k=16 lands far from ~88, read the
+# k=24 number as uninterpretable rather than as confirmation or refutation.
+#
+# Both outcomes are useful and neither is a null: k=24 near 71 confirms a recipe candidate; k=24 near
+# 51 means the first cell was a one-boot effect and §19c's positive evidence evaporates (its negative
+# evidence -- cps=1024 costing 64% at constant prefill work -- is a different measurement and stands).
+framework: llama-benchy
+metadata:
+  description: >
+    Replication of the cps=8192 k=24 recovery, in an independent boot. k=16 is the anchor (must
+    reproduce ~88), k=24 is the claim. Requires -o chunked_prefill_size=8192.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,89 @@
+# RERUN of cps8192-cap32.yaml, on a CLEAN host, 2026-09-23. New filename on purpose: the bench id
+# hashes (recipe, nodes, overrides, PROFILE PATH), so reusing the old path would relaunch under
+# bench_c3161e8f5e7a and sparkrun would clear its runs/ -- which is how bench_674460c253ae lost its
+# cells. Contents identical except this header; the original is preserved unchanged.
+#
+# WHY RERUN AT ALL. The original attempt died in alloc_memory_pool on 2026-09-22 19:57, and §19q
+# then found the workers were carrying a host-memory footprint (pmproxy 40.8 GB on .32, a second one
+# on .33) that grew across the day and tracked boot success. §19q pre-registered the falsifier: retry
+# cap 32 at mem-fraction 0.8 on a clean host. Both nodes now have ~119-122 GB available and pmproxy
+# is at 4.0 GB / 0.33 GB, so this boot executes that falsifier AND, if it boots, finally delivers the
+# k=24 cell that profile was written for.
+#
+#   * boots            -> §19o's scratch-term coupling was about the code path, not a limit we hit;
+#                         max_num_seqs returns to being freely raisable within KV capacity, and the
+#                         pre-registered k=24 branches (82.4 vs 71-73 vs <71) become decidable.
+#   * fails again      -> the memory-pool mechanism stands, gains an environmental control it never
+#                         had, and cap 32 is closed on this stack without further attempts.
+#
+# NOTE the -o flags are passed explicitly by the launcher. This file says `Requires -o ...` in prose,
+# which enforces nothing -- see the §8 row about lq-cap32-k16-20-24.yaml running at the shipped cap
+# while its filename, its log and my notes all said 32.
+# cps=8192 AND max_num_seqs=32: does removing BOTH constraints recover k=24 fully?
+#
+# Why this is the next cell and not a victory lap. bench_8ec5167a318b raised chunked_prefill_size to
+# 8192 and got k=24 from 51.51 to 71.25 (+38.3%). That is a large recovery but NOT a full one: the k=16
+# peak in the same arm is 88.42, so k=24 is still −19.4% below the peak. Two effects are stacked in that
+# number and only one of them was varied:
+#
+#   1. prefill step count  -- addressed by cps=8192 (3 chunks -> 2 per request)
+#   2. k == max_num_seqs   -- STILL PRESENT: the recipe default cap is 24 and k=24 sits exactly on it.
+#
+# §19 established the `k == cap` penalty independently and reproducibly (k=16 at cap 16 = 75.14/76.97
+# vs 86-87 at any larger cap; k=20 at cap 20 = 73.09 vs 80.66 at cap 24). **This profile originally
+# described that penalty as "~10-15% of decode and ~40% of prefill", which §19e corrected: the ~40%
+# prefill figure is entirely spurious (a window artefact -- pp_throughput charges scheduler queueing to
+# prefill) and the real per-request decode cost is ~6%, not 10-15%.** The aggregate figure that this
+# cell will actually be measured in is ~11-13% (86.86 -> 75.14/76.97), so that is the number the
+# prediction below is built from -- and the correction changes the prediction, which is why it is here
+# rather than in a footnote. It is not a confound in the cps comparison (both arms had cap 24, so it
+# cancels) but it IS a candidate remaining ceiling on what cps=8192 can achieve.
+#
+# So this arm holds cps=8192 and lifts the cap to 32, making k=24 a k < cap cell for the first time.
+#
+# The three outcomes, pre-registered 2026-09-22 AFTER the §19e correction (an earlier version of this
+# block predicted "k=24 near 88" for the additive case, which the corrected penalty cannot produce):
+#
+#   Observed: cps=8192, cap 24, k=24 = 71.25 / 73.11 / 72.09 across three boots (2.6% matched-config
+#   spread, §4b) against a same-arm k=16 peak of 88.42. Residual = -19.4%.
+#
+#   * k=24 ~= 82.4     -> the `k == cap` penalty was the whole remainder and it acts at its AGGREGATE
+#                      magnitude. Derivation: the measured penalty at k=16/cap16 is 75.14/86.86 = 0.865,
+#                      so removing it gives 71.25/0.865 = **82.4** -- which is still 6.8% below the
+#                      same-arm peak of 88.42, so this branch does NOT mean "fully recovered".
+#                      cps=8192 + cap=32 becomes a real two-flag change for RadixArk, with the k=8 TTFT
+#                      regression from §19c reported beside it.
+#   * k=24 ~= 71-73    -> the penalty is NOT the remainder: removing it buys ~nothing, so the -19.4% is a
+#                      third, unidentified effect and the mechanism hunt resumes with one fewer candidate.
+#                      THIS IS THE PREDICTED BRANCH: a ~13.5% penalty cannot arithmetically produce a 19.4%
+#                      recovery, so branch 1 requires the penalty to be 1.4x its largest measured value.
+#                      Note this is the same conclusion cap=32 already reached at cps=4096 (RadixArk 55.06
+#                      vs 54.23, +1.9%; labquant 53.92 vs 55.73, -3.3%), both null -- so prior evidence
+#                      points here, and this cell tests it in the one regime where it had not been tested.
+#   * k=24 < 71        -> raising the cap is harmful in the cps=8192 regime, which needs explaining before
+#                      either change ships.
+#
+# **Discriminating power, checked before launching rather than after:** branch 1 and branch 2 differ by
+# 82.4 vs 72.1 = **14.3%**, against a **2.6%** matched-configuration boot-to-boot spread for this exact
+# cell (§4b: 71.25 / 73.11 / 72.09). So one boot separates them cleanly; n=7 is not decorative here, and
+# the two branches are not going to be decided by which repeat I happened to keep.
+# k=16 is the anchor again (expect ~88.4): it bounds boot drift, and it is also the cell where a cap of
+# 32 must be inert (16 < 32), so a k=16 result far from 88.4 voids the boot rather than informing it.
+# k=20 is included because it is the cell that would be served by a cap of 32 in real deployment --
+# §19's guidance is "keep max_num_seqs strictly above your concurrency", and 20 is the concurrency
+# closest to the bs=16 peak where the shipped cap of 24 stops being comfortably above the load. It is
+# also the only k value where the shipped cap of 24 is NOT already non-binding at k=24, i.e. the only
+# cell where cap=32 could plausibly matter at a concurrency anyone would actually serve.
+framework: llama-benchy
+metadata:
+  description: >
+    cps=8192 with max_num_seqs=32, k=16 (anchor) / 20 / 24. Tests whether the residual −19.4% at k=24
+    is the remaining `k == cap` penalty, which would make cps=8192 + cap=32 a two-flag recipe change.
+    Requires -o chunked_prefill_size=8192 -o max_num_seqs=32.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 20, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,42 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Matched-concurrency depth comparison, designed to be run against an ALREADY-BOOTED
+    server with --skip-run (zero boots).
+
+    WHY THESE EXACT CONCURRENCY VALUES. phase 31 asked whether the depth penalty is a
+    per-stream slowdown or just the token pool capping concurrency. Its first pass
+    regressed AGGREGATE decode t/s and correctly refused a verdict. Its second pass
+    (analyze_phase31b.py) used the per-request field, which excludes prefill and queueing,
+    and compared only at MATCHED measured #running-req. That works, but it produced exactly
+    ONE matched point (B=8) and its ratio landed on 0.859, directly on the pre-registered
+    0.85 threshold -- a single point on a decision boundary is not a decision.
+
+    The disjointness was an accident of arm design: at depth 8192 the pool caps running
+    streams at about 14 (117,571 tokens / 8,192), so offering c=16 and c=20 both measure B=14,
+    while the depth-1024 arm ran B = 8, 12, 16, 20. Intersection: {8}.
+
+    Fixing that costs no boot, only the right c values: {8, 11, 14} are attainable at BOTH
+    depths (11 and 14 are below the depth-8192 pool cap of 14 and far below depth-1024's),
+    so the two arms overlap at three points instead of one. Three matched points with a
+    within-arm repeat at c=8 is enough to say whether a ~14% per-stream cost at B=8 is real
+    or a single-cell artefact.
+
+    Read the OUTPUT of this profile with analyze_phase31b.py, which pairs by measured B
+    rather than by offered c. Pairing by offered c is what produced phase 27's wrong
+    throughput claim: at depth 8192, c=16 and c=20 both run 14 streams, so "c" is not the
+    independent variable -- measured #running-req is.
+
+    NOT THE FILE THAT PRODUCED PHASE 37's DATA. This profile had no `args:` block when phase
+    37 ran, so invoking it as written would have scheduled a single `d=0 c=1` cell; the run
+    that produced the interleaved c=8 pairs actually used a2-d1024.yaml and a2-d8192.yaml
+    (see run_phase37.sh). The args block below is added so this file is not a landmine, and
+    it matches the c set described above -- but treat it as UNRUN, and prefer a2-depth-gap-c8.yaml
+    for the same question.
+args:
+  depth: [ 1024, 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8, 11, 14 ]
+  prefix_caching: true
+  runs: 2

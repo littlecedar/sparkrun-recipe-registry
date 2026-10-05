@@ -1,0 +1,50 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    ORDER-REVERSED replicate of p59, run against the SAME live container with --skip-run so it
+    costs zero boots. p59 swept pp ASCENDING (1024 -> 16384) within every task; here pp is
+    swept DESCENDING (16384 -> 1024). `depth` is deliberately LEFT AT p59's [1024, 16384, 1024]
+    rather than reversed, because the repeated 1024 entry is what puts the (1024,1024) cell at two
+    schedule positions, and that repeat is this experiment's error bar (p59 measured +6.3 % drift
+    from it). Only ONE list is reversed on purpose.
+
+    WHY ORDER IS THE ONLY THING THAT MATTERS HERE. Section 12.36 found that acceptance falls
+    ~4.5 % on a long prompt and ~7.3 % on a long generated context, and the difference between
+    them is not significant (p = 0.19). But the SAME CELL measured twice in that one boot moved
+    +6.3 % from task 1 to task 3, i.e. schedule-position drift is larger than one of the two
+    effects. Because pp was always swept ascending, drift pushed the later (long-pp) value UP,
+    which NARROWS the G-P gap: the observed gap was conservative. That is a one-directional
+    argument available from one schedule order, and it cannot be tested by re-reading the same
+    run. Reversing the order reverses the sign of the drift's contribution, so:
+      * if the reversed run gives median(G) - median(P) the SAME SIGN and similar size as p59,
+        the effect is real and drift was not the cause -- the two orders bracket it;
+      * if the sign FLIPS or the magnitude collapses, the p59 contrast was drift, and the
+        resident-context story in 12.36 needs re-opening.
+    The repeat cell (depth 1024, pp 1024) appears twice again, giving a second independent drift
+    read to compare with p59's +6.3 %.
+
+    EVERYTHING ELSE IS DELIBERATELY IDENTICAL to p59: c = 4, tg = 1024, runs = 3, prefix_caching
+    true, same recipe, same node. The only difference is the ORDER of two lists. Do not "improve"
+    the profile by adding runs or cells -- that changes the comparison.
+
+    TWO HARD REQUIREMENTS, both learned the expensive way in 12.36:
+      * --fresh is mandatory. sparkrun keys resume state on (profile, recipe, hosts) and IGNORES
+        --output, so a repeated configuration re-writes the prior JSON BYTE-IDENTICALLY with
+        rc = 0 and no warning. Verify distinct md5s before analysing.
+      * The local->UTC offset for benchy's dateless `Task k/N done` stamps must be DERIVED, not
+        typed, and the derived window span must overlap the observed serve-log span. A wrong
+        offset in 12.36 produced a complete, plausible, four-cell table whose medians were all
+        wrong, with nothing raised.
+# ONLY `pp` order is reversed relative to p59. `depth` keeps p59's [1024, 16384, 1024] on
+# purpose: the duplicate 1024 entry is what places the (1024,1024) cell at two schedule
+# positions, and that duplicate is this experiment's error bar (p59 measured +6.3 % drift
+# from it). Reversing depth as well would remove the repeat and destroy the drift read.
+# `pp` reversed to [16384, 1024] means the long-pp value is now measured FIRST instead of
+# last, which flips the sign of any upward drift's contribution to the G-P gap.
+args:
+  depth: [ 1024, 16384, 1024 ]
+  pp: [ 16384, 1024 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 3

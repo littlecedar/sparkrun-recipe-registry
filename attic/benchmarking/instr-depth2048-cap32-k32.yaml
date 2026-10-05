@@ -1,0 +1,67 @@
+# Does the running-batch ceiling track MAMBA STATE SLOTS or FREE KV TOKENS? §19t's model, tested.
+#
+# WHY THIS BOOT AND NOT ANOTHER CACHE-STRATEGY FLIP.
+# §19t's corrected test (match the comparator's cell history, flip the strategy) was launched as
+# bench_48de20e29c07 and DIED in alloc_memory_pool at --mem-fraction-static 0.8 -- see §19t. That is the
+# pre-registered "boot fails to allocate" branch. But before it died, the partition arithmetic in §19t made
+# the strategy flip the wrong experiment: `mamba_radix_cache_strategy` moves TWO quantities at once --
+# evictable retention AND slots-per-sequence (3.0 lazy vs 4.0 non-lazy) -- so no single-boot flip of it can
+# attribute a `run` change to either. Fixing the cell history would not fix that.
+#
+# THE TEST THAT DOES DISCRIMINATE. Mamba state is per SEQUENCE; KV is per TOKEN. So:
+#   * slots_per_sequence must be independent of context depth,
+#   * KV per sequence is strongly depth-dependent.
+# Hold everything at the §19s lazy configuration (the one that boots), change ONLY `depth`, and read the
+# plateau `run`.
+#
+# THE PREDICTIONS, written before launch (per §6 item 0). Reference: lazy / cap 32 / cps 8192 / d=8192 /
+# k=32 plateaus at run = 27, with mamba `used 81 + evictable 31 + available 0 = 112` (exact) and
+# `kv_available` = 0.999 of one sequence's requirement -- i.e. BOTH resources read as "just full", which is
+# precisely why the original analysis could not separate them and why changing depth is the lever that can.
+#   * run ~= 27 at d=2048          -> MAMBA SLOTS BIND. Nothing in (112 - 31)/3.0 depends on depth.
+#                                    `max_mamba_cache_size` -- never varied in this project -- is the
+#                                    concurrency knob, and §19's eleven-boot max_num_seqs sweep was
+#                                    adjusting a constraint that was never close to binding.
+#   * run rises materially (> 30)  -> FREE KV BINDS. §19s's account survives after all, and mamba slots are
+#                                    an artefact of the plateau rather than its cause.
+#   * run rises but stops ~28-30   -> both bind; report which one runs out FIRST from the gauge columns,
+#                                    do NOT average the two readings into "both matter".
+#   * run < 27                     -> neither model; depth itself changes something else (prefill admission,
+#                                    chunk packing). Report it; do not call it noise.
+#   * boot fails to allocate       -> the depth change moved memory sizing; record the error text, do not
+#                                    lower mem-fraction_static to force a number (that changes what's tested).
+#
+# A HOLE IN THE MAMBA PREDICTION, stated before the run rather than after. (112 - evictable)/3.0 assumes
+# `evictable` is depth-invariant, and it may not be: evictable slots are retained state from sequences that
+# finished or were displaced, and a shorter shared prefix (2048 instead of 8192, under prefix_caching) may
+# leave fewer of them. If evictable falls, the mamba model predicts a HIGHER run, so "run = 28-30" is NOT
+# cleanly the both-bind branch -- it is ambiguous between "KV partially binds" and "mamba evictable shrank".
+# THE DISCRIMINATOR IS THEREFORE THE GAUGE COLUMNS, NOT `run` ALONE: at whatever plateau `run` reaches, read
+# `mamba_available` (0 if slots bind, at any depth) against `kv_available / (used/run)` (0.999 if KV binds,
+# >>1 if slots bind). Whichever resource reads "just full" at the new plateau is the one binding, and that
+# reading needs no pool-size denominator -- both operands are absolute counts. §19t showed any ratio that
+# divides by the KV pool is not load-bearing.
+#
+# WHAT IS HELD CONSTANT vs THE §19s REFERENCE: recipe zz-rk-metrics (lazy strategy), cap 32, cps 8192,
+# mem-fraction-static 0.8, max_mamba_cache_size 112, page_size 64, prefix_caching true, pp 2048, tg 128,
+# k=32. ONLY `depth` differs (2048 instead of 8192). k=32 is deliberately kept above every predicted
+# plateau so the ceiling is offered rather than requested.
+#
+# Throughput is DISCARDED by design (--enable-metrics perturbs decode ~3.5%, §6 item 0). The gauges are the
+# product. Analyse with .scratch/q4/plateau_resources.py, which reads ONLY absolute counts against
+# configured capacities -- the KV pool size is not trustworthy (three readings disagree by 25%, §19t), so
+# no ratio that divides by it may carry a conclusion.
+framework: llama-benchy
+metadata:
+  description: >
+    Depth-vs-slots discriminator for the running-batch ceiling. Lazy strategy, cap 32, cps 8192, k=32,
+    depth 2048 (vs the reference boot's 8192). Mamba state is per sequence so slots_per_seq must be
+    depth-invariant; KV is per token so per-sequence KV is not. If `run` stays 27, the mamba slot pool
+    binds; if it rises, free KV binds. Gauges only.
+args:
+  depth: [ 2048 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 32 ]
+  prefix_caching: true
+  runs: 7

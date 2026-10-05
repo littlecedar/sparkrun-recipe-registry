@@ -1,0 +1,59 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    POOL-PRESSURE cell: does running the token pool at ~100 % occupancy cost throughput beyond
+    the stream count it permits? One factor changed from the shipped recipe --
+    mamba_full_memory_ratio 3.51 -> 1.2 -- and draft depth is LEFT AT 8. That single-factor
+    property is the whole reason this profile exists instead of reusing d4-r12-capacity.yaml,
+    which changes D and ratio together and therefore cannot separate them, and whose win (2.08x
+    aggregate decode at offered c = 16) cannot currently be attributed to either factor.
+
+    WHY THIS ARM AND NOT d4r12 AS THE DECISION INPUT. We ship D = 8. A win at D = 4 requires
+    accepting a second change -- acceptance drops from 3.29 to 2.70 in the same measurement --
+    before it can be shipped. A win at D = 8 / ratio 1.2 is shippable as-is.
+
+    PREDICTION, written before booting and carrying its anchor (T = 25.16 GiB, the mean of the
+    eight p64 boots, spread 25.11-25.22; predict_capacity.py, whose caps and token counts
+    reproduce p64's measurements to +2.1 % and +0.8 %):
+        K 59, cap 14, #tokens 242,167  ->  usable@8k = min(14, 29) = 14.
+    **The usable stream count is UNCHANGED at 14, the same as shipped.** That is the design.
+    Both arms therefore run 14 concurrent 8k contexts at offered c = 16, so stream count is
+    MATCHED and the only difference between them is how full the pool is:
+
+        shipped  D8 r3.51 : #tokens 117,462, 14 running -> full token usage 0.99-1.00
+        this arm D8 r1.2  : #tokens 242,167, 14 running -> full token usage ~0.48
+
+    The per-request footprint is taken from p64's own measurement (14 x X = 117,000 -> X = 8,360,
+    i.e. depth + ~170, NOT depth + pp + generated), not from arithmetic -- that distinction
+    matters, see 12.41's retracted "usable = 11" correction.
+
+    THE TEST. Compare PER-STREAM decode throughput at #running-req = 14 in both arms.
+      * Higher at matched 14 streams -> pool occupancy at usage ~1.0 costs real throughput
+        beyond capping the stream count. The shipped ratio is then actively harmful for 8k
+        traffic, and lowering it is free (no capacity loss, same 14 streams).
+      * Equal -> p64's +108 % was stream count all along (a capacity effect), and pool
+        pressure is not itself expensive. Also a clean result.
+    Read `gen throughput (token/s)` from the server's Decode batch lines DIVIDED by that line's
+    #running-req: the field is the BATCH TOTAL, verified two ways (at #running-req = 1 it reads
+    23.31 against the harness's own aggregate 24.98). Dividing by the offered concurrency rather
+    than the observed one is a silent error, because `concurrency` is an offer.
+
+    NOT A SUBSTITUTE FOR A STEADY-STATE SOAK. c = 16 / runs = 2 leaves only tens of decode lines
+    per cell and they are dominated by ramp; p64 yielded just 8 lines at #running-req = 16. If
+    the matched-14 comparison comes back ambiguous, the answer is a longer decode soak, not
+    another reorder -- 12.40 established the acceptance/throughput statistics here are
+    power-limited, not broken, and the fix is n, not cleverness.
+
+    `--fresh` is mandatory: sparkrun keys resume state on (profile, recipe, hosts) and IGNORES
+    --output, re-writing the prior JSON byte-identically with rc = 0. Verify distinct md5s.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  # c = 1 is the null: the two configurations must agree per-stream. If they do not, every
+  # c = 16 number in the run is void. Cheap and not optional.
+  # c = 16 is the discriminator: it is above both arms' usable count of 14, so both saturate
+  # at 14 running and the comparison is at matched stream count by construction.
+  concurrency: [ 1, 16 ]
+  prefix_caching: true
+  runs: 2

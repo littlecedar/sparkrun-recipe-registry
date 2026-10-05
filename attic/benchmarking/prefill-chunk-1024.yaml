@@ -1,0 +1,67 @@
+# Does shrinking the prefill chunk recover the k=24 collapse? The first test of §19a's mechanism.
+#
+# WHY THIS RUN EXISTS. §19a established, in one boot with a same-boot control, that the bs>16 decline
+# is PREFILL WORK and not a decode cost: at d=0 the curve is flat (98.75/107.12/106.15 over k=8/16/24)
+# while the d=8192 arm of the same boot falls 79.27 -> 87.15 -> 51.51 (-40.9%). That reclassified the
+# largest structural finding in §19 and, crucially, made prefill chunking a real lever -- §19's
+# earlier "no available knob removes it" is withdrawn. This run tests the lever.
+#
+# THE FLAG IS NOT IN QUESTION. `chunked_prefill_size: 4096` is a shipping default in
+# qwen3.8-flash-next-nvfp4-sglang.yaml and the command template emits `--chunked-prefill-size
+# {chunked_prefill_size}`; the recipe boots with it and passes coherence, so the flag is accepted by
+# this pinned build. (An attempt to introspect the flag list from inside the container failed -- the
+# bench container had already been torn down and /usr/bin/python3 there has no sglang -- and pursuing
+# it further would be slower than just running the arm. Only *alternative* levers such as a mixed-chunk
+# switch remain unverified; this run needs none of them.)
+#
+# PREDICTION, pre-registered. Prefill chunks share the step loop with decode, so a SMALLER chunk
+# should displace less decode per step: k=24 should rise from ~51.5 toward the d=0 value (~106),
+# while prefill throughput (`pp`) falls, since prefill becomes less efficient per step. That trade is
+# the whole question -- if tg rises and pp falls, the collapse was decode displacement; if tg is
+# unchanged, chunk size is not the mechanism and §19a's contention story needs a different fix.
+#
+# INTERNAL CONTROLS — AND THE CONTROL DESIGN ERROR THIS PROFILE IS HERE TO CORRECT.
+# An earlier revision of this file said k=8/k=16 "must reproduce ~79/~87 or the boot is void". That
+# rule was COPIED FROM THE CAP SWEEP without checking whether it transfers, and it does not.
+# `max_num_seqs` is inert below the cap (§19: +0.3/−0.8/−0.2% at bs=8/12/16 across caps 24/32/16), so
+# an untouched low-k cell was a legitimate validity check there. `--chunked-prefill-size` is NOT inert:
+# it changes prefill chunking at every k, so the low-k cells are INSIDE the causal path of the flag,
+# and the void rule fires no matter what the treatment does. The aborted first attempt (killed at
+# cell 1, `bench_5e7b5eacbdfd`) proved the point: k=8 at chunk 1024 measured **70.46** against the
+# control's **79.27** (−11.1%), with `pp_med` 1848 vs 2195 (−16%) — that is the flag working, and the
+# anchor rule would have voided a valid measurement of it.
+#
+# LESSON, generalised: before reusing a control structure, ask whether the new knob leaves the control
+# untouched. A control the treatment is expected to move is not a control — it is a second measurement
+# of the treatment, and treating it as a validity gate converts real effects into void runs.
+#
+# So k=8 and k=16 are kept — they are cheap and they are RESULTS (the k=8 cost is what §17 demands be
+# reported beside any k=24 gain) — but they are NOT validity gates. Validity is instead checked two
+# ways: (1) the booted argv carries chunked_prefill_size=1024 (verified: serve log shows
+# `chunked_prefill_size=1024`, state.yaml carries `measurement_overrides: {chunked_prefill_size: 1024}`
+# against the default 4096); and (2) coherence passes. All three cells stay in ONE boot, because the
+# k=8/k=16/k=24 triple is then a single self-consistent curve, and comparing 24-only against other
+# boots would recreate exactly the cross-boot splicing this document has spent today removing.
+#
+# WHAT A REAL EFFECT LOOKS LIKE, pre-registered: k=24 in 51.5-56.5 (the seven-boot k=24 band:
+# 54.23/55.06/56.22/53.22/52.91/54.26/51.51) -> chunk size is not the mechanism; >= 60 -> partial
+# recovery, quote it beside the k=8 cost; < 51.5 -> smaller chunks make it WORSE, which would point at
+# chunks needing to be large enough to amortise, and the other direction (chunk 8192) must be tested
+# before any recipe claim.
+#
+# WHAT WOULD MAKE THIS A FALSE POSITIVE: if the smaller chunk instead starves prefill badly enough to
+# raise TTFT sharply, aggregate `tg` could rise while user experience worsens -- §17 forbids calling
+# that a win. Read `e2e_ttft` beside `tg` in every cell before claiming anything.
+framework: llama-benchy
+metadata:
+  description: >
+    Tests whether shrinking --chunked-prefill-size from the shipping 4096 recovers the k=24 collapse
+    that §19a attributes to prefill work. Requires -o chunked_prefill_size=1024. k=8/k=16 are
+    boot-validity anchors and must reproduce ~79/~87 or the boot is void.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7
