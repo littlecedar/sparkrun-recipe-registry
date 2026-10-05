@@ -1,0 +1,158 @@
+recipe_version: "2"
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+# THE KEY NAME MATTERS, AND `revision:` IS THE WRONG ONE.  sparkrun reads the checkpoint pin from
+# the top-level **`model_revision:`** key (`sparkrun/core/recipe.py:346`); a bare `revision:` is an
+# unknown top-level key that sparkrun silently absorbs into `runtime_config` and never acts on (root
+# `AGENTS.md` documents the trap).  With the wrong key the distribution pulls `main` while the mod
+# chain is contract-pinned to `7c4f1bc1…`, and the boot dies in `unpack-labquant-ple-nvfp4-to-fp8`
+# ("pinned revision … not cached … refusing to guess").  This was a live shipping defect, fixed
+# 2026-10-04.  Do not "simplify" the key back to `revision:`.
+model_revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 2
+
+# ============================================================================================
+# LANE A of 2 — HIGH-CONCURRENCY (batch/aggregate throughput).
+#
+# Sibling: `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B, long context).
+# Base/control: `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` (the shipped balanced recipe).
+#
+# WHAT THIS LANE IS FOR.  Serving many concurrent streams where aggregate tokens/s is the metric
+# that matters (batch summarisation, agent fan-out, evals).  It is NOT the low-latency config:
+# per-request decode at the aggregate peak is a fraction of the single-stream rate.
+#
+# MEASURED SHAPE (all VERIFIED, WORK §19/§19c/§19x, RadixArk and labquant unless noted; d=8192):
+#   * Aggregate decode PEAKS at bs≈16, not at higher k: RadixArk 86.86 / labquant 91.38 tok/s at
+#     k=16; both collapse to ~54-56 by k=24 (smooth decline, not a cliff — §19d).
+#   * batching itself buys **+119% aggregate over bs=1** (§3c) with no recipe change.
+#   * `max_num_seqs` must stay STRICTLY ABOVE every served k: at `k == cap` the running batch
+#     saturates at `cap − 1` with one request permanently queued and per-request decode loses ~6%
+#     (§19e/§19l).  The shipped `max_num_seqs: 24` is fine up to k=23; this lane targets up to k=31.
+#   * The real admission ceiling is the **mamba state pool**, not `max_num_seqs`:
+#     `run ≤ min(max_num_seqs, max_mamba_cache_size // slots_per_request)`, with
+#     `slots_per_request = 4` on the lazy strategy (`kv_cache_configurator.py:1872/1932`, §19v).
+#     So pool 112 → ceiling 28; pool 128 → ceiling 32.
+#   * Raising the pool 112 → 128 is associated with **~13% more k=24 throughput** (88.35/87.78 vs
+#     78.02, all four boots on one recipe; within-pool-128 spread 0.6%) — at a k where the pool
+#     formula says it cannot bind at all.  **Mechanism UNESTABLISHED** (§19x Result 4); do not cite
+#     this as a law, and do not expect it at every cell (k=32 moves the other way, −0.8%).
+#
+# DELTAS vs the base recipe, each with its reason:
+#   max_num_seqs:        24 → 32   so `k == cap` cannot fire for any served k ≤ 31 (§19v rule)
+#   max_mamba_cache_size: 112 → 128 to move the admission ceiling 28 → 32 (§19x causal test)
+#   chunked_prefill_size: 4096 KEPT.  Do NOT raise it to 8192 for this lane: on labquant (the
+#                         checkpoint this lane ships) 8192 regresses k=8 by 6.2% and k=16 by 5.5%
+#                         in aggregate — both at or below the serving point — while gaining +23.6%
+#                         only at k=24 (WORK §6 PRIORITY-1, §19c).  The 8192 win was measured on
+#                         RadixArk and does not transfer.
+#   everything else: identical to the base recipe (same 7-mod chain, same container digest).
+#
+# MEMORY COST AND THE GATE.  pool 112 → 128 is ~+53 MB/slot × 16 ≈ +850 MB per rank (§19u), traded
+# against the KV budget; `max_num_seqs` 24 → 32 adds +0.42 GB of intermediate SSM scratch for
+# −4.55% KV (§19z).  A pool-112/cap-32 boot has previously died in `alloc_memory_pool` on this stack
+# (host `pmproxy` leak, not a config error).  VERIFIED 2026-10-04: this recipe's exact rendered argv
+# (`--max-running-requests 32 --max-mamba-cache-size 128`, cps 4096) was booted on the free pair and
+# reached a healthy server; see `NOTES.md`.  If a future boot dies in `alloc_memory_pool`, that is
+# host memory, and the fallback is the balanced base recipe (pool 112 / cap 24).
+# ============================================================================================
+
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - HIGH-CONCURRENCY lane; mamba pool 128 / max_num_seqs 32 for aggregate throughput
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+  tags: lcg_favorite, fast
+  caveats: >
+    Same checkpoint as the base labquant recipe: more aggressively quantised than the RadixArk
+    export in the attention/GDN and PLE-n-gram paths, and it SERVES TEXT ONLY (the vision tower is
+    dropped by a required mod). No accuracy evaluation exists for this export, so a throughput win
+    here is NOT evidence of equal quality. Use the RadixArk recipe as the quality reference until
+    an eval lands. `max_num_seqs: 32` / `max_mamba_cache_size: 128` raise admission to k≈31, but
+    aggregate throughput peaks near k=16 — serving past that trades per-request rate for little
+    aggregate gain.
+
+mods:
+  - "@eugr/mods/drop-caches"
+  # Builds /cache/runtime/labq-patched: a symlink tree over the HF snapshot with one patched
+  # config.json, so SGLang's modelopt_mixed loader accepts this checkpoint (else KeyError:
+  # 'quantization' at srt/model_loader/weight_utils.py:410).
+  - "mods/fix-labquant-modelopt-mixed-flat-schema"
+  # Rewrites the 128 PLE n-gram shards in that tree from packed NVFP4 to plain fp8 e4m3 so the
+  # engine uses its tested fp8 PLE path (else `copy_ple_rows_to_tp_embedding` raises a size
+  # mismatch).  ORDER MATTERS: keep the config mod first; this mod writes into the tree it builds.
+  - "mods/unpack-labquant-ple-nvfp4-to-fp8"
+  # DIAGNOSTIC ONLY — a logging no-op once every `_scale` finds a destination; removable when the
+  # shared-expert scale blocker is retired.  See mods/diag-qwen4-unplaced-scales/README.md.
+  - "mods/diag-qwen4-unplaced-scales"
+  - "mods/fix-labquant-mxfp8-weight-scale-name"
+  # REQUIRED to boot: demotes the 72 narrow (n=96 at TP=2) GDN in_proj_a/b MXFP8 tensors to BF16 so
+  # CUTLASS's MXFP8 n>=128 floor is not violated.  Must run LAST of the tree-writing mods.
+  - "mods/demote-labquant-narrow-mxfp8-to-bf16"
+  # REQUIRED: marks the patched config `language_model_only: true` so the engine skips the vision
+  # tower, which this export QUANTISES (110 F8_E4M3 layers + scales) and which SGLang builds with
+  # quant_config=None -> no destination for the scales.  Consequence: TEXT ONLY.
+  - "mods/skip-labquant-vision-tower"
+  # The two fastsafetensors mods are deliberately absent (same reason as the base recipe): this
+  # recipe runs `load_format: safetensors`, so they do nothing except leave root-owned JIT logs in
+  # the persisted runtime cache and break the first launch of a new model key as uid 1000.
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  # LANE A knobs — see the header.  cap 32 keeps every served k <= 31 strictly below the flag; the
+  # mamba pool 128 raises the admission ceiling to 32 and is associated with ~13% more k=24 tok/s.
+  max_num_seqs: 32
+  kv_dtype: bf16
+  quantization: modelopt_mixed
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  max_mamba_cache_size: 128
+  load_format: safetensors
+  served_model_dir: /cache/runtime/labq-patched
+  speculative_algorithm: NEXTN
+  speculative_attention_mode: decode
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  # Both flags are MANDATORY for this checkpoint, not tunables (see the base recipe header):
+  #   --moe-runner-backend flashinfer_cutlass  (else `auto` -> FLASHINFER_TRTLLM, dead on SM121)
+  #   --cuda-graph-backend-prefill disabled     (else qsa/metadata.py:141 PREFILL_CUDA_GRAPH_CAPTURE_FAILED)
+  extra_args: "--moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled"
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {served_model_dir}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --speculative-attention-mode {speculative_attention_mode} 
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --no-ple-offload-embedding
+  {extra_args}
