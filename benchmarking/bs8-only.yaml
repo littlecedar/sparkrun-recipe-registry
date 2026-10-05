@@ -1,0 +1,16 @@
+# Single-cell bs=8 profile.
+#
+# `framework` is REQUIRED at the top level for a standalone profile: sparkrun's
+# BenchmarkSpec.load (core/benchmark_profiles.py:219-226) accepts a profile only if the top-level
+# mapping contains `framework`, and otherwise raises "Benchmark file missing required 'benchmark'
+# mapping" -- a message that points at a key this loader does not actually require. The original
+# version of this file omitted it and had never been run, so the defect was latent rather than
+# observed. Same fix applied to bs-sweep-high.yaml on 2026-09-21.
+framework: llama-benchy
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 9

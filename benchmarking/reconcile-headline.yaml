@@ -1,0 +1,15 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Reconcile a published single-number headline. Concurrency 1 and 2 at a short
+    generation length, five runs. Chosen because the fast-smoke profile (c=1,2) is what
+    most published numbers here were taken with, and llama-benchy reports tg throughput
+    as an AGGREGATE across concurrent streams - so a "50 t/s" claim is only comparable if
+    you know the concurrency and the generation length that produced it.
+args:
+  depth: [ 0 ]
+  pp: [ 256 ]
+  tg: [ 128 ]
+  concurrency: [ 1, 2 ]
+  prefix_caching: true
+  runs: 5

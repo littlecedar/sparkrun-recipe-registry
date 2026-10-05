@@ -1,0 +1,51 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Does the acceptance step at long context track TOTAL CONTEXT or GENERATED LENGTH? Zero-boot
+    by design: `pp` and `depth` are llama-benchy harness parameters, so both vary against a
+    container that is already serving. (`speculative_draft_tokens` is a SERVER arg and cannot be
+    swept this way -- do not add it here and assume it took effect.)
+
+    WHY. Section 12.33 finds accept len flat from 1024 to 8192 and then stepping down ~10 % at
+    16384 (disjoint bootstrap CIs, Mann-Whitney p = 2e-4). But `depth` in llama-benchy is the
+    GENERATED length and `pp` is the PROMPT length, and phase 56 swept `depth` with `pp` fixed at
+    2048. So the step is equally consistent with two different claims:
+      (a) the model/speculator degrades with TOTAL CONTEXT length, or
+      (b) it degrades with GENERATED LENGTH -- i.e. how far the response has run, which is a
+          different mechanism with a different fix (and one that short generations never hit).
+    Section 12.33's position-within-response test does NOT settle this: it asked whether accept
+    falls with position INSIDE a cell (it does not), which rules out a selection effect but leaves
+    (b) alive, because (b) is a between-cell claim about total generated length.
+
+    THE TEST. Hold generated length fixed at 1024 and sweep the prompt 1024 -> 16384. If accept
+    len falls with `pp`, the effect is (a) TOTAL CONTEXT and section 12.33's wording is right. If
+    accept len stays flat while `pp` grows to 16384, the effect is (b) GENERATED LENGTH, and every
+    "long context degrades acceptance" sentence in this doc set needs restating -- including the
+    one that motivated this profile.
+
+    PREDICTION, committed before running. Under (a): accept len at pp=16384 lands near 2.9, the
+    same value the depth sweep produced, because total tokens-in-context is similar. Under (b):
+    accept len stays near 3.3 across all four `pp` cells. The two are far apart relative to the
+    per-cell bootstrap CI width measured in 12.33 (~0.15), so one run of four cells discriminates.
+    An intermediate answer is possible and is the honest one to report if it happens: e.g. a small
+    pp effect plus a larger depth effect would mean both matter with different weights, and the
+    relative sizes -- not a binary verdict -- would be the result.
+
+    CAPACITY. c = 4 and the largest cell is 4 x (16384 + 1024) = 69,632 token slots against the
+    117,752-token pool (59 %), with batch 4 far below the grant of 21. Every cell is below every
+    ceiling, so no cell can be pool-limited. Verify anyway per cell: `concurrency` is an OFFER, and
+    a cell whose #running-req falls short of 4 is measuring the pool, not acceptance. 12.34's
+    frontier arithmetic says batch 16 at long depth is unreachable at D=8; batch 4 is not close.
+
+    CAVEAT THAT SURVIVES A GOOD RESULT. Prefix caching is on, and a 16384-token synthetic prompt
+    is reused across runs, so a large `pp` cell may serve most of its prompt from cache and pay
+    less prefill than a cold prompt would. That affects timing, not acceptance: accept len is
+    measured on the decode step over the resident context, which is what this question is about.
+    Say so rather than implying the prompt is cold.
+args:
+  depth: [ 1024 ]
+  pp: [ 1024, 4096, 8192, 16384 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 3

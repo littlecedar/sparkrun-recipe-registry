@@ -1,0 +1,15 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Decode-focused triage: the two context depths that matter for this model, one
+    concurrency, five repetitions. Chosen over fast-smoke (runs=3) because the
+    inter-boot noise floor on this hardware is 7-25% for byte-identical boots, so
+    three runs cannot resolve the effects being tested here. NOT for absolute
+    numbers - always read beside a same-window control.
+args:
+  depth: [ 0, 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 5

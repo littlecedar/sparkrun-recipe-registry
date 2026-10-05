@@ -1,0 +1,22 @@
+# Single boot on one host, used to validate an orchestration path end-to-end before
+# committing a multi-boot experiment to it. Cheapest possible real launch: one host, one
+# concurrency, one run. Not for comparisons -- one run at one depth resolves nothing.
+#
+# WHY THIS EXISTS: the driver that orchestrates a run has to be able to (a) resolve the
+# recipe, (b) render the command, (c) pull/verify the image, (d) start the container, and
+# (e) read the results. A recipe-resolution or flag-support failure only shows up after the
+# queue has already burned its slots -- that is exactly how phase 11 lost its first attempt.
+# One boot on a throwaway profile finds it in ~4 minutes instead.
+framework: llama-benchy
+metadata:
+  description: >
+    Orchestration smoke: proves a driver can launch and read back a real benchmark.
+    Use before any multi-arm run, especially after changing the sparkrun version, the
+    recipe registry path, or the host the driver runs on.
+args:
+  depth: [ 0 ]
+  pp: [ 256 ]
+  tg: [ 32 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 1

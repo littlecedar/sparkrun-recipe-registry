@@ -1,0 +1,15 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Short-generation probe whose only purpose is to reconcile a published headline number.
+    A t/s figure quoted at tg=32 is not comparable to one quoted at tg=128: prefill is
+    amortised over 4x fewer generated tokens, and the generated tail is the first 32 tokens
+    of chain-of-thought rather than the middle of it. Run at tg=32 with runs=5 so the mean
+    can be compared against a single-number claim without pretending to be a sweep.
+args:
+  depth: [ 0 ]
+  pp: [ 256 ]
+  tg: [ 32 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 5

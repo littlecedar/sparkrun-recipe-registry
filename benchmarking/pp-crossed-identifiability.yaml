@@ -1,0 +1,82 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    BREAKS THE COLLINEARITY that made §12.29's depth-cost question unanswerable, at zero boot
+    cost. Fully crossed design over `concurrency` x `depth` x `pp`, run with --skip-run against a
+    container already serving the shipped recipe.
+
+    THE PROBLEM. Three candidate cost terms for the decode-step time at fixed batch:
+        c              per running sequence (launch/overhead per sequence)
+        B = c*depth    KV bytes read per step
+        P = c*(depth+pp)  resident pool tokens
+    Every archived grid held `pp` constant at 2048 for depth > 0 (verified: of 498 archived
+    decode rows, the only non-2048 `prompt_size` values are 256 at depth 0 and 6144 in phase 51).
+    With `pp` constant, P = B + pp*c is an EXACT linear combination of B and c, so no regression
+    on archived data can separate the three terms. That is why §12.29 could only say "falsifies a
+    strictly per-byte cost" and could not say which surviving mechanism is right.
+
+    THE CORRECTION THAT MADE THIS RUNNABLE. §12.29 states the three conditions are "mutually
+    exclusive whenever c differs" and concluded the confound is unresolvable. That is true only for
+    a single matched pair with `pp` held fixed, and it was being used to justify NOT running
+    anything. Varying `pp` breaks the identity: with `pp` taking two values, P is no longer in
+    span{B, c}, and the design matrix [c, B, P] has rank 3 (verified by Gaussian elimination on
+    the exact cell list below). So the question is answerable, cheaply, and was not unanswerable.
+
+    THE DESIGN. c in {2, 4, 8} x depth in {4096, 8192} x pp in {1024, 2048} = 12 cells, runs 3,
+    interleaved with --fresh. c*depth spans 8,192 to 65,536; c*(depth+pp) spans 10,240 to 81,920.
+
+    WHY c MUST TAKE **THREE** VALUES, not two. A first version of this profile used c in {4, 8}
+    and claimed rank 3 on [c, B, P] -- true, and not good enough. The weight term needs a 1/c
+    column, and **with only two values of c, 1/c is an exact linear function of c** (two points
+    define a line), so 1/c is collinear with {1, c} and t_W is unidentifiable however clean the
+    data is: the 5-parameter model on the {4,8} grid has rank 4, verified by Gaussian elimination
+    in selftest_fit_pp_crossed.py T1. Three points on a hyperbola are not collinear, so c in
+    {2,4,8} reaches rank 5/5. This was caught by a selftest on the *design*, before any boot or
+    any measurement -- the cheapest possible place to find it.
+
+    CAPACITY, checked against the live container before running (#tokens 117,752, grant 21):
+    usable streams = min(21, 117752 // (depth+pp)), which is >= c for every cell. Note c=16 was
+    **rejected for this reason** -- at depth 8192, usable is 11 or 12, so a c=16 cell would never
+    reach its offered batch and would be labelled with a concurrency it did not run at, which is
+    how a pool ceiling gets attributed to a bandwidth coefficient.
+
+    PRE-REGISTERED RULE, fixed before the run. Fit 1/peak = a/c + b + g*depth + h*c  and the
+    alternative 1/peak = a/c + b + k*c*depth + m*c*(depth+pp), weighted by 1/SE from within-cell
+    spread. Then:
+      * report the fitted coefficient with the design's own SENSITIVITY BOUND (smallest detectable
+        difference), which selftest_fit_phase48.py computes; a ratio near the bound is NOT a result
+        and must be called unresolved rather than small;
+      * if `h` (per-sequence) is significant and `k` is not -> cost is per running sequence;
+      * if `k` is significant and `m` is not -> per KV byte read;
+      * if `m` carries it -> per resident pool token. BUT SEE THE CAVEAT BELOW before believing
+        that reading.
+    Also report leave-one-out sensitivity on every coefficient: §12.27 found the weight term was
+    effectively a one-or-two-point estimate because 1/c puts all leverage at small c. Here the
+    c range is only {4, 8}, so the `a` intercept is expected to be poorly pinned -- do not quote it.
+
+    CAVEAT THAT SURVIVES EVEN A CLEAN FIT, and the reason this cannot be reported as "the
+    mechanism": P = c*(depth+pp) is simultaneously the resident-pool-token count AND the number of
+    prompt+context tokens prefilled per batch. So a significant `m` does NOT distinguish "pool
+    pressure" from "prefill work", which §12.23 argues are different mechanisms with different
+    fixes. Isolating prefill needs depth = 0 cells with `pp` varied (no KV read, no residency),
+    which this profile deliberately does not include -- adding them changes what is being measured
+    and belongs in a second profile, not silently appended here.
+
+    NOT ESTABLISHED: whether pp=1024 versus 2048 changes anything about the workload's cache
+    behaviour beyond token counts (prefix_caching is on, so a shorter prompt shares less). If the
+    fit is driven mainly by `m`, check prefix-cache hit rate per cell before interpreting it as
+    pool pressure.
+
+    SELF-CHECK, because this profile was written with NO args: block at all. `framework` and
+    `metadata` parse fine and the dry run then reports ONE cell, so the defect is invisible until
+    a run is already scheduled -- the exact failure recorded for `attic/benchmarking/matched-b-depth.yaml` in section
+    7. Always assert `args` is present and that the implied cell count matches the design:
+        python3 -c "import yaml;d=yaml.safe_load(open('benchmarking/pp-crossed-identifiability.yaml'));a=d['args'];print(len(a['depth'])*len(a['pp'])*len(a['concurrency']),'cells')"
+    which must print 12.
+args:
+  depth: [ 4096, 8192 ]
+  pp: [ 1024, 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 2, 4, 8 ]
+  prefix_caching: true
+  runs: 3

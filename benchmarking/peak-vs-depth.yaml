@@ -1,0 +1,37 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Is the decode STEP slower at depth, or is the machine just busy doing prefill?
+    Section 12.23 concluded the depth penalty is "substantially a prefill-accounting
+    effect", labelled LIKELY. Existing artifacts cast doubt on the emphasis but cannot
+    settle it: in p38's c=8 sweep, mean/peak duty falls 0.670 -> 0.662 -> 0.627 from
+    depth 1024 to 8192 to 12288 while peak_throughput falls 139.5 -> 126.0 -> 116.0,
+    i.e. -17%. Crowd-out alone predicts duty falling and peak FLAT. Both moved, so
+    either the step is partly slower (partly reviving the bandwidth idea that byte
+    counting argued against) or peak's n=2 spread is doing the work - peak values
+    within one depth differ by up to 17%, which is exactly the size of the effect.
+
+    So this is a sample-size experiment, not a new idea. Matched concurrency, depths
+    1024/4096/8192, runs 7, order RANDOMISED per block by the driver (a blocked design
+    puts its own warm-up inside the reference cell - that error cost section 12.23 a
+    retraction). Judge on peak_throughput's DISTRIBUTION per depth, not its mean: with
+    n=7 the peak of a depth is a much steadier order statistic than n=2, and the
+    question is only whether peak is flat across depth.
+
+    PREDICTIONS, committed before running:
+      A. peak flat across depth (<5%), duty falls  -> section 12.23 right: step is not
+                                                      slower, the machine is busy prefilling.
+      B. peak falls >10% monotone in depth, duty ~flat -> section 12.23 OVERSTATED: the
+                                                      decode step itself slows with context.
+      C. both fall -> mixed, and the split between them is the answer worth having.
+    Also report peak per RUNNING request, not per offered concurrency: the harness does
+    not clamp the server, and an arm whose pool caps it at 14 streams while offering 16
+    is not running 16.
+
+args:
+  depth: [ 1024, 4096, 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 7

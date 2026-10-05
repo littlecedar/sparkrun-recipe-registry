@@ -1,0 +1,39 @@
+# Full curve under a cap of 16: re-test the bs=24 collapse AND resolve a control anomaly.
+#
+# §19 result so far. The cap hypothesis is refuted in both directions -- at k=24 the aggregate is
+# 54.23 (cap 24), 55.06 (cap 32) and 56.22 (cap 16), all within ~2% and p >= 0.34. So admitting 24
+# sequences is not what causes the collapse. But the run that produced 56.22 also carried an
+# INTERNAL CONTROL that fired: its k=16 cell measured 75.14 against the control's 86.86 (-13.5%),
+# and cap 16 at k=16 is exactly non-binding, so the cap cannot explain it.
+#
+# Why the anomaly matters enough to spend a boot on. Two readings, and they imply opposite things:
+#   * boot-level / window drift of ~13% (the d=8192 inter-boot floor is 12.4%, so this is ~1.1x it),
+#     in which case the k=24 cells across the three boots are still comparable -- they are all k=24
+#     and the only thing varying is the cap -- and the cap conclusion stands as stated; or
+#   * something specific to k=16 in that boot (e.g. it ran FIRST, in position 1, where the control
+#     ran it third), in which case position is a confound I have now hit twice and must design out.
+#
+# This profile runs the WHOLE curve under cap 16 so both questions resolve in one boot:
+#   * k=8, 12, 16 are all non-binding under a cap of 16 (cap >= k), so they must reproduce the
+#     control's 79.14 / 85.33 / 86.86. Any cell that does not is the anomaly, and I get to see
+#     whether it is a single cell or a monotone drift.
+#   * k=24 is the treatment, and it is now the FOURTH boot at k=24 (cap 16/24/32/16). Four values
+#     of the same quantity is a distribution rather than a pair.
+#   * k=8 and k=12 at the FRONT put a non-binding cell first, matching the control's cell order, so
+#     if position was the confound this run removes it.
+#
+# Read TTFT beside throughput: if a cap of 16 DID work it would queue 8 requests, so the win would
+# only be legitimate if stated with its tail latency (§17).
+framework: llama-benchy
+metadata:
+  description: >
+    Full bs curve under max_num_seqs=16. k=8/12/16 are non-binding (cap >= k) and act as internal
+    controls that must reproduce the cap-24 control; k=24 is the treatment and becomes the fourth
+    independent k=24 measurement. Requires -o max_num_seqs=16.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 12, 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,51 @@
+# Does capping the running batch at 16 avoid the bs=24 aggregate collapse?
+#
+# §19: aggregate decode peaks at bs=16 (**86.86**) and falls to **54.23** at bs=24, reproduced on
+# two independent boots 70 minutes apart (54.23 / 55.06), IQR <= 2.6% in every cell. The cause is
+# unexplained -- hardware (96% util, no throttle), prefill admission (bs=12/16 exceed the 16384
+# token limit and are the *best* cells), scheduler cap and KV bytes have all been excluded.
+#
+# `defaults.max_num_seqs = 24` permits exactly the regressing configuration, and `max_num_seqs` does
+# not merely describe concurrency -- it caps the running batch and queues the rest. So the candidate
+# fix caps it at 16: keep the running batch at the throughput peak and let excess requests wait.
+#
+# WHY THIS PROFILE EXISTS RATHER THAN REUSING bs-sweep-high.yaml. Two reasons.
+#
+# 1. The previous attempt at this question (bench_2f719ceaeffa) RAISED max_num_seqs to 32 and got
+#    bs=24 = 55.06. That was the wrong control by construction: at k=24 a ceiling of 32 is as
+#    non-binding as 24, so it could not distinguish anything, and the null result proved only that.
+#    The direction of the change was visible the instant `extras.measurement_overrides.max_num_seqs`
+#    was printed -- which is the field that should have been read *before* launching.
+#
+# 2. Only k=24 makes a prediction, but bs=16 is INCLUDED as an internal control: with a cap of 16,
+#    k=16 is exactly non-binding, so this run must reproduce ~86 at bs=16. If it does not, the cap
+#    itself or the window changed something and the bs=24 number is uninterpretable. A control that
+#    is expected to be unchanged is the cheapest way to detect that a knob had a side effect.
+#    (Re-running bs=8/12 would repeat that same non-binding check at lower k for no additional
+#    information, so they are left out and the run stays short.)
+#
+# Outcomes, both decisive:
+#   k=24 near 86  -> capping works; max_num_seqs=16 is a recipe candidate.
+#   k=24 near 55  -> admitting 24 sequences is NOT the cause, and the mechanism is elsewhere
+#                    (scheduler behaviour or gather contention at large running batches).
+# Read TTFT beside throughput either way: with a cap of 16 and k=24, eight requests queue, so this
+# is a throughput-for-tail-latency trade and §17 forbids calling a throughput gain a win without it.
+#
+# Launch with: sparkrun benchmark performance qwen3.8-flash-next-nvfp4-sglang \
+#                --profile .../bs-cap16-k24.yaml -o max_num_seqs=16 -H node-restricted-2,node-restricted-3
+# `-o max_num_seqs=16` is what carries the treatment; it lands in measurement_overrides, which is
+# where the booted value lives (defaults.extra_args/defaults.max_num_seqs still report the file's
+# 24, and reading THOSE instead of the overrides is what made nine earlier boots look flag-free).
+framework: llama-benchy
+metadata:
+  description: >
+    Running-batch cap test. bs=24 collapses to ~55 tok/s aggregate from a bs=16 peak of ~87; this
+    holds k=24 against a max_num_seqs of 16 to test whether admitting 24 sequences is the cause.
+    bs=16 is an internal control expected to be unchanged. Requires -o max_num_seqs=16.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,17 @@
+---
+framework: llama-benchy
+metadata:
+  description: >
+    Decode-only pass for arms whose prefill CUDA graph is disabled (labquant QSA
+    blocker (f) workaround). fast-smoke's d=100000 cell is dominated by prefill of
+    the 100k context, so with prefill graphs off it would measure a config penalty
+    unrelated to the comparison. This profile keeps d=0 and d=8192 decode (the cells
+    §4 compares) and drops the prefill-heavy cell. runs=7 per the noise floor.
+    NOT for absolute numbers - read beside a same-window control.
+args:
+  depth: [ 0, 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 7

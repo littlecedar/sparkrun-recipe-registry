@@ -1,0 +1,50 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Ceiling test for Qwen3.8-27B-NVFP4-DFlash2. This is the only open experiment on this
+    recipe that can change a default, and it exists because of a source read: the mamba
+    state pool silently lowers max_running_requests
+    (mem_cache/kv_cache_configurator.py:2177-2193) whenever
+    max_mamba_cache_size // 4 < max_num_seqs, and the arithmetic in
+    recipes/qwen3/QWEN3-MODEL-OPTIMIZATION-WORK.md section 12 puts max_mamba_cache_size at
+    about 125 for the shipped config -- implying a real ceiling near 31, not the 48 the
+    recipe asks for. Section 9's sweep stopped at concurrency 8, i.e. entirely below that
+    clamp, so no measurement to date can see it.
+
+    WHY THESE SIX POINTS AND NOT A SWEEP. Each point costs a batch, and the prefill of
+    depth-0 concurrency-40 is the expensive part, so the list is the minimum that can
+    distinguish the three outcomes below. 1 and 8 tie back to section 9's existing rows;
+    24 sits under the predicted clamp, 31 at it, 34 and 40 past it. Deliberately kept
+    under one boot window with --timeout 2400.
+
+    WHAT EACH SHAPE MEANS, decided before the run:
+      - aggregate tok/s keeps rising through 34 and 40 -> the cap is not binding, or the
+        arithmetic is wrong. Config stays as shipped, and section 12's headline should be
+        recorded as a described non-problem rather than "fixed".
+      - aggregate tok/s flattens between 31 and 40 while p99 TTFT climbs -> the clamp is
+        real and load-bearing. Only then is a knob change defensible -- and note section
+        12's stronger result: at speculative_draft_tokens=8 the ceiling saturates near 40
+        even if every spare byte went to GDN state, so raising mamba_full_memory_ratio
+        cannot fix it. The levers are D, or memory.
+      - a knee BELOW 24 -> something else limits first (CUDA graph max_bs, the
+        post-capture re-cap at kv_pool_runtime.py:112-126, or prefill queueing). Chase
+        that instead and do not credit the mamba cap.
+
+    Do NOT read this profile's own max_num_seqs field as the granted concurrency. It is
+    the request, not the grant. Read `capped to` out of the server log and treat that as
+    the x-axis. Boot-check the ceiling first (phase 8 / run_phase8.sh), then sweep past
+    whatever it reports.
+
+    depth is pinned at 0: that is the weight-bound regime the clamp is claimed to bind
+    in, and it keeps the prefill cost down. The depth-8192 check is deliberately NOT
+    folded in -- doubling the point count to ask a second question is how sweeps stop
+    fitting in a window. Run it separately, two points (c=24 and c=40, depth 8192), only
+    if the depth-0 sweep shows a knee: if the ceiling moves with depth then the binding
+    constraint is the token pool and section 12's slot arithmetic is not the whole story.
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 1, 8, 24, 31, 34, 40 ]
+  prefix_caching: true
+  runs: 3

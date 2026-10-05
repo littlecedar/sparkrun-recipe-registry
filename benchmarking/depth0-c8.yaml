@@ -1,0 +1,18 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Depth-0 twin of `depth8k-c8.yaml`: same pp, same tg, same concurrency, same run count,
+    only depth differs. The two profiles are meant to be ALTERNATED against one booted
+    server (`--skip-run`) to get a same-window interleaved depth control.
+
+    Keep these two files in lockstep. Any difference other than `depth` silently turns the
+    paired comparison into a comparison of two different experiments, which is the bug this
+    pairing exists to avoid. `runs` must match, `pp`/`tg`/`concurrency`/`prefix_caching`
+    must match, and neither may gain an extra arg without the other doing the same.
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 3

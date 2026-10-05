@@ -1,0 +1,50 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    DEPTH sweep scored on the server's OWN decode metric, to test whether the depth penalty
+    survives after removing prefill contamination from the measurement.
+
+    WHY. Section 12.32 showed that the harness decode-phase row (tg_throughput) falls 38 % when
+    `pp` — a variable that affects ONLY prefill — is swept, while the server's decode-only
+    `gen throughput` line moves 4 %. Every depth-cost number in sections 12.22-12.29 was measured
+    with that same contaminated harness metric, so none of them is yet a decode measurement. This
+    profile re-asks the central question with the uncontaminated instrument: does decode slow down
+    with context depth at fixed batch?
+
+    WHY c = 4 AND NOT c = 8. `usable = min(cap 21, #tokens // (depth + pp))` with #tokens 117,752
+    on the live container. At c = 8 the depth-8192 cell needs 8 x 10,240 = 81,920 slots (70 % of
+    pool) and depth 16384 needs 147,456 — OVER POOL, so that cell would be capacity-limited and its
+    "depth penalty" would be a queueing artefact. At c = 4 every cell below fits: 16384 needs
+    4 x 18,432 = 73,728 (63 %), 8192 needs 40,960 (35 %). c = 4 is also exactly where section
+    12.29 placed the step (approximately 0 % at c = 2, approximately 20 % at c = 4 and 8), so it is
+    the informative batch size rather than a compromise.
+
+    pp IS HELD FIXED at 2048, deliberately. This sweep varies depth ONLY. pp enters the prompt, so
+    holding it fixed means prefill work per request changes only through depth itself — and any
+    residual contamination in the harness metric is then constant across cells rather than
+    co-varying with the swept variable. That is what makes the harness row and the server row
+    comparable here in a way they were not in the pp sweep.
+
+    EXPECTATION, committed before running. Under the contaminated harness metric this sweep
+    reproduced a ~20 % drop from 4096 to 8192 (section 12.22). If that drop is contamination,
+    the server's decode-only `gen throughput` should be FLAT in depth. If it is real, the server
+    metric should show it too. A flat server metric alongside a falling harness metric is the
+    result that matters, and it would mean the depth penalty as this project has measured it is a
+    property of the measurement window, not of decode.
+
+    JUDGE ON: `gen throughput` from `Decode batch` lines inside per-cell windows, with
+    `#running-req == 4` and `cuda graph: True`. NOTE THE WINDOWING HAPPENS TO BE EXACT HERE:
+    llama-benchy emits one `Task k/N done` line per DEPTH, and depth is the swept variable, so
+    per-depth windows are per-cell windows. That alignment is luck, not design, and it would fail
+    on any sweep that varied something other than depth — see section 12.32's caveat 1. Also read
+    `full token usage` per cell: any cell above ~0.8 is pool-limited and void.
+
+    --fresh is mandatory: sparkrun keys resume state on (profile, recipe, hosts) and IGNORES
+    --output, re-writing the prior JSON byte-identically with rc = 0. Verify distinct md5s.
+args:
+  depth: [ 1024, 4096, 8192, 16384 ]
+  pp: [ 2048 ]
+  tg: [ 1024 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 3

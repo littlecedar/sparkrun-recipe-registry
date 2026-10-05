@@ -1,0 +1,57 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Capacity test at depth 16384 -- the sharpest falsification available for the
+    `usable = min(granted slots, #tokens // context_length)` model in WORK.md 12.9, and the
+    largest predicted ratio effect anywhere in the sweep.
+
+    WHY 16k AND NOT ANOTHER 8k RUN. At 8k the model's prediction was 18 usable (r=2.3) vs 14
+    (shipped) -- +29% -- and it held. That is one data point on one side of the two limits. At
+    16k the two limits separate much further apart, so the test bites harder. Table below is
+    predict_capacity.py at bottom-up T=24.31, D=8 (recomputed from the script, not hand-typed;
+    usable = min(cap, floor(#tokens / 16384))):
+
+      ratio   cap   #tokens    usable@16k   binds
+      0.90     12   263,332    12            slots
+      1.20     14   227,974    13            balanced <- predicted optimum
+      1.50     15   207,349    12            slots
+      2.00     17   173,465    10            token pool
+      3.51     20   118,955     7            token pool  <- SHIPPED
+      6.00     23    70,339     4            token pool
+
+    So the prediction is 13 vs 7 = +86%, more than double the 8k margin, and it comes with a
+    discriminating prediction no 8k run can make: at 16k the SHIPPED arm is pool-bound at 7 even
+    though it holds 20 slots, i.e. 13 slots are dead weight. #running-req in the server log
+    distinguishes the hypotheses cleanly: 13 confirms the oracle, 20 (the cap) refutes it and
+    means the pool is not binding as claimed, 7 means the ratio change did not take effect.
+    Note r=1.2 is a genuine interior optimum here, not a guess: 0.9 and 1.5 both give 12 (slots
+    bind below, pool binds above), so a wrong ratio in EITHER direction is visible.
+
+    c=1 IS THE NULL AND ALSO A SECOND RESULT. Both configs must run one stream at the same
+    speed. At 8k, depth cost a single stream nothing (29.9 vs 29.0 t/s, WORK.md 12.8); 16k
+    tests whether that still holds at twice the KV footprint, which is the last untested point
+    on the "depth is capacity, not bandwidth" claim.
+
+    c=12 sits above the shipped 7 and below both arms' grants (14 for r12, 20 for ship), so the
+    decisive reading is not "did it reach 12" -- both should. It is the POOL USAGE at 12: shipped
+    must be near 1.0 (12 x ~16.8k = 201k of its ~119k pool = over-committed, so expect retraction
+    and queueing), r12 near 0.50 (201k of 228k). Aggregate throughput at a fixed offered c is
+    therefore the wall test itself: shipped is predicted ~1.9-2.0x slower because it is fighting a
+    capacity it does not have, not because decode is slower.
+
+    ROBUSTNESS, checked before the run. Predicted usable@16k recomputed at each node's OWN bottom-up
+    T from phase 25 (24.31-25.22 GiB) gives 7 vs 13-14 -- a 1.86x to 2.33x gain over the whole range.
+    So the claim does not depend on which node state each arm happens to boot into, which is the
+    confound that made the 8k +36% provisional. T sensitivity is reported because a prediction that
+    only holds at one T is not a prediction.
+
+    JUDGE ON `#running-req` AND `full token usage` FROM THE SERVER LOG, plus `capped to N` and
+    `#tokens` per boot. The harness concurrency does not clamp the server. Aggregate tok/s is
+    secondary -- at these c the limit is pool/slot arithmetic, not decode speed.
+args:
+  depth: [ 16384 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 1, 12 ]
+  prefix_caching: true
+  runs: 4

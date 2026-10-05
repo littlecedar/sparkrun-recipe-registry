@@ -1,0 +1,25 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Confirmation profile for the block_size 4 -> 8 change. decode-triage (n=5, two depths,
+    arms run in separate phases) left the b8 distribution overlapping the b4 control range,
+    so the mean shift was solid but a single b8 run was not distinguishable from a lucky
+    control. This profile trades depth coverage for repetitions and holds everything else
+    fixed: d=0 only, one concurrency, seven runs.
+
+    This file defines the SHAPE of the measurement only. The interleaving order of the arms
+    (b4, b8, b4, b8, ... inside one window, which is what makes it a paired comparison) is
+    decided by the driver that invokes it, not by the profile. Do not assume interleaving
+    happened merely because this profile was used.
+
+    Do not pool these numbers with decode-triage results. pp=2048 matches decode-triage, but
+    tg=128 and runs=7 differ, and prompt/generation length move reported throughput by ~47%
+    on this model (work doc section 10). Comparisons are valid only within the same profile
+    and the same window.
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,55 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    ISO-KV test: does decode speed depend on batch-total KV bytes, or on depth and concurrency
+    separately? Three cells with IDENTICAL batch-total KV bytes -- c x (depth + pp) = 81,920 in
+    every cell: (c=4, depth 18432), (c=8, depth 8192), (c=16, depth 3072). Depth varies 6x and
+    concurrency 4x while the KV bytes read per decode step are equal BY CONSTRUCTION.
+
+    THE pp TERM IS NOT OPTIONAL AND IT ALMOST SILENCED THIS TEST. Each request occupies
+    prompt + generated tokens, so the pool holds c x (depth + pp) slots, not c x depth. The
+    first draft of this profile paired (8, 8192), (16, 4096), (4, 16384) on c x depth alone --
+    which is NOT iso-KV at all once pp = 2048 is added: the batch totals become 81,920 /
+    98,304 / 81,920, and the middle cell is 20 % heavier. A test designed to isolate one
+    variable would have quietly varied two. Any future iso-by-X profile here must say which X
+    and check that every additive term is inside X.
+
+    WHY. The KV-bandwidth explanation for the depth penalty was declared dead in section 9
+    item 3 by a byte count done at c=1: 8192 x 32768 B = 268 MB per step ~ 2.1 GB/s ~ 1 % of
+    the ~221 GB/s budget, "cannot produce a 30-70 % drop". Sound at c=1, worthless as a
+    general refutation: the KV term scales with batch x depth, so it is ~1 % at c=1 and 25-38 %
+    by c=8. What motivates this test is the QUALITATIVE scaling, not any fitted coefficient --
+    see DEPTH-COST.md section 12.27, whose banner forbids quoting a BW_eff figure (the
+    27-35 GB/s first reported there is a secant slope through a step and moves ~2x with the
+    depth range chosen; it is not a measurement). Do not reintroduce a number here.
+
+    PREDICTION, committed before running: the three peaks are EQUAL within +-8 %. +-8 % is not
+    a free concession -- attention still reads per-sequence state and there is per-sequence
+    scheduling overhead, so equal-KV cells are not perfectly equal. A spread wider than ~15 %
+    refutes the iso-KV model, and its direction says which variable was doing the work: slower
+    at the deepest cell means depth itself matters (kernel/cache behaviour), slower at the
+    highest-c cell means concurrency itself does.
+
+    FEASIBILITY, checked rather than hoped: c=16 needs 16 granted slots, so this must run on a
+    config whose grant is >= 16. On the shipped config the grant is 21 (K=85), so all three
+    cells fit; on a 1.2-ratio container the grant is 14 and the c=16 cell would be silently
+    clamped, which would void it. Pool check: 81,920 token slots against a ~117-239k pool is
+    fine. VERIFY per cell from the serve log that #running-req equals the offered c; a clamped
+    cell is not an iso-KV cell.
+
+    Judge on peak_throughput from the DECODE-PHASE row only: every cell writes a second
+    prefill-phase row whose peak is a different quantity, and pooling the two fabricated a
+    middle value once already.
+
+args:
+  # Three cells with equal c x (depth + pp) = 81,920. This profile's cells are PAIRS, not a
+  # cross product, so run_phase42.sh drives depth/concurrency per cell with -b rather than
+  # expanding this list; the values here are the defaults for a standalone run of the
+  # heaviest cell only. A cross product of these lists would produce nine cells, seven of
+  # them off-model, which is why the driver passes -b explicitly.
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 3
