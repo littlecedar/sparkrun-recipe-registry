@@ -178,9 +178,11 @@ but knapcio runs real `sglang.launch_server` via `dsv41-sglang-overlay`; TensorF
 
 - knapcio: `MAX_TOTAL_TOKENS=4000000` → sglang `--max-total-tokens`, a **separately pinned** KV
   pool (`mods/dsv41-sglang-overlay/launcher.py:129`), with `CONTEXT_LENGTH` a separate per-request
-  limit. 4M pool ≈ 6.6 × 1M streams. Its boot line `full_token≈7.5M` is the *budget*, not held
-  tokens; upstream's TP4 `.env` pins 8,000,000. README "1M Context / ~6.6 concurrent" describes
-  THIS lane — now scope-labelled in the README.
+  limit. The pin is what bounds concurrency (~3.8 full-1M streams). Our one EP1 receipt
+  (`.scratch/ds4/knapcio/logs/boot9-head-serve.log`, fast load ON) logs `full_token=6786560` (the
+  budget) then `full=4000000` (the pin). Upstream's TP4 `.env` pins 8,000,000 = "8 requests at
+  ~1M each". README "1M Context / ~6.6 concurrent" described THIS lane and has been corrected: the
+  ~6.6 was a division of upstream's ~7.5M **budget** by 1M, not an observed concurrency.
 - TensorFold: **no pool flag exists** (`serve --help` has none; no env sets one). `--context` *is*
   the pool, so max total = 1,048,576, ever. Different mechanism, different ceiling.
 
@@ -215,6 +217,23 @@ Documented in AGENTS §12.13 and README "Context window and concurrency". The re
 `max_model_len: 1048576`; the guard `TensorfoldLaneContract.test_context_and_port_are_wired` pins it.
 
 ## Shipped state / remaining risks
+
+- **Provenance of the knapcio KV figures (audited 2026-10-05).** The README's "~7.5M tokens / ~6.6
+  full-length concurrent requests" was **not** measured for our lane:
+  - `~7.5M` is upstream's *budget* interval (7.47–7.82M, EP2, 2026-09-18 stock-loader stack) from
+    `.scratch/ds4/knapcio/docs/history.md:121,127`. It is the head's `MemAvailable`-derived
+    `full_token`, not tokens the server holds.
+  - `~6.6` appears nowhere in upstream's docs; it was `7.5M ÷ 1M` — arithmetic, not observation —
+    and it ignored the `MAX_TOTAL_TOKENS=4000000` pin (the pin yields ~3.8).
+  - **Our only fleet measurement** is `.scratch/ds4/knapcio/logs/boot9-head-serve.log` (2026-10-02,
+    EP1, **fast load ON**, so not the shipped config): `full_token=6786560` (budget) then
+    `full=4000000` (pin) and `max_total_num_tokens=4000000`. Inside upstream's fast-loader interval.
+  - So: **the pool's *maximum* was never measured on our lane at the shipped config.** The *pin*
+    (4M) is the operative number and is verified in our log; the shipped-config budget is unmeasured
+    (§7.1 has the A/B). README "Caveats" figures corrected 2026-10-05.
+- **Recipe renamed** by a collaborator to `...-tensorfold-tp2-1m-sglang.yaml` (commit `e0d77df`) to
+  reflect the 1M context. Fixed two dangling refs it left: `tests/test_ds4_recipes.py` `TF_RECIPE`
+  and AGENTS §12.2's path.
 
 - **Boot-verified 2026-10-05** (cold + warm + real inference). The image digest, checkpoint,
   Engram, shim mapping, guard suite, and both boot paths are all verified.
