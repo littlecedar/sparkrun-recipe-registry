@@ -267,8 +267,9 @@ convention the `ds4` lane uses.
   `bench_*` ids — the id is the provenance, the file is convenience.
 - **Naming:** `zz-` prefix is the conventional marker that a recipe exists only to define an arm
   variant, not a shippable recipe. Never ship a `zz-` file.
-- **`benchmarking/*.yaml`** is also shipped and nearly all untracked; keep only profiles that are
-  either run or genuinely planned-and-referenced. A profile whose recipe no longer exists is dead.
+- **`benchmarking/*.yaml`** was cleaned to its curated library on 2026-10-04; the 78 single-use
+  experiment arms are archived in [`../../attic/benchmarking/`](../../attic/benchmarking/) with a
+  manifest. A profile whose recipe no longer exists is dead — put it there, not here.
 - **Internal IPs never enter the tracked `attic/`.** The record and journal are git-ignored for that
   reason; anything else archived there (e.g. `COOP.md`) is redacted first.
 - **Condense, do not just delete.** Before moving a file, confirm (a) nothing in `recipes/`,
