@@ -1,9 +1,9 @@
 # CustomAllReduce on SM120 / TP=4 — what the claim is, why it does not transfer to `ds4`, and what is worth trying
 
 Status: research note, 2026-10-03. Not a recipe change. Nothing here is shipped.
-Read alongside [`AGENTS.md`](../recipes/ds4/AGENTS.md) (lane invariants, guards) and
-[`README.md`](../recipes/ds4/README.md) (measured numbers). Evidence vocabulary follows
-`recipes/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured here;
+Read alongside [`../AGENTS.md`](../recipes/ds4/AGENTS.md) (lane invariants, guards) and
+[`../README.md`](../recipes/ds4/README.md) (measured numbers). Evidence vocabulary follows
+`../AGENTS.md`: **VERIFIED** = read from a primary artifact or measured here;
 **LIKELY** = strong secondary evidence; **SPECULATIVE** = reasoning without a
 source. Numbers this note derives are marked "computed here".
 
@@ -71,7 +71,7 @@ a `/etc/modprobe.d/nvidia-p2p-override.conf` with `ForceP2P=0x11;RMForceP2PType=
 `pcie_port_pm=off` in GRUB, `uvm_disable_hmm=1`, Resizable BAR; and
 `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False` (expandable segments break the IPC
 handle exchange and crash the kernel). These are host-level changes, which is exactly the
-class of change `AGENTS.md` §7 refuses to ship (`DSV41_ENGRAM_DRM_NODE`).
+class of change `../AGENTS.md` §7 refuses to ship (`DSV41_ENGRAM_DRM_NODE`).
 
 ---
 
@@ -83,14 +83,13 @@ reasons the SM120 custom-AR does not apply:
 
 1. **Cross-node, so the gate is permanently closed.** SGLang's custom-AR (v1 and v2)
    requires all ranks in one node (v1) or one NVLink clique (v2). A four-node group fails
-   both. `VERIFIED` in this lane's own boot log — the gate fires and says so
-   (`.scratch/ds4/knapcio/logs/boot9-head-serve.log:105`; a local, git-excluded work
-   area, so this citation is not a clickable link):
+   both. `VERIFIED` in this lane's own boot log — the gate fires and says so:
+   [`boot9-head-serve.log:105`](../../.scratch/ds4/knapcio/logs/boot9-head-serve.log)
    `CustomAllreduce is disabled because this process group spans across nodes.`
    GB10's NVLink-C2C links that Spark's CPU and GPU *inside one node* — there is no
    GPU↔GPU NVSwitch across the four Sparks — so v2's fabric-clique path can never open
    across this group either.
-2. **SM121, not SM120** (`AGENTS.md` §1). The NVIDIA P2P driver override and BAR1 story
+2. **SM121, not SM120** (`../AGENTS.md` §1). The NVIDIA P2P driver override and BAR1 story
    in the SM120 wikis is about PCIe root-port P2P inside one chassis; a Spark node has a
    4-GPU-equivalent *inside one GB10*, and the cross-node path is RDMA, not PCIe P2P.
 3. **The role is already filled — by RoCEnante.** `ds4` ships
@@ -99,7 +98,7 @@ reasons the SM120 custom-AR does not apply:
    *"its one-shot all-reduce/all-gather writes into every peer"* — the cross-node analogue
    of Luke's PCIe oneshot kernel. Boot log (VERIFIED):
    `RoCEnante ready: world=4 hcas=rocep1s0f0,roceP2p1s0f0 gid_index=3 max_size=2097152`
-   and `ROCE_TP8_READY {...}`. `README.md` measures it as the single largest lever on the
+   and `ROCE_TP8_READY {...}`. `../README.md` measures it as the single largest lever on the
    lane: **1.70×/1.69×/1.81×/1.23×** over NCCL-only. The all-reduce lever has already been
    pulled — that *is* the RoCEnante headline, not something still on the table.
 
@@ -136,13 +135,13 @@ decent and oneshot bought the last few percent.
 
 Everything the launcher owns lives in `RECIPE_ENV` and is applied with `env.update()`
 (**override**, not `setdefault`), so a container env or a recipe `env:` cannot override it
-(`AGENTS.md` §4). **Every experiment below is a `mods/dsv41-sglang-overlay/launcher.py`
+(`../AGENTS.md` §4). **Every experiment below is a `mods/dsv41-sglang-overlay/launcher.py`
 edit**, then `git commit` + push/refresh the registry clone before launching (mod refs
 resolve from the registry clone, `AGENTS.md` §4). `-o key=value` reaches `defaults:` only
 and cannot change these. Render with `sparkrun run … -n` before each real boot.
 
 Measurement rules for all of these: a 5% claim is **below the GB10 inter-boot scatter
-(7–25%)** (`AGENTS.md` §10). Use ≥3 boots per arm, a same-config control boot before
+(7–25%)** (`../AGENTS.md` §10). Use ≥3 boots per arm, a same-config control boot before
 calling an arm a win, and the short-prompt harness `C1 t/s` contract. Read the granted KV
 pool from the boot log, never computed.
 
@@ -157,7 +156,7 @@ not custom-AR, and that the custom-AR path is off for a documented reason. Cost:
 ### E2 — Re-price the RoCEnante baseline as a control
 
 Set `SGLANG_ROCE_ALLREDUCE=0` (and `DSV41_ROCE_GATHER=0`) in `RECIPE_ENV`; this is the
-documented rollback one-liner (`README.md`, `AGENTS.md` §7). Expected: the NCCL-only
+documented rollback one-liner (`../README.md`, `AGENTS.md` §7). Expected: the NCCL-only
 column of `README.md` (27.4 / 62.5 / 73.2 / 155 t/s). Purpose: a *contemporaneous*
 control so any later arm is compared boot-for-boot, not against a stale table. If the
 spread between the two arms is under ~15%, stop — you are in the noise and there is
@@ -209,7 +208,7 @@ experiment that maps the tweet's actual finding onto our fabric.
   (*fusion*, not this kernel — the SM120 crasher noted below). `VERIFIED` 2026-10-03.
 - **Patching the cross-node gate to force custom-AR on.** The kernel is intra-node by
   construction (cudaIpc handles + a same-node process group); forcing it across four nodes
-  cannot work, and would fight `AGENTS.md`'s portability invariants.
+  cannot work, and would fight `../AGENTS.md`'s portability invariants.
 - **Adopting the NVIDIA P2P driver override / GRUB changes.** Host-level, per-machine,
   breaks the recipe's no-host-device portability contract (`test_managed_comm_env_not_pinned`,
   `test_no_host_device_names_in_env`), and buys nothing cross-node.
@@ -222,7 +221,7 @@ experiment that maps the tweet's actual finding onto our fabric.
 ## 6. Traps
 
 - **`PYTORCH_CUDA_ALLOC_CONF=expandable_segments`** must stay `False` — required by this
-  lane anyway (NaN logits above 64 prefill query tokens, `AGENTS.md` §4;
+  lane anyway (NaN logits above 64 prefill query tokens, `../AGENTS.md` §4;
   `test_no_expandable_segments`), and separately incompatible with the PCIe oneshot kernel
   (`pcie_allreduce.cu:321`). Do not "fix" one into breaking the other.
 - **Do not pin `NCCL_NET/NCCL_IB_HCA/NCCL_IB_GID_INDEX/NCCL_CROSS_NIC/NCCL_P2P_LEVEL`** to
@@ -241,7 +240,7 @@ experiment that maps the tweet's actual finding onto our fabric.
 
 1. Reproduce E1's gate lines on the boot you measure — no gate, no number.
 2. Same-image, same-clock control boot immediately before/after each arm.
-3. ≥3 boots, short-prompt harness, quote the harness with the number (`README.md`).
+3. ≥3 boots, short-prompt harness, quote the harness with the number (`../README.md`).
 4. Read the granted KV pool from the boot log; a faster arm that shrank the pool is not a
    win.
 5. State the DSpark accept length alongside any decode number
@@ -268,7 +267,7 @@ Traced 2026-10-03.
   on `main` and on the pinned `f80c91a4b`; `SGLANG_OPT_USE_CUSTOM_ALL_REDUCE_V2` default in
   `python/sglang/srt/environ.py` (`main` line ~1352); [SM120 perf plan `#19637`](https://github.com/sgl-project/sglang/issues/19637);
   [TRT all-reduce fusion `#15650`](https://github.com/sgl-project/sglang/issues/15650).
-- This lane (measured / VERIFIED locally): `AGENTS.md` §4, §6, §7, §10;
+- This lane (measured / VERIFIED locally): `../AGENTS.md` §4, §6, §7, §10;
   `README.md` (RoCEnante 1.70× headline; C1–C16 table);
   `.scratch/ds4/knapcio/logs/boot9-head-serve.log` (gate lines);
   `.scratch/ds4/knapcio/docs/upstream-watch.md` (profile: 0.6 ms/step collectives;
