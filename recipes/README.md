@@ -64,16 +64,17 @@ journal, and coordination ledger live under [`../attic/qwen4/`](../attic/qwen4/)
 
 # Model Flags
 
-| Flag | Tag           | Description                          |
-|:-----|:--------------|:-------------------------------------|
-| ✨   | official      | Uses official weights                |
-| 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite      |
-| 🚀   | fast          | C1 Fast (>= 50t/s avg)               |
-| 🐢   | slow          | C1 Slow (< 40t/s avg)                |
-| 🚚   | large_context | Large context (>= 512k tokens)       |
-| 🏴   | uncensored    | Uncensored model                     |
-| 🚩   | dangerous     | Dangerous and may crash your Sparks! |    
-| 💀   | broken        | Currently broken                     |
+| Flag | Tag           | Description                              |
+|:-----|:--------------|:-----------------------------------------|
+| ✨   | official      | Uses official weights                    |
+| 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite          |
+| 🚀   | fast          | C1 Fast (>= 50t/s avg)                   |
+| 🐢   | slow          | C1 Slow (< 40t/s avg)                    |
+| 🚚   | large_context | Large context (>= 512k tokens)           |
+| 1    | single_user   | Low concurrency, single-user recommended |
+| 🏴   | uncensored    | Uncensored model                         |
+| 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
+| 💀   | broken        | Currently broken                         |
 
 _Flags indicate characteristics of the model and are set in the recipe metadata._
 

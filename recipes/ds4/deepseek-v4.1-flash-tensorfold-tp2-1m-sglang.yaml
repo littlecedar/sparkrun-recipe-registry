@@ -21,7 +21,7 @@ metadata:
   model_dtype: exl3
   model_mtp_dtype: exl3
   kv_dtype: fp8
-  tags: fast
+  tags: fast, single_user
 
 mods:
   - "@littlecedar/mods/tensorfold-dsv41-launcher"
