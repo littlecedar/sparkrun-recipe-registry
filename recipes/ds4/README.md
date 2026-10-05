@@ -110,6 +110,12 @@ quantization damage.
 
 ## Caveats & Limitations with Explanations
 
+> **Scope:** everything in this section describes the **knapcio TP=4 SGLang lane**
+> (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, SGLang + `dsv41-sglang-overlay`). It does
+> **not** apply to the TensorFold TP=2 lane further down — a different engine with a different KV
+> model (`--context` is a single shared pool there; see §"Context window and concurrency"). The
+> numbers below are the knapcio lane's, and several come from upstream.
+
 ### 1M Context
 
 A `context_length` of 1,048,576 tokens is configured, served, and needle-tested. However, hardware memory boundaries and prefill compute impose real operational constraints.
@@ -268,9 +274,12 @@ The speculative scheduling cost table (`DSPARK_SPS_TABLE` / `DSPARK_STS_TABLE`) 
 ## TensorFold TP=2 lane (two nodes)
 
 A second lane in this directory serves the same model on **two** GB10 nodes with a
-different engine. It trades the four-node SGLang lane's 1M context and measured
-quality record for a lower node count and better single-stream speed on a smaller
-(EXL3-quantized) checkpoint.
+different engine. It trades the four-node SGLang lane's measured quality record and
+its ability to hold several long-context streams at once for a lower node count and
+better single-stream speed on a smaller (EXL3-quantized) checkpoint. Both lanes serve
+the model's full 1M window; this one reaches it with two nodes instead of four, but
+shares one KV pool across its streams rather than sizing the pool separately (see
+[Context window and concurrency](#context-window-and-concurrency)).
 
 | | |
 |:--|:--|
@@ -279,7 +288,7 @@ quality record for a lower node count and better single-stream speed on a smalle
 | Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
 | Engram | Official DeepSeek shards **47/48** (~95 GB each), distributed out-of-band |
 | Nodes | 2 (TP=2, one GB10 per node) |
-| Context | 262,144 tokens served (engine window is configurable up to 1,048,576) |
+| Context | **1,048,576 tokens served** — the model's full trained window, which is also the KV pool |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
 | Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
 | Measured | C1 101 code / 62 prose / 142 structured t/s; 4 streams 112 t/s (upstream's numbers on 2× GB10) |
@@ -292,6 +301,66 @@ Two caveats remain. First, the EXL3 checkpoint is a lossy quant, so its **qualit
 project's hard tier is still unmeasured; do not imply parity with the SGLang lane's 17/18. Second,
 the shipping prerequisite that bites first: the `@littlecedar/mods/…` reference resolves from the
 node's registry clone, so this recipe only launches once the mod is committed and pushed (§12.10).
+
+### Context window and concurrency
+
+**The recipe ships at `max_model_len: 1048576` — the model's full trained window.** For this engine
+that is also the largest possible KV cache, because `--context` *is* the pool: TensorFold exposes no
+separate pool-size flag, so a bigger context and a bigger cache are one and the same setting. It is
+therefore the largest value the recipe can carry, and the engine hard-refuses anything larger before
+loading a single weight:
+
+```
+$ tensorfold serve <model> --context 1048577
+tensorfold: --context 1048577 exceeds this model's 1048576-token window
+```
+
+(`cli.py`: `if native_context and context > native_context: raise …`; `native_context` is
+`config.json`'s `max_position_embeddings`.) `1048576` itself boots and is served — verified on
+2× GB10 (`/v1/models` reports it, the engine logs `context 1048576`).
+
+That ceiling is the **model's**, not the machine's. 1,048,576 is not a round number by accident:
+the checkpoint's `rope_scaling` is YaRN with `original_max_position_embeddings: 65536` and
+`factor: 16`, and 65,536 × 16 = 1,048,576. Past it the model has no valid positions, so the engine
+refuses to start rather than serve nonsense. Memory would allow far more — DeepSeek-V4.1-Flash uses
+MLA (one shared latent KV head), so the cache costs only ~2.9 KiB per token; measured on the trial
+pair, rank 0's warm-up `reserved` was **100.8 GiB at `context 262144`** and **103.0 GiB at
+`1048576`** — the entire extra 786,432 tokens of window cost **2.16 GiB**.
+
+`max_model_len` is **not** a per-request allowance — it is the **whole KV pool**, shared by the
+`--parallel` lanes. The engine says so at startup:
+
+```
+[tensorfold] --parallel 4: 4 streams share one window of 1048576 tokens (an extent each)
+```
+
+Each stream carves its own `prompt + max_tokens + draft rows` out of that one window, and a request
+whose prompt+reply exceeds it is refused up front. So **concurrency and per-stream context trade
+off**, and you cannot run four full-window streams:
+
+| 4 concurrent requests, each declaring | at `max_model_len: 1048576` (shipped) | at `max_model_len: 262144` (the old value) |
+|:--|:--|:--|
+| 2,000 reply tokens | **4 concurrent** | **4 concurrent** |
+| 200,000 | **4 concurrent** | — |
+| 250,000 | **4 concurrent** | **1** |
+| 300,000 | **3 concurrent** | — |
+| 500,000 | **2 concurrent** | — |
+| 900,000 | **1** | — |
+
+Measured 2026-10-05 on 2× GB10 via the engine's `/health` `streams.decoding` counter (full method
+and the code path in [`AGENTS.md`](AGENTS.md) §12.13). `--parallel 4` is a hard cap: eight tiny
+concurrent requests still decode at most 4 at once.
+
+- **One stream can use the whole 1M window** (that stream is then the only decoder; others queue) —
+  which is what makes the recipe usable for genuine long-context work.
+- **Four streams coexist up to ~250K tokens each.** The pool is a superset of the old 262K one, so
+  shipping 1M **strictly improves** concurrency: four requests each declaring a 250K reply went from
+  **1 concurrent** at 262K to **4 concurrent** at 1M.
+- **Decode speed is unaffected by the larger pool** — measured 72.5 tok/s median at `context
+  1048576` versus 73.0 at 262144, identical DSpark acceptance. Pages are touched only as used.
+- Size clients' `max_tokens` to about `max_model_len / n` for *n* concurrent long-context streams.
+  Upstream's reported 4-way concurrency is real, and was measured on 384-token generations
+  (~4K of window each).
 
 ## Retired material
 

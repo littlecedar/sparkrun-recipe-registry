@@ -9,7 +9,7 @@ NOT a workload node). Restricted: .30/.31/.32/.33.
 
 | Deliverable | State | Evidence |
 |:--|:--|:--|
-| Recon all 3 sources | DONE | NOTES "Source facts"; §12.13 refs |
+| Recon all 3 sources | DONE | NOTES "Source facts"; §12.14 refs |
 | Dockerfile for the engine | DONE | `recipes/ds4/Dockerfile.tensorfold-dsv41` |
 | Image built + pushed | DONE | digest below, on .30/.34/.35 |
 | Recipe (house ds4 naming) | DONE | `deepseek-v4.1-flash-tensorfold-tp2-sglang.yaml` |
@@ -143,10 +143,84 @@ DSpark mean acceptance of 2.76 is the "speculation is working" signal the boot g
    per (head,worker) pair but it is real, and it is the dominant cost of the FIRST launch.
    `--copy-unsafe-links` materializes the blob symlinks, so measure with `find -type f -printf %s`.
 
+## Context window and concurrency (measured 2026-10-05)
+
+**The recipe ships at the maximum: `max_model_len: 1048576`** (changed from 262144 on request,
+2026-10-05). Since TensorFold has no pool knob, this sets the largest possible KV cache too. No
+compelling reason to cap lower was found; the change is strictly better (see the table below).
+
+**Ceiling: `--context` ≤ 1,048,576, hard-enforced.** `cli.py:355` refuses `context > native_context`
+("`--context 4194304 exceeds this model's 1048576-token window`") before weights load;
+`native_context` = `config.json` `max_position_embeddings` = 1048576. Verified boundary on .34:
+`1048577` refused, `1048576` loads. This family never calls `cuda.capacity.admit`, so the ceiling is
+that CLI check — there is no memory-based clamp below it (`self.limit = context`, engine.py:112).
+
+**Yes: the shared KV pool is capped at 1048576 — and it is a *model* cap, not a memory cap.** The
+pool *is* `context` (`new_pool(cap=context + max_rows + 8)`); there is no larger pool it slices.
+1,048,576 is the model's trained window: `rope_scaling = {yarn, original_max_position_embeddings:
+65536, factor: 16, …}`, and 65536 × 16 = 1,048,576 — past it there are no valid positions, so the
+engine refuses rather than serve nonsense. Memory is not binding: MLA means one latent KV head
+(`num_key_value_heads: 1`, `head_dim: 512`) ⇒ **~2.9 KiB/token**; measured warm-up `reserved`
+**100.82 GiB @ 262144 vs 102.98 GiB @ 1048576** - the whole extra 786,432 tokens cost **2.16 GiB**
+per rank. Tens of millions of tokens would fit in 128 GB; the model has no positions for them.
+
+**Raising 262144 → 1048576 is strictly better (verified 2026-10-05):**
+- Decode speed unchanged: **72.5 tok/s @ 1M** vs 73.0 @ 262K (median of 3, same 288/256 prompt,
+  same `drafted=262 accepted=160`).
+- Concurrency improved: 4 concurrent requests each declaring 250K → **1 concurrent @ 262K, 4 @ 1M**.
+- Cost: +2.16 GiB/rank (fits; ceiling ~107 GiB), and nothing at decode time (pages touched as used).
+- A slow prefill is the only real cost, and only for genuinely huge prompts (~10% on a fresh 1M
+  prefill, per upstream) — not a reason to deny that capability.
+
+**Do not conflate the two lanes' KV numbers.** They are different engines (both `runtime: sglang`,
+but knapcio runs real `sglang.launch_server` via `dsv41-sglang-overlay`; TensorFold runs
+`tensorfold serve` via the shim):
+
+- knapcio: `MAX_TOTAL_TOKENS=4000000` → sglang `--max-total-tokens`, a **separately pinned** KV
+  pool (`mods/dsv41-sglang-overlay/launcher.py:129`), with `CONTEXT_LENGTH` a separate per-request
+  limit. 4M pool ≈ 6.6 × 1M streams. Its boot line `full_token≈7.5M` is the *budget*, not held
+  tokens; upstream's TP4 `.env` pins 8,000,000. README "1M Context / ~6.6 concurrent" describes
+  THIS lane — now scope-labelled in the README.
+- TensorFold: **no pool flag exists** (`serve --help` has none; no env sets one). `--context` *is*
+  the pool, so max total = 1,048,576, ever. Different mechanism, different ceiling.
+
+`--context`/`max_model_len` is the **whole KV pool**, shared by the `--parallel` lanes — the engine
+logs `--parallel 4: 4 streams share one window of <context> tokens (an extent each)`, and
+`model.py::new_pool` docstring says "One window of `cap` positions that up to `slots` streams share
+by extents", with `cap = context + max_rows + 8` (engine.py:130). Each stream takes an extent of
+`prompt + max_tokens + draft rows` out of that one window; `prompt+reply > context` is rejected as
+`context_length_exceeded`.
+
+Measured (4 concurrent requests, each declaring its own reply length; `streams.decoding` from
+`/health`):
+
+| max_tokens each | context 1048576 (shipped) | context 262144 (old) |
+|:--|:--|:--|
+| 2000 | 4 | 4 |
+| 200000 | 4 | — |
+| 250000 | 4 | 1 |
+| 300000 | 3 | — |
+| 500000 | 2 | — |
+| 900000 | 1 | — |
+
+- **1M full context: YES, shipped.** One stream may use the whole window (then it is the only
+  decoder). Wire 1M at boot, report it in `/v1/models`.
+- **Max concurrency 4** at context 1M holds up to a ~250K per-request window.
+- **1M strictly dominates the old 262K**: four 250K requests go from concurrency 1 to 4, decode
+  speed is unchanged, and 1M can serve anything 262K could plus more.
+- `--parallel 4` is a hard cap (8 tiny requests still peak at 4 decoding).
+- Memory is not the limit; the window is a fixed admission-time allocation.
+
+Documented in AGENTS §12.13 and README "Context window and concurrency". The recipe now ships
+`max_model_len: 1048576`; the guard `TensorfoldLaneContract.test_context_and_port_are_wired` pins it.
+
 ## Shipped state / remaining risks
 
 - **Boot-verified 2026-10-05** (cold + warm + real inference). The image digest, checkpoint,
   Engram, shim mapping, guard suite, and both boot paths are all verified.
+- **Context raised to 1,048,576** (the model's max, = the max KV cache here) on 2026-10-05, and
+  re-booted + re-measured after the change: 72.5 tok/s decode, 4-way concurrency at 250K/request,
+  `/v1/models` reports `max_model_len: 1048576`.
 - **Ship-order:** pushing the repo is required before `sparkrun run recipes/ds4/<recipe>` works on
   the head (the `@littlecedar/` mod resolves from the node's registry clone). AGENTS §4 / §12.10.
 - The EXL3 checkpoint's **quality** on this project's hard tier is unmeasured. Do not imply parity

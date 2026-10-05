@@ -1523,10 +1523,38 @@ class TensorfoldLaneContract(unittest.TestCase):
         self.assertIn("--tp {tensor_parallel}", self.r.command_template)
 
     def test_context_and_port_are_wired(self):
-        self.assertEqual(self.r.default("max_model_len"), "262144")
+        # The lane ships at the model's full 1M window. It is not a taste choice:
+        # `--context` IS the KV pool here (no separate pool knob), so the maximum
+        # context and the maximum cache are the same change, and 1M is the wall the
+        # engine enforces (`cli.py`: `context > native_context` is refused before any
+        # weight loads). Pinned so a future "smaller is safer" retune has to argue
+        # with a test rather than a comment. See AGENTS.md §12.13.
+        self.assertEqual(self.r.default("max_model_len"), "1048576")
         self.assertIn("--context {max_model_len}", self.r.command_template)
         self.assertEqual(self.r.default("port"), "8000")
         self.assertIn("--port {port}", self.r.command_template)
+
+    def test_context_is_capped_at_the_model_window(self):
+        """The shipped context must not exceed the model's trained window (1,048,576).
+
+        The offline half of the engine's `cli.py` check: `context > native_context` is
+        refused before any weight loads. Exceeding it does not degrade gracefully --
+        the launch dies -- so a retune that raises it (e.g. round 1M up to 2M) must
+        fail here rather than at the node. See AGENTS.md 12.13.
+        """
+        MODEL_WINDOW = 1048576
+        shipped = int(self.r.default("max_model_len"))
+        self.assertLessEqual(
+            shipped, MODEL_WINDOW,
+            f"max_model_len {shipped} exceeds the model's {MODEL_WINDOW}-token "
+            "window; the engine refuses the launch",
+        )
+        # And it should be the ceiling, not below it: with no separate pool knob,
+        # any value below the ceiling needlessly shrinks both cache and context.
+        self.assertEqual(
+            shipped, MODEL_WINDOW,
+            "the lane should ship at the model's full window (no separate pool knob)",
+        )
 
     def test_mod_reference(self):
         self.assertIn(TF_MOD_REF, self.text)
@@ -1676,6 +1704,28 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
         text = TF_RECIPE.read_text()
         assert old in text, "anchor %r not in recipe" % old
         return Recipe(text.replace(old, new, 1), TF_RECIPE.name)
+
+    def test_control_context_above_model_window(self):
+        """Prove the ceiling guard can fail: a context past 1,048,576 must be caught.
+
+        This is the mutation the guard exists for -- someone "rounding up" the
+        window to 2M would otherwise ship a recipe whose every launch dies at
+        `cli.py`'s native-window check.
+        """
+        r = self._mutated("max_model_len: 1048576", "max_model_len: 2097152")
+        with self.assertRaises(AssertionError):
+            self.assertLessEqual(int(r.default("max_model_len")), 1048576)
+
+    def test_control_context_below_ceiling(self):
+        """The old 262144 value must fail the "ship at the ceiling" half.
+
+        Pins the decision: with no separate pool knob, a smaller context is a
+        needlessly smaller cache and less concurrency, so a silent regression
+        back to 262K should be a test failure.
+        """
+        r = self._mutated("max_model_len: 1048576", "max_model_len: 262144")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(int(r.default("max_model_len")), 1048576)
 
     def test_control_image_unpinned(self):
         r = self._mutated(TF_IMAGE, "littlecedar/dgx-spark-dsv41:tensorfold-tp2")

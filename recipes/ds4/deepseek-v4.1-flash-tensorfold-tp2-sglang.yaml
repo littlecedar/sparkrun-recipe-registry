@@ -11,8 +11,8 @@ metadata:
     DeepSeek-V4.1-Flash on 2x DGX Spark (GB10), TP=2, served by the TensorFold
     deepseek_v41 engine (bertholomus/TensorFold, branch deepseek-v41-tp2). The
     EXL3 2.9bpw checkpoint (~197 GB) plus the original FP8 Engram tables from
-    DeepSeek shards 47/48 (~95 GB each), DSpark k=5, 262K served context. The
-    recipe's `runtime: sglang` is the shim path: sparkrun renders the command
+    DeepSeek shards 47/48 (~95 GB each), DSpark k=5, at the model's full 1M-token
+    window. The recipe's `runtime: sglang` is the shim path: sparkrun renders the command
     and appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher
     maps them onto `tensorfold serve`. See README.md and AGENTS.md.
   model_url: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
@@ -37,7 +37,7 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 2
-  max_model_len: 262144
+  max_model_len: 1048576
 
 command: >
   python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py

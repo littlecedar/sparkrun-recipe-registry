@@ -455,9 +455,9 @@ above; read this section before touching it.
 - Engram: the EXL3 quant left the two FP8 Engram tables native; they are **not** in the EXL3
   repo. The engine reads them from DeepSeek's original shards **47 and 48** (~95 GB each), which
   carry `layers.{1,14}.engram.embed.{weight,scale}` and the `q_weight`/`k_weight` linears.
-- Context: the served command ships **262,144** tokens (upstream's measured lane). The engine
-  accepts up to 1,048,576 (upstream found a needle at 1,039,833), but at 1M a fresh prefill costs
-  ~10% more and the KV window is shared by `--parallel` streams.
+- Context: the served command ships the model's **full 1,048,576-token window** (see 12.13 for why
+  the maximum context and the maximum KV cache are the same change here). Upstream measured its lane
+  at 262,144 and found a needle at 1,039,833; the ceiling the engine enforces is 1,048,576.
 
 ### 12.2 Files and the call chain
 
@@ -601,7 +601,7 @@ Bumping the engine is one `ARG TENSORFOLD_REF=...` change.
 3. First boot only: `building CUDA extension …` (torch JIT; subsequent boots reuse
    `/cache/runtime/tensorfold/torch-extensions`) and the ~106 GiB/rank rank-cache write.
 4. `[tensorfold] rank R: allocator ceiling …`.
-5. `[tensorfold] DeepSeek-V4.1 engine ready: 2 rank(s), context 262144, DSpark 5 drafts`.
+5. `[tensorfold] DeepSeek-V4.1 engine ready: 2 rank(s), context 1048576, DSpark 5 drafts`.
 6. `[tensorfold] rank 0 serving … at http://0.0.0.0:8000/v1` and `Mean acceptance length > 1` on
    decode (DSpark working). A boot that serves but accepts nothing is a failure.
 
@@ -651,7 +651,7 @@ scratch dir and use the relative mod ref beside a `mods/` symlink.
 - The EXL3 checkpoint is a lossy quant: its quality on this project's hard tier is **unmeasured**.
   Do not imply parity with the knapcio lane's 17/18. (The lane now *boots and serves* — the boot
   is verified; the quality battery is not.)
-- `--parallel 4` shares one 262K window; concurrency and context-length trade off.
+- `--parallel 4` shares one 1M window; concurrency and per-stream context-length trade off (12.13).
 - The rank cache is a boot-time optimization only; its first write is not part of a warm boot.
 
 ### 12.12 Negative results / gotchas
@@ -671,7 +671,127 @@ scratch dir and use the relative mod ref beside a `mods/` symlink.
 - **`docker exec <c> env` will not show `RECIPE_ENV`**: the shim rewrites its own environment before
   `execvp`, so a fresh shell shows the image's env, not the launcher's. Read the launcher's log line.
 
-### 12.13 References
+### 12.13 Context window and concurrency (measured 2026-10-05)
+
+**Hard ceiling: `--context` ≤ 1,048,576 — the model's trained window. Not one token more.** The
+recipe **ships at this ceiling** (`max_model_len: 1048576`), because `--context` *is* the KV pool
+here, so the largest possible context and the largest possible cache are the same change. The
+engine refuses anything larger *before it loads a weight* (`cli.py:355`):
+
+```python
+if native_context and context > native_context:
+    raise ValueError(f"--context {context} exceeds this model's {native_context}-token window")
+```
+
+`native_context` is `config.json`'s `max_position_embeddings` (= `1048576` here). Verified on the
+trial node: `--context 1048577` → refused with that exact message; `--context 1048576` → loads.
+Note this family does **not** call `cuda.capacity.admit` (which clamps to `min(target, native)`) —
+the ceiling is the CLI check, and below it the window is simply `self.limit = context` with no
+memory-based reduction.
+
+**So yes — the shared KV pool is capped at 1,048,576, and it is not a memory cap.** Two things to
+hold together:
+
+1. *The pool size IS `context`.* `new_pool(cap=context + max_rows + 8)`. There is no separate,
+   larger pool the window is merely a slice of.
+2. *`context` cannot exceed the model's trained window.* `config.json` shows why 1,048,576 is not
+   arbitrary: `rope_scaling` is YaRN with `original_max_position_embeddings: 65536, factor: 16`, and
+   65,536 × 16 = 1,048,576. Past that the model has no valid positions, so the engine refuses to
+   start rather than emit nonsense.
+
+Memory is nowhere near binding. The KV cache is MLA — one shared latent KV head
+(`num_key_value_heads: 1`, `head_dim: 512`) — so the marginal cost is only **~2.9 KiB/token**.
+Measured: rank 0's warm-up `reserved` is **100.82 GiB at context 262144** and **102.98 GiB at
+1048576** — i.e. the entire extra 786,432 tokens of window costs **2.16 GiB** per rank. Tens of
+millions of tokens would fit in 128 GB; the model simply has no positions for them. So the cap is
+the architecture's position range, not the hardware.
+
+Because it is *one* pool, that 1,048,576 figure is the **sum** of all concurrent streams' extents,
+not a per-stream allowance — hence "shared". Four streams can only coexist if their extents sum to
+≤ 1,048,576.
+
+**Do not carry the knapcio lane's KV numbers over to this one.** They are different engines with
+different KV models, and the mistake is easy because both are `runtime: sglang` and both serve the
+same model:
+
+| | knapcio TP=4 (README "Caveats" §) | TensorFold TP=2 (this section) |
+|:--|:--|:--|
+| Engine | real `sglang.launch_server` + `dsv41-sglang-overlay` | `tensorfold serve` (shim) |
+| Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 4000000** in `mods/dsv41-sglang-overlay/launcher.py:129` | **`--context` itself**; no pool flag exists |
+| Window vs pool | `CONTEXT_LENGTH` (per-request, clamped 4096..1048576) **separate** from the pool | same number — `cap = context + max_rows + 8` |
+| B/token/rank | ~1,670 (TP4: ~77 GiB of weights/rank leaves room) | ~2,900 marginal, and only ~2.1 GiB nominal |
+| Pool capacity | ~4M tokens pinned (≈6.6 × 1M); boot line reports the *budget* `full_token≈7.5M` | 1,048,576 total, ever |
+
+Confirmations run 2026-10-05: TensorFold exposes **no** pool/total-tokens flag
+(`serve --help` has none) and **no** env that sets one (grep of `families/deepseek_v41` for
+`environ` shows only `TF_DS_TOKEN_MAP` and tunables). Both lanes therefore reject
+`--context`/`context_length` above 1,048,576 for the *same* reason — the YaRN position range — but
+knapcio *can* hold many 1M streams while TensorFold cannot hold more than one.
+
+The `full_token=` figure in knapcio's boot line is the **maximum budget the host memory allows**,
+not tokens the server holds; the server pins `MAX_TOTAL_TOKENS=4000000` under it (upstream's TP4
+`.env` pins 8,000,000 = 8 Mi tokens, "8 requests at ~1M tokens each"). So "KV pool fits ~7.5M
+tokens" in that README is a budget statement, and ~6.6 × 1M is the pinned working pool.
+
+**`--context` is the shared KV pool, not a per-request allowance.** At startup rank 0 prints
+
+```
+[tensorfold] --parallel 4: 4 streams share one window of <context> tokens (an extent each)
+```
+
+`families/deepseek_v41/cuda/model.py::new_pool` implements it literally — "One window of `cap`
+positions that up to `slots` streams share by extents" — and `engine.py:130` sets
+`cap = context + max_rows + 8`. So `--context N` means: *the whole KV cache is N tokens, and every
+concurrent stream carves its extent out of it.* A stream's extent is `prompt + its max_tokens +
+draft rows` (`MultiDecoder._need`), and `extents.take` first-fits it into the one window. A request
+whose prompt+reply exceeds `context` is rejected up front with `context_length_exceeded`.
+
+**Consequence — you cannot have 4 full-1M streams.** One 1M stream consumes the entire window, so a
+second cannot be admitted until the first frees its extent. Total concurrent tokens ≈ `context`,
+not `4 × context`.
+
+Measured on the trial pair (`.34`/`.35`), 4 concurrent requests each declaring its own reply length,
+reading `streams.decoding` from `/health`. The recipe now ships at 1,048,576; the 262,144 column is
+kept because vendoring all cache in one shared pool makes the difference stark and load-bearing:
+
+| 4 concurrent requests, each `max_tokens` | context 1,048,576 (shipped) | context 262,144 (the old value) |
+|:--|:--|:--|
+| 2,000 | **4** | **4** |
+| 200,000 | **4** | — |
+| 250,000 | **4** | **1** |
+| 300,000 | **3** | — |
+| 500,000 | **2** | — |
+| 900,000 | **1** | — |
+
+So, exactly:
+
+- **Full 1M trained context: yes, shipped.** The recipe boots at `max_model_len: 1048576` (verified:
+  `/v1/models` reports it, `context 1048576` in the ready line); it is needle-tested upstream to
+  1,039,833 tokens. A single stream may use the whole 1M window.
+- **Maximum concurrency (4) holds up to `max_tokens ≈ 250K`** at context 1M (measured: 4 at 250K,
+  3 at 300K). `4 × 250K = 1M` is the budget.
+- **Raising 262,144 → 1,048,576 strictly improves concurrency.** At 262K, four requests each
+  declaring a 250K reply collapsed to **concurrency 1**; at 1M the same four give **4**. The larger
+  pool is a superset — it can always serve anything 262K could, plus more.
+- **Decode speed is unchanged by the larger pool** (measured, median of 3, same 288/256 prompt as
+  the 73 tok/s figure in 12.11): **72.5 tok/s at context 1,048,576** vs 73.0 at 262,144, identical
+  `drafted=262 accepted=160`. Pool pages are touched only as used, so an idle 1M window costs
+  nothing at decode time.
+- `--parallel 4` is a **hard cap**: 8 tiny concurrent requests still peaked at
+  `streams.decoding = 4` (the other 4 waited).
+
+Practical guidance: the largest per-request window that still keeps C concurrent streams is about
+`context / C`, minus the prompt and draft rows. Shipping 1M therefore sets the widest possible
+operating envelope; a client that declares a smaller `max_tokens` gets more concurrency, and one
+that declares a huge one gets the whole window. Memory is *not* the limit — the window is a fixed
+allocation made at admission, and the `--parallel` lanes share one forward pass rather than
+multiplying the cache.
+
+Caveat: the concurrency numbers come from the engine's `/health` `streams.decoding` counter, not a
+tokens/sec benchmark; they establish the admission law. The decode figure is a real measurement
+(median of 3) but of one prompt shape.
+
+### 12.14 References
 
 - Engine: [bertholomus/TensorFold, branch `deepseek-v41-tp2`](https://github.com/bertholomus/TensorFold/tree/deepseek-v41-tp2)
 - Design/report: the fork's `tools/dsv41/DESIGN.md`, `REPORT.md`, `ATTRIBUTION.md`
