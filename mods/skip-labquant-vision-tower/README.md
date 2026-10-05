@@ -8,7 +8,7 @@ description: >
 # Why this mod exists
 
 The labquant export **quantises the vision tower**; the RadixArk export does not. Measured
-from the shard headers on the shared cache:
+from the shard headers in the node's cache:
 
 | checkpoint | vision tensors | dtypes | `quantized_layers` mentioning visual | `ignore` |
 |---|---|---|---|---|

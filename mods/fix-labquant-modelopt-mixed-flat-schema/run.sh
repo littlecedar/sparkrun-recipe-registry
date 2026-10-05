@@ -211,7 +211,7 @@ if ! echo "${STATE}" | grep -q '^NEEDS_FIX'; then
   mkdir -p "${OUT_DIR}"
   # Materialise config.json as a REAL COPY even when no patch is needed. Linking it
   # into the shared snapshot is dangerous twice over: a sibling mod that later wants
-  # to edit config.json would either write through the link into the shared HF cache
+  # to edit config.json would either write through the link into the HF cache
   # (corrupting it for every consumer) or, if it is written correctly, refuse and
   # deadlock. A real copy makes this mod's output safe to depend on either way.
   rm -f "${OUT_DIR}/config.json"
@@ -241,7 +241,7 @@ linkify_all
 # Break any existing link BEFORE writing. If a previous run took the passthrough
 # branch, OUT_DIR/config.json is a symlink into the shared Hugging Face cache, and
 # opening it for write would FOLLOW the link and rewrite the snapshot in place --
-# corrupting the shared cache for every other consumer. Never write through a link.
+# corrupting the cache for every consumer of that node. Never write through a link.
 if [ -L "${OUT_DIR}/config.json" ]; then
   rm -f "${OUT_DIR}/config.json"
 fi
@@ -250,7 +250,7 @@ python3 - "${SNAP}/config.json" "${OUT_DIR}/config.json" <<'PY'
 import json, os, sys
 src, dst = sys.argv[1], sys.argv[2]
 assert not os.path.islink(dst), \
-    f"refusing to write {dst}: it is a symlink into the shared HF cache"
+    f"refusing to write {dst}: it is a symlink into the HF cache"
 cfg = json.load(open(src))
 qc = cfg.get("quantization_config")
 assert isinstance(qc, dict), "config.json has no quantization_config; wrong checkpoint?"

@@ -31,7 +31,7 @@ run at TP=3 and TP=6 where the drafter's raw 64 heads / 8 groups do not divide.
 Upstream reached the same end-state by materialising a 72-head config.json copy;
 this reaches it at runtime. Gated on `virtual_heads_from` and toggled by
 `DSV41_DRAFT_VIRTUAL_HEADS` (default `1`; `0` restores stock vLLM behaviour).
-See `recipes/ds4/DSPARK-TP3-STUDY.md`.
+See `attic/ds4/DSPARK-TP3-STUDY.md`.
 
 ## Mechanics (fail-closed)
 

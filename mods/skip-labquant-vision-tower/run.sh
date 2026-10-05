@@ -30,7 +30,7 @@ set -euo pipefail
 # capability is lost, but do not use this configuration to serve images.
 #
 # Writes into the tree built by mods/fix-labquant-modelopt-mixed-flat-schema. Run
-# AFTER that mod. Never writes through a symlink into the shared HF snapshot.
+# AFTER that mod. Never writes through a symlink into the node's HF snapshot.
 #####################################################################
 
 #####################################################################
@@ -59,7 +59,7 @@ die()  { echo "[mod:${MOD_NAME}] ERROR: $*" >&2; exit 1; }
 if [ -L "${CFG}" ]; then
   tgt="$(readlink -f "${CFG}")"
   case "${tgt}" in
-    /cache/huggingface/*) die "${CFG} is a symlink into the shared HF cache (${tgt}); refusing to mutate a shared snapshot" ;;
+    /cache/huggingface/*) die "${CFG} is a symlink into the HF cache (${tgt}); refusing to mutate the cached snapshot" ;;
   esac
   # Safe to keep the link only if it already points at a patched copy we own.
   log "note: ${CFG} is a symlink to ${tgt}; writing through it"

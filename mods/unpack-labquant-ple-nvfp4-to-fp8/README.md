@@ -62,13 +62,14 @@ float64 or use MAE/median, and validate any metric on data of the real scale (ab
 absmax 256 here) — a sanity check on `randn` of order 1 passes while the real case is
 several percent wrong.
 
-### `weight_scale_2` exists and must NOT be applied
+### `weight_scale_2` — SUPERSEDED. It IS applied, and not applying it broke the model.
+
+**This section used to say the opposite. Read it as a post-mortem, not as guidance.**
 
 There is one extra PLE tensor: `…ngram_embedding.weight_scale_2`, `F32 [1]`, value
 **3.324236240587197e-05**. In ModelOpt's two-level NVFP4 scheme that is the per-tensor
-global scale, and the usual dequant is `value = codebook * block_scale * global_scale`.
-**Applying it here is wrong.** Measured element-wise against RadixArk's independent fp8
-encoding of the same rows:
+global scale. The table below is what this file used to argue from — normed MAE,
+element-wise, against RadixArk's independent fp8 encoding of the same rows:
 
 | dequantisation hypothesis | normed MAE vs reference |
 |---|---|
@@ -77,22 +78,90 @@ encoding of the same rows:
 | `codebook * scale * g / 6` | 29843.3 |
 | `codebook * scale / g` | 179064.9 |
 
-The `g` variants are not close calls, they are degenerate: with `g = 3.3e-5`, `cs*g` is
-numerically zero, and a predictor of ~zero scores a normalised MAE of exactly 1.0;
-`cs/g` overshoots by `1/g ≈ 30000`, which is the MAE it returned. So `weight_scale_2` is
-**inert metadata** for this tensor — a leftover global amax the exporter recorded but did
-not fold into the block scales. The conversion formula is exactly:
+> **Do not read that table quantitatively.** One row is arithmetically impossible as written:
+> `codebook*scale*g/6` *is* `(codebook*scale*g)/6`, so it is the 0.99980 candidate divided by 6 —
+> a candidate 6x *smaller* than one that already sits far below the reference, which cannot move
+> the error to 29843. Rows 3 and 4 also differ from `1/g` and `6/g` by a consistent ~0.8%, so
+> whatever produced them used a `g` or a normalisation that is not recorded here. I could not
+> reconstruct it from what is in this file, so the rows are left as historically measured rather
+> than silently corrected, and the cause of the inconsistency is **unknown** rather than
+> explained. Nothing in the conclusion depends on them: the `6 * weight_scale_2` factor is
+> established by the engine-final relative-L2 table below, which is independent of this one. If
+> you need these numbers, regenerate them.
+
+From that table the previous revision concluded `weight_scale_2` was "inert metadata …
+a leftover global amax the exporter recorded but did not fold into the block scales",
+and shipped the mod without applying it. **The conversion formula was right. The
+conclusion drawn from it was wrong**, because the question the table answers
+("what does the *stored* table decode to?") is not the question that matters ("what
+does the *engine* end up multiplying by?"). Between those two sits a buffer.
+
+The engine multiplies this table by a per-tensor buffer after loading:
+`qwen4_exp.py:530` `register_buffer("weight_scale", torch.ones(1, dtype=torch.bfloat16),
+persistent=True)`, applied at `:585` and `:1202`. So the stored table is only ever half
+of the value. labquant records the other half as `weight_scale_2`; the engine's buffer
+matcher at `:1810` accepts **only the exact name `weight_scale`**, rejects
+`weight_scale_2`, and the tensor is dropped with one log line:
 
 ```
-value_fp8 = (codebook[nibble] / 6.0) * block_scale   ->  cast to float8_e4m3fn
+Parameter model.layers.1.ple.ple_embedding.ngram_embedding.weight_scale_2
+not found while loading Qwen4-Exp VL weights
 ```
 
-Anyone tempted to "fix" the mod by honouring `weight_scale_2` should re-run
-`.upstream-cache/probe_ple_gscale.py` first. Note also that the `block_absmax/stored_scale
-== 6.0` identity does **not** prove anything about `g`: dequantising with `c*s` yields
-`absmax = 6*s` by construction, so that ratio equals the codebook max no matter what `g`
-is. It pinned the codebook, not the global scale. Only the absolute element-wise fit
-against an independent encoding could do that.
+The buffer then keeps its init value **1.0**. RadixArk ships the identical number
+under the name the engine reads (`ngram_embedding.weight_scale`, `BF16 [1]` =
+**1.9931793212890625e-04**), which is the only reason that checkpoint works and this
+one served token salad while passing every load-time assertion.
+
+And `6 * 3.324236240587197e-05 = 1.9945417443523182e-04` — RadixArk's value, to 0.07%.
+
+It is a **single** tensor, not a per-layer one. Measured by scanning every shard
+header in both checkpoints: labquant has exactly 1 name ending
+`.ngram_embedding.weight_scale_2` (`F32 [1]`, `model-00034-of-00036.safetensors`) and
+RadixArk exactly 1 ending `.ngram_embedding.weight_scale` (`BF16 [1]`,
+`model-plefp8-00009.safetensors`), both nominally at layer 1. That is consistent with
+the n-gram table being hash-sharded rather than replicated per layer — the 128
+`shard_N` tensors are buckets, not per-layer copies — so one scalar governs the whole
+path, and emitting one file is a complete fix rather than 1/48th of one. (An earlier
+draft of this paragraph claimed "36 layers". That number was never measured. The
+1-layer figure above is.)
+
+### Why the old probe misled us, stated precisely (and it was not the metric)
+
+It is tempting to blame normed MAE, and **that blame does not hold**. Normed MAE against
+reference `b` scores `|k-1|` for a candidate off by scale `k` — it sees a global scale
+factor sharply. The table above is the proof, and it is self-consistent to three
+significant figures: for candidate `cs*k` against raw reference `cs/6` the metric computes
+`6*|k - 1/6|`, so `k=g=3.3e-5` gives 6·|0.0000332−0.1667| ≈ **0.9998** (measured 0.99980)
+and `k=1/g≈30080` gives 6·30080 ≈ **180494** (measured 179065). The instrument was fine.
+
+The error was **scope**. The reference was RadixArk's *raw stored* table, which silently
+presupposes there is no engine-side multiply. Comparing raw-to-raw can only ever rank
+*shapes*; the correct hypothesis `cs*g/6` was penalised 29843 for being correct, because
+against a raw reference it genuinely is 6× too small. Fix the reference's scope — compare
+the two **engine-final** tables, each after its own `weight_scale` multiply — and the
+ranking inverts. Using absolute relative-L2, which for a pure scale error is exactly
+`|k-1|`:
+
+| engine buffer value | relL2 vs RadixArk engine-final table |
+|---|---|
+| `1.0` (what shipped) | **5011.5** |
+| `weight_scale_2` | 0.834 = \|1/6 − 1\| exactly |
+| `6 * weight_scale_2` (**the fix**) | **0.098** |
+| RadixArk's own `weight_scale` | 0.098 — the achievable floor |
+
+Hitting the floor means the fix is as correct as this checkpoint can be; the residual 9.8%
+is the same two-independent-quantisations disagreement as the 8.6% above. Note the second
+row landing on exactly |1/6 − 1| is the `/6` relationship confirming itself independently.
+
+The generalisable lesson, and it is the same one §7 of the work doc keeps re-learning:
+**verify the value at the point of use, not at the point of storage.** Every check here
+passed on stored bytes. The defect was in the name the loader looked for.
+
+`block_absmax/stored_scale == 6.0` still does not say anything about `g` — dequantising
+with `c*s` yields `absmax = 6*s` by construction, so that ratio is the codebook max
+whatever `g` is. It pinned the codebook. That part of the old note was correct; only its
+scope was too narrow.
 
 That the residual is 8.6% rather than ~1% is expected and is *not* a conversion bug: it is
 the disagreement between two independent quantisations of the same bf16 source (NVFP4's
@@ -123,7 +192,7 @@ fragility and reuses a code path that already ships and works. Chosen for the la
 
 Cost, measured: 22.40 GB packed weights → **51.2 GB** fp8 (`2500012 x 160 x 128`). Disk is
 not the constraint (3.2 TB free per node); first-boot write time is, so the output is
-cached on **host-local disk** per node rather than the NFS cache, and reused across boots.
+cached on **host-local disk** per node rather than the HF cache, and reused across boots.
 
 ## What this mod does NOT claim
 

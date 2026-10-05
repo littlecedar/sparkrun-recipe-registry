@@ -12,14 +12,14 @@ set -euo pipefail
 # Tasks:
 # 1. Enumerate active RoCE interfaces
 # 2. Enumerate active 200Gb TCP/IP interfaces
-# 3. Export env vars to .env.roce file in shared cache
+# 3. Export env vars to .env.roce file in the mod cache dir
 #####################################################################
 
 #####################################################################
 # Metadata
 #####################################################################
 export MOD_NAME="make-roce-env"
-export MOD_DESCRIPTION="Creates .env.roce in shared cache to configure RoCE"
+export MOD_DESCRIPTION="Creates .env.roce in the mod cache dir to configure RoCE"
 export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 #####################################################################
