@@ -1,0 +1,47 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Phase 27: offer MORE concurrency than the treatment arm's ceiling, so the phase-26
+    lower bound becomes a measured ratio.
+
+    WHY THIS RUN EXISTS. Phase 26 (capacity-at-16k.yaml) offered c=1 and c=12 at depth
+    16384. Ship was pool-bound at 7 running requests; r12 (ratio 1.2) was NOT capacity-bound
+    -- it ran exactly 12, i.e. it was clipped by the EXPERIMENT, not by the pool. Its ceiling
+    is 14. So phase 26 measured throughput 1.558x while the capacity model says 14/7 =
+    2.00x, and the whole gap is that the offered load never reached the treatment's ceiling.
+    Reporting 1.558x as "the gain" understates it; reporting 2.00x as measured overstates it.
+    This profile offers c=16 and c=20, both above r12's ceiling of 14, so if throughput
+    scales with admitted concurrency the measured ratio should converge toward the capacity
+    ratio.
+
+    PREDICTION, written before the run and with its T stated in the same breath (the rule
+    phase 26 taught: a prediction quoted without its T is not falsifiable). At bottom-up
+    T = 25.14-25.18 GiB, D = 8, L = 16384:
+      ship (r=3.51): cap 21, #tokens ~119,500 -> usable = 7   (pool binds)
+      r12  (r=1.20): cap 14, #tokens ~242,000 -> usable = 14  (pool binds at 14, cap slack)
+    So at c = 16 or c = 20 BOTH arms are capacity-limited, at 7 and 14 respectively.
+      - aggregate ratio at c=16/20 should approach 14/7 = 2.0 if decode scales with
+        running streams at fixed depth (phase 26's c=1 null says per-stream speed is
+        depth-insensitive, and 8k data says aggregate rises roughly linearly to the wall)
+      - #running-req must be 7 and 14. If r12 shows 16+, the capacity model is WRONG and
+        the token pool is not the wall it claims to be -- that is the real falsifier here,
+        not the throughput number.
+      - if the ratio lands near 1.56 rather than 2.0, then admitting 2x the streams does
+        NOT double throughput, and the honest conclusion is that the pool model predicts
+        ADMITTED CONTEXTS but not THROUGHPUT -- a materially weaker claim than the one in
+        WORK.md 12.15, and the section must be edited to say so.
+
+    SECOND QUESTION, free from the same logs: acceptance at 16k has never been measured.
+    `accept len` per decode batch is in the archived server log; compare across arms and
+    against the 8k values (3.02-3.33). If bf16-vs-fp32 or ratio changes moved acceptance,
+    that would be a confound under every capacity comparison above.
+
+    JUDGE ON `#running-req`, `full token usage`, `capped to N` and `#tokens` from each arm's
+    own server log. The harness concurrency does not clamp the server.
+args:
+  depth: [ 16384 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 16, 20 ]
+  prefix_caching: true
+  runs: 4

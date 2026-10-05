@@ -1,0 +1,31 @@
+---
+framework: llama-benchy
+metadata:
+  description: >
+    Position-controlled batch sweep. Motivation: the isolated bs=4 rerun (lq_bs4_rerun_0920, n=9)
+    measured 74.48 +- 3.31 with IQR 3.9%, while the SAME recipe and flags measured bs=4 at 99.90
+    inside bench_d320a2a6b572. Same checkpoint, same image, same profile args, ~5x tighter spread
+    than the original cell -- so the disagreement is a real effect of cell POSITION within a sweep,
+    not noise, and it puts every multi-cell sweep in this project (including the fast-smoke baseline
+    in 4) under a systematic bias whose direction was unknown.
+  method: >
+    Rather than measuring around the confound, make it the independent variable: run the cells in
+    REVERSE order and repeat bs=4 at both an early and a late position.
+      concurrency order: 8, 4, 2, 1, 4
+    Predictions, written BEFORE running, so the reading cannot drift to fit the result:
+      * If position drives the effect, bs=8 in the FIRST slot should land near the low cluster
+        (~65-75) rather than the 85.1 it showed in the fourth slot, and the two bs=4 cells should
+        differ from each other by roughly the 25 tok/s gap seen before.
+      * If bs=4's two levels are instead a property of the checkpoint's scheduling and unrelated to
+        position, the two bs=4 cells should agree with each other and bs=8 should reproduce ~85.
+      * If the fast level requires a warmed prefix/radix cache (prefix_caching: true, and every cell
+        here uses the same corpus at d=8192), then LATER cells should be the fast ones -- so bs=4
+        (2nd) should be slower than bs=4 (5th), the opposite of the in-sweep pattern.
+    n=7 matches the original sweep so the cells are directly comparable.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 4, 2, 1, 4 ]
+  prefix_caching: true
+  runs: 7

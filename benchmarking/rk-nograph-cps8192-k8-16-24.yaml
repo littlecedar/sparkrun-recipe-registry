@@ -1,0 +1,39 @@
+# RadixArk with prefill graphs DISABLED at cps=8192: is the cps response checkpoint or graph path?
+#
+# Why this single arm is the highest-value remaining measurement. §19c has an unexplained asymmetry
+# between two checkpoints:
+#   RadixArk, graphs ENABLED  (bench_371a7bd533cb -> bench_8ec5167a318b): k=8 +3.8%, k=16 +1.5%, k=24 +38.3%
+#   labquant, graphs DISABLED (bench_69e6119fbdce -> bench_f2cdf175a915): k=8 -7.2%, k=16 -7.1%, k=24 +19.5%
+# Same flag, opposite signs at k=8/16, half the gain at k=24. Two variables differ (checkpoint, and the
+# graph flag that labquant requires per §7f), and no existing arm separates them.
+#
+# The control for THIS arm already exists and was run for another reason: bench_ef68625ba704 is
+# zz-rk-moebackend -- i.e. RadixArk with `--cuda-graph-backend-prefill disabled` -- at the shipped
+# cps=4096, over k=8/12/16/24 (79.36 / 84.63 / 86.68 / 54.30). So only the cps=8192 side is missing.
+# Use the SAME recipe (zz-rk-moebackend) so extra_args matches the control exactly.
+#
+# The two-way read, pre-registered:
+#   * reproduces labquant's shape (-7/-7/+19.5) -> the GRAPH PATH explains the difference. Prefill
+#     graph capture would then be the variable that sets whether bigger chunks help or hurt, which
+#     would finally cover both ends of §19c's four-arm cps sweep.
+#   * reproduces RadixArk's shape (+3.8/+1.5/+38) -> the graph flag is irrelevant and the CHECKPOINT
+#     is what differs, which resurrects a byte/quantisation story §19 has otherwise kept failing to
+#     support (byte counts per se were already excluded by the cap sweep).
+# Either way the answer is a single sentence, and it retires one of the two surviving variables.
+#
+# Deliberately NOT varied here: the MoE backend. It rides along on zz-rk-moebackend
+# (flashinfer_cutlass) because that is what the control has, and it was measured inert at bs>=8
+# (+0.3/-0.8/-0.2/+0.1%), so it cannot carry a 7% or 38% effect at these cells.
+framework: llama-benchy
+metadata:
+  description: >
+    RadixArk with --cuda-graph-backend-prefill disabled at chunked_prefill_size=8192, k=8/16/24.
+    Discriminates checkpoint vs prefill-graph path as the cause of the divergent cps response.
+    Control is bench_ef68625ba704 (same recipe, cps 4096). Requires -o chunked_prefill_size=8192.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

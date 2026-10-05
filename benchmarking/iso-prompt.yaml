@@ -1,0 +1,49 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    ISO-PROMPT grid: holds total prompt length constant while varying context depth, to
+    separate "prefill admission work" from "context length / KV bytes" as the cause of the
+    d4096 -> d8192 decode step found in section 12.29.
+
+    WHY THIS PROFILE IS ONE SCHEDULED TASK AND THAT IS CORRECT. Its cells are PAIRS driven
+    per cell by `-b` from run_phase51.sh, not a cross product. A `--dry-run` therefore shows
+    exactly one task, which is NOT the missing-`args:`-block landmine that section 7 records.
+    Anyone who dry-runs this and sees one cell should read this paragraph before filing a bug.
+
+    THE FORK IT CLOSES. Section 12.29 finds the depth penalty is a STEP at d4096 -> d8192 that
+    switches on between c=2 and c=4 and then plateaus. Two candidates survive and the existing
+    grid cannot separate them, because depth and prompt length move together there: prompt =
+    depth + pp, so d4096 has a 6,144-token prompt and d8192 has 10,240 -- exactly 1.5 vs 2.5
+    chunks at chunked_prefill_size 4096. Anything that scales with CHUNK COUNT is perfectly
+    confounded with anything that scales with CONTEXT LENGTH on that grid.
+
+    THE FIX: hold depth + pp = 10,240 in every cell, so prefill admission work is CONSTANT,
+    and vary depth alone: (4096, pp 6144), (6144, pp 4096), (8192, pp 2048).
+      * If decode t/s is FLAT across these three, the section 12.29 step was prefill admission
+        (chunk count) all along, and context length / KV read is exonerated -- which would also
+        close the section 12.27 bandwidth thread, since KV bytes vary 2x here with no effect.
+      * If decode t/s FALLS with depth even at constant prompt, context length matters
+        independently, and the question becomes which of KV read / attention / state reads it is
+        -- at which point the sign test in section 12.29 applies: (c=8,d=4096) reads FEWER bytes
+        per step than (c=4,d=8192) yet was 1.74x FASTER, so a naive bytes-per-step model has the
+        sign backwards and any surviving mechanism must be per-request, not per-byte.
+
+    SECOND CONSTANT, DELIBERATE: peak pool usage is identical in every cell (c x 10,240), so
+    the prefix-reuse-collapse regime of section 12.28 (usage 0.97-1.00) is excluded by
+    construction rather than merely checked. At c=8 usage peaks ~0.70.
+
+    c = 4 and 8 only: section 12.29 shows c=2 is null, and re-measuring a null buys nothing.
+    c = 16 deliberately excluded: usable concurrency at prompt 10,240 on this container is
+    min(cap 21, 117,752 // 10,240 = 11), so c=16 would silently measure a capacity ceiling.
+    cell_gate.py still runs per cell and must report max running == offered c.
+
+    ZERO BOOTS: --skip-run against the live .34 container, with --fresh (sparkrun keys resume
+    state on profile+recipe+hosts and IGNORES --output, so a repeated config silently rewrites
+    the previous JSON byte-identically with rc=0). Verify distinct md5s before analysing.
+args:
+  depth: [ 4096 ]
+  pp: [ 6144 ]
+  tg: [ 256 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 3

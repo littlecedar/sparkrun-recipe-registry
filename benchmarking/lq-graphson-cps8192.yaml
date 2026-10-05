@@ -1,0 +1,41 @@
+# labquant with the prefill CUDA graph ENABLED -- the one arm that decides the checkpoint question.
+#
+# WHY THIS IS THE LAST GATE. §19c established that cps 4096 -> 8192 helps RadixArk's k=24 cell by
+# +38-42% across three boots and *regresses* labquant's k=8/k=16 cells by 6.2%/5.5% (pooled, p<=1e-4).
+# The recipe we ship is labquant, so the lever dies there. The open question is whether that opposite
+# response is caused by labquant's `extra_args` or by its weights, and §6 PRIORITY 1 lists the
+# discriminating arm as exactly this run: labquant with `--cuda-graph-backend-prefill` NOT disabled.
+#
+# Why it is discriminating. The two recipes currently differ in three defaults, and only part of one
+# has been excluded. The `zz-rk-moebackend` arm already carries BOTH of labquant's extra_args, so
+# holding those constant and flipping ONLY the graph flag isolates the graph path from everything else:
+#   * labquant/graphs-ON regresses at k=8/16 the way labquant/graphs-OFF does -> the graph flag is NOT
+#     the cause, and what remains is the quantisation or the patched weight tree (§19c already localised
+#     the crossover to the weights, so this is the expected outcome and it would close the question).
+#   * labquant/graphs-ON behaves like RadixArk (k=8/16 flat or up) -> the graph flag IS the cause, and
+#     "labquant cannot use the prefill graph" becomes a performance finding worth its own section rather
+#     than a boot-workaround footnote.
+# Both outcomes are decisions. Neither is a null.
+#
+# THE BOOT ITSELF IS A RESULT. §7f records that labquant REQUIRES
+# `--cuda-graph-backend-prefill disabled` to boot at all -- that is why the flag is in the recipe. If
+# this run dies during capture, the arm is not "inconclusive": it confirms §7f and means the checkpoint
+# question cannot be answered by this route without first fixing the capture crash (root-caused in §7f
+# as a non-pinned H2D copy during CUDA graph capture). Record which it is.
+#
+# Cells match the transfer test exactly (k=8/16/24 at d=8192) so this is poolable against the existing
+# labquant arms by poolmany.py rather than being a fresh, incomparable sweep.
+framework: llama-benchy
+metadata:
+  description: >
+    labquant with the prefill CUDA graph ENABLED (extra_args override dropping
+    --cuda-graph-backend-prefill disabled), at cps 8192, k=8/16/24. Decides whether labquant's
+    negative response to wider chunks is the graph flag or the weights. If the server fails to
+    capture, that IS the answer to §7f, not a failed run.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 16, 24 ]
+  prefix_caching: true
+  runs: 7

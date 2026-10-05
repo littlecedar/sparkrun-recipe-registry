@@ -1,0 +1,18 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Concurrency sweep for the dense Qwen3.8-27B. Purpose is capacity, not single-stream
+    speed: the recipe sets max_num_seqs 48 and mamba_full_memory_ratio 3.51, and those
+    are only testable by actually raising concurrency. Decode throughput per request
+    necessarily falls with concurrency; the decision variable is aggregate tok/s and the
+    TTFT cliff, so both are reported. depth 0 keeps the batch weight-bound and depth
+    8192 adds the KV read, which is 0.79 MB/s per stream at c=1 - three orders of
+    magnitude below the 17.6 GB/token of weights - so the interesting question is where
+    that stops being negligible.
+args:
+  depth: [ 0, 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 1, 4, 8 ]
+  prefix_caching: true
+  runs: 3

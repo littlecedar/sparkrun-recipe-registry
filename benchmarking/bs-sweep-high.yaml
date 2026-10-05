@@ -1,0 +1,85 @@
+# Extends the batch sweep past bs=8 to find the real serving peak.
+#
+# Why this profile exists. §17 recommends bs=8 and §3c calls it the best serving point -- but bs=8
+# is the largest value ever swept *with the shipping recipe*, so "peak" has only ever meant "best so
+# far". Since the batching gain is the single largest throughput lever in this project (+119% from
+# bs=1 to bs=8), where it stops matters more than almost any other open number, and it is a recipe
+# recommendation rather than a footnote.
+#
+# CORRECTION TO THE ORIGINAL JUSTIFICATION, which cited two runs that turned out not to say what
+# this comment claimed. It named bench_e2e24c1630b9 ("c8 77.8 -> c16 75.6") and bench_bb2006375445
+# ("c8 79.7 -> c16 56.9") as prior bs>8 evidence. Read off disk 2026-09-20: both are
+# `qwen3.8-27b-nvfp4-dflash2-sglang` -- **a different model**, not Qwen3.8-Flash-Next -- at n=10, not
+# n=5, and the quoted 77.8/79.7/75.6/56.9 are individual values from inside bimodal 10-value spreads,
+# not medians (true medians: 65.11 -> 62.78 and 67.02 -> 52.98). Three independent errors, all from
+# reciting a comment instead of opening the file. That evidence is void for this model either way.
+#
+# What IS on disk for flash-next above bs=8 (enumerated, not remembered): exactly two records, both
+# `@eugr/qwen3.8-flash-next-nvfp4-cluster` on 2026-09-15 with the `spark-arena-v2` profile --
+#   bench_87dc96ca1e47  d=8192 c=10  n=6 median 70.75  spread [46.1 .. 95.0]
+#   bench_cf1d66b136ae  d=8192 c=10  n=6 median 56.39  spread [37.9 .. 77.1]
+# Both are unusable as a curve: different recipe (hence different flags), five days older, and
+# spreads spanning 2x within one cell. They do carry one within-arm comparison worth having: on
+# bench_87dc96ca1e47 at c=10, d=0 gives median **97.87** (n=3, spread [96.4..99.2], tight) against
+# d=8192 median **70.75** (n=6, spread [46.1..95.0], not tight). Same record and flags, so the ~28%
+# gap at fixed c=10 is context/KV rather than configuration. That establishes c=10 is *reachable*
+# without instability. What it does NOT establish is the absence of a batching ceiling: there is no
+# c=8 vs c=10 comparison at d=0 on that arm, so the aggregate-vs-c curve is unmeasured there.
+# Expecting the d=8192 peak to sit above 8 is a reasonable prior, not a conclusion -- and this
+# profile exists precisely because that prior has previously been treated as a finding.
+#
+# Capacity check done BEFORE running, from the live server rather than from the doc, because a
+# bs=16 collapse could be pure capacity rather than economics and the two need different answers:
+#   /get_server_info on the running arm: max_total_num_tokens = 1,421,184 (NOT the 1,874,816 that
+#     §10's table quotes -- that figure was computed under a different mamba dtype, which is one
+#     reason §15 warns against reusing it), max_running_requests = 24, kv_cache_dtype bf16,
+#     page_size 64, chunked_prefill_size 4096, max_prefill_tokens 16384.
+#   KV need at k=16 ~ 16 x (2048 + 128) = 34,816 tokens -> ~41x headroom. KV is not the limit.
+#   max_running_requests = 24, so k=16 and k=24 are admissible without touching the recipe.
+#   BUT max_prefill_tokens = 16384 < 16 x 2048 = 32768: if all 16 fresh prompts arrive at once they
+#   cannot all be prefilled in one pass, so early repeats queue prefill and inflate their own
+#   window. That is a property of the cell's cold start, not of steady-state decode. Read the
+#   ORDERED per-repeat values, not just the median: if the first repeats are the slow ones, that is
+#   this effect and the steady-state peak is the later cluster. The decode measurement itself stays
+#   valid because tg is timed after the prompt is resident.
+# So if throughput falls past bs=8 it is contention/overhead or this prefill-admission effect, not
+# KV eviction.
+#
+# WHAT FLAGS THIS ACTUALLY RUNS WITH -- corrected 2026-09-21 before any comparison was drawn.
+#   This profile launches `qwen3.8-flash-next-nvfp4-sglang`, whose `defaults.extra_args` is the
+#   EMPTY STRING (verified: recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml:48). So this run has
+#   NO `--moe-runner-backend flashinfer_cutlass` and NO `--cuda-graph-backend-prefill disabled`.
+#   An earlier revision of this comment claimed it "keeps flags identical to the matched RadixArk
+#   pair in §3c (prefill disabled + flashinfer_cutlass)" and that bs=8 was therefore comparable to
+#   the published 84.23. That was false, and it was the same mistake this project has now recorded
+#   several times: asserting that an arm is "matched" without re-enumerating the flags after
+#   changing something else. Comparing 79.8 here against 84.23 there would have compared a
+#   flag-free server against a two-flag server and called the difference batch scaling.
+#   What this run IS comparable to: `bench_7d4c187be7d2`, the flag-free RadixArk sweep (bs=8 median
+#   **80.57**), which is a same-recipe/same-profile repeat five days earlier -- so bs=8 here is a
+#   reproducibility check, not a new point. First measurement at bs=8 on this launch is **79.8**
+#   (task 1/4, 2026-09-21), i.e. -1.0% against that earlier median, inside §4's 7.1% noise floor.
+#   If a cutlass/prefill-off curve above bs=8 is wanted, it needs its own launch against
+#   `zz-rk-moebackend` or an explicit override; it cannot be recovered from this record.
+#
+# REQUIRED TOP-LEVEL KEY, and the error message does not say so. sparkrun's BenchmarkSpec.load
+# (core/benchmark_profiles.py:219-226) accepts a standalone profile only if the top-level mapping
+# contains `framework`; otherwise it raises "Benchmark file missing required 'benchmark' mapping",
+# which describes a shape this loader also accepts. A profile whose top-level keys are
+# `args`/`metadata` therefore looks structurally correct and fails with a message pointing at a key
+# that is not the problem. The fix is one line, and the working `bs-sweep.yaml` has it; this file
+# was written from the docstring above the code instead of from the code. Cost one launch.
+framework: llama-benchy
+metadata:
+  description: >
+    Batch-size sweep past bs=8 at fixed depth, on the shipping flags. §17 recommends bs=8 and §3c
+    calls it the best serving point, but bs=8 is the largest value ever swept with the shipping
+    recipe, so "peak" has only ever meant "best so far". Read beside a same-window control; NOT for
+    absolute numbers.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 12, 16, 24 ]
+  prefix_caching: true
+  runs: 7

@@ -1,0 +1,52 @@
+# The causal test for §19v's concurrency-ceiling formula, and a free test of its strict-< prediction.
+#
+# WHY THIS IS THE BOOT TO SPEND. §19v derived the ceiling from source constants --
+#   eff = min(max_num_seqs, max_mamba_cache_size // slots_per_request),   slots: lazy 4, non-lazy 5
+# -- and then stated twice that what remains unmeasured is the CONSEQUENCE, not the rule: raising the
+# pool to lift the ceiling, and whether the KV budget survives paying for it. Every arm so far held the
+# pool at the shipped 112 and varied the cap or the chunk size, so the formula has never been tested by
+# moving the quantity it says is the knob. Interpolating the chunk grid further (e.g. cps=3072) adds a
+# point to a curve §19k already established is a plateau whose mechanism no gauge can see; this moves
+# the variable the formula claims is causal.
+#
+# THREE PREDICTIONS, ALL FALSIFIED BY THIS ONE BOOT IF WRONG.
+#   1. CAUSAL. pool 112 -> 128 lifts eff from 28 to min(32, 128//4) = 32. If the observed running-batch
+#      maximum stays at 28, the pool is NOT the ceiling and §19u/§19v's central claim is wrong.
+#   2. STRICT-< ON THE LOG LINE. §19v established the warning is guarded by `if mamba_cap < max_num_reqs`
+#      -- strictly less. Here mamba_cap = 128//4 = 32 and max_num_reqs = 32, so 32 < 32 is FALSE and the
+#      line MUST NOT PRINT, even though the pool is exactly co-binding. This is the cleanest available
+#      test of that reading, and it is the case §19v called out as "exactly where tuned recipes live".
+#      If it prints, the guard is `<=` or the constant reading is wrong.
+#   3. ATTAINMENT. §19w showed a mamba-derived ceiling IS attained (run reached 20 with a full queue),
+#      unlike the max_num_seqs-derived one which settled at cap-1. With eff = 32 = cap, the two limits
+#      coincide, so this arm also tests whether the `-1` shortfall returns when the cap is co-binding.
+#
+# THE THING THAT KILLED PREVIOUS ATTEMPTS, AND WHY IT MAY NOW WORK.
+# pool 112 + cap 32 died with `Loaded weights leave no GPU memory for the KV cache under
+# --mem-fraction-static=0.8. Raise --mem-fraction-static above 0.782 (minimum viable = 1 - available/pre
+# = 0.7695)` -- advice that contradicts itself, since 0.8 is already above 0.782. §19t/§19o attribute the
+# nondeterminism to pmproxy growth on the workers eating the unified-memory budget: at the time of those
+# failures the nodes had ~16 GB free, and both now report ~110 GB. So this is a retry under materially
+# better conditions, not the same configuration retried blindly. PRE-FLIGHT THE FREE MEMORY; if a node is
+# back under ~40 GB free, do not launch -- the failure will be indistinguishable from a formula failure.
+#
+# ALSO NOTE pool 128 costs real memory. §19u measured ~53 MB/slot on this model (ssm_state 2.98 GB +
+# intermediate_ssm 3.06 GB at 112 slots), so +16 slots is roughly +850 MB per rank, traded directly
+# against the KV budget (#tokens was 1,366,400 at pool 112). That trade is the thing this boot measures.
+# If it does not boot at all, that IS the answer to the KV half of the question and should be recorded as
+# such -- not retried until something boots.
+framework: llama-benchy
+metadata:
+  description: >
+    Causal test of §19v: max_mamba_cache_size 112 -> 128 with max_num_seqs 32, lazy extra_buffer.
+    Predicts eff = 32 (pool no longer binding), no "capped to" line (strict <, 32 < 32 false), and
+    tests whether the -1 shortfall returns when pool and cap coincide. Requires BOTH overrides;
+    launching without max_num_seqs=32 silently keeps the shipped cap of 24, which masks the pool
+    variable entirely (eff would be min(24, 32) = 24, identical to the shipped ceiling).
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 24, 32 ]
+  prefix_caching: true
+  runs: 7

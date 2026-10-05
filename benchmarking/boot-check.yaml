@@ -1,0 +1,14 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Boot check: shortest possible measured pass. Verifies a recipe launches, loads,
+    and serves at all, before spending 30+ minutes on a real profile. NOT for
+    comparisons - a single run at a single depth resolves nothing (see the noise
+    floor in the work doc).
+args:
+  depth: [ 0 ]
+  pp: [ 256 ]
+  tg: [ 32 ]
+  concurrency: [ 1 ]
+  prefix_caching: false
+  runs: 1

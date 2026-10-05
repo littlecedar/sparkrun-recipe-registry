@@ -1,0 +1,23 @@
+---
+framework: llama-benchy
+metadata:
+  description: >
+    Single-cell bs=4 decode rerun, ARM-AGNOSTIC: the args below are just the bs-sweep bs=4 cell,
+    so run it against whichever recipe needs the cell re-measured. It exists because in-sweep bs=4
+    cells come out bimodal on BOTH checkpoints -- labquant splits 73.7-77.1 vs 99.9-110.8
+    (bench_d320a2a6b572) and RadixArk+flashinfer_cutlass splits 54.8-70.1 vs 91.1-91.8
+    (bench_869a7f7df9d2) -- so an in-sweep median at bs=4 is a coin flip between clusters and can be
+    wrong by 30-40%. A dedicated single-cell boot removes the cell-position and cross-cell-carryover
+    variables that the in-sweep version cannot separate.
+    n=9 rather than 7 to buy a little power without changing the cell.
+    NOT for absolute numbers: read beside the in-sweep bs=4 cell of the SAME recipe, and only against
+    a comparator that shares extra_args verbatim (see the comparator-hygiene note in 3c of the work
+    doc). Contiguity of a low cluster is not evidence of a disturbance window: placing 3 of 7 runs
+    consecutively happens with p=5/35=0.143 by chance.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 4 ]
+  prefix_caching: true
+  runs: 9

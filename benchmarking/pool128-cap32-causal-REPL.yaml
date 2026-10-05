@@ -1,0 +1,80 @@
+# REPLICATE the pool-128 arm, because the pre-registered third boot was aimed at the wrong condition.
+#
+# HOW THIS FILE CAME TO EXIST, and the reasoning error it corrects. A todo had been carried for two days:
+# "one more pool-112/cap-32/cps-8192/k=24 boot: settles whether the 9.1% spread between the two cap-32
+# boots is boot scatter or a mamba-pool effect". The profile for that boot exists
+# (`attic/benchmarking/cps8192-cap32-pool112-replicate.yaml`) with a three-branch pre-registration.
+#
+# Reading the artifacts before launching killed it:
+#   * TWO pool-112/cap-32/cps-8192 boots already exist, and BOTH have k=24 well inside the pre-registered
+#     branch-(a) band [79, 82]: 80.48 (cps8192-cap32-clean_0923_0326, k=16 anchor 89.50) and 78.02
+#     (cap32-cps8192-k24k32_0923_0441, no k=16 cell). So branch (a) -- "two pool-112 boots agree, quote
+#     +12.7%, flag 87.78" -- is ALREADY SATISFIED. A third pool-112 boot adds nothing to it.
+#   * The remaining uncertainty is entirely on the OTHER side: 87.78 comes from ONE boot
+#     (bench_7364de5fcb64, pool128-causal_0923_1222). "Is 87.78 a pool effect or an anomaly of that one
+#     boot?" cannot be answered by measuring pool 112 again. It needs a SECOND pool-128 observation.
+#   * Branch (b) of the old pre-registration ("a third pool-112 boot landing in ~[85,89] proves scatter
+#     is ~9%") would not have distinguished those two explanations either: it would have shown only that
+#     pool-112 boots CAN reach 85-89. Scatter within the pool-128 condition is what the question needs,
+#     and only replication inside that condition measures it.
+# **Generalise: when a claim rests on a single observation of condition X, the next boot belongs in
+# condition X. Re-measuring the condition you already have two points for cannot resolve a question
+# about the condition you have one point for.** The two-day-old todo was self-consistently worded and
+# wrong; it survived because "replicate the arm we trust less" reads as the conservative choice.
+#
+# WHAT THIS BOOT IS FOR (one number). Reproduce k=24 at pool 128. Then:
+#   * ~87.8 again  -> two pool-128 boots agree at ~88 against two pool-112 boots at ~79: a real ~9-11%
+#                     pool effect, and §19v's ceiling formula has a consequence at a cell where it
+#                     predicts NO binding (eff = min(32, 128//4) = 32 > k=24). That would mean the model
+#                     is right about the ceiling but incomplete about the cost of raising it.
+#   * ~80          -> the pool is inert here as the formula says, 87.78 was a biased boot, and the
+#                     honest figure stays +12.7% with 87.78 flagged.
+#   * between      -> scatter at this cell exceeds the 3.2% that two pool-112 boots show, and §4b's
+#                     per-cell floor does not transfer to cap-32 arms.
+#
+# WHY THE CELL LIST IS [24, 32] AND NOT [16, 24, 32]. §19t: cells within one boot share the radix cache,
+# so an arm whose cell LIST differs from its comparator's differs in the cache history that k=24
+# inherits, and the two become incomparable for a reason no artifact reveals. The comparator
+# (bench_7364de5fcb64) ran exactly [24, 32]; adding a k=16 cell would put a cell in front of k=24 that
+# the comparator never had. So byte-matching the comparator beats having an anchor -- at the cost that
+# there is no k=16 to sanity-check the boot, which is why k=32 is kept: 58.31 in the comparator, so it
+# serves as the internal anchor. If k=32 reproduces and k=24 does not, that is informative rather than
+# merely confusing.
+#
+# MEMORY RISK, stated up front. pool 128 costs ~53 MB/slot on this model (§19u), so +16 slots over the
+# shipped 112 is roughly +850 MB per rank, traded against the KV budget. pool 112 + cap 32 has already
+# died in alloc_memory_pool on this stack (§19t/§19o: pmproxy leaking host RAM, the survivor blaming the
+# peer). The comparator booted at pool 128 anyway, so it is possible, but **if this boot dies in
+# alloc_memory_pool that is NOT a formula failure and must not be recorded as one** -- it is the KV half
+# of the question, already measured once, and the diagnosis is host memory, not the ceiling model.
+# launch.sh's MIN_AVAIL_GB gate exists for exactly this; do not override it downwards.
+#
+# THE RECIPE MUST BE `zz-rk-metrics`, NOT THE SHIPPING `qwen3.8-flash-next-nvfp4-sglang`, and getting
+# this wrong once cost a boot plus 20 minutes. I launched the first attempt against the shipping recipe
+# because I read the recipe name off `bench_3fc1eb736656` -- a DIFFERENT boot (the cps=8192/cap-32 arm at
+# 80.48) -- instead of off the boot being replicated. `bench_7364de5fcb64`'s own `state.yaml` says
+# `recipe_qualified_name: zz-rk-metrics`, and that recipe differs functionally in exactly one way:
+# `extra_args: --enable-metrics`. So the two arms would have varied in a knob that matters to the
+# instrumented question, in an experiment whose whole purpose is byte-identity.
+# **Provenance rule this is an instance of: read a boot's recipe from THAT boot's artifact, never from a
+# sibling's or from narrative memory.** The trap that hid it: `state.yaml`'s `measurement_recipe_state`
+# is None/absent for these runs, so the recipe name appears only in `recipe_qualified_name`, which is
+# easy to miss when a profile filename (`instr-cap32-...`) suggests you already know it.
+framework: llama-benchy
+metadata:
+  description: >
+    REPLICATION of bench_7364de5fcb64 (pool128-cap32-causal.yaml): max_mamba_cache_size 128,
+    max_num_seqs 32, chunked_prefill_size 8192, d=8192, cells [24,32], n=7. Byte-identical args to the
+    comparator except the filename, which is the only thing that changes the bench id (the id hashes
+    recipe+nodes+overrides+profile PATH, not contents). Purpose: a single pool-128 observation (87.78)
+    sits 9.1% above two pool-112 observations (80.48, 78.02), and only replication inside the pool-128
+    condition can say whether that is a pool effect or a biased boot. k=32 (58.31 in the comparator) is
+    the internal anchor. A death in alloc_memory_pool is a host-memory failure, not a formula failure.
+  requires_overrides: [max_mamba_cache_size, max_num_seqs, chunked_prefill_size]
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 24, 32 ]
+  prefix_caching: true
+  runs: 7

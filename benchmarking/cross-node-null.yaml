@@ -1,0 +1,15 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Single-config decode probe used by run_phase18.sh to compare two nodes running a
+    byte-identical server. No recipe overrides - the config is whatever the recipe ships.
+    This measures machine-to-machine numerical variation, which is the reference scale for
+    every perturbation experiment on this recipe. See WORK.md 12.11bis. The --skip-run flag
+    is passed by the driver on the command line; it is not a profile key.
+args:
+  depth: 0
+  pp: 256
+  tg: 8
+  concurrency: 1
+  prefix_caching: false
+  runs: 2

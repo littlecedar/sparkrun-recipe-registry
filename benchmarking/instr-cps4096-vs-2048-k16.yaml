@@ -1,0 +1,58 @@
+# Instrumented k=16 at two cps values: does the RUNNING BATCH differ between arms?
+#
+# WHY THIS EXISTS. §19e explains part of the cps loss as "the server advances fewer sequences
+# simultaneously", and §19i's effective-concurrency column supports it (aggregate/tg_req = 9.95 of 16
+# at cps=4096 vs 11.27 of 16 at cps=2048 -- the degraded arm runs MORE sequences and each decodes a
+# third slower). §19h claimed to REFUTE that with a table of `num_running_reqs` medians of 16.0 "in
+# both arms". **§19h's provenance box now records that table as unsourced**: the two bench ids it cites
+# do not exist, and the only gauge artifact on the cluster (`inst32.jsonl`, 321 samples, max 0.00) is
+# explained by instrument_host.py's own docstring as samples taken from **a leftover single-node probe
+# server**, not from the job. So the refutation has no evidence behind it and the §19e explanation is
+# live again. This run measures it directly.
+#
+# WHAT MAKES THIS DIFFERENT FROM THE FAILED 09-20 ATTEMPT, item by item:
+#   1. Aim. The old probe hit 127.0.0.1:8000 and got 321 samples from a stale server, then ~49,000
+#      connection errors. instrument_host.py now tries loopback AND the node's own routable IPs and
+#      re-resolves periodically, because `--fresh` replaces the container identity mid-run. Its
+#      docstring states the real lesson: a health check done before a state change is worthless after
+#      it. So aim is handled, but see (2) -- it still has to be VERIFIED, not assumed.
+#   2. Positive control BEFORE interpretation. The gate is not "the file exists" and not "the sampler
+#      ran"; it is **`num_running_reqs` > 0 during a window where `gen_throughput` > 0**. On 09-20 the
+#      sampler ran, the file existed, the connection was good, and every load gauge was 0 -- because
+#      the window was idle. A gauge sample with zero gen_throughput carries no information about the
+#      running batch, whatever its own value says.
+#   3. Staleness. start_instr.sh does `rm -f` on the output file before starting, so a gauge row can
+#      never be a leftover from a previous probe. (The 09-20 artifact's real problem was not /tmp
+#      itself but that its contents came from a different server; a path change would not have fixed
+#      it, which is why (1) and (2) are the actual defences and the path is only hygiene.)
+#
+# WHY `sparkrun benchmark` ON A METRICS RECIPE IS ACCEPTABLE HERE, and its limit. §6 item 0 forbids
+# reporting tok/s from a --enable-metrics boot, and this honours that: the throughput numbers this run
+# produces are DISCARDED, and only the gauges are reported. That is also why the cps=4096 arm must be
+# re-measured rather than imported -- comparing an instrumented arm against an uninstrumented control
+# would silently make "the metrics flag" the confound, and I have already been burned once by a control
+# that differed in a way I had not accounted for. Both arms here get the identical recipe (zz-lq-metrics,
+# which differs from the shipping labquant recipe ONLY by --enable-metrics) and the identical bench.
+#
+# THE FORK, pre-registered:
+#   * num_running(4096) ~ num_running(2048) ~ 16   -> §19h was accidentally right; §19e's "fewer
+#                                                     sequences advanced" explanation is dead, and the
+#                                                     cps loss is a per-sequence cost after all.
+#   * num_running(2048) clearly BELOW num_running(4096) -> §19e stands, the loss is scheduling-side, and
+#     §19i's "more sequences, each slower" reading of cps=2048 needs re-reading (it would then be an
+#     artifact of the aggregate/tg_req ratio rather than of the running batch).
+#   * both far below 16 (e.g. 2-4)                 -> the interesting case: neither prior reading is
+#     right and the step loop is admission-limited at a level nobody modelled.
+framework: llama-benchy
+metadata:
+  description: >
+    Instrumented k=16, d=8192, on zz-lq-metrics, to be run TWICE (cps=4096 and cps=2048) while
+    instrument_host.py records num_running_reqs. Throughput is discarded by design; only gauges are
+    reported. Requires -o chunked_prefill_size=4096 and =2048 on separate boots.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16 ]
+  prefix_caching: true
+  runs: 7

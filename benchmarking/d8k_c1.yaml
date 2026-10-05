@@ -1,0 +1,17 @@
+framework: llama-benchy
+metadata:
+  description: >
+    The control the depth-8192 sweep never ran. That sweep (ceiling-sweep's sibling) took c=24 and
+    c=40 only, so it measured a 2.8x aggregate drop at depth without ever measuring what depth costs
+    a SINGLE stream -- which means the drop was attributed to nothing. This point separates the two
+    factors: per-stream slowdown at depth (bandwidth/acceptance) vs slowdown from batching at depth
+    (interference). Measured outcome: at c=1 depth 8192 is 29.9 tok/s against depth 0's 29.0, i.e.
+    depth costs nothing to one stream, and the whole apparent penalty is the token pool capping
+    concurrency at 14. Run against an already-booted server with --skip-run; it costs no boot.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 1, 8 ]
+  prefix_caching: true
+  runs: 3

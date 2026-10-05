@@ -1,0 +1,81 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Vary `pp` (prompt length) at fixed `c` and fixed `depth`, on ONE already-live container.
+    This is the test section 12.29 flags as "the right next step" and records as NOT TESTED:
+    `pp` has been constant at 2048 in every archived grid on this recipe (p31, p37, p38, p39,
+    p40, p44, p48, p49, p51), so nothing here has ever separated a cost proportional to
+    PROMPT ADMISSION from a cost proportional to SEQUENCE COUNT.
+
+    HOW `pp` IS SWEEPED, and the wrong claim this replaced
+    ------------------------------------------------------
+    `pp` IS a swept axis: `pp: [256, 2048]` in `args` reaches llama-benchy as `--pp 256 2048`
+    because `pp` is in `_LIST_ARGS` (llama_benchy.py:29), and the per-row `prompt_size` field
+    records which value produced it. A first version of this description asserted the opposite
+    -- that sparkrun "silently ignores a multi-valued `pp`" and that the sweep therefore had to
+    be split into two single-`pp` profiles. That inference came from reading the dry run's
+    "Would execute 4 scheduled benchmark tasks" and stopping there. It is wrong, and the
+    arithmetic that disproves it is already printed on the same screen: `Estimated test
+    iterations: 24` = 4 tasks x 2 pp x 3 runs. The two lines are consistent; the "4" is the
+    number of SCHEDULER TASKS (one per depth x concurrency), not the number of measurement
+    cells. Two profiles were written on the strength of that misreading and then deleted.
+    LESSON: when a dry run reports two counts that look contradictory, reconcile them
+    arithmetically before concluding one is wrong -- and check which quantity each count is
+    actually counting.
+
+    WHY THE ARCHIVE CANNOT ANSWER IT WITHOUT THIS
+    ---------------------------------------------
+    section 12.29 establishes that the depth cost is a STEP in two variables -- zero at c=2
+    at every depth up to 16384, then 0.89 at (c=4,d=16384) -- and then refutes both candidate
+    scalings it can test from existing data: bytes-read (the equal-c*depth pair ranks the
+    WRONG WAY at 1.74x) and prompt-admission (flat at c=2 where a prompt/depth term predicts
+    1.82x). It is left with two live candidates distinguished only by whether the per-sequence
+    term is a *fixed decode-time cost* or *prefill displacement*:
+      (b) marginal cost scales with prompt tokens admitted per unit time
+      (c) cost is per SEQUENCE, independent of depth (12.9 ms/stream/step)
+    Both are consistent with everything measured so far, because at c=2 the prefill load is
+    low enough to hide in the idle decode steps and a per-sequence term is small at c=2.
+    Only varying prompt length at fixed batch and fixed depth separates them, and that
+    requires `pp` to move.
+
+    PREDICTIONS, committed before running
+    -------------------------------------
+    Hold c and depth fixed, double pp from 256 to 2048 (an 8x change in admitted tokens/request):
+      * (b) prefill displacement: DECODE t/s falls materially, roughly in proportion to the
+        prefill work admitted per step, AND `pp_throughput` also moves (the two phases contend
+        for the same device). Predicted direction at c=8/d=8192: a further drop below 0.81.
+      * (c) per-sequence decode cost: DECODE t/s essentially UNCHANGED by pp, because the
+        number of sequences and their context length are both fixed. Any movement should be
+        second-order and matched in `pp_throughput`.
+    The INTERNAL CONTROL is `pp_throughput` itself. If prefill is stealing time from decode,
+    prefill throughput cannot stay flat while decode falls -- the two compete. So a large DECODE
+    drop with FLAT `pp_throughput` argues against (b) and for (c) or (d), while both falling
+    together supports (b). This is a within-run dissociation, not a cross-boot comparison, so
+    it is not exposed to the between-boot scatter that makes single-cell absolute numbers
+    unquotable here (section 12.23).
+
+    WHAT WOULD MAKE THIS VOID
+    -------------------------
+    1. Any cell whose `#running-req` is below its offered `c` is pool-limited, not
+       concurrency-limited, and must be excluded from the comparison. Ceiling check at the
+       live pool (117,752 tokens, `capped to 21`): c=8/d=8192 with pp=2048 needs
+       8*(8192+2048) = 81,920 tokens = 70% of the pool, so it fits but is the tightest cell --
+       read its `full token usage` and `#running-req` before believing it.
+    2. The container must be the SAME one for all cells (that is the point of --skip-run) and
+       must be the shipped config. The driver records the pool identity lines; if `capped to`
+       or `#tokens` differ between cells, the container changed underneath the sweep and the
+       whole run is void.
+    3. `--fresh` is required. sparkrun keys benchmark resume state on
+       (profile, recipe, hosts) and IGNORES --output, so a repeated configuration silently
+       resumes and re-writes the prior JSON byte-identically with rc=0 (section 12.13). The
+       driver md5-checks the artifacts and refuses to analyse duplicates.
+    4. Runs are NOT independent across cells in the pool-pressure sense: every cell here shares
+       one container, so this is a within-container result and cannot corroborate anything from
+       another boot. It answers a mechanism question, not a replication one.
+args:
+  depth: [ 1024, 8192 ]
+  pp: [ 256, 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 4, 8 ]
+  prefix_caching: true
+  runs: 3

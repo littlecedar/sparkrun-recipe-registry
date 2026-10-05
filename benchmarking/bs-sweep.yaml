@@ -1,0 +1,45 @@
+---
+# The `framework:` key is NOT optional. Without it sparkrun's profile loader raises
+# "Benchmark file missing required 'benchmark' mapping" (sparkrun/core/benchmark_profiles.py:224)
+# -- a message that points at a field the file was never meant to have. Both working profiles
+# (decode-prefilloff, ratio-at-depth) open with `framework: llama-benchy`; this one omitted it
+# and the launch died on a confusing error rather than an obvious one.
+framework: llama-benchy
+metadata:
+  description: >
+    Batch-size sweep at fixed depth. §7 calls bs=1 the biggest unmeasured lever, and §3b
+    measured a fixed per-step cost F=8.375 ms (22% of a decode step) that does NOT scale with
+    bytes -- exactly the cost batching amortises. Answers two questions at once: throughput vs
+    bs, and whether F is per-step (sub-linear scaling) or per-token (linear).
+    NOT for absolute numbers - read beside a same-window control.
+# bs SWEEP. Not a deliverable; a probe.
+#
+# Why this is the most valuable measurement left. §7 calls bs=1 "the biggest unmeasured
+# lever on the table", and §3b just measured a fixed per-step cost F = 8.375 ms that is 22%
+# of a decode step and does NOT scale with bytes. A fixed cost per step is exactly what
+# batching amortises: at bs=k it is paid once for k tokens. So this single sweep answers
+# two questions at once:
+#   1. how much throughput does batching actually buy on this model? (the deliverable)
+#   2. is F really per-step rather than per-token? If tok/s scales sub-linearly with bs,
+#      fit t(k) = (F + k*bytes/B)/k and F falls out independently of §3b's pair.
+#
+# bs is capped here by `--max-running-requests {max_num_seqs}`, default 24
+# (defaults.max_num_seqs). Concurrency is the benchmark's. Both must rise together or the
+# extra requests queue instead of batching, so stay at or below 24. Note this recipe has NO
+# cuda-graph bucket configuration at all -- `grep cuda_graph recipes/qwen4/qwen3.8-*` returns
+# nothing -- so sglang's own defaults govern graph capture and bs=8 needs no recipe change.
+# (An earlier revision of this comment asserted a `cuda_graph_config.max_bs_size: 8` cap with
+# buckets [1,2,4,8]. That field belongs to the OLDER recipe schema: it appears in the trashed
+# zz-labq-iscale-radixark.yaml (now attic/qwen4/arms/zz-labq-iscale-radixark.yaml), which is `recipe_version: 1` with `runtime:` as a dict. The
+# shipping recipes are `recipe_version: 2` and have no such key. Copying a constraint across a
+# schema change is how a probe gets silently capped at a limit that does not exist.)
+#
+# Also holds everything from the matched control pair fixed: --no-ple-offload-embedding,
+# prefill graph ENABLED, extra_args empty, n=7.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1, 2, 4, 8 ]
+  prefix_caching: true
+  runs: 7

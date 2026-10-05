@@ -1,0 +1,39 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Ratio sweep AT DEPTH — the measurement the whole §12 analysis points at and which has
+    never been made. Every ratio measurement on this recipe so far was at depth 0, where
+    the mamba SLOT CAP is the binding limit; at depth 8192 the TOKEN POOL binds (measured:
+    #running-req tops out at 14 with pool usage 0.99, and 117,571/8,192 = 14.4). The two
+    regimes want opposite settings, so the shipped mamba_full_memory_ratio 3.51 cannot be
+    judged from depth-0 data.
+
+    PREDICTION, written before the run (predict_capacity.py, D=8, bottom-up T=24.31;
+    usable = min(slot cap, floor(#tokens/8192))):
+      r=0.90 ->  12 usable  (12 slots; 32 contexts' worth of tokens -- slots bind)
+      r=2.00 ->  17 usable  (17 slots; 21 contexts' worth)
+      r=2.30 ->  18 usable  (18 slots; 19 contexts' worth)   <- predicted optimum
+      r=3.51 ->  14 usable  (20 slots; 14 contexts' worth)   <- SHIPPED, pool binds
+    So dropping the ratio all the way to 0.9 -- which is what an earlier revision of this
+    plan queued -- would be WORSE than shipping (12 < 14), because it starves the slots.
+    The optimum is an interior point near 2.3, worth +4 concurrent 8k contexts (+29%).
+
+    c = 16 is the decisive point: above the shipped 14-context pool wall and below the
+    18-slot grant, so a genuine r=2.3 win shows up as #running-req reaching 16 where the
+    shipped config cannot pass 14. c = 8 is included because that is the one cell with an
+    unexplained depth gap (25% and 32% in two different boots against a +-15% noise
+    floor); if the gap survives a same-window control it is real, if it does not, stop
+    looking for a mechanism.
+
+    JUDGE ON: #running-req and 'full token usage' from the SERVER LOG, not on offered
+    concurrency. The harness max_concurrency does not clamp the server -- c=40 earlier
+    produced #running-req 20, not 40. Also read 'capped to N' per arm; N is the grant and
+    it is what the prediction is about. Aggregate tok/s is secondary here: at these c the
+    pool/slot limit, not decode speed, is the thing being tested.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8, 16 ]
+  prefix_caching: true
+  runs: 5

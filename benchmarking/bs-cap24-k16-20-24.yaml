@@ -1,0 +1,59 @@
+# Discriminating test: is k=20 intrinsically bad, or only bad when k == cap?
+#
+# What the last three boots established. Two reproducible depressions, with a prefill signature that
+# is much larger than the decode one:
+#
+#   cap  k  k/cap   pp med  tg med   regime
+#    24  8   0.33     2177   79.14   healthy
+#    24 12   0.50     2225   85.33   healthy
+#    24 16   0.67     2195   86.86   healthy
+#    24 24   1.00      925   54.23   BAD
+#    32  8   0.25     2191   79.32   healthy
+#    32 12   0.38     2222   84.73   healthy
+#    32 16   0.50     2190   85.89   healthy
+#    32 24   0.75     1099   55.06   BAD
+#    16  8   0.50     2209   81.06   healthy
+#    16 12   0.75     2243   83.99   healthy
+#    16 16   1.00     1329   75.14   BAD (reproduced 1350 / 76.97)
+#    16 24   1.50      949   53.22   BAD
+#    20 16   0.80     2212   87.49   healthy
+#    20 20   1.00     1268   73.09   BAD
+#    20 24   1.20      930   52.91   BAD
+#
+# Two facts fall out, and they are NOT the same fact:
+#
+#  * k == cap is bad. k=16 at cap 16 (75.14, reproduced at 76.97 on an independent boot) and k=20 at
+#    cap 20 (73.09) are both depressed, while the SAME cells are healthy at a larger cap (k=16 =
+#    86.86 at cap 24, 85.89 at cap 32, 87.49 at cap 20). Prefill falls ~40% and decode ~11-15%.
+#  * k=24 is bad no matter the cap -- 54.23 (cap 24), 55.06 (cap 32, where k/cap = 0.75 and the cap
+#    cannot be binding), 53.22 and 56.22 (cap 16), 52.91 (cap 20). Prefill falls ~50-58%, decode ~37%.
+#
+# So "k == cap" does NOT explain k=24; the k=24 cliff is its own effect. This run asks whether k=20 is
+# like k=16 (bad only at its own cap) or like k=24 (bad always):
+#
+#   cap 24, concurrency [16, 20, 24]:
+#     k=16 -> must be healthy (~86); a control.
+#     k=20 -> if ~86, k=20 is healthy under a non-binding cap and the "k==cap" reading holds, with
+#             k=24 as a separate intrinsic cliff. If ~73, then k>=20 is intrinsically bad and the
+#             threshold sits between 16 and 20.
+#     k=24 -> expect ~54; a reproduction of the cliff under a third distinct cap context.
+#
+# Why this earns a boot: it decides whether the recipe guidance is "keep max_num_seqs strictly above
+# your target concurrency" (then cap 24 is fine for a bs=16 target and only bs>=20 is a problem) or
+# "there is a hard ceiling between 16 and 20 sequences" (a much stronger claim, and one that would
+# make bs=16 the only defensible serving point on this hardware regardless of any knob).
+#
+# Read prefill beside decode: every bad cell so far shows pp falling 2-4x harder than tg, which points
+# at the prefill/admission path rather than the decode kernel.
+framework: llama-benchy
+metadata:
+  description: >
+    Is k=20 intrinsically bad or only bad at k==cap? cap 24 with concurrency 16 (control, must be
+    healthy), 20 (the question), 24 (cliff reproduction). Requires -o max_num_seqs=24.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 20, 24 ]
+  prefix_caching: true
+  runs: 7

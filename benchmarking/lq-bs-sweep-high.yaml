@@ -1,0 +1,34 @@
+# labquant past bs=8: does the leaner checkpoint peak at 16 like RadixArk, or somewhere else?
+#
+# §19 measures the RadixArk curve past bs=8 (peak at bs≈16 = 86.86, then a cliff at bs=24) and
+# explicitly scopes it: "this sweep is RadixArk only ... labquant's bs>8 behaviour has never been
+# measured, and a labquant bs>8 sweep is now the obvious next run." This is that run.
+#
+# Why it is not a formality. §3c's matched row shows labquant's advantage over RadixArk **erodes to
+# ~0 by bs=8** (+14.1/+22.0/+6.2/+1.0% at bs=1/2/4/8), and §19 supplies a *reason to expect the peak
+# to differ*: RadixArk's curve turns down hard at 24, and if that is a byte- or admission-driven
+# effect then a checkpoint reading ~33% fewer bytes per sequence should turn down at a different
+# concurrency. So the interesting outcomes are not "labquant is faster" (it is not, at bs>=8) but
+# where its peak sits and whether its cliff is at the same k.
+#
+# The `k == max_num_seqs` penalty found in §19 also applies here and must be respected: the
+# labquant recipe ships `max_num_seqs: 24`, so a k=24 cell lands exactly on the cap and will be
+# depressed for that reason *in addition to* any intrinsic cliff. Read k=24 with that in mind, and
+# do not attribute the whole loss to the checkpoint.
+#
+# This profile deliberately reuses §19's cells (8/12/16/24) rather than inventing a finer grid, so
+# the two checkpoints' curves are directly comparable cell-for-cell at the same depth and pp/tg.
+framework: llama-benchy
+metadata:
+  description: >
+    labquant past bs=8, matched cell-for-cell to §19's RadixArk sweep. Answers where labquant's
+    aggregate peak sits and whether its cliff is at the same concurrency. Note the recipe's
+    max_num_seqs=24 makes the k=24 cell also a `k == cap` cell (§19), so that cell is confounded by
+    design and is reported as such.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 8, 12, 16, 24 ]
+  prefix_caching: true
+  runs: 7

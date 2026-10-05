@@ -1,0 +1,78 @@
+framework: llama-benchy
+metadata:
+  description: >-
+    Single-variable prompt-length sweep: the ONLY clean measurement of how decode step time
+    depends on resident tokens, because it varies exactly one thing.
+
+    WHY THIS EXISTS WHEN §12.30 ALREADY HAS A CROSSED DESIGN. The crossed `pp` x `depth` grid
+    cannot separate a per-byte read cost from pool residency: `P = c*depth + c*pp`, so `pp`
+    enters both candidate terms, and all four candidate regressors fit at R2 = 0.83-0.94 while
+    implying bandwidths of 7-45 GB/s against the 221 GB/s this device reaches on contiguous
+    weights (§12.30). Good fits, unusable coefficients.
+
+    WHAT IS AND IS NOT NEW HERE, stated because claiming novelty the archive already contains is
+    this project's most repeated error. Phase 54 ALREADY varied `pp` at fixed `(c, depth)` -- but
+    only over TWO values, {1024, 2048}, which gives a difference and not a slope. That is exactly
+    why its `pp` contrast came back sign-incoherent across the six (c, depth) pairs: a 2-point
+    contrast cannot distinguish a real additive term from a 14-26 % cell-level spread, and it
+    cannot test linearity at all. This profile extends the same axis to FOUR values, which turns
+    the contrast into a slope with a residual pattern, so the two readings that a 2-point
+    difference conflates -- "prompt tokens cost nothing" and "prompt tokens cost something" --
+    separate. Holding `(c, depth)` fixed and sweeping `pp` alone removes the collinearity that
+    made §12.30's coefficients uninterpretable. It is the cheapest thing in this section that can
+    change a conclusion, and it is an EXTENSION of phase 54, not a replacement for it.
+
+    ROBUST TO THE ONE SEMANTIC I HAVE NOT PINNED DOWN. `depth` and `tg` both appear in these
+    profiles and I have not established from the artifacts which is "generated length" and which
+    is "total context" -- §12.29/§12.30 use `depth` as if it were generated length, and that
+    reading is NOT verified. This experiment does not depend on it: within a cell, `c` and
+    `depth` are constant and only `pp` changes, so any change in step time is attributable to
+    prompt length / resident tokens whatever `depth` means. Do not extend this file's conclusions
+    into a statement about generated length without checking `context_size` against `tg` first.
+
+    THE THREE OUTCOMES, pre-registered.
+      * Step time rises linearly in `pp` at a slope of ~32,768 B/token over an achievable
+        bandwidth -> per-byte KV read is real, and the §12.30 fits were underpowered, not wrong.
+        Implied bandwidth is computed from the slope and MUST be compared against 221 GB/s
+        before being believed; a slope implying 5-20 GB/s is a proxy variable, not a bandwidth.
+      * Step time is FLAT in `pp` -> prompt tokens cost nothing per decode step, which refutes
+        every "resident tokens" term including the one §12.30's best-fitting specification leans
+        on (mean, `c*(pp + depth/2)`, R2 0.943, implied 7.3 GB/s). That would make the best
+        fitting model the least believable one, and say so.
+      * Step time rises but NOT linearly -> the cost is per-request/per-chunk (prefill work
+        admitted per generated token, §12.23) rather than per resident byte.
+    Judge on DECODE-PHASE rows only: each cell writes a second prefill-phase row whose peak is a
+    different quantity, and pooling them fabricated a middle value once already.
+
+    ZERO-BOOT BY DESIGN, and the config is verified rather than assumed: `--skip-run` against the
+    container already on node-free-1, whose serve log shows speculative_num_draft_tokens 8,
+    mamba_full_memory_ratio 3.51, mamba_ssm_dtype bfloat16, `capped to 21`, `#tokens: 117,752`.
+    Read that from the SERVE LOG, not `docker inspect` -- sparkrun containers run
+    `bash -c <base64 | bash>` so Config.Cmd contains no sglang flags at all (§12 instrumentation
+    notes; a phase-52 guard built on it refused a correctly-configured container).
+
+    EVERY CELL IS BELOW EVERY CEILING, and that constraint chose the grid. `c = 8` < grant 21;
+    largest cell here is 8 x (4096 + 4096) = 65,536 token slots against a 117,752-token pool
+    (56 %). `pp = 8192` was DROPPED deliberately: at depth 4096 it reaches 8 x 12,288 = 98,304
+    slots, 84 % of pool, where a cell can be pool-limited rather than throughput-limited -- and a
+    pool-limited cell silently converts a throughput ratio into a capacity ratio, the failure mode
+    this file's sibling profiles keep having to warn about. Three `pp` points give a slope AND
+    residuals about linearity; the fourth is not worth a suspect cell. Check `#running-req` == 8
+    and `full token usage` per cell anyway: `concurrency` is an OFFER, not a measurement.
+    `--fresh` is mandatory -- sparkrun keys resume state on (profile, recipe, hosts) and IGNORES
+    --output, re-writing the prior JSON byte-identically with rc = 0. Verify distinct md5s before
+    analysing.
+
+    THE KNOWN ANOMALY THIS IS ALSO AFTER. In the phase-54 grid, `c = 8, depth = 4096` fell from
+    peak 172 to 142 (-17 %) when `pp` went 1024 -> 2048, exceeding that cell's own 14 % within-run
+    spread, and it is the largest single effect in the whole 12-cell grid. It is a `pp` effect at
+    fixed `c` and `depth`, so it is not the depth penalty of §12.29. One cell at n = 3 with 14 %
+    spread is exactly the kind of number that has misled this project before, so it is treated
+    here as a hypothesis to re-test at higher n, not as evidence.
+args:
+  depth: [ 1024, 4096 ]
+  pp: [ 1024, 2048, 4096 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 3

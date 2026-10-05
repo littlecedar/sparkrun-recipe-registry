@@ -1,0 +1,37 @@
+# Is the penalty tied to `k == max_num_seqs`? Test at a second cap value.
+#
+# What the last two boots established (bench_7fbe13356266, bench_a67868533e4f, both cap 16):
+#   k=8  -> 81.06   (cap 16 > k: non-binding, reproduces the cap-24 control's 79.14)
+#   k=12 -> 83.99   (cap 16 > k: non-binding, reproduces the cap-24 control's 85.33)
+#   k=16 -> 76.97   (cap 16 == k: DEPRESSED ~11%, reproduced at 75.14 in the other cap-16 boot)
+#   k=24 -> 53.22   (cap 16 < k: the bs=24 collapse)
+# Against the cap-24 control boot, where k=16 < cap 24 and k=16 measured 86.86 (NOT depressed).
+# So within one boot the depression is specific to the single cell where offered concurrency
+# EQUALS the cap, and it disappears when the same cell is run under a larger cap.
+#
+# That is a claim with a prediction, so it gets tested at a cap value it was not derived from.
+# Under cap 20:
+#   k=16 (0.8 x cap, non-binding) -> should be ~86, NOT depressed, if the coupling is "k == cap".
+#   k=20 (== cap)                -> should show the ~11% depression, by the coupling.
+#   k=24 (> cap)                 -> should collapse to ~54 as always.
+# If instead k=16 is depressed here too, the effect is "any cap below the control's 24 slows k=16"
+# and the k==cap story is wrong. If k=20 is NOT depressed, the effect is specific to the value 16
+# and is more likely a client/cell artefact than a scheduler property.
+#
+# Why this matters for the recipe and not just for the record. If `k == max_num_seqs` costs ~11%,
+# then a deployment should set `max_num_seqs` STRICTLY ABOVE its peak serving concurrency -- and
+# the shipped default of 24 is fine for a bs=16 target but would be a mistake for a bs=24 target.
+# That is an actionable recommendation, which is why an 11% effect earns a boot rather than a note.
+framework: llama-benchy
+metadata:
+  description: >
+    Tests whether the ~11% penalty attaches to the cell where offered concurrency equals
+    max_num_seqs. Under cap 20: k=16 should be unaffected (16 < 20) and k=20 should be depressed
+    (20 == 20), while k=24 should collapse as always. Requires -o max_num_seqs=20.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 16, 20, 24 ]
+  prefix_caching: true
+  runs: 7

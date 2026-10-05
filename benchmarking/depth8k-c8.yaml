@@ -1,0 +1,25 @@
+framework: llama-benchy
+metadata:
+  description: >
+    One cell, repeated: depth 8192 at c = 8. Exists so it can be ALTERNATED against
+    `depth0-c8.yaml` with --skip-run, giving a same-window interleaved depth control.
+
+    WHY: the depth penalty has been measured twice and disagreed. §9's phase-4 sweep said
+    d8192/c8 is 25 % below d0/c8; §12.8's ceiling sweep said 32 %. Two boots, 25 % and 32 %,
+    against a spec-arm noise floor of +-15 % (§3). That is not enough to call the effect
+    real, and it is exactly the failure mode where a cross-phase control drifts and every
+    "finding" inherits the drift. The fix is the boring one: measure both depths in the same
+    window, on the same booted server, alternating.
+
+    Depth is a BENCHMARK argument, not a serve argument, so a single booted server serves
+    both -- this costs no boot at all if run with --skip-run against a server already up.
+    That is why this profile is a single cell rather than a matrix: interleaving has to
+    happen at the invocation level, because putting both depths in one profile lets the
+    harness run all of one then all of the other, which is blocking, not pairing.
+args:
+  depth: [ 8192 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 8 ]
+  prefix_caching: true
+  runs: 3

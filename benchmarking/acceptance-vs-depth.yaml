@@ -1,0 +1,45 @@
+framework: llama-benchy
+metadata:
+  description: >
+    Acceptance vs context depth, measured in ONE boot. This closes a confound that three
+    earlier attempts could not.
+
+    WHY. WORK.md 12.8 records that depth costs a single stream nothing: aggregate decode at
+    c=1 is ~29 t/s at depth 0 and at depth 8192/16384 alike. But decode t/s is
+    `accept_len / step_time`, so "t/s unchanged" and "accept_len changed" are not the same
+    statement, and the second has never been measured depth-matched AND concurrency-matched
+    in one boot. Two prior attempts failed on window mismatch (a 20-deep depth-0 batch
+    compared against a 14-deep depth-8192 batch), and the third -- the one now in 12.15 --
+    compares a depth-0 arm from a different phase (`tg: 128`, n=8) against depth-16k arms
+    (`tg: 256`, n=44) and gets about -10%. That is nominally significant but the two
+    profiles differ in generated-token count, which changes the mix of early vs late decode
+    steps, so the comparison cannot separate "depth lowers acceptance" from "the profiles
+    differ". LIKELY at best, and the direction of the error is unknown.
+
+    WHY IT MATTERS BEYOND CURIOSITY. If acceptance really falls ~10% at 16k while t/s holds,
+    then the decode STEP must be ~10% faster at long context. That is the wrong sign for a
+    KV-read-bound regime and it contradicts the mechanism 12.8 uses to explain the capacity
+    result. Either the acceptance figure is a profile artifact, or the "depth is free at
+    c=1" claim is resting on a metric that hides a real per-step change. Both readings put a
+    load-bearing conclusion of 12.8 at risk, which is why this is worth one boot.
+
+    DESIGN, and the one that makes it cheap: BOTH depths in ONE boot, c=1 only, same prompts
+    per depth, same tg. `--skip-run` is not usable here because depth is a per-run argument,
+    not a server argument, so one boot serves both depths -- the whole point. Read `accept
+    len` per Decode batch from the archived server log bucketed by #running-req with
+    .scratch/qwen3-27b/decode_accept_by_concurrency.py, and compare depth 0 to depth 16384
+    AT #running-req 1 ONLY. That bucketing is the fix for the earlier window mismatch.
+
+    PREDICTION, written before the run. Null: acceptance identical across depths (this is
+    what 12.15's cross-phase numbers would be an artifact of). Alternative: acceptance falls
+    at 16k, and if it does, ALSO check step_time = accept_len / t/s -- if that falls too, the
+    two effects cancel and the "depth is free" claim needs rewording to "depth is free in
+    throughput, not per step". A drop at c=1 with no drop at c=12 would additionally localise
+    the effect to single-stream decode rather than to batching interference.
+args:
+  depth: [ 0, 16384 ]
+  pp: [ 2048 ]
+  tg: [ 256 ]
+  concurrency: [ 1 ]
+  prefix_caching: true
+  runs: 5
