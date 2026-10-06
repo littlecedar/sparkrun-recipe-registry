@@ -13,7 +13,9 @@ metadata:
   model_dtype: nvfp4
   model_draft_dtype: bf16
   kv_dtype: fp8_e4m3
-  tags: lcg_favorite, fast, large-context
+  # vision: the checkpoint is Qwen3.5-MoE multimodal (image-text-to-text; config carries a
+  # vision_config and image/video token ids), served with no --limit-mm-per-prompt cap.
+  tags: lcg_favorite, fast, large-context, vision
 
 mods:
   - "@eugr/mods/drop-caches"

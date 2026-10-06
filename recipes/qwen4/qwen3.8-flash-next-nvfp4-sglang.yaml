@@ -13,7 +13,8 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: bf16
   kv_dtype: bf16
-  tags: lcg_favorite, fast
+  # vision: the RadixArk export keeps the vision tower (the labquant export below drops it).
+  tags: lcg_favorite, fast, vision
 
 mods:
   - "@eugr/mods/drop-caches"
