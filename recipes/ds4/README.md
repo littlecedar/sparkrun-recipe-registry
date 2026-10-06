@@ -147,6 +147,7 @@ constraints.
 
 * **Cold Prefill Computation:** Ingesting a cold, un-cached 1M-token prompt takes approximately 6.5 minutes of compute on this cluster.
 * **Warm / Reused Context:** Leveraging prefix KV caching avoids recomputing full-context attention. Re-running queries against an existing cached context executes near instantaneously.
+* **Measured caveat (2026-10-06): the radix prefix cache did not hit on this lane.** Back-to-back requests to the served lane with identical prompts still logged `#cached-token: 0`, even though the config has `disable_radix_cache: False` and `radix_eviction_policy: lru`. The DSpark / bounded-replay serving path does not retain short-prompt prefixes the way stock SGLang's radix cache does. So treat the "warm / reused context is near-instant" claim above — and the agentic-workflow recommendation that leans on it — as **unproven for this lane** until cache reuse is re-measured with production-shaped prompts. This is a serving-path behaviour, not a KV-pool regression.
 
 #### Workload Recommendations
 
@@ -322,10 +323,12 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 See [`AGENTS.md`](AGENTS.md) §12 for the design, the launcher/rendezvous details, and how to
 rebuild the image. The lane is **boot-verified**: it loads both ranks, serves `/v1/models` and
 `/v1/chat/completions`, and DSpark accepts (mean 2.76 tokens/round) — see §12.11 for our numbers.
-Two caveats remain. First, the EXL3 checkpoint is a lossy quant, so its **quality** on this
-project's hard tier is still unmeasured; do not imply parity with the SGLang lane's 17/18. Second,
-the shipping prerequisite that bites first: the `@littlecedar/mods/…` reference resolves from the
-node's registry clone, so this recipe only launches once the mod is committed and pushed (§12.10).
+Two caveats remain. First, the EXL3 checkpoint is a lossy quant — but its **quality is now measured**
+(2026-10-06, see [Quality](#quality-measured) below): on the house hard tier it scores **17/18**,
+*identical* to the official-weights lane, with no measurable gap on GSM8K or ARC-Challenge. So parity
+is now evidence, not hope. Second, the shipping prerequisite that bites first: the `@littlecedar/mods/…`
+reference resolves from the node's registry clone, so this recipe only launches once the mod is
+committed and pushed (§12.10).
 
 ### Context window and concurrency
 
@@ -386,6 +389,38 @@ concurrent requests still decode at most 4 at once.
 - Size clients' `max_tokens` to about `max_model_len / n` for *n* concurrent long-context streams.
   Upstream's reported 4-way concurrency is real, and was measured on 384-token generations
   (~4K of window each).
+
+## Quality (measured)
+
+The TensorFold TP=2 lane serves the **EXL3 2.9 bpw** checkpoint, so the live
+question for anyone choosing between the two lanes is whether the quantisation
+costs quality. It was measured directly against the official-weights lane on
+2026-10-06 via the cluster gateway (`deepseek` = official, `deepseek-turbo` =
+EXL3 2.9 bpw), greedy, thinking off on both:
+
+| Benchmark (0-shot unless noted) | `deepseek` (official) | `deepseek-turbo` (EXL3 2.9bpw) | Δ | verdict |
+|:--|--:|--:|--:|:--|
+| House battery — hard tier | 17/18 | 17/18 | 0 | tie |
+| House battery — total (37) | 36/37 = 97.3 % | 36/37 = 97.3 % | +0.0 pp | tie |
+| GSM8K (n=200) | 194/200 = 97.0 % | 197/200 = 98.5 % | +1.5 pp | tie |
+| ARC-Challenge (n=200) | 186/200 = 93.0 % | 186/200 = 93.0 % | +0.0 pp | tie |
+| HLE text-only (n=200) | 13/200 = 6.5 % | 13/200 = 6.5 % | +0.0 pp | tie |
+| GPQA Diamond (n=198) | 142/198 = 71.7 % | 138/198 = 69.7 % | −2.0 pp | tie |
+| MMLU-Pro (n=400) | 328/400 = 82.0 % | 321/400 = 80.2 % | −1.8 pp | tie |
+| MATH-500 (n=200) | 191/200 = 95.5 % | 188/200 = 94.0 % | −1.5 pp | tie |
+| AIME 2022-24 (n=90) | 51/90 = 56.7 % | 55/90 = 61.1 % | +4.4 pp | tie |
+| HumanEval (n=164, exec) | 159/164 = 97.0 % | 157/164 = 95.7 % | −1.2 pp | tie |
+| MBPP (n=257, exec) | 200/257 = 77.8 % | 198/257 = 77.0 % | −0.8 pp | tie |
+
+**The EXL3 quantisation costs nothing measurable.** Across 11 benchmarks and
+~1,900 paired items, **no benchmark separates the two models** (paired McNemar,
+exact, p ≥ 0.05 on every one); the largest gap is +4.4 pp (AIME, favouring turbo)
+with a 6-vs-10 discordant split (p = 0.45). The sign of the tiny gaps is not even
+consistent across benchmarks — the signature of noise. The complete method,
+caveats, and reproduction steps are in [`benchmarks/README.md`](benchmarks/README.md);
+raw results and the paired-test table are under `benchmarks/results/`, and
+published reference scores for the unquantised model are in
+[`benchmarks/REFERENCE-SCORES.md`](benchmarks/REFERENCE-SCORES.md).
 
 ## Retired material
 
