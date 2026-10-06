@@ -12,7 +12,9 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: bfp16
   kv_dtype: fp8
-  tags: lcg_favorite
+  # vision: multimodal checkpoint (image-text-to-text); the serve line carries a vision
+  # encoder flag (--mm-encoder-tp-mode data).
+  tags: lcg_favorite, vision
 
 mods:
   - "@eugr/mods/drop-caches"

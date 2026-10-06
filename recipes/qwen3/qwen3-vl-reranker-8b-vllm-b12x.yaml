@@ -17,7 +17,10 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: fast, lcg_favorite
+  # vision + reranking: multimodal (Qwen3-VL) cross-encoder; --convert classify.
+  # NOT `fast` (see the note above the description): measured 28.76 units/s solo vs the 2B's
+  # 119.29 -- tagging it `fast` would point people at the slower sibling.
+  tags: lcg_favorite, vision, reranking
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

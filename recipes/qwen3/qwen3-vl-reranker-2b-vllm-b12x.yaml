@@ -11,7 +11,8 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: fast, lcg_favorite
+  # vision + reranking: multimodal (Qwen3-VL) cross-encoder; --convert classify.
+  tags: fast, lcg_favorite, vision, reranking
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

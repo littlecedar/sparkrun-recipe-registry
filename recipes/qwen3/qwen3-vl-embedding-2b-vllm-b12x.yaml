@@ -11,7 +11,9 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: fast, lcg_favorite
+  # vision + embedding: multimodal (Qwen3-VL) pooling encoder; the serve line sets
+  # --limit-mm-per-prompt and --runner pooling / --convert embed.
+  tags: fast, lcg_favorite, vision, embedding
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

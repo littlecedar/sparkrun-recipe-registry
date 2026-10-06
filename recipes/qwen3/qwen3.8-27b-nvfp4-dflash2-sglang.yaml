@@ -24,7 +24,8 @@ metadata:
   # ships "kv_cache_quant_algo": "FP8". Reading the docstring alone produced a wrong
   # metadata value here once already; read the allocation line.
   kv_dtype: fp8_e4m3
-  tags: lcg_favorite, fast, large-context
+  # vision: Qwen3.5 multimodal checkpoint (image-text-to-text; config carries a vision_config).
+  tags: lcg_favorite, fast, large-context, vision
 
 mods:
   - "@eugr/mods/drop-caches"
