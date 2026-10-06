@@ -123,16 +123,25 @@ constraints.
 
 #### Memory Residency and Concurrency Limits
 
-* **KV Pool Capacity:** the pool is **pinned to 4,000,000 tokens** (`MAX_TOTAL_TOKENS` in the
-  overlay launcher), which is what actually bounds concurrency. The head's `MemAvailable` would
-  permit more — the engine logs both: `full_token=6786560` (budget) then `full=4000000` (the pin)
-  in one of our own EP1 boots (`.scratch/ds4/knapcio/logs/boot9-head-serve.log`, 2026-10-02).
-  Upstream's ~7.5M figure is a *budget under a different configuration* (EP2, stock loader), not
-  tokens this server holds — see [`AGENTS.md`](AGENTS.md) §7.1.
-* **Concurrent 1M Streams:** bounded by the 4M pin, so **≈3.8** full-1,048,576-token streams (four
-  fit only if each stays a little under 1M of prompt+reply). The "~6.6" this section previously
-  carried was a division of the upstream ~7.5M budget by 1M, not an observed concurrency, and it
-  ignored the 4M pin; it has been removed. See [`AGENTS.md`](AGENTS.md) §7.1 for the receipts.
+* **KV Pool Capacity:** the pool is pinned to **9,400,000 tokens** (`MAX_TOTAL_TOKENS` in the
+  overlay launcher, measured on our four nodes 2026-10-06). The head's `MemAvailable` at
+  `mem_fraction_static=0.80` permits **~9.5–9.6M** (`full_token=9,493,504..9,589,504`,
+  `bytes_per_full_token=1670.75`); a larger pin is clamped to that, never refused. The previous
+  pin was 4,000,000 — only ~58% of the ceiling — so it was raised. Upstream's ~7.5M figure is a
+  *budget under a different configuration* (EP2, fast loader), not tokens this server holds; see
+  [`AGENTS.md`](AGENTS.md) §7.1 for the boot receipts.
+* **Concurrent 1M Streams:** SGLang's pool is page-shared, not extent-reserved — it does not hold
+  each request's declared window. **16** concurrent requests each declaring ~1M tokens were all
+  admitted and decoded on our nodes (the `MAX_RUNNING_REQUESTS=16` cap, zero errors); the limit is
+  that cap and the ~9.5M total *actual* tokens, not a per-stream reservation. The "~6.6" this
+  section previously carried was a division of the upstream ~7.5M budget by 1M, not an observed
+  concurrency, and it ignored both the old 4M pin and the page-shared model; it has been removed.
+* **Note:** the decode log's `full token usage` percentage reads `0.00` even under real draw in
+  this build — do not judge capacity from it (`full token: N` is the usable counter).
+* **A 1M cold prefill at the raised pin — VERIFIED 2026-10-06.** A ~1M-token cold prompt ingested
+  at **2909 tok/s** and replied correctly with the 9.4M pin. Head available dipped to ~5 GB
+  low-water during the prefill (the indexer transient draws ~9 GB over the pool) then recovered to
+  10 GB, so the pin holds but the head sits near its floor during a 1M prefill.
 
 #### Cold Prefill Latency vs. Cache Hits
 
@@ -190,10 +199,11 @@ Upstream's eager safetensors loader (`DSV41_FAST_LOAD=1`) accelerates startup at
 
 #### Startup Time vs. KV Capacity Trade-off
 
-The interval below is **upstream's** (EP2, 2026-09-18 stack), not ours — our one EP1 receipt
-(`full_token=6786560` with the fast loader on) sits inside it. It also matters less than it reads:
-the pool is **pinned to 4,000,000** either way, so this difference does not change concurrency at
-the shipped settings. See [`AGENTS.md`](AGENTS.md) §7.1.
+The interval below is **upstream's** (EP2, 2026-09-18 stack), not ours — our EP1 receipts sit
+inside it (9.49–9.59M at the shipped stock loader). It matters less than it reads: the pool is
+pinned to a fixed `MAX_TOTAL_TOKENS` either way, and the pin (not the budget) is what the server
+holds, so this difference does not change concurrency at the shipped settings. See
+[`AGENTS.md`](AGENTS.md) §7.1.
 
 * **Fast Loader (`DSV41_FAST_LOAD=1`):** Reduces engine startup time from ~350 s down to ~125 s (saving ~220 s per boot), at the cost of a smaller *budget* (~6.71–7.27M vs ~7.47–7.82M tokens upstream).
 * **Stock Loader (`DSV41_FAST_LOAD=0`):** Requires ~350 s for cold engine launch, and leaves a larger budget — which the 4M pin then absorbs.
@@ -208,7 +218,7 @@ the shipped settings. See [`AGENTS.md`](AGENTS.md) §7.1.
 | :--- | :--- | :--- |
 | **Engine Startup Time (`scheduler_e2e`)** | ~343–354 s | **~124–129 s** (~220 s faster) |
 | **KV budget the host allows (`full_token`)** | **~7.47–7.82M tokens** | ~6.71–7.27M tokens (~3–13% smaller) |
-| **KV pool actually used** | 4,000,000 (pinned) | 4,000,000 (pinned) |
+| **KV pool actually used** | 9,400,000 (pinned, 2026-10-06) | 9,400,000 (pinned) |
 | **Model Weights & Numeric Output** | Bitwise identical | Bitwise identical |
 | **Inference Latency & Quality** | Unchanged | Unchanged |
 | **Recommended Use Case** | **Production serving & long context** | Development & fast iteration |

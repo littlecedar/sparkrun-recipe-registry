@@ -126,7 +126,16 @@ RECIPE_ENV: dict[str, str] = {
     "MAX_RUNNING_REQUESTS": "16",
     "CHUNKED_PREFILL_SIZE": "4096",
     "CUDA_GRAPH_MAX_BS_DECODE": "16",
-    "MAX_TOTAL_TOKENS": "4000000",
+    # KV pool pin, measured on this fleet 2026-10-06 (recipes/ds4/AGENTS.md 7.1):
+    # at MEM_FRACTION_STATIC=0.80 the engine's own budget line reports
+    # full_token=9,493,504..9,589,504 (bytes_per_full_token=1670.75, ~15.9 GB
+    # available_bytes); a pin ABOVE that is CLAMPED to the budget, not refused. 9.4M
+    # is ~98% of the budget and was verified to boot and serve on all four nodes.
+    # The previous 4000000 left ~58% of the ceiling unused.
+    # READ full_token from the boot log after any change to weights, TP size or NCCL
+    # buffers -- it moves with the head's MemAvailable (upstream saw 6.71-7.82M
+    # across their stack; ours is a stock-loader EP1 pair at 0.80).
+    "MAX_TOTAL_TOKENS": "9400000",
     "SPEC_ALGO": "DSPARK",
     "DSPARK_BLOCK_SIZE": "5",
     # --- overlay adapters (the upstream production line) -------------------
