@@ -359,7 +359,7 @@ now boot- and long-prefill-verified on all four nodes.
 
 **Do not raise `MEM_FRACTION_STATIC`.** A 0.90 probe wedged three of four nodes on 2026-10-06
 (GPU pool *is* host memory on GB10; userspace/SSH dead while ping alive). Keep **0.80**: it is what
-caps the pool and keeps the transient reserve. See NOTES.md "INCIDENT".
+caps the pool and keeps the transient reserve. The incident is written up in §11.
 
 **A/B if you want the shipped-config number** (mirrors §10's discipline; read the pool
 from the boot log, never computed):
@@ -494,6 +494,19 @@ rendered line and the boot log.
   purpose-built image. It was correct for the published images available at the
   time (no single image was both V4.1 and b12x; the MXFP4-Cutlass MoE rejected
   the TP=4 partition).
+- **`MEM_FRACTION_STATIC=0.90` wedges GB10 nodes (2026-10-06 incident).** Probing whether a higher
+  fraction raised the KV budget (it does not: the ceiling is the 0.80 `full_token`) wedged the head
+  `.30` and workers `.31`/`.32` — SSH refused (banner timeout) for >10 min while ping stayed up.
+  `.30`/`.32` recovered (`.30` after a reboot); **`.31` went fully unreachable (no ping)** and had
+  not returned at session end. Lesson: on GB10 the GPU pool *is* host memory, so a fraction above
+  ~0.80 can exhaust the host and kill userspace. **Keep 0.80.** Recovery for a wedged node is a
+  reboot; there is no in-band path (`ipmitool` present but no `/dev/ipmi0`, no BMC documented).
+- **The knapcio radix/prefix cache did not hit (measured 2026-10-06).** Back-to-back requests with
+  identical prompts still logged `#cached-token: 0`, despite `disable_radix_cache: False` /
+  `radix_eviction_policy: lru`. The DSpark/bounded-replay serving path does not retain short-prompt
+  prefixes the way stock SGLang's radix cache does — a lane behaviour, not a pool-pin regression.
+  Do not assume prefix-cache reuse when sizing web/agent workloads here; the README's "warm context
+  is near-instant" language carries the same caveat.
 
 ---
 
@@ -506,11 +519,18 @@ above; read this section before touching it.
 
 ### 12.1 What it is
 
+- Model anatomy: DeepSeek-V4.1-Flash, **552 B** params, **40** layers, `hidden_size` 5120, MoE with
+  **384** routed experts (top-6). Two Engram tables (~203 GB) hold the FP8 embedding rows.
 - Engine: [`bertholomus/TensorFold`](https://github.com/bertholomus/TensorFold),
   branch `deepseek-v41-tp2`, a fork of [ashhart/TensorFold](https://github.com/ashhart/TensorFold)
-  v0.6.3 (Apache-2.0). The `deepseek_v41` family is a clean-room re-implementation of DeepSeek's
-  MIT inference code; the fork's `tools/dsv41/ATTRIBUTION.md` records every source.
-- Checkpoint: `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` (~197 GB, 39 shards, MIT).
+  v0.6.3 (Apache-2.0), pinned in `Dockerfile.tensorfold-dsv41` at
+  `d5d7bb389ddf4325c1edf4a15dd1c23727040ea1`. The `deepseek_v41` family is a clean-room
+  re-implementation of DeepSeek's MIT inference code; the fork's `tools/dsv41/ATTRIBUTION.md`
+  records every source.
+- Checkpoint: `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` (~197 GB, 39 shards, MIT). Verified
+  present on the trial pair (`.34`/`.35`): 49 files / 196.2 GiB, 39 shards totalling
+  210,600,939,078 bytes, `bad=0` structural check. (The directory reads as a few MB under `du`
+  because the shards are symlinks into the HF blob store — measure with `find -L … -printf %s`.)
   TensorFold's CUDA engine reads **EXL3 only** (`families/deepseek_v41/__init__.py`:
   `QUANT_METHODS = {"cuda": ("exl3",)}`, `check()` refuses any other `quant_method`), so the
   official MXFP4 checkpoint will not load here. The EXL3 repo's `config.json` has
@@ -601,6 +621,18 @@ Engram directory (the engine loads without them and only prints a warning — se
 `serve` always runs with `--parallel 4 --mtp-drafts 5 --temperature 0 --no-update-check`. The first
 three are upstream's served line; `--no-update-check` keeps the boot off the network.
 
+**Local trials with a new/changed mod.** The `@littlecedar/…` reference (§4) resolves from the node's
+registry clone, so it only sees committed+pushed mods. To trial a *new* mod before pushing, copy the
+recipe to a scratch directory, point its `mods:` at a **relative** ref, and place a `mods/` symlink
+beside it so sparkrun's adjacent-to-recipe resolution finds it:
+
+```bash
+# .scratch/ds4/boot_tf2x/recipe.yaml -> mods: "tensorfold-dsv41-launcher"  (relative, not @littlecedar/)
+ln -s ../../../mods .scratch/ds4/boot_tf2x/mods
+```
+
+Then `sparkrun run` rsyncs the mod to the head's staging dir.
+
 ### 12.6 Checkpoint resolution
 
 The recipe passes the repo id in `{model}` (sparkrun does not rewrite it for a custom command). The
@@ -629,6 +661,11 @@ If the directory is absent, the engine still boots and serves, with
 `[tensorfold] WARNING: no Engram tables (TF_DS_ENGRAM): output will be degraded`; the mod and shim
 both report the state without failing. `_default_engram()` also looks for a `*Engram*` sibling of
 the model directory, but that location is inside the HF cache and would be wiped by a cache re-sync.
+
+Measured staging (2026-10-05): **189.1 GiB** staged, shards 47/48 at 101.5 GB each. The staging
+directory reads as a few MB under `du` only because the shards are symlinks into
+`~/.cache/huggingface/hub/blobs/XX/…`; measure real bytes with `find -L … -printf %s`, not
+`du` on the directory.
 
 ### 12.8 The image
 
@@ -695,6 +732,11 @@ repo also needs the mod **committed and pushed** first (the `@littlecedar/` form
 node's registry clone, §4) — a local trial that must not wait on the push can copy the recipe to a
 scratch dir and use the relative mod ref beside a `mods/` symlink.
 
+**Non-boot verification (before any launch).** `sparkrun show <recipe>` parses it, and
+`sparkrun run <recipe> -n` renders the full serve command and a clean 2-node cluster plan; mod,
+image, and model distribution all resolve there. This confirms the mapping on paper — it does not
+prove a boot (see the paragraph above).
+
 ### 12.11 Measurement discipline
 
 - Upstream's numbers (2× GB10, greedy, DSpark k=5, 384-token prompts): C1 code 101 / prose 62 /
@@ -711,9 +753,19 @@ scratch dir and use the relative mod ref beside a `mods/` symlink.
   weight load **25 s**, rank-1 ready **43.3 s**, sparkrun TTR (port open) **51.4 s**. A first-ever
   launch also pays a one-time ~510 s head→worker model sync (see 12.12). The rank cache persists
   across `sparkrun stop`/`run` because it lives under the managed `/cache/runtime`.
-- The EXL3 checkpoint is a lossy quant: its quality on this project's hard tier is **unmeasured**.
-  Do not imply parity with the knapcio lane's 17/18. (The lane now *boots and serves* — the boot
-  is verified; the quality battery is not.)
+- **Memory, ours (cold boot).** Each rank holds ~**98.8 GiB** of EXL3 weights (`rank 0: weights in
+  299 s`, `rank 1: 312 s`), plus KV + workspace; the engine's allocator ceiling was **107.1 GiB
+  (rank 0) / 107.8 GiB (rank 1)**, all inside the node's 128 GB unified pool. Rank-cache files are
+  ~106 GB each on disk.
+- The EXL3 checkpoint is a lossy quant, but its **quality is now measured** (2026-10-06), *not* a
+  caveat: on the house hard tier it scores **17/18**, identical to the knapcio official-weights
+  lane, and the 11-bench hard battery (~1,900 paired items) is **every bench a tie** (paired
+  McNemar, no p < 0.05; largest gap AIME +4.4 pp, discordant 6-vs-10, p=0.45). So parity is
+  evidence, not hope — the earlier "quality unmeasured, do not imply parity" warning is
+  **superseded**. Detail and method: §13 and `benchmarks/`.
+- **DSpark acceptance is workload-dependent.** Our 73 tok/s single-stream figure carried a mean
+  acceptance of 2.76 tokens/round (a healthy >1); upstream reports ~3/step on prose and ~6 on code.
+  A TensorFold speed number without its accept length is not a number.
 - `--parallel 4` shares one 1M window; concurrency and per-stream context-length trade off (12.13).
 - The rank cache is a boot-time optimization only; its first write is not part of a warm boot.
 
@@ -733,6 +785,10 @@ scratch dir and use the relative mod ref beside a `mods/` symlink.
   measured with `find -type f -printf %s`, not `du` on the model dir (which sees only symlinks).
 - **`docker exec <c> env` will not show `RECIPE_ENV`**: the shim rewrites its own environment before
   `execvp`, so a fresh shell shows the image's env, not the launcher's. Read the launcher's log line.
+- **Launch detached.** A long `sparkrun run` must be started as `setsid nohup sparkrun run … &`, or a
+  tool call that times out kills the launch mid-boot.
+- **`sparkrun status` / `sparkrun metrics` need `-H`** (`-H 10.0.4.34,10.0.4.35`) or they have no
+  nodes to query.
 
 ### 12.13 Context window and concurrency (measured 2026-10-05)
 
@@ -865,9 +921,133 @@ tokens/sec benchmark; they establish the admission law. The decode figure is a r
 - Upstream recipe: [bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10](https://github.com/bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10)
 - Base image: [`lmsysorg/sglang:dev-cu13`](https://hub.docker.com/r/lmsysorg/sglang)
 
-## 13. References
+## 13. Quality benchmarks (`benchmarks/`)
+
+The `benchmarks/` subdirectory holds the **quality** comparison of the two live
+DeepSeek-V4.1-Flash chat aliases on the cluster gateway — not a speed harness
+(speed is §10/§12).
+
+### 13.1 The two aliases and why they are the comparison
+
+| Gateway alias | Resolved `model` in the response | What it is |
+|:--|:--|:--|
+| `deepseek` | `deepseek-ai/DeepSeek-V4.1-Flash` | official weights (`deepseek-ai`) |
+| `deepseek-turbo` | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | this lane's EXL3 2.9 bpw checkpoint |
+
+The alias is a gateway routing name; the *identity* is the `model` field the
+server echoes back. Never assume the alias maps to a checkpoint — read it back.
+The interesting question is whether the EXL3 quantisation costs quality versus
+the official weights; the harness answers exactly that.
+
+### 13.2 The trap: the two aliases default to opposite thinking modes
+
+`deepseek` answers immediately (`reasoning_content: null`, `reasoning_tokens: 0`);
+`deepseek-turbo` defaults to **thinking on** and can spend an entire small
+`max_tokens` budget emitting hidden `reasoning_content` before the visible
+answer (observed: 400/400 reasoning tokens on a one-line prompt, `content: null`).
+A naive A/B therefore measures *configuration*, not weights. The harness forces
+**`chat_template_kwargs={"enable_thinking": false}` on both** for the headline
+table, and keeps a small `--thinking on` arm only to document the divergence.
+
+### 13.3 How to run
+
+```bash
+cd recipes/ds4/benchmarks
+python3 fetch_data.py                       # stage GSM8K + ARC (stdlib, idempotent)
+for m in deepseek deepseek-turbo; do
+  python3 run_benchmarks.py --base-url http://spark-head.internal.littlecedar.net:4000 \
+      --model "$m" --bench all --thinking off --limit 200 --seed 1234
+done
+python3 compare_results.py --thinking off   # -> results/SUMMARY.md + summary.json
+```
+
+Only `/v1/chat/completions` is routed (`/v1/completions` → HTTP 400), so the
+harness is chat-only by necessity; that also rules out loglikelihood-based
+multiple-choice benchmarks (`lm-eval` HellaSwag/MMLU) — generative ones (GSM8K,
+ARC letter-match) are what is computable here. The runner is **resumable**: every
+item is appended to `results/_raw/<model>.<bench>.<thinking>.jsonl` as it lands.
+
+### 13.4 Files
+
+| File | Role |
+|:--|:--|
+| `fetch_data.py` | stage datasets from upstream (stdlib; idempotent) |
+| `run_benchmarks.py` | runner; imports `tools/quality-battery.py` **verbatim** for the house tier |
+| `rescore.py` | re-score stored replies from their saved gold (no endpoint calls) |
+| `compare_results.py` | aggregate → comparison table + reply-diff counts |
+| `results/_raw/` | append-only per-item audit trail + run logs |
+
+### 13.5 Result (2026-10-06, thinking off, greedy)
+
+house 36/37 both (**hard 17/18 both** — same single failure `hard-rev`), GSM8K
+97.0 vs 98.5 % (n=200), ARC 93.0 vs 93.0 % (n=200). **Parity within noise; no
+measurable quantisation penalty.** Full method and caveats in `benchmarks/README.md`.
+
+### 13.6 Rules this directory learned the hard way
+
+- **Score changes are replayed, never re-run.** Scoring is a pure function of the
+  stored reply + gold, so a scorer fix MUST go through `rescore.py` against
+  `results/_raw/`, not a fresh endpoint run. The first GSM8K pass string-matched
+  the value after `####` and wrongly failed `#### 8.00` against gold `8`
+  (penalised turbo on 4 items, baseline on 6); `score_gsm8k()` now compares
+  numerically. This is precisely why replies are kept.
+- **A textual diff is not a score diff.** On GSM8K 192/200 replies differ at
+  temperature 0 while the scores match within noise — keep both views.
+- **Small-n caveats are mandatory.** ±3 items on n=200 is ≈ one SE; report the
+  Δ as "inside noise", never as a ranking.
+- **Published card numbers are a frame, not a score.** Model-card rows are for
+  the *unquantized* model under DeepSeek's own harness (8-shot etc.); the EXL3
+  card publishes no evals. Cite them as context only.
+
+### 13.7 Hard battery (HLE, GPQA, MMLU-Pro, MATH-500, AIME, HumanEval, MBPP)
+
+The mid-tier benches (§13.1–13.5) saturate. The hard tier is where a 2.9 bpw quant
+*would* show a deficit if it had one, and it is where the published model-card
+numbers (GPQA 90.9, HLE 36.8, HumanEval 79.4) actually live.
+
+| Tool | Bench(es) | Grading | Needs |
+|:--|:--|:--|:--|
+| `fetch_hard.py` / `fetch_hard_hf.py` | stage HLE, GPQA-D, MMLU-Pro, MATH-500, AIME | — | stdlib / `datasets` venv |
+| `bench_reason.py` | those five | letter, `math_verify` symbolic, integer, lenient text | `.venv-qa` for symbolic |
+| `bench_code.py` | HumanEval, MBPP | **code execution** (dataset tests) in a subprocess sandbox | stdlib |
+| `compare_all.py` | all of the above + the mid-tier | paired **McNemar** exact test | stdlib |
+| `run_overnight.sh <model> <log>` | everything, one model, in order | — | run two in parallel |
+
+**The single most important finding for anyone touching this harness: thinking
+mode is not a free knob.** On hard items, with thinking ON, *both* models stream
+hidden reasoning for the entire `max_tokens` budget and return `finish_reason:
+length` with **empty `content`** (`deepseek` 16 000 tok / 307 s / empty). The
+primary battery therefore runs **thinking OFF on both models** — it is the only
+config that yields graded answers and the only fair same-config comparison. A
+thinking-ON arm is kept only for GPQA/MATH-500, which terminate quickly. On GPQA,
+thinking ON *lowers* turbo from 69.7 % to 38.0 % — reasoning actively hurts MCQ.
+
+**Result (2026-10-06, thinking off, greedy): every benchmark is a tie.** 11
+benches, ~1,900 paired items; no bench reaches p < 0.05 on McNemar. Largest gap
+AIME +4.4 pp (turbo), discordant 6 vs 10 (p=0.45). See `results/RESULTS.md`.
+
+**Method rules (learned here):**
+
+- **Use the paired test, not the two percentages.** Both models answer the same
+  items, so the question is whether the *discordant* items are lopsided, not
+  whether the totals differ. `compare_all.py` reports ds-only / turbo-only counts
+  and the exact binomial p. Only a large, consistent split is signal.
+- **Grade MATH-500 symbolically.** `math_verify` needs `$…$` delimiters to parse
+  LaTeX (`\sqrt{12}` vs `2\sqrt{3}` only verifies wrapped); a raw-string fallback
+  silently mis-scores. The grader actually used is recorded per item.
+- **MBPP needs the function name pinned.** Its prose prompts never state the
+  required `def name(...)`, so the native setup floors at ~9 % for both models;
+  injecting the reference signature lifts them to ~77 %. The pre-fix arm is kept
+  as `off.nameguess` to document the difference.
+- **HLE exactMatch rarely terminates** at a 2,000-token cap (the model reasons
+  past it), so most non-MCQ HLE items are scored fail-for-both. That depresses the
+  absolute HLE level but is symmetric — read HLE as the *gap*, not the level.
+
+## 14. References
 
 - Model: [deepseek-ai/DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash)
+- Benchmark data: `openai/gsm8k`, `allenai/ai2_arc` (ARC-Challenge), `tools/quality-battery.py`
+- Hard battery: `cais/hle` (via `macabdul9/hle_text_only`), `Idavidrein/gpqa` (via `hendrydong/gpqa_diamond_mc`), `TIGER-Lab/MMLU-Pro`, `HuggingFaceH4/MATH-500`, `AI-MO/aimo-validation-aime`, `openai/openai_humaneval`, `google-research-datasets/mbpp`
 - Upstream lane: [knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4) @ `58f2321` (downstream of [MiaAI-Lab](https://github.com/MiaAI-Lab/DeepSeek-v4.1-Flash-DGX-Sparks))
 - SGLang: [V4.1 cookbook](https://github.com/sgl-project/sglang/blob/main/docs/cookbook/autoregressive/DeepSeek/DeepSeek-V4_1.mdx)
 - Archived EXL3 / vLLM lane and model-anatomy analysis: [`attic/ds4/`](../../attic/ds4/)
