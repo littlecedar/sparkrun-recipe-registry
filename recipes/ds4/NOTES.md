@@ -218,6 +218,53 @@ Documented in AGENTS §12.13 and README "Context window and concurrency". The re
 
 ## Shipped state / remaining risks
 
+- **KV-ceiling campaign 2026-10-06 — results (shipped config = `MEM_FRACTION_STATIC=0.80`,
+  stock loader, on .30/.31/.32/.33).**
+  - **True KV ceiling = `full_token` 9,493,504–9,589,504 (~9.5–9.6M tokens)** — the budget the
+    head's `MemAvailable` permits at 0.80 (`bytes_per_full_token=1670.75`, `available_bytes≈15.9 GB`).
+    Stable to ~1% across four boots. A `MAX_TOTAL_TOKENS` pin above it is **clamped** to it, not
+    refused (pin 10,000,000 → served `max_total_num_tokens=9,589,504`).
+  - **The old `MAX_TOTAL_TOKENS=4000000` left ~58% of the ceiling unused.** Raised to
+    **9,400,000** in `mods/dsv41-sglang-overlay/launcher.py` (verified to boot + serve on all four
+    nodes; free mem after boot 13.68 GB vs 25.10 GB at 4M).
+  - `mem_fraction_static` is defined as `(weights + KV pool) / capacity` (SGLang
+    `memory_hook.py`), so a pin ≤ `full_token` stays inside the same 0.80 budget and leaves the
+    same ~20% reserve outside it; raising the pin does not eat the reserve.
+  - Pool is **page-shared, not extent-reserved** (unlike TensorFold): 16 concurrent 1M-claiming
+    streams were all admitted and decoded (`running-req` = the `MAX_RUNNING_REQUESTS=16` cap, zero
+    errors). So concurrent-1M-stream count is bounded by `MAX_RUNNING_REQUESTS` and total *actual*
+    tokens (<9.59M), not per-stream reservation.
+  - **`full token usage` reads 0.00 even under real draw in this build** — unreliable; use
+    `full token: N`. Do not judge capacity from that percentage.
+  - **Still owed:** a 1M-token *cold prefill* test at the raised pin (the head keeps ~6.6–7.7 GB
+    low-water during such a prefill with the shipped `DSV41_INDEXER_CHUNKED=1` bound; the 9.4M pin
+    leaves 13.68 GB at boot, which should cover it, but this was not re-run after the raise).
+  - **1M cold prefill VERIFIED 2026-10-06 (after all nodes were reset):** a ~1M-token (3,999,858
+    char) cold prompt ingested at **2909 tok/s** and replied `DONE` with the 9.4M pin in place.
+    Host available dipped to ~5 GB during the prefill (the transient draws ~9 GB on top of the
+    13.7 GB pool) then recovered to 10 GB — so 9.4M leaves just enough headroom, and
+    `full token usage` reached 0.08 (8% of the pool) confirming real pool use. Receipt:
+    `full_token=9,658,880`, served `max_total_num_tokens=9,399,808`, `available_gpu_mem=14.10 GB`.
+    The shipped 9.4M pin is now boot + long-prefill verified on all four nodes.
+  - **Also measured at the 9.4M pin (2026-10-06):** single-stream decode **64.5 tok/s** wall
+    (engine 68.2, accept len 3.75) — consistent with the lane's published C1, so the pool raise
+    did not hurt decode. **Radix/prefix cache did NOT hit** even back-to-back with identical
+    prompts (`#cached-token: 0`, `disable_radix_cache: False`, `radix_eviction_policy: lru` in
+    config) — the DSpark/bounded-replay serving path does not retain short-prompt prefixes the way
+    stock SGLang's radix cache does; that is a lane behavior, not a pool-pin regression. Worth a
+    note if prompt-cache reuse is expected.
+  - Each relaunch reloads 48 shards (~476 GB, ~60 s) — this lane has no rank cache.
+
+- **INCIDENT (2026-10-06): a `MEM_FRACTION_STATIC=0.90` probe wedged 3 of 4 nodes.** While
+  checking whether a higher fraction raises the budget (it does not usefully; the ceiling is the
+  0.80 `full_token`), a `0.90` + very large pin boot destabilized the head `.30` and workers
+  `.31`/`.32` — SSH refused connections (banner timeout) for >10 min while ping stayed up.
+  `.30` and `.32` recovered (`.30` after a reboot, up 1 min with 0 containers); **`.31` went
+  fully unreachable (no ping) and had not returned** when the session ended, so the 4-node
+  verification boot is blocked. Lesson, now in AGENTS §7.1: on GB10 the GPU pool *is* host memory,
+  so `MEM_FRACTION_STATIC` above ~0.80 can exhaust the host and wedge userspace. **Keep 0.80.**
+  Recovery for `.31`: it needs a reboot; there is no in-band path from the other nodes (`ipmitool`
+  present but no `/dev/ipmi0`, no BMC address documented).
 - **Provenance of the knapcio KV figures (audited 2026-10-05).** The README's "~7.5M tokens / ~6.6
   full-length concurrent requests" was **not** measured for our lane:
   - `~7.5M` is upstream's *budget* interval (7.47–7.82M, EP2, 2026-09-18 stock-loader stack) from

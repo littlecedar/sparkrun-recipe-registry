@@ -312,9 +312,49 @@ max_total_num_tokens=4000000, context_len=1048576, available_gpu_mem=21.18 GB
 
 So on our hardware the fast loader left a **6.79M**-token budget (inside upstream's
 6.71–7.27M fast-loader interval), and the server then **pinned the pool to 4,000,000**
-regardless. The 4M pin, not the ~7.5M budget, is what bounds concurrency here: 4M
-tokens ≈ **3.8 full-1M streams**, or 4 streams at ~1M each only if each stays under
-~1,000,000 tokens of prompt+reply.
+regardless.
+
+**Shipped-config ceiling, measured 2026-10-06 (`.30/.31/.32/.33`, stock loader, 0.80).** The
+boot9 log above is fast-loader; these four boots are the shipped config:
+
+```
+DSV4 memory calculation: … bytes_per_full_token=1670.75, available_bytes≈15.9 GB, full_token=9493504..9589504
+DSV4 pool sizes: full=<budget>   # what MemAvailable permits at 0.80
+DSV4 pool sizes: full=<pin>      # what MAX_TOTAL_TOKENS selects, clamped to the budget
+```
+
+| `MAX_TOTAL_TOKENS` pin | served `max_total_num_tokens` | free mem after boot |
+|--:|--:|--:|
+| 4,000,000 (old shipped) | 4,000,000 | 25.10 GB |
+| 9,000,000 | 8,999,936 | 14.39 GB |
+| 9,400,000 (now shipped) | 9,399,808 | 13.68 GB |
+| 10,000,000 | 9,589,504 (clamped) | 13.14 GB |
+
+**The true ceiling is `full_token` ≈ 9.5–9.6M tokens**, stable to ~1% across boots; a larger pin
+is clamped, never refused. The old 4M pin used **~58% of the ceiling**, so it was raised to
+**9,400,000**. `mem_fraction_static` is `(weights + KV pool) / capacity` (SGLang
+`memory_hook.py`), so any pin ≤ `full_token` sits inside the same 0.80 budget and leaves the same
+~20% outside it for transients — raising the pin does not eat the reserve.
+
+**Pool is page-shared, not extent-reserved.** Unlike the TensorFold lane, SGLang does not reserve
+each stream's declared window: 16 concurrent 1M-claiming requests were all admitted and decoded
+(`running-req` = the `MAX_RUNNING_REQUESTS=16` cap, zero errors, zero queue). Concurrent-1M-stream
+count is bounded by `MAX_RUNNING_REQUESTS` and total *actual* tokens (<9.6M), not by per-stream
+reservation. **`full token usage` reads 0.00 even under real draw in this build — do not use it.**
+
+**Still owed:** a 1M cold-prefill after the raise. With `DSV41_INDEXER_CHUNKED=1` the per-chunk
+transient is bounded (~2 GB logits) and upstream measured head low-water 6.6–7.7 GB during cold
+262k–1M prefills; the 9.4M pin leaves 13.68 GB at boot, so it should hold — but it was not re-run.
+
+**1M cold prefill VERIFIED 2026-10-06 (after a fleet reset).** A ~1M-token cold prompt ingested at
+**2909 tok/s** and replied correctly at the 9.4M pin. Host available dipped to ~5 GB low-water
+during the prefill (the indexer transient draws ~9 GB on top of the 13.7 GB pool) then recovered
+to 10 GB — so 9.4M leaves enough but the head is near its floor during a 1M prefill. The pin is
+now boot- and long-prefill-verified on all four nodes.
+
+**Do not raise `MEM_FRACTION_STATIC`.** A 0.90 probe wedged three of four nodes on 2026-10-06
+(GPU pool *is* host memory on GB10; userspace/SSH dead while ping alive). Keep **0.80**: it is what
+caps the pool and keeps the transient reserve. See NOTES.md "INCIDENT".
 
 **A/B if you want the shipped-config number** (mirrors §10's discipline; read the pool
 from the boot log, never computed):
@@ -735,10 +775,10 @@ same model:
 | | knapcio TP=4 (README "Caveats" §) | TensorFold TP=2 (this section) |
 |:--|:--|:--|
 | Engine | real `sglang.launch_server` + `dsv41-sglang-overlay` | `tensorfold serve` (shim) |
-| Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 4000000** in `mods/dsv41-sglang-overlay/launcher.py:129` | **`--context` itself**; no pool flag exists |
+| Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 9400000** in `mods/dsv41-sglang-overlay/launcher.py` | **`--context` itself**; no pool flag exists |
 | Window vs pool | `CONTEXT_LENGTH` (per-request, clamped 4096..1048576) **separate** from the pool | same number — `cap = context + max_rows + 8` |
 | B/token/rank | ~1,670 (TP4: ~77 GiB of weights/rank leaves room) | ~2,900 marginal, and only ~2.1 GiB nominal |
-| Pool capacity | `MAX_TOTAL_TOKENS=4000000` pinned; boot line reports the *budget* the host allows | 1,048,576 total, ever |
+| Pool capacity | `MAX_TOTAL_TOKENS=9400000` pinned (ceiling ≈9.5–9.6M); the boot line's `full_token` is the *budget* the host allows | 1,048,576 total, ever |
 
 Confirmations run 2026-10-05: TensorFold exposes **no** pool/total-tokens flag
 (`serve --help` has none) and **no** env that sets one (grep of `families/deepseek_v41` for
@@ -747,11 +787,12 @@ Confirmations run 2026-10-05: TensorFold exposes **no** pool/total-tokens flag
 knapcio *can* hold many 1M streams while TensorFold cannot hold more than one.
 
 The `full_token=` figure in knapcio's boot line is the **maximum budget the host memory allows**,
-not tokens the server holds. The server then pins `MAX_TOTAL_TOKENS=4000000`, which is what bounds
-concurrency — so a "how many 1M streams fit" question is answered by the pin (~3.8), not by the
-budget the host would permit. Our own EP1 receipt shows both numbers in one boot (§7.1). The
-"~7.5M → 6.6 streams" pair once quoted in the README mixed the two: a budget figure divided by 1M,
-ignoring the pin. Corrected there and in §7.1.
+not tokens the server holds. The server pins `MAX_TOTAL_TOKENS` under it (9,400,000 as of
+2026-10-06, up from 4,000,000). Crucially the pool is **page-shared, not extent-reserved**, so a
+"how many 1M streams fit" question is not `pin ÷ 1M`: 16 concurrent 1M-claiming requests all ran.
+The bound is `MAX_RUNNING_REQUESTS` and total *actual* tokens. Our measured receipts are in §7.1;
+the "~7.5M → 6.6 streams" pair once quoted in the README mixed a budget figure with arithmetic and
+ignored the page-shared model. Corrected there and in §7.1.
 
 **`--context` is the shared KV pool, not a per-request allowance.** At startup rank 0 prints
 
