@@ -8,9 +8,10 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 ## DeepSeek V4
 
-| Recipe                                 | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                 |
-|:---------------------------------------|:-------|-------:|------:|-----:|---:|:------------------------------------------------------------|
-| deepseek-v4.1-flash-knapcio-tp4-1m-sglang | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                    |
+| Recipe                                       | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                |
+|:---------------------------------------------|:-------|-------:|------:|-----:|---:|:-----------------------------------------------------------|
+| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                   |
+| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1  |   73.0 | 197GB |    — |  2 | [Model][Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]         |
 
 ## Ornith 1.5
 
@@ -62,6 +63,11 @@ Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
 Read those before starting work in that directory. Archived arms and the lane's research record,
 journal, and coordination ledger live under [`../attic/qwen4/`](../attic/qwen4/).
 
+The DeepSeek V4.1-Flash lanes are documented in [`ds4/README.md`](ds4/README.md) (user guide)
+and [`ds4/AGENTS.md`](ds4/AGENTS.md) (design, boot gates, guards, and measurement discipline for
+both the knapcio TP=4 and TensorFold TP=2 lanes); the retired vLLM/EXL3 lane is under
+[`../attic/ds4/`](../attic/ds4/).
+
 # Model Flags
 
 | Flag | Tag           | Description                              |
@@ -72,6 +78,15 @@ journal, and coordination ledger live under [`../attic/qwen4/`](../attic/qwen4/)
 | 🐢   | slow          | C1 Slow (< 40t/s avg)                    |
 | 🚚   | large_context | Large context (>= 512k tokens)           |
 | 1    | single_user   | Low concurrency, single-user recommended |
+| 👀   | vision        | Model has vision capability              |
+| 👂   | listening     | Model has listening capability           |
+| 🗺   | world         | Model has world-aware capability         |
+| 👄   | speech        | Model has speech generation capability   |
+| 📸   | image         | Model has image generation capability    |
+| 🎥   | video         | Model has video generation capability    |
+| 🎼   | audio         | Model has audio generation capability    |
+| 📶   | embedding     | Model has embedding capability           |
+| 🔃   | reranking     | Model has reranking capability           |
 | 🏴   | uncensored    | Uncensored model                         |
 | 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
 | 💀   | broken        | Currently broken                         |
@@ -92,4 +107,5 @@ _Flags indicate characteristics of the model and are set in the recipe metadata.
 [jzinno/Ornith-1.5-35B-A3B-DFlash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard]: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+[Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
