@@ -189,6 +189,11 @@ bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91
 docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
 ```
 
+That file is vendored, verbatim, in this directory as **`Dockerfile.knapcio-dsv41`**
+(header + the exact upstream body, sha256 `4ec1976c…`) for reference beside the
+TensorFold Dockerfile. It is **not** self-contained — the real build reads the knapcio
+clone as context — so use the clone, not the copy, to build.
+
 To build locally instead of pulling, retag the result
 `dsv41-4x-spark:canary-roce` and add
 `distribution_config: { containers: { enabled: false } }` to the recipe.

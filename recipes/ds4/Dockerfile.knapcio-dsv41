@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# knapcio's DSV41 production image for DeepSeek-V4.1-Flash on four NVIDIA DGX
+# Spark (GB10) nodes, vendored for the sparkrun `ds4` lane.
+#
+# Provenance: upstream-verbatim from
+#   knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ 58f2321
+#   (https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
+# Everything below this header is exactly upstream's `Dockerfile.canary-roce`
+# (sha256 4ec1976c…); only this header was added when vendoring. Do not edit the
+# body without also updating the upstream pin, or the digest in AGENTS.md 5 stops
+# matching a reproducible build.
+#
+# NOT self-contained: every COPY reads from the knapcio repo as build context
+# (adapter/, boot.py, scripts/, tests/, benchmarks/, runtime/), and the SGLang
+# tree is staged by that repo's own script. Build it from a clone:
+#
+#   git clone https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4.git
+#   cd DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 && git checkout 58f232155917d388b6053eca079c617fd306c33c
+#   bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91a4b
+#   docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
+#
+# This file lives beside `recipes/ds4/Dockerfile.tensorfold-dsv41` for reference;
+# it is a copy, not the build recipe (the real one stays in the clone above).
+#
+# Layers: base `lmsysorg/sglang:dev-dsv41`, plus the upstream SGLang `dsv4.1`
+# branch @ `f80c91a4b`, the RoCEnante overlay (SG17) adapted to TP4, b12x +
+# b12x_next kernel packages, the adapter overlay, and the compiled row_store.so.
+# arm64-only. Built 2026-10-03 on 10.0.4.30 (rebuilt for a dynamic HEALTHCHECK:
+# `boot.py health` now discovers the served port at runtime instead of assuming
+# 8888; see AGENTS.md 5). Registry digest:
+#   littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05
+# (image id sha256:18e36391…, 33.5 GB).
+# CANARY 2026-09-16: same base image, but the SGLang python tree replaced by the upstream
+# dsv4.1 branch at f80c91a4b (2026-09-16 19:45 UTC; carries #39370 mHC/metadata fusion,
+# #39653 communication kernels, #39648 top-k, #39646 kernels) with the kernel packages the
+# branch pins (sglang-kernel 0.4.7, sgl-deep-gemm 0.2.0; aarch64 wheels from PyPI).
+# The tree comes from a GitHub tarball (runtime/sglang-canary/python) because the image's
+# git cannot fetch unauthenticated. Mia's SM120 page-split override is re-applied on top of
+# the branch's kernel file. Everything else is the production Dockerfile.
+# Tag: dsv41-4x-spark:canary
+FROM lmsysorg/sglang:dev-dsv41
+# Same mirror knob as Dockerfile.canary (Saolence, #6): --build-arg PIP_INDEX=<mirror>/simple
+ARG PIP_INDEX=https://pypi.org/simple
+RUN pip install --no-deps --no-cache-dir -i "$PIP_INDEX" "sglang-kernel==0.4.7" "sgl-deep-gemm==0.2.0"
+RUN rm -rf /sgl-workspace/sglang/python
+COPY runtime/sglang-canary/python /sgl-workspace/sglang/python
+RUN python3 -c "import sglang, sglang.srt.models.deepseek_v4, sglang.srt.layers.attention.deepseek_v4_backend, sglang.srt.models.deepseek_v4_dspark; print('import ok')"
+# RoCEnante overlay (SG17, rhys101) applied to the branch tree with offsets, then adapted to TP4
+COPY runtime/sglang-rocenante.patch runtime/roce_tp4_adapt.py /tmp/
+RUN cd /sgl-workspace/sglang && patch -p1 -F3 < /tmp/sglang-rocenante.patch && python3 /tmp/roce_tp4_adapt.py && rm /tmp/sglang-rocenante.patch /tmp/roce_tp4_adapt.py
+COPY runtime/b12x/b12x /opt/b12x/b12x
+RUN PYTHONPATH=/opt/b12x python3 -c "from b12x.comm import roce; print('roce', roce.API_VERSION)"
+# b12x main renamed to b12x_next (scripts/build_b12x_next.sh) for adapter/moe_b12x_next.py, beside
+# the SG17 b12x that RoCEnante needs; its JIT/tuning cache is B12X_NEXT_COMPILE_CACHE_DIR.
+COPY runtime/b12x_next/b12x_next /opt/b12x_next/b12x_next
+RUN PYTHONPATH=/opt/b12x:/opt/b12x_next python3 -c "import b12x.comm.roce, b12x_next.moe.fused_moe; print('b12x_next', open('/opt/b12x_next/b12x_next/SOURCE_COMMIT').read().strip())"
+WORKDIR /opt/dsv41
+COPY adapter /opt/dsv41/adapter
+RUN g++ -O2 -Wall -Wextra -Werror -std=c++17 -shared -fPIC -pthread \
+    adapter/row_store.cpp -o adapter/librow_store.so
+COPY runtime/flash_mla_sm120.canary.py /sgl-workspace/sglang/python/sglang/kernels/ops/attention/flash_mla_sm120.py
+COPY boot.py /opt/dsv41/boot.py
+COPY scripts /opt/dsv41/scripts
+COPY tests /opt/dsv41/tests
+COPY benchmarks /opt/dsv41/benchmarks
+RUN PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_thinking_alias.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_max_new_tokens.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_loop_abort.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_fast_load_pacing.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_fast_load_tp_slice.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_prefill_sp.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_fast_load_slab.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_moe_b12x_next_cpu.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_wo_a_w8.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_draft_tau.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_folded_fence.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_eager_glue.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_draft_head_fp8.py \
+ && BV_TEST_N=60000 PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_block_verify.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_autotune_keep.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_ab_variant.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_cert_head.py \
+ && PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_replay_guard.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_replicated_split.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_compact_gather.py \
+ && CUDA_VISIBLE_DEVICES= VC_TEST_N=60000 PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_verify_cap.py \
+ && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 /opt/dsv41/tests/test_spec_sync_free.py \
+ && CUDA_VISIBLE_DEVICES= python3 /opt/dsv41/tests/test_roce_ring.py \
+ && cd /opt/dsv41/tests && CUDA_VISIBLE_DEVICES= PYTHONPATH=/opt/dsv41/adapter python3 test_indexer_chunked_v3.py /sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_backend.py
+ENV PYTHONPATH=/opt/dsv41/adapter:/opt/b12x:/opt/b12x_next \
+    MODEL_PATH=/models/DeepSeek-V4.1-Flash \
+    STATE_PATH=/state OFFLOAD_MODE=nvme DSV41_CACHE_GIB=16
+EXPOSE 8888
+HEALTHCHECK --interval=30s --timeout=30s --start-period=30m --retries=3 \
+    CMD ["python3", "-S", "/opt/dsv41/boot.py", "health"]
+ENTRYPOINT ["python3", "-u", "/opt/dsv41/boot.py"]
+CMD ["run"]
