@@ -1,0 +1,892 @@
+
+=== house | model=deepseek | thinking=off | 37 items (0 cached) ===
+  [PASS] easy/arith-1   '1161'
+  [PASS] easy/arith-2   '12'
+  [PASS] easy/arith-3   '36'
+  [PASS] easy/arith-4   '169'
+  [PASS] easy/arith-5   '663'
+  [PASS] easy/wp-1      '8'
+  [PASS] easy/wp-2      '150'
+  [PASS] easy/wp-3      '31'
+  [PASS] easy/reason-1  'Yes.'
+  [PASS] easy/reason-2  'C'
+  [PASS] easy/fact-1    'Au'
+  [PASS] easy/fact-2    'Mercury'
+  [PASS] easy/fact-3    'Shakespeare'
+  [PASS] easy/fmt-1     '1, 2, 3, 4, 5'
+  [PASS] easy/fmt-2     'BANANA'
+  [PASS] easy/code-1    'def'
+  [PASS] easy/code-2    '3'
+  [PASS] easy/code-3    'mapping'
+  [PASS] easy/needle-1  'ZORBULON'
+  [PASS] hard/hard-arith-1 '74'
+  [PASS] hard/hard-arith-2 '14.85'
+  [PASS] hard/hard-arith-3 '3060'
+  [PASS] hard/hard-count '9'
+  [FAIL] hard/hard-rev  'nrukreps'
+  [PASS] hard/hard-upper 'Hold The Line'
+  [PASS] hard/hard-json '{"a": 42}'
+  [PASS] hard/trick-1   'They weigh the same, since a kilogram is a kilogram regardless of the '
+  [PASS] hard/trick-2   '5'
+  [PASS] hard/trick-3   '5'
+  [PASS] hard/code-recall 'QWX17'
+  [PASS] hard/order-1   'alpha, beta, gamma'
+  [PASS] hard/code-py   '4'
+  [PASS] hard/code-js   'object'
+  [PASS] hard/code-big  '55'
+  [PASS] hard/frac-1    '0.375'
+  [PASS] hard/big-1     '1111111110'
+  [PASS] hard/neg-1     'MAYBE'
+  => house: 36/37 = 97.3%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek.house.off.json
+
+=== gsm8k | model=deepseek | thinking=off | 200 items (0 cached) ===
+  [PASS] gsm8k/3        "Let's break it down:\n\n- He runs **3 sprints** each session.  \n- Each s"
+  [PASS] gsm8k/5        "Let's break it down.\n\n- One glass costs $5.\n- Every second glass costs"
+  [PASS] gsm8k/11       "Let's calculate step by step.\n\n**Step 1: Donuts**  \n3 dozen at $68 per"
+  [PASS] gsm8k/15       "Let's go step-by-step.\n\n**Step 1: Calculate potential profit from jewe"
+  [PASS] gsm8k/29       "Let's go step-by-step.\n\n**Step 1: Find the cost of the second pair of "
+  [PASS] gsm8k/32       "Let's go step by step.\n\n**Step 1: Time per dog per day**  \nEach dog ta"
+  [PASS] gsm8k/35       "Let's go step by step.\n\n1. **First 20 minutes:**  \n   He scores 4 poin"
+  [PASS] gsm8k/39       "Let's go step-by-step.\n\n---\n\n**Step 1: Find Dana's running speed.**\n\nW"
+  [PASS] gsm8k/55       "Let's go through it step by step.\n\n1. Jean starts with 30 lollipops.  "
+  [PASS] gsm8k/63       "Let's go step-by-step.\n\n**Step 1: First half of the year (6 months)** "
+  [PASS] gsm8k/71       "Let's go step-by-step.\n\n1. The first recipe has 20 instructions.  \n2. "
+  [PASS] gsm8k/77       "Let's go step-by-step.\n\n**Step 1: Sarah’s laundry amount**  \nSarah doe"
+  [PASS] gsm8k/81       "Let's go step by step.\n\n1. **Start with what Charlie had initially:** "
+  [PASS] gsm8k/82       "Alright, let's go step-by-step.  \n\n1. **Grace's weight** is given:  \n "
+  [PASS] gsm8k/84       "Let's define:\n\n- \\( W \\) = number of games won  \n- \\( L \\) = number of"
+  [PASS] gsm8k/92       "Let's go step-by-step.\n\n---\n\n**Step 1 – Find Corey’s age**  \nWe know J"
+  [PASS] gsm8k/94       "Let's go step-by-step.\n\n---\n\n**Step 1: Identify what we know.**\n\n- Num"
+  [PASS] gsm8k/97       "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the volume loss**\n\nF"
+  [PASS] gsm8k/98       "Let's go through the problem step by step.\n\n---\n\n**Step 1: Understand "
+  [PASS] gsm8k/107      "Let's break it down step by step.\n\n**Step 1: Total TV time given**  \nF"
+  [PASS] gsm8k/110      "Let's go step-by-step.\n\n**Step 1: Find how many fruit roll-ups Beatric"
+  [PASS] gsm8k/123      "Let's break it down step by step.\n\n**Step 1: First part of the run**  "
+  [PASS] gsm8k/124      "Let's go step-by-step.\n\n1. **Start with the letters needing stamps:** "
+  [PASS] gsm8k/129      "Let's go step-by-step.\n\n**Step 1: Total patient-minutes per day**  \n50"
+  [PASS] gsm8k/132      "Let's break it down step by step.\n\n**Step 1: Roller coaster rides**  \n"
+  [PASS] gsm8k/135      "Let's go through it step-by-step.\n\n1. **Brian’s original number of gam"
+  [PASS] gsm8k/140      'First, find the number of semi-automatic cars:  \nTotal cars = 20  \nAut'
+  [PASS] gsm8k/142      "Let's go step-by-step.\n\n1. **Video game time per day:**  \n   Jordan pl"
+  [PASS] gsm8k/144      "Let's go step-by-step.\n\n**Step 1: Determine the number of clients**  \n"
+  [PASS] gsm8k/149      "Let's go step-by-step.\n\n1. **Charlie’s friends**: We know Charlie has "
+  [PASS] gsm8k/154      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine the weekly schedule**"
+  [PASS] gsm8k/156      "Let's go step by step.\n\n1. **Find the total bananas needed per month**"
+  [PASS] gsm8k/160      "Let's go step-by-step.\n\n1. **Monday depth**: 17 feet.\n\n2. **Tuesday de"
+  [PASS] gsm8k/171      "Let's break it down:\n\n- **Spiders:** 80 spiders × 8 legs each = 640 le"
+  [PASS] gsm8k/179      'Lloyd earns $10 per hour.  \n\nFirst week: 5 hours × $10/hour = $50  \nSe'
+  [PASS] gsm8k/182      "Let's go step-by-step.\n\n---\n\n**Step 1 – Identify the variables and giv"
+  [PASS] gsm8k/185      "Let's go step by step.\n\n1. Jenna’s mom picked 20 apples.  \n2. Jenna pi"
+  [PASS] gsm8k/186      "Let's go step-by-step.\n\n---\n\n**Step 1: Define variables**\n\nLet \\( r \\)"
+  [PASS] gsm8k/190      "Let's go through it step by step.  \n\n- He collects for **3 hours**.  \n"
+  [PASS] gsm8k/201      "Let's go through it step by step.\n\n1. **Base salary for the year (with"
+  [PASS] gsm8k/207      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine the weight of each ca"
+  [PASS] gsm8k/211      "Let's define:\n\n- \\( r \\) = number of red chickens  \n- \\( w \\) = number"
+  [PASS] gsm8k/221      "Let's go through the problem step by step.\n\n1. **Initial water in the "
+  [FAIL] gsm8k/227      "Let's break it down step by step.\n\n1. **Base burrito**: $6.50  \n2. **E"
+  [PASS] gsm8k/232      "Let's go step-by-step.\n\n1. **Identify what’s given:**\n   - Number of a"
+  [PASS] gsm8k/234      "Let's go through the problem step by step.\n\n---\n\n**Step 1: Understand "
+  [PASS] gsm8k/239      "Let's go step-by-step.\n\n**Step 1: Total students initially**  \nTotal ="
+  [PASS] gsm8k/244      "Let's go step-by-step.\n\n**Step 1: Griffin starts with 24 fries.**\n\n**S"
+  [PASS] gsm8k/253      "Let's go step-by-step.\n\n1. Bill starts on the **3rd floor**.\n2. The pr"
+  [PASS] gsm8k/268      "Let's break it down step by step.\n\n**Step 1: Cost of newspaper ads**  "
+  [PASS] gsm8k/284      "Let's go step by step.\n\n**Week 1:**\n- Alani: 20 stories  \n- Braylen: 4"
+  [PASS] gsm8k/289      "Let's go step-by-step.\n\n**Step 1: Find the speed of the car in the slo"
+  [PASS] gsm8k/294      "Let's go through the problem step by step.\n\n1. **Total oranges:** Will"
+  [PASS] gsm8k/295      "Let's go step by step.\n\n**Day 1:**\n- Pushups: 100  \n- Squats: 50  \n- D"
+  [PASS] gsm8k/296      "Let's go step-by-step.\n\n**Step 1: Daily consumption per person**  \nEac"
+  [PASS] gsm8k/303      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine how many books were s"
+  [PASS] gsm8k/304      'Let’s go step-by-step.\n\n**Step 1: Determine weekly base pay**  \nWatson'
+  [PASS] gsm8k/310      "Let's go step-by-step.\n\n---\n\n**Step 1: Cost of business suits**  \nTheo"
+  [PASS] gsm8k/313      "Let's go step-by-step.\n\n---\n\n**Step 1: Find Cera's age six years ago.*"
+  [PASS] gsm8k/316      "Let's go step-by-step.\n\n---\n\n**Step 1: Marbles Solomon bought from Joh"
+  [PASS] gsm8k/317      'First, find the volume of the pool in cubic feet.  \nThe pool is \\(6 \\t'
+  [PASS] gsm8k/321      "Let's go step by step.\n\n1. The book costs $4.  \n2. The magazine costs "
+  [PASS] gsm8k/335      "Let's break it down step by step.\n\n**Step 1: Sugar for suckers**  \nEac"
+  [PASS] gsm8k/338      "Let's define the problem step by step.\n\n---\n\nWe have 3 groups:\n\n- Two "
+  [PASS] gsm8k/342      "Let's go through the problem step by step.\n\n1. **Friend's gift:**  \nLa"
+  [PASS] gsm8k/348      "Let's go step by step.\n\n**Step 1: Calculate daily revenue from tractor"
+  [PASS] gsm8k/350      "Let's go step by step.\n\n**Monday:**  \nYoga class = 1 hour.\n\n**Tuesday:"
+  [PASS] gsm8k/357      "Let's break this down step by step.\n\n**Step 1: Determine the cost per "
+  [PASS] gsm8k/363      "Let's go step-by-step.\n\n**Step 1: Outbound trip distance**  \nOriginal "
+  [PASS] gsm8k/374      "Let's break it down:\n\n- Mary has 30 sheep.\n- Half of them = 30 ÷ 2 = 1"
+  [FAIL] gsm8k/380      "Let's go step-by-step.\n\n---\n\n**Step 1: Identify the loan details**  \nP"
+  [PASS] gsm8k/392      "Let's go step-by-step.\n\n1. **Netflix cost**: $10/month.\n\n2. **Hulu and"
+  [PASS] gsm8k/398      "Let's go step-by-step.\n\n1. **Spiders**:  \nNancy saw 90 spiders.\n\n2. **"
+  [PASS] gsm8k/409      "Let's go step-by-step.\n\n**Step 1: May pay calculation**  \n- Number of "
+  [PASS] gsm8k/413      "Let's go through the problem step-by-step.\n\n---\n\n**Step 1: Interpret t"
+  [PASS] gsm8k/416      "Let's define:\n\n- \\( c \\) = number of camels (2 humps each)\n- \\( d \\) ="
+  [PASS] gsm8k/420      "Let's go through it step by step.\n\n1. **First bank loan**: $4000  \n2. "
+  [PASS] gsm8k/424      "Let's break this down step by step.\n\n1. **Buses**:  \n   - Each bus hol"
+  [PASS] gsm8k/438      "Let's go step-by-step.\n\n**Step 1: Determine how many pounds of onions "
+  [PASS] gsm8k/440      "First, let's convert the length from yards to feet.  \n\n1 yard = 3 feet"
+  [PASS] gsm8k/444      "Let's go step-by-step.\n\n1. **Movie C length**:  \nMovie C was 1.25 hour"
+  [PASS] gsm8k/449      "Let's break it down:\n\n- Six packets with 8 crayons each:  \n\\( 6 \\times"
+  [PASS] gsm8k/476      "Let's go through it step by step.\n\n**Step 1: Find the total number of "
+  [PASS] gsm8k/483      "Let's go step-by-step.\n\n1. **Gabriel’s current songs:** 20  \n   Capaci"
+  [PASS] gsm8k/484      "Let's go step-by-step.\n\n1. **Total oranges picked:** 60  \n2. **Stetson"
+  [PASS] gsm8k/510      "Let's go step-by-step.\n\n**Step 1: Determine the total weight to lose a"
+  [PASS] gsm8k/511      "Let's go through it step by step.\n\n1. **Daily pay**: Gerald earns $30 "
+  [PASS] gsm8k/523      "Let's go through it step by step.\n\n1. **Start with the total baked:** "
+  [PASS] gsm8k/527      'Let’s go step-by-step.\n\n---\n\n**Step 1: Determine one person’s rate in '
+  [PASS] gsm8k/533      "Let's go step-by-step.\n\n**Step 1: Identify what we know.**  \n- Total c"
+  [PASS] gsm8k/545      "Let's break it down:\n\n1. **One-way distance to work:** 3 miles  \n2. **"
+  [PASS] gsm8k/551      "Let's calculate step by step.\n\n**1. Cost of hamburgers:**  \n5 hamburge"
+  [PASS] gsm8k/552      "Let's break it down step by step.\n\n1. **First $1000 in sales**  \n   Co"
+  [PASS] gsm8k/556      "Let's break it down step by step.\n\n1. **Foot-long fish sub cost**: $40"
+  [PASS] gsm8k/561      "Let's go step-by-step.\n\n1. **Mark's weight**: 150 pounds.\n\n2. **Susan'"
+  [PASS] gsm8k/563      "Let's go step-by-step.\n\n**Step 1: Find the ages of the sons.**  \nOne s"
+  [PASS] gsm8k/566      "Let's go step-by-step.\n\n1. **Shiloh's age today:** 44 years old.  \n2. "
+  [PASS] gsm8k/569      "Let's go step by step.\n\n**Step 1: Calculate Mitchell's earnings.**  \nM"
+  [PASS] gsm8k/573      "Let's go step-by-step.\n\n1. **Initial amount in savings:**  \nKatina sta"
+  [PASS] gsm8k/586      "Let's go step by step.\n\n**Step 1: Calculate calories burned during aer"
+  [PASS] gsm8k/605      "Let's break it down step by step.\n\n**First 4 hours:**\n- Sold 15 cups p"
+  [PASS] gsm8k/609      "Let's go step-by-step.\n\n**Step 1: Butter per dozen**  \nIt takes \\( \\fr"
+  [PASS] gsm8k/614      "Let's go step-by-step.\n\n1. **Loads per week**  \nGary does laundry twic"
+  [PASS] gsm8k/618      "Let's go step-by-step.\n\n**Step 1: Total number of seats**  \nThe audito"
+  [PASS] gsm8k/619      "Let's go step-by-step.\n\n1. **Lights per pole:**  \nEach pole has 4 stre"
+  [PASS] gsm8k/623      "Let's go step-by-step.\n\n1. Charmaine will be 16 years old in 12 years."
+  [PASS] gsm8k/625      'First, find the total number of flowers planted:  \n10 rows × 20 flower'
+  [PASS] gsm8k/630      "Let's go step-by-step.\n\n1. **Total riders:** 100  \n2. **Percentage who"
+  [FAIL] gsm8k/649      "Let's go step-by-step.\n\n1. **Initial likes after 1 week:**  \n   Fishio"
+  [PASS] gsm8k/653      'Let’s go through it step by step.\n\n1. **Start of the week:** Sally had'
+  [PASS] gsm8k/662      "Let's break it down step by step.\n\n1. **Total spent:** $20.00  \n2. **C"
+  [PASS] gsm8k/664      "Let's go step-by-step.\n\n**Step 1: Total class time per week**  \nThe cl"
+  [PASS] gsm8k/666      "Let's go step-by-step.\n\n---\n\n**Step 1: Find Kassidy's money.**\n\nWe kno"
+  [PASS] gsm8k/683      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the rates**\n\n- In tu"
+  [PASS] gsm8k/699      "Let's go through it step by step.\n\n1. The box can hold **20 pencils** "
+  [PASS] gsm8k/707      'Let’s go step-by-step.\n\n1. The city uses **40%** of the river’s water.'
+  [PASS] gsm8k/708      "Let's go step-by-step.\n\n1. **Days in 2 weeks:**  \n   \\( 7 \\text{ days/"
+  [PASS] gsm8k/709      "Let's go step-by-step.\n\n---\n\n**Step 1: Chocolate ice cream rate**  \nTh"
+  [PASS] gsm8k/715      "Let's go step-by-step.\n\n**Step 1: Original planned price per computer*"
+  [PASS] gsm8k/721      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the rates**\n\n- Arms "
+  [PASS] gsm8k/726      "Let's go step-by-step.\n\n---\n\n**Step 1: Convert Topher’s shoe length to"
+  [PASS] gsm8k/727      "Let's go step-by-step.\n\n---\n\n**Step 1: Students' cars**\n\n- Number of s"
+  [PASS] gsm8k/739      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine the cost of a gallon "
+  [FAIL] gsm8k/768      "Let's go step-by-step.\n\n**Step 1: Understand the given information.** "
+  [PASS] gsm8k/771      "Let's go step-by-step.\n\n1. **Calculate money from eggplants**  \nBennet"
+  [PASS] gsm8k/772      "Let's go step-by-step.\n\n**Step 1: Total weekend hours available**  \nSa"
+  [PASS] gsm8k/779      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the problem**\n\nTotal"
+  [PASS] gsm8k/780      "Let's break this down step by step.\n\n---\n\n**Step 1 – Define variables*"
+  [PASS] gsm8k/790      "Let's go step-by-step.\n\n**Step 1: Find the number of groups.**  \nThere"
+  [PASS] gsm8k/801      "Let's go step-by-step.\n\n**Step 1: Number of students per class**  \nEac"
+  [PASS] gsm8k/809      "Let's go through the problem step by step.\n\n1. **Initial situation**: "
+  [PASS] gsm8k/812      "Let's go step-by-step.\n\n1. **First batch:**  \n   Rose picks 3 flowers "
+  [PASS] gsm8k/815      'Let’s define variables for each ingredient:\n\n- Let \\( z \\) = ounces of'
+  [PASS] gsm8k/819      'First, find the total amount raised by the students:\n\nTotal raised = $'
+  [PASS] gsm8k/840      "Let's go step-by-step.\n\n**Step 1: Understand the problem**  \nEach glue"
+  [PASS] gsm8k/852      "Let's go step-by-step.\n\n**Step 1: Cost of green food baskets**  \nEach "
+  [PASS] gsm8k/862      "Let's go step-by-step.\n\n**Step 1: Determine how many hours Paige baked"
+  [PASS] gsm8k/864      "Let's go step-by-step.\n\n1. **Total burritos ordered:** 600  \n2. **Stud"
+  [FAIL] gsm8k/873      'First, find the total cost of the 16 bolts.  \nEach bolt costs $0.03, s'
+  [PASS] gsm8k/886      "Let's go step-by-step.\n\n1. The singer has 50 microphones in total.\n2. "
+  [PASS] gsm8k/893      "Let's go step-by-step.\n\n1. Mark works 8 hours a day, 5 days a week.  \n"
+  [PASS] gsm8k/896      "Let's go step-by-step.\n\n**Step 1: Calculate total hours rented per mon"
+  [PASS] gsm8k/900      "Let's go step-by-step.\n\n**Step 1: Pages read yesterday**  \n- Denise: 1"
+  [PASS] gsm8k/902      "Let's break it down:\n\n- Each notebook costs $1.50.  \n- William bought "
+  [PASS] gsm8k/914      "Let's go through it step by step.  \n\n**Step 1: Total miles driven in t"
+  [PASS] gsm8k/928      "Let's go step-by-step.\n\n**Step 1: Monday's count**  \nMonday: 39 Junebu"
+  [PASS] gsm8k/930      'Let’s break it down step by step.\n\n1. First, count the toys Sophie alr'
+  [PASS] gsm8k/941      "Let's go through the problem step by step.\n\n1. **Total bottles from co"
+  [PASS] gsm8k/943      "Let's go step-by-step.\n\n**Step 1: Original price of the CDs**  \nEach C"
+  [PASS] gsm8k/949      "Let's go step-by-step.\n\n1. Deanna is 26 years old.  \n2. Marcus is five"
+  [PASS] gsm8k/951      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the problem**  \n- Th"
+  [PASS] gsm8k/954      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine the number of measuri"
+  [PASS] gsm8k/958      "Let's go step-by-step.\n\n1. Courtney reported the audience as 48 people"
+  [PASS] gsm8k/964      "Let's go step-by-step.\n\n1. Each episode is **20 minutes** long.\n2. The"
+  [PASS] gsm8k/967      "Let's go step-by-step.\n\n1. **Nani's age**: 8 years old.\n\n2. **Nani's b"
+  [PASS] gsm8k/968      "Let's break it down by type of stringing:\n\n1. **Synthetic gut racquets"
+  [PASS] gsm8k/974      "Let's go step-by-step.\n\n**Step 1: Find the total cost of the books.** "
+  [PASS] gsm8k/985      'Edgar eats 18 pretzels a day.  \nHis brother eats \\( \\frac{1}{2} \\) as '
+  [PASS] gsm8k/991      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the problem**\n\n- Hal"
+  [PASS] gsm8k/993      "Let's go step-by-step.\n\n---\n\n**Step 1: Define variables**\n\nLet \\( x \\)"
+  [PASS] gsm8k/996      "Let's go step-by-step.\n\n---\n\n**Step 1: Define variables**\n\nLet the age"
+  [PASS] gsm8k/1004     "Let's go step-by-step.\n\n**Step 1: Find how many chocolate bars Peter h"
+  [PASS] gsm8k/1015     "Let's go step-by-step.\n\n**Step 1: Total packs and pieces**  \nThe box h"
+  [PASS] gsm8k/1016     "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the problem**  \nInit"
+  [PASS] gsm8k/1023     "Let's break it down:\n\n- Man: 5 sandwiches/day  \n- Wife: 4 sandwiches/d"
+  [PASS] gsm8k/1025     "Let's go through it step by step.\n\n1. **Total eggs hidden:** 100  \n2. "
+  [PASS] gsm8k/1030     "Let's go step-by-step.\n\n---\n\n**Step 1: Probability the substitute teac"
+  [PASS] gsm8k/1037     "Let's go step-by-step.\n\n1. **Cost of Parmesan cheese**  \n   Parmesan i"
+  [PASS] gsm8k/1040     "Let's go step-by-step.\n\n**Monday:**  \nThey delivered 425 letters.\n\n**T"
+  [PASS] gsm8k/1054     "Let's go step-by-step.\n\n**Step 1: Determine the area each tile covers."
+  [PASS] gsm8k/1063     "Let's go step-by-step.\n\n1. **Total emails per day:** 80  \n2. **Emails "
+  [PASS] gsm8k/1076     "Let's calculate step by step.\n\n1. **Milkshakes**:  \nTerry sells 6 milk"
+  [PASS] gsm8k/1084     "Let's break it down.\n\nWe know:\n\n- Total fence = 100 feet.\n- Harry gets"
+  [PASS] gsm8k/1085     "Let's go step-by-step.\n\n**Step 1: Find the growth rate per year.**  \nT"
+  [PASS] gsm8k/1090     "Let's go step by step.\n\n1. **First child's height**:  \n   The first ch"
+  [PASS] gsm8k/1094     "Let's go step-by-step.\n\n**Step 1: Initial setup**  \n- Total sodas: 12 "
+  [PASS] gsm8k/1100     "Let's break it down step by step.\n\n1. **Daily lunch time**:  \nBobby ta"
+  [PASS] gsm8k/1108     "Let's go step by step.\n\n1. Cost of pots: $19  \n2. Cost of garden soil:"
+  [PASS] gsm8k/1118     "Let's go step-by-step.\n\n**Step 1: Initial counts**\n\n- Male guppies: 4 "
+  [PASS] gsm8k/1124     "Let's go step-by-step.\n\n---\n\n**Step 1: Work backwards from Kris.**\n\nKr"
+  [PASS] gsm8k/1139     "Let's go step-by-step.\n\n**Step 1: Cost of 4 packs without discount**  "
+  [PASS] gsm8k/1141     "Let's go step by step.\n\n**Step 1: Eggs for the first 30 days**  \nChest"
+  [PASS] gsm8k/1153     "Let's go step-by-step.\n\n**Step 1: Jim’s seashells**  \nJim collected 27"
+  [PASS] gsm8k/1157     "Let's go step-by-step.\n\n1. **Isabel’s height** is given: 7 feet.\n\n2. *"
+  [PASS] gsm8k/1183     "Let's go through the problem step by step.\n\n1. **Two apples fell from "
+  [PASS] gsm8k/1185     "Let's go step-by-step.\n\n---\n\n**Step 1: Determine how many slices each "
+  [PASS] gsm8k/1188     "Let's go step by step.\n\n1. **Digimon’s 20th anniversary** means 20 yea"
+  [PASS] gsm8k/1192     "Let's go step-by-step.\n\n**Step 1: Daily hours and days per week**  \nJe"
+  [FAIL] gsm8k/1193     "Let's break it down step by step.\n\n**Step 1: Identify each task and it"
+  [PASS] gsm8k/1197     "Let's go step-by-step.\n\n**Step 1: Cost per bottle of scotch**  \nJohn b"
+  [PASS] gsm8k/1198     "Let's go step-by-step.\n\n---\n\n**Day 1:**\n\n- White Oak: \\( 20 \\) trees  "
+  [PASS] gsm8k/1203     "Let's go step-by-step.\n\n**Step 1: Height of the house**  \nMattison is "
+  [PASS] gsm8k/1218     "Let's go step-by-step.\n\n**Step 1: Find the total number of students wh"
+  [PASS] gsm8k/1231     'First, I need to find the sum of all the quiz scores.  \n\nScores: 50, 8'
+  [PASS] gsm8k/1261     "Let's break it down step by step.\n\n**Step 1: Cost per week**  \n- Blous"
+  [PASS] gsm8k/1276     "Let's go step-by-step.\n\n**Step 1: Understand the problem**  \nJames wan"
+  [PASS] gsm8k/1278     "Let's go step-by-step.\n\n1. **Find the total number of seashells they f"
+  [PASS] gsm8k/1294     "Let's go step-by-step.\n\n**Step 1: Cost of the T-shirts**  \nThe deal is"
+  [PASS] gsm8k/1307     "Let's go step-by-step.\n\n1. **Number of tables**: 4  \n2. **Legs per tab"
+  [PASS] gsm8k/1312     "Let's go step-by-step.\n\n**Step 1: Meals per reservation**  \nEach reser"
+  => gsm8k: 194/200 = 97.0%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek.gsm8k.off.json
+
+=== arc | model=deepseek | thinking=off | 200 items (0 cached) ===
+  [PASS] arc/3          'D'
+  [FAIL] arc/5          'D'
+  [PASS] arc/11         'A'
+  [PASS] arc/15         'A'
+  [PASS] arc/29         'B'
+  [PASS] arc/32         'A'
+  [PASS] arc/35         'A'
+  [PASS] arc/39         'B'
+  [PASS] arc/55         'B'
+  [PASS] arc/63         'C'
+  [PASS] arc/71         'C'
+  [PASS] arc/77         'B'
+  [PASS] arc/81         'C'
+  [PASS] arc/82         'C'
+  [PASS] arc/84         'D'
+  [PASS] arc/92         'D'
+  [PASS] arc/94         'B'
+  [PASS] arc/97         'B'
+  [PASS] arc/98         'B'
+  [PASS] arc/107        'B'
+  [PASS] arc/110        'A'
+  [PASS] arc/123        'A'
+  [PASS] arc/124        'B'
+  [PASS] arc/129        'C'
+  [PASS] arc/132        'D'
+  [FAIL] arc/135        '2'
+  [PASS] arc/140        'D'
+  [PASS] arc/142        'A'
+  [PASS] arc/144        'A'
+  [PASS] arc/149        'A'
+  [PASS] arc/150        'C'
+  [PASS] arc/154        'B'
+  [PASS] arc/156        'C'
+  [PASS] arc/160        'A'
+  [PASS] arc/171        'D'
+  [PASS] arc/179        'C'
+  [FAIL] arc/182        'D'
+  [PASS] arc/185        'C'
+  [PASS] arc/186        'D'
+  [FAIL] arc/190        'D'
+  [PASS] arc/201        'C'
+  [PASS] arc/207        'C'
+  [PASS] arc/211        'D'
+  [PASS] arc/221        'B'
+  [PASS] arc/227        'B'
+  [PASS] arc/232        'A'
+  [PASS] arc/234        'C'
+  [PASS] arc/239        'A'
+  [PASS] arc/244        'B'
+  [PASS] arc/253        'D'
+  [PASS] arc/268        'B'
+  [PASS] arc/284        'B'
+  [PASS] arc/289        'C'
+  [PASS] arc/294        'C'
+  [PASS] arc/295        'B'
+  [PASS] arc/296        'C'
+  [PASS] arc/303        'C'
+  [PASS] arc/304        'A'
+  [PASS] arc/310        'B'
+  [FAIL] arc/313        '3'
+  [PASS] arc/316        'C'
+  [PASS] arc/317        'B'
+  [PASS] arc/321        'C'
+  [PASS] arc/335        'D'
+  [PASS] arc/338        'A'
+  [PASS] arc/342        'B'
+  [PASS] arc/346        'C'
+  [PASS] arc/348        'A'
+  [PASS] arc/350        'D'
+  [PASS] arc/357        'B'
+  [PASS] arc/363        'A'
+  [PASS] arc/374        'C'
+  [PASS] arc/380        'A'
+  [PASS] arc/392        'C'
+  [PASS] arc/398        'C'
+  [PASS] arc/409        'A'
+  [PASS] arc/413        'A'
+  [PASS] arc/416        'A'
+  [PASS] arc/420        'A'
+  [PASS] arc/422        'B'
+  [PASS] arc/424        'B'
+  [PASS] arc/438        'A'
+  [PASS] arc/440        'D'
+  [FAIL] arc/444        '2'
+  [PASS] arc/449        'D'
+  [PASS] arc/476        'B'
+  [PASS] arc/483        'B'
+  [PASS] arc/484        'D'
+  [PASS] arc/510        'B'
+  [PASS] arc/511        'C'
+  [PASS] arc/523        'A'
+  [PASS] arc/527        'D'
+  [PASS] arc/533        'C'
+  [PASS] arc/545        'C'
+  [PASS] arc/551        'A'
+  [PASS] arc/552        'C'
+  [PASS] arc/556        'D'
+  [PASS] arc/561        'A'
+  [PASS] arc/563        'A'
+  [PASS] arc/566        'A'
+  [PASS] arc/569        'D'
+  [PASS] arc/573        'B'
+  [PASS] arc/576        'A'
+  [PASS] arc/586        'B'
+  [FAIL] arc/605        'C'
+  [PASS] arc/609        'C'
+  [PASS] arc/611        'B'
+  [PASS] arc/614        'A'
+  [PASS] arc/618        'B'
+  [PASS] arc/619        'C'
+  [PASS] arc/623        'C'
+  [PASS] arc/625        'B'
+  [PASS] arc/630        'B'
+  [PASS] arc/649        'A'
+  [PASS] arc/653        'A'
+  [PASS] arc/662        'C'
+  [PASS] arc/664        'C'
+  [PASS] arc/666        'A'
+  [PASS] arc/683        'C'
+  [PASS] arc/699        'C'
+  [FAIL] arc/707        'C'
+  [PASS] arc/708        'B'
+  [PASS] arc/709        'A'
+  [PASS] arc/715        'D'
+  [PASS] arc/721        'B'
+  [PASS] arc/726        'D'
+  [PASS] arc/727        'C'
+  [PASS] arc/739        'C'
+  [PASS] arc/756        'D'
+  [FAIL] arc/768        'C'
+  [PASS] arc/771        'B'
+  [PASS] arc/772        'C'
+  [PASS] arc/779        'A'
+  [PASS] arc/780        'C'
+  [PASS] arc/790        'A'
+  [PASS] arc/801        'C'
+  [FAIL] arc/808        'B'
+  [PASS] arc/809        'D'
+  [PASS] arc/812        'C'
+  [PASS] arc/815        'A'
+  [PASS] arc/819        'C'
+  [PASS] arc/820        'D'
+  [PASS] arc/840        'C'
+  [PASS] arc/852        'B'
+  [PASS] arc/862        'D'
+  [PASS] arc/864        'D'
+  [PASS] arc/873        'B'
+  [PASS] arc/878        'B'
+  [FAIL] arc/886        '1'
+  [PASS] arc/893        'C'
+  [PASS] arc/896        'A'
+  [PASS] arc/900        'D'
+  [PASS] arc/902        'B'
+  [PASS] arc/914        'B'
+  [PASS] arc/928        'D'
+  [PASS] arc/930        'B'
+  [PASS] arc/936        'C'
+  [PASS] arc/941        'B'
+  [PASS] arc/943        'B'
+  [PASS] arc/949        'A'
+  [PASS] arc/951        'B'
+  [PASS] arc/954        'C'
+  [PASS] arc/958        'D'
+  [PASS] arc/964        'D'
+  [PASS] arc/967        'C'
+  [PASS] arc/968        'C'
+  [PASS] arc/971        'B'
+  [PASS] arc/974        'A'
+  [PASS] arc/978        'B'
+  [PASS] arc/982        'D'
+  [PASS] arc/983        'C'
+  [PASS] arc/985        'D'
+  [PASS] arc/991        'C'
+  [FAIL] arc/993        'C'
+  [PASS] arc/996        'B'
+  [PASS] arc/1004       'C'
+  [PASS] arc/1015       'D'
+  [PASS] arc/1016       'D'
+  [PASS] arc/1023       'D'
+  [PASS] arc/1025       'C'
+  [FAIL] arc/1030       'B'
+  [PASS] arc/1037       'B'
+  [PASS] arc/1040       'B'
+  [PASS] arc/1054       'A'
+  [FAIL] arc/1062       'A'
+  [PASS] arc/1063       'D'
+  [PASS] arc/1076       'D'
+  [PASS] arc/1084       'D'
+  [PASS] arc/1085       'A'
+  [PASS] arc/1090       'A'
+  [PASS] arc/1094       'D'
+  [PASS] arc/1100       'D'
+  [PASS] arc/1108       'B'
+  [PASS] arc/1118       'A'
+  [PASS] arc/1124       'C'
+  [PASS] arc/1139       'C'
+  [PASS] arc/1141       'D'
+  [PASS] arc/1153       'D'
+  [PASS] arc/1157       'C'
+  [PASS] arc/1163       'B'
+  => arc: 186/200 = 93.0%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek.arc.off.json
+
+=== house | model=deepseek-turbo | thinking=off | 37 items (0 cached) ===
+  [PASS] easy/arith-1   '1161'
+  [PASS] easy/arith-2   '12'
+  [PASS] easy/arith-3   '36'
+  [PASS] easy/arith-4   '169'
+  [PASS] easy/arith-5   '663'
+  [PASS] easy/wp-1      '8'
+  [PASS] easy/wp-2      '150'
+  [PASS] easy/wp-3      '31'
+  [PASS] easy/reason-1  'Yes.'
+  [PASS] easy/reason-2  'C'
+  [PASS] easy/fact-1    'Au'
+  [PASS] easy/fact-2    'Mercury'
+  [PASS] easy/fact-3    'Shakespeare'
+  [PASS] easy/fmt-1     '1, 2, 3, 4, 5'
+  [PASS] easy/fmt-2     'BANANA'
+  [PASS] easy/code-1    'def'
+  [PASS] easy/code-2    '3'
+  [PASS] easy/code-3    'mapping'
+  [PASS] easy/needle-1  'ZORBULON'
+  [PASS] hard/hard-arith-1 '74'
+  [PASS] hard/hard-arith-2 '14.85'
+  [PASS] hard/hard-arith-3 '3060'
+  [PASS] hard/hard-count '9'
+  [FAIL] hard/hard-rev  'nrukraps'
+  [PASS] hard/hard-upper 'Hold The Line'
+  [PASS] hard/hard-json '{"a": 42}'
+  [PASS] hard/trick-1   'They weigh the same, since a kilogram is a kilogram regardless of the '
+  [PASS] hard/trick-2   '5'
+  [PASS] hard/trick-3   '5'
+  [PASS] hard/code-recall 'QWX17'
+  [PASS] hard/order-1   'alpha, beta, gamma'
+  [PASS] hard/code-py   '4'
+  [PASS] hard/code-js   'object'
+  [PASS] hard/code-big  '55'
+  [PASS] hard/frac-1    '0.375'
+  [PASS] hard/big-1     '1111111110'
+  [PASS] hard/neg-1     'MAYBE'
+  => house: 36/37 = 97.3%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.house.off.json
+
+=== gsm8k | model=deepseek-turbo | thinking=off | 200 items (0 cached) ===
+  [PASS] gsm8k/3        "Let's break it down:\n\n- He runs **3 sprints** each session.\n- Each spr"
+  [PASS] gsm8k/5        "Let's break it down.\n\n- One glass costs $5.\n- Every second glass costs"
+  [PASS] gsm8k/11       "Let's calculate step by step.\n\n1. **Donuts**:  \n3 dozen × $68 per doze"
+  [PASS] gsm8k/15       "Let's compare the potential profits from each option.\n\n**Jewelry:**\n- "
+  [PASS] gsm8k/29       "Let's go step-by-step.\n\n1. **Find the cost of the second pair of heels"
+  [PASS] gsm8k/32       "Let's go step-by-step.\n\n1. **Daily time per dog**: Each dog takes 0.5 "
+  [PASS] gsm8k/35       "Let's go step-by-step.\n\n1. **First 20 minutes:**  \n   He scores 4 poin"
+  [PASS] gsm8k/39       "Let's go step-by-step.\n\n---\n\n**Step 1: Find Dana's running speed.**\n\nW"
+  [PASS] gsm8k/55       "Let's go through it step by step.\n\n1. Jean starts with 30 lollipops.  "
+  [PASS] gsm8k/63       "Let's go step-by-step.\n\n1. **First half of the year (6 months):**  \n  "
+  [PASS] gsm8k/71       "Let's go step-by-step.\n\n1. First recipe: 20 instructions.  \n2. Second "
+  [PASS] gsm8k/77       "Let's go step-by-step.\n\n1. **Sarah does 400 pounds of laundry.**  \n   "
+  [PASS] gsm8k/81       "Let's go step by step.\n\n1. Charlie starts with 10 stickers.  \n2. He bu"
+  [PASS] gsm8k/82       "Let's go step-by-step.\n\n1. **Grace's weight**: 125 pounds.\n\n2. **Alex'"
+  [PASS] gsm8k/84       "Let's define:\n\n- \\( W \\) = number of games won  \n- \\( L \\) = number of"
+  [PASS] gsm8k/92       "Let's go step-by-step.\n\n1. **James is 10 and is 1 year younger than Co"
+  [PASS] gsm8k/94       "Let's go step-by-step.\n\n---\n\n**Step 1: Identify the number of dogs.** "
+  [PASS] gsm8k/97       "Let's go step-by-step.\n\n1. **Understand the volume loss:**  \n   When t"
+  [PASS] gsm8k/98       "Let's go step-by-step.\n\n1. **Total cars originally:** 30 cars on the m"
+  [PASS] gsm8k/107      "Let's break it down step by step.\n\n**Monday and Tuesday:**  \n1-hour ep"
+  [PASS] gsm8k/110      "Let's go step-by-step.\n\n**Step 1: Find how many fruit roll-ups Beatric"
+  [PASS] gsm8k/123      'First, Rosie runs 10 miles per hour for 3 hours.  \nDistance in that ti'
+  [PASS] gsm8k/124      "Let's go step-by-step.\n\n1. **Start with the letters needing stamps:** "
+  [PASS] gsm8k/129      "Let's go step-by-step.\n\n**Step 1: Total patient-minutes per day**  \n50"
+  [PASS] gsm8k/132      "Let's break it down step by step.\n\n**Step 1: Roller coaster rides**  \n"
+  [PASS] gsm8k/135      "Let's go step-by-step.\n\n1. **Brian’s original number of video games:**"
+  [PASS] gsm8k/140      'First, find the number of semi-automatic cars:  \nTotal cars = 20  \nAut'
+  [PASS] gsm8k/142      "Let's go through it step-by-step.\n\n1. **Video game time per day:**  \nJ"
+  [PASS] gsm8k/144      "Let's go step-by-step.\n\n**Step 1: Determine the total number of client"
+  [PASS] gsm8k/149      "Let's go step-by-step.\n\n1. **Charlie has 3 times as many Facebook frie"
+  [PASS] gsm8k/154      "Let's break this down step by step.\n\n---\n\n**Step 1: Determine hours pe"
+  [PASS] gsm8k/156      "Let's break it down step by step.\n\n**Step 1: Find total bananas needed"
+  [PASS] gsm8k/160      "Let's go step-by-step.\n\n1. **Monday depth**: 17 feet.  \n2. **Tuesday d"
+  [PASS] gsm8k/171      "Let's break it down:\n\n- **Spiders**: 80 spiders × 8 legs each = \\( 80 "
+  [PASS] gsm8k/179      'Lloyd earns $10 per hour.  \n\nFirst week: 5 hours × $10 = $50  \nSecond '
+  [PASS] gsm8k/182      "Let's go step-by-step.\n\n---\n\n**Step 1 – Define variables**  \nLet:  \n- "
+  [PASS] gsm8k/185      "Let's break it down:\n\n1. Jenna’s mom picked 20 apples.  \n2. Jenna pick"
+  [PASS] gsm8k/186      "Let's break this down step by step.\n\n---\n\n**Step 1: Define variables**"
+  [PASS] gsm8k/190      "Let's go step-by-step.\n\n1. **Convert hours to minutes**  \n   John coll"
+  [PASS] gsm8k/201      "Let's go through it step by step.\n\n1. **Base salary without the award:"
+  [PASS] gsm8k/207      "Let's go step-by-step.\n\n1. **Weight of one chocolate bar**  \n   Each c"
+  [PASS] gsm8k/211      "Let's define:\n\n- \\( r \\) = number of red chickens  \n- \\( w \\) = number"
+  [PASS] gsm8k/221      "Let's go step-by-step.\n\n1. **Initial water in tank:** 120 liters  \n2. "
+  [FAIL] gsm8k/227      "Let's break it down step by step.\n\n1. **Base burrito**: $6.50  \n2. **E"
+  [PASS] gsm8k/232      "Let's go step-by-step.\n\n1. **Ants**: The problem says there were 50 an"
+  [PASS] gsm8k/234      "Let's go through the problem step by step.\n\n---\n\n**Step 1: Understand "
+  [PASS] gsm8k/239      "Let's go step-by-step.\n\n**Step 1: Total students initially**  \nTotal ="
+  [PASS] gsm8k/244      "Let's go step-by-step.\n\n---\n\n**Step 1: Griffin starts with 24 fries.**"
+  [PASS] gsm8k/253      "Let's go step-by-step.\n\n1. Bill starts on the **3rd floor**.\n2. The pr"
+  [PASS] gsm8k/268      "Let's break it down step by step.\n\n**Step 1: Cost of newspaper ads**  "
+  [PASS] gsm8k/284      "Let's go step-by-step.\n\n**Step 1: Stories written in the first week** "
+  [PASS] gsm8k/289      "Let's go step-by-step.\n\n**Step 1: Speed of the car in the slow lane** "
+  [PASS] gsm8k/294      "Let's go through the problem step by step.\n\n1. **Total oranges:** Will"
+  [PASS] gsm8k/295      "Let's break it down day by day.\n\n**Day 1:**\n- Pushups: 100  \n- Squats:"
+  [PASS] gsm8k/296      "Let's go step-by-step.\n\n**Step 1: Daily consumption per person**  \nEac"
+  [PASS] gsm8k/303      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the given numbers**\n"
+  [PASS] gsm8k/304      "Let's go step-by-step.\n\n1. **Daily hours and hourly wage**  \n   Watson"
+  [PASS] gsm8k/310      "Let's go step-by-step.\n\n---\n\n**Step 1: Cost of business suits**  \nTheo"
+  [PASS] gsm8k/313      "Let's go step-by-step.\n\n---\n\n**Step 1: Find Noah’s age now.**\n\nSix yea"
+  [PASS] gsm8k/316      "Let's go step-by-step.\n\n---\n\n**Step 1: Marbles Solomon bought from Joh"
+  [PASS] gsm8k/317      'First, find the volume of the pool:  \n\nVolume = length × width × depth'
+  [PASS] gsm8k/321      "Let's go step by step.\n\n1. The book costs $4.  \n2. The magazine costs "
+  [PASS] gsm8k/335      "Let's break it down step by step.\n\n**Step 1: Sugar for suckers**  \nEac"
+  [PASS] gsm8k/338      "Let's define the problem step by step.\n\n---\n\nLet the two equal groups "
+  [PASS] gsm8k/342      "Let's go through the problem step by step.\n\n1. **Friend's gift:**  \nLa"
+  [PASS] gsm8k/348      "Let's go step-by-step.\n\n**Step 1: Calculate daily revenue from tractor"
+  [PASS] gsm8k/350      "Let's go step by step.\n\n1. **Monday**: Yoga class = 1 hour.\n\n2. **Tues"
+  [PASS] gsm8k/357      "Let's break this down step by step.\n\n**Step 1: Determine the cost per "
+  [PASS] gsm8k/363      "Let's break this down step by step.\n\n**Going to friend's house:**\n- Or"
+  [PASS] gsm8k/374      "Let's break it down:\n\n- Mary has 30 sheep.\n- Half of them = 15 sheep g"
+  [FAIL] gsm8k/380      "Let's go step-by-step.\n\n**Step 1: Understand the problem**  \nKaran bor"
+  [PASS] gsm8k/392      "Let's go step-by-step.\n\n1. **Netflix cost**: $10/month.\n\n2. **Hulu and"
+  [PASS] gsm8k/398      "Let's go step-by-step.\n\n1. **Spiders**:  \nNancy saw 90 spiders.\n\n2. **"
+  [PASS] gsm8k/409      "Let's go step-by-step.\n\n**Step 1: May pay calculation**  \n- Number of "
+  [PASS] gsm8k/413      "Let's go through the problem step by step.\n\n---\n\n**Step 1: Interpret t"
+  [PASS] gsm8k/416      "Let's define:\n\n- \\( c \\) = number of camels (2 humps each)  \n- \\( d \\)"
+  [PASS] gsm8k/420      "Let's go step-by-step.\n\n1. **First bank loan:** Mr. Josue received $40"
+  [PASS] gsm8k/424      "Let's break this down step by step.\n\n1. **Buses**:  \n   - 4 buses × 60"
+  [PASS] gsm8k/438      "Let's go step-by-step.\n\n**Step 1: Determine how many pounds of onions "
+  [PASS] gsm8k/440      'First, convert the length from yards to feet.  \n1 yard = 3 feet, so 3 '
+  [PASS] gsm8k/444      "Let's go step-by-step.\n\n1. Movie C was 1.25 hours.  \n1.25 hours = 1 ho"
+  [PASS] gsm8k/449      "Let's break it down:\n\n- Six packets with 8 crayons each:  \n\\( 6 \\times"
+  [PASS] gsm8k/476      "Let's go through it step by step.\n\n1. **Total spent:** $300  \n2. **Pri"
+  [PASS] gsm8k/483      "Let's go step-by-step.\n\n1. **Gabriel's current songs:**  \n   Gabriel h"
+  [PASS] gsm8k/484      "Let's go step-by-step.\n\n1. They picked 60 oranges total.  \n2. Stetson "
+  [PASS] gsm8k/510      "Let's go step-by-step.\n\n**Step 1: Determine the total weight to lose**"
+  [PASS] gsm8k/511      "Let's go step by step.\n\n1. Gerald earns $30 per day.\n2. He worked for "
+  [PASS] gsm8k/523      "Let's go through it step by step.\n\n1. **Start with the total baked:** "
+  [PASS] gsm8k/527      "Let's go step-by-step.\n\n**Step 1: Determine the rate of one person.** "
+  [PASS] gsm8k/533      "Let's break it down step by step.\n\n**Step 1: Identify what we know.**\n"
+  [PASS] gsm8k/545      "Let's go step-by-step.\n\n1. **Distance one way:**  \n   Jeff’s work is 3"
+  [PASS] gsm8k/551      "Let's calculate step by step.\n\n1. **Cost of hamburgers:**  \n   \\( 5 \\t"
+  [PASS] gsm8k/552      "Let's break it down step by step.\n\n1. **First $1000 in sales**  \n   Co"
+  [PASS] gsm8k/556      "Let's break it down step by step.\n\n1. **Foot-long fish sub cost**: $40"
+  [PASS] gsm8k/561      "Let's go step-by-step.\n\n1. **Mark's weight**: 150 pounds.  \n2. **Susan"
+  [PASS] gsm8k/563      "Let's go step-by-step.\n\n1. **Find the ages of the sons**  \n   - One so"
+  [PASS] gsm8k/566      "Let's go step-by-step.\n\n1. Shiloh is 44 years old today.  \n2. In 7 yea"
+  [PASS] gsm8k/569      "Let's go step by step.\n\n1. Liam made $63 that weekend.  \n2. Mitchell s"
+  [PASS] gsm8k/573      "Let's go step-by-step.\n\n1. **Initial amount in savings:** $3000  \n2. *"
+  [PASS] gsm8k/586      'First, calculate the calories burned during aerobics:  \n2 hours × 500 '
+  [PASS] gsm8k/605      "Let's break it down step by step.\n\n**First 4 hours:**\n- Sold 15 cups p"
+  [PASS] gsm8k/609      "Let's go step-by-step.\n\n1. **Butter per dozen croissants:**  \n   It ta"
+  [PASS] gsm8k/614      "Let's go step-by-step.\n\n1. **Loads per week**: Gary does laundry twice"
+  [PASS] gsm8k/618      "Let's go step-by-step.\n\n**Step 1: Total number of seats**  \nThe audito"
+  [PASS] gsm8k/619      "Let's go step-by-step.\n\n1. **Lights per pole**: Each pole has 4 street"
+  [PASS] gsm8k/623      "Let's go step by step.\n\n1. Charmaine will be 16 years old in 12 years."
+  [PASS] gsm8k/625      "Let's go step-by-step.\n\n1. **Total flowers planted**  \n   There are 10"
+  [PASS] gsm8k/630      "Let's go step-by-step.\n\n1. **Total riders:** 100  \n2. **Percentage who"
+  [FAIL] gsm8k/649      "Let's go step-by-step.\n\n1. **Initial likes after 1 week:**  \n   Fishio"
+  [PASS] gsm8k/653      "Let's go step-by-step.\n\n1. Sally’s bank account started at $200.  \n2. "
+  [PASS] gsm8k/662      "Let's break it down step by step.\n\n1. **Total spent:** $20.00  \n2. **C"
+  [PASS] gsm8k/664      "Let's go step-by-step.\n\n**Step 1: Total hours per week**  \nThe class m"
+  [PASS] gsm8k/666      "Let's go step-by-step.\n\n---\n\n**Step 1: Find Kassidy's money**  \nWe kno"
+  [PASS] gsm8k/683      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the rates**\n\n- In tu"
+  [PASS] gsm8k/699      "Let's go step-by-step.\n\n1. The box can hold 20 pencils in total.  \n2. "
+  [PASS] gsm8k/707      "Let's go step-by-step.\n\n1. The city uses **40%** of the river’s water."
+  [PASS] gsm8k/708      "Let's go step-by-step.\n\n1. **Days in 2 weeks**:  \n   \\( 7 \\text{ days/"
+  [PASS] gsm8k/709      "Let's break it down step by step.\n\n**Step 1: Chocolate ice cream rate*"
+  [PASS] gsm8k/715      "Let's go step-by-step.\n\n1. **Original planned price per computer:** $7"
+  [PASS] gsm8k/721      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the rates**\n\n- Arms "
+  [PASS] gsm8k/726      "Let's go step-by-step.\n\n---\n\n**Step 1: Convert Topher’s shoe length to"
+  [PASS] gsm8k/727      "Let's go step-by-step.\n\n---\n\n**Step 1: Students' cars**\n\n- Number of s"
+  [PASS] gsm8k/739      "Let's go step-by-step.\n\n1. **Find the cost of a gallon jar**  \n   The "
+  [FAIL] gsm8k/768      "Let's go step-by-step.\n\n1. **Ezra read 300 books this hour** (given). "
+  [PASS] gsm8k/771      "Let's break it down step by step.\n\n**Step 1: Calculate money from eggp"
+  [PASS] gsm8k/772      "Let's go step-by-step.\n\n**Step 1: Total weekend hours**  \nSaturday: 7 "
+  [PASS] gsm8k/779      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the driving part**  "
+  [PASS] gsm8k/780      "Let's break this down step by step.\n\n---\n\n**Step 1: Define variables**"
+  [PASS] gsm8k/790      "Let's go step-by-step.\n\n**Step 1: Find the number of groups.**  \nThere"
+  [PASS] gsm8k/801      "Let's break it down step by step.\n\n**Step 1: Number of students per cl"
+  [PASS] gsm8k/809      "Let's go through the problem step by step.\n\n1. Dale started with 100 c"
+  [PASS] gsm8k/812      "Let's go step-by-step.\n\n1. **First batch:** 3 flowers × 5 petals each "
+  [PASS] gsm8k/815      "Let's define variables for each ingredient:\n\n- Let \\( z \\) = ounces of"
+  [PASS] gsm8k/819      "Let's go step-by-step.\n\n1. **Total money raised:** $175,000  \n2. **Mon"
+  [PASS] gsm8k/840      "Let's go step-by-step.\n\n**Step 1: Understand the problem**  \nEach glue"
+  [PASS] gsm8k/852      "Let's go step-by-step.\n\n1. **Cost of green food baskets**  \n   Each gr"
+  [PASS] gsm8k/862      "Let's go step-by-step.\n\n1. **Time baking:**  \nFrom 1:00 PM to 6:00 PM "
+  [PASS] gsm8k/864      "Let's go step-by-step.\n\n1. **Total burritos ordered:** 600  \n2. **Stud"
+  [FAIL] gsm8k/873      "Let's go step-by-step.\n\n**Step 1: Find the total cost of the bolts.** "
+  [PASS] gsm8k/886      "Let's go step-by-step.\n\n1. The singer has 50 microphones total.  \n2. 2"
+  [PASS] gsm8k/893      "Let's go step-by-step.\n\n1. Mark works 8 hours a day for 5 days a week:"
+  [PASS] gsm8k/896      "Let's go step-by-step.\n\n1. **Calculate total hours rented per month** "
+  [PASS] gsm8k/900      "Let's go step-by-step.\n\n**Step 1: Pages read yesterday**  \n- Denise: 1"
+  [FAIL] gsm8k/902      "Let's break it down:\n\n- Notebooks cost $1.50 each. William bought 5 no"
+  [PASS] gsm8k/914      "Let's go through it step by step.\n\n1. **Total miles driven in the mont"
+  [PASS] gsm8k/928      "Let's go step-by-step.\n\n**Step 1: Monday's count**  \nMonday = 39 Juneb"
+  [PASS] gsm8k/930      'Let’s break it down step by step.\n\n1. First, count the toys Sophie alr'
+  [PASS] gsm8k/941      "Let's go through the problem step by step.\n\n1. **Total bottles from co"
+  [PASS] gsm8k/943      "Let's go step-by-step.\n\n**Step 1: Original price per CD**  \nEach CD co"
+  [PASS] gsm8k/949      "Let's go step-by-step.\n\n1. Deanna is 26 years old.  \n2. Marcus is five"
+  [PASS] gsm8k/951      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the thickness and pa"
+  [PASS] gsm8k/954      "Let's go step-by-step.\n\n---\n\n**Step 1: Determine the number of measuri"
+  [PASS] gsm8k/958      "Let's go step-by-step.\n\n1. Courtney reported the audience was 48 peopl"
+  [PASS] gsm8k/964      "Let's go step-by-step.\n\n1. Each episode is **20 minutes** long.\n2. The"
+  [PASS] gsm8k/967      "Let's go step-by-step.\n\n1. **Nani's age**: 8 years old.\n\n2. **His brot"
+  [PASS] gsm8k/968      "Let's break it down:\n\n- **Synthetic gut racquets:** 3 racquets × 15 mi"
+  [PASS] gsm8k/974      "Let's go step-by-step.\n\n**Step 1: Find the total cost of the books.** "
+  [PASS] gsm8k/985      'Edgar eats 18 pretzels a day.  \nHis brother eats \\( \\frac{1}{2} \\) as '
+  [PASS] gsm8k/991      "Let's go step-by-step.\n\n---\n\n**Step 1: Understand the timeline**\n\nHall"
+  [PASS] gsm8k/993      "Let's go step-by-step.\n\n---\n\n**Step 1: Interpret the problem.**\n\nWe ha"
+  [PASS] gsm8k/996      "Let's go step-by-step.\n\n---\n\n**Step 1: Define variables**\n\nLet the age"
+  [PASS] gsm8k/1004     "Let's go step-by-step.\n\n**Step 1: Find how many chocolate bars Peter h"
+  [PASS] gsm8k/1015     "Let's go step-by-step.\n\n1. **Total packs in the box:**  \n   The box ha"
+  [PASS] gsm8k/1016     "Let's go step-by-step.\n\n**Step 1: Understand the problem**  \nInitial p"
+  [PASS] gsm8k/1023     "Let's break it down:\n\n- Man: 5 sandwiches/day  \n- Wife: 4 sandwiches/d"
+  [PASS] gsm8k/1025     "Let's go through the problem step by step.\n\n1. **Total eggs hidden:** "
+  [PASS] gsm8k/1030     "Let's go step-by-step.\n\n---\n\n**Step 1: Probability the substitute teac"
+  [PASS] gsm8k/1037     "Let's go step-by-step.\n\n1. **Cost of Parmesan cheese**  \n   Price per "
+  [PASS] gsm8k/1040     "Let's go step-by-step.\n\n**Monday:**  \nThey delivered 425 letters.\n\n**T"
+  [PASS] gsm8k/1054     "Let's go step-by-step.\n\n1. **Area of kitchen floor**: 200 sq ft.  \n2. "
+  [PASS] gsm8k/1063     "Let's go step-by-step.\n\n1. **Total emails per day:**  \n   James gets 8"
+  [PASS] gsm8k/1076     "Let's calculate step by step.\n\n1. **Milkshakes**:  \n   \\( 6 \\times 5.5"
+  [PASS] gsm8k/1084     "Let's break it down.\n\nWe know:\n\n- Total fence = 100 feet.\n- Harry gets"
+  [PASS] gsm8k/1085     'Let’s go step-by-step.\n\n1. The crocodile grows 8 inches in 4 years.  \n'
+  [PASS] gsm8k/1090     "Let's go step-by-step.\n\n1. **First child's height**: 6 feet = \\( 6 \\ti"
+  [PASS] gsm8k/1094     "Let's go step-by-step.\n\n**Step 1: Initial setup**  \n- Total sodas: 12 "
+  [PASS] gsm8k/1100     "Let's break it down step by step.\n\n1. **Daily lunch time**:  \nBobby ta"
+  [PASS] gsm8k/1108     "Let's go step by step.\n\n1. Cost of pots: $19  \n2. Cost of garden soil:"
+  [PASS] gsm8k/1118     "Let's go step-by-step.\n\n**Step 1: Initial counts**\n\n- Male guppies: 4 "
+  [PASS] gsm8k/1124     "Let's go step-by-step.\n\n---\n\n**Step 1: Work backwards from Kris.**\n\nKr"
+  [PASS] gsm8k/1139     "Let's go step-by-step.\n\n**Step 1: Cost of 4 packs without discount**  "
+  [PASS] gsm8k/1141     "Let's break it down step by step.\n\n**Step 1: Eggs for the first 30 day"
+  [PASS] gsm8k/1153     "Let's go step-by-step.\n\n1. **Jim collected 27 seashells.**  \n   It say"
+  [PASS] gsm8k/1157     "Let's go step-by-step.\n\n1. Isabel is 7 feet tall.  \n2. Ned is two feet"
+  [PASS] gsm8k/1183     "Let's go through the problem step by step.\n\n1. **Start:**  \n   Two app"
+  [PASS] gsm8k/1185     "Let's go step-by-step.\n\n**Step 1: Determine total slices needed for ch"
+  [PASS] gsm8k/1188     "Let's go step-by-step.\n\n1. **Digimon’s 20th anniversary** means it cam"
+  [PASS] gsm8k/1192     "Let's go step-by-step.\n\n**Step 1: Daily hours and days per week**  \nJe"
+  [FAIL] gsm8k/1193     "Let's break it down step by step.\n\n**Step 1: Identify each task and it"
+  [PASS] gsm8k/1197     "Let's go step-by-step.\n\n**Step 1: Cost per bottle of scotch**  \nJohn b"
+  [PASS] gsm8k/1198     "Let's go step-by-step.\n\n**Day 1:**\n- White Oak: \\( 20 \\) trees.\n- Lodg"
+  [PASS] gsm8k/1203     "Let's go step-by-step.\n\n1. **Mattison’s height**: 60 inches.\n\n2. **Hou"
+  [PASS] gsm8k/1218     "Let's go step-by-step.\n\n**Step 1: Find the total number of students wh"
+  [PASS] gsm8k/1231     'First, count the number of scores:  \n50, 80, 80, 60, 40, 90, 100, 70, '
+  [PASS] gsm8k/1261     "Let's break it down step by step.\n\n**Step 1: Cost per week**  \n- Blous"
+  [PASS] gsm8k/1276     'First, I need to find the perimeter of the rectangular fence.  \n\nThe f'
+  [PASS] gsm8k/1278     "Let's go step-by-step.\n\n1. **Total seashells found:**  \nTom: 214  \nNan"
+  [PASS] gsm8k/1294     "Let's go step-by-step.\n\n**Step 1: Cost of the T-shirts**  \nThe deal is"
+  [PASS] gsm8k/1307     "Let's go step-by-step.\n\n1. **Number of tables**: 4  \n2. **Legs per tab"
+  [PASS] gsm8k/1312     "Let's go step-by-step.\n\n1. **Reservations per night:** 6  \n2. **Meals "
+  => gsm8k: 193/200 = 96.5%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.gsm8k.off.json
+
+=== arc | model=deepseek-turbo | thinking=off | 200 items (0 cached) ===
+  [PASS] arc/3          'D'
+  [FAIL] arc/5          'D'
+  [PASS] arc/11         'A'
+  [PASS] arc/15         'A'
+  [PASS] arc/29         'B'
+  [PASS] arc/32         'A'
+  [PASS] arc/35         'A'
+  [PASS] arc/39         'B'
+  [PASS] arc/55         'B'
+  [PASS] arc/63         'C'
+  [PASS] arc/71         'C'
+  [PASS] arc/77         'B'
+  [PASS] arc/81         'C'
+  [PASS] arc/82         'C'
+  [PASS] arc/84         'D'
+  [PASS] arc/92         'D'
+  [PASS] arc/94         'B'
+  [PASS] arc/97         'B'
+  [PASS] arc/98         'B'
+  [PASS] arc/107        'B'
+  [PASS] arc/110        'A'
+  [PASS] arc/123        'A'
+  [PASS] arc/124        'B'
+  [PASS] arc/129        'C'
+  [PASS] arc/132        'D'
+  [FAIL] arc/135        '2'
+  [PASS] arc/140        'D'
+  [PASS] arc/142        'A'
+  [PASS] arc/144        'A'
+  [PASS] arc/149        'A'
+  [PASS] arc/150        'C'
+  [PASS] arc/154        'B'
+  [PASS] arc/156        'C'
+  [PASS] arc/160        'A'
+  [PASS] arc/171        'D'
+  [PASS] arc/179        'C'
+  [FAIL] arc/182        'D'
+  [PASS] arc/185        'C'
+  [PASS] arc/186        'D'
+  [FAIL] arc/190        'D'
+  [PASS] arc/201        'C'
+  [PASS] arc/207        'C'
+  [PASS] arc/211        'D'
+  [PASS] arc/221        'B'
+  [PASS] arc/227        'B'
+  [PASS] arc/232        'A'
+  [PASS] arc/234        'C'
+  [PASS] arc/239        'A'
+  [PASS] arc/244        'B'
+  [PASS] arc/253        'D'
+  [PASS] arc/268        'B'
+  [PASS] arc/284        'B'
+  [PASS] arc/289        'C'
+  [PASS] arc/294        'C'
+  [PASS] arc/295        'B'
+  [PASS] arc/296        'C'
+  [PASS] arc/303        'C'
+  [PASS] arc/304        'A'
+  [FAIL] arc/310        'A'
+  [FAIL] arc/313        '3'
+  [PASS] arc/316        'C'
+  [PASS] arc/317        'B'
+  [PASS] arc/321        'C'
+  [PASS] arc/335        'D'
+  [PASS] arc/338        'A'
+  [PASS] arc/342        'B'
+  [PASS] arc/346        'C'
+  [PASS] arc/348        'A'
+  [PASS] arc/350        'D'
+  [PASS] arc/357        'B'
+  [PASS] arc/363        'A'
+  [PASS] arc/374        'C'
+  [PASS] arc/380        'A'
+  [PASS] arc/392        'C'
+  [PASS] arc/398        'C'
+  [PASS] arc/409        'A'
+  [PASS] arc/413        'A'
+  [PASS] arc/416        'A'
+  [PASS] arc/420        'A'
+  [PASS] arc/422        'B'
+  [PASS] arc/424        'B'
+  [PASS] arc/438        'A'
+  [PASS] arc/440        'D'
+  [FAIL] arc/444        '2'
+  [PASS] arc/449        'D'
+  [PASS] arc/476        'B'
+  [PASS] arc/483        'B'
+  [PASS] arc/484        'D'
+  [PASS] arc/510        'B'
+  [PASS] arc/511        'C'
+  [PASS] arc/523        'A'
+  [PASS] arc/527        'D'
+  [PASS] arc/533        'C'
+  [PASS] arc/545        'C'
+  [PASS] arc/551        'A'
+  [PASS] arc/552        'C'
+  [PASS] arc/556        'D'
+  [PASS] arc/561        'A'
+  [PASS] arc/563        'A'
+  [PASS] arc/566        'A'
+  [PASS] arc/569        'D'
+  [PASS] arc/573        'B'
+  [PASS] arc/576        'A'
+  [PASS] arc/586        'B'
+  [FAIL] arc/605        'C'
+  [PASS] arc/609        'C'
+  [PASS] arc/611        'B'
+  [PASS] arc/614        'A'
+  [PASS] arc/618        'B'
+  [PASS] arc/619        'C'
+  [PASS] arc/623        'C'
+  [PASS] arc/625        'B'
+  [PASS] arc/630        'B'
+  [PASS] arc/649        'A'
+  [PASS] arc/653        'A'
+  [PASS] arc/662        'C'
+  [PASS] arc/664        'C'
+  [PASS] arc/666        'A'
+  [PASS] arc/683        'C'
+  [PASS] arc/699        'C'
+  [FAIL] arc/707        'C'
+  [PASS] arc/708        'B'
+  [PASS] arc/709        'A'
+  [PASS] arc/715        'D'
+  [PASS] arc/721        'B'
+  [PASS] arc/726        'D'
+  [PASS] arc/727        'C'
+  [PASS] arc/739        'C'
+  [PASS] arc/756        'D'
+  [PASS] arc/768        'A'
+  [PASS] arc/771        'B'
+  [PASS] arc/772        'C'
+  [PASS] arc/779        'A'
+  [PASS] arc/780        'C'
+  [PASS] arc/790        'A'
+  [PASS] arc/801        'C'
+  [FAIL] arc/808        'B'
+  [PASS] arc/809        'D'
+  [PASS] arc/812        'C'
+  [PASS] arc/815        'A'
+  [PASS] arc/819        'C'
+  [PASS] arc/820        'D'
+  [PASS] arc/840        'C'
+  [PASS] arc/852        'B'
+  [PASS] arc/862        'D'
+  [PASS] arc/864        'D'
+  [PASS] arc/873        'B'
+  [PASS] arc/878        'B'
+  [FAIL] arc/886        '1'
+  [PASS] arc/893        'C'
+  [PASS] arc/896        'A'
+  [PASS] arc/900        'D'
+  [PASS] arc/902        'B'
+  [PASS] arc/914        'B'
+  [PASS] arc/928        'D'
+  [PASS] arc/930        'B'
+  [PASS] arc/936        'C'
+  [PASS] arc/941        'B'
+  [PASS] arc/943        'B'
+  [PASS] arc/949        'A'
+  [PASS] arc/951        'B'
+  [PASS] arc/954        'C'
+  [PASS] arc/958        'D'
+  [PASS] arc/964        'D'
+  [PASS] arc/967        'C'
+  [PASS] arc/968        'C'
+  [PASS] arc/971        'B'
+  [PASS] arc/974        'A'
+  [PASS] arc/978        'B'
+  [PASS] arc/982        'D'
+  [PASS] arc/983        'C'
+  [PASS] arc/985        'D'
+  [PASS] arc/991        'C'
+  [FAIL] arc/993        'C'
+  [PASS] arc/996        'B'
+  [PASS] arc/1004       'C'
+  [PASS] arc/1015       'D'
+  [PASS] arc/1016       'D'
+  [PASS] arc/1023       'D'
+  [PASS] arc/1025       'C'
+  [FAIL] arc/1030       'B'
+  [PASS] arc/1037       'B'
+  [PASS] arc/1040       'B'
+  [PASS] arc/1054       'A'
+  [FAIL] arc/1062       'A'
+  [PASS] arc/1063       'D'
+  [PASS] arc/1076       'D'
+  [PASS] arc/1084       'D'
+  [PASS] arc/1085       'A'
+  [PASS] arc/1090       'A'
+  [PASS] arc/1094       'D'
+  [PASS] arc/1100       'D'
+  [PASS] arc/1108       'B'
+  [PASS] arc/1118       'A'
+  [PASS] arc/1124       'C'
+  [PASS] arc/1139       'C'
+  [PASS] arc/1141       'D'
+  [PASS] arc/1153       'D'
+  [PASS] arc/1157       'C'
+  [PASS] arc/1163       'B'
+  => arc: 186/200 = 93.0%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.arc.off.json

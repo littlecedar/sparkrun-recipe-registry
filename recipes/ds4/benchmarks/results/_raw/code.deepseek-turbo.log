@@ -1,0 +1,429 @@
+[skip] /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/data_code/humaneval_test.jsonl exists
+[skip] /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/data_code/mbpp_sanitized_test.jsonl exists
+
+=== humaneval | model=deepseek-turbo | thinking=off | 164 items (0 cached) ===
+  [PASS] HumanEval/0    'from typing import List'
+  [PASS] HumanEval/1    'from typing import List'
+  [PASS] HumanEval/2    ''
+  [PASS] HumanEval/3    'from typing import List'
+  [PASS] HumanEval/4    'from typing import List'
+  [PASS] HumanEval/5    'from typing import List'
+  [PASS] HumanEval/6    'from typing import List'
+  [PASS] HumanEval/7    'from typing import List'
+  [PASS] HumanEval/8    'from typing import List, Tuple'
+  [PASS] HumanEval/9    'from typing import List, Tuple'
+  [PASS] HumanEval/10   ''
+  [PASS] HumanEval/11   'from typing import List'
+  [PASS] HumanEval/12   'from typing import List, Optional'
+  [PASS] HumanEval/13   ''
+  [PASS] HumanEval/14   'from typing import List'
+  [PASS] HumanEval/15   ''
+  [PASS] HumanEval/16   ''
+  [PASS] HumanEval/17   'from typing import List'
+  [PASS] HumanEval/18   ''
+  [PASS] HumanEval/19   'from typing import List'
+  [PASS] HumanEval/20   'from typing import List, Tuple'
+  [PASS] HumanEval/21   'from typing import List'
+  [PASS] HumanEval/22   'from typing import List, Any'
+  [PASS] HumanEval/23   ''
+  [PASS] HumanEval/24   ''
+  [PASS] HumanEval/25   'from typing import List'
+  [PASS] HumanEval/26   'from typing import List'
+  [PASS] HumanEval/27   ''
+  [PASS] HumanEval/28   'from typing import List'
+  [PASS] HumanEval/29   'from typing import List'
+  [PASS] HumanEval/30   ''
+  [PASS] HumanEval/31   ''
+  [FAIL] HumanEval/32   'import math'  <- AssertionError
+  [PASS] HumanEval/33   ''
+  [PASS] HumanEval/34   ''
+  [PASS] HumanEval/35   ''
+  [PASS] HumanEval/36   ''
+  [PASS] HumanEval/37   ''
+  [PASS] HumanEval/38   ''
+  [PASS] HumanEval/39   ''
+  [PASS] HumanEval/40   ''
+  [PASS] HumanEval/41   ''
+  [PASS] HumanEval/42   ''
+  [PASS] HumanEval/43   ''
+  [PASS] HumanEval/44   ''
+  [PASS] HumanEval/45   ''
+  [PASS] HumanEval/46   ''
+  [PASS] HumanEval/47   ''
+  [PASS] HumanEval/48   ''
+  [PASS] HumanEval/49   ''
+  [PASS] HumanEval/50   ''
+  [PASS] HumanEval/51   ''
+  [PASS] HumanEval/52   ''
+  [PASS] HumanEval/53   ''
+  [PASS] HumanEval/54   ''
+  [PASS] HumanEval/55   ''
+  [PASS] HumanEval/56   ''
+  [PASS] HumanEval/57   ''
+  [PASS] HumanEval/58   ''
+  [PASS] HumanEval/59   ''
+  [PASS] HumanEval/60   ''
+  [PASS] HumanEval/61   ''
+  [PASS] HumanEval/62   ''
+  [PASS] HumanEval/63   ''
+  [PASS] HumanEval/64   ''
+  [PASS] HumanEval/65   ''
+  [PASS] HumanEval/66   ''
+  [PASS] HumanEval/67   ''
+  [PASS] HumanEval/68   ''
+  [PASS] HumanEval/69   ''
+  [PASS] HumanEval/70   ''
+  [PASS] HumanEval/71   ''
+  [PASS] HumanEval/72   ''
+  [PASS] HumanEval/73   ''
+  [PASS] HumanEval/74   ''
+  [PASS] HumanEval/75   ''
+  [PASS] HumanEval/76   ''
+  [PASS] HumanEval/77   ''
+  [PASS] HumanEval/78   ''
+  [PASS] HumanEval/79   ''
+  [PASS] HumanEval/80   ''
+  [PASS] HumanEval/81   ''
+  [PASS] HumanEval/82   ''
+  [FAIL] HumanEval/83   ''  <- AssertionError
+  [PASS] HumanEval/84   ''
+  [PASS] HumanEval/85   ''
+  [PASS] HumanEval/86   ''
+  [PASS] HumanEval/87   ''
+  [PASS] HumanEval/88   ''
+  [PASS] HumanEval/89   ''
+  [PASS] HumanEval/90   ''
+  [FAIL] HumanEval/91   ''  <- AssertionError: Test 2
+  [PASS] HumanEval/92   ''
+  [PASS] HumanEval/93   ''
+  [PASS] HumanEval/94   ''
+  [PASS] HumanEval/95   ''
+  [PASS] HumanEval/96   ''
+  [PASS] HumanEval/97   ''
+  [PASS] HumanEval/98   ''
+  [PASS] HumanEval/99   ''
+  [PASS] HumanEval/100  ''
+  [PASS] HumanEval/101  ''
+  [PASS] HumanEval/102  ''
+  [PASS] HumanEval/103  ''
+  [PASS] HumanEval/104  ''
+  [PASS] HumanEval/105  ''
+  [PASS] HumanEval/106  ''
+  [PASS] HumanEval/107  ''
+  [PASS] HumanEval/108  ''
+  [PASS] HumanEval/109  ''
+  [PASS] HumanEval/110  ''
+  [PASS] HumanEval/111  ''
+  [PASS] HumanEval/112  ''
+  [PASS] HumanEval/113  ''
+  [PASS] HumanEval/114  ''
+  [PASS] HumanEval/115  ''
+  [PASS] HumanEval/116  ''
+  [PASS] HumanEval/117  ''
+  [PASS] HumanEval/118  ''
+  [PASS] HumanEval/119  ''
+  [PASS] HumanEval/120  ''
+  [PASS] HumanEval/121  ''
+  [PASS] HumanEval/122  ''
+  [PASS] HumanEval/123  ''
+  [PASS] HumanEval/124  ''
+  [PASS] HumanEval/125  ''
+  [PASS] HumanEval/126  ''
+  [PASS] HumanEval/127  ''
+  [PASS] HumanEval/128  ''
+  [PASS] HumanEval/129  ''
+  [PASS] HumanEval/130  ''
+  [PASS] HumanEval/131  ''
+  [FAIL] HumanEval/132  ''  <- AssertionError
+  [PASS] HumanEval/133  ''
+  [PASS] HumanEval/134  ''
+  [PASS] HumanEval/135  ''
+  [PASS] HumanEval/136  ''
+  [PASS] HumanEval/137  ''
+  [PASS] HumanEval/138  ''
+  [PASS] HumanEval/139  ''
+  [FAIL] HumanEval/140  ''  <- AssertionError: This prints if this assert fails 4 (good for debugging!)
+  [PASS] HumanEval/141  ''
+  [PASS] HumanEval/142  ''
+  [PASS] HumanEval/143  ''
+  [PASS] HumanEval/144  ''
+  [FAIL] HumanEval/145  ''  <- AssertionError
+  [PASS] HumanEval/146  ''
+  [PASS] HumanEval/147  ''
+  [PASS] HumanEval/148  ''
+  [PASS] HumanEval/149  ''
+  [PASS] HumanEval/150  ''
+  [PASS] HumanEval/151  ''
+  [PASS] HumanEval/152  ''
+  [PASS] HumanEval/153  ''
+  [PASS] HumanEval/154  ''
+  [PASS] HumanEval/155  ''
+  [PASS] HumanEval/156  ''
+  [PASS] HumanEval/157  ''
+  [PASS] HumanEval/158  ''
+  [PASS] HumanEval/159  ''
+  [PASS] HumanEval/160  ''
+  [PASS] HumanEval/161  ''
+  [PASS] HumanEval/162  ''
+  [FAIL] HumanEval/163  ''  <- AssertionError: Test 1
+  => humaneval: 157/164 = 95.7%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.humaneval.off.json
+
+=== mbpp | model=deepseek-turbo | thinking=off | 257 items (0 cached) ===
+  [FAIL] mbpp/11        'Write a python function to remove first and la'  <- NameError: name 'remove_Occ' is not defined
+  [FAIL] mbpp/12        'Write a function to sort a given matrix in asc'  <- NameError: name 'sort_matrix' is not defined
+  [FAIL] mbpp/14        'Write a python function to find the volume of '  <- NameError: name 'find_Volume' is not defined
+  [FAIL] mbpp/16        'Write a function to that returns true if the i'  <- NameError: name 'text_lowercase_underscore' is not defined
+  [PASS] mbpp/17        'Write a function that returns the perimeter of'
+  [FAIL] mbpp/18        'Write a function to remove characters from the'  <- NameError: name 'remove_dirty_chars' is not defined
+  [FAIL] mbpp/19        'Write a function to find whether a given array'  <- NameError: name 'test_duplicate' is not defined. Did you mean: 'has_duplicates'?
+  [FAIL] mbpp/20        'Write a function to check if the given number '  <- NameError: name 'is_woodall' is not defined. Did you mean: 'is_woodball'?
+  [FAIL] mbpp/56        'Write a python function to check if a given nu'  <- NameError: name 'check' is not defined
+  [FAIL] mbpp/57        'Write a python function to find the largest nu'  <- NameError: name 'find_Max_Num' is not defined
+  [FAIL] mbpp/58        'Write a python function to check whether the g'  <- NameError: name 'opposite_Signs' is not defined. Did you mean: 'have_opposite_signs'?
+  [FAIL] mbpp/59        'Write a function to find the nth octagonal num'  <- NameError: name 'is_octagonal' is not defined
+  [FAIL] mbpp/61        'Write a python function to count the number of'  <- NameError: name 'count_Substrings' is not defined
+  [FAIL] mbpp/62        'Write a python function to find smallest numbe'  <- NameError: name 'smallest_num' is not defined
+  [PASS] mbpp/63        'Write a function to find the maximum differenc'
+  [FAIL] mbpp/64        'Write a function to sort a list of tuples usin'  <- NameError: name 'subject_marks' is not defined
+  [FAIL] mbpp/65        'Write a function to flatten a list and sum all'  <- NameError: name 'recursive_list_sum' is not defined
+  [FAIL] mbpp/66        'Write a python function to count the number of'  <- NameError: name 'pos_count' is not defined
+  [PASS] mbpp/67        'Write a function to find the number of ways to'
+  [FAIL] mbpp/68        'Write a python function to check whether the g'  <- NameError: name 'is_Monotonic' is not defined. Did you mean: 'is_monotonic'?
+  [FAIL] mbpp/69        'Write a function to check whether a list conta'  <- NameError: name 'is_sublist' is not defined
+  [FAIL] mbpp/70        'Write a function to find whether all the given'  <- NameError: name 'get_equal' is not defined
+  [FAIL] mbpp/71        'Write a function to sort a list of elements.'  <- NameError: name 'comb_sort' is not defined
+  [FAIL] mbpp/72        'Write a python function to check whether the g'  <- NameError: name 'dif_Square' is not defined
+  [FAIL] mbpp/74        'Write a function to check whether it follows t'  <- NameError: name 'is_samepatterns' is not defined
+  [FAIL] mbpp/75        'Write a function to find tuples which have all'  <- NameError: name 'find_tuples' is not defined
+  [FAIL] mbpp/77        'Write a python function to find whether a numb'  <- NameError: name 'is_Diff' is not defined
+  [FAIL] mbpp/79        'Write a python function to check whether the l'  <- NameError: name 'word_len' is not defined
+  [PASS] mbpp/80        'Write a function to find the nth tetrahedral n'
+  [FAIL] mbpp/82        'Write a function to find the volume of a spher'  <- NameError: name 'volume_sphere' is not defined
+  [FAIL] mbpp/83        'Write a python function to find the character '  <- NameError: name 'get_Char' is not defined
+  [FAIL] mbpp/84        'Write a function to find the nth number in the'  <- NameError: name 'sequence' is not defined
+  [FAIL] mbpp/85        'Write a function to find the surface area of a'  <- NameError: name 'surfacearea_sphere' is not defined
+  [PASS] mbpp/86        'Write a function to find nth centered hexagona'
+  [FAIL] mbpp/87        'Write a function to merge three dictionaries i'  <- NameError: name 'merge_dictionaries_three' is not defined
+  [FAIL] mbpp/88        'Write a function to get the frequency of all t'  <- NameError: name 'freq_count' is not defined
+  [FAIL] mbpp/89        'Write a function to find the closest smaller n'  <- NameError: name 'closest_num' is not defined
+  [FAIL] mbpp/90        'Write a python function to find the length of '  <- NameError: name 'len_log' is not defined
+  [FAIL] mbpp/91        'Write a function to check if a string is prese'  <- NameError: name 'find_substring' is not defined
+  [PASS] mbpp/92        'Write a function to check whether the given nu'
+  [PASS] mbpp/93        "Write a function to calculate the value of 'a'"
+  [FAIL] mbpp/94        'Given a list of tuples, write a function that '  <- NameError: name 'index_minimum' is not defined
+  [FAIL] mbpp/95        'Write a python function to find the length of '  <- NameError: name 'Find_Min_Length' is not defined
+  [FAIL] mbpp/96        'Write a python function to find the number of '  <- NameError: name 'divisor' is not defined
+  [FAIL] mbpp/97        'Write a function to find frequency of each ele'  <- NameError: name 'frequency_lists' is not defined
+  [FAIL] mbpp/98        'Write a function to multiply all the numbers i'  <- NameError: name 'multiply_num' is not defined
+  [PASS] mbpp/99        'Write a function to convert the given decimal '
+  [PASS] mbpp/100       'Write a function to find the next smallest pal'
+  [FAIL] mbpp/101       'Write a function to find the kth element in th'  <- NameError: name 'kth_element' is not defined. Did you mean: 'find_kth_element'?
+  [FAIL] mbpp/102       'Write a function to convert a snake case strin'  <- AssertionError
+  [FAIL] mbpp/103       'Write a function to find the Eulerian number a'  <- NameError: name 'eulerian_num' is not defined
+  [PASS] mbpp/104       'Write a function to sort each sublist of strin'
+  [FAIL] mbpp/105       'Write a python function to count true booleans'  <- NameError: name 'count' is not defined. Did you mean: 'round'?
+  [FAIL] mbpp/106       'Write a function to append the given list to t'  <- NameError: name 'add_lists' is not defined
+  [FAIL] mbpp/108       'Write a function to merge three lists into a s'  <- NameError: name 'merge_sorted_list' is not defined. Did you mean: 'merge_three_lists'?
+  [FAIL] mbpp/109       'Write a python function to find the number of '  <- NameError: name 'odd_Equivalent' is not defined
+  [FAIL] mbpp/111       'Write a function to find the common elements i'  <- NameError: name 'common_in_nested_lists' is not defined
+  [FAIL] mbpp/113       'Write a function to check if a string represen'  <- NameError: name 'check_integer' is not defined
+  [FAIL] mbpp/115       'Write a function to check whether all dictiona'  <- NameError: name 'empty_dit' is not defined
+  [PASS] mbpp/116       'Write a function to convert a given tuple of p'
+  [FAIL] mbpp/117       'Write a function to convert all possible conve'  <- NameError: name 'list_to_float' is not defined
+  [FAIL] mbpp/118       'Write a function to convert a string to a list'  <- NameError: name 'string_to_list' is not defined
+  [FAIL] mbpp/119       'Write a python function to find the element th'  <- NameError: name 'search' is not defined
+  [FAIL] mbpp/120       'Write a function to find the maximum absolute '  <- NameError: name 'max_product_tuple' is not defined
+  [FAIL] mbpp/123       'Write a function to sum all amicable numbers f'  <- NameError: name 'amicable_numbers_sum' is not defined
+  [FAIL] mbpp/124       'Write a function to get the angle of a complex'  <- NameError: name 'angle_complex' is not defined
+  [FAIL] mbpp/125       'Write a function to find the maximum differenc'  <- NameError: name 'find_length' is not defined
+  [FAIL] mbpp/126       'Write a python function to find the sum of com'  <- TypeError: 'int' object is not iterable
+  [FAIL] mbpp/127       'Write a function to multiply two integers.'  <- NameError: name 'multiply_int' is not defined
+  [FAIL] mbpp/128       'Write a function to find words that are longer'  <- NameError: name 'long_words' is not defined
+  [FAIL] mbpp/129       'Write a function to calculate whether the matr'  <- NameError: name 'magic_square_test' is not defined
+  [FAIL] mbpp/130       'Write a function to find the item with maximum'  <- NameError: name 'max_occurrences' is not defined
+  [PASS] mbpp/131       'Write a python function to reverse only the vo'
+  [FAIL] mbpp/132       'Write a function to convert a tuple to a strin'  <- NameError: name 'tup_string' is not defined
+  [FAIL] mbpp/133       'Write a function to calculate the sum of the n'  <- NameError: name 'sum_negativenum' is not defined. Did you mean: 'sum_negative_numbers'?
+  [FAIL] mbpp/135       'Write a function to find the nth hexagonal num'  <- NameError: name 'hexagonal_num' is not defined. Did you mean: 'hexagonal_number'?
+  [FAIL] mbpp/137       'Write a function to find the ratio of zeroes t'  <- NameError: name 'zero_count' is not defined
+  [FAIL] mbpp/138       'Write a python function to check whether the g'  <- NameError: name 'is_Sum_Of_Powers_Of_Two' is not defined
+  [FAIL] mbpp/139       'Write a function to find the circumference of '  <- NameError: name 'circle_circumference' is not defined
+  [FAIL] mbpp/140       'Write a function to flatten the list of lists '  <- NameError: name 'extract_singly' is not defined
+  [FAIL] mbpp/141       'Write a function to sort a list of elements.'  <- NameError: name 'pancake_sort' is not defined
+  [FAIL] mbpp/142       'Write a function to count number items that ar'  <- NameError: name 'count_samepair' is not defined
+  [FAIL] mbpp/143       'Write a function to find number of lists prese'  <- NameError: name 'find_lists' is not defined. Did you mean: 'count_lists'?
+  [FAIL] mbpp/145       'Write a python function to find the maximum di'  <- NameError: name 'max_Abs_Diff' is not defined
+  [FAIL] mbpp/160       'Write a function that returns integers x and y'  <- NameError: name 'find_solution' is not defined
+  [PASS] mbpp/161       'Write a function to remove all elements from a'
+  [PASS] mbpp/162       'Write a function to calculate the sum (n - 2*i'
+  [FAIL] mbpp/163       'Write a function to calculate the area of a re'  <- NameError: name 'area_polygon' is not defined
+  [FAIL] mbpp/164       'Write a function to determine if the sum of th'  <- NameError: name 'are_equivalent' is not defined
+  [FAIL] mbpp/165       'Write a function to count the number of charac'  <- NameError: name 'count_char_position' is not defined
+  [FAIL] mbpp/166       'Write a function that counts the number of pai'  <- NameError: name 'find_even_pair' is not defined
+  [PASS] mbpp/167       'Write a python function to find the smallest p'
+  [FAIL] mbpp/168       'Write a function to count the number of occurr'  <- NameError: name 'frequency' is not defined
+  [FAIL] mbpp/170       'Write a function to find the sum of numbers in'  <- NameError: name 'sum_range_list' is not defined
+  [FAIL] mbpp/171       'Write a function to find the perimeter of a re'  <- NameError: name 'perimeter_pentagon' is not defined
+  [FAIL] mbpp/172       'Write a function to count the number of occure'  <- NameError: name 'count_occurance' is not defined
+  [FAIL] mbpp/222       'Write a function to check if all the elements '  <- NameError: name 'check_type' is not defined
+  [PASS] mbpp/223       'Write a function that takes in a sorted array,'
+  [FAIL] mbpp/224       'Write a python function to count the number of'  <- NameError: name 'count_Set_Bits' is not defined. Did you mean: 'count_set_bits'?
+  [FAIL] mbpp/226       'Write a python function to remove the characte'  <- NameError: name 'odd_values_string' is not defined
+  [PASS] mbpp/227       'Write a function to find minimum of three numb'
+  [FAIL] mbpp/228       'Write a python function to check whether all t'  <- NameError: name 'all_Bits_Set_In_The_Given_Range' is not defined
+  [FAIL] mbpp/229       'Write a function that takes in an array and an'  <- NameError: name 're_arrange_array' is not defined
+  [FAIL] mbpp/230       'Write a function that takes in a string and ch'  <- NameError: name 'replace_blank' is not defined. Did you mean: 'replace_spaces'?
+  [FAIL] mbpp/232       'Write a function that takes in a list and an i'  <- NameError: name 'larg_nnum' is not defined
+  [FAIL] mbpp/233       'Write a function to find the lateral surface a'  <- NameError: name 'lateralsuface_cylinder' is not defined. Did you mean: 'lateral_surface_area_cylinder'?
+  [FAIL] mbpp/234       'Write a function to find the volume of a cube '  <- NameError: name 'volume_cube' is not defined
+  [FAIL] mbpp/235       'Write a python function to set all even bits o'  <- NameError: name 'even_bit_set_number' is not defined
+  [FAIL] mbpp/237       'Write a function that takes in a list of tuple'  <- NameError: name 'check_occurences' is not defined
+  [FAIL] mbpp/238       'Write a python function to count the number of'  <- NameError: name 'number_of_substrings' is not defined
+  [FAIL] mbpp/239       'Write a function that takes in positive intege'  <- NameError: name 'get_total_number_of_sequences' is not defined
+  [FAIL] mbpp/240       'Write a function that takes in two lists and r'  <- NameError: name 'replace_list' is not defined
+  [FAIL] mbpp/242       'Write a function to count the total number of '  <- NameError: name 'count_charac' is not defined. Did you mean: 'count_characters'?
+  [FAIL] mbpp/244       'Write a python function to find the next perfe'  <- NameError: name 'next_Perfect_Square' is not defined. Did you mean: 'next_perfect_square'?
+  [FAIL] mbpp/245       'Write a function that takes an array and finds'  <- NameError: name 'max_sum' is not defined
+  [FAIL] mbpp/246       'Write a function for computing square roots us'  <- NameError: name 'babylonian_squareroot' is not defined. Did you mean: 'babylonian_sqrt'?
+  [FAIL] mbpp/247       'Write a function to find the length of the lon'  <- NameError: name 'lps' is not defined
+  [FAIL] mbpp/248       'Write a function that takes in an integer n an'  <- AssertionError
+  [FAIL] mbpp/249       'Write a function to find the intersection of t'  <- NameError: name 'intersection_array' is not defined
+  [FAIL] mbpp/250       'Write a python function that takes in a tuple '  <- NameError: name 'count_X' is not defined
+  [FAIL] mbpp/251       'Write a function that takes in a list and an e'  <- NameError: name 'insert_element' is not defined
+  [FAIL] mbpp/252       'Write a python function to convert complex num'  <- NameError: name 'convert' is not defined
+  [FAIL] mbpp/253       'Write a python function that returns the numbe'  <- NameError: name 'count_integer' is not defined
+  [FAIL] mbpp/255       'Write a function that takes in a list and leng'  <- NameError: name 'combinations_colors' is not defined
+  [FAIL] mbpp/256       'Write a python function that takes in a non-ne'  <- NameError: name 'count_Primes_nums' is not defined
+  [PASS] mbpp/257       'Write a function that takes in two numbers and'
+  [FAIL] mbpp/259       'Write a function to maximize the given two tup'  <- NameError: name 'maximize_elements' is not defined
+  [FAIL] mbpp/260       'Write a function to find the nth newman–shanks'  <- NameError: name 'newman_prime' is not defined
+  [FAIL] mbpp/261       'Write a function that takes in two tuples and '  <- NameError: name 'division_elements' is not defined
+  [FAIL] mbpp/262       'Write a function that takes in a list and an i'  <- NameError: name 'split_two_parts' is not defined
+  [FAIL] mbpp/264       "Write a function to calculate a dog's age in d"  <- NameError: name 'dog_age' is not defined
+  [FAIL] mbpp/265       'Write a function that takes in a list and an i'  <- NameError: name 'list_split' is not defined
+  [FAIL] mbpp/266       'Write a function to find the lateral surface a'  <- NameError: name 'lateralsurface_cube' is not defined. Did you mean: 'lateral_surface_area_cube'?
+  [FAIL] mbpp/267       'Write a python function that takes in an integ'  <- NameError: name 'square_Sum' is not defined
+  [FAIL] mbpp/268       "Write a function to find the n'th star number."  <- NameError: name 'find_star_num' is not defined
+  [PASS] mbpp/269       'Write a function to find the ascii value of a '
+  [FAIL] mbpp/270       'Write a python function to find the sum of eve'  <- NameError: name 'sum_even_and_even_index' is not defined
+  [FAIL] mbpp/271       'Write a python function that takes in an integ'  <- NameError: name 'even_Power_Sum' is not defined
+  [FAIL] mbpp/272       'Write a function that takes in a list of tuple'  <- NameError: name 'rear_extract' is not defined
+  [FAIL] mbpp/273       'Write a function that takes in two tuples and '  <- NameError: name 'substract_elements' is not defined
+  [FAIL] mbpp/274       'Write a python function that takes in a positi'  <- NameError: name 'even_binomial_Coeff_Sum' is not defined
+  [FAIL] mbpp/276       'Write a function that takes in the radius and '  <- NameError: name 'volume_cylinder' is not defined
+  [FAIL] mbpp/277       'Write a function that takes in a dictionary an'  <- NameError: name 'dict_filter' is not defined
+  [FAIL] mbpp/278       'Write a function to find the number of element'  <- NameError: name 'count_first_elements' is not defined. Did you mean: 'count_before_element'?
+  [FAIL] mbpp/279       'Write a function to find the nth decagonal num'  <- NameError: name 'is_num_decagonal' is not defined
+  [FAIL] mbpp/280       'Write a function that takes in an array and el'  <- NameError: name 'sequential_search' is not defined
+  [FAIL] mbpp/281       'Write a python function to check if the elemen'  <- NameError: name 'all_unique' is not defined
+  [FAIL] mbpp/282       'Write a function to subtract two lists element'  <- NameError: name 'sub_list' is not defined
+  [FAIL] mbpp/283       'Write a python function takes in an integer an'  <- NameError: name 'validate' is not defined
+  [FAIL] mbpp/284       'Write a function that takes in a list and elem'  <- NameError: name 'check_element' is not defined
+  [FAIL] mbpp/285       'Write a function that checks whether a string '  <- NameError: name 'text_match_two_three' is not defined
+  [FAIL] mbpp/286       'Write a function to find the largest sum of a '  <- NameError: name 'max_sub_array_sum_repeated' is not defined
+  [FAIL] mbpp/287       'Write a python function takes in an integer n '  <- NameError: name 'square_Sum' is not defined
+  [FAIL] mbpp/290       'Write a function to find the list of maximum l'  <- NameError: name 'max_length' is not defined
+  [FAIL] mbpp/291       'Write a function to find out the number of way'  <- NameError: name 'count_no_of_ways' is not defined
+  [FAIL] mbpp/292       'Write a python function to find quotient of tw'  <- NameError: name 'find' is not defined
+  [FAIL] mbpp/293       'Write a function to find the third side of a r'  <- NameError: name 'otherside_rightangle' is not defined
+  [FAIL] mbpp/294       'Write a function to find the maximum value in '  <- NameError: name 'max_val' is not defined
+  [FAIL] mbpp/295       'Write a function to return the sum of all divi'  <- NameError: name 'sum_div' is not defined
+  [FAIL] mbpp/296       'Write a python function to count inversions in'  <- NameError: name 'get_Inv_Count' is not defined
+  [FAIL] mbpp/297       'Write a function to flatten a given nested lis'  <- NameError: name 'flatten_list' is not defined
+  [FAIL] mbpp/299       'Write a function to calculate the maximum aggr'  <- TypeError: unsupported operand type(s) for +: 'int' and 'str'
+  [FAIL] mbpp/300       'Write a function to find the count of all bina'  <- NameError: name 'count_binary_seq' is not defined. Did you mean: 'count_binary_sequences'?
+  [FAIL] mbpp/301       'Write a function to find the depth of a dictio'  <- AssertionError
+  [FAIL] mbpp/304       'Write a python function to find element at a g'  <- NameError: name 'find_Element' is not defined
+  [FAIL] mbpp/305       'Write a function to return two words from a li'  <- NameError: name 'start_withp' is not defined
+  [FAIL] mbpp/306       'Write a function to find the maximum sum of in'  <- NameError: name 'max_sum_increasing_subseq' is not defined
+  [FAIL] mbpp/307       'Write a function to get a colon of a tuple.'  <- NameError: name 'colon_tuplex' is not defined
+  [FAIL] mbpp/308       'Write a function to find the specified number '  <- NameError: name 'large_product' is not defined
+  [FAIL] mbpp/309       'Write a python function to find the maximum of'  <- NameError: name 'maximum' is not defined
+  [FAIL] mbpp/310       'Write a function to convert a given string to '  <- AssertionError
+  [FAIL] mbpp/311       'Write a python function to set the left most u'  <- NameError: name 'set_left_most_unset_bit' is not defined. Did you mean: 'set_leftmost_unset_bit'?
+  [FAIL] mbpp/312       'Write a function to find the volume of a cone.'  <- NameError: name 'volume_cone' is not defined
+  [FAIL] mbpp/388       'Write a python function to find the highest po'  <- NameError: name 'highest_Power_of_2' is not defined. Did you mean: 'highest_power_of_2'?
+  [FAIL] mbpp/389       "Write a function to find the n'th lucas number"  <- NameError: name 'find_lucas' is not defined
+  [FAIL] mbpp/390       'Write a function to apply a given format strin'  <- NameError: name 'add_string' is not defined
+  [FAIL] mbpp/391       'Write a function to convert more than one list'  <- NameError: name 'convert_list_dictionary' is not defined
+  [FAIL] mbpp/392       'Write a function to find the maximum sum possi'  <- NameError: name 'get_max_sum' is not defined
+  [FAIL] mbpp/393       'Write a function to find the list with maximum'  <- NameError: name 'max_length_list' is not defined
+  [FAIL] mbpp/394       'Write a function to check if given tuple conta'  <- NameError: name 'check_distinct' is not defined
+  [FAIL] mbpp/395       'Write a python function to find the first non-'  <- NameError: name 'first_non_repeating_character' is not defined. Did you mean: 'first_non_repeated_char'?
+  [FAIL] mbpp/396       'Write a function to check whether the given st'  <- NameError: name 'check_char' is not defined
+  [FAIL] mbpp/397       'Write a function to find the median of three n'  <- NameError: name 'median_numbers' is not defined
+  [FAIL] mbpp/398       'Write a function to compute the sum of digits '  <- AssertionError
+  [FAIL] mbpp/399       'Write a function to perform the mathematical b'  <- NameError: name 'bitwise_xor' is not defined
+  [FAIL] mbpp/400       'Write a function to extract the number of uniq'  <- NameError: name 'extract_freq' is not defined
+  [FAIL] mbpp/401       'Write a function to perform index wise additio'  <- NameError: name 'add_nested_tuples' is not defined
+  [FAIL] mbpp/404       'Write a python function to find the minimum of'  <- NameError: name 'minimum' is not defined
+  [FAIL] mbpp/405       'Write a function to check whether an element e'  <- NameError: name 'check_tuplex' is not defined
+  [FAIL] mbpp/406       'Write a python function to find whether the pa'  <- NameError: name 'find_Parity' is not defined
+  [FAIL] mbpp/407       'Write a function to create the next bigger num'  <- NameError: name 'rearrange_bigger' is not defined
+  [PASS] mbpp/408       'Write a function to find k number of smallest '
+  [FAIL] mbpp/409       'Write a function to find the minimum product f'  <- NameError: name 'min_product_tuple' is not defined
+  [FAIL] mbpp/410       'Write a function to find the minimum value in '  <- NameError: name 'min_val' is not defined
+  [FAIL] mbpp/411       'Write a function to convert the given snake ca'  <- AssertionError
+  [FAIL] mbpp/412       'Write a python function to remove odd numbers '  <- NameError: name 'remove_odd' is not defined
+  [PASS] mbpp/413       'Write a function to extract the nth element fr'
+  [FAIL] mbpp/414       'Write a python function to check whether any v'  <- NameError: name 'overlapping' is not defined
+  [FAIL] mbpp/415       'Write a python function to find a pair with hi'  <- NameError: name 'max_Product' is not defined
+  [FAIL] mbpp/417       'Write a function to find common first element '  <- NameError: name 'group_tuples' is not defined
+  [FAIL] mbpp/418       'Write a python function to find the element of'  <- NameError: name 'Find_Max' is not defined
+  [PASS] mbpp/419       'Write a function to round every number of a gi'
+  [FAIL] mbpp/420       'Write a python function to find the cube sum o'  <- NameError: name 'cube_Sum' is not defined
+  [FAIL] mbpp/421       'Write a function to concatenate each element o'  <- NameError: name 'concatenate_tuple' is not defined
+  [FAIL] mbpp/422       'Write a python function to find the average of'  <- NameError: name 'find_Average_Of_Cube' is not defined
+  [FAIL] mbpp/424       'Write a function to extract only the rear inde'  <- NameError: name 'extract_rear' is not defined
+  [FAIL] mbpp/425       'Write a function to count the number of sublis'  <- NameError: name 'count_element_in_list' is not defined
+  [FAIL] mbpp/426       'Write a function to filter odd numbers.'  <- NameError: name 'filter_oddnumbers' is not defined
+  [FAIL] mbpp/427       'Write a function to convert a date of yyyy-mm-'  <- NameError: name 'change_date_format' is not defined. Did you mean: 'convert_date_format'?
+  [PASS] mbpp/428       'Write a function to sort the given array by us'
+  [FAIL] mbpp/429       'Write a function to extract the elementwise an'  <- NameError: name 'and_tuples' is not defined
+  [FAIL] mbpp/430       'Write a function to find the directrix of a pa'  <- NameError: name 'parabola_directrix' is not defined
+  [FAIL] mbpp/431       'Write a function that takes two lists and retu'  <- NameError: name 'common_element' is not defined. Did you mean: 'have_common_element'?
+  [FAIL] mbpp/432       'Write a function to find the median length of '  <- NameError: name 'median_trapezium' is not defined
+  [FAIL] mbpp/433       'Write a function to check whether the entered '  <- NameError: name 'check_greater' is not defined
+  [FAIL] mbpp/434       'Write a function that matches a string that ha'  <- NameError: name 'text_match_one' is not defined
+  [FAIL] mbpp/435       'Write a python function to find the last digit'  <- NameError: name 'last_Digit' is not defined. Did you mean: 'last_digit'?
+  [FAIL] mbpp/436       'Write a python function to return the negative'  <- NameError: name 'neg_nos' is not defined
+  [FAIL] mbpp/437       'Write a function to remove odd characters in a'  <- NameError: name 'remove_odd' is not defined
+  [FAIL] mbpp/438       'Write a function to count bidirectional tuple '  <- NameError: name 'count_bidirectional' is not defined. Did you mean: 'count_bidirectional_pairs'?
+  [FAIL] mbpp/439       'Write a function to join a list of multiple in'  <- NameError: name 'multiple_to_single' is not defined
+  [FAIL] mbpp/440       'Write a function to find the first adverb and '  <- NameError: name 'find_adverb_position' is not defined
+  [FAIL] mbpp/441       'Write a function to find the surface area of a'  <- NameError: name 'surfacearea_cube' is not defined
+  [FAIL] mbpp/442       'Write a function to find the ration of positiv'  <- NameError: name 'positive_count' is not defined. Did you mean: 'positive_ratio'?
+  [FAIL] mbpp/443       'Write a python function to find the largest ne'  <- NameError: name 'largest_neg' is not defined
+  [FAIL] mbpp/444       'Write a function to trim each tuple by k in th'  <- NameError: name 'trim_tuple' is not defined. Did you mean: 'trim_tuples'?
+  [FAIL] mbpp/445       'Write a function to perform index wise multipl'  <- NameError: name 'index_multiplication' is not defined
+  [FAIL] mbpp/446       'Write a python function to count the occurence'  <- NameError: name 'count_Occurrence' is not defined
+  [FAIL] mbpp/447       'Write a function to find cubes of individual e'  <- NameError: name 'cube_nums' is not defined
+  [FAIL] mbpp/448       'Write a function to calculate the sum of perri'  <- NameError: name 'cal_sum' is not defined
+  [FAIL] mbpp/450       'Write a function to extract specified size of '  <- NameError: name 'extract_string' is not defined
+  [PASS] mbpp/451       'Write a function to remove all whitespaces fro'
+  [PASS] mbpp/452       'Write a function that gives loss amount on a s'
+  [FAIL] mbpp/453       'Write a python function to find the sum of eve'  <- NameError: name 'sumofFactors' is not defined
+  [FAIL] mbpp/454       'Write a function that matches a word containin'  <- NameError: name 'text_match_wordz' is not defined
+  [FAIL] mbpp/455       'Write a function to check whether the given mo'  <- NameError: name 'check_monthnumb_number' is not defined
+  [FAIL] mbpp/456       'Write a function to reverse each string in a g'  <- NameError: name 'reverse_string_list' is not defined. Did you mean: 'reverse_strings'?
+  [FAIL] mbpp/457       'Write a python function to find the sublist ha'  <- NameError: name 'Find_Min' is not defined
+  [PASS] mbpp/458       'Write a function to find the area of a rectang'
+  [FAIL] mbpp/459       'Write a function to remove uppercase substring'  <- NameError: name 'remove_uppercase' is not defined
+  [FAIL] mbpp/460       'Write a python function to get the first eleme'  <- NameError: name 'Extract' is not defined
+  [FAIL] mbpp/461       'Write a python function to count the upper cas'  <- NameError: name 'upper_ctr' is not defined
+  [FAIL] mbpp/462       'Write a function to find all possible combinat'  <- NameError: name 'combinations_list' is not defined
+  [FAIL] mbpp/463       'Write a function to find the maximum product s'  <- NameError: name 'max_subarray_product' is not defined
+  [FAIL] mbpp/464       'Write a function to check if all values are sa'  <- NameError: name 'check_value' is not defined
+  [FAIL] mbpp/465       'Write a function to drop empty items from a gi'  <- NameError: name 'drop_empty' is not defined
+  [FAIL] mbpp/468       'Write a function to find the maximum product f'  <- NameError: name 'max_product' is not defined
+  [FAIL] mbpp/470       'Write a function to find the pairwise addition'  <- NameError: name 'add_pairwise' is not defined
+  [FAIL] mbpp/471       'Write a python function to find the product of'  <- NameError: name 'find_remainder' is not defined
+  [FAIL] mbpp/472       'Write a python function to check whether the g'  <- NameError: name 'check_Consecutive' is not defined
+  [FAIL] mbpp/473       'Write a function to find the tuple intersectio'  <- TypeError: tuple_intersection() takes 1 positional argument but 2 were given
+  [FAIL] mbpp/474       'Write a function to replace characters in a st'  <- NameError: name 'replace_char' is not defined
+  [FAIL] mbpp/475       'Write a function to sort a dictionary by value'  <- NameError: name 'sort_counter' is not defined
+  [FAIL] mbpp/476       'Write a python function to find the sum of the'  <- NameError: name 'big_sum' is not defined
+  [FAIL] mbpp/477       'Write a python function to convert the given s'  <- NameError: name 'is_lower' is not defined
+  [FAIL] mbpp/478       'Write a function to remove lowercase substring'  <- NameError: name 'remove_lowercase' is not defined
+  [FAIL] mbpp/479       'Write a python function to find the first digi'  <- NameError: name 'first_Digit' is not defined. Did you mean: 'first_digit'?
+  => mbpp: 26/257 = 10.1%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.mbpp.off.json

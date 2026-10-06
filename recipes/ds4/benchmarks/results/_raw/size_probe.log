@@ -1,0 +1,30 @@
+
+##### HLE: "Which condition of Arrhenius's sixth impossibility theorem do critical-level views violate"...
+  deepseek         think=True    307.3s ct=16000 rt=None finish=length clen=0 tail=''
+  deepseek         think=False     4.5s ct=210 rt=None finish=stop clen=951 tail='— violating Weak Non-Sadism.\n\n**Answer: D. Weak Non-Sadism**'
+  deepseek-turbo   think=True    184.7s ct=16000 rt=16000 finish=length clen=0 tail=''
+  deepseek-turbo   think=False     3.2s ct=230 rt=0 finish=stop clen=1047 tail='g from being an improvement.\n\n**Answer: D. Weak Non-Sadism**'
+
+##### HLE: 'The concept of logical "depth" mentioned in _The Quark and the Jaguar_ has a reciprocal/in'...
+  deepseek         think=True    110.1s ct=6087 rt=None finish=stop clen=4 tail='ytyo'
+  deepseek         think=False     6.7s ct=394 rt=None finish=stop clen=1189 tail='= o  \n\n**etfo**\n\n---\n\n**Final answer:**  \n\\[\n\\boxed{etfo}\n\\]'
+  deepseek-turbo   think=True    178.9s ct=16000 rt=16000 finish=length clen=0 tail=''
+  deepseek-turbo   think=False     7.0s ct=606 rt=0 finish=stop clen=1772 tail='ation: **dtya**\n\n---\n\n**Final answer:**  \n\\[\n\\boxed{dtya}\n\\]'
+
+##### GPQA: 'Two quantum states with energies E1 and E2 have a lifetime of 10^-9 sec and 10^-8 sec, res'...
+  deepseek         think=True      3.6s ct=195 rt=None finish=stop clen=9 tail='\\boxed{D}'
+  deepseek         think=False     5.0s ct=331 rt=None finish=stop clen=1089 tail='ly resolvable.\n\nThus the correct choice is:\n\n\\[\n\\boxed{D}\n\\]'
+  deepseek-turbo   think=True      2.7s ct=207 rt=201 finish=stop clen=9 tail='\\boxed{D}'
+  deepseek-turbo   think=False     4.3s ct=415 rt=0 finish=stop clen=1215 tail='so resolvable.\n\nThus the correct choice is:\n\n\\[\n\\boxed{D}\n\\]'
+
+##### MATH500: 'Convert the point $(0,3)$ in rectangular coordinates to polar coordinates.  Enter your ans'...
+  deepseek         think=True      1.3s ct=59 rt=None finish=stop clen=22 tail='\\((3, \\frac{\\pi}{2})\\)'
+  deepseek         think=False     3.9s ct=299 rt=None finish=stop clen=874 tail='rac{\\pi}{2}\\right)\n\\]\n\n---\n\n\\[\n\\boxed{(3, \\frac{\\pi}{2})}\n\\]'
+  deepseek-turbo   think=True      1.2s ct=95 rt=85 finish=stop clen=21 tail='\\((3,\\frac{\\pi}{2})\\)'
+  deepseek-turbo   think=False     2.6s ct=273 rt=0 finish=stop clen=753 tail=') ✅\n\n---\n\n**Final answer:**\n\\[\n\\boxed{(3, \\frac{\\pi}{2})}\n\\]'
+
+##### AIME: 'Quadratic polynomials $P(x)$ and $Q(x)$ have leading coefficients $2$ and $-2,$ respective'...
+  deepseek         think=True     11.2s ct=637 rt=None finish=stop clen=472 tail='t(-\\frac12\\right)=108+8=116.\n\\]\nTherefore,\n\\[\n\\boxed{116}\n\\]'
+  deepseek         think=False    11.2s ct=767 rt=None finish=stop clen=1644 tail='\nP(0) + Q(0) = 698 + (-582) = 116\n\\]\n\n---\n\n\\[\n\\boxed{116}\n\\]'
+  deepseek-turbo   think=True      6.5s ct=635 rt=463 finish=stop clen=436 tail='t(-\\frac12\\right)=108+8=116.\n\\]\nTherefore,\n\\[\n\\boxed{116}\n\\]'
+  deepseek-turbo   think=False     6.1s ct=717 rt=0 finish=stop clen=1550 tail='\nP(0) + Q(0) = 698 + (-582) = 116\n\\]\n\n---\n\n\\[\n\\boxed{116}\n\\]'

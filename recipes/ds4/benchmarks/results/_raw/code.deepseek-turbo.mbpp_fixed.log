@@ -1,0 +1,262 @@
+[skip] /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/data_code/humaneval_test.jsonl exists
+[skip] /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/data_code/mbpp_sanitized_test.jsonl exists
+
+=== mbpp | model=deepseek-turbo | thinking=off | 257 items (0 cached) ===
+  [PASS] mbpp/11        'Write a python function to remove first and la'
+  [PASS] mbpp/12        'Write a function to sort a given matrix in asc'
+  [PASS] mbpp/14        'Write a python function to find the volume of '
+  [PASS] mbpp/16        'Write a function to that returns true if the i'
+  [PASS] mbpp/17        'Write a function that returns the perimeter of'
+  [FAIL] mbpp/18        'Write a function to remove characters from the'  <- NameError: name 'remove_dirty_chars' is not defined
+  [PASS] mbpp/19        'Write a function to find whether a given array'
+  [PASS] mbpp/20        'Write a function to check if the given number '
+  [FAIL] mbpp/56        'Write a python function to check if a given nu'  <- NameError: name 'check' is not defined
+  [PASS] mbpp/57        'Write a python function to find the largest nu'
+  [PASS] mbpp/58        'Write a python function to check whether the g'
+  [PASS] mbpp/59        'Write a function to find the nth octagonal num'
+  [PASS] mbpp/61        'Write a python function to count the number of'
+  [PASS] mbpp/62        'Write a python function to find smallest numbe'
+  [PASS] mbpp/63        'Write a function to find the maximum differenc'
+  [PASS] mbpp/64        'Write a function to sort a list of tuples usin'
+  [PASS] mbpp/65        'Write a function to flatten a list and sum all'
+  [PASS] mbpp/66        'Write a python function to count the number of'
+  [PASS] mbpp/67        'Write a function to find the number of ways to'
+  [PASS] mbpp/68        'Write a python function to check whether the g'
+  [PASS] mbpp/69        'Write a function to check whether a list conta'
+  [FAIL] mbpp/70        'Write a function to find whether all the given'  <- NameError: name 'get_equal' is not defined
+  [PASS] mbpp/71        'Write a function to sort a list of elements.'
+  [PASS] mbpp/72        'Write a python function to check whether the g'
+  [PASS] mbpp/74        'Write a function to check whether it follows t'
+  [PASS] mbpp/75        'Write a function to find tuples which have all'
+  [PASS] mbpp/77        'Write a python function to find whether a numb'
+  [PASS] mbpp/79        'Write a python function to check whether the l'
+  [PASS] mbpp/80        'Write a function to find the nth tetrahedral n'
+  [PASS] mbpp/82        'Write a function to find the volume of a spher'
+  [FAIL] mbpp/83        'Write a python function to find the character '  <- AssertionError
+  [PASS] mbpp/84        'Write a function to find the nth number in the'
+  [PASS] mbpp/85        'Write a function to find the surface area of a'
+  [PASS] mbpp/86        'Write a function to find nth centered hexagona'
+  [FAIL] mbpp/87        'Write a function to merge three dictionaries i'  <- AssertionError
+  [PASS] mbpp/88        'Write a function to get the frequency of all t'
+  [PASS] mbpp/89        'Write a function to find the closest smaller n'
+  [PASS] mbpp/90        'Write a python function to find the length of '
+  [PASS] mbpp/91        'Write a function to check if a string is prese'
+  [PASS] mbpp/92        'Write a function to check whether the given nu'
+  [PASS] mbpp/93        "Write a function to calculate the value of 'a'"
+  [PASS] mbpp/94        'Given a list of tuples, write a function that '
+  [PASS] mbpp/95        'Write a python function to find the length of '
+  [PASS] mbpp/96        'Write a python function to find the number of '
+  [PASS] mbpp/97        'Write a function to find frequency of each ele'
+  [PASS] mbpp/98        'Write a function to multiply all the numbers i'
+  [PASS] mbpp/99        'Write a function to convert the given decimal '
+  [PASS] mbpp/100       'Write a function to find the next smallest pal'
+  [PASS] mbpp/101       'Write a function to find the kth element in th'
+  [FAIL] mbpp/102       'Write a function to convert a snake case strin'  <- AssertionError
+  [FAIL] mbpp/103       'Write a function to find the Eulerian number a'  <- AssertionError
+  [PASS] mbpp/104       'Write a function to sort each sublist of strin'
+  [PASS] mbpp/105       'Write a python function to count true booleans'
+  [PASS] mbpp/106       'Write a function to append the given list to t'
+  [PASS] mbpp/108       'Write a function to merge three lists into a s'
+  [PASS] mbpp/109       'Write a python function to find the number of '
+  [PASS] mbpp/111       'Write a function to find the common elements i'
+  [PASS] mbpp/113       'Write a function to check if a string represen'
+  [PASS] mbpp/115       'Write a function to check whether all dictiona'
+  [PASS] mbpp/116       'Write a function to convert a given tuple of p'
+  [FAIL] mbpp/117       'Write a function to convert all possible conve'  <- AssertionError
+  [PASS] mbpp/118       'Write a function to convert a string to a list'
+  [PASS] mbpp/119       'Write a python function to find the element th'
+  [PASS] mbpp/120       'Write a function to find the maximum absolute '
+  [PASS] mbpp/123       'Write a function to sum all amicable numbers f'
+  [FAIL] mbpp/124       'Write a function to get the angle of a complex'  <- TypeError: must be real number, not complex
+  [PASS] mbpp/125       'Write a function to find the maximum differenc'
+  [PASS] mbpp/126       'Write a python function to find the sum of com'
+  [PASS] mbpp/127       'Write a function to multiply two integers.'
+  [PASS] mbpp/128       'Write a function to find words that are longer'
+  [PASS] mbpp/129       'Write a function to calculate whether the matr'
+  [PASS] mbpp/130       'Write a function to find the item with maximum'
+  [PASS] mbpp/131       'Write a python function to reverse only the vo'
+  [PASS] mbpp/132       'Write a function to convert a tuple to a strin'
+  [PASS] mbpp/133       'Write a function to calculate the sum of the n'
+  [PASS] mbpp/135       'Write a function to find the nth hexagonal num'
+  [PASS] mbpp/137       'Write a function to find the ratio of zeroes t'
+  [FAIL] mbpp/138       'Write a python function to check whether the g'  <- AssertionError
+  [PASS] mbpp/139       'Write a function to find the circumference of '
+  [PASS] mbpp/140       'Write a function to flatten the list of lists '
+  [PASS] mbpp/141       'Write a function to sort a list of elements.'
+  [PASS] mbpp/142       'Write a function to count number items that ar'
+  [FAIL] mbpp/143       'Write a function to find number of lists prese'  <- AssertionError
+  [PASS] mbpp/145       'Write a python function to find the maximum di'
+  [FAIL] mbpp/160       'Write a function that returns integers x and y'  <- AssertionError
+  [PASS] mbpp/161       'Write a function to remove all elements from a'
+  [PASS] mbpp/162       'Write a function to calculate the sum (n - 2*i'
+  [PASS] mbpp/163       'Write a function to calculate the area of a re'
+  [FAIL] mbpp/164       'Write a function to determine if the sum of th'  <- NameError: name 'are_equivalent' is not defined
+  [PASS] mbpp/165       'Write a function to count the number of charac'
+  [PASS] mbpp/166       'Write a function that counts the number of pai'
+  [PASS] mbpp/167       'Write a python function to find the smallest p'
+  [PASS] mbpp/168       'Write a function to count the number of occurr'
+  [PASS] mbpp/170       'Write a function to find the sum of numbers in'
+  [PASS] mbpp/171       'Write a function to find the perimeter of a re'
+  [PASS] mbpp/172       'Write a function to count the number of occure'
+  [PASS] mbpp/222       'Write a function to check if all the elements '
+  [PASS] mbpp/223       'Write a function that takes in a sorted array,'
+  [PASS] mbpp/224       'Write a python function to count the number of'
+  [PASS] mbpp/226       'Write a python function to remove the characte'
+  [PASS] mbpp/227       'Write a function to find minimum of three numb'
+  [PASS] mbpp/228       'Write a python function to check whether all t'
+  [FAIL] mbpp/229       'Write a function that takes in an array and an'  <- AssertionError
+  [PASS] mbpp/230       'Write a function that takes in a string and ch'
+  [PASS] mbpp/232       'Write a function that takes in a list and an i'
+  [PASS] mbpp/233       'Write a function to find the lateral surface a'
+  [PASS] mbpp/234       'Write a function to find the volume of a cube '
+  [FAIL] mbpp/235       'Write a python function to set all even bits o'  <- AssertionError
+  [FAIL] mbpp/237       'Write a function that takes in a list of tuple'  <- AssertionError
+  [PASS] mbpp/238       'Write a python function to count the number of'
+  [PASS] mbpp/239       'Write a function that takes in positive intege'
+  [PASS] mbpp/240       'Write a function that takes in two lists and r'
+  [PASS] mbpp/242       'Write a function to count the total number of '
+  [PASS] mbpp/244       'Write a python function to find the next perfe'
+  [PASS] mbpp/245       'Write a function that takes an array and finds'
+  [PASS] mbpp/246       'Write a function for computing square roots us'
+  [PASS] mbpp/247       'Write a function to find the length of the lon'
+  [FAIL] mbpp/248       'Write a function that takes in an integer n an'  <- AssertionError
+  [FAIL] mbpp/249       'Write a function to find the intersection of t'  <- AssertionError
+  [PASS] mbpp/250       'Write a python function that takes in a tuple '
+  [PASS] mbpp/251       'Write a function that takes in a list and an e'
+  [FAIL] mbpp/252       'Write a python function to convert complex num'  <- TypeError: 'int' object is not iterable
+  [PASS] mbpp/253       'Write a python function that returns the numbe'
+  [FAIL] mbpp/255       'Write a function that takes in a list and leng'  <- AssertionError
+  [PASS] mbpp/256       'Write a python function that takes in a non-ne'
+  [PASS] mbpp/257       'Write a function that takes in two numbers and'
+  [FAIL] mbpp/259       'Write a function to maximize the given two tup'  <- AssertionError
+  [FAIL] mbpp/260       'Write a function to find the nth newman–shanks'  <- AssertionError
+  [PASS] mbpp/261       'Write a function that takes in two tuples and '
+  [PASS] mbpp/262       'Write a function that takes in a list and an i'
+  [PASS] mbpp/264       "Write a function to calculate a dog's age in d"
+  [FAIL] mbpp/265       'Write a function that takes in a list and an i'  <- AssertionError
+  [PASS] mbpp/266       'Write a function to find the lateral surface a'
+  [PASS] mbpp/267       'Write a python function that takes in an integ'
+  [PASS] mbpp/268       "Write a function to find the n'th star number."
+  [PASS] mbpp/269       'Write a function to find the ascii value of a '
+  [PASS] mbpp/270       'Write a python function to find the sum of eve'
+  [PASS] mbpp/271       'Write a python function that takes in an integ'
+  [PASS] mbpp/272       'Write a function that takes in a list of tuple'
+  [PASS] mbpp/273       'Write a function that takes in two tuples and '
+  [PASS] mbpp/274       'Write a python function that takes in a positi'
+  [PASS] mbpp/276       'Write a function that takes in the radius and '
+  [PASS] mbpp/277       'Write a function that takes in a dictionary an'
+  [PASS] mbpp/278       'Write a function to find the number of element'
+  [PASS] mbpp/279       'Write a function to find the nth decagonal num'
+  [PASS] mbpp/280       'Write a function that takes in an array and el'
+  [PASS] mbpp/281       'Write a python function to check if the elemen'
+  [PASS] mbpp/282       'Write a function to subtract two lists element'
+  [PASS] mbpp/283       'Write a python function takes in an integer an'
+  [PASS] mbpp/284       'Write a function that takes in a list and elem'
+  [PASS] mbpp/285       'Write a function that checks whether a string '
+  [PASS] mbpp/286       'Write a function to find the largest sum of a '
+  [PASS] mbpp/287       'Write a python function takes in an integer n '
+  [FAIL] mbpp/290       'Write a function to find the list of maximum l'  <- AssertionError
+  [PASS] mbpp/291       'Write a function to find out the number of way'
+  [PASS] mbpp/292       'Write a python function to find quotient of tw'
+  [PASS] mbpp/293       'Write a function to find the third side of a r'
+  [FAIL] mbpp/294       'Write a function to find the maximum value in '  <- TypeError: '>' not supported between instances of 'int' and 'str'
+  [FAIL] mbpp/295       'Write a function to return the sum of all divi'  <- AssertionError
+  [PASS] mbpp/296       'Write a python function to count inversions in'
+  [PASS] mbpp/297       'Write a function to flatten a given nested lis'
+  [PASS] mbpp/299       'Write a function to calculate the maximum aggr'
+  [PASS] mbpp/300       'Write a function to find the count of all bina'
+  [FAIL] mbpp/301       'Write a function to find the depth of a dictio'  <- AssertionError
+  [FAIL] mbpp/304       'Write a python function to find element at a g'  <- AssertionError
+  [FAIL] mbpp/305       'Write a function to return two words from a li'  <- AssertionError
+  [FAIL] mbpp/306       'Write a function to find the maximum sum of in'  <- AssertionError
+  [FAIL] mbpp/307       'Write a function to get a colon of a tuple.'  <- AssertionError
+  [PASS] mbpp/308       'Write a function to find the specified number '
+  [PASS] mbpp/309       'Write a python function to find the maximum of'
+  [FAIL] mbpp/310       'Write a function to convert a given string to '  <- AssertionError
+  [FAIL] mbpp/311       'Write a python function to set the left most u'  <- AssertionError
+  [PASS] mbpp/312       'Write a function to find the volume of a cone.'
+  [PASS] mbpp/388       'Write a python function to find the highest po'
+  [PASS] mbpp/389       "Write a function to find the n'th lucas number"
+  [PASS] mbpp/390       'Write a function to apply a given format strin'
+  [PASS] mbpp/391       'Write a function to convert more than one list'
+  [PASS] mbpp/392       'Write a function to find the maximum sum possi'
+  [FAIL] mbpp/393       'Write a function to find the list with maximum'  <- AssertionError
+  [PASS] mbpp/394       'Write a function to check if given tuple conta'
+  [PASS] mbpp/395       'Write a python function to find the first non-'
+  [FAIL] mbpp/396       'Write a function to check whether the given st'  <- AssertionError
+  [PASS] mbpp/397       'Write a function to find the median of three n'
+  [FAIL] mbpp/398       'Write a function to compute the sum of digits '  <- AssertionError
+  [PASS] mbpp/399       'Write a function to perform the mathematical b'
+  [FAIL] mbpp/400       'Write a function to extract the number of uniq'  <- AssertionError
+  [PASS] mbpp/401       'Write a function to perform index wise additio'
+  [PASS] mbpp/404       'Write a python function to find the minimum of'
+  [PASS] mbpp/405       'Write a function to check whether an element e'
+  [PASS] mbpp/406       'Write a python function to find whether the pa'
+  [FAIL] mbpp/407       'Write a function to create the next bigger num'  <- AssertionError
+  [PASS] mbpp/408       'Write a function to find k number of smallest '
+  [PASS] mbpp/409       'Write a function to find the minimum product f'
+  [PASS] mbpp/410       'Write a function to find the minimum value in '
+  [FAIL] mbpp/411       'Write a function to convert the given snake ca'  <- AssertionError
+  [PASS] mbpp/412       'Write a python function to remove odd numbers '
+  [PASS] mbpp/413       'Write a function to extract the nth element fr'
+  [PASS] mbpp/414       'Write a python function to check whether any v'
+  [FAIL] mbpp/415       'Write a python function to find a pair with hi'  <- AssertionError
+  [FAIL] mbpp/417       'Write a function to find common first element '  <- AssertionError
+  [PASS] mbpp/418       'Write a python function to find the element of'
+  [PASS] mbpp/419       'Write a function to round every number of a gi'
+  [PASS] mbpp/420       'Write a python function to find the cube sum o'
+  [PASS] mbpp/421       'Write a function to concatenate each element o'
+  [PASS] mbpp/422       'Write a python function to find the average of'
+  [FAIL] mbpp/424       'Write a function to extract only the rear inde'  <- AssertionError
+  [PASS] mbpp/425       'Write a function to count the number of sublis'
+  [PASS] mbpp/426       'Write a function to filter odd numbers.'
+  [PASS] mbpp/427       'Write a function to convert a date of yyyy-mm-'
+  [PASS] mbpp/428       'Write a function to sort the given array by us'
+  [PASS] mbpp/429       'Write a function to extract the elementwise an'
+  [FAIL] mbpp/430       'Write a function to find the directrix of a pa'  <- AssertionError
+  [FAIL] mbpp/431       'Write a function that takes two lists and retu'  <- AssertionError
+  [PASS] mbpp/432       'Write a function to find the median length of '
+  [PASS] mbpp/433       'Write a function to check whether the entered '
+  [FAIL] mbpp/434       'Write a function that matches a string that ha'  <- AssertionError
+  [PASS] mbpp/435       'Write a python function to find the last digit'
+  [PASS] mbpp/436       'Write a python function to return the negative'
+  [FAIL] mbpp/437       'Write a function to remove odd characters in a'  <- AssertionError
+  [FAIL] mbpp/438       'Write a function to count bidirectional tuple '  <- AssertionError
+  [PASS] mbpp/439       'Write a function to join a list of multiple in'
+  [FAIL] mbpp/440       'Write a function to find the first adverb and '  <- AssertionError
+  [PASS] mbpp/441       'Write a function to find the surface area of a'
+  [FAIL] mbpp/442       'Write a function to find the ration of positiv'  <- AssertionError
+  [FAIL] mbpp/443       'Write a python function to find the largest ne'  <- AssertionError
+  [FAIL] mbpp/444       'Write a function to trim each tuple by k in th'  <- AssertionError
+  [FAIL] mbpp/445       'Write a function to perform index wise multipl'  <- TypeError: can't multiply sequence by non-int of type 'tuple'
+  [PASS] mbpp/446       'Write a python function to count the occurence'
+  [PASS] mbpp/447       'Write a function to find cubes of individual e'
+  [FAIL] mbpp/448       'Write a function to calculate the sum of perri'  <- AssertionError
+  [PASS] mbpp/450       'Write a function to extract specified size of '
+  [PASS] mbpp/451       'Write a function to remove all whitespaces fro'
+  [FAIL] mbpp/452       'Write a function that gives loss amount on a s'  <- AssertionError
+  [PASS] mbpp/453       'Write a python function to find the sum of eve'
+  [PASS] mbpp/454       'Write a function that matches a word containin'
+  [PASS] mbpp/455       'Write a function to check whether the given mo'
+  [PASS] mbpp/456       'Write a function to reverse each string in a g'
+  [PASS] mbpp/457       'Write a python function to find the sublist ha'
+  [PASS] mbpp/458       'Write a function to find the area of a rectang'
+  [PASS] mbpp/459       'Write a function to remove uppercase substring'
+  [PASS] mbpp/460       'Write a python function to get the first eleme'
+  [FAIL] mbpp/461       'Write a python function to count the upper cas'  <- AssertionError
+  [FAIL] mbpp/462       'Write a function to find all possible combinat'  <- AssertionError
+  [PASS] mbpp/463       'Write a function to find the maximum product s'
+  [PASS] mbpp/464       'Write a function to check if all values are sa'
+  [PASS] mbpp/465       'Write a function to drop empty items from a gi'
+  [FAIL] mbpp/468       'Write a function to find the maximum product f'  <- AssertionError
+  [PASS] mbpp/470       'Write a function to find the pairwise addition'
+  [PASS] mbpp/471       'Write a python function to find the product of'
+  [PASS] mbpp/472       'Write a python function to check whether the g'
+  [FAIL] mbpp/473       'Write a function to find the tuple intersectio'  <- AssertionError
+  [PASS] mbpp/474       'Write a function to replace characters in a st'
+  [FAIL] mbpp/475       'Write a function to sort a dictionary by value'  <- AssertionError
+  [PASS] mbpp/476       'Write a python function to find the sum of the'
+  [PASS] mbpp/477       'Write a python function to convert the given s'
+  [PASS] mbpp/478       'Write a function to remove lowercase substring'
+  [PASS] mbpp/479       'Write a python function to find the first digi'
+  => mbpp: 198/257 = 77.0%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.mbpp.off.json

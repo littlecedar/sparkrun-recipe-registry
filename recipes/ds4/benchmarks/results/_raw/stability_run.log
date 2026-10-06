@@ -1,0 +1,206 @@
+
+=== house | model=deepseek | thinking=off | 37 items (0 cached) ===
+  [PASS] easy/arith-1   '1161'
+  [PASS] easy/arith-2   '12'
+  [PASS] easy/arith-3   '36'
+  [PASS] easy/arith-4   '169'
+  [PASS] easy/arith-5   '663'
+  [PASS] easy/wp-1      '8'
+  [PASS] easy/wp-2      '150'
+  [PASS] easy/wp-3      '31'
+  [PASS] easy/reason-1  'Yes.'
+  [PASS] easy/reason-2  'C'
+  [PASS] easy/fact-1    'Au'
+  [PASS] easy/fact-2    'Mercury'
+  [PASS] easy/fact-3    'Shakespeare'
+  [PASS] easy/fmt-1     '1, 2, 3, 4, 5'
+  [PASS] easy/fmt-2     'BANANA'
+  [PASS] easy/code-1    'def'
+  [PASS] easy/code-2    '3'
+  [PASS] easy/code-3    'mapping'
+  [PASS] easy/needle-1  'ZORBULON'
+  [PASS] hard/hard-arith-1 '74'
+  [PASS] hard/hard-arith-2 '14.85'
+  [PASS] hard/hard-arith-3 '3060'
+  [PASS] hard/hard-count '9'
+  [FAIL] hard/hard-rev  'nrukreps'
+  [PASS] hard/hard-upper 'Hold The Line'
+  [PASS] hard/hard-json '{"a": 42}'
+  [PASS] hard/trick-1   'They weigh the same, since a kilogram is a kilogram regardless of the '
+  [PASS] hard/trick-2   '5'
+  [PASS] hard/trick-3   '5'
+  [PASS] hard/code-recall 'QWX17'
+  [PASS] hard/order-1   'alpha, beta, gamma'
+  [PASS] hard/code-py   '4'
+  [PASS] hard/code-js   'object'
+  [PASS] hard/code-big  '55'
+  [PASS] hard/frac-1    '0.375'
+  [PASS] hard/big-1     '1111111110'
+  [PASS] hard/neg-1     'MAYBE'
+  => house: 36/37 = 97.3%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek.house.off.run2.json
+
+=== gsm8k | model=deepseek | thinking=on | 60 items (0 cached) ===
+  [PASS] gsm8k/11       '3 dozen donuts: \\(3 \\times 68 = 204\\)\n\n2 dozen mini cupcakes: \\(2 \\tim'
+  [PASS] gsm8k/15       'Jewelry profit: \\(5000 \\times 0.025 = 125\\)\n\nElectronic gadgets profit'
+  [PASS] gsm8k/29       'One pair of heels costs $33, and the other costs twice as much, so:\n\n-'
+  [PASS] gsm8k/32       'John spends 0.5 hours per dog per day.\n\nFor 10 dogs:  \n\\(10 \\times 0.5'
+  [PASS] gsm8k/35       'In the first 20 minutes, Mike scores 4 points.\n\nIn the second 20 minut'
+  [PASS] gsm8k/39       'Dana skips at 3 mph, which is half her running speed, so she runs at:\n'
+  [PASS] gsm8k/63       'For the first half of the year (6 months), she paid:\n\n\\(6 \\times 140 ='
+  [PASS] gsm8k/71       'The first recipe has 20 instructions.  \nThe second recipe has twice as'
+  [PASS] gsm8k/94       'There are 60 dogs.  \nSince there are two cats for every dog, cats = 2 '
+  [PASS] gsm8k/110      'Beatrice ate \\(2 \\times 24 = 48\\) fruit roll-ups.  \nMarcell ate \\(3 \\t'
+  [PASS] gsm8k/129      '500 patients × 24 minutes = 12,000 minutes  \n12,000 minutes ÷ 60 = 200'
+  [PASS] gsm8k/132      'Pam rode the roller coaster 2 times, and Fred rode it 4 times, so toge'
+  [PASS] gsm8k/140      'Total cars = 20  \nAutomatic = 12  \nManual = 4  \nSemi-automatic = 20 - '
+  [PASS] gsm8k/144      'Kim includes \\(3 + 5 = 8\\) clients.\n\nExpenses per client:\n- Bleach: \\('
+  [PASS] gsm8k/156      'The monkeys, gorillas, and baboons need:\n\n- Monkeys: 200 bananas/month'
+  [PASS] gsm8k/171      '80 spiders × 8 legs = 640 legs  \n90 insects × 6 legs = 540 legs  \n3 mu'
+  [FAIL] gsm8k/182      ''
+  [PASS] gsm8k/185      'Jenna’s mom picked 20 apples.  \nJenna picked half as many: \\(20 \\div 2'
+  [PASS] gsm8k/186      'Let \\( r \\) be the number of rats in each cage.\n\n- There are 3 cages o'
+  [FAIL] gsm8k/201      ''
+  [FAIL] gsm8k/234      ''
+  [PASS] gsm8k/239      '30% of 1000 went through exit A:\n\n\\(0.30 \\times 1000 = 300\\)\n\nRemainin'
+  [PASS] gsm8k/294      'The oldest son is 8 years old.  \nThe youngest is half as old: \\(8 \\div'
+  [FAIL] gsm8k/304      ''
+  [PASS] gsm8k/335      'Mason needs:\n\n- \\(8\\) batches of suckers: \\(8 \\times 30 = 240\\) ounces'
+  [PASS] gsm8k/342      'Laurel starts with 24 outfits.  \nAt her baby shower, she receives twic'
+  [PASS] gsm8k/374      'Half of 30 sheep is 15 sheep.\n\n- 15 sheep give 1 kg each: \\(15 \\times '
+  [PASS] gsm8k/409      'In May, the company paid 40 employees:\n\n- Hourly pay: $15\n- Hours per '
+  [PASS] gsm8k/484      'Stetson ate \\( \\frac{2}{5} \\) of 60 oranges:\n\n\\[\n\\frac{2}{5} \\times 60'
+  [FAIL] gsm8k/510      ''
+  [PASS] gsm8k/511      'Gerald earns $30 per day for 7 days:\n\n\\(30 \\times 7 = 210\\)\n\nHe spent '
+  [PASS] gsm8k/545      'Jeff walks 3 miles to work and 3 miles back, so each workday he walks:'
+  [FAIL] gsm8k/552      ''
+  [PASS] gsm8k/619      'Each intersection has 6 poles, and each pole has 4 street lights:\n\n\\(6'
+  [PASS] gsm8k/683      'In turtle mode, Chris mows the whole lawn in 60 minutes, so half the l'
+  [PASS] gsm8k/708      '2 weeks = 2 × 7 = 14 days.  \nAt $12 per day: 14 × 12 = 168.\n\n#### 168'
+  [PASS] gsm8k/726      'Topher’s shoe length is \\(8\\) feet \\(4\\) inches:\n\n\\[\n8 \\times 12 + 4 ='
+  [PASS] gsm8k/727      "Students' cars: \\(64 \\times 4 = 256\\) windows total.  \nHannah smashes "
+  [PASS] gsm8k/772      'Tatiana has a total weekend time of:\n\n7 + 5 = 12 hours\n\nShe reads for '
+  [PASS] gsm8k/902      'Five notebooks cost \\(5 \\times 1.50 = 7.50\\).  \nOne ballpen costs \\(0.'
+  [PASS] gsm8k/928      'Monday: 39  \nTuesday: \\(2 \\times 39 = 78\\)  \nWednesday: \\(2 \\times 39 '
+  [PASS] gsm8k/949      'Deanna is 26, and Marcus is 5 years younger than Deanna, so Marcus is '
+  [PASS] gsm8k/954      'Jonathan has 24 measuring cups.\n\nMeasuring spoons:  \n\\( \\frac{2}{3} \\t'
+  [PASS] gsm8k/968      'Synthetic gut: \\(3 \\times 15 = 45\\) minutes  \nPolyester: \\(5 \\times 22'
+  [PASS] gsm8k/985      'Edgar’s brother eats \\( \\frac{1}{2} \\times 18 = 9 \\) pretzels per day.'
+  [PASS] gsm8k/991      'Halley’s Comet appears every 75 years.\n\nBill’s dad saw it when he was '
+  [PASS] gsm8k/996      'The average age of the group is:\n\n\\[\n\\frac{20}{4} = 5\n\\]\n\nHelene is tw'
+  [PASS] gsm8k/1016     'The price increases by 5% of the original price each year.\n\nOriginal p'
+  [PASS] gsm8k/1030     'The only way Marcus actually has to turn in his homework is if:\n\n1. Th'
+  [PASS] gsm8k/1040     'Monday: 425 letters\n\nTuesday: one-fifth of Monday is \\(425 \\div 5 = 85'
+  [PASS] gsm8k/1054     'Each tile is \\(1 \\text{ ft} \\times 1 \\text{ ft} = 1 \\text{ sq ft}\\).\n\n'
+  [PASS] gsm8k/1085     'The crocodile grows 8 inches in 4 years, so its growth rate is:\n\n8 ÷ 4'
+  [PASS] gsm8k/1108     'The pots cost $19 and the soil cost $26, so the total before the coupo'
+  [PASS] gsm8k/1139     'Each pack costs $10.00, so 4 packs cost:\n\n\\(4 \\times 10 = 40\\)\n\nWith a'
+  [PASS] gsm8k/1185     'Each friend eats:\n- 6 cheese slices, so 6 friends eat \\(6 \\times 6 = 3'
+  [PASS] gsm8k/1192     'Jen works \\(7.5 \\times 6 = 45\\) hours per week.\n\nIn 4 weeks, she works'
+  [PASS] gsm8k/1203     'Mattison is 60 inches tall.\n\n- Total house height = \\(7 \\times 60 = 42'
+  [PASS] gsm8k/1231     'The scores are: 50, 80, 80, 60, 40, 90, 100, 70, 60.\n\nSum of scores:  '
+  [PASS] gsm8k/1261     'Each week, Alicia spends:\n\n- Blouses: \\(5 \\times \\$5 = \\$25\\)\n- Pants:'
+  [PASS] gsm8k/1276     'The fence is a rectangle with side lengths 20 feet and 15 feet.\n\nTo fi'
+  => gsm8k: 54/60 = 90.0%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek.gsm8k.on.thinkON.json
+
+=== house | model=deepseek-turbo | thinking=off | 37 items (0 cached) ===
+  [PASS] easy/arith-1   '1161'
+  [PASS] easy/arith-2   '12'
+  [PASS] easy/arith-3   '36'
+  [PASS] easy/arith-4   '169'
+  [PASS] easy/arith-5   '663'
+  [PASS] easy/wp-1      '8'
+  [PASS] easy/wp-2      '150'
+  [PASS] easy/wp-3      '31'
+  [PASS] easy/reason-1  'Yes.'
+  [PASS] easy/reason-2  'C'
+  [PASS] easy/fact-1    'Au'
+  [PASS] easy/fact-2    'Mercury'
+  [PASS] easy/fact-3    'Shakespeare'
+  [PASS] easy/fmt-1     '1, 2, 3, 4, 5'
+  [PASS] easy/fmt-2     'BANANA'
+  [PASS] easy/code-1    'def'
+  [PASS] easy/code-2    '3'
+  [PASS] easy/code-3    'mapping'
+  [PASS] easy/needle-1  'ZORBULON'
+  [PASS] hard/hard-arith-1 '74'
+  [PASS] hard/hard-arith-2 '14.85'
+  [PASS] hard/hard-arith-3 '3060'
+  [PASS] hard/hard-count '9'
+  [FAIL] hard/hard-rev  'nrukraps'
+  [PASS] hard/hard-upper 'Hold The Line'
+  [PASS] hard/hard-json '{"a": 42}'
+  [PASS] hard/trick-1   'They weigh the same, since a kilogram is a kilogram regardless of the '
+  [PASS] hard/trick-2   '5'
+  [PASS] hard/trick-3   '5'
+  [PASS] hard/code-recall 'QWX17'
+  [PASS] hard/order-1   'alpha, beta, gamma'
+  [PASS] hard/code-py   '4'
+  [PASS] hard/code-js   'object'
+  [PASS] hard/code-big  '55'
+  [PASS] hard/frac-1    '0.375'
+  [PASS] hard/big-1     '1111111110'
+  [PASS] hard/neg-1     'MAYBE'
+  => house: 36/37 = 97.3%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.house.off.run2.json
+
+=== gsm8k | model=deepseek-turbo | thinking=on | 60 items (0 cached) ===
+  [PASS] gsm8k/11       '3 dozen donuts: \\(3 \\times 68 = 204\\)\n\n2 dozen mini cupcakes: \\(2 \\tim' rt=58
+  [PASS] gsm8k/15       'Jewelry profit: \\(5000 \\times 0.025 = 125\\)\n\nElectronic gadgets profit' rt=175
+  [PASS] gsm8k/29       'One pair of heels costs $33, and the other costs twice as much, so it ' rt=115
+  [PASS] gsm8k/32       'Each dog takes 0.5 hours per day.\n\nFor 10 dogs:  \n\\(10 \\times 0.5 = 5\\' rt=67
+  [PASS] gsm8k/35       'In the first 20 minutes, Mike scores 4 points.\n\nIn the second 20 minut' rt=89
+  [PASS] gsm8k/39       'Skip speed is 3 mph, and skipping is half as fast as running, so runni' rt=132
+  [PASS] gsm8k/63       'The first half of the year is 6 months, so she paid:\n\n\\(6 \\times 140 =' rt=87
+  [PASS] gsm8k/71       'The first recipe has 20 instructions.  \nThe second recipe has twice as' rt=47
+  [PASS] gsm8k/94       'There are 60 dogs.\n\nSince there are two cats for every dog:\n- Cats = 2' rt=94
+  [PASS] gsm8k/110      'Beatrice ate \\(2 \\times 24 = 48\\) fruit roll-ups.  \nMarcell ate \\(3 \\t' rt=453
+  [PASS] gsm8k/129      'Total patient time per day:\n\n\\(500 \\times 24 = 12{,}000\\) minutes\n\nCon' rt=152
+  [PASS] gsm8k/132      'Pam rode the roller coaster 2 times, and Fred rode it 4 times, so toge' rt=88
+  [PASS] gsm8k/140      'Total cars = 20  \nAutomatic = 12  \nManual = 4  \nSemi-automatic = 20 - ' rt=48
+  [PASS] gsm8k/144      'Kim has 3 existing clients plus 5 potential clients, so he plans for:\n' rt=124
+  [PASS] gsm8k/156      'The monkeys, gorillas, and baboons need:\n\n- Monkeys: 200 bananas/month' rt=104
+  [PASS] gsm8k/171      '80 spiders × 8 legs = 640 legs  \n90 insects × 6 legs = 540 legs  \n3 mu' rt=53
+  [FAIL] gsm8k/182      '' rt=700
+  [PASS] gsm8k/185      'Jenna picked half as many apples as her mom, so Jenna picked \\(20 \\div' rt=48
+  [PASS] gsm8k/186      'Let \\( r \\) be the number of rats in each cage.\n\n- There are 3 cages o' rt=202
+  [PASS] gsm8k/201      'Assuming there are 52 weeks in the year:\n\n- Base salary: \\(2000 \\times' rt=391
+  [PASS] gsm8k/234      'Steve eats 6 tomatoes per day, so his girlfriend eats half that: 3 per' rt=550
+  [PASS] gsm8k/239      '30% of 1000 went through exit A:\n\n\\(0.30 \\times 1000 = 300\\)\n\nRemainin' rt=69
+  [PASS] gsm8k/294      'The oldest son is 8 years old.  \nThe youngest is half as old: \\(8 \\div' rt=124
+  [FAIL] gsm8k/304      '' rt=700
+  [PASS] gsm8k/335      'Mason needs:\n\n- \\(8 \\times 30 = 240\\) ounces of sugar for suckers\n- \\(' rt=48
+  [PASS] gsm8k/342      'Laurel starts with 24 outfits from her friend.  \nAt her baby shower, s' rt=162
+  [PASS] gsm8k/374      'Half of 30 sheep is 15 sheep.\n\n- 15 sheep give 1 kg each: \\(15 \\times ' rt=71
+  [PASS] gsm8k/409      'Assuming each month has 4 workweeks:\n\n- Weekly pay per employee: \\(15 ' rt=504
+  [PASS] gsm8k/484      'Stetson ate \\( \\frac{2}{5} \\) of 60 oranges:\n\n\\[\n\\frac{2}{5} \\times 60' rt=79
+  [FAIL] gsm8k/510      '' rt=700
+  [PASS] gsm8k/511      'Gerald earns $30 per day.  \nFor an entire week (7 days), he earns:\n\n$3' rt=73
+  [PASS] gsm8k/545      'Each workday, Jeff walks 3 miles there and 3 miles back, so he walks:\n' rt=53
+  [FAIL] gsm8k/552      '' rt=700
+  [PASS] gsm8k/619      'Each intersection has 6 poles, and each pole has 4 street lights.\n\nTot' rt=66
+  [PASS] gsm8k/683      'Turtle mode mows the whole lawn in 60 minutes, so half the lawn takes ' rt=108
+  [PASS] gsm8k/708      '2 weeks = 2 × 7 = 14 days.  \nAt $12 per day: 14 × 12 = $168.\n\n#### 168' rt=57
+  [PASS] gsm8k/726      'Topher’s shoe length is \\(8\\) feet \\(4\\) inches:\n\n\\[\n8 \\times 12 + 4 =' rt=91
+  [PASS] gsm8k/727      "Students' cars have \\(64 \\times 4 = 256\\) windows total.  \nHannah smas" rt=167
+  [PASS] gsm8k/772      'Tatiana has a total of \\(7 + 5 = 12\\) hours on her weekend.\n\nShe reads' rt=205
+  [PASS] gsm8k/902      'William bought 5 notebooks at $1.50 each:\n\n\\(5 \\times 1.50 = 7.50\\)\n\nH' rt=54
+  [PASS] gsm8k/928      'Monday: 39  \nTuesday: 2 × 39 = 78  \nWednesday: 2 × 39 = 78  \nThursday:' rt=118
+  [PASS] gsm8k/949      'Deanna is 26, and Marcus is 5 years younger than Deanna, so Marcus is ' rt=54
+  [PASS] gsm8k/954      'Jonathan has 24 measuring cups.\n\nMeasuring spoons: \\( \\frac{2}{3} \\tim' rt=184
+  [PASS] gsm8k/968      'Synthetic gut: \\(3 \\times 15 = 45\\) minutes  \nPolyester: \\(5 \\times 22' rt=93
+  [PASS] gsm8k/985      'Edgar’s brother eats \\( \\frac{1}{2} \\times 18 = 9 \\) pretzels per day.' rt=57
+  [FAIL] gsm8k/991      '' rt=700
+  [PASS] gsm8k/996      'The average age of the group is \\(20 \\div 4 = 5\\).\n\nHelene is twice th' rt=153
+  [PASS] gsm8k/1016     'The original price is $120.\n\nEach year, the increase is 5% of the orig' rt=133
+  [PASS] gsm8k/1030     'The chance Marcus has to turn in his homework is the chance that:\n\n- t' rt=283
+  [PASS] gsm8k/1040     'Monday: 425 letters.\n\nTuesday: one-fifth of Monday is \\(425 \\div 5 = 8' rt=105
+  [PASS] gsm8k/1054     'Each tile is \\(1 \\text{ ft} \\times 1 \\text{ ft} = 1 \\text{ SqFt}\\).\n\nT' rt=76
+  [PASS] gsm8k/1085     'The crocodile grows 8 inches in 4 years, so its growth rate is:\n\n8 ÷ 4' rt=84
+  [PASS] gsm8k/1108     'The pots cost $19 and the garden soil cost $26, so the total before th' rt=38
+  [PASS] gsm8k/1139     'Each pack costs $10.00, so 4 packs cost:\n\n\\(4 \\times 10 = 40\\)\n\nWith a' rt=136
+  [PASS] gsm8k/1185     'Each of Kate’s 6 friends eats:\n\n- Cheese: \\(6 \\times 6 = 36\\) slices t' rt=178
+  [PASS] gsm8k/1192     'Jen works:\n\n- \\(7.5\\) hours/day × \\(6\\) days/week = \\(45\\) hours/week\n' rt=108
+  [PASS] gsm8k/1203     'Mattison is 60 inches tall.\n\n- Total house height: \\(7 \\times 60 = 420' rt=424
+  [PASS] gsm8k/1231     'The sum of Sally’s scores is:\n\n50 + 80 + 80 + 60 + 40 + 90 + 100 + 70 ' rt=104
+  [PASS] gsm8k/1261     'Each week, Alicia spends:\n\n- 5 blouses × $5.00 = $25.00  \n- 2 pants × ' rt=63
+  [PASS] gsm8k/1276     'The fence is a rectangle with side lengths 20 feet and 15 feet.\n\nTo fi' rt=159
+  => gsm8k: 55/60 = 91.7%   wrote /home/siv/src/sparkrun-recipe-registry/recipes/ds4/benchmarks/results/deepseek-turbo.gsm8k.on.thinkON.json
