@@ -197,8 +197,9 @@ before matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index (documents 5 of 8 tools; `gate-37111.py`, `qwen4-quality-eval.py`,
-  `synthetic_png.py` are undocumented).
+- `tools/README.md` — tool index; documents all 8 tools (the three added 2026-10-07 describe
+  behaviour and caveats only — this repo records measured results next to the arm that produced
+  them, e.g. `attic/qwen4/status/*.md`).
 - `.codex/hooks.json` — pipes Bash output through `rtk hook codex`; prefix shell commands with `rtk`.
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
@@ -221,12 +222,13 @@ before matching.
 ## Testing & QA
 
 - Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **388 tests,
-  1 known failure** (see below). Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
+  all passing** as of 2026-10-07. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
-- **Known failure:** `tests/test_ifm_recipes.FilesExist.test_coordination_and_docs_present` —
-  `recipes/ifm/COOP.md` is missing from the untracked WIP tree. Everything else passes.
+- **`recipes/ifm/COOP.md`** had been lost from the working tree; it was reconstructed 2026-10-07 from
+  the lane's surviving documents and cross-references (its own header records this). The guard that
+  requires it, `tests/test_ifm_recipes.FilesExist.test_coordination_and_docs_present`, passes again.
 - `tests/*.sync-conflict-*.py` (22 tests) is **skipped** because discover rejects dashed module
   names before it can report them, and it is tracked in git — do not delete it.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML

@@ -1,7 +1,8 @@
 # tools/
 
 Stopgap measurement tooling for `sparkrun` recipes that the built-in benchmarking path
-cannot reach.
+cannot reach, plus the DeepSeek-V4.1 artifact builders and the one shared module
+(`synthetic_png.py`) that the measurement tools import.
 
 ## pooling-bench.py
 
@@ -360,3 +361,198 @@ target (+0.87 %, a rejection), the sweep predicts 1,020,107 (+0.16 % at the serv
 comfortably inside `max_model_len`). A full 1M ladder (all ten depths) is ~10 cold
 prefills of up to ~20 min each and is left to the operator; the tool exists so
 that run is reproducible.
+
+## gate-37111.py
+
+Nothing else in `tools/` **soaks**. `quality-battery.py` and `qwen4-quality-eval.py` score a
+short answer once, `needle-haystack.py` retrieves once per depth, and `sparkrun`'s
+benchmarking path measures speed — none of them sit on a server for an hour, compare a warm
+prefix against a cold one, or watch for degeneration. Two upstream SGLang bugs corrupt
+output **silently** on exactly the engine and topology the qwen4 lane ships
+(Qwen3.8-Flash-Next, QSA sparse attention + NEXTN speculative decoding, GB10 / SM121, TP2):
+
+- `sgl-project/sglang#37111` — "QSA + NEXTN decode graph silently corrupts output on GB10
+  TP2" (opened 2026-08-30; open as of 2026-10-04);
+- `sgl-project/sglang#38319` — "Chunked Prefill + Radix Insert race corrupts KV pages (QSA,
+  Qwen3.8-Flash-Next)" (opened 2026-09-07; open as of 2026-10-04, proposed fix PR #38355
+  open and unmerged).
+
+Both return HTTP 200 with plausible-but-wrong text, so a health check, a throughput
+benchmark and a `curl` smoke test all pass while the server emits garbage. The lane's rule
+(the WORK doc's §14) is blunt: a config that is 10 % faster and occasionally emits garbage is
+a regression. The issue states are kept in the tool's `UPSTREAM` block and printed at start
+and into every report, so a verdict is self-describing instead of re-derived from memory.
+
+```sh
+# default soak: 1 minute, temperature 0, tool loop, no depth padding
+python3 tools/gate-37111.py --base-url http://127.0.0.1:8000
+
+# a real release gate: 90 minutes at ~100k depth, JSON artifact
+python3 tools/gate-37111.py --base-url http://127.0.0.1:8000 \
+    --depth-tokens 100000 --duration-min 90 --json gate-37111.json
+
+# a fast smoke before a long soak
+python3 tools/gate-37111.py --depth-tokens 8192 --turns 3
+
+python3 tools/gate-37111.py --selftest     # offline, in-process mock, ~2 s
+```
+
+**Three failure modes, three detectors.** (1) *Repetition / `!!!!` collapse*, the signature
+both reports describe: a reply is flagged if it is empty, shorter than 40 chars, more than
+30 % punctuation, contains a ≤20-char fragment repeated 6+ times, or — for replies of 40+
+words — has under 15 % distinct words. (2) *Truncation*, a reply the engine calls finished
+that stops dead: `finish_reason == "length"` without a terminal character, or long prose
+ending mid-clause on a bare alphanumeric. (3) *Prefix-cache corruption*, the discriminator
+that makes this tool more than a vibes check.
+
+**The discriminator is warm-prefix vs cold-prefix disagreement.** #38319's mechanism is a
+radix node referencing KV pages a retract already freed, so its observable is
+*prefix-specific and persistent*: every request sharing the corrupted prefix reads the same
+garbage. The tool therefore asks a fixed canary (`47*89`, answer `4183`) twice — once at the
+end of the soak with the long shared system prompt resident in the radix tree, once after a
+cold re-ask (a `/flush_cache` POST, then GET if the method is gated, else a salted fresh
+system prompt using `--seed`). `temperature=0` everywhere, so agreement is a pass and any
+disagreement is corruption, not sampling noise; the report records which `cold_method` was
+used. A canary that answers wrongly on *both* asks is its own finding.
+
+The soak itself: every request carries the same long system prompt (`--depth-tokens N` pads
+it toward N estimated tokens with a structured fake-registry ledger, so the prefix is
+realistic rather than one repeated line; 0 = unpadded, otherwise the flag must be `>= 1024`
+or the tool exits 2). Two of every three iterations are a deterministic tool-call turn
+(`get_shard_status` / `verify_checksum` / `list_entries` with fixed args, accepted as either
+native `tool_calls` or a JSON reply), the third is a non-looping ~600-word essay probe
+(`--essay-max-tokens`, default 2048). The conversation grows across turns so prefix reuse is
+genuinely exercised. Note `--chars-per-token` (default 4.0) only *builds* the prompt — the
+report carries the server's real `usage.prompt_tokens`. `--model` defaults to the first id
+from `/v1/models`; `--verbose` prints timestamped progress on stderr so a 90-minute soak
+shows life while stdout and the `--json` artifact stay clean.
+
+**Exit codes** separate *the server errored* from *the server answered confidently and
+wrongly*, so a release runbook can gate on them: `0` PASS; `1` transport failure /
+unreachable / every request errored; `2` bad flags (a non-positive `--duration-min` with no
+`--turns`, or `--depth-tokens` between 1 and 1023); `3` FAIL. `3` also covers `PARTIAL` — a
+run where no corruption was seen but transport errors kept it from completing — because a
+gate must not turn an incomplete soak into a pass.
+
+**A PASS is a negative result, not proof of absence.** #37111 has not had its cross-boot
+frequency measured and #38319 is stochastic and appears at specific context sizes; the
+default 1-minute soak is a smoke, not a release gate (§14 asks for 1–2 h at ~100k depth). A
+report is only about the endpoint it records, and if `/flush_cache` is unavailable the cold
+path falls back to a salt the server may decline. A FAIL, by contrast, is actionable on its
+own. The tool says all of this at the end of a clean run and points at
+`tools/gate-37111-design.md`, which holds the failure mode, the R0–R6 toggle ladder that
+localises a FAIL to a named cause (radix off, the in-tree chunked-insert fix, eager vs
+decode graph, spec off, chunk shape), and the "what a PASS proves" limits. Guarded by its own
+`--selftest` (five mock behaviours — clean must PASS/0; degenerate, truncate, and both
+radix shapes must FAIL/3, with the clean case asserted to produce no findings at all); no
+`tests/` guard references it.
+
+## qwen4-quality-eval.py
+
+`recipes/qwen4/` ships two checkpoints for the same base model: the reference
+`RadixArk/Qwen3.8-Flash-Next-NVFP4` and the locally-quantised
+`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (the "labquant" export). Labquant quantises
+attention/GDN projections *and* the PLE n-gram table where RadixArk leaves them BF16, and its
+own recipe caveat says benchmark wins are **not** evidence of equal quality — the lane had no
+eval. `quality-battery.py` is a small generic battery shared with the DS4 lane; this is the
+labquant-specific instrument, built to separate the two checkpoints on the exact paths
+labquant quantises.
+
+It measures **exact-match task accuracy** at `temperature=0` over
+`/v1/chat/completions`, on a fixed, version-controlled battery that the tool pins to a
+`battery_sha256` printed in the header and stored in the JSON. 38 tasks in six categories:
+
+- **`arith` (8)** — multi-step arithmetic whose regex demands the *required intermediate*
+  value as well as the final one, so guessing the answer without doing the steps fails;
+- **`instr` (8)** — exact instruction-following (reverse, upper-case, JSON-only, count,
+  hyphenated words), most of them anchored with `$`;
+- **`falsepremise` (6)** — traps whose correct move is to reject the premise (US independence
+  from France, Einstein failing maths, Mercury "reclassified", a third Curie Nobel, the
+  largest prime, a woman winning the 1896 marathon); scored with the added `reject` kind, an
+  accept-marker list, so answering the question as asked fails;
+- **`recall` (6)** — long in-prompt recall with a decoy code, filler generated per task from
+  `--seed` so prompts are unique and share no long prefix (a radix cache cannot flatter a
+  run);
+- **`code` (8)** — short Python/JS comprehension;
+- **`verbatim` (2)** — one-copy round-trip of an exact string, the closest exact-match probe
+  of the n-gram / PLE path that speculative decoding leans on.
+
+Scoring kinds `num` / `any` / `re` are reused from `quality-battery.py` so the two
+instruments read alike (`quality-battery.py` itself is not modified). The raw
+`message.content` is scored; if `content` is empty but `message.reasoning_content` came back
+— the split-channel shape SGLang serves for this model — the reasoning text is scored
+instead and the record is flagged `reply_used_reasoning_fallback`, so a budget-exhausted
+answer is visible rather than silently a fail.
+
+```sh
+python3 tools/qwen4-quality-eval.py                       # http://127.0.0.1:8000
+python3 tools/qwen4-quality-eval.py --base-url http://host:8000 \
+    --model /cache/runtime/labq-patched --json q4-labquant.json --repeat 3
+python3 tools/qwen4-quality-eval.py --selftest            # offline, no GPU
+```
+
+`--repeat N` repeats the whole battery; a task that flips is printed as `FLAKY` and belongs
+in the report as "unstable", not as a score — the same determinism caveat as
+`quality-battery.py` (a reasoning-capable server may not be bitwise-stable across batch
+composition even at `temperature=0`). `--limit N` runs the first N tasks of battery order,
+`--seed` (default `20261004`) seeds the generated recall prompts, `--max-tokens` (1024),
+`--timeout` (600 s) and `--api-key` pass through, `--model` is resolved from `/v1/models`
+when omitted, and `--fail-under PCT` turns the run into a release gate that exits 1 when the
+total percentage is below PCT (0 disables). **Every raw reply is kept and printed**, with the
+final line carrying the per-category tallies, `TOTAL x/y = z%`, `stable-pass n/tasks` and any
+transport failures; `--json` writes the whole artifact (battery version + sha256, per-task
+pass vectors, per-category summary, every record with its reply and reasoning-fallback flag).
+Measured numbers belong next to the *other* arm: this is a **paired comparator, not an
+absolute quality score**, and a 38-task exact-match battery cannot certify an export — it can
+only fail to find a gross regression on the axes it covers. It does not measure reasoning
+quality, safety, calibration, long-context retrieval (`needle-haystack.py`) or throughput.
+Exit codes: `0` the battery ran (the score is the artifact), `1` no request completed — the
+endpoint was unreachable for every task — or `--fail-under` was missed, `2` bad flags.
+Guarded by its own `--selftest`
+(ground truth — every task's sample must pass its own scorer — prompt uniqueness with no
+shared prefix over 16 chars, category coverage, `score()` units, and correct/wrong/empty
+mock controls); no `tests/` guard references it.
+
+## synthetic_png.py
+
+Not a CLI — the one **library** in this directory, and the reason `pooling-bench.py` can
+benchmark image-bearing score traffic honestly. vLLM's multimodal cache is keyed on image
+*content*, not on URL: appending a random query parameter to every image URL left a run at an
+identical 81.5 % prefix-cache hit rate and moved `mm_cache_hits_total` from 448 to 898 — all
+450 new requests hit the cache despite 450 distinct URLs. So the only way to send genuinely
+distinct pixels is to generate them.
+
+Solid-colour PNGs are the cheapest way to do that: a flat image compresses to a few hundred
+bytes, so 400 distinct images cost less bandwidth than one photographic one while still
+presenting the vision encoder with the same patch grid — encoder cost follows sequence length,
+not image entropy, which makes it a fair proxy for encoder and prefill cost. It is **not** a
+proxy for realistic attention over real content and a flat image may be scored oddly: it
+measures capacity, not quality.
+
+Stdlib only (`base64`, `zlib`, `struct`). `solid_png_b64(width, height, rgb)` returns a
+base64 non-interlaced 8-bit RGB PNG (colour type 2, every row filter byte 0 so zlib collapses
+the image to a handful of bytes) and rejects out-of-range dimensions or channels with
+`ValueError`; `solid_data_url(...)` wraps it as a `data:image/png;base64,…` URL;
+`iter_chunks(png)` yields `(tag, data)` per chunk and raises `ValueError` on structural
+damage (bad signature, truncated chunk, CRC mismatch, no `IEND`) — used by the self-check
+rather than hand-computed offsets, which is exactly the kind of arithmetic a self-check
+should not get wrong.
+
+**Where it is imported from.** `tools/pooling-bench.py` loads it by sibling path in
+`_synthetic_png_module()` (`importlib.util.spec_from_file_location("synthetic_png",
+Path(__file__).resolve().parent / "synthetic_png.py")`) — by path rather than by name
+because that file runs three ways (as a script, by path from a recipe, and via importlib from
+tests), and pooling-bench exits with a message if the module is missing. It is consumed by
+pooling-bench's `--synthetic-images` (one distinct PNG per document; implied `--multimodal
+image`) at `--synthetic-size` WxH (default 480x640). `tests/test_qwen3_vl_embeddings.py` also
+loads it by path to check that the same nonce gives the same image, different nonces give
+different images, and that a corrupted PNG is rejected.
+
+```sh
+python3 tools/synthetic_png.py     # self-check, offline, stdlib only
+```
+
+The self-check decodes its own output using nothing but the standard library — header fields,
+per-row `filter=None`, an all-flat-red pixel scan — confirms distinct colours produce distinct
+bytes, and corrupts one byte to prove `iter_chunks`' CRC check actually fires (a negative
+control, not decoration).
