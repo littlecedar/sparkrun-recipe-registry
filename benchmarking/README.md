@@ -4,9 +4,9 @@ llama-benchy profiles used by `sparkrun benchmark performance <recipe> --profile
 
 **This directory is the curated library, not the archive.** It holds the profiles that are tracked,
 named below, or cited by a recipe/tool/test. The **82 single-use experiment arms** from the finished
-qwen4 and qwen3 optimization campaigns now live in [`../attic/benchmarking/`](../attic/benchmarking/)
-with a per-profile rationale in [`../attic/benchmarking/ARMS-MANIFEST.md`](../attic/benchmarking/ARMS-MANIFEST.md).
-If a `bench_*` id cites a profile that is not here, look there.
+qwen4 and qwen3 optimization campaigns were archived under `attic/benchmarking/` with a per-profile
+`ARMS-MANIFEST.md`, and that archive was itself deleted from the tree in commit `b4ab22b` (2026-10-06).
+If a `bench_*` id cites a profile that is not here, recover it with `git show b4ab22b^:<path>`.
 
 ---
 
@@ -105,8 +105,8 @@ recipe is under test — the profile files themselves deliberately carry no reci
 
 **A fixed defect worth knowing about (`bs8-only.yaml`).** An earlier revision of this file had its
 `args` at the **top level with no `args:` key**, which made `yaml.safe_load` + `d["args"]` raise
-`KeyError` on this one file and not on its siblings. It now carries a proper `args:` block, so all 47
-profiles here have the same shape. (This is recorded rather than deleted because the misdiagnosis is
+`KeyError` on this one file and not on its siblings. It now carries a proper `args:` block, so every
+profile here has the same shape. (This is recorded rather than deleted because the misdiagnosis is
 instructive: the file was also briefly claimed to be *broken* for missing a top-level `framework:` —
 the real loader requirement — when in fact only `bs-sweep-high.yaml` had that latent defect.)
 
@@ -122,9 +122,10 @@ the real loader requirement — when in fact only `bs-sweep-high.yaml` had that 
 | `pp-slope` | 1024/4096 | 8 | 3 | RUN | Single-variable prompt-length sweep: the cleanest measurement of decode step time vs resident tokens. |
 | `depth-slope-decode-metric` | 1024→16384 | 4 | 3 | RUN | Depth sweep scored on the server's OWN `gen throughput` rather than the harness's, removing prefill contamination. |
 
-**Archived 2026-10-04 — the four `NOT RUN` rows of this family.** `pp-sweep-c4c8`,
+**Archived 2026-10-04, deleted 2026-10-06 — the four `NOT RUN` rows of this family.** `pp-sweep-c4c8`,
 `a2-depth-gap-c8`, `kv-residency-dissociation`, and `d0-baseline-dissociation` were moved to
-[`../attic/benchmarking/`](../attic/benchmarking/) with manifest rows. They were never executed, so
+`attic/benchmarking/` with manifest rows, then deleted with that archive in `b4ab22b`
+(`git show b4ab22b^:attic/benchmarking/<name>.yaml`). They were never executed, so
 they produced no `bench_*` id; their questions are closed by other means (`pp-sweep-c4c8` superseded by
 `pp-slope` / `pp-vs-depth-acceptance`; `a2-depth-gap-c8` closed by the c=8 depth-cost work;
 `kv-residency-dissociation` carries a `depth: 26624` cell that exceeds any pool here — a design note,
@@ -158,8 +159,9 @@ because a live recipe or the qwen4 lane still cites them.
 
 ## Adding a profile
 
-- Keep the directory to the curated set. An arm whose question is closed belongs in
-  [`../attic/benchmarking/`](../attic/benchmarking/) with a manifest row, not here.
+- Keep the directory to the curated set. An arm whose question is closed is removed in a commit that
+  records its rationale and a closure pointer (the `attic/benchmarking/` archive was itself deleted
+  in `b4ab22b`); `git show b4ab22b^:<path>` recovers any archived profile.
 - A replication needs a **new filename** — the bench id hashes `(recipe, profile path, overrides,
   nodes)`, so reusing a name silently resumes and rewrites identical JSON. `*-REPL`, `*-rep2`,
   `*-desc` are the conventions.
