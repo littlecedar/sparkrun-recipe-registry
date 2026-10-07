@@ -2,7 +2,62 @@
 
 Stopgap measurement tooling for `sparkrun` recipes that the built-in benchmarking path
 cannot reach, plus the DeepSeek-V4.1 artifact builders and the one shared module
-(`synthetic_png.py`) that the measurement tools import.
+(`synthetic_png.py`) that the measurement tools import. `safe_text.py` is the safety filter
+that has to run *before* anything else here reads a log or a chat template.
+
+## safe_text.py
+
+The serving API rejects any request whose `message.content` **or** `reasoning_content` carries
+the raw image placeholder token with HTTP 400 `reasoning_content contains image special
+token` — the request is refused, not sanitised, so a session that *reads* one byte of that
+token out of a file loses its context. The token is the sequence
+
+    U+003C  U+FF5C  "deepseek_image"  U+FF5C  U+003E
+
+(U+FF5C is FULLWIDTH VERTICAL LINE — not the ASCII `|`). It arrives through file reads: an
+image a harness serialises as text, a raw HTTP-400 request dump under
+`~/.omp/logs/http-400-requests/`, or a chat template that stores the placeholder on purpose
+(the upstream DeepSeek-V4.1 encoding file in `.scratch/ifm/upstream/sglang/.../encoding_dsv41.py`
+is one such file). This tool never prints the token: it is assembled from codepoints by
+`raw_token()`, and no shipped file in this tree contains the literal (guarded by
+`tests/test_safe_text.py`).
+
+Three modes, one transform each:
+
+- **escape** (default, read): every non-ASCII codepoint becomes `\uXXXX`/`\UXXXXXXXX`, every
+  backslash is doubled, undecodable bytes become `\xNN`. Output is **ASCII-only**, so no input
+  can carry the token through it.
+- **`--unescape`** (write): the exact inverse, for the callers that need the raw placeholder
+  bytes back — a chat template handed to a tokenizer, an HTTP body. Writes are tmp +
+  `os.replace`, preserve mode/owner, and replace a symlink rather than following it (writing
+  through one would rewrite the node's HF snapshot).
+- **`--check`**: reports line:column of every raw token and exits 1; prints the *escaped* form,
+  never the token. A missing/unreadable file is exit 2, never "clean". `--check-nonascii` adds
+  advisory non-ASCII locations.
+
+```sh
+tools/safe_text.py --check ~/.omp/logs/http-400-requests/*.json   # locate, exit 1 on hit
+tools/safe_text.py dump.json -o dump.safe.txt                     # ASCII-safe copy
+tools/safe_text.py --unescape tpl.safe -o chat_template.jinja     # raw token back
+tools/safe_text.py --in-place --unescape tpl.safe                 # rewrite in place
+```
+
+Exit codes: `0` clean, `1` `--check` found a raw token, `2` the tool could not run. The escape
+is the one trusted boundary: `escape()` asserts its own ASCII-only output, `unescape()` raises
+on any backslash it did not emit *and* on non-ASCII input (which proves the caller is holding a
+raw file), and both are covered by `tests/test_safe_text.py` (30 tests, including negative
+controls proving the detector ignores ASCII-bar lookalikes and that `escape()` is not an
+identity). Verified end-to-end on the real 400-dump artifact: 191427 bytes → 196412 ASCII
+bytes → byte-identical unescape (sha256 match).
+
+**Escaped at rest, raw at the call site.** A template that must *contain* the placeholder —
+a VL request body, a tokenizer fixture, a chat template the campaign launches compare — is
+stored escaped and unescaped only where it is used: `save_template(path, text)` /
+`load_template(path)` in the module, or `--unescape` on the CLI. That keeps every checkout of
+this tree free of the literal token (guarded by the test above) while the request still
+carries the real bytes. Importable API: `raw_token`, `escaped_token`, `escape`, `unescape`,
+`escape_bytes`, `unescape_bytes`, `save_template`, `load_template`, `find_raw_token`,
+`contains_raw_token`, `non_ascii_spans`, `scan_text`, `scan_file`.
 
 ## pooling-bench.py
 
