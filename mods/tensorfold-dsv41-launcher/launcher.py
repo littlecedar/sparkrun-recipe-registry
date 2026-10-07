@@ -61,6 +61,50 @@ HF_HUB = "/cache/huggingface/hub"
 RUNTIME_CACHE = "/cache/runtime/tensorfold"
 ENGRAM_DIR = os.environ.get("TENSORFOLD_ENGRAM_DIR", "/cache/huggingface/hub/dsv41-engram")
 
+
+def resolve_engram_dir(model_dir: str | None = None) -> str | None:
+    """The directory the engine should read the Engram tables from, or None.
+
+    Three homes, in order:
+
+    0. **A combined local repo** (``tools/build-dsv41-combined.py``): a single HF
+       directory holding both the EXL3 weights and the two upstream Engram
+       tables under an ``engram/`` subdir. When ``--model`` points at such a
+       repo, the tables live at ``<model_dir>/engram`` and are found here -- no
+       separate fetch, no pre-warm step. The subdir (not the root) is used on
+       purpose: the engine globs ``*.safetensors`` non-recursively, so handing it
+       the repo root would make it scan the 39 EXL3 shards.
+    1. ``TENSORFOLD_ENGRAM_DIR`` / the default ``/cache/huggingface/hub/dsv41-engram``
+       -- where ``mods/dsv41-engram-fetch`` (or a hand pre-warm) writes.
+    2. A sparkrun-*distributed* Engram repo: when the recipe declares
+       ``manateelazycat/DeepSeek-V4.1-Flash-TensorFold-Engram`` (or any repo
+       carrying the tables) in ``distribution_config.models``, sparkrun
+       downloads it on the head and rsyncs it to every worker, and it lands here
+       as a normal HF-cache model dir. This is the cheap path on slow links: one
+       download, many nodes. Its tensors sit under ``source/`` in that repo, so
+       both the snapshot root and its ``source/`` subdir are accepted; the engine
+       globs the directory non-recursively, so the dir handed to it must hold the
+       ``*.safetensors`` directly.
+    """
+    if model_dir:
+        cand = Path(model_dir) / "engram"
+        if cand.is_dir() and any(cand.glob("*.safetensors")):
+            return str(cand)
+    if Path(ENGRAM_DIR).is_dir() and any(Path(ENGRAM_DIR).glob("*.safetensors")):
+        return ENGRAM_DIR
+    root = Path(HF_HUB) / "models--manateelazycat--DeepSeek-V4.1-Flash-TensorFold-Engram"
+    ref = root / "refs" / "main"
+    snapshots = []
+    if ref.is_file():
+        snapshots.append(root / "snapshots" / ref.read_text().strip())
+    if (root / "snapshots").is_dir():
+        snapshots += sorted((root / "snapshots").glob("*"), reverse=True)
+    for snap in snapshots:
+        for cand in (snap / "source", snap):
+            if cand.is_dir() and any(cand.glob("*.safetensors")):
+                return str(cand)
+    return None
+
 # The engine reads EXL3 only (family `deepseek_v41`: QUANT_METHODS = {"cuda":
 # ("exl3",)}), so this is the Mia-AiLab EXL3 2.9bpw conversion, not the official
 # MXFP4 checkpoint.
@@ -145,11 +189,16 @@ def main(argv: list[str] | None = None) -> int:
 
     prepare_runtime_cache()
     env = dict(RECIPE_ENV)
-    if Path(ENGRAM_DIR).is_dir() and any(Path(ENGRAM_DIR).glob("*.safetensors")):
-        env["TF_DS_ENGRAM"] = ENGRAM_DIR
+    # The checkpoint must be resolved before the Engram tables, because a
+    # combined local repo carries the tables in a subdir of the model dir.
+    model_dir = resolve_checkpoint(args.model)
+    engram = resolve_engram_dir(model_dir)
+    if engram:
+        env["TF_DS_ENGRAM"] = engram
     else:
         print(
-            f"[tensorfold-launcher] no Engram tables at {ENGRAM_DIR}: serving degraded "
+            f"[tensorfold-launcher] no Engram tables at {ENGRAM_DIR} (or a combined "
+            "repo's engram/ subdir, or a distributed Engram repo): serving degraded "
             "(see recipes/ds4/README.md for the pre-warm step)",
             flush=True,
         )
@@ -157,7 +206,6 @@ def main(argv: list[str] | None = None) -> int:
 
     master, _, master_port = args.dist_init_addr.partition(":")
     master_port = int(master_port) if master_port else 29551
-    model_dir = resolve_checkpoint(args.model)
 
     cmd = [
         "tensorfold", "serve", model_dir,

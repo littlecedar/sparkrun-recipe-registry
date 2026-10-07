@@ -615,7 +615,7 @@ Engram directory (the engine loads without them and only prints a warning — se
 | `TF_DS_WARM_LENGTHS` | `1,17,33,131,514,1024,2113` | upstream's warm-up lengths |
 | `TORCH_EXTENSIONS_DIR` | `/cache/runtime/tensorfold/torch-extensions` | persist the first-start CUDA-extension compile |
 | `TF_DS_TOKEN_MAP` | `/cache/runtime/tensorfold/token_map.json` | Engram hash table, built once from `tokenizer.json` |
-| `TF_DS_ENGRAM` | `/cache/huggingface/hub/dsv41-engram` | only when shards 47/48 are present |
+| `TF_DS_ENGRAM` | `/cache/huggingface/hub/dsv41-engram` | set only when safetensors tables are present (§12.7) |
 | `HOME` | `/cache/runtime/tensorfold` | the container runs as the ssh user, who may lack a writable home |
 
 `serve` always runs with `--parallel 4 --mtp-drafts 5 --temperature 0 --no-update-check`. The first
@@ -642,30 +642,115 @@ shim derives the in-container snapshot from the fixed HF cache mount:
 `-o model=...`) is used as-is. No `snapshots/<hash>` appears in the recipe, so a cache re-resolving
 to a new hash cannot break it.
 
-### 12.7 Engram is distributed out-of-band
+### 12.7 Engram is fetched from the online repo (was: distributed out-of-band)
 
-The two Engram shards are **not** distributed by sparkrun: they belong to the *official*
-`deepseek-ai/DeepSeek-V4.1-Flash` repo, and pulling that whole repo just to fetch shards 47/48 ships
-~285 GB of weights the engine never reads. Instead the shards live alongside the HF cache at
-`/cache/huggingface/hub/dsv41-engram` on each node. To pre-warm a node:
+The two Engram tables are **not** distributed by sparkrun, and they are **not** in the EXL3
+checkpoint: they belong to the *official* `deepseek-ai/DeepSeek-V4.1-Flash` repo, where they are
+shards 47/48 (~101.5 GB each). Pulling that whole checkpoint just to reach 189 GiB of tables ships
+~285 GB the engine never reads — so the recipe no longer depends on anyone having copied the shards
+onto the node by hand. It carries `mods/dsv41-engram-fetch`, which builds the tables **on each runner
+node from the online repo**:
 
 ```bash
-# on the head (which already has the official checkpoint cached), copy the two
-# shards from the snapshot (rsync -L follows the symlinks into real files):
-D=~/.cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/<hash>
-rsync -aL "$D"/model-0004{7,8}-of-00048.safetensors \
-  red@<node>:/home/red/.cache/huggingface/hub/dsv41-engram/
+# exactly what the mod runs (canonical source: tools/build-dsv41-engram.py):
+python3 build-dsv41-engram.py \
+  --out /cache/huggingface/hub/dsv41-engram --workers 24
+# offline completeness check; exit 0 = complete:
+python3 build-dsv41-engram.py --check --out /cache/huggingface/hub/dsv41-engram
 ```
+
+**How it avoids materializing the 285 GB checkpoint.** It fetches only the repo's
+`model.safetensors.index.json` (~7 MB) and the two shard headers (656 / 664 B) to locate the four
+`engram.embed.{weight,scale}` tensors, then **range-copies** each tensor's byte span from the HF CDN
+(`curl`-style `Range:` GETs, 206 responses; unauthenticated). It never downloads a whole shard.
+
+**What it emits, and why that is the right format.** The TensorFold reader
+(`families/deepseek_v41/cuda/model.py: class Engram`) globs `*.safetensors` in `TF_DS_ENGRAM` and, per
+`*.engram.embed.weight` / `*.engram.embed.scale`, records `(fd, 8 + header_len + data_offsets[0],
+row_bytes=prod(shape[1:]))` and reads row `i` at `base + i*row_bytes`. So the mod writes one
+`engram-l<L>.safetensors` per layer, each holding that layer's `.engram.embed.weight`
+(`F8_E4M3 [N,256]`) and `.engram.embed.scale` (`F8_E8M0 [N,8]`) as two contiguous planes — the reader
+contract, satisfied verbatim. (The knapcio **TP=4** lane instead reads a repacked 264-byte-record
+`.bin`; the same tool emits that too via `--format packed --tensor-parallel 4 --rank R`, for parity
+with `scripts/pack_engram.py`, but the TP=2 lane does not use it.) The source's sibling
+`engram.wkv`/`q_weight`/`k_weight` are deliberately **not** copied: they belong to the quantized
+weights and are already in the EXL3 checkpoint.
+
+**Bounded memory (the reason it is not a plain download).** A GB10 has ~117 GB usable unified memory
+and the source is 189 GiB, so a snapshot-then-read does not fit. The writer bounds each in-flight
+range, writes straight to disk, and advises written pages `POSIX_FADV_DONTNEED`. Measured `VmHWM`
+**0.6 GiB** while writing 94 GiB on `.34`. One ranged request per 256 MiB segment also keeps the
+request count low enough to avoid HF `429` (per-chunk requests, ~12k of them, trip it).
+
+**Verified 2026-10-06 on `.34` (task-allowed node).**
+- Layer 1 built: 94.4 GiB in 411 s (235 MiB/s), exit 0, 0 retries, peak RSS 0.6 GiB.
+- Byte-identical to the node's authoritative checkpoint shard 47: full-file **SHA256 match on both
+  planes** (`ada3f1b3…` weight, `75a1a081…` scale), and 300/300 random rows equal via the engine's
+  own `tensorfold…weights.Shards.get(rows=…)` accessor.
+
+**Not blocking, and idempotent.** The mod launches the fetch **detached** (`setsid nohup`), so a cold
+first boot is not gated on the CDN; the engine serves with the degraded warning and picks the tables up
+on the next boot. It renames `.partial` files to their final names only once **every** layer is
+complete, so a glob never sees a half table. A complete directory makes the mod a no-op
+(`--check` exit 0). `MOD_ENGRAM_WAIT=1` blocks the launch until the tables are on disk instead.
 
 If the directory is absent, the engine still boots and serves, with
 `[tensorfold] WARNING: no Engram tables (TF_DS_ENGRAM): output will be degraded`; the mod and shim
 both report the state without failing. `_default_engram()` also looks for a `*Engram*` sibling of
 the model directory, but that location is inside the HF cache and would be wiped by a cache re-sync.
 
-Measured staging (2026-10-05): **189.1 GiB** staged, shards 47/48 at 101.5 GB each. The staging
-directory reads as a few MB under `du` only because the shards are symlinks into
-`~/.cache/huggingface/hub/blobs/XX/…`; measure real bytes with `find -L … -printf %s`, not
-`du` on the directory.
+Measured legacy staging (2026-10-05, the manual path this mod replaces): **189.1 GiB** staged, shards
+47/48 at 101.5 GB each. The staging directory reads as a few MB under `du` only because the shards are
+symlinks into `~/.cache/huggingface/hub/blobs/XX/…`; measure real bytes with `find -L … -printf %s`.
+
+Guards: `tests/test_dsv41_engram_builder.py` (stdlib-only, network-free) re-implements the reader's
+addressing rule and proves the emitted bytes satisfy it; it also pins the recipe's mod order
+(fetch before launcher), that the builder bundled in the mod is byte-identical to `tools/`, and that
+the synchronous fetch is timeout-bounded (below).
+
+**Boot-verified 2026-10-06 on `.34`/`.35` (Engram deleted first).**
+- A boot with the fetch **synchronous** (`-e MOD_ENGRAM_WAIT=1`) fetched the full 189 GiB inside the
+  recipe's pre-serve hook on `.34` and published both tables; but the fetch took longer than
+  sparkrun's pre-exec hook timeout, so the *launch* was killed with
+  `SSH script <- 10.0.4.34 TIMEOUT after 600s` / `pre_exec[2] failed`. The detached fetch survived
+  the teardown and finished (files verify clean with `--check`).
+- The default **detached** boot: `.34` had the tables and the mod was a **no-op**; `.35` was empty
+  and the mod launched the detached fetch (which completed in **820 s, 236 MiB/s**), while the boot
+  proceeded.
+- After provisioning both nodes, a **fresh boot reached ready in ~70 s**; `/health` answered, the
+  served model returned a completion, and **both** engine ranks held
+  `TF_DS_ENGRAM=/cache/huggingface/hub/dsv41-engram` with `engram-l1.safetensors` and
+  `engram-l14.safetensors` open — i.e. the fetched tables are what the served engine uses, not the
+  degraded fallback.
+
+**Shipping constraints this surfaced.**
+1. *The pre-exec hook is a 600 s window.* A blocking fetch failed the launch here
+   (`pre_exec[2] failed … TIMEOUT after 600s`), and on a slow Internet link a fetch can
+   run for hours. The mod therefore **never blocks**: it always launches the fetch
+   detached (`setsid nohup`) with a wrapper that re-owns the output and records the exit
+   code; `MOD_ENGRAM_WAIT` is accepted but ignored. The engine serves degraded until the
+   tables land and uses them next boot, so no launch is ever killed by the fetch.
+2. *Pre-warm out-of-band on slow links.* `tools/build-dsv41-engram.py` is a standalone
+   CLI (`--detach` launches it in the background, `--status` polls it, `--check` verifies
+   it offline) and writes the host HF cache the container bind-mounts when run on a node
+   with a bare `--out`. It resumes from its progress cursor, so a dropped ssh session or a
+   stopped container does not lose work. This is the recommended path for a fresh
+   deployment.
+3. *Or let sparkrun distribute it.* `sparkrun` distributes **per model repo**
+   (`distribute_model_from_head` rsyncs `model_cache_path(model_id)`, i.e. the whole
+   `models--<org>--<name>` dir), so a second `distribution_config.models.entries` entry is
+   downloaded once on the head and rsynced to every worker — verified 2026-10-06, a second
+   entry rendered `Distributing model … / Model '…' synced from head to 1 worker(s)`. When
+   a repo carrying the tables is pinned in the recipe, the launcher
+   (`resolve_engram_dir`) reads them from that cache dir. This turns N×189 GiB of
+   Internet egress into one download plus a fabric rsync. It depends on such a repo
+   existing (and being trusted — pin and vet the revision); the recipe ships it commented
+   out and keeps the self-contained fetch as the default.
+4. *Ranks must agree on Engram.* `--tp 2` decodes on both ranks in lockstep. If exactly one rank has
+   the tables (e.g. a detached fetch completes on one node between two boots), rank 0 serves from
+   Engram while rank 1 is degraded — a divergence that **hangs at readiness** (`Waiting for server
+   readiness...`, no `/health`). Boot with the tables **present on all ranks** (the detached fetch
+   completes on every node on its first run; a `--check`-verified pre-warm can force it).
 
 ### 12.8 The image
 
@@ -913,7 +998,75 @@ Caveat: the concurrency numbers come from the engine's `/health` `streams.decodi
 tokens/sec benchmark; they establish the admission law. The decode figure is a real measurement
 (median of 3) but of one prompt shape.
 
-### 12.14 References
+### 12.14 Vision (image input) — TP=4 yes, TP=2 no (as shipped)
+
+The model is multimodal (DeepSeek-ViT encoder; `image_token_id` 129264), and the two lanes differ in
+whether the shipped recipe exposes it. **This is a recipe/launcher property, not a checkpoint one** —
+both checkpoints carry the tower.
+
+**TP=4 (knapcio) — vision is ON and exercised every boot.** The image's `boot.py` `smoke()` sends a
+generated PNG through `/v1/chat/completions` as an `image_url` part and asserts the reply names the
+red circle and blue square (and `image_tokens == 1024` when the usage block reports it). `smoke()`
+runs unless `SKIP_SMOKE=1`; the launcher leaves `SKIP_SMOKE` at its default `0`, so the check runs on
+every boot. VERIFIED on our fleet — three boot logs end with
+`Structured output, tool round trip and full-budget native vision passed.`
+(`.scratch/ds4/knapcio_boot.log`, `.scratch/ds4/knapcio/logs/boot9-head-serve.log`,
+`.scratch/ds4/verify94/run.log`), and the serve log shows the multimodal path arming
+(`Multimodal processor concurrency enabled`, `Using triton_attn as multimodal attention backend`,
+`Reserving 0.10 GB of the KV budget for post-sizing multimodal allocations`). The recipe now carries
+`vision` in `metadata.tags`.
+
+**TP=2 (TensorFold) — vision is OFF as shipped.** The engine *supports* it: the `deepseek_v41` family
+declares `CUDA_VISION = True` and ships `families/deepseek_v41/cuda/vision.py` (the ViT, the aligner,
+and the image spans), and the fork's `tools/dsv41/REPORT.md` §1 lists the served line as
+`--vision --parallel 4 --mtp-drafts 5` with **6/6 image-input checks passing**. But `--vision` is an
+opt-in CLI flag (default off; no env enables it), and the shipped
+`mods/tensorfold-dsv41-launcher/launcher.py` does **not** pass it — its `tensorfold serve` line is
+`--tp 2 --rank R --host … --port … --context … --parallel 4 --mtp-drafts 5 --temperature 0
+--no-update-check --name …`. So the recipe serves **text only**; an `image_url` part is refused
+(HTTP 400). The recipe therefore does **not** carry `vision`.
+
+**What enabling TP=2 vision takes — now VERIFIED on our hardware (2026-10-06).** Ran on
+`.32`/`.33` (head `.32`). Two changes, both required; with both, image input works.
+
+1. **Add `--vision` to the launcher's serve line.** The engine then loads the tower on rank 0 and
+   every rank routes image spans with the gates' VL bias.
+2. **Supply the VL routing bias.** The EXL3 checkpoint has the tower and aligner (263 tensors,
+   floating-point — no EXL3 sidecar conversion needed) but **omits `ffn.gate.bias_vl`** (0 of 43
+   gates; the official `deepseek-ai/DeepSeek-V4.1-Flash` checkpoint has all 43: 40 `layers.0..39`
+   plus `mtp.0..2`, each float32 `[384]`). Without it the engine warns `no ffn.gate.bias_vl found …
+   image tokens route with the text bias` and image quality is degraded, though it still answers.
+   `attach_vl_bias` takes a **folder** and globs `*.safetensors` in it (searching
+   `TF_DS_VISION_EXTRA`, the model dir, the Engram dir, and a `DeepSeek-V4.1-Flash-extra` sibling), so
+   point `TF_DS_VISION_EXTRA` at a directory holding the 43 extracted tensors — **not** at the file
+   (a file path yields `VL bias for 0 gates`).
+
+Measured results (evidence in `.scratch/ds4/vision-trial/RESULTS.md`, recipe copies
+`baseline.yaml` / `vision.yaml`, overlay mod `mods/dsv41-vision-overlay/`):
+
+- **As shipped (no `--vision`)**: image request → **HTTP 400**
+  `image input requires a supported vision checkpoint served with --vision`. Text works.
+- **With `--vision` only** (VL bias folder not on the path): tower loads
+  (`vision tower on rank 0: 0.90 GiB; VL bias for 0 gates`), image request → HTTP 200 with a correct
+  answer, but gate routing is on the text-bias fallback.
+- **With `--vision` + the 43-gate VL bias folder**: `VL bias for 43 gates`; three discriminating
+  images answered correctly, including a **swapped-order** image ("blue square on the left and a red
+  circle on the right") and a **single-shape** image where the model rejected the two-shape premise
+  and described the one actual shape. So it reads the pixels; it is not pattern-matching a canned
+  answer.
+- Warm boot (rank cache present) 54.6 s TTR; cold 512 s. Tower adds 0.90 GiB on rank 0.
+
+**Bottom line.** TP=2 vision is **supported and now proven on our hardware, but not shipped**: it is
+a two-part change (`--vision` + the staged VL bias), so the recipe still carries no `vision` tag and
+the shipped launcher still refuses images. To ship it, add `--vision` to
+`mods/tensorfold-dsv41-launcher/launcher.py`, ship the 43-gate `vl_bias.safetensors` (see
+`mods/dsv41-vision-overlay/`), and set `TF_DS_VISION_EXTRA` at that folder.
+
+The engine's own `docs/vision.md` describes `--vision` for GLM/Qwen families; the DeepSeek-V4.1 path
+is the family's own `cuda/vision.py` and is what the fork's `tools/dsv41/REPORT.md` measured (6/6
+image-input checks).
+
+### 12.15 References
 
 - Engine: [bertholomus/TensorFold, branch `deepseek-v41-tp2`](https://github.com/bertholomus/TensorFold/tree/deepseek-v41-tp2)
 - Design/report: the fork's `tools/dsv41/DESIGN.md`, `REPORT.md`, `ATTRIBUTION.md`
