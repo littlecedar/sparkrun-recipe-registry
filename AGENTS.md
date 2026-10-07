@@ -1,329 +1,248 @@
-# Developer & Agent Guide (`AGENTS.md`)
+# Repository Guidelines
 
-This document provides technical reference and development instructions for the **Little Cedar Sparkrun Recipe Registry** (`sparkrun-recipe-registry`).
+Registry of **sparkrun** deployment recipes for Little Cedar Group's 6-node DGX Spark cluster
+(GB10 Blackwell, 128 GB unified LPDDR5X, 200 GbE CX7 RoCE). The tree is git-distributed to the
+cluster and to third parties, and is consumed by the `sparkrun` CLI as the `littlecedar` registry
+(`Trusted=yes`, so recipe mods run unprompted at launch). There is no compiled application here:
+the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
----
+Counts in this document were verified 2026-10-07 against the working tree. Facts drift — re-measure
+(`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
-## Workflow
+## Project Overview
 
-- install: `uv sync`. Prereq outside uv: `sparkrun --version` (v0.3.8+), else `uv tool install sparkrun`. No pytest/ruff/black/mypy/shellcheck/yamllint/pre-commit/CI anywhere; `pyproject.toml` has no `[tool.*]`.
-- build: N/A — no Makefile/justfile/Taskfile/tox/CMake. Root `package-lock.json` is an empty stub: never run `npm`.
-- test all: `uv run python -m unittest discover -s tests -v` (`uv run --offline python -m unittest discover -s tests` against the offline cache)
-- test harness `discover` cannot see; takes a **required** positional path to a real `tokenizer_manager.py` (a bare run exits 2, which its own docstring warns is never a verdict on the patch). Exit 0=patched, 1=unpatched, 2=harness-failed: `uv run python mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py <tokenizer_manager.py>`
-- test file: `uv run python -m unittest tests.test_qwen3_vl_embeddings` (no `__init__.py`; path form also works: `uv run python -m unittest "tests/test_qwen3_vl_embeddings.py"`)
-- test case: `uv run python -m unittest tests.test_qwen3_vl_embeddings.TestRecipeInvariants.test_json_defaults_survive_as_one_shell_word` (class-only form valid)
-- lint: `for s in mods/*/*.sh; do bash -n "$s" || exit 1; done`; `for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p" || exit 1; done`; `HOME="$PWD/.local/sparkrun-home" sparkrun recipe validate <recipe.yaml>`. `mods/*/*.py` misses `tools/`, so `tools/*.py` must be added. Use plain `validate` as the gate, **not** `--strict`: 6 of the 18 recipes already exit 1 under it on `deprecated-recipe-name`, `deprecated-brace-escape`, `unmapped-config-key`, `non-portable-mount`, `deprecated-topology` warnings that are accepted as-is. Do not "fix" a recipe to satisfy `--strict`, and never edit a recipe merely to clear a `suggestion` (e.g. `restated-managed-path` on `qwen3-vl-reranker-2b-vllm-b12x.yaml`, whose explicit `/cache/runtime` path is deliberate).
-- format: no formatter or style checker exists. `command:` YAML style is machine-enforced by the guard suite — do not introduce one.
-- after every edit:
-  ```bash
-  set -e
-  H=$PWD/.local/sparkrun-home
-  uv run python -m unittest discover -s tests
-  for f in recipes/*/*.yaml; do HOME="$H" sparkrun recipe validate "$f" >/dev/null; done
-  for s in mods/*/*.sh; do bash -n "$s"; done
-  for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
-  ```
-  `.local/sparkrun-home` is git-ignored — `mkdir -p .local/sparkrun-home` on a fresh clone. Without `HOME=$H` every `sparkrun` call dies on `PermissionError: ~/.config/sparkrun/registries.yaml` before reading a recipe. `py_compile` leaves untracked `__pycache__/` (not gitignored): `find mods tools -name __pycache__ -type d -exec rm -rf {} +`.
-- debug: render before launching — `HOME="$H" sparkrun run <recipe> -H <node> -n`; `-n` alone errors `No hosts specified`. Grep the rendered line for the flag you just added. `-o key=value` overrides recipe defaults, `-b key=value` benchmark args (both repeatable); `-v`/`-vv`/`-vvv`, `-q` for scripting. `HOME="$H" sparkrun recipe vram <recipe>`; `sparkrun show <recipe>`. Lifecycle `sparkrun status` for task IDs, then `sparkrun logs <task-id>`, `sparkrun stop <task-id>`; **no `sparkrun stop all`**. `HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile decode-triage --output out.yaml` (`--solo --skip-run --no-stop --fresh --resume --timeout`; profiles in `benchmarking/`, list via `sparkrun registry list-benchmark-profiles`). `sparkrun tune sglang <recipe> -H <host>`, `sparkrun tune vllm <recipe> -H <host>`. `sparkrun arena login|status|benchmark`. `sparkrun registry list` shows this repo as `littlecedar` with `Trusted=yes` — recipe hooks (mods) auto-run unprompted at launch. Mod knobs are all `${VAR:-default}`: `MOD_TIMEOUT`, `MOD_CACHEDIR` (`/cache/runtime`), `MOD_LOGDIR` (`/cache/runtime/modlogs`; log `${LOGDIR}/${MOD_NAME}.log`, prior run gzipped), `MOD_MAX_JOBS`, `MOD_TENSOR_PARALLEL`, `MOD_MXFP8_FLOOR`, `MOD_LABQ_REPO`, `MOD_LABQ_REVISION`, `MOD_LABQ_OUT`, `MOD_LABQ_FORCE_REBUILD`, `MOD_DEMOTE_EXTRA_LEAVES`, `MOD_SKIP_VERIFY`. GPU work is remote SSH to `${WOPR_HEAD_NODE}` as `${WOPR_USERNAME}` (vars in git-ignored `.local/CONFIDENTIAL.md`); run `sparkrun` from `${WOPR_RUN_FROM_DIR}` with in-progress recipes symlinked from `${WOPR_SRC_DIR}`. There is no `/cache/models`, ever — each node's HF cache is node-local at `${WOPR_USER_CACHE}/huggingface`, mounted into containers as `/cache`, and models are distributed to every runner node. Cluster mod delivery needs `--transfer-mode local`, else the node clones the registry itself and an unpushed mod is invisible. It is a `hidden=True` click option, so it never appears in `--help` — values `auto|local|push|delegated|pull`; set it persistently with `sparkrun cluster update <name> --transfer-mode local`. `.codex/hooks.json` pipes Bash output through `rtk hook codex`, so "green" output may be summarized.
+- **Recipes** (`recipes/`, 24 files in 5 family dirs) — v2 recipe definitions consumed by
+  `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
+- **Mods** (`mods/`, 27 shipped + `mod-template`) — pre-launch container hooks that patch or stage
+  files inside the serving image before the engine execs.
+- **Benchmarking** (`benchmarking/`, 43 `llama-benchy` profiles + index README) — the curated
+  profile library used by `sparkrun benchmark performance`.
+- **Tuning** (`tuning/`) — only `README.md` is tracked; Triton MoE tuning configs are generated at
+  runtime by `sparkrun tune` and no recipe references a vendored config.
+- **Tests/tools** (`tests/`, `tools/`) — artifact guards and measurement CLIs; intentionally
+  stdlib-only so they run on a head node, in a container, or on a laptop with no venv.
 
-## Conventions
+## Architecture & Data Flow
 
-- **A `defaults:` key no `{placeholder}` in `command:` consumes is not a setting** — sparkrun renders unmapped defaults silently, which shipped an unbootable recipe pair. After touching `defaults:`, read the rendered line from `sparkrun run -n` and grep for your flag.
-- **Unmapped knobs reach the engine only via their placeholder.** `convert` and `limit_mm_per_prompt` are absent from sparkrun's `VLLM_FLAG_MAP`, so `-o limit_mm_per_prompt=…` warns "unmapped" *while still working* — never delete a placeholder to silence it.
-- **`command:` uses folded `>` (17/18 recipes), and any JSON-shaped default must be folded with its shell quotes inside**: `limit_mm_per_prompt: >-\n  '{"image": 4, "video": 1}'`. A plain quoted scalar eats the quotes and the engine gets four arguments.
-- **Recipe name is the filename minus `.yaml`; `name:` is forbidden.** Also banned: `cluster_only:` (use `min_nodes`/`max_nodes`), a literal model ID in `command:` (always `{model}` so paths get rewritten), host bind-mount paths in volumes (ship a mod). Grammar: `<model>-<size>-<quant>-<feature>-<runtime>[-<backend>].yaml`.
-- **File by model family, not model name** — `qwen3.8-flash-next-*` lives in `recipes/qwen4/`; match the siblings. Contributor recipes carry the author's handle prefix (`eugr-`, `ursuciprian-`).
-- **Unrecognized top-level recipe keys are silently absorbed into `runtime_config` and do nothing** unless a runtime asks for them by name (`VERIFIED`: `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` carries a top-level `revision:` pin that `sparkrun recipe validate` reports as unknown, and nothing in sparkrun consumes it generically — the actual pin is the mod's `MOD_LABQ_REVISION` default, `LIKELY` unenforced elsewhere). Never assume a new top-level key works; check `validate` output for `unknown-top-level-key`.
-- **The mod harness is copy-pasted, not shared.** All 17 `mods/*/run.sh` independently duplicate `MOD_*` metadata, `TIMEOUT`/`CACHEDIR`/`LOGDIR`, `stat -c '%u' /cache/runtime` uid inference, `reown()`, `log()`, `log_var()`, `log_cmd()`, log rotation, under `set -euo pipefail`. There is no library and sparkrun ships only the mod's own directory, so a `mods/common.sh` would break at launch; copy `mods/mod-template/run.sh`, keep its SPDX header (`AGPL-3.0-or-later`), add a `README.md`.
-- **Mods run as root and must hand ownership back** — pass every path you create under `/cache/runtime` to `reown`, or downstream user processes fail on root-owned leftovers. `UV_LINK_MODE=copy` because uv symlinking breaks across that boundary.
-- **The `mods:` list is an ordered dependency chain, not a set** (`ORDER MATTERS`, `keep the config mod first`, `Must run LAST` in `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`). Reordering yields a checkpoint tree that boots, answers, and is numerically wrong.
-- **Mods fail closed.** Unknown state → `die`, never a quiet default; contract counts are asserted (`EXPECTED_NARROW = 72`) and mismatches warn loudly; idempotence comes from reading existing output headers, not timestamps; writes go `tmp` + `os.replace`; symlinks are `unlink`ed first, since writing through one rewrites the HF snapshot in the node's cache.
-- **`tools/` and `tests/` are stdlib-only, on purpose** — the tool must run on a head node, in a container, and on a laptop with no venv, and `tests/` parses YAML without PyYAML. Never add a dependency there. `tools/pooling-bench.py` is dash-named: import via `importlib.util.spec_from_file_location` and register in `sys.modules` **before** `exec_module`, or `@dataclass` fails.
-- **Tests are guards over shipped artifacts, not unit tests** — they slice the `<<'TPL'` heredoc out of a mod, execute a mod to assert it *refuses* a bad config, and parse recipe text. **Every guard needs a proven negative control** (unquoted JSON → "word-splits into 4 shell words"; a real `--async-scheduling` in `command:` → fail), and an empty or missing result must raise rather than return `[]` or every downstream check passes vacuously.
-- **Guards scan executable lines only, because recipe prose documents the forbidden string** — "``--async-scheduling`` is deliberately NOT set" broke the guard forbidding it (F20). Never "fix" a failing guard by rewording a recipe comment; any new text-scanning guard must strip whole-line comments first.
-- **Comments carry evidence and the vocabulary is fixed:** `VERIFIED`/`LIKELY`/`SPECULATIVE`, upstream citations at `file.py:line` against a pinned commit, dates on hardware claims, measured numbers with provenance, negative results kept rather than deleted. Tidying these as noise, or writing a confident comment with no citation, violates the main convention.
-- **Journal and work docs are git-ignored by design** (`**/*JOURNAL.md`, `**/*-WORK.md`, `**/*-WORK-ARCHIVE.md`, `.local/`) because this registry is git-distributed to nodes and third parties and those files hold internal IPs. **Never `git add -f` them**, keep hostnames/IPs out of anything tracked, and leave committed files' dangling section references alone.
-- **This working tree is syncthing-shared with a live second writer.** `git add -A`, directory adds, and bare globs are prohibited — use explicit pathspecs and review `git diff --cached --stat` first. `tests/*.sync-conflict-*.py` (22 tests) is intentionally untracked, not importable by `discover`, and must not be deleted; the suite is 31 tests, not 22.
-
-- The repo is synchronized to ${WOPR_HEAD_NODE} and backed up out-of-band. Do not worry about losing load-bearing documentation.
-- Always offload safe parallel tasks onto subagents to keep the main agent free for managing subagents and long-horizong planning.
-- Prefix shell commands with `rtk` [Rust Token Killer](https://github.com/rtk-ai/rtk) to dramatically reduce token bloat from shell command output!
-- The Hugging Face cache is no longer shared.  All models must be distributed across runner nodes.
-## Commit & Pull Request Guidelines
-
-Imperative mood, capitalized, no trailing period (`Add` 8x, `Update` 7x in the last 60). No Conventional Commits — zero `feat:`/`fix:`/`chore:` prefixes; a lowercase scope marks follow-ups (`demote mod:`, `qwen3-vl pooling:`). Subjects run 60-90 chars with backticks around identifiers; the log's 176-char subjects and throwaways (`checkpointing`, `cripes`) are outliers, not models. Bodies are multi-paragraph prose (~72 col wrap) in a fixed shape: what broke -> mechanism cited to `file.py:line` or a boot ID -> what changed -> what is and is not verified -> pointer to the evidence doc. No `Signed-off-by` or `Co-authored-by` trailers. Examples: `qwen3-vl pooling: block-size fix, pooling-bench tool, recipe guards`, `demote mod: index_qk_proj control was negative, so it defaults off`, `Add labquant MXFP8->BF16 demote mod; wire labquant recipes to the mod chain`.
-
-PRs target `main` from `<contributor>/<kebab-topic>` branches on forks (merged as `Merge pull request #NN from spark-arena/glm-5.3`); upstream syncs land as `Merge branch 'spark-arena:main' into main`. **There is no PR template and no CI**, so the description carries the review context itself: symptom, mechanism cited to pinned upstream `file.py:line`, which knobs changed and why, the node/date a claim was `VERIFIED` on (or an explicit "unmeasured"), the exact validation run, and anything deliberately omitted. Link issues when a defect traces to an upstream engine bug and name the pinned container commit you read; state negative controls for any guard added. Do not invent a checklist or template convention this repo does not use.
-
----
-
-## 1. Project Overview & Architecture
-
-The repository serves as a centralized registry for `sparkrun` deployment recipes, container mods, tuning configurations, and benchmark profiles tailored for NVIDIA DGX Spark clusters (Blackwell GB10 GPUs, 128 GB unified LPDDR5X memory per node, and 200 GbE ConnectX-7 RoCE networking).
-
-Confidential information is kept in `.local/CONFIDENTIAL.md`.  References to confidential information are made using shell environment variables defined in `.local/CONFIDENTIAL.md`.
-
-### Repository Structure
-
-```
-├── .sparkrun/
-│   └── registry.yaml          # Registry manifest declaring components (recipes, tuning, benchmarks, mods)
-├── recipes/                   # v2 Sparkrun recipe definitions (organized by model family)
-│   ├── ornith/                # Ornith-1.5 model serving recipes (vLLM, SGLang)
-│   ├── qwen3/                 # Qwen3 / Qwen3-Coder / Qwen3-VL recipes
-│   └── qwen4/                 # Qwen3.8 Flash Next NVFP4 recipes
-├── mods/                      # Pre-launch container customization hooks & scripts
-│   ├── mod-template/          # Standard template for authoring new container mods
-│   ├── make-roce-env/         # Auto-detects CX7 RoCE interfaces & generates .env.roce
-│   ├── fix-qwen3.8-flash-next-vllm/ # Source patching for vLLM PLE layer
-│   ├── cap-flashinfer-ninja-parallelism/
-│   ├── pip-install-fastsafetensors/
-│   ├── pip-install-orjson/
-│   └── qwen-honed-chat-template/
-├── tuning/                    # Pre-computed Triton fused MoE kernel tuning configs
-├── benchmarking/              # Curated Sparkrun benchmarking profiles (e.g. fast-smoke.yaml)
-│                              #   + README.md index; single-use arms are in attic/benchmarking/
-├── pyproject.toml             # Python project definition and dependencies
-├── uv.lock                    # Dependency lockfile
-└── AGENTS.md                  # This file
+```mermaid
+flowchart LR
+  R["recipes/FAMILY/NAME.yaml"] -->|"sparkrun run @littlecedar/NAME"| S[sparkrun CLI]
+  S -->|"mods: pre_exec, in order, as root"| M["mods/NAME/run.sh"]
+  M -->|"writes, then reown() to cache owner"| C
+  S -->|"command: rendered from defaults + placeholders"| C["serving container (sglang / vllm)"]
+  C -->|"reads"| H["node-local HF cache, bind-mounted at /cache"]
 ```
 
----
+Load-bearing contracts:
 
-## 2. Build & Environment Configuration
+- **`defaults:` reaches the engine only through a `{placeholder}`** in `command:` (or a runtime flag
+  map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
+  `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
+  nothing consumes — sparkrun renders unmapped defaults silently.
+- **`command:` is YAML folded `>`** (24/24 recipes). JSON-shaped defaults must keep their shell
+  quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
+  word-splitting hands the engine four arguments.
+- **`mods:` is an ordered dependency chain, not a set.** Recipe comments
+  (`ORDER MATTERS`, `keep the config mod first`, `Must run LAST`) are load-bearing; reordering a
+  labquant/EXL3 chain yields a tree that boots, answers, and is numerically wrong.
+- **Mods run as root** in the container and must `reown()` anything created under `/cache/runtime` to
+  the cache mount's UID/GID, or downstream user processes fail on root-owned leftovers. A non-zero
+  mod exit tears the whole launch down, so transient failures log and continue.
+- **Each runner node has its own HF cache** at `${WOPR_USER_CACHE}/huggingface` mounted at `/cache`.
+  There is no shared `/cache/models`; sparkrun distributes every model to each serving node.
 
-The project uses Python (>=3.12) with `uv` as the package and environment manager, and relies on the `sparkrun` CLI tool.
+## Key Directories
 
-### 2.1. Python Environment Setup
+| Path | Contents |
+|---|---|
+| `recipes/ds4/` (3), `recipes/ifm/` (8), `recipes/ornith/` (2), `recipes/qwen3/` (7), `recipes/qwen4/` (4) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md` |
+| `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, `attic/ornith/`, `attic/mad-science/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
+| `tests/` | 10 importable guard modules, `k2_36b_arith.py` helper, one skipped `*.sync-conflict-*.py` |
+| `tools/` | 8 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, synthetic_png) |
+| `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
+| `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
+| `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
 
-Install and sync dependencies:
+## Development Commands
 
 ```bash
-# Sync virtual environment from uv.lock
-uv sync
-
-# Activate the virtual environment if needed
-source .venv/bin/activate
+uv sync                        # netifaces has no wheel — builds from sdist, needs a C toolchain
+mkdir -p .local/sparkrun-home  # fresh clone; git-ignored
+sparkrun --version             # requires >= 0.3.8 (0.4.0 verified locally)
 ```
 
-Dependencies include:
-- `jinja2 >= 3.1.6`: Template rendering for mod configurations (e.g. `.env.roce`).
-- `netifaces >= 0.11.0`: Network interface inspection for RoCE/RDMA network discovery.
-
-### 2.2. Sparkrun CLI Configuration
-
-Ensure `sparkrun` (v0.3.8+) is installed and accessible in `PATH`:
+**Every `sparkrun` call needs the HOME override**, otherwise it dies on
+`PermissionError: ~/.config/sparkrun/registries.yaml` before reading any recipe:
 
 ```bash
-# Verify sparkrun installation
-sparkrun --version
-
-# If installing standalone with uv
-uv tool install sparkrun
+H=$PWD/.local/sparkrun-home
+HOME="$H" sparkrun recipe validate recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml
 ```
 
-The registry is recognized by `sparkrun` via `.sparkrun/registry.yaml`:
-```yaml
-registries:
-  - name: littlecedar
-    description: Little Cedar Group's registry for sparkrun recipes, tuning configs, and benchmark profiles
-    recipes: recipes
-    tuning: tuning
-    benchmarks: benchmarking
-    mods: mods
-```
-
-### 2.3: Remote Build & Work
-
-If you need to run models, build aarch64 code, or pull docker containers, you can connect to `${WOPR_HEAD_NODE}` via `ssh` and use
-`sparkrun status` to find idle nodes and then specify them with `-H <node1>,<node2>,<etc>` when running a recipe with `sparkrun run <recipename>`.
-- The username is `${WOPR_USERNAME}`
-- You can stop a recipe with `sparkrun stop <task ID>`.
-- You can get logs from `sparkrun logs <task ID>`.
-- You can get <task ID> from `sparkrun status`.
-- This repo is automatically synchronized to `${WOPR_HEAD_NODE}` in `${WOPR_SRC_DIR}`.
-- To run recipes under development, symlink them from `${WOPR_SRC_DIR}` into `${WOPR_RUN_FROM_DIR}` and run `sparkrun` from `${WOPR_RUN_FROM_DIR}`.  The `mods` directory in `${WOPR_SRC_DIR}` is symlinked into `${WOPR_RUN_FROM_DIR}` so mods under development are reachable by `sparkrun`.
-
-### 2.4: Hugging Face Cache
-
-There is no `/cache/models` directory and never will be.  Each runner node has its own local Hugging Face cache at `${WOPR_USER_CACHE}/huggingface` (it is **not** shared — the head no longer exports it over NFS).  When `sparkrun` executes a recipe, it mounts the node's cache into the container at `/cache`, and it **distributes the model to every node that serves** because the nodes cannot see each other's caches.
-
----
-
-## 3. Recipe Specification & Standards (v2)
-
-All recipes in `recipes/` must adhere to the **v2 recipe specification**:
-
-### 3.1. Required Fields
-
-- `recipe_version: "2"`: String version indicator.
-- `model`: Hugging Face repo ID or model identifier (e.g., `RadixArk/Qwen3.8-Flash-Next-NVFP4`).
-- `runtime`: Serving runtime (`sglang`, `vllm`, `vllm-distributed`).
-- `container`: Container image tag (e.g., `lmsysorg/sglang:dev-cu13-qwen38-next-local`).
-- `min_nodes`: Minimum number of nodes required (e.g., `1`, `2`, `4`).
-- `metadata`:
-  - `model_params`: String param count (e.g., `"125B"`, `"397B"`).
-  - `model_dtype`: Base weight precision (`nvfp4`, `bf16`, `int4`).
-  - `kv_dtype`: KV cache format (`fp8_e4m3`, `fp8`, `bf16`).
-  - `maintainer`: Maintainer contact / org.
-  - `tags`: Tag list (`lcg_favorite`, `official`, `fast`, `slow`, `large_context`, etc.).
-- `mods`: List of local mods or external mods to run before container starts (e.g. `mods/make-roce-env`).
-- `defaults`: Default parameters exposed to CLI overrides (`port`, `host`, `tensor_parallel`, `gpu_memory_utilization`, `max_model_len`, `max_num_seqs`, `quantization`, `fp4_gemm_backend`, etc.).
-- `command`: Launch command template. Must reference parameter placeholders with `{placeholder}` (e.g. `--model-path {model} --tp {tensor_parallel}`).
-
-### 3.2. Deprecations & Anti-Patterns to Avoid
-
-- **Do not use `name:`**: Recipe names are derived from filenames on disk.
-- **Do not use `cluster_only:`**: Deprecated v1 setting. Use `min_nodes` / `max_nodes` instead.
-- **Do not hardcode literal model IDs in `command:`**: Use `{model}` placeholder so sparkrun can rewrite paths for local caching and pre-synced weights.
-- **Do not hardcode host machine paths in volumes**: Package patches as a `mods:` script instead of host bind mounts.
-
----
-
-## 4. Container Mods (`mods/`) Architecture
-
-Mods are modular pre-execution scripts injected into the container before starting the inference runtime.
-
-### 4.1. Mod Directory Structure
-
-Each mod lives in `mods/<mod-name>/`:
-- `run.sh`: Main executable entry point. Must be executable (`chmod +x run.sh`) and include `set -euo pipefail`.
-- Supporting scripts (e.g. `.py` or patch files).
-
-### 4.2. Standard Mod Conventions
-
-Follow the standard harness from `mods/mod-template/run.sh`:
-- **Metadata Exports**:
-  ```bash
-  export MOD_NAME="my-mod"
-  export MOD_DESCRIPTION="Short description of what the mod does"
-  export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
-  ```
-- **Directory Paths & Permissions**:
-  - `CACHEDIR` defaults to `/cache/runtime`.
-  - `LOGDIR` defaults to `/cache/runtime/modlogs`.
-  - Mods execute as `root`. To avoid permission issues for downstream user processes, inspect `/cache/runtime` ownership:
-    ```bash
-    export USER_UID="$(stat -c '%u' /cache/runtime)"
-    export USER_GID="$(stat -c '%g' /cache/runtime)"
-    reown() { chown -R "${USER_UID}:${USER_GID}" "${@}"; }
-    ```
-- **Logging**: Use the provided `log`, `log_var`, and `log_cmd` functions which write timestamped logs to `${LOGDIR}/${MOD_NAME}.log` and `logger`.
-- **Python Dependencies in Mods**: If external libraries are needed, install them into the container environment using `uv pip install ...` or `pip install ...` inside `run.sh`.
-
----
-
-## 5. Testing & Verification
-
-### 5.1. Validating Recipes with Sparkrun
-
-Run `sparkrun recipe validate` to check recipe schemas and command interpolation:
+The repo-mandated gate after every edit:
 
 ```bash
-# Validate a single recipe
-sparkrun recipe validate recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml
-
-# Validate in strict mode (fails on warnings/suggestions)
-sparkrun recipe validate --strict recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml
-
-# Validate all recipes in the registry
-for f in recipes/*/*.yaml; do
-  sparkrun recipe validate "$f"
-done
+set -e
+H=$PWD/.local/sparkrun-home
+uv run python -B -m unittest discover -s tests
+for f in recipes/*/*.yaml; do HOME="$H" sparkrun recipe validate "$f" >/dev/null; done
+for s in mods/*/*.sh; do bash -n "$s"; done
+for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
+find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-### 5.2. Estimating VRAM & Hardware Fit
+- **Plain `validate` is the gate, not `--strict`**: 24/24 pass plain; 4/24 fail strict on
+  accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`,
+  and the three `recipes/qwen4/*labquant*` — `unpinned-model-revision`). Never edit a recipe merely
+  to clear a `suggestion` (e.g. deliberate `/cache/runtime` paths flagged `restated-managed-path`).
+- `py_compile` leaves `__pycache__/`; the suite's own child processes may recreate it even under
+  `-B`, so keep the cleanup line.
 
-Check memory budget and token context feasibility against DGX Spark 128GB unified memory:
+Render before launching; `-n` alone errors with `No hosts specified`:
 
 ```bash
-sparkrun recipe vram recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml
+HOME="$H" sparkrun run <recipe> -H <node> -n            # print the rendered command
+HOME="$H" sparkrun run <recipe> -H <node> -n | grep -- '--your-flag'
 ```
 
-### 5.3. Shell & Python Static Syntax Checks
-
-Verify syntax of all mod shell and Python scripts:
+`-o key=value` overrides recipe defaults and `-b key=value` passes benchmark args (both repeatable);
+`-v`/`-vv`/`-vvv`, `-q` for scripting. Lifecycle: `sparkrun status` → task IDs, `sparkrun logs <id>`,
+`sparkrun stop <id>` (**no `sparkrun stop all`**).
 
 ```bash
-# Verify shell scripts
-for script in mods/*/*.sh; do
-  bash -n "$script" && echo "OK: $script"
-done
-
-# Verify python scripts
-for py in mods/*/*.py; do
-  uv run python -m py_compile "$py" && echo "OK: $py"
-done
+HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \
+  --output out.yaml          # flags: --solo --skip-run --no-stop --fresh --resume --timeout
+HOME="$H" sparkrun tune sglang <recipe> -H <host>   # or: tune vllm
 ```
 
-### 5.4. Unit Testing Framework & Guidelines
+Remote GPU work is SSH to `${WOPR_HEAD_NODE}` as `${WOPR_USERNAME}`; run `sparkrun` from
+`${WOPR_RUN_FROM_DIR}` with in-progress recipes symlinked from `${WOPR_SRC_DIR}`. Cluster mod
+delivery needs `--transfer-mode local` (hidden option; `auto|local|push|delegated|pull`; persist
+with `sparkrun cluster update <name> --transfer-mode local`), else the node clones the registry
+itself and an unpushed mod is invisible.
 
-Unit tests can be written using Python's standard `unittest` module and executed with `uv run python -m unittest`.
+## Code Conventions & Common Patterns
 
-#### How to Add New Tests
-1. Create a test file in a `tests/` directory (e.g. `tests/test_mod_logic.py`).
-2. Write test cases testing mod logic (regex parsing, template rendering, AST/source modifications) or recipe schema validation.
-3. Run the test suite:
-   ```bash
-   uv run python -m unittest discover -s tests -v
-   ```
+### Recipes
 
-#### Executable Test Demonstration
-Below is an example test case demonstrating unit tests for mod logic (e.g. `make-roce-env` interface regex matching and Jinja2 rendering) and recipe validation:
+- **Name = filename minus `.yaml`; a `name:` key is banned.** `cluster_only:` is deprecated (one
+  straggler: `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml:6`).
+- Filename grammar `<model>-<size>-<quant>-<feature>-<runtime>[-<backend>].yaml` is followed loosely.
+  The only backend suffix is `-b12x`; `zz-` marks a non-shippable probe arm; versions keep their dots
+  (`qwen3.8-`, `deepseek-v4.1-`). File by **model family**, not filename prefix — `qwen3.8-flash-next-*`
+  lives in `recipes/qwen4/`; contributor prefixes (`eugr-`, `ursuciprian-`) exist only in `attic/`.
+- Always `{model}` in `command:`, never a literal repo id. No host bind-mount paths — ship a mod
+  (`volumes:` appears in 0 recipes).
+- Pin the checkpoint with top-level **`model_revision:`** (11 recipes), never `revision:` — an
+  unknown top-level key is silently absorbed into `runtime_config` and does nothing (documented as a
+  fixed live defect in the labquant recipe banners).
+- `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
+  when the lane depends on exact upstream code.
+- Update `recipes/README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
+  large_context, …) when adding a shipped recipe, and the lane's `README.md`/`AGENTS.md` when it has
+  one.
 
-```python
-import os
-import re
-import subprocess
-import unittest
-from jinja2 import Template
+### Mods
 
-class TestRegistryAndMods(unittest.TestCase):
-    def test_roce_interface_regex(self):
-        """Verify ConnectX-7 network interface regex matching in make-roce-env."""
-        regex_ib = re.compile(r"^en(P2|)p[12]s0f[01]np[01]$")
-        self.assertTrue(regex_ib.match("enp1s0f0np0"))
-        self.assertTrue(regex_ib.match("enP2p1s0f1np1"))
-        self.assertFalse(regex_ib.match("eth0"))
+- **Copy `mods/mod-template/run.sh`** — there is no shared library, because sparkrun ships only the
+  mod's own directory (`mods/common.sh` would not exist at launch). Keep the SPDX header
+  (`AGPL-3.0-or-later`; one Apache-2.0 port from a contributor) and `set -euo pipefail`.
+- Harness: `MOD_NAME`/`MOD_DESCRIPTION`/`MOD_MAINTAINER` exports; `MOD_TIMEOUT` (default 180),
+  `MOD_CACHEDIR` (`/cache/runtime`), `MOD_LOGDIR` (`/cache/runtime/modlogs`), `UV_LINK_MODE=copy`,
+  UID/GID inferred via `stat -c '%u' /cache/runtime`, `reown()`, `log`/`log_var`/`log_cmd`, log
+  rotation (prior run gzipped). All knobs are `${VAR:-default}`.
+- **Fail closed.** Unknown state → `die`, never a quiet default. Assert numeric contracts
+  (`EXPECTED_NARROW = 72`, …) and refuse to patch when anchors are missing rather than guessing.
+- **Idempotence from content, not timestamps**: read markers/sentinels or `--check` the real
+  artifact. Writes are `tmp` + `os.replace` (restore original owner/mode); `unlink` a symlink before
+  writing, because writing through one rewrites the node's HF snapshot.
+- Do not import the runtime engine from a pre_exec mod (import/JIT side effects); locate target files
+  by filesystem search. A fetch that can outlive the 600 s hook timeout must detach.
+- New mods get a `README.md`, and a guard test when the mod makes a safety claim
+  (see `mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py`).
 
-    def test_roce_device_name_conversion(self):
-        """Verify interface to RoCE device name mapping."""
-        def to_roce(name: str) -> str:
-            return re.sub(r"np[01]$", "", re.sub(r"^en", "roce", name))
+### Evidence-grade comments (do not "tidy" these)
 
-        self.assertEqual(to_roce("enp1s0f0np0"), "rocep1s0f0")
-        self.assertEqual(to_roce("enP2p1s0f1np1"), "roceP2p1s0f1")
+Comments carry `VERIFIED`/`LIKELY`/`SPECULATIVE`, upstream citations at `file.py:line` against a
+pinned commit, dates on hardware claims, measured numbers with provenance, and negative results.
+Tidying them as noise, or writing a confident claim with no citation, violates the main convention.
+Recipe prose documents forbidden strings, so any text-scanning guard must strip whole-line comments
+before matching.
 
-    def test_recipe_validation(self):
-        """Verify that recipes pass sparkrun validation."""
-        recipe_path = "recipes/qwen4/qwen3.8-flash-next-nvfp4-sglang.yaml"
-        result = subprocess.run(
-            ["sparkrun", "recipe", "validate", recipe_path],
-            capture_output=True,
-            text=True
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("is valid", result.stdout)
+### Git, secrets, and the second writer
 
-if __name__ == "__main__":
-    unittest.main()
-```
+- Commit subjects: imperative, capitalized, no trailing period (~87% of the last 200), no
+  Conventional Commits (1/200), backticked identifiers, typically 60–90 chars. Bodies are
+  multi-paragraph prose (~72 col): what broke → mechanism cited to `file.py:line` or a boot ID →
+  what changed → what is (and is not) verified → pointer to the evidence doc. No trailers.
+- PRs target `main` from `<contributor>/<kebab-topic>` forks; upstream syncs land as
+  `Merge branch 'spark-arena:main' into main`.
+- This working tree is syncthing-shared with a **live second writer**: `git add` explicit pathspecs
+  only — never `git add -A`, directory adds, or bare globs — and review `git diff --cached --stat`
+  first.
+- Journal/work docs are git-ignored by design (`**/*JOURNAL.md`, `**/*-WORK.md`,
+  `**/*-WORK-ARCHIVE.md`, `.local/`) because they hold internal IPs and this registry is distributed
+  to third parties. Never `git add -f` them; keep hostnames/IPs out of tracked files.
 
-### 5.5 Live Experiments
-Refer to the info in **§2.3: Remote Build & Work**
+## Important Files
 
----
+- `.sparkrun/registry.yaml` — registry manifest (`littlecedar`; the `eugr` fallback registry comes
+  from sparkrun itself, not from here).
+- `pyproject.toml` — dependencies only (`jinja2`, `netifaces`); no `[build-system]`, no `[tool.*]`.
+- `mods/mod-template/run.sh` — authoritative mod harness.
+- `recipes/README.md` — recipe index and flag taxonomy; `recipes/<family>/AGENTS.md` carry lane
+  state, constraints, and runbooks (e.g. `recipes/qwen4/AGENTS.md`, `recipes/ds4/AGENTS.md`).
+- `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
+  an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
+  header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
+- `tools/README.md` — tool index (documents 5 of 8 tools; `gate-37111.py`, `qwen4-quality-eval.py`,
+  `synthetic_png.py` are undocumented).
+- `.codex/hooks.json` — pipes Bash output through `rtk hook codex`; prefix shell commands with `rtk`.
+- `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
-## 6. Development & Hardware Guidelines
+## Runtime/Tooling Preferences
 
-### 6.1. DGX Spark Memory Management
-- **Unified Memory Constraints**: DGX Spark nodes feature 128 GB of unified LPDDR5X memory shared between GPU, CPU, and OS.
-- **GPU Memory Utilization**: Set `gpu_memory_utilization: 0.85` in recipe defaults. Values higher than `0.85-0.90` risk OOM panics when the system kernel or OS page cache requests memory.
-- **KV Cache Sizing**: NVFP4 weights + FP8 KV cache (`kv_dtype: fp8_e4m3`) is the standard path to maximize context length within the 128 GB memory boundary.
+- **Python ≥ 3.12 via `uv`** (local venv is 3.14.7, uv 0.12.23). Run Python as
+  `uv run python -B ...`. Only runtime deps are `jinja2` and `netifaces` (the latter sdist-only).
+- **`sparkrun` CLI v0.3.8+** on PATH outside uv (`uv tool install sparkrun` if missing); all
+  invocations require the `HOME="$PWD/.local/sparkrun-home"` override.
+- **No npm/node tooling.** `package-lock.json` is a 6-line empty stub and no `package.json` exists —
+  never run `npm`.
+- **No CI, no pre-commit, no formatters or linters**: no `.github/`, no CI provider configs, no
+  pytest/ruff/black/mypy configuration anywhere (`.ruff_cache/` on disk is leftover). Linting is
+  syntax checks only: `bash -n`, `py_compile`, `sparkrun recipe validate`.
+- `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
+  dependency there.
+- Mods are bash + stdlib Python; in-container installs use
+  `pip install --force --break-system-packages` or `uv pip install` with `UV_LINK_MODE=copy`.
 
-### 6.2. Blackwell FP4 Execution Backends
-- For **SGLang**: Use `quantization: modelopt_fp4` and `fp4_gemm_backend: flashinfer_cutlass`.
-- For **vLLM**: Ensure FP8/FP4 MTP/PLE patches are loaded via mods when using experimental checkpoint architectures (e.g. `mods/fix-qwen3.8-flash-next-vllm`).
+## Testing & QA
 
-### 6.3. Multi-Node Communication
-- Sparkrun handles multi-node tensor parallelism over 200 GbE RoCE by settings the required environment variables, such as `NCCL_NET=IB`, `NCCL_IB_ROCE_VERSION_NUM=2`, and proper `NCCL_IB_HCA` device list.  `mods/make-roce-env` is for compatibility patching with legacy and alternative runners, not Sparkrun.  Do not use `mods/make-roce-env` when building Sparkrun recipes.
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **388 tests,
+  1 known failure** (see below). Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
+  single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
+  The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
+  is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
+- **Known failure:** `tests/test_ifm_recipes.FilesExist.test_coordination_and_docs_present` —
+  `recipes/ifm/COOP.md` is missing from the untracked WIP tree. Everything else passes.
+- `tests/*.sync-conflict-*.py` (22 tests) is **skipped** because discover rejects dashed module
+  names before it can report them, and it is tracked in git — do not delete it.
+- Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML
+  subset parser, mod `run.sh` sliced/executed in temp dirs (the `<<'TPL'` heredoc is executed by
+  `tests/test_qwen3_vl_embeddings.py`), tools imported by path. Design rules: **every guard needs a
+  proven negative control** (58 control tests live in `NegativeControls` classes); an empty or
+  missing parse must raise, never return `[]` or pass vacuously; text scans strip whole-line comments
+  and anchor with `(?m)^`.
+- Dash-named tools (`tools/pooling-bench.py`, `tools/needle-haystack.py`) are imported via
+  `importlib.util.spec_from_file_location` with the module registered in `sys.modules` **before**
+  `exec_module`, or `@dataclass` fails.
+- Mod-local harnesses are standalone scripts, not unittest; exit 2 means the harness could not run
+  and is never a verdict on the patch:
+  - `uv run python mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py <tokenizer_manager.py>`
+    (0 = patched, 1 = unpatched/crashes).
+  - `uv run python mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py <srt/models/xllm.py>`
+    (0 = fully patched, 1 = stock or gate-only).
+- No coverage tooling and no coverage expectation; a guard is judged by its negative control, not by
+  lines executed. Tests that pin wording, copies, or incidental defaults are deleted, not updated.

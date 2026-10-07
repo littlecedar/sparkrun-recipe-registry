@@ -107,6 +107,114 @@ reversal of an uncommon word (`sparkrun`), which common and long words pass —
 a checkpoint weakness, **not** a proven quantization defect (no release-checkpoint
 comparator was run). Full write-up: `attic/ds4/AGENTS.md` §7.6.
 
+## build-dsv41-engram.py
+
+Builds the DeepSeek-V4.1-Flash **Engram tables** from the *online* Hugging Face repo,
+without downloading or unpacking the model weights into a local HF cache.
+
+The TensorFold TP=2 lane (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`)
+serves from the EXL3 checkpoint, whose quantizer **omitted the Engram tables**. The tables
+(189 GiB, layers 1 and 14) exist only in the *official* `deepseek-ai/DeepSeek-V4.1-Flash`
+repo — a ~285 GB checkpoint. `huggingface_hub` snapshotting it to reach 189 GiB of tables
+means materializing the whole model. This tool instead speaks **HTTP byte-range GETs** to
+the HF CDN, reads the two shard headers to locate the four `engram.embed.{weight,scale}`
+tensors, and copies their ranges into a small self-contained directory that the engine
+reads verbatim.
+
+```sh
+# pre-warm a node for the TP=2 lane (the launcher's TF_DS_ENGRAM path)
+python3 tools/build-dsv41-engram.py --out /cache/huggingface/hub/dsv41-engram --workers 24
+
+# slow link: run it detached, then poll; it survives logouts and ssh drops
+python3 tools/build-dsv41-engram.py --detach         # prints pid + log path
+python3 tools/build-dsv41-engram.py --status         # progress; exit 0 = complete
+
+# offline completeness check (no network); exit 0 = complete
+python3 tools/build-dsv41-engram.py --check
+
+# smoke test, no big transfer
+python3 tools/build-dsv41-engram.py --layers 1 --limit-rows 5000 --out /tmp/engram-smoke
+
+# knapcio TP=4 packed 264-B shards instead (parity with pack_engram.py)
+python3 tools/build-dsv41-engram.py --format packed --tensor-parallel 4 --rank 0 --out /tmp/engram
+```
+
+Run it **on a node** (not through `sparkrun`) to pre-warm: with a bare `--out` it
+writes the host HF cache the container bind-mounts
+(`~/.cache/huggingface/hub/dsv41-engram`), resumable across interruptions. Run it
+inside the serving image and it uses the in-container path. It always resumes: an
+interrupted fetch continues from its `.engram-progress.json` cursor.
+
+**Why ranged reads, not `hf_hub_download`.** A GB10 has ~117 GB of usable unified memory and
+the source is 189 GiB; snapshotting or buffering it does not fit. The tool bounds each
+in-flight range, writes straight to disk, and advises written pages `POSIX_FADV_DONTNEED`,
+so **peak RSS measured ~0.6 GiB** while writing 94 GiB (verified on `.34`, 2026-10-06). One
+ranged request per 256 MiB segment also keeps the request count low enough to avoid HF's
+`429`; one request per chunk does not (observed at ~12k requests on a full table).
+
+**Output layout.** `--format safetensors` (default) writes `engram-l<L>.safetensors`, one per
+layer, each with that layer's `.engram.embed.weight` and `.engram.embed.scale` as two
+contiguous planes. This is exactly what TensorFold's `Engram` reader expects: it globs
+`*.safetensors` in `TF_DS_ENGRAM` and reads row `i` at
+`8 + header_len + data_offsets[0] + i * prod(shape[1:])`. `--format packed` writes the
+knapcio TP=4 layout (magic `DSV1EN41`, 4096-B header, 264-B records). Both are resumable.
+
+**Wiring.** The recipe adds `mods/dsv41-engram-fetch`, which runs this builder on each
+runner node before the launcher. It is a no-op once the tables are complete, and it
+**always fetches detached** — sparkrun runs a mod as a pre-exec hook under a hard
+600 s timeout, and a slow-link fetch can take hours, so a blocking fetch is a
+launch-killing risk (observed). For a fresh deployment the honest path is to
+**pre-warm each node out-of-band** with this tool, or to declare an Engram repo in the
+recipe's `distribution_config.models` so sparkrun downloads it once on the head and
+rsyncs it to the workers (`--verify-rows N` re-fetches N random rows from the source
+and compares them to the output). Guarded by `tests/test_dsv41_engram_builder.py`
+(stdlib-only, network-free): the decisive check re-implements the reader's addressing
+rule and proves the emitted bytes satisfy it.
+
+## build-dsv41-combined.py
+
+Vendors **one local Hugging Face repo** that carries everything the TensorFold TP=2
+lane needs, so a node no longer stitches three sources together:
+
+- `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` — the EXL3 2.9 bpw weights (39 shards,
+  ~196 GiB) and the EXL3 `config.json` / `quantization_config.json` (authoritative);
+- `deepseek-ai/DeepSeek-V4.1-Flash` — the **updated prompt** (`chat_template.jinja`),
+  `tokenizer.json` / `tokenizer_config.json`, and the whole repo under `upstream/`;
+- the **Engram tables** (layers 1 & 14, ~189 GiB) that the EXL3 quantizer omitted,
+  written to an `engram/` subdir.
+
+```sh
+# build the repo (~430 GiB free); stages shards 47/48 for a fast local rebuild
+python3 tools/build-dsv41-combined.py --out ~/.cache/models/DeepSeek-V4.1-Flash-EXL3-2.9bpw-combined
+
+# ranged-fetch the tables from HF instead of staging 203 GB of shards
+python3 tools/build-dsv41-combined.py --out <dir> --engram-online
+```
+
+**Why a subdir for the tables.** The engine globs `*.safetensors` **non-recursively**
+in its Engram dir; at the repo root that glob would also walk the 39 EXL3 shards. So
+the tables live in `engram/`, and `mods/tensorfold-dsv41-launcher` prefers
+`<model_dir>/engram/`, making `model: <this repo>` sufficient.
+
+**Why stage the shards by default.** A direct ranged read of the two tables runs at
+~15 MiB/s (hundreds of small segment requests), while a whole-file `hf download` of
+`model-00047/48` runs at ~170 MiB/s; the local rebuild then streams disk-to-disk.
+`--engram-online` is there for the low-disk case.
+
+Output includes `provenance/SOURCES.json` (pinned revisions) and `provenance/MANIFEST.json`
+(per-file size + sha256), plus `provenance/chat_template.exl3.jinja` (the prompt the
+EXL3 conversion shipped, kept for comparison) and `provenance/README.md` (the layout and
+the distribution model). **Never reads tokenizer or chat-template content** — files are
+moved and hashed as bytes only.
+
+**Distributing.** `sparkrun` distributes models **by repo id into the node HF hub cache**
+(`huggingface-cli download <id> --cache-dir <cache>/hub`); a local directory is not
+auto-distributed. Push the repo to the org (`hf upload`) and point the recipe's `model:`
+at that id, or pre-place `models--<org>--<name>/snapshots/<rev>` on each node.
+
+Guarded by `tests/test_dsv41_engram_builder.py` (the launcher's combined-repo resolution)
+and the recipe guards in `tests/test_ds4_recipes.py`.
+
 ## needle-haystack.py
 
 `sparkrun`'s benchmarking path measures **speed**, and `quality-battery.py` plants
