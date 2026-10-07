@@ -6,6 +6,7 @@
 /.local/
 /.upstream-cache/
 /.codex/
+/.ruff_cache/
 **/*JOURNAL.md
 **/*-WORK.md
 **/*-WORK-ARCHIVE.md
