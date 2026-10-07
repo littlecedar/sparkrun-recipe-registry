@@ -10,7 +10,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                       | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                |
 |:---------------------------------------------|:-------|-------:|------:|-----:|---:|:-----------------------------------------------------------|
-| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                   |
+| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                   |
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1  |   73.0 | 197GB |    — |  2 | [Model][Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]         |
 
 ## Ornith 1.5
