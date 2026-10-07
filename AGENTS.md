@@ -59,8 +59,8 @@ Load-bearing contracts:
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, `attic/ornith/`, `attic/mad-science/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
-| `tests/` | 10 importable guard modules, `k2_36b_arith.py` helper, one skipped `*.sync-conflict-*.py` |
-| `tools/` | 8 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, synthetic_png) |
+| `tests/` | 11 importable guard modules, `k2_36b_arith.py` helper, one skipped `*.sync-conflict-*.py` |
+| `tools/` | 9 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
@@ -197,10 +197,9 @@ before matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index; documents all 8 tools (the three added 2026-10-07 describe
-  behaviour and caveats only — this repo records measured results next to the arm that produced
-  them, e.g. `attic/qwen4/status/*.md`).
-- `.codex/hooks.json` — pipes Bash output through `rtk hook codex`; prefix shell commands with `rtk`.
+- `tools/README.md` — tool index; documents all 9 tools (`safe_text.py` added 2026-10-07; the
+  three before it describe behaviour and caveats only — this repo records measured results next
+  to the arm that produced them, e.g. `attic/qwen4/status/*.md`).
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
 ## Runtime/Tooling Preferences
@@ -221,7 +220,7 @@ before matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **388 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **416 tests,
   all passing** as of 2026-10-07. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
