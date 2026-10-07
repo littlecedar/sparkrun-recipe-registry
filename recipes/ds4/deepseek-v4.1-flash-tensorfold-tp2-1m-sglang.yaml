@@ -24,7 +24,34 @@ metadata:
   tags: fast, single_user
 
 mods:
+  # Supplies the Engram tables the EXL3 checkpoint omits. The official checkpoint
+  # is not distributed by sparkrun; on a node without them this fetches them from
+  # the online HF repo with ranged reads. ALWAYS detached: the fetch can run for
+  # hours on a slow link, and sparkrun's pre-exec hook has a hard 600 s timeout,
+  # so it never blocks the launch. The engine serves degraded until they land and
+  # uses them next boot. Runs before the launcher so the shim's Engram status line
+  # reflects reality.
+  #
+  # For a multi-node / slow-link deployment, prefer pre-warming or the distributed
+  # repo (one download on the head, rsync to workers) over N independent fetches:
+  # see distribution_config below and recipes/ds4/README.md.
+  - "@littlecedar/mods/dsv41-engram-fetch"
   - "@littlecedar/mods/tensorfold-dsv41-launcher"
+
+# Uncomment to let sparkrun distribute the Engram tables for the cost of one
+# download on the head plus an rsync to the workers, instead of each node fetching
+# 189 GiB itself. The launcher reads the tables from this repo's cache dir when the
+# mod's own dir is empty. The repo must actually carry the tables (the standard
+# `engram.embed.{weight,scale}` safetensors, at the snapshot root or under
+# `source/`); pin a revision you have vetted -- an unvetted third-party checklist
+# is a supply-chain risk for weights the engine reads on every token.
+#
+# distribution_config:
+#   models:
+#     entries:
+#       - name: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+#       - name: manateelazycat/DeepSeek-V4.1-Flash-TensorFold-Engram
+#         revision: 99d8cfbca033cffa6318724f83a1614acdb1bc08
 
 executor_config:
   entrypoint: ""

@@ -85,6 +85,9 @@ packed shards). The server is up when these appear in the serve log, in order:
 4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool.
 5. `Mean acceptance length > 1` on `Decode batch` lines — DSpark is working. A
    boot that serves but accepts nothing is a failure, not a win.
+6. `Structured output, tool round trip and full-budget native vision passed.` —
+   the image's own smoke test, which includes a **native image-input check**
+   (a generated PNG through `/v1/chat/completions`). This lane serves images.
 
 ## Measured performance
 
@@ -312,7 +315,7 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 | Recipe | `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
 | Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
-| Engram | Official DeepSeek shards **47/48** (~95 GB each), distributed out-of-band |
+| Engram | Built on-node from the online official repo by `mods/dsv41-engram-fetch` (~189 GiB) |
 | Nodes | 2 (TP=2, one GB10 per node) |
 | Context | **1,048,576 tokens served** — the model's full trained window, which is also the KV pool |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
@@ -329,6 +332,61 @@ Two caveats remain. First, the EXL3 checkpoint is a lossy quant — but its **qu
 is now evidence, not hope. Second, the shipping prerequisite that bites first: the `@littlecedar/mods/…`
 reference resolves from the node's registry clone, so this recipe only launches once the mod is
 committed and pushed (§12.10).
+
+**Vision: this lane ships text-only, but the engine can do images.** DeepSeek-V4.1-Flash is
+multimodal, and the TensorFold engine supports image input behind its opt-in `--vision` flag — which
+the shipped launcher does not pass, so an `image_url` part is refused with HTTP 400. Verified on
+`.32`/`.33` (2026-10-06) that adding `--vision` **and** staging the checkpoint's missing VL routing
+bias (43 `ffn.gate.bias_vl` tensors, extracted from the official weights) makes image input work —
+three discriminating images were described correctly, including a swapped-order one. It is a
+two-part change, so it is not shipped. See [`AGENTS.md`](AGENTS.md) §12.14 for the full picture,
+the evidence, and the overlay mod (`mods/dsv41-vision-overlay/`).
+
+**Engram: this lane provisions its own tables from the online repo.** The EXL3 checkpoint
+omits the two Engram embedding tables (layers 1 and 14, ~189 GiB); they exist only in the
+*official* `deepseek-ai/DeepSeek-V4.1-Flash` checkpoint. The recipe now carries
+`mods/dsv41-engram-fetch`, which runs `tools/build-dsv41-engram.py` on each runner node: it
+locates the four `engram.embed.{weight,scale}` tensors via the repo's safetensors index and
+copies them with **HTTP byte-range reads** — the ~285 GB checkpoint is never pulled and the
+model weights are never unpacked into a local HF cache. Peak RSS is ~0.6 GiB on a node whose
+source is 189 GiB. It is a no-op once the tables are complete, and it **always fetches
+detached** — a slow Internet link can take hours and the pre-serve hook has a hard **600 s**
+limit, so the fetch never blocks the launch; the engine serves degraded until the tables land
+and uses them on the next boot. Verified 2026-10-06 on `.34`/`.35` with the tables deleted:
+the executed recipe fetched all 189 GiB on-node (820 s, 236 MiB/s), a fresh boot reached ready in
+~70 s, and **both** engine ranks held `TF_DS_ENGRAM` with the fetched `engram-l1/l14.safetensors`
+open — the served engine uses the fetched tables, not the degraded fallback.
+
+For a fresh or slow-link deployment there are two better paths than waiting on the per-node
+fetch. **Pre-warm out-of-band**: `python3 tools/build-dsv41-engram.py --detach` on each node (then
+`--status`), which resumes across interruptions and needs no container. Or let **sparkrun
+distribute** the tables: uncomment the recipe's `distribution_config.models` block (an Engram repo
+is downloaded once on the head and rsynced to the workers, instead of N×189 GiB of Internet
+egress); the launcher reads them from that cache dir. Either way, a **rank-0/rank-1 Engram
+mismatch hangs at readiness**, so make sure all ranks have the tables before booting. See
+[`AGENTS.md`](AGENTS.md) §12.7, [`tools/README.md`](../../tools/README.md), and
+[`mods/dsv41-engram-fetch/README.md`](../../mods/dsv41-engram-fetch/README.md).
+
+### Combined local repo lane (weights + Engram + prompt in one repo)
+
+`deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml` is the same TP=2 lane served from **one**
+local Hugging Face repo instead of three sources. `tools/build-dsv41-combined.py` vendors the
+EXL3 2.9 bpw checkpoint, the **upstream Engram tables** (layers 1 and 14, as
+`engram/engram-l{1,14}.safetensors`), and **upstream's updated prompt** (`chat_template.jinja`,
+plus the same template folded into the EXL3 `tokenizer_config.json`) into a single directory with
+`provenance/{SOURCES,MANIFEST}.json` pinning the source revisions and hashing every file.
+
+The tables live in an `engram/` **subdir** because the engine globs `*.safetensors`
+non-recursively; at the repo root that glob would walk the 39 EXL3 shards. The launcher now
+prefers `<model_dir>/engram/`, so `model: <this repo>` is all the recipe needs — **no
+`dsv41-engram-fetch` mod and no pre-warm step**. The EXL3 `config.json` stays authoritative
+(its `quantization_config` is the `exl3` the engine requires); the upstream config is kept under
+`upstream/` for reference.
+
+`sparkrun` distributes a model **by repo id into the node HF hub cache**, not by local path, so
+to use this lane across the cluster either push the repo (`hf upload littlecedar/…`) and point
+`model:` at the id, or pre-place `models--<org>--<name>/snapshots/<rev>` on every node. See
+[`tools/README.md`](../../tools/README.md) and the repo's own `provenance/README.md`.
 
 ### Context window and concurrency
 
