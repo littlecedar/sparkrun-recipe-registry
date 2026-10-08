@@ -11,7 +11,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | Recipe                                       | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                |
 |:---------------------------------------------|:-------|-------:|------:|-----:|---:|:-----------------------------------------------------------|
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀 |   46.5 | 510GB | 0.80 |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                   |
-| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1  |   73.0 | 197GB |    — |  2 | [Model][Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]         |
+| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1  |   73.0 | 385GB |    — |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
 
 ## Ornith 1.5
 
@@ -107,5 +107,5 @@ _Flags indicate characteristics of the model and are set in the recipe metadata.
 [jzinno/Ornith-1.5-35B-A3B-DFlash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard]: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
-[Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+[littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash

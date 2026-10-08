@@ -22,7 +22,14 @@ is one such file). This tool never prints the token: it is assembled from codepo
 `raw_token()`, and no shipped file in this tree contains the literal (guarded by
 `tests/test_safe_text.py`).
 
-Three modes, one transform each:
+**A byte-clean file is not a safe file.** A *decodable spelling* — the six ASCII characters
+`\uff5c` between the `<` and `>` — holds no raw token bytes, so a byte scan says "clean", and
+then the next `json.loads` on that object rebuilds the raw token and poisons the reader anyway.
+Measured 2026-10-07: `.scratch/ds4/vision-hard/raw/B.1.jsonl` stored the serving API's 400 text
+verbatim (via `json.dumps`) and killed a live agent session. So `--check` flags the spellings
+too, `--scrub` removes them, and no shipped file may hold one (same guard file).
+
+Four modes, one transform each:
 
 - **escape** (default, read): every non-ASCII codepoint becomes `\uXXXX`/`\UXXXXXXXX`, every
   backslash is doubled, undecodable bytes become `\xNN`. Output is **ASCII-only**, so no input
@@ -31,24 +38,35 @@ Three modes, one transform each:
   bytes back — a chat template handed to a tokenizer, an HTTP body. Writes are tmp +
   `os.replace`, preserve mode/owner, and replace a symlink rather than following it (writing
   through one would rewrite the node's HF snapshot).
-- **`--check`**: reports line:column of every raw token and exits 1; prints the *escaped* form,
-  never the token. A missing/unreadable file is exit 2, never "clean". `--check-nonascii` adds
-  advisory non-ASCII locations.
+- **`--check`**: reports line:column of every raw token and the count of decodable spellings,
+  exits 1 if either is present, and prints the *escaped* form, never the token. A
+  missing/unreadable file is exit 2, never "clean". `--check-nonascii` adds advisory non-ASCII
+  locations.
+- **`--scrub`**: replaces every spelling (raw, `\uff5c`, `\U0000FF5C`, doubled backslashes)
+  with `[deepseek_image]`, a marker with no delimiter and no backslash that stays inert through
+  further decoding. Far narrower than `escape`: everything else is byte-identical, so a JSONL
+  stays valid JSONL. Content-addressed (a clean file is not rewritten) and refused on a file a
+  running process holds open — tmp+replace would strand a live writer (an omp session JSONL) on
+  the orphaned inode; `--force` overrides. Use it on logs, session files, and dumps; use
+  `--scrub -o`/stdin when you need a *readable* safe copy.
 
 ```sh
 tools/safe_text.py --check ~/.omp/logs/http-400-requests/*.json   # locate, exit 1 on hit
 tools/safe_text.py dump.json -o dump.safe.txt                     # ASCII-safe copy
 tools/safe_text.py --unescape tpl.safe -o chat_template.jinja     # raw token back
 tools/safe_text.py --in-place --unescape tpl.safe                 # rewrite in place
+tools/safe_text.py --scrub record.jsonl -o record.safe.jsonl      # safe read path
+tools/safe_text.py --scrub --in-place ~/.omp/logs/http-400-requests/*.json
 ```
 
-Exit codes: `0` clean, `1` `--check` found a raw token, `2` the tool could not run. The escape
-is the one trusted boundary: `escape()` asserts its own ASCII-only output, `unescape()` raises
-on any backslash it did not emit *and* on non-ASCII input (which proves the caller is holding a
-raw file), and both are covered by `tests/test_safe_text.py` (30 tests, including negative
-controls proving the detector ignores ASCII-bar lookalikes and that `escape()` is not an
-identity). Verified end-to-end on the real 400-dump artifact: 191427 bytes → 196412 ASCII
-bytes → byte-identical unescape (sha256 match).
+Exit codes: `0` clean, `1` `--check` found the token (raw or decodable spelling), `2` the tool
+could not run. The escape is the one trusted boundary: `escape()` asserts its own ASCII-only
+output, `unescape()` raises on any backslash it did not emit *and* on non-ASCII input (which
+proves the caller is holding a raw file), and all of it is covered by `tests/test_safe_text.py`
+(44 tests, including negative controls proving the detector ignores ASCII-bar lookalikes, that
+`escape()` is not an identity, and that a scrub leaves prose which cannot decode back).
+Verified end-to-end on the real 400-dump artifact: 191427 bytes → 196412 ASCII bytes →
+byte-identical unescape (sha256 match).
 
 **Escaped at rest, raw at the call site.** A template that must *contain* the placeholder —
 a VL request body, a tokenizer fixture, a chat template the campaign launches compare — is
@@ -57,7 +75,8 @@ stored escaped and unescaped only where it is used: `save_template(path, text)` 
 this tree free of the literal token (guarded by the test above) while the request still
 carries the real bytes. Importable API: `raw_token`, `escaped_token`, `escape`, `unescape`,
 `escape_bytes`, `unescape_bytes`, `save_template`, `load_template`, `find_raw_token`,
-`contains_raw_token`, `non_ascii_spans`, `scan_text`, `scan_file`.
+`contains_raw_token`, `find_token_spellings`, `contains_token_spelling`, `non_ascii_spans`,
+`scan_text`, `scan_file`, `SCRUB_MARKER`, `scrub_text`, `scrub_file`.
 
 ## pooling-bench.py
 

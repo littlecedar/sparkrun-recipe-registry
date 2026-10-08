@@ -32,7 +32,7 @@ shipped**. No throughput-motivated recipe change; envelope: cold deep prefill
 `sparkrun benchmark --profile` resolves from the **registry cache**, not the
 working tree; the serve log is `/tmp/sparkrun_serve.log` **inside** the
 container (`docker logs` is empty); containers are reaped after a run (use
-`--no-rm` to keep one); `rtk ssh` breaks on multi-line commands with parens.
+`--no-rm` to keep one).
 
 
 ## Session 2026-10-02 — NEW SECOND LANE: knapcio DSV41 SGLang (TP=4, native MXFP4)

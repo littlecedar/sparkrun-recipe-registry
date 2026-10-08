@@ -15,11 +15,17 @@ The token is the five-part sequence
     U+003C  U+FF5C  "deepseek_image"  U+FF5C  U+003E
 
 (U+FF5C is FULLWIDTH VERTICAL LINE, not the ASCII ``|``.)  It reaches a session
-through three routes, all of them file reads: an image decoded by a harness that
+through four routes, all of them file reads: an image decoded by a harness that
 serialises images as text, a raw HTTP-400 request dump under
-``~/.omp/logs/http-400-requests/``, and a chat template whose content contains
-the placeholder on purpose.  This tool is the one place that knows the spelling
-of that sequence and the one place allowed to assemble or rewrite it:
+``~/.omp/logs/http-400-requests/``, a chat template whose content contains
+the placeholder on purpose, and -- the route a byte scan cannot see -- a
+*spelling* of it inside a JSON document.  The text ``<`` + ``\uff5c`` +
+``deepseek_image`` + ``\uff5c`` + ``>`` holds no raw token bytes at all, yet an
+ordinary ``json.loads`` of the object around it reconstructs the raw token and
+poisons the reader anyway; measured 2026-10-07 on bench records
+(``.scratch/ds4/vision-hard/raw/*.jsonl``) that killed a live agent session.
+This tool is the one place that knows the spelling of that sequence and the one
+place allowed to assemble or rewrite it:
 
 * **escape (read)** -- every non-ASCII codepoint becomes ``\\uXXXX`` (or
   ``\\UXXXXXXXX``), every backslash is doubled, and bytes that are not valid
@@ -27,8 +33,15 @@ of that sequence and the one place allowed to assemble or rewrite it:
   the file held, the token cannot survive the transform.
 * **unescape (write)** -- the exact inverse, used when a *chat template* has to
   be handed to a tokenizer or a server that needs the raw placeholder bytes.
-* **check** -- reports the location of a raw token (or the count of non-ASCII
-  codepoints) without ever printing the token, and exits 1 if one is present.
+* **check** -- reports the location of a raw token, and the count of decodable
+  spellings, without ever printing the token; exits 1 if either is present.
+* **scrub (rewrite)** -- replaces every spelling, raw or escaped, with
+  ``[deepseek_image]``, a marker with no delimiter and no backslash that stays
+  inert through any further JSON/Python decoding.  Targeted, unlike
+  :func:`escape`: the rest of the file is byte-identical, so a JSONL stays valid
+  JSONL and only the hazard moves.  Escaping makes a file safe to *read*;
+  scrubbing makes it safe to *keep* -- which is what a session log, an
+  experiment record, or an HTTP dump needs.
 
 The token is never written literally in this file, in its guards, or in any
 output it produces; it is assembled from codepoints by :func:`raw_token`.  Do
@@ -41,9 +54,12 @@ Stdlib only, Python 3.12+, runnable as a script, a library, or a pipe.
     tools/safe_text.py --check ~/.omp/logs/http-400-requests/*.json
     tools/safe_text.py --unescape tpl.esc -o tpl.jinja   # write the raw token back
     tools/safe_text.py --in-place --check-nonascii f
+    tools/safe_text.py --scrub record.jsonl -o record.safe.jsonl  # safe read path
+    tools/safe_text.py --scrub --in-place session.jsonl dump.json # safe at rest
 
-Exit codes: ``0`` clean, ``1`` ``--check`` found a raw token, ``2`` the tool
-could not run (bad flags, unreadable file) -- never a verdict on the content.
+Exit codes: ``0`` clean, ``1`` ``--check`` found the raw token or a decodable
+spelling, ``2`` the tool could not run (bad flags, unreadable file, a file a
+live process holds open) -- never a verdict on the content.
 """
 
 from __future__ import annotations
@@ -67,10 +83,15 @@ __all__ = [
     "load_template",
     "find_raw_token",
     "contains_raw_token",
+    "find_token_spellings",
+    "contains_token_spelling",
     "non_ascii_spans",
     "scan_text",
     "scan_file",
     "ScanResult",
+    "SCRUB_MARKER",
+    "scrub_text",
+    "scrub_file",
 ]
 
 # --- the token ---------------------------------------------------------------
@@ -108,6 +129,19 @@ def escaped_token() -> str:
 
 
 _RAW_TOKEN_RE = re.compile(re.escape(raw_token()))
+
+#: The token's *decodable* spellings.  A JSON or Python reader turns these back
+#: into the raw token, so they are hazards even though the bytes are ASCII:
+#:   ``\uff5c`` / ``\uff5C`` / ``\U0000FF5C``  (4- or 8-digit escape, any case)
+#: with one or more backslashes, because escaping doubles them (a file that
+#: holds escape()-output inside a JSON string carries ``\\uff5c``).  The ASCII
+#: ``|`` is deliberately NOT a spelling: it is inert and appears in ordinary
+#: prose about the placeholder.
+_BAR = re.escape(chr(_TOKEN_BAR))
+_ESC_BAR = r"\\+(?:u[fF]{2}5[cC]|U0*[fF]{2}5[cC])"
+_SPELLING_RE = re.compile(
+    r"<(%s|%s)deepseek_image(%s|%s)>" % (_BAR, _ESC_BAR, _BAR, _ESC_BAR)
+)
 
 
 # --- escape / unescape -------------------------------------------------------
@@ -248,6 +282,28 @@ def contains_raw_token(text: str) -> bool:
     return _RAW_TOKEN_RE.search(text) is not None
 
 
+def find_token_spellings(text: str) -> list[tuple[int, int]]:
+    """Return 1-based ``(line, column)`` for every spelling of the token.
+
+    A superset of :func:`find_raw_token`: it also matches the escape forms a
+    JSON/Python decoder reconstructs (``\\uff5c``, ``\\U0000FF5C``, doubled
+    backslashes).  Those spellings are ASCII-only, so a byte scan that checks
+    only for the raw sequence reports such a file clean while the very next
+    ``json.loads`` on it puts the raw token back into the reader's context.
+    """
+    hits: list[tuple[int, int]] = []
+    for m in _SPELLING_RE.finditer(text):
+        line = text.count("\n", 0, m.start()) + 1
+        col = m.start() - (text.rfind("\n", 0, m.start()) + 1) + 1
+        hits.append((line, col))
+    return hits
+
+
+def contains_token_spelling(text: str) -> bool:
+    """True if *text* holds a raw token or a spelling a decoder reconstructs."""
+    return _SPELLING_RE.search(text) is not None
+
+
 def non_ascii_spans(text: str, limit: int = 8) -> list[tuple[int, int, str]]:
     """Up to *limit* non-ASCII codepoints as ``(line, column, 'U+XXXX')``.
 
@@ -274,17 +330,26 @@ def non_ascii_spans(text: str, limit: int = 8) -> list[tuple[int, int, str]]:
 class ScanResult:
     """Outcome of one file scan; ``hits`` are line/column pairs."""
 
-    __slots__ = ("path", "hits", "non_ascii", "size")
+    __slots__ = ("path", "hits", "spellings", "non_ascii", "size")
 
-    def __init__(self, path: str, hits: list[tuple[int, int]], non_ascii: int, size: int):
+    def __init__(
+        self,
+        path: str,
+        hits: list[tuple[int, int]],
+        non_ascii: int,
+        size: int,
+        spellings: int = 0,
+    ):
         self.path = path
         self.hits = hits
+        self.spellings = spellings
         self.non_ascii = non_ascii
         self.size = size
 
     @property
     def clean(self) -> bool:
-        return not self.hits
+        """A file is clean only if no reader can reconstruct the token from it."""
+        return not self.hits and not self.spellings
 
     def describe(self) -> str:
         lines = ["%s: %d byte(s)" % (self.path, self.size)]
@@ -295,7 +360,14 @@ class ScanResult:
                 "context; escape it first (escaped form: %s)"
                 % (len(self.hits), locations, escaped_token())
             )
-        else:
+        if self.spellings:
+            lines.append(
+                "  DECODABLE SPELLING x%d -- no raw bytes, but a JSON/Python "
+                "reader reconstructs the raw token; scrub it (--scrub) or read "
+                "it escaped (--escape) before it reaches a model context"
+                % self.spellings
+            )
+        if not self.hits and not self.spellings:
             lines.append("  no raw token")
         if self.non_ascii:
             lines.append("  %d non-ASCII codepoint(s)" % self.non_ascii)
@@ -305,10 +377,11 @@ class ScanResult:
 def scan_text(text: str, path: str = "<text>", size: int | None = None) -> ScanResult:
     """Scan decoded *text* for the raw token and count non-ASCII codepoints."""
     hits = find_raw_token(text)
+    spellings = len(find_token_spellings(text)) - len(hits)
     non_ascii = sum(1 for ch in text if ord(ch) > 0x7F)
     if size is None:
         size = len(text.encode("utf-8", "surrogateescape"))
-    return ScanResult(path, hits, non_ascii, size)
+    return ScanResult(path, hits, non_ascii, size, spellings)
 
 
 def scan_file(path: str | os.PathLike[str]) -> ScanResult:
@@ -320,6 +393,81 @@ def scan_file(path: str | os.PathLike[str]) -> ScanResult:
     data = Path(path).read_bytes()
     text = data.decode("utf-8", "surrogateescape")
     return scan_text(text, os.fspath(path), size=len(data))
+
+
+# --- scrubbing ---------------------------------------------------------------
+#: Inert replacement for a scrubbed spelling.  No delimiter and no backslash:
+#: a reader that decodes the surrounding document's escapes again still sees
+#: this string, never the raw token.  Not reversible on purpose -- a scrub is
+#: for records whose bytes must stop being an outage, not for templates.
+SCRUB_MARKER = "[deepseek_image]"
+
+
+def scrub_text(text: str) -> tuple[str, int, int]:
+    """Replace every spelling of the token with :data:`SCRUB_MARKER`.
+
+    Returns ``(scrubbed, raw, escaped)``: *raw* counts spellings held as the
+    literal five codepoints, *escaped* counts the ones a decoder would
+    reconstruct, so a caller can say which leak it closed.  The output holds
+    neither spelling, and running it again is a no-op.
+    """
+    raw = len(find_raw_token(text))
+    spelled = len(find_token_spellings(text)) - raw
+    return _SPELLING_RE.sub(SCRUB_MARKER, text), raw, spelled
+
+
+def _open_holders(path: str) -> list[int]:
+    """PIDs holding *path* open right now (Linux; empty elsewhere or on error).
+
+    Used to refuse rewriting a file a live writer owns: tmp+replace on a file
+    the writer keeps appending to (an omp session JSONL) strands the writer on
+    the orphaned inode, so the post-scrub bytes are never seen again.
+    """
+    if not sys.platform.startswith("linux"):
+        return []
+    target = os.path.realpath(path)
+    holders: list[int] = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        fddir = "/proc/%s/fd" % entry
+        try:
+            fds = os.listdir(fddir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                if os.path.realpath(os.path.join(fddir, fd)) == target:
+                    holders.append(int(entry))
+                    break
+            except OSError:
+                continue
+    return holders
+
+
+def scrub_file(path: str | os.PathLike[str], *, force: bool = False) -> tuple[int, int]:
+    """Scrub *path* in place; return ``(raw, escaped)``, ``(0, 0)`` if clean.
+
+    Content-addressed and atomic: a file with no spelling is not rewritten (no
+    mtime churn, so the sweep is idempotent), and a rewrite is tmp+replace with
+    mode/owner preserved.  A file a running process holds open is refused
+    unless *force* -- the check runs before the read, so a writer that opens
+    the file after the check still races the replace; re-check with
+    :func:`scan_file` when it matters.
+    """
+    p = os.fspath(path)
+    if not force:
+        holders = _open_holders(p)
+        if holders:
+            raise RuntimeError(
+                "%s is held open by pid %s -- rewriting a live writer's file "
+                "needs force=True/--force" % (p, ", ".join(str(h) for h in holders))
+            )
+    text = Path(p).read_bytes().decode("utf-8", "surrogateescape")
+    out, raw, spelled = scrub_text(text)
+    if raw or spelled:
+        _write_bytes(p, out.encode("utf-8", "surrogateescape"))
+    return raw, spelled
 
 
 # --- I/O ---------------------------------------------------------------------
@@ -362,20 +510,28 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="safe_text.py",
         description="Escape the raw image placeholder token out of logs and chat "
-        "templates (default), or put it back (--unescape), or report it (--check).",
-        epilog="Exit codes: 0 clean, 1 --check found the raw token, 2 could not run.",
+        "templates (default), or put it back (--unescape), or report it (--check), "
+        "or replace its decodable spellings (--scrub).",
+        epilog="Exit codes: 0 clean, 1 --check found the token (raw or decodable "
+        "spelling), 2 could not run.",
     )
     parser.add_argument("paths", nargs="*", help="files (default: stdin)")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
         action="store_true",
-        help="report raw-token locations; never prints the token; exit 1 if found",
+        help="report raw-token locations and decodable spellings; exit 1 if either",
     )
     mode.add_argument(
         "--unescape",
         action="store_true",
         help="inverse transform: write the raw token back (for chat templates)",
+    )
+    mode.add_argument(
+        "--scrub",
+        action="store_true",
+        help="replace every spelling of the token (raw and \\u-escaped) with %s"
+        % SCRUB_MARKER,
     )
     parser.add_argument(
         "--check-nonascii",
@@ -387,6 +543,11 @@ def main(argv: list[str] | None = None) -> int:
         "--in-place",
         action="store_true",
         help="rewrite each input file instead of printing (single file per run in --check mode)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="--in-place: rewrite even a file a running process holds open",
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="only the exit code")
     args = parser.parse_args(argv)
@@ -423,16 +584,48 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return 1 if found else 0
 
+    def transform(text: str, data: bytes) -> tuple[bytes, int, int]:
+        """Return ``(bytes to write, raw spellings, escaped spellings)``."""
+        if args.unescape:
+            return unescape_bytes(text), 0, 0
+        if args.scrub:
+            out, raw, spelled = scrub_text(text)
+            return out.encode("utf-8", "surrogateescape"), raw, spelled
+        return escape_bytes(data).encode("ascii"), 0, 0
+
     try:
         if args.in_place:
             for path in args.paths:
+                if not args.force:
+                    holders = _open_holders(path)
+                    if holders:
+                        print(
+                            "safe_text.py: %s is held open by pid %s; refusing to "
+                            "rewrite a live file (--force overrides)"
+                            % (path, ", ".join(str(h) for h in holders)),
+                            file=sys.stderr,
+                        )
+                        return 2
                 data = _read_source(path)
-                out = unescape_bytes(data.decode("utf-8", "surrogateescape")) if args.unescape else escape_bytes(data).encode("ascii")
-                _write_bytes(path, out)
+                text = data.decode("utf-8", "surrogateescape")
+                out, raw, spelled = transform(text, data)
+                if args.scrub:
+                    if not (raw or spelled):
+                        if not args.quiet:
+                            print("clean: %s" % path)
+                        continue
+                    _write_bytes(path, out)
+                    if not args.quiet:
+                        print(
+                            "scrubbed %s: %d raw + %d escaped spelling(s)"
+                            % (path, raw, spelled)
+                        )
+                else:
+                    _write_bytes(path, out)
         else:
             data = _read_source(args.paths[0] if args.paths else None)
             text = data.decode("utf-8", "surrogateescape")
-            out = unescape_bytes(text) if args.unescape else escape_bytes(data).encode("ascii")
+            out, _raw, _spelled = transform(text, data)
             _write_bytes(args.output, out)
     except OSError as exc:
         print("safe_text.py: %s" % exc, file=sys.stderr)
