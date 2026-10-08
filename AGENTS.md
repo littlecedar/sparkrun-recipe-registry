@@ -6,12 +6,12 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 (`Trusted=yes`, so recipe mods run unprompted at launch). There is no compiled application here:
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
-Counts in this document were verified 2026-10-07 against the working tree. Facts drift — re-measure
+Counts in this document were verified 2026-10-08 against the working tree. Facts drift — re-measure
 (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 24 files in 5 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 20 files in 5 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 27 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
@@ -39,7 +39,7 @@ Load-bearing contracts:
   map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
   `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
   nothing consumes — sparkrun renders unmapped defaults silently.
-- **`command:` is YAML folded `>`** (24/24 recipes). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (20/20 recipes). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -55,11 +55,11 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/ds4/` (3), `recipes/ifm/` (8), `recipes/ornith/` (2), `recipes/qwen3/` (7), `recipes/qwen4/` (4) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md` |
+| `recipes/ds4/` (3), `recipes/ifm/` (4), `recipes/ornith/` (2), `recipes/qwen3/` (7), `recipes/qwen4/` (4) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md` |
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, `attic/ornith/`, `attic/mad-science/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/`, `attic/ornith/`, `attic/mad-science/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
-| `tests/` | 11 importable guard modules, `k2_36b_arith.py` helper, one skipped `*.sync-conflict-*.py` |
+| `tests/` | 10 importable guard modules, one skipped `*.sync-conflict-*.py` |
 | `tools/` | 9 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -93,7 +93,7 @@ for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
 find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: 24/24 pass plain; 4/24 fail strict on
+- **Plain `validate` is the gate, not `--strict`**: 20/20 pass plain; 4/20 fail strict on
   accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`,
   and the three `recipes/qwen4/*labquant*` — `unpinned-model-revision`). Never edit a recipe merely
   to clear a `suggestion` (e.g. deliberate `/cache/runtime` paths flagged `restated-managed-path`).
@@ -135,7 +135,7 @@ itself and an unpushed mod is invisible.
   lives in `recipes/qwen4/`; contributor prefixes (`eugr-`, `ursuciprian-`) exist only in `attic/`.
 - Always `{model}` in `command:`, never a literal repo id. No host bind-mount paths — ship a mod
   (`volumes:` appears in 0 recipes).
-- Pin the checkpoint with top-level **`model_revision:`** (11 recipes), never `revision:` — an
+- Pin the checkpoint with top-level **`model_revision:`** (7 recipes), never `revision:` — an
   unknown top-level key is silently absorbed into `runtime_config` and does nothing (documented as a
   fixed live defect in the labquant recipe banners).
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
@@ -161,7 +161,7 @@ itself and an unpushed mod is invisible.
 - Do not import the runtime engine from a pre_exec mod (import/JIT side effects); locate target files
   by filesystem search. A fetch that can outlive the 600 s hook timeout must detach.
 - New mods get a `README.md`, and a guard test when the mod makes a safety claim
-  (see `mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py`).
+  (see `tests/test_drop_caches_mod.py`).
 
 ### Evidence-grade comments (do not "tidy" these)
 
@@ -220,8 +220,10 @@ before matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **430 tests,
-  all passing** as of 2026-10-07. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **370 tests,
+  all passing 2026-10-08** (down from 430: the K2 MoVA-36B lane's 64-test guard moved to
+  `attic/ifm/` and is no longer auto-discovered; it runs there as
+  `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`). Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
@@ -233,7 +235,7 @@ before matching.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML
   subset parser, mod `run.sh` sliced/executed in temp dirs (the `<<'TPL'` heredoc is executed by
   `tests/test_qwen3_vl_embeddings.py`), tools imported by path. Design rules: **every guard needs a
-  proven negative control** (58 control tests live in `NegativeControls` classes); an empty or
+  proven negative control** (46 control tests live in `NegativeControls` classes); an empty or
   missing parse must raise, never return `[]` or pass vacuously; text scans strip whole-line comments
   and anchor with `(?m)^`.
 - Dash-named tools (`tools/pooling-bench.py`, `tools/needle-haystack.py`) are imported via
@@ -243,7 +245,7 @@ before matching.
   and is never a verdict on the patch:
   - `uv run python mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py <tokenizer_manager.py>`
     (0 = patched, 1 = unpatched/crashes).
-  - `uv run python mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py <srt/models/xllm.py>`
+  - `uv run python attic/ifm/mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py <srt/models/xllm.py>`
     (0 = fully patched, 1 = stock or gate-only).
 - No coverage tooling and no coverage expectation; a guard is judged by its negative control, not by
   lines executed. Tests that pin wording, copies, or incidental defaults are deleted, not updated.

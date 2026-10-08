@@ -1,9 +1,10 @@
 """Exact byte census + roofline arithmetic for the K2-Horizon MoVA-36B-A4B lane.
 
 Single source of truth for every number quoted in
-recipes/ifm/K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md, the four 36B recipes, and
-tests/test_ifm_36b_recipes.py. Run it before editing any of those prose figures; the
-guard test imports these constants and fails if the prose disagrees.
+attic/ifm/K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md, the four archived 36B recipes
+(attic/ifm/arms/), and attic/ifm/test_ifm_36b_recipes.py. Run it before editing any
+of those prose figures; the guard test imports these constants and fails if the prose
+disagrees.
 
 Why this exists. While drafting this lane I shipped four wrong figures into prose that
 no linter can see: routed experts written as 26.521 GB instead of 26.542 GB, the
