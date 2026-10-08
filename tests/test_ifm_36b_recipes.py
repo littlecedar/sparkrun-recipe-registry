@@ -528,7 +528,7 @@ class I12NumericsHonesty(unittest.TestCase):
                     ctx,
                     r"(?i)(modelled|estimate|prediction|ceiling|break-even"
                     r"|roofline|decode law|t = F|bytes/B|pure-bandwidth"
-                    r"|bandwidth bound|bandwidth-bound|fitted)",
+                    r"|bandwidth bound|bandwidth-bound|fitted|measured)",
                     f"{p.name}: a bare t/s figure ({m.group(1)}) with no stated "
                     "provenance reads as a measurement")
 
@@ -746,3 +746,56 @@ class I16NoStaleClaim(unittest.TestCase):
         for p in ALL:
             self.assertNotIn("rewrap-k2-horizon", PARSED[p]["raw"],
                              "that mod was abandoned; see COOP 2026-09-21 correction")
+
+
+# ---------------------------------------------------------------------------
+class I17RouterProvenance(unittest.TestCase):
+    """Every MoVA recipe MUST pass `xllm_source_router_gemm_partitions`, and the
+    first draft of this lane did not -- so every 36B-A4B recipe was unbootable as
+    shipped, BF16 and FP8 alike.
+
+    Falsified on hardware 2026-10-08: the first boot of each arm died BEFORE
+    READING A WEIGHT at `srt/models/xllm.py:204` (`_normalize_k2_horizon_config`)
+    with "K2Horizon MoVA requires explicit source router GEMM provenance". The
+    gate fires for any checkpoint with `mova_num_experts > 0`, independent of
+    quantisation, so the compressed-tensors gates this lane's documents predicted
+    were never even reached. See K2-36B-A4B-JOURNAL.md, 2026-10-08.
+
+    Why the value is asserted to be 2 and not merely present: 1 vs 2 is a
+    NUMERICS choice (`_xllm_router_gemm`, xllm.py:620-652 -- MP2 rounds two BF16
+    partial GEMMs and sums in FP32; MP1 is a single `F.linear`), so a wrong value
+    silently changes which experts fire. The vendor card's own validated SGLang
+    recipe passes 2 for this checkpoint.
+    """
+
+    OVERRIDE = '--json-model-override-args \'{"xllm_source_router_gemm_partitions": 2}\''
+    MOBILE_MOVA = [FP8_TP1, FP8_TP2, BF16_TP1]
+
+    def test_mova_recipes_pass_the_override(self):
+        for p in self.MOBILE_MOVA:
+            self.assertIn(self.OVERRIDE, render(PARSED[p]),
+                          f"{p.name}: missing the mandatory router-provenance "
+                          "override; SGLang dies at xllm.py:204 before weight load")
+
+    def test_override_value_is_two_not_one(self):
+        for p in self.MOBILE_MOVA:
+            self.assertNotIn('"xllm_source_router_gemm_partitions": 1', render(PARSED[p]),
+                             f"{p.name}: value 1 is the MP1 router contract; this "
+                             "checkpoint was trained MP2 (card + xllm.py:620-652)")
+
+    def test_probe_arm_keeps_the_override_too(self):
+        # The falsification arm is about the compressed-tensors gate, not the
+        # router gate: without the override it dies earlier than its own premise,
+        # which is what actually happened on its first (and so far only) boot.
+        self.assertIn(self.OVERRIDE, render(PARSED[PROBE]),
+                      f"{PROBE.name}: without the router override this arm dies at "
+                      "xllm.py:204, proving nothing about the gate it targets")
+
+    def test_override_is_a_literal_not_a_default(self):
+        # `json_model_override_args` is absent from sparkrun's _SGLANG_FLAG_MAP
+        # (runtimes/sglang.py:31-89), so as a defaults key it would be dropped
+        # silently and the engine would revert to its hard gate.
+        for p in self.MOBILE_MOVA + [PROBE]:
+            self.assertNotIn("json_model_override_args", PARSED[p]["defaults"],
+                             f"{p.name}: keep the override as a literal in "
+                             "command:, not a defaults key (sparkrun does not map it)")

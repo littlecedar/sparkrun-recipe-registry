@@ -1,0 +1,255 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-MoVA-36B-A4B
+# SHA pin, same reason as the FP8 siblings (sparkrun writes no refs/ entry into a
+# SHA-pinned blob cache and the container runs HF_HUB_OFFLINE=1, so an engine that
+# resolves its own revision dies with LocalEntryNotFoundError *after* 74.9 GB has
+# synced to both hosts). VERIFIED 2026-09-21 from the HF API: main ==
+# 963c0b3e195e95d93a18caf535b4b6444bb793fd, 74,923,966,572 B.
+model_revision: 963c0b3e195e95d93a18caf535b4b6444bb793fd
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+# MEASURED (2026-10-08, a node, GB10) — after the mandatory router override
+# was added (see the block above `command:`); without it this recipe did not boot:
+#   c=1 d=0    : 15.6 t/s   (5 runs)
+#   c=1 d=8192 : 14.1 t/s
+# `sparkrun benchmark performance <this> --profile benchmarking/decode-triage.yaml`
+# This is the CONTROL. The patched FP8 sibling measured 18.3 / 16.3 on the same
+# profile in the same window -- see that recipe and K2-36B-A4B-JOURNAL.md.
+metadata:
+  description: IFM/K2-Horizon-MoVA-36B-A4B (BF16 reference weights) on 1x GB10 - the unpatched SGLang control for this family, and the arm that should boot on the first try
+  model_url: https://huggingface.co/IFM/K2-Horizon-MoVA-36B-A4B
+  # UNMEASURED. No DGX Spark was touched while this file was written. Everything
+  # below is derived from the checkpoint's own safetensors headers and from sglang
+  # source at a pinned commit; the two throughput figures in the comment block are
+  # MODELLED roofline arithmetic, not observations, and the first decode-triage run
+  # is expected to move them.
+  # Counted from the safetensors headers: 74.891 GB of weights, BF16 throughout,
+  # 48 layers x 2560 hidden x 100 experts. Active parameters are the same 4.665B
+  # as the FP8 sibling -- quantisation changes bytes, not which experts fire.
+  model_params: "36B"
+  model_dtype: bf16
+  # Recognised token. The full fact: config.json carries NO quantization_config at
+  # all (VERIFIED by reading it), so sglang resolves quant_config to None and both
+  # native K2-Horizon gates pass unmodified. That is why this recipe needs no mod.
+  quantization: none
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  # `official` is deliberately absent: AGENTS.md reserves it for recipes verified on
+  # real nodes. Everything else about this recipe says "should work" -- which is more
+  # than can be said for the FP8 siblings, and is exactly why it is the control.
+  tags: experimental
+  upstream_pins:
+    sglang_version: v0.5.20
+    sglang_commit: 95521da
+    k2_native_support: 3bac084d4
+
+mods:
+  - "@eugr/mods/drop-caches"
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # 0.85 as everywhere in this family, but on THIS recipe the number is load-bearing
+  # in a way it is not on the FP8 arms: 74.891 GB of BF16 weights is 58% of 128 GB,
+  # so a 0.85 budget (108.8 GB) leaves ~34 GB for the KV pool, activations and CUDA
+  # graph capture. At 32K context the KV pool needs 6.44 GB, so this fits with room
+  # for ~4 concurrent 32K sequences -- but it is the tightest memory fit in the
+  # family, and the first thing to drop if the pool allocator complains is
+  # max_model_len, not this fraction.
+  gpu_memory_utilization: 0.85
+  # 32768. 192.0 KiB/token x 32768 = 6.44 GB. The same value as the FP8 TP=1
+  # sibling, on purpose: these two recipes are compared, and a differing context
+  # would make the comparison worthless.
+  max_model_len: 32768
+  max_num_seqs: 32
+  dtype: bfloat16
+  attention_backend: flashinfer
+  kv_cache_dtype: auto
+  # NOTE on these two keys: neither `page_size` nor `chunked_prefill_size` is in
+  # sparkrun's `_SGLANG_FLAG_MAP` (runtimes/sglang.py:29-88; the map spells the prefill
+  # key `chunked_prefill`). A default absent from that map is DROPPED with no error and
+  # no trace in the rendered command -- it reaches sglang only because the `command:`
+  # template references it as a {placeholder} (sparkrun/core/launcher.py:620-633 treats
+  # that as "reaches something"). So the placeholder is load-bearing: delete it to
+  # silence a warning and the setting silently dies while the recipe still validates.
+  # Enforced by tests/test_ifm_36b_recipes.py::I14SparkrunFlagMap.
+  page_size: 1
+  chunked_prefill_size: 8192
+  extra_args: ""
+
+# ---------------------------------------------------------------------------
+# THE ROUTER-PROVENANCE OVERRIDE BELOW IS MANDATORY, AND ITS ABSENCE WAS A
+# REAL DEFECT IN THE FIRST DRAFT OF THIS FILE (falsified on hardware 2026-10-08).
+#
+# The first boot of this recipe died BEFORE READING A WEIGHT with:
+#
+#   srt/models/xllm.py:204  _normalize_k2_horizon_config() ->
+#     ValueError: K2Horizon MoVA requires explicit source router GEMM provenance;
+#     SGLang will not infer it from runtime tensor parallelism. After confirming
+#     the training contract, pass --json-model-override-args
+#     '{"xllm_source_router_gemm_partitions": 2}' (use 1 only for a confirmed MP1
+#     source checkpoint).
+#
+# The lane's theory documents predicted a *different* failure -- the
+# compressed-tensors gate at xllm.py:666 -- for the FP8 arms only, and asserted
+# that this BF16 control "should boot on the first try". Both were wrong: the
+# router-provenance gate fires first, is unconditional for any MoVA checkpoint
+# (mova_num_experts > 0), and blocks BF16 and FP8 alike. Work doc section 9
+# ("Deliberately not done") listed this override as omitted because "HF format
+# rejects it"; that claim is falsified -- the checkpoint's config.json simply does
+# not carry the key, and sglang refuses to guess.
+#
+# Why the value is 2, from three primary sources that agree:
+#   * The vendor card's own validated SGLang recipe
+#     (IFM/K2-Horizon-MoVA-36B-A4B-FP8 @ feffd719..., README "Serving") passes
+#     `--json-model-override-args '{"xllm_source_router_gemm_partitions":2}'`.
+#   * srt/models/xllm.py:620-652 `_xllm_router_gemm`: partitions==2 reproduces
+#     the source xLLM MP2 router GEMM's rounding contract exactly -- two BF16
+#     partial GEMMs, each chunked over HALF the hidden dim, each rounded to BF16,
+#     summed in FP32. partitions==1 is the MP1 contract (`F.linear(...).float()`).
+#     These give different router logits, so this is a numerics choice, not a
+#     perf knob; guessing it silently changes which experts fire.
+#   * hidden_size 2560 % 2 == 0, satisfying xllm.py:585's divisibility gate.
+#
+# It is a literal in the command template rather than a `defaults:` key because
+# `json_model_override_args` is NOT in sparkrun's `_SGLANG_FLAG_MAP`
+# (runtimes/sglang.py:31-89), so a defaults entry would be dropped with no error
+# and no trace in the rendered command.
+# ---------------------------------------------------------------------------
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --tool-call-parser k2_horizon
+  --json-model-override-args '{"xllm_source_router_gemm_partitions": 2}'
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHY THIS RECIPE EXISTS
+#
+# It is the control, and it is also the recipe most likely to work on the first
+# boot, which makes it the one to run first.
+#
+# The two SGLang gates that block the FP8 checkpoint
+# (srt/models/xllm.py:664 and :1229) both fire only when quant_config is not
+# None. This repo has NO quantization_config at all -- verified by reading its
+# config.json, which also declares dtype "bfloat16" honestly -- so
+# quant_config resolves to None and both gates are satisfied by their own
+# terms. Nothing here is patched, and no mod touches a runtime file.
+#
+# Three jobs, in priority order:
+#
+# 1. MEASURE B AND F FOR THIS MODEL. Every throughput figure in
+#    K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md is imported from the qwen4 lane's
+#    fitted decode law (t = F + bytes/B, B = 145.5 GB/s, F = 8.4 ms) applied to
+#    this checkpoint's byte census. That is a transfer of a fit from a different
+#    architecture, and MoVA plausibly breaks it: this model does a SECOND routed
+#    top-k gather per attention layer (64 tiny [1024, 2560] value experts, top-4,
+#    on 45 of 48 layers) on top of the MoE dispatch, so F could be much larger
+#    than qwen4's. Run decode-triage here, fit B and F against 8.489 GB/token,
+#    and the FP8 arms' predictions stop being folklore.
+#
+#    Bytes read per token here = 10.61 GB (attention 3.29 + MoVA 0.94 + routed
+#    experts 4.25 at BF16 + shared 0.53 + dense 0.28 + lm_head 1.28 + routers
+#    0.04) versus 8.489 GB for the FP8 sibling. So the FP8 checkpoint should be
+#    ~20% faster at c=1 if its kernels are any good. If it is not, the answer is
+#    in E5 (fp8-gemm-backend), not in the byte count.
+#
+# 2. SUPPLY THE NUMERICS REFERENCE FOR D2. The FP8 recipes carry a two-line
+#    patch whose safety argument is static code reading. Before anyone quotes a
+#    number from them, the same fixed prompt must be greedy-decoded here and
+#    there and the continuations read. BF16 is the reference because it is the
+#    unpatched path with the same router weights -- the FP8 repo's
+#    conversion_summary.json says the router and gate tensors were copied in
+#    from this BF16 reference, so routing decisions should agree exactly and any
+#    divergence in the first divergent token is a quantisation or loading bug,
+#    not a sampling difference.
+#
+# 3. BE THE FALLBACK IF THE FP8 PATH DIES. If the block-FP8 GEMM on SM121 turns
+#    out to be unusable (E5), or the patch turns out to be wrong (D2), this
+#    recipe is the family's shipping configuration on SGLang and the FP8 recipes
+#    become notes about a checkpoint format nobody can serve.
+#
+# WHAT THIS MODEL IS
+#   48 layers, hidden 2560, 32 query / 8 KV heads at head_dim 128 (GQA 4:1),
+#   vocab 250,624, 524,288 native positions, full-head RoPE (rope_head_dim 128)
+#   with rope_type "default" and theta 1e7. Layers 0-2 dense at intermediate
+#   6144; layers 3-47 MoE with 100 experts, top-8, one shared expert at
+#   intermediate 768, sigmoid routing scaled by 2.5, gate bias enabled. MoVA
+#   replaces v_proj on layers 3-47 with 64 [1024, 2560] value experts and a
+#   sigmoid top-4 router, combined through F.silu, plus a post-attention
+#   softplus gate. GemmaRMSNorm with 2 groups, no QK-norm.
+#
+#   It is a native SGLang architecture: srt/models/xllm.py has
+#   K2HorizonForCausalLM in EntryClass since sglang 3bac084d4 (2026-09-03,
+#   shipped in v0.5.20) and srt/configs/k2_horizon.py is a 30-line
+#   PretrainedConfig shell that deliberately never imports checkpoint Python.
+#   So --trust-remote-code is not required; it is present in the command line
+#   only to match the family's other recipes and the vendor card, and removing
+#   it is a valid experiment, not a fix.
+#
+# DELIBERATELY NOT SET
+#   --quantization fp8
+#       The single most tempting flag on this page and the one most likely to be
+#       wrong. It would quantise the whole model online, including the MoVA
+#       value experts -- which sglang's own MoVA code refuses to quantise on the
+#       checkpoint path by constructing them with quant_config=None. An online
+#       fp8 run therefore goes down a code path upstream has explicitly not
+#       taken, and the failure mode is wrong numbers rather than a crash. If
+#       someone wants the +27% MODELLED from quantising attention and value
+#       experts, that is experiment E8 with its own mod and its own greedy
+#       divergence check, not a flag on a control recipe.
+#   --attention-backend fa3
+#       Vendor card and SGLang cookbook both say it; both were written on Hopper.
+#       The fa3 factory asserts (major == 8 and not use_mla) or major == 9 and
+#       GB10 reports (12, 1), so it cannot be constructed. COOP item 3.
+#   --load-format fastsafetensors
+#       TP=1 only here, so the multi-threaded loader is a startup-speed question
+#       rather than a correctness question, and 74.9 GB of cold read from a local
+#       NVMe on a 128 GB box is a measurement you should not be making while the
+#       decode numbers are still unknown.
+#   --disable-radix-cache
+#       No mechanism applies to this architecture. If the first boot shows a pool
+#       blowout it belongs in a zz- arm with the mechanism written down.
+#   --kv-cache-dtype fp8_e4m3
+#       Capacity maths says fp8 KV is what makes 512K reachable at all (103 GB
+#       becomes 51.5 GB at TP=1, 25.8 GB at TP=2), and the config declares no
+#       kv_cache_scheme so it would run at an implicit scale of 1.0. Nobody has
+#       scored this family under fp8 KV. E6, not a default.
+#
+# FIRST-BOOT CHECKLIST
+#   - no mod log is expected (only drop-caches, which is a host-side op).
+#   - "native weight loading initialized" and a loaded-parameter count matching
+#     the census: 30,498 tensors is the FP8 count; this repo has 2880 value
+#     experts + the rest in BF16 and the index carries the authoritative list.
+#     A "weight did not resolve to a native model parameter" RuntimeError is
+#     sglang's strict-checkpoint path firing on an unexpected name -- that is
+#     information, not noise, so capture it verbatim.
+#   - final memory line should read ~74.9 GB of weights plus pool. nvidia-smi is
+#     forbidden in this repo; read the last line of serve.log instead.
+#   - "Native xLLM/K2 Horizon serving requires --dtype bfloat16" means --dtype
+#     was not pinned. This repo declares dtype bfloat16 so --dtype auto would
+#     work by luck; the 0.9B sibling declares dtype float32 and does not have
+#     that luck, which is why every recipe here pins it.
+# ---------------------------------------------------------------------------

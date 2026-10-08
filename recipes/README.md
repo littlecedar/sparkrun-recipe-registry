@@ -55,6 +55,25 @@ aggressively quantised (MXFP8 attention/GDN, FP8 PLE n-gram table) and **serves 
 tower is dropped by a required mod); no accuracy evaluation exists for it, so its speed is not evidence
 of equal quality. Use the RadixArk recipe as the quality reference until an eval lands._
 
+## IFM K2-Horizon
+
+| Recipe                                    | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                    |
+|:------------------------------------------|:-------|-------:|------:|-----:|---:|:---------------------------------------------------------------|
+| k2-horizon-0.9b-bf16-sglang               | ✨🚀   |   77.3 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
+| k2-horizon-7b-fp8-sglang                  | 🚀    |   21.0 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8]                                 |
+| k2-horizon-7b-fp8-ngram-sglang            | 🚀    |   27.4 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **NGRAM spec decode**        |
+| k2-horizon-36b-a4b-fp8-tp1-sglang         | 🚀    |   18.3 | 48GB | 0.85 |  1 | [Model][IFM/K2-Horizon-MoVA-36B-A4B-FP8]                       |
+| k2-horizon-36b-a4b-bf16-tp1-sglang        | 🐢    |   15.6 | 75GB | 0.85 |  1 | [Model][IFM/K2-Horizon-MoVA-36B-A4B]                           |
+
+_Native SGLang on GB10. All rows **measured** 2026-10-08 at concurrency 1, depth 0
+(`benchmarking/decode-triage.yaml`). Every 36B MoVA recipe **requires**
+`--json-model-override-args '{"xllm_source_router_gemm_partitions": 2}'` or SGLang
+refuses it at `xllm.py:204`; the block-FP8 arms additionally require the
+`patch-sglang-k2-horizon-fp8` mod. FP8 measured faster than BF16 (+17 %), and NGRAM
+spec decode is a clear win on the dense 7B (27.4 vs 21.0 t/s). The `7b-fp8-uno`
+probe (**37.7 t/s**, not shipped) and the TP=2 cross-node arm live in the lane's
+[`ifm/README.md`](ifm/README.md)._
+
 # Notes
 
 Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
@@ -67,6 +86,12 @@ The DeepSeek V4.1-Flash lanes are documented in [`ds4/README.md`](ds4/README.md)
 and [`ds4/AGENTS.md`](ds4/AGENTS.md) (design, boot gates, guards, and measurement discipline for
 both the knapcio TP=4 and TensorFold TP=2 lanes); the retired vLLM/EXL3 lane is under
 [`../attic/ds4/`](../attic/ds4/).
+
+
+The IFM K2-Horizon lanes are documented in [`ifm/README.md`](ifm/README.md) (recipe
+summary) and [`ifm/AGENTS.md`](ifm/AGENTS.md) (constraints, falsified claims, guards,
+and the validation ritual for the `0.9B` / `7B-FP8` / `MoVA-36B-A4B` set); the
+research record, journals, and `COOP.md` are beside them.
 
 # Model Flags
 
@@ -105,6 +130,10 @@ _Flags indicate characteristics of the model and are set in the recipe metadata.
 [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
 [ornith/Ornith-1.5-397B-NVFP4-MTP-Graft]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
 [jzinno/Ornith-1.5-35B-A3B-DFlash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
+[IFM/K2-Horizon-0.9B]: https://huggingface.co/IFM/K2-Horizon-0.9B
+[IFM/K2-Horizon-7B-FP8]: https://huggingface.co/IFM/K2-Horizon-7B-FP8
+[IFM/K2-Horizon-MoVA-36B-A4B]: https://huggingface.co/IFM/K2-Horizon-MoVA-36B-A4B
+[IFM/K2-Horizon-MoVA-36B-A4B-FP8]: https://huggingface.co/IFM/K2-Horizon-MoVA-36B-A4B-FP8
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard]: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
 [littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram

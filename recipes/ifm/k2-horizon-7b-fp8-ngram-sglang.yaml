@@ -1,0 +1,179 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-7B-FP8
+# Same SHA pin as k2-horizon-7b-fp8-sglang.yaml -- these two files must move
+# together or the NGRAM arm silently benchmarks a different checkpoint.
+model_revision: 59d473210f0b9ee3ea559a867fc23e7059473944
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+# MEASURED (2026-10-08, a node, GB10):
+#   c=1 d=0    : 27.4 t/s   (5 runs)
+#   c=1 d=8192 : 29.2 t/s
+# vs the plain 7B baseline's 21.0 / 19.0 on the same profile in the same window
+# -- a +30 % win at d=0 and +54 % at d=8192. This confirms the WORK §8 prediction:
+# zero-dependency NGRAM spec decode PAYS on this dense model, because widening the
+# verify window grows the GEMM's M, not its K/N, so the per-step weight read is
+# paid once regardless of window -- the opposite of the MoE case. Note the decode
+# rate RISES with depth (29.2 > 27.4): more context means the n-gram matches the
+# prompt more often, so more draft tokens are accepted. Add when a workload needs
+# more: this is the best single-stream rate in the lane.
+
+metadata:
+  description: IFM/K2-Horizon-7B-FP8 - NGRAM speculative-decoding arm (no draft weights required) on GB10
+  model_url: https://huggingface.co/IFM/K2-Horizon-7B-FP8
+  model_params: "9.0B"
+  model_dtype: fp8_e4m3
+  quantization: compressed-tensors
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: experimental, fast
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  # Speculative decoding pins max_running_requests to 48 by default when unset
+  # (_handle_ngram), so this value is not doing anything here; it is spelled so
+  # the A/B against the 32 in the baseline recipe is an explicit choice rather
+  # than an accident of which recipe was edited last.
+  max_num_seqs: 32
+  dtype: bfloat16
+  # See the baseline recipe: fa3 cannot be constructed on CC 12.1. NGRAM has NO
+  # attention-backend gate of its own (_handle_ngram only checks device and the
+  # topk>1 x page_size>1 combination, which flashinfer+page_size 1 satisfies), so
+  # this arm does not depend on the FA4 probe at all.
+  attention_backend: flashinfer
+  kv_cache_dtype: auto
+  fp8_gemm_backend: cutlass
+  page_size: 1
+  chunked_prefill_size: 8192
+  # ---- speculative: NGRAM -------------------------------------------------
+  # NGRAM is the only speculative algorithm in this image that needs no draft
+  # weights, and there are no trained drafts for the K2-Horizon dense family.
+  # EAGLE/NEXTN/STANDALONE all want --speculative-draft-model-path; DFLASH and
+  # DSPARK likewise; UNO wants a LoRA but is blocked on attention backend (see
+  # k2-horizon-7b-fp8-uno-sglang.yaml). NGRAM drafts from the prompt/continuation
+  # cache, so it works out of the box on any checkpoint.
+  speculative_algorithm: NGRAM
+  # BFS breadth. Set through THIS flag and not through --speculative-eagle-topk.
+  #
+  # _handle_ngram does, unconditionally and with no `is None` guard:
+  #     declare_resolution(server_args, "_handle_ngram",
+  #                        speculative_eagle_topk=cfg.speculative_ngram_max_bfs_breadth)
+  # and resolution_result() (arg_groups/overrides.py:248-272) consults the
+  # declaration stash BEFORE _raw_input, i.e. before what the operator typed.
+  # So a --speculative-eagle-topk passed here is at best redundant and at worst
+  # silently replaced by the breadth default of 10. --speculative-eagle-topk is
+  # not even declared resolvable in arg_groups/fields/spec.py, so which of the
+  # two readings is true depends on the projection layer -- and a knob whose
+  # effect depends on that is a knob that should not be used. Breadth is the
+  # input; drive breadth. (VERIFIED against v0.5.20 source; the same trap does
+  # NOT apply to num-draft-tokens, which is declared only `if ... is None`.)
+  #
+  # 4 rather than the default 10: breadth enters the verify batch
+  # multiplicatively, and on a bandwidth-bound box the entire point of spec
+  # decode is to NOT grow step cost. 4 still covers common 4-8 token
+  # continuation runs. Sweep 2/4/8/10 as arm B -- and sweep it via THIS flag.
+  speculative_ngram_max_bfs_breadth: 4
+  # Verify width. The default would be 12 (also declared only when None, so
+  # passing it here IS honoured -- unlike eagle_topk above). 8 with breadth 4 is
+  # a 2-level expansion: covers a typical reasoning n-gram hit without paying a
+  # 12-wide GEMM every step.
+  #
+  # NOTE the coupling: _handle_ngram derives
+  #     speculative_num_steps = speculative_num_draft_tokens // topk
+  # so with 8 // 4 the derived steps = 2. Changing breadth silently changes the
+  # verify shape; keep both numbers in view when sweeping.
+  speculative_num_draft_tokens: 8
+  # Optional but potentially the best NGRAM lever for this model: pre-load a
+  # JSONL corpus into the SAM trie at startup, so drafting is not limited to what
+  # the current batch has already shown (--speculative-ngram-external-corpus-path,
+  # paired with --speculative-ngram-external-sam-budget). Deliberately NOT a
+  # default here: a corpus is a workload artifact, and a folded command cannot
+  # omit a flag conditionally -- an empty placeholder would emit the flag with no
+  # value and argparse would fail or swallow the next token. Add it to extra_args
+  # per experiment:
+  #   -o extra_args='--speculative-ngram-external-corpus-path /cache/corpus.jsonl --speculative-ngram-external-sam-budget 20000'
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --tool-call-parser k2_horizon
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-ngram-max-bfs-breadth {speculative_ngram_max_bfs_breadth}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHY THIS ARM EXISTS (and why it is the one most likely to pay off)
+#
+# Theory-crafted: nothing measured on a DGX Spark. See
+# K2-7B-MODEL-OPTIMIZATION-WORK.md sections 5 and 7.
+#
+# 1. SPECULATIVE DECODING ON A DENSE MODEL IS THE GOOD CASE, AND THIS IS WHERE
+#    IT DIFFERS FROM THE DS4 RESULT THAT DOMINATES THIS DIRECTORY.
+#    The DS4 work concluded spec decode was nearly worthless there, because
+#    DeepSeek V4-Flash is MoE: widening the verify window activates more experts,
+#    so the bytes-per-step GROWS with the window and the accepted tokens never
+#    amortize the extra weight traffic. This model is dense -- mlp_only_layers
+#    covers all 36 layers and num_experts is 0 -- so the per-step read is a fixed
+#    9.00 GB (6.95 GB FP8 GEMMs + 2.053 GB BF16 lm_head) regardless of window
+#    width. Widening grows the GEMM's M, not its K or N.
+#        plain: 9.00 GB per TOKEN
+#        spec:  9.00 GB per ACCEPTED RUN (plus KV for the window)
+#    So the accepted-length multiplier is close to a clean win here, and
+#    break-even is near accept-length 1 in the weight term. The cost lives in the
+#    KV read for the W extra tokens (144 KiB each) and in draft rejection.
+#
+# 2. WHAT TO MEASURE, AND THE NUMBER THAT DECIDES IT.
+#    Baseline is k2-horizon-7b-fp8-sglang.yaml at bs=1: roofline says ~25 t/s at
+#    negligible context, ~16.5 t/s at 32K (WORK section 5). This arm must be
+#    compared at IDENTICAL prompt/output distribution, and the deciding metric is
+#    mean accepted length, not throughput. If mean accept is ~2 this arm is
+#    already worth +80% on the weight term; if it is ~1.1 the draft is pure
+#    overhead and NGRAM should be dropped for this family.
+#    NGRAM drafts by matching recent continuations, so its acceptance is
+#    strongly prompt-dependent: highly templated agentic/tool-call output should
+#    accept well, novel reasoning text should accept poorly. Benchmark BOTH or the
+#    result is one anecdote.
+#
+# 3. CONSTRAINTS THAT ARE EASY TO GET WRONG.
+#    - _handle_ngram sets max_running_requests=48 when unset. If you drop
+#      --max-running-requests this arm quietly changes concurrency versus the
+#      baseline and the A/B is meaningless.
+#    - It forces enable_mixed_chunk=False. Harmless here (the baseline does not
+#      set it) but it means this arm is not a chunked-prefill comparison.
+#    - speculative_eagle_topk is REUSED as the NGRAM BFS breadth. It is not an
+#      EAGLE knob on this code path.
+#    - topk>1 together with page_size>1 is only supported on flashinfer for ngram.
+#      We are on flashinfer with page_size 1, so both escape hatches are held.
+#      Do not raise page_size on this arm without re-reading that branch.
+#    - NGRAM rejects dp attention. Irrelevant at TP=1, noted for completeness.
+#
+# 4. WHY NOT DFLASH / DSPARK / EAGLE HERE.
+#    All require --speculative-draft-model-path, and no draft exists for
+#    K2-Horizon-7B. Writing a recipe that names a nonexistent draft repo is how
+#    you get a recipe that validates and then 404s at sync time on every node.
+#    If a trained draft ever ships, that arm should be its own file, and it will
+#    need the same fa3-vs-flashinfer reasoning as the Uno file.
+# ---------------------------------------------------------------------------

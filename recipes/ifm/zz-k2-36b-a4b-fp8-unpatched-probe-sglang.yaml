@@ -1,0 +1,158 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-MoVA-36B-A4B-FP8
+model_revision: feffd71999eb06bfa2fbb8ad220059b694077457
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: FALSIFICATION ARM - the FP8 checkpoint with NO mod, expected to die at SGLang's compressed-tensors gate; run it once, record the message, delete the recipe
+  # UNMEASURED, and specifically UNRUN: this arm has never been booted anywhere. Its
+  # prediction below is written from source reading before any boot, which is the
+  # only reason it is worth running at all -- a prediction written after the fact
+  # carries no information.
+  model_url: https://huggingface.co/IFM/K2-Horizon-MoVA-36B-A4B-FP8
+  model_params: "36B"
+  model_dtype: fp8_e4m3
+  # Same token as the arms this probe falsifies: the checkpoint is unchanged here,
+  # only the runtime is unpatched.
+  quantization: fp8
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  # `probe` and NOT `fast`, because this recipe is designed to fail. If it does not
+  # fail, the finding is that the analysis in
+  # K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md section 4 is wrong, and that is a bigger
+  # finding than any number it could produce.
+  tags: experimental, probe
+  upstream_pins:
+    sglang_version: v0.5.20
+    sglang_commit: 95521da
+
+# No mods. That is the entire point of the file. If you find yourself adding
+# patch-sglang-k2-horizon-fp8 here, you have turned a falsification arm into a
+# duplicate of k2-horizon-36b-a4b-fp8-tp1-sglang.yaml; delete this file instead.
+mods: []
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.85
+  # Small on purpose. This boot is not expected to reach the point where context
+  # length matters, and if it somehow does boot, 8192 keeps it cheap.
+  max_model_len: 8192
+  max_num_seqs: 4
+  dtype: bfloat16
+  attention_backend: flashinfer
+  fp8_gemm_backend: cutlass
+  kv_cache_dtype: auto
+  # NOTE on these two keys: neither `page_size` nor `chunked_prefill_size` is in
+  # sparkrun's `_SGLANG_FLAG_MAP` (runtimes/sglang.py:29-88; the map spells the prefill
+  # key `chunked_prefill`). A default absent from that map is DROPPED with no error and
+  # no trace in the rendered command -- it reaches sglang only because the `command:`
+  # template references it as a {placeholder} (sparkrun/core/launcher.py:620-633 treats
+  # that as "reaches something"). So the placeholder is load-bearing: delete it to
+  # silence a warning and the setting silently dies while the recipe still validates.
+  # Enforced by tests/test_ifm_36b_recipes.py::I14SparkrunFlagMap.
+  page_size: 1
+  chunked_prefill_size: 8192
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --json-model-override-args '{"xllm_source_router_gemm_partitions": 2}'
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHY A RECIPE THAT IS SUPPOSED TO FAIL IS CHECKED IN
+#
+# The claim under test is small and load-bearing: that SGLang refuses this
+# checkpoint because of two `if` statements, and not for some reason nobody has
+# identified. That claim came from reading source at a pinned commit, which is
+# exactly the kind of claim that survives contact with a container about
+# eighty percent of the time. If it is wrong, the FP8 recipes in this directory
+# are wrong in a way that costs a week to notice, because the symptom of being
+# wrong here is that things work.
+#
+# THE PREDICTION, WRITTEN BEFORE THE BOOT — AND THE FIRST BOOT FALSIFIED IT
+#
+#   What I wrote, before running it: the process dies during model construction,
+#   before any weight is read, printing
+#
+#     ValueError: Native xLLM/K2 Horizon serving supports only
+#                 compressed-tensors quantized model weights
+#
+#   from _validate_mova_config at srt/models/xllm.py:664, reached from
+#   XllmForCausalLM.__init__.
+#
+#   What actually happened (2026-10-08, a node, image digest 3ec36384…):
+#   it died before reading a weight, but at a DIFFERENT gate, and it never got
+#   near :664:
+#
+#     File ".../srt/models/xllm.py", line 205, in _normalize_k2_horizon_config
+#       raise ValueError(
+#     ValueError: K2Horizon MoVA requires explicit source router GEMM
+#                 provenance; SGLang will not infer it from runtime tensor
+#                 parallelism. ... pass --json-model-override-args
+#                 '{"xllm_source_router_gemm_partitions": 2}' ...
+#
+#   So the prediction missed. `_normalize_k2_horizon_config` runs at the TOP of
+#   XllmForCausalLM.__init__ (xllm.py:1910), BEFORE the quant gate at :664 is
+#   ever consulted, and it fires for ANY MoVA checkpoint regardless of
+#   quantisation (the BF16 sibling died at the same line). The router override
+#   below is therefore REQUIRED for this arm to reach the gate it was written to
+#   test — without it the arm proves nothing about :664.
+#
+#   The re-run's prediction, now that the earlier gate is cleared: the FP8
+#   checkpoint should die at :664 with the compressed-tensors message. If the
+#   re-run instead reaches weight loading, then :664 does NOT reject
+#   quant_method "fp8" the way the lane read it, the mod is unnecessary, and the
+#   FP8 recipes need rewriting.
+#
+#   Expected timing: after the 48 shards have downloaded (sync phase, before the
+#   server starts), within a few seconds of the process coming up — both gates
+#   are in __init__, not the weight loader.
+#
+#   WHAT EACH OUTCOME MEANS
+#     - the :664 compressed-tensors message, verbatim: the original analysis
+#       holds; the mod is justified; record the log line and delete this file.
+#     - the :204 router message again: the override did not reach the engine —
+#       check that the literal is in `command:` (sparkrun does not map
+#       json_model_override_args, so a defaults key would be dropped silently).
+#     - a crash in the FP8 kernel or weight loader instead: :664 does not reject
+#       this checkpoint, the mod is unnecessary, and the FP8 recipes need
+#       rewriting.
+#     - it boots and serves: same conclusion as the previous line, more so.
+#
+# WHY NOT JUST SKIP IT
+#     Because the mod is a runtime patch to a pinned container image, and AGENTS.md
+#     requires a patched runtime to be declared as such with a reason. "Two lines
+#     in xllm.py" is only a reason if somebody has seen those two lines fire. One
+#     boot, no benchmark profile, no tuning: this is the cheapest evidence in the
+#     whole family and it is the only thing standing between the patched recipes
+#     and a guess.
+#
+# ONE BOOT, THEN DELETE
+#     A falsification arm that outlives its falsification becomes a second
+#     untested default. Capture serve.log, write the outcome into the journal,
+#     and remove the file.
+# ---------------------------------------------------------------------------

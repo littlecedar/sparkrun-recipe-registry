@@ -1,0 +1,258 @@
+# ===========================================================================
+# EXPERIMENTAL / NOT EXPECTED TO BOOT UNTOUCHED.
+#
+# This recipe is a PROBE, not a shipping configuration. Its purpose is to turn a
+# static-analysis hypothesis into a device result in one launch. Do not promote
+# it to `official`, do not copy flags from it into the baseline, and do not treat
+# a failure here as a model defect -- the failure is the thing being measured.
+# See K2-7B-MODEL-OPTIMIZATION-WORK.md section 6 and mods/probe-uno-fa4-sm121.
+# ===========================================================================
+#
+# RESULT (2026-10-08): IT BOOTED AND SERVED. The fa3 gate was defeated by the
+# probe mod, the Uno LoRA adapter loaded, FA4 SM120 kernels captured CUDA graphs,
+# and it decoded at 37.7 tok/s at c=1 d=0 (1 run) with server-reported
+# accept len 3.60, accept rate 0.53. That clears the §6.6 break-even of ~2.07, so
+# UNO is a WIN on GB10, not the "blocked at every size" the theory predicted (the
+# earlier "requires (fa3,fa3)" reading was about the *stock* gate, which the mod
+# relaxes). The banner above is kept as the record of what the theory expected.
+# See K2-7B-MODEL-OPTIMIZATION-WORK.md §6.6 and K2-36B-A4B-JOURNAL.md 2026-10-08.
+recipe_version: "2"
+model: IFM/K2-Horizon-7B-FP8
+# The FP8 checkpoint, deliberately: the Uno adapter's own adapter_config.json
+# declares base_model_name_or_path IFM/K2-Horizon-7B (BF16), so the vendor-
+# validated pairing is BF16+Uno. We run FP8+Uno anyway because on a
+# bandwidth-bound box the base's per-step read is the dominant cost, and using
+# BF16 doubles it (WORK section 6.6). That substitution is the second thing this
+# probe is testing; the base model is therefore pinned separately below.
+model_revision: 59d473210f0b9ee3ea559a867fc23e7059473944
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+# The Uno adapter is a SECOND artifact. It is not a model, so `model:` cannot
+# carry it, and sparkrun's model sync only fetches `model:`. It is therefore
+# fetched by the mod below into a fixed container path. The revision is pinned in
+# the mod's UNO_LORA_REVISION default and recorded here so the pin is visible in
+# the recipe that uses it:
+#   IFM/K2-Horizon-7B-Uno @ 669f041aab04fad836e757ede9a028058b064996
+#   (adapter_model.safetensors = 1,396,763,616 B; VERIFIED via HF API 2026-09-20)
+mods:
+  # Bare `mods/NAME`, matching the two 36B-FP8 siblings, NOT the scoped
+  # `@littlecedar/mods/NAME` form. The scoped form resolves against the
+  # littlecedar registry *clone* (`~/.cache/sparkrun/registries/littlecedar/mods/`),
+  # which does not carry these two mods (they are not published), so the scoped
+  # form failed to resolve on the first real boot (2026-10-08). The bare form
+  # resolves via the `mods` entry beside the recipe and is what the rest of this
+  # lane uses. Order matters: the provide mod must land the adapter on disk before
+  # the server starts, and both must run before sglang reads --uno-lora-path.
+  - "mods/provide-uno-lora-k2-horizon-7b"
+  - "mods/probe-uno-fa4-sm121"
+
+metadata:
+  description: PROBE - IFM/K2-Horizon-7B-FP8 + K2-Horizon-7B-Uno conditional-LoRA diffusion drafting on GB10 (requires the fa4 gate mod)
+  model_url: https://huggingface.co/IFM/K2-Horizon-7B-FP8
+  # `model:` is the BASE model, so metadata describes the base: the estimator
+  # sizes what it is told to serve. The Uno adapter adds 0.35B parameters
+  # (1,396,763,616 B on disk / 4 B per fp32 param), which is why model_params is
+  # 9.0B here and not 9.35B -- naming the adapter here would make the VRAM
+  # estimate claim FP8 width for weights that are actually BF16.
+  model_params: "9.0B"
+  model_dtype: fp8_e4m3
+  quantization: compressed-tensors
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: experimental
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Hard requirement, not a tuning choice: _handle_uno raises
+  # "UNO requires TP=PP=1." So tp>1 is a launch failure and there is no
+  # multi-node variant of this recipe to write.
+  tensor_parallel: 1
+  # 0.82, three points under the 0.85 GB10 ceiling. KEEP IT AT 0.82, but for a
+  # DIFFERENT reason than first written (corrected 2026-09-21 from source):
+  # this recipe runs LINEAR UNO (eagle_topk 1), and in linear mode UNO allocates
+  # NO second backend and NO second CUDA-graph pool. uno_worker_v2.py gates both
+  # on tree_mode -- init_attention_backends(): `if self.tree_mode:` is the only
+  # path that builds the F-wide backend, and init_cuda_graphs()
+  # (`if not self.tree_mode ... return None`) builds no private graph either.
+  # So the earlier "second backend + second graph pool" justification was wrong
+  # for this file; it applies to TREE UNO, not to what is configured here.
+  # The headroom is still worth having: UNO keeps target + draft LoRA slots
+  # resident (pool capacity 2) and materializes [batch, F, 250624] draft/verify
+  # logits, which the baseline does not. Do not raise this to 0.85 on the theory
+  # that "UNO needs it" -- measure first.
+  gpu_memory_utilization: 0.82
+  max_model_len: 131072
+  # UNO is single-model and single-stream-friendly; the linear draft path pays
+  # most at low batch. 8 is enough to exercise batching without multiplying the
+  # per-request draft workspace into a capture problem on the first run. Raise
+  # after the first clean boot. (NOT "two extra buffers per request" -- in linear
+  # mode there is one proposal workspace, not a per-request private backend; see
+  # the gpu_memory_utilization note above.)
+  max_num_seqs: 8
+  dtype: bfloat16
+  # *** THE POINT OF THIS FILE. ***
+  # `fa3` -- what the UNO gate and the HF card ask for -- cannot be constructed
+  # on GB10: create_flashattention_v3_backend asserts major in {8, 9}. `fa4`
+  # builds the SAME FlashAttentionBackend class with fa_impl_ver=4 and, on
+  # capability 12, imports the SM12x-specialized FA4 kernels
+  # (kernels/ops/attention/flash_attention_v4_sm120.py). The mounted mod relaxes
+  # _handle_uno's literal ("fa3","fa3") gate to also accept ("fa4","fa4").
+  # If the mod is removed, this recipe fails at argument validation with
+  # "UNO requires FA3 ...". That is the intended stock behaviour.
+  #
+  # The mod's default also admits `triton`, so lane B needs no env propagation:
+  #   sparkrun run --recipe k2-horizon-7b-fp8-uno-sglang -o attention_backend=triton
+  # The gate is a permission; this value is the selection. They must agree.
+  attention_backend: fa4
+  kv_cache_dtype: auto
+  fp8_gemm_backend: cutlass
+  # page_size 1, and deliberately not 128. _fa4_page_constraint auto-forces 128
+  # only when is_sm100, so on GB10 nothing forces it. At page_size 1 the
+  # EAGLE topk>1 two-pass page-tree cascade is never reached -- and this recipe
+  # uses linear UNO (topk 1) anyway, so that constraint does not bind either.
+  page_size: 1
+  # Kept modest: UNO force-disables mixed chunked prefill, so prefill runs
+  # alone; a large chunk here competes with the draft workspace for the same pool.
+  chunked_prefill_size: 4096
+  # ---- speculative: UNO ---------------------------------------------------
+  # UNO is a builtin in this image (server_args.py: "Builtins: EAGLE, EAGLE3,
+  # NEXTN, STANDALONE, NGRAM, DFLASH, DSPARK, UNO"). It reuses the TARGET model
+  # plus a conditional-LoRA draft, so there is NO --speculative-draft-model-path;
+  # passing one is an outright error ("UNO reuses the target model and does not
+  # accept --speculative-draft-model-path").
+  speculative_algorithm: UNO
+  uno_lora_path: /cache/runtime/uno-lora/K2-Horizon-7B-Uno
+  # LINEAR UNO, not tree. topk=1 makes _handle_uno force speculative_num_steps=1
+  # and makes --speculative-num-draft-tokens the LINEAR DRAFT WIDTH rather than a
+  # tree verify width. Tree mode (topk>1) additionally demands Q>=F, Q<=128,
+  # Q*K<=2048, both accept thresholds exactly 1.0, no PDMux, no two-batch
+  # overlap, and a second CUDA-graph backend -- all avoidable, and all irrelevant
+  # to the question this probe asks. Get linear booting first.
+  speculative_eagle_topk: 1
+  # Draft width F = number of tokens proposed per UNO step = the linear forward
+  # width. 4 chosen from the break-even arithmetic in WORK section 6.6:
+  #   plain = 9.00 GB/token;  UNO step = 2*9.00 + 0.698 (LoRA) = 18.70 GB
+  #   break-even mean accept = 18.70 / 9.00 = 2.07 tokens
+  # so UNO is only interesting if this model accepts ~3+ per step. F=4 makes the
+  # ceiling 4 (minus rejection), i.e. the best case is ~1.3x plain; F=8 raises
+  # the ceiling but pays a wider verify GEMM and more KV per step. Sweep 2/4/8.
+  # MANDATORY: _handle_uno raises unless speculative_num_draft_tokens is a
+  # positive integer, so this cannot be left to a default.
+  speculative_num_draft_tokens: 4
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --tool-call-parser k2_horizon
+  --speculative-algorithm {speculative_algorithm}
+  --uno-lora-path {uno_lora_path}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHAT THIS PROBE IS ACTUALLY ASKING, IN ORDER OF COST TO ANSWER
+#
+# Theory-crafted only. Labels: VERIFIED / LIKELY / SPECULATIVE.
+#
+# Q0. Is FA4 even importable in this image? (seconds, no GPU)
+#     The mounted mod probes this first and logs it, so the answer is in the mod
+#     log whether or not the server starts. flash_attention_v4.py raises
+#     "FlashAttention-4 CUTE is not available. Install flash-attn-4 ..." when the
+#     selected CUTE package is absent.
+#     STATUS: ANSWERED YES (2026-09-21, no GPU). The default path imports the
+#     VENDORED sglang.kernels.ops.attention.flash_attn.cute (pip flash_attn.cute
+#     only under SGLANG_INKLING_FA4_USE_PIP=1); in a real sglang image both import
+#     and is_flash_attention_v4_available() is True. The Uno arm is NOT blocked on
+#     a missing CUTE dependency. Whether the FA4 kernels are COMPILED for sm_121
+#     is still a runtime fact a boot answers. See WORK section 6.4.
+#
+# Q1. Does UNO get past argument validation with fa4? (seconds, once booted)
+#     VERIFIED that stock sglang refuses: _handle_uno ends with a literal
+#     (prefill, decode) != ("fa3","fa3") check. The mod replaces exactly that
+#     comparison and nothing else. It does NOT touch the fa3 capability assert in
+#     attention_registry.py -- deliberately, so that if UNO truly needs FA3 it
+#     fails loudly rather than reaching an uncompiled kernel.
+#
+# Q2. Does UNO boot the model and run? (minutes). _handle_uno's other
+#     requirements are all satisfied by this file: CUDA, TP=PP=1, no
+#     draft-model-path, no public LoRA, no deterministic inference, no strict
+#     thinking, no rejection sampling, mixed chunk forced off by the handler
+#     itself. NOTE for LINEAR mode (topk 1, what this file sets): UNO builds NO
+#     second attention backend and captures NO second CUDA-graph pool -- both are
+#     gated on tree_mode in uno_worker_v2.py (init_attention_backends,
+#     init_cuda_graphs). So the linear lane is a much lighter boot than a naive
+#     read of the earlier prose suggested. Tree mode is where a private F-wide
+#     backend and its own F-wide graph would appear.
+#     gpu_memory_utilization stays 0.82, but as headroom for the resident LoRA
+#     slots and the large draft/verify logit tensors, NOT for a second backend.
+#
+# Q3. Is FP8 + Uno LoRA actually executable? (SPECULATIVE; no assertion forbids it)
+#     VERIFIED ABSENT: neither uno_lora.py nor uno_validation.py contains any
+#     dtype or quantization check. uno_lora.py builds
+#     LoRAManager(..., dtype=model_runner.dtype, lora_backend="uno_cublas") with
+#     pool capacity 2 -- slot None = base, slot __uno_draft__ = base + LoRA.
+#     lora/layers.py computes the base via base_layer.quant_method.apply(...) and
+#     adds the low-rank term afterwards, so an FP8 base with a bf16 LoRA is
+#     structurally coherent.
+#     IMPORTANT HONESTY: that is "nothing forbids it", NOT "it works". The
+#     vendor-validated pairing is BF16+Uno. If Q3 fails, the correct conclusion is
+#     "Uno needs the BF16 base", and the recipe then has to swap model: to
+#     IFM/K2-Horizon-7B @ eca6bb608969151ffa45b10e1955d39aa73baf27 -- which
+#     roughly doubles the per-step weight read and moves break-even accept to
+#     about 3.6 tokens, i.e. makes Uno much harder to justify on Spark.
+#
+# Q4. Does it beat plain decode? (the only question that matters)
+#     bs=1 break-even mean accept is 2.07 tokens/step on the FP8 base:
+#       accept 2.07 -> 25.3 t/s (tie)   3 -> 36.6   4 -> 48.7   5 -> 60.9
+#     The Uno model card advertises 5,255 tok/s system throughput at batch 32 and
+#     405 tok/s per request. Those are H200 numbers on a box that is not
+#     bandwidth-bound at 7B. The transferable prediction is NOT the absolute
+#     figure; it is the acceptance rate. Measure mean accepted length and compare
+#     to 2.07. If UNO's paper-side acceptance does not survive the move to GB10
+#     bandwidth economics, Uno is a slowdown here even though it wins on H200, and
+#     the honest deliverable is this file plus that measurement, not a recipe.
+#
+# ---------------------------------------------------------------------------
+# THINGS THAT WILL LOOK LIKE BUGS AND ARE NOT
+#
+# - No --speculative-num-steps flag. Linear UNO forces it to 1; passing 3 gets a
+#   warning and an override. Tree mode is deliberately not attempted here.
+# - No --enable-lora. UNO rejects public Multi-LoRA ("UNO does not support public
+#   Multi-LoRA serving"); it loads its own private adapter internally and pins
+#   both slots resident. Adding --enable-lora to expose the LoRA API breaks it.
+# - No --enable-deterministic-inference, no --enable-strict-thinking, no
+#   --speculative-use-rejection-sampling. Each is an explicit ValueError in
+#   _handle_uno. The last one is the trap: rejection sampling is the usual way to
+#   make spec decode "lossless", but UNO "manages its own stochastic
+#   verification" and refuses the flag.
+# - A 250,624-token vocabulary makes the draft/verify logit tensors large: the
+#   draft pass materializes [batch, F, vocab] logits. At F=4 and batch 8 that is
+#   ~32 MB of fp32 logits per step, which is fine, but it is why UNO's memory
+#   behaviour does not look like EAGLE's.
+# - Per-request features UNO refuses: min_p, grammar/structured output, returned
+#   logprobs, returned hidden states, sampling penalties, logit_bias, custom logit
+#   processors, request-selectable LoRA. If an eval harness sets any of these the
+#   request is rejected at admission (uno_validation.py), which will look like a
+#   server error and is a harness problem.
+# ---------------------------------------------------------------------------

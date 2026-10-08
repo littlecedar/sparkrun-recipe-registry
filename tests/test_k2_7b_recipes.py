@@ -838,9 +838,11 @@ class ModHygiene(unittest.TestCase):
         """
         for p in ALL:
             body = _block(strip_comments(read(p)), "mods")
-            for entry in re.findall(r"-\s*[\"']?(@[\w./-]+)[\"']?", body):
-                # "@littlecedar/mods/<name>" is registry-qualified; the directory
-                # in this repo is the bare <name>.
+            # Accept both the registry-scoped "@littlecedar/mods/<name>" and the
+            # bare "mods/<name>" form: this lane switched to bare on 2026-10-08
+            # because the scoped form resolves against the published registry
+            # clone, which does not carry these unpublished mods.
+            for entry in re.findall(r"-\s*[\"']?(@?[\w./-]+)[\"']?", body):
                 name = entry.split("/")[-1]
                 run = REPO_ROOT / "mods" / name / "run.sh"
                 self.assertTrue(run.is_file(),
@@ -856,7 +858,7 @@ class ModHygiene(unittest.TestCase):
         """
         body = _block(strip_comments(read(UNO)), "mods")
         names = [e.split("/")[-1]
-                 for e in re.findall(r"-\s*[\"']?(@[\w./-]+)[\"']?", body)]
+                 for e in re.findall(r"-\s*[\"']?(@?[\w./-]+)[\"']?", body)]
         self.assertIn("provide-uno-lora-k2-horizon-7b", names)
         self.assertIn("probe-uno-fa4-sm121", names)
         self.assertLess(names.index("provide-uno-lora-k2-horizon-7b"),
@@ -923,7 +925,7 @@ class NegativeControls(unittest.TestCase):
         mutated = read(UNO).replace("probe-uno-fa4-sm121", "probe-uno-fa4-TYPO")
         body = _block(strip_comments(mutated), "mods")
         names = [e.split("/")[-1]
-                 for e in re.findall(r"-\s*[\"']?(@[\w./-]+)[\"']?", body)]
+                 for e in re.findall(r"-\s*[\"']?(@?[\w./-]+)[\"']?", body)]
         self.assertIn("probe-uno-fa4-TYPO", names)
         self.assertFalse((REPO_ROOT / "mods" / "probe-uno-fa4-TYPO" / "run.sh")
                          .exists())
