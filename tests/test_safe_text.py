@@ -11,22 +11,31 @@ producing session is lost, so *reading* a token-bearing file is itself the
 outage -- not a wrong answer to recover from. safe_text.py exists so logs and
 chat templates can cross a model context boundary in escaped form and come back
 byte-exact for the callers that need the raw placeholder (a tokenizer, an HTTP
-body). Four properties are load-bearing and each gets a guard with a negative
+body). Five properties are load-bearing and each gets a guard with a negative
 control that fails when the property is broken:
 
 1. escape() output is ASCII-only, so the token cannot survive it;
 2. escape() -> unescape() is byte-exact, including for non-UTF-8 input;
 3. detection is the *full* token, not the name and not the ASCII bars -- a
    detector that flags ``|deepseek_image|`` would fire on ordinary log text;
-4. nothing shipped in this tree contains the literal token, this file included.
+4. nothing shipped in this tree contains the literal token, this file included;
+5. a *decodable spelling* is a leak too: the six ASCII characters ``\uff5c``
+   inside a JSON string hold no raw bytes, yet the next ``json.loads`` on that
+   object rebuilds the raw token and poisons the reader (measured 2026-10-07 on
+   ``.scratch/ds4/vision-hard/raw/B.1.jsonl``, which killed a live session).
+   So --check flags spellings, --scrub removes them, and no shipped file may
+   hold one either.
 
 The token is never written literally here: it is built by ``raw_token()``. If a
-test needs the bytes, call that function.
+test needs the bytes, call that function. A test that needs the *escaped*
+spelling must assemble it from parts (``"\\u" + "ff5c"``) so this file stays
+free of the framed sequence property 5 guards.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -255,6 +264,113 @@ class CliBehaviour(unittest.TestCase):
         self.assertEqual(_run("--in-place").returncode, 2)
 
 
+class Scrub(unittest.TestCase):
+    """Scrubbing closes the decode leak a byte scan cannot see (property 5).
+
+    The fixture is the incident, reproduced: ``json.dumps`` of a record whose
+    text quoted the token is byte-clean and still decodes back to the raw token.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.tool = _load(TOOL_PATH, "safe_text_scrub")
+        self.token = self.tool.raw_token()
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _escaped(self, bar: str = "\\u" + "ff5c") -> str:
+        return "<" + bar + "deepseek_image" + bar + ">"
+
+    def _record(self, name: str, text: str) -> Path:
+        """A JSONL record whose decoded error text holds *text*."""
+        target = self.dir / name
+        target.write_text(json.dumps({"error": text}) + "\n", encoding="utf-8")
+        return target
+
+    def test_byte_clean_record_still_decodes_back_to_the_token(self):
+        # The trap the guard exists for: pass-by-bytes, fail-past-json.loads.
+        target = self._record("record.jsonl", "HTTP 400: image special token " + self.token)
+        raw_bytes = target.read_text(encoding="utf-8")
+        self.assertFalse(self.tool.contains_raw_token(raw_bytes))
+        self.assertTrue(self.tool.contains_raw_token(json.loads(raw_bytes)["error"]))
+
+    def test_check_flags_a_decodable_spelling_without_printing_it(self):
+        target = self._record("record.jsonl", "HTTP 400: image special token " + self.token)
+        proc = _run("--check", str(target))
+        self.assertEqual(proc.returncode, 1)
+        out = proc.stdout.decode("ascii")
+        self.assertIn("DECODABLE SPELLING x1", out)
+        self.assertNotIn(self.token, out)
+
+    def test_scrub_output_survives_a_json_round_trip(self):
+        # The acceptance test: decode the scrubbed record and the token is gone.
+        target = self._record("record.jsonl", "HTTP 400: image special token " + self.token)
+        self.assertEqual(self.tool.scrub_file(target), (0, 1))
+        decoded = json.loads(target.read_text(encoding="utf-8"))["error"]
+        self.assertFalse(self.tool.contains_token_spelling(decoded))
+        self.assertIn(self.tool.SCRUB_MARKER, decoded)
+
+    def test_scrub_counts_raw_and_escaped_separately(self):
+        out, raw, escaped = self.tool.scrub_text(
+            "raw " + self.token + " spelled " + self._escaped()
+        )
+        self.assertEqual((raw, escaped), (1, 1))
+        self.assertNotIn(self.token, out)
+        self.assertFalse(self.tool.contains_token_spelling(out))
+
+    def test_every_escape_case_a_decoder_accepts_is_matched(self):
+        for bar in ("\\u" + "ff5c", "\\u" + "FF5C", "\\U" + "0000FF5C",
+                    "\\\\u" + "ff5c"):
+            spelled = self._escaped(bar)
+            self.assertTrue(self.tool.contains_token_spelling(spelled), bar)
+            out, _, escaped = self.tool.scrub_text(spelled)
+            self.assertEqual(escaped, 1)
+            self.assertIn(self.tool.SCRUB_MARKER, out)
+
+    def test_scrub_is_idempotent_and_does_not_rewrite_clean_files(self):
+        target = self._record("record.jsonl", "x " + self.token)
+        self.assertEqual(self.tool.scrub_file(target), (0, 1))
+        stamp = target.stat().st_mtime_ns
+        self.assertEqual(self.tool.scrub_file(target), (0, 0))
+        self.assertEqual(target.stat().st_mtime_ns, stamp)
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "needs /proc")
+    def test_scrub_refuses_a_file_open_in_this_process(self):
+        target = self._record("live.jsonl", "x " + self.token)
+        with target.open("rb"):
+            with self.assertRaises(RuntimeError):
+                self.tool.scrub_file(target)
+        self.assertEqual(self.tool.scrub_file(target), (0, 1))
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "needs /proc")
+    def test_cli_refuses_a_live_file_and_force_overrides(self):
+        target = self._record("live.jsonl", "x " + self.token)
+        with target.open("rb"):
+            proc = _run("--scrub", "--in-place", str(target))
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn(b"held open", proc.stderr)
+            proc = _run("--scrub", "--in-place", "--force", str(target))
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(_run("--check", "--quiet", str(target)).returncode, 0)
+
+    def test_scrub_from_stdin_keeps_the_document_valid_and_inert(self):
+        payload = (json.dumps({"error": "x " + self.token}) + "\n").encode("utf-8")
+        proc = _run("--scrub", stdin=payload)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        decoded = json.loads(proc.stdout.decode("utf-8"))["error"]
+        self.assertFalse(self.tool.contains_token_spelling(decoded))
+        self.assertIn(self.tool.SCRUB_MARKER, decoded)
+
+    def test_cli_scrub_in_place_reports_counts_and_clears_the_file(self):
+        target = self._record("record.jsonl", "x " + self.token)
+        proc = _run("--scrub", "--in-place", str(target))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(b"1 escaped spelling", proc.stdout)
+        self.assertEqual(_run("--check", "--quiet", str(target)).returncode, 0)
+
+
 class NegativeControls(unittest.TestCase):
     """Each control fails when the guard it backs is broken.
 
@@ -298,6 +414,28 @@ class NegativeControls(unittest.TestCase):
         almost = chr(0x003C) + chr(0xFF5C) + "deepseek_image" + "|" + chr(0x003E)
         self.assertFalse(self.tool.contains_raw_token(almost))
 
+    def test_scrub_leaves_every_spelling_that_cannot_decode_back(self):
+        # None of these ever rebuilds the raw token: ASCII bars are inert,
+        # a bare bar or the name alone is not the token, and an off-by-one
+        # escape is a different codepoint.  A scrub that fired here would
+        # silently rewrite ordinary prose and logs.
+        for decoy in (
+            "<|deepseek_image|>",
+            "\\u" + "ff5c deepseek_image \\u" + "ff5c",
+            "deepseek_image",
+            "<" + "\\u" + "ff5b" + "deepseek_image" + "\\u" + "ff5c" + ">",
+        ):
+            out, raw, escaped = self.tool.scrub_text(decoy)
+            self.assertEqual((out, raw, escaped), (decoy, 0, 0), repr(decoy))
+
+    def test_scrub_is_not_identity_on_a_decodable_spelling(self):
+        # Guards the acceptance test above: an identity scrub would also pass
+        # a round trip that never checks the decoded value.
+        spelled = "<" + "\\u" + "ff5c" + "deepseek_image" + "\\u" + "ff5c" + ">"
+        out, _, escaped = self.tool.scrub_text(spelled)
+        self.assertEqual(escaped, 1)
+        self.assertNotEqual(out, spelled)
+
 
 class ShippedTreeIsClean(unittest.TestCase):
     """No shipped file may contain the literal token."""
@@ -327,6 +465,34 @@ class ShippedTreeIsClean(unittest.TestCase):
             planted = Path(tmp) / "planted.txt"
             planted.write_text("planted " + self.token)
             self.assertIn(self.token, planted.read_text())
+
+    def test_no_shipped_file_holds_a_decodable_spelling(self):
+        # Property 5 at tree level: json.dumps() of a token-bearing string is
+        # byte-clean and still decodes back to the raw token, so a spelling is
+        # an offender exactly like the literal bytes are.
+        offenders = []
+        for name in SHIPPED_DIRS:
+            for path in sorted((REPO_ROOT / name).rglob("*")):
+                if not path.is_file():
+                    continue
+                try:
+                    text = path.read_bytes().decode("utf-8", "surrogateescape")
+                except OSError:
+                    continue
+                if self.tool.contains_token_spelling(text):
+                    offenders.append(str(path.relative_to(REPO_ROOT)))
+        self.assertEqual(offenders, [])
+
+    def test_the_spelling_scanner_can_actually_see_a_spelling(self):
+        # Negative control for the guard above, on the same fixture shape the
+        # incident used: a JSON record that decodes to the raw token.
+        with tempfile.TemporaryDirectory() as tmp:
+            planted = Path(tmp) / "planted.jsonl"
+            planted.write_text(json.dumps({"error": "x " + self.token}) + "\n")
+            text = planted.read_text()
+            self.assertFalse(self.tool.contains_raw_token(text))
+            self.assertTrue(self.tool.contains_token_spelling(text))
+            self.assertTrue(json.loads(text)["error"].find(self.token) >= 0)
 
 
 if __name__ == "__main__":

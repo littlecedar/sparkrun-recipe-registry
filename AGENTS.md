@@ -220,7 +220,7 @@ before matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **416 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **430 tests,
   all passing** as of 2026-10-07. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun

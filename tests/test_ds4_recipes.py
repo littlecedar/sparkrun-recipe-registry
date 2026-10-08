@@ -1499,8 +1499,12 @@ class TensorfoldLaneContract(unittest.TestCase):
         # Vendored + digest-pinned: the shebang image whose `tensorfold` we built.
         self.assertEqual(self.r.container, TF_IMAGE)
         # The engine reads EXL3 ONLY (families/deepseek_v41 QUANT_METHODS); the
-        # official MXFP4 checkpoint would be rejected by family.check().
-        self.assertEqual(self.r.model, "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw")
+        # official MXFP4 checkpoint would be rejected by family.check(). The
+        # model is the combined repo: EXL3 2.9bpw weights + upstream Engram
+        # tables + upstream's prompt, all in one snapshot.
+        self.assertEqual(
+            self.r.model, "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram"
+        )
 
     def test_image_is_vendored_and_pinned(self):
         self.assertRegex(
@@ -1735,10 +1739,10 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
     def test_control_official_mxfp4_checkpoint(self):
         # Swapping in the official (MXFP4) checkpoint must fail the model guard:
         # the engine's family.check() refuses any quant_method != exl3.
-        r = self._mutated("model: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw",
+        r = self._mutated("model: littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram",
                           "model: deepseek-ai/DeepSeek-V4.1-Flash")
         with self.assertRaises(AssertionError):
-            self.assertEqual(r.model, "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw")
+            self.assertEqual(r.model, "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram")
 
     def test_control_tp3(self):
         r = self._mutated("  tensor_parallel: 2", "  tensor_parallel: 3")
