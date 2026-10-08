@@ -1,0 +1,284 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-7B-FP8
+# SHA pin, not a branch.  VERIFIED 2026-09-20 from the HF API (`?blobs=true`):
+# main == 59d473210f0b9ee3ea559a867fc23e7059473944, 11,075,959,853 B in ONE
+# shard.  The pin is load-bearing, not cosmetic: sparkrun downloads a SHA-pinned
+# repo into snapshots/<sha>/ and writes no refs/ entry, and the container runs
+# with HF_HUB_OFFLINE=1, so an engine that resolves its own revision dies with
+# LocalEntryNotFoundError *after* the weights synced to every host.  Hence the
+# --revision placeholder below; sparkrun's `unpinned-model-revision` check
+# exists to catch a pin that reaches distribution but never reaches the engine.
+model_revision: 59d473210f0b9ee3ea559a867fc23e7059473944
+runtime: sglang
+# Pinned by digest.  The version floor is load-bearing: models/xllm.py (which
+# registers K2HorizonForCausalLM in EntryClass) is ABSENT at v0.5.19 and present
+# at v0.5.20 (blob 69ec06355c6c1734dce0589c8f7793f6f563c262), so any image older
+# than v0.5.20 refuses this architecture outright.  A moving `dev-*` tag is not a
+# version guarantee -- pin the digest so the guarantee survives a re-push.
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+# ---------------------------------------------------------------------------
+# MEASURED (first hardware session, 2026-10-08, a node, GB10):
+#   c=1 d=0    : 21.0 t/s   (cv 0.7% over 5 runs)
+#   c=1 d=8192 : 19.0 t/s
+# `sparkrun benchmark performance <this> --profile benchmarking/decode-triage.yaml`
+# Booted clean first try. NOTE: this is BELOW the ~25 t/s the WORK §5 roofline
+# predicted (9.00 GB/step / 227.8 GB/s). The roofline counts only the weight read
+# and ignores per-step overhead, so it is optimistic by ~16 % at c=1 -- the first
+# real correction to the lane's modelling. It also makes the measured NGRAM arm
+# (27.4/29.2 t/s) a clear win over this baseline, not a marginal one.
+# ---------------------------------------------------------------------------
+
+metadata:
+  description: IFM/K2-Horizon-7B-FP8 - dense 36-layer GQA reasoner, 512K native context, block-FP8, native SGLang on GB10
+  model_url: https://huggingface.co/IFM/K2-Horizon-7B-FP8
+  # Computed from the safetensors index (579 tensors, parsed): 6.945B in GEMMs +
+  # 1.027B embed + 1.027B untied lm_head ~= 9.0B.  Use this, not a card figure,
+  # for any sizing arithmetic -- the parameter count that matters here is the one
+  # that sets the 9.00 GB per-step weight read in WORK section 5.
+  model_params: "9.0B"
+  model_dtype: fp8_e4m3
+  # Prose goes here rather than in model_dtype so the VRAM estimator can still
+  # size the model: model_dtype must be a token sparkrun recognizes, while
+  # metadata.quantization is free text by design.
+  quantization: compressed-tensors
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  # NOT `official`. AGENTS.md reserves that for recipes verified on real nodes,
+  # and nothing in this file has run on a DGX Spark -- it is derived from the
+  # checkpoint and from SGLang v0.5.20 source. `fast` is kept because it is a
+  # search filter for "this runtime is the performant one for the model", which
+  # the source reading supports; if a node disproves it, drop it then.
+  tags: experimental, fast
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # TP=1 is not a preference here, it is the only shape worth having on one
+  # Spark.  The artifact is 11.05 GB and the box is 128 GB unified, so TP buys
+  # no capacity; it splits an 8-KV-head GQA layout across ranks and adds an
+  # all-reduce per layer over a memory subsystem that is already the bottleneck.
+  # See K2-7B-MODEL-OPTIMIZATION-WORK.md section 8.
+  tensor_parallel: 1
+  # 0.85 is the AGENTS.md GB10 ceiling: past ~0.85-0.90 a kernel or page-cache
+  # allocation starts OOM-panicking the launch on unified memory.  Weights are
+  # 11.05 GB (8.6% of 128 GB), so this knob is NOT buying weight headroom -- it
+  # buys KV pool and CUDA-graph capture headroom.  At 0.85 the pool is roughly
+  # 108.8 - 11.1 = ~97 GB for KV + activations + graphs.
+  gpu_memory_utilization: 0.85
+  # config.json declares max_position_embeddings 524288, but a full 512K
+  # sequence is 72 GiB of bf16 KV (144 KiB/token) and would leave the box no
+  # room for a second request, activations, or CUDA graphs.  131072 costs 18 GiB
+  # and still admits ~5 concurrent full-length sequences.  Do not advertise 512K
+  # without first shipping the fp8-KV story (see WORK section 9.5).
+  max_model_len: 131072
+  # Scheduler/CPU limit, NOT a memory limit: at 144 KiB/token the KV pool fits
+  # ~5 concurrent 128K sequences or ~57 concurrent 32K ones.  32 is chosen for
+  # the batch-machine argument in WORK section 5: aggregate throughput scales
+  # ~linearly with concurrency because the 9.00 GB per-step weight read
+  # amortizes, while per-request latency falls.  Measure both before raising.
+  max_num_seqs: 32
+  # NOT optional and NOT `auto`.  models/xllm.py::_validate_mova_config() raises
+  # for model_type "k2_horizon" unless torch.get_default_dtype() is bfloat16
+  # ("Native xLLM/K2 Horizon serving requires --dtype bfloat16").  This
+  # checkpoint does declare dtype bfloat16 honestly, so `auto` would probably
+  # resolve correctly -- but a hard precondition should not be delegated to a
+  # heuristic that a future dtype-inference change can move.
+  dtype: bfloat16
+  # flashinfer, deliberately, and this is the one place this recipe deviates from
+  # the HF card.  The card and the SGLang cookbook both pass --attention-backend
+  # fa3, and that was validated on Hopper.  On GB10 (CC 12.1) `fa3` cannot be
+  # constructed at all: attention_registry.py::create_flashattention_v3_backend
+  # asserts `(major == 8 and not use_mla) or major == 9` and its own message says
+  # "Please use --attention-backend flashinfer".  get_default_attn_backend() also
+  # lands on flashinfer for this model shape (not Hopper, not SM100, no attention
+  # sinks), so naming it explicitly is free and makes behaviour immune to upstream
+  # default drift.  Do NOT copy fa3 back in from the card without reading
+  # WORK section 6.3.
+  attention_backend: flashinfer
+  # `auto` == model dtype == bf16.  fp8_e4m3 halves KV to 72 KiB/token, worth
+  # ~+9% at 32K and ~+50% at 128K on the WORK section 5 table, and the 512K
+  # context becomes 36 GiB instead of 72.  It is NOT the default because nobody
+  # has scored accuracy for this family with fp8 KV, and because this
+  # checkpoint's quantization_config carries NO kv_cache_scheme while sglang has
+  # no fp8-KV-scale flag -- so it would run at an implicit scale of 1.0.
+  #
+  # And read this before expecting a bonus: flashinfer_backend.py's
+  # should_use_tensor_core() (VERIFIED, :2503-2506) picks tensor cores when
+  # gqa_group_size >= 4, and this model is 32Q/8KV = exactly 4.  So bf16 KV is
+  # ALREADY on the tensor-core path, and fp8 KV buys bytes and nothing else.  The
+  # gain should track the byte ratio and not beat it; the usual "fp8 KV also
+  # flips decode onto tensor cores" upside is not available here.  Deserves its
+  # own scored arm (zz-k2-horizon-7b-fp8-fp8kv-sglang.yaml), never a silent default.
+  kv_cache_dtype: auto
+  # Block-FP8 GEMM backend, pinned.  `auto` tries DeepGEMM FIRST
+  # (fp8_utils.py::_dispatch_auto_backend), and DEEPGEMM_SCALE_UE8M0 gates on
+  # `get_device_sm() == 120` EXACTLY -- GB10 is 12.1, so it lands in the
+  # non-ue8m0 scale layout chosen for SM100/SM120 and whether DeepGEMM is even
+  # correct there is unverified.  `cutlass` is gated on `is_sm120_supported`,
+  # which matches on the capability MAJOR (`device_capability_majors=[12]`,
+  # CUDA >= 12.8) and therefore does include 12.1; sglang's own --help calls it
+  # "optimal for SM120 GPUs".  Every GEMM in this checkpoint is a multiple of 128
+  # in both dimensions, so the CUTLASS block precondition holds and no per-layer
+  # Triton fallback is expected.  See WORK section 4.3, including the
+  # is_sm120_supported vs is_sm120() footgun.
+  fp8_gemm_backend: cutlass
+  # sglang's own default, spelled so it is a knob rather than a mystery.  The
+  # flashinfer paged decode path generally wants page_size 16-64 for GQA, so
+  # this is the cheapest first thing to sweep after the load is confirmed.
+  page_size: 1
+  # NOT in sparkrun's _SGLANG_FLAG_MAP (only `chunked_prefill` ->
+  # --chunked-prefill-size is), so it reaches sglang only through the placeholder
+  # below; `-o page_size=...` prints "unmapped" while still taking effect.  Never
+  # delete a placeholder to silence that warning.
+  #
+  # Scheduler token budget per prefill batch.  8192 rather than the 0.9B
+  # sibling's 4096: prefill here is compute-bound on a 6.9B-parameter body, so a
+  # larger chunk amortizes launch overhead better; activation working set at
+  # 8192 x 4096 bf16 is ~64 MB per layer of intermediates, which is noise against
+  # a ~97 GB pool.  Halve it if the first boot OOMs during warmup.
+  chunked_prefill_size: 8192
+  # Escape hatch for one-off experimentation.  Appended last so argparse resolves
+  # a repeated flag in favour of the override.  Empty string is the no-op
+  # default; quoted so YAML keeps a str.  Spend the FIRST boot on the probes
+  # named in K2-7B-MODEL-OPTIMIZATION-WORK.md section 9 (--load-format,
+  # --page-size ladder, --cuda-graph-max-bs), not on a redesign.
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --tool-call-parser k2_horizon
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHY THIS FILE LOOKS THE WAY IT DOES
+#
+# Theory-crafted first boot: nothing here is measured on a DGX Spark.  Labels are
+# VERIFIED (read from a primary artifact), LIKELY (strong secondary evidence),
+# SPECULATIVE (reasoning without a source).  Long-form findings live in
+# K2-7B-MODEL-OPTIMIZATION-WORK.md and the narrative in K2-7B-JOURNAL.md; both are
+# git-ignored, so the citations below are self-contained.
+#
+# 1. THE CHECKPOINT IS DENSE, AND THAT IS A CODE PATH, NOT A DESCRIPTION.
+#    config.json sets mlp_only_layers to [0..35] -- every layer -- and
+#    num_experts / mova_num_experts / mova_num_experts_per_tok all 0.  SGLang's
+#    models/xllm.py branches on exactly that: the dense path builds
+#    QKVParallelLinear + RowParallelLinear with the REAL quant_config and one
+#    fused QKV GEMM (xllm.py:1113-1134), while the MoVA/gated paths allocate four
+#    separate ColumnParallelLinears with quant_config hard-set to None
+#    (:1264-1300) and RAISE on any quantizer (:1229-1232).  Same family, opposite
+#    quantization support.  Never use MoVA-36B-A4B measurements to predict this
+#    recipe, and never copy its flags into this file.
+#
+# 2. FP8 IS THE SANCTIONED PATH HERE, NOT AN EXPERIMENT.
+#    _validate_mova_config() (xllm.py:651-690) accepts ONLY compressed-tensors:
+#        if quant_config is not None and quant_config.get_name() != \
+#                "compressed_tensors": raise ValueError(...)
+#    Read the string carefully before "fixing" it: it is the UNDERSCORE form and
+#    so is CompressedTensorsConfig.get_name() (compressed_tensors.py:158-159),
+#    even though the CLI flag and the config key spell it `compressed-tensors`.
+#    It is correct.  Touching it breaks FP8 loading.
+#    There is deliberately NO --quantization flag.  quantization_config in
+#    config.json is self-describing and sglang selects the method from it; a
+#    redundant --quantization compressed-tensors is a no-op at best and an
+#    argument conflict at worst.
+#    Shape (VERIFIED): weights float8_e4m3, symmetric, strategy "block",
+#    block_structure [128,128], static; activations dynamic, symmetric, strategy
+#    "group", group_size 128; targets ["Linear"]; ignore ["lm_head"].
+#    NOTE the ignore list is only lm_head -- unlike the 0.9B's BF16 sibling, no
+#    attention projections are excluded.
+#
+# 3. WHAT IS ACTUALLY AT RISK ON THE FIRST BOOT (WORK section 4.2).
+#    XllmForCausalLM.packed_modules_mapping fuses q,k,v -> qkv_proj and
+#    gate,up -> gate_up_proj (xllm.py:1692-1695), but the checkpoint ships
+#    SEPARATE q_proj.weight_scale / k_proj.weight_scale / ... tensors.  So the
+#    BLOCK BlockQuantScaleParameter (fp32, registered as `weight_scale`,
+#    input_dim=1 output_dim=0) has to be filled per-shard by the stacked weight
+#    loader across a 32:8:8 QKV split at block granularity 128.  The generic
+#    stacked_params_mapping machinery should do it.  No source line proves it for
+#    this layout.  If the boot fails, it fails in weight loading with a shape or
+#    step error, quickly -- read the load log before changing anything else.
+#    Cross-check that survived static review: 579 tensors == 36*(7 FP8 weights +
+#    7 weight_scale + 2 norms) + embed + lm_head + final norm exactly, and
+#    11,053,505,536 B == 6.95 GB F8_E4M3 + 2.053 GB embed + 2.053 GB lm_head +
+#    ~1.4 MB scales/norms.  The artifact is internally consistent.
+#
+# 4. SCALES ARE BF16 IN THE CHECKPOINT, SGLANG ALLOCATES FP32 (WORK 4.4).
+#    `weight_scale` tensors are stored BF16 (~11.8K elements/layer, ~0.85 MB
+#    total).  create_weights() allocates torch.empty(..., dtype=torch.float32) and
+#    the safetensors loader casts on load.  Unusual -- most compressed-tensors FP8
+#    ships fp32 scales -- and harmless: bf16's 8 mantissa bits are ~0.4% scale
+#    error against fp8's ~6% element error.  If a future loader tightens dtype
+#    checking and refuses, this is the cause.  Do not "fix" it by requantizing.
+#
+# 5. ENGINE SELECTION (WORK section 3).
+#    sglang v0.5.20 is the first release containing models/xllm.py (PR #37654);
+#    EntryClass = [XllmForCausalLM, K2HorizonForCausalLM] at xllm.py:1914.
+#    vLLM is NOT an option: the card's quickstart cites PR #53806 and commit
+#    d9fd5f11, and that PR is CLOSED UNMERGED (GitHub API: state=closed,
+#    merged=false), so the commit lives in a fork.  The card's vLLM block is also
+#    invalid JSON (unquoted inner keys, missing closing brace) and uses vLLM-only
+#    flags -- --enable-auto-tool-choice does not exist as an sglang server arg,
+#    and sglang spells --hf-overrides as --json-model-override-args.  Copying that
+#    block verbatim would produce an "unrecognized arguments" failure at launch.
+#    --trust-remote-code is kept although the engine ships its own thin
+#    K2HorizonConfig (configs/k2_horizon.py) and should not need it: the
+#    checkpoint carries auto_map entries pointing at its own modeling file, and
+#    keeping the flag makes the launch robust to which side wins that race.
+#    Both parsers are set (reasoning AND tool-call), which the card's best
+#    practices ask for even though its SGLang snippet shows only the reasoning
+#    one.  Tool-call encoding and reasoning depth are CLIENT-side:
+#    chat_template_kwargs {"tool_call_format": "json"|"xml"|"xml_typed"} and
+#    {"reasoning_effort": "high"} per request.  The card is emphatic that every
+#    published number uses high effort and that >=32,768 output tokens must be
+#    allowed -- "truncated reasoning is a failed response, not a shorter one".  A
+#    benchmark capped at 1k output tokens measures this model wrong, not fast.
+#
+# 6. CARD ERRATA ON THE -FP8 REPO (all VERIFIED 2026-09-20).
+#    - Its SGLang snippet passes `--revision 69ada542b68fe13d767479db2ab9421baff88681`.
+#      That is not a revision of either model repo: the HF API returns 404 for it
+#      on both IFM/K2-Horizon-7B and IFM/K2-Horizon-7B-FP8.  The real SHAs are
+#      eca6bb608969151ffa45b10e1955d39aa73baf27 (BF16, base of the Uno adapter)
+#      and 59d473210f0b9ee3ea559a867fc23e7059473944 (this repo).  The same
+#      copy-paste bug appears on the 0.9B card, so treat every card's --revision
+#      as suspect and derive the pin from the HF API.  Copying it offline yields
+#      LocalEntryNotFoundError after the sync.
+#    - Both snippets serve `IFM/K2-Horizon-7B` (BF16), not the FP8 repo this card
+#      documents, and `--attention-backend fa3`.  fa3 cannot be constructed on
+#      GB10 (section 5 above).  The card also states "BF16, TP=1,
+#      FlashAttention-3" as best practice and that all cookbook numbers are
+#      H200 -- so it is a Hopper document, not a Spark one.
+#    - Card best practices worth honouring in the CLIENT, not the server:
+#      reasoning_effort "high", temperature 1.0, top_p 0.95, >=32768 max_tokens,
+#      tool_call_format one of json|xml|xml_typed (default xml).
+#
+# 7. WHAT WOULD CHANGE THIS FILE.
+#    - A successful boot that shows DeepGEMM beating CUTLASS on 12.1: revisit
+#      fp8_gemm_backend.  Until then `cutlass` is the defensible choice.
+#    - fp8_e4m3 KV scored acceptable: it is the cheapest large-context win
+#      (144 -> 72 KiB/token) and should become the default for long-context
+#      deployments.
+#    - The untied BF16 lm_head is 2.053 GB = 23% of the 9.00 GB per-step read and
+#      cannot be quantized by any recipe flag (the checkpoint's ignore list names
+#      it, and removing that entry would demand FP8 lm_head tensors that do not
+#      exist).  Quantizing it is worth ~+13% single-stream and is a checkpoint
+#      job, not a recipe job.
+# ---------------------------------------------------------------------------

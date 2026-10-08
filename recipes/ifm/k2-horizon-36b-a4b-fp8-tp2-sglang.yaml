@@ -1,0 +1,217 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-MoVA-36B-A4B-FP8
+# Same pin as the TP=1 sibling, deliberately: these two recipes are one experiment
+# read as a pair, and a differing revision would confound it.
+model_revision: feffd71999eb06bfa2fbb8ad220059b694077457
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 2
+max_nodes: 2
+
+# MEASURED (2026-10-08, two nodes, GB10, RoCE) — E-flagship:
+#   c=1 d=0    : 30.0 t/s   (5 runs, decode-triage)
+#   c=1 d=8192 : 27.0 t/s
+# vs the TP=1 sibling's 18.3 / 16.3 on the same profile in the same window:
+# **~1.64x, a large single-stream win for a cross-node allreduce.** So the 5 KB
+# per-layer allreduce is well under the 306 us break-even this file modelled.
+# CAVEAT: transport not confirmed on RoCE via NCCL_DEBUG=INFO (a silent TCP
+# fallback would still boot and serve). The win is large enough that RoCE is
+# likely, but "likely" is not a NET/IB banner -- confirm before quoting these as
+# RoCE numbers. See K2-36B-A4B-JOURNAL.md 2026-10-08.
+metadata:
+  description: IFM/K2-Horizon-MoVA-36B-A4B-FP8 on 2x GB10 (TP=2 over RoCE) - the cross-node arm, and the only shape where a long context is sane; REQUIRES the k2-horizon-fp8 gate mod
+  # UNMEASURED. Written without Spark access. The break-even table at the bottom of
+  # this file is MODELLED roofline arithmetic on a byte census plus a decode law
+  # fitted on a different model; its purpose is to state a falsifiable prediction,
+  # not to report a result.
+  model_url: https://huggingface.co/IFM/K2-Horizon-MoVA-36B-A4B-FP8
+  model_params: "36B"
+  model_dtype: fp8_e4m3
+  # Single recognised token; the checkpoint's own quant_method is literally "fp8".
+  # Same caveat as the TP=1 sibling: only the routed experts are FP8, everything else
+  # (MoVA value experts, attention, shared expert, lm_head, routers) is BF16.
+  quantization: fp8
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  # `experimental` because nothing here has run on a Spark. `cluster` because it is
+  # the only recipe in this family that needs two nodes, which is the thing a
+  # searcher filters on when they have two Sparks and want to know whether to use
+  # them both.
+  tags: experimental, patched, cluster
+  upstream_pins:
+    sglang_version: v0.5.20
+    sglang_commit: 95521da
+    k2_native_support: 3bac084d4
+    k2_fp8_branch: 756d0e0a8
+    mod: patch-sglang-k2-horizon-fp8@1.0.0
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "mods/patch-sglang-k2-horizon-fp8"
+
+env:
+  PYTHONUNBUFFERED: "1"
+  SGLANG_DISABLE_DEEP_GEMM: "1"
+  # NO NCCL block here, deliberately, and this is a correction of an earlier draft
+  # that set SGLANG_NCCL_SOCKET_IFNAME / SGLANG_GLOO_SOCKET_IFNAME to "eth0".
+  # Both names are wrong twice over: the `SGLANG_` prefix is not something sglang
+  # reads (NCCL and gloo read the unprefixed NCCL_SOCKET_IFNAME /
+  # GLOO_SOCKET_IFNAME), and hardcoding "eth0" is exactly the mistake
+  # mods/make-roce-env exists to prevent -- it renders the real interface list from
+  # host facts (NCCL_SOCKET_IFNAME, GLOO_SOCKET_IFNAME, NCCL_IB_HCA,
+  # NCCL_IB_GID_INDEX=3, NCCL_IB_DISABLE=0, NCCL_NET=IB, NCCL_NVLS_ENABLE=0,
+  # NCCL_CUMEM_ENABLE=0 at mods/make-roce-env/make-roce-env.py:69-79) and writes
+  # them into env/cluster.yaml, where every node's own interfaces are correct.
+  # sparkrun's dgx-spark host_profile already adds --device /dev/infiniband,
+  # --cap-add IPC_LOCK and --ulimit memlock=-1:-1, so RoCE is available to the
+  # container without anything in this file.
+  #
+  # What must happen before this recipe is trusted: the operator generates
+  # env/cluster.yaml with mods/make-roce-env, and the first boot runs with
+  # NCCL_DEBUG=INFO to confirm the transport is NET/IB rather than a TCP fallback.
+  # A TP=2 Spark job that silently falls back to TCP over the management bridge
+  # still *boots* and then measures nothing but ethernet latency -- which on this
+  # recipe would not merely be slow, it would invert the recipe's entire
+  # conclusion (see the break-even table at the bottom of this file). That makes
+  # the IB check a correctness precondition, not a performance nicety.
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # TP=2 is the ceiling for this checkpoint, not a preference. Block-FP8 MoE
+  # requires moe_intermediate_size / TP to be divisible by block_n = 128:
+  # 768/2 = 384 passes, 768/4 = 192 and 768/8 = 96 raise in
+  # Fp8MoEMethod.create_weights (fp8.py:1368-1390). So {1, 2} is the complete
+  # legal set and this file is the top of it.
+  tensor_parallel: 2
+  # Weights are 24.18 GB/rank at TP=2, so this fraction is doing nothing for
+  # weights and everything for the KV pool and graph capture.
+  gpu_memory_utilization: 0.85
+  # 131072 rather than the TP=1 sibling's 32768, and this is the actual reason to
+  # run TP=2 at all. KV is 192.0 KiB/token so 128K context is 25.77 GB, which at
+  # TP=2 is 12.88 GB of pool per node inside a ~108.8 GB budget -- comfortable
+  # instead of tight. At TP=1 the same 25.77 GB against ~60 GB free is workable
+  # but leaves little for a second sequence; at the config's native 524288 it is
+  # 103 GB on one node and does not fit at bf16 KV at all.
+  #
+  # This is the one place in the family where raising context is cheap, which is
+  # why it is the long-context arm rather than the default arm.
+  max_model_len: 131072
+  # 16 rather than 32. Cross-node TP serialises the two ranks on every layer's
+  # allreduce, so a deeper queue buys no overlap and only lengthens the pause
+  # before the first token of each new request. Halve it again if TTFT under load
+  # is worse than the TP=1 sibling's.
+  max_num_seqs: 16
+  dtype: bfloat16
+  attention_backend: flashinfer
+  fp8_gemm_backend: cutlass
+  kv_cache_dtype: auto
+  # NOTE on these two keys: neither `page_size` nor `chunked_prefill_size` is in
+  # sparkrun's `_SGLANG_FLAG_MAP` (runtimes/sglang.py:29-88; the map spells the prefill
+  # key `chunked_prefill`). A default absent from that map is DROPPED with no error and
+  # no trace in the rendered command -- it reaches sglang only because the `command:`
+  # template references it as a {placeholder} (sparkrun/core/launcher.py:620-633 treats
+  # that as "reaches something"). So the placeholder is load-bearing: delete it to
+  # silence a warning and the setting silently dies while the recipe still validates.
+  # Enforced by tests/test_ifm_36b_recipes.py::I14SparkrunFlagMap.
+  page_size: 1
+  chunked_prefill_size: 8192
+  extra_args: ""
+
+# The router-provenance override below is MANDATORY for every MoVA checkpoint and
+# its absence was a real defect in the first draft (falsified on hardware
+# 2026-10-08). The first boot died at xllm.py:204 (_normalize_k2_horizon_config)
+# with "K2Horizon MoVA requires explicit source router GEMM provenance" -- a gate
+# that fires for BF16 and FP8 alike, NOT the compressed-tensors gate this lane's
+# documents predicted. Value 2 is the MP2 contract the vendor card's validated
+# SGLang recipe passes; full argument in k2-horizon-36b-a4b-bf16-tp1-sglang.yaml.
+# Literal, not a `defaults:` key: `json_model_override_args` is not in sparkrun's
+# `_SGLANG_FLAG_MAP` (runtimes/sglang.py:31-89).
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --json-model-override-args '{"xllm_source_router_gemm_partitions": 2}'
+  --tool-call-parser k2_horizon
+  {extra_args}
+
+# ---------------------------------------------------------------------------
+# WHAT THIS RECIPE IS FOR
+#
+# It is the other half of a matched pair with
+# k2-horizon-36b-a4b-fp8-tp1-sglang.yaml. Read together, at the same context
+# depth, in the same window, alternating boots, they measure exactly one thing:
+# the cost of a 5 KB cross-node NCCL allreduce on this cluster.
+#
+# THE ARITHMETIC (MODELLED, from a byte census of the checkpoint plus the qwen4
+# lane's fitted decode law t = F + bytes/B, B = 145.5 GB/s, F = 8.4 ms). All of it
+# is theory; tests/k2_36b_arith.py recomputes every figure below from the census.
+#
+#   TP=1 reads 8.489 GB of weights per token, PLUS the whole KV footprint of the
+#   sequence every step: 196,608 B/token x context. At this recipe's 131072 that is
+#   25.77 GB of KV read per decoded token, three times the weight read. Weights are
+#   the MINORITY term at this context, and that is the single most important fact
+#   about this recipe.
+#
+#   TP=2 splits both terms. Weights fall to 4.264 GB/rank (only the two routers are
+#   replicated, 75.6 MB total, so replication is a rounding error); the KV read
+#   splits over attention TP too. Cost is 96 collectives/token (2 per layer x 48),
+#   each 2560 x bf16 = 5 KB, so cost = 96 x L for one allreduce latency L.
+#
+#   Break-even L is CONTEXT-DEPENDENT, which an earlier draft of this file got wrong
+#   by modelling weights only:
+#     context   4096 : 331 us     32768 : 533 us     131072 : 1225 us
+#   and the gain at this recipe's context:
+#     L=10us  +92%   L=30us +89%   L=100us +80%   L=300us +57%   L=600us +33%
+#
+#   Read those optimistic numbers with suspicion. The model charges TP=2 only for the
+#   wire latency of a 5 KB message; it does not charge the NCCL kernel's own per-step
+#   launch (96 times, not free on a bandwidth-starved part), does not let F grow under
+#   synchronisation, and assumes the RoCE path is actually up. Treat +80% as "up to
+#   tens of percent, sign unknown". What IS robust across all of that slop is the
+#   ORDERING: TP=2 gets more attractive as context grows, and at 131K it is a modelled
+#   win even at a 600 us allreduce. That ordering, not the percentages, is why this
+#   file exists and why the long-context arm is two nodes rather than a bigger TP=1
+#   pool.
+#
+#   CONSEQUENCE FOR HOW YOU BENCHMARK THIS PAIR: do not decide TP=1 vs TP=2 from a
+#   short-context run. At 1k context the same 600 us interconnect makes TP=2 look
+#   like a 26 % LOSS; at 131K it makes it a 33 % WIN. Measure at the context you
+#   intend to serve, and record the context next to the verdict.
+#
+# WHY NOT TP=4 OR TP=8
+#   Build-time ValueError, not a tuning choice. See the tensor_parallel comment.
+#   If you want more nodes for this checkpoint, the only axis is
+#   --dp-attention + --ep, which removes 48 of the 96 allreduces by giving each
+#   rank a full attention replica. sglang's MoVA gate does not refuse dp-attention
+#   on the MoE class, but nothing here has tried it and the interaction with
+#   MoVA's own TP-sharded value experts (output-sharded across attn TP) is
+#   unread. That is a zz- arm if it ever gets a boot, not a shipped default.
+#
+# WHAT TO LOOK FOR IN serve.log ON A TP=2 BOOT
+#   1. the mod's four success lines (gate1, gate2, compiles, value-path
+#      self-check). Absent means the anchors drifted.
+#   2. NCCL reaching "Initialized NCCL" on both ranks. A hang before that line,
+#      with no error, is the interface-selection failure the env block is there
+#      to prevent -- check SGLANG_NCCL_SOCKET_IFNAME against `ip -br a` on the
+#      actual hosts before touching anything else.
+#   3. residency from the final memory-report line, expected ~24.2 GB of weights
+#      per node plus pool. nvidia-smi is forbidden in this repo; read the log.
+#   4. the TP=1 mod's numerics warning still applies: this is a numerics-bearing
+#      patch, so a throughput number from here is worth nothing until the
+#      BF16-vs-patched greedy continuation (D2) has passed.
+# ---------------------------------------------------------------------------
