@@ -1,15 +1,17 @@
 """Guards for the IFM K2-Horizon MoVA-36B-A4B Spark recipes.
 
-Run:
-    python3 -m unittest discover -s tests
+Run (archived: this file lives in `attic/ifm/`, so `unittest discover -s tests`
+no longer picks it up -- run it by path instead):
+    python3 -m unittest attic.ifm.test_ifm_36b_recipes   # from the repo root
+    python3 attic/ifm/test_ifm_36b_recipes.py
 
 Stdlib-only, and parses recipe TEXT with regex rather than importing PyYAML, so the
 guards survive a sparkrun upgrade and run on any lab machine (AGENTS.md).
 
-These are the 36B-A4B lane's own guards. `tests/test_ifm_recipes.py` guards the
-0.9B recipes and `tests/test_k2_7b_recipes.py` the 7B; the three files deliberately
-do not share a parser, because a shared parser means one broken parser silently
-disables three lanes' coverage.
+These are the 36B-A4B lane's own guards, archived beside the arms they cover.
+`tests/test_ifm_recipes.py` guards the 0.9B recipes and `tests/test_k2_7b_recipes.py`
+the 7B; the three files deliberately do not share a parser, because a shared parser
+means one broken parser silently disables three lanes' coverage.
 
 Why each invariant exists. Every claim is VERIFIED against sglang source at a named
 file:line at commit `95521da` (2026-09-20) and re-confirmed at release tag
@@ -90,11 +92,11 @@ import sys
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tests"))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import k2_36b_arith  # noqa: E402  canonical arithmetic, imported not duplicated
-RECIPE_DIR = ROOT / "recipes" / "ifm"
-MOD_DIR = ROOT / "mods" / "patch-sglang-k2-horizon-fp8"
+RECIPE_DIR = ROOT / "attic" / "ifm" / "arms"
+MOD_DIR = ROOT / "attic" / "ifm" / "mods" / "patch-sglang-k2-horizon-fp8"
 
 FP8_TP1 = RECIPE_DIR / "k2-horizon-36b-a4b-fp8-tp1-sglang.yaml"
 FP8_TP2 = RECIPE_DIR / "k2-horizon-36b-a4b-fp8-tp2-sglang.yaml"
@@ -224,10 +226,12 @@ class FilesExist(unittest.TestCase):
     def test_docs_present(self):
         # The two research docs are git-ignored by design (they hold internal
         # node state), so they are absent on a fresh clone -- skip there rather
-        # than fail, but require them when present.
+        # than fail, but require them when present. They sit beside this file in
+        # the archive, one level above the arms.
+        docs = ROOT / "attic" / "ifm"
         missing = [n for n in ("K2-36B-A4B-JOURNAL.md",
                                "K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md")
-                   if not (RECIPE_DIR / n).is_file()]
+                   if not (docs / n).is_file()]
         if missing:
             self.skipTest("git-ignored research docs absent (fresh clone): "
                           + ", ".join(missing))
@@ -806,3 +810,7 @@ class I17RouterProvenance(unittest.TestCase):
             self.assertNotIn("json_model_override_args", PARSED[p]["defaults"],
                              f"{p.name}: keep the override as a literal in "
                              "command:, not a defaults key (sparkrun does not map it)")
+
+
+if __name__ == "__main__":
+    unittest.main()

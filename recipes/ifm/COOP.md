@@ -1,13 +1,13 @@
-# COOP — `recipes/ifm/` (IFM K2-Horizon family: 0.9B / 7B-FP8 / 36B-A4B)
+# COOP — `recipes/ifm/` (IFM K2-Horizon family: 0.9B / 7B-FP8)
 
 Cross-agent coordination ledger for the K2-Horizon lanes. Its job, per
-`K2-09B-MODEL-OPTIMIZATION-WORK.md`: hold the **family-wide findings the 7B and 36B-A4B agents
+`K2-09B-MODEL-OPTIMIZATION-WORK.md`: hold the **family-wide findings the 0.9B and 7B agents
 need**, so two agents never spend a boot answering the same question. Narrative belongs in the
 `K2-*-JOURNAL.md` files; durable evidence belongs in the `K2-*-MODEL-OPTIMIZATION-WORK.md` files.
 
 > **This file is a 2026-10-07 reconstruction.** The original was lost from the working tree — it is
-> cited by `k2-horizon-36b-a4b-*.yaml` as "COOP item 3/8/9", by `tests/test_ifm_recipes.py` as a
-> source, and by `tests/test_ifm_36b_recipes.py` ("see COOP 2026-09-21 correction"), and no copy
+> cited by the archived sub-lane's recipes as "COOP item 3/8/9", by `tests/test_ifm_recipes.py`
+> as a source, and by that sub-lane's guard ("see COOP 2026-09-21 correction"), and no copy
 > survived anywhere on disk. Everything below is transcribed from those citations and from the
 > lane's own documents; nothing is invented. Items whose numbers are cited nowhere were not
 > recoverable — **do not renumber the anchors**; add new items at the next free numbers.
@@ -31,24 +31,19 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   (`utils/common.py:332-333`, `is_sm121`). Both the HF cards and the SGLang cookbook pass `fa3`
   because both were written on Hopper — copying them is the single most likely way to ship a recipe
   that cannot boot. `flashinfer` is sglang's own auto-default for major 12; name it explicitly.
-  Citing sites: `k2-horizon-36b-a4b-bf16-tp1-sglang.yaml:178`,
-  `k2-horizon-36b-a4b-fp8-tp1-sglang.yaml:157,290`.
+  Citing sites: `tests/test_ifm_recipes.py` I1; every recipe here names `flashinfer` (the
+  UNO probe deliberately names `fa4`, `k2-horizon-7b-fp8-uno-sglang.yaml:110`).
 - **Item 8 — a declared `dtype` in `config.json` is not the tensor dtype.**
   `--dtype auto` resolves through the *declared* config dtype
   (`configs/model_config.py:2078-2124`) and quietly maps a declared `float32` onto float16 for any
   non-gemma `model_type`; the 0.9B checkpoint declares `float32` while `validation.json` says its
   tensors are BF16, so `auto` can load 6.5 GB where 2.16 GB was intended
-  (`k2-horizon-0.9b-bf16-sglang.yaml:67-74`). Every recipe here pins `dtype: bfloat16`.
-  **Open discrepancy:** the citing comment at `k2-horizon-36b-a4b-fp8-tp1-sglang.yaml:149-151` says
-  *this* (36B FP8) checkpoint advertises float32, while the BF16 sibling
-  (`k2-horizon-36b-a4b-bf16-tp1-sglang.yaml:108-109,203-206`) and
-  `tests/test_ifm_36b_recipes.py` I4 say the 36B declares bfloat16 honestly and the 0.9B sibling is
-  the liar. Resolve which checkpoint the item refers to before quoting it.
+  (`k2-horizon-0.9b-bf16-sglang.yaml:78-85`). Every recipe here pins `dtype: bfloat16`.
 - **Item 9 — the vendor card's `--revision` is an sglang commit-ish and 404s.**
   The cards pass `--revision 9b9ec1f7e17f…`, which does not exist in any `IFM/K2-Horizon-*` repo;
   each recipe pins the checkpoint SHA the analysis was done against instead.
-  Citing sites: `k2-horizon-36b-a4b-fp8-tp1-sglang.yaml:10,291`; guard I6 in
-  `tests/test_ifm_36b_recipes.py`.
+  Citing sites: `k2-horizon-0.9b-bf16-sglang.yaml:246-249`; guard
+  `tests/test_ifm_recipes.py::test_no_foreign_revision_copied_from_card`.
 
 ## Family-wide findings (each with its source)
 
@@ -59,14 +54,9 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   (item 3), `--revision` (item 9), and a vLLM block that is not valid JSON. Both cards also serve
   the BF16 model rather than the FP8 one they document.
   (`K2-09B-MODEL-OPTIMIZATION-WORK.md` TL;DR 2; `tests/test_k2_7b_recipes.py` header.)
-- **The 36B-A4B FP8 checkpoint cannot load without `mods/patch-sglang-k2-horizon-fp8`**
-  (`models/xllm.py:664` accepts only `compressed_tensors`/`fp8`; `:1229` raises on a non-None
-  quant_config on a MoVA layer), and the BF16 sibling must **not** mount it: both gates pass on
-  their own terms, and patching a runtime you do not need is exactly what the `patched` tag exists
-  to expose. (`tests/test_ifm_36b_recipes.py` I2.)
-- **FP8 TP is 1 or 2, never 4 or 8** — `layers/quantization/fp8.py:1368-1390` requires
-  `moe_intermediate_size / TP % block_n == 0`, and 768 with `weight_block_size [128,128]` fails at
-  4 and 8. It raises at model build, after a 48 GB sync to every node. (Same file, I5.)
+- **Archived sub-lane.** The family's third lane was withdrawn 2026-10-08 as too slow to justify
+  the compute — measured working on hardware first. Its recipes, mod and guards are in
+  `attic/ifm/` with a manifest.
 - **`fp8_gemm_backend` is `cutlass`, spelled.** `auto` prefers DeepGEMM, whose scale layout gates on
   `get_device_sm() == 120` exactly and so excludes SM121.
   (`tests/test_k2_7b_recipes.py` header, sec 4.3.)
@@ -74,13 +64,12 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   probe (`mods/probe-uno-fa4-sm121` + `mods/provide-uno-lora-k2-horizon-7b`), not a production
   recipe. (`tests/test_k2_7b_recipes.py` header, sec 6.7.)
 - **Pin the fast-core mask.** `taskset -c 5-9,15-19` (the X925 clusters; A725 is 0-4 and 10-14) is a
-  measured win carried into every 36B command. (`tests/test_ifm_36b_recipes.py`
-  `I10CommandShape.test_taskset_fast_core_mask`.)
-- **KV sizing is the binding constraint on this family.** 7B FP8 is 144 KiB/token (a 512K sequence
-  would be 72 GiB of bf16 KV — `k2-horizon-7b-fp8-sglang.yaml:59-62`); the 36B is 192.0 KiB/token
-  and its `max_position_embeddings` of 524 288 implies 103.1 GB for one sequence, 80 % of a Spark's
-  unified memory. Size by bytes, not by parameter count.
-  (`K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md` "The three numbers that matter".)
+  measured win carried into every command here (`k2-horizon-0.9b-bf16-sglang.yaml:147`,
+  `k2-horizon-7b-fp8-sglang.yaml:151`).
+- **KV sizing is the binding constraint on this family.** 7B FP8 is 144 KiB/token, so a 512K
+  sequence would be 72 GiB of bf16 KV and leave the box no room for a second request
+  (`k2-horizon-7b-fp8-sglang.yaml:71-75`). Size by bytes, not by parameter count.
+  (`K2-7B-MODEL-OPTIMIZATION-WORK.md` section 5.)
 
 ## Dated corrections
 
@@ -89,7 +78,7 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   subdirectory and re-verify `total_size` before trusting a local copy.
   (`K2-09B-MODEL-OPTIMIZATION-WORK.md` header.)
 - **2026-09-21** — the `rewrap-k2-horizon` mod was **abandoned**; do not resurrect it.
-  (`tests/test_ifm_36b_recipes.py`, "that mod was abandoned; see COOP 2026-09-21 correction".)
+  (Recorded in the guard for the sub-lane, archived to `attic/ifm/`.)
 
 ## Protocol
 
