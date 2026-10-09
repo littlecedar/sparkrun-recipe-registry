@@ -217,12 +217,37 @@ accuracy for its speed win**. This closes the lane's last quality gap: NGRAM's
 +29 %/+52 % and Uno's 37.7 t/s at accept-len 3.60 are lossless, not a trade.
 Raw: `.scratch/ifm/acc-2026-10-09/7b-ngram/` and `.../7b-uno/`.
 
+### 5. Context ceiling and the cuda-graph flag names
+
+**The two models do not share a context ceiling.** 0.9B `max_position_embeddings` is
+**131072** — YaRN (`factor 16` × `original_max_position_embeddings 8192`) lands exactly
+there, so the recipe's 131072 default *is* the model's hard ceiling. 7B-FP8 declares
+**524288** with `rope_type: default` (no YaRN) and `rope_theta 1e7`, so its 131072 default
+is a choice, not a limit.
+
+Probed the 7B at `-o max_model_len=524288`: it **boots and serves**. `--context-length
+524288`, `max_total_num_tokens=618026`, KV `dtype bfloat16, K 42.44 GB + V 42.44 GB`
+(84.88 GB) at `--mem-fraction-static 0.85`, served `max_model_len` 524288. Decode is
+**unchanged** (21.1885 / 19.1298 t/s d0/d8192, `bench_6518bc429d05` vs the 21.209/19.156
+baseline). A **176,045-token** prompt — 34 % past the old default — returned
+`finish_reason: stop` with the **mid-context needle retrieved exactly**.
+
+So 512K is reachable today on **bf16** KV: the fp8-KV arm that the lane treated as its
+prerequisite is not one. Caveats: that run proves the window opens and retrieval works at
+that depth; it does not establish quality across the whole span, and the pool holds 618026
+tokens, so one full 524288 sequence leaves ~94k for everything else — concurrency at 512K
+is effectively one stream.
+
+Also settled: `--cuda-graph-max-bs` is **absent** at v0.5.20; `--cuda-graph-max-bs-decode`
+/ `-prefill` are the real spellings. `--cuda-graph-max-bs-decode 32` boots and serves
+(77.722 / 67.426 vs the 77.339 / 67.036 control, `bench_bf98a3f39ef5`) — inside noise.
+
 ### Still open
 
 - `fp8_e4m3` KV cache **accuracy** gate (throughput measured, quality not).
 - The `{8,16,32,64}` `max-running-requests` ladder proper (only c=1/4/8 swept).
-- The 512K-context ceiling question (`COOP.md`), and the `-decode`/`-prefill`
-  cuda-graph flags that the absent bare `--cuda-graph-max-bs` was reaching for.
+- Quality across the *full* 512K span (one 176k-token request proves the window, not the
+  whole range).
 
 ### Sources — perishable
 

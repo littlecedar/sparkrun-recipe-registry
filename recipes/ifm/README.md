@@ -16,6 +16,11 @@ SGLang. Two model sizes are covered: the dense `0.9B` and the dense `7B-FP8`, pl
 | 7B | `IFM/K2-Horizon-7B-FP8` | 11.05 GB | block-FP8 (compressed-tensors) | dense, 36 layers, 144 KiB KV/token |
 | 7B-Uno | `IFM/K2-Horizon-7B-Uno` | 1.40 GB adapter | — | conditional-LoRA diffusion draft for the 7B |
 
+The two models declare **different context**: the 0.9B's
+`max_position_embeddings` is **131072** (YaRN 16 x 8192 — its hard ceiling),
+while the 7B's is **524288** (plain rope), and the 7B was measured serving a
+**176,045-token** prompt at the 512K configuration (bench `bench_6518bc429d05`).
+
 All recipes pin the container to `lmsysorg/sglang:v0.5.20-cu130` by **digest** — v0.5.20
 is the first release that ships `models/xllm.py` (which registers `K2HorizonForCausalLM`).
 
@@ -71,6 +76,7 @@ noise floor on this hardware at **7-25 %** for byte-identical boots, so a gap un
 | `--page-size 128` | 77.623 | 67.282 | `bench_f511e9d7fba3` |
 | `--attention-backend fa4` | 78.371 | 67.735 | `bench_8ec5a1920280` |
 | `--cuda-graph-max-bs 32` | FAILED TO START | — | `bench_62b814092b29` |
+| `--cuda-graph-max-bs-decode 32` | 77.722 | 67.426 | `bench_bf98a3f39ef5` |
 
 `--attention-backend fa4` is the notable arm: it **boots and serves** — the SM120 FA4
 kernel runs on this chip. `--cuda-graph-max-bs` **does not exist** in sglang v0.5.20
@@ -86,6 +92,7 @@ kernel runs on this chip. `--cuda-graph-max-bs` **does not exist** in sglang v0.
 | `--fp8-gemm-backend triton` | 20.609 | 18.628 | `bench_913796c734d4` |
 | `--page-size 64` | 21.171 | 19.106 | `bench_16e4daa54660` |
 | `--kv-cache-dtype fp8_e4m3` | 21.362 | 20.262 | `bench_0993e4379274` |
+| 512K (`max_model_len=524288`) | 21.1885 | 19.1298 | `bench_6518bc429d05` |
 
 Every 7B arm is inside the same 7-25 % floor; the widest single gap (kv-cache fp8 at
 d8k, 20.262 against cutlass 19.156) is ~5.8 % and is not resolvable by one boot per

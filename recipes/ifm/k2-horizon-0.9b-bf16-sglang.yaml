@@ -154,13 +154,14 @@ defaults:
   #   --page-size 64    77.652 / 67.376      bench_ddccb2bb32d1
   #   --page-size 128   77.623 / 67.282      bench_f511e9d7fba3
   #   --attention-backend fa4  78.371 / 67.735  bench_8ec5a1920280
+  #   --cuda-graph-max-bs-decode 32  77.722 / 67.426  bench_bf98a3f39ef5
   # fa4 is the one real result: the SM120 FA4 kernel (flashattention_backend.py
   # imports flash_attention_v4_sm120.py when capability[0] == 12) DOES build and
   # serve at (12,1); its +1.3 % at d0 is not separable from boot noise, so it is
   # a viable alternative, not a speed win, and flashinfer stays the default.
   # `--cuda-graph-max-bs` does NOT EXIST in v0.5.20 (argparse: unrecognized; the
-  # server never binds the port) -- the real knobs are --cuda-graph-max-bs-decode
-  # / -prefill. Do not spend a boot on the bare name.
+  # server never binds the port). The real knobs are --cuda-graph-max-bs-decode /
+  # -prefill -- the -decode 32 row above is that flag, booting and serving fine.
   extra_args: ""
 
 command: >

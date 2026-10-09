@@ -65,10 +65,31 @@ need**, so two agents never spend a boot answering the same question. Narrative 
 - **Pin the fast-core mask.** `taskset -c 5-9,15-19` (the X925 clusters; A725 is 0-4 and 10-14) is a
   measured win carried into every command here (`k2-horizon-0.9b-bf16-sglang.yaml:147`,
   `k2-horizon-7b-fp8-sglang.yaml:151`).
-- **KV sizing is the binding constraint on this family.** 7B FP8 is 144 KiB/token, so a 512K
-  sequence would be 72 GiB of bf16 KV and leave the box no room for a second request
-  (`k2-horizon-7b-fp8-sglang.yaml:71-75`). Size by bytes, not by parameter count.
+- **KV sizing is the binding constraint on this family.** 7B FP8 is 144
+  KiB/token, so a 512K sequence would be 72 GiB of bf16 KV and leave the box no
+  room for a second request (`k2-horizon-7b-fp8-sglang.yaml:71-75`). Size
+  by bytes, not by parameter count.
   (`K2-7B-MODEL-OPTIMIZATION-WORK.md` section 5.)
+  **ANNOTATED 2026-10-09 (MEASURED).** 72 GiB is affordable at 0.85 on this
+  box: a 512K boot (`-o max_model_len=524288`) allocated
+  `max_total_num_tokens=618026` of bf16 KV, **84.88 GB total** (K 42.44 + V
+  42.44), at `--mem-fraction-static 0.85`, and the served `max_model_len`
+  returned 524288. Decode is unchanged (21.1885 / 19.1298 t/s, d0/d8192, c=1;
+  bench `bench_6518bc429d05`). So sizing is a **budget** fact, not a
+  **blocker**, and the lane's open 512K question is answered for the 7B on bf16
+  KV with no fp8-KV arm required. (A single full 524288-token sequence leaves
+  only ~94k of the 618026-token pool, so 512K concurrency is essentially one
+  stream.)
+
+- **The two models do NOT share a context ceiling — check the checkpoint.**
+  The 0.9B declares `max_position_embeddings` **131072** with `rope_type: yarn`,
+  `factor: 16`, `original_max_position_embeddings: 8192` (8192 x 16 = 131072),
+  so its 131072 recipe default **is** its hard ceiling. The 7B-FP8 declares
+  **524288** with `rope_type: default` (NO YaRN, `rope_theta: 1e7`), so its
+  131072 default is a conservative **choice**, not a limit — a 512K boot served
+  today on bf16 KV (bench `bench_6518bc429d05`). Do not assume the two models
+  share a ceiling. (`k2-horizon-7b-fp8-sglang.yaml`; 0.9B checkpoint
+  `config.json`.)
 - **`enable_thinking` is a no-op for this family — the template keys on `reasoning_effort`.**
   Both checkpoints' `chat_template.jinja` (0.9B 51,155 B / 7B 51,034 B) contain
   `reasoning_effort` and **no `enable_thinking` at all**, so a harness that passes
