@@ -33,6 +33,27 @@ Both models are forced to the **same** effective config with
 deployments *default* to opposite thinking modes (baseline off, turbo on), so a
 naive comparison measures the configuration, not the weights.
 
+`enable_thinking` is not universal. The IFM K2-Horizon chat templates key
+reasoning on `reasoning_effort` (`high|medium|low`, default `high`) and contain
+no `enable_thinking` at all — there, `--thinking off` is silently ignored, and a
+reply always opens a reasoning block. `run_benchmarks.py` therefore carries a
+second, **additive** knob: `--reasoning-effort {default,high,medium,low}`
+(`default` sends no such key). It merges `reasoning_effort` into the same
+`chat_template_kwargs` *alongside* whatever `--thinking` set; it never replaces
+it, because the two models compared here genuinely honour `enable_thinking` and
+that control is what makes the table below a like-for-like comparison.
+
+### Sizing the token budget (truncation is not a wrong answer)
+
+A template that always opens a reasoning block spends its first tokens thinking,
+so a cap too small to reach the visible answer records a truncation as a miss.
+The base caps — **house 1024, gsm8k 2048, arc 1024** — are sized for that, and
+`--max-tokens-scale <float>` (default `1.0`) multiplies each of them so a caller
+can size budgets without editing code. Every summary JSON records the
+`reasoning_effort` used, the `finish_reasons` histogram, and an `empty_replies`
+count, which is how a truncation is told apart from a real answer; each
+`_raw/*.jsonl` record carries its effort too, so a resume is self-describing.
+
 | Benchmark | `deepseek` | `deepseek-turbo` | Δ | items |
 |:--|--:|--:|--:|--:|
 | house battery (easy tier) | 19/19 | 19/19 | 0 | 19 |
@@ -63,8 +84,9 @@ exists to show the default-mode divergence and its cost.
 | `deepseek-turbo` | 55/60 = 91.7 % | 5 | 184 | 3.2 s |
 
 Both models score *lower* with thinking on than off on this tier, and both lose
-items to the same failure: multi-step prompts that think past the 700-token
-budget and return an **empty `content`** (`finish_reason: length`). The scale is
+items to the same failure: multi-step prompts that think past the GSM8K cap
+(700 at the time; 2048 now) and return an **empty `content`**
+(`finish_reason: length`). The scale is
 unchanged (Δ ≈ +1.7 pp for turbo). Operationally the important fact is that
 `deepseek-turbo` burns reasoning tokens on **trivial** prompts — a bare
 "reply with just the number" can spend the whole budget thinking
@@ -278,7 +300,7 @@ numbers reflect a single sequential driver, not concurrent load.
 | `.venv-qa/` | venv with `sympy`/`math_verify`/`datasets` for symbolic grading and parquet staging |
 | `data/`, `data_code/` | staged datasets (regenerable) |
 | `results/_raw/` | append-only per-item records + run logs (the audit trail) |
-| `results/<model>.<bench>.<thinking>.json` | per-model scored results (what the READMEs quote) |
+| `results/<model>.<bench>.<thinking>[.<effort>][.<tag>].json` | per-model scored results (what the READMEs quote); `<effort>` appears only when `--reasoning-effort` is not `default`. The model id is slugged (`/`→`_`) for the **filename only**; the raw id is kept in the payload and on the wire |
 | `results/RESULTS.md`, `results/summary_all.json` | the full cross-model comparison with p-values |
 | `results/SUMMARY.md`, `results/summary.json` | the earlier mid-tier-only comparison |
 
