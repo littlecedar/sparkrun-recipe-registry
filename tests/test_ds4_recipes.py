@@ -1282,6 +1282,77 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(env["NODE_RANK"], "0")
         self.assertEqual(env["MODEL_ID"], "deepseek-ai/DeepSeek-V4.1-Flash")
 
+    def test_launcher_accepts_sparkruns_prepared_model_path(self):
+        """A real launch hands `{model}` as the prepared on-disk snapshot path.
+
+        `sparkrun/models/runtime.py:bind_runtime_models` sets
+        `overrides["model"] = <snapshot path>` whenever the recipe carries a
+        `command:` template, so on a launch both `--model` and the
+        `--served-model-name` rendered from the same placeholder arrive as a
+        LOCAL PATH, while `-n` (dry run) still prints the repo id. Treating that
+        path as a repo id left MODEL_PATH unset and boot.py died on
+        `missing /models/<name>/config.json` (the 2026-10-09 field failure).
+        """
+        import importlib.util
+        import os as _os
+        import tempfile
+
+        spec = importlib.util.spec_from_file_location(
+            "dsv41_launcher_pathform", SGLANG_MOD_DIR / "launcher.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        def run(argv):
+            captured: dict = {}
+
+            def fake_execve(path, a, env):  # pragma: no cover - records and stops
+                captured["env"] = env
+                raise SystemExit(0)
+
+            with tempfile.NamedTemporaryFile("w", suffix=".py") as boot:
+                boot.write("# stub\n")
+                boot.flush()
+                orig_boot, orig_execve = mod.BOOT, _os.execve
+                mod.BOOT = boot.name
+                _os.execve = fake_execve
+                try:
+                    with self.assertRaises(SystemExit):
+                        mod.main(argv)
+                finally:
+                    _os.execve = orig_execve
+                    mod.BOOT = orig_boot
+            return captured["env"]
+
+        def argv_for(model):
+            return ["--boot", "--model", model, "--port", "8000", "--tp", "4",
+                    "--served-model-name", model, "--context-length", "1048576",
+                    "--nnodes", "4", "--node-rank", "0",
+                    "--dist-init-addr", "10.0.4.30:25000"]
+
+        with tempfile.TemporaryDirectory() as snap:
+            path = _os.path.join(snap, "models--deepseek-ai--DeepSeek-V4.1-Flash",
+                                 "snapshots", "2cba9e42")
+            _os.makedirs(path)
+            with open(_os.path.join(path, "config.json"), "w") as fh:
+                fh.write("{}\n")
+            env = run(argv_for(path))
+            self.assertEqual(env.get("MODEL_PATH"), path,
+                             "the prepared on-disk path handed as --model must be "
+                             "served directly")
+            self.assertEqual(env.get("DSV41_SOURCE"), path)
+            self.assertEqual(env.get("SERVED_MODEL_NAME"),
+                             "deepseek-ai/DeepSeek-V4.1-Flash",
+                             "a path served-model-name must be reported as the repo id")
+
+            # Negative control (in memory): with the path branch disabled the
+            # same input must leave MODEL_PATH unset -- the exact shipped failure.
+            orig = mod._is_checkpoint_dir
+            mod._is_checkpoint_dir = lambda p: False
+            try:
+                self.assertFalse(run(argv_for(path)).get("MODEL_PATH"))
+            finally:
+                mod._is_checkpoint_dir = orig
+
 
 class SglangLaneNegativeControls(unittest.TestCase):
     """Mutation controls: each must fail if the guarded invariant is broken."""

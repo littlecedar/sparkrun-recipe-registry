@@ -137,12 +137,17 @@ Three launcher behaviours that are easy to get wrong:
   appends `--node-rank` to every node's serve command; the container env has no
   rank. Only the launcher sees it, so the launcher — not the mod — materializes
   this rank's Engram shards.
-- **Checkpoint resolution self-heals.** `resolve_checkpoint()` derives
-  `MODEL_PATH`/`DSV41_SOURCE` from the fixed in-container HF cache
-  (`/cache/huggingface/hub/models--<org>--<name>` → `refs/main`, else any
-  snapshot with `config.json` and `model.safetensors.index.json`). A cache
-  re-resolving to a new hash cannot break the recipe, and no `snapshots/<hash>`
-  appears in the recipe. (A host-side `MODEL_PATH` bind is left alone.)
+- **Checkpoint resolution self-heals.** `resolve_checkpoint()` accepts all three
+  shapes sparkrun can hand it: the **prepared on-disk snapshot path** that
+  `{model}` renders to on a real launch (`models/runtime.py:bind_runtime_models`
+  rewrites the placeholder to the distributed path whenever the recipe has a
+  `command:` template — a dry run still prints the repo id), a repo id resolved
+  in the fixed in-container HF cache (`/cache/huggingface/hub/models--<org>--<name>`
+  → `refs/main`, else any snapshot with `config.json` and
+  `model.safetensors.index.json`), and a host-side `MODEL_PATH` bind (left alone).
+  A cache re-resolving to a new hash cannot break the recipe, no `snapshots/<hash>`
+  appears in it, and a `--served-model-name` that arrives as a path is reported
+  back as the repo id.
 - **Engram packing is detached.** When this rank's shards are absent, the
   launcher spawns the packer in the background so a cold boot never exceeds
   sparkrun's ~150 s head-rendezvous wait; the boot proceeds on the checkpoint

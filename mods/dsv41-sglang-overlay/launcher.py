@@ -351,19 +351,60 @@ def _resolved_models_dir(model: str) -> str | None:
     return None
 
 
-def resolve_checkpoint(env: dict[str, str]) -> None:
-    """Set MODEL_PATH / DSV41_SOURCE from the model id in the fixed HF cache.
+def _is_checkpoint_dir(path: str) -> bool:
+    """A directory that is itself a servable checkpoint (carries config.json)."""
+    return bool(path) and os.path.isfile(os.path.join(path, "config.json"))
 
-    Runs before any checkpoint validation. If the caller supplied a valid path
-    (a container bind that is not the HF hub cache — read-only, but boot.py's
-    SKIP_PREPARE only needs it to exist), it is left alone. Otherwise the path is
-    derived from `MODEL_ID` (sparkrun's `{model}`) and the hub cache, so the
-    recipe never spells a snapshot hash.
+
+def _model_id_from_snapshot(path: str) -> str | None:
+    """Invert the HF hub cache layout: `.../models--<org>--<name>/...` -> `<org>/<name>`.
+
+    ``None`` when no ``models--`` segment is present. The HF id grammar keeps a
+    ``--`` out of an org name, so the first split is the org/name boundary.
+    """
+    for segment in os.path.normpath(path).split(os.sep):
+        if segment.startswith("models--"):
+            org, _, name = segment[len("models--"):].partition("--")
+            if org and name:
+                return org + "/" + name
+    return None
+
+
+def _clean_served_name(value: str) -> str:
+    """A served-model name that arrived as a filesystem path -> a clean name."""
+    if not os.path.isabs(value):
+        return value
+    return _model_id_from_snapshot(value) or os.path.basename(value.rstrip("/")) or value
+
+
+def resolve_checkpoint(env: dict[str, str]) -> None:
+    """Set MODEL_PATH / DSV41_SOURCE for the checkpoint to serve.
+
+    Runs before any checkpoint validation. Three shapes are accepted, in order:
+
+    1. A caller-supplied ``MODEL_PATH`` that is a checkpoint dir (a container
+       bind that is not the HF hub cache -- read-only, but boot.py's
+       SKIP_PREPARE only needs it to exist). Left as supplied.
+    2. ``MODEL_ID`` itself already a checkpoint dir. This is the prepared-model
+       path sparkrun renders for ``{model}`` whenever the recipe carries a
+       ``command:`` template (``models/runtime.py:bind_runtime_models`` sets
+       ``overrides["model"] = <snapshot path>``), so on a *launch* -- unlike a
+       dry run -- the repo id never arrives; the on-disk path does. Without
+       this branch MODEL_PATH stays unset and boot.py dies on
+       ``missing /models/<name>/config.json`` (the 2026-10-09 field failure).
+    3. ``MODEL_ID`` a repo id, located in the fixed in-container HF cache
+       (``refs/main``, else the newest complete snapshot). Keeps the dry-run /
+       manual-invocation form working and the recipe free of a snapshot hash.
     """
     model = env.get("MODEL_ID", "").strip()
     supplied = env.get("MODEL_PATH", "").strip()
-    if supplied and os.path.isfile(os.path.join(supplied, "config.json")):
+    if _is_checkpoint_dir(supplied):
         env.setdefault("DSV41_SOURCE", supplied)
+        return
+    if _is_checkpoint_dir(model):
+        print(f"launcher: MODEL_ID is an on-disk checkpoint dir; serving {model}", flush=True)
+        env["MODEL_PATH"] = model
+        env["DSV41_SOURCE"] = model
         return
     if not model:
         return
@@ -415,7 +456,9 @@ def main(argv: list[str]) -> int:
         # without it boot.py would fall back to its default TP=3).
         env["TP_SIZE"] = args.tp
     if args.served_model_name:
-        env["SERVED_MODEL_NAME"] = args.served_model_name
+        # sparkrun renders `{served-model-name}` (== {model}) as the prepared
+        # on-disk snapshot path too; serve under the repo id, not a path.
+        env["SERVED_MODEL_NAME"] = _clean_served_name(args.served_model_name)
     if args.model_path:
         env["MODEL_PATH"] = args.model_path
     if args.model:
