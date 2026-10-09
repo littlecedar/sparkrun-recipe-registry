@@ -69,10 +69,10 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   (`tests/test_k2_7b_recipes.py`; `recipes/ifm/README.md` §UNO arm.)
 - **Pin the fast-core mask.** `taskset -c 5-9,15-19` (the X925 clusters; A725 is 0-4 and 10-14) is a
   measured win carried into every command here (`k2-horizon-0.9b-bf16-sglang.yaml:147`,
-  `k2-horizon-7b-fp8-sglang.yaml:151`).
+  `attic/ifm/arms/k2-horizon-7b-fp8-sglang.yaml:151`).
 - **KV sizing is the binding constraint on this family.** 7B FP8 is 144
   KiB/token, so a 512K sequence would be 72 GiB of bf16 KV and leave the box no
-  room for a second request (`k2-horizon-7b-fp8-sglang.yaml:71-75`). Size
+  room for a second request (`attic/ifm/arms/k2-horizon-7b-fp8-sglang.yaml:71-75`). Size
   by bytes, not by parameter count.
   (`K2-7B-MODEL-OPTIMIZATION-WORK.md` section 5.)
   **ANNOTATED 2026-10-09 (MEASURED).** 72 GiB is affordable at 0.85 on this
@@ -93,7 +93,7 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   **524288** with `rope_type: default` (NO YaRN, `rope_theta: 1e7`), so its
   131072 default is a conservative **choice**, not a limit — a 512K boot served
   today on bf16 KV (bench `bench_6518bc429d05`). Do not assume the two models
-  share a ceiling. (`k2-horizon-7b-fp8-sglang.yaml`; 0.9B checkpoint
+  share a ceiling. (`attic/ifm/arms/k2-horizon-7b-fp8-sglang.yaml`; 0.9B checkpoint
   `config.json`.)
 - **`enable_thinking` is a no-op for this family — the template keys on `reasoning_effort`.**
   Both checkpoints' `chat_template.jinja` (0.9B 51,155 B / 7B 51,034 B) contain

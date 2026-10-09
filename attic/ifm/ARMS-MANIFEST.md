@@ -1,17 +1,20 @@
-# `attic/ifm/` — archived IFM K2-Horizon MoVA-36B-A4B material
+# `attic/ifm/` — archived IFM K2-Horizon material
 
-**What this is.** The withdrawn `MoVA-36B-A4B` sub-lane of `recipes/ifm/`: its four
-recipes (`arms/`), the SGLang gate mod they need (`mods/patch-sglang-k2-horizon-fp8/`),
-the lane's own guard suite and byte-arithmetic helper (this directory), and the
-sub-lane's git-ignored research record (`K2-36B-A4B-JOURNAL.md`,
-`K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md`). The lane's production surface in
-`recipes/ifm/` is now the two small dense models only — the `0.9B` and the `7B-FP8`
-(plus its NGRAM and Uno arms) — the same convention `attic/ds4/` and `attic/qwen4/`
-follow. The arms and the mod are **tracked** (so a `bench_*` id's provenance is never
-lost); the two research docs are git-ignored by design (`**/*JOURNAL.md`,
-`**/*-WORK.md`), as they are in every other lane, and are carried here only on disk.
+**What this is.** The withdrawn and retired pieces of the `recipes/ifm/` lane, kept
+here. **Wave 1** is the withdrawn `MoVA-36B-A4B` sub-lane: its four recipes (`arms/`),
+the SGLang gate mod they need (`mods/patch-sglang-k2-horizon-fp8/`), the sub-lane's own
+guard suite and byte-arithmetic helper (this directory), and the sub-lane's git-ignored
+research record (`K2-36B-A4B-JOURNAL.md`, `K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md`).
+**Wave 2** is the retired 7B spec-decode arms (`arms/k2-horizon-7b-fp8-sglang.yaml`,
+`arms/k2-horizon-7b-fp8-ngram-sglang.yaml`) — a selection archive, not a withdrawal
+(see below). The lane's production surface in `recipes/ifm/` is now the `0.9B` and the
+single shipped 7B arm `k2-horizon-7b-fp8-uno-sglang` — the same convention `attic/ds4/`
+and `attic/qwen4/` follow. The arms and the mod are **tracked** (so a `bench_*` id's
+provenance is never lost); the two Wave 1 research docs are git-ignored by design
+(`**/*JOURNAL.md`, `**/*-WORK.md`), as they are in every other lane, and are carried
+here only on disk.
 
-**Why they are here, not in `recipes/ifm/`.** This is a **resourcing decision, not a
+**Why the Wave 1 material is here, not in `recipes/ifm/`.** This is a **resourcing decision, not a
 failure.** The four recipes and the mod were **measured working on hardware on
 2026-10-08** (see provenance below) before the owner withdrew the whole sub-lane: at
 **18.3 t/s FP8 / 15.6 t/s BF16 single-stream (TP=1)** the 36B is too slow to justify
@@ -22,15 +25,18 @@ third parties); a sub-lane nobody runs is clutter there and a hazard to the next
 reader, who cannot tell a live recipe from a withdrawn one. The lane's own sprawl
 policy already named this outcome (`recipes/ifm/AGENTS.md` §7).
 
-**Archive criterion.** A sub-lane came here if it is **not part of the shipped
-production surface** and the owner has withdrawn it. The `zz-` arm is the other,
-smaller case: a non-shippable falsification probe whose question closed. Nothing in
-`recipes/`, `benchmarking/`, `tools/`, or `tests/` globs `recipes/ifm/*.yaml` in a way
-a move breaks; `tests/test_ifm_recipes.py` and `tests/test_k2_7b_recipes.py` guard the
-0.9B and 7B recipes and are untouched. **Do not re-add these to `recipes/ifm/`; run
-them by path from here** (`sparkrun` runs a recipe by path — `AGENTS.md` §6 shows the
-by-path invocation), and note that the FP8 arms' bare `mods/patch-sglang-k2-horizon-fp8`
-reference only resolves once the mod is restored beside them (§ recovery footer).
+**Archive criterion.** A piece came here if it is **not part of the shipped production
+surface**: Wave 1 was withdrawn by the owner, Wave 2 lost a selection comparison
+(below). The `zz-` arm is the other, smaller case: a non-shippable falsification probe
+whose question closed. `tests/test_ifm_recipes.py` guards the 0.9B recipe;
+`tests/test_k2_7b_recipes.py` **does** resolve `recipes/ifm/*.yaml` (it globs that
+directory and names the 7B arm paths), so the 2026-10-09 move required repointing it
+to read the two Wave 2 arms by path from here; `benchmarking/` and `tools/` reference
+nothing under `recipes/ifm/`.
+**Do not re-add these to `recipes/ifm/`; run them by path from here** (`sparkrun` runs a
+recipe by path — `AGENTS.md` §6 shows the by-path invocation), and note that the FP8
+arms' bare `mods/patch-sglang-k2-horizon-fp8` reference only resolves once the mod is
+restored beside them (§ recovery footer).
 
 ## Manifest
 
@@ -50,6 +56,19 @@ numbers, not a failure.
 | `mods/patch-sglang-k2-horizon-fp8/` | — | relaxes SGLang's two native-K2-Horizon quant gates | exists **only** for this withdrawn FP8 checkpoint; no other recipe mounts it |
 | `test_ifm_36b_recipes.py` | — | the 36B lane's guard suite (invariants I1–I17) | guards the archived arms; kept so the invariants still resolve, no longer auto-discovered by `unittest discover -s tests` |
 | `k2_36b_arith.py` | — | exact byte census + roofline arithmetic the arms' prose quotes | imported by the guard above; kept beside it so the import stays self-consistent |
+
+### Wave 2 — the IFM 7B consolidation (archived 2026-10-09)
+
+`recipes/ifm/` was consolidated to a single shipped 7B arm. These two were live
+shippable arms through the 2026-10-09 hardware session and lost the best-overall
+comparison against the kept UNO arm (`recipes/ifm/k2-horizon-7b-fp8-uno-sglang.yaml`) —
+so this is a **selection** archive, not a withdrawal for cost like Wave 1. Each row
+records its measured numbers and why it did not win.
+
+| file | parent | one-line delta | why archived |
+|---|---|---|---|
+| `arms/k2-horizon-7b-fp8-sglang.yaml` | — (plain dense 7B baseline) | TP=1, 131K, `flashinfer`, **no mods**; measured 21.2 / 19.2 t/s C1 d0/d8k; carries the 512K BF16-KV proof `bench_6518bc429d05` | dominated by both spec arms — same API and checkpoint, +31 %/+49 % given away to NGRAM and +52 %/+41 % to the kept UNO arm |
+| `arms/k2-horizon-7b-fp8-ngram-sglang.yaml` | k2-horizon-7b-fp8-sglang | NGRAM spec decode, **no draft weights**; measured 27.9 / 28.6 t/s C1 d0/d8k | slower than the kept arm at d0 (27.9 vs 32.4) and at c=8 aggregate (123.9/88.3 vs 145.5/90.2); its only edge, single-stream d8k 28.6 vs 27.1, sits inside the lane's own 7-25 % inter-boot noise floor |
 
 ## Provenance notes
 
@@ -73,15 +92,18 @@ numbers, not a failure.
   git-ignored (`**/*JOURNAL.md`, `**/*-WORK.md`) exactly as the 0.9B/7B lane keeps
   theirs, so they are **never** `git add`ed. The guard's `FilesExist.test_docs_present`
   skips when they are absent (fresh clone) and requires them when present.
-- **The lane keeps its small models.** `k2-horizon-0.9b-bf16-sglang.yaml` and the three
-  `k2-horizon-7b-fp8-*` recipes stay in `recipes/ifm/` with their own guards
-  (`tests/test_ifm_recipes.py`, `tests/test_k2_7b_recipes.py`). Only the 36B sub-lane
-  moved.
+- **What stays shipped.** `recipes/ifm/` now holds `k2-horizon-0.9b-bf16-sglang.yaml`
+  and the single 7B arm `k2-horizon-7b-fp8-uno-sglang.yaml`, guarded by
+  `tests/test_ifm_recipes.py` and `tests/test_k2_7b_recipes.py` respectively. The other
+  two `k2-horizon-7b-fp8-*` arms moved here in Wave 2; the 36B sub-lane moved in Wave 1.
 - **Path constants inside the moved files were repointed** to `attic/ifm/`
-  (`RECIPE_DIR`, `MOD_DIR`, the module docstrings, the docs-present check). The
+  (`RECIPE_DIR`, `MOD_DIR`, the module docstrings, the docs-present check), and
+  `tests/test_k2_7b_recipes.py` was repointed to read the Wave 2 arms by path here. The
   archived recipes and the mod still carry the pre-move `recipes/ifm/…` and
   `mods/…` comments — that is deliberate, because they are only runnable again after
-  being moved back.
+  being moved back. The two Wave 2 arms likewise keep their pre-move comments verbatim
+  (sibling filenames, `AGENTS.md`, `WORK §` and lane-doc cross-references) for the same
+  reason.
 
 - **The 2026-10-09 crash-recovery handoff** (`IFM-RECOVERY-2026-10-09-WORK.md`)
   was a *session* handoff, explicitly **not** lane documentation, and its plan has
@@ -91,6 +113,7 @@ numbers, not a failure.
   (kept only in the author's git-ignored `.local/`), so this manifest no longer
   points at an absent file.
 
-*Archived 2026-10-08 by the withdrawal session. If you resurrect any of this, move the
-recipes back to `recipes/ifm/` **and** `attic/ifm/mods/patch-sglang-k2-horizon-fp8/`
-back to `mods/`, restore the path constants above, and remove the row here.*
+*Archived 2026-10-08 (Wave 1 withdrawal) and 2026-10-09 (Wave 2 selection). If you
+resurrect any of this, move the recipes back to `recipes/ifm/` **and**
+`attic/ifm/mods/patch-sglang-k2-horizon-fp8/` back to `mods/`, restore the path
+constants above, and remove the row here.*
