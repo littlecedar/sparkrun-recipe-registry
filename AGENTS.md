@@ -57,7 +57,8 @@ Load-bearing contracts:
 |---|---|
 | `recipes/ds4/` (3), `recipes/ifm/` (4), `recipes/ornith/` (2), `recipes/qwen3/` (7), `recipes/qwen4/` (4) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md` |
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/`, `attic/ornith/`, `mad-science`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/`, `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
 | `tests/` | 10 importable guard modules, one skipped `*.sync-conflict-*.py` |
 | `tools/` | 9 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |

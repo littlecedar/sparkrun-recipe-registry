@@ -47,6 +47,7 @@ sparkrun recipe vram @littlecedar/our-awesome-recipe
 - [Spark Arena](https://spark-arena.com) — community benchmarking hub
 - [sparkrun](https://github.com/spark-arena/sparkrun) — the tool that runs recipes
 - [sparkrun docs](https://sparkrun.dev) — full documentation
+- [`mad-science/`](mad-science/README.md) — research notes: traced claims, negative results, and experiments behind the recipes (not part of the registry)
 
 [//]: # (- [Recipe Explorer]&#40;https://recipes.sparkrun.dev&#41; — browse and filter all recipes)
 
