@@ -15,23 +15,32 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 ## Ornith 1.5
 
-| Recipe                                      | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                                                |
-|:--------------------------------------------|:-------|-------:|------:|-----:|---:|:-------------------------------------------------------------------------------------------|
-| littlecedar-ornith-1.5-397b-nvfp4-mtp-graft | 🌲     |  41.86 | 235GB | 0.85 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                       |
-| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang     | ✨🚀🌲 |    100 |  45GB | 0.85 |  1 | [Model][ornith/Ornith-1.5-397B-NVFP4-MTP-Graft] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
+| Recipe                                           | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                                            |
+|:------------------------------------------------|:------|------:|-----:|----:|---:|:--------------------------------------------------------------------------------------|
+| littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm | 🌲     |  41.86 | 235GB | 0.80 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                   |
+| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲 |    100 |  45GB | 0.85 |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
 
 ## Qwen-VL
 
-| Recipe | Flags | C1 t/s | Size | Mem | TP | Model Cards |
-|:-------|:------|-------:|-----:|----:|---:|:------------|
-| ?      | ?     |      ? |    ? |   ? |  ? | ?           |
+| Recipe                                   | Flags    | C1 t/s | Size |  Mem | TP | Model Cards                                    |
+|:----------------------------------------|:--------|------:|----:|----:|---:|:----------------------------------------------|
+| qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶 |      — |    — | 0.25 |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
+| qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶 |      — |    — | 0.30 |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
+| qwen3-vl-reranker-2b-vllm-b12x           | 🚀🌲👀🔃 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B]             |
+| qwen3-vl-reranker-8b-vllm-b12x           | 🌲👀🔃   |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B]             |
+
+_Four multimodal pooling recipes (vLLM, TP=1, one Spark each) — an encoder and a reranker per size
+tier, sized so one of each colocated fits on a single box. They serve `/v1/embeddings` and
+`/v1/score` rather than chat completions, so they carry no C1 `t/s` figure and the lane has
+published no `Size`; `Mem` is the vLLM `--gpu-memory-utilization` cap, an absolute claim on the
+device that must sum to a safe value across a colocated pair._
 
 ## Qwen 3x
 
-| Recipe                                    | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
-|:------------------------------------------|:-------|-------:|-----:|-----:|---:|:------------------------------------------------------------------------|
-| qwen3.8-27b-nvfp4-dflash2-sglang          | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3-coder-next-int4-autoround-vllm.yaml | 🚀🌲   |     70 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound]                          |
+| Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
+|:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
+| qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
+| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |     70 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound]                          |
 
 ## Qwen 4x
 
@@ -97,6 +106,9 @@ summary) and [`ifm/AGENTS.md`](ifm/AGENTS.md) (constraints, falsified claims, gu
 and the validation ritual for the `0.9B` / `7B-FP8` set); the
 research record, journals, and `COOP.md` are beside them.
 
+The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
+caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.
+
 # Model Flags
 
 | Flag | Tag           | Description                              |
@@ -131,12 +143,15 @@ _Flags indicate characteristics of the model and are set in the recipe metadata.
 [RadixArk/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 [incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
+[Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
+[gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit]: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
+[Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
+[Qwen/Qwen3-VL-Reranker-8B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B
 [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
-[ornith/Ornith-1.5-397B-NVFP4-MTP-Graft]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+[ornith-ai/Ornith-1.5-35B-A3B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
 [jzinno/Ornith-1.5-35B-A3B-DFlash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
 [IFM/K2-Horizon-0.9B]: https://huggingface.co/IFM/K2-Horizon-0.9B
 [IFM/K2-Horizon-7B-FP8]: https://huggingface.co/IFM/K2-Horizon-7B-FP8
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
-[bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard]: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
 [littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
