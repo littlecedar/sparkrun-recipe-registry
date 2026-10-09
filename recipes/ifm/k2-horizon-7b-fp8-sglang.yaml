@@ -82,6 +82,32 @@ defaults:
   # buys KV pool and CUDA-graph capture headroom.  At 0.85 the pool is roughly
   # 108.8 - 11.1 = ~97 GB for KV + activations + graphs.
   gpu_memory_utilization: 0.85
+  # config.json declares max_position_embeddings 524288 and the rope is
+  # `rope_type: default` (NO YaRN), so 131072 below is a CONSERVATIVE CHOICE,
+  # not a ceiling -- unlike the 0.9B, whose 131072 IS its hard ceiling (YaRN
+  # factor 16 x original_max_position_embeddings 8192).
+  #
+  # SUPERSEDED (2026-10-09, MEASURED).  The paragraph after this one argued that
+  # the KV byte term binds at 512K and deferred it behind an fp8-KV story.  That
+  # framing is now measured and wrong.  A 512K boot succeeded on BF16 KV
+  # (bench_6518bc429d05): -o max_model_len=524288 -> --context-length 524288,
+  # and the engine allocated max_total_num_tokens=618026 with KV dtype
+  # torch.bfloat16, 618026 tokens, K size 42.44 GB, V size 42.44 GB (84.88 GB
+  # total) at --mem-fraction-static 0.85; the served max_model_len returned
+  # 524288.  Decode throughput is UNCHANGED: 21.1885 / 19.1298 t/s (d0 / d8192,
+  # c=1).  A 176,045-token prompt -- 34% beyond the 131072 default -- was then
+  # served with finish_reason: stop and a correct mid-context needle retrieval
+  # (a code planted halfway through the filler came back exactly).  So 512K is
+  # reachable TODAY on bf16 KV: no fp8-KV arm is required to unlock it.
+  #
+  # CAVEATS, stated not hidden: the 176,045-token run proves the window
+  # opens and retrieval works at that depth; it does NOT establish quality
+  # across the whole 512K span, and it is one request on one boot.  The KV pool
+  # holds 618026 tokens, so a single full 524288-token sequence fits with only
+  # ~94k tokens left for anything else -- concurrency at 512K is essentially one
+  # stream.
+  #
+  # EARLIER REASONING (kept, annotated by the MEASURED block above):
   # config.json declares max_position_embeddings 524288, but a full 512K
   # sequence is 72 GiB of bf16 KV (144 KiB/token) and would leave the box no
   # room for a second request, activations, or CUDA graphs.  131072 costs 18 GiB
@@ -158,7 +184,11 @@ defaults:
   # a repeated flag in favour of the override.  Empty string is the no-op
   # default; quoted so YAML keeps a str.  Spend the FIRST boot on the probes
   # named in K2-7B-MODEL-OPTIMIZATION-WORK.md section 9 (--load-format,
-  # --page-size ladder, --cuda-graph-max-bs), not on a redesign.
+  # --page-size ladder), not on a redesign.
+  # CUDA-graph flag names (VERIFIED 2026-10-09): `--cuda-graph-max-bs` does NOT
+  # exist in sglang v0.5.20 -- argparse rejects it and the port never binds.
+  # The working spellings are `--cuda-graph-max-bs-decode` /
+  # `--cuda-graph-max-bs-prefill`.
   extra_args: ""
 
 command: >

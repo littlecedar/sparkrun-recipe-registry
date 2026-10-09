@@ -140,6 +140,16 @@ lives in `attic/ifm/` — see `attic/ifm/ARMS-MANIFEST.md`.
   derive the pin from the HF API.
 - A root-run engine import in *any* mod poisons the bind-mounted `/cache/runtime`
   cache for uid 1000 forever; mods must `reown()` what they create.
+- **The two models do NOT share a context ceiling.** The 0.9B is
+  `max_position_embeddings=131072` **with YaRN** (`factor: 16` x
+  `original_max_position_embeddings` 8192), so 131072 is its hard ceiling; the
+  7B-FP8 is **524288** with `rope_type: default` (no YaRN), so its 131072
+  default is a choice, not a limit. Read the checkpoint before quoting a context
+  length.
+- **`--cuda-graph-max-bs` is absent at sglang v0.5.20.** argparse rejects it and
+  the server never binds its port; the only working spellings are
+  `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill` (a `-decode 32`
+  boot serves, bench `bench_bf98a3f39ef5`).
 
 *Evidence over memory: if this file and a boot log disagree, the log wins — and this
 file gets corrected.*
