@@ -77,16 +77,20 @@ The two pieces that make this work:
     unaffected (`adapter/engram_backend.py` treats the packed shard as optional
     acceleration; `row_store.cpp` fails closed on a range mismatch).
 
-It also **locates the checkpoint**. The recipe passes the repo id
-(`--model {model}`); `launcher.py:resolve_checkpoint()` finds it in the fixed
-in-container HF cache (`/cache/huggingface/hub/models--<org>--<name>`) and sets
-`MODEL_PATH` / `DSV41_SOURCE` — preferring `refs/main`, else the newest snapshot
-carrying both `config.json` and `model.safetensors.index.json`. So the recipe
-spells **no snapshot path** (a hardcoded `snapshots/<hash>` is not portable and
-reads as a path a user must maintain), and a cache that re-resolves to a
-new hash cannot break the boot (each node's cache is independent now — there is
-no shared mount). A container bind supplied as `MODEL_PATH` is left
-alone (it is read-only, which is all the `SKIP_PREPARE` existence check needs).
+It also **locates the checkpoint**. On a real launch sparkrun renders `{model}`
+to the **prepared on-disk snapshot path** — it rewrites the placeholder whenever
+the recipe carries a `command:` template
+(`sparkrun/models/runtime.py:bind_runtime_models`), and a dry run still shows the
+repo id — so `launcher.py:resolve_checkpoint()` accepts that path directly,
+accepts a repo id resolved in the fixed in-container HF cache
+(`/cache/huggingface/hub/models--<org>--<name>`, preferring `refs/main`, else the
+newest snapshot carrying `config.json` and `model.safetensors.index.json`), and
+leaves a container-bind `MODEL_PATH` alone. It sets `MODEL_PATH`/`DSV41_SOURCE`
+in the first two cases. So the recipe spells **no snapshot path** (a hardcoded
+`snapshots/<hash>` is not portable and reads as a path a user must maintain), a
+cache that re-resolves to a new hash cannot break the boot, and a
+`--served-model-name` that arrives as a path is reported back as the repo id
+(each node's cache is independent — there is no shared mount).
 
 It also **maps the recipe's command flags onto boot.py's environment**, for the
 parameters boot.py reads from env rather than argv:
