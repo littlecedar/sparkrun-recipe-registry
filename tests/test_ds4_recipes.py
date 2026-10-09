@@ -1504,7 +1504,7 @@ def _tf_launcher():
     return mod
 
 
-def _run_tf_launcher(argv, checkpoint_dir, cache_dir, engram_dir=None):
+def _run_tf_launcher(argv, checkpoint_dir, cache_dir, engram_dir=None, mutate=None):
     """Execute launcher.main() with os.execvp stubbed; return (argv, env).
 
     Proves the argparse -> argv/env mapping end to end without a container. The
@@ -1523,6 +1523,9 @@ def _run_tf_launcher(argv, checkpoint_dir, cache_dir, engram_dir=None):
     mod.RECIPE_ENV["TORCH_EXTENSIONS_DIR"] = str(Path(cache_dir) / "torch-extensions")
     mod.RECIPE_ENV["TF_DS_TOKEN_MAP"] = str(Path(cache_dir) / "token_map.json")
     mod.RECIPE_ENV["HOME"] = str(cache_dir)
+
+    if mutate is not None:
+        mutate(mod)
 
     captured: dict = {}
 
@@ -1770,6 +1773,43 @@ class TensorfoldLaneContract(unittest.TestCase):
                 engram_dir=str(engram),
             )
         self.assertEqual(env.get("TF_DS_ENGRAM"), str(engram))
+
+    def test_shim_normalizes_a_path_served_model_name(self):
+        """A real launch hands `--served-model-name` the prepared snapshot path.
+
+        sparkrun rewrites `{model}` -- and the `--served-model-name {model}`
+        rendered from it -- to the prepared on-disk path for any recipe with a
+        `command:` template (models/runtime.py::bind_runtime_models), so without
+        normalization TensorFold advertises a filesystem path as the served model
+        id. Non-path values must pass through unchanged.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            snap = (Path(d) / "models--Mia-AiLab--DeepSeek-V4.1-Flash-EXL3-2.9bpw"
+                    / "snapshots" / "64ba41b6")
+            snap.mkdir(parents=True)
+            (snap / "config.json").write_text("{}")
+            base = ["--boot", "--model", str(snap), "--port", "8000", "--tp", "2"]
+            kw = dict(checkpoint_dir=str(snap), cache_dir=str(Path(d) / "runtime"))
+
+            _prog, argv, _env = _run_tf_launcher(
+                base + ["--served-model-name", str(snap), "--context", "262144"], **kw)
+            self.assertEqual(argv[argv.index("--name") + 1],
+                             "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw",
+                             "a path served-model-name must be reported as the repo id")
+
+            # Negative control (in memory): without the normalization the same
+            # input reaches the engine as a path -- the regression this guards.
+            _prog, raw, _env = _run_tf_launcher(
+                base + ["--served-model-name", str(snap), "--context", "262144"],
+                mutate=lambda m: setattr(m, "served_model_name", lambda v: v), **kw)
+            self.assertEqual(raw[raw.index("--name") + 1], str(snap))
+
+            # A plain name (manual invocation) is untouched.
+            _prog, named, _env = _run_tf_launcher(
+                base + ["--served-model-name", "deepseek-v4.1-flash",
+                        "--context", "262144"], **kw)
+            self.assertEqual(named[named.index("--name") + 1], "deepseek-v4.1-flash")
 
 
 class TensorfoldLaneNegativeControls(unittest.TestCase):

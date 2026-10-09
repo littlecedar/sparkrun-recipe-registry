@@ -141,12 +141,15 @@ RECIPE_ENV = {
 def resolve_checkpoint(repo: str) -> str:
     """Resolve the EXL3 checkpoint to a local snapshot directory.
 
-    `{model}` reaches this process as the repo id (sparkrun does not rewrite it
-    for a custom command). The HF cache is mounted at /cache/huggingface, so
-    derive `models--<org>--<name>/snapshots/<hash>` here rather than spelling a
-    snapshot hash in the recipe: a cache re-resolving to a new hash must not
-    break the recipe. An absolute path (a pre-placed model, or `-o model=...`)
-    is used as-is.
+    `{model}` reaches this process as the **prepared on-disk snapshot path** on a
+    real launch -- sparkrun rewrites the placeholder for any recipe with a
+    `command:` template (`models/runtime.py::bind_runtime_models`), so the
+    `is_dir` passthrough below is what carries it; a dry run still prints the repo
+    id. A repo id (manual invocation, or `-o model=...`) is resolved in the HF
+    cache mounted at /cache/huggingface: derive
+    `models--<org>--<name>/snapshots/<hash>` here rather than spelling a snapshot
+    hash in the recipe, so a cache re-resolving to a new hash cannot break the
+    recipe. An absolute path (a pre-placed model) is used as-is.
     """
     direct = Path(repo)
     if direct.is_dir():
@@ -168,6 +171,27 @@ def resolve_checkpoint(repo: str) -> str:
 def prepare_runtime_cache() -> None:
     for sub in ("", "rank-cache", "torch-extensions"):
         Path(RUNTIME_CACHE, sub).mkdir(parents=True, exist_ok=True)
+
+
+def served_model_name(value: str) -> str:
+    """Normalize a `--served-model-name` that arrived as a filesystem path.
+
+    sparkrun rewrites `{model}` -- and a `--served-model-name {model}` rendered
+    from the same placeholder -- to the prepared on-disk snapshot path on any real
+    launch of a recipe with a `command:` template
+    (`models/runtime.py::bind_runtime_models`), so the engine would otherwise
+    advertise a path as the served model id. Recover the repo id from the HF cache
+    layout, else fall back to the directory basename. A non-path value is returned
+    unchanged.
+    """
+    if not os.path.isabs(value):
+        return value
+    for segment in os.path.normpath(value).split(os.sep):
+        if segment.startswith("models--"):
+            org, _, name = segment[len("models--"):].partition("--")
+            if org and name:
+                return org + "/" + name
+    return os.path.basename(value.rstrip("/")) or value
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,7 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         # No outbound version check at boot: the container has no reason to phone
         # home, and the flag avoids a write into HOME on the serve path.
         "--no-update-check",
-        "--name", args.served_model_name,
+        "--name", served_model_name(args.served_model_name),
     ]
     if args.tp > 1:
         cmd += ["--master", master or "127.0.0.1", "--master-port", str(master_port)]

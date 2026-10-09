@@ -640,12 +640,16 @@ Then `sparkrun run` rsyncs the mod to the head's staging dir.
 
 ### 12.6 Checkpoint resolution
 
-The recipe passes the repo id in `{model}` (sparkrun does not rewrite it for a custom command). The
-shim derives the in-container snapshot from the fixed HF cache mount:
+The shim resolves the checkpoint through the fixed HF cache mount. On a **real launch** sparkrun
+renders `{model}` as the **prepared on-disk snapshot path** (it rewrites the placeholder for any
+recipe with a `command:` template — `models/runtime.py::bind_runtime_models` — and a dry run still
+prints the repo id), which the shim's `Path(repo).is_dir()` passthrough takes as-is. A repo id
+(manual invocation, or `-o model=...`) is instead resolved in the fixed HF cache mount:
 `/cache/huggingface/hub/models--Mia-AiLab--DeepSeek-V4.1-Flash-EXL3-2.9bpw/snapshots/<hash>` via
-`refs/main`, else the newest config-bearing snapshot. An absolute path (a pre-placed model, or
-`-o model=...`) is used as-is. No `snapshots/<hash>` appears in the recipe, so a cache re-resolving
-to a new hash cannot break it.
+`refs/main`, else the newest config-bearing snapshot. No `snapshots/<hash>` appears in the recipe, so
+a cache re-resolving to a new hash cannot break it. The same rewrite reaches
+`--served-model-name {served_model_name}`; `served_model_name()` normalizes a path back to the repo
+id, so the engine does not advertise a filesystem path.
 
 ### 12.7 Engram is fetched from the online repo (was: distributed out-of-band)
 
