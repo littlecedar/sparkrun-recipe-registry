@@ -431,15 +431,22 @@ class Parsers(unittest.TestCase):
             self.assertIn("--tool-call-parser k2_horizon", c)
 
 
-class UnoFileIsMarkedExperimental(unittest.TestCase):
-    def test_banner_present(self):
-        """An unbootable probe must not be mistaken for a shipping recipe."""
-        head = "\n".join(read(UNO).splitlines()[:10])
-        self.assertIn("EXPERIMENTAL", head)
+class UnoConcurrencyCap(unittest.TestCase):
+    def test_admission_cap_clears_the_measured_flatline(self):
+        """UNO flatlines at c=8 when --max-running-requests is 8.
 
-    def test_not_tagged_official(self):
-        self.assertNotIn("tags: official", strip_comments(read(UNO)))
-        self.assertIn("experimental", strip_comments(read(UNO)))
+        Measured 2026-10-09 (`benchmarking/concurrency-sweep.yaml`, tg=256,
+        aggregate decode): at max_num_seqs 8 the arm sits at 97.5 at c=8 --
+        BELOW its own c=4 of 98.6 -- while the plain 7B reaches 120. At 32 the
+        same arm scales to 145.5, the best c8 figure in the lane. The cap is a
+        scheduler admission limit, not memory, so a "tidy" lowering of this
+        number silently converts the fastest arm in the lane into one that does
+        not scale. 16 is a floor, not the measured value; the recipe ships 32.
+        """
+        t = strip_comments(read(UNO))
+        self.assertGreaterEqual(
+            int(knobs(t)["max_num_seqs"]), 16,
+            "UNO needs an admission cap above the c=8 flatline (see the banner)")
 
 
 class ModHygiene(unittest.TestCase):
@@ -929,6 +936,12 @@ class NegativeControls(unittest.TestCase):
         self.assertIn("probe-uno-fa4-TYPO", names)
         self.assertFalse((REPO_ROOT / "mods" / "probe-uno-fa4-TYPO" / "run.sh")
                          .exists())
+
+    def test_lowered_uno_cap_would_be_detected(self):
+        mutated = read(UNO).replace("max_num_seqs: 32", "max_num_seqs: 8")
+        self.assertLess(
+            int(knobs(strip_comments(mutated))["max_num_seqs"]), 16,
+            "control: the replaced 8 must read back below the floor")
 
 
 if __name__ == "__main__":

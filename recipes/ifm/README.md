@@ -1,12 +1,15 @@
 # IFM K2-Horizon (IFM) — serving recipes
 
 The IFM `K2-Horizon` family on NVIDIA DGX Spark (GB10, sm_121), served with native
-SGLang. Two model sizes are covered: the dense `0.9B` and the dense `7B-FP8`, plus a
-`7B-Uno` conditional-LoRA diffusion draft.
+SGLang. Two model sizes are covered: the dense `0.9B` and the dense `7B-FP8` (with
+NGRAM and UNO speculative arms), plus the `7B-Uno` conditional-LoRA diffusion draft
+that the UNO arm drafts with.
 
 > **Read [`AGENTS.md`](AGENTS.md) before working in this directory.** It carries the
 > constraints, the guards, and the measurement discipline. This file is the recipe
-> summary; the durable research record is `K2-*-MODEL-OPTIMIZATION-WORK.md` beside it.
+> summary; the deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` / `K2-*-JOURNAL.md`)
+> is git-ignored by design and absent from a fresh checkout — the measured numbers that
+> survive are the ones in this file, in [`NOTES.md`](NOTES.md) and in the recipe headers.
 
 ## Checkpoints
 
@@ -30,8 +33,8 @@ is the first release that ships `models/xllm.py` (which registers `K2HorizonForC
 |---|---|---|---|---|
 | 1 | `k2-horizon-0.9b-bf16-sglang` | single-node, TP=1, 131K | `flashinfer`, no mods | **77.6 / 67.3** |
 | 2 | `k2-horizon-7b-fp8-sglang` | single-node, TP=1, 131K | `flashinfer`, no mods | **21.2 / 19.2** |
-| 3 | `k2-horizon-7b-fp8-ngram-sglang` | single-node, TP=1 | `flashinfer`, NGRAM spec | **27.4 / 29.2** |
-| 4 | `k2-horizon-7b-fp8-uno-sglang` | PROBE, TP=1 | `fa4`, UNO spec, 2 mods | **37.7 / —** |
+| 3 | `k2-horizon-7b-fp8-ngram-sglang` | single-node, TP=1 | `flashinfer`, NGRAM spec | **27.9 / 28.6** |
+| 4 | `k2-horizon-7b-fp8-uno-sglang` | single-node, TP=1 | `fa4`, UNO spec F=8, 2 mods | **32.4 / 27.1** |
 
 C1 t/s is single-stream (concurrency 1) aggregate decode, read from
 `benchmarking/decode-triage.yaml` per-cell JSON — not the printed sparkrun table.
@@ -48,16 +51,19 @@ worth having.
 First hardware session, 2026-10-08. Three results each falsified a lane claim that had
 been argued the other way in the theory documents:
 
-- **NGRAM speculative decoding pays on the dense 7B** (+29 % at d0, +52 % at d8k), and
-  its rate *rises* with depth as n-gram matching improves.
-- **UNO boots and serves at 37.7 t/s** with accept len 3.60 — clearing the modelled
-  break-even of ~2.07, so the diffusion draft is a win, not "blocked at every size".
+- **NGRAM speculative decoding pays on the dense 7B** (+31 % at d0, +49 % at d8k in the
+  2026-10-09 remeasure), and its rate *rises* with depth as n-gram matching improves.
+- **UNO boots and serves** with accept len 3.60 on its first probe — clearing the
+  modelled break-even of ~2.07, so the diffusion draft is a win, not "blocked at every
+  size". (That early 37.7 t/s figure was one run on the tg=32 `reconcile-headline`
+  profile and is **not** comparable to the tg=128 numbers below; the 2026-10-09
+  campaign replaced it with the table in §UNO arm.)
 - The 7B measured **~16 % below** its modelled roofline at c=1 — the model counted only
   the weight read and ignored per-step overhead.
 
-Full derivation: `K2-09B-MODEL-OPTIMIZATION-WORK.md` and
-`K2-7B-MODEL-OPTIMIZATION-WORK.md`. Narrative: `K2-09B-JOURNAL.md` and
-`K2-7B-JOURNAL.md`.
+The `K2-*-MODEL-OPTIMIZATION-WORK.md` / `K2-*-JOURNAL.md` docs these sections once cited
+are git-ignored and **not present in this tree**; where their numbers matter they have
+been folded into the sections above, `NOTES.md`, and `COOP.md`.
 
 ### Arm sweep (2026-10-09)
 
@@ -97,6 +103,52 @@ kernel runs on this chip. `--cuda-graph-max-bs` **does not exist** in sglang v0.
 Every 7B arm is inside the same 7-25 % floor; the widest single gap (kv-cache fp8 at
 d8k, 20.262 against cutlass 19.156) is ~5.8 % and is not resolvable by one boot per
 arm, so no arm is ranked.
+
+### UNO arm (2026-10-09)
+
+`k2-horizon-7b-fp8-uno-sglang` was **promoted from probe to a shipped arm** on
+2026-10-09 after a 12-boot campaign. It is the fastest arm in the lane: native
+SGLang UNO speculative decoding (the 7B target plus the `K2-Horizon-7B-Uno`
+conditional-LoRA diffusion draft), verified by the target, so it is lossless by
+construction. It needs **two mods** — `provide-uno-lora-k2-horizon-7b` (fetches
+the draft adapter, a second artifact `model:` cannot carry) and
+`probe-uno-fa4-sm121` (relaxes UNO's literal `("fa3","fa3")` gate, since GB10
+cannot build `fa3`) — and runs `--attention-backend fa4`.
+
+Single-stream (`decode-triage.yaml`, tg=128, c=1; means over clean boots, same
+window; noise floor 7-25 %):
+
+| arm | d0 t/s | d8192 t/s | accept len | boots |
+|:--|--:|--:|--:|--:|
+| plain 7B (control) | 21.3 | 19.2 | — | 7 |
+| UNO F=2 | 26.4 | 22.4 | 2.53 | 2 |
+| UNO F=4 | 30.8 | 25.6 | 2.95 | 6 |
+| UNO **F=8** (shipped) | 32.4 | 27.1 | 3.10 | 6 |
+| NGRAM | 27.9 | 28.6 | 1.37 | 4 |
+
+So UNO F=8 is **+52 % / +41 %** over the plain 7B. Accept length (2.53 → 3.10)
+clears the ~2.07 break-even of the weight-read model and saturates by F=8.
+
+Aggregate (`concurrency-sweep.yaml`, tg=256):
+
+| arm | c1 d0/d8 | c4 d0/d8 | c8 d0/d8 |
+|:--|--:|--:|--:|
+| plain | 21.2 / 19.1 | 79.6 / 51.0 | 120.1 / 68.8 |
+| NGRAM | 27.8 / 31.2 | 88.4 / 65.5 | 123.9 / 88.3 |
+| UNO F=4, `max_num_seqs 8` | 29.7 / 25.0 | 98.6 / 72.1 | **97.5 / 70.5** |
+| UNO F=8, `max_num_seqs 32` (shipped) | 32.7 / 27.2 | 96.7 / 71.3 | **145.5 / 90.2** |
+
+**`max_num_seqs` is load-bearing here.** At 8 the arm flattens at c=8 (97.5,
+below its own c=4) while plain reaches 120; at 32 it scales to 145.5, the best
+c8 figure in the lane. The cap is a scheduler admission limit, not memory — and
+a guard (`tests/test_k2_7b_recipes.UnoConcurrencyCap`) now refuses to let it be
+lowered. At c=1 the two depths NGRAM still leads (31.2 vs 27.2 at d8192).
+
+**Honest limits.** Accuracy was scored at F=4/seq=8; F=8/seq=32 change the draft
+geometry, not the verification, so quality is expected to hold but was not
+re-scored. The 512K window was proven on the plain recipe, not on this arm.
+One boot each for the concurrency cells — the shape is clear, the exact number
+is not.
 
 ## Accuracy (measured)
 

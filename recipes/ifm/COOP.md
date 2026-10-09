@@ -59,9 +59,14 @@ need**, so two agents never spend a boot answering the same question. Narrative 
 - **`fp8_gemm_backend` is `cutlass`, spelled.** `auto` prefers DeepGEMM, whose scale layout gates on
   `get_device_sm() == 120` exactly and so excludes SM121.
   (`tests/test_k2_7b_recipes.py` header, sec 4.3.)
-- **7B UNO cannot boot on SM121**: `_handle_uno` requires the `(fa3, fa3)` pair, so the Uno arm is a
-  probe (`mods/probe-uno-fa4-sm121` + `mods/provide-uno-lora-k2-horizon-7b`), not a production
-  recipe. (`tests/test_k2_7b_recipes.py` header, sec 6.7.)
+- **7B UNO is SHIPPED, not a probe (superseded 2026-10-09).** `_handle_uno` does demand
+  the `(fa3, fa3)` pair, but that is a literal string comparison, not a capability test;
+  `mods/probe-uno-fa4-sm121` relaxes exactly that line to admit `fa4`, and
+  `mods/provide-uno-lora-k2-horizon-7b` lands the draft adapter. With both mounted the
+  arm boots, serves, and is the lane's **fastest**: 32.4/27.1 t/s single-stream
+  (`decode-triage`, d0/d8192) and 145.5/90.2 aggregate at c=8 (`concurrency-sweep`).
+  The old "cannot boot" line was a *stock-gate* statement.
+  (`tests/test_k2_7b_recipes.py`; `recipes/ifm/README.md` §UNO arm.)
 - **Pin the fast-core mask.** `taskset -c 5-9,15-19` (the X925 clusters; A725 is 0-4 and 10-14) is a
   measured win carried into every command here (`k2-horizon-0.9b-bf16-sglang.yaml:147`,
   `k2-horizon-7b-fp8-sglang.yaml:151`).
@@ -115,6 +120,15 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   (`K2-09B-MODEL-OPTIMIZATION-WORK.md` header.)
 - **2026-09-21** — the `rewrap-k2-horizon` mod was **abandoned**; do not resurrect it.
   (Recorded in the guard for the sub-lane, archived to `attic/ifm/`.)
+
+- **2026-10-09 — `max_num_seqs` is load-bearing on the UNO arm (family-wide trap).**
+  With `max_num_seqs: 8` the UNO arm flatlines at c=8 (97.5 aggregate, below its own c=4
+  of 98.6) while the plain 7B reaches 120 — so the first read looked like "the linear
+  draft cannot scale". It is not the draft: it is the scheduler *admission* cap. At 32
+  the same arm scales to 145.5/90.2 (c8 d0/d8), the best in the lane. The shipped recipe
+  sets 32 and `tests/test_k2_7b_recipes.UnoConcurrencyCap` guards the floor. Any future
+  UNO-vs-NGRAM comparison must equalize this cap or it measures the cap, not the arm.
+  (`.scratch/ifm/perf-2026-10-09/`, tags `c2-unoF4-conc` vs `d6-unoF8-conc32`.)
 
 ## Protocol
 

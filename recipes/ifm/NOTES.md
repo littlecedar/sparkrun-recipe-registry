@@ -1,9 +1,11 @@
 # `recipes/ifm/` — working notes
 
-Tracked working notes for the IFM K2-Horizon lane. The deep records are the
-git-ignored `K2-*-MODEL-OPTIMIZATION-WORK.md` (the model, numbers, derivations) and
-`K2-*-JOURNAL.md` (dated narrative) beside this file; `COOP.md` is the cross-model
-ledger. Guides are [`README.md`](README.md) and [`AGENTS.md`](AGENTS.md).
+Tracked working notes for the IFM K2-Horizon lane. The deep records the lane used to
+keep beside this file — git-ignored `K2-*-MODEL-OPTIMIZATION-WORK.md` (the model,
+numbers, derivations) and `K2-*-JOURNAL.md` (dated narrative) — are **absent from this
+tree**; every number that matters has been folded into the sessions below, into
+[`README.md`](README.md) / [`AGENTS.md`](AGENTS.md), and into `COOP.md` (the
+cross-model ledger).
 
 **No hostnames or IPs here** — this registry ships to third parties.
 
@@ -115,10 +117,9 @@ no recipe or arm name, and no `parallel`/TP field. So:
 
 ### Still open
 
-- Accuracy: **CLOSED 2026-10-09** — the floor above was an instrument artifact, not
-  a model result. See the 2026-10-09 session below.
-- UNO's and NGRAM's quality — **still open**: both wins are speed results. NGRAM is
-  being measured 2026-10-09; UNO's has no accuracy number yet.
+Nothing from this session: the accuracy floor closed on 2026-10-09 (below), and
+both spec arms were then scored lossless on the same instrument. The 2026-10-09
+session's own open items are listed at its end.
 
 ### Sources — perishable
 
@@ -256,3 +257,74 @@ results on the head node under `ifm-runs/perf-2026-10-09/*.json` (`--output` of 
 `sparkrun benchmark performance`). Every arm's `bench_*` id, with its overrides, is in
 that bench's `~/.cache/sparkrun/benchmarks/<id>/state.yaml` under
 `extras.measurement_overrides`.
+
+## Session 2026-10-09 (continued) — the UNO campaign, and UNO promoted
+
+Two nodes (.33/.34/.35 and the validation node .32), image unchanged, 24 boots.
+Method: the driver in `.scratch/ifm/perf-2026-10-09/` runs a sequence of arms on
+one node with `--fresh --no-stop` and copies each arm's `--output` JSON/YAML box
+beside the logs. **One boot per arm cannot rank arms** (7-25 % inter-boot floor),
+so every comparison below is same-window and the arms are means over 2-7 boots.
+
+### Single-stream — `decode-triage` (tg=128, 5 runs, c=1), tg_throughput.mean
+
+| arm | d0 | d8192 | accept len | boots |
+|---|---|---|---|---|
+| plain 7B (control) | 21.3 | 19.2 | — | 7 |
+| UNO F=2 | 26.4 | 22.4 | 2.53 | 2 |
+| UNO F=4 | 30.8 | 25.6 | 2.95 | 6 |
+| **UNO F=8 (shipped)** | **32.4** | **27.1** | **3.10** | 6 |
+| NGRAM | 27.9 | 28.6 | 1.37 | 4 |
+
+UNO F=8 is **+52 % / +41 %** over the plain 7B. Accept length clears the ~2.07
+break-even (plain 9.00 GB/token; UNO step 2*9.00 + 0.698 LoRA = 18.70 GB) and
+**saturates** by F=8 — the F=4→F=8 gain (~5 %) is inside the noise floor, so F=8
+is chosen on six boots, not one. NGRAM still leads UNO at d8192 (28.6 vs 27.1).
+
+### Aggregate — `concurrency-sweep` (tg=256)
+
+| arm | c1 d0/d8 | c4 d0/d8 | c8 d0/d8 |
+|---|---|---|---|
+| plain | 21.2/19.1 | 79.6/51.0 | 120.1/68.8 |
+| NGRAM | 27.8/31.2 | 88.4/65.5 | 123.9/88.3 |
+| UNO F=4, `max_num_seqs 8` | 29.7/25.0 | 98.6/72.1 | **97.5/70.5** |
+| UNO F=8, `max_num_seqs 32` (shipped) | 32.7/27.2 | 96.7/71.3 | **145.5/90.2** |
+
+**The finding that mattered:** the arm looked like it collapsed at c=8 (97.5,
+below its own c=4) — but that flatline was `max_num_seqs: 8`, a *scheduler
+admission* cap, not the draft algorithm. Lifted to 32, the same arm scales to
+145.5/90.2, the best c8 figure in the lane, and the shipped recipe now sets 32.
+One boot each, so the shape is firm and the exact number is not.
+
+### What else the sweep said (all inside the noise floor — not ranked)
+
+- `max_num_seqs` 8 vs 32 at c=1: a wash (±5 %, opposite signs across nodes); 64
+  read lower once (one boot). 32 ships because of c≥4, not c=1.
+- `--page-size`, `--fp8-gemm-backend`, `--cuda-graph-max-bs-decode`,
+  `--attention-backend fa4`: unchanged from the earlier session's sweep.
+- Every arm booted clean: 24/24 launches, so the mod chain is reliable, not lucky.
+
+### Decision
+
+**Promoted.** `k2-horizon-7b-fp8-uno-sglang` leaves PROBE status: F=8,
+`max_num_seqs: 32`, `tags: experimental, fast`, banner rewritten with the tables,
+`tests/test_k2_7b_recipes.UnoConcurrencyCap` guarding the cap. It is the lane's
+fastest arm and accuracy-lossless; its two costs are the two mods (one of which
+patches sglang's UNO gate) and a single-stream-at-depth edge to NGRAM.
+
+### Still open (this session)
+
+- UNO accuracy at the **shipped** F=8/seq=32 geometry (scored at F=4/seq=8; the
+  verification path is unchanged, so quality is expected to hold — expected, not
+  measured).
+- Tree-mode UNO (topk>1) — never attempted; linear is shipped.
+- The `bench_*` id collision between concurrent campaigns (now an `AGENTS.md`
+  trap): the `--output` files are per-arm and correct, the ids are not unique.
+
+### Sources
+
+`.scratch/ifm/perf-2026-10-09/` — `<tag>.json` (per-arm result), `<tag>.log`
+(bench stdout + the authoritative `Benchmark ID:`), `<tag>.serve.log` (sglang
+log: the `accept len:` lines). Tags are `a*` (pairwise .33), `b*` (F sweep .34),
+`c1-c5` (concurrency/seq .35), `d*` (knob factorial .34), `e*` (replicate .33),
+`v1-*` (validation .32). Git-ignored; on one laptop.
