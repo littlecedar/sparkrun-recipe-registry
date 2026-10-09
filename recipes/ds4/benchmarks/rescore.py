@@ -28,7 +28,9 @@ RAW = os.path.join(RESULTS, "_raw")
 
 
 def rebuild_items(bench, limit, seed):
-    a = types.SimpleNamespace(limit=limit, seed=seed)
+    # max_tokens_scale is irrelevant to scoring (only the caps move), but
+    # BENCHES reads it off the args object, so supply the no-op default.
+    a = types.SimpleNamespace(limit=limit, seed=seed, max_tokens_scale=1.0)
     return {it["id"]: it for it in rb.BENCHES[bench](a)}
 
 
