@@ -23,7 +23,7 @@ honest about what has actually been measured.
 | model | recipe(s) | state | accuracy (house / gsm8k / arc) |
 |---|---|---|---|
 | 0.9B | `k2-horizon-0.9b-bf16-sglang` | **MEASURED**, boots clean (77.6/67.3 t/s) | 31/37 = 83.8 % / 174/200 = 87.0 % / 133/200 = 66.5 % |
-| 7B-FP8 | `…-7b-fp8-sglang`, `…-ngram`, `…-uno` | **MEASURED** (21.2/19.2, 27.4/29.2, 37.7) | 36/37 = 97.3 % / 188/200 = 94.0 % / 178/200 = 89.0 % |
+| 7B-FP8 | `…-7b-fp8-sglang`, `…-ngram`, `…-uno` | **MEASURED** (21.3/19.2, 27.9/28.6, **32.4/27.1**) | 36/37 = 97.3 % / 188/200 = 94.0 % / 178/200 = 89.0 % |
 
 The accuracy column is greedy, `reasoning_effort` = the template default `high`, seed
 1234, measured 2026-10-09; the 2026-10-08 figures (0.9B 72.97 / 63.50 / 0.00; 7B
@@ -34,6 +34,16 @@ The two 7B spec arms were scored on the same instrument and item sets: **NGRAM
 (about one SE on n=200) of the plain 7B on every benchmark, so neither trades
 accuracy for its speed win.
 
+**UNO is now a shipped arm, not a probe (2026-10-09).** A 12-boot campaign
+(`.scratch/ifm/perf-2026-10-09/`, git-ignored) promoted
+`k2-horizon-7b-fp8-uno-sglang` from PROBE to the lane's fastest arm: F=8 with
+`max_num_seqs: 32` measured **32.4/27.1 t/s** single-stream (d0/d8192) against
+the plain 7B's 21.3/19.2 — +52 %/+41 % — and **145.5/90.2** aggregate at c=8,
+the best figure in the lane. The campaign also found the arm's sharp edge:
+`max_num_seqs` is load-bearing (at 8 it flatlines at c=8; at 32 it scales),
+which `tests/test_k2_7b_recipes.UnoConcurrencyCap` now guards. Tables:
+`README.md` §UNO arm and `NOTES.md` (2026-10-09 session).
+
 Before this session **every recipe was theory-only** — none had booted — and two
 load-bearing claims turned out wrong (see §4). Treat the WORK docs as the model, not
 as ground truth; the journal is where the falsifications are recorded.
@@ -43,8 +53,9 @@ as ground truth; the journal is where the falsifications are recorded.
 | question | where the answer lives |
 |---|---|
 | what a recipe *is* and why | the recipe file's own comment block (`command:` explainer) |
-| the model / roofline / byte census | `K2-*-MODEL-OPTIMIZATION-WORK.md` |
-| what happened, dated | `K2-*-JOURNAL.md` |
+| the model / roofline / byte census | `K2-*-MODEL-OPTIMIZATION-WORK.md` — **git-ignored and absent from this tree**; the surviving numbers are in `README.md`, `NOTES.md`, `COOP.md` and the recipe headers |
+| what happened, dated | `K2-*-JOURNAL.md` (same: git-ignored by design, may be absent) |
+| the measured UNO campaign artifacts (per-arm `--output` JSON) | `.scratch/ifm/perf-2026-10-09/` (git-ignored) |
 | cross-model findings, node state | `COOP.md` |
 | the withdrawn sub-lane: recipes, mod, guards, byte arithmetic | `attic/ifm/` (`ARMS-MANIFEST.md`) |
 | guard tests | `tests/test_ifm_recipes.py`, `tests/test_k2_7b_recipes.py` |
@@ -70,17 +81,27 @@ as ground truth; the journal is where the falsifications are recorded.
   load-bearing. Use bare `mods/<name>` references (the scoped `@littlecedar/mods/<name>`
   form resolves against the published registry clone, which does not carry these
   unpublished mods).
+- **`max_num_seqs` is load-bearing on the UNO arm.** It is a scheduler *admission*
+  limit, not a memory limit: at 8 the arm flatlines at c=8 (97.5 aggregate, below
+  its own c=4 of 98.6) while the plain 7B reaches 120; at 32 it scales to 145.5.
+  Do not lower it — `tests/test_k2_7b_recipes.UnoConcurrencyCap` enforces a floor.
 
 ## 4. Falsified claims (do not re-assert)
 
-The 2026-10-08 session overturned two things the theory docs argued confidently:
+Four claims the theory docs (and one probe run) argued confidently, and what the
+devices answered:
 
-1. **"Uno is blocked by upstream at every size."** False — with the probe mod UNO
-   boots and serves at 37.7 t/s, accept len 3.60 > the 2.07 break-even.
-2. **"The 7B roofline gives ~25 t/s at c=1."** Optimistic — measured 21.0; the
+1. **"Uno is blocked by upstream at every size."** False — the probe mod relaxes
+   UNO's literal `("fa3","fa3")` gate, after which UNO boots, serves, and is the
+   lane's **fastest** arm. 2026-10-09: F=8 32.4/27.1 t/s single-stream (+52 %/+41 %
+   over the plain 7B) and 145.5/90.2 aggregate at c=8, accuracy-lossless.
+2. **"The 7B roofline gives ~25 t/s at c=1."** Optimistic — measured 21.3; the
    roofline counts only the weight read and ignores per-step overhead.
+3. **"UNO's linear draft cannot scale to high concurrency."** False — it looked true
+   only because the probe ran with `max_num_seqs: 8`. That cap, not the algorithm,
+   was the flatline; at 32 the arm has the best c=8 aggregate in the lane.
 
-3. **"ARC-Challenge (and the rest of the battery) shows the model is weak."** False — the
+4. **"ARC-Challenge (and the rest of the battery) shows the model is weak."** False — the
    2026-10-08 numbers were an *instrument* artifact, not a model property. Both
    templates key reasoning on `reasoning_effort` (default `high`) and carry **no
    `enable_thinking`**, so the harness's `--thinking off` was silently ignored and every
@@ -127,7 +148,9 @@ guard suite covers that gap.
 recipes + guides. A dead arm, a closed-question variant, or a probe moves to
 `attic/ifm/` with a manifest row when its question closes. The `zz-` prefix marks a
 non-shippable probe arm. The `MoVA-36B-A4B` sub-lane was withdrawn 2026-10-08 and now
-lives in `attic/ifm/` — see `attic/ifm/ARMS-MANIFEST.md`.
+lives in `attic/ifm/` — see `attic/ifm/ARMS-MANIFEST.md`. The 7B-Uno **probe** closed
+its question the other way (2026-10-09): it was promoted to a shipped arm in place,
+because the answer was "yes, and it is the fastest one" rather than "no".
 
 ## 8. Traps
 
@@ -150,6 +173,12 @@ lives in `attic/ifm/` — see `attic/ifm/ARMS-MANIFEST.md`.
   the server never binds its port; the only working spellings are
   `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill` (a `-decode 32`
   boot serves, bench `bench_bf98a3f39ef5`).
+- **A `bench_*` id is not unique when benchmarks run concurrently.** Two campaigns
+  started in the same window can drive the same bench id and share
+  `~/.cache/sparkrun/benchmarks/<id>/`, so a `consolidated.json` copied afterward can
+  hold the wrong arm's cells. The `--output` JSON/YAML is written per run and is the
+  durable artifact (this is why `.scratch/ifm/perf-2026-10-09/` keeps them per tag);
+  the bench id is provenance, not identity.
 
 *Evidence over memory: if this file and a boot log disagree, the log wins — and this
 file gets corrected.*
