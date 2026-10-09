@@ -8,6 +8,12 @@ PyYAML: the repo declares jinja2 + netifaces and the offline cache has no PyYAML
 so a test that imports it cannot run on a head node, in a container, or on a
 laptop. See AGENTS.md, "tools/ and tests/ are stdlib-only, on purpose".
 
+Where the recipes live. The lane now ships ONE 7B recipe -- the Uno arm at
+recipes/ifm/k2-horizon-7b-fp8-uno-sglang.yaml. The plain and NGRAM arms were
+retired to attic/ifm/arms/ (see attic/ifm/ARMS-MANIFEST.md for the retire
+rationale); they are still guarded here, read by explicit path from ATTIC_DIR,
+so their pins and measured numbers stay honest without re-shipping them.
+
 Why these exist. The failure modes here are quiet ones: a recipe that boots,
 serves, and returns HTTP 200 while being silently 2x slower than intended, or one
 that dies nine minutes into a weight load. Several are regressions waiting to
@@ -49,9 +55,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ifm"
+ATTIC_DIR = REPO_ROOT / "attic" / "ifm" / "arms"
 
-BASE = RECIPE_DIR / "k2-horizon-7b-fp8-sglang.yaml"
-NGRAM = RECIPE_DIR / "k2-horizon-7b-fp8-ngram-sglang.yaml"
+# Only the Uno arm ships. The other two are archived (attic/ifm/arms/) and still
+# guarded, so their pins and measured numbers stay verifiable at their new paths.
+BASE = ATTIC_DIR / "k2-horizon-7b-fp8-sglang.yaml"
+NGRAM = ATTIC_DIR / "k2-horizon-7b-fp8-ngram-sglang.yaml"
 UNO = RECIPE_DIR / "k2-horizon-7b-fp8-uno-sglang.yaml"
 
 ALL = [BASE, NGRAM, UNO]
@@ -164,15 +173,18 @@ class RecipeExistence(unittest.TestCase):
         for p in ALL:
             self.assertTrue(p.is_file(), "missing recipe %s" % p)
 
-    def test_recipe_set_is_exactly_three(self):
-        """Catch an orphaned or renamed 7B-FP8 file before it forks the lineage."""
+    def test_shipped_set_is_exactly_uno_with_siblings_archived(self):
+        """Catch an orphaned or un-retired 7B-FP8 file before it forks the lineage."""
         found = sorted(p.name for p in RECIPE_DIR.glob("*7b-fp8*.yaml"))
         self.assertEqual(
             found,
-            ["k2-horizon-7b-fp8-ngram-sglang.yaml",
-             "k2-horizon-7b-fp8-sglang.yaml",
-             "k2-horizon-7b-fp8-uno-sglang.yaml"],
+            ["k2-horizon-7b-fp8-uno-sglang.yaml"],
+            "recipes/ifm/ ships the Uno arm only",
         )
+        # Hard existence check on the archived siblings, NOT a glob equality:
+        # attic/ifm/arms/ already holds the 36B arms, so name the 7B ones directly.
+        for p in (BASE, NGRAM):
+            self.assertTrue(p.is_file(), "archived recipe missing %s" % p)
 
 
 class ContainerPin(unittest.TestCase):

@@ -23,7 +23,7 @@ honest about what has actually been measured.
 | model | recipe(s) | state | accuracy (house / gsm8k / arc) |
 |---|---|---|---|
 | 0.9B | `k2-horizon-0.9b-bf16-sglang` | **MEASURED**, boots clean (77.6/67.3 t/s) | 31/37 = 83.8 % / 174/200 = 87.0 % / 133/200 = 66.5 % |
-| 7B-FP8 | `…-7b-fp8-sglang`, `…-ngram`, `…-uno` | **MEASURED** (21.3/19.2, 27.9/28.6, **32.4/27.1**) | 36/37 = 97.3 % / 188/200 = 94.0 % / 178/200 = 89.0 % |
+| 7B-FP8 | `k2-horizon-7b-fp8-uno-sglang` (the plain 7B and NGRAM arms are archived in `attic/ifm/arms/`) | **MEASURED** (**32.4/27.1** shipped; the archived arms measured 21.3/19.2 and 27.9/28.6) | 36/37 = 97.3 % / 188/200 = 94.0 % / 178/200 = 89.0 % |
 
 The accuracy column is greedy, `reasoning_effort` = the template default `high`, seed
 1234, measured 2026-10-09; the 2026-10-08 figures (0.9B 72.97 / 63.50 / 0.00; 7B
@@ -44,6 +44,15 @@ the best figure in the lane. The campaign also found the arm's sharp edge:
 which `tests/test_k2_7b_recipes.UnoConcurrencyCap` now guards. Tables:
 `README.md` §UNO arm and `NOTES.md` (2026-10-09 session).
 
+**The lane was consolidated to one 7B recipe on 2026-10-09.** `k2-horizon-7b-fp8-uno-sglang`
+is the single shipped 7B arm: it is fastest in the lane single-stream at d0 (32.4 vs the
+plain 7B's 21.3 and NGRAM's 27.9) and at aggregate c=8 (145.5/90.2 vs plain 120.1/68.8 and
+NGRAM 123.9/88.3), and accuracy-lossless on the shared instrument (all gaps within ±3
+items ≈ one SE on n=200). NGRAM's only edge — single-stream d8k 28.6 vs 27.1 — is inside
+the lane's own 7-25 % inter-boot noise floor. Both siblings, `k2-horizon-7b-fp8-sglang`
+and `k2-horizon-7b-fp8-ngram-sglang`, moved to `attic/ifm/arms/` with their contents
+unchanged.
+
 Before this session **every recipe was theory-only** — none had booted — and two
 load-bearing claims turned out wrong (see §4). Treat the WORK docs as the model, not
 as ground truth; the journal is where the falsifications are recorded.
@@ -57,7 +66,7 @@ as ground truth; the journal is where the falsifications are recorded.
 | what happened, dated | `K2-*-JOURNAL.md` (same: git-ignored by design, may be absent) |
 | the measured UNO campaign artifacts (per-arm `--output` JSON) | `.scratch/ifm/perf-2026-10-09/` (git-ignored) |
 | cross-model findings, node state | `COOP.md` |
-| the withdrawn sub-lane: recipes, mod, guards, byte arithmetic | `attic/ifm/` (`ARMS-MANIFEST.md`) |
+| the withdrawn sub-lane (recipes, mod, guards, byte arithmetic) and the two retired 7B arms (recipes) | `attic/ifm/` (`ARMS-MANIFEST.md`) |
 | guard tests | `tests/test_ifm_recipes.py`, `tests/test_k2_7b_recipes.py` |
 
 ## 3. Hard constraints (each earned on hardware or in source)
@@ -151,6 +160,13 @@ non-shippable probe arm. The `MoVA-36B-A4B` sub-lane was withdrawn 2026-10-08 an
 lives in `attic/ifm/` — see `attic/ifm/ARMS-MANIFEST.md`. The 7B-Uno **probe** closed
 its question the other way (2026-10-09): it was promoted to a shipped arm in place,
 because the answer was "yes, and it is the fastest one" rather than "no".
+
+A **second archival criterion** joined the first on 2026-10-09: an **arm that loses the
+best-overall comparison** is retired even though nothing is wrong with it — the plain 7B
+and NGRAM arms moved to `attic/ifm/arms/` because UNO beat them at every measured point
+outside the noise floor, not because their question closed. Both criteria send the file to
+`attic/ifm/` with a manifest row. The `zz-` prefix convention is unaffected: it still marks
+a non-shippable probe arm, and says nothing about which criterion archived a file.
 
 ## 8. Traps
 

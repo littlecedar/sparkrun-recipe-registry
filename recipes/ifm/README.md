@@ -1,8 +1,8 @@
 # IFM K2-Horizon (IFM) — serving recipes
 
 The IFM `K2-Horizon` family on NVIDIA DGX Spark (GB10, sm_121), served with native
-SGLang. Two model sizes are covered: the dense `0.9B` and the dense `7B-FP8` (with
-NGRAM and UNO speculative arms), plus the `7B-Uno` conditional-LoRA diffusion draft
+SGLang. Two model sizes are covered: the dense `0.9B` and the dense `7B-FP8`, served
+with UNO speculative decoding, plus the `7B-Uno` conditional-LoRA diffusion draft
 that the UNO arm drafts with.
 
 > **Read [`AGENTS.md`](AGENTS.md) before working in this directory.** It carries the
@@ -32,9 +32,13 @@ is the first release that ships `models/xllm.py` (which registers `K2HorizonForC
 | # | recipe | regime | key knobs | measured C1 t/s (d0 / d8k) |
 |---|---|---|---|---|
 | 1 | `k2-horizon-0.9b-bf16-sglang` | single-node, TP=1, 131K | `flashinfer`, no mods | **77.6 / 67.3** |
-| 2 | `k2-horizon-7b-fp8-sglang` | single-node, TP=1, 131K | `flashinfer`, no mods | **21.2 / 19.2** |
-| 3 | `k2-horizon-7b-fp8-ngram-sglang` | single-node, TP=1 | `flashinfer`, NGRAM spec | **27.9 / 28.6** |
-| 4 | `k2-horizon-7b-fp8-uno-sglang` | single-node, TP=1 | `fa4`, UNO spec F=8, 2 mods | **32.4 / 27.1** |
+| 2 | `k2-horizon-7b-fp8-uno-sglang` | single-node, TP=1 | `fa4`, UNO spec F=8, 2 mods | **32.4 / 27.1** |
+
+**Retired 7B arms.** The plain 7B (`k2-horizon-7b-fp8-sglang`) and the NGRAM arm
+(`k2-horizon-7b-fp8-ngram-sglang`) were retired on 2026-10-09 and now live in
+[`attic/ifm/arms/`](../../attic/ifm/ARMS-MANIFEST.md) — see §Archived material and
+`attic/ifm/ARMS-MANIFEST.md`. Their measured numbers below are kept as the provenance
+for why the UNO arm was selected.
 
 C1 t/s is single-stream (concurrency 1) aggregate decode, read from
 `benchmarking/decode-triage.yaml` per-cell JSON — not the printed sparkrun table.
@@ -126,6 +130,9 @@ window; noise floor 7-25 %):
 | UNO **F=8** (shipped) | 32.4 | 27.1 | 3.10 | 6 |
 | NGRAM | 27.9 | 28.6 | 1.37 | 4 |
 
+The `plain 7B (control)` and `NGRAM` rows are the two arms retired on 2026-10-09 (now
+`attic/ifm/arms/`); they are kept here as the comparison that selected UNO.
+
 So UNO F=8 is **+52 % / +41 %** over the plain 7B. Accept length (2.53 → 3.10)
 clears the ~2.07 break-even of the weight-read model and saturates by F=8.
 
@@ -161,6 +168,8 @@ one item set per benchmark.
 | House battery — total (n=37) | 31/37 = 83.8 % | 36/37 = 97.3 % | 36/37 = 97.3 % | 36/37 = 97.3 % |
 | GSM8K (n=200) | 174/200 = 87.0 % | 188/200 = 94.0 % | 187/200 = 93.5 % | 190/200 = 95.0 % |
 | ARC-Challenge (n=200) | 133/200 = 66.5 % | 178/200 = 89.0 % | 177/200 = 88.5 % | 175/200 = 87.5 % |
+
+The `7B-FP8` and `7B-FP8 NGRAM` columns come from the two arms now in `attic/ifm/arms/`.
 The two 7B spec arms were scored on the same instrument and item sets: **NGRAM and
 Uno are each within ±3 items (about one SE on n=200) of the plain 7B on every
 benchmark**, so neither trades accuracy for its speed win — both are lossless, not
@@ -180,7 +189,16 @@ figure.
 
 ## Archived material
 
-The `MoVA-36B-A4B` sub-lane was withdrawn on 2026-10-08 — measured working on hardware,
-but too slow to justify the compute — and everything of it lives in
-[`attic/ifm/`](../../attic/ifm/ARMS-MANIFEST.md): the four recipes, their FP8 gate mod,
-the guards and the byte-arithmetic helper, plus the measured numbers.
+Two things live in [`attic/ifm/`](../../attic/ifm/ARMS-MANIFEST.md), each with a
+manifest row:
+
+- The `MoVA-36B-A4B` sub-lane was withdrawn on 2026-10-08 — measured working on
+  hardware, but too slow to justify the compute — and everything of it lives there:
+  the four recipes, their FP8 gate mod, the guards and the byte-arithmetic helper,
+  plus the measured numbers.
+- The two retired 7B arms — `k2-horizon-7b-fp8-sglang` and
+  `k2-horizon-7b-fp8-ngram-sglang` — were retired on 2026-10-09: UNO is faster at both
+  d0 and c=8 and accuracy-lossless on the shared instrument, and NGRAM's only edge
+  (single-stream d8k) is inside the lane's 7-25 % inter-boot noise floor. Their recipe
+  files moved to `attic/ifm/arms/` with their contents unchanged; their measured
+  numbers above are the evidence for the selection.

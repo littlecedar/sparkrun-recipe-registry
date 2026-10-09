@@ -60,18 +60,19 @@ of equal quality. Use the RadixArk recipe as the quality reference until an eval
 | Recipe                                    | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                    |
 |:------------------------------------------|:-------|-------:|------:|-----:|---:|:---------------------------------------------------------------|
 | k2-horizon-0.9b-bf16-sglang               | ✨🚀   |   77.6 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
-| k2-horizon-7b-fp8-sglang                  | 🚀    |   21.3 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8]                                 |
-| k2-horizon-7b-fp8-ngram-sglang            | 🚀    |   27.9 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **NGRAM spec decode**        |
 | k2-horizon-7b-fp8-uno-sglang              | 🚀    |   32.4 | 11GB | 0.82 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **UNO spec decode, fastest** |
 
 _Native SGLang on GB10. C1 t/s measured at concurrency 1, depth 0
-(`benchmarking/decode-triage.yaml`); the 7B rows are means over several clean boots
-from the 2026-10-09 campaign. On the dense 7B both spec arms are lossless wins:
-NGRAM (27.9 vs 21.3 t/s) needs no extra artifacts, while **UNO (32.4 t/s, +52 %)
-needs two mods** — one fetches the `K2-Horizon-7B-Uno` draft adapter, one relaxes
-SGLang's `fa3`-only UNO gate so `--attention-backend fa4` can serve on GB10. UNO is
-the lane's fastest arm at single-stream and, once `max_num_seqs` is raised off the
-old 8, at aggregate concurrency too (145.5 t/s at c=8). The lane also carries
+(`benchmarking/decode-triage.yaml`); the 7B figure is the mean over several clean
+boots from the 2026-10-09 campaign. The shipped 7B arm is **UNO spec decode
+(32.4 t/s, +52 % over plain)** — the lane's fastest at single-stream and, once
+`max_num_seqs` is raised off the old 8, at aggregate concurrency too (145.5 t/s at
+c=8). It needs two mods — one fetches the `K2-Horizon-7B-Uno` draft adapter, one
+relaxes SGLang's `fa3`-only UNO gate so `--attention-backend fa4` can serve on
+GB10 — and it is accuracy-lossless on the shared instrument. The plain 7B and
+NGRAM arms were retired to [`../attic/ifm/arms/`](../attic/ifm/arms/) (plain is
+dominated by both spec arms; NGRAM is slower at d0 and at c=8, its only edge, at
+d8k, falling inside the lane's inter-boot noise floor). The lane also carries
 **measured accuracy** for both dense models (house / gsm8k / arc) and a
 `page-size` / `fa4` / cuda-graph arm sweep — see [`ifm/README.md`](ifm/README.md).
 The withdrawn 36B-A4B sub-lane (4 arms + the `patch-sglang-k2-horizon-fp8` gate mod)

@@ -328,3 +328,20 @@ patches sglang's UNO gate) and a single-stream-at-depth edge to NGRAM.
 log: the `accept len:` lines). Tags are `a*` (pairwise .33), `b*` (F sweep .34),
 `c1-c5` (concurrency/seq .35), `d*` (knob factorial .34), `e*` (replicate .33),
 `v1-*` (validation .32). Git-ignored; on one laptop.
+
+## Session 2026-10-09 (continued) — the lane consolidated to one 7B recipe
+
+Documentation-only continuation of the same day; no boots. `recipes/ifm/` now ships a
+**single 7B recipe**, `k2-horizon-7b-fp8-uno-sglang`, alongside the `0.9B`.
+
+**Kept** because it is the best-overall arm: fastest in the lane single-stream at d0
+(32.4 vs the plain 7B's 21.3 and NGRAM's 27.9) and at aggregate c=8 (145.5/90.2 vs
+plain 120.1/68.8 and NGRAM 123.9/88.3), and accuracy-lossless on the shared instrument
+(the spec-arm gaps in §4 above are all within ±3 items ≈ one SE on n=200). NGRAM's only
+edge — single-stream d8k 28.6 vs 27.1 — is inside the lane's own 7-25 % inter-boot noise
+floor.
+
+**Retired:** `k2-horizon-7b-fp8-sglang` (plain) and `k2-horizon-7b-fp8-ngram-sglang`.
+Both were moved, contents **unedited**, to `attic/ifm/arms/` (`ARMS-MANIFEST.md`). The
+measured tables above — this session's and 2026-10-08's — are the justification for the
+selection and are kept as written.
