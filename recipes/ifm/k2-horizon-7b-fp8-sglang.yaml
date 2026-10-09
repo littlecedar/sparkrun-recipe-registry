@@ -20,15 +20,29 @@ min_nodes: 1
 max_nodes: 1
 
 # ---------------------------------------------------------------------------
-# MEASURED (first hardware session, 2026-10-08, a node, GB10):
-#   c=1 d=0    : 21.0 t/s   (cv 0.7% over 5 runs)
-#   c=1 d=8192 : 19.0 t/s
+# MEASURED (2026-10-08 hardware session; re-derived 2026-10-09 from the
+# surviving bench artifact `bench_baa8a8610893`):
+#   c=1 d=0    : 21.209 t/s  (cv 0.02 % over 5 runs, sd 0.0045)
+#   c=1 d=8192 : 19.156 t/s  (cv 0.03 % over 5 runs)
+# The first session's header quoted "21.0 t/s (cv 0.7 % over 5 runs)" and
+# "19.0". No surviving artifact reconciles a 0.7 % spread with the same-profile
+# rerun's 0.02 % (~30x smaller) and the first session's JSON was reaped, so the
+# reproducible number is quoted here and the 0.7 % is retired.
 # `sparkrun benchmark performance <this> --profile benchmarking/decode-triage.yaml`
 # Booted clean first try. NOTE: this is BELOW the ~25 t/s the WORK §5 roofline
 # predicted (9.00 GB/step / 227.8 GB/s). The roofline counts only the weight read
 # and ignores per-step overhead, so it is optimistic by ~16 % at c=1 -- the first
 # real correction to the lane's modelling. It also makes the measured NGRAM arm
-# (27.4/29.2 t/s) a clear win over this baseline, not a marginal one.
+# (27.384/29.151 t/s, cv 6.31 %/10.53 %) a clear win over this baseline, not a
+# marginal one.
+# ACCURACY (2026-10-09, greedy, effort = template default `high`, seed 1234):
+# house 36/37 = 97.3 %, gsm8k 188/200 = 94.0 %, arc 178/200 = 89.0 %.  The
+# 2026-10-08 figures (89.19 / 87.50 / 0.00 %) were an INSTRUMENT artifact, not
+# the model: the harness sent `enable_thinking`, which this template ignores (it
+# keys on `reasoning_effort`), and ARC's 16-token cap then consumed the whole
+# reasoning block -- 200/200 empty replies, 0.00 % by construction. Fix +
+# method: NOTES.md and COOP.md. The unit of this model is the same, and these
+# are the first non-truncated accuracy scores for the lane.
 # ---------------------------------------------------------------------------
 
 metadata:

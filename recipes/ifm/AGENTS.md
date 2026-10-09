@@ -18,12 +18,21 @@ Serve the IFM K2-Horizon family (dense `0.9B`, dense `7B-FP8`, plus the `7B-Uno`
 conditional-LoRA diffusion draft) on GB10 with native SGLang, and keep the recipes
 honest about what has actually been measured.
 
-**Current state (2026-10-08, first hardware session — see §4):**
+**Current state (2026-10-08 hardware, 2026-10-09 accuracy re-measurement — see §4):**
 
-| model | recipe(s) | state |
-|---|---|---|
-| 0.9B | `k2-horizon-0.9b-bf16-sglang` | **MEASURED**, boots clean (77.3/67.0 t/s) |
-| 7B-FP8 | `…-7b-fp8-sglang`, `…-ngram`, `…-uno` | **MEASURED** (21.0/19.0, 27.4/29.2, 37.7) |
+| model | recipe(s) | state | accuracy (house / gsm8k / arc) |
+|---|---|---|---|
+| 0.9B | `k2-horizon-0.9b-bf16-sglang` | **MEASURED**, boots clean (77.6/67.3 t/s) | 31/37 = 83.8 % / 174/200 = 87.0 % / 133/200 = 66.5 % |
+| 7B-FP8 | `…-7b-fp8-sglang`, `…-ngram`, `…-uno` | **MEASURED** (21.2/19.2, 27.4/29.2, 37.7) | 36/37 = 97.3 % / 188/200 = 94.0 % / 178/200 = 89.0 % |
+
+The accuracy column is greedy, `reasoning_effort` = the template default `high`, seed
+1234, measured 2026-10-09; the 2026-10-08 figures (0.9B 72.97 / 63.50 / 0.00; 7B
+89.19 / 87.50 / 0.00) were **floors, not measurements** — see §4.
+
+The two 7B spec arms were scored on the same instrument and item sets: **NGRAM
+(97.3 / 93.5 / 88.5) and Uno (97.3 / 95.0 / 87.5)** are each within ±3 items
+(about one SE on n=200) of the plain 7B on every benchmark, so neither trades
+accuracy for its speed win.
 
 Before this session **every recipe was theory-only** — none had booted — and two
 load-bearing claims turned out wrong (see §4). Treat the WORK docs as the model, not
@@ -71,6 +80,18 @@ The 2026-10-08 session overturned two things the theory docs argued confidently:
 2. **"The 7B roofline gives ~25 t/s at c=1."** Optimistic — measured 21.0; the
    roofline counts only the weight read and ignores per-step overhead.
 
+3. **"ARC-Challenge (and the rest of the battery) shows the model is weak."** False — the
+   2026-10-08 numbers were an *instrument* artifact, not a model property. Both
+   templates key reasoning on `reasoning_effort` (default `high`) and carry **no
+   `enable_thinking`**, so the harness's `--thinking off` was silently ignored and every
+   reply opened a reasoning block; ARC's `max_tokens=16` was then consumed by that block,
+   so all 200 items returned `finish_reason: length` and empty content — a 0.00 % score by
+   construction. Re-measured 2026-10-09 through the fixed harness (`--reasoning-effort
+   default`, caps 1024/2048/1024) the models answer ARC normally. **Before quoting any
+   accuracy figure from the 2026-10-08 session, check `finish_reasons` in its summary
+   JSON; a `length` is a truncated response, not a wrong answer.** See §8 traps and
+   `COOP.md`.
+
 ## 5. Guard suite
 
 Two stdlib-`unittest` modules, no PyYAML (they parse recipe text and strip
@@ -78,8 +99,9 @@ whole-line comments first):
 
 | module | count | scope |
 |---|---|---|
-| `tests/test_ifm_recipes.py` | — | 0.9B: no `fa3`, dtype, revision, container floor, flag map |
-| `tests/test_k2_7b_recipes.py` | — | 7B + Uno + NGRAM: banned flags for UNO, mod existence/order, declaration-stash trap |
+| `tests/test_ifm_recipes.py` | 16 | 0.9B: no `fa3`, dtype, revision, container floor, flag map |
+| `tests/test_k2_7b_recipes.py` | 60 | 7B + Uno + NGRAM: banned flags for UNO, mod existence/order, declaration-stash trap |
+| `attic/ifm/test_ifm_36b_recipes.py` | 64 | withdrawn 36B sub-lane; no longer auto-discovered |
 
 **Every guard has a negative control** in a `NegativeControls` class. A guard that
 cannot fail proves nothing; add a control with any new guard.
