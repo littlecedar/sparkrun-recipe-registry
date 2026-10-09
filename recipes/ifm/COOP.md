@@ -12,8 +12,7 @@ need**, so two agents never spend a boot answering the same question. Narrative 
 > lane's own documents; nothing is invented. Items whose numbers are cited nowhere were not
 > recoverable — **do not renumber the anchors**; add new items at the next free numbers.
 >
-> Like the sibling lanes' ledgers, this file is **not to be `git add`ed** (it may carry live node
-> state). Keep hostnames and addresses out of anything tracked.
+> Keep hostnames and addresses out of anything tracked.
 
 ## Live state — update every session
 
@@ -70,6 +69,22 @@ need**, so two agents never spend a boot answering the same question. Narrative 
   sequence would be 72 GiB of bf16 KV and leave the box no room for a second request
   (`k2-horizon-7b-fp8-sglang.yaml:71-75`). Size by bytes, not by parameter count.
   (`K2-7B-MODEL-OPTIMIZATION-WORK.md` section 5.)
+- **`enable_thinking` is a no-op for this family — the template keys on `reasoning_effort`.**
+  Both checkpoints' `chat_template.jinja` (0.9B 51,155 B / 7B 51,034 B) contain
+  `reasoning_effort` and **no `enable_thinking` at all**, so a harness that passes
+  `chat_template_kwargs={"enable_thinking": false}` (e.g. `recipes/ds4/benchmarks/run_benchmarks.py`
+  `--thinking off`) is **silently ignored** and every reply opens a reasoning block.
+  VERIFIED live 2026-10-09 by key-comparison on the two serving nodes: `enable_thinking` and
+  `reasoning_effort: high` returned byte-identical completions.
+  Two consequences for any scorer here: (1) a small `max_tokens` (the shipped ARC cap was **16**)
+  is consumed by the reasoning block and the item returns `finish_reason: length`, `content: ""` —
+  the model never gets to answer, and the score is a measurement of the cap, not of the model;
+  (2) at `reasoning_effort: low` the 7B puts its answer in `reasoning_content` and leaves
+  `content` **empty** (`effort: medium` does the same on the 0.9B), so a content-only scorer reads
+  ~0 % on items the model answered correctly. Score the default (`high`) effort with an adequate
+  cap. Use `--reasoning-effort` / `--max-tokens-scale` on the harness (`run_benchmarks.py`), which
+  were added for exactly this; prefer `--reasoning-effort default` (server default = high).
+  (`recipes/ds4/benchmarks/run_benchmarks.py` docstring; `recipes/ifm/NOTES.md`.)
 
 ## Dated corrections
 

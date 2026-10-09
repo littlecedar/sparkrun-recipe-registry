@@ -15,7 +15,15 @@
 # UNO is a WIN on GB10, not the "blocked at every size" the theory predicted (the
 # earlier "requires (fa3,fa3)" reading was about the *stock* gate, which the mod
 # relaxes). The banner above is kept as the record of what the theory expected.
-# See K2-7B-MODEL-OPTIMIZATION-WORK.md §6.6 and K2-36B-A4B-JOURNAL.md 2026-10-08.
+# See K2-7B-MODEL-OPTIMIZATION-WORK.md §6.6 and K2-7B-JOURNAL.md 2026-10-08
+# (the shared bench that also produced the withdrawn 36B rows is
+# ../../attic/ifm/K2-36B-A4B-JOURNAL.md).
+# ACCURACY (2026-10-09, greedy, effort = template default `high`, seed 1234):
+# house 36/37 = 97.3 %, gsm8k 190/200 = 95.0 %, arc 175/200 = 87.5 %, against the
+# plain 7B's 97.3 % / 94.0 % / 89.0 % on the same instrument. **Uno's speed win is
+# not paid for with quality**: every gap is inside the +-3-item (~1 SE on n=200)
+# band, so the 37.7 t/s / accept-len 3.60 result is a lossless arm, not a trade.
+# This is the quality check the 2026-10-08 probe left open.
 recipe_version: "2"
 model: IFM/K2-Horizon-7B-FP8
 # The FP8 checkpoint, deliberately: the Uno adapter's own adapter_config.json

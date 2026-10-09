@@ -59,14 +59,16 @@ of equal quality. Use the RadixArk recipe as the quality reference until an eval
 
 | Recipe                                    | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                    |
 |:------------------------------------------|:-------|-------:|------:|-----:|---:|:---------------------------------------------------------------|
-| k2-horizon-0.9b-bf16-sglang               | ✨🚀   |   77.3 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
-| k2-horizon-7b-fp8-sglang                  | 🚀    |   21.0 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8]                                 |
+| k2-horizon-0.9b-bf16-sglang               | ✨🚀   |   77.6 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
+| k2-horizon-7b-fp8-sglang                  | 🚀    |   21.2 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8]                                 |
 | k2-horizon-7b-fp8-ngram-sglang            | 🚀    |   27.4 | 11GB | 0.85 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **NGRAM spec decode**        |
 
 _Native SGLang on GB10. All rows **measured** 2026-10-08 at concurrency 1, depth 0
 (`benchmarking/decode-triage.yaml`). NGRAM spec decode is a clear win on the dense
-7B (27.4 vs 21.0 t/s). The `7b-fp8-uno` probe (**37.7 t/s**, not shipped) lives in
-[`ifm/README.md`](ifm/README.md); the withdrawn 36B-A4B sub-lane (4 arms + the
+7B (27.4 vs 21.2 t/s). The lane also carries **measured accuracy** for both dense
+models (house / gsm8k / arc) and a `page-size` / `fa4` / cuda-graph arm sweep — see
+[`ifm/README.md`](ifm/README.md). The `7b-fp8-uno` probe (**37.7 t/s**, not shipped)
+lives there too; the withdrawn 36B-A4B sub-lane (4 arms + the
 `patch-sglang-k2-horizon-fp8` gate mod) is archived under
 [`../attic/ifm/`](../attic/ifm/)._
 

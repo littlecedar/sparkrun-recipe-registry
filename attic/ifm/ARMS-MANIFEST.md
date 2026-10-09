@@ -83,6 +83,14 @@ numbers, not a failure.
   `mods/…` comments — that is deliberate, because they are only runnable again after
   being moved back.
 
+- **The 2026-10-09 crash-recovery handoff** that drove the K2-Horizon lane's
+  instrument repair, accuracy re-measure and arm sweep is archived beside this
+  file as `IFM-RECOVERY-2026-10-09-WORK.md`. Like the two research docs above it
+  is git-ignored (`**/*-WORK.md`) and carried on disk only: it records one
+  session's node state and is explicitly **not** lane documentation. Its durable
+  content now lives in `recipes/ifm/NOTES.md` (the 2026-10-09 session) and
+  `recipes/ifm/COOP.md`.
+
 *Archived 2026-10-08 by the withdrawal session. If you resurrect any of this, move the
 recipes back to `recipes/ifm/` **and** `attic/ifm/mods/patch-sglang-k2-horizon-fp8/`
 back to `mods/`, restore the path constants above, and remove the row here.*

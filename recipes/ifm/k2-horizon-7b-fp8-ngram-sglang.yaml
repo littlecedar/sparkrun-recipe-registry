@@ -8,17 +8,27 @@ container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e
 min_nodes: 1
 max_nodes: 1
 
-# MEASURED (2026-10-08, a node, GB10):
-#   c=1 d=0    : 27.4 t/s   (5 runs)
-#   c=1 d=8192 : 29.2 t/s
-# vs the plain 7B baseline's 21.0 / 19.0 on the same profile in the same window
-# -- a +30 % win at d=0 and +54 % at d=8192. This confirms the WORK §8 prediction:
+# MEASURED (2026-10-08, a node, GB10; re-derived 2026-10-09 from the surviving
+# artifact `bench_62bc34a980db`):
+#   c=1 d=0    : 27.384 t/s  (cv 6.31 % over 5 runs)
+#   c=1 d=8192 : 29.151 t/s  (cv 10.53 % over 5 runs)
+# vs the plain 7B baseline's 21.209 / 19.156 on the same profile in the same
+# window -- a +29 % win at d=0 and +52 % at d=8192. The spread is ~290x the
+# plain 7B's (cv 0.02 %) and that is intrinsic, not noise: the accept count
+# varies run to run, so quote the cv beside the mean. The win still clears it
+# by a wide margin. This confirms the WORK §8 prediction:
 # zero-dependency NGRAM spec decode PAYS on this dense model, because widening the
 # verify window grows the GEMM's M, not its K/N, so the per-step weight read is
 # paid once regardless of window -- the opposite of the MoE case. Note the decode
 # rate RISES with depth (29.2 > 27.4): more context means the n-gram matches the
 # prompt more often, so more draft tokens are accepted. Add when a workload needs
 # more: this is the best single-stream rate in the lane.
+# ACCURACY (2026-10-09, greedy, effort = template default `high`, seed 1234):
+# house 36/37 = 97.3 %, gsm8k 187/200 = 93.5 %, arc 177/200 = 88.5 %, against
+# the plain 7B's 97.3 % / 94.0 % / 89.0 % on the same instrument. **NGRAM costs
+# nothing measurable** (-0.5 pp on gsm8k and arc, well inside the +-3-item
+# one-SE band on n=200) -- it is a lossless speed win, not a trade. This is the
+# quality check the 2026-10-08 session never ran.
 
 metadata:
   description: IFM/K2-Horizon-7B-FP8 - NGRAM speculative-decoding arm (no draft weights required) on GB10

@@ -15,14 +15,21 @@ min_nodes: 1
 max_nodes: 1
 
 # ---------------------------------------------------------------------------
-# MEASURED (first hardware session, 2026-10-08, a node, GB10):
-#   c=1 d=0    : 77.3 t/s   (cv 0.06% over 5 runs)
-#   c=1 d=8192 : 67.0 t/s
+# MEASURED (2026-10-08 hardware session; re-derived 2026-10-09 from the
+# surviving bench artifact `bench_ab57b6d3d164`):
+#   c=1 d=0    : 77.599 t/s  (cv 0.10 % over 5 runs)
+#   c=1 d=8192 : 67.277 t/s  (cv 0.07 % over 5 runs)
 # `sparkrun benchmark performance <this> --profile benchmarking/decode-triage.yaml`
-# The boot was clean first try; the recipe needed no change. This is the only
-# recipe in the lane whose numbers landed inside their modelled envelope on the
-# first attempt. See K2-09B-MODEL-OPTIMIZATION-WORK.md for the model and
-# K2-36B-A4B-JOURNAL.md (2026-10-08) for the session that produced this row.
+# The boot was clean first try; the recipe needed no change. See
+# K2-09B-MODEL-OPTIMIZATION-WORK.md for the model and K2-09B-JOURNAL.md for the
+# narrative session; NOTES.md carries the concurrency table and bench ids.
+# ACCURACY (2026-10-09, greedy, effort = template default `high`, seed 1234):
+# house 31/37 = 83.8 %, gsm8k 174/200 = 87.0 %, arc 133/200 = 66.5 %.  The
+# 2026-10-08 figures (72.97 / 63.50 / 0.00 %) were an INSTRUMENT artifact, not
+# the model: the harness sent `enable_thinking`, which this template ignores (it
+# keys on `reasoning_effort`), and ARC's 16-token cap then consumed the whole
+# reasoning block -- 200/200 empty replies, 0.00 % by construction. Fix +
+# method: NOTES.md and COOP.md.
 # ---------------------------------------------------------------------------
 
 metadata:
@@ -138,9 +145,22 @@ defaults:
   chunked_prefill_size: 4096
   # Escape hatch for one-off experimentation.  Appended last so argparse resolves
   # a repeated flag in favour of the override.  Empty string is the no-op
-  # default; quoted so YAML keeps a str.  First boot should spend it on the probe
-  # flags named in K2-09B-MODEL-OPTIMIZATION-WORK.md (--page-size ladder,
-  # --cuda-graph-max-bs), not on a redesign.
+  # default; quoted so YAML keeps a str.
+  #
+  # The probe arms named in K2-09B-MODEL-OPTIMIZATION-WORK.md §9 were RUN on
+  # 2026-10-09 (decode-triage, same window, one boot per arm) and all landed
+  # inside the 7-25 % inter-boot noise floor:
+  #   control           77.339 / 67.036      bench_66937856b7bb
+  #   --page-size 64    77.652 / 67.376      bench_ddccb2bb32d1
+  #   --page-size 128   77.623 / 67.282      bench_f511e9d7fba3
+  #   --attention-backend fa4  78.371 / 67.735  bench_8ec5a1920280
+  # fa4 is the one real result: the SM120 FA4 kernel (flashattention_backend.py
+  # imports flash_attention_v4_sm120.py when capability[0] == 12) DOES build and
+  # serve at (12,1); its +1.3 % at d0 is not separable from boot noise, so it is
+  # a viable alternative, not a speed win, and flashinfer stays the default.
+  # `--cuda-graph-max-bs` does NOT EXIST in v0.5.20 (argparse: unrecognized; the
+  # server never binds the port) -- the real knobs are --cuda-graph-max-bs-decode
+  # / -prefill. Do not spend a boot on the bare name.
   extra_args: ""
 
 command: >
