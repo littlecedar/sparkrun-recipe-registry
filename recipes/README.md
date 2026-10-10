@@ -20,12 +20,17 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm | 🌲     |  41.86 | 235GB | 0.80 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                   |
 | ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲 |    100 |  45GB | 0.85 |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
 
-## Qwen-VL
+## Embed
 
 | Recipe                                   | Flags    | C1 t/s | Size |  Mem | TP | Model Cards                                    |
 |:----------------------------------------|:--------|------:|----:|----:|---:|:----------------------------------------------|
 | qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶 |      — |    — | 0.25 |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶 |      — |    — | 0.30 |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
+
+## Rerank
+
+| Recipe                                   | Flags    | C1 t/s | Size |  Mem | TP | Model Cards                                    |
+|:----------------------------------------|:--------|------:|----:|----:|---:|:----------------------------------------------|
 | qwen3-vl-reranker-2b-vllm-b12x           | 🚀🌲👀🔃 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B]             |
 | qwen3-vl-reranker-8b-vllm-b12x           | 🌲👀🔃   |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B]             |
 

@@ -26,11 +26,12 @@ import jinja2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MOD_SCRIPT = REPO_ROOT / "mods" / "provide-qwen3-vl-rerank-template" / "run.sh"
-RECIPE_DIR = REPO_ROOT / "recipes" / "qwen3"
+EMBED_DIR = REPO_ROOT / "recipes" / "embed"
+RERANK_DIR = REPO_ROOT / "recipes" / "rerank"
 
-EMBED_2B = RECIPE_DIR / "qwen3-vl-embedding-2b-vllm-b12x.yaml"
-EMBED_8B = RECIPE_DIR / "qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml"
-RERANK_2B = RECIPE_DIR / "qwen3-vl-reranker-2b-vllm-b12x.yaml"
+EMBED_2B = EMBED_DIR / "qwen3-vl-embedding-2b-vllm-b12x.yaml"
+EMBED_8B = EMBED_DIR / "qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml"
+RERANK_2B = RERANK_DIR / "qwen3-vl-reranker-2b-vllm-b12x.yaml"
 RECIPES = [EMBED_2B, EMBED_8B, RERANK_2B]
 
 # Assembled rather than written as one literal, so a redacting tool in the pipeline
