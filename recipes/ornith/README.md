@@ -143,6 +143,29 @@ part of the shipped surface:
 
 They are kept as provenance; the b12x API surfaces they referenced are not covered by any current guard.
 
+## 2026-10-10 update scan (no recipe changes)
+
+A model/runtime scan for this lane found **no superseding checkpoint**: `ornith-ai` has published no
+new base/quant revision since 2026-08-29, and the `jzinno` DFlash2 draft is unchanged since
+2026-08-23 (it remains the only Ornith DFlash2 drafter). What exists and what it means here:
+
+- **First-party plain-DFlash drafts for all three scales** (`ornith-ai/*-DFlash`, 2026-09-28) —
+  plain `DFlashDraftModel`, not DFlash2, with **no published numbers**. Candidate only as the 397B
+  vLLM lane's spec-decode counterpart; unmeasured.
+- **A third-party vLLM-only NVFP4 MoE DFlash2 drafter** (DaoCloud, 2026-09-10) needs three
+  unreleased vLLM PRs — not actionable on our pins.
+- **A DGX-Spark W4A16 NVFP4 quant with an MTP head** (r0b0tlab, 2026-08-21) claims accuracy parity
+  at 63–77 t/s — **slower than this lane's ~100 t/s C1**; not adopted.
+- **Upstream SGLang 0.5.18→0.5.21** adds DFlash-reranker and GDN fusion wins, but also **breaks this
+  lane**: the Mamba/SWA radix-cache args our 35B recipe passes (`mamba_radix_cache_strategy`,
+  `mamba_full_memory_ratio`) were removed upstream. Any container bump must re-verify the serve
+  line first.
+- **A known lead, not yet tested:** the DFlash2 author's own reference run measured **114.2 tok/s**
+  with `moe_runner_backend marlin`, `mamba_radix_cache_strategy extra_buffer`, `mamba_ssm_dtype
+  float32`, and **10 draft tokens** — we ship `flashinfer_cutlass` / `extra_buffer_lazy` /
+  `bfloat16` / 4. That is a multi-knob confound (see the caveats section above), so a same-node
+  A/B is the only honest way to chase it.
+
 ## Validation
 
 ```bash
