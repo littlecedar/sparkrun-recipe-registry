@@ -280,6 +280,17 @@ Single-stream generation speed is constrained by the speculative acceptance rate
 * **Reasoning Effort:** Configured with `chat_template_kwargs {"thinking": false}` for standard low-latency serving.
 
 
+### Verify window gamma: A/B tested 2026-10-10, kept at 5
+
+The bertholomus TP4 fork (`deepseek-v4.1-flash-dspark-tp4-4xgb10` @ `90cf3a2b`, AGPL — finding
+tested, code not copied) pre-registered `DSPARK_BLOCK_SIZE` 5→2 as +6–12% over bracketed γ=3
+controls. On this lane the transplant **fails**: a same-window paired A/B (same day, same nodes,
+the `ds4-sglang-depth0-ladder` profile) measured γ=2 at C1 37.70 vs 37.67 (~0), C4 85.29 vs 90.10
+(−5.3%), C8 92.12 vs 94.88 (−2.9%), C16 102.58 vs 98.19 (+4.5%). γ=2 loses at moderate
+concurrency — matching the counter-evidence the fork itself records. Probable mechanism: this
+lane's `DSV41_VERIFY_CAP=conf:0.1` + `DSV41_BLOCK_VERIFY=1` change the window economics and the
+fork ran no conf cap. Receipts: `~/benchmarks/ds4-gamma2-20261010/{ladder-gamma2,ladder-gamma5-control}.{json,yaml}`; full write-up in the `DSPARK_BLOCK_SIZE` comment in `mods/dsv41-sglang-overlay/launcher.py`. Both boots ran below the 2026-10-06 receipts (documented inter-boot drift), so the verdict is within-pair, not absolute.
+
 ### Do not apply the SPS ragged-verify table
 
 The speculative scheduling cost table (`DSPARK_SPS_TABLE` / `DSPARK_STS_TABLE`) arms the scheduler but crashes the Engram retrieval path on mixed-batch workloads.
@@ -322,6 +333,19 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 | Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
 | Measured | C1 101 code / 62 prose / 142 structured t/s; 4 streams 112 t/s (upstream's numbers on 2× GB10) |
 | Boot-verified | 2026-10-05 on 2× GB10: cold ~511 s engine-load, warm **51 s** TTR; **73 tok/s** single-stream (our own number) |
+
+**2026-10-10 needle + stability verification (our hardware, this lane):**
+
+- **Needle: PASS at both windows tested.** 262k sweep: 3/3 needles at depths 10/50/90% (prefill
+  190–364 s per probe). Deep probe: 1/1 at **958,919 prompt tokens** (depth 50%, prefill 1226.7 s,
+  ~782 tok/s) — retrieval intact at ~96% of the 1M window. Records: `/tmp/ds4tp2-needle-{262k,960k}.json`.
+- **Stability (the reported "looping output while reasoning"): NOT REPRODUCED.** 9 reasoning-heavy
+  prompts at the served config, then the 3 worst with an 8k-token budget: zero repeated-window runs
+  (loop score 1 throughout). Two prompts exhaust any budget in *non-repetitive* reasoning (18,000
+  chars of fresh reasoning, `finish_reason=length`) — a thinking-budget behaviour, not a loop.
+  Operationally important: the serve line **ignores request-level `temperature`/`repetition_penalty`**
+  (byte-identical replies across override arms), so any future mitigation must go through the
+  TensorFold launcher, not the client.
 
 See [`AGENTS.md`](AGENTS.md) §12 for the design, the launcher/rendezvous details, and how to
 rebuild the image. The lane is **boot-verified**: it loads both ranks, serves `/v1/models` and
