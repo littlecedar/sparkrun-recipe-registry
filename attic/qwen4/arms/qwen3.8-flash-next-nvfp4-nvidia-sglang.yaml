@@ -1,0 +1,125 @@
+recipe_version: "2"
+model: nvidia/Qwen3.8-Flash-Next-NVFP4
+# Provenance (2026-10-10): blazux/qwen3.8-Flash-DGX, an independent DGX Spark / GX10 recipe,
+# promoted this export over RadixArk's after a head-to-head on 2026-09-13/14 — one boot per side,
+# same image, same recipe, ONLY the checkpoint changed — of 5 full passes of a 55-scenario agentic
+# tournament (tool loops with injected faults, ledgers, logic grids, hidden-test coding, 3-5 repeats,
+# temperature 0.2):  nvidia 88.8% ± 1.0  vs  RadixArk 86.1% ± 1.9;  items lost on the 46 scenarios
+# that never run away (230 runs) 0.7 vs 4.1;  reasoning-runaway rate equal (46/65 vs 49/65, p = 0.55);
+# needle 4/4 at 100k/185k/323k/413k and greedy determinism equal;  KV pool +15% (679k vs 589k
+# tokens, +22% on another boot);  single-stream decode -7 to -8% (34.5 vs 37.1 tok/s), equal under
+# load.  Source: upstream README.md §"Why the default changed: the head-to-head" + docs/HISTORY.md.
+#
+# So: the accuracy-upgrade candidate for the RadixArk quality reference next to this file
+# (qwen3.8-flash-next-nvfp4-sglang.yaml).  NOT YET BOOTED ON OUR NODES, and every number above is the
+# upstream reporter's, taken on ONE GB10 under vLLM with a PLE-mmap recipe of its own — not in this
+# SGLang TP=2 shape.  Quality is the part that plausibly carries (same weights, another engine); read
+# the KV-pool and decode deltas as direction, never as a prediction here.  RadixArk keeps the
+# single-stream edge; if 37 vs 34 tok/s is what you feel, it is one variable away (see that recipe).
+#
+# Checkpoint shape, live-verified against the repo 2026-10-10; this is all the checkpoint change
+# moves in this file (every default below is copied from the reference unchanged):
+#  - ONE plain NVFP4 config there, a per-layer map here: quant_algo "MIXED_PRECISION", routed MoE
+#    experts NVFP4 group 16 (as in RadixArk), the PLE n-gram table FP8 per-tensor, and the MTP
+#    drafter's experts FP8_BLOCK_SCALES group 128 (DeepSeek-V3 layout) where RadixArk keeps its MTP
+#    drafter bf16.  Hence metadata.model_mtp_dtype fp8, not the reference's bf16.  Whether the SGLang
+#    container's modelopt_fp4 loader takes this per-layer map (vs RadixArk's flat targets:["Linear"])
+#    is UNVERIFIED until the first boot — the upstream route is vLLM, and its README documents this
+#    export's quant map as the thing that needed engine patches.
+#  - 124 GiB in 24 files (one 50 GiB LFS blob, MTP + PLE) vs RadixArk's 122 GiB in 418 — ~1.7 GB
+#    more in total, ~0.85 GB/rank at TP=2, i.e. noise against this shape's headroom.  No default moves.
+#  - Vision tower present (vision_config + image-text-to-text, model.visual in the quantizer's ignore
+#    list), like the RadixArk export and unlike the labquant one.
+#
+# No model_revision pin: nvidia's model card states no revision for this release (only "HF 08/31/2026"
+# and the ModelOpt v0.46.0 tag), so a pin here would only be today's `main` wearing the clothes of a
+# verified checkpoint identity.  Add one from the HF API before trusting a long-lived boot to this file.
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 2
+
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (NVIDIA ModelOpt export) - accuracy-upgrade candidate to the RadixArk quality reference; not yet booted here
+  model_url: https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  # Not in the RadixArk reference: that export keeps its MTP drafter bf16, this one ships it fp8
+  # (FP8_BLOCK_SCALES group 128).  It is where the upstream KV-pool advantage comes from.
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+  # `vision` is a property of the checkpoint (verified above).  The reference's `fast` and
+  # `lcg_favorite` flags are deliberately NOT claimed: upstream measures this export ~8% SLOWER
+  # single-stream than RadixArk, and nothing here has been booted, let alone benchmarked, on our
+  # nodes.  Flip them once a bench on this cluster says so.
+  tags: vision
+  caveats: >
+    Unbooted on our nodes. The quality win is the upstream reporter's (one GX10, vLLM, 2026-09-14);
+    the KV +15-22% / decode -8% deltas come from that same vLLM 1-box route and do not transfer to
+    this TP=2 SGLang shape on their word. First boot also decides whether SGLang's modelopt_fp4
+    loader accepts this export's per-layer quant map at all.
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
+  - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 24
+  kv_dtype: bf16
+  quantization: modelopt_fp4
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  max_mamba_cache_size: 112
+  load_format: safetensors
+  speculative_algorithm: NEXTN
+  speculative_attention_mode: decode
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  # Escape hatch for one-off experimentation.  `sparkrun benchmark` silently drops
+  # trailing EXTRA_ARGS (click nargs=-1 arg is accepted then discarded in
+  # cli/_benchmark.py), so un-parameterised server flags cannot be injected from the
+  # command line.  Empty string is the no-op default; quoted so YAML keeps it a str.
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --speculative-attention-mode {speculative_attention_mode} 
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --no-ple-offload-embedding
+  {extra_args}
+
+# Proposed Changes:
+#  --enable-int8-mamba-checkpoint
+#  --int8-mamba-ckpt-size <size?>
+#  --revision {revision}

@@ -1,0 +1,71 @@
+recipe_version: "2"
+model: RadixArk/Qwen3.8-Flash-Next-NVFP4
+runtime: sglang
+# The SAME digest our four TP=2 qwen4 recipes pin, and (verified against the Docker
+# Hub tag API, 2026-10-10) the same bytes as lmsysorg/sglang:dev-qwen38-next-local —
+# the image the SGLang cookbook's single-Spark cells were verified on. Its sglang is
+# 0.0.0.dev1+g4ccff141d, which carries #37068 (file-backed PLE), #38121 (ModelOpt
+# MIXED_PRECISION loader) and the SM121 QSA/router fixes; no patched image needed.
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Qwen3.8-Flash-Next-NVFP4 on ONE DGX Spark (TP=1), SGLang route: the PLE n-gram
+    table streams from NVMe (--ple-offload-embedding --ple-offload-backend file) so
+    weights + KV fit a single node's 128 GB pool. Flag set transcribed from the SGLang
+    cookbook cell dgx-spark/nvfp4/single/low-latency (verified single-Spark cell for
+    this exact export), which measured c=1 TTFT 649 ms / TPOT 33.6 ms / 137 tok/s,
+    c=8 358 tok/s, GSM8K 97.1% on the cookbook's hardware. NOT YET BOOTED on our
+    nodes — the sibling vllm-b12x solo recipe is the other route.
+  model_url: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  model_mtp_dtype: bf16
+  kv_dtype: bf16
+  # vision: same checkpoint as the quality-reference recipe, tower intact.
+  tags: vision
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  page_size: 64
+  chunked_prefill_size: 4096
+  quantization: modelopt_fp4
+  fp4_gemm_backend: flashinfer_cutlass
+  # The cookbook low-latency cell: NEXTN k=4, MRR 8, mamba pool 40.
+  speculative_algorithm: NEXTN
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  max_num_seqs: 8
+  max_mamba_cache_size: 40
+  extra_args: ""
+
+command: >
+  sglang serve
+  --model-path {model}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --reasoning-parser qwen3
+  --ple-offload-embedding
+  --ple-offload-backend file
+  {extra_args}
