@@ -52,7 +52,11 @@ defaults:
   attention_backend: flashinfer
   speculative_algorithm: DSPARK
   speculative_draft_model: RadixArk/Qwen3.8-27B-DSpark
-  speculative_num_draft_tokens: 7
+  # 8, not 7: SGLang's DSpark hook requires speculative_num_draft_tokens ==
+  # gamma + 1 (speculative_hook.py:650 raises otherwise; captured live on the
+  # first boot 2026-10-10). The card's "gamma 7" is the window-minus-one, the
+  # same gamma+1 semantics as ds4's DSPARK_BLOCK_SIZE.
+  speculative_num_draft_tokens: 8
   speculative_num_steps: 1
   extra_args: ""
 
