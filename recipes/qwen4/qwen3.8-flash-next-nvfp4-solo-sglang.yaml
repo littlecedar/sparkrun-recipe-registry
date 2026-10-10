@@ -6,6 +6,11 @@ runtime: sglang
 # the image the SGLang cookbook's single-Spark cells were verified on. Its sglang is
 # 0.0.0.dev1+g4ccff141d, which carries #37068 (file-backed PLE), #38121 (ModelOpt
 # MIXED_PRECISION loader) and the SM121 QSA/router fixes; no patched image needed.
+# Distribution constraint (VERIFIED 2026-10-10): sparkrun's model distribution
+# FAILS to a node that does not already hold this checkpoint — the 418-shard
+# RadixArk export's safetensors index exceeds the 16 MiB inventory limit
+# ("use file selection all"). Serve this on a node that already has the model
+# (the TP=2 pair does), or pre-distribute it.
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 1
 max_nodes: 1
