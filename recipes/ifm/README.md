@@ -9,7 +9,8 @@ that the UNO arm drafts with.
 > constraints, the guards, and the measurement discipline. This file is the recipe
 > summary; the deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` / `K2-*-JOURNAL.md`)
 > is git-ignored by design and absent from a fresh checkout — the measured numbers that
-> survive are the ones in this file, in [`NOTES.md`](NOTES.md) and in the recipe headers.
+> survive are the ones in this file, in [`NOTES.md`](NOTES.md), in [`AGENTS.md`](AGENTS.md)
+> §9, and in the recipes' own tunable comments.
 
 ## Checkpoints
 

@@ -1,65 +1,14 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
-# THE KEY NAME MATTERS, AND `revision:` IS THE WRONG ONE.  sparkrun reads the checkpoint pin from
-# the top-level **`model_revision:`** key (`sparkrun/core/recipe.py:346`); a bare `revision:` is an
-# unknown top-level key sparkrun silently absorbs into `runtime_config` and never acts on (root
-# `AGENTS.md`).  With the wrong key the distribution pulls `main` while the mod chain is contract
-# pinned to `7c4f1bc1…`, and the boot dies in `unpack-labquant-ple-nvfp4-to-fp8`.  Do not change back.
 model_revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 2
 
-# ============================================================================================
 # LANE B of 2 — LONG CONTEXT (up to 1M tokens).
 #
 # Sibling: `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A, high concurrency).
 # Base/control: `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` (the shipped balanced recipe).
-#
-# ############################################################################################
-# #  READ THIS BEFORE TRUSTING A NUMBER ABOVE ~262144.  THIS IS THE LANE'S HONEST LIMIT.       #
-# #                                                                                            #
-# #  `max_model_len: 1000000` and the YaRN override below are the LONG-CONTEXT ROUTE (§15).    #
-# #  They make the server ACCEPT and allocate for a 1M-token request.  They do NOT make the    #
-# #  model ACCURATE there, and nothing in this registry has measured that they do:             #
-# #    * config.json declares `text_config.max_position_embeddings = 262144` with NO `factor`  #
-# #      and NO `original_max_position_embeddings` -> there is no trained/configured YaRN and   #
-# #      no NTK config; positions beyond 262144 are an EXTRAPOLATION this recipe forces on.    #
-# #    * §15: a 1M-token sequence already fits the pool allocated at 262k (the gate is          #
-# #      positional, not allocative), SGLang accepts `context_length=1000000` with only the     #
-# #      warning "User-specified context_length (1000000) is greater than the derived           #
-# #      context_length (262144). This may lead to incorrect model outputs or CUDA errors."     #
-# #    * A neighbouring lane's needle test was exact at 240k and FAILED at 300k -> the usable   #
-# #      envelope ends near the trained 262144, not at 1M.                                      #
-# #    * `partial_rotary_factor: 0.25` (only a quarter of each head carries position) makes     #
-# #      YaRN's band split especially likely to fail quietly here.                             #
-# #                                                                                            #
-# #  THEREFORE: this recipe ships the 1M ROUTE, but the VERIFIED-GOOD serving point is         #
-# #  `max_model_len: 262144` (the base recipe's value, and the model's trained ceiling).       #
-# #  Run  `-o max_model_len=262144`  (and drop the `--json-model-override-args` from           #
-# #  `extra_args`) for the quality-safe long-context config.  Do not put 1M in front of users  #
-# #  until a needle-in-haystack gate at 512k / 768k / 1M PASSES (WORK §15 step 3; the gate is  #
-# #  the prerequisite the lane named for W9, which is deliberately deprioritised).             #
-# ############################################################################################
-#
-# WHAT IS DIFFERENT FROM THE BASE RECIPE (and why):
-#   max_model_len: 262144 -> 1000000   the request ceiling; memory already fits (§15 math below)
-#   extra_args:    + --json-model-override-args '<yarn rope>'   forces the RoPE extrapolation
-#   max_num_seqs / max_mamba_cache_size / chunked_prefill_size: UNCHANGED (24 / 112 / 4096).
-#     A single long sequence needs the memory; concurrency is deliberately NOT raised here.  A
-#     1M sequence occupies ~12.4 GB/rank of the pool, leaving room for only a few concurrent
-#     long sessions, so this lane trades concurrency for depth (§15 "the real cost, not
-#     feasibility").
-#
-# MEMORY MATH (VERIFIED, §15): the pool holds 1,874,816 tokens at 262k allocation, i.e. ~12,396
-# bytes/token/rank, reproducing from first principles at 12 full-attention layers × 1 KV head/rank
-# × head_dim 256 × 2 bytes × 2 (K,V) = 12,288 B/token.  So 1,048,576 tokens = ~13.0 GB/rank, well
-# inside the ~23 GB pool.  bf16 KV is kept deliberately: `fp8_e4m3` DOES NOT WORK on GB10 — it
-# boots, allocates a larger pool, then dies in QSA decode with
-# `ValueError: unsupported SM121 QSA call` because the SM121 packed-decode path requires BF16
-# queries (WORK §15, CLOSED 2026-10-04).  Do not "fix" the KV dtype to gain context; the gate is
-# positional, not capacity.
-# ============================================================================================
 
 metadata:
   description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - LONG-CONTEXT lane; 1M-token route with YaRN RoPE extrapolation (quality-verified only to ~262k)
@@ -95,13 +44,8 @@ mods:
 
 # REQUIRED, AND NOT OBVIOUS.  This build does NOT merely warn when `--context-length` exceeds the
 # checkpoint's derived length — it RAISES (VERIFIED 2026-10-04, boot `11b2c8b941e89cb9_3510a5e0d37d`):
-#   ValueError: Warning: User-specified context_length (1000000) is greater than the derived
-#   context_length (262144). ... To allow overriding this maximum, set the env var
-#   SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1        (model_config.py:860 `_derive_context_length`)
 # With this gate OFF the server never reaches model load, so the env var is load-bearing for the
 # lane and travels with `max_model_len`.  (WORK §15 said this build "accepts the request with only a
-# warning" — that is WRONG for this pinned image; the correct script is raise-unless-env-set.  The
-# fix is here, not in the WORK doc's narrative.)
 env:
   SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: '1'
 
@@ -134,10 +78,6 @@ defaults:
   #  * the two MANDATORY labquant flags (moe backend + prefill-graph disable) — see base recipe.
   #  * --json-model-override-args injects the YaRN RoPE that makes >262144 positions coherent at
   #    all.  **The override MUST be nested under `text_config.rope_parameters`.**  VERIFIED
-  #    2026-10-04 in the pinned container (`get_config`, `utils/hf_transformers/config.py:282`): the
-  #    loader does `config.text_config.update(value)`, which setattrs top-level keys — so a FLAT
-  #    `{"text_config": {"rope_type": "yarn", ...}}` sets `rope_type` beside `rope_parameters` and
-  #    leaves the real dict at `rope_type: default`, i.e. **the YaRN silently does not apply**
   #    (tested: flat -> `rope_type: default`; nested -> `rope_type: yarn`).  Always verify by
   #    grepping the container serve log for a non-default `rope_type` before trusting a long-context
   #    number.  `factor` 3.815 = 1_000_000/262144.

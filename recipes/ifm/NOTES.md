@@ -24,9 +24,10 @@ Two idle nodes (a pair) on the GB10 cluster, image `lmsysorg/sglang:v0.5.20-cu13
 | `k2-horizon-7b-fp8-uno-sglang` | 37.7 | — | probe; accept len 3.60 | `bench_74a69270d18c` |
 
 `d0`/`d8k` are `decode-triage` single-stream aggregate decode; the bench-id table
-below is the same measurement. The shipped 0.9B header and `README.md` quote 77.3 / 67.0
-from the *first* session, whose artifacts are gone — the surviving rerun of the identical
-profile reads 77.6 / 67.3. Do not read the 0.3 t/s gap as a regression.
+below is the same measurement. The retired 0.9B recipe header (moved to `AGENTS.md`
+§9 on 2026-10-10) and `README.md` quote 77.3 / 67.0 from the *first* session, whose
+artifacts are gone — the surviving rerun of the identical profile reads 77.6 / 67.3.
+Do not read the 0.3 t/s gap as a regression.
 
 ### Decode throughput (t/s) — aggregate `tg_throughput.mean`
 
@@ -52,8 +53,9 @@ visibly doubles the row count and invents a bimodal boot.
 
 Aggregate scaling is already sub-linear at c=8 — 0.9B 4.07× at c=4 then 1.59× at c=8
 (6.45× single-stream); 7B 3.72× then 1.51× (5.63×) — and per-request decode falls from
-the first step up. That is the CPU/scheduler co-ceiling the 0.9B recipe comment
-pre-registered (`k2-horizon-0.9b-bf16-sglang.yaml:73-76`); the 0.9B WORK doc's
+the first step up. That is the CPU/scheduler co-ceiling the 0.9B recipe's
+`max_num_seqs` comment pre-registered (retired to `AGENTS.md` §9 on 2026-10-10);
+the 0.9B WORK doc's
 ">10× single-stream at bs=32" prediction was never run.
 
 ### Accuracy — **LOWER BOUNDS, truncated instrument**
@@ -185,8 +187,8 @@ boots**, so nothing here is separable from noise and nothing is ranked. Two real
   `(12,1)`. A viable alternative backend, not a speed win; `flashinfer` stays the default.
 - **`--cuda-graph-max-bs` does not exist in v0.5.20.** `sglang serve --help` lists only
   `--cuda-graph-max-bs-decode` / `--cuda-graph-max-bs-prefill`, so argparse rejects the
-  launch and the server never binds the port. The 0.9B recipe comment that named the bare
-  flag is corrected.
+  launch and the server never binds the port. The 0.9B recipe comment that named the
+  bare flag was corrected 2026-10-09 and retired to `AGENTS.md` §9 on 2026-10-10.
 
 ### 3. Arm sweep — 7B-FP8 (`decode-triage`, one node, same window)
 

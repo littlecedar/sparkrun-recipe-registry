@@ -1,36 +1,15 @@
 recipe_version: "2"
 model: IFM/K2-Horizon-0.9B
-# SHA pin, not a branch.  `main` == 9fa6faa5 as of 2026-09-18 (HF API `sha`), the
-# MOPD release checkpoint.  The pin is load-bearing, not cosmetic: sparkrun
-# downloads a SHA-pinned repo into snapshots/<sha>/ and writes no refs/ entry,
-# and the container runs with HF_HUB_OFFLINE=1, so an engine that resolves its
-# own revision dies with LocalEntryNotFoundError *after* the weights synced to
-# every host.  Hence the --revision placeholder below; sparkrun's
-# `unpinned-model-revision` check exists to catch a pin that reaches
-# distribution but never reaches the engine.
+# SHA pin, not a branch (AGENTS.md §3). The offline container resolves `revision:`
+# itself over a snapshots/<sha>/ cache with no refs/ entry, so an unpinned engine
+# dies with LocalEntryNotFoundError *after* the weights synced to every host --
+# exactly the pin-reaches-distribution-but-not-the-engine case the
+# unpinned-model-revision warning exists to catch.
 model_revision: 9fa6faa55fe1c9eb008bb241cc6fb7e4536d0e91
 runtime: sglang
 container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
 min_nodes: 1
 max_nodes: 1
-
-# ---------------------------------------------------------------------------
-# MEASURED (2026-10-08 hardware session; re-derived 2026-10-09 from the
-# surviving bench artifact `bench_ab57b6d3d164`):
-#   c=1 d=0    : 77.599 t/s  (cv 0.10 % over 5 runs)
-#   c=1 d=8192 : 67.277 t/s  (cv 0.07 % over 5 runs)
-# `sparkrun benchmark performance <this> --profile benchmarking/decode-triage.yaml`
-# The boot was clean first try; the recipe needed no change. See
-# K2-09B-MODEL-OPTIMIZATION-WORK.md for the model and K2-09B-JOURNAL.md for the
-# narrative session; NOTES.md carries the concurrency table and bench ids.
-# ACCURACY (2026-10-09, greedy, effort = template default `high`, seed 1234):
-# house 31/37 = 83.8 %, gsm8k 174/200 = 87.0 %, arc 133/200 = 66.5 %.  The
-# 2026-10-08 figures (72.97 / 63.50 / 0.00 %) were an INSTRUMENT artifact, not
-# the model: the harness sent `enable_thinking`, which this template ignores (it
-# keys on `reasoning_effort`), and ARC's 16-token cap then consumed the whole
-# reasoning block -- 200/200 empty replies, 0.00 % by construction. Fix +
-# method: NOTES.md and COOP.md.
-# ---------------------------------------------------------------------------
 
 metadata:
   description: IFM/K2-Horizon-0.9B - dense 0.9B-class reasoning model, 128K YaRN context, native SGLang
@@ -47,121 +26,49 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
-  # VERIFIED from the artifact rather than the card: model.safetensors.index.json
-  # metadata.total_size = 2,156,571,648 B; 255 tensors; one shard; BF16 only
-  # (validation.json "dtypes": ["BF16"]).  Weights are 1.7% of 128 GB, so this
-  # knob is NOT what buys context here -- it buys CUDA-graph capture headroom.
-  # 0.85 is the AGENTS.md GB10 SOLO ceiling: past ~0.85-0.90 a kernel or
-  # page-cache allocation starts OOM-panicking the launch on unified memory.
-  # It is NOT a residency requirement.  The whole engine (2.16 GB weights +
-  # full-length 131k KV pool of 7.0 GiB + runtime) floors out near f = 0.10
-  # (K2-09B-MODEL-OPTIMIZATION-WORK.md §4.1, read from the v0.5.20 tree), so
-  # dropping to 0.10-0.30 per engine stacks several 0.9B engines on one box.
-  # Two sglang-specific caveats vs the vLLM sum-of-caps convention:
-  #   - the cap is relative to FREE memory at THIS engine's boot (psutil
-  #     available, kv_cache_configurator.py:2148-2179), so a second engine
-  #     needs a HIGHER f than the first for the same pool -- budget absolute
-  #     GiB per engine, not summed caps;
-  #   - --max-total-tokens (NOT in sparkrun's flag map; ride extra_args) pins
-  #     the pool exactly, e.g. extra_args: "--max-total-tokens 262144" for a
-  #     deterministic 2x-131k (14 GiB) pool per engine.
-  # Overridable per boot: -o gpu_memory_utilization=0.30.
+  # Not a residency requirement (weights 2.16 GB): buys CUDA-graph headroom. 0.85 is
+  # the GB10 SOLO ceiling (AGENTS.md); past ~0.85-0.90 a kernel or page-cache
+  # allocation OOM-panics the launch on unified memory; the engine floors near
+  # f=0.10 (AGENTS.md §9). sglang's cap is relative to FREE memory at THIS engine's
+  # boot, so budget absolute GiB per engine, or pin the pool exactly with
+  # extra_args: "--max-total-tokens 262144" (2x131k = 14 GiB). Overridable: -o
+  # gpu_memory_utilization=0.30.
   gpu_memory_utilization: 0.85
   max_model_len: 131072
-  # Computed here from config.json (num_key_value_heads 8, head_dim 64, 28
-  # layers, bf16): 2 * 8 * 64 * 2 * 28 = 57,344 B/token = 56 KiB/token.  A full
-  # 131k sequence is therefore 7.516 GB (7.000 GiB), and `sparkrun recipe vram`
-  # independently agrees from the checkpoint's own config: 100.8 left for KV at
-  # 0.85, max context 1,888,154 tokens, a 14.4x multiplier.  1,888,154 / 131,072 =
-  # 14.41, i.e. ~14 concurrent 131k sequences or ~57 concurrent 32k sequences
-  # (the GiB-vs-GB question is a non-issue: the ratio is 14.40 either way).  So 64
-  # is a CPU/scheduler limit, NOT a memory one.  With hidden_size 1536 the
-  # per-step GPU work is tiny, which makes decode-step time launch- and
-  # sample-bound and leaves the single scheduler/tokenizer process on 10 fast
-  # cores as the real ceiling.  Aggregate t/s should climb near-linearly with
-  # concurrency (the weights amortize) while per-request t/s falls; measure both
-  # before raising.
+  # KV = 56 KiB/token (2*8*64*2*28, bf16), so a full 131k sequence is ~7.0 GiB and
+  # the f=0.85 pool spans ~14 of them: 64 is a CPU/scheduler limit, NOT a memory
+  # one. Aggregate t/s climbs near-linearly with concurrency while per-request t/s
+  # falls (NOTES.md, 2026-10-08) -- measure both before raising.
   max_num_seqs: 64
-  # bfloat16 spelled, exactly as upstream validates it, and NOT `auto`.
-  # config.json declares "dtype": "float32" -- an artifact of the
-  # K2Aurora->K2Horizon schema migration (migration_manifest.json weight_mode
-  # "copy", weights_reencoded false; validation.json says the tensors are BF16)
-  # -- so `auto` resolves through the "BF16 precision for BF16 models" rule on a
-  # float32 declaration and can load 6.5 GB where 2.16 GB was intended.  The
-  # card's own recipe spells --dtype bfloat16.  Do not "simplify" this to auto.
+  # Spelled exactly as upstream validates it, NOT `auto`: config.json declares
+  # "dtype": "float32" (schema-migration artifact, AGENTS.md §9), so `auto` can load
+  # 6.5 GB where 2.16 GB was intended. The card's own recipe spells --dtype
+  # bfloat16. Do not "simplify" this to auto.
   dtype: bfloat16
-  # flashinfer, NOT the fa3 both HF cards and the SGLang cookbook tell you to
-  # pass.  fa3 CANNOT START on a DGX Spark.  VERIFIED at v0.5.20 (identical on
-  # main as of 2026-09-20), layers/attention/attention_registry.py:227-235:
-  #   major, minor = get_device_capability()
-  #   assert (major == 8 and not runner.use_mla_backend) or major == 9, (
-  #       "FlashAttention v3 Backend requires SM>=80 and SM<=90. "
-  #       "Please use `--attention-backend flashinfer`.")
-  # GB10 reports (12, 1), so major is 12 and that assert fires at backend
-  # construction -- after weight load, before the port binds.  sglang's own
-  # utils/common.py:329-333 names this chip explicitly
-  # (`is_sm121()` ... "GB10 (DGX Spark and OEM equivalents)"), and recipes/qwen4
-  # records three separate SM121 dead-ends of exactly this shape (fa3-style hard
-  # gates, and `auto` resolving to a kernel SM121 cannot run, §7g/§12).  The
-  # cards' "BF16, TP=1, FlashAttention-3" is H100/H200 guidance; the model card
-  # reports its own numbers on Hopper-class hardware, so it is not wrong, it is
-  # just not a Spark.  flashinfer is also what sglang's own auto-default picks
-  # here: arg_groups/model_override_base.py:347-352 returns "flashinfer" for a
-  # non-MLA model whenever flashinfer imports and the model has no attention
-  # sinks (this one has none), because the fa3 branch is gated on
-  # is_hopper_with_cuda_12_3 and the trtllm_mha branch on is_sm100 -- both False
-  # on major 12.  So the explicit value below agrees with the default instead of
-  # fighting it, and states the reason in the file.
-  #
-  # Deliberately NOT spelled as `auto` here even though it resolves the same way:
-  # qwen4 §12 found the auto-default silently landing on a dead/slow backend with
-  # "no warning or log line" on this exact chip, which is how a recipe rots when
-  # upstream reshuffles the gate.
-  #
-  # `fa4` is the interesting arm, not the default: FlashAttentionBackend supports
-  # fa_impl_ver=4 and at v0.5.20 flashattention_backend.py:284-291 imports a
-  # dedicated SM12x kernel (kernels/ops/attention/
-  # flash_attention_v4_sm120.py) when device_capability[0] == 12, and the
-  # page_size=128 forcing in overrides.py:_fa4_page_constraint is gated on
-  # is_sm100 (major 10) so it does NOT fire here.  Nobody has measured fa4 on a
-  # Spark for any model in this registry, so it is a benchmark arm -- see §3.3 and
-  # §9 arm 2 of the work doc.  UNO, by contrast, is not an arm at all; see §8.
+  # flashinfer, NOT the fa3 the cards and the cookbook tell you to pass: FA3
+  # requires SM 8/9 (attention_registry.py:227-235) and GB10 reports (12,1), so fa3
+  # cannot be constructed (AGENTS.md §3 -- the cards are Hopper guidance).
+  # flashinfer is also sglang's own auto-default for major 12
+  # (model_override_base.py:347-352), but is spelled anyway: `auto` has silently
+  # landed on a dead/slow backend on this exact chip (qwen4 §12). fa4 is the
+  # alternative arm -- it boots and serves, inside the 7-25% noise floor (README.md
+  # arm sweep).
   attention_backend: flashinfer
-  # `auto` == model dtype == bf16.  fp8_e4m3 is a legal value in this image
-  # (arg_groups/fields/model.py:196-214) and would halve KV to 28 KiB/token,
-  # doubling the concurrency headroom above -- but nobody has validated fp8 KV
-  # against flashinfer on SM121 for this family, and upstream's numbers are H200
-  # + bf16 KV.  Note also that the only fp8-KV/attention interaction sglang
-  # encodes explicitly is fa3 + fp8_e5m2 -> triton (overrides.py:1324-1331), i.e.
-  # these two axes are coupled and each new combination is its own kernel path.
-  # Untested: keep bf16 as the default and treat fp8 KV as an arm whose gate is
-  # accuracy, not throughput.
+  # `auto` == model dtype == bf16. fp8_e4m3 is legal and would halve KV to 28
+  # KiB/token, but its accuracy gate is unmet (README.md arm sweep) -- treat fp8 KV
+  # as an arm whose gate is accuracy, not throughput. KV/attention combos are
+  # coupled kernel paths (AGENTS.md §9).
   kv_cache_dtype: auto
   # NOT in sparkrun's _SGLANG_FLAG_MAP (only `chunked_prefill` ->
-  # --chunked-prefill-size is), so it reaches sglang only through the
-  # placeholder below; `-o chunked_prefill_size=...` prints "unmapped" while
-  # still taking effect.  Never delete a placeholder to silence that warning.
-  # Scheduler token budget per prefill batch; unrelated to any draft width.
+  # --chunked-prefill-size is), so it reaches sglang only through the placeholder
+  # below; `-o chunked_prefill_size=...` prints "unmapped" while still taking
+  # effect (AGENTS.md §3). Scheduler token budget per prefill batch; unrelated to
+  # any draft width.
   chunked_prefill_size: 4096
-  # Escape hatch for one-off experimentation.  Appended last so argparse resolves
-  # a repeated flag in favour of the override.  Empty string is the no-op
-  # default; quoted so YAML keeps a str.
-  #
-  # The probe arms named in K2-09B-MODEL-OPTIMIZATION-WORK.md §9 were RUN on
-  # 2026-10-09 (decode-triage, same window, one boot per arm) and all landed
-  # inside the 7-25 % inter-boot noise floor:
-  #   control           77.339 / 67.036      bench_66937856b7bb
-  #   --page-size 64    77.652 / 67.376      bench_ddccb2bb32d1
-  #   --page-size 128   77.623 / 67.282      bench_f511e9d7fba3
-  #   --attention-backend fa4  78.371 / 67.735  bench_8ec5a1920280
-  #   --cuda-graph-max-bs-decode 32  77.722 / 67.426  bench_bf98a3f39ef5
-  # fa4 is the one real result: the SM120 FA4 kernel (flashattention_backend.py
-  # imports flash_attention_v4_sm120.py when capability[0] == 12) DOES build and
-  # serve at (12,1); its +1.3 % at d0 is not separable from boot noise, so it is
-  # a viable alternative, not a speed win, and flashinfer stays the default.
-  # `--cuda-graph-max-bs` does NOT EXIST in v0.5.20 (argparse: unrecognized; the
-  # server never binds the port). The real knobs are --cuda-graph-max-bs-decode /
-  # -prefill -- the -decode 32 row above is that flag, booting and serving fine.
+  # Escape hatch for one-off experimentation. Appended last so argparse resolves a
+  # repeated flag in favour of the override. Empty string is the no-op default;
+  # quoted so YAML keeps a str. Probe arms and measured results: README.md §Arm
+  # sweep; --cuda-graph flag spellings: AGENTS.md §8.
   extra_args: ""
 
 command: >
@@ -182,160 +89,3 @@ command: >
   --reasoning-parser k2_horizon
   --tool-call-parser k2_horizon
   {extra_args}
-
-# ---------------------------------------------------------------------------
-# WHY THIS FILE LOOKS THE WAY IT DOES
-#
-# Theory-crafted first boot: nothing here is measured on a DGX Spark.  Labels are
-# VERIFIED (read from a primary artifact), LIKELY (strong secondary evidence),
-# SPECULATIVE (reasoning without a source).  Long-form findings live in
-# K2-09B-MODEL-OPTIMIZATION-WORK.md and the narrative in K2-09B-JOURNAL.md; both
-# are git-ignored, so the citations below are self-contained.
-#
-# 1. ENGINE: sglang, and it is not close.
-#    - sglang#37654 "[Model] Add native IFM K2 Horizon serving support" merged
-#      2026-09-03T08:39:44Z (merge commit 3bac084d4e49).  First released tag:
-#      v0.5.20, published 2026-09-18T22:41:33Z.  VERIFIED by git-tree listing:
-#      python/sglang/srt/models/xllm.py exists at v0.5.20 and is ABSENT at
-#      v0.5.19 and every earlier tag, so this recipe must never pin an older
-#      image -- and a moving `dev-cu13` tag is not a version guarantee either.
-#      EntryClass = [XllmForCausalLM, K2HorizonForCausalLM] (xllm.py:1914).
-#    - vLLM is not available.  The card's vLLM quickstart cites PR #53806 and
-#      "commit d9fd5f11"; that PR is CLOSED UNMERGED (state=closed, merged=false,
-#      last updated 2026-09-03, 10 files / 2611 additions), so the cited commit
-#      lives in a fork and no image in this registry serves this model with vLLM.
-#      The card's vLLM block is additionally not valid JSON: --hf-overrides
-#      '{"rope_parameters":{rope_type: yarn, ...}' has unquoted inner keys and is
-#      missing a closing brace (json.loads fails at char 20).
-#    - Both parsers exist in the pinned image under one name:
-#      parser/reasoning_parser.py:2174 and function_call/function_call_parser.py:84
-#      both map "k2_horizon" -> K2V3Detector.  The card's SGLang block names only
-#      the reasoning parser; its best-practices item 5 asks for both, so both set.
-#    - There is deliberately NO --enable-auto-tool-choice.  It is a vLLM flag and
-#      sglang v0.5.20 has no such server arg: it appears nowhere in
-#      arg_groups/fields/*.py, server_args.py or arg_groups/speculative_hook.py.
-#      Copying the card's vLLM block verbatim would have given an "unrecognized
-#      arguments" launch failure on the first boot.  Same verdict for
-#      --hf-overrides, which sglang spells --json-model-override-args.
-#    - Tool-call format and reasoning depth are CLIENT-side, not server flags:
-#      chat_template_kwargs {"tool_call_format": "json"|"xml"|"xml_typed"}
-#      (default xml) and {"reasoning_effort": "high"} per request.  The card is
-#      emphatic that every reported number uses high effort and that at least
-#      32,768 output tokens must be allowed -- "truncated reasoning is a failed
-#      response, not a shorter one".  A benchmark capped at 1k output tokens
-#      measures this model wrong, not fast.
-#
-# 2. NO QUANTIZATION FLAG AT ALL (there is no --quantization in the command).
-#    The checkpoint carries no quantization_config and sglang has no
-#    packed-weight mapping for this family beyond qkv/gate_up stacking
-#    (xllm.py:1692-1695 plus _xllm_stacked_params_mapping at :791), so a
-#    quantized load fails inside weight loading rather than with a clean refusal.
-#    It is also the wrong lever: at 2.16 GB this model is not resident-size
-#    bound.  VERIFIED there is no quantized 0.9B to reach for -- the family's
-#    -FP8 repos cover 7B, 32B, MoVA-36B-A4B and 375B-A23B only, and
-#    IFM/K2-Horizon-0.9B-GGUF holds one file, K2-Horizon-1B-BF16.gguf at
-#    2,159,424,896 B, "stored in their original BF16 precision", with llama.cpp
-#    support "in progress" behind the MBZUAI-IFM fork.  sglang#39509 "[Model] Add
-#    native block FP8 loading for K2 Horizon MoVA" (open 2026-09-17) is the
-#    family's first real quant path and is MoVA-only.
-#
-# 3. WHY THE DENSE xllm.py PATH IS THE FAST ONE HERE (VERIFIED by reading it).
-#    The dense branch asserts exactly what this checkpoint declares:
-#    mova_num_experts_per_tok == 0 and num_experts / num_experts_per_tok /
-#    num_shared_experts == 0 (:238-275), query_key_norm false (:276-280),
-#    sliding_window null and use_sliding_window false (:281-286), no attention
-#    gate (:287-298).  Passing all of them routes to XllmAttention, which uses
-#    QKVParallelLinear + RowParallelLinear with the real quant_config and one
-#    fused qkv GEMM (:1113-1134).  The MoVA/gated branches instead allocate
-#    q/k/gate/o as four separate ColumnParallelLinears with quant_config hard-set
-#    to None (:1264-1300) and raise on any quant_config at :1229-1232.  Same
-#    family, very different kernel path -- which is why the 36B-A4B MoVA work must
-#    not be used to predict this recipe's numbers.
-#    - rope_head_dim (64) == head_dim (64), so use_xllm_partial_rope is False and
-#      the permute/split/cat partial-RoPE branch (:1160-1197) is dead code for
-#      this checkpoint.  We never exercise the one place the integration mirrors a
-#      nonstandard HF layout.
-#    - YaRN is accepted natively: the dense path allows rope_type in {default,
-#      yarn} (:330-334) and the checkpoint's rope_parameters keys are a subset of
-#      the supported set (:375-391 -- attention_factor, beta_fast, beta_slow,
-#      factor, original_max_position_embeddings, rope_theta, rope_type, truncate).
-#      Values: rope_type yarn, factor 16, original_max_position_embeddings 8192
-#      (16 * 8192 == 131072), attention_factor 1.2772588722239782, beta_fast 128,
-#      beta_slow 4, truncate true, rope_theta 1e6.  So 128k needs NO
-#      --json-model-override-args and no hf-overrides hack, which retires the risk
-#      the card's vLLM block invites.
-#    - Card errata worth knowing: the card's SGLang block passes --revision
-#      9b9ec1f7e17f..., an *sglang* commit-ish rather than a revision of
-#      IFM/K2-Horizon-0.9B (that repo's refs are pretrain_*, mid_1_*, mid_2_*,
-#      rl_*, main).  Copying it offline yields LocalEntryNotFoundError.
-#    - --trust-remote-code is kept although sglang should not need it: the engine
-#      ships its own thin K2HorizonConfig ("Keeping these classes intentionally
-#      thin lets SGLang select its native runtime without importing
-#      checkpoint-provided Python code", configs/k2_horizon.py docstring;
-#      registered at configs/__init__.py:37), so the checkpoint's auto_map is
-#      never imported.  It costs nothing and may matter to the tokenizer path.
-#
-# 4. THE 273 GB/s WALL IS THE WHOLE BALLGAME ON THIS BOX.  NVIDIA publishes
-#    273 GB/s for the GB10's 256-bit LPDDR5X.  At 2.157 GB of weights the
-#    single-stream decode ceiling is 273 / 2.157 = 126.6 tok/s, and KV only
-#    matches the weight read at ~37.6k tokens of context (56 KiB/token * L == W).
-#    Computed ceilings, one stream, bf16 KV: 123 t/s @ 1k, 114 @ 4k, 88 @ 16k,
-#    63 @ 37.6k, 46 @ 64k, 28 @ 128k (fp8 KV: 68 @ 64k, 46 @ 128k).  Arithmetic
-#    intensity at batch 1 is 1.0 flop/byte against a bf16 ridge near 900, so this
-#    is memory-bound by three orders of magnitude: prefill and aggregate batch
-#    throughput are the only places compute matters.  Pre-register expectations in
-#    the 60-80% band of those ceilings -- the qwen4 journal's measured MoE decode
-#    reached only ~30% of peak on a far larger model.  Script:
-#    .scratch/ifm/k2_09b_model.py.
-#
-# 5. UNO CANNOT RUN ON THIS CHIP YET -- AND THERE IS NO UNO RECIPE TO WRITE.
-#    IFM/K2-Horizon-0.9B-Uno is a PEFT conditional-LoRA diffusion drafter#    (adapter_config.json: r=128, lora_alpha=2048, dropout 0.05, targets q/k/v/o
-#    plus gate/up/down; conversion_summary.json: 392 tensors, bf16,
-#    base_weight_matches_public_repository true -- so it does pair with the exact
-#    9fa6faa5 pinned above).  SGLang has native support -- sglang#37667
-#    "[Speculative Decoding] Add native UNO serving support" merged
-#    2026-09-03T12:08:42Z -- so `UNO` is a builtin speculative_algorithm in
-#    v0.5.20 (arg_groups/fields/spec.py:37-41) with --uno-lora-path,
-#    --speculative-num-draft-tokens = verify width Q, --speculative-eagle-topk =
-#    candidate K (>1 selects tree mode) and --speculative-num-steps (draft width
-#    F = steps + 1).  It is unreachable here for one reason:
-#
-#      arg_groups/speculative_hook.py:503-508 raises unless
-#      (prefill, decode) == ("fa3", "fa3"), and --attention-backend fa3 cannot
-#      be constructed on GB10 at all (work doc §3.1: the SM80/90
-#      assert at layers/attention/attention_registry.py:227-235 vs capability
-#      (12,1)).  No combination of --attention-backend /
-#      --prefill-attention-backend / --decode-attention-backend can satisfy it.
-#
-#    So a Uno recipe is blocked upstream, at every K2 size, and writing one now
-#    would ship a file that cannot boot.  Searched sglang issues/PRs for
-#    UNO x Blackwell/SM121/Spark on 2026-09-20: nothing.  The other refusals
-#    below are recorded because they shape the recipe *when* the gate is lifted:
-#    (tp,pp) != (1,1); DP attention or context parallel; public Multi-LoRA; any
-#    attention backend other than fa3 for BOTH prefill and decode;
-#    --speculative-draft-model-path; --enable-deterministic-inference;
-#    --enable-strict-thinking; --speculative-use-rejection-sampling; and in tree
-#    mode PDMux, two-batch overlap, non-1.0 accept thresholds, Q > 128,
-#    Q*K > 2048, and Q beyond EAGLE's parent-list ABI cap Q-1 <= K*(F-2)+1.
-#    --enable-mixed-chunk is force-disabled with a warning.  Per request
-#    (speculative/uno_validation.py) it rejects min_p, any grammar / structured
-#    output, returned logprobs, return_hidden_states, penalties, logit_bias,
-#    custom logit processors and request-selectable LoRA.  That last set is a
-#    second, independent constraint even on Hopper: Uno and schema-constrained
-#    tool calling cannot coexist, and this model's card actively pushes tool
-#    calling -- so a Uno arm is a different product, not a flag flip.
-#    Meanwhile the usable lossless arm on this chip is
-#    --speculative-algorithm NGRAM: _handle_ngram (spec_hook.py:999-1085)
-#    imposes NO attention-backend requirement and only restricts
-#    eagle_topk>1 + page_size>1 to flashinfer, which is already this recipe's
-#    backend.  It is free to try; work doc §8.5 states why it may measure flat.
-#
-# 6. NEGATIVE RESULT, kept so nobody re-chases it: the tokenizer's bos/eos render
-#    as "<|begin_of_text|>" with invisible padding when the raw JSON is displayed
-#    through some tools, which reads as zero-width spaces (U+200B) inside the
-#    special-token strings and would break engine-side special-token matching.  A
-#    per-codepoint dump of tokenizer_config.json added_tokens_decoder entries 0
-#    and 1 and of special_tokens_map.json refutes it: every codepoint is plain
-#    ASCII.  The characters came from the display path, not from the repo.  (The
-#    real chat markers in this vocab are 64018/64019 <|ifm|im_start|> /
-#    <|ifm|im_end|>; ids 0/1 are the base-model BOS/EOS.)

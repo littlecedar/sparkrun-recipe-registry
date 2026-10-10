@@ -145,6 +145,34 @@ itself and an unpushed mod is invisible.
   large_context, …) when adding a shipped recipe, and the lane's `README.md`/`AGENTS.md` when it has
   one.
 
+### Recipe comments
+
+**A recipe is a runnable artifact, not a research record.** Its comments exist for exactly one
+purpose: to explain a tunable whose value a casual `sparkrun` user could not infer — why this
+number, what breaks if it moves, or a hidden coupling the value does not show. Anything else —
+measurement histories, boot IDs, A/B receipts, retraction registers, negative results, "do not
+re-derive" lists, upstream provenance essays — belongs in the lane's `AGENTS.md`/`README.md` (or
+`NOTES.md` for working state), **not in the YAML**.
+
+Test for a comment worth keeping: *would an operator who knows sparkrun but not this model get
+this wrong?* If yes, keep it short and beside the value. If it is history or evidence, move it.
+
+```yaml
+# KEEP — not inferable from the value:
+#   mamba_full_memory_ratio: 3.51
+#   max_num_seqs: 48   # the mamba state pool silently clamps this (grep "capped to" in the
+#                     # serve log); the literal is not the granted concurrency
+#   cpu_mask: 5-9      # GB10 big.LITTLE: 5-9/15-19 are the fast cluster; do not span clusters
+
+# MOVE — evidence, not a tunable:
+#   "measured 2026-09-19, 8 boots interleaved, ratio 1.213 [1.156,1.279], pooled +22.5%..."
+#   -> lane AGENTS.md/README.md, with its receipt
+```
+
+Guards strip whole-line comments before matching, so trimming is guard-safe; they *do* assert on
+`metadata.description` prose, which must stay accurate. Archived recipes under `attic/` are frozen
+provenance — leave their comments verbatim.
+
 ### Mods
 
 - **Copy `mods/mod-template/run.sh`** — there is no shared library, because sparkrun ships only the
