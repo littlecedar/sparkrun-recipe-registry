@@ -11,54 +11,28 @@ metadata:
   model_dtype: awq4
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  # vision + embedding: multimodal (Qwen3-VL) pooling encoder; the serve line sets
-  # --limit-mm-per-prompt and --runner pooling / --convert embed.
+  # vision + embedding: multimodal Qwen3-VL pooling encoder (--runner pooling / --convert embed).
   tags: fast, lcg_favorite, vision, embedding
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"
 
-# See the 2B embedding recipe for the reasoning; identical here. A pooling engine has no
-# chat endpoint, so the chat-completion inference probe can only ever time out.
+# A pooling engine has no chat endpoint; the chat-completion probe can only time out
+# (see the 2B embedding recipe and the lane README).
 readiness:
   inference: false
 
 defaults:
   # Third slot in the single-node port plan: 8010 embed-2B, 8011 rerank-2B, 8012 embed-8B.
-  #
-  # CORRECTION (2026-09-19, measured): an earlier version of this comment asserted "two
-  # 8B-scale engines will not fit a single Spark's memory budget", making this recipe a
-  # *replacement* for the 2B encoder rather than an addition to it. That was never tested and
-  # it is false. This encoder and `Qwen/Qwen3-VL-Reranker-8B` both booted and served
-  # colocated on one GB10 trial node at the shipped 0.30/0.30 caps, using 32.80 + 32.24 =
-  # 65.03 GiB of 121.69 GiB (53%), with ~57 GiB still free, no memory error, and the
-  # reranker passing the cross-encoder symmetry check. So an 8B encoder + 8B reranker pair is
-  # a real option on one box; this recipe is not a forced either/or.
-  #
-  # What the correction does NOT change: the throughput cost of running them together. Under
-  # simultaneous load the encoder fell 22.52 -> 9.89 units/s (2.28x) and the reranker
-  # 28.76 -> 22.57 (1.27x), matching the 2B-pair penalty in QWEN3-EMBED-OPTIMIZATION-WORK.md
-  # §5 item 5. Fit is not free. Size capacity from the colocated numbers, never from solo.
   port: 8012
   host: 0.0.0.0
   tensor_parallel: 1
-  # Whole fast cluster by default, for the solo case. When colocating, drop to
-  # `-o cpu_mask=5-9` and leave the reranker on 15-19 so the two engines do not share a
-  # core. Note that the 8B+8B colocation measurement above was taken with the SHIPPED
-  # defaults (encoder 5-9,15-19, reranker 15-19), i.e. the two engines overlapped on 15-19 —
-  # that is the honest qualifier on those numbers, and it is also a second, independent
-  # confirmation that masks are not the contended resource here: sharing five cores changed
-  # nothing measurable, exactly as §5 item 5(b) found (0.7% between shared and disjoint).
+  # Whole fast cluster by default (solo). When colocating, drop to `-o cpu_mask=5-9` and
+  # leave the reranker on 15-19 so the two engines do not share a core.
   cpu_mask: 5-9,15-19
-  # Larger than the 2B's cap on purpose: this is the encoder-only tier, run without a
-  # colocated reranker on the same engine budget. Do NOT size this from
-  # `sparkrun recipe vram`'s "Model weights" line: for a 4-bit checkpoint that line falls back
-  # to param_count x dtype_bytes (0.5 B/param for awq4) and printed 3.73 GB here — the same
-  # number it prints for the 2B bf16 model — against a real 6.01 GB on disk. Verify against
-  # model.safetensors.index.json metadata.total_size instead:
-  #   curl -s https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit/raw/main/model.safetensors.index.json \
-  #     | python3 -c 'import json,sys;print(json.load(sys.stdin)["metadata"]["total_size"]/1e9)'
-  # See QWEN3-EMBED-OPTIMIZATION-WORK.md §2 F12.
+  # Encoder-only tier, so a larger cap than the 2B's: no reranker shares this budget. Do
+  # NOT size from `sparkrun recipe vram`'s "Model weights" line — it is wrong for awq4 (real
+  # 6.01 GB on disk); see the lane README.
   gpu_memory_utilization: 0.30
   max_model_len: 32768
   max_num_batched_tokens: 16384
@@ -66,21 +40,13 @@ defaults:
   dtype: bfloat16
   load_format: instanttensor
   attention_backend: b12x
-  # VERIFIED on hardware 2026-09-19 (authorized DGX Spark trial node, booting the 2B
-  # encoder; host in EMBED-JOURNAL.md, which is git-ignored): b12x aborts at
-  # cache-config time with "b12x requires --block-size in (64, 128), got 16". 128 is
-  # _B12X_PREFERRED_PAGE_SIZE in vllm/v1/attention/backends/b12x.py at the pinned commit.
+  # b12x aborts on vLLM's default block size; 128 is _B12X_PREFERRED_PAGE_SIZE in b12x.py.
   block_size: 128
-  # See the 2B embedding recipe: pins the auto-resolved conversion (pooling + embed)
-  # instead of relying on vLLM's default-detection for a checkpoint whose `architectures`
-  # is the plain generative class.
+  # Pin the pooling/embed conversion instead of relying on vLLM's default detection.
   convert: embed
-  # Cap multimodal inputs per prompt (vLLM's default is 999 images per prompt) so the
-  # profiled multimodal peak stays bounded on a shared-memory box.
-  # NOTE: no sparkrun flag-map entry for `convert`/`limit_mm_per_prompt`; they reach vLLM
-  # only through the placeholders below.
-  # Folded style is load-bearing here: a plain YAML single-quoted scalar would eat the
-  # quotes that keep the JSON together as ONE shell word once the placeholder is rendered.
+  # Cap multimodal inputs per prompt (vLLM's default is 999 images) to bound the profiled
+  # peak on a shared-memory box. Folded style + embedded quotes keep the JSON as ONE shell
+  # word; convert/limit_mm_per_prompt reach vLLM only through the placeholders below.
   limit_mm_per_prompt: >-
     '{"image": 4, "video": 1}'
 
@@ -102,29 +68,3 @@ command: >
   --load-format {load_format}
   --trust-remote-code
 
-# Corrections carried over from the 2B recipe, applied here for the same reasons:
-#   * attention_backend was `flashinfer-b12x`, which is not a member of vLLM's
-#     AttentionBackendEnum — the enum member is `B12X` (case-insensitive on the CLI), so the
-#     flag as previously written cannot resolve to a backend. Same for the 2B recipe's old
-#     `b12x_attn`. Both were wrong in the same way and are now `b12x`.
-#   * --async-scheduling removed: vLLM disables it for pooling runners itself.
-#   * taskset mask narrowed to the X925 (fast) cluster only, via {cpu_mask}.
-#
-# Open question with real teeth: this checkpoint carries a compressed-tensors
-# quantization_config (scheme W4A16_ASYM). Whether vLLM's compressed-tensors path accepts
-# that scheme *inside* a multimodal Qwen3-VL model whose vision tower is deliberately
-# excluded from quantization, and whether the pooling/classify adapters coexist with it, is
-# unverified. If this recipe fails to load, that interaction is the first hypothesis.
-#
-# RESOLVED — it loads and serves correctly. Booted on an authorized DGX Spark trial node
-# (host in EMBED-JOURNAL.md, which is git-ignored); the serve log reports
-# `Using MarlinLinearKernel for CompressedTensorsWNA16` with no error or traceback, and the
-# vectors pass the 4096-dim, distinct-inputs, and repeat-stability checks in
-# tools/pooling-bench.py. See QWEN3-EMBED-OPTIMIZATION-WORK.md F21.
-#
-# Worth knowing before you "optimize" this: 4-bit is not what makes this encoder slow. The
-# same engine in native BF16 (16 GB of weights, no quantization anywhere) prefills within
-# 1.2% of this one at its own best concurrency, while consuming 108% more memory and leaving
-# 41% less KV at an identical `gpu_memory_utilization`. The encoder is prefill-bound at
-# roughly 3,900 tokens/s on a GB10 regardless of format or batching. Keep this recipe at
-# 4-bit: it is free, and the memory it saves is the batch headroom.

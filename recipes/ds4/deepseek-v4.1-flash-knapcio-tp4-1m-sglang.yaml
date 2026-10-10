@@ -19,9 +19,6 @@ metadata:
   model_dtype: mxfp4
   model_mtp_dtype: mxfp4
   kv_dtype: fp8
-  # vision: the official checkpoint is multimodal (DeepSeek-ViT encoder, image_token_id 129264)
-  # and the image's boot.py smoke test exercises native image input on every boot (SKIP_SMOKE
-  # defaults 0). Verified on our fleet: "full-budget native vision passed" in the boot logs.
   tags: official, large-context, vision
 
 mods:

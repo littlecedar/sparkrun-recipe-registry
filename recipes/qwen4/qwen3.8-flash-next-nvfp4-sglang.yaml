@@ -1,6 +1,5 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-Flash-Next-NVFP4
-#revision: <unknown>
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 2
@@ -76,7 +75,3 @@ command: >
   --no-ple-offload-embedding
   {extra_args}
 
-# Proposed Changes:
-#  --enable-int8-mamba-checkpoint
-#  --int8-mamba-ckpt-size <size?>
-#  --revision {revision}

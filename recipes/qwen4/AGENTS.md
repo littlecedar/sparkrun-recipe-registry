@@ -291,6 +291,146 @@ find mods tools -name __pycache__ -type d -exec rm -rf {} +
 Use plain `validate` as the gate, **not** `--strict` (accepted warnings exist on shipped recipes).
 A `recipe validate` **suggestion** may be pre-existing — compare against a sibling before "fixing".
 
+## 10. Recipe-comment evidence (moved out of the shipped YAMLs, 2026-10-10)
+
+Root `AGENTS.md` § "Recipe comments": a shipped recipe's comments explain a tunable only — the
+measurement histories, boot ids, A/B receipts, retraction registers and negative results live here.
+Every fact below was a comment in one of the six shipped `recipes/qwen4/*.yaml`; the recipe now keeps
+at most a short coupling beside the value. `§N` refers to
+`attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md`.
+
+### 10.1 `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` (balanced base)
+
+- **Pin.** Pinned 2026-09-18 to the snapshot verified present in the node's local HF cache. The
+  key-name trap (`model_revision:`, not `revision:`) is at §1 fact 1 in full.
+- **Quantisation shape (`model_mtp_dtype: fp8`).** VERIFIED against safetensors headers on the
+  `ada4da32` snapshot: the MTP draft head is quantised (1.60 GB) where RadixArk leaves it BF16
+  (5.21 GB), and `self_attn.*`/`linear_attn.*` are MXFP8 where RadixArk leaves those BF16 — ~4.25 GB
+  of weights touched per decode token vs ~7.1 GB for RadixArk.
+- **`fix-labquant-modelopt-mixed-flat-schema`.** Without it the server dies in model load with
+  `KeyError: 'quantization'` at `srt/model_loader/weight_utils.py:410`.
+- **`unpack-labquant-ple-nvfp4-to-fp8`.** Without it: `RuntimeError: The size of tensor a (160) must
+  match the size of tensor b (80)` in `copy_ple_rows_to_tp_embedding`. Cold cost 51.2 GB / ~50 s per
+  node. (The ORDER / `--no-ple-offload-embedding` couplings stay in the recipe.)
+- **`diag-qwen4-unplaced-scales`.** DIAGNOSTIC ONLY: logs in front of the assert at
+  `qwen4_exp.py:2136` which `_scale` was unplaceable; does not change control flow (the assert still
+  fires). No-op once every `_scale` finds a destination; see its `README.md`.
+- **`demote-labquant-narrow-mxfp8-to-bf16`.** Without it the load dies
+  `ValueError: MXFP8 requires n >= 128 and k >= 128 for CUTLASS MXFP8 … got m=8, n=96, k=2560`. It
+  demotes the 72 `in_proj_a`/`in_proj_b` tensors (36 `linear_attn` layers, 48 rows/rank fused to
+  n=96) to BF16 and drops their scales; `ignore` alone is not enough (`param.data.copy_()` casts
+  silently → a server that serves and is numerically wrong). MXFP8→BF16 decode is bit-exact (asserted
+  per tensor). Cost +0.14 MB/node, ~6 s. RadixArk ships these two projections BF16.
+- **`skip-labquant-vision-tower`.** This export quantises the vision tower — 110 F8_E4M3 layers + 110
+  U8 MXFP8 block scales — while SGLang builds it with `quant_config=None` (`qwen3_vl.py:1251`), so the
+  scales have no destination and the load aborts (`qwen3_vl.py:1243`, `qwen4_exp.py:2004`). No name
+  remap helps. Consequence: TEXT ONLY — a real capability difference vs RadixArk, must be stated in
+  any comparison.
+- **fastsafetensors mods deliberately absent.** `load_format=safetensors`, so they accomplish nothing
+  and — worse — exec as root and leave a root-owned
+  `.cache/flashinfer/<ver>/<arch>/flashinfer_jit.log` in the persisted per-model runtime cache, which
+  makes the FIRST launch of a new model key die as uid 1000 with `PermissionError` (sticky; uid 1000
+  cannot unlink it). Mechanism + `reown` fix: `mods/fix-fastsafetensors-tp2-sglang/run.sh`; re-add
+  them only with `load_format=fastsafetensors`.
+- **`served_model_dir`.** Bypassing the mod (`--skip-run` against a container that never ran it) means
+  `/cache/runtime/labq-patched` does not exist.
+- **Dead-end candidates (do not re-litigate).** `--language-model-only` raises `ValueError` at startup
+  (the `LANGUAGE_MODEL_ONLY_ARCHITECTURES` allowlist excludes this model) and would be a confound
+  (labquant needs it, RadixArk does not); `mods/…skip-visual` rejected on the same confound grounds.
+- **`--moe-runner-backend flashinfer_cutlass`.** With `auto`, the NVFP4 MoE resolves to
+  `MoeRunnerBackend.FLASHINFER_TRTLLM` and the server dies ~13 min in, during draft-model warmup, at
+  `modelopt_quant.py:2912` — `Unsupported moe_runner_backend for NVFP4 MoE:
+  MoeRunnerBackend.FLASHINFER_TRTLLM`. VERIFIED 2026-09-18 on the assigned pair (job
+  `11b2c8b941e89cb9`). Settles §6 item 2; explicit `flashinfer_trtllm` is dead on SM121 (no runnable
+  cubins).
+- **`--cuda-graph-backend-prefill disabled`.** Booted 2026-09-20 with this file's defaults only: the
+  server dies in prefill CUDA-graph capture — `qsa/metadata.py:141
+  RuntimeError("PREFILL_CUDA_GRAPH_CAPTURE_FAILED")`, cause `Cannot copy between CPU and CUDA tensors
+  during CUDA graph capture unless the CPU tensor is pinned` (`torch/cuda/graphs.py:54` →
+  `eager_triton.cu:641`). Not flaky, not a mis-scaled checkpoint: a non-pinned host→device copy sits
+  inside the traced Triton path.
+- **Unresolved cost of that flag.** The "costs nothing measurable" claim was measured only at bs=1;
+  bs=8 decode is +119% aggregate over bs=1, so the flag's price at bs>1 is UNMEASURED, not zero.
+  Measuring it needs a variant recipe with the flag REMOVED from `defaults` (an override cannot
+  produce a flag-absent arm).
+- **Proposed changes (not adopted).** `--enable-int8-mamba-checkpoint`,
+  `--int8-mamba-ckpt-size <size?>` and `--revision {revision}` were sketched in the recipe tail; none
+  adopted or measured.
+
+### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A)
+
+- Key-name trap: §1 fact 1. The Lane-A header's measured shape, deltas and memory cost are in
+  `README.md` ("Lane A") and §1; the specifics not repeated there:
+  - Pool formula `run ≤ min(max_num_seqs, max_mamba_cache_size // slots_per_request)` with
+    `slots_per_request = 4` on the lazy strategy (`kv_cache_configurator.py:1872/1932`, §19v):
+    pool 112 → ceiling 28, pool 128 → ceiling 32.
+  - Aggregate decode peaks at bs≈16: RadixArk **86.86** / labquant **91.38** tok/s at k=16; both
+    collapse to **~54–56** by k=24 (smooth decline, not a cliff, §19d). Batching alone buys **+119%**
+    aggregate over bs=1 (§3c).
+  - Pool 112 → 128: **88.35/87.78 vs 78.02** tok/s at k=24 across four same-recipe boots
+    (within-pool-128 spread 0.6%), at a k where the formula says the pool cannot bind — **mechanism
+    UNESTABLISHED** (§19x Result 4); at k=32 it moves the other way (−0.8%). Cost ~+53 MB/slot × 16
+    ≈ +850 MB/rank (§19u).
+  - `max_num_seqs` 24 → 32 = +0.42 GB intermediate SSM scratch for −4.55% KV (§19z). A
+    pool-112/cap-32 boot has died in `alloc_memory_pool` — host `pmproxy` leak, not a config error
+    (see §7).
+  - VERIFIED 2026-10-04: this recipe's rendered argv
+    (`--max-running-requests 32 --max-mamba-cache-size 128`, cps 4096) booted healthy on the free
+    pair; on an `alloc_memory_pool` failure fall back to the balanced base (pool 112 / cap 24).
+  - `chunked_prefill_size` 4096 is KEPT for this lane: on labquant 8192 regresses k=8 by 6.2% and
+    k=16 by 5.5% in aggregate (both at/below the serving point) while gaining +23.6% only at k=24
+    (§6 PRIORITY-1, §19c); the 8192 win was measured on RadixArk and does not transfer. This is the
+    throughput lane, not the low-latency one — at the aggregate peak per-request decode is a fraction
+    of the single-stream rate.
+
+### 10.3 `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B)
+
+- Key-name trap: §1 fact 1. The 1M caveat and the fp8-KV note are in `README.md` ("Lane B") and §1.
+- **Memory math (VERIFIED, §15).** The pool holds 1,874,816 tokens at the 262k allocation, i.e.
+  ~12,396 bytes/token/rank, reproducing from first principles at 12 full-attention layers × 1 KV
+  head/rank × head_dim 256 × 2 bytes × 2 (K,V) = 12,288 B/token. So 1,048,576 tokens = ~13.0 GB/rank,
+  well inside the ~23 GB pool. `config.json` declares `text_config.max_position_embeddings = 262144`
+  with NO `factor` and NO `original_max_position_embeddings` — positions beyond 262144 are an
+  extrapolation, not a trained capability; `partial_rotary_factor: 0.25` makes a quiet YaRN failure
+  more likely.
+- **The 1M route.** `max_model_len: 262144 → 1000000` raises the request ceiling; `extra_args` adds
+  the YaRN override; `max_num_seqs` / `max_mamba_cache_size` / `chunked_prefill_size` stay
+  24 / 112 / 4096 — a single 1M sequence occupies ~12.4 GB/rank of the pool, so the lane trades
+  concurrency for depth (§15 "the real cost, not feasibility"). The VERIFIED-GOOD serving point is
+  `max_model_len: 262144` (run `-o max_model_len=262144` and drop the YaRN argument); do not serve 1M
+  to users until a needle-in-haystack gate at 512k / 768k / 1M PASSES (§15 step 3, the W9 prerequisite).
+- **`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`.** With the gate off the server never reaches model
+  load. The pinned image RAISES rather than warns: VERIFIED 2026-10-04 (boot
+  `11b2c8b941e89cb9_3510a5e0d37d`) `ValueError: … context_length (1000000) is greater than the derived
+  context_length (262144) … set the env var SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`
+  (`model_config.py:860 _derive_context_length`). This corrects §15, which said the build "accepts the
+  request with only a warning".
+- **YaRN override nesting.** VERIFIED 2026-10-04 in the pinned container (`get_config`,
+  `utils/hf_transformers/config.py:282`): a FLAT `{"text_config": {"rope_type": "yarn", …}}` leaves
+  the real dict at `rope_type: default` (the YaRN silently does not apply); nesting under
+  `text_config.rope_parameters` gives `rope_type: yarn`. Always grep the serve log for a non-default
+  `rope_type` before trusting a long-context number. `factor` 3.815 = 1_000_000/262144.
+
+### 10.4 `qwen3.8-flash-next-nvfp4-sglang.yaml` (RadixArk reference)
+
+- The commented-out `#revision: <unknown>` is covered by §1 fact 1 (the pin key is `model_revision:`;
+  this recipe ships no pin).
+- Proposed changes (not adopted): `--enable-int8-mamba-checkpoint`,
+  `--int8-mamba-ckpt-size <size?>`, `--revision {revision}`.
+
+### 10.5 `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` (solo TP=1, SGLang)
+
+- Image provenance: the container digest is the SAME one the four TP=2 qwen4 recipes pin and
+  (VERIFIED against the Docker Hub tag API, 2026-10-10) the same bytes as
+  `lmsysorg/sglang:dev-qwen38-next-local` — the image the cookbook's single-Spark cells were verified
+  on. Its `sglang` is `0.0.0.dev1+g4ccff141d`, carrying #37068 (file-backed PLE), #38121 (ModelOpt
+  MIXED_PRECISION loader) and the SM121 QSA/router fixes; no patched image needed.
+
+### 10.6 `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` (solo TP=1, vLLM)
+
+- No comment in this recipe is evidence-only: all nine lines explain a coupling (the floating
+  container tag, MTP k=4 + the GDN pool cap, the `VLLM_PLE_TABLE_MEMORY` knob) and were kept.
+
 ---
 
 *This file is the condensed, maintained guide for the lane. If a fact here disagrees with a `§N`

@@ -1,7 +1,6 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-27B-NVFP4
 runtime: sglang
-#container: lmsysorg/sglang:dev-qwen38-27b-dflash2
 container: lmsysorg/sglang:dev-cu13
 cluster_only: false
 
@@ -11,13 +10,6 @@ metadata:
   model_params: "27B"
   model_dtype: nvfp4
   model_draft_dtype: bf16
-  # VERIFIED from the server's own allocation line, not inferred from the --help text:
-  #   KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 117125,
-  #                                        K size: 1.79 GB, V size: 1.79 GB
-  # (measured 2026-09-19 on a DFLASH boot of THIS recipe, WORK.md 12.8; the fp8_e4m3 dtype
-  # has been re-confirmed on six more boots since. An earlier revision of this comment quoted
-  # "#tokens: 268343, K 4.09 GB" -- that line is real but it came from the NO-SPEC control,
-  # which buys tokens ~1.8x more cheaply. Do not quote a #tokens line across configs.)
   # sglang's --help says "auto will use model data type", which would suggest bf16, but
   # for this checkpoint auto resolves to fp8_e4m3 because mem_cache/kv_cache_dtype.py
   # checks the parsed quant config's kv_cache_quant_algo first and this hf_quant_config
@@ -39,40 +31,6 @@ defaults:
   max_model_len: 262144
   # NOT the granted concurrency. MEASURED on hardware 2026-09-19 (WORK.md 12.8): the mamba
   # state pool silently lowers this value (mem_cache/kv_cache_configurator.py:2177-2193)
-  # and the shipping config boots BELOW it. GRANT VALUES ACTUALLY OBSERVED for this config
-  # (D=8, ratio 3.51, bf16 state), counted over every archived boot log: 26 distinct boots
-  # logged "capped to 21" (K=85/86) and exactly ONE logged "capped to 20" (K=82 -- phase 9's
-  # first --fresh boot, bottom-up T=24.31 GiB, just under the ~24.50 GiB boundary where
-  # floor() drops a slot). So **21 is the value to quote** and 20 is the one-observation
-  # low-T outlier. An earlier revision of this file asserted "capped to 20" as if it were
-  # THE measured value, which is why WORK.md's headline and this comment disagreed; both
-  # numbers are honest observations, but only one is typical. Count method matters and is
-  # stated so it can be reproduced: boots are identified by their `avail mem` trajectory,
-  # not by log-file name (one boot is copied into many files, and deduping on (cap,K)
-  # instead collapses genuinely distinct boots -- that mistake undercounted 26 as 3).
-  # The grant moves by ONE slot with T, and T is node state, so always read it per boot:
-  # grep -F 'capped to' in the serve log.
-  # Effective ceiling is therefore ~21, not 48. It CANNOT reach 48 while
-  # speculative_draft_tokens=8, at any mamba_full_memory_ratio, so do NOT "fix" this by
-  # raising that ratio: the binding term is the D-proportional verify scratch
-  # (p*(K+1)*(1+D/R) + p*(capped+1)*D), and lifting the ratio to fund 192 slots starves the
-  # KV pool instead (WORK.md 12.3, 12.8: at D=8 the r->inf ceiling is 26). Raising the ratio
-  # 3.51 -> 12 buys ~3 more slots and costs ~60% of the token pool.
-  # The "cannot reach 48" part is NODE state, not recipe state: it holds while the leftover
-  # pool T < 42.74 GiB (bottom-up T on this hardware measured 24.3-25.3 GiB; T is computed
-  # bottom-up from a boot's own 'avail mem' lines -- see WORK.md 12.2bis, and do NOT invert
-  # another config's #tokens line, which is what got this wrong once). A less-loaded node
-  # can legitimately clear the bound. Read the grant rather than trusting either number:
-  # grep -F 'capped to' in a server log -- that
-  # warning's first field IS the granted max_running_requests
-  # (mem_cache/kv_cache_configurator.py:2183-2192). Do not reach for the
-  # '[unified-memory-pool]' line that also prints max_num_reqs: it cannot appear here, because
-  # it is gated on --enable-unified-memory, which defaults off and whose own help excludes
-  # speculative decoding (mem_cache/unified_memory_pool.py:1379-1387, server_args.py:888-896).
-  # If the grep shows max_num_reqs=48, this
-  # comment is wrong and WORK.md 12.3 is refuted -- say so there rather than editing here.
-  # Deliberately left at 48: it is harmless (the clamp is silent, not an error) and changing
-  # it would hide the very discrepancy that needs measuring.
   max_num_seqs: 48
   # How the leftover pool splits between GDN state and the token pool. THIS IS THE
   # HIGH-LEVERAGE KNOB on this recipe, and it is context-length dependent.
@@ -80,61 +38,10 @@ defaults:
   # NOT #tokens // context_length: raising the ratio buys slots by spending tokens and
   # lowering it does the reverse, so the optimum is an interior point that MOVES with
   # context length (modelled at D=8, T~25 GiB: ~3.6 at 4k, ~2.3 at 8k, ~1.2 at 16k).
-  # MEASURED at depth 8192 on GB10, replicated 8 boots same-node interleaved
-  # (WORK.md 12.9 first measurement, 12.10 the replication):
-  #   3.51 -> 21 slots, 118k tokens  = 14 usable 8k contexts (pool-bound at 0.96
-  #          usage, ~7 slots idle)
-  #   2.3  -> 19 slots, 155k tokens  = 18 usable 8k contexts
-  #   effect at c=16: usable 8k concurrency 14 -> 18, aggregate decode ratio 1.386,
-  #   TTFT ratio 0.633 (1.58x lower). NOTE how to state this honestly: prefill rose by
-  #   the SAME ratio (1.387) and per-request decode rose only 1.077, so the aggregate
-  #   gain is mostly a shorter benchmark window (less queueing) -- the same physical
-  #   effect as the TTFT win, NOT a second independent win. Do not quote "+36% decode
-  #   AND 1.58x TTFT" as a combined benefit; it double-counts. The claim is: more
-  #   concurrent long contexts fit, and they wait less. Decode speed per stream is
-  #   essentially unchanged, as expected for a weights-bound model (WORK.md 1).
-  #   c=8 null holds at 1.008 [0.94,1.04] -- neither config is capacity-limited there,
-  #   which is what rules out "faster node" as the explanation.
-  # So 3.51 is near-optimal for ~4k traffic and forfeits 22% of grantable 8k concurrency
-  # (14 of 18 usable contexts; equivalently 2.3 is a +29% uplift).
   # DELIBERATELY STILL 3.51: flipping it is a claim about expected traffic shape, not a
   # free win (2.3 gives up capacity headroom near 4k), and this recipe has no stated
   # target traffic mix -- see WORK.md section 6 item B. The evidence is no longer the
   # blocker; ask before changing it.
-  # The optimum MOVES with context length, so there is no single "long-context" value:
-  # modelled at D=8 and this node's T~24-25 GiB it is ~3.6 at 4k, ~2.3 at 8k, ~1.2 at 16k,
-  # and it keeps falling as context grows. Do NOT lower this below ~1.5 for 8k traffic --
-  # past the crossing point the slots collapse (cap = K//4 at D=8) and you end up WORSE
-   # than 3.51. At 16k the crossing moves to ~1.2, and 0.9 is still dominated (12 usable
-   # contexts -- cap-bound, from the phase-9 r=0.9 boot at cap 12 / 274,628 tokens -- against
-   # 14 *usable* at r=1.2), so "just lower it for long context" is wrong
-   # in BOTH directions: the optimum is interior, and its location depends on L.
-   # CEILING vs OBSERVED -- read this before quoting any 16k number. "14 usable" is
-   # min(cap, #tokens//depth) = min(14, 238712//16384 = 14), a DERIVED CEILING. What was
-   # OBSERVED differs in both arms and neither is 14: phase 26 offered c=12 and peaked at
-   # 12/12, i.e. truncated by the experiment rather than by capacity (its own analyzer flags
-   # this), and phase 76 offered c=16 on one node with ABBA order and peaked at 13 against
-   # the ceiling of 14. Quote **13 observed / 14 ceiling**, never "14 measured". A 14.5%
-   # claim built on the ceiling is not a measurement (DEPTH-COST 12.51).
-   # AT 16k THIS IS NOW BOOTED, not merely modelled -- phase 26 ran the r=1.2 arm at depth
-   # 16384 and measured capped 14, #tokens 238,712 = 14 usable 16k contexts against 7 shipped,
-   # with 1.558x aggregate decode at c=12 and TTFT 50.5s -> 29.2s (WORK.md 12.15). At 8k the
-  # equivalent claim was measured too (18 usable at r=2.3 vs 14). Only the ~3.6-at-4k figure
-  # is still model-only. An earlier revision of this comment said "modelled, not booted, at
-  # 16k -- the r=1.2 arm is running now", which had already been overtaken by the run.
-  # MEASURED AT THE BENCHMARK'S OWN SHAPE (phase 65, two nodes, mirrored arm order,
-  # .scratch/p65[ab]-0922): with depth 8192 + pp 2048, so L = 10,240, the shipped 3.51
-  # sustains #running-req = 11 (pool 118,002 // 10,240 = 11.5 -> 11, and full token usage
-  # pegged at 0.99 with ZERO retractions) while r = 1.2 sustains 13 (pool 239,298, usage
-  # only 0.57, so it is grant-bound not pool-bound). Aggregate decode rose just +7.4 %
-  # (1.074 on .34, 1.075 on .35 -- replicated to 0.001) against +18 % streams: capacity
-  # improves and throughput gain is SUB-LINEAR because the extra streams contend. Do not
-  # quote that as "the ratio is worth 7 %": it is a capacity gain of ~2 concurrent 8k
-  # streams whose throughput conversion is small and below the +8 % bar set before the run.
-  # The theory error to avoid, which an earlier revision of this file made: usable
-  # concurrency is min(granted slots, #tokens // L), NOT #tokens // L. Cutting the ratio
-  # buys tokens by SPENDING slots, and at D=8 slots fall fast. WORK.md 6 item A records
-  # queuing exactly that arm (ratio 0.9) and it being dominated by shipping.
   mamba_full_memory_ratio: 3.51
   # CHECKPOINT-DERIVED and load-bearing -- do not "restore float32 for numerical
   # safety" without reading WORK.md sections 12.11 and 12.12. The checkpoint declares
@@ -144,38 +51,6 @@ defaults:
   # conv_state 0.12 GB). So bfloat16 DOUBLES the granted concurrency (21 vs 10 slots)
   # -- reverting it "to be safe" surrenders 11 of 21 concurrent requests on evidence
   # nobody has produced.
-  # WHAT IS MEASURED (WORK.md 12.12, 2026-09-20): bf16 vs fp32 is BIT-IDENTICAL on the
-  # path that READS the recurrent state, not merely on prefill. TWO measurements, which
-  # cover different weaknesses and are both needed:
-  #   phase 23 -- FULL prefix reuse (cached_tokens == prefix tokens, so the prefix is
-  #     entirely skipped and only the stored state can carry it): 6/6 rep-pairs
-  #     bit-identical, worst |dlogprob| = 0.000e+00, 0 token-id mismatches, 491 distinct
-  #     logprob values per arm (so agreement is not a constant array), identical absorb
-  #     counts in both arms (4/3/4/4) so neither recomputed more prefix than the other.
-  #     Closes phase 22's dilution objection (see below).
-  #   phase 22 -- same-node three-arm pair (aged-bf16 / fresh-fp32 / fresh-bf16):
-  #     495/495 identical, AND it is the run that establishes SENSITIVITY -- its own
-  #     same-node NULL (same config, different boot age) moved logits up to 4.27 nats on
-  #     175/495 tokens. Without that null the zero would be uninterpretable.
-  # Phase 22 alone would have been the weaker claim on the other axis: its reuse was only
-  # PARTIAL (prefixes 118-187 tokens, cached 64/128), so 40-123 prefix tokens were
-  # recomputed per request -- recomputation runs at the kernel's internal precision
-  # regardless of stored dtype, which DILUTES any real stored-precision effect.
-  # Crucially the allocation really did change in every comparison: ssm bytes per slot went
-  # 72.04 -> 144.07 MiB (exactly 2.00x), so this is not a no-op comparison.
-  # WHY THAT ZERO IS BELIEVABLE WHEN phase 16's was not: phase 16 measured PREFILL, and
-  # gdn_backend.py:721 sets has_initial_states = extend_prefix_lens > 0, so prefill only
-  # WRITES the state buffer and never reads it -- that instrument was structurally blind
-  # to the bytes under test. Phase 22 is backed by a positive control that cost no boot
-  # (.scratch/qwen3-27b/full_reuse_control.py): with the prefix FULLY cached
-  # (cached_tokens == prefix tokens, nothing recomputed) versus cold, the same scored
-  # logits differ by 1.0-5.1 nats. So the read path is live and sensitive at the 1-nat
-  # level, and it still reported zero for a 2x change in stored precision.
-  # WHAT THE ZERO STILL DOES NOT LICENSE: "bf16 is safe" full stop. Untested: state
-  # accumulated over long distances (the control used 64-128 token prefixes), free-running
-  # generation (everything here is teacher-forced), and any downstream quality metric --
-  # see WORK.md section 6 item C. "Undetectable by an instrument with 1-nat sensitivity
-  # on a 128-token prefix" is the accurate claim.
   mamba_ssm_dtype: bfloat16
   # Reuse behaviour of this strategy is non-obvious and cost a wasted session:
   # under extra_buffer_lazy, cached_tokens GROWS with the number of times the server has
@@ -207,48 +82,11 @@ defaults:
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   speculative_algorithm: DFLASH
-  # incoai and z-lab are the SAME weights: both HF caches resolve model.safetensors to
-  # blob 67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c, 3,848,817,896
-  # bytes, verified with stat on the blobs the snapshots point at (2026-09-18, .32). Only
-  # the revision pointers differ. So a draft-provider A/B cannot measure anything, and
-  # switching provider is a cosmetic change. Do not spend an arm on it.
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
   # 8, not 4. The draft checkpoint declares dflash_config.block_size = 8, and
   # arg_groups/speculative_hook.py only infers that value when
   # speculative_num_draft_tokens is LEFT UNSET; passing any number wins silently, with
   # no warning, so this recipe was running the draft at half its trained block size.
-   # Measured on a GB10 node (host identity omitted: AGENTS.md forbids internal IPs in
-   # tracked files), decode-triage profile (d=0, c=1), n=5 per arm against 3
-   # byte-identical controls at 4:
-   #     block 4  ->  26.16 tok/s mean (control pool, spread 21.2-30.2)
-   #     block 6  ->  29.80 tok/s      ratio 1.139  95% CI [1.078, 1.210]
-   #     block 8  ->  33.76 tok/s      ratio 1.290  95% CI [1.180, 1.401]
-   # NOTE: those arms ran in a DIFFERENT PHASE from their controls, which is exactly the
-   # design flaw WORK.md 3 documents on this recipe. Re-measured same-node INTERLEAVED
-   # (b4 b8 b4 b8 per node, mirrored across two nodes, --fresh per boot, 8 boots, all 8
-   # passing a gate that checks the draft-token count the SERVER LOGGED):
-   #     block 8 / block 4 = 1.213, boot-level 95% CI [1.156, 1.279]
-   # So the change is CONFIRMED but the honest magnitude is well below +29%. UPDATE (2026-09-23):
-   # the +21% below is SUPERSEDED, not wrong -- it predates two further same-node phases. Recompute
-   # this phase from its own driver logs and you get 1.2218 (ratio of arm means), 1.2226 (mean of
-   # per-occurrence pair ratios), 1.2471 (ratio of arm medians); the 1.213 below is within 1% of the
-   # first two, so read it as a slightly different estimator rather than an error. The POOLED figure
-   # across three same-node interleaved phases (24 boots) is **+22.5%**, boot-level CI [1.188,
-   # 1.262], and WORK.md TL;DR item 4 is authoritative. Quote +22.5%.
-   # The paired design is the one to quote because removing phase drift shrinks the estimate.
-   # Per-node pair ratios differed by ~10%, as claimed: recomputed per node they are 1.274 and 1.171
-   # (n=2 per arm per node, so the ~10% spread is the finding and +/-3% of it is n=2 wobble). On this
-   # recipe a non-paired design is dominated by which node ran which arm.
-   # ESTIMATOR WARNING, learned by recomputing the above: ratio-of-MEANS gives 1.222,
-   # ratio-of-MEDIANS gives 1.247 -- a 2% spread, which is the size of effect several claims here
-   # turn on. Quote a ratio with its estimator or it is ambiguous.
-   # Acceptance measured directly against the same server (see .scratch/.../probe_accept.py):
-   #     A_eff 3.99, acceptance rate 0.429 over 1792 tokens / 449 verify steps.
-   #     CAUTION: a SINGLE-PROBE value on one server. The only estimate pooling across boots is
-   #     3.265 (1,481 serve-log accept-len lines). The two are unreconciled -- a corpus effect of
-   #     the size WORK.md section 3 measured (+28% synthetic vs natural) could account for the whole
-   #     gap. Do not use 3.99 for capacity/headroom arithmetic; see WORK.md section 10, which also
-   #     explains why "satisfies the identity to 0.5%" validated nothing.
   # Do not raise this past 8: 8 is what the draft was trained for, and DFLASH's
   # block_size mismatch guard only fires when both flags are set explicitly.
   speculative_draft_tokens: 8
@@ -281,7 +119,3 @@ command: >
   --kv-cache-dtype {kv_cache_dtype}
   {extra_args}
 
-# metadata.kv_dtype below describes the *shipping* configuration.  It was
-# recorded as fp8_e4m3 while --kv-cache-dtype was commented out, i.e. while the
-# server actually resolved 'auto'; that mismatch is why the flag is now wired
-# through with an explicit default instead of living in a trailing comment.
