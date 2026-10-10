@@ -41,8 +41,7 @@ prefers `<model_dir>/engram/` — `model: <this repo>` is then all a recipe need
   byte-exact vs shards 47/48 (same check the mod's builder passes).
 - EXL3: 39/39 shards, 196.14 GiB, index + quantization_config present.
 - `sparkrun recipe validate` passes (1 pre-existing `exl3` dtype suggestion,
-  identical to the sibling lane), full guard suite green. The pre-existing `COOP.md`
-  failure was cleared 2026-10-07 (`recipes/ifm/COOP.md` reconstructed).
+  identical to the sibling lane), full guard suite green.
 
 ### Boot-verified (2026-10-07, `.34`/`.35`) — cold boot from the combined repo
 
@@ -126,6 +125,5 @@ wired into the TensorFold TP=2 recipe. Trials on `.34`/`.35` only.
 ### Open / notes
 - `manateelazycat/DeepSeek-V4.1-Flash-TensorFold-Engram` exists on HF (203 GB, `source/`
   subdir) but is unvetted third-party — documented, not shipped as a dependency.
-- Unrelated pre-existing: `tests/test_ifm_recipes.py::…COOP.md` — cleared 2026-10-07
-  (`recipes/ifm/COOP.md` reconstructed; the rest of that lane is still another agent's
-  untracked WIP).
+- Unrelated: the `tests/test_ifm_recipes.py` COOP.md check was dropped 2026-10-10, when
+  coordination ledgers were removed from git (`**/COOP.md` is now git-ignored).

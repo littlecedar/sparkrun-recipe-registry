@@ -109,7 +109,8 @@ records its measured numbers and why it did not win.
   was a *session* handoff, explicitly **not** lane documentation, and its plan has
   closed: the instrument repair, the accuracy re-measure, the arm sweep and the UNO
   promotion all landed, and its durable content lives in `recipes/ifm/NOTES.md` and
-  `recipes/ifm/COOP.md`. Per its own header it has been removed from the tree
+  `AGENTS.md` (the lane's `COOP.md` ledger was a git-ignored working file, removed
+  from git 2026-10-10). Per its own header it has been removed from the tree
   (kept only in the author's git-ignored `.local/`), so this manifest no longer
   points at an absent file.
 

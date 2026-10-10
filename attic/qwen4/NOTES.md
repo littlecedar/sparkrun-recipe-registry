@@ -3,8 +3,9 @@
 **Purpose.** A one-page, kept-current state-of-play for `../../recipes/qwen4`. This is the *working* note
 — short, revised often, never a second research record. Durable guidance is in
 [`AGENTS.md`](AGENTS.md); the public-facing summary is [`README.md`](README.md); the lane's archive
-(coordination ledger, evidence, journal) is [`../../attic/qwen4/`](../../attic/qwen4/)
-(`COOP.md`, `QWEN4-MODEL-OPTIMIZATION-WORK.md` `§N`, `JOURNAL.md`, `status/`, `arms/`).
+(evidence, journal) is [`../../attic/qwen4/`](../../attic/qwen4/)
+(`QWEN4-MODEL-OPTIMIZATION-WORK.md` `§N`, `JOURNAL.md`, `status/`, `arms/`; the `COOP.md`
+ledger is a git-ignored working file, removed from git 2026-10-10).
 **If it is long, it is in the wrong file.**
 
 _Last condensed: 2026-10-04 (session 3 — lane harvest)._
@@ -56,8 +57,8 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 ## What a new session should do first
 
 1. Read `../../AGENTS.md` end-to-end (it is short on purpose), then `README.md` for the lanes.
-2. Open `COOP.md`, set the **Live state** node assignment from the tasking, and claim a
-   workstream (the ledger is archived, so record the live assignment node-side).
+2. Set the **Live state** node assignment from the tasking and claim a
+   workstream (the git-ignored ledger is working scratch; record the live assignment node-side).
 3. Left: W3/W4 (re-run the quality battery on one frozen set; the #37111 release soak), W6 (TP=4, fix
    the recipe first), W7 (kernel timing in a **dedicated** container), W12 (vLLM). Off-cluster: W10.
 4. **Quality gates outrank throughput knobs** — Lane B's 1M route is unverified above ~262k; do not put
@@ -85,7 +86,7 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 - **Lane B quality (NEW):** the 1M route boots but **no needle/quality gate has run**. This is the
   prerequisite before serving 1M and is the most important open item for Lane B.
 
-## Do-not-re-derive (the short list; full list in `COOP.md`)
+## Do-not-re-derive (the short list)
 
 - `--max-prefill-tokens` = null on both checkpoints. `chunked_prefill_size 8192` = not adopted on labquant.
 - **fp8 KV = config-level NO** (SM121 QSA needs BF16 queries). Do not re-open as a throughput lever.
@@ -105,5 +106,4 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
   `MIN_AVAIL_GB`; scoped teardown only.
 - Keep `../../recipes/qwen4` to shipped + contributor + live arms; dead arms go to `attic/qwen4/arms/` with
   a manifest row ([`attic/qwen4/ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md)).
-- Internal IPs/hostnames do not go in tracked files. The live node assignment stays node-side (and
-  in the archived, redacted `COOP.md` only as node roles).
+- Internal IPs/hostnames do not go in tracked files. The live node assignment stays node-side.

@@ -130,7 +130,7 @@ both the knapcio TP=4 and TensorFold TP=2 lanes); the retired vLLM/EXL3 lane is 
 The IFM K2-Horizon lanes are documented in [`ifm/README.md`](ifm/README.md) (recipe
 summary) and [`ifm/AGENTS.md`](ifm/AGENTS.md) (constraints, falsified claims, guards,
 and the validation ritual for the `0.9B` / `7B-FP8` set); the
-research record, journals, and `COOP.md` are beside them.
+research record and journals are git-ignored working files beside them.
 
 The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
 caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.

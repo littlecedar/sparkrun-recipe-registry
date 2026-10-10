@@ -7,8 +7,8 @@ Stdlib-only, and deliberately parses recipe TEXT with regex rather than
 importing PyYAML, so the guards survive a sparkrun upgrade and run anywhere
 (AGENTS.md: scripts must run on any lab machine).
 
-Why these exist (sources: recipes/ifm/K2-09B-MODEL-OPTIMIZATION-WORK.md and
-recipes/ifm/COOP.md; every invariant below was VERIFIED against sglang v0.5.20
+Why these exist (sources: recipes/ifm/K2-09B-MODEL-OPTIMIZATION-WORK.md and the
+family's coordination ledger, now a git-ignored working file; every invariant below was VERIFIED against sglang v0.5.20
 source at a named file:line):
 
   I1  never `--attention-backend fa3` ............ layers/attention/
@@ -152,12 +152,13 @@ class FilesExist(unittest.TestCase):
         for p in ALL:
             self.assertTrue(p.exists(), f"missing recipe {p}")
 
-    def test_coordination_and_docs_present(self):
-        # COOP.md is tracked (the registry ships it). The two research docs are
-        # git-ignored by design (root AGENTS.md: they hold internal node state),
-        # so on a fresh clone they are absent by construction -- skip rather than
-        # fail there, but still require them when they are present.
-        self.assertTrue((RECIPE_DIR / "COOP.md").exists(), "missing COOP.md")
+    def test_research_docs_present_when_available(self):
+        # The two research docs are git-ignored by design (root AGENTS.md: they
+        # hold internal node state), so on a fresh clone they are absent by
+        # construction -- skip rather than fail there, but still require them
+        # when they are present. COOP.md is no longer tracked at all (removed
+        # 2026-10-10: coordination ledgers are temporary, not checked in), so
+        # it is not asserted here.
         missing = [n for n in ("K2-09B-JOURNAL.md",
                                "K2-09B-MODEL-OPTIMIZATION-WORK.md")
                    if not (RECIPE_DIR / n).exists()]
