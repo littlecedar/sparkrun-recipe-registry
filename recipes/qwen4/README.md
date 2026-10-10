@@ -79,24 +79,31 @@ inside the ~23 GB pool), the **trained positional ceiling** is. `bf16` KV is del
 boots and allocates a bigger pool but then dies in QSA decode (`unsupported SM121 QSA call`; the
 SM121 packed-decode path requires BF16 queries). Do not "fix" the KV dtype to buy context.
 
-### Why there is no TP=1 lane
+### The TP=1 lane now exists — the PLE table, not memory, was the blocker
 
-The tasking for this lane named "a TP=1 and TP=2 lane", but **TP=1 is not deliverable for this
-checkpoint, on memory, and the one published TP=1 route was closed NO-GO**:
+The tasking named "a TP=1 and TP=2 lane", and the earlier conclusion here was "TP=1 is not deliverable
+on memory". That conclusion got the **mechanism** wrong: it counted 180B NVFP4 weights (~83.8 GB) +
+KV (~24 GB) per rank and stopped, but the component that actually does not fit is the **~47.7 GiB FP8
+PLE n-gram table**. Keep that table off the device — stream it from disk — and the rest of the config
+is the TP=2 shape at `--tp 1`.
 
-- **Memory.** 180B NVFP4 weights are ~83.8 GB and the KV pool at the 262k trained ceiling is ~24 GB,
-  for ~107.8 GB per rank — **infeasible** on a single GB10 (128 GB unified; the lane's
-  `gpu_memory_utilization: 0.80` budget is ~96.8 GB, and the kernel/OS need headroom). The base
-  RadixArk recipe declares 135 GB; a single Spark cannot hold it.
-- **The only TP=1 route was EXL3** ([turboderp 3.05 bpw](https://huggingface.co/turboderp/Qwen3.8-Flash-Next-exl3)),
-  a third quant family on a third runtime. Its author-stated and code-enforced topology is **TP=1
-  single-Spark**, against this registry's TP=2/4 grid, and its headline tok/s are MTP-inflated — so
-  **W2 closed NO-GO** on policy/topology (memo: `.scratch/q4/exl3/W2-EXL3-GO-NO-GO.md`). Its useful
-  free result — the `Qwen4Exp QSA requires a BF16 main KV cache` error, and a needle test exact at
-  240k / failing at 300k — is folded into Lanes A/B above.
+Three independent proven TP=1 routes now exist (found 2026-10-10):
 
-Both production lanes are therefore **TP=2**, as is every other recipe here (the TP=4 arm is
-experimental and has never produced a number).
+- **vLLM, PLE table on disk** (`VLLM_PLE_TABLE_MEMORY=disk`, mmap/pread per step) — ported here as
+  `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`.
+- **SGLang, file-backed PLE** (`--ple-offload-embedding --ple-offload-backend file` + a merged SM121
+  QSA kernel) — the SGLang cookbook now ships verified single-Spark cells for both the RadixArk and
+  the NVIDIA NVFP4 exports.
+- **TensorFold** — Mia's AI Lab's own ONE-DGX-Spark line.
+
+Two corrections to the old text: the RadixArk *base* recipe's 135 GB is a **TP=2** footprint, not a
+single-Spark one; and the EXL3 NO-GO (W2) stands on **policy/topology** grounds (its free result
+— `Qwen4Exp QSA requires a BF16 main KV cache`, needle exact at 240k / failing at 300k — is folded
+into Lanes A/B above), but it was never *the only* TP=1 route and does not bind these PLE-offload
+routes.
+
+**Status: ported, not yet boot-verified on our nodes.** Treat every number in that recipe as
+unmeasured until the boot test lands.
 
 ---
 
@@ -111,6 +118,7 @@ experimental and has never produced a number).
 | `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane A — high concurrency** |
 | `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane B — long context (1M)** |
 | `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk | sglang | 2 | **quality reference** (vision intact) |
+| `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | local-inference-lab | vllm | 1 | **solo TP=1** — PLE table streamed from disk (ported 2026-10-10, not yet boot-verified) |
 
 Everything else is archived under [`../../attic/qwen4/`](../../attic/qwen4/) and is **not** part of the
 production surface:
