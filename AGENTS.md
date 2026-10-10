@@ -11,7 +11,7 @@ Counts in this document were verified 2026-10-08 against the working tree. Facts
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 18 files in 5 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 19 files in 7 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 27 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
@@ -39,7 +39,7 @@ Load-bearing contracts:
   map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
   `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
   nothing consumes — sparkrun renders unmapped defaults silently.
-- **`command:` is YAML folded `>`** (18/18 recipes). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (19/19 recipes). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -55,7 +55,7 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/ds4/` (3), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (7), `recipes/qwen4/` (4) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md` |
+| `recipes/ds4/` (3), `recipes/embed/` (2), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (3), `recipes/qwen4/` (5), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen4 lane gained the solo TP=1 recipe the same day |
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
@@ -94,7 +94,7 @@ for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
 find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: 18/18 pass plain; 4/18 fail strict on
+- **Plain `validate` is the gate, not `--strict`**: 19/19 pass plain; 4/19 fail strict on
   accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`,
   and the three `recipes/qwen4/*labquant*` — `unpinned-model-revision`). Never edit a recipe merely
   to clear a `suggestion` (e.g. deliberate `/cache/runtime` paths flagged `restated-managed-path`).
