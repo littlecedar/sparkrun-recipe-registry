@@ -29,12 +29,6 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3-vl-reranker-2b-vllm-b12x           | 🚀🌲👀🔃 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B]             |
 | qwen3-vl-reranker-8b-vllm-b12x           | 🌲👀🔃   |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B]             |
 
-_Four multimodal pooling recipes (vLLM, TP=1, one Spark each) — an encoder and a reranker per size
-tier, sized so one of each colocated fits on a single box. They serve `/v1/embeddings` and
-`/v1/score` rather than chat completions, so they carry no C1 `t/s` figure and the lane has
-published no `Size`; `Mem` is the vLLM `--gpu-memory-utilization` cap, an absolute claim on the
-device that must sum to a safe value across a colocated pair._
-
 ## Qwen 3x
 
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
@@ -87,28 +81,6 @@ d8k, falling inside the lane's inter-boot noise floor). The lane also carries
 The withdrawn 36B-A4B sub-lane (4 arms + the `patch-sglang-k2-horizon-fp8` gate mod)
 is archived under [`../attic/ifm/`](../attic/ifm/)._
 
-# Notes
-
-Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
-[`qwen4/AGENTS.md`](qwen4/AGENTS.md) (state, constraints, workstream plan, runbook) and
-[`qwen4/README.md`](qwen4/README.md) (the recipe/lane summary), with `../attic/qwen4/NOTES.md` (working notes).
-Read those before starting work in that directory. Archived arms and the lane's research record,
-journal, and coordination ledger live under [`../attic/qwen4/`](../attic/qwen4/).
-
-The DeepSeek V4.1-Flash lanes are documented in [`ds4/README.md`](ds4/README.md) (user guide)
-and [`ds4/AGENTS.md`](ds4/AGENTS.md) (design, boot gates, guards, and measurement discipline for
-both the knapcio TP=4 and TensorFold TP=2 lanes); the retired vLLM/EXL3 lane is under
-[`../attic/ds4/`](../attic/ds4/).
-
-
-The IFM K2-Horizon lanes are documented in [`ifm/README.md`](ifm/README.md) (recipe
-summary) and [`ifm/AGENTS.md`](ifm/AGENTS.md) (constraints, falsified claims, guards,
-and the validation ritual for the `0.9B` / `7B-FP8` set); the
-research record, journals, and `COOP.md` are beside them.
-
-The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
-caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.
-
 # Model Flags
 
 | Flag | Tag           | Description                              |
@@ -133,6 +105,28 @@ caveats, and the three archived arms); the lane carries no `AGENTS.md` and no gu
 | 💀   | broken        | Currently broken                         |
 
 _Flags indicate characteristics of the model and are set in the recipe metadata._
+
+# Notes
+
+Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
+[`qwen4/AGENTS.md`](qwen4/AGENTS.md) (state, constraints, workstream plan, runbook) and
+[`qwen4/README.md`](qwen4/README.md) (the recipe/lane summary), with `../attic/qwen4/NOTES.md` (working notes).
+Read those before starting work in that directory. Archived arms and the lane's research record,
+journal, and coordination ledger live under [`../attic/qwen4/`](../attic/qwen4/).
+
+The DeepSeek V4.1-Flash lanes are documented in [`ds4/README.md`](ds4/README.md) (user guide)
+and [`ds4/AGENTS.md`](ds4/AGENTS.md) (design, boot gates, guards, and measurement discipline for
+both the knapcio TP=4 and TensorFold TP=2 lanes); the retired vLLM/EXL3 lane is under
+[`../attic/ds4/`](../attic/ds4/).
+
+
+The IFM K2-Horizon lanes are documented in [`ifm/README.md`](ifm/README.md) (recipe
+summary) and [`ifm/AGENTS.md`](ifm/AGENTS.md) (constraints, falsified claims, guards,
+and the validation ritual for the `0.9B` / `7B-FP8` set); the
+research record, journals, and `COOP.md` are beside them.
+
+The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
+caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.
 
 # References
 
