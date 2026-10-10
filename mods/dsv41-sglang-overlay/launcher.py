@@ -137,6 +137,24 @@ RECIPE_ENV: dict[str, str] = {
     # across their stack; ours is a stock-loader EP1 pair at 0.80).
     "MAX_TOTAL_TOKENS": "9400000",
     "SPEC_ALGO": "DSPARK",
+    # MEASURED, REJECTED (2026-10-10 A/B, same-window pair, profile
+    # ds4-sglang-depth0-ladder, nodes .30-.33): the verify window gamma ships
+    # at 5. The bertholomus/deepseek-v4.1-flash-dspark-tp4-4xgb10 fork @
+    # 90cf3a2b (AGPL — finding tested, code not copied) pre-registered gamma=2
+    # as +6-12% over bracketed gamma=3 controls at 8k/32k/96k; our retired
+    # EXL3 k-sweep agreed in direction. On THIS lane it does not transfer:
+    # paired boots (gamma2 vs gamma5, same day, same nodes) measured
+    #   C1 37.70 vs 37.67 (~0), C4 85.29 vs 90.10 (-5.3%),
+    #   C8 92.12 vs 94.88 (-2.9%), C16 102.58 vs 98.19 (+4.5%)
+    # — gamma=2 loses at moderate concurrency, matching the counter-evidence
+    # the fork itself recorded (a peer sweep where wider windows win at 8k).
+    # Probable mechanism for the divergence: our shipped DSV41_VERIFY_CAP=
+    # conf:0.1 + DSV41_BLOCK_VERIFY=1 interact with the window width (the
+    # fork ran no conf cap). Receipts: ~/benchmarks/ds4-gamma2-20261010/
+    # {ladder-gamma2,ladder-gamma5-control}.{json,yaml}. Caveat: both boots
+    # sit well below the 2026-10-06 receipts (C1 46.5, C16 193) — inter-boot
+    # drift on this lane is documented (README caveat); the verdict above is
+    # within-pair and survives it, the absolute numbers do not.
     "DSPARK_BLOCK_SIZE": "5",
     # --- overlay adapters (the upstream production line) -------------------
     "DSV41_INDEXER_CHUNKED": "1",
