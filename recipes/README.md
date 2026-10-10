@@ -49,7 +49,8 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3.8-flash-next-nvfp4-labquant-sglang | 🌲    |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]          |
 | qwen3.8-flash-next-nvfp4-labquant-highcon-sglang | 🌲🚀 |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **high concurrency** |
 | qwen3.8-flash-next-nvfp4-labquant-longctx-sglang | 🌲   |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **long context (1M route)** |
-| qwen3.8-flash-next-nvfp4-solo-vllm-b12x | 🌲  |    — | 135GB | 0.80 |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, PLE table streamed from disk (ported 2026-10-10, not yet boot-verified)** |
+| qwen3.8-flash-next-nvfp4-solo-vllm-b12x | 🌲  |    — | 135GB | 0.80 |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, PLE table streamed from disk (ported 2026-10-10)** |
+| qwen3.8-flash-next-nvfp4-solo-sglang | 🌲    |    — | 135GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, SGLang route, PLE file-backed; boot-verified 2026-10-10** |
 
 Two of these are **production lanes** off the labquant checkpoint (see
 [`qwen4/README.md`](qwen4/README.md)): `…-highcon-…` raises the mamba pool 112 → 128 and

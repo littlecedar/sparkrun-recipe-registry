@@ -22,8 +22,10 @@ metadata:
     weights + KV fit a single node's 128 GB pool. Flag set transcribed from the SGLang
     cookbook cell dgx-spark/nvfp4/single/low-latency (verified single-Spark cell for
     this exact export), which measured c=1 TTFT 649 ms / TPOT 33.6 ms / 137 tok/s,
-    c=8 358 tok/s, GSM8K 97.1% on the cookbook's hardware. NOT YET BOOTED on our
-    nodes — the sibling vllm-b12x solo recipe is the other route.
+    c=8 358 tok/s, GSM8K 97.1% on the cookbook's hardware. BOOT-VERIFIED on ours
+    2026-10-10 (node that already held the checkpoint): /health 200, PLE table
+    file-backed, chat completion answered correctly (17*23=391 with reasoning
+    tokens). The cookbook's speed figures are the cookbook's hardware, not ours.
   model_url: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

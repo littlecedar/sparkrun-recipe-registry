@@ -118,7 +118,8 @@ unmeasured until the boot test lands.
 | `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane A — high concurrency** |
 | `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane B — long context (1M)** |
 | `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk | sglang | 2 | **quality reference** (vision intact) |
-| `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | local-inference-lab | vllm | 1 | **solo TP=1** — PLE table streamed from disk (ported 2026-10-10, not yet boot-verified) |
+| `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | local-inference-lab | vllm | 1 | **solo TP=1** — PLE table streamed from disk (ported 2026-10-10; boot in progress at write time) |
+| `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` | RadixArk | sglang | 1 | **solo TP=1, SGLang route** — `--ple-offload-embedding --ple-offload-backend file`; cookbook cell on our pinned image; **boot-verified 2026-10-10** (smoke answered correctly; W3 battery result beside the recipe) |
 
 Everything else is archived under [`../../attic/qwen4/`](../../attic/qwen4/) and is **not** part of the
 production surface:
