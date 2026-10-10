@@ -19,6 +19,14 @@ metadata:
 mods:
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/pip-install-fastsafetensors"
+# MEASURED, REJECTED (2026-10-10, decode-triage profile d=0/c=1 and d=8192/c=1,
+# runs=5, nodes .31): 28.46 / 28.43 t/s vs the shipping DFlash2 arm's 33.76
+# (same profile) — a ~16% LOSS. The card's 3.16x-over-AR / beats-EAGLE numbers
+# were measured on GB300/H200 and do not transfer to SM121/GB10, the same
+# pattern as the ds4 gamma finding. The DSPARK path DOES boot for this Qwen3_5
+# hybrid on GB10 (the open question), but the draft is not a shipping upgrade.
+# Receipts: ~/benchmarks/qwen3-dspark-20261010/decode-triage.{json,yaml}.
+# Kept as an experimental arm; rollback = the DFlash2 sibling.
 
 # WHY THIS RECIPE EXISTS (2026-10-10). The lane's own WORK doc concluded "the lever
 # that remains is the draft model, not the flag" and "anything above ~32 tok/s needs
@@ -27,11 +35,10 @@ mods:
 # 5 full-attention layers) for EXACTLY this NVFP4 target. Its card (v2, updated
 # 2026-08-29) publishes aggregate acceptance 3.43 (+26% over its v1), C=1 throughput
 # 3.16x (GSM8K) / 2.25x (MT-Bench) over autoregressive, beating EAGLE — measured on
-# GB300/H200, NOT SM121. Whether SGLang's DSPARK path boots for a Qwen3_5 hybrid on
-# GB10 at all is UNVERIFIED; this recipe exists so one boot answers it. Serve-line
-# parameters are the card's: gamma 7, block_size 7, --speculative-num-steps 1.
-# Rollback = the DFlash2 sibling recipe, which stays the shipping lane until this
-# arm beats 33.8 t/s on our hardware.
+# GB300/H200, NOT SM121. The DSPARK path DOES boot for this Qwen3_5 hybrid on
+# GB10 (answered 2026-10-10), but the arm measures ~16% SLOWER than the shipping
+# DFlash2 lane — see the MEASURED, REJECTED block above. Rollback = the DFlash2
+# sibling recipe, which stays the shipping lane.
 
 defaults:
   port: 8000
