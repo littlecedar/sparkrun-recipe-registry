@@ -10,6 +10,7 @@
 **/*JOURNAL.md
 **/*-WORK.md
 **/*-WORK-ARCHIVE.md
+**/COOP.md
 /.logs/
 **/__pycache__
 **/*.pyc

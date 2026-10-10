@@ -5,12 +5,12 @@ new session should read first; it holds the current state, the constraints that 
 **action plan divided into parallel workstreams**. Everything long-form now lives in the **archive**,
 [`../../attic/qwen4/`](../../attic/qwen4/): the research record
 (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, git-ignored, `§N` cite-target), the journal (`JOURNAL.md`,
-git-ignored), the cross-agent ledger (`COOP.md`), the status memos (`status/`), and every archived
+git-ignored), the status memos (`status/`), and every archived
 recipe arm (`arms/`, with [`ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md)). See
 [`README.md`](README.md) for the recipe/lane summary.
 
-> **Reading order for a new agent:** this file → `README.md` (the recipes) → `attic/qwen4/COOP.md`
-> (workstream ledger) → the `§N` sections named next to your workstream. Do **not** re-read the
+> **Reading order for a new agent:** this file → `README.md` (the recipes) → the lane's
+> `COOP.md` working ledger (git-ignored; claims, locks, node assignment) → the `§N` sections named next to your workstream. Do **not** re-read the
 > 11k-line WORK doc front-to-back; it is written for targeted lookup.
 
 > **Provenance discipline is the house rule.** Every claim carries a confidence label
@@ -97,7 +97,7 @@ slot pool's ceiling buys nothing, and 24→32 costs +0.42 GB of intermediate scr
 |---|---|---|
 | Research record | `attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` (`§N`) | git-ignored, backed up out-of-band |
 | Narrative log | `attic/qwen4/JOURNAL.md` | git-ignored |
-| Coordination ledger | `attic/qwen4/COOP.md` | IP-redacted; the live node assignment stays node-side |
+| Coordination ledger | the lane's `COOP.md` | a git-ignored working file, **never tracked** (removed from git 2026-10-10); the live node assignment stays node-side |
 | Status memos (W3/W4/W8) | `attic/qwen4/status/` | archived reports |
 | Archived arms | `attic/qwen4/arms/` (+ `ARMS-MANIFEST.md`) | every non-production recipe, with provenance |
 | Benchmark results | `~/benchmarks/<TAG>_<date>/` on head (path-keyed, durable) **and** `~/.cache/sparkrun/benchmarks/bench_*/` | the `bench_*` dir is scratch and **gets reaped**; a relaunch reusing an id **clears `runs/`** |
@@ -114,14 +114,14 @@ fields and select the phase with `is_context_prefill_phase`; never quote the pri
 ## 3. Hard constraints
 
 1. **Node allowlist.** The tasking names the free trial/benchmark nodes for the session and the
-   restricted ones. **The current session's assignment is recorded in the archived `COOP.md`
-   "Live state" row** (and must be re-checked each session). Resolve hostnames to addresses and
+   restricted ones. **The current session's assignment is recorded in the lane's git-ignored
+   `COOP.md` "Live state" row** (and must be re-checked each session). Resolve hostnames to addresses and
    compare before acting. Never assume node `.30` (the NFS/HF head) is available — touching a serving
    node stalls every boot on the fleet. (Historical fixpoint: an earlier session crashed a node; the
    operator accepts occaisional alpha-software crashes but this is not a licence to treat restricted
    nodes as free.)
 2. **One cluster job at a time.** The free pair supports exactly one TP=2 arm; cluster time is the
-   scarcest resource here. Queue cluster work in `COOP.md` and claim it before launching. `launch.sh`
+   scarcest resource here. Queue cluster work in the working ledger (`COOP.md`) and claim it before launching. `launch.sh`
    already aborts when a `sparkrun` job is live.
 3. **Portability (user rule).** Every recipe must rely on sparkrun's own detection. No recipe `env`
    value may name a host device (`rocep|enp|ens|enP|eth` + digit) and none of
@@ -142,8 +142,8 @@ fields and select the phase with `is_context_prefill_phase`; never quote the pri
    never `git add -A`, directory adds, or bare globs. Review `git diff --cached --stat`.
 8. **Internal IPs and hostnames stay out of tracked files.** Tracked = shipped to nodes and third
    parties. Keep operator/head values in `.local/CONFIDENTIAL.md` shell vars; keep the live node
-   assignment node-side, **not** in this file. (The archived `attic/qwen4/COOP.md` was redacted for
-   exactly this reason.)
+   assignment node-side, **not** in this file. (The node-handshake ledger is a git-ignored working
+   file for exactly this reason.)
 
 ## 4. The action plan — parallel workstreams
 
@@ -186,8 +186,8 @@ recreated (observed 2026-10-04).
 
 ## 5. Coordination — how agents talk to each other
 
-`attic/qwen4/COOP.md` is the cross-agent ledger (archived; IP-redacted before archiving). The
-protocol:
+The lane's `COOP.md` is the cross-agent ledger — a git-ignored working file (removed from git
+2026-10-10; `**/COOP.md` is ignored so it cannot be re-committed). The protocol:
 
 1. **Claim before you work.** Add a row to the ownership table with your agent id and the workstream
    ID, and the date. One owner per workstream per session.
@@ -271,7 +271,7 @@ convention the `ds4` lane uses.
   experiment arms are archived in [`../../attic/benchmarking/`](../../attic/benchmarking/) with a
   manifest. A profile whose recipe no longer exists is dead — put it there, not here.
 - **Internal IPs never enter the tracked `attic/`.** The record and journal are git-ignored for that
-  reason; anything else archived there (e.g. `COOP.md`) is redacted first.
+  reason; a working ledger such as `COOP.md` is likewise never tracked.
 - **Condense, do not just delete.** Before moving a file, confirm (a) nothing in `recipes/`,
   `benchmarking/`, `tools/`, or `tests/` references its filename, and (b) its finding is preserved in
   the WORK doc / manifest.

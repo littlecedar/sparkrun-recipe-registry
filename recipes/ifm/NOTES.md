@@ -4,8 +4,8 @@ Tracked working notes for the IFM K2-Horizon lane. The deep records the lane use
 keep beside this file — git-ignored `K2-*-MODEL-OPTIMIZATION-WORK.md` (the model,
 numbers, derivations) and `K2-*-JOURNAL.md` (dated narrative) — are **absent from this
 tree**; every number that matters has been folded into the sessions below, into
-[`README.md`](README.md) / [`AGENTS.md`](AGENTS.md), and into `COOP.md` (the
-cross-model ledger).
+[`README.md`](README.md) / [`AGENTS.md`](AGENTS.md). The cross-model ledger
+(`COOP.md`) is a git-ignored working file, not part of the tree.
 
 **No hostnames or IPs here** — this registry ships to third parties.
 

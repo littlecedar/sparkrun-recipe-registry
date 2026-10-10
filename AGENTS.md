@@ -228,9 +228,12 @@ before matching.
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
-- **`recipes/ifm/COOP.md`** had been lost from the working tree; it was reconstructed 2026-10-07 from
-  the lane's surviving documents and cross-references (its own header records this). The guard that
-  requires it, `tests/test_ifm_recipes.FilesExist.test_coordination_and_docs_present`, passes again.
+- **`COOP.md` ledgers are working files, not registry content.** The two that had been committed
+  (`attic/qwen4/COOP.md`, `recipes/ifm/COOP.md`, the latter a 2026-10-07 reconstruction) were
+  **removed from git on 2026-10-10** and `**/COOP.md` is now git-ignored, so a fresh clone cannot
+  re-introduce one. Their durable content lives in the lanes' `README.md`/`AGENTS.md`/`NOTES.md`
+  (and the recipe comments); the guard that required the ifm copy was dropped with it. Untracked
+  lane copies on a working tree, like `recipes/qwen3/COOP.md`, are a live writer's scratch.
 - `tests/*.sync-conflict-*.py` (22 tests) is **skipped** because discover rejects dashed module
   names before it can report them, and it is tracked in git — do not delete it.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML

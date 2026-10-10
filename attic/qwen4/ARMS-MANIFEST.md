@@ -100,11 +100,12 @@ be deleted if the scratch tree is reaped.
   exists for the same failure).
 - `zz-labq-bisect-nospec.yaml`, `zz-labq-nospec-meas.yaml`, and `zz-lq-nospec-matched.yaml` are the
   same arm under three labels (4 duplicate pairs among the original 16, per the scratch manifest).
-- **The lane's research record, journal, and coordination ledger also live in this archive directory**
-  (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, `JOURNAL.md`, `COOP.md`) plus the report memos under
-  `status/`. The record and journal are git-ignored (they hold internal IPs); `COOP.md` was
-  IP-redacted before archiving so the tracked copy carries node *roles*, not addresses. Keep new
-  hostnames/IPs out of anything tracked (root `AGENTS.md`).
+- **The lane's research record and journal also live in this archive directory**
+  (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, `JOURNAL.md`) plus the report memos under `status/`.
+  Both are git-ignored (they hold internal IPs). The lane's `COOP.md` coordination ledger was
+  committed here until 2026-10-10, when it was **removed from git** — coordination ledgers are
+  working files, `**/COOP.md` is now git-ignored, and the durable findings were folded into the
+  lane's `README.md`/`AGENTS.md`. Keep new hostnames/IPs out of anything tracked (root `AGENTS.md`).
 
 *Archived 2026-10-04 by the harvest/consolidation sessions. If you resurrect one of these, move it
 back to `recipes/qwen4/` and remove its row here.*

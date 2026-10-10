@@ -67,7 +67,7 @@ been argued the other way in the theory documents:
 
 The `K2-*-MODEL-OPTIMIZATION-WORK.md` / `K2-*-JOURNAL.md` docs these sections once cited
 are git-ignored and **not present in this tree**; where their numbers matter they have
-been folded into the sections above, `NOTES.md`, and `COOP.md`.
+been folded into the sections above, `NOTES.md`, and `AGENTS.md`.
 
 ### Arm sweep (2026-10-09)
 

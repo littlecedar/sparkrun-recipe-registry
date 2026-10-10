@@ -1406,5 +1406,5 @@ Fetched 2026-09-19 unless noted.
 **Internal (deleted with this consolidation):** `DS4-MODEL-OPTIMIZATION-WORK.md` and
 `JOURNAL.md` held the full narrative; the sections above are the durable subset.
 `attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` §11 is the GB10 memory-system
-source; `recipes/COOP.md` is the node-handshake ledger (`.30/.31` are protected;
-`.32/.33` are shared with the qwen4 lane).
+source. The node-handshake ledger was a `COOP.md` working file (git-ignored, not
+part of the tree); node roles and the protected/shared split live node-side.

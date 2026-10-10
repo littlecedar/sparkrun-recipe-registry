@@ -4,10 +4,11 @@ Lane guide for the IFM `K2-Horizon` recipes. Read this before working in this
 directory; it carries the state, the constraints, and the guards. Prose summaries
 live in [`README.md`](README.md); the durable research record is the two
 `K2-*-MODEL-OPTIMIZATION-WORK.md` files (git-ignored) with their `K2-*-JOURNAL.md`
-narratives, and cross-agent traffic is in `COOP.md`.
+narratives, and cross-agent traffic is in `COOP.md` — a git-ignored working
+ledger, not registry content (see the root `AGENTS.md`).
 
 **No hostnames or addresses in tracked files.** This registry is distributed to
-third parties. Internal node state belongs in the git-ignored `COOP.md`/journal,
+third parties. Internal node state belongs in the git-ignored journal/ledger,
 never here.
 
 ---
@@ -62,10 +63,10 @@ as ground truth; the journal is where the falsifications are recorded.
 | question | where the answer lives |
 |---|---|
 | what a recipe *is* and why | the recipe file's own comment block (`command:` explainer) |
-| the model / roofline / byte census | `K2-*-MODEL-OPTIMIZATION-WORK.md` — **git-ignored and absent from this tree**; the surviving numbers are in `README.md`, `NOTES.md`, `COOP.md` and the recipe headers |
+| the model / roofline / byte census | `K2-*-MODEL-OPTIMIZATION-WORK.md` — **git-ignored and absent from this tree**; the surviving numbers are in `README.md`, `NOTES.md` and the recipe headers |
 | what happened, dated | `K2-*-JOURNAL.md` (same: git-ignored by design, may be absent) |
 | the measured UNO campaign artifacts (per-arm `--output` JSON) | `.scratch/ifm/perf-2026-10-09/` (git-ignored) |
-| cross-model findings, node state | `COOP.md` |
+| cross-model findings, node state | the lane's `COOP.md` — a git-ignored working ledger that is **not tracked** (removed from the tree 2026-10-10) |
 | the withdrawn sub-lane (recipes, mod, guards, byte arithmetic) and the two retired 7B arms (recipes) | `attic/ifm/` (`ARMS-MANIFEST.md`) |
 | guard tests | `tests/test_ifm_recipes.py`, `tests/test_k2_7b_recipes.py` |
 
@@ -119,8 +120,7 @@ devices answered:
    construction. Re-measured 2026-10-09 through the fixed harness (`--reasoning-effort
    default`, caps 1024/2048/1024) the models answer ARC normally. **Before quoting any
    accuracy figure from the 2026-10-08 session, check `finish_reasons` in its summary
-   JSON; a `length` is a truncated response, not a wrong answer.** See §8 traps and
-   `COOP.md`.
+   JSON; a `length` is a truncated response, not a wrong answer.** See §8 traps.
 
 ## 5. Guard suite
 
