@@ -1,5 +1,23 @@
 # TODO list
 
+Budget: 12 hours
+
+Lane order:
+- ds4
+- ornith
+- qwen4
+- qwen3
+- embed
+- rerank
+- glm5
+- explore
+
+Selection priorities:
+- Node count (lower is better)
+- Speed (higher is better)
+- Accuracy (higher is better)
+- Memory footprint (lower is better)
+
 ## ds4
 DeepSeek V4.1
 - [X] TP=2 recipe vision head yes or no? no 
@@ -43,7 +61,7 @@ Qwen 3.x
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
 - [ ] Check if there's any updated models, quantizations, or runtime improvements that could improve accuracy and throughput.
-- [ ] TP=1 flash next recipe is out there for us to figure out
+- [ ] There is a confirmed by a trusted source solo DGX Spark node recipe somewhere on the internet for Qwen 3.8 Flash Next -- See if you can find it.
 - [ ] If yes to either of the above, build and test the recipe upgrades.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Run quality benchmarking pass.
@@ -51,13 +69,13 @@ Qwen 4.x (and 3.8 Flash Next)
 
 ## embed
 Any embed model
-- [ ] Move all embedding recipes to @recipes/embed
-- [ ] Update the appropriate README.md and AGENTS.md.
+- [X] Move all embedding recipes to @recipes/embed
+- [X] Update the appropriate README.md and AGENTS.md.
 
 ## rerank
 Any rerank model
-- [ ] Move all rerank recipes to @recipes/rerank
-- [ ] Update the appropriate README.md and AGENTS.md.
+- [X] Move all rerank recipes to @recipes/rerank
+- [X] Update the appropriate README.md and AGENTS.md.
 
 ## decision
 Any decision model
@@ -67,3 +85,10 @@ Any decision model
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Update the appropriate README.md and AGENTS.md.
 
+## explore
+Any model with reasoning and tool-calling capabilities
+- [ ] Research available models and find high-quality, fast, low-memory candidates that push the frontier.
+- [ ] Build out up to 10 recipes.
+- [ ] Run quality benchmarking pass.
+- [ ] Select the best recipes from all lanes and move the rest to the @attic.
+- [ ] Update the appropriate README.md and AGENTS.md.
