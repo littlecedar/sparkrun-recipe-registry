@@ -85,6 +85,7 @@ production set. They are archived here, tracked, with their provenance.
 | `qwen3.8-flash-next-nvfp4-vllm.yaml` | RadixArk | vllm-distributed | Cross-runtime competitor; never benchmarked (W12). |
 | `qwen3.8-flash-next-labquant-tp4-sglang.yaml` | local-inference-lab | sglang | TP=4 arm; never produced a number (§6 item 1b). Recovered from git HEAD (the live writer had staged its deletion). |
 | `ursuciprian-qwen3.8-flash-next-nvfp4-fastqsa4096bigkv-g8-sglang.yaml` | RadixArk | sglang | Contributor recipe (ursuciprian); carries a **non-portable** host bind-mount (`executor_config.volumes`), so it is not shippable as-is. |
+| `qwen3.8-flash-next-nvfp4-nvidia-sglang.yaml` | nvidia/Qwen3.8-Flash-Next-NVFP4 | sglang | Accuracy-candidate arm built 2026-10-10 from the RadixArk quality reference with only the checkpoint swapped: blazux's independent 5-pass head-to-head (55 scenarios, 2026-09-13/14) measured NVIDIA 88.8%±1.0 vs RadixArk 86.1%±1.9, +15–22% KV, −7–8% single-stream decode (their vLLM route; quality is the part that plausibly carries). Never booted here. Open risk recorded in-file: NVIDIA's per-layer quant map needed engine patches upstream; whether this SGLang container's modelopt_fp4 loader accepts it is only answerable by a boot. Promote on a boot + quality win. |
 
 Parent assignment and exact deltas are from `.scratch/q4/recipe_manifest.md` (produced by direct
 diff of the parsed documents, not by filename inference) and are reproduced here so the manifest can
