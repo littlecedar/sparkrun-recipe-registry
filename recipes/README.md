@@ -39,7 +39,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3.8-27b-nvfp4-dspark-sglang      | 🌲     |    — | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][RadixArk/Qwen3.8-27B-DSpark] — **experimental draft A/B, not yet booted** |
+| qwen3.8-27b-nvfp4-dspark-sglang      | 🌲     |   28.5 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][RadixArk/Qwen3.8-27B-DSpark] — **measured 2026-10-10: −16% vs the DFlash2 lane; DSPARK-path arm only** |
 
 ## Qwen 4x
 
