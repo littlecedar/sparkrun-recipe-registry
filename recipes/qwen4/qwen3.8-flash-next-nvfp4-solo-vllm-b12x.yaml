@@ -17,7 +17,10 @@ metadata:
     (mmap/pread per step) and the rest of the server config is the TP=2 shape at
     --tp 1. Ported 2026-10-10 from the eugr registry's solo recipe (the
     sparkrun-native form of the single-Spark cells the SGLang cookbook ships for the
-    RadixArk and NVIDIA exports); not yet measured on our nodes.
+    RadixArk and NVIDIA exports). BOOT-VERIFIED 2026-10-10: /health 200, chat
+    completion answered correctly (17*23=391), W3 battery 38/38 n=1 (saturated —
+    cannot discriminate checkpoints). No revision pin: serves local-inference-lab
+    at main, which since 2026-10-02 is the step-5500 QAD hybrid export.
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"
