@@ -25,7 +25,11 @@ metadata:
     c=8 358 tok/s, GSM8K 97.1% on the cookbook's hardware. BOOT-VERIFIED on ours
     2026-10-10 (node that already held the checkpoint): /health 200, PLE table
     file-backed, chat completion answered correctly (17*23=391 with reasoning
-    tokens). The cookbook's speed figures are the cookbook's hardware, not ours.
+    tokens). W3 battery (tools/qwen4-quality-eval.py, 38 tasks, n=1):
+    **38/38 = 100%, stable-pass** — the best recorded result on this battery
+    (history: labquant 37/38, RadixArk reference 35/36, both n=1; the battery
+    drifted 36→38 between runs, so read cross-run comparisons with that caveat).
+    The cookbook's speed figures are the cookbook's hardware, not ours.
   model_url: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"
