@@ -1,0 +1,85 @@
+recipe_version: "2"
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+runtime: vllm
+# Floating tag, like the ornith 397B lane: the b12x build is not published with a
+# digest-pinnable alias here, so a future pull can change the engine under this
+# recipe. Treat any measured number as tied to whatever the tag resolved to.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Qwen3.8-Flash-Next-NVFP4 on ONE DGX Spark (TP=1) — the solo lane the TP=2 recipes
+    said was impossible. It is possible because the ~47.7 GiB FP8 PLE n-gram table is
+    the checkpoint component that does not fit alongside weights + KV in one node's
+    128 GB unified pool: VLLM_PLE_TABLE_MEMORY=disk keeps that table OFF the device
+    (mmap/pread per step) and the rest of the server config is the TP=2 shape at
+    --tp 1. Ported 2026-10-10 from the eugr registry's solo recipe (the
+    sparkrun-native form of the single-Spark cells the SGLang cookbook ships for the
+    RadixArk and NVIDIA exports); not yet measured on our nodes.
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  pipeline_parallel: 1
+  block_size: 16
+  max_model_len: 262144
+  kv_cache_dtype: fp8
+  # MTP k=4; the GDN mamba state pool binds concurrency, so the admission cap stays
+  # low (the eugr solo cell ships 8 with MTP).
+  max_num_seqs: 8
+  max_num_batched_tokens: 4096
+  num_speculative_tokens: 4
+  gpu_memory_utilization: 0.8
+
+env:
+  # The load-bearing knob for TP=1: the PLE n-gram table streams from disk instead
+  # of occupying device memory (SGLang's solo route uses --ple-offload-embedding
+  # --ple-offload-backend file for the same purpose). CUTE_DSL_ARCH is omitted —
+  # the platform tier already publishes sm_121a for vllm on DGX Spark.
+  VLLM_PLE_TABLE_MEMORY: "disk"
+  SAFETENSORS_FAST_GPU: "1"
+  VLLM_WORKER_MULTIPROC_METHOD: "spawn"
+  VLLM_SSM_CONV_STATE_LAYOUT: "DS"
+  VLLM_USE_AOT_COMPILE: "1"
+  VLLM_USE_MEGA_AOT_ARTIFACT: "1"
+  VLLM_USE_V2_MODEL_RUNNER: "1"
+  B12X_POLICY_MODE: "auto"
+  VLLM_MXFP8_LM_HEAD: "1"
+  VLLM_B12X_MOE_FP4_LAYER_MAX_INPUT_SCALE: "w13"
+
+command: >
+  vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --pipeline-parallel-size {pipeline_parallel}
+  --mamba-cache-mode align
+  --enable-prefix-caching
+  --enable-chunked-prefill
+  --dtype bfloat16
+  --kv-cache-dtype {kv_cache_dtype}
+  --quantization modelopt_mixed
+  --block-size {block_size}
+  --load-format b12x
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --speculative-config '{"method": "mtp", "num_speculative_tokens": {num_speculative_tokens}}'
+  --gdn-decode-kernel b12x
+  --linear-backend b12x
+  --moe-backend b12x
+  --no-enable-flashinfer-autotune
+  --mm-encoder-tp-mode data
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_xml
+  --enable-auto-tool-choice
+  --compilation-config '{"pass_config": {"fuse_act_quant": true}}'
+  --gpu-memory-utilization {gpu_memory_utilization}
