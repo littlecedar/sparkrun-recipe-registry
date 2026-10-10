@@ -39,7 +39,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |     70 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound]                          |
+| qwen3.8-27b-nvfp4-dspark-sglang      | 🌲     |    — | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][RadixArk/Qwen3.8-27B-DSpark] — **experimental draft A/B, not yet booted** |
 
 ## Qwen 4x
 
@@ -49,6 +49,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3.8-flash-next-nvfp4-labquant-sglang | 🌲    |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]          |
 | qwen3.8-flash-next-nvfp4-labquant-highcon-sglang | 🌲🚀 |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **high concurrency** |
 | qwen3.8-flash-next-nvfp4-labquant-longctx-sglang | 🌲   |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **long context (1M route)** |
+| qwen3.8-flash-next-nvfp4-solo-vllm-b12x | 🌲  |    — | 135GB | 0.80 |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, PLE table streamed from disk (ported 2026-10-10, not yet boot-verified)** |
 
 Two of these are **production lanes** off the labquant checkpoint (see
 [`qwen4/README.md`](qwen4/README.md)): `…-highcon-…` raises the mamba pool 112 → 128 and
@@ -142,6 +143,7 @@ caveats, and the three archived arms); the lane carries no `AGENTS.md` and no gu
 [RadixArk/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 [incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
+[RadixArk/Qwen3.8-27B-DSpark]: https://huggingface.co/RadixArk/Qwen3.8-27B-DSpark
 [Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
 [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit]: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
 [Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
