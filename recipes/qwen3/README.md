@@ -31,6 +31,18 @@ Flags: ✨ official · 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 🧪 measu
   `ANSWERED-QUEUES.md`, `NOTES.md` — the research record. Cite by `§N`; the section numbers were
   not renumbered.
 
+## Qwen3-Coder-Next — the empty-`content` trap (2026-10-11)
+
+Measured on the pinned eugr vLLM: with the model's native thinking ON, a short reply comes back
+in the **reasoning** channel and `content` stays `null` — the `qwen3` reasoning parser never sees a
+closing think tag. A client that reads `content` (the house battery, most OpenAI SDK callers) sees an
+empty reply: the house battery scored **0/19 + 0/18 on empty strings** while `/v1/completions`
+answered the same prompt correctly (`391`). The recipe now ships
+`--default-chat-template-kwargs '{"enable_thinking": false}'`, so the default surface answers in
+`content`; a caller wanting the scratchpad opts back in per request with
+`chat_template_kwargs {"enable_thinking": true}`. **Do not measure this lane without that knob** —
+and record the `finish_reason` + `reasoning` histogram beside any score (repo rule G3/G4).
+
 ## Qwen3.8-27B — what the numbers mean
 
 - **The model is dense, so it is a streaming-bandwidth problem, not a gather problem.** 64 layers = 48
