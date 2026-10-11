@@ -42,6 +42,7 @@ single-stream number — the recipe's own decode-only measurement is 33.8 t/s at
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
+| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |      — | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM
 
 ## Qwen 4x
 
@@ -136,6 +137,12 @@ research record and journals are git-ignored working files beside them.
 
 The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
 caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.
+
+The Qwen3 lane is documented in [`qwen3/README.md`](qwen3/README.md) (recipe summary) and
+[`qwen3/AGENTS.md`](qwen3/AGENTS.md) (model thesis, tunable rationale, negative results, and the
+validation ritual); the lane's research record — including the no-spec control recipe, the measured
+DSpark arm, and the depth/SSM/queue threads — moved to [`../attic/qwen3/`](../attic/qwen3/) on
+2026-10-11 with a manifest mapping its `§N` cite forms.
 
 # References
 
