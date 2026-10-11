@@ -9,6 +9,7 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** |
+| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | pending | **BOOT-VERIFIED 2026-10-11** (C1 measuring) |
 
 ## Measured
 
@@ -19,6 +20,16 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   Misses: `wp-3`, `hard-arith-1`, `hard-arith-2`, `trick-3`. For scale against the other lanes in this
   pass: ornith 37/37 and qwen3.8-27B DFlash2 37/37 (both single-node, ~100 / 33.8 t/s), coder-next
   35/37 at 71.7 t/s. Nemotron is the fastest measured quality arm below ornith and pays ~4 tasks for it.
+
+### Ling-3.0-flash-int4 (2026-10-11)
+
+- **BOOT-VERIFIED** on one node: DSPARK configured with the external 1.36B draft and the KDA
+  ReplaySSM verify path; answers correctly in `content` (`391` for 17×23, reasoning split cleanly by
+  the `ling3` parser — no empty-content trap on this template).
+- **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
+  failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass; the C1 measurement is
+  running, and if it lands anywhere near the third-party 83 t/s this is the strongest explore arm.
+- Third-party (not yet reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
 
 ## Next by the ranking
 
@@ -36,3 +47,5 @@ AIME-25 96.9 / BFCL v4 61.4) and `vllm-sr/d3-edge`. All are single-node TP=1 can
 
 [nem]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
 [nemd]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+[ling]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
+[lingd]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
