@@ -40,6 +40,11 @@ defaults:
 env:
   PYTHONUNBUFFERED: '1'
 
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"], which would consume the
+# command sparkrun appends; clear it so the recipe's own serve line runs.
+executor_config:
+  entrypoint: ""
+
 command: >
   vllm serve
   /cache/huggingface/hub/models--autotrust--JEV-9B/snapshots/7ac669b8fb476ba926491e3d1c39f9330d68dbed

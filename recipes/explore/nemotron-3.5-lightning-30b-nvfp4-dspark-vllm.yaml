@@ -49,6 +49,11 @@ defaults:
 
 env:
   PYTHONUNBUFFERED: '1'
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+# recipe's own serve line runs instead of being parsed as the image's flags.
+executor_config:
+  entrypoint: ""
+
 command: >
   vllm serve
   /cache/huggingface/hub/models--nvidia--NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4/snapshots/bee7596271d1495f6992ae224aefde4410e816b8
