@@ -393,7 +393,7 @@ mismatch hangs at readiness**, so make sure all ranks have the tables before boo
 
 ### Combined local repo lane (weights + Engram + prompt in one repo)
 
-`deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml` is the same TP=2 lane served from **one**
+The shipped `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` serves the TP=2 lane from **one**
 local Hugging Face repo instead of three sources. `tools/build-dsv41-combined.py` vendors the
 EXL3 2.9 bpw checkpoint, the **upstream Engram tables** (layers 1 and 14, as
 `engram/engram-l{1,14}.safetensors`), and **upstream's updated prompt** (`chat_template.jinja`,

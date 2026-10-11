@@ -289,7 +289,7 @@ python3 tools/build-dsv41-combined.py --out <dir> --engram-online
 in its Engram dir; at the repo root that glob would also walk the 39 EXL3 shards. So
 the tables live in `engram/`, and `mods/tensorfold-dsv41-launcher` prefers
 `<model_dir>/engram/`, making `model: <this repo>` sufficient (consumed by
-`recipes/ds4/deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml`).
+`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`).
 
 **Why stage the shards by default.** A direct ranged read of the two tables runs at
 ~15 MiB/s (hundreds of small segment requests), while a whole-file `hf download` of
