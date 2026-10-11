@@ -20,6 +20,14 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
   (`{billing: 0.016, technical_support: 0.971, sales: 0.013}`), and `urgency` returned
   `noul: 0.952` — 249 input tokens, **0 output tokens** (prefill-only scoring, as the vendor
   documents). Receipt: `~/benchmarks/clef_smoke.py` on the head node.
+  **Official benchmark (2026-10-11, `tool-eval-bench` v2.8.0 `--decision-bench-only`):**
+  **Decision Accuracy 70.3% (1406/2000)** on the Typed Decisions test split — 400 cases / 2000
+  questions, 81.5 s, 0 request errors. The tool natively drives `/v1/systemone` (no fallback
+  needed); the score compares each predicted distribution against gold. The tool's own rating for
+  this run: ★★, above its prior baseline. Note: the vendor's leaderboard is self-reported and
+  unreproduced on the community board — this number is OURS. Full report:
+  `/tmp/teb-clef/2026/10/2026-10-11T16-09-17.516296Z_88866997.md` on the head node (417 KB, with
+  per-question-type tables, calibration, latency and the 400-case trace).
 - **Served-id wart:** SGLang in this image carries no `--served-model-name`, so clef-flash
   advertises its **snapshot path** as the model id
   (`/cache/huggingface/hub/models--Cloudflare--clef-flash/snapshots/8b2e5fd1…`), not
