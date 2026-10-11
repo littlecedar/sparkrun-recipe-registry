@@ -125,7 +125,7 @@ fields and select the phase with `is_context_prefill_phase`; never quote the pri
    already aborts when a `sparkrun` job is live.
 3. **Portability (user rule).** Every recipe must rely on sparkrun's own detection. No recipe `env`
    value may name a host device (`rocep|enp|ens|enP|eth` + digit) and none of
-   `orchestration/infiniband.py:MANAGED_COMM_ENV_KEYS` may be set. `mods/make-roce-env` is for legacy
+   `orchestration/infiniband.py:MANAGED_COMM_ENV_KEYS` may be set. `attic/ifm/mods/make-roce-env` is for legacy
    runners, **not** for sparkrun recipes.
 4. **Mods run as root (uid 0); the server runs as uid 1000** in the same persisted per-model runtime
    cache. Any file a mod creates there must be `reown`ed to `stat -c '%u' /cache/runtime`, or every

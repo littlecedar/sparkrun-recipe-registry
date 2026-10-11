@@ -21,6 +21,14 @@ SGLang recipes were removed 2026-09-25 (they do not boot); see §9.
 Numbers we derived say "computed here"; numbers someone else measured name who.
 Never promote a `LIKELY` into an unlabelled fact.
 
+> **Tracking note (2026-10-11).** The two mods these five recipes mount —
+> `mods/mount-dsv41-exl3-patches` and `mods/bound-engram-cache` — now live in
+> `attic/ds4/mods/`: the EXL3 lane was the only thing left mounting them. The
+> recipes' `@littlecedar/mods/…` references resolve only after both mods move
+> back to `mods/` (and are pushed); the guard constants in
+> `tests/test_ds4_recipes.py` and `tests/test_bound_engram_cache.py` already
+> point here.
+
 ---
 
 ## 1. Objective coverage

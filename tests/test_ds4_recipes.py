@@ -67,7 +67,7 @@ EXL3_RECIPES = [EXL3_TP4, EXL3_TP4_1M, EXL3_TP3, EXL3_TP6, EXL3_TP6_1M]  # archi
 # applying the recipe's virtual-heads dict overrides to the draft config
 # (DSPARK-TP3-STUDY.md, AGENTS.md §10 E7/E8). Pruning this file silently
 # reintroduces the "64 heads must be divisible by 3" SpeculativeConfig failure.
-MOD_PATCH_DIR = REPO_ROOT / "mods" / "mount-dsv41-exl3-patches"
+MOD_PATCH_DIR = REPO_ROOT / "attic" / "ds4" / "mods" / "mount-dsv41-exl3-patches"
 MOD_PATCH_MOUNTS = MOD_PATCH_DIR / "files" / "mounts.txt"
 MOD_PATCH_MD5S = MOD_PATCH_DIR / "files" / "MD5SUMS.txt"
 MOD_PATCH_FILE = MOD_PATCH_DIR / "files" / "config_speculative.py"
