@@ -46,6 +46,12 @@ defaults:
   kv_cache_dtype: fp8
   num_speculative_tokens: 3
   speculative_draft_model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+  # The draft only gets DISTRIBUTED when the spec config lives in `defaults:`
+  # under this key: sparkrun's vLLM draft binding reads config["speculative_config"]
+  # and adds the draft repo to the distribution set (an inline literal in the
+  # command is invisible to it, and the offline engine then dies resolving the
+  # draft — measured 2026-10-11). It also injects the prepared revision here.
+  speculative_config: '{"method": "dspark", "model": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark", "num_speculative_tokens": 3}'
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -71,4 +77,4 @@ command: >
   --reasoning-parser nemotron_v3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
-  --speculative-config '{"method": "dspark", "model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
+  --speculative-config '{speculative_config}'
