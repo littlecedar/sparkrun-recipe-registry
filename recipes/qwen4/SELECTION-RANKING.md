@@ -42,6 +42,33 @@ These rows changed after it was written:
   lane's quality/selection pass (owner decision 2026-10-11), not as a global
   end-of-session sweep.
 
+## 2026-10-11 session outcomes (selection pass)
+
+Every lane got a decision or a documented blocker on this pass; **no attic move
+was warranted anywhere** — the two rules that produced that outcome are "nothing
+is dominated on both axes" and "a negative result is a result":
+
+- **qwen3** — coder-next measured at **71.7 t/s C1** (2.1× the DFlash2 arm's
+  33.8) and **35/37** on the paired house battery; DFlash2 measured **37/37** at
+  33.8. Both stay: DFlash2 is the quality reference, coder-next the speed/coder
+  arm. Keep, not de-ship — the owner's measure-before-deciding call is answered.
+- **ornith** — the DFlash2 author's 114.2 t/s knob set was decomposed one knob
+  per boot. **No knob is distinguishable from the 7.5% same-config boot spread**
+  (marlin's two runs straddle both control boots); the clear losers are
+  draft-10 (−13%), float32 (−9%) and the author's own full combination (−15%,
+  the worst arm). The shipped config stands; write-up in `recipes/ornith/README.md`.
+- **glm5** — image blocker closed (`vllm/vllm-openai:glm53-flash` exists,
+  digest-pinned), Flash TP4 recipe drafted with the three vLLM boot traps fixed;
+  **boot still pending a 4-node window**. EXL3 lane's "build" resolved as a
+  clone-and-run (TensorFold `glm-dsa-tp4` branch at `ddfad35`, run via `tfrun.sh`).
+- **decision** (new lane) — JEV-9B boot-verified (base + `jev-decision` LoRA
+  advertised; processed `top_logprobs` served). clef-flash and
+  Decision-2.0-Kai-0.6B are the next two by the lane research's ranking.
+- **explore** (new lane) — Nemotron-3.5-Lightning boot-verified TP=1 with the
+  DSpark draft engaged (acceptance length 3.67 / 88.9%).
+- **Untouched this pass** — embed, rerank, ifm, ds4 (ds4's own A/B work predates
+  this pass and its receipts live in the lane docs).
+
 ---
 
 # SELECTION RANKING DRAFT (Phase 5 input)
