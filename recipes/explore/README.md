@@ -9,7 +9,7 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** |
-| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | pending | **BOOT-VERIFIED 2026-10-11** (C1 measuring) |
+| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; C1 measured; DSPARK engagement unconfirmed) |
 
 ## Measured
 
@@ -27,9 +27,14 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   ReplaySSM verify path; answers correctly in `content` (`391` for 17×23, reasoning split cleanly by
   the `ling3` parser — no empty-content trap on this template).
 - **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
-  failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass; the C1 measurement is
-  running, and if it lands anywhere near the third-party 83 t/s this is the strongest explore arm.
-- Third-party (not yet reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
+  failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass.
+- **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml` —
+  well below the third-party ~83 t/s. **DSPARK engagement could not be confirmed**: the
+  `decode-triage` run's `--fresh` boot replaced the pre-existing serve (same intent id) and destroyed
+  the serve log, so no acceptance-length evidence was retained; 45.5 sits between the third-party
+  plain-NEXTN baseline (37) and its DSPARK figure (83) — exactly the ambiguity an unconfirmed draft
+  leaves. Re-boot with the serve log retained before quoting this as a spec-decode number.
+- Third-party (not reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
 
 ## Next by the ranking
 
