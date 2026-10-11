@@ -1,5 +1,6 @@
 recipe_version: '2'
 model: Intel/Qwen3-Coder-Next-int4-AutoRound
+model_revision: 79c8a6bb73b7946095d7ece1f8fc68535f7c9ab8
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 min_nodes: 1
 
@@ -31,7 +32,8 @@ defaults:
 
 command: >
   taskset -c 5-9,15-19 vllm serve
-  {model}
+  Intel/Qwen3-Coder-Next-int4-AutoRound
+  --revision=79c8a6bb73b7946095d7ece1f8fc68535f7c9ab8
   --host {host}
   --port {port}
   --enable-auto-tool-choice
