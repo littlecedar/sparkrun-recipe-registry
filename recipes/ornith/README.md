@@ -85,8 +85,23 @@ arm — their numbers came from their engine build, not from the knobs alone:
 | ⑤ full author config (①+②+③+④) | 84.6 (6.7) | 78.5 (10.7) | worst — the author's combination does not transfer |
 
 Receipts: `~/benchmarks/ornith-dflash2-ab-20261011/` (control, control2-honed, arm1-draft10,
-arm2-marlin, arm3-extrabuf, arm4-ssmfloat32, arm5-fullauthor). Inter-boot noise on this hardware is
-7–25%, so `marlin`'s margin is only credible against its own paired confirm run (same window).
+arm2-marlin, arm3-extrabuf, arm4-ssmfloat32, arm5-fullauthor).
+
+**Confirm runs and the honest verdict (same node, `.34`).** Marlin repeated at **103.4 (5.4) /
+113.5 (13.5)**. The shipped-config control reproduced at 99.3, and the pre-session control boots at
+106.8. So the same-config spread on this node is **106.8 vs 99.3 (7.5%)**, while marlin's two runs
+(108.9, 103.4) straddle it. **Verdict: no knob in the author's set is distinguishable from boot noise
+on our stack; the shipped config stands.** What *is* outside the noise are the losers: draft-10
+(−13%), float32 (−9%), and the author's full combination (−15%, the worst arm). The author's 114.2
+comes from their engine build, not from these knobs.
+
+**A voided pair, and the failure it exposed.** The `.35` confirm boot served at **30.8 t/s** — plain-decode
+speed, spec decode effectively absent — and its serve log ends in `Killed` (OOM) after decode crawled at
+~2.4 t/s in the last batches. That node had just re-imported a 10 GiB image and carried other lanes'
+cached weights; a memory-starved boot is not a recipe cell and was excluded rather than averaged. Two
+operational rules fall out: **check node memory state(`MemAvailable` / page cache / other containers)
+before benching**, and note that `@eugr/mods/drop-caches` — the mod every Ornith recipe lists first — is
+inert, so nothing in the pipeline actually clears the page cache for you.
 
 **Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
 template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
