@@ -196,5 +196,65 @@ class LiteralShaConsistency(unittest.TestCase):
         self.assertEqual(len(shas), 2, "control must produce two distinct SHAs")
 
 
+class InertDefaults(unittest.TestCase):
+    """A `defaults:` key the `command:` never references never reaches the
+    engine — sparkrun's render only substitutes placeholders, so such a key is
+    a silent drop (`-o key=` cannot reach it either). The session that found
+    this shipped three: `moe_backend`, `tensor_parallel` and
+    `num_speculative_tokens` all looked wired and were not, and one of them
+    (`moe_backend`) was only caught by a subagent boot.
+
+    Exceptions, with reasons: `extra_args` is a documented escape hatch whose
+    wiring is per-recipe (two qwen4 arm recipes predate this guard and do not
+    reference it), and `mm_encoder_tp_mode` is read by the vLLM runtime's flag
+    map for the ornith 397B arm rather than by its template.
+    """
+
+    ALLOWED_UNREFERENCED = {"extra_args", "mm_encoder_tp_mode"}
+    # host/port are conventionally referenced too, but a couple of recipes pass
+    # them via other spellings; do not police them here.
+    NOT_POLICED = {"host", "port"}
+
+    def _blocks(self, text: str):
+        defaults = re.search(r"^defaults:\n((?:  .*\n|\n)*)", text, re.M)
+        command = re.search(r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)", text, re.M | re.S)
+        return defaults, command
+
+    def test_every_default_reaches_the_command(self):
+        checked = 0
+        for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
+            text = strip_comment_lines(path.read_text(encoding="utf-8"))
+            defaults, command = self._blocks(text)
+            if not defaults or not command:
+                continue
+            keys = set(re.findall(r"^  ([a-z0-9_]+):", defaults.group(1), re.M))
+            refs = set(PLACEHOLDER_RE.findall(command.group(1) or ""))
+            inert = sorted(keys - refs - self.ALLOWED_UNREFERENCED - self.NOT_POLICED)
+            self.assertEqual(
+                inert, [],
+                f"{path.relative_to(REPO_ROOT)}: defaults the command never "
+                f"references (silent drop, -o cannot reach them): {inert}",
+            )
+            checked += 1
+        self.assertGreater(checked, 15, "expected the full shipped set")
+
+    def test_inert_default_fails(self):
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "defaults:\n"
+            "  port: 8000\n"
+            "  moe_backend: marlin\n"
+            "command: >\n"
+            "  serve --port {port}\n"
+        )
+        defaults, command = self._blocks(text)
+        keys = set(re.findall(r"^  ([a-z0-9_]+):", defaults.group(1), re.M))
+        refs = set(PLACEHOLDER_RE.findall(command.group(1) or ""))
+        inert = sorted(keys - refs - self.ALLOWED_UNREFERENCED - self.NOT_POLICED)
+        self.assertEqual(inert, ["moe_backend"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
