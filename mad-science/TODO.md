@@ -112,8 +112,8 @@ Any rerank model
 
 ## decision
 Any decision model
-- [ ] Research decision models and find high-quality, fast, low-memory candidates that can co-locate with other small models (such a an embed, rerank, and tts model). **2026-10-11 decision #9:** shortlist is mine to research; owner leads = Cloudflare/Clef and Jev distillations on HF; nodes at a premium → co-location is the core constraint.
-- [ ] Build out the recipes.
+- [X] Research decision models and find high-quality, fast, low-memory candidates that can co-locate with other small models (such a an embed, rerank, and tts model). **2026-10-11: DONE** — full report committed at `recipes/decision/DECISION-MODELS-RESEARCH.md` (both owner leads resolved: Cloudflare/clef(-flash) open-weight Apache-2.0 on `/v1/systemone` under SGLang; "Jev distillations" = the `autotrust/JEV-*` distilled-student family, KL ≈ 0.019 receipts, native vLLM). Shortlist of 8 + co-location budget vs the shipped embed+rerank pair.
+- [ ] Build out the recipes. **2026-10-11: first recipe BOOT-VERIFIED** — `recipes/decision/jev-9b-decision-vllm.yaml` (commit `3ede10f`, then entrypoint + snapshot-path fixes): serves on one node, `/v1/models` lists `autotrust/JEV-9B` **and** the `jev-decision` LoRA adapter, and the scoring path returns processed `top_logprobs` (measured on .34). Received: `--logprobs-mode processed_logprobs` + `--enable-lora` + `--max-lora-rank 32` all accepted by the pinned image. Not yet exercised: a full `allowed_token_ids`-constrained decision round-trip (`allowed_token_ids` was rejected as a top-level chat field in this build — needs the card's exact request shape or the SystemOne path) and the `tool-eval-bench` decision plugin (its probe passes; the plugin's bench mode is keyed to a SystemOne endpoint). Next: clef-flash (SGLang route) and Decision-2.0-Kai-0.6B.
 - [ ] Run quality benchmarking pass.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Update the appropriate README.md and AGENTS.md.
