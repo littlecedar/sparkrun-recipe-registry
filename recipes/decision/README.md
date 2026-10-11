@@ -8,19 +8,33 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
 | recipe | runtime | model | status |
 |---|---|---|---|
 | [`jev-9b-decision-vllm.yaml`](jev-9b-decision-vllm.yaml) | vLLM | [autotrust/JEV-9B][jev] + the `jev-decision` LoRA | **BOOT-VERIFIED 2026-10-11** |
-| [`clef-flash-decision-sglang.yaml`](clef-flash-decision-sglang.yaml) | SGLang | [Cloudflare/clef-flash][clef] | drafted; boot pending |
+| [`clef-flash-decision-sglang.yaml`](clef-flash-decision-sglang.yaml) | SGLang | [Cloudflare/clef-flash][clef] | **BOOT-VERIFIED 2026-10-11** |
+
+## Verified surfaces (2026-10-11)
+
+- **JEV-9B** — `/v1/models` advertises both `autotrust/JEV-9B` and the `jev-decision` LoRA adapter;
+  the scoring path returns processed `top_logprobs` (`--logprobs-mode processed_logprobs` accepted by
+  the pinned image).
+- **clef-flash** — a real `/v1/systemone` round-trip: `routing` returned
+  `choice: technical_support` at 0.957 confidence with calibrated option probabilities
+  (`{billing: 0.016, technical_support: 0.971, sales: 0.013}`), and `urgency` returned
+  `noul: 0.952` — 249 input tokens, **0 output tokens** (prefill-only scoring, as the vendor
+  documents). Receipt: `~/benchmarks/clef_smoke.py` on the head node.
+- **Served-id wart:** SGLang in this image carries no `--served-model-name`, so clef-flash
+  advertises its **snapshot path** as the model id
+  (`/cache/huggingface/hub/models--Cloudflare--clef-flash/snapshots/8b2e5fd1…`), not
+  `Cloudflare/clef-flash`. Clients must pass the path or route through an alias layer — the same
+  sparkrun `{model}`-to-path substitution the other lanes document.
 
 ## What these models are
 
 Decision models are **prefill-only scorers**, not chat models. JEV-9B answers with
 `logprobs` + `allowed_token_ids` over `/v1/chat/completions` (SystemOne-shaped); clef-flash answers
-`choice` / `noul` / `score` questions over `/v1/systemone`. Neither serves text generation as its
-product — a chat client that reads `content` will see empty replies when the model puts its answer
-in the reasoning channel, which is why the JEV recipe pins `--logprobs-mode processed_logprobs` and
-why any quality harness must read the right field.
+`choice` / `noul` / `score` questions over `/v1/systemone`. A chat client that reads `content` sees
+an empty reply from both when the answer lives in the reasoning channel.
 
-`clef-flash` therefore ships the pooling-lane readiness (`readiness: inference: false`, port +
-`/health` only) and takes port 8020 (embed 8010, rerank 8011).
+`clef-flash` ships the pooling-lane readiness (`readiness: inference: false`, port + `/health` only)
+and takes port 8020 (embed 8010, rerank 8011).
 
 ## Co-location
 
