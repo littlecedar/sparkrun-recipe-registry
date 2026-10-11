@@ -6,8 +6,8 @@ model_revision: 7a27e9eb8179b2c2eb71eb214f0dab14ec6a63f2
 # Image: the official LMSYS Ling runtime, which the third-party Spark port
 # (MiaAI-Lab/Ling-3.0-Flash-SGLang-DSpark-DGX-Spark) selects for DSPARK because
 # the GHCR ling_v3_support image predates the dspark_components /
-# --enable-linear-replayssm-spec this recipe needs. Digest pin after first pull;
-# NOT boot-verified yet.
+# --enable-linear-replayssm-spec this recipe needs. Digest pinned (first pull
+# 2026-10-11).
 container: lmsysorg/sglang:dev-Ling-3.0-flash@sha256:880d81d428e73aaad8eb944e33556951d17f9deaeba661803da5d391052840b6
 runtime: sglang
 min_nodes: 1
@@ -22,7 +22,14 @@ metadata:
     0.75 (the port's Spark-safe default; 0.87 is the measured ceiling and leaves
     the node one bad boot from OOM), 256k context, 6 concurrent, fp8_e4m3 KV.
     Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
-    column. NOT boot-verified on our nodes.
+    column. **BOOT-VERIFIED 2026-10-11** on one node: house battery 37/37
+    (19 easy + 18 hard, zero flakes), measured C1 45.5 t/s @ d0 (sigma 5.5,
+    n=5) with DSPARK engaged (SGLang decode lines report accept len 2.73 on a
+    single short request — engagement proof, not a steady-state figure); the
+    third-party ~83 t/s was NOT reproduced, and reproducing it would need an
+    acceptance-focused tuning pass. Also a boot-log caveat: sglang warns
+    "rope_scaling missing factor, defaulting to 1.0", so the advertised 262k
+    window needs a needle probe before it is trusted.
   model_url: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "124B"

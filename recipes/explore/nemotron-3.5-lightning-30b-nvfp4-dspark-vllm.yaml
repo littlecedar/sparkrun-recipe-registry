@@ -7,8 +7,8 @@ model_revision: bee7596271d1495f6992ae224aefde4410e816b8
 # (reasoning/__init__.py:123), `qwen3_coder` tool parser alias
 # (tool_parsers/__init__.py:181), `method: dspark` spec decode
 # (config/speculative.py + v1/spec_decode/llm_base_proposer.py), and
-# `--moe-backend`. NOT boot-verified: checklist in
-# recipes/explore/EXPLORE-MODELS-RESEARCH.md §2(1).
+# `--moe-backend`. **BOOT-VERIFIED 2026-10-11** (TP=1, DSpark acceptance length
+# 3.67 / 88.9% rate; measured C1 77.7 t/s; house battery 33/37).
 container: vllm/vllm-openai:glm53-flash@sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374
 runtime: vllm
 min_nodes: 1
@@ -22,7 +22,10 @@ metadata:
     20.8 GB weights leaving ~95 GB for KV/tenants). Serve line follows the
     card's official GB10 recipe with the community working point (util 0.8,
     262k context) instead of the card's 0.91/1M, which leaves ~1 GiB free and
-    swaps. NOT boot-verified; ~21 GB of weights + the DSpark draft to
+    swaps. **BOOT-VERIFIED 2026-10-11**: measured C1 77.7 t/s @ d0 (sigma 9.8,
+    n=5) with the DSpark draft engaged (acceptance length 3.67, 88.9% rate) and
+    house battery 33/37 (18 easy + 15 hard). Below the third-party 93-96 t/s on
+    this node, so quote ours. ~21 GB of weights + the DSpark draft to
     distribute.
   model_url: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
