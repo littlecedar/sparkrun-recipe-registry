@@ -54,7 +54,11 @@ defaults:
   # and adds the draft repo to the distribution set (an inline literal in the
   # command is invisible to it, and the offline engine then dies resolving the
   # draft — measured 2026-10-11). It also injects the prepared revision here.
-  speculative_config: '{"method": "dspark", "model": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark", "num_speculative_tokens": 3}'
+  # Nested {placeholders} are rendered inside the JSON (the same pattern the
+  # qwen4 solo arm uses for its MTP config), so num_speculative_tokens and
+  # speculative_draft_model are CONSUMED — with literals in the JSON they were
+  # inert defaults that -o could not reach (same silent-drop class as --moe-backend).
+  speculative_config: '{"method": "dspark", "model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -63,6 +67,15 @@ env:
 executor_config:
   entrypoint: ""
 
+# 2026-10-11: --moe-backend was accidentally dropped by an edit and the pin was
+# inert — the verified 77.7 t/s boot ran with moe_backend='auto' and vLLM
+# auto-selected marlin anyway, so the number stands, but the pin now actually
+# reaches the engine. sparkrun's validation stays silent for a flag-map key the
+# template omits (report_unmapped_config_keys counts known_config_keys as
+# "reaching something") — watch for that silent-drop class in other recipes.
+# Comments must live OUTSIDE the folded `command:` block: a `>` scalar keeps them
+# as literal text, and sparkrun's shell-comment rule then eats every flag that
+# follows the first `#`.
 command: >
   vllm serve
   /cache/huggingface/hub/models--nvidia--NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4/snapshots/bee7596271d1495f6992ae224aefde4410e816b8
@@ -76,12 +89,6 @@ command: >
   --gpu-memory-utilization {gpu_memory_utilization}
   --kv-cache-dtype {kv_cache_dtype}
   --moe-backend {moe_backend}
-  # 2026-10-11: this line was accidentally dropped by an edit and the pin was
-  # inert — the verified 77.7 t/s boot ran with moe_backend='auto' and vLLM
-  # auto-selected marlin anyway, so the number stands, but the pin now actually
-  # reaches the engine. sparkrun's validation stays silent for a flag-map key
-  # the template omits (report_unmapped_config_keys counts known_config_keys as
-  # "reaching something") — watch for that silent-drop class in other recipes.
   --mamba-backend flashinfer
   --mamba-cache-mode align
   --reasoning-parser nemotron_v3
