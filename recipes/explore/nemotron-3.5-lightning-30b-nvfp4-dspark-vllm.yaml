@@ -47,20 +47,22 @@ defaults:
   max_num_seqs: 32
   moe_backend: marlin
   kv_cache_dtype: fp8
-  # Consumed by the speculative_config JSON below (nested {placeholder}, the
-  # qwen4 solo-arm pattern). The DRAFT REPO ID stays a literal inside that JSON:
-  # a quoted "{speculative_draft_model}" does NOT render (verified by
-  # `sparkrun run … -n`), and sparkrun's own vLLM draft binding reads the JSON's
-  # "model" field — so the literal is what both the binding and the engine need.
-  num_speculative_tokens: 3
-  # The draft only gets DISTRIBUTED when the spec config lives in `defaults:`
-  # under this key: sparkrun's vLLM draft binding reads config["speculative_config"]
-  # and adds the draft repo to the distribution set (an inline literal in the
-  # command is invisible to it, and the offline engine then dies resolving the
-  # draft — measured 2026-10-11). It also injects the prepared revision here.
-  # Nested {placeholders} render inside the JSON (qwen4 solo-arm pattern), so
-  # num_speculative_tokens is consumed and overridable by -o.
-  speculative_config: '{"method": "dspark", "model": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark", "num_speculative_tokens": {num_speculative_tokens}}'
+  # The draft repo id and the token count are LITERALS here, and that is forced:
+  # a nested {placeholder} inside a defaults VALUE never renders — sparkrun
+  # masks braces once, over the command template only, so the JSON value's own
+  # braces swallow the nested token and sparkrun's own
+  # json.loads(speculative_config) then dies at launch (verified 2026-10-11).
+  # The nested-placeholder pattern is only valid INSIDE `command:` (see the
+  # qwen4 solo arm). To experiment, override the whole blob:
+  #   -o 'speculative_config={"method": "dspark", "model": "<repo>", "num_speculative_tokens": N}'
+  # — that form is boot-verified. A `num_speculative_tokens` defaults key would
+  # be inert here and is deliberately absent.
+  # The draft is DISTRIBUTED only because the spec config lives under this key:
+  # sparkrun's vLLM draft binding reads config["speculative_config"], adds the
+  # draft repo to the distribution set, and injects the prepared revision. An
+  # inline literal in `command:` is invisible to it and the offline engine then
+  # dies resolving the draft (measured 2026-10-11).
+  speculative_config: '{"method": "dspark", "model": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark", "num_speculative_tokens": 3}'
 
 env:
   PYTHONUNBUFFERED: '1'

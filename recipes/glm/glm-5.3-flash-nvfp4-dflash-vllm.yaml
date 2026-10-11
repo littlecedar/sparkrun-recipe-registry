@@ -47,12 +47,17 @@ defaults:
   kv_cache_dtype: fp8_e4m3
   gpu_memory_utilization: 0.85
   moe_backend: marlin
-  num_speculative_tokens: 7
-  speculative_draft_model: incoai/GLM-5.3-Flash-DFlash2
   # Must live here (not inline in command:): sparkrun's vLLM draft binding reads
   # config["speculative_config"] and only then adds the draft repo to the
   # distribution set + injects the prepared revision. Inline literals leave the
   # draft undistributed and the offline engine dies resolving it.
+  # The draft repo id and token count are LITERALS because a nested {placeholder}
+  # inside a defaults VALUE never renders (sparkrun masks braces once, over the
+  # command template only — verified 2026-10-11 on the Nemotron recipe, where it
+  # made sparkrun's own json.loads die at launch). Override the whole blob to
+  # experiment: -o 'speculative_config={"method": "dflash", "model": "<repo>",
+  # "num_speculative_tokens": N}'. A num_speculative_tokens/speculative_draft_model
+  # defaults key would be inert here and is deliberately absent.
   speculative_config: '{"method": "dflash", "model": "incoai/GLM-5.3-Flash-DFlash2", "num_speculative_tokens": 7}'
 
 # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
