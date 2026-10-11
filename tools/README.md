@@ -5,6 +5,22 @@ cannot reach, plus the DeepSeek-V4.1 artifact builders and the one shared module
 (`synthetic_png.py`) that the measurement tools import. `safe_text.py` is the safety filter
 that has to run *before* anything else here reads a log or a chat template.
 
+Every tool here serves a live recipe lane; nothing in this directory is archival —
+retired-lane instruments are archived with their lane (e.g. `attic/ifm/k2_36b_arith.py`).
+Disposition audited 2026-10-11:
+
+| tool | serves | relationships |
+|---|---|---|
+| `safe_text.py` | every lane's log/template handling | guard: `tests/test_safe_text.py`; run before any DeepSeek log or 400 dump is read |
+| `pooling-bench.py` | `recipes/embed/` + `recipes/rerank/` | imports `synthetic_png.py` by sibling path; guarded by `tests/test_qwen3_vl_embeddings.py` |
+| `synthetic_png.py` | library for `pooling-bench.py` | also loaded by the same embed/rerank guard |
+| `quality-battery.py` | `recipes/ds4/` benchmarks rig | imported verbatim by `recipes/ds4/benchmarks/run_benchmarks.py`; scoring kinds reused by `qwen4-quality-eval.py` |
+| `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
+| `build-dsv41-combined.py` | ds4 combined-repo TP=2 | shells out to `build-dsv41-engram.py`; consumed by `mods/tensorfold-dsv41-launcher/launcher.py`; guarded by `tests/test_dsv41_combined_tool.py` |
+| `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
+| `gate-37111.py` + `gate-37111-design.md` | qwen4 W4 correctness gate | the design memo is part of the kit; self-test only, no `tests/` guard |
+| `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
+
 ## safe_text.py
 
 The serving API rejects any request whose `message.content` **or** `reasoning_content` carries
@@ -114,8 +130,8 @@ instruction** — it returns plausible 2048-dim vectors computed from a prompt t
 never trained on, while the startup log says the prompt prefixes loaded. Benchmarking that
 path and comparing it to the instructed one is comparing two different models. `--mode` is
 `embed-v1-chat` by default, every report prints the exact request shape plus a SHA of it,
-and `embed-v1-raw` prints a warning. See `recipes/qwen3/QWEN3-EMBED-OPTIMIZATION-WORK.md`
-§2 F11.
+and `embed-v1-raw` prints a warning. The client-side contract this encodes is written up
+in `recipes/embed/README.md` ("Serving the encoder correctly").
 
 **A 200 OK is not a pass.** The point of this over `curl` is the checks after the status
 line: embedding dimension, two different inputs producing different vectors, the same input
@@ -127,7 +143,7 @@ The symmetry probe is two requests: score `(A,B)`, then score `(B,A)`. A cross-e
 an ordered prompt, so the two differ. A bi-encoder computes cosine between independently
 encoded vectors, so they are *identical* — swapping arguments cannot change a dot product.
 That means it detects the worst failure this model family has (a reranker silently served as
-an embedding model, `recipes/qwen3/QWEN3-EMBED-OPTIMIZATION-WORK.md` §2 F7) **with no
+an embedding model — the bi-encoder catch-all `recipes/rerank/README.md` guards against) **with no
 labelled data, no expected ranking, and no log parsing**. Mock-verified as non-redundant: the
 symmetric mock passes the ranking check and the uniform checks and fails *only* symmetry,
 which is exactly how the real bug presents. `--asymmetry-eps` sets the threshold (1e-4);
@@ -182,6 +198,9 @@ reversal of an uncommon word (`sparkrun`), which common and long words pass —
 a checkpoint weakness, **not** a proven quantization defect (no release-checkpoint
 comparator was run). Full write-up: `attic/ds4/AGENTS.md` §7.6.
 
+Live consumer: `recipes/ds4/benchmarks/run_benchmarks.py` imports this file verbatim for the
+house tier of the deepseek vs deepseek-turbo gateway comparison (`recipes/ds4/benchmarks/README.md`).
+
 ## build-dsv41-engram.py
 
 Builds the DeepSeek-V4.1-Flash **Engram tables** from the *online* Hugging Face repo,
@@ -223,7 +242,7 @@ interrupted fetch continues from its `.engram-progress.json` cursor.
 **Why ranged reads, not `hf_hub_download`.** A GB10 has ~117 GB of usable unified memory and
 the source is 189 GiB; snapshotting or buffering it does not fit. The tool bounds each
 in-flight range, writes straight to disk, and advises written pages `POSIX_FADV_DONTNEED`,
-so **peak RSS measured ~0.6 GiB** while writing 94 GiB (verified on `.34`, 2026-10-06). One
+so **peak RSS measured ~0.6 GiB** while writing 94 GiB (verified on `[.34]`, 2026-10-06). One
 ranged request per 256 MiB segment also keeps the request count low enough to avoid HF's
 `429`; one request per chunk does not (observed at ~12k requests on a full table).
 
@@ -269,7 +288,8 @@ python3 tools/build-dsv41-combined.py --out <dir> --engram-online
 **Why a subdir for the tables.** The engine globs `*.safetensors` **non-recursively**
 in its Engram dir; at the repo root that glob would also walk the 39 EXL3 shards. So
 the tables live in `engram/`, and `mods/tensorfold-dsv41-launcher` prefers
-`<model_dir>/engram/`, making `model: <this repo>` sufficient.
+`<model_dir>/engram/`, making `model: <this repo>` sufficient (consumed by
+`recipes/ds4/deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml`).
 
 **Why stage the shards by default.** A direct ranged read of the two tables runs at
 ~15 MiB/s (hundreds of small segment requests), while a whole-file `hf download` of
@@ -294,9 +314,9 @@ and the recipe guards in `tests/test_ds4_recipes.py`.
 
 `sparkrun`'s benchmarking path measures **speed**, and `quality-battery.py` plants
 a single needle in a ~3k-word haystack — a reasoning probe, not a context-window
-probe. Nothing in this repo **exercised** a long context: the go-live DS4 recipe
-serves 1,048,576 tokens, but its own README says the 1M retrieval "is configured
-and served, **not needle-tested here**". This is the missing instrument.
+probe. It has since produced the DS4 lane's 1M receipts on our hardware (measured
+below): the TP=4 canary passed at 985k, and the TensorFold TP=2 lane passed a 262k
+sweep plus a ~959k probe on 2026-10-10.
 
 It builds a haystack that reaches a requested context length, plants a needle at
 each requested depth, asks for it, and reports where the window was actually
@@ -349,7 +369,7 @@ latency)` line after it. It is stdout-clean by design — the report and the
 never polluted by progress:
 
 ```
-[2026-10-03 20:04:44] [nh] endpoint http://.NN:8000, model deepseek-ai/DeepSeek-V4.1-Flash
+[2026-10-03 20:04:44] [nh] endpoint http://<head>:8000, model deepseek-ai/DeepSeek-V4.1-Flash
 [2026-10-03 20:04:44] [nh] server max_model_len: 1048576
 [2026-10-03 20:04:46] [nh] calibration: largest two probes agreed; sweep stopped early [~65536→75283tok; ~32768→37481tok]; using 4.0065 chars/token
 [2026-10-03 20:04:46] [nh] depths: [100]  (1 prefill(s))
@@ -417,7 +437,7 @@ same three controls are re-run by `tests/test_needle_haystack.py`, which also
 pins determinism across processes (the tool once seeded prompts with Python's
 per-process-randomised `str` hash, which silently broke reproducibility).
 
-Measured (`VERIFIED 2026-10-03`, `http://.NN:8000`,
+Measured (`VERIFIED 2026-10-03`, `http://<head>:8000`,
 `deepseek-ai/DeepSeek-V4.1-Flash`, TP=4 SGLang, one boot):
 
 | window | depths run | result |
@@ -435,6 +455,11 @@ target (+0.87 %, a rejection), the sweep predicts 1,020,107 (+0.16 % at the serv
 comfortably inside `max_model_len`). A full 1M ladder (all ten depths) is ~10 cold
 prefills of up to ~20 min each and is left to the operator; the tool exists so
 that run is reproducible.
+
+**2026-10-10, TensorFold TP=2 lane** (receipts in `recipes/ds4/README.md`): 262k sweep
+3/3 at depths 10/50/90 % (prefill 190–364 s per probe) and a single ~959k probe at
+depth 50 %: 1/1 at 958,919 prompt tokens, 1226.7 s prefill (~782 tok/s) — retrieval
+intact at ~96 % of the 1M window.
 
 ## gate-37111.py
 
@@ -521,6 +546,9 @@ decode graph, spec off, chunk shape), and the "what a PASS proves" limits. Guard
 radix shapes must FAIL/3, with the clean case asserted to produce no findings at all); no
 `tests/` guard references it.
 
+Lane state: `recipes/qwen4/AGENTS.md` (the W4 row); run record and reproducer shapes:
+`attic/qwen4/status/W4-GATE-STATUS.md`.
+
 ## qwen4-quality-eval.py
 
 `recipes/qwen4/` ships two checkpoints for the same base model: the reference
@@ -586,6 +614,9 @@ Guarded by its own `--selftest`
 (ground truth — every task's sample must pass its own scorer — prompt uniqueness with no
 shared prefix over 16 chars, category coverage, `score()` units, and correct/wrong/empty
 mock controls); no `tests/` guard references it.
+
+Measured numbers live next to the arms: `recipes/qwen4/AGENTS.md` (the W3 row) and
+`attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md` (the paired-run record).
 
 ## synthetic_png.py
 
