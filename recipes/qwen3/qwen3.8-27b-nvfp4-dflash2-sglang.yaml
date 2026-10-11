@@ -29,8 +29,10 @@ defaults:
   tensor_parallel: 1
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  # NOT the granted concurrency. MEASURED on hardware 2026-09-19 (WORK.md 12.8): the mamba
-  # state pool silently lowers this value (mem_cache/kv_cache_configurator.py:2177-2193)
+  # NOT the granted concurrency. MEASURED on hardware 2026-09-19: the mamba state pool
+  # silently clamps this (mem_cache/kv_cache_configurator.py:2177-2193) -- read the grant
+  # from the server log (`capped to 21`, K=85), never from this literal. Details and the
+  # 26-slot ceiling are in AGENTS.md section 4.
   max_num_seqs: 48
   # How the leftover pool splits between GDN state and the token pool. THIS IS THE
   # HIGH-LEVERAGE KNOB on this recipe, and it is context-length dependent.
@@ -40,17 +42,13 @@ defaults:
   # context length (modelled at D=8, T~25 GiB: ~3.6 at 4k, ~2.3 at 8k, ~1.2 at 16k).
   # DELIBERATELY STILL 3.51: flipping it is a claim about expected traffic shape, not a
   # free win (2.3 gives up capacity headroom near 4k), and this recipe has no stated
-  # target traffic mix -- see WORK.md section 6 item B. The evidence is no longer the
-  # blocker; ask before changing it.
+  # target traffic mix. The evidence is not the blocker; ask before changing it -- the
+  # measured 8k/16k trade is tabulated in AGENTS.md section 5.
   mamba_full_memory_ratio: 3.51
   # CHECKPOINT-DERIVED and load-bearing -- do not "restore float32 for numerical
-  # safety" without reading WORK.md sections 12.11 and 12.12. The checkpoint declares
-  # mamba_ssm_dtype float32; this recipe overrides it to bfloat16, and the override
-  # MEASURABLY reaches the pool (server-reported: bfloat16 -> "capped to 21",
-  # max_mamba_cache_size=85, conv_state 0.24 GB; float32 -> "capped to 10", K=42,
-  # conv_state 0.12 GB). So bfloat16 DOUBLES the granted concurrency (21 vs 10 slots)
-  # -- reverting it "to be safe" surrenders 11 of 21 concurrent requests on evidence
-  # nobody has produced.
+  # safety": the override DOUBLES the granted concurrency (bfloat16 -> "capped to 21",
+  # max_mamba_cache_size=85; float32 -> "capped to 10", K=42) and is bit-identical to
+  # float32 on the state-read path. Evidence and its untested limits: AGENTS.md section 4.
   mamba_ssm_dtype: bfloat16
   # Reuse behaviour of this strategy is non-obvious and cost a wasted session:
   # under extra_buffer_lazy, cached_tokens GROWS with the number of times the server has
@@ -60,7 +58,7 @@ defaults:
    # the shared prefix several times, not once -- a single absorb yields cached=0 and any
    # such probe is blind; (2) `prefix_caching: true` in a benchmark does NOT mean prefixes
    # are shared on the first pass, so early runs of a sweep see less sharing than the
-   # setting implies. See WORK.md 12.12.
+  # setting implies. Consequences and reasons: AGENTS.md section 4.
   mamba_radix_cache_strategy: extra_buffer_lazy
   # Left at 'auto' rather than spelled fp8_e4m3 so the checkpoint keeps ownership of the
   # KV dtype: auto resolves to fp8_e4m3 today (see metadata.kv_dtype) *because* the
@@ -78,7 +76,7 @@ defaults:
   # arg_groups/mamba_hook.py:129-140 fires only when chunked_prefill_size <
   # mamba_cache_chunk_size, which resolves to max(64, page_size) = 64 here
   # (arg_groups/overrides.py:1888-1897). Note raising it cannot speed up GDN -- that path's
-  # internal chunk is fixed at 64 and is not derived from this value (see WORK.md 12.7).
+  # internal chunk is fixed at 64 and is not derived from this value (AGENTS.md section 4).
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   speculative_algorithm: DFLASH

@@ -36,10 +36,12 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 ## Qwen 3x
 
+The C1 column's `50` for dflash2 is the measured **c=2 aggregate** (tg=128, pp=256), not a
+single-stream number — the recipe's own decode-only measurement is 33.8 t/s at c=1.
+
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3.8-27b-nvfp4-dspark-sglang      | 🌲     |   28.5 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][RadixArk/Qwen3.8-27B-DSpark] — **measured 2026-10-10: −16% vs the DFlash2 lane; DSPARK-path arm only** |
 
 ## Qwen 4x
 
@@ -144,7 +146,6 @@ caveats, and the three archived arms); the lane carries no `AGENTS.md` and no gu
 [RadixArk/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 [incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
-[RadixArk/Qwen3.8-27B-DSpark]: https://huggingface.co/RadixArk/Qwen3.8-27B-DSpark
 [Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
 [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit]: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
 [Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
