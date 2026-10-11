@@ -20,6 +20,23 @@ Qwen3-VL embedding/reranking recipes moved to their own lanes on 2026-10-10:
 
 Flags: ✨ official · 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 🧪 measurement-only.
 
+### Paired house-battery quality (2026-10-11, `tools/quality-battery.py`, n=1)
+
+The lane had **no quality numbers at all** before this pass. Same instrument, same window, one paired
+boot per arm:
+
+| arm | easy | hard | total | C1 t/s |
+|---|---|---|---|---|
+| `qwen3.8-27b-nvfp4-dflash2-sglang` (shipping) | 19/19 | **18/18** | **37/37** | 33.8 |
+| `qwen3-coder-next-int4-autoround-vllm` | 19/19 | 16/18 | 35/37 | **71.7** |
+
+coder-next's two misses are `hard-arith-1` and `hard-arith-2` — both multi-step arithmetic; everything
+else, including the format/trick/code tiers, is clean on both arms. 35/37 at 2.1× the decode speed is a
+**role split, not a loser**: DFlash2 stays the quality reference (37/37), coder-next is the speed/coder
+arm. Both keep their place — no attic move is warranted (nothing is dominated on both axes).
+
+Flags note: `no accuracy evaluation yet` on the coder row is now discharged.
+
 ### Archived to [`attic/qwen3/`](../../attic/qwen3/)
 
 - `qwen3.8-27b-nvfp4-nospec-control-sglang.yaml` — the plain-decode control (12.56 t/s at c=1).
