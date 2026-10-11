@@ -77,4 +77,5 @@ command: >
   --reasoning-parser nemotron_v3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
+  --default-chat-template-kwargs '{"enable_thinking": false}'
   --speculative-config '{speculative_config}'
