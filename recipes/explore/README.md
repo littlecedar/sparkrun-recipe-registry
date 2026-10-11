@@ -34,13 +34,12 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 - **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml`.
   **DSPARK engagement CONFIRMED on a retained boot**: SGLang decode lines report
   `accept len: 2.73, accept rate: 0.22` — that is an **engagement proof** (accept len > 1 means the
-  draft works), read off a single short decode request; NOT a steady-state figure and NOT an
-  established explanation for the gap to the third-party ~83 t/s. The recipe ships that port's
-  exact proven flag set, so the likelier cause of the gap is our sampling, not a stack difference;
-  a steady-state accept len under real decode load would settle it. (Process note: the first C1
-  run's `--fresh` boot destroyed the serve log, so the engagement evidence had to come from a
-  second boot with the log retained — and grep SGLang's `accept len:` metric, not vLLM's
-  "Mean acceptance length".)
+  draft works), read off a single short decode request. **Steady state under real decode load**
+  (4 concurrent ~400-token generations): **accept len 3.64–3.73, accept rate 0.29–0.34**, aggregate
+  gen throughput up to 116.7 t/s. So the draft genuinely works, but steady-state acceptance sits
+  below the third-party port's 5.2–6.4 — and that difference DOES arithmetically account for most
+  of the C1 gap (45.5 × 5.8/3.5 ≈ 75, against their ~83): same recipe flags, different acceptance.
+  Whether their higher acceptance is prompt-mix, engine build, or tuning is untested.
 - Third-party (not reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
 
 ## Next by the ranking
