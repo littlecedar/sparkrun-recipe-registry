@@ -1,0 +1,70 @@
+recipe_version: "2"
+model: inclusionAI/Ling-3.0-flash-int4
+model_revision: 7a27e9eb8179b2c2eb71eb214f0dab14ec6a63f2
+# The explore lane's #2 by the research ranking: 124B/5.1B hybrid-linear MoE,
+# INT4, one Spark, first-party DGX Spark notebook in inclusionAI's ling-cookbook.
+# Image: the official LMSYS Ling runtime, which the third-party Spark port
+# (MiaAI-Lab/Ling-3.0-Flash-SGLang-DSpark-DGX-Spark) selects for DSPARK because
+# the GHCR ling_v3_support image predates the dspark_components /
+# --enable-linear-replayssm-spec this recipe needs. Digest pin after first pull;
+# NOT boot-verified yet.
+container: lmsysorg/sglang:dev-Ling-3.0-flash
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    inclusionAI/Ling-3.0-flash-int4 (124B total / 5.1B active, KDA 5:1
+    MLA hybrid-linear MoE) on ONE DGX Spark. Serve line is the third-party
+    Spark port's proven flag set, minus its docker wrapper: DSPARK spec decode
+    with the external 1.36B draft and the KDA ReplaySSM verify path, mem-fraction
+    0.75 (the port's Spark-safe default; 0.87 is the measured ceiling and leaves
+    the node one bad boot from OOM), 256k context, 6 concurrent, fp8_e4m3 KV.
+    Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
+    column. NOT boot-verified on our nodes.
+  model_url: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "124B"
+  model_dtype: int4
+  kv_dtype: fp8_e4m3
+  draft_model: inclusionAI/Ling-3.0-flash-dspark
+  tags: explore, large_context
+
+defaults:
+  port: 8030
+  host: 0.0.0.0
+  tensor_parallel: 1
+  max_model_len: 262144
+  max_num_seqs: 6
+  max_mamba_cache_size: 32
+  chunked_prefill_size: 8192
+  gpu_memory_utilization: 0.75
+  kv_cache_dtype: fp8_e4m3
+  speculative_algorithm: DSPARK
+  speculative_draft_model: inclusionAI/Ling-3.0-flash-dspark
+  linear_replayssm_cache_len: 32
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tp-size {tensor_parallel}
+  --ep-size 1
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --allow-auto-truncate
+  --tool-call-parser ling3
+  --reasoning-parser ling3
+  --enable-fp32-lm-head
+  --disable-shared-experts-fusion
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-draft-model-path {speculative_draft_model}
+  --enable-linear-replayssm-spec
+  --linear-replayssm-cache-len {linear_replayssm_cache_len}
