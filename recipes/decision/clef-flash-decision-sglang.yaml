@@ -6,7 +6,7 @@ model_revision: 8b2e5fd17c09fd49bc2880b805d5323ec7ff4ff3
 # commit) and documents both Clef checkpoints running on ONE GPU, BF16, TP=1
 # with default settings (docs.sglang.io/cookbook/autoregressive/Cloudflare/clef).
 # Digest pin added after the first pull on a runner node; NOT boot-verified yet.
-container: lmsysorg/sglang:dev-clef
+container: lmsysorg/sglang:dev-clef@sha256:73a6d2c9ff5f3c2a67a1e9bd46f6407387fe62d75fad8c30d2ddfb4194374c1c
 runtime: sglang
 min_nodes: 1
 max_nodes: 1
