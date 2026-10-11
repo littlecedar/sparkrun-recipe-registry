@@ -50,6 +50,11 @@ defaults:
   num_speculative_tokens: 7
   speculative_draft_model: incoai/GLM-5.3-Flash-DFlash2
 
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+# recipe's own serve line runs instead of being parsed as the image's flags.
+executor_config:
+  entrypoint: ""
+
 command: >
   vllm serve
   /cache/huggingface/hub/models--RedHatAI--GLM-5.3-Flash-NVFP4/snapshots/36c184c6cda000a481711306df5adde42f63321a
