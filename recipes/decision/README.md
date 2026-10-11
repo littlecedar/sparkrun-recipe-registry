@@ -14,7 +14,18 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
 
 - **JEV-9B** — `/v1/models` advertises both `autotrust/JEV-9B` and the `jev-decision` LoRA adapter;
   the scoring path returns processed `top_logprobs` (`--logprobs-mode processed_logprobs` accepted by
-  the pinned image).
+  the pinned image). **Constrained scoring VERIFIED 2026-10-11:** top-level `allowed_token_ids` is
+  accepted AND enforced on both `/v1/completions` (the card's native shape) and
+  `/v1/chat/completions` — non-allowed tokens are masked to logprob −9999. (An earlier note here
+  claimed this build rejects the field; that was wrong — the earlier attempt's failure was
+  request-shape, not the flag. `extra_body`/`sampling_params` variants are silently ignored:
+  vLLM drops unknown JSON fields with a 200.) Five decision questions scored through the card's
+  exact recipe — returned option-token logprobs, + per-slot head bias from
+  `~/benchmarks/jev-card/adapter_vllm/decision_head.json`, ÷ per-kind temperature from
+  `calibration.json`, softmax. **Surface caveat that matters:** the chat-template surface shifts the
+  distribution vs the card's raw `/v1/completions` shape (`add_special_tokens=false`) and flipped an
+  argmax in our 5-question sample (frontend_css 0.39 chat vs 0.94 completions) — the card's contract
+  is the **completions** shape; use it for scoring, not the chat surface.
 - **clef-flash** — a real `/v1/systemone` round-trip: `routing` returned
   `choice: technical_support` at 0.957 confidence with calibrated option probabilities
   (`{billing: 0.016, technical_support: 0.971, sales: 0.013}`), and `urgency` returned
