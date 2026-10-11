@@ -52,6 +52,7 @@ defaults:
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   moe_runner_backend: flashinfer_cutlass
+  speculative_algorithm: DFLASH
   draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
   speculative_draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
   speculative_draft_tokens: 4
