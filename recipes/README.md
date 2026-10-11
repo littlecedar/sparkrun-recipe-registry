@@ -107,6 +107,7 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 | Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
 |:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
 | jev-9b-decision-vllm    | 🚀    |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
+| clef-flash-decision-sglang | 🚀  |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone, boot pending** |
 
 _Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
 student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
@@ -119,6 +120,7 @@ one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
 | nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+| ling-3.0-flash-int4-dspark-sglang                | 🚀🚚  |      — | 154GB | 0.75 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot pending** |
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
@@ -236,4 +238,7 @@ DSpark arm, and the depth/SSM/queue threads — moved to [`../attic/qwen3/`](../
 [autotrust/JEV-9B]: https://huggingface.co/autotrust/JEV-9B
 [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
 [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+[Cloudflare/clef-flash]: https://huggingface.co/Cloudflare/clef-flash
+[inclusionAI/Ling-3.0-flash-int4]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
+[inclusionAI/Ling-3.0-flash-dspark]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
