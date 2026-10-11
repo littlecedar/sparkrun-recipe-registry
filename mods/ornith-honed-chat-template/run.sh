@@ -38,8 +38,8 @@ export TIMEOUT="${MOD_TIMEOUT:-60}"
 export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CACHEDIR="${MOD_CACHEDIR:-/cache/runtime}"
 export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
-export USER_UID="$(stat -c '%u' /cache/runtime)"
-export USER_GID="$(stat -c '%g' /cache/runtime)"
+export USER_UID="$(stat -c '%u' /cache/runtime 2>/dev/null || stat -c '%u' "${CACHEDIR}")"
+export USER_GID="$(stat -c '%g' /cache/runtime 2>/dev/null || stat -c '%g' "${CACHEDIR}")"
 
 OUT_DIR="${CACHEDIR}/ornith-honed-chat-template"
 OUT_FILE="${OUT_DIR}/chat_template.jinja"
@@ -88,14 +88,23 @@ mkdir -p "${OUT_DIR}"
 tmp="$(mktemp "${OUT_DIR}/.chat_template.XXXXXX")"
 cp "${SRC_FILE}" "${tmp}"
 chmod 644 "${tmp}"
+
+# Fail closed BEFORE the move, so a bad run leaves no staged artifact.
+EXPECTED_SIZE=30438
+SIZE="$(stat -c '%s' "${tmp}")"
+if [ "${SIZE}" != "${EXPECTED_SIZE}" ]; then
+  rm -f "${tmp}"
+  o "ERROR: staged size ${SIZE} != ${EXPECTED_SIZE}"
+  exit 1
+fi
+if ! grep -q 'qwen3.8-honed-v22.5.1' "${tmp}"; then
+  rm -f "${tmp}"
+  o "ERROR: staged template missing the honed-version marker"
+  exit 1
+fi
+
 mv "${tmp}" "${OUT_FILE}"
 reown "${OUT_DIR}"
-
-# Fail closed on the marker, so a truncated copy cannot ship silently.
-EXPECTED_SIZE=30438
-SIZE="$(stat -c '%s' "${OUT_FILE}")"
-[ "${SIZE}" = "${EXPECTED_SIZE}" ] || { o "ERROR: staged size ${SIZE} != ${EXPECTED_SIZE}"; exit 1; }
-grep -q 'qwen3.8-honed-v22.5.1' "${OUT_FILE}" || { o "ERROR: staged template missing the honed-version marker"; exit 1; }
 
 o "staged: ${OUT_FILE} (${SIZE} B)"
 log "Done."
