@@ -120,8 +120,8 @@ Any decision model
 
 ## explore
 Any model with reasoning and tool-calling capabilities
-- [ ] Research available models and find high-quality, fast, low-memory candidates that push the frontier.
-- [ ] Build out recipes. **2026-10-11 decision #10: no recipe cap; build whatever fits the budget; emphasis follows the selection weighting.**
+- [X] Research available models and find high-quality, fast, low-memory candidates that push the frontier. **2026-10-11: DONE** — committed at `recipes/explore/EXPLORE-MODELS-RESEARCH.md` (8 families shortlisted; five claims in the Oct-10 `EXPLORE-CANDIDATES.md` corrected; top three = Nemotron-3.5-Lightning / Ling-3.0-flash / Kolibri-1).
+- [ ] Build out recipes. **2026-10-11 decision #10: no recipe cap; build whatever fits the budget; emphasis follows the selection weighting.** First recipe **BOOT-VERIFIED** — `recipes/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`: serves on one node (TP=1), and the DSpark draft engages — **acceptance length 3.67, acceptance rate 88.9%** (live decode-batch log). Three boot lessons baked in as fixes: `executor_config.entrypoint: ""` (the vLLM image's ENTRYPOINT), the spec config held in `defaults.speculative_config` (else the draft is never distributed), and `--default-chat-template-kwargs '{"enable_thinking": false}'` (short replies otherwise land in the reasoning channel with `content: null`). Standard-profile bench running; quality pass next.
 - [ ] Run quality benchmarking pass.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Update the appropriate README.md and AGENTS.md.
