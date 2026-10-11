@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL_PATH = REPO_ROOT / "tools" / "build-dsv41-combined.py"
 LAUNCHER = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher" / "launcher.py"
 COMBINED_RECIPE = (
-    REPO_ROOT / "recipes" / "ds4" / "deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml"
+    REPO_ROOT / "recipes" / "ds4" / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
 )
 
 

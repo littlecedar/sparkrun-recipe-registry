@@ -29,8 +29,10 @@ prefers `<model_dir>/engram/` — `model: <this repo>` is then all a recipe need
 - `tools/build-dsv41-combined.py` — builds the repo (~430 GiB free); default
   stages shards 47/48 for a **local** rebuild (ranged online reads were ~15 MiB/s
   vs ~170 MiB/s for a whole-file pull); `--engram-online` skips the staging.
-- New recipe `recipes/ds4/deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml`:
-  the combined `model:`, **no** `dsv41-engram-fetch` mod (tables ship in the repo).
+- Shipped recipe `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`: the
+  combined `model:`, **no** `dsv41-engram-fetch` mod (tables ship in the repo). The
+  sibling `…-exl3-engram-tp2-1m-sglang.yaml` written for this was deleted 2026-10-11 as a
+  byte-duplicate (see below).
 - Distribution: sparkrun distributes **by repo id into the node HF hub cache**
   (`huggingface-cli download <id> --cache-dir <cache>/hub`) — a local dir is NOT
   auto-distributed. Push to the org (`hf upload`) and set `model:` to that id, or
@@ -74,8 +76,10 @@ prefers `<model_dir>/engram/` — `model: <this repo>` is then all a recipe need
 
 - The untracked sibling `deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml` pointed at
   `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-engram`, which **404s even with the org token**
-  (only `-with-engram` exists on HF). `model:`/`model_url:` fixed to the real id; after that it
-  is a functional duplicate of the TensorFold recipe — keep or attic it deliberately.
+  (only `-with-engram` exists on HF). `model:`/`model_url:` fixed to the real id. Resolved
+  2026-10-11: the TensorFold recipe already carried the same combined `model:`, making the
+  sibling a byte-duplicate (only `metadata.description` differed), so it was deleted and
+  `tests/test_dsv41_combined_tool.py` repointed at the shipped recipe.
 - Guards realigned to the new artifact: `test_runtime_image_model` and
   `test_control_official_mxfp4_checkpoint` re-pinned from `Mia-AiLab/…` to the combined id; the
   two obsolete fetch-wiring pins (`test_recipe_lists_engram_fetch_before_launcher`,
