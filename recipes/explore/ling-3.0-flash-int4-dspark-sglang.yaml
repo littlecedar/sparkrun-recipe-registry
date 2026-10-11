@@ -8,7 +8,7 @@ model_revision: 7a27e9eb8179b2c2eb71eb214f0dab14ec6a63f2
 # the GHCR ling_v3_support image predates the dspark_components /
 # --enable-linear-replayssm-spec this recipe needs. Digest pin after first pull;
 # NOT boot-verified yet.
-container: lmsysorg/sglang:dev-Ling-3.0-flash
+container: lmsysorg/sglang:dev-Ling-3.0-flash@sha256:880d81d428e73aaad8eb944e33556951d17f9deaeba661803da5d391052840b6
 runtime: sglang
 min_nodes: 1
 max_nodes: 1
