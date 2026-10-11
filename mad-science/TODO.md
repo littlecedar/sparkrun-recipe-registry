@@ -75,7 +75,19 @@ Ornith 1.5
   - **Distribution-blocking incident (2026-10-11, fixed):** the runner caches' ornith `chat_template.jinja` was honed in place in September and sparkrun's model-preparation validator now rejects it against hub metadata (`wrong_size`) — every launch died at distribution. Fixed by restoring hub content in the caches and shipping the honed template via `@littlecedar/mods/ornith-honed-chat-template` + `--chat-template` (commit `2374fd7`, guards in `tests/test_ornith_honed_chat_template.py`, gate 379 tests OK). The checkpoint is now revision-pinned (`94e431d9` + `--revision`, commit `294e42a`).
 - [X] If yes to the above, build and test the recipe upgrades. **No — nothing superseding, no upgrade built.** The lane ships unchanged.
 - [X] Build testing and benchmarking battery tooling. **RESOLVED 2026-10-11 (survey + decision #15): no new tool.** `tool-eval-bench` verified installed on the head node (`uvx tool-eval-bench` resolves; `sparkrun benchmark tools` exists in the installed CLI) — first live run happens inside each lane's quality pass below. The four stdlib instruments nothing standard reaches stay as-is.
-- [ ] A/B the DFlash2 author's 114.2 t/s reference config same-node (multi-knob confound). **2026-10-11 progress:** control (old-recipe boot) **106.8 t/s @ d0** (std 10.5) / **97.5 t/s @ d8192** (std 8.8) — already within ~7% of the author's 114.2. **Arm ① draft tokens 4→10: 86.5 t/s @ d0 — REJECTED, a ~19% loss** (`arm1-draft10.json`). Remaining ladder re-baselines on the pushed recipe (honed template): control2 running, then ② MoE →marlin, ③ mamba radix →extra_buffer, ④ SSM →float32, ⑤ full author config only if singles don't explain the residual ~7%.
+- [ ] A/B the DFlash2 author's 114.2 t/s reference config same-node (multi-knob confound). **2026-10-11 ladder (all on the pushed honed-template recipe except the first control):**
+
+  | arm | d0 t/s (σ) | d8192 t/s (σ) | verdict |
+  |---|---|---|---|
+  | control (pre-session recipe, upstream template) | 106.8 (10.5) | 97.5 (8.8) | n=5 |
+  | control-2 (honed template + pin) | 99.3 (8.8) | 99.2 (4.7) | template delivery costs nothing measurable |
+  | ① draft tokens 4→10 | 86.5 (8.5) | 85.5 (6.2) | **REJECTED (~19% loss)** |
+  | ② MoE →marlin | 108.9 (5.3) | 109.0 (4.1) | **best; ~+10% vs control-2, outside the runs' σ but inside the inter-boot floor — needs a repeat before shipping** |
+  | ③ mamba radix →extra_buffer | 103.2 (5.1) | 93.2 (14.1) | d0 neutral, d8k noisier/worse |
+  | ④ SSM →float32 | 90.4 (4.5) | 98.2 (6.5) | d0 worse, no case |
+  | ⑤ full author config (②③④①) | running | — | expected mediocre given ① and ④ |
+
+  Files in `~/benchmarks/ornith-dflash2-ab-20261011/`. The residual gap to 114.2 is explained by ① (their draft width) plus engine differences; marlin is the one candidate worth a confirm repeat.
 - [ ] Run quality benchmarking pass.
 - [ ] Update the appropriate README.md and AGENTS.md.
 
