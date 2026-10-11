@@ -42,7 +42,7 @@ single-stream number — the recipe's own decode-only measurement is 33.8 t/s at
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |    71.7 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; accuracy pending**
+| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |    71.7 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37** |
 
 ## Qwen 4x
 
@@ -106,8 +106,8 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 
 | Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
 |:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
-| jev-9b-decision-vllm    | 🚀    |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
-| clef-flash-decision-sglang | 🚀  |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone; Typed Decisions 70.3% (1406/2000), boot-verified** |
+| jev-9b-decision-vllm    |       |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
+| clef-flash-decision-sglang |    |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone; Typed Decisions 70.3% (1406/2000), boot-verified** |
 
 _Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
 student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
@@ -119,8 +119,8 @@ one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both 
 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
-| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
-| ling-3.0-flash-int4-dspark-sglang                | 🚀🚚  |      — | 154GB | 0.75 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot pending** |
+| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     |       |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+| ling-3.0-flash-int4-dspark-sglang                | 🚚    |      — | 154GB | 0.75 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; C1 measuring** |
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)

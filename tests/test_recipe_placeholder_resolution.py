@@ -21,6 +21,13 @@ injected set.
 Negative controls live in NegativeControls: a command referencing a missing
 default must FAIL, and comments must be stripped before matching so prose
 that quotes a placeholder does not fire the guard.
+
+Known blind spots (documented, not enforced): a `{placeholder}` nested inside a `defaults:` VALUE
+that is consumed wholesale (e.g. a JSON blob under `speculative_config`) is not checked, and
+PLACEHOLDER_RE is snake_case-only. No shipped recipe trips either today. The LiteralShaConsistency
+class below additionally guards the literal snapshot-path pattern: in a recipe that hardcodes
+`/cache/.../snapshots/<sha>` and/or `--revision=<sha>`, every 40-hex token in the command must equal
+the top-level `model_revision`, so a revision bump cannot silently serve a stale snapshot.
 """
 
 from __future__ import annotations
@@ -48,6 +55,7 @@ def strip_comment_lines(text: str) -> str:
     return "\n".join(
         ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
     )
+
 
 
 def _defaults_keys(text: str) -> set[str]:
@@ -136,6 +144,56 @@ class NegativeControls(unittest.TestCase):
             if tok not in defaults and tok not in INJECTED
         ]
         self.assertEqual(missing, [])
+
+
+class LiteralShaConsistency(unittest.TestCase):
+    """In a recipe that hardcodes the snapshot-path pattern, every 40-hex token
+    in the command must equal the top-level `model_revision` — otherwise a
+    revision bump that edits one of the three places (top-level pin, snapshot
+    path, --revision=) silently serves a stale snapshot or dies at
+    distribution.
+    """
+
+    SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
+
+    def test_command_shas_match_model_revision(self):
+        checked = 0
+        for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
+            text = strip_comment_lines(path.read_text(encoding="utf-8"))
+            pin = re.search(r"^model_revision:\s*([0-9a-f]{40})\s*$", text, re.M)
+            if not pin:
+                continue
+            command = re.search(
+                r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)", text, re.M | re.S
+            )
+            self.assertIsNotNone(command, f"{path}: no folded command block")
+            shas = set(self.SHA_RE.findall(command.group(1) or ""))
+            unexpected = sorted(s for s in shas if s != pin.group(1))
+            self.assertEqual(
+                unexpected,
+                [],
+                f"{path.relative_to(REPO_ROOT)}: command carries a 40-hex token "
+                f"that does not match model_revision {pin.group(1)}: {unexpected}",
+            )
+            checked += 1
+        self.assertGreaterEqual(checked, 3, "expected the literal-path recipes")
+
+    def test_mismatched_revision_fails(self):
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "model_revision: " + "a" * 40 + "\n"
+            "command: >\n"
+            "  vllm serve\n"
+            "  /cache/huggingface/hub/models--m--n/snapshots/" + "b" * 40 + "\n"
+            "  --revision=" + "c" * 40 + "\n"
+        )
+        command = re.search(
+            r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
+            strip_comment_lines(text), re.M | re.S,
+        )
+        shas = set(self.SHA_RE.findall(command.group(1)))
+        self.assertEqual(len(shas), 2, "control must produce two distinct SHAs")
 
 
 if __name__ == "__main__":
