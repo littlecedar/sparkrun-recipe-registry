@@ -1,7 +1,7 @@
 # DECISIONS — locked 2026-10-11 (questionnaire answered)
 
 1. **Order/budget**: the lane order is advisory, not priority — any rational order; the 12 h budget stands. No lane is out of scope.
-2. **Nodes**: both .NN and .NN are ours for the session; paired A/B boots on both are fine.
+2. **Nodes**: both benchmark nodes (`.34`, `.35` — the two ${WOPR_RUN_FROM_DIR}-side free hosts) are ours for the session; paired A/B boots on both are fine.
 3. **glm5 images**: option (a) — attempt to build/verify a pinnable image for the Flash vLLM lane. For the EXL3 lane, no existing builds of `glm-dsa-tp4` are known → resolved by #13 (attempt a source build).
 4. **DFlash2 license**: use the DFlash2 drafts — non-commercial cluster use satisfies CC BY-NC-ND (owner confirmed 2026-10-11, resolving the (a)/(b) label mismatch).
 5. **qwen3 coder-next**: option (a) — measure it on a free node before the keep/de-ship call.
@@ -21,8 +21,8 @@
 Budget: 12 hours
 
 WOPR sparkrun cluster nodes available for testing and benchmarking:
-- .NN
-- .NN
+- .34
+- .35
 
 Lane order (advisory — any rational order, decisions #1):
 - ds4

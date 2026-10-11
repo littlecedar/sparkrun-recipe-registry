@@ -112,12 +112,12 @@ replies when short answers stay in the reasoning channel.)
 
 **Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
 template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
-delivered by `@littlecedar/mods/ornith-honed-chat-templatep`, which stages the file under
+delivered by `@littlecedar/mods/ornith-honed-chat-template`, which stages the file under
 `/cache/runtime/ornith-honed-chat-template/` (content-idempotent, fail-closed on size + marker) and the
 recipe points `--chat-template` at it. Never inject it into the HF snapshot: sparkrun validates every
 cached model file against a hub manifest, and an injected snapshot fails `wrong_size` at distribution
 (that failure cost this lane a session — the `.bak`/`.dist` siblings the injection left behind are the
-tell). The checkpoint is revision-pinned (`94e4 31d9…` at the time of writing) and the command passes
+tell). The checkpoint is revision-pinned (`94e431d9…` at the time of writing) and the command passes
 `--revision {model_revision}`, which the offline engine needs because a SHA download writes no
 `refs/` entry.
 

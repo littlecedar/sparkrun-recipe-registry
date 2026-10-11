@@ -149,7 +149,7 @@ class NegativeControls(unittest.TestCase):
             shutil.copy2(MOD_SCRIPT, workdir / "run.sh")
             marker = MARKER.encode()
             good = TEMPLATE.read_bytes()
-            (workdir / "chat_template.jinja").write_bytes(good.replace(marker, b"qwen3.8-plain-v0"))
+            (workdir / "chat_template.jinja").write_bytes(good.replace(marker, b"qwen3.8-honed-v00.0.0"))
             env = {k: v for k, v in os.environ.items() if not k.startswith("MOD_")}
             env.update(_base_env(cache))
             r = subprocess.run(
