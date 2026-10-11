@@ -123,7 +123,7 @@ one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
 and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-96 t/s third-party figure on
-this node, so quote ours. Lane research:
+this node, so quote ours. Quality: **33/37** house battery. Lane research:
 [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
 
 # Model Flags
