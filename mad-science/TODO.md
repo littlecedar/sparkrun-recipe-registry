@@ -75,21 +75,9 @@ Ornith 1.5
   - **Distribution-blocking incident (2026-10-11, fixed):** the runner caches' ornith `chat_template.jinja` was honed in place in September and sparkrun's model-preparation validator now rejects it against hub metadata (`wrong_size`) — every launch died at distribution. Fixed by restoring hub content in the caches and shipping the honed template via `@littlecedar/mods/ornith-honed-chat-template` + `--chat-template` (commit `2374fd7`, guards in `tests/test_ornith_honed_chat_template.py`, gate 379 tests OK). The checkpoint is now revision-pinned (`94e431d9` + `--revision`, commit `294e42a`).
 - [X] If yes to the above, build and test the recipe upgrades. **No — nothing superseding, no upgrade built.** The lane ships unchanged.
 - [X] Build testing and benchmarking battery tooling. **RESOLVED 2026-10-11 (survey + decision #15): no new tool.** `tool-eval-bench` verified installed on the head node (`uvx tool-eval-bench` resolves; `sparkrun benchmark tools` exists in the installed CLI) — first live run happens inside each lane's quality pass below. The four stdlib instruments nothing standard reaches stay as-is.
-- [ ] A/B the DFlash2 author's 114.2 t/s reference config same-node (multi-knob confound). **2026-10-11 ladder (all on the pushed honed-template recipe except the first control):**
-
-  | arm | d0 t/s (σ) | d8192 t/s (σ) | verdict |
-  |---|---|---|---|
-  | control (pre-session recipe, upstream template) | 106.8 (10.5) | 97.5 (8.8) | n=5 |
-  | control-2 (honed template + pin) | 99.3 (8.8) | 99.2 (4.7) | template delivery costs nothing measurable |
-  | ① draft tokens 4→10 | 86.5 (8.5) | 85.5 (6.2) | **REJECTED (~19% loss)** |
-  | ② MoE →marlin | 108.9 (5.3) | 109.0 (4.1) | **best; ~+10% vs control-2, outside the runs' σ but inside the inter-boot floor — needs a repeat before shipping** |
-  | ③ mamba radix →extra_buffer | 103.2 (5.1) | 93.2 (14.1) | d0 neutral, d8k noisier/worse |
-  | ④ SSM →float32 | 90.4 (4.5) | 98.2 (6.5) | d0 worse, no case |
-  | ⑤ full author config (②③④①) | running | — | expected mediocre given ① and ④ |
-
-  Files in `~/benchmarks/ornith-dflash2-ab-20261011/`. The residual gap to 114.2 is explained by ① (their draft width) plus engine differences; marlin is the one candidate worth a confirm repeat.
-- [ ] Run quality benchmarking pass.
-- [ ] Update the appropriate README.md and AGENTS.md.
+- [X] A/B the DFlash2 author's 114.2 t/s reference config same-node (multi-knob confound). **2026-10-11: CLOSED as a negative result with receipts — no knob is distinguishable from boot noise; the shipped config stands.** Ladder (d0 t/s): control 106.8 (old recipe) / 99.3 (honed control-2) / ① draft10 86.5 / ② marlin 108.9 and 103.4 (repeat) / ③ extra_buffer 103.2 / ④ float32 90.4 / ⑤ full author 84.6. Same-config spread on the node is 7.5% (106.8 vs 99.3); marlin's two runs straddle it, so it is not a win; the losers (① ⑤ ④) are outside the noise. One confirm cell was **voided**: the .35 boot lost spec decode (30.8 t/s) and was OOM-`Killed` — a memory-starved node, not a recipe cell. Files: `~/benchmarks/ornith-dflash2-ab-20261011/`; write-up in `recipes/ornith/README.md`.
+- [ ] Run quality benchmarking pass. **Not run — the A/B above is throughput plus knobs only.** Queued: one ornith boot + `tools/quality-battery.py` so the lane has a quality number (the decision/explore lanes and the qwen3 pair already have theirs).
+- [X] Update the appropriate README.md/AGENTS.md. **2026-10-11:** `recipes/ornith/README.md` carries the ladder table, the confirm/void analysis, the honed-template delivery story, and the revision pin. The lane has no `AGENTS.md` (unchanged); root index row unchanged (no config change).
 
 ## qwen3
 Qwen 3.x
