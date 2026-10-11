@@ -11,7 +11,7 @@ Counts in this document were verified 2026-10-08 against the working tree. Facts
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 21 files in 7 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 20 files in 7 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 27 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
@@ -55,9 +55,9 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/ds4/` (3), `recipes/embed/` (2), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (4), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen4 lane gained two solo TP=1 recipes (PLE-offload routes, boot-verified) and the qwen3 lane a DSpark draft arm the same day |
+| `recipes/ds4/` (3), `recipes/embed/` (2), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (3), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen4 lane gained two solo TP=1 recipes (PLE-offload routes, boot-verified) and the qwen3 lane a DSpark draft arm the same day, and the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
 | `tests/` | 10 importable guard modules, one skipped `*.sync-conflict-*.py` |

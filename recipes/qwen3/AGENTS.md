@@ -5,15 +5,17 @@ LPDDR5X), TP=1, SGLang. Read this before touching a recipe in this directory, it
 guards. It was created 2026-10-10 to absorb the measurement history that had accumulated in the
 recipe comments; the recipes now carry only non-obvious-tunable notes.
 
-**Scope of this directory.** Three shipped recipes off one checkpoint, plus one unrelated vLLM
+**Scope of this directory.** Two shipped recipes off one checkpoint, plus one unrelated vLLM
 coder model:
 
 | recipe | role |
 |---|---|
 | `qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | **shipping** — DFLASH2 spec decode, block 8 |
-| `qwen3.8-27b-nvfp4-nospec-control-sglang.yaml` | **control only** — same bytes, no `--speculative-*`; supplies the plain-decode denominator. Not for serving. |
 | `qwen3.8-27b-nvfp4-dspark-sglang.yaml` | **documented arm** — the DSpark draft path; measured and **rejected** as an upgrade (§7) |
 | `qwen3-coder-next-int4-autoround-vllm.yaml` | a different family (Intel/Qwen3-Coder-Next, vLLM) sharing the lane dir only |
+
+The **no-spec control** recipe was retired to [`attic/qwen3/`](../../attic/qwen3/) on 2026-10-10
+after its measured metrics were recorded in §6 — it is no longer served by the registry.
 
 The four **Qwen3-VL embedding/reranking** recipes moved to their own lanes on 2026-10-10:
 [`recipes/embed/`](../embed/README.md) and [`recipes/rerank/`](../rerank/README.md); the guard
@@ -363,10 +365,41 @@ command so argparse resolves a repeated flag in favour of the override; quoted s
 
 ---
 
-## 6. The no-spec control recipe
+## 6. The no-spec control recipe — archived, with its measured metrics
 
-`qwen3.8-27b-nvfp4-nospec-control-sglang.yaml` is **not a shipping recipe** — it supplies the plain
-decode term the DFLASH recipe cannot provide on its own.
+`attic/qwen3/qwen3.8-27b-nvfp4-nospec-control-sglang.yaml` is **not a shipping recipe** — it
+supplies the plain decode term the DFLASH recipe cannot provide on its own. **Archived
+2026-10-10**: the denominator it exists to produce is measured and recorded here, so the file was
+retired to `attic/` (unserved by the registry, comments frozen — attic is provenance). To repeat a
+spec-vs-nospec comparison, move it back into this lane first; every rule below still applies,
+including the pairing rule.
+
+**Measured metrics — decode at c=1** (decode-triage profile, `runs=5` per boot; receipts
+`.scratch/qwen3-27b/results/c127b_nospec_{a,b}.json`):
+
+| boot | d=0 t/s | d=8192 t/s |
+|---|---|---|
+| `c127b_nospec_a` | 12.567 (sd 0.016) | 12.376 (sd 0.022) |
+| `c127b_nospec_b` | 12.546 (sd 0.014) | 12.344 (sd 0.017) |
+
+- **Pooled d=0 = 12.556 t/s over 10 runs**, per-run sd 0.018, range 12.518–12.582; the two boot
+  means sit 0.17 % apart. Older single-run boots on the `boot-check` profile (pp=256) agree:
+  12.552 (`p927b_control`, phase 9) and 12.412 (`p47`, phase 47; receipts
+  `.scratch/qwen3-27b/p9-0919/p927b_control.json`, `.scratch/p47-nospec/p47.json`).
+  `peak_throughput` reads 13.0 t/s in every cell. Across every no-spec run on record the spread is
+  **±0.25 %** (12.52–12.58) — the hardware is quiet; the ±15 % boot-to-boot jitter belongs to the
+  draft model's acceptance process, not the denominator (WORK §3).
+- **Depth 8192 at c=1 costs only ~1.5 %** on the control itself (98.5 % / 98.4 % of d=0, both
+  boots). The c=8 depth cost (~20 %, §1) is therefore a congestion/pool effect, **not** a depth
+  effect — this is the cheapest confirmation of that reading.
+- **Against the byte model** (§4): predicted ~14 t/s ceiling, measured 12.56 → **221 GB/s** implied
+  effective read. This is the calibration every `A_eff` on the shipping recipe is computed against.
+- **Boot-level grant, n=2** (`p47` boot log, `.scratch/p47-nospec/p47.digest`, 2026-09-22):
+  `Mamba Cache is allocated. max_mamba_cache_size: 389, conv_state size: 1.07GB, ssm_state size:
+  27.42GB`; `KV Cache is allocated. dtype: torch.float8_e4m3fn, #tokens: 268201, K size: 4.09 GB,
+  V size: 4.09 GB`; `max_total_num_tokens=268201 … max_running_requests=48`. **Zero `capped to`
+  lines** → 48 granted (the first boot logged 267,301, +0.34 %). Do not compare a spec arm's pool
+  figures against these — no `(1+D)` reservation or verify scratch exists on this path (§5.1).
 
 **Why it exists.** This model is dense (64 layers, no MoE), so every weight is read on every token.
 Summing safetensors headers gives **17,608 MB read per token**, which against the **246 GB/s**
@@ -386,11 +419,15 @@ framing needs rebuilding, not re-tuning.
 treated recipe**, not because 3.51 is optimal for a no-spec run (it is not — with no D term to fund,
 this arm would sit nearer its own optimum near 1). "Optimising" the control's ratio while the treated
 arm stays at 3.51 silently turns a controlled comparison into two different configurations and
-destroys the only clean read on what speculation costs. **If the treated recipe's ratio changes, this
-one MUST change with it.** Validate with `.scratch/qwen3-27b/validate_recipes.py`, which diffs the two
-commands and fails if they ever differ outside `--speculative-*` flags. **The command is
-byte-identical to the DFLASH recipe's minus the three `--speculative-*` flags** — do not "tidy"
-anything else there; every difference is a confound in the one number this recipe exists to produce.
+destroys the only clean read on what speculation costs. **If the treated recipe's command changes,
+the control needs the same change before it can be used again** — while the file sits in `attic/`,
+`.scratch/qwen3-27b/validate_recipes.py` silently skips it (it returns early when either path is
+missing), so point it at the attic copy or copy the recipe back first. Last value-parity check,
+**2026-10-10**: stripped of comments, the archived command and today's `qwen3.8-27b-nvfp4-dflash2-sglang.yaml`
+differ in exactly the three `--speculative-*` keys/flags (`mods:` identical), so the archived file
+*is* the current baseline for the numbers above. **The command is byte-identical to the DFLASH
+recipe's minus the three `--speculative-*` flags** — do not "tidy" anything else there; every
+difference is a confound in the one number this recipe exists to produce.
 
 **Granted concurrency is 48 here vs 21 on the DFLASH recipe** (MEASURED 2026-09-19, WORK §12.8): this
 boot logs `Mamba Cache is allocated. max_mamba_cache_size: 389 (#tokens: 267301)` with **no** "capped
@@ -483,6 +520,7 @@ template is present) surfaces a resolution failure.
 - vLLM coder model: [Intel/Qwen3-Coder-Next-int4-AutoRound](https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound)
 - Base image: [`lmsysorg/sglang:dev-cu13`](https://hub.docker.com/r/lmsysorg/sglang)
 - Guard: [`tests/test_qwen3_vl_embeddings.py`](../../tests/test_qwen3_vl_embeddings.py) (covers the
-  embed/rerank lanes, not this directory's four recipes)
+  embed/rerank lanes, not this directory's three recipes)
+- Archived control recipe: [`attic/qwen3/`](../../attic/qwen3/) (metrics in §6; frozen comments)
 - Deep narrative record: `QWEN3-MODEL-OPTIMIZATION-WORK.md`, `DEPTH-COST.md`, `SSM-STATE-DTYPE.md`,
   `ANSWERED-QUEUES.md`, `JOURNAL.md` (see §2)

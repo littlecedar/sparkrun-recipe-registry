@@ -1,0 +1,88 @@
+recipe_version: "2"
+model: RadixArk/Qwen3.8-27B-NVFP4
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >
+    No-speculation control for Qwen3.8-27B-NVFP4. Not a shipping recipe: it exists to
+    supply the denominator the DFLASH recipe cannot provide on its own.
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27B"
+  model_dtype: nvfp4
+  kv_dtype: fp8_e4m3
+  tags: control, measurement_only
+
+# Same mods as the DFLASH recipe, deliberately. Every byte this recipe loads must match
+# the arm it controls for; a mod difference here would make the control's load path a
+# second variable. mods/fix-sglang-spec-metrics-empty-verify is NOT mounted: with no
+# --speculative-algorithm flag at all, get_spec().speculative_algorithm is None, the
+# spec-metric gate is falsy, and the upstream IndexError is never reached. The flag is
+# simply absent rather than set to NONE.
+mods:
+  - "@eugr/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  # Granted in full, MEASURED 2026-09-19 (WORK.md 12.8): this boot logs
+  #   Mamba Cache is allocated. max_mamba_cache_size: 389   (#tokens: 267301)
+  # with NO "capped to" warning, so max_running_requests stays 48. That is the whole point of
+  # this recipe existing as a control: with no speculative draft there is no (1+D) reservation
+  # and no D-proportional verify scratch, so K reaches ~budget/p and the mamba cap (K//4 = 97)
+  # sits far above 48 and cannot bind. The DFLASH recipe at the same ratio gets K=85 / capped 21
+  # (21 on a fresh container, 20 on one aged several hours -- container age, not node; WORK.md
+  # 12.10 isolated this).
+  # So the two recipes differ in GRANTED concurrency (48 vs 21) while their command text looks
+  # clean -- do not run a spec-vs-nospec comparison above c=21 without accounting for this.
+  #
+  # THIS RATIO IS PART OF THE PAIRING. It is 3.51 to match the treated recipe, not because 3.51
+  # is optimal for a no-spec run (it is not -- with no D term to fund, this arm has far more slack
+  # and would sit closer to its own optimum near 1). "Optimizing" the control's ratio while the
+  # treated arm stays at 3.51 silently turns a controlled comparison into two different
+  # configurations and destroys the only clean read on what speculation costs. If the treated
+  # recipe's ratio changes, THIS ONE MUST CHANGE WITH IT. Validate with
+  # .scratch/qwen3-27b/validate_recipes.py, which diffs the two commands and fails if they ever
+  # differ outside speculative-* flags.
+  max_num_seqs: 48
+  mamba_full_memory_ratio: 3.51
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  kv_cache_dtype: auto
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  extra_args: ""
+
+# Byte-identical to the DFLASH recipe's command minus the three --speculative-* flags.
+# Do not "tidy" anything else here: every difference from qwen3.8-27b-nvfp4-dflash2-sglang
+# is a confound in the one number this recipe exists to produce.
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format fastsafetensors
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --kv-cache-dtype {kv_cache_dtype}
+  {extra_args}
+
+# Do not set speculative_algorithm: NONE on this recipe. That string is truthy where
+# None is falsy, which routes a no-spec server into spec-decode metrics and crashes it
+# (see mods/fix-sglang-spec-metrics-empty-verify). Omit the flags instead.
