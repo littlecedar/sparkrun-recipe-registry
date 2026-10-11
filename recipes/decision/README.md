@@ -27,7 +27,8 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
   this run: ★★, above its prior baseline. Note: the vendor's leaderboard is self-reported and
   unreproduced on the community board — this number is OURS. Full report:
   `/tmp/teb-clef/2026/10/2026-10-11T16-09-17.516296Z_88866997.md` on the head node (417 KB, with
-  per-question-type tables, calibration, latency and the 400-case trace).
+  per-question-type tables, calibration, latency and the 400-case trace; copied with the console log
+  to `~/benchmarks/teb-clef-durable/` because `/tmp` is reaped).
 - **Served-id wart:** SGLang in this image carries no `--served-model-name`, so clef-flash
   advertises its **snapshot path** as the model id
   (`/cache/huggingface/hub/models--Cloudflare--clef-flash/snapshots/8b2e5fd1…`), not
