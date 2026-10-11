@@ -118,11 +118,12 @@ one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both 
 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
-| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |      — |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
 
-_Rank-1 explore candidate (1 node, 93-96 tok/s third-party measured on GB10, 20.8 GB weights).
-**BOOT-VERIFIED 2026-10-11** (TP=1): serves with the DSpark draft engaged — acceptance length 3.67 at
-an 88.9% acceptance rate. Lane research:
+_Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
+DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
+and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-96 t/s third-party figure on
+this node, so quote ours. Lane research:
 [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
 
 # Model Flags
