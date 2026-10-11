@@ -75,6 +75,13 @@ command: >
   --max-num-seqs {max_num_seqs}
   --gpu-memory-utilization {gpu_memory_utilization}
   --kv-cache-dtype {kv_cache_dtype}
+  --moe-backend {moe_backend}
+  # 2026-10-11: this line was accidentally dropped by an edit and the pin was
+  # inert — the verified 77.7 t/s boot ran with moe_backend='auto' and vLLM
+  # auto-selected marlin anyway, so the number stands, but the pin now actually
+  # reaches the engine. sparkrun's validation stays silent for a flag-map key
+  # the template omits (report_unmapped_config_keys counts known_config_keys as
+  # "reaching something") — watch for that silent-drop class in other recipes.
   --mamba-backend flashinfer
   --mamba-cache-mode align
   --reasoning-parser nemotron_v3
