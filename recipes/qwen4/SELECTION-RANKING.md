@@ -61,11 +61,15 @@ is dominated on both axes" and "a negative result is a result":
   digest-pinned), Flash TP4 recipe drafted with the three vLLM boot traps fixed;
   **boot still pending a 4-node window**. EXL3 lane's "build" resolved as a
   clone-and-run (TensorFold `glm-dsa-tp4` branch at `ddfad35`, run via `tfrun.sh`).
-- **decision** (new lane) — JEV-9B boot-verified (base + `jev-decision` LoRA
-  advertised; processed `top_logprobs` served). clef-flash and
-  Decision-2.0-Kai-0.6B are the next two by the lane research's ranking.
-- **explore** (new lane) — Nemotron-3.5-Lightning boot-verified TP=1 with the
-  DSpark draft engaged (acceptance length 3.67 / 88.9%).
+- **decision** (new lane) — **two boot-verified recipes**: JEV-9B (vLLM, base + `jev-decision` LoRA
+  advertised, processed `top_logprobs` served; no decision-benchmark score yet — the instrument
+  targets `/v1/systemone` while JEV serves chat+logprobs) and clef-flash (SGLang, digest-pinned
+  `dev-clef`; **official Typed Decisions 70.3% (1406/2000)** at 38.8 ms-class latency). Both keep.
+- **explore** (new lane) — **two boot-verified recipes with measured numbers**: Nemotron-3.5-
+  Lightning (**77.7 t/s C1**, DSpark acceptance length 3.67 / 88.9%, house battery 33/37) and
+  Ling-3.0-flash INT4 (**45.5 t/s C1**, DSPARK engaged at accept len 2.73, house battery **37/37**;
+  the third-party ~83 t/s was not reproduced — lower acceptance explains it). Both keep; Ling is
+  the quality/speed balance, Nemotron the speed arm.
 - **Untouched this pass** — embed, rerank, ifm, ds4 (ds4's own A/B work predates
   this pass and its receipts live in the lane docs).
 
