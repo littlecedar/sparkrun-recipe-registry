@@ -24,12 +24,16 @@ metadata:
     Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
     column. **BOOT-VERIFIED 2026-10-11** on one node: house battery 37/37
     (19 easy + 18 hard, zero flakes), measured C1 45.5 t/s @ d0 (sigma 5.5,
-    n=5) with DSPARK engaged (SGLang decode lines report accept len 2.73 on a
-    single short request — engagement proof, not a steady-state figure); the
-    third-party ~83 t/s was NOT reproduced, and reproducing it would need an
-    acceptance-focused tuning pass. Also a boot-log caveat: sglang warns
-    "rope_scaling missing factor, defaulting to 1.0", so the advertised 262k
-    window needs a needle probe before it is trusted.
+    n=5). DSPARK engaged: single-request accept len 2.73 (engagement proof);
+    steady-state 3.64-3.73 under 4 concurrent generations, up to 116.7 t/s
+    aggregate. The third-party ~83 t/s was NOT reproduced — the acceptance
+    difference arithmetically accounts for most of the gap, and why theirs is
+    higher is untested. Long context: the rope_scaling boot warning is benign
+    (the checkpoint declares no scaling; SGLang's 1.0 default is a no-op) and a
+    verbatim needle is retrieved at 8k/64k/150k — but 262k is NOT servable at
+    mem-fraction 0.75 (KV pool 176,203 tokens; a 200k request auto-truncates
+    then fails HTTP 500 OOM; the third-party 0.87 rung reported a 576,930-token
+    pool). Receipts: ~/benchmarks/ling-needle-20261011/ on the head node.
   model_url: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "124B"
