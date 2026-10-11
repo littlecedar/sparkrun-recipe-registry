@@ -51,11 +51,16 @@ defaults:
   # config["speculative_config"] and only then adds the draft repo to the
   # distribution set + injects the prepared revision. Inline literals leave the
   # draft undistributed and the offline engine dies resolving it.
-  # The draft repo id and token count are LITERALS because a nested {placeholder}
-  # inside a defaults VALUE never renders (sparkrun masks braces once, over the
-  # command template only — verified 2026-10-11 on the Nemotron recipe, where it
-  # made sparkrun's own json.loads die at launch). Override the whole blob to
-  # experiment: -o 'speculative_config={"method": "dflash", "model": "<repo>",
+  # The draft repo id and token count are LITERALS — the boot-proven form. Two
+  # observed rendering behaviours make placeholders the wrong tool here:
+  # (1) inside a defaults VALUE nothing resolves (sparkrun renders only the
+  # command template), so a nested {placeholder} survives verbatim into
+  # sparkrun's own json.loads(speculative_config) and kills the launch; and
+  # (2) inside the command template an UNQUOTED placeholder resolves but a
+  # QUOTED one does not (braces inside quoted JSON blobs are masked — the
+  # first Nemotron render kept "{speculative_draft_model}" verbatim).
+  # Override the whole blob to experiment:
+  # -o 'speculative_config={"method": "dflash", "model": "<repo>",
   # "num_speculative_tokens": N}'. A num_speculative_tokens/speculative_draft_model
   # defaults key would be inert here and is deliberately absent.
   speculative_config: '{"method": "dflash", "model": "incoai/GLM-5.3-Flash-DFlash2", "num_speculative_tokens": 7}'

@@ -47,15 +47,20 @@ defaults:
   max_num_seqs: 32
   moe_backend: marlin
   kv_cache_dtype: fp8
-  # The draft repo id and the token count are LITERALS here, and that is forced:
-  # a nested {placeholder} inside a defaults VALUE never renders — sparkrun
-  # masks braces once, over the command template only, so the JSON value's own
-  # braces swallow the nested token and sparkrun's own
-  # json.loads(speculative_config) then dies at launch (verified 2026-10-11).
-  # The nested-placeholder pattern is only valid INSIDE `command:` (see the
-  # qwen4 solo arm). To experiment, override the whole blob:
+  # The draft repo id and the token count are LITERALS here — the boot-proven
+  # form. Two distinct rendering behaviours were observed with placeholders:
+  # (1) inside a defaults VALUE, NOTHING resolves (sparkrun renders only the
+  # command template) — a nested {placeholder} survives verbatim into
+  # sparkrun's own json.loads(speculative_config) and kills the launch
+  # ("Expecting property name …", verified 2026-10-11); and (2) inside the
+  # command template, an UNQUOTED placeholder resolves but a QUOTED one does
+  # not (the renderer masks braces inside quoted JSON blobs, which is why the
+  # first render kept "{speculative_draft_model}" verbatim while
+  # num_speculative_tokens resolved to 3). The literals are what the draft
+  # binding (which reads this JSON's "model" field) and the engine both need.
+  # To experiment, override the whole blob:
   #   -o 'speculative_config={"method": "dspark", "model": "<repo>", "num_speculative_tokens": N}'
-  # — that form is boot-verified. A `num_speculative_tokens` defaults key would
+  # — that form is boot-verified. A num_speculative_tokens defaults key would
   # be inert here and is deliberately absent.
   # The draft is DISTRIBUTED only because the spec config lives under this key:
   # sparkrun's vLLM draft binding reads config["speculative_config"], adds the

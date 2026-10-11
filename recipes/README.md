@@ -185,6 +185,12 @@ The in-container path is deterministic: `${HF_HUB_CACHE}/models--<org>--<name>/s
    `'{speculative_config}'` in the command), not inline: only then does sparkrun add the draft repo to
    the distribution set and inject the prepared revision. An inline literal leaves the drafter
    undistributed and the offline engine dies resolving it — measured on the Nemotron boot 2026-10-11.
+   Inside that JSON, use **literals**: two placeholder behaviours were observed — inside a defaults
+   VALUE nothing resolves (the raw token survives into sparkrun's own `json.loads` and kills the
+   launch), and inside the command template an *unquoted* placeholder resolves but a *quoted* one
+   does not (braces inside quoted JSON blobs are masked). The boot-proven form is literals in the
+   defaults JSON; comments never go inside a folded `command:` block (a `>` scalar keeps them as
+   literal text and the shell-comment rule then eats every following flag).
    sglang is again unaffected (`speculative_draft_model` in defaults is the shipped pattern).
 
 Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
