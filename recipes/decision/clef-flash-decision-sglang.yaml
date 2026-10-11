@@ -1,0 +1,48 @@
+recipe_version: "2"
+model: Cloudflare/clef-flash
+model_revision: 8b2e5fd17c09fd49bc2880b805d5323ec7ff4ff3
+# The decision lane's second model, and the only one with a first-class SGLang
+# path: the cookbook ships this image (built from the SGLang #42721 merge
+# commit) and documents both Clef checkpoints running on ONE GPU, BF16, TP=1
+# with default settings (docs.sglang.io/cookbook/autoregressive/Cloudflare/clef).
+# Digest pin added after the first pull on a runner node; NOT boot-verified yet.
+container: lmsysorg/sglang:dev-clef
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Cloudflare/clef-flash — a 9B open-weight decision model (Qwen3.5-9B backbone
+    + a joint schema head), Apache-2.0. Deliberately Jev/SystemOne-compatible:
+    POST /v1/systemone answers choice / noul / score questions with calibrated
+    probabilities and no text generation. Vendor numbers (self-reported and not
+    reproduced on the community board): median 38.8 ms, 41 GB VRAM at 64k ctx,
+    BFCL 98.8 / MMMU 91.8 on the vendor's own suite. Serves multimodal (text,
+    JSON, images, video). Lane research:
+    recipes/decision/DECISION-MODELS-RESEARCH.md.
+  model_url: https://huggingface.co/Cloudflare/clef-flash
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "9B"
+  model_dtype: bf16
+  tags: decision, colocatable
+
+# No chat endpoint: /v1/systemone is the surface. The default chat-completion
+# probe can only time out, so port + /health readiness only (the pooling-lane
+# convention). Smoke the real endpoint by hand, as the embed/rerank lanes do.
+readiness:
+  inference: false
+
+defaults:
+  # Distinct from embed 8010 / rerank 8011 so all three can be up on one host.
+  port: 8020
+  host: 0.0.0.0
+  tensor_parallel: 1
+
+command: >
+  taskset -c 0-4,10-14 sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
