@@ -67,4 +67,4 @@ command: >
   --reasoning-parser glm45
   --tool-call-parser glm47
   --enable-auto-tool-choice
-  --speculative-config '{"method": "dflash", "draft_model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
+  --speculative-config '{"method": "dflash", "model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'

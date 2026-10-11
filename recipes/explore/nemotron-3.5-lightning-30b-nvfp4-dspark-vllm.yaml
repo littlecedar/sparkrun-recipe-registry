@@ -50,8 +50,10 @@ defaults:
 env:
   PYTHONUNBUFFERED: '1'
 command: >
-  vllm serve {model}
-  --revision {model_revision}
+  vllm serve
+  /cache/huggingface/hub/models--nvidia--NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4/snapshots/bee7596271d1495f6992ae224aefde4410e816b8
+  --served-model-name nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  --revision=bee7596271d1495f6992ae224aefde4410e816b8
   --host {host}
   --port {port}
   --tensor-parallel-size {tensor_parallel}
@@ -64,4 +66,4 @@ command: >
   --reasoning-parser nemotron_v3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
-  --speculative-config '{"method": "dspark", "draft_model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
+  --speculative-config '{"method": "dspark", "model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
