@@ -1,5 +1,13 @@
 recipe_version: 2
 model: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+model_revision: 94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa
+  # 2026-10-11: pins the snapshot every runner cache already holds. Upstream replaced
+  # chat_template.jinja (7536 B) and tokenizer_config.json (16718 B) on the hub after
+  # 2026-09-13; against floating `main` sparkrun's size validation now fails every cached
+  # copy ("wrong_size"), and the new template would also change served behavior. The pin
+  # keeps the verified honed-template boot surface; revisit deliberately, not silently.
+  # (Draft jzinno snapshot 9b4852c05fd00b672b7434b1bb105bc03c8682b0, unpinned — pin it too
+  # if its upstream ever moves.)
 container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
 runtime: sglang
 min_nodes: 1
@@ -40,13 +48,14 @@ defaults:
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   moe_runner_backend: flashinfer_cutlass
-  speculative_algorithm: DFLASH
+  draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
   speculative_draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2
   speculative_draft_tokens: 4
 
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
+  --revision {model_revision}
   --trust-remote-code
   --reasoning-parser qwen3
   --tool-call-parser qwen3_coder
