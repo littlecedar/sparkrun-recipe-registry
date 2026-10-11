@@ -103,6 +103,13 @@ operational rules fall out: **check node memory state(`MemAvailable` / page cach
 before benching**, and note that `@eugr/mods/drop-caches` — the mod every Ornith recipe lists first — is
 inert, so nothing in the pipeline actually clears the page cache for you.
 
+**Quality (house battery, 2026-10-11, `tools/quality-battery.py`, one boot).** **37/37 — 19/19 easy +
+18/18 hard, zero flakes** — the same perfect score the qwen3.8-27B DFlash2 arm returns, at ~3× its C1.
+The lane previously had no quality number. (The battery must run with the served default
+`enable_thinking: false` semantics; the honed template's reasoning toggle is
+`enable_thinking` per the boot log's `ReasoningToggleConfig`, and a content-reading client sees empty
+replies when short answers stay in the reasoning channel.)
+
 **Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
 template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
 delivered by `@littlecedar/mods/ornith-honed-chat-templatep`, which stages the file under
