@@ -25,10 +25,16 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 
 - **BOOT-VERIFIED** on one node: DSPARK configured with the external 1.36B draft and the KDA
   ReplaySSM verify path; answers correctly in `content` (`391` for 17×23, reasoning split cleanly by
-  the `ling3` parser — no empty-content trap on this template). **Boot-log caveat:** sglang warns
-  `rope_scaling missing 'factor', defaulting to 1.0` — before trusting the advertised 262 k window
-  on this checkpoint, confirm the context extension is real (a needle probe at depth), since a
-  defaulted factor of 1.0 means "no extension applied".
+  the `ling3` parser — no empty-content trap on this template).
+  **Long context (needle-probed 2026-10-11):** the `rope_scaling missing 'factor'` boot warning is
+  **benign** — the checkpoint declares no scaling at all (`rope_scaling: null`, native 262,144,
+  rope_theta 6e6), so SGLang's 1.0 default is a no-op and the native window is real: a verbatim
+  needle is retrieved at 8k, 64k (depths 10/50/100) and 150k tokens. **But 262k is not servable on
+  this boot**: at `mem-fraction-static 0.75` the KV pool holds **176,203 tokens**, and a 200k
+  request is auto-truncated to 176,197 and then fails HTTP 500 OOM (`--allow-auto-truncate` masks
+  the truncation, not the OOM). The third-party notebook's 0.87 rung reported a 576,930-token pool,
+  so reaching the advertised window means raising mem-fraction toward the documented OOM-risk
+  ceiling. Receipts: `~/benchmarks/ling-needle-20261011/` on the head node.
 - **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
   failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass.
 - **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml`.
