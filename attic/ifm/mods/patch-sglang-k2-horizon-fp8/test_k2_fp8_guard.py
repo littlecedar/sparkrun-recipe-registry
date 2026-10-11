@@ -5,7 +5,7 @@ Reads a REAL sglang `srt/models/xllm.py` and answers one question: would this fi
 let `IFM/K2-Horizon-MoVA-36B-A4B-FP8` (quant_method "fp8") through, or does it still
 refuse it? It does not import sglang and it does not trust any copy of the source I
 typed myself -- the text is read from the very file `run.sh` edits, which is the same
-convention `mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py`
+convention `attic/qwen3/mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py`
 uses and the reason a guard here cannot pass by inspecting a fixture.
 
 Three states are distinguished, and collapsing them is what makes a guard useless:

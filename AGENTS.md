@@ -57,7 +57,7 @@ Load-bearing contracts:
 |---|---|
 | `recipes/ds4/` (3), `recipes/embed/` (2), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (3), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen4 lane gained two solo TP=1 recipes (PLE-offload routes, boot-verified) and the qwen3 lane a DSpark draft arm the same day, and the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
 | `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) in `attic/ds4/`, 24 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
 | `tests/` | 10 importable guard modules, one skipped `*.sync-conflict-*.py` |
@@ -275,7 +275,7 @@ before matching.
   `exec_module`, or `@dataclass` fails.
 - Mod-local harnesses are standalone scripts, not unittest; exit 2 means the harness could not run
   and is never a verdict on the patch:
-  - `uv run python mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py <tokenizer_manager.py>`
+  - `uv run python attic/qwen3/mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py <tokenizer_manager.py>`
     (0 = patched, 1 = unpatched/crashes).
   - `uv run python attic/ifm/mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py <srt/models/xllm.py>`
     (0 = fully patched, 1 = stock or gate-only).

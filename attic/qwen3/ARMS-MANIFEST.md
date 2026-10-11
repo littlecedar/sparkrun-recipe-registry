@@ -1,7 +1,8 @@
 # `attic/qwen3/` — archived Qwen3 arms and records
 
 Everything here left [`recipes/qwen3/`](../../recipes/qwen3/) on **2026-10-11**, when the lane was
-consolidated down to the shipping recipe, the coder recipe, and its two guides. Nothing here is
+consolidated down to the shipping recipe, the coder recipe, and its two guides (the spec-metrics
+guard mod below came from `mods/` the same day). Nothing here is
 served by the registry. **Do not re-add these to `recipes/qwen3/`** — run a recipe by path from here
 if it is ever needed again. Paired with [`recipes/qwen3/AGENTS.md`](../../recipes/qwen3/AGENTS.md),
 which is the maintained guide and holds the distilled findings.
@@ -23,6 +24,15 @@ which is the maintained guide and holds the distilled findings.
 
 Both recipes are frozen provenance: do not retune them, and do not clear a `sparkrun recipe
 validate` warning by editing them — `attic/` recipes are not part of the registry gate.
+
+## Mods
+
+| file | what it does | why archived |
+|---|---|---|
+| `mods/fix-sglang-spec-metrics-empty-verify/` | Anchored, idempotent SGLang patch (both sglang trees in the image) so `--speculative-algorithm NONE` cannot crash the server on an empty `spec_verify_ct`; carries its own negative-control harness (`test_spec_metrics_guard.py`) | Moved from `mods/` on 2026-10-11. It served this lane's no-spec control campaign, which is retired above, and the lane's conclusion is to *omit* the speculative flags rather than pass `NONE` (see the control's comments), so no recipe mounts it. It stays the repo's convention exemplar for mod-local guard harnesses (root `AGENTS.md`, Testing & QA) and the precedent cited by the `attic/ifm` K2 guard. |
+
+If a future no-spec arm ever passes `speculative_algorithm: NONE` again, move the mod back to
+`mods/` and remove this row; until then the honest no-spec route is omitting the flag entirely.
 
 ## Research record (`§N` cite-targets; section numbers were not renumbered)
 
