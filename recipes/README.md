@@ -110,7 +110,9 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 
 _Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
 student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
-one node. NOT boot-verified. Lane research: [`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md)._
+one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both the base model and the
+`jev-decision` LoRA adapter, and the scoring path returns processed `top_logprobs`. Lane research:
+[`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md)._
 
 ## Explore
 
@@ -119,7 +121,9 @@ one node. NOT boot-verified. Lane research: [`decision/DECISION-MODELS-RESEARCH.
 | nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |      — |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
 
 _Rank-1 explore candidate (1 node, 93-96 tok/s third-party measured on GB10, 20.8 GB weights).
-NOT boot-verified. Lane research: [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
+**BOOT-VERIFIED 2026-10-11** (TP=1): serves with the DSpark draft engaged — acceptance length 3.67 at
+an 88.9% acceptance rate. Lane research:
+[`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
 
 # Model Flags
 
