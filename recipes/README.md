@@ -148,6 +148,31 @@ _Flags indicate characteristics of the model and are set in the recipe metadata.
 
 # Notes
 
+## vLLM custom-command templates: hardcode the snapshot path (sparkrun 0.4.0-alpha)
+
+For a vLLM recipe whose `command:` is a template, sparkrun's render resolves `{model}` to the
+**declared repo id** (not the prepared snapshot path) and **strips `--revision`** from the template —
+then its own serve-command validator demands a path or `--revision=<prepared-sha>` token and refuses
+the launch (`serve command does not consume the validated model`) after the model has already been
+distributed. `{model_revision}` does not survive either. The pattern that boots (used by the qwen3
+coder, decision, explore and glm5 lanes):
+
+```yaml
+model_revision: <sha>                      # keeps distribution pinned
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--<org>--<name>/snapshots/<sha>
+  --served-model-name <org>/<name>         # so clients keep the HF id
+  --revision=<sha>                         # the `=` spelling is the one the validator accepts
+```
+
+The in-container path is deterministic: `${HF_HUB_CACHE}/models--<org>--<name>/snapshots/<sha>` with
+`--` for `/` in the repo id. The sglang runtime is unaffected (it renders the path and keeps
+`--revision`). Two related traps: a `defaults:` key referenced by the command but **missing** renders
+as a literal into the serve line and only dies at the engine (guarded by
+`tests/test_recipe_placeholder_resolution.py`), and vLLM's speculative-config field is `model`
+(sparkrun's draft distribution keys off the same name).
+
 Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
 [`qwen4/AGENTS.md`](qwen4/AGENTS.md) (state, constraints, workstream plan, runbook) and
 [`qwen4/README.md`](qwen4/README.md) (the recipe/lane summary), with `../attic/qwen4/NOTES.md` (working notes).
