@@ -15,7 +15,6 @@ Qwen3-VL embedding/reranking recipes moved to their own lanes on 2026-10-10:
 | recipe | runtime | model | flags | C1 t/s | notes |
 |---|---|---|---|---|---|
 | `qwen3.8-27b-nvfp4-dflash2-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] + [incoai/Qwen3.8-27B-DFlash2] draft | ✨🚀🌲 | **33.8** | **shipping.** DFLASH2 spec decode, block 8. Decode-only, d=0, c=1. |
-| `qwen3.8-27b-nvfp4-nospec-control-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] | 🧪 | 12.6 | **control only** — same bytes, no `--speculative-*`. Not for serving. |
 | `qwen3.8-27b-nvfp4-dspark-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] + [RadixArk/Qwen3.8-27B-DSpark] draft | 🌲 | 28.5 | **measured 2026-10-10, NOT an upgrade** — DSPARK boots on GB10 but loses ~16% to the DFlash2 lane (28.5 vs 33.8 t/s, decode-triage). Kept as the documented DSPARK-path arm. |
 
 Flags: ✨ official · 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 🧪 measurement-only.
@@ -44,6 +43,9 @@ Flags: ✨ official · 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 🧪 measu
 
 ## Notes
 
+- **The no-spec control is archived** at [`attic/qwen3/`](../../attic/qwen3/) (retired 2026-10-10;
+  its measured metrics — 12.56 t/s plain decode at c=1 and the 48-request grant — are recorded in
+  [`AGENTS.md`](AGENTS.md) §6). Copy it back into this lane to re-run a spec-vs-nospec comparison.
 - **Evidence docs:** `QWEN3-MODEL-OPTIMIZATION-WORK.md` (decision record, `§N`; git-ignored),
   `DEPTH-COST.md`, `SSM-STATE-DTYPE.md`, `ANSWERED-QUEUES.md` (search by profile name before running
   anything), and the narrative `JOURNAL.md` / `EMBED-JOURNAL.md` / `QWEN3-EMBED-OPTIMIZATION-WORK.md`.
