@@ -1,0 +1,67 @@
+recipe_version: "2"
+model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+model_revision: bee7596271d1495f6992ae224aefde4410e816b8
+# Same digest-pinned image as the glm5 Flash and decision lanes (2026-10-11):
+# this build carries the Nemotron-3.5-Lightning surface — NemotronH arch
+# classes (models/registry.py), `nemotron_v3` reasoning parser
+# (reasoning/__init__.py:123), `qwen3_coder` tool parser alias
+# (tool_parsers/__init__.py:181), `method: dspark` spec decode
+# (config/speculative.py + v1/spec_decode/llm_base_proposer.py), and
+# `--moe-backend`. NOT boot-verified: checklist in
+# recipes/explore/EXPLORE-MODELS-RESEARCH.md §2(1).
+container: vllm/vllm-openai:glm53-flash@sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 (Mamba-2 + MoE + attn hybrid,
+    3B active) on ONE DGX Spark (TP=1) — the explore lane's rank-1 pick on the
+    selection weighting (1 node, 93-96 tok/s third-party measured on GB10,
+    20.8 GB weights leaving ~95 GB for KV/tenants). Serve line follows the
+    card's official GB10 recipe with the community working point (util 0.8,
+    262k context) instead of the card's 0.91/1M, which leaves ~1 GiB free and
+    swaps. NOT boot-verified; ~21 GB of weights + the DSpark draft to
+    distribute.
+  model_url: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "30B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  draft_model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+  model_draft_dtype: bf16
+  tags: explore, fast, large_context
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  max_model_len: 262144
+  # Community working point (sfxnz recipe + chishiki37 comparison): the card's
+  # 0.91 leaves ~1 GiB free and swaps on GB10.
+  gpu_memory_utilization: 0.8
+  max_num_seqs: 32
+  moe_backend: marlin
+  kv_cache_dtype: fp8
+  num_speculative_tokens: 3
+  speculative_draft_model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+
+env:
+  PYTHONUNBUFFERED: '1'
+command: >
+  vllm serve {model}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --mamba-backend flashinfer
+  --mamba-cache-mode align
+  --reasoning-parser nemotron_v3
+  --tool-call-parser qwen3_coder
+  --enable-auto-tool-choice
+  --speculative-config '{"method": "dspark", "draft_model": "{speculative_draft_model}", "num_speculative_tokens": {num_speculative_tokens}}'
