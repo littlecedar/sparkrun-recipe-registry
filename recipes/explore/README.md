@@ -9,7 +9,7 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** |
-| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; C1 measured; DSPARK engagement unconfirmed) |
+| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; DSPARK engaged, accept len 2.73) |
 
 ## Measured
 
@@ -31,12 +31,15 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   defaulted factor of 1.0 means "no extension applied".
 - **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
   failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass.
-- **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml` —
-  well below the third-party ~83 t/s. **DSPARK engagement could not be confirmed**: the
-  `decode-triage` run's `--fresh` boot replaced the pre-existing serve (same intent id) and destroyed
-  the serve log, so no acceptance-length evidence was retained; 45.5 sits between the third-party
-  plain-NEXTN baseline (37) and its DSPARK figure (83) — exactly the ambiguity an unconfirmed draft
-  leaves. Re-boot with the serve log retained before quoting this as a spec-decode number.
+- **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml`.
+  **DSPARK engagement CONFIRMED on a retained boot**: SGLang decode lines report
+  `accept len: 2.73, accept rate: 0.22` — the draft works, but acceptance sits well below the
+  third-party port's 5.2–6.4, which is the honest explanation for the gap to their ~83 t/s (ours is
+  the number to quote for this recipe as written; reproducing theirs would need an
+  acceptance-focused tuning pass, not a recipe flag).
+  (Process note: the first C1 run's `--fresh` boot destroyed the serve log, so the acceptance
+  evidence had to come from a second boot with the log retained — and grep SGLang's
+  `accept len:` metric, not vLLM's "Mean acceptance length".)
 - Third-party (not reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
 
 ## Next by the ranking
