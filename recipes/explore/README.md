@@ -21,6 +21,15 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   pass: ornith 37/37 and qwen3.8-27B DFlash2 37/37 (both single-node, ~100 / 33.8 t/s), coder-next
   35/37 at 71.7 t/s. Nemotron is the fastest measured quality arm below ornith and pays ~4 tasks for it.
 
+  **Checklist closure (2026-10-11):** (a) the `moe_backend: marlin` pin was found **inert** — an edit
+  had dropped the `--moe-backend` line and sparkrun's validation stays silent for a flag-map key the
+  template omits; the verified boot ran with `moe_backend='auto'` and vLLM auto-selected marlin anyway,
+  so the numbers stand and the pin is restored. (b) `--tool-call-parser qwen3_coder` **verified**: a
+  forced `tool_choice` produces well-formed structured tool_calls (`{"city": "Paris"}`-style
+  arguments, `finish_reason: tool_calls`); in auto mode the model answers in prose, which is model
+  behaviour, not a parser failure. (c) The card's 1M-context claim needs a different `max_model_len`
+  and is a separate arm, not a checklist item.
+
 ### Ling-3.0-flash-int4 (2026-10-11)
 
 - **BOOT-VERIFIED** on one node: DSPARK configured with the external 1.36B draft and the KDA
