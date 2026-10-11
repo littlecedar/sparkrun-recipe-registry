@@ -110,7 +110,7 @@ uv run python mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py \
 ```
 
 Exit codes follow the precedent set by
-`mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py`: **0** patched,
+`attic/qwen3/mods/fix-sglang-spec-metrics-empty-verify/test_spec_metrics_guard.py`: **0** patched,
 **1** unpatched, **2** harness failure (missing file, unreadable). A bare run with no
 argument exits 2, which is never a verdict on the patch.
 

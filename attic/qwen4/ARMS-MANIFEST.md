@@ -55,6 +55,7 @@ archive keeps the file so the citation still resolves.
 | `zz-labq-fastboot-sglang.yaml` | labquant | `fastsafetensors` + `0.91` mem-fraction (W13 infra variant) | W13 delivered as an infra variant, documented NOT a comparison arm, and never booted. Shipped default stays on `safetensors`. | WORK §6 item 12; this session's NOTES |
 | `zz-labq-iscale-radixark.yaml` | labquant | `mods/fix-labquant-expert-input-scale` (the `input_scale` arm) | Coherence **FAILED**; this is the arm whose out-of-band write contaminated the shared runtime cache (WORK §7l). No live profile names it (`bench_66600aa2c662` is the provenance). | WORK §7l |
 | `zz-labq-iscale-clamp-median.yaml` | labquant | sibling of the above (variant iscale arm) | Same closed `input_scale` line; no live profile names it. | WORK §7l |
+| `mods/fix-labquant-expert-input-scale/` | — | rewrites labquant's collapsed per-expert `input_scale` tensors (73,728 F32 scalars, one shard) toward the RadixArk reference, in place and idempotent | exists only for the two iscale arms above; no shipped recipe or live profile mounts it. Moved here from `mods/` on 2026-10-11, untracked until then. | WORK §7l |
 
 **Do not resurrect any of wave 2 without re-reading its "finding lives in" section first** — each was
 closed on evidence, and several close **negatively** (fp8 KV, TRTLLM MoE).
@@ -107,5 +108,7 @@ be deleted if the scratch tree is reaped.
   working files, `**/COOP.md` is now git-ignored, and the durable findings were folded into the
   lane's `README.md`/`AGENTS.md`. Keep new hostnames/IPs out of anything tracked (root `AGENTS.md`).
 
-*Archived 2026-10-04 by the harvest/consolidation sessions. If you resurrect one of these, move it
-back to `recipes/qwen4/` and remove its row here.*
+*Archived 2026-10-04 by the harvest/consolidation sessions; the input-scale mod followed on
+2026-10-11, when its only consumers — the two iscale arms — were already here. If you resurrect one
+of these, move it back to `recipes/qwen4/` (and the mod back to `mods/` for an iscale arm) and
+remove its row here.*
