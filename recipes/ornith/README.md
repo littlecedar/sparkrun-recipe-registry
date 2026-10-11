@@ -70,6 +70,35 @@ so treat 114.2 as a **corroborating reference point, not this recipe's measured 
 C1 of ~100 t/s sits between the author's AR and DFlash2 figures, consistent with the shipped recipe — but
 it has not been re-measured on our nodes with a pinned harness in this pass.
 
+**Measured A/B against the author's reference config (2026-10-11, `benchmarking/decode-triage.yaml`,
+C1, n=5 per cell, one node per arm, same window where paired).** The author's 114.2 knob set was
+decomposed one knob at a time; every cell is a real boot, and the full author config is the *worst*
+arm — their numbers came from their engine build, not from the knobs alone:
+
+| arm (Δ from shipped) | d0 t/s (σ) | d8192 t/s (σ) | verdict |
+|---|---|---|---|
+| ② `moe_runner_backend` → `marlin` | **108.9** (5.3) | **109.0** (4.1) | best; ~+10% over the shipped-config control, unconfirmed at first measurement |
+| ③ `mamba_radix_cache_strategy` → `extra_buffer` | 103.2 (5.1) | 93.2 (14.1) | d0 neutral, d8192 noisier/worse |
+| control (shipped config, honed template) | 99.3 (8.8) | 99.2 (4.7) | the shipped surface, re-measured |
+| ④ `mamba_ssm_dtype` → `float32` | 90.4 (4.5) | 98.2 (6.5) | rejected |
+| ① `speculative_draft_tokens` 4 → 10 | 86.5 (8.5) | 85.5 (6.2) | rejected (~19% loss) |
+| ⑤ full author config (①+②+③+④) | 84.6 (6.7) | 78.5 (10.7) | worst — the author's combination does not transfer |
+
+Receipts: `~/benchmarks/ornith-dflash2-ab-20261011/` (control, control2-honed, arm1-draft10,
+arm2-marlin, arm3-extrabuf, arm4-ssmfloat32, arm5-fullauthor). Inter-boot noise on this hardware is
+7–25%, so `marlin`'s margin is only credible against its own paired confirm run (same window).
+
+**Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
+template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
+delivered by `@littlecedar/mods/ornith-honed-chat-templatep`, which stages the file under
+`/cache/runtime/ornith-honed-chat-template/` (content-idempotent, fail-closed on size + marker) and the
+recipe points `--chat-template` at it. Never inject it into the HF snapshot: sparkrun validates every
+cached model file against a hub manifest, and an injected snapshot fails `wrong_size` at distribution
+(that failure cost this lane a session — the `.bak`/`.dist` siblings the injection left behind are the
+tell). The checkpoint is revision-pinned (`94e4 31d9…` at the time of writing) and the command passes
+`--revision {model_revision}`, which the offline engine needs because a SHA download writes no
+`refs/` entry.
+
 ## `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` — the flagship 4-node lane
 
 The 397B is the flagship MoE. It is served on **four** Sparks with vLLM at TP=4, `--enable-expert-parallel`,
