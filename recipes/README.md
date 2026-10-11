@@ -168,10 +168,17 @@ command: >
 
 The in-container path is deterministic: `${HF_HUB_CACHE}/models--<org>--<name>/snapshots/<sha>` with
 `--` for `/` in the repo id. The sglang runtime is unaffected (it renders the path and keeps
-`--revision`). Two related traps: a `defaults:` key referenced by the command but **missing** renders
-as a literal into the serve line and only dies at the engine (guarded by
-`tests/test_recipe_placeholder_resolution.py`), and vLLM's speculative-config field is `model`
-(sparkrun's draft distribution keys off the same name).
+`--revision`). Three related traps:
+
+1. A `defaults:` key referenced by the command but **missing** renders as a literal into the serve
+   line and only dies at the engine — guarded by `tests/test_recipe_placeholder_resolution.py`.
+2. vLLM's speculative-config field is **`model`**, not `draft_model` — sparkrun's draft binding reads
+   the same key.
+3. The speculative config must live in **`defaults:`** (`speculative_config: '<json>'`, referenced as
+   `'{speculative_config}'` in the command), not inline: only then does sparkrun add the draft repo to
+   the distribution set and inject the prepared revision. An inline literal leaves the drafter
+   undistributed and the offline engine dies resolving it — measured on the Nemotron boot 2026-10-11.
+   sglang is again unaffected (`speculative_draft_model` in defaults is the shipped pattern).
 
 Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
 [`qwen4/AGENTS.md`](qwen4/AGENTS.md) (state, constraints, workstream plan, runbook) and
