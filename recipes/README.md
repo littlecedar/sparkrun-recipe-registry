@@ -91,6 +91,36 @@ d8k, falling inside the lane's inter-boot noise floor). The lane also carries
 The withdrawn 36B-A4B sub-lane (4 arms + the `patch-sglang-k2-horizon-fp8` gate mod)
 is archived under [`../attic/ifm/`](../attic/ifm/)._
 
+## GLM 5.3
+
+| Recipe                                | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                              |
+|:--------------------------------------|:------|-------:|------:|-----:|---:|:---------------------------------------------------------|
+| glm-5.3-flash-nvfp4-dflash-vllm       | 🚚    |      — | 198GB | 0.85 |  4 | [Model][RedHatAI/GLM-5.3-Flash-NVFP4] [Draft][incoai/GLM-5.3-Flash-DFlash2] |
+
+_Drafted 2026-10-11 from repo B's validated formula
+([`glm/GLM-5.3-RECOMMENDATIONS.md`](glm/GLM-5.3-RECOMMENDATIONS.md)); image verified and
+digest-pinned. NOT boot-verified — TP4 needs a 4-node window. The DFlash2 drafter is
+CC BY-NC-ND (acceptable for this non-commercial cluster)._
+
+## Decision
+
+| Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
+|:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
+| jev-9b-decision-vllm    | 🚀    |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
+
+_Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
+student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
+one node. NOT boot-verified. Lane research: [`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md)._
+
+## Explore
+
+| Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
+|:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
+| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀    |      — |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+
+_Rank-1 explore candidate (1 node, 93-96 tok/s third-party measured on GB10, 20.8 GB weights).
+NOT boot-verified. Lane research: [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
+
 # Model Flags
 
 | Flag | Tag           | Description                              |
@@ -164,4 +194,9 @@ DSpark arm, and the depth/SSM/queue threads — moved to [`../attic/qwen3/`](../
 [IFM/K2-Horizon-7B-FP8]: https://huggingface.co/IFM/K2-Horizon-7B-FP8
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
+[RedHatAI/GLM-5.3-Flash-NVFP4]: https://huggingface.co/RedHatAI/GLM-5.3-Flash-NVFP4
+[incoai/GLM-5.3-Flash-DFlash2]: https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2
+[autotrust/JEV-9B]: https://huggingface.co/autotrust/JEV-9B
+[nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+[nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
