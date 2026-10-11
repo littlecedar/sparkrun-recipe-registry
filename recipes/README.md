@@ -107,7 +107,7 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 | Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
 |:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
 | jev-9b-decision-vllm    | 🚀    |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
-| clef-flash-decision-sglang | 🚀  |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone, boot pending** |
+| clef-flash-decision-sglang | 🚀  |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone; Typed Decisions 70.3% (1406/2000), boot-verified** |
 
 _Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
 student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
