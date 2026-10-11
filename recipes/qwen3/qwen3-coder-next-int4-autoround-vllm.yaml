@@ -31,7 +31,7 @@ defaults:
 
 command: >
   taskset -c 5-9,15-19 vllm serve
-  Intel/Qwen3-Coder-Next-int4-AutoRound
+  {model}
   --host {host}
   --port {port}
   --enable-auto-tool-choice
