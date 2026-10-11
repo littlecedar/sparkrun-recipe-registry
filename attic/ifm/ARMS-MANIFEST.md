@@ -54,6 +54,7 @@ numbers, not a failure.
 | `arms/k2-horizon-36b-a4b-bf16-tp1-sglang.yaml` | fp8-tp1 | BF16 control, **no** gate mod | withdrawn with the sub-lane; and the slower of the two single-node arms (15.6 vs 18.3 t/s) |
 | `arms/zz-k2-36b-a4b-fp8-unpatched-probe-sglang.yaml` | fp8-tp1 | falsification arm: `mods: []`, observes the unpatched refusal | **question CLOSED 2026-10-08** — the probe reached the compressed-tensors gate it was written to test and died there; its own header says "record the log line and delete this file" |
 | `mods/patch-sglang-k2-horizon-fp8/` | — | relaxes SGLang's two native-K2-Horizon quant gates | exists **only** for this withdrawn FP8 checkpoint; no other recipe mounts it |
+| `mods/make-roce-env/` | — | renders NCCL/RoCE interface env from host facts into `env/cluster.yaml` for legacy (non-sparkrun) runners | served the withdrawn TP=2 arm's RoCE bring-up; no sparkrun recipe mounts it (the qwen4 lane guide still cites it for legacy runners). Moved here from `mods/` on 2026-10-11, tracked since bootstrap |
 | `test_ifm_36b_recipes.py` | — | the 36B lane's guard suite (invariants I1–I17) | guards the archived arms; kept so the invariants still resolve, no longer auto-discovered by `unittest discover -s tests` |
 | `k2_36b_arith.py` | — | exact byte census + roofline arithmetic the arms' prose quotes | imported by the guard above; kept beside it so the import stays self-consistent |
 
@@ -116,5 +117,5 @@ records its measured numbers and why it did not win.
 
 *Archived 2026-10-08 (Wave 1 withdrawal) and 2026-10-09 (Wave 2 selection). If you
 resurrect any of this, move the recipes back to `recipes/ifm/` **and**
-`attic/ifm/mods/patch-sglang-k2-horizon-fp8/` back to `mods/`, restore the path
+`attic/ifm/mods/patch-sglang-k2-horizon-fp8/` (and `make-roce-env/` for the TP=2 arm) back to `mods/`, restore the path
 constants above, and remove the row here.*

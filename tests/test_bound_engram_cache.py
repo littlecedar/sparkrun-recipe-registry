@@ -6,8 +6,8 @@ Run:
 Stdlib-only, deliberate (AGENTS.md: "tools/ and tests/ are stdlib-only, on
 purpose") -- this must run on a head node, in a container, and on a laptop.
 
-Why these exist. `mods/bound-engram-cache` patches the Engram-on-disk reader
-that `mods/mount-dsv41-exl3-patches` installs, adding a POSIX_FADV_DONTNEED
+Why these exist. `attic/ds4/mods/bound-engram-cache` patches the Engram-on-disk reader
+that `attic/ds4/mods/mount-dsv41-exl3-patches` installs, adding a POSIX_FADV_DONTNEED
 after each gathered read so read-once rows do not accumulate in the host page
 cache (attic/ds4/MEMORY-RECLAIM-PLAN.md §7). Three things must hold, and all
 are testable offline against the shipped sibling file:
@@ -33,12 +33,12 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_DIR = REPO_ROOT / "mods" / "bound-engram-cache"
+MOD_DIR = REPO_ROOT / "attic" / "ds4" / "mods" / "bound-engram-cache"
 RUN_SH = MOD_DIR / "run.sh"
 PATCHER = MOD_DIR / "patch_engram_fadvise.py"
 MD5SUMS = MOD_DIR / "files" / "MD5SUMS.txt"
 # The shipped reader this mod must patch: the sibling mod's vendored copy.
-SIBLING_ENGRAM = REPO_ROOT / "mods" / "mount-dsv41-exl3-patches" / "files" / "engram.py"
+SIBLING_ENGRAM = REPO_ROOT / "attic" / "ds4" / "mods" / "mount-dsv41-exl3-patches" / "files" / "engram.py"
 
 MARKER = "# sparkrun mod: bound-engram-cache v1"
 
