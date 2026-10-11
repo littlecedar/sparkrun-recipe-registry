@@ -25,7 +25,10 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 
 - **BOOT-VERIFIED** on one node: DSPARK configured with the external 1.36B draft and the KDA
   ReplaySSM verify path; answers correctly in `content` (`391` for 17×23, reasoning split cleanly by
-  the `ling3` parser — no empty-content trap on this template).
+  the `ling3` parser — no empty-content trap on this template). **Boot-log caveat:** sglang warns
+  `rope_scaling missing 'factor', defaulting to 1.0` — before trusting the advertised 262 k window
+  on this checkpoint, confirm the context extension is real (a needle probe at depth), since a
+  defaulted factor of 1.0 means "no extension applied".
 - **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
   failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass.
 - **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml` —
