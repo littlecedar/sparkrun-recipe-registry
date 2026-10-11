@@ -1,0 +1,55 @@
+recipe_version: "2"
+model: autotrust/JEV-9B
+model_revision: 7ac669b8fb476ba926491e3d1c39f9330d68dbed
+# Same digest-pinned image as the glm5 Flash lane (2026-10-11): this dev build
+# carries everything JEV-9B's serving line needs — Qwen3_5 arch classes
+# (models/registry.py:204-205), --logprobs-mode (arg_utils.py:904), and the
+# v1 sampler path that honors it. NOT boot-verified: the card names LoRA on
+# lm_head and a Sept-2026 dev build; first boot decides.
+container: vllm/vllm-openai:glm53-flash@sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    autotrust/JEV-9B decision model — a distilled student of TypeSafe Jev 1.13
+    (KL ~0.019 to the teacher's output distributions, 25,376 held-out rows;
+    ECE 0.0007, noul AUROC 0.996). Prefill-only decision scorer over
+    /v1/chat/completions with logprobs + allowed_token_ids (SystemOne-shaped);
+    System 2 generation is bit-identical to the frozen Qwen3.5-9B base.
+    Serves in ~17 GiB of weights and co-locates with the shipped embed+rerank
+    2B pair on one node (see recipes/decision/DECISION-MODELS-RESEARCH.md §3).
+    NOT boot-verified.
+  model_url: https://huggingface.co/autotrust/JEV-9B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "9B"
+  model_dtype: bf16
+  # Licence: card states Apache-2.0 (repo licence metadata field is unset).
+  tags: decision, colocatable
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Card-sized for decisions; raise to 16384 only if System 2 thinking at length
+  # is needed (card's own note).
+  max_model_len: 4096
+  max_lora_rank: 32
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+command: >
+  vllm serve {model}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --enable-lora
+  --max-lora-rank {max_lora_rank}
+  --lora-modules jev-decision={model}/adapter_vllm
+  --logprobs-mode processed_logprobs
+  --enable-prefix-caching
+  --mamba-cache-mode align
