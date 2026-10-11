@@ -4,7 +4,7 @@ metadata:
     Acceptance vs context depth, measured in ONE boot. This closes a confound that three
     earlier attempts could not.
 
-    WHY. WORK.md 12.8 records that depth costs a single stream nothing: aggregate decode at
+    WHY. attic/qwen3/WORK §12.8 records that depth costs a single stream nothing: aggregate decode at
     c=1 is ~29 t/s at depth 0 and at depth 8192/16384 alike. But decode t/s is
     `accept_len / step_time`, so "t/s unchanged" and "accept_len changed" are not the same
     statement, and the second has never been measured depth-matched AND concurrency-matched

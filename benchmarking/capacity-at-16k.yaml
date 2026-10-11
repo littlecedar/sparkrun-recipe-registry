@@ -2,7 +2,7 @@ framework: llama-benchy
 metadata:
   description: >
     Capacity test at depth 16384 -- the sharpest falsification available for the
-    `usable = min(granted slots, #tokens // context_length)` model in WORK.md 12.9, and the
+    `usable = min(granted slots, #tokens // context_length)` model in attic/qwen3/WORK §12.9, and the
     largest predicted ratio effect anywhere in the sweep.
 
     WHY 16k AND NOT ANOTHER 8k RUN. At 8k the model's prediction was 18 usable (r=2.3) vs 14

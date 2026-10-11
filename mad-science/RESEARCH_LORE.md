@@ -441,7 +441,7 @@ and verbatim upstream modules under `.swival/`.
 ## 8. Measurement discipline before shipping a default change
 
 Every item here is a rule the corpus learned by publishing a wrong number; [`../benchmarking/README.md`](../benchmarking/README.md)
-and `recipes/qwen3/DEPTH-COST.md` carry the same doctrine in shipped form.
+and `attic/qwen3/DEPTH-COST.md` carry the same doctrine in shipped form.
 
 - **One boot cannot rank arms.** The GB10 inter-boot scatter is 7–25% (3–25% across cells); a
   `+12.6%` that looked real at `runs=3` collapsed at `runs=7`. Use ≥3 boots, a same-config control
