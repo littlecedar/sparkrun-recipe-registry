@@ -121,10 +121,13 @@ gate** (the reasoning gate is sampling-sensitive and explicitly not attributable
 | 8-node full 753B NVFP4 | incoai or RadixArk @ TP8 | vendor-published topology; no GB10 measurement exists |
 | Commercial use, clean licence | Flash line (MIT) with **MTP/EAGLE**, not DFlash2 | DFlash2 is CC BY-NC-ND |
 
-**What we can and cannot ship tonight:** the Flash vLLM lane is the near-term buildable one, but repo
-B's *reference image has no public digest* (`public_image_digest_available: false`) — a shipped recipe
-needs a pinnable image (the RedHat card names `vllm/vllm-openai:glm53-flash`, existence unverified
-here). The EXL3 lane's engine is an **unreleased fork branch** — it needs an image build before a
+**What we can and cannot ship:** the Flash vLLM lane's image blocker is CLOSED — **2026-10-11: `vllm/vllm-openai:glm53-flash`
+exists on Docker Hub** (pushed 2026-09-09; amd64 digest `sha256:0674a3ea3c971706cea310bca71daadff68ea1717c758d2f54affa5def001b86`,
+8.7 GB; verified via the Hub v2 registry API). Pin the recipe as
+`container: vllm/vllm-openai:glm53-flash@sha256:0674a3…` (full digest, never the floating tag).
+The EXL3 lane's engine is an **unreleased fork branch** (`glm-dsa-tp4` @ `ddfad35`, TensorFold 0.6.0) —
+it needs a source image build before a recipe can ship; the owner is unaware of any existing builds
+(2026-10-11).
 
 **Guard constraints for any GLM recipe here** (ds4 lane precedent, `recipes/ds4/AGENTS.md` §6, guarded
 by `tests/test_ds4_recipes.py`): no host device names in `env` (`NCCL_IB_HCA`, `NCCL_SOCKET_IFNAME`);

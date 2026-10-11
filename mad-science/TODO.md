@@ -1,8 +1,30 @@
+# DECISIONS — locked 2026-10-11 (questionnaire answered)
+
+1. **Order/budget**: the lane order is advisory, not priority — any rational order; the 12 h budget stands. No lane is out of scope.
+2. **Nodes**: both 10.0.4.34 and 10.0.4.35 are ours for the session; paired A/B boots on both are fine.
+3. **glm5 images**: option (a) — attempt to build/verify a pinnable image for the Flash vLLM lane. For the EXL3 lane, no existing builds of `glm-dsa-tp4` are known → resolved by #13 (attempt a source build).
+4. **DFlash2 license**: use the DFlash2 drafts — non-commercial cluster use satisfies CC BY-NC-ND (owner confirmed 2026-10-11, resolving the (a)/(b) label mismatch).
+5. **qwen3 coder-next**: option (a) — measure it on a free node before the keep/de-ship call.
+6. **qwen4 ranking doc**: commit a redacted tracked copy (e.g. `recipes/qwen4/SELECTION-RANKING.md`).
+7. **ornith lead**: spend node time this session on the DFlash2 author's 114.2 t/s reference config A/B.
+8. **Battery**: one shared stdlib battery tool for all lanes; survey existing standard benchmarks first — standard suites are preferred wherever they fit.
+9. **decision lane**: the shortlist is mine to research; leads named by owner = Cloudflare/Clef and Jev distillations on HF. Nodes are at a premium → co-location with embed/rerank/tts is the core constraint.
+10. **explore lane**: the 10-recipe cap is removed; emphasis follows the selection weighting.
+11. **Weighting**: confirmed — node count > speed > accuracy > memory footprint.
+12. **Attic**: moves only if warranted, folded into each lane's quality/selection pass — not a global end-of-session sweep.
+13. **glm5 EXL3**: attempt a `glm-dsa-tp4` source build this session, budget-permitting, before Flash-lane work.
+14. **explore cap**: none — build whatever fits the 12 h budget.
+15. **Battery sources**: standard-first — RESOLVED 2026-10-11 by survey: **adopt `tool-eval-bench` as the shared suite via `sparkrun benchmark tools`** (already a registered sparkrun framework; covers tool-calling, GSM8K/MMLU/IFEval, needle, spec-decode metrics, and a decision-model benchmark on the Typed Decisions split), **promote `recipes/ds4/benchmarks/` as the shared hard tier** (ifm already scores with it), and keep only the four stdlib instruments nothing standard reaches (`quality-battery.py`, `qwen4-quality-eval.py`, `pooling-bench.py`, `gate-37111.py`; `needle-haystack.py` stays as the client). **No new battery tool is built.** Full survey receipt: agent://BenchmarkSurvey (2026-10-11).
+
 # TODO list
 
 Budget: 12 hours
 
-Lane order:
+WOPR sparkrun cluster nodes available for testing and benchmarking:
+- 10.0.4.34
+- 10.0.4.35
+
+Lane order (advisory — any rational order, decisions #1):
 - ds4
 - ornith
 - qwen4
@@ -36,7 +58,12 @@ GLM 5.3
 - [X] Research this: https://github.com/bertholomus/glm-5.3-tensorfold-tp4-4xgb10 — full assessment in the rewritten `recipes/glm/GLM-5.3-RECOMMENDATIONS.md` (repo A = runnable EXL3 3.0bpw TP4 recipe, 82 t/s aggregate measured, engine on the unreleased `glm-dsa-tp4` branch).
 - [X] Research this: https://github.com/bertholomus/glm-5.3-flash-nvfp4-gb10-tp4 — repo B = validation/evidence package for GLM-5.3-Flash NVFP4 (qualified receipts, KV ladder, DFlash2 CC BY-NC-ND trap).
 - [X] Update the recipe research — `recipes/glm/GLM-5.3-RECOMMENDATIONS.md` rewritten 2026-10-10: three refuted claims fixed (sizes ~3.2× off; no single-node fit; RadixArk mischaracterised), both model lines + four checkpoints + three engines + spec-decode + KV math covered.
-- [ ] Build out the recipes. **BLOCKED on images, not design:** the Flash vLLM lane needs a pinnable image (repo B's reference has no public digest; `vllm/vllm-openai:glm53-flash` existence unverified) and the EXL3 lane needs a build of the unreleased `glm-dsa-tp4` engine branch.
+- [X] Build out the recipes. **2026-10-11, done as far as this session can reach:**
+  - **Flash image blocker RESOLVED:** `vllm/vllm-openai:glm53-flash` EXISTS on Docker Hub (pushed 2026-09-09; 8.7 GB). Pin = the digest docker resolved on a runner node, `sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374` (manifest-list digest; the Hub API's amd64-image digest `sha256:0674a3ea…` is inside it). Device-free engine inspection of that build (0.28.1rc1.dev580): `glm45`/`glm47` parsers registered, `method: dflash` native, Glm5Next*/GlmMoeDsa* arch classes present, `--moe-backend` is the flag this build wants.
+  - **Recipe drafted:** `recipes/glm/glm-5.3-flash-nvfp4-dflash-vllm.yaml` (commit `c2b7be8`) — repo B's runtime-formula.json verbatim, checkpoint pinned to `36c184c6` (169B params, arch `Glm5NextForConditionalGeneration`). NOT boot-verified: TP4 needs 4 nodes, this session has 2 free.
+  - **EXL3 "source build" resolved as no-build:** the engine is `bertholomus/TensorFold@glm-dsa-tp4` installed editable into `nvcr.io/nvidia/pytorch:26.07-py3` at container start (`tfrun.sh`) — no image exists to build. Engine branch cloned on the head run dir at exactly `ddfad35`. TP4 boot also needs 4 nodes → queued with the Flash boot for a 4-node window.
+- [ ] Boot-verify both glm5 recipes when a 4-node window opens (Flash TP4 + EXL3 TensorFold TP4 via `scripts/tfrun.sh` in repo A's work dir).
+- [X] DFlash2 draft usability: RESOLVED 2026-10-11 — use the DFlash2 drafts (non-commercial cluster use satisfies CC BY-NC-ND); the Flash spec-decode route may be built.
 - [ ] Run quality benchmarking pass.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Update the appropriate README.md and AGENTS.md.
@@ -44,16 +71,21 @@ GLM 5.3
 ## ornith
 Ornith 1.5
 - [X] Check if there's any updated models, quantizations, or runtime improvements that could improve accuracy and throughput. **2026-10-10: nothing superseding** (scan recorded in `recipes/ornith/README.md`): ornith-ai quiet since 2026-08-29, jzinno DFlash2 unchanged; an SGLang 0.5.21 bump BREAKS the 35B serve line (Mamba/SWA radix-cache args removed upstream); one untested lead = the DFlash2 author's 114.2 t/s reference config (multi-knob confound, needs a same-node A/B).
+  - **Operational fact (2026-10-11): `@littlecedar/<name>` resolves from the registry CLONE** at `~/.cache/sparkrun/registries/littlecedar` (registries.yaml → GitHub URL), not the local tree — local edits are invisible to cluster launches until pushed + `sparkrun registry update littlecedar`. The first control boot ran the pre-session recipe (upstream template, no pin) for exactly this reason; its numbers (106.8/97.5 t/s) are still a valid throughput control for the A/B (the clone recipe was identical modulo template), but the remaining ladder arms re-run against the pushed recipe so the honed template ships in every arm.
+  - **Distribution-blocking incident (2026-10-11, fixed):** the runner caches' ornith `chat_template.jinja` was honed in place in September and sparkrun's model-preparation validator now rejects it against hub metadata (`wrong_size`) — every launch died at distribution. Fixed by restoring hub content in the caches and shipping the honed template via `@littlecedar/mods/ornith-honed-chat-template` + `--chat-template` (commit `2374fd7`, guards in `tests/test_ornith_honed_chat_template.py`, gate 379 tests OK). The checkpoint is now revision-pinned (`94e431d9` + `--revision`, commit `294e42a`).
 - [X] If yes to the above, build and test the recipe upgrades. **No — nothing superseding, no upgrade built.** The lane ships unchanged.
-- [ ] Run quality benchmarking pass. **Not run: no battery tooling exists for this lane** (no guard suite, no quality harness). Building one is future work.
-- [X] Update the appropriate README.md and AGENTS.md. README carries the 2026-10-10 scan section.
+- [X] Build testing and benchmarking battery tooling. **RESOLVED 2026-10-11 (survey + decision #15): no new tool.** `tool-eval-bench` verified installed on the head node (`uvx tool-eval-bench` resolves; `sparkrun benchmark tools` exists in the installed CLI) — first live run happens inside each lane's quality pass below. The four stdlib instruments nothing standard reaches stay as-is.
+- [ ] A/B the DFlash2 author's 114.2 t/s reference config same-node (multi-knob confound). **2026-10-11: control measured** — decode-triage C1 on .34: **106.8 t/s @ depth 0** (std 10.5, n=5) and **97.5 t/s @ depth 8192** (std 8.8, n=5) (`~/benchmarks/ornith-dflash2-ab-20261011/control.yaml`). Stock config is already within ~7% of the author's 114.2 at d=0. Ladder arms running: ① draft tokens 4→10, ② MoE →marlin, ③ mamba radix →extra_buffer, ④ SSM →float32, ⑤ full author config only if singles don't explain the gap.
+- [ ] Run quality benchmarking pass.
+- [ ] Update the appropriate README.md and AGENTS.md.
 
 ## qwen3
 Qwen 3.x
 - [X] Check if there's any updated models, quantizations, or runtime improvements that could improve accuracy and throughput. **2026-10-10: checkpoint + DFlash2 draft unchanged; the headline is the NEW DSpark v2 draft** (SpecForge-trained for our exact NVFP4 target, card: +26% acceptance, beats EAGLE — on GB300/H200).
 - [X] If yes to the above, build and test the recipe upgrades. **Built and measured — NOT an upgrade:** `qwen3.8-27b-nvfp4-dspark-sglang.yaml` boots (DSPARK path works on GB10) but measures 28.5 t/s vs DFlash2's 33.8 on the same decode-triage profile — a ~16% loss. Receipts in the recipe comment; the DFlash2 lane stays shipping.
 - [X] Finish building and testing the recipes. The lane ships 4 recipes: DFlash2 (shipping, 33.8 t/s), nospec-control (12.6, control-only), DSpark arm (28.5, measured reference), coder-next (unmeasured — see the selection note).
-- [ ] Select the best recipes from all lanes and move the rest to the @attic. **No move made — nothing is a clear loser.** Owner decision pending on `qwen3-coder-next-int4-autoround-vllm.yaml` (tracked, zero measured numbers anywhere — measure it or de-ship it).
+- [ ] Select the best recipes from all lanes and move the rest to the @attic. **No move made — nothing is a clear loser.** 
+- [ ] Measure `qwen3-coder-next-int4-autoround-vllm.yaml` (tracked, zero measured numbers anywhere). **2026-10-11 owner decision #5: measure before the keep/de-ship call.**
 - [ ] Run quality benchmarking pass. **Not run: no battery tooling for this lane.** The C1 index figure (50) vs the lane's 33.8 conflict is SURFACED, not resolved — the index and the lane doc measure different windows.
 - [ ] Clean up directory and artifacts. Nothing to clean: the lane dir holds shipped recipes + evidence docs; the untracked WIP docs are the second writer's.
 - [X] Update the appropriate README.md and AGENTS.md. Lane README carries the DSpark row with the measured verdict; root index updated.
@@ -66,6 +98,7 @@ Qwen 4.x (and 3.8 Flash Next)
 - [X] Select the best recipes from all lanes and move the rest to the @attic. **No move made — nothing is a clear loser.** The full ranking with provenance is in `.local/SELECTION-RANKING-DRAFT.md` (git-ignored; ask for a tracked copy). NVIDIA arm went to attic with its boot verdict; all shipped arms are measured or role-separated.
 - [X] Run quality benchmarking pass. **W3 battery on both new solo arms: 38/38 each (n=1, saturated — cannot discriminate checkpoints).** Receipts: `~/benchmarks/qwen4-solo-20261010/`.
 - [ ] Update the appropriate README.md and AGENTS.md.
+- [ ] Commit a redacted tracked copy of `.local/SELECTION-RANKING-DRAFT.md` as `recipes/qwen4/SELECTION-RANKING.md` (2026-10-11 decision #6). Mask internal addresses per the repo addressing convention.
 
 ## embed
 Any embed model
@@ -79,7 +112,7 @@ Any rerank model
 
 ## decision
 Any decision model
-- [ ] Research decision models and find high-quality, fast, low-memory candidates that can co-locate with other small models (such a an embed, rerank, and tts model)
+- [ ] Research decision models and find high-quality, fast, low-memory candidates that can co-locate with other small models (such a an embed, rerank, and tts model). **2026-10-11 decision #9:** shortlist is mine to research; owner leads = Cloudflare/Clef and Jev distillations on HF; nodes at a premium → co-location is the core constraint.
 - [ ] Build out the recipes.
 - [ ] Run quality benchmarking pass.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
@@ -88,7 +121,7 @@ Any decision model
 ## explore
 Any model with reasoning and tool-calling capabilities
 - [ ] Research available models and find high-quality, fast, low-memory candidates that push the frontier.
-- [ ] Build out up to 10 recipes.
+- [ ] Build out recipes. **2026-10-11 decision #10: no recipe cap; build whatever fits the budget; emphasis follows the selection weighting.**
 - [ ] Run quality benchmarking pass.
 - [ ] Select the best recipes from all lanes and move the rest to the @attic.
 - [ ] Update the appropriate README.md and AGENTS.md.
