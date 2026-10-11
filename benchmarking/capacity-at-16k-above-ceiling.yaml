@@ -29,7 +29,7 @@ metadata:
       - if the ratio lands near 1.56 rather than 2.0, then admitting 2x the streams does
         NOT double throughput, and the honest conclusion is that the pool model predicts
         ADMITTED CONTEXTS but not THROUGHPUT -- a materially weaker claim than the one in
-        WORK.md 12.15, and the section must be edited to say so.
+        attic/qwen3/WORK §12.15, and the lane guide's capacity table must be edited to say so.
 
     SECOND QUESTION, free from the same logs: acceptance at 16k has never been measured.
     `accept len` per decode batch is in the archived server log; compare across arms and

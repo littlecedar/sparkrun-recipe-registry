@@ -116,10 +116,17 @@ per-request cost by 11 % at 16k and **25 % at 8k**. Verified on archived artifac
 is the trap — the prefill-phase population does match `L = depth`, because `pp` has not been
 generated yet, and sglang labels a batch by what it is doing, not by the harness phase.
 
-| context | ship (r=3.51), usable | r=2.3, usable | measured |
+| context | shipped (r=3.51) | lowered ratio | measured |
 |---|---|---|---|
-| 8192 + pp 2048 | 11 (118,002 tokens) | 15 (239,298) | +7.4 % aggregate at c=16, streams 11 → 13, replicated to 0.001 across two nodes |
-| 16384 + pp 2048 | 6 (117.9–119.4k) | 12 (238.4–239.5k) | +55.8 % aggregate at c=12 (1.558×) — below the 2.00× capacity ratio; **throughput at 16k remains unreplicated** |
+| 8192 + pp 2048 | 11 usable (118,002 tokens) | 15 at **r=2.3** (239,298) | +7.4 % aggregate at c=16, streams 11 → 13, replicated to 0.001 across two nodes |
+| 16384 + pp 2048 | 6 usable (117.9–119.4k tokens) | 12 at **r=1.2** (238.4–239.5k) | +55.8 % aggregate at c=12 (1.558×) — below the 2.00× capacity ratio; **throughput at 16k remains unreplicated** |
+
+The measured 16k arm is **r=1.2, not r=2.3** — the booted pair was `ship` vs `-o
+mamba_full_memory_ratio=1.2` (phase 26, replicated p27/p82). Ratios move the two pools against each
+other, so a usable-count comparison is only valid at the ratio that was actually run: the 8k pair is
+3.51 vs 2.3, the 16k pair is 3.51 vs 1.2. **At 16k, r=2.3 (8 usable) beats r=1.2 under the
+corrected divisor too** (archive `WORK §12.24`: r=1.2 is 12 there), so r=1.2 is the *booted* arm,
+not the *optimal* one — do not read this table as a recommendation to run r=1.2.
 
 **The trade this table hides, read before recommending a change:** at 16k with offered concurrency
 12–16, lowering the ratio to 1.2 buys stream count (7 → 13, established twice) and **costs ~11.3 %
