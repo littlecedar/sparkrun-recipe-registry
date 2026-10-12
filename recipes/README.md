@@ -137,6 +137,11 @@ this node, so quote ours. Quality: **33/37** house battery. Lane research:
 | 🚀   | fast          | C1 Fast (>= 50t/s avg)                   |
 | 🐢   | slow          | C1 Slow (< 40t/s avg)                    |
 | 🚚   | large_context | Large context (>= 512k tokens)           |
+| 🔧   | tools         | Excellent tool use                       |
+| 🧠   | reasoning     | Excellent reasoning capability           |
+| 🦾   | agent         | Excellent agentic capability             |
+| ⚖   | judge         | Judgement model                          |
+| 🚮   | classifier    | Classification model                     |
 | 1    | single_user   | Low concurrency, single-user recommended |
 | 👀   | vision        | Model has vision capability              |
 | 👂   | listening     | Model has listening capability           |
