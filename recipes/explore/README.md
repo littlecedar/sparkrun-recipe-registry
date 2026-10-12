@@ -59,9 +59,9 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 
 ## Next by the ranking
 
-`inclusionAI/Ling-3.0-flash-int4` (~77 GB + draft, 83 t/s C1 third-party, GPQA-D 83.65 on the INT4
-column, first-party Spark notebook) is downloading; then `Aleph-Alpha/Kolibri-1` FP8 (~75 GiB,
-AIME-25 96.9 / BFCL v4 61.4) and `vllm-sr/d3-edge`. All are single-node TP=1 candidates.
+Ling is **built and measured** (above); what remains by the research ranking:
+`Aleph-Alpha/Kolibri-1` FP8 (~75 GiB, AIME-25 96.9 / BFCL v4 61.4) — build next; and
+`vllm-sr/d3-edge` — watch only (zero boot history). Both are single-node TP=1 candidates.
 
 ## Serving traps this lane hit (all fixed in the recipe)
 
