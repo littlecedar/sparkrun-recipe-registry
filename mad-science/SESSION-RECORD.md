@@ -84,3 +84,10 @@ IPs that had leaked into `recipes/glm/README.md` (against the repo's IP-masking 
 `.30-.35` shorthand. (c) The explore rank-2 rationale was corrected to state the Kolibri-vs-Ling margin
 honestly — the 1.8 t/s speed gap sits inside Ling's own σ (5.5), so it is a near-tie, not "speed decided" — and
 the call was raised as the one open `#DECISIONS` question.
+
+(d) The owner answered the explore rank-2 question in-file: **for the explore lane the deciding factor
+is accuracy, with preference for smaller and faster models** (supersedes the node-count→speed default).
+The lane was re-ranked and re-cut accordingly — **Ling-3.0-flash (rank 1, 37/37) and Kolibri-1 (rank 2,
+36/37 = 37/37 union, smaller + faster) kept; Nemotron-262k and its 1M variant moved to `attic/explore/`**
+— with the lane README, the root index, the root `AGENTS.md`, and `attic/explore/ARMS-MANIFEST.md`
+updated and the decision folded into the TODO. `#DECISIONS` is now empty.

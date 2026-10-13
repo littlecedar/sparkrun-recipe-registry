@@ -108,12 +108,12 @@ is archived under [`../attic/ifm/`](../attic/ifm/)._
 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
-| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀🧠🔧 |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+| ling-3.0-flash-int4-dspark-sglang                | 🧠    |   45.5 | 154GB | 0.80 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80** |
 | kolibri-1-78b-fp8-vllm                           | ✨🧠🔧 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
 
-Two selected 2026-10-13 by the weighting (**node count → speed → accuracy → memory**) — all four arms were single-node, so speed ranked them, and **Nemotron-262k is rank 1**. The rank-2 call between **Kolibri** (47.3 t/s, 36/37) and **Ling** (45.5 t/s, 37/37) is a **near-tie**: the 1.8 t/s gap sits inside Ling's own measured σ (5.5), so it is not a decisive speed win — the next criteria split (Ling leads accuracy 37/37 vs 36/37; Kolibri leads memory 74 GB vs 154 GB). **Flagged for owner confirmation in `#DECISIONS`.** Archived to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `ling-3.0-flash-int4-dspark-sglang` and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of the kept 262k recipe: 72.2 t/s, util 0.91).
+Two selected 2026-10-13 by the **owner's criterion for this lane — accuracy decides, with preference for smaller and faster models** (supersedes the registry's node-count→speed default, which had ranked this lane on speed). Rank 1 is **Ling** (37/37, the accuracy champion); rank 2 is **Kolibri** (36/37 @4096, a 37/37 union — the lone miss is a thinking-budget truncation — so a near-tie on the deciding factor, and it wins the stated preference: 74 GB vs Ling's 154 GB, 47.3 vs 45.5 t/s). **Archived** to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `nemotron-3.5-lightning-30b-nvfp4-dspark-vllm` (the fastest measured arm, 77.7 t/s, and the smallest at 21 GB — but 33/37, the lane's lowest accuracy) and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of it: 72.2 t/s, util 0.91).
 
-_Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
+_Nemotron-262k (archived 2026-10-13): 1 node, 20.8 GB NVFP4 weights. **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
 and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-96 t/s third-party figure on
 this node, so quote ours. Quality: **33/37** house battery. Lane research:
@@ -124,9 +124,9 @@ card's util 0.91 (KV 87.27 GiB → 21.3M tokens), 1M-window needle **PASS** at d
 (~982k-token server-counted prompts, Nemotron-calibrated 3.8590 chars/token). Measured C1
 **72.2 t/s @ d0** (σ 15.1, n=5) vs the 262k recipe's 77.7. Swap-risk caveat: ~1 GiB free with
 2.05 GiB swap allocated during 1M prefills but zero swap-in/out under needle load; sustained
-multi-tenant load untested. The 262k/0.80 recipe remains the shipped default.
+multi-tenant load untested.
 
-**Ling 262k closure (2026-10-12 — archived 2026-10-13):** mem-fraction ladder boots 0.80 first rung — KV pool
+**Ling 262k closure (2026-10-12):** mem-fraction ladder boots 0.80 first rung — KV pool
 313,752 tokens (0.75 measured 176,203); 262k-window needle **PASS** at depths 10/50/90
 (~256.6k-token prompts); 4-way concurrency smoke clean, zero OOM/retract. 0.87 stays the
 documented ceiling.
@@ -134,8 +134,8 @@ documented ceiling.
 **Kolibri-1 (2026-10-12):** first boot of the 78.1B/3.46B MoE on stock vLLM 0.29 + the vendor
 pure-Python plugin (`mods/install-kolibri-plugin`). C1 **47.3 t/s @ d0** (σ 0.10, n=5), battery
 **36/37** at `--max-tokens 4096` reproduced twice, 37/37 union with the default-384 run — the
-lone `needle-1` failure is thinking-budget truncation, not knowledge. Kept: accuracy-champion
-role at 1 node, not dominated (≥ Ling's 45.5 t/s).
+lone `needle-1` failure is thinking-budget truncation, not knowledge. **KEPT**: near-tie accuracy
+(37/37 union) and it wins the owner's stated preference (74 GB, 47.3 t/s).
 
 # Model Flags
 

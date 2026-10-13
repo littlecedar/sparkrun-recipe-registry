@@ -14,7 +14,7 @@ This file is the interface for planning rounds:
 
 **Where things live:** completed items are archived in `../attic/DONE.md` (archived 2026-10-13); dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 1 open (2026-10-13)
+# DECISIONS — nothing open (2026-10-13)
 
 Three questions were answered in chat on 2026-10-13 and folded into the items they govern: the TP=4
 window headline (shipped glm5 first) → the glm5 lane item; the spare-node allocation (TP≤2 work runs
@@ -23,10 +23,11 @@ concurrently) → the preamble; the flag-pass commit → done (session commit 1)
 the glm5 lane item). The 2026-10-12 questions were folded earlier; the 2026-10-11 questionnaire register
 is at `git show 8a98379:mad-science/TODO.md`. New owner questions land here, each with a `→ Answer:` line.
 
-## explore lane rank-2: keep Kolibri-1, or does the near-tie favor Ling-3.0-flash?
+## explore rank-2 (answered in-file 2026-10-13)
 
-The explore selection kept Nemotron-262k (rank 1, clear) + Kolibri-1 (rank 2). The rank-2 call is a **near-tie**: Kolibri 47.3 t/s / 36/37 / 74 GB vs Ling 45.5 t/s / 37/37 / 154 GB. The 1.8 t/s speed gap sits **inside Ling's own measured σ (5.5)**, and speed is the weighting's first discriminating criterion (all arms 1 node), so it does not decisively decide — the next criteria split (accuracy favors Ling 37/37 vs 36/37; memory favors Kolibri 74 vs 154 GB).
-→ Answer: (keep Kolibri-1 as selected, or swap rank 2 to Ling-3.0-flash?)
+The owner's answer: **switch the deciding factor to accuracy for explore models, with preference for
+smaller and faster models.** Folded into the explore lane item and the lane docs — see the
+*(Owner decision 2026-10-13 …)* note under `## explore`.
 
 # TODO list
 
@@ -97,6 +98,7 @@ Any decision model
 ## explore
 Any model with reasoning and tool-calling capabilities
 *(all items completed — archived in `../attic/DONE.md`)*
+- *(Owner decision 2026-10-13: the deciding factor for explore models is **accuracy**, with preference for smaller and faster models — supersedes the node-count→speed default. Re-ranked: **Ling-3.0-flash** (rank 1, 37/37) and **Kolibri-1** (rank 2, 36/37 = 37/37 union, smaller + faster) are kept; Nemotron-262k and its 1M variant moved to `attic/explore/`.)*
 
 ## Session follow-ons (restated 2026-10-12)
 *(the sole remaining item — glm5 boot-verify — was exercised in the 2026-10-13 TP=4 window; see the glm5 lane item)*
