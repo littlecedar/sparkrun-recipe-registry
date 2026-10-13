@@ -74,7 +74,18 @@ decode-phase rows only).** The headline is now a measurement, not an inheritance
 (σ 9.1)** and **100.2 t/s @ d8192 (σ 3.9)** — the prior `~100 t/s` header is superseded by these
 figures. Spec decode was engaged (serve-log mean `accept len` **2.54** across 23 decode batches, min
 2.27 / max 2.83), and the warm-cache boot reached port-open **95.1 s** / HTTP-ready **97.8 s** / TTFT
-**98.0 s**. Receipts: `~/benchmarks/ornith-c1-20261013/` (`c1-decode-triage.json`, `serve.log`).
+`98.0 s`. Receipts: `~/benchmarks/ornith-c1-20261013/` (`c1-decode-triage.json`, `serve.log`).
+
+**Served model id fixed (2026-10-13, `.34`, job `dadfb04b5145d956_8ed3ce77d78f`).** The arm answered
+with the engine's filesystem path as its model id (`/cache/huggingface/hub/models--ornith-ai--…/
+snapshots/94e431d9…`) because `--served-model-name {model}` renders from the one placeholder sparkrun
+rebinds to the prepared snapshot path on a real launch — a rewrite `-n` does not show. The recipe now
+declares `served_model_name: ornith-ai/Ornith-1.5-35B-A3B-NVFP4` in `defaults:` and passes
+`--served-model-name {served_model_name}`; on the fixed boot `GET /v1/models` returned the repo id
+(`max_model_len` 262144) and a chat completion addressed to that id returned 200. Warm TTR: port-open
+**94.7 s** / HTTP-ready **100.6 s** / TTFT **100.7 s**. (Ten other shipped sglang arms still carry the
+`{model}` spelling — sweep tracked in `mad-science/TODO.md` §General Registry Maintenance; lane guard
+added to `tests/test_ornith_honed_chat_template.py`.)
 
 **Measured A/B against the author's reference config (2026-10-11, `benchmarking/decode-triage.yaml`,
 C1, n=5 per cell, one node per arm, same window where paired).** The author's 114.2 knob set was

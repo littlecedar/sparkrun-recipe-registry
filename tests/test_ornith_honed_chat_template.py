@@ -176,5 +176,56 @@ class RecipeWiring(unittest.TestCase):
         self.assertGreater(mods_pos, pipe_pos, "template staging must run after pip-install")
 
 
+class ServedModelName(unittest.TestCase):
+    """The 35B recipe must not render `--served-model-name` from `{model}`.
+
+    sparkrun binds every `{model}` occurrence to the prepared snapshot path on a
+    real launch (`models/runtime.py::bind_runtime_models`), so the old
+    `--served-model-name {model}` spelling made the server advertise
+    `/cache/huggingface/hub/...` as its model id while `-n` still printed the
+    repo id (verified live 2026-10-13: `/v1/models` showed the path before the
+    fix, the repo id after). The declared key + `{served_model_name}`
+    placeholder is sparkrun's documented spelling (`core/validation.py`'s
+    hardcoded-flag suggestion prescribes `defaults.<key>` + `{<key>}`).
+    """
+
+    RECIPE = REPO_ROOT / "recipes" / "ornith" / "ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml"
+    REPO_ID = "ornith-ai/Ornith-1.5-35B-A3B-NVFP4"
+
+    def _violations(self, text: str) -> list[str]:
+        stripped = "\n".join(
+            ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
+        )
+        bad = []
+        if "--served-model-name {model}" in stripped:
+            bad.append("served-model-name rendered from {model}")
+        if f"served_model_name: {self.REPO_ID}" not in stripped:
+            bad.append("declarative served_model_name missing")
+        if "--served-model-name {served_model_name}" not in stripped:
+            bad.append("flag not wired to the declared key")
+        return bad
+
+    def test_recipe_serves_the_repo_id(self):
+        text = self.RECIPE.read_text(encoding="utf-8")
+        self.assertEqual(self._violations(text), [])
+
+    def test_negative_controls(self):
+        text = self.RECIPE.read_text(encoding="utf-8")
+        # The pre-fix spelling, still carried by ten other shipped sglang arms.
+        old = text.replace("--served-model-name {served_model_name}",
+                           "--served-model-name {model}")
+        self.assertEqual(
+            self._violations(old),
+            ["served-model-name rendered from {model}",
+             "flag not wired to the declared key"],
+        )
+        # Key deleted: the placeholder would flow through unresolved.
+        without_key = text.replace(f"  served_model_name: {self.REPO_ID}\n", "")
+        self.assertEqual(
+            self._violations(without_key),
+            ["declarative served_model_name missing"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
