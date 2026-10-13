@@ -9,6 +9,8 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
 |---|---|---|---|
 | [`jev-9b-decision-vllm.yaml`](jev-9b-decision-vllm.yaml) | vLLM | [autotrust/JEV-9B][jev] + the `jev-decision` LoRA | **BOOT-VERIFIED 2026-10-11** |
 | [`clef-flash-decision-sglang.yaml`](clef-flash-decision-sglang.yaml) | SGLang | [Cloudflare/clef-flash][clef] | **BOOT-VERIFIED 2026-10-11** |
+| [`kai-0.6b-decision-vllm-srun.yaml`](kai-0.6b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Kai-0.6B][kai] | **BOOT-VERIFIED 2026-10-13** |
+| [`sol-2b-decision-vllm-srun.yaml`](sol-2b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Sol-2B][sol] | **BOOT-VERIFIED 2026-10-13** |
 
 ## Verified surfaces (2026-10-11)
 
@@ -46,6 +48,116 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
   `Cloudflare/clef-flash`. Clients must pass the path or route through an alias layer — the same
   sparkrun `{model}`-to-path substitution the other lanes document.
 
+## JEV-9B official score (2026-10-12)
+
+**Decision Accuracy 67.0% (1340/2000), ★★** on the Typed Decisions test split
+(`tool-eval-bench` v2.8.0's data — 400 cases / 2000 decisions), scored through
+`tools/jev-decision-bench.py` over the card's native `/v1/completions`
+System 1 contract: **0 request errors**, KL(gold ‖ pred) mean 0.3523 nats,
+Brier mean 0.1336, top-label ECE 0.0299, 132 ms median per decision (serial,
+one request per question), 561,065 input tokens, 265 s wall. clef-flash
+scored 70.3% (★★) on the same data through the tool's own `/v1/systemone`
+path — JEV is 3.3 points behind on the shared instrument.
+
+Per kind: `noul` 79.3% (476/600), `choice` 67.2% (403/600), `score` 57.6%
+(461/800). Per workflow: agent_trace_observability 51.0%,
+customer_service 71.2%, invoice_processing 78.2%, security_incidents 67.6%.
+The chat-template surface shifts distributions and flips argmaxes (the
+2026-10-11 caveat above); the completions shape is the card's contract and
+the only one scored here.
+
+Comparability caveats: same cases, same gold, same metric formulas as
+tool-eval-bench v2.8.0, but the request shape differs — one request per
+question (JEV's native contract) instead of all five questions of a case in
+one `/v1/systemone` request, so per-request latency is not comparable with
+clef's; and structured states serialize as sorted-key compact JSON (the
+vendor's SystemOne convention; the JEV card documents only string states).
+The card-example smoke reproduced before scoring: the card's worked choice
+example returned {issue_warning: 0.328, renegotiate: 0.144, dual_source:
+0.528, maintain: 0.001} against the card's ≈ {0.33, 0.14, 0.53, 0.001}, and
+the noul refund example returned P(true) = 0.991.
+
+Receipts on the head node: `~/benchmarks/jev-decision-20261012/`
+(`jev-decision-bench.json` with the per-decision trace + `run.log`).
+
+## vllm-srun arms: Kai-0.6B + Sol-2B (2026-10-12)
+
+The Decision 2.0 models run on the vendor's own runtime, **vllm-srun** — a
+standalone single-process server shipped inside the `vllm-sr` router image
+(not on PyPI, no image of its own; `vllm-srun models` lists every built-in
+model at its golden-checked pinned revision, which is what the recipes pin).
+Both recipes serve on **CPU**, pinned to the unclaimed A725 cores
+(`taskset -c 0-4,10-14`, mirroring clef-flash): the vendor marks DGX-Spark
+arm64 CUDA "experimental, not qualified", and the lane's slot for these is a
+decision model at no GPU cost. Recipe notes:
+
+- The image's default ENTRYPOINT starts the vllm-sr router/gateway; the
+  recipes clear it (`executor_config.entrypoint: ""`) so the vllm-srun serve
+  line runs.
+- **The kill-shim prefix.** The image is built on `python:*-slim` and has no
+  standalone `kill` binary; sparkrun's detached-launch liveness check runs
+  `docker exec <c> kill -0 <serve-pid>`, which exits 127 on this image and
+  was misread as "serve process exited immediately" — three consecutive
+  launches declared failure while the serve came up healthy seconds later
+  (observed 2026-10-13). The recipes therefore prepend a `printf` that
+  installs a bash-builtin kill shim into `/usr/local/bin` before the server
+  starts, and run the container as root (`executor_config.user: "root"`) so
+  the shim can be written. vLLM / SGLang images ship procps and are
+  unaffected.
+- `--revision=<sha>` uses the runtime's own pinned revisions
+  (Kai `cd49ea38…`, Sol `64235bef…`) — the same revisions its golden
+  readiness check verifies against. `/health` returns 200 only when every
+  model is loaded, verified and golden-checked.
+
+**Kai-0.6B boot-verified 2026-10-13** on .34: launch succeeds (TTR port-open
+8.1 s, HTTP-ready 10.1 s), `/health` → `{"status":"ready"}` (golden-checked),
+`/v1/models` reports the served id, revision and model sha. The Kai card's
+three-question example over `/v1/systemone` (damaged-order state) answers
+sensibly: `route` → `returns` 0.962, `receipt` → noul 0.916, `urgency` →
+score 1.475 ("Today"-leaning), 286 input tokens, 0 output tokens; 0.90 s
+round-trip from the head (single request, cold client). Receipts:
+`~/benchmarks/kai-sol-20261012/` (`kai-card-smoke.json`; the
+tool-eval-bench v2.8.0 `--decision-bench-only` run below — same 400-case /
+2000-decision instrument as clef's 70.3%).
+
+
+**Kai-0.6B official score (2026-10-13, tool-eval-bench v2.8.0
+`--decision-bench-only`): Decision Accuracy 47.5% (949/2000), ★★** — just
+above the dataset's 47.0% prior that anchors the ★ rating. KL(gold ‖ pred)
+0.362, Brier 0.198, ECE 0.061, 0 request errors. Per type: `noul` 62.8%,
+`choice` 42.3%, `score` 39.8%. Latency on the A725 CPU pins: p50 5.70 s /
+mean 5.25 s per request — one request carries all five questions of a case,
+so ≈ 1.05 s per question, against the card's 4.9 ms per question on a GPU
+(CPU inference, not a same-hardware comparison). Duration 2100 s, 629,180
+input tokens. For scale on the shared instrument: clef-flash 70.3%, JEV-9B
+67.0% — Kai-0.6B is 0.6B serving at no GPU cost; its case is the CPU slot,
+not accuracy leadership. The score run took ~35 min wall for 2000 decisions:
+every case is a serial HTTP round-trip through one CPU process.
+
+**Sol-2B boot-verified 2026-10-13** on .34: launch succeeds first-try with
+the kill-shim fix (TTR port-open 7.8 s, HTTP-ready 18.8 s), `/health` →
+`{"status":"ready"}`. The Sol card documents the **same** worked example as
+the Kai card (no substitution needed) — `/v1/systemone` answers `route` →
+`returns` 0.969, `receipt` → noul 0.970, `urgency` → score 1.60, 317 input
+tokens, 0 output tokens.
+
+**Sol-2B official score (2026-10-13, same instrument): Decision Accuracy
+55.0% (1100/2000), ★★** — KL 0.352, Brier 0.190, ECE 0.058, 0 errors. Per
+type: `noul` 65.8%, `choice` 49.5%, `score` 51.0%. Latency on the A725 CPU
+pins: p50 15.0 s / mean 14.2 s per request (all five questions of a case) —
+≈ 2.8 s per question vs Kai's ≈ 1.05 s; duration 5670 s (94.5 min), 652,665
+input tokens. Ladder on the shared instrument: **Sol-2B 55.0% > Kai-0.6B
+47.5%**, matching the vendor's own ordering (JevArena 52.1 vs 48.6); both sit
+below clef-flash 70.3% and JEV-9B 67.0%, the expected shape for 0.6B/2B
+CPU-served models at zero GPU cost.
+
+Receipts on the head: `~/benchmarks/kai-sol-20261012/` — `teb-kai-report.md`
+and `teb-sol-report.md` (the full tool-eval-bench reports: per-question
+tables, calibration, latency, 400-case trace) plus the two card-smoke JSONs.
+Deviation worth recording: `--json-file` produced no file in v2.8.0 for these
+runs; the markdown report under `~/runs/2026/10/` is the durable artifact
+(copied into the receipts dir) and carries every number quoted here.
+
 ## What these models are
 
 Decision models are **prefill-only scorers**, not chat models. JEV-9B answers with
@@ -66,3 +178,5 @@ clef-flash is pinned to 0-4,10-14 (A725) to keep the three from contending.
 
 [jev]: https://huggingface.co/autotrust/JEV-9B
 [clef]: https://huggingface.co/Cloudflare/clef-flash
+[kai]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
+[sol]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B

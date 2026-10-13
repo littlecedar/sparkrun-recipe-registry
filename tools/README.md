@@ -18,8 +18,8 @@ Disposition audited 2026-10-11:
 | `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
 | `build-dsv41-combined.py` | ds4 combined-repo TP=2 | shells out to `build-dsv41-engram.py`; consumed by `mods/tensorfold-dsv41-launcher/launcher.py`; guarded by `tests/test_dsv41_combined_tool.py` |
 | `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
-| `gate-37111.py` + `gate-37111-design.md` | qwen4 W4 correctness gate | the design memo is part of the kit; self-test only, no `tests/` guard |
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
+| `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
 
 ## safe_text.py
 
@@ -617,6 +617,47 @@ mock controls); no `tests/` guard references it.
 
 Measured numbers live next to the arms: `recipes/qwen4/AGENTS.md` (the W3 row) and
 `attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md` (the paired-run record).
+
+## jev-decision-bench.py
+
+The decision lane's scoring instrument for `autotrust/JEV-9B`. `sparkrun`'s
+built-in `tool-eval-bench` path drives `/v1/systemone` (clef's surface); JEV
+does not have one — its card's native System 1 contract is one
+`/v1/completions` request per question with `logprobs` +
+`allowed_token_ids` over the `jev-decision` LoRA, scored client-side with the
+decision-head bias and per-kind calibration temperature. This tool speaks
+exactly that contract (the request body and the `z_i = (lp + bias) / T`
+softmax are the card's, verbatim) over the vendored Typed Decisions test
+split — the same 400 cases / 2000 decisions tool-eval-bench v2.8.0 scores, so
+the headline number is comparable with clef-flash's 70.3%.
+
+Metric semantics mirror tool-eval-bench's decision plugin exactly (argmax
+with first-listed tie-break, KL(gold ‖ pred) in nats with a 1e-12 floor over
+the gold keys, Brier over the union, top-label ECE in 10 bins, the ★
+rating at the 47.0% prior / 73.5% teacher-ceiling anchors). Documented
+differences: one request per question (JEV's native per-question contract;
+TEB sends all five questions of a case in one `/v1/systemone` request — same
+decisions, different request shape, so latencies are not comparable), and
+structured states serialize as sorted-key compact JSON (the vendor's
+SystemOne convention; the JEV card documents only string states).
+
+```sh
+python3 tools/jev-decision-bench.py --base-url http://<node>:8000 \
+    --cases <vendored>/test.jsonl.gz --json jev-decision-bench.json
+python3 tools/jev-decision-bench.py --selftest     # offline, no network, ~1 s
+```
+
+The case file is the tool-eval-bench v2.8.0 vendored copy; the tool verifies
+its decompressed sha256 against the vendored manifest and fails closed on a
+modified split. Exit codes: `0` run completed (the score is the artifact),
+`1` every request failed, `2` bad flags or case-file integrity failure.
+Guarded by its own `--selftest` (golden prompt rendering, hand-computed
+bias/temperature softmax, hand-computed accuracy/KL/Brier/ECE including a
+tie case and a floor case); no `tests/` guard references it.
+
+Measured (2026-10-12, `recipes/decision/README.md`): the card's worked choice
+example reproduces (0.328 / 0.144 / 0.528 / 0.001 against the card's ≈ 0.33 /
+0.14 / 0.53 / 0.001).
 
 ## synthetic_png.py
 
