@@ -8,10 +8,10 @@ DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of `recipes/qwen3/` on
 
 | recipe | runtime | model | flags | C1 t/s | notes |
 |---|---|---|---|---|---|
-| `qwen3-vl-reranker-2b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Reranker-2B] | 🚀🌲👀🔃 | — | VL reranker (cross-encoder), colocatable with the 2B encoder. |
-| `qwen3-vl-reranker-8b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Reranker-8B] | 🌲👀🔃 | — | quality-tier reranker; colocation budget and the fit penalty documented below. |
+| `qwen3-vl-reranker-2b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Reranker-2B] | 🚀🌲👀🔃🤏 | — | VL reranker (cross-encoder), colocatable with the 2B encoder. |
+| `qwen3-vl-reranker-8b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Reranker-8B] | 🌲👀🔃🤏 | — | quality-tier reranker; colocation budget and the fit penalty documented below. |
 
-Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 🔃 reranking.
+Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 🔃 reranking · 🤏 smol.
 
 Facts that span both lanes (kept here because neither recipe alone states them):
 

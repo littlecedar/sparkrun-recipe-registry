@@ -46,7 +46,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "2B"
   model_dtype: bf16
-  tags: decision, colocatable, cpu
+  tags: decision, smol, cpu, classifier
 
 # No chat endpoint: /v1/systemone is the surface (the pooling-lane
 # readiness convention), and /health is the golden gate, not a plain liveness.

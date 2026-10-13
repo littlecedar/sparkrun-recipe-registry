@@ -12,7 +12,7 @@ metadata:
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   # vision + embedding: multimodal Qwen3-VL pooling encoder (--runner pooling / --convert embed).
-  tags: fast, lcg_favorite, vision, embedding
+  tags: fast, lcg_favorite, vision, embedding, smol
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

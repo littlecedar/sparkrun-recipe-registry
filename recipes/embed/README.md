@@ -8,10 +8,10 @@ single DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of `recipes/qwen
 
 | recipe | runtime | model | flags | C1 t/s | notes |
 |---|---|---|---|---|---|
-| `qwen3-vl-embedding-2b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Embedding-2B] | 🚀🌲👀📶 | — | multimodal embedding encoder, colocatable with the 2B reranker. |
-| `qwen3-vl-embedding-8b-awq-4bit-vllm-b12x` | vllm | [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] | 🚀🌲👀📶 | — | 4-bit W4A16 encoder, quality tier. |
+| `qwen3-vl-embedding-2b-vllm-b12x` | vllm | [Qwen/Qwen3-VL-Embedding-2B] | 🚀🌲👀📶🤏 | — | multimodal embedding encoder, colocatable with the 2B reranker. |
+| `qwen3-vl-embedding-8b-awq-4bit-vllm-b12x` | vllm | [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] | 🚀🌲👀📶🤏 | — | 4-bit W4A16 encoder, quality tier. |
 
-Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 📶 embedding.
+Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
 
 Facts that span both lanes (kept here because neither recipe alone states them):
 

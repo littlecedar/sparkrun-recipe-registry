@@ -20,7 +20,7 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: official, fast
+  tags: official, fast, smol, reasoning, tools
 
 defaults:
   port: 8000

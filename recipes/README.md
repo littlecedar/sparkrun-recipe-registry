@@ -17,22 +17,22 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                           | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                                            |
 |:------------------------------------------------|:------|------:|-----:|----:|---:|:--------------------------------------------------------------------------------------|
-| littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm | 🌲     |  41.86 | 235GB | 0.80 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                   |
-| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲 |    100 |  45GB | 0.85 |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
+| littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm | 🌲👀🧠🦾🔧 |  41.86 | 235GB | 0.80 |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                   |
+| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲👀🧠🦾🔧 |    100 |  45GB | 0.85 |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
 
 ## Embed
 
 | Recipe                                   | Flags    | C1 t/s | Size |  Mem | TP | Model Cards                                    |
 |:----------------------------------------|:--------|------:|----:|----:|---:|:----------------------------------------------|
-| qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶 |      — |    — | 0.25 |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
-| qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶 |      — |    — | 0.30 |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
+| qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶🤏 |      — |    — | 0.25 |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
+| qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶🤏 |      — |    — | 0.30 |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
 
 ## Rerank
 
 | Recipe                                   | Flags    | C1 t/s | Size |  Mem | TP | Model Cards                                    |
 |:----------------------------------------|:--------|------:|----:|----:|---:|:----------------------------------------------|
-| qwen3-vl-reranker-2b-vllm-b12x           | 🚀🌲👀🔃 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B]             |
-| qwen3-vl-reranker-8b-vllm-b12x           | 🌲👀🔃   |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B]             |
+| qwen3-vl-reranker-2b-vllm-b12x           | 🚀🌲👀🔃🤏 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B]             |
+| qwen3-vl-reranker-8b-vllm-b12x           | 🌲👀🔃🤏 |      — |    — | 0.30 |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B]             |
 
 ## Qwen 3x
 
@@ -41,19 +41,19 @@ single-stream number — the recipe's own decode-only measurement is 33.8 t/s at
 
 | Recipe                               | Flags  | C1 t/s | Size |  Mem | TP | Model Cards                                                             |
 |:------------------------------------|:------|------:|----:|----:|---:|:-----------------------------------------------------------------------|
-| qwen3.8-27b-nvfp4-dflash2-sglang     | ✨🚀🌲 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
-| qwen3-coder-next-int4-autoround-vllm | 🚀🌲   |    71.7 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37** |
+| qwen3.8-27b-nvfp4-dflash2-sglang     | 🌲🚀👀 |     50 | 21GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] |
+| qwen3-coder-next-int4-autoround-vllm | 🌲🚀   |    71.7 | 41GB | 0.85 |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37** |
 
 ## Qwen 4x
 
 | Recipe                                  | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                    |
 |:----------------------------------------|:------|-------:|------:|-----:|---:|:---------------------------------------------------------------|
-| qwen3.8-flash-next-nvfp4-sglang         | 🌲    |     38 | 135GB | 0.80 |  2 | [Model][RadixArk/Qwen3.8-Flash-Next-NVFP4]                     |
-| qwen3.8-flash-next-nvfp4-labquant-sglang | 🌲    |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]          |
+| qwen3.8-flash-next-nvfp4-sglang         | 🌲🚀👀 |     38 | 135GB | 0.80 |  2 | [Model][RadixArk/Qwen3.8-Flash-Next-NVFP4]                     |
+| qwen3.8-flash-next-nvfp4-labquant-sglang | 🌲🚀 |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]          |
 | qwen3.8-flash-next-nvfp4-labquant-highcon-sglang | 🌲🚀 |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **high concurrency** |
-| qwen3.8-flash-next-nvfp4-labquant-longctx-sglang | 🌲   |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **long context (1M route)** |
+| qwen3.8-flash-next-nvfp4-labquant-longctx-sglang | 🌲🚚 |     44 | 106GB | 0.80 |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **long context (1M route)** |
 | qwen3.8-flash-next-nvfp4-solo-vllm-b12x | 🌲  |    — | 135GB | 0.80 |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, PLE table streamed from disk (ported 2026-10-10)** |
-| qwen3.8-flash-next-nvfp4-solo-sglang | 🌲    |    — | 135GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, SGLang route, PLE file-backed; boot-verified 2026-10-10** |
+| qwen3.8-flash-next-nvfp4-solo-sglang | 🌲👀 |    — | 135GB | 0.85 |  1 | [Model][RadixArk/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, SGLang route, PLE file-backed; boot-verified 2026-10-10** |
 
 Two of these are **production lanes** off the labquant checkpoint (see
 [`qwen4/README.md`](qwen4/README.md)): `…-highcon-…` raises the mamba pool 112 → 128 and
@@ -72,8 +72,8 @@ of equal quality. Use the RadixArk recipe as the quality reference until an eval
 
 | Recipe                                    | Flags  | C1 t/s |  Size |  Mem | TP | Model Cards                                                    |
 |:------------------------------------------|:-------|-------:|------:|-----:|---:|:---------------------------------------------------------------|
-| k2-horizon-0.9b-bf16-sglang               | ✨🚀   |   77.6 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
-| k2-horizon-7b-fp8-uno-sglang              | 🚀    |   32.4 | 11GB | 0.82 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **UNO spec decode, fastest** |
+| k2-horizon-0.9b-bf16-sglang               | ✨🚀🤏🧠🔧 |   77.6 |  2GB | 0.85 |  1 | [Model][IFM/K2-Horizon-0.9B]                                   |
+| k2-horizon-7b-fp8-uno-sglang              | 🚀🤏🧠🔧🦾 |   32.4 | 11GB | 0.82 |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **UNO spec decode, fastest** |
 
 _Native SGLang on GB10. C1 t/s measured at concurrency 1, depth 0
 (`benchmarking/decode-triage.yaml`); the 7B figure is the mean over several clean
@@ -95,7 +95,7 @@ is archived under [`../attic/ifm/`](../attic/ifm/)._
 
 | Recipe                                | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                              |
 |:--------------------------------------|:------|-------:|------:|-----:|---:|:---------------------------------------------------------|
-| glm-5.3-flash-nvfp4-dflash-vllm       | 🚚    |      — | 198GB | 0.85 |  4 | [Model][RedHatAI/GLM-5.3-Flash-NVFP4] [Draft][incoai/GLM-5.3-Flash-DFlash2] |
+| glm-5.3-flash-nvfp4-dflash-vllm       | 🚚🚀🧠🔧 |      — | 198GB | 0.85 |  4 | [Model][RedHatAI/GLM-5.3-Flash-NVFP4] [Draft][incoai/GLM-5.3-Flash-DFlash2] |
 
 _Drafted 2026-10-11 from repo B's validated formula
 ([`glm/GLM-5.3-RECOMMENDATIONS.md`](glm/GLM-5.3-RECOMMENDATIONS.md)); image verified and
@@ -104,37 +104,21 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 
 ## Decision
 
-| Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
-|:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
-| jev-9b-decision-vllm    |       |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B] — **decision: /v1/completions; Typed Decisions 67.0% (1340/2000), boot-verified** |
-| clef-flash-decision-sglang |    |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone; Typed Decisions 70.3% (1406/2000), boot-verified** |
-| kai-0.6b-decision-vllm-srun |    |      — |   2GB |   — |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] — **decision: /v1/systemone; Typed Decisions 47.5% (949/2000), boot-verified (CPU)** |
-| sol-2b-decision-vllm-srun  |    |      — |   5GB |   — |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B] — **decision: /v1/systemone; Typed Decisions 55.0% (1100/2000), boot-verified (CPU)** |
-
-_Prefill-only decision scorer (SystemOne-shaped logprobs over /v1/completions) — a distilled
-student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
-one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both the base model and the
-`jev-decision` LoRA adapter. **SCORED 2026-10-12** (`tools/jev-decision-bench.py`, TEB v2.8.0-mirror
-metrics, one request per question): Decision Accuracy **67.0% (1340/2000)** ★★, 0 errors,
-KL 0.3523 / Brier 0.1336 / ECE 0.0299, ~132 ms/decision — 3.3 pts behind clef's 70.3% on the same
-instrument (caveat: JEV scores natively per-question, clef per-case). Lane research:
-[`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md). Receipts:
-`~/benchmarks/jev-decision-20261012/`._
-
-The `vllm-srun` arms (`Decision-2.0` Kai-0.6B / Sol-2B) boot-verified + scored 2026-10-13 on the
-vendor's own runtime (the `vllm-sr` router image, arm64; kill-shim + `executor_config.user: root`
-workaround documented in the lane README) on **CPU**, pinned to the A725 cores — a decision model
-at no GPU cost. Ladder on the shared instrument: Sol 55.0% > Kai 47.5% (both ★★, 0 errors), below
-JEV-9B 67.0% and clef 70.3% as expected for 0.6B/2B. Receipts: `~/benchmarks/kai-sol-20261012/`.
+| Recipe                      | Flags | Accuracy | Size |             API | TP | Model Cards                            |
+|:----------------------------|:------|---------:|-----:|----------------:|---:|:---------------------------------------|
+| jev-9b-decision-vllm        | 🤏🚮    |    67.0% | 18GB | /v1/completions |  1 | [Model][autotrust/JEV-9B]              |
+| clef-flash-decision-sglang  | 🤏🚮    |    70.3% | 19GB |   /v1/systemone |  1 | [Model][Cloudflare/clef-flash]         |
+| kai-0.6b-decision-vllm-srun | 🤏🖥🚮  |    47.5% |  2GB |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] |
+| sol-2b-decision-vllm-srun   | 🤏🖥🚮  |      55% |  5GB |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
 
 ## Explore
 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
-| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     |       |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
-| nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm | 🚚    |   72.2 |  21GB | 0.91 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] — **1M context; needle-verified at ~982k** |
-| ling-3.0-flash-int4-dspark-sglang                | 🚚    |   45.5 | 154GB | 0.80 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80** |
-| kolibri-1-78b-fp8-vllm                           | ✨ 🧠 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
+| nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀🧠🔧 |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
+| nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm | 🚀🚚🧠🔧 |   72.2 |  21GB | 0.91 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] — **1M context; needle-verified at ~982k** |
+| ling-3.0-flash-int4-dspark-sglang                | 🧠    |   45.5 | 154GB | 0.80 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80** |
+| kolibri-1-78b-fp8-vllm                           | ✨🧠🔧 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
@@ -174,6 +158,8 @@ role at 1 node, not dominated (≥ Ling's 45.5 t/s).
 | 🦾   | agent         | Excellent agentic capability             |
 | ⚖   | judge         | Judgement model                          |
 | 🚮   | classifier    | Classification model                     |
+| 🖥   | cpu           | CPU-only runtime model                   |
+| 🤏   | smol          | Small model                              |
 | 1    | single_user   | Low concurrency, single-user recommended |
 | 👀   | vision        | Model has vision capability              |
 | 👂   | listening     | Model has listening capability           |
