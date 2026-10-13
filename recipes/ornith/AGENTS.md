@@ -133,6 +133,16 @@ Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab
    exceed the checkpoint's declared maximum.
 10. **`recipe validate` does not resolve `mods:`.** A typo'd mod name still validates and only fails
     at launch (or with `-n` when a `command:` template is present).
+11. **Never write `--served-model-name {model}` (35B).** sparkrun binds every `{model}` occurrence —
+    including one inside `--served-model-name` — to the prepared snapshot path on a real launch
+    (`models/runtime.py::bind_runtime_models`, quoted at
+    `mods/tensorfold-dsv41-launcher/launcher.py:176-182`), so the server advertises
+    `/cache/huggingface/hub/…` as its model id while `-n` still prints the repo id. The 35B recipe
+    declares `served_model_name: ornith-ai/Ornith-1.5-35B-A3B-NVFP4` and passes
+    `--served-model-name {served_model_name}`; the declared key also feeds the job metadata/proxy
+    resolver (`resolve_served_model_name`). Fixed and live-verified 2026-10-13 (boot
+    `dadfb04b5145d956_8ed3ce77d78f`, `.34`: `GET /v1/models` → repo id); regression guard in
+    `tests/test_ornith_honed_chat_template.py`.
 
 ## 4. Negative results — do not re-derive / re-run
 
