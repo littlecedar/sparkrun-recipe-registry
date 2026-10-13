@@ -36,6 +36,7 @@ Budget: 8 hours
 WOPR sparkrun cluster state (checked 2026-10-13, session start):
 - **All six nodes `.30-.35` idle — no sparkrun containers.** The ds4 knapcio TP4 serve is down, so this is the owner-announced TP=4 exploration window (4-node jobs available). **If the ds4 serve comes back online, protect it — it may be serving this agent's own inference.**
 - *(Owner decision 2026-10-13: DeepSeek is not running for the session; all six nodes are the session's, including TP=4; TP≤2 lane work runs on the spare nodes.)*
+- *(Cache survey 2026-10-13 — the `.30` HF cache + the HF Hub API diffed against every recipe pin. Lanes below gained a re-pin + re-bench task where upstream `main` has moved. Confirmed still matching their pins/cache: `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` (base), `ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, `Intel/Qwen3-Coder-Next-int4-AutoRound`, `RadixArk/Qwen3.8-{27B,Flash-Next}-NVFP4`, the four Qwen3-VL embed/rerank arms, `Cloudflare/clef-flash`, `autotrust/JEV-9B`, and `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`. Two unpinned SPEC-DECODE DRAFTS also moved on 2026-10-12 — `inclusionAI/Ling-3.0-flash-dspark` and `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark`.)*
 
 Lane order (advisory — any rational order, preference for subagent parallelization; strict ordering is not priority):
 - ds4
@@ -61,10 +62,11 @@ Selection priorities:
 
 ## ds4
 DeepSeek V4.1
-*(all items completed — archived in `../attic/DONE.md`)*
+- [ ] **Re-pin the DSV4.1 checkpoint?** Hub `main` for `deepseek-ai/DeepSeek-V4.1-Flash` is now `5254448103b6…` (updated 2026-10-12) and the `.30` HF cache holds it, while the knapcio TP4 image bakes `HF_REVISION=fb2764a5` (`boot.py:24`). Re-run the upstream-delta check against the new commit (the 2026-10-10 memo found our pin *was* knapcio's v2.3 release commit — confirm whether this one touches `boot.py`/kernels/overlay), decide adopt/defer, and if adopted rebuild/re-pin the image and re-run the ds4 suite (`needle-haystack` + `decode-triage` + the house battery). **Primary production lane — never disturb a live serve for this.**
 
 ## glm5
 GLM 5.3
+- [ ] **Runbook revision refresh (no recipes to pin).** The `.30` cache shows `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` `main` moved to `76c0b5173166…` (the TP=2/TP=4 trials used `078455ff`) and `bertholomus/GLM-5.3-EXL3-3.0bpw` now resolving to `7f0573836c44…`. Record the revisions in the `recipes/glm/README.md` runbooks, and re-check the engine `bertholomus/TensorFold@glm-dsa-tp4` pin (`ddfad35`) while there.
 - **DONE 2026-10-13 — the glm5 TP=4 window ran; Flash archived, EXL3 verified.** *(Owner decision 2026-10-13: the Flash recipe is a proven-negative on the pinned public image → archived to `attic/glm/`.)* Flash TP4: boot-attempted, BLOCKED, root-caused — five boots on `.30-.33`, every failure in the container serve log: the pinned public image's SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout whose `concat_and_cache_mla` kernel needs a 64-dim RoPE tail, but `RedHatAI/GLM-5.3-Flash-NVFP4` is NoPE MLA (`qk_rope_head_dim 0`); `bfloat16`/`nvfp4_ds_mla` KV select no backend, `FLASHINFER_MLA_SPARSE` is unsupported on GB10, and the DFlash2 drafter needs the absent `SupportsEagle3`. Repo B qualified on a local unpublished image — the recipe is correct, the image is the blocker, and it never produced a C1/quality. Receipts: `~/benchmarks/glm53-flash-20261013/`.
   - **EXL3 TP4 BOOT-VERIFIED 2026-10-13**: 4 ranks on `.30-.33` (`tfrun-sglang.sh` + adapted `tp4_start.sh`, base `lmsysorg/sglang:dev-cu13` digest `aa878e8d`, engine `bertholomus/TensorFold@ddfad35`; `TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2`, `--mtp-drafts 3 --parallel 4`, `startup estimate 88.58 GiB within 103.22 GiB`). Healthy serve (`GET /v1/models` → `GLM-5.3-EXL3-3.0bpw`; chat `27*43`→`1161`, finish `stop`). **C1 35.67 t/s @ d0 (σ 3.13, n=5) / 35.89 @ d8192**; **MTP-3 acceptance 63.4%**. Recorded as a **runbook, not a recipe** (the engine is an unreleased fork branch installed editable at container start; a recipe needs a baked image + a GLM variant of the TensorFold launcher mod) — runbook + recipe sketch in `recipes/glm/README.md`. Receipts: `~/benchmarks/glm53-exl3-20261013/`.
   - **MiaAI-Lab tp4 branch — recon done, TP=4 trial BOOT-VERIFIED 2026-10-13** (clone `~/src/MiaAI-GLM53-Flash-EXL3-tp4` @ `d220030`; reused the sibling's engine image and the 176 GB `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` checkpoint — no build needed). Result in the archived `Trial a TP=4 recipe …` item in `../attic/DONE.md`.
@@ -82,6 +84,11 @@ Qwen 3.x
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
 *(the DeepSeek-V4-Flash TP=2 trial ran 2026-10-13 — archived in `../attic/DONE.md`)*
+- [ ] **Re-pin (and re-verify the mods for) the labquant checkpoint.** `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` `main` is `6c01ac378d22…` (2026-10-06 — the `step-5500 QAD` candidate the W14 plan already named) and the `.30` cache holds it, while the three `…labquant…` recipes pin `7c4f1bc1a2d6…`. Run the W14 per-mod re-verification plan against the new revision (one mod breaks, one is obsolete, five survive), then re-pin and re-bench the labquant arms (W3 battery + `decode-triage`).
+
+## ifm
+IFM K2-Horizon
+- [ ] **Re-pin the K2-Horizon checkpoints.** Both reps have moved past the recipe pins and the `.30` cache holds the new revisions: `IFM/K2-Horizon-0.9B` `main` `383cb66347be…` (2026-10-06) vs pin `9fa6faa55fe1…`; `IFM/K2-Horizon-7B-FP8` `main` `ea739ec816e0…` (2026-10-03) vs pin `59d473210f0b…`. Diff the deltas, re-pin `model_revision:`, re-run the lane's benches + the dense accuracy set (`gsm8k`/arc/house), and re-confirm UNO spec-decode engagement on the 7B.
 
 ## embed
 Any embed model
@@ -93,12 +100,14 @@ Any rerank model
 
 ## decision
 Any decision model
-*(all items completed — archived in `../attic/DONE.md`)*
+- [ ] **Evaluate the newer Decision-2.0 weights.** Hub `main` is `cc7f30cda9e7…` (Kai) / `df30237f9c1c…` (Sol), both 2026-10-10, while both recipes pin the `vllm-srun` runtime's own golden-checked revisions (`cd49ea38…` / `64235bef…`). Confirm whether the runtime's golden check accepts the newer revisions; if it pins its own, leave as-is and record why; otherwise re-pin and re-score both on `tool-eval-bench --decision-bench-only`.
 
 ## explore
 Any model with reasoning and tool-calling capabilities
-*(all items completed — archived in `../attic/DONE.md`)*
+- [ ] **Re-pin Kolibri-1.** Hub `main` `258cae8ffffc…` (updated 2026-10-13) vs the recipe pin `35bc4d3be745…`; the `.30` cache already holds the new revision. Diff the deltas (weights / tokenizer / chat template), re-pin `model_revision:`, re-run the house battery + `decode-triage`, and re-confirm the plugin / `kolibri1` parser contract on the new revision.
 - *(Owner decision 2026-10-13: the deciding factor for explore models is **accuracy**, with preference for smaller and faster models — supersedes the node-count→speed default. Re-ranked: **Ling-3.0-flash** (rank 1, 37/37) and **Kolibri-1** (rank 2, 36/37 = 37/37 union, smaller + faster) are kept; Nemotron-262k and its 1M variant moved to `attic/explore/`.)*
+- [ ] **Pin the DSPARK draft (Ling, rank 1).** `inclusionAI/Ling-3.0-flash-dspark` `main` moved to `d60b0e12…` on 2026-10-12 and the `.30` cache holds it, but the recipe's `speculative_draft_model` is a bare repo id (unpinned). Re-check DSPARK acceptance on the moved draft, pin the draft revision, and re-run `decode-triage` + the house battery — the shipped 45.5 t/s / 37/37 was measured on the 2026-10-11 draft.
+- *(The archived Nemotron arms' `nvidia/…-NVFP4-DSpark` draft also moved to `6d127b50…` on 2026-10-12 and was never pinned, so the 2026-10-13 acceptance-length non-reproduction (3.67 → 1.66) may be a draft change and not only the suspected metric-window artifact — re-check if those arms are revived.)*
 
 ## Session follow-ons (restated 2026-10-12)
 *(the sole remaining item — glm5 boot-verify — was exercised in the 2026-10-13 TP=4 window; see the glm5 lane item)*
