@@ -9,7 +9,8 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** |
-| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; DSPARK engaged, accept len 2.73) |
+| [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] — **1M arm** | 1 | **72.2** | **BOOT-VERIFIED 2026-10-12** (card's 0.91/1M claim confirmed; shipped default stays 262k/0.8) |
+| [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via unpushed mod) |
 
 ## Measured
 
@@ -38,12 +39,13 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   **Long context (needle-probed 2026-10-11):** the `rope_scaling missing 'factor'` boot warning is
   **benign** — the checkpoint declares no scaling at all (`rope_scaling: null`, native 262,144,
   rope_theta 6e6), so SGLang's 1.0 default is a no-op and the native window is real: a verbatim
-  needle is retrieved at 8k, 64k (depths 10/50/100) and 150k tokens. **But 262k is not servable on
-  this boot**: at `mem-fraction-static 0.75` the KV pool holds **176,203 tokens**, and a 200k
-  request is auto-truncated to 176,197 and then fails HTTP 500 OOM (`--allow-auto-truncate` masks
-  the truncation, not the OOM). The third-party notebook's 0.87 rung reported a 576,930-token pool,
-  so reaching the advertised window means raising mem-fraction toward the documented OOM-risk
-  ceiling. Receipts: `~/benchmarks/ling-needle-20261011/` on the head node.
+  needle is retrieved at 8k, 64k (depths 10/50/100) and 150k tokens. At `mem-fraction-static 0.75`
+  the KV pool held **176,203 tokens** and a 200k request auto-truncated then failed HTTP 500 OOM.
+  **Closed 2026-10-12** (see the 262k subsection under Measured): the recipe now ships **0.80**
+  (pool 313,752 tokens) and the full 262k window is servable and probed PASS. The third-party
+  notebook's 0.87 rung (576,930-token pool) stays the documented OOM-risk ceiling and is not needed
+  for 262k. Receipts: `~/benchmarks/ling-needle-20261011/` and `~/benchmarks/ling-262k-20261012/`
+  on the head node.
 - **Quality: 37/37** (`tools/quality-battery.py`, one boot) — 19/19 easy + 18/18 hard, **zero
   failures**. That ties ornith and qwen3.8-27B DFlash2 at the top of the pass.
 - **Measured C1: 45.5 t/s @ d0** (σ 5.5, n=5) and 32.3 @ d8k (σ 8.2) on `decode-triage.yaml`.
@@ -57,21 +59,119 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   Whether their higher acceptance is prompt-mix, engine build, or tuning is untested.
 - Third-party (not reproduced here): ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4 column.
 
+### Ling-3.0-flash-int4 — 262k closure (2026-10-12)
+
+- **Ladder boot at `mem-fraction-static 0.80`** (one boot, node .35, task
+  `87b149af…_64af2f7668b6`): KV pool **313,752 tokens** (`max_total_num_tokens`,
+  fp8_e4m3, K+V 11.96 GB, `available_gpu_mem` 22.34 GB after allocation). The
+  2026-10-11 0.75 boot measured 176,203; the third-party 0.87 rung reported
+  576,930. 0.80 is the first rung tried — no 0.85/0.87 boot needed.
+- **262k needle probe PASS**: full-window prompts (~256.9k tokens by the tool's
+  2%-headroom cap, calibration ratio 4.0546 chars/token) retrieved verbatim at
+  depths 10/50/90 — 256,554 / 256,595 / 256,059 prompt tokens, ~1310 s each
+  (~196 t/s effective prefill-through-the-instrument). `needle-262144.json`
+  verdict `PASS`.
+- **4-way concurrency smoke clean**: 4 parallel 2k-token chat completions
+  (max_tokens 128, temperature 0) all completed, 5.7 s wall; serve log shows
+  zero `Out of memory` / retraction events across the whole boot (the only
+  grep hit is `retraction_policy='length'` in the ServerArgs echo).
+- **Shipped**: `gpu_memory_utilization: 0.80` in the recipe; 0.87 stays the
+  documented ceiling. Receipts: `~/benchmarks/ling-262k-20261012/` on the head
+  node (boot log, `max_total_num_tokens` lines, probe.py + probe.log,
+  `needle-262144.json`, smoke4.py).
+
+### Nemotron-3.5-Lightning — 1M-context arm (2026-10-12)
+
+New recipe [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml):
+the shipped 262k recipe verbatim with exactly two defaults changed —
+`max_model_len: 1000000`, `gpu_memory_utilization: 0.91` — testing the card's
+official GB10 numbers against the community warning that 0.91 "leaves ~1 GiB
+free and swaps".
+
+- **Boot**: clean on node .35, TTR port-open 233 s. KV cache at 0.91:
+  **87.27 GiB → 21,344,213 tokens**, "maximum concurrency for 1,000,000 tokens
+  per request: 21.34x". vLLM did not refuse the 1M window (it refuses when the
+  pool cannot hold `max_model_len`) — the card's 1M claim **boots**.
+- **1M needle probe PASS** (depths 10/50/90): run 2, calibrated ratio
+  3.8590 chars/token (run 1 used Ling's 4.0546 and only reached 876k
+  server-counted tokens — verdict TRUNCATED, needle still retrieved at all
+  depths; ratio receipt kept). Run 2 prompts: 981,595 / 982,111 / 981,923
+  server-counted tokens, needle retrieved verbatim at every depth, ~797 s each
+  (~1,233 t/s effective prefill through the instrument). `needle-1000000.json`
+  verdict `PASS`.
+- **Swap pressure is real but did not bite**: during run-2 1M prefills the node
+  sat at 119/121 GiB used with **~1 GiB free** (exactly the community
+  warning) and 2.05 GiB of swap allocated, but vmstat showed **no active
+  swap-in/out** (si/so 0/0) and the engine ran at 99% CPU. The 0.91 point is
+  workable under this needle load; sustained multi-tenant load is untested.
+- **Decode-triage**: **72.2 t/s @ d0** (σ 15.1, n=5) and 69.3 @ d8k (σ 10.7) —
+  ~7% below the 262k/0.8 recipe's 77.7 on the same node/boot pattern; quote ours.
+- The **shipped default remains the 262k/0.8 recipe**; this arm documents the
+  measured servability of the card's 1M point. Receipts:
+  `~/benchmarks/nemotron-1m-20261012/` on the head node (boot log, both probe
+  runs, decode-triage triple).
+
+### Kolibri-1 (2026-10-12)
+
+New recipe [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) +
+[`mods/install-kolibri-plugin`](../../mods/install-kolibri-plugin): the vendor's
+own container image is amd64-only, so the recipe serves on the **stock
+multi-arch `vllm/vllm-openai:v0.29.0`** (digest-pinned) with Aleph Alpha's
+pure-Python plugin installed by a sparkrun mod
+(`pip install --no-deps aleph-alpha-inference==1.0.0`, per the plugin README —
+the image's vLLM/torch/transformers are untouched; the mod fails closed on
+import/entry-point failure and is idempotent via a content marker).
+
+- **Boot**: clean on node .35, TTR port-open 647 s; weight load alone 500 s
+  (the forum's 1,087 s figure not reproduced). `GET /v1/models` lists
+  `Aleph-Alpha/Kolibri-1`; plugin verified in-container (`aleph-alpha-inference
+  1.0.0`, `vllm.general_plugins` entry point present) — receipt
+  `plugin-verify.log`. KV cache at util 0.78: **20.03 GiB → 1,961,775 tokens**,
+  7.48× concurrency at the native 262,144 window.
+- **Round-trips**: `enable_thinking: false` → clean `content` (`391` for
+  17×23); thinking ON → reasoning split correctly (`reasoning` 661 tokens,
+  content `**9** remain.` for the sheep trick). The `kolibri1` parsers work.
+- **Decode-triage**: **47.3 t/s @ d0 c1** (σ 0.10, n=5) and 46.3 @ d8k c1
+  (σ 0.12) — near the third-party sm121 build's 48 t/s and **2.3× the stock
+  build's 20.4 t/s** the research doc expected. The recipe carries an
+  unpublished mod, so `sparkrun benchmark performance` cannot take it yet
+  (no `--transfer-mode local` on that subcommand): the same
+  `uvx llama-benchy` invocation sparkrun would run was used directly against
+  the live serve (identical profile args), receipt `decode-triage.json`.
+- **Quality: 36/37** (`tools/quality-battery.py --tier both --max-tokens 4096`,
+  2026-10-12, two runs, identical): 18/19 easy + 18/18 hard. The lone failure
+  is `needle-1` — an **empty reply from truncated thinking** (it PASSES at the
+  default 384 budget, where the model answers without thinking; the same
+  384-budget run instead fails `code-big`/`big-1`, which need the thinking
+  room). Union across the two budgets is 37/37, so quote "36/37 @ 4096, with
+  `needle-1` a budget-dependent thinking truncation". This is why the battery
+  gained an optional `--max-tokens` (default 384 — unchanged for every other
+  lane).
+- **Keep**: not dominated. 47.3 t/s ≥ Ling's 45.5 at 36/37 quality (Ling 37/37),
+  one node, and the accuracy-champion role by the vendor's AIME/GPQA numbers —
+  at the cost of 73.5 GiB weights (the memory-heaviest explore arm).
+- Receipts: `~/benchmarks/kolibri-20261012/` on the head node.
+
 ## Next by the ranking
 
-Ling is **built and measured** (above); what remains by the research ranking:
-`Aleph-Alpha/Kolibri-1` FP8 (~75 GiB, AIME-25 96.9 / BFCL v4 61.4) — build next; and
-`vllm-sr/d3-edge` — watch only (zero boot history). Both are single-node TP=1 candidates.
+Ling and Kolibri-1 are **built and measured** (above). What remains by the
+research ranking: `vllm-sr/d3-edge` — watch only (zero boot history); and the
+reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B,
+all blocked or untested (see the research doc's checklists). Single-node TP=1.
 
 ## Serving traps this lane hit (all fixed in the recipe)
 
 1. `vllm/vllm-openai` images declare `ENTRYPOINT ["vllm","serve"]` → `executor_config: {entrypoint: ""}`.
 2. The speculative config must live in `defaults.speculative_config` (referenced `'{speculative_config}'`),
    or sparkrun never distributes the draft and the offline engine dies resolving it.
-3. `--default-chat-template-kwargs '{"enable_thinking": false}'`, or short replies land in the
-   reasoning channel with `content: null`.
+3. A thinking-on-by-default model needs reply budget: Kolibri-1 answers land empty
+   (`content: null`) from truncated thinking unless the request disables thinking or
+   gets a larger `max_tokens` (`tools/quality-battery.py --max-tokens`).
+4. Vendor plugins behind arm64: `Aleph-Alpha` ships an amd64-only image — install the
+   pure-Python plugin `--no-deps` on the stock image via a mod (Kolibri-1).
 
 [nem]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
 [nemd]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
 [ling]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
 [lingd]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
+[kol]: https://huggingface.co/Aleph-Alpha/Kolibri-1
