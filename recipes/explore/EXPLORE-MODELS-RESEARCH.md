@@ -1,4 +1,4 @@
-# Explore-lane model research (2026-10-11; §5–§6 added 2026-10-13)
+# Explore-lane model research (2026-10-11; §5–§7 added 2026-10-13)
 
 Frontier reasoning + tool-calling candidates for the `explore` lane. Supersedes
 parts of `mad-science/EXPLORE-CANDIDATES.md` (2026-10-10): five of its claims
@@ -221,3 +221,50 @@ vendor gallery** — no house scorer exists (`tools/synthetic_png.py` is a fixtu
 Sources: `hf.co/Qwen/Qwen-Image-2.1-Turbo` (+ its LICENSE); `forums.developer.nvidia.com/t/384774`
 (base-model GB10 numbers) and `/t/383994` (vLLM-OMNI); `docs.comfy.org/tutorials/video/ltx/ltx-2-5`;
 `hf.co/Lightricks/LTX-2.5`; `ai-muninn.com/en/blog/h3-ltx-two-stage-dgx-spark`.
+
+## 7. Text-rewriting arm — `humanizer` 12B (queued 2026-10-13, owner directive)
+
+A third arm outside the lane's brief: `jialinyyzz/humanizer` does not reason or call tools — it
+rewrites one AI-written draft (email, essay, report, forum post; en + zh) so it reads human.
+Apache-2.0, **ungated**, 54k downloads / 1.5k likes, last pushed 2026-10-08. A 12B fine-tune of
+`google/gemma-4-12B`, arch `Gemma4UnifiedForConditionalGeneration` (multimodal config, used
+text-only — vLLM needs `limit_mm_per_prompt {"image":0,"audio":0,"video":0}`); 8192 context.
+
+| artefact | size | notes |
+|---|---|---|
+| `model.safetensors` (bf16) | 23.9 GB | the evaluation weights; 1 node, trivially |
+| `humanizer-12b-Q8_0.gguf` | 12.7 GB | the file the card's fidelity numbers were measured on |
+| Q6_K / Q4_K_M / Q3-QAT / IQ2_XS-QAT | 10.0 / 7.6 / 5.6 / 3.9 GB | the 2-bit/Q3/Q4 files are sensitivity-aware **and** QAT-distilled (card: 87% vs 70% top-1 agreement at 3.9 GB) |
+
+Card results [vendor, 2026-10-02]: **95% judged human by Originality.ai at its strictest setting**
+(11/210 English drafts flagged, bf16; Q8_0 15/210, within noise) against 12% for its own v1 and
+60/60 flagged for a 53k-star prompt-based baseline; **fact fidelity 376/420** English rewrites with
+no factual problem (Q8_0; 28/420 dropped a formatting element; median overlap with the draft 0.165);
+Chinese weaker (149/204 clean). A judge-strictness audit (a second judge re-reading 150 flagged
+rewrites) rated 99 serious / 41 minor / 10 unchanged, so the flags over-count — the vendor still
+advises reading every number, date and name before sending.
+
+**Serving contract — the whole trap, because a wrong prompt degrades output silently:** this is a
+**text-completion** model with a byte-exact prompt: `prompt_format.json` `instr` + `"\n\n"` + draft +
+`sep` (`"\n\n### Rewritten:\n\n"`, fingerprint `cc51d66b4c593fbe`); sampling temp 1.0, top_p 0.95,
+**top_k off**, min_p 0, repeat_penalty 1.0, `max_tokens` 2048, stop at EOS only; **use
+`/v1/completions`, never `/v1/chat/completions`** (the safetensors carry no chat template; system
+prompts and history are ignored); on `vllm serve`, pass `--generation-config vllm` or vLLM inherits
+`top_k` 64 from `generation_config.json` and quality drops. Long documents are split (the vendor's
+`hz` tool does prompt + split + check), and the card notes the server path was not tested by the vendor.
+
+### Verification checklist
+
+- (a) the first registry arm whose working API is `/v1/completions` with a byte-exact prompt: the
+  recipe must not route through a chat template, and whatever calls it must assemble
+  `instr + draft + sep` from the shipped `prompt_format.json` bytes (a re-typed instruction is a
+  quality regression by the vendor's own account);
+- (b) engine: verify `Gemma4UnifiedForConditionalGeneration` resolves on a digest-pinned image
+  (the lane's current pin is `vllm/vllm-openai:v0.29.0`) and record `--generation-config vllm`;
+- (c) acceptance criterion (owner to confirm or replace): a fixed 20-draft set across genres × 2
+  samples, reporting **fact-diff count vs the source (numbers/dates/names), formatting-drop count,
+  and wall-clock per 1k output tokens**; the card's detector figure is an external paid API on one
+  date — cite it, do not try to reproduce it in-house;
+- (d) co-location: 12–24 GB, so it fits beside the lane's 1-node arms; the GGUF/llama.cpp path is a
+  runtime family this registry has never shipped — the vLLM path keeps the arm inside the existing
+  recipe schema.
