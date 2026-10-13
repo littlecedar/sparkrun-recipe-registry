@@ -1,7 +1,9 @@
 # Explore lane
 
-Frontier reasoning + tool-calling models that push the frontier on DGX Spark, chosen by the
-registry's selection weighting (**node count → speed → accuracy → memory**). The lane ships the
+Frontier reasoning + tool-calling models that push the frontier on DGX Spark, selected by the
+owner's criterion for this lane (**accuracy decides; smaller and faster preferred**, 2026-10-13 —
+supersedes the registry's node-count→speed default, which had decided this lane's earlier pass on a
+1.8 t/s gap inside one arm's own σ). The lane ships the
 **two selected models** (owner selection 2026-10-13; the 2026-10-11 "no recipe cap" round built
 four and moved the rest to the attic). Full candidate research — 8 families, five corrections to the earlier
 `mad-science/EXPLORE-CANDIDATES.md`, per-candidate verification checklists — is in
@@ -9,16 +11,16 @@ four and moved the rest to the attic). Full candidate research — 8 families, f
 
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
-| [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** — **KEPT (rank 1)** |
-| [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via unpushed mod) — **KEPT (rank 2)** |
+| [`ling-3.0-flash-int4-dspark-sglang.yaml`](ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; 262k needle-verified at 0.80) — **KEPT (rank 1, accuracy)** |
+| [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via the plugin mod) — **KEPT (rank 2, near-tie accuracy; smaller + faster)** |
 
 **Archived 2026-10-13** (measured but not selected; manifest [`attic/explore/ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)):
-[`ling-3.0-flash-int4-dspark-sglang.yaml`](../../attic/explore/ling-3.0-flash-int4-dspark-sglang.yaml) and
+[`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) and
 [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml).
 
 ## Measured
 
-- **77.7 t/s @ d0** (σ 9.8, n=5) and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml`, TP=1,
+- **Nemotron-262k (archived 2026-10-13): 77.7 t/s @ d0** (σ 9.8, n=5) and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml`, TP=1,
   20.8 GB NVFP4 weights. The DSpark draft engages: **acceptance length 3.67 at an 88.9% acceptance
   rate**. The 93–96 t/s third-party figure was not reproduced on our node — quote ours.
 - **Quality: 33/37** (`tools/quality-battery.py`, one boot, 2026-10-11) — 18/19 easy + 15/18 hard.
@@ -159,9 +161,10 @@ import/entry-point failure and is idempotent via a content marker).
   `needle-1` a budget-dependent thinking truncation". This is why the battery
   gained an optional `--max-tokens` (default 384 — unchanged for every other
   lane).
-- **Selected (2026-10-13, rank 2)**: not dominated. 47.3 t/s ≥ Ling's 45.5 at 36/37 quality (Ling 37/37),
-  one node, and the accuracy-champion role by the vendor's AIME/GPQA numbers —
-  at 73.5 GiB weights. It also beats Ling on the memory criterion (74 GB / util 0.78 vs 154 GB / 0.80).
+- **Selected (2026-10-13, rank 2)**: **KEPT by the owner's criterion (accuracy decides; smaller and faster
+  preferred).** Its 36/37 @4096 is a 37/37 union — the lone miss is a thinking-budget truncation — so it is
+  a near-tie with Ling's 37/37 on the deciding factor, and it wins the stated preference (74 GB / util 0.78
+  vs Ling's 154 GB / 0.80; 47.3 vs 45.5 t/s).
 - Receipts: `~/benchmarks/kolibri-20261012/` on the head node.
 
 - **TP=1 re-measure (2026-10-13)**: C1 −1.8% uniformly — 46.46 t/s @ d0 (σ 0.18) vs the shipped
@@ -170,19 +173,19 @@ import/entry-point failure and is idempotent via a content marker).
 
 ## Selection (2026-10-13)
 
-The lane keeps **two** recipes by the registry weighting (**node count → speed → accuracy → memory**):
+The lane keeps **two** recipes. **Owner decision 2026-10-13: for the explore lane the deciding factor is
+accuracy, with preference for smaller and faster models** — supersedes the registry's node-count→speed
+default, which had decided this lane's earlier pass on a 1.8 t/s gap that sat inside Ling's own σ (5.5).
 
-- **`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm`** — rank 1: the fastest measured arm (77.7 t/s at
-  1 node; 20.8 GB NVFP4 weights), and the lane's shipped default.
-- **`kolibri-1-78b-fp8-vllm`** — rank 2, but a **near-tie** with Ling: 47.3 t/s vs Ling's 45.5 t/s,
-  a 1.8 t/s gap that sits **inside Ling's own σ (5.5)** — not a decisive speed win by this lane's own
-  noise standard. The next criteria split (Ling leads accuracy 37/37 vs Kolibri 36/37; Kolibri leads
-  memory 74 GB vs 154 GB), so the rank-2 pick is **flagged for owner confirmation** (`#DECISIONS`).
-  Kolibri's 36/37 @4096 is a 37/37 union.
+- **`ling-3.0-flash-int4-dspark-sglang`** — rank 1: the accuracy champion (37/37 — 19/19 easy + 18/18
+  hard, zero failures) at 1 node; 45.5 t/s and 154 GB.
+- **`kolibri-1-78b-fp8-vllm`** — rank 2: 36/37 @4096, which is a **37/37 union** (the lone miss is a
+  thinking-budget truncation) — a near-tie with Ling on the deciding factor — and it wins the stated
+  preference (74 GB vs 154 GB; 47.3 vs 45.5 t/s).
 
-Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Ling** (45.5 t/s; memory-heaviest
-at 154 GB) and the **Nemotron 1M arm** (a variant of the kept 262k recipe: 72.2 t/s, util 0.91, and its
-own doc keeps the 262k recipe the default).
+Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Nemotron-262k** (the fastest
+measured arm, 77.7 t/s, and the smallest at 21 GB — but 33/37, the lane's lowest accuracy, paying ~4
+quality tasks for speed) and the **Nemotron 1M arm** (a variant of it: 72.2 t/s, util 0.91).
 
 Nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only (zero boot history),
 and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B are blocked or
