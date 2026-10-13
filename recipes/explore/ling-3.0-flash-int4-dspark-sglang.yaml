@@ -65,6 +65,7 @@ defaults:
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
+  --served-model-name {model}
   --revision {model_revision}
   --host {host}
   --port {port}
