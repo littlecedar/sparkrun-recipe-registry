@@ -1,4 +1,4 @@
-# Explore-lane model research (2026-10-11)
+# Explore-lane model research (2026-10-11; §5–§6 added 2026-10-13)
 
 Frontier reasoning + tool-calling candidates for the `explore` lane. Supersedes
 parts of `mad-science/EXPLORE-CANDIDATES.md` (2026-10-10): five of its claims
@@ -117,3 +117,107 @@ Per the standard-first decision, this lane's natural standard suite is BFCL
 already-adopted `tool-eval-bench` hard-mode/scenarios for on-node measurement.
 `recipes/ds4/benchmarks/` covers the reasoning tier (HLE/GPQA/MATH/AIME are
 already staged there).
+
+## 5. Poolside Laguna family — queued 2026-10-13 (owner directive)
+
+Owner added the `poolside` Hub collections to this lane's queue (source: `hf.co/poolside/collections`,
+four collections read 2026-10-13). Two members were already here — Laguna XS-2.1 (§1 row 7) and
+Laguna S-2.1-NVFP4 (§1 2-node tail) — and the GB10 evidence found since **supersedes the 2-node
+guess for S-2.1**: a single-Spark TP=1 sweep exists. Sizes below are Hub blob-sums (2026-10-13);
+revisions are the Hub `sha` of that date; no recipe, mod, or tool in this registry references the
+family yet, and none of its head repos is gated.
+
+Family traits: text-to-text MoE on the `laguna` arch; interleaved thinking between tool calls with
+per-request `enable_thinking` (vendor recommends preserved thinking); FP8 KV on the XS class;
+first-party DFlash speculator drafts; parsers `poolside_v1` (tool + reasoning) on vLLM/SGLang
+(`laguna` is the TRT-LLM reasoning-parser name).
+
+| repo (Hub revision, last modified) | params (act.) | licence | size | ctx | GB10 evidence |
+|---|---|---|---|---|---|
+| `poolside/Laguna-XS-2.1` `c5f36269bb` 08-19 (+ `-NVFP4` `d32afde8b0` 07-29, `-FP8`, `-INT4`) | 33B (3B) | OpenMDW-1.1 | BF16 66.9 GB; **NVFP4 21.6 GB** | 262,144 | **Spark Arena**: TP=1, 1 node, **37.5 tok/s decode** [third-party], full vLLM recipe (262k, util 0.45, DFlash n=4, fp8 KV) — but its block also says `-tp 2 --nnodes 2`; read it as a sketch |
+| `poolside/Laguna-XS-2.1-DFlash` `5c36361aab` 07-20 | 0.5B draft | OpenMDW-1.1 | 0.9 GB | — | `DFlashLagunaForCausalLM` (6 layers, block 16); vLLM `laguna_dflash`, SGLang `--speculative-algorithm DFLASH` |
+| `poolside/Laguna-S-2.1` `0f57314083` 08-19 (+ `-NVFP4` `826aacdf6d`, `-FP8`, `-INT4`, `-GGUF`) | 118B (8B) | OpenMDW-1.1 | **NVFP4 99.7 GB download / 67.0 GiB resident** | 1,048,576 | **single-Spark TP=1 sweep** (fankserver, 2026-07-22, vLLM 0.25.1): util 0.85 → **1.37M-token KV**, decode 18.3 → 16.5 t/s over 0→65k (SWA), **DFlash n=3 best (25.5 t/s; ~2.35× on coding prompts)**, n=15 vendor default loses; TP=2 scales ~1.7× but unstable — **TP=1 recommended** |
+| `poolside/Laguna-S-2.1-DFlash(-NVFP4)` `b3b5921a90` 07-31 | 1.1B draft | `license: other` — **read the text before distributing** | 2.2 GB | — | forum: early acceptance ~8% at n=15 |
+| `poolside/Laguna-XS.2` `a397bde045` 09-22 (+ `-NVFP4` `973ad427aa`, `-FP8`, `-INT4`) | 33B (3B) | Apache-2.0 | BF16 66.9; NVFP4 21.5; FP8 35.3; INT4 23.9 | 262,144 | none found (see the dating note) |
+| `poolside/Laguna-XS.2-speculator.dflash` `6c936ca2a0` 05-19 | 0.6B draft | Apache-2.0 | 1.2 GB | — | card acceptance ≈ 2.65–3.07 avg (A100) |
+| `poolside/Laguna-M.1` `2bf8a4ab6d` 07-14 (+ `-base`, `-NVFP4` `e4f3ba80ca`) | 226B (23B) | Apache-2.0 | BF16 451.6; NVFP4 139.3 | — | none; 2-node minimum at NVFP4 — ceiling reference only |
+
+**Naming/dating note.** The release blog (`poolside.ai/blog/introducing-laguna-xs-2-1`) calls
+**XS 2.1 the upgrade of XS.2** (+5.4 SWE-bench Multilingual, "a more open license") even though
+XS.2's repo was pushed later (09-22 vs 08-19) — build XS-2.1, keep XS.2 as the Apache-2.0 fallback.
+Hub `safetensors.total` disagrees across quant siblings (XS.2-INT4 40.7B vs 33.4B) — read
+`config.json`, as in §3. Version floors: the cards cite vLLM ≥ 0.21 for the arch + `dflash`;
+community threads cite ≥ 0.25 for the S-2.1 NVFP4 path (0.25.1 in the sweep) — verify by import on a
+digest-pinned image, not by tag (the lane's Kolibri pin, `vllm/vllm-openai:v0.29.0`, is above both).
+
+### Verification checklist (before any Laguna recipe ships)
+
+- **Laguna XS-2.1-NVFP4 + DFlash** (queue rank 1; 1 node; 22.5 GB download):
+  (a) the pinned image resolves `LagunaForCausalLM` + `dflash` + `poolside_v1` (import check);
+  (b) NVFP4 (`compressed-tensors`) engages on SM121 — the Muse-Glimmer lesson says fp4 kernels are
+  where GB10 breaks; INT4 23.9 GB is the fallback;
+  (c) the draft rides in `defaults.speculative_config` so sparkrun distributes the 0.9 GB blob;
+  (d) sweep draft depth n ∈ {3,4,7} on `decode-triage` (on the S-2.1 sibling n=3 beat the vendor
+  default n=15) and record acceptance length, comparable to the lane's DSpark/DFlash2 arms;
+  (e) battery with `--max-tokens` (thinking defaults ON); (f) record the KV pool at the shipped util
+  for any 262k claim.
+- **Laguna S-2.1-NVFP4** (queue rank 2; also 1 node): template = the TP=1 sweep (util 0.85, 262k,
+  DFlash n=3) plus its RC1 long-context variant (**no DFlash + `--max-num-scheduled-tokens 4096`** →
+  4.52M-token KV = 4.31× at 1M); settle the DFlash-NVFP4 licence first; 99.7 GB per node to download.
+
+Sources: `hf.co/poolside/collections`; `forums.developer.nvidia.com/t/laguna-s-2-1-config-benchmarks/377663`
+(TP=2: 21.0 t/s c1/d0 → 46.8 c4; tool-eval-bench 82/100 ★★★★ at 262k; "1M is not possible");
+`github.com/fankserver/dgx-spark-laguna-s21-nvfp4-bench`; `spark-arena.com/benchmark/a46c30c7-aa57-4a25-8290-da60dce31b77`;
+`poolside.ai/blog/introducing-laguna-xs-2-1`.
+
+## 6. Media-generation arms — queued 2026-10-13 (owner directive)
+
+Owner added two media-generation models to this lane's queue. Both sit **outside the lane's original
+brief** ("reasoning + tool-calling"): they serve no chat completions, need a runtime class this
+registry has never shipped (diffusers / vLLM-OMNI / ComfyUI under a script launcher — `runtime:
+sglang|vllm` does not apply), and the lane's node-count/speed/accuracy/memory weighting has no
+accuracy axis for images or video. Proposed acceptance criterion (owner to confirm or replace):
+**a fixed prompt+seed set; one 1024² image at the checkpoint's shipped step count and one 5 s clip at
+the shipped preset; wall-clock per item and peak unified memory; quality judged by eye against the
+vendor gallery** — no house scorer exists (`tools/synthetic_png.py` is a fixture, not a metric).
+
+| model | kind | weights | licence | GB10 evidence |
+|---|---|---|---|---|
+| `Qwen/Qwen-Image-2.1-Turbo` `fc13ba1986` 2026-10-12 (base `Qwen-Image-2.1` `d26bb61231` 09-30) | text-to-image + editing; **8-step distilled, CFG=1**, prefix-KV context caching | 32.5 GB bf16 (DiT 14.2 + text encoder 17.5 + VAE 0.68); `QwenImage21Pipeline` (diffusers) | **`qwen-research` — "FOR NON-COMMERCIAL PURPOSES ONLY"** (LICENSE read 2026-10-13) | base model on GB10 [third-party, 2026-09-30]: **54.1 s @ 1024²/40 steps** (28.3 @ 20), peak 31.6 GB, load ≈ 3 min; 2048² 4m16; 10 reference images 598 s; a vLLM-OMNI path measured **40 s @ 40 steps**/~30 GB (2026-10-08) |
+| `Lightricks/LTX-2.5` `49b093a39c` 2026-10-11 | text/image→**video with synchronized audio**, audio-to-video, native multishot, up to 4K HDR/50 FPS | ComfyUI single-file set: transformer int8-convrot 21.5 GB (**nvfp4 18.7**), Gemma-4-12B encoder int8 15.4 / bf16 26.3, video+audio VAEs, x2 latent upscaler, LoRAs 8.9 | `ltx-2.x-community-license-agreement`; **repo gated (`gated: auto`)** — the LTX-2 text (ungated repo, read 2026-10-13) grants free commercial use below a $10M-revenue "Commercial Entity" threshold | **as a refine stage on a DGX Spark** [third-party, 2026-09-14]: nvfp4 transformer 17.44 GiB + VAEs + upscaler = 20.1 GiB, three refine steps to 1344×768×124 f/24 fps **with audio** inside a 73.3 s warm two-stage run (both stages resident: 104/121 GiB peak); engine quirks below |
+
+### Verification checklist (before any media recipe ships)
+
+- **Qwen-Image-2.1-Turbo** (cheaper of the two; best precedent):
+  (a) **licence first** — non-commercial only; a registry distributed to third parties cannot ship it
+  as-is, so this needs an owner call (the MiniMax-M3 precedent) and may stay an eval-only arm;
+  (b) engine: diffusers ≥ PR #14950 (pipeline-configured sampling sigmas) + transformers ≥ 5.17 — no
+  `sglang|vllm` runtime exists for it; the vLLM-OMNI route is faster (40 vs 54 s on the base model)
+  but is a new runtime family. Either way this is a script-launcher/runbook-shaped arm (the glm5
+  precedent) unless sparkrun's runtime list grows one — check before promising a recipe;
+  (c) expected Turbo speed is **derived, not measured**: GB10 base-model time is linear in steps, so
+  8 steps ≈ 54.1 × 8/40 ≈ **11 s @ 1024²** (≈ 26 s @ 2048²) — verify on our node, and keep warm-up
+  separate (load ≈ 3 min);
+  (d) re-check the base-model write-up's traps: VAE **tiling off** (tiled decode → a pink seam column;
+  +15.9 GB at 2048×1152, +28.2 GB at 2048² — cheap on 120 GB), `cpu_offload` off (1-ref image 62.5 s →
+  4m20 with it on), reference images cost hard (1 ref 62.5 s, 10 refs 598 s), a self-reference at the
+  same seed copies the input back oversaturated.
+- **LTX-2.5** (gated; no standalone single-model Spark timing found — the 73.3 s datum is the refine
+  stage inside a two-stage run):
+  (a) **access + token**: `gated: auto` → accept terms in a browser and provide `HF_TOKEN` per node;
+  sparkrun distribution cannot assume either, so document the prerequisite or keep the arm a runbook;
+  (b) licence: the 2.x agreement's text sits behind the gate — read it once access lands (the LTX-2
+  text's $10M Commercial Entity threshold is the family pattern, not proof for 2.x);
+  (c) engine: ComfyUI is the native path (three templates: T2V, I2V, FLF2V; int8-convrot set ≈ 40 GB →
+  1 node). **Pin the unit** the third-party write-up had to pin: ComfyUI ≥ 0.34.0 + `comfy-kitchen`
+  0.2.31 + the Spectrum pack at `4783a22` — at 0.30.x the refine returns success with garbage frames;
+  on GB10 the `-nogemma` graph is required, `LoadConditioningT` must appear in `/object_info`, and
+  stderr alone is not proof (decode a frame);
+  (d) acceptance: fix the preset first (start 720p/5 s, not 4K/50 fps), record s/clip and peak memory,
+  audio+video timed as the pair;
+  (e) sustained-load caveat measured on this class of job: back-to-back long generations took a Spark
+  node down (a 2200 MHz clock cap was the fix) — cap before any sweep.
+
+Sources: `hf.co/Qwen/Qwen-Image-2.1-Turbo` (+ its LICENSE); `forums.developer.nvidia.com/t/384774`
+(base-model GB10 numbers) and `/t/383994` (vLLM-OMNI); `docs.comfy.org/tutorials/video/ltx/ltx-2-5`;
+`hf.co/Lightricks/LTX-2.5`; `ai-muninn.com/en/blog/h3-ltx-two-stage-dgx-spark`.
