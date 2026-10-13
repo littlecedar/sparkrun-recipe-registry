@@ -72,7 +72,15 @@ proven).
 **Registry maintenance.** All 68 completed TODO items archived verbatim to `attic/DONE.md`; session records moved
 to this file; `mad-science/TODO.md` is now `[X]`-free (open work only).
 
-**Gate (in-tree, 2026-10-13):** **394 tests OK** (skipped=1), **25/25** shipped recipes validate plain, `bash -n`
+**Gate (in-tree, 2026-10-13):** **394 tests OK** (skipped=1), **24/24** shipped recipes validate plain, `bash -n`
 + `py_compile` clean. Production ds4 TP4 never taken down; every session serve stopped by explicit task ID; all
-six nodes idle at close. **Open:** the `#DECISIONS` glm5 Flash keep-vs-attic call; the glm5 "boot-verify both
-recipes" lane item (Flash blocked, the EXL3 and external lines boot-verified).
+six nodes idle at close.
+
+**Post-close-out (same day, from an advisory review).** (a) The owner's in-file `#DECISIONS` answer was
+implemented: the blocked Flash recipe was **archived to `attic/glm/`** as a proven-negative arm (with an
+`ARMS-MANIFEST.md`), and the lane README, root index, root `AGENTS.md`, and the DECISIONS entry were all
+updated — the GLM lane now ships TensorFold runbooks only, and the shipped-recipe count is 24. (b) Raw fabric
+IPs that had leaked into `recipes/glm/README.md` (against the repo's IP-masking rule) were masked to the
+`.30-.35` shorthand. (c) The explore rank-2 rationale was corrected to state the Kolibri-vs-Ling margin
+honestly — the 1.8 t/s speed gap sits inside Ling's own σ (5.5), so it is a near-tie, not "speed decided" — and
+the call was raised as the one open `#DECISIONS` question.

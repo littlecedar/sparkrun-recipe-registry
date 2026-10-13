@@ -15,9 +15,11 @@ tell a live recipe from a dead one. See `attic/qwen4/ARMS-MANIFEST.md` for the s
 length.
 
 **Selection criterion (registry weighting: node count → speed → accuracy → memory).** All four
-Explore arms were single-node, so the weighting resolved on speed. Chosen: the fastest arm
-(77.7 t/s) and, of the remaining distinct models, the faster one (47.3 t/s ≫ 45.5 t/s) — speed
-precedes accuracy, and 47.3 also wins the memory tiebreak (74 GB / util 0.78 vs 154 GB / 0.80).
+Explore arms were single-node, so speed ranked them. Chosen: the fastest arm (77.7 t/s) and, of the
+remaining distinct models, the higher point estimate (47.3 t/s vs 45.5 t/s) — but that 1.8 t/s gap is
+**inside Ling's own σ (5.5)**, so it is a near-tie on speed, not a decisive win; the next criteria then
+split (Ling 37/37 accuracy vs Kolibri 36/37; Kolibri 74 GB vs Ling 154 GB memory). The rank-2 pick is
+flagged for owner confirmation (`mad-science/TODO.md` `#DECISIONS`).
 
 **Archive criterion.** A recipe came here if it was **measured but not selected** by the ranking above.
 Nothing in `recipes/`, `benchmarking/`, `tools/`, or `tests/` names either moved file (checked by
