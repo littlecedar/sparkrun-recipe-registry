@@ -1,8 +1,14 @@
 # DONE — completed items archived from `mad-science/TODO.md`
 
-Archived 2026-10-13. Every completed (`[X]`) item was copied here verbatim — nested sub-bullets
-included — when `mad-science/TODO.md` was cleaned to hold only open work. Live planning stays in
-`mad-science/TODO.md`; dated session records live in `mad-science/SESSION-RECORD.md`.
+Archived 2026-10-13. Every completed item was copied here verbatim — nested sub-bullets included —
+when `mad-science/TODO.md` was cleaned to hold only open work: the `[X]` sweep first, then the later
+same-day sweep of the `**DONE 2026-10-13**` items (the glm5 TP=4 window and the TODO-file machinery).
+Live planning stays in `mad-science/TODO.md`; dated session records live in
+`mad-science/SESSION-RECORD.md`.
+
+## General Registry Maintenance
+- **DONE 2026-10-13** — Move all completed TODO.md `- [ ]` items to @attic/DONE.md . *(Every completed item was archived verbatim to `attic/DONE.md`; this file is now `[X]`-free.)*
+- **DONE 2026-10-13** — Move session records out of the TODO.md file -- keep it clean -- but add a reference to whichever file you put them in. *(The `## Session record` section moved verbatim to `mad-science/SESSION-RECORD.md`; reference added under `# Protocol`.)*
 
 ## ds4
 DeepSeek V4.1
@@ -32,6 +38,10 @@ GLM 5.3
 - [X] Update the appropriate README.md/AGENTS.md. **2026-10-11:** `recipes/glm/README.md` written (both lines, the no-build engine path, the licence note) and root index rows added.
 - [X] Trial a TP=4 recipe from the `tp4` branch of this repo (MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold): **2026-10-13 — TP=4 BOOT-VERIFIED on `.30-.33`.** Reused the sibling's engine image (`tensorfold-glm53:v0.6.0`, 106 patches, byte-identical to the public GHCR digest `eb17e092…`) + checkpoint (`Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` @ `078455ff`, 175.7 GB) — no duplicate build/download. Healthy serve `GLM-5.3-Flash-EXL3` (`--parallel 8`, KV pool **5,834,752 tokens**, fp8 KV); **C1 98.43 ± 5.89 t/s @ d0 / 99.38 ± 10.91 @ d8192**; **DFlash2 acceptance 76.6%**. Runbook bullet in `recipes/glm/README.md` (launcher topology not expressible in the recipe schema). Receipts: `~/benchmarks/glm53-flash-exl3-tp4-trial-20261013/`.
 - [X] Trial a TP=2 and TP=3 recipe from the `main` branch of this repo (MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold). **2026-10-13: TP=2 BOOT-VERIFIED** (script launcher on `.34`+`.35`; `/v1/models` → `GLM-5.3-Flash-EXL3`; KV pool 1,875,968–2,289,664 tokens across two boots at the 1M window; DFlash2 acceptance 87.0% mixed / **78.1% over the quality run**; **C1 58.51 ± 4.53 t/s @ d0 / 60.46 ± 3.77 @ d8192**; **quality 37/37**, needle 2/2 at 1M). **TP=3 BOOT-VERIFIED** on `.31`-`.33` (`./start-tp3.sh`, KV pool **4,841,472 tokens**, `--parallel 8`; **C1 65.39 ± 6.65 t/s @ d0 / 65.12 ± 8.88 @ d8192**, DFlash2 acceptance 71.2%). Recorded in `recipes/glm/README.md`. Receipts: `~/benchmarks/glm53-exl3-tp2-trial-20261013/`, `~/benchmarks/glm53-exl3-tp3-trial-20261013/`.
+- **DONE 2026-10-13 — the glm5 TP=4 window ran; Flash archived, EXL3 verified.** *(Owner decision 2026-10-13: the Flash recipe is a proven-negative on the pinned public image → archived to `attic/glm/`.)* Flash TP4: boot-attempted, BLOCKED, root-caused — five boots on `.30-.33`, every failure in the container serve log: the pinned public image's SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout whose `concat_and_cache_mla` kernel needs a 64-dim RoPE tail, but `RedHatAI/GLM-5.3-Flash-NVFP4` is NoPE MLA (`qk_rope_head_dim 0`); `bfloat16`/`nvfp4_ds_mla` KV select no backend, `FLASHINFER_MLA_SPARSE` is unsupported on GB10, and the DFlash2 drafter needs the absent `SupportsEagle3`. Repo B qualified on a local unpublished image — the recipe is correct, the image is the blocker, and it never produced a C1/quality. Receipts: `~/benchmarks/glm53-flash-20261013/`.
+  - **EXL3 TP4 BOOT-VERIFIED 2026-10-13**: 4 ranks on `.30-.33` (`tfrun-sglang.sh` + adapted `tp4_start.sh`, base `lmsysorg/sglang:dev-cu13` digest `aa878e8d`, engine `bertholomus/TensorFold@ddfad35`; `TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2`, `--mtp-drafts 3 --parallel 4`, `startup estimate 88.58 GiB within 103.22 GiB`). Healthy serve (`GET /v1/models` → `GLM-5.3-EXL3-3.0bpw`; chat `27*43`→`1161`, finish `stop`). **C1 35.67 t/s @ d0 (σ 3.13, n=5) / 35.89 @ d8192**; **MTP-3 acceptance 63.4%**. Recorded as a **runbook, not a recipe** (the engine is an unreleased fork branch installed editable at container start; a recipe needs a baked image + a GLM variant of the TensorFold launcher mod) — runbook + recipe sketch in `recipes/glm/README.md`. Receipts: `~/benchmarks/glm53-exl3-20261013/`.
+  - **MiaAI-Lab tp4 branch — recon done, TP=4 trial BOOT-VERIFIED 2026-10-13** (clone `~/src/MiaAI-GLM53-Flash-EXL3-tp4` @ `d220030`; reused the sibling's engine image and the 176 GB `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` checkpoint — no build needed). Result in the `Trial a TP=4 recipe …` item above.
+- **DONE 2026-10-13** — Select the best recipes from all lanes and move the rest to the `@attic/`: the glm5 Flash recipe is a proven-negative on the pinned public image → **archived to `attic/glm/`** (owner decision 2026-10-13, `#DECISIONS`).
 
 ## ornith
 Ornith 1.5
