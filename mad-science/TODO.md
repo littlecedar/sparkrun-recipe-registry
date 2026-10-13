@@ -16,7 +16,10 @@ This file is the interface for planning rounds:
 
 # DECISIONS — nothing open (2026-10-13)
 
-New owner questions land here, each with a `→ Answer:` line.
+New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
+#6 in `recipes/qwen4/SELECTION-RANKING.md`, #11 in `recipes/decision/DECISION-MODELS-RESEARCH.md`,
+#10/#11/#14 in `recipes/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
+register is `git show 8a98379:mad-science/TODO.md`.
 
 # TODO list
 
