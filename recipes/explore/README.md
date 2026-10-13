@@ -187,9 +187,16 @@ Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Nemotron
 measured arm, 77.7 t/s, and the smallest at 21 GB — but 33/37, the lane's lowest accuracy, paying ~4
 quality tasks for speed) and the **Nemotron 1M arm** (a variant of it: 72.2 t/s, util 0.91).
 
-Nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only (zero boot history),
-and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B are blocked or
-untested (see the research doc's checklists). Single-node TP=1.
+**Queued 2026-10-13 (owner directives):** the **Poolside Laguna family** — build
+`Laguna-XS-2.1-NVFP4` + its DFlash draft first (33B-A3B, 1 node, 22.5 GB download, Spark Arena
+precedent), then `Laguna-S-2.1-NVFP4` (118B-A8B, also 1 node per the single-Spark TP=1 sweep), with
+`Laguna-M.1` as a 2-node ceiling reference; and two **media-generation arms that sit outside this
+lane's reasoning/tool-calling brief** — `Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial licence,
+owner call required before it can ship**) and `Lightricks/LTX-2.5` (video+audio; gated repo).
+Inventory, GB10 precedents, and per-arm checklists: [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md)
+§5–§6. Otherwise nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only
+(zero boot history), and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B /
+Mistral-Small-4-119B are blocked or untested (see the research doc's checklists). Single-node TP=1.
 
 ## Serving traps this lane hit (all fixed in the recipe)
 
