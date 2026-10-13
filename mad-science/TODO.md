@@ -138,6 +138,7 @@ Any model with reasoning and tool-calling capabilities
 
 ## Session follow-ons (restated 2026-10-12)
 
+- [X] **explore/Ling: needle-probe the 262k window** — RESOLVED 2026-10-11 (`882d463`): the `rope_scaling` warning is benign (the checkpoint declares no scaling at all; native 262,144) and a verbatim needle is retrieved at 8k/64k/150k. **But 262k is not servable on this boot** — at `mem-fraction-static 0.75` the KV pool holds 176,203 tokens; a 200k request truncates and then OOMs.
 - [X] **explore/Ling: 262k servability — RESOLVED 2026-10-12: 262k servable at `mem-fraction-static 0.80`; that rung SHIPPED.** Ladder first rung 0.80 booted clean on `.35`: `max_total_num_tokens=313,752` (0.75 measured 176,203; 0.85/0.87 rungs unneeded — 0.87 stays the documented ceiling). The 262k-window needle **PASS** at depths 10/50/90 (~256.6k server-counted tokens per prompt, the receipted 2026-10-11 probe instrument re-pointed at the new serve), and a 4-way concurrency smoke completed with zero OOM/retract events. Receipts: `~/benchmarks/ling-262k-20261012/`.
 - [X] **explore/Nemotron: 1M-context arm — RESOLVED 2026-10-12: the card's 1M claim CONFIRMED on GB10.** `recipes/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml` (shipped recipe + exactly `max_model_len: 1000000`, `gpu_memory_utilization: 0.91`); vLLM did not refuse the window — KV 87.27 GiB → 21,344,213 tokens. 1M-window needle **PASS** at depths 10/50/90 (~982k server-counted tokens, Nemotron-calibrated 3.8590 chars/token; a first pass with Ling's 4.0546 ratio under-shot and is kept as the TRUNCATED receipt). Measured C1 **72.2 t/s @ d0** (σ 15.1, n=5) vs the 262k arm's 77.7. Swap caveat measured: ~1 GiB free + 2.05 GiB swap allocated during 1M prefills, zero swap-in/out under needle load; sustained multi-tenant load untested. The 262k/0.80 recipe remains the shipped default. Receipts: `~/benchmarks/nemotron-1m-20261012/`.
 - [X] **explore/Nemotron: checklist leftovers** — CLOSED 2026-10-11 (`65ba1d7`, `1a234c4`): the `moe_backend: marlin` pin was found inert (an edit had dropped the `--moe-backend` line; sparkrun validation stays silent for a flag-map key the template omits) — restored; the verified boot ran `moe_backend='auto'` and vLLM auto-selected marlin anyway, so the numbers stand. `--tool-call-parser qwen3_coder` verified (forced `tool_choice` → structured `tool_calls`). The 1M-context claim was reclassified as a separate arm, not a checklist item.
@@ -164,5 +165,7 @@ union) and **kept**. One plan-fact correction: the `vllm-srun` runtime ships ins
 `vllm-sr` router image (no `model-runtime` image exists); its missing `kill` binary was root-caused
 as the launch-failure misreport and fixed in-recipe. Receipts: `~/benchmarks/{ling-262k,
 nemotron-1m,jev-decision,kai-sol,kolibri}-20261012/`. Production ds4 TP4 on `.30-.33` untouched
-throughout; all six session serves stopped by explicit task ID. Gate re-run at integration (see the
-next entry for numbers); commits per item, pushed, head registry clone updated.
+throughout; all six session serves stopped by explicit task ID. Integration gate re-run in-tree:
+**386 tests OK** (skipped=1), all 27 shipped recipes validate plain, `bash -n` + `py_compile` clean,
+`tools/jev-decision-bench.py --selftest` exit 0. Commits `74252f6`–`28041c2`, pushed, head registry
+clone updated to `28041c2`.
