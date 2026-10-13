@@ -20,6 +20,7 @@ Disposition audited 2026-10-11:
 | `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
+| `decision-tandem.py` | `recipes/decision/` CPU+GPU tandem probe | parses two tool-eval-bench decision reports' Full Trace and pools per-question distributions; self-test only, no `tests/` guard |
 
 ## safe_text.py
 
@@ -658,6 +659,29 @@ tie case and a floor case); no `tests/` guard references it.
 Measured (2026-10-12, `recipes/decision/README.md`): the card's worked choice
 example reproduces (0.328 / 0.144 / 0.528 / 0.001 against the card's ≈ 0.33 /
 0.14 / 0.53 / 0.001).
+
+
+## decision-tandem.py
+
+Answers whether co-serving a GPU decision model with a CPU one lifts accuracy, and whether
+the two contend. Input is the `### Full Trace` section of a tool-eval-bench v2.8.0
+`--decision-bench-only` markdown report (its durable artifact): the tool parses the
+per-question predicted and gold distributions, then pools them question-by-question under two
+equal-weight rules — **linear** (arithmetic mean) and **loglinear** (geometric mean /
+product-of-experts) — and scores `argmax(pooled) == gold label`. It reports each model alone,
+each ensemble, the exact two-sided McNemar test of the ensemble-vs-A accuracy delta, and a
+per-kind table.
+
+```sh
+python3 tools/decision-tandem.py <a-report.md> <b-report.md> --a-name clef --b-name kai
+python3 tools/decision-tandem.py --selftest     # offline, synthetic fixture, ~0 s
+```
+
+Both arms must speak `/v1/systemone` so the distributions share an option space: clef-flash,
+Kai-0.6B, and Sol-2B do; JEV-9B does not (its card contract is `/v1/completions`, one request
+per question, `tools/jev-decision-bench.py`) and its report is not accepted. Measured result
+and the co-serve contention finding: `recipes/decision/README.md` §"CPU+GPU tandem probe"
+(receipts `~/benchmarks/decision-tandem-20261013/`).
 
 ## synthetic_png.py
 

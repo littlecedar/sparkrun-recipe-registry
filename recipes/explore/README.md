@@ -1,16 +1,20 @@
 # Explore lane
 
 Frontier reasoning + tool-calling models that push the frontier on DGX Spark, chosen by the
-registry's selection weighting (**node count → speed → accuracy → memory**). No recipe cap (owner
-decision 2026-10-11). Full candidate research — 8 families, five corrections to the earlier
+registry's selection weighting (**node count → speed → accuracy → memory**). The lane ships the
+**two selected models** (owner selection 2026-10-13; the 2026-10-11 "no recipe cap" round built
+four and moved the rest to the attic). Full candidate research — 8 families, five corrections to the earlier
 `mad-science/EXPLORE-CANDIDATES.md`, per-candidate verification checklists — is in
 [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md).
 
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
-| [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** |
-| [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] — **1M arm** | 1 | **72.2** | **BOOT-VERIFIED 2026-10-12** (card's 0.91/1M claim confirmed; shipped default stays 262k/0.8) |
-| [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via unpushed mod) |
+| [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | vLLM | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4][nem] + [DSpark draft][nemd] | 1 | **77.7** | **BOOT-VERIFIED 2026-10-11** — **KEPT (rank 1)** |
+| [`kolibri-1-78b-fp8-vllm.yaml`](kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via unpushed mod) — **KEPT (rank 2)** |
+
+**Archived 2026-10-13** (measured but not selected; manifest [`attic/explore/ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)):
+[`ling-3.0-flash-int4-dspark-sglang.yaml`](../../attic/explore/ling-3.0-flash-int4-dspark-sglang.yaml) and
+[`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml).
 
 ## Measured
 
@@ -30,6 +34,14 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
   arguments, `finish_reason: tool_calls`); in auto mode the model answers in prose, which is model
   behaviour, not a parser failure. (c) The card's 1M-context claim needs a different `max_model_len`
   and is a separate arm, not a checklist item.
+
+- **TP=1 re-measure (2026-10-13)**: the DSpark **acceptance length did not reproduce** —
+  1.53–1.72 (mean ≈1.66) at 17.6–24.0% acceptance vs the shipped 3.67 @ 88.9%, though the draft is
+  still engaged (accept len > 1). C1 held: 70.10 t/s @ d0 (σ 14.11) vs the shipped 77.65 (σ 9.82)
+  and 77.19 @ d8k vs 76.30 — inside σ and the lane's 7–25% noise floor. Quality 33/37 with the
+  identical miss set. The acceptance drop is suspected a metric-window artifact (the depth-8k cells
+  mix context loads into the acceptance window) but is **unproven**; the shipped acceptance figure
+  stands. Receipts: `~/benchmarks/explore-tp1-20261013/` on the head node.
 
 ### Ling-3.0-flash-int4 (2026-10-11)
 
@@ -82,7 +94,7 @@ decision 2026-10-11). Full candidate research — 8 families, five corrections t
 
 ### Nemotron-3.5-Lightning — 1M-context arm (2026-10-12)
 
-New recipe [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml):
+Archived arm [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) (built 2026-10-12; moved to the attic 2026-10-13):
 the shipped 262k recipe verbatim with exactly two defaults changed —
 `max_model_len: 1000000`, `gpu_memory_utilization: 0.91` — testing the card's
 official GB10 numbers against the community warning that 0.91 "leaves ~1 GiB
@@ -147,17 +159,33 @@ import/entry-point failure and is idempotent via a content marker).
   `needle-1` a budget-dependent thinking truncation". This is why the battery
   gained an optional `--max-tokens` (default 384 — unchanged for every other
   lane).
-- **Keep**: not dominated. 47.3 t/s ≥ Ling's 45.5 at 36/37 quality (Ling 37/37),
+- **Selected (2026-10-13, rank 2)**: not dominated. 47.3 t/s ≥ Ling's 45.5 at 36/37 quality (Ling 37/37),
   one node, and the accuracy-champion role by the vendor's AIME/GPQA numbers —
-  at the cost of 73.5 GiB weights (the memory-heaviest explore arm).
+  at 73.5 GiB weights. It also beats Ling on the memory criterion (74 GB / util 0.78 vs 154 GB / 0.80).
 - Receipts: `~/benchmarks/kolibri-20261012/` on the head node.
 
-## Next by the ranking
+- **TP=1 re-measure (2026-10-13)**: C1 −1.8% uniformly — 46.46 t/s @ d0 (σ 0.18) vs the shipped
+  47.27, 45.41 @ d8k vs 46.31 — within the lane spread, no material change. Receipts:
+  `~/benchmarks/explore-tp1-20261013/` on the head node.
 
-Ling and Kolibri-1 are **built and measured** (above). What remains by the
-research ranking: `vllm-sr/d3-edge` — watch only (zero boot history); and the
-reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B,
-all blocked or untested (see the research doc's checklists). Single-node TP=1.
+## Selection (2026-10-13)
+
+The lane keeps **two** recipes — the registry weighting (**node count → speed → accuracy → memory**)
+selected them:
+
+- **`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm`** — rank 1: the fastest measured arm (77.7 t/s at
+  1 node; 20.8 GB NVFP4 weights), and the lane's shipped default.
+- **`kolibri-1-78b-fp8-vllm`** — rank 2: the fastest arm after Nemotron (47.3 vs Ling's 45.5 t/s).
+  Speed ranks above accuracy in the weighting, and Kolibri also wins the memory tiebreak (74 GB /
+  util 0.78 vs Ling's 154 GB / 0.80); its 36/37 @4096 is a 37/37 union.
+
+Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Ling** (45.5 t/s — loses the
+speed criterion to Kolibri, and is the memory-heaviest arm) and the **Nemotron 1M arm** (a variant of
+the kept 262k recipe: 72.2 t/s, util 0.91, and its own doc keeps the 262k recipe the default).
+
+Nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only (zero boot history),
+and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B are blocked or
+untested (see the research doc's checklists). Single-node TP=1.
 
 ## Serving traps this lane hit (all fixed in the recipe)
 
