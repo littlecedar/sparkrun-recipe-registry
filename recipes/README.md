@@ -93,22 +93,7 @@ is archived under [`../attic/ifm/`](../attic/ifm/)._
 
 ## GLM 5.3
 
-| Recipe                                | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                              |
-|:--------------------------------------|:------|-------:|------:|-----:|---:|:---------------------------------------------------------|
-| glm-5.3-flash-nvfp4-dflash-vllm       | 🚚🚀🧠🔧 |      — | 198GB | 0.85 |  4 | [Model][RedHatAI/GLM-5.3-Flash-NVFP4] [Draft][incoai/GLM-5.3-Flash-DFlash2] |
-
-_Boot-attempted 2026-10-13 (five boots on `.30-.33`), BLOCKED on the pinned public
-image: its SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose
-`concat_and_cache_mla` kernel requires a 64-dim RoPE tail while the checkpoint is
-NoPE MLA (`qk_rope_head_dim 0`); `bfloat16`/`nvfp4_ds_mla` KV select no backend and
-the non-SM120 `FLASHINFER_MLA_SPARSE` is unsupported on GB10, and the DFlash2
-drafter needs the absent `SupportsEagle3`. The lane's TensorFold runbooks are
-boot-verified instead: our `bertholomus` EXL3 3.0bpw TP4 (C1 35.7 t/s @ d0, MTP-3
-acceptance 63.4 %) and the MiaAI-Lab Flash EXL3 4bpw at TP=2 (C1 58.5/60.5 @ d0/d8k,
-DFlash2 accept 87 %, quality 37/37, needle 2/2 at 1M), TP=3 (C1 65.4/65.1 @ d0/d8k,
-DFlash2 accept 71.2 %, KV 4.84M) and TP=4 (C1 98.4 t/s @ d0, DFlash2 accept 76.6 %) — see
-[`glm/README.md`](glm/README.md). The DFlash2 drafter is CC BY-NC-ND (acceptable
-for this non-commercial cluster)._
+**No shipped recipe** — the lane ships TensorFold **runbook notes** ([`glm/README.md`](glm/README.md)). Its one recipe, `glm-5.3-flash-nvfp4-dflash-vllm`, was **archived to [`../attic/glm/`](../attic/glm/ARMS-MANIFEST.md) 2026-10-13** (owner decision) as a **proven-negative on the pinned public image**: five boots on `.30-.33` all died in the container serve log (the image's SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose `concat_and_cache_mla` needs a 64-dim RoPE tail while the checkpoint is NoPE MLA; DFlash2 also needs an absent `SupportsEagle3`). The boot-verified serving lines are our `bertholomus` EXL3 3.0bpw TP4 (C1 35.7 t/s @ d0, MTP-3 acceptance 63.4 %) and the MiaAI-Lab Flash EXL3 4bpw launcher at TP=2 (C1 58.5/60.5, quality 37/37, needle 2/2 at 1M), TP=3 (C1 65.4/65.1) and TP=4 (C1 98.4 t/s @ d0, DFlash2 acceptance 76.6 %). The DFlash2 drafter is CC BY-NC-ND (acceptable for this non-commercial cluster).
 
 ## Decision
 
@@ -126,7 +111,7 @@ for this non-commercial cluster)._
 | nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀🧠🔧 |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
 | kolibri-1-78b-fp8-vllm                           | ✨🧠🔧 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
 
-Two selected 2026-10-13 by the weighting (**node count → speed → accuracy → memory**) — all four arms were single-node, so speed decided. **Archived** to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `ling-3.0-flash-int4-dspark-sglang` (45.5 t/s — below Kolibri's 47.3, and the memory-heaviest arm) and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of the kept 262k recipe: 72.2 t/s, util 0.91; its own doc keeps 262k/0.80 the default).
+Two selected 2026-10-13 by the weighting (**node count → speed → accuracy → memory**) — all four arms were single-node, so speed ranked them, and **Nemotron-262k is rank 1**. The rank-2 call between **Kolibri** (47.3 t/s, 36/37) and **Ling** (45.5 t/s, 37/37) is a **near-tie**: the 1.8 t/s gap sits inside Ling's own measured σ (5.5), so it is not a decisive speed win — the next criteria split (Ling leads accuracy 37/37 vs 36/37; Kolibri leads memory 74 GB vs 154 GB). **Flagged for owner confirmation in `#DECISIONS`.** Archived to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `ling-3.0-flash-int4-dspark-sglang` and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of the kept 262k recipe: 72.2 t/s, util 0.91).
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)

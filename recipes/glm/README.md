@@ -4,21 +4,7 @@ Two model lines, both documented in
 [`GLM-5.3-RECOMMENDATIONS.md`](GLM-5.3-RECOMMENDATIONS.md) (rewritten 2026-10-10; the
 image claim corrected 2026-10-11):
 
-- **Flash NVFP4 / vLLM** — [`glm-5.3-flash-nvfp4-dflash-vllm.yaml`](glm-5.3-flash-nvfp4-dflash-vllm.yaml):
-  repo B's independently validated formula, image digest-pinned
-  (`vllm/vllm-openai:glm53-flash`, manifest-list digest `819ec9c0…`), checkpoint
-  pinned `36c184c6`. **Boot-attempted, BLOCKED on the pinned public image** —
-  2026-10-13, four boots on `.30-.33`, logs in
-  `~/benchmarks/glm53-flash-20261013/`. The image's SM120 sparse-MLA backend
-  forces the `fp8_ds_mla` KV layout, whose `concat_and_cache_mla` kernel requires
-  a 64-dim RoPE tail while the checkpoint is NoPE MLA (`qk_rope_head_dim 0`,
-  `mla_use_nope true`); `--kv-cache-dtype bfloat16` and `nvfp4_ds_mla` each
-  select no valid attention backend, and forcing the non-SM120
-  `FLASHINFER_MLA_SPARSE` (whose fp8 path keeps the standard layout) fails with
-  `compute capability not supported` on GB10. The DFlash2 drafter is separately unusable
-  in this image: its `dflash` proposer needs the target to implement
-  `SupportsEagle3`, which `Glm5NextForConditionalGeneration` does not. See the
-  recipe `metadata.description` for the full root cause and receipt paths.
+- **Flash NVFP4 / vLLM — ARCHIVED 2026-10-13 to [`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) as a proven-negative arm** (owner decision). `glm-5.3-flash-nvfp4-dflash-vllm.yaml` is repo B's independently validated formula, image digest-pinned (`vllm/vllm-openai:glm53-flash`, manifest-list digest `819ec9c0…`), checkpoint pinned `36c184c6`. **Boot-attempted 2026-10-13 (five boots on `.30-.33`) — BLOCKED on the pinned public image:** its SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose `concat_and_cache_mla` needs a 64-dim RoPE tail while the checkpoint is NoPE MLA (`qk_rope_head_dim 0`); `--kv-cache-dtype bfloat16` and `nvfp4_ds_mla` each select no valid attention backend, and forcing the non-SM120 `FLASHINFER_MLA_SPARSE` fails with `compute capability not supported` on GB10. The DFlash2 drafter is separately unusable in this image (its `dflash` proposer needs `SupportsEagle3`, absent). Repo B qualified on a local, unpublished image — the recipe is correct, the image is the blocker, and it never produced a C1 or a quality score. Receipts: `~/benchmarks/glm53-flash-20261013/`.
 - **EXL3 3.0bpw / TensorFold** — shipped as a **runbook note, not a sparkrun
   recipe** (rationale below). **BOOT-VERIFIED 2026-10-13 on `.30-.33`**:
   repo A's [`bertholomus/glm-5.3-tensorfold-tp4-4xgb10`](https://github.com/bertholomus/glm-5.3-tensorfold-tp4-4xgb10)
@@ -46,7 +32,7 @@ image claim corrected 2026-10-11):
   repo A's `nvcr.io/nvidia/pytorch:26.07-py3` base for the already-present
   `lmsysorg/sglang:dev-cu13` (digest `aa878e8d`; CUDA 13, torch 2.13, libibverbs
   headers, libnccl); `tp4_start.sh` is set to the `.30-.33` fabric (master
-  `192.168.0.30`, `NCCL_SOCKET_IFNAME enp1s0f0np0`,
+  on `.30`, `NCCL_SOCKET_IFNAME enp1s0f0np0`,
   `NCCL_IB_HCA rocep1s0f0,roceP2p1s0f0`, RoCEv2 `NCCL_IB_GID_INDEX=3`).
 
 - **GLM-5.3-Flash EXL3 4bpw / TensorFold, 2 Sparks (TP=2)** — runbook note, not a
@@ -58,7 +44,7 @@ image claim corrected 2026-10-11):
   (~176 GB, 4-bpw EXL3 + q4 dense + FP8 KV), drafter `incoai/GLM-5.3-Flash-DFlash2` @
   `bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold` @
   `sha256:14b5072e…` (TF 0.6.0 + 96 patches; tag `v0.6.0-e66c657a433d`). **Fabric
-  auto-detected** (bootstrap `192.168.1.34` on `enP2p1s0f0np0`, rendezvous on the CX7
+  auto-detected** (bootstrap on `.34`'s CX7 netdev `enP2p1s0f0np0`, rendezvous on the CX7
   link, both RoCEv2 rails at GID 3) — no manual `NCCL_*` env needed. **BOOT-VERIFIED
   2026-10-13**: live 407 s after prepare; `GET /v1/models` → `GLM-5.3-Flash-EXL3`, chat
   round-trip OK (237 completion tokens, 184 reasoning). **KV pool 1,875,968 tokens**
@@ -95,9 +81,9 @@ image claim corrected 2026-10-11):
   `.30-.33`** (rank 0 = `.30`, which is also the control host). The image
   `tensorfold-glm53:v0.6.0` (106 patches) and the `078455ff` checkpoint + DFlash2
   `bf582e4e` were replicated from the sibling's `.34` cache (175.7 GB checkpoint,
-  83 shards); links auto-detected (head `192.168.0.30` ↔ the three workers over
+  83 shards); links auto-detected (head `.30` ↔ the three workers over
   `rocep1s0f0,roceP2p1s0f0`). Host overrides in `scripts/local.sh`: `WORKER`/
-  `WORKER2`/`WORKER3` → `.31`/`.32`/`.33`, `MASTER_ADDR=10.0.4.30`, and
+  `WORKER2`/`WORKER3` → `.31`/`.32`/`.33`, `MASTER_ADDR` = the head's LAN address, and
   `SOCKET_IFNAME=enP7s7,enP2p1s0f0np0,enp1s0f0np0`; `NCCL_IB_GID_INDEX` left
   unset. `earlyoom` was disabled on `.30-.33` before launch and re-enabled after.
   **HEALTHY**: `GET /v1/models` → `GLM-5.3-Flash-EXL3`; chat round-trip `27*43` →

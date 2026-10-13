@@ -170,18 +170,19 @@ import/entry-point failure and is idempotent via a content marker).
 
 ## Selection (2026-10-13)
 
-The lane keeps **two** recipes — the registry weighting (**node count → speed → accuracy → memory**)
-selected them:
+The lane keeps **two** recipes by the registry weighting (**node count → speed → accuracy → memory**):
 
 - **`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm`** — rank 1: the fastest measured arm (77.7 t/s at
   1 node; 20.8 GB NVFP4 weights), and the lane's shipped default.
-- **`kolibri-1-78b-fp8-vllm`** — rank 2: the fastest arm after Nemotron (47.3 vs Ling's 45.5 t/s).
-  Speed ranks above accuracy in the weighting, and Kolibri also wins the memory tiebreak (74 GB /
-  util 0.78 vs Ling's 154 GB / 0.80); its 36/37 @4096 is a 37/37 union.
+- **`kolibri-1-78b-fp8-vllm`** — rank 2, but a **near-tie** with Ling: 47.3 t/s vs Ling's 45.5 t/s,
+  a 1.8 t/s gap that sits **inside Ling's own σ (5.5)** — not a decisive speed win by this lane's own
+  noise standard. The next criteria split (Ling leads accuracy 37/37 vs Kolibri 36/37; Kolibri leads
+  memory 74 GB vs 154 GB), so the rank-2 pick is **flagged for owner confirmation** (`#DECISIONS`).
+  Kolibri's 36/37 @4096 is a 37/37 union.
 
-Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Ling** (45.5 t/s — loses the
-speed criterion to Kolibri, and is the memory-heaviest arm) and the **Nemotron 1M arm** (a variant of
-the kept 262k recipe: 72.2 t/s, util 0.91, and its own doc keeps the 262k recipe the default).
+Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Ling** (45.5 t/s; memory-heaviest
+at 154 GB) and the **Nemotron 1M arm** (a variant of the kept 262k recipe: 72.2 t/s, util 0.91, and its
+own doc keeps the 262k recipe the default).
 
 Nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only (zero boot history),
 and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B are blocked or
