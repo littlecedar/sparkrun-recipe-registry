@@ -19,8 +19,8 @@ metadata:
     MLA hybrid-linear MoE) on ONE DGX Spark. Serve line is the third-party
     Spark port's proven flag set, minus its docker wrapper: DSPARK spec decode
     with the external 1.36B draft and the KDA ReplaySSM verify path, mem-fraction
-    0.75 (the port's Spark-safe default; 0.87 is the measured ceiling and leaves
-    the node one bad boot from OOM), 256k context, 6 concurrent, fp8_e4m3 KV.
+    0.80 (262k servable; 0.87 stays the documented ceiling and leaves the node
+    one bad boot from OOM), 262k context, 6 concurrent, fp8_e4m3 KV.
     Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
     column. **BOOT-VERIFIED 2026-10-11** on one node: house battery 37/37
     (19 easy + 18 hard, zero flakes), measured C1 45.5 t/s @ d0 (sigma 5.5,
@@ -30,10 +30,13 @@ metadata:
     difference arithmetically accounts for most of the gap, and why theirs is
     higher is untested. Long context: the rope_scaling boot warning is benign
     (the checkpoint declares no scaling; SGLang's 1.0 default is a no-op) and a
-    verbatim needle is retrieved at 8k/64k/150k — but 262k is NOT servable at
-    mem-fraction 0.75 (KV pool 176,203 tokens; a 200k request auto-truncates
-    then fails HTTP 500 OOM; the third-party 0.87 rung reported a 576,930-token
-    pool). Receipts: ~/benchmarks/ling-needle-20261011/ on the head node.
+    verbatim needle is retrieved at 8k/64k/150k. **262k SERVABLE at mem-fraction
+    0.80 (2026-10-12)**: KV pool 313,752 tokens (0.75 measured 176,203; the
+    third-party 0.87 rung reported 576,930) and the full-window needle probe
+    PASSES at depths 10/50/90 (~256.9k-token prompts retrieved verbatim), with
+    a 4-way concurrent smoke clean (no OOM/retract). Receipts:
+    ~/benchmarks/ling-needle-20261011/ and ~/benchmarks/ling-262k-20261012/ on
+    the head node.
   model_url: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "124B"
@@ -50,7 +53,10 @@ defaults:
   max_num_seqs: 6
   max_mamba_cache_size: 32
   chunked_prefill_size: 8192
-  gpu_memory_utilization: 0.75
+  # 0.80 ships (2026-10-12 ladder): KV pool 313,752 tokens (0.75 measured
+  # 176,203), 262k needle PASS at depths 10/50/90, 4-way smoke clean.
+  # 0.87 stays the documented ceiling — not needed for the 262k window.
+  gpu_memory_utilization: 0.80
   kv_cache_dtype: fp8_e4m3
   speculative_algorithm: DSPARK
   speculative_draft_model: inclusionAI/Ling-3.0-flash-dspark
