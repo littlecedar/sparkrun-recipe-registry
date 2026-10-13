@@ -40,10 +40,14 @@ task can differ run-to-run at `temperature 0`.  Run the battery more than once a
 treat a task that flips as "unstable", not as a score.  The `--json` output keeps
 every reply so the flip is inspectable.
 
+Reply budget: `--max-tokens` defaults to 384 (unchanged semantics); raise it for
+models that think by default (Kolibri-1), whose answers otherwise truncate into
+`content: null` and score as empty replies.
+
 Usage
 -----
     python3 quality-battery.py <base_url> [--tier easy|hard|both] [--json out.json]
-                               [--model NAME] [--repeat N]
+                               [--model NAME] [--repeat N] [--max-tokens N]
 
 Single file, stdlib only, Python 3.12+.  Knows nothing about hostnames or cluster
 nodes -- everything is a flag.  Exit code is always 0; the score is the artifact.
@@ -175,7 +179,7 @@ def score(kind: str, expect, reply: str) -> bool:
     raise ValueError(kind)
 
 
-def run_tier(name, tasks, base, model, repeat):
+def run_tier(name, tasks, base, model, repeat, max_tokens=384):
     per_task: dict[str, list[bool]] = {}
     replies: dict[str, list[str]] = {}
     for rep in range(repeat):
@@ -183,7 +187,7 @@ def run_tier(name, tasks, base, model, repeat):
             if prompt is None:
                 prompt = make_needle()
             try:
-                reply, meta = chat(base, model, prompt)
+                reply, meta = chat(base, model, prompt, max_tokens)
                 ok = score(kind, expect, reply)
             except Exception as e:
                 reply, meta, ok = f"<ERROR {type(e).__name__}: {e}>", {}, False
@@ -210,6 +214,10 @@ def main() -> int:
     ap.add_argument("--tier", default="both", choices=["easy", "hard", "both"])
     ap.add_argument("--model", default=None)
     ap.add_argument("--repeat", type=int, default=1)
+    # Reply budget. 384 is the historical default and unchanged semantics for
+    # every lane measured so far; models that think by default (Kolibri-1)
+    # need a larger budget or the answer is truncated into `content: null`.
+    ap.add_argument("--max-tokens", type=int, default=384)
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
 
@@ -217,12 +225,15 @@ def main() -> int:
     if not model:
         with urllib.request.urlopen(args.base_url.rstrip("/") + "/v1/models", timeout=30) as r:
             model = json.load(r)["data"][0]["id"]
-    print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} repeats: {args.repeat}\n")
+    print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} "
+          f"repeats: {args.repeat} max_tokens: {args.max_tokens}\n")
 
     names = ["easy", "hard"] if args.tier == "both" else [args.tier]
-    out = {"model": model, "base_url": args.base_url, "tiers": {}}
+    out = {"model": model, "base_url": args.base_url,
+           "max_tokens": args.max_tokens, "tiers": {}}
     for n in names:
-        out["tiers"][n] = run_tier(n, TIERS[n], args.base_url, model, args.repeat)
+        out["tiers"][n] = run_tier(n, TIERS[n], args.base_url, model,
+                                   args.repeat, args.max_tokens)
         print()
     if args.json:
         json.dump(out, open(args.json, "w"), indent=1)
