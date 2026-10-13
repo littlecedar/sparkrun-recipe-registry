@@ -97,7 +97,7 @@ four and moved the rest to the attic). Full candidate research — 8 families, f
 ### Nemotron-3.5-Lightning — 1M-context arm (2026-10-12)
 
 Archived arm [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) (built 2026-10-12; moved to the attic 2026-10-13):
-the shipped 262k recipe verbatim with exactly two defaults changed —
+the (now-archived) 262k recipe verbatim with exactly two defaults changed —
 `max_model_len: 1000000`, `gpu_memory_utilization: 0.91` — testing the card's
 official GB10 numbers against the community warning that 0.91 "leaves ~1 GiB
 free and swaps".
@@ -120,10 +120,10 @@ free and swaps".
   workable under this needle load; sustained multi-tenant load is untested.
 - **Decode-triage**: **72.2 t/s @ d0** (σ 15.1, n=5) and 69.3 @ d8k (σ 10.7) —
   ~7% below the 262k/0.8 recipe's 77.7 on the same node/boot pattern; quote ours.
-- The **shipped default remains the 262k/0.8 recipe**; this arm documents the
-  measured servability of the card's 1M point. Receipts:
-  `~/benchmarks/nemotron-1m-20261012/` on the head node (boot log, both probe
-  runs, decode-triage triple).
+- Both this arm and its 262k parent were **archived 2026-10-13** (the owner's accuracy criterion placed
+  them behind Ling-3.0-flash and Kolibri-1); the arm documents the measured servability of the card's 1M
+  point. Receipts: `~/benchmarks/nemotron-1m-20261012/` on the head node (boot log, both probe runs,
+  decode-triage triple).
 
 ### Kolibri-1 (2026-10-12)
 
