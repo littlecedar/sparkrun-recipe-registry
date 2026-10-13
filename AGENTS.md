@@ -11,7 +11,7 @@ Counts in this document were verified 2026-10-13 against the working tree. Facts
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 27 files in 10 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 25 files in 10 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 20 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
@@ -39,7 +39,7 @@ Load-bearing contracts:
   map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
   `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
   nothing consumes — sparkrun renders unmapped defaults silently.
-- **`command:` is YAML folded `>`** (21/21 recipes). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (25/25 recipes). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -55,13 +55,13 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (4), `recipes/glm/` (1), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (2), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms) and the Explore lane (Nemotron 262k + 1M arms, Ling, Kolibri-1) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
+| `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (2), `recipes/glm/` (1), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (2), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms) and the Explore lane (Nemotron 262k + Kolibri-1) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
 | `recipes/glm/` | One shipped recipe (`glm-5.3-flash-nvfp4-dflash-vllm.yaml`, TP4, NOT boot-verified) + `GLM-5.3-RECOMMENDATIONS.md` |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 24 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 24 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
-| `tests/` | 12 importable guard modules, one skipped `*.sync-conflict-*.py` |
-| `tools/` | 10 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, jev-decision-bench, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
+| `tests/` | 13 importable guard modules, one skipped `*.sync-conflict-*.py` |
+| `tools/` | 11 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
@@ -94,7 +94,7 @@ for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
 find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: 21/21 pass plain; 4/21 fail strict on
+- **Plain `validate` is the gate, not `--strict`**: 25/25 pass plain; 4/25 fail strict on
   accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`,
   and the three `recipes/qwen4/*labquant*` — `unpinned-model-revision`). Never edit a recipe merely
   to clear a `suggestion` (e.g. deliberate `/cache/runtime` paths flagged `restated-managed-path`).
@@ -226,7 +226,7 @@ before matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index; documents all 9 tools (`safe_text.py` added 2026-10-07; the
+- `tools/README.md` — tool index; documents all 11 tools (`safe_text.py` added 2026-10-07; the
   three before it describe behaviour and caveats only — this repo records measured results next
   to the arm that produced them, e.g. `attic/qwen4/status/*.md`).
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.

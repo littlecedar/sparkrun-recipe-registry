@@ -20,10 +20,17 @@ metadata:
     GLM-5.3-Flash NVFP4 on vLLM TP=4, the lane the RECOMMENDATIONS doc calls the
     only GLM family that fits 4 nodes with real KV headroom. Serve line is repo
     B's independently validated formula (bertholomus/glm-5.3-flash-nvfp4-gb10-tp4,
-    config/runtime-formula.json), qualified receipts at 24 GiB/rank KV. NOT
-    BOOT-VERIFIED on our stack: needs 4 nodes and this session has 2 free; the
-    image was inspected but the engine never ran here. The DFlash2 drafter is
-    CC BY-NC-ND — acceptable for this non-commercial cluster (owner decision
+    config/runtime-formula.json). BLOCKED on the pinned public image — four boots
+    on .30-.33 on 2026-10-13 (logs ~/benchmarks/glm53-flash-20261013/): the
+    image's SM120 sparse-MLA backend forces the fp8_ds_mla KV layout, whose
+    concat_and_cache_mla kernel requires a 64-dim RoPE tail (`pe_dim must be 64
+    for fp8_ds_mla`), but this checkpoint is NoPE MLA (qk_rope_head_dim 0,
+    mla_use_nope true). `bfloat16` and `nvfp4_ds_mla` KV select no valid
+    attention backend. The DFlash2 drafter is separately unusable in this image:
+    the `dflash` proposer requires the target to implement SupportsEagle3, which
+    Glm5NextForConditionalGeneration does not (supports_eagle3() is False).
+    Repo B qualified on a local, unpublished image. The DFlash2 drafter is CC
+    BY-NC-ND — acceptable for this non-commercial cluster (owner decision
     2026-10-11).
   model_params: "169B"
   model_url: https://huggingface.co/RedHatAI/GLM-5.3-Flash-NVFP4

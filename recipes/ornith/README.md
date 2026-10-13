@@ -67,8 +67,14 @@ measured by the draft author on a **different engine configuration** than ours (
 `--moe-runner-backend marlin`, `--mamba-radix-cache-strategy extra_buffer`, `--mamba-ssm-dtype float32`,
 and 10 draft tokens; we ship `flashinfer_cutlass`, `extra_buffer_lazy`, `bfloat16`, and 4 draft tokens),
 so treat 114.2 as a **corroborating reference point, not this recipe's measured number**. Our published
-C1 of ~100 t/s sits between the author's AR and DFlash2 figures, consistent with the shipped recipe — but
-it has not been re-measured on our nodes with a pinned harness in this pass.
+C1 of ~100 t/s sits between the author's AR and DFlash2 figures, consistent with the shipped recipe.
+
+**C1 re-measurement (2026-10-13, `.35`, `benchmarking/decode-triage.yaml`, C1, n=5 per cell,
+decode-phase rows only).** The headline is now a measurement, not an inheritance: **99.6 t/s @ d0
+(σ 9.1)** and **100.2 t/s @ d8192 (σ 3.9)** — the prior `~100 t/s` header is superseded by these
+figures. Spec decode was engaged (serve-log mean `accept len` **2.54** across 23 decode batches, min
+2.27 / max 2.83), and the warm-cache boot reached port-open **95.1 s** / HTTP-ready **97.8 s** / TTFT
+**98.0 s**. Receipts: `~/benchmarks/ornith-c1-20261013/` (`c1-decode-triage.json`, `serve.log`).
 
 **Measured A/B against the author's reference config (2026-10-11, `benchmarking/decode-triage.yaml`,
 C1, n=5 per cell, one node per arm, same window where paired).** The author's 114.2 knob set was
@@ -120,6 +126,31 @@ cached model file against a hub manifest, and an injected snapshot fails `wrong_
 tell). The checkpoint is revision-pinned (`94e431d9…` at the time of writing) and the command passes
 `--revision {model_revision}`, which the offline engine needs because a SHA download writes no
 `refs/` entry.
+
+## Reasoning-loop investigation (2026-10-13)
+
+Ticket text: the served model *often starts looping while reasoning*. **Verdict: NOT REPRODUCED as a
+decode loop; the user-visible symptom is thinking-budget exhaustion.** Method follows the ds4 lane
+([`recipes/ds4/README.md`](../ds4/README.md) §"Stability"): a battery of reasoning-heavy prompts at
+served sampling, the `reasoning_content` scored for repeated-window runs (max count of any 25-word
+window; `1` = every window unique), and `finish_reason` read to separate a true loop from a budget
+truncation.
+
+One boot on `.35` (SGLang `0.0.0.dev1+g20ca564bf`, model @ `94e431d9…`, `/v1/models` healthy ~210 s
+after launch). **9 prompts × {temperature 0, temperature 0.6 (recommended)} × {4096, 8192 tokens} →
+zero repeated-window runs in every arm** (loop score 1). The one `max_window_repeat=2` observed (temp
+0.6, 8k, `schedule-constraint`) was a stochastic re-read inside a 4293-word enumeration — a re-run of
+the identical cell gave 0 repeats. Truncations are *fresh* reasoning (`finish_reason=length`, loop
+score 1): temp-0 `counterfactual-chain` runs 5164 words and ends mid-thought. The behaviour reads as a
+loop because the reasoning is verbose and self-scaffolding — a 5-item ordering problem reasons for
+3902–4293 words at `distinct_word_ratio` 0.22–0.27 with repeated `let me…` openings — but it is not
+token repetition, and it *exhausts* a token budget rather than repeating inside one.
+
+Contrast with the ds4 lane: **this SGLang serve line honors request-level sampling** (temp 0 vs temp
+0.6 give different replies for all 9 prompts; `repetition_penalty 1.1` changes a temp-0 reply), so a
+client-side mitigation *would* act here — but there is nothing to cap away. No recipe knob change was
+warranted; the remedy for the observed behaviour is a thinking budget (`max_tokens`) on the client.
+Receipts: `~/benchmarks/ornith-loop-20261013/` (`loop_probe.py`, six battery JSONLs, `README.md`).
 
 ## `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` — the flagship 4-node lane
 

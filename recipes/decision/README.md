@@ -158,6 +158,49 @@ Deviation worth recording: `--json-file` produced no file in v2.8.0 for these
 runs; the markdown report under `~/runs/2026/10/` is the durable artifact
 (copied into the receipts dir) and carries every number quoted here.
 
+## CPU+GPU tandem probe (2026-10-13)
+
+Can a GPU decision model and a CPU decision model be co-served on one node, and does
+pooling their answers beat either alone? Measured on `.34`: clef-flash (SGLang `:8020`) +
+Kai-0.6B (vllm-srun CPU `:8000`), the same 400-case / 2000-decision split, `tool-eval-bench`
+v2.8.0 `--decision-bench-only`.
+
+**Ensemble rule** (`tools/decision-tandem.py`, stdlib-only, `--selftest`): an equal-weight
+**linear mean** of the two models' per-question distributions, renormalised, scored by
+`argmax(pooled) == gold label`; a log-linear (geometric-mean / product-of-experts) pool is
+recorded beside it.
+
+| scorer | accuracy | KL(gold‖pred) | Brier |
+|---|---:|---:|---:|
+| clef-flash alone | 70.3% | 0.209 | 0.111 |
+| Kai-0.6B alone | 47.5% | 0.362 | 0.198 |
+| ensemble (linear mean) | **71.6%** | 0.196 | 0.098 |
+| ensemble (log-linear) | 71.3% | 0.168 | 0.086 |
+
+**Verdict: a small, statistically significant gain, and only for the right pairing.** The
+linear pool is +1.3 pts over clef alone (McNemar p = 0.012; case-level bootstrap 95% CI
+[0.35, 2.20]), concentrated in the `score` kind; the log-linear pool trades ~0.3 pt of
+accuracy for a larger calibration gain (KL −20%, Brier −22%). clef + Sol-2B is a small net
+loss (69.9%) and a 3-way pool dilutes (69.6%) — Kai is the more complementary partner (argmax
+agreement with clef 46.3% vs Sol's 58.7%), so the gain is **model-specific, not a property of
+"CPU + GPU"**.
+
+Co-serve is clean (no OOM, both accuracies bit-reproducible) but **asymmetric**: the GPU model
+is unaffected (p50 205 → 210 ms, identical 70.3%), while the CPU model slows ~45% under
+co-residency (p50 5699 → 8253 ms; 2100 → 3087 s per full bench). An isolation probe (one
+3-question request, clef idle) shows Kai's p50 **856 ms → 1800 ms** the moment clef is
+*resident*, so the tax is the GPU model's residency, not its traffic. Both serve processes
+ship pinned to the *same* `0-4,10-14` cluster (live `taskset -pc`) and clef holds ~90 GiB,
+dropping node `available` from 121 → 16 GiB; which of the two dominates is not isolated.
+
+Contract note: clef, Kai, and Sol all answer `/v1/systemone` (all five questions of a case in
+one request), so their distributions are directly poolable. JEV-9B is **not** comparable — its
+card contract is `/v1/completions`, one request per question, scored by
+`tools/jev-decision-bench.py` — and is excluded from the ensemble.
+
+Receipts: `~/benchmarks/decision-tandem-20261013/` (`REPORT.md`, the three run reports, the
+launch and TEB logs, `cpu-samples.txt`, the isolation-probe output, the ensemble JSONs).
+
 ## What these models are
 
 Decision models are **prefill-only scorers**, not chat models. JEV-9B answers with

@@ -97,10 +97,18 @@ is archived under [`../attic/ifm/`](../attic/ifm/)._
 |:--------------------------------------|:------|-------:|------:|-----:|---:|:---------------------------------------------------------|
 | glm-5.3-flash-nvfp4-dflash-vllm       | 🚚🚀🧠🔧 |      — | 198GB | 0.85 |  4 | [Model][RedHatAI/GLM-5.3-Flash-NVFP4] [Draft][incoai/GLM-5.3-Flash-DFlash2] |
 
-_Drafted 2026-10-11 from repo B's validated formula
-([`glm/GLM-5.3-RECOMMENDATIONS.md`](glm/GLM-5.3-RECOMMENDATIONS.md)); image verified and
-digest-pinned. NOT boot-verified — TP4 needs a 4-node window. The DFlash2 drafter is
-CC BY-NC-ND (acceptable for this non-commercial cluster)._
+_Boot-attempted 2026-10-13 (five boots on `.30-.33`), BLOCKED on the pinned public
+image: its SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose
+`concat_and_cache_mla` kernel requires a 64-dim RoPE tail while the checkpoint is
+NoPE MLA (`qk_rope_head_dim 0`); `bfloat16`/`nvfp4_ds_mla` KV select no backend and
+the non-SM120 `FLASHINFER_MLA_SPARSE` is unsupported on GB10, and the DFlash2
+drafter needs the absent `SupportsEagle3`. The lane's TensorFold runbooks are
+boot-verified instead: our `bertholomus` EXL3 3.0bpw TP4 (C1 35.7 t/s @ d0, MTP-3
+acceptance 63.4 %) and the MiaAI-Lab Flash EXL3 4bpw at TP=2 (C1 58.5/60.5 @ d0/d8k,
+DFlash2 accept 87 %, quality 37/37, needle 2/2 at 1M), TP=3 (C1 65.4/65.1 @ d0/d8k,
+DFlash2 accept 71.2 %, KV 4.84M) and TP=4 (C1 98.4 t/s @ d0, DFlash2 accept 76.6 %) — see
+[`glm/README.md`](glm/README.md). The DFlash2 drafter is CC BY-NC-ND (acceptable
+for this non-commercial cluster)._
 
 ## Decision
 
@@ -116,9 +124,9 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
 | nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     | 🚀🧠🔧 |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
-| nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm | 🚀🚚🧠🔧 |   72.2 |  21GB | 0.91 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] — **1M context; needle-verified at ~982k** |
-| ling-3.0-flash-int4-dspark-sglang                | 🧠    |   45.5 | 154GB | 0.80 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80** |
 | kolibri-1-78b-fp8-vllm                           | ✨🧠🔧 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
+
+Two selected 2026-10-13 by the weighting (**node count → speed → accuracy → memory**) — all four arms were single-node, so speed decided. **Archived** to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `ling-3.0-flash-int4-dspark-sglang` (45.5 t/s — below Kolibri's 47.3, and the memory-heaviest arm) and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of the kept 262k recipe: 72.2 t/s, util 0.91; its own doc keeps 262k/0.80 the default).
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
@@ -126,14 +134,14 @@ and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-9
 this node, so quote ours. Quality: **33/37** house battery. Lane research:
 [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
 
-**Nemotron 1M arm (2026-10-12):** the card's 1M-context claim confirmed on GB10 — boots at the
+**Nemotron 1M arm (2026-10-12 — archived 2026-10-13):** the card's 1M-context claim confirmed on GB10 — boots at the
 card's util 0.91 (KV 87.27 GiB → 21.3M tokens), 1M-window needle **PASS** at depths 10/50/90
 (~982k-token server-counted prompts, Nemotron-calibrated 3.8590 chars/token). Measured C1
 **72.2 t/s @ d0** (σ 15.1, n=5) vs the 262k recipe's 77.7. Swap-risk caveat: ~1 GiB free with
 2.05 GiB swap allocated during 1M prefills but zero swap-in/out under needle load; sustained
 multi-tenant load untested. The 262k/0.80 recipe remains the shipped default.
 
-**Ling 262k closure (2026-10-12):** mem-fraction ladder boots 0.80 first rung — KV pool
+**Ling 262k closure (2026-10-12 — archived 2026-10-13):** mem-fraction ladder boots 0.80 first rung — KV pool
 313,752 tokens (0.75 measured 176,203); 262k-window needle **PASS** at depths 10/50/90
 (~256.6k-token prompts); 4-way concurrency smoke clean, zero OOM/retract. 0.87 stays the
 documented ceiling.
@@ -234,7 +242,9 @@ and the validation ritual for the `0.9B` / `7B-FP8` set); the
 research record and journals are git-ignored working files beside them.
 
 The Ornith 1.5 lanes are documented in [`ornith/README.md`](ornith/README.md) (per-recipe wiring,
-caveats, and the three archived arms); the lane carries no `AGENTS.md` and no guard suite.
+caveats, and the three archived arms) and [`ornith/AGENTS.md`](ornith/AGENTS.md) (lane state,
+constraints, the A/B negative result, and the validation ritual); the lane carries no
+`tests/test_ornith_recipes.py` guard suite.
 
 The Qwen3 lane is documented in [`qwen3/README.md`](qwen3/README.md) (recipe summary) and
 [`qwen3/AGENTS.md`](qwen3/AGENTS.md) (model thesis, tunable rationale, negative results, and the
