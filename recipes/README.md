@@ -106,27 +106,59 @@ CC BY-NC-ND (acceptable for this non-commercial cluster)._
 
 | Recipe                  | Flags | C1 t/s | Size |  Mem | TP | Model Cards                          |
 |:------------------------|:------|-------:|-----:|-----:|---:|:-------------------------------------|
-| jev-9b-decision-vllm    |       |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B]            |
+| jev-9b-decision-vllm    |       |      — |  18GB |   — |  1 | [Model][autotrust/JEV-9B] — **decision: /v1/completions; Typed Decisions 67.0% (1340/2000), boot-verified** |
 | clef-flash-decision-sglang |    |      — |  19GB |   — |  1 | [Model][Cloudflare/clef-flash] — **decision: /v1/systemone; Typed Decisions 70.3% (1406/2000), boot-verified** |
+| kai-0.6b-decision-vllm-srun |    |      — |   2GB |   — |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] — **decision: /v1/systemone; Typed Decisions 47.5% (949/2000), boot-verified (CPU)** |
+| sol-2b-decision-vllm-srun  |    |      — |   5GB |   — |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B] — **decision: /v1/systemone; Typed Decisions 55.0% (1100/2000), boot-verified (CPU)** |
 
-_Prefill-only decision scorer (SystemOne-shaped logprobs over /chat/completions) — a distilled
+_Prefill-only decision scorer (SystemOne-shaped logprobs over /v1/completions) — a distilled
 student of TypeSafe Jev 1.13 (KL ≈ 0.019 receipts). Co-locates with the embed+rerank 2B pair on
 one node. **BOOT-VERIFIED 2026-10-11** (one node): `/v1/models` advertises both the base model and the
-`jev-decision` LoRA adapter, and the scoring path returns processed `top_logprobs`. Lane research:
-[`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md)._
+`jev-decision` LoRA adapter. **SCORED 2026-10-12** (`tools/jev-decision-bench.py`, TEB v2.8.0-mirror
+metrics, one request per question): Decision Accuracy **67.0% (1340/2000)** ★★, 0 errors,
+KL 0.3523 / Brier 0.1336 / ECE 0.0299, ~132 ms/decision — 3.3 pts behind clef's 70.3% on the same
+instrument (caveat: JEV scores natively per-question, clef per-case). Lane research:
+[`decision/DECISION-MODELS-RESEARCH.md`](decision/DECISION-MODELS-RESEARCH.md). Receipts:
+`~/benchmarks/jev-decision-20261012/`._
+
+The `vllm-srun` arms (`Decision-2.0` Kai-0.6B / Sol-2B) boot-verified + scored 2026-10-13 on the
+vendor's own runtime (the `vllm-sr` router image, arm64; kill-shim + `executor_config.user: root`
+workaround documented in the lane README) on **CPU**, pinned to the A725 cores — a decision model
+at no GPU cost. Ladder on the shared instrument: Sol 55.0% > Kai 47.5% (both ★★, 0 errors), below
+JEV-9B 67.0% and clef 70.3% as expected for 0.6B/2B. Receipts: `~/benchmarks/kai-sol-20261012/`.
 
 ## Explore
 
 | Recipe                                          | Flags | C1 t/s |  Size |  Mem | TP | Model Cards                                                                 |
 |:------------------------------------------------|:------|-------:|------:|-----:|---:|:----------------------------------------------------------------------------|
 | nemotron-3.5-lightning-30b-nvfp4-dspark-vllm     |       |   77.7 |  21GB | 0.80 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] |
-| ling-3.0-flash-int4-dspark-sglang                | 🚚    |      — | 154GB | 0.75 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; C1 measuring** |
+| nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm | 🚚    |   72.2 |  21GB | 0.91 |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] [Draft][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark] — **1M context; needle-verified at ~982k** |
+| ling-3.0-flash-int4-dspark-sglang                | 🚚    |   45.5 | 154GB | 0.80 |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80** |
+| kolibri-1-78b-fp8-vllm                           | ✨ 🧠 |   47.3 |  74GB | 0.78 |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)** |
 
 _Rank-1 explore candidate (1 node, 20.8 GB NVFP4 weights). **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
 and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-96 t/s third-party figure on
 this node, so quote ours. Quality: **33/37** house battery. Lane research:
 [`explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
+
+**Nemotron 1M arm (2026-10-12):** the card's 1M-context claim confirmed on GB10 — boots at the
+card's util 0.91 (KV 87.27 GiB → 21.3M tokens), 1M-window needle **PASS** at depths 10/50/90
+(~982k-token server-counted prompts, Nemotron-calibrated 3.8590 chars/token). Measured C1
+**72.2 t/s @ d0** (σ 15.1, n=5) vs the 262k recipe's 77.7. Swap-risk caveat: ~1 GiB free with
+2.05 GiB swap allocated during 1M prefills but zero swap-in/out under needle load; sustained
+multi-tenant load untested. The 262k/0.80 recipe remains the shipped default.
+
+**Ling 262k closure (2026-10-12):** mem-fraction ladder boots 0.80 first rung — KV pool
+313,752 tokens (0.75 measured 176,203); 262k-window needle **PASS** at depths 10/50/90
+(~256.6k-token prompts); 4-way concurrency smoke clean, zero OOM/retract. 0.87 stays the
+documented ceiling.
+
+**Kolibri-1 (2026-10-12):** first boot of the 78.1B/3.46B MoE on stock vLLM 0.29 + the vendor
+pure-Python plugin (`mods/install-kolibri-plugin`). C1 **47.3 t/s @ d0** (σ 0.10, n=5), battery
+**36/37** at `--max-tokens 4096` reproduced twice, 37/37 union with the default-384 run — the
+lone `needle-1` failure is thinking-budget truncation, not knowledge. Kept: accuracy-champion
+role at 1 node, not dominated (≥ Ling's 45.5 t/s).
 
 # Model Flags
 
@@ -252,4 +284,7 @@ DSpark arm, and the depth/SSM/queue threads — moved to [`../attic/qwen3/`](../
 [Cloudflare/clef-flash]: https://huggingface.co/Cloudflare/clef-flash
 [inclusionAI/Ling-3.0-flash-int4]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
 [inclusionAI/Ling-3.0-flash-dspark]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
+[vllm-sr/Decision-2.0-Kai-0.6B]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
+[vllm-sr/Decision-2.0-Sol-2B]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B
+[Aleph-Alpha/Kolibri-1]: https://huggingface.co/Aleph-Alpha/Kolibri-1
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash

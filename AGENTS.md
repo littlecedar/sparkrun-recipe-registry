@@ -6,14 +6,14 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 (`Trusted=yes`, so recipe mods run unprompted at launch). There is no compiled application here:
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
-Counts in this document were verified 2026-10-08 against the working tree. Facts drift — re-measure
+Counts in this document were verified 2026-10-13 against the working tree. Facts drift — re-measure
 (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 20 files in 7 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 27 files in 10 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
-- **Mods** (`mods/`, 27 shipped + `mod-template`) — pre-launch container hooks that patch or stage
+- **Mods** (`mods/`, 20 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
 - **Benchmarking** (`benchmarking/`, 43 `llama-benchy` profiles + index README) — the curated
   profile library used by `sparkrun benchmark performance`.
@@ -55,13 +55,13 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/ds4/` (3), `recipes/embed/` (2), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (3), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen4 lane gained two solo TP=1 recipes (PLE-offload routes, boot-verified) and the qwen3 lane a DSpark draft arm the same day, and the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
-| `recipes/glm/` | `GLM-5.3-RECOMMENDATIONS.md` only — no recipes yet |
+| `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (4), `recipes/glm/` (1), `recipes/ifm/` (2), `recipes/ornith/` (2), `recipes/qwen3/` (2), `recipes/qwen4/` (6), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms) and the Explore lane (Nemotron 262k + 1M arms, Ling, Kolibri-1) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
+| `recipes/glm/` | One shipped recipe (`glm-5.3-flash-nvfp4-dflash-vllm.yaml`, TP4, NOT boot-verified) + `GLM-5.3-RECOMMENDATIONS.md` |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 24 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`. Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
-| `tests/` | 10 importable guard modules, one skipped `*.sync-conflict-*.py` |
-| `tools/` | 9 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
+| `tests/` | 12 importable guard modules, one skipped `*.sync-conflict-*.py` |
+| `tools/` | 10 stdlib CLIs (pooling-bench, needle-haystack, quality-battery, jev-decision-bench, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
