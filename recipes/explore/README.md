@@ -192,9 +192,11 @@ quality tasks for speed) and the **Nemotron 1M arm** (a variant of it: 72.2 t/s,
 precedent), then `Laguna-S-2.1-NVFP4` (118B-A8B, also 1 node per the single-Spark TP=1 sweep), with
 `Laguna-M.1` as a 2-node ceiling reference; and two **media-generation arms that sit outside this
 lane's reasoning/tool-calling brief** — `Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial licence,
-owner call required before it can ship**) and `Lightricks/LTX-2.5` (video+audio; gated repo).
+owner call required before it can ship**) and `Lightricks/LTX-2.5` (video+audio; gated repo) — plus a
+third off-brief arm, the text-rewriting helper `jialinyyzz/humanizer` (12B Gemma-4 finetune,
+Apache-2.0, vLLM-servable via a byte-exact `/v1/completions` prompt).
 Inventory, GB10 precedents, and per-arm checklists: [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md)
-§5–§6. Otherwise nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only
+§5–§7. Otherwise nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only
 (zero boot history), and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B /
 Mistral-Small-4-119B are blocked or untested (see the research doc's checklists). Single-node TP=1.
 
