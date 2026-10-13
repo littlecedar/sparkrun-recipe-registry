@@ -1,0 +1,101 @@
+recipe_version: "2"
+model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+model_revision: bee7596271d1495f6992ae224aefde4410e816b8
+# The 1M-context arm: same digest-pinned image and serve line as the shipped
+# 262k recipe (BOOT-VERIFIED 2026-10-11), with exactly two defaults changed —
+# max_model_len 1000000 and gpu_memory_utilization 0.91, the card's official
+# GB10 numbers. This arm exists to TEST the card's claim; the community warning
+# is that 0.91 leaves ~1 GiB free and swaps. The shipped default remains the
+# 262k/0.8 recipe.
+container: vllm/vllm-openai:glm53-flash@sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 (Mamba-2 + MoE + attn hybrid,
+    3B active) on ONE DGX Spark (TP=1) — the 1M-context arm testing the card's
+    official GB10 recipe (util 0.91, 1M context) against the community warning
+    that 0.91 leaves ~1 GiB free and swaps. The shipped default remains
+    nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml (262k, util 0.8,
+    BOOT-VERIFIED 2026-10-11: C1 77.7 t/s, DSpark acceptance 3.67/88.9%,
+    battery 33/37). Same image, same DSpark draft, same serve line.
+  model_url: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "30B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  draft_model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+  model_draft_dtype: bf16
+  tags: explore, fast, large_context
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  max_model_len: 1000000
+  # The card's official GB10 util, under test here (the community warning:
+  # ~1 GiB free and swaps). The shipped 262k recipe stays at 0.8.
+  gpu_memory_utilization: 0.91
+  max_num_seqs: 32
+  moe_backend: marlin
+  kv_cache_dtype: fp8
+  # The draft repo id and the token count are LITERALS here — the boot-proven
+  # form. Two distinct rendering behaviours were observed with placeholders:
+  # (1) inside a defaults VALUE, NOTHING resolves (sparkrun renders only the
+  # command template) — a nested {placeholder} survives verbatim into
+  # sparkrun's own json.loads(speculative_config) and kills the launch
+  # ("Expecting property name …", verified 2026-10-11); and (2) inside the
+  # command template, an UNQUOTED placeholder resolves but a QUOTED one does
+  # not (the renderer masks braces inside quoted JSON blobs, which is why the
+  # first render kept "{speculative_draft_model}" verbatim while
+  # num_speculative_tokens resolved to 3). The literals are what the draft
+  # binding (which reads this JSON's "model" field) and the engine both need.
+  # To experiment, override the whole blob:
+  #   -o 'speculative_config={"method": "dspark", "model": "<repo>", "num_speculative_tokens": N}'
+  # — that form is boot-verified. A num_speculative_tokens defaults key would
+  # be inert here and is deliberately absent.
+  # The draft is DISTRIBUTED only because the spec config lives under this key:
+  # sparkrun's vLLM draft binding reads config["speculative_config"], adds the
+  # draft repo to the distribution set, and injects the prepared revision. An
+  # inline literal in `command:` is invisible to it and the offline engine then
+  # dies resolving the draft (measured 2026-10-11).
+  speculative_config: '{"method": "dspark", "model": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark", "num_speculative_tokens": 3}'
+
+env:
+  PYTHONUNBUFFERED: '1'
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+# recipe's own serve line runs instead of being parsed as the image's flags.
+executor_config:
+  entrypoint: ""
+
+# 2026-10-11: --moe-backend was accidentally dropped by an edit and the pin was
+# inert — the verified 77.7 t/s boot ran with moe_backend='auto' and vLLM
+# auto-selected marlin anyway, so the number stands, but the pin now actually
+# reaches the engine. sparkrun's validation stays silent for a flag-map key the
+# template omits (report_unmapped_config_keys counts known_config_keys as
+# "reaching something") — watch for that silent-drop class in other recipes.
+# Comments must live OUTSIDE the folded `command:` block: a `>` scalar keeps them
+# as literal text, and sparkrun's shell-comment rule then eats every flag that
+# follows the first `#`.
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--nvidia--NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4/snapshots/bee7596271d1495f6992ae224aefde4410e816b8
+  --served-model-name nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  --revision=bee7596271d1495f6992ae224aefde4410e816b8
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --moe-backend {moe_backend}
+  --mamba-backend flashinfer
+  --mamba-cache-mode align
+  --reasoning-parser nemotron_v3
+  --tool-call-parser qwen3_coder
+  --enable-auto-tool-choice
+  --default-chat-template-kwargs '{"enable_thinking": false}'
+  --speculative-config '{speculative_config}'
