@@ -16,9 +16,20 @@ this mod reproduces its one meaningful step on the stock multi-arch
   the mod exits 1 and the launch aborts (the serve would otherwise boot
   without the `kolibri1` parsers).
 - Idempotent: a content marker at `${MOD_CACHEDIR}/mod-install-kolibri-plugin.installed`
-  records the installed version; a matching marker skips the pip download.
-  The import/entry-point verification runs on every pass regardless.
+  records the installed version; the pip install is skipped only when the marker
+  matches **and** the module imports at that version in the current container
+  layer. The marker lives on the persistent `.cache` mount while pip installs
+  into the container's **ephemeral** layer, so a marker alone is not proof the
+  module is present (measured 2026-10-13 on `.35`: a second boot skipped on a
+  surviving marker and died `ModuleNotFoundError: No module named
+  'aleph_alpha_inference'` in `launch_inference`). The import/entry-point
+  verification then runs on every pass regardless, and the marker is rewritten
+  only after it passes.
 - Everything the mod creates is `reown()`ed to the `.cache` mount's owner.
+- Guard: `tests/test_kolibri_plugin_mod.py` executes `run.sh` against temp dirs
+  with stubbed `pip`/`python3` (no package is installed, so it runs anywhere). The
+  negative control reproduces the 2026-10-13 outage shape — a marker that
+  outlived its module — and asserts the mod re-installs rather than skipping.
 
 Used by `recipes/explore/kolibri-1-78b-fp8-vllm.yaml`. Bump `PLUGIN_VERSION`
 in `run.sh` together with the recipe's container pin.

@@ -13,8 +13,10 @@ set -euo pipefail
 # The plugin registers the `kolibri1` reasoning + tool-call parsers through
 # vllm.general_plugins. Installed with --no-deps per the plugin README so the
 # image's vLLM/torch/transformers are never touched.
-# Idempotent via a content marker under MOD_CACHEDIR. Fails closed: a failed
-# install or a failed import/entry-point check aborts the mod (and the launch).
+# Idempotent via a content marker under MOD_CACHEDIR gated on a live import of
+# the pinned module (the marker alone outlives the ephemeral install layer).
+# Fails closed: a failed install or a failed import/entry-point check aborts
+# the mod (and the launch).
 #####################################################################
 
 export MOD_NAME="install-kolibri-plugin"
@@ -25,10 +27,13 @@ export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CACHEDIR="${MOD_CACHEDIR:-/cache/runtime}"
 export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
 export UV_LINK_MODE=copy
-export USER_UID="$(stat -c '%u' /cache/runtime)"
-export USER_NAME="$(stat -c '%U' /cache/runtime)"
-export USER_GID="$(stat -c '%g' /cache/runtime)"
-export USER_GROUP="$(stat -c '%G' /cache/runtime)"
+# The mod runs as root; reown() hands cache writes back to the .cache mount's
+# owner. Infer that owner from MOD_CACHEDIR (falling back to the container's
+# /cache/runtime), so the mod also runs against a temp CACHEDIR in tests.
+export USER_UID="$(stat -c '%u' "${CACHEDIR}" 2>/dev/null || stat -c '%u' /cache/runtime 2>/dev/null || echo 0)"
+export USER_NAME="$(stat -c '%U' "${CACHEDIR}" 2>/dev/null || stat -c '%U' /cache/runtime 2>/dev/null || echo root)"
+export USER_GID="$(stat -c '%g' "${CACHEDIR}" 2>/dev/null || stat -c '%g' /cache/runtime 2>/dev/null || echo 0)"
+export USER_GROUP="$(stat -c '%G' "${CACHEDIR}" 2>/dev/null || stat -c '%G' /cache/runtime 2>/dev/null || echo root)"
 
 # The plugin release this mod pins (matches the recipe's tested pairing with
 # vllm/vllm-openai:v0.29.0). Bump together with the recipe's container pin.
@@ -99,10 +104,20 @@ log_var CACHEDIR
 
 MARKER="${CACHEDIR}/mod-${MOD_NAME}.installed"
 
-# Idempotence: skip the pip install when the marker already records this
-# version. The import/entry-point check below still runs either way.
-if [[ -f "${MARKER}" ]] && grep -qx "${PLUGIN_VERSION}" "${MARKER}"; then
-  log "marker ${MARKER} already records ${PLUGIN_VERSION} — skipping pip install"
+# Idempotence is gated on the LIVE container layer, not on the marker alone.
+# MOD_CACHEDIR (/cache/runtime) is a persistent cache mount, but pip installs
+# into the container's EPHEMERAL layer, which is empty on every relaunch: a
+# marker that outlives its module is a stale marker (measured 2026-10-13 on
+# .35 — the second boot skipped the install on a surviving marker and died
+# `ModuleNotFoundError: No module named 'aleph_alpha_inference'` in
+# launch_inference). So skip only when the marker records this version AND the
+# module imports at that version right now.
+plugin_installed_at_version() {
+  python3 -c "import importlib.metadata as md; import aleph_alpha_inference; v=md.version('aleph-alpha-inference'); assert v == '${PLUGIN_VERSION}', 'have ' + v" >/dev/null 2>&1
+}
+
+if [[ -f "${MARKER}" ]] && grep -qx "${PLUGIN_VERSION}" "${MARKER}" && plugin_installed_at_version; then
+  log "marker ${MARKER} records ${PLUGIN_VERSION} and the plugin imports — skipping pip install"
 else
   log "Installing aleph-alpha-inference==${PLUGIN_VERSION} (--no-deps: image vLLM/torch/transformers untouched)"
   log_cmd pip install --force --break-system-packages --no-deps "aleph-alpha-inference==${PLUGIN_VERSION}"
@@ -118,6 +133,6 @@ fi
 
 printf '%s\n' "${PLUGIN_VERSION}" > "${MARKER}"
 reown "${MARKER}"
-reown /cache/runtime
+reown "${CACHEDIR}"
 
 log "mod complete"
