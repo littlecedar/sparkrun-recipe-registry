@@ -38,7 +38,7 @@ metadata:
   model_params: "78.1B"
   model_dtype: fp8
   kv_dtype: fp8
-  tags: explore, reasoning
+  tags: explore, official, reasoning, tools
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

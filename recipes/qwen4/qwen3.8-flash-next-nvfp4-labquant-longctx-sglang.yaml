@@ -18,7 +18,7 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: fp8
   kv_dtype: bf16
-  tags: lcg_favorite, large-context
+  tags: lcg_favorite, large_context
   caveats: >
     LONG-CONTEXT IS PARTIALLY UNVERIFIED. The 1M-token setting is the YaRN extrapolation route,
     not a trained capability: the checkpoint was trained to 262144 positions with no YaRN config,

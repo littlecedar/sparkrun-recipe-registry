@@ -15,7 +15,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   # vision + reranking: multimodal Qwen3-VL cross-encoder; --convert classify. NOT `fast`
   # (see above): tagging it would point people at the slower sibling.
-  tags: lcg_favorite, vision, reranking
+  tags: lcg_favorite, vision, reranking, smol
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

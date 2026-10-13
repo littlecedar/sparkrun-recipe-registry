@@ -14,7 +14,7 @@ metadata:
   kv_dtype: fp8
   # vision: multimodal checkpoint (image-text-to-text); the serve line carries a vision
   # encoder flag (--mm-encoder-tp-mode data).
-  tags: lcg_favorite, vision
+  tags: lcg_favorite, vision, reasoning, agent, tools
 
 mods:
   - "@eugr/mods/drop-caches"

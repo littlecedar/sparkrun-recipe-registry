@@ -32,7 +32,7 @@ metadata:
   model_mtp_dtype: bf16
   kv_dtype: bf16
   # vision: same checkpoint as the quality-reference recipe, tower intact.
-  tags: vision
+  tags: lcg_favorite, vision
 
 defaults:
   port: 8000

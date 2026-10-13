@@ -27,7 +27,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "9B"
   model_dtype: bf16
-  tags: decision, colocatable
+  tags: decision, smol, classifier
 
 # No chat endpoint: /v1/systemone is the surface. The default chat-completion
 # probe can only time out, so port + /health readiness only (the pooling-lane

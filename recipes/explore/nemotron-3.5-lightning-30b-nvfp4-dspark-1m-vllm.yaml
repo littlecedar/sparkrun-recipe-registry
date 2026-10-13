@@ -28,7 +28,7 @@ metadata:
   kv_dtype: fp8
   draft_model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
   model_draft_dtype: bf16
-  tags: explore, fast, large_context
+  tags: explore, fast, large_context, reasoning, tools
 
 defaults:
   port: 8000

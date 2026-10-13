@@ -15,10 +15,10 @@ Qwen3-VL embedding/reranking recipes moved to their own lanes on 2026-10-10:
 
 | recipe | runtime | model | flags | C1 t/s | notes |
 |---|---|---|---|---|---|
-| `qwen3.8-27b-nvfp4-dflash2-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] + [incoai/Qwen3.8-27B-DFlash2] draft | ✨🚀🌲 | **33.8** | **shipping.** DFLASH2 spec decode, block 8. Decode-only, d=0, c=1. |
-| `qwen3-coder-next-int4-autoround-vllm` | vllm | [Intel/Qwen3-Coder-Next-int4-AutoRound] | 🚀🌲 | **71.7** | Measured 2026-10-11, `benchmarking/decode-triage.yaml`: **71.7 t/s @ d0** (σ 0.2, n=5) and 67.8 @ d8k (σ 0.1) — **2.1× the DFlash2 lane's C1**, the lane's fastest decode by a wide margin. Serve line pinned to the prepared snapshot (`79c8a6bb`, `--revision=79c8a6bb` literal — see the recipe for why). No accuracy measurement yet; the keep call follows the quality pass. |
+| `qwen3.8-27b-nvfp4-dflash2-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] + [incoai/Qwen3.8-27B-DFlash2] draft | 🌲🚀👀 | **33.8** | **shipping.** DFLASH2 spec decode, block 8. Decode-only, d=0, c=1. |
+| `qwen3-coder-next-int4-autoround-vllm` | vllm | [Intel/Qwen3-Coder-Next-int4-AutoRound] | 🌲🚀 | **71.7** | Measured 2026-10-11, `benchmarking/decode-triage.yaml`: **71.7 t/s @ d0** (σ 0.2, n=5) and 67.8 @ d8k (σ 0.1) — **2.1× the DFlash2 lane's C1**, the lane's fastest decode by a wide margin. Serve line pinned to the prepared snapshot (`79c8a6bb`, `--revision=79c8a6bb` literal — see the recipe for why). No accuracy measurement yet; the keep call follows the quality pass. |
 
-Flags: ✨ official · 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 🧪 measurement-only.
+Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision.
 
 ### Paired house-battery quality (2026-10-11, `tools/quality-battery.py`, n=1)
 

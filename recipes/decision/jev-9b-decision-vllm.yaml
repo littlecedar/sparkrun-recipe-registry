@@ -29,7 +29,7 @@ metadata:
   model_params: "9B"
   model_dtype: bf16
   # Licence: Apache-2.0 (card front matter).
-  tags: decision, colocatable
+  tags: decision, smol, classifier
 
 defaults:
   port: 8000
