@@ -27,6 +27,9 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: RadixArk/Qwen3.8-27B-NVFP4
   gpu_memory_utilization: 0.85
   max_model_len: 262144
   # NOT the granted concurrency. MEASURED on hardware 2026-09-19: the mamba state pool
@@ -96,7 +99,7 @@ defaults:
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
-  --served-model-name {model}
+  --served-model-name {served_model_name}
   --trust-remote-code
   --reasoning-parser qwen3
   --tool-call-parser qwen3_coder

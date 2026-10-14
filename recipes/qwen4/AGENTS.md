@@ -251,6 +251,17 @@ engine accepted it.
   `alloc_memory_pool` and blame the peer node. `launch.sh` gates on `MIN_AVAIL_GB`; do not lower it.
 - **Mods fail closed**; verify a mod by the artifact it leaves in the runtime cache, not by its exit
   status or its log line.
+- **`--served-model-name {model}` advertises the cache path.** sparkrun rebinds every `{model}`
+  occurrence — including the one inside that flag — to the prepared snapshot path on a real launch
+  (`models/runtime.py::bind_runtime_models`); `-n` hides it. All five sglang arms now declare
+  `served_model_name: <repo id>` and render the flag from `{served_model_name}` — no exception. The
+  three labquant arms additionally carry `--revision {model_revision}`: after the fix their only
+  identity tokens are the declared literal and that flag, and `validate_runtime_command`'s branch 1
+  (`_prepared_model_path in argv`) no longer fires because the mod-built PLE tree replaces
+  `--model-path`. Fixed and live-verified 2026-10-13 (`GET /v1/models` → repo id). Because the served
+  name folds into the intent hash (`orchestration/job_metadata.py`, `name=<served>`), the three
+  labquant arms share ONE cluster id (`1895030211ea0500_3510a5e0d37d`) — `stop` addresses whichever
+  is current.
 
 ## 8. Sprawl policy
 
@@ -356,6 +367,7 @@ at most a short coupling beside the value. `§N` refers to
 - **Proposed changes (not adopted).** `--enable-int8-mamba-checkpoint`,
   `--int8-mamba-ckpt-size <size?>` and `--revision {revision}` were sketched in the recipe tail; none
   adopted or measured.
+- **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 599.7 s).
 
 ### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A)
 
@@ -382,6 +394,7 @@ at most a short coupling beside the value. `§N` refers to
     (§6 PRIORITY-1, §19c); the 8192 win was measured on RadixArk and does not transfer. This is the
     throughput lane, not the low-latency one — at the aggregate peak per-request decode is a fraction
     of the single-stream rate.
+- **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 594.4 s).
 
 ### 10.3 `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B)
 
@@ -410,6 +423,7 @@ at most a short coupling beside the value. `§N` refers to
   the real dict at `rope_type: default` (the YaRN silently does not apply); nesting under
   `text_config.rope_parameters` gives `rope_type: yarn`. Always grep the serve log for a non-default
   `rope_type` before trusting a long-context number. `factor` 3.815 = 1_000_000/262144.
+- **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 596.2 s at `max_model_len: 1000000`).
 
 ### 10.4 `qwen3.8-flash-next-nvfp4-sglang.yaml` (RadixArk reference)
 
@@ -417,6 +431,7 @@ at most a short coupling beside the value. `§N` refers to
   this recipe ships no pin).
 - Proposed changes (not adopted): `--enable-int8-mamba-checkpoint`,
   `--int8-mamba-ckpt-size <size?>`, `--revision {revision}`.
+- **Served name (2026-10-13).** Fixed to declare `served_model_name: RadixArk/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1753bbfdf3f0a50e_3510a5e0d37d`, TTR port-open 642.8 s).
 
 ### 10.5 `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` (solo TP=1, SGLang)
 
@@ -425,6 +440,7 @@ at most a short coupling beside the value. `§N` refers to
   `lmsysorg/sglang:dev-qwen38-next-local` — the image the cookbook's single-Spark cells were verified
   on. Its `sglang` is `0.0.0.dev1+g4ccff141d`, carrying #37068 (file-backed PLE), #38121 (ModelOpt
   MIXED_PRECISION loader) and the SM121 QSA/router fixes; no patched image needed.
+- **Served name (2026-10-13).** Fixed to declare `served_model_name: RadixArk/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `15adecfd945cac5c_8ed3ce77d78f`, TTR port-open 608.2 s).
 
 ### 10.6 `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` (solo TP=1, vLLM)
 

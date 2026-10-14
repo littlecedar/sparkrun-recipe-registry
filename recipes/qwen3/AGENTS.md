@@ -84,6 +84,14 @@ effect several claims turn on. Quote a ratio with its estimator or it is ambiguo
    container — grab it before teardown.
 10. **Search the archive by benchmark PROFILE name before queueing an experiment.** One was re-run
     at 8 boots' cost for lack of a recorded profile name (`ANSWERED-QUEUES.md`).
+11. **Never write `--served-model-name {model}` (27B).** sparkrun binds every `{model}` occurrence —
+    including one inside `--served-model-name` — to the prepared snapshot path on a real launch
+    (`models/runtime.py::bind_runtime_models`), so the engine advertises `/cache/huggingface/hub/…`
+    as its model id while `-n` still prints the repo id. The 27B arm declares
+    `served_model_name: RadixArk/Qwen3.8-27B-NVFP4` and renders the flag from it; fixed and
+    live-verified 2026-10-13 (boot `3b78f3ef7df2980b_64af2f7668b6`, `.35`: `GET /v1/models` →
+    `RadixArk/Qwen3.8-27B-NVFP4`, 262144 ctx, TTR port-open 119.8 s). Guard:
+    `tests/test_recipe_placeholder_resolution.py::ServedModelNameNotRebound`.
 
 ## 4. Why each shipped value is what it is
 
