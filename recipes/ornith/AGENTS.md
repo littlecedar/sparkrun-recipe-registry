@@ -83,6 +83,20 @@ that **grafts the BFP16 MTP MoE from the base model onto the NVFP4 quantization*
 `ornith-ai/Ornith-1.5-397B`, ≈800 GB in bf16). Its model card reports **41.86 tok/s** on a 4× DGX
 Spark vLLM run — that is the `C1 t/s` in the parent table; it is a **card figure**, tied to whatever
 the `:latest` container tag resolved to when recorded (§3).
+  **Booted + measured 2026-10-14** (`.30–.33`, TP=4, `benchmarking/decode-triage.yaml`, decode-phase
+  rows only): MTP baseline **42.55 t/s @ d0 (σ 2.78)** / **38.48 t/s @ d8192 (σ 1.91)**, spec decode on
+  (`Mean acceptance length` 2.68–3.06), `GET /v1/models` = repo id, cold TTR 590.7 s. The first house
+  measurement of the 397B beside the card's 41.86. Receipts `~/benchmarks/ornith-397b-ab-20261014/`.
+  It is now **digest-pinned** (`@sha256:b94ac8ac…`, `nightly-20260913`) — before the pin the four nodes
+  held three different builds under `:latest` (§3.8). **DFlash-vs-MTP A/B — CLOSED 2026-10-14; MTP
+  ships.** Same window, same four nodes, same pinned build, `benchmarking/decode-triage.yaml`:
+  MTP (3 tok) **42.55 (σ 2.78) / 38.48 (σ 1.91)**, accept 2.68–3.06; the vendor DFlash head
+  (`ornith-ai/Ornith-1.5-397B-DFlash`, `db9c35a0…`, 8 tok) **37.58 (σ 4.45) / 33.64 (σ 1.13)**, accept
+  3.27. DFlash loses ~12% at both depths **despite the higher acceptance** — its speculator overhead
+  exceeds the extra accepted tokens, and it **disables prefix-cache reuse** on this hybrid-Mamba target
+  (serve-log warning, Mamba groups [0..44] treated as draft groups). The shipped MTP default stands; the
+  DFlash head is a **documented one-knob alternative** (`-o speculative_config={...}`, §3.13), no recipe
+  file. Receipts `~/benchmarks/ornith-397b-ab-20261014/`.
 
 **9B (`ornith-1.5-9b-nvfp4-dflash-sglang`, 1 node, TP=1) — BOOTED 2026-10-14.** The official
 `ornith-ai/Ornith-1.5-9B-NVFP4` (`155f200d…`, 8.8 GB of weights, dense ~9B, multimodal) with the
@@ -165,10 +179,15 @@ Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab
    boot ran the pre-session recipe for exactly this reason.
 7. **Spec decode is user-visible in the log.** Check `Mean acceptance length > 1` on `Decode batch`
    lines. A DFlash2 boot that serves but accepts ≈1 token/step is a misconfiguration, not a win.
-8. **The 397B container tag floats.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest` is the one
-   unpinned container in the lane — a moving tag, so a future pull can change the engine underneath
-   the recipe. Treat the measured 41.86 t/s as tied to whatever the tag resolved to. A digest pin
-   would make it reproducible.
+8. **The 397B container tag floats — now digest-pinned, and the nodes disagreed.** Before the pin, the
+   four serving nodes held **three different builds** under `ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest`
+   (`.30` `nightly-20260913` vLLM `0.29.1rc1.dev17`; `.31` `nightly-20260826` `0.26.1rc1`; `.32`/`.33`
+   `nightly-20260911`) — a TP=4 launch on the bare tag is not one engine. The registry `:latest` resolved
+   to a *fourth* build (`sha256:364005b0…`, `nightly-20261013`, vLLM `0.32.0rc1.dev78`) that this cluster
+   could not pull (the OCI relay registry download stalled at ~400 KiB/s and failed on all four nodes).
+   The recipe now pins the head-resident build, distributed uniformly:
+   `container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:b94ac8ac47603f9c3d14f88c12b90eacbc37c7a42f922631cb8c9ac80f7b37c3`
+   (`nightly-20260913`; exposes `method: dflash`). Measured 41.86 t/s remains a card figure.
 9. **`VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1` does not extend context.** The 397B sets it but
    `max_model_len` is **262144** (the native window). The env var only lifts vLLM's refusal to
    exceed the checkpoint's declared maximum.
@@ -201,6 +220,17 @@ Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab
     The 9B arm's first-party draft stays deliberately unpinned — its unpinned fetch resolves
     `refs/main` itself (boot-verified 2026-10-14, `.30`). Do not copy a draft pin into a new arm
     without the same seed.
+13. **The 397B `speculative_config` must stay a declared default, not inline JSON.** sparkrun reads the
+    speculative **draft model+revision out of the `speculative_config` *default***
+    (`runtimes/_vllm_common.py::detect_spec_config_draft` → `recipe._effective_default("speculative_config")`
+    → `json.loads`), and `-o speculative_config={...}` only reaches a *declared* default. So inline JSON in
+    `command:` does two silent things: the MTP↔DFlash method swap becomes a no-op, and a DFlash draft is
+    never distributed to the four nodes (`Revision Not Found` at serve). The recipe therefore declares
+    `defaults.speculative_config` and renders `--speculative-config '{speculative_config}'`. Nested
+    placeholders inside a default's value are **not** substituted (the render is a single pass over
+    `command:`), so the default's JSON carries literal values. The draft's revision lives **inside that
+    JSON** (vLLM's `revision` field), never via `model_revision:` (that SHA is not in the target repo).
+    Guards: `tests/test_ornith_recipes.py::FlagshipSpeculativeConfigIsSwappable`.
 
 ## 4. Negative results — do not re-derive / re-run
 
@@ -291,8 +321,11 @@ the lane's only suite score.
 - **The 35B C1 re-measurement — CLOSED 2026-10-13.** Measured on `.35` with the pinned
   `benchmarking/decode-triage.yaml` (C1, n=5 per cell, decode-phase rows only): **99.6 t/s @ d0
   (σ 9.1)** / **100.2 t/s @ d8192 (σ 3.9)**; the `~100 t/s` headline holds. See §1.
-- **The 397B container digest pin** (see §3.8) — and the MTP-vs-DFlash A/B that records it
-  ([`NOTES.md`](NOTES.md) §4).
+- **The 397B container digest pin — CLOSED 2026-10-14.** Pinned to `@sha256:b94ac8ac…`
+  (`nightly-20260913`) after the four nodes were found holding three different builds under `:latest`
+  (§3.8); registry `:latest` resolved to an unpullable fourth build. **MTP-vs-DFlash spec-decode A/B —
+  CLOSED 2026-10-14: MTP wins** (42.55/38.48 vs 37.58/33.64 t/s; DFlash's higher acceptance does not
+  transfer and it disables prefix caching). See §1 and [`NOTES.md`](NOTES.md) §4.
 - **The house `mamba_full_memory_ratio: 3.51`** — picked to match precedent, not derived; a change
   is a traffic-shape decision.
 - **The 9B arm — CLOSED 2026-10-14.** Booted and measured (see §1); the two open boot questions
@@ -323,6 +356,10 @@ model-revision pins (and the 9B draft's deliberate *absence* of one — see §3.
 distribution-only pin **and** its `refs/main` seed hook (O5), the mamba/moe
 omission on the 9B arm, and the served-model-id spelling. Before that the
 lane had no recipe guard at all.
+
+Two 397B guards were added with the spec-decode A/B: `FlagshipSpeculativeConfigIsSwappable` (§3.13 — the
+`{speculative_config}` placeholder must stay a declared default and stay out of `command:`) and
+`FlagshipContainerIsDigestPinned` (§3.8).
 
 ## 8. References
 
