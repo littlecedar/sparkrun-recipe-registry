@@ -48,6 +48,13 @@ export USER_GROUP="$(stat -c '%G' /cache/runtime)"
 # user access may fail if owned by root. Use this to fix that.
 #--------------------------------------------------------------------
 reown() {
+  if [[ "$(id -u)" != "0" ]]; then
+    # Not every image runs the container as root (vllm/vllm-openai is 1000:1000):
+    # a chown of root-owned leftovers fails with EPERM and, under `set -e`, takes the
+    # whole pre-exec hook down. Skip instead of failing.
+    log "reown: not root (uid $(id -u)); skipping chown of ${*}"
+    return 0
+  fi
   log "resetting permissions to ${USER_UID}:${USER_GID} on ${*}"
   chown -R "${USER_UID}:${USER_GID}" "${@}"
 }
@@ -70,9 +77,14 @@ log() {
   }
 
   if [[ -z "${*}" ]]; then
+    # End with an explicit success: `read -t` returns >128 on timeout and the loop's
+    # status can propagate through `set -o pipefail`, killing a `cmd | log` pipeline
+    # with rc=120 even though the command succeeded (measured 2026-10-14, qwen-image
+    # mod's venv stage).
     while read -rt "${TIMEOUT}" line; do
       o "${line}"
     done
+    return 0
   else
     o "${*}"
   fi
