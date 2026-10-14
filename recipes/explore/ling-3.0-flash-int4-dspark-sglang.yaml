@@ -63,6 +63,12 @@ defaults:
   kv_cache_dtype: fp8_e4m3
   speculative_algorithm: DSPARK
   speculative_draft_model: inclusionAI/Ling-3.0-flash-dspark
+  # Draft repo's own pin: sparkrun pre-syncs the draft at this revision AND it
+  # reaches SGLang as --speculative-draft-model-revision. Without it the draft
+  # silently follows the repo's `main` (which moved 2026-10-12); with it the
+  # served draft is the one this lane measured. Weights are identical across
+  # the move (same LFS sha256) — the pin is determinism, not a change.
+  speculative_draft_model_revision: d60b0e1291dacb256194c6d48154398730cf8986
   linear_replayssm_cache_len: 32
 
 command: >
@@ -87,5 +93,6 @@ command: >
   --disable-shared-experts-fusion
   --speculative-algorithm {speculative_algorithm}
   --speculative-draft-model-path {speculative_draft_model}
+  --speculative-draft-model-revision {speculative_draft_model_revision}
   --enable-linear-replayssm-spec
   --linear-replayssm-cache-len {linear_replayssm_cache_len}

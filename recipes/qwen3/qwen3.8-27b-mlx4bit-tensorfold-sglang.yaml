@@ -1,0 +1,89 @@
+recipe_version: "2"
+model: TensorFold/Qwen3.8-27B-MLX-4bit
+# Pinned for distribution determinism (a SHA download writes no refs/ entry). This
+# engine has no revision flag: {model} reaches it as the prepared snapshot *path*,
+# so the pin governs which bytes are downloaded, not a serve argument.
+model_revision: 22d8d538154e0e5b6f8dcb1fcc74a60a0798104c
+runtime: sglang
+container: ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold@sha256:043d192b9e1725f55c5439fc9672055de891433e5b31448ed8963918e3c460e9
+min_nodes: 1
+
+metadata:
+  description: Qwen3.8-27B (MLX 4-bit) on one DGX Spark, served by TensorFold v0.6.0 + MiaAI-Lab patches
+  model_url: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27B"
+  model_dtype: int4
+  model_draft_dtype: bf16
+  kv_dtype: fp8
+  tags: vision
+
+# The image inherits the NVIDIA PyTorch base's ENTRYPOINT
+# (/opt/nvidia/nvidia_entrypoint.sh, read from the pinned image's config); clear it
+# so the recipe's own serve line runs instead of being appended to the entrypoint.
+executor_config:
+  entrypoint: ""
+
+env:
+  # The image bakes TORCH_EXTENSIONS_DIR=/cache/torch_extensions, but /cache is a
+  # mount parent docker creates as root and sparkrun runs the container as the
+  # invoking uid — the TensorFold kernels (torch cpp_extension, no build_directory
+  # of its own) cannot create it. Point it at sparkrun's persistent, user-owned
+  # runtime cache: the sm_121a compile is then paid once a node, not once a boot.
+  # (Triton's cache needs no line here: the sglang runtime already places it in that mount.)
+  TORCH_EXTENSIONS_DIR: /cache/runtime/tensorfold/torch-extensions
+  # The engine's update check writes into HOME and calls GitHub; the upstream serving line disables it.
+  TENSORFOLD_NO_UPDATE_CHECK: '1'
+  # Upstream's serving settings: the FP8 attention cache (patch 0003; opt-in in the
+  # engine, 32 KiB a token instead of 64) and a 0 GiB startup reserve (patch 0004;
+  # TensorFold's own default is a tenth of RAM). Raise the reserve if the node is shared.
+  TENSORFOLD_KV_DTYPE: fp8
+  TENSORFOLD_MEMORY_RESERVE_GIB: '0'
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: Qwen3.8-27B
+  max_model_len: 262144
+  # Streams decoded together. Upstream measures no single-request cost up to 8.
+  parallel: 8
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  # The DFlash2 drafter is a second repo: sparkrun's sglang draft hook adds it to the
+  # distribution set, and the engine serves it from the cache. Its own revision is a
+  # distribution-only key — TensorFold has no revision flag to render it into.
+  speculative_draft_model: z-lab/Qwen3.8-27B-DFlash2
+  speculative_draft_model_revision: 50307d4c4cde6860d4eee73e2547cd786fe8e8a4
+
+command: >
+  tensorfold serve {model}
+  --name {served_model_name}
+  --host {host}
+  --port {port}
+  --context {max_model_len}
+  --parallel {parallel}
+  --temperature {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --drafter {speculative_draft_model}
+  --prefill-fp8
+  --vision
+  --thinking
+  # A REAL LAUNCH FAILURE, AND WHY THIS LINE IS HERE: sparkrun appends its own --served-model-name
+  # to any command template that declares served_model_name
+  # (runtimes/base.py::_augment_served_model_name), and this engine parses no such flag: the
+  # first boot died with tensorfold: error: unrecognized arguments: --served-model-name Qwen3.8-27B.
+  # That helper skips the append when the flag text is already in the rendered command, and the
+  # serve command runs as a bash script, so naming the flag in this comment both skips the append
+  # and would be swallowed by the shell if sparkrun ever appended anyway. The id reaches the
+  # engine through --name above.
+
+readiness:
+  inference: true
+  # The first boot builds the sm_121a CUDA extensions and loads ~19 GB of weights before the
+  # port opens; that was 71.5 s on a warm node, so 3600 s is generous headroom for a cold one.
+  port_timeout_s: 3600
+  health_timeout_s: 1800

@@ -1,0 +1,105 @@
+recipe_version: "2"
+model: poolside/Laguna-S-2.1-NVFP4
+model_revision: 826aacdf6d8b2699d4e367def6f17c83b06044c2
+# Stock multi-arch vllm/vllm-openai:v0.29.0, digest-pinned (same pin as the
+# Kolibri-1 and Laguna-XS-2.1 arms). Import-verified on this pin: the
+# `LagunaForCausalLM` + `DFlashLagunaForCausalLM` architectures, the
+# `laguna`/`laguna_dflash` model modules, the `v1.spec_decode.dflash` proposer
+# and the `poolside_v1` reasoning + tool parsers all resolve. The card's floor
+# is vLLM >= 0.25 for the NVFP4 path; this build is above it.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    poolside/Laguna-S-2.1-NVFP4 (117.6B total / 8.5B active MoE, 256 experts,
+    3:1 SWA, native 1,048,576 context) on ONE DGX Spark (TP=1) with the
+    quantization-matched DFlash speculator. The Aug-2026 checkpoint loads to
+    92.9 GiB resident — the quantization ignores attention, both the dense
+    and the shared MLPs and layers 40-47's experts, so most of the download is
+    BF16 — which leaves a single Spark's 0.85 budget only ~4.6 GiB of fp8 KV.
+    The engine's own maximum window for that pool is 124,144 tokens, so this
+    recipe ships 120k, not the card's 262k (262k needs 9.32 GiB of KV; see the
+    lane README). DFlash n=3 is the sweep winner over the vendor default n=15.
+    Thinking is interleaved between tool calls and ON by default;
+    per-request enable_thinking toggles it. 99.7 GB download plus the 2.2 GB
+    draft. Sibling arm: the 33B Laguna-XS-2.1.
+  model_url: https://huggingface.co/poolside/Laguna-S-2.1-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "117.6B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  draft_model: poolside/Laguna-S-2.1-DFlash-NVFP4
+  model_draft_dtype: bf16
+  tags: explore, official, reasoning, tools
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  # Cap the cutlass/FP4 JIT fan-out: an uncapped nvcc on a cold kernel cache
+  # can exhaust the 128 GB unified pool (the model card's warning). A no-op
+  # once the cache is warm.
+  MAX_JOBS: '4'
+
+# Cold start ~15 min (99.7 GB weight load from NVMe, FP4 JIT, graph capture);
+# the port gate plus a generous timeout absorb it.
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, so the served id would be the cache path (-n hides this).
+  served_model_name: poolside/Laguna-S-2.1-NVFP4
+  # The card's native window is 262,144, but the checkpoint is 92.9 GiB
+  # resident and at util 0.85 one Spark grants only ~4.6 GiB of fp8 KV. vLLM's
+  # own maximum for that pool is 124,144 tokens — it refuses 262,144 with
+  # "9.32 GiB KV cache is needed, which is larger than the available KV cache
+  # memory (4.58 GiB)". 120k fits.
+  max_model_len: 122880
+  # 32 is required, not tuned: DFlash crashes vLLM at the default 256.
+  max_num_seqs: 32
+  # The repo's GB10 ceiling. The weights are ~76% of the unified pool, so the
+  # KV pool this grants is small; do not raise it casually (a higher fraction
+  # has wedged GB10 nodes — ds4/AGENTS.md §11).
+  gpu_memory_utilization: 0.85
+  kv_cache_dtype: fp8
+  # The DFlash draft must live in defaults.speculative_config: sparkrun's vLLM
+  # draft binding reads this JSON, adds the draft repo to the distribution set
+  # and injects its prepared revision. It also reads the pin from the same
+  # object's "revision" field (vLLM's own draft-revision field) — without it
+  # the draft follows the repo's `main`. Literals inside the JSON: a nested
+  # {placeholder} inside a defaults VALUE is never rendered and kills the
+  # launch (see recipes/README.md §Notes). n=3 is the sweep winner over the
+  # vendor default n=15 (which loses on one Spark).
+  speculative_config: '{"method": "dflash", "model": "poolside/Laguna-S-2.1-DFlash-NVFP4", "revision": "b3b5921a900b9e0a1e27e50bdaeb480692a6d19b", "num_speculative_tokens": 3}'
+
+# Comments must live OUTSIDE the folded `command:` block: a `>` scalar keeps
+# them as literal text, and sparkrun's shell-comment rule then eats every flag
+# that follows the first `#`.
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--poolside--Laguna-S-2.1-NVFP4/snapshots/826aacdf6d8b2699d4e367def6f17c83b06044c2
+  --served-model-name {served_model_name}
+  --revision=826aacdf6d8b2699d4e367def6f17c83b06044c2
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --reasoning-parser poolside_v1
+  --tool-call-parser poolside_v1
+  --enable-auto-tool-choice
+  --speculative-config '{speculative_config}'

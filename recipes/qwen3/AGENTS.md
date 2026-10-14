@@ -12,6 +12,7 @@ fix this file and say so in the lane notes.
 |---|---|
 | `qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | **shipping** — DFLASH2 spec decode, block 8 |
 | `qwen3-coder-next-int4-autoround-vllm.yaml` | a different family (Intel/Qwen3-Coder-Next, vLLM) sharing the lane dir only |
+| `qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` | **booted + measured 2026-10-14** — a foreign engine (TensorFold v0.6.0 + MiaAI-Lab patches) behind the `runtime: sglang` shim (§12, §13); C1 **41.3 t/s** @ d0, house battery **37/37** |
 
 The **no-spec control** and the **DSpark arm** (measured, rejected: −16 % vs DFlash2; DSpark requires
 `speculative_num_draft_tokens == gamma + 1`, i.e. 8 not 7) live in [`attic/qwen3/`](../../attic/qwen3/)
@@ -244,6 +245,74 @@ template is present) surfaces a resolution failure.
 - Draft (DSpark, archived arm): [RadixArk/Qwen3.8-27B-DSpark](https://huggingface.co/RadixArk/Qwen3.8-27B-DSpark)
 - vLLM coder model: [Intel/Qwen3-Coder-Next-int4-AutoRound](https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound)
 - Base image: [`lmsysorg/sglang:dev-cu13`](https://hub.docker.com/r/lmsysorg/sglang)
-- Guard: [`tests/test_qwen3_vl_embeddings.py`](../../tests/test_qwen3_vl_embeddings.py) (embed/rerank
-  lanes only — there is no guard for the 27B lane yet)
+- Guard: [`tests/test_qwen3_vl_embeddings.py`](../../tests/test_qwen3_vl_embeddings.py) (the
+  embed/rerank lanes) and [`tests/test_qwen3_recipes.py`](../../tests/test_qwen3_recipes.py) (the
+  TensorFold arm); the lane's SGLang arms are covered by
+  [`tests/test_recipe_placeholder_resolution.py`](../../tests/test_recipe_placeholder_resolution.py)
 - Archive: [`attic/qwen3/`](../../attic/qwen3/) (control recipe, DSpark arm, research docs, manifest)
+- TensorFold arm — upstream [MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold)
+  (engine [ashhart/TensorFold](https://github.com/ashhart/TensorFold) v0.6.0 @ `c464617`), checkpoint
+  [TensorFold/Qwen3.8-27B-MLX-4bit](https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit), drafter
+  [z-lab/Qwen3.8-27B-DFlash2](https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2), image
+  `ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold@sha256:043d192b…` (patch set `fb91a0019fdc`)
+
+## 12. The TensorFold arm — the one strict warning, and why it is not the trap it names
+
+`qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` pins `model_revision:` and its `command:` passes no
+`--revision` — the engine has none — so `sparkrun recipe validate --strict` reports
+**`unpinned-model-revision`**. Plain `validate` passes and is the repo's gate; this is the same
+strict-only class as the three `recipes/qwen4/*labquant*` arms.
+
+**The warning's failure story cannot happen here.** It describes an engine handed a bare repo id
+finding no `refs/` entry (a SHA-keyed download writes none) under `HF_HUB_OFFLINE=1` and dying with
+`LocalEntryNotFoundError`. This engine is never handed a repo id: sparkrun rewrites `{model}` to the
+**prepared snapshot path** (`models/runtime.py::bind_runtime_models`), and `tensorfold serve` takes a
+directory or a repo id, never a revision (`src/tensorfold/cli_args.py` at `c464617` has no
+`--revision`). The pin therefore governs **distribution** — which is the only thing it can govern
+here. Do not "clear" the warning by dropping the pin (that unpins what gets downloaded) or by adding
+a flag the pinned engine does not parse (that is an argparse death at the engine, after the ~19 GB
+download).
+
+### 12.1 The flag that killed the first boot, and how it is suppressed
+
+First boot, 2026-10-14, one node (`.30`), job `fe3054ad67464c54_2d38dfc4605e`: `GET /v1/models` →
+`{"id": "Qwen3.8-27B", "owned_by": "tensorfold"}`, TTR port-open **71.5 s**, TTFT 98.7 s; serve log
+`startup estimate 37.77 GiB within 116.72 GiB` and `drafts: on`. Measurements are in the lane README.
+
+**As authored the launch could not boot.** The engine died on its own argv:
+`tensorfold: error: unrecognized arguments: --served-model-name Qwen3.8-27B`. sparkrun's `sglang`
+runtime appends its own `--served-model-name` to *any* rendered `command:` template whose config chain
+carries a `served_model_name` (`runtimes/base.py::_augment_served_model_name` →
+`reconcile_flag_in_command`), and TensorFold parses no such flag — it spells the served id `--name`.
+That helper is a **substring** test, so the append is skipped when the flag text already appears in the
+rendered command. The recipe therefore names the flag in a trailing `#` comment in `command:`; the
+serve command runs as a bash script (scripts/exec_serve_detached.sh → bash /tmp/sparkrun_serve.sh), so
+the comment is discarded before the engine sees it, while sparkrun still sees the token and skips the
+append. **Do not "tidy" that comment away — removing it re-arms the append and the arm stops booting.**
+(A future sparkrun that stops appending makes it inert, not wrong.) The ds4 lane's launcher shim is the
+alternative route if a second engine-mismatched flag ever appears.
+
+## 13. TP=2 on this engine is a runbook, not a recipe (the glm-lane precedent)
+
+TensorFold does multi-node through its own spelling — `--tp 2 --rank R --master HOST
+--master-port PORT` (`src/tensorfold/cli_args.py`: `--tp` has choices `(1, 2)`, plus `--rank`,
+`--master`, `--master-port`, default 29551). sparkrun's sglang runtime declares the rendezvous flags
+it manages as `--dist-init-addr/--nnodes/--node-rank` (`runtimes/sglang.py:250`) and appends
+`--dist-init-addr HOST:25000 --nnodes N --node-rank R` for any world above one node
+(`runtimes/sglang.py:481-486`) — three flags this engine does not parse. Worse, the launch path gates
+its readiness wait on the port inside `--dist-init-addr`, so a wrong mapping turns into a head that
+opens 29551 while sparkrun polls 25000 (the failure the ds4 shim documents).
+
+So a TP=2 arm needs a **launcher shim** that consumes sparkrun's three flags and `exec`s
+`tensorfold serve` with the mapped ones — the route `mods/tensorfold-dsv41-launcher` already ships
+for the ds4 lane (`launcher.py`, whose docstring is the reference for the port/rank contracts). The
+shipped arm is deliberately **TP=1 only** and declares no `tensor_parallel` default and no `--tp`
+flag, so `-o tensor_parallel=2` cannot render a half-broken TP=2 (guarded by
+`tests/test_qwen3_recipes.py::TensorFoldArm::test_no_tensor_parallel_flag`). TP=2 stays a runbook
+note, as the GLM-5.3 TensorFold lines did ([`recipes/glm/README.md`](../glm/README.md)).
+
+Two sizing facts: the startup estimate is **37.77 GiB within 116.72 GiB**, measured here on `.30`
+(the upstream project's own figure is ~45 GiB at the serving defaults); and its `KV_POOL_GB=auto` (up
+to 78 GiB pinned) is a host-side computation in its `start.sh` that a static recipe cannot run — the
+arm leaves the pool to the engine and takes `-e TENSORFOLD_KV_POOL_GIB=<n>` at launch (the pinned image
+reads that variable: `tensorfold/cuda/kv_fp8.py`).

@@ -136,11 +136,23 @@ first-party DFlash speculator drafts; parsers `poolside_v1` (tool + reasoning) o
 |---|---|---|---|---|---|
 | `poolside/Laguna-XS-2.1` `c5f36269bb` 08-19 (+ `-NVFP4` `d32afde8b0` 07-29, `-FP8`, `-INT4`) | 33B (3B) | OpenMDW-1.1 | BF16 66.9 GB; **NVFP4 21.6 GB** | 262,144 | **Spark Arena**: TP=1, 1 node, **37.5 tok/s decode** [third-party], full vLLM recipe (262k, util 0.45, DFlash n=4, fp8 KV) — but its block also says `-tp 2 --nnodes 2`; read it as a sketch |
 | `poolside/Laguna-XS-2.1-DFlash` `5c36361aab` 07-20 | 0.5B draft | OpenMDW-1.1 | 0.9 GB | — | `DFlashLagunaForCausalLM` (6 layers, block 16); vLLM `laguna_dflash`, SGLang `--speculative-algorithm DFLASH` |
-| `poolside/Laguna-S-2.1` `0f57314083` 08-19 (+ `-NVFP4` `826aacdf6d`, `-FP8`, `-INT4`, `-GGUF`) | 118B (8B) | OpenMDW-1.1 | **NVFP4 99.7 GB download / 67.0 GiB resident** | 1,048,576 | **single-Spark TP=1 sweep** (fankserver, 2026-07-22, vLLM 0.25.1): util 0.85 → **1.37M-token KV**, decode 18.3 → 16.5 t/s over 0→65k (SWA), **DFlash n=3 best (25.5 t/s; ~2.35× on coding prompts)**, n=15 vendor default loses; TP=2 scales ~1.7× but unstable — **TP=1 recommended** |
-| `poolside/Laguna-S-2.1-DFlash(-NVFP4)` `b3b5921a90` 07-31 | 1.1B draft | `license: other` — **read the text before distributing** | 2.2 GB | — | forum: early acceptance ~8% at n=15 |
+| `poolside/Laguna-S-2.1` `0f57314083` 08-19 (+ `-NVFP4` `826aacdf6d`, `-FP8`, `-INT4`, `-GGUF`) | 118B (8B) | OpenMDW-1.1 | **NVFP4 99.7 GB download / 67.0 GiB resident** — the resident figure is **wrong**; measured **95.61 GiB** 2026-10-14 (see the sizing correction below) | 1,048,576 | **single-Spark TP=1 sweep** (fankserver, 2026-07-22, vLLM 0.25.1 — the *pre-August* checkpoint): util 0.85 → **1.37M-token KV**, decode 18.3 → 16.5 t/s over 0→65k (SWA), **DFlash n=3 best (25.5 t/s; ~2.35× on coding prompts)**, n=15 vendor default loses; TP=2 scales ~1.7× but unstable — **TP=1 recommended** |
+| `poolside/Laguna-S-2.1-DFlash(-NVFP4)` `b3b5921a90` 07-31 | 1.1B draft | **the shipped `-NVFP4` draft declares no licence at all** (no `license` card field, no LICENSE file); the bf16 sibling is `license: other` with **no licence text in-repo** — read/recorded 2026-10-14 before distributing | 2.2 GB | — | forum: early acceptance ~8% at n=15; measured 2026-10-14 on one Spark: mean acceptance length 2.52 (1.36–3.40), mean Draft acceptance rate 50.8% (12.1–79.9%) at n=3 |
 | `poolside/Laguna-XS.2` `a397bde045` 09-22 (+ `-NVFP4` `973ad427aa`, `-FP8`, `-INT4`) | 33B (3B) | Apache-2.0 | BF16 66.9; NVFP4 21.5; FP8 35.3; INT4 23.9 | 262,144 | none found (see the dating note) |
 | `poolside/Laguna-XS.2-speculator.dflash` `6c936ca2a0` 05-19 | 0.6B draft | Apache-2.0 | 1.2 GB | — | card acceptance ≈ 2.65–3.07 avg (A100) |
 | `poolside/Laguna-M.1` `2bf8a4ab6d` 07-14 (+ `-base`, `-NVFP4` `e4f3ba80ca`) | 226B (23B) | Apache-2.0 | BF16 451.6; NVFP4 139.3 | — | none; 2-node minimum at NVFP4 — ceiling reference only |
+
+**S-2.1 sizing correction (measured 2026-10-14; boot `e57eaed458e6b584_64af2f7668b6` on `.35`).** The
+`67.0 GiB resident` figure above does not hold for the pinned August-2026 revision: it loads to
+**95.61 GiB** (`Model loading took 95.61 GiB memory`, `Checkpoint size: 92.85 GiB`), because the
+`quantization_config` ignores attention, the dense layer-0 MLP, the shared experts **and layers 40-47's
+experts**, so a large fraction of the 99.7 GB download is BF16. At util 0.85 a single Spark therefore
+grants only **4.6 GiB of fp8 KV**, and vLLM **refuses the 262k window**: `ValueError: To serve … max seq
+len (262144), 9.32 GiB KV cache is needed, which is larger than the available KV cache memory
+(4.58 GiB) … estimated maximum model length is 124144`. The shippable single-node window is **~120k**
+(the lane ships `max_model_len: 122880`; KV pool 125,796 tokens, C1 20.49 t/s @ d0, DFlash acceptance
+length 2.52). The 1.37M-token-KV number and the 262k / 1M templates below describe the *pre-August*
+checkpoint and must not be quoted for the pinned revision.
 
 **Naming/dating note.** The release blog (`poolside.ai/blog/introducing-laguna-xs-2-1`) calls
 **XS 2.1 the upgrade of XS.2** (+5.4 SWE-bench Multilingual, "a more open license") even though
@@ -164,6 +176,11 @@ digest-pinned image, not by tag (the lane's Kolibri pin, `vllm/vllm-openai:v0.29
 - **Laguna S-2.1-NVFP4** (queue rank 2; also 1 node): template = the TP=1 sweep (util 0.85, 262k,
   DFlash n=3) plus its RC1 long-context variant (**no DFlash + `--max-num-scheduled-tokens 4096`** →
   4.52M-token KV = 4.31× at 1M); settle the DFlash-NVFP4 licence first; 99.7 GB per node to download.
+  **Resolved 2026-10-14** (see the sizing correction above): at util 0.85 the servable window is ~120k,
+  not 262k — the August-2026 checkpoint is a ~96 GiB model. The recipe ships `max_model_len: 122880`.
+  Licence: the shipped draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares **no** licence (no
+  `license` card field, no LICENSE file); the BF16 sibling `…-DFlash` is `license: other` with no
+  licence text in-repo, so "other" resolves only by implication to the target's OpenMDW-1.1.
 
 Sources: `hf.co/poolside/collections`; `forums.developer.nvidia.com/t/laguna-s-2-1-config-benchmarks/377663`
 (TP=2: 21.0 t/s c1/d0 → 46.8 c4; tool-eval-bench 82/100 ★★★★ at 262k; "1M is not possible");
