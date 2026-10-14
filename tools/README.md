@@ -21,6 +21,7 @@ Disposition audited 2026-10-11:
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
 | `decision-tandem.py` | `recipes/decision/` CPU+GPU tandem probe | parses two tool-eval-bench decision reports' Full Trace and pools per-question distributions; self-test only, no `tests/` guard |
+| `bfcl-eval.py` | `recipes/explore/` tool-calling models (BFCL v3) | port of BFCL's official AST checker; guarded by `tests/test_bfcl_eval.py` |
 
 ## safe_text.py
 
@@ -552,9 +553,10 @@ Lane state: `recipes/qwen4/AGENTS.md` (the W4 row); run record and reproducer sh
 
 ## qwen4-quality-eval.py
 
-`recipes/qwen4/` ships two checkpoints for the same base model: the reference
-`RadixArk/Qwen3.8-Flash-Next-NVFP4` and the locally-quantised
-`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (the "labquant" export). Labquant quantises
+`recipes/qwen4/` now ships a single checkpoint, the locally-quantised
+`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (the "labquant" export); the
+`RadixArk/Qwen3.8-Flash-Next-NVFP4` reference arm was archived to `attic/qwen4/arms/` on
+2026-10-14 (the instrument still runs against either). Labquant quantises
 attention/GDN projections *and* the PLE n-gram table where RadixArk leaves them BF16, and its
 own recipe caveat says benchmark wins are **not** evidence of equal quality — the lane had no
 eval. `quality-battery.py` is a small generic battery shared with the DS4 lane; this is the
@@ -726,3 +728,74 @@ The self-check decodes its own output using nothing but the standard library —
 per-row `filter=None`, an all-flat-red pixel scan — confirms distinct colours produce distinct
 bytes, and corrupts one byte to prove `iter_chunks`' CRC check actually fires (a negative
 control, not decoration).
+
+## bfcl-eval.py
+
+`sparkrun`'s benchmarking path measures **speed**, and the repo's quality instruments
+(`quality-battery.py`, `qwen4-quality-eval.py`) are in-house exact-match batteries that no
+published number is comparable to. The explore lane's brief is frontier reasoning + **tool-calling**
+models, and three of its shortlist entries publish **BFCL** scores (`inclusionAI/Ling-3.0-flash`,
+`Aleph-Alpha/Kolibri-1`, `meta-models/Muse-Glimmer-30B`) — so BFCL is the standard suite that lane
+needs, and the one its research doc names (`recipes/explore/EXPLORE-MODELS-RESEARCH.md` §4).
+
+This tool runs the official BFCL v3 questions against an OpenAI-compatible `/v1/chat/completions`
+and scores them with a **port of the official AST checker**
+(`bfcl_eval/eval_checker/ast_eval/ast_checker.py`, ShishirPatil/gorilla, AGPL-3.0): function name,
+required parameters present, no unexpected parameter, and value **plus type** matched against the
+gold answer with BFCL's own case/punctuation standardization (`"April 1, 2024"` == `"april1 2024"`;
+an integer is accepted for a `float` parameter, a float is not accepted for an `integer` one).
+
+**One deliberate deviation.** Same questions, same gold, same scoring rule; the *request shape*
+differs. The official harness prompts the model for a BFCL-dialect function call as text and parses
+it; this tool sends the functions through the OpenAI `tools` parameter and reads the structured
+`message.tool_calls` back (with a JSON-in-`content` fallback). That is how a vLLM/SGLang serve
+exposes tools (`--tool-call-parser`) and how the already-adopted `tool-eval-bench` drives them, so
+the score is comparable **in kind** with a published BFCL number — not identical to it: a template
+or parser that drops the structured call reads as "no call", which is a real finding about that
+serve rather than a scoring bug.
+
+Scored: `simple`, `multiple`, `parallel`, `parallel_multiple`, `irrelevance`, and their `live_*`
+twins (plus `live_relevance`; `irrelevance` passes iff the model emits **no** call, `relevance` iff
+it emits one). Not scored, by construction: `java`/`javascript` (language-specific type
+converters), `rest`/`sql`/`exec_*` (executable, not AST, evaluation), and `multi_turn_*` (stateful
+tool execution) — a `--categories` naming one of those is a bad-flag exit, not a silent skip.
+
+The data is the official v3 JSON, revision-pinned (Apache-2.0). Fetch it once on the head node:
+
+```sh
+hf download gorilla-llm/Berkeley-Function-Calling-Leaderboard \
+    --repo-type dataset --revision 61fc0608cfd831fcfbbaa676ebdfef0ed963eeda \
+    --local-dir ~/bfcl
+```
+
+```sh
+python3 tools/bfcl-eval.py --base-url http://127.0.0.1:8000 \
+    --data-dir ~/bfcl --categories simple,multiple,parallel,irrelevance \
+    --json bfcl.json
+python3 tools/bfcl-eval.py --selftest     # offline, in-process mock, ~1 s
+```
+
+`temperature` is 0, and the raw `tool_calls` of **every** question — pass or fail — go into
+`--json`, so a scoring mistake is auditable rather than trusted. `--tool-choice` (default `auto`) is
+there because on the explore lane's Ling arm auto mode answered in prose and only a forced
+`tool_choice` produced structured calls: `auto` is the standard BFCL condition, `required` isolates
+the parser. Exit codes: `0` the run completed (the score is the artifact), `1` no request completed
+or `--fail-under` missed, `2` bad flags / missing or malformed data files. A transport error is
+excluded from the score — never counted as a pass or a miss — and a question needing a modality this
+tool does not send (an image) is skipped and counted, not scored.
+
+**Verified.** `--selftest` runs five mock behaviours end-to-end (correct must score 100 %;
+wrong-name, wrong-value, empty-output, and hallucinated-on-an-irrelevant-question must all be
+rejected), and `tests/test_bfcl_eval.py` (46 tests) re-runs that ladder plus the negative controls it
+does not isolate, drives the whole CLI over a socket against a mock endpoint, and pins the loader's
+fail-closed rule. Offline against the real BFCL v3 AST split (2026-10-14), the ported checker accepts
+a correct model's output on **1000/1000** questions — **400** simple, **200** multiple, **200**
+parallel, **200** parallel-multiple — so the port agrees with the gold on every question a perfect
+model should pass, and (from the guard and the selftest) rejects the tampered ones. One
+official-split oddity worth knowing: `simple_363`'s question names the function
+`restaurant_search.find_closest` while its answer key is `find_closest`; the checker scores by the
+*description's* name, so a real model is unaffected, but a naive gold-replay keyed on the answer name
+mis-scores it.
+
+A score is not proof of quality: it is one instrument on one endpoint, and a reasoning-capable
+server is not bitwise-stable across batch composition even at `temperature` 0.
