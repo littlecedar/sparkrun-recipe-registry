@@ -128,6 +128,36 @@ delivery needs `--transfer-mode local` (hidden option; `auto|local|push|delegate
 with `sparkrun cluster update <name> --transfer-mode local`), else the node clones the registry
 itself and an unpushed mod is invisible.
 
+### Node hygiene — clean up after yourself (a rule)
+
+The nodes are a shared machine set: `$HOME` and `/tmp` on every node are not scratch storage, and this
+registry is distributed to third parties. **After a recipe build, boot-test or benchmark campaign,
+remove what the session created** — a leftover is anything undocumented, unknown or temporary:
+
+- Delete session logs and ad-hoc output from `$HOME` (`*.log`, `*.out`, one-off output dirs) and from
+  `/tmp` on **every** node touched, not just the head.
+- Receipts are not leftovers. The documented locations are `~/benchmarks/<lane>-<date>/` on the head
+  and `.scratch/<lane>/…` locally, and a receipt a doc cites by name or path stays. **Before deleting
+  anything on a node, grep the repo for the basename** — worker-side paths are cited too. The
+  2026-10-14 clean-up destroyed the qwen4 argv/memory traces this way; the loss is recorded in
+  `attic/qwen4/AGENTS.md`.
+- **A path a harness names on purpose is not litter.** `.scratch/q4/capture-serve-argv.sh` writes
+  `$HOME/serve_argv/<tag>_<node>.txt` on the *worker* precisely because it outlives `/tmp` reaping, and
+  `launch.sh` arms `mem_watch.sh` into `$HOME/mem_watch/` on every run. Such output is citable
+  evidence-in-waiting: **harvest it into the receipt root (`~/benchmarks/<lane>-<date>/` or
+  `.scratch/<lane>/`) before removing anything**, and never sweep the harness's own directory as
+  scratch — that is what destroyed the §19q traces, and the harness is still armed, so the next
+  undiscriminating sweep would destroy the replacements too.
+- No leftover containers or orphan volumes (`docker ps -aq` and `docker volume ls -q` both empty).
+  Remove images for retired lanes, but keep any image a shipped recipe or an `attic/` doc names.
+- `sparkrun`'s runtime cache (`${WOPR_USER_CACHE}/sparkrun/runtime-cache/<runtime>/<model_dir>`) is a
+  cache, not litter: entries are rebuilt on the next boot and the directory suffix is derived by
+  sparkrun core, so never hand-delete a tree unless the recipe that produced it is retired.
+- After a re-pin or an `attic/` move, sweep `${WOPR_RUN_FROM_DIR}` for dangling symlinks and remove
+  them.
+- Document what stays as well as what goes: a node file nothing documents is the defect this rule
+  exists to prevent.
+
 ## Code Conventions & Common Patterns
 
 ### Recipes

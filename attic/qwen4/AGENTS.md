@@ -772,3 +772,14 @@ the MTP-k=4/mamba-pool coupling):
 # --ple-offload-backend file for the same purpose). CUTE_DSL_ARCH is omitted —
 # the platform tier already publishes sm_121a for vllm on DGX Spark.
 ```
+
+## Node clean-up casualty (2026-10-14)
+
+A cluster clean-up pass removed worker-side evidence these notes cite by **absolute path**: the
+`~/serve_argv/<tag>_<node>.txt` argv dumps and the `~/mem_watch/<tag>_<node>.csv` host-memory traces
+on the qwen4 worker nodes (cited in `.scratch/q4/workdoc-snapshot-*.md`, `plateau_resources.py` and
+`pool_size.py`). The `.harvest` copies beside the head's `~/benchlogs/*.log` do **not** contain them —
+those runs logged `mem_watch: NOT WRITING`, so the capture never landed — and no local copy exists.
+The raw dumps are gone; the field-by-field comparisons quoted in those notes stand as transcription
+only. Lesson, now in the root `AGENTS.md` §"Node hygiene": worker-side paths are citations too — grep
+the repo for the basename before deleting anything on a node.
