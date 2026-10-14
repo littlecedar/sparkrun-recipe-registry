@@ -24,7 +24,7 @@ pre-fold state, `git show baecfa8:mad-science/TODO.md`.
 
 # TODO list
 
-Budget: 8 hours
+Session end: 10:00 US/Eastern (2026-10-14)
 *(Owner decision 2026-10-14: all six nodes — `.30–.35` — are ours this session; the 4-node/TP=4 items
 (ornith 397B A/B, ds4 TP=4, glm5) are runnable.)*
 
@@ -110,7 +110,7 @@ Any model with reasoning and tool-calling capabilities
   (licence policy) and use the confirmed §6 acceptance criterion.)*
 - [ ] **LTX-2.5 arm (queued 2026-10-13 — media-gen, outside the lane brief).** `Lightricks/LTX-2.5` (video+audio, 22B DiT + Gemma-4-12B encoder, ComfyUI-native): repo is gated (`gated: auto`) → per-node `HF_TOKEN` and accepted terms, which a distributed registry cannot assume; licence = `ltx-2.x-community-license-agreement` (the LTX-2 text carries a $10M-revenue Commercial Entity threshold — read the 2.x text once access lands). Spark evidence exists as a **refine stage** (nvfp4 transformer 17.44 GiB + VAEs + upscaler = 20.1 GiB, 3 steps → 1344×768×124 f/24 fps with audio inside a 73.3 s warm two-stage run). Traps: ComfyUI ≥ 0.34.0 (below it the refine silently emits garbage), the `-nogemma` graph on GB10, and the sustained-load power-loss fix (2200 MHz clock cap). Details: §6.
   *(Owner decision 2026-10-14: deferred to a separate pass; ship gated arms with a documented per-node
-  `HF_TOKEN` + acceptance prerequisite.)*
+  `HF_TOKEN` + acceptance prerequisite; the §6 acceptance criterion is confirmed.)*
 - [ ] **Humanizer-12B arm (queued 2026-10-13 — text-rewriting helper, outside the lane brief).** `jialinyyzz/humanizer` (12B `google/gemma-4-12B` finetune, Apache-2.0, ungated, 1 node: 23.9 GB bf16 / 12.7 GB Q8_0 / 3.9–10 GB QAT quants) rewrites one AI-written draft so it reads human (en+zh); card: 95% judged human by Originality.ai strictest (11/210 bf16) and 376/420 English rewrites with no factual problem — still read numbers/dates/names. vLLM-servable via the vendor's own path (`--dtype bfloat16 --max-model-len 8192 --generation-config vllm`), but the contract is **`/v1/completions` with the byte-exact `instr + draft + sep` prompt from `prompt_format.json`, never a chat template**, top_k off. Checklist + acceptance proposal: `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §7.
   *(Owner decision 2026-10-14: in scope this session; the §7 acceptance criterion is confirmed.)*
 
