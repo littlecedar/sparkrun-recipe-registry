@@ -8,8 +8,8 @@ description: "Test-boot a sparkrun inference recipe on the WOPR DGX Spark cluste
 When the user asks to boot-test or trial a recipe on idle nodes. Run `sparkrun` ON ${WOPR_HEAD_NODE} as ${WOPR_USERNAME}; target nodes via `-H <ip>,<ip>` (first host = head/rank0).
 
 ## 0. Preconditions
-- Repo tree is rsync'd to `/home/<operator>/src/sparkrun-recipe-registry` (no `.git` on the head; never `git -C` there).
-- In-progress recipes need a symlink in `/home/<operator>/development` -> src tree file (old symlink names may dangle).
+- Repo tree is rsync'd to `${WOPR_SRC_DIR}` (no `.git` on the head; never `git -C` there).
+- In-progress recipes need a symlink in `${WOPR_RUN_FROM_DIR}` -> src tree file (old symlink names may dangle).
 - Local (laptop) CLI calls need `HOME="$PWD/.local/sparkrun-home"`; head-side calls don't.
 
 ## 1. Preflight (head + nodes)

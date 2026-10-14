@@ -39,4 +39,4 @@ Decode-phase `tg_throughput.mean` at `context_size` x `concurrency`; `tg_req_thr
 
 ## Cluster hygiene
 
-Head node: ssh as `${WOPR_USERNAME}` then `export HOME=/home/<operator>`; run from `${WOPR_RUN_FROM_DIR}` where recipes are symlinked. Unpublished mods need `sparkrun cluster update <name> --transfer-mode local` (or `--transfer-mode local` on `run`). Stop every leftover container when done.
+Head node: ssh as `${WOPR_USERNAME}` then `export HOME=/home/${WOPR_USERNAME}`; run from `${WOPR_RUN_FROM_DIR}` where recipes are symlinked. Unpublished mods need `sparkrun cluster update <name> --transfer-mode local` (or `--transfer-mode local` on `run`). Stop every leftover container when done.

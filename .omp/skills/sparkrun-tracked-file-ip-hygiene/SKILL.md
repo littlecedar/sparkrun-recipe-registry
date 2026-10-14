@@ -9,12 +9,16 @@ The registry is distributed to third parties and `AGENTS.md` forbids hostnames/I
 
 ## Pre-commit scan
 
-Use the `grep` tool (or `git grep`) over the staged/modified paths, pattern:
+Use the `grep` tool (or `git grep`) over the staged/modified paths, with this address pattern —
+RFC1918, and note the **per-branch** octet counts (a single shared tail matches only the `10.` branch,
+leaving `192.168.x.x` — the CX7 range — and `172.16-31.x.x` invisible):
 
 ```
-\b(10|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+\.\d+\b|the head-node hostname and internal domain (literals in `.local/CONFIDENTIAL.md`)
+\b(10\.\d+|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+\b
 ```
 
+- Also grep for the head-node hostname and the internal domain: their literals live in
+  `.local/CONFIDENTIAL.md` (git-ignored), never in a tracked pattern.
 - Replace every hit in tracked prose with the `.30-.35` shorthand (e.g. `MASTER_ADDR=<node-ip>` → "the master on `.30`"; `bootstrap <cx7-ip>` → "the CX7 link").
 - **Exempt** git-ignored working files: `.local/`, `**/*JOURNAL.md`, `**/*-WORK.md`, `**/*-WORK-ARCHIVE.md`.
 - `tools/*` may carry deliberate example endpoints (e.g. `http://<node>:PORT`) — only flag ones the session added.
