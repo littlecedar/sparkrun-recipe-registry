@@ -65,6 +65,7 @@ Load-bearing contracts:
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
+| `.omp/skills/` | Tracked **omp skills for recipe work only** (research, author, publish, benchmark, test, verify, retire, index): one `SKILL.md` per skill, discovered natively at *project* scope when this repo is the working directory (no symlinks or config needed). Cluster-ops, monitoring, gateway, evidence-store and session-workflow skills deliberately stay user-global in `~/.omp/agent/managed-skills/`. Discovery is startup-time, so an edit applies at the next session start. `learn`/`manage_skill` still write to the global root — a new recipe skill must be moved here by hand. |
 
 ## Development Commands
 
