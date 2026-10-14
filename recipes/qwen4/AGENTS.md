@@ -25,27 +25,29 @@ Qwen3.8-Flash-Next (180B MoE, hybrid GDN + full attention, PLE n-gram table) che
 DGX Spark (GB10) TP=2 pair. **Quality outranks throughput** — a config that is 10% faster and
 occasionally emits garbage is a regression (WORK §14).
 
-**Shipped recipes.** The lane now ships **two production TP=2 lanes** off the labquant checkpoint,
-plus the balanced base they derive from and the RadixArk quality reference:
+**Shipped recipes.** After the 2026-10-14 cut (owner decision: exactly two — fastest TP=1 + fastest
+TP=2; 1M droppable) the lane ships **one TP=1 and one TP=2 recipe**, both on the labquant checkpoint:
 
-| recipe | role |
-|---|---|
-| `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | **balanced base + control** (cap 24 / pool 112 / ctx 262144) |
-| `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | **Lane A — high concurrency** (cap 32 / pool 128) |
-| `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | **Lane B — long context, up to 1M** (YaRN route) |
-| `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk **quality reference** (vision intact) |
+| recipe | nodes | role |
+|---|---|---|
+| `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | **1** | **TP=1** — PLE table streamed from disk (`VLLM_PLE_TABLE_MEMORY=disk`), vLLM |
+| `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | **2** | **TP=2** — balanced config (cap 24 / pool 112 / ctx 262144), SGLang, re-pinned `6c01ac37` |
 
-Each lane differs from the base in one or two `defaults` knobs only; the checkpoint, container
-digest, and 7-mod chain are identical. **See [`README.md`](README.md) for the lane rationale and the
-measured numbers.** Those four are the **entire** production directory. Everything else that used to
-live here is archived under `../../attic/qwen4/arms/` (§8): the contributor recipes (`eugr-`,
-`ursuciprian-`), the cross-runtime `…-vllm` recipe, the never-benchmarked TP=4 attempt
-(`qwen3.8-flash-next-labquant-tp4-sglang.yaml`), and the two `zz-*-metrics` instrumented arms.
+The TP=2 arm was chosen out of three C1-tied labquant arms on the owner's priority order (equal
+speed → memory ↓ / accuracy-safe context); the TP=1 arm wins on priority 1 (node count) despite
+being ~18% slower at C1. **See [`README.md`](README.md) for the cut table, the receipts, and the
+lane rationale.** Everything else that used to live here is archived under `../../attic/qwen4/arms/`
+(§8) with a row in `../../attic/qwen4/ARMS-MANIFEST.md`: the two other labquant TP=2 lanes
+(`…-highcon-`, `…-longctx-`), the RadixArk TP=2 reference and its solo SGLang route, the contributor
+recipes (`eugr-`, `ursuciprian-`), the cross-runtime `…-vllm` recipe, the never-benchmarked TP=4
+attempt, and the two `zz-*-metrics` instrumented arms.
 
 **Best measured state** (all `VERIFIED`, WORK §3/§4/§19 unless noted):
 
 | quantity | value | note |
 |---|---|---|
+| **decode-triage C1, d=0 / d=8192** (2026-10-14, one boot per arm; sixth arm in a later window) | TP=2 labquant base **41.32 ± 4.16 / 38.58 ± 2.37** tok/s pre-pin, **40.32 ± 1.94 / 43.29 ± 2.68** re-pinned `6c01ac37`; TP=1 solo vLLM **33.92 ± 1.73 / 34.35 ± 1.26**; TP=1 solo SGLang **19.82 ± 2.06 / 20.97 ± 1.02** (sixth arm, `bench_253dd84c9a78`); RadixArk TP=2 36.84 / 34.44; the three labquant TP=2 arms are C1-tied | the cut table + receipts: `README.md`; `~/benchmarks/q4-*-triage_1014_*.json` |
+| W3 quality battery (38 tasks) | **re-pinned `6c01ac37` survivor: stable-pass 37/38**, 113/114 over `--repeat 3`, one flaky task (2026-10-14) — same instrument that read labquant **37/38** vs RadixArk **35/36** on 2026-10-04 | receipts: `~/benchmarks/q4-w3-repin-20261014/w3-repin.json` on the head; `attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md` |
 | RadixArk d=0 decode, k=1 | **37.973 tok/s** | §4, ≥7 runs |
 | bs=8 vs bs=1 (aggregate) | **+119%** (80.57 vs 36.77) | §19; per-request falls to 15.76 tok/s, TTFT 2087→5579 ms |
 | peak aggregate (d=8192) | RadixArk **86.86** @ k=16, labquant **91.38** @ k=16 | both fall ~38% at k=24 |
@@ -54,7 +56,6 @@ live here is archived under `../../attic/qwen4/arms/` (§8): the contributor rec
 | mamba pool 128 vs 112 | **+11.1%** at cap32/cps8192/d8192/k24 | §19x/19y; mechanism **unestablished** |
 | `max_num_seqs` 24→32 (RadixArk) | **+0.42 GB** intermediate scratch, **−4.55%** KV, boots fine at cps 4096 | §19z; `capped to 28` — the mamba slot pool is the ceiling |
 | fp8 KV pool vs bf16 (RadixArk) | `2728960` vs `1460864` tokens = **1.87×** (not 2×) | §15; moot — fp8 KV cannot serve |
-| labquant quality vs RadixArk | **35/36 vs 37/38**, 0 disagreements on 36 shared tasks | `W3-QUALITY-EVAL-STATUS.md`; n=1, battery drifted 36→38 |
 
 **Levers that are answered — do not re-litigate.** `--max-prefill-tokens 32768` is a null on both
 checkpoints (§6 PRIORITY-1 ii). `chunked_prefill_size 8192` helps k=24 but **regresses k=8/k=16 on
@@ -77,19 +78,23 @@ slot pool's ceiling buys nothing, and 24→32 costs +0.42 GB of intermediate scr
    recipe into `~/development/` and run it by name, where `mods → …/sparkrun-recipe-registry/mods`
    resolves.
 
-**The two lane knobs, and why (VERIFIED — full detail in `README.md` and WORK §19):**
-- *High concurrency (Lane A):* `max_num_seqs` must be **strictly above** every served `k` (at
-  `k == cap` the batch saturates at `cap − 1` with one request queued and per-request decode loses
-  ~6%), and the **effective admission ceiling is the mamba pool**, `max_mamba_cache_size // 4` on the
-  lazy strategy — pool 112 → 28, pool 128 → 32. Raising 112 → 128 is associated with ~13% more k=24
-  throughput at matched config (`zz-rk-metrics`, four boots); **mechanism unestablished**. Keep
-  `chunked_prefill_size: 4096` — 8192 regresses k=8/k=16 on labquant.
-- *Long context (Lane B):* raising `--context-length` past the checkpoint's 262144 **raises
-  `ValueError` unless `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`** is in the container env
+**The archived lane knobs — why they are not shipped, and the facts that outlive them** (VERIFIED —
+full detail in `README.md`, WORK §19, and the manifest rows):
+- *High concurrency (archived `…-highcon-`):* `max_num_seqs` must be **strictly above** every served
+  `k` (at `k == cap` the batch saturates at `cap − 1` with one request queued and per-request decode
+  loses ~6%), and the **effective admission ceiling is the mamba pool**,
+  `max_mamba_cache_size // 4` on the lazy strategy — pool 112 → 28, pool 128 → 32. Raising 112 → 128
+  is associated with ~13% more k=24 throughput at matched config (`zz-rk-metrics`, four boots);
+  **mechanism unestablished**, and it costs ~+0.85 GB/rank. It is archived because at C1 it is tied
+  with the base while carrying the larger pool — resurrect it only if a k≥16 aggregate regime
+  returns. Keep `chunked_prefill_size: 4096` — 8192 regresses k=8/k=16 on labquant.
+- *Long context (archived `…-longctx-`):* raising `--context-length` past the checkpoint's 262144
+  **raises `ValueError` unless `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`** is in the container env
   (`model_config.py:860`), so that `env:` value is **load-bearing** and travels with `max_model_len`.
-  The 1M route also needs the YaRN `--json-model-override-args`, and **its quality is unmeasured**
-  (see WORK §15; a neighbouring needle test failed at 300k). `--context-length 262144` is the
-  quality-safe point.
+  The 1M route also needs the YaRN `--json-model-override-args` nested under
+  `text_config.rope_parameters`, and **its quality is unmeasured** (WORK §15; a neighbouring needle
+  test failed at 300k). `--context-length 262144` is the quality-safe point, and is what the shipped
+  TP=2 recipe keeps.
 
 ## 2. Where the evidence lives
 
@@ -164,11 +169,13 @@ Legend: **C** = needs the cluster (serialize); **O** = off-cluster, parallel-saf
 | **W6** | **TP=4 under SGLang** (§6 item 1b) | C | fix `attic/qwen4/arms/qwen3.8-flash-next-labquant-tp4-sglang.yaml` first (moved to the archive in the production-dir narrowing) | First real TP=4 number, or a captured boot failure. Relaunch with `readiness.port_timeout_s: 3600`, without the two known-bad TP>2 knobs. |
 | **W7** | **MoE/kernel ceiling probes** (§6 items 2, 9) | C | — | Time `torch._grouped_mm` (present, **still untimed** — its argument contract rejects the naive shapes, so the real SGLang MoE layout is needed; a *dedicated* container works, a shell in a *serving* container OOMs on `set_device(0)`); and A/B `--fp4-gemm-backend`. Current `flashinfer_cutlass` was inherited from vLLM without justification. |
 | **W8** | **Upstream engagement** (§14) | O | W4 reproducer | **Drafted 2026-10-04: `attic/qwen4/status/W8-UPSTREAM-DRAFTS.md`** (nothing posted — posting needs explicit authorization). Upstream states re-verified: #37111 OPEN, #38319 OPEN, #38355 OPEN/unmerged. |
-| **W9** | **Long-context route (262k→1M)** (§6 item 13) | C | needle gate | **DELIVERED as Lane B 2026-10-04:** `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` exposes the 1M route (`--context-length 1000000` + YaRN `--json-model-override-args` + the **required** env `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`, which the build needs or it *raises* rather than warns). **Quality above 262k is still UNMEASURED** — the recipe ships the route with a loud caveat and documents 262144 as the quality-safe point. The needle gate (`README`/`WORK §15` step 3) remains the prerequisite before serving 1M. |
+| **W9** | **Long-context route (262k→1M)** (§6 item 13) | C | needle gate | **Built 2026-10-04, ARCHIVED 2026-10-14** as `attic/qwen4/arms/qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (owner: 1M droppable). It exposes the 1M route (`--context-length 1000000` + YaRN `--json-model-override-args` + the **required** env `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`, which the build needs or it *raises* rather than warns). **Quality above 262k is still UNMEASURED** — the 262144 point is the quality-safe one, and it is what the shipped TP=2 recipe keeps. The needle gate (WORK §15 step 3) remains the prerequisite before serving 1M. |
 | **W10** | **Doc & sprawl hygiene** (this file's §8) | O | — | Keep the recipes dir to shipped + live arms; move every dead arm under `attic/qwen4/` with a manifest row. |
 | **W11** | **NCCL/RoCE transport confirmation** (§6 item 7) | C | a boot with `NCCL_DEBUG=INFO` | **VERIFIED 2026-10-04 that NCCL is set for RoCE**: `NCCL_NET=IB`, `NCCL_IB_DISABLE=0`, `NCCL_IB_HCA=rocep1s0f0,roceP2p1s0f0`, `UCX_NET_DEVICES=roce…:1`, HCAs `link_layer: Ethernet`/`PORT_ACTIVE`. `via NET/IB` in the ring still wants `NCCL_DEBUG=INFO` — do **not** overclaim from the env alone. |
 | **W12** | **Benchmark the vLLM recipe** `attic/qwen4/arms/qwen3.8-flash-next-nvfp4-vllm.yaml` (§6 item 10) | C | — | The only legitimate same-checkpoint competitor to eugr's number, never measured. Cross-runtime, so state the engine version and digest; do not compare raw tok/s without the flag set. |
 | **W13** | **`tuning_fast_boot` infra variant** (§6 item 12) | O | — | **Delivered 2026-10-04 as `zz-labq-fastboot-sglang.yaml`; now ARCHIVED to [`../../attic/qwen4/arms/`](../../attic/qwen4/arms/)** (validates; `fastsafetensors` + `0.91`; documents that it is NOT a comparison arm; never booted). Shipped default stays on `safetensors`. |
+| **W14** | **Re-pin the labquant checkpoint to `6c01ac37` + re-verify the mod chain** (the step-5500 QAD upgrade) | C | — | **DONE 2026-10-14.** The 7-mod verdicts in `attic/qwen4/status/W14-LABQUANT-5500-MOD-PLAN.md` were confirmed against the live revision: **mod 3 `unpack-labquant-ple-nvfp4-to-fp8` BROKE** (the new layout puts `ple.norm_*` + `weight_scale_2` in the same shard as 8 PLE pairs, so the "mixed file → skip" policy dropped 8 pairs and the `EXPECTED_GROUPS=128` gate failed closed) — fixed with a **preserve-and-rewrite** path (guard: `tests/test_labquant_ple_mod_classify.py`); **mod 7 `skip-labquant-vision-tower` is OBSOLETE** (the new vision tower is BF16 and already in `quantization_config.ignore`) and was **dropped**, so the export serves vision again; mods 1/2/4/5/6 survive unchanged. All three labquant mods' `MOD_LABQ_REVISION` default is now `6c01ac37…`. Receipt: clean boot `bench_09b3fcc9eeab` (TTR port 674.7 s), tree verified (`model-00026-of-00041` carries the converted fp8 pairs **plus** the 3 `ple.norm_*` tensors and `weight_scale_2`; index maps the emitted `ngram_embedding.weight_scale`). |
+| **W15** | **Cut the directory to one TP=1 + one TP=2 arm** (owner decision 2026-10-14) | C | — | **DONE 2026-10-14.** Five of the six arms were measured in one window with `benchmarking/decode-triage.yaml` (the three labquant TP=2 arms are C1-tied and the base was kept on the memory/context tie-break; the vLLM solo arm was the only TP=1 with a receipt). **The sixth arm (`…-solo-sglang`) did NOT reach readiness in that window** — the failure was a **port timeout against sparkrun's default 1800 s**, not an architectural negative — and was **re-measured in a later window 2026-10-14** with the arm's new `readiness.port_timeout_s: 3600`: **19.82 ± 2.06 / 20.97 ± 1.02 t/s** (`bench_253dd84c9a78`), a clear loser to the vLLM solo, so the TP=1 pick stands. Four arms `git mv`'d to `attic/qwen4/arms/` with wave-4 manifest rows. Receipts `~/benchmarks/q4-*-triage_1014_*.json`, `~/benchmarks/q4-solo-sglang2-triage_1014.*`. **A side-defect this exposed and fixed:** switching `model_revision` on a node that already holds a converted `labq-patched` tree produced a HYBRID tree, because the config mod refused to `rm -rf` whenever converted shards were present — it now rebuilds on a **stale stamp** (a revision switch) while keeping the p…
 
 Already-closed/near-closed streams, recorded so nobody re-opens them: the **Radix chunked-insert
 quality fix** exists as `mods/fix-sglang-radix-chunked-insert` with all four anchors re-verified
@@ -268,8 +275,10 @@ engine accepted it.
 `recipes/qwen4/` is a **shipped artifact and is kept to its production surface only** — the same
 convention the `ds4` lane uses.
 
-- **Keep in `recipes/qwen4/`:** the shipped production recipes (the balanced base, Lane A, Lane B,
-  the RadixArk reference) and the two guides (`README.md`, `AGENTS.md`) plus the working `../../attic/qwen4/NOTES.md`.
+- **Keep in `recipes/qwen4/`:** exactly the two shipped production recipes (TP=1 solo vLLM + TP=2
+  labquant base) and the two guides (`README.md`, `AGENTS.md`) plus the working
+  `../../attic/qwen4/NOTES.md`. Adding a third is a decision, not a convenience — the 2026-10-14 cut
+  reduced six to two on the owner's priority order.
 - **Everything else moves to `attic/qwen4/arms/`** with a row in
   [`attic/qwen4/ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md): every `zz-` arm, contributor
   recipe, alternative-runtime recipe, and un-benchmarked variant.
@@ -306,14 +315,21 @@ A `recipe validate` **suggestion** may be pre-existing — compare against a sib
 
 Root `AGENTS.md` § "Recipe comments": a shipped recipe's comments explain a tunable only — the
 measurement histories, boot ids, A/B receipts, retraction registers and negative results live here.
-Every fact below was a comment in one of the six shipped `recipes/qwen4/*.yaml`; the recipe now keeps
-at most a short coupling beside the value. `§N` refers to
+Every fact below was a comment in one of the `recipes/qwen4/*.yaml` files; each recipe now keeps at
+most a short coupling beside the value. `§N` refers to
 `attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md`.
+
+**After the 2026-10-14 cut only two of these files still ship** (10.1 and 10.6). Sections **10.2–10.5
+belong to archived arms** — their text is kept because it is the evidence record the manifest rows
+point at, not because the file is in `recipes/qwen4/`. New evidence for a surviving recipe goes in its
+own subsection (10.7 is the `6c01ac37` re-pin).
 
 ### 10.1 `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` (balanced base)
 
-- **Pin.** Pinned 2026-09-18 to the snapshot verified present in the node's local HF cache. The
-  key-name trap (`model_revision:`, not `revision:`) is at §1 fact 1 in full.
+- **Pin.** `model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc` — the step-5500 QAD revision
+  (`main` since 2026-10-06; 43 shards, ~106.3 GB). It was `7c4f1bc1a2d684…` (36 shards) from
+  2026-09-18 until the 2026-10-14 re-pin (see the 10.7 subsection). The key-name trap
+  (`model_revision:`, not `revision:`) is at §1 fact 1 in full.
 - **Quantisation shape (`model_mtp_dtype: fp8`).** VERIFIED against safetensors headers on the
   `ada4da32` snapshot: the MTP draft head is quantised (1.60 GB) where RadixArk leaves it BF16
   (5.21 GB), and `self_attn.*`/`linear_attn.*` are MXFP8 where RadixArk leaves those BF16 — ~4.25 GB
@@ -369,7 +385,7 @@ at most a short coupling beside the value. `§N` refers to
   adopted or measured.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 599.7 s).
 
-### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A)
+### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A) — **ARCHIVED 2026-10-14**
 
 - Key-name trap: §1 fact 1. The Lane-A header's measured shape, deltas and memory cost are in
   `README.md` ("Lane A") and §1; the specifics not repeated there:
@@ -396,7 +412,7 @@ at most a short coupling beside the value. `§N` refers to
     of the single-stream rate.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 594.4 s).
 
-### 10.3 `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B)
+### 10.3 `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B) — **ARCHIVED 2026-10-14**
 
 - Key-name trap: §1 fact 1. The 1M caveat and the fp8-KV note are in `README.md` ("Lane B") and §1.
 - **Memory math (VERIFIED, §15).** The pool holds 1,874,816 tokens at the 262k allocation, i.e.
@@ -425,7 +441,7 @@ at most a short coupling beside the value. `§N` refers to
   `rope_type` before trusting a long-context number. `factor` 3.815 = 1_000_000/262144.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 596.2 s at `max_model_len: 1000000`).
 
-### 10.4 `qwen3.8-flash-next-nvfp4-sglang.yaml` (RadixArk reference)
+### 10.4 `qwen3.8-flash-next-nvfp4-sglang.yaml` (RadixArk reference) — **ARCHIVED 2026-10-14**
 
 - The commented-out `#revision: <unknown>` is covered by §1 fact 1 (the pin key is `model_revision:`;
   this recipe ships no pin).
@@ -433,7 +449,7 @@ at most a short coupling beside the value. `§N` refers to
   `--int8-mamba-ckpt-size <size?>`, `--revision {revision}`.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: RadixArk/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1753bbfdf3f0a50e_3510a5e0d37d`, TTR port-open 642.8 s).
 
-### 10.5 `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` (solo TP=1, SGLang)
+### 10.5 `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` (solo TP=1, SGLang) — **ARCHIVED 2026-10-14**
 
 - Image provenance: the container digest is the SAME one the four TP=2 qwen4 recipes pin and
   (VERIFIED against the Docker Hub tag API, 2026-10-10) the same bytes as
@@ -441,11 +457,54 @@ at most a short coupling beside the value. `§N` refers to
   on. Its `sglang` is `0.0.0.dev1+g4ccff141d`, carrying #37068 (file-backed PLE), #38121 (ModelOpt
   MIXED_PRECISION loader) and the SM121 QSA/router fixes; no patched image needed.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: RadixArk/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `15adecfd945cac5c_8ed3ce77d78f`, TTR port-open 608.2 s).
+- **Sixth-arm re-measure (2026-10-14).** The port-timeout failure is closed: with the recipe's
+  `readiness: {inference: true, port_timeout_s: 3600}` the port opened at **TTR 3477 s** (past the
+  1800 s default), and C1 decode read **19.82 ± 2.06 t/s d=0 / 20.97 ± 1.02 d=8192** — ~42% below the
+  shipped vLLM solo pick, so this arm **stays archived** (`bench_253dd84c9a78`,
+  `~/benchmarks/q4-solo-sglang2-triage_1014.*`). Booted on `.34`; sparkrun **distributed** the RadixArk
+  snapshot to it (125.96 GiB, 244 s) despite the recipe header's "distribution FAILS" note — that
+  comment is stale. `GET /v1/models` returned the repo id.
 
 ### 10.6 `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` (solo TP=1, vLLM)
 
 - No comment in this recipe is evidence-only: all nine lines explain a coupling (the floating
   container tag, MTP k=4 + the GDN pool cap, the `VLLM_PLE_TABLE_MEMORY` knob) and were kept.
+
+### 10.7 The `6c01ac37` re-pin and mod-chain re-verification (2026-10-14)
+
+Evidence for the re-pinned TP=2 survivor. Boots: `bench_09b3fcc9eeab` (clean decode-triage after the
+re-pin), plus the W3 serve run under `~/benchmarks/q4-w3-repin-20261014/`.
+
+- **Layout change that broke the chain.** The step-5500 revision puts the 128 PLE pairs in
+  `model-00026..00041-of-00041`; `model-00026` also carries `ple.norm_{conv,key,query}.weight`
+  (F32 `[10240]`) and `ngram_embedding.weight_scale_2` (F32 `[1]`), so it holds **20** tensors where
+  the old PLE shards held 16. (`ple.norm_*` and the scalar are new at these shards.) The old
+  classifier treated any file with a non-matching tensor as "mixed → skip", which dropped 8 pairs and
+  made `unpack-labquant-ple-nvfp4-to-fp8` die at `EXPECTED_GROUPS=128` (`found 120`). It now
+  **preserves and rewrites**: the 3 norms + the scalar are copied through into the emitted shard,
+  while every fail-closed gate is unchanged. Guard: `tests/test_labquant_ple_mod_classify.py`.
+- **Verified tree on the survivor (boot receipt).** `labq-patched/model-00026-of-00041.safetensors`
+  has 12 tensors: 8 converted `F8_E4M3 [2500012,160]` PLE weights + the 3 `ple.norm_*` F32 + the
+  `weight_scale_2` scalar; the emitted `ngram_embedding.weight_scale` is registered in the index;
+  `config.json` has `ple_embedding_dtype: float8_e4m3fn` and `language_model_only: false`.
+- **`skip-labquant-vision-tower` dropped (obsolete).** The revision ships the vision tower BF16 and
+  already lists `model.visual.*` in `quantization_config.ignore`, so the load failure that mod worked
+  around is gone. With it removed, `language_model_only: false` reaches the engine and the export
+  **serves vision** again — a capability the old text-only recipe did not have. This is the reason to
+  boot-verify rather than trust the old "TEXT ONLY" caveat.
+- **Hybrid-tree defect found and fixed.** Re-pinning on a node that already held a converted tree
+  produced a **hybrid tree** (both revisions' shards present): the config mod based its rebuild
+  decision on "are there converted shards?" rather than "whose are they?", so a revision switch took
+  the non-destructive branch. `fix-labquant-modelopt-mixed-flat-schema` now rebuilds on a **stale
+  stamp** (a different snapshot) and only keeps the protective in-place refresh for a *missing*
+  stamp. Consequence for this session's sweep: the two archived `7c4f1bc1` arms that booted **after**
+  the mods' revision default moved have receipts taken on a `2d9615ab` cache dir the mod had written
+  `6c01ac37` content into — treat those two cells as supporting-only; the keystone cells (base
+  pre-pin on the clean `7c4f1bc1` tree, base re-pinned on the clean `6c01ac37` tree, and both solo
+  arms) are clean.
+- **Throughput did not move.** Clean pre-pin vs re-pinned C1 decode: 41.32/38.58 → 40.32/43.29 tok/s
+  (overlapping 2–4 tok/s stds). TTR port 674.7 s on both.
+
 
 ---
 

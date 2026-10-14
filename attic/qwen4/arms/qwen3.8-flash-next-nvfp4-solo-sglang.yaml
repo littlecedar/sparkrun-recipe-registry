@@ -1,14 +1,25 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-Flash-Next-NVFP4
 runtime: sglang
-# Distribution constraint (VERIFIED 2026-10-10): sparkrun's model distribution
-# FAILS to a node that does not already hold this checkpoint — the 418-shard
-# RadixArk export's safetensors index exceeds the 16 MiB inventory limit
-# ("use file selection all"). Serve this on a node that already has the model
-# (the TP=2 pair does), or pre-distribute it.
+# Distribution note (2026-10-10, CORRECTED 2026-10-14). The original warning was
+# that sparkrun's model distribution FAILS to a node that does not already hold
+# this checkpoint (the 418-shard RadixArk export's safetensors index over the
+# 16 MiB inventory limit). A plain `sparkrun benchmark performance` to a node
+# without it CONTRADICTS that: the 2026-10-14 re-measure copied 125.96 GiB in
+# 244 s (2 streams) with no "file selection all" — distribution works.
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 1
 max_nodes: 1
+
+# Readiness unblock (2026-10-14, sixth-arm re-measure). The file-backed PLE table
+# load opens the serve port far later than sparkrun's default: the 2026-10-14 boot
+# reached port-open at TTR 3477 s on `.34` (>2x the default `port_timeout_s` of
+# 1800 s, which is exactly what killed the first attempt with `TimeoutError: port`).
+# The arm is not an architectural negative — it is a load-latency timeout — so raise
+# the port window and keep the inference probe (a chat completion is the real gate).
+readiness:
+  inference: true
+  port_timeout_s: 3600
 
 metadata:
   description: >-
@@ -24,7 +35,11 @@ metadata:
     **38/38 = 100%, stable-pass** — the best recorded result on this battery
     (history: labquant 37/38, RadixArk reference 35/36, both n=1; the battery
     drifted 36→38 between runs, so read cross-run comparisons with that caveat).
-    The cookbook's speed figures are the cookbook's hardware, not ours.
+    The cookbook's speed figures are the cookbook's hardware, not ours. RE-MEASURED
+    2026-10-14 (the sixth arm, bench_253dd84c9a78): C1 decode 19.82 ± 2.06 t/s d=0 /
+    20.97 ± 1.02 d=8192 — ~42% below the shipped TP=1 vLLM arm, so this arm stays
+    ARCHIVED. It carries readiness.port_timeout_s: 3600 now (the port opened at
+    TTR 3477 s; the default 1800 s is what failed the first attempt).
   model_url: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

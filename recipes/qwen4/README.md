@@ -1,173 +1,128 @@
 # Qwen3.8-Flash-Next (`qwen4`) — serving recipes
 
 Serving recipes for **Qwen3.8-Flash-Next**, a 180B MoE with hybrid GDN + full attention and a PLE
-n-gram table, on a **two-node DGX Spark (GB10) TP=2 pair** (128 GB unified memory per node, 200 GbE
-RoCE). This directory is the `qwen4` model family (`model_symbol: qwen4`).
+n-gram table, on DGX Spark (GB10). This directory is the `qwen4` model family (`model_symbol: qwen4`).
 
-Two checkpoints are in play; everything shipped here is on the second one:
+The lane ships **exactly two production recipes** after the 2026-10-14 cut: the fastest **TP=1** and
+the fastest **TP=2** arm of the six that used to live here, all measured in one window on the
+benchmark pair with [`benchmarking/decode-triage.yaml`](../../benchmarking/decode-triage.yaml)
+(d=0/d=8192, C=1, 5 runs, decode-phase rows only). Everything else is archived under
+[`../../attic/qwen4/arms/`](../../attic/qwen4/arms/) with a provenance row in
+[`../../attic/qwen4/ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md).
 
-| checkpoint | role |
-|---|---|
-| [`RadixArk/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4) | the **quality reference**; mixed NVFP4/BF16/FP8, vision tower intact |
-| [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4) | locally-quantised export, **lower bytes/token** (MXFP8 attention/GDN, FP8 PLE). **Text only** — a required mod drops the quantised vision tower. |
+| recipe | nodes | checkpoint | runtime | role |
+|---|---|---|---|---|
+| [`qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`](qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml) | **1** | local-inference-lab | vLLM | TP=1 — one Spark, PLE table streamed from disk (`VLLM_PLE_TABLE_MEMORY=disk`) |
+| [`qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`](qwen3.8-flash-next-nvfp4-labquant-sglang.yaml) | **2** | local-inference-lab | SGLang | TP=2 — the pair, 262k context, the lane's balanced config |
 
 > **This directory runs as a git-distributed artifact.** Read [`AGENTS.md`](AGENTS.md) before editing
 > anything here — it is the condensed operating guide (constraints, traps, runbook, validation
-> ritual). Long-form evidence is in the lane's research record, now archived at
+> ritual). Long-form evidence lives in the lane record,
 > [`../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md`](../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md)
-> (`§N` cite-target, git-ignored); per-session coordination was in
-> [`../../attic/qwen4/COOP.md`](../../attic/qwen4/COOP.md).
+> (`§N` cite-target, git-ignored).
 
 ---
 
-## The two production TP=2 lanes
+## What was measured, and the cut
 
-The lane's deliverable is **two** recipes off the same checkpoint, each tuned for one serving regime.
-They differ from the balanced base recipe in **one or two `defaults` knobs each**, so nothing about
-the model, the container, or the mod chain changes between them.
+Decode-phase C1 throughput (tok/s, mean ± std of 5), one boot per arm. Five arms were measured in one
+2026-10-14 window on the benchmark pair; the sixth (`…-solo-sglang`) failed readiness there and was
+re-measured later the same day on `.34` (see below). Receipts on the head:
+`~/benchmarks/q4-*-triage_1014_*.{json,yaml}` and `~/benchmarks/q4-solo-sglang2-triage_1014.*`.
 
-| # | recipe | regime | key knobs | aggregate target |
+| arm | nodes | d=0 | d=8192 | verdict |
 |---|---|---|---|---|
-| **A** | `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | **high concurrency** (throughput) | `max_num_seqs: 32`, `max_mamba_cache_size: 128` | ~88 tok/s at k≈16–24 |
-| **B** | `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | **long context** (up to 1M) | `max_model_len: 1000000` + YaRN override | single long sessions |
-| — | `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | balanced base / **control** | `max_num_seqs: 24`, `max_mamba_cache_size: 112`, ctx 262144 | ~91 tok/s peak at k=16 |
+| `…-labquant-sglang` (pre-cut pin `7c4f1bc1`) | 2 | 41.32 ± 4.16 | 38.58 ± 2.37 | **kept — TP=2 survivor** |
+| `…-labquant-sglang` (re-pinned `6c01ac37`) | 2 | 40.32 ± 1.94 | 43.29 ± 2.68 | same arm after the re-pin; the shipped receipt |
+| `…-labquant-longctx-sglang` | 2 | 42.47 ± 3.03 | 39.04 ± 3.15 | tied at C1; 1M quality unverified → attic |
+| `…-labquant-highcon-sglang` | 2 | 40.10 ± 2.44 | 41.92 ± 5.28 | tied at C1; larger pool for a regime not shipped → attic |
+| `…-nvfp4-sglang` (RadixArk) | 2 | 36.84 ± 3.42 | 34.44 ± 1.19 | ~12% slower at C1 → attic |
+| `…-solo-vllm-b12x` | 1 | 33.92 ± 1.73 | 34.35 ± 1.26 | **kept — TP=1 survivor** |
+| `…-solo-sglang` | 1 | 19.82 ± 2.06 | 20.97 ± 1.02 | ~42% below the TP=1 pick → attic |
 
-Both lanes inherit the base recipe's 7-mod labquant chain and its two **mandatory** engine flags
-(`--moe-runner-backend flashinfer_cutlass`, `--cuda-graph-backend-prefill disabled`). See the recipe
-headers; the reasons are in `AGENTS.md` §1.
+The three labquant TP=2 arms are **statistically indistinguishable** at C1 (means 40.1–42.5 with
+overlapping 2–4 tok/s stds). The balanced base is kept because at equal speed the owner's priority
+order breaks the tie on memory and accuracy-safety: it carries the smallest mamba pool (112 vs 128)
+and no unverified 1M extrapolation. Read the whole table as a *triage*: a 5-run C1 cell on this
+hardware has a multi-percent boot-to-boot floor (WORK §4b), so a rank here is decisive only when the
+gaps are ≫ the std.
 
-### Lane A — high concurrency
-
-For many concurrent streams where **aggregate** tokens/s is the metric (batch jobs, agent fan-out,
-evals). This is **not** the low-latency config: at the aggregate peak a single request gets roughly a
-third of its single-stream rate and waits ~10 s for first token.
-
-Why these two knobs:
-
-- `max_num_seqs` must stay **strictly above** every served `k`. At `k == cap` the running batch
-  saturates at `cap − 1` with one request permanently queued and per-request decode loses ~6%.
-  Raising it to **32** keeps every served `k ≤ 31` strictly below the flag.
-- The **effective admission ceiling is the mamba state pool**, not `max_num_seqs`:
-  `run ≤ min(max_num_seqs, max_mamba_cache_size // slots_per_request)` with `slots_per_request = 4`
-  on the lazy strategy. Pool 112 → ceiling **28**; pool **128** → ceiling **32**. Raising the pool
-  112 → 128 is associated with **~13% more k=24 throughput** (88.35/87.78 vs 78.02 across four
-  boots at matched config) — at a `k` where the pool formula says it cannot bind. **The mechanism is
-  unestablished**; treat it as a measured association, not a law.
-- `chunked_prefill_size` is **kept at 4096**. Raising it to 8192 helps k=24 on the *RadixArk*
-  checkpoint but **regresses k=8 (−6.2%) and k=16 (−5.5%) in aggregate on labquant** — the
-  checkpoint this lane ships. It does not transfer.
-
-Cost: pool 128 ≈ +850 MB/rank (traded against KV); cap 32 ≈ +0.42 GB intermediate scratch for
-−4.55% KV. Boot-verified on the assigned pair (see `../../attic/qwen4/NOTES.md`) — see the header's STATUS note.
-
-### Lane B — long context (up to 1M)
-
-Makes the server **accept and allocate** for a 1 M-token request via `--context-length 1000000` plus
-a **YaRN RoPE override** (`--json-model-override-args`, injecting `rope_type: yarn`, `factor 3.815`
-= 1 000 000/262 144, `original_max_position_embeddings: 262144`).
-
-> **Read this before trusting any number above ~262144.** The checkpoint declares
-> `max_position_embeddings = 262144` with **no** YaRN/NTK config; the override is an
-> **extrapolation**, not a trained capability. `partial_rotary_factor: 0.25` (only a quarter of each
-> head carries position) makes a quiet failure more likely, and a neighbouring lane's needle test was
-> exact at 240k but **failed at 300k**. So the recipe ships the 1 M route, but the **quality-verified
-> serving point is `max_model_len: 262144`** — run `-o max_model_len=262144` (and drop the YaRN
-> argument) for anything user-facing until a needle gate at 512k/768k/1M **passes**.
-
-This is the lane's honest limit: memory is **not** the gate (a 1 M-token sequence is ~13 GB/rank,
-inside the ~23 GB pool), the **trained positional ceiling** is. `bf16` KV is deliberate — `fp8_e4m3`
-boots and allocates a bigger pool but then dies in QSA decode (`unsupported SM121 QSA call`; the
-SM121 packed-decode path requires BF16 queries). Do not "fix" the KV dtype to buy context.
-
-### The TP=1 lane now exists — the PLE table, not memory, was the blocker
-
-The tasking named "a TP=1 and TP=2 lane", and the earlier conclusion here was "TP=1 is not deliverable
-on memory". That conclusion got the **mechanism** wrong: it counted 180B NVFP4 weights (~83.8 GB) +
-KV (~24 GB) per rank and stopped, but the component that actually does not fit is the **~47.7 GiB FP8
-PLE n-gram table**. Keep that table off the device — stream it from disk — and the rest of the config
-is the TP=2 shape at `--tp 1`.
-
-Three independent proven TP=1 routes now exist (found 2026-10-10):
-
-- **vLLM, PLE table on disk** (`VLLM_PLE_TABLE_MEMORY=disk`, mmap/pread per step) — ported here as
-  `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`.
-- **SGLang, file-backed PLE** (`--ple-offload-embedding --ple-offload-backend file` + a merged SM121
-  QSA kernel) — the SGLang cookbook now ships verified single-Spark cells for both the RadixArk and
-  the NVIDIA NVFP4 exports.
-- **TensorFold** — Mia's AI Lab's own ONE-DGX-Spark line.
-
-Two corrections to the old text: the RadixArk *base* recipe's 135 GB is a **TP=2** footprint, not a
-single-Spark one; and the EXL3 NO-GO (W2) stands on **policy/topology** grounds (its free result
-— `Qwen4Exp QSA requires a BF16 main KV cache`, needle exact at 240k / failing at 300k — is folded
-into Lanes A/B above), but it was never *the only* TP=1 route and does not bind these PLE-offload
-routes.
-
-**Status: ported, not yet boot-verified on our nodes.** Treat every number in that recipe as
-unmeasured until the boot test lands.
+The TP=1 arm is ~18% slower than TP=2 at C1 but uses **one node instead of two** — which is the
+owner's first priority. That trade is the reason both survive the cut.
 
 ---
 
-## All recipes
+## The TP=2 recipe — labquant balanced base (SGLang, 2 nodes)
 
-**This directory holds only the production recipes and their guides** (`README.md`, `AGENTS.md`,
-`../../attic/qwen4/NOTES.md`) — the same convention the `ds4` lane uses:
+All defaults are in the recipe; the couplings that matter:
 
-> **Served model id (2026-10-13).** All five sglang arms now advertise their **upstream repo id** —
-> `RadixArk/Qwen3.8-Flash-Next-NVFP4` (RadixArk arms) and `local-inference-lab/Qwen3.8-Flash-Next-NVFP4`
-> (labquant arms) — verified live with `GET /v1/models`; previously they returned the container's
-> snapshot path as the model id.
+- **Pin.** `model_revision: 6c01ac378d22…` — the step-5500 QAD revision (`main` since 2026-10-06),
+  43 shards / ~106.3 GB. **The pin key is `model_revision:`, not `revision:`** — a bare `revision:`
+  is silently ignored (§1 fact 1 in `AGENTS.md`). Do not unpin: `main` has twice moved under us.
+- **The mod chain (6 mods).** `drop-caches` → `fix-labquant-modelopt-mixed-flat-schema` (builds the
+  `/cache/runtime/labq-patched` tree) → `unpack-labquant-ple-nvfp4-to-fp8` → `diag-qwen4-unplaced-scales`
+  → `fix-labquant-mxfp8-weight-scale-name` → `demote-labquant-narrow-mxfp8-to-bf16`. **`mods:` is an
+  ordered dependency chain, not a set** — the config mod must stay first and the demote mod last.
+  A 7th mod, `skip-labquant-vision-tower`, was **dropped on this revision**: it existed to work around
+  the OLD export's NVFP4-quantised vision tower, and the step-5500 revision ships that tower **BF16**
+  and already lists `model.visual.*` in `quantization_config.ignore`. This export therefore serves
+  **vision as well as text** now (the old recipe was text-only).
+- **Two mandatory engine flags**, not tunables: `--moe-runner-backend flashinfer_cutlass` (with `auto`
+  the NVFP4 MoE resolves to FLASHINFER_TRTLLM, dead on SM121) and
+  `--cuda-graph-backend-prefill disabled` (else prefill CUDA-graph capture raises). They live in
+  `defaults.extra_args` so the recipe carries them.
+- **Knobs that are answered — do not re-litigate.** `kv_dtype: fp8_e4m3` is a config-level NO (boots,
+  allocates, then dies in SM121 QSA decode: `unsupported SM121 QSA call`). `chunked_prefill_size 8192`
+  regresses k=8/k=16 on this checkpoint; keep 4096. `max_num_seqs` must stay strictly above every
+  served `k`, and the real admission ceiling is the **mamba pool** (`max_mamba_cache_size // 4` on the
+  lazy strategy: 112 → 28).
 
-| recipe | checkpoint | runtime | TP | lane / purpose |
-|---|---|---|---|---|
-| `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | local-inference-lab | sglang | 2 | **balanced base + control** |
-| `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane A — high concurrency** |
-| `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | local-inference-lab | sglang | 2 | **Lane B — long context (1M)** |
-| `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk | sglang | 2 | **quality reference** (vision intact) |
-| `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | local-inference-lab | vllm | 1 | **solo TP=1** — PLE table streamed from disk (`VLLM_PLE_TABLE_MEMORY=disk`); **boot-verified + W3 38/38 (2026-10-10, n=1)**; serves `local-inference-lab` at main = the step-5500 QAD hybrid (no revision pin) |
-| `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` | RadixArk | sglang | 1 | **solo TP=1, SGLang route** — `--ple-offload-embedding --ple-offload-backend file`; cookbook cell on our pinned image; **boot-verified + W3 38/38 (2026-10-10, n=1)** |
+A full 1M-token route (YaRN) existed as the archived `…-longctx-` arm; it is **quality-unverified above
+~262k** (the checkpoint declares `max_position_embeddings = 262144` with no YaRN config, and a
+neighbouring needle test failed at 300k), so the shipped recipe keeps `max_model_len: 262144`.
 
-Everything else is archived under [`../../attic/qwen4/`](../../attic/qwen4/) and is **not** part of the
-production surface:
+## The TP=1 recipe — vLLM solo (1 node)
 
-- **`attic/qwen4/arms/`** — all experiment arms and contributor/alternative recipes that were under
-  `recipes/qwen4/` (`zz-*`, the `eugr-` vLLM recipes, `ursuciprian-…-fastqsa…`, the TP=4 arm, the
-  cross-runtime `…-vllm` recipe), each with a provenance row in
-  [`../../attic/qwen4/ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md).
-- **`attic/qwen4/`** — the lane's research record (`QWEN4-MODEL-OPTIMIZATION-WORK.md`), journal
-  (`JOURNAL.md`), cross-agent ledger (`COOP.md`), and status memos (`status/`). The record and
-  journal are git-ignored and stay private; `COOP.md` was IP-redacted before archiving.
+The ~47.7 GiB FP8 PLE n-gram table, not weights+KV, is what does not fit one Spark; keep it **off the
+device** and the rest of the server config is the TP=2 shape at `--tp 1`. This recipe does that with
+`VLLM_PLE_TABLE_MEMORY=disk` (mmap/pread per step). The image is a floating
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest` (the b12x build publishes no digest-pinnable
+alias), so any measured number is tied to whatever that tag resolved to. Boot-verified; W3 battery
+**38/38** (n=1, 2026-10-10).
 
-~~~text
-attic/qwen4/
-├── ARMS-MANIFEST.md      # what each archived arm is and why
-├── arms/                 # 24 archived recipes
-├── status/               # W3/W4/W8 report memos
-├── COOP.md  JOURNAL.md  QWEN4-MODEL-OPTIMIZATION-WORK.md
-~~~
+The SGLang single-Spark route (`--ple-offload-embedding --ple-offload-backend file`) is **archived**:
+in the 2026-10-14 window it first failed readiness, and the re-measurement (`bench_253dd84c9a78`)
+shows why it was never a contender — **19.82 ± 2.06 t/s d=0 / 20.97 ± 1.02 d=8192**, ~42% below the
+vLLM solo arm and far outside its σ. The failure was a **port timeout, not an architectural
+negative**: with `readiness.port_timeout_s: 3600` the port opened at **TTR 3477 s**, i.e. past
+sparkrun's default 1800 s (which is what killed the first attempt). Its cookbook speed figures are
+the cookbook's hardware and were never reproduced here.
 
 ---
 
-## Performance (measured, TP=2)
+## Performance (measured, both survivors)
 
-All `VERIFIED` in the lane record `attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` §3/§4/§19; quote
-aggregate **and** per-request together, and read the cell's noise floor before comparing.
+Read aggregate **and** per-request together, and read your cell's noise floor before comparing
+(WORK §3c, §4b).
 
-| quantity | RadixArk | labquant |
+| quantity | TP=2 (labquant base) | TP=1 (solo vLLM) |
 |---|---|---|
-| single-stream decode (k=1, d=0) | **37.973 tok/s** | ~44 tok/s |
-| aggregate peak (d=8192) | **86.86** @ k=16 | **91.38** @ k=16 |
-| aggregate at k=24 (d=8192) | ~54 | ~56 |
-| batching gain (bs=8 vs bs=1, aggregate) | **+119%** | — |
-| NEXTN acceptance `A` | 2.18 (n=21) | 2.1924 (n=7) |
+| C1 decode d=0 | **40.3 ± 1.9** tok/s | 33.9 ± 1.7 tok/s |
+| C1 decode d=8192 | **43.3 ± 2.7** tok/s | 34.4 ± 1.3 tok/s |
+| TTFT d=0 / d=8192 | 853 / 2108 ms | 1145 / 1220 ms |
+| W3 quality battery (38 tasks) | **stable-pass 37/38**, 113/114 across `--repeat 3` (2026-10-14) | 38/38 (2026-10-10, n=1) |
 
-Two structural facts worth internalising before tuning anything here:
 
-- **Decode is not purely byte-bound.** `t_step = F + bytes/B` with `B = 145.5 GB/s` and a fixed
-  per-step cost **`F = 8.375 ms`** that no quantisation removes — 22% of a RadixArk step, 30% of a
-  labquant step. This is why "fewer weight bytes" has been a weak lever.
-- **There is no single noise floor.** Per-cell inter-boot floors span ~0.6–35%. Read your cell's
-  floor (WORK §4b) or say you have not measured one. Same-boot/interleaved beats more repetitions.
+The TP=2 survivor's battery receipt is `~/benchmarks/q4-w3-repin-20261014/w3-repin.json` on the head;
+one task (`qa-code-06`) flips across repeats and is reported as flaky, not as a score. This is the
+same instrument that read labquant 37/38 and RadixArk 35/36 on 2026-10-04.
 
-The labquant checkpoint is faster but **more aggressively quantised and text-only**; no accuracy
-evaluation exists for it, so a speed win is **not** evidence of equal quality. Use the RadixArk recipe
-as the quality reference until an eval lands (`attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md`).
+Two structural facts worth internalising: decode is **not** purely byte-bound — `t_step = F +
+bytes/B` with `B ≈ 145.5 GB/s` and a fixed per-step cost `F ≈ 8.4 ms` that no quantisation removes
+(WORK §3); and there is **no single noise floor** — per-cell inter-boot spreads here span ~0.6–35%.
+
+The labquant checkpoint is the more aggressively quantised export (MXFP8 attention/GDN, FP8 PLE,
+packed-NVFP4 PLE unpacked to fp8 by a required mod). Its W3 battery reads essentially equal to the
+RadixArk reference's on the tasks both ran, which is what promoted it to the lane's only checkpoint —
+but the battery is a gross-regression instrument, not an accuracy certificate
+(`attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md`).

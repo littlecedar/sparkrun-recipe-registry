@@ -51,8 +51,8 @@ LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
 # host's ~/.cache/huggingface at /cache/huggingface.
 HF_HUB="${HF_HUB:-/cache/huggingface/hub}"
 REPO="${MOD_LABQ_REPO:-local-inference-lab--Qwen3.8-Flash-Next-NVFP4}"
-# Pin the revision we validated against. Override with MOD_LABQ_REVISION.
-REVISION="${MOD_LABQ_REVISION:-7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd}"
+# Pin the revision we validated against (step-5500 QAD, 2026-10-06). Override with MOD_LABQ_REVISION.
+REVISION="${MOD_LABQ_REVISION:-6c01ac378d22f6652c9f392c87700496eca8e5dc}"
 
 OUT_DIR="${MOD_LABQ_OUT:-/cache/runtime/labq-patched}"
 OUT_DIR="${OUT_DIR%/}"
@@ -168,13 +168,31 @@ WANT_STAMP="${SNAP}"
 # eviction -- would have hit this on its very first boot.
 mkdir -p "${OUT_DIR}" || die "cannot create ${OUT_DIR}"
 REAL_SHARDS="$(find "${OUT_DIR}" -maxdepth 1 -name '*.safetensors' -type f 2>/dev/null | wc -l | tr -d ' ')"
-if [ -f "${STAMP}" ] && [ "$(cat "${STAMP}" 2>/dev/null)" = "${WANT_STAMP}" ]; then
-  log "stamp matches this snapshot; refreshing config.json in place (preserving ${REAL_SHARDS} converted shards)"
+if [ -f "${STAMP}" ]; then
+  CUR_STAMP="$(cat "${STAMP}" 2>/dev/null)"
+  if [ "${CUR_STAMP}" = "${WANT_STAMP}" ]; then
+    log "stamp matches this snapshot; refreshing config.json in place (preserving ${REAL_SHARDS} converted shards)"
+  else
+    # STALE STAMP: the tree was assembled for a DIFFERENT snapshot. Rebuilding is mandatory,
+    # not optional. The pre-2026-10-14 code fell into the "refuse to rm -rf" branch below and
+    # refreshed IN PLACE, which left the old snapshot's symlinks and converted shards beside the
+    # new snapshot's -- a HYBRID tree whose index decides which weights actually load. Observed
+    # when re-pinning 7c4f1bc1 -> 6c01ac37 on .34/.35 (2026-10-14): both revisions' shards
+    # present at once. The 51 GB re-conversion is the correct price of a revision switch.
+    log "stamp is for a DIFFERENT snapshot:"
+    log "  have: ${CUR_STAMP}"
+    log "  want: ${WANT_STAMP}"
+    log "rebuilding ${OUT_DIR} from scratch to avoid a hybrid tree (${REAL_SHARDS} real shards discarded)"
+    rm -rf "${OUT_DIR}"
+    mkdir -p "${OUT_DIR}" || die "cannot create ${OUT_DIR}"
+  fi
 elif [ "${REAL_SHARDS}" -gt 0 ] && [ "${MOD_LABQ_FORCE_REBUILD:-0}" != "1" ]; then
-  log "no current stamp, but ${REAL_SHARDS} converted shard files are present -- refusing to rm -rf; refreshing in place"
+  # NO stamp at all (not a revision switch): the protective refusal still applies -- a tree whose
+  # stamp was lost must not be destroyed on the next boot, that was the original 51 GB bug.
+  log "no stamp, but ${REAL_SHARDS} converted shard files are present -- refusing to rm -rf; refreshing in place"
   log "  (set MOD_LABQ_FORCE_REBUILD=1 to rebuild the tree from scratch, discarding them)"
 else
-  log "rebuilding ${OUT_DIR} from scratch (no stamp match, ${REAL_SHARDS} real shards present)"
+  log "rebuilding ${OUT_DIR} from scratch (no stamp, ${REAL_SHARDS} real shards present)"
   rm -rf "${OUT_DIR}"
   mkdir -p "${OUT_DIR}" || die "cannot create ${OUT_DIR}"
 fi

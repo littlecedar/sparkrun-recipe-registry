@@ -1,11 +1,11 @@
 # `attic/qwen4/arms/` — archived Qwen4 recipes
 
 **What this is.** Every Qwen4 recipe that is **not part of the production surface** in
-`recipes/qwen4/`. `recipes/qwen4/` now ships exactly four recipes (the balanced base, Lane A
-high-concurrency, Lane B long-context, and the RadixArk quality reference) plus its guides — the same
-convention the `ds4` lane uses. Everything else lives here, **tracked** (so it is never lost) because
-a `bench_*` id is the provenance of a result and the recipe file is convenience for reading what that
-id ran.
+`recipes/qwen4/`. After the 2026-10-14 cut `recipes/qwen4/` ships exactly **two** recipes — the
+fastest TP=1 (`…-solo-vllm-b12x`, one Spark) and the fastest TP=2 (`…-labquant-sglang`, the
+re-pinned balanced base) — plus its guides, the same convention the `ds4` lane uses. Everything else
+lives here, **tracked** (so it is never lost) because a `bench_*` id is the provenance of a result
+and the recipe file is convenience for reading what that id ran.
 
 **Why they are here, not in `recipes/qwen4/`.** `recipes/qwen4/` is a shipped artifact (distributed
 over git to nodes and third parties). An arm variant whose finding is closed, a contributor recipe we
@@ -17,7 +17,7 @@ policy).
 by **no live benchmarking profile** in `benchmarking/` (checked by literal `grep -rF`; the two
 `zz-*-metrics` instrumented arms failed this test and were **kept** in `recipes/qwen4/` through the
 first harvest wave, then moved here in the second wave *together with* the benchmarking cleanup —
-i.e. they are here now because the production directory was narrowed to the four shipped recipes, not
+i.e. they are here now because the production directory was narrowed to the shipped recipes, not
 because their profiles were deleted). Nothing in `recipes/`, `benchmarking/`, `tools/`, or `tests/`
 globs `recipes/qwen4/*.yaml` in a way that a move breaks. **Do not re-add these to `recipes/qwen4/`;
 run them by path from here.** `sparkrun` runs a recipe by path, and `AGENTS.md` §6 shows the by-path
@@ -87,6 +87,57 @@ production set. They are archived here, tracked, with their provenance.
 | `qwen3.8-flash-next-labquant-tp4-sglang.yaml` | local-inference-lab | sglang | TP=4 arm; never produced a number (§6 item 1b). Recovered from git HEAD (the live writer had staged its deletion). |
 | `ursuciprian-qwen3.8-flash-next-nvfp4-fastqsa4096bigkv-g8-sglang.yaml` | RadixArk | sglang | Contributor recipe (ursuciprian); carries a **non-portable** host bind-mount (`executor_config.volumes`), so it is not shippable as-is. |
 | `qwen3.8-flash-next-nvfp4-nvidia-sglang.yaml` | nvidia/Qwen3.8-Flash-Next-NVFP4 | sglang | Accuracy-candidate arm built 2026-10-10 from the RadixArk quality reference with only the checkpoint swapped (blazux head-to-head: NVIDIA 88.8%±1.0 vs RadixArk 86.1%±1.9, +15–22% KV, −7–8% decode on their vLLM route). **BOOT-ANSWERED 2026-10-10: REJECTED on this engine** — the checkpoint's per-layer quant map violates the pinned SGLang loader's block divisibility (`ValueError: The output_size of gate's and up's weight = 320 is not divisible by weight quantization block_n = 128`, scheduler init). Upstream served it on vLLM with engine patches. Adopting needs an engine patch on our pinned image or a vLLM route — its own slice, not a config change. |
+
+### Wave 4 — production-directory cut to one TP=1 + one TP=2 arm (archived 2026-10-14)
+
+Owner decision 2026-10-14: the lane ships **exactly two** production recipes — the fastest TP=1 and
+the fastest TP=2 — and everything else goes to the attic; 1M context is droppable. **Five** of the six
+shipped recipes were measured in one window on `.34/.35` with `benchmarking/decode-triage.yaml`
+(d0/d8192, C1, 5 runs, decode-phase rows only); the sixth (`…-solo-sglang`) failed readiness there and
+was **re-measured later the same day** on `.34`. Receipts: `~/benchmarks/q4-*-triage_1014_*.json` and
+`~/benchmarks/q4-solo-sglang2-triage_1014.*` on the head.
+
+Decode-phase C1 means (tok/s, mean ± std of 5):
+
+| recipe | nodes | d=0 | d=8192 |
+|---|---|---|---|
+| `…-labquant-sglang` (**kept**, TP=2) | 2 | 41.32 ± 4.16 | 38.58 ± 2.37 |
+| `…-labquant-longctx-sglang` | 2 | 42.47 ± 3.03 | 39.04 ± 3.15 |
+| `…-labquant-highcon-sglang` | 2 | 40.10 ± 2.44 | 41.92 ± 5.28 |
+| `…-nvfp4-sglang` (RadixArk) | 2 | 36.84 ± 3.42 | 34.44 ± 1.19 |
+| `…-solo-vllm-b12x` (**kept**, TP=1) | 1 | 33.92 ± 1.73 | 34.35 ± 1.26 |
+| `…-solo-sglang` | 1 | 19.82 ± 2.06 | 20.97 ± 1.02 (re-measured after a readiness fix; `bench_253dd84c9a78`) |
+
+The three labquant TP=2 arms are statistically indistinguishable at C1 (means 40.1–42.5, overlapping
+std). The balanced base is kept over the other two on the owner's priority order (equal speed →
+memory ↓, accuracy-safe context): it carries the smallest mamba pool (112 vs 128) and no unverified
+1M extrapolation.
+
+| file | checkpoint | runtime | why archived | finding lives in |
+|---|---|---|---|---|
+| `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | labquant | sglang | C1-tied with the base but costs the larger pool (128) + `max_num_seqs 32` (+~0.85 GB/rank, −4.55% KV); it is an aggregate-throughput variant (k≈16–24) this cut does not ship. Pinned `7c4f1bc1`. | `recipes/qwen4/README.md` (old Lane A text, now here); WORK §19x/§19z |
+| `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | labquant | sglang | 1M route is a YaRN **extrapolation** with unmeasured quality above ~262k (owner: 1M droppable); C1-tied with the base at the 262k-safe point. Pinned `7c4f1bc1`. | `recipes/qwen4/README.md`; WORK §15 |
+| `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk | sglang | Slower on **every** measured cell (C1 36.8/34.4 vs labquant 41.3/38.6). Was the quality reference until the labquant W3 battery landed. | `recipes/qwen4/README.md`; W3 status |
+| `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` | RadixArk | sglang | **Re-measured 2026-10-14 (the sixth arm) — `bench_253dd84c9a78`: 19.82 ± 2.06 t/s d=0, 20.97 ± 1.02 d=8192** (decode-phase rows; receipt `~/benchmarks/q4-solo-sglang2-triage_1014.{json,yaml}`). Clear **loser** to the shipped TP=1 arm: ~42% below solo vLLM's 33.92 ± 1.73, far outside its σ. The first in-window attempt's failure was a **port timeout, not an architectural negative** — see the boot-config bullet below. | this row; `bench_253dd84c9a78` |
+
+**Trap for anyone resurrecting the two labquant arms.** They pin `model_revision: 7c4f1bc1…`, but the
+labquant mods (`unpack-labquant-ple-nvfp4-to-fp8`, `fix-labquant-modelopt-mixed-flat-schema`,
+`demote-labquant-narrow-mxfp8-to-bf16`) now default to the step-5500 revision `6c01ac37…`. The mod
+builds the served tree, so running one of these arms as-is would serve `6c01ac37` while the recipe
+claims `7c4f1bc1`. Set `MOD_LABQ_REVISION=7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd`, or re-pin the
+recipe, before running one.
+
+**Sixth-arm boot config (2026-10-14, `bench_253dd84c9a78`).** Booted on **`.34`** (`.30` was held by
+another workstream), not `.30`; the RadixArk snapshot was **absent** there, so sparkrun
+**distributed it successfully** — 125.96 GiB, 244 s, 2 streams. **This contradicts the recipe
+header's "distribution FAILS to a node that does not already hold this checkpoint" comment**
+(the 16 MiB safetensors-index inventory limit); a plain `sparkrun benchmark performance` with no
+special flags copied the 418-shard export intact. The load-bearing change is the recipe's new
+`readiness: {inference: true, port_timeout_s: 3600}` block: the port opened at **TTR 3477 s
+(endpoint wait 3458.9 s port, 15.7 s health)**, i.e. **1.9× sparkrun's default `port_timeout_s` of
+1800 s** — the default is exactly what failed on 2026-10-14. `GET /v1/models` returned
+`RadixArk/Qwen3.8-Flash-Next-NVFP4` (the served-name fix holds). Verdict: **stays archived**; the
+shipped TP=1 pick is unchanged.
 
 Parent assignment and exact deltas are from `.scratch/q4/recipe_manifest.md` (produced by direct
 diff of the parsed documents, not by filename inference) and are reproduced here so the manifest can

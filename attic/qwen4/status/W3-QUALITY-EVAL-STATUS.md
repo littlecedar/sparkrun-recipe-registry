@@ -104,7 +104,6 @@ instruction to report rather than propagate. The battery is not affected by this
 wording; the A/B in the plan memo is still the right test.
 
 ## Not verified (explicitly unmeasured)
-
 - Any actual accuracy number for either checkpoint — **unmeasured**.
 - Whether the PLE precision difference is the cause of any gap — **unmeasured**;
   a gap is a package-level difference only (`W3-QUALITY-EVAL-PLAN.md` §2).
@@ -114,3 +113,28 @@ wording; the A/B in the plan memo is still the right test.
   the real server.
 - The McNemar sample-size figures — a standard method (`LIKELY`), not measured
   on this model.
+
+## Re-run 2026-10-14 — the re-pinned (`6c01ac37`) survivor, one frozen battery, `--repeat 3`
+
+The battery is now frozen at **38 tasks** (`BATTERY_VERSION w3-qwen4-quality-eval/1`), which closes
+caveat 1 above: both arms can be compared on one task set. Single boot of
+`qwen3.8-flash-next-nvfp4-labquant-sglang` re-pinned to `6c01ac378d22…`, served at
+`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`, `--repeat 3 --seed 20261014`, TP=2 on `.34/.35`.
+
+| arm | battery | result | artifact |
+|---|---|---|---|
+| labquant, re-pinned `6c01ac37` (mod 3 fixed, vision mod dropped) | 38 tasks, repeat 3 | **113/114 = 99.1%, stable-pass 37/38, 1 flaky (`qa-code-06`)** | `~/benchmarks/q4-w3-repin-20261014/w3-repin.json` (head) |
+
+Per-category: arith 24/24, code 23/24, falsepremise 18/18, instr 24/24, recall 18/18, verbatim 6/6.
+
+So the upgrade did not move quality, and the `unpack-labquant-ple-nvfp4-to-fp8` preserve-and-rewrite
+fix (which now carries `ple.norm_*` and `weight_scale_2` through the rewritten shard) plus dropping the
+obsolete vision-tower mod did not regress it. Two honest limits remain: `--repeat 3` reports one task
+that flips across repeats, so the score is "37/38 stable-pass", not "37/38"; and this is still a
+gross-regression instrument, not an accuracy certificate.
+
+**Operational note (cost me a rerun).** Two copies of the harness were launched against the same
+endpoint, and the later one overwrote the first's JSON with a run containing 3 transport failures
+(`stable-pass 34/38`). The superseded artifact is kept as `w3-repin-RACED-superseded.json`; the clean
+receipt above is `w3-repin.json`. Never run two evals against one endpoint, and do not `--repeat`
+your way around a server that is closing connections.
