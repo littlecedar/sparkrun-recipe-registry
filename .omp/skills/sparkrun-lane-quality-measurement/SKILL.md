@@ -62,7 +62,8 @@ mod is invisible), wait for `/health` 200, score it with the accuracy harness, t
 2. Annotate superseded claims; never delete a measured claim to replace it.
 3. Keep numbers consistent across all prose (a stale baseline in a table is a defect).
 4. Gate: `uv run python -B -m unittest discover -s tests`, then `sparkrun recipe validate` on
-   every recipe, `bash -n` on mods, `py_compile` on mods/tools, then remove `__pycache__`.
+   every recipe, `bash -n` on `mods/*/*.sh` **and** `recipes/*/mods/*/*.sh`, `py_compile` on those
+   mods plus `tools/*.py`, then remove `__pycache__` (under `mods/`, `recipes/`, `tools/`, `tests/`).
 5. Commit with EXPLICIT pathspecs only (the tree has a live second writer) after reviewing
    `git diff --cached --stat`; never `git add -A`.
 

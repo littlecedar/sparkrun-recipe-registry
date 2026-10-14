@@ -12,7 +12,7 @@
 # HEALTH_PORT/SERVER_PORT env -> the launcher-persisted
 # /tmp/sparkrun_health_port -> the running engine's own `--port` (from
 # /proc/<pid>/cmdline) -> any LISTEN port from /proc/net/tcp{,6} -> the image
-# default. The matching launcher side lives in mods/dsv41-sglang-overlay.
+# default. The matching launcher side lives in recipes/ds4/mods/dsv41-sglang-overlay.
 #
 # NOT upstream: knapcio's boot.py at 58f2321 (and at origin/main) has no port
 # discovery, so a literal fresh-clone build SILENTLY DROPS this fix and yields

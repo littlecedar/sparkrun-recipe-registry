@@ -18,7 +18,8 @@ When the user asks to boot-test or trial a recipe on idle nodes. Run `sparkrun` 
 - HF cache completeness: `du -shL ~/.cache/huggingface/hub/models--<org>--<name>` (NEVER plain `du -sh` — xet symlinks make it under-report by ~100x); definitive: `hf cache verify <org>/<name>` (exit 0, "All checksums match"). Stray `*.incomplete` blobs are leftovers, not a defect.
 
 ## 2. Mod delivery (unpushed mods)
-- `@littlecedar/mods/<name>` resolves on the control machine to `~/.cache/sparkrun/registries/littlecedar/mods/<name>/` (scoped refs do NOT git-sync). To ship unpushed code, rsync the mod dir from the src tree into that clone (and into any legacy `_url_<hash>` clone). Do not push commits just for a trial unless asked.
+- `@littlecedar/mods/<name>` — a **shared** mod — resolves on the control machine to `~/.cache/sparkrun/registries/littlecedar/mods/<name>/` (scoped refs do NOT git-sync). To ship unpushed code for one of those, rsync the mod dir from the src tree into that clone (and into any legacy `_url_<hash>` clone). Do not push commits just for a trial unless asked.
+- A **lane-local** mod is referenced bare (`mods/<name>`) and resolves ADJACENT to the recipe, never from the clone's top-level `mods/`. For a path-launched recipe that is the working tree itself, so nothing needs staging; for an `@littlecedar/<recipe>` launch it is `~/.cache/sparkrun/registries/littlecedar/recipes/<lane>/mods/<name>/`, which appears only after the commit is pushed and `sparkrun registry update littlecedar` runs. Rsyncing a lane mod into the clone's `mods/` does nothing — see `AGENTS.md` §Mods.
 - Verify with `diff -rq` + md5sum vs the worktree copy.
 
 ## 3. Dry run

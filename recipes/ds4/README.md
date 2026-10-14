@@ -207,7 +207,7 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   (`recipes/ds4/mods/dsv41-vision-overlay/` holds the recipe for it).
 - **The Engram tables ship inside the model repo** as
   `engram/engram-l{1,14}.safetensors`; this recipe does **not** use
-  `mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so
+  `recipes/cybersec/mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so
   the tables live in the `engram/` subdir and the launcher prefers
   `<model_dir>/engram/`. A **rank-0/rank-1 Engram mismatch hangs at readiness** —
   every rank must have the tables before booting.

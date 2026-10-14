@@ -20,13 +20,14 @@ lane, and referenced UNSCOPED as `mods/<name>` so the adjacent-resolution rung
 finds it -- after the move, `@littlecedar/mods/<name>` would resolve against the
 published clone, which does not have the lane dir, and the launch would fail).
 
-Deliberate choice, documented as required: an `@eugr/mods/<name>` entry COUNTS
-toward a lane's use of `<name>`. That reference pulls eugr's copy, but the
-in-registry `mods/<name>` is the documented drop-in alternative for such a lane
-(swap the `@eugr` prefix for the registry's own copy), so the lane is a real
-consumer of the shared mod. Counting it is what keeps the guard from declaring a
-shared mod orphaned merely because its consumers have not yet migrated off
-`@eugr`.
+Only refs that bind to THIS tree count as a lane's use of a mod: a bare
+`mods/<name>`, or an `@littlecedar/mods/<name>`. An `@eugr/mods/<name>` entry
+binds to eugr's copy, so it is not evidence that *our* `mods/<name>` is shared --
+classifying by basename across registries is the "a substring test is not an
+identifier" error, and it passes too much precisely because the result looks
+plausible. The one mod whose cross-lane role is documented rather than consumed
+in-tree is named explicitly in `SHARED_BY_DESIGN` instead of being inferred from
+another registry's refs.
 
 Recipes are parsed as text (stdlib only, no PyYAML); whole-line comments are
 stripped before matching so a comment quoting an entry is inert. An empty or
@@ -53,6 +54,16 @@ MODS_DIR = REPO_ROOT / "mods"
 # recipe references, so the shared-only rule does not apply to it.
 SHARED_EXEMPT = frozenset({"mod-template"})
 
+# Mods that stay in `mods/` on documented cross-lane grounds rather than because
+# this tree's recipes reference them. `drop-caches` is listed by recipes in four
+# lanes (cybersec, ornith, qwen3, qwen4) as `@eugr/mods/drop-caches`; that pulls
+# eugr's copy, which is INERT, while this repo's `mods/drop-caches` is its fixed,
+# fail-closed counterpart -- mechanism in its README, guarded by
+# `tests/test_drop_caches_mod.py` and `attic/ds4/AGENTS.md`. Four lanes are its
+# audience, so it is not a lane's mod; it is named here rather than counted, so
+# rule A stays honest about what "shared" means.
+SHARED_BY_DESIGN = frozenset({"drop-caches"})
+
 _COMMENT_LINE = re.compile(r"(?m)^\s*#.*$")
 _MODS_BLOCK = re.compile(r"(?m)^mods:[ \t]*\n((?:(?:[ \t].*)?\n|[ \t].*\Z)*)")
 _MODS_ENTRY = re.compile(r"(?m)^[ \t]*-[ \t]*(.+?)[ \t]*$")
@@ -73,6 +84,19 @@ def _unquote(value: str) -> str:
 def basename(entry: str) -> str:
     """The mod directory name a `mods:` entry points at."""
     return entry.split("/")[-1]
+
+
+def binds_to_tree(entry: str) -> bool:
+    """Whether a `mods:` entry resolves to a mod in THIS registry's tree.
+
+    A bare `mods/<name>` and `@littlecedar/mods/<name>` both do. Any other
+    `@<registry>/mods/<name>` binds to that registry's own copy and says nothing
+    about ours, so it must not be counted as this tree's use of the name.
+    """
+    head, sep, _rest = entry[1:].partition("/mods/")
+    if not entry.startswith("@"):
+        return True
+    return sep != "" and head == "littlecedar"
 
 
 def parse_mods_block(text: str) -> list[str] | None:
@@ -125,11 +149,12 @@ def shared_mod_dirs(mods_dir: Path = MODS_DIR) -> dict[str, Path]:
 
 
 def lane_usage(refs: list[tuple[str, Path, tuple[str, ...]]]) -> dict[str, set[str]]:
-    """lane -> set of mod directory names it references (any ref form)."""
+    """lane -> mod directory names it references IN THIS TREE (`binds_to_tree`)."""
     usage: dict[str, set[str]] = {}
     for lane, _path, entries in refs:
         for entry in entries:
-            usage.setdefault(lane, set()).add(basename(entry))
+            if binds_to_tree(entry):
+                usage.setdefault(lane, set()).add(basename(entry))
     return usage
 
 
@@ -148,9 +173,11 @@ def lane_mod_dirs(recipes_dir: Path = RECIPES_DIR) -> dict[str, set[str]]:
 def shared_only_violations(
     shared: dict[str, Path] | set[str], usage: dict[str, set[str]]
 ) -> list[str]:
-    """Shared mods referenced by fewer than two lanes."""
+    """Shared mods referenced by fewer than two lanes, bar the by-design set."""
     bad: list[str] = []
     for name in sorted(shared):
+        if name in SHARED_BY_DESIGN:
+            continue
         lanes = sorted(lane for lane, names in usage.items() if name in names)
         if len(lanes) < 2:
             bad.append(f"mods/{name}: referenced by {lanes or 'no lane'}")
@@ -167,6 +194,8 @@ def cross_lane_violations(
     bad: list[str] = []
     for lane, path, entries in refs:
         for entry in entries:
+            if not binds_to_tree(entry):
+                continue
             name = basename(entry)
             for owner, names in lane_mods.items():
                 if name in names and owner != lane:
@@ -341,6 +370,27 @@ class NegativeControls(unittest.TestCase):
         self.assertTrue(
             resolve_ok("@eugr/mods/drop-caches", Path("recipes/ornith"), MODS_DIR)
         )
+
+    def test_control_external_registry_ref_is_not_a_lane_use(self) -> None:
+        refs: list[tuple[str, Path, tuple[str, ...]]] = [
+            ("ornith", Path("recipes/ornith/r.yaml"), ("@eugr/mods/drop-caches",)),
+        ]
+        self.assertEqual({}, lane_usage(refs), "eugr's copy is not our mod")
+        self.assertFalse(binds_to_tree("@eugr/mods/drop-caches"))
+        self.assertTrue(binds_to_tree("@littlecedar/mods/drop-caches"))
+        self.assertTrue(binds_to_tree("mods/drop-caches"))
+
+    def test_control_by_design_shared_mod_needs_no_tree_consumer(self) -> None:
+        self.assertEqual([], shared_only_violations({"drop-caches"}, {}))
+        self.assertTrue(shared_only_violations({"some-lane-mod"}, {}))
+
+    def test_control_cross_lane_ignores_a_foreign_registry_ref(self) -> None:
+        lane_mods = {"qwen4": {"fix-labquant-modelopt-mixed-flat-schema"}}
+        refs: list[tuple[str, Path, tuple[str, ...]]] = [
+            ("cybersec", Path("recipes/cybersec/r.yaml"),
+             ("@eugr/mods/fix-labquant-modelopt-mixed-flat-schema",)),
+        ]
+        self.assertEqual([], cross_lane_violations(lane_mods, refs))
 
     def test_control_empty_mods_block_raises(self) -> None:
         with self.assertRaises(ValueError):
