@@ -40,11 +40,14 @@ defaults:
   port: 8020
   host: 0.0.0.0
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: Cloudflare/clef-flash
 
 command: >
   taskset -c 0-4,10-14 sglang serve
   --model-path {model}
-  --served-model-name {model}
+  --served-model-name {served_model_name}
   --revision {model_revision}
   --host {host}
   --port {port}
