@@ -17,7 +17,7 @@ Use when a lane's recipes have never booted (theory-only) and you must run them 
 ssh <head> 'HOME=/home/<operator> sparkrun status'         # find idle hosts
 ssh <head> 'HOME=/home/<operator> sparkrun cluster show WOPR'  # transfer_mode
 ```
-Recipes not in the published registry must be run **by path**; symlink them beside `mods` in the run dir (e.g. `/home/<operator>/development`), like the sibling lanes:
+Recipes not in the published registry must be run **by path**; symlink them beside `mods` in the run dir (e.g. `${WOPR_RUN_FROM_DIR}`), like the sibling lanes:
 ```
 ssh <head> 'cd /home/<operator>/development && ln -sfn <abs-recipe> .'
 ```
@@ -55,4 +55,4 @@ Get the real traceback: `docker exec <ctr> tail -60 /tmp/sparkrun_serve.log`. Cl
 Run the repo gate (unittest, `recipe validate` all, `bash -n`, `py_compile`), then `git add` **explicit pathspecs only** (the tree is syncthing-shared with a live second writer), review `git diff --cached --stat`, scan the commit message with `tools/safe_text.py --check`, and commit.
 
 ## 7. Clean up
-`docker rm -f` IFM containers, remove scratch dirs (e.g. `/home/<operator>/ifm-runs`) and `/tmp/pull-*.log`; leave the `/home/<operator>/development` symlinks (documented working setup).
+`docker rm -f` IFM containers, remove scratch dirs (e.g. `/home/<operator>/ifm-runs`) and `/tmp/pull-*.log`; leave the `${WOPR_RUN_FROM_DIR}` symlinks (documented working setup).
