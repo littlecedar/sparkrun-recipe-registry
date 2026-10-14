@@ -108,10 +108,11 @@ commercial resale.
   Both revisions still resolve on the Hub, but **neither snapshot is on any node now**: the
   2026-10-13 cache audit held `76c0b517` (175.7 GB) on all six, and it has since been cleared, so a
   revival re-fetches ~176 GB.
-- **EXL3 3.0bpw** — `bertholomus/GLM-5.3-EXL3-3.0bpw` `main` is `7f057383` (2026-10-04), identical
-  to the HF-cache snapshot on `.30`; the runbook's `~/models/GLM-5.3-EXL3-3.0bpw` (~273 GB) is
-  staged on `.30`–`.33`. `incoai/GLM-5.3-Flash-DFlash2` is unchanged at `bf582e4e`, cached on all
-  six nodes.
+- **EXL3 3.0bpw** — `bertholomus/GLM-5.3-EXL3-3.0bpw` `main` is `7f057383` (2026-10-04). The
+  runbook's `~/models/GLM-5.3-EXL3-3.0bpw` (~273 GB) was staged on `.30`–`.33` **until 2026-10-14**,
+  when the owner's space directive reclaimed it along with the `.30` HF-cache entry — this lane ships
+  no recipe, so a revival re-fetches ~273 GB/node. `incoai/GLM-5.3-Flash-DFlash2` (2.3 GB) was
+  likewise reclaimed from all six nodes with the archived lane.
 - **Flash NVFP4 (archived)** — `RedHatAI/GLM-5.3-Flash-NVFP4` `main` has moved to `18d55bfd`
   (2026-09-18), past the archived recipe's `36c184c6` pin. `36c184c6` (2026-08-28) still resolves
   on the Hub, but **its snapshot is absent from every node**, so a revive re-fetches ~198 GB — and
