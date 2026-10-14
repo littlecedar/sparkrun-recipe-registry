@@ -25,7 +25,7 @@
 # patch to the context's boot.py, absent upstream (knapcio @ 58f2321 and
 # origin/main both lack it); a plain clone build drops it and yields a DIFFERENT
 # image (image dd9d1c3c… / digest ac9bc917…), not the canonical
-# 18e36391… / 4e5002ab… above. See recipes/ds4/AGENTS.md 5.
+# 18e36391… / 4e5002ab… above. See attic/ds4/AGENTS.md 5.
 #
 # This file lives beside `recipes/ds4/Dockerfile.tensorfold-dsv41` for reference;
 # it is a copy, not the build recipe (the real one stays in the clone above).

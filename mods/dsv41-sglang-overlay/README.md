@@ -9,7 +9,7 @@ Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 |:--|:--|
 | Kind | Pre-exec mod; **modifies no image file**. |
 | License | AGPL-3.0-or-later (this repo). |
-| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Those boots ran the fast loader, which has since been turned **off** in the launcher (`DSV41_FAST_LOAD=0`, below); the gated boot is otherwise unchanged. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `recipes/ds4/AGENTS.md`. |
+| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Those boots ran the fast loader, which has since been turned **off** in the launcher (`DSV41_FAST_LOAD=0`, below); the gated boot is otherwise unchanged. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `attic/ds4/AGENTS.md`. |
 
 The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
 (digest-pinned), so sparkrun pulls it and no node builds it. sparkrun distributes
@@ -194,7 +194,7 @@ start from 343 s to ~124 s but leaves the KV pool 3–13% smaller (it sizes from
 head's `MemAvailable` right after the loads), and this lane prefers the pool.
 Setting the key is how the decision is recorded — the image does not set it, and
 the loader's own gate defaults false. Rationale, the upstream numbers, and the
-boot-log A/B live in `recipes/ds4/AGENTS.md` §7.1.
+boot-log A/B live in `attic/ds4/AGENTS.md` §7.1.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old

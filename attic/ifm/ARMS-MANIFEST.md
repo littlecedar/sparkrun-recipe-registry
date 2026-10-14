@@ -23,7 +23,7 @@ request for the TP=2 arm — so the feature request was to stop spending nodes o
 slow-movers. `recipes/ifm/` is a shipped artifact (distributed over git to nodes and
 third parties); a sub-lane nobody runs is clutter there and a hazard to the next
 reader, who cannot tell a live recipe from a withdrawn one. The lane's own sprawl
-policy already named this outcome (`recipes/ifm/AGENTS.md` §7).
+policy already named this outcome (`AGENTS.md` §7).
 
 **Archive criterion.** A piece came here if it is **not part of the shipped production
 surface**: Wave 1 was withdrawn by the owner, Wave 2 lost a selection comparison
@@ -109,7 +109,7 @@ records its measured numbers and why it did not win.
 - **The 2026-10-09 crash-recovery handoff** (`IFM-RECOVERY-2026-10-09-WORK.md`)
   was a *session* handoff, explicitly **not** lane documentation, and its plan has
   closed: the instrument repair, the accuracy re-measure, the arm sweep and the UNO
-  promotion all landed, and its durable content lives in `recipes/ifm/NOTES.md` and
+  promotion all landed, and its durable content lives in `NOTES.md` and
   `AGENTS.md` (the lane's `COOP.md` ledger was a git-ignored working file, removed
   from git 2026-10-10). Per its own header it has been removed from the tree
   (kept only in the author's git-ignored `.local/`), so this manifest no longer

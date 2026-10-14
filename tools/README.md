@@ -548,7 +548,7 @@ decode graph, spec off, chunk shape), and the "what a PASS proves" limits. Guard
 radix shapes must FAIL/3, with the clean case asserted to produce no findings at all); no
 `tests/` guard references it.
 
-Lane state: `recipes/qwen4/AGENTS.md` (the W4 row); run record and reproducer shapes:
+Lane state: `attic/qwen4/AGENTS.md` (the W4 row); run record and reproducer shapes:
 `attic/qwen4/status/W4-GATE-STATUS.md`.
 
 ## qwen4-quality-eval.py
@@ -618,7 +618,7 @@ Guarded by its own `--selftest`
 shared prefix over 16 chars, category coverage, `score()` units, and correct/wrong/empty
 mock controls); no `tests/` guard references it.
 
-Measured numbers live next to the arms: `recipes/qwen4/AGENTS.md` (the W3 row) and
+Measured numbers live next to the arms: `attic/qwen4/AGENTS.md` (the W3 row) and
 `attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md` (the paired-run record).
 
 ## jev-decision-bench.py
@@ -736,7 +736,7 @@ control, not decoration).
 published number is comparable to. The explore lane's brief is frontier reasoning + **tool-calling**
 models, and three of its shortlist entries publish **BFCL** scores (`inclusionAI/Ling-3.0-flash`,
 `Aleph-Alpha/Kolibri-1`, `meta-models/Muse-Glimmer-30B`) — so BFCL is the standard suite that lane
-needs, and the one its research doc names (`recipes/explore/EXPLORE-MODELS-RESEARCH.md` §4).
+needs, and the one its research doc names (`attic/explore/EXPLORE-MODELS-RESEARCH.md` §4).
 
 This tool runs the official BFCL v3 questions against an OpenAI-compatible `/v1/chat/completions`
 and scores them with a **port of the official AST checker**

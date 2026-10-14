@@ -8,7 +8,7 @@ Read alongside [`../AGENTS.md`](../AGENTS.md) (the repo-wide authoring contract)
 [`../recipes/README.md`](../recipes/README.md) (registry index), [`../benchmarking/README.md`](../benchmarking/README.md)
 (benchmark read rules), and the per-lane `recipes/<family>/AGENTS.md` guides. Evidence vocabulary
 follows [`CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md`](CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md) and
-`recipes/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured; **LIKELY** =
+`../attic/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured; **LIKELY** =
 strong secondary evidence; **SPECULATIVE** = reasoning without a source.
 
 > **Verdict up front.** `.swival/` is not a second rulebook; it is the long-form *evidence and scar
@@ -284,7 +284,7 @@ number** before quoting it — this corpus was written on hardware over three we
   bare `missing …/config.json`. There is no CLI flag for `distribution` — hand-edit
   `~/.config/sparkrun/clusters/<name>.yaml`. — src:
   `.swival/memory/sparkrun-notes.md:476-496,417-428`; root [`AGENTS.md`](../AGENTS.md) and
-  `recipes/ds4/AGENTS.md` §5 (omit the block; rely on the default).
+  `../attic/ds4/AGENTS.md` §5 (omit the block; rely on the default).
 - **`transfer_mode` semantics matter for arch and registry location**: `local` pulls the image on
   the control machine (fails for an arm64-only image when the control host is amd64, `no matching
   manifest`); `pull` had a sparkrun bug; `delegated` builds/pulls on the head node and works when
@@ -412,7 +412,7 @@ and verbatim upstream modules under `.swival/`.
   the vLLM memory model (`gpu-memory-utilization`, `compilation_config`) and multi-node flags differ
   from SGLang's. Pick the column that matches the recipe's `runtime:`. — src:
   `.swival/doc_conserving_memory.md:39-75`; `.swival/doc_README.md`; cross-check
-  `recipes/ifm/AGENTS.md:172-175`.
+  `../attic/ifm/AGENTS.md`.
 - **`limit_mm_per_prompt` sets multimodal input limits**; setting a modality to `0` allocates
   nothing for it (even a text-only run of a multimodal model). — src:
   `.swival/doc_conserving_memory.md:94-160`.
@@ -484,7 +484,7 @@ and `attic/qwen3/DEPTH-COST.md` carry the same doctrine in shipped form.
 - **C1 is completion-length sensitive** — a varied short-answer prompt dilutes the decode rate;
   quote the steady-state C4/C8/C16 columns, and read the granted KV pool from the boot log, never
   from a computed estimate. — src: `.swival/trash/…/KNAPCIO-SGLANG-INTEGRATION.md`;
-  `recipes/ds4/AGENTS.md` §10.
+  `../attic/ds4/AGENTS.md` §10.
 - **A deep prefill looks like a wedge.** A ~799K-token prompt at ~600 t/s takes 20–23 minutes,
   `/health` returns 200 while generation times out, and killing the client does not cancel the
   in-flight prefill. Distinguish busy from wedged by worker CPU ticks (`/proc/<pid>/stat`), serve-log
@@ -551,9 +551,9 @@ some point and is now superseded, or conflicts with a shipped doc. Trust the shi
 - **A mod's `MOD_TIMEOUT` does not bound the hook** — the runtime enforces a hard 600 s pre-exec
   timeout on top, which `MOD_TIMEOUT` cannot extend (§3). — src: `.swival/HISTORY.md:933,4844`.
 - **`distribution_config.models.enabled: true` (memory) vs "omit the `distribution_config:` block"
-  (recipes/ds4/AGENTS.md §5) name opposite actions but are behaviourally equivalent** when relying
+  (../attic/ds4/AGENTS.md §5) name opposite actions but are behaviourally equivalent** when relying
   on sparkrun's default. Prefer the shipped doc's "omit the block". — src:
-  `.swival/memory/MEMORY.md:110-113` vs `recipes/ds4/AGENTS.md`.
+  `.swival/memory/MEMORY.md:110-113` vs `../attic/ds4/AGENTS.md`.
 - **`runs/*.json` vs the `--output` file**: [`../benchmarking/README.md`](../benchmarking/README.md)
   says to read `runs/*.json`; the corpus says `runs/` is scratch and reaped, and the durable
   citation is the `--output` file (which carries the same records). Hold both: read `runs/` while it

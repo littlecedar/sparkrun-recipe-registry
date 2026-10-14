@@ -31,6 +31,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LANE = REPO_ROOT / "recipes" / "cybersec"
+ATTIC = REPO_ROOT / "attic" / "cybersec"
 MODS = REPO_ROOT / "mods"
 
 # arm -> (the repo the recipe serves weights from, the repo id clients must see)
@@ -112,8 +113,8 @@ class LaneShape(unittest.TestCase):
             self.assertTrue((LANE / name).is_file(), f"missing arm {name}")
 
     def test_lane_docs_exist(self) -> None:
-        for doc in ("README.md", "AGENTS.md"):
-            self.assertTrue((LANE / doc).is_file(), f"missing lane doc {doc}")
+        self.assertTrue((LANE / "README.md").is_file(), "missing lane doc README.md")
+        self.assertTrue((ATTIC / "AGENTS.md").is_file(), "missing attic lane guide AGENTS.md")
 
     def test_every_arm_parses_to_a_command(self) -> None:
         for name in ARMS:

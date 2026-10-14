@@ -9,7 +9,7 @@ been booted on our nodes.
 
 Non-duplication: already served = ds4, glm5, ornith, qwen3/qwen4, embed/rerank.
 `Cloudflare/clef`/`clef-flash` were found by this scan but belong to the
-decision lane (see `recipes/decision/DECISION-MODELS-RESEARCH.md`).
+decision lane (see `../decision/DECISION-MODELS-RESEARCH.md`).
 
 Weighting: node count > speed > accuracy > memory (decisions #10/#11/#14).
 

@@ -20,7 +20,7 @@ for it.
 
 | file | role |
 |---|---|
-| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, licence banner at the top |
+| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, licence banner at the top |
 | [`mods/qwen-image-2.1-turbo-launcher`](../../mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
 
 The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang`/`vLLM` runtime

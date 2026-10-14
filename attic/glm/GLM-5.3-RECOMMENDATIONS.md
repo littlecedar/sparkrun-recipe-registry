@@ -129,7 +129,7 @@ The EXL3 lane's engine is an **unreleased fork branch** (`glm-dsa-tp4` @ `ddfad3
 it needs a source image build before a recipe can ship; the owner is unaware of any existing builds
 (2026-10-11).
 
-**Guard constraints for any GLM recipe here** (ds4 lane precedent, `recipes/ds4/AGENTS.md` §6, guarded
+**Guard constraints for any GLM recipe here** (ds4 lane precedent, `attic/ds4/AGENTS.md` §6, guarded
 by `tests/test_ds4_recipes.py`): no host device names in `env` (`NCCL_IB_HCA`, `NCCL_SOCKET_IFNAME`);
 the sparkrun IB probe supplies them (ACTIVE ports only, GID 3). Repo A's per-node HCA pinning and its
 default `NCCL_IB_GID_INDEX=5` must **not** be copied.

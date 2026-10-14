@@ -7,7 +7,7 @@
 # It mirrors mods/tensorfold-dsv41-launcher/run.sh (same engine/launcher/cache
 # gates) and adds one check: the staged VL-bias safetensors must be present, or
 # the trial would silently measure the text-bias fallback. See
-# recipes/ds4/AGENTS.md 12.14.
+# attic/ds4/AGENTS.md 12.14.
 set -euo pipefail
 
 export MOD_NAME="dsv41-vision-overlay"

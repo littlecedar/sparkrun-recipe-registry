@@ -8,8 +8,9 @@ importing PyYAML, so the guards survive a sparkrun upgrade and run anywhere
 (AGENTS.md: scripts must run on any lab machine).
 
 Why these exist.  The lane had **no recipe guard at all** until 2026-10-14
-(`recipes/ornith/README.md` §"No guard suite for this lane"); the only
-mechanical coverage was the mod guard and the repo-wide placeholder guards.
+(`attic/ornith/AGENTS.md`, the archived pre-consolidation README, §"No guard
+suite for this lane"); the only mechanical coverage was the mod guard and the
+repo-wide placeholder guards.
 The 9B arm (`ornith-1.5-9b-nvfp4-dflash-sglang.yaml`) is a *copy* of the 35B
 arm with a different checkpoint at a different scale, so every invariant below
 is one a careless copy silently breaks:
@@ -22,9 +23,9 @@ is one a careless copy silently breaks:
        one `full_attention` layer) -- so its omission is a *deliberate* choice to
        run engine defaults on a first, unmeasured arm rather than inherit the
        35B's `mamba_full_memory_ratio: 3.51`, a house value copied across lanes
-       with no recorded derivation (`recipes/ornith/AGENTS.md` §3.1).  Do not
+       with no recorded derivation (`attic/ornith/AGENTS.md` §3.1).  Do not
        "fix" the omission in either direction before reading
-       (`recipes/ornith/NOTES.md`, §2).
+       (`attic/ornith/NOTES.md`, §2).
   O2  the 9B arm must NOT mount @littlecedar/mods/ornith-honed-chat-template ..
        that template is the 35B's honed artifact (`qwen3.8-honed-v22.5.1`,
        30,438 B).  The 9B ships its own multimodal `chat_template.jinja`

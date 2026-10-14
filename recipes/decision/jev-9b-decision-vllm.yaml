@@ -21,7 +21,7 @@ metadata:
     /v1/chat/completions with logprobs + allowed_token_ids (SystemOne-shaped);
     System 2 generation is bit-identical to the frozen Qwen3.5-9B base.
     Serves in ~17 GiB of weights and co-locates with the shipped embed+rerank
-    2B pair on one node (see recipes/decision/DECISION-MODELS-RESEARCH.md §3).
+    2B pair on one node (see attic/decision/DECISION-MODELS-RESEARCH.md §3).
     BOOT-VERIFIED 2026-10-11; scored 2000-decision on the Typed Decisions test
     split (see recipes/decision/README.md).
   model_url: https://huggingface.co/autotrust/JEV-9B

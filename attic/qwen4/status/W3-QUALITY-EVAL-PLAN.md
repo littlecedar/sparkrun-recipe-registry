@@ -1,6 +1,6 @@
 # W3 — Quality-eval plan for the labquant export
 
-Workstream W3 (`recipes/qwen4/AGENTS.md:112`, WORK §6 item 5).
+Workstream W3 (`attic/qwen4/AGENTS.md`, WORK §6 item 5).
 Artifact under this memo: `tools/qwen4-quality-eval.py` (fixed 38-task battery).
 Every claim carries a provenance label; an unsourced sentence is a defect.
 
@@ -29,7 +29,7 @@ Every claim carries a provenance label; an unsourced sentence is a defect.
   of its easy tier).
 - **Not** reasoning quality, safety, calibration, or long-context retrieval
   (that is `tools/needle-haystack.py`).
-- **Not** throughput evidence (`AGENTS.md:24` — quality outranks throughput;
+- **Not** throughput evidence (`AGENTS.md` — quality outranks throughput;
   benchmark wins are not quality evidence, WORK §6 item 5).
 - **Not** a per-knob attribution: the two recipes differ by the whole labquant
   mod chain and `quantization` value (`modelopt_mixed` vs `modelopt_fp4`,
@@ -42,7 +42,7 @@ Every claim carries a provenance label; an unsourced sentence is a defect.
 ## 3. Exact A/B protocol (pre-registered)
 
 Run once per checkpoint, same window, both TP=2, one cluster job at a time
-(`AGENTS.md:75–77`). Control every free variable:
+(`AGENTS.md`). Control every free variable:
 
 | axis | value (both arms) |
 |---|---|
@@ -66,7 +66,7 @@ python3 tools/qwen4-quality-eval.py --base-url http://<node>:8000 \
 ```
 
 Interleave if the pair is free: this lane's rule is that a same-window control
-beats more runs (`AGENTS.md:190–191`). A task that flips across repeats is
+beats more runs (`AGENTS.md`). A task that flips across repeats is
 reported `FLAKY` and treated as unstable, not as a score (`quality-battery.py:36–41`).
 
 ## 4. Sample size for a paired exact-match comparison

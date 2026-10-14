@@ -35,7 +35,7 @@ single-shape image where the model rejected the two-shape premise. Warm TTR 54.6
 Move the `--vision` flag and the `TF_DS_VISION_EXTRA` default into
 `mods/tensorfold-dsv41-launcher/launcher.py`, ship `vl_bias.safetensors` there (or via
 a dedicated staging step), and add `vision` to the recipe's `metadata.tags`. Full
-rationale and evidence: `recipes/ds4/AGENTS.md` §12.14 and
+rationale and evidence: `attic/ds4/AGENTS.md` §12.14 and
 `.scratch/ds4/vision-trial/RESULTS.md`.
 
 ## Regenerating `vl_bias.safetensors`

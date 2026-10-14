@@ -1,9 +1,9 @@
 # CustomAllReduce on SM120 / TP=4 — what the claim is, why it does not transfer to `ds4`, and what is worth trying
 
 Status: research note, 2026-10-03. Not a recipe change. Nothing here is shipped.
-Read alongside [`../AGENTS.md`](../recipes/ds4/AGENTS.md) (lane invariants, guards) and
+Read alongside [`../AGENTS.md`](../attic/ds4/AGENTS.md) (lane invariants, guards) and
 [`../README.md`](../recipes/ds4/README.md) (measured numbers). Evidence vocabulary follows
-`../recipes/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured here;
+`../attic/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured here;
 **LIKELY** = strong secondary evidence; **SPECULATIVE** = reasoning without a
 source. Numbers this note derives are marked "computed here".
 

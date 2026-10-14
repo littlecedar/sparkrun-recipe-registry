@@ -10,7 +10,7 @@ and the recipe file is convenience for reading what that id ran.
 **Why they are here, not in `recipes/qwen4/`.** `recipes/qwen4/` is a shipped artifact (distributed
 over git to nodes and third parties). An arm variant whose finding is closed, a contributor recipe we
 do not run, or an alternative-runtime recipe nobody benchmarks is clutter there and a hazard to the
-next reader, who cannot tell a live recipe from a dead one. See `recipes/qwen4/AGENTS.md` §8 (sprawl
+next reader, who cannot tell a live recipe from a dead one. See `AGENTS.md` §8 (sprawl
 policy).
 
 **Archive criterion.** A recipe came here if it is **not a production lane** and its filename is named

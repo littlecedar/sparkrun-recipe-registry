@@ -58,7 +58,7 @@ metric-window artifact, recorded unproven).
 **ornith.** Reasoning-loop ticket **NOT REPRODUCED** (9-prompt battery × {temp 0, 0.6} × {4096, 8192}: zero
 repeated-window runs — the symptom is thinking-budget exhaustion, not a loop; this serve honours request-level
 sampling). Owner-directed TP=1 test: **35B C1 re-measured 99.6 ± 9.1 t/s @ d0 / 100.2 @ d8192** (the `~100`
-headline is now measured). New `recipes/ornith/AGENTS.md`; root cross-reference updated.
+headline is now measured). New `attic/ornith/AGENTS.md`; root cross-reference updated.
 
 **decision.** CPU+GPU tandem probe: clef-flash (GPU) + Kai-0.6B (CPU) equal-weight linear-mean ensemble
 **71.6% vs clef's 70.3% alone** (+1.3, McNemar p=0.012) — pairing-specific (clef+Sol 69.9%, 3-way 69.6%);
@@ -183,3 +183,17 @@ items, their `*(Owner decision …)*` notes, the §ornith session-result paragra
 prose, and the session scaffolding (the session-end line, the two scope bullets, the lane order). 162 →
 89 lines, 0 `[x]` left. Verified by a line-set diff of the `HEAD` TODO blob against both files — 0
 unaccounted, 0 duplicated lines. Gate re-run: **508 tests OK** (1 skipped), **31/31** recipes validate.
+
+**Documentation sweep + the lane-doc rule (2026-10-14, later).** Six read-only scouts swept every lane
+and the registry artifacts; the findings landed as 51 open `- [ ]` items across the 12 lane sections
+plus a registry-level `## Storage consolidation` section (each item carrying `path:line` evidence and an
+effort tag) and six owner questions (#28–#33) in `# DECISIONS` — commit `dd4fea8`. Storage highlights:
+the DS4.1 EXL3 base (~197 GB) + Engram tables provisioned twice per node where ds4 and cybersec co-run;
+three 21–25 GB Qwen3.8-27B packs of one architecture; three archived-lane weight packs with no recorded
+cache state (attic/ds4 Pollard, attic/ifm 36B-A4B, attic/explore Nemotron-30B); humanizer staging
+62 GB/node of GGUFs it never loads. The owner then set a **lane-doc rule** (2026-10-14): a lane's
+`README.md` speaks to **shipped recipes only**, carrying a table of contents and an index of the lane's
+attic material; everything else lives under `attic/<lane>/`. First pass (this session): lane
+`AGENTS.md`/`NOTES.md` fold into `attic/<lane>/` and the lane READMEs are block-merged to the new
+template, with the primary `recipes/README.md` de-researched (the command-template mechanics move to a
+new tracked `recipes/MECHANICS.md`).

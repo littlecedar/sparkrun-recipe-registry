@@ -34,7 +34,7 @@ defaults:
   max_model_len: 262144
   max_num_seqs: 24
   # How the leftover pool splits between GDN state and the token pool; the same
-  # interior-point trade documented for the qwen3.8-27B lane (recipes/qwen3/AGENTS.md
+  # interior-point trade documented for the qwen3.8-27B lane (attic/qwen3/AGENTS.md
   # section 5). Un-retuned for this checkpoint: no stated traffic mix.
   mamba_full_memory_ratio: 3.51
   # Checkpoint-derived override, as in the qwen3.8-27B NVFP4 recipe: the checkpoint

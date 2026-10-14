@@ -129,7 +129,7 @@ prompt-enhancer branch pruned). See the file header.
 
 ```bash
 cd ~/ltx25   # scripts live here; or use recipes/explore/ltx-2.5-runbook/
-# sustained-load power-loss fix (see EXPLORE-MODELS-RESEARCH.md §6(e)):
+# sustained-load power-loss fix (see ../../../attic/explore/EXPLORE-MODELS-RESEARCH.md §6(e)):
 # without the cap, a second consecutive long generation can take the node
 # down. Costs ~20% per run; all timings above were taken capped.
 sudo nvidia-smi -lgc 0,2200
