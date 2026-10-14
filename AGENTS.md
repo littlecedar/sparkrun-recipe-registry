@@ -61,7 +61,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 4 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 18 importable guard modules, one skipped `*.sync-conflict-*.py` |
+| `tests/` | 19 importable guard modules, one skipped `*.sync-conflict-*.py` |
 | `tools/` | 12 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -91,9 +91,9 @@ set -e
 H=$PWD/.local/sparkrun-home
 uv run python -B -m unittest discover -s tests
 for f in recipes/*/*.yaml; do HOME="$H" sparkrun recipe validate "$f" >/dev/null; done
-for s in mods/*/*.sh; do bash -n "$s"; done
-for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
-find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
+for s in mods/*/*.sh recipes/*/mods/*/*.sh; do bash -n "$s"; done
+for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
+find mods recipes tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
 - **Plain `validate` is the gate, not `--strict`**: 31/31 pass plain; 4/31 fail strict on
@@ -315,7 +315,7 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **508 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **528 tests,
   all passing 2026-10-14 (1 skipped)**. The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;

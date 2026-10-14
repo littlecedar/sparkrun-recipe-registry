@@ -68,7 +68,7 @@ The two `fastsafetensors` mods are **deliberately absent** even though the paren
 this recipe uses `load_format=safetensors`, so they accomplish nothing — and worse, they exec as root
 and leave a root-owned `flashinfer_jit.log` in the persisted per-model runtime cache, making the first
 launch of a new model key die as uid 1000 with a sticky `PermissionError`. Re-add them only if you set
-`load_format=fastsafetensors` (mechanism + `reown` fix: `mods/fix-fastsafetensors-tp2-sglang/run.sh`).
+`load_format=fastsafetensors` (mechanism + `reown` fix: `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang/run.sh`).
 
 **Knobs that are answered — do not re-litigate.** `kv_dtype: fp8_e4m3` is a config-level NO (boots,
 allocates, then dies in SM121 QSA decode). `chunked_prefill_size 8192` regresses k=8/k=16 on this

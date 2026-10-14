@@ -62,7 +62,7 @@ Flags below VERIFIED present in the shipped recipes / WORK §5/§12/§14:
 |---|---|---|---|
 | R0 | ship as-is (labquant: `--cuda-graph-backend-prefill disabled` mandatory, §7f) | baseline | — |
 | R1 | `--disable-radix-cache` (§14; decisive, not shippable) | prefix reuse **vs** kernels | corruption survives with radix off ⇒ **not** #38319 |
-| R2 | gate the in-tree fix `mods/fix-sglang-radix-chunked-insert` (`SGLANG_DISABLE_CHUNKED_RADIX_INSERT=1` on, `=0` stock) | is the #38355 port sufficient? | stock-vs-fix flips a FAIL ⇒ #38319 confirmed and mitigated |
+| R2 | gate the in-tree fix `recipes/qwen4/mods/fix-sglang-radix-chunked-insert` (`SGLANG_DISABLE_CHUNKED_RADIX_INSERT=1` on, `=0` stock) | is the #38355 port sufficient? | stock-vs-fix flips a FAIL ⇒ #38319 confirmed and mitigated |
 | R3 | `--disable-cuda-graph` (eager) vs the decode-graph profile | decode CUDA-graph capture (**#37111**) | eager clean + graph FAIL ⇒ #37111 |
 | R4 | `--cuda-graph-bs-decode 1..10` + `--disable-cuda-graph-padding` (§14; note #37111 writes `--cuda-graph-max-bs-decode` — LIKELY same knob) | graph *shape* breadth | narrow capture passes while wide fails ⇒ shape-dependent |
 | R5 | drop speculative: `zz-rk-nospec` / `zz-lq-nospec-matched` recipe arms | NEXTN/EAGLE involvement | clean without spec ⇒ NEXTN implicated (#37111 names it) |
