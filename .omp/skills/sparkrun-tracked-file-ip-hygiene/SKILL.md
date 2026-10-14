@@ -1,0 +1,24 @@
+---
+name: sparkrun-tracked-file-ip-hygiene
+description: "Before committing/pushing tracked docs in sparkrun-recipe-registry: scan for raw host IPs/fabric addresses, since the repo gate does not. Use whenever a session edited lane docs, runbooks, AGENTS/README, or other tracked prose — especially subagent-authored files."
+---
+
+# Tracked-file IP hygiene (sparkrun-recipe-registry)
+
+The registry is distributed to third parties and `AGENTS.md` forbids hostnames/IPs in tracked files — but **the gate is syntax-only** (`unittest discover -s tests`, `sparkrun recipe validate`, `bash -n`, `py_compile`) and never scans for addresses. Subagent-authored lane docs leak them readily (they transcribe the real IPs they measured).
+
+## Pre-commit scan
+
+Use the `grep` tool (or `git grep`) over the staged/modified paths, pattern:
+
+```
+\b(10|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+\.\d+\b|the head-node hostname and internal domain (literals in `.local/CONFIDENTIAL.md`)
+```
+
+- Replace every hit in tracked prose with the `.30-.35` shorthand (e.g. `MASTER_ADDR=<node-ip>` → "the master on `.30`"; `bootstrap <cx7-ip>` → "the CX7 link").
+- **Exempt** git-ignored working files: `.local/`, `**/*JOURNAL.md`, `**/*-WORK.md`, `**/*-WORK-ARCHIVE.md`.
+- `tools/*` may carry deliberate example endpoints (e.g. `http://<node>:PORT`) — only flag ones the session added.
+
+## Why
+
+2026-10-13: `recipes/glm/README.md` runbook bullets shipped to commit `cdf7ab1` (pushed) with raw fabric/CX7 addresses and a `MASTER_ADDR` line. The rest of that session masked everything consistently; only the subagent-written doc slipped, and the gate was green. A leak that reaches origin costs a follow-up commit and looks sloppy to third parties.
