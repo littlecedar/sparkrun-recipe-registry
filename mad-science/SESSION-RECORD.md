@@ -197,3 +197,23 @@ attic material; everything else lives under `attic/<lane>/`. First pass (this se
 `AGENTS.md`/`NOTES.md` fold into `attic/<lane>/` and the lane READMEs are block-merged to the new
 template, with the primary `recipes/README.md` de-researched (the command-template mechanics move to a
 new tracked `recipes/MECHANICS.md`).
+
+**Node clean-up (2026-10-14, later still).** A pass over all six nodes removed the session litter the
+owner flagged: on `${WOPR_HEAD_NODE}` 59 uncited `$HOME` logs/outs (the two cited ones kept), the
+`~/scratch` clone, `~/runs`, `~/ifm-runs` (local rsync verified first), 738 MB of `/tmp` scratch and
+four dangling `${WOPR_RUN_FROM_DIR}` symlinks; on the workers their `/tmp` scratch, `~/scratch`,
+`~/mem_watch`, `~/serve_argv`, `pack-engram.log`, and 13 orphan anonymous docker volumes. Fleet-wide:
+the two docker tags no doc or recipe names (the retired `overlay5` builds) and the retired Pollard
+EXL3 cache tree. `~/benchmarks` and `~/benchlogs` were deliberately kept — they are the cited receipt
+root. Left and reported rather than guessed at: the ~3.1 TB `runtime-cache` of prepared model trees
+(sparkrun-managed and rebuildable, with three same-model DeepSeek trees whose live/stale split only
+sparkrun core can decide). Removing `~/runs/2026/10/` cost nothing — checked rather than assumed: the
+decision lane's head receipts hold the durable reports that path existed to feed
+(`~/benchmarks/jev-decision-20261012/{jev-decision-bench.json,run.log}`,
+`~/benchmarks/kai-sol-20261012/{teb-kai-report.md,teb-sol-report.md,kai-card-smoke.json,sol-card-smoke.json}`),
+and `attic/DONE.md` says the reports were "copied into the receipts dir" — `~/runs/` was the intermediate.
+**Cost of the pass:** the worker-side `serve_argv`/`mem_watch` evidence the qwen4 notes cite by path was
+deleted as scratch and had no other copy — recorded in `attic/qwen4/AGENTS.md`. The rule, its
+"grep the basename first" check and the harness carve-out (`$HOME/serve_argv/`, `$HOME/mem_watch/` are
+designed outputs of an armed harness, harvested not swept) now live in the root `AGENTS.md` §"Node
+hygiene".
