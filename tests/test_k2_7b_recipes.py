@@ -55,6 +55,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ifm"
+IFM_MODS_DIR = REPO_ROOT / "recipes" / "ifm" / "mods"
 ATTIC_DIR = REPO_ROOT / "attic" / "ifm" / "arms"
 
 # Only the Uno arm ships. The other two are archived (attic/ifm/arms/) and still
@@ -470,12 +471,12 @@ class UnoConcurrencyCap(unittest.TestCase):
 class ModHygiene(unittest.TestCase):
     def test_mods_exist_and_are_executable(self):
         for name in ("probe-uno-fa4-sm121", "provide-uno-lora-k2-horizon-7b"):
-            run = REPO_ROOT / "mods" / name / "run.sh"
+            run = IFM_MODS_DIR / name / "run.sh"
             self.assertTrue(run.is_file(), "missing %s" % run)
             self.assertTrue(run.stat().st_mode & 0o111, "%s not executable" % run)
 
     def test_probe_patch_is_anchored_and_single_shot(self):
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         self.assertIn("count != 1", src,
                       "patch must refuse when the anchor count is not exactly 1")
         self.assertIn("sys.exit(1)", src)
@@ -526,7 +527,7 @@ class ModHygiene(unittest.TestCase):
         propagation that was never confirmed to reach mod scripts -- so the lane
         silently can't run. Keep the default the union of the documented lanes.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         m = re.search(r'export UNO_ATTN_BACKENDS="\$\{UNO_ATTN_BACKENDS:-([^}]*)\}"',
                       src)
         self.assertIsNotNone(m, "mod must export a single-source UNO_ATTN_BACKENDS")
@@ -546,7 +547,7 @@ class ModHygiene(unittest.TestCase):
         send the whole Uno arm down a "blocked on a dependency" path that was not
         true. Pin the module name this repo's probe uses.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         # Step 1 tees its output into the mod log, so the heredoc opener carries a
         # pipe rather than a bare `|| true`. Match the heredoc itself.
         step1 = re.search(r"python3 - <<'PY'[^\n]*\n(.*?)\nPY\n", src, re.S)
@@ -566,7 +567,7 @@ class ModHygiene(unittest.TestCase):
         and Step 3 import the engine, so the mod must re-own the WHOLE mount, not
         just the log directory. See .swival/memory/sparkrun-notes.md.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         self.assertIn("reown \"${CACHEDIR}\"", src,
                       "mod must re-own /cache/runtime after importing the engine")
         # The old, insufficient form re-owned only the log dir.
@@ -583,7 +584,7 @@ class ModHygiene(unittest.TestCase):
         goes to stdout, `${LOGDIR}/probe-uno-fa4-sm121.log` does not contain the
         thing the failure-mode table says to check.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         step1_open = re.search(r"python3 - <<'PY'([^\n]*)\n", src)
         self.assertIsNotNone(step1_open)
         self.assertIn("tee", step1_open.group(1),
@@ -597,7 +598,7 @@ class ModHygiene(unittest.TestCase):
         accusation that also aborts the launch. The mod must detect the existing
         assignment and rewrite just the tuple.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         self.assertIn("re-patched gate", src,
                       "mod must have an explicit re-patch path")
         self.assertIn("ast.literal_eval", src)
@@ -611,7 +612,7 @@ class ModHygiene(unittest.TestCase):
         under `set -e` -- aborted the launch with a message that blamed the patch.
         Guard both the absence of that trap and the presence of a real parse.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         checker = self._step3_checker(src)
         self.assertNotIn("'\"%s\"' % b", checker,
                          "checker must not grep for double-quoted names")
@@ -628,7 +629,7 @@ class ModHygiene(unittest.TestCase):
         A wrong-but-raise-only path is low-severity, but it is the kind of error
         that survives every parse check because the file is still valid Python.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         new_v = self._mod_literal(src, "NEW")
         self.assertNotIn("{{", new_v,
                          "NEW is str.replace()d, not .format()ted; braces must be "
@@ -727,7 +728,7 @@ class ModHygiene(unittest.TestCase):
         A check that cannot pass on the output its own sibling produces is worse
         than no check: it fails the launch while pointing at the wrong cause.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         checker = self._step3_checker(src)
         rc, out = self._run_step3(
             checker, self._patched_handle_uno(("fa3", "fa4", "triton")),
@@ -739,7 +740,7 @@ class ModHygiene(unittest.TestCase):
         """Negative control for the above: a gate that dropped a requested
         backend must still make the checker exit non-zero, or the fix traded a
         false failure for a false pass."""
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         checker = self._step3_checker(src)
         rc, out = self._run_step3(
             checker, self._patched_handle_uno(("fa3", "fa4")),
@@ -751,7 +752,7 @@ class ModHygiene(unittest.TestCase):
     def test_step3_check_catches_a_dropped_fa3(self):
         """The gate must never be narrower than stock. Dropping fa3 is the one
         narrowing that must fail even when the caller asked for it."""
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         checker = self._step3_checker(src)
         rc, out = self._run_step3(
             checker, self._patched_handle_uno(("fa4", "triton")),
@@ -773,7 +774,7 @@ class ModHygiene(unittest.TestCase):
         (count == 1). It is not asserted here because it needs the network or the
         image; re-run those two checks when bumping the pin.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         old_v = self._mod_literal(src, "OLD")
         new_v = self._mod_literal(src, "NEW")
         self.assertNotEqual(old_v, new_v)
@@ -790,7 +791,7 @@ class ModHygiene(unittest.TestCase):
     def test_probe_still_rejects_mismatched_backends(self):
         """Behaviour check, not just a parse check: fa3 prefill + fa4 decode must
         raise. Accepting any pair would silently change what UNO validates."""
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         new_v = self._mod_literal(src, "NEW")
         ns: dict = {}
         state: dict = {}
@@ -818,7 +819,7 @@ class ModHygiene(unittest.TestCase):
         rejected my backend" failure that looks like a result and is only the
         knob. The mod prepends fa3 for that reason; this asserts it does.
         """
-        src = (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text()
+        src = (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text()
         self.assertIn('if "fa3" not in allowed:', src)
         self.assertIn('allowed = ("fa3",) + allowed', src)
 
@@ -831,7 +832,7 @@ class ModHygiene(unittest.TestCase):
         worse than one that does.
         """
         src = strip_comments(
-            (REPO_ROOT / "mods" / "probe-uno-fa4-sm121" / "run.sh").read_text())
+            (IFM_MODS_DIR / "probe-uno-fa4-sm121" / "run.sh").read_text())
         self.assertNotIn("attention_registry", src,
                          "mod must not patch attention_registry.py")
         # ...and everything it writes must go to the one speculative-gate file.
@@ -846,7 +847,7 @@ class ModHygiene(unittest.TestCase):
                          "every write must go through `target`, not a new path")
 
     def test_lora_mod_verifies_by_digest(self):
-        src = (REPO_ROOT / "mods" / "provide-uno-lora-k2-horizon-7b"
+        src = (IFM_MODS_DIR / "provide-uno-lora-k2-horizon-7b"
                / "run.sh").read_text()
         self.assertIn("sha256sum", src)
         self.assertIn("1396763616", src, "adapter size pin is load-bearing")
@@ -869,10 +870,17 @@ class ModHygiene(unittest.TestCase):
             # clone, which does not carry these unpublished mods.
             for entry in re.findall(r"-\s*[\"']?(@?[\w./-]+)[\"']?", body):
                 name = entry.split("/")[-1]
-                run = REPO_ROOT / "mods" / name / "run.sh"
-                self.assertTrue(run.is_file(),
-                                "%s references %s but %s does not exist"
-                                % (p.name, entry, run))
+                # Adjacent (recipe-local) mods win: sparkrun resolves
+                # `<recipe_dir>/mods/<name>` before the registry's shared root.
+                run = next(
+                    (c for c in (p.parent / "mods" / name / "run.sh",
+                                 REPO_ROOT / "mods" / name / "run.sh")
+                     if c.is_file()),
+                    None)
+                self.assertTrue(run is not None,
+                                "%s references %s but no run.sh under %s or %s"
+                                % (p.name, entry, p.parent / "mods" / name,
+                                   REPO_ROOT / "mods" / name))
 
     def test_mod_order_puts_the_fetch_first(self):
         """The `mods:` list is an ordered dependency chain, not a set (AGENTS.md).

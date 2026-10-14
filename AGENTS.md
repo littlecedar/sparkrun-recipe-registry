@@ -13,8 +13,9 @@ Counts in this document were verified 2026-10-14 against the working tree. Facts
 
 - **Recipes** (`recipes/`, 31 files in 11 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
-- **Mods** (`mods/`, 23 shipped + `mod-template`) — pre-launch container hooks that patch or stage
-  files inside the serving image before the engine execs.
+- **Mods** (`mods/`, 4 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
+  pre-launch container hooks that patch or stage files inside the serving image before the engine
+  execs.
 - **Benchmarking** (`benchmarking/`, 43 `llama-benchy` profiles + index README) — the curated
   profile library used by `sparkrun benchmark performance`.
 - **Tuning** (`tuning/`) — only `README.md` is tracked; Triton MoE tuning configs are generated at
@@ -59,7 +60,7 @@ Load-bearing contracts:
 | `recipes/glm/` | **No shipped recipe** — TensorFold runbook notes (`README.md`) in the lane; `GLM-5.3-RECOMMENDATIONS.md` and the one recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, are archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
-| `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
+| `mods/` | Shared mods only (used by ≥2 lanes): 4 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
 | `tests/` | 18 importable guard modules, one skipped `*.sync-conflict-*.py` |
 | `tools/` | 12 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
 | `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
@@ -234,6 +235,10 @@ their comments verbatim.
 
 ### Mods
 
+- **`mods/` holds shared mods only** — a mod used by ≥2 lanes. A mod relevant to a single lane lives
+  in that lane's directory, `recipes/<lane>/mods/<mod>/`, and MUST be referenced **unscoped** as
+  `mods/<name>`: sparkrun resolves it adjacent to the recipe (`core/mods.py` rule 2). `@littlecedar/mods/<name>`
+  is broken there — a `@registry/` ref resolves only from the registry clone's top-level `mods/`.
 - **Copy `mods/mod-template/run.sh`** — there is no shared library, because sparkrun ships only the
   mod's own directory (`mods/common.sh` would not exist at launch). Keep the SPDX header
   (`AGPL-3.0-or-later`; one Apache-2.0 port from a contributor) and `set -euo pipefail`.

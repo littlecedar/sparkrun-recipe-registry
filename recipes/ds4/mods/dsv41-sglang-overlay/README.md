@@ -167,7 +167,7 @@ rewording the message. Rollback is deleting the one line.
 `launcher.py`'s `RECIPE_ENV` carries the whole production configuration —
 locations under `/cache/runtime`, the boot.py read flags, the Engram reader
 tuning, the engine/serving flags, the overlay-adapter enablement, RoCEnante and
-the device-free NCCL transport tuning (`mods/dsv41-sglang-overlay/launcher.py`,
+the device-free NCCL transport tuning (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`,
 inventoried in `.scratch/ds4/knapcio/ENV-MIGRATION.md`). It is applied with
 `env.update(RECIPE_ENV)`, i.e. it **overrides** the launcher's process env —
 necessary because the image bakes `STATE_PATH=/state`, `DSV41_CACHE_GIB=16`,

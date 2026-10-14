@@ -79,7 +79,7 @@ linkify_all() {
   # `ln -sfn` UNLINKS an existing regular file and puts a link in its place -- verified
   # directly, a 3.2 GB file became a 13-byte symlink with no error. So it must never be
   # pointed at a regular file in OUT_DIR: those belong to sibling mods, above all the
-  # unpacked fp8 PLE shards from mods/unpack-labquant-ple-nvfp4-to-fp8, and clobbering
+  # unpacked fp8 PLE shards from recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8, and clobbering
   # them would make the engine read PACKED NVFP4 where it expects fp8 -- a silent,
   # wrong-answers failure rather than a loud one.
   #
@@ -142,7 +142,7 @@ log "found ${SHARDS} safetensors shards"
 # A tree assembled for a DIFFERENT snapshot must be rebuilt; a tree that is merely
 # re-encountered should be refreshed in place. Without this distinction the original
 # `rm -rf` ran on every boot -- which silently deleted the 51.2 GB of fp8 PLE shards
-# that mods/unpack-labquant-ple-nvfp4-to-fp8 builds into this same directory, forcing
+# that recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8 builds into this same directory, forcing
 # a full 51 GB re-conversion on every single launch.
 #
 # The stamp deliberately lives OUTSIDE OUT_DIR. While the stamp lived inside the tree
@@ -156,7 +156,7 @@ STAMP="${STAMP_DIR}/$(printf '%s' "${OUT_DIR}" | tr -c 'A-Za-z0-9' '_')"
 WANT_STAMP="${SNAP}"
 
 # Second, independent guard: never destroy converted output we did not author. Real
-# (non-symlink) .safetensors in OUT_DIR mean mods/unpack-labquant-ple-nvfp4-to-fp8 has
+# (non-symlink) .safetensors in OUT_DIR mean recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8 has
 # been here; that is 51 GB of work, so require an explicit opt-in to discard it.
 #
 # `mkdir -p` here is NOT cosmetic. With `set -euo pipefail` a `find` on a directory
@@ -295,7 +295,7 @@ PY
 # This fixes a real bug: the stamp used to be written only on the passthrough
 # path, so after a successful patch every later launch saw "no current stamp"
 # and re-ran the `rm -rf` above -- deleting the 51.2 GB of fp8 PLE shards that
-# mods/unpack-labquant-ple-nvfp4-to-fp8 owns in this same directory, and
+# recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8 owns in this same directory, and
 # forcing a full re-conversion on every single boot.
 printf '%s' "${WANT_STAMP}" > "${STAMP}"
 

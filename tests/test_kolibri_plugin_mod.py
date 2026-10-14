@@ -40,7 +40,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_DIR = REPO_ROOT / "mods" / "install-kolibri-plugin"
+MOD_DIR = REPO_ROOT / "recipes" / "explore" / "mods" / "install-kolibri-plugin"
 # Overridable so the fail-before demonstration can point the same guards at a
 # pre-fix copy of run.sh (see NegativeControls.test_prefix_logic_skips_...).
 MOD_SCRIPT = Path(os.environ.get("KOLIBRI_MOD_SCRIPT", MOD_DIR / "run.sh"))

@@ -917,7 +917,7 @@ class NegativeControls(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 SGLANG_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml"
-SGLANG_MOD_DIR = REPO_ROOT / "mods" / "dsv41-sglang-overlay"
+SGLANG_MOD_DIR = REPO_ROOT / "recipes" / "ds4" / "mods" / "dsv41-sglang-overlay"
 
 
 def _clean(path: Path) -> str:
@@ -928,7 +928,7 @@ def _launcher_recipe_env() -> dict:
     """The env the mod launcher fills into the container (its RECIPE_ENV).
 
     The recipe's `env:` is deliberately thin (checkpoint path + TP_SIZE); the
-    production configuration lives in mods/dsv41-sglang-overlay/launcher.py so it
+    production configuration lives in recipes/ds4/mods/dsv41-sglang-overlay/launcher.py so it
     travels with the mod instead of each recipe. The launcher is stdlib-only, so
     importing it here keeps tests/ stdlib-only too.
     """
@@ -994,7 +994,7 @@ class SglangLaneContract(unittest.TestCase):
 
     def test_recipe_env_is_empty(self):
         # The recipe's env: is EMPTY. Everything -- the production config AND the
-        # checkpoint location -- lives in mods/dsv41-sglang-overlay/launcher.py, and
+        # checkpoint location -- lives in recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and
         # the serve parameters (model, tp, context, port) ride in the command
         # template from defaults. In particular SERVER_PORT is NOT set here: the
         # serve port (8000, the recipes' default base port) rides in via the

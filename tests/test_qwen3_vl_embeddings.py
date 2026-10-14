@@ -26,7 +26,7 @@ from pathlib import Path
 import jinja2
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_SCRIPT = REPO_ROOT / "mods" / "provide-qwen3-vl-rerank-template" / "run.sh"
+MOD_SCRIPT = REPO_ROOT / "recipes" / "rerank" / "mods" / "provide-qwen3-vl-rerank-template" / "run.sh"
 # The 2026-10-10 registry reorganization moved the embedding and reranking recipes out of
 # recipes/qwen3/ into their own lanes, so the paths split here the same way the files do.
 EMBED_DIR = REPO_ROOT / "recipes" / "embed"

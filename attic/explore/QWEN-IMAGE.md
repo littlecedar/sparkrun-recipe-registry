@@ -9,7 +9,7 @@
 > used commercially. Precedent: the MiniMax-M3 blocker and the Poolside S-2.1
 > draft-licence gap. **Owner call 2026-10-14: ship the recipe with this banner.**
 > An operator needing commercial use must swap the checkpoint; the serving path
-> (`mods/qwen-image-2.1-turbo-launcher` + the recipe) is checkpoint-agnostic.
+> (`recipes/explore/mods/qwen-image-2.1-turbo-launcher` + the recipe) is checkpoint-agnostic.
 
 Arm queued 2026-10-13 (owner directive, media-gen — outside the lane's
 reasoning/tool-calling brief); research and the per-arm verification checklist
@@ -21,7 +21,7 @@ for it.
 | file | role |
 |---|---|
 | [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, licence banner at the top |
-| [`mods/qwen-image-2.1-turbo-launcher`](../../mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
+| [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
 
 The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang`/`vLLM` runtime
 serves this checkpoint**, so §6(b)'s "script-launcher/runbook-shaped arm" is the
@@ -58,10 +58,10 @@ with the recipe's `command:` running the server directly.
   diffusers 0.41.0 / transformers 5.19.0 / torch 2.13.0+cu130, pipeline imports,
   CUDA on GB10).
 - **Mod resolution during bring-up.** The recipe references the mod the normal
-  way (`@littlecedar/mods/qwen-image-2.1-turbo-launcher`), which resolves under
+  way (`mods/qwen-image-2.1-turbo-launcher`), which resolves under
   the `littlecedar` registry's checkout on the head — a git clone that does not
   yet carry this mod. The boot therefore staged the mod directory into
-  `~/.cache/sparkrun/registries/littlecedar/mods/qwen-image-2.1-turbo-launcher`
+  `~/.cache/sparkrun/registries/littlecedar/recipes/explore/mods/qwen-image-2.1-turbo-launcher`
   on the head first (a plain copy into the cache; removed afterwards). Once the
   mod is committed and `registry update` fetches it, that step disappears.
   The launch itself used `--transfer-mode local` for the same reason.

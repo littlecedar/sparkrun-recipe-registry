@@ -15,7 +15,7 @@ Disposition audited 2026-10-11:
 | `pooling-bench.py` | `recipes/embed/` + `recipes/rerank/` | imports `synthetic_png.py` by sibling path; guarded by `tests/test_qwen3_vl_embeddings.py` |
 | `synthetic_png.py` | library for `pooling-bench.py` | also loaded by the same embed/rerank guard |
 | `quality-battery.py` | `recipes/ds4/` benchmarks rig | imported verbatim by `recipes/ds4/benchmarks/run_benchmarks.py`; scoring kinds reused by `qwen4-quality-eval.py` |
-| `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
+| `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `recipes/cybersec/mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
 | `build-dsv41-combined.py` | ds4 combined-repo TP=2 | shells out to `build-dsv41-engram.py`; consumed by `mods/tensorfold-dsv41-launcher/launcher.py`; guarded by `tests/test_dsv41_combined_tool.py` |
 | `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
@@ -255,7 +255,7 @@ contiguous planes. This is exactly what TensorFold's `Engram` reader expects: it
 `8 + header_len + data_offsets[0] + i * prod(shape[1:])`. `--format packed` writes the
 knapcio TP=4 layout (magic `DSV1EN41`, 4096-B header, 264-B records). Both are resumable.
 
-**Wiring.** The recipe adds `mods/dsv41-engram-fetch`, which runs this builder on each
+**Wiring.** The recipe adds `recipes/cybersec/mods/dsv41-engram-fetch`, which runs this builder on each
 runner node before the launcher. It is a no-op once the tables are complete, and it
 **always fetches detached** — sparkrun runs a mod as a pre-exec hook under a hard
 600 s timeout, and a slow-link fetch can take hours, so a blocking fetch is a

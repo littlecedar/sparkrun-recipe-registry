@@ -85,7 +85,7 @@ prefers `<model_dir>/engram/` — `model: <this repo>` is then all a recipe need
   two obsolete fetch-wiring pins (`test_recipe_lists_engram_fetch_before_launcher`,
   `test_sibling_lane_keeps_its_fetch_mod`) deleted — the wiring they pinned is gone from every
   recipe. Suite: **386 tests green**; 24/24 recipes validate.
-- `recipes/ds4/{README,AGENTS}.md` still describe `mods/dsv41-engram-fetch` as the TP=2 recipe's
+- `recipes/ds4/{README,AGENTS}.md` still describe `recipes/cybersec/mods/dsv41-engram-fetch` as the TP=2 recipe's
   Engram path (§12.7 and the lane table) — flagged here, not rewritten (lane docs are mid-flight).
 
 ## Engram-from-HF builder (TP=2) — DONE, boot-verified
@@ -96,7 +96,7 @@ wired into the TensorFold TP=2 recipe. Trials on `.34`/`.35` only.
 ### Deliverables
 - `tools/build-dsv41-engram.py` — canonical standalone CLI (stdlib, ranged GETs,
   resumable; `--detach`/`--status`/`--check`, host-aware `--out` default).
-- `mods/dsv41-engram-fetch/` — pre-launch mod (never blocks; detached fetch).
+- `recipes/cybersec/mods/dsv41-engram-fetch/` — pre-launch mod (never blocks; detached fetch).
 - `mods/tensorfold-dsv41-launcher/launcher.py` — `resolve_engram_dir()` also reads a
   sparkrun-distributed Engram repo.
 - Recipe lists the mod; a commented `distribution_config.models` block enables

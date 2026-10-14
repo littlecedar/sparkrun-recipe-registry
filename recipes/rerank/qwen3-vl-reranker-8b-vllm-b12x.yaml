@@ -15,7 +15,7 @@ metadata:
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"
-  - "@littlecedar/mods/provide-qwen3-vl-rerank-template"
+  - "mods/provide-qwen3-vl-rerank-template"
 
 # A pooling engine has no chat endpoint, so the default chat-completion probe can only time
 # out and `sparkrun run` exits 1 on a healthy server. Port + /health readiness only.
@@ -46,7 +46,7 @@ defaults:
     '{"architectures": ["Qwen3VLForSequenceClassification"],
     "classifier_from_token": ["no", "yes"],
     "is_original_qwen3_reranker": true}'
-  # Published by mods/provide-qwen3-vl-rerank-template before the serve line; must match the
+  # Published by recipes/rerank/mods/provide-qwen3-vl-rerank-template before the serve line; must match the
   # mod's output dir (MOD_CACHEDIR) — the checkpoint's chat_template.jinja scores empty pairs.
   reranker_chat_template: ${XDG_CACHE_HOME:-/cache/runtime}/templates/qwen3-vl-reranker-query-document.jinja
   convert: classify

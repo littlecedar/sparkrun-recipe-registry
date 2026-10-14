@@ -28,10 +28,10 @@ there is also a negative result.
   opened 2026-09-07, updated 2026-09-11, assigned `alphabetc1`.
 - [#38355](https://github.com/sgl-project/sglang/pull/38355) (its fix) — **OPEN,
   unmerged**, base `qwen4-main-squashed`, 1 commit `af27224`. This is the port
-  already in-tree as `mods/fix-sglang-radix-chunked-insert` (§6 item 3).
+  already in-tree as `recipes/qwen4/mods/fix-sglang-radix-chunked-insert` (§6 item 3).
 
 Correction to the lane's notes: WORK §14 and `NOTES.md` say #37111 was "updated
-2026-08-31" and #38319 "updated 2026-09-11" — both confirmed. `mods/fix-sglang-radix-chunked-insert/README.md`
+2026-08-31" and #38319 "updated 2026-09-11" — both confirmed. `recipes/qwen4/mods/fix-sglang-radix-chunked-insert/README.md`
 calls #38355 "the **closed** PR"; the API says it is **open** (closed 09-14, then
 reopened 09-14). LIKELY stale wording, not a behaviour change.
 
@@ -54,7 +54,7 @@ or a partial run too incomplete to certify). The JSON carries every raw reply an
 the warm/cold canary; keep it as the provenance artifact.
 
 Recommended ladder once a FAIL is in hand (design memo §4): re-run with
-`--disable-radix-cache` (R1), the `mods/fix-sglang-radix-chunked-insert` on/off
+`--disable-radix-cache` (R1), the `recipes/qwen4/mods/fix-sglang-radix-chunked-insert` on/off
 toggle (R2), eager vs decode-graph (R3), then the `zz-*-nospec` arms (R5).
 
 ## Provenance

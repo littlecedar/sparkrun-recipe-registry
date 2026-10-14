@@ -180,7 +180,7 @@ free and swaps".
 ### Kolibri-1 (2026-10-12)
 
 New recipe [`kolibri-1-78b-fp8-vllm.yaml`](../../recipes/explore/kolibri-1-78b-fp8-vllm.yaml) +
-[`mods/install-kolibri-plugin`](../../mods/install-kolibri-plugin): the vendor's
+[`recipes/explore/mods/install-kolibri-plugin`](../../recipes/explore/mods/install-kolibri-plugin): the vendor's
 own container image is amd64-only, so the recipe serves on the **stock
 multi-arch `vllm/vllm-openai:v0.29.0`** (digest-pinned) with Aleph Alpha's
 pure-Python plugin installed by a sparkrun mod
@@ -241,7 +241,7 @@ import/entry-point failure and is idempotent via a content marker).
 - **Boot (node .30, 2026-10-14)**: task `2d49ec39cad5a528_2d38dfc4605e`, clean; TTR port-open
   **611.1 s** (HTTP-ready 611.1 s), weight load 500.0 s (73.48 GiB), KV pool at util 0.78
   **18.99 GiB → 1,859,922 tokens**. `GET /v1/models` → `Aleph-Alpha/Kolibri-1` (262144 ctx).
-- **Plugin mod re-confirmed on the re-pinned revision**: `mods/install-kolibri-plugin` installed
+- **Plugin mod re-confirmed on the re-pinned revision**: `recipes/explore/mods/install-kolibri-plugin` installed
   `aleph-alpha-inference==1.0.0` and its live import + entry-point gate passed
   (`plugin OK: ['aleph_alpha_inference', …]`); the strict gate re-runs the install on every boot,
   so the 2026-10-13 stale-marker defect does not recur. `kolibri1` parsers re-verified end-to-end:
@@ -439,7 +439,7 @@ copy — always md5 the head's file before a boot).
 ### Qwen-Image-2.1-Turbo — media-gen arm (2026-10-14)
 
 New recipe [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
-+ [`mods/qwen-image-2.1-turbo-launcher`](../../mods/qwen-image-2.1-turbo-launcher) — the lane's
++ [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) — the lane's
 first **non-`sglang`/vLLM** engine: `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`; **qwen-research,
 NON-COMMERCIAL ONLY**) served by diffusers' `QwenImage21Pipeline` on **one** node. `runtime: vllm` is
 the family whose distribution + single-node launcher contract the command satisfies (the Decision

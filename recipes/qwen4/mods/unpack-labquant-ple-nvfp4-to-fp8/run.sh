@@ -385,7 +385,7 @@ idx_dst = os.path.join(OUT, IDX)
 SKIP_INDEX = os.environ.get("MOD_PLE_SKIP_INDEX", "") == "1"
 
 # Read from OUT_DIR when a sibling mod has already replaced the symlink with a
-# real file (mods/demote-labquant-narrow-mxfp8-to-bf16 removes the demoted scale
+# real file (recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16 removes the demoted scale
 # entries from it). Reading SNAP there would silently undo its edits, and mods
 # run in recipe order so the order is not ours to control.
 idx_src = idx_dst if (os.path.isfile(idx_dst) and not os.path.islink(idx_dst)) \

@@ -29,7 +29,7 @@ set -euo pipefail
 # RESULT IS A TEXT-ONLY SERVER. All benchmarks here are text, so no measured
 # capability is lost, but do not use this configuration to serve images.
 #
-# Writes into the tree built by mods/fix-labquant-modelopt-mixed-flat-schema. Run
+# Writes into the tree built by recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema. Run
 # AFTER that mod. Never writes through a symlink into the node's HF snapshot.
 #####################################################################
 
@@ -53,7 +53,7 @@ die()  { echo "[mod:${MOD_NAME}] ERROR: $*" >&2; exit 1; }
 #####################################################################
 # Preconditions
 #####################################################################
-[ -e "${CFG}" ] || die "no ${CFG}; run mods/fix-labquant-modelopt-mixed-flat-schema first"
+[ -e "${CFG}" ] || die "no ${CFG}; run recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema first"
 
 # Guard against writing through a symlink, which would rewrite the shared snapshot.
 if [ -L "${CFG}" ]; then

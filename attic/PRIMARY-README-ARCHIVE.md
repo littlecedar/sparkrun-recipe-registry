@@ -94,7 +94,7 @@ multi-tenant load untested.
 documented ceiling.
 
 **Kolibri-1 (2026-10-12):** first boot of the 78.1B/3.46B MoE on stock vLLM 0.29 + the vendor
-pure-Python plugin (`mods/install-kolibri-plugin`). C1 **47.3 t/s @ d0** (σ 0.10, n=5), battery
+pure-Python plugin (`recipes/explore/mods/install-kolibri-plugin`). C1 **47.3 t/s @ d0** (σ 0.10, n=5), battery
 **36/37** at `--max-tokens 4096` reproduced twice, 37/37 union with the default-384 run — the
 lone `needle-1` failure is thinking-budget truncation, not knowledge. **KEPT**: near-tie accuracy
 (37/37 union) and it wins the owner's stated preference (74 GB, 47.3 t/s).

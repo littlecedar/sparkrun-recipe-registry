@@ -66,7 +66,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   compressed-tensors NVFP4, `qwen3_5`, AEON-7 abliteration. Draft: [incoai/Qwen3.8-27B-DFlash2].
 - The overlay [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] adds only the cybersecurity-unlock
   **chat template** (+ the YaRN rope overlays for the 1M route), staged by
-  `mods/provide-uncensored-chat-template` into `/cache/runtime/uncensored-template/` and passed
+  `recipes/cybersec/mods/provide-uncensored-chat-template` into `/cache/runtime/uncensored-template/` and passed
   via `--chat-template`.
 - Runtime sglang, TP 1, DFlash2 spec decode; `--kv-cache-dtype auto`. Served id:
   `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` — the AEON body *through the cyber
@@ -74,7 +74,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
 - Boots (`GET /v1/models` = repo id; uncensored template confirmed in the serve log); receipts in
   attic AGENTS.md §8.
 
-- `chat_template_path` is the file `mods/provide-uncensored-chat-template` writes into the managed
+- `chat_template_path` is the file `recipes/cybersec/mods/provide-uncensored-chat-template` writes into the managed
   runtime cache (`/cache/runtime/uncensored-template/chat_template.jinja`); the command consumes it
   via `--chat-template`.
 - `max_num_seqs: 48` is a clamp, not the granted concurrency: the dense 27B body (48 GDN + 16
@@ -127,7 +127,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
 
 - Stock: [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] — ~197 GB, EXL3 mul1 K=5, 39 shards, TP 2.
   The overlay [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] is a 682 MB
-  `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar** that `mods/graft-dsv41-ablit-wo-b` grafts
+  `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar** that `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` grafts
   onto the stock pack under `/cache/runtime/dsv41-ablit` (104 tensors edited; L0-9, L36-39, MTP,
   embed/head, experts stay stock), synchronously and fail-closed inside the 600 s pre-exec hook
   budget (measured 269 s / 284 s per node).
@@ -136,7 +136,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `--revision {model_revision}`. Served id:
   `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's identity,
   not the body pack. Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint and are
-  provisioned detached by `mods/dsv41-engram-fetch`; GPU memory utilisation stays ≤ 0.85.
+  provisioned detached by `recipes/cybersec/mods/dsv41-engram-fetch`; GPU memory utilisation stays ≤ 0.85.
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index

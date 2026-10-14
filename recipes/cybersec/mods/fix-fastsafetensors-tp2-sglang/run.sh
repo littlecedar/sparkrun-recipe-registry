@@ -45,7 +45,7 @@ set -euo pipefail
 #   load_format: fastsafetensors
 #   mods:
 #     - pip-install-fastsafetensors
-#     - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
+#     - "mods/fix-fastsafetensors-tp2-sglang"
 #
 # Order matters: mods resolve into sequential pre_exec entries, so the
 # patch listed after the pip install runs against the final tree.

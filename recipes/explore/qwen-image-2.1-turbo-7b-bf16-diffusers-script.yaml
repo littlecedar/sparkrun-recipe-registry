@@ -8,7 +8,7 @@
 # downloader cannot use the weights, or images generated from them,
 # commercially. An operator needing a commercially usable text-to-image arm
 # must swap the checkpoint; the serving path here
-# (mods/qwen-image-2.1-turbo-launcher + this recipe) is checkpoint-agnostic.
+# (recipes/explore/mods/qwen-image-2.1-turbo-launcher + this recipe) is checkpoint-agnostic.
 # ===========================================================================
 recipe_version: "2"
 model: Qwen/Qwen-Image-2.1-Turbo
@@ -32,7 +32,7 @@ metadata:
     by default. LICENCE: qwen-research — NON-COMMERCIAL ONLY (see the banner
     at the top of this file). The mod stages a diffusers>=0.41 /
     transformers>=5.17 venv on the image's torch and runs the HTTP server in
-    mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
+    recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
   model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "7B"
@@ -40,7 +40,7 @@ metadata:
   tags: explore, image, single_user
 
 mods:
-  - "@littlecedar/mods/qwen-image-2.1-turbo-launcher"
+  - "mods/qwen-image-2.1-turbo-launcher"
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

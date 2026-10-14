@@ -165,7 +165,7 @@ back into this lane first** — while it sits in `attic/`, the lane's validation
 
 - **TP=2** — **cannot boot** this model. Rank 1 dies in ~3 s with `CUDA error: invalid device ordinal`
   (SGLang derives the CUDA device from the **global** rank on a 1-GPU box); rank 0 then hangs at
-  `Loading safetensors 0%`. A fix mod exists (`mods/fix-fastsafetensors-tp2-sglang`) but has never
+  `Loading safetensors 0%`. A fix mod exists (`recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang`) but has never
   been run; either mount it deliberately as an experiment or leave TP=1.
 - **`--enable-linear-replayssm-spec`** — rejected; the scheduler raises
   `ValueError: --enable-linear-replayssm-spec with DSPARK/DFLASH requires a KDA (kimi_linear) model;

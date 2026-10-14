@@ -24,7 +24,7 @@ metadata:
 mods:
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/pip-install-fastsafetensors"
-  - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
+  - "mods/fix-fastsafetensors-tp2-sglang"
 
 defaults:
   port: 8000

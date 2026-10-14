@@ -85,7 +85,7 @@ verified by the target, so it is lossless by construction.
   +52 % / +41 % over the plain 7B; 145.5 / 90.2 aggregate at c=8.
 
 **The two mods the UNO arm needs — and why.** The recipe mounts
-`mods/provide-uno-lora-k2-horizon-7b` and `mods/probe-uno-fa4-sm121` (bare `mods/NAME`
+`recipes/ifm/mods/provide-uno-lora-k2-horizon-7b` and `recipes/ifm/mods/probe-uno-fa4-sm121` (bare `mods/NAME`
 form, in that order — the provide mod lands the adapter on disk before the server starts,
 and both run before sglang reads `--uno-lora-path`):
 

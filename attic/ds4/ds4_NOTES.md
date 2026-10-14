@@ -41,7 +41,7 @@ container (`docker logs` is empty); containers are reaped after a run (use
 `github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` (SGLang, native
 checkpoint, DSpark, Engram-on-NVMe) into this registry. Full provenance/plan:
 **`recipes/ds4/KNAPCIO-SGLANG-INTEGRATION.md`**. Recipe:
-`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; mod: `mods/dsv41-sglang-overlay/`.
+`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; mod: `recipes/ds4/mods/dsv41-sglang-overlay/`.
 
 Why a new lane at all: it runs the **official** checkpoint (comparator for the
 EXL3 94.4% hard-tier question, AGENTS.md E5) and upstream measures **89.7 t/s
@@ -143,7 +143,7 @@ the image.
   `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce` (the sparkrun leaf
   `~/.cache/sparkrun/runtime-cache/sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993`,
   computed by sparkrun; the recipe never spells the host path).
-- `mods/dsv41-sglang-overlay/run.sh` creates + `reown`s the subdirs;
+- `recipes/ds4/mods/dsv41-sglang-overlay/run.sh` creates + `reown`s the subdirs;
   `launcher.py` is the only rank-aware component (sparkrun appends `--node-rank`
   to every node; the container env has no rank — VERIFIED in the dry run) and
   packs this rank's Engram shards when absent, **detached**, so a cold boot never
@@ -152,7 +152,7 @@ the image.
   packed. Pre-warm by copying shards into the leaf (fast local copy).
 
 **Evidence / artifacts:** `KNAPCIO-SGLANG-INTEGRATION.md` ("Portability"),
-`mods/dsv41-sglang-overlay/README.md`, design note
+`recipes/ds4/mods/dsv41-sglang-overlay/README.md`, design note
 `.scratch/ds4/knapcio/PORTABILITY-DESIGN.md`; guards in
 `tests/test_ds4_recipes.py` (SglangLaneContract + negative controls).
 
@@ -177,7 +177,7 @@ recipe keeps the `@littlecedar/…` form.
 `engram-l1-r0of4.partial` at ~498 MiB/s. First cold boot = checkpoint Engram
 (correct, slower); next boot = packed. **Still required of the host:** the shared
 HF checkpoint — **not** the image, which is now vendored (below). Commit/push the
-mod so `@littlecedar/mods/dsv41-sglang-overlay` resolves to the new code.
+mod so `recipes/ds4/mods/dsv41-sglang-overlay` resolves to the new code.
 
 ## Session 2026-10-03 (cont.) — `env:` slimmed: redundant dropped, rest migrated to the launcher
 
@@ -187,7 +187,7 @@ ones into the launcher.
 **Result:** the recipe's `env:` is now **3 lines** — `MODEL_PATH`, `DSV41_SOURCE`
 (the external checkpoint path) and `TP_SIZE` (the launcher gets `--nnodes`, not
 the TP degree). Everything else moved into
-`mods/dsv41-sglang-overlay/launcher.py`'s `RECIPE_ENV`.
+`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`'s `RECIPE_ENV`.
 
 - **Dropped as redundant** (recipe value == runtime default): `SKIP_SMOKE=0`,
   `WARMUP=1`, `HOST=0.0.0.0`, `SERVED_MODEL_NAME`, `SPARK_PREFILL_TP_MIN_CONTEXT`,
@@ -283,7 +283,7 @@ spelling a snapshot path in `env:` (where it confuses future users).
 **Change:** `env:` is now **one line: `TP_SIZE: "4"`.** The recipe passes the repo
 id via the command's `{model}` placeholder (`--model {model}`; `{model}` resolves
 to `recipe.model`, core/recipe.py:276/1326), and
-`mods/dsv41-sglang-overlay/launcher.py:resolve_checkpoint()` derives
+`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:resolve_checkpoint()` derives
 `MODEL_PATH`/`DSV41_SOURCE` from the **fixed in-container** HF cache
 (`/cache/huggingface/hub/models--<org>--<name>` -> `refs/main`, else any snapshot
 with both `config.json` and `model.safetensors.index.json`). No `snapshots/<hash>`
@@ -406,7 +406,7 @@ packed Engram shards remain valid and no measured number changes.
 
 **Fix (two layers):**
 1. Recipe literal updated to `2cba9e42…` (the current snapshot).
-2. `mods/dsv41-sglang-overlay/launcher.py` now **self-heals**: if the recipe's
+2. `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py` now **self-heals**: if the recipe's
    `MODEL_PATH` is not a complete local snapshot, it resolves the served one from
    `<repo>/refs/main` (else the newest snapshot carrying
    `model.safetensors.index.json`) and rewrites `MODEL_PATH`/`DSV41_SOURCE`

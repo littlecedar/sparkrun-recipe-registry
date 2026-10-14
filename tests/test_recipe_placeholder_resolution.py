@@ -278,7 +278,7 @@ class ServedModelNameNotRebound(unittest.TestCase):
     Exceptions, with reasons: the two ds4 shim arms render `{model}` on purpose — an
     in-container launcher normalizes the path back to the repo id before the engine starts
     (`mods/tensorfold-dsv41-launcher/launcher.py:176-196`,
-    `mods/dsv41-sglang-overlay/launcher.py:391-395`), guarded by tests/test_ds4_recipes.py.
+    `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:391-395`), guarded by tests/test_ds4_recipes.py.
     """
 
     ALLOWED = {

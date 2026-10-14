@@ -113,7 +113,7 @@ CPU-capable decision model (Kai-0.6B, laya) plus Kokoro at no GPU cost.
    --lora-modules jev-decision=<path>/adapter_vllm
    --logprobs-mode processed_logprobs --max-model-len 4096`.
    Boot gate: verify `--logprobs-mode processed_logprobs` exists at our pinned
-   vLLM build. LoRA-fetch mod precedent: `mods/provide-uno-lora-k2-horizon-7b/`.
+   vLLM build. LoRA-fetch mod precedent: `recipes/ifm/mods/provide-uno-lora-k2-horizon-7b/`.
 2. **`Cloudflare/clef-flash`** — SGLang-native (`lmsysorg/sglang:dev-clef`,
    `/v1/systemone`), best small-tier published accuracy, 38.8 ms median,
    multimodal. Cost: forces an embed/rerank cap re-negotiation. Vendor numbers

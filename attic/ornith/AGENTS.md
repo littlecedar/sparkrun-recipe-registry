@@ -128,7 +128,7 @@ to reproduce reported benchmarks.
 | what a recipe *is* and why | §3 (constraints) plus the recipes' own short tunable comments |
 | the A/B ladder, confirm/void analysis, quality score | [`README.md`](README.md) — the durable record |
 | the staged plans (9B arm, the two A/Bs, the quality set) and their acceptance criteria | [`NOTES.md`](NOTES.md) — working state, moved here into `README.md`/this file when a plan runs |
-| the honed-template delivery contract | [`mods/ornith-honed-chat-template/README.md`](../../mods/ornith-honed-chat-template/README.md) |
+| the honed-template delivery contract | [`recipes/ornith/mods/ornith-honed-chat-template/README.md`](../../recipes/ornith/mods/ornith-honed-chat-template/README.md) |
 | why `@eugr/mods/drop-caches` is inert | [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) |
 | engine-flag semantics (SGLang/vLLM) | [`mad-science/RESEARCH_LORE.md`](../../mad-science/RESEARCH_LORE.md) §5–§6 |
 | guards | `tests/test_ornith_recipes.py`, `tests/test_ornith_honed_chat_template.py`, `tests/test_drop_caches_mod.py` |
@@ -153,7 +153,7 @@ Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab
    from the flag. (The qwen3 lane sees exactly this shape: 48 requested, 21 granted.)
 3. **The honed chat template is delivered by a mod, never injected into the HF snapshot.** The lane
    serves a community-honed template (`qwen3.8-honed-v22.5.1`, 30,438 B) staged by
-   `@littlecedar/mods/ornith-honed-chat-template` under
+   `recipes/ornith/mods/ornith-honed-chat-template` under
    `/cache/runtime/ornith-honed-chat-template/` and pointed at with `--chat-template
    {honed_chat_template}`. **Never rewrite `chat_template.jinja` inside the HF snapshot:**
    sparkrun validates every cached model file against a hub manifest, and an injected snapshot fails
@@ -534,7 +534,7 @@ parity with the 2026-10-11 run.
 
 **Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
 template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
-delivered by `@littlecedar/mods/ornith-honed-chat-template`, which stages the file under
+delivered by `recipes/ornith/mods/ornith-honed-chat-template`, which stages the file under
 `/cache/runtime/ornith-honed-chat-template/` (content-idempotent, fail-closed on size + marker) and the
 recipe points `--chat-template` at it. Never inject it into the HF snapshot: sparkrun validates every
 cached model file against a hub manifest, and an injected snapshot fails `wrong_size` at distribution
@@ -950,7 +950,7 @@ folded into [`recipes/ornith/README.md`](../../recipes/ornith/README.md).
   was honed in place in September (qwen3.8-honed-v22.5.1), which sparkrun's model-preparation
   validator now rejects against the hub's current metadata at this same revision (hub sizes changed
   under it). Fix: caches carry hub content again, and the honed template ships via `--chat-template`
-  below, staged by @littlecedar/mods/ornith-honed-chat-template. The pin also keeps the offline
+  below, staged by recipes/ornith/mods/ornith-honed-chat-template. The pin also keeps the offline
   engine on this exact snapshot (--revision is required: a SHA download writes no refs/ entry). Draft
   jzinno snapshot 9b4852c05fd00b672b7434b1bb105bc03c8682b0, pinned in `defaults:` below as a
   distribution-only key; the pre_exec hook seeds the refs/main that the offline draft-config lookup

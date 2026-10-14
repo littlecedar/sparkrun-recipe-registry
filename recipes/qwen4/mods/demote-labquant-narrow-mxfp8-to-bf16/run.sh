@@ -101,7 +101,7 @@ REPO="${MOD_LABQ_REPO:-local-inference-lab--Qwen3.8-Flash-Next-NVFP4}"
 REVISION="${MOD_LABQ_REVISION:-6c01ac378d22f6652c9f392c87700496eca8e5dc}"
 
 # Same tree the other labquant mods build. Run AFTER
-# mods/fix-labquant-modelopt-mixed-flat-schema, which is the only one that ever
+# recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema, which is the only one that ever
 # deletes it; this mod never does.
 OUT_DIR="${MOD_LABQ_OUT:-/cache/runtime/labq-patched}"
 OUT_DIR="${OUT_DIR%/}"
@@ -144,7 +144,7 @@ log "snapshot: ${SNAP}"
 
 [ -d "${OUT_DIR}" ] || \
   die "${OUT_DIR} does not exist; this mod layers onto the tree built by
-       mods/fix-labquant-modelopt-mixed-flat-schema and must run after it"
+       recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema and must run after it"
 [ -f "${OUT_DIR}/config.json" ] || \
   die "${OUT_DIR}/config.json missing; keep the mod order config -> ple -> demote"
 

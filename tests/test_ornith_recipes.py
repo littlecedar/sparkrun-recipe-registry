@@ -26,7 +26,7 @@ is one a careless copy silently breaks:
        with no recorded derivation (`attic/ornith/AGENTS.md` §3.1).  Do not
        "fix" the omission in either direction before reading
        (`attic/ornith/NOTES.md`, §2).
-  O2  the 9B arm must NOT mount @littlecedar/mods/ornith-honed-chat-template ..
+  O2  the 9B arm must NOT mount mods/ornith-honed-chat-template ..
        that template is the 35B's honed artifact (`qwen3.8-honed-v22.5.1`,
        30,438 B).  The 9B ships its own multimodal `chat_template.jinja`
        (7,593 B, vision tokens + an `enable_thinking` toggle), so serving the
@@ -266,7 +266,7 @@ class NineBArmDropsTheThirtyBKnobs(unittest.TestCase):
 class NineBArmDoesNotReuseTheHonedTemplate(unittest.TestCase):
     """O2: the 35B's honed template is a 35B artifact and must not be mounted."""
 
-    HONED_MOD = "@littlecedar/mods/ornith-honed-chat-template"
+    HONED_MOD = "mods/ornith-honed-chat-template"
 
     def _violations(self, mods: list[str], defaults: dict, command: str) -> list[str]:
         bad = []
