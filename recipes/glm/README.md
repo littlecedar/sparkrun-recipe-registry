@@ -26,7 +26,7 @@ image claim corrected 2026-10-11):
   `TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2`, extra
   `--mtp-drafts 3 --parallel 4`. Runbook (proven here): engine at
   `~/glm53-tf/TensorFold`, checkpoint at `~/models/GLM-5.3-EXL3-3.0bpw` on every
-  node, then
+  node (**reclaimed 2026-10-14 — re-stage before a revive; see Revision pins**), then
   `cd ~/glm53-tf && TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2 bash tp4_start.sh 32768 "--mtp-drafts 3 --parallel 4"`;
   rank 0 serves on `.30`'s management IP at `:18090`. `tfrun-sglang.sh` swaps
   repo A's `nvcr.io/nvidia/pytorch:26.07-py3` base for the already-present
