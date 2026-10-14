@@ -108,9 +108,11 @@ decision model at no GPU cost. Recipe notes:
   the shim can be written. vLLM / SGLang images ship procps and are
   unaffected.
 - `--revision=<sha>` uses the runtime's own pinned revisions
-  (Kai `cd49ea38…`, Sol `64235bef…`) — the same revisions its golden
-  readiness check verifies against. `/health` returns 200 only when every
-  model is loaded, verified and golden-checked.
+  (Kai `cd49ea38…`, Sol `64235bef…`) — the revisions its golden readiness
+  check was built against, so they are the strongest (`matched`) readiness
+  state. `/health` returns 200 for a served revision that golden-checks
+  `unverified` too (readiness gates on `failed`, not on `unverified`); see the
+  revision-drift determination below.
 
 **Kai-0.6B boot-verified 2026-10-13** on .34: launch succeeds (TTR port-open
 8.1 s, HTTP-ready 10.1 s), `/health` → `{"status":"ready"}` (golden-checked),
@@ -160,6 +162,39 @@ tables, calibration, latency, 400-case trace) plus the two card-smoke JSONs.
 Deviation worth recording: `--json-file` produced no file in v2.8.0 for these
 runs; the markdown report under `~/runs/2026/10/` is the durable artifact
 (copied into the receipts dir) and carries every number quoted here.
+
+**Revision-drift determination (2026-10-14).** Hub `main` moved to
+`cc7f30cda9e7…` (Kai) / `df30237f9c1c…` (Sol) — both 2026-10-10 — past the
+pinned `cd49ea38…` / `64235bef…`, opening the re-pin question. Inspecting the
+runtime in the digest-pinned `vllm-sr` image, **the runtime pins its own
+validation revisions, so both recipes are left as-is**:
+
+- `vllm-srun models` lists the built-in table at exactly the recipe pins
+  (`Decision-2.0-Kai-0.6B@cd49ea38…`, `Decision-2.0-Sol-2B@64235bef…`).
+- The golden *reference answers* are looked up by **content identity** —
+  `vllm_srun/registry/builtin.py:golden(model_sha256, …)` goes through
+  `by_identity(model_sha256)`, not through a revision — and
+  `registry/tables/common.py:with_recorded` attaches `golden_answers.json` /
+  `kernel_choices.json` to a built-in entry only when the recorded `revision`
+  equals the entry's pin (the recorded Kai/Sol references carry
+  `"revision": cd49ea38…` / `64235bef…`).
+- `registry/resolve.py:pinned_revision` accepts any 40-hex commit, so a newer
+  revision is *served*, not refused — but `families/decision2/family.py` only
+  applies its identity-equality guard when `known.revision == package.revision`,
+  and `runtime._start` fails the load only on golden status `failed` — not on
+  `unverified`. An unrecorded revision therefore reaches readiness with golden
+  status **`unverified`**, never `matched`: only the recorded revision's content
+  can be golden-vouched. (`/health` stays 200 because readiness gates on
+  `failed`, not on `matched`.)
+- **The Hub drift is cosmetic.** A pin-vs-`main` diff of every file (LFS oids)
+  shows both repos differ by `assets/banner.png` alone — every model file is
+  byte-identical, so `main`'s content identity equals the pin's (`bb806f31…`
+  Kai / `e20df76c…` Sol). A re-pin would change nothing served, so no re-score
+  is warranted.
+
+Evidence (the inspection commands and their output):
+`~/benchmarks/decision-revision-20261014/` on the head — `models.txt`,
+`golden-probe.txt`, `hub-tree-diff.txt`.
 
 ## CPU+GPU tandem probe (2026-10-13)
 

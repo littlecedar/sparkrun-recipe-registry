@@ -144,3 +144,13 @@ before this research).
 5. **No lane artifacts exist yet** — no decision or TTS recipe, mod, test, or
    benchmarking profile in the tree; the 👂/👄/🎼 flags in `recipes/README.md`
    are declarative only.
+
+6. **The `vllm-srun` golden check is bound to its own pinned revisions.** The
+   runtime's recorded reference answers (`golden_answers.json`) and kernel
+   choices attach to, and are looked up by, **content identity** — only for the
+   revision the image's built-in table pins (`registry/tables/common.py`,
+   `registry/builtin.py`). A newer Hub revision is *served* (readiness passes)
+   but reports golden `unverified`, never `matched`; a different-content
+   revision cannot be golden-vouched at all. Verified 2026-10-14 — see
+   "Revision-drift determination" in `README.md`; receipts
+   `~/benchmarks/decision-revision-20261014/` on the head.
