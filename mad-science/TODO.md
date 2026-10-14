@@ -132,7 +132,7 @@ IFM K2-Horizon
 ## embed
 Any embed model
 - [ ] **Add a pooling `BenchmarkingPlugin`** — pooling engines have no `/chat/completions`, so the standard profiles "silent skip"; the lanes' numbers rest on hand-run scratch scripts ("a plugin, not a script, is the correct long-term home") (`tools/README.md:102-105`). *(effort: medium)*
-- [ ] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in a recipe comment, never receipted (`attic/decision/AGENTS.md`; `recipes/decision/jev-9b-decision-vllm.yaml`). *(effort: short)*
+- [ ] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in the lane README, never receipted (`recipes/decision/README.md` §Operating constraints; `attic/decision/AGENTS.md`). *(effort: short)*
 - [ ] **Ship or retire the unquantized 8B BF16 encoder tier** — measured within 1.2% prefill of the shipped AWQ 4-bit, ships nowhere (scratch recipe only) (`recipes/embed/README.md`; `attic/embed/AGENTS.md`). *(effort: short)*
 
 ## rerank
