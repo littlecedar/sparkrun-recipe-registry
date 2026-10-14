@@ -38,6 +38,9 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: RadixArk/Qwen3.8-Flash-Next-NVFP4
   gpu_memory_utilization: 0.85
   max_model_len: 262144
   page_size: 64
@@ -56,7 +59,7 @@ defaults:
 command: >
   sglang serve
   --model-path {model}
-  --served-model-name {model}
+  --served-model-name {served_model_name}
   --mem-fraction-static {gpu_memory_utilization}
   --host {host}
   --port {port}

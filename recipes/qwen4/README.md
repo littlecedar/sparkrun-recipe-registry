@@ -112,6 +112,11 @@ unmeasured until the boot test lands.
 **This directory holds only the production recipes and their guides** (`README.md`, `AGENTS.md`,
 `../../attic/qwen4/NOTES.md`) — the same convention the `ds4` lane uses:
 
+> **Served model id (2026-10-13).** All five sglang arms now advertise their **upstream repo id** —
+> `RadixArk/Qwen3.8-Flash-Next-NVFP4` (RadixArk arms) and `local-inference-lab/Qwen3.8-Flash-Next-NVFP4`
+> (labquant arms) — verified live with `GET /v1/models`; previously they returned the container's
+> snapshot path as the model id.
+
 | recipe | checkpoint | runtime | TP | lane / purpose |
 |---|---|---|---|---|
 | `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | local-inference-lab | sglang | 2 | **balanced base + control** |
