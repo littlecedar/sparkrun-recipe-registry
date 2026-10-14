@@ -14,74 +14,19 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 8 open (2026-10-14)
+# DECISIONS — nothing open (2026-10-14)
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `recipes/qwen4/SELECTION-RANKING.md`, #11 in `recipes/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `recipes/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
-register is `git show 8a98379:mad-science/TODO.md`. New items continue that register's numbering
-(from #16) so those historical references stay unambiguous.
-
-16. **Session nodes.** Which nodes are ours this session? The backlog assumes up to four: the 397B
-    DFlash-vs-MTP A/B (4 nodes), the ds4 TP=4 revision/build items, and any glm5 revival need
-    `.30-.33`, which host the production ds4 TP4 serve; only `.34`/`.35` are free while that serve
-    is up. Confirm whether `.30-.33` are free again (the 2026-10-13 window had all six idle) or
-    whether this session is `.34`/`.35` only — so the 4-node/TP4 items are marked blocked vs runnable.
-    → Answer:
-
-17. **Off-brief / new-runtime arms — in scope this session?** The queued `Qwen-Image-2.1-Turbo`,
-    `LTX-2.5` (media-gen) and `humanizer-12B` arms sit **outside the explore lane's reasoning/
-    tool-calling brief**, and each needs a runtime class sparkrun has never shipped (diffusers /
-    ComfyUI script launcher; a byte-exact `/v1/completions` prompt). Pursue them in this session
-    (each will consume a large slice of it), or defer to a separate research pass?
-    → Answer:
-
-18. **Non-commercial / `other` licences.** This registry ships to third parties.
-    `Qwen/Qwen-Image-2.1-Turbo` is `qwen-research` ("FOR NON-COMMERCIAL PURPOSES ONLY") and
-    `poolside/Laguna-S-2.1-DFlash(-NVFP4)` carries `license: other` (text unread). Decision #4
-    (2026-10-11) allowed the CC BY-NC-ND DFlash2 drafts on "non-commercial cluster use" grounds.
-    For these arms: ship the recipe (a recipe ships a repo id, not weights — the downloader accepts
-    the licence), keep it runbook/eval-only, or exclude it entirely?
-    → Answer:
-
-19. **Gated / red-team/blue-team arms.** `Lightricks/LTX-2.5` (`gated: auto`, needs a browser terms-acceptance and
-    a per-node `HF_TOKEN`) **and all five `cybersec`-lane arms** (`drowzeys/*` and `orcarouter/*` are
-    `gated: auto` behind responsible-use agreements) cannot be assumed downloadable in a registry
-    distributed to third parties. Ship gated arms as runbook/eval-only with a documented per-node token
-    + acceptance prerequisite, or exclude gated arms from the shipped tree?
-    *(Update 2026-10-14: all six releases are accepted — card/metadata reads verified for all six, so
-    the arms are buildable now; the open part of this question is only the third-party-distribution
-    policy.)*
-    → Answer:
-
-20. **Media-arm acceptance criterion.** `EXPLORE-MODELS-RESEARCH.md` §6 proposes: a fixed prompt+seed
-    set; one 1024² image at the checkpoint's shipped step count and one 5 s clip at the shipped
-    preset; wall-clock per item + peak unified memory; quality judged by eye against the vendor
-    gallery (no house scorer exists — `tools/synthetic_png.py` is a fixture). Confirm or replace.
-    → Answer:
-
-21. **Humanizer acceptance criterion.** §7 proposes: a fixed 20-draft set across genres × 2 samples,
-    reporting fact-diff count vs the source (numbers/dates/names), formatting-drop count, and
-    wall-clock per 1k output tokens; the card's Originality.ai figure cited, not reproduced in-house.
-    Confirm or replace.
-    → Answer:
-
-22. **Ornith quality bar.** You are not convinced of Ornith 1.5's quality and want further
-    experiments. What would confirm (or fail) it — a named long-horizon agentic workload, a peer
-    comparison, or a threshold on the house battery? The 2026-10-13 logic-loop ticket was **NOT
-    reproduced** (it was thinking-budget exhaustion, not a loop), so the target workload matters.
-    → Answer:
-
-23. **qwen4 lane cut.** Confirm the target is exactly two shipped arms — fastest single-node (the two
-    TP=1 solo arms) and fastest two-node (the TP=2 set) — with the rest swept to `attic/`. Read
-    literally, "1M context optional" means the Lane-B longctx arm may go even though it is the only
-    1M route, and the RadixArk quality reference is swept if it is not the fastest. Confirm, or name
-    any arm to keep regardless of speed.
-    → Answer:
+register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 register (#16–#23) is the
+pre-fold state, `git show baecfa8:mad-science/TODO.md`.
 
 # TODO list
 
 Budget: 8 hours
+*(Owner decision 2026-10-14: all six nodes — `.30–.35` — are ours this session; the 4-node/TP=4 items
+(ornith 397B A/B, ds4 TP=4, glm5) are runnable.)*
 
 Lane order (advisory — any rational order, preference for subagent parallelization; strict ordering is not priority):
 - ds4
@@ -117,6 +62,8 @@ GLM 5.3
 ## ornith
 Ornith 1.5
 - [ ] We are not convinced of the quality of this model and were surprised that you could not replicate the looping behavior it falls into when performing long horizon agentic workloads.  Run additional experiments to confirm the quality of this model.
+  *(Owner decision 2026-10-14: the agent proposes the experiment set and the bar; the owner ratifies
+  the result.)*
 - [ ] **A/B the first-party DFlash draft against the shipped jzinno DFlash2 draft (queued 2026-10-13).** The shipped draft is third-party — `jzinno/Ornith-1.5-35B-A3B-DFlash2` (`9b4852c0…`, 2026-08-23, Apache-2.0, `DFlash2DraftModel`, 1.05 GB, unpinned) — and the vendor published its own two weeks ago: [`ornith-ai/Ornith-1.5-35B-A3B-DFlash`](https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-DFlash) (`942d20fe…`, created 2026-09-20 / last pushed 2026-09-28, MIT, ungated, plain `DFlashDraftModel`, 0.77 GB) with **no published numbers**, so the lane's "unmeasured candidate" note (`recipes/ornith/README.md:246-248`) becomes a measurement. Same-node A/B on the shipped arm, one boot per arm, decode-phase rows only, n=5 per cell; baseline is the 2026-10-13 `decode-triage.yaml` C1 re-measure — **99.6 t/s @ d0 (σ 9.1), 100.2 t/s @ d8192 (σ 3.9)**, `.35`, receipts `~/benchmarks/ornith-c1-20261013/`. The card's SGLang snippet pairs the draft with `--speculative-dflash-block-size 8` — a flag sparkrun has no mapped key for (only `speculative_dspark_block_size` exists; write a literal only after confirming the pinned image's sglang accepts it) — and the card pins SGLang **= 0.5.18** exactly, so the lane's upstream-0.5.21 mamba-arg warning applies (`recipes/ornith/README.md:253-256`). Sweep n ∈ {4 = shipped default, 8} on the official draft one knob per arm (the jzinno draft already lost ~19% at n=10 in the 2026-10-11 ladder), not the full card config. Ship only a delta that clears boot noise (d0 σ ≈ 9 t/s) and run the house battery once on the winner (jzinno arm: 37/37). Either way **pin the winner's draft**: `speculative_draft_model_revision: <sha>` in `defaults:` (`942d20fe…` official / `9b4852c0…` jzinno) — distribution-only, read by `runtimes/sglang.py::_detect_speculative_draft_revision` (sparkrun's pin audit carries a separate draft-revision check, `api/_pin.py:164`, for the vLLM spelling) — and the 2026-10-13 floating-pins audit lists the draft (`SESSION-RECORD.md:104`). Boot hygiene per arm: node cleared (`docker ps -q | wc -l == 0`) and serve log asserts `Mean acceptance length > 1` — an accept ≈ 1 boot is a misconfiguration, not a loss. Update `recipes/ornith/README.md`/`AGENTS.md` + the recipe comment (draft snapshot line) with the numbers. Done when one draft is pinned and the C1 delta is a receipt.
 - [ ] **Scope and measure a `9B-NVFP4 + DFlash` arm (new arm — queued 2026-10-13).** The collection (`ornith-ai/ornith-15-dflash`, last updated 2026-09-29) ships three first-party heads; the 9B pair is unshipped and unmeasured anywhere in the registry (no 9B recipe, no lane mention): target `ornith-ai/Ornith-1.5-9B-NVFP4` (`155f200d…` main, 2026-08-26, MIT, ungated, **8.8 GB** of weights) + head `ornith-ai/Ornith-1.5-9B-DFlash` (`21be3446…`, 2.58 GB, `DFlashDraftModel`, hidden-state taps 1/5/9/13/…/29 of a 32-layer target, MIT, ungated, **no published numbers**). The card calls the target a **dense ~9B** (≈19 GB bf16) and it is **multimodal** (`preprocessor_config.json` in the repo), so the arm is 1 node / TP=1 with no MoE or Mamba knobs — drop every `mamba_*`/`moe_runner_backend` line when copying the 35B arm, and **do not** reuse `@littlecedar/mods/ornith-honed-chat-template` (that template is the 35B's honed artifact; check what the 9B ships and whether it needs its own). Card launch: SGLang = 0.5.18 `--speculative-algorithm DFLASH --speculative-draft-model-path <dir> --speculative-dflash-block-size 8` (flag existence in our pinned image is the same open question as the 35B A/B above), or vLLM ≥0.20.2 `--speculative-config '{"method":"dflash","model":…,"num_speculative_tokens":8}'` — pick SGLang to match the shipped DFlash arm unless the image blocks it. Pin both repos (`model_revision: 155f200d…`; draft via `speculative_draft_model_revision: 21be3446…`, distribution-only), follow the standard hygiene (node cleared, serve-log `Mean acceptance length > 1`, `/v1/models` = repo id — the class guard `ServedModelNameNotRebound` polices the new sglang arm), then record C1 (`decode-triage` d0/d8192) + the house battery and compare against the 35B (99.6/100.2 t/s, 37/37) to decide whether a 9B slot is worth shipping. Done when the arm has a boot receipt + numbers, or a recorded negative.
 - [ ] **A/B the first-party 397B DFlash head against the checkpoint's own MTP head (flagship 4-node arm — queued 2026-10-13).** The shipped arm specs with the grafted MTP head (`method: mtp`, 3 tokens) and carries only a **card figure** (41.86 t/s, tied to the floating `:latest` tag — the lane has no house measurement; §3.8 wants a digest pin anyway). The third collection head is `ornith-ai/Ornith-1.5-397B-DFlash` (`db9c35a0…`, 2.58 GB, `DFlashDraftModel`, taps 1/9/…/57 of a 60-layer target, MIT, ungated, no published numbers). Keep the target constant — the shipped graft tree (`littlecedar/…-MTP-Graft` = the NVFP4 quant + bf16 MTP MoE) carries both methods; reach for the upstream plain quant `ornith-ai/Ornith-1.5-397B-NVFP4` (`fcefb8b2…`, 241.8 GB, 25 shards) only if the graft's packaging fights `method: dflash`. Swap one knob: `--speculative-config '{"method":"dflash","model":"…","revision":"db9c35a0…","num_speculative_tokens":8}'` (card shape; the MTP config's `max_model_len`/`attention_backend`/`moe_backend` keys are MTP-specific — start minimal) — sparkrun reads draft + revision out of that JSON to distribute the draft to all 4 nodes (`runtimes/_vllm_common.py:357-372`, `vllm_ray.py:61-63`), and the revision must be pinned **there**, never via `model_revision:` (that SHA does not exist in the draft repo → `Revision Not Found`, per the docstring). Traps: (1) `--load-format instanttensor` + `@eugr/mods/instanttensor-hybrid-draft-loader` were built for the MTP head — read that external mod and check the plain-safetensors draft loads (the draft may need the standard loader); (2) first confirm the floating nightly's vLLM exposes `method: dflash` (card: ≥0.20.2, tested 0.28.0) and record the resolved digest for both arms; (3) this is the registry's most expensive arm (235 GB/node, TP=4): one boot per arm, C1 `decode-triage` d0/d8192 + serve-log acceptance, and **re-measure the MTP baseline in the same window** rather than comparing to the 41.86 card figure; the draft adds +2.6 GB/node — watch the util-0.80 budget. Done when both arms have same-window receipts, the winner is recorded (with the loser's rationale) in the lane docs, and §3.8's digest pin lands with the numbers.
@@ -129,6 +76,8 @@ Qwen 3.x
 Qwen 4.x (and 3.8 Flash Next)
 - [ ] **Re-pin (and re-verify the mods for) the labquant checkpoint.** `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` `main` is `6c01ac378d22…` (2026-10-06 — the `step-5500 QAD` candidate the W14 plan already named) and the `.30` cache holds it, while the three `…labquant…` recipes pin `7c4f1bc1a2d6…`. Run the W14 per-mod re-verification plan against the new revision (one mod breaks, one is obsolete, five survive), then re-pin and re-bench the labquant arms (W3 battery + `decode-triage`).
 - [ ] There are at least six Qwen3.8-Flash-Next-NVFP4 recipes in the registry at the time I'm writing this. This is too many. Select the fastest single node recipe and two-node recipe and then sweep the rest to the @attic. 1M context length is optional for this lane.   
+  *(Owner decision 2026-10-14: confirmed — exactly two shipped arms (fastest TP=1 + fastest TP=2), the
+  rest swept to `attic/`; 1M context droppable.)*
 
 ## ifm
 IFM K2-Horizon
@@ -154,16 +103,24 @@ Any model with reasoning and tool-calling capabilities
 - *(The archived Nemotron arms' `nvidia/…NVFP4-DSpark` draft also moved to `6d127b50…` on 2026-10-12 and was never pinned, so the 2026-10-13 acceptance-length non-reproduction (3.67 → 1.66) may be a draft change and not only the suspected metric-window artifact — re-check if those arms are revived.)*
 - [ ] **Poolside Laguna XS-2.1 arm (queued 2026-10-13 — queue rank 1).** `poolside/Laguna-XS-2.1-NVFP4` (33B-A3B, 262k, OpenMDW-1.1, 21.6 GB) + `poolside/Laguna-XS-2.1-DFlash` draft (0.9 GB, `method: dflash`) on 1 node. The family's only single-Spark datum is the Spark Arena entry (TP=1, 37.5 t/s decode, full vLLM recipe sketch); the TP=1 sweep below is on the S-2.1 sibling. Checklist in `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §5: import-check the image for `LagunaForCausalLM` + `dflash` + `poolside_v1`, NVFP4-on-SM121 risk (INT4 23.9 GB fallback), draft-depth sweep n ∈ {3,4,7} (S-2.1's sweep: n=3 beats the vendor n=15), battery with raised `max_tokens`. Compare C1/quality against Ling 37/37 @ 45.5 and Kolibri 36/37 @4096 @ 47.3; pin `model_revision:` on both repos (no registry artifact references the family yet — expect a full per-node download).
 - [ ] **Poolside Laguna S-2.1 arm (queued 2026-10-13 — queue rank 2, also 1 node).** `poolside/Laguna-S-2.1-NVFP4` (118B-A8B, 1M ctx, OpenMDW-1.1; 99.7 GB download / 67 GiB resident) + `Laguna-S-2.1-DFlash-NVFP4` (2.2 GB; licence `other` — read it before distributing). Template = the fankserver single-Spark TP=1 sweep (util 0.85, 262k, DFlash n=3, 1.37M-token KV, 18.3 → 25.5 t/s) and its RC1 long-context variant (no DFlash + `--max-num-scheduled-tokens 4096` → 4.52M tokens). `Laguna-M.1` (NVFP4 139.3 GB) stays a 2-node ceiling reference.
+  *(Owner decision 2026-10-14: ship the recipe — a recipe ships a repo id, not weights; the downloader
+  accepts the licence.)*
 - [ ] **Qwen-Image-2.1-Turbo arm (queued 2026-10-13 — media-gen, outside the lane brief).** **Licence first:** `qwen-research` is non-commercial ("FOR NON-COMMERCIAL PURPOSES ONLY") — the MiniMax-M3 class of blocker, since this registry ships to third parties; needs an owner call, and may stay eval-only. Then serve via `QwenImage21Pipeline` (diffusers ≥ PR #14950, transformers ≥ 5.17) under a script launcher (no `sglang|vllm` runtime) — expected **≈ 11 s @ 1024²** derived from the base model's GB10 measurement (54.1 s @ 40 steps, linear in steps; 31.6 GB peak); the 8-step schedule and its quality are ours to measure. Traps to re-check: VAE tiling OFF (pink seam), `cpu_offload` OFF, reference-image cost. Details: `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §6.
+  *(Owner decision 2026-10-14: media-gen arms deferred to a separate pass; when built, ship the recipe
+  (licence policy) and use the confirmed §6 acceptance criterion.)*
 - [ ] **LTX-2.5 arm (queued 2026-10-13 — media-gen, outside the lane brief).** `Lightricks/LTX-2.5` (video+audio, 22B DiT + Gemma-4-12B encoder, ComfyUI-native): repo is gated (`gated: auto`) → per-node `HF_TOKEN` and accepted terms, which a distributed registry cannot assume; licence = `ltx-2.x-community-license-agreement` (the LTX-2 text carries a $10M-revenue Commercial Entity threshold — read the 2.x text once access lands). Spark evidence exists as a **refine stage** (nvfp4 transformer 17.44 GiB + VAEs + upscaler = 20.1 GiB, 3 steps → 1344×768×124 f/24 fps with audio inside a 73.3 s warm two-stage run). Traps: ComfyUI ≥ 0.34.0 (below it the refine silently emits garbage), the `-nogemma` graph on GB10, and the sustained-load power-loss fix (2200 MHz clock cap). Details: §6.
+  *(Owner decision 2026-10-14: deferred to a separate pass; ship gated arms with a documented per-node
+  `HF_TOKEN` + acceptance prerequisite.)*
 - [ ] **Humanizer-12B arm (queued 2026-10-13 — text-rewriting helper, outside the lane brief).** `jialinyyzz/humanizer` (12B `google/gemma-4-12B` finetune, Apache-2.0, ungated, 1 node: 23.9 GB bf16 / 12.7 GB Q8_0 / 3.9–10 GB QAT quants) rewrites one AI-written draft so it reads human (en+zh); card: 95% judged human by Originality.ai strictest (11/210 bf16) and 376/420 English rewrites with no factual problem — still read numbers/dates/names. vLLM-servable via the vendor's own path (`--dtype bfloat16 --max-model-len 8192 --generation-config vllm`), but the contract is **`/v1/completions` with the byte-exact `instr + draft + sep` prompt from `prompt_format.json`, never a chat template**, top_k off. Checklist + acceptance proposal: `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §7.
+  *(Owner decision 2026-10-14: in scope this session; the §7 acceptance criterion is confirmed.)*
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 *(queued 2026-10-14 — owner directive; sources scanned `hf.co/drowzeys` and `hf.co/orcarouter/collections`.)*
 
 Five arms, all **abliterated/uncensored** and all **gated** (`gated: auto` — a responsible-use agreement
-plus a per-node `HF_TOKEN`, the same third-party-distribution problem as `LTX-2.5`; owner call in `# DECISIONS` #19).
+plus a per-node `HF_TOKEN`; releases accepted 2026-10-14). **Owner decision 2026-10-14: ship gated arms
+with a documented per-node token + acceptance prerequisite.**
 Sizes below are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10-14), not the Hub
 `Parameters` field (explore research doc §3); 1 node = ≤ ~108 GB at 0.85 util.
 
