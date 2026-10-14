@@ -11,7 +11,6 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  # vision + embedding: multimodal Qwen3-VL pooling encoder (--runner pooling / --convert embed).
   tags: fast, lcg_favorite, vision, embedding, smol
 
 mods:
@@ -23,40 +22,29 @@ readiness:
   inference: false
 
 defaults:
-  # Distinct from the reranker's 8011 so both can be up at once on the same host.
   port: 8010
   host: 0.0.0.0
   tensor_parallel: 1
-  # Colocation: vLLM's --gpu-memory-utilization is an ABSOLUTE device cap, so the two
-  # engines' caps must SUM — this 0.25 + reranker 0.30 = 0.55 of 121 GB, in either start
-  # order. Raising one without lowering the other risks a startup ValueError.
+  # Absolute device cap: the colocated reranker's 0.30 must SUM with this one (0.55 of 121 GB),
+  # or whichever engine starts second raises a ValueError.
   gpu_memory_utilization: 0.25
-  # Advertised 32k is a deliberate cap, not a ceiling (native capacity is 262,144); a
-  # long-document embed needs it.
   max_model_len: 32768
-  # Prefill-bound: this batch token budget, not max_num_seqs, sets the profiled peak.
-  # First knob to raise for more throughput per step.
   max_num_batched_tokens: 16384
   max_num_seqs: 32
-  # Explicit bf16: the siblings declare float32 inside text_config, and auto-resolution
-  # would double the footprint of a model we intend to colocate.
   dtype: bfloat16
   load_format: instanttensor
   attention_backend: b12x
-  # b12x refuses vLLM's default block size — it accepts only 64 or 128, and 128 is
-  # _B12X_PREFERRED_PAGE_SIZE in b12x.py at the pinned commit.
+  # b12x refuses vLLM's default block size — it accepts only 64 or 128.
   block_size: 128
   # Half the GB10 fast cluster (X925) so the colocated reranker owns 15-19. Solo:
   # -o cpu_mask=5-9,15-19.
   cpu_mask: 5-9
-  # Pin the conversion vLLM would otherwise auto-resolve to pooling/embed for this
-  # checkpoint's plain generative `architectures`, so a default-table change cannot
-  # silently change what this recipe serves.
+  # Pin the pooling/embed conversion: this checkpoint's plain generative `architectures` would
+  # otherwise auto-resolve through vLLM's default table.
   convert: embed
-  # Bound the profiled multimodal peak (vLLM's default is 999 images/prompt). Folded style
-  # with the embedded quotes is load-bearing: the value must reach the shell as ONE word.
-  # NOTE: convert/limit_mm_per_prompt have no flag-map entry and reach vLLM only through
-  # the placeholders below; `-o` warns "unmapped" while still applying — do not delete them.
+  # Folded style + embedded quotes are load-bearing: the value must reach the shell as ONE
+  # word. convert/limit_mm_per_prompt have no flag-map entry and reach vLLM only through the
+  # {placeholders}; `-o` warns "unmapped" while still applying — do not delete them.
   limit_mm_per_prompt: >-
     '{"image": 4, "video": 1}'
 

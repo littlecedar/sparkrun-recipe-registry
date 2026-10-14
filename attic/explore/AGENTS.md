@@ -562,6 +562,121 @@ Mistral-Small-4-119B are blocked or untested (see the research doc's checklists)
    family, so measure this arm through `sparkrun benchmark performance … --profile decode-triage`
    (with `--skip-run` against a live boot), or pass that `-b extra_body=…` equivalent by hand.
 
+## Recipe comment archive (2026-10-14)
+
+Comments moved out of the shipped recipes per the owner's comment-placement rule (keep only what an
+operator gets wrong without; everything else lives here or in the recipe's README section). The kept
+YAML comments are reported per recipe below; the moved text follows.
+
+### qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml
+
+- **Kept:** the LICENCE banner (compressed): the qwen-research NON-COMMERCIAL gate plus the
+  operational directive that a commercial operator must swap the checkpoint (the serving path is
+  checkpoint-agnostic). Also kept: `runtime: vllm` is the family whose distribution/launcher contract
+  the diffusers script satisfies (no sglang/vLLM engine exists); "no chat surface → readiness is the
+  port + `/health`, not an inference probe"; `served_model_name` is declared so the server advertises
+  the repo id (sparkrun rebinds `{model}` to the snapshot path on a launch) and naming the flag stops
+  the runtime's own `--served-model-name` append.
+- **Moved:** banner history — the MiniMax-M3 blocker and the Poolside S-2.1 draft-licence gap
+  precedents, the owner call to ship with the banner, and the eval-only rationale (the lane's accuracy
+  criterion has no axis for a text-to-image checkpoint). The full banner also lives verbatim in
+  [`QWEN-IMAGE.md`](QWEN-IMAGE.md) and `recipes/explore/README.md`.
+- **Moved:** "The Hub revision of 2026-10-12; this arm was brought up and measured on it."
+- **Moved:** container rationale — the digest-pinned image serves only as the arm64 CUDA torch base;
+  the diffusers `QwenImage21Pipeline` venv is staged on top by the mod; the Kai vllm-srun arm in
+  `recipes/decision/` is the precedent for the runtime-family contract.
+- **Moved:** the mod's first-boot venv stage and ~32 GB weight load precede the port, hence the long
+  readiness budget.
+
+### poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml
+
+- **Kept:** `entrypoint: ""` (image declares `ENTRYPOINT ["vllm","serve"]`); `MAX_JOBS=4` caps the
+  cutlass/FP4 JIT fan-out (uncapped nvcc can exhaust the 128 GB unified pool — the card's warning);
+  `served_model_name` never `{model}` (rebind footgun); 120k not 262k (KV math at util 0.85); 32
+  `max_num_seqs` is required, not tuned (DFlash crashes vLLM at the default 256); util stays at the
+  0.85 ceiling, don't raise it; the draft MUST live in `defaults.speculative_config` with the pin in
+  its `"revision"` field and no nested `{placeholder}` (kills the launch).
+- **Moved:** the import-verification block — same digest pin as Kolibri-1 and Laguna-XS-2.1;
+  `LagunaForCausalLM`/`DFlashLagunaForCausalLM`, the `laguna`/`laguna_dflash` modules,
+  `v1.spec_decode.dflash` and the `poolside_v1` parsers resolve; the card floor is vLLM >= 0.25 and
+  this build is above it.
+- **Moved:** "Cold start ~15 min (99.7 GB weight load from NVMe, FP4 JIT, graph capture); the port
+  gate plus a generous timeout absorb it."
+- **Moved:** the vLLM refusal quote for 262k: "9.32 GiB KV cache is needed, which is larger than the
+  available KV cache memory (4.58 GiB)"; the card's native 262,144 window would need 9.32 GiB of KV.
+- **Moved:** raising util "has wedged GB10 nodes — ds4/AGENTS.md §11".
+- **Moved:** speculative-config mechanics — sparkrun's draft binding "adds the draft repo to the
+  distribution set and injects its prepared revision" and reads the pin from the same object's
+  "revision" field (vLLM's own draft-revision field); n=3 is the sweep winner over the vendor default
+  n=15 (which loses on one Spark).
+- **Moved:** the file-format note that comments must live OUTSIDE the folded `command:` block (a `>`
+  scalar keeps them as literal text and sparkrun's shell-comment rule eats every flag after the first
+  `#`).
+
+### kolibri-1-78b-fp8-vllm.yaml
+
+- **Kept:** stock image + `--no-deps` plugin because the vendor image is amd64-only (cannot run on
+  arm64 GB10); bare `mods/install-kolibri-plugin` (unpublished-mod form; the scoped form fails) and
+  `--transfer-mode local` required on launches; `entrypoint: ""`; util 0.78 with the CUDA
+  `~11 GiB less than MemAvailable` headroom argument.
+- **Moved:** the upstream config-fix note (2026-10-13): `quantization_config.modules_to_not_convert`
+  gained "lm_head", whose weight is BF16 — the old pin let the fp8 config claim an unquantized tensor
+  (the re-pin's weights/tokenizer/chat template are byte-identical).
+- **Moved:** plugin details — the plugin pins vLLM 0.29 and installs `--no-deps` per its README,
+  never touching the image's vLLM/torch/transformers.
+- **Moved:** `OMP_NUM_THREADS=4` came from the measured GB10 boot (NVIDIA forum 2026-10-04);
+  `PYTORCH_CUDA_ALLOC_CONF` is supplied by the platform tier for vllm on GB10.
+- **Moved:** cold start includes the 73.5 GiB weight load (~1087 s measured on GB10) before the port
+  opens; the /health gate plus generous timeouts absorb it.
+- **Moved:** the file-format note on folded `command:` comments (as Laguna-S above).
+
+### poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml
+
+- **Kept:** `entrypoint: ""`; `served_model_name` never `{model}`; the draft-in-`speculative_config`
+  pairing and pin-revision mechanics (as Laguna-S).
+- **Moved:** the import-verification block — same digest pin as the Kolibri-1 arm; `LagunaForCausalLM`
+  + `laguna_dflash.DFlashLagunaForCausalLM` + the `poolside_v1` parsers resolve (card floor vLLM >=
+  0.21; this build is above it).
+- **Moved:** the util-0.55 rationale — weights are only ~21.6 GB of the ~121 GiB pool and the arch
+  holds full KV on every 4th layer only (30 of 40 are SWA window 512), so 262k is cheap; a low util
+  both fits and keeps the node's ~95 GB headroom.
+- **Moved:** `num_speculative_tokens` 3 is the swept winner over {3,4,7} on decode-triage; the vendor
+  `generation_config.json` ships 15, which loses here.
+- **Moved:** the file-format note on folded `command:` comments (as Laguna-S above).
+
+### humanizer-12b-vllm.yaml
+
+- **Kept:** `entrypoint: ""`; `limit_mm_per_prompt` has no sparkrun flag-map entry so it reaches vLLM
+  only via the `{placeholder}` (the `-o "unmapped"` warning still applies — do not delete it), and the
+  folded block keeps the embedded single quotes so the JSON arrives as one shell word.
+- **Moved:** "Pinned 2026-10-14 to the revision this arm was booted and measured on."
+- **Moved:** container verification — same digest as the Kolibri-1 arm; vLLM 0.29.0 resolves
+  `Gemma4UnifiedForConditionalGeneration` (checked in-container: transformers 5.16.1, arch present in
+  `ModelRegistry.get_supported_archs()`).
+- **Moved:** readiness measurement — port-open TTR 277.9 s on a warm cache (the container start is
+  what the port timer covers); a cold node spends ~800 s of one-time distribution before the container
+  starts, then another ~280 s.
+- **Moved:** util rationale — only the KV pool depends on it; the weights are 22.7 GiB of the 121.7
+  GiB budget and at 0.85 the pool measured 370,597 tokens (45.2× concurrency at an 8192 window).
+- **Moved:** the file-format note on folded `command:` comments (as Laguna-S above).
+
+### ling-3.0-flash-int4-dspark-sglang.yaml
+
+- **Kept:** the official-LMSYS-image rationale (the third-party port's GHCR image predates the
+  `dspark_components` / `--enable-linear-replayssm-spec` flags); `served_model_name` never `{model}`;
+  0.87 stays the documented ceiling; the draft pin reaches SGLang as
+  `--speculative-draft-model-revision` and the weights are byte-identical across the 2026-10-12 `main`
+  move — the pin is determinism, not a change.
+- **Moved:** the selection narrative — the explore lane's #2 by the research ranking (124B/5.1B
+  hybrid-linear MoE, INT4, one Spark), first-party DGX Spark notebook in inclusionAI's ling-cookbook.
+- **Moved:** GHCR `ling_v3_support` predates the DSPARK flags; digest pinned, first pull 2026-10-11.
+- **Moved:** the util ladder receipts — 0.80 ships (2026-10-12): KV pool 313,752 tokens (0.75
+  measured 176,203), 262k needle PASS at depths 10/50/90, 4-way smoke clean; the third-party 0.87 rung
+  reported 576,930.
+- **Moved:** draft-pin mechanics — sparkrun pre-syncs the draft at the revision AND passes it as
+  `--speculative-draft-model-revision`, so the served draft is the one the lane measured (the repo's
+  `main` moved 2026-10-12).
+
 [nem]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
 [nemd]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
 [ling]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4

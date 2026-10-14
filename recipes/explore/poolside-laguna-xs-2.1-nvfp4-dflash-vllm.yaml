@@ -1,11 +1,6 @@
 recipe_version: "2"
 model: poolside/Laguna-XS-2.1-NVFP4
 model_revision: d32afde8b09af1539b49ff96ff5551c674485f8e
-# Stock multi-arch vllm/vllm-openai:v0.29.0, digest-pinned (same pin as the
-# Kolibri-1 arm). Import-verified on this pin: `LagunaForCausalLM` +
-# `laguna_dflash.DFlashLagunaForCausalLM` + the `poolside_v1` reasoning and
-# tool parsers all resolve (the arch floor in the cards is vLLM >= 0.21 for
-# arch + dflash; this build is above it).
 container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
 runtime: vllm
 min_nodes: 1
@@ -50,25 +45,14 @@ defaults:
   served_model_name: poolside/Laguna-XS-2.1-NVFP4
   max_model_len: 262144
   max_num_seqs: 8
-  # Weights are only ~21.6 GB of a ~121 GiB unified pool and this arch holds
-  # full KV on every 4th layer only (30 of 40 are SWA window 512), so the 262k
-  # window is cheap: a low util both fits and keeps the node's ~95 GB headroom.
   gpu_memory_utilization: 0.55
   kv_cache_dtype: fp8
-  # The DFlash draft must live in defaults.speculative_config: sparkrun's vLLM
-  # draft binding reads this JSON, adds the draft repo to the distribution set
-  # and injects its prepared revision. It also reads the pin from the same
-  # object's "revision" field (vLLM's own draft-revision field) — without it
-  # the draft follows the repo's `main`. Literals inside the JSON: a nested
-  # {placeholder} inside a defaults VALUE is never rendered and kills the
-  # launch (see recipes/README.md §Notes).
-  # num_speculative_tokens 3 is the swept winner over {3,4,7} on decode-triage
-  # (the vendor generation_config ships 15, which loses here).
+  # The DFlash draft MUST live here: sparkrun's vLLM draft binding distributes
+  # it and reads the pin from this object's "revision" field (else the draft
+  # follows the repo's `main`). A nested {placeholder} inside a defaults VALUE
+  # is never rendered and kills the launch (recipes/README.md §Notes).
   speculative_config: '{"method": "dflash", "model": "poolside/Laguna-XS-2.1-DFlash", "revision": "5c36361aab23c8ed3afbd079c10c426b677bc607", "num_speculative_tokens": 3}'
 
-# Comments must live OUTSIDE the folded `command:` block: a `>` scalar keeps
-# them as literal text, and sparkrun's shell-comment rule then eats every flag
-# that follows the first `#`.
 command: >
   vllm serve
   /cache/huggingface/hub/models--poolside--Laguna-XS-2.1-NVFP4/snapshots/d32afde8b09af1539b49ff96ff5551c674485f8e

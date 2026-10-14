@@ -11,28 +11,24 @@ metadata:
   model_dtype: awq4
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  # vision + embedding: multimodal Qwen3-VL pooling encoder (--runner pooling / --convert embed).
   tags: fast, lcg_favorite, vision, embedding, smol
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"
 
-# A pooling engine has no chat endpoint; the chat-completion probe can only time out
-# (see the 2B embedding recipe and the lane README).
+# A pooling engine has no chat endpoint; the chat-completion probe can only time out.
 readiness:
   inference: false
 
 defaults:
-  # Third slot in the single-node port plan: 8010 embed-2B, 8011 rerank-2B, 8012 embed-8B.
   port: 8012
   host: 0.0.0.0
   tensor_parallel: 1
   # Whole fast cluster by default (solo). When colocating, drop to `-o cpu_mask=5-9` and
   # leave the reranker on 15-19 so the two engines do not share a core.
   cpu_mask: 5-9,15-19
-  # Encoder-only tier, so a larger cap than the 2B's: no reranker shares this budget. Do
-  # NOT size from `sparkrun recipe vram`'s "Model weights" line — it is wrong for awq4 (real
-  # 6.01 GB on disk); see the lane README.
+  # Do NOT size from `sparkrun recipe vram`'s "Model weights" line — it is wrong for awq4 (real
+  # 6.01 GB on disk). Encoder-only tier: no reranker shares this budget.
   gpu_memory_utilization: 0.30
   max_model_len: 32768
   max_num_batched_tokens: 16384
@@ -40,13 +36,12 @@ defaults:
   dtype: bfloat16
   load_format: instanttensor
   attention_backend: b12x
-  # b12x aborts on vLLM's default block size; 128 is _B12X_PREFERRED_PAGE_SIZE in b12x.py.
+  # b12x aborts on vLLM's default block size — it accepts only 64 or 128.
   block_size: 128
   # Pin the pooling/embed conversion instead of relying on vLLM's default detection.
   convert: embed
-  # Cap multimodal inputs per prompt (vLLM's default is 999 images) to bound the profiled
-  # peak on a shared-memory box. Folded style + embedded quotes keep the JSON as ONE shell
-  # word; convert/limit_mm_per_prompt reach vLLM only through the placeholders below.
+  # Cap multimodal inputs per prompt (vLLM's default is 999 images) to bound the profiled peak.
+  # Folded style + embedded quotes keep the JSON as ONE shell word — do not delete.
   limit_mm_per_prompt: >-
     '{"image": 4, "video": 1}'
 

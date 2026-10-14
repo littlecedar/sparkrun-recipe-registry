@@ -1,10 +1,5 @@
 recipe_version: "2"
 model: IFM/K2-Horizon-0.9B
-# SHA pin, not a branch (AGENTS.md §3). The offline container resolves `revision:`
-# itself over a snapshots/<sha>/ cache with no refs/ entry, so an unpinned engine
-# dies with LocalEntryNotFoundError *after* the weights synced to every host --
-# exactly the pin-reaches-distribution-but-not-the-engine case the
-# unpinned-model-revision warning exists to catch.
 model_revision: 383cb66347be4d361138e8157c2f8779b7440752
 runtime: sglang
 container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
@@ -14,8 +9,6 @@ max_nodes: 1
 metadata:
   description: IFM/K2-Horizon-0.9B - dense 0.9B-class reasoning model, 128K YaRN context, native SGLang
   model_url: https://huggingface.co/IFM/K2-Horizon-0.9B
-  # Total incl. lm_head; the body alone (what the card calls "0.9B-class") is
-  # 0.98B, lm_head being 64256 x 1536 = 98.7M of the 1,078,285,824 params.
   model_params: "1.08B"
   model_dtype: bf16
   kv_dtype: bf16
@@ -26,52 +19,18 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
-  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
-  # path, so the served model id would be the cache path (-n does not show this).
+  # Never {model}: on a launch sparkrun rebinds it to the prepared snapshot path, so the served id would be the cache path.
   served_model_name: IFM/K2-Horizon-0.9B
-  # Not a residency requirement (weights 2.16 GB): buys CUDA-graph headroom. 0.85 is
-  # the GB10 SOLO ceiling (AGENTS.md); past ~0.85-0.90 a kernel or page-cache
-  # allocation OOM-panics the launch on unified memory; the engine floors near
-  # f=0.10 (AGENTS.md §9). sglang's cap is relative to FREE memory at THIS engine's
-  # boot, so budget absolute GiB per engine, or pin the pool exactly with
-  # extra_args: "--max-total-tokens 262144" (2x131k = 14 GiB). Overridable: -o
-  # gpu_memory_utilization=0.30.
+  # 0.85 is the GB10 SOLO ceiling: past ~0.85-0.90 a kernel or page-cache allocation OOM-panics on unified memory.
   gpu_memory_utilization: 0.85
   max_model_len: 131072
-  # KV = 56 KiB/token (2*8*64*2*28, bf16), so a full 131k sequence is ~7.0 GiB and
-  # the f=0.85 pool spans ~14 of them: 64 is a CPU/scheduler limit, NOT a memory
-  # one. Aggregate t/s climbs near-linearly with concurrency while per-request t/s
-  # falls (NOTES.md, 2026-10-08) -- measure both before raising.
   max_num_seqs: 64
-  # Spelled exactly as upstream validates it, NOT `auto`: config.json declares
-  # "dtype": "float32" (schema-migration artifact, AGENTS.md §9), so `auto` can load
-  # 6.5 GB where 2.16 GB was intended. The card's own recipe spells --dtype
-  # bfloat16. Do not "simplify" this to auto.
+  # Spelled exactly as upstream validates it, NOT `auto`: config.json declares "dtype": "float32", so `auto` can load 6.5 GB where 2.16 GB was intended.
   dtype: bfloat16
-  # flashinfer, NOT the fa3 the cards and the cookbook tell you to pass: FA3
-  # requires SM 8/9 (attention_registry.py:227-235) and GB10 reports (12,1), so fa3
-  # cannot be constructed (AGENTS.md §3 -- the cards are Hopper guidance).
-  # flashinfer is also sglang's own auto-default for major 12
-  # (model_override_base.py:347-352), but is spelled anyway: `auto` has silently
-  # landed on a dead/slow backend on this exact chip (qwen4 §12). fa4 is the
-  # alternative arm -- it boots and serves, inside the 7-25% noise floor (README.md
-  # arm sweep).
+  # flashinfer, NOT the fa3 the cards pass: FA3 requires SM 8/9 and GB10 reports (12,1), so fa3 cannot be constructed.
   attention_backend: flashinfer
-  # `auto` == model dtype == bf16. fp8_e4m3 is legal and would halve KV to 28
-  # KiB/token, but its accuracy gate is unmet (README.md arm sweep) -- treat fp8 KV
-  # as an arm whose gate is accuracy, not throughput. KV/attention combos are
-  # coupled kernel paths (AGENTS.md §9).
   kv_cache_dtype: auto
-  # NOT in sparkrun's _SGLANG_FLAG_MAP (only `chunked_prefill` ->
-  # --chunked-prefill-size is), so it reaches sglang only through the placeholder
-  # below; `-o chunked_prefill_size=...` prints "unmapped" while still taking
-  # effect (AGENTS.md §3). Scheduler token budget per prefill batch; unrelated to
-  # any draft width.
   chunked_prefill_size: 4096
-  # Escape hatch for one-off experimentation. Appended last so argparse resolves a
-  # repeated flag in favour of the override. Empty string is the no-op default;
-  # quoted so YAML keeps a str. Probe arms and measured results: README.md §Arm
-  # sweep; --cuda-graph flag spellings: AGENTS.md §8.
   extra_args: ""
 
 command: >

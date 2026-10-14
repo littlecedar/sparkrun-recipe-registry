@@ -1,9 +1,5 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
-# (106.3 GB, 43 files: model-00001..41 + hybrid-main-00001/02).  Do NOT unpin: this repo's
-# `main` changed contents under us once already (a 45 MB weights-free snapshot) — see caveats.
-# Re-pinned 2026-10-14 to the step-5500 QAD revision; the 7-mod chain below was re-verified
-# against it against this layout (see mods/unpack-labquant-ple-nvfp4-to-fp8/README.md).
 model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
@@ -17,7 +13,6 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: fp8
   kv_dtype: bf16
-  # vision: the step-5500 revision ships the vision tower BF16 (in `quantization_config.ignore`).
   tags: lcg_favorite, fast, vision
   caveats: >
     Checkpoint is more aggressively quantized than the RadixArk export in exactly
@@ -34,39 +29,16 @@ metadata:
 
 mods:
   - "@eugr/mods/drop-caches"
-  # Builds /cache/runtime/labq-patched: a symlink tree over the HF snapshot with one
-  # patched config.json, so SGLang's modelopt_mixed loader will accept this checkpoint.
   - "mods/fix-labquant-modelopt-mixed-flat-schema"
-  # Rewrites the 128 PLE n-gram shards in that same tree from packed NVFP4 to plain
-  # fp8 e4m3 and sets text_config.ple_embedding_dtype=float8_e4m3fn, so the engine
-  # uses its own tested fp8 PLE path.  Without it the server gets past config parse
-  # ORDER MATTERS: this mod writes real files into the tree the config mod builds,
-  # and the config mod only rebuilds (rm -rf) that tree when its revision stamp
-  # changes.  Keep the config mod first.  Cold cost is 51.2 GB / ~50 s per node.
-  # Requires --no-ple-offload-embedding, which is set in the command below.
+  # ORDER MATTERS: keep the config mod first — this mod writes into the tree the config mod
+  # builds, and requires --no-ple-offload-embedding (set in the command below).
   - "mods/unpack-labquant-ple-nvfp4-to-fp8"
   # DIAGNOSTIC ONLY -- removable once the shared-expert scale blocker is understood.
   - "mods/diag-qwen4-unplaced-scales"
   - "mods/fix-labquant-mxfp8-weight-scale-name"
-  # REQUIRED for this export to boot at all. Its GDN `linear_attn.in_proj_a`/`in_proj_b`
-  # are MXFP8 at 48 rows each; fused into in_proj_ba that is n=96 (48/rank at TP=2),
-  # under CUTLASS's MXFP8 floor of 128, so the load dies with
-  #   ValueError: MXFP8 requires n >= 128 and k >= 128 for CUTLASS MXFP8.
-  # Must run LAST: it layers onto the tree the config mod builds and reads its
-  # config.json. Cost: +0.14 MB of weights per node, ~6 s. RadixArk ships these same
-  # two projections BF16, so this matches the reference export rather than diverging.
+  # REQUIRED to boot at all: its narrow MXFP8 GDN projections (n=96/rank) sit under CUTLASS's
+  # MXFP8 floor of 128. Must run LAST — layers onto the tree the config mod builds.
   - "mods/demote-labquant-narrow-mxfp8-to-bf16"
-  # NB: `mods/skip-labquant-vision-tower` is DELIBERATELY ABSENT on this revision. It exists to work
-  # around the OLD export's NVFP4-quantised vision tower (scales with no destination under
-  # quant_config=None). The step-5500 revision ships the tower BF16 and already lists
-  # `model.visual.*` in `quantization_config.ignore`, so the load failure is gone and the mod would
-  # now only remove vision capability for nothing. The vision tower therefore loads (BF16).
-  # NB: the two fastsafetensors mods are deliberately NOT listed here even though
-  # the parent recipe lists them.  This recipe benchmarks with
-  # load_format=safetensors, so they accomplish nothing -- and worse, they exec as
-  # unlink it).  See mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
-  # and the reown fix.  Add them back only if you actually set
-  # load_format=fastsafetensors.
 
 defaults:
   port: 8000
@@ -84,38 +56,17 @@ defaults:
   mamba_ssm_dtype: bfloat16
   max_mamba_cache_size: 112
   load_format: safetensors
-  # Serves the mod-built patched tree, NOT the raw HF snapshot. The mod
-  # (mods/fix-labquant-modelopt-mixed-flat-schema) creates this in the
-  # host-local runtime cache on every node, as a symlink farm over the snapshot with
-  # one patched config.json. The raw snapshot is never modified. If you bypass the
   served_model_dir: /cache/runtime/labq-patched
-  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
-  # path, so the served model id would be the cache path (-n does not show this).
-  # This literal plus --revision {model_revision} are the only identity tokens the
-  # serve-command validator can match (--model-path loads the mod-built tree).
+  # Never {model}: sparkrun rebinds it to the prepared snapshot path, so the served id would be
+  # the cache path. This literal + --revision {model_revision} are the matchable identity tokens.
   served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   speculative_algorithm: NEXTN
   speculative_attention_mode: decode
   speculative_num_steps: 3
   speculative_eagle_topk: 1
   speculative_num_draft_tokens: 4
-  # Escape hatch for one-off experimentation.  `sparkrun benchmark` silently drops
-  # trailing EXTRA_ARGS (click nargs=-1 arg is accepted then discarded in
-  # cli/_benchmark.py), so un-parameterised server flags cannot be injected from the
-  # command line.  Empty string is the no-op default; quoted so YAML keeps it a str.
-  # --moe-runner-backend flashinfer_cutlass is REQUIRED here, not tuning:
-  #   With `auto` the NVFP4 MoE resolves to MoeRunnerBackend.FLASHINFER_TRTLLM and the
-  #   server dies ~13 minutes in, during the draft-model warmup, at modelopt_quant.py:2912
-  #   with "Unsupported moe_runner_backend for NVFP4 MoE: MoeRunnerBackend.FLASHINFER_TRTLLM".
-  # --cuda-graph-backend-prefill disabled is MANDATORY for this checkpoint, not a tunable.
-  #   So this is not "QSA capture is flaky" and not a mis-scaled checkpoint: a non-pinned
-  #   host->device copy sits inside the Triton path that prefill capture traces, and capture may
-  #   legally fail on it. Disabling the prefill graph avoids that path entirely.
-  #   WHY IN `defaults` AND NOT AS AN OVERRIDE: every labquant coherence PASS on record carried
-  #   this flag, but always via `measurement_overrides`, never in the file. A recipe that only
-  #   works when someone remembers an override is a broken deliverable, and the override is
-  #   invisible in the committed file. Do not delete this line to "test" it; that test has been
-  #   run and the answer is no.
+  # Both flags are MANDATORY, not tunables: --moe-runner-backend flashinfer_cutlass (`auto`
+  # resolves the NVFP4 MoE to FLASHINFER_TRTLLM, dead on SM121) and --cuda-graph-backend-prefill disabled.
   extra_args: "--moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled"
 
 command: >

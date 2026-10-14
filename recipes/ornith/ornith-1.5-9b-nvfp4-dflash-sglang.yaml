@@ -1,11 +1,7 @@
 recipe_version: 2
 model: ornith-ai/Ornith-1.5-9B-NVFP4
 model_revision: 155f200d85ad58464571c77d5e1122ea5d419d7b
-  # 2026-10-14: pins the snapshot the runner caches hold. The offline engine
-  # needs the explicit --revision: a SHA-keyed download writes no refs/ entry.
-  # This is the 9B arm of the same family block as the 35B sibling recipe; the
-  # two differ by engine knobs, not by model, so read that recipe's comments
-  # too — but note the divergences called out below.
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
 container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
 runtime: sglang
 min_nodes: 1
@@ -19,21 +15,12 @@ metadata:
   model_dtype: nvfp4
   model_draft_dtype: bf16
   kv_dtype: fp8_e4m3
-  # vision: the checkpoint is Qwen3.5 multimodal (image-text-to-text; config carries a
-  # vision_config and image/video token ids), served with no --limit-mm-per-prompt cap.
   tags: official, smol, vision, reasoning, agent, tools
 
 mods:
-  # The drop-caches mod is inert under a default rootless launch (see the 35B
-  # sibling's comment and mods/drop-caches/README.md); it is listed for lane
-  # consistency, not because it clears the page cache for you.
   - "@eugr/mods/drop-caches"
-  # Supplies --load-format fastsafetensors below.
   - "@littlecedar/mods/pip-install-fastsafetensors"
-  # NOT the 35B's @littlecedar/mods/ornith-honed-chat-template: that template is
-  # the 35B's honed artifact (qwen3.8-honed-v22.5.1). This checkpoint ships its
-  # own multimodal chat_template.jinja (7,593 B, vision tokens + an
-  # enable_thinking toggle) and is served with it, so no --chat-template flag.
+  # NOT the 35B's ornith-honed-chat-template: this checkpoint ships its own multimodal chat_template.jinja.
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -49,37 +36,19 @@ defaults:
   served_model_name: ornith-ai/Ornith-1.5-9B-NVFP4
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  # Admission cap only. This checkpoint is a Qwen3.5 hybrid (GDN linear-attention
-  # layers every 3rd of 4), so the effective ceiling can be the hybrid state pool,
-  # not this literal — read the grant ("capped to N") from the serve log.
   max_num_seqs: 48
-  # Safe to spell: this hf_quant_config ships kv_cache_quant_algo FP8, so the
-  # literal and the checkpoint agree (unlike an `auto` whose resolution is silent).
   kv_cache_dtype: fp8_e4m3
   chunked_prefill_size: 4096
   attention_backend: flashinfer
-  # NO mamba_*/moe_runner_backend keys, unlike the 35B arm. moe_runner_backend is
-  # meaningless here (dense MLP, no experts). The mamba trio is deliberately
-  # omitted rather than imported: the 35B's `mamba_full_memory_ratio: 3.51` is a
-  # house value copied across lanes with no derivation, so the engine's own
-  # defaults run. Measured 2026-10-14: the pool does not clamp the admission cap
-  # (max_running_requests=48 with max_mamba_cache_size=273); see AGENTS.md §1.
+  # NO mamba_*/moe_runner_backend, unlike the 35B: this checkpoint is dense, and the mamba
+  # trio is deliberately left to engine defaults — do not "fix" it by copying the 35B.
   speculative_algorithm: DFLASH
-  # First-party DFlash draft (plain DFlashDraftModel, taps 1/5/9/13/…/29 of the
-  # 32-layer target) — NOT the third-party dflash2 draft the 35B sibling ships.
+  # First-party plain DFlash draft — not the 35B's jzinno DFlash2.
   speculative_draft_model: ornith-ai/Ornith-1.5-9B-DFlash
-  # Left unpinned on purpose, like the 35B sibling's jzinno draft. A SHA pin
-  # here is not a free reproducibility win: a SHA-keyed fetch writes no refs/
-  # entry, and SGLang's offline draft-config lookup
-  # (speculative_hook.py::_resolve_speculative_algorithm_alias → get_config,
-  # HF_HUB_OFFLINE=1 in-container) resolves only refs/main — a pinned draft
-  # dies at startup with LocalEntryNotFoundError. Boot receipt: AGENTS.md §1.
-  # 8, the author card's value. The card spells it --speculative-dflash-block-size,
-  # which upstream is an alias of --speculative-num-draft-tokens for DFLASH
-  # (SGLang v0.5.18 server_args.py:2115-2117); sparkrun has no map key for the
-  # dflash spelling, so this uses the alias the shipped 35B arm is boot-proven on.
-  # The draft's own dflash_config.block_size is 16: 8 is <= it (the 35B runs 4
-  # against a 16 block), and the DFLASH worker only warns on the mismatch.
+  # Deliberately unpinned: a SHA-keyed fetch writes no refs/, and SGLang's offline draft
+  # lookup resolves only refs/main — a pinned draft dies at startup.
+  # The card's --speculative-dflash-block-size 8; upstream aliases it to this flag (sparkrun
+  # has no key for the dflash spelling). Mismatch vs the draft's block_size=16 is warning-only.
   speculative_draft_tokens: 8
 
 command: >

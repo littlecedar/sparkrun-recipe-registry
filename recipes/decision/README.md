@@ -26,13 +26,16 @@ cases / 2000 decisions): **clef-flash 70.3% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-
 
 | field | value |
 |---|---|
-| repo id | [`autotrust/JEV-9B`][jev] (pinned `7ac669b8`), + the `jev-decision` LoRA (rank 32) |
+| repo id | [`autotrust/JEV-9B`][jev] (pinned `7ac669b8`), + the `jev-decision` LoRA (rank 32); Apache-2.0 |
 | accuracy | **67.0%** (1340/2000), ★★ |
 | size | 18 GB (bf16 9B + 173 MB LoRA); ~17 GiB weights |
 | API | `/v1/completions` — the card's native SystemOne scoring shape (`logprobs` + top-level `allowed_token_ids`); the server runs `--logprobs-mode processed_logprobs --enable-lora`. The chat-template surface shifts the distribution and can flip argmaxes, so score on completions, not chat. |
 | TP | 1 |
 | flags | 🤏 smol · 🚮 classifier |
 | status | **BOOT-VERIFIED 2026-10-11** (`.34`) |
+
+`max_model_len` ships at 4096 (card-sized for decisions); raise it to 16384 only if System 2 thinking
+at length is needed (the card's own note).
 
 ### clef-flash-decision-sglang
 
@@ -75,7 +78,8 @@ cases / 2000 decisions): **clef-flash 70.3% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-
 ### The `vllm-srun` runtime (Kai + Sol)
 
 The Decision 2.0 models run on the vendor's own runtime, **`vllm-srun`** — a standalone
-single-process server shipped inside the `vllm-sr` router image (not on PyPI, no image of its
+single-process server (`vllm_srun.cli:main`, `src/model-runtime` in the vendor's
+`semantic-router` repo) shipped inside the `vllm-sr` router image (not on PyPI, no image of its
 own; `vllm-srun models` lists every built-in model at its golden-checked pinned revision). Both
 recipes declare `runtime: vllm` (the family whose distribution + launcher contract the command
 satisfies) and clear the image's default router/gateway ENTRYPOINT
@@ -111,11 +115,10 @@ tenants from contending.
 ## Attic index
 
 Files under [`attic/decision/`](../../attic/decision/):
-
 | file | what it holds |
 |---|---|
 | [`DECISION-MODELS-RESEARCH.md`](../../attic/decision/DECISION-MODELS-RESEARCH.md) | The 2026-10-11 read-only candidate research: both owner leads resolved, the 8-model shortlist, the one-node co-location budget math, the recommended first recipes, and the cross-cutting facts the recipes must handle. |
-| [`AGENTS.md`](../../attic/decision/AGENTS.md) | Archived lane notes moved out of this README (2026-10-14): the verified surfaces, the JEV-9B and clef-flash official scores, the Kai/Sol `vllm-srun` arms record, the CPU+GPU tandem probe, and "what these models are". |
+| [`AGENTS.md`](../../attic/decision/AGENTS.md) | Archived lane notes moved out of this README (2026-10-14): the verified surfaces, the JEV-9B and clef-flash official scores, the Kai/Sol `vllm-srun` arms record, the CPU+GPU tandem probe, "what these models are", and the archive of `#` comments removed from the recipes. |
 
 [jev]: https://huggingface.co/autotrust/JEV-9B
 [clef]: https://huggingface.co/Cloudflare/clef-flash

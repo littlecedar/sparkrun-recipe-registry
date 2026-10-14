@@ -12,8 +12,6 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: bfp16
   kv_dtype: fp8
-  # vision: multimodal checkpoint (image-text-to-text); the serve line carries a vision
-  # encoder flag (--mm-encoder-tp-mode data).
   tags: lcg_favorite, vision, reasoning, agent, tools
 
 mods:
@@ -41,13 +39,8 @@ defaults:
   attention_backend: flashinfer
   moe_backend: marlin
   linear_backend: flashinfer_cutlass
-  # The speculative config is a placeholder rather than inline JSON for two reasons:
-  # `-o speculative_config={...}` is then the whole one-knob method swap (MTP vs DFlash),
-  # and sparkrun reads the draft model+revision *out of this default* to distribute the
-  # draft (`runtimes/_vllm_common.py::detect_spec_config_draft`) -- an inline JSON leaves
-  # a DFlash draft undistributed. Values are literal: a nested `{max_model_len}` here is
-  # NOT substituted (the render is a single pass over `command:`). Keep the shell single
-  # quotes: the JSON holds double quotes.
+  # Keep as a declared default, not inline JSON: `-o speculative_config={...}` only reaches
+  # a declared default, and sparkrun reads the draft out of here to distribute it.
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,"attention_backend":"flashinfer","moe_backend":"flashinfer_cutlass"}'
   mm_encoder_tp_mode: data
 

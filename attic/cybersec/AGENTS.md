@@ -327,6 +327,23 @@ safetensors). Both nodes idle. Launch reached the serve stage and the scheduler 
 
 ---
 
+## Recipe comment archive (2026-10-14)
+
+Provenance and history removed from the lane's recipe `#` comments on 2026-10-14 — recipe comments
+now carry only facts crucial to running the shipped arm (the README carries the how-to facts).
+Organised per recipe file.
+
+### `qwen3.8-27b-uncensored-nvfp4-sglang.yaml`
+
+- `mamba_ssm_dtype: bfloat16` was annotated in-recipe as a "checkpoint-derived override, as in the
+  qwen3.8-27B NVFP4 recipe" — that lineage is the qwen3.8-27B lane, whose evidence is specific to
+  *that* checkpoint.
+
+### `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml`
+
+- `speculative_draft_tokens: 8` was annotated with the value the overlay author's own seat used
+  instead: `n=7`.
+
 ## From recipes/cybersec/README.md (2026-10-14)
 
 Material displaced from the lane README when it was rewritten to shipped-recipes-only form on

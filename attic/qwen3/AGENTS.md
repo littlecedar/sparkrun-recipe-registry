@@ -517,3 +517,211 @@ and record the `finish_reason` + `reasoning` histogram beside any score (repo ru
 
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
+
+## Recipe comment archive (2026-10-14)
+
+Verbatim `#` comments removed from the lane's shipped recipes on 2026-10-14 under the owner rule that a
+shipped recipe carries only comments crucial to a surprising/novel/confusing property of *that* recipe
+(everything else lives in this file or in `recipes/qwen3/README.md`). Organised per recipe filename.
+Anything an operator would get WRONG without was KEPT in the YAML; the rest is below.
+
+### qwen3.8-27b-nvfp4-dflash2-sglang.yaml
+
+Above `kv_dtype: fp8_e4m3`:
+
+```
+# sglang's --help says "auto will use model data type", which would suggest bf16, but
+# for this checkpoint auto resolves to fp8_e4m3 because mem_cache/kv_cache_dtype.py
+# checks the parsed quant config's kv_cache_quant_algo first and this hf_quant_config
+# ships "kv_cache_quant_algo": "FP8". Reading the docstring alone produced a wrong
+# metadata value here once already; read the allocation line.
+```
+
+Above `tags: lcg_favorite, fast, vision`:
+
+```
+# vision: Qwen3.5 multimodal checkpoint (image-text-to-text; config carries a vision_config).
+```
+
+Above `max_num_seqs: 48` (the clamp fact is kept in the recipe, trimmed):
+
+```
+# NOT the granted concurrency. MEASURED on hardware 2026-09-19: the mamba state pool
+# silently clamps this (mem_cache/kv_cache_configurator.py:2177-2193) -- read the grant
+# from the server log (`capped to 21`, K=85), never from this literal. Details and the
+# 26-slot ceiling are in AGENTS.md section 4.
+```
+
+Above `mamba_full_memory_ratio: 3.51`:
+
+```
+# How the leftover pool splits between GDN state and the token pool. THIS IS THE
+# HIGH-LEVERAGE KNOB on this recipe, and it is context-length dependent.
+# Usable long-context concurrency is min(granted slots, #tokens // context_length),
+# NOT #tokens // context_length: raising the ratio buys slots by spending tokens and
+# lowering it does the reverse, so the optimum is an interior point that MOVES with
+# context length (modelled at D=8, T~25 GiB: ~3.6 at 4k, ~2.3 at 8k, ~1.2 at 16k).
+# DELIBERATELY STILL 3.51: flipping it is a claim about expected traffic shape, not a
+# free win (2.3 gives up capacity headroom near 4k), and this recipe has no stated
+# target traffic mix. The evidence is not the blocker; ask before changing it -- the
+# measured 8k/16k trade is tabulated in AGENTS.md section 5.
+```
+
+Above `mamba_ssm_dtype: bfloat16`:
+
+```
+# CHECKPOINT-DERIVED and load-bearing -- do not "restore float32 for numerical
+# safety": the override DOUBLES the granted concurrency (bfloat16 -> "capped to 21",
+# max_mamba_cache_size=85; float32 -> "capped to 10", K=42) and is bit-identical to
+# float32 on the state-read path. Evidence and its untested limits: AGENTS.md section 4.
+```
+
+Above `mamba_radix_cache_strategy: extra_buffer_lazy`:
+
+```
+# Reuse behaviour of this strategy is non-obvious and cost a wasted session:
+# under extra_buffer_lazy, cached_tokens GROWS with the number of times the server has
+# seen the prefix (measured ladder, flushed first, 128-token prefix: 1 absorb -> 0,
+# 2 -> 64, 3 -> 64, 4 -> 128 = full reuse; a 64-token prefix needs 3 absorbs). Two
+# consequences: (1) any warm-up that needs the kernel to READ stored state must absorb
+# the shared prefix several times, not once -- a single absorb yields cached=0 and any
+# such probe is blind; (2) `prefix_caching: true` in a benchmark does NOT mean prefixes
+# are shared on the first pass, so early runs of a sweep see less sharing than the
+# setting implies. Consequences and reasons: AGENTS.md section 4.
+```
+
+Above `kv_cache_dtype: auto`:
+
+```
+# Left at 'auto' rather than spelled fp8_e4m3 so the checkpoint keeps ownership of the
+# KV dtype: auto resolves to fp8_e4m3 today (see metadata.kv_dtype) *because* the
+# checkpoint says so, and pinning the string here would silently diverge from the
+# checkpoint if it were ever re-quantised. Passing auto explicitly is identical to the
+# previous behaviour, where the flag was commented out entirely.
+```
+
+Above `chunked_prefill_size: 4096`:
+
+```
+# Scheduler token budget per prefill batch -- NOT related to draft length. The previous
+# comment here ("Max new tokens for incoai/Qwen3.8-27B-DFlash2") was FALSE and is refuted:
+# DFLASH block size *is* speculative_draft_tokens below, and `grep chunked_prefill_size`
+# over arg_groups/speculative_hook.py returns nothing, so the two are uncoupled in that
+# direction. The only real coupling runs the other way --
+# arg_groups/mamba_hook.py:119-120 asserts mamba_track_interval >= speculative_num_draft_tokens.
+# 4096 is safe for the mamba extra-buffer path (VERIFIED): the warning at
+# arg_groups/mamba_hook.py:129-140 fires only when chunked_prefill_size <
+# mamba_cache_chunk_size, which resolves to max(64, page_size) = 64 here
+# (arg_groups/overrides.py:1888-1897). Note raising it cannot speed up GDN -- that path's
+# internal chunk is fixed at 64 and is not derived from this value (AGENTS.md section 4).
+```
+
+Above `speculative_draft_tokens: 8`:
+
+```
+# 8, not 4. The draft checkpoint declares dflash_config.block_size = 8, and
+# arg_groups/speculative_hook.py only infers that value when
+# speculative_num_draft_tokens is LEFT UNSET; passing any number wins silently, with
+# no warning, so this recipe was running the draft at half its trained block size.
+# Do not raise this past 8: 8 is what the draft was trained for, and DFLASH's
+# block_size mismatch guard only fires when both flags are set explicitly.
+```
+
+Above `extra_args: ""`:
+
+```
+# Escape hatch for one-off experimentation, mirroring the qwen4 recipes.  Appended
+# last so argparse resolves a repeated flag in favour of the override.  Empty
+# string is the no-op default; quoted so YAML keeps it a str.
+```
+
+### qwen3-coder-next-int4-autoround-vllm.yaml
+
+Above `default_chat_template_kwargs` (the empty-`content` trap; the mechanism is kept in the recipe,
+trimmed):
+
+```
+# Native thinking ON leaves a short reply inside the reasoning channel with
+# `content: null` (measured 2026-10-11: a 4-token answer to "17*23?" came
+# back as `reasoning: '391'`, `content: None`), which every client that
+# reads `content` sees as an empty reply. Default it OFF so the served
+# surface is usable; a client that wants the scratchpad passes
+# chat_template_kwargs {"enable_thinking": true} per request.
+```
+
+### qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml
+
+Above `model_revision:`:
+
+```
+# Pinned for distribution determinism (a SHA download writes no refs/ entry). This
+# engine has no revision flag: {model} reaches it as the prepared snapshot *path*,
+# so the pin governs which bytes are downloaded, not a serve argument.
+```
+
+Above `executor_config:`:
+
+```
+# The image inherits the NVIDIA PyTorch base's ENTRYPOINT
+# (/opt/nvidia/nvidia_entrypoint.sh, read from the pinned image's config); clear it
+# so the recipe's own serve line runs instead of being appended to the entrypoint.
+```
+
+Above `TORCH_EXTENSIONS_DIR`:
+
+```
+# The image bakes TORCH_EXTENSIONS_DIR=/cache/torch_extensions, but /cache is a
+# mount parent docker creates as root and sparkrun runs the container as the
+# invoking uid — the TensorFold kernels (torch cpp_extension, no build_directory
+# of its own) cannot create it. Point it at sparkrun's persistent, user-owned
+# runtime cache: the sm_121a compile is then paid once a node, not once a boot.
+# (Triton's cache needs no line here: the sglang runtime already places it in that mount.)
+```
+
+Above `TENSORFOLD_NO_UPDATE_CHECK: '1'`:
+
+```
+# The engine's update check writes into HOME and calls GitHub; the upstream serving line disables it.
+```
+
+Above `TENSORFOLD_KV_DTYPE` / `TENSORFOLD_MEMORY_RESERVE_GIB`:
+
+```
+# Upstream's serving settings: the FP8 attention cache (patch 0003; opt-in in the
+# engine, 32 KiB a token instead of 64) and a 0 GiB startup reserve (patch 0004;
+# TensorFold's own default is a tenth of RAM). Raise the reserve if the node is shared.
+```
+
+Above `parallel: 8`:
+
+```
+# Streams decoded together. Upstream measures no single-request cost up to 8.
+```
+
+Above `speculative_draft_model`:
+
+```
+# The DFlash2 drafter is a second repo: sparkrun's sglang draft hook adds it to the
+# distribution set, and the engine serves it from the cache. Its own revision is a
+# distribution-only key — TensorFold has no revision flag to render it into.
+```
+
+The `command:` served-name comment (KEPT truncated in the recipe; full text here):
+
+```
+# A REAL LAUNCH FAILURE, AND WHY THIS LINE IS HERE: sparkrun appends its own --served-model-name
+# to any command template that declares served_model_name
+# (runtimes/base.py::_augment_served_model_name), and this engine parses no such flag: the
+# first boot died with tensorfold: error: unrecognized arguments: --served-model-name Qwen3.8-27B.
+# That helper skips the append when the flag text is already in the rendered command, and the
+# serve command runs as a bash script, so naming the flag in this comment both skips the append
+# and would be swallowed by the shell if sparkrun ever appended anyway. The id reaches the
+# engine through --name above.
+```
+
+Above `port_timeout_s: 3600`:
+
+```
+# The first boot builds the sm_121a CUDA extensions and loads ~19 GB of weights before the
+# port opens; that was 71.5 s on a warm node, so 3600 s is generous headroom for a cold one.
+```

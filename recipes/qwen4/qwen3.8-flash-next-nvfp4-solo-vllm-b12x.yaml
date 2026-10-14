@@ -1,9 +1,6 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 runtime: vllm
-# Floating tag, like the ornith 397B lane: the b12x build is not published with a
-# digest-pinnable alias here, so a future pull can change the engine under this
-# recipe. Treat any measured number as tied to whatever the tag resolved to.
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 min_nodes: 1
 max_nodes: 1
@@ -36,18 +33,15 @@ defaults:
   block_size: 16
   max_model_len: 262144
   kv_cache_dtype: fp8
-  # MTP k=4; the GDN mamba state pool binds concurrency, so the admission cap stays
-  # low (the eugr solo cell ships 8 with MTP).
+  # max_num_seqs stays at 8: with MTP k=4 the GDN mamba state pool binds concurrency.
   max_num_seqs: 8
   max_num_batched_tokens: 4096
   num_speculative_tokens: 4
   gpu_memory_utilization: 0.8
 
 env:
-  # The load-bearing knob for TP=1: the PLE n-gram table streams from disk instead
-  # of occupying device memory (SGLang's solo route uses --ple-offload-embedding
-  # --ple-offload-backend file for the same purpose). CUTE_DSL_ARCH is omitted —
-  # the platform tier already publishes sm_121a for vllm on DGX Spark.
+  # Load-bearing for TP=1: VLLM_PLE_TABLE_MEMORY=disk keeps the ~47.7 GiB FP8 PLE n-gram table off
+  # the device (mmap/pread per step); the rest of the server config is the TP=2 shape at --tp 1.
   VLLM_PLE_TABLE_MEMORY: "disk"
   SAFETENSORS_FAST_GPU: "1"
   VLLM_WORKER_MULTIPROC_METHOD: "spawn"

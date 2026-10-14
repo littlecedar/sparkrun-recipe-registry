@@ -132,7 +132,7 @@ itself and an unpushed mod is invisible.
 ### Recipes
 
 - **Name = filename minus `.yaml`; a `name:` key is banned.** `cluster_only:` is deprecated (one
-  straggler: `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml:6`).
+  straggler: `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml:5`).
 - Filename grammar `<model>-<size>-<quant>-<feature>-<runtime>[-<backend>].yaml` is followed loosely.
   The only backend suffix is `-b12x`; `zz-` marks a non-shippable probe arm; versions keep their dots
   (`qwen3.8-`, `deepseek-v4.1-`). File by **model family**, not filename prefix — `qwen3.8-flash-next-*`
@@ -150,31 +150,37 @@ itself and an unpushed mod is invisible.
 
 ### Recipe comments
 
-**A recipe is a runnable artifact, not a research record.** Its comments exist for exactly one
-purpose: to explain a tunable whose value a casual `sparkrun` user could not infer — why this
-number, what breaks if it moves, or a hidden coupling the value does not show. Anything else —
-measurement histories, boot IDs, A/B receipts, retraction registers, negative results, "do not
-re-derive" lists, upstream provenance essays — belongs in the lane's `AGENTS.md`/`README.md` (or
-`NOTES.md` for working state), **not in the YAML**.
+**A recipe is a runnable artifact, not a research record — and its comments are no exception.** A
+shipped recipe's `#` comments are stripped to a minimum: a comment survives **only if it is crucial to
+a surprising, novel, or confusing property of that recipe** — a knob interaction, a silent-failure
+footgun, a required ordering or pairing, a client contract the value itself does not show.
 
-Test for a comment worth keeping: *would an operator who knows sparkrun but not this model get
-this wrong?* If yes, keep it short and beside the value. If it is history or evidence, move it.
+Test to keep one: *would an operator who knows sparkrun but not this model get this wrong without the
+note?* If yes, keep it to one or two short lines, immediately beside the value it governs. Anything
+else — history (dates, boot IDs, commit hashes), measured numbers, A/B narratives, provenance or
+"why we chose it" essays, alternative-arm comparisons, cross-document references, general
+model/engine exposition — does not belong in the YAML; move it to the lane:
+
+- **Recipe-relevant but not crucial** (how to run or configure the arm: a knob's effect, a required
+  mod pairing, a client-side contract) → the lane's `README.md`, under that recipe's section.
+- **History and evidence** → the lane's attic, `attic/<lane>/AGENTS.md`, under a
+  `## Recipe comment archive (YYYY-MM-DD)` heading, keyed by recipe filename.
 
 ```yaml
-# KEEP — not inferable from the value:
-#   mamba_full_memory_ratio: 3.51
-#   max_num_seqs: 48   # the mamba state pool silently clamps this (grep "capped to" in the
-#                     # serve log); the literal is not the granted concurrency
-#   cpu_mask: 5-9      # GB10 big.LITTLE: 5-9/15-19 are the fast cluster; do not span clusters
+# KEEP — a surprising property an operator would get wrong:
+  max_num_seqs: 48   # the mamba state pool silently clamps this; the literal is not the granted
+                     # concurrency (grep "capped to" in the serve log)
+  cpu_mask: 5-9      # GB10 big.LITTLE: 5-9/15-19 are the fast cluster; do not span clusters
 
-# MOVE — evidence, not a tunable:
-#   "measured 2026-09-19, 8 boots interleaved, ratio 1.213 [1.156,1.279], pooled +22.5%..."
-#   -> lane AGENTS.md/README.md, with its receipt
+# MOVE — history/evidence, not a property of the value:
+#   "measured 2026-09-19, 8 boots interleaved, ratio 1.213 [1.156,1.279], pooled +22.5%…"
+#   -> the lane README (if it explains running the arm) or attic/<lane>/AGENTS.md, with its receipt
 ```
 
-Guards strip whole-line comments before matching, so trimming is guard-safe; they *do* assert on
-`metadata.description` prose, which must stay accurate. Archived recipes under `attic/` are frozen
-provenance — leave their comments verbatim.
+Guards strip whole-line comments before matching, so stripping is guard-safe; they *do* assert on
+`metadata.description` prose, which must stay accurate and is not a comment. A `#` must never appear
+inside a folded `command:` block — the fold would pass it to the shell. Archived recipes under
+`attic/` are frozen provenance: leave their comments verbatim.
 
 ### Mods
 
@@ -195,13 +201,15 @@ provenance — leave their comments verbatim.
 - New mods get a `README.md`, and a guard test when the mod makes a safety claim
   (see `tests/test_drop_caches_mod.py`).
 
-### Evidence-grade comments (do not "tidy" these)
+### Evidence-grade *lane* prose (do not "tidy" these)
 
-Comments carry `VERIFIED`/`LIKELY`/`SPECULATIVE`, upstream citations at `file.py:line` against a
-pinned commit, dates on hardware claims, measured numbers with provenance, and negative results.
-Tidying them as noise, or writing a confident claim with no citation, violates the main convention.
-Recipe prose documents forbidden strings, so any text-scanning guard must strip whole-line comments
-before matching.
+The `VERIFIED`/`LIKELY`/`SPECULATIVE` vocabulary, upstream citations at `file.py:line` against a
+pinned commit, dates on hardware claims, measured numbers with provenance, and negative results
+belong to the **lane's** documentation — `recipes/<lane>/README.md` and `attic/<lane>/AGENTS.md` (the
+recipe-comment archive) — not to the recipe YAML, which keeps only the crucial set above. Tidying
+them as noise, or writing a confident claim with no citation, violates the main convention. Recipe
+prose documents forbidden strings, so any text-scanning guard must strip whole-line comments before
+matching.
 
 ### Git, secrets, and the second writer
 

@@ -86,6 +86,12 @@ re-verified. The loader mod (`instanttensor-hybrid-draft-loader`, `auto` mode) o
 *draft* loader when the draft and target share a repo+revision (the MTP case); for the DFlash A/B it
 returns the run's own loader, i.e. the standard safetensors path.
 
+**Serving notes moved from the recipe comments (2026-10-14).** The checkpoint is multimodal
+(image-text-to-text) and is served with no `--limit-mm-per-prompt` cap; the vision encoder uses
+`--mm-encoder-tp-mode data`. The `--speculative-config` JSON carries **literal** values — a nested
+`{max_model_len}` inside a default is *not* substituted (the render is a single pass over `command:`)
+— and must keep its shell single quotes (the JSON holds double quotes).
+
 ### ornith-1.5-35b-a3b-nvfp4-dflash2-sglang
 
 | | |
@@ -133,6 +139,10 @@ injected snapshot fails `wrong_size` at distribution.
 **Launch caveat.** `@eugr/mods/drop-caches` is inert here (see [Lane caveats](#lane-caveats)); the
 `@littlecedar/mods/pip-install-fastsafetensors` mod supplies `--load-format fastsafetensors`.
 
+**Serving notes moved from the recipe comments (2026-10-14).** The checkpoint is Qwen3.5-MoE
+multimodal (image-text-to-text; config carries a `vision_config` and image/video token ids) and is
+served with no `--limit-mm-per-prompt` cap.
+
 ### ornith-1.5-9b-nvfp4-dflash-sglang
 
 | | |
@@ -172,6 +182,13 @@ re-checking this.
 **Launch caveat — client-visible, not a decode loop.** At long context the served default does not
 suppress reasoning, so a client with a short `max_tokens` that reads `content` sees empty or partial
 replies; the 9B is more prone to this than the 35B. Raise `max_tokens` rather than blaming the arm.
+
+**Serving notes moved from the recipe comments (2026-10-14).** The checkpoint is Qwen3.5 multimodal
+(image-text-to-text) and is served with no `--limit-mm-per-prompt` cap. `kv_cache_dtype: fp8_e4m3` is
+safe to spell: the checkpoint's `hf_quant_config` ships `kv_cache_quant_algo: FP8`, so the literal and
+the checkpoint agree (an `auto` resolves silently). `moe_runner_backend` is meaningless here (dense
+MLP, no experts), and the `mamba_*` trio would apply (the checkpoint *is* a hybrid GDN model) but is
+deliberately left to engine defaults.
 
 ## Lane caveats
 

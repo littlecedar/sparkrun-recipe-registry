@@ -265,6 +265,87 @@ vendor's 41 GB needs the embed/rerank caps lowered to ~0.15/0.18 first — a cap
 not a memory wall. Cores: the embed recipe pins 5-9 and the reranker 15-19 (the X925 cluster), so
 clef-flash is pinned to 0-4,10-14 (A725) to keep the three from contending.
 
+## Recipe comment archive (2026-10-14)
+
+`#` comment blocks removed from the lane's shipped recipes under the 2026-10-14 policy (a shipped
+recipe carries a comment only when it guards a surprising property; everything else lands here or
+in the lane README). Reproduced verbatim, per recipe file.
+
+### kai-0.6b-decision-vllm-srun.yaml
+
+Header block. The identical 26-line block stood at the top of `sol-2b-decision-vllm-srun.yaml`,
+differing only in the model id, the revision and the `--revision` value:
+
+```yaml
+# Kai-0.6B on the vendor's own model runtime (vllm-srun), CPU-only.
+#
+# The Decision 2.0 runtime is vllm-srun — a standalone single-process server
+# (vllm_srun.cli:main, src/model-runtime in vllm-project/semantic-router), not
+# on PyPI and not its own image: it ships inside every router image, so this
+# recipe uses the dev-channel vllm-sr image, digest-pinned after the first
+# pull on a runner node. The image's default ENTRYPOINT starts the vllm-sr
+# router/gateway, which would consume the command — cleared below so the
+# vllm-srun serve line runs.
+#
+# Device is CPU on purpose: the vendor's support matrix marks DGX-Spark arm64
+# CUDA "experimental, not qualified", and the lane's slot for this model is
+# the unclaimed A725 core cluster (0-4,10-14 — the embed/rerank lanes pin the
+# X925 cluster 5-9/15-19), i.e. a decision model at no GPU cost. taskset
+# mirrors clef-flash's pinning in the same lane.
+#
+# The revision is the runtime's own pinned built-in revision for this model
+# (vllm-srun models), which the runtime's golden readiness check is built
+# against — NOT a hand-picked checkpoint sha. /health returns 200 only when
+# every model is loaded, verified and golden-checked, hence the long
+# readiness timeouts (cold start includes the model pull + golden check).
+#
+# sparkrun has no vllm-srun runtime; runtime: vllm is the family whose
+# distribution + launcher contract this command satisfies (sparkrun
+# distributes the model repo into /cache/huggingface, and --cache-dir points
+# the runtime at it).
+```
+
+The kill-shim evidence (observed 2026-10-13, three consecutive launches declared failed while the
+serve came up healthy) is recorded in §"vllm-srun arms: Kai-0.6B + Sol-2B" above; the shim itself
+stays in the recipe with a one-line why.
+
+### clef-flash-decision-sglang.yaml
+
+```yaml
+# The decision lane's second model, and the only one with a first-class SGLang
+# path: the cookbook ships this image (built from the SGLang #42721 merge
+# commit) and documents both Clef checkpoints running on ONE GPU, BF16, TP=1
+# with default settings (docs.sglang.io/cookbook/autoregressive/Cloudflare/clef).
+# Digest pin added after the first pull on a runner node. BOOT-VERIFIED
+# 2026-10-11: /v1/systemone round-trip plus the tool-eval-bench score in
+# recipes/decision/README.md.
+```
+
+```yaml
+  # Distinct from embed 8010 / rerank 8011 so all three can be up on one host.
+```
+
+### jev-9b-decision-vllm.yaml
+
+```yaml
+# BOOT-VERIFIED 2026-10-11 (on .34): the card names LoRA on lm_head and a
+# Sept-2026 dev build; this digest-pinned dev build (same image as the glm5
+# Flash lane) carries everything JEV-9B's serving line needs — Qwen3_5 arch
+# classes (models/registry.py:204-205), --logprobs-mode (arg_utils.py:904),
+# and the v1 sampler path that honors it. The LoRA + processed-logprobs
+# scoring path verified live; the full 2000-decision score is in
+# recipes/decision/README.md.
+```
+
+```yaml
+  # Licence: Apache-2.0 (card front matter).
+```
+
+```yaml
+  # Card-sized for decisions; raise to 16384 only if System 2 thinking at length
+  # is needed (card's own note).
+```
+
 [jev]: https://huggingface.co/autotrust/JEV-9B
 [clef]: https://huggingface.co/Cloudflare/clef-flash
 [kai]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
