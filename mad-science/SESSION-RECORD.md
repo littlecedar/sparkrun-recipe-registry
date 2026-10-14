@@ -161,4 +161,4 @@ lane's docs).
 
 **Gate (in-tree, 2026-10-14):** **503 tests OK** (skipped=1); **30/30** shipped recipes validate plain (four fail `--strict` on accepted warnings only); `bash -n` + `py_compile` clean; `sparkrun recipe validate` run locally with the HOME override.
 
-**Commits:** eight commits on `main` (`f471bdd`…`cea2c08` plus this fact/IP-hygiene fixup). All six nodes were left idle (0 containers) at close.
+**Commits:** nine commits on `main` (`f471bdd`…`070fb2c`). All six nodes were left idle (0 containers) at close.
