@@ -44,9 +44,11 @@ register is `git show 8a98379:mad-science/TODO.md`. New items continue that regi
     the licence), keep it runbook/eval-only, or exclude it entirely?
     → Answer:
 
-19. **Gated repos.** `Lightricks/LTX-2.5` is `gated: auto` — it needs a browser terms-acceptance and a
-    per-node `HF_TOKEN`, neither of which a distributed registry can assume. Document the
-    prerequisite as a runbook, or exclude the arm?
+19. **Gated / red-team arms.** `Lightricks/LTX-2.5` (`gated: auto`, needs a browser terms-acceptance and
+    a per-node `HF_TOKEN`) **and all five `cybersec`-lane arms** (`drowzeys/*` and `orcarouter/*` are
+    `gated: auto` behind responsible-use agreements) cannot be assumed downloadable in a registry
+    distributed to third parties. Ship gated arms as runbook/eval-only with a documented per-node token
+    + acceptance prerequisite, or exclude gated arms from the shipped tree?
     → Answer:
 
 20. **Media-arm acceptance criterion.** `EXPLORE-MODELS-RESEARCH.md` §6 proposes: a fixed prompt+seed
@@ -87,6 +89,7 @@ Lane order (advisory — any rational order, preference for subagent paralleliza
 - rerank
 - glm5
 - explore
+- cybersec
 
 Selection priorities:
 - Node count (lower is better)
@@ -151,3 +154,47 @@ Any model with reasoning and tool-calling capabilities
 - [ ] **Qwen-Image-2.1-Turbo arm (queued 2026-10-13 — media-gen, outside the lane brief).** **Licence first:** `qwen-research` is non-commercial ("FOR NON-COMMERCIAL PURPOSES ONLY") — the MiniMax-M3 class of blocker, since this registry ships to third parties; needs an owner call, and may stay eval-only. Then serve via `QwenImage21Pipeline` (diffusers ≥ PR #14950, transformers ≥ 5.17) under a script launcher (no `sglang|vllm` runtime) — expected **≈ 11 s @ 1024²** derived from the base model's GB10 measurement (54.1 s @ 40 steps, linear in steps; 31.6 GB peak); the 8-step schedule and its quality are ours to measure. Traps to re-check: VAE tiling OFF (pink seam), `cpu_offload` OFF, reference-image cost. Details: `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §6.
 - [ ] **LTX-2.5 arm (queued 2026-10-13 — media-gen, outside the lane brief).** `Lightricks/LTX-2.5` (video+audio, 22B DiT + Gemma-4-12B encoder, ComfyUI-native): repo is gated (`gated: auto`) → per-node `HF_TOKEN` and accepted terms, which a distributed registry cannot assume; licence = `ltx-2.x-community-license-agreement` (the LTX-2 text carries a $10M-revenue Commercial Entity threshold — read the 2.x text once access lands). Spark evidence exists as a **refine stage** (nvfp4 transformer 17.44 GiB + VAEs + upscaler = 20.1 GiB, 3 steps → 1344×768×124 f/24 fps with audio inside a 73.3 s warm two-stage run). Traps: ComfyUI ≥ 0.34.0 (below it the refine silently emits garbage), the `-nogemma` graph on GB10, and the sustained-load power-loss fix (2200 MHz clock cap). Details: §6.
 - [ ] **Humanizer-12B arm (queued 2026-10-13 — text-rewriting helper, outside the lane brief).** `jialinyyzz/humanizer` (12B `google/gemma-4-12B` finetune, Apache-2.0, ungated, 1 node: 23.9 GB bf16 / 12.7 GB Q8_0 / 3.9–10 GB QAT quants) rewrites one AI-written draft so it reads human (en+zh); card: 95% judged human by Originality.ai strictest (11/210 bf16) and 376/420 English rewrites with no factual problem — still read numbers/dates/names. vLLM-servable via the vendor's own path (`--dtype bfloat16 --max-model-len 8192 --generation-config vllm`), but the contract is **`/v1/completions` with the byte-exact `instr + draft + sep` prompt from `prompt_format.json`, never a chat template**, top_k off. Checklist + acceptance proposal: `recipes/explore/EXPLORE-MODELS-RESEARCH.md` §7.
+
+## cybersec
+Cybersecurity-research (red-team) abliterated / uncensored models
+*(queued 2026-10-14 — owner directive; sources scanned `hf.co/drowzeys` and `hf.co/orcarouter/collections`.)*
+
+Five arms, all **abliterated/uncensored** and all **gated** (`gated: auto` — a responsible-use agreement
+plus a per-node `HF_TOKEN`, the same third-party-distribution problem as `LTX-2.5`; owner call in `#
+DECISIONS` #19). Sizes are Hub parameter counts × quant — **confirm from `config.json` at import**, never
+the Hub `Parameters` field (explore research doc §3).
+
+- [ ] **Solo (TP=1): `orcarouter/Qwen3.8-27B-Uncensored-NVFP4`.** 21.2B params, NVFP4, arch `qwen3_5`,
+  Apache-2.0, gated; 186.8K dl / 308 likes; tags `ai-red-team`, `red-teaming`, `function-calling`,
+  `reasoning`, `mtp`. ~1 node / ~16 GB. Base `Qwen/Qwen3.8-27B` — its clean sibling already ships in
+  `recipes/qwen3/`, so reuse that lane's SGLang scaffold. FP8 / INT8 / GGUF siblings exist. Done when
+  booted (`GET /v1/models` = repo id) with C1 (`decode-triage` d0/d8192) + the house battery.
+- [ ] **Solo (TP=1): `drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark`.**
+  27B NVFP4 + DFlash2 draft, 1M ctx via YaRN, Apache-2.0, gated ("Single DGXSpark"); tags `cybersecurity`,
+  `abliterated`, `uncensored`, `dflash2`. Explicit cybersecurity orientation; structurally copies the
+  shipped `qwen3.8-27b-nvfp4-dflash2-sglang` arm (add the YaRN long-ctx route + the `served_model_name`
+  key). Done when a boot receipt + C1 + battery, or a recorded negative.
+- [ ] **Solo (TP=1): `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4`.** 35.1B params, NVFP4, arch
+  `qwen3_5_moe` (hybrid GDN + MoE), Apache-2.0, gated; collection note "Abliterated … BF16 66 GB, 122 /
+  1026 tensors edited. **Research use only**"; tags `ai-red-team`, `agentic`, `computer-use`. ~1 node /
+  ~20 GB. New family (no Nex arm in the registry) — read the arch + parser needs off the base card first.
+  Done when boot + C1 + battery.
+- [ ] **Dual (TP=2): `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4`.** 180B, NVFP4, arch `qwen4_exp`,
+  Apache-2.0, gated; 19.1K dl / 97 likes; tags `ai-red-team`, `function-calling`, `reasoning`. ~2 nodes /
+  ~100 GB. The abliterated twin of the `recipes/qwen4/` checkpoint — reuse that lane's TP=2 recipe (the
+  7-mod chain minus the labquant-specific mods). Done when boot + C1 + battery, plus a refusal probe
+  (report the bypass rate; keep the source card's format so it is comparable).
+- [ ] **Dual (TP=2): `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`.** **Overlay, not
+  a checkpoint:** two `attn.wo_b` L10–35 sidecars (FP8 `wo_b_l10_35.safetensors` ~1.1 GB; EXL3-mul1-K=5
+  `mia_exl3_wo_b_l10_35.safetensors` ~682 MB) grafted onto a stock pack via `apply_wo_b_graft.py`; MIT,
+  **`gated: auto`**; card claims Refusal32 **32/32** + Cyber **22/22** bypass. Dual path = the **Mia 2×
+  Spark EXL3 2.9 bpw** base (`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` + its 2× kit); the native base is
+  the ds4 lane's TP4 production checkpoint. Needs a mod to fetch + graft (never write the stock pack in
+  place), GPU util **≤ 0.85**. **Never disturb the live ds4 TP4 serve.** Done when the graft is
+  boot-verified on 2 nodes with C1 + a cyber-refusal probe, or a recorded negative.
+
+**Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, quad-class —
+inherits the archived glm5 Flash serve blocker), `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B,
+`deepseek_v4`), `drowzeys/keys-Qwen3.8-Flash-Next-NVFP4-dual-ablit-house-qsa-L3-47` (dual 180B ablit; base
+`nvidia/…` → licence `other`), `drowzeys/keys-GLM-5.3-Flash-NVFP4-ablit-l15-43-mtp-l45` (169B, MIT),
+`drowzeys/MiMo-V2.6-Flash-RL-Abliterated` and `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated`.
