@@ -209,6 +209,36 @@ The in-container path is deterministic: `${HF_HUB_CACHE}/models--<org>--<name>/s
    literal text and the shell-comment rule then eats every following flag).
    sglang is again unaffected (`speculative_draft_model` in defaults is the shipped pattern).
 
+## sglang custom-command templates: declare the served model id
+
+An sglang recipe whose `command:` template writes `--served-model-name {model}` does **not** serve
+the repo id on a real launch: sparkrun rebinds every `{model}` occurrence to the prepared on-disk
+snapshot path (`models/runtime.py::bind_runtime_models`), so the engine advertises
+`/cache/huggingface/hub/models--<org>--<name>/snapshots/<sha>` as its `model` id — wrong for every
+client, the proxy and any benchmark that sends the HF id. `-n` still prints the repo id (bindings
+exist only on a launch), so a dry run cannot show this. The same defect with the flag omitted: a
+`command:`-templated arm with no `--served-model-name` at all serves the `--model-path` value.
+
+Declare the literal and render the flag from it (sparkrun's own prescription —
+`core/validation.py` suggests exactly this when it sees a hardcoded flag):
+
+```yaml
+defaults:
+  served_model_name: <org>/<name>          # the upstream repo id
+command: >
+  --model-path {model}
+  --served-model-name {served_model_name}
+```
+
+Both lines are required together: a declared key the command never references is rejected by
+`tests/test_recipe_placeholder_resolution.py::InertDefaults`, and the runtime's own append only
+fires when the flag is absent (`runtimes/base.py`). An arm whose `--model-path` is a mod-built tree
+rather than the snapshot (labquant) also needs `--revision {model_revision}` — the launch validator
+requires a revision token once the prepared path no longer appears in the command. The two ds4 arms
+are the deliberate exception: their in-container launchers normalize a path back to the repo id
+(`tests/test_ds4_recipes.py` guards it). A fix is not verified until a live boot's `GET /v1/models`
+returns the repo id.
+
 Per-family agent guides: the Qwen3.8-Flash-Next lane carries its own
 [`qwen4/AGENTS.md`](qwen4/AGENTS.md) (state, constraints, workstream plan, runbook) and
 [`qwen4/README.md`](qwen4/README.md) (the recipe/lane summary), with `../attic/qwen4/NOTES.md` (working notes).
