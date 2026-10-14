@@ -1,0 +1,70 @@
+recipe_version: "2"
+model: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+model_revision: 64ba41b6c916a587db06eae2e19b7845f7be6e6b
+runtime: sglang
+container: littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a7449d7335fb85d453cc439985c525495
+builder: docker-pull
+min_nodes: 2
+max_nodes: 2
+
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash abliterated (cybersecurity-unlock) on 2x DGX Spark, TP=2: the stock
+    Mia EXL3 2.9bpw pack with the drowzeys layers.10-35 attn.wo_b sidecar grafted on, served
+    by the TensorFold deepseek_v41 engine
+  model_url: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: exl3
+  kv_dtype: fp8
+  tags: fast, large_context, single_user
+  caveats: >
+    The overlay repo ships NO weights: this arm is the stock EXL3 2.9bpw pack with only
+    layers.10-35 attn.wo_b replaced (26 layers x trellis/suh/svh/mul1) by the author's EXL3
+    sidecar; L0-9, L36-39, all MTP, embed/head and the experts stay stock. Released strictly
+    for red-team / safety research: it complies with prompts the base refuses and the operator
+    owns the guardrails. Gated (gated: auto) - each node needs an HF_TOKEN with this repo's
+    release accepted. The graft must never be applied in place to the stock pack (the mod
+    builds it under /cache/runtime); engine util stays <= 0.85.
+
+mods:
+  - "@littlecedar/mods/dsv41-engram-fetch"
+  - "mods/graft-dsv41-ablit-wo-b"
+  - "@littlecedar/mods/tensorfold-dsv41-launcher"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+  # The RDMA gather and NCCL over the CX7 fabric need registered (locked) memory.
+  ulimit:
+    - memlock=-1:-1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  max_model_len: 1048576
+  # The grafted tree the mod builds; `{model}` stays the stock pack only because sparkrun
+  # distributes it. The launcher resolves this container path directly (never a host path).
+  served_model_dir: /cache/runtime/dsv41-ablit
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
+
+command: >
+  python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py
+  --boot
+  --stock-model {model}
+  --model {served_model_dir}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {served_model_name}
+  --context {max_model_len}
+
+readiness:
+  inference: true
+  # A cold first boot compiles the CUDA extensions and writes the ~106 GiB/rank
+  # weight cache before the serve port opens; later boots are much shorter.
+  port_timeout_s: 3600
+  health_timeout_s: 1800

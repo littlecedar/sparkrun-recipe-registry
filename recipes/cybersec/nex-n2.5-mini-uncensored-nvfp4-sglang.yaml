@@ -1,0 +1,76 @@
+recipe_version: "2"
+model: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13
+
+metadata:
+  description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark
+  model_url: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "35B"
+  model_dtype: nvfp4
+  kv_dtype: bf16
+  tags: fast, vision
+  caveats: >
+    Abliterated (refusal-direction removed) build of nex-agi/Nex-N2.5-mini, released "research use
+    only" by the uploader: it will comply with prompts the base refuses and the operator owns the
+    guardrails. Gated (gated: auto) - each node needs an HF_TOKEN with this repo's release accepted.
+    New family to this registry (qwen3_5_moe: 3:1 gated-delta-net / full attention, 256 experts
+    top-8, no MTP head); the routed experts are the only quantized tensors.
+    ENGINE GATE, measured on this lane 2026-10-14: SGLang loads this checkpoint but its
+    sample-time logits are NaN (the first generation dies with `CUDA error: device-side assert
+    triggered` in sampling_from_probs_torch), so the arm does not serve under SGLang. The uploader
+    documents only vLLM's CompressedTensorsW4A4 path. See recipes/cybersec/AGENTS.md receipts.
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_seqs: 16
+  # KV cache is NOT quantized in this build (routed experts only) -- keep it bf16.
+  kv_cache_dtype: bf16
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  fp4_gemm_backend: flashinfer_cutlass
+  load_format: fastsafetensors
+  # This checkpoint's template gates thinking on `reasoning_effort`, NOT `enable_thinking`
+  # (chat_template.jinja: `add_generation_prompt` emits ` thinking` whenever reasoning_effort is
+  # unset). Left unset, a short reply is consumed by the deliberation trace and `content` comes
+  # back empty for every client that reads `content` -- default it OFF; a caller wanting the
+  # scratchpad passes chat_template_kwargs {"reasoning_effort": "high"} per request.
+  default_chat_template_kwargs: '{"reasoning_effort": "none"}'
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format {load_format}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --page-size {page_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --kv-cache-dtype {kv_cache_dtype}
+  --default-chat-template-kwargs '{default_chat_template_kwargs}'
+  {extra_args}
