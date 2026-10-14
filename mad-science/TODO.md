@@ -14,12 +14,65 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — nothing open (2026-10-13)
+# DECISIONS — 8 open (2026-10-14)
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `recipes/qwen4/SELECTION-RANKING.md`, #11 in `recipes/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `recipes/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
-register is `git show 8a98379:mad-science/TODO.md`.
+register is `git show 8a98379:mad-science/TODO.md`. New items continue that register's numbering
+(from #16) so those historical references stay unambiguous.
+
+16. **Session nodes.** Which nodes are ours this session? The backlog assumes up to four: the 397B
+    DFlash-vs-MTP A/B (4 nodes), the ds4 TP=4 revision/build items, and any glm5 revival need
+    `.30-.33`, which host the production ds4 TP4 serve; only `.34`/`.35` are free while that serve
+    is up. Confirm whether `.30-.33` are free again (the 2026-10-13 window had all six idle) or
+    whether this session is `.34`/`.35` only — so the 4-node/TP4 items are marked blocked vs runnable.
+    → Answer:
+
+17. **Off-brief / new-runtime arms — in scope this session?** The queued `Qwen-Image-2.1-Turbo`,
+    `LTX-2.5` (media-gen) and `humanizer-12B` arms sit **outside the explore lane's reasoning/
+    tool-calling brief**, and each needs a runtime class sparkrun has never shipped (diffusers /
+    ComfyUI script launcher; a byte-exact `/v1/completions` prompt). Pursue them in this session
+    (each will consume a large slice of it), or defer to a separate research pass?
+    → Answer:
+
+18. **Non-commercial / `other` licences.** This registry ships to third parties.
+    `Qwen/Qwen-Image-2.1-Turbo` is `qwen-research` ("FOR NON-COMMERCIAL PURPOSES ONLY") and
+    `poolside/Laguna-S-2.1-DFlash(-NVFP4)` carries `license: other` (text unread). Decision #4
+    (2026-10-11) allowed the CC BY-NC-ND DFlash2 drafts on "non-commercial cluster use" grounds.
+    For these arms: ship the recipe (a recipe ships a repo id, not weights — the downloader accepts
+    the licence), keep it runbook/eval-only, or exclude it entirely?
+    → Answer:
+
+19. **Gated repos.** `Lightricks/LTX-2.5` is `gated: auto` — it needs a browser terms-acceptance and a
+    per-node `HF_TOKEN`, neither of which a distributed registry can assume. Document the
+    prerequisite as a runbook, or exclude the arm?
+    → Answer:
+
+20. **Media-arm acceptance criterion.** `EXPLORE-MODELS-RESEARCH.md` §6 proposes: a fixed prompt+seed
+    set; one 1024² image at the checkpoint's shipped step count and one 5 s clip at the shipped
+    preset; wall-clock per item + peak unified memory; quality judged by eye against the vendor
+    gallery (no house scorer exists — `tools/synthetic_png.py` is a fixture). Confirm or replace.
+    → Answer:
+
+21. **Humanizer acceptance criterion.** §7 proposes: a fixed 20-draft set across genres × 2 samples,
+    reporting fact-diff count vs the source (numbers/dates/names), formatting-drop count, and
+    wall-clock per 1k output tokens; the card's Originality.ai figure cited, not reproduced in-house.
+    Confirm or replace.
+    → Answer:
+
+22. **Ornith quality bar.** You are not convinced of Ornith 1.5's quality and want further
+    experiments. What would confirm (or fail) it — a named long-horizon agentic workload, a peer
+    comparison, or a threshold on the house battery? The 2026-10-13 logic-loop ticket was **NOT
+    reproduced** (it was thinking-budget exhaustion, not a loop), so the target workload matters.
+    → Answer:
+
+23. **qwen4 lane cut.** Confirm the target is exactly two shipped arms — fastest single-node (the two
+    TP=1 solo arms) and fastest two-node (the TP=2 set) — with the rest swept to `attic/`. Read
+    literally, "1M context optional" means the Lane-B longctx arm may go even though it is the only
+    1M route, and the RadixArk quality reference is swept if it is not the fastest. Confirm, or name
+    any arm to keep regardless of speed.
+    → Answer:
 
 # TODO list
 
