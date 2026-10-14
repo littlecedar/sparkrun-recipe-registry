@@ -553,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Score JEV-9B on the Typed Decisions test split via the card's "
         "/v1/completions System 1 contract."
     )
-    parser.add_argument("--base-url", help="e.g. http://.NN:8000")
+    parser.add_argument("--base-url", help="e.g. http://<node>:8000")
     parser.add_argument("--model", default="jev-decision", help="served LoRA id (default jev-decision)")
     parser.add_argument("--cases", help="path to the vendored test.jsonl.gz")
     parser.add_argument(

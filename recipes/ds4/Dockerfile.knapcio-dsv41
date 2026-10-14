@@ -33,7 +33,7 @@
 # Layers: base `lmsysorg/sglang:dev-dsv41`, plus the upstream SGLang `dsv4.1`
 # branch @ `f80c91a4b`, the RoCEnante overlay (SG17) adapted to TP4, b12x +
 # b12x_next kernel packages, the adapter overlay, and the compiled row_store.so.
-# arm64-only. Built 2026-10-03 on .NN (rebuilt for a dynamic HEALTHCHECK:
+# arm64-only. Built 2026-10-03 on .30 (rebuilt for a dynamic HEALTHCHECK:
 # `boot.py health` now discovers the served port at runtime instead of assuming
 # 8888; see AGENTS.md 5). Registry digest:
 #   littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05

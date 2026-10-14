@@ -32,7 +32,7 @@ Do not deploy them to end users, and do not point them at anything you do not ow
 | 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [incoai/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
 | 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); the vLLM route its card documents is blocked on image distribution — see AGENTS.md |
 | 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
-| 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals — see AGENTS.md |
+| 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
 
 `[bracketed]` links resolve at the bottom of this file. Every arm is one recipe; the measured
 receipts (boot id, `GET /v1/models` answer, `decode-triage` run, house battery) live in
@@ -86,8 +86,8 @@ sparkrun benchmark performance qwen3.8-27b-uncensored-nvfp4-sglang -H <node> \
 python3 tools/quality-battery.py http://<node>:8000/v1 --tier both --json runs/<arm>.battery.json
 ```
 
-Arm 5's graft (a large on-node rewrite of the stock EXL3 shards) runs **detached** and the serve
-command waits on it — see [`AGENTS.md`](AGENTS.md) §6.
+Arm 5's graft (a large on-node rewrite of the stock EXL3 shards) runs **synchronously and
+fail-closed** in the mod — the serve command does not wait on a background step; see [`AGENTS.md`](AGENTS.md) §6.
 
 ## Other surfaced arms (not shipped)
 

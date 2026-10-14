@@ -170,7 +170,7 @@ class TestLengthErrorDetection(unittest.TestCase):
 
     def test_recognises_sglang_and_vllm_wording(self):
         for detail in [
-            # VERIFIED live against SGLang on .NN: the exact 400 body.
+            # VERIFIED live against SGLang on .30: the exact 400 body.
             "{\"object\":\"error\",\"message\":\"The input (1066900 tokens) is "
             "longer than the model's context length (1048576 tokens).\"}",
             "The input (1095000 tokens) is longer than the maximum model length (1048576)",

@@ -1,7 +1,7 @@
 # PERF-ISSUES — `deepseek-v4.1-flash-exl3-tp6-1m-vllm` under `sparkrun benchmark performance --profile spark-arena-v2`
 
 **Author:** ds4 agent, 2026-10-01. **For:** the solutions agent.
-**Artifacts:** `/<home-dir>/bench2/` on `.NN`; copies + live probes under
+**Artifacts:** `/<home-dir>/bench2/` on `.30`; copies + live probes under
 `.scratch/ds4/perf/` (this host). Recipe: `recipes/ds4/deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml`.
 
 > **UPDATE 2026-10-01 (later): the mechanism is RESOLVED — read §9 first.** The
@@ -70,7 +70,7 @@ pathology.
 
 ### 2.1 Provenance
 
-- Run `bench_1ad12b1c83e8`, head `.NN`, 2026-09-30 21:25 → 2026-10-01
+- Run `bench_1ad12b1c83e8`, head `.30`, 2026-09-30 21:25 → 2026-10-01
   10:55 UTC. Recipe exactly as shipped (`max_num_seqs=16`, `gmu=0.85`,
   DSpark `k=3`, both mods). Reproducibility caveat: `runs: 3`.
 - A **prior** `spark-arena-v2` run of the same recipe, `bench_fbc26cb5f73e`
@@ -278,7 +278,7 @@ solutions agent is still a **profiler run on the `d32768 c2` collapse** (triage
 
 ### Platform note for the solutions agent (this recipe needs the whole cluster)
 
-`deepseek-v4.1-flash-exl3-tp6-1m-vllm` is `min_nodes: 6` = head `.NN` (rank 0
+`deepseek-v4.1-flash-exl3-tp6-1m-vllm` is `min_nodes: 6` = head `.30` (rank 0
 of the TP=6 group) + workers `.31`–`.35`. One recipe boot at a time per the COOP
 hardware etiquette, and a 13-minute load holds all six nodes. The head node is off
 limits to other work while it boots or holds a rank. Practically: the A/B arms in
@@ -357,7 +357,7 @@ workload*, not a broken decode path.** Warm long-context concurrency is healthy
 ### 9.1 The decisive experiment
 
 Booted `deepseek-v4.1-flash-exl3-tp4-1m-vllm` as-shipped on the **`ds4tp4`**
-cluster (`.NN`–`.35`; head `.32`; head node `.30` left free — cheaper than
+cluster (`.32`–`.35`; head `.32`; head node `.30` left free — cheaper than
 the 6-node job and it still reproduces). KV pool **5,955,167 tokens**; boot log
 shows the same sparse-MLA autotune + `mxfp8_gemm tactic=-1` lines as TP=6.
 

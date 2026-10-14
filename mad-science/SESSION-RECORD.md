@@ -120,7 +120,7 @@ obsolete, one fixed) and **vision is restored**; the TP=2 survivor re-benched **
 **cybersec (new lane).** Five gated abliterated/uncensored arms built; **three boot-verified positive**
 — `orcarouter/Qwen3.8-27B-Uncensored-NVFP4` (C1 10.2/9.7, battery 37/37), the AEON-overlay
 cyber-unlock DFlash2 (33.3/26.2, 37/37), and the DeepSeek-V4.1-Flash `wo_b` graft on the Mia 2× Spark
-EXL3 base (63.7/67.7, 36/37, refusal probe 0/8) — and **two documented negatives** (Nex-N2.5-mini:
+EXL3 base (63.7/67.7, 36/37, refusal probe 0/8 — 1/8 completed, 7/8 truncated-empty at the cap) — and **two documented negatives** (Nex-N2.5-mini:
 NaN sample-time logits → CUDA device-side assert under SGLang; Qwen3.8-Flash-Next-Uncensored: SGLang's
 compressed-tensors loader refuses `CompressedTensorsW4A16Sparse24`). New mods
 `provide-uncensored-chat-template` + `graft-dsv41-ablit-wo-b`; lane guard `tests/test_cybersec_recipes.py`.
@@ -142,7 +142,7 @@ guard `tests/test_qwen3_recipes.py`.
 
 **explore.** Both keepers re-pinned and re-verified — Kolibri-1 → `258cae8f` (**47.4 t/s, 37/37 @4096**),
 Ling DSPARK draft → pinned (**54.7 t/s, 37/37**). Two new Poolside Laguna arms shipped + measured on one
-node — XS-2.1 (**57.4 t/s, 36/37**; NVFP4 native on SM121) and S-2.1 (boot-verified, **36/37**; the
+node — XS-2.1 (**57.4 t/s, 36/37**; NVFP4 native on SM121) and S-2.1 (boot-verified, **32/37**; the
 pinned August checkpoint loads **95.61 GiB**, so the research 262k template does not fit one Spark). The
 Humanizer-12B `/v1/completions` arm shipped + measured (131.7 s / 1k tokens). The Qwen-Image and LTX-2.5
 media-gen arms stay **owner-deferred**.
@@ -159,8 +159,6 @@ tool-calling standard the explore lane's brief needed. Root index + lane docs co
 items in `mad-science/TODO.md` marked `[x]` (per the session convention; the lane detail lives in each
 lane's docs).
 
-**Gate (in-tree, 2026-10-14):** *(orchestrator-run — the repo test suite + `sparkrun recipe validate` +
-`bash -n`/`py_compile`; not recorded here. Filled in when the gate runs.)*
+**Gate (in-tree, 2026-10-14):** **503 tests OK** (skipped=1); **30/30** shipped recipes validate plain (four fail `--strict` on accepted warnings only); `bash -n` + `py_compile` clean; `sparkrun recipe validate` run locally with the HOME override.
 
-**Commits:** **pending** — the tree is edited but not yet committed; the orchestrator stages and commits
-this session's changes.
+**Commits:** eight commits on `main` (`f471bdd`…`cea2c08` plus this fact/IP-hygiene fixup). All six nodes were left idle (0 containers) at close.

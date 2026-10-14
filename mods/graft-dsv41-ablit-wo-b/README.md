@@ -58,7 +58,7 @@ sentinel) **was tried and does not work on a cluster launch**: sparkrun holds th
 rendezvous/readiness gate (~300 s) before the serve command's own `readiness.port_timeout_s`
 applies, so the head is declared dead while the wrapper is still waiting. Measured
 2026-10-14 (task `sparkrun_d42e44075b9357cd_c390039d73a3`: "Head node failed to become ready on
-`.NN`" 318 s in, with the wrapper still polling). A cold node whose graft cannot fit the
+`.32`" 318 s in, with the wrapper still polling). A cold node whose graft cannot fit the
 600 s budget is therefore a launch failure, not a degraded serve — pre-warm the graft out of
 band for such a node.
 
