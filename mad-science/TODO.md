@@ -180,10 +180,12 @@ Sizes below are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10
 - [ ] **Solo (TP=1): `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4`.** 35.1B params, NVFP4, arch
   `qwen3_5_moe` (hybrid GDN + MoE), Apache-2.0, gated; collection note "Abliterated … BF16 66 GB, 122 /
   1026 tensors edited. **Research use only**"; tags `ai-red-team`, `agentic`, `computer-use`.
-  24.0 GB measured. New family (no Nex arm in the registry) — read the arch + parser needs off the base
-  card first.
+  23.9 GB measured. New family (no Nex arm in the registry) — read the arch + parser needs off the base
+  card first. Done when boot + C1 + battery.
 - [ ] **Dual (TP=2): `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4`.** 180B, NVFP4, arch `qwen4_exp`,
-  183.5 GB measured. The abliterated twin of the `recipes/qwen4/` checkpoint — reuse that lane's TP=2 recipe (the
+  Apache-2.0, gated; 19.1K dl / 97 likes; tags `ai-red-team`, `function-calling`, `reasoning`. **2 nodes /
+  183.5 GB measured** (near the ~218 GB usable ceiling at 0.85). The abliterated twin of the
+  `recipes/qwen4/` checkpoint — reuse that lane's TP=2 recipe (the
   7-mod chain minus the labquant-specific mods). Done when boot + C1 + battery, plus a refusal probe
   (report the bypass rate; keep the source card's format so it is comparable).
 - [ ] **Dual (TP=2): `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`.** **Overlay, not
