@@ -1,6 +1,10 @@
 recipe_version: "2"
 model: Aleph-Alpha/Kolibri-1
-model_revision: 35bc4d3be745502227a67247de77d70e691614ee
+# Upstream config fix (2026-10-13): quantization_config.modules_to_not_convert
+# gained "lm_head" — the checkpoint's lm_head.weight is BF16, so the pin that
+# omitted it let the fp8 quantization config claim a tensor the checkpoint
+# ships unquantized. Weights/tokenizer/chat template are byte-identical.
+model_revision: 258cae8ffffc8c12db670bdbc6ac01bcf8826c87
 # Stock multi-arch vllm/vllm-openai:v0.29.0 (the plugin pins vLLM 0.29) with the
 # pure-Python `aleph-alpha-inference` plugin installed by
 # mods/install-kolibri-plugin — the vendor's own image is amd64-only, so it
@@ -77,9 +81,9 @@ defaults:
 # that follows the first `#`.
 command: >
   vllm serve
-  /cache/huggingface/hub/models--Aleph-Alpha--Kolibri-1/snapshots/35bc4d3be745502227a67247de77d70e691614ee
+  /cache/huggingface/hub/models--Aleph-Alpha--Kolibri-1/snapshots/258cae8ffffc8c12db670bdbc6ac01bcf8826c87
   --served-model-name {served_model_name}
-  --revision=35bc4d3be745502227a67247de77d70e691614ee
+  --revision=258cae8ffffc8c12db670bdbc6ac01bcf8826c87
   --host {host}
   --port {port}
   --tensor-parallel-size {tensor_parallel}

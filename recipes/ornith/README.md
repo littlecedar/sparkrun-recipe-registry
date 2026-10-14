@@ -3,17 +3,18 @@
 Serving recipes for **Ornith 1.5**, the self-improving agentic-coding model family from the
 [Ornith Team](https://ornith.ai/ornith_1_5.html), on NVIDIA DGX Spark (GB10, SM121, 128 GB
 unified LPDDR5X per node, 200 GbE ConnectX-7 RoCE). This directory is the `ornith` lane; it
-ships **two** recipes, one per model scale:
+ships **three** recipes, one per model scale:
 
 | Recipe                                            | Scale | Runtime | Nodes (TP) | C1 t/s |  Size |  Mem | Flags  | Model Cards                                                                                 |
 |:--------------------------------------------------|:------|:--------|:-----------|-------:|------:|-----:|:-------|:--------------------------------------------------------------------------------------------|
 | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`    | 35B-A3B | SGLang | 1 (TP=1) |    100 |  45GB | 0.85 | ✨🚀🌲👀🧠🦾🔧 | [Model][model-35b] · [Draft][draft-dflash2]                                                 |
 | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | 397B | vLLM | 4 (TP=4) |  41.86 | 235GB | 0.80 | 🌲👀🧠🦾🔧     | [Model][model-397b-graft]                                                                   |
+| `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`          | 9B | SGLang | 1 (TP=1) |     55 |  11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧     | [Model][model-9b] · [Draft][draft-9b]                                                       |
 
 `C1 t/s` is single-stream decode as recorded in the parent [`recipes/README.md`](../README.md);
 `Size` is the per-node footprint the registry records and `Mem` is the recipe's
-`gpu_memory_utilization`. Flags are defined in [Model Flags](../README.md#model-flags).
-Both recipes are `sparkrun recipe validate`-clean on sparkrun v0.3.10 (verified 2026-10-04).
+`gpu_memory_utilization`. Flags are defined in [Model Flags](../README.md#model-flags). A dash is
+an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
 ## About the model
 
@@ -68,6 +69,22 @@ measured by the draft author on a **different engine configuration** than ours (
 and 10 draft tokens; we ship `flashinfer_cutlass`, `extra_buffer_lazy`, `bfloat16`, and 4 draft tokens),
 so treat 114.2 as a **corroborating reference point, not this recipe's measured number**. Our published
 C1 of ~100 t/s sits between the author's AR and DFlash2 figures, consistent with the shipped recipe.
+
+**First-party DFlash head A/B — null, and the shipped draft is now pinned (2026-10-14, `.31`,
+`benchmarking/decode-triage.yaml`, C1, n=5 per cell, decode-phase rows only, one boot per arm, same
+window).** The vendor published its own head two weeks after the third-party one —
+[`ornith-ai/Ornith-1.5-35B-A3B-DFlash`](https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-DFlash)
+(`942d20fe…`, a plain `DFlashDraftModel`, 0.77 GB) — so it was measured against the shipped jzinno
+`DFlash2DraftModel` (`9b4852c0…`). Both served (serve-log `accept len` mean 2.44 / 2.50, i.e. > 1),
+and the C1 cells straddle each other: shipped jzinno n=4 **95.9 t/s @ d0 (σ 10.9) / 101.3 @ d8192
+(σ 2.6)**, first-party n=4 **101.3 (σ 5.2) / 97.8 (σ 11.1)**, first-party n=8 **92.7 (σ 7.9) / 92.8
+(σ 9.3)**. No delta clears the ~9 t/s d0 boot noise, and n=8 is *not* better (accept 2.75 — the same
+shape as the 2026-10-11 draft-10 loss), so **the shipped jzinno DFlash2 stands; the null is the
+result.** The shipped draft is now **pinned** (`speculative_draft_model_revision: 9b4852c0…`, a
+distribution-only key — SGLang has no drafter-revision flag) and the recipe carries a `pre_exec` hook
+that seeds the draft's `refs/main`, which the pin otherwise omits and the offline engine's
+draft-config lookup requires ([`AGENTS.md`](AGENTS.md) §3.12). Receipts:
+`~/benchmarks/ornith-dflash-ab-20261014/`.
 
 **C1 re-measurement (2026-10-13, `.35`, `benchmarking/decode-triage.yaml`, C1, n=5 per cell,
 decode-phase rows only).** The headline is now a measurement, not an inheritance: **99.6 t/s @ d0
@@ -128,6 +145,10 @@ The lane previously had no quality number. (The battery must run with the served
 `enable_thinking` per the boot log's `ReasoningToggleConfig`, and a content-reading client sees empty
 replies when short answers stay in the reasoning channel.)
 
+**Re-confirmed on the pinned winner boot (2026-10-14, `.31`).** The house battery re-scored **37/37**
+(19/19 easy + 18/18 hard, zero flakes) on the pinned jzinno boot, alongside the C1 cells above —
+parity with the 2026-10-11 run.
+
 **Honed chat template (2026-10-11).** The lane's verified boot surface serves a community-honed chat
 template (`qwen3.8-honed-v22.5.1`, 30,438 B) rather than the checkpoint's upstream template. It is
 delivered by `@littlecedar/mods/ornith-honed-chat-template`, which stages the file under
@@ -163,6 +184,144 @@ Contrast with the ds4 lane: **this SGLang serve line honors request-level sampli
 client-side mitigation *would* act here — but there is nothing to cap away. No recipe knob change was
 warranted; the remedy for the observed behaviour is a thinking budget (`max_tokens`) on the client.
 Receipts: `~/benchmarks/ornith-loop-20261013/` (`loop_probe.py`, six battery JSONLs, `README.md`).
+
+## Long-horizon agentic re-investigation (2026-10-14) — also a null, on the workload the ticket is about
+
+The owner was unconvinced of the model's quality and surprised the 2026-10-13 battery could not
+reproduce the looping: that battery drove nine *single-turn* prompts, and a workload it never
+exercised is a limit of the instrument, not a refutation. This pass drives the workload the report
+is about. Arms C1–C4 ran on `.31` in one boot of the shipped 35B surface (honed template,
+`enable_thinking` per request; serve-log `accept len` mean **3.267** over 702 decode batches — spec
+decode engaged); C5 is a second boot of the 9B arm.
+
+**Method** (`~/benchmarks/ornith-horizon-20261014/agentic_horizon_probe.py`). The model is a
+scheduling agent in one growing transcript: turn *i* adds requirement *i* to a growing set and asks
+it to re-derive a valid total order over jobs J0..Ji, using tools (`list_jobs`, `get_requirements`,
+`submit_plan`). The harness validates each submitted order against the accumulated constraints, so
+the task is *scoreable*, not merely generative — and constraint enumeration is the shape that made
+this model reason 3900+ words in the single-turn probe, so it is the family that exercises long CoT
+with a growing context. Detector: (a) the ds4 metric — the max repeat of any **25-word window** in
+`reasoning_content` (≥3 = a decode loop); (b) the same over the whole session's reasoning
+concatenated in turn order; (c) that session metric over windows that are **not** the model
+re-listing the provided requirement set; (d) cross-turn **8-word shingle overlap** (≈1 = verbatim
+self-replay); and (e) `finish_reason`, so a budget truncation is separable.
+
+| arm | sampling | budget | calls | max prompt tok | per-msg repeat max (≥3) | cross-turn overlap max | reasoning words early→late | finish (tool_calls / stop) | plans valid / invalid |
+|---|---|---|---|---|---|---|---|---|---|
+| H1 | temp 0.6 (served) | 16k | 47 | 34,705 | 2 (0) | 0.38 | 63 → 638 | 41 / 6 | solved |
+| H1b (repeat of H1) | temp 0.6 | 16k | 48 | 17,482 | 2 (0) | 0.52 | 35 → 212 | 35 / 13 | 15 / 3 |
+| H2 | temp 1.0 + `presence_penalty` 1.5 (card general) | 16k | 42 | 22,441 | 3 (1) | 0.42 | 150 → 419 | 30 / 12 | 17 / 2 |
+| H3 | temp 0.6 | 32k | 36 | 14,226 | 5 (1) | 0.71 | 23 → 165 | 28 / 8 | 15 / 1 |
+| H4 | temp 1.0, `presence_penalty` 0 | 16k | 36 | 8,000 | 2 (0) | 0.40 | 26 → 188 | 24 / 12 | 12 / 0 |
+| H0 (control: trivial repo tool loop) | temp 0.6 | 16k | 60 | — | 1 (0) | — | 17 → 7 | 60 / 0 | — |
+
+**Result: NOT REPRODUCED — a bounded null.** No arm produced a decode loop. The per-message 25-word
+repeat never exceeded 5, and in every case where it reached ≥3 the repeated window is the model
+**re-listing the provided requirement set** (for example `- J1 after J0 - J2 after J0 - J3 after
+J1 …`, shown verbatim in the receipts) — not a replay of its own reasoning. Cross-turn shingle
+overlap never approached 1 (max 0.71, and the shared shingles are that same requirement list); the
+reasoning **grows** with the task rather than collapsing (63 → 638 words, early → late); no arm hit
+`finish_reason=length`; and the model converges on *valid* plans (15/3, 17/2, 15/1, and 12/0
+valid/invalid). The verbose, self-scaffolding style the ticket calls "looping" is real — 182
+`let me…` openings in one session, and long constraint-enumeration turns of 500–6,000 characters —
+and it is what a reader sees; it is not token repetition. **Detection limit:** ~35k-token agentic
+transcripts, 48 assistant turns, 16k and 32k completion budgets, temp 0.6 and 1.0 ± a
+`presence_penalty` of 1.5, with the 25-word-window metric firing at ≥3 repeats. A loop outside that
+envelope is not excluded.
+
+**Sampling (C3).** The endpoint honours request-level sampling: temp 0, temp 0.6, and temp 1.0 +
+`presence_penalty` 1.5 give distinct `reasoning_content` hashes for one prompt. The card's *general*
+recipe — temp 1.0 plus `presence_penalty 1.5`, an anti-repetition knob this endpoint had never
+served — produces the same shape as the served coding sampling (H2: no loop, more but shorter
+reasoning turns; 17/2 valid plans). **No sampling-dependent loop, so no client-side mitigation is
+indicated.**
+
+**Context (C4).** `tools/needle-haystack.py` at 32k, 128k, and the native 262,144 gives **32k 3/3,
+128k 3/3, 262,144 2/3** at the tool's 64-token budget. The 262k miss is a **budget artifact, not a
+retrieval failure**: at the native window the model emits ~150–200 characters of reasoning before
+the answer even under the served default, so a 64-token completion budget truncates the visible
+answer (`finish_reason=length`, content empty or partial); re-probing that depth at 256 tokens
+passes, and six repeats at 64 tokens give a mix of full answers (`finish=stop`) and truncated ones.
+Retrieval itself is intact at ~256k prompt tokens — every probe that produced a full answer
+returned the correct codeword. **Client-facing caveat:** at long context the served default does not
+suppress reasoning, so a client with a short `max_tokens` that reads `content` sees empty or
+partial replies.
+
+**Cross-scale (C5) — the 9B arm, on `.31` (second boot; `/v1/models` ready ~280 s).** The same
+long-horizon probe (temp 0.6, 16k, 12 turns) gives the same shape: **no decode loop** (per-message
+25-word repeat max 2, none ≥3; the ≥3 windows are again the re-cited requirement list, and the one
+1.0 cross-turn overlap is a 13-word stock opening line), reasoning growing 29 → 423 words, and 9/5
+valid/invalid plans — the task is solved. Its needle ladder at 32k is **0/3 at a 64-token budget,
+every reply empty**, but this is the *same* artifact, worse: a direct probe shows the 9B spends
+250+ characters of reasoning before answering, so `max_tokens=64` (`finish_reason=length`) yields
+empty content while `max_tokens=512` recovers the correct codeword in 2 of 3 tries (the third kept
+reasoning past 512). **Retrieval is intact at both scales; the 9B is simply more prone to the
+reasoning-before-answer behaviour than the 35B (0/3 versus 2/3 at 64 tokens).** So the same
+client-side remedy applies at both scales — raise `max_tokens` — and this is a client-usage caveat,
+not a decode loop.
+
+**House battery, this boot: 37/37** (19/19 easy + 18/18 hard, zero flakes) — parity with the
+2026-10-11 and 2026-10-14 runs, no regression. This is the lane's suite score: the
+`tool-eval-bench` framework that Plan C's C2 named is **not configured in this registry** (there is
+no tools framework or profile for `sparkrun benchmark tools` here), so C2 is met only by the house
+battery. Receipts: `~/benchmarks/ornith-horizon-20261014/`.
+
+## `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` — the small single-Spark arm
+
+**Booted and measured 2026-10-14** (`.30`, one node, TP=1). This arm is the same SGLang DFLASH shape
+as the 35B lane at a smaller scale: the official [`ornith-ai/Ornith-1.5-9B-NVFP4`][model-9b]
+checkpoint (8.8 GB of weights, dense ~9B, multimodal) paired with the first-party
+[`ornith-ai/Ornith-1.5-9B-DFlash`][draft-9b] draft (plain `DFlashDraftModel`, hidden-state taps
+1/5/9/…/29 of the 32-layer target), one node, TP=1, 8 draft tokens.
+
+**C1 (2026-10-14, `.30`, `benchmarking/decode-triage.yaml`, C1, n=5 per cell, decode-phase rows
+only).** Two same-window sweeps on one boot: first (cold) **51.7 t/s @ d0 (σ 13.2)** / **56.6 t/s @
+d8192 (σ 9.0)**, then warm **59.4 t/s @ d0 (σ 6.8)** / **54.1 t/s @ d8192 (σ 16.4)**. The signal is
+**~52–59 t/s** — about half the 35B-A3B's ~100, which is expected rather than a defect: the 35B-A3B
+activates ~3B params/token as a MoE, while this is a *dense* ~9B, so it is not a "smaller therefore
+faster" arm. Do not pool the two sweeps (the cold d0 sweep carries one 26 t/s first-run outlier).
+Spec decode was **engaged**: serve-log `accept len` mean **3.35** (min 1.85 / max 6.85) over 38
+decode batches. Cold-cache boot reached port-open 200.5 s / HTTP-ready 218.3 s.
+
+**House battery, same boot: 37/37** — 19/19 easy + 18/18 hard, zero flakes, at the served default
+semantics (`tools/quality-battery.py --tier both --max-tokens 4096`); parity with the 35B's 37/37.
+
+**Granted concurrency.** `max_num_seqs: 48` is *not* clamped on this arm: the serve log grants
+`max_running_requests=48` and allocates a hybrid state pool of `max_mamba_cache_size: 273`, so the pool
+is not the ceiling here (contrast the qwen3 lane's 48-requested/21-granted). The deliberate omission
+of the `mamba_*` trio therefore costs nothing visible at C1; the pool split remains a
+concurrency-scaling question, untested at C>1.
+
+Receipts: `~/benchmarks/ornith-9b-20261014/` (`launch2.log`, `serve.log`, `c1-decode-triage*.json`,
+`quality.{json,log}`, `bench-state/`).
+
+Decisions a reader will question:
+
+- **No `mamba_*` keys and no `moe_runner_backend`**, unlike the 35B arm. The MoE knob is inert (the
+  checkpoint is dense). The `mamba_*` trio is a deliberate omission rather than an inference that the
+  model lacks linear attention — this checkpoint *is* a Qwen3.5 hybrid (`text_config.layer_types`
+  alternates three `linear_attention` layers to one `full_attention` layer, and `mamba_ssm_dtype` is
+  declared `float32`), so the flags would apply. They are left to the engine defaults because the
+  35B's `mamba_full_memory_ratio: 3.51` is a house value copied across lanes with no recorded
+  derivation, and this first arm should not inherit an unmeasured traffic assumption. The
+  granted concurrency is recorded above.
+- **It does not mount the 35B's honed chat template.** That template is `qwen3.8-honed-v22.5.1`, a
+  35B artifact. The 9B ships its own multimodal `chat_template.jinja` (vision tokens plus an
+  `enable_thinking` toggle) and is served with it.
+- **The card's `--speculative-dflash-block-size 8` is spelled as its upstream alias**
+  (`--speculative-num-draft-tokens`), the spelling the shipped 35B arm is boot-proven on; sparkrun has
+  no map key for the dflash spelling. The serve log confirms the mismatch against the draft's
+  `block_size: 16` is warning-only: `DFLASH block size mismatch: using
+  speculative_num_draft_tokens=8 but draft config block_size=16`.
+- **The draft repo is deliberately left unpinned** (the 35B sibling's jzinno draft is too). A SHA pin
+  is not a free reproducibility win here: a SHA-keyed fetch writes no `refs/` entry, and SGLang's
+  offline draft-config lookup (`speculative_hook.py::_resolve_speculative_algorithm_alias` →
+  `get_config`, with the container's `HF_HUB_OFFLINE=1`) resolves only `refs/main`, so a pinned draft
+  dies at startup with `LocalEntryNotFoundError` before the server binds. Pin, if ever, only after
+  re-checking this. See the recipe comment for the mechanism.
+
+The pinned image **does** load the plain `DFlashDraftModel` (serve log: `Load weight end. …
+type=DFlashDraftModel`), and accepts the alias spelling — both open boot questions are answered.
 
 ## `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` — the flagship 4-node lane
 
@@ -216,12 +375,17 @@ silently rewritten; the fixed, fail-closed replacement is the in-registry
 Called out above: `ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest` is the one unpinned container in the
 Ornith lane. A digest pin would make the 41.86 t/s reproducible.
 
-### No guard suite for this lane
+### Guards (added 2026-10-14)
 
-The registry conventionally backs each lane with a `tests/test_<lane>_recipes.py` guard file
-(`test_ds4_recipes.py`, `test_ifm_recipes.py`, and siblings). **There is no `tests/test_ornith_recipes.py`.**
-Nothing here is mechanically enforced beyond `sparkrun recipe validate`; edits to these recipes get no
-regression coverage.
+Until 2026-10-14 this lane had **no** `tests/test_<lane>_recipes.py` — the registry convention every
+other lane follows — and nothing here was mechanically enforced beyond `sparkrun recipe validate`.
+That gap is closed: [`tests/test_ornith_recipes.py`](../../tests/test_ornith_recipes.py) now guards the
+three arms' shapes, the model-revision pins (and the 9B draft's deliberate *absence* of one), the 35B
+draft's distribution-only pin together with its `refs/main` seed hook, the 9B
+arm's deliberate `mamba_*`/`moe_runner_backend`
+omission, its refusal to mount the 35B's honed template, and the served-model-id spelling (the repo-wide
+class guard `tests/test_recipe_placeholder_resolution.py::ServedModelNameNotRebound` covers the last of
+those across every lane as well). `tests/test_ornith_honed_chat_template.py` still covers the mod.
 
 ## Archived recipes
 
@@ -264,11 +428,12 @@ new base/quant revision since 2026-08-29, and the `jzinno` DFlash2 draft is unch
 
 ```bash
 H="$PWD/.local/sparkrun-home"
-HOME="$H" sparkrun recipe validate recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml
-HOME="$H" sparkrun recipe validate recipes/ornith/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml
+for f in recipes/ornith/*.yaml; do HOME="$H" sparkrun recipe validate "$f"; done
+uv run python -B -m unittest tests.test_ornith_recipes
 ```
 
-Both recipes validate clean. See [`AGENTS.md`](../../AGENTS.md) for the full run/lint/benchmark workflow.
+All three recipes validate clean. See [`AGENTS.md`](../../AGENTS.md) for the full
+run/lint/benchmark workflow.
 
 ## References
 
@@ -278,4 +443,6 @@ Both recipes validate clean. See [`AGENTS.md`](../../AGENTS.md) for the full run
 <!-- Links -->
 [model-35b]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
 [model-397b-graft]: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+[model-9b]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4
 [draft-dflash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
+[draft-9b]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash

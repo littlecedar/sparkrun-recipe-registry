@@ -10,16 +10,19 @@ carries the state, the constraints, and the traps.
 node state belongs in the git-ignored journal/ledger, never here. Lane work in this session ran on
 the `.34`/`.35` shorthand.
 
-**Scope of this directory.** Two shipped recipes, one per scale:
+**Scope of this directory.** Three shipped recipes, one per model scale:
 
 | recipe | scale | runtime | nodes (TP) | role |
 |---|---|---|---|---|
 | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` | 35B-A3B | SGLang | 1 (TP=1) | **shipping** — the fast single-Spark lane |
 | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | 397B | vLLM | 4 (TP=4) | **flagship** — the 4-node lane |
+| `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` | 9B | SGLang | 1 (TP=1) | **booted + measured 2026-10-14** — C1 ≈ 52–59 t/s, battery 37/37, spec engaged; state in §1 and [`NOTES.md`](NOTES.md) §2 (closed) |
 
 Three further Ornith recipes (a b12x `broken` 397B fork and two vLLM arms for the 35B) were moved
 to [`attic/ornith/`](../../attic/ornith/) at commit `e0633ed`; they are provenance, not shipped
-surface. Both shipped recipes are `sparkrun recipe validate`-clean.
+surface. All three shipped recipes are `sparkrun recipe validate`-clean, and the lane is guarded by
+[`tests/test_ornith_recipes.py`](../../tests/test_ornith_recipes.py) (added 2026-10-14 — the lane
+had no recipe guard before that).
 
 **Evidence vocabulary (repo convention).** **VERIFIED** — read from a primary artifact (a boot log,
 a pinned image, source at a pinned commit) or measured on our devices. **LIKELY** — strong
@@ -49,6 +52,28 @@ checkpoint (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, `model_type: qwen3_5_moe`, ful
   uses `--moe-runner-backend marlin`, `--mamba-radix-cache-strategy extra_buffer`,
   `--mamba-ssm-dtype float32`, and 10 draft tokens) — a corroborating reference point, not this
   recipe's number. See §4 for the A/B that decomposed it.
+- **First-party DFlash head A/B — CLOSED 2026-10-14** (`.31`, `benchmarking/decode-triage.yaml`, C1,
+  n=5 per cell, decode-phase rows only, one boot per arm, same window). The vendor's own head
+  (`ornith-ai/Ornith-1.5-35B-A3B-DFlash`, `942d20fe…`, plain `DFlashDraftModel`, 0.77 GB) against the
+  shipped third-party `jzinno/…-DFlash2` (`9b4852c0…`, `DFlash2DraftModel`): both served (serve-log
+  `accept len` mean 2.44 / 2.50, i.e. > 1) and the C1 cells straddle each other — jzinno n=4
+  **95.9 (σ 10.9) / 101.3 (σ 2.6)** vs first-party n=4 **101.3 (σ 5.2) / 97.8 (σ 11.1)**, first-party
+  n=8 **92.7 (σ 7.9) / 92.8 (σ 9.3)** (d0 / d8192). No delta clears the ~9 t/s d0 boot noise and n=8
+  is *not* better (accept 2.75, the same shape as the 2026-10-11 draft-10 loss), so **the shipped
+  jzinno DFlash2 stands — the null is the result, not a tie-break.** The shipped draft is now
+  **pinned** (`speculative_draft_model_revision: 9b4852c0…`, distribution-only) with the `refs/main`
+  seed the pin needs (§3.12); the winner's pinned boot scored the house battery **37/37** (19/19 +
+  18/18). Receipts: `~/benchmarks/ornith-dflash-ab-20261014/` (`armA0-jzinno-n4`, `armA1-firstparty-n4`,
+  `armA2-firstparty-n8`, `armP2-pinned-seeded`, `armP1-pinned-cold` + `*-serve.log`, `quality.json`).
+- **Long-horizon agentic quality pass — 2026-10-14** (`.31`, one boot, the shipped surface): a
+  multi-turn tool-calling scheduling agent (growing transcript, up to 48 assistant turns and a
+  34,705-token prompt, 16k and 32k completion budgets, temp 0.6 and 1.0 ± `presence_penalty` 1.5)
+  shows **no decode loop** — a 25-word-window repeat reaching ≥3 occurs only where the model
+  re-lists the *provided* requirement set, and the reasoning grows with the task rather than
+  collapsing. House battery re-scored **37/37**; needle ladder 32k 3/3, 128k 3/3, 262,144 2/3 (the
+  miss a completion-budget artifact — the model emits reasoning at long context even under the
+  served default). Detail and the detection limit are in §6 and [`README.md`](README.md); receipts
+  `~/benchmarks/ornith-horizon-20261014/`.
 
 **397B (`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm`, 4 nodes, TP=4).** The flagship MoE,
 served with `--enable-expert-parallel` and the checkpoint's own MTP head as the speculative method
@@ -58,6 +83,21 @@ that **grafts the BFP16 MTP MoE from the base model onto the NVFP4 quantization*
 `ornith-ai/Ornith-1.5-397B`, ≈800 GB in bf16). Its model card reports **41.86 tok/s** on a 4× DGX
 Spark vLLM run — that is the `C1 t/s` in the parent table; it is a **card figure**, tied to whatever
 the `:latest` container tag resolved to when recorded (§3).
+
+**9B (`ornith-1.5-9b-nvfp4-dflash-sglang`, 1 node, TP=1) — BOOTED 2026-10-14.** The official
+`ornith-ai/Ornith-1.5-9B-NVFP4` (`155f200d…`, 8.8 GB of weights, dense ~9B, multimodal) with the
+first-party `ornith-ai/Ornith-1.5-9B-DFlash` draft (plain `DFlashDraftModel`) and SGLang DFLASH at 8
+draft tokens. **C1 ≈ 52–59 t/s** — two same-window sweeps on one boot (`.30`), n=5 per cell,
+decode-phase rows: cold d0 **51.7** (σ 13.2) / d8192 **56.6** (σ 9.0), warm d0 **59.4** (σ 6.8) /
+d8192 **54.1** (σ 16.4). Half the 35B's ~100 is **expected, not a defect**: the 35B-A3B activates ~3B
+params/token as a MoE, this is a *dense* ~9B. **House battery 37/37** (19/19 + 18/18, zero flakes).
+Spec engaged: serve-log `accept len` mean **3.35** (1.85–6.85) over 38 decode batches. The pinned
+image **does** load the plain draft (`Load weight end. … type=DFlashDraftModel`), accepts the alias
+spelling (block-size mismatch is warning-only), and the hybrid pool does **not** clamp
+`max_num_seqs: 48` (`max_mamba_cache_size: 273`, `max_running_requests=48`). The draft is deliberately
+**unpinned**: a SHA pin writes no `refs/` entry and the container's `HF_HUB_OFFLINE=1` draft-config
+lookup resolves only `refs/main`, so a pinned draft never starts (see §3.12). Receipts:
+[`README.md`](README.md); `~/benchmarks/ornith-9b-20261014/`.
 
 **Runtime split.** The 35B is SGLang and the 397B is vLLM; do not carry a Roofline or KV number
 across the two — they are different engines. The lane wires the `qwen3` reasoning parser and a Qwen
@@ -73,10 +113,11 @@ to reproduce reported benchmarks.
 |---|---|
 | what a recipe *is* and why | §3 (constraints) plus the recipes' own short tunable comments |
 | the A/B ladder, confirm/void analysis, quality score | [`README.md`](README.md) — the durable record |
+| the staged plans (9B arm, the two A/Bs, the quality set) and their acceptance criteria | [`NOTES.md`](NOTES.md) — working state, moved here into `README.md`/this file when a plan runs |
 | the honed-template delivery contract | [`mods/ornith-honed-chat-template/README.md`](../../mods/ornith-honed-chat-template/README.md) |
 | why `@eugr/mods/drop-caches` is inert | [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) |
 | engine-flag semantics (SGLang/vLLM) | [`mad-science/RESEARCH_LORE.md`](../../mad-science/RESEARCH_LORE.md) §5–§6 |
-| guards | `tests/test_ornith_honed_chat_template.py`, `tests/test_drop_caches_mod.py` |
+| guards | `tests/test_ornith_recipes.py`, `tests/test_ornith_honed_chat_template.py`, `tests/test_drop_caches_mod.py` |
 
 Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab-20261011/` (arms:
 `control`, `control2-honed`, `arm1-draft10`, `arm2-marlin`, `arm3-extrabuf`, `arm4-ssmfloat32`,
@@ -143,6 +184,23 @@ Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab
     resolver (`resolve_served_model_name`). Fixed and live-verified 2026-10-13 (boot
     `dadfb04b5145d956_8ed3ce77d78f`, `.34`: `GET /v1/models` → repo id); regression guard in
     `tests/test_ornith_honed_chat_template.py`.
+12. **A draft pin is distribution-only — it MUST be paired with a `refs/main` seed, or the arm dies.**
+    `speculative_draft_model_revision` never reaches the serve line (SGLang has no lookup there;
+    `runtimes/sglang.py::_detect_speculative_draft_revision` adds it to distribution only), and
+    sparkrun's SHA-keyed fetch writes `snapshots/<sha>/` with **no `refs/` entry** (its own
+    `models/preparation.py` writes `refs/<ref>` only for a *non-SHA* ref). The container runs
+    `HF_HUB_OFFLINE=1`, so SGLang's startup draft-config lookup
+    (`srt/arg_groups/speculative_hook.py::_resolve_speculative_algorithm_alias` → `get_config` on the
+    draft repo id; the surrounding resolution hook does not pass the revision) resolves only
+    `refs/main` and dies with `LocalEntryNotFoundError` at `resolve_once`. **Corrected 2026-10-14:**
+    the 35B recipe pins the draft *and* seeds the ref — `defaults.speculative_draft_model_revision:
+    9b4852c0…` plus a `pre_exec` hook that writes `<draft cache>/refs/main` = that SHA before serve.
+    Boot-verified 2026-10-14 on `.31` (35B, jzinno draft): with `refs/main` removed from *both* the
+    head and the node cache the pinned recipe serves (TTR 97 s, accept 2.50, `GET /v1/models` = repo
+    id) via the hook's write; the *same* pin without the hook crashes at `speculative_hook.py:53`.
+    The 9B arm's first-party draft stays deliberately unpinned — its unpinned fetch resolves
+    `refs/main` itself (boot-verified 2026-10-14, `.30`). Do not copy a draft pin into a new arm
+    without the same seed.
 
 ## 4. Negative results — do not re-derive / re-run
 
@@ -178,10 +236,18 @@ nothing drops the page cache for you (§3.5).
 no measured figure for the vLLM arms, and the DFlash2 draft is an SGLang-targeted artifact. Do not
 treat them as benchmarked comparisons.
 
-**No needle-in-a-haystack evidence for Ornith exists in this registry.** The model cards describe a
-YaRN factor-4.0 override to ~1M tokens, but **neither recipe enables it** — it is new,
+**Needle-in-a-haystack — measured 2026-10-14 (35B, `.31`): 32k 3/3, 128k 3/3, 262,144 2/3.** The
+one 262k miss is a completion-budget artifact, not a retrieval failure (§5). The model cards
+describe a YaRN factor-4.0 override to ~1M tokens, but **neither recipe enables it** — it is new,
 quality-unverified territory here (open-source runtimes apply YaRN statically for every request, so
 it can erode ordinary-length quality).
+
+**The long-horizon agentic looping report — NOT REPRODUCED (2026-10-14); do not re-run the
+single-turn battery expecting it.** Five long-horizon tool-using arms (16k and 32k budgets, temp 0.6
+and 1.0 ± `presence_penalty` 1.5, up to 48 turns and a 34,705-token prompt) show no decode loop; the
+windows that repeat ≥3 times are the model re-listing the *provided* requirement set, and the
+reasoning grows with the task. A null beside its detection limit is the result (§5, §6); receipts
+`~/benchmarks/ornith-horizon-20261014/`.
 
 ## 5. Quality
 
@@ -194,18 +260,46 @@ previously had no quality number.
   content-reading client sees **empty replies** when short answers stay in the reasoning channel.
 - The 397B lane has **no measured house score** in this registry.
 
+**Long-horizon agentic pass, 2026-10-14 (`.31`, one boot): no loop; house battery 37/37; needle
+32k 3/3, 128k 3/3, 262,144 2/3.** The 35B re-scores **37/37** (19/19 + 18/18, zero flakes) on this
+boot — parity with §1, no regression. Needle retrieval is intact at ~256k prompt tokens; the single
+262k miss is a **client-budget artifact**: at the native window the model emits ~150–200 characters
+of reasoning before the answer even under the served default, so a 64-token completion budget
+truncates the visible answer (a short-`max_tokens`, `content`-reading client sees empty or partial
+replies) — re-probing that depth at 256 tokens passes. The `tool-eval-bench` suite that
+[`NOTES.md`](NOTES.md) §5 C2 named is **not configured in this registry**, so the house battery is
+the lane's only suite score.
+
 ## 6. Open items (deliberately not closed)
 
-- **Reasoning loop — RESOLVED 2026-10-13: NOT REPRODUCED.** A reasoning-heavy probe battery on `.35`
-  found zero repeated-window runs; the symptom is thinking-budget exhaustion, not a decode loop, and
-  the SGLang serve line *honors* request-level sampling. No recipe change. Full method + table in
-  [`README.md`](README.md) §"Reasoning-loop investigation"; receipts `~/benchmarks/ornith-loop-20261013/`.
+- **Reasoning loop — NOT REPRODUCED on the long-horizon workload either (2026-10-14, `.31`); the
+  owner ratifies the bar.** The 2026-10-13 nine-prompt *single-turn* battery on `.35` found zero
+  repeated-window runs; the owner did not accept a null from an instrument that never exercised the
+  reported workload. The purpose-built long-horizon probe (multi-turn tool-using scheduling agent,
+  growing transcript, 16k/32k budgets, temp 0.6/1.0 ± `presence_penalty` 1.5) **also returns a
+  null**: no decode loop, ≥3-repeat windows only where the model re-lists the provided requirement
+  set, reasoning growing with the task, and valid plans submitted. **Detection limit** — ~35k-token
+  transcripts, 48 turns, 16k and 32k budgets, a 25-word-window metric firing at ≥3 repeats. C3
+  (sampling) is discriminated (no sampling-dependent loop); C4 (context) passes at two of three
+  windows, the third a client-budget artifact and reproduced at the 9B scale; C2 is met by the
+  house battery only (the named `tool-eval-bench` suite is unavailable here); C5 (9B cross-scale) is
+  run — same null, plus a worse empty-reply rate (0/3 needle hits at a 64-token budget, a
+  reasoning-budget artifact, not lost retrieval). Full method, arm table, result, and the
+  pre-registered bar are in
+  [`README.md`](README.md) §"Long-horizon agentic re-investigation (2026-10-14)" and
+  [`NOTES.md`](NOTES.md) §5; receipts `~/benchmarks/ornith-horizon-20261014/`.
 - **The 35B C1 re-measurement — CLOSED 2026-10-13.** Measured on `.35` with the pinned
   `benchmarking/decode-triage.yaml` (C1, n=5 per cell, decode-phase rows only): **99.6 t/s @ d0
   (σ 9.1)** / **100.2 t/s @ d8192 (σ 3.9)**; the `~100 t/s` headline holds. See §1.
-- **The 397B container digest pin** (see §3.8).
+- **The 397B container digest pin** (see §3.8) — and the MTP-vs-DFlash A/B that records it
+  ([`NOTES.md`](NOTES.md) §4).
 - **The house `mamba_full_memory_ratio: 3.51`** — picked to match precedent, not derived; a change
   is a traffic-shape decision.
+- **The 9B arm — CLOSED 2026-10-14.** Booted and measured (see §1); the two open boot questions
+  (plain `DFlashDraftModel` load, alias spelling) are answered yes.
+- **The 35B first-party DFlash head — CLOSED 2026-10-14.** A null A/B (indistinguishable from the
+  shipped jzinno DFlash2 at n=4; n=8 no better), so the shipped draft stands and is now pinned with
+  its `refs/main` seed. See §1 and [`NOTES.md`](NOTES.md) §3.
 
 ## 7. Validation ritual
 
@@ -223,14 +317,21 @@ find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 
 Use **plain** `validate`, not `--strict` (accepted warnings exist on shipped recipes).
 `recipe validate` does **not** resolve `mods:` — only a real launch (or `-n`) surfaces a resolution
-failure, and `tests/test_ornith_honed_chat_template.py` covers the staged-template wiring. The
-lane has **no `tests/test_ornith_recipes.py`** — nothing else here is mechanically enforced.
+failure, and `tests/test_ornith_honed_chat_template.py` covers the staged-template wiring. The lane's
+recipe guards live in `tests/test_ornith_recipes.py` (added 2026-10-14): the arm shapes, the
+model-revision pins (and the 9B draft's deliberate *absence* of one — see §3.12), the 35B draft's
+distribution-only pin **and** its `refs/main` seed hook (O5), the mamba/moe
+omission on the 9B arm, and the served-model-id spelling. Before that the
+lane had no recipe guard at all.
 
 ## 8. References
 
 - Announcement: <https://ornith.ai/ornith_1_5.html>
 - 35B checkpoint: [ornith-ai/Ornith-1.5-35B-A3B-NVFP4](https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4)
 - 35B draft (DFlash2): [jzinno/Ornith-1.5-35B-A3B-DFlash2](https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2)
+- 35B draft (first-party; A/B null 2026-10-14): [ornith-ai/Ornith-1.5-35B-A3B-DFlash](https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-DFlash)
+- 9B checkpoint: [ornith-ai/Ornith-1.5-9B-NVFP4](https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4)
+- 9B draft: [ornith-ai/Ornith-1.5-9B-DFlash](https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash)
 - 397B checkpoint: [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft](https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft)
 - 397B base: [ornith-ai/Ornith-1.5-397B](https://huggingface.co/ornith-ai/Ornith-1.5-397B)
 - DFlash 2: [Keep Drafting Parallel](https://inco.ai/blog/dflash2/) · [arxiv 2602.06036](https://arxiv.org/abs/2602.06036)

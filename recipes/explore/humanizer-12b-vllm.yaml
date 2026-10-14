@@ -1,0 +1,89 @@
+recipe_version: "2"
+model: jialinyyzz/humanizer
+# Pinned 2026-10-14 to the revision this arm was booted and measured on.
+model_revision: 7232532cb8466bd393544e97826e12e6b5e471ac
+# Same digest as the lane's other vLLM arm (kolibri-1-78b-fp8-vllm.yaml). vLLM
+# 0.29.0 resolves Gemma4UnifiedForConditionalGeneration (checked in-container:
+# transformers 5.16.1, arch present in ModelRegistry.get_supported_archs()).
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    jialinyyzz/humanizer — a 12B text-rewriting model (fine-tune of
+    google/gemma-4-12B, arch Gemma4UnifiedForConditionalGeneration, Apache-2.0)
+    that rewrites one AI-written draft so it reads human, keeping every
+    number, unit, date, name and quotation. NOT a chat model: the working
+    surface is /v1/completions with a byte-exact prompt assembled from the
+    repo's prompt_format.json (instr + "\n\n" + draft.strip() + sep, sep =
+    "\n\n### Rewritten:\n\n", fingerprint cc51d66b4c593f) — the checkpoint
+    ships NO chat template, so /v1/chat/completions/render 400s ("you must
+    provide a chat template if the tokenizer does not define one") and the
+    completion endpoint is the only surface. Sampling is per-request
+    (temperature 1.0, top_p 0.95, top_k OFF, min_p 0, repetition_penalty 1.0,
+    max_tokens <=2048, EOS-only stop); --generation-config vllm keeps the
+    checkpoint's own generation_config.json top_k 64 out of the server defaults
+    (vLLM's default sampling is temperature 1.0 / top_p 1.0, still not the
+    model's). The checkpoint's config is multimodal (a vision/audio tower
+    besides the text stack) but only the text stack is served: no multimodal
+    data is present, so limit_mm_per_prompt is zeroed for all three modalities.
+    Context: the card's working point is 8192 tokens for instruction + draft +
+    rewrite (native max_position_embeddings is 262144 but is NOT probed here).
+  model_url: https://huggingface.co/jialinyyzz/humanizer
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "12B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: explore, text_rewriting
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+# Port-open TTR measured at 277.9 s (HTTP-ready 277.9 s) on a warm cache — the
+# container start is what the port timer covers; a cold node spends ~800 s of
+# one-time distribution before the container even starts, then another ~280 s.
+readiness:
+  inference: false
+  port_timeout_s: 1200
+  health_timeout_s: 900
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: jialinyyzz/humanizer
+  max_model_len: 8192
+  dtype: bfloat16
+  # AGENTS.md's GB10 ceiling. Only the KV pool depends on it: the weights are
+  # 22.7 GiB of the 121.7 GiB budget, and at 0.85 the pool measured 370,597
+  # tokens (45.2x concurrency at a 8192 window).
+  gpu_memory_utilization: 0.85
+  # JSON must reach the shell as ONE word: the folded block scalar keeps the
+  # embedded single quotes. This key has no sparkrun flag-map entry, so it
+  # reaches vLLM only through the {placeholder} below; -o warns "unmapped"
+  # while still applying — do not delete it.
+  limit_mm_per_prompt: >-
+    '{"image": 0, "audio": 0, "video": 0}'
+
+# Comments must live OUTSIDE the folded `command:` block, or the `>` scalar
+# keeps them as literal text and the shell-comment rule eats every later flag.
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--jialinyyzz--humanizer/snapshots/7232532cb8466bd393544e97826e12e6b5e471ac
+  --served-model-name {served_model_name}
+  --revision=7232532cb8466bd393544e97826e12e6b5e471ac
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --dtype {dtype}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --limit-mm-per-prompt {limit_mm_per_prompt}
+  --generation-config vllm

@@ -203,14 +203,21 @@ class InertDefaults(unittest.TestCase):
     this shipped three: `moe_backend`, `tensor_parallel` and
     `num_speculative_tokens` all looked wired and were not, and one of them
     (`moe_backend`) was only caught by a subagent boot.
-
     Exceptions, with reasons: `extra_args` is a documented escape hatch whose
     wiring is per-recipe (two qwen4 arm recipes predate this guard and do not
-    reference it), and `mm_encoder_tp_mode` is read by the vLLM runtime's flag
-    map for the ornith 397B arm rather than by its template.
+    reference it); `mm_encoder_tp_mode` is read by the vLLM runtime's flag
+    map for the ornith 397B arm rather than by its template; and
+    `speculative_draft_model_revision` is read by the sglang runtime's draft
+    *distribution* path (`runtimes/sglang.py::_detect_speculative_draft_revision`)
+    rather than by a serve flag, so an arm may declare it purely to pin the
+    snapshot sparkrun stages on a node.
     """
 
-    ALLOWED_UNREFERENCED = {"extra_args", "mm_encoder_tp_mode"}
+    ALLOWED_UNREFERENCED = {
+        "extra_args",
+        "mm_encoder_tp_mode",
+        "speculative_draft_model_revision",
+    }
     # host/port are conventionally referenced too, but a couple of recipes pass
     # them via other spellings; do not police them here.
     NOT_POLICED = {"host", "port"}

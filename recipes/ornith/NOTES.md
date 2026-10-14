@@ -1,0 +1,341 @@
+# Ornith 1.5 — staged cluster work (`recipes/ornith/NOTES.md`)
+
+Working state for the lane: the plans this session authored off-cluster, with the
+acceptance criteria and the boot commands the next cluster phase executes. Nothing
+below was booted here — every node held another workstream during the authoring
+phase, so the numbers quoted are prior receipts, not new measurements.
+
+Read [`AGENTS.md`](AGENTS.md) first for the lane's constraints and traps; the
+durable record is [`README.md`](README.md). This file is the *plan*; when a plan
+runs, its result moves into `README.md`/`AGENTS.md` and the entry here is closed.
+
+**No hostnames or addresses in tracked files.** Node shorthand `.30`–`.35` only.
+
+---
+
+## 0. What this session produced
+
+| artifact | state |
+|---|---|
+| [`ornith-1.5-9b-nvfp4-dflash-sglang.yaml`](ornith-1.5-9b-nvfp4-dflash-sglang.yaml) | **booted + measured 2026-10-14** (§2, closed); the draft pin was dropped to make it serve |
+| [`../../tests/test_ornith_recipes.py`](../../tests/test_ornith_recipes.py) | lane guards O1–O4; the lane had none before |
+| plan A — 35B first-party DFlash vs shipped DFlash2 | §3, **executed + closed 2026-10-14** (null; shipped draft pinned) |
+| plan B — 397B DFlash head vs the checkpoint MTP head | §4, ready to execute |
+| plan C — long-horizon quality-confidence set | §5, **executed 2026-10-14** — a bounded null (no loop); the owner ratifies the bar |
+
+---
+
+## 1. Boot hygiene (applies to every arm below)
+
+These are not optional and are the same for all three plans.
+
+1. **Clear the node first.** `docker ps -q | wc -l == 0`. A memory-starved boot is
+   not a recipe cell — the lane voided one `.35` boot at 30.8 t/s with a serve log
+   ending in `Killed` (§4 of `AGENTS.md`).
+2. **Assert spec decode engaged.** The serve log shows `Mean acceptance length > 1`
+   on `Decode batch` lines. A boot that serves with an accept near 1 is a
+   misconfiguration, not a loss.
+3. **Assert the served id.** `GET /v1/models` returns the repo id, never a
+   `/cache/huggingface/hub/...` path.
+4. **One knob per arm, one boot per arm, same node per comparison.** The measured
+   same-config spread on this hardware is 7.5% (`.34`, 2026-10-11); without a
+   same-window control an arm measures boot noise, not the knob.
+5. **Read the decode-phase rows only.** Each bench cell emits a context-prefill
+   record **and** a decode record, and both carry `tg_throughput`. Filter
+   `is_context_prefill_phase` before pooling.
+6. **Keep the `sparkrun --output` JSON.** `~/.cache/sparkrun/benchmarks/bench_*/runs/`
+   is reaped; the output file carries the same records.
+7. **Push before launching.** `@littlecedar/<name>` resolves from the registry
+   *clone* on the head, not the local tree. Push, `sparkrun registry update
+   littlecedar`, and use `--transfer-mode local`.
+
+The measurement profile for all three plans is
+[`benchmarking/decode-triage.yaml`](../../benchmarking/decode-triage.yaml): depth
+{0, 8192}, pp 2048, tg 128, concurrency 1, `prefix_caching: true`, n=5 per cell.
+
+---
+
+## 2. The 9B arm — BOOTED 2026-10-14 (CLOSED)
+
+**Shipped and measured.** `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` booted on `.30`
+2026-10-14: `GET /v1/models` returns `ornith-ai/Ornith-1.5-9B-NVFP4`, spec decode
+engaged (serve-log `accept len` mean **3.35**, range 1.85–6.85, over 38 decode
+batches), house battery **37/37** (19/19 + 18/18), and C1 **51.7 / 56.6 t/s** (cold) and
+**59.4 / 54.1 t/s** (warm) at d0 / d8192 — n=5 per cell, decode-phase rows, two
+same-window sweeps on one boot. The numbers, the receipts, and the design rationale (no
+`mamba_*`/`moe_runner_backend`, no honed template, alias spelling, unpinned draft) now
+live in [`README.md`](README.md) §"the small single-Spark arm" and [`AGENTS.md`](AGENTS.md)
+§1 / §3.12; raw evidence is `~/benchmarks/ornith-9b-20261014/`.
+
+**The one design change the boot forced.** The arm as authored pinned the draft
+(`speculative_draft_model_revision: 21be3446…`) and **could not serve**: a SHA-keyed draft
+fetch writes no `refs/` entry, and the container's `HF_HUB_OFFLINE=1` draft-config lookup
+(`sglang …/speculative_hook.py::_resolve_speculative_algorithm_alias` → `get_config`)
+resolves only `refs/main`, so the server died with `LocalEntryNotFoundError` at
+`resolve_once`. The pin was removed — the 35B sibling's jzinno draft is unpinned for the
+same reason — and the trap is recorded as `AGENTS.md` §3.12. The `mamba_*`/`moe_runner_backend`
+omission was validated rather than assumed: the hybrid pool does **not** clamp
+`max_num_seqs: 48` (`max_running_requests=48`, `max_mamba_cache_size: 273`).
+
+**Both open boot questions are answered.** The pinned image *does* load the plain
+`DFlashDraftModel` (`Load weight end. … type=DFlashDraftModel`), and the card's
+`--speculative-dflash-block-size` alias is accepted (the block-size mismatch is
+warning-only). See [`AGENTS.md`](AGENTS.md) §1.
+
+---
+
+## 3. Plan A — 35B: first-party DFlash head vs the shipped jzinno DFlash2 — CLOSED 2026-10-14
+
+**Executed on `.31` 2026-10-14 — a null, and the shipped draft is now pinned.** One boot per arm,
+same window, `benchmarking/decode-triage.yaml`, decode-phase rows only (n=5 per cell; all arms serve
+with `accept len` mean > 1: jzinno 2.50, first-party n=4 2.44, first-party n=8 2.75):
+
+| arm | draft | n | d0 t/s (σ) | d8192 t/s (σ) |
+|---|---|---|---|---|
+| A0 | shipped `jzinno` DFlash2 | 4 | 95.9 (10.9) | 101.3 (2.6) |
+| A1 | first-party `942d20fe…` | 4 | 101.3 (5.2) | 97.8 (11.1) |
+| A2 | first-party `942d20fe…` | 8 | 92.7 (7.9) | 92.8 (9.3) |
+
+The 2026-10-13 jzinno baseline (99.6 / 100.2, σ 9.1 / 3.9) lands inside this window's spread. No
+delta clears the ~9 t/s d0 boot noise and n=8 is *not* better, so **the shipped jzinno DFlash2
+stands — the null is the result** (criterion 6). The winner's draft is pinned
+(`speculative_draft_model_revision: 9b4852c05fd00b672b7434b1bb105bc03c8682b0`, distribution-only)
+with a `pre_exec` hook seeding its `refs/main` — the pin alone leaves no `refs/` and the offline
+draft-config lookup needs `refs/main`; verified cold (both caches stripped) on `.31`, and the pinned
+boot scored the house battery **37/37**. Result, mechanism, and receipts now live in
+[`README.md`](README.md) §"First-party DFlash head A/B" and [`AGENTS.md`](AGENTS.md) §1 / §3.12;
+raw evidence is `~/benchmarks/ornith-dflash-ab-20261014/`.
+
+**The question.** The lane ships the *third-party* draft
+(`jzinno/Ornith-1.5-35B-A3B-DFlash2`, `9b4852c0…`, `DFlash2DraftModel`; unpinned when this plan was
+written, pinned 2026-10-14 as recorded above).
+The vendor published its own head two weeks later
+(`ornith-ai/Ornith-1.5-35B-A3B-DFlash`, `942d20fe…`, MIT, plain `DFlashDraftModel`,
+0.77 GB, no published numbers), which the lane's model scan already lists as an
+unmeasured candidate (`README.md` §"2026-10-10 update scan"). This plan turns that
+note into a measurement.
+
+**Arms** (one boot each, same node, same window, `benchmarking/decode-triage.yaml`,
+n=5 per cell):
+
+| arm | draft | n | why |
+|---|---|---|---|
+| A0 | shipped `jzinno` DFlash2 | 4 | the same-window control; the 99.6/100.2 baseline is another day's |
+| A1 | first-party `942d20fe…` | 4 | the head swap alone |
+| A2 | first-party `942d20fe…` | 8 | the card's block size; the 2026-10-11 ladder lost ~19% at n=10, so the sweep is bounded at 8 |
+
+Run A0–A2 interleaved if node time allows; the lane's own precedent is that a
+single ordered sweep cannot separate an arm from a drift in node state.
+
+```bash
+sparkrun benchmark performance @littlecedar/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang \
+  -H <node> --profile benchmarking/decode-triage.yaml \
+  --output ~/benchmarks/ornith-dflash-ab-<date>/armA2-firstparty-n8.json \
+  -o speculative_draft_model=ornith-ai/Ornith-1.5-35B-A3B-DFlash \
+  -o speculative_draft_model_revision=942d20fee84d04c9ecbf18e9c6fc4144914a1d5d \
+  -o speculative_draft_tokens=8
+```
+
+`-o` reaches the draft *distribution* pin as well as the rendered flag — verified
+against sparkrun 0.4.0 via `recipe._effective_default`, which consults applied
+overrides — so a single `-o` pair is the whole arm and no probe recipe file is
+needed.
+
+**Acceptance criteria**
+
+1. Every arm asserts `Mean acceptance length > 1` and a cleared node (hygiene §1).
+2. A delta counts only if it clears **the d0 boot noise, σ ≈ 9 t/s** (the 2026-10-13
+   d0 spread), and the losing arms are reported with the same σ rather than dropped.
+3. The winner runs the house battery once; the comparison arm's score is 37/37.
+4. **Pin the winner's draft** with `speculative_draft_model_revision: <sha>`
+   (`942d20fe…` first-party / `9b4852c0…` jzinno) in the shipped recipe's `defaults:`.
+   It is distribution-only by design — see §2 for why it is not rendered.
+5. A flag-side finding is required either way: record whether the pinned image
+   accepts `--speculative-dflash-block-size` (the card's spelling). If it does, the
+   recipe may switch to it; if it does not, the alias documented in §2 is load-bearing
+   and belongs in the recipe comment.
+6. Done when one draft is pinned and the C1 delta is a receipt in `README.md`. A null
+   ("the two drafts are indistinguishable") is a complete result and closes the item —
+   but only beside the same-window control.
+
+---
+
+## 4. Plan B — 397B: first-party DFlash head vs the checkpoint's MTP head (4 nodes)
+
+**The question.** The flagship arm specs with the grafted MTP head (`method: mtp`,
+3 tokens) and carries only a **card figure** (41.86 t/s, tied to the floating
+`:latest` tag). The third collection head is `ornith-ai/Ornith-1.5-397B-DFlash`
+(`db9c35a0…`, 2.58 GB, `DFlashDraftModel`, taps 1/9/…/57 of a 60-layer target, MIT,
+ungated, no published numbers). This is the registry's most expensive arm: 235 GB
+per node at `gpu_memory_utilization: 0.80`, four nodes.
+
+**Keep the target constant.** The shipped graft tree
+(`littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft`) carries both methods. Reach for the
+upstream plain quant (`ornith-ai/Ornith-1.5-397B-NVFP4`, `fcefb8b2…`, 241.8 GB)
+**only** if the graft's packaging fights `method: dflash` — a target swap makes the
+comparison two variables, and that swap gets its own line here if it happens.
+
+**Swap exactly one knob.** Arm MTP is the baseline re-measured in the same window
+(the 41.86 figure is a card number, not a house measurement). Arm DFlash replaces
+the `speculative_config` JSON:
+
+```bash
+sparkrun benchmark performance @littlecedar/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm \
+  -H <node-a>,<node-b>,<node-c>,<node-d> --profile benchmarking/decode-triage.yaml \
+  --output ~/benchmarks/ornith-397b-spec-ab-<date>/armDFlash.json \
+  -o 'speculative_config={"method":"dflash","model":"ornith-ai/Ornith-1.5-397B-DFlash","revision":"db9c35a091e89f942c609880f98bb385019dc4f8","num_speculative_tokens":8}'
+```
+
+The revision must be pinned **inside that JSON**, never via `model_revision:` — that
+SHA does not exist in the target repo and sparkrun reads both the draft and its
+revision out of the JSON to distribute the draft to all four nodes
+(`runtimes/_vllm_common.py`, `vllm_ray.py`). The MTP config's
+`max_model_len`/`attention_backend`/`moe_backend` keys are MTP-specific: start
+minimal, as above.
+
+**Traps to check before the boots**
+
+1. The floating nightly must expose `method: dflash` (the card claims ≥0.20.2, tested
+   0.28.0). Record the resolved digest **for both arms** — this also closes the
+   lane's long-open §3.8 item:
+   `docker inspect --format '{{index .RepoDigests 0}}' ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest`.
+   If the two arms resolve to different digests, the comparison is void and must be
+   re-run on one digest — say so rather than averaging across two engines.
+2. `--load-format instanttensor` and `@eugr/mods/instanttensor-hybrid-draft-loader`
+   were built for the MTP head. Read that mod and confirm the plain-safetensors draft
+   loads before spending a 4-node boot on a loader mismatch; if it needs the standard
+   loader, that is a second knob and is recorded as such.
+3. The draft adds roughly 2.6 GB per node on top of a 235 GB/node footprint at
+   0.80 — watch the budget before the second arm.
+
+**Acceptance criteria**
+
+1. Both arms are same-window; each is a clean boot (hygiene §1) with a recorded
+   digest and a serve-log acceptance figure.
+2. C1 at depth 0 and 8192 for both arms, beside each other, n=5 per cell.
+3. The winner is recorded in `README.md`/`AGENTS.md` **with the loser's rationale**,
+   and the `:latest` tag gets a digest pin in the recipe carrying the winner's
+   numbers.
+4. Done when both arms have receipts and the digest pin lands. This is the item most
+   likely to spill; if only one arm runs, that is an unfinished comparison, not a
+   result.
+
+---
+
+## 5. Plan C — quality confidence — EXECUTED 2026-10-14 (owner ratifies the bar)
+
+The owner was not convinced of the model's quality and was surprised the 2026-10-13 investigation
+could not reproduce the long-horizon looping. That investigation ran nine single-turn reasoning
+prompts × {temp 0, temp 0.6} × {4096, 8192 tokens} and found zero repeated-window runs. **A battery
+that cannot exercise a long-horizon agentic workload is not evidence about long-horizon looping** —
+that is the gap this plan closes.
+
+**Executed 2026-10-14 on `.31`** — C1–C4 in one boot of the shipped 35B arm, C5 in a second boot of
+the 9B arm — by
+`~/benchmarks/ornith-horizon-20261014/agentic_horizon_probe.py` (a long-horizon scheduling agent
+with a growing transcript; per-message and session 25-word-window repeat scoring, cross-turn 8-word
+shingle overlap, `finish_reason`), `tools/needle-haystack.py`, and `tools/quality-battery.py`. Full
+method, arm table, and result are in [`README.md`](README.md) §"Long-horizon agentic
+re-investigation (2026-10-14)"; receipts are `~/benchmarks/ornith-horizon-20261014/`.
+
+**Pre-registered experiment set (C1–C5).**
+
+- **C1 — Reproduce on the right workload.** A multi-turn tool-using loop carrying a large
+  transcript, scored on `reasoning_content` for repeated-window runs with `finish_reason` read to
+  separate a true loop from a budget truncation.
+- **C2 — A standard suite, not only the house battery.** The adopted shared suite
+  (`sparkrun benchmark tools`, tool-eval-bench) and the ds4 hard tier, beside the 35B's score.
+- **C3 — Sampling fidelity.** The card's *coding* sampling (temp 0.6) against its *general* recipe
+  (temp 1.0, top_p 0.95, top_k 20, min_p 0.0, **presence_penalty 1.5** — an anti-repetition knob
+  this endpoint had never served), same prompts, both ways.
+- **C4 — Context degradation.** `tools/needle-haystack.py` at 32k, 128k, and 262144 (the native
+  window; YaRN is not enabled in either recipe).
+- **C5 — Cross-scale.** Run C1–C4 on the 9B arm and compare.
+
+**Results against that set.**
+
+- **C1 — NOT REPRODUCED, bounded.** Five long-horizon arms (16k and 32k budgets, temp 0.6 and
+  1.0 ± `presence_penalty` 1.5, up to 48 assistant turns and a 34,705-token prompt) produced **no
+  decode loop**: the per-message 25-word repeat never exceeded 5, and every ≥3 event is the model
+  re-listing the *provided* requirement set, not replaying its own reasoning; cross-turn overlap
+  never approached 1 (max 0.71, the shared shingles being that same list); reasoning grows with the
+  task (63 → 638 words); no arm hit `finish_reason=length`; and the model converges on valid plans.
+  **Detection limit:** ~35k-token transcripts, 48 turns, 16k and 32k budgets, temp 0.6 and 1.0 ± a
+  presence penalty of 1.5, with the metric firing at ≥3 repeats — a loop outside that envelope is
+  not excluded.
+- **C2 — met only by the house battery.** **37/37** (19/19 + 18/18, zero flakes) re-scored on this
+  boot — parity with prior runs, no regression. The named `tool-eval-bench` framework is **not
+  configured in this registry**, so the "adopted shared suite" clause of C2 could not be run; the
+  house battery is the lane's only suite score. **Gap stated, not smoothed.**
+- **C3 — discriminated.** Request-level sampling is honoured (distinct `reasoning_content` hashes
+  at temp 0, 0.6, and 1.0 + `presence_penalty` 1.5). The card's *general* recipe gives the same
+  shape as the served coding sampling: no loop either way. **No sampling-dependent loop, so no
+  client-side mitigation is indicated.**
+- **C4 — passes at two of three windows; the third is a budget artifact.** 32k 3/3, 128k 3/3, and
+  the native 262,144 2/3 at a 64-token budget. The 262k miss is **not** a retrieval failure: at the
+  native window the model emits ~150–200 characters of reasoning before the answer under the served
+  default, so a 64-token budget truncates the visible answer; re-probing at 256 tokens passes, and
+  six repeats at 64 tokens mix full (`finish=stop`) and truncated (`finish=length`) answers.
+  Retrieval is intact at ~256k prompt tokens. Recorded as a **client-facing caveat** (short
+  `max_tokens` plus a `content`-reading client → empty or partial replies at long context), not a
+  capability limit.
+- **C5 — run; same null at the smaller scale, plus a worse empty-reply rate.** The 9B arm, booted on
+  `.31` (second boot, ready ~280 s), gives the same long-horizon shape (no decode loop; per-message
+  repeat max 2, the ≥3 session windows again the re-cited requirement list; reasoning growing
+  29 → 423 words; 9/5 valid/invalid plans) and a 32k needle **0/3 at a 64-token budget, every reply
+  empty**. A direct probe shows the empties are the *same* reasoning-budget artifact, worse at this
+  scale: the 9B spends 250+ characters of reasoning before answering, so `max_tokens=64` yields
+  empty content and `max_tokens=512` recovers the correct codeword in 2 of 3 tries. Retrieval itself
+  is intact; the 9B is simply more prone to reasoning-before-answer than the 35B (0/3 versus 2/3 at
+  64 tokens).
+
+**Bar for ratification (pre-registered — carried unchanged).** Quality is "confirmed" only if all
+of:
+
+1. **C1 is bounded, either way.** Reproducing the symptom satisfies the item directly. A null does
+   **not**: the report must state the *detection limit* — the longest transcript driven and the
+   repetition threshold the scoring could have caught — so the null is bounded evidence.
+2. **C2 holds.** No regression against the 35B's suite result at the served sampling.
+3. **C3 is discriminated.** The difference between the two sampling recipes is stated with receipts,
+   whichever way it goes.
+4. **C4 passes** at two of the three depths, and the failing depth (if any) is recorded as a
+   capability limit rather than smoothed over.
+
+**Verdict against the bar.** (1) met — a bounded null at both scales (C1, C5); (2) met in the
+house-battery sense only, with the suite C2 named unavailable and disclosed as an unmet clause;
+(3) met; (4) met at two windows, the third explained as a client-budget artifact, and reproduced at
+the 9B scale. **The set is complete except for the C2 suite clause.** The owner ratifies the result
+and decides whether the lane ships as-is, gates on a fix, or records the model as not recommended
+for long-horizon agentic work. The verdicts were pre-registered before the boots and are carried
+unchanged.
+
+---
+
+## 6. Root index (`recipes/README.md`) — the row to add (not edited here)
+
+The index is the parent agent's to edit. With §2 closed the row is measured, and the
+`🚀` condition is met — both warm C1 cells clear the ≥ 50 t/s threshold:
+
+| recipe | Scale | Runtime | Nodes (TP) | C1 t/s | Size | Mem | Flags |
+|---|---|---|---|---|---|---|---|
+| `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` | 9B | SGLang | 1 (TP=1) | 55 | ~11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧 |
+
+`✨` official, `🤏` smol, `👀` vision, `🧠` reasoning, `🦾` agent, `🔧` tools; `🚀` fast
+(C1 ≥ 50 t/s) — earned, but the per-run spread is wide (d0 σ 6.8–13.2, d8192 σ 9.0–16.4)
+and one cold cell sits at 26 t/s, so drop `🚀` if the lane wants the stricter read. `🌲`
+lcg_favorite is **not** claimed.
+
+## 7. Open questions (state after the 9B boot)
+
+Answered 2026-10-14 (§2, closed):
+
+- **Yes** — the pinned SGLang image loads a plain `DFlashDraftModel` (serve log:
+  `Load weight end. … type=DFlashDraftModel`).
+- **No** — the omitted `mamba_*` defaults do not cost concurrency on the 9B: the pool
+  grants `max_running_requests=48` with `max_mamba_cache_size: 273`.
+- **Yes** — the pinned image accepts the card's `--speculative-dflash-block-size` alias
+  (spelled `--speculative-num-draft-tokens`); the block-size mismatch is warning-only.
+
+Still open (Plan B, §4):
+
+- Does the plain-safetensors draft load under the instanttensor/hybrid-draft loader?
