@@ -252,10 +252,10 @@ before matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **370 tests,
-  all passing 2026-10-08** (down from 430: the K2 MoVA-36B lane's 64-test guard moved to
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **503 tests,
+  all passing 2026-10-14 (1 skipped)**. The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
-  `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`). Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
+  `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
