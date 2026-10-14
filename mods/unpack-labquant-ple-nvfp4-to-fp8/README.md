@@ -204,6 +204,25 @@ arithmetic is sound, and gate it on an eval before adoption. Also note the unpac
 is fp8 either way, so this specific change buys no per-token bandwidth; the labquant
 throughput case rests on its FP8 dense projections (§18.2), not on PLE.
 
+## Revision layouts (pinned `7c4f1bc1` vs step-5500 `6c01ac37`)
+
+The 2026-10-06 step-5500 revision (`6c01ac37…`, now the shipped pin) keeps the same 128 packed
+PLE pairs and byte-identical `[2500012, 80]` U8 / `[2500012, 10]` F8_E4M3 tensor contract, but
+changes the *file inventory*: `model-00026-of-00041.safetensors` carries **20** tensors — its 8 PLE
+pairs **plus** `ple.norm_{conv,key,query}.weight` (F32 `[10240]`) and the
+`ngram_embedding.weight_scale_2` scalar. The pre-fix classifier treated any file with a
+non-matching tensor as "mixed" and skipped it, so that file's 8 pairs vanished and the
+`EXPECTED_GROUPS = 128` gate failed closed (`found 120`).
+
+The mod now **preserves and rewrites**: it converts the PLE pairs in that file and copies the four
+extra tensors through unchanged into the emitted shard. Every fail-closed gate is unchanged — the
+pair-completeness check, the shape/dtype contract, `EXPECTED_GROUPS = 128`, and
+`EXPECTED_PLE_ONLY_FILES = 16` all still apply, so a genuinely corrupt PLE file (missing scale,
+wrong shape, wrong count) still refuses rather than writing a half-converted tree.
+
+The `weight_scale_2` scalar is unchanged in value (`3.324236240587197e-05`) and is still discovered
+by scanning shard headers; the `6 * weight_scale_2` invariant above is unaffected.
+
 ## Failure mode
 
 Fails closed. If shard count, shapes, or dtypes differ from the pinned contract it prints

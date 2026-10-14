@@ -98,7 +98,7 @@ export USER_GID="$(stat -c '%g' /cache/runtime)"
 
 HF_HUB="${HF_HUB:-/cache/huggingface/hub}"
 REPO="${MOD_LABQ_REPO:-local-inference-lab--Qwen3.8-Flash-Next-NVFP4}"
-REVISION="${MOD_LABQ_REVISION:-7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd}"
+REVISION="${MOD_LABQ_REVISION:-6c01ac378d22f6652c9f392c87700496eca8e5dc}"
 
 # Same tree the other labquant mods build. Run AFTER
 # mods/fix-labquant-modelopt-mixed-flat-schema, which is the only one that ever

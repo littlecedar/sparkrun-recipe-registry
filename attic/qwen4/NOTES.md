@@ -12,24 +12,34 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 
 ## State in five lines
 
-1. **Two production TP=2 lanes now ship** off the labquant checkpoint, plus the balanced base and the
-   RadixArk reference. See [`../../README.md`](../../recipes/qwen4/README.md) for the lane rationale.
-   - **Lane A (high concurrency):** `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang` — `max_num_seqs: 32`,
-     `max_mamba_cache_size: 128` (ceiling 28→32). Renders verified; boot-verified this session.
-   - **Lane B (long context, 1M):** `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang` — `max_model_len:
-     1000000` + YaRN override + `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`. Boot-verified this session.
-2. Best measured decode (unchanged): RadixArk **37.973 tok/s** k=1 d=0; peak **~87–91 aggregate** at
-   d=8192/k=16, both checkpoints falling ~38% by k=24. The story is a **decode-step model**
-   (`t_step = 8.375 ms + bytes/145.5 GB/s`), not a byte-reduction story.
-3. The lane's scarcest resource is **cluster time on one free TP=2 pair**. `.34/.35` free this session;
-   `.30/.31` restricted; `.32/.33` carry the DS4 serving job. **Both qwen4 checkpoints are now cached
-   on `.34/.35`** (RadixArk 126 GB, labquant 196 GB) — a boot needs no model pull.
-4. W1 (fp8 KV) = **config-level NO**; W2 (EXL3) = **NO-GO**; **W9 (long context) DELIVERED as Lane B**.
-   Open: W3/W4 (quality/gate soaks), W6 (TP=4), W7 (kernel timing), W12 (vLLM).
-5. **Directory is lean (production-only, ds4 convention):** `../../recipes/qwen4` holds just the 4
-   production recipes + `README.md` + `AGENTS.md` + this `NOTES.md`. **All** else — 24 arms, the
-   record/journal/ledger, and the status memos — is under [`../../attic/qwen4/`](../../attic/qwen4/)
-   (manifest: `attic/qwen4/ARMS-MANIFEST.md`).
+1. **The directory ships exactly two recipes (2026-10-14 cut):** the fastest TP=1
+   (`qwen3.8-flash-next-nvfp4-solo-vllm-b12x`, one Spark, PLE table on disk) and the fastest TP=2
+   (`qwen3.8-flash-next-nvfp4-labquant-sglang`, re-pinned to `6c01ac37`, 262k context). Both serve the
+   labquant export. See [`../../recipes/qwen4/README.md`](../../recipes/qwen4/README.md) for the cut
+   table and receipts.
+2. **Cut evidence (`benchmarking/decode-triage.yaml`, decode-phase rows):** TP=2 labquant
+   base **41.32 / 38.58** tok/s C1 (d0/d8192), re-pinned **40.32 / 43.29**; the other two labquant
+   TP=2 arms C1-tied (highcon 40.10/41.92, longctx 42.47/39.04); RadixArk TP=2 36.84/34.44; TP=1 solo
+   vLLM 33.92/34.35. Five in the cut window; the sixth, TP=1 solo SGLang, failed readiness there (a
+   port timeout, not architectural) and was **re-measured later the same day: 19.82 / 20.97**
+   (`bench_253dd84c9a78`) — ~42% below the TP=1 pick, so **it stays archived**.
+3. **All four non-survivors are in `attic/qwen4/arms/` (wave 4).** The shipped tooling uses
+   `.34/.35`; `.30/.31` are restricted and `.32/.33` carry peer work. Both qwen4 checkpoints are
+   cached on `.34/.35` (RadixArk 126 GB, labquant 196 GB). **Cache hygiene (owner policy 2026-10-14):**
+   the RadixArk checkpoint is referenced by **no recipe under `recipes/`** any more, so its node cache
+   was cleared 2026-10-14 with `hf cache rm -y model/RadixArk/Qwen3.8-Flash-Next-NVFP4` on `.34` and
+   `.35` (**freed 135.3 GB on each**; never a raw `rm -rf`). It is re-fetchable from the Hub, so a
+   resurrected RadixArk arm (or a needle/quality cross-check) costs a download.
+   *(2026-10-14 sixth-arm re-measure: `.34` was re-populated with the RadixArk snapshot — sparkrun
+   distributed 126 GiB to boot the archived arm there, since `.30` was held by another workstream.
+   Clear `.34` again if the cache-hygiene policy still stands.)*
+4. **The labquant chain was re-verified against `6c01ac37`** (W14): `unpack-labquant-ple-nvfp4-to-fp8`
+   gained a preserve-and-rewrite path (guard `tests/test_labquant_ple_mod_classify.py`),
+   `skip-labquant-vision-tower` was dropped as obsolete (the export serves **vision** again), and a
+   **hybrid-tree** defect in `fix-labquant-modelopt-mixed-flat-schema` (revision switch refused to
+   rebuild) was fixed — it now rebuilds on a stale stamp.
+5. **W1 (fp8 KV) = NO; W2 (EXL3) = NO-GO; W9 (long context) built then ARCHIVED (1M droppable).**
+   Open: W3/W4 soaks, W6 (TP=4), W7 (kernel timing), W12 (cross-runtime vLLM benchmark).
 
 ## Session 2026-10-04 (3) — lane harvest, in brief
 

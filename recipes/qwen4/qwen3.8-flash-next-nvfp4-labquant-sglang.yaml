@@ -1,8 +1,10 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
-# (99 GB, 37 shard files).  Do NOT unpin: this repo's `main` changed contents under us
-# once already (see caveats), and an unpinned pull can land on a weights-free snapshot.
-model_revision: 7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd
+# (106.3 GB, 43 files: model-00001..41 + hybrid-main-00001/02).  Do NOT unpin: this repo's
+# `main` changed contents under us once already (a 45 MB weights-free snapshot) — see caveats.
+# Re-pinned 2026-10-14 to the step-5500 QAD revision; the 7-mod chain below was re-verified
+# against it against this layout (see mods/unpack-labquant-ple-nvfp4-to-fp8/README.md).
+model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 2
@@ -15,20 +17,20 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: fp8
   kv_dtype: bf16
-  tags: lcg_favorite, fast
+  # vision: the step-5500 revision ships the vision tower BF16 (in `quantization_config.ignore`).
+  tags: lcg_favorite, fast, vision
   caveats: >
     Checkpoint is more aggressively quantized than the RadixArk export in exactly
     the attention/GDN and PLE-n-gram paths. No accuracy evaluation exists on this
     cluster for this export; benchmark wins here are NOT evidence of equal quality.
     Run an eval before adopting for anything user-facing.
-    Revision note, corrected 2026-10-04: the pin below is `7c4f1bc1a2d6...`, which the HF API
-    confirms is a POPULATED 36-shard / ~105.9 GB snapshot (not the weights-free 45 MB state an
-    earlier session saw on `main`). The 36-vs-37 shard discrepancy recorded in WORK section 17 was
-    two different revisions (`7c4f1bc1` = 36, `ada4da32` = 37), not a contradiction. `main` has
-    since moved AGAIN (2026-10-02 -> `6909a5bed089`), so the earlier comment here claiming `main`
-    "now points at 7c4f1bc1" is stale in detail; the ADVICE is unchanged: do not unpin. Re-check
-    against the node's cache before quoting a shard count as a disk fact (the API listing and the
-    bytes a node holds can diverge).
+    Revision note (2026-10-14): re-pinned to the step-5500 QAD revision `6c01ac37a2d6...` — 43
+    shards (~106.3 GB), the `main` head since 2026-10-06. The earlier pins (`7c4f1bc1` = 36 shards,
+    `ada4da32` = 37) are superseded. This revision changes the on-disk layout: one PLE shard now
+    carries `ple.norm_*` and `ngram_embedding.weight_scale_2` alongside its PLE pair, and its vision
+    tower is BF16 and already inside `quantization_config.ignore`. Do not unpin: `main` has twice
+    moved under us, once to a weights-free 45 MB snapshot — re-check the node cache before quoting a
+    shard count as a disk fact.
 
 mods:
   - "@eugr/mods/drop-caches"
@@ -54,13 +56,11 @@ mods:
   # config.json. Cost: +0.14 MB of weights per node, ~6 s. RadixArk ships these same
   # two projections BF16, so this matches the reference export rather than diverging.
   - "mods/demote-labquant-narrow-mxfp8-to-bf16"
-  # Marks the patched config `language_model_only: true`, so the engine sets
-  # self.visual=None (qwen3_vl.py:1243) and skips the vision tensors at load
-  # (qwen4_exp.py:2004).  REQUIRED: unlike RadixArk (which leaves the vision tower BF16
-  # The CLI route is unavailable: --language-model-only is refused for this arch
-  # (server_args.py:7724 allows only MuseGlimmerForConditionalGeneration), so the value
-  # has to come from config.json, which model_config.py:331 reads directly.
-  - "mods/skip-labquant-vision-tower"
+  # NB: `mods/skip-labquant-vision-tower` is DELIBERATELY ABSENT on this revision. It exists to work
+  # around the OLD export's NVFP4-quantised vision tower (scales with no destination under
+  # quant_config=None). The step-5500 revision ships the tower BF16 and already lists
+  # `model.visual.*` in `quantization_config.ignore`, so the load failure is gone and the mod would
+  # now only remove vision capability for nothing. The vision tower therefore loads (BF16).
   # NB: the two fastsafetensors mods are deliberately NOT listed here even though
   # the parent recipe lists them.  This recipe benchmarks with
   # load_format=safetensors, so they accomplish nothing -- and worse, they exec as

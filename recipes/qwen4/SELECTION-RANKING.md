@@ -73,6 +73,37 @@ is dominated on both axes" and "a negative result is a result":
 - **Untouched this pass** — embed, rerank, ifm, ds4 (ds4's own A/B work predates
   this pass and its receipts live in the lane docs).
 
+## 2026-10-14 delta — qwen4 cut to two (owner decision)
+
+The lane was cut from six shipped recipes to **two**: the fastest TP=1 and the fastest TP=2, both on
+the `local-inference-lab` export. Five were measured in one window on `.34/.35` with
+`benchmarking/decode-triage.yaml` (d0/d8192, C=1, 5 runs; receipts `~/benchmarks/q4-*-triage_1014_*`);
+the sixth (`…-solo-sglang`) failed readiness there and was re-measured later the same day on `.34`
+(`~/benchmarks/q4-solo-sglang2-triage_1014.*`).
+
+| arm | nodes | C1 d=0 / d=8192 (tok/s) | outcome |
+|---|---|---|---|
+| `…-labquant-sglang` | 2 | 41.32 / 38.58 (pre-pin); 40.32 / 43.29 (re-pinned `6c01ac37`) | **kept — TP=2** |
+| `…-labquant-longctx-sglang` | 2 | 42.47 / 39.04 | attic (1M quality unverified; 1M droppable) |
+| `…-labquant-highcon-sglang` | 2 | 40.10 / 41.92 | attic (C1-tied; larger pool) |
+| `…-nvfp4-sglang` (RadixArk) | 2 | 36.84 / 34.44 | attic (~12% slower) |
+| `…-solo-vllm-b12x` | 1 | 33.92 / 34.35 | **kept — TP=1** |
+| `…-solo-sglang` | 1 | 19.82 ± 2.06 / 20.97 ± 1.02 | attic (~42% below the TP=1 pick; measured after a readiness fix, `bench_253dd84c9a78`) |
+
+This resolves — for qwen4 — the earlier "no attic move was warranted" call under the frozen ranking:
+the frozen table's ranks 1–4 were four arms of one checkpoint, three of them C1-tied, and rank 5 (the
+solo vLLM arm) was unmeasured. With measurements, the three TP=2 arms are one arm (keep the base) and
+the TP=1 arm wins on node count despite ~18% less C1 throughput. The RadixArk checkpoint now has no
+shipped recipe and its node cache is cleared (owner cache-hygiene policy).
+
+**Sixth arm closed 2026-10-14.** The one unmeasured arm (`…-solo-sglang`) was booted and measured in a
+later window: **19.82 ± 2.06 t/s d=0 / 20.97 ± 1.02 d=8192** (`bench_253dd84c9a78`) — a clear loser
+to the shipped TP=1 arm (33.92 ± 1.73), so **the TP=1 pick stands**. The earlier "did not reach
+readiness" verdict is superseded: it was a port timeout (the file-backed PLE load opened the port at
+TTR 3477 s, past sparkrun's default 1800 s; the arm now carries `readiness.port_timeout_s: 3600`).
+The measurement re-populated the RadixArk snapshot on `.34` (sparkrun distributed the 126 GiB), where
+it briefly contradicts the "node cache is cleared" note above — `.30` still holds the canonical copy.
+
 ---
 
 # SELECTION RANKING DRAFT (Phase 5 input)

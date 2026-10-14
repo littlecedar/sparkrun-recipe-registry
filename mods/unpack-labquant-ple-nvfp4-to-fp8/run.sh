@@ -108,7 +108,7 @@ export USER_GID="$(stat -c '%g' /cache/runtime)"
 
 HF_HUB="${HF_HUB:-/cache/huggingface/hub}"
 REPO="${MOD_LABQ_REPO:-local-inference-lab--Qwen3.8-Flash-Next-NVFP4}"
-REVISION="${MOD_LABQ_REVISION:-7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd}"
+REVISION="${MOD_LABQ_REVISION:-6c01ac378d22f6652c9f392c87700496eca8e5dc}"
 
 # Same tree the config-schema mod builds. Both mods add to it; neither deletes it.
 OUT_DIR="${MOD_LABQ_OUT:-/cache/runtime/labq-patched}"
@@ -207,17 +207,27 @@ files_with_ple = sorted({f for n, f in wm.items() if "ngram_embedding.shard_" in
 log(f"index names {len([n for n in wm if 'ngram_embedding.shard_' in n])} PLE weights "
     f"across {len(files_with_ple)} shard files")
 
-pairs, ple_dedicated = {}, {}
+pairs, ple_dedicated, passthrough = {}, {}, {}
 for fname in files_with_ple:
     hdr = header_of(fname)
     names = list(hdr)
     matched = {n: KEY.match(n) for n in names}
     hit = {n: m for n, m in matched.items() if m}
-    if len(hit) != len(names):
-        # file mixes PLE tensors with unrelated weights; converting it in place
-        # would require rewriting those too, so skip and symlink it
-        log(f"  {fname}: {len(names)} tensors, {len(hit)} PLE -> mixed file, left as symlink")
+    if not hit:
+        log(f"  {fname}: no PLE tensors in header -> left as symlink")
         continue
+    # A PLE file may ALSO carry non-PLE tensors: the step-5500 revision adds
+    # ple.norm_{conv,key,query}.weight F32 and ngram_embedding.weight_scale_2 to
+    # model-00026. Rewriting the file in place means those must travel with it,
+    # so record them and pass them through unchanged. The OLD policy ("any file
+    # with a non-matching tensor is mixed -> skip it") made that file's 8 pairs
+    # vanish and the EXPECTED_GROUPS gate below fail closed -- a correct, loud
+    # failure, but one that blocked the upgrade. Preserve-and-rewrite instead.
+    extra = sorted(n for n in names if n not in hit)
+    if extra:
+        passthrough[fname] = extra
+        log(f"  {fname}: {len(names)} tensors, {len(hit)} PLE + {len(extra)} passed through "
+            f"({', '.join(extra)})")
     per_shard = {}
     for n, m in hit.items():
         mod, shard, kind = m.group(1), int(m.group(2)), m.group(3)
@@ -477,6 +487,13 @@ for fname in sorted(ple_dedicated):
         for key in keys:
             d = pairs[key]
             tensors[d["weight"]] = unpack_pair(d["weight"], d["scale"], fname)
+        # Carry the file's non-PLE tensors through unchanged, or the loader loses
+        # them (the step-5500 revision keeps ple.norm_* and weight_scale_2 here).
+        extra = passthrough.get(fname)
+        if extra:
+            with safe_open(os.path.join(SNAP, fname), framework="pt") as f:
+                for n in extra:
+                    tensors[n] = f.get_tensor(n)
         tmp = dst + ".tmp"
         save_file(tensors, tmp, metadata={"format": "pt"})
         os.replace(tmp, dst)
