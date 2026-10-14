@@ -44,11 +44,14 @@ register is `git show 8a98379:mad-science/TODO.md`. New items continue that regi
     the licence), keep it runbook/eval-only, or exclude it entirely?
     → Answer:
 
-19. **Gated / red-team arms.** `Lightricks/LTX-2.5` (`gated: auto`, needs a browser terms-acceptance and
+19. **Gated / red-team/blue-team arms.** `Lightricks/LTX-2.5` (`gated: auto`, needs a browser terms-acceptance and
     a per-node `HF_TOKEN`) **and all five `cybersec`-lane arms** (`drowzeys/*` and `orcarouter/*` are
     `gated: auto` behind responsible-use agreements) cannot be assumed downloadable in a registry
     distributed to third parties. Ship gated arms as runbook/eval-only with a documented per-node token
     + acceptance prerequisite, or exclude gated arms from the shipped tree?
+    *(Update 2026-10-14: all six releases are accepted — card/metadata reads verified for all six, so
+    the arms are buildable now; the open part of this question is only the third-party-distribution
+    policy.)*
     → Answer:
 
 20. **Media-arm acceptance criterion.** `EXPLORE-MODELS-RESEARCH.md` §6 proposes: a fixed prompt+seed
