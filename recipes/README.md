@@ -125,14 +125,17 @@ is archived under [`../attic/ifm/`](../attic/ifm/)._
 | poolside-laguna-xs-2.1-nvfp4-dflash-vllm        | ✨🧠🔧 |   57.4 | 22.5GB | 0.55 |  1 | [Model][poolside/Laguna-XS-2.1-NVFP4] [Draft][poolside/Laguna-XS-2.1-DFlash] — **boot-verified 2026-10-14, house battery 36/37; 262k pool-verified, needle probe open** |
 | poolside-laguna-s-2.1-nvfp4-dflash-vllm         | ✨🧠🔧 |   20.5 |  96GB | 0.85 |  1 | [Model][poolside/Laguna-S-2.1-NVFP4] [Draft][poolside/Laguna-S-2.1-DFlash-NVFP4] — **boot-verified; 120k capped-context single-tenant arm, battery 32/37** |
 | humanizer-12b-vllm                              | 🐢     |      — |  24GB | 0.85 |  1 | [Model][jialinyyzz/humanizer] — **text-rewriting arm, `/v1/completions` only (no chat template), off the lane's reasoning/tool brief** |
+| qwen-image-2.1-turbo-7b-bf16-diffusers-script             | 🐢     |      — |  33GB |    — |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
 
 Two selected 2026-10-13 by the **owner's criterion for this lane — accuracy decides, with preference for smaller and faster models** (supersedes the registry's node-count→speed default, which had ranked this lane on speed). Rank 1 is **Ling** (37/37, the accuracy champion); rank 2 is **Kolibri** (36/37 @4096, a 37/37 union — the lone miss is a thinking-budget truncation — so a near-tie on the deciding factor, and it wins the stated preference: 74 GB vs Ling's 154 GB, 47.3 vs 45.5 t/s). **Archived** to [`attic/explore/`](../attic/explore/ARMS-MANIFEST.md): `nemotron-3.5-lightning-30b-nvfp4-dspark-vllm` (the fastest measured arm, 77.7 t/s, and the smallest at 21 GB — but 33/37, the lane's lowest accuracy) and `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm` (a variant of it: 72.2 t/s, util 0.91).
 
-_Three further arms were built on 2026-10-14 and are recorded here without joining that two-arm
+_Five further arms were built on 2026-10-14 and are recorded here without joining that two-arm
 selection: the queued **Poolside Laguna-XS-2.1** (faster and smaller than both kept arms but one
-genuine battery miss below Kolibri) and **Laguna-S-2.1** (a capped-context 120k single-tenant entry),
-plus the off-brief **humanizer-12b** text-rewriting arm. Their receipts are in
-[`explore/README.md`](explore/README.md)._
+genuine battery miss below Kolibri), **Laguna-S-2.1** (a capped-context 120k single-tenant entry),
+the off-brief **humanizer-12b** text-rewriting arm, and the two **media-gen** arms outside the lane's
+brief — **Qwen-Image-2.1-Turbo** (image; non-commercial licence, shipped banner-marked eval-only) and
+**LTX-2.5** (video+audio; gated, shipped as a [runbook](explore/ltx-2.5-runbook/README.md)). Their
+receipts are in [`explore/README.md`](explore/README.md)._
 
 _Nemotron-262k (archived 2026-10-13): 1 node, 20.8 GB NVFP4 weights. **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
@@ -353,6 +356,7 @@ DSpark arm, and the depth/SSM/queue threads — moved to [`../attic/qwen3/`](../
 [poolside/Laguna-S-2.1-NVFP4]: https://huggingface.co/poolside/Laguna-S-2.1-NVFP4
 [poolside/Laguna-S-2.1-DFlash-NVFP4]: https://huggingface.co/poolside/Laguna-S-2.1-DFlash-NVFP4
 [jialinyyzz/humanizer]: https://huggingface.co/jialinyyzz/humanizer
+[Qwen/Qwen-Image-2.1-Turbo]: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
 [ornith-ai/Ornith-1.5-9B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4
 [ornith-ai/Ornith-1.5-9B-DFlash]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash
 

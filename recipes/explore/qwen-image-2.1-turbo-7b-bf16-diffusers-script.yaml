@@ -1,0 +1,88 @@
+# ===========================================================================
+# LICENCE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+#
+# Qwen/Qwen-Image-2.1-Turbo is licensed under the **Qwen Research License
+# Agreement** (card `license: other`, `license_name: qwen-research`, LICENSE in
+# the repo): **FOR NON-COMMERCIAL PURPOSES ONLY**. This registry is distributed
+# to third parties. A recipe ships a repo id, not weights — each downloader
+# fetches from the Hub and accepts the licence there — but that downloader
+# cannot use the weights, or images generated from them, commercially.
+#
+# Precedent: the MiniMax-M3 blocker and the Poolside S-2.1 draft-licence gap.
+# **Owner call 2026-10-14: ship the recipe with this banner.** An operator who
+# needs a commercially usable text-to-image arm must swap the checkpoint; the
+# serving path here (mods/qwen-image-2.1-turbo-launcher + this recipe) is
+# checkpoint-agnostic.
+#
+# The image-generation arm ships as an *eval-only* entry on that basis: the
+# explore lane's selection criterion is accuracy-over-speed for reasoning and
+# tool-calling models, and neither axis exists for a text-to-image checkpoint.
+# ===========================================================================
+recipe_version: "2"
+model: Qwen/Qwen-Image-2.1-Turbo
+# The Hub revision of 2026-10-12; this arm was brought up and measured on it.
+model_revision: fc13ba1986fcb905854dc8de2f52eee395f49b5b
+# The lane's existing digest-pinned image, used here only as the arm64 CUDA
+# torch base: the engine is diffusers' `QwenImage21Pipeline`, whose venv is
+# staged on top by the mod below. There is no sglang/vLLM runtime for this
+# checkpoint; `runtime: vllm` is the family whose model-distribution and
+# single-node launcher contract this command satisfies (the Kai vllm-srun arm
+# in recipes/decision/ is the precedent).
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Qwen/Qwen-Image-2.1-Turbo — text-to-image and image-editing checkpoint
+    (7B visual-generation DiT + Qwen3-VL text encoder + VAE, ~32.5 GB bf16),
+    8-step distilled schedule at CFG=1, served on ONE DGX Spark by diffusers'
+    `QwenImage21Pipeline` under a script launcher (no sglang/vLLM engine
+    exists for it). The checkpoint ships its own sampling schedule
+    (`sample_sigmas` in model_index.json) and prefix-KV context caching is on
+    by default. LICENCE: qwen-research — NON-COMMERCIAL ONLY (see the banner
+    at the top of this file). The mod stages a diffusers>=0.41 /
+    transformers>=5.17 venv on the image's torch and runs the HTTP server in
+    mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
+  model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "7B"
+  model_dtype: bf16
+  tags: explore, image, single_user
+
+mods:
+  - "@littlecedar/mods/qwen-image-2.1-turbo-launcher"
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own server line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+
+readiness:
+  # No chat surface: readiness is the port plus the server's own /health, not
+  # an inference probe (the Decision lane's classifier arms use the same
+  # convention). The mod's first-boot venv stage and the ~32 GB weight load
+  # both precede the port, hence the long budget.
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1200
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Declared so the server advertises the repo id, not the path sparkrun
+  # rebinds `{model}` to on a real launch. Rendering the flag here also stops
+  # the runtime's own `--served-model-name` append (it skips a command that
+  # already names the flag).
+  served_model_name: Qwen/Qwen-Image-2.1-Turbo
+
+command: >
+  /cache/runtime/qwen-image/venv/bin/python
+  /workspace/mods/qwen-image-2.1-turbo-launcher/server.py
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --sample-dir /cache/runtime/qwen-image/samples

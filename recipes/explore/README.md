@@ -427,6 +427,74 @@ copy — always md5 the head's file before a boot).
   negative, `laguna-s-decode-triage.{yaml,json,csv}`, `laguna-s-battery-4096.{json,log}`,
   `laguna-s-serve-live.log` with the acceptance series). Node `.35` left clear (0 containers).
 
+### Qwen-Image-2.1-Turbo — media-gen arm (2026-10-14)
+
+New recipe [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
++ [`mods/qwen-image-2.1-turbo-launcher`](../../mods/qwen-image-2.1-turbo-launcher) — the lane's
+first **non-`sglang`/vLLM** engine: `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`; **qwen-research,
+NON-COMMERCIAL ONLY**) served by diffusers' `QwenImage21Pipeline` on **one** node. `runtime: vllm` is
+the family whose distribution + single-node launcher contract the command satisfies (the Decision
+lane's `vllm-srun` precedent); `command:` runs a stdlib HTTP server (`POST /generate`, `GET /health`)
+out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
+(`vllm/vllm-openai:v0.29.0` digest pin — the image's transformers 5.16.1 is below the card's floor).
+Licence banner + policy note ship **in the recipe** (owner call 2026-10-14; MiniMax-M3 / S-2.1
+precedent): a recipe ships a repo id, not weights, and the downloader accepts the licence —
+commercial use is still barred.
+
+- **Boot-verified on `.34`** (task `sparkrun_d87820463a694961_8ed3ce77d78f`): TTR port-open
+  **206.1 s** (pipeline load 188.0 s; engine `diffusers 0.41.0 / transformers 5.19.0 / torch
+  2.13.0+cu130`). `GET /v1/models` → `Qwen/Qwen-Image-2.1-Turbo`.
+- **§6 acceptance**: 1024² at the checkpoint's shipped **8-step** schedule, CFG=1 — **11.33 / 11.41 s**
+  steady (first request 12.30 s; the doc's derived `54.1 × 8/40 ≈ 10.8 s` holds, +5%). First-step
+  latency 1.87 s cold / ~0.71 s warm; peak **36.85 GiB** alloc / 37.68 GiB reserved (node
+  `MemAvailable` 76.9 GiB during a request). A reference image fed back for editing cost **+3.5 s**
+  (14.8 s) — not the base model's 62.5 s. Same prompt+seed repeat wrote a **byte-identical PNG**
+  (1,116,690 B); all four images are 1024×1024 RGBA with no degenerate output. The eye-vs-vendor-gallery
+  verdict is the owner's (PNGs under `samples/`); the recorded check is objective non-degeneracy.
+- Two bring-up defects were found and fixed in the mod: the container's **non-root** user
+  (`1000:1000`) broke `reown()` (now chowns only as root), and a heredoc piped into `log()` killed the
+  pre-exec hook with **`rc=120`** after a successful install. Both patterns are fixed in
+  `mods/mod-template/run.sh` too.
+- **Verdict**: boots and serves text-to-image + editing on one GB10 at ~11.4 s per 1024²/8-step image
+  and ~36.9 GiB peak — off the lane's reasoning/tool brief **and licence-blocked for commerce**, so it
+  competes with nothing in the selection and ships as the banner-marked **eval-only** entry.
+- Receipts: `~/benchmarks/qwen-image-20261014/` on the head (`launch2.log`, `serve-tail.log`,
+  `modlogs/`, `samples/`, `results.json`, `edit.json`, `measure.py`, `analyze.py`). Details:
+  [`QWEN-IMAGE.md`](QWEN-IMAGE.md).
+
+### LTX-2.5 — media-gen runbook (2026-10-14)
+
+`Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) as a
+**two-stage ComfyUI** run on one GB10 — shipped as a **runbook, not a recipe**
+([`ltx-2.5-runbook/`](ltx-2.5-runbook/README.md)): the runtime is ComfyUI (no `sglang`/vLLM engine)
+and the repo is `gated: auto`, so a per-node `HF_TOKEN` + accepted terms is a prerequisite sparkrun
+cannot assume (owner decision 2026-10-14: ship gated arms with the documented prerequisite). The
+cluster token (`twichert`) **has acceptance** (README resolve → HTTP 200), so the arm was measured
+rather than blocked.
+
+- **Booted on `.35`**, unit pinned as a whole: ComfyUI **v0.34.0** + comfy-kitchen 0.2.31 +
+  frontend 1.49.6 + workflow-templates 0.11.48 + embedded-docs 0.5.10 (below 0.34 the refine
+  silently emits garbage); torch 2.14.1+cu130; clock capped at **2200 MHz** (§6(e) sustained-load
+  power-loss fix — all timings taken under the cap).
+- Weights ≈ **36.9 GB**: nvfp4 distilled transformer 18.72 + video VAE bf16 1.47 + audio VAE bf16
+  0.36 + x2 latent spatial upscaler 1.00 + Gemma-4-12B comfy int8 encoder 15.37. The `-nogemma`
+  variant is H3-hybrid-graph-specific and is **not** used — the native T2V template needs the Gemma
+  encoder. NVFP4 engages natively on `sm121` via comfy-kitchen.
+- **Two-stage run** (seed 42): stage 1 distilled **8-step @ 672×384** → `LTXVLatentUpsampler` ×2 →
+  **3-step refine @ 1344×768, 121 frames @ 24 fps** with audio muxed. **Cold wall 100.3 / 90.1 s**
+  (two reps), **warm 80.1 s**; stage split 14.0 load / 16.7 stage 1 / 2.5 upscale / 20.8 refine /
+  46.2 decode+mux; **peak 83.6 GiB** (0.69 util). Frames must satisfy `frames % 8 == 1` — the doc's
+  "124 frames" is the MiniMax-H3 draft's count; LTX outputs **121**.
+- **Output verified**: `ffprobe` → h264 1344×768 24 fps 121 frames + AAC (5.042 s, mean −43.6 dB /
+  max −25.7 dB, non-silent), plus a decoded frame at t=2.5 s (mean 0.185, std 0.124 — not black,
+  not noise).
+- Traps paid for: `hf download --include` silently drops patterns (pass explicit filenames); missing
+  `python3.12-dev` fails triton at the first kernel launch; subgraph workflow templates need
+  frontend-side expansion (`expand_subgraph.py` flattens them for `/prompt`); dropping `SaveVideo`
+  makes the graph "succeed" in 0.01 s having generated nothing.
+- Receipts: `~/benchmarks/ltx25-20261014/` on the head (four MP4s, server log, `mem.tsv`, decoded
+  frame, API prompt, `RESULTS.md` naming every command). Details: [`LTX-25.md`](LTX-25.md).
+
 ## Selection (2026-10-13)
 
 The lane keeps **two** recipes. **Owner decision 2026-10-13: for the explore lane the deciding factor is
@@ -443,13 +511,13 @@ Archived to [`attic/explore/`](../../attic/explore/) with a manifest: **Nemotron
 measured arm, 77.7 t/s, and the smallest at 21 GB — but 33/37, the lane's lowest accuracy, paying ~4
 quality tasks for speed) and the **Nemotron 1M arm** (a variant of it: 72.2 t/s, util 0.91).
 
-**Queued 2026-10-13 (owner directives):** the **Poolside Laguna family** — build
-`Laguna-XS-2.1-NVFP4` + its DFlash draft first (33B-A3B, 1 node, 22.5 GB download, Spark Arena
-precedent), then `Laguna-S-2.1-NVFP4` (118B-A8B, also 1 node per the single-Spark TP=1 sweep), with
-`Laguna-M.1` as a 2-node ceiling reference; and two **media-generation arms that sit outside this
-lane's reasoning/tool-calling brief** — `Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial licence,
-owner call required before it can ship**) and `Lightricks/LTX-2.5` (video+audio; gated repo) — plus a
-third off-brief arm, the text-rewriting helper `jialinyyzz/humanizer` (12B Gemma-4 finetune,
+**Queued 2026-10-13 (owner directives) — all built 2026-10-14:** the **Poolside Laguna family** —
+`Laguna-XS-2.1-NVFP4` + its DFlash draft (33B-A3B, 1 node) and `Laguna-S-2.1-NVFP4` (118B-A8B, 1 node)
+— shipped above, with `Laguna-M.1` left as an unbuilt 2-node ceiling reference; two
+**media-generation arms that sit outside this lane's reasoning/tool-calling brief** —
+`Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial licence**, shipped banner-marked eval-only,
+owner call 2026-10-14) and `Lightricks/LTX-2.5` (video+audio; gated repo, shipped as a runbook) — plus
+a third off-brief arm, the text-rewriting helper `jialinyyzz/humanizer` (12B Gemma-4 finetune,
 Apache-2.0, vLLM-servable via a byte-exact `/v1/completions` prompt).
 Inventory, GB10 precedents, and per-arm checklists: [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md)
 §5–§7. Otherwise nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only
