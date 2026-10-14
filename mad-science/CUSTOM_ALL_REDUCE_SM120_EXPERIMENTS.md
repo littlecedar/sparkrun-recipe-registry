@@ -136,7 +136,7 @@ decent and oneshot bought the last few percent.
 
 Everything the launcher owns lives in `RECIPE_ENV` and is applied with `env.update()`
 (**override**, not `setdefault`), so a container env or a recipe `env:` cannot override it
-(`../AGENTS.md` §4). **Every experiment below is a `mods/dsv41-sglang-overlay/launcher.py`
+(`../AGENTS.md` §4). **Every experiment below is a `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`
 edit**, then `git commit` + push/refresh the registry clone before launching (mod refs
 resolve from the registry clone, `AGENTS.md` §4). `-o key=value` reaches `defaults:` only
 and cannot change these. Render with `sparkrun run … -n` before each real boot.
@@ -274,7 +274,7 @@ Traced 2026-10-03.
   `.scratch/ds4/knapcio/docs/upstream-watch.md` (profile: 0.6 ms/step collectives;
   spec-decode broadcasts ~0.14 ms/step);
   `.scratch/ds4/knapcio/docs/adapters.md` and `adapter/spec_sync_free.py`;
-  `mods/dsv41-sglang-overlay/launcher.py` (`RECIPE_ENV`);
+  `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py` (`RECIPE_ENV`);
   `runtime/sglang-rocenante.patch`, `adapter/roce_gather.py`.
 
 ## 9. How to update this doc

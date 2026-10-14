@@ -43,7 +43,7 @@ SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
 
 ## [kolibri-1-78b-fp8-vllm](kolibri-1-78b-fp8-vllm.yaml)
 
-vLLM 0.29 + vendor plugin [`mods/install-kolibri-plugin`](../../mods/install-kolibri-plugin) ·
+vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/install-kolibri-plugin) ·
 **1 node (TP=1)** · **rank 2 — kept (near-tie accuracy; smaller + faster)**.
 
 - **Model:** `Aleph-Alpha/Kolibri-1` (Apache-2.0), pinned `258cae8f…`.
@@ -54,7 +54,7 @@ vLLM 0.29 + vendor plugin [`mods/install-kolibri-plugin`](../../mods/install-kol
   `executor_config: {entrypoint: ""}` (the image declares `ENTRYPOINT ["vllm","serve"]`); **thinking is
   ON by default** → callers need a larger `max_tokens` or thinking off, else truncated thinking yields an
   empty `content` (`tools/quality-battery.py --max-tokens`).
-- **Flags (extra):** bare `mods/install-kolibri-plugin` (unpublished-mod form — the scoped
+- **Flags (extra):** bare `recipes/explore/mods/install-kolibri-plugin` (unpublished-mod form — the scoped
   `@littlecedar/mods/…` fails) and launches need `--transfer-mode local`; `OMP_NUM_THREADS=4` and
   `gpu_memory_utilization: 0.78` (not the 0.85 ceiling) are the measured GB10 boot working point (CUDA
   reports ~11 GiB less than `MemAvailable`).
@@ -122,7 +122,7 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
 
-diffusers engine (no `sglang`/vLLM serves it) + [`mods/qwen-image-2.1-turbo-launcher`](../../mods/qwen-image-2.1-turbo-launcher) ·
+diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) ·
 **1 node** · eval-only.
 
 > **LICENCE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
@@ -130,7 +130,7 @@ diffusers engine (no `sglang`/vLLM serves it) + [`mods/qwen-image-2.1-turbo-laun
 > ONLY**. This registry is distributed to third parties. A recipe ships a repo id, not weights — each
 > downloader fetches from the Hub and accepts the licence there — but **neither the weights nor images
 > generated from them may be used commercially**. An operator needing commercial use must swap the
-> checkpoint; the serving path (`mods/qwen-image-2.1-turbo-launcher` + the recipe) is
+> checkpoint; the serving path (`recipes/explore/mods/qwen-image-2.1-turbo-launcher` + the recipe) is
 > checkpoint-agnostic. **Owner call 2026-10-14: ship the recipe with this banner.**
 
 - **Model:** `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`), text-to-image + editing, 8-step distilled

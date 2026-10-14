@@ -32,7 +32,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LANE = REPO_ROOT / "recipes" / "cybersec"
 ATTIC = REPO_ROOT / "attic" / "cybersec"
-MODS = REPO_ROOT / "mods"
+MODS = LANE / "mods"
 
 # arm -> (the repo the recipe serves weights from, the repo id clients must see)
 ARMS: dict[str, tuple[str, str]] = {
@@ -61,8 +61,8 @@ ARMS: dict[str, tuple[str, str]] = {
 }
 
 # arm -> extra mod it must list (the lane's two new mods). Bare `mods/<dir>` is the
-# shipped-local form the sibling labquant recipes use: it resolves against the registry's
-# mods root, so an in-tree mod works before a push and for a registry consumer alike.
+# lane-local form: it resolves adjacent to the recipe (`recipes/cybersec/mods/<dir>`),
+# so an in-tree mod works before a push and for a registry consumer alike.
 REQUIRED_MODS = {
     "qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml": (
         "mods/provide-uncensored-chat-template"

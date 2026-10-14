@@ -21,7 +21,7 @@ mods:
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/pip-install-fastsafetensors"
   # LAST: stages the honed chat template the --chat-template flag reads.
-  - "@littlecedar/mods/ornith-honed-chat-template"
+  - "mods/ornith-honed-chat-template"
 
 env:
   PYTHONUNBUFFERED: '1'

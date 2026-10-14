@@ -75,7 +75,7 @@ def resolve_engram_dir(model_dir: str | None = None) -> str | None:
        purpose: the engine globs ``*.safetensors`` non-recursively, so handing it
        the repo root would make it scan the 39 EXL3 shards.
     1. ``TENSORFOLD_ENGRAM_DIR`` / the default ``/cache/huggingface/hub/dsv41-engram``
-       -- where ``mods/dsv41-engram-fetch`` (or a hand pre-warm) writes.
+       -- where the ``dsv41-engram-fetch`` mod (or a hand pre-warm) writes.
     2. A sparkrun-*distributed* Engram repo: when the recipe declares
        ``manateelazycat/DeepSeek-V4.1-Flash-TensorFold-Engram`` (or any repo
        carrying the tables) in ``distribution_config.models``, sparkrun

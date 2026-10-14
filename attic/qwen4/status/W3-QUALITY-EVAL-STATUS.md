@@ -83,7 +83,7 @@ table**:
   **RadixArk = `F8_E4M3 [2500012,160]`×128 (51.20 GB)** and **labquant =
   `U8 [2500012,80]`+`F8_E4M3 [2500012,10]`×128 (28.80 GB)** — i.e. **both**
   checkpoints store the table quantised; RadixArk is already fp8 e4m3.
-- `mods/unpack-labquant-ple-nvfp4-to-fp8/README.md:26–28` independently confirms
+- `recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8/README.md:26–28` independently confirms
   this (RadixArk `F8_E4M3 [2500012, 160]`; labquant packed NVFP4). The mod exists
   precisely to unpack labquant's NVFP4 to the fp8 the engine's PLE loader wants.
 - §17 is **internally inconsistent**: three lines after that table it says

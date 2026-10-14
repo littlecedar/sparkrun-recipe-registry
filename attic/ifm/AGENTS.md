@@ -486,7 +486,7 @@ it, so the answer is in the mod log whether or not the server starts. Whether
 the FA4 kernels are COMPILED for sm_121 was the open runtime question —
 answered: they run (`README.md` §Arm sweep).
 
-**Mod design note (banner Q1).** `mods/probe-uno-fa4-sm121` replaces exactly
+**Mod design note (banner Q1).** `recipes/ifm/mods/probe-uno-fa4-sm121` replaces exactly
 the literal `("fa3","fa3")` comparison in `_handle_uno` and nothing else. It
 deliberately does NOT touch the fa3 capability assert in
 `attention_registry.py`, so that if UNO truly needs FA3 it fails loudly rather

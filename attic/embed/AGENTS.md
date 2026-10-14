@@ -25,7 +25,7 @@ Facts that span both lanes (kept here because neither recipe alone states them):
   keep port + `/health` only.
 - **Evidence docs** (git-ignored): `QWEN3-EMBED-OPTIMIZATION-WORK.md`, `EMBED-JOURNAL.md`.
 - **Guard:** `tests/test_qwen3_vl_embeddings.py` (42 tests) covers both lanes' recipes
-  and the shared chat template mod (`mods/provide-qwen3-vl-rerank-template/`).
+  and the shared chat template mod (`recipes/rerank/mods/provide-qwen3-vl-rerank-template/`).
 
 Deliberate omissions and knob notes, all cheap to re-test and expensive to get wrong:
 

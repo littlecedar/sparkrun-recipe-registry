@@ -976,7 +976,7 @@ worker progress first.
 A **second engine lane**, not a replacement for the EXL3/vLLM path. Source:
 `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` @ `58f2321` (downstream of
 MiaAI-Lab's recipe). Recipe `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, mod
-`mods/dsv41-sglang-overlay/`, full write-up `KNAPCIO-SGLANG-INTEGRATION.md`.
+`recipes/ds4/mods/dsv41-sglang-overlay/`, full write-up `KNAPCIO-SGLANG-INTEGRATION.md`.
 
 **It boots and serves on our four free Sparks** (`.32`–`.35`), TP=4, EP=1,
 native MXFP4/F8 checkpoint, Engram on node-local NVMe, DSpark k=5, 1M context,
@@ -1030,7 +1030,7 @@ outside the 7–25 % boot spread. **C1 46.5 beats the shipped vLLM/EXL3 TP=4 lan
    `launch.json`/`api-key`, the b12x JIT caches — lives under sparkrun's managed
    runtime cache
    (`~/.cache/sparkrun/runtime-cache/sglang/<model_dir>` → `/cache/runtime`),
-   which sparkrun creates and chowns per node. `mods/dsv41-sglang-overlay/run.sh`
+   which sparkrun creates and chowns per node. `recipes/ds4/mods/dsv41-sglang-overlay/run.sh`
    creates + `reown`s the subdirs; `launcher.py` is the **only** component that
    learns the rank (sparkrun appends `--node-rank` to every node's serve command;
    the container env has none) and it packs this rank's Engram shards when absent,
@@ -1479,7 +1479,7 @@ kernels, and measurement design are theirs, kept under their licences.
 
 ```
 recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml
-  mods: "@littlecedar/mods/dsv41-sglang-overlay"
+  mods: "mods/dsv41-sglang-overlay"
     run.sh            # fail-closed compatibility gate; creates + reowns cache dirs
     launcher.py       # RECIPE_ENV production config; rank handling; checkpoint resolution
       -> execve: /opt/dsv41/boot.py run     # builds the full sglang.launch_server argv
@@ -1546,7 +1546,7 @@ generous — a cold boot reads/packs a 510 GB checkpoint.
 
 ---
 
-## 4. The mod (`mods/dsv41-sglang-overlay/`)
+## 4. The mod (`recipes/ds4/mods/dsv41-sglang-overlay/`)
 
 **`run.sh` is a fail-closed compatibility gate.** It asserts that boot.py, the
 adapter `sitecustomize.py`, b12x_next, and the engine's `engram.py` all exist,
@@ -2186,7 +2186,7 @@ The two Engram tables are **not** distributed by sparkrun, and they are **not** 
 checkpoint: they belong to the *official* `deepseek-ai/DeepSeek-V4.1-Flash` repo, where they are
 shards 47/48 (~101.5 GB each). Pulling that whole checkpoint just to reach 189 GiB of tables ships
 ~285 GB the engine never reads — so the recipe no longer depends on anyone having copied the shards
-onto the node by hand. It carries `mods/dsv41-engram-fetch`, which builds the tables **on each runner
+onto the node by hand. It carries `recipes/cybersec/mods/dsv41-engram-fetch`, which builds the tables **on each runner
 node from the online repo**:
 
 ```bash
@@ -2459,7 +2459,7 @@ same model:
 | | knapcio TP=4 (README "Caveats" §) | TensorFold TP=2 (this section) |
 |:--|:--|:--|
 | Engine | real `sglang.launch_server` + `dsv41-sglang-overlay` | `tensorfold serve` (shim) |
-| Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 9400000** in `mods/dsv41-sglang-overlay/launcher.py` | **`--context` itself**; no pool flag exists |
+| Pool control | `MAX_TOTAL_TOKENS` → sglang's `--max-total-tokens`, **pinned at 9400000** in `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py` | **`--context` itself**; no pool flag exists |
 | Window vs pool | `CONTEXT_LENGTH` (per-request, clamped 4096..1048576) **separate** from the pool | same number — `cap = context + max_rows + 8` |
 | B/token/rank | ~1,670 (TP4: ~77 GiB of weights/rank leaves room) | ~2,900 marginal, and only ~2.1 GiB nominal |
 | Pool capacity | `MAX_TOTAL_TOKENS=9400000` pinned (ceiling ≈9.5–9.6M); the boot line's `full_token` is the *budget* the host allows | 1,048,576 total, ever |
@@ -2580,7 +2580,7 @@ opt-in CLI flag (default off; no env enables it), and the shipped
    (a file path yields `VL bias for 0 gates`).
 
 Measured results (evidence in `.scratch/ds4/vision-trial/RESULTS.md`, recipe copies
-`baseline.yaml` / `vision.yaml`, overlay mod `mods/dsv41-vision-overlay/`):
+`baseline.yaml` / `vision.yaml`, overlay mod `recipes/ds4/mods/dsv41-vision-overlay/`):
 
 - **As shipped (no `--vision`)**: image request → **HTTP 400**
   `image input requires a supported vision checkpoint served with --vision`. Text works.
@@ -2598,7 +2598,7 @@ Measured results (evidence in `.scratch/ds4/vision-trial/RESULTS.md`, recipe cop
 a two-part change (`--vision` + the staged VL bias), so the recipe still carries no `vision` tag and
 the shipped launcher still refuses images. To ship it, add `--vision` to
 `mods/tensorfold-dsv41-launcher/launcher.py`, ship the 43-gate `vl_bias.safetensors` (see
-`mods/dsv41-vision-overlay/`), and set `TF_DS_VISION_EXTRA` at that folder.
+`recipes/ds4/mods/dsv41-vision-overlay/`), and set `TF_DS_VISION_EXTRA` at that folder.
 
 The engine's own `docs/vision.md` describes `--vision` for GLM/Qwen families; the DeepSeek-V4.1 path
 is the family's own `cuda/vision.py` and is what the fork's `tools/dsv41/REPORT.md` measured (6/6
@@ -2773,7 +2773,7 @@ A per-node-Engram design: the model's two 203 GB Engram tables cannot live in
 the 128 GB unified memory of a Spark, so they are packed to node-local NVMe and
 read on demand. The engine, its kernels, and the reader all come from the
 vendored image; this repository supplies only the recipe and the pre-launch mod
-(`mods/dsv41-sglang-overlay/`).
+(`recipes/ds4/mods/dsv41-sglang-overlay/`).
 
 Provenance: this lane adapts
 [`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
@@ -3054,7 +3054,7 @@ the `ds4-sglang-depth0-ladder` profile) measured γ=2 at C1 37.70 vs 37.67 (~0),
 (−5.3%), C8 92.12 vs 94.88 (−2.9%), C16 102.58 vs 98.19 (+4.5%). γ=2 loses at moderate
 concurrency — matching the counter-evidence the fork itself records. Probable mechanism: this
 lane's `DSV41_VERIFY_CAP=conf:0.1` + `DSV41_BLOCK_VERIFY=1` change the window economics and the
-fork ran no conf cap. Receipts: `~/benchmarks/ds4-gamma2-20261010/{ladder-gamma2,ladder-gamma5-control}.{json,yaml}`; full write-up in the `DSPARK_BLOCK_SIZE` comment in `mods/dsv41-sglang-overlay/launcher.py`. Both boots ran below the 2026-10-06 receipts (documented inter-boot drift), so the verdict is within-pair, not absolute.
+fork ran no conf cap. Receipts: `~/benchmarks/ds4-gamma2-20261010/{ladder-gamma2,ladder-gamma5-control}.{json,yaml}`; full write-up in the `DSPARK_BLOCK_SIZE` comment in `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`. Both boots ran below the 2026-10-06 receipts (documented inter-boot drift), so the verdict is within-pair, not absolute.
 
 ### Do not apply the SPS ragged-verify table
 
@@ -3091,7 +3091,7 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 | Recipe | `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
 | Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
-| Engram | Built on-node from the online official repo by `mods/dsv41-engram-fetch` (~189 GiB) |
+| Engram | Built on-node from the online official repo by `recipes/cybersec/mods/dsv41-engram-fetch` (~189 GiB) |
 | Nodes | 2 (TP=2, one GB10 per node) |
 | Context | **1,048,576 tokens served** — the model's full trained window, which is also the KV pool |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
@@ -3129,12 +3129,12 @@ the shipped launcher does not pass, so an `image_url` part is refused with HTTP 
 bias (43 `ffn.gate.bias_vl` tensors, extracted from the official weights) makes image input work —
 three discriminating images were described correctly, including a swapped-order one. It is a
 two-part change, so it is not shipped. See [`AGENTS.md`](AGENTS.md) §12.14 for the full picture,
-the evidence, and the overlay mod (`mods/dsv41-vision-overlay/`).
+the evidence, and the overlay mod (`recipes/ds4/mods/dsv41-vision-overlay/`).
 
 **Engram: this lane provisions its own tables from the online repo.** The EXL3 checkpoint
 omits the two Engram embedding tables (layers 1 and 14, ~189 GiB); they exist only in the
 *official* `deepseek-ai/DeepSeek-V4.1-Flash` checkpoint. The recipe now carries
-`mods/dsv41-engram-fetch`, which runs `tools/build-dsv41-engram.py` on each runner node: it
+`recipes/cybersec/mods/dsv41-engram-fetch`, which runs `tools/build-dsv41-engram.py` on each runner node: it
 locates the four `engram.embed.{weight,scale}` tensors via the repo's safetensors index and
 copies them with **HTTP byte-range reads** — the ~285 GB checkpoint is never pulled and the
 model weights are never unpacked into a local HF cache. Peak RSS is ~0.6 GiB on a node whose
@@ -3154,7 +3154,7 @@ is downloaded once on the head and rsynced to the workers, instead of N×189 GiB
 egress); the launcher reads them from that cache dir. Either way, a **rank-0/rank-1 Engram
 mismatch hangs at readiness**, so make sure all ranks have the tables before booting. See
 [`AGENTS.md`](AGENTS.md) §12.7, [`tools/README.md`](../../tools/README.md), and
-[`mods/dsv41-engram-fetch/README.md`](../../mods/dsv41-engram-fetch/README.md).
+[`recipes/cybersec/mods/dsv41-engram-fetch/README.md`](../../recipes/cybersec/mods/dsv41-engram-fetch/README.md).
 
 ### Combined local repo lane (weights + Engram + prompt in one repo)
 

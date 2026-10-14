@@ -28,7 +28,7 @@ Facts that span both lanes (kept here because neither recipe alone states them):
 - **The reranker is asymmetric (cross-encoder)**: it resolves `classify` /
   `token_classify` rather than a score-embedding path, and image documents are consumed
   as vision tokens. The chat template that makes this correct ships via
-  `mods/provide-qwen3-vl-rerank-template/`; a reranker that returns HTTP 200 with
+  `recipes/rerank/mods/provide-qwen3-vl-rerank-template/`; a reranker that returns HTTP 200 with
   plausible-looking scores while computing them the wrong way is the failure mode the
   guard suite exists for.
 - **Evidence docs** (git-ignored): `QWEN3-EMBED-OPTIMIZATION-WORK.md`, `EMBED-JOURNAL.md`.
@@ -57,7 +57,7 @@ Launch-log sanity checks: vLLM prints `Resolved architecture: ...` and must **no
 ``Resolved `--convert auto` to `--convert embed` `` for these recipes.
 
 **Chat-template coupling.** `reranker_chat_template` is published by
-`mods/provide-qwen3-vl-rerank-template` before the serve line runs. Do not point it at the
+`recipes/rerank/mods/provide-qwen3-vl-rerank-template` before the serve line runs. Do not point it at the
 checkpoint's `chat_template.jinja`: that template has no `query` / `document` role handling
 and would silently score an empty pair. The mod resolves its output directory as
 `${MOD_CACHEDIR:-${XDG_CACHE_HOME:-/cache/runtime}}`, and a mod cannot export variables into

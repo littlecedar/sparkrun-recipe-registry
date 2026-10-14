@@ -64,7 +64,7 @@ headline is now measured). New `attic/ornith/AGENTS.md`; root cross-reference up
 **71.6% vs clef's 70.3% alone** (+1.3, McNemar p=0.012) — pairing-specific (clef+Sol 69.9%, 3-way 69.6%);
 co-residency slows the CPU model ~45%. New stdlib tool `tools/decision-tandem.py`.
 
-**kolibri mod defect.** `mods/install-kolibri-plugin` keyed idempotence on a persistent marker while pip installs
+**kolibri mod defect.** `recipes/explore/mods/install-kolibri-plugin` keyed idempotence on a persistent marker while pip installs
 into the ephemeral container layer → the second boot died `ModuleNotFoundError`. Fixed (gate on a live import at
 the pinned version), README corrected, new `tests/test_kolibri_plugin_mod.py` (8 tests, fail-before/pass-after
 proven).

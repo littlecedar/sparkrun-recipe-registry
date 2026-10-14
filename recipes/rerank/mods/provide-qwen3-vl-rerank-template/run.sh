@@ -47,7 +47,7 @@ set -euo pipefail
 #
 # Usage in a recipe:
 #   mods:
-#     - "@littlecedar/mods/provide-qwen3-vl-rerank-template"
+#     - "mods/provide-qwen3-vl-rerank-template"
 #   defaults:
 #     reranker_chat_template: /cache/runtime/templates/qwen3-vl-reranker-query-document.jinja
 #   command: ... --chat-template {reranker_chat_template}

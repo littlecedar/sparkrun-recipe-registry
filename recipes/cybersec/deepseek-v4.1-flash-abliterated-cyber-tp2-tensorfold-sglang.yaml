@@ -29,7 +29,7 @@ metadata:
     builds it under /cache/runtime); engine util stays <= 0.85.
 
 mods:
-  - "@littlecedar/mods/dsv41-engram-fetch"
+  - "mods/dsv41-engram-fetch"
   - "mods/graft-dsv41-ablit-wo-b"
   - "@littlecedar/mods/tensorfold-dsv41-launcher"
 

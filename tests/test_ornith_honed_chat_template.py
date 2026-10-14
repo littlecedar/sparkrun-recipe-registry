@@ -34,7 +34,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_DIR = REPO_ROOT / "mods" / "ornith-honed-chat-template"
+MOD_DIR = REPO_ROOT / "recipes" / "ornith" / "mods" / "ornith-honed-chat-template"
 MOD_SCRIPT = MOD_DIR / "run.sh"
 TEMPLATE = MOD_DIR / "chat_template.jinja"
 EXPECTED_SIZE = 30438
@@ -171,7 +171,7 @@ class RecipeWiring(unittest.TestCase):
         )
         self.assertIn("honed_chat_template: /cache/runtime/ornith-honed-chat-template/chat_template.jinja", text)
         self.assertIn("--chat-template {honed_chat_template}", text)
-        mods_pos = text.index("@littlecedar/mods/ornith-honed-chat-template")
+        mods_pos = text.index("mods/ornith-honed-chat-template")
         pipe_pos = text.index("@littlecedar/mods/pip-install-fastsafetensors")
         self.assertGreater(mods_pos, pipe_pos, "template staging must run after pip-install")
 

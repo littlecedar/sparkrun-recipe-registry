@@ -25,7 +25,7 @@ metadata:
   tags: official, large_context, lcg_favorite, vision
 
 mods:
-  - "@littlecedar/mods/dsv41-sglang-overlay"
+  - "mods/dsv41-sglang-overlay"
 
 executor_config:
   entrypoint: ""

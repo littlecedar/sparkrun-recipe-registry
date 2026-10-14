@@ -1,4 +1,4 @@
-# mods/install-kolibri-plugin
+# recipes/explore/mods/install-kolibri-plugin
 
 Installs [`aleph-alpha-inference`](https://github.com/Aleph-Alpha/aleph-alpha-inference)
 — Aleph Alpha's pure-Python vLLM plugin — into the serve container, so

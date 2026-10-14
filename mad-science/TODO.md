@@ -85,11 +85,11 @@ Selection priorities:
 ## ds4
 DeepSeek V4.1
 - [ ] **Ship TP=2 vision** — proven on our hardware ("supported and now proven … but not shipped"): a two-part change (`--vision` + the 43-tensor `vl_bias.safetensors` folder); the recipe still refuses `image_url` with HTTP 400 (`attic/ds4/AGENTS.md`). *(effort: short)*
-- [ ] **Run the two KNAPCIO post-pin defer experiments as tracked A/Bs** — `DSV41_CACHE_GIB=0` (third-party +9% KV pool; shipped value is 4 GiB) and the `SGLANG_RUST_BUILD_MODE` cargo-probe boot-hang workaround (`mad-science/KNAPCIO-UPSTREAM-DELTA.md:49,56`; `mods/dsv41-sglang-overlay/launcher.py:116,162`). *(effort: short)*
+- [ ] **Run the two KNAPCIO post-pin defer experiments as tracked A/Bs** — `DSV41_CACHE_GIB=0` (third-party +9% KV pool; shipped value is 4 GiB) and the `SGLANG_RUST_BUILD_MODE` cargo-probe boot-hang workaround (`mad-science/KNAPCIO-UPSTREAM-DELTA.md:49,56`; `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:116,162`). *(effort: short)*
 - [ ] **RoCEnante coverage sweep + auto-crossover microbench** — the memo's §5 E3/E5 ("actually worth running"): do TP all-reduces/gathers >2 MiB silently fall back to NCCL (`SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB), and the 1 KB…2 MiB RoCEnante-vs-NCCL crossover curve (none measured) (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:166-196`). *(effort: medium)*
 - [ ] **Re-test `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE`** — both named and deliberately off (CERT_HEAD −0.5 ms/step at c1 but slower from ~10 requests; ENGRAM_DRM_NODE needs a host display-reserve change) (`attic/ds4/AGENTS.md`). *(effort: medium)*
-- [ ] **DSpark verify-window γ=3** — only γ=2 vs γ=5 was A/B'd; the fork's own baseline point (γ=3) was never measured on this lane (`mods/dsv41-sglang-overlay/launcher.py:140-158`). *(effort: short)*
-- [ ] **[storage] Collapse the DS4.1 EXL3 duplication** — see DECISIONS #29; per node serving both lanes the same ~197 GB weights + ~189 GiB Engram tables exist twice (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`, `recipes/cybersec/README.md`, `mods/graft-dsv41-ablit-wo-b/README.md:17-19`). *(effort: medium)*
+- [ ] **DSpark verify-window γ=3** — only γ=2 vs γ=5 was A/B'd; the fork's own baseline point (γ=3) was never measured on this lane (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:140-158`). *(effort: short)*
+- [ ] **[storage] Collapse the DS4.1 EXL3 duplication** — see DECISIONS #29; per node serving both lanes the same ~197 GB weights + ~189 GiB Engram tables exist twice (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`, `recipes/cybersec/README.md`, `recipes/cybersec/mods/graft-dsv41-ablit-wo-b/README.md:17-19`). *(effort: medium)*
 
 ## glm5
 GLM 5.3
@@ -108,7 +108,7 @@ Ornith 1.5
 
 ## qwen3
 Qwen 3.x
-- [ ] **Boot the 27B TP=2 arm with `mods/fix-fastsafetensors-tp2-sglang`** — the lane's self-declared "Highest value" open item (TP=2 halves weight-read time); the fix mod exists and has never been run (`attic/qwen3/AGENTS.md:166-169`; `attic/qwen3/NOTES.md` §4 WP1). *(effort: medium)*
+- [ ] **Boot the 27B TP=2 arm with `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang`** — the lane's self-declared "Highest value" open item (TP=2 halves weight-read time); the fix mod exists and has never been run (`attic/qwen3/AGENTS.md:166-169`; `attic/qwen3/NOTES.md` §4 WP1). *(effort: medium)*
 - [ ] **Pin the 27B arm's checkpoint and its `incoai` DFlash2 draft** — the only unpinned shipped arm in these lanes; both SHAs are already recorded (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml`; `mad-science/SESSION-RECORD.md:104`). *(effort: short)*
 - [ ] **[storage] Consolidate the DFlash2 drafter on one repo id** — `incoai` and `z-lab` are the same blob hash; three arms fetch it (27B DFlash2, MLX-4bit TensorFold, cybersec arm 2) and the `incoai` copy is unpinned (silent drift between consumers) (`attic/qwen3/AGENTS.md:106`). *(effort: short)*
 
@@ -119,7 +119,7 @@ Qwen 4.x (and 3.8 Flash Next)
 - [ ] **Run the W4 `#37111` release soak (1–2 h / ~100k)** — only a short smoke ran, so the corruption gate is unproven (`attic/qwen4/AGENTS.md`). *(effort: medium)*
 - [ ] **One-boot `--enable-linear-replayssm-spec` test** — the lane's "most promising un-measured memory lever" (`attic/qwen4/NOTES.md` Open questions). *(effort: short)*
 - [ ] **Clear the remaining qwen4 measurement backlog** — TP=4 (W6) re-boot after the `port_timeout_s` fix; the W12 cross-runtime vLLM same-checkpoint bench; the `--fp4-gemm-backend` A/B (the shipped `flashinfer_cutlass` was inherited without justification); `--enable-int8-mamba-checkpoint`; and the bs>1 cost of `--cuda-graph-backend-prefill disabled` (`attic/qwen4/AGENTS.md` §10.1). *(effort: medium)*
-- [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*
+- [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*
 - [ ] **[storage] Reclaim the re-populated RadixArk snapshot on `.34`** — 126 GiB of the archived arm's checkpoint is resident again, against the owner's cache policy (`attic/qwen4/NOTES.md:33-35`). *(effort: immediate)*
 
 ## ifm

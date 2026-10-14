@@ -75,7 +75,7 @@ contain either the prepared snapshot path or the recipe's `model:` plus a suppor
 otherwise it raises `serve command does not identify the validated model`. A graft arm's command
 names neither naturally — it loads `/cache/runtime/dsv41-ablit` and advertises the overlay's repo
 id — so the recipe passes `--stock-model {model}` (which renders to the prepared path, the token
-the validator looks for) and `mods/graft-dsv41-ablit-wo-b/serve-when-grafted.sh` consumes and
+the validator looks for) and `recipes/cybersec/mods/graft-dsv41-ablit-wo-b/serve-when-grafted.sh` consumes and
 records it before exec'ing the launcher. Measured 2026-10-14: without it, the launch died at step
 [4/6] *after* the 205 GB stock pack had been distributed.
 
@@ -120,11 +120,11 @@ Neither writes the source snapshot. Both fail closed — a silently-missing temp
 leave the arm serving a **different checkpoint under its own name**, which is worse than a failed
 boot.
 
-- `mods/provide-uncensored-chat-template` — fetches the drowzeys uncensored chat template (+ the
+- `recipes/cybersec/mods/provide-uncensored-chat-template` — fetches the drowzeys uncensored chat template (+ the
   YaRN rope overlays) and writes `/cache/runtime/uncensored-template/chat_template.jinja`, which
   arm 2 passes to `--chat-template`. Idempotent from the artifact (a non-empty template
   short-circuits). Needs the node token.
-- `mods/graft-dsv41-ablit-wo-b` — fetches the author's `apply_mia_exl3_wob.py` + the EXL3 sidecar
+- `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` — fetches the author's `apply_mia_exl3_wob.py` + the EXL3 sidecar
   and grafts them onto the stock Mia pack under `/cache/runtime/dsv41-ablit`. Idempotent from
   `ABLIT_META.json` (`n_edited == 104`); refuses `--src == --dst`.
 
@@ -154,7 +154,7 @@ Two facts that come from the ds4 lane, not this one — do not contradict them h
 
 - The engine's family check accepts **only** EXL3 (`quant_method`), which is why the stock must be
   the Mia 2.9bpw pack and not the official MXFP4 repo.
-- Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint. `mods/dsv41-engram-fetch`
+- Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint. `recipes/cybersec/mods/dsv41-engram-fetch`
   provisions them from the online official repo and deliberately does **not** block the boot; a
   first boot can serve degraded and pick them up on the next. GPU memory utilisation stays ≤ 0.85.
 
@@ -173,7 +173,7 @@ After any edit here:
 H=$PWD/.local/sparkrun-home
 for f in recipes/cybersec/*.yaml; do HOME="$H" sparkrun recipe validate "$f"; done
 uv run python -B -m unittest tests.test_cybersec_recipes -v
-for s in mods/provide-uncensored-chat-template/run.sh mods/graft-dsv41-ablit-wo-b/run.sh; do bash -n "$s"; done
+for s in recipes/cybersec/mods/provide-uncensored-chat-template/run.sh recipes/cybersec/mods/graft-dsv41-ablit-wo-b/run.sh; do bash -n "$s"; done
 ```
 
 `validate` does **not** resolve `mods:` — only `-n` or a launch does. Render before booting:
@@ -320,7 +320,7 @@ safetensors). Both nodes idle. Launch reached the serve stage and the scheduler 
   this engine exposes no reasoning channel, so a trace that never closes returns an empty
   `content`. Ping check: `17*19` → `323` (the card's own gate).
 - **Cause of the two dead launches before this one** is recorded above (§3 identity token, and
-  the detached-graft variant). **Engram is OFF on this boot** (`mods/dsv41-engram-fetch` runs
+  the detached-graft variant). **Engram is OFF on this boot** (`recipes/cybersec/mods/dsv41-engram-fetch` runs
   detached and had not finished), so every number here is the **degraded, no-Engram** path — the
   ds4 lane's 73.0 t/s figure carries Engram. A second boot after the fetch completes would pick
   the tables up; the C1/battery comparison against the stock arm should be re-read with that in mind.
@@ -385,8 +385,8 @@ writes the source snapshot:
 
 | arm | overlay repo | body / stock | what the arm adds | mod |
 |---|---|---|---|---|
-| 2 | [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] | `sakamakismile/…-AEON-ULTIMATE-UNCENSORED-NVFP4` | the cybersecurity-unlock **chat template** (+ the YaRN rope overlays for the 1M route) | `mods/provide-uncensored-chat-template` |
-| 5 | [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | the `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar**, grafted | `mods/graft-dsv41-ablit-wo-b` |
+| 2 | [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] | `sakamakismile/…-AEON-ULTIMATE-UNCENSORED-NVFP4` | the cybersecurity-unlock **chat template** (+ the YaRN rope overlays for the 1M route) | `recipes/cybersec/mods/provide-uncensored-chat-template` |
+| 5 | [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | the `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar**, grafted | `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` |
 
 For arm 5 the author's `INSTALL.md` pairs a stock pack with a sidecar and forbids mixing them —
 the Mia 2.9bpw pack takes the **EXL3** sidecar and the EXL3 graft script; native / Pollard / TR3

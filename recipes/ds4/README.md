@@ -20,7 +20,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | | |
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` |
-| Engine | SGLang (`sglang.launch_server`), driven through the mod shim `mods/dsv41-sglang-overlay` |
+| Engine | SGLang (`sglang.launch_server`), driven through the mod shim `recipes/ds4/mods/dsv41-sglang-overlay` |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) (native MXFP4/F8, official weights) |
 | Pin | `model_revision: 5254448103b6…` (`main`, 2026-10-12) — byte-identical weights to the image's baked `fb2764a5…`; every node cache already holds it |
 | Size / fit | 510 GB, `mem_fraction_static` 0.80 |
@@ -40,7 +40,7 @@ native image input** (the image's own smoke test sends a generated PNG through
 203 GB Engram tables cannot coexist with the weight shards in a Spark's 128 GB
 unified pool, so they are packed to node-local NVMe and streamed on demand. The
 engine, kernels and reader come from the vendored image; this repository supplies
-the recipe and the pre-launch mod (`mods/dsv41-sglang-overlay/`).
+the recipe and the pre-launch mod (`recipes/ds4/mods/dsv41-sglang-overlay/`).
 
 Provenance: this lane adapts
 [`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
@@ -133,7 +133,7 @@ packed shards). The server is up when these appear in the serve log, in order:
 ### Licence
 
 The image's Dockerfile carries `SPDX-License-Identifier: Apache-2.0`; the overlay
-mod `mods/dsv41-sglang-overlay` is **AGPL-3.0-or-later**. The upstream launcher,
+mod `recipes/ds4/mods/dsv41-sglang-overlay` is **AGPL-3.0-or-later**. The upstream launcher,
 adapters and b12x kernels are retained under their upstream licences (knapcio's
 repo, itself a downstream of MiaAI-Lab's).
 
@@ -204,7 +204,7 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   engine supports image input behind the opt-in `--vision` flag, but enabling it
   takes two parts (`--vision` + staging the checkpoint's 43-tensor
   `ffn.gate.bias_vl` VL-routing bias), so it is not shipped
-  (`mods/dsv41-vision-overlay/` holds the recipe for it).
+  (`recipes/ds4/mods/dsv41-vision-overlay/` holds the recipe for it).
 - **The Engram tables ship inside the model repo** as
   `engram/engram-l{1,14}.safetensors`; this recipe does **not** use
   `mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so

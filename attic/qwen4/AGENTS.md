@@ -178,7 +178,7 @@ Legend: **C** = needs the cluster (serialize); **O** = off-cluster, parallel-saf
 | **W15** | **Cut the directory to one TP=1 + one TP=2 arm** (owner decision 2026-10-14) | C | — | **DONE 2026-10-14.** Five of the six arms were measured in one window with `benchmarking/decode-triage.yaml` (the three labquant TP=2 arms are C1-tied and the base was kept on the memory/context tie-break; the vLLM solo arm was the only TP=1 with a receipt). **The sixth arm (`…-solo-sglang`) did NOT reach readiness in that window** — the failure was a **port timeout against sparkrun's default 1800 s**, not an architectural negative — and was **re-measured in a later window 2026-10-14** with the arm's new `readiness.port_timeout_s: 3600`: **19.82 ± 2.06 / 20.97 ± 1.02 t/s** (`bench_253dd84c9a78`), a clear loser to the vLLM solo, so the TP=1 pick stands. Four arms `git mv`'d to `attic/qwen4/arms/` with wave-4 manifest rows. Receipts `~/benchmarks/q4-*-triage_1014_*.json`, `~/benchmarks/q4-solo-sglang2-triage_1014.*`. **A side-defect this exposed and fixed:** switching `model_revision` on a node that already holds a converted `labq-patched` tree produced a HYBRID tree, because the config mod refused to `rm -rf` whenever converted shards were present — it now rebuilds on a **stale stamp** (a revision switch) while keeping the p…
 
 Already-closed/near-closed streams, recorded so nobody re-opens them: the **Radix chunked-insert
-quality fix** exists as `mods/fix-sglang-radix-chunked-insert` with all four anchors re-verified
+quality fix** exists as `recipes/qwen4/mods/fix-sglang-radix-chunked-insert` with all four anchors re-verified
 against the pinned image (§6 item 3) — a correctness fix, expect no tok/s change; the **shared-expert
 drop** question is closed negative (§6 item 6); **NEXTN acceptance** is measured on both checkpoints
 (§6 item 0) with only a deprioritised draft-weight ablation left.
@@ -357,7 +357,7 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   and — worse — exec as root and leave a root-owned
   `.cache/flashinfer/<ver>/<arch>/flashinfer_jit.log` in the persisted per-model runtime cache, which
   makes the FIRST launch of a new model key die as uid 1000 with `PermissionError` (sticky; uid 1000
-  cannot unlink it). Mechanism + `reown` fix: `mods/fix-fastsafetensors-tp2-sglang/run.sh`; re-add
+  cannot unlink it). Mechanism + `reown` fix: `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang/run.sh`; re-add
   them only with `load_format=fastsafetensors`.
 - **`served_model_dir`.** Bypassing the mod (`--skip-run` against a container that never ran it) means
   `/cache/runtime/labq-patched` does not exist.
@@ -667,7 +667,7 @@ REQUIRED/must-run-LAST note on `demote-labquant-narrow-mxfp8-to-bf16`, the `{mod
 # (106.3 GB, 43 files: model-00001..41 + hybrid-main-00001/02).  Do NOT unpin: this repo's
 # `main` changed contents under us once already (a 45 MB weights-free snapshot) — see caveats.
 # Re-pinned 2026-10-14 to the step-5500 QAD revision; the 7-mod chain below was re-verified
-# against it against this layout (see mods/unpack-labquant-ple-nvfp4-to-fp8/README.md).
+# against it against this layout (see recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8/README.md).
 ```
 
 ```
@@ -700,7 +700,7 @@ REQUIRED/must-run-LAST note on `demote-labquant-narrow-mxfp8-to-bf16`, the `{mod
 ```
 
 ```
-# NB: `mods/skip-labquant-vision-tower` is DELIBERATELY ABSENT on this revision. It exists to work
+# NB: `recipes/qwen4/mods/skip-labquant-vision-tower` is DELIBERATELY ABSENT on this revision. It exists to work
 # around the OLD export's NVFP4-quantised vision tower (scales with no destination under
 # quant_config=None). The step-5500 revision ships the tower BF16 and already lists
 # `model.visual.*` in `quantization_config.ignore`, so the load failure is gone and the mod would
@@ -711,14 +711,14 @@ REQUIRED/must-run-LAST note on `demote-labquant-narrow-mxfp8-to-bf16`, the `{mod
 # NB: the two fastsafetensors mods are deliberately NOT listed here even though
 # the parent recipe lists them.  This recipe benchmarks with
 # load_format=safetensors, so they accomplish nothing -- and worse, they exec as
-# unlink it).  See mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
+# unlink it).  See recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
 # and the reown fix.  Add them back only if you actually set
 # load_format=fastsafetensors.
 ```
 
 ```
 # Serves the mod-built patched tree, NOT the raw HF snapshot. The mod
-# (mods/fix-labquant-modelopt-mixed-flat-schema) creates this in the
+# (recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema) creates this in the
 # host-local runtime cache on every node, as a symlink farm over the snapshot with
 # one patched config.json. The raw snapshot is never modified. If you bypass the
 ```

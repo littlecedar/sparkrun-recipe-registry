@@ -38,7 +38,7 @@ Model preparation validates every cached file against a manifest built from hub
 metadata. If a runner cache was hand-modified (e.g. a chat template honed in place),
 validation fails `wrong_size` **before** mods run, and "one repair" re-copies the same
 divergent files. Restore hub content in the cache and deliver the customisation
-through a mod + an engine flag (worked example: `mods/ornith-honed-chat-template`
+through a mod + an engine flag (worked example: `recipes/ornith/mods/ornith-honed-chat-template`
 stages a template for sglang's `--chat-template`, which accepts a file path).
 
 ## 4. Custom command templates on vLLM

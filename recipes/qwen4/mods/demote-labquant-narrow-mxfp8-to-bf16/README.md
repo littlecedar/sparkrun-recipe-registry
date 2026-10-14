@@ -5,8 +5,8 @@ in practice the Gated DeltaNet `linear_attn.in_proj_a` / `.in_proj_b` pair — t
 BF16, so the server boots at all.
 
 **Recipe:** `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`
-**Runs after:** `mods/fix-labquant-modelopt-mixed-flat-schema`,
-`mods/unpack-labquant-ple-nvfp4-to-fp8`. **Layers onto:** `/cache/runtime/labq-patched`.
+**Runs after:** `recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema`,
+`recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8`. **Layers onto:** `/cache/runtime/labq-patched`.
 
 ## The blocker
 

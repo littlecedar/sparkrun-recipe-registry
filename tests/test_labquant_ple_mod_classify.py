@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Travis Wichert
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Guard the PLE-file classifier in mods/unpack-labquant-ple-nvfp4-to-fp8/run.sh.
+"""Guard the PLE-file classifier in recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8/run.sh.
 
 The step-5500 revision (`6c01ac37`) makes one PLE shard carry non-PLE tensors
 (`ple.norm_*.weight`, `ngram_embedding.weight_scale_2`) alongside its 16 PLE
@@ -21,7 +21,7 @@ import re
 import unittest
 from pathlib import Path
 
-RUN_SH = Path(__file__).resolve().parent.parent / "mods" / "unpack-labquant-ple-nvfp4-to-fp8" / "run.sh"
+RUN_SH = Path(__file__).resolve().parent.parent / "recipes" / "qwen4" / "mods" / "unpack-labquant-ple-nvfp4-to-fp8" / "run.sh"
 
 W = (2500012, 80)
 S = (2500012, 10)

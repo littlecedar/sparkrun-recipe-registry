@@ -36,19 +36,19 @@ lives in [`../../attic/qwen4/`](../../attic/qwen4/) (see [Attic index](#attic-in
 mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 
 1. `@eugr/mods/drop-caches` — frees page cache before load.
-2. `mods/fix-labquant-modelopt-mixed-flat-schema` — **must be first**: builds
+2. `recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema` — **must be first**: builds
    `/cache/runtime/labq-patched`, a symlink tree over the snapshot with one patched `config.json`, so
    SGLang's `modelopt_mixed` loader accepts the checkpoint.
-3. `mods/unpack-labquant-ple-nvfp4-to-fp8` — rewrites the 128 PLE n-gram shards in that tree from
+3. `recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8` — rewrites the 128 PLE n-gram shards in that tree from
    packed NVFP4 to plain fp8 e4m3 and sets `ple_embedding_dtype: float8_e4m3fn`, so the engine uses
    its own tested fp8 PLE path (cold cost 51.2 GB / ~50 s per node; pairs with
    `--no-ple-offload-embedding`).
-4. `mods/diag-qwen4-unplaced-scales` — **diagnostic only**: logs which `_scale` was unplaceable in
+4. `recipes/qwen4/mods/diag-qwen4-unplaced-scales` — **diagnostic only**: logs which `_scale` was unplaceable in
    front of the assert at `qwen4_exp.py:2136`; changes no control flow.
-5. `mods/fix-labquant-mxfp8-weight-scale-name` — renames the export's `<X>.weight_scale` to the
+5. `recipes/qwen4/mods/fix-labquant-mxfp8-weight-scale-name` — renames the export's `<X>.weight_scale` to the
    engine's `weight_scale_inv` for the MXFP8 shared experts/attention indexer, so the load guard does
    not mistake a differently-suffixed scale for a dropped one.
-6. `mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
+6. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
    `in_proj_a`/`in_proj_b` MXFP8 tensors (n=96/rank, under CUTLASS's MXFP8 floor of 128) to BF16.
 
 **Two mandatory engine flags** live in `defaults.extra_args`, not as tunables:

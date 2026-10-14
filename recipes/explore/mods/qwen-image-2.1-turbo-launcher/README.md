@@ -1,7 +1,7 @@
 # qwen-image-2.1-turbo-launcher
 
 Pre-launch mod for the explore lane's Qwen-Image-2.1-Turbo arm
-([`recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
+([`recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
 
 ## Why this exists
 

@@ -22,7 +22,7 @@ Both ship on `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest`, one node, 
 `attention_backend: b12x` (`block_size: 128`), `max_model_len: 8192`,
 `max_num_batched_tokens: 8192`, `max_num_seqs: 32`, `dtype: bfloat16`, and the mods
 `@littlecedar/mods/pip-install-orjson` +
-`@littlecedar/mods/provide-qwen3-vl-rerank-template`. Both are pooling engines: they
+`mods/provide-qwen3-vl-rerank-template`. Both are pooling engines: they
 serve score/rerank endpoints, not chat — read
 [Pooling endpoints](#pooling-endpoints--the-client-contract) before writing a client.
 
@@ -91,7 +91,7 @@ These recipes serve a **cross-encoder**, and getting that wrong is silent.
   prints `Resolved architecture: ...` and must **not** print
   ``Resolved `--convert auto` to `--convert embed` ``.
 - **Chat template.** `reranker_chat_template` is published by
-  `mods/provide-qwen3-vl-rerank-template` before the serve line runs; the checkpoint's own
+  `recipes/rerank/mods/provide-qwen3-vl-rerank-template` before the serve line runs; the checkpoint's own
   `chat_template.jinja` has no `query`/`document` role handling and would silently score an
   empty pair. The mod resolves its output dir as
   `${MOD_CACHEDIR:-${XDG_CACHE_HOME:-/cache/runtime}}`, and a mod cannot export variables

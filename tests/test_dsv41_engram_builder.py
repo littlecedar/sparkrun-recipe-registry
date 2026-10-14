@@ -37,7 +37,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BUILDER_PATH = REPO_ROOT / "tools" / "build-dsv41-engram.py"
-MOD_DIR = REPO_ROOT / "mods" / "dsv41-engram-fetch"
+MOD_DIR = REPO_ROOT / "recipes" / "cybersec" / "mods" / "dsv41-engram-fetch"
 MOD_BUILDER = MOD_DIR / "build-dsv41-engram.py"
 RECIPE = REPO_ROOT / "recipes" / "ds4" / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
 
@@ -198,7 +198,7 @@ class BuilderContract(unittest.TestCase):
         self.assertTrue(MOD_BUILDER.is_file(), f"missing {MOD_BUILDER}")
         self.assertEqual(
             BUILDER_PATH.read_bytes(), MOD_BUILDER.read_bytes(),
-            "mods/dsv41-engram-fetch/build-dsv41-engram.py has drifted from "
+            "recipes/cybersec/mods/dsv41-engram-fetch/build-dsv41-engram.py has drifted from "
             "tools/build-dsv41-engram.py; re-copy it")
 
     def test_mod_fetch_never_blocks_the_launch(self) -> None:

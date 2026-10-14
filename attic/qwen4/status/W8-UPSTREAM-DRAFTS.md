@@ -73,7 +73,7 @@ WORK §1). The digest is safe to share (already in the recipe file).
 - **#38319 title:** `[Bug] Chunked Prefill + Radix Insert race corrupts KV pages (QSA, Qwen3.8-Flash-Next)` · **Author:** `andreasknopke` · **State:** **open** · **Assignee:** `alphabetc1` · **Created:** 2026-09-07 · **Last activity:** 2026-09-11 · **Comments:** 0 · https://github.com/sgl-project/sglang/issues/38319 (read 2026-10-04) (VERIFIED)
 - **#38355 title:** `fix(mem_cache): eliminate chunked-prefill radix-insert race corrupting QSA KV pages (#38319)` · **Author:** `andreasknopke` · **State:** **open, unmerged**, not draft · **Base:** `qwen4-main-squashed` (**not `main`**) · **Created:** 2026-09-07 · **Last activity:** 2026-09-14 · https://github.com/sgl-project/sglang/pull/38355 (VERIFIED)
 
-**What our data adds.** Our lane ports #38355 into an in-tree mod (`mods/fix-sglang-radix-chunked-insert`) and re-verified all four patch anchors against the pinned digest `9d2a843c` (§6 item 3, lines 2470-2474; anchor table §14, lines 4509-4517). It is a correctness fix — expected to remove the "!!!!"
+**What our data adds.** Our lane ports #38355 into an in-tree mod (`recipes/qwen4/mods/fix-sglang-radix-chunked-insert`) and re-verified all four patch anchors against the pinned digest `9d2a843c` (§6 item 3, lines 2470-2474; anchor table §14, lines 4509-4517). It is a correctness fix — expected to remove the "!!!!"
 wrong-output loop, with no tok/s change (§6 item 3). We independently observe the symptom class
 (degenerate repeated-token output after long context with prefix reuse on this architecture) and
 confirm our pinned image's HEAD is on `qwen4-main-squashed` @ `4ccff141db`, the same side branch #38355
@@ -113,7 +113,7 @@ author holds those. Do not claim we independently proved the race mechanism.
 - Still-open fix attempts: **#32199** (wire nogds/threads, 2026-07-23) and **#40065** (release file buffers after each shard, 2026-09-18; body reports GB10 warm-cache load 47.12→27.03 GB — the same retained-buffer defect our mod fixes) (VERIFIED).
 - **#31859** `Support fastsafetensors no-GDS loading and page-cache release` **merged 2026-07-31**, but does **not** fix the device bug: `main` **still** has `device = torch.device(f"cuda:{rank}")` in `fastsafetensors_weights_iterator` (VERIFIED reading `main` @ `python/sglang/srt/model_loader/weight_utils.py:1189,1193`, 2026-10-04).
 
-**What our data adds.** Our lane patches this same function in `mods/fix-fastsafetensors-tp2-sglang` because neither PR merged (mod `run.sh:20-21`; WORK §11, lines 3929-3954). We confirm two **independent**
+**What our data adds.** Our lane patches this same function in `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang` because neither PR merged (mod `run.sh:20-21`; WORK §11, lines 3929-3954). We confirm two **independent**
 defects invisible on single-node multi-GPU rigs: (1) device selection uses the global rank, so
 one-GPU-per-node TP=2 asks rank 1 for `cuda:1` and dies "invalid device ordinal" (§11 table, lines
 3944-3948); (2) the staging buffer is never released — `main`'s `finally:` calls only `loader.close()`,

@@ -131,7 +131,7 @@ snapshot path on a real launch, so the engine would advertise a `/cache/…` pat
 lines. A DFlash2 boot that serves but accepts ≈1 token/step is a misconfiguration, not a win.
 
 **Honed chat template.** The lane serves a community-honed template (`qwen3.8-honed-v22.5.1`,
-30,438 B) staged by `@littlecedar/mods/ornith-honed-chat-template` under
+30,438 B) staged by `recipes/ornith/mods/ornith-honed-chat-template` under
 `/cache/runtime/ornith-honed-chat-template/` and read via `--chat-template`. **Never inject it into
 the HF snapshot** — sparkrun validates every cached model file against a hub manifest and an
 injected snapshot fails `wrong_size` at distribution.
