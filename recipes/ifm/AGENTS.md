@@ -35,6 +35,16 @@ The two 7B spec arms were scored on the same instrument and item sets: **NGRAM
 (about one SE on n=200) of the plain 7B on every benchmark, so neither trades
 accuracy for its speed win.
 
+**Re-pinned to main 2026-10-14** (`IFM/K2-Horizon-0.9B` → `383cb66347be…`,
+`IFM/K2-Horizon-7B-FP8` → `ea739ec816e0…`), both again SHA-pinned in the two
+recipes, and honoured by the guards. The 7B delta is the model card only; the
+0.9B delta is the card plus the two chat templates (PR #10: OpenAI content-part
+lists), which render byte-identical to the old templates for plain-string
+conversations. Re-benchmarked + re-scored on `.31` on the same lanes: every perf
+cell inside the lane's 7-25 % noise floor and every accuracy cell within ~±2
+items (0.9B 83.8/86.0/68.5; 7B-Uno 97.3/94.5/90.5; UNO accept len 4.15 mean).
+Details: `NOTES.md` (2026-10-14 session).
+
 **UNO is now a shipped arm, not a probe (2026-10-09).** A 12-boot campaign
 (`.scratch/ifm/perf-2026-10-09/`, git-ignored) promoted
 `k2-horizon-7b-fp8-uno-sglang` from PROBE to the lane's fastest arm: F=8 with
@@ -148,8 +158,8 @@ whole-line comments first):
 
 | module | count | scope |
 |---|---|---|
-| `tests/test_ifm_recipes.py` | 16 | 0.9B: no `fa3`, dtype, revision, container floor, flag map |
-| `tests/test_k2_7b_recipes.py` | 60 | 7B + Uno + NGRAM: banned flags for UNO, mod existence/order, declaration-stash trap |
+| `tests/test_ifm_recipes.py` | 18 | 0.9B: no `fa3`, dtype, revision, container floor, flag map |
+| `tests/test_k2_7b_recipes.py` | 61 | 7B + Uno + NGRAM: banned flags for UNO, mod existence/order, declaration-stash trap |
 | `attic/ifm/test_ifm_36b_recipes.py` | 64 | withdrawn 36B sub-lane; no longer auto-discovered |
 
 **Every guard has a negative control** in a `NegativeControls` class. A guard that
@@ -420,7 +430,7 @@ a recipe *when* the gate lifts at this size. IFM/K2-Horizon-0.9B-Uno is a PEFT
 conditional-LoRA diffusion drafter (adapter_config.json: r=128, lora_alpha
 2048, dropout 0.05, targets q/k/v/o plus gate/up/down; conversion_summary.json:
 392 tensors, bf16, base_weight_matches_public_repository true — pairs with the
-exact 9fa6faa5 pin). SGLang native UNO: sglang#37667 "[Speculative Decoding]
+0.9B base at the pre-2026-10-14-re-pin SHA 9fa6faa5). SGLang native UNO: sglang#37667 "[Speculative Decoding]
 Add native UNO serving support" merged 2026-09-03T12:08:42Z; `UNO` is a
 builtin speculative_algorithm in v0.5.20 (arg_groups/fields/spec.py:37-41)
 with --uno-lora-path, --speculative-num-draft-tokens = verify width Q,

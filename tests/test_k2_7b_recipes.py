@@ -65,10 +65,16 @@ UNO = RECIPE_DIR / "k2-horizon-7b-fp8-uno-sglang.yaml"
 
 ALL = [BASE, NGRAM, UNO]
 
-# VERIFIED 2026-09-20 from the HF API. A recipe drifting from these pins is
-# serving a different checkpoint than the one the analysis was done against.
+# VERIFIED from the HF API. A recipe drifting from its own pin is serving a
+# different checkpoint than the one the analysis was done against. The shipped
+# Uno arm was re-pinned 2026-10-14 (the delta was model-card-only); the two attic
+# arms keep the 2026-09-20 SHA their measurements were taken at.
 MODEL = "IFM/K2-Horizon-7B-FP8"
-MODEL_REVISION = "59d473210f0b9ee3ea559a867fc23e7059473944"
+MODEL_REVISION = "ea739ec816e0c9ed9896022056efa858aa8b87e7"          # shipped UNO, 2026-10-14
+ATTIC_MODEL_REVISION = "59d473210f0b9ee3ea559a867fc23e7059473944"    # as archived
+EXPECTED_PINS = {BASE: ATTIC_MODEL_REVISION,
+                 NGRAM: ATTIC_MODEL_REVISION,
+                 UNO: MODEL_REVISION}
 # v0.5.20 is the first release containing models/xllm.py (PR #37654).
 MIN_SGLANG_TAG = "v0.5.20"
 CONTAINER_DIGEST = (
@@ -210,7 +216,7 @@ class ModelPin(unittest.TestCase):
     def test_revision_pin_matches_the_analysed_checkpoint(self):
         for p in ALL:
             self.assertEqual(knobs(strip_comments(read(p))).get("model_revision"),
-                             MODEL_REVISION,
+                             EXPECTED_PINS[p],
                              "%s drifts from the analysed checkpoint" % p.name)
 
     def test_revision_reaches_the_engine(self):
@@ -899,9 +905,18 @@ class NegativeControls(unittest.TestCase):
         self.assertEqual(knobs(strip_comments(mutated))["attention_backend"], "fa3")
 
     def test_drifted_revision_would_be_detected(self):
-        mutated = read(BASE).replace(MODEL_REVISION, "main")
+        mutated = read(UNO).replace(MODEL_REVISION, "main")
         self.assertNotEqual(knobs(strip_comments(mutated))["model_revision"],
-                            MODEL_REVISION)
+                            EXPECTED_PINS[UNO])
+
+    def test_attic_pin_is_checked_against_its_own_value(self):
+        """The two attic arms are frozen at the SHA they were measured at, so a
+        single shared pin constant would have to be wrong for one of the three
+        files. Prove the per-file expectation is what actually compares."""
+        self.assertNotEqual(EXPECTED_PINS[BASE], EXPECTED_PINS[UNO])
+        mutated = read(BASE).replace(ATTIC_MODEL_REVISION, MODEL_REVISION)
+        self.assertNotEqual(knobs(strip_comments(mutated))["model_revision"],
+                            EXPECTED_PINS[BASE])
 
     def test_old_image_would_be_detected(self):
         mutated = read(BASE).replace(MIN_SGLANG_TAG, "v0.5.19")

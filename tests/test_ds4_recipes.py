@@ -165,6 +165,7 @@ class Recipe:
         self.raw = text
         clean = _strip_comment_lines(text)
         self.model = _scalar(clean, "model") or ""
+        self.model_revision = _scalar(clean, "model_revision") or ""
         self.runtime = _scalar(clean, "runtime") or ""
         self.container = _scalar(clean, "container") or ""
         mn = _scalar(clean, "min_nodes")
@@ -1071,6 +1072,19 @@ class SglangLaneContract(unittest.TestCase):
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         for needle in ("resolve_checkpoint", "HF_HUB", "refs", "model.safetensors.index.json"):
             self.assertIn(needle, launcher)
+
+    def test_checkpoint_revision_pinned_in_recipe(self):
+        # The image's boot.py bakes a checkpoint revision (boot.py:24 REVISION)
+        # but never acts on it here: the launcher sets SKIP_PREPARE=1 and hands
+        # boot.py the sparkrun-distributed prepared path, so the RECIPE owns the
+        # served checkpoint. Without the pin a launch re-distributes whatever
+        # `main` is at distribution time and the lane drifts off the snapshot its
+        # receipts were measured on (AGENTS.md §5). The pin is `main`, whose
+        # weights are byte-identical to the baked fb2764a5… and which every node
+        # cache already holds; the lane's receipts were all served from it.
+        self.assertEqual(
+            self.r.model_revision, "5254448103b6254fc646dacbca1cbbf20e9216c1"
+        )
 
     def test_ep_size_is_one(self):
         # EP=2 loads but dies at the first decode plan under b12x_next.

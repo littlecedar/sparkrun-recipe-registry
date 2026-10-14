@@ -1,0 +1,171 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dynamic-HEALTHCHECK patch for the knapcio image build context's `boot.py`.
+# Vendored for the sparkrun `ds4` lane; see recipes/ds4/AGENTS.md 5.
+#
+# WHY: the image's HEALTHCHECK runs `boot.py health` from the container's
+# creation environment. sparkrun passes the serve port through the launch
+# command, never a container env, and Docker freezes Config.Env at `docker run`
+# — so upstream's bare `request('/health')` probes the image default 8888 and
+# reports a container that is serving on any other port as `(unhealthy)`.
+# This patch makes `health` discover the served port at runtime, in order:
+# HEALTH_PORT/SERVER_PORT env -> the launcher-persisted
+# /tmp/sparkrun_health_port -> the running engine's own `--port` (from
+# /proc/<pid>/cmdline) -> any LISTEN port from /proc/net/tcp{,6} -> the image
+# default. The matching launcher side lives in mods/dsv41-sglang-overlay.
+#
+# NOT upstream: knapcio's boot.py at 58f2321 (and at origin/main) has no port
+# discovery, so a literal fresh-clone build SILENTLY DROPS this fix and yields
+# a different image (measured 2026-10-14: image dd9d1c3c…, digest ac9bc917… —
+# NOT the canonical 18e36391… / 4e5002ab…). Apply this patch to the clone's
+# boot.py before `docker build`; the canonical image cannot be reproduced
+# without it.
+#
+# Provenance: authored 2026-10-03 in the image build context on the head node
+# and carried by the image that shipped as the pinned digest below.
+# This is a byte-exact unified diff of boot.py.pre-healthport -> boot.py from
+# that context; it applies cleanly to pristine boot.py @ 58f2321.
+#
+# Apply (from the clone root):
+#   git apply boot.py.health-port.patch      # labels a/boot.py b/boot.py
+#
+# Canonical result: littlecedar/dgx-spark-dsv41:canary-roce
+#   @sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05
+#   (image id sha256:18e36391…, patched boot.py sha256 6d2b4898…, 33.5 GB, arm64).
+#
+--- a/boot.py
++++ b/boot.py
+@@ -33,6 +33,98 @@
+ SERVED_MODEL_NAME = os.environ.get('SERVED_MODEL_NAME', 'deepseek-v4.1-flash')
+ 
+ 
++# --- health-probe port discovery -------------------------------------------
++# The image's HEALTHCHECK runs `boot.py health` from the *container's creation
++# environment*. sparkrun sets the serve port through the launch command, not as
++# a container env, so $SERVER_PORT is absent there and the probe would fall back
++# to the image default -- reporting a healthy server as unhealthy whenever the
++# served port differs. Discover the port at runtime instead, in priority order:
++# explicit env override, the port the launcher persisted, the running engine's
++# own --port argument, then any LISTEN port from /proc/net/tcp.
++HEALTH_PORT_FILE = os.environ.get('HEALTH_PORT_FILE', '/tmp/sparkrun_health_port')
++
++
++def _env_port(var):
++    value = os.environ.get(var, '').strip()
++    if value.isdigit():
++        port = int(value)
++        if 0 < port < 65536:
++            return port
++    return None
++
++
++def _persisted_port():
++    try:
++        value = Path(HEALTH_PORT_FILE).read_text().strip()
++    except OSError:
++        return None
++    if value.isdigit():
++        port = int(value)
++        if 0 < port < 65536:
++            return port
++    return None
++
++
++def _served_port_from_process():
++    """The --port the running engine was launched with, else None."""
++    try:
++        pids = [p.name for p in Path('/proc').iterdir() if p.name.isdigit()]
++    except OSError:
++        return None
++    for pid in pids:
++        try:
++            cmdline = (Path('/proc') / pid / 'cmdline').read_bytes().split(b'\0')
++        except OSError:
++            continue
++        for i, token in enumerate(cmdline):
++            if token == b'--port' and i + 1 < len(cmdline):
++                try:
++                    port = int(cmdline[i + 1])
++                except ValueError:
++                    continue
++                if 0 < port < 65536:
++                    return port
++    return None
++
++
++def _listening_ports():
++    """Every TCP port in LISTEN state (deterministic order), else []."""
++    found = set()
++    for table in ('/proc/net/tcp', '/proc/net/tcp6'):
++        try:
++            lines = Path(table).read_text().splitlines()[1:]
++        except OSError:
++            continue
++        for line in lines:
++            fields = line.split()
++            if len(fields) < 4 or fields[3] != '0A':
++                continue
++            try:
++                port = int(fields[1].split(':')[1], 16)
++            except (IndexError, ValueError):
++                continue
++            if 0 < port < 65536:
++                found.add(port)
++    return sorted(found)
++
++
++def health_port():
++    """Ports `boot.py health` should probe: an int, or a candidate list."""
++    for var in ('HEALTH_PORT', 'SERVER_PORT'):
++        port = _env_port(var)
++        if port:
++            return port
++    port = _persisted_port()
++    if port:
++        return port
++    port = _served_port_from_process()
++    if port:
++        return port
++    candidates = _listening_ports()
++    return candidates or PORT
++
++
++
+ def save(name, value):
+     STATE.mkdir(parents=True, exist_ok=True)
+     temporary = STATE / (name + '.tmp')
+@@ -109,13 +201,13 @@
+     return value
+ 
+ 
+-def request(path, payload=None, timeout=10):
++def request(path, payload=None, timeout=10, port=None):
+     headers = {'Content-Type': 'application/json'}
+     secret = key()
+     if secret:
+         headers['Authorization'] = 'Bearer ' + secret
+     req = urllib.request.Request(
+-        f'http://127.0.0.1:{PORT}' + path,
++        f'http://127.0.0.1:{PORT if port is None else int(port)}' + path,
+         headers=headers,
+         data=None if payload is None else json.dumps(payload).encode())
+     with urllib.request.urlopen(req, timeout=timeout) as response:
+@@ -402,7 +494,17 @@
+ if __name__ == '__main__':
+     command = sys.argv[1] if len(sys.argv) > 1 else 'run'
+     if command == 'health':
+-        request('/health')
++        resolved = health_port()
++        candidates = resolved if isinstance(resolved, list) else [resolved]
++        last = None
++        for candidate in candidates:
++            try:
++                request('/health', port=candidate)
++                break
++            except Exception as error:  # noqa: BLE001 -- probe: try the next candidate
++                last = error
++        else:
++            raise SystemExit('health probe failed on ports %s: %r' % (candidates, last))
+     elif command == 'smoke':
+         smoke()
+     elif command == 'prepare':

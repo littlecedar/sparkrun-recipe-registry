@@ -78,6 +78,12 @@ ENGINE_PLACEHOLDERS = {"model", "model_path", "host", "port"}
 # older than this does not know what K2HorizonForCausalLM is.
 MIN_SGLANG = (0, 5, 20)
 
+# VERIFIED from the HF API 2026-10-14.  The re-pin moved only the card and the
+# two chat templates; the weight shard, tokenizer and config.json are
+# byte-identical to the previous pin.  A recipe drifting from this value would be
+# a different checkpoint than the one the lane re-measured against.
+MODEL_REVISION = "383cb66347be4d361138e8157c2f8779b7440752"
+
 
 # ---------------------------------------------------------------------------
 # Parsing.  Understands exactly the YAML these recipes use (top-level scalars,
@@ -235,6 +241,13 @@ class RevisionReachesEngine(unittest.TestCase):
             self.assertIn("--revision " + pin, render(r),
                           "I7: pin declared but not passed to the engine")
 
+    def test_pin_matches_the_remeasured_checkpoint(self):
+        for path in ALL:
+            self.assertEqual(
+                parse(path)["top"].get("model_revision"), MODEL_REVISION,
+                f"{path.name} drifts from the re-pinned checkpoint",
+            )
+
     def test_no_foreign_revision_copied_from_card(self):
         """The cards pass --revision 9b9ec1f7e17f..., an sglang commit-ish.
 
@@ -341,3 +354,13 @@ class CommandShape(unittest.TestCase):
                 f"{path.name}: escape hatch must be appended last so argparse "
                 "resolves a repeated flag in favour of the override",
             )
+
+
+class NegativeControls(unittest.TestCase):
+    """A guard that cannot fail proves nothing (AGENTS.md §5)."""
+
+    def test_drifted_revision_would_be_detected(self):
+        mutated = BASE_09B.read_text(encoding="utf-8").replace(
+            MODEL_REVISION, "9fa6faa55fe1c9eb008bb241cc6fb7e4536d0e91")
+        pin = re.search(r"^model_revision:\s*(\S+)", mutated, re.M).group(1)
+        self.assertNotEqual(pin, MODEL_REVISION)

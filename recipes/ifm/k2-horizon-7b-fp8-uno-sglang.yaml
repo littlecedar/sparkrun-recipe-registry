@@ -4,7 +4,7 @@ model: IFM/K2-Horizon-7B-FP8
 # declares base IFM/K2-Horizon-7B (BF16), so the vendor-validated pairing is
 # BF16+Uno -- on a bandwidth-bound box the base read dominates and BF16 doubles
 # it, so the FP8+Uno pairing is itself part of what this arm validates (AGENTS.md §9).
-model_revision: 59d473210f0b9ee3ea559a867fc23e7059473944
+model_revision: ea739ec816e0c9ed9896022056efa858aa8b87e7
 runtime: sglang
 container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
 min_nodes: 1

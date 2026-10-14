@@ -5,7 +5,7 @@ model: IFM/K2-Horizon-0.9B
 # dies with LocalEntryNotFoundError *after* the weights synced to every host --
 # exactly the pin-reaches-distribution-but-not-the-engine case the
 # unpinned-model-revision warning exists to catch.
-model_revision: 9fa6faa55fe1c9eb008bb241cc6fb7e4536d0e91
+model_revision: 383cb66347be4d361138e8157c2f8779b7440752
 runtime: sglang
 container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
 min_nodes: 1

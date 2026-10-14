@@ -9,6 +9,7 @@ been retired to `attic/ds4/` (see [Retired material](#retired-material)).
 | Recipe | `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` |
 | Engine | SGLang |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) (native MXFP4/F8, official weights) |
+| Checkpoint | `model_revision: 5254448103b6…` (2026-10-12 `main`) — the recipe pins it; byte-identical weights to the image's baked `fb2764a5…`, and every node cache already holds it ([AGENTS.md](AGENTS.md) §5) |
 | Nodes | 4 (TP=4, one GB10 per node, EP=1) |
 | Context | 1,048,576 tokens (served) |
 | Spec decode | DSpark, verify-all |
@@ -36,20 +37,23 @@ this directory (the archived analysis behind this lane is in
 
 - **Four DGX Spark GB10 nodes**, all idle. Tensor parallelism is one node per
   rank, so TP=4 needs four nodes.
-- **The official checkpoint in each node's own Hugging Face cache.** The cache
-  is per-node (there is no shared export), and sparkrun distributes the model to
-  every runner node. Expect ~510 GB per node.
+- **The pinned official checkpoint in each node's own Hugging Face cache.** The
+  cache is per-node (there is no shared export), and sparkrun distributes the
+  pinned revision (`model_revision: 5254448103b6…`, `main`) to every runner node.
+  The pin is a revision the node caches already hold, so a launch distributes
+  nothing; expect ~510 GB per node only if you re-pin to one no node has yet.
 - **The image**, pulled from Docker Hub by sparkrun under its default
   distribution config. No local build is required.
 - **~47 GiB of node-local disk per node** for the packed Engram shards. The
   launcher packs them automatically on first boot (detached), so normally you do
   nothing. To pre-warm or debug by hand, run this inside the serving image on
-  each node, with `<R>` the node rank (`0`…`3`) and against the snapshot the
-  cache actually serves (`refs/main`):
+  each node, with `<R>` the node rank (`0`…`3`) and `REV` the pinned revision
+  sparkrun distributed (a SHA-pinned download writes **no** `refs/main`):
 
   ```bash
+  REV=5254448103b6254fc646dacbca1cbbf20e9216c1
   python3 /opt/dsv41/scripts/pack_engram.py \
-    --model /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/$(cat /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/refs/main) \
+    --model /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/$REV \
     --rank <R> --tp 4 --out /cache/runtime/engram
   ```
 
@@ -78,14 +82,18 @@ packed shards). The server is up when these appear in the serve log, in order:
 
 1. `[dsv41-sglang-overlay] overlay gate OK`, and a launcher line naming
    `NNODES=4 NODE_RANK=<r>` — **the rank must differ per node**.
-2. `Exact nvme Engram layer=… rows=[a,b)` — the row range must **differ per
+2. `launcher: MODEL_ID is an on-disk checkpoint dir; serving …/snapshots/<sha>`
+   (a repo-id invocation prints `resolved checkpoint <repo> -> …/<sha>` instead)
+   — `<sha>` must be the recipe's `model_revision`. `launch.json` is **not**
+   evidence here: it records the image's baked revision, not the served snapshot.
+3. `Exact nvme Engram layer=… rows=[a,b)` — the row range must **differ per
    rank**; identical ranges mean the staging is wrong.
-3. `[moe_b12x_next] armed` — the routed MoE is on the b12x_next kernel, not a
+4. `[moe_b12x_next] armed` — the routed MoE is on the b12x_next kernel, not a
    Triton fallback.
-4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool.
-5. `Mean acceptance length > 1` on `Decode batch` lines — DSpark is working. A
+5. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool.
+6. `Mean acceptance length > 1` on `Decode batch` lines — DSpark is working. A
    boot that serves but accepts nothing is a failure, not a win.
-6. `Structured output, tool round trip and full-budget native vision passed.` —
+7. `Structured output, tool round trip and full-budget native vision passed.` —
    the image's own smoke test, which includes a **native image-input check**
    (a generated PNG through `/v1/chat/completions`). This lane serves images.
 
@@ -102,6 +110,13 @@ Two harnesses were used. The short-prompt harness uses ~17-token prompts and is 
 RoCEnante is the single largest lever measured on this lane (1.70×/1.69×/1.81×/
 1.23× over NCCL), far outside the 7–25% GB10 boot-to-boot spread. It is shipped
 on; rollback is one line in the launcher (`SGLANG_ROCE_ALLREDUCE=0`).
+
+**Re-pin verification boot (2026-10-14).** The checkpoint pin was moved to the cached `main`
+(`5254448103b6…`; rationale in [AGENTS.md](AGENTS.md) §5). A four-node boot then measured the
+auditable C1 profile `benchmarking/decode-triage.yaml` (pp 2048 / tg 128, runs 5): **38.3 t/s** at
+depth 0 and **42.5 t/s** at depth 8192 — inside the 7–25% inter-boot spread around the 43.6 figure
+above — and the house battery returned the same **19/19 easy + 17/18 hard** (`hard-rev`) as
+recorded. Boot receipt and receipts in [AGENTS.md](AGENTS.md) §5.1.
 
 Quality: the release checkpoint scores **17/18 (94.4%)** on this project's hard
 18-task tier, the same score and the same single failure as the retired EXL3
