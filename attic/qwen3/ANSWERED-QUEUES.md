@@ -263,7 +263,7 @@ A2. **Establish whether the c = 8 depth cost is real before trying to explain it
     exists because its absence from this file caused a redundant re-run on 2026-09-22.**
     **Profiles: `attic/benchmarking/q0-d1024.yaml` + `attic/benchmarking/q0-d2048.yaml`** — run by
     `run_phase39.sh`, five randomised blocks (`$RANDOM` order per block), same live container via
-    `--skip-run --fresh`, **zero boots**, artifacts `.scratch/p39-q0/` (10/10 distinct md5s, pool
+    `--skip-run --fresh`, **zero boots**, artifacts `.scratch/phases/p39-q0/` (10/10 distinct md5s, pool
     identity `capped to 14` / `#tokens 239,346` unchanged across the run).
     **Result: mean ratio 0.950, median 0.929, d2048 slower in 4 of 5 blocks.** Under the rule
     pre-registered in the profile (REAL requires mean > 1.05 **and** ≥ 4/5 sign agreement):
@@ -357,7 +357,7 @@ which cost probes: a metric that saturates across the range of the perturbation 
     *downstream of weight loading*, so this test costs a full boot — measured 04:00:36Z container
     start to 04:02:14Z exception, ~100 s plus teardown. It is cheap for a boot, not free, and it is
     emphatically not something to re-run casually. Provenance:
-    `.scratch/p50-replayssm/p50_serve.log`, and the flag genuinely reached the config —
+    `.scratch/phases/p50-replayssm/p50_serve.log`, and the flag genuinely reached the config —
     `server_args` shows `'enable_linear_replayssm_spec': True`, so the guard fired at the right place
     and not merely because the flag was dropped somewhere upstream. **This retires the last open
     §12.5 prediction and it means §12 is NOT suspect** — that was the point of running it, since a

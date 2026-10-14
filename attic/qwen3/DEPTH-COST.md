@@ -71,7 +71,7 @@ the leading candidate precisely because it does not rest on a statistic this har
 
 Phase 37, `attic/benchmarking/a2-d1024.yaml` + `a2-d8192.yaml`, run **alternating** on one booted server on
 `node-free-2` (`--skip-run`, zero boots), `c = 8` at both depths, 5 interleaved pairs. Artifacts:
-`.scratch/p37-a2/`, analyzer `.scratch/qwen3-27b/analyze_phase37.py`. This closes §6 item A2, which had
+`.scratch/phases/p37-a2/`, analyzer `.scratch/qwen3-27b/analyze_phase37.py`. This closes §6 item A2, which had
 sat open with two incompatible measurements (25 % and 32 %) that disagreed by more than their own noise.
 
 **The number.** Depth 8192 costs **20.6 %** of per-stream decode throughput relative to depth 1024,
@@ -268,7 +268,7 @@ question and why c = 16 at 8k is not (there, capacity and depth are confounded).
 
 Phase 38, `attic/benchmarking/depth-scaling-c8.yaml`, **zero boots** (`--skip-run` on the same live
 container as phase 37), `c = 8`, `pp = 2048` held constant, depths 1024→12288, `runs: 2`, `--fresh`.
-Artifacts: `.scratch/p38-0921/`. The point of a same-boot sweep is that pool identity cannot change
+Artifacts: `.scratch/phases/p38-0921/`. The point of a same-boot sweep is that pool identity cannot change
 underneath it — checked, `capped to 14` / `#tokens 239,346` identical before and after.
 
 Per-stream decode t/s, harness decode-phase rows, per-run spread ≤ 0.4 % at the anchor:
@@ -284,7 +284,7 @@ Per-stream decode t/s, harness decode-phase rows, per-run spread ≤ 0.4 % at th
 **The bump is not real, and Q0 killed it inside one zero-boot run.** Phase 38's non-monotonicity —
 d2048 at **+11 %** over d1024 — was a **blocked-order artefact**. Phase 39
 (`attic/benchmarking/q0-d1024.yaml` + `q0-d2048.yaml`, same container, `--skip-run`, `--fresh`, order
-randomised per block by `$RANDOM`, 5 blocks; artifacts `.scratch/p39-q0/`, 10/10 distinct md5s, pool
+randomised per block by `$RANDOM`, 5 blocks; artifacts `.scratch/phases/p39-q0/`, 10/10 distinct md5s, pool
 identity `capped to 14` / `#tokens 239,346` unchanged across the run):
 
 | block | order | d1024 | d2048 | ratio |
@@ -817,7 +817,7 @@ Read §9 item 3 for the verdict and this for the evidence and the three instrume
         came from" trap, re-encountered while writing the lesson about it. **Window first, then
         group.**
         **Whether capacity is the CAUSE is still unproven.** The depth-0 control run to settle it
-       (`.scratch/p30-0921`) produced aggregate decode that *rises* monotonically with `c`
+       (`.scratch/phases/p30-0921`) produced aggregate decode that *rises* monotonically with `c`
        (119.0 -> 132.7 -> 142.1 -> 148.8 t/s): there is no fall at depth 0 to explain, so the control
        is inert for a *fall* and cannot arbitrate. **Two citations that a previous revision of this document called "unverifiable" are in fact
 verifiable, correct, and the reason the depth-0 control is inert.** The earlier revision asserted that
@@ -883,7 +883,7 @@ already been deleted once.
 `attic/benchmarking/depth-linearity-grid.yaml`, 4 depths × 3 batches × 3 runs, **zero boots**
 (`--skip-run` on the already-live `node-free-1` container, `capped to 21`, `#tokens 117,752`). 12/12 cells,
 all gated usable (`#running-req` == offered `c`, no cell capacity-limited), all distinct md5s.
-Artifacts `.scratch/p49-0922/`.
+Artifacts `.scratch/phases/p49-0922/`.
 
 Per-stream aggregate decode (median of 3 runs), with bootstrap 95 % CIs on the ratio:
 
@@ -1210,7 +1210,7 @@ the one I keep skipping.
 Zero boots, one already-live container on `node-free-1`, config verified from its own serve log
 (`mamba_full_memory_ratio': 3.51`, `mamba_ssm_dtype': 'bfloat16'`,
 `speculative_num_draft_tokens': 8`, `capped to 21`, `#tokens: 117752`). Driver
-`.scratch/qwen3-27b/run_phase55.sh`, artifacts `.scratch/p55-ppslope/`, profile
+`.scratch/qwen3-27b/run_phase55.sh`, artifacts `.scratch/phases/p55-ppslope/`, profile
 `benchmarking/pp-slope.yaml`: `c = 8` fixed, `depth ∈ {1024, 4096}`, `pp ∈ {1024, 2048, 4096}`,
 3 runs. Single-variable-by-construction: changing **only** `pp` changes prompt length and nothing
 else in the decode graph.
@@ -1601,7 +1601,7 @@ zero-risk read of a count. Predicted from `.scratch/qwen3-27b/predict_capacity.p
 > (depth + pp + tg/2)` = `117,462 // 10,368` = **11**. §12.24 states 14. A revision of this section
 > "corrected" that to 11 on the theory that a request resident in the decode phase must also hold its
 > prompt and its generated tokens — arithmetically reasonable, and **falsified by measurement**:
-> `.scratch/p64-a`/`p64-b` observed peak `#running-req` **14** on the shipped arm at offered `c = 16`,
+> `.scratch/phases/p64-a`/`p64-b` observed peak `#running-req` **14** on the shipped arm at offered `c = 16`,
 > with peak full-token usage 0.99–1.00. **The original 14 was right and my correction was the error.**
 > The likely reason (UNVERIFIED) is that the pool is not committed per-request at full prompt length
 > for the whole decode phase — prefix-cache sharing across repeated prompts and lazy allocation both
@@ -1986,7 +1986,7 @@ came back at **+8.1 %**, so §12.37's pre-registered outcome 3 fires for the thi
 **acceptance remains untestable by this route — which is now a measured property of the instrument,
 not a complaint about one run.**
 
-**Design and provenance.** `.scratch/p63-accept2/` (artifacts: `p63.json`, `p63.csv`, `p63.out`,
+**Design and provenance.** `.scratch/phases/p63-accept2/` (artifacts: `p63.json`, `p63.csv`, `p63.out`,
 `p63_serve.log`, `driver.log`, `analysis.txt`). Profile args read from the file, not remembered:
 `depth: [1024, 16384, 1024, 16384]`, `pp: [2048]`, `tg: [1024]`, `concurrency: [2]`, `runs: 3`,
 `prefix_caching: true`. `--skip-run` against the already-live container on node-free-1; the driver's own
@@ -2078,7 +2078,7 @@ that errors, because it invites a conclusion — this one would have let me writ
 independent, CIs are sound" on evidence that meant the opposite. Replaced with a direct calibration
 test (`.scratch/qwen3-27b/ci_calibration.py`).
 
-**The measurement.** Nine cells appear twice within one boot (`.scratch/p59-withinbox`, `p60-rev`,
+**The measurement.** Nine cells appear twice within one boot (`.scratch/phases/p59-withinbox`, `p60-rev`,
 `p61-depthdesc`, `p62-c2`, `p63-accept2`), each appearance's lines bootstrapped (seeded) for a 95 %
 CI, then standardised:
 
@@ -2252,7 +2252,7 @@ draft depth *and* pool ratio together and left too few steady-state lines to sep
 correct output of this phase is **a confirmed capacity effect of unknown cause, plus one decisive
 single-factor arm now running**.
 
-**The verified numbers.** `.scratch/p64-a`/`p64-b`, four arms per node, interleaved
+**The verified numbers.** `.scratch/phases/p64-a`/`p64-b`, four arms per node, interleaved
 (`ship d4r12 ship d4r12` on `node-free-1`, mirrored on `node-free-2`), profile `attic/benchmarking/d4-r12-capacity.yaml`,
 `depth` 8192 / `pp` 2048 / `tg` 256, `concurrency` [1, 16], `runs` 2. Aggregate decode
 (`tg_throughput.mean`, decode-phase rows only):
@@ -2311,7 +2311,7 @@ from `D` = 4 and still win. **(ii) The matched-stream test is impossible from p6
 capacity **count** (reached in the first minute) and not much else.
 
 **A third arm that does not exist, caught before it was cited.** I checked whether the archive held
-`D = 4` at the *shipped* ratio, which would complete the 2×2 for free. `.scratch/p25-0920/` has
+`D = 4` at the *shipped* ratio, which would complete the 2×2 for free. `.scratch/phases/p25-0920/` has
 `speculative_num_draft_tokens: 4` at `mamba_full_memory_ratio: 3.51` — and is **`depth: 0`**
 (`context_size: 0` in its own JSON; it is the block-size confirmation sweep). It is not a valid arm
 for this comparison. Searching all artifacts for a `D` = 4 boot that ran `depth` 8192 returns **only
@@ -2319,7 +2319,7 @@ p64's four `d4r12` boots**. So `D` × ratio at long context is genuinely **unmea
 the tempting shortcut would have put depth-0 numbers into a depth-8192 conclusion.
 
 **The arm now running, and why it is the better next experiment.** `D = 8 / ratio = 1.2`
-(`attic/benchmarking/d8-r12-pool-pressure.yaml`, `.scratch/p65a-0922`/`p65b-0922`, mirrored orders,
+(`attic/benchmarking/d8-r12-pool-pressure.yaml`, `.scratch/phases/p65a-0922`/`p65b-0922`, mirrored orders,
 launched 2026-09-22 19:24). Two reasons it beats extending p64. **First, it is single-factor** — only
 the ratio moves, so a result is attributable, and it is *shippable as-is* since we already ship
 `D` = 8 (a `D` = 4 win requires also accepting acceptance 2.70 instead of 3.29). **Second, it is a
@@ -2418,7 +2418,7 @@ concurrency at long context (§12.26's `r ≈ 1.2` at 16k, this `+2 streams` at 
 essentially nothing per stream — but +7.4 % is below the threshold I set for calling it a win, and
 `c = 16` on two nodes is not the workload a `max_num_seqs: 48` recipe is advertised for.
 
-**Artifacts.** `.scratch/p65a-0922/`, `.scratch/p65b-0922/` (4 arms each, mirrored order,
+**Artifacts.** `.scratch/phases/p65a-0922/`, `.scratch/phases/p65b-0922/` (4 arms each, mirrored order,
 `--fresh`, duplicate-md5 guard passed). `.scratch/qwen3-27b/p65_streams.py` — built after three
 predecessor analyzers each silently returned "no data" for reasons unrelated to the data: one
 ordered regex that could not match (this build prints `accept len` **before** `cuda graph`), one
@@ -2802,7 +2802,7 @@ value" for a cell is what creates apparent discrepancies that were never there**
 below.
 
 **The fourth replicate resolved the one caveat this section carried, and changed no conclusion.**
-`.scratch/p69-discrim3/` measures `d = 8192, pp = 1024, c = 8` on `node-free-2` at zero boot cost
+`.scratch/phases/p69-discrim3/` measures `d = 8192, pp = 1024, c = 8` on `node-free-2` at zero boot cost
 (`--skip-run --no-stop` against the already-serving container, identity confirmed from its own
 `server_args` echo: ratio 3.51, `speculative_num_draft_tokens` 8). Result **141.0**, within-run
 range 136–151, **cv 3.6 %**. Cross-boot spread across the four boots is **139.0–145.0 = 4.3 %** —
@@ -2843,7 +2843,7 @@ fabrication; it was the accident of a blocked write. See the JOURNAL entry for 2
 config on `node-free-1` (identity read from its own `server_args` echo: ratio 3.51,
 `speculative_num_draft_tokens` 8, `capped to 21`, `#tokens` 117,568). Profile
 `attic/benchmarking/wide-compose-c4.yaml`, analyzer `.scratch/qwen3-27b/analyze_p70.py` +
-`p70_cost_refutation.py`, artifacts `.scratch/p70-wide/` (rc=0, 4 cells × 5 runs).
+`p70_cost_refutation.py`, artifacts `.scratch/phases/p70-wide/` (rc=0, 4 cells × 5 runs).
 
 **The result in one line.** Two cells with **exactly equal** `c·(depth+pp) = 53,248` measure
 **65.0 and 87.0** — a **21.4 %** gap against **4.7 %** mean within-cell cv, with **no overlap at
@@ -2948,7 +2948,7 @@ the model comparison printed a verdict anyway. Now it refuses unless all four ce
 `attic/benchmarking/symmetric-pair-only.yaml`; analyzer `.scratch/qwen3-27b/analyze_p71.py`, whose pass band
 `[0.62, 0.87]` and explicit FAIL branch `[0.90, 1.10]` were written **before** the data — the
 standing discipline in this file, because every analysis here written after seeing numbers produced a
-conclusion that later did not survive. Artifacts `.scratch/p71-symm/` (rc = 0, 4 cells × 5 runs).
+conclusion that later did not survive. Artifacts `.scratch/phases/p71-symm/` (rc = 0, 4 cells × 5 runs).
 
 | cell | depth | pp | `c·(depth+pp)` | p70 | p71 | p71 run values |
 |---|---|---|---|---|---|---|
@@ -3257,7 +3257,7 @@ local file licenses a search, not a conclusion.
 **Verdict first.** The capacity half of the ratio-1.2 result reproduces on a **single node**, in a
 **position-balanced** design, with **no overlap** between arms. Four fresh boots of
 `node-free-1`, order `ship r12 r12 ship`, depth 16384, offered `c = 16`, `newrun = 128`, two load
-reps per boot (32 requests/arm). Artifacts `.scratch/p76-samenode/`; analyzer
+reps per boot (32 requests/arm). Artifacts `.scratch/phases/p76-samenode/`; analyzer
 `.scratch/qwen3-27b/analyze_phase76.py`, whose decision rules were fixed before the data.
 
 | arm | boots (position) | `capped` | `#tokens` | ceiling `min(cap, #tokens//depth)` | peak `#running-req` |
@@ -3315,7 +3315,7 @@ counts, each found by reading the artifacts rather than my notes about them:**
 2. **The cited sections do not say it.** §12.43 is *"What llama-benchy's `depth` and `pp` actually
    are"*; §12.44 is *"neither prompt length nor resident tokens prices the decode cost"*. Neither
    mentions phase 26, the ratio arms, or a node confound.
-3. **`p74` does not exist.** No `.scratch/p74*`, no artifacts, no driver log. The sentence I had in
+3. **`p74` does not exist.** No `.scratch/phases/p74*`, no artifacts, no driver log. The sentence I had in
    mind — "my p74 boots ship on `node-free-1` and r12 on `node-free-2`" — described a run that was never executed.
 
 **So p76 was still worth running, for a reason unrelated to its stated purpose.** Phase 26 gave two
@@ -3469,7 +3469,7 @@ fair comparison. Acceptance was matched between cells (3.200 vs 3.180), so the a
 an acceptance artefact. `runs: 5` per cell; `--fresh` used; md5 duplicate guard passed.
 
 **Artifacts.** Profile `attic/benchmarking/pool-matched-pair.yaml` (predictions committed there before the
-run). Driver `.scratch/qwen3-27b/run_phase78.sh`, data `.scratch/p78-poolmatch/`, zero boots.
+run). Driver `.scratch/qwen3-27b/run_phase78.sh`, data `.scratch/phases/p78-poolmatch/`, zero boots.
 **One instrument bug found and fixed while running it:** the driver's serve-log fetch returned **202
 lines when the recorded marker said 740**, and printed that without comment. A serve log is
 append-only, so a smaller count is impossible; it was a truncated read, and the copy contained exactly
@@ -3482,7 +3482,7 @@ Now asserted, with retry (`fetch_log`). **Recording an invariant is not enforcin
 
 **Run.** Four boots on `node-free-1`, ABBA (`a_ship b_r12 c_r12 d_ship`), `--fresh`, md5 duplicate guard
 passed, `OFFER = 12`, `depth = 16384`, `newrun = 768`, distinct per-request prompts so the radix cache
-could not silently share KV. Driver `.scratch/qwen3-27b/run_phase77.sh`, data `.scratch/p77-decodedom/`.
+could not silently share KV. Driver `.scratch/qwen3-27b/run_phase77.sh`, data `.scratch/phases/p77-decodedom/`.
 
 **The gate fired, and firing is the rule working.** `analyze_phase77.py`'s pre-registered rule refuses
 any ratio unless decode exceeds 60 % of wall; measured decode share was **14–35 %, mean 21 %**. So
@@ -3712,7 +3712,7 @@ that admission leaves behind, and it was never collected until now.
 ~(depth+pp)/4096 chunked batches. Above ~4 offered streams that is a 4-wide resource whose
 per-request occupancy grows linearly with prompt length.
 
-**Measured on archived artifacts, zero boots** (`.scratch/p54-ppcross`, `admission_queue.py`;
+**Measured on archived artifacts, zero boots** (`.scratch/phases/p54-ppcross`, `admission_queue.py`;
 `n` = Prefill lines in that cell's window):
 
 | ctx | c | n | queue med | queue p90 | q max | frac q>0 | usage med | usage max |

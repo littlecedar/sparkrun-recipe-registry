@@ -105,7 +105,7 @@ and `--mamba-ssm-dtype` reaches the pool *only* by setting that env var
 Phase 12 booted the shipping recipe (bf16 state) on one node and the same recipe with
 `-o mamba_ssm_dtype=float32` on the other, then greedy-decoded 12 fixed prompts against both,
 twice each, through SSH tunnels. Tooling: `.scratch/qwen3-27b/ssm_dtype_neutrality.py`, driver
-`run_phase12.sh`, artifacts `.scratch/p12-0920/` (transcripts + full server logs).
+`run_phase12.sh`, artifacts `.scratch/phases/p12-0920/` (transcripts + full server logs).
 
 **The self-reproduction null passed cleanly**: each arm, probed twice in the same window, returned
 **12/12 byte-identical completions**. That is worth knowing on its own — this server *is*
@@ -134,7 +134,7 @@ not a large numerical change; it is what amplification does.** The interesting q
 been logit magnitudes or per-token divergence depth, not edit distance, and I measured neither.
 
 **Phase 14 ran, and the pre-registered interpretation rule fired on the first branch.** Driver
-`run_phase14.sh`, artifacts `.scratch/p14-0920/transcripts/`. Three boots; the dtype comparison is
+`run_phase14.sh`, artifacts `.scratch/phases/p14-0920/transcripts/`. Three boots; the dtype comparison is
 made from **saved transcripts**, because node `node-free-1` must stop bf16 before it can boot fp32 — so
 "same node, different dtype" cannot be probed in one live invocation and has to be reconstructed
 from disk (`--compare`).
@@ -224,7 +224,7 @@ benefit, and anyone tempted to call bf16 safe should note the same thing.
 
 #### 12.11bis Phase 16: teacher-forced logprobs say bf16 and fp32 are BIT-IDENTICAL — and the instrument was blind to the reason
 
-Run 2026-09-20 05:52–06:04, `.scratch/qwen3-27b/run_phase16.sh`, artifacts `.scratch/p16-0920/`.
+Run 2026-09-20 05:52–06:04, `.scratch/qwen3-27b/run_phase16.sh`, artifacts `.scratch/phases/p16-0920/`.
 Four boots in a **2×2 (dtype × node)**, `--fresh` each, teacher-forced per-token logprobs over a
 6-prompt corpus (371 scored tokens), 3 reps/arm. This is the instrument §12.11's analysis called for
 after greedy text failed.
@@ -311,7 +311,7 @@ as phase 16.
 ### 12.12 Phases 22–23: `bfloat16` state is bit-identical on the path that READS the state
 
 Run 2026-09-20 15:43–15:50, driver `.scratch/qwen3-27b/run_phase22.sh`, transcripts and full server
-logs in `.scratch/p22-cont/` (and `/home/<operator>/scratch/p22/` on the head node). **This closes the
+logs in `.scratch/phases/p22-cont/` (and `/home/<operator>/scratch/p22/` on the head node). **This closes the
 question §12.4 opened and §12.11 left unresolved — and it took three instrument failures plus one
 free control to earn the answer.**
 
@@ -762,7 +762,7 @@ string. A grep-based guard would have passed every version of the wrong claim ab
 
 Run 2026-09-21, entirely **free** (no boots): the servers from earlier phases were still up and idle,
 so everything here cost requests, not machines. Scripts `.scratch/qwen3-27b/probe_prefix_alignment.py`
-and `logprob_probe.py`; transcripts `.scratch/p36-cont/`.
+and `logprob_probe.py`; transcripts `.scratch/phases/p36-cont/`.
 
 **1. Reuse needs `prefix_tokens >= 64`, and is quantised to multiples of 64 — measured directly.**
 This closes the open question at the end of §12.18 and explains the phase-21 failure without invoking
