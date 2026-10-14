@@ -11,9 +11,9 @@ Counts in this document were verified 2026-10-14 against the working tree. Facts
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 30 files in 11 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 31 files in 11 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
-- **Mods** (`mods/`, 22 shipped + `mod-template`) — pre-launch container hooks that patch or stage
+- **Mods** (`mods/`, 23 shipped + `mod-template`) — pre-launch container hooks that patch or stage
   files inside the serving image before the engine execs.
 - **Benchmarking** (`benchmarking/`, 43 `llama-benchy` profiles + index README) — the curated
   profile library used by `sparkrun benchmark performance`.
@@ -39,7 +39,7 @@ Load-bearing contracts:
   map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
   `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
   nothing consumes — sparkrun renders unmapped defaults silently.
-- **`command:` is YAML folded `>`** (30/30 recipes). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (31/31 recipes). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -55,7 +55,7 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/cybersec/` (5), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (5), `recipes/glm/` (0 — runbooks), `recipes/ifm/` (2), `recipes/ornith/` (3), `recipes/qwen3/` (3), `recipes/qwen4/` (2), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms) and the Cybersec lane (five abliterated / cybersecurity-unlocked arms, added 2026-10-14) carry `README.md` lane docs; the GLM lane ships TensorFold runbook notes (its one recipe was archived to `attic/glm/` on 2026-10-13). The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
+| `recipes/cybersec/` (5), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (6), `recipes/glm/` (0 — runbooks), `recipes/ifm/` (2), `recipes/ornith/` (3), `recipes/qwen3/` (3), `recipes/qwen4/` (2), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms) and the Cybersec lane (five abliterated / cybersecurity-unlocked arms, added 2026-10-14) carry `README.md` lane docs; the GLM lane ships TensorFold runbook notes (its one recipe was archived to `attic/glm/` on 2026-10-13). The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
 | `recipes/glm/` | **No shipped recipe** — TensorFold runbook notes (`README.md`) in the lane; `GLM-5.3-RECOMMENDATIONS.md` and the one recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, are archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
@@ -95,7 +95,7 @@ for p in mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
 find mods tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: 30/30 pass plain; 4/30 fail strict on
+- **Plain `validate` is the gate, not `--strict`**: 31/31 pass plain; 4/31 fail strict on
   accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`;
   three `unpinned-model-revision`: `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
   `recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml`, and
@@ -184,7 +184,7 @@ remove what the session created** — a leftover is anything undocumented, unkno
   lives in `recipes/qwen4/`; contributor prefixes (`eugr-`, `ursuciprian-`) exist only in `attic/`.
 - Always `{model}` in `command:`, never a literal repo id. No host bind-mount paths — ship a mod
   (`volumes:` appears in 0 recipes).
-- Pin the checkpoint with top-level **`model_revision:`** (7 recipes), never `revision:` — an
+- Pin the checkpoint with top-level **`model_revision:`** (23 recipes), never `revision:` — an
   unknown top-level key is silently absorbed into `runtime_config` and does nothing (the labquant lane
   records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
