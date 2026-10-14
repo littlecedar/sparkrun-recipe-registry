@@ -21,7 +21,7 @@ metadata:
     ENGINE GATE, measured on this lane 2026-10-14: SGLang loads this checkpoint but its
     sample-time logits are NaN (the first generation dies with `CUDA error: device-side assert
     triggered` in sampling_from_probs_torch), so the arm does not serve under SGLang. The uploader
-    documents only vLLM's CompressedTensorsW4A4 path. See recipes/cybersec/AGENTS.md receipts.
+    documents only vLLM's CompressedTensorsW4A4 path. See attic/cybersec/AGENTS.md receipts.
 
 mods:
   - "@eugr/mods/drop-caches"

@@ -13,7 +13,7 @@ number is comparable to.  The explore lane's brief is *frontier reasoning +
 tool-calling* models, and three of its shortlist entries publish **BFCL** scores
 (inclusionAI/Ling-3.0-flash, Aleph-Alpha/Kolibri-1, meta-models/Muse-Glimmer-30B)
 — so BFCL is the standard suite this lane needs, and it is the one the lane's
-research doc names (`recipes/explore/EXPLORE-MODELS-RESEARCH.md` §4).
+research doc names (`attic/explore/EXPLORE-MODELS-RESEARCH.md` §4).
 
 This tool runs BFCL v3 questions against an OpenAI-compatible
 `/v1/chat/completions` and scores them with a faithful Python port of the

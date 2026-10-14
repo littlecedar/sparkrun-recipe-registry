@@ -126,7 +126,7 @@ RECIPE_ENV: dict[str, str] = {
     "MAX_RUNNING_REQUESTS": "16",
     "CHUNKED_PREFILL_SIZE": "4096",
     "CUDA_GRAPH_MAX_BS_DECODE": "16",
-    # KV pool pin, measured on this fleet 2026-10-06 (recipes/ds4/AGENTS.md 7.1):
+    # KV pool pin, measured on this fleet 2026-10-06 (attic/ds4/AGENTS.md 7.1):
     # at MEM_FRACTION_STATIC=0.80 the engine's own budget line reports
     # full_token=9,493,504..9,589,504 (bytes_per_full_token=1670.75, ~15.9 GB
     # available_bytes); a pin ABOVE that is CLAMPED to the budget, not refused. 9.4M
@@ -165,7 +165,7 @@ RECIPE_ENV: dict[str, str] = {
     # start from 343 s to ~124 s, but SGLang sizes the KV pool from the head's
     # MemAvailable right after the loads and the eager pinned reads leave
     # 0.8-1.5 GB less of it visible then, so the pool comes out 3-13 % smaller
-    # (upstream's EP2 measurement; see recipes/ds4/AGENTS.md 7.1 and
+    # (upstream's EP2 measurement; see attic/ds4/AGENTS.md 7.1 and
     # docs/fast-load.md in the image's source). We prefer the pool and pay
     # ~220 s per boot. The image does not set this var, so "0" is the stock
     # loader; it is explicit to record the decision, and "1" is the rollback.

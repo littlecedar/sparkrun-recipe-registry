@@ -5,11 +5,20 @@ _Brought to you by Little Cedar Group._
 Red-team / security-research arms: **abliterated (refusal-removed) and cybersecurity-unlocked**
 checkpoints served on DGX Spark (GB10). This is a *capability* lane, not a defence one — every
 arm here will answer prompts its base model refuses, and the operator supplies the guardrails.
+Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../attic/cybersec/)
+(indexed at the bottom of this file).
 
-> Working here? Read [`AGENTS.md`](AGENTS.md) first — it is the lane's durable guide (gating,
-> token prerequisite, traps, receipts). This README is the human-facing summary.
+## Contents
 
-## Gating: read this before filing an issue
+- [Gating and the token prerequisite](#gating-and-the-token-prerequisite)
+- [`qwen3.8-27b-uncensored-nvfp4-sglang`](#qwen38-27b-uncensored-nvfp4-sglang) — arm 1, positive (TP=1)
+- [`qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang) — arm 2, positive (TP=1), overlay
+- [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative (TP=1)
+- [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative (TP=2)
+- [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang) — arm 5, positive (TP=2), graft
+- [Attic index](#attic-index)
+
+## Gating and the token prerequisite
 
 **All five arms are gated on the Hub (`gated: auto`).** A distributed registry cannot assume an
 `HF_TOKEN`, so the prerequisite is explicit here and in every recipe's `metadata.caveats`:
@@ -17,90 +26,107 @@ arm here will answer prompts its base model refuses, and the operator supplies t
 - each runner node needs an `HF_TOKEN` whose user has **accepted that repo's release**, and
 - two arms (2 and 5) pull *two* gated repos each (the body/stock pack and the overlay).
 
-Without the token the model acquisition fails at launch, with the exact repo id named. No weights
-are redistributed by this registry; recipes ship repo ids, revisions, and wiring only.
+Without the token the model acquisition fails at launch, with the exact repo id named. **No
+weights are redistributed by this registry; recipes ship repo ids, revisions, and wiring only.**
 
 **Use.** These checkpoints are released for interpretability / refusal-mechanism study,
 red-teaming, and robustness evaluation. They will produce harmful or illegal content on request.
 Do not deploy them to end users, and do not point them at anything you do not own.
 
-## The arms
+Sizes below are measured on-disk weight bytes, not the Hub `Parameters` field. One node ≈ 108 GB
+usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm (boot ids,
+`GET /v1/models` answers, C1 runs, house batteries, refusal probe):
+[`attic/cybersec/AGENTS.md`](../../attic/cybersec/AGENTS.md) §8.
 
-| # | recipe | runtime | model | TP | C1 t/s (d0 / d8192) | battery | status |
-|---|---|---|---|---|---|---|---|
-| 1 | `qwen3.8-27b-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-27B-Uncensored-NVFP4] (mixed NVFP4+FP8, `qwen3_5`, vision) | 1 | **10.2 / 9.7** | 37/37 | boots, `GET /v1/models` = repo id |
-| 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [incoai/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
-| 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); the vLLM route its card documents is blocked on image distribution — see AGENTS.md |
-| 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
-| 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
+## `qwen3.8-27b-uncensored-nvfp4-sglang`
 
-**Cache reclamation (2026-10-14, owner space directive):** the two **negatives'** checkpoints were
-deleted from every node's HF cache — an arm with no working serve ships no artifact —
-`orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` (**183.5 GB/node**, `.32`+`.33`) and
-`orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` (24 GB). A re-test re-fetches. The three positives'
-checkpoints — including arm 5's stock `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` pack and the staged
-Engram tables the launcher reads — are **kept cached**.
+**Arm 1 — POSITIVE (TP=1).** Weights checkpoint, no overlay.
 
-`[bracketed]` links resolve at the bottom of this file. Every arm is one recipe; the measured
-receipts (boot id, `GET /v1/models` answer, `decode-triage` run, house battery) live in
-[`AGENTS.md`](AGENTS.md) so this table stays readable.
+- Model: [orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — ~24.7 GB, compressed-tensors **mixed** NVFP4
+  FFN + FP8 attention/GDN, static FP8 KV, `qwen3_5`; abliterated BF16 base → quantised; vision
+  tower and MTP head preserved (MTP head is BF16).
+- Runtime sglang, TP 1. Flags: **no `--quantization`** — SGLang auto-detects `compressed-tensors`
+  from `config.json` (the card is explicit the mixed-precision `quantization_config`, including
+  the FP8 `kv_cache_scheme`, must be read from the config) — and `--kv-cache-dtype auto` so the
+  checkpoint keeps ownership of the KV dtype. Served id: `orcarouter/Qwen3.8-27B-Uncensored-NVFP4`.
+- Boots (`GET /v1/models` = repo id); receipts in attic AGENTS.md §8 (C1 10.2 / 9.7 t/s
+  d0/d8192, house battery 37/37). Plain decode — no spec decode wired even though the MTP head
+  is preserved.
 
-## Two of the five arms are overlays
+## `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`
 
-Arms 2 and 5 are *not* checkpoints. The upstream repos ship **no weights** — they are a chat
-template / a config / a small `attn.wo_b` sidecar plus wiring. Both are handled by a mod that
-builds the arm's real artifact inside the container, from the container's own HF cache, and never
-writes the source snapshot:
+**Arm 2 — POSITIVE (TP=1).** Overlay arm: the overlay repo ships **no weights**.
 
-| arm | overlay repo | body / stock | what the arm adds | mod |
-|---|---|---|---|---|
-| 2 | [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] | `sakamakismile/…-AEON-ULTIMATE-UNCENSORED-NVFP4` | the cybersecurity-unlock **chat template** (+ the YaRN rope overlays for the 1M route) | `mods/provide-uncensored-chat-template` |
-| 5 | [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | the `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar**, grafted | `mods/graft-dsv41-ablit-wo-b` |
+- Body: [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] — ~20.5 GB + 0.85 GB MTP,
+  compressed-tensors NVFP4, `qwen3_5`, AEON-7 abliteration. Draft: [incoai/Qwen3.8-27B-DFlash2].
+- The overlay [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] adds only the cybersecurity-unlock
+  **chat template** (+ the YaRN rope overlays for the 1M route), staged by
+  `mods/provide-uncensored-chat-template` into `/cache/runtime/uncensored-template/` and passed
+  via `--chat-template`.
+- Runtime sglang, TP 1, DFlash2 spec decode; `--kv-cache-dtype auto`. Served id:
+  `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` — the AEON body *through the cyber
+  template*.
+- Boots (`GET /v1/models` = repo id; uncensored template confirmed in the serve log); receipts in
+  attic AGENTS.md §8 (C1 33.3 / 26.2 t/s, house battery 37/37).
 
-For arm 5 the author's `INSTALL.md` pairs a stock pack with a sidecar and forbids mixing them —
-the Mia 2.9bpw pack takes the **EXL3** sidecar and the EXL3 graft script; native / Pollard / TR3
-take the FP8 pair. The lane ships the EXL3 pair because the Mia pack is what our 2-node EXL3
-engine serves.
+## `nex-n2.5-mini-uncensored-nvfp4-sglang`
 
-## Served model id — the convention
+**Arm 3 — NEGATIVE (TP=1).** Weights checkpoint, no overlay.
 
-Every arm renders `--served-model-name {served_model_name}`, never `{model}`. On a real launch
-sparkrun rebinds `{model}` to the prepared on-disk snapshot, so a `{model}`-derived id would make
-the server advertise a `/cache/huggingface/hub/models--…` path to every client, the proxy, and any
-benchmark that sends the id. `served_model_name` is the arm's repo id:
+- Model: [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] — ~23.9 GB, compressed-tensors NVFP4
+  **routed experts only** (rest BF16), `qwen3_5_moe` (256E top-8 + 1 shared, 3:1 GDN), no MTP
+  head upstream. Runtime sglang, TP 1. Served id: the repo id. Recipe flag:
+  `--default-chat-template-kwargs '{"reasoning_effort": "none"}'` (Nex gates thinking on
+  `reasoning_effort`, not `enable_thinking`, and ships no `generation_config.json`).
+- **Negative under SGLang**: the checkpoint loads and the server reports ready, then the first
+  generation dies — NaN sample-time logits → CUDA device-side assert; with the override dropped
+  it serves degenerate empty / repeated-`!` text. The uploader documents only vLLM's
+  `CompressedTensorsW4A4`; that vLLM route is written and validated but blocked on **image
+  distribution** (~0.3 MB/s relay for one missing layer), not on the model. The recipe ships as
+  the documented negative; `metadata.caveats` names the gate. Full triage: attic AGENTS.md §8.
 
-| arm | served id |
+## `qwen3.8-flash-next-uncensored-nvfp4-sglang`
+
+**Arm 4 — NEGATIVE (TP=2).** Weights checkpoint, no overlay.
+
+- Model: [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] — ~183.5 GB (the ~100 GB bf16 PLE
+  n-gram tensor dominates the size), compressed-tensors NVFP4 experts + FP8 attention,
+  weight-only, KV bf16, `qwen4_exp`. Runtime sglang, TP 2, `gpu_memory_utilization: 0.85`
+  (~184 GB sits near the two-node 0.85 ceiling). Served id: the repo id.
+- **Negative**: SGLang's compressed-tensors loader maps the export's scheme to
+  `CompressedTensorsW4A16Sparse24` and refuses (`ImportError` at scheduler init) — a
+  **loader-scheme** failure, not memory, distribution, or the arch. The card's route is vLLM
+  (`qwen4_exp` + `compressed-tensors`), the next step; qwen4_exp support in our vLLM image is
+  unverified, and image distribution to these nodes was measured unusable. Pinning
+  `--quantization` to another value is **not** a fix to try blindly. Receipts: attic AGENTS.md §8.
+
+## `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`
+
+**Arm 5 — POSITIVE (TP=2).** Graft arm: the overlay repo ships **no weights**.
+
+- Stock: [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] — ~197 GB, EXL3 mul1 K=5, 39 shards, TP 2.
+  The overlay [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] is a 682 MB
+  `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar** that `mods/graft-dsv41-ablit-wo-b` grafts
+  onto the stock pack under `/cache/runtime/dsv41-ablit` (104 tensors edited; L0-9, L36-39, MTP,
+  embed/head, experts stay stock), synchronously and fail-closed inside the 600 s pre-exec hook
+  budget (measured 269 s / 284 s per node).
+- Runtime sglang shim → `mods/tensorfold-dsv41-launcher` (reused unchanged from the ds4 lane).
+  The command carries `--stock-model {model}` (the validator's identity token) instead of
+  `--revision {model_revision}`. Served id:
+  `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's identity,
+  not the body pack. Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint and are
+  provisioned detached by `mods/dsv41-engram-fetch`; GPU memory utilisation stays ≤ 0.85.
+- Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8
+  (C1 63.7 / 67.7 t/s, house battery 36/37, refusal probe 0/8 explicit refusals).
+
+## Attic index
+
+Lane state, receipts, and research notes live in [`attic/cybersec/`](../../attic/cybersec/).
+Currently the directory holds one file:
+
+| file | what it holds / question it answers |
 |---|---|
-| 1 | `orcarouter/Qwen3.8-27B-Uncensored-NVFP4` |
-| 2 | `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` |
-| 3 | `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` |
-| 4 | `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` |
-| 5 | `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` |
-
-For the two overlay arms the served id is the **arm's identity** (what the registry ships and
-what a client should ask for), not the body pack: arm 2 serves the AEON body through the cyber
-template, and arm 5 serves a graft tree that exists only on the node.
-
-## Reproduce
-
-```bash
-# from the run-from dir on the head node, recipes symlinked by basename
-sparkrun run qwen3.8-27b-uncensored-nvfp4-sglang -H <node>
-curl -s http://<node>:8000/v1/models        # id == the arm's repo id
-
-sparkrun benchmark performance qwen3.8-27b-uncensored-nvfp4-sglang -H <node> \
-  --profile benchmarking/decode-triage.yaml --output runs/<arm>.yaml
-python3 tools/quality-battery.py http://<node>:8000/v1 --tier both --json runs/<arm>.battery.json
-```
-
-Arm 5's graft (a large on-node rewrite of the stock EXL3 shards) runs **synchronously and
-fail-closed** in the mod — the serve command does not wait on a background step; see [`AGENTS.md`](AGENTS.md) §6.
-
-## Other surfaced arms (not shipped)
-
-Recorded, over the 1–2-node bar or licence-blocked; see `mad-science/TODO.md` §cybersec:
-`orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (205.1 GB), `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated`
-(315.7 GB ⇒ ≥3 nodes), `drowzeys/MiMo-V2.6-Flash-RL-Abliterated` (310B), `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B).
+| `AGENTS.md` | The lane's durable operating guide, moved here 2026-10-14 when lane docs consolidated into this README. §1 gating and the per-repo token prerequisite · §2 the served-id convention (`{served_model_name}`, never `{model}`) · §3 revision pins and why `model_revision` must be top-level · §4 measured artifact facts (on-disk sizes, quant schemes, template traps) · §5 the two overlay mods and the 600 s graft budget · §6 arm 5 detail (ds4 lane reuse, Engram) · §7 the validation ritual · §8 per-arm boot + measurement receipts. Everything after the dated heading is README material displaced by this rewrite (the old arm table with C1/battery, the overlay pairing lore, the served-id table, reproduce commands, the cache-reclamation note, other surfaced arms). Answers: why a launch died without a token, why the serve log shows a `/cache/...` id, which revision is pinned, how big each checkpoint is, why the graft must fit 600 s, what each arm measured. |
 
 <!-- Links -->
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4

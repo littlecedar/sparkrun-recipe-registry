@@ -4,14 +4,19 @@ Everything here left [`recipes/qwen3/`](../../recipes/qwen3/) on **2026-10-11**,
 consolidated down to the shipping recipe, the coder recipe, and its two guides (the spec-metrics
 guard mod below came from `mods/` the same day). Nothing here is
 served by the registry. **Do not re-add these to `recipes/qwen3/`** — run a recipe by path from here
-if it is ever needed again. Paired with [`recipes/qwen3/AGENTS.md`](../../recipes/qwen3/AGENTS.md),
+if it is ever needed again. Paired with [`attic/qwen3/AGENTS.md`](AGENTS.md),
 which is the maintained guide and holds the distilled findings.
+
+> **2026-10-14.** `recipes/qwen3/AGENTS.md` was removed in the lane consolidation. It now lives here
+> as [`attic/qwen3/AGENTS.md`](AGENTS.md) with its `§N` numbering unchanged, and the lane README's
+> pre-consolidation body was appended to it verbatim (under `## From recipes/qwen3/README.md
+> (2026-10-14)`). Cites of the old `recipes/qwen3/AGENTS.md` path elsewhere resolve to this file.
 
 > **Tracking note.** The recipes, `DEPTH-COST.md`, `SSM-STATE-DTYPE.md`, `ANSWERED-QUEUES.md`, and
 > this manifest are tracked and distributed with the registry. `QWEN3-MODEL-OPTIMIZATION-WORK.md`
 > and `NOTES.md` match the repo-wide `**/*-WORK.md` ignore rule and stay uncommitted **by design**
 > (they are internal working records); they are present in a working tree but absent from a fresh
-> clone — `recipes/qwen3/AGENTS.md` is the copy that ships. Internal addresses in all of them were
+> clone — `attic/qwen3/AGENTS.md` is the copy that ships. Internal addresses in all of them were
 > masked before archiving (`[.NN]` node shorthand, `/home/<operator>/…`); the full addresses live in
 > the untracked `.local/CONFIDENTIAL.md`.
 

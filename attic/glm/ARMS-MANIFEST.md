@@ -1,7 +1,8 @@
 # attic/glm/ — archived GLM arms (provenance)
 
-Archived 2026-10-13. Nothing here is served by the registry; `recipes/glm/` ships TensorFold
-**runbook notes**, not a recipe (see `recipes/glm/README.md`).
+Archived 2026-10-13. Nothing here is served by the registry; `recipes/glm/` ships no recipe — its
+TensorFold **runbook notes** live in [`AGENTS.md`](AGENTS.md) (moved there 2026-10-14), indexed from
+`recipes/glm/README.md`.
 
 | file | runtime | what it is | why archived |
 |---|---|---|---|
@@ -11,4 +12,5 @@ Archived 2026-10-13. Nothing here is served by the registry; `recipes/glm/` ship
 arm. Receipts: `~/benchmarks/glm53-flash-20261013/` on the head (eight launch logs).
 
 **Do not re-add it to `recipes/glm/`** without a public image that can serve this checkpoint. The lane's
-boot-verified serving lines are the TensorFold runbooks in `recipes/glm/README.md`.
+boot-verified serving lines are the TensorFold runbooks in [`AGENTS.md`](AGENTS.md), indexed from
+`recipes/glm/README.md`.

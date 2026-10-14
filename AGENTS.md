@@ -55,9 +55,9 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/cybersec/` (5), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (5), `recipes/glm/` (0 — runbooks), `recipes/ifm/` (2), `recipes/ornith/` (3), `recipes/qwen3/` (3), `recipes/qwen4/` (2), `recipes/rerank/` (2) | Recipes by model family, with per-lane `README.md`/`AGENTS.md`/`NOTES.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms) and the Cybersec lane (five abliterated / cybersecurity-unlocked arms, added 2026-10-14) carry `README.md` lane docs; the GLM lane ships TensorFold runbook notes (its one recipe was archived to `attic/glm/` on 2026-10-13). The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into the lane's `AGENTS.md` |
-| `recipes/glm/` | **No shipped recipe** — TensorFold runbook notes (`README.md`) + `GLM-5.3-RECOMMENDATIONS.md`; the one recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, was archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
-| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `recipes/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
+| `recipes/cybersec/` (5), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (5), `recipes/glm/` (0 — runbooks), `recipes/ifm/` (2), `recipes/ornith/` (3), `recipes/qwen3/` (3), `recipes/qwen4/` (2), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms) and the Cybersec lane (five abliterated / cybersecurity-unlocked arms, added 2026-10-14) carry `README.md` lane docs; the GLM lane ships TensorFold runbook notes (its one recipe was archived to `attic/glm/` on 2026-10-13). The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
+| `recipes/glm/` | **No shipped recipe** — TensorFold runbook notes (`README.md`) in the lane; `GLM-5.3-RECOMMENDATIONS.md` and the one recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, are archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
+| `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe and its spec-metrics guard mod in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | One self-contained directory per mod; `mod-template/` is the authoritative harness |
 | `tests/` | 18 importable guard modules, one skipped `*.sync-conflict-*.py` |
@@ -145,8 +145,8 @@ itself and an unpushed mod is invisible.
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
   when the lane depends on exact upstream code.
 - Update `recipes/README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
-  large_context, …) when adding a shipped recipe, and the lane's `README.md`/`AGENTS.md` when it has
-  one.
+  large_context, …) when adding a shipped recipe, and the lane's `README.md`, keeping design and
+  research prose in `attic/<lane>/`.
 
 ### Recipe comments
 
@@ -224,8 +224,8 @@ before matching.
   from sparkrun itself, not from here).
 - `pyproject.toml` — dependencies only (`jinja2`, `netifaces`); no `[build-system]`, no `[tool.*]`.
 - `mods/mod-template/run.sh` — authoritative mod harness.
-- `recipes/README.md` — recipe index and flag taxonomy; `recipes/<family>/AGENTS.md` carry lane
-  state, constraints, and runbooks (e.g. `recipes/qwen4/AGENTS.md`, `recipes/ds4/AGENTS.md`).
+- `recipes/README.md` — recipe index and flag taxonomy; `attic/<family>/AGENTS.md` carry lane
+  state, constraints, and runbooks (e.g. `attic/qwen4/AGENTS.md`, `attic/ds4/AGENTS.md`).
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
@@ -262,9 +262,9 @@ before matching.
 - **`COOP.md` ledgers are working files, not registry content.** The two that had been committed
   (`attic/qwen4/COOP.md`, `recipes/ifm/COOP.md`, the latter a 2026-10-07 reconstruction) were
   **removed from git on 2026-10-10** and `**/COOP.md` is now git-ignored, so a fresh clone cannot
-  re-introduce one. Their durable content lives in the lanes' `README.md`/`AGENTS.md`/`NOTES.md`
-  (and the recipe comments); the guard that required the ifm copy was dropped with it. Untracked
-  lane copies on a working tree, like `recipes/qwen3/COOP.md`, are a live writer's scratch.
+  re-introduce one. Their durable content lives in the lanes' `README.md` and `attic/<lane>/AGENTS.md`/
+  `NOTES.md` (and the recipe comments); the guard that required the ifm copy was dropped with it.
+  Untracked lane copies on a working tree, like `recipes/qwen3/COOP.md`, are a live writer's scratch.
 - `tests/*.sync-conflict-*.py` (22 tests) is **skipped** because discover rejects dashed module
   names before it can report them, and it is tracked in git — do not delete it.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML

@@ -1,7 +1,7 @@
 # W3 — quality-eval status (one page)
 
 Workstream W3: quality eval for the `local-inference-lab/Qwen3.8-Flash-Next-NVFP4`
-("labquant") export (`recipes/qwen4/AGENTS.md:112`, WORK §6 item 5 at lines
+("labquant") export (`attic/qwen4/AGENTS.md`, WORK §6 item 5 at lines
 2491–2496). Owner: `sub-q4-w3` (`COOP.md:37`).
 
 ## RESULTS — live paired run, 2026-10-04 (added by the main session)
@@ -39,7 +39,7 @@ PLE path specifically.
 ## DONE (off-cluster, this session)
 
 - **`tools/qwen4-quality-eval.py`** — stdlib-only, Python 3.12+, no venv
-  (`AGENTS.md:41`). OpenAI-compatible endpoint via `--base-url` (default
+  (`AGENTS.md`). OpenAI-compatible endpoint via `--base-url` (default
   `http://127.0.0.1:8000`), `--model`, `--json`, `--limit`, `--seed`,
   `--repeat`. `temperature=0`, prints every raw reply, per-task pass/fail, a
   per-category breakdown, and a total. `VERIFIED` it compiles
@@ -53,16 +53,16 @@ PLE path specifically.
 - **Negative controls:** `--selftest` runs the whole battery against an
   in-process mock in three modes — correct (38/38), always-wrong (0/38), and
   empty (0/38) — so a scorer that only ever passes is caught
-  (`tests/` convention, `AGENTS.md:42`). `VERIFIED` all three classify as
+  (`tests/` convention, `AGENTS.md`). `VERIFIED` all three classify as
   required.
-- **`recipes/qwen4/W3-QUALITY-EVAL-PLAN.md`** — the A/B protocol, sample-size
+- **`W3-QUALITY-EVAL-PLAN.md`** — the A/B protocol, sample-size
   reasoning, and the pre-registered PASS/BLOCK/INCONCLUSIVE decision rule.
 
 ## BLOCKED — needs the cluster (a live server)
 
 Nothing here has been run against a model. **I did not run this against a
 server, and I could not:** this session has no cluster access, and the lane's
-rules forbid launching containers from a subagent (`AGENTS.md:75–77`, one TP=2
+rules forbid launching containers from a subagent (`AGENTS.md`, one TP=2
 job at a time; `COOP.md:19` holds the bench lock). Both exports also need a
 ~99–135 GB per-node checkpoint pull that is not cached on the assigned pair
 (`COOP.md:22`). What remains is exactly the two-command A/B in the plan memo,
@@ -74,7 +74,7 @@ No code changes should be needed; `--model` is the only per-arm knob.
 
 ## Doc discrepancy found (not silently propagated)
 
-`AGENTS.md:112` and WORK §6 item 5 (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, item 5's
+`AGENTS.md` and WORK §6 item 5 (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, item 5's
 opening sentence) both say the export quantises "the PLE n-gram table ... where
 RadixArk leaves [them] **BF16**". That framing is **inaccurate for the PLE
 table**:

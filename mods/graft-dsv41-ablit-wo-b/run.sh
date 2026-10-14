@@ -25,7 +25,7 @@
 # (sparkrun/orchestration/hooks.py::run_pre_exec). A detached graft cannot be used instead: the
 # cluster launch holds the head on a ~300 s rendezvous gate before the serve command's own
 # readiness budget applies, so a serve wrapper that waits on a background graft never gets the
-# head up (measured 2026-10-14 -- see recipes/cybersec/AGENTS.md).
+# head up (measured 2026-10-14 -- see attic/cybersec/AGENTS.md).
 set -euo pipefail
 
 export MOD_NAME="graft-dsv41-ablit-wo-b"

@@ -22,7 +22,7 @@ metadata:
     reproduced on the community board): median 38.8 ms, 41 GB VRAM at 64k ctx,
     BFCL 98.8 / MMMU 91.8 on the vendor's own suite. Serves multimodal (text,
     JSON, images, video). Lane research:
-    recipes/decision/DECISION-MODELS-RESEARCH.md.
+    attic/decision/DECISION-MODELS-RESEARCH.md.
   model_url: https://huggingface.co/Cloudflare/clef-flash
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "9B"

@@ -4,7 +4,7 @@
 `…-exl3-tp4-vllm` on four idle Sparks and a one-node reproduction of the
 InstantTensor failure (below). **Audience:** the agent who implements the next
 change in this lane. Everything here is cited to a primary artifact or to
-`recipes/ds4/AGENTS.md`; build on nothing labelled SPECULATIVE.
+`attic/ds4/AGENTS.md`; build on nothing labelled SPECULATIVE.
 
 **TL;DR. The `instanttensor` question is now CLOSED (do not re-open it), and cache
 drops are not a mitigation.** InstantTensor is **incompatible with this checkpoint

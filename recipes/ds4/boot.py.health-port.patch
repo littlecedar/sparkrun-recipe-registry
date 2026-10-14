@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Dynamic-HEALTHCHECK patch for the knapcio image build context's `boot.py`.
-# Vendored for the sparkrun `ds4` lane; see recipes/ds4/AGENTS.md 5.
+# Vendored for the sparkrun `ds4` lane; see attic/ds4/AGENTS.md 5.
 #
 # WHY: the image's HEALTHCHECK runs `boot.py health` from the container's
 # creation environment. sparkrun passes the serve port through the launch

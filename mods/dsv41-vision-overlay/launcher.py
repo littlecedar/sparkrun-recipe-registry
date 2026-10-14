@@ -6,7 +6,7 @@ identical in every respect (see that mod's docstring for the rendezvous-port,
 rank, cache, and Engram rationale) except that it passes TensorFold's opt-in
 `--vision` flag and points `TF_DS_VISION_EXTRA` at the staged VL-bias file.
 
-Why this is needed (see recipes/ds4/AGENTS.md 12.14):
+Why this is needed (see attic/ds4/AGENTS.md 12.14):
 
 * `--vision` is an opt-in flag on `tensorfold serve`; without it the engine
   refuses image input with "image input needs the server started with --vision".

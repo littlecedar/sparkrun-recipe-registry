@@ -2,195 +2,148 @@
 
 _Brought to you by Little Cedar Group._
 
-Shipped `sparkrun` recipes for the **Qwen3.8-27B** (SGLang, single DGX Spark) family.
-All run on NVIDIA DGX Spark (GB10, 128 GB unified memory), TP=1 unless stated. The four
-Qwen3-VL embedding/reranking recipes moved to their own lanes on 2026-10-10:
-[`recipes/embed/`](../embed/README.md) and [`recipes/rerank/`](../rerank/README.md).
+Shipped `sparkrun` recipes for the **Qwen3.x** family on NVIDIA DGX Spark (GB10, 128 GB unified
+memory), TP=1 unless stated. This README covers **shipped recipes only**: repo ids, sizes, flags, the
+non-obvious knobs, and licences. Everything else — lane state, traps, knob rationale, negative
+results, measurement histories, boot receipts, the validation ritual, and the research docs — lives in
+[`attic/qwen3/`](../../attic/qwen3/), including the lane's former `AGENTS.md`, and is indexed at the
+bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to their own lanes on
+2026-10-10: [`recipes/embed/`](../embed/README.md) and [`recipes/rerank/`](../rerank/README.md).
 
-> Working here? Read [`AGENTS.md`](AGENTS.md) first — it is the lane's durable guide (traps,
-> knob rationale, negative results, validation ritual). The deep research record is archived in
-> [`attic/qwen3/`](../../attic/qwen3/) with a manifest. This README is the human-facing summary.
+## Contents
 
-## Recipes
+- [`qwen3.8-27b-nvfp4-dflash2-sglang`](#qwen38-27b-nvfp4-dflash2-sglang) — shipping; Qwen3.8-27B NVFP4 + DFLASH2 spec decode (SGLang)
+- [`qwen3-coder-next-int4-autoround-vllm`](#qwen3-coder-next-int4-autoround-vllm) — Intel/Qwen3-Coder-Next int4 (vLLM); the lane's fastest decode
+- [`qwen3.8-27b-mlx4bit-tensorfold-sglang`](#qwen38-27b-mlx4bit-tensorfold-sglang) — MLX 4-bit TensorFold engine behind the `runtime: sglang` shim
+- [Flags](#flags)
+- [Attic index](#attic-index)
 
-| recipe | runtime | model | flags | C1 t/s | notes |
-|---|---|---|---|---|---|
-| `qwen3.8-27b-nvfp4-dflash2-sglang` | sglang | [RadixArk/Qwen3.8-27B-NVFP4] + [incoai/Qwen3.8-27B-DFlash2] draft | 🌲🚀👀 | **33.8** | **shipping.** DFLASH2 spec decode, block 8. Decode-only, d=0, c=1. |
-| `qwen3-coder-next-int4-autoround-vllm` | vllm | [Intel/Qwen3-Coder-Next-int4-AutoRound] | 🌲🚀 | **71.7** | Measured 2026-10-11, `benchmarking/decode-triage.yaml`: **71.7 t/s @ d0** (σ 0.2, n=5) and 67.8 @ d8k (σ 0.1) — **2.1× the DFlash2 lane's C1**, the lane's fastest decode by a wide margin. Serve line pinned to the prepared snapshot (`79c8a6bb`, `--revision=79c8a6bb` literal — see the recipe for why). No accuracy measurement yet; the keep call follows the quality pass. |
-| `qwen3.8-27b-mlx4bit-tensorfold-sglang` | sglang (TensorFold shim) | [TensorFold/Qwen3.8-27B-MLX-4bit] (MLX 4-bit) + [z-lab/Qwen3.8-27B-DFlash2] draft | 👀 | **41.3** | **booted + measured 2026-10-14** on `.30`, boot `fe3054ad67464c54_2d38dfc4605e`. A foreign engine behind the `runtime: sglang` shim (the ds4 lane's pattern); house battery **37/37**. Decode-only, d=0, c=1. |
+### qwen3.8-27b-nvfp4-dflash2-sglang
 
-Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision.
+| | |
+|---|---|
+| recipe | `qwen3.8-27b-nvfp4-dflash2-sglang.yaml` |
+| runtime / container | SGLang (`lmsysorg/sglang:dev-cu13`) |
+| model | [RadixArk/Qwen3.8-27B-NVFP4] — NVFP4 quant of `Qwen/Qwen3.8-27B`, 17.6 GB weights, qwen3_5 dense hybrid, image-text-to-text |
+| draft | [incoai/Qwen3.8-27B-DFlash2] — DFLASH2 spec decode, block 8 |
+| size / mem / TP | 27B dense (64 layers = 48 GDN + 16 full-attention, no experts); `gpu_memory_utilization: 0.85`; **TP=1 only** (TP=2 cannot boot this model — attic `AGENTS.md` §7); 262,144 ctx |
+| flags | 🌲🚀👀 (fast, lcg_favorite, vision) |
+| decode C1 | **33.8 t/s** @ d=0, c=1 (block 8) — the shipping arm's quality reference (house battery 37/37) |
+| licence | Apache-2.0 (checkpoint and draft) |
 
-### The TensorFold arm (`qwen3.8-27b-mlx4bit-tensorfold-sglang`, added 2026-10-14)
+Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md) §4):
 
-[TensorFold](https://github.com/ashhart/TensorFold) is **not** an SGLang or vLLM route: it is its own
-engine, and the recipe's `runtime: sglang` is only the declaration that makes sparkrun render a
-`command:` template (on one node it appends no rendezvous flags, so the template reaches the engine
-unchanged). The upstream project is Mia's AI Lab's
-[Qwen3.8-27B-DGX-Spark-TensorFold](https://github.com/MiaAI-Lab/Qwen3.8-27B-DGX-Spark-TensorFold):
-TensorFold v0.6.0 (`c464617`) plus five patches — up to 50 images and video input, opt-in YaRN,
-an FP8 attention cache, a 0 GiB memory reserve, and a KV pool pinned at startup — baked into the
-public image `ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold` (patch set `fb91a0019fdc`,
-digest-pinned in the recipe). One DGX Spark, TP=1: MLX affine-4-bit weights (~15 GB), the DFlash2
-drafter (~3.6 GB), a 262,144-token window, FP8 KV, and image/video input.
+- **`max_num_seqs: 48` is not the granted concurrency.** The mamba/GDN state pool silently clamps it
+  to **21** on a fresh container (`capped to 21`, `K=85`) — read the grant from the server log, never
+  from the literal.
+- **`mamba_ssm_dtype: bfloat16` deliberately overrides the checkpoint's declared float32**: it doubles
+  granted concurrency (21 vs 10 slots) and is bit-identical on the state-read path. Do not "restore
+  float32 for safety".
+- **`mamba_full_memory_ratio: 3.51`** is the high-leverage, context-length-dependent knob; the optimum
+  is interior (≈3.6 at 4k, ≈2.3 at 8k, ≈1.2 at 16k) and flipping it is a traffic-shape decision —
+  **ask before changing it**.
+- **`speculative_draft_tokens: 8`** is what the draft was trained for; any other value wins silently.
+  `z-lab` and `incoai` drafts are the same weights (same blob), so a draft-provider A/B measures
+  nothing.
+- **`kv_cache_dtype: auto`** keeps the checkpoint owning the KV dtype (it resolves to `fp8_e4m3`
+  because the checkpoint's `hf_quant_config` says FP8).
+- **`chunked_prefill_size: 4096`** is a scheduler token budget, **not** draft length.
+- **`served_model_name` is a literal, never `{model}`**: sparkrun rebinds every `{model}` occurrence to
+  the prepared snapshot path, so the engine would advertise a `/cache/…` path as its model id.
+- A plain-decode control arm exists in the attic for a spec-vs-nospec comparison (12.56 t/s at c=1);
+  the pairing rule is in attic `AGENTS.md` §6.
 
-What the registry changed from the upstream launcher, and why:
+### qwen3-coder-next-int4-autoround-vllm
 
-- **Checkpoint id**: the upstream card names `Vontra/Qwen3.8-27B-MLX-4bit`; the Hub repo has moved to
-  the **`TensorFold`** org (the old id 307-redirects), so the recipe pins the canonical id at the
-  same commit.
-- **Port 8000**, the lane's convention, where upstream serves 8888.
-- **`TORCH_EXTENSIONS_DIR`** is moved into sparkrun's runtime cache (`/cache/runtime/…`): the image
-  bakes `/cache/torch_extensions`, but `/cache` is a mount parent docker creates as root while
-  sparkrun runs the container as the invoking uid, so the engine's `sm_121a` kernel compile could not
-  write there. As set, the compile is paid once a node instead of once a boot.
-- **The drafter is declared** (`speculative_draft_model` + its own revision) so sparkrun stages it in
-  the node's HF cache the way it stages the checkpoint. `TensorFold --drafter` reads it from there;
-  an undeclared drafter leaves the offline engine without one.
-- **The KV pool is left to the engine** (caches grow on demand). Upstream's `KV_POOL_GB=auto` is a
-  host-side computation in `start.sh` — free memory at start minus ~31 GiB, capped at 78 — which a
-  static recipe cannot run. To pin it, pass it at launch:
-  `sparkrun run … -e TENSORFOLD_KV_POOL_GIB=78` (the engine refuses a pool that does not fit).
+| | |
+|---|---|
+| recipe | `qwen3-coder-next-int4-autoround-vllm.yaml` |
+| runtime / container | vLLM (`ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest`) |
+| model | [Intel/Qwen3-Coder-Next-int4-AutoRound] — int4 (group 128) AutoRound quant of `Qwen/Qwen3-Coder-Next` (11.8B, qwen3_next); revision pinned `79c8a6bb…` (literal `--revision=` in the serve line, see the recipe for why) |
+| size / mem / TP | `gpu_memory_utilization: 0.85`; TP=1; 262,144 ctx; `load_format: instanttensor`, `max_num_batched_tokens: 8192` |
+| flags | 🌲🚀 (fast, lcg_favorite) |
+| decode C1 | **71.7 t/s** @ d0 (σ 0.2, n=5) and 67.8 @ d8k (σ 0.1) — 2.1× the DFlash2 arm, the lane's fastest decode |
+| quality | 35/37 house battery (misses `hard-arith-1`/`hard-arith-2`, both multi-step arithmetic) — the speed/coder arm to the DFlash2 quality reference |
+| licence | the Intel card declares none and defers to the base model `Qwen/Qwen3-Coder-Next` (**Apache-2.0**) |
 
-Upstream's own measurements (its `sparkDash` benchmark, one Spark): **58.3 t/s** decode single-stream
-on prose and **136.9** on code, **220.6 / 323.2 t/s aggregate at 8 clients**, and 1,793 tok/s prefill
-at 8k. Those are the upstream project's numbers, not this registry's, and its own fixed-seed rerun
-reads lower on a different prompt/counting setup — so do not put them beside this lane's
-`decode-triage` C1 column. This arm's own boot and measurements are below.
+**The non-obvious knob — the empty-`content` trap.** With the model's native thinking ON, a short
+reply comes back in the **reasoning** channel and `content` stays `null` (the `qwen3` reasoning parser
+never sees a closing think tag), which every client that reads `content` sees as an empty reply — the
+house battery scored 0/19 + 0/18 on empty strings while `/v1/completions` answered the same prompt
+correctly. The recipe therefore ships `--default-chat-template-kwargs '{"enable_thinking": false}'`;
+a caller wanting the scratchpad opts back in per request with
+`chat_template_kwargs {"enable_thinking": true}`. **Do not measure this lane without that knob** — and
+record the `finish_reason` + `reasoning` histogram beside any score.
 
-### Measured 2026-10-14 — boot, C1, and house battery
+### qwen3.8-27b-mlx4bit-tensorfold-sglang
 
-First registry boot of the arm, one node (`.30`), the recipe as shipped except for the one required
-correction below. **Boot receipt** `fe3054ad67464c54_2d38dfc4605e`: `GET /v1/models` →
-`{"id": "Qwen3.8-27B", "owned_by": "tensorfold"}` (not a `/cache/…` path), TTR port-open **71.5 s**,
-TTFT 98.7 s. The serve log shows the TensorFold startup estimate (**37.77 GiB within 116.72 GiB**),
-the `sm_121a` kernel builds (`tensorfold_qmm_v3`, `tensorfold_gdn_v2`,
-`tensorfold_prefill_attention_v1`), and `serving Qwen3.8-27B at http://0.0.0.0:8000/v1 … drafts: on;
-context: 262144; loaded in 70.2s`. The drafter `z-lab/Qwen3.8-27B-DFlash2` was staged at its pinned
-commit `50307d4c…`, and the serving line reports **`drafts: on`**. The KV pool was left to the
-engine (the recipe default; `TENSORFOLD_KV_POOL_GIB` is unset → grow on demand, "up to 8 streams");
-`-e TENSORFOLD_KV_POOL_GIB=<n>` pins it (`tensorfold/cuda/kv_fp8.py` in the pinned image reads it).
+| | |
+|---|---|
+| recipe | `qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` |
+| runtime / engine | the recipe's `runtime: sglang` is only the declaration that makes sparkrun render a `command:` template — the engine is **TensorFold v0.6.0** (its own engine, not SGLang/vLLM) plus five MiaAI-Lab patches, in the digest-pinned public image `ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold@sha256:043d192b…` (patch set `fb91a0019fdc`) |
+| model | [TensorFold/Qwen3.8-27B-MLX-4bit] — MLX affine-4-bit weights (~15 GB), 27.4B params, image-text-to-text |
+| draft | [z-lab/Qwen3.8-27B-DFlash2] (~3.6 GB), declared so sparkrun stages it; the engine reads it from the node's HF cache |
+| size / mem / TP | one DGX Spark, TP=1 (TP=2 is **not expressible** in this recipe — attic `AGENTS.md` §13); 262,144-token window; FP8 KV; image/video input |
+| flags | 👀 (vision) |
+| decode C1 | **41.3 ± 4.0 t/s** @ d0 and 41.7 ± 2.4 @ 8k (one boot, 2026-10-14 — treat as provisional); house battery **37/37** |
+| licence | Apache-2.0 (checkpoint); engine/patches are upstream's, kept under their licences |
 
-`benchmarking/decode-triage.yaml` — bench `30c35dc7ade7`, `--skip-run --no-stop`, c=1, runs=5, the
-served name resolved to `Qwen3.8-27B`:
+Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md)
+§12–§13):
 
-| depth | tg t/s (decode-phase mean ± σ) | ttfr |
-|---|---|---|
-| 0 | **41.3 ± 4.0** | 6.2 ms |
-| 8192 | **41.7 ± 2.4** | 23.5 ms |
+- **`TENSORFOLD_KV_POOL_GIB` is a launch-time knob, not a recipe value.** Upstream's `KV_POOL_GB=auto`
+  is a host-side computation in its `start.sh` (free memory minus ~31 GiB, capped at 78) that a static
+  recipe cannot run, so the arm leaves the pool to the engine (caches grow on demand) and you pin it at
+  launch with `sparkrun run … -e TENSORFOLD_KV_POOL_GIB=<n>` (the pinned image reads it; the engine
+  refuses a pool that does not fit).
+- **A trailing `#` comment in `command:` names `--served-model-name`, and must stay.** sparkrun's
+  `sglang` shim appends its own `--served-model-name` to any template that declares
+  `served_model_name`; TensorFold parses no such flag and the first boot died on
+  `unrecognized arguments: --served-model-name`. The helper is a substring test, so the comment skips
+  the append and the shell discards it. **Do not "tidy" it away — removing it stops the arm booting.**
+- **`model_revision` pins distribution, not serving.** This engine has no revision flag (`{model}`
+  reaches it as the prepared snapshot path), so `sparkrun recipe validate --strict` reports
+  `unpinned-model-revision`; plain `validate` passes and is the repo's gate. Do not clear it by
+  dropping the pin or by adding a flag the engine cannot parse.
+- `TORCH_EXTENSIONS_DIR` points at sparkrun's runtime cache so the `sm_121a` kernel compile is paid
+  once a node instead of once a boot; `executor_config.entrypoint: ""` clears the image's inherited
+  entrypoint. TP=2 needs a launcher shim (the ds4 lane's pattern), not this recipe.
 
-Read the decode-phase records only: the d=8192 cell also emits a context-prefill record (tg 37.5,
-`is_context_prefill_phase: true`) that must not be pooled. **At c=1 this arm out-decodes the
-DFlash2 arm (41.3 vs 33.8 t/s) at no depth penalty from 0→8k** — the mirror image of the coder arm's
-trade (41.3 here is *below* coder-next's 71.7, so the lane's speed arm is unchanged). One boot only,
-σ 4.0 > the DFlash2 arm's spread, so treat 41.3 as provisional until a second boot.
+### Flags
 
-House battery (`tools/quality-battery.py --tier both --max-tokens 2048`, n=1, thinking on):
-**37/37** (19/19 easy + 18/18 hard) — ties the DFlash2 reference arm. The server returns the answer
-in `content` and the think block in `reasoning_content`, so the battery's `content` read is not the
-empty-content trap; the tool's 384-token default is nonetheless too small for a thinking model.
+🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision.
 
-**The one correction the boot required.** As authored the first boot died instantly with
-`tensorfold: error: unrecognized arguments: --served-model-name Qwen3.8-27B`: sparkrun's `sglang`
-shim appends its own `--served-model-name` to any `command:` template that declares
-`served_model_name` (`runtimes/base.py::_augment_served_model_name`), and TensorFold has no such flag
-(it spells the id `--name`). The command now names the flag in a trailing comment — the helper's
-substring check then skips the append, and the line is a shell comment so the engine never sees it.
-See [`AGENTS.md`](AGENTS.md) §12.
+## Attic index
 
-Staged boot (one free node; render first, then launch):
+[`attic/qwen3/`](../../attic/qwen3/) holds the lane's frozen record — the former lane guide, the
+research docs, the retired arms, and the spec-metrics guard mod. Section numbers (`§N`) were **not**
+renumbered on archival, so existing `§N` cites still resolve; the copies are frozen provenance — do
+not tidy or re-edit them.
 
-```bash
-H=$PWD/.local/sparkrun-home
-HOME="$H" sparkrun run @littlecedar/qwen3.8-27b-mlx4bit-tensorfold-sglang -H .34 -n
-HOME="$H" sparkrun run @littlecedar/qwen3.8-27b-mlx4bit-tensorfold-sglang -H .34
-```
+| file | what it holds / what question it answers |
+|---|---|
+| [`AGENTS.md`](../../attic/qwen3/AGENTS.md) | The lane's durable guide, moved verbatim from `recipes/qwen3/AGENTS.md` on 2026-10-14 with its `§N` numbering intact: the model thesis (§1–2), load-bearing constraints and traps (§3), why each shipped value is what it is (§4), the capacity model and its `depth + pp` divisor (§5), the archived control and its pairing rule (§6), negative results not to re-run (§7), open items (§8), where the evidence lives (§9), the validation ritual (§10), references (§11), and the TensorFold arm's strict-warning/flag-suppression and TP=2 runbook (§12–§13). Read this before touching a recipe here. |
+| [`ARMS-MANIFEST.md`](../../attic/qwen3/ARMS-MANIFEST.md) | The archival manifest: which arms left the lane on 2026-10-11, why each was retired, and where its facts now live — the index of last resort when a `§N` cite needs a source. |
+| [`QWEN3-MODEL-OPTIMIZATION-WORK.md`](../../attic/qwen3/QWEN3-MODEL-OPTIMIZATION-WORK.md) | Decision record (`WORK §N`): the dense-hybrid bandwidth model, the block 4→8 campaign, the pool/clamp analysis, the mamba pool + dtype threads, negative results, and the open-question queue at archive time. |
+| [`DEPTH-COST.md`](../../attic/qwen3/DEPTH-COST.md) | The depth/ratio thread (`DEPTH-COST §12.NN`): the `usable = min(cap, #tokens // (depth + pp))` correction (§12.54), the c=8 vs c=4 depth-cost split, retractions marked inline — read its bottom line before quoting any depth figure. |
+| [`SSM-STATE-DTYPE.md`](../../attic/qwen3/SSM-STATE-DTYPE.md) | The bf16-vs-fp32 recurrent-state probes (`SSM §12.NN`), the positive control, and the resolution limits of the claim — the evidence behind the shipped `mamba_ssm_dtype: bfloat16`. |
+| [`ANSWERED-QUEUES.md`](../../attic/qwen3/ANSWERED-QUEUES.md) | Every closed question (`AQ item N`) with its verdict, cost, and why the wrong prediction looked right — **search by benchmark profile name before running anything**. |
+| [`NOTES.md`](../../attic/qwen3/NOTES.md) | The lane's action-plan snapshot, drift list, and sprawl log at archive time. |
+| [`qwen3.8-27b-nvfp4-nospec-control-sglang.yaml`](../../attic/qwen3/qwen3.8-27b-nvfp4-nospec-control-sglang.yaml) | Archived arm: the plain-decode control that supplies the denominator the DFlash2 recipe cannot produce on its own (12.56 t/s at c=1). Copy it back into this lane before a spec-vs-nospec run — pairing rule in `AGENTS.md` §6. |
+| [`qwen3.8-27b-nvfp4-dspark-sglang.yaml`](../../attic/qwen3/qwen3.8-27b-nvfp4-dspark-sglang.yaml) | Archived arm: the DSpark draft, measured 2026-10-10 and **not an upgrade** (28.5 vs 33.8 t/s). Nothing here is served by the registry — do not re-add it. |
+| [`mods/fix-sglang-spec-metrics-empty-verify/`](../../attic/qwen3/mods/fix-sglang-spec-metrics-empty-verify/) | The spec-metrics guard mod (anchored, idempotent SGLang patch with its own negative-control harness) that served the retired no-spec campaign; no shipped recipe mounts it, and it is the repo's convention exemplar for mod-local guard harnesses. |
 
-The first boot builds the `sm_121a` CUDA extensions and loads ~19 GB of weights — measured TTR
-port-open **71.5 s** on `.30`, so the kernel build is not the slow part. `readiness` gives it 3600 s
-before the port has to open. Three knowns: plain `validate` passes with the strict-only
-`unpinned-model-revision` warning (this engine has no revision flag — it is handed the prepared
-snapshot path; see [`AGENTS.md`](AGENTS.md) §12); **TP=2 is not expressible** in this recipe (§13);
-and the launch logs a non-fatal `Could not install SGLang FP8 tuning configs` (the sglang runtime's
-tuning-sync step against a non-SGLang image) — it does not block the serve.
-
-Guard: [`tests/test_qwen3_recipes.py`](../../tests/test_qwen3_recipes.py).
-
-### Paired house-battery quality (2026-10-11, `tools/quality-battery.py`, n=1)
-
-The lane had **no quality numbers at all** before this pass. Same instrument, same window, one paired
-boot per arm:
-
-| arm | easy | hard | total | C1 t/s |
-|---|---|---|---|---|
-| `qwen3.8-27b-nvfp4-dflash2-sglang` (shipping) | 19/19 | **18/18** | **37/37** | 33.8 |
-| `qwen3-coder-next-int4-autoround-vllm` | 19/19 | 16/18 | 35/37 | **71.7** |
-
-coder-next's two misses are `hard-arith-1` and `hard-arith-2` — both multi-step arithmetic; everything
-else, including the format/trick/code tiers, is clean on both arms. 35/37 at 2.1× the decode speed is a
-**role split, not a loser**: DFlash2 stays the quality reference (37/37), coder-next is the speed/coder
-arm. Both keep their place — no attic move is warranted (nothing is dominated on both axes).
-
-Flags note: `no accuracy evaluation yet` on the coder row is now discharged.
-
-### Archived to [`attic/qwen3/`](../../attic/qwen3/)
-
-- `qwen3.8-27b-nvfp4-nospec-control-sglang.yaml` — the plain-decode control (12.56 t/s at c=1).
-  Copy it back into this lane to re-run a spec-vs-nospec comparison; the pairing rule is in
-  [`AGENTS.md`](AGENTS.md) §6.
-- `qwen3.8-27b-nvfp4-dspark-sglang.yaml` — the DSpark draft arm, measured 2026-10-10 and **not an
-  upgrade** (28.5 vs 33.8 t/s).
-- `QWEN3-MODEL-OPTIMIZATION-WORK.md`, `DEPTH-COST.md`, `SSM-STATE-DTYPE.md`,
-  `ANSWERED-QUEUES.md`, `NOTES.md` — the research record. Cite by `§N`; the section numbers were
-  not renumbered.
-
-## Qwen3-Coder-Next — the empty-`content` trap (2026-10-11)
-
-Measured on the pinned eugr vLLM: with the model's native thinking ON, a short reply comes back
-in the **reasoning** channel and `content` stays `null` — the `qwen3` reasoning parser never sees a
-closing think tag. A client that reads `content` (the house battery, most OpenAI SDK callers) sees an
-empty reply: the house battery scored **0/19 + 0/18 on empty strings** while `/v1/completions`
-answered the same prompt correctly (`391`). The recipe now ships
-`--default-chat-template-kwargs '{"enable_thinking": false}'`, so the default surface answers in
-`content`; a caller wanting the scratchpad opts back in per request with
-`chat_template_kwargs {"enable_thinking": true}`. **Do not measure this lane without that knob** —
-and record the `finish_reason` + `reasoning` histogram beside any score (repo rule G3/G4).
-
-## Qwen3.8-27B — what the numbers mean
-
-- **The model is dense, so it is a streaming-bandwidth problem, not a gather problem.** 64 layers = 48
-  GDN (linear-attention) + 16 full-attention, no experts. Every weight is read every token:
-  **17,608 MB/token** of weights, against ~**221 GB/s** effective read → a plain-decode ceiling of
-  **~14 tok/s** at TP=1 (`VERIFIED`). Every published throughput is that ceiling times speculative
-  amplification (`tok/s ≈ A_eff × BW / B_token`).
-- **Speculative decoding is where the speed is.** The DFLASH2 draft raises decode to **33.8 t/s** at
-  block 8 (d=0, c=1). Block 8 vs block 4 is **+22.5 %** ([1.188, 1.262]), pooled over 24 boots — the
-  recipe ships block 8 because the draft was *trained* at 8.
-- **`max_num_seqs: 48` in the recipe is a deliberate artifact.** The mamba/GDN state pool silently
-  clamps it to **21** on a fresh container (`K=85`) — the clamp is logged, not an error. Read the grant
-  from the server log (`grep -F 'capped to'`) rather than trusting the literal.
-- **Long context costs decode.** At `c=8`, depth above ~8k is **~20 %** slower (congested/pool-limited;
-  boot-level 8–29 %); uncongested at `c=4` the cost is **~11 %**. Do not quote a KV-bandwidth figure
-  (four were retracted).
-- **`mamba_ssm_dtype: bfloat16` doubles granted concurrency** (21 vs the checkpoint's declared
-  `float32`'s 10) and is bit-identical on the state-read path. This is a deliberate override of the
-  checkpoint; see [`AGENTS.md`](AGENTS.md) §4. Do not "restore float32 for safety".
-
-## Notes
-
-- **Evidence docs are archived** at [`attic/qwen3/`](../../attic/qwen3/) (2026-10-11; manifest in the
-  same directory — search `ANSWERED-QUEUES.md` by profile name before running anything).
-- **Guards:** `tests/test_qwen3_vl_embeddings.py` covers the moved VL recipes in the
-  `embed`/`rerank` lanes; `tests/test_qwen3_recipes.py` guards the TensorFold arm (engine identity,
-  digest pin, drafter, served id). The lane's SGLang arms are covered by
-  `tests/test_recipe_placeholder_resolution.py` (served-name rebinding, inert defaults).
-- **Raising a bug upstream?** Name the pinned container commit you read and cite `file.py:line`
-  (`AGENTS.md` and the archived docs do this throughout).
+What is no longer in `recipes/qwen3/`: the lane's measurement histories, boot receipts, A/B receipts,
+quality-battery tables, and per-knob campaign notes — all of that is in the archived `AGENTS.md` and
+the docs above. Guard: [`tests/test_qwen3_recipes.py`](../../tests/test_qwen3_recipes.py) covers the
+TensorFold arm; the lane's SGLang arms are covered by
+[`tests/test_recipe_placeholder_resolution.py`](../../tests/test_recipe_placeholder_resolution.py);
+the moved VL recipes are covered by
+[`tests/test_qwen3_vl_embeddings.py`](../../tests/test_qwen3_vl_embeddings.py).
 
 <!-- Links -->
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
-
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2

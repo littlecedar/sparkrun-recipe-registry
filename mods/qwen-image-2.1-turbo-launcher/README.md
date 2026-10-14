@@ -76,4 +76,4 @@ VAE tiling stays **off** (tiled decode produces a pink seam column on this
 checkpoint) and `cpu_offload` stays **off** (sequential offload roughly
 quadruples a reference-image edit). Neither is enabled anywhere in this mod;
 they are listed here because the base-model write-up in
-`recipes/explore/EXPLORE-MODELS-RESEARCH.md` §6 flags them.
+`../../attic/explore/EXPLORE-MODELS-RESEARCH.md` §6 flags them.

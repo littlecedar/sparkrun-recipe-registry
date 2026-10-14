@@ -29,7 +29,7 @@ leaves the saved schedule alone.
 Caching: `use_kv_cache=True` is the card's default and reuses the text and
 reference-image context prefix across denoising steps.
 
-Traps re-checked here (see recipes/explore/QWEN-IMAGE.md):
+Traps re-checked here (see attic/explore/QWEN-IMAGE.md):
   * VAE tiling stays OFF (tiled decode produces a pink seam column).
   * `cpu_offload` stays OFF (sequential offload costs ~4x on a reference image).
   * the denoise loop is serialized behind one lock: this is a single-tenant arm.

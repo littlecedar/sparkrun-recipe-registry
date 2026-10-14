@@ -41,7 +41,7 @@ metadata:
     with calibrated probabilities in one forward pass — no chat surface. The
     card's numbers (JevArena 48.6, 4.9 ms/question) are GPU numbers; this
     lane serves it on the unclaimed A725 cores at no GPU cost. Apache-2.0.
-    Lane research: recipes/decision/DECISION-MODELS-RESEARCH.md.
+    Lane research: attic/decision/DECISION-MODELS-RESEARCH.md.
   model_url: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "0.6B"
