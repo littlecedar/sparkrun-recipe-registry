@@ -645,3 +645,130 @@ packed-NVFP4 PLE unpacked to fp8 by a required mod). Its W3 battery reads essent
 RadixArk reference's on the tasks both ran, which is what promoted it to the lane's only checkpoint —
 but the battery is a gross-regression instrument, not an accuracy certificate
 (`attic/qwen4/status/W3-QUALITY-EVAL-STATUS.md`).
+
+---
+
+## Recipe comment archive (2026-10-14)
+
+_Comments removed from the two shipped `recipes/qwen4/*.yaml` files on 2026-10-14 (owner rule: a
+shipped recipe keeps, beside a value, only a comment crucial to a surprising/silent property; the
+measurement histories, boot costs and provenance move here). Verbatim as they stood in the YAMLs,
+organised per recipe filename. The recipe-relevant half of these facts now lives under the matching
+recipe section of `README.md`._
+
+### `qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`
+
+Verbatim comment text removed (the recipe now carries: the mod-chain ORDER note on
+`unpack-labquant-ple-nvfp4-to-fp8`, the `DIAGNOSTIC ONLY` marker on `diag-qwen4-unplaced-scales`, the
+REQUIRED/must-run-LAST note on `demote-labquant-narrow-mxfp8-to-bf16`, the `{model}`-rebinding note on
+`served_model_name`, and the two-mandatory-flags note on `extra_args`):
+
+```
+# (106.3 GB, 43 files: model-00001..41 + hybrid-main-00001/02).  Do NOT unpin: this repo's
+# `main` changed contents under us once already (a 45 MB weights-free snapshot) — see caveats.
+# Re-pinned 2026-10-14 to the step-5500 QAD revision; the 7-mod chain below was re-verified
+# against it against this layout (see mods/unpack-labquant-ple-nvfp4-to-fp8/README.md).
+```
+
+```
+# vision: the step-5500 revision ships the vision tower BF16 (in `quantization_config.ignore`).
+```
+
+```
+# Builds /cache/runtime/labq-patched: a symlink tree over the HF snapshot with one
+# patched config.json, so SGLang's modelopt_mixed loader will accept this checkpoint.
+```
+
+```
+# Rewrites the 128 PLE n-gram shards in that same tree from packed NVFP4 to plain
+# fp8 e4m3 and sets text_config.ple_embedding_dtype=float8_e4m3fn, so the engine
+# uses its own tested fp8 PLE path.  Without it the server gets past config parse
+# ORDER MATTERS: this mod writes real files into the tree the config mod builds,
+# and the config mod only rebuilds (rm -rf) that tree when its revision stamp
+# changes.  Keep the config mod first.  Cold cost is 51.2 GB / ~50 s per node.
+# Requires --no-ple-offload-embedding, which is set in the command below.
+```
+
+```
+# REQUIRED for this export to boot at all. Its GDN `linear_attn.in_proj_a`/`in_proj_b`
+# are MXFP8 at 48 rows each; fused into in_proj_ba that is n=96 (48/rank at TP=2),
+# under CUTLASS's MXFP8 floor of 128, so the load dies with
+#   ValueError: MXFP8 requires n >= 128 and k >= 128 for CUTLASS MXFP8.
+# Must run LAST: it layers onto the tree the config mod builds and reads its
+# config.json. Cost: +0.14 MB of weights per node, ~6 s. RadixArk ships these same
+# two projections BF16, so this matches the reference export rather than diverging.
+```
+
+```
+# NB: `mods/skip-labquant-vision-tower` is DELIBERATELY ABSENT on this revision. It exists to work
+# around the OLD export's NVFP4-quantised vision tower (scales with no destination under
+# quant_config=None). The step-5500 revision ships the tower BF16 and already lists
+# `model.visual.*` in `quantization_config.ignore`, so the load failure is gone and the mod would
+# now only remove vision capability for nothing. The vision tower therefore loads (BF16).
+```
+
+```
+# NB: the two fastsafetensors mods are deliberately NOT listed here even though
+# the parent recipe lists them.  This recipe benchmarks with
+# load_format=safetensors, so they accomplish nothing -- and worse, they exec as
+# unlink it).  See mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
+# and the reown fix.  Add them back only if you actually set
+# load_format=fastsafetensors.
+```
+
+```
+# Serves the mod-built patched tree, NOT the raw HF snapshot. The mod
+# (mods/fix-labquant-modelopt-mixed-flat-schema) creates this in the
+# host-local runtime cache on every node, as a symlink farm over the snapshot with
+# one patched config.json. The raw snapshot is never modified. If you bypass the
+```
+
+```
+# Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+# path, so the served model id would be the cache path (-n does not show this).
+# This literal plus --revision {model_revision} are the only identity tokens the
+# serve-command validator can match (--model-path loads the mod-built tree).
+```
+
+```
+# Escape hatch for one-off experimentation.  `sparkrun benchmark` silently drops
+# trailing EXTRA_ARGS (click nargs=-1 arg is accepted then discarded in
+# cli/_benchmark.py), so un-parameterised server flags cannot be injected from the
+# command line.  Empty string is the no-op default; quoted so YAML keeps it a str.
+# --moe-runner-backend flashinfer_cutlass is REQUIRED here, not tuning:
+#   With `auto` the NVFP4 MoE resolves to MoeRunnerBackend.FLASHINFER_TRTLLM and the
+#   server dies ~13 minutes in, during the draft-model warmup, at modelopt_quant.py:2912
+#   with "Unsupported moe_runner_backend for NVFP4 MoE: MoeRunnerBackend.FLASHINFER_TRTLLM".
+# --cuda-graph-backend-prefill disabled is MANDATORY for this checkpoint, not a tunable.
+#   So this is not "QSA capture is flaky" and not a mis-scaled checkpoint: a non-pinned
+#   host->device copy sits inside the Triton path that prefill capture traces, and capture may
+#   legally fail on it. Disabling the prefill graph avoids that path entirely.
+#   WHY IN `defaults` AND NOT AS AN OVERRIDE: every labquant coherence PASS on record carried
+#   this flag, but always via `measurement_overrides`, never in the file. A recipe that only
+#   works when someone remembers an override is a broken deliverable, and the override is
+#   invisible in the committed file. Do not delete this line to "test" it; that test has been
+#   run and the answer is no.
+```
+
+### `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`
+
+Verbatim comment text removed (the recipe now carries the `VLLM_PLE_TABLE_MEMORY=disk` coupling and
+the MTP-k=4/mamba-pool coupling):
+
+```
+# Floating tag, like the ornith 397B lane: the b12x build is not published with a
+# digest-pinnable alias here, so a future pull can change the engine under this
+# recipe. Treat any measured number as tied to whatever the tag resolved to.
+```
+
+```
+# MTP k=4; the GDN mamba state pool binds concurrency, so the admission cap stays
+# low (the eugr solo cell ships 8 with MTP).
+```
+
+```
+# The load-bearing knob for TP=1: the PLE n-gram table streams from disk instead
+# of occupying device memory (SGLang's solo route uses --ple-offload-embedding
+# --ple-offload-backend file for the same purpose). CUTE_DSL_ARCH is omitted —
+# the platform tier already publishes sm_121a for vllm on DGX Spark.
+```

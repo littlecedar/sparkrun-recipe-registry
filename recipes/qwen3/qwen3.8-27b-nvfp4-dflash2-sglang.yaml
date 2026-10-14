@@ -10,13 +10,7 @@ metadata:
   model_params: "27B"
   model_dtype: nvfp4
   model_draft_dtype: bf16
-  # sglang's --help says "auto will use model data type", which would suggest bf16, but
-  # for this checkpoint auto resolves to fp8_e4m3 because mem_cache/kv_cache_dtype.py
-  # checks the parsed quant config's kv_cache_quant_algo first and this hf_quant_config
-  # ships "kv_cache_quant_algo": "FP8". Reading the docstring alone produced a wrong
-  # metadata value here once already; read the allocation line.
   kv_dtype: fp8_e4m3
-  # vision: Qwen3.5 multimodal checkpoint (image-text-to-text; config carries a vision_config).
   tags: lcg_favorite, fast, vision
 
 mods:
@@ -32,68 +26,26 @@ defaults:
   served_model_name: RadixArk/Qwen3.8-27B-NVFP4
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  # NOT the granted concurrency. MEASURED on hardware 2026-09-19: the mamba state pool
-  # silently clamps this (mem_cache/kv_cache_configurator.py:2177-2193) -- read the grant
-  # from the server log (`capped to 21`, K=85), never from this literal. Details and the
-  # 26-slot ceiling are in AGENTS.md section 4.
+  # NOT the granted concurrency: the mamba state pool silently clamps it (`capped to 21`,
+  # K=85) -- read the grant from the server log, never from this literal.
   max_num_seqs: 48
-  # How the leftover pool splits between GDN state and the token pool. THIS IS THE
-  # HIGH-LEVERAGE KNOB on this recipe, and it is context-length dependent.
-  # Usable long-context concurrency is min(granted slots, #tokens // context_length),
-  # NOT #tokens // context_length: raising the ratio buys slots by spending tokens and
-  # lowering it does the reverse, so the optimum is an interior point that MOVES with
-  # context length (modelled at D=8, T~25 GiB: ~3.6 at 4k, ~2.3 at 8k, ~1.2 at 16k).
-  # DELIBERATELY STILL 3.51: flipping it is a claim about expected traffic shape, not a
-  # free win (2.3 gives up capacity headroom near 4k), and this recipe has no stated
-  # target traffic mix. The evidence is not the blocker; ask before changing it -- the
-  # measured 8k/16k trade is tabulated in AGENTS.md section 5.
+  # HIGH-LEVERAGE, context-length dependent: splits the leftover pool between GDN state
+  # and tokens; the optimum is interior and MOVES with context length -- ask before changing.
   mamba_full_memory_ratio: 3.51
-  # CHECKPOINT-DERIVED and load-bearing -- do not "restore float32 for numerical
-  # safety": the override DOUBLES the granted concurrency (bfloat16 -> "capped to 21",
-  # max_mamba_cache_size=85; float32 -> "capped to 10", K=42) and is bit-identical to
-  # float32 on the state-read path. Evidence and its untested limits: AGENTS.md section 4.
+  # bfloat16 deliberately overrides the checkpoint's float32: it DOUBLES granted
+  # concurrency (21 vs 10 slots) and is bit-identical on the state-read path. Do not "restore float32".
   mamba_ssm_dtype: bfloat16
-  # Reuse behaviour of this strategy is non-obvious and cost a wasted session:
-  # under extra_buffer_lazy, cached_tokens GROWS with the number of times the server has
-  # seen the prefix (measured ladder, flushed first, 128-token prefix: 1 absorb -> 0,
-  # 2 -> 64, 3 -> 64, 4 -> 128 = full reuse; a 64-token prefix needs 3 absorbs). Two
-  # consequences: (1) any warm-up that needs the kernel to READ stored state must absorb
-   # the shared prefix several times, not once -- a single absorb yields cached=0 and any
-   # such probe is blind; (2) `prefix_caching: true` in a benchmark does NOT mean prefixes
-   # are shared on the first pass, so early runs of a sweep see less sharing than the
-  # setting implies. Consequences and reasons: AGENTS.md section 4.
   mamba_radix_cache_strategy: extra_buffer_lazy
-  # Left at 'auto' rather than spelled fp8_e4m3 so the checkpoint keeps ownership of the
-  # KV dtype: auto resolves to fp8_e4m3 today (see metadata.kv_dtype) *because* the
-  # checkpoint says so, and pinning the string here would silently diverge from the
-  # checkpoint if it were ever re-quantised. Passing auto explicitly is identical to the
-  # previous behaviour, where the flag was commented out entirely.
   kv_cache_dtype: auto
-  # Scheduler token budget per prefill batch -- NOT related to draft length. The previous
-  # comment here ("Max new tokens for incoai/Qwen3.8-27B-DFlash2") was FALSE and is refuted:
-  # DFLASH block size *is* speculative_draft_tokens below, and `grep chunked_prefill_size`
-  # over arg_groups/speculative_hook.py returns nothing, so the two are uncoupled in that
-  # direction. The only real coupling runs the other way --
-  # arg_groups/mamba_hook.py:119-120 asserts mamba_track_interval >= speculative_num_draft_tokens.
-  # 4096 is safe for the mamba extra-buffer path (VERIFIED): the warning at
-  # arg_groups/mamba_hook.py:129-140 fires only when chunked_prefill_size <
-  # mamba_cache_chunk_size, which resolves to max(64, page_size) = 64 here
-  # (arg_groups/overrides.py:1888-1897). Note raising it cannot speed up GDN -- that path's
-  # internal chunk is fixed at 64 and is not derived from this value (AGENTS.md section 4).
+  # Scheduler token budget per prefill batch -- NOT draft length (the draft's block size
+  # is speculative_draft_tokens below).
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   speculative_algorithm: DFLASH
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
-  # 8, not 4. The draft checkpoint declares dflash_config.block_size = 8, and
-  # arg_groups/speculative_hook.py only infers that value when
-  # speculative_num_draft_tokens is LEFT UNSET; passing any number wins silently, with
-  # no warning, so this recipe was running the draft at half its trained block size.
-  # Do not raise this past 8: 8 is what the draft was trained for, and DFLASH's
-  # block_size mismatch guard only fires when both flags are set explicitly.
+  # Must stay 8 (the draft's trained dflash_config.block_size): any other value wins
+  # silently, and raising past 8 trips DFLASH's block-size mismatch guard.
   speculative_draft_tokens: 8
-  # Escape hatch for one-off experimentation, mirroring the qwen4 recipes.  Appended
-  # last so argparse resolves a repeated flag in favour of the override.  Empty
-  # string is the no-op default; quoted so YAML keeps it a str.
   extra_args: ""
 
 command: >

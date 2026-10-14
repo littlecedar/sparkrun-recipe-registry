@@ -1,19 +1,7 @@
 recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash
-# Serve this checkpoint. The image's boot.py bakes fb2764a5… (boot.py:24 REVISION)
-# but never acts on it here: the launcher sets SKIP_PREPARE=1 and hands boot.py the
-# sparkrun-distributed snapshot path rendered from {model}, so this pin -- not the
-# image -- selects the weights. Pinned to `main`, 5254448103b6… (2026-10-12), which
-# every node cache already holds. `main` differs from the image's baked fb2764a5…
-# in nothing the engine reads except the added `chat_template.jinja`: config.json,
-# tokenizer_config.json, the index, and all 48 weight shards are byte-identical, and
-# the rest of the delta is the reference inference/ tree and docs, which this SGLang
-# lane never loads. Every receipt in the lane docs was served from this revision (or
-# its template-carrying ancestor 2cba9e42), never from fb2764a5…; pinning here keeps
-# that and avoids a re-distribution. boot.py's launch.json still records the baked
-# REVISION, so it is not evidence of what was served; the launcher's "MODEL_ID is an
-# on-disk checkpoint dir; serving …/snapshots/<sha>" line is. Moving this pin
-# invalidates every receipt in the lane docs, so re-bench if you change it.
+# The launcher sets SKIP_PREPARE=1 and serves the snapshot sparkrun renders from
+# {model}, so this pin -- not the image's baked REVISION -- decides the weights.
 model_revision: 5254448103b6254fc646dacbca1cbbf20e9216c1
 runtime: sglang
 container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05

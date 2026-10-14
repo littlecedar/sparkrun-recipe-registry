@@ -52,6 +52,12 @@ Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3
   the prepared snapshot path, so the engine would advertise a `/cache/…` path as its model id.
 - A plain-decode control arm exists in the attic for a spec-vs-nospec comparison (12.56 t/s at c=1);
   the pairing rule is in attic `AGENTS.md` §6.
+- **`mamba_radix_cache_strategy: extra_buffer_lazy` reuses non-obviously.** `cached_tokens` *grows*
+  with repeat visits (a 128-token prefix: 1 absorb → 0, 2 → 64, 3 → 64, 4 → 128), so a warm-up that
+  must read stored state has to absorb the prefix several times, and `prefix_caching: true` in a
+  benchmark does not mean prefixes are shared on the first pass.
+- **`extra_args` is the one-off experimentation escape hatch** (mirrors the qwen4 recipes): appended
+  last so argparse lets a repeated flag win, with a quoted empty string as the no-op default.
 
 ### qwen3-coder-next-int4-autoround-vllm
 
@@ -108,6 +114,11 @@ Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/
 - `TORCH_EXTENSIONS_DIR` points at sparkrun's runtime cache so the `sm_121a` kernel compile is paid
   once a node instead of once a boot; `executor_config.entrypoint: ""` clears the image's inherited
   entrypoint. TP=2 needs a launcher shim (the ds4 lane's pattern), not this recipe.
+- **Upstream's engine env is preserved as-is**: `TENSORFOLD_NO_UPDATE_CHECK: '1'` (the engine's update
+  check writes into `HOME` and calls GitHub), `TENSORFOLD_KV_DTYPE: fp8` (the opt-in FP8 attention
+  cache, 32 KiB/token rather than 64), and `TENSORFOLD_MEMORY_RESERVE_GIB: '0'` (a 0 GiB startup
+  reserve where TensorFold's own default is a tenth of RAM — raise it if the node is shared).
+- **`parallel: 8`** streams decoded together; upstream measures no single-request cost up to 8.
 
 ### Flags
 

@@ -29,12 +29,10 @@ defaults:
   performance_mode: throughput
   max_model_len: 262144
   load_format: instanttensor
-  # Native thinking ON leaves a short reply inside the reasoning channel with
-  # `content: null` (measured 2026-10-11: a 4-token answer to "17*23?" came
-  # back as `reasoning: '391'`, `content: None`), which every client that
-  # reads `content` sees as an empty reply. Default it OFF so the served
-  # surface is usable; a client that wants the scratchpad passes
-  # chat_template_kwargs {"enable_thinking": true} per request.
+  # Native thinking leaves short replies in the reasoning channel with `content: null`
+  # (the qwen3 parser never sees a closing think tag), which clients that read
+  # `content` see as an empty reply. Default OFF; opt back in per request with
+  # chat_template_kwargs {"enable_thinking": true}.
   default_chat_template_kwargs: '{"enable_thinking": false}'
 
 command: >

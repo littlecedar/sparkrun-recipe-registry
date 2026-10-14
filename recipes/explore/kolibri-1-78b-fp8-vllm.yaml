@@ -1,15 +1,9 @@
 recipe_version: "2"
 model: Aleph-Alpha/Kolibri-1
-# Upstream config fix (2026-10-13): quantization_config.modules_to_not_convert
-# gained "lm_head" — the checkpoint's lm_head.weight is BF16, so the pin that
-# omitted it let the fp8 quantization config claim a tensor the checkpoint
-# ships unquantized. Weights/tokenizer/chat template are byte-identical.
 model_revision: 258cae8ffffc8c12db670bdbc6ac01bcf8826c87
-# Stock multi-arch vllm/vllm-openai:v0.29.0 (the plugin pins vLLM 0.29) with the
-# pure-Python `aleph-alpha-inference` plugin installed by
-# mods/install-kolibri-plugin — the vendor's own image is amd64-only, so it
-# cannot run on arm64 GB10; the plugin itself installs with --no-deps per its
-# README and never touches the image's vLLM/torch/transformers.
+# The vendor's own image is amd64-only (cannot run on arm64 GB10): stock
+# image + the pure-Python plugin installed --no-deps
+# (mods/install-kolibri-plugin).
 container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
 runtime: vllm
 min_nodes: 1
@@ -51,12 +45,8 @@ executor_config:
 
 env:
   PYTHONUNBUFFERED: '1'
-  # The measured GB10 boot set OMP_NUM_THREADS=4 (NVIDIA forum 2026-10-04);
-  # PYTORCH_CUDA_ALLOC_CONF is supplied by the platform tier for vllm on GB10.
   OMP_NUM_THREADS: '4'
 
-# Cold start includes the 73.5 GiB weight load (~1087 s measured on GB10)
-# before the port opens; the /health gate plus generous timeouts absorb it.
 readiness:
   inference: false
   port_timeout_s: 2400
@@ -69,16 +59,11 @@ defaults:
   served_model_name: Aleph-Alpha/Kolibri-1
   max_model_len: 262144
   max_num_seqs: 4
-  # Measured GB10 working point; weights alone are 0.60 of usable memory and
-  # the AGENTS.md GB10 ceiling is 0.85. 0.78 leaves the headroom the forum
-  # poster measured as necessary (CUDA ends up with ~11 GiB less than
-  # MemAvailable suggests).
+  # Measured GB10 working point: the weights are ~0.60 of usable memory, and
+  # CUDA reports ~11 GiB less than MemAvailable; 0.78 leaves that headroom.
   gpu_memory_utilization: 0.78
   kv_cache_dtype: fp8
 
-# Comments must live OUTSIDE the folded `command:` block: a `>` scalar keeps
-# them as literal text, and sparkrun's shell-comment rule then eats every flag
-# that follows the first `#`.
 command: >
   vllm serve
   /cache/huggingface/hub/models--Aleph-Alpha--Kolibri-1/snapshots/258cae8ffffc8c12db670bdbc6ac01bcf8826c87

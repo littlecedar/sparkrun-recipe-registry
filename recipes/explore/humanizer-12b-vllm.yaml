@@ -1,10 +1,6 @@
 recipe_version: "2"
 model: jialinyyzz/humanizer
-# Pinned 2026-10-14 to the revision this arm was booted and measured on.
 model_revision: 7232532cb8466bd393544e97826e12e6b5e471ac
-# Same digest as the lane's other vLLM arm (kolibri-1-78b-fp8-vllm.yaml). vLLM
-# 0.29.0 resolves Gemma4UnifiedForConditionalGeneration (checked in-container:
-# transformers 5.16.1, arch present in ModelRegistry.get_supported_archs()).
 container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
 runtime: vllm
 min_nodes: 1
@@ -46,9 +42,6 @@ executor_config:
 env:
   PYTHONUNBUFFERED: '1'
 
-# Port-open TTR measured at 277.9 s (HTTP-ready 277.9 s) on a warm cache — the
-# container start is what the port timer covers; a cold node spends ~800 s of
-# one-time distribution before the container even starts, then another ~280 s.
 readiness:
   inference: false
   port_timeout_s: 1200
@@ -61,19 +54,13 @@ defaults:
   served_model_name: jialinyyzz/humanizer
   max_model_len: 8192
   dtype: bfloat16
-  # AGENTS.md's GB10 ceiling. Only the KV pool depends on it: the weights are
-  # 22.7 GiB of the 121.7 GiB budget, and at 0.85 the pool measured 370,597
-  # tokens (45.2x concurrency at a 8192 window).
   gpu_memory_utilization: 0.85
-  # JSON must reach the shell as ONE word: the folded block scalar keeps the
-  # embedded single quotes. This key has no sparkrun flag-map entry, so it
-  # reaches vLLM only through the {placeholder} below; -o warns "unmapped"
-  # while still applying — do not delete it.
+  # No sparkrun flag-map entry: reaches vLLM only through the {placeholder}
+  # below (-o warns "unmapped" while still applying — do not delete it). The
+  # folded block keeps the embedded single quotes: JSON arrives as ONE word.
   limit_mm_per_prompt: >-
     '{"image": 0, "audio": 0, "video": 0}'
 
-# Comments must live OUTSIDE the folded `command:` block, or the `>` scalar
-# keeps them as literal text and the shell-comment rule eats every later flag.
 command: >
   vllm serve
   /cache/huggingface/hub/models--jialinyyzz--humanizer/snapshots/7232532cb8466bd393544e97826e12e6b5e471ac

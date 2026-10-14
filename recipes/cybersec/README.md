@@ -49,9 +49,14 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   from `config.json` (the card is explicit the mixed-precision `quantization_config`, including
   the FP8 `kv_cache_scheme`, must be read from the config) — and `--kv-cache-dtype auto` so the
   checkpoint keeps ownership of the KV dtype. Served id: `orcarouter/Qwen3.8-27B-Uncensored-NVFP4`.
-- Boots (`GET /v1/models` = repo id); receipts in attic AGENTS.md §8 (C1 10.2 / 9.7 t/s
-  d0/d8192, house battery 37/37). Plain decode — no spec decode wired even though the MTP head
-  is preserved.
+- Boots (`GET /v1/models` = repo id); receipts in attic AGENTS.md §8. Plain decode — no spec decode
+  wired even though the MTP head is preserved.
+
+- `mamba_full_memory_ratio: 3.51` splits the leftover pool between GDN state and the token pool —
+  the same interior-point trade documented for the qwen3.8-27B lane (`attic/qwen3/AGENTS.md` §5);
+  left un-retuned here (no stated traffic mix for this checkpoint).
+- `kv_cache_dtype: auto` is left at `auto` so the checkpoint keeps ownership of the KV dtype: this
+  export ships a static FP8 `kv_cache_scheme`, and `auto` resolves from it.
 
 ## `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`
 
@@ -67,7 +72,16 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` — the AEON body *through the cyber
   template*.
 - Boots (`GET /v1/models` = repo id; uncensored template confirmed in the serve log); receipts in
-  attic AGENTS.md §8 (C1 33.3 / 26.2 t/s, house battery 37/37).
+  attic AGENTS.md §8.
+
+- `chat_template_path` is the file `mods/provide-uncensored-chat-template` writes into the managed
+  runtime cache (`/cache/runtime/uncensored-template/chat_template.jinja`); the command consumes it
+  via `--chat-template`.
+- `max_num_seqs: 48` is a clamp, not the granted concurrency: the dense 27B body (48 GDN + 16
+  full-attention layers) hits the same mamba-state-pool clamp as the qwen3.8-27B NVFP4 recipe —
+  read `capped to` in the serve log for the real number.
+- `speculative_draft_tokens: 8` is the block size the incoai draft was trained for (the overlay's
+  own seat used n=7).
 
 ## `nex-n2.5-mini-uncensored-nvfp4-sglang`
 
@@ -84,6 +98,13 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `CompressedTensorsW4A4`; that vLLM route is written and validated but blocked on **image
   distribution** (~0.3 MB/s relay for one missing layer), not on the model. The recipe ships as
   the documented negative; `metadata.caveats` names the gate. Full triage: attic AGENTS.md §8.
+
+- `default_chat_template_kwargs '{"reasoning_effort": "none"}'` is required: this checkpoint's
+  template gates thinking on `reasoning_effort`, not `enable_thinking` (`chat_template.jinja`
+  emits ` thinking` whenever `reasoning_effort` is unset), so left unset a short reply is consumed
+  by the deliberation trace and `content` comes back empty for every client that reads `content`.
+  A caller wanting the scratchpad passes `chat_template_kwargs {"reasoning_effort": "high"}` per
+  request.
 
 ## `qwen3.8-flash-next-uncensored-nvfp4-sglang`
 
@@ -116,8 +137,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's identity,
   not the body pack. Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint and are
   provisioned detached by `mods/dsv41-engram-fetch`; GPU memory utilisation stays ≤ 0.85.
-- Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8
-  (C1 63.7 / 67.7 t/s, house battery 36/37, refusal probe 0/8 explicit refusals).
+- Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index
 

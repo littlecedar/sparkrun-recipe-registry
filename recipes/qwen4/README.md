@@ -56,6 +56,20 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 FLASHINFER_TRTLLM, dead on SM121) and `--cuda-graph-backend-prefill disabled` (else prefill
 CUDA-graph capture raises).
 
+**Mod-tree mechanics.** `served_model_dir` points at `/cache/runtime/labq-patched` — the symlink tree
+`fix-labquant-modelopt-mixed-flat-schema` builds over the HF snapshot on every node (the raw snapshot
+is never modified). Bypassing the mod (`--skip-run` against a container that never ran it) leaves that
+tree absent. Cold costs: the `unpack` mod rewrites the 128 PLE shards in that tree in ~50 s / 51.2 GB
+per node; the `demote` mod adds +0.14 MB of weights per node. `extra_args` is the recipe's only escape
+hatch — `sparkrun benchmark` silently drops trailing `EXTRA_ARGS`, so an un-parameterised flag cannot
+be injected from the command line, which is why the two mandatory flags live in `defaults`.
+
+The two `fastsafetensors` mods are **deliberately absent** even though the parent recipe lists them:
+this recipe uses `load_format=safetensors`, so they accomplish nothing — and worse, they exec as root
+and leave a root-owned `flashinfer_jit.log` in the persisted per-model runtime cache, making the first
+launch of a new model key die as uid 1000 with a sticky `PermissionError`. Re-add them only if you set
+`load_format=fastsafetensors` (mechanism + `reown` fix: `mods/fix-fastsafetensors-tp2-sglang/run.sh`).
+
 **Knobs that are answered — do not re-litigate.** `kv_dtype: fp8_e4m3` is a config-level NO (boots,
 allocates, then dies in SM121 QSA decode). `chunked_prefill_size 8192` regresses k=8/k=16 on this
 checkpoint; keep 4096. `max_num_seqs` must stay strictly above every served `k`, and the real
@@ -86,6 +100,10 @@ not fit one Spark's unified pool, so this recipe keeps it **off the device** wit
 `env: VLLM_PLE_TABLE_MEMORY=disk` (mmap/pread per step); the rest of the server config is the TP=2
 shape at `--tp 1`. SGLang's equivalent route (`--ple-offload-embedding --ple-offload-backend file`)
 is archived.
+
+**Couplings.** `max_num_seqs` stays at 8 because with MTP k=4 the GDN mamba state pool binds
+concurrency (the eugr solo cell ships 8 too). `CUTE_DSL_ARCH` is omitted — the platform tier already
+publishes `sm_121a` for vLLM on DGX Spark.
 
 ## Attic index
 

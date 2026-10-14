@@ -29,7 +29,6 @@ mods:
 executor_config:
   entrypoint: ""
   shm_size: 32gb
-  # The RDMA gather and NCCL over the CX7 fabric need registered (locked) memory.
   ulimit:
     - memlock=-1:-1
 
@@ -50,7 +49,5 @@ command: >
 
 readiness:
   inference: true
-  # A cold first boot compiles the CUDA extensions and writes the ~106 GiB/rank
-  # weight cache before the serve port opens; later boots are much shorter.
   port_timeout_s: 3600
   health_timeout_s: 1800

@@ -3282,3 +3282,44 @@ a set of measured negative results). See [`attic/ds4/README.md`](../../attic/ds4
 
 For agents and developers working on this lane, read
 [`AGENTS.md`](AGENTS.md) (same directory) before touching the recipe or the mod.
+
+---
+
+## Recipe comment archive (2026-10-14)
+
+Comments moved out of the shipped recipe YAMLs when the lane adopted the rule
+that a shipped recipe carries only comments crucial to a surprising, novel, or
+confusing property. Everything else lives here or in the lane README. Organised
+per recipe filename.
+
+### recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml
+
+The 14-line comment that sat above `model_revision:` before 2026-10-14. Two of
+its lines remain in the YAML as a trap note (the launcher sets
+`SKIP_PREPARE=1` and serves the sparkrun-rendered snapshot, so the recipe pin --
+not the image's baked revision -- decides the weights). The whole block was
+provenance and evidence rather than operator guidance, so it is preserved here
+verbatim:
+
+    # Serve this checkpoint. The image's boot.py bakes fb2764a5… (boot.py:24 REVISION)
+    # but never acts on it here: the launcher sets SKIP_PREPARE=1 and hands boot.py the
+    # sparkrun-distributed snapshot path rendered from {model}, so this pin -- not the
+    # image -- selects the weights. Pinned to `main`, 5254448103b6… (2026-10-12), which
+    # every node cache already holds. `main` differs from the image's baked fb2764a5…
+    # in nothing the engine reads except the added `chat_template.jinja`: config.json,
+    # tokenizer_config.json, the index, and all 48 weight shards are byte-identical, and
+    # the rest of the delta is the reference inference/ tree and docs, which this SGLang
+    # lane never loads. Every receipt in the lane docs was served from this revision (or
+    # its template-carrying ancestor 2cba9e42), never from fb2764a5…; pinning here keeps
+    # that and avoids a re-distribution. boot.py's launch.json still records the baked
+    # REVISION, so it is not evidence of what was served; the launcher's "MODEL_ID is an
+    # on-disk checkpoint dir; serving …/snapshots/<sha>" line is. Moving this pin
+    # invalidates every receipt in the lane docs, so re-bench if you change it.
+
+### recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
+
+Two comments moved to `recipes/ds4/README.md` as bullets under this recipe's
+"Knobs a user cannot infer" section: the `ulimit: memlock=-1:-1` rationale (the
+RDMA gather and NCCL over the CX7 fabric need registered memory) and the
+generous `readiness` timeouts (a cold first boot compiles the CUDA extensions
+and writes the ~106 GiB/rank weight cache before the serve port opens).

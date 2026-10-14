@@ -1,33 +1,8 @@
-# Sol-2B on the vendor's own model runtime (vllm-srun), CPU-only.
-#
-# The Decision 2.0 runtime is vllm-srun — a standalone single-process server
-# (vllm_srun.cli:main, src/model-runtime in vllm-project/semantic-router), not
-# on PyPI and not its own image: it ships inside every router image, so this
-# recipe uses the dev-channel vllm-sr image, digest-pinned after the first
-# pull on a runner node. The image's default ENTRYPOINT starts the vllm-sr
-# router/gateway, which would consume the command — cleared below so the
-# vllm-srun serve line runs.
-#
-# Device is CPU on purpose: the vendor's support matrix marks DGX-Spark arm64
-# CUDA "experimental, not qualified", and the lane's slot for this model is
-# the unclaimed A725 core cluster (0-4,10-14 — the embed/rerank lanes pin the
-# X925 cluster 5-9/15-19), i.e. a decision model at no GPU cost. taskset
-# mirrors clef-flash's pinning in the same lane.
-#
-# The revision is the runtime's own pinned built-in revision for this model
-# (vllm-srun models), which the runtime's golden readiness check is built
-# against — NOT a hand-picked checkpoint sha. /health returns 200 only when
-# every model is loaded, verified and golden-checked, hence the long
-# readiness timeouts (cold start includes the model pull + golden check).
-#
-# sparkrun has no vllm-srun runtime; runtime: vllm is the family whose
-# distribution + launcher contract this command satisfies (sparkrun
-# distributes the model repo into /cache/huggingface, and --cache-dir points
-# the runtime at it).
 recipe_version: "2"
 model: vllm-sr/Decision-2.0-Sol-2B
 model_revision: 64235bef55dad29387dd16da7c90e038bf2f0972
 container: ghcr.io/vllm-project/semantic-router/vllm-sr@sha256:2c30eeb36dca047929930770d276042584e3618fd62f67923403387e0dc2e9a1
+# sparkrun has no vllm-srun runtime: `runtime: vllm` is the family whose distribution + launcher contract this command satisfies.
 runtime: vllm
 min_nodes: 1
 max_nodes: 1
@@ -48,8 +23,7 @@ metadata:
   model_dtype: bf16
   tags: decision, smol, cpu, classifier
 
-# No chat endpoint: /v1/systemone is the surface (the pooling-lane
-# readiness convention), and /health is the golden gate, not a plain liveness.
+# No chat endpoint: /v1/systemone is the surface; /health is the golden gate, not a plain liveness.
 readiness:
   inference: false
   port_timeout_s: 1800
@@ -59,24 +33,12 @@ defaults:
   port: 8000
   host: 0.0.0.0
 
-# vllm-sr image ENTRYPOINT starts the router/gateway, which would consume the
-# command sparkrun appends; clear it so the recipe's own serve line runs.
+# The vllm-sr image's ENTRYPOINT starts the router/gateway and would consume the appended command. Keep user: root — the kill shim below writes /usr/local/bin, and the image's own uid-1000 user owns no PATH dir.
 executor_config:
-  # root so the kill-shim prefix can write /usr/local/bin (the image's own
-  # uid-1000 user owns no PATH directory); the runtime only reads the
-  # HF cache bind-mount.
   user: "root"
   entrypoint: ""
 
-# The printf prefix installs a /usr/local/bin/kill shim (forwarding to the
-# bash builtin) BEFORE the server starts. The vllm-sr image is built on
-# python:*-slim, which carries no standalone kill binary, and sparkrun's
-# detached-launch liveness check runs `docker exec <c> kill -0 <serve-pid>`:
-# without the shim that exits 127 and the launch is declared failed while
-# the serve is actually coming up healthy seconds later (observed 2026-10-13,
-# three consecutive launches). vLLM / SGLang images ship procps and are
-# unaffected; the shim is a no-op on them but this recipe only runs on the
-# vllm-sr image, so it is written unconditionally.
+# Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, this python:*-slim image ships no kill binary, and without the shim the launch is declared failed while the serve comes up healthy seconds later.
 command: >
   printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
   && chmod 755 /usr/local/bin/kill

@@ -124,3 +124,59 @@ curl -s https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit/raw/main/mo
 ```
 
 (F12)
+
+## Recipe comment archive (2026-10-14)
+
+Comments deleted from the shipped recipes' YAML on 2026-10-14 (a shipped recipe keeps only what
+an operator would otherwise get wrong). Kept-in-YAML comments are noted here only where the
+surviving line is a condensation of the original.
+
+### recipes/embed/qwen3-vl-embedding-2b-vllm-b12x.yaml
+
+- Deleted, `tags:` — "vision + embedding: multimodal Qwen3-VL pooling encoder (`--runner pooling`
+  / `--convert embed`)."
+- Deleted, `port:` — "Distinct from the reranker's 8011 so both can be up at once on the same
+  host." (README knob note)
+- Deleted, `max_model_len:` — "Advertised 32k is a deliberate cap, not a ceiling (native capacity
+  is 262,144); a long-document embed needs it." (README knob note)
+- Deleted, `max_num_batched_tokens:` — "Prefill-bound: this batch token budget, not
+  `max_num_seqs`, sets the profiled peak. First knob to raise for more throughput per step."
+  (README knob note)
+- Deleted, `dtype:` — "Explicit bf16: the siblings declare `float32` inside `text_config`, and
+  auto-resolution would double the footprint of a model we intend to colocate." (README knob
+  note)
+- Condensed (kept in YAML as one line), `block_size:` — original added "…and 128 is
+  `_B12X_PREFERRED_PAGE_SIZE` in `b12x.py` at the pinned commit" (full receipt in "b12x block
+  size (both recipes)" above). Kept line: "b12x refuses vLLM's default block size — it accepts
+  only 64 or 128."
+- Condensed (kept in YAML as two lines), `gpu_memory_utilization:` — original: "Colocation:
+  vLLM's `--gpu-memory-utilization` is an ABSOLUTE device cap, so the two engines' caps must SUM
+  — this 0.25 + reranker 0.30 = 0.55 of 121 GB, in either start order. Raising one without
+  lowering the other risks a startup ValueError." (cross-lane paragraph above and README §2B)
+- Condensed (kept in YAML as two lines), `convert:` — original: "Pin the conversion vLLM would
+  otherwise auto-resolve to pooling/embed for this checkpoint's plain generative
+  `architectures`, so a default-table change cannot silently change what this recipe serves."
+- Condensed (kept in YAML as three lines), `limit_mm_per_prompt:` — original: "Bound the
+  profiled multimodal peak (vLLM's default is 999 images/prompt). Folded style with the embedded
+  quotes is load-bearing: the value must reach the shell as ONE word. NOTE:
+  convert/limit_mm_per_prompt have no flag-map entry and reach vLLM only through the placeholders
+  below; `-o` warns 'unmapped' while still applying — do not delete them."
+
+### recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml
+
+- Deleted, `tags:` — "vision + embedding: multimodal Qwen3-VL pooling encoder (`--runner pooling`
+  / `--convert embed`)."
+- Deleted, `port:` — "Third slot in the single-node port plan: 8010 embed-2B, 8011 rerank-2B,
+  8012 embed-8B." (README table)
+- Condensed (kept in YAML as one line), `readiness:` — original cross-referenced "(see the 2B
+  embedding recipe and the lane README)".
+- Condensed (kept in YAML as two lines), `gpu_memory_utilization:` — original: "Encoder-only
+  tier, so a larger cap than the 2B's: no reranker shares this budget. Do NOT size from
+  `sparkrun recipe vram`'s 'Model weights' line — it is wrong for awq4 (real 6.01 GB on disk);
+  see the lane README." (README carries the full vram caveat)
+- Condensed (kept in YAML as one line), `block_size:` — original added "128 is
+  `_B12X_PREFERRED_PAGE_SIZE` in `b12x.py`".
+- Condensed (kept in YAML as two lines), `limit_mm_per_prompt:` — original: "Cap multimodal
+  inputs per prompt (vLLM's default is 999 images) to bound the profiled peak on a shared-memory
+  box. Folded style + embedded quotes keep the JSON as ONE shell word;
+  convert/limit_mm_per_prompt reach vLLM only through the placeholders below."

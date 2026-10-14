@@ -26,6 +26,19 @@ Both ship on `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest`, one node, 
 serve score/rerank endpoints, not chat — read
 [Pooling endpoints](#pooling-endpoints--the-client-contract) before writing a client.
 
+**Knob rationale** (moved out of the recipe YAML 2026-10-14):
+
+- `max_model_len: 8192` bounds the worst-case (query, document) pair — the trained context is
+  32k, but every pair pays the template + instruction overhead; raise with `-o` for long
+  documents.
+- `dtype: bfloat16` is explicit: `config.json` declares bfloat16 at the top level but float32
+  inside `text_config`, so the value says what we mean rather than trusting dtype resolution.
+- `block_size: 128` is required by b12x (which aborts at cache-config time unless it is 64 or
+  128; vLLM's default is 16); 128 is `_B12X_PREFERRED_PAGE_SIZE` at the pinned commit.
+- `convert: classify` is written down explicitly so a default-table change cannot quietly turn
+  the recipe into a different pooling task — the launch then fails loudly instead.
+- `limit_mm_per_prompt` is a folded, embedded-quoted JSON so it survives as ONE shell word.
+
 ### `qwen3-vl-reranker-2b-vllm-b12x`
 
 - **repo id:** [`Qwen/Qwen3-VL-Reranker-2B`] — 2B params, bf16.

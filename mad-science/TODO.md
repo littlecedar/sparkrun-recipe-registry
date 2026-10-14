@@ -25,7 +25,7 @@ the pre-fold states, `git show baecfa8:mad-science/TODO.md` and `git show c7c7a8
 **#28 — Node-storage policy for model artifacts.** Every node keeps its own HF cache and sparkrun
 re-distributes each referenced model to every serving node, so the sweep found real duplication: the
 DS4.1 EXL3 base (~197 GB) + Engram tables provisioned twice per node where ds4 and cybersec co-run
-(`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml:18` vs `recipes/cybersec/README.md:57-58`),
+(`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` vs `recipes/cybersec/README.md`),
 three ~21–25 GB Qwen3.8-27B packs (one architecture; `recipes/README.md` Qwen 3x + Cybersec tables), and
 ~44 GB/node of decision arms of which one is servable (`attic/decision/DECISION-MODELS-RESEARCH.md`).
 Which policy? **(a)** build a shared read-only model store (NFS/RoCE export) as architecture work;
@@ -80,7 +80,7 @@ Selection priorities:
 - [ ] **Reconcile the stale counts in root `AGENTS.md`** — it says 30 recipes / 11 family dirs and lists `recipes/explore/ (5)`, but disk holds 31 recipes with 6 in explore (both media-gen recipes are shipped and indexed). `mad-science/RESEARCH_LORE.md` §10 already warns of stale counts; here the shipped doc is the stale side (`AGENTS.md:47-58` vs `recipes/README.md` Explore table vs `mad-science/SESSION-RECORD.md:173`). *(effort: short)*
 - [ ] **Add `mods/README.md`** with a disposition table (mirroring `tools/README.md`'s) — four mods are mounted by no shipped recipe: `drop-caches`, `skip-labquant-vision-tower`, `fix-sglang-radix-chunked-insert`, `dsv41-vision-overlay` (their dispositions are scattered across lane docs, recoverable today only by grep). *(effort: short)*
 - [ ] **Sweep `benchmarking/` profiles stranded by the lane cuts** — the qwen4 `bs-*` cliff family and the qwen3 depth-cost family serve arms since archived; three name the archived `zz-rk-moebackend.yaml` (`benchmarking/README.md` §cliff family). *(effort: short)*
-- [ ] **Fix the ds4 README TP=2 table's model id** — it says stock `Mia-AiLab/…EXL3-2.9bpw`; the shipped recipe declares `littlecedar/…-with-engram` (`recipes/ds4/README.md:343` vs `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml:18`). *(effort: short)*
+- [ ] **Fix the ds4 README TP=2 table's model id** — it says stock `Mia-AiLab/…EXL3-2.9bpw`; the shipped recipe declares `littlecedar/…-with-engram` (`recipes/ds4/README.md` vs `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`). *(effort: short)*
 
 ## ds4
 DeepSeek V4.1
@@ -89,7 +89,7 @@ DeepSeek V4.1
 - [ ] **RoCEnante coverage sweep + auto-crossover microbench** — the memo's §5 E3/E5 ("actually worth running"): do TP all-reduces/gathers >2 MiB silently fall back to NCCL (`SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB), and the 1 KB…2 MiB RoCEnante-vs-NCCL crossover curve (none measured) (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:166-196`). *(effort: medium)*
 - [ ] **Re-test `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE`** — both named and deliberately off (CERT_HEAD −0.5 ms/step at c1 but slower from ~10 requests; ENGRAM_DRM_NODE needs a host display-reserve change) (`attic/ds4/AGENTS.md`). *(effort: medium)*
 - [ ] **DSpark verify-window γ=3** — only γ=2 vs γ=5 was A/B'd; the fork's own baseline point (γ=3) was never measured on this lane (`mods/dsv41-sglang-overlay/launcher.py:140-158`). *(effort: short)*
-- [ ] **[storage] Collapse the DS4.1 EXL3 duplication** — see DECISIONS #29; per node serving both lanes the same ~197 GB weights + ~189 GiB Engram tables exist twice (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml:18`, `recipes/cybersec/README.md:57-58`, `mods/graft-dsv41-ablit-wo-b/README.md:17-19`). *(effort: medium)*
+- [ ] **[storage] Collapse the DS4.1 EXL3 duplication** — see DECISIONS #29; per node serving both lanes the same ~197 GB weights + ~189 GiB Engram tables exist twice (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`, `recipes/cybersec/README.md`, `mods/graft-dsv41-ablit-wo-b/README.md:17-19`). *(effort: medium)*
 
 ## glm5
 GLM 5.3
@@ -109,7 +109,7 @@ Ornith 1.5
 ## qwen3
 Qwen 3.x
 - [ ] **Boot the 27B TP=2 arm with `mods/fix-fastsafetensors-tp2-sglang`** — the lane's self-declared "Highest value" open item (TP=2 halves weight-read time); the fix mod exists and has never been run (`attic/qwen3/AGENTS.md:166-169`; `attic/qwen3/NOTES.md` §4 WP1). *(effort: medium)*
-- [ ] **Pin the 27B arm's checkpoint and its `incoai` DFlash2 draft** — the only unpinned shipped arm in these lanes; both SHAs are already recorded (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml:2,86`; `mad-science/SESSION-RECORD.md:104`). *(effort: short)*
+- [ ] **Pin the 27B arm's checkpoint and its `incoai` DFlash2 draft** — the only unpinned shipped arm in these lanes; both SHAs are already recorded (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml`; `mad-science/SESSION-RECORD.md:104`). *(effort: short)*
 - [ ] **[storage] Consolidate the DFlash2 drafter on one repo id** — `incoai` and `z-lab` are the same blob hash; three arms fetch it (27B DFlash2, MLX-4bit TensorFold, cybersec arm 2) and the `incoai` copy is unpinned (silent drift between consumers) (`attic/qwen3/AGENTS.md:106`). *(effort: short)*
 
 ## qwen4
@@ -132,8 +132,8 @@ IFM K2-Horizon
 ## embed
 Any embed model
 - [ ] **Add a pooling `BenchmarkingPlugin`** — pooling engines have no `/chat/completions`, so the standard profiles "silent skip"; the lanes' numbers rest on hand-run scratch scripts ("a plugin, not a script, is the correct long-term home") (`tools/README.md:102-105`). *(effort: medium)*
-- [ ] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in a recipe comment, never receipted (`recipes/decision/README.md:252-258`; `recipes/decision/jev-9b-decision-vllm.yaml:23-24`). *(effort: short)*
-- [ ] **Ship or retire the unquantized 8B BF16 encoder tier** — measured within 1.2% prefill of the shipped AWQ 4-bit, ships nowhere (scratch recipe only) (`recipes/embed/README.md:120-124`). *(effort: short)*
+- [ ] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in a recipe comment, never receipted (`attic/decision/AGENTS.md`; `recipes/decision/jev-9b-decision-vllm.yaml`). *(effort: short)*
+- [ ] **Ship or retire the unquantized 8B BF16 encoder tier** — measured within 1.2% prefill of the shipped AWQ 4-bit, ships nowhere (scratch recipe only) (`recipes/embed/README.md`; `attic/embed/AGENTS.md`). *(effort: short)*
 
 ## rerank
 Any rerank model

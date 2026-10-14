@@ -119,6 +119,26 @@ the hardware receipt (VERIFIED 2026-09-19).
 - Port **8015** sits outside the shipped 8010/8011/8012 plan so this never shadows the 2B
   reranker; the two are alternatives, not co-residents.
 
+## Recipe comment archive (2026-10-14)
+
+Comment prose moved out of the recipe YAML into this archive (nothing lost).
+
+### qwen3-vl-reranker-8b-vllm-b12x.yaml
+
+- `metadata.description`: quality tier, not `fast` — measured 28.76 units/s solo vs the 2B
+  reranker's 119.29 on the same traffic (C8, 10 docs/query, 128 tokens/doc), about 4× slower
+  per scored document.
+- `tags`: vision + reranking, multimodal Qwen3-VL cross-encoder; `--convert classify`. NOT
+  `fast` (see above): tagging it would point people at the slower sibling.
+- `port`: 8015 is outside the shipped 8010/8011/8012 plan so this never shadows the 2B
+  reranker; the two are alternatives, not co-residents.
+- `block_size`: 128 is `_B12X_PREFERRED_PAGE_SIZE` in `b12x.py` at the pinned commit, and a
+  score pair is one long prefill, so the larger page costs nothing meaningful.
+
+### qwen3-vl-reranker-2b-vllm-b12x.yaml
+
+- `tags`: vision + reranking, multimodal Qwen3-VL cross-encoder; `--convert classify`.
+
 <!-- Links -->
 [Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
 [Qwen/Qwen3-VL-Reranker-8B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B

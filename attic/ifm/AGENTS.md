@@ -740,3 +740,246 @@ manifest row:
   (single-stream d8k) is inside the lane's 7-25 % inter-boot noise floor. Their recipe
   files moved to `attic/ifm/arms/` with their contents unchanged; their measured
   numbers above are the evidence for the selection.
+
+## Recipe comment archive (2026-10-14)
+
+The root `AGENTS.md` "Recipe comments" rule was applied to the two shipped IFM
+recipes on 2026-10-14: a `#` comment stays in the YAML only when an operator who
+knows sparkrun but not this model would get the value wrong without it. Everything
+else — provenance, byte arithmetic, measured numbers, arm narratives, cross-lane
+references — is archived below, verbatim, per recipe filename. The comments that
+**stayed** in each YAML are marked `[kept]`; the rest were removed from the file
+and are reproduced here in full.
+
+### `k2-horizon-0.9b-bf16-sglang.yaml`
+
+**`model_revision`** (SHA-pin mechanism):
+
+```
+# SHA pin, not a branch (AGENTS.md §3). The offline container resolves `revision:`
+# itself over a snapshots/<sha>/ cache with no refs/ entry, so an unpinned engine
+# dies with LocalEntryNotFoundError *after* the weights synced to every host --
+# exactly the pin-reaches-distribution-but-not-the-engine case the
+# unpinned-model-revision warning exists to catch.
+```
+
+**`metadata.model_params`** (byte census):
+
+```
+# Total incl. lm_head; the body alone (what the card calls "0.9B-class") is
+# 0.98B, lm_head being 64256 x 1536 = 98.7M of the 1,078,285,824 params.
+```
+
+**`defaults.served_model_name`** `[kept, trimmed]`:
+
+```
+# Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+# path, so the served model id would be the cache path (-n does not show this).
+```
+
+**`defaults.gpu_memory_utilization`** `[kept, trimmed]`:
+
+```
+# Not a residency requirement (weights 2.16 GB): buys CUDA-graph headroom. 0.85 is
+# the GB10 SOLO ceiling (AGENTS.md); past ~0.85-0.90 a kernel or page-cache
+# allocation OOM-panics the launch on unified memory; the engine floors near
+# f=0.10 (AGENTS.md §9). sglang's cap is relative to FREE memory at THIS engine's
+# boot, so budget absolute GiB per engine, or pin the pool exactly with
+# extra_args: "--max-total-tokens 262144" (2x131k = 14 GiB). Overridable: -o
+# gpu_memory_utilization=0.30.
+```
+
+**`defaults.max_num_seqs`**:
+
+```
+# KV = 56 KiB/token (2*8*64*2*28, bf16), so a full 131k sequence is ~7.0 GiB and
+# the f=0.85 pool spans ~14 of them: 64 is a CPU/scheduler limit, NOT a memory
+# one. Aggregate t/s climbs near-linearly with concurrency while per-request t/s
+# falls (NOTES.md, 2026-10-08) -- measure both before raising.
+```
+
+**`defaults.dtype`** `[kept, trimmed]`:
+
+```
+# Spelled exactly as upstream validates it, NOT `auto`: config.json declares
+# "dtype": "float32" (schema-migration artifact, AGENTS.md §9), so `auto` can load
+# 6.5 GB where 2.16 GB was intended. The card's own recipe spells --dtype
+# bfloat16. Do not "simplify" this to auto.
+```
+
+**`defaults.attention_backend`** `[kept, trimmed]`:
+
+```
+# flashinfer, NOT the fa3 the cards and the cookbook tell you to pass: FA3
+# requires SM 8/9 (attention_registry.py:227-235) and GB10 reports (12,1), so fa3
+# cannot be constructed (AGENTS.md §3 -- the cards are Hopper guidance).
+# flashinfer is also sglang's own auto-default for major 12
+# (model_override_base.py:347-352), but is spelled anyway: `auto` has silently
+# landed on a dead/slow backend on this exact chip (qwen4 §12). fa4 is the
+# alternative arm -- it boots and serves, inside the 7-25% noise floor (README.md
+# arm sweep).
+```
+
+**`defaults.kv_cache_dtype`**:
+
+```
+# `auto` == model dtype == bf16. fp8_e4m3 is legal and would halve KV to 28
+# KiB/token, but its accuracy gate is unmet (README.md arm sweep) -- treat fp8 KV
+# as an arm whose gate is accuracy, not throughput. KV/attention combos are
+# coupled kernel paths (AGENTS.md §9).
+```
+
+**`defaults.chunked_prefill_size`**:
+
+```
+# NOT in sparkrun's _SGLANG_FLAG_MAP (only `chunked_prefill` ->
+# --chunked-prefill-size is), so it reaches sglang only through the placeholder
+# below; `-o chunked_prefill_size=...` prints "unmapped" while still taking
+# effect (AGENTS.md §3). Scheduler token budget per prefill batch; unrelated to
+# any draft width.
+```
+
+**`defaults.extra_args`**:
+
+```
+# Escape hatch for one-off experimentation. Appended last so argparse resolves a
+# repeated flag in favour of the override. Empty string is the no-op default;
+# quoted so YAML keeps a str. Probe arms and measured results: README.md §Arm
+# sweep; --cuda-graph flag spellings: AGENTS.md §8.
+```
+
+### `k2-horizon-7b-fp8-uno-sglang.yaml`
+
+**`model_revision`** (FP8-vs-BF16 pairing):
+
+```
+# The FP8 checkpoint, deliberately: the Uno adapter's own adapter_config.json
+# declares base IFM/K2-Horizon-7B (BF16), so the vendor-validated pairing is
+# BF16+Uno -- on a bandwidth-bound box the base read dominates and BF16 doubles
+# it, so the FP8+Uno pairing is itself part of what this arm validates (AGENTS.md §9).
+```
+
+**`mods:` header** `[kept, trimmed]` (adapter is a second artifact):
+
+```
+# The Uno adapter is a SECOND artifact: not a model, so `model:` cannot carry it
+# and sparkrun's model sync only fetches `model:` -- the mod below lands it at a
+# fixed container path. The pin lives in the mod's UNO_LORA_REVISION default
+# (AGENTS.md §9): IFM/K2-Horizon-7B-Uno @ 669f041aab04fad836e757ede9a028058b064996.
+```
+
+**`mods:` entries** `[kept, trimmed]` (bare form + ordering):
+
+```
+  # Bare `mods/NAME`, NOT the scoped `@littlecedar/mods/NAME` form: the scoped form
+  # resolves against the published registry clone, which does not carry these
+  # unpublished mods (failed on the first real boot, 2026-10-08 -- AGENTS.md §3).
+  # Order matters: the provide mod must land the adapter on disk before the server
+  # starts, and both must run before sglang reads --uno-lora-path.
+```
+
+**`metadata.model_params`** (adapter byte census):
+
+```
+  # `model:` is the BASE model, so metadata describes the base: the estimator sizes
+  # what it is told to serve. The Uno adapter adds 0.35B parameters (BF16-width
+  # weights, AGENTS.md §9), which is why model_params is 9.0B and not 9.35B --
+  # naming the adapter here would make the VRAM estimate claim FP8 width for them.
+```
+
+**`defaults.tensor_parallel`** `[kept, trimmed]`:
+
+```
+  # Hard requirement, not a tuning choice: _handle_uno raises
+  # "UNO requires TP=PP=1." So tp>1 is a launch failure and there is no
+  # multi-node variant of this recipe to write.
+```
+
+**`defaults.served_model_name`** `[kept, trimmed]`:
+
+```
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+```
+
+**`defaults.gpu_memory_utilization`** `[kept, trimmed]`:
+
+```
+  # 0.82, three points under the 0.85 GB10 ceiling. Headroom for UNO's resident
+  # target+draft LoRA slots (pool capacity 2) and the [batch, F, 250624] draft/verify
+  # logits. In LINEAR mode UNO allocates NO second backend and NO second CUDA-graph
+  # pool (both gated on tree_mode in uno_worker_v2.py) -- do not raise this to 0.85
+  # on the theory that "UNO needs it"; measure first. The earlier "second backend +
+  # second graph pool" justification was wrong for this file (AGENTS.md §4).
+```
+
+**`defaults.max_num_seqs`** `[kept, trimmed]` (the load-bearing admission cap):
+
+```
+  # *** max_num_seqs IS LOAD-BEARING FOR UNO. *** A scheduler admission cap, not a
+  # memory limit: at 8 the arm FLATLINES at c8 (below its own c4) while the plain
+  # 7B reaches 120; at 32 it scales to 145.5, the best c8 figure in the lane
+  # (README.md §UNO arm). At c=1 the cap is immaterial. Do not lower it -- a guard
+  # (tests/test_k2_7b_recipes.UnoConcurrencyCap) enforces a floor.
+```
+
+**`defaults.attention_backend`** `[kept, trimmed]` (the fa4 gate relaxation):
+
+```
+  # *** THE POINT OF THIS FILE. *** `fa3` -- what the UNO gate and the HF card ask
+  # for -- cannot be constructed on GB10 (asserts major in {8,9}); `fa4` builds the
+  # SAME FlashAttentionBackend class with fa_impl_ver=4 and the SM12x FA4 kernels,
+  # and the mounted mod relaxes _handle_uno's literal ("fa3","fa3") gate to also
+  # accept ("fa4","fa4"). If the mod is removed, this recipe fails at argument
+  # validation with "UNO requires FA3 ..." -- intended stock behaviour. The mod's
+  # default also admits `triton` (AGENTS.md §3), so lane B needs no env
+  # propagation: sparkrun run --recipe k2-horizon-7b-fp8-uno-sglang -o
+  # attention_backend=triton.
+```
+
+**`defaults.page_size`**:
+
+```
+  # page_size 1, and deliberately not 128. _fa4_page_constraint auto-forces 128
+  # only when is_sm100, so on GB10 nothing forces it. At page_size 1 the
+  # EAGLE topk>1 two-pass page-tree cascade is never reached -- and this recipe
+  # uses linear UNO (topk 1) anyway, so that constraint does not bind either.
+```
+
+**`defaults.chunked_prefill_size`**:
+
+```
+  # Kept modest: UNO force-disables mixed chunked prefill, so prefill runs
+  # alone; a large chunk here competes with the draft workspace for the same pool.
+```
+
+**`defaults.speculative_algorithm`** `[kept, trimmed]` — the `# ---- speculative: UNO ---` divider was dropped, the body kept:
+
+```
+  # ---- speculative: UNO ---------------------------------------------------
+  # UNO is a builtin in this image. It reuses the TARGET model plus a
+  # conditional-LoRA draft, so there is NO --speculative-draft-model-path; passing
+  # one is an outright error ("UNO reuses the target model and does not accept
+  # --speculative-draft-model-path").
+```
+
+**`defaults.speculative_eagle_topk`** `[kept, trimmed]` (linear, not tree):
+
+```
+  # LINEAR UNO, not tree: topk=1 makes _handle_uno force speculative_num_steps=1
+  # (a passed value gets a warning and an override) and makes
+  # --speculative-num-draft-tokens the LINEAR DRAFT WIDTH rather than a tree verify
+  # width. Tree mode (topk>1) additionally demands Q>=F, Q<=128, Q*K<=2048, accept
+  # thresholds exactly 1.0, no PDMux, no two-batch overlap, and a second CUDA-graph
+  # backend -- all avoidable, and unmeasured here (AGENTS.md §9).
+```
+
+**`defaults.speculative_num_draft_tokens`** `[kept, trimmed]` (mandatory, draft width F):
+
+```
+  # Draft width F = tokens proposed per UNO step = the linear forward width. 8 is
+  # the measured best of {2,4,8} on decode-triage (README.md §UNO arm); it
+  # SATURATES by F=8 and a wider verify costs KV and graph memory. MANDATORY:
+  # _handle_uno raises unless speculative_num_draft_tokens is a positive integer,
+  # so this cannot be left to a default.
+```

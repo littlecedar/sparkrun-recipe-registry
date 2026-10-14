@@ -901,6 +901,74 @@ uv run python -B -m unittest tests.test_ornith_recipes
 All three recipes validate clean. See [`AGENTS.md`](../../AGENTS.md) for the full
 run/lint/benchmark workflow.
 
+## Recipe comment archive (2026-10-14)
+
+Prose moved out of the three shipped recipes when the lane adopted the repo rule that a shipped
+recipe's `#` comments carry only facts an operator could get *wrong* without (a silent-failure
+footgun, a required ordering/pairing, a client contract). Everything below was deleted from the YAML
+and is kept here verbatim; anything still model- or config-relevant for running an arm was also
+folded into [`recipes/ornith/README.md`](../../recipes/ornith/README.md).
+
+### `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`
+
+- (`model_revision`) "2026-10-14: pins the snapshot the runner caches hold. The offline engine needs
+  the explicit --revision: a SHA-keyed download writes no refs/ entry. This is the 9B arm of the same
+  family block as the 35B sibling recipe; the two differ by engine knobs, not by model, so read that
+  recipe's comments too — but note the divergences called out below."
+- (`metadata`) "vision: the checkpoint is Qwen3.5 multimodal (image-text-to-text; config carries a
+  vision_config and image/video token ids), served with no --limit-mm-per-prompt cap."
+- (`mods`) "The drop-caches mod is inert under a default rootless launch (see the 35B sibling's
+  comment and mods/drop-caches/README.md); it is listed for lane consistency, not because it clears
+  the page cache for you." — and "Supplies --load-format fastsafetensors below."
+- (`max_num_seqs`) "Admission cap only. This checkpoint is a Qwen3.5 hybrid (GDN linear-attention
+  layers every 3rd of 4), so the effective ceiling can be the hybrid state pool, not this literal —
+  read the grant ("capped to N") from the serve log."
+- (`kv_cache_dtype`) "Safe to spell: this hf_quant_config ships kv_cache_quant_algo FP8, so the
+  literal and the checkpoint agree (unlike an `auto` whose resolution is silent)."
+- (`mamba_*` / `moe_runner_backend` absence) "moe_runner_backend is meaningless here (dense MLP, no
+  experts). The mamba trio is deliberately omitted rather than imported: the 35B's
+  `mamba_full_memory_ratio: 3.51` is a house value copied across lanes with no derivation, so the
+  engine's own defaults run. Measured 2026-10-14: the pool does not clamp the admission cap
+  (max_running_requests=48 with max_mamba_cache_size=273); see AGENTS.md §1."
+- (`speculative_draft_model`) "First-party DFlash draft (plain DFlashDraftModel, taps 1/5/9/13/…/29
+  of the 32-layer target) — NOT the third-party dflash2 draft the 35B sibling ships."
+- (draft left unpinned) "Left unpinned on purpose, like the 35B sibling's jzinno draft. A SHA pin
+  here is not a free reproducibility win: a SHA-keyed fetch writes no refs/ entry, and SGLang's
+  offline draft-config lookup (speculative_hook.py::_resolve_speculative_algorithm_alias →
+  get_config, HF_HUB_OFFLINE=1 in-container) resolves only refs/main — a pinned draft dies at startup
+  with LocalEntryNotFoundError. Boot receipt: AGENTS.md §1."
+- (`speculative_draft_tokens`) "8, the author card's value. The card spells it
+  --speculative-dflash-block-size, which upstream is an alias of --speculative-num-draft-tokens for
+  DFLASH (SGLang v0.5.18 server_args.py:2115-2117); sparkrun has no map key for the dflash spelling,
+  so this uses the alias the shipped 35B arm is boot-proven on. The draft's own
+  dflash_config.block_size is 16: 8 is <= it (the 35B runs 4 against a 16 block), and the DFLASH
+  worker only warns on the mismatch."
+
+### `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`
+
+- (`model_revision`) "2026-10-11: pins the snapshot the runner caches hold. The caches' chat template
+  was honed in place in September (qwen3.8-honed-v22.5.1), which sparkrun's model-preparation
+  validator now rejects against the hub's current metadata at this same revision (hub sizes changed
+  under it). Fix: caches carry hub content again, and the honed template ships via `--chat-template`
+  below, staged by @littlecedar/mods/ornith-honed-chat-template. The pin also keeps the offline
+  engine on this exact snapshot (--revision is required: a SHA download writes no refs/ entry). Draft
+  jzinno snapshot 9b4852c05fd00b672b7434b1bb105bc03c8682b0, pinned in `defaults:` below as a
+  distribution-only key; the pre_exec hook seeds the refs/main that the offline draft-config lookup
+  needs (AGENTS.md §3.12)."
+- (`metadata`) "vision: the checkpoint is Qwen3.5-MoE multimodal (image-text-to-text; config carries
+  a vision_config and image/video token ids), served with no --limit-mm-per-prompt cap."
+
+### `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml`
+
+- (`metadata`) "vision: multimodal checkpoint (image-text-to-text); the serve line carries a vision
+  encoder flag (--mm-encoder-tp-mode data)."
+- (`speculative_config`) "The speculative config is a placeholder rather than inline JSON for two
+  reasons: `-o speculative_config={...}` is then the whole one-knob method swap (MTP vs DFlash), and
+  sparkrun reads the draft model+revision *out of this default* to distribute the draft
+  (`runtimes/_vllm_common.py::detect_spec_config_draft`) -- an inline JSON leaves a DFlash draft
+  undistributed. Values are literal: a nested `{max_model_len}` here is NOT substituted (the render
+  is a single pass over `command:`). Keep the shell single quotes: the JSON holds double quotes."
+
 ## References
 
 - Ornith 1.5 announcement — <https://ornith.ai/ornith_1_5.html>

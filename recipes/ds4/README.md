@@ -218,6 +218,12 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   repo id into the node HF cache; to run across the cluster either push the repo
   (`hf upload littlecedar/…`) and point `model:` at the id, or pre-place
   `models--<org>--<name>/snapshots/<rev>` on every node.
+- **The recipe sets `ulimit: memlock=-1:-1`.** The RDMA gather and NCCL over the
+  CX7 fabric need registered (locked) memory; dropping it breaks the transport.
+- **The readiness timeouts are generous on purpose.** A cold first boot compiles
+  the CUDA extensions and writes the ~106 GiB/rank weight cache before the serve
+  port opens; later boots are much shorter. `port_timeout_s: 3600`,
+  `health_timeout_s: 1800`.
 
 ### Licence
 

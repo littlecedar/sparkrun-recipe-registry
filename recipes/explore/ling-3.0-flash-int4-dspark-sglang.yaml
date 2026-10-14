@@ -1,13 +1,9 @@
 recipe_version: "2"
 model: inclusionAI/Ling-3.0-flash-int4
 model_revision: 7a27e9eb8179b2c2eb71eb214f0dab14ec6a63f2
-# The explore lane's #2 by the research ranking: 124B/5.1B hybrid-linear MoE,
-# INT4, one Spark, first-party DGX Spark notebook in inclusionAI's ling-cookbook.
-# Image: the official LMSYS Ling runtime, which the third-party Spark port
-# (MiaAI-Lab/Ling-3.0-Flash-SGLang-DSpark-DGX-Spark) selects for DSPARK because
-# the GHCR ling_v3_support image predates the dspark_components /
-# --enable-linear-replayssm-spec this recipe needs. Digest pinned (first pull
-# 2026-10-11).
+# Official LMSYS Ling runtime; the third-party Spark port's GHCR image predates
+# the dspark_components / --enable-linear-replayssm-spec this recipe needs.
+# Digest pinned (first pull 2026-10-11).
 container: lmsysorg/sglang:dev-Ling-3.0-flash@sha256:880d81d428e73aaad8eb944e33556951d17f9deaeba661803da5d391052840b6
 runtime: sglang
 min_nodes: 1
@@ -56,18 +52,16 @@ defaults:
   max_num_seqs: 6
   max_mamba_cache_size: 32
   chunked_prefill_size: 8192
-  # 0.80 ships (2026-10-12 ladder): KV pool 313,752 tokens (0.75 measured
-  # 176,203), 262k needle PASS at depths 10/50/90, 4-way smoke clean.
-  # 0.87 stays the documented ceiling — not needed for the 262k window.
+  # 0.80 ships the full 262k window; 0.87 stays the documented ceiling — not
+  # needed for the 262k window.
   gpu_memory_utilization: 0.80
   kv_cache_dtype: fp8_e4m3
   speculative_algorithm: DSPARK
   speculative_draft_model: inclusionAI/Ling-3.0-flash-dspark
-  # Draft repo's own pin: sparkrun pre-syncs the draft at this revision AND it
-  # reaches SGLang as --speculative-draft-model-revision. Without it the draft
-  # silently follows the repo's `main` (which moved 2026-10-12); with it the
-  # served draft is the one this lane measured. Weights are identical across
-  # the move (same LFS sha256) — the pin is determinism, not a change.
+  # Draft repo's own pin: sparkrun pre-syncs it AND it reaches SGLang as
+  # --speculative-draft-model-revision — without it the draft silently follows
+  # `main` (which moved 2026-10-12). Weights are byte-identical (same LFS
+  # sha256): the pin is determinism, not a change.
   speculative_draft_model_revision: d60b0e1291dacb256194c6d48154398730cf8986
   linear_replayssm_cache_len: 32
 

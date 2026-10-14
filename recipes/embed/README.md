@@ -45,6 +45,17 @@ rerankers that share a host must have caps that SUM to a safe fraction: this 0.2
 reranker's 0.30 = 0.55 of 121 GB, in either startup order. Raising one without lowering the
 other risks a startup `ValueError` in whichever engine launches second.
 
+Knob notes carried out of the recipe's YAML comments (2026-10-14):
+
+- `port: 8010` is distinct from the 2B reranker's 8011 so both engines can be up at once on one
+  host.
+- `max_model_len: 32768` is a deliberate cap, not the model's ceiling (native capacity is
+  262,144); a long-document embed needs the room.
+- `max_num_batched_tokens: 16384` is the first knob to raise for more throughput per step — this
+  workload is prefill-bound, so that budget, not `max_num_seqs`, sets the profiled peak.
+- `dtype: bfloat16` is explicit because the siblings declare `float32` inside `text_config`, and
+  auto-resolution would double the footprint of a model we intend to colocate.
+
 ## qwen3-vl-embedding-8b-awq-4bit-vllm-b12x
 
 [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit](https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit)

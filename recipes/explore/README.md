@@ -34,6 +34,9 @@ SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
   rendered (sparkrun otherwise rewrites `{model}` to the snapshot path); the draft pin is rendered as
   `--speculative-draft-model-revision {speculative_draft_model_revision}` (not distribution-only). KDA
   ReplaySSM verify path.
+- **Serving note:** the official LMSYS `sglang:dev-Ling-3.0-flash` image runs the arm — the
+  third-party Spark port's GHCR image predates the `dspark_components` /
+  `--enable-linear-replayssm-spec` flags this recipe needs (digest-pinned).
 - **Measured:** C1 **45.5 t/s** @ d0 (σ 5.5, n=5) / 32.3 @ d8k; quality **37/37** (ties the top of the
   pass); 262k needle PASS at 0.80.
 - **Licence:** MIT.
@@ -51,6 +54,10 @@ vLLM 0.29 + vendor plugin [`mods/install-kolibri-plugin`](../../mods/install-kol
   `executor_config: {entrypoint: ""}` (the image declares `ENTRYPOINT ["vllm","serve"]`); **thinking is
   ON by default** → callers need a larger `max_tokens` or thinking off, else truncated thinking yields an
   empty `content` (`tools/quality-battery.py --max-tokens`).
+- **Flags (extra):** bare `mods/install-kolibri-plugin` (unpublished-mod form — the scoped
+  `@littlecedar/mods/…` fails) and launches need `--transfer-mode local`; `OMP_NUM_THREADS=4` and
+  `gpu_memory_utilization: 0.78` (not the 0.85 ceiling) are the measured GB10 boot working point (CUDA
+  reports ~11 GiB less than `MemAvailable`).
 - **Measured:** C1 **47.3 t/s** @ d0 (σ 0.10) / 46.3 @ d8k; quality 36/37 @4096 (a **37/37 union** — the
   lone miss is a thinking-budget truncation).
 - **Licence:** Apache-2.0.
@@ -71,6 +78,8 @@ vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected.
   the card** → the serve line passes `--default-chat-template-kwargs '{"enable_thinking": true}'`.
   **Rope caveat:** a boot warning about SWA rope is unexplained, so 262k is **pool-verified only** (a
   needle probe is the open follow-up).
+- **Serving note:** util 0.55 is deliberate — the weights are only ~21.6 GB of the ~121 GiB pool and
+  the SWA arch keeps 262k cheap, so the low util preserves ~95 GB of node headroom.
 - **Measured:** C1 **57.4 t/s** @ d0 (σ 3.4) / 55.1 @ d8k; accept len 1.89 / 29.5%; quality 36/37 @4096.
 - **Licence:** OpenMDW-1.1 (target and draft).
 
@@ -86,6 +95,8 @@ vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected (capped-context
   Spark (vLLM refuses; it needs ~0.89 util, above the repo's 0.85 ceiling).
 - **Flags / non-obvious knobs:** DFlash `num_speculative_tokens: 3`; native FP4 path
   (`FLASHINFER_CUTLASS` NvFp4 MoE on sm121) + `FLASHINFER` attention.
+  `MAX_JOBS=4` caps the cold cutlass/FP4 JIT fan-out (an uncapped nvcc can exhaust the 128 GB pool) and
+  `max_num_seqs: 32` is required (DFlash crashes vLLM at the default 256).
 - **Licence (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares
   **no licence at all**; the BF16 sibling is `license: other` with no in-repo text — "other" resolves
   only by implication to the target's OpenMDW-1.1 (commercial + non-commercial).

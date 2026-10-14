@@ -36,13 +36,9 @@ defaults:
   # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
   # path, so the served model id would be the cache path (-n does not show this).
   served_model_name: sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4
-  # Written by mods/provide-uncensored-chat-template into the managed runtime cache.
   chat_template_path: /cache/runtime/uncensored-template/chat_template.jinja
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  # The body is a dense 27B (48 GDN + 16 full-attention layers), so this is the same
-  # mamba-state-pool clamp documented for the qwen3.8-27B NVFP4 recipe: the literal is
-  # NOT the granted concurrency (read `capped to` in the serve log).
   max_num_seqs: 48
   mamba_full_memory_ratio: 3.51
   mamba_ssm_dtype: bfloat16
@@ -53,7 +49,6 @@ defaults:
   load_format: fastsafetensors
   speculative_algorithm: DFLASH
   speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
-  # 8, the block size the incoai draft was trained for (the overlay's own seat used n=7).
   speculative_draft_tokens: 8
   extra_args: ""
 

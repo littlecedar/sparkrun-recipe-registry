@@ -5,16 +5,12 @@ max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
 
 metadata:
-  # Quality tier, not `fast`: measured 28.76 units/s solo vs the 2B reranker's 119.29 on the
-  # same traffic (C8, 10 docs/query, 128 tokens/doc) -- about 4x slower per scored document.
   description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier. Boots and serves colocated with the 8B AWQ encoder on one DGX Spark: 65.03 GiB of 121.69 total at the shipped caps."
   model_url: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B
   model_params: "8B"
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  # vision + reranking: multimodal Qwen3-VL cross-encoder; --convert classify. NOT `fast`
-  # (see above): tagging it would point people at the slower sibling.
   tags: lcg_favorite, vision, reranking, smol
 
 mods:
@@ -31,47 +27,29 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 1
   # Colocation: vLLM's --gpu-memory-utilization is an ABSOLUTE device cap, so the two
-  # engines' caps must SUM — this 0.30 + encoder 0.25 = 0.55 of 121 GB, in either start
-  # order. Raising one without lowering the other risks a startup ValueError.
+  # engines' caps must SUM (0.30 + encoder 0.25 = 0.55 of 121 GB); raising one alone can ValueError.
   gpu_memory_utilization: 0.30
   # Half the GB10 fast cluster (X925) so this engine never lands on an A725 and never
   # shares a core with the colocated encoder (5-9). Solo: -o cpu_mask=5-9,15-19.
   cpu_mask: 15-19
-# Port 8015: outside the shipped 8010/8011/8012 plan so this never shadows the 2B reranker;
-# the two are alternatives, not co-residents.
-  # A reranker scores (query, document) pairs, so every pair pays template + instruction
-  # overhead; 8192 bounds the worst-case pair. Raise with -o for long documents.
   max_model_len: 8192
   max_num_batched_tokens: 8192
   max_num_seqs: 32
-  # Explicit bf16: config.json declares bfloat16 at the top level but float32 inside
-  # text_config, so say what we mean rather than trust dtype resolution.
   dtype: bfloat16
   load_format: auto
   attention_backend: b12x
-  # b12x aborts at cache-config time unless --block-size is 64 or 128; 128 is
-  # _B12X_PREFERRED_PAGE_SIZE in b12x.py at the pinned commit, and a score pair is one long
-  # prefill so the larger page costs nothing meaningful.
+  # b12x aborts at cache-config time unless --block-size is 64 or 128 (vLLM's default is 16).
   block_size: 128
-  # --convert auto would serve this checkpoint as a generic bi-encoder (wrong scores, HTTP
-  # 200, no warning); rewrite the plain generative `architectures` to the
-  # sequence-classification class and seed the softmax from the "no"/"yes" logits. Derive
-  # the string, never retype it: config["architectures"][0].replace("ConditionalGeneration",
-  # "SequenceClassification"). Reaches vLLM only through {hf_overrides}; see lane README.
+  # --convert auto would serve this as a generic bi-encoder (wrong scores, HTTP 200, no
+  # warning); the architectures rewrite + classifier_from_token softmax are load-bearing.
   hf_overrides: >-
     '{"architectures": ["Qwen3VLForSequenceClassification"],
     "classifier_from_token": ["no", "yes"],
     "is_original_qwen3_reranker": true}'
-  # Published before the serve line by mods/provide-qwen3-vl-rerank-template. Do not point it
-  # at the checkpoint's chat_template.jinja (no query/document handling -> silently empty
-  # pairs). Must match the mod's output dir; see the lane README for the MOD_CACHEDIR caveat.
+  # Published by mods/provide-qwen3-vl-rerank-template before the serve line; must match the
+  # mod's output dir (MOD_CACHEDIR) — the checkpoint's chat_template.jinja scores empty pairs.
   reranker_chat_template: ${XDG_CACHE_HOME:-/cache/runtime}/templates/qwen3-vl-reranker-query-document.jinja
-  # Pin the (pooling, classify) conversion so a default-table change cannot quietly turn this
-  # into a different pooling task — the launch then fails loudly instead.
   convert: classify
-  # Bound the profiled multimodal peak: vLLM's default is 999 images/prompt and a score
-  # request may carry an image per document. Folded style + embedded quotes keep the JSON as
-  # ONE shell word; convert/limit_mm_per_prompt reach vLLM only through the placeholders.
   limit_mm_per_prompt: >-
     '{"image": 4, "video": 1}'
 

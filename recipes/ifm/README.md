@@ -41,6 +41,15 @@ Dense 0.9B (body 0.98B + 98.7M lm_head, `model_params: 1.08B`), single node, **T
 - **memory** weights 2.16 GB; `gpu_memory_utilization: 0.85`, `max_num_seqs: 64`
   (a CPU/scheduler limit, not a memory one — a full 131k sequence is ~7.0 GiB and the
   pool spans ~14 of them).
+- **tuning** `gpu_memory_utilization` is overridable (`-o gpu_memory_utilization=0.30`): the
+  engine floors near `f=0.10`, so several 0.9B engines fit on one box, and
+  `extra_args: "--max-total-tokens 262144"` pins a deterministic 2×131k (14 GiB) pool.
+  `chunked_prefill_size` is *not* in sparkrun's `_SGLANG_FLAG_MAP`, so it reaches sglang only
+  through the placeholder — `-o chunked_prefill_size=…` prints "unmapped" while still taking
+  effect. `extra_args` is appended last so argparse resolves a repeated flag in favour of the
+  override; `--cuda-graph-max-bs` does not exist at v0.5.20 (use the `-decode`/`-prefill`
+  spellings). `--kv-cache-dtype fp8_e4m3` is legal and would halve KV to 28 KiB/token, but its
+  accuracy gate is unmet — treat fp8 KV as an arm whose gate is accuracy, not throughput.
 - **measured** 77.6 / 67.3 t/s single-stream (d0 / d8192, `benchmarking/decode-triage.yaml`).
 
 ## `k2-horizon-7b-fp8-uno-sglang`
@@ -57,6 +66,21 @@ verified by the target, so it is lossless by construction.
   `--speculative-eagle-topk 1` (linear), `--speculative-num-draft-tokens 8` (draft width F).
 - **memory** `gpu_memory_utilization: 0.82` (headroom for the resident target+draft LoRA
   slots and the `[batch, F, 250624]` draft/verify logits); `max_num_seqs: 32`.
+- **tuning** `gpu_memory_utilization: 0.82` is deliberate — **do not raise it to 0.85** on the
+  theory that "UNO needs it": linear UNO builds no second attention backend and captures no
+  second CUDA-graph pool, so the three points of headroom cover only the resident target+draft
+  LoRA slots and the `[batch, F, 250624]` draft/verify logits. `page_size: 1` is deliberate too:
+  nothing forces 128 on GB10 (`_fa4_page_constraint` gates on `is_sm100`) and page_size 1 never
+  reaches the EAGLE topk>1 page-tree cascade. `chunked_prefill_size` stays modest because UNO
+  force-disables mixed chunked prefill, so a large chunk would compete with the draft workspace
+  for the same pool.
+- **speculative** `--speculative-num-draft-tokens` is **mandatory** (a positive integer —
+  `_handle_uno` raises otherwise) and doubles as the linear draft width F; `--speculative-eagle-topk 1`
+  selects linear over tree (tree adds Q≥F, Q≤128, Q·K≤2048, exact-1.0 accept thresholds, no
+  PDMux, no two-batch overlap, and a second CUDA-graph backend — all avoidable and unmeasured here).
+- **FP8 base is deliberate** the Uno adapter's own `adapter_config.json` declares the BF16 base
+  `IFM/K2-Horizon-7B`, so the vendor-validated pairing is BF16+Uno; on a bandwidth-bound box the
+  base read dominates, so the FP8+Uno pairing is itself part of what this arm validates.
 - **measured** 32.4 / 27.1 t/s single-stream (d0 / d8192) — the fastest arm in the lane,
   +52 % / +41 % over the plain 7B; 145.5 / 90.2 aggregate at c=8.
 
