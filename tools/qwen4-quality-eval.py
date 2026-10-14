@@ -6,9 +6,11 @@
 
 Why this file exists
 --------------------
-`recipes/qwen4/` ships two checkpoints for the same base model: the reference
-`RadixArk/Qwen3.8-Flash-Next-NVFP4` and the locally-quantised
-`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (the "labquant" export).  The
+`recipes/qwen4/` now ships a single checkpoint, the locally-quantised
+`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (the "labquant" export); the
+`RadixArk/Qwen3.8-Flash-Next-NVFP4` reference arm was archived to
+`attic/qwen4/arms/` on 2026-10-14.  This instrument still runs against either
+checkpoint (it is a paired comparator).  The
 labquant export quantises attention/GDN projections *and* the PLE n-gram table
 where RadixArk leaves them BF16 (WORK doc §6 item 5, §17 byte-family table),
 and its own recipe caveat says "benchmark wins here are NOT evidence of equal
