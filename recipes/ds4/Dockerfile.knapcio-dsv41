@@ -17,8 +17,15 @@
 #
 #   git clone https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4.git
 #   cd DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 && git checkout 58f232155917d388b6053eca079c617fd306c33c
+#   git apply /path/to/sparkrun-recipe-registry/recipes/ds4/boot.py.health-port.patch  # REQUIRED
 #   bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91a4b
 #   docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
+#
+# The `git apply` is load-bearing. The dynamic HEALTHCHECK noted below is a LOCAL
+# patch to the context's boot.py, absent upstream (knapcio @ 58f2321 and
+# origin/main both lack it); a plain clone build drops it and yields a DIFFERENT
+# image (image dd9d1c3c… / digest ac9bc917…), not the canonical
+# 18e36391… / 4e5002ab… above. See recipes/ds4/AGENTS.md 5.
 #
 # This file lives beside `recipes/ds4/Dockerfile.tensorfold-dsv41` for reference;
 # it is a copy, not the build recipe (the real one stays in the clone above).

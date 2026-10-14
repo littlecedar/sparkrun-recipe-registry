@@ -28,6 +28,12 @@ while the 7B's is **524288** (plain rope), and the 7B was measured serving a
 All recipes pin the container to `lmsysorg/sglang:v0.5.20-cu130` by **digest** — v0.5.20
 is the first release that ships `models/xllm.py` (which registers `K2HorizonForCausalLM`).
 
+Both `model_revision:` pins were refreshed to `main` on 2026-10-14 — `0.9B` →
+`383cb66347be…`, `7B-FP8` → `ea739ec816e0…`. The 7B delta is the model card
+only; the 0.9B delta is the card plus the two chat templates, and every
+behavioural cell (perf and accuracy) reproduced within the lane's noise floor
+on the same lanes (`NOTES.md`, 2026-10-14 session).
+
 ## Recipes
 
 | # | recipe | regime | key knobs | measured C1 t/s (d0 / d8k) |

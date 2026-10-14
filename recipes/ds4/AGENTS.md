@@ -108,6 +108,14 @@ These are load-bearing and each has a guard in
 7. **The entrypoint is cleared** (`executor_config.entrypoint: ""`) so the
    recipe's `command:` runs instead of the image's ENTRYPOINT. Guarded by
    `test_entrypoint_cleared`.
+8. **The checkpoint revision is pinned in the recipe, not the image.** The image's
+   `boot.py` bakes one (`boot.py:24 REVISION`, `fb2764a5…`) but never acts on it
+   here: the launcher sets `SKIP_PREPARE=1` and hands boot.py the
+   sparkrun-distributed path that `{model}` renders to, so the recipe's
+   `model_revision:` alone decides which snapshot is served. The pin is `main`
+   (`5254448103b6…`), not the baked `fb2764a5…` — decided 2026-10-14, reasons in
+   §5. Guarded by `test_checkpoint_revision_pinned_in_recipe`; mechanism and the
+   `launch.json` trap are also in §5.
 
 `readiness.port_timeout_s: 7200` / `health_timeout_s: 3600` are deliberately
 generous — a cold boot reads/packs a 510 GB checkpoint.
@@ -185,14 +193,37 @@ image default). Before this, a server on any port other than 8888 reported
 its view. The recipe's `readiness:` never played a part.
 
 **Rebuilding the image.** It is arm64-only and reproducible from upstream's repo
-at the pinned revision:
+at the pinned revision **plus the vendored `boot.py.health-port.patch`** — the
+dynamic HEALTHCHECK described above is a local patch, **not** upstream (see the
+trap below):
 
 ```bash
 git clone https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4.git
 cd DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 && git checkout 58f232155917d388b6053eca079c617fd306c33c
+git apply /path/to/sparkrun-recipe-registry/recipes/ds4/boot.py.health-port.patch  # REQUIRED
 bash scripts/fetch-sglang-canary.sh            # stages the dsv4.1 tree @ f80c91a4b
 docker build -f Dockerfile.canary-roce -t dsv41-4x-spark:canary-roce .
+docker tag dsv41-4x-spark:canary-roce littlecedar/dgx-spark-dsv41:canary-roce
+docker push littlecedar/dgx-spark-dsv41:canary-roce
+docker inspect --format '{{index .RepoDigests 0}}' littlecedar/dgx-spark-dsv41:canary-roce
+# The base tag `lmsysorg/sglang:dev-dsv41` is mutable, so the printed digest is
+# the pin to carry: rewrite the recipe's `container:` line with it before booting.
 ```
+
+**The clone alone does NOT reproduce this image — the `git apply` line is
+load-bearing.** The port discovery the paragraph above describes is a local
+patch to the build context's `boot.py`; it is absent upstream. knapcio's
+`boot.py` @ `58f2321` **and** at `origin/main` (`27616bec`) both run a bare
+`request('/health')` against the image default 8888. A literal fresh-clone
+build therefore **silently drops the fix** and produces a *different* image —
+measured 2026-10-14 on the head: image `dd9d1c3c…`, digest `ac9bc917…`, whose
+`boot.py health` has no `health_port()` and re-introduces
+`(unhealthy)`-on-any-port-other-than-8888. **Never push that as `canary-roce`.**
+With the patch applied, the cached build reproduces image `18e36391…` / digest
+`4e5002ab…` exactly (patched `boot.py` sha256 `6d2b4898…`). The patch is
+vendored here as [`boot.py.health-port.patch`](boot.py.health-port.patch): a
+byte-exact `boot.py.pre-healthport` → `boot.py` unified diff that applies
+cleanly to pristine `boot.py` @ `58f2321`.
 
 That file is vendored, verbatim, in this directory as **`Dockerfile.knapcio-dsv41`**
 (header + the exact upstream body, sha256 `4ec1976c…`) for reference beside the
@@ -209,12 +240,46 @@ To build locally instead of pulling, retag the result
 | Image ID | `sha256:18e36391488edb088cc70e2f8d9a3e16eb82f653496fa565526a6ffd6b7c6890` |
 | Base | `lmsysorg/sglang:dev-dsv41` |
 | Upstream overlay | knapcio `58f2321`, SGLang `dsv4.1` @ `f80c91a4b` |
+| Local patch | [`boot.py.health-port.patch`](boot.py.health-port.patch) — runtime port discovery for the dynamic HEALTHCHECK (**not** upstream) |
 | Built | 2026-10-03 on `.NN` (rebuilt for the dynamic HEALTHCHECK) |
 | Size | 33.5 GB (arm64) |
 
 The build reuses the base and overlay layers (Docker layer cache), so a
 `boot.py`-only rebuild ran ~4–5 min despite the 33.5 GB size; the new digest
 must then be redistributed to all four workers before a boot.
+
+**The checkpoint revision lives in the recipe, not the image.** The image's `boot.py` bakes
+`REVISION = fb2764a5cf321eaa5070ca8f9e892818f477c16d` (`boot.py:24`) and downloads and serves
+exactly that revision when `prepare()` runs — but the launcher sets `SKIP_PREPARE=1`, so
+`prepare()` only asserts the checkpoint is already on disk, and the revision sparkrun
+distributes (top-level `model_revision:`) is the one the launcher serves. Two consequences. The
+image cannot move the lane off the pinned snapshot by itself, and a *missing* pin would serve
+whatever `main` resolves to at distribution time. `boot.py` still writes its baked constant into
+`$STATE_PATH/launch.json`, so that file is **not** evidence of what was served; the launcher's
+`MODEL_ID is an on-disk checkpoint dir; serving …/snapshots/<sha>` (or, for a repo-id
+invocation, `resolved checkpoint <repo> -> …/<sha>`) line is. `sparkrun recipe validate` warns
+`unpinned-model-revision` on this pin because the command spells no `--revision`: a false
+positive for this shim lane, where the launcher receives the prepared snapshot path and the
+engine never resolves a ref — it is why this recipe fails `--strict`.
+
+**The pin is `main`, `5254448103b6…` (2026-10-12) — decided 2026-10-14, superseding the image's
+baked `fb2764a5…`.** Both revisions are Hub-resolvable (`fb2764a5…` is a real 2026-09-10 commit,
+not a ghost), so the question was which to serve, not which exists. The A→B delta was re-run
+against the Hub: `config.json`, `tokenizer_config.json`, the safetensors index and **all 48
+weight shards are byte-identical**; the only changed files are `README.md`, the reference
+`encoding/` and `inference/` trees, plus the ADDED `chat_template.jinja`. That reference tree is
+not in the SGLang serving path (the engine and b12x kernels come from the image), so the delta
+cannot move a served *number*; it could move a served *configuration* only through the added
+chat template — and that direction favours `main`, because the receipts we can date were served
+from `main`. The 2026-10-11 `ds4-restore` and 2026-10-10 gamma-A/B serve logs name
+`snapshots/2cba9e42aa02…` (`main`'s template-carrying ancestor; `main` is `2cba9e42` plus
+doc/indexer/pycache commits), never `fb2764a5…`. Pinning the baked revision would therefore
+serve a snapshot *lacking* the file every receipt ran with. `main` is also what every node cache
+already holds (`refs/main` = `5254448103b6…`, 90 blobs), so a launch distributes nothing, while
+`fb2764a5…` is in no node cache; the boot receipt is in §5.1. Upstream's image still bakes
+`fb2764a5…` because *its* lane downloads and serves that revision — ours never acts on it. The lane
+is not a standing serve: launch it only on nodes verified idle (`docker ps -q | wc -l` = 0) and stop
+it by recipe name when done — §5.1 leaves all four nodes clear.
 
 The image's torch is **2.13.0+cu130** (VERIFIED by probing the image). PyTorch
 2.13 renamed `all_gather_into_tensor` → `all_gather_single` and
@@ -226,6 +291,42 @@ vendored kernels still call the old names, so each call logs a once-per-callsite
 message-scoped filter does not take (the leading backtick defeats `re.match`),
 and a blanket `ignore::FutureWarning` would hide unrelated warnings. Guarded by
 `test_torch_2_13_collective_rename_warning_suppressed`.
+
+### 5.1 Boot receipt — the pin, served (2026-10-14)
+
+A four-node TP=4 boot on `.30` (head), `.32`, `.33`, `.34`, launched by name with
+`-H .NN,.NN,.NN,.NN` and `model_revision: 5254448103b6…`. Cold boot:
+launch 08:14 EDT, `/v1/models` answering **08:25:45 EDT** (~11.5 min).
+
+- `launcher: MODEL_ID is an on-disk checkpoint dir; serving
+  /cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash/snapshots/5254448103b6254fc646dacbca1cbbf20e9216c1`
+  — the served snapshot is the recipe's pin, **not** the image's baked `fb2764a5…`. This is the §5
+  evidence line; `launch.json` is not.
+- `GET /v1/models` → `{"id":"deepseek-ai/DeepSeek-V4.1-Flash","object":"model",…,"max_model_len":1048576}`.
+- `RoCEnante ready: world=4 hcas=rocep1s0f0,roceP2p1s0f0 gid_index=3`; `[moe_b12x_next] armed`.
+- `Exact nvme Engram layer=1 rank=0 rows=[0,96001542) … packed=True`; layer 14 on rank 0 attached
+  `packed=False` — the reader rejected that layer's flat shard and fell back to the checkpoint for
+  it this boot (the packed shard is an optional accelerator; the fallback is exact). This is
+  pre-existing packer/reader behaviour, independent of the pin; both layers were `packed=True` on
+  the 2026-10-11 boot. The flat shards were hand-packed on all four ranks before this boot
+  (`python3 /opt/dsv41/scripts/pack_engram.py --rank R --tp 4 --out /cache/runtime/engram` with
+  `DSV41_SOURCE` = the pinned snapshot), since the caches carried only the legacy revision-keyed
+  `engram/v1/fb2764a5…/` shards, which this launcher does not read.
+- `DSV4 memory calculation: … full_token=9651968`; `max_total_num_tokens=9399808,
+  chunked_prefill_size=4096, max_running_requests=16, context_len=1048576`.
+- The image smoke line: `Structured output, tool round trip and full-budget native vision passed.`
+- Distribution was a **no-op**: both the model and the image were already on every node
+  (`Distributing model deepseek-ai/DeepSeek-V4.1-Flash to 4 host(s) … done (8.8s)`, OCI relay
+  "already verified on all 4 receiver(s); no transfer") — the concrete payoff of pinning the cached
+  revision.
+
+C1 (`benchmarking/decode-triage.yaml`, pp 2048 / tg 128, runs 5, `--skip-run`): depth 0 →
+**tg 38.3 t/s** (pp 2278.9); depth 8192 → **tg 42.5 t/s** (pp 2874.2). Quality
+(`tools/quality-battery.py`): EASY 19/19 (100%), HARD **17/18** (94.4%) with the same single
+`hard-rev` character-reversal failure as the recorded 17/18 — the re-pin costs nothing measurable.
+Receipts: `.scratch/ds4/knapcio-tp4-boot-20261014/` (`launch.log`, `bench.log`, `battery.log`,
+`ds4-tp4-c1-decode-triage_1014.{json,csv,yaml}`, `ds4-tp4-battery_1014.json`). All four nodes were
+left clear.
 
 ---
 

@@ -347,3 +347,55 @@ floor.
 Both were moved, contents **unedited**, to `attic/ifm/arms/` (`ARMS-MANIFEST.md`). The
 measured tables above — this session's and 2026-10-08's — are the justification for the
 selection and are kept as written.
+
+## Session 2026-10-14 — re-pin to main
+
+Both checkpoints moved past the lane pins, so both recipes re-pin and the lanes
+re-measured on one node (`.31`, image `lmsysorg/sglang:v0.5.20-cu130` @
+`3ec36384…`; no node had the image, the OCI relay download fails on that link,
+so `docker pull` on the node — 37 min at ~4.4 MiB/s).
+
+**The deltas (HF API, per-file blob SHA-256):**
+
+| repo | new pin | vs the old pin |
+|---|---|---|
+| `IFM/K2-Horizon-0.9B` | `383cb66347be…` (2026-10-06) | only `README.md`, `chat_template.jinja`, `chat_template_generation.jinja` changed; the weight shard, `model.safetensors.index.json`, tokenizer and `config.json` are byte-identical |
+| `IFM/K2-Horizon-7B-FP8` | `ea739ec816e0…` (2026-10-03) | only `README.md` (model card) changed; weights/tokenizer/config/chat template byte-identical |
+
+The 0.9B template change is PR #10 "Support OpenAI-style text content lists":
+a `render_text_content` macro now renders OpenAI content-part lists for
+system/user/assistant (the old template silently dropped non-string content to
+`''`) and raises on unsupported part types. Verified locally (jinja2 +
+transformers' `generation`-tag stub): a plain-string `[system, user]`
+conversation renders **byte-identical** between the old and new templates, so
+the harness's request shape is unaffected.
+
+**Re-measurement** (the 2026-10-09 lanes: `decode-triage` + the dense accuracy
+set, `--reasoning-effort default`, caps 1024/2048/1024, seed 1234):
+
+0.9B @ `383cb663`: decode-triage `bench_602acffb7a88` d0 **77.57** / d8k
+**67.49** (2026-10-09: 77.6 / 67.3); accuracy house 31/37 (83.8), gsm8k
+172/200 (86.0), arc 137/200 (68.5) vs baseline 83.8 / 87.0 / 66.5 — the only
+moves are inside item noise.
+
+7B-Uno @ `ea739ec8`: decode-triage `bench_72275356c485` d0 **31.38** / d8k
+**27.10** (2026-10-09 shipped: 32.4 / 27.1); concurrency-sweep
+`bench_470d87fa44a8` c1 29.7/27.5, c4 95.4/71.9, c8 **141.5/91.6** (vs
+32.7/27.2, 96.7/71.3, 145.5/90.2) — the shape holds: it still scales to a c8
+aggregate well above its own c4, so the `max_num_seqs: 32` floor remains
+load-bearing. **UNO engagement re-confirmed**: 838 serve-log `accept len`
+samples, mean **4.15**, min 2.55 / max 6.97 — every sample > 1 and clear of the
+~2.07 break-even. Accuracy house 36/37 (97.3), gsm8k 189/200 (94.5), arc
+181/200 (90.5) vs the 2026-10-09 UNO 97.3 / 95.0 / 87.5 — within item noise.
+
+Every 0.9B / 7B-Uno perf cell sits inside the lane's 7–25 % inter-boot noise
+floor versus its 2026-10-09 figure, and both accuracy sets reproduce within
+~±2 items. The re-pin is behaviorally a no-op; the lane numbers stand unchanged.
+
+**Artifacts** (git-ignored, `.scratch/ifm/repin-2026-10-14/`): `09b-perf.*`,
+`7buno-perf.*`, `7buno-conc.*` (per-run `--output`), `acc-09b/`, `acc-7b-uno/`
+(resumable `_raw` per item).
+
+**Guards:** `tests/test_ifm_recipes.py` gained the pinned-SHA assertion plus a
+control (16→18); `tests/test_k2_7b_recipes.py` pins the shipped UNO arm to
+`ea739ec8` and the two attic arms to their frozen `59d47321` (60→61).
