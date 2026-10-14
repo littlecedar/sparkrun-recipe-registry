@@ -94,6 +94,17 @@ four and moved the rest to the attic). Full candidate research — 8 families, f
   node (boot log, `max_total_num_tokens` lines, probe.py + probe.log,
   `needle-262144.json`, smoke4.py).
 
+### Ling-3.0-flash-int4 — served-id fix (2026-10-13)
+
+- The arm shipped `--served-model-name {model}`, and sparkrun rebinds every
+  `{model}` occurrence to the prepared snapshot path on a real launch (`-n` still
+  prints the repo id), so it advertised
+  `/cache/huggingface/hub/models--inclusionAI--Ling-3.0-flash-int4/snapshots/7a27e9eb…`
+  as its model id. It now declares `served_model_name: inclusionAI/Ling-3.0-flash-int4`
+  and renders `--served-model-name {served_model_name}`.
+- **Receipt**: boot `3effce2e30113dd9_64af2f7668b6` on `.35` — `GET /v1/models` →
+  `inclusionAI/Ling-3.0-flash-int4` (262144 ctx); TTR port-open 224.1 s.
+
 ### Nemotron-3.5-Lightning — 1M-context arm (2026-10-12)
 
 Archived arm [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) (built 2026-10-12; moved to the attic 2026-10-13):

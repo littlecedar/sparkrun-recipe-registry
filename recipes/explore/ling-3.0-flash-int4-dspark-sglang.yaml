@@ -49,6 +49,9 @@ defaults:
   port: 8030
   host: 0.0.0.0
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: inclusionAI/Ling-3.0-flash-int4
   max_model_len: 262144
   max_num_seqs: 6
   max_mamba_cache_size: 32
@@ -65,7 +68,7 @@ defaults:
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
-  --served-model-name {model}
+  --served-model-name {served_model_name}
   --revision {model_revision}
   --host {host}
   --port {port}

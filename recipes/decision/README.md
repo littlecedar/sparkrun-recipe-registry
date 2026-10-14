@@ -42,11 +42,14 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
   `/tmp/teb-clef/2026/10/2026-10-11T16-09-17.516296Z_88866997.md` on the head node (417 KB, with
   per-question-type tables, calibration, latency and the 400-case trace; copied with the console log
   to `~/benchmarks/teb-clef-durable/` because `/tmp` is reaped).
-- **Served-id wart:** SGLang in this image carries no `--served-model-name`, so clef-flash
-  advertises its **snapshot path** as the model id
-  (`/cache/huggingface/hub/models--Cloudflare--clef-flash/snapshots/8b2e5fd1…`), not
-  `Cloudflare/clef-flash`. Clients must pass the path or route through an alias layer — the same
-  sparkrun `{model}`-to-path substitution the other lanes document.
+- **Served-id wart (fixed 2026-10-13):** the arm shipped `--served-model-name {model}`, and
+  sparkrun rebinds every `{model}` occurrence to the prepared snapshot path on a real launch
+  (`-n` still prints the repo id), so clef-flash advertised
+  `/cache/huggingface/hub/models--Cloudflare--clef-flash/snapshots/8b2e5fd1…` as its model id.
+  The recipe now declares `served_model_name: Cloudflare/clef-flash` and passes
+  `--served-model-name {served_model_name}`; clients use the repo id `Cloudflare/clef-flash`.
+  **Receipt**: boot `625b43fd997e4d5b_8ed3ce77d78f` on `.34` — `GET /v1/models` →
+  `Cloudflare/clef-flash` (262144 ctx).
 
 ## JEV-9B official score (2026-10-12)
 
