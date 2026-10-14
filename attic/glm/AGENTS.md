@@ -32,7 +32,8 @@ image claim corrected 2026-10-11):
   `TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2`, extra
   `--mtp-drafts 3 --parallel 4`. Runbook (proven here): engine at
   `~/glm53-tf/TensorFold`, checkpoint at `~/models/GLM-5.3-EXL3-3.0bpw` on every
-  node (**reclaimed 2026-10-14 — re-stage before a revive; see Revision pins**), then
+  node — **both reclaimed 2026-10-14; re-stage before a revive (see Revision
+  pins)** — then
   `cd ~/glm53-tf && TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2 bash tp4_start.sh 32768 "--mtp-drafts 3 --parallel 4"`;
   rank 0 serves on `.30`'s management IP at `:18090`. `tfrun-sglang.sh` swaps
   repo A's `nvcr.io/nvidia/pytorch:26.07-py3` base for the already-present
@@ -40,6 +41,20 @@ image claim corrected 2026-10-11):
   headers, libnccl); `tp4_start.sh` is set to the `.30-.33` fabric (master
   on `.30`, `NCCL_SOCKET_IFNAME enp1s0f0np0`,
   `NCCL_IB_HCA rocep1s0f0,roceP2p1s0f0`, RoCEv2 `NCCL_IB_GID_INDEX=3`).
+
+  **Node-dir reclamation (2026-10-14).** The `~/glm53-tf` tree on `.30`–`.33` was
+  reclaimed by an automated hygiene pass — precisely the case this registry's own
+  rule guards against, because these scripts were cited here *by path* with no
+  tracked copy. Survivors are now tracked in `attic/glm/harvest-20261014/`: the
+  launcher clone `~/src/glm-5.3-tensorfold-tp4-4xgb10/scripts/{tp4_start.sh,tfrun.sh}`
+  (the upstream template, `spark1..spark4` placeholders) and a working variant at
+  `~/development/TensorFold/tools/{tp4_start.sh,tfrun.sh}` (dynamic HCA detection,
+  `M=/models/glm53-exl3-3.0bpw-full`). The TensorFold checkout itself also survives
+  at `~/development/TensorFold` (and is re-clonable at the pins recorded below).
+  **Lost: `tfrun-sglang.sh`**, which existed only in the reclaimed dir; it
+  re-derives from the base-swap sentence above plus the `aa878e8d` image digest.
+  Revive path: engine from `~/development/TensorFold`, scripts from the harvest
+  dir, re-applying the `.30-.33` fabric env.
 
 - **GLM-5.3-Flash EXL3 4bpw / TensorFold, 2 Sparks (TP=2)** — runbook note, not a
   sparkrun recipe. [Mia-AiLab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold](https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold)

@@ -151,8 +151,22 @@ remove what the session created** — a leftover is anything undocumented, unkno
 - No leftover containers or orphan volumes (`docker ps -aq` and `docker volume ls -q` both empty).
   Remove images for retired lanes, but keep any image a shipped recipe or an `attic/` doc names.
 - `sparkrun`'s runtime cache (`${WOPR_USER_CACHE}/sparkrun/runtime-cache/<runtime>/<model_dir>`) is a
-  cache, not litter: entries are rebuilt on the next boot and the directory suffix is derived by
-  sparkrun core, so never hand-delete a tree unless the recipe that produced it is retired.
+  cache, not litter: entries are rebuilt on the next boot. **Triage it by provenance, not by name.** A
+  tree records the mods that produced it in its own `modlogs/`, so the owning recipe is identifiable:
+  a tree whose `<model>` a shipped recipe names and whose mod set matches that recipe's `mods:` is
+  load-bearing; a tree whose model no shipped recipe names — or whose mods match none — is a
+  retired/attic variant. `.sparkrun-last-used` gives recency, and **a tree touched in the last ~72 h is
+  in use whatever its provenance**. Measured 2026-10-14: ~604 GB of a ~3.1 TB fleet runtime-cache was
+  retired-variant material; the ~7 TB HF cache was **not** litter — 63 of 65 cached repo-entries are
+  consumed by a shipped recipe or a shipped mod (draft models live in `speculative_draft_model:` and in
+  `command:`, not only in `model:`).
+- The HF cache is pruned with `hf cache rm model/<org>/<name>` — never `rm -rf` a `models--*` directory,
+  which orphans blobs — and only for repos no shipped recipe or mod references.
+- **Traps, all hit on 2026-10-14:** a listing-derived path is relative, so `rm <name>` against the wrong
+  `cwd` deletes nothing and still prints success — build absolute paths, capture stderr, and re-count
+  (`13 → 1`, not "looks clean"); cache internals are frequently **root-owned** (the containers wrote
+  them) so `rm -rf` needs `sudo -n`; and `uv cache clean` removes the archive a pinned
+  `_SPARKRUN_COMPLETE` path in `.bashrc` points at — repoint it at `~/.local/bin/sparkrun`.
 - After a re-pin or an `attic/` move, sweep `${WOPR_RUN_FROM_DIR}` for dangling symlinks and remove
   them.
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule

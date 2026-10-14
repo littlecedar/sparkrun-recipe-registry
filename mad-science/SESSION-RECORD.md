@@ -217,3 +217,42 @@ deleted as scratch and had no other copy — recorded in `attic/qwen4/AGENTS.md`
 "grep the basename first" check and the harness carve-out (`$HOME/serve_argv/`, `$HOME/mem_watch/` are
 designed outputs of an armed harness, harvested not swept) now live in the root `AGENTS.md` §"Node
 hygiene".
+
+**Space reclamation (2026-10-14, final pass).** The owner asked for the leftover research on the nodes
+to be decided — keep (documented) or delete — because space is at a premium. This pass was driven by
+bytes rather than by name patterns, and the deciding instrument was each cache tree's own provenance:
+`runtime-cache/<runtime>/<org>__<model>_<hash>/modlogs/` names the mods that prepared the tree, so the
+owning recipe is identifiable (a tree whose model a shipped recipe names *and* whose mod set matches
+that recipe's `mods:` is load-bearing). Reclaimed: **~604 GB** of runtime-cache that is retired-variant
+material — the pre-engram `Mia-AiLab__…-2db4d63c` trees on all six nodes (594 GB; `attic/ds4/NOTES.md:56`
+calls that key "the old warm key"), retired Pollard EXL3 3.5bpw, both GLM-5.3 trees, the withdrawn MoVA
+36B, `DeepSeek-V4-Flash-0731` (+NVFP4), `nvidia/Qwen3.8-Flash-Next-NVFP4`, Nemotron-3.5-Lightning, the
+hash-named `f129e31a…`, plus uncited node dirs (`~/gauge_archive`, `~/nccl*-spark_cluster`,
+`~/dsv41-{knapcio,tensorfold,state}`, `~/glm53-tf`, `~/.cache/tensorfold-glm53`, `~/.cache/puccinialin`,
+`~/.rustup`/`~/.cargo`) and the `uv` caches. Fleet free space rose ~600 GB (`.30` 1.4→1.5 T, `.31`
+2.5→2.6 T, `.32`/`.33` 1.6→1.7 T, `.34` 1.9→2.0 T, `.35` 1.8→1.9 T).
+
+**Kept, and why:** every prepared tree owned by a shipped recipe plus anything touched within ~72 h
+(`.sparkrun-last-used`); the ~7 TB HF cache, which is **not** litter — 63 of 65 cached repo-entries are
+consumed by a shipped recipe or a shipped mod, with draft models living in `speculative_draft_model:` and
+in `command:` rather than in `model:` (only `ornith-ai/Ornith-1.5-35B-A3B-DFlash`, 773.5 MB on `.30`/`.31`,
+was unreferenced and was removed with `hf cache rm`); `~/benchmarks`+`~/benchlogs` (the receipt root);
+the `~/src` clones (the registry delivery mechanism); `~/dsv41-engram` (shipped ds4 mods read it);
+`~/ComfyUI` and `~/ltx25` (the LTX-2.5 runbook in `recipes/explore/` documents them).
+
+**Casualty, recorded rather than glossed.** The batch reclaimed `~/glm53-tf` on `.30`–`.33`. Three
+scripts there — `tp4_start.sh`, `tfrun.sh`, `tfrun-sglang.sh` — were cited *by path* in
+`attic/glm/AGENTS.md` with no tracked copy, which is exactly the case the rule exists for. Two variants
+of `tp4_start.sh`/`tfrun.sh` survived (`~/src/glm-5.3-tensorfold-tp4-4xgb10/scripts/`,
+`~/development/TensorFold/tools/`) and are now tracked in `attic/glm/harvest-20261014/`; the TensorFold
+checkout also survives at `~/development/TensorFold`. **`tfrun-sglang.sh` is gone** and is re-derivable
+only from the runbook's description of its base swap. `attic/glm/AGENTS.md` carries the reclamation note
+and the corrected revive path.
+
+Two faults of my own, both caught by verification rather than by the deletes reporting success: an
+earlier batch built its paths from an `ls` run in another directory, so every `rm -rf` targeted a
+non-existent path and printed nothing (no damage, no reclaim — `df` exposed it); and `uv cache clean`
+removed the archive that a pinned `_SPARKRUN_COMPLETE` path in the head's `.bashrc` pointed at, breaking
+tab-completion on every shell start (repointed at `~/.local/bin/sparkrun`; the CLI itself was never
+affected). Also observed, cause unknown: `docker images` is now empty on all six nodes, so the next
+launch re-pulls the image.
