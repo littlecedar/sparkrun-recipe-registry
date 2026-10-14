@@ -341,5 +341,60 @@ class ThirtyFiveBArmPinsTheDraftWithARefSeed(unittest.TestCase):
                              self.r["stripped"])
         self.assertNotRegex(without_pin, r"(?m)^  speculative_draft_model_revision:")
 
+
+class FlagshipSpeculativeConfigIsSwappable(unittest.TestCase):
+    """The 397B's speculative config must stay a `{speculative_config}` placeholder.
+
+    sparkrun reads the draft model+revision *out of the `speculative_config` default*
+    (`runtimes/_vllm_common.py::detect_spec_config_draft`) to distribute the draft to
+    all four nodes, and `-o speculative_config={...}` only reaches a declared default.
+    Inline JSON in `command:` therefore does two silent things: the DFlash A/B swap
+    becomes a no-op, and a DFlash draft is never distributed (`Revision Not Found` at
+    serve). The MTP arm's rendered JSON must stay byte-identical to the shipped value.
+    """
+
+    MTP_JSON = ('{"method":"mtp","num_speculative_tokens":3,"max_model_len":262144,'
+                '"attention_backend":"flashinfer","moe_backend":"flashinfer_cutlass"}')
+
+    def setUp(self):
+        self.r = parse(FORTY_NINE_SEVEN_B)
+
+    def test_default_declared_and_referenced(self):
+        self.assertEqual(self.r["defaults"].get("speculative_config"), self.MTP_JSON)
+        self.assertIn("--speculative-config '{speculative_config}'", self.r["command"])
+
+    def test_no_inline_json_in_the_command(self):
+        self.assertNotIn("--speculative-config '{\"", self.r["command"],
+                         "inline speculative JSON makes -o a no-op and hides the draft "
+                         "from sparkrun's distribution path")
+
+    def test_mtp_arm_still_renders_the_shipped_json(self):
+        self.assertIn("--speculative-config '" + self.MTP_JSON + "'", render(self.r))
+
+    def test_negative_control(self):
+        # An inline JSON in command: (the pre-fix shape) must trip both checks.
+        inline_command = self.r["command"].replace(
+            "--speculative-config '{speculative_config}'",
+            "--speculative-config '" + self.MTP_JSON + "'")
+        self.assertNotIn("--speculative-config '{speculative_config}'", inline_command)
+        self.assertIn("--speculative-config '{\"", inline_command)
+        # And a declared-but-unreferenced key is what the repo InertDefaults guard
+        # catches; here we assert the reference itself is present.
+        self.assertIn("{speculative_config}", self.r["command"])
+
+
+class FlagshipContainerIsDigestPinned(unittest.TestCase):
+    """§3.8: the 397B's GHCR nightly is a moving tag and must be pinned.
+
+    The four serving nodes held three different builds under `:latest` before the pin,
+    so a multi-node comparison on the bare tag is not even one engine.
+    """
+
+    def test_digest_pinned(self):
+        container = parse(FORTY_NINE_SEVEN_B)["top"].get("container", "")
+        self.assertIn("@sha256:", container, "container must be digest-pinned")
+        self.assertTrue(container.startswith(
+            "ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:"))
+
 if __name__ == "__main__":
     unittest.main()

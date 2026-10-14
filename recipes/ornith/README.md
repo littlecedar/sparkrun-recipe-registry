@@ -330,18 +330,46 @@ and the checkpoint's own MTP head as the speculative method (3 tokens). The regi
 per-node** footprint at `gpu_memory_utilization: 0.80`, which is why it needs four nodes and cannot be a
 single-Spark recipe.
 
+**Booted + measured 2026-10-14** (`.30–.33`, TP=4, the pinned build, `benchmarking/decode-triage.yaml`,
+decode-phase rows only): the MTP baseline serves **42.55 t/s @ d0 (σ 2.78)** and **38.48 t/s @ d8192
+(σ 1.91)** — the first house number for the 397B, beside the card's 41.86 t/s. Spec decode engaged
+(`Mean acceptance length` 2.68–3.06), `GET /v1/models` = the repo id, cold TTR 590.7 s. Receipts
+`~/benchmarks/ornith-397b-ab-20261014/`.
+
+**MTP vs first-party DFlash head — A/B closed 2026-10-14; MTP ships.** Both arms on the pinned build,
+same window, same four nodes, `benchmarking/decode-triage.yaml`, decode-phase rows only (n=5 per cell):
+
+| arm | speculative config | d0 t/s (σ) | d8192 t/s (σ) | `Mean acceptance length` |
+|---|---|---|---|---|
+| **MTP (shipped)** | `{"method":"mtp","num_speculative_tokens":3,…}` | **42.55** (2.78) | **38.48** (1.91) | 2.68–3.06 |
+| DFlash | `{"method":"dflash","model":"ornith-ai/Ornith-1.5-397B-DFlash","revision":"db9c35a0…","num_speculative_tokens":8}` | 37.58 (4.45) | 33.64 (1.13) | 3.27 |
+
+The vendor's own DFlash head (`ornith-ai/Ornith-1.5-397B-DFlash`, `db9c35a0…`, 2.58 GB, plain
+`DFlashDraftModel`) **loses ~12% at both depths** — despite a *higher* acceptance length (3.27 vs ~2.9):
+the extra accepted tokens do not clear the speculator's overhead. It also disables prefix-cache reuse on
+this hybrid-Mamba target (vLLM, serve log: *"...every group — including Mamba groups [0..44] — will be
+treated as a draft group … prefix-cache reuse across requests will be disabled"*). **The shipped MTP
+default stands; the DFlash head is a documented one-knob alternative**, not a recipe
+(`-o speculative_config={...}`, see *Caveats*). Receipts `~/benchmarks/ornith-397b-ab-20261014/`
+(`armA-mtp.json*`, `armB-dflash.json*`, `armB-serve.log`, `armA-state/`, `armB-state/`).
+
 - **Model:** [`littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft`][model-397b-graft] — a Little Cedar derivative
   that **grafts the BFP16 MTP MoE from the base model onto the NVFP4 quantization** (the base is
   `ornith-ai/Ornith-1.5-397B`, ≈800 GB in bf16). Its model card reports **41.86 tok/s** on a 4× DGX Spark
   vLLM run and links the full [Spark Arena benchmark](https://spark-arena.com/benchmark/c41b9f16-d269-4dd4-a179-cd2890b5f07c);
   that figure is the `C1 t/s` in our parent table. MIT-licensed, same as the family.
-- **Runtime:** vLLM, container `ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest`. **Unlike the other
-  pinned recipes in this registry (and unlike the 35B lane above), this container is *not* digest-pinned** —
-  `:latest` is a moving tag, so a future pull can change the engine underneath the recipe. Treat the
-  measured 41.86 t/s as tied to whatever the tag resolved to when it was recorded.
+- **Runtime:** vLLM, container `ghcr.io/spark-arena/dgx-vllm-eugr-nightly`, now **digest-pinned**
+  (`@sha256:b94ac8ac…`, tag `nightly-20260913`, vLLM `0.29.1rc1.dev17+gd2d649e67`) — see *Caveats: the
+  397B container tag floats* below for why the pin exists and what it resolves.
 - **Loader / engines:** `--load-format instanttensor` via `@eugr/mods/instanttensor-hybrid-draft-loader`,
   `moe_backend: marlin`, `linear_backend: flashinfer_cutlass`, `attention_backend: flashinfer`,
   `kv_cache_dtype: fp8_e4m3`, `performance_mode: throughput`, `mm_encoder_tp_mode: data`.
+  `instanttensor` is **not** a separate on-disk format: vLLM maps it to the default loader with an
+  InstantTensor safetensors iterator (`config/load.py`: *"load the Safetensors weights on CUDA devices"*;
+  `model_loader/__init__.py`: `"instanttensor": DefaultModelLoader`), so a plain-safetensors speculative
+  draft loads under it. The hybrid-draft mod's `auto` mode only rewrites the draft loader when the draft
+  and target are the *same repo+revision* (the MTP case); for the DFlash A/B — a different draft repo — it
+  returns the run's loader unchanged, i.e. the standard path. See *Caveats*, below.
 - **Long context flag:** `VLLM_ALLOW_LONG_MAX_MODEL_LEN: 1` is set, but `max_model_len` is **262144** — the
   native window. The env var only lifts vLLM's refusal to exceed the checkpoint's declared maximum; it does
   not by itself extend context.
@@ -370,10 +398,61 @@ silently rewritten; the fixed, fail-closed replacement is the in-registry
 [`@littlecedar/mods/drop-caches`](../../mods/drop-caches/README.md), which additionally requires a
 `--rootful` (privileged) launch to work at all.
 
-### The 397B container tag floats
+### The 397B container tag floats — now digest-pinned, and the nodes disagreed
 
-Called out above: `ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest` is the one unpinned container in the
-Ornith lane. A digest pin would make the 41.86 t/s reproducible.
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest` was the one unpinned container in the Ornith lane,
+and the pin was **load-bearing in a way the card figure hid**: on 2026-10-14 the four serving nodes
+held **three different builds** under that tag —
+
+| node | image id | `dev.sparkrun.source-tag` | vLLM |
+|---|---|---|---|
+| `.30` (head) | `1e6901494c15` | `nightly-20260913` | `0.29.1rc1.dev17+gd2d649e67` |
+| `.31` | `8af109d2db48` | `nightly-20260826` | `0.26.1rc1.dev1231+…` |
+| `.32`,`.33` | `87e57cafa670` | `nightly-20260911` | `0.1.1.dev7+…` |
+
+A four-node TP=4 launch on the bare tag is therefore **not one engine** — a same-window A/B on it
+would compare builds. The registry's `:latest` meanwhile resolved to a *fourth* build
+(`sha256:364005b0…`, `nightly-20261013`, vLLM `0.32.0rc1.dev78+gd96f1aa34`), which this cluster could
+not pull (the OCI relay's registry download stalled at ~400 KiB/s and failed on all four nodes). The
+recipe is now pinned to the build the head already held, distributed uniformly to all four nodes:
+
+```
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:b94ac8ac47603f9c3d14f88c12b90eacbc37c7a42f922631cb8c9ac80f7b37c3
+```
+
+That build (`nightly-20260913`) exposes `method: dflash` (`config/speculative.py`: `DFlashModelTypes =
+Literal["dflash"]`, `use_dflash()`), so it is a valid engine for the DFlash-vs-MTP A/B — which closed on
+it 2026-10-14 (MTP 42.55/38.48 vs DFlash 37.58/33.64 t/s; MTP ships). The card's 41.86 t/s is now backed
+by a house measurement of the same family. The registry `:latest` seen on 2026-10-14 is
+`sha256:364005b0…` (`nightly-20261013`) — left unpinned here because this cluster could not pull it.
+
+### The 397B speculative config is a placeholder, so the method is a one-knob swap
+
+`defaults.speculative_config` holds the whole `--speculative-config` JSON and `command:` renders it as
+`--speculative-config '{speculative_config}'`. Two things depend on it **not** being inlined back into
+`command:`: (a) `-o speculative_config={...}` only reaches a *declared* default, so inline JSON makes the
+method swap a silent no-op; and (b) sparkrun reads the draft model+revision **out of that default**
+(`runtimes/_vllm_common.py::detect_spec_config_draft`) to distribute the draft to all four nodes, so an
+inline JSON leaves a DFlash draft undistributed (`Revision Not Found` at serve). The MTP arm renders
+byte-identically to the old inline JSON. The DFlash arm is then exactly:
+
+```bash
+sparkrun benchmark performance <recipe> -H <4 nodes> --profile benchmarking/decode-triage.yaml \
+  --output ~/benchmarks/ornith-397b-ab-<date>/armDFlash.json \
+  -o 'speculative_config={"method":"dflash","model":"ornith-ai/Ornith-1.5-397B-DFlash","revision":"db9c35a091e89f942c609880f98bb385019dc4f8","num_speculative_tokens":8}'
+```
+
+The draft revision is pinned **inside that JSON** (vLLM's own `revision` field), never via
+`model_revision:` — that SHA does not exist in the target repo. Verified against sparkrun 0.4.0: the
+render distributes `ornith-ai/Ornith-1.5-397B-DFlash` alongside the target and emits the exact JSON above.
+
+### The loader mod is inert for a DFlash draft (and needs no change)
+
+`@eugr/mods/instanttensor-hybrid-draft-loader` (auto mode) rewrites the *draft* loader to lazy
+safetensors only when the draft and target share a repo+revision — the MTP case. For the DFlash A/B the
+draft is a different repo, so the mod returns the run's own loader (`instanttensor`), which is the
+standard `DefaultModelLoader` safetensors path — a plain-safetensors `DFlashDraftModel` loads under it.
+The mod is therefore left in place: a no-op for this arm, not a second knob.
 
 ### Guards (added 2026-10-14)
 
@@ -386,6 +465,10 @@ arm's deliberate `mamba_*`/`moe_runner_backend`
 omission, its refusal to mount the 35B's honed template, and the served-model-id spelling (the repo-wide
 class guard `tests/test_recipe_placeholder_resolution.py::ServedModelNameNotRebound` covers the last of
 those across every lane as well). `tests/test_ornith_honed_chat_template.py` still covers the mod.
+
+Two 397B guards were added with the spec-decode A/B: `FlagshipSpeculativeConfigIsSwappable` (the
+`{speculative_config}` placeholder must stay a declared default and stay out of `command:` — the two
+silent failures above) and `FlagshipContainerIsDigestPinned` (§3.8).
 
 ## Archived recipes
 
