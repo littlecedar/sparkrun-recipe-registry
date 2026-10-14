@@ -26,6 +26,9 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: IFM/K2-Horizon-0.9B
   # Not a residency requirement (weights 2.16 GB): buys CUDA-graph headroom. 0.85 is
   # the GB10 SOLO ceiling (AGENTS.md); past ~0.85-0.90 a kernel or page-cache
   # allocation OOM-panics the launch on unified memory; the engine floors near
@@ -74,6 +77,7 @@ defaults:
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
+  --served-model-name {served_model_name}
   --revision {model_revision}
   --trust-remote-code
   --dtype {dtype}

@@ -95,6 +95,15 @@ as ground truth; the journal is where the falsifications are recorded.
   limit, not a memory limit: at 8 the arm flatlines at c=8 (97.5 aggregate, below
   its own c=4 of 98.6) while the plain 7B reaches 120; at 32 it scales to 145.5.
   Do not lower it — `tests/test_k2_7b_recipes.UnoConcurrencyCap` enforces a floor.
+- **`--served-model-name` must not be `{model}` (fixed 2026-10-13).** Both K2 arms
+  carried NO `--served-model-name`, so sglang defaulted the id to the `--model-path`
+  value — the prepared snapshot path on a launch. Both now declare `served_model_name`
+  (`IFM/K2-Horizon-0.9B`, `IFM/K2-Horizon-7B-FP8`) and pass
+  `--served-model-name {served_model_name}`. Receipts: 0.9B boot
+  `e2b91b75cf01d3ab_8ed3ce77d78f` on `.34` (`GET /v1/models` → `IFM/K2-Horizon-0.9B`,
+  131072 ctx, TTR 71.1 s); 7B-Uno boot `ff7c9715c406eee7_64af2f7668b6` on `.35`
+  (→ `IFM/K2-Horizon-7B-FP8`, 131072 ctx, TTR 170.2 s). The 7B's UNO adapter is an
+  internal draft LoRA, not a second served id.
 
 ## 4. Falsified claims (do not re-assert)
 

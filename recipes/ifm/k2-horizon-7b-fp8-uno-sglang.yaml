@@ -44,6 +44,9 @@ defaults:
   # "UNO requires TP=PP=1." So tp>1 is a launch failure and there is no
   # multi-node variant of this recipe to write.
   tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: IFM/K2-Horizon-7B-FP8
   # 0.82, three points under the 0.85 GB10 ceiling. Headroom for UNO's resident
   # target+draft LoRA slots (pool capacity 2) and the [batch, F, 250624] draft/verify
   # logits. In LINEAR mode UNO allocates NO second backend and NO second CUDA-graph
@@ -104,6 +107,7 @@ defaults:
 command: >
   taskset -c 5-9,15-19 sglang serve
   --model-path {model}
+  --served-model-name {served_model_name}
   --revision {model_revision}
   --trust-remote-code
   --dtype {dtype}
