@@ -34,6 +34,13 @@ Do not deploy them to end users, and do not point them at anything you do not ow
 | 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
 | 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
 
+**Cache reclamation (2026-10-14, owner space directive):** the two **negatives'** checkpoints were
+deleted from every node's HF cache — an arm with no working serve ships no artifact —
+`orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` (**183.5 GB/node**, `.32`+`.33`) and
+`orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` (24 GB). A re-test re-fetches. The three positives'
+checkpoints — including arm 5's stock `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` pack and the staged
+Engram tables the launcher reads — are **kept cached**.
+
 `[bracketed]` links resolve at the bottom of this file. Every arm is one recipe; the measured
 receipts (boot id, `GET /v1/models` answer, `decode-triage` run, house battery) live in
 [`AGENTS.md`](AGENTS.md) so this table stays readable.

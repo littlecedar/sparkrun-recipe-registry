@@ -252,7 +252,7 @@ before matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **503 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **508 tests,
   all passing 2026-10-14 (1 skipped)**. The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
