@@ -74,7 +74,7 @@ DeepSeek V4.1
 
 ## glm5
 GLM 5.3
-- [x] **Runbook revision refresh (no recipes to pin) — DONE 2026-10-14.** Verified against the HF API and every node's live cache, recorded in `recipes/glm/README.md` §"Revision pins": `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` `main` `76c0b517…` (2026-10-03; the TP=2/TP=4 trials' launcher pins `078455ff…`, still resolvable), `bertholomus/GLM-5.3-EXL3-3.0bpw` = `7f057383…` (cached on `.30`), `RedHatAI/GLM-5.3-Flash-NVFP4` `main` `18d55bfd…` (2026-09-18) past the archived `36c184c6…` pin (still resolvable; snapshot absent from every node → a revive re-fetches ~198 GB), engine `bertholomus/TensorFold@glm-dsa-tp4` = `ddfad35…` (matches the head checkout + GitHub branch tip).
+- [x] **Runbook revision refresh (no recipes to pin) — DONE 2026-10-14.** Verified against the HF API and every node's live cache, recorded in `recipes/glm/README.md` §"Revision pins": `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` `main` `76c0b517…` (2026-10-03; the TP=2/TP=4 trials' launcher pins `078455ff…`, still resolvable), `bertholomus/GLM-5.3-EXL3-3.0bpw` = `7f057383…` (cached on `.30` until the 2026-10-14 cache reclamation; a revive re-fetches ~273 GB/node), `RedHatAI/GLM-5.3-Flash-NVFP4` `main` `18d55bfd…` (2026-09-18) past the archived `36c184c6…` pin (still resolvable; snapshot absent from every node → a revive re-fetches ~198 GB), engine `bertholomus/TensorFold@glm-dsa-tp4` = `ddfad35…` (matches the head checkout + GitHub branch tip).
 
 ## ornith
 Ornith 1.5

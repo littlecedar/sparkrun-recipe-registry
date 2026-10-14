@@ -159,6 +159,16 @@ tool-calling standard the explore lane's brief needed. Root index + lane docs co
 items in `mad-science/TODO.md` marked `[x]` (per the session convention; the lane detail lives in each
 lane's docs).
 
-**Gate (in-tree, 2026-10-14):** **503 tests OK** (skipped=1); **30/30** shipped recipes validate plain (four fail `--strict` on accepted warnings only); `bash -n` + `py_compile` clean; `sparkrun recipe validate` run locally with the HOME override.
+**Gate (in-tree, 2026-10-14):** **508 tests OK** (skipped=1); **31/31** shipped recipes validate plain (four fail `--strict` on accepted warnings only); `bash -n` + `py_compile` clean; `sparkrun recipe validate` run locally with the HOME override.
 
-**Commits:** nine commits on `main` (`f471bdd`…`070fb2c`). All six nodes were left idle (0 containers) at close.
+**Commits:** all session work committed locally on `main`, unpushed (`f471bdd` onward; twelve through the extension session). All six nodes were left idle (0 containers) at the 10:00 ET close.
+**Extension session (after the 10:00 ET wall — owner-approved open-item spend):** the ornith 397B
+DFlash-vs-MTP A/B closed — **MTP ships** (42.55 ± 2.78 / 38.48 ± 1.91 t/s vs the DFlash head's
+37.58 ± 4.45 / 33.64 ± 1.13, same-window on `.30`–`.33`, TP=4; the floating `:latest` was three
+different builds and is now digest-pinned; commit `3524dca`). The owner un-deferred the two
+media-gen arms: **Qwen-Image-2.1-Turbo** recipe (~11.4 s per 1024²/8-step image, NON-COMMERCIAL
+banner, eval-only) and **LTX-2.5** ComfyUI runbook (two-stage, cold 100.3/90.1 s, gated prerequisite
+documented) — commit `5c6795a`. A node-cache reclamation recovered ~1.85 TB from failed/deprecated
+lanes (cybersec negatives, archived glm5 staging, orphaned caches; `dsv41-engram` staging kept for
+the shipped arm-5 chain) — commit `39404eb`. Gate: **508 tests OK** (1 skipped), **31/31** recipes
+validate, `bash -n` / `py_compile` clean. All six nodes left idle.
