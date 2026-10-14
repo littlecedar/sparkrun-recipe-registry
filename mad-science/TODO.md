@@ -160,28 +160,30 @@ Cybersecurity-research (red-team) abliterated / uncensored models
 *(queued 2026-10-14 — owner directive; sources scanned `hf.co/drowzeys` and `hf.co/orcarouter/collections`.)*
 
 Five arms, all **abliterated/uncensored** and all **gated** (`gated: auto` — a responsible-use agreement
-plus a per-node `HF_TOKEN`, the same third-party-distribution problem as `LTX-2.5`; owner call in `#
-DECISIONS` #19). Sizes are Hub parameter counts × quant — **confirm from `config.json` at import**, never
-the Hub `Parameters` field (explore research doc §3).
+plus a per-node `HF_TOKEN`, the same third-party-distribution problem as `LTX-2.5`; owner call in `# DECISIONS` #19).
+Sizes below are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10-14), not the Hub
+`Parameters` field (explore research doc §3); 1 node = ≤ ~108 GB at 0.85 util.
 
 - [ ] **Solo (TP=1): `orcarouter/Qwen3.8-27B-Uncensored-NVFP4`.** 21.2B params, NVFP4, arch `qwen3_5`,
   Apache-2.0, gated; 186.8K dl / 308 likes; tags `ai-red-team`, `red-teaming`, `function-calling`,
-  `reasoning`, `mtp`. ~1 node / ~16 GB. Base `Qwen/Qwen3.8-27B` — its clean sibling already ships in
+  `reasoning`, `mtp`. 1 node / **24.7 GB** measured. Base `Qwen/Qwen3.8-27B`; its clean sibling ships in
   `recipes/qwen3/`, so reuse that lane's SGLang scaffold. FP8 / INT8 / GGUF siblings exist. Done when
   booted (`GET /v1/models` = repo id) with C1 (`decode-triage` d0/d8192) + the house battery.
 - [ ] **Solo (TP=1): `drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark`.**
-  27B NVFP4 + DFlash2 draft, 1M ctx via YaRN, Apache-2.0, gated ("Single DGXSpark"); tags `cybersecurity`,
-  `abliterated`, `uncensored`, `dflash2`. Explicit cybersecurity orientation; structurally copies the
-  shipped `qwen3.8-27b-nvfp4-dflash2-sglang` arm (add the YaRN long-ctx route + the `served_model_name`
-  key). Done when a boot receipt + C1 + battery, or a recorded negative.
+  **Overlay / community compile — ships no weights** (0 GB safetensors; Apache-2.0, gated): a DFlash2
+  YaRN-1M config + an uncensored chat template (`chat_template_b5_uncensored.jinja`) + a `one-shot.sh`
+  over AEON-7's `aeon-vllm-ultimate` image and a stock `Qwen/Qwen3.8-27B` NVFP4 + DFlash2 pack; **1 node**;
+  tags `cybersecurity`, `abliterated`, `uncensored`, `dflash2`. `raw/` holds the receipts
+  (`cyber-refusal32.json`, YaRN probes to 1M). Structurally copies the shipped
+  `qwen3.8-27b-nvfp4-dflash2-sglang` arm (add the YaRN long-ctx route + the `served_model_name` key) over
+  the overlay's chat template. Done when a boot receipt + C1 + battery, or a recorded negative.
 - [ ] **Solo (TP=1): `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4`.** 35.1B params, NVFP4, arch
   `qwen3_5_moe` (hybrid GDN + MoE), Apache-2.0, gated; collection note "Abliterated … BF16 66 GB, 122 /
-  1026 tensors edited. **Research use only**"; tags `ai-red-team`, `agentic`, `computer-use`. ~1 node /
-  ~20 GB. New family (no Nex arm in the registry) — read the arch + parser needs off the base card first.
-  Done when boot + C1 + battery.
+  1026 tensors edited. **Research use only**"; tags `ai-red-team`, `agentic`, `computer-use`.
+  24.0 GB measured. New family (no Nex arm in the registry) — read the arch + parser needs off the base
+  card first.
 - [ ] **Dual (TP=2): `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4`.** 180B, NVFP4, arch `qwen4_exp`,
-  Apache-2.0, gated; 19.1K dl / 97 likes; tags `ai-red-team`, `function-calling`, `reasoning`. ~2 nodes /
-  ~100 GB. The abliterated twin of the `recipes/qwen4/` checkpoint — reuse that lane's TP=2 recipe (the
+  183.5 GB measured. The abliterated twin of the `recipes/qwen4/` checkpoint — reuse that lane's TP=2 recipe (the
   7-mod chain minus the labquant-specific mods). Done when boot + C1 + battery, plus a refusal probe
   (report the bypass rate; keep the source card's format so it is comparable).
 - [ ] **Dual (TP=2): `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`.** **Overlay, not
@@ -193,8 +195,11 @@ the Hub `Parameters` field (explore research doc §3).
   place), GPU util **≤ 0.85**. **Never disturb the live ds4 TP4 serve.** Done when the graft is
   boot-verified on 2 nodes with C1 + a cyber-refusal probe, or a recorded negative.
 
-**Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, quad-class —
-inherits the archived glm5 Flash serve blocker), `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B,
-`deepseek_v4`), `drowzeys/keys-Qwen3.8-Flash-Next-NVFP4-dual-ablit-house-qsa-L3-47` (dual 180B ablit; base
+**Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, **205.1 GB** —
+2-node-heavy/3-node; inherits the archived glm5 Flash serve blocker),
+`orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B, `deepseek_v4`),
+`drowzeys/keys-Qwen3.8-Flash-Next-NVFP4-dual-ablit-house-qsa-L3-47` (dual 180B ablit, **132.7 GB**; base
 `nvidia/…` → licence `other`), `drowzeys/keys-GLM-5.3-Flash-NVFP4-ablit-l15-43-mtp-l45` (169B, MIT),
-`drowzeys/MiMo-V2.6-Flash-RL-Abliterated` and `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated`.
+`drowzeys/MiMo-V2.6-Flash-RL-Abliterated` (310B, FP8/MXFP4). **Over the 1–2-node bar, so recorded but NOT
+queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_arvq_hybrid`, MIT, gated —
+**315.7 GB** on-disk ⇒ ≥3 nodes; owner asked to add it only if it fit 1–2).
