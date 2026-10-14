@@ -99,3 +99,24 @@ image claim corrected 2026-10-11):
 Licence note: the Flash line is MIT; the DFlash2 drafter is **CC BY-NC-ND** —
 acceptable for this non-commercial cluster (owner decision 2026-10-11), not for
 commercial resale.
+
+## Revision pins (verified 2026-10-14, Hub API + every node's HF cache)
+
+- **GLM-5.3-Flash EXL3 4bpw** — Hub `main` is `76c0b517` (2026-10-03). The external
+  launcher pins the checkpoint to `078455ff` (2026-10-02) in `scripts/config.sh`, the revision the
+  TP=2/TP=3/TP=4 trials recorded (the `tp4` branch pins the same, DFlash2 `bf582e4e` on both).
+  Both revisions still resolve on the Hub, but **neither snapshot is on any node now**: the
+  2026-10-13 cache audit held `76c0b517` (175.7 GB) on all six, and it has since been cleared, so a
+  revival re-fetches ~176 GB.
+- **EXL3 3.0bpw** — `bertholomus/GLM-5.3-EXL3-3.0bpw` `main` is `7f057383` (2026-10-04), identical
+  to the HF-cache snapshot on `.30`; the runbook's `~/models/GLM-5.3-EXL3-3.0bpw` (~273 GB) is
+  staged on `.30`–`.33`. `incoai/GLM-5.3-Flash-DFlash2` is unchanged at `bf582e4e`, cached on all
+  six nodes.
+- **Flash NVFP4 (archived)** — `RedHatAI/GLM-5.3-Flash-NVFP4` `main` has moved to `18d55bfd`
+  (2026-09-18), past the archived recipe's `36c184c6` pin. `36c184c6` (2026-08-28) still resolves
+  on the Hub, but **its snapshot is absent from every node**, so a revive re-fetches ~198 GB — and
+  would fail outright if that commit were withdrawn upstream.
+- **Engine** — the TensorFold pin `bertholomus/TensorFold@glm-dsa-tp4` is `ddfad356` (2026-10-04),
+  matching both the head's `~/glm53-tf/TensorFold` checkout and the GitHub branch tip. The launcher
+  repos are likewise unmoved: `MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold` `main`
+  `3fd60dfc` (2026-10-12), `tp4` `d220030` (2026-10-10).
