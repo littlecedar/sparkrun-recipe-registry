@@ -140,8 +140,8 @@ itself and an unpushed mod is invisible.
 - Always `{model}` in `command:`, never a literal repo id. No host bind-mount paths — ship a mod
   (`volumes:` appears in 0 recipes).
 - Pin the checkpoint with top-level **`model_revision:`** (7 recipes), never `revision:` — an
-  unknown top-level key is silently absorbed into `runtime_config` and does nothing (documented as a
-  fixed live defect in the labquant recipe banners).
+  unknown top-level key is silently absorbed into `runtime_config` and does nothing (the labquant lane
+  records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
   when the lane depends on exact upstream code.
 - Update `recipes/README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
@@ -178,9 +178,14 @@ model/engine exposition — does not belong in the YAML; move it to the lane:
 ```
 
 Guards strip whole-line comments before matching, so stripping is guard-safe; they *do* assert on
-`metadata.description` prose, which must stay accurate and is not a comment. A `#` must never appear
-inside a folded `command:` block — the fold would pass it to the shell. Archived recipes under
-`attic/` are frozen provenance: leave their comments verbatim.
+`metadata.description` prose, which must stay accurate and is not a comment. A `#` mid-command would
+truncate the launch line at the shell, so comments stay out of a folded `command:` block — with one
+tracked exception: the qwen3 TensorFold arm's *terminal* in-fold comment
+(`recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml`), which must name `--served-model-name`
+because sparkrun skips its own flag append only when that text already appears in the rendered command
+(the comment is line-terminal, so the shell swallows it). The ds4/ifm `test_no_hash_inside_command_block`
+guards are lane-scoped, not repo-wide. Archived recipes under `attic/` are frozen provenance: leave
+their comments verbatim.
 
 ### Mods
 
