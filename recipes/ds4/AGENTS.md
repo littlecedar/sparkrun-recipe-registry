@@ -563,7 +563,7 @@ The recipe's `command:` is a one-line call to the shim:
 ```
 python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py --boot
   --model {model} --port {port} --tp {tensor_parallel}
-  --served-model-name {served_model_name} --context {max_model_len}
+  --served-model-name {model} --context {max_model_len}
 ```
 
 sparkrun appends `--dist-init-addr HOST:PORT --nnodes N --node-rank R` to every node's serve
@@ -648,8 +648,12 @@ prints the repo id), which the shim's `Path(repo).is_dir()` passthrough takes as
 `/cache/huggingface/hub/models--Mia-AiLab--DeepSeek-V4.1-Flash-EXL3-2.9bpw/snapshots/<hash>` via
 `refs/main`, else the newest config-bearing snapshot. No `snapshots/<hash>` appears in the recipe, so
 a cache re-resolving to a new hash cannot break it. The same rewrite reaches
-`--served-model-name {served_model_name}`; `served_model_name()` normalizes a path back to the repo
-id, so the engine does not advertise a filesystem path.
+`--served-model-name {model}`; `served_model_name()` normalizes the path back to the repo id, so
+the engine does not advertise a filesystem path. Verified live (2026-10-13): tensorfold boot
+`8ef9b6c9a550c389_3510a5e0d37d` on `.34+.35`, `GET /v1/models` →
+`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` (owned_by `tensorfold`, 1048576 ctx,
+TTR 56.0 s); the knapcio production serve `a4c699c1299bbbdf_8296561cc1cb` (`.30`) answers
+`deepseek-ai/DeepSeek-V4.1-Flash`.
 
 ### 12.7 Engram is fetched from the online repo (was: distributed out-of-band)
 

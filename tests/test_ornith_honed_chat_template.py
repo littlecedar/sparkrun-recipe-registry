@@ -211,7 +211,7 @@ class ServedModelName(unittest.TestCase):
 
     def test_negative_controls(self):
         text = self.RECIPE.read_text(encoding="utf-8")
-        # The pre-fix spelling, still carried by ten other shipped sglang arms.
+        # The pre-fix spelling this guard exists to catch.
         old = text.replace("--served-model-name {served_model_name}",
                            "--served-model-name {model}")
         self.assertEqual(

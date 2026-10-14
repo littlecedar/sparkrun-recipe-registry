@@ -255,6 +255,79 @@ class InertDefaults(unittest.TestCase):
         self.assertEqual(inert, ["moe_backend"])
 
 
+class ServedModelNameNotRebound(unittest.TestCase):
+    """`--served-model-name {model}` serves the prepared snapshot path on a launch.
+
+    sparkrun rebinds every `{model}` occurrence to the prepared on-disk snapshot path
+    (`models/runtime.py::bind_runtime_models`), so the engine advertises
+    `/cache/huggingface/hub/models--<org>--<name>/snapshots/<sha>` as its model id, while `-n`
+    still prints the repo id (bindings exist only on a launch). A `command:`-templated sglang
+    recipe with no flag at all is the same defect with the flag omitted: SGLang falls back to
+    the `--model-path` value. The supported spelling declares the literal and renders the flag
+    from it — `defaults.served_model_name: <repo id>` plus
+    `--served-model-name {served_model_name}` (sparkrun's own suggestion,
+    `core/validation.py:339-343`).
+
+    Exceptions, with reasons: the two ds4 shim arms render `{model}` on purpose — an
+    in-container launcher normalizes the path back to the repo id before the engine starts
+    (`mods/tensorfold-dsv41-launcher/launcher.py:176-196`,
+    `mods/dsv41-sglang-overlay/launcher.py:391-395`), guarded by tests/test_ds4_recipes.py.
+    """
+
+    ALLOWED = {
+        "ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
+        "ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml",
+    }
+    REBOUND = re.compile(r"--served-model-name\s+\{model\}")
+
+    def _rebound(self, text: str) -> bool:
+        return bool(self.REBOUND.search(strip_comment_lines(text)))
+
+    def test_no_recipe_renders_the_flag_from_model(self):
+        offenders = []
+        checked = 0
+        for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
+            rel = path.relative_to(RECIPES_DIR).as_posix()
+            checked += 1
+            if rel in self.ALLOWED:
+                continue
+            if self._rebound(path.read_text(encoding="utf-8")):
+                offenders.append(rel)
+        self.assertEqual(
+            offenders, [],
+            f"recipes rendering --served-model-name from {{model}} (a launch serves the "
+            f"prepared snapshot path as the model id): {offenders}",
+        )
+        self.assertGreater(checked, 15, "expected the full shipped set")
+
+    def test_every_sglang_command_recipe_declares_a_served_name(self):
+        missing = []
+        for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
+            rel = path.relative_to(RECIPES_DIR).as_posix()
+            if rel in self.ALLOWED:
+                continue
+            text = strip_comment_lines(path.read_text(encoding="utf-8"))
+            is_sglang = bool(re.search(r"^runtime: sglang", text, re.M)) or (
+                not re.search(r"^runtime:", text, re.M) and "sglang serve" in text
+            )
+            if not is_sglang or not re.search(r"^command: *>", text, re.M):
+                continue  # command-less recipes auto-inject recipe.model
+            if not re.search(r"^  served_model_name:", text, re.M):
+                missing.append(rel)
+        self.assertEqual(
+            missing, [],
+            f"sglang command recipes with no declared served_model_name (the engine then "
+            f"advertises the --model-path value): {missing}",
+        )
+
+    def test_negative_controls(self):
+        # the pre-fix spelling fires; the declared spelling does not.
+        self.assertTrue(self._rebound("  --served-model-name {model}\n"))
+        self.assertFalse(self._rebound("  --served-model-name {served_model_name}\n"))
+        # prose quoting the old spelling in a comment must stay inert.
+        self.assertFalse(self._rebound("  # was: --served-model-name {model}\n"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
