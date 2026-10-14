@@ -19,14 +19,16 @@ This file is the interface for planning rounds:
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `recipes/qwen4/SELECTION-RANKING.md`, #11 in `recipes/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `recipes/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
-register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 register (#16–#23) is the
-pre-fold state, `git show baecfa8:mad-science/TODO.md`.
+register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 registers (#16–#23, #24–#27) are
+the pre-fold states, `git show baecfa8:mad-science/TODO.md` and `git show c7c7a81:mad-science/TODO.md`.
 
 # TODO list
 
 Session end: 10:00 US/Eastern (2026-10-14)
 *(Owner decision 2026-10-14: all six nodes — `.30–.35` — are ours this session; the 4-node/TP=4 items
 (ornith 397B A/B, ds4 TP=4, glm5) are runnable.)*
+*(Owner decision 2026-10-14: must-do by the 10:00 ET end — the qwen4 re-pin + cut, the five cybersec
+arms, and the ifm/decision/explore re-pin sweep; the ornith 397B A/B and everything else spill.)*
 
 Lane order (advisory — any rational order, preference for subagent parallelization; strict ordering is not priority):
 - ds4
@@ -48,12 +50,16 @@ Selection priorities:
 
 ## General Registry Maintenance
 - [ ] Build additional quality testing and benchmarking suites using established industry standard benchmarking tools where feasible.
+  *(Owner decision 2026-10-14: decision #15 ("no new battery tool") is REOPENED — build additional
+  suites on established industry-standard benchmarking tools this session.)*
 - [x] **Serve every sglang arm under the upstream repo id, not the snapshot path (owner report 2026-10-13).** `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` currently advertises `/cache/huggingface/hub/models--ornith-ai--Ornith-1.5-35B-A3B-NVFP4/snapshots/94e431d9…` as its `model` id — wrong for clients, the proxy and any benchmark that sends the model id. Audit (13 shipped sglang recipes): **11 write `--served-model-name {model}`** (clef, Ling, ornith, qwen3.8-27B DFlash2, all five qwen3.8-flash-next arms, both ds4 shim arms) and **2 write no flag at all** (both IFM K2 arms — SGLang then defaults the id to the model path anyway) — nine of the eleven picked the spelling up in `0f41394` ("Add `--served-model-name` argument to all relevant recipes"): right intent, wrong operand, because `{model}` is the placeholder that gets rebound, so those nine lines must be *deleted* (not kept "for safety") when the declarative key goes in. Mechanism, already recorded in-repo: on a real launch sparkrun rewrites `{model}` *and a `--served-model-name {model}` rendered from the same placeholder* to the prepared on-disk path (`models/runtime.py::bind_runtime_models`, quoted at `mods/tensorfold-dsv41-launcher/launcher.py:176-182` and `tests/test_ds4_recipes.py:1290`), so the flag faithfully advertises the path. **`-n` does not show this** — it still prints the repo id; only a real launch rewrites the flag. **Fix pattern:** drop the hardcoded flag and declare `served_model_name: <upstream repo id>` in `defaults:` — the sglang runtime maps that key to `--served-model-name` and appends it when *absent* (`runtimes/sglang.py:47,372-376`; fill policy `runtimes/base.py:952-981` leaves an existing value intact, which is why the `{model}` spelling wins today). The vLLM lanes already use the declarative key (`explore/kolibri-1-78b-fp8-vllm.yaml`) and the root README documents the repo-id convention; the command-less path in `runtimes/sglang.py:533-535` already serves under `recipe.model`. **Per recipe:** drop/declare, then verify on a real launch — `GET /v1/models` (or `sparkrun cluster check --check-http-models`) must return the repo id; the CLI `--served-model-name` override can probe it live, but override *files* cannot set that key (`core/recipe_overrides.py:90`). Leave the two ds4 shim arms alone if their launcher path→repo-id normalization stays green (guarded today). Also correct the decision lane's "Served-id wart" note (`recipes/decision/README.md:45`) — it blames a missing flag, but the arm boots *with* the flag, so the value is the rebinding; and re-check any lane doc that quotes a path id. Done when every shipped sglang arm reports its repo id in `/v1/models` and no recipe carries the `{model}` spelling of the flag. **2026-10-13 progress (ornith):** `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` fixed + live-verified (boot `dadfb04b5145d956_8ed3ce77d78f` on `.34`: `/v1/models` → `ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, chat addressed to that id 200; warm TTR port-open 94.7 s). It uses the declarative key **plus** `--served-model-name {served_model_name}` — sparkrun's prescribed spelling (`core/validation.py`'s hardcoded-flag suggestion: "Move the value to defaults.%s and reference it as {%s}") rather than delete-and-let-append: identical final argv (the append no-ops when the flag is present, `runtimes/base.py:931-933`), and it keeps the repo's `InertDefaults` guard green with no exemption. Recipe comment + lane `README.md`/`AGENTS.md` + a lane guard (`tests/test_ornith_honed_chat_template.py`) carry the fix. Remaining: ten `{model}`-spelling arms + the two no-flag IFM K2 arms (SGLang defaults those to the model path; `runtimes/base.py:979-980` makes the append conditional on the key existing). **2026-10-13 sweep complete (all ten + both IFM arms):** every shipped sglang arm now has live `GET /v1/models` evidence of its repo id — clef (`625b43fd997e4d5b_8ed3ce77d78f`, `.34`), Ling (`3effce2e30113dd9_64af2f7668b6`, `.35`), K2 0.9B (`e2b91b75cf01d3ab_8ed3ce77d78f`, `.34`), K2 7B-Uno (`ff7c9715c406eee7_64af2f7668b6`, `.35`), qwen3.8-27B (`3b78f3ef7df2980b_64af2f7668b6`, `.35`), flash-next ×2 (`1753bbfdf3f0a50e_3510a5e0d37d` TP2, `15adecfd945cac5c_8ed3ce77d78f` solo), labquant ×3 (`1895030211ea0500_3510a5e0d37d` TP2), tensorfold (`8ef9b6c9a550c389_3510a5e0d37d`; recipe unchanged — its launcher normalizes the path), knapcio (production serve `a4c699c1299bbbdf_8296561cc1cb` on `.30` answers the repo id; recipe unchanged). The three labquant arms also gained `--revision {model_revision}`: after the fix their only identity tokens are the declared literal and that revision flag — `validate_runtime_command` (branch 1 no longer fires: `--model-path` is the mod-built tree) needs both, boot-proven on `.34+.35`. Observed consequence: the three labquant arms share one cluster id (`name=<served>` folds into the intent hash), so `stop <id>` addresses whichever is current. Class guard `tests/test_recipe_placeholder_resolution.py::ServedModelNameNotRebound` (ds4 arms allowed by name, with the launcher reason); shape documented in `recipes/README.md` §Notes; lane receipts in each lane's docs.
 
 ## ds4
 DeepSeek V4.1
 - [ ] **Check the DSV4.1 checkpoint revision.** No ds4 recipe pins a checkpoint revision — the knapcio TP4 image bakes it (`HF_REVISION`; the KNapcio memo records `fb2764a5` = `boot.py:24 REVISION`) — while Hub `main` for `deepseek-ai/DeepSeek-V4.1-Flash` is now `5254448103b6…` (2026-10-12) and **every node's cache already holds it**. Confirm what the live launcher actually serves, re-run the upstream-delta check against `52544481` (the 2026-10-10 memo found our then-pin *was* knapcio's v2.3 release commit — check whether this commit touches `boot.py`/kernels/overlay), then either pin `model_revision:` in the recipe or record why not, and re-run the ds4 suite (`needle-haystack` + `decode-triage` + the house battery). **Primary production lane — never disturb a live serve for this.**
 - [ ] Move the DSV4.1 checkpoint revision `HF_REVISION` into the recipe yaml instead of the TP4 image. Build and push the image.
+  *(Owner decision 2026-10-14: build + push + boot-verify this session; push to the usual org/tag —
+  confirm the exact tag from the repo config before pushing, and boot-verify on a free node.)*
 
 ## glm5
 GLM 5.3
@@ -75,6 +81,8 @@ Qwen 3.x
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
 - [ ] **Re-pin (and re-verify the mods for) the labquant checkpoint.** `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` `main` is `6c01ac378d22…` (2026-10-06 — the `step-5500 QAD` candidate the W14 plan already named) and the `.30` cache holds it, while the three `…labquant…` recipes pin `7c4f1bc1a2d6…`. Run the W14 per-mod re-verification plan against the new revision (one mod breaks, one is obsolete, five survive), then re-pin and re-bench the labquant arms (W3 battery + `decode-triage`).
+  *(Owner decision 2026-10-14: cut first — measure the six arms, pick the two, then re-verify/re-pin
+  only the survivors against `6c01ac37`.)*
 - [ ] There are at least six Qwen3.8-Flash-Next-NVFP4 recipes in the registry at the time I'm writing this. This is too many. Select the fastest single node recipe and two-node recipe and then sweep the rest to the @attic. 1M context length is optional for this lane.   
   *(Owner decision 2026-10-14: confirmed — exactly two shipped arms (fastest TP=1 + fastest TP=2), the
   rest swept to `attic/`; 1M context droppable.)*
@@ -154,7 +162,8 @@ Sizes below are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10
   **`gated: auto`**; card claims Refusal32 **32/32** + Cyber **22/22** bypass. Dual path = the **Mia 2×
   Spark EXL3 2.9 bpw** base (`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` + its 2× kit); the native base is
   the ds4 lane's TP4 production checkpoint. Needs a mod to fetch + graft (never write the stock pack in
-  place), GPU util **≤ 0.85**. **Never disturb the live ds4 TP4 serve.** Done when the graft is
+  place), GPU util **≤ 0.85**. All six nodes are granted this session (owner decision 2026-10-14), so
+  no live TP4 serve is up — if the production serve returns, stop and ask. Done when the graft is
   boot-verified on 2 nodes with C1 + a cyber-refusal probe, or a recorded negative.
 
 **Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, **205.1 GB** —
