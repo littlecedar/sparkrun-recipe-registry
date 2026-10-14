@@ -1281,7 +1281,7 @@ class SglangLaneContract(unittest.TestCase):
                         "--served-model-name", "deepseek-ai/DeepSeek-V4.1-Flash",
                         "--context-length", "524288",
                         "--nnodes", "4", "--node-rank", "0",
-                        "--dist-init-addr", "10.0.4.32:25000",
+                        "--dist-init-addr", ".32:25000",
                     ])
             finally:
                 _os.execve = orig_execve
@@ -1341,7 +1341,7 @@ class SglangLaneContract(unittest.TestCase):
             return ["--boot", "--model", model, "--port", "8000", "--tp", "4",
                     "--served-model-name", model, "--context-length", "1048576",
                     "--nnodes", "4", "--node-rank", "0",
-                    "--dist-init-addr", "10.0.4.30:25000"]
+                    "--dist-init-addr", ".30:25000"]
 
         with tempfile.TemporaryDirectory() as snap:
             path = _os.path.join(snap, "models--deepseek-ai--DeepSeek-V4.1-Flash",
@@ -1728,7 +1728,7 @@ class TensorfoldLaneContract(unittest.TestCase):
                 ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
                  "--served-model-name", "DeepSeek-V4.1-Flash", "--context", "262144",
                  "--nnodes", "2", "--node-rank", "1",
-                 "--dist-init-addr", "10.0.4.34:25000"],
+                 "--dist-init-addr", ".34:25000"],
                 checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
             )
         # argv is passed to execvp; prog is the resolved binary ("tensorfold").
@@ -1736,7 +1736,7 @@ class TensorfoldLaneContract(unittest.TestCase):
         self.assertEqual(argv[:2], ["tensorfold", "serve"])
         for flag in TF_RENDEZVOUS_FLAGS:
             self.assertIn(flag, argv, f"shim must emit {flag}")
-        self.assertEqual(argv[argv.index("--master") + 1], "10.0.4.34")
+        self.assertEqual(argv[argv.index("--master") + 1], ".34")
         self.assertEqual(argv[argv.index("--master-port") + 1], "25000",
                          "the --dist-init-addr port must reach --master-port, "
                          "not the engine's 29551 default")
@@ -1930,7 +1930,7 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
                     module.main(["--boot", "--model", str(model), "--port", "8000",
                                  "--tp", "2", "--served-model-name", "x",
                                  "--context", "262144", "--node-rank", "0",
-                                 "--dist-init-addr", "10.0.4.34:25000"])
+                                 "--dist-init-addr", ".34:25000"])
                 except SystemExit:
                     pass
             finally:

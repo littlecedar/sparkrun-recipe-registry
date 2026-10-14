@@ -371,7 +371,7 @@ are `SPDX: Apache-2.0` vLLM derivatives), cloned to `.scratch/ds4/tonyd2wild-vll
   makes the *node* clone a local `file://` registry, which fails, so use `local`
   when the registry is a local `file://` path.
 - **A bare `--hosts` does not carry the ssh user or transfer mode; a saved
-  `--cluster` does.** `--hosts red@10.0.4.32,…` made the *node* try to `git clone`
+  `--cluster` does.** `--hosts red@.32,…` made the *node* try to `git clone`
   our `file://` registry and fail. Fix: `sparkrun cluster create ds4tp4 --user red
   --transfer-mode local`.
 - **`docker logs` is empty — the serve log is `/tmp/sparkrun_serve.log` INSIDE the

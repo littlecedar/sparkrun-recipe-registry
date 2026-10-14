@@ -162,7 +162,7 @@ WANT_STAMP="${SNAP}"
 # `mkdir -p` here is NOT cosmetic. With `set -euo pipefail` a `find` on a directory
 # that does not exist exits 1, and because it is the first element of a pipeline that
 # failure propagates through `| wc -l | tr -d ' '`: the whole mod dies on a fresh node
-# where labq-patched has never been created. Observed on 10.0.4.34 (dry run, no
+# where labq-patched has never been created. Observed on .34 (dry run, no
 # persisted runtime cache) as EXIT=1 immediately after "found 36 safetensors shards".
 # Any node whose /cache/runtime was cleared -- a new node, or a model-key cache
 # eviction -- would have hit this on its very first boot.
@@ -340,7 +340,7 @@ fi
 # flashinfer_jit.log into this cache as ROOT. The actual server then starts as
 # uid 1000 and dies with
 #   PermissionError: [Errno 13] Permission denied: '.../flashinfer_jit.log'
-# and uid 1000 cannot even unlink the file to recover. Observed on 10.0.4.34 on
+# and uid 1000 cannot even unlink the file to recover. Observed on .34 on
 # 2026-09-18, caused by this mod; repaired by chown -R 1000:1000 on the per-model
 # cache dir. This is the same class of failure the parent recipe documents for
 # the fastsafetensors mods -- importing sglang for a config check reproduces it,

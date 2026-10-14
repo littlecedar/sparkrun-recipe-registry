@@ -65,18 +65,18 @@ Usage
     python3 tools/needle-haystack.py \\
         --model deepseek-ai/DeepSeek-V4.1-Flash \\
         --context-length 1000000 \\
-        --api-endpoint http://10.0.4.30:8000 \\
+        --api-endpoint http://<node>:8000 \\
         --json needle-1m.json
 
     # watch it work: progress on stderr, report and --json stay on stdout
     python3 tools/needle-haystack.py --model auto --context-length 1m \\
-        --api-endpoint http://10.0.4.30:8000 --verbose
+        --api-endpoint http://<node>:8000 --verbose
 
     python3 tools/needle-haystack.py --selftest        # offline, no GPU
 
     # cheaper smoke: 64k window, depths every 25%
     python3 tools/needle-haystack.py --model auto \
-        --context-length 65536 --api-endpoint http://10.0.4.30:8000 \\
+        --context-length 65536 --api-endpoint http://<node>:8000 \\
         --depths 25,50,75,100
 
 As a library, the same test takes model / context length / API endpoint as
@@ -86,7 +86,7 @@ keyword arguments:
     result = nh.run_needle_test(
         model="deepseek-ai/DeepSeek-V4.1-Flash",
         context_length="1m",
-        api_endpoint="http://10.0.4.30:8000",
+        api_endpoint="http://<node>:8000",
     )
     print(result["verdict"])                # PASS / FAIL / TRUNCATED / ...
 """

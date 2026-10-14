@@ -241,7 +241,7 @@ To build locally instead of pulling, retag the result
 | Base | `lmsysorg/sglang:dev-dsv41` |
 | Upstream overlay | knapcio `58f2321`, SGLang `dsv4.1` @ `f80c91a4b` |
 | Local patch | [`boot.py.health-port.patch`](boot.py.health-port.patch) — runtime port discovery for the dynamic HEALTHCHECK (**not** upstream) |
-| Built | 2026-10-03 on `10.0.4.30` (rebuilt for the dynamic HEALTHCHECK) |
+| Built | 2026-10-03 on `.30` (rebuilt for the dynamic HEALTHCHECK) |
 | Size | 33.5 GB (arm64) |
 
 The build reuses the base and overlay layers (Docker layer cache), so a
@@ -295,7 +295,7 @@ and a blanket `ignore::FutureWarning` would hide unrelated warnings. Guarded by
 ### 5.1 Boot receipt — the pin, served (2026-10-14)
 
 A four-node TP=4 boot on `.30` (head), `.32`, `.33`, `.34`, launched by name with
-`-H 10.0.4.32,10.0.4.33,10.0.4.30,10.0.4.34` and `model_revision: 5254448103b6…`. Cold boot:
+`-H .32,.33,.30,.34` and `model_revision: 5254448103b6…`. Cold boot:
 launch 08:14 EDT, `/v1/models` answering **08:25:45 EDT** (~11.5 min).
 
 - `launcher: MODEL_ID is an on-disk checkpoint dir; serving
@@ -826,7 +826,7 @@ the synchronous fetch is timeout-bounded (below).
 - A boot with the fetch **synchronous** (`-e MOD_ENGRAM_WAIT=1`) fetched the full 189 GiB inside the
   recipe's pre-serve hook on `.34` and published both tables; but the fetch took longer than
   sparkrun's pre-exec hook timeout, so the *launch* was killed with
-  `SSH script <- 10.0.4.34 TIMEOUT after 600s` / `pre_exec[2] failed`. The detached fetch survived
+  `SSH script <- .34 TIMEOUT after 600s` / `pre_exec[2] failed`. The detached fetch survived
   the teardown and finished (files verify clean with `--check`).
 - The default **detached** boot: `.34` had the tables and the mod was a **no-op**; `.35` was empty
   and the mod launched the detached fetch (which completed in **820 s, 236 MiB/s**), while the boot
@@ -986,7 +986,7 @@ prove a boot (see the paragraph above).
   `execvp`, so a fresh shell shows the image's env, not the launcher's. Read the launcher's log line.
 - **Launch detached.** A long `sparkrun run` must be started as `setsid nohup sparkrun run … &`, or a
   tool call that times out kills the launch mid-boot.
-- **`sparkrun status` / `sparkrun metrics` need `-H`** (`-H 10.0.4.34,10.0.4.35`) or they have no
+- **`sparkrun status` / `sparkrun metrics` need `-H`** (`-H .34,.35`) or they have no
   nodes to query.
 
 ### 12.13 Context window and concurrency (measured 2026-10-05)

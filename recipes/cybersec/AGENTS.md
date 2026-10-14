@@ -138,7 +138,7 @@ Deferring it was tried and **does not work on a cluster launch**: sparkrun holds
 rendezvous/readiness gate (~300 s) *before* the serve command's `readiness.port_timeout_s`
 applies, so a serve wrapper that waits for a background graft is declared dead while it is still
 polling. Measured 2026-10-14 (task `sparkrun_d42e44075b9357cd_c390039d73a3`): "Head node failed
-to become ready on `10.0.4.32`" at 318 s, wrapper still polling. A cold node whose graft cannot
+to become ready on `.32`" at 318 s, wrapper still polling. A cold node whose graft cannot
 fit 600 s is a launch failure, not a degraded serve — pre-warm out of band for such a node.
 
 ---
