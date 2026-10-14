@@ -172,3 +172,14 @@ documented) — commit `5c6795a`. A node-cache reclamation recovered ~1.85 TB fr
 lanes (cybersec negatives, archived glm5 staging, orphaned caches; `dsv41-engram` staging kept for
 the shipped arm-5 chain) — commit `39404eb`. Gate: **508 tests OK** (1 skipped), **31/31** recipes
 validate, `bash -n` / `py_compile` clean. All six nodes left idle.
+
+**TODO-file cleanup (2026-10-14).** `mad-science/TODO.md` trimmed to open work only: with every lane
+closed, that is now the protocol, the (empty) decisions register, the standing `Selection priorities`,
+and one `*(all items completed — archived in ../attic/DONE.md)*` stub per lane — plus the cybersec
+`**Other surfaced arms (not queued):**` block, kept live because `recipes/cybersec/README.md` cites it.
+Archived verbatim into `attic/DONE.md` (under its matching lane sections, with new `## ifm` /
+`## cybersec` sections and a `## Session scaffolding (archived 2026-10-14)` section): the 25 completed
+items, their `*(Owner decision …)*` notes, the §ornith session-result paragraph, the cybersec lane
+prose, and the session scaffolding (the session-end line, the two scope bullets, the lane order). 162 →
+89 lines, 0 `[x]` left. Verified by a line-set diff of the `HEAD` TODO blob against both files — 0
+unaccounted, 0 duplicated lines. Gate re-run: **508 tests OK** (1 skipped), **31/31** recipes validate.
