@@ -225,13 +225,11 @@ class ReclaimVerdict(unittest.TestCase):
         tree = self._tree("deepseek-ai__DeepSeek-V4.1-Flash-db95f94c", "2026-10-10_13:59")
         self.assertEqual(audit.verdict(tree, self.keys)[0], "stale")
         note = audit.reclaim_note(tree, "stale", self.now)
-        # The stamp is 116 h old; `--older-than N` is a day count and `-mtime +N`
-        # matches only when the truncated age in days exceeds N, so 3 is the largest
-        # cutoff that still reaches this tree.  A 30-day note here would be inert.
-        self.assertIn("--older-than 3", note)
-        self.assertEqual(note,
-                         "sparkrun setup prune-runtime-cache --hosts .NN --older-than 3"
-                         "   # 116 h old; the cutoff is in DAYS")
+        # Shape only: the *number* is asserted by the property test below, so this
+        # guard cannot re-freeze a cutoff that stops matching the tree it names.
+        self.assertIn("sparkrun setup prune-runtime-cache --hosts .NN", note)
+        self.assertIn("--older-than", note)
+        self.assertIn("116 h old", note)
 
     def test_emitted_cutoff_is_reachable_for_the_tree_it_names(self):
         # The property, not the spelling: whatever cutoff the note prints must be one
