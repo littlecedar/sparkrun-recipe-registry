@@ -1,0 +1,79 @@
+recipe_version: "2"
+model: Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold
+model_revision: 078455ffe6472f9a52fbc1139f58b9db2881b25c
+# runtime: sglang is the shim path: sparkrun renders command: and appends its
+# per-node rendezvous flags (--dist-init-addr/--nnodes/--node-rank), and the
+# launcher mod maps them onto `tensorfold serve`. See the mod's README.
+runtime: sglang
+# The upstream launcher's tp4-branch image, digest-pinned. Single-platform
+# (arm64/linux) image manifest -- not a manifest list -- so this digest is what
+# both the tag and the image resolve to; `docker manifest inspect` on a node
+# prints it. It is the 106-patch build the TP=4 trial ran under the local tag
+# `tensorfold-glm53:v0.6.0`: upstream's prepare.sh pulls $GHCR_IMAGE@$IMAGE_DIGEST
+# and `docker tag`s it under that name. Provenance: the patch set's hash
+# (config.sh image_hash over patches/*.patch + IMAGE_EXTRAS) recomputes to
+# 7a37454d3238, which is both the tag suffix and the image's `tf.patches` label.
+container: ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8
+builder: docker-pull
+min_nodes: 4
+max_nodes: 4
+
+metadata:
+  description: >-
+    GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4x DGX Spark (GB10), TP=4, TensorFold
+    v0.6.0 with the 106-patch tp4 engine and DFlash2 drafts: the lane's fastest
+    measured arm (single-stream decode 98.4 t/s, C1 @ d0 on .30-.33,
+    2026-10-13). Realized as a sparkrun recipe by the lane's launcher mod,
+    which owns the engine command; receipts and the runbook are in
+    recipes/glm/README.md and attic/glm/. The recipe path itself has NOT been
+    booted (it needs a TP=4 window). The drafter is CC BY-NC-ND 4.0
+    (non-commercial; owner decision 2026-10-11).
+  model_params: "169B"
+  model_url: https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_dtype: exl3
+  kv_dtype: fp8
+  draft_model: incoai/GLM-5.3-Flash-DFlash2
+  model_draft_dtype: bf16
+  tags: large_context, fast, reasoning, tools, vision
+
+# The mod ships the gate + the launcher shim; the recipe references it
+# unscoped (lane-local: the published clone does not carry it).
+mods:
+  - "mods/tensorfold-glm-exl3-launcher"
+
+# The image's ENTRYPOINT is /opt/nvidia/nvidia_entrypoint.sh; clear it so the
+# recipe's own command runs instead of being parsed as the image's flags.
+executor_config:
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  # The id the upstream launcher advertises (SERVED_NAME), i.e. the one the
+  # lane's receipts were measured against -- not the HF repo id. Never {model}
+  # here: a real launch renders that placeholder to the prepared snapshot path.
+  served_model_name: GLM-5.3-Flash-EXL3
+  # Distribution-only: the sglang runtime reads these two and adds the drafter
+  # to the set sparkrun ships to every node. Nothing in the image fetches it,
+  # and the launcher resolves the snapshot from the node's own HF cache.
+  speculative_draft_model: incoai/GLM-5.3-Flash-DFlash2
+  speculative_draft_model_revision: bf582e4eacc1810f76656d1811693ff6c6737d2a
+
+command: >
+  python3 /workspace/mods/tensorfold-glm-exl3-launcher/launcher.py
+  --boot
+  --model {model}
+  --served-model-name {served_model_name}
+  --port {port}
+  --tp {tensor_parallel}
+  --context {max_model_len}
+  --drafter-repo {speculative_draft_model}
+  --drafter-revision {speculative_draft_model_revision}
+
+readiness:
+  inference: true
+  port_timeout_s: 7200
+  health_timeout_s: 3600
