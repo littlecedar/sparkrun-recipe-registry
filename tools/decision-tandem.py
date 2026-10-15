@@ -25,6 +25,11 @@ Significance of the ensemble-vs-alone accuracy delta is an exact two-sided
 McNemar test over the paired per-question outcomes.
 
 stdlib only.  ``--selftest`` runs a self-contained fixture and exits 0.
+
+NOTE: ``tools/decision-ensemble.py`` imports ``linear`` / ``normalise`` / ``argmax`` from this
+module, so the *served* clef+Kai ensemble and the *analysed* one are the same rule.  Changing
+them here changes what the proxy answers — verify against the lane's receipts
+(`recipes/decision/README.md` §"The clef + Kai ensemble") before changing them.
 """
 
 from __future__ import annotations

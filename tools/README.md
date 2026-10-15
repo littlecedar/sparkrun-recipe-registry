@@ -13,6 +13,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 |---|---|---|
 | `safe_text.py` | every lane's log/template handling | guard: `tests/test_safe_text.py`; run before any DeepSeek log or 400 dump is read |
 | `pooling-bench.py` | `recipes/embed/` + `recipes/rerank/` | imports `synthetic_png.py` by sibling path; guarded by `tests/test_qwen3_vl_embeddings.py` |
+| `../plugins/pooling_bench_framework.py` | the same two lanes, driven through a `sparkrun benchmark` profile | the `BenchmarkingPlugin` that runs `pooling-bench.py` as its subprocess; out-of-tree, so it loads only from `plugins.paths` (see §plugins/); guarded by `tests/test_pooling_bench_framework.py` |
 | `synthetic_png.py` | library for `pooling-bench.py` | also loaded by the same embed/rerank guard |
 | `quality-battery.py` | `recipes/ds4/` benchmarks rig | imported verbatim by `recipes/ds4/benchmarks/run_benchmarks.py`; scoring kinds reused by `qwen4-quality-eval.py` |
 | `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `recipes/cybersec/mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
@@ -21,10 +22,13 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
 | `decision-tandem.py` | `recipes/decision/` CPU+GPU tandem probe | parses two tool-eval-bench decision reports' Full Trace and pools per-question distributions; self-test only, no `tests/` guard |
+| `decision-ensemble.py` | the served clef+Kai ensemble (`/v1/systemone` proxy) | imports `decision-tandem.py`'s pooling rule so the served and analysed ensembles cannot drift; self-test only, no `tests/` guard |
+| `decision-ladder.py` | `recipes/decision/` arms (the concurrent req/s ladder) | replays the vendored Typed Decisions split at c 1/2/5/10; reports **req/s**, never t/s; self-test only, no `tests/` guard |
 | `bfcl-eval.py` | `recipes/explore/` tool-calling models (BFCL v3) | port of BFCL's official AST checker; guarded by `tests/test_bfcl_eval.py` |
 | `eval-suite.py` | every lane's standard evaluation pass (the SOP) | drives `quality-battery.py`, `needle-haystack.py`, `bfcl-eval.py` and the ds4 hard tier against one live endpoint, then the horizon probe; `--selftest` |
 | `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
 | `horizon-analyze.py` | the horizon probe's JSONL arms | prints the per-arm loop/degradation summary; used by `eval-suite.py --checks horizon` |
+| `cache-audit.py` | the fleet `sparkrun` runtime-cache (every lane's compiles) | registry-level, not lane-level: maps each cache tree to the recipe that owns its leaf key, so "which of these 99 trees is stale?" is a command and not a hand-derivation; `--selftest`; guarded by `tests/test_cache_audit.py`; policy and reclaim list in `mad-science/STORAGE-POLICY.md` |
 
 ## eval-suite.py (the SOP pass)
 
@@ -118,12 +122,20 @@ carries the real bytes. Importable API: `raw_token`, `escaped_token`, `escape`, 
 ## pooling-bench.py
 
 `sparkrun`'s benchmarking frameworks (`benchmarking/*.yaml`, `framework: llama-benchy` and
-`tool-eval-bench`) both drive `/chat/completions`. **Neither can measure an embedding or
-reranker server** — there is no chat endpoint on a pooling engine — and the miss is a
-*silent skip*, not an error, so a run can look clean and have measured nothing. Until
-someone writes a real pooling `BenchmarkingPlugin` (the interface is
-`sparkrun/benchmarking/base.py`; a plugin, not a script, is the correct long-term home),
-this is what measures `/v1/embeddings`, `/v2/embed`, and `/v1/score`.
+`tool-eval-bench`) both drive `/chat/completions`, and a pooling engine has no chat endpoint.
+**Neither can measure an embedding or reranker server, and the failure is not silent** —
+measured 2026-10-15 on the installed stack (sparkrun 0.4.0, llama-benchy 0.4.0): against a
+stub serving `/v1/embeddings` and 404ing `/v1/chat/completions`, `llama-benchy` exits 1 with
+`Warmup failed: HTTP 404: ... does not support chat completions` and writes no result row,
+so the same run through `sparkrun benchmark performance <pooling recipe> --profile
+benchmarking/concurrency-ladder.yaml` reports `Task 1/4 failed` and then
+`Error: Benchmark incomplete; schedule did not complete` (exit 1) having launched nothing it
+could measure. (The *older* failure mode — a result file whose every metric is `null`, which
+exported as a clean-looking table — is what `BenchmarkingPlugin.measured_nothing` exists to
+reject: `sparkrun/api/_benchmark.py:1328-1332`, `benchmarking/llama_benchy.py:620-627`.)
+Either way **no standard profile produces a pooling number.** This tool measures
+`/v1/embeddings`, `/v2/embed`, and `/v1/score`; `plugins/pooling_bench_framework.py`
+(next section) is the same instrument behind `sparkrun benchmark`.
 
 Single file, stdlib only, Python 3.12+. Nothing here knows about hostnames or cluster
 nodes — everything is a flag.
@@ -176,6 +188,87 @@ the bi-encoder; uniform failing while rank passes is a depth or temperature prob
 
 Latency at low `--requests` is an anecdote and the tool says so; compare medians of
 repeated runs before believing a delta.
+
+## plugins/pooling_bench_framework.py
+
+The pooling lanes' `BenchmarkingPlugin`: it lives in the repo's top-level `plugins/`
+directory (not `tools/`, which stays stdlib-only — this module imports `sparkrun` by
+definition), it measures nothing itself, and it drives `tools/pooling-bench.py` from a
+sparkrun **profile**, so a pooling sweep gets what every other lane gets from a framework —
+one resumable artifact per cell (`000_embed_c1.json`), gap detection on a cell that measured
+nothing, an exported `--output` measurement, and `sparkrun benchmark pooling …` as a
+first-class subcommand.
+
+**A registry cannot supply a plugin, and this repo cannot fix that.** sparkrun's plugin
+discovery is config-driven and separate from the registry it clones: a `RegistryEntry` is
+`subpath` / `tuning_subpath` / `benchmark_subpath` / `mods_subpath` / `format` and nothing
+else (`sparkrun/core/registry.py:168-178`), so no registry field can point at a plugin
+directory. Out-of-tree plugins arrive two ways — a `plugins.paths` directory
+(`sparkrun/core/external_plugins.py`, every module inside is imported and each must declare
+`SPARKRUN_PLUGIN_API_VERSION = 1`) or a pip `sparkrun.plugins` entry point — and **both are
+user actions on the machine running `sparkrun`, not registry content.** The clone therefore
+ships the module and the docs ship the two lines; without them the framework is simply not
+registered.
+
+```sh
+sparkrun setup features enable core.external_plugins   # OFF by default on every channel
+```
+```yaml
+# config.yaml
+plugins:
+  paths:
+    - <path to this clone>/plugins
+```
+
+`sparkrun setup plugins list` then shows `pooling_bench_framework  external  on`, and
+`sparkrun benchmark pooling --help` exists (a framework's `categories` become subcommands).
+Only the head that drives the sweep imports it — never the serving nodes: the scheduler runs
+the instrument locally and hands it the endpoint URL.
+
+Profile contract — one task per `concurrency` value, and `kind` is **required** because
+embed and rerank answer on different routes, so neither is a safe default:
+
+```yaml
+framework: pooling-bench
+args:
+  kind: embed                 # embed | rerank
+  mode: embed-v1-chat         # instructed form; embed-v1-raw is the A/B, never a default
+  concurrency: [1, 4, 8, 16, 32]
+  requests: 100
+  input_tokens: 256
+  dimension_check: 4096       # 2048 for the 2B / 4096 for the 8B AWQ encoder
+  salt: true
+  warmup: 5
+```
+
+```sh
+# the lanes' published ladder shape (the YAML above, saved as pooling-ladder.yaml),
+# on an arm that is already serving
+sparkrun benchmark pooling recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml \
+  --hosts <node> --skip-run --profile pooling-ladder.yaml --output ladder.yaml
+```
+
+**How the framework gets picked, and the one way to get this wrong.** `framework_name` and
+`categories` are what register it: `sparkrun benchmark pooling …` exists because
+`categories = ("pooling",)`, and `--framework pooling-bench` is the explicit alternative.
+What matters is *when* it is chosen — a pinned category subcommand sets the framework from
+its category **before** the profile is read (`sparkrun/api/_benchmark.py:438-457`), and the
+profile's own `framework:` key only fills one that is still unset (`:495-505`). So either run
+`benchmark pooling`, or run `benchmark run` with the profile naming the framework; run a
+pooling profile under `benchmark performance` and llama-benchy gets pooling args (measured
+2026-10-15: `Error: Benchmark incomplete`, exit 1, no number), while `--framework
+pooling-bench` under `performance` is refused outright — `Error: Framework 'pooling-bench' is
+not registered for category 'performance'`.
+
+Every other arg is rendered straight onto the instrument's command line (`-b
+docs_per_query=10` for the rerank kind), so a new pooling-bench option needs no edit here and
+a misspelt one fails in the tool's own argparse. Two failure modes worth knowing: a missing
+`kind` raises `BenchmarkError` from `build_task_list` *before* any launch (sparkrun prints it
+as a traceback — the message is the last line), and a target that answers nothing fails the
+task and aborts the run rather than exporting a number. Guard:
+`tests/test_pooling_bench_framework.py` (command shape, the cell-identity keys compared
+against a *real* instrument payload, and negative controls proving both "measured nothing"
+and a mismatched cell are rejected).
 
 ## quality-battery.py
 
@@ -700,9 +793,109 @@ python3 tools/decision-tandem.py --selftest     # offline, synthetic fixture, ~0
 
 Both arms must speak `/v1/systemone` so the distributions share an option space: clef-flash,
 Kai-0.6B, and Sol-2B do; JEV-9B does not (its card contract is `/v1/completions`, one request
-per question, `tools/jev-decision-bench.py`) and its report is not accepted. Measured result
-and the co-serve contention finding: `recipes/decision/README.md` §"CPU+GPU tandem probe"
-(receipts `~/benchmarks/decision-tandem-20261013/`).
+per question, `tools/jev-decision-bench.py`) and its report is not accepted. The 2026-10-13
+probe (result, pairing study, co-serve contention) is archived in
+`attic/decision/AGENTS.md` §"CPU+GPU tandem probe (2026-10-13)"; the tool is re-run with
+`recipes/decision/README.md` §"The clef + Kai ensemble", receipts
+`~/benchmarks/decision-tandem-20261013/` and `~/benchmarks/decision-ensemble-20261015/`.
+
+## decision-ensemble.py
+
+The reference implementation of the clef + Kai ensemble, **served** as one
+`/v1/systemone` endpoint. The ensemble is a client-side pooling rule, so every
+re-implementation is a chance to get the rule subtly wrong (mean-then-argmax vs
+argmax-then-vote, a different tie-break, a dropped label, a log-linear pool that
+is scored as accuracy): this proxy imports `decision-tandem.py`'s `linear` /
+`normalise` / `argmax` so the served ensemble and the analysed ensemble cannot
+drift apart, and it answers the same wire shape both members answer. It fans a
+request out to both members in parallel, pools each question by type
+(`probabilities` for choice/score, the `noul` scalar for noul), and reports
+`usage.input_tokens` as the **sum** of the two members' usage - the ensemble's
+real compute bill. Both members must answer: a dead member is a 502 (and a 503
+from `/health`), never a silent pass-through of the survivor.
+
+```sh
+python3 tools/decision-ensemble.py --a http://<node>:8020 --b http://<node>:8000 \
+    --a-model Cloudflare/clef-flash --b-model vllm-sr/Decision-2.0-Kai-0.6B --port 8021
+python3 tools/decision-ensemble.py --selftest     # offline, stub members, ~1 s
+```
+
+Two behaviours are load-bearing and both are asserted by `--selftest`:
+
+* **One advertised model.** `/v1/models` returns the proxy's own id (`--as-model`, default
+  `decision-ensemble`) and nothing else. Merging the members' ids looks tidy and is a trap: a
+  client that auto-detects the model then sees two candidates and prompts for a number — with
+  no TTY, tool-eval-bench v2.8.0 looped on `Select model [1-2]:` and wrote 3.7 GB of prompts
+  into a log before the run was killed (2026-10-15). The client's model string is irrelevant
+  here anyway: `--a-model` / `--b-model` decide what each member is asked for.
+* **Per-request fan-out.** Each client request gets its own pair of threads; a shared small
+  pool would make the proxy the ensemble's concurrency ceiling. `--selftest` asserts four
+  concurrent clients overlap.
+
+Measured 2026-10-15 (`.34`, both members booted from their recipes): pooling the two members'
+own reports with `decision-tandem.py` gives **71.6% (1432/2000)** on the Typed Decisions test
+split — +63/−37 against clef alone, exact McNemar p = 0.012 — and the recorded instrument pass
+*through this proxy* (`uvx tool-eval-bench@2.8.0 --base-url http://127.0.0.1:8021 --model
+decision-ensemble --decision-bench-only`, full 400 cases) scores **71.7% (1433/2000)** on the
+same boot. Recomputing the served report's distributions with `decision-tandem.py` gives 1432:
+the difference is one *exact tie* (`security_incidents_000055` severity, 0.28/0.28) where
+tool-eval-bench breaks by first-listed option and `decision-tandem.py` by greater label —
+served and offline agree on the argmax label at 1999/2000 and on the distributions to ≤5e-4,
+so this is a tie-break convention, not a pooling difference. Read the *rate* as the pool's,
+never as a member's: a pooled request costs `max(member)` latency, so the served ensemble runs
+at the CPU arm's pace (**0.192 req/s, p50 5.2 s** on a 20-case prefix at c1; the full pass ran
+p50 8.4 s co-resident) while clef alone serves 4.9 req/s. Receipts:
+`~/benchmarks/decision-ensemble-20261015/` (`ensemble.json`, `reports/ensemble-served-c1.md`,
+`logs/proxy-teb-r2.log`, `logs/proxy-correctness.log`, `ladder-ensemble-c1.json`).
+
+## decision-ladder.py
+
+The concurrent harness the decision lane's `C1`/`C2`/`C5`/`C10` columns need.
+`sparkrun`'s benchmarking frameworks both drive `/chat/completions`, which no
+arm in this lane serves, so the lane's throughput numbers can only come from a
+tool that speaks `/v1/systemone` directly; and the instrument that produces the
+lane's accuracy (`tool-eval-bench --decision-bench-only`) is serial unless it is
+given `--parallel N`. This tool replays the *vendored* Typed Decisions test
+split - the same 400 cases the instrument scores, extracted from
+`tool-eval-bench`'s own `vendor/typed_decisions/test.jsonl.gz` and verified
+against its manifest sha256 - at a fixed concurrency per level and reports
+**requests/s** (one request = one case = five decisions in one forward pass, so
+`decisions/s` is that number x5) with p50/p95 beside it.
+
+Read the unit strictly: `req/s` here is **not** `t/s`, and a prefill-only scorer
+has no decode rate to report, so these numbers never fill a `t/s` column. It is
+a closed-loop rate (offer N, count completions) and the concurrency is the
+client's, so quote the level with every number.
+
+```sh
+python3 tools/decision-ladder.py --base-url http://<node>:8020 \
+    --model Cloudflare/clef-flash \
+    --cases <vendored test split>.jsonl --concurrency 1,2,5,10 --json ladder.json
+python3 tools/decision-ladder.py --selftest    # offline, stub server, ~1 s
+```
+
+Both lane servers **require** the request's `model` field (clef's `/v1/systemone` answers
+`422 {"loc":["body","model"]}` without it), and `--model` is checked before any request is
+sent rather than left to the server.
+
+`--limit` takes a deterministic *prefix*, which samples one workflow of the
+four; for a CPU arm that cannot afford 4 x 400 requests, slice with a stride
+file instead (every 4th case keeps all four workflows at 1/4 the cost) and use
+the same file for every arm being compared.
+
+Measured 2026-10-15 (`.34`, each arm booted solo, `req/s` at c1/2/5/10):
+
+| arm | c1 | c2 | c5 | c10 | p50 at c1 -> c10 |
+|---|---:|---:|---:|---:|---|
+| clef-flash (GPU), stride-4 slice | 4.89 | 5.11 | 5.16 | 5.51 | 206 ms -> 1.82 s |
+| Kai-0.6B (CPU), stride-4 slice | 0.187 | 0.186 | 0.156 | 0.128 | 5.70 s -> 82.1 s |
+
+Both arms are serial — clef buys 13% of throughput for 8.8x the latency, Kai
+*loses* 32% for 14x — and the instrument's own `--parallel N` reproduces clef's
+row within 1%, so this is the endpoint, not the harness. Numbers, unit
+discipline and the index consequence: `recipes/decision/README.md` §"A req/s
+ladder, not a t/s ladder" (receipts `~/benchmarks/decision-ensemble-20261015/`,
+`ladder-*.json`).
 
 ## synthetic_png.py
 
@@ -818,3 +1011,39 @@ mis-scores it.
 
 A score is not proof of quality: it is one instrument on one endpoint, and a reasoning-capable
 server is not bitwise-stable across batch composition even at `temperature` 0.
+
+## cache-audit.py
+
+The one tool here that is not a lane instrument. `sparkrun`'s runtime cache
+(`${WOPR_USER_CACHE}/sparkrun/runtime-cache/<family>/<model_key>`) holds every lane's compiled and
+autotuned artifacts — ~2.5 TiB across the six nodes, in ~99 trees — and **the only way to tell a live
+tree from a superseded one is the leaf key**, which sparkrun derives as
+`sanitize(model)[:48] + "-" + sha256("<model>@<model_revision>")[:8]`. Nothing on the node knows the
+registry's shipped set, and the `modlogs/` heuristic in AGENTS.md fails exactly where it matters most:
+measured 2026-10-15 on the ds4 lane, the live tree (the recipe's current pin) and the superseded one
+(the same model with an *empty* `model_revision`) carry the same `dsv41-sglang-overlay.log` and the
+same mod set. This tool recomputes the key for every recipe and answers the question mechanically.
+
+```sh
+# the other half of the census is per node: `hf cache ls`, `df -h /home`
+sparkrun setup prune-runtime-cache --hosts .30,.31,.32,.33,.34,.35 --all --dry-run > census.txt
+uv run python -B tools/cache-audit.py --census census.txt --budget-gb 500
+uv run python -B tools/cache-audit.py --selftest        # offline, no cluster, ~0 s
+```
+
+It accepts both census shapes — sparkrun's `would-remove <size> <host>:<path>` receipt and a
+`du -sk`/`stat` listing under a `##### <host>` header — merges a tree seen in both (the dry-run rounds
+sizes to 0.1 GB and carries no marker, so a first-wins parser would report every tree as unmarked and
+pin its age at unknown), and labels each leaf `live` (a shipped recipe produces the key), `retired`
+(only an `attic/` arm does) or `STALE` (nothing does). It prints per-node totals against the budget,
+exits 1 when a node is over it, and prints the reclaim list with sizes, marker ages and the guarded
+sweep command. **It deletes nothing and never calls a tree stale on recency** — the 72 h in-use rule
+is applied on top of the key verdict, and an unmarked tree is reported as invisible to both of
+sparkrun's sweeps rather than as free space.
+
+`--selftest` pins the key derivation against six leaves read off the fleet (including the 48-char
+label-cap case `…-AEON-ULTIMATE-UNCENSO-b9f737e7`, so a reader who "fixes" the truncation fails it),
+the recipe scan finding the shipped keys and *not* producing the two stale ds4 keys, both parser
+shapes, the merge rule, and the 72 h gate; `tests/test_cache_audit.py` re-runs that ladder inside the
+repo's gate. Policy, budget derivation, and the reclaim list live in
+`mad-science/STORAGE-POLICY.md`.

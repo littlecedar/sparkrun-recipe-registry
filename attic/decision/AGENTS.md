@@ -247,6 +247,69 @@ card contract is `/v1/completions`, one request per question, scored by
 Receipts: `~/benchmarks/decision-tandem-20261013/` (`REPORT.md`, the three run reports, the
 launch and TEB logs, `cpu-samples.txt`, the isolation-probe output, the ensemble JSONs).
 
+## Ensemble productized, and the req/s ladder (2026-10-15)
+
+The 2026-10-13 probe above left the ensemble as an analysis: no server, no profile, no
+re-run. This session turned it into two shipped tools plus receipts, and re-measured both
+arms on fresh boots (`.34`).
+
+**Reproduction.** Both arms booted from the shipped recipes (clef-flash SGLang `:8020`, TTR
+193 s; Kai-0.6B `vllm-srun` CPU `:8000`, TTR 8 s), one `tool-eval-bench` v2.8.0
+`--decision-bench-only` pass each (82.2 s / 2100 s), pooled by
+`tools/decision-tandem.py`: **71.6% (1432/2000), +63/−37 vs clef alone, McNemar p = 0.0120**
+— the 2026-10-13 headline, exactly. clef's report is identical decision-for-decision
+(1406/2000) and so is the ensemble's; **Kai's moved by one decision** (950 vs 949/2000, its
+`choice` kind 42.5% vs 42.3%), the same ±1–3-decision batch-composition variance the clef
+C2/C5/C10 passes show (1404–1407/2000) — deterministic within a fixed request composition,
+not bit-stable across boot/batching.
+
+**Served ensemble.** `tools/decision-ensemble.py` (+`--selftest`) is the reference
+implementation of the pooling rule as a `/v1/systemone` proxy; it imports
+`decision-tandem.py`'s `linear`/`normalise`/`argmax` so serving and analysing cannot drift,
+and fans each request out to both members per request (not through a shared pool, which
+would cap clients at one request in flight). A member down is a 502 / `/health` 503.
+First attempt at the end-to-end pass died in the *client*: the proxy merged both members'
+`/v1/models` ids, tool-eval-bench v2.8.0 saw two candidates and entered an interactive
+`Select model [1-2]:` loop with no TTY, writing 3.7 GB of prompts into a log before it was
+killed — the proxy now advertises exactly one id and the pass pins `--model`. The r2 pass then
+scored **71.7% (1433/2000)** end-to-end on the full split (p50 8.4 s co-resident, 3147 s wall),
+which is the offline pooled 71.6% (1432) *plus* one exact tie decided the other way
+(`security_incidents_000055` severity 0.28/0.28: the instrument breaks ties by first-listed
+option, `decision-tandem.py` by greater label — the same convention difference shows up in
+Kai's own report at `agent_trace_observability_000059`). Serving and analysing agree on the
+argmax label at 1999/2000 decisions and on the distributions to ≤5e-4; a 15-question
+spot-check against the two members' live answers is 0 mismatches.
+
+**Ladder.** `tools/decision-ladder.py` (+`--selftest`) replays the instrument's own vendored
+Typed Decisions split (manifest-sha256-checked) at a fixed concurrency and reports `req/s`
+(one request = one case = five decisions), never `t/s`. clef, full 400-case split:
+4.87 / 5.10 / 5.16 / 5.48 req/s at c1/2/5/10 with p50 206/393/966/1823 ms — flat throughput,
+linear latency, so the `/v1/systemone` path does **not** batch; the same numbers come off the
+stride-4 slice (4.89 / 5.11 / 5.16 / 5.51), and the instrument's own `--parallel N` agrees
+within 1%, so the shape is not a harness artifact. Kai, stride-4 slice: 0.187 / 0.186 / 0.156
+/ 0.128 req/s with p50 5.70/11.6/30.5/82.1 s — the CPU arm *loses* throughput under
+concurrency. Sol and JEV were not ladded (Sol is the same CPU shape; JEV's contract is one
+request per question). Which mechanism serializes the GPU arm (scheduler, a lock in the joint
+head, a default max-running-requests) is **not isolated**.
+
+**Why no `benchmarking/` profile.** Both registered sparkrun frameworks drive
+`/chat/completions`, and a profile naming this lane's instrument
+(`args: {ref: v2.8.0, decision_bench_only: true}`) is refused by the plugin before the run
+starts (`_NO_ARTIFACT_MODES`) — observed 2026-10-15:
+`sparkrun benchmark tools recipes/decision/clef-flash-decision-sglang.yaml --profile <probe> -n`
+→ `BenchmarkError: tool-eval-bench modes do not provide scheduled JSON artifacts`. The
+reproduction lives in the lane README instead.
+
+**Operational note.** Both lane images and the head's model copies had been reclaimed since
+2026-10-13: this session re-pulled the arm64 images (clef SGLang 15.44 GB, vllm-sr 0.64 GB)
+and re-staged the weights (clef 18 GB, Kai 1.42 GiB) — the OCI relay moved 10.3 GiB of
+missing layers in 210 s at ~143–208 MB/s. Budget for that after any cache reclaim.
+
+Receipts: `~/benchmarks/decision-ensemble-20261015/` — `reports/clef-alone-c1.md`,
+`reports/kai-alone-c1.md`, `ensemble.json`, `ladder-clef-stride4.json`,
+`ladder-clef-full-c1.json`, `ladder-kai-stride4.json`, `cases/SHA256SUMS`, `logs/`
+(launch, TEB, ladder, pooling, the profile-refusal probe) and `runbooks/`.
+
 ## What these models are
 
 Decision models are **prefill-only scorers**, not chat models. JEV-9B answers with
