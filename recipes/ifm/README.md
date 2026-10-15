@@ -52,6 +52,21 @@ Dense 0.9B (body 0.98B + 98.7M lm_head, `model_params: 1.08B`), single node, **T
   accuracy gate is unmet — treat fp8 KV as an arm whose gate is accuracy, not throughput.
 - **measured** 77.6 / 67.3 t/s single-stream (d0 / d8192, `benchmarking/decode-triage.yaml`).
 
+**Concurrency ladder, 2026-10-15 (one node, `benchmarking/concurrency-ladder.yaml` — d0, pp 2048 /
+tg 128, 5 runs per cell, decode-phase rows only; bench `bench_edd4029e004f`, receipt
+`~/benchmarks/ifm-09b-ladder-20261015/`).** Aggregate decode **C1 80.4 · C2 181.6 · C5 317.6 ·
+C10 503.9 t/s** (σ 0.2 / 0.6 / 31.6 / 0.9) — **6.3× single-stream at c10** — with per-request
+decode 80.4 / 93.1 / 70.3 / 59.4 t/s and ttfr 86 / 122 / 285 / 453 ms. C1 re-measures 3.6 % above
+the 77.6 recorded above; same profile shape, one boot, inside the inter-boot spread (the profile's
+own noise floor is 7–25 %), so the headline stands. The **c5 cell is bimodal on this boot**
+(273.8 / 284.6 vs 342.8 / 343.6 / 343.4) and that spread *is* its σ; c1/c2/c10 repeat to ≤ 0.6 %.
+Boot grants from the serve log: `max_running_requests=64` (= `max_num_seqs`, **not** clamped —
+this arm allocates **no mamba pool**, so there is no state-pool ceiling to clamp it),
+`max_total_num_tokens=1773893` of **bf16** KV (47.37 GB K + 47.37 GB V), `available_gpu_mem=12.12 GB`,
+weights 2.22 GB loaded in 13.2 s, TTR 82.7 s port / 90.1 s HTTP. Do **not** pool these cells with the
+`concurrency-sweep` columns in [`NOTES.md`](../../attic/ifm/NOTES.md): that profile is tg=256 at
+c=1/4/8, this one tg=128 at c=1/2/5/10.
+
 ## `k2-horizon-7b-fp8-uno-sglang`
 
 Dense 7B-FP8 (`model_params: 9.0B` = base + 0.35B adapter), single node, **TP=1** (a
@@ -83,6 +98,22 @@ verified by the target, so it is lossless by construction.
   base read dominates, so the FP8+Uno pairing is itself part of what this arm validates.
 - **measured** 32.4 / 27.1 t/s single-stream (d0 / d8192) — the fastest arm in the lane,
   +52 % / +41 % over the plain 7B; 145.5 / 90.2 aggregate at c=8.
+
+**Concurrency ladder, 2026-10-15 (one node, `benchmarking/concurrency-ladder.yaml` — d0, pp 2048 /
+tg 128, 5 runs per cell, decode-phase rows only; bench `bench_679cd870a74a`, receipt
+`~/benchmarks/ifm-7b-ladder-20261015/`).** Aggregate decode **C1 31.3 · C2 56.1 · C5 94.0 ·
+C10 126.0 t/s** (σ 1.4 / 2.6 / 1.3 / 1.2) — still climbing at the top of the ladder, **3.9×
+single-stream at c10** — with per-request decode 31.3 / 28.8 / 22.4 / 17.2 t/s and ttfr 492 / 989 /
+1582 / 2739 ms. C1 re-measures 3.4 % below the 32.4 recorded above (same profile shape, one boot,
+inside the 7–25 % inter-boot spread). **UNO is engaged on this boot**: serve-log `accept len` mean
+**2.95** (25 samples, min 2.62, max 3.27 — every sample > 1); that is a *narrower window* than the
+838-sample mean 4.15 the 2026-10-14 re-pin recorded (this one covers only the ladder's 128-token
+generations), so read the two as two windows, not a trend. Boot grants from the serve log:
+`max_running_requests=32` (= `max_num_seqs`, **not** clamped — the arm allocates **no mamba pool**),
+`max_total_num_tokens=577994` of **bf16** KV (39.69 GB K + 39.69 GB V), `available_gpu_mem=15.93 GB`,
+weights 10.66 GB loaded in 69.1 s, TTR 250.8 s port / 255.7 s HTTP. Do **not** pool these cells with
+the `concurrency-sweep` figures above (tg=256 at c=1/4/8) or with the retired 7B arms' rows in
+[`NOTES.md`](../../attic/ifm/NOTES.md) — only the same profile is comparable.
 
 **The two mods the UNO arm needs — and why.** The recipe mounts
 `recipes/ifm/mods/provide-uno-lora-k2-horizon-7b` and `recipes/ifm/mods/probe-uno-fa4-sm121` (bare `mods/NAME`

@@ -77,8 +77,8 @@ _`†` the lane's previous index headline: a c=2 aggregate on a different prompt
 
 | Recipe                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                   Size | Mem% | TP | Model Cards                                                   |
 |:-----------------------------|:------|-------:|-------:|-------:|--------:|-----------------------:|-----:|---:|:--------------------------------------------------------------|
-| k2-horizon-0.9b-bf16-sglang  | ✨🚀🤏🧠🔧 |   77.6 |      — |      — |       — |                 2.16GB |  85% |  1 | [Model][IFM/K2-Horizon-0.9B]                                  |
-| k2-horizon-7b-fp8-uno-sglang | 🚀🤏🧠🔧🦾 |   32.4 |      — |      — |       — | 11.1GB + 1.4GB adapter |  82% |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **UNO spec decode, fastest** |
+| k2-horizon-0.9b-bf16-sglang  | ✨🚀🤏🧠🔧 |   77.6 |  181.6 |  317.6 |   503.9 |                 2.16GB |  85% |  1 | [Model][IFM/K2-Horizon-0.9B]                                  |
+| k2-horizon-7b-fp8-uno-sglang | 🚀🤏🧠🔧🦾 |   32.4 |   56.1 |   94.0 |   126.0 | 11.1GB + 1.4GB adapter |  82% |  1 | [Model][IFM/K2-Horizon-7B-FP8] — **UNO spec decode, fastest** |
 
 ## GLM 5.3
 
