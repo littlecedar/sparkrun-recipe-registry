@@ -115,7 +115,7 @@ memory ↓, accuracy-safe context): it carries the smallest mamba pool (112 vs 1
 
 | file | checkpoint | runtime | why archived | finding lives in |
 |---|---|---|---|---|
-| `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | labquant | sglang | C1-tied with the base but costs the larger pool (128) + `max_num_seqs 32` (+~0.85 GB/rank, −4.55% KV); it is an aggregate-throughput variant (k≈16–24) this cut does not ship. Pinned `7c4f1bc1`. | `recipes/qwen4/README.md` (old Lane A text, now here); WORK §19x/§19z |
+| `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | labquant | sglang | C1-tied with the base but costs the larger pool (128) + `max_num_seqs 32` (+~0.85 GB/rank, −4.55% KV); it is an aggregate-throughput variant (k≈16–24) this cut does not ship. Pinned `7c4f1bc1`. **REVIVED 2026-10-15** as `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (re-pinned `6c01ac37`, vision-tower mod dropped; boot pending). | `recipes/qwen4/README.md` (old Lane A text, now here); WORK §19x/§19z |
 | `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` | labquant | sglang | 1M route is a YaRN **extrapolation** with unmeasured quality above ~262k (owner: 1M droppable); C1-tied with the base at the 262k-safe point. Pinned `7c4f1bc1`. | `recipes/qwen4/README.md`; WORK §15 |
 | `qwen3.8-flash-next-nvfp4-sglang.yaml` | RadixArk | sglang | Slower on **every** measured cell (C1 36.8/34.4 vs labquant 41.3/38.6). Was the quality reference until the labquant W3 battery landed. | `recipes/qwen4/README.md`; W3 status |
 | `qwen3.8-flash-next-nvfp4-solo-sglang.yaml` | RadixArk | sglang | **Re-measured 2026-10-14 (the sixth arm) — `bench_253dd84c9a78`: 19.82 ± 2.06 t/s d=0, 20.97 ± 1.02 d=8192** (decode-phase rows; receipt `~/benchmarks/q4-solo-sglang2-triage_1014.{json,yaml}`). Clear **loser** to the shipped TP=1 arm: ~42% below solo vLLM's 33.92 ± 1.73, far outside its σ. The first in-window attempt's failure was a **port timeout, not an architectural negative** — see the boot-config bullet below. | this row; `bench_253dd84c9a78` |
@@ -125,7 +125,9 @@ labquant mods (`unpack-labquant-ple-nvfp4-to-fp8`, `fix-labquant-modelopt-mixed-
 `demote-labquant-narrow-mxfp8-to-bf16`) now default to the step-5500 revision `6c01ac37…`. The mod
 builds the served tree, so running one of these arms as-is would serve `6c01ac37` while the recipe
 claims `7c4f1bc1`. Set `MOD_LABQ_REVISION=7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd`, or re-pin the
-recipe, before running one.
+recipe, before running one. **The highcon arm was re-pinned and revived 2026-10-15**
+(`recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`, vision-tower mod dropped);
+the longctx arm still awaits the same treatment.
 
 **Sixth-arm boot config (2026-10-14, `bench_253dd84c9a78`).** Booted on **`.34`** (`.30` was held by
 another workstream), not `.30`; the RadixArk snapshot was **absent** there, so sparkrun

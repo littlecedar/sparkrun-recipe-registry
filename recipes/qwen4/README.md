@@ -4,16 +4,19 @@ Serving recipes for **Qwen3.8-Flash-Next**, a 180B MoE (48 decoder layers, 512 r
 10 active per token) with hybrid Gated DeltaNet + Qwen Sparse Attention (QSA) plus PLE n-gram
 tables, on DGX Spark (GB10). This directory is the `qwen4` model family (`model_symbol: qwen4`).
 
-The lane ships **exactly two production recipes** after the 2026-10-14 cut: the fastest **TP=1** and
+The lane ships **two production recipes** after the 2026-10-14 cut: the fastest **TP=1** and
 the fastest **TP=2** arm of the six that used to live here, both serving the same checkpoint,
 [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4)
-(a QAD NVFP4/MXFP8 export; **licence: Qwen Community License 1.0**, `qwen-community-1.0`). Everything
-else — lane state, measurement histories, negative results, the archived arms and their provenance —
-lives in [`../../attic/qwen4/`](../../attic/qwen4/) (see [Attic index](#attic-index)).
+(a QAD NVFP4/MXFP8 export; **licence: Qwen Community License 1.0**, `qwen-community-1.0`) — plus one
+**revived, not-yet-measured** TP=2 high-concurrency arm (2026-10-15) that holds the
+aggregate-throughput regime the cut left in the attic. Everything else — lane state, measurement
+histories, negative results, the archived arms and their provenance — lives in
+[`../../attic/qwen4/`](../../attic/qwen4/) (see [Attic index](#attic-index)).
 
 ## Contents
 
 - [TP=2 — labquant balanced base (SGLang, 2 nodes)](#tp2--labquant-balanced-base-sglang-2-nodes)
+- [TP=2 — labquant high-concurrency arm (SGLang, 2 nodes, unmeasured)](#tp2--labquant-high-concurrency-arm-sglang-2-nodes-unmeasured)
 - [TP=1 — solo vLLM (1 node)](#tp1--solo-vllm-1-node)
 - [Attic index](#attic-index)
 
@@ -79,6 +82,43 @@ already inside `quantization_config.ignore`), which is why this recipe serves vi
 
 Pin key trap: the pin key is `model_revision:`, **not** `revision:` — a bare `revision:` is silently
 ignored. Do not unpin: `main` has moved under us twice.
+
+## TP=2 — labquant high-concurrency arm (SGLang, 2 nodes, unmeasured)
+
+| | |
+|:--|:--|
+| Recipe | `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` |
+| Engine | SGLang — `lmsysorg/sglang:dev-cu13-qwen38-next-local` @ `sha256:9d2a843c…` (digest-pinned) |
+| Model | [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4) — same checkpoint, mod chain and engine as the balanced base |
+| Checkpoint pin | `model_revision: 6c01ac378d22…` (step-5500 QAD revision, `main` since 2026-10-06) |
+| Nodes | 2 (TP=2) |
+| Context | 262,144 tokens (`max_model_len`) |
+| Spec decode | NEXTN — 3 steps / topk 1 / 4 draft tokens, `decode` attention mode |
+| Memory | `max_mamba_cache_size: 128` + `max_num_seqs: 32` (base: 112 / 24) — ~+0.85 GB/rank, ~−4.55% KV |
+| Tags / vision | `lcg_favorite, fast, vision` |
+| Licence | Qwen Community License 1.0 (`qwen-community-1.0`) |
+
+Revived 2026-10-15 from [`../../attic/qwen4/arms/…-highcon-sglang.yaml`](../../attic/qwen4/arms/) —
+the only archived arm holding the **aggregate-throughput regime**. It differs from the balanced base
+in exactly two defaults: the mamba pool (112 → 128) and `max_num_seqs` (24 → 32), which lifts the real
+admission ceiling from 28 to 32 (`max_mamba_cache_size // 4` on the lazy strategy). `max_num_seqs` must
+stay strictly above every served `k` — at `k == cap` the batch saturates at `cap − 1` with one request
+queued and per-request decode loses ~6%. Aggregate decode peaks near **k=16** (~91 tok/s on this
+checkpoint) and declines past k=24, so use this arm to serve batches, not to chase single-stream
+latency. Everything else is the base: same pin, same six-mod chain (the archived arm's
+`skip-labquant-vision-tower` is dropped — the step-5500 tower is BF16 and already inside
+`quantization_config.ignore`, which is why this recipe serves vision), same two mandatory flags in
+`defaults.extra_args`.
+
+```bash
+sparkrun run recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml -H <node-a>,<node-b>
+```
+
+**Its numbers are unmeasured until the boot lands** — the archived arm's C1 cells (40.10 ± 2.44 t/s
+d=0, 41.92 ± 5.28 d=8192) were taken on the superseded `7c4f1bc1` revision, so quote them as history,
+not as this recipe's performance. Until a receipt exists this arm carries no row in
+[`../README.md`](../README.md) — the index holds boot-verified arms only. If the launch dies in
+`alloc_memory_pool`, fall back to the balanced base (pool 112 / cap 24).
 
 ## TP=1 — solo vLLM (1 node)
 

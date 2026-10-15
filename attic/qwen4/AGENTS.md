@@ -385,8 +385,24 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   adopted or measured.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 599.7 s).
 
-### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A) — **ARCHIVED 2026-10-14**
+### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A) — **ARCHIVED 2026-10-14**, **REVIVED 2026-10-15**
 
+- **Revived 2026-10-15** to `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`
+  from [`arms/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`](arms/) (this lane's sole holder
+  of the aggregate-throughput regime). Three deltas vs the archived file, all alignment to the
+  shipped base's step-5500 shape: (1) **pin** `7c4f1bc1a2d6847e0cbc01ac6b823f00251de8dd` →
+  `6c01ac378d22f6652c9f392c87700496eca8e5dc` — mandatory, not cosmetic: the labquant mods default to
+  step-5500 and `unpack-labquant-ple-nvfp4-to-fp8` fail-closes (`EXPECTED_GROUPS=128`, found 120) on
+  the pre-5500 PLE shard layout, so the archived pin cannot be served by the current chain; (2) the
+  mod chain loses **`mods/skip-labquant-vision-tower`** (6 mods, the base's exact ordered chain) —
+  obsolete at this revision, whose vision tower is BF16 and already inside
+  `quantization_config.ignore`, so the text-only caveat is dropped and the `vision` tag added (this
+  mirrors §10.1 / the lane README); (3) comment set and metadata rewritten to the base's style
+  (history moved here). **Knobs kept verbatim**: `max_num_seqs: 32`, `max_mamba_cache_size: 128`
+  (pool 128 → admission ceiling 32), cps 4096, `--no-ple-offload-embedding`, and both mandatory
+  `extra_args` flags. The archived arm's four-boot C1 receipt and its `7c4f1bc1` cells remain
+  history, not this recipe's numbers. **Boot pending (orchestrator)** — no receipt exists yet, so it
+  carries no row in `recipes/README.md` (the index holds boot-verified arms only).
 - Key-name trap: §1 fact 1. The Lane-A header's measured shape, deltas and memory cost are in
   `README.md` ("Lane A") and §1; the specifics not repeated there:
   - Pool formula `run ≤ min(max_num_seqs, max_mamba_cache_size // slots_per_request)` with
