@@ -235,6 +235,13 @@ One boot + one measurement per arm; `GET /v1/models` must echo the arm's repo id
 
 ### Arm 3 — vLLM route: blocked on image distribution (not on the model)
 
+**SUPERSEDED 2026-10-15 — kept as history, because this is why the arm was held unshipped.** The
+model-side half still stands (the card's route is vLLM's `CompressedTensorsW4A4`); the
+distribution half does not: a direct `docker pull` by digest measured **76–142 MB/s** on `.34`, and
+the pinned image now sits with an identical RepoDigest on the head, `.34`, and `.35`, which makes
+sparkrun's digest short-circuit skip the transfer entirely. See *Arms 3 and 4 — the
+card-documented vLLM routes (2026-10-15)* below.
+
 `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` documents vLLM's `CompressedTensorsW4A4` as its route,
 and the cluster's `ghcr.io/spark-arena/dgx-vllm-eugr-nightly` image **does** carry the arch:
 `vllm 0.1.1.dev7+g8c1d1c297.d20260911` exposes `Qwen3_5MoeForConditionalGeneration`,
@@ -290,8 +297,151 @@ safetensors). Both nodes idle. Launch reached the serve stage and the scheduler 
   written. The card's own route is vLLM (`qwen4_exp` + `compressed-tensors`), which is the next
   step; our vLLM image carries `Qwen3_5Moe*` but qwen4_exp support in it is unverified, and image
   distribution to these nodes was measured unusable (~0.3 MB/s for one missing layer — see Arm 3
-  above). Pinning `--quantization` to another value is **not** a fix to try blindly: arm 1 shows
+  above). **Both open halves closed on 2026-10-15** — `Qwen4ExpForConditionalGeneration` imports
+  from `vllm/models/qwen4_exp`, and the distribution figure was the *relay's* stream, not the
+  network — see *Arms 3 and 4 — the card-documented vLLM routes (2026-10-15)* below. Pinning
+  `--quantization` to another value is **not** a fix to try blindly: arm 1 shows
   SGLang reads the right scheme from `config.json` when the export is one it implements.
+
+### Arms 3 and 4 — the card-documented vLLM routes (2026-10-15)
+
+**Status: the loader/route gate is closed, nothing is boot-measured.** Everything below is
+**loader-level** evidence: which scheme class vLLM's compressed-tensors config builds for each of
+the checkpoint's own `quantization_config` groups, and which arch class imports. Neither arm has a
+boot receipt (`GET /v1/models`, C1, or the house battery); the register's index rows stay out until
+one exists. "Route established" is not "verified".
+
+#### Why no vLLM image was runnable at the start: the pinned images are SGLang builds
+
+`docker images` (read-only SSH, 2026-10-15) plus `docker image inspect` labels:
+
+| node | images (before this session) | verdict |
+|---|---|---|
+| head, `.30`–`.33` | `littlecedar/dgx-spark-dsv41:canary-roce` = `oci-relay/pinned:f7fbc4f8…`, ID `18e36391488e`, 33.5 GB | **SGLang** — labels `ai.sglang.image.tag = lmsysorg/sglang:dev-dsv41`, `Entrypoint = ["python3","-u","/opt/dsv41/boot.py"]`, and `docker run … pip show vllm` answers `ModuleNotFoundError: No module named 'vllm'` |
+| `.34` | `oci-relay/pinned:be1d654c…` (33.4 GB) | **SGLang** `lmsysorg/sglang:v0.5.20` |
+| `.34` | `oci-relay/pinned:847e5d37…` (33.8 GB) | **SGLang** `lmsysorg/sglang:nightly-dev-20260908-20ca564b` |
+| `.35` | `lmsysorg/sglang:dev-cu13` (36.1 GB) | **SGLang** — the container both negative recipes name |
+
+So **neither `oci-relay/pinned:<sha>` image on `.34` was the missing vLLM build**: both carry
+`ai.sglang.image.tag` and `org.opencontainers.image.source = github.com/sgl-project/sglang`. `.30`–`.33`
+were also holding the in-flight TP=4 job (`sparkrun_a4c699c1299bbbdf_…_node_0..3`, 12 h, healthy),
+which is why the free window is `.34`/`.35`.
+
+#### The image that does carry both routes, and what it cost to get there
+
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest` resolved on 2026-10-15 to digest
+`sha256:7717585a874b07dcd9df9f5ea776985b591cb3c213abd0e8ebe4a680e3e07214` (26 layers, **11.26 GB
+compressed / 25.03 GB on disk**; labels `dev.sparkrun.source-tag = nightly-20261014`,
+`dev.sparkrun.vllm-version = 0.32.0rc1.dev161+g660bd051d.d20261014`,
+`dev.sparkrun.vllm-hash = 660bd051d7de8101e6fb4299d1ce58b19e669f85`). A plain
+`docker pull <repo>@sha256:7717585a…` on the head, `.34`, and `.35` left **one image ID
+(`sha256:c654ae419ca3792be11f50f3970bd8e04034569c230f51d2b29b27a49b8efc27`) and one RepoDigest on
+all three**, each pull finishing inside ~2 minutes. Logs: `~/benchmarks/_image-pulls-20261015/`
+(owned by the orchestrator's prime-pull convention; this session added `vllm-nightly-20261014.log`
+and `…-head.log`).
+
+**The ~0.3 MB/s figure was the relay's stream, not the node's network.** Measured the same day,
+fetching one blob of that manifest directly from ghcr:
+
+```
+# on .34  (curl -sL -o /dev/null -w 'rate=%{speed_download} B/s bytes=%{size_download} t=%{time_total}\n' \
+#          -H "Authorization: Bearer $T" <blob URL>, --max-time 20)
+rate=76309553 B/s bytes=1530920960 t=20.061983
+rate=141605133 B/s bytes=2159268284 t=15.248517
+# on the head
+rate=83931911 B/s bytes=1258928814 t=14.999406
+```
+
+Consequence for a launch: sparkrun compares the *source* image identity (Id + RepoDigests) with
+each target host's and **skips the transfer on a digest match**
+(`sparkrun/containers/distribute.py:182-228`; it logs `Container image up-to-date on all N host(s)`
+instead of `Container image stale on N of M host(s), syncing` at `:225`). With the image resident
+by digest on head, `.34`, and `.35`, distribution never runs. If a transfer is ever needed, the
+documented relay bypass is `container_distribution_provider: builtin` (or disabling the plugin) —
+`docs/OCI_RELAY.md` in the sparkrun repo. **Do not generalize this to `:latest`:** the tag moved
+again after the ornith lane's `b94ac8ac…` pin, so recipes here pin the digest.
+
+#### Loader-level evidence (all containers `--rm`, `--network none`)
+
+Arch and module (two throwaway probe scripts, `docker run --rm`, deleted from the node afterwards):
+
+```
+Qwen3_5MoeForConditionalGeneration   in vllm.model_executor.models.qwen3_5: YES
+Qwen4ExpForConditionalGeneration     in vllm.models.qwen4_exp: YES
+Qwen3_5MoeMTP                        in vllm.model_executor.models.qwen3_5_mtp: YES
+Qwen4ExpMTP                          in vllm.models.qwen4_exp: YES
+supported archs count: 394
+```
+
+Scheme mapping — feed each checkpoint's own `quantization_config` (from its pinned revision) to
+`CompressedTensorsConfig.from_config` and ask which scheme the loader builds for a real layer name
+(`probe2.py`, `probe3.py`):
+
+```
+# arms 3 — orcarouter/Nex-N2.5-mini-Uncensored-NVFP4  (format: nvfp4-pack-quantized, targets ['Linear'])
+from_config: OK; target_scheme_map size 1
+group_0: nvfp4_w=True nvfp4_i=True
+  -> …schemes.compressed_tensors_w4a4_nvfp4.CompressedTensorsW4A4Fp4
+get_scheme 5.mlp.experts.3.gate_proj -> CompressedTensorsW4A4Fp4      # the card's CompressedTensorsW4A4
+get_scheme 11.self_attn.q_proj       -> None                          # ignored: BF16
+
+# arm 4 — orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4  (format: mixed-precision)
+from_config: OK; target_scheme_map size 301; regex target re:.*mlp\.experts\..*proj$ present
+group_0 (naive-quantized, FP8 per-channel, weight-only) -> …compressed_tensors_w8a16_fp8.CompressedTensorsW8A16Fp8
+group_1 (nvfp4-pack-quantized, weight-only)             -> …compressed_tensors_w4a4_nvfp4.CompressedTensorsW4A4Fp4
+get_scheme 5.mlp.experts.3.gate_proj -> CompressedTensorsW4A4Fp4
+```
+
+The one exception the probe raised (`AssertionError: Current vLLM config is not set`) is the probe
+having no engine config, not a scheme refusal: with a stub `set_current_vllm_config()` the FP8
+group constructs `CompressedTensorsW8A16Fp8`. **SGLang refuses the same config**
+(`Other method (CompressedTensorsW4A16Sparse24) is not supported now`), which is exactly the
+difference these two recipes exist for.
+
+CLI surface, read from `vllm serve --help=all` in the same image: `--quantization` accepts
+`compressed-tensors` (`QuantizationMethods`, `model_executor/layers/quantization/__init__.py:15-49`),
+`--reasoning-parser qwen3` (`reasoning/__init__.py:155`), `--tool-call-parser qwen3_coder`
+(`tool_parsers/__init__.py:193`), `--kv-cache-dtype` includes `bfloat16` (no bare `bf16`),
+`--default-chat-template-kwargs` exists. **`VLLM_PLE_TABLE_MEMORY` does not exist in this build**
+(no grep hit), so the q4 lane's TP=1 PLE-offload knob is a b12x-image feature; arm 4 keeps the PLE
+table on device, as its SGLang TP=2 shape did.
+
+#### What ships
+
+`recipes/cybersec/nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` (TP=1) and
+`recipes/cybersec/qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml` (TP=2, `min_nodes: 2`), both
+digest-pinned to `sha256:7717585a…`, both carrying `--served-model-name {served_model_name}` and
+`--revision {model_revision}`, both validating (`sparkrun recipe validate`) and rendering (`-n`).
+Rendered arm 3 command:
+
+```
+taskset -c 5-9,15-19 vllm serve orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+  --served-model-name orcarouter/Nex-N2.5-mini-Uncensored-NVFP4 --revision 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
+  --host 0.0.0.0 --port 8000 --tensor-parallel-size 1 --trust-remote-code --quantization compressed-tensors
+  --kv-cache-dtype bfloat16 --max-model-len 262144 --max-num-seqs 16 --max-num-batched-tokens 4096
+  --gpu-memory-utilization 0.85 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --enable-auto-tool-choice
+  --default-chat-template-kwargs '{"reasoning_effort": "none"}'
+```
+
+Neither recipe replaces its SGLang sibling: the SGLang arms stay the documented negatives, and the
+new files carry no index row until a boot receipt exists.
+
+#### What a boot costs, and what is not started
+
+The 2026-10-14 reclamation deleted both negatives' checkpoints from every node's cache, so a boot
+re-fetches. Measured per-node Hub fetch (ranged GET of each repo's largest file, `--max-time 20`):
+`.34` `rate=94453157 B/s bytes=1889009787 t=19.999435`, `.35` `rate=100796412 B/s
+bytes=2021122298 t=20.051530`, that is ~95–100 MB/s per node.
+
+- **Arm 3: 23.9 GB on one node** (~4–5 min at that rate; largest file 2.82 GB).
+- **Arm 4: 183.5 GB per node** — the largest single file is `model-00002-of-00017.safetensors` at
+  **102.4 GB** (the bf16 PLE n-gram tensor), so ~31 min per node if both fetch independently, longer
+  if they share the upstream: ~367 GB of cache growth. Disk after the image pulls: `.34` 1.9 TB
+  free, `.35` 1.8 TB free, so it fits. A fetch saturates that node's NIC and contends with any
+  concurrent dist on the same node, but touches no running container.
+
+Nothing was started: the fetch is a cost decision for the window owner, and `.34` was serving
+another lane's workload when this was written.
 
 ### Arm 5 — `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` — POSITIVE (TP=2)
 

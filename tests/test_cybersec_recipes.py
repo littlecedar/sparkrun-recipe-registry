@@ -1,4 +1,7 @@
-"""Guards for the `cybersec` lane's five abliterated/uncensored arms.
+"""Guards for the `cybersec` lane's abliterated/uncensored arms.
+
+The lane ships five arms over seven recipe files: arms 3 and 4 carry both their SGLang negative and
+the card-documented vLLM route for the same checkpoint at the same pinned revision.
 
 These are red-team checkpoints: refusal-trained behaviour has been removed on purpose, so
 the properties worth pinning are not quality ones -- they are *identity* ones. Each arm
@@ -49,7 +52,17 @@ ARMS: dict[str, tuple[str, str]] = {
         "orcarouter/Nex-N2.5-mini-Uncensored-NVFP4",
         "orcarouter/Nex-N2.5-mini-Uncensored-NVFP4",
     ),
+    # The card-documented vLLM routes for the same two checkpoints. Same identity
+    # invariants as the SGLang arms: one checkpoint, one pinned revision, repo-id served name.
+    "nex-n2.5-mini-uncensored-nvfp4-vllm.yaml": (
+        "orcarouter/Nex-N2.5-mini-Uncensored-NVFP4",
+        "orcarouter/Nex-N2.5-mini-Uncensored-NVFP4",
+    ),
     "qwen3.8-flash-next-uncensored-nvfp4-sglang.yaml": (
+        "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
+        "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
+    ),
+    "qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml": (
         "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
         "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
     ),
@@ -108,7 +121,7 @@ def read(path: Path) -> str:
 
 
 class LaneShape(unittest.TestCase):
-    def test_all_five_arms_exist(self) -> None:
+    def test_every_recipe_file_exists(self) -> None:
         for name in ARMS:
             self.assertTrue((LANE / name).is_file(), f"missing arm {name}")
 
