@@ -21,7 +21,11 @@ metadata:
     sample-time logits); this arm is that vLLM path. vLLM's compressed-tensors loader maps the
     export's `nvfp4-pack-quantized` group (NVFP4 weights + NVFP4 activations) onto
     CompressedTensorsW4A4Fp4, verified in the pinned image 2026-10-15 (see
-    attic/cybersec/AGENTS.md 8). No boot receipt yet: the route is validated, not measured.
+    attic/cybersec/AGENTS.md 8). Boot receipt taken 2026-10-15 (four boots, job
+    9e32c36ca6496294_8ed3ce77d78f, receipt ~/benchmarks/cybersec-nex-20261015/): the route comes up
+    in ~4.3 min and answers, but generation degenerates to a single repeated token under every
+    tested shape (greedy and sampled, thinking on and off), so the checkpoint is not usable for
+    content on this route and the arm carries no index row. Kept as the route record.
 
 mods:
   - "@eugr/mods/drop-caches"
@@ -40,9 +44,10 @@ defaults:
   quantization: compressed-tensors
   # KV cache is NOT quantized in this build (routed experts only) -- keep it bf16.
   kv_dtype: bfloat16
-  # This template gates thinking on `reasoning_effort`, NOT `enable_thinking`; left unset it
-  # emits  thinking and `content` comes back empty -- default it OFF for content-reading clients.
-  default_chat_template_kwargs: '{"reasoning_effort": "none"}'
+  # Measured 2026-10-15 on this route: `reasoning_effort: none` is INERT (server default and
+  # per-request both left `content: null`), while `enable_thinking: false` is what fills
+  # `content` for content-reading clients. See the lane's receipt.
+  default_chat_template_kwargs: '{"enable_thinking": false}'
   extra_args: ""
 
 command: >
