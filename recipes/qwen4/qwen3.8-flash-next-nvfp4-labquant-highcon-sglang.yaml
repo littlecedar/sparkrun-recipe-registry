@@ -1,0 +1,103 @@
+recipe_version: "2"
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
+min_nodes: 2
+
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - HIGH-CONCURRENCY arm; mamba pool 128 / max_num_seqs 32 for aggregate throughput
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+  tags: lcg_favorite, fast, vision
+  caveats: >
+    Aggregate-throughput arm of the same checkpoint as the shipped base
+    (`qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`): identical weights, engine, mod chain and
+    speculative config; only the admission window differs (112 / 24 there, 128 / 32 here).
+    Optimised for batched serving, where aggregate decode peaks near k=16 and per-request rate is a
+    fraction of the single-stream rate — NOT for single-stream latency. Costs ~+0.85 GB/rank and
+    ~-4.55% KV against the base. Same quantisation caveat as the base: more aggressively quantised
+    than the RadixArk export in the attention/GDN and PLE-n-gram paths, and no accuracy evaluation
+    exists on this cluster for this export — a throughput win is NOT evidence of equal quality.
+    Pinned to `6c01ac378d22...` (step-5500 QAD, 43 shards / ~106.3 GB): the pre-5500 revision cannot
+    be served by the current mod chain (the PLE unpack mod fail-closes on the old shard layout).
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "mods/fix-labquant-modelopt-mixed-flat-schema"
+  # ORDER MATTERS: keep the config mod first -- this mod writes into the tree the config mod
+  # builds, and requires --no-ple-offload-embedding (set in the command below).
+  - "mods/unpack-labquant-ple-nvfp4-to-fp8"
+  # DIAGNOSTIC ONLY -- removable once the shared-expert scale blocker is understood.
+  - "mods/diag-qwen4-unplaced-scales"
+  - "mods/fix-labquant-mxfp8-weight-scale-name"
+  # REQUIRED to boot at all: its narrow MXFP8 GDN projections (n=96/rank) sit under CUTLASS's
+  # MXFP8 floor of 128. Must run LAST -- layers onto the tree the config mod builds.
+  - "mods/demote-labquant-narrow-mxfp8-to-bf16"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  # HIGH-CONCURRENCY knobs, the only delta from the base. Real admission ceiling is the mamba pool
+  # (max_mamba_cache_size // 4 on the lazy strategy: 128 -> 32), and max_num_seqs must stay strictly
+  # ABOVE every served k -- at k == cap the batch saturates at cap-1 with one request queued and
+  # per-request decode loses ~6%. Aggregate throughput peaks near k=16; past k=24 it declines.
+  max_num_seqs: 32
+  kv_dtype: bf16
+  quantization: modelopt_mixed
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  max_mamba_cache_size: 128
+  load_format: safetensors
+  served_model_dir: /cache/runtime/labq-patched
+  # Never {model}: sparkrun rebinds it to the prepared snapshot path, so the served id would be
+  # the cache path. This literal + --revision {model_revision} are the matchable identity tokens.
+  served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  speculative_algorithm: NEXTN
+  speculative_attention_mode: decode
+  speculative_num_steps: 3
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 4
+  # Both flags are MANDATORY, not tunables: --moe-runner-backend flashinfer_cutlass (`auto`
+  # resolves the NVFP4 MoE to FLASHINFER_TRTLLM, dead on SM121) and --cuda-graph-backend-prefill disabled.
+  extra_args: "--moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled"
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {served_model_dir}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --speculative-attention-mode {speculative_attention_mode} 
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --no-ple-offload-embedding
+  {extra_args}

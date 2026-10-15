@@ -290,10 +290,12 @@ strings). Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri.
   (11/210) and 376/420 English rewrites with no factual problem — both are the card's `Q8_0.gguf`
   llama.cpp numbers on one date with an external *paid* detector; this arm serves bf16 safetensors
   through vLLM, and that comparison is not drawn.
-- **`model_file_selection: all` makes this an 82 GB arm**: the head's config (needed by Ling, trap 5)
-  distributes the whole repo, so the node's cache holds 62 GB of GGUF quants this arm never loads —
-  796.1 s of distribution for a 23.9 GB checkpoint. The recipe is correct; the config key is
-  cluster-level.
+- **The whole repo is distributed — 87.6 GB, and not narrowable** (*corrected 2026-10-15*: the head's
+  config (needed by Ling, trap 5) selects the full snapshot, so the node's cache holds 63.6 GB of
+  GGUF quants this arm never loads — 796.1 s of distribution for a 23.9 GB checkpoint.
+  `model_file_selection` is a sparkrun **config** key, not a recipe key, and with no
+  `model.safetensors.index.json` both `auto` and `all` select the whole snapshot (`safetensors`
+  errors), so the recipe cannot narrow it).
 - **Verdict**: boots and rewrites faithfully at ~7.6 t/s single-stream (23 s per short draft). Off
   the lane's brief (no reasoning, no tool calls), so it competes with nothing in the selection.
 - Receipts: `~/benchmarks/humanizer-20261014/` on the head (and on `.35`): `SUMMARY.md`, `boot.log`,
