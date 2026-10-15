@@ -21,8 +21,9 @@ metadata:
   model_dtype: exl3
   model_mtp_dtype: exl3
   kv_dtype: fp8
-  tags: fast, large_context, single_user
+  tags: fast, large_context, single_user, vision
 
+# The launcher mod also ships the 43-gate ffn.gate.bias_vl file that --vision needs.
 mods:
   - "@littlecedar/mods/tensorfold-dsv41-launcher"
 
@@ -46,6 +47,7 @@ command: >
   --tp {tensor_parallel}
   --served-model-name {model}
   --context {max_model_len}
+  --vision
 
 readiness:
   inference: true

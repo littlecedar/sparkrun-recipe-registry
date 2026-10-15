@@ -24,7 +24,8 @@ metadata:
 mods:
   - "@eugr/mods/drop-caches"
   - "@littlecedar/mods/pip-install-fastsafetensors"
-  - "mods/fix-fastsafetensors-tp2-sglang"
+  - "mods/provide-uncensored-chat-template"
+  - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
 
 defaults:
   port: 8000

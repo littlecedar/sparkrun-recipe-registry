@@ -52,3 +52,20 @@ If a future no-spec arm ever passes `speculative_algorithm: NONE` again, move th
 **Archived-with-the-lane:** the two narrative journals (`JOURNAL.md`, `EMBED-JOURNAL.md`) and
 `EMBED-*`/`QWEN3-EMBED-OPTIMIZATION-WORK.md` for the VL lanes were already absent from this tree
 (git-ignored); their surviving content is in the `recipes/embed/` and `recipes/rerank/` guides.
+
+## Benchmarking profiles archived with the lane (2026-10-15)
+
+Three profiles of the depth-cost / prefill-attribution family in `benchmarking/` belong to the
+thread this directory holds (`DEPTH-COST.md` §12) and are cited by no tracked doc, so they moved
+(plain `mv`, still tracked) out of the curated library and the `benchmarking/README.md` index was
+updated. Note the arm side: their arm of record is the 27B lane's
+`qwen3.8-27b-nvfp4-dflash2-sglang` recipe, which is **still shipped** in `recipes/qwen3/` — what was
+archived is this lane's records, not the arm.
+
+- `peak-vs-depth.yaml`: moved from benchmarking/ 2026-10-15; served the archived depth-cost thread (no archived arm — the arm of record `qwen3.8-27b-nvfp4-dflash2-sglang` is still shipped).
+- `iso-prompt.yaml`: moved from benchmarking/ 2026-10-15; served the archived depth-cost thread (no archived arm — the arm of record `qwen3.8-27b-nvfp4-dflash2-sglang` is still shipped).
+- `pp-crossed-identifiability.yaml`: moved from benchmarking/ 2026-10-15; served the archived depth-cost thread (no archived arm — the arm of record `qwen3.8-27b-nvfp4-dflash2-sglang` is still shipped).
+
+Their siblings `pp-slope.yaml`, `pp-vs-depth-acceptance.yaml`, `depth-slope-decode-metric.yaml` and
+`iso-kv.yaml` **stayed** in `benchmarking/`: `DEPTH-COST.md` cites the first three by path and names
+the `iso-KV` experiment in §12.27, so those paths must keep resolving.

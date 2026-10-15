@@ -69,6 +69,10 @@ serve score/rerank endpoints, not chat — read
   deliberately: 28.76 units/s solo against the 2B's 119.29 on the same traffic shape
   (C8, 10 docs/query, 128 tokens/document), ~4× slower per scored document.
 - **pooling caveat:** same as the 2B (cross-encoder, `convert: classify`, port + `/health`).
+- **residency (owner decision 2026-10-15):** stays **shipped** as the deliberate quality tier —
+  the ~4× per-scored-document cost against the 2B is the accepted trade-off, not a defect. The
+  checkpoint is **not** pre-cached: the first launch cold-fetches ~16 GB/node, taken as a
+  cold-fetch cost rather than a residency. Closed by this decision; reopen only with new data.
 - **licence:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-8B` card).
 
 ## Pooling endpoints — the client contract

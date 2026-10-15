@@ -7,7 +7,7 @@ container: lmsysorg/sglang:dev-cu13
 metadata:
   description: >-
     Qwen3.8-27B abliterated "cyber unlock" on one DGX Spark - AEON-7 uncensored NVFP4 body
-    + the drowzeys cybersecurity-unlock chat template + incoai DFlash2 spec decode
+    + the drowzeys cybersecurity-unlock chat template + z-lab DFlash2 spec decode
   model_url: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"
@@ -29,6 +29,16 @@ mods:
   - "@littlecedar/mods/pip-install-fastsafetensors"
   - "mods/provide-uncensored-chat-template"
 
+# Seeds the pinned draft's refs/main: a SHA-keyed fetch writes no refs/ entry, and
+# SGLang's offline draft-config lookup resolves only refs/main.
+pre_exec:
+  - >-
+    set -e; R=/cache/huggingface/hub/models--z-lab--Qwen3.8-27B-DFlash2;
+    S=$R/snapshots/{speculative_draft_model_revision};
+    test -d "$S" || { echo "draft snapshot missing: $S" >&2; exit 1; };
+    mkdir -p "$R/refs";
+    printf %s {speculative_draft_model_revision} > "$R/refs/main"
+
 defaults:
   port: 8000
   host: 0.0.0.0
@@ -48,7 +58,10 @@ defaults:
   chunked_prefill_size: 4096
   load_format: fastsafetensors
   speculative_algorithm: DFLASH
-  speculative_draft_model: incoai/Qwen3.8-27B-DFlash2
+  speculative_draft_model: z-lab/Qwen3.8-27B-DFlash2
+  # Distribution-only: SGLang has no serve flag for the draft head, so this pin reaches
+  # distribution; the pre_exec seed below writes the refs/ entry SGLang's lookup needs.
+  speculative_draft_model_revision: 50307d4c4cde6860d4eee73e2547cd786fe8e8a4
   speculative_draft_tokens: 8
   extra_args: ""
 

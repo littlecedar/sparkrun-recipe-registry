@@ -71,7 +71,7 @@ metadata:
     `metadata` parse fine and the dry run then reports ONE cell, so the defect is invisible until
     a run is already scheduled -- the exact failure recorded for `attic/benchmarking/matched-b-depth.yaml` in section
     7. Always assert `args` is present and that the implied cell count matches the design:
-        python3 -c "import yaml;d=yaml.safe_load(open('benchmarking/pp-crossed-identifiability.yaml'));a=d['args'];print(len(a['depth'])*len(a['pp'])*len(a['concurrency']),'cells')"
+        python3 -c "import yaml;d=yaml.safe_load(open('attic/qwen3/profiles/pp-crossed-identifiability.yaml'));a=d['args'];print(len(a['depth'])*len(a['pp'])*len(a['concurrency']),'cells')"
     which must print 12.
 args:
   depth: [ 4096, 8192 ]

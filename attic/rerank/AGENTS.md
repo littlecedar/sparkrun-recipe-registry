@@ -118,6 +118,12 @@ the hardware receipt (VERIFIED 2026-09-19).
   README.
 - Port **8015** sits outside the shipped 8010/8011/8012 plan so this never shadows the 2B
   reranker; the two are alternatives, not co-residents.
+- **Residency decision (2026-10-15, owner).** The 8B stays a **shipped** recipe as the deliberate
+  non-`fast` quality tier: the ~4× per-scored-document cost against the 2B (28.76 vs 119.29
+  units/s, above) is the documented trade-off, so it is neither retired nor re-tagged. It is
+  **not** pre-cached — the first launch cold-fetches ~16 GB/node, accepted as a cold-fetch cost
+  rather than a residency (+16 GB/node of cache is not a residency claim). Closed by this
+  decision; reopen only with new data.
 
 ## Recipe comment archive (2026-10-14)
 

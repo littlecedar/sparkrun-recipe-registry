@@ -19,6 +19,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
   - [Explore](#explore)
   - [Cybersec](#cybersec)
 - [Model Flags](#model-flags)
+- [Licence Policy](#licence-policy)
 - [Mechanics](#mechanics)
 - [References](#references)
 
@@ -29,7 +30,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | Recipe                                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size |  Mem% | TP | Model Cards                                                      |
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   46.5 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                         |
-| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1   |   73.0 |      — |      — |       — | 413GB | 84%\* |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
+| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀  |   73.0 |      — |      — |       — | 413GB | 84%\* |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
 _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
 
 ## Ornith 1.5
@@ -100,19 +101,19 @@ _Mem% is what the launches served at: neither recipe renders a util flag, so vLL
 | ling-3.0-flash-int4-dspark-sglang             | 🧠     |        45.5 |      — |      — |       — |   77GB + 2.7GB draft |   80% | /v1/chat/completions |  1 | [Model][inclusionAI/Ling-3.0-flash-int4] [Draft][inclusionAI/Ling-3.0-flash-dspark] — **boot-verified, house battery 37/37; 262k needle-verified at mem-fraction 0.80**                                                                |
 | kolibri-1-78b-fp8-vllm                        | ✨🧠🔧   |        47.3 |      — |      — |       — |                 79GB |   78% | /v1/chat/completions |  1 | [Model][Aleph-Alpha/Kolibri-1] — **boot-verified, house battery 36/37 (37/37 union across token budgets)**                                                                                                                             |
 | poolside-laguna-xs-2.1-nvfp4-dflash-vllm      | ✨🧠🔧   |        57.4 |      — |      — |       — | 21.6GB + 0.9GB draft |   55% | /v1/chat/completions |  1 | [Model][poolside/Laguna-XS-2.1-NVFP4] [Draft][poolside/Laguna-XS-2.1-DFlash] — **boot-verified 2026-10-14, house battery 36/37; 262k pool-verified, needle probe open**                                                                |
-| poolside-laguna-s-2.1-nvfp4-dflash-vllm       | ✨🧠🔧   |        20.5 |      — |      — |       — | 99.7GB + 2.2GB draft |   85% | /v1/chat/completions |  1 | [Model][poolside/Laguna-S-2.1-NVFP4] [Draft][poolside/Laguna-S-2.1-DFlash-NVFP4] — **boot-verified; 120k capped-context single-tenant arm, battery 32/37**                                                                             |
+| poolside-laguna-s-2.1-nvfp4-dflash-vllm       | ✨🧠🔧📜  |        20.5 |      — |      — |       — | 99.7GB + 2.2GB draft |   85% | /v1/chat/completions |  1 | [Model][poolside/Laguna-S-2.1-NVFP4] [Draft][poolside/Laguna-S-2.1-DFlash-NVFP4] — **boot-verified; 120k capped-context single-tenant arm, battery 32/37**                                                                             |
 | humanizer-12b-vllm                            | 🐢     |         7.6 |      — |      — |       — |               88GB ‡ |   85% |      /v1/completions |  1 | [Model][jialinyyzz/humanizer] — **text-rewriting arm, `/v1/completions` only (no chat template), off the lane's reasoning/tool brief**                                                                                                 |
-| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢     | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
-_`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB._
+| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
+_`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling._
 
 ## Cybersec
 
 | Recipe                                                      | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                               |
 |:------------------------------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| qwen3.8-27b-uncensored-nvfp4-sglang                         | 🚀👀🏴   |   10.2 |      — |      — |       — |               24.7GB |   85% |  1 | [Model][orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — **positive**, boots, battery 37/37                                                                                     |
-| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴   |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37 |
-| deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴  |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
-_`*` no recipe util — the arm's documented `≤ 0.85` ceiling._
+| qwen3.8-27b-uncensored-nvfp4-sglang                         | 🚀👀🏴📜  |   10.2 |      — |      — |       — |               24.7GB |   85% |  1 | [Model][orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — **positive**, boots, battery 37/37                                                                                     |
+| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37 |
+| deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
+_`*` no recipe util — the arm's documented `≤ 0.85` ceiling. `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._
 
 # Model Flags
 
@@ -141,10 +142,22 @@ _`*` no recipe util — the arm's documented `≤ 0.85` ceiling._
 | 📶   | embedding     | Model has embedding capability           |
 | 🔃   | reranking     | Model has reranking capability           |
 | 🏴   | uncensored    | Uncensored model                         |
+| 📜   | licence       | Gated, non-commercial, or `other`        |
 | 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
 | 💀   | broken        | Currently broken                         |
 
-_Flags indicate characteristics of the model and are set in the recipe metadata; `🚀 fast` may predate the measured C1 above._
+_Flags indicate characteristics of the model and are set in the recipe metadata, except `📜 licence`, which the index sets from the lane's own licence note; `🚀 fast` may predate the measured C1 above._
+
+# Licence Policy
+
+The registry carries **recipes and mods, not weights**: recipes ship repo ids, revisions and wiring, and each
+downloader fetches the checkpoint from the Hub under that repo's own terms. **Third-party-downloadable** means
+fetchable from a public Hub repo on those terms, with the registry shipping only the recipe — plus a banner or
+lane note wherever the licence constrains use. Derivatives of third-party bases are carried when their own
+licence permits redistribution; where the registry only *references* upstream work (the ds4 graft mod fetches
+the author's script at a pinned revision) it redistributes nothing, and vendored images and mods stay under
+their upstream licences. Non-commercial and gated checkpoints are carried only where their licence allows the
+intended evaluation use; gated arms need a per-node `HF_TOKEN` with the release accepted, and each such arm is marked `📜`.
 
 # Mechanics
 

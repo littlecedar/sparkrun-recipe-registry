@@ -47,6 +47,15 @@ live alongside the HF cache at `/cache/huggingface/hub/dsv41-engram` (see the
 recipe README's pre-warm step). If that directory is absent the engine still
 loads and serves, with a warning and degraded output -- the shim does not fail
 closed on it, it just does not set TF_DS_ENGRAM so the engine can say so.
+
+Vision. `--vision` (off by default) enables image input, which takes two parts:
+the engine flag, and the MoE gates' VL routing bias that the EXL3 pack omitted
+(all 43 `*.ffn.gate.bias_vl` tensors; without them image tokens route with the
+text bias). `vl_bias.safetensors` ships beside this launcher, and
+`TF_DS_VISION_EXTRA` is pointed at that FOLDER -- `attach_vl_bias()` globs
+`*.safetensors` in it, so a file path reads 0 gates. Unlike Engram this DOES
+fail closed: the engine only warns when the bias is missing, which would look
+like working vision, so a `--vision` boot without the file aborts.
 """
 from __future__ import annotations
 
@@ -202,6 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tp", type=int, default=2)
     parser.add_argument("--context", type=int, default=262144)
     parser.add_argument("--served-model-name", default="deepseek-v4.1-flash")
+    # Image input. The VL routing bias this needs ships beside the launcher, so
+    # the flag is the whole operator interface (see the docstring).
+    parser.add_argument("--vision", action="store_true")
     # sparkrun appends its rendezvous flags; capture them here so the shim owns
     # the mapping, and tolerate anything else the runtime may add.
     parser.add_argument("--dist-init-addr", default="")
@@ -226,6 +238,22 @@ def main(argv: list[str] | None = None) -> int:
             "(see recipes/ds4/README.md for the pre-warm step)",
             flush=True,
         )
+    if args.vision:
+        # attach_vl_bias() takes a FOLDER and globs *.safetensors in it; sparkrun
+        # copies this mod to /workspace/mods/tensorfold-dsv41-launcher, so the
+        # file that ships in the mod dir is beside this script. Fail closed: the
+        # engine only warns about a missing bias and degrades image quality, so
+        # a silent miss would look like working vision.
+        vision_dir = Path(__file__).resolve().parent
+        if not any(vision_dir.glob("*.safetensors")):
+            print(
+                f"[tensorfold-launcher] --vision: no *.safetensors VL bias in {vision_dir} "
+                "(vl_bias.safetensors ships beside this launcher); refusing to start, "
+                "image tokens would route with the text bias",
+                flush=True,
+            )
+            return 2
+        env["TF_DS_VISION_EXTRA"] = str(vision_dir)
     os.environ.update(env)
 
     master, _, master_port = args.dist_init_addr.partition(":")
@@ -246,9 +274,17 @@ def main(argv: list[str] | None = None) -> int:
         "--no-update-check",
         "--name", served_model_name(args.served_model_name),
     ]
+    if args.vision:
+        cmd += ["--vision"]
     if args.tp > 1:
         cmd += ["--master", master or "127.0.0.1", "--master-port", str(master_port)]
 
+    if args.vision:
+        print(
+            f"[tensorfold-launcher] vision ON: vl_bias_dir={env['TF_DS_VISION_EXTRA']} "
+            f"(43 gates; engine flag --vision)",
+            flush=True,
+        )
     print(
         f"[tensorfold-launcher] boot: node_rank={args.node_rank}/{args.tp} "
         f"rendezvous={master or '127.0.0.1'}:{master_port} model={model_dir} "

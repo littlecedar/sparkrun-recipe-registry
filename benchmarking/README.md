@@ -7,6 +7,9 @@ named below, or cited by a recipe/tool/test. The **82 single-use experiment arms
 qwen4 and qwen3 optimization campaigns were archived under `attic/benchmarking/` with a per-profile
 `ARMS-MANIFEST.md`, and that archive was itself deleted from the tree in commit `b4ab22b` (2026-10-06).
 If a `bench_*` id cites a profile that is not here, recover it with `git show b4ab22b^:<path>`.
+Twelve profiles stranded later by the qwen4/qwen3 lane cuts were preserved the same way on
+2026-10-15 — nine under `attic/qwen4/profiles/` and three under `attic/qwen3/profiles/`, each with a
+line in its lane's `ARMS-MANIFEST.md`.
 
 One profile drives a different framework: `standard-suite.yaml` is a **tool-eval-bench** profile for
 `sparkrun benchmark tools` (see §Standard external suite).
@@ -100,31 +103,39 @@ recipe is under test — the profile files themselves deliberately carry no reci
 
 | profile | depth | concurrency | runs | question |
 |---|---|---|---|---|
-| `bs-sweep`, `bs-sweep-high` | 8192 | 1–24 | 7 | The original curves. |
-| `bs4-only`, `bs8-only` | 8192 | 4, 8 | 9 | Single-cell reruns, arm-agnostic, for re-measuring one point without the whole sweep. In-sweep bs=4 is bimodal, so an in-sweep median is a coin flip between clusters. |
-| `bs-order-reverse` | 8192 | as sweep | 7 | Reversed cell order, to separate an effect from the order cells run in. |
-| `bs-cap16-k24`, `bs-cap16-fullcurve` | 8192 | 8–24 | 7 | Under `max_num_seqs = 16`: k = 8/12/16 are non-binding internal controls; k = 24 is the treatment. |
-| `bs-cap20-k16-20-24`, `bs-cap24-k16-20-24` | 8192 | 16, 20, 24 | 7 | Is k = 20 intrinsically bad, or only bad when k equals the cap? |
-| `lq-bs-sweep-high` | 8192 | 8–24 | 7 | labquant past bs = 8, cell-for-cell matched to the RadixArk sweep. |
+| `bs-sweep-high` | 8192 | 1–24 | 7 | The original curve. Kept for the archived `zz-rk-moebackend.yaml` arm — it names that arm, and `attic/qwen4/ARMS-MANIFEST.md` cites this file by path. |
 
-**A fixed defect worth knowing about (`bs8-only.yaml`).** An earlier revision of this file had its
-`args` at the **top level with no `args:` key**, which made `yaml.safe_load` + `d["args"]` raise
-`KeyError` on this one file and not on its siblings. It now carries a proper `args:` block, so every
-profile here has the same shape. (This is recorded rather than deleted because the misdiagnosis is
-instructive: the file was also briefly claimed to be *broken* for missing a top-level `framework:` —
-the real loader requirement — when in fact only `bs-sweep-high.yaml` had that latent defect.)
+**Nine of the family's ten files moved to `attic/qwen4/profiles/` (2026-10-15)** — `bs-sweep`,
+`bs4-only`, `bs8-only`, `bs-order-reverse`, `bs-cap16-k24`, `bs-cap16-fullcurve`,
+`bs-cap20-k16-20-24`, `bs-cap24-k16-20-24`, `lq-bs-sweep-high`. Each was written for the qwen4 lane's
+§19 cliff campaign, whose arms are archived under `attic/qwen4/arms/`, and no tracked doc cites
+them; each now carries a line in `attic/qwen4/ARMS-MANIFEST.md`. Recover one with
+`git show <commit>^:benchmarking/<name>.yaml`.
+
+**A fixed defect worth knowing about (`bs8-only.yaml`, now `attic/qwen4/profiles/`).** An earlier
+revision of this file had its `args` at the **top level with no `args:` key**, which made
+`yaml.safe_load` + `d["args"]` raise `KeyError` on this one file and not on its siblings. It was
+fixed before the file was archived, so every profile of the family has the same shape. (This is
+recorded rather than deleted because the misdiagnosis is instructive: the file was also briefly
+claimed to be *broken* for missing a top-level `framework:` — the real loader requirement — when in
+fact only `bs-sweep-high.yaml` had that latent defect.)
 
 ## Depth-cost / prefill-attribution family (qwen3, 2026-09-21/22)
 
 | profile | depth | c | runs | status | what it asks |
 |---|---|---|---|---|---|
-| `pp-vs-depth-acceptance` | 1024 / 1024→16384 | 4 | 3 | RUN | Is the acceptance step a PROMPT-length effect or a GENERATED-length effect? `depth` fixed, `pp` swept. Zero-boot. |
-| `peak-vs-depth` | 1024/4096/8192 | 8 | 7 | RUN ×9 | Is the decode STEP slower at depth, or is the machine busy prefilling? The most-run profile in this directory. |
-| `iso-kv` | 8192 | 8 | 3 | RUN ×4 | Three cells with equal `c×(depth+pp)` = 81,920, testing whether cost follows batch-total KV bytes. NOTE: the three cells are PAIRS driven with `-b`, not a cross product of the `args:` lists. |
-| `iso-prompt` | 4096 | 4 | 3 | RUN ×6 | Holds prompt length constant while varying depth, to separate prefill admission work from context length. |
-| `pp-crossed-identifiability` | 4096/8192 | 2,4,8 | 3 | RUN | Crosses `pp` with `c` to break the `B = c·depth` / `P = c·(depth+pp)` collinearity. Its own selftest found the additive form is the wrong model. |
-| `pp-slope` | 1024/4096 | 8 | 3 | RUN | Single-variable prompt-length sweep: the cleanest measurement of decode step time vs resident tokens. |
-| `depth-slope-decode-metric` | 1024→16384 | 4 | 3 | RUN | Depth sweep scored on the server's OWN `gen throughput` rather than the harness's, removing prefill contamination. |
+| `pp-vs-depth-acceptance` | 1024 / 1024→16384 | 4 | 3 | RUN · archived thread | Is the acceptance step a PROMPT-length effect or a GENERATED-length effect? `depth` fixed, `pp` swept. Zero-boot. |
+| `iso-kv` | 8192 | 8 | 3 | RUN · archived thread | Three cells with equal `c×(depth+pp)` = 81,920, testing whether cost follows batch-total KV bytes. NOTE: the three cells are PAIRS driven with `-b`, not a cross product of the `args:` lists. |
+| `pp-slope` | 1024/4096 | 8 | 3 | RUN · archived thread | Single-variable prompt-length sweep: the cleanest measurement of decode step time vs resident tokens. |
+| `depth-slope-decode-metric` | 1024→16384 | 4 | 3 | RUN · archived thread | Depth sweep scored on the server's OWN `gen throughput` rather than the harness's, removing prefill contamination. |
+
+**Three rows moved to `attic/qwen3/profiles/` (2026-10-15).** `peak-vs-depth`, `iso-prompt` and
+`pp-crossed-identifiability` are uncited by any tracked doc. The four rows left are the ones
+`attic/qwen3/DEPTH-COST.md` cites (`pp-slope`, `pp-vs-depth-acceptance` and
+`depth-slope-decode-metric` by path; `iso-kv` as the `iso-KV` experiment) — hence the
+`archived thread` status: read them as provenance for that closed investigation, not as a queue.
+Their arm of record, `qwen3.8-27b-nvfp4-dflash2-sglang`, is still shipped in `recipes/qwen3/`; what
+is archived is the lane's records.
 
 **Archived 2026-10-04, deleted 2026-10-06 — the four `NOT RUN` rows of this family.** `pp-sweep-c4c8`,
 `a2-depth-gap-c8`, `kv-residency-dissociation`, and `d0-baseline-dissociation` were moved to
@@ -143,13 +154,15 @@ the run happened. A profile nobody has executed is a profile nobody has validate
 ## Instrumented arms (qwen4 gauges)
 
 These run with `--enable-metrics` and were built to answer specific qwen4 questions; they are kept
-because a live recipe or the qwen4 lane still cites them.
+because a live recipe or the qwen4 lane still cites them — `rk-nograph-cps8192-k8-16-24` and
+`lq-graphson-cps8192` are here (rather than in `attic/qwen4/profiles/`) only because
+`attic/qwen4/ARMS-MANIFEST.md` cites them for naming the archived `zz-rk-moebackend.yaml` arm.
 
 | profile | use |
 |---|---|
 | `instr-cps4096-vs-2048-k16` | `chunked_prefill_size` 4096 vs 2048 at k=16, instrumented. |
-| `lq-graphson-cps8192` | labquant with the prefill graph re-enabled (a deliberate falsification arm). |
-| `rk-nograph-cps8192-k8-16-24` | RadixArk prefill-graph-off arm at cps=8192. |
+| `lq-graphson-cps8192` | labquant with the prefill graph re-enabled (a deliberate falsification arm). Serves the archived `zz-rk-moebackend.yaml` arm. |
+| `rk-nograph-cps8192-k8-16-24` | RadixArk prefill-graph-off arm at cps=8192. Serves the archived `zz-rk-moebackend.yaml` arm. |
 | `pool128-cap32-causal` | The causal pool-112→128 test (§19x), RadixArk. |
 | `pool128-cap32-causal-REPL` | Its replication — a **new filename is required** per replication because the bench id hashes the profile path. |
 
@@ -173,7 +186,11 @@ because a live recipe or the qwen4 lane still cites them.
 
 - Keep the directory to the curated set. An arm whose question is closed is removed in a commit that
   records its rationale and a closure pointer (the `attic/benchmarking/` archive was itself deleted
-  in `b4ab22b`); `git show b4ab22b^:<path>` recovers any archived profile.
+  in `b4ab22b`); `git show b4ab22b^:<path>` recovers any archived profile. **A profile whose question
+  is closed *and* whose arm is archived is preserved instead of deleted**: move it (plain `mv`, it
+  stays tracked) to `attic/<lane>/profiles/`, add one line to that lane's `ARMS-MANIFEST.md`, and
+  update this README — the 2026-10-15 sweep did that for the qwen4 `bs-*` and qwen3 depth-cost
+  families.
 - A replication needs a **new filename** — the bench id hashes `(recipe, profile path, overrides,
   nodes)`, so reusing a name silently resumes and rewrites identical JSON. `*-REPL`, `*-rep2`,
   `*-desc` are the conventions.
