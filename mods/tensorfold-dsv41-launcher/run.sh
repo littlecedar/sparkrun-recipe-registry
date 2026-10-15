@@ -60,15 +60,22 @@ reown "${RUNTIME_DIR}"
 log_var RUNTIME_DIR
 ls -ld "${RUNTIME_DIR}"/* 2>/dev/null | while read -r l; do log "  ${l}"; done
 
-# Engram tables are distributed out-of-band (they are two 95 GiB shards of the
-# *official* checkpoint, not part of the EXL3 repo). Report their state; do not
-# fail closed -- the engine loads without them, degraded and with a warning.
+# Engram tables have two homes. The combined repo carries them under
+# <snapshot>/engram/ (that is the layout the launcher's resolver prefers, and the
+# engine globs the dir non-recursively), while a hand pre-warm -- or the
+# dsv41-engram-fetch mod -- writes the legacy flat dir. Report which one is
+# populated; report "degraded" only when neither is. A rank-0/rank-1 mismatch
+# hangs at readiness, so each rank's own line is the evidence that matters.
 ENGRAM_DIR="${TENSORFOLD_ENGRAM_DIR:-/cache/huggingface/hub/dsv41-engram}"
+COMBINED_GLOB="/cache/huggingface/hub/models--littlecedar--DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram/snapshots/*/engram"
 if compgen -G "${ENGRAM_DIR}/*.safetensors" >/dev/null; then
   count=$(ls -1 "${ENGRAM_DIR}"/*.safetensors | wc -l)
   log "Engram: ${count} shard(s) at ${ENGRAM_DIR}"
+elif compgen -G "${COMBINED_GLOB}/*.safetensors" >/dev/null; then
+  count=$(ls -1 ${COMBINED_GLOB}/*.safetensors | wc -l)
+  log "Engram: ${count} shard(s) in the combined repo ($(ls -d ${COMBINED_GLOB} | head -1))"
 else
-  log "Engram: none at ${ENGRAM_DIR} (degraded; see recipes/ds4/README.md)"
+  log "Engram: none at ${ENGRAM_DIR} or the combined repo (degraded; see recipes/ds4/README.md)"
 fi
 
 log "Done."
