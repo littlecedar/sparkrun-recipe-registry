@@ -297,8 +297,9 @@ boot — parity with §1, no regression. Needle retrieval is intact at ~256k pro
 of reasoning before the answer even under the served default, so a 64-token completion budget
 truncates the visible answer (a short-`max_tokens`, `content`-reading client sees empty or partial
 replies) — re-probing that depth at 256 tokens passes. The `tool-eval-bench` suite that
-[`NOTES.md`](NOTES.md) §5 C2 named is **not configured in this registry**, so the house battery is
-the lane's only suite score.
+[`NOTES.md`](NOTES.md) §5 C2 named was **not configured in this registry when this pass ran** (it is
+now: `benchmarking/standard-suite.yaml`, added 2026-10-15), so the house battery is the suite score
+recorded here.
 
 ## 6. Open items (deliberately not closed)
 
@@ -311,8 +312,9 @@ the lane's only suite score.
   set, reasoning growing with the task, and valid plans submitted. **Detection limit** — ~35k-token
   transcripts, 48 turns, 16k and 32k budgets, a 25-word-window metric firing at ≥3 repeats. C3
   (sampling) is discriminated (no sampling-dependent loop); C4 (context) passes at two of three
-  windows, the third a client-budget artifact and reproduced at the 9B scale; C2 is met by the
-  house battery only (the named `tool-eval-bench` suite is unavailable here); C5 (9B cross-scale) is
+windows, the third a client-budget artifact and reproduced at the 9B scale; C2 is met by the
+house battery only (the named `tool-eval-bench` suite is now configured as
+`benchmarking/standard-suite.yaml` but was not run for this pass); C5 (9B cross-scale) is
   run — same null, plus a worse empty-reply rate (0/3 needle hits at a 64-token budget, a
   reasoning-budget artifact, not lost retrieval). Full method, arm table, result, and the
   pre-registered bar are in
@@ -645,9 +647,9 @@ not a decode loop.
 
 **House battery, this boot: 37/37** (19/19 easy + 18/18 hard, zero flakes) — parity with the
 2026-10-11 and 2026-10-14 runs, no regression. This is the lane's suite score: the
-`tool-eval-bench` framework that Plan C's C2 named is **not configured in this registry** (there is
-no tools framework or profile for `sparkrun benchmark tools` here), so C2 is met only by the house
-battery. Receipts: `~/benchmarks/ornith-horizon-20261014/`.
+`tool-eval-bench` framework that Plan C's C2 named was **not configured in this registry** at the
+time (no profile for `sparkrun benchmark tools`; one exists now, `benchmarking/standard-suite.yaml`,
+added 2026-10-15), so C2 is met only by the house battery. Receipts: `~/benchmarks/ornith-horizon-20261014/`.
 
 ## `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` — the small single-Spark arm
 

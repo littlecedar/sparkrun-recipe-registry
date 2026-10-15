@@ -336,9 +336,10 @@ re-investigation (2026-10-14)"; receipts are `~/benchmarks/ornith-horizon-202610
   presence penalty of 1.5, with the metric firing at ≥3 repeats — a loop outside that envelope is
   not excluded.
 - **C2 — met only by the house battery.** **37/37** (19/19 + 18/18, zero flakes) re-scored on this
-  boot — parity with prior runs, no regression. The named `tool-eval-bench` framework is **not
-  configured in this registry**, so the "adopted shared suite" clause of C2 could not be run; the
-  house battery is the lane's only suite score. **Gap stated, not smoothed.**
+  boot — parity with prior runs, no regression. The named `tool-eval-bench` framework was **not
+  configured in this registry** when this pass ran (it is now: `benchmarking/standard-suite.yaml`,
+  added 2026-10-15), so the "adopted shared suite" clause of C2 could not be run; the house battery
+  is the lane's only suite score. **Gap stated, not smoothed.**
 - **C3 — discriminated.** Request-level sampling is honoured (distinct `reasoning_content` hashes
   at temp 0, 0.6, and 1.0 + `presence_penalty` 1.5). The card's *general* recipe gives the same
   shape as the served coding sampling: no loop either way. **No sampling-dependent loop, so no

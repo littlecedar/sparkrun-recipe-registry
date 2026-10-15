@@ -72,6 +72,14 @@ Launch with `sparkrun run <recipe> -H <host> --transfer-mode local` (the `--tran
 flag is REQUIRED when the recipe uses unpublished mods, or the node clones the registry and the
 mod is invisible), wait for `/health` 200, score it with the accuracy harness, then stop it.
 
+**Launch by the recipe's real path, not a flattened symlink.** A lane-local mod in `mods:` is
+resolved against `dirname(recipe.source_path)` (`sparkrun/core/mods.py` rule 2), so
+`~/development/<name>.yaml -> .../recipes/<lane>/<name>.yaml` fails at launch with
+`Could not resolve mod '<name>'` — the adjacent candidates it tries land in the flat directory.
+Registry mods (`@eugr/…`, `@littlecedar/…`) are unaffected, which is why the symlink style survives
+on most arms and breaks on the first one that ships a lane-local mod (ornith 35B, measured
+2026-10-15).
+
 ## 4. Integrate (this is the deliverable, not the numbers)
 1. Every measured figure goes into the recipe header `MEASURED`/`ACCURACY` block, the lane
    `README.md` + `AGENTS.md` state table, and the lane `NOTES.md` session record — each with its

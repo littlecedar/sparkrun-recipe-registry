@@ -30,6 +30,9 @@ the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.
 and an effort tag; boot-requiring work is the long tail. The per-lane "all items completed" stubs were
 dropped where the sweep opened new work.)*
 
+*(Owner decision 2026-10-15: the sweep runs with no timebox — multi-day, group by group, stopping
+only at a gate; the register is the scope, not a plan.)*
+
 Selection priorities:
 - Node count (lower is better)
 - Accuracy (higher is better)
@@ -61,12 +64,13 @@ GLM 5.3
 
 ## ornith
 Ornith 1.5
-- [ ] **Build a YaRN long-context (~1M) arm** — both Ornith cards publish the factor-4 route and the shipped arms cap at 262,144, with no needle evidence ("named work nobody did") (`recipes/ornith/README.md:379-388`). *(effort: medium)*
-- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`recipes/ornith/README.md:345-353`; `attic/ornith/AGENTS.md`). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`.)* *(effort: medium)*
-- [ ] **Measure the 9B arm at C>1** — only C1 is recorded; the doc itself names the pool-split concurrency question (`recipes/ornith/README.md:299-303`). *(effort: short)*
-- [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`recipes/ornith/README.md:500-503`). *(effort: medium)*
-- [ ] **`moe_runner_backend: marlin` under an interleaved paired control** — the ladder's best extra cell (108.9 t/s) collapsed into noise only because the control was ordered, not interleaved (`recipes/ornith/README.md:504-508`). *(effort: short)*
-- [ ] **Measure the r0b0tlab W4A16 NVFP4 35B + MTP head** — 63–77 t/s claimed with accuracy parity; rejected on a paper comparison, never measured on our stack (`recipes/ornith/README.md:498-499`). *(effort: short)*
+- [ ] **Build a YaRN long-context (~1M) arm** — both Ornith cards publish the factor-4 route and the shipped arms cap at 262,144, with no needle evidence **above** 262,144 (32k 3/3, 128k 3/3 and 262,144 2/3 are recorded) ("named work nobody did") (`recipes/ornith/README.md:195-202`; `attic/ornith/AGENTS.md:270-273`). *(effort: medium)*
+- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`.)* *(effort: medium)*
+- [ ] **Measure the 9B arm at C>1** — only C1 is recorded; the lane names the pool-split concurrency question itself ("untested at C>1") (`attic/ornith/AGENTS.md:674-676`). *(effort: short)*
+- [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)*
+- [ ] **`moe_runner_backend: marlin` under an interleaved paired control** — the ladder's best extra cell (108.9 t/s) collapsed into noise only because the control was ordered, not interleaved (`attic/ornith/AGENTS.md:497-513`). *(effort: short)*
+- [ ] **Measure the r0b0tlab W4A16 NVFP4 35B + MTP head** — 63–77 t/s claimed with accuracy parity; rejected on a paper comparison, never measured on our stack (`attic/ornith/AGENTS.md:881-882`). *(effort: short)*
+- [ ] **Run the standard evaluation suite (SOP) against the shipped 35B arm** — the first arm of the registry-wide sweep: `tools/eval-suite.py` (contract/house/needle/hard/tools) + the `benchmarking/concurrency-ladder.yaml` perf leg on the same boot + `benchmarking/standard-suite.yaml` (the Plan C C2 clause), receipts `~/benchmarks/ornith-35b-suite-20261015/`, numbers into `recipes/ornith/README.md` + `attic/ornith/AGENTS.md` with bench ids. **Launch it by the recipe's real path, never the flattened `/home/red/development/<name>.yaml` symlink**: the lane-local `mods/ornith-honed-chat-template` resolves against `dirname(recipe.source_path)` (`sparkrun/core/mods.py` rule 2), so the symlink fails at launch with "Could not resolve mod" (measured 2026-10-15 on `.35`). *(effort: medium)*
 
 ## qwen3
 Qwen 3.x
@@ -133,11 +137,13 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
 
 ## Concurrency ladder (registry-level)
 No shipped arm has a measured `C2`/`C5`/`C10`: a census of the `~/benchmarks/**` and `.scratch/**` receipts (509 decode-phase cells) finds C1 only for most arms, C1/C4/C8/C16 for ds4 and C1/C4/C8 for IFM, and C1/C4/C8/C16/C32 for the pooling lanes — which is why those three columns are `—` in `recipes/README.md`. **Do not fill them from the wrong receipt:** `attic/ds4/PERF-ISSUES.md:49-52`'s c1/c2/c5/c10 table is a cold-prefill triage on a different harness (its d0 c1 is 36.2, not the index's 46.5) and `attic/ifm/NOTES.md`'s c=2 53.697 belongs to the withdrawn 36B arm.
-- [ ] **Add the ladder profile the columns are named for** — a tracked `benchmarking/concurrency-ladder.yaml` at depth 0, c 1/2/5/10 (the spark-arena-v2 shape the one existing v2 receipt used), decode phase only; keep it distinct from `deep-smoke` (c 1/2/5) so a profile name never implies a different ladder, and name it in `benchmarking/README.md`. (`benchmarking/README.md`; `~/benchmarks/benchmark_deepseek-v4.1-flash-exl3-tp6-1m-vllm_spark-arena-v2_tp6.yaml`) *(effort: short)*
 - [ ] **Fill C2/C5/C10 for the single-node text arms** — the 14 that fit one Spark (ornith 35B/9B, qwen3 dflash2/coder-next/mlx4bit-TensorFold, IFM 0.9B/7B, explore ling/kolibri/laguna-XS/laguna-S/humanizer, cybersec arms 1/2) on the free `.34`/`.35`; per cell quote the **decode** row of the `--output` file (never the printed table, which shows only that row and no header) and cite the receipt beside the number in `recipes/README.md` and the lane doc. *(effort: long)*
 - [ ] **Fill C2/C5/C10 for the multi-node arms** — ds4 knapcio (TP=4) + ds4 tensorfold (TP=2), qwen4 labquant (TP=2), ornith 397B (TP=4), cybersec arm 5 (TP=2): needs a window on `.30`–`.33`, restricted today. *(effort: long)*
 - [ ] **Re-measure the pooling lanes at the ladder points** — embed/rerank publish `units/s` at C1/C4/C8/C16/C32 (`tools/pooling-bench.py`); re-run at c 1/2/5/10 and quote `units / wall_seconds` from the receipt. (`recipes/embed/README.md`; `recipes/rerank/README.md:69-70`; `.scratch/embed/csweep8b-order1-c*.json`) *(effort: medium)*
 - [ ] **Give the two non-t/s lanes a ladder or a documented `—`** — the decision arms report `req/s` from a *serial* instrument (`tool-eval-bench`), so filling C2/C5/C10 there needs a concurrent harness; the image arm serves one request at a time, so its `—` should be written down as by-design in the lane doc. (`recipes/decision/README.md`; `recipes/explore/README.md`; `tools/README.md`) *(effort: medium)*
+
+## Standard evaluation suite (registry-level)
+- [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)*
 
 ## Storage consolidation (registry-level)
 - [ ] **[storage] Census and reconcile the unrecorded attic weight packs** — attic/ds4 Pollard EXL3 3.5bpw (552B), attic/ifm 36B-A4B ("48 GB synced to every node"), attic/explore Nemotron-30B NVFP4 + its DSpark draft: the 2026-10-14 reclaim record names none of them (`attic/ds4/README.md:25-30`; `attic/ifm/ARMS-MANIFEST.md:52`; `attic/explore/ARMS-MANIFEST.md:40-41`; `mad-science/SESSION-RECORD.md:171-173`). *(Owner decision 2026-10-15: census first, then reclaim archived-lane weights — keep shipped-arm weights and anything a doc cites; covers the explore weights in the item below.)* *(effort: short)*
