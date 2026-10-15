@@ -146,8 +146,12 @@ receipts preserve each number in the unit its own tool printed.
    material. Keep the AGENTS.md marker rule as the recency gate on top of that, never instead of it.
 3. **The two DS4 leftovers are the reclaim set** (§2). Everything else keyed-large in the fleet maps
    to a shipped arm.
-4. **Let the 30-day sweep do the small work.** The `retired` and long-idle trees below 1 GB each are
-   exactly what `--older-than 30` is for; no manual step is needed and none is worth the risk.
+4. **Check the cutoff's unit before trusting a sweep number.** `--older-than` is in **days**
+   (`find "$_marker" -mtime +N`; `cli/_setup/_commands.py:2066`, `orchestration/runtime_cache.py:124`),
+   so the 30-day default matches only markers ~31+ days old and reaches *none* of §2's 113 h/283 h set.
+   The < 1 GB retired trees can wait for that default; every §2 row needs a cutoff below its own age —
+   `--older-than 3` reaches the 113 h and 283 h markers alike and still spares the 44 h warm lobes.
+   `tools/cache-audit.py` now derives that cutoff per tree instead of printing the default.
 
 ---
 
@@ -160,7 +164,7 @@ guarded sweep, which re-checks the age it is given and needs the node idle.
 
 | node | path (under `$HOME/.cache/sparkrun/runtime-cache/`) | size | marker (= last use) | action |
 |---|---|---:|---|---|
-| `.30` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | 94.8 GB | 2026-10-10 13:59 (113 h) | sweep `--older-than 30` |
+| `.30` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | 94.8 GB | 2026-10-10 13:59 (113 h) | sweep `--older-than 3` |
 | `.31` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | 94.8 GB | 2026-10-10 13:59 | sweep |
 | `.32` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | 94.8 GB | 2026-10-10 13:59 | sweep |
 | `.33` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | 94.8 GB | 2026-10-10 13:59 | sweep |
@@ -172,15 +176,19 @@ guarded sweep, which re-checks the age it is given and needs the node idle.
 | `.32` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993` | 142.1 GB | 2026-10-13 11:13 | after 2026-10-16 11:13 |
 | `.33` | `sglang/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993` | 142.1 GB | 2026-10-13 11:13 | after 2026-10-16 11:13 |
 
-**Reclaimable today: 616.8 GB** — 569.6 GB through sparkrun's own sweep (it re-checks the age it is
-given) plus the 47.2 GB `.34` lobe, which has no marker and so needs a hand-removal. That is
+**Reclaimable today: 616.8 GB** — 569.6 GB through sparkrun's own sweep **with `--older-than 3`**
+(the flag is a day count: the 30-day default would reach none of these markers, and `--older-than 7`
+would miss the 113 h rows) plus the 47.2 GB `.34` lobe, which has no marker and so needs a
+hand-removal. That is
 `db95f94c` on five nodes plus `9a74d993` on `.34`/`.35`.
 
 The four `9a74d993` lobes stamped 2026-10-13 11:13 are **superseded but warm**: no future launch can
 re-stamp them (the arm now pins a revision, so it keys to `11826f49`), which makes them stale *material*
 today, but the AGENTS.md rule says a tree touched inside ~72 h is in use, so the timing is the owner's
-call rather than something to re-derive. From 2026-10-16 11:13 they add **379.6 GB** (`.30` 47.7,
-`.31` 47.7, `.32` 142.1, `.33` 142.1) for a fleet total of **996.4 GB**.
+call rather than something to re-derive. From 2026-10-16 11:13 they add **379.6 GB** (`.30` 47.67,
+`.31` 47.67, `.32` 142.08, `.33` 142.08 GiB, re-measured 2026-10-15) for a fleet total of
+**996.4 GB**. That date is the 72 h *convention*; the tool's own test would already match these
+markers at `--older-than 3`, so the wait is a policy choice — which is what owner Q2 asks.
 
 Small stale trees, swept on the same pass and left to the 30-day rule (all < 1 GB, listed so the next
 auditor does not have to redo the key mapping): `IFM__K2-Horizon-0.9B-8e4ab383` (`.34`, 0.3 GB — the
@@ -415,7 +423,7 @@ owner wants the ~45 GB/node back on `.32`, that is the work item, and it needs a
 
 ## 5. Open questions for the owner
 
-1. **Timing of the warm-but-superseded DS4 lobes.** 285.6 GB (four `9a74d993` trees, `.30`–`.33`) is
+1. **Timing of the warm-but-superseded DS4 lobes.** 379.6 GB (four `9a74d993` trees, `.30`–`.33`) is
    key-verified dead but was touched 2026-10-13 11:13, inside the ~72 h window. Reclaim on 2026-10-16,
    or treat a key no recipe can produce as stale regardless of the marker and reclaim now?
 2. **AEON acceptance clause.** Does the owner want the arbitration/indemnity clause carried down with
