@@ -11,7 +11,7 @@ Counts in this document were verified 2026-10-15 against the working tree. Facts
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 32 files in 11 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 37 files in 11 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -40,7 +40,7 @@ Load-bearing contracts:
   map / internal key). `sparkrun/core/launcher.py:683` `report_unmapped_config_keys` otherwise warns
   `unmapped-config-key`. Never delete a placeholder to silence a warning, and never add a default
   nothing consumes — sparkrun renders unmapped defaults silently.
-- **`command:` is YAML folded `>`** (31/31 recipes). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (37/37 recipes). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -56,13 +56,13 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/cybersec/` (5), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (6), `recipes/glm/` (0 — runbooks), `recipes/ifm/` (2), `recipes/ornith/` (3), `recipes/qwen3/` (3), `recipes/qwen4/` (2), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms) and the Cybersec lane (five abliterated / cybersecurity-unlocked arms, added 2026-10-14) carry `README.md` lane docs; the GLM lane ships TensorFold runbook notes (its one recipe was archived to `attic/glm/` on 2026-10-13). The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
-| `recipes/glm/` | **No shipped recipe** — TensorFold runbook notes (`README.md`) in the lane; `GLM-5.3-RECOMMENDATIONS.md` and the one recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, are archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
+| `recipes/cybersec/` (7), `recipes/decision/` (4), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (7), `recipes/glm/` (1), `recipes/ifm/` (2), `recipes/ornith/` (4), `recipes/qwen3/` (3), `recipes/qwen4/` (3), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (JEV-9B, clef-flash, and the CPU `vllm-srun` Kai/Sol arms), the Explore lane (Ling-3.0-flash + Kolibri-1, re-ranked 2026-10-13 by the owner's accuracy criterion; plus the 2026-10-14 Poolside Laguna-XS/S and humanizer-12b arms and the 2026-10-15 Mellum2.1 arm) and the Cybersec lane (seven abliterated / cybersecurity-unlocked arms: five SGLang arms plus the two 2026-10-15 vLLM-route companions) and the GLM lane (its one TP=4 EXL3 arm, boot-deferred) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
+| `recipes/glm/` | One shipped arm — `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` plus its lane-local `mods/tensorfold-glm-exl3-launcher`, digest-pinned to the pre-built TensorFold engine, **boot deferred** (TP=4; needs `.30`–`.33`). TensorFold runbook notes live in `README.md`; `GLM-5.3-RECOMMENDATIONS.md` and the earlier `glm-5.3-flash-nvfp4-dflash-vllm.yaml` remain archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus two retired IFM 7B arms (plain and NGRAM, both `k2-horizon-7b-fp8-*`) in `attic/ifm/arms/`, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (2 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 20 importable guard modules, one skipped `*.sync-conflict-*.py` |
-| `tools/` | 15 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
+| `tests/` | 23 importable guard modules, one skipped `*.sync-conflict-*.py` |
+| `tools/` | 18 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
 | `plugins/` | One module, `pooling_bench_framework.py`: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/). |
 | `benchmarking/` | 33 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -199,7 +199,7 @@ remove what the session created** — a leftover is anything undocumented, unkno
   lives in `recipes/qwen4/`; contributor prefixes (`eugr-`, `ursuciprian-`) exist only in `attic/`.
 - Always `{model}` in `command:`, never a literal repo id. No host bind-mount paths — ship a mod
   (`volumes:` appears in 0 recipes).
-- Pin the checkpoint with top-level **`model_revision:`** (23 recipes), never `revision:` — an
+- Pin the checkpoint with top-level **`model_revision:`** (30 recipes), never `revision:` — an
   unknown top-level key is silently absorbed into `runtime_config` and does nothing (the labquant lane
   records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
@@ -306,7 +306,7 @@ matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index; documents all 15 tools (`safe_text.py` added 2026-10-07 and the
+- `tools/README.md` — tool index; documents all 18 tools (`safe_text.py` added 2026-10-07 and the
   standard-suite trio 2026-10-15; the three before `safe_text.py` describe behaviour and caveats only
   — this repo records measured results next to the arm that produced them, e.g.
   `attic/qwen4/status/*.md`), plus §plugins/ for the out-of-tree pooling `BenchmarkingPlugin` that
@@ -333,7 +333,7 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **605 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **606 tests,
   all passing 2026-10-15 (2 skipped: the IFM research docs absent on a fresh clone, and the
   pooling guard's real-`sparkrun` case, which runs only where sparkrun is importable)**. The
   count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it.
