@@ -147,10 +147,12 @@ repo, itself a downstream of MiaAI-Lab's).
   (or `-n`) surfaces a resolution failure.
 - `readiness.port_timeout_s: 7200` / `health_timeout_s: 3600` are deliberately
   generous — a cold boot reads/packs a 510 GB checkpoint.
-- `sparkrun recipe validate --strict` fails this recipe with an
-  `unpinned-model-revision` warning: a **false positive** for this shim lane,
-  where the launcher receives a prepared snapshot path and the engine never
-  resolves a ref. See `attic/ds4/AGENTS.md` §5.
+- `sparkrun recipe validate --strict` fails this recipe with
+  `model_revision is pinned to '<sha>', but command: never passes it`: a **false positive** for
+  this shim lane, where the launcher receives a prepared snapshot path through `{model}` and the
+  engine never resolves a ref. See `attic/ds4/AGENTS.md` §5. (Re-measured 2026-10-15: the
+  sibling TP=2 tensorfold arm is the opposite case — it carries no `model_revision` at all, which
+  no validator setting flags; registered as an open item.)
 - **The radix/prefix cache did not hit on this lane** (measured 2026-10-06):
   back-to-back requests with identical prompts still logged `#cached-token: 0`.
   Treat "warm/reused context is near-instant" as **unproven here**.

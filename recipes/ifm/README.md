@@ -102,8 +102,8 @@ verified by the target, so it is lossless by construction.
 **Concurrency ladder, 2026-10-15 (one node, `benchmarking/concurrency-ladder.yaml` — d0, pp 2048 /
 tg 128, 5 runs per cell, decode-phase rows only; bench `bench_679cd870a74a`, receipt
 `~/benchmarks/ifm-7b-ladder-20261015/`).** Aggregate decode **C1 31.3 · C2 56.1 · C5 94.0 ·
-C10 126.0 t/s** (σ 1.4 / 2.6 / 1.3 / 1.2) — still climbing at the top of the ladder, **3.9×
-single-stream at c10** — with per-request decode 31.3 / 28.8 / 22.4 / 17.2 t/s and ttfr 492 / 989 /
+C10 126.0 t/s** (σ 1.4 / 2.6 / 1.3 / 1.2) — still climbing at the top of the ladder, **4.0×
+its same-boot single-stream at c10** — with per-request decode 31.3 / 28.8 / 22.4 / 17.2 t/s and ttfr 492 / 989 /
 1582 / 2739 ms. C1 re-measures 3.4 % below the 32.4 recorded above (same profile shape, one boot,
 inside the 7–25 % inter-boot spread). **UNO is engaged on this boot**: serve-log `accept len` mean
 **2.95** (25 samples, min 2.62, max 3.27 — every sample > 1); that is a *narrower window* than the

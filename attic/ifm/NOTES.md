@@ -414,7 +414,8 @@ were booted fresh, one at a time, and measured on that profile; decode-phase row
 
 - The 0.9B's **c5 cell is bimodal** (273.8 / 284.6 vs 342.8 / 343.6 / 343.4) and that spread *is* its
   σ; its c1/c2/c10 repeat to ≤ 0.6 %. The 7B-Uno is tight everywhere (σ ≤ 2.6) and still climbing at
-  c10 (3.9× single-stream). Neither arm shows the c10 dip the ornith 9B showed the same day.
+  c10 (4.0× its same-boot single-stream; the 0.9B's 6.3× uses its own same-boot C1, so both arms
+  carry one denominator convention). Neither arm shows the c10 dip the ornith 9B showed the same day.
 - Both C1 cells land within 3.6 % of the figure recorded above (0.9B 80.4 vs 77.6; 7B-Uno 31.3 vs
   32.4) — inside the lane's 7–25 % inter-boot spread, so nothing here supersedes a lane number.
 - **Grants, read from the serve log while the bench still held the boot** (a benchmark-owned launch
