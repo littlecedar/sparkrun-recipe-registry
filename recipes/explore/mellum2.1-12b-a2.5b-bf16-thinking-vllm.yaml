@@ -1,0 +1,64 @@
+recipe_version: "2"
+model: JetBrains/Mellum2.1-12B-A2.5B-Thinking
+model_revision: 92ddae9fc7665e9f801d141d2e5a6b2caf2460c4
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    JetBrains/Mellum2.1-12B-A2.5B-Thinking — a coding/agentic thinking model:
+    12B total / 2.5B active MoE (64 routed experts, 8 per token), 28 layers,
+    32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding window 1,024 on
+    3 of every 4 layers with YaRN (factor 16 over 8,192) on the full-attention
+    layers, vocab 98,304, Apache-2.0, served bf16 (24.3 GB) on ONE DGX Spark
+    (TP=1). vLLM 0.29 carries the architecture natively (MellumForCausalLM, a
+    Qwen3-MoE variant adding a per-layer sliding window and per-layer RoPE), so
+    no plugin or mod is needed. The chat template produces an empty think block
+    only when `enable_thinking` is false — thinking is ON by default, so callers
+    must budget a large `max_tokens` or a truncated reasoning run arrives with an
+    empty `content`; `--reasoning-parser qwen3` splits ` thinking` … ` response`
+    into `reasoning_content`, and the template's `<tool_call>` JSON form is
+    parsed by `hermes` (`--enable-auto-tool-choice`). No draft/speculative
+    decode: the card names the MTP head "coming soon". Card sampling is
+    per-request (temperature 0.6, top_p 0.95, top_k 20; no server-side default
+    is set).
+  model_url: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "12B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: explore, official, reasoning, tools
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, so the served id would be the cache path (-n hides this).
+  served_model_name: JetBrains/Mellum2.1-12B-A2.5B-Thinking
+  max_model_len: 131072
+  gpu_memory_utilization: 0.55
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--JetBrains--Mellum2.1-12B-A2.5B-Thinking/snapshots/92ddae9fc7665e9f801d141d2e5a6b2caf2460c4
+  --served-model-name {served_model_name}
+  --revision=92ddae9fc7665e9f801d141d2e5a6b2caf2460c4
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser qwen3
+  --enable-auto-tool-choice
+  --tool-call-parser hermes
