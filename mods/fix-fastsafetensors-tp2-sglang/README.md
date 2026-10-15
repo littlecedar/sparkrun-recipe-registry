@@ -20,6 +20,25 @@ matches exactly once (`apply-fastsafetensors-tp2-patch.py`):
 |`device-selection`|`torch.device(f"cuda:{rank}")` treats the *global* rank as a local device index|`invalid device ordinal` on rank ≥ 1 (upstream sgl-project/sglang#29272)|
 |`staging-buffer-release`|the `FilesBufferOnDevice` from `copy_files_to_device()` is never closed|staging buffer stays resident; on GB10 it comes out of the same pool as weights and KV (~26.9 GB at TP=2 on a 27B), which pushed `--mem-fraction-static 0.85` past "no GPU memory for the KV cache"|
 
+## Measured effect (it is not a TP=2-only fix)
+
+2026-10-15, qwen3.8-27B-NVFP4 DFlash2, one node, image `lmsysorg/sglang:dev-cu13`
+(`sha256:c802d7b6…`), same recipe, mod log shows both patches staged and no escape
+hatch. The device fix is inert at TP=1; the buffer release is not:
+
+|quantity|before|after|
+|---|---|---|
+|target load, mem usage|41.90 GB|20.59 GB|
+|draft load, mem usage|7.41 GB|3.78 GB|
+|mamba cache size / clamp|161-163, `capped to 40`|252, no clamp|
+|granted concurrency|40|48 (the recipe's literal, granted in full)|
+|fp8 KV pool|213,311-221,836 tokens|497,878 tokens|
+
+The pool doubling is why the 262,144-token needle probe passed afterwards (3/3) where
+both leaky boots truncated the request at ~209k counted tokens. Read the grants from
+the serve log of the boot you care about; the pre-fix numbers above belong to the
+unfixed loader.
+
 ## Anchor drift (why there are two candidate anchors)
 
 2026-10-15: a boot died with
