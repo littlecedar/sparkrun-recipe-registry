@@ -401,8 +401,11 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   (history moved here). **Knobs kept verbatim**: `max_num_seqs: 32`, `max_mamba_cache_size: 128`
   (pool 128 → admission ceiling 32), cps 4096, `--no-ple-offload-embedding`, and both mandatory
   `extra_args` flags. The archived arm's four-boot C1 receipt and its `7c4f1bc1` cells remain
-  history, not this recipe's numbers. **Boot pending (orchestrator)** — no receipt exists yet, so it
-  carries no row in `recipes/README.md` (the index holds boot-verified arms only).
+  history, not this recipe's numbers. **Measured 2026-10-15** in the k≥16 aggregate window it was
+  revived for (`~/benchmarks/qwen4-highcon-20261015/`, job `1895030211ea0500_3510a5e0d37d`): decode
+  84.9 / 89.1 / 89.1 / 72.9 t/s at k=8/12/16/24 (n=7, d8192, tg128) — flat to k=16 then −18 % at
+  k=24, an intrinsic cliff (admission `max_total_num_tokens=1567360`, `max_running_requests=32`, no
+  clamp); index row present. The receipt is benchmark-only: no house battery or contract verdict.
 - Key-name trap: §1 fact 1. The Lane-A header's measured shape, deltas and memory cost are in
   `README.md` ("Lane A") and §1; the specifics not repeated there:
   - Pool formula `run ≤ min(max_num_seqs, max_mamba_cache_size // slots_per_request)` with

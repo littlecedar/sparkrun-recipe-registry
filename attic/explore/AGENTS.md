@@ -506,20 +506,23 @@ rather than blocked.
 - Receipts: `~/benchmarks/ltx25-20261014/` on the head (four MP4s, server log, `mem.tsv`, decoded
   frame, API prompt, `RESULTS.md` naming every command). Details: [`LTX-25.md`](LTX-25.md).
 
-### Mellum2.1-12B-A2.5B-Thinking — built, boot pending (2026-10-15)
+### Mellum2.1-12B-A2.5B-Thinking — boot-verified 2026-10-15
 
 - **Owner-added, outside the ranking**: the `JetBrains/mellum21` collection was added to this lane
   directly (2026-10-15), so this arm has no §1 shortlist row and no selection record. Recipe:
   [`mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
 - Pin `92ddae9fc7665e9f801d141d2e5a6b2caf2460c4` (`main`, 2026-10-07; ungated, Apache-2.0); 12B/2.5B-active
-  MoE, 131,072 ctx, 24.3 GB bf16, TP=1, `gpu_memory_utilization: 0.55` (headroom choice, unmeasured).
+  MoE, 131,072 ctx, 24.3 GB bf16, TP=1, `gpu_memory_utilization: 0.55` (headroom choice — since measured: the arm scales cleanly to c10).
 - **No mod needed**: vLLM 0.29 ships `MellumForCausalLM` (a Qwen3-MoE subclass with per-layer sliding
   window and per-layer `rope_parameters`) — this checkpoint's exact config shape. Thinking is ON by
   default; the card's parsers are `qwen3` + `hermes`.
 - **The GGUF/llama.cpp route is recorded, not shipped** (no llama.cpp arm exists in this registry to copy).
-- **Nothing measured**: no boot, no C1, no house battery, no needle probe — and therefore no
-  `recipes/README.md` index row yet.
-- Details, provenance and the six open boot questions: [`MELLUM-21.md`](MELLUM-21.md).
+- **Measured 2026-10-15** (one boot on `.35`, receipt `~/benchmarks/mellum-20261015/`): decode ladder
+  @ d0 pp2048 tg128 n=5 → C1 42.3 / C2 67.2 / C5 99.9 / C10 135.6 t/s; house battery 36/37 (easy
+  18/19 — the one miss is `needle-1`; hard 18/18); contract ok; index row present. Open in the
+  receipt: the engine's KV-grant line (serve-log capture gap), the tool round trip, long-context
+  correctness beyond the short `needle-1` probe, and the BFCL datapoint — the per-arm record's §6.
+- Details, provenance and what the boot answered: [`MELLUM-21.md`](MELLUM-21.md).
 
 ## Selection (2026-10-13)
 
