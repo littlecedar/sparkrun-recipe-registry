@@ -263,7 +263,13 @@ def reclaim_note(tree: Tree, kind: str, now: dt.datetime) -> str:
     hours = age_hours(tree.stamp, now)
     if hours is None or hours < IN_USE_HOURS:
         return f"touched {hours:.0f} h ago: in use by the {IN_USE_HOURS}h rule, re-check later"
-    return f"sparkrun setup prune-runtime-cache --hosts {tree.host} --older-than 30"
+    # `--older-than N` reaches sparkrun as `find "$_marker" -mtime +N`
+    # (orchestration/runtime_cache.py:124), so N counts DAYS and a tree matches only
+    # when its truncated age in days exceeds N.  Emitting the 30-day default beside a
+    # 113 h tree handed the operator a command that could not touch it.
+    cutoff = max(1, int(hours // 24) - 1)
+    return (f"sparkrun setup prune-runtime-cache --hosts {tree.host} --older-than {cutoff}"
+            f"   # {hours:.0f} h old; the cutoff is in DAYS")
 
 
 # ---------------------------------------------------------------------------
