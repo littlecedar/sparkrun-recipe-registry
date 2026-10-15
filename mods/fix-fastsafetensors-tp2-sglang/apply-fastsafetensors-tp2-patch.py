@@ -91,6 +91,13 @@ parallel-load entry points (``load_row_parallel_weight``,
 ``load_qkv_weight``) all route through it -- and the generator only resumes
 after the consumer has returned from that copy.
 
+The anchor MOVED upstream (measured 2026-10-15 in `lmsysorg/sglang:dev-cu13`,
+`v0.0.0.dev1+ga6a8c5601`): ``fb`` is now bound *inside* the ``try`` and a
+single ``finally: loader.close()`` replaced the ``finally: pass`` /
+``loader.close()`` pair. The leak is unchanged (nothing closes ``fb``), so
+each patch carries one candidate anchor per known shape and applies whichever
+matches exactly once; a shape it does not know still fails closed.
+
 Safety
 ------
 Anchored, idempotent and fail-closed: each patch must match its anchor
@@ -159,9 +166,69 @@ NEW_BUFFER = (
     "                    pass\n"
 )
 
+# Candidate anchor for the shape upstream uses as of 2026-10-15: `fb` bound
+# inside the try, one `finally: loader.close()`. Includes the preceding
+# `loader.add_filenames()` line so the replacement can bind `fb = None` above
+# the try -- the tempting alternative, `if "fb" in locals()`, hides the same
+# intent one refactor away from a NameError.
+OLD_BUFFER_SINGLE_FINALLY = (
+    "        loader.add_filenames(rank_file_map)\n"
+    "        try:\n"
+    "            fb = loader.copy_files_to_device()\n"
+    "            keys = list(fb.key_to_rank_lidx.keys())\n"
+    "            for k in keys:\n"
+    "                t = fb.get_tensor(k)\n"
+    "                yield k, t\n"
+    "        finally:\n"
+    "            loader.close()\n"
+)
+NEW_BUFFER_SINGLE_FINALLY = (
+    "        loader.add_filenames(rank_file_map)\n"
+    "        # sparkrun: bound before the try so the finally below can always\n"
+    "        # read it (upstream assigns it as the try's first statement).\n"
+    "        fb = None\n"
+    "        try:\n"
+    "            fb = loader.copy_files_to_device()\n"
+    "            keys = list(fb.key_to_rank_lidx.keys())\n"
+    "            for k in keys:\n"
+    "                t = fb.get_tensor(k)\n"
+    "                yield k, t\n"
+    "        finally:\n"
+    "            # sparkrun: release the device staging buffer once consumed\n"
+    "            # (upstream closes only the loader). On unified-memory hosts\n"
+    "            # (GB10) the retained buffer comes straight out of the KV\n"
+    "            # budget -- roughly 26.9 GB on this model at TP=2.\n"
+    "            #\n"
+    "            # The consumer's self.data.copy_() only *enqueues* a CUDA\n"
+    "            # copy, so drain the stream first: freeing the source buffer\n"
+    "            # under an in-flight copy would corrupt weights. Buffers\n"
+    "            # before loader: fb.close() frees the device pointers,\n"
+    "            # loader.close() only resets file bookkeeping.\n"
+    "            if fb is not None:\n"
+    "                try:\n"
+    "                    torch.cuda.synchronize()\n"
+    "                except Exception:\n"
+    "                    pass\n"
+    "                try:\n"
+    "                    fb.close()\n"
+    "                except Exception:\n"
+    "                    pass\n"
+    "            loader.close()\n"
+)
+
 PATCHES = (
-    ("device-selection", MARKER_DEVICE, OLD_DEVICE, NEW_DEVICE),
-    ("staging-buffer-release", MARKER_BUFFER, OLD_BUFFER, NEW_BUFFER),
+    ("device-selection", MARKER_DEVICE, ((OLD_DEVICE, NEW_DEVICE),)),
+    (
+        "staging-buffer-release",
+        MARKER_BUFFER,
+        (
+            # Current upstream (2026-10-15): one try/finally, `fb` bound inside
+            # it, `loader.close()` the only cleanup. Checked first.
+            (OLD_BUFFER_SINGLE_FINALLY, NEW_BUFFER_SINGLE_FINALLY),
+            # Pre-2026-10-15 shape: the stranded `finally: pass` pair.
+            (OLD_BUFFER, NEW_BUFFER),
+        ),
+    ),
 )
 
 
@@ -204,23 +271,35 @@ def main() -> int:
     skipped: list[str] = []
     missed: list[str] = []
 
-    for name, marker, old, new in PATCHES:
+    for name, marker, anchors in PATCHES:
         # Idempotent: mods re-run on every launch against a fresh container,
         # and a hand-patched tree must not trip over itself.
-        if marker in candidate or new in candidate:
+        if marker in candidate or any(new in candidate for _old, new in anchors):
             skipped.append(name)
             print(f"[{name}] already patched; skipping")
             continue
 
-        hits = candidate.count(old)
-        if hits != 1:
+        # Upstream moves, so a patch may carry a candidate anchor per shape it
+        # knows; the first one matching exactly once wins, and a shape it does
+        # not know still fails closed below.
+        hit = None
+        for old, new in anchors:
+            if candidate.count(old) == 1:
+                hit = (old, new)
+                break
+        if hit is None:
             missed.append(name)
+            counts = ", ".join(
+                f"{candidate.count(old)}x {old.splitlines()[0].strip()!r}"
+                for old, _new in anchors
+            )
             print(
-                f"[{name}] anchor found {hits} time(s), expected exactly 1; "
-                "skipping this patch"
+                f"[{name}] no candidate anchor matched exactly once "
+                f"({counts}); skipping this patch"
             )
             continue
 
+        old, new = hit
         before = candidate
         candidate = candidate.replace(old, new)
         try:
