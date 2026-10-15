@@ -171,9 +171,13 @@ back into this lane first** — while it sits in `attic/`, the lane's validation
   applied to the installed module). Its second defect fix (releasing the fastsafetensors device
   staging buffer) is not TP-only — the mod's own README measures ~26.9 GB retained at load on this
   recipe with the loader unfixed — so the shipped chain differs from the pre-promotion one at TP=1 as
-  well. The deliberate TP=2 boot on the free pair ([.34]/[.35]) is owned by the orchestrator this
-  window: **boot pending (orchestrator)**. The failure above belongs to the *unfixed* arm; no TP=2
-  result is claimed in this lane.
+  well. The deliberate TP=2 boot on the free pair ([.34]/[.35]) landed 2026-10-15 with the shipped
+  fix (**boots and serves**): decode C1 46.8 / C2 79.2 / C5 117.7 / C10 120.3 t/s (n=5, d0 pp2048
+  tg128, `bench_a09eb0ce2b85`, receipt `~/benchmarks/qwen3-27b-tp2-20261015/`); the failure above
+  belongs to the *unfixed* arm. TP=2 grants the full `max_num_seqs` 48 — the recovered admission line
+  is `max_total_num_tokens=1815619`, no `capped to`. That receipt is benchmark-only (no house battery
+  or contract verdict), and the boot ran the then-unpinned `dev-cu13` tag (the digest pin landed
+  after it, `4ef53ad`).
 - **`--enable-linear-replayssm-spec`** — rejected; the scheduler raises
   `ValueError: --enable-linear-replayssm-spec with DSPARK/DFLASH requires a KDA (kimi_linear) model;
   got a non-KDA model` **after both weight loads** (`kv_cache_configurator.py:1106-1114`) — a full

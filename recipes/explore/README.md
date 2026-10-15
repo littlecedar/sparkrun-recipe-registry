@@ -5,8 +5,8 @@ this lane (**accuracy decides; smaller and faster preferred**, 2026-10-13 — su
 node-count→speed default). Every arm here is single-node (TP=1). The lane ships the two selected
 recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measured arms added
 2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
-owner on 2026-10-15 and built but not yet booted** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
-collection, so outside the ranking) — **boot-verified 2026-10-15** (its index row carries the ladder and
+owner on 2026-10-15 and boot-verified the same day** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
+collection, so outside the ranking) — its index row carries the ladder and
 the 36/37 house battery, and it is the first single-node text arm with C2/C5/C10 filled); the LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
@@ -175,7 +175,10 @@ vLLM · **1 node (TP=1)** · built + **boot-verified 2026-10-15** · index row p
   **no mods** and no registry-clone refresh. **Thinking is ON by default** (the template writes the empty
   think block only for `enable_thinking: false`): callers must budget a large `max_tokens` or a truncated
   reasoning run arrives with an empty `content`. `--reasoning-parser qwen3` (the card's choice; vLLM has
-  no `mellum` parser) splits ` thinking` … ` response` into `reasoning_content`, and
+  no `mellum` parser) targets the template's own think form, but whether it actually lifts
+  the trace into `reasoning_content` on this arm is **unverified** — the receipt's contract artifact
+  reports `reasoning_len: 0` against `usage.reasoning_tokens: 58` (see
+  [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md) §6.2) — and
   `--enable-auto-tool-choice --tool-call-parser hermes` parses the template's
   `<tool_call>{"name": …, "arguments": …}</tool_call>` form (tool results return as a
   `<tool_response>` user turn). No draft/speculative decode: the card names the MTP head "coming soon".

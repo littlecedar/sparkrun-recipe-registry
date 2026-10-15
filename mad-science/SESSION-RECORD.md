@@ -286,22 +286,41 @@ takes no index row. Two claims were corrected as **route-scoped** rather than gl
 false}` is the switch that fills `content` — the recipe now ships the working value.
 
 **Registry-wide.** An advisory pass (OSV queries plus a version bisect against upstream release dates)
-found the pinned stacks clean: sglang's dev build (source `4ccff141db`, 2026-09-07) postdates `0.5.13`
-— the only release with zero advisories — and the cybersec vLLM nightly (`0.32.0rc1.dev161`) carries
-none; no recipe passes `--enable-custom-logit-processor` or runs router/disaggregation mode, so the
-unreachable-surface advisories do not apply. Two hygiene items were opened instead: six explore arms
-ride vLLM v0.29.0 (23 advisory records / 16 distinct CVEs, none rated HIGH or CRITICAL, all fixed in
-0.30.0) and ten recipes ride three moving tags whose resolved digest no receipt records. The qwen3 27B
-arm was pinned to the digest its own suite receipt names (`@sha256:0a1ba33a…`), which is the image ID
-those nodes hold for the rebuilt tag.
+found the pinned stacks clean: sglang's dev build (source `4ccff141db`, 2026-09-07) postdates every
+affected release (newest affected bound `0.5.12`, 2026-05-16; first clean 0.5.x release is
+`0.5.12.post1`, 2026-05-23 — the dev version string matches 14 of the 20 advisories under OSV's
+all-version ranges, a PEP-440 artefact of `introduced: 0` ranges that is not merely unrated records:
+2 of the 14 are database-rated CRITICAL and 1 HIGH), and the cybersec vLLM nightly
+(`0.32.0rc1.dev161`) carries none; no recipe passes `--enable-custom-logit-processor` or runs
+router/disaggregation mode, so the unreachable-surface advisories do not apply. Two hygiene items were
+opened instead: six explore arms ride vLLM v0.29.0 (23 advisory records / 16 distinct CVEs, none rated
+HIGH or CRITICAL, all fixed in 0.30.0) and nine recipes ride three moving tags whose resolved digest
+no receipt records. The qwen3 27B arm was pinned to the digest its own suite receipt names
+(`@sha256:0a1ba33a…`), which is the image ID those nodes hold for the rebuilt tag.
 
 Review feedback that changed artifacts, kept here because the method matters more than the fix: a
 row-level table-width check must cover *every* line between the fences (my first one sampled a slice
 and passed a row that had landed in the wrong table with a broken column); a severity claim must not
-outrun its query ("none rated HIGH or CRITICAL" is not "all LOW/MODERATE" when 16 of 23 records are
-unrated); and a measurement that contradicts three carriers gets corrected in all three deliberately
+outrun its query ("none rated HIGH or CRITICAL" is not "all LOW/MODERATE" when 16 of 23 records
+carry only a top-level CVSS vector, no database-level rating); and a measurement that contradicts three
+carriers gets corrected in all three deliberately
 rather than in one silently.
 
 Open at close: the GLM TP=4 boot, cybersec arm 4's vLLM boot, and the ornith YaRN gate; the register
 holds 42 open items with no `[x]` rows, this entry's completed ones having been archived to
 `attic/DONE.md`.
+
+**Node hygiene (2026-10-15 closeout).** `.34`, `.35` and the head all stand at 0 containers / 0
+volumes; the head's one container is the peer's ds4 TP=4 job (`a4c699c1299bbbdf…`, `.30`–`.33`),
+untouched. Head `/tmp` holds only the read-only `storage_census*.sh` scripts the storage census cites;
+receipts are kept, and so are both harness copies (`~/benchmarks/tp2-window.sh` md5
+`9d9b1f7285069a1926bbb2e3e47a8664`, `~/benchmarks/cybersec/nex-vllm-boot.sh` md5
+`997aa02e0576037ac462d9dd3a72b0a9`). Left in place, all <72 h, named here so a basename-grep sweep
+reads them as known rather than litter: `.35` `~/benchmarks/mellum-20261015/` (`image-pull.log`,
+`weights-fetch.log` — the Mellum boot's pre-stage pull records); `.34` `~/benchmarks/` root
+`c1-decode.json`, `c1.log`, `run-c1.sh` and `dspark-receipts/` (2026-10-13 ornith/glm53-night ad-hoc
+files, not this window's); both nodes' `~/benchmarks/_prefetch-20261015/` (cybersec weight pre-stage,
+cited by the register's bulky-weight item) and `~/benchmarks/_image-pulls-20261015/` (nex image pulls).
+One hazard also stays in place: the d1 receipt's `d1-run-20261015-105008.story` on the head embeds the
+raw HTTP-400 body containing the DeepSeek image special token — never `cat` it; run
+`tools/safe_text.py` on a copy if it ever needs extraction.

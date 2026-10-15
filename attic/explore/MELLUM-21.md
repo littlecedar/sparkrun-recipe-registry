@@ -1,4 +1,4 @@
-# Mellum2.1-12B-A2.5B-Thinking — Explore-lane arm bring-up (built 2026-10-15, boot pending)
+# Mellum2.1-12B-A2.5B-Thinking — Explore-lane arm (built and boot-verified 2026-10-15)
 
 Per-arm record for [`recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
 Companion to [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md) (the lane's ranked candidate
@@ -17,9 +17,9 @@ decides; smaller and faster preferred", 2026-10-13), has no §1 shortlist row an
 - card <https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking>
 - GGUF card <https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF>
 
-Nothing in this arm has been booted, benchmarked or needle-probed — the entire "what the first boot must
-prove" list in §6 is open. It carries no `recipes/README.md` index row until that boot receipt exists
-(the lane's shipped rule: *shipped = bootable and usable*).
+**Booted and benchmarked 2026-10-15** (one boot on `.35`, receipt `~/benchmarks/mellum-20261015/`): the
+arm's `recipes/README.md` index row is back, per the lane's shipped rule (*shipped = bootable and
+usable*); §6 lists what the boot answered and what it did not.
 
 ## 2. The checkpoint (read from the pinned revision's own files)
 
@@ -152,7 +152,14 @@ the card's recommendation, MXFP4_MOE for the size/FP4 experiment), and treat the
 its own bring-up (image pin + template + reasoning-format questions) rather than as a variation of this
 one.
 
-## 6. What the first boot must prove (open questions, all of them)
+## 6. What the first boot had to prove — status after the 2026-10-15 boot
+
+The boot (§Boot receipt) settled the load question outright: the engine starts natively under the
+pinned image and the served id is the HF repo id. Not settled by it: **2** (the contract artifact's
+`reasoning_len: 0` against `usage.reasoning_tokens: 58` does not show whether `--reasoning-parser
+qwen3` filled `reasoning_content`), **3** (the tool round trip was never exercised), **4** (the
+engine's `GPU KV cache size` line — the serve-log capture gap), **5** (only a short `needle-1` probe
+ran, and it missed), and **6** (half: the house battery ran, the BFCL datapoint did not).
 
 1. **It loads.** The arch is in-tree at the pinned tag (§3) but this checkpoint has never been booted
    here: confirm the engine starts under the digest-pinned image with the pinned snapshot, and that
@@ -191,13 +198,13 @@ refresh is needed**; launch from the recipe's real path on the head with `--tran
   so the suggestion is not cleared).
 - `sparkrun run … -H <free node> -n` renders: weights 22.4 GiB, `gpu_memory_utilization` 0.55 → 66.6 GiB
   budget, KV space 44.2 GiB / ~827,593 tokens under the all-layers-full estimator, fit `UNVERIFIED`.
-- **No boot, no benchmark, no receipt.**
+- **No boot, no benchmark, no receipt** (as of this build; the 2026-10-15 boot receipt follows).
 
 ## Boot receipt (2026-10-15, `.35`)
 
-First boot, and the six open questions it was meant to answer resolved in one pass: the engine loads
-the checkpoint natively (no mod), the served id is the HF repo id with `max_model_len` 131,072, and
-thinking defaults ON as the template said. Decode ladder @ d0 pp2048 tg128 n=5: **C1 42.3 ± 0.1 /
+First boot — §6.1 is answered outright and §6.6 half-answered: the engine loads the checkpoint
+natively (no mod), and the served id is the HF repo id with `max_model_len` 131,072.
+Decode ladder @ d0 pp2048 tg128 n=5: **C1 42.3 ± 0.1 /
 C2 67.2 ± 0.6 / C5 99.9 ± 1.7 / C10 135.6 ± 1.1 t/s**; house battery **36/37** (easy 18/19 — the miss
 is `needle-1`; hard 18/18). Receipt `~/benchmarks/mellum-20261015/` (`launch.log`, `models.json`,
 `perf-ladder.{yaml,json,csv}`, `house.json`, `summary.json`). Known gap: the container was already
