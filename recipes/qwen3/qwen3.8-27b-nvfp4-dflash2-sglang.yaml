@@ -2,7 +2,9 @@ recipe_version: "2"
 model: RadixArk/Qwen3.8-27B-NVFP4
 model_revision: 319f741cce68d7914884900c138a1fbb70a42f30
 runtime: sglang
-container: lmsysorg/sglang:dev-cu13
+container: lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e032b8c5bcebdc69c45664074c032074add4f7db01629ec1fcc381
+  # Pin the build, not the branch: this tag is rebuilt upstream (nightly-dev-20261015-a6a8c560
+  # was pushed hours before this pin) and the mod below anchor-checks the engine it patches.
 cluster_only: false
 
 metadata:
