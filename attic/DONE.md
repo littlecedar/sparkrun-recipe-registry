@@ -6,6 +6,9 @@ same-day sweep of the `**DONE 2026-10-13**` items (the glm5 TP=4 window and the 
 A second sweep followed on 2026-10-14: that session's completed items (General Registry Maintenance,
 ds4, glm5, ornith, qwen3, qwen4, ifm, decision, explore, cybersec) plus the session scaffolding were
 archived here, copied verbatim — nested `*(Owner decision …)*` notes included.
+A third sweep followed on 2026-10-15: that session's completed items (plus a second pass the same
+night for the overnight slices) are archived under `# 2026-10-15 sweep` below, each copied verbatim
+with a closing note where a follow-up re-measurement finished it.
 Live planning stays in `mad-science/TODO.md`; dated session records live in
 `mad-science/SESSION-RECORD.md`.
 
@@ -256,4 +259,7 @@ under the same per-lane headings.
 
 ## decision
 - [x] **Productize the clef+Kai ensemble (+1.3 pt, McNemar p=0.012)** *(done 2026-10-15: `tools/decision-ensemble.py` serves the rule as one `/v1/systemone` model (one advertised id — the two-id version sent tool-eval-bench into an interactive loop and a 3.7 GB log) and `tools/decision-ladder.py` gives the lane its concurrent `req/s` ladder; offline 71.6 % (1432/2000, +63/−37, p=0.012) reproduced on fresh boots and served end-to-end 71.7 % (1433/2000, the +1 an exact tie); clef 4.89/5.11/5.16/5.51 and Kai 0.187/0.186/0.156/0.128 req/s — both arms serial. No profile by mechanism (`tool-eval-bench modes do not provide scheduled JSON artifacts`) and no ensemble recipe (one model per launch). Receipts `~/benchmarks/decision-ensemble-20261015/`; commit `a73b7bb`.)* — a statistically real gain that exists only as a one-off analysis: no ensemble recipe/server and no benchmarking profile to reproduce it (`recipes/decision/README.md:199-241`). *(effort: medium)*
+
+## rerank
+- [X] **8B reranker residency — DECIDED 2026-10-15: keep shipped, no pre-cache** — `qwen3-vl-reranker-8b-vllm-b12x` stays a shipped recipe (primary index + lane README) as the deliberate non-`fast` quality tier (~4× slower per scored document than the 2B) and is **not** pre-cached: the +16 GB/node is a cold-fetch cost, not a residency. Residual work: write that position into `recipes/rerank/README.md` and `attic/rerank/AGENTS.md` §8B so the question cannot reopen. *(Owner decision 2026-10-15: keep shipped, do not cache.)* (`recipes/rerank/README.md` §Shipped recipes; `attic/rerank/AGENTS.md` §8B reranker (quality tier)) *(effort: short)* **Closed 2026-10-15:** the position is now recorded in `recipes/rerank/README.md` (the 8B recipe's residency bullet) and `attic/rerank/AGENTS.md` §8B, so nothing is left open.
 
