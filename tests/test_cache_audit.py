@@ -224,8 +224,26 @@ class ReclaimVerdict(unittest.TestCase):
     def test_stale_tree_past_the_window_gets_the_guarded_sweep(self):
         tree = self._tree("deepseek-ai__DeepSeek-V4.1-Flash-db95f94c", "2026-10-10_13:59")
         self.assertEqual(audit.verdict(tree, self.keys)[0], "stale")
-        self.assertEqual(audit.reclaim_note(tree, "stale", self.now),
-                         "sparkrun setup prune-runtime-cache --hosts .NN --older-than 30")
+        note = audit.reclaim_note(tree, "stale", self.now)
+        # The stamp is 116 h old; `--older-than N` is a day count and `-mtime +N`
+        # matches only when the truncated age in days exceeds N, so 3 is the largest
+        # cutoff that still reaches this tree.  A 30-day note here would be inert.
+        self.assertIn("--older-than 3", note)
+        self.assertEqual(note,
+                         "sparkrun setup prune-runtime-cache --hosts .NN --older-than 3"
+                         "   # 116 h old; the cutoff is in DAYS")
+
+    def test_emitted_cutoff_is_reachable_for_the_tree_it_names(self):
+        # The property, not the spelling: whatever cutoff the note prints must be one
+        # that sparkrun's `-mtime +N` test actually matches for this marker.
+        for stamp, now, age in (("2026-10-10_13:59", self.now, 116.0),
+                                ("2026-10-03_14:09", self.now, 283.0),
+                                ("2026-10-12_08:00", self.now, 74.0)):
+            tree = self._tree("deepseek-ai__DeepSeek-V4.1-Flash-db95f94c", stamp)
+            note = audit.reclaim_note(tree, "stale", now)
+            cutoff = int(re.search(r"--older-than (\d+)", note).group(1))
+            self.assertGreater(int(age // 24), cutoff, note)
+            self.assertLessEqual((cutoff + 1) * 24, age, note)
 
     def test_superseded_but_warm_is_held_back(self):
         tree = self._tree("deepseek-ai__DeepSeek-V4.1-Flash-9a74d993", "2026-10-13_11:13")
