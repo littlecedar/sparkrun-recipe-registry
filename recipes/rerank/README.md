@@ -106,6 +106,21 @@ These recipes serve a **cross-encoder**, and getting that wrong is silent.
   the knob rationale, and the pre-split evidence docs are in
   [`../../attic/rerank/AGENTS.md`](../../attic/rerank/AGENTS.md).
 
+**Measuring it is a separate contract — and no standard profile can do it.** Pointed at a
+pooling endpoint, `llama-benchy` fails its first task (`Warmup failed: HTTP 404`, exit 1) and
+sparkrun ends the run as `Error: Benchmark incomplete` — measured 2026-10-15 on the installed
+stack (sparkrun 0.4.0, llama-benchy 0.4.0), so a `benchmarking/*.yaml` profile against these
+recipes is an error, never a number (`tools/README.md` §pooling-bench.py). The 2B's **119.29**
+and the 8B's **28.76** units/s quoted above are `units / wall_seconds` from
+`tools/pooling-bench.py` runs at the shape those rows name — C8, 10 docs/query, 128
+tokens/document — specifically `.scratch/embed/solo-rr34-c8.json` (1000 units / 8.383 s) and
+`.scratch/embed/ctrl-8b-rerank-solo.json` (500 units / 17.383 s), not from a
+`benchmarking/*.yaml` profile. The same instrument is now reachable from `sparkrun` itself as
+`framework: pooling-bench` with `kind: rerank` and `docs_per_query`, via
+[`plugins/pooling_bench_framework.py`](../../plugins/pooling_bench_framework.py)
+(an out-of-tree plugin: it registers only after the one-line `plugins.paths` opt-in
+documented there).
+
 ## Attic index
 
 Everything that is not a shipped-recipe fact lives in [`attic/rerank/`](../../attic/rerank/).

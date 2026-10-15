@@ -63,6 +63,7 @@ Load-bearing contracts:
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
 | `tests/` | 20 importable guard modules, one skipped `*.sync-conflict-*.py` |
 | `tools/` | 15 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
+| `plugins/` | One module, `pooling_bench_framework.py`: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/). |
 | `benchmarking/` | 33 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
@@ -92,8 +93,8 @@ H=$PWD/.local/sparkrun-home
 uv run python -B -m unittest discover -s tests
 for f in recipes/*/*.yaml; do HOME="$H" sparkrun recipe validate "$f" >/dev/null; done
 for s in mods/*/*.sh recipes/*/mods/*/*.sh; do bash -n "$s"; done
-for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py; do uv run python -m py_compile "$p"; done
-find mods recipes tools tests -name __pycache__ -type d -exec rm -rf {} +
+for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run python -m py_compile "$p"; done
+find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
 ```
 
 - **Plain `validate` is the gate, not `--strict`**: all 32 pass plain; 4/32 fail strict on
@@ -127,6 +128,14 @@ HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarki
   --output out.yaml          # flags: --solo --skip-run --no-stop --fresh --resume --timeout
 HOME="$H" sparkrun tune sglang <recipe> -H <host>   # or: tune vllm
 ```
+
+The embed/rerank lanes are hostile to that command — a pooling engine has no
+`/chat/completions`, so `llama-benchy` fails its first task and the run ends
+`Error: Benchmark incomplete` (measured 2026-10-15). Their ladder is
+`sparkrun benchmark pooling <recipe> --profile <pooling profile>` (or `benchmark run`, which
+takes the framework from the profile) once the repo's `plugins/` dir is on `plugins.paths`;
+read `tools/README.md` §pooling-bench.py + §plugins/ before re-deriving which command owns a
+pooling number.
 
 Remote GPU work is SSH to `${WOPR_HEAD_NODE}` as `${WOPR_USERNAME}`; run `sparkrun` from
 `${WOPR_RUN_FROM_DIR}` with in-progress recipes symlinked from `${WOPR_SRC_DIR}`. Cluster mod
@@ -300,7 +309,9 @@ matching.
 - `tools/README.md` — tool index; documents all 15 tools (`safe_text.py` added 2026-10-07 and the
   standard-suite trio 2026-10-15; the three before `safe_text.py` describe behaviour and caveats only
   — this repo records measured results next to the arm that produced them, e.g.
-  `attic/qwen4/status/*.md`).
+  `attic/qwen4/status/*.md`), plus §plugins/ for the out-of-tree pooling `BenchmarkingPlugin` that
+  lives in `plugins/` — including why a registry cannot ship one and the exact command that carries
+  a pooling number.
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
 ## Runtime/Tooling Preferences
@@ -315,14 +326,18 @@ matching.
   pytest/ruff/black/mypy configuration anywhere (`.ruff_cache/` on disk is leftover). Linting is
   syntax checks only: `bash -n`, `py_compile`, `sparkrun recipe validate`.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
-  dependency there.
+  dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
+  there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.
 - Mods are bash + stdlib Python; in-container installs use
   `pip install --force --break-system-packages` or `uv pip install` with `UV_LINK_MODE=copy`.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **539 tests,
-  all passing 2026-10-15 (1 skipped)**. The K2 MoVA-36B lane's 64-test guard lives in
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **605 tests,
+  all passing 2026-10-15 (2 skipped: the IFM research docs absent on a fresh clone, and the
+  pooling guard's real-`sparkrun` case, which runs only where sparkrun is importable)**. The
+  count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it.
+  The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.

@@ -14,6 +14,22 @@ line in its lane's `ARMS-MANIFEST.md`.
 One profile drives a different framework: `standard-suite.yaml` is a **tool-eval-bench** profile for
 `sparkrun benchmark tools` (see §Standard external suite).
 
+A third framework exists but is **not registered by default**: `framework: pooling-bench` drives
+`tools/pooling-bench.py` against a pooling engine (`/v1/embeddings`, `/v2/embed`, `/v1/score`).
+The embed and rerank lanes have no chat endpoint at all, so no llama-benchy profile can measure
+them — pointed at one, llama-benchy fails its first task and the run ends as
+`Error: Benchmark incomplete` (measured 2026-10-15; `tools/README.md` §pooling-bench.py). The
+framework is an out-of-tree `BenchmarkingPlugin`
+(`plugins/pooling_bench_framework.py`), so it needs the two-line sparkrun opt-in
+written down in `tools/README.md` §plugins/…, and — because a **pinned category
+subcommand sets the framework before the profile is read** — a pooling profile must be run as
+either `sparkrun benchmark pooling <recipe> --profile <pooling profile>` or
+`sparkrun benchmark run <recipe> --profile <pooling profile>`. Run it through
+`benchmark performance` instead and the profile's `framework:` key is ignored and llama-benchy
+gets pooling args: measured 2026-10-15, that run ends `Error: Benchmark incomplete` rather than
+reporting a number, and `--framework pooling-bench` under that category is refused outright
+(`Error: Framework 'pooling-bench' is not registered for category 'performance'`).
+
 ---
 
 ## Rules that matter more than any individual profile

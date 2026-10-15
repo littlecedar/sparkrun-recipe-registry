@@ -99,9 +99,13 @@ correct embed.**
 
 Two caller forms are supported by these recipes as written:
 
-1. **chat form** — `{"input": {"messages": [{"role": "system", "content":
-   "Represent the user's input."}, {"role": "user", "content": "..."}]}}`
-   applies the model's ChatML template; matches Qwen's published vLLM example.
+1. **chat form** — `{"input": [{"role": "system", "content": "Represent the user's input."},
+   {"role": "user", "content": "..."}], "encoding_format": "float"}`
+   applies the model's ChatML template; matches Qwen's published vLLM example. `input` is a
+   **list of messages**, not `{"messages": [...]}` — the pinned vLLM's
+   `EmbeddingChatInputRequest` declares `input: list[ChatCompletionMessageParam]` and rejects
+   the nested form with a 400 listing every `EmbeddingCompletionRequest` alternative
+   (`tools/pooling-bench.py`, `build_embed_request`).
 2. **`POST /v2/embed`** with `{"texts": [...], "input_type": "default"}`
    makes vLLM prepend the checkpoint's own instruction for you.
 
@@ -109,6 +113,20 @@ The two are **not** byte-identical prompts (system message vs prefix); pick one 
 comparing retrieval quality, not before. Pair the choice with a smoke test against the
 endpoint you actually serve — [`tools/pooling-bench.py`](../../tools/pooling-bench.py)
 checks dimension, distinct-inputs, and repeat-stability, not just the status line.
+
+**Measuring the lane is a separate contract from serving it.** No standard benchmark profile
+can measure a pooling engine: against one, `llama-benchy` fails its first task
+(`Warmup failed: HTTP 404`, exit 1) and the run ends as `Error: Benchmark incomplete` —
+measured 2026-10-15 on the installed stack (sparkrun 0.4.0, llama-benchy 0.4.0), so a
+`concurrency-ladder.yaml` run against this lane is an error and never a number
+(`tools/README.md` §pooling-bench.py). The lane's `units/s` numbers
+(`attic/embed/AGENTS.md`) come from `tools/pooling-bench.py` at named concurrency points —
+the C1/C4/C8/C16/C32 sweep at `--requests 100 --input-tokens 256 --mode embed-v1-chat`
+(`.scratch/embed/csweep8b-order1-c*.json`). The same instrument is now reachable as a
+sparkrun framework, `framework: pooling-bench` via
+[`plugins/pooling_bench_framework.py`](../../plugins/pooling_bench_framework.py),
+which is out-of-tree and therefore registers only after the one-line `plugins.paths` opt-in
+documented there.
 
 ## Attic index
 
