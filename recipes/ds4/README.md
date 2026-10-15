@@ -203,10 +203,14 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   1048576-token window*"); 1,048,576 = YaRN `65536 × 16`. **Concurrency and
   per-stream context trade off:** `--parallel 4` streams share one window, one
   stream may use the whole 1M, and four coexist only up to ~250K tokens each.
-- **Vision is shipped, behind the launcher's `--vision` flag — and this recipe passes
-  it.** An `image_url` part is answered (the recipe carries the `vision` tag); the engine
-  loads the DeepSeek-ViT tower on rank 0 (+0.90 GiB). The second half of the change is the
-  MoE gates' 43-tensor `ffn.gate.bias_vl` VL-routing bias, which the EXL3 pack omits:
+- **Vision is shipped behind the launcher's `--vision` flag — and the engine runs it; the
+  HTTP surface still refuses image requests.** The recipe carries the `vision` tag and the
+  engine loads the DeepSeek-ViT tower on rank 0 (+0.90 GiB); the 2026-10-15 boot log shows
+  `VL bias for 43 gates` and a real-image warm-up, but an `image_url` part on
+  `/v1/chat/completions` returns **HTTP 400 from the chat template** ("Message content
+  contains image…") while text passes — the remaining gate is the served template, not the
+  launcher (`attic/ds4/AGENTS.md` §12.14 has the receipt). The second half of the change is
+  the MoE gates' 43-tensor `ffn.gate.bias_vl` VL-routing bias, which the EXL3 pack omits:
   `vl_bias.safetensors` ships **inside `@littlecedar/mods/tensorfold-dsv41-launcher`**,
   beside the launcher that points `TF_DS_VISION_EXTRA` at its own directory and **fails the
   launch closed** if the file is missing (the engine would only warn and route image tokens
