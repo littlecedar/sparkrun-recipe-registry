@@ -4,9 +4,11 @@ Frontier reasoning + tool-calling models for one DGX Spark node, selected by the
 this lane (**accuracy decides; smaller and faster preferred**, 2026-10-13 — supersedes the registry's
 node-count→speed default). Every arm here is single-node (TP=1). The lane ships the two selected
 recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measured arms added
-2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`); the LTX-2.5 video
-arm ships as a runbook. Everything else — measured histories, selection receipts, serving traps and
-the full candidate research — lives in [`attic/explore/`](../../attic/explore/) (index below).
+2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
+owner on 2026-10-15 and built but not yet booted** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
+collection, so outside the ranking); the LTX-2.5 video arm ships as a runbook. Everything else — measured
+histories, selection receipts, serving traps and the full candidate research — lives in
+[`attic/explore/`](../../attic/explore/) (index below).
 
 ## Contents
 
@@ -16,6 +18,7 @@ the full candidate research — lives in [`attic/explore/`](../../attic/explore/
 - [poolside-laguna-s-2.1-nvfp4-dflash-vllm](#poolside-laguna-s-21-nvfp4-dflash-vllm)
 - [humanizer-12b-vllm](#humanizer-12b-vllm)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
+- [mellum2.1-12b-a2.5b-bf16-thinking-vllm](#mellum21-12b-a25b-bf16-thinking-vllm)
 - [LTX-2.5 ComfyUI runbook (not a recipe)](#ltx-25-comfyui-runbook-not-a-recipe)
 - [Attic index](#attic-index)
 
@@ -150,6 +153,42 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   +3.5 s; same prompt+seed → a byte-identical PNG.
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 
+## [mellum2.1-12b-a2.5b-bf16-thinking-vllm](mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml)
+
+vLLM · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing measured, no index row yet**.
+
+- **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking` (Apache-2.0, ungated) — 12B total / 2.5B active MoE
+  (64 routed experts, 8 per token), 28 layers, 32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding
+  window 1,024 on 3 of every 4 layers (7 full-attention, 21 sliding) with YaRN factor 16 over 8,192 on the
+  full layers; pinned `92ddae9f…` (`main`, 2026-10-07). **Owner-added 2026-10-15** from the
+  `JetBrains/mellum21` collection, so it sits above the lane's ranked list and carries no ranking.
+- **Size / memory:** 24.3 GB bf16 (24,301,065,318 B, 5 shards); 22.4 GiB of weights to the engine.
+  `gpu_memory_utilization: 0.55` → 66.6 GiB budget, deliberately below the 0.85 ceiling: the weights are
+  ~22.4 GiB of a ~121 GiB pool and a hybrid-SWA context is cheap, so the arm keeps ~55 GiB of node
+  headroom. sparkrun's render estimate (7.0 GiB KV demand at 131,072, **all 28 layers assumed to cache the
+  full window** — it ignores the 3:1 sliding structure) is not the engine's number; the serve log's
+  `GPU KV cache size` line is.
+- **Flags / non-obvious knobs:** vLLM 0.29 carries the architecture natively — `MellumForCausalLM` is a
+  Qwen3-MoE subclass whose decoder layer picks the attention type per `config.layer_types[idx]` and reads
+  RoPE as `config.rope_parameters[layer_type]`, i.e. exactly this checkpoint's shape — so the arm needs
+  **no mods** and no registry-clone refresh. **Thinking is ON by default** (the template writes the empty
+  think block only for `enable_thinking: false`): callers must budget a large `max_tokens` or a truncated
+  reasoning run arrives with an empty `content`. `--reasoning-parser qwen3` (the card's choice; vLLM has
+  no `mellum` parser) splits ` thinking` … ` response` into `reasoning_content`, and
+  `--enable-auto-tool-choice --tool-call-parser hermes` parses the template's
+  `<tool_call>{"name": …, "arguments": …}</tool_call>` form (tool results return as a
+  `<tool_response>` user turn). No draft/speculative decode: the card names the MTP head "coming soon".
+- **Client-side contract:** the card's sampling point is temperature 0.6 / top_p 0.95 / top_k 20 with
+  `max_tokens` up to 81,920 (thinking + answer). The recipe sets **no** server-side sampling default —
+  the checkpoint's `generation_config.json` carries only bos/eos, so there is nothing to protect with
+  `--generation-config` (unlike `humanizer`).
+- **Measured:** **none.** No C1/d8k, no house battery, no needle probe, no boot. Card numbers
+  (self-reported by JetBrains, unverified here): LiveCodeBench v6 82.0, SWE-bench Verified 47.0,
+  BFCL v4 62.3, MMLU-Redux 87.8.
+- **Licence:** Apache-2.0.
+- **Details (provenance, the GGUF-route decision, the six open boot questions):**
+  [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md).
+
 ## LTX-2.5 ComfyUI runbook (not a recipe)
 
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) ships as a
@@ -171,6 +210,7 @@ state, measured histories, selection receipts, serving traps, and the candidate 
 | [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) | The read-only research pass: 8 candidate families (§1), top-3 sequencing (§2), corrections to `mad-science/EXPLORE-CANDIDATES.md` (§3), the battery note (§4), and per-arm GB10 evidence + verification checklists for the Laguna family (§5), the media-gen arms (§6) and `humanizer` (§7). Answers "what else could this lane serve, and on what precedent?" |
 | [`LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up notes: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. Answers "how was the LTX-2.5 runbook measured, and what did it cost?" |
 | [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the licence banner, engine/venv design decisions, the §6 acceptance table, and the two mod defects found. Answers "how was the eval-only image arm built and verified?" |
+| [`MELLUM-21.md`](../../attic/explore/MELLUM-21.md) | Mellum2.1-12B bring-up: the owner-added collection provenance, the checkpoint/chat-template facts read at the pin, why vLLM 0.29 needs no mod, the revision resolution, the **GGUF/llama.cpp route decision (recorded, not shipped)** and the six open boot questions. Answers "why does a JetBrains model use the `qwen3` reasoning parser, and what must the first boot prove?" |
 | [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | Manifest of the archived (measured-but-not-selected) Explore recipes with the selection ranking and the archive criterion/policy. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | Archived recipe — a variant of the 262k arm testing the card's 1M-context claim at util 0.91. Frozen provenance — do not retune. |
