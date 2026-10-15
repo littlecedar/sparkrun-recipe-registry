@@ -55,6 +55,7 @@ documented in comments).  Comments are stripped before anything reads a block
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -65,6 +66,7 @@ RECIPE_DIR = REPO_ROOT / "recipes" / "ornith"
 NINE_B = RECIPE_DIR / "ornith-1.5-9b-nvfp4-dflash-sglang.yaml"
 THIRTY_FIVE_B = RECIPE_DIR / "ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml"
 FORTY_NINE_SEVEN_B = RECIPE_DIR / "littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml"
+YARN_1M = RECIPE_DIR / "ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml"
 
 NINE_B_REPO = "ornith-ai/Ornith-1.5-9B-NVFP4"
 NINE_B_DRAFT = "ornith-ai/Ornith-1.5-9B-DFlash"
@@ -103,10 +105,28 @@ def parse(path: Path) -> dict:
     defaults: dict[str, str] = {}
     mods: list[str] = []
     command = ""
+    fold_key = None
+    fold_parts: list[str] = []
     section = None
+
+    def flush_fold():
+        """Close a folded `defaults:` scalar (`key: >-`) into one line."""
+        nonlocal fold_key
+        if fold_key is not None:
+            defaults[fold_key] = " ".join(fold_parts)
+            fold_key = None
+            fold_parts.clear()
+
     for line in text.splitlines():
         if not line.strip():
             continue
+        if fold_key is not None:
+            # A deeper-indented line continues the folded scalar; anything else
+            # (a fresh `  key:` at 2 spaces, a top-level key, a list item) ends it.
+            if len(line) - len(line.lstrip()) >= 4:
+                fold_parts.append(line.strip())
+                continue
+            flush_fold()
         if not line.startswith(" ") and ":" in line:
             key, _, val = line.partition(":")
             key, val = key.strip(), val.strip()
@@ -124,11 +144,16 @@ def parse(path: Path) -> dict:
             if stripped.startswith("- "):
                 continue
             key, _, val = stripped.partition(":")
-            defaults[key.strip()] = _unquote(val)
+            key, val = key.strip(), val.strip()
+            if val in (">", ">-", "|", "|-", "|+"):
+                fold_key = key          # the value is the lines below this one
+                continue
+            defaults[key] = _unquote(val)
         elif section == "mods" and line.strip().startswith("- "):
             mods.append(_unquote(line.strip()[2:]))
         elif section == "command":
             command += " " + line.strip()
+    flush_fold()
     return {"top": top, "defaults": defaults, "mods": mods,
             "command": command.strip(), "stripped": text,
             "raw": path.read_text(encoding="utf-8")}
@@ -396,6 +421,106 @@ class FlagshipContainerIsDigestPinned(unittest.TestCase):
         self.assertIn("@sha256:", container, "container must be digest-pinned")
         self.assertTrue(container.startswith(
             "ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:"))
+
+
+class YarnOneMillionArmShape(unittest.TestCase):
+    """The YaRN ~1M arm (attic §9): three load-bearing properties, each silent when broken.
+
+    1. The override must nest under `text_config.rope_parameters` — a flat rope key is
+       silently ignored (sglang v0.5.18 `configs/model_config.py:328-330` reads
+       `hf_text_config.rope_parameters`; measured on this fleet: flat -> `default`).
+    2. It must restate every rope key, because the override REPLACES that dict
+       (`utils/hf_transformers/config.py:266-275` -> `PretrainedConfig.update`, a setattr
+       loop) — dropping `mrope_section` also drops the model out of its M-RoPE path
+       (`model_config.py:332-336`).
+    3. `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1` is required: the build RAISES above
+       the derived 262144 instead of warning (`model_config.py:819-843`).
+    """
+
+    ROPE_KEYS = ("rope_type", "factor", "original_max_position_embeddings",
+                 "rope_theta", "partial_rotary_factor", "mrope_section",
+                 "mrope_interleaved")
+
+    def setUp(self):
+        self.r = parse(YARN_1M)
+
+    @staticmethod
+    def _override_json(text: str) -> dict:
+        """The `--json-model-override-args` payload, parsed (raises if absent/bad)."""
+        m = re.search(r"--json-model-override-args '(\{.*\})'", text, re.S)
+        assert m, "--json-model-override-args with a single-quoted JSON object not found"
+        return json.loads(m.group(1))
+
+    def _rope_violations(self, override: dict) -> list[str]:
+        rope = override.get("text_config", {}).get("rope_parameters")
+        if not isinstance(rope, dict):
+            return ["rope_parameters not nested under text_config"]
+        bad = [k for k in self.ROPE_KEYS if k not in rope]
+        if rope.get("rope_type") != "yarn":
+            bad.append("rope_type != yarn")
+        return bad
+
+    def test_the_override_reaches_the_rendered_command(self):
+        rendered = render(self.r)
+        self.assertIn("--json-model-override-args '{\"text_config\"", rendered)
+        rope = self._override_json(rendered)["text_config"]["rope_parameters"]
+        self.assertEqual(rope["rope_type"], "yarn")
+        self.assertEqual(rope["factor"], 4.0, "the card's factor, not the window ratio")
+        self.assertEqual(rope["original_max_position_embeddings"], 262144)
+        self.assertEqual(self._rope_violations(self._override_json(rendered)), [])
+
+    def test_window_and_the_env_gate(self):
+        self.assertEqual(self.r["defaults"].get("max_model_len"), "1000000")
+        self.assertIn("--context-length 1000000", render(self.r))
+        self.assertRegex(self.r["stripped"],
+                         r"(?m)^  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: '1'$",
+                         "without the env gate the build raises at startup")
+
+    def test_no_draft_and_no_spec_flags(self):
+        stray = [k for k in self.r["defaults"] if k.startswith("speculative_")]
+        self.assertEqual(stray, [], f"the arm is draft-free; found {stray}")
+        rendered = render(self.r)
+        hits = re.findall(r"--speculative-[a-z-]+", rendered)
+        self.assertEqual(hits, [], f"draft flags on a draft-free arm: {hits}")
+        self.assertNotIn("DFlash", self.r["stripped"])
+
+    def test_pin_is_the_sibling_snapshot_and_is_forwarded(self):
+        pin = self.r["top"].get("model_revision", "")
+        self.assertRegex(pin, SHA40)
+        self.assertEqual(pin, parse(THIRTY_FIVE_B)["top"].get("model_revision"),
+                         "one checkpoint, one snapshot: the caches hold this SHA")
+        self.assertEqual(self.r["top"].get("model"), parse(THIRTY_FIVE_B)["top"].get("model"))
+        self.assertIn("--revision " + pin, render(self.r))
+        self.assertEqual(self.r["top"].get("container"),
+                         parse(THIRTY_FIVE_B)["top"].get("container"),
+                         "the 1M arm serves the same pinned engine build as its sibling")
+
+    def test_every_default_reaches_a_placeholder(self):
+        for key in self.r["defaults"]:
+            if key in ENGINE_PLACEHOLDERS:
+                continue
+            self.assertIn("{" + key + "}", self.r["command"],
+                          f"defaults key {key!r} is never referenced by a placeholder")
+
+    def test_negative_controls(self):
+        good = self._override_json(render(self.r))
+        self.assertEqual(self._rope_violations(good), [])
+        # A flat rope key: the spelling that silently does nothing.
+        flat = {"text_config": {"rope_type": "yarn", "factor": 4.0,
+                                "original_max_position_embeddings": 262144}}
+        self.assertEqual(self._rope_violations(flat),
+                         ["rope_parameters not nested under text_config"])
+        # Nested but incomplete: the dict is replaced wholesale, so the missing
+        # mrope keys would silently flip the model off the M-RoPE path.
+        partial = {"text_config": {"rope_parameters": {"rope_type": "yarn"}}}
+        self.assertEqual(sorted(self._rope_violations(partial)),
+                         sorted(["factor", "original_max_position_embeddings", "rope_theta",
+                                 "partial_rotary_factor", "mrope_section", "mrope_interleaved"]))
+        # Copying the sibling's draft block must trip the draft-free check.
+        drafted = parse(THIRTY_FIVE_B)
+        self.assertTrue([k for k in drafted["defaults"] if k.startswith("speculative_")])
+        self.assertTrue(re.findall(r"--speculative-[a-z-]+", render(drafted)))
+
 
 if __name__ == "__main__":
     unittest.main()
