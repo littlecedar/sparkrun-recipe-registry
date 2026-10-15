@@ -1,12 +1,15 @@
 # GLM 5.3 lane
 
-**This lane ships no recipe.** It is a **runbook + research archive**: two GLM-5.3 serving lines were
-boot-verified on this cluster, and a third was attempted and archived as a proven-negative — but none
-is a registry recipe, so nothing here is served by sparkrun. Its one recipe was archived 2026-10-13.
+**This lane ships one recipe**, `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` — the
+GLM-5.3-Flash EXL3 4bpw TP=4 line, the fastest arm measured here (98.4 t/s single-stream decode),
+**built but not yet booted as a sparkrun recipe** (needs a TP=4 window). It is otherwise a **runbook +
+research archive**: the other two serving lines were boot-verified on this cluster outside sparkrun,
+and a fourth was attempted and archived as a proven-negative.
 
 ## Contents
 
 - [Status](#status)
+- [Shipped arm](#shipped-arm)
 - [Boot-verified serving lines](#boot-verified-serving-lines)
 - [Licence](#licence)
 - [Runbook notes and revision pins](#runbook-notes-and-revision-pins)
@@ -15,18 +18,40 @@ is a registry recipe, so nothing here is served by sparkrun. Its one recipe was 
 
 ## Status
 
-- **No shipped recipe.** The lane's single recipe, `glm-5.3-flash-nvfp4-dflash-vllm.yaml`, was
-  **archived 2026-10-13** to [`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) as a proven-negative
-  arm (owner decision): it is repo B's independently validated TP=4 formula, image- and
-  checkpoint-pinned, but the pinned public image blocks it (its SM120 sparse-MLA backend forces an
-  `fp8_ds_mla` KV layout the NoPE-MLA checkpoint cannot use). Do not re-add it without a public image
-  that can serve this checkpoint. Full rationale: [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md),
+- **One recipe, boot deferred.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` realizes the
+  Flash EXL3 4bpw TP=4 line in the recipe schema: the engine image is the upstream `tp4` build,
+  digest-pinned, and the multi-node prepare/ssh/topology logic is replaced by sparkrun's own
+  distribution + rendezvous plus the lane's launcher mod
+  ([`mods/tensorfold-glm-exl3-launcher/`](mods/tensorfold-glm-exl3-launcher/README.md)). The engine,
+  checkpoint, drafter and configuration are the ones the 2026-10-13 trial boot-verified; the recipe
+  itself has **not** been booted — `.30`–`.33` were held by a peer's TP=4 job, and the lane's own line
+  needs all four. What a boot must settle is listed in the mod README §"Boot-deferred claims".
+- **One archived arm.** `glm-5.3-flash-nvfp4-dflash-vllm.yaml` was **archived 2026-10-13** to
+  [`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) as a proven-negative (owner decision): it is repo
+  B's independently validated TP=4 formula, image- and checkpoint-pinned, but the pinned public image
+  blocks it (its SM120 sparse-MLA backend forces an `fp8_ds_mla` KV layout the NoPE-MLA checkpoint
+  cannot use). Do not re-add it without a public image that can serve this checkpoint. Full rationale:
+  [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md),
   [`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md#from-recipesglmreadmemd-2026-10-14).
-- **Runbook-only serving lines.** Both live lines below are external launchers, not sparkrun recipes:
-  the multi-node prepare/ssh/topology logic is not expressible in the recipe schema, and one engine is
-  an unreleased fork branch installed editable at container start.
+- **Two runbook-only serving lines.** The EXL3 3.0bpw 753B line and the TP=2/TP=3 Flash topologies stay
+  external launchers: one engine is an unreleased fork branch installed editable at container start
+  (no image to pin), and the 2-/3-Spark topologies are not what this 4-node registry targets.
 - **Research** (checkpoint/engine/topology selection, measured numbers, licence traps) is in
   [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
+
+## Shipped arm
+
+| Recipe | What it is | Status |
+|---|---|---|
+| [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **Built, boot deferred — needs a TP=4 window.** |
+
+The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
+`unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
+prepared snapshot *path* via `{model}`, so there is no `--revision` for the validator to find
+(TensorFold's `serve` has no such flag — it resolves a directory). Two engine knobs the trial ran
+(`--parallel 8`, `--max-tokens 32768`, `--vision`) live in the mod, not the recipe, because they are
+the upstream launcher's production constants rather than per-launch choices; the mod README inventories
+them, and its `RECIPE_ENV` is upstream `scripts/config.sh` at TP=4.
 
 ## Boot-verified serving lines
 
@@ -42,7 +67,10 @@ One line each; full operator detail (serve commands, host overrides, receipts) i
   checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter
   `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`; TP=4 **C1 decode 98.4 t/s @ d0 / 99.4 @ d8k**, DFlash2
   acceptance 76.6 %, quality 37/37 on the house battery. Receipts:
-  `~/benchmarks/glm53-flash-exl3-tp4-trial-20261013/` (TP=2/TP=3 siblings).
+  `~/benchmarks/glm53-flash-exl3-tp4-trial-20261013/` (TP=2/TP=3 siblings). The **TP=4 line is now the
+  [shipped arm](#shipped-arm)** (the same engine image, checkpoint and drafter, launched by sparkrun);
+  TP=2/TP=3 stay runbooks — they are external script launchers, and the 2-/3-Spark topologies are not
+  what this 4-node registry targets.
 - **Flash NVFP4 / vLLM** — **ARCHIVED 2026-10-13**, proven-negative on the pinned public image; see
   [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md).
 
@@ -56,8 +84,25 @@ clause). Full map: [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-
 ## Runbook notes and revision pins
 
 The runbook bullets and the revision pins below move with the lane's research. The live copy is in
-[`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md) — **nothing in this lane is pinned into a recipe**,
-so a revive must re-stage weights (see the re-fetch costs under revision pins).
+[`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md).
+
+The Flash 4bpw line's three-part blocker is **closed** for the TP=4 arm — the "a recipe needs a baked
+image + a GLM variant of the launcher mod + a `runtime: sglang` shim" note in
+[`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md) was written before the engine image existed on GHCR:
+
+1. **the baked image** — not built here: the upstream `tp4` build is published
+   (`ghcr.io/miaai-lab/…@sha256:eb17e092…`, the digest upstream's own `prepare.sh` pulls, re-tagged
+   `tensorfold-glm53:v0.6.0` for the trial). Resolved and pinned in the recipe; see its comment for the
+   three checks that agree on it.
+2. **the launcher mod** — shipped: [`mods/tensorfold-glm-exl3-launcher/`](mods/tensorfold-glm-exl3-launcher/README.md).
+3. **the `runtime: sglang` shim** — shipped: the recipe's `command:` is the mod's launcher, which maps
+   sparkrun's `--dist-init-addr/--nnodes/--node-rank` onto `tensorfold serve`.
+
+What is **not** closed: a boot. The arm is built and renders; the runbook's measured numbers remain the
+external launcher's until a TP=4 window re-measures them through sparkrun.
+
+The other serving lines are unchanged: no shipped recipe, and a revive re-stages weights (see the
+re-fetch costs under revision pins).
 
 ## Revision pins
 
@@ -66,6 +111,13 @@ so a revive must re-stage weights (see the re-fetch costs under revision pins).
 checkpoint pins `078455ff` (`main` `76c0b517`), the EXL3 3.0bpw checkpoint is `7f057383` (`main`,
 ~273 GB/node re-fetch after the 2026-10-14 reclamation), the archived Flash NVFP4 pin `36c184c6` is
 gone from all nodes (`main` has moved to `18d55bfd`), and the TensorFold engine pin is `ddfad356`.
+
+The **shipped arm's** two pins (`Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`,
+`incoai/GLM-5.3-Flash-DFlash2@bf582e4e`) now live in the recipe (`model_revision:` and
+`defaults.speculative_draft_model_revision`), so they are what sparkrun re-stages on a launch; the
+pins above remain the runbook's. Verified 2026-10-15 against the Hub API: `078455ff` resolves
+(97 files, 2026-10-02) and DFlash2 `main` is still `bf582e4e`, and the engine image digest resolves
+from the cluster (a read-only `docker manifest inspect` from the head).
 
 ## Attic index
 
