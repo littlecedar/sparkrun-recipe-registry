@@ -1,0 +1,66 @@
+recipe_version: "2"
+model: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
+runtime: vllm
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a874b07dcd9df9f5ea776985b591cb3c213abd0e8ebe4a680e3e07214
+
+metadata:
+  description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark, on the vLLM route its card documents
+  model_url: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "35B"
+  model_dtype: nvfp4
+  kv_dtype: bf16
+  tags: fast, vision
+  caveats: >
+    Abliterated (refusal-direction removed) build of nex-agi/Nex-N2.5-mini, released "research use
+    only" by the uploader: it will comply with prompts the base refuses and the operator owns the
+    guardrails. Gated (gated: auto) - each node needs an HF_TOKEN with this repo's release accepted.
+    ENGINE ROUTE: the uploader documents only vLLM's CompressedTensorsW4A4 path, and the sibling
+    SGLang recipe serves this checkpoint's first generation into a CUDA device-side assert (NaN
+    sample-time logits); this arm is that vLLM path. vLLM's compressed-tensors loader maps the
+    export's `nvfp4-pack-quantized` group (NVFP4 weights + NVFP4 activations) onto
+    CompressedTensorsW4A4Fp4, verified in the pinned image 2026-10-15 (see
+    attic/cybersec/AGENTS.md 8). No boot receipt yet: the route is validated, not measured.
+
+mods:
+  - "@eugr/mods/drop-caches"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_seqs: 16
+  max_num_batched_tokens: 4096
+  quantization: compressed-tensors
+  # KV cache is NOT quantized in this build (routed experts only) -- keep it bf16.
+  kv_dtype: bfloat16
+  # This template gates thinking on `reasoning_effort`, NOT `enable_thinking`; left unset it
+  # emits  thinking and `content` comes back empty -- default it OFF for content-reading clients.
+  default_chat_template_kwargs: '{"reasoning_effort": "none"}'
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --trust-remote-code
+  --quantization {quantization}
+  --kv-cache-dtype {kv_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --enable-auto-tool-choice
+  --default-chat-template-kwargs '{default_chat_template_kwargs}'
+  {extra_args}

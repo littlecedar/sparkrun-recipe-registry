@@ -13,8 +13,8 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 - [Gating and the token prerequisite](#gating-and-the-token-prerequisite)
 - [`qwen3.8-27b-uncensored-nvfp4-sglang`](#qwen38-27b-uncensored-nvfp4-sglang) — arm 1, positive (TP=1)
 - [`qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang) — arm 2, positive (TP=1), overlay
-- [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative (TP=1)
-- [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative (TP=2)
+- [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative under SGLang; vLLM route unblocked (+ `nex-n2.5-mini-uncensored-nvfp4-vllm`)
+- [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative under SGLang; vLLM route unblocked (+ `qwen3.8-flash-next-uncensored-nvfp4-vllm`)
 - [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang) — arm 5, positive (TP=2), graft
 - [Attic index](#attic-index)
 
@@ -92,12 +92,19 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   head upstream. Runtime sglang, TP 1. Served id: the repo id. Recipe flag:
   `--default-chat-template-kwargs '{"reasoning_effort": "none"}'` (Nex gates thinking on
   `reasoning_effort`, not `enable_thinking`, and ships no `generation_config.json`).
-- **Negative under SGLang**: the checkpoint loads and the server reports ready, then the first
+- **Negative under SGLang**; **vLLM route unblocked 2026-10-15** (companion recipe
+  `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml`, which serves this checkpoint on the scheme its card
+  documents). Under SGLang the checkpoint loads and the server reports ready, then the first
   generation dies — NaN sample-time logits → CUDA device-side assert; with the override dropped
-  it serves degenerate empty / repeated-`!` text. The uploader documents only vLLM's
-  `CompressedTensorsW4A4`; that vLLM route is written and validated but blocked on **image
-  distribution** (~0.3 MB/s relay for one missing layer), not on the model. The recipe ships as
-  the documented negative; `metadata.caveats` names the gate. Full triage: attic AGENTS.md §8.
+  it serves degenerate empty / repeated-`!` text. The named gate was **image distribution**, and it
+  is resolved: the uploader documents vLLM's `CompressedTensorsW4A4`, the pinned vLLM image
+  (`ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…`) maps this export's
+  `nvfp4-pack-quantized` group — NVFP4 weights **and** NVFP4 activations — onto
+  `CompressedTensorsW4A4Fp4`, and that image is resident with an identical digest on the head,
+  `.34`, and `.35` (a direct `docker pull` by digest measured 76–142 MB/s on `.34`, not the
+  ~0.3 MB/s the relay streamed). **No boot receipt yet**: the route is validated, not measured, and
+  the checkpoint was reclaimed from every node's cache on 2026-10-14, so a boot re-fetches 23.9 GB.
+  Full triage and the container evidence: attic AGENTS.md §8.
 
 - `default_chat_template_kwargs '{"reasoning_effort": "none"}'` is required: this checkpoint's
   template gates thinking on `reasoning_effort`, not `enable_thinking` (`chat_template.jinja`
@@ -114,12 +121,22 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   n-gram tensor dominates the size), compressed-tensors NVFP4 experts + FP8 attention,
   weight-only, KV bf16, `qwen4_exp`. Runtime sglang, TP 2, `gpu_memory_utilization: 0.85`
   (~184 GB sits near the two-node 0.85 ceiling). Served id: the repo id.
-- **Negative**: SGLang's compressed-tensors loader maps the export's scheme to
-  `CompressedTensorsW4A16Sparse24` and refuses (`ImportError` at scheduler init) — a
-  **loader-scheme** failure, not memory, distribution, or the arch. The card's route is vLLM
-  (`qwen4_exp` + `compressed-tensors`), the next step; qwen4_exp support in our vLLM image is
-  unverified, and image distribution to these nodes was measured unusable. Pinning
-  `--quantization` to another value is **not** a fix to try blindly. Receipts: attic AGENTS.md §8.
+- **Negative under SGLang; vLLM route unblocked 2026-10-15** (companion recipe
+  `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`). SGLang's compressed-tensors loader maps the
+  export's scheme to `CompressedTensorsW4A16Sparse24` and refuses (`ImportError` at scheduler init) — a
+  **loader-scheme** failure, not memory, distribution, or the arch. On the card's vLLM route the same
+  `mixed-precision` config resolves **per group** to `CompressedTensorsW8A16Fp8` (the `naive-quantized`
+  FP8 attention/GDN and shared-expert group) and `CompressedTensorsW4A4Fp4` (the NVFP4 experts group,
+  weight-only), and `Qwen4ExpForConditionalGeneration` imports from `vllm/models/qwen4_exp` — both
+  established in the pinned image `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…`, which
+  is resident with an identical digest on the head, `.34`, and `.35`. The "image distribution is
+  unusable" gate is **superseded** (see attic AGENTS.md §8): a direct `docker pull` by digest measured
+  76–142 MB/s on `.34`, and the relay's ~0.3 MB/s was the relay's own stream, not the network.
+  **Route evidence is loader-level, not measured serving behaviour**, and this checkpoint (183.5 GB
+  per node) was reclaimed from every node's cache on 2026-10-14 — so the remaining cost is a
+  183.5 GB-per-node re-fetch, which the index rows wait on along with a boot receipt. Pinning
+  `--quantization` to another value is **not** a fix: arm 1 shows SGLang reads the right scheme from
+  `config.json` when the export is one it implements.
 
 ## `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`
 
