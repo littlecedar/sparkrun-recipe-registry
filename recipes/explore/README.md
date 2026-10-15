@@ -6,7 +6,8 @@ node-count→speed default). Every arm here is single-node (TP=1). The lane ship
 recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measured arms added
 2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
 owner on 2026-10-15 and built but not yet booted** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
-collection, so outside the ranking); the LTX-2.5 video arm ships as a runbook. Everything else — measured
+collection, so outside the ranking) — it has **no index row in `recipes/README.md` until its boot receipt**,
+per the shipped-equals-bootable rule; the LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
 
