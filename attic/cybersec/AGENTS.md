@@ -317,7 +317,9 @@ is not "verified".
 Four bounded boots of `recipes/cybersec/nex-n2.5-mini-uncensored-nvfp4-vllm.yaml`, one at a time on
 `.34`, each stopped after capture — receipt `~/benchmarks/cybersec-nex-20261015/` (stories, per-boot
 serve logs, probe JSONs, image line), job `9e32c36ca6496294_8ed3ce77d78f`, harness
-`.scratch/cybersec/nex-vllm-boot.sh` (tracked copy on the head, identical md5).
+`.scratch/cybersec/nex-vllm-boot.sh`, copied to `~/benchmarks/cybersec/nex-vllm-boot.sh` on
+the head — md5 `997aa02e0576037ac462d9dd3a72b0a9` on both, recorded so the harness survives the
+head even though `.scratch/` is untracked.
 
 | boot | question | answer |
 |---|---|---|
