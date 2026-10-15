@@ -16,7 +16,7 @@ cache so the serve command can point `--chat-template` at it.
 That overlay repo ships **no weights** (`0 GB` of safetensors) — it is a wiring pack: an
 uncensored chat template, a YaRN rope override for the body, and a YaRN config for the
 DFlash2 draft. The body weights live in `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4`
-(+ the `incoai/Qwen3.8-27B-DFlash2` drafter). Without the template the arm serves the body's
+(+ the `z-lab/Qwen3.8-27B-DFlash2` drafter). Without the template the arm serves the body's
 **stock** Qwen template, i.e. it is not the arm.
 
 sparkrun recipes cannot bind-mount host paths, so the template is staged through the managed

@@ -2536,11 +2536,11 @@ Caveat: the concurrency numbers come from the engine's `/health` `streams.decodi
 tokens/sec benchmark; they establish the admission law. The decode figure is a real measurement
 (median of 3) but of one prompt shape.
 
-### 12.14 Vision (image input) — TP=4 yes, TP=2 no (as shipped)
+### 12.14 Vision (image input) — ON in both lanes (TP=2 SHIPPED 2026-10-15)
 
-The model is multimodal (DeepSeek-ViT encoder; `image_token_id` 129264), and the two lanes differ in
-whether the shipped recipe exposes it. **This is a recipe/launcher property, not a checkpoint one** —
-both checkpoints carry the tower.
+The model is multimodal (DeepSeek-ViT encoder; `image_token_id` 129264), and both lanes' shipped
+recipes now expose it (the TP=2 lane since 2026-10-15). **This is a recipe/launcher property, not a
+checkpoint one** — both checkpoints carry the tower.
 
 **TP=4 (knapcio) — vision is ON and exercised every boot.** The image's `boot.py` `smoke()` sends a
 generated PNG through `/v1/chat/completions` as an `image_url` part and asserts the reply names the
@@ -2554,17 +2554,29 @@ every boot. VERIFIED on our fleet — three boot logs end with
 `Reserving 0.10 GB of the KV budget for post-sizing multimodal allocations`). The recipe now carries
 `vision` in `metadata.tags`.
 
-**TP=2 (TensorFold) — vision is OFF as shipped.** The engine *supports* it: the `deepseek_v41` family
+**TP=2 (TensorFold) — vision is SHIPPED 2026-10-15, behind an opt-in `--vision` that this lane's
+recipe passes.** The engine *supports* it: the `deepseek_v41` family
 declares `CUDA_VISION = True` and ships `families/deepseek_v41/cuda/vision.py` (the ViT, the aligner,
 and the image spans), and the fork's `tools/dsv41/REPORT.md` §1 lists the served line as
-`--vision --parallel 4 --mtp-drafts 5` with **6/6 image-input checks passing**. But `--vision` is an
-opt-in CLI flag (default off; no env enables it), and the shipped
-`mods/tensorfold-dsv41-launcher/launcher.py` does **not** pass it — its `tensorfold serve` line is
+`--vision --parallel 4 --mtp-drafts 5` with **6/6 image-input checks passing**. `--vision` is an
+opt-in CLI flag (default off; no env enables it), so as shipped before this date the
+`mods/tensorfold-dsv41-launcher/launcher.py` serve line was
 `--tp 2 --rank R --host … --port … --context … --parallel 4 --mtp-drafts 5 --temperature 0
---no-update-check --name …`. So the recipe serves **text only**; an `image_url` part is refused
-(HTTP 400). The recipe therefore does **not** carry `vision`.
+--no-update-check --name …`, image input was refused (HTTP 400), and the recipe carried no `vision`.
 
-**What enabling TP=2 vision takes — now VERIFIED on our hardware (2026-10-06).** Ran on
+What shipped, in `mods/tensorfold-dsv41-launcher`: the launcher takes `--vision` and appends that flag
+to `tensorfold serve`, and it ships the 43-gate `vl_bias.safetensors` **beside `launcher.py`**, with
+`TF_DS_VISION_EXTRA` pointed at its own directory and a **fail-closed abort** if no `*.safetensors`
+is there (the engine only warns, which would look like working vision). The recipe
+`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` passes `--vision` and carries the
+`vision` tag. **The cybersec arm 5 (abliterated TP=2) shares this launcher and passes no `--vision`**,
+so its emitted serve line and environment are unchanged — the flag is opt-in, not a default.
+
+Shipped-surface boot receipt: appended here after the first post-ship boot on `.34`/`.35` (the
+2026-10-06 trial evidence below is what the ship was based on).
+
+**What enabling TP=2 vision takes — VERIFIED on our hardware (2026-10-06), and both parts are now in
+the launcher.** Ran on
 `.32`/`.33` (head `.32`). Two changes, both required; with both, image input works.
 
 1. **Add `--vision` to the launcher's serve line.** The engine then loads the tower on rank 0 and
@@ -2579,8 +2591,9 @@ opt-in CLI flag (default off; no env enables it), and the shipped
    point `TF_DS_VISION_EXTRA` at a directory holding the 43 extracted tensors — **not** at the file
    (a file path yields `VL bias for 0 gates`).
 
-Measured results (evidence in `.scratch/ds4/vision-trial/RESULTS.md`, recipe copies
-`baseline.yaml` / `vision.yaml`, overlay mod `recipes/ds4/mods/dsv41-vision-overlay/`):
+Measured results (trial evidence: `.scratch/ds4/vision-trial/RESULTS.md` with its `baseline.yaml` /
+`vision.yaml` recipe copies, and the overlay mod — the scratch store is **pruned**, so the tracked
+overlay copy in `attic/ds4/mods/dsv41-vision-overlay/` and this section carry the record):
 
 - **As shipped (no `--vision`)**: image request → **HTTP 400**
   `image input requires a supported vision checkpoint served with --vision`. Text works.
@@ -2594,11 +2607,13 @@ Measured results (evidence in `.scratch/ds4/vision-trial/RESULTS.md`, recipe cop
   answer.
 - Warm boot (rank cache present) 54.6 s TTR; cold 512 s. Tower adds 0.90 GiB on rank 0.
 
-**Bottom line.** TP=2 vision is **supported and now proven on our hardware, but not shipped**: it is
-a two-part change (`--vision` + the staged VL bias), so the recipe still carries no `vision` tag and
-the shipped launcher still refuses images. To ship it, add `--vision` to
-`mods/tensorfold-dsv41-launcher/launcher.py`, ship the 43-gate `vl_bias.safetensors` (see
-`recipes/ds4/mods/dsv41-vision-overlay/`), and set `TF_DS_VISION_EXTRA` at that folder.
+**Bottom line.** TP=2 vision is **supported, proven on our hardware (2026-10-06), and SHIPPED
+2026-10-15**: the two-part change (`--vision` + the staged VL bias) is now inside
+`mods/tensorfold-dsv41-launcher` — the opt-in flag the recipe passes, and the 43-gate
+`vl_bias.safetensors` shipped beside the launcher, which points `TF_DS_VISION_EXTRA` at its own
+directory and aborts the launch if the file is missing. The launcher's default stay
+byte-identical, so the cybersec TP=2 arm (no `--vision`) is unaffected. The trial that proved the
+mechanism is preserved at `attic/ds4/mods/dsv41-vision-overlay/`.
 
 The engine's own `docs/vision.md` describes `--vision` for GLM/Qwen families; the DeepSeek-V4.1 path
 is the family's own `cuda/vision.py` and is what the fork's `tools/dsv41/REPORT.md` measured (6/6

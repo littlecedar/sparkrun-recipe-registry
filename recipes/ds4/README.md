@@ -11,7 +11,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 - [deepseek-v4.1-flash-knapcio-tp4-1m-sglang](#deepseek-v41-flash-knapcio-tp4-1m-sglang)
   — SGLang, TP=4, official MXFP4/F8 weights, RoCEnante RDMA, native vision.
 - [deepseek-v4.1-flash-tensorfold-tp2-1m-sglang](#deepseek-v41-flash-tensorfold-tp2-1m-sglang)
-  — TensorFold, TP=2, EXL3 2.9 bpw, text-only, single-user.
+  — TensorFold, TP=2, EXL3 2.9 bpw, single-user.
 - [Quality benchmarks](#quality-benchmarks)
 - [Attic index](#attic-index)
 
@@ -173,17 +173,18 @@ repo, itself a downstream of MiaAI-Lab's).
 | Context | 1,048,576 tokens served (the model's full trained window, which is also the KV pool) |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
 | Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
-| Tags | `fast`, `large_context`, `single_user` |
+| Tags | `fast`, `large_context`, `single_user`, `vision` |
 | Measured | C1 ~73 t/s single-stream (our boot); upstream reports 101 code / 62 prose / 142 structured t/s, 4 streams 112 |
 
 ### What it serves
 
-Text-only chat/completions at the full 1M window on **two** nodes. It trades the
-four-node SGLang lane's measured quality record and its ability to hold several
-long-context streams at once for a lower node count and better single-stream speed
-on a smaller (EXL3-quantized) checkpoint. The `runtime: sglang` here is the shim
-path: sparkrun renders the command and appends its per-node rendezvous flags, and
-`mods/tensorfold-dsv41-launcher` maps them onto `tensorfold serve`.
+Chat/completions with **image input**, at the full 1M window on **two** nodes. It
+trades the four-node SGLang lane's measured quality record and its ability to hold
+several long-context streams at once for a lower node count and better
+single-stream speed on a smaller (EXL3-quantized) checkpoint. The `runtime: sglang`
+here is the shim path: sparkrun renders the command and appends its per-node
+rendezvous flags, and `mods/tensorfold-dsv41-launcher` maps them onto
+`tensorfold serve`.
 
 ### Run it
 
@@ -200,11 +201,16 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   1048576-token window*"); 1,048,576 = YaRN `65536 × 16`. **Concurrency and
   per-stream context trade off:** `--parallel 4` streams share one window, one
   stream may use the whole 1M, and four coexist only up to ~250K tokens each.
-- **Vision is OFF as shipped.** An `image_url` part is refused with HTTP 400. The
-  engine supports image input behind the opt-in `--vision` flag, but enabling it
-  takes two parts (`--vision` + staging the checkpoint's 43-tensor
-  `ffn.gate.bias_vl` VL-routing bias), so it is not shipped
-  (`recipes/ds4/mods/dsv41-vision-overlay/` holds the recipe for it).
+- **Vision is shipped, behind the launcher's `--vision` flag — and this recipe passes
+  it.** An `image_url` part is answered (the recipe carries the `vision` tag); the engine
+  loads the DeepSeek-ViT tower on rank 0 (+0.90 GiB). The second half of the change is the
+  MoE gates' 43-tensor `ffn.gate.bias_vl` VL-routing bias, which the EXL3 pack omits:
+  `vl_bias.safetensors` ships **inside `@littlecedar/mods/tensorfold-dsv41-launcher`**,
+  beside the launcher that points `TF_DS_VISION_EXTRA` at its own directory and **fails the
+  launch closed** if the file is missing (the engine would only warn and route image tokens
+  with the text bias). Proven on `.32`/`.33` 2026-10-06: `VL bias for 43 gates`, three
+  discriminating images read correctly — `attic/ds4/AGENTS.md` §12.14 has the evidence, and
+  the archived trial mod is kept at `attic/ds4/mods/dsv41-vision-overlay/`.
 - **The Engram tables ship inside the model repo** as
   `engram/engram-l{1,14}.safetensors`; this recipe does **not** use
   `recipes/cybersec/mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so
@@ -244,7 +250,8 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
   [Quality benchmarks](#quality-benchmarks).
 - **The mod must be committed and pushed** — `@littlecedar/mods/…` resolves from
   the node's registry clone, so this recipe only launches once the mod is pushed.
-- The lane serves text only; see the vision knob above.
+- Vision rides the launcher's `--vision` flag (this recipe passes it, with the 43-gate
+  bias shipped in the mod); see the vision knob above.
 
 ## Quality benchmarks
 
@@ -275,5 +282,5 @@ Nothing here is shipped or covered by `recipes/` guards. Restore a file with
 | `deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 1M context (4 nodes). |
 | `deepseek-v4.1-flash-exl3-tp6-vllm.yaml` | Retired EXL3/vLLM recipe — TP=6, 300K context (6 nodes). |
 | `deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=6, 1M context (6 nodes). |
-| `mods/` | The two mods the retired recipes mounted. `mount-dsv41-exl3-patches` installs tonyd2wild's DeepSeek-V4.1-Flash vLLM patch set (incl. the Engram-on-disk reader and the TP=3/6 draft virtual-heads config fix); `bound-engram-cache` is an opt-in post-patch mod that `fadvise(DONTNEED)`s the Engram reader's read-once pages out of the host page cache. |
+| `mods/` | The mods the retired recipes mounted, plus one provenance copy. `mount-dsv41-exl3-patches` installs tonyd2wild's DeepSeek-V4.1-Flash vLLM patch set (incl. the Engram-on-disk reader and the TP=3/6 draft virtual-heads config fix); `bound-engram-cache` is an opt-in post-patch mod that `fadvise(DONTNEED)`s the Engram reader's read-once pages out of the host page cache; `dsv41-vision-overlay` is the archived TP=2 vision trial, SHIPPED 2026-10-15 into `mods/tensorfold-dsv41-launcher` (see the vision knob above). |
 | `tuning/` | The vLLM autotuning cache for the EXL3 3.5 bpw (`bot-lab-21/…-Pollard`) checkpoint at TP=6 — MoE and FP8 kernel configs plus the tuning report. |

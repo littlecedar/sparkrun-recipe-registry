@@ -1651,6 +1651,22 @@ class TensorfoldLaneContract(unittest.TestCase):
     def test_mod_reference(self):
         self.assertIn(TF_MOD_REF, self.text)
 
+    def test_vision_is_passed_and_tagged(self):
+        """Image input is shipped: the recipe asks for it *and* advertises it.
+
+        The flag and the tag answer different questions -- `--vision` is what the
+        launcher acts on, `metadata.tags` is what a catalogue/gateway consumer
+        reads -- so a recipe that ships one without the other is half-shipped (the
+        TP=4 lane's tag, and the knapcio smoke test behind it, are the precedent).
+        Guarded on the comment-stripped text: prose may *name* the flag.
+        """
+        self.assertIn("--vision", self.r.flags(),
+                      "the TP=2 recipe must pass --vision to the launcher")
+        tags = [t.strip() for t in
+                _block(_section(self.clean, "metadata")).get("tags", "").split(",")]
+        self.assertIn("vision", tags,
+                      "the recipe carries --vision but not the vision tag")
+
     def test_no_host_bind_mounts(self):
         # (?m): a bare ^ anchors to string start and would pass vacuously on an
         # indented volumes:. Cache lives under /cache/runtime, set by the launcher.
@@ -1699,6 +1715,68 @@ class TensorfoldLaneContract(unittest.TestCase):
         self.assertEqual(eff["TF_DS_RANK_CACHE"], "/cache/runtime/tensorfold/rank-cache")
         self.assertEqual(eff["TORCH_EXTENSIONS_DIR"],
                          "/cache/runtime/tensorfold/torch-extensions")
+
+    # -- the shipped vision opt-in ----------------------------------------
+    def test_vision_bias_ships_beside_the_launcher(self):
+        """The 43-gate VL bias is part of the mod, not an operator step.
+
+        The EXL3 checkpoint carries the tower but omits every
+        `*.ffn.gate.bias_vl` (43 gates), and `attach_vl_bias()` takes a FOLDER it
+        globs for `*.safetensors` -- so a mod that ships the flag but not the file
+        serves silently degraded images. 66 736 B is the 43 float32 [384] tensors.
+        """
+        bias = TF_MOD_DIR / "vl_bias.safetensors"
+        self.assertTrue(bias.is_file(),
+                        "vl_bias.safetensors must ship in the launcher mod dir")
+        self.assertEqual(bias.stat().st_size, 66736)
+
+    def test_shim_vision_appends_the_flag_and_points_at_its_own_dir(self):
+        """`--vision` is the whole operator interface: flag + bias folder.
+
+        sparkrun copies the mod to /workspace/mods/tensorfold-dsv41-launcher, so
+        the folder the engine must search is the directory holding launcher.py --
+        which is also where the bias file lands. Asserted by executing main().
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            mod_dir = Path(d) / "mods" / "tensorfold-dsv41-launcher"
+            mod_dir.mkdir(parents=True)
+            (mod_dir / "vl_bias.safetensors").write_bytes(b"\0" * 8)
+            _prog, argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "x", "--context", "262144",
+                 "--nnodes", "2", "--node-rank", "0", "--dist-init-addr", ".34:25000",
+                 "--vision"],
+                checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
+                mutate=lambda m: setattr(m, "__file__", str(mod_dir / "launcher.py")),
+            )
+        self.assertEqual(argv.count("--vision"), 1)
+        # The engine env var, and a FOLDER: a file path reads "VL bias for 0 gates".
+        self.assertEqual(env.get("TF_DS_VISION_EXTRA"), str(mod_dir.resolve()))
+
+    def test_shim_without_vision_is_unchanged_text_only(self):
+        """NEGATIVE CONTROL for the opt-in, and the cybersec arm's contract.
+
+        The abliterated TP=2 arm mounts this same launcher; without `--vision` the
+        serve line must not gain the flag and the environment must not gain the
+        bias var, or that arm's boot changes without anyone asking.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            _prog, argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "x", "--context", "262144",
+                 "--nnodes", "2", "--node-rank", "0", "--dist-init-addr", ".34:25000"],
+                checkpoint_dir=str(model), cache_dir=str(Path(d) / "runtime"),
+            )
+        self.assertNotIn("--vision", argv)
+        self.assertNotIn("TF_DS_VISION_EXTRA", env)
 
     def test_no_host_device_names_in_recipe_env(self):
         # No env value may name a host adapter; sparkrun's InfiniBand probe fills
@@ -1937,6 +2015,50 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
                 _os.execvp = orig
         with self.assertRaises(AssertionError):
             self.assertIn("--master-port", captured["argv"])
+
+    def test_control_vision_without_the_bias_file_fails_closed(self):
+        """Prove the fail-closed gate can fail: `--vision` with no bias must abort.
+
+        The engine only *warns* when no `*.ffn.gate.bias_vl` is found and then
+        routes image tokens with the text bias, so a launch that proceeded anyway
+        would look like working vision and quietly degrade every image. Point the
+        shim's own directory at a folder holding no `*.safetensors` and assert it
+        exits non-zero WITHOUT exec'ing `tensorfold serve`.
+        """
+        import os as _os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            empty = Path(d) / "mods" / "tensorfold-dsv41-launcher"
+            empty.mkdir(parents=True)
+            (empty / "launcher.py").write_text("")
+            (empty / "run.sh").write_text("")          # a mod dir, just no bias
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+
+            mod = _tf_launcher()
+            mod.__file__ = str(empty / "launcher.py")
+            mod.RUNTIME_CACHE = str(Path(d) / "runtime")
+            mod.ENGRAM_DIR = str(Path(d) / "engram")
+            mod.RECIPE_ENV = dict(mod.RECIPE_ENV)
+            mod.RECIPE_ENV["HOME"] = str(Path(d) / "runtime")
+
+            execs: list = []
+            before = dict(_os.environ)
+            orig = _os.execvp
+            _os.execvp = lambda prog, args: execs.append(prog)
+            try:
+                rc = mod.main(["--boot", "--model", str(model), "--port", "8000",
+                               "--tp", "2", "--served-model-name", "x",
+                               "--context", "262144", "--vision"])
+            finally:
+                _os.execvp = orig
+                _os.environ.clear()
+                _os.environ.update(before)
+
+        self.assertNotEqual(rc, 0, "a --vision boot without the VL bias must abort")
+        self.assertEqual(execs, [], "the engine must never be exec'd")
 
 
 if __name__ == "__main__":

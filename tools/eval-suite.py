@@ -344,23 +344,33 @@ def check_hard(ctx: Ctx):
         raise CheckError("no served model resolved (run the contract check first)", kind="error")
     outdir = ctx.path("hard")
     os.makedirs(outdir, exist_ok=True)
-    cmd = [ctx.python, ctx.run_benchmarks,
-           "--base-url", ctx.base, "--model", ctx.model,
-           "--bench", ctx.args.hard_bench,
-           "--limit", str(ctx.args.hard_limit),
-           "--seed", str(ctx.args.hard_seed),
-           "--outdir", outdir]
-    if ctx.args.hard_thinking:
-        cmd += ["--thinking", ctx.args.hard_thinking]
-    if ctx.args.hard_reasoning_effort:
-        cmd += ["--reasoning-effort", ctx.args.hard_reasoning_effort]
-    if ctx.args.hard_extra:
-        cmd += ctx.args.hard_extra.split()
-    rc, log = run_cmd(ctx, "hard", cmd, ctx.args.job_timeout)
-    if rc is None:
-        raise CheckError(f"run_benchmarks did not run ({log_tail(log)})", kind="error")
-    if rc != 0:
-        raise CheckError(f"run_benchmarks exit {rc} ({log_tail(log)})", kind="error")
+    benches = [b.strip() for b in ctx.args.hard_bench.split(",") if b.strip()]
+    if not benches:
+        raise CheckError("--hard-bench is empty", kind="error")
+    for bench in benches:
+        # One process per bench: run_benchmarks takes a SINGLE --bench choice
+        # (house|gsm8k|arc|all) and keys its _raw/<stem>.jsonl per bench, so a
+        # comma list passed through as one argv element dies with
+        # "invalid choice: 'gsm8k,arc'".
+        cmd = [ctx.python, ctx.run_benchmarks,
+               "--base-url", ctx.base, "--model", ctx.model,
+               "--bench", bench,
+               "--limit", str(ctx.args.hard_limit),
+               "--seed", str(ctx.args.hard_seed),
+               "--outdir", outdir]
+        if ctx.args.hard_thinking:
+            cmd += ["--thinking", ctx.args.hard_thinking]
+        if ctx.args.hard_reasoning_effort:
+            cmd += ["--reasoning-effort", ctx.args.hard_reasoning_effort]
+        if ctx.args.hard_extra:
+            cmd += ctx.args.hard_extra.split()
+        rc, log = run_cmd(ctx, f"hard-{bench}", cmd, ctx.args.job_timeout)
+        if rc is None:
+            raise CheckError(f"run_benchmarks --bench {bench} did not run ({log_tail(log)})",
+                             kind="error")
+        if rc != 0:
+            raise CheckError(f"run_benchmarks --bench {bench} exit {rc} ({log_tail(log)})",
+                             kind="error")
     art = {}
     for name in sorted(os.listdir(outdir)):
         if not name.endswith(".json") or name.startswith("_"):
@@ -538,10 +548,11 @@ elif mode == "needle":
               open(opt("--json", "needle.json"), "w"))
     sys.exit({nrc})
 elif mode == "hard":
+    bench = opt("--bench", "gsm8k")
     os.makedirs(opt("--outdir", "hard"), exist_ok=True)
-    json.dump({{"bench": "gsm8k", "pct": 62.5, "correct": 125, "n": 200,
+    json.dump({{"bench": bench, "pct": 62.5, "correct": 125, "n": 200,
                "finish_reasons": {{"stop": 200}}, "empty_replies": 0}},
-              open(os.path.join(opt("--outdir", "hard"), "mock.gsm8k.json"), "w"))
+              open(os.path.join(opt("--outdir", "hard"), "mock." + bench + ".json"), "w"))
 elif mode == "bfcl":
     json.dump({{"overall": {{"correct": 4, "total": 5, "pct": 80.0}}, "summary": {{}},
                "transport_errors": 0, "skipped_unsupported": 0}},
@@ -623,6 +634,11 @@ def selftest() -> int:
             failures.append("tools check skipped despite --bfcl-data-dir")
         if summary["checks"]["needle"]["verdict"] != "ok":
             failures.append("needle stub should be ok")
+        # One instrument process per --hard-bench entry: the default comma list
+        # must yield one artifact per bench, not one process fed "gsm8k,arc".
+        if set(summary["checks"]["hard"]["artifact"]) != {"gsm8k", "arc"}:
+            failures.append("hard check must run one instrument process per --hard-bench entry: "
+                            f"got {sorted(summary['checks']['hard']['artifact'])}")
 
         # the failing-instrument path must map to fail and a non-zero exit
         for fname in ("needle-haystack.py",):

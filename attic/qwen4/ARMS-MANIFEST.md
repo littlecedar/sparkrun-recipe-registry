@@ -163,3 +163,25 @@ be deleted if the scratch tree is reaped.
 2026-10-11, when its only consumers — the two iscale arms — were already here. If you resurrect one
 of these, move it back to `recipes/qwen4/` (and the mod back to `mods/` for an iscale arm) and
 remove its row here.*
+
+## Benchmarking profiles archived with these arms (2026-10-15)
+
+The bs / `max_num_seqs` cliff family in `benchmarking/` was stranded when `recipes/qwen4/` was
+narrowed: every arm it was written against is archived here (the RadixArk checkpoint
+`qwen3.8-flash-next-nvfp4-sglang.yaml` in wave 4 below; its labquant pair is the still-shipped
+`recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` base). No tracked doc cites these nine,
+so they moved (plain `mv`, still tracked) out of the curated library and the
+`benchmarking/README.md` index was updated:
+
+- `bs-sweep.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (RadixArk cliff checkpoint, §19; labquant pair still shipped).
+- `bs4-only.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (its single bs=4 cell rerun on both §19 checkpoints).
+- `bs8-only.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (the bs=8 half of the §19 curve).
+- `bs-order-reverse.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (reversed cell order on the §19 sweep).
+- `bs-cap16-k24.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (named in the profile's own launch line).
+- `bs-cap16-fullcurve.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (the `max_num_seqs = 16` cap ladder).
+- `bs-cap20-k16-20-24.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (the cap-20 ladder).
+- `bs-cap24-k16-20-24.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` (the cap-24 ladder).
+- `lq-bs-sweep-high.yaml`: moved from benchmarking/ 2026-10-15; served archived arm `qwen3.8-flash-next-nvfp4-sglang.yaml` from the labquant side — its labquant checkpoint is the still-shipped `…-labquant-sglang` base.
+
+`bs-sweep-high.yaml` **stayed** in `benchmarking/`: this manifest cites it (above) as one of the
+three profiles that name `zz-rk-moebackend.yaml`, so its path must keep resolving.

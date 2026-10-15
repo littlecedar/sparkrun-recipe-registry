@@ -360,7 +360,7 @@ untouched.
 | # | recipe | runtime | model | TP | C1 t/s (d0 / d8192) | battery | status |
 |---|---|---|---|---|---|---|---|
 | 1 | `qwen3.8-27b-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-27B-Uncensored-NVFP4] (mixed NVFP4+FP8, `qwen3_5`, vision) | 1 | **10.2 / 9.7** | 37/37 | boots, `GET /v1/models` = repo id |
-| 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [incoai/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
+| 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [z-lab/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
 | 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); the vLLM route its card documents is blocked on image distribution — see AGENTS.md |
 | 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
 | 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
@@ -437,7 +437,7 @@ Recorded, over the 1–2-node bar or licence-blocked; see `mad-science/TODO.md` 
 
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4
 [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4]: https://huggingface.co/sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4
-[incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
+[z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
 [drowzeys keys-Qwen3.8-27B…Single-DGXSpark]: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark
 [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
 [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4

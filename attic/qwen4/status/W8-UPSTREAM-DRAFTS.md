@@ -113,7 +113,7 @@ author holds those. Do not claim we independently proved the race mechanism.
 - Still-open fix attempts: **#32199** (wire nogds/threads, 2026-07-23) and **#40065** (release file buffers after each shard, 2026-09-18; body reports GB10 warm-cache load 47.12→27.03 GB — the same retained-buffer defect our mod fixes) (VERIFIED).
 - **#31859** `Support fastsafetensors no-GDS loading and page-cache release` **merged 2026-07-31**, but does **not** fix the device bug: `main` **still** has `device = torch.device(f"cuda:{rank}")` in `fastsafetensors_weights_iterator` (VERIFIED reading `main` @ `python/sglang/srt/model_loader/weight_utils.py:1189,1193`, 2026-10-04).
 
-**What our data adds.** Our lane patches this same function in `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang` because neither PR merged (mod `run.sh:20-21`; WORK §11, lines 3929-3954). We confirm two **independent**
+**What our data adds.** Our lane patches this same function in `mods/fix-fastsafetensors-tp2-sglang` because neither PR merged (mod `run.sh:20-21`; WORK §11, lines 3929-3954). We confirm two **independent**
 defects invisible on single-node multi-GPU rigs: (1) device selection uses the global rank, so
 one-GPU-per-node TP=2 asks rank 1 for `cuda:1` and dies "invalid device ordinal" (§11 table, lines
 3944-3948); (2) the staging buffer is never released — `main`'s `finally:` calls only `loader.close()`,

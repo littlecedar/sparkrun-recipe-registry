@@ -63,7 +63,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
 **Arm 2 — POSITIVE (TP=1).** Overlay arm: the overlay repo ships **no weights**.
 
 - Body: [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] — ~20.5 GB + 0.85 GB MTP,
-  compressed-tensors NVFP4, `qwen3_5`, AEON-7 abliteration. Draft: [incoai/Qwen3.8-27B-DFlash2].
+  compressed-tensors NVFP4, `qwen3_5`, AEON-7 abliteration. Draft: [z-lab/Qwen3.8-27B-DFlash2].
 - The overlay [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] adds only the cybersecurity-unlock
   **chat template** (+ the YaRN rope overlays for the 1M route), staged by
   `recipes/cybersec/mods/provide-uncensored-chat-template` into `/cache/runtime/uncensored-template/` and passed
@@ -80,7 +80,7 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
 - `max_num_seqs: 48` is a clamp, not the granted concurrency: the dense 27B body (48 GDN + 16
   full-attention layers) hits the same mamba-state-pool clamp as the qwen3.8-27B NVFP4 recipe —
   read `capped to` in the serve log for the real number.
-- `speculative_draft_tokens: 8` is the block size the incoai draft was trained for (the overlay's
+- `speculative_draft_tokens: 8` is the block size the z-lab draft was trained for (the overlay's
   own seat used n=7).
 
 ## `nex-n2.5-mini-uncensored-nvfp4-sglang`
@@ -151,7 +151,7 @@ Currently the directory holds one file:
 <!-- Links -->
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4
 [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4]: https://huggingface.co/sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4
-[incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
+[z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
 [drowzeys keys-Qwen3.8-27B…Single-DGXSpark]: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark
 [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
 [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4

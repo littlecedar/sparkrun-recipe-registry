@@ -114,8 +114,11 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
   `cc51d66b4c593fbe`, asserted on every call); the checkpoint ships **no chat template** (the chat
   endpoint 400s); `--generation-config vllm` so the checkpoint's own `top_k 64` never becomes a server
   default; `limit_mm_per_prompt {"image":0,"audio":0,"video":0}` → text-only; heterogeneous head dims
-  (256 sliding / 512 full) force `TRITON_ATTN`. `model_file_selection: all` makes this an 82 GB arm
-  (62 GB of GGUFs it never loads). Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri.
+  (256 sliding / 512 full) force `TRITON_ATTN`. Whole-repo distribution: **87.6 GB** at the pinned
+  revision (23.9 GB safetensors + 63.6 GB of GGUFs it never loads) — and not narrowable.
+  `model_file_selection` is a sparkrun **config** key, not a recipe key, and with no
+  `model.safetensors.index.json` both `auto` and `all` select the full snapshot (`safetensors` errors).
+  Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri.
 - **Measured:** ~7.6 t/s single-stream; 131.7 s per 1k output tokens; across 40 rewrites, 0 dropped facts
   (1 genuine defect found outside the instrument).
 - **Licence:** Apache-2.0.

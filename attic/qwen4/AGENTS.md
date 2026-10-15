@@ -357,7 +357,7 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   and — worse — exec as root and leave a root-owned
   `.cache/flashinfer/<ver>/<arch>/flashinfer_jit.log` in the persisted per-model runtime cache, which
   makes the FIRST launch of a new model key die as uid 1000 with `PermissionError` (sticky; uid 1000
-  cannot unlink it). Mechanism + `reown` fix: `recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang/run.sh`; re-add
+  cannot unlink it). Mechanism + `reown` fix: `mods/fix-fastsafetensors-tp2-sglang/run.sh`; re-add
   them only with `load_format=fastsafetensors`.
 - **`served_model_dir`.** Bypassing the mod (`--skip-run` against a container that never ran it) means
   `/cache/runtime/labq-patched` does not exist.
@@ -711,7 +711,7 @@ REQUIRED/must-run-LAST note on `demote-labquant-narrow-mxfp8-to-bf16`, the `{mod
 # NB: the two fastsafetensors mods are deliberately NOT listed here even though
 # the parent recipe lists them.  This recipe benchmarks with
 # load_format=safetensors, so they accomplish nothing -- and worse, they exec as
-# unlink it).  See recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
+# unlink it).  See mods/fix-fastsafetensors-tp2-sglang/run.sh for the mechanism
 # and the reown fix.  Add them back only if you actually set
 # load_format=fastsafetensors.
 ```
