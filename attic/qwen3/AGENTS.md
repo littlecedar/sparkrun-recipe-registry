@@ -853,3 +853,17 @@ Above `port_timeout_s: 3600`:
 # The first boot builds the sm_121a CUDA extensions and loads ~19 GB of weights before the
 # port opens; that was 71.5 s on a warm node, so 3600 s is generous headroom for a cold one.
 ```
+
+## 15. TP=2 boots (2026-10-15, the same night as §14)
+
+The lane's "Highest value" open item is answered: with `@littlecedar/mods/fix-fastsafetensors-tp2-sglang`
+mounted, `sparkrun run recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml -o tensor_parallel=2` on
+`.34`+`.35` reaches HTTP ready and serves. Decode ladder `bench_a09eb0ce2b85` (d0 pp2048 tg128 n=5,
+`--skip-run` against that boot): **C1 46.8 ± 4.9 / C2 79.2 ± 10.5 / C5 117.7 ± 3.7 / C10 120.3 ± 2.3 t/s**
+— above TP=1 at every cell (§14.4: 31.7 / 54.3 / 95.5 / 94.5) and no longer flat from c5. Task
+`b418e031e70d3b0a_3510a5e0d37d`; receipt `~/benchmarks/qwen3-27b-tp2-20261015/` (`q1-run-*.story`,
+`perf-ladder.json`, `q1-launch-*.log`). The earlier "TP=2 cannot boot this model" belongs to the
+*unfixed* loader only (see §7 for that claim's history). Two caveats recorded rather than smoothed:
+the engine's admission lines (`capped to`, KV pool) were **not** captured — the container's
+in-container `/tmp` serve log was already gone, so whether TP=2 still clamps the mamba pool is
+unread; and the ladder ran with `return_token_ids=false`, so quote the `tg` means only.
