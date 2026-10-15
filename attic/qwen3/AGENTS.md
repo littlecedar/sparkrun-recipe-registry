@@ -864,6 +864,11 @@ mounted, `sparkrun run recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml -o te
 `b418e031e70d3b0a_3510a5e0d37d`; receipt `~/benchmarks/qwen3-27b-tp2-20261015/` (`q1-run-*.story`,
 `perf-ladder.json`, `q1-launch-*.log`). The earlier "TP=2 cannot boot this model" belongs to the
 *unfixed* loader only (see §7 for that claim's history). Two caveats recorded rather than smoothed:
-the engine's admission lines (`capped to`, KV pool) were **not** captured — the container's
-in-container `/tmp` serve log was already gone, so whether TP=2 still clamps the mamba pool is
-unread; and the ladder ran with `return_token_ids=false`, so quote the `tg` means only.
+the engine's admission lines were **not** in the receipt set — the container's in-container `/tmp`
+serve log was gone before the capture path read it — but they were recovered 2026-10-15 from the
+sparkrun job log of the same boot (`q1-launch-20261015-103957.log`, where this engine's log also
+lands): `max_mamba_cache_size: 565`, `max_total_num_tokens=1815619`, **`max_running_requests=48`**,
+`context_len=262144`, `available_gpu_mem=1.93 GB`, and **no `capped to` line at all** — so TP=2
+grants the arm's full `max_num_seqs: 48` and does **not** clamp the mamba pool (the pre-fix TP=1
+boots read `capped to 21`, and 40 without the fix); the ladder ran with `return_token_ids=false`,
+so quote the `tg` means only.
