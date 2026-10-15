@@ -399,3 +399,37 @@ floor versus its 2026-10-09 figure, and both accuracy sets reproduce within
 **Guards:** `tests/test_ifm_recipes.py` gained the pinned-SHA assertion plus a
 control (16→18); `tests/test_k2_7b_recipes.py` pins the shipped UNO arm to
 `ea739ec8` and the two attic arms to their frozen `59d47321` (60→61).
+
+## Session 2026-10-15 — the shipped profile's missing ladder cells
+
+`benchmarking/concurrency-ladder.yaml` (d0, pp 2048, tg 128, 5 runs, c=1/2/5/10) is the profile the
+registry index's C2/C5/C10 columns are named for, and the lane had only `decode-triage` (c=1) and
+`concurrency-sweep` (tg=256, c=1/4/8) — so both shipped arms' C2/C5/C10 cells were blank. Both arms
+were booted fresh, one at a time, and measured on that profile; decode-phase rows only.
+
+| arm | C1 | C2 | C5 | C10 | bench id |
+|---|---|---|---|---|---|
+| `k2-horizon-0.9b-bf16-sglang` | 80.4 (σ 0.2) | 181.6 (σ 0.6) | 317.6 (σ 31.6) | 503.9 (σ 0.9) | `bench_edd4029e004f` |
+| `k2-horizon-7b-fp8-uno-sglang` | 31.3 (σ 1.4) | 56.1 (σ 2.6) | 94.0 (σ 1.3) | 126.0 (σ 1.2) | `bench_679cd870a74a` |
+
+- The 0.9B's **c5 cell is bimodal** (273.8 / 284.6 vs 342.8 / 343.6 / 343.4) and that spread *is* its
+  σ; its c1/c2/c10 repeat to ≤ 0.6 %. The 7B-Uno is tight everywhere (σ ≤ 2.6) and still climbing at
+  c10 (3.9× single-stream). Neither arm shows the c10 dip the ornith 9B showed the same day.
+- Both C1 cells land within 3.6 % of the figure recorded above (0.9B 80.4 vs 77.6; 7B-Uno 31.3 vs
+  32.4) — inside the lane's 7–25 % inter-boot spread, so nothing here supersedes a lane number.
+- **Grants, read from the serve log while the bench still held the boot** (a benchmark-owned launch
+  reaps its own serve on completion, so the log must be copied mid-run): 0.9B
+  `max_running_requests=64`, `max_total_num_tokens=1773893`; 7B-Uno `max_running_requests=32`,
+  `max_total_num_tokens=577994` — both bf16 KV, and **neither arm allocates a mamba pool**, so nothing
+  clamps admission on either (their `max_num_seqs` is the literal).
+- UNO engagement re-confirmed on the 7B-Uno: serve-log `accept len` mean **2.95** over 25 samples
+  (min 2.62, max 3.27, every sample > 1). Narrower window than the 838-sample mean 4.15 above — this
+  one covers only the ladder's 128-token generations, so read them as two windows, not a trend.
+- Per-request decode falls from the first step up on both arms (0.9B 80.4 → 59.4; 7B-Uno 31.3 →
+  17.2), the CPU/scheduler co-ceiling of the 2026-10-08 session, now visible by c=2.
+
+**Still open (unchanged — this session does not touch it):** the `{8,16,32,64}`
+`max-running-requests` ladder proper. These cells vary *concurrency*, not `max_num_seqs`.
+
+**Artifacts** (durable receipts): `~/benchmarks/ifm-09b-ladder-20261015/` and
+`~/benchmarks/ifm-7b-ladder-20261015/` — `launch.log`, `serve.log`, `perf-ladder.yaml|json|csv`.
