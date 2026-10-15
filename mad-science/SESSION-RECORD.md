@@ -258,7 +258,8 @@ affected). Also observed, cause unknown: `docker images` is now empty on all six
 launch re-pulls the image.
 
 **2026-10-15 session — two-node window (`.34`+`.35` ours; `.30`–`.33` held by the peer's ds4 TP=4 job),
-agent-orchestrated, one arm at a time through `~/benchmarks/tp2-window.sh` (launch → HTTP readiness →
+agent-orchestrated, one arm at a time through `~/benchmarks/tp2-window.sh` (md5
+`9d9b1f7285069a1926bbb2e3e47a8664`, the local `.scratch/` copy identical; launch → HTTP readiness →
 capture grants before stopping → verify idle).**
 
 Three window arms landed receipts. **q1** overturned a documented impossibility: the qwen3 27B recipe
