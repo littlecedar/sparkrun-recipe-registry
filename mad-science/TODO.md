@@ -14,29 +14,15 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 2 open (2026-10-15)
-
-### #34 — The shipped 8B reranker: keep its residency, or demote it to `attic/`?
-`qwen3-vl-reranker-8b-vllm-b12x` is a shipped recipe (primary index + lane README) and the
-deliberate non-`fast` quality tier (~4× slower per scored document than the 2B), but its checkpoint
-costs +16 GB/node with no recorded cache state, and the 2B is the measured default. Keep it resident,
-or retire it to `attic/rerank/` the way the GLM Flash arm was?
-→ Answer:
-
-### #35 — The two cybersec negatives: unblock them, or retire them to `attic/cybersec/`?
-Arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`) and arm 4
-(`qwen3.8-flash-next-uncensored-nvfp4-sglang`) are documented negatives that lost their index rows on
-2026-10-14 while their recipe files stayed in `recipes/cybersec/`, so the tree and the distributed index
-disagree. Unblock them via their card-documented vLLM routes (a boot receipt re-adds the rows), or
-retire both (recipe + manifest row + a do-not-re-add note)?
-→ Answer:
+# DECISIONS — nothing open (2026-10-15)
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `attic/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
 register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 registers (#16–#23, #24–#27) are
 the pre-fold states, `git show baecfa8:mad-science/TODO.md` and `git show c7c7a81:mad-science/TODO.md`;
-the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.md`.
+the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.md`; the #34/#35 register
+(2026-10-15, answered the same day) is `git show 043fbae:mad-science/TODO.md`.
 
 # TODO list
 
@@ -48,12 +34,14 @@ dropped where the sweep opened new work.)*
 *(Owner decision 2026-10-15: the sweep runs with no timebox — multi-day, group by group, stopping
 only at a gate; the register is the scope, not a plan.)*
 
-**Resourcing (2026-10-15).** Single-node work runs on the free `.34`/`.35`; `.30`–`.33` are busy with
-the ds4 TP=4 job and the multi-node items in the lanes below wait for that window. Every `sparkrun` call runs from
+**Resourcing (2026-10-15).** `.34`/`.35` only for this sweep *(Owner decision 2026-10-15: no TP=4 window
+this session, so the multi-node items in the lanes below and the ornith 397B re-run stay deferred;
+`.30`–`.33` are busy with the ds4 TP=4 job)*. Every `sparkrun` call runs from
 the head with the HOME override and `--transfer-mode local`, and **the registry clone must be
-refreshed first** (`sparkrun registry update littlecedar`): it is behind the tree today and carries no
-lane-local `mods/`, so an `@littlecedar/…` launch of the ornith 35B dies with `Could not resolve mod
-'mods/ornith-honed-chat-template'` (measured 2026-10-15). For the same reason, launch a recipe by its
+refreshed first** (`sparkrun registry update littlecedar`) after any recipe or lane-mod change: the clone
+sat two commits behind and carried no lane-local `mods/`, which made an `@littlecedar/…` launch of the
+ornith 35B die with `Could not resolve mod 'mods/ornith-honed-chat-template'` (2026-10-15). It was
+refreshed that day and now materializes the lane mod — re-check after each push. For the same reason, launch a recipe by its
 real path — never a flattened `~/development/<name>.yaml` symlink. Only two orderings are asserted: the
 RadixArk reclaim on `.34` is tagged *immediate* (126 GiB resident against the owner's cache policy), and
 the ornith 35B is the first arm of the standard-suite sweep.
@@ -128,7 +116,7 @@ Any embed model
 
 ## rerank
 Any rerank model
-- [ ] **Decide whether the shipped 8B reranker earns its residency** — `qwen3-vl-reranker-8b-vllm-b12x` **is** a shipped recipe (primary index + lane README), so the earlier "backed by no shipped recipe" framing was wrong; it is the deliberate non-`fast` quality tier (~4× slower per scored document than the 2B) and its checkpoint costs +16 GB/node with no recorded cache state — keep-and-cache, or demote to `attic/`? (`recipes/rerank/README.md` §Shipped recipes; `attic/rerank/AGENTS.md` §8B reranker (quality tier)). *(effort: short)*
+- [ ] **8B reranker residency — DECIDED 2026-10-15: keep shipped, no pre-cache** — `qwen3-vl-reranker-8b-vllm-b12x` stays a shipped recipe (primary index + lane README) as the deliberate non-`fast` quality tier (~4× slower per scored document than the 2B) and is **not** pre-cached: the +16 GB/node is a cold-fetch cost, not a residency. Residual work: write that position into `recipes/rerank/README.md` and `attic/rerank/AGENTS.md` §8B so the question cannot reopen. *(Owner decision 2026-10-15: keep shipped, do not cache.)* (`recipes/rerank/README.md` §Shipped recipes; `attic/rerank/AGENTS.md` §8B reranker (quality tier)) *(effort: short)*
 
 ## decision
 Any decision model
@@ -147,8 +135,7 @@ Any model with reasoning and tool-calling capabilities
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Wire MTP spec decode onto the clean 27B arm** — its BF16 MTP head is preserved and the sibling lane measures 33.8 t/s vs this arm's 10.2 (`attic/cybersec/AGENTS.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
-- [ ] **Unblock the two negatives via their card-documented vLLM routes** — arm 4 (`qwen4_exp` route; the sole measured obstacle is the ~0.3 MB/s OCI relay) and arm 3 (image distribution) (`attic/cybersec/AGENTS.md`). *(effort: long)*
-- [ ] **Reconcile the index and the tree for the two cybersec negatives** — on 2026-10-14 the primary index adopted *shipped = bootable and usable*, so arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang` — NaN sample-time logits under SGLang) and arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang` — SGLang's compressed-tensors loader refuses the export's scheme) lost their rows **while their recipe files stay in `recipes/cybersec/`**: the tree and the index disagree, and neither arm is visible to a reader of the distributed index until one of the two exits closes. Either **unblock via the card-documented vLLM routes** (the item above) and re-add the rows on a boot receipt, or **retire both to `attic/cybersec/`** the way the GLM Flash arm was (recipe + manifest row + a do-not-re-add note) so `recipes/` and the index tell the same story again. (`recipes/README.md:109-113`; `recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; precedent `recipes/glm/README.md:18-24`, `attic/glm/ARMS-MANIFEST.md`) *(effort: short)*
+- [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `recipes/README.md:109-113`; precedent `recipes/glm/README.md:18-24`) *(effort: long)*
 - [ ] **[storage] Test whether the uncensored deltas are graftable as sidecars** over the cached bases instead of shipping ~184 GB / 25 GB full exports *(Owner decision 2026-10-15: case-by-case on licence — graft only where the base's licence clearly permits redistribution; keep the full export otherwise.)* (`recipes/cybersec/README.md:176-179`). *(effort: long)*
 
 **Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, **205.1 GB** —
