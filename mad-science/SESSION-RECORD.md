@@ -324,3 +324,23 @@ cited by the register's bulky-weight item) and `~/benchmarks/_image-pulls-202610
 One hazard also stays in place: the d1 receipt's `d1-run-20261015-105008.story` on the head embeds the
 raw HTTP-400 body containing the DeepSeek image special token — never `cat` it; run
 `tools/safe_text.py` on a copy if it ever needs extraction.
+
+**Register status moved out of `mad-science/TODO.md` (2026-10-15 cleanup).** These two dated blocks were
+the register's session-narrative residue; they move here so the register holds only open work. Copied
+verbatim.
+
+**Landed 2026-10-15 (parallel slices).** *(GLM 5.3 TP=4 arm `34a2a2f` — boot deferred to a `.30`–`.33`
+window; cybersec arms 3/4 vLLM routes `202f482` — arm 3's boot receipt landed later the same day (the
+route answers, the checkpoint degenerates in every probe, no index row), arm 4's boot is still owed;
+ornith 35B YaRN 1M arm `8bfb62d` — gate pre-registered in `attic/ornith/NOTES.md` §8 and still
+unproven; pooling `BenchmarkingPlugin` + the silent-skip correction `6801c41`; storage positions +
+`tools/cache-audit.py` `1d7d4ad`; the Engram log fix `a884dee`.)*
+
+**Closed later on 2026-10-15** (each with its receipt, doc edit, and the gate re-run): the decision
+lane's ensemble + ladder (`~/benchmarks/decision-ensemble-20261015/`), the qwen3 27B re-anchored
+suite (`~/benchmarks/qwen3-27b-suite-20261015/`) and its TP=2 boot
+(`~/benchmarks/qwen3-27b-tp2-20261015/`), the ornith 35B standard-suite pass, the qwen4 highcon k≥16
+aggregate window (`~/benchmarks/qwen4-highcon-20261015/`, which earned that arm an index row and
+closed its revival item), the cybersec weight prefetch on both nodes, and the four-boot nex vLLM
+route receipt. The two-node window itself ran as `~/benchmarks/tp2-window.sh` (q1 / d1 / w1, serial by
+construction, each arm capturing grants before stopping the container).
