@@ -35,10 +35,12 @@ or leave `fast` as an owner's-eye call?
 
 **Q2 — the four warm-but-superseded DS4.1 runtime-cache lobes.** `.30`-`.33` carry
 `deepseek-ai__DeepSeek-V4.1-Flash-9a74d993` trees (47.7/47.7/142.1/142.1 GB) whose leaf key no shipped
-recipe can produce (the recipe pins `5254448103…`, producing `…-11826f49`), last touched 2026-10-13 —
-inside `sparkrun setup prune-runtime-cache`'s 30-day marker window, so the guarded sweep skips them
-until 2026-10-16 11:13. Take them now (a key no recipe can produce is stale regardless of its marker)
-or wait for the sweep? (`mad-science/STORAGE-POLICY.md` §2; 285.6 GB now, 379.6 GB from tomorrow.)
+recipe can produce (the recipe pins `5254448103…`, producing `…-11826f49`); markers read
+2026-10-13T11:13 and the four trees total **379.6 GB** (47.67 + 47.67 + 142.08 + 142.08 GiB, re-measured
+2026-10-15). Two different gates hold them: this repo's 72 h in-use rule lets go on 2026-10-16 11:13,
+while sparkrun's sweep is a marker-age-in-**days** test whose 30-day default would not reach them until
+~2026-11-12 (`--older-than 3` would take them today). Take them now, wait for the 72 h rule, or wait
+for the default sweep? (`mad-science/STORAGE-POLICY.md` §2/§5.)
 
 → Answer:
 
