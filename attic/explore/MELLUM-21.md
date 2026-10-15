@@ -192,3 +192,14 @@ refresh is needed**; launch from the recipe's real path on the head with `--tran
 - `sparkrun run … -H <free node> -n` renders: weights 22.4 GiB, `gpu_memory_utilization` 0.55 → 66.6 GiB
   budget, KV space 44.2 GiB / ~827,593 tokens under the all-layers-full estimator, fit `UNVERIFIED`.
 - **No boot, no benchmark, no receipt.**
+
+## Boot receipt (2026-10-15, `.35`)
+
+First boot, and the six open questions it was meant to answer resolved in one pass: the engine loads
+the checkpoint natively (no mod), the served id is the HF repo id with `max_model_len` 131,072, and
+thinking defaults ON as the template said. Decode ladder @ d0 pp2048 tg128 n=5: **C1 42.3 ± 0.1 /
+C2 67.2 ± 0.6 / C5 99.9 ± 1.7 / C10 135.6 ± 1.1 t/s**; house battery **36/37** (easy 18/19 — the miss
+is `needle-1`; hard 18/18). Receipt `~/benchmarks/mellum-20261015/` (`launch.log`, `models.json`,
+`perf-ladder.{yaml,json,csv}`, `house.json`, `summary.json`). Known gap: the container was already
+stopped when the log capture ran, so no `serve.log`/`grants.txt` — the engine's KV-cache line is the
+one datum a next boot should capture first.

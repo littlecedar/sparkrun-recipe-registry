@@ -6,8 +6,8 @@ node-count→speed default). Every arm here is single-node (TP=1). The lane ship
 recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measured arms added
 2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
 owner on 2026-10-15 and built but not yet booted** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
-collection, so outside the ranking) — it has **no index row in `recipes/README.md` until its boot receipt**,
-per the shipped-equals-bootable rule; the LTX-2.5 video arm ships as a runbook. Everything else — measured
+collection, so outside the ranking) — **boot-verified 2026-10-15** (its index row carries the ladder and
+the 36/37 house battery, and it is the first single-node text arm with C2/C5/C10 filled); the LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
 
@@ -156,7 +156,7 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
 
 ## [mellum2.1-12b-a2.5b-bf16-thinking-vllm](mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml)
 
-vLLM · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing measured, no index row yet**.
+vLLM · **1 node (TP=1)** · built + **boot-verified 2026-10-15** · index row present.
 
 - **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking` (Apache-2.0, ungated) — 12B total / 2.5B active MoE
   (64 routed experts, 8 per token), 28 layers, 32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding
@@ -183,9 +183,15 @@ vLLM · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing meas
   `max_tokens` up to 81,920 (thinking + answer). The recipe sets **no** server-side sampling default —
   the checkpoint's `generation_config.json` carries only bos/eos, so there is nothing to protect with
   `--generation-config` (unlike `humanizer`).
-- **Measured:** **none.** No C1/d8k, no house battery, no needle probe, no boot. Card numbers
-  (self-reported by JetBrains, unverified here): LiveCodeBench v6 82.0, SWE-bench Verified 47.0,
-  BFCL v4 62.3, MMLU-Redux 87.8.
+- **Measured (2026-10-15, one boot on `.35`, receipt `~/benchmarks/mellum-20261015/`):** decode ladder
+  @ d0 pp2048 tg128 n=5 → **C1 42.3 ± 0.1 / C2 67.2 ± 0.6 / C5 99.9 ± 1.7 / C10 135.6 ± 1.1 t/s**;
+  house battery **36/37** (easy 18/19 — the one miss is `needle-1`; hard 18/18); contract ok (served id
+  is the HF repo id, `max_model_len` 131,072, finish `stop`). The arm scales cleanly to c10, which is
+  what the 66.6 GiB budget was for. **Receipt gap, stated:** the serve's container had already been
+  stopped when the log capture ran, so `serve.log`/`grants.txt` are empty — the engine's own
+  `GPU KV cache size` line is not in the receipt, and the launch record is sparkrun's
+  `launch.log` only. Card numbers (self-reported by JetBrains, unverified here): LiveCodeBench v6 82.0,
+  SWE-bench Verified 47.0, BFCL v4 62.3, MMLU-Redux 87.8.
 - **Licence:** Apache-2.0.
 - **Details (provenance, the GGUF-route decision, the six open boot questions):**
   [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md).
