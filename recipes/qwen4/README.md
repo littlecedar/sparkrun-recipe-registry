@@ -114,11 +114,17 @@ latency. Everything else is the base: same pin, same six-mod chain (the archived
 sparkrun run recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml -H <node-a>,<node-b>
 ```
 
-**Its numbers are unmeasured until the boot lands** — the archived arm's C1 cells (40.10 ± 2.44 t/s
-d=0, 41.92 ± 5.28 d=8192) were taken on the superseded `7c4f1bc1` revision, so quote them as history,
-not as this recipe's performance. Until a receipt exists this arm carries no row in
-[`../README.md`](../README.md) — the index holds boot-verified arms only. If the launch dies in
-`alloc_memory_pool`, fall back to the balanced base (pool 112 / cap 24).
+**Measured 2026-10-15** on the pinned engine, one boot, `llama-benchy` at d=8192 / 128 output
+tokens / 7 samples per cell (`~/benchmarks/qwen4-highcon-20261015/`, job
+`1895030211ea0500_3510a5e0d37d`): aggregate **decode 84.9 / 89.1 / 89.1 / 72.9 t/s at k=8 / 12 / 16 /
+24** — flat from k=12 to k=16, then −18 % at k=24 — with time-to-first-response 5.8 / 7.7 / 9.8 /
+15.6 s and ~3.05–3.06 k t/s in the prefill phase at every k. The engine admitted it without clamping
+(`max_total_num_tokens=1,567,360`, `max_running_requests=32`, `context_len=262144`, mamba pool 128
+slots), so the k=24 fall-off is not a pool or request cap. Not measured: the standard ladder's C1–C10
+cells (this sweep is one depth), and any comparison against the balanced base at this depth — the
+archived arm's C1 cells (40.10 ± 2.44 d=0, 41.92 ± 5.28 d=8192) were taken on the superseded
+`7c4f1bc1` revision and stay history. If the launch dies in `alloc_memory_pool`, fall back to the
+balanced base (pool 112 / cap 24).
 
 ## TP=1 — solo vLLM (1 node)
 
