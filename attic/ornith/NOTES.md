@@ -22,6 +22,7 @@ runs, its result moves into `README.md`/`AGENTS.md` and the entry here is closed
 | plan A — 35B first-party DFlash vs shipped DFlash2 | §3, **executed + closed 2026-10-14** (null; shipped draft pinned) |
 | plan B — 397B DFlash head vs the checkpoint MTP head | §4, ready to execute |
 | plan C — long-horizon quality-confidence set | §5, **executed 2026-10-14** — a bounded null (no loop); the owner ratifies the bar |
+| plan D — YaRN ~1M long-context arm | §8, **built 2026-10-15** (`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml`); boot + needle gate queued |
 
 ---
 
@@ -398,6 +399,18 @@ The index is the parent agent's to edit. With §2 closed the row is measured, an
 and one cold cell sits at 26 t/s, so drop `🚀` if the lane wants the stricter read. `🌲`
 lcg_favorite is **not** claimed.
 
+**The YaRN 1M arm's row — do NOT add it yet (2026-10-15).** Nothing about it is measured, and only
+its `🚚` large_context flag is earned by *construction* (a ≥512k window it cannot yet prove it
+serves). The row, for after §8's gate passes:
+
+| recipe | Scale | Runtime | Nodes (TP) | C1 t/s | Size | Mem | Flags |
+|---|---|---|---|---|---|---|---|
+| `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` | 35B-A3B | SGLang | 1 (TP=1) | — | ~26GB | 0.85 | ✨🚚👀🧠🦾🔧 |
+
+`🚚` large_context (≥ 512k window), and no `🚀`/`🐢`/`🌲` until a C1 and a needle receipt exist.
+`Size` is the draft-free sibling's 23.5 GB of weights plus its ~2 GiB of target CUDA graphs — an
+estimate, not a measurement; replace it with the boot's own numbers.
+
 ## 7. Open questions (state after the 9B boot)
 
 Answered 2026-10-14 (§2, closed):
@@ -412,3 +425,62 @@ Answered 2026-10-14 (§2, closed):
 Still open (Plan B, §4):
 
 - Does the plain-safetensors draft load under the instanttensor/hybrid-draft loader?
+
+---
+
+## 8. Plan D — the YaRN ~1M arm — BUILT 2026-10-15, GATE QUEUED
+
+**Built, not booted.** `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` — the 35B
+checkpoint (same pin as the sibling, `94e431d9…` = Hub `main`) at the model card's YaRN factor-4.0
+route with `max_model_len: 1000000` and **no DFlash2 draft**. `validate`-clean and `-n`-rendered on
+the workstation; **no boot, no C1, no house battery, no needle receipt.** Build record, the card
+quote, the engine citations (`sglang v0.5.18` `configs/model_config.py:819-843`, `:328-336`, `:590`,
+`utils/hf_transformers/config.py:266-275`, `environ.py:298`) and the KV arithmetic:
+[`AGENTS.md`](AGENTS.md) §9. Read [`README.md`](README.md) §"The YaRN 1M arm" for the arm itself.
+
+**The three things that make it a boot and not a flag change:** (1) the YaRN override must nest under
+`text_config.rope_parameters` **and** restate the mrope keys — a flat form is silently ignored, a
+partial form silently drops the model off its M-RoPE path; (2) `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`
+is load-bearing — this build *raises* above the derived 262,144 rather than warning; (3) the draft is
+gone on purpose (a 262,144-window, default-RoPE head has no per-draft override flag, so it would be
+scored out of distribution).
+
+**Boot (one node, `.34`/`.35`, mem-fraction 0.85 — no memory change needed).**
+
+```bash
+docker ps -q | wc -l   # must be 0 (§1.1)
+sparkrun run recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml \
+  -H <node> --transfer-mode local            # recipe REAL path, never a flattened symlink
+curl -s http://<node>:8000/v1/models         # max_model_len must read 1000000, id = the repo id
+```
+
+Read from the serve log and record with the receipt: `max_total_num_tokens` (the grant; the recorded
+262k boot gave 1,172,758 tokens / 11.18 GiB of fp8 KV at 10,235 B/token), `context_len=1000000`, and
+the absence of any speculative/draft init line. Skip every spec-decode assertion in §1.2 — this arm
+has no draft by design.
+
+**The needle gate (the pass criterion is pre-registered; do not re-cut it after seeing the numbers).**
+`tools/needle-haystack.py`, depths `10,50,90`, seed 1234, 64-token budget, one boot:
+
+```bash
+for ctx in 262144 512k 768k 1m; do
+  python3 tools/needle-haystack.py --model auto --api-endpoint http://<node>:8000 \
+    --context-length "$ctx" --depths 10,50,90 \
+    --json ~/benchmarks/ornith-yarn-1m-<date>/needle-$ctx.json
+done
+```
+
+- **Pass** = every ladder (including the 262,144 control rung) exits 0 / verdict `PASS`: every key
+  retrieved **and** `usage.prompt_tokens ≥ 0.95 × requested` (the instrument reports a short count as
+  `TRUNCATED`, exit 3 — a window/pool finding and a gate failure, not a retrieval miss).
+- **The 262,144 control rung is not optional**: it is the only cheap test of the card's own
+  "static YaRN can slightly hurt ordinary-length inputs" warning on this checkpoint.
+- Cost ≈ 1–2 h of prefill (recorded: 45 s / 128k, 142 s / ~256k on this node → ~5 / 8 / 10 min per
+  512k / 768k / 1M rung, ×3 depths), plus calibration.
+- Then, and only then, the §6 index row and a `big_context` claim.
+
+**Open boot questions** (AGENTS.md §9): does the override reach the loaded config as `rope_type:
+yarn` (the serve log does not print it — a >262,144 rung that PASSes is the behavioural proof); does
+anything downstream need `max_position_embeddings` raised with `context_len` (the base config keeps
+262,144; SGLang raises it only for a draft model); and the arm's C1 is unknown — do not inherit the
+sibling's ~100 t/s (it is spec-decoded).

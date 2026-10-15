@@ -16,13 +16,20 @@ ships **three** recipes, one per model scale:
 `gpu_memory_utilization`. Flags are defined in [Model Flags](../README.md#model-flags). A dash is
 an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
+A **fourth** arm, [`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`](#the-yarn-1m-arm), serves the same 35B
+checkpoint at the model card's **YaRN long-context route** (~1M-token window, no draft). It is
+**built, not booted** — no C1, no house battery, no needle receipt — so it holds no row in the table
+above and no index row in the parent; the arm, the memory consequence and the pre-registered needle
+gate are in its own section below.
+
 Ornith 1.5 is a **reasoning model** — assistant turns open with a ` thinking … </think>` block and
 tool calls are Qwen-style XML — so all three recipes wire the `qwen3` reasoning parser and a Qwen
 tool-call parser (`qwen3_coder` on SGLang, `qwen3_xml` on vLLM), surfacing the chain-of-thought as
 `reasoning_content` and tool calls as OpenAI `tool_calls`. Recommended sampling (model card):
 `temperature=0.6`, `top_p=0.95`, `top_k=20` for general use, `temperature=1.0` to reproduce the
-reported benchmark numbers. The 262,144-token native context is served as-is; the model card's YaRN
-long-context override is **not** in any shipped recipe (see [Lane caveats](#lane-caveats)).
+reported benchmark numbers. The three shipped recipes serve the 262,144-token native context as-is;
+the card's YaRN long-context override is served **only** by the boot-pending 1M arm (see
+[Lane caveats](#lane-caveats)).
 
 Lane state, knob rationale, negative results, measurement histories, boot receipts and the
 archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Attic index](#attic-index).
@@ -32,6 +39,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 - [`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm`](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm) — flagship 397B MoE, 4 nodes TP=4 (vLLM)
 - [`ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`](#ornith-15-35b-a3b-nvfp4-dflash2-sglang) — 35B-A3B MoE, the fast single-Spark lane (SGLang)
 - [`ornith-1.5-9b-nvfp4-dflash-sglang`](#ornith-15-9b-nvfp4-dflash-sglang) — small dense 9B single-Spark arm (SGLang)
+- [The YaRN 1M arm](#the-yarn-1m-arm) — the card's long-context route on the 35B, **built and not booted**
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
 
@@ -226,16 +234,96 @@ the checkpoint agree (an `auto` resolves silently). `moe_runner_backend` is mean
 MLP, no experts), and the `mamba_*` trio would apply (the checkpoint *is* a hybrid GDN model) but is
 deliberately left to engine defaults.
 
+## The YaRN 1M arm
+
+SGLang · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing measured, no index row yet**.
+
+| | |
+|---|---|
+| recipe | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` |
+| runtime / container | SGLang — the same digest-pinned `lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc` as the 35B sibling (sglang v0.5.18 — §9 of the attic carries the derivation and the source citations) |
+| model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — the 35B checkpoint the sibling serves, at the same pin `94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (Hub `main`, 2026-08-26) |
+| window | `max_model_len: 1000000`, the card's number; the YaRN factor-4.0 route reaches 4 × 262,144 = 1,048,576 positions, so nothing above that is left |
+| flags | ✨🚚👀🧠🦾🔧 — **no** 🚀 (no measured C1) and **no** 🌲 (the arm has to earn it) |
+| draft | **none** — deliberate, see below |
+| status | `validate`-clean; `sparkrun run … -n` renders; **no boot, no C1, no house battery, no needle receipt** |
+| licence | MIT (same checkpoint as the sibling) |
+
+**The route is the model card's, not ours.** Both Ornith 1.5 cards publish it; the 35B card, verbatim:
+Ornith "handles context windows of up to 262,144 tokens. When a task's combined input and output must
+go beyond this limit, we suggest extending the effective window with RoPE scaling — YaRN is the
+technique we validate against … With a scaling factor of 4.0, the usable window grows to roughly 1M
+tokens", switched on either in the checkpoint's `config.json` or at launch (SGLang:
+`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 … --json-model-override-args '{"rope_scaling": {…}}'
+--context-length 1000000`). The card also carries the warning that makes this an arm rather than a
+default: *"Open-source runtimes implement YaRN statically: the same scaling factor is applied to every
+request regardless of its length, which can slightly hurt quality on ordinary-length inputs."*
+
+**The card's `rope_scaling` spelling is not the one this checkpoint/engine honours — the override has
+to nest and be complete.** The checkpoint keeps its rope config at `text_config.rope_parameters`
+(`rope_type: default`, `rope_theta: 1e7`, `partial_rotary_factor: 0.25`, `mrope_section: [11, 11, 10]`,
+`mrope_interleaved: true`), sglang v0.5.18 reads `hf_text_config.rope_parameters` first
+(`configs/model_config.py:328-330`), and the override replaces that dict wholesale
+(`utils/hf_transformers/config.py:266-275` → `PretrainedConfig.update`, a `setattr` loop). So the arm
+sends `{"text_config": {"rope_parameters": {"rope_type": "yarn", "factor": 4.0,
+"original_max_position_embeddings": 262144, "rope_theta": 10000000, "partial_rotary_factor": 0.25,
+"mrope_section": [11, 11, 10], "mrope_interleaved": true}}}` — restating the mrope keys is not
+cosmetic: `model_config.py:332-336` derives `model_is_mrope` from `mrope_section` being present, so
+dropping them moves this multimodal checkpoint onto the plain-RoPE path. The same fleet measured the
+silent failure this avoids (qwen4, 2026-10-04: a flat form leaves `rope_type: default`). The
+`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1` env is **load-bearing, not advice**: this build
+*raises* `ValueError` above the derived 262,144 (`model_config.py:819-843`) rather than warning.
+
+**Memory — a 1M window on 128 GB is pool-bound, and the pool already covers it.** KV costs
+`2 (K,V) × num_key_value_heads × head_dim × bytes` over the **full-attention layers only**: this
+hybrid checkpoint is 40 layers with `full_attention_interval: 4` (30 GDN + 10 full attention),
+2 KV heads, `head_dim` 256, so fp8 KV is **10,240 B/token (10.0 KiB)** and a 1M-token request needs
+**~10.0 GiB**. The lane's recorded 262k boot (2026-10-15, `.34`, mem-fraction 0.85) allocated a pool
+of **1,172,758 tokens** — K 5.59 GiB + V 5.59 GiB, which is that same 10,235 B/token to 0.05% — so
+**one full-window stream plus ~124k tokens of completion fits, with ~11.8% headroom**, and raising
+the window costs no memory change (the pool is sized from free memory, not from `--context-length`).
+What the arm *grants* is that pool, read from its own serve log (`max_total_num_tokens`), not the
+window flag — a busier node grants less. Do **not** quote sparkrun's own dry-run estimate here: it
+reports `KV demand 38.1 GiB` / `~2.27M tokens` because it assumes every one of the 40 layers caches
+the full window.
+
+**No draft, deliberately.** The sibling's `jzinno/Ornith-1.5-35B-A3B-DFlash2` head is a 262,144-window
+artifact (`max_position_embeddings: 262144`, `rope_type: default`, sliding window 4096), and SGLang has
+no per-draft rope override, so above 262,144 it would be scored at positions it was never trained for
+— and at ≈1 accepted token/step it costs throughput instead of adding it. SGLang's own model config
+only special-cases a draft as the *shorter* model (`model_config.py:834-840`), and another vendor's
+DFlash2+YaRN arm (the drowzeys Qwen3.8-27B "1M Context YARN" overlay, which the `cybersec` lane
+serves) says the same thing in its own docs: *"the 1M YaRN seat needs a rope override and no draft"*.
+Dropping it also isolates the arm's real question — does YaRN hold above 262,144 — from a confound.
+Cost: plain decode (~34 t/s by the sibling's own 100.8 t/s ÷ acceptance 2.94), which is the right
+trade for a depth arm. The 262k sibling keeps DFlash2 and its ~100 t/s.
+
+**What a boot must prove (pre-registered gate).** One boot, `tools/needle-haystack.py`, depths
+`10,50,90`, seed 1234, 64-token budget — the shape the lane's recorded ladders use — at
+**512k, 768k and 1M**, plus a **262,144 control rung on the same boot** for the card's
+static-YaRN-degrades-ordinary-length warning. A rung passes only if every key is retrieved *and* the
+server counts ≥95% of the requested context (`usage.prompt_tokens`), so a short window reports
+`TRUNCATED` rather than a false pass; the ladder verdict is the worst rung, exit 0 only on `PASS`.
+Then: `GET /v1/models` must read `max_model_len: 1000000`, and the serve log's `max_total_num_tokens`
+must exceed the 980k-token prompt the instrument paces to. Cost ≈ 1–2 h (the recorded ladder:
+45 s per 128k, 142 s per 256k prefill on this node). Nothing in this section becomes a
+lane claim until that receipt exists.
+
+Full provenance — the card quote, the engine citations, the KV table and three open boot
+questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.
+
 ## Lane caveats
 
-- **The YaRN long-context route is documented upstream but not shipped here.** Both model cards
+- **The YaRN long-context route is now an arm, and only that arm enables it.** Both model cards
   describe extending the native 262,144-token window with **YaRN RoPE scaling** (factor 4.0 →
   roughly 1M tokens) via `config.json` or a launch-time override (`--hf-overrides` on vLLM,
   `--json-model-override-args` on SGLang, each gated by the engine's "allow longer context" env
-  var). **None of the shipped recipes enable it.** Open-source runtimes apply YaRN *statically*, so
-  the factor is in force for every request and can erode quality on ordinary-length inputs; enable
-  it only when a workload genuinely needs the window. If you add YaRN here, that is new,
-  quality-unverified territory.
+  var). The three shipped recipes serve 262,144 as-is; [the 1M arm](#the-yarn-1m-arm) is the only
+  recipe that turns it on, and it is **built, not booted** — this lane has **no needle evidence
+  above 262,144** (32k 3/3, 128k 3/3 and 262,144 2/3 → 3/3 are all inside the native window).
+  Open-source runtimes apply YaRN *statically*, so the factor is in force for every request and can
+  erode quality on ordinary-length inputs; enable it only when a workload genuinely needs the
+  window, and do not serve the 1M arm until its gate passes.
 - **`@eugr/mods/drop-caches` is inert under a default launch.** Every Ornith recipe lists it, but per
   [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) that upstream mod **silently does
   nothing**: `/proc/sys` is mounted read-only under sparkrun's default rootless launch and its

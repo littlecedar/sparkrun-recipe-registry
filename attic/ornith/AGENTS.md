@@ -120,6 +120,16 @@ spelling (block-size mismatch is warning-only), and the hybrid pool does **not**
 lookup resolves only `refs/main`, so a pinned draft never starts (see §3.12). Receipts:
 [`README.md`](README.md); `~/benchmarks/ornith-9b-20261014/`.
 
+**35B YaRN 1M (`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`, 1 node, TP=1) — BUILT 2026-10-15, NOT
+BOOTED.** The 35B-A3B checkpoint at the card's YaRN factor-4.0 route
+(`max_model_len: 1000000`, the nested `text_config.rope_parameters` override, the load-bearing
+`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`) and **no draft**; `validate`-clean and `-n`-rendered,
+with **no boot, no C1, no house battery and no needle receipt** — the windows above 262,144 are
+exactly what is unmeasured. Memory says it fits: the recorded 262k boot's pool already held
+1,172,758 tokens (11.18 GiB of fp8 KV at 10,240 B/token for the 10 full-attention layers) against a
+1M request's ~10.0 GiB. Build record, the card quote, the engine citations and the pre-registered
+needle gate: **§9**.
+
 **Runtime split.** The 35B is SGLang and the 397B is vLLM; do not carry a Roofline or KV number
 across the two — they are different engines. The lane wires the `qwen3` reasoning parser and a Qwen
 tool-call parser (`qwen3_coder` on SGLang, `qwen3_xml` on vLLM) so CoT surfaces as
@@ -406,6 +416,10 @@ house battery only (the named `tool-eval-bench` suite is now configured as
 - **The 35B first-party DFlash head — CLOSED 2026-10-14.** A null A/B (indistinguishable from the
   shipped jzinno DFlash2 at n=4; n=8 no better), so the shipped draft stands and is now pinned with
   its `refs/main` seed. See §1 and [`NOTES.md`](NOTES.md) §3.
+- **The YaRN ~1M arm — BUILT 2026-10-15, gate UNRUN.** Nothing above 262,144 has been measured on
+  this fleet; the arm is the route and §9 is the pre-registered needle gate (512k / 768k / 1M plus a
+  262,144 control rung on the same boot). Do not describe the lane as having 1M context until that
+  receipt exists.
 
 ## 7. Validation ritual
 
@@ -434,6 +448,10 @@ Two 397B guards were added with the spec-decode A/B: `FlagshipSpeculativeConfigI
 `{speculative_config}` placeholder must stay a declared default and stay out of `command:`) and
 `FlagshipContainerIsDigestPinned` (§3.8).
 
+`YarnOneMillionArmShape` (2026-10-15, §9) guards the YaRN arm: the nested **and complete**
+`rope_parameters` override, the `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN` env, the 1,000,000
+window, and the deliberate absence of `--speculative-*`.
+
 ## 8. References
 
 - Announcement: <https://ornith.ai/ornith_1_5.html>
@@ -451,6 +469,158 @@ Two 397B guards were added with the spec-decode A/B: `FlagshipSpeculativeConfigI
 corrected.*
 
 ---
+
+## 9. The YaRN ~1M arm — built 2026-10-15, **boot pending**
+
+`recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml`. It is the shipped 35B-A3B arm at the
+model card's own long-context route with **three** changes: `max_model_len: 1000000`, the card's YaRN
+override on the serve line, and **no DFlash2 draft**. Nothing has been booted or measured on it —
+this section is the build record and the pre-registered gate, not a result.
+
+**The card's route (fetched 2026-10-15 from the pinned repo's `README.md`).** Both Ornith 1.5 cards
+carry the same block — the 35B's (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`) and the 397B's
+(`littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft`) — quoting the 35B card verbatim:
+
+> Ornith-1.5-35B-A3B handles context windows of up to 262,144 tokens. When a task's combined input
+> and output must go beyond this limit, we suggest extending the effective window with RoPE scaling
+> — YaRN is the technique we validate against, and it is already built into both vLLM and SGLang.
+> With a scaling factor of 4.0, the usable window grows to roughly 1M tokens.
+>
+> - **Edit the checkpoint's `config.json`.** Add a `rope_scaling` block … `{"rope_type": "yarn",
+>   "factor": 4.0, "original_max_position_embeddings": 262144}`
+> - **Override at launch time.** … `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1 python -m
+>   sglang.launch_server … --json-model-override-args '{"rope_scaling": {"rope_type": "yarn",
+>   "factor": 4.0, "original_max_position_embeddings": 262144}}' --context-length 1000000`
+>
+> Open-source runtimes implement YaRN *statically*: the same scaling factor is applied to every
+> request regardless of its length, which can slightly hurt quality on ordinary-length inputs. Only
+> enable `rope_scaling` when your workload genuinely needs the longer window, and size `factor` to
+> match it — the target window is roughly `factor` × 262,144.
+
+**The card's `rope_scaling` spelling is NOT the one this checkpoint/engine honours.** The
+checkpoint's `config.json` (at the pin) keeps its rope config in the **nested** text config —
+`sglang v0.5.18 configs/model_config.py:328-330` reads `hf_text_config.rope_parameters` first and
+falls back to `rope_scaling` ("In transformers v5, `rope_scaling` is just `rope_parameters`", same
+file `:910`). So the override has to nest, and it has to be complete:
+
+- `configs/model_config.py:590` feeds `server_args.json_model_override_args` into the ModelConfig
+  (`:303` `json.loads`, `:315` `model_override_args=`), and
+  `utils/hf_transformers/config.py:266-275` applies it as
+  `current = getattr(config, "text_config"); current.update(value)` — the dict-valued special case
+  exists so a VLM's sub-config is updated rather than replaced by a bare dict. The nested landing
+  spot is therefore `text_config.rope_parameters`.
+- `PretrainedConfig.update` is a plain `setattr` loop, so the value **replaces** the whole
+  `rope_parameters` dict. The arm restates every key the checkpoint ships
+  (`rope_theta: 10000000`, `partial_rotary_factor: 0.25`, `mrope_section: [11, 11, 10]`,
+  `mrope_interleaved: true`) — and that is not cosmetic: `configs/model_config.py:332-336` derives
+  `model_is_mrope` from `"mrope_section" in rope_scaling`, so dropping the mrope keys would silently
+  move a multimodal M-RoPE checkpoint onto the plain-RoPE path.
+- **Measured on this fleet** (qwen4 lane, 2026-10-04, pinned container, `get_config` probe): a flat
+  `{"text_config": {"rope_type": "yarn", …}}` leaves the real dict at `rope_type: default` — "the
+  YaRN silently does not apply" — while the nested form gives `rope_type: yarn`
+  (`attic/qwen4/AGENTS.md` §10.3, `attic/qwen4/NOTES.md`). Same engine family and `dev-cu13`
+  lineage; the arm's own boot must confirm it (a needle rung above 262,144 that PASSes *is* the
+  confirmation — an unapplied factor-4.0 override is out of distribution there).
+
+**`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1` is load-bearing, and this build raises.** VERIFIED
+against the lane's own engine (the `dev-cu13` digest the lane cites for `server_args.py:2115-2117`,
+the DFLASH alias, which is exactly where it sits at tag **v0.5.18**):
+`configs/model_config.py:819-843` `_derive_context_length()` compares the requested
+`--context-length` with `get_context_length(self.hf_text_config)` (262,144 here) and **raises**
+`ValueError` unless `envs.SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN` is set
+(`environ.py:298`, default False). The qwen4 lane measured the same raise on a sibling image
+(`ValueError: … context_length (1000000) is greater than the derived context_length (262144)`,
+boot `11b2c8b941e89cb9_3510a5e0d37d`) — the 2026-10-15 build is that shape, not the "warns and
+serves" shape the lane's older notes assumed.
+
+**Memory: the window fits, and the pool — not the window — is the number that matters.** KV per
+token is `2 (K,V) × num_key_value_heads × head_dim × bytes` over the **full-attention layers only**;
+this checkpoint is a hybrid (`config.json.text_config`: 40 layers, `layer_types` = 30
+`linear_attention` + 10 `full_attention`, `full_attention_interval: 4`, `num_key_value_heads: 2`,
+`head_dim: 256`), and the 30 GDN layers hold a per-sequence state in the mamba pool instead of
+per-token KV. At `kv_cache_dtype: fp8_e4m3` that is **10,240 B/token (10.0 KiB)** for the target.
+Against the lane's own recorded boot (2026-10-15, `.34`, job `dadfb04b5145d956_8ed3ce77d78f`,
+mem-fraction 0.85, 262,144 window, receipts `~/benchmarks/ornith-35b-suite-20261015/serve.log`):
+
+| what | measured | note |
+|---|---|---|
+| target KV pool | `#tokens: 1172758`, K 5.59 GiB + V 5.59 GiB fp8 | 11.18 GiB / 1,172,758 tok = **10,235 B/token** — the config arithmetic above, to 0.05% |
+| DFlash2 draft KV pool | `#tokens: 1172758`, K 6.71 GiB + V 6.71 GiB | 12,288 B/token (6 layers × 8 KV heads × 128 head_dim) — **larger than the target's** |
+| weights / draft / mamba | 44.37 GB / 1.81 GB; conv 0.87 + ssm 18.54 + 5.74 + 0.13 GB | `max_mamba_cache_size: 632` |
+| end-of-setup | `max_total_num_tokens=1172758 … context_len=262144, available_gpu_mem=9.47 GB` | the grant, not the window, is the ceiling |
+
+So a **1M-token request needs ~10.0 GiB of KV and the recorded pool already holds 1,172,758 tokens
+(11.18 GiB): one full-window stream + ~124k tokens of completion fits, with ~11.8% headroom**, and
+the pool is sized from memory, not from `--context-length` — so raising the window costs nothing and
+the arm needs no `gpu_memory_utilization` change. Dropping the draft (below) additionally frees its
+1.81 GB of weights, ~1.86 GB of CUDA graphs and its own 13.42 GiB pool. **The arm's real grant is
+`max_total_num_tokens` in its own boot log** — read it there, not here; the pool is a
+memory-derived constant and a busier node grants less.
+
+**Caught in the render, worth knowing before believing any estimator:** sparkrun's own dry run
+(`sparkrun run … -n`) reports `KV demand 38.1 GiB` and `~2.27M tokens of fp8 cache`, because its
+estimator assumes *every* layer caches the full window. On this hybrid the true demand is 10.0 GiB
+(10 of 40 layers) — the engine's `KV Cache is allocated` / `max_total_num_tokens` lines are the
+number. (Same estimator class the explore lane recorded for Mellum's 3:1 sliding stack.)
+
+**No draft — deliberate, and it is the arm's second variable.** The sibling's DFlash2 head is a
+262,144-window artifact: `jzinno/Ornith-1.5-35B-A3B-DFlash2` declares `max_position_embeddings:
+262144`, `rope_parameters.rope_type: default`, `layer_types` all `sliding_attention`
+(`sliding_window: 4096`). At >262,144 the target runs a rope the draft does not share and **SGLang
+exposes no per-draft rope override flag**, so the draft would be scored at positions it was never
+trained for — and at ~1 acceptance/token it is slower than plain decode, not faster. Three
+independent confirmations: (a) SGLang itself treats the draft as the *shorter* model —
+`configs/model_config.py:834-840` overrides the draft's `max_position_embeddings` up to the target's
+when the env gate is on, which is only needed because the draft's own window is the smaller one;
+(b) the third-party sibling route reaches the same conclusion in its own docs (the drowzeys
+Qwen3.8-27B 1M overlay: "the 1M YaRN seat needs a rope override and no draft"); (c) dropping the
+draft removes a confound from the arm's actual question — *does YaRN hold above 262,144* — which a
+mismatched draft could answer wrongly in either direction. Cost: plain decode instead of
+spec decode (the sibling's C1 100.8 t/s at accept 2.94 ⇒ ≈34 t/s), which for a depth arm is the
+right trade. The 262k sibling keeps DFlash2.
+
+**The needle gate (pre-registered — run it as written, on one boot).** Instrument
+`tools/needle-haystack.py`; its per-depth `PASS` requires (i) every planted key retrieved and (ii)
+`usage.prompt_tokens ≥ 0.95 × requested context`, i.e. the window was *actually reached* — a short
+count is `TRUNCATED` (exit 3), a retrieval miss is `FAIL`, and the ladder verdict is the worst rung.
+
+```bash
+# one boot, both ladders, depths matched to the recorded 262k ladder (10/50/90, seed 1234, 64-token budget)
+python3 tools/needle-haystack.py --model auto --api-endpoint http://<node>:8000 \
+  --context-length 262144 --depths 10,50,90 --json <receipt>/needle-262144.json   # control rung
+python3 tools/needle-haystack.py --model auto --api-endpoint http://<node>:8000 \
+  --context-length 512k   --depths 10,50,90 --json <receipt>/needle-524288.json
+python3 tools/needle-haystack.py --model auto --api-endpoint http://<node>:8000 \
+  --context-length 768k   --depths 10,50,90 --json <receipt>/needle-786432.json
+python3 tools/needle-haystack.py --model auto --api-endpoint http://<node>:8000 \
+  --context-length 1m     --depths 10,50,90 --json <receipt>/needle-1000000.json
+```
+
+Pass criterion, both parts: **(1)** the 1M ladder verdicts `PASS` (all three depths, ≥950,000
+server-counted tokens each, key retrieved), and 512k/768k likewise — a `TRUNCATED` rung is a
+window/pool finding, not a retrieval finding, and it is a failure of the gate either way; **(2)** the
+262,144 control rung still `PASS`es on the same boot, which is the only cheap measurement of the
+card's own "static YaRN can slightly hurt ordinary-length inputs" warning on this checkpoint (the
+lane's 262k record is 3/3 `PASS`). Names to record with the receipt: `GET /v1/models`
+`max_model_len` (must read 1000000), `max_total_num_tokens`, and the first depth's
+`prompt_tokens`. Cost estimate from the recorded ladder (RC: 6.3 s at 32k, 45.4 s at 128k, 142.4 s
+at ~256k prefill on the same node) — ~5 / 8 / 10 min per 512k / 768k / 1M prefill ⇒ one to two hours
+for the pass, plus calibration; the tool's `--timeout` default of 3600 s exists for exactly this.
+
+**Open boot questions (unproven, listed so the first boot answers them):**
+
+1. Does the override reach the *loaded* config as `rope_type: yarn`? The serve log does **not** print
+   the resolved rope (`server_args` echoes only the flag). Cheap checks: the rendered serve line in
+   `launch.log` carries `--json-model-override-args`, and any needle rung above 262,144 that `PASS`es
+   is behavioural proof. If the 1M rungs `FAIL` while 262k `PASS`es, suspect the override before the
+   model.
+2. Does the rope cache size itself from the raised `--context-length`? `_derive_context_length`
+   raises the text config's `max_position_embeddings` **only for a draft model** (`:836-840`); the
+   target keeps 262,144 there while `context_len` becomes 1,000,000. No boot has been run to see
+   whether anything downstream needs the config field raised too (the qwen4 lane booted its 1M arm
+   with the same pair of knobs, so the expected answer is "no" — UNVERIFIED here).
+3. No C1/house-battery/tool-call measurement exists for the draft-free arm; do not quote the
+   sibling's ~100 t/s for it.
 
 ## From recipes/ornith/README.md (2026-10-14)
 
@@ -833,6 +1003,10 @@ default stands; the DFlash head is a documented one-knob alternative**, not a re
 ## Caveats
 
 ### The YaRN long-context route is documented upstream but not shipped here
+
+*(Frozen 2026-10-14 copy — superseded in part 2026-10-15: `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml`
+now ships the route, built but not booted. See §9. The paragraph below still describes the shipped
+262,144-window arms correctly.)*
 
 Both model cards describe extending the native 262,144-token window with **YaRN RoPE scaling** — factor
 4.0 → roughly 1M tokens — via either the checkpoint's `config.json` or a launch-time override

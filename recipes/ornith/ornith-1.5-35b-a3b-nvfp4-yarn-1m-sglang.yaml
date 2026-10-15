@@ -1,0 +1,94 @@
+recipe_version: 2
+model: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+model_revision: 94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
+runtime: sglang
+min_nodes: 1
+
+metadata:
+  description: >-
+    ornith-ai/Ornith-1.5-35B-A3B-NVFP4 on the card's YaRN factor-4.0 route: a ~1M-token window
+    (3.8x the native 262,144), no draft. Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+  model_params: "35B"
+  model_dtype: nvfp4
+  kv_dtype: fp8_e4m3
+  tags: official, large_context, vision, reasoning, agent, tools
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
+  # LAST: stages the honed chat template the --chat-template flag reads.
+  - "mods/ornith-honed-chat-template"
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  # REQUIRED, not a hint: this build RAISES at startup when --context-length exceeds the
+  # checkpoint's derived 262144 (sglang v0.5.18 configs/model_config.py:819-843) instead of
+  # warning, so the 1M window never loads without it.
+  SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN: '1'
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: ornith-ai/Ornith-1.5-35B-A3B-NVFP4
+  gpu_memory_utilization: 0.85
+  # 1000000, the card's number; the YaRN factor-4.0 route reaches 4 x 262144 = 1048576, so a
+  # window above that has no valid positions left.
+  max_model_len: 1000000
+  max_num_seqs: 48
+  mamba_full_memory_ratio: 3.51
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: flashinfer_cutlass
+  honed_chat_template: /cache/runtime/ornith-honed-chat-template/chat_template.jinja
+  # YaRN, the card's launch-time route. THREE things here are not optional:
+  #  * it MUST nest under text_config.rope_parameters -- the engine reads
+  #    hf_text_config.rope_parameters first, and a flat text_config.rope_type is silently ignored
+  #    (measured: nested -> rope_type yarn, flat -> default);
+  #  * it MUST restate every rope key, because the override REPLACES that dict
+  #    (transformers PretrainedConfig.update is a setattr loop) -- dropping mrope_section also
+  #    silently flips the model out of its M-RoPE path;
+  #  * the single quotes belong INSIDE this value, around the JSON, never around the placeholder.
+  extra_args: >-
+    --json-model-override-args '{"text_config": {"rope_parameters": {"rope_type": "yarn", "factor": 4.0, "original_max_position_embeddings": 262144, "rope_theta": 10000000, "partial_rotary_factor": 0.25, "mrope_section": [11, 11, 10], "mrope_interleaved": true}}}'
+
+# NO draft, deliberately: DFlash2 is the 35B sibling's 262144-window arm. At >262144 the target
+# runs a RoPE the draft's own config (rope_type default, max_position_embeddings 262144) does not
+# share, and SGLang's rope override applies to the target config only -- copy the sibling's
+# --speculative-* block here and you are measuring the draft, not the window.
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --chat-template {honed_chat_template}
+  --tool-call-parser qwen3_coder
+  --load-format fastsafetensors
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --model-loader-extra-config '{ "enable_gds": false }'
+  {extra_args}
