@@ -7,7 +7,7 @@ that has to run *before* anything else here reads a log or a chat template.
 
 Every tool here serves a live recipe lane; nothing in this directory is archival —
 retired-lane instruments are archived with their lane (e.g. `attic/ifm/k2_36b_arith.py`).
-Disposition audited 2026-10-11:
+Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agentic-horizon-probe.py`, `horizon-analyze.py`) added 2026-10-15:
 
 | tool | serves | relationships |
 |---|---|---|
@@ -22,6 +22,25 @@ Disposition audited 2026-10-11:
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
 | `decision-tandem.py` | `recipes/decision/` CPU+GPU tandem probe | parses two tool-eval-bench decision reports' Full Trace and pools per-question distributions; self-test only, no `tests/` guard |
 | `bfcl-eval.py` | `recipes/explore/` tool-calling models (BFCL v3) | port of BFCL's official AST checker; guarded by `tests/test_bfcl_eval.py` |
+| `eval-suite.py` | every lane's standard evaluation pass (the SOP) | drives `quality-battery.py`, `needle-haystack.py`, `bfcl-eval.py` and the ds4 hard tier against one live endpoint, then the horizon probe; `--selftest` |
+| `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
+| `horizon-analyze.py` | the horizon probe's JSONL arms | prints the per-arm loop/degradation summary; used by `eval-suite.py --checks horizon` |
+
+## eval-suite.py (the SOP pass)
+
+One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chosen with `--checks`
+(default `contract,house,needle`; add `hard,tools` for reasoning/tool-calling arms, `horizon` for
+agentic ones): `contract` (`/v1/models` served id + `max_model_len` + one greedy completion), `house`
+(the 19+18 battery), `needle` (32k / 128k / served max), `hard`
+(`recipes/ds4/benchmarks/run_benchmarks.py` — GSM8K + ARC), `tools` (`bfcl-eval.py`; needs
+`--bfcl-data-dir`, and a missing data dir is a `skip`, never a pass), `horizon`
+(`agentic-horizon-probe.py` + `horizon-analyze.py`).
+
+The exit code is the verdict; `summary.json` and each check's raw artifact land in the receipt
+directory. A truncated non-empty reply is a measurement, not an error. Perf is deliberately out of
+scope — the SOP runs `benchmarking/concurrency-ladder.yaml` with `--skip-run` against the same boot.
+`--selftest` proves every check's wiring against stub children and a socket mock (no model, no
+network).
 
 ## safe_text.py
 

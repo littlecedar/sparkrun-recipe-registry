@@ -9,6 +9,23 @@ For `sparkrun-recipe-registry`. Use when a lane's docs carry unmeasured or floor
 numbers, or when a recipe's knobs need an arm sweep. Sibling lanes (ornith, qwen3, qwen4)
 carry `Run quality benchmarking pass` TODOs — same procedure.
 
+## The standard pass (SOP, 2026-10-15)
+Every lane pass runs the same three legs against **one boot window**, receipts in
+`~/benchmarks/<lane>-<date>/` on the head; numbers land in the lane docs with the receipt path and the
+bench id (never from the printed table).
+
+1. **Quality + horizon** — `uv run python -B tools/eval-suite.py <base-url> <receipt-dir> --checks
+   contract,house,needle` (add `hard,tools` for reasoning/tool-calling arms, `horizon` for agentic
+   ones). The exit code is the verdict; `summary.json` and each check's raw artifact land in the
+   receipt directory.
+2. **Perf ladder** — on the **same boot** (do not stop it): `sparkrun benchmark performance <recipe>
+   -H <host> --profile benchmarking/concurrency-ladder.yaml --skip-run --output
+   <receipt>/perf-ladder.yaml`. That is the c 1/2/5/10 ladder the index's C1/C2/C5/C10 columns are
+   named for; read the **decode** row (`is_context_prefill_phase: false`) of the output file.
+3. **Standard external suite** — `sparkrun benchmark tools <recipe> --profile
+   benchmarking/standard-suite.yaml` (tool-eval-bench, core 15, greedy) for any arm that serves tool
+   calls; that profile is the shared shape, so scores compare across arms.
+
 ## 0. Prerequisites
 - `every sparkrun call needs the HOME override`: `HOME=$PWD/.local/sparkrun-home`.
 - Nodes are named in `.local/CONFIDENTIAL.md` (git-ignored) / `COOP.md`. Bench on the two

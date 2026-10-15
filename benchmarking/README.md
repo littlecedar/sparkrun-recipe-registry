@@ -8,6 +8,9 @@ qwen4 and qwen3 optimization campaigns were archived under `attic/benchmarking/`
 `ARMS-MANIFEST.md`, and that archive was itself deleted from the tree in commit `b4ab22b` (2026-10-06).
 If a `bench_*` id cites a profile that is not here, recover it with `git show b4ab22b^:<path>`.
 
+One profile drives a different framework: `standard-suite.yaml` is a **tool-eval-bench** profile for
+`sparkrun benchmark tools` (see §Standard external suite).
+
 ---
 
 ## Rules that matter more than any individual profile
@@ -80,6 +83,7 @@ not the quiet regime:** the worst within-cell cvs in the archive (11–15 %) are
 | profile | depth | concurrency | runs | use |
 |---|---|---|---|---|
 | `concurrency-sweep` | 0, 8192 | 1, 4, 8 | 3 | Where does per-stream speed fall off, and where does the TTFT cliff start. |
+| `concurrency-ladder` | 0 | 1, 2, 5, 10 | 5 | The ladder `recipes/README.md`'s C1/C2/C5/C10 columns are named for. Run it `--skip-run` against the boot the quality suite used, so speed and quality share one window; distinct from `deep-smoke` (c 1/2/5) on purpose. |
 | `ceiling-sweep` | 0 | 1, 8, 24, 31, 34, 40 | 3 | Depth-0 ceiling: finds the aggregate-throughput knee. **Depth-0 only on purpose** — depth and concurrency bind different limits; mixing them in one sweep is how the "2.8× depth penalty" misreading happened. |
 | `d8k_c1` | 8192 | 1, 8 | 3 | The boring baseline `ceiling-sweep` omitted. At c = 1 depth is free (29.9 vs 29.0 t/s). Pair it with `ceiling-sweep` on the same booted server (`--skip-run`, so it costs no boot). |
 | `ratio-at-depth` | 8192 | 8, 16 | 5 | **The capacity experiment.** At depth 0 the mamba *slot cap* binds; at depth 8192 the *token pool* binds. Those want opposite `mamba_full_memory_ratio` values. |
@@ -154,6 +158,14 @@ because a live recipe or the qwen4 lane still cites them.
 | profile | use |
 |---|---|
 | `ds4-sglang-depth0-ladder` | The DeepSeek-V4.1-Flash lane's depth-0 ladder. |
+
+---
+
+## Standard external suite (tool-eval-bench)
+
+| profile | scenarios | use |
+|---|---|---|
+| `standard-suite` | core 15 | The registry's shared tool-call suite (`sparkrun benchmark tools <recipe> --profile …`), framework `tool-eval-bench`, greedy, 8 turns, sequential; the profile pins the tool `ref` itself. Every arm's "standard suite" number is taken on this shape so scores compare across arms — `-b short=false` (extended + agentic, 69) or `-b hardmode=true` (Category P) is a **different shape**: label it, never pool it. The decision lane's published scores are tool-eval-bench **v2.8.0** and this profile pins v2.6.0, so record the version beside any cross-lane comparison. |
 
 ---
 
