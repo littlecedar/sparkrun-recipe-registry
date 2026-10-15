@@ -305,11 +305,34 @@ safetensors). Both nodes idle. Launch reached the serve stage and the scheduler 
 
 ### Arms 3 and 4 — the card-documented vLLM routes (2026-10-15)
 
-**Status: the loader/route gate is closed, nothing is boot-measured.** Everything below is
-**loader-level** evidence: which scheme class vLLM's compressed-tensors config builds for each of
-the checkpoint's own `quantization_config` groups, and which arch class imports. Neither arm has a
-boot receipt (`GET /v1/models`, C1, or the house battery); the register's index rows stay out until
-one exists. "Route established" is not "verified".
+**Status: the loader/route gate is closed; arm 3 now has a boot receipt, arm 4 does not.**
+Everything that follows the receipt subsection is **loader-level** evidence: which scheme class
+vLLM's compressed-tensors config builds for each checkpoint's own `quantization_config` groups, and
+which arch class imports. Arm 3's route boots and answers but the checkpoint degenerates (the
+receipt subsection below), so its index row stays out; arm 4 still owes a boot. "Route established"
+is not "verified".
+
+#### Arm 3 — the vLLM route boot receipt (2026-10-15)
+
+Four bounded boots of `recipes/cybersec/nex-n2.5-mini-uncensored-nvfp4-vllm.yaml`, one at a time on
+`.34`, each stopped after capture — receipt `~/benchmarks/cybersec-nex-20261015/` (stories, per-boot
+serve logs, probe JSONs, image line), job `9e32c36ca6496294_8ed3ce77d78f`, harness
+`.scratch/cybersec/nex-vllm-boot.sh` (tracked copy on the head, identical md5).
+
+| boot | question | answer |
+|---|---|---|
+| 1 — 11:45 | does the route come up at all? | **yes.** HTTP ready at TTR port-open 257.6 s, `GET /v1/models` = `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4`; image `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` (resolved ID `c654ae41…`); EngineCore init 128.8 s, graph capture 2 s, 113.54/121.69 GiB free at startup. First probe: `finish=length`, `content: null`, `reasoning` 96 chars, `completion_tokens_details.reasoning_tokens = 96/96` — all generated tokens were *reasoning*, none surfaced as text |
+| 2 — 12:01 | does the recipe's `reasoning_effort: none` default suppress thinking? | **no.** Server default and explicit per-request shapes are identical: `content: null`, `reasoning` 96 chars of `duct…`, `reasoning_tokens 96/96` |
+| 3 — 12:08 | is `enable_thinking` the real gate, on a realistic prompt? | **yes to the gate**: `{"enable_thinking": false}` moves the text into `content` (1600 chars) where both `reasoning_effort` shapes leave `content: null` (reasoning 1600 chars). Every shape still degenerates to `duct…` |
+| 4 — 12:22 | greedy artifact, or the checkpoint? | **the checkpoint.** Sampled (`temperature 0.7, top_p 0.95`) thinking-on returns `!`-repetition and never closes `</think>` at 800 tokens; the answer-channel shape fills `content` (300 chars) with the same `!`-repetition. Degeneracy is not a greedy or a budget artifact |
+
+**Conclusion.** The route gate is closed — the card's own vLLM route loads this export
+(`CompressedTensorsW4A4Fp4`), boots in ~4.3 min, and answers HTTP — and the arm still **cannot
+serve**: generation degenerates to one repeated token under every tested configuration. Per the
+standing rule the recipe stays as the route record with **no index row**. Three reusable facts from
+the boots: the documented `reasoning_effort: none` is inert on this route; `enable_thinking: false`
+is the working switch; and this engine's admission/engine log lines land in the **sparkrun job
+log**, not in the container's stdout (preamble only) or its `/tmp` (the mod's log only).
 
 #### Why no vLLM image was runnable at the start: the pinned images are SGLang builds
 
@@ -420,7 +443,7 @@ taskset -c 5-9,15-19 vllm serve orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
   --host 0.0.0.0 --port 8000 --tensor-parallel-size 1 --trust-remote-code --quantization compressed-tensors
   --kv-cache-dtype bfloat16 --max-model-len 262144 --max-num-seqs 16 --max-num-batched-tokens 4096
   --gpu-memory-utilization 0.85 --reasoning-parser qwen3 --tool-call-parser qwen3_coder --enable-auto-tool-choice
-  --default-chat-template-kwargs '{"reasoning_effort": "none"}'
+  --default-chat-template-kwargs '{"enable_thinking": false}'
 ```
 
 Neither recipe replaces its SGLang sibling: the SGLang arms stay the documented negatives, and the
@@ -511,7 +534,7 @@ untouched.
 |---|---|---|---|---|---|---|---|
 | 1 | `qwen3.8-27b-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-27B-Uncensored-NVFP4] (mixed NVFP4+FP8, `qwen3_5`, vision) | 1 | **10.2 / 9.7** | 37/37 | boots, `GET /v1/models` = repo id |
 | 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [z-lab/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
-| 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); the vLLM route its card documents is blocked on image distribution — see AGENTS.md |
+| 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); its card's vLLM route now has a boot receipt — route works, checkpoint degenerates to one repeated token in every probe, no index row — see AGENTS.md |
 | 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
 | 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
 

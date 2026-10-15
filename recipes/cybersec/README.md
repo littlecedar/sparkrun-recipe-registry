@@ -102,16 +102,22 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `nvfp4-pack-quantized` group — NVFP4 weights **and** NVFP4 activations — onto
   `CompressedTensorsW4A4Fp4`, and that image is resident with an identical digest on the head,
   `.34`, and `.35` (a direct `docker pull` by digest measured 76–142 MB/s on `.34`, not the
-  ~0.3 MB/s the relay streamed). **No boot receipt yet**: the route is validated, not measured, and
-  the checkpoint was reclaimed from every node's cache on 2026-10-14, so a boot re-fetches 23.9 GB.
-  Full triage and the container evidence: attic AGENTS.md §8.
+  ~0.3 MB/s the relay streamed). **Boot receipt taken 2026-10-15** (four bounded boots, job
+  `9e32c36ca6496294_8ed3ce77d78f`, receipt `~/benchmarks/cybersec-nex-20261015/`): the route comes
+  up in ~4.3 min (TTR port-open 257.6 s) and `/v1/chat/completions` answers, but **generation
+  degenerates** — greedy and sampled, thinking-on and answer-channel, every shape returns one
+  repeated token (`duct…` greedy, `!` sampled) and the reasoning trace never closes at 800 tokens.
+  So the **route** is verified and the **checkpoint** is not servable on it: the recipe stays as the
+  route record and carries **no index row** (an arm that cannot serve keeps its recipe, not its row).
+  Full triage, the four probes, and the container evidence: attic AGENTS.md §8.
 
-- `default_chat_template_kwargs '{"reasoning_effort": "none"}'` is required: this checkpoint's
-  template gates thinking on `reasoning_effort`, not `enable_thinking` (`chat_template.jinja`
-  emits ` thinking` whenever `reasoning_effort` is unset), so left unset a short reply is consumed
-  by the deliberation trace and `content` comes back empty for every client that reads `content`.
-  A caller wanting the scratchpad passes `chat_template_kwargs {"reasoning_effort": "high"}` per
-  request.
+- **The template kwarg is route-scoped, and the original reading was wrong for vLLM.** The claim
+  above (the template gates thinking on `reasoning_effort`, so `{"reasoning_effort": "none"}` is
+  required) came from the SGLang arm and has not been re-tested there; on the vLLM route the
+  2026-10-15 receipt shows it is **inert** — `content: null` whether it arrives as the server
+  default or per request — while `chat_template_kwargs {"enable_thinking": false}` is what fills
+  `content` (1600 chars where the other shapes returned none). The vLLM recipe now ships the value
+  that works; a caller wanting the scratchpad passes `{"reasoning_effort": "high"}` per request.
 
 ## `qwen3.8-flash-next-uncensored-nvfp4-sglang`
 
