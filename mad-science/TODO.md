@@ -189,7 +189,15 @@ No shipped arm has a measured `C2`/`C5`/`C10`: a census of the `~/benchmarks/**`
 - [ ] **Re-measure the pooling lanes at the ladder points** *(2026-10-15: the runnable form is now `sparkrun benchmark pooling <recipe> --profile <pooling profile> [--skip-run]` (`benchmark run` also works; `benchmark performance` refuses — the category's framework is set before the profile is read); receipts are per-cell `runs/NNN_{kind}_c{k}.json`. `kind` is required. See `tools/README.md` §`plugins/pooling_bench_framework.py`.)* — embed/rerank publish `units/s` at C1/C4/C8/C16/C32 (`tools/pooling-bench.py`); re-run at c 1/2/5/10 and quote `units / wall_seconds` from the receipt. (`recipes/embed/README.md`; `recipes/rerank/README.md:69-70`; `.scratch/embed/csweep8b-order1-c*.json`) *(effort: medium)*
 - [ ] **Give the two non-t/s lanes a ladder or a documented `—`** — the decision arms report `req/s` from a *serial* instrument (`tool-eval-bench`), so filling C2/C5/C10 there needs a concurrent harness; the image arm serves one request at a time, so its `—` should be written down as by-design in the lane doc. (`recipes/decision/README.md`; `recipes/explore/README.md`; `tools/README.md`) *(effort: medium)*
 
-**In flight 2026-10-15 (parallel slices, `.34`/`.35` window).** *(decision lane: clef+Kai* ensemble productization + the lane's ladder position; explore lane: the `JetBrains/Mellum2.1-12B-A2.5B-Thinking` arm build; cybersec lane: the two negatives' vLLM-route unblock prep; storage: the fleet runtime-cache position, the per-node cache budget, and the three-pack licence/consolidation analysis. Each reports into this register's lanes; nothing here is claimed done until its receipt or doc edit is verified.)*
+**Landed 2026-10-15 (parallel slices).** *(GLM 5.3 TP=4 arm `34a2a2f` — boot deferred to a `.30`–`.33`
+window; cybersec arms 3/4 vLLM routes `202f482` — receipts owed; ornith 35B YaRN 1M arm `8bfb62d` —
+gate pre-registered in `attic/ornith/NOTES.md` §8; pooling `BenchmarkingPlugin` + the silent-skip
+correction `6801c41`; storage positions + `tools/cache-audit.py` `1d7d4ad`; the Engram log fix
+`a884dee`. Still in flight at that hour: the decision lane's Kai-0.6B boot on `.34` with its
+`decision-ensemble.py`/`decision-ladder.py` productization, the qwen3 27B re-anchored suite on `.35`,
+and the two cybersec arms' weight prefetch (`.34` complete, `.35` running,
+`~/benchmarks/_prefetch-20261015/`). Nothing is claimed done until its receipt or doc edit is
+verified.)*
 
 ## Standard evaluation suite (registry-level)
 - [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)* *(progress 2026-10-15: ornith 35B done; IFM 0.9B/7B ladders measured; a decision-lane slice is in flight on `.34` (ensemble productization + the lane's ladder position); qwen3 27B headline pass running on `.35` by the qwen3 lane.)*
