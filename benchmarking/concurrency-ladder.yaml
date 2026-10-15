@@ -1,0 +1,17 @@
+framework: llama-benchy
+metadata:
+  description: >
+    The registry-level concurrency ladder: the c = 1/2/5/10 shape the recipe
+    index's C1/C2/C5/C10 columns are named for. Depth 0, five runs (the
+    inter-boot noise floor here is 7-25%, so no profile with fewer than five
+    runs supports a cross-boot comparison). Deliberately distinct from
+    deep-smoke (c = 1/2/5) - a profile name must never imply a different
+    ladder. Run it with --skip-run against the boot the quality suite used, so
+    speed and quality share one window.
+args:
+  depth: [ 0 ]
+  pp: [ 2048 ]
+  tg: [ 128 ]
+  concurrency: [ 1, 2, 5, 10 ]
+  prefix_caching: true
+  runs: 5

@@ -1,0 +1,17 @@
+framework: tool-eval-bench
+metadata:
+  description: >
+    The registry's standard external tool-call suite: tool-eval-bench's core 15
+    scenarios, greedy (temperature 0.0), 8 turns, sequential. This is the shape
+    every lane's "standard suite" number is taken on, so scores compare across
+    arms. The full set (-b short=false: extended + agentic) and Hard Mode
+    (-b hardmode=true, Category P) are different shapes - a number from them is
+    not comparable to one from here, and must be labelled with its shape. Needs
+    the pinned tool (ref) and uvx on PATH.
+args:
+  ref: v2.6.0
+  temperature: 0.0
+  max_turns: 8
+  timeout: 300
+  parallel: 1
+  short: true
