@@ -26,25 +26,43 @@ bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to 
 | runtime / container | SGLang (`lmsysorg/sglang:dev-cu13`) |
 | model | [RadixArk/Qwen3.8-27B-NVFP4] — NVFP4 quant of `Qwen/Qwen3.8-27B`, 17.6 GB weights, qwen3_5 dense hybrid, image-text-to-text |
 | draft | [z-lab/Qwen3.8-27B-DFlash2] — DFLASH2 spec decode, block 8 |
-| size / mem / TP | 27B dense (64 layers = 48 GDN + 16 full-attention, no experts); `gpu_memory_utilization: 0.85`; **TP=1 only** (TP=2 cannot boot this model — attic `AGENTS.md` §7); 262,144 ctx |
+| size / mem / TP | 27B dense (64 layers = 48 GDN + 16 full-attention, no experts); `gpu_memory_utilization: 0.85`; TP=1 measured here — a deliberate TP=2 attempt with the loader fix mounted is **open** (2026-10-15); the *unfixed* TP=2 arm cannot boot (attic `AGENTS.md` §7); 262,144 ctx declared and **reachable on the shipped chain** (KV pool 497,878 tokens, top rung of the needle probe served as a 256,650-token prompt) |
 | flags | 🌲🚀👀 (fast, lcg_favorite, vision) |
-| decode C1 | **33.8 t/s** @ d=0, c=1 (block 8) — the shipping arm's quality reference (house battery 37/37) |
+| decode C1 | **33.8 t/s** @ d=0, c=1 (block 8, decode-triage) — the arm's historical reference, measured with the weight loader **unfixed** (house battery 37/37) |
+| decode ladder | **C1 31.7 ± 3.0 · C2 54.3 ± 4.2 · C5 95.5 ± 6.8 · C10 94.5 ± 4.6 t/s** @ d=0, pp 2048, tg 128, n=5, shipped boot, 2026-10-15 — `bench_017bdc06394d` (a `--fresh` re-measurement: the same bench id also covers the earlier partial-patch probe boot, whose artifacts live in the receipt's `partial-patch-probe/`) |
+| suite (2026-10-15) | eval-suite 1.0.1 verdict `ok`: contract ok (served id is the HF repo id, 262,144 ctx); house **37/37**; needle **3/3** at 32k, 131k, and 262k (the top rung is a 256,650-token prompt, i.e. the declared window really is served); hard ARC **93.5 %** (187/200) and GSM8K **96.0 %** (192/200, `finish_reason` stop 198 + length 2, no empty replies); BFCL v3 **87.7 %** (1087/1240) |
+| tool score (2026-10-15) | tool-eval-bench v2.6.0, core 15, greedy, 8 turns, sequential: **14 pass, 1 partial (TC-14), 0 fail → score 97** (29/30 points) — `bench_a8fa9f246154` |
+| receipt | `~/benchmarks/qwen3-27b-suite-20261015/` on the head — `launch.log`, `provenance.txt`, `summary.json`, `bfcl.json`, `hard/`, `needle-*.json`, `perf-ladder.*`, `teb.*`; SGLang `dev-cu13` image `sha256:c802d7b6…`, checkpoint `319f741c…`, draft `z-lab@50307d4c…` |
 | licence | Apache-2.0 (checkpoint and draft) |
 
 Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md) §4):
 
-- **`max_num_seqs: 48` is not the granted concurrency.** The mamba/GDN state pool silently clamps it
-  to **21** on a fresh container (`capped to 21`, `K=85`) — read the grant from the server log, never
-  from the literal.
-- **`mamba_ssm_dtype: bfloat16` deliberately overrides the checkpoint's declared float32**: it doubles
-  granted concurrency (21 vs 10 slots) and is bit-identical on the state-read path. Do not "restore
-  float32 for safety".
+- **`max_num_seqs: 48` is exactly what the shipped chain grants, but never read the grant from the
+  literal.** With the weight-loader fix mounted the mamba/GDN state pool does not clamp it (`K=252` →
+  63 slots, so 48 is granted in full); the *same* literal was silently clamped to **40** (`K=161`,
+  then `K=163`) on every boot whose loader stranded its device staging buffer, and the recipe's own
+  historical figure was **21** (`K=85`) on the 2026-09-19 image. Measured 2026-10-15 across three
+  boots of one node; the receipt above carries all three.
+- **The shipped mods chain is what makes that grant possible.**
+  `@littlecedar/mods/fix-fastsafetensors-tp2-sglang` patches SGLang's fastsafetensors loader in
+  place: the device-selection half matters at TP>1, and the staging-buffer-release half frees ~21 GB
+  on the target's weight load and ~3.6 GB on the draft's at TP=1 too (41.90 → 20.59 GB, and 7.41 →
+  3.78 GB), which is what doubles the KV pool (221,836 → 497,878 tokens). The patch is anchor-checked
+  and **fails closed**: a future `dev-cu13` that moves the code aborts the launch with the mod's own
+  message rather than silently reverting to the leaky loader.
+- **`mamba_ssm_dtype: bfloat16` deliberately overrides the checkpoint's declared float32**: it halves
+  the per-slot state size, which is what doubles granted concurrency (21 vs 10 slots on the
+  2026-09-19 image; the relative effect is the durable part) and is bit-identical on the state-read
+  path. Do not "restore float32 for safety".
 - **`mamba_full_memory_ratio: 3.51`** is the high-leverage, context-length-dependent knob; the optimum
   is interior (≈3.6 at 4k, ≈2.3 at 8k, ≈1.2 at 16k) and flipping it is a traffic-shape decision —
-  **ask before changing it**.
+  **ask before changing it**. Those optima were measured under the loader that stranded ~21 GB, so
+  they have **not** been retuned against the doubled pool: treat the ratio as re-checkable rather
+  than settled.
 - **`speculative_draft_tokens: 8`** is what the draft was trained for; any other value wins silently.
   `z-lab` and `incoai` drafts are the same weights (same blob), so a draft-provider A/B measures
-  nothing.
+  nothing — re-confirmed 2026-10-15, where the two repos' draft load lines read the same 7.41 GB
+  under the same (unfixed) loader.
 - **`kv_cache_dtype: auto`** keeps the checkpoint owning the KV dtype (it resolves to `fp8_e4m3`
   because the checkpoint's `hf_quant_config` says FP8).
 - **`chunked_prefill_size: 4096`** is a scheduler token budget, **not** draft length.

@@ -38,8 +38,11 @@ defaults:
   served_model_name: RadixArk/Qwen3.8-27B-NVFP4
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  # NOT the granted concurrency: the mamba state pool silently clamps it (`capped to 21`,
-  # K=85) -- read the grant from the server log, never from this literal.
+  # Read the grant from the server log, never from this literal: the mamba state pool
+  # clamps it while the loader strands its staging buffer (`capped to 21`, K=85 before
+  # 2026-10-15; `capped to 40`, K=161-163 on current dev-cu13 without the fix). With the
+  # shipped fastsafetensors buffer fix mounted there is NO clamp: K=252, 48 granted. Measured
+  # 2026-10-15, receipt in the lane docs.
   max_num_seqs: 48
   # HIGH-LEVERAGE, context-length dependent: splits the leftover pool between GDN state
   # and tokens; the optimum is interior and MOVES with context length -- ask before changing.
