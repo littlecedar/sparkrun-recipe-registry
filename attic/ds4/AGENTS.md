@@ -2572,8 +2572,17 @@ is there (the engine only warns, which would look like working vision). The reci
 `vision` tag. **The cybersec arm 5 (abliterated TP=2) shares this launcher and passes no `--vision`**,
 so its emitted serve line and environment are unchanged — the flag is opt-in, not a default.
 
-Shipped-surface boot receipt: appended here after the first post-ship boot on `.34`/`.35` (the
-2026-10-06 trial evidence below is what the ship was based on).
+**Shipped-surface boot receipt (2026-10-15, `.34`+`.35`, TP=2, task `8ef9b6c9a550c389_3510a5e0d37d`,
+receipt `~/benchmarks/ds4-vision-20261015/`): the two-part change reaches the engine and the engine
+works — the launch log carries `vision ON: vl_bias_dir=… (43 gates; engine flag --vision)`,
+`vision tower on rank 0: 0.90 GiB; VL bias for 43 gates`, and a real-image warm-up
+(`small image (184 tokens, 546x546 px) 431 ms`). The HTTP surface is the remaining gate: an
+`image_url` part on `/v1/chat/completions` is still refused with **HTTP 400 `the chat template
+rejected the request: Message content contains image…`**, while the text control passes — i.e. the
+served chat template has no image branch even though the engine does. The 2026-10-06 trial that
+this ship was based on answered image requests, so the delta is the serving contract (template or
+request shape), not the launcher or the bias. The arm boots and serves text at TP=2 in ~80 s with
+the Engram tables loaded (combined repo, `<snapshot>/engram/`, 2 x 94.4 GiB per node).
 
 **What enabling TP=2 vision takes — VERIFIED on our hardware (2026-10-06), and both parts are now in
 the launcher.** Ran on
@@ -3137,14 +3146,16 @@ is now evidence, not hope. Second, the shipping prerequisite that bites first: t
 reference resolves from the node's registry clone, so this recipe only launches once the mod is
 committed and pushed (§12.10).
 
-**Vision: this lane ships text-only, but the engine can do images.** DeepSeek-V4.1-Flash is
-multimodal, and the TensorFold engine supports image input behind its opt-in `--vision` flag — which
-the shipped launcher does not pass, so an `image_url` part is refused with HTTP 400. Verified on
-`.32`/`.33` (2026-10-06) that adding `--vision` **and** staging the checkpoint's missing VL routing
-bias (43 `ffn.gate.bias_vl` tensors, extracted from the official weights) makes image input work —
-three discriminating images were described correctly, including a swapped-order one. It is a
-two-part change, so it is not shipped. See [`AGENTS.md`](AGENTS.md) §12.14 for the full picture,
-the evidence, and the overlay mod (`recipes/ds4/mods/dsv41-vision-overlay/`).
+**Vision: the launcher ships it and the engine runs it; the chat template still refuses image
+requests.** DeepSeek-V4.1-Flash is multimodal and the TensorFold engine supports image input behind
+its opt-in `--vision` flag. The TP=2 recipe now passes that flag and the launcher stages the
+checkpoint's missing VL routing bias (43 `ffn.gate.bias_vl` tensors, extracted from the official
+weights) — the 2026-10-15 boot log shows the tower, `VL bias for 43 gates` and a real-image warm-up,
+so both parts work. What is still open is the HTTP contract: `/v1/chat/completions` with an
+`image_url` part returns HTTP 400 from the *chat template* ("Message content contains image…"),
+which the 2026-10-06 trial (on `.32`/`.33`, three discriminating images described correctly,
+including a swapped-order one) did not hit. See `AGENTS.md` §12.14 for the full picture and the
+receipt, and `attic/ds4/mods/dsv41-vision-overlay/` for the trial that proved the mechanism.
 
 **Engram: this lane provisions its own tables from the online repo.** The EXL3 checkpoint
 omits the two Engram embedding tables (layers 1 and 14, ~189 GiB); they exist only in the
