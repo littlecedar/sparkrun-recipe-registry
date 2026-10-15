@@ -96,11 +96,16 @@ for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py; do uv run python -m py_co
 find mods recipes tools tests -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: 31/31 pass plain; 4/31 fail strict on
-  accepted warnings (`recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` — `deprecated-topology`;
-  three `unpinned-model-revision`: `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
+- **Plain `validate` is the gate, not `--strict`**: all 32 pass plain; 4/32 fail strict on
+  accepted findings (re-measured 2026-10-15) — `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml`
+  (`cluster_only`, deprecated for v2, plus a `restated-managed-path` suggestion) and three launcher
+  arms whose `model_revision` is pinned but never handed to the engine as `--revision`
+  (`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
   `recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml`, and
-  `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`). Never edit a
+  `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`) — for those
+  three the launcher receives `{model}` as a prepared snapshot path, so the refs/-entry warning is
+  the known false positive the lanes document, not a boot risk (the warning is no longer literally
+  spelled `unpinned-model-revision`). Never edit a
   recipe merely to clear a `suggestion` (e.g. deliberate `/cache/runtime` paths flagged
   `restated-managed-path`).
 - `py_compile` leaves `__pycache__/`; the suite's own child processes may recreate it even under
