@@ -256,3 +256,51 @@ removed the archive that a pinned `_SPARKRUN_COMPLETE` path in the head's `.bash
 tab-completion on every shell start (repointed at `~/.local/bin/sparkrun`; the CLI itself was never
 affected). Also observed, cause unknown: `docker images` is now empty on all six nodes, so the next
 launch re-pulls the image.
+
+**2026-10-15 session — two-node window (`.34`+`.35` ours; `.30`–`.33` held by the peer's ds4 TP=4 job),
+agent-orchestrated, one arm at a time through `~/benchmarks/tp2-window.sh` (launch → HTTP readiness →
+capture grants before stopping → verify idle).**
+
+Three window arms landed receipts. **q1** overturned a documented impossibility: the qwen3 27B recipe
+boots and serves at `-o tensor_parallel=2` with the shipped fastsafetensors fix — decode C1 46.76 ±
+4.92 / C2 79.21 ± 10.47 / C5 117.68 ± 3.67 / C10 120.29 ± 2.30 t/s (n=5, d0 pp2048 tg128), ≈
++48 %/+46 %/+23 %/+27 % over TP=1 — and the boot's admission lines, recorded as unread when the
+receipt was written, were recovered the same day from the **sparkrun job log**: `max_running_requests
+= 48`, mamba pool 565, no `capped to`, i.e. TP=2 grants the full `max_num_seqs` and does not clamp.
+**d1** took the ds4 TP=2 vision receipt: the launcher's two-part change reaches the engine
+(`vision ON … 43 gates`, tower 0.90 GiB, a real-image warm-up) while the served chat template answers
+HTTP 400 for an `image_url` part — so the *engine-runs-it, HTTP-refuses-it* state replaced the
+shipped claim in the attic and the lane README, and the index row gained a `†` footnote under the
+table. **w1** measured the revived qwen4 highcon arm in the k≥16 aggregate window it was revived for:
+84.9 / 89.1 / 89.1 / 72.9 t/s at k=8/12/16/24 (n=7, d8192), flat to k=16 with the cliff **at** k=24,
+and an admission line showing no cap — so the cliff is intrinsic rather than the sweep profile's
+`k == cap` confound; the arm took an index row and its item was archived.
+
+**nex** (cybersec arm 3) closed its long-open route question in four bounded boots: the card's own
+vLLM route loads the export, boots in ~4.3 min and answers `/v1/chat/completions`, but generation
+degenerates to one repeated token in every tested shape (greedy and sampled, thinking-on and
+answer-channel, the reasoning trace never closing at 800 tokens), so the arm keeps its recipe and
+takes no index row. Two claims were corrected as **route-scoped** rather than globally: the recipe's
+`reasoning_effort: none` default is inert on vLLM, and `chat_template_kwargs {"enable_thinking":
+false}` is the switch that fills `content` — the recipe now ships the working value.
+
+**Registry-wide.** An advisory pass (OSV queries plus a version bisect against upstream release dates)
+found the pinned stacks clean: sglang's dev build (source `4ccff141db`, 2026-09-07) postdates `0.5.13`
+— the only release with zero advisories — and the cybersec vLLM nightly (`0.32.0rc1.dev161`) carries
+none; no recipe passes `--enable-custom-logit-processor` or runs router/disaggregation mode, so the
+unreachable-surface advisories do not apply. Two hygiene items were opened instead: six explore arms
+ride vLLM v0.29.0 (23 advisory records / 16 distinct CVEs, none rated HIGH or CRITICAL, all fixed in
+0.30.0) and ten recipes ride three moving tags whose resolved digest no receipt records. The qwen3 27B
+arm was pinned to the digest its own suite receipt names (`@sha256:0a1ba33a…`), which is the image ID
+those nodes hold for the rebuilt tag.
+
+Review feedback that changed artifacts, kept here because the method matters more than the fix: a
+row-level table-width check must cover *every* line between the fences (my first one sampled a slice
+and passed a row that had landed in the wrong table with a broken column); a severity claim must not
+outrun its query ("none rated HIGH or CRITICAL" is not "all LOW/MODERATE" when 16 of 23 records are
+unrated); and a measurement that contradicts three carriers gets corrected in all three deliberately
+rather than in one silently.
+
+Open at close: the GLM TP=4 boot, cybersec arm 4's vLLM boot, and the ornith YaRN gate; the register
+holds 42 open items with no `[x]` rows, this entry's completed ones having been archived to
+`attic/DONE.md`.

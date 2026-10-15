@@ -185,14 +185,20 @@ No shipped arm has a measured `C2`/`C5`/`C10`: a census of the `~/benchmarks/**`
 - [ ] **Give the two non-t/s lanes a ladder or a documented `—`** — the decision arms report `req/s` from a *serial* instrument (`tool-eval-bench`), so filling C2/C5/C10 there needs a concurrent harness; the image arm serves one request at a time, so its `—` should be written down as by-design in the lane doc. (`recipes/decision/README.md`; `recipes/explore/README.md`; `tools/README.md`) *(effort: medium)*
 
 **Landed 2026-10-15 (parallel slices).** *(GLM 5.3 TP=4 arm `34a2a2f` — boot deferred to a `.30`–`.33`
-window; cybersec arms 3/4 vLLM routes `202f482` — receipts owed; ornith 35B YaRN 1M arm `8bfb62d` —
-gate pre-registered in `attic/ornith/NOTES.md` §8; pooling `BenchmarkingPlugin` + the silent-skip
-correction `6801c41`; storage positions + `tools/cache-audit.py` `1d7d4ad`; the Engram log fix
-`a884dee`. Still in flight at that hour: the decision lane's Kai-0.6B boot on `.34` with its
-`decision-ensemble.py`/`decision-ladder.py` productization, the qwen3 27B re-anchored suite on `.35`,
-and the two cybersec arms' weight prefetch (`.34` complete, `.35` running,
-`~/benchmarks/_prefetch-20261015/`). Nothing is claimed done until its receipt or doc edit is
-verified.)*
+window; cybersec arms 3/4 vLLM routes `202f482` — arm 3's boot receipt landed later the same day (the
+route answers, the checkpoint degenerates in every probe, no index row), arm 4's boot is still owed;
+ornith 35B YaRN 1M arm `8bfb62d` — gate pre-registered in `attic/ornith/NOTES.md` §8 and still
+unproven; pooling `BenchmarkingPlugin` + the silent-skip correction `6801c41`; storage positions +
+`tools/cache-audit.py` `1d7d4ad`; the Engram log fix `a884dee`.)*
+
+**Closed later on 2026-10-15** (each with its receipt, doc edit, and the gate re-run): the decision
+lane's ensemble + ladder (`~/benchmarks/decision-ensemble-20261015/`), the qwen3 27B re-anchored
+suite (`~/benchmarks/qwen3-27b-suite-20261015/`) and its TP=2 boot
+(`~/benchmarks/qwen3-27b-tp2-20261015/`), the ornith 35B standard-suite pass, the qwen4 highcon k≥16
+aggregate window (`~/benchmarks/qwen4-highcon-20261015/`, which earned that arm an index row and
+closed its revival item), the cybersec weight prefetch on both nodes, and the four-boot nex vLLM
+route receipt. The two-node window itself ran as `~/benchmarks/tp2-window.sh` (q1 / d1 / w1, serial by
+construction, each arm capturing grants before stopping the container).
 
 ## Standard evaluation suite (registry-level)
 - [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)* *(progress 2026-10-15: ornith 35B done; IFM 0.9B/7B ladders measured; a decision-lane slice is in flight on `.34` (ensemble productization + the lane's ladder position); qwen3 27B headline pass running on `.35` by the qwen3 lane.)*
