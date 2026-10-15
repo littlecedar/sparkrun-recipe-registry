@@ -61,7 +61,7 @@ _C1 from the lane's `.scratch/embed/conc-1.json` receipt._
 
 | Recipe                                | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                             |
 |:--------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   50 † |      — |       — | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2]                                                                                 |
+| qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   50 † |      — |       — | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                                  |
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   71.7 |      — |      — |       — |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37**                                |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   41.3 |      — |      — |       — | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine (MiaAI-Lab); booted 2026-10-14, house battery 37/37 |
 _`†` the lane's previous index headline: a c=2 aggregate on a different prompt shape, not comparable with C1. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
@@ -104,6 +104,7 @@ _Mem% is what the launches served at: neither recipe renders a util flag, so vLL
 | poolside-laguna-s-2.1-nvfp4-dflash-vllm       | ✨🧠🔧📜  |        20.5 |      — |      — |       — | 99.7GB + 2.2GB draft |   85% | /v1/chat/completions |  1 | [Model][poolside/Laguna-S-2.1-NVFP4] [Draft][poolside/Laguna-S-2.1-DFlash-NVFP4] — **boot-verified; 120k capped-context single-tenant arm, battery 32/37**                                                                             |
 | humanizer-12b-vllm                            | 🐢     |         7.6 |      — |      — |       — |               88GB ‡ |   85% |      /v1/completions |  1 | [Model][jialinyyzz/humanizer] — **text-rewriting arm, `/v1/completions` only (no chat template), off the lane's reasoning/tool brief**                                                                                                 |
 | qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
+| mellum2.1-12b-a2.5b-bf16-thinking-vllm        | ✨🧠🔧   |           — |      — |      — |       — | 24.3GB               |   55% | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking] — **built 2026-10-15, boot pending — no boot, no C1/battery/needle receipt yet**                                                                                                       |
 _`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling._
 
 ## Cybersec
@@ -111,7 +112,7 @@ _`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved
 | Recipe                                                      | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                               |
 |:------------------------------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | qwen3.8-27b-uncensored-nvfp4-sglang                         | 🚀👀🏴📜  |   10.2 |      — |      — |       — |               24.7GB |   85% |  1 | [Model][orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — **positive**, boots, battery 37/37                                                                                     |
-| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][incoai/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37 |
+| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37  |
 | deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
 _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._
 
@@ -170,7 +171,6 @@ See [MECHANICS.md](MECHANICS.md) for the sparkrun command-template rules every r
 <!-- Links -->
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
-[incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
 [Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
 [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit]: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
 [Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B
@@ -199,6 +199,7 @@ See [MECHANICS.md](MECHANICS.md) for the sparkrun command-template rules every r
 [poolside/Laguna-S-2.1-DFlash-NVFP4]: https://huggingface.co/poolside/Laguna-S-2.1-DFlash-NVFP4
 [jialinyyzz/humanizer]: https://huggingface.co/jialinyyzz/humanizer
 [Qwen/Qwen-Image-2.1-Turbo]: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
+[JetBrains/Mellum2.1-12B-A2.5B-Thinking]: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking
 [ornith-ai/Ornith-1.5-9B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4
 [ornith-ai/Ornith-1.5-9B-DFlash]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash
 
