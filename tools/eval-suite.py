@@ -103,7 +103,7 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 

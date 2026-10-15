@@ -104,9 +104,28 @@ returns the run's own loader, i.e. the standard safetensors path.
 | nodes / TP | 1 node, `tensor_parallel: 1` |
 | size / mem | 45 GB footprint at `gpu_memory_utilization: 0.85`; `max_model_len: 262144`; `max_num_seqs: 48`; `kv_cache_dtype: fp8_e4m3`; `chunked_prefill_size: 4096` |
 | flags | ✨🚀🌲👀🧠🦾🔧 |
-| decode C1 | **99.6 t/s** @ d0 (σ 9.1) / **100.2** @ d8192 (σ 3.9), accept len mean 2.54 |
-| quality | 37/37 house battery (19/19 easy + 18/18 hard) |
+| decode C1 | **100.8 t/s** @ d0 (σ 12.1, n=5) — 2026-10-15, accept len mean 2.94; prior 99.6 (2026-10-13, σ 9.1) / 100.2 @ d8192 (σ 3.9) |
+| decode C2 · C5 · C10 | **158.2 · 220.4 · 249.9 t/s** @ d0 (σ 6.2 / 10.0 / 4.6, n=5) |
+| quality | 37/37 house battery (19/19 easy + 18/18 hard, 0 flakes); needle **32k 3/3 · 128k 3/3 · 262k 3/3**; gsm8k **88.5%** (177/200), arc **93.0%** (186/200), 0 empty / 0 truncated |
+| tool calls | BFCL v3 **86.9%** (1078/1240, 5 AST categories, 0 transport errors); tool-eval-bench **100** (15/15 core, ref `v2.6.0`) |
+| standard pass | 2026-10-15, `.34`, one boot — receipts `~/benchmarks/ornith-35b-suite-20261015/`: `summary.json` (quality), `hard/` (gsm8k/arc), `perf-ladder.yaml` (bench `bench_8c7486cad451`), `teb.yaml` (bench `bench_6b5b53dd4efb`), `serve.log`, `launch.log` |
 | licence | MIT (checkpoint; the NVFP4 export is MIT) |
+
+**The 2026-10-15 standard pass is the lane's first tool-call and concurrency measurement.** One boot,
+three legs, `benchmarking/concurrency-ladder.yaml` at d0 (5 runs/cell) and
+`benchmarking/standard-suite.yaml` (core 15, greedy); decode-phase rows only, ttfr 296 / 579 / 1199 /
+1959 ms at c1/c2/c5/c10. Boot facts from the serve log: `max_running_requests=48`,
+`max_mamba_cache_size=632` — the hybrid state pool does **not** clamp the admission cap here (the 9B
+sibling granted 273); `max_total_num_tokens=1172758`; accept len mean **2.94** over 2245 decode
+batches (min 1.57, max 3.85), 2.94 at c1 and 2.51 at c10, i.e. spec decode engaged throughout. The
+`DFLASH block size mismatch` warning (4 draft tokens vs the draft's `block_size: 16`) is the
+documented warning-only mismatch. Two things are worth knowing about the receipts: the suite's own
+`hard` axis **errored on an instrument flag** (`--hard-bench gsm8k,arc` is not a valid
+`run_benchmarks.py --bench` choice; `--bench` takes one of `house|gsm8k|arc|all`), so the suite exits
+1 and its `hard` verdict is an artifact defect, not a model result — the two benchmarks were re-run
+by hand on the same boot into `hard/` with the suite's other parameters (limit 200, seed 1234,
+thinking off); and the 262k needle depth passed **3/3** here against 2/3 on 2026-10-14 (that miss was
+a completion-budget artifact).
 
 **The pinned draft needs a `refs/main` seed.** `speculative_draft_model_revision` is a
 **distribution-only** key — SGLang has no serve flag for the draft head, so it never reaches the

@@ -74,6 +74,13 @@ checkpoint (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, `model_type: qwen3_5_moe`, ful
   miss a completion-budget artifact — the model emits reasoning at long context even under the
   served default). Detail and the detection limit are in §6 and [`README.md`](README.md); receipts
   `~/benchmarks/ornith-horizon-20261014/`.
+- **Standard pass — 2026-10-15** (`.34`, one boot, job `dadfb04b5145d956_8ed3ce77d78f`): house
+  **37/37**, needle 32k/128k/262k **3/3/3/3**, gsm8k **88.5%** / arc **93.0%**, BFCL v3 **86.9%**
+  (1078/1240), tool-eval-bench **100** (15/15, ref `v2.6.0`), and the concurrency curve **C1 100.8 /
+  C2 158.2 / C5 220.4 / C10 249.9 t/s** at d0 (σ 12.1 / 6.2 / 10.0 / 4.6, n=5). The suite's `hard`
+  axis errored on an instrument flag and was backfilled by hand; `max_mamba_cache_size=632` does
+  **not** clamp `max_num_seqs: 48`. Detail, bench ids and receipts
+  (`~/benchmarks/ornith-35b-suite-20261015/`) in §5.
 
 **397B (`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm`, 4 nodes, TP=4).** The flagship MoE,
 served with `--enable-expert-parallel` and the checkpoint's own MTP head as the speculative method
@@ -300,6 +307,47 @@ replies) — re-probing that depth at 256 tokens passes. The `tool-eval-bench` s
 [`NOTES.md`](NOTES.md) §5 C2 named was **not configured in this registry when this pass ran** (it is
 now: `benchmarking/standard-suite.yaml`, added 2026-10-15), so the house battery is the suite score
 recorded here.
+
+**Standard pass — the lane's first tool-call and concurrency measurement (2026-10-15, `.34`, one
+boot, job `dadfb04b5145d956_8ed3ce77d78f`, receipts `~/benchmarks/ornith-35b-suite-20261015/`).**
+Three legs on the same boot. Quality (`tools/eval-suite.py` 1.0.0, sha256 `7c1918d2…`, one boot):
+contract ok (`GET /v1/models` = the repo id, `max_model_len` 262144); house **37/37** (19/19 easy +
+18/18 hard, 0 flakes); needle 32768 **3/3** (max prompt 32818), 131072 **3/3** (130963), 262144
+**3/3** (256394) — a *pass* at the native window, against 2/3 on 2026-10-14, whose miss was the
+completion-budget artifact; hard tier gsm8k **88.5%** (177/200) / arc **93.0%** (186/200),
+`finish_reasons` stop 200/200, 0 empty replies, thinking off; tools BFCL v3 **86.9%** (1078/1240) —
+simple 90.75 / multiple 90.5 / parallel 81.5 / parallel_multiple 82.5 / irrelevance 85.8 %,
+data revision `61fc0608…`, 0 transport errors, misses clustering on parallel `wrong_count` (41),
+irrelevance `decoder_success` (34 — called a tool where it should not have) and parallel
+`cannot_find_match` (31). Performance `bench_8c7486cad451` (`benchmarking/concurrency-ladder.yaml`,
+d0, pp 2048 / tg 128, 5 runs per cell, decode-phase rows only): C1 **100.8 t/s** (σ 12.1), C2
+**158.2** (σ 6.2), C5 **220.4** (σ 10.0), C10 **249.9** (σ 4.6); ttfr 296 / 579 / 1199 / 1959 ms.
+tool-eval-bench `bench_6b5b53dd4efb` (`benchmarking/standard-suite.yaml`, core 15, greedy,
+ref `v2.6.0`, sequential): **15/15 pass, 30/30 points, score 100**, safety gate passed with no
+warnings — this is the C2 suite score §6 said had never been run, and it is only comparable to
+another arm's at the same ref.
+
+**Failed and skipped in this session (state it, do not paper over it).** The suite's `hard` axis
+**errored on an instrument flag**: `tools/eval-suite.py` defaults `--hard-bench gsm8k,arc`, but
+`recipes/ds4/benchmarks/run_benchmarks.py` accepts a *single* `--bench` choice
+(`house|gsm8k|arc|all`), so `summary.json` carries `hard: error` and the suite verdict is `fail`
+(exit 1) — the two benchmarks were re-run by hand on the same boot into the same receipt's `hard/`
+with the suite's other parameters (limit 200, seed 1234, thinking off), and the numbers above are
+those artifacts. No `horizon` leg ran; the 2026-10-14 horizon null stands.
+
+**Boot facts** (`serve.log`): `max_running_requests=48` with `max_mamba_cache_size=632` — the hybrid
+state pool does **not** clamp the admission cap on this arm (the 9B sibling granted 273), which is
+the open `max_num_seqs` question answered for the 35B; `max_total_num_tokens=1172758`; KV fp8_e4m3
+over 1172758 tokens (5.59 GB K + 5.59 GB V target, 6.71 + 6.71 GB draft); mamba conv 0.87 GB, ssm
+18.54 GB, intermediate ssm 5.74 GB + conv window 0.13 GB; `available_gpu_mem=9.47 GB`; the
+`DFLASH block size mismatch` warning (4 draft tokens vs the draft's `block_size: 16`) is the
+documented warning-only one; TTR port-open **94.4 s** / HTTP-ready **97.0 s** / TTFT 97.1 s. Accept
+len mean **2.94** over 2245 decode batches (min 1.57, max 3.85; 2.94 at c1, 2.51 at c10) — spec
+decode engaged for the whole pass. (The 2026-10-13 C1-only boot logged 2.54 over 23 batches;
+different windows, so read them as two readings, not a trend.) During the pass `.34` reported 8 GB
+of 121 GB `available` (`mem-fraction-static` 0.85 reserves ~103 GB — the expected shape, not a
+starved node) at load avg 1.16; after `sparkrun stop dadfb04b5145d956_8ed3ce77d78f` the node
+returned to **117 GB available with no containers**.
 
 ## 6. Open items (deliberately not closed)
 

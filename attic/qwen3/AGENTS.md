@@ -163,10 +163,17 @@ back into this lane first** — while it sits in `attic/`, the lane's validation
 
 ## 7. Negative results — do not re-derive / re-run
 
-- **TP=2** — **cannot boot** this model. Rank 1 dies in ~3 s with `CUDA error: invalid device ordinal`
-  (SGLang derives the CUDA device from the **global** rank on a 1-GPU box); rank 0 then hangs at
-  `Loading safetensors 0%`. A fix mod exists (`recipes/cybersec/mods/fix-fastsafetensors-tp2-sglang`) but has never
-  been run; either mount it deliberately as an experiment or leave TP=1.
+- **TP=2** — **cannot boot** this model *unfixed*. Rank 1 dies in ~3 s with `CUDA error: invalid device
+  ordinal` (SGLang derives the CUDA device from the **global** rank on a 1-GPU box); rank 0 then hangs
+  at `Loading safetensors 0%`. The fix mod was promoted out of the cybersec lane to the shared
+  `mods/fix-fastsafetensors-tp2-sglang` on 2026-10-15 and the shipped 27B recipe now mounts it by
+  default, listed **after** `pip-install-fastsafetensors` (mods resolve in order, so the patch is
+  applied to the installed module). Its second defect fix (releasing the fastsafetensors device
+  staging buffer) is not TP-only — the mod's own README measures ~26.9 GB retained at load on this
+  recipe with the loader unfixed — so the shipped chain differs from the pre-promotion one at TP=1 as
+  well. The deliberate TP=2 boot on the free pair ([.34]/[.35]) is owned by the orchestrator this
+  window: **boot pending (orchestrator)**. The failure above belongs to the *unfixed* arm; no TP=2
+  result is claimed in this lane.
 - **`--enable-linear-replayssm-spec`** — rejected; the scheduler raises
   `ValueError: --enable-linear-replayssm-spec with DSPARK/DFLASH requires a KDA (kimi_linear) model;
   got a non-KDA model` **after both weight loads** (`kv_cache_configurator.py:1106-1114`) — a full
