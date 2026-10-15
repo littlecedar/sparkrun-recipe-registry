@@ -52,9 +52,9 @@ draft tokens per step — which is why the **no-spec control** existed as the de
 | plain decode (no-spec, d=0, c=1) | **12.56 ± 0.02 tok/s** | 10 runs / 2 containers; ±0.25 % across boots |
 | shipping decode (block 8, d=0, c=1) | **33.76 tok/s** | the *ratio* from the block A/B is the durable number, not this absolute |
 | block 8 vs block 4 | **+22.5 %** (95 % CI [1.188, 1.262]) | pooled ratio-of-means over 3 same-node interleaved phases, 24 boots |
-| granted concurrency | **21** (`K=85`) at `D=8`, fresh container | mamba pool clamp; 26-slot ceiling at any ratio |
+| granted concurrency | **21** (`K=85`) at `D=8`, fresh container — on the 2026-09-19 image with the loader **unfixed** | mamba pool clamp; 26-slot ceiling at any ratio. Superseded on the shipped chain: **48 granted, no clamp** (`K=252`), §14 |
 | implied weight bandwidth | **221 GB/s** | = 17.608 GB × 12.56 tok/s |
-| accepted tokens/step `A_eff` | **3.265** pooled (1,481 log lines) | 3.99 is a single probe; quote 3.265 for capacity math |
+| accepted tokens/step `A_eff` | **3.265** pooled (1,481 log lines) | 3.99 is a single probe; quote 3.265 for capacity math. Spot samples 2026-10-15 during the ladder: 3.25–3.46 (§14) |
 | c=8 depth cost (8k→) | **~20 %** (boot-level 8–29 %) | congested/pool-limited; uncongested c=4 is **~11 %** |
 | bench at c=2 (tg=128, pp=256) | ~71 t/s aggregate | the `recipes/README.md` "50 t/s" headline is this family of shape — not comparable to 33.76 (per-stream 35.4) |
 
@@ -188,7 +188,10 @@ back into this lane first** — while it sits in `attic/`, the lane's validation
 - **The sub-4k depth bump** — a blocked-order artefact (first cell of a blocked sweep is depressed,
   not depth 2048 being fast); depth is monotone decreasing. **KV-bandwidth GB/s figures** — four were
   retracted; do not quote one.
-- **`max_num_seqs: 48`** — never granted; the mamba pool is the ceiling (21 at `D=8`).
+- **`max_num_seqs: 48`** — never granted *while the loader stranded its staging buffer*; the mamba
+  pool was then the ceiling (21 at `D=8` on the 2026-09-19 image, 40 on 2026-10-15's `dev-cu13`).
+  With the shipped fastsafetensors buffer fix the literal **is** granted (48, `K=252`, no clamp) —
+  §14. Read the grant from the server log in every case.
 - **The DSpark draft** — boots on GB10 but loses ~16 % to DFlash2 (28.46 vs 33.76 t/s, decode-triage,
   2026-10-10); the card's GB300/H200 numbers do not transfer to SM121. Archived with its receipt
   pointers in `attic/qwen3/`.
@@ -323,6 +326,124 @@ Two sizing facts: the startup estimate is **37.77 GiB within 116.72 GiB**, measu
 to 78 GiB pinned) is a host-side computation in its `start.sh` that a static recipe cannot run — the
 arm leaves the pool to the engine and takes `-e TENSORFOLD_KV_POOL_GIB=<n>` at launch (the pinned image
 reads that variable: `tensorfold/cuda/kv_fp8.py`).
+
+## 14. The 2026-10-15 suite pass — the loader fix moves capacity, not just TP=2
+
+One boot of the shipped recipe on the free node (`[.35]`) carried all three legs: `tools/eval-suite.py`
+1.0.1, the c=1/2/5/10 concurrency ladder, and tool-eval-bench's core 15. Receipt:
+`~/benchmarks/qwen3-27b-suite-20261015/` on the measuring host (`launch.log`, `provenance.txt`,
+`suite.log`, `summary.json`, `bfcl.json`, `hard/`, `needle-*.json`, `perf-ladder.*`, `teb.*`); sparkrun
+task `3b78f3ef7df2980b_64af2f7668b6`; every command line is in `provenance.txt` and `suite.log`.
+Provenance: recipe md5 `66dd1e18…` at launch, edited comment-only to `b12e8830…` afterwards (the clamp
+comment in §4), fix-mod md5 `3bf53071…`, image `lmsysorg/sglang:dev-cu13` = local image ID
+`sha256:c802d7b6…` (created 2026-10-14 20:39 EDT; the floating tag was re-pulled the same night, and
+`.RepoDigests` is empty because sparkrun's OCI relay imports rather than docker-pulls — the registry
+amd64 manifest at probe time, `sha256:6b17a72a…`, carries that same ID as its config digest, so the
+pulled bytes and the tag agreed), checkpoint `RadixArk/Qwen3.8-27B-NVFP4@319f741c…` (resolved from an
+UNPINNED `refs/main` and equal to the pin the recipe carries today), draft
+`z-lab/Qwen3.8-27B-DFlash2@50307d4c…` (the recipe's `pre_exec` seed writes that `refs/main`; the engine
+logs `speculative_draft_model_revision: main`).
+
+### 14.1 The mod that the promotion put in the recipe could not boot it
+
+The promotion that moved the fastsafetensors fix to the shared `mods/` root also added it to this
+recipe's chain, and the first boot after it aborted: `pre_exec[7] failed (exit 1)`, with the mod log
+reading `[staging-buffer-release] anchor found 0 time(s), expecting 1` and
+`applied: device-selection / missed: staging-buffer-release`. Upstream had deleted the second
+`finally: pass` block that the buffer anchor keyed on — today's `dev-cu13` has exactly one
+`try/finally: loader.close()` and no release call anywhere in
+`model_loader/weight_utils.py` — so the mod's fail-closed gate fired. The leaks themselves were
+untouched by that drift. This was a shipped-recipe regression rather than a missing number, since
+cybersec arm 5 mounts the same mod. Re-anchored the same day (`37e5b00`, one candidate anchor per known
+upstream shape with `fb = None` bound above the `try`), guarded by
+`tests/test_fix_fastsafetensors_tp2_mod.py`, which fails against the pre-change script and covers the
+partial-apply fatal.
+
+### 14.2 The fix is not TP-only — it moves the whole capacity picture
+
+Same image, same flags, same node, three boots; only the loader state differs. Unfixed figures are the
+pre-promotion boot and the partial-patch probe boot, in that order.
+
+| quantity | loader unfixed | shipped chain (fix mounted) |
+|---|---|---|
+| target weight load | 41.90 GB (avail after 71.94) | **20.59 GB (avail after 93.17)** |
+| draft weight load | 7.41 GB | **3.78 GB** |
+| mamba cache `K` | 161 / 163 | **252** |
+| mamba clamp line | `capped to 40` | **none** |
+| granted concurrency | 40 | **48** (the literal) |
+| KV pool (fp8_e4m3) | 213,311 / 221,836 tokens | **497,878 tokens** (K 7.60 + V 7.60 GB) |
+| pool end avail | 21.00 / 21.06 GB | 26.02 GB (draft pool 16.34 GB) |
+| last effective line | `max_total_num_tokens` 213k–222k | `max_total_num_tokens=497878, max_prefill_tokens=16384, max_running_requests=48, context_len=262144, available_gpu_mem=7.33 GB` |
+
+The declared 262,144 window follows from that: on the fixed boot the needle probe's top rung is served
+as a **256,650-token prompt** and passes, while both unfixed boots were TRUNCATED at 209,185–209,687
+counted prompt tokens ("server counted … tokens for a 262144-token request; the window was not
+reached"). What capped the reachable window near 209k was the unfixed chain, not the model.
+
+### 14.3 Quality — the suite's verdicts
+
+`eval-suite 1.0.1` (suite sha256 `49a8405e…`), overall verdict `ok`, all five axes ok, 09:44–12:33 UTC:
+
+| axis | result | artifact |
+|---|---|---|
+| contract | served id `RadixArk/Qwen3.8-27B-NVFP4` (not a `/cache` path), `max_model_len=262144`, `ready=True`, `finish_reason` stop | `summary.json` |
+| house | **37/37** (easy 19/19, hard 18/18), no flaky tasks | `house.json` |
+| needle | **3/3** at 32,768, 131,072, and 262,144 — PASS at every rung | `needle-*.json` |
+| hard | ARC **93.5 %** (187/200, all `stop`), GSM8K **96.0 %** (192/200, `stop` 198 + `length` 2, 0 empty replies) | `hard/…{arc,gsm8k}.off.json`, `hard-*.log` |
+| tools | BFCL v3 (data rev `61fc0608…`) **87.7 %** (1087/1240), 0 transport errors; simple 91.75 %, multiple 94.0 %, parallel 85.5 %, parallel_multiple 77.5 %, irrelevance 85.83 % | `bfcl.json` |
+
+The external suite ran on the same boot: tool-eval-bench v2.6.0, core 15, greedy, 8 turns, sequential
+— 14 pass, 1 partial (`TC-14`), 0 fail, **score 97** (29/30 points), `bench_a8fa9f246154`. The two
+`finish_reason: length` GSM8K replies are truncations rather than wrong answers, and the empty-reply
+count is 0, so the reasoning channel is not swallowing `content` on this arm.
+
+### 14.4 Speed — the ladder, and why its id needs care
+
+`benchmarking/concurrency-ladder.yaml` (d0, pp 2048, tg 128, n=5), decode rows only from
+`perf-ladder.json`, on the shipped boot:
+
+| cell | tg t/s | σ | the five runs |
+|---|---|---|---|
+| C1 | 31.68 | 2.97 | 32.56, 31.57, 26.10, 34.58, 33.59 |
+| C2 | 54.32 | 4.24 | 57.79, 58.33, 54.41, 46.47, 54.61 |
+| C5 | 95.54 | 6.84 | 85.30, 93.62, 97.85, 94.49, 106.43 |
+| C10 | 94.53 | 4.62 | 87.30, 96.39, 101.37, 95.09, 92.51 |
+
+`bench_017bdc06394d`. **That id is not unique to this measurement.** The night's first ladder run (the
+partial-patch probe boot) minted the same id, and the shipped-config run then resumed against the
+completed state and re-emitted the recorded results without sending a request — the tell is
+`Warning: Prior benchmark state for bench_017bdc06394d is COMPLETE`. The numbers above come from a
+`--fresh` re-run on the shipped boot (`perf-ladder-fresh.log`), and the probe's artifacts are kept in
+`partial-patch-probe/`. The probe boot measured 36.84 / 59.36 / 94.20 / 101.90, so the two boots differ
+by −14 % at C1 and +1 % at C5 — a spread that does not survive the 7–25 % inter-boot noise floor this
+hardware is documented at (`benchmarking/decode-triage.yaml`). These are one boot each and **no ranking
+between the loader states is claimed**; the decision-relevant difference is capacity (§14.2), which the
+log lines show directly. One instrument caveat rides along: sparkrun logged
+`sglang rejects return_token_ids on streaming requests; benchmarking with return_token_ids=false …
+peak throughput and the throughput timeseries are interpolated`, so quote the `tg` means above, never a
+peak or a throughput curve from this run.
+
+Spec decode was engaged throughout: `accept len` 3.25–3.46 (`accept rate` 0.32–0.35) on the
+steady-state decode lines during the ladder, in family with the pooled `A_eff` 3.265 (§2).
+
+### 14.5 Anomalies, failures, and what stays open
+
+- **The mamba grant moved for two independent reasons, so the older figures are ambiguous.** The
+  2026-09-19 `K=85` → 21 belonged to an older image *and* to the leaky loader; today's `dev-cu13`
+  gives `K=161/163` → 40 unfixed and `K=252` → no clamp fixed. Cite §14.2's table rather than any
+  single historical clamp number.
+- **`tools/eval-suite.py --checks hard` was broken earlier in the night** (it handed the comma list
+  `gsm8k,arc` to an instrument that takes one choice) and was fixed to 1.0.1 before the headline run.
+  The manual per-bench re-run left in the receipt resumed from the same per-item `_raw` records and
+  agreed (96.0 %), so nothing was counted twice. Related: the needle axis can only PASS or TRUNCATE —
+  a pool ceiling reads as a FAIL, which is exactly what the two unfixed boots returned.
+- **The image is a floating tag.** `lmsysorg/sglang:dev-cu13` resolved to one ID for all three boots
+  and the mod's anchors matched it, but nothing in the recipe pins it, so a future pull can move both
+  the loader source and the KV accounting (the §8 pinning item stays open). The mod fails closed in
+  that case rather than silently reverting to the leaky loader.
+- **Open:** `mamba_full_memory_ratio` has never been retuned against the doubled pool (§4), and a
+  deliberate TP=2 boot with the fix mounted is owned by the orchestrator — **no TP=2 result exists in
+  this lane** (§7).
 
 ## From recipes/qwen3/README.md (2026-10-14)
 
