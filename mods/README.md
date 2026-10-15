@@ -91,9 +91,11 @@ routes image tokens with the text bias, which would look like working vision. Th
 `attic/ds4/AGENTS.md` §12.14.
 
 **Caveat — Engram is out-of-band and never fails closed.** The tables are two ~95 GiB shards of the
-*official* checkpoint, absent from the EXL3 repo; the mod only **reports** their absence at
-`TENSORFOLD_ENGRAM_DIR` (default `/cache/huggingface/hub/dsv41-engram`) because the engine loads without
-them, degraded and with a warning. `@littlecedar/mods/…` resolves from the node's registry clone, so the
+*official* checkpoint, absent from the EXL3 repo. They now travel **with** the combined repo
+(`littlecedar/…-with-engram`, `<snapshot>/engram/`), which the launcher's resolver prefers; the mod
+**reports** which of the two homes is populated — the combined repo or the legacy flat
+`TENSORFOLD_ENGRAM_DIR` (default `/cache/huggingface/hub/dsv41-engram`) — and says `degraded` only
+when neither is, because the engine loads without them, with a warning. `@littlecedar/mods/…` resolves from the node's registry clone, so the
 mod must be committed and pushed before the recipe launches. One AGPL-3.0-or-later port of upstream code
 lives among these mods: the lane-local `fix-sglang-radix-chunked-insert` (Apache-2.0 headers retained).
 
