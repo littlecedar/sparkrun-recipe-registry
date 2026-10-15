@@ -48,7 +48,7 @@ defaults:
   # HIGH-CONCURRENCY knobs, the only delta from the base. Real admission ceiling is the mamba pool
   # (max_mamba_cache_size // 4 on the lazy strategy: 128 -> 32), and max_num_seqs must stay strictly
   # ABOVE every served k -- at k == cap the batch saturates at cap-1 with one request queued and
-  # per-request decode loses ~6%. Aggregate throughput peaks near k=16; past k=24 it declines.
+  # per-request decode loses ~6%.
   max_num_seqs: 32
   kv_dtype: bf16
   quantization: modelopt_mixed

@@ -103,9 +103,9 @@ the only archived arm holding the **aggregate-throughput regime**. It differs fr
 in exactly two defaults: the mamba pool (112 → 128) and `max_num_seqs` (24 → 32), which lifts the real
 admission ceiling from 28 to 32 (`max_mamba_cache_size // 4` on the lazy strategy). `max_num_seqs` must
 stay strictly above every served `k` — at `k == cap` the batch saturates at `cap − 1` with one request
-queued and per-request decode loses ~6%. Aggregate decode peaks near **k=16** (~91 tok/s on this
-checkpoint) and declines past k=24, so use this arm to serve batches, not to chase single-stream
-latency. Everything else is the base: same pin, same six-mod chain (the archived arm's
+queued and per-request decode loses ~6%. Aggregate decode peaks at **k=16** and cliffs at k=24
+(measured 89.1 → 72.9 t/s, the paragraph below), so use this arm to serve batches, not to chase
+single-stream latency. Everything else is the base: same pin, same six-mod chain (the archived arm's
 `skip-labquant-vision-tower` is dropped — the step-5500 tower is BF16 and already inside
 `quantization_config.ignore`, which is why this recipe serves vision), same two mandatory flags in
 `defaults.extra_args`.

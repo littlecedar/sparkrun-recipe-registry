@@ -11,10 +11,10 @@
 # concurrency. So the interesting outcomes are not "labquant is faster" (it is not, at bs>=8) but
 # where its peak sits and whether its cliff is at the same k.
 #
-# The `k == max_num_seqs` penalty found in §19 also applies here and must be respected: the
-# labquant recipe ships `max_num_seqs: 24`, so a k=24 cell lands exactly on the cap and will be
-# depressed for that reason *in addition to* any intrinsic cliff. Read k=24 with that in mind, and
-# do not attribute the whole loss to the checkpoint.
+# The `k == max_num_seqs` penalty found in §19 applies to the *base* labquant recipe
+# (`max_num_seqs: 24`), not to this run: the arm this profile was run against is the highcon one
+# (`max_num_seqs: 32`), so a k=24 cell sits *below* the cap and any loss there is intrinsic. The
+# base arm's k=24 cell would land exactly on its cap and is confounded by design.
 #
 # This profile deliberately reuses §19's cells (8/12/16/24) rather than inventing a finer grid, so
 # the two checkpoints' curves are directly comparable cell-for-cell at the same depth and pp/tg.
@@ -22,9 +22,10 @@ framework: llama-benchy
 metadata:
   description: >
     labquant past bs=8, matched cell-for-cell to §19's RadixArk sweep. Answers where labquant's
-    aggregate peak sits and whether its cliff is at the same concurrency. Note the recipe's
-    max_num_seqs=24 makes the k=24 cell also a `k == cap` cell (§19), so that cell is confounded by
-    design and is reported as such.
+    aggregate peak sits and whether its cliff is at the same concurrency. Scope note: the
+    `k == cap` confound from §19 belongs to the *base* recipe (max_num_seqs 24); this profile was run
+    against the highcon arm (max_num_seqs 32), where k=24 is below the cap. The 2026-10-15 result
+    bears that out — flat to k=16, cliff at k=24, engine admitting unclamped (89.1 -> 72.9 t/s).
 args:
   depth: [ 8192 ]
   pp: [ 2048 ]
