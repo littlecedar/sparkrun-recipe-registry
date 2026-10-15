@@ -428,6 +428,21 @@ own subsection (10.7 is the `6c01ac37` re-pin).
     of the single-stream rate.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 594.4 s).
 
+- **Measured 2026-10-15 — the k≥16 aggregate window this arm was revived for** (receipt
+  `~/benchmarks/qwen4-highcon-20261015/`, job `1895030211ea0500_3510a5e0d37d`), at d=8192 / 128 output
+  tokens / n=7 per cell: aggregate decode **84.9 / 89.1 / 89.1 / 72.9 t/s at k=8 / 12 / 16 / 24**
+  (flat from k=12 to k=16, then −18 %), ttfr **5.8 / 7.7 / 9.8 / 15.6 s**, prefill phase
+  **~3.05–3.06 k t/s at every k**. The engine admitted it unclamped — `max_total_num_tokens=1,567,360`,
+  `max_running_requests=32`, `context_len=262144`, mamba pool 128 slots (the admission line lives in
+  `w1-sparkrun-*.log`: this image's stdout carries only the preamble and `/tmp` inside the container
+  held just the mod's log) — so the k=24 fall-off is **not** a pool or request cap. That is the
+  opposite of the `k == cap` confound the sweep profile was written to respect: that confound belongs
+  to the base arm (`max_num_seqs: 24`), and the profile note now scopes it there. What is *not*
+  measured: the standard ladder's C1–C10 (one depth only) and any comparison against the base arm at
+  this depth. `tg_throughput.mean` was checked against the tool's printed table before citing
+  (84.93 / 89.06 / 89.08 / 72.91, n=7 each) and the prefill-phase records were excluded as a separate
+  phase.
+
 ### 10.3 `qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (Lane B) — **ARCHIVED 2026-10-14**
 
 - Key-name trap: §1 fact 1. The 1M caveat and the fp8-KV note are in `README.md` ("Lane B") and §1.
@@ -570,7 +585,7 @@ re-measured later the same day on `.34` (see below). Receipts on the head:
 | `…-labquant-sglang` (pre-cut pin `7c4f1bc1`) | 2 | 41.32 ± 4.16 | 38.58 ± 2.37 | **kept — TP=2 survivor** |
 | `…-labquant-sglang` (re-pinned `6c01ac37`) | 2 | 40.32 ± 1.94 | 43.29 ± 2.68 | same arm after the re-pin; the shipped receipt |
 | `…-labquant-longctx-sglang` | 2 | 42.47 ± 3.03 | 39.04 ± 3.15 | tied at C1; 1M quality unverified → attic |
-| `…-labquant-highcon-sglang` | 2 | 40.10 ± 2.44 | 41.92 ± 5.28 | tied at C1; larger pool for a regime not shipped → attic |
+| `…-labquant-highcon-sglang` | 2 | 40.10 ± 2.44 | 41.92 ± 5.28 | **revived + shipped 2026-10-15** (re-pinned `6c01ac37`; own receipt d8192: 84.9 / 89.1 / 89.1 / 72.9 t/s at k=8/12/16/24 with the cliff at k=24 — the C1 cells in this row are the superseded `7c4f1bc1` pin) |
 | `…-nvfp4-sglang` (RadixArk) | 2 | 36.84 ± 3.42 | 34.44 ± 1.19 | ~12% slower at C1 → attic |
 | `…-solo-vllm-b12x` | 1 | 33.92 ± 1.73 | 34.35 ± 1.26 | **kept — TP=1 survivor** |
 | `…-solo-sglang` | 1 | 19.82 ± 2.06 | 20.97 ± 1.02 | ~42% below the TP=1 pick → attic |
