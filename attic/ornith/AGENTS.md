@@ -349,6 +349,29 @@ of 121 GB `available` (`mem-fraction-static` 0.85 reserves ~103 GB — the expec
 starved node) at load avg 1.16; after `sparkrun stop dadfb04b5145d956_8ed3ce77d78f` the node
 returned to **117 GB available with no containers**.
 
+**9B concurrency ladder (2026-10-15, `.34`, fresh boot, `bench_92725c90d298`, receipts
+`~/benchmarks/ornith-9b-ladder-20261015/`).** The 9B arm's missing C2/C5/C10 cells, measured on one
+window (`benchmarking/concurrency-ladder.yaml`, d0, pp 2048 / tg 128, 5 runs per cell, decode-phase
+rows only): **C1 58.0 t/s** (σ 8.8) / **C2 101.1** (σ 8.3) / **C5 159.0** (σ 7.8) / **C10 148.9**
+(σ 4.8); ttfr 535 / 1016 / 2292 / 3863 ms; TTR port 206.2 s, HTTP 220.7 s (cold boot — 8.24 GiB of
+weights plus 2.41 GiB of draft distributed first). C1 confirms the recorded ~52–59 t/s band. **The
+c10 cell is ~6% below c5: recorded as a plateau at c5–c10, not a knee** — the gap is inside the
+profile's own 7–25% inter-boot noise floor and no same-window control boot was run, so a single
+window cannot resolve it.
+
+**Two gaps in that receipt, deliberately left as gaps rather than filled.** (a) The boot's engine
+grants are **not** captured: a benchmark-owned launch (no `--skip-run`) **stops its own serve when
+the bench completes**, so the container's serve log — the only place `max_running_requests` and
+`max_mamba_cache_size` are printed — was destroyed before it could be read; the arm's grant record
+therefore stays the 2026-10-14 reading (`max_running_requests=48`, `max_mamba_cache_size=273`, `.30`)
+and this boot neither confirms nor contradicts it. Read the serve log **while the bench runs**, or
+pass `--no-stop` to a benchmark launch, if the grant is the question. (b) The intended confirm window
+measured nothing: `sparkrun benchmark performance` derives the bench id from recipe+profile+args, so
+a rerun found the completed `bench_92725c90d298` state and **re-emitted its recorded numbers**
+("no requests will be sent") — `--fresh` is required to re-measure. That second launch is void, its
+duplicate output was deleted, and only `launch-w2.log` is kept as the evidence;
+`recipes/ornith/README.md` carries no window-2 numbers.
+
 ## 6. Open items (deliberately not closed)
 
 - **Reasoning loop — NOT REPRODUCED on the long-horizon workload either (2026-10-14, `.31`); the

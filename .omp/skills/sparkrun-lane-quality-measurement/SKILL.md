@@ -22,6 +22,11 @@ bench id (never from the printed table).
    -H <host> --profile benchmarking/concurrency-ladder.yaml --skip-run --output
    <receipt>/perf-ladder.yaml`. That is the c 1/2/5/10 ladder the index's C1/C2/C5/C10 columns are
    named for; read the **decode** row (`is_context_prefill_phase: false`) of the output file.
+   Two harness traps measured 2026-10-15: a **benchmark-owned** launch (no `--skip-run`) reaps its
+   own serve on completion, so pass `--no-stop` whenever the engine's grants
+   (`max_running_requests`, `max_mamba_cache_size`) belong in the receipt — otherwise they are
+   unrecoverable; and a rerun without `--fresh` finds the completed bench id, re-emits its recorded
+   numbers and **sends no requests** ("a void window"), so a confirmation needs `--fresh`.
 3. **Standard external suite** — `sparkrun benchmark tools <recipe> --profile
    benchmarking/standard-suite.yaml` (tool-eval-bench, core 15, greedy) for any arm that serves tool
    calls; that profile is the shared shape, so scores compare across arms.
