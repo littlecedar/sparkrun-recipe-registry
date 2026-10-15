@@ -14,10 +14,10 @@ Every lane pass runs the same three legs against **one boot window**, receipts i
 `~/benchmarks/<lane>-<date>/` on the head; numbers land in the lane docs with the receipt path and the
 bench id (never from the printed table).
 
-1. **Quality + horizon** — `uv run python -B tools/eval-suite.py <base-url> <receipt-dir> --checks
-   contract,house,needle` (add `hard,tools` for reasoning/tool-calling arms, `horizon` for agentic
-   ones). The exit code is the verdict; `summary.json` and each check's raw artifact land in the
-   receipt directory.
+1. **Quality + horizon** — `uv run python -B tools/eval-suite.py --base-url <url> --outdir
+   <receipt-dir> --checks contract,house,needle` (add `hard,tools` for reasoning/tool-calling arms,
+   `horizon` for agentic ones; `--checks all` is every axis). The exit code is the verdict;
+   `summary.json` and each check's raw artifact land in the receipt directory.
 2. **Perf ladder** — on the **same boot** (do not stop it): `sparkrun benchmark performance <recipe>
    -H <host> --profile benchmarking/concurrency-ladder.yaml --skip-run --output
    <receipt>/perf-ladder.yaml`. That is the c 1/2/5/10 ladder the index's C1/C2/C5/C10 columns are

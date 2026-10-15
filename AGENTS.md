@@ -6,7 +6,7 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 (`Trusted=yes`, so recipe mods run unprompted at launch). There is no compiled application here:
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
-Counts in this document were verified 2026-10-14 against the working tree. Facts drift — re-measure
+Counts in this document were verified 2026-10-15 against the working tree. Facts drift — re-measure
 (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
@@ -62,8 +62,8 @@ Load-bearing contracts:
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 4 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
 | `tests/` | 19 importable guard modules, one skipped `*.sync-conflict-*.py` |
-| `tools/` | 12 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png) |
-| `benchmarking/` | 43 profiles + README index (flat, recipe-agnostic) |
+| `tools/` | 15 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
+| `benchmarking/` | 45 profiles (44 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile) + README index (flat, recipe-agnostic) |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
 | `.omp/skills/` | Tracked **omp skills for recipe work only** (research, author, publish, benchmark, test, verify, retire, index): one `SKILL.md` per skill, discovered natively at *project* scope when this repo is the working directory (no symlinks or config needed). Cluster-ops, monitoring, gateway, evidence-store and session-workflow skills deliberately stay user-global in `~/.omp/agent/managed-skills/`. Discovery is startup-time, so an edit applies at the next session start. `learn`/`manage_skill` still write to the global root — a new recipe skill must be moved here by hand. |
@@ -292,9 +292,10 @@ matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index; documents all 12 tools (`safe_text.py` added 2026-10-07; the
-  three before it describe behaviour and caveats only — this repo records measured results next
-  to the arm that produced them, e.g. `attic/qwen4/status/*.md`).
+- `tools/README.md` — tool index; documents all 15 tools (`safe_text.py` added 2026-10-07 and the
+  standard-suite trio 2026-10-15; the three before `safe_text.py` describe behaviour and caveats only
+  — this repo records measured results next to the arm that produced them, e.g.
+  `attic/qwen4/status/*.md`).
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
 ## Runtime/Tooling Preferences
