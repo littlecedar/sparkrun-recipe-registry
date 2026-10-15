@@ -25,7 +25,7 @@ bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to 
 | recipe | `qwen3.8-27b-nvfp4-dflash2-sglang.yaml` |
 | runtime / container | SGLang (`lmsysorg/sglang:dev-cu13`) |
 | model | [RadixArk/Qwen3.8-27B-NVFP4] — NVFP4 quant of `Qwen/Qwen3.8-27B`, 17.6 GB weights, qwen3_5 dense hybrid, image-text-to-text |
-| draft | [incoai/Qwen3.8-27B-DFlash2] — DFLASH2 spec decode, block 8 |
+| draft | [z-lab/Qwen3.8-27B-DFlash2] — DFLASH2 spec decode, block 8 |
 | size / mem / TP | 27B dense (64 layers = 48 GDN + 16 full-attention, no experts); `gpu_memory_utilization: 0.85`; **TP=1 only** (TP=2 cannot boot this model — attic `AGENTS.md` §7); 262,144 ctx |
 | flags | 🌲🚀👀 (fast, lcg_favorite, vision) |
 | decode C1 | **33.8 t/s** @ d=0, c=1 (block 8) — the shipping arm's quality reference (house battery 37/37) |
@@ -154,7 +154,6 @@ the moved VL recipes are covered by
 
 <!-- Links -->
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
-[incoai/Qwen3.8-27B-DFlash2]: https://huggingface.co/incoai/Qwen3.8-27B-DFlash2
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
