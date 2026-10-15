@@ -174,8 +174,25 @@ served with no `--limit-mm-per-prompt` cap.
 | size / mem | 11 GB footprint at `gpu_memory_utilization: 0.85`; `max_model_len: 262144`; `max_num_seqs: 48`; `kv_cache_dtype: fp8_e4m3`; `chunked_prefill_size: 4096` |
 | flags | ✨🚀🤏👀🧠🦾🔧 |
 | decode C1 | **~52–59 t/s** (52–57 cold / 54–59 warm), accept len mean 3.35 |
+| decode C2 · C5 · C10 | **101.1 · 159.0 · 148.9 t/s** @ d0 (σ 8.3 / 7.8 / 4.8, n=5) — same-boot C1 **58.0** (σ 8.8); bench `bench_92725c90d298` |
 | quality | 37/37 house battery (19/19 easy + 18/18 hard) |
 | licence | MIT |
+
+**Concurrency ladder, 2026-10-15 (`.34`, one fresh boot, `benchmarking/concurrency-ladder.yaml`, d0,
+5 runs/cell, decode-phase rows only).** The C1 headline is confirmed on this boot at **58.0 t/s**
+(σ 8.8) and the curve climbs to **101.1 / 159.0 t/s** at c2/c5 before **148.9** at c10 — a ~6%
+inversion at the top of the ladder. That is **inside the profile's stated 7–25% inter-boot noise
+floor**, and no same-window control boot was run for this arm, so the honest reading is a
+*plateau at c5–c10*, not a knee; a single window cannot resolve anything under ~7%. ttfr 535 / 1016
+/ 2292 / 3863 ms; TTR port 206.2 s / HTTP 220.7 s (cold — the boot had just distributed 8.24 GiB of
+weights + 2.41 GiB of draft). Receipts `~/benchmarks/ornith-9b-ladder-20261015/` (`launch.log`,
+`perf-ladder.yaml|json|csv`, bench `bench_92725c90d298`). Two receipt caveats worth knowing: a
+benchmark-owned launch (no `--skip-run`) **stops its own serve on completion**, so the container's
+serve log — the only place the engine's admission/mamba grants appear — died with it and this boot's
+`max_running_requests` / `max_mamba_cache_size` are **not** in the receipt (the arm's grant record
+therefore stays the 2026-10-14 reading, 48 / 273 on `.30`); and re-running the same
+recipe+profile+args does **not** re-measure — sparkrun finds the completed `bench_*` state and
+re-emits the recorded numbers ("no requests will be sent"; `--fresh` is required to measure again).
 
 **No `mamba_*` keys and no `moe_runner_backend`, unlike the 35B arm — deliberate.** The MoE knob is
 inert (the checkpoint is dense). The `mamba_*` trio is left to the engine defaults rather than

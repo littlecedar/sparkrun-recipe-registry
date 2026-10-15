@@ -14,7 +14,7 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — nothing open (2026-10-15)
+# DECISIONS — 1 open (2026-10-15)
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
@@ -23,6 +23,15 @@ register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 registers (#1
 the pre-fold states, `git show baecfa8:mad-science/TODO.md` and `git show c7c7a81:mad-science/TODO.md`;
 the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.md`; the #34/#35 register
 (2026-10-15, answered the same day) is `git show 043fbae:mad-science/TODO.md`.
+
+**Q1 — the `🚀 fast` threshold vs the labquant arms.** The flag taxonomy (`recipes/README.md`
+§Model Flags) defines `🚀 fast` as *C1 Fast (>= 50 t/s avg)*, but `…-labquant-sglang` carries `fast`
+and its index row reads 40.3 (the revived highcon arm inherits the same tag). The threshold was
+written for single-node arms; both these are TP=2, and a 180B MoE at 40 t/s across two nodes is a
+judgement call, not a measurement. Re-word the taxonomy (e.g. per-node-count bands), retag the arms,
+or leave `fast` as an owner's-eye call?
+
+→ Answer:
 
 # TODO list
 
@@ -93,7 +102,7 @@ Qwen 3.x
 
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
-- [ ] **Revive `…-labquant-highcon-…` in a k≥16 aggregate window** — dominated on one axis only; it is the sole holder of the aggregate-throughput regime (`attic/qwen4/ARMS-MANIFEST.md:118`; `attic/qwen4/AGENTS.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: short)*
+- [ ] **Revive `…-labquant-highcon-…` in a k≥16 aggregate window** *(recipe revived 2026-10-15 in commit `a8b1dec` — `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`, re-pinned `6c01ac37`, vision-tower mod dropped, validates + renders `--tp 2`; the k≥16 window boot is pending, on the free `.34`/`.35`)* — dominated on one axis only; it is the sole holder of the aggregate-throughput regime (`attic/qwen4/ARMS-MANIFEST.md:118`; `attic/qwen4/AGENTS.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: short)*
 - [ ] **Pass the 1M needle gate for `…-labquant-longctx-…`** — the archived long-context route's missing prerequisite ("quality above 262k is still UNMEASURED") (`attic/qwen4/AGENTS.md`). *(effort: medium)*
 - [ ] **Run the W4 `#37111` release soak (1–2 h / ~100k)** — only a short smoke ran, so the corruption gate is unproven (`attic/qwen4/AGENTS.md`). *(effort: medium)*
 - [ ] **One-boot `--enable-linear-replayssm-spec` test** — the lane's "most promising un-measured memory lever" (`attic/qwen4/NOTES.md` Open questions). *(effort: short)*
