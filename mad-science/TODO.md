@@ -14,7 +14,22 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — nothing open (2026-10-15)
+# DECISIONS — 2 open (2026-10-15)
+
+### #34 — The shipped 8B reranker: keep its residency, or demote it to `attic/`?
+`qwen3-vl-reranker-8b-vllm-b12x` is a shipped recipe (primary index + lane README) and the
+deliberate non-`fast` quality tier (~4× slower per scored document than the 2B), but its checkpoint
+costs +16 GB/node with no recorded cache state, and the 2B is the measured default. Keep it resident,
+or retire it to `attic/rerank/` the way the GLM Flash arm was?
+→ Answer:
+
+### #35 — The two cybersec negatives: unblock them, or retire them to `attic/cybersec/`?
+Arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`) and arm 4
+(`qwen3.8-flash-next-uncensored-nvfp4-sglang`) are documented negatives that lost their index rows on
+2026-10-14 while their recipe files stayed in `recipes/cybersec/`, so the tree and the distributed index
+disagree. Unblock them via their card-documented vLLM routes (a boot receipt re-adds the rows), or
+retire both (recipe + manifest row + a do-not-re-add note)?
+→ Answer:
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
@@ -32,6 +47,16 @@ dropped where the sweep opened new work.)*
 
 *(Owner decision 2026-10-15: the sweep runs with no timebox — multi-day, group by group, stopping
 only at a gate; the register is the scope, not a plan.)*
+
+**Resourcing (2026-10-15).** Single-node work runs on the free `.34`/`.35`; `.30`–`.33` are busy with
+the ds4 TP=4 job and the multi-node items in the lanes below wait for that window. Every `sparkrun` call runs from
+the head with the HOME override and `--transfer-mode local`, and **the registry clone must be
+refreshed first** (`sparkrun registry update littlecedar`): it is behind the tree today and carries no
+lane-local `mods/`, so an `@littlecedar/…` launch of the ornith 35B dies with `Could not resolve mod
+'mods/ornith-honed-chat-template'` (measured 2026-10-15). For the same reason, launch a recipe by its
+real path — never a flattened `~/development/<name>.yaml` symlink. Only two orderings are asserted: the
+RadixArk reclaim on `.34` is tagged *immediate* (126 GiB resident against the owner's cache policy), and
+the ornith 35B is the first arm of the standard-suite sweep.
 
 Selection priorities:
 - Node count (lower is better)
