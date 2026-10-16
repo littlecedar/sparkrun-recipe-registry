@@ -1,7 +1,7 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 runtime: vllm
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
 min_nodes: 1
 max_nodes: 1
 

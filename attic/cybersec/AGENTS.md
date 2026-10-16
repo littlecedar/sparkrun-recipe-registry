@@ -608,6 +608,28 @@ Recorded, over the 1–2-node bar or licence-blocked; see `mad-science/TODO.md` 
 `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (205.1 GB), `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated`
 (315.7 GB ⇒ ≥3 nodes), `drowzeys/MiMo-V2.6-Flash-RL-Abliterated` (310B), `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B).
 
+## 2026-10-16 re-measure: the SGLang engine gate changed form (arm 3, nex)
+
+Purpose: the three SGLang cybersec arms now pin `lmsysorg/sglang:dev-cu13@sha256:0b3e3970…`, and the
+tag had moved again since the 2026-10-13/14 receipts — the cached image on `.34`/`.35` was
+`@sha256:0a1ba33a…`, while today's boot resolved `0b3e3970` (arm64 manifest `35206090…`, engine
+`0.0.0.dev1+gc15edf314`; the 2026-10-15 advisory pass had read `ga6a8c5601`). Boot evidence and
+probes: `head:~/benchmarks/pins-20261016/` (`nex-sglang-evidence.txt`, `nex-sglang-boot.log`).
+
+`nex-n2.5-mini-uncensored-nvfp4-sglang` reached ready on `.35` on that image (sparkrun exit 0; TTR
+104.1 s port-open, 112.3 s HTTP-ready). **The CUDA device-side assert is gone** — the container log
+carries no `device-side assert` / `NaN` / `CUDA error` line — and `/v1/chat/completions` answers. But
+every probe degenerates: three greedy probes (default; `chat_template_kwargs
+{"enable_thinking": false}`; `{"reasoning_effort": "none"}`), 64 tokens each, all returned 64
+identical `!` characters, the switch only moving them between `reasoning_content` and `content`. That
+is the failure mode the vLLM route showed on 2026-10-15 (single repeated token at 800 tokens), so the
+two engines now agree: **the checkpoint, not the engine, blocks this arm.** The SGLang negative
+stands; `metadata.caveats` on the recipe and the arm-3 block in `recipes/cybersec/README.md` were
+corrected to this state.
+
+The pin is the other half of the receipt: an arm booted today silently runs a *different* SGLang
+build than the 2026-10-13/14 receipts did, which is what the digest pin now freezes.
+
 ### Links (as referenced by the material above)
 
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4

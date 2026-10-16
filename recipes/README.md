@@ -41,16 +41,19 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | Recipe                                           | Flags   | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size | Mem% | TP | Model Cards                                                                            |
 |:-------------------------------------------------|:--------|-------:|-------:|-------:|--------:|---------------------:|-----:|---:|:---------------------------------------------------------------------------------------|
 | littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm | 🌲👀🧠🦾🔧   |  41.86 |      — |      — |       — |                251GB |  80% |  4 | [Model][littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft]                                   |
-| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲👀🧠🦾🔧 |    100 |      — |      — |       — | 23.5GB + 1.1GB draft |  85% |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
-| ornith-1.5-9b-nvfp4-dflash-sglang                | ✨🚀🤏👀🧠🦾🔧 |     55 |      — |      — |       — |  8.8GB + 2.6GB draft |  85% |  1 | [Model][ornith-ai/Ornith-1.5-9B-NVFP4] [Draft][ornith-ai/Ornith-1.5-9B-DFlash]         |
+| ornith-1.5-35b-a3b-nvfp4-dflash2-sglang          | ✨🚀🌲👀🧠🦾🔧 |  101.8 |  153.1 |  217.4 |   244.2 | 23.5GB + 1.1GB draft |  85% |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4] [Draft][jzinno/Ornith-1.5-35B-A3B-DFlash2] |
+| ornith-1.5-9b-nvfp4-dflash-sglang                | ✨🚀🤏👀🧠🦾🔧 |     55 |  101.1 |  159.0 |   148.9 |  8.8GB + 2.6GB draft |  85% |  1 | [Model][ornith-ai/Ornith-1.5-9B-NVFP4] [Draft][ornith-ai/Ornith-1.5-9B-DFlash]         |
+
+* _Ornith ladder cells are @ d0, pp 2048, tg 128, n=5, decode rows read from each receipt's `--output` file. The **35B** row is the 2026-10-16 re-run — `~/benchmarks/ornith-35b-suite-20261016/ornith35b-ladder.json`, per-stream 101.8 / 79.8 / 54.5 / 34.2 t/s, ttfr 303 / 582 / 1208 / 1973 ms (the 2026-10-15 pass read C2/C5/C10 158.2 / 220.4 / 249.9, i.e. within 3 %); the **9B** row is the 2026-10-15 pass — `bench_92725c90d298`, `~/benchmarks/ornith-9b-ladder-20261015/perf-ladder.yaml`, same-boot C1 58.0._
 
 ## Embed
 
 | Recipe                                   | Flags | C1 u/s | C2 u/s | C5 u/s | C10 u/s |   Size | Mem% |            API | TP | Model Cards                                    |
 |:-----------------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|---------------:|---:|:-----------------------------------------------|
-| qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶🤏 |      — |      — |      — |       — | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
+| qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶🤏 |   38.2 |   45.5 |   85.2 |   102.4 | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶🤏 |   15.9 |      — |      — |       — | 6.01GB |  30% | /v1/embeddings |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
 
+* _The 2B row's C1–C10 are 2026-10-16 units/s from `benchmarking/pooling-ladder-embed.yaml` (c 1/2/5/10, 100 requests, ~256-token inputs, 5 warmups, salted, `-b dimension_check=2048`) — `~/benchmarks/pins-20261016/embed2b-ladder.json`. That is **not** the 8B row's shape, so the two rows' cells are not comparable._
 * _C1 from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
 
 ## Rerank
@@ -67,7 +70,7 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | Recipe                                | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                             |
 |:--------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   50 † |      — |       — | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                                  |
-| qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   71.7 |      — |      — |       — |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37**                                |
+| qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   70.4 |  114.0 |  177.1 |   249.5 |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; 2.1× DFlash2 C1; 2026-10-16 ladder, receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`  |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   41.3 |      — |      — |       — | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine (MiaAI-Lab); booted 2026-10-14, house battery 37/37 |
 
 * _`†` the lane's previous index headline: a c=2 aggregate on a different prompt shape, not comparable with C1. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
@@ -132,8 +135,8 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 |:-----|:--------------|:-----------------------------------------|
 | ✨   | official      | Uses official weights                    |
 | 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite          |
-| 🚀   | fast          | C1 Fast (>= 50t/s avg)                   |
-| 🐢   | slow          | C1 Slow (< 40t/s avg)                    |
+| 🚀   | fast          | C1 Fast: >= 50 t/s TP=1, >= 40 t/s TP=2  |
+| 🐢   | slow          | C1 Slow: < 40 t/s (any node count)       |
 | 🚚   | large_context | Large context (>= 512k tokens)           |
 | 🔧   | tools         | Excellent tool use                       |
 | 🧠   | reasoning     | Excellent reasoning capability           |
@@ -157,7 +160,7 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
 | 💀   | broken        | Currently broken                         |
 
-_Flags indicate characteristics of the model and are set in the recipe metadata, except `📜 licence`, which the index sets from the lane's own licence note; `🚀 fast` may predate the measured C1 above._
+_Flags indicate characteristics of the model and are set in the recipe metadata, except `📜 licence`, which the index sets from the lane's own licence note; `🚀 fast` may predate the measured C1 above. `🚀`/`🐢` are banded by node count and an arm is tagged on the C1 aggregate for the count it runs at: `🚀` at >= 50 t/s on one node and >= 40 t/s on two — which is what keeps the TP=2 labquant and highcon arms tagged; higher TP has no band and is an explicit owner call (no arm carries `🚀` there). `🐢` is < 40 t/s at any node count (Owner decision 2026-10-16: the band replaced the single >= 50 t/s threshold, which was written for single-node arms only)._
 
 # Licence Policy
 

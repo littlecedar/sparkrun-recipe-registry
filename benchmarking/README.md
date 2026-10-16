@@ -11,8 +11,10 @@ Twelve profiles stranded later by the qwen4/qwen3 lane cuts were preserved the s
 2026-10-15 — nine under `attic/qwen4/profiles/` and three under `attic/qwen3/profiles/`, each with a
 line in its lane's `ARMS-MANIFEST.md`.
 
-One profile drives a different framework: `standard-suite.yaml` is a **tool-eval-bench** profile for
-`sparkrun benchmark tools` (see §Standard external suite).
+Two profile groups besides the llama-benchy majority drive other frameworks: `standard-suite.yaml` is
+a **tool-eval-bench** profile for `sparkrun benchmark tools` (see §Standard external suite), and the
+`pooling-ladder-embed.yaml` / `-rerank.yaml` pair is **pooling-bench**, for
+`sparkrun benchmark pooling` (see §Pooling ladder).
 
 A third framework exists but is **not registered by default**: `framework: pooling-bench` drives
 `tools/pooling-bench.py` against a pooling engine (`/v1/embeddings`, `/v2/embed`, `/v1/score`).
@@ -110,6 +112,19 @@ not the quiet regime:** the worst within-cell cvs in the archive (11–15 %) are
 | `capacity-at-16k-above-ceiling` | 16384 | 16, 20 | 4 | The follow-up that offers **more** than the treatment ceiling, so the ceiling is actually exercised. Judge on `#running-req` vs ceiling, not on throughput. |
 | `acceptance-vs-depth` | 0, 16384 | 1 | 5 | `accept len` vs context depth **in one boot**, `tg` fixed. Decode t/s = `accept_len / step_time`, so "depth costs a single stream nothing" does **not** establish that acceptance is depth-independent. |
 | `cross-node-null` | 0 | 1 | 2 | Byte-identical server on two nodes, minimal decode. The reference scale for every perturbation experiment: if changing a machine moves the metric as much as changing the config does, the config result is unrankable. |
+
+## Pooling ladder (embed / rerank)
+
+| profile | kind | concurrency | requests | use |
+|---|---|---|---|---|
+| `pooling-ladder-embed` | embed | 1, 2, 5, 10 | 100 | The embed lane's registry-ladder points on the instructed shape (`embed-v1-chat`, ~256-token inputs, 5 warmups, salted). `dimension_check` is pinned at 4096 (the 8B AWQ encoder) — the 2B arm needs `-b dimension_check=2048`. |
+| `pooling-ladder-rerank` | rerank | 1, 2, 5, 10 | 100 | The rerank lane's ladder on the cross-encoder `/v1/score` shape (one query × 10 documents). Units are documents scored, so quote `units / wall_seconds` from the receipt's `runs/NNN_{kind}_c{k}.json`. |
+
+Both are `framework: pooling-bench`, so they need the out-of-tree plugin registered
+(`tools/README.md` §plugins/) and the `benchmark pooling` subcommand — run one through
+`benchmark performance` and its `framework:` key is ignored and llama-benchy gets pooling args.
+**Neither shape is the lanes' published c = 1/4/8/16/32 shape**: a cell from a ladder profile and one
+from a published sweep are different shapes and must never be pooled.
 
 ## Batch / `max_num_seqs` cliff family (qwen4)
 

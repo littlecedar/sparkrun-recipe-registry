@@ -131,7 +131,7 @@ balanced base (pool 112 / cap 24).
 | | |
 |:--|:--|
 | Recipe | `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` |
-| Engine | vLLM — `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest` (floating tag; the b12x build publishes no digest-pinnable alias, so a measured number is tied to whatever the tag resolved to) |
+| Engine | vLLM — `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…` (**digest-pinned 2026-10-16**; the earlier note here said the b12x build published no digest-pinnable alias — that was wrong: the tag is a single-platform manifest whose digest resolves, verified by `docker manifest inspect <ref>@<digest>` and by matching the manifest's config digest to the container's image ID. The relay-imported image carries no `RepoDigests`, which is why `docker images --digests` showed `<none>` and the digest had to come from `docker buildx imagetools inspect`) |
 | Model | [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4) — same checkpoint as the TP=2 recipe |
 | Checkpoint pin | none — serves `main` (the step-5500 QAD hybrid export) |
 | Nodes | 1 (TP=1, `max_nodes: 1`) |

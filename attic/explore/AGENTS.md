@@ -549,9 +549,14 @@ owner call 2026-10-14) and `Lightricks/LTX-2.5` (video+audio; gated repo, shippe
 a third off-brief arm, the text-rewriting helper `jialinyyzz/humanizer` (12B Gemma-4 finetune,
 Apache-2.0, vLLM-servable via a byte-exact `/v1/completions` prompt).
 Inventory, GB10 precedents, and per-arm checklists: [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md)
-§5–§7. Otherwise nothing further remains by the research ranking: `vllm-sr/d3-edge` is watch-only
-(zero boot history), and the reserve candidates Muse-Glimmer-30B / Xing4.0-29B-A4B /
-Mistral-Small-4-119B are blocked or untested (see the research doc's checklists). Single-node TP=1.
+§5–§7, plus **§8** — the 2026-10-16 owner-queued `tfwnotops/…ConstantKV` Kolibri-1M research entry
+(high priority; code-only, PolyForm Noncommercial 1.0.0, no GB10 precedent, so it is an owner call
+before anything of its runs). The other Kolibri follow-ups queued the same day — the MTP block
+drafter, the 4-bit vLLM quant packs and the GGUF ladder — live in `mad-science/TODO.md` §explore, and
+the llama.cpp/GGUF runtime question is registry-level there too. Otherwise nothing further remains by
+the research ranking: `vllm-sr/d3-edge` is watch-only (zero boot history), and the reserve candidates
+Muse-Glimmer-30B / Xing4.0-29B-A4B / Mistral-Small-4-119B are blocked or untested (see the research
+doc's checklists). Single-node TP=1.
 
 ## Serving and measurement traps this lane hit (traps 1–4 are fixed in the recipe)
 

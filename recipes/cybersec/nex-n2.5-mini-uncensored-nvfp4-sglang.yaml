@@ -2,7 +2,7 @@ recipe_version: "2"
 model: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
 model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
 runtime: sglang
-container: lmsysorg/sglang:dev-cu13
+container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
 metadata:
   description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark
@@ -18,10 +18,13 @@ metadata:
     guardrails. Gated (gated: auto) - each node needs an HF_TOKEN with this repo's release accepted.
     New family to this registry (qwen3_5_moe: 3:1 gated-delta-net / full attention, 256 experts
     top-8, no MTP head); the routed experts are the only quantized tensors.
-    ENGINE GATE, measured on this lane 2026-10-14: SGLang loads this checkpoint but its
-    sample-time logits are NaN (the first generation dies with `CUDA error: device-side assert
-    triggered` in sampling_from_probs_torch), so the arm does not serve under SGLang. The uploader
-    documents only vLLM's CompressedTensorsW4A4 path. See attic/cybersec/AGENTS.md receipts.
+    ENGINE GATE: no SGLang image serves this checkpoint. On the engine this lane measured 2026-10-14
+    the first generation died with `CUDA error: device-side assert triggered` (NaN sample-time
+    logits, sampling_from_probs_torch); on the engine this recipe now pins (boot-verified 2026-10-16)
+    the assert is gone and the server answers, but every greedy probe degenerates to a single
+    repeated token (`!!!!...`) -- the same checkpoint-level failure the vLLM route showed 2026-10-15.
+    The uploader documents only vLLM's CompressedTensorsW4A4 path. See attic/cybersec/AGENTS.md
+    receipts.
 
 mods:
   - "@eugr/mods/drop-caches"

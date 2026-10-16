@@ -110,6 +110,11 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   So the **route** is verified and the **checkpoint** is not servable on it: the recipe stays as the
   route record and carries **no index row** (an arm that cannot serve keeps its recipe, not its row).
   Full triage, the four probes, and the container evidence: attic AGENTS.md §8.
+- **Re-measured 2026-10-16 on the newer `dev-cu13`** (the digest the three SGLang arms now pin,
+  `@sha256:0b3e3970…`, engine `0.0.0.dev1+gc15edf314`): the assert is gone — the server comes up and
+  answers — but every greedy probe (thinking-on, answer-channel, `reasoning_effort: none`) returns 64
+  identical `!` tokens, i.e. the same degeneration the vLLM route shows. The failure follows the
+  **checkpoint**, not the engine. Receipt `~/benchmarks/pins-20261016/`.
 
 - **The template kwarg is route-scoped, and the original reading was wrong for vLLM.** The claim
   above (the template gates thinking on `reasoning_effort`, so `{"reasoning_effort": "none"}` is

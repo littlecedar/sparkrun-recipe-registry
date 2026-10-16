@@ -242,10 +242,10 @@ args:
 ```
 
 ```sh
-# the lanes' published ladder shape (the YAML above, saved as pooling-ladder.yaml),
+# the shipped ladder pair (benchmarking/pooling-ladder-embed.yaml / -rerank.yaml),
 # on an arm that is already serving
 sparkrun benchmark pooling recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml \
-  --hosts <node> --skip-run --profile pooling-ladder.yaml --output ladder.yaml
+  --hosts <node> --skip-run --profile benchmarking/pooling-ladder-embed.yaml --output ladder.yaml
 ```
 
 **How the framework gets picked, and the one way to get this wrong.** `framework_name` and
