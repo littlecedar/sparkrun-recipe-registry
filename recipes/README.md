@@ -31,6 +31,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   46.5 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                         |
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀† |   73.0 |      — |      — |       — | 413GB | 84%\* |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
+
 _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
 _`†` vision runs in the engine, not on the HTTP surface: an `image_url` part still gets HTTP 400
 from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
@@ -49,6 +50,7 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 |:-----------------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|---------------:|---:|:-----------------------------------------------|
 | qwen3-vl-embedding-2b-vllm-b12x          | 🚀🌲👀📶🤏 |      — |      — |      — |       — | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🚀🌲👀📶🤏 |   15.9 |      — |      — |       — | 6.01GB |  30% | /v1/embeddings |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
+
 _C1 from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
 
 ## Rerank
@@ -57,6 +59,7 @@ _C1 from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
 |:-------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|----------:|---:|:-----------------------------------|
 | qwen3-vl-reranker-2b-vllm-b12x | 🚀🌲👀🔃🤏 |  100.6 |      — |      — |       — | 4.27GB |  30% | /v1/score |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B] |
 | qwen3-vl-reranker-8b-vllm-b12x | 🌲👀🔃🤏  |      — |      — |      — |       — | 17.6GB |  30% | /v1/score |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B] |
+
 _C1 from the lane's `.scratch/embed/conc-1.json` receipt._
 
 ## Qwen 3x
@@ -66,6 +69,7 @@ _C1 from the lane's `.scratch/embed/conc-1.json` receipt._
 | qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   50 † |      — |       — | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                                  |
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   71.7 |      — |      — |       — |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; **measured 2026-10-11, 2.1× the DFlash2 C1; house battery 35/37**                                |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   41.3 |      — |      — |       — | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine (MiaAI-Lab); booted 2026-10-14, house battery 37/37 |
+
 _`†` the lane's previous index headline: a c=2 aggregate on a different prompt shape, not comparable with C1. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
 
 ## Qwen 4x
@@ -95,6 +99,7 @@ _`†` the lane's previous index headline: a c=2 aggregate on a different prompt
 | clef-flash-decision-sglang  | 🤏🚮    |    70.3% |      4.9 |        — |        — |         — | 19.1GB |  82% |   /v1/systemone |  1 | [Model][Cloudflare/clef-flash]         |
 | kai-0.6b-decision-vllm-srun | 🤏🖥🚮   |    47.5% |        — |        — |        — |         — |  1.5GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] |
 | sol-2b-decision-vllm-srun   | 🤏🖥🚮   |      55% |        — |        — |        — |         — |  4.8GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
+
 _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs). The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
 
 ## Explore
@@ -108,6 +113,7 @@ _Mem% is what the launches served at: neither recipe renders a util flag, so vLL
 | humanizer-12b-vllm                            | 🐢     |         7.6 |      — |      — |       — |               88GB ‡ |   85% |      /v1/completions |  1 | [Model][jialinyyzz/humanizer] — **text-rewriting arm, `/v1/completions` only (no chat template), off the lane's reasoning/tool brief**                                                                                                 |
 | qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
 | mellum2.1-12b-a2.5b-bf16-thinking-vllm        | ✨🧠🔧   |        42.3 |   67.2 |   99.9 |   135.6 |               24.3GB |   55% | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking] — **boot-verified 2026-10-15, house battery 36/37 (easy 18/19 — `needle-1`; hard 18/18)**; ladder @ d0 pp2048 tg128 n=5: C2 67.2 / C5 99.9 / C10 135.6 t/s                             |
+
 _`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling._
 
 ## Cybersec
@@ -117,6 +123,7 @@ _`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved
 | qwen3.8-27b-uncensored-nvfp4-sglang                         | 🚀👀🏴📜  |   10.2 |      — |      — |       — |               24.7GB |   85% |  1 | [Model][orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — **positive**, boots, battery 37/37                                                                                     |
 | qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37  |
 | deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
+
 _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._
 
 # Model Flags
