@@ -1,4 +1,4 @@
-# Explore-lane model research (2026-10-11; §5–§7 added 2026-10-13)
+# Explore-lane model research (2026-10-11; §5–§7 added 2026-10-13; §8 added 2026-10-16)
 
 Frontier reasoning + tool-calling candidates for the `explore` lane. Supersedes
 parts of `mad-science/EXPLORE-CANDIDATES.md` (2026-10-10): five of its claims
@@ -285,3 +285,84 @@ prompts and history are ignored); on `vllm serve`, pass `--generation-config vll
 - (d) co-location: 12–24 GB, so it fits beside the lane's 1-node arms; the GGUF/llama.cpp path is a
   runtime family this registry has never shipped — the vLLM path keeps the arm inside the existing
   recipe schema.
+
+## 8. Kolibri-1M constant-state release — `tfwnotops/…-ConstantKV` (queued 2026-10-16, owner
+directive, **high priority**)
+
+Owner added `tfwnotops/Kolibri-1-78B-A3B-Full-MoE-1M-ConstantKV-SOTA-GEFERTIGT-IN-DEUTSCHLAND` to this
+lane's research queue at high priority. It is **not a candidate arm in the §1 sense: it ships no
+weights.** It is a code + paper release that runs the lane's own already-shipped `Aleph-Alpha/Kolibri-1`
+(§1 row 3, rank 2) *unchanged* and adds a long-context serving method on top of it. Nothing here is a
+new model to rank; the question is whether the method is real on our hardware and whether its licence
+lets us touch it at all.
+
+Facts read from the Hub on 2026-10-16 — `sha a91858f3bfeb98c0581012a5ab0297c105896544`, last modified
+2026-10-07, ungated, **0 downloads / 2 likes**, ~4.2 MB total:
+
+| aspect | fact |
+|---|---|
+| contents | `kolibri_state/` (the constant attention state), `kolibri_mrail/` + `mrail/` (the M-Rail layer), `tests/`, `results/*.json`, `rules/practice-131k-32k.rules.json`, `kolibri.yaml`, a 42-page paper + TikZ sources, 9 PNG assets. **No `*.safetensors` and no `config.json`** (`/raw/main/config.json` → 404) |
+| base model | `Aleph-Alpha/Kolibri-1`, `base_model_relation: adapter`; the weights are declared "unchanged" and "not part of this repository" (`NOTICE`) |
+| licence | code **PolyForm Noncommercial 1.0.0** (`LICENSE` — commercial use needs a licence from the author); paper, `paper/` sources and `assets/` CC BY 4.0 |
+| author / refs | David Tom Foss (`github.com/DT-Foss`, `d.foss@ieee.org`, `hf.co/davidfoss`); the paper's DOI `10.13140/RG.2.2.30326.77125` resolves (302 → ResearchGate), and `mrail` **0.4.1 is on PyPI** (same author, "append-only maps of exact language-model runs") — but that PyPI package is the map **format** only ("It does not contain a model runtime"), so the runnable path is the repo's own `kolibri_state` / `kolibri_mrail` serve code, installed from the repo itself. The artefact and its author are real, which is not the same as the numbers being reproduced |
+| engine | vLLM **0.29** + `aleph-alpha-inference` — the same two pieces the lane's shipped Kolibri arm already pins (`recipes/explore/kolibri-1-78b-fp8-vllm.yaml` and mod `recipes/explore/mods/install-kolibri-plugin`); entered through the repo's own CLI, `kolibri serve --config kolibri.yaml` (or `kolibri vllm`, which prints a `vllm serve` command line) |
+
+**What it claims** [self-reported in `README.md` + `results/`; no third-party eval found].
+
+1. **Constant attention state** (`mode: state`): of the ten full-attention blocks (of 50; the other 40
+   are sliding-window), keep per KV head the first token, the last 1,024 tokens exact, and a store of
+   34,816 far tokens at int3 (Hadamard-rotated, 112 B/token) — one exact softmax over first token,
+   band and store, so attention memory does not grow with context: **0.208 GB per request at any
+   length** vs 10.76 GB for native FP8 cache at 1M (**52×**). `state.rows: auto` = 32 concurrent
+   requests up to 131k, 16 up to 262k, 4 up to 1M, 1 beyond; `state.linear_from: 262144` reads longer
+   prompts in linear time; a second admission mode (`spitze`) exists beside the default `mass`.
+2. **M-Rail**: an answer-check gate that tests every answer against the text with no reference, a
+   re-read from an 8k excerpt when the check fails, rules learned from the model's own practice runs
+   and kept as readable/editable JSON, and a `.mrail` compute-once map that replays a seen context in
+   ~0.11 s (143 B for a 1M-token run).
+3. **Numbers** (one RTX PRO 6000 96 GB / 2×H100, vLLM 0.29, FP8 weights): RULER at 1M tokens, 13
+   tasks, n=8 (items 0–7) — **68.6** single pass → **85.7** with the request's own look → **93.9**
+   with gate + re-read; in `results/summary_1m.md` the gain is concentrated where the single pass is
+   worst (`cwe` 0.0 → 100, `niah_multikey_3` 12.5 → 100), i.e. exactly the cells a rule learned from
+   the same task family can lift. Decode 32 requests / **957 t/s at 262k** on one GPU (native 4 / 209);
+   300 concurrent 1M requests on 2×H100 (native 5, by the report's Table 31 accounting); a 1M-token
+   document read once in 160 s, then 6.6–11.6 s per question.
+   The claim that does **not** depend on in-sample rules is the unseen-items row: items 8–15 (which
+   played no part in building the rules or the gate) score 100 on all eight needle tasks and on `fwe`
+   from rules alone, with no single pass and no 1M prefill — 13-task mean **79.4**. That is the row to
+   reproduce; a headline that only exists with rules learned on the same items is not a measurement.
+
+### Verification checklist (before any boot — the item is non-shippable as it stands)
+
+- (a) **Licence and distribution first.** The registry ships to third parties and its mods run
+  unprompted, so **nothing** of this repo may enter a shipped recipe, a `mods/` entry, or a lane
+  branch of the cluster mods tree. The precedent is MiniMax-M3 and the Qwen-Image banner (§6): an
+  owner call decides whether even a *non-shipped, internal* eval is acceptable. Note the install
+  shape — the quickstart is `pip install "./k1v[serve]"` + `kolibri serve`, i.e. **arbitrary
+  third-party code running inside the serve container**, which is precisely the thing a `mods/` entry
+  exists to pin, and here it cannot be pinned to something we may redistribute.
+- (b) **Provenance before numbers.** Everything above is a 9-day-old, 0-download self-report: the 1M
+  RULER cells are n=8, the rules and the gate are learned from the same task family the mean is taken
+  over, and the native baseline in the comparison table is quoted from Aleph Alpha's report rather
+  than re-run. Before any figure reaches a lane doc, attribute it to `paper/Foss_2026_Kolibri_1M.pdf`,
+  read `results/gate_eval_r3.json` for the gate's own accounting (the README's "238 of 324 answers
+  kept, all 38 wrong ones sent to re-read"), and reproduce the unseen-items row.
+- (c) **SM121 / arm64.** Every measured cell is RTX PRO 6000 or H100. Band admission and the int3
+  store are custom **Triton kernels** at 131k and a Torch fallback at 262k; nothing has been compiled
+  for GB10. Expect the lane's usual fp4/kernel-on-SM121 lesson (Muse-Glimmer, §1 row 4) to apply, and
+  treat 1M as unproven until a needle probe passes on our node.
+- (d) **What it is not.** No new weights, no reasoning or tool-calling capability — the accuracy the
+  release rests on is the accuracy our shipped Kolibri arm already has (AIME-2026 96.0, GPQA-D 84.3,
+  house battery 36/37 = 37/37 union, 262k needle PASS at util 0.78). The only axis it could move for
+  us is **memory at long context**: our arm is pool-verified to 1,859,922 tokens at the native 262k
+  window with 18.99 GiB KV, so a constant 0.21 GB/request at 1M is a different claim, and the honest
+  comparison is against the lane's own 262k numbers, never the paper's H100 table.
+- (e) **The cheapest real experiment**, if (a) is answered "yes, non-shipped": on one GB10 node, run
+  the repo's own smoke shape (`tests/smoke_vllm.sh`, `tests/smoke_gpu.py`, `results/smoke/*`) against
+  a local copy of the **already-cached** Kolibri-1 snapshot — no new weights to download — and record
+  whether the state path imports at all and whether the 0.208 GB/request figure holds at 131k. Then
+  stop; a RULER-1M sweep on GB10 is a campaign, not a research item.
+
+Sources: the repo's `README.md`, `NOTICE`, `LICENSE`, `kolibri.yaml`, `results/summary_1m.md` and
+`results/smoke/README.md`; Hub API `/api/models/tfwnotops/…` and `/tree/main?recursive=true`;
+`pypi.org/pypi/mrail/json`; `doi.org/10.13140/RG.2.2.30326.77125`.

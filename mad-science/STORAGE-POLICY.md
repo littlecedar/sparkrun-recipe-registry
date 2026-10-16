@@ -187,8 +187,12 @@ re-stamp them (the arm now pins a revision, so it keys to `11826f49`), which mak
 today, but the AGENTS.md rule says a tree touched inside ~72 h is in use, so the timing is the owner's
 call rather than something to re-derive. From 2026-10-16 11:13 they add **379.6 GB** (`.30` 47.67,
 `.31` 47.67, `.32` 142.08, `.33` 142.08 GiB, re-measured 2026-10-15) for a fleet total of
-**996.4 GB**. That date is the 72 h *convention*; the tool's own test would already match these
-markers at `--older-than 3`, so the wait is a policy choice — which is what owner Q2 asks.
+**996.4 GB**. 2026-10-16 11:13 is the 72 h *convention*, but **the tool's own test does not reach them
+there**: `--older-than N` arrives as `find "$_marker" -mtime +N`, which fires only when the truncated
+age in days *exceeds* N, so a marker stamped 2026-10-13T11:13 (3 days) matches `--older-than 2` and is
+untouched by `--older-than 3` until 2026-10-17T11:13 (probe: `touch -d '2026-10-13 11:13' m; find .
+-name m -mtime +2` matches, `+3` does not). Taking them now is therefore a cutoff choice, not a wait —
+which is what owner Q2 asks.
 
 Small stale trees, swept on the same pass and left to the 30-day rule (all < 1 GB, listed so the next
 auditor does not have to redo the key mapping): `IFM__K2-Horizon-0.9B-8e4ab383` (`.34`, 0.3 GB — the
@@ -200,6 +204,44 @@ tier; the shipped encoder is `gonuit/…-AWQ-4bit`).
 **Do not touch:** `…-11826f49` (knapcio pin), `…-2bd42ac5` (TensorFold TP=2 pin), `…-a54d5c5d`
 (cybersec arm 5 pin — 298.4 GB on `.32`, 295.9 GB on `.33`, and the largest single lobe in the fleet),
 and every tree whose leaf maps to a shipped recipe.
+
+### Executed 2026-10-16 — the reclaim above, applied
+
+Owner Q2 ("take them now") was executed the same day, by absolute path rather than through the sweep:
+the sweep's own `--older-than 2` would have taken **30 trees / 968.7 GB**, including ornith, RadixArk
+and IFM leaves whose keys a *shipped* recipe still produces — a cache those arms would have had to
+rebuild. Every tree below was removed after confirming no running container mounts it (the live TP=4
+job mounts only its own `…-11826f49` leaf, so siblings are always safe). Every tree is `red`-owned, so
+no `sudo` was needed. Receipt and full log: `head:~/benchmarks/storage-20261016/prune-20261016.log`,
+script `prune_stale_leaves.sh` beside it.
+
+| node | removed | freed |
+|---|---|---:|
+| `.30` | `9a74d993` 48.8 GB, `db95f94c` 97.1 GB | 145.9 GB |
+| `.31` | `9a74d993` 48.8 GB, `db95f94c` 97.1 GB | 145.9 GB |
+| `.32` | `9a74d993` 145.5 GB, `db95f94c` 97.1 GB, `ca6f25af` 103.4 GB | 346.0 GB |
+| `.33` | `9a74d993` 145.5 GB, `db95f94c` 97.1 GB, `ca6f25af` 103.4 GB | 346.0 GB |
+| `.34` | `9a74d993` 97.1 GB, `db95f94c` 48.3 GB (no marker), `ca6f25af` 51.8 GB | 197.2 GB |
+| `.35` | `9a74d993` 97.1 GB, `ca6f25af` 51.8 GB | 148.9 GB |
+
+**≈ 1.30 TB freed.** Runtime-cache measured after: `.30` 99.3, `.31` 52.8, `.32` 406.2, `.33` 403.4,
+`.34` 210.5, `.35` 158.2 GB — `.32`/`.33` are back inside the §3 0.5 TB cap (they breached at
+734.8/732.1 GB on 2026-10-15). `.30`–`.34` each keep exactly one `deepseek-ai__DeepSeek-V4.1-Flash`
+tree, `…-11826f49` — the live job's.
+
+**A row this §2 list was missing: `local-inference-lab__Qwen3.8-Flash-Next-NVFP4-ca6f25af`** (`.32`,
+`.33` 103.4 GB each; `.34` 51.8 GB). It is the leaf of the labquant model with **no** `model_revision`
+— the same unpinned-leaf shape as `9a74d993` — and both shipped labquant recipes now pin `6c01ac37…`,
+which keys `…-8eb59bfe`. Removed on that reasoning; the `revision:`-keyed `attic/qwen4/arms/*.yaml`
+arms that would still key it carry the banned top-level key (absorbed into `runtime_config`, doing
+nothing), so reviving one costs a recompile, never correctness — the runtime cache is hygiene, by the
+module's own docstring.
+
+**Key mapping used** (sparkrun's own `sparkrun.core.runtime_cache.model_key`, run on the head —
+`sanitize(model) + "-" + sha256("<model>@<revision>")[:8]`): `deepseek-ai/DeepSeek-V4.1-Flash` @
+`5254448103…` → `…-11826f49` (**live**, the running TP=4 job's leaf); @ *no revision* → `…-9a74d993`;
+`local-inference-lab/Qwen3.8-Flash-Next-NVFP4` @ `6c01ac37…` → `…-8eb59bfe`; @ *no revision* →
+`…-ca6f25af`. Derive the leaf from that function before deleting anything here.
 
 ---
 
@@ -419,19 +461,25 @@ the abliterated overlay are both **EXL3 mul1 K=5** on the same base, so the delt
 owner wants the ~45 GB/node back on `.32`, that is the work item, and it needs a boot receipt to ship
 (the ds4 graft mod took one).
 
+*(Owner decision 2026-10-16: kept as-is — the full exports stay and the delta-export work item is dropped. Our use is noncommercial and we redistribute nothing; the register's sidecar item was closed the same day.)*
+
 ---
 
-## 5. Open questions for the owner
+## 5. Owner decisions (2026-10-16)
 
-1. **Timing of the warm-but-superseded DS4 lobes.** 379.6 GB (four `9a74d993` trees, `.30`–`.33`) is
-   key-verified dead but was touched 2026-10-13 11:13, inside the ~72 h window. Reclaim on 2026-10-16,
-   or treat a key no recipe can produce as stale regardless of the marker and reclaim now?
-2. **AEON acceptance clause.** Does the owner want the arbitration/indemnity clause carried down with
-   any redistribution of a derivative (currently: we redistribute nothing — the packs are pull-only),
-   and should the three cards' licence declarations be recorded in the lane docs?
-3. **Decision-lane residency.** Confirm active-arm-only on `.34` (frees 26.2–42.3 GB) — and which arm
-   is the lane's active one, since that decides what stays resident. Nothing else on the fleet is close
-   enough to the budget to need a ruling.
+The three questions this section used to carry were answered 2026-10-16. They are recorded here as
+positions, not questions, so a later pass reads the call rather than re-opening it.
+
+1. **The warm-but-superseded DS4 lobes: take them now, on a cutoff derived from their own age.** Their
+   marker is 2026-10-13T11:13, so the reaching flag is **`--older-than 2`** — `find -mtime +N` fires
+   only when the truncated age in days exceeds N, so `--older-than 3` cannot touch them before
+   2026-10-17T11:13 — or the four absolute paths in §2, hand-removed. 379.6 GB across `.30`–`.33`, and
+   a leaf key no shipped recipe can produce is stale whatever `.sparkrun-last-used` says.
+2. **AEON-7 clause: nothing recorded.** We redistribute nothing (pull-only), so neither the
+   arbitration clause nor the three cards' licence declarations are written into the lane docs or the
+   index rows.
+3. **Decision-lane residency on `.34`: keep all four arms resident.** No reclaim — the 45.3 GB stays
+   warm, and the embed/rerank tier switch keeps costing its +15.0 GB/node separately.
 
 ## Evidence
 

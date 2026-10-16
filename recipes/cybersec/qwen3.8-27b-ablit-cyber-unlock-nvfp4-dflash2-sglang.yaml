@@ -2,7 +2,7 @@ recipe_version: "2"
 model: sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4
 model_revision: 8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a
 runtime: sglang
-container: lmsysorg/sglang:dev-cu13
+container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
 metadata:
   description: >-

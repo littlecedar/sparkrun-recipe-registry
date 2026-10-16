@@ -18,7 +18,7 @@ Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 🔃 rerank
 
 ## Shipped recipes
 
-Both ship on `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest`, one node, TP=1,
+Both ship on `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8`, one node, TP=1,
 `attention_backend: b12x` (`block_size: 128`), `max_model_len: 8192`,
 `max_num_batched_tokens: 8192`, `max_num_seqs: 32`, `dtype: bfloat16`, and the mods
 `@littlecedar/mods/pip-install-orjson` +

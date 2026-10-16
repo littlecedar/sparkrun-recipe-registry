@@ -1,0 +1,19 @@
+framework: pooling-bench
+metadata:
+  description: >
+    The rerank lane's pooling ladder: c = 1/2/5/10 on the lane's cross-encoder
+    /v1/score shape (one query x 10 documents per request, 100 requests,
+    ~256-token documents, 5 warmups, salted payloads). Units are documents scored,
+    so quote units / wall_seconds from the receipt's per-cell runs/*.json, never
+    the printed table. Same caveat as the embed twin: do not pool a cell from here
+    with a published c = 1/4/8/16/32 number - different shape. Needs the
+    out-of-tree plugin registered (tools/README.md §plugins/); run it as
+    `sparkrun benchmark pooling`.
+args:
+  kind: rerank
+  concurrency: [ 1, 2, 5, 10 ]
+  requests: 100
+  docs_per_query: 10
+  input_tokens: 256
+  salt: true
+  warmup: 5

@@ -17,8 +17,9 @@ metadata:
     only" by the uploader: it will comply with prompts the base refuses and the operator owns the
     guardrails. Gated (gated: auto) - each node needs an HF_TOKEN with this repo's release accepted.
     ENGINE ROUTE: the uploader documents only vLLM's CompressedTensorsW4A4 path, and the sibling
-    SGLang recipe serves this checkpoint's first generation into a CUDA device-side assert (NaN
-    sample-time logits); this arm is that vLLM path. vLLM's compressed-tensors loader maps the
+    SGLang recipe cannot serve this checkpoint on any image measured (device-side assert on the
+    2026-10-14 engine; one repeated token, no assert, on the 2026-10-16 pin); this arm is that vLLM
+    path. vLLM's compressed-tensors loader maps the
     export's `nvfp4-pack-quantized` group (NVFP4 weights + NVFP4 activations) onto
     CompressedTensorsW4A4Fp4, verified in the pinned image 2026-10-15 (see
     attic/cybersec/AGENTS.md 8). Boot receipt taken 2026-10-15 (four boots, job

@@ -1,0 +1,21 @@
+framework: pooling-bench
+metadata:
+  description: >
+    The embed lane's pooling ladder: the c = 1/2/5/10 points the registry's ladder
+    columns are named for, on the lane's instructed request shape
+    (embed-v1-chat, 100 requests, ~256-token inputs, 5 warmups, salted payloads).
+    dimension_check 4096 is the shipped 8B AWQ encoder; the 2B arm needs
+    -b dimension_check=2048 or every reply fails the shape check. This is NOT the
+    shape behind the lane's published c = 1/4/8/16/32 units/s cells, so a cell
+    from here and one from there are different shapes and must never be pooled.
+    Needs the out-of-tree plugin registered (tools/README.md §plugins/) and must
+    be run as `sparkrun benchmark pooling`, never `benchmark performance`.
+args:
+  kind: embed
+  mode: embed-v1-chat
+  concurrency: [ 1, 2, 5, 10 ]
+  requests: 100
+  input_tokens: 256
+  dimension_check: 4096
+  salt: true
+  warmup: 5
