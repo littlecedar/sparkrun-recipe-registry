@@ -117,11 +117,14 @@ suite legs ran after it).
 - `/v1/completions` answers too, so raw-completion clients are served by the same process.
 - **Same-boot suite (2026-10-17) — §4.1's bar is met for this arm:** house **37/37** (easy 19/19, hard
   18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each); the `standard-suite` profile (tool-eval-bench)
-  **97** (15 scenarios, 14 pass, 1 partial; deployability 84, responsiveness 54); bfcl **73.5%**
-  (911/1240 — the loss is the two parallel categories (`parallel` 46.5%, `parallel_multiple` 41.0%),
-  where 179 of their 400 questions returned no tool call at all, median think block ~2.0k chars
-  against the run's 512-token default: the needle cells' budget shape, not a multi-call capability
-  limit — 26 failures did emit one call, and the raised-budget fix-probe is unrun); decode ladder
+  **97** (15 scenarios, 14 pass, 1 partial; deployability 84, responsiveness 54); bfcl **88.3%**
+  (1095/1240) at `--bfcl-max-tokens 4096` — the raised-budget probe is now run, and it *settles* the
+  shape: the 512-token default was the mechanism, not a capability limit. At 512 the leg scored 73.5%
+  with `parallel` 46.5% / `parallel_multiple` 41.0% and **179** of those 400 questions cut to no call
+  at all; at 4096 only **6** are cut (every one `finish_reason: length`) and the residual
+  parallel-category loss is **multi-call shape** — 34 of the 65 failures emit exactly one call, 25
+  emit a wrong set of two or more. Receipt `~/benchmarks/mellum-gguf-tools4096-20261017/`
+  (+ `NOTE-budget-probe.md`); decode ladder
   C1 111.9 ± 0.3 /
   C2 151.1 ± 2.6 / C5 208.0 ± 2.8 / C10 146.4 ± 1.5 t/s (`bench_4247926b7b9a`) — c10 exceeds the arm's
   8 slots, so per-request decode spreads (32.9 ± 16.1 t/s) and the aggregate falls past c5.
