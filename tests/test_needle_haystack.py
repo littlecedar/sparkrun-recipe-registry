@@ -192,6 +192,22 @@ class TestLengthErrorDetection(unittest.TestCase):
         # A body with no counts must not invent them.
         self.assertEqual(NH.parse_length_error("prompt too long"), (None, None))
 
+    def test_recognises_llamacpp_wording(self):
+        # VERIFIED live on the registry's first llama-cpp arm, 2026-10-17 (the
+        # 131k rung's over-window probe).  It says "context size", never "longer
+        # than", so the SGLang-shaped markers missed it and the shrink-retry net
+        # never fired — the cell became a hard ERROR with attempts: 1.
+        body = ('{"error":{"message":"request (131234 tokens) exceeds the available context '
+                'size (131072 tokens), try increasing it","type":"exceed_context_size_error",'
+                '"n_prompt_tokens":131234,"n_ctx":131072}}')
+        self.assertTrue(NH.length_error(body), body)
+        self.assertEqual(NH.parse_length_error(body), (131234, 131072))
+        # A body whose counts live only in the fields must parse too.
+        fields_only = ('{"error":{"type":"exceed_context_size_error",'
+                       '"n_prompt_tokens":131234,"n_ctx":131072}}')
+        self.assertTrue(NH.length_error(fields_only), fields_only)
+        self.assertEqual(NH.parse_length_error(fields_only), (131234, 131072))
+
 
 class TestFetchMaxModelLen(unittest.TestCase):
     """The tool must read the served window instead of blindly filling it."""
@@ -550,6 +566,17 @@ class TestTooLongRetry(unittest.TestCase):
         self.assertEqual(rec["status"], "PASS", rec)
         self.assertGreaterEqual(rec["attempts"], 2, "retry did not fire")
         self.assertEqual(rec["hits"], 1)
+
+    def test_llamacpp_too_long_wording_also_retries(self):
+        """llama.cpp's rejection says "exceeds the available context size" and
+        carries `exceed_context_size_error`; until 2026-10-17 the markers were
+        SGLang/vLLM-shaped, so an over-window prompt was a hard ERROR."""
+        endpoint = self._serve({"mode": "correct", "window": 65536, "ratio": 4.0,
+                                "wording": "llamacpp"})
+        rec = NH.run_depth(endpoint, "mock", 65536, 50, 1, 1, 32, 30, None,
+                           NH.DEFAULT_CHARS_PER_TOKEN)
+        self.assertEqual(rec["status"], "PASS", rec)
+        self.assertGreaterEqual(rec["attempts"], 2, "retry did not fire")
 
     def test_max_model_len_caps_the_target_instead_of_looping(self):
         """A window smaller than the request must be capped, not retried into a

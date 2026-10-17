@@ -473,11 +473,18 @@ def ask(
     return text, out.get("usage", {}) or {}, elapsed, finish
 
 
-#: Substrings that mean "the prompt was longer than the window", across SGLang
-#: and vLLM.  The SGLang/sglang wording observed live is
+#: Substrings that mean "the prompt was longer than the window", across SGLang,
+#: vLLM and llama.cpp.  The SGLang/sglang wording observed live is
 #: "The input (1066900 tokens) is longer than the model's context length
 #: (1048576 tokens)." -- so BOTH "longer than" and "context length" must appear
 #: together; "context length" alone would also match a benign warning.
+#: llama.cpp's body differs in both words and shape (VERIFIED on the registry's
+#: first llama-cpp arm, 2026-10-17): "request (131234 tokens) exceeds the
+#: available context size (131072 tokens), try increasing it" with
+#: "type":"exceed_context_size_error", "n_prompt_tokens":..., "n_ctx":131072 --
+#: it says "context size", never "longer than", so without these entries the
+#: shrink-and-retry net never fires and an over-window prompt is a hard ERROR
+#: instead of a correction.
 LENGTH_ERROR_MARKERS = (
     "longer than the maximum model length",
     "longer than the model's context length",
@@ -486,6 +493,9 @@ LENGTH_ERROR_MARKERS = (
     "max_model_len",
     "input length",
     "too long",
+    # llama.cpp / llama-server (its OpenAI-compatible server)
+    "exceeds the available context size",
+    "exceed_context_size_error",
 )
 
 
@@ -503,7 +513,9 @@ def parse_length_error(detail: str) -> tuple[int | None, int | None]:
     SGLang's wording: "The input (1066900 tokens) is longer than the model's
     context length (1048576 tokens)."  The input count lets the caller correct
     its chars-per-token ratio to the real one and size the retry exactly, instead
-    of shrinking blind.
+    of shrinking blind.  llama.cpp's body carries the same two numbers both in
+    parentheses and as ``n_prompt_tokens``/``n_ctx`` fields; the fields are the
+    fallback when a build's message is worded differently.
     """
     nums = [int(n) for n in re.findall(r"\((\d+)\s+tokens?\)", detail or "")]
     if not nums:
@@ -512,6 +524,10 @@ def parse_length_error(detail: str) -> tuple[int | None, int | None]:
         return nums[0], nums[1]
     if len(nums) == 1:
         return nums[0], None
+    prompt = re.search(r'"n_prompt_tokens"\s*:\s*(\d+)', detail or "")
+    window = re.search(r'"n_ctx"\s*:\s*(\d+)', detail or "")
+    if prompt:
+        return int(prompt.group(1)), (int(window.group(1)) if window else None)
     return None, None
 
 
@@ -962,10 +978,17 @@ def _make_handler(mode: dict):
             # Optional hard window: reject with the engine's too-long wording, so
             # the shrink-retry path can be exercised without a real engine.
             if mode.get("window") and n_tokens > mode["window"]:
-                err = json.dumps({
-                    "error": {"message": f"The input ({n_tokens} tokens) is longer "
-                                         f"than the model's context length ({mode['window']} tokens)."}}
-                ).encode()
+                if mode.get("wording") == "llamacpp":
+                    err = json.dumps({"error": {
+                        "message": f"request ({n_tokens} tokens) exceeds the available "
+                                   f"context size ({mode['window']} tokens), try increasing it",
+                        "type": "exceed_context_size_error",
+                        "n_prompt_tokens": n_tokens, "n_ctx": mode["window"]}}).encode()
+                else:
+                    err = json.dumps({
+                        "error": {"message": f"The input ({n_tokens} tokens) is longer "
+                                             f"than the model's context length ({mode['window']} tokens)."}}
+                    ).encode()
                 self.send_response(400)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(err)))
@@ -1006,11 +1029,12 @@ def _make_handler(mode: dict):
 
 
 def selftest() -> int:
-    """Run the ladder against three mocks and assert each is classified right.
+    """Run four controls and assert each is classified right.
 
     This is the negative control the repo requires: the same code path is shown
-    to PASS a correct server, FAIL a wrong-answer server, and detect a
-    truncating one.  A guard that has only ever passed proves nothing.
+    to PASS a correct server, FAIL a wrong-answer server, detect a truncating
+    one, and recover from llama.cpp's over-window wording.  A guard that has
+    only ever passed proves nothing.
     """
     from http.server import ThreadingHTTPServer
 
@@ -1051,6 +1075,20 @@ def selftest() -> int:
               f"prompt_tokens {[d['prompt_tokens'] for d in trunc['depths']]}")
         if tv != "TRUNCATED" or tcode != 3:
             failures.append(f"truncating mock should TRUNCATE, got {tv}/{tcode}")
+
+        # Fourth control: llama.cpp's too-long wording must reach the same retry.
+        # Mirrors the unit test's proven shape — window == the requested target and
+        # the mock counts 4.0 chars/token against the client's 4.6 estimate, so the
+        # first request overshoots and only a fired retry can PASS.
+        mode.clear()
+        mode.update({"mode": "correct", "wording": "llamacpp", "window": 65536, "ratio": 4.0})
+        rec = run_depth(endpoint, "mock-model", 65536, 50, 1, 1, 32, 30, None,
+                        DEFAULT_CHARS_PER_TOKEN)
+        print(f"[selftest] llamacpp 400  -> depth {rec['status']}, "
+              f"attempts {rec['attempts']}, hits {rec['hits']}/{rec['of']}")
+        if rec["status"] != "PASS" or rec["attempts"] < 2 or rec["hits"] != 1:
+            failures.append(f"llama.cpp too-long wording must retry into PASS, "
+                            f"got {rec['status']}/attempts {rec['attempts']}")
     finally:
         server.shutdown()
         server.server_close()
@@ -1060,7 +1098,7 @@ def selftest() -> int:
         for f in failures:
             print("  - " + f)
         return 1
-    print("\nSELFTEST PASSED (3/3 controls behaved as required)")
+    print("\nSELFTEST PASSED (4/4 controls behaved as required)")
     return 0
 
 
