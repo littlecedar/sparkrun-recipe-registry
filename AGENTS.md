@@ -193,6 +193,12 @@ remove what the session created** — a leftover is anything undocumented, unkno
 
 ## Code Conventions & Common Patterns
 
+**Prose is American English — always `license`, `licenses`.** Never the British `-ce` noun form. It applies to
+every tracked word this registry writes: READMEs, lane docs, `mad-science/` notes, recipe comments and
+`metadata.description`, and `attic/` archives (they ship to third parties too). Identifiers are exempt —
+keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agreement`,
+`SPDX-License-Identifier` headers, a card's `license:` field) exactly as its owner wrote it.
+
 ### Recipes
 
 - **Name = filename minus `.yaml`; a `name:` key is banned.** `cluster_only:` is deprecated (one

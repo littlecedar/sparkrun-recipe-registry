@@ -2,7 +2,7 @@
 
 Durable guide for `recipes/embed/`. Everything here was cut from `recipes/embed/README.md`
 (2026-10-14) so that README could speak to shipped recipes only. The README carries the
-per-recipe facts (repo id, size, caps, flags, licence, client contract) and the
+per-recipe facts (repo id, size, caps, flags, license, client contract) and the
 [attic index](../embed/README.md#attic-index) points here.
 
 ## From recipes/embed/README.md (2026-10-14)

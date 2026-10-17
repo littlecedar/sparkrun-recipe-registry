@@ -11,7 +11,7 @@ Selection priorities (owner's order): node count ↓, speed ↑, accuracy ↑, m
 
 ## Ranked candidates
 
-| # | Model | Params (total/active) | Quant → size | Nodes | Licence | DGX-Spark precedent |
+| # | Model | Params (total/active) | Quant → size | Nodes | License | DGX-Spark precedent |
 |---|---|---|---|---|---|---|
 | 1 | [mistralai/Mistral-Small-4-119B-2603](https://huggingface.co/mistralai/Mistral-Small-4-119B-2603) | 119B / 6.5B | NVFP4 70.8 GB | **1** | Apache-2.0 | **VERIFIED** — NVIDIA forum single-Spark thread |
 | 2 | [meta-models/Muse-Glimmer-30B](https://huggingface.co/meta-models/Muse-Glimmer-30B) | 29.6B dense | NVFP4 24.7 GB | **1** | Apache-2.0 | **VERIFIED** — Spark Arena benchmark + community repos |
@@ -42,7 +42,7 @@ Selection priorities (owner's order): node count ↓, speed ↑, accuracy ↑, m
    tight (~15–20 GB KV) — modest context or 2 nodes. Sibling Laguna-XS-2.1 (33B-A3B) is a
    comfortable 1-node alternative if the big one is too tight.
 6. **MiniMax-M3** — highest accuracy-per-node at 2 nodes with real measured Spark recipes
-   (14–15 tok/s with EAGLE3). **Licence is the blocker**: MiniMax Community License is
+   (14–15 tok/s with EAGLE3). **License is the blocker**: MiniMax Community License is
    non-commercial restricted — the registry ships to third parties, so this needs an owner call.
 7. **MiMo-V2.6-Flash-RL** — MIT, RL-scaled with environment+grader compute, DFlash draft, measured
    ~80 tok/s peak on 2 nodes. BF16-only today (no published quant found in the scan) — a quant
@@ -64,7 +64,7 @@ noted). **None of these fit-arithmetic numbers has been booted here.**
 
 ## What would need an owner decision before recipes
 
-- MiniMax-M3's non-commercial licence (ships to third parties).
+- MiniMax-M3's non-commercial license (ships to third parties).
 - MiMo-V2.6-Flash-RL has no published quant — which quant team to trust for a first export.
 - How many of the 1-node picks (ranks 1–4) to build at once — they are mutually independent and
   could each boot on any free node.

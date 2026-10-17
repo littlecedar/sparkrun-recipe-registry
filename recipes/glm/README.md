@@ -11,7 +11,7 @@ and a fourth was attempted and archived as a proven-negative.
 - [Status](#status)
 - [Shipped arm](#shipped-arm)
 - [Boot-verified serving lines](#boot-verified-serving-lines)
-- [Licence](#licence)
+- [License](#license)
 - [Runbook notes and revision pins](#runbook-notes-and-revision-pins)
 - [Revision pins](#revision-pins)
 - [Attic index](#attic-index)
@@ -36,7 +36,7 @@ and a fourth was attempted and archived as a proven-negative.
 - **Two runbook-only serving lines.** The EXL3 3.0bpw 753B line and the TP=2/TP=3 Flash topologies stay
   external launchers: one engine is an unreleased fork branch installed editable at container start
   (no image to pin), and the 2-/3-Spark topologies are not what this 4-node registry targets.
-- **Research** (checkpoint/engine/topology selection, measured numbers, licence traps) is in
+- **Research** (checkpoint/engine/topology selection, measured numbers, license traps) is in
   [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
 
 ## Shipped arm
@@ -74,11 +74,11 @@ One line each; full operator detail (serve commands, host overrides, receipts) i
 - **Flash NVFP4 / vLLM** — **ARCHIVED 2026-10-13**, proven-negative on the pinned public image; see
   [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md).
 
-## Licence
+## License
 
 The **Flash** line is **MIT**; the **DFlash2 drafter is CC BY-NC-ND** — acceptable for this
 non-commercial cluster (owner decision 2026-10-11), not for commercial resale. The full 753B line and
-its derivatives carry the **Z.AI GLM-5.3 Licence** (permissive, with the MaaS >$10B security-review
+its derivatives carry the **Z.AI GLM-5.3 License** (permissive, with the MaaS >$10B security-review
 clause). Full map: [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md#licensing-map).
 
 ## Runbook notes and revision pins

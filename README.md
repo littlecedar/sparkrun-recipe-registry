@@ -6,20 +6,26 @@
    <a href="https://spark-arena.com"><img src="https://img.shields.io/badge/Spark_Arena-community-76b900" alt="Spark Arena" /></a>  
    <a href="https://github.com/spark-arena/sparkrun"><img src="https://img.shields.io/badge/sparkrun-CLI-1e40af" alt="sparkrun CLI" /></a>
    <a href="https://sparkrun.dev"><img src="https://img.shields.io/badge/docs-sparkrun.dev-1e40af" alt="Documentation" /></a>
-
-[//]: # (  <a href="https://recipes.sparkrun.dev"><img src="https://img.shields.io/badge/browse-recipes-76b900" alt="Browse Recipes" /></a>)
+   <!-- <a href="https://recipes.sparkrun.dev"><img src="https://img.shields.io/badge/browse-recipes-76b900" alt="Browse Recipes" /></a> -->
 </p>
 
 ---
+This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from the [Little Cedar Group][littlecedar] team.
 
-This is the **Little Cedar Group recipe registry** for [sparkrun](https://github.com/spark-arena/sparkrun) from
-the [Little Cedar Group][littlecedar] team.
+- [Little Cedar Group][littlecedar] — our resilience-focused technology company
+- [Mad Science](mad-science/README.md) — Our autoresearch experiments and findings.
+- [Spark Arena][spark-arena] — community benchmarking hub
+- [Sparkrun][sparkrun] — our favorite tool for AI workload management
+- [Sparkrun Docs][sparkrun-docs] — full Sparkrun documentation
+<!-- - [Sparkrun Recipe Explorer][sparkrun-recipe-explorer] — browse and filter all recipes -->
 
-## Contents
+---
+
+# Contents
 - [Install Our Registry](#install-the-registry)
 - [Run Our Recipes](#run-little-cedar-groups-recipes)
 - [Our Recipe Format](#recipe-format)
-- [Links](#links)
+- [Recipe Flags](#recipe-flags)
 - [Little Cedar Sparkrun Recipes](#little-cedar-sparkrun-recipes)
   - [DeepSeek V4](#deepseek-v4)
   - [Ornith 1.5](#ornith-15)
@@ -32,8 +38,7 @@ the [Little Cedar Group][littlecedar] team.
   - [Decision](#decision)
   - [Explore](#explore)
   - [Cybersec](#cybersec)
-- [Model Flags](#model-flags)
-- [Licence Policy](#licence-policy)
+- [License Policy](#license-policy)
 - [Mechanics](#mechanics)
 - [References](#references)
 
@@ -50,11 +55,10 @@ sparkrun registry trust @littlecedar
 
 # Run Little Cedar Group's Recipes
 
-Our recipes are run with the `@littlecedar` prefix:
+> [!IMPORTANT]
+> Recipes flagged with `📜` require the operator to accept the upstream model repository release on Hugging Face's website. Downloads require setting `HF_TOKEN` after accepting the release. See [License Policy](#license-policy) for more information about licensing.
 
-```bash
-sparkrun run @littlecedar/our-awesome-recipe
-```
+Our recipes are accessed with the `@littlecedar` prefix.
 
 ```bash
 # List available recipes
@@ -71,20 +75,41 @@ sparkrun recipe vram @littlecedar/our-awesome-recipe
 
 # Recipe Format
 
-Recipes follow the standard Sparkrun recipe schema with some additional metadata and formatting divergences (we use YAML `>` instead of `|` for readability and resilience). See
+Our recipes follow the standard Sparkrun recipe schema with some additional metadata and formatting divergences, for example we use YAML `>` instead of `|` for readability and resilience. See
 the [recipe authoring docs](https://sparkrun.dev/recipes/format/) for the full specification.
 
-# Links
+# Recipe Flags
 
-- [Little Cedar Group][littlecedar] — our resilience-focused technology company
-- [Spark Arena](https://spark-arena.com) — community benchmarking hub
-- [sparkrun](https://github.com/spark-arena/sparkrun) — our favorite tool for AI workload management
-- [sparkrun docs](https://sparkrun.dev) — full Sparkrun documentation
-- [`mad-science/`](mad-science/README.md) — Our autoresearch notes, traced claims, negative results, and experiments behind our validated recipes and claims (not part of the registry)
+Flags indicate characteristics of the model, runtime, mods, and recipe, and are added by us to `metadata.flags:` in the recipe's YAML.
 
-[//]: # (- [Recipe Explorer]&#40;https://recipes.sparkrun.dev&#41; — browse and filter all recipes)
-
-[littlecedar]: https://littlecedar.net
+| Flag | Tag           | Description                              |
+|:-----|:--------------|:-----------------------------------------|
+| ✨   | official      | Uses official weights                    |
+| 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite          |
+| 🚀   | fast          | C1 Fast: >= 50 t/s TP=1, >= 40 t/s TP=2  |
+| 🐢   | slow          | C1 Slow: < 40 t/s (any node count)       |
+| 🚚   | large_context | Large context (>= 512k tokens)           |
+| 🔧   | tools         | Excellent tool use                       |
+| 🧠   | reasoning     | Excellent reasoning capability           |
+| 🦾   | agent         | Excellent agentic capability             |
+| ⚖   | judge         | Judgement model                          |
+| 🚮   | classifier    | Classification model                     |
+| 🖥   | cpu           | CPU-only runtime model                   |
+| 🤏   | smol          | Small model                              |
+| 1    | single_user   | Low concurrency, single-user recommended |
+| 👀   | vision        | Model has vision capability              |
+| 👂   | listening     | Model has listening capability           |
+| 🗺   | world         | Model has world-aware capability         |
+| 👄   | speech        | Model has speech generation capability   |
+| 📸   | image         | Model has image generation capability    |
+| 🎥   | video         | Model has video generation capability    |
+| 🎼   | audio         | Model has audio generation capability    |
+| 📶   | embedding     | Model has embedding capability           |
+| 🔃   | reranking     | Model has reranking capability           |
+| 🏴   | uncensored    | Uncensored model                         |
+| 📜   | license       | Gated, non-commercial, or `other`        |
+| 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
+| 💀   | broken        | Currently broken                         |
 
 # Little Cedar Sparkrun Recipes
 
@@ -184,13 +209,13 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | poolside-laguna-xs-2.1-nvfp4-dflash-vllm      | ✨🧠🔧   |        55.3 |   83.1 |  133.7 |   141.3 | 21.6GB + 0.9GB draft |   55% | /v1/chat/completions |  1 | [Model][poolside/Laguna-XS-2.1-NVFP4] [Draft][poolside/Laguna-XS-2.1-DFlash] — **boot 2026-10-14; suite 2026-10-17: house 35/37, needle 2/3 @32k+131k, 3/3 @262k, arc 66.0%/gsm8k 90.5%, bfcl 60.1%, TEB 97; contract fail @262k**     |
 | poolside-laguna-s-2.1-nvfp4-dflash-vllm       | ✨🧠🔧📜  |        20.5 |      — |      — |       — | 99.7GB + 2.2GB draft |   85% | /v1/chat/completions |  1 | [Model][poolside/Laguna-S-2.1-NVFP4] [Draft][poolside/Laguna-S-2.1-DFlash-NVFP4] — **boot-verified; 120k capped-context single-tenant arm, battery 32/37**                                                                             |
 | humanizer-12b-vllm                            | 🐢     |         7.6 |      — |      — |       — |               88GB ‡ |   85% |      /v1/completions |  1 | [Model][jialinyyzz/humanizer] — **text-rewriting arm, `/v1/completions` only (no chat template), off the lane's reasoning/tool brief**                                                                                                 |
-| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL licence, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
+| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo] — **text-to-image + editing** under a diffusers script launcher (no sglang/vLLM engine); **NON-COMMERCIAL license, banner-marked eval-only**; boot-verified 2026-10-14, ~11.4 s/image @1024²/8-step |
 | mellum2.1-12b-a2.5b-bf16-thinking-vllm        | ✨🧠🔧   |        42.3 |   67.2 |   99.9 |   135.6 |               24.3GB |   55% | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking] — **boot-verified 2026-10-15, house battery 36/37 (easy 18/19 — `needle-1`; hard 18/18)**; ladder @ d0 pp2048 tg128 n=5: C2 67.2 / C5 99.9 / C10 135.6 t/s                             |
 | mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🧠🔧   |       111.9 |  151.1 |  208.0 |   146.4 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF] — **llama.cpp arm; boot 2026-10-17: house 37/37; needle 3/3 by union @32k+131k (32k: depth 50 at 4,096 tokens, depth 90 thinking off); arc 77.0%/gsm8k 93.5%, bfcl 88.3%, TEB 97**|
 
 * _`‡` 88 GB on disk, of which 24 GB loads.
 * `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. 
-* `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling. 
+* `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no license, `other` in its BF16 sibling. 
 * The llama-cpp arm caps nothing (llama.cpp sizes its own pool from `--ctx-size`/`--parallel`), so its Mem% cell is `—`. **The llama-cpp row's bfcl cell is the 4096-budget leg** (`--bfcl-max-tokens 4096`, `~/benchmarks/mellum-gguf-tools4096-20261017/`): at the pre-`3ac9581` 512 default the same arm scored 73.5 %, with 179 of the two parallel categories' 400 questions cut to no call at all; at 4096 only six are cut and the residual loss there is multi-call shape, not budget._
 
 ## Cybersec
@@ -205,49 +230,15 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 * `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted. 
 * The AEON row's **C1 33.3** is its earlier single-point figure — **C2/C5/C10 are the 2026-10-17 ladder** (`bench_3ee8fda63ada`), the lane's first._
 
-# Model Flags
-
-| Flag | Tag           | Description                              |
-|:-----|:--------------|:-----------------------------------------|
-| ✨   | official      | Uses official weights                    |
-| 🌲   | lcg_favorite  | Little Cedar Group:tm: Favorite          |
-| 🚀   | fast          | C1 Fast: >= 50 t/s TP=1, >= 40 t/s TP=2  |
-| 🐢   | slow          | C1 Slow: < 40 t/s (any node count)       |
-| 🚚   | large_context | Large context (>= 512k tokens)           |
-| 🔧   | tools         | Excellent tool use                       |
-| 🧠   | reasoning     | Excellent reasoning capability           |
-| 🦾   | agent         | Excellent agentic capability             |
-| ⚖   | judge         | Judgement model                          |
-| 🚮   | classifier    | Classification model                     |
-| 🖥   | cpu           | CPU-only runtime model                   |
-| 🤏   | smol          | Small model                              |
-| 1    | single_user   | Low concurrency, single-user recommended |
-| 👀   | vision        | Model has vision capability              |
-| 👂   | listening     | Model has listening capability           |
-| 🗺   | world         | Model has world-aware capability         |
-| 👄   | speech        | Model has speech generation capability   |
-| 📸   | image         | Model has image generation capability    |
-| 🎥   | video         | Model has video generation capability    |
-| 🎼   | audio         | Model has audio generation capability    |
-| 📶   | embedding     | Model has embedding capability           |
-| 🔃   | reranking     | Model has reranking capability           |
-| 🏴   | uncensored    | Uncensored model                         |
-| 📜   | licence       | Gated, non-commercial, or `other`        |
-| 🚩   | dangerous     | Dangerous and may crash your Sparks!     |    
-| 💀   | broken        | Currently broken                         |
-
-_Flags indicate characteristics of the model and are set in the recipe metadata, except `📜 licence`, which the index sets from the lane's own licence note; `🚀 fast` may predate the measured C1 above. `🚀`/`🐢` are banded by node count and an arm is tagged on the C1 aggregate for the count it runs at: `🚀` at >= 50 t/s on one node and >= 40 t/s on two; higher TP has no band and is an explicit owner call (no arm carries `🚀` there). `🐢` is < 40 t/s at any node count._
-
-# Licence Policy
+# License Policy
 
 The registry carries **recipes and mods, not weights**: recipes ship repo ids, revisions and wiring, and each
 downloader fetches the checkpoint from the Hub under that repo's own terms. **Third-party-downloadable** means
-fetchable from a public Hub repo on those terms, with the registry shipping only the recipe — plus a banner or
-lane note wherever the licence constrains use. Derivatives of third-party bases are carried when their own
-licence permits redistribution; where the registry only *references* upstream work (the ds4 graft mod fetches
-the author's script at a pinned revision) it redistributes nothing, and vendored images and mods stay under
-their upstream licences. Non-commercial and gated checkpoints are carried only where their licence allows the
-intended evaluation use; gated arms need a per-node `HF_TOKEN` with the release accepted, and each such arm is marked `📜`.
+fetchable from a public Hub repo on those terms, with the registry shipping only the recipe (with an flag indicating special licensing). Derivatives of third-party bases are carried when their own
+license permits redistribution. Where the registry only *references* upstream work (for example, the ds4 graft mod fetches
+the author's script at a pinned revision) it redistributes nothing. Vendored images and mods stay under
+their upstream licenses. Non-commercial and gated checkpoints are carried only where their license allows the
+intended use. 
 
 # Mechanics
 
@@ -258,6 +249,11 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 * https://spark-arena.com
 
 <!-- Links -->
+[littlecedar]: https://littlecedar.net
+[sparkrun]: https://sparkrun.dev
+[sparkrun-docs]: https://sparkrun.dev/getting-started/quick-start/
+[sparkrun-recipe-explorer]: https://recipes.sparkrun.dev
+[spark-arena]: https://spark-arena.com
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
 [Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B

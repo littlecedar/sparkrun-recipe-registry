@@ -1,13 +1,13 @@
 # Qwen-Image-2.1-Turbo arm (explore lane, media-gen) — bring-up notes
 
-> **LICENCE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the
+> **LICENSE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the
 > **Qwen Research License Agreement** (card `license: other`,
 > `license_name: qwen-research`; `LICENSE` in the repo): **FOR NON-COMMERCIAL
 > PURPOSES ONLY**. This registry is distributed to third parties. A recipe ships
 > a repo id, not weights — each downloader fetches from the Hub and accepts the
-> licence there — but neither the weights nor images generated from them may be
+> license there — but neither the weights nor images generated from them may be
 > used commercially. Precedent: the MiniMax-M3 blocker and the Poolside S-2.1
-> draft-licence gap. **Owner call 2026-10-14: ship the recipe with this banner.**
+> draft-license gap. **Owner call 2026-10-14: ship the recipe with this banner.**
 > An operator needing commercial use must swap the checkpoint; the serving path
 > (`recipes/explore/mods/qwen-image-2.1-turbo-launcher` + the recipe) is checkpoint-agnostic.
 
@@ -20,7 +20,7 @@ for it.
 
 | file | role |
 |---|---|
-| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, licence banner at the top |
+| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, license banner at the top |
 | [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
 
 The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang`/`vLLM` runtime
@@ -143,5 +143,5 @@ Boots and serves text-to-image and editing on **one** GB10 at ~11.4 s per
 Two bring-up defects were found and fixed in the mod (the container's non-root
 user breaking `reown()`, and a heredoc piped into `log()` killing the hook with
 `rc=120` after a successful install). Off the lane's brief (no reasoning, no
-tool calls) **and licence-blocked for commercial use**, so it competes with
+tool calls) **and license-blocked for commercial use**, so it competes with
 nothing in the selection and ships as the banner-marked eval-only entry.

@@ -45,7 +45,7 @@ SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
   `--enable-linear-replayssm-spec` flags this recipe needs (digest-pinned).
 - **Measured:** C1 **45.5 t/s** @ d0 (σ 5.5, n=5) / 32.3 @ d8k; quality **37/37** (ties the top of the
   pass); 262k needle PASS at 0.80.
-- **Licence:** MIT.
+- **License:** MIT.
 
 ## [kolibri-1-78b-fp8-vllm](kolibri-1-78b-fp8-vllm.yaml)
 
@@ -66,7 +66,7 @@ vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/i
   reports ~11 GiB less than `MemAvailable`).
 - **Measured:** C1 **47.3 t/s** @ d0 (σ 0.10) / 46.3 @ d8k; quality 36/37 @4096 (a **37/37 union** — the
   lone miss is a thinking-budget truncation).
-- **Licence:** Apache-2.0.
+- **License:** Apache-2.0.
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
 
@@ -100,7 +100,7 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   shape, thinking burning `max_tokens`) and **needle** at the two smaller depths. TEB
   (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97. Receipts
   `head:~/benchmarks/explore-laguna-xs-20261017/`.
-- **Licence:** OpenMDW-1.1 (target and draft).
+- **License:** OpenMDW-1.1 (target and draft).
 
 ## [poolside-laguna-s-2.1-nvfp4-dflash-vllm](poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
 
@@ -120,8 +120,8 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   (`FLASHINFER_CUTLASS` NvFp4 MoE on sm121) + `FLASHINFER` attention.
   `MAX_JOBS=4` caps the cold cutlass/FP4 JIT fan-out (an uncapped nvcc can exhaust the 128 GB pool) and
   `max_num_seqs: 32` is required (DFlash crashes vLLM at the default 256).
-- **Licence (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares
-  **no licence at all**; the BF16 sibling is `license: other` with no in-repo text — "other" resolves
+- **License (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares
+  **no license at all**; the BF16 sibling is `license: other` with no in-repo text — "other" resolves
   only by implication to the target's OpenMDW-1.1 (commercial + non-commercial).
 - **Measured:** C1 **20.49 t/s** @ d0 (σ 0.93) / 20.11 @ d8k; accept len mean 2.52 / 50.8% rate; quality
   32/37.
@@ -150,17 +150,17 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
   chat endpoint 400s). Its index row's C2/C5/C10 stay `—` — not unmeasured but **unmeasurable with
   this profile**; its C1 cell is the `/v1/completions` figure above, and a ladder for this arm would
   need a completions-capable harness.
-- **Licence:** Apache-2.0.
+- **License:** Apache-2.0.
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
 
 diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) ·
 **1 node** · eval-only.
 
-> **LICENCE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
+> **LICENSE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
 > Agreement** (card `license: other`, `license_name: qwen-research`): **FOR NON-COMMERCIAL PURPOSES
 > ONLY**. This registry is distributed to third parties. A recipe ships a repo id, not weights — each
-> downloader fetches from the Hub and accepts the licence there — but **neither the weights nor images
+> downloader fetches from the Hub and accepts the license there — but **neither the weights nor images
 > generated from them may be used commercially**. An operator needing commercial use must swap the
 > checkpoint; the serving path (`recipes/explore/mods/qwen-image-2.1-turbo-launcher` + the recipe) is
 > checkpoint-agnostic. **Owner call 2026-10-14: ship the recipe with this banner.**
@@ -225,7 +225,7 @@ load; 2026-10-16 engine-bump note in [`attic/explore/AGENTS.md`](../../attic/exp
   `GPU KV cache size` line is not in the receipt, and the launch record is sparkrun's
   `launch.log` only. Card numbers (self-reported by JetBrains, unverified here): LiveCodeBench v6 82.0,
   SWE-bench Verified 47.0, BFCL v4 62.3, MMLU-Redux 87.8.
-- **Licence:** Apache-2.0.
+- **License:** Apache-2.0.
 - **Details (provenance, the GGUF-route decision, the six open boot questions):**
   [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md).
 
@@ -277,7 +277,7 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
   false-FAIL classes are fixed in `590b9b2` (`tools/needle-haystack.py` records `finish_reason` and
   marks the shape TRUNCATED; both tools read the nested window) — receipt note
   `NOTE-needle-tool-fix.md`.
-- **Licence:** Apache-2.0.
+- **License:** Apache-2.0.
 - **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
   suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
 
@@ -288,7 +288,7 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
 (a per-node `HF_TOKEN` + accepted terms is a prerequisite sparkrun cannot assume). See
 [`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md). Weights ≈36.9 GB; two-stage T2V (8-step @
 672×384 → upscale → 3-step refine @ 1344×768, 121 frames + audio): cold 90–100 s, warm 80 s, peak
-83.6 GiB. Licence `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity
+83.6 GiB. License `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity
 threshold). Lane notes: [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md).
 
 ## Attic index
@@ -301,7 +301,7 @@ state, measured histories, selection receipts, serving traps, and the candidate 
 | [`AGENTS.md`](../../attic/explore/AGENTS.md) | The lane's working notes: the full previous README — per-arm measured histories (Ling, Kolibri, Nemotron, the Laguna pair, humanizer, Qwen-Image, LTX-2.5), the selection record, and the serving/measurement traps 1–6. Start here for "why did this lane pick what it picked?" |
 | [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) | The read-only research pass: 8 candidate families (§1), top-3 sequencing (§2), corrections to `mad-science/EXPLORE-CANDIDATES.md` (§3), the battery note (§4), per-arm GB10 evidence + verification checklists for the Laguna family (§5), the media-gen arms (§6) and `humanizer` (§7), and the 2026-10-16 `tfwnotops/…-ConstantKV` Kolibri-1M research queue entry (§8). Answers "what else could this lane serve, and on what precedent?" |
 | [`LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up notes: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. Answers "how was the LTX-2.5 runbook measured, and what did it cost?" |
-| [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the licence banner, engine/venv design decisions, the §6 acceptance table, and the two mod defects found. Answers "how was the eval-only image arm built and verified?" |
+| [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the license banner, engine/venv design decisions, the §6 acceptance table, and the two mod defects found. Answers "how was the eval-only image arm built and verified?" |
 | [`MELLUM-21.md`](../../attic/explore/MELLUM-21.md) | Mellum2.1-12B bring-up: the owner-added collection provenance, the checkpoint/chat-template facts read at the pin, why vLLM 0.29 needs no mod, the revision resolution, the **GGUF/llama.cpp route decision (recorded, not shipped)** and the six open boot questions. Answers "why does a JetBrains model use the `qwen3` reasoning parser, and what must the first boot prove?" |
 | [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | Manifest of the archived (measured-but-not-selected) Explore recipes with the selection ranking and the archive criterion/policy. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |

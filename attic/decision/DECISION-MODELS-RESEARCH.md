@@ -61,7 +61,7 @@ https://commandline.microsoft.com/microsoft-decision-1-model-foundry
 
 Sizes are raw file bytes from the Hub; GiB conversions in §3.
 
-| # | Candidate | Size | Latency (vendor, other silicon) | Quality | Licence | Runtime |
+| # | Candidate | Size | Latency (vendor, other silicon) | Quality | License | Runtime |
 |---|---|---|---|---|---|---|
 | 1 | `vllm-sr/Decision-2.0-Kai-0.6B` | 1.503 GB + head | **4.9 ms** | JevArena 48.6; Jev DI 16.3 | Apache-2.0 | vendor `vllm-srun` / `trust_remote_code`; CPU-capable |
 | 2 | `autotrust/JEV-9B` | ~18 GB (bf16 9B + 173 MB LoRA) | ≈90 ms single / **2.5 ms batched @128** (~340 dec/s, B200) | ECE 0.0007, `noul` AUROC 0.996, 90.2% choice agreement, KL≈0.019 | Apache-2.0 | **native vLLM** with LoRA; System 2 = bit-identical base |

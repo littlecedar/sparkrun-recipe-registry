@@ -4,7 +4,7 @@ _Brought to you by Little Cedar Group._
 
 Shipped `sparkrun` recipes for the **Qwen3.x** family on NVIDIA DGX Spark (GB10, 128 GB unified
 memory), TP=1 unless stated. This README covers **shipped recipes only**: repo ids, sizes, flags, the
-non-obvious knobs, and licences. Everything else — lane state, traps, knob rationale, negative
+non-obvious knobs, and licenses. Everything else — lane state, traps, knob rationale, negative
 results, measurement histories, boot receipts, the validation ritual, and the research docs — lives in
 [`attic/qwen3/`](../../attic/qwen3/), including the lane's former `AGENTS.md`, and is indexed at the
 bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to their own lanes on
@@ -34,7 +34,7 @@ bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to 
 | suite (2026-10-15) | eval-suite 1.0.1 verdict `ok`: contract ok (served id is the HF repo id, 262,144 ctx); house **37/37**; needle **3/3** at 32k, 131k, and 262k (the top rung is a 256,650-token prompt, i.e. the declared window really is served); hard ARC **93.5 %** (187/200) and GSM8K **96.0 %** (192/200, `finish_reason` stop 198 + length 2, no empty replies); BFCL v3 **87.7 %** (1087/1240) |
 | tool score (2026-10-15) | tool-eval-bench v2.6.0, core 15, greedy, 8 turns, sequential: **14 pass, 1 partial (TC-14), 0 fail → score 97** (29/30 points) — `bench_a8fa9f246154` |
 | receipt | `~/benchmarks/qwen3-27b-suite-20261015/` on the head — `launch.log`, `provenance.txt`, `summary.json`, `bfcl.json`, `hard/`, `needle-*.json`, `perf-ladder.*`, `teb.*`; SGLang `dev-cu13` image `sha256:c802d7b6…`, checkpoint `319f741c…`, draft `z-lab@50307d4c…` |
-| licence | Apache-2.0 (checkpoint and draft) |
+| license | Apache-2.0 (checkpoint and draft) |
 
 Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md) §4):
 
@@ -91,7 +91,7 @@ Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3
 | decode ladder (2026-10-16) | **C1 70.4 ± 0.2 · C2 114.0 ± 2.6 · C5 177.1 ± 14.9 · C10 249.5 ± 3.9 t/s** @ d0, pp 2048, tg 128, n=5 — `benchmarking/concurrency-ladder.yaml` on the pinned boot, decode rows read from the `--output` file (`~/benchmarks/pins-20261016/qwen3coder-ladder.{yaml,json}`). C1 here (70.4) vs the 71.7 above is the same shape re-measured on a different boot: 1.8 %, i.e. within inter-boot noise. C5's spread is the wide one. |
 | tool score (2026-10-16) | tool-eval-bench **v2.6.0**, core 15, greedy, 8 turns, sequential, thinking enabled: **90/100 (27/30 points), ★★★★★ Excellent** — deployability 89, responsiveness 87 (median turn 0.8 s), error rate 0.0. The report's engine block pins the provenance of the new image digest: **vLLM 0.32.0rc1.dev301+g1ac942555.d20261016** inside `dgx-vllm-eugr-nightly@sha256:cc47adc1…`. Receipt `~/benchmarks/pins-20261016/qwen3coder-tools.{yaml,json}`, `bench_e8e91f06209d`. |
 | quality | 35/37 house battery (misses `hard-arith-1`/`hard-arith-2`, both multi-step arithmetic) — the speed/coder arm to the DFlash2 quality reference |
-| licence | the Intel card declares none and defers to the base model `Qwen/Qwen3-Coder-Next` (**Apache-2.0**) |
+| license | the Intel card declares none and defers to the base model `Qwen/Qwen3-Coder-Next` (**Apache-2.0**) |
 
 **The non-obvious knob — the empty-`content` trap.** With the model's native thinking ON, a short
 reply comes back in the **reasoning** channel and `content` stays `null` (the `qwen3` reasoning parser
@@ -114,7 +114,7 @@ record the `finish_reason` + `reasoning` histogram beside any score.
 | flags | 👀 (vision) |
 | decode C1 | **41.3 ± 4.0 t/s** @ d0 and 41.7 ± 2.4 @ 8k (one boot, 2026-10-14 — treat as provisional); house battery **37/37** |
 | standard suite (2026-10-17) | ladder @ d0 pp2048 tg128 n=5 — C1 **44.8** (σ 3.5) / C2 57.7 (σ 2.8) / C5 64.4 (σ 2.3) / C10 65.6 (σ 1.3) t/s (`bench_b10e422bb046`; per-request decode falls 44.8 → 16.0, so the aggregate flattens past c5); eval-suite ok on contract/house/needle/hard — house **37/37** (easy 19/19, hard 18/18), needle **3/3** at 32k and 131k (the engine reports no `max_model_len`, so the auto depths stop at 128k), arc **94.0%** / gsm8k **96.5%** (n=200 each); TEB **100** (15/15). Receipt `head:~/benchmarks/qwen3-tf-suite-20261017/` (+ `NOTES.md`). The **`tools` (bfcl) leg** was killed at 3,878 s on a misread buffered log and re-ran unbuffered into `head:~/benchmarks/qwen3-tf-tools-20261017/` (4,487 s): **85.7%** (1063/1240) — `simple` 90.5 / `multiple` 93.0 / `parallel` 85.5 / `parallel_multiple` 72.0 / `irrelevance` 83.3 (clean leg, `verdict ok`). That leg ran at bfcl-eval's **512-token completion default**: the suite's `check_tools` passed no `--max-tokens` at all until 2026-10-17, when it gained `--bfcl-max-tokens` (default 4096), and 25 of the 400 parallel questions came back with `calls: []`. Treat 85.7 % as **budget-annotated**, not a capability ceiling, and re-measure at 4096 before comparing it with an arm measured on the new default (`tools/README.md` §bfcl-eval.py). |
-| licence | Apache-2.0 (checkpoint); engine/patches are upstream's, kept under their licences |
+| license | Apache-2.0 (checkpoint); engine/patches are upstream's, kept under their licenses |
 
 Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md)
 §12–§13):

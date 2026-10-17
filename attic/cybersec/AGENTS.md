@@ -604,7 +604,7 @@ fail-closed** in the mod — the serve command does not wait on a background ste
 
 ### Other surfaced arms (not shipped)
 
-Recorded, over the 1–2-node bar or licence-blocked; see `mad-science/TODO.md` §cybersec:
+Recorded, over the 1–2-node bar or license-blocked; see `mad-science/TODO.md` §cybersec:
 `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (205.1 GB), `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated`
 (315.7 GB ⇒ ≥3 nodes), `drowzeys/MiMo-V2.6-Flash-RL-Abliterated` (310B), `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B).
 

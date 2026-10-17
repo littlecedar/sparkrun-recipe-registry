@@ -71,7 +71,7 @@ _Five further arms were built on 2026-10-14 and are recorded here without joinin
 selection: the queued **Poolside Laguna-XS-2.1** (faster and smaller than both kept arms but one
 genuine battery miss below Kolibri), **Laguna-S-2.1** (a capped-context 120k single-tenant entry),
 the off-brief **humanizer-12b** text-rewriting arm, and the two **media-gen** arms outside the lane's
-brief — **Qwen-Image-2.1-Turbo** (image; non-commercial licence, shipped banner-marked eval-only) and
+brief — **Qwen-Image-2.1-Turbo** (image; non-commercial license, shipped banner-marked eval-only) and
 **LTX-2.5** (video+audio; gated, shipped as a [runbook](explore/ltx-2.5-runbook/README.md)). Their
 receipts are in [`explore/README.md`](explore/README.md)._
 

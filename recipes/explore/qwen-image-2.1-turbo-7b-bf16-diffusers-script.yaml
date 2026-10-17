@@ -1,10 +1,10 @@
 # ===========================================================================
-# LICENCE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
 #
 # Qwen/Qwen-Image-2.1-Turbo is licensed under the **Qwen Research License
 # Agreement** (card `license: other`, `license_name: qwen-research`): **FOR
 # NON-COMMERCIAL PURPOSES ONLY**. A recipe ships a repo id, not weights — each
-# downloader fetches from the Hub and accepts the licence there — but that
+# downloader fetches from the Hub and accepts the license there — but that
 # downloader cannot use the weights, or images generated from them,
 # commercially. An operator needing a commercially usable text-to-image arm
 # must swap the checkpoint; the serving path here
@@ -29,7 +29,7 @@ metadata:
     `QwenImage21Pipeline` under a script launcher (no sglang/vLLM engine
     exists for it). The checkpoint ships its own sampling schedule
     (`sample_sigmas` in model_index.json) and prefix-KV context caching is on
-    by default. LICENCE: qwen-research — NON-COMMERCIAL ONLY (see the banner
+    by default. LICENSE: qwen-research — NON-COMMERCIAL ONLY (see the banner
     at the top of this file). The mod stages a diffusers>=0.41 /
     transformers>=5.17 venv on the image's torch and runs the HTTP server in
     recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).

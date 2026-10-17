@@ -34,7 +34,7 @@ usable*); §6 lists what the boot answered and what it did not.
 | context | `max_position_embeddings` 131,072 (= 8,192 × 16) |
 | width | `hidden_size` 2304, `intermediate_size` 7168, `moe_intermediate_size` 896, `norm_topk_prob: true` |
 | vocab / dtype | 98,304 / `bfloat16`; `tie_word_embeddings: false`; `transformers_version` 5.8.1 |
-| licence | Apache-2.0, **ungated** (`gated: false`) → no per-node `HF_TOKEN` prerequisite |
+| license | Apache-2.0, **ungated** (`gated: false`) → no per-node `HF_TOKEN` prerequisite |
 
 Weights: 5 shards, **24,301,065,318 B (24.30 GB / 22.4 GiB bf16)**; the repo also ships
 `chat_template.jinja`, `tokenizer.json`, `special_tokens_map.json`, `tokenizer_config.json`,

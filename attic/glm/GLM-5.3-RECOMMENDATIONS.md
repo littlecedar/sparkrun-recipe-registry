@@ -20,7 +20,7 @@ an external repo carries a pin; nothing here has been measured on our hardware.
 | "Both fit comfortably within a single DGX Spark (128 GB)" | 433–465 GB cannot fit 128 GB unified. The 753B NVFP4 lane is **TP4-only on our nodes**, and the vendor card publishes **TP=8**. |
 | RadixArk = "llama.cpp / Ollama / GGUF, community fork, local prototyping" | RadixArk is an **NVFP4 W4A4 export in NVIDIA Model-Optimizer format, SGLang-served**, validated on B300. The "backend" differentiator collapses. |
 
-Everything else the old doc asserted about kernels, KV size and licence text is folded in below or
+Everything else the old doc asserted about kernels, KV size and license text is folded in below or
 replaced. The new material (a second model line, two more checkpoints, a third engine, spec-decode,
 KV math, receipt discipline) comes from two `bertholomus/*` sources pinned at the bottom.
 
@@ -29,7 +29,7 @@ KV math, receipt discipline) comes from two `bertholomus/*` sources pinned at th
 ## The two model lines
 
 Both are Z.ai MoE models at 1M native context. They are **different families with different
-licences** — do not pool them.
+licenses** — do not pool them.
 
 | | **GLM-5.3** (full) | **GLM-5.3-Flash** |
 |---|---|---|
@@ -38,7 +38,7 @@ licences** — do not pool them.
 | `hidden_size` | 6144 | 4096 |
 | Modalities | text-only | **multimodal** (`image_token_id` 154854) |
 | MTP | bf16 | kept **FP8** |
-| Licence | **Z.AI GLM-5.3 Licence** (permissive; MaaS >$10B security-review clause) | **MIT** |
+| License | **Z.AI GLM-5.3 License** (permissive; MaaS >$10B security-review clause) | **MIT** |
 
 Base releases for the full model: `zai-org/GLM-5.3` (FP8, 141 shards ≈ 756 GB — what the NVFP4
 quants compare against) and `zai-org/GLM-5.3-BF16` (1,507 GB).
@@ -47,11 +47,11 @@ quants compare against) and `zai-org/GLM-5.3-BF16` (1,507 GB).
 
 ## The four checkpoints
 
-| Checkpoint | Model | Quant | Size | Engine | Licence | Pin |
+| Checkpoint | Model | Quant | Size | Engine | License | Pin |
 |---|---|---|---|---|---|---|
 | [`incoai/GLM-5.3-NVFP4`](https://huggingface.co/incoai/GLM-5.3-NVFP4) | 5.3 full | NVFP4 | 87 files ≈ **463 GB** | vLLM / SGLang | Z.AI | — |
 | [`RadixArk/GLM-5.3-NVFP4`](https://huggingface.co/RadixArk/GLM-5.3-NVFP4) | 5.3 full | NVFP4 W4A4 (Model-Optimizer) | 47 shards ≈ **465 GB** | SGLang | Z.AI | — |
-| [`RedHatAI/GLM-5.3-Flash-NVFP4`](https://huggingface.co/RedHatAI/GLM-5.3-Flash-NVFP4) | 5.3-Flash | NVFP4 experts + FP8 MTP | 21 files / **197,881,157,135 B** | vLLM (SM121/GB10) | MIT card / no repo licence metadata | rev `36c184c6` |
+| [`RedHatAI/GLM-5.3-Flash-NVFP4`](https://huggingface.co/RedHatAI/GLM-5.3-Flash-NVFP4) | 5.3-Flash | NVFP4 experts + FP8 MTP | 21 files / **197,881,157,135 B** | vLLM (SM121/GB10) | MIT card / no repo license metadata | rev `36c184c6` |
 | [`bertholomus/GLM-5.3-EXL3-3.0bpw`](https://huggingface.co/bertholomus/GLM-5.3-EXL3-3.0bpw) | 5.3 full | EXL3 3.0 bpw (exllamav3 1.5.3) | 39 shards ≈ **292.7 GB** | TensorFold | Z.AI | — |
 
 `incoai`'s own accuracy table (FP8 vs NVFP4): GPQA 91.1/91.2, AIME-2025 94.3/95.1, MATH-500
@@ -79,7 +79,7 @@ doc's conclusion.
 
 ## Engines and spec-decode
 
-| Lane | Engine | Draft | Licence trap |
+| Lane | Engine | Draft | License trap |
 |---|---|---|---|
 | EXL3 (repo A) | TensorFold 0.6.0 + branch `glm-dsa-tp4` @ `ddfad35` | GLM-5.3's **own MTP, depth 3** (`--mtp-drafts 3`) | none — no external drafter |
 | Flash NVFP4 (repo B) | vLLM (SM121/GB10) | **DFlash2 depth 7** (`incoai/GLM-5.3-Flash-DFlash2`, 2.3 GB) | **CC BY-NC-ND 4.0** — non-commercial |
@@ -117,9 +117,9 @@ gate** (the reasoning gate is sampling-sensitive and explicitly not attributable
 | Goal | Pick | Why |
 |---|---|---|
 | **4-node GLM serving, today-shippable** | **GLM-5.3-Flash NVFP4 @ TP4 (repo B formula)** | only line that fits 4 nodes with real KV headroom; qualified receipts exist |
-| 4-node full 753B | EXL3 3.0 bpw on TensorFold | the only full-model option that fits TP4; distinct engine, distinct licence surface |
+| 4-node full 753B | EXL3 3.0 bpw on TensorFold | the only full-model option that fits TP4; distinct engine, distinct license surface |
 | 8-node full 753B NVFP4 | incoai or RadixArk @ TP8 | vendor-published topology; no GB10 measurement exists |
-| Commercial use, clean licence | Flash line (MIT) with **MTP/EAGLE**, not DFlash2 | DFlash2 is CC BY-NC-ND |
+| Commercial use, clean license | Flash line (MIT) with **MTP/EAGLE**, not DFlash2 | DFlash2 is CC BY-NC-ND |
 
 **What we can and cannot ship:** the Flash vLLM lane's image blocker is CLOSED — **2026-10-11: `vllm/vllm-openai:glm53-flash`
 exists on Docker Hub** (pushed 2026-09-09; amd64 digest `sha256:0674a3ea3c971706cea310bca71daadff68ea1717c758d2f54affa5def001b86`,
@@ -139,13 +139,13 @@ default `NCCL_IB_GID_INDEX=5` must **not** be copied.
 ## Licensing map
 
 - **Full 753B line and every derivative** (`zai-org/GLM-5.3`, `incoai`, `RadixArk`,
-  `bertholomus/GLM-5.3-EXL3-3.0bpw`): the **Z.AI GLM-5.3 Licence**, byte-identical text; permissive
+  `bertholomus/GLM-5.3-EXL3-3.0bpw`): the **Z.AI GLM-5.3 License**, byte-identical text; permissive
   with the MaaS >$10B security-review clause. RadixArk's card still says "MIT-style" — its LICENSE
   file is the Z.AI text.
 - **GLM-5.3-Flash**: **MIT** (`zai-org/GLM-5.3-Flash/LICENSE` is plain MIT) — the cleanest for
   commercial use.
 - **`RedHatAI/GLM-5.3-Flash-NVFP4`**: card front-matter declares `license: mit` but the repo exposes
-  **no explicit licence metadata**; link, do not mirror.
+  **no explicit license metadata**; link, do not mirror.
 - **DFlash2 drafters**: **CC BY-NC-ND 4.0** (both the full-model and Flash variants).
 
 ---

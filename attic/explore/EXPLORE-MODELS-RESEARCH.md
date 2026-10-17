@@ -15,7 +15,7 @@ Weighting: node count > speed > accuracy > memory (decisions #10/#11/#14).
 
 ## 1. Shortlist
 
-| # | Model id | Params | Quant → size | Nodes | Licence | Runtime + GB10 status | Reasoning evidence | Tool-calling evidence |
+| # | Model id | Params | Quant → size | Nodes | License | Runtime + GB10 status | Reasoning evidence | Tool-calling evidence |
 |---|---|---|---|---|---|---|---|---|
 | 1 | [`nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4) (+ [`-DSpark`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark)) | 30B / 3B (Mamba-2 + MoE + attn hybrid) | NVFP4 **20.8 GB** | **1** | OpenMDW-1.1 | vLLM. Official GB10 recipe on the card: `vllm/vllm-openai:v0.27.1`, `--moe-backend marlin`, `--mamba-backend flashinfer --mamba-cache-mode align`, parsers `nemotron_v3` + `qwen3_coder`. **GB10 has no native FP4 path** (W4A16 via Marlin) | GPQA-D 75.57, HLE 10.47, SciCode 31.38, MMLU-Pro 81.62 [card, NVFP4] | `--tool-call-parser qwen3_coder --enable-auto-tool-choice`; τ³-bank 9.48, T-Bench 2.1 23.46, SWE-bench V 52.80 [card] |
 | 2 | [`inclusionAI/Ling-3.0-flash`](https://huggingface.co/inclusionAI/Ling-3.0-flash) + [`-int4`](https://huggingface.co/inclusionAI/Ling-3.0-flash-int4) + [`-dspark`](https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark) | 124B / 5.1B (KDA 5:1 MLA hybrid-linear MoE) | INT4 **77.0 GB** + 2.7 GB draft | **1** | MIT | SGLang. First-party Spark notebook in `ling-cookbook`; public image `lmsysorg/sglang:dev-Ling-3.0-flash`; parsers `ling3` | GPQA-D **83.65**, IFBench 72.20, SciCode 39.35, ArcPrize 67.56 [INT4 card]; BF16 GPQA-D 84.97 | card cites SWE-Bench Pro/Multilingual, Tau3, **MCP-Atlas**, SkillsBench (chart images, not text) |
@@ -26,7 +26,7 @@ Weighting: node count > speed > accuracy > memory (decisions #10/#11/#14).
 | 7 | [`poolside/Laguna-XS-2.1`](https://huggingface.co/poolside/Laguna-XS-2.1) | 33B / 3B (256 routed, SWA 3:1) | BF16 **66.6 GB**; FP8/NVFP4/INT4 siblings | **1** | OpenMDW-1.1 | vLLM + SGLang + TRT-LLM + llama.cpp (poolside fork); DFlash draft; parsers `poolside_v1`/`laguna`; no GB10 precedent | SWE-bench V 70.9%, SWE-Pro 47.6% [card] | T-Bench 2.0 37.5%; interleaved thinking between tool calls [card] |
 | 8 | [`XiaomiMiMo/MiMo-V2.6-Flash-RL`](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Flash-RL) (refreshed 2026-10-09) | 309B / 15B (sparse MoE, omni) | BF16 **~172 GB**; no in-repo FP8 (card now carries fp8/8-bit tags — sibling quant may exist) | **2** | MIT | Transformers/vLLM; own `dflash/`; no GB10 precedent | DeepSWE v1.1 67.9 [card] | Toolathlon 73.6, T-Bench 2.1 87.6, OSWorld 80.8 [card] |
 
-**2-node tail:** `MiniMaxAI/MiniMax-M3` (428B/23B; **licence blocker** —
+**2-node tail:** `MiniMaxAI/MiniMax-M3` (428B/23B; **license blocker** —
 `minimax-community` non-commercial and this registry ships to third parties),
 `thinkingmachines/Inkling-Small-NVFP4` (276B/12B, NVFP4 170.8 GB),
 `poolside/Laguna-S-2.1-NVFP4` (118B/8B, 99.7 GB; T-Bench 2.1 70.2),
@@ -132,12 +132,12 @@ per-request `enable_thinking` (vendor recommends preserved thinking); FP8 KV on 
 first-party DFlash speculator drafts; parsers `poolside_v1` (tool + reasoning) on vLLM/SGLang
 (`laguna` is the TRT-LLM reasoning-parser name).
 
-| repo (Hub revision, last modified) | params (act.) | licence | size | ctx | GB10 evidence |
+| repo (Hub revision, last modified) | params (act.) | license | size | ctx | GB10 evidence |
 |---|---|---|---|---|---|
 | `poolside/Laguna-XS-2.1` `c5f36269bb` 08-19 (+ `-NVFP4` `d32afde8b0` 07-29, `-FP8`, `-INT4`) | 33B (3B) | OpenMDW-1.1 | BF16 66.9 GB; **NVFP4 21.6 GB** | 262,144 | **Spark Arena**: TP=1, 1 node, **37.5 tok/s decode** [third-party], full vLLM recipe (262k, util 0.45, DFlash n=4, fp8 KV) — but its block also says `-tp 2 --nnodes 2`; read it as a sketch |
 | `poolside/Laguna-XS-2.1-DFlash` `5c36361aab` 07-20 | 0.5B draft | OpenMDW-1.1 | 0.9 GB | — | `DFlashLagunaForCausalLM` (6 layers, block 16); vLLM `laguna_dflash`, SGLang `--speculative-algorithm DFLASH` |
 | `poolside/Laguna-S-2.1` `0f57314083` 08-19 (+ `-NVFP4` `826aacdf6d`, `-FP8`, `-INT4`, `-GGUF`) | 118B (8B) | OpenMDW-1.1 | **NVFP4 99.7 GB download / 67.0 GiB resident** — the resident figure is **wrong**; measured **95.61 GiB** 2026-10-14 (see the sizing correction below) | 1,048,576 | **single-Spark TP=1 sweep** (fankserver, 2026-07-22, vLLM 0.25.1 — the *pre-August* checkpoint): util 0.85 → **1.37M-token KV**, decode 18.3 → 16.5 t/s over 0→65k (SWA), **DFlash n=3 best (25.5 t/s; ~2.35× on coding prompts)**, n=15 vendor default loses; TP=2 scales ~1.7× but unstable — **TP=1 recommended** |
-| `poolside/Laguna-S-2.1-DFlash(-NVFP4)` `b3b5921a90` 07-31 | 1.1B draft | **the shipped `-NVFP4` draft declares no licence at all** (no `license` card field, no LICENSE file); the bf16 sibling is `license: other` with **no licence text in-repo** — read/recorded 2026-10-14 before distributing | 2.2 GB | — | forum: early acceptance ~8% at n=15; measured 2026-10-14 on one Spark: mean acceptance length 2.52 (1.36–3.40), mean Draft acceptance rate 50.8% (12.1–79.9%) at n=3 |
+| `poolside/Laguna-S-2.1-DFlash(-NVFP4)` `b3b5921a90` 07-31 | 1.1B draft | **the shipped `-NVFP4` draft declares no license at all** (no `license` card field, no LICENSE file); the bf16 sibling is `license: other` with **no license text in-repo** — read/recorded 2026-10-14 before distributing | 2.2 GB | — | forum: early acceptance ~8% at n=15; measured 2026-10-14 on one Spark: mean acceptance length 2.52 (1.36–3.40), mean Draft acceptance rate 50.8% (12.1–79.9%) at n=3 |
 | `poolside/Laguna-XS.2` `a397bde045` 09-22 (+ `-NVFP4` `973ad427aa`, `-FP8`, `-INT4`) | 33B (3B) | Apache-2.0 | BF16 66.9; NVFP4 21.5; FP8 35.3; INT4 23.9 | 262,144 | none found (see the dating note) |
 | `poolside/Laguna-XS.2-speculator.dflash` `6c936ca2a0` 05-19 | 0.6B draft | Apache-2.0 | 1.2 GB | — | card acceptance ≈ 2.65–3.07 avg (A100) |
 | `poolside/Laguna-M.1` `2bf8a4ab6d` 07-14 (+ `-base`, `-NVFP4` `e4f3ba80ca`) | 226B (23B) | Apache-2.0 | BF16 451.6; NVFP4 139.3 | — | none; 2-node minimum at NVFP4 — ceiling reference only |
@@ -175,12 +175,12 @@ digest-pinned image, not by tag (the lane's Kolibri pin, `vllm/vllm-openai:v0.29
   for any 262k claim.
 - **Laguna S-2.1-NVFP4** (queue rank 2; also 1 node): template = the TP=1 sweep (util 0.85, 262k,
   DFlash n=3) plus its RC1 long-context variant (**no DFlash + `--max-num-scheduled-tokens 4096`** →
-  4.52M-token KV = 4.31× at 1M); settle the DFlash-NVFP4 licence first; 99.7 GB per node to download.
+  4.52M-token KV = 4.31× at 1M); settle the DFlash-NVFP4 license first; 99.7 GB per node to download.
   **Resolved 2026-10-14** (see the sizing correction above): at util 0.85 the servable window is ~120k,
   not 262k — the August-2026 checkpoint is a ~96 GiB model. The recipe ships `max_model_len: 122880`.
-  Licence: the shipped draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares **no** licence (no
+  License: the shipped draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares **no** license (no
   `license` card field, no LICENSE file); the BF16 sibling `…-DFlash` is `license: other` with no
-  licence text in-repo, so "other" resolves only by implication to the target's OpenMDW-1.1.
+  license text in-repo, so "other" resolves only by implication to the target's OpenMDW-1.1.
 
 Sources: `hf.co/poolside/collections`; `forums.developer.nvidia.com/t/laguna-s-2-1-config-benchmarks/377663`
 (TP=2: 21.0 t/s c1/d0 → 46.8 c4; tool-eval-bench 82/100 ★★★★ at 262k; "1M is not possible");
@@ -198,7 +198,7 @@ accuracy axis for images or video. Proposed acceptance criterion (owner to confi
 the shipped preset; wall-clock per item and peak unified memory; quality judged by eye against the
 vendor gallery** — no house scorer exists (`tools/synthetic_png.py` is a fixture, not a metric).
 
-| model | kind | weights | licence | GB10 evidence |
+| model | kind | weights | license | GB10 evidence |
 |---|---|---|---|---|
 | `Qwen/Qwen-Image-2.1-Turbo` `fc13ba1986` 2026-10-12 (base `Qwen-Image-2.1` `d26bb61231` 09-30) | text-to-image + editing; **8-step distilled, CFG=1**, prefix-KV context caching | 32.5 GB bf16 (DiT 14.2 + text encoder 17.5 + VAE 0.68); `QwenImage21Pipeline` (diffusers) | **`qwen-research` — "FOR NON-COMMERCIAL PURPOSES ONLY"** (LICENSE read 2026-10-13) | base model on GB10 [third-party, 2026-09-30]: **54.1 s @ 1024²/40 steps** (28.3 @ 20), peak 31.6 GB, load ≈ 3 min; 2048² 4m16; 10 reference images 598 s; a vLLM-OMNI path measured **40 s @ 40 steps**/~30 GB (2026-10-08) |
 | `Lightricks/LTX-2.5` `49b093a39c` 2026-10-11 | text/image→**video with synchronized audio**, audio-to-video, native multishot, up to 4K HDR/50 FPS | ComfyUI single-file set: transformer int8-convrot 21.5 GB (**nvfp4 18.7**), Gemma-4-12B encoder int8 15.4 / bf16 26.3, video+audio VAEs, x2 latent upscaler, LoRAs 8.9 | `ltx-2.x-community-license-agreement`; **repo gated (`gated: auto`)** — the LTX-2 text (ungated repo, read 2026-10-13) grants free commercial use below a $10M-revenue "Commercial Entity" threshold | **as a refine stage on a DGX Spark** [third-party, 2026-09-14]: nvfp4 transformer 17.44 GiB + VAEs + upscaler = 20.1 GiB, three refine steps to 1344×768×124 f/24 fps **with audio** inside a 73.3 s warm two-stage run (both stages resident: 104/121 GiB peak); engine quirks below |
@@ -206,7 +206,7 @@ vendor gallery** — no house scorer exists (`tools/synthetic_png.py` is a fixtu
 ### Verification checklist (before any media recipe ships)
 
 - **Qwen-Image-2.1-Turbo** (cheaper of the two; best precedent):
-  (a) **licence first** — non-commercial only; a registry distributed to third parties cannot ship it
+  (a) **license first** — non-commercial only; a registry distributed to third parties cannot ship it
   as-is, so this needs an owner call (the MiniMax-M3 precedent) and may stay an eval-only arm;
   (b) engine: diffusers ≥ PR #14950 (pipeline-configured sampling sigmas) + transformers ≥ 5.17 — no
   `sglang|vllm` runtime exists for it; the vLLM-OMNI route is faster (40 vs 54 s on the base model)
@@ -223,7 +223,7 @@ vendor gallery** — no house scorer exists (`tools/synthetic_png.py` is a fixtu
   stage inside a two-stage run):
   (a) **access + token**: `gated: auto` → accept terms in a browser and provide `HF_TOKEN` per node;
   sparkrun distribution cannot assume either, so document the prerequisite or keep the arm a runbook;
-  (b) licence: the 2.x agreement's text sits behind the gate — read it once access lands (the LTX-2
+  (b) license: the 2.x agreement's text sits behind the gate — read it once access lands (the LTX-2
   text's $10M Commercial Entity threshold is the family pattern, not proof for 2.x);
   (c) engine: ComfyUI is the native path (three templates: T2V, I2V, FLF2V; int8-convrot set ≈ 40 GB →
   1 node). **Pin the unit** the third-party write-up had to pin: ComfyUI ≥ 0.34.0 + `comfy-kitchen`
@@ -294,7 +294,7 @@ Owner added `tfwnotops/Kolibri-1-78B-A3B-Full-MoE-1M-ConstantKV-SOTA-GEFERTIGT-I
 lane's research queue at high priority. It is **not a candidate arm in the §1 sense: it ships no
 weights.** It is a code + paper release that runs the lane's own already-shipped `Aleph-Alpha/Kolibri-1`
 (§1 row 3, rank 2) *unchanged* and adds a long-context serving method on top of it. Nothing here is a
-new model to rank; the question is whether the method is real on our hardware and whether its licence
+new model to rank; the question is whether the method is real on our hardware and whether its license
 lets us touch it at all.
 
 Facts read from the Hub on 2026-10-16 — `sha a91858f3bfeb98c0581012a5ab0297c105896544`, last modified
@@ -304,7 +304,7 @@ Facts read from the Hub on 2026-10-16 — `sha a91858f3bfeb98c0581012a5ab0297c10
 |---|---|
 | contents | `kolibri_state/` (the constant attention state), `kolibri_mrail/` + `mrail/` (the M-Rail layer), `tests/`, `results/*.json`, `rules/practice-131k-32k.rules.json`, `kolibri.yaml`, a 42-page paper + TikZ sources, 9 PNG assets. **No `*.safetensors` and no `config.json`** (`/raw/main/config.json` → 404) |
 | base model | `Aleph-Alpha/Kolibri-1`, `base_model_relation: adapter`; the weights are declared "unchanged" and "not part of this repository" (`NOTICE`) |
-| licence | code **PolyForm Noncommercial 1.0.0** (`LICENSE` — commercial use needs a licence from the author); paper, `paper/` sources and `assets/` CC BY 4.0 |
+| license | code **PolyForm Noncommercial 1.0.0** (`LICENSE` — commercial use needs a license from the author); paper, `paper/` sources and `assets/` CC BY 4.0 |
 | author / refs | David Tom Foss (`github.com/DT-Foss`, `d.foss@ieee.org`, `hf.co/davidfoss`); the paper's DOI `10.13140/RG.2.2.30326.77125` resolves (302 → ResearchGate), and `mrail` **0.4.1 is on PyPI** (same author, "append-only maps of exact language-model runs") — but that PyPI package is the map **format** only ("It does not contain a model runtime"), so the runnable path is the repo's own `kolibri_state` / `kolibri_mrail` serve code, installed from the repo itself. The artefact and its author are real, which is not the same as the numbers being reproduced |
 | engine | vLLM **0.29** + `aleph-alpha-inference` — the same two pieces the lane's shipped Kolibri arm already pins (`recipes/explore/kolibri-1-78b-fp8-vllm.yaml` and mod `recipes/explore/mods/install-kolibri-plugin`); entered through the repo's own CLI, `kolibri serve --config kolibri.yaml` (or `kolibri vllm`, which prints a `vllm serve` command line) |
 
@@ -335,7 +335,7 @@ Facts read from the Hub on 2026-10-16 — `sha a91858f3bfeb98c0581012a5ab0297c10
 
 ### Verification checklist (before any boot — the item is non-shippable as it stands)
 
-- (a) **Licence and distribution first.** The registry ships to third parties and its mods run
+- (a) **License and distribution first.** The registry ships to third parties and its mods run
   unprompted, so **nothing** of this repo may enter a shipped recipe, a `mods/` entry, or a lane
   branch of the cluster mods tree. The precedent is MiniMax-M3 and the Qwen-Image banner (§6): an
   owner call decides whether even a *non-shipped, internal* eval is acceptable. Note the install
