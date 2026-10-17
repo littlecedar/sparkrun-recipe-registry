@@ -382,3 +382,45 @@ The `v0.30.0` pin resolved to the Docker Hub top-level manifest-list digest `sha
 **jev-9b look (the item's second half).** `vllm/vllm-openai:glm53-flash@sha256:819ec9c0…` = vLLM **0.28.1rc1.dev580+g385dce36b** (base already recorded in `attic/glm/`); OSV: **24 records**, the delta against 0.29.0 being **CVE-2026-93840 / PYSEC-2026-3998** (cross-request logits corruption via `allowed_token_ids`, fixed in 0.29.0). The Hub tag still resolves to the pinned manifest-list digest (checked 2026-10-16), so moving the arm needs a new build from the tag's author — it stays as-found.
 
 **Hygiene.** Both session serves stopped by explicit task id; `.35` at zero containers/volumes, `.30`–`.33` untouched. Removed `.35`'s uncited `img-pull-9a352a.log` (a 2026-10-15 pull by-product); kept the cited `tf-tp2-boot.log`/`hf-verify.log` and the live peer job's `/tmp/tmp.Ke4vikV633` JSON state. Gate re-run after the holds: **606 tests OK** (2 skipped), all 37 recipes validate plain, `bash -n` + `py_compile` clean.
+
+**2026-10-17 session — three dual-node TP=2 tasks on the free `.34`/`.35`** (the peer's
+`…-b12x-dspark-sglang-tp4` job on `.30`–`.33` was never touched; one TP=2 serve at a time).
+Commits `f13c45b`, `18aa85b`, `d7c879b`, `d1d2c65`, `b567994`, `955b70b`, `a61890a`, pushed.
+
+**1 — TP=2 vision: the 2026-10-15 HTTP 400 was the served template, and it is fixed.** The engine's
+vision branch rewrites each image part into a placeholder inline in one string content
+(`families/deepseek_v41/cuda/app.py`, `DsVision.split`), and the combined pack's upstream template
+refuses a placeholder arriving that way. The mod now ships a patched `chat_template.jinja` (two
+placeholder guards neutered, the `reasoning_content` guard kept, the token assembled from pieces so
+no shipped file carries it or a decodable spelling) and the launcher serves a `--vision`-gated
+symlink-farm overlay model dir (`/cache/runtime/tensorfold/model-overlay`). Receipt: boot ~84 s,
+overlay template sha `297be8861c9c…` identical on both nodes, vision probe **3/3** with a clean text
+control and HTTP 200 where it used to be 400 (`~/benchmarks/ds4-vision-20261017/`, §12.14.1).
+Recorded gotcha: the served template defaults to thinking mode, so a small `max_tokens` returns an
+empty `content` (a 200-token text request shows `reasoning_len=156`); send
+`chat_template_kwargs {"enable_thinking": false}` for one-shot answers.
+
+**2 — the DeepSeek-V4.1-Flash-1017 refresh serves.** Trial recipe (untracked) over
+`LibertAIDAI/…-1017-EXL3-2.9bpw` plus Engram tables rebuilt from 1017 shards 47/48 (188.8 GiB at
+2978 s/node; one node needed a resume after two short-read segments): `/v1/models` = the 1017 repo id
+at 530 s cold, vision **3/3** (the pack ships no template at all — the overlay is what makes it
+boot), TEB **100**. Same-window A/B against the shipped arm: C1 **61.5 vs 68.0**, C4 48.9 vs 48.0,
+**C8 49.3 vs 43.3**, **C16 48.2 vs 43.4**, TEB 100 vs 100. Adoption is the owner's call and the C1
+cell wants an interleaved re-take (§12.16). **Trap: `-o model=` is ignored by a real launch** — the
+dry run honours it, the launch distributed and served the recipe's own model; a model swap needs a
+recipe file.
+
+**3 — the EXL3/Engram dedup, including the mistake inside it.** Arm 5 moved to the combined pack and
+dropped `dsv41-engram-fetch`, with `--stock-model` finally carrying the launcher's Engram resolution.
+The first re-boot proved the author's graft script **copies** through the HF cache's symlinks instead
+of hardlinking: a 386 GiB tree with the 189 GiB of tables duplicated — the dedup as first wired
+*added* ~190 GB per node. Fixed by grafting from a `--src` view without `engram/` and symlinking
+`${STOCK}/engram` into the tree (with the repair ahead of the `ABLIT_META` short-circuit): graft
+**148 s / 137 s**, tree **119 GiB**, `engram=` the stock pack, `/v1/models` the drowzeys id,
+`17*19 → 323`, TTR 865.9 s with a cold rank cache (`~/benchmarks/cybersec-arm5-20261017/`). Stale
+Mia trees and `dsv41-engram` pre-warms removed from `.32`/`.33` (both 1.6T → 1.3T used).
+
+**Hygiene.** Every serve stopped by explicit task id; `.34`/`.35` at zero containers. Kept on the
+nodes and documented: the 1017 pack + `<snapshot>/engram` (~385 GiB/node) as the decision artifact,
+and the arm-5 graft tree — both named here so the next sweep does not read them as litter. Gate:
+**635 tests OK** (2 skipped), all 38 recipes validate plain, `bash -n` + `py_compile` clean.

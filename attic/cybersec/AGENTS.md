@@ -500,6 +500,33 @@ another lane's workload when this was written.
   ds4 lane's 73.0 t/s figure carries Engram. A second boot after the fetch completes would pick
   the tables up; the C1/battery comparison against the stock arm should be re-read with that in mind.
 
+**2026-10-17 — re-boot on the combined pack: the Engram dedup done, engram ON.** The arm grafts from
+`littlecedar/…-2.9bpw-with-engram` (owner decision 2026-10-15: combined repo everywhere) and
+`--stock-model {model}` stopped being decorative — the launcher resolves the Engram tables from the
+pack named there when the served dir has none (commit `d7c879b`).
+
+- **The author's script copies through the HF cache's symlinks; it does not hardlink.** Measured on
+  `.34`: a graft straight from the combined snapshot produced a **386 GiB** tree — the snapshot's
+  76–79 B blob symlinks arrive as real files and the 189 GiB of Engram tables were duplicated — and
+  `/` went 2.2T → 2.7T used. The dedup as first wired *added* ~190 GB per node.
+- **Fix (commit `a61890a`).** The mod builds a 50-entry `--src` symlink view of the stock pack
+  without `engram/`, hands that to the script, and links `${STOCK}/engram` into the graft tree; the
+  repair runs before the `ABLIT_META` short-circuit, so a graft already on a node is fixed on its
+  next launch. Re-boot receipt (task `2f9a8f3e60a51ee4_948390812ad5`, receipt
+  `~/benchmarks/cybersec-arm5-20261017/`): `src view: … (50 entries, engram/ excluded)`, graft
+  **148 s** (`.34` 22:32:29→22:34:57) and **137 s** (`.35` 22:35:12→22:37:29) — ~390 s before,
+  because the table copy is gone — `verified n_edited=104 method=graft-keys-l10-35-wo_b-exl3-mul1-k5`,
+  `dsv41-ablit` **119 GiB** (the ~26 rewritten shards; untouched shards and `engram/` are links),
+  and the launcher boot line `engram=<stock>/engram`.
+- **Serve contract:** `GET /v1/models` → `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`
+  at **865.9 s** TTR (graft + cold rank cache `rank0of2-50cbbba13afcf8991af9.bin`, weights 299 s,
+  `reserved 102.98 GiB`); `17*19` → `323` with `chat_template_kwargs {"enable_thinking": false}`.
+- **Storage reclaimed with it:** the stale `Mia-AiLab__…-a54d5c5d` trees (299 GB `.32`, 296 GB
+  `.33`) and their `dsv41-engram` pre-warms removed (both 1.6T → 1.3T used); the wasteful
+  469 GB/459 GB trees on `.34`/`.35` deleted before the fixed re-boot. Per node, the two TP=2 arms
+  now cost the combined pack (386 GB) plus this arm's 119 GiB graft — one table set between them.
+
+
 ---
 
 ## Recipe comment archive (2026-10-14)
