@@ -8,7 +8,7 @@ recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measu
 owner on 2026-10-15 and boot-verified the same day** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
 collection, so outside the ranking) — its index row carries the ladder and
 the 36/37 house battery, and it was the first single-node text arm with C2/C5/C10 filled (the
-laguna-XS arm followed with the full suite on 2026-10-17); the LTX-2.5 video arm ships as a runbook. Everything else — measured
+laguna-XS arm followed with the full suite on 2026-10-17), and **2026-10-17 added the registry's first `runtime: llama-cpp` arm** (Mellum's Q4_K_M GGUF, boot-verified the same day); the LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
 
@@ -21,6 +21,7 @@ histories, selection receipts, serving traps and the full candidate research —
 - [humanizer-12b-vllm](#humanizer-12b-vllm)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [mellum2.1-12b-a2.5b-bf16-thinking-vllm](#mellum21-12b-a25b-bf16-thinking-vllm)
+- [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [LTX-2.5 ComfyUI runbook (not a recipe)](#ltx-25-comfyui-runbook-not-a-recipe)
 - [Attic index](#attic-index)
 
@@ -222,6 +223,46 @@ load; 2026-10-16 engine-bump note in [`attic/explore/AGENTS.md`](../../attic/exp
 - **Licence:** Apache-2.0.
 - **Details (provenance, the GGUF-route decision, the six open boot questions):**
   [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md).
+
+## [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml)
+
+llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` arm** — the GGUF route
+[`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md) §5 deferred, shipped on the owner's
+2026-10-16 directive and boot-verified 2026-10-17.
+
+- **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF` (Apache-2.0, ungated), quant `Q4_K_M` —
+  8,067,705,856 B / 12,149,923,072 params (`/v1/models` meta: `ftype` `Q4_K - Medium`).
+- **Engine:** `scitrera/dgx-spark-llama-cpp:b10549-cu131@sha256:ad140554…` (digest-pinned; llama.cpp
+  `b2e5e9b`, CUDA 13.1); `n_ctx` 131,072 × 8 slots `kv_unified`; `--no-mmap` (GB10 forces it unless
+  opted back in); `--jinja`; `--reasoning-format deepseek` splits thinking into `reasoning_content`
+  while tool calls keep `finish_reason: tool_calls`.
+- **Boot:** 2026-10-17 on `.34`, TTR ≈ 100 s (launch → `/v1/models` 200); served id = the HF repo id
+  (`--alias` renders from its own `served_model_name` key, not `{model}` — sparkrun rewrites
+  `{model}` to a checkpoint path).
+- **Measured (one boot, receipt `~/benchmarks/mellum-gguf-20261017/`):** decode ladder @ d0 pp2048
+  tg128 n=5 → **C1 111.9 ± 0.3 / C2 151.1 ± 2.6 / C5 208.0 ± 2.8 / C10 146.4 ± 1.5 t/s**
+  (`perf-ladder.yaml`, decode rows; `bench_4247926b7b9a`). Shape: the aggregate peaks at c5 and falls
+  at c10 because the arm grants 8 slots and the c10 cell runs 10 streams — per-request decode spreads
+  to 32.9 ± 16.1 t/s at c10 (vs 111.9 at c1) while the engine's peak window still reaches 202.2 t/s.
+  House battery **37/37** (easy 19/19, hard 18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each);
+  `standard-suite` profile (tool-eval-bench) **97** — 15 scenarios, 14 pass, 1 partial; deployability
+  84, responsiveness 54; bfcl **73.5%** (911/1240, no transport errors — audited).
+- **Needle:** 131k rung **3/3 PASS** at `paced_target` 128,451 (completions 123–186). 32k rung: 1/3 at
+  the suite's 256-token default — the two empty cells are the thinking-budget class below, not
+  retrieval; re-probes reach **3/3** (depth 50 PASS at `--max-tokens 4096`; depth 90 PASS with
+  `chat_template_kwargs: {"enable_thinking": false}` — 9 completion tokens, 0.74 s). `n_ctx` 131,072
+  is honored end to end (contract check reads it after the fix below).
+- **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
+  32k prompt can spend an arbitrary budget inside the think block — empty `content` at
+  `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle
+  leg scored that shape FAIL, and llama.cpp's window lives at `meta.n_ctx` (no top-level
+  `max_model_len`), so the 2 % clamp never ran and the 131k rung overflowed the window. Both tool-side
+  false-FAIL classes are fixed in `590b9b2` (`tools/needle-haystack.py` records `finish_reason` and
+  marks the shape TRUNCATED; both tools read the nested window) — receipt note
+  `NOTE-needle-tool-fix.md`.
+- **Licence:** Apache-2.0.
+- **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
+  suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
 
 ## LTX-2.5 ComfyUI runbook (not a recipe)
 

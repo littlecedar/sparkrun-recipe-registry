@@ -261,6 +261,34 @@ class InertDefaults(unittest.TestCase):
         inert = sorted(keys - refs - self.ALLOWED_UNREFERENCED - self.NOT_POLICED)
         self.assertEqual(inert, ["moe_backend"])
 
+    def test_flag_map_keys_are_inert_in_a_template_recipe(self):
+        """A runtime flag map feeds only the command-LESS path.
+
+        llama.cpp's map is consumed in `runtimes/llama_cpp.py::_build_command`;
+        with a `command:` template, `generate_command` returns the render after
+        only `-hf`→`-m`, `--split-mode`, `--alias`, skip-strip and `--mmproj`
+        handling (read 2026-10-17), so `jinja:`/`webui:`/`mmap:` defaults are
+        silent drops exactly as in any other lane — the registry's first
+        llama-cpp arm carried them until the boot path was traced.
+        """
+        llama = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "runtime: llama-cpp\n"
+            "defaults:\n"
+            "  port: 8000\n"
+            "  jinja: true\n"
+            "  webui: false\n"
+            "command: >\n"
+            "  llama-server -hf {model} --port {port} --jinja --no-webui\n"
+        )
+        defaults, command = self._blocks(llama)
+        keys = set(re.findall(r"^  ([a-z0-9_]+):", defaults.group(1), re.M))
+        refs = set(PLACEHOLDER_RE.findall(command.group(1) or ""))
+        inert = sorted(keys - refs - self.ALLOWED_UNREFERENCED - self.NOT_POLICED)
+        self.assertEqual(inert, ["jinja", "webui"],
+                         "a flag-map key the template never references is a silent drop")
+
 
 class ServedModelNameNotRebound(unittest.TestCase):
     """`--served-model-name {model}` serves the prepared snapshot path on a launch.
