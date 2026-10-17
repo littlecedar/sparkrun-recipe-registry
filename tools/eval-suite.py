@@ -35,7 +35,10 @@ hard      recipes/ds4/benchmarks/run_benchmarks.py -- the shared hard tier
           instrument the ds4 lane compares against.
 tools     tools/bfcl-eval.py -- BFCL v3 AST scoring, the tool-calling tier for
           arms that serve a tool parser.  Needs --bfcl-data-dir; a missing data
-          dir is a `skip`, never a pass.
+          dir is a `skip`, never a pass.  Its completion budget is explicit --
+          --bfcl-max-tokens (default 4096, the house default) -- because
+          bfcl-eval's own default is 512 and a thinking arm spends that inside
+          the think block.
 horizon   tools/agentic-horizon-probe.py + tools/horizon-analyze.py -- the
           long-horizon agentic probe (multi-turn, growing transcript, loop
           metrics).  For agentic arms; the only axis that exercises
@@ -51,12 +54,14 @@ scheduler-owned artifact and is invoked separately by the SOP.
 
 Truncation is not a wrong answer
 --------------------------------
-The repo has paid for this twice: quality-battery's 384-token default truncates
-thinking models into `content: null`, and the 262k needle "misses" were a
-64-token completion budget.  So the suite defaults --house-max-tokens 4096 and
---needle-max-tokens 256, and the contract check fails only on a reply with
-neither content nor reasoning -- a non-empty truncated answer is a measurement,
-not an error.
+The repo has paid for this three times: quality-battery's 384-token default
+truncates thinking models into `content: null`, the 262k needle "misses" were a
+64-token completion budget, and the first llama-cpp arm's bfcl parallel cells
+were answered inside bfcl-eval's 512-token default (its leg passed no
+--max-tokens at all).  So the suite defaults --house-max-tokens 4096,
+--needle-max-tokens 256 and --bfcl-max-tokens 4096, and the contract check fails
+only on a reply with neither content nor reasoning -- a non-empty truncated
+answer is a measurement, not an error.
 
 Verdicts
 --------
@@ -426,6 +431,7 @@ def check_tools(ctx: Ctx):
                  "--revision 61fc0608 --local-dir ~/bfcl)"), {})
     cmd = [ctx.python, ctx.tool("bfcl-eval.py"),
            "--base-url", ctx.base, "--data-dir", ctx.args.bfcl_data_dir,
+           "--max-tokens", str(ctx.args.bfcl_max_tokens),
            "--json", "bfcl.json"]
     if ctx.args.bfcl_categories:
         cmd += ["--categories", ctx.args.bfcl_categories]
@@ -728,6 +734,8 @@ def _parse(argv) -> argparse.Namespace:
     # tools
     ap.add_argument("--bfcl-data-dir", default=None)
     ap.add_argument("--bfcl-categories", default=None, help="raw --categories value")
+    ap.add_argument("--bfcl-max-tokens", type=int, default=4096,
+                    help="completion budget for the tools leg (bfcl-eval's own default is 512)")
     ap.add_argument("--bfcl-extra", default=None, help="raw extra argv for bfcl-eval")
     # horizon
     ap.add_argument("--horizon-family", default="plan", choices=["plan", "repo"])

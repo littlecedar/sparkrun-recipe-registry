@@ -55,9 +55,10 @@ Exit codes
 2  bad flags
 3  a check failed: a miss, or a silently truncated (short) prompt
 
-`--selftest` runs the whole ladder against an in-process HTTP mock with three
-deliberately different behaviours (correct, always-wrong, truncating) and
-asserts each is classified the way it must be.  A guard that has only ever
+`--selftest` runs the whole ladder against an in-process HTTP mock with four
+controls (correct, always-wrong, truncating, and an over-window 400 in
+llama.cpp's wording that only a fired retry can turn into a PASS) and asserts
+each is classified the way it must be.  A guard that has only ever
 passed is not a guard, so the selftest is a required part of this tool.
 
 Usage

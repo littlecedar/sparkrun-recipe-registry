@@ -37,7 +37,10 @@ One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chos
 agentic ones): `contract` (`/v1/models` served id + `max_model_len` + one greedy completion), `house`
 (the 19+18 battery), `needle` (32k / 128k / served max), `hard`
 (`recipes/ds4/benchmarks/run_benchmarks.py` — GSM8K + ARC), `tools` (`bfcl-eval.py`; needs
-`--bfcl-data-dir`, and a missing data dir is a `skip`, never a pass), `horizon`
+`--bfcl-data-dir`, and a missing data dir is a `skip`, never a pass; its completion budget is
+`--bfcl-max-tokens`, **default 4096** — bfcl-eval's own default is 512 and the leg passed none until
+2026-10-17, which is why the first llama-cpp arm's `parallel` cells were answered inside a 512-token
+budget), `horizon`
 (`agentic-horizon-probe.py` + `horizon-analyze.py`).
 
 The exit code is the verdict; `summary.json` and each check's raw artifact land in the receipt
@@ -543,8 +546,13 @@ prompt, so a 1M request kept arriving as ~892k tokens — still over the window 
 while each rejected attempt paid a full multi-minute prefill. It looked like a
 400 loop, not a wrong answer. The retry now shrinks the **token target**, and
 when the engine's error body carries the counts (`The input (N tokens) is longer
-than the model's context length (M tokens).`) it parses them and corrects the
-ratio exactly instead of guessing.
+than the model's context length (M tokens).`, or llama.cpp's `request (N tokens)
+exceeds the available context size (M tokens), try increasing it` with
+`"type": "exceed_context_size_error"` and the counts in `n_prompt_tokens` /
+`n_ctx`) it parses them and corrects the ratio exactly instead of guessing.
+Matching only the SGLang/vLLM wording is how the first llama-cpp arm's 131k
+rung ended as a hard error instead of a retry, so the matcher and the counter
+parser now cover both engines.
 
 **Exit codes** distinguish *the server errored* from *the server answered
 confidently and wrongly*, so a runbook can use it: `0` all depths retrieved and
@@ -552,10 +560,11 @@ reached the window; `1` transport / unreachable / every request errored; `2` bad
 flags; `3` a check failed — a miss or a short (truncated) prompt.
 
 **The tool carries its own negative controls.** `--selftest` runs the whole
-ladder against an in-process mock with three behaviours — correct, always-wrong,
-and truncating — and asserts each is classified the way it must be. A guard that
+ladder against an in-process mock with four controls — correct, always-wrong,
+truncating, and an over-window 400 in llama.cpp's wording — and asserts each is
+classified the way it must be. A guard that
 has only ever passed is not a guard (`self-check-your-own-tools.md`), and the
-same three controls are re-run by `tests/test_needle_haystack.py`, which also
+same controls are re-run by `tests/test_needle_haystack.py`, which also
 pins determinism across processes (the tool once seeded prompts with Python's
 per-process-randomised `str` hash, which silently broke reproducibility).
 
@@ -996,7 +1005,13 @@ python3 tools/bfcl-eval.py --selftest     # offline, in-process mock, ~1 s
 ```
 
 `temperature` is 0, and the raw `tool_calls` of **every** question — pass or fail — go into
-`--json`, so a scoring mistake is auditable rather than trusted. `--tool-choice` (default `auto`) is
+`--json`, so a scoring mistake is auditable rather than trusted. **`--max-tokens` defaults to 512**,
+which is the right default for a non-thinking arm and a truncation trap for a thinking one: a
+reasoning template spends the budget inside the think block and the record then carries `calls: []`
+with no way to tell a cut from a genuine no-call (the tool keeps `choices[0]["message"]`, not
+`finish_reason`). The suite's `eval-suite.py --bfcl-max-tokens` (default 4096) is the budget knob
+that matters for a sweep; check for it in the receipt's argv echo before comparing two arms.
+`--tool-choice` (default `auto`) is
 there because on the explore lane's Ling arm auto mode answered in prose and only a forced
 `tool_choice` produced structured calls: `auto` is the standard BFCL condition, `required` isolates
 the parser. Exit codes: `0` the run completed (the score is the artifact), `1` no request completed
