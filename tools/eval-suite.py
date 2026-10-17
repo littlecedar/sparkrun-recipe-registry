@@ -178,15 +178,23 @@ class Ctx:
 
 
 def run_cmd(ctx: Ctx, name: str, cmd: list[str], timeout: float):
-    """Run one instrument, tee stdout+stderr into <outdir>/<name>.log."""
+    """Run one instrument, tee stdout+stderr into <outdir>/<name>.log.
+
+    PYTHONUNBUFFERED: every instrument is a Python script whose stdout goes to
+    a *file*, so CPython block-buffers it — a long `tools` leg then looks
+    identical to a hung one from outside (measured 2026-10-17: a 65-minute
+    bfcl-eval run had written only the command echo).  The receipt's own
+    `suite sha256` keeps a mid-sweep change to this file auditable.
+    """
     logpath = ctx.path(f"{name}.log")
     rc: int | None
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     with open(logpath, "w", encoding="utf-8") as fh:
         fh.write("$ " + " ".join(cmd) + "\n\n")
         fh.flush()
         try:
             proc = subprocess.run(cmd, cwd=ctx.outdir, stdout=fh,
-                                  stderr=subprocess.STDOUT, timeout=timeout)
+                                  stderr=subprocess.STDOUT, timeout=timeout, env=env)
             rc = proc.returncode
         except subprocess.TimeoutExpired:
             fh.write(f"\n[suite] TIMEOUT after {timeout:.0f}s\n")
