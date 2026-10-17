@@ -736,7 +736,9 @@ def _parse(argv) -> argparse.Namespace:
     ap.add_argument("--bfcl-categories", default=None, help="raw --categories value")
     ap.add_argument("--bfcl-max-tokens", type=int, default=4096,
                     help="completion budget for the tools leg (bfcl-eval's own default is 512)")
-    ap.add_argument("--bfcl-extra", default=None, help="raw extra argv for bfcl-eval")
+    ap.add_argument("--bfcl-extra", default=None,
+                    help="raw extra argv for bfcl-eval, appended last (so it can override "
+                         "--bfcl-max-tokens)")
     # horizon
     ap.add_argument("--horizon-family", default="plan", choices=["plan", "repo"])
     ap.add_argument("--horizon-turns", type=int, default=12)

@@ -1008,7 +1008,8 @@ python3 tools/bfcl-eval.py --selftest     # offline, in-process mock, ~1 s
 `--json`, so a scoring mistake is auditable rather than trusted. **`--max-tokens` defaults to 512**,
 which is the right default for a non-thinking arm and a truncation trap for a thinking one: a
 reasoning template spends the budget inside the think block and the record then carries `calls: []`
-— the artifact keeps the choice's `finish_reason` (since 2026-10-17), so a `length` cut is
+— the artifact keeps the choice's `finish_reason` (since 2026-10-17; the two receipts written that
+morning predate the field, so their `calls: []` rows cannot be re-diagnosed), so a `length` cut is
 distinguishable from a genuine no-call). The suite's `eval-suite.py --bfcl-max-tokens` (default 4096)
 is the budget knob that matters for a sweep; check for it in the receipt's argv echo before comparing
 two arms.
