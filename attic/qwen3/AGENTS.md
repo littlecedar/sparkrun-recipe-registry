@@ -56,7 +56,7 @@ draft tokens per step — which is why the **no-spec control** existed as the de
 | implied weight bandwidth | **221 GB/s** | = 17.608 GB × 12.56 tok/s |
 | accepted tokens/step `A_eff` | **3.265** pooled (1,481 log lines) | 3.99 is a single probe; quote 3.265 for capacity math. Spot samples 2026-10-15 during the ladder: 3.25–3.46 (§14) |
 | c=8 depth cost (8k→) | **~20 %** (boot-level 8–29 %) | congested/pool-limited; uncongested c=4 is **~11 %** |
-| bench at c=2 (tg=128, pp=256) | ~71 t/s aggregate | the `recipes/README.md` "50 t/s" headline is this family of shape — not comparable to 33.76 (per-stream 35.4) |
+| bench at c=2 (tg=128, pp=256) | ~71 t/s aggregate | the `README.md` "50 t/s" headline is this family of shape — not comparable to 33.76 (per-stream 35.4) |
 
 **Estimator warning:** ratio-of-means vs ratio-of-medians differ by ~2 % on this lane — the size of
 effect several claims turn on. Quote a ratio with its estimator or it is ambiguous.

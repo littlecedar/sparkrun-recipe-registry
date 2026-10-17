@@ -37,7 +37,7 @@ them by path from here.**
 
 | file | runtime | one-line delta | why archived | where its facts now live |
 |---|---|---|---|---|
-| `nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml` | vLLM | the lane's original shipped default; the fastest measured Explore arm (77.7 t/s @ d0) and the smallest (21 GB / 0.80) | **Lowest accuracy in the lane (33/37, identical miss set reproduced 2026-10-13)** — it pays ~4 quality tasks for its speed, and the owner's criterion makes accuracy the deciding factor. | `attic/explore/AGENTS.md` §"Measured" (the Nemotron bullets); root `recipes/README.md` Explore note. Receipts: `~/benchmarks/explore-tp1-20261013/`. |
+| `nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml` | vLLM | the lane's original shipped default; the fastest measured Explore arm (77.7 t/s @ d0) and the smallest (21 GB / 0.80) | **Lowest accuracy in the lane (33/37, identical miss set reproduced 2026-10-13)** — it pays ~4 quality tasks for its speed, and the owner's criterion makes accuracy the deciding factor. | `attic/explore/AGENTS.md` §"Measured" (the Nemotron bullets); root `README.md` Explore note. Receipts: `~/benchmarks/explore-tp1-20261013/`. |
 | `nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml` | vLLM | the 262k recipe verbatim with exactly `max_model_len: 1000000`, `gpu_memory_utilization: 0.91` | A **variant of the now-archived 262k arm** (same checkpoint, image and DSpark draft); slower (72.2 t/s), memory-heavier (0.91), and its question (the card's 1M claim) is closed. | `attic/explore/AGENTS.md` §"Nemotron-3.5-Lightning — 1M-context arm". Receipts: `~/benchmarks/nemotron-1m-20261012/`. |
 
 The archived recipes are **frozen provenance**: do not retune them, and do not clear a

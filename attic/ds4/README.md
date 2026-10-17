@@ -11,7 +11,7 @@ recipe was chosen for go-live.
   `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` (SGLang, TP=4,
   1M context). It serves the official `deepseek-ai/DeepSeek-V4.1-Flash`
   checkpoint and is faster single-stream than the EXL3 arms here
-  (`recipes/README.md` records 46.5 t/s C1 against 40.7 for the EXL3 TP=4 1M
+  (`README.md` records 46.5 t/s C1 against 40.7 for the EXL3 TP=4 1M
   arm).
 - **Kept as load-bearing reference.** The material here is cited by the shipped
   lane and by later work: the measured per-topology numbers, the negative

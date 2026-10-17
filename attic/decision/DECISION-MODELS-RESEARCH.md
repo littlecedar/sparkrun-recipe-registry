@@ -142,7 +142,7 @@ before this research).
 4. **Two drop-in runtime families only:** SGLang (clef/clef-flash) and vLLM
    (JEV-9B). Everything else needs a bespoke server or `trust_remote_code`.
 5. **No lane artifacts exist yet** — no decision or TTS recipe, mod, test, or
-   benchmarking profile in the tree; the 👂/👄/🎼 flags in `recipes/README.md`
+   benchmarking profile in the tree; the 👂/👄/🎼 flags in `README.md`
    are declarative only.
 
 6. **The `vllm-srun` golden check is bound to its own pinned revisions.** The

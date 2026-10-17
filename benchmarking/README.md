@@ -104,7 +104,7 @@ not the quiet regime:** the worst within-cell cvs in the archive (11–15 %) are
 | profile | depth | concurrency | runs | use |
 |---|---|---|---|---|
 | `concurrency-sweep` | 0, 8192 | 1, 4, 8 | 3 | Where does per-stream speed fall off, and where does the TTFT cliff start. |
-| `concurrency-ladder` | 0 | 1, 2, 5, 10 | 5 | The ladder `recipes/README.md`'s C1/C2/C5/C10 columns are named for. Run it `--skip-run` against the boot the quality suite used, so speed and quality share one window; distinct from `deep-smoke` (c 1/2/5) on purpose. |
+| `concurrency-ladder` | 0 | 1, 2, 5, 10 | 5 | The ladder the root `README.md`'s C1/C2/C5/C10 columns are named for. Run it `--skip-run` against the boot the quality suite used, so speed and quality share one window; distinct from `deep-smoke` (c 1/2/5) on purpose. |
 | `ceiling-sweep` | 0 | 1, 8, 24, 31, 34, 40 | 3 | Depth-0 ceiling: finds the aggregate-throughput knee. **Depth-0 only on purpose** — depth and concurrency bind different limits; mixing them in one sweep is how the "2.8× depth penalty" misreading happened. |
 | `d8k_c1` | 8192 | 1, 8 | 3 | The boring baseline `ceiling-sweep` omitted. At c = 1 depth is free (29.9 vs 29.0 t/s). Pair it with `ceiling-sweep` on the same booted server (`--skip-run`, so it costs no boot). |
 | `ratio-at-depth` | 8192 | 8, 16 | 5 | **The capacity experiment.** At depth 0 the mamba *slot cap* binds; at depth 8192 the *token pool* binds. Those want opposite `mamba_full_memory_ratio` values. |

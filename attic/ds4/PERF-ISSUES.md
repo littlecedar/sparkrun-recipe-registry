@@ -20,7 +20,7 @@
 ## 0. TL;DR
 
 The recipe is **not** globally slow — at short context and at single-stream it
-matches or beats the `recipes/README.md` numbers. It **collapses at long
+matches or beats the `README.md` numbers. It **collapses at long
 context with ≥2 concurrent requests**, and that is what dragged the spark-arena-v2
 average down.
 

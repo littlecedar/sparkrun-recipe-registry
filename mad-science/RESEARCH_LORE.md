@@ -5,7 +5,7 @@ git-ignored `.swival/` work corpus (a previous agent's recipe-authoring scratch 
 down so it survives the corpus.
 
 Read alongside [`../AGENTS.md`](../AGENTS.md) (the repo-wide authoring contract),
-[`../recipes/README.md`](../recipes/README.md) (registry index), [`../benchmarking/README.md`](../benchmarking/README.md)
+[`../README.md`](../README.md) (registry index), [`../benchmarking/README.md`](../benchmarking/README.md)
 (benchmark read rules), and the per-lane `recipes/<family>/AGENTS.md` guides. Evidence vocabulary
 follows [`CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md`](CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md) and
 `../attic/ds4/AGENTS.md`: **VERIFIED** = read from a primary artifact or measured; **LIKELY** =

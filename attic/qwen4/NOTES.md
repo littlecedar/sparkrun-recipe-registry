@@ -62,7 +62,7 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 - **Attic wave 2:** `zz-rk-fp8kv`, `zz-rk-nospec`, `zz-rk-nospec-matched`, `zz-lq-nospec-matched`,
   `zz-rk-moebackend`, `zz-labq-fastboot-sglang` moved to `arms` with rows.
 - **Docs:** `../../recipes/qwen4/README.md` written (lane rationale, measured table, caveats); root
-  `recipes/README.md` Qwen-4x table updated with the two lanes; `AGENTS.md` §1/§4 (W9)/runbook updated.
+  `README.md` Qwen-4x table updated with the two lanes; `AGENTS.md` §1/§4 (W9)/runbook updated.
 
 ## What a new session should do first
 

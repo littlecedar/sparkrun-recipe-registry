@@ -11,9 +11,9 @@ ships **three** recipes, one per model scale:
 | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`    | 35B-A3B | SGLang | 1 (TP=1) |    100 |  45GB | 0.85 | ✨🚀🌲👀🧠🦾🔧 | [Model][model-35b] · [Draft][draft-dflash2]                                                 |
 | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`          | 9B | SGLang | 1 (TP=1) |     55 |  11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧     | [Model][model-9b] · [Draft][draft-9b]                                                       |
 
-`C1 t/s` is single-stream decode as recorded in the parent [`recipes/README.md`](../README.md);
+`C1 t/s` is single-stream decode as recorded in the parent [`README.md`](../../README.md);
 `Size` is the per-node footprint the registry records and `Mem` is the recipe's
-`gpu_memory_utilization`. Flags are defined in [Model Flags](../README.md#model-flags). A dash is
+`gpu_memory_utilization`. Flags are defined in [Model Flags](../../README.md#model-flags). A dash is
 an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
 A **fourth** arm, [`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`](#the-yarn-1m-arm), serves the same 35B

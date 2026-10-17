@@ -195,7 +195,7 @@ cache state (attic/ds4 Pollard, attic/ifm 36B-A4B, attic/explore Nemotron-30B); 
 `README.md` speaks to **shipped recipes only**, carrying a table of contents and an index of the lane's
 attic material; everything else lives under `attic/<lane>/`. First pass (this session): lane
 `AGENTS.md`/`NOTES.md` fold into `attic/<lane>/` and the lane READMEs are block-merged to the new
-template, with the primary `recipes/README.md` de-researched (the command-template mechanics move to a
+template, with the primary `README.md` de-researched (the command-template mechanics move to a
 new tracked `recipes/MECHANICS.md`).
 
 **Node clean-up (2026-10-14, later still).** A pass over all six nodes removed the session litter the
@@ -347,7 +347,7 @@ construction, each arm capturing grants before stopping the container).
 
 **2026-10-16 session — the register's planning round, then the sweep's first five tasks** (owner-ordered; every boot on the free `.34`/`.35`, the peer's `…-b12x-dspark-sglang-tp4` job on `.30`–`.33` untouched throughout). Commit `0dbc386`, pushed.
 
-Opened with the planning round: all five `# DECISIONS` questions (the `🚀 fast` band, the warm DS4 runtime-cache lobes, the AEON-7 clause, `.34` residency, the pooling ladder pair) went to the owner in one batch, were answered, and folded — `# DECISIONS` is now empty, the bands landed in `recipes/README.md` §Model Flags, the calls are recorded in `STORAGE-POLICY.md` §5, and the two shipped profiles are `benchmarking/pooling-ladder-{embed,rerank}.yaml` (both loaded through sparkrun's own `BenchmarkSpec.load` before shipping).
+Opened with the planning round: all five `# DECISIONS` questions (the `🚀 fast` band, the warm DS4 runtime-cache lobes, the AEON-7 clause, `.34` residency, the pooling ladder pair) went to the owner in one batch, were answered, and folded — `# DECISIONS` is now empty, the bands landed in `README.md` §Model Flags, the calls are recorded in `STORAGE-POLICY.md` §5, and the two shipped profiles are `benchmarking/pooling-ladder-{embed,rerank}.yaml` (both loaded through sparkrun's own `BenchmarkSpec.load` before shipping).
 
 **1 — runtime cache (the instant-tagged item).** Owner Q2 executed by absolute path, not by the sweep: the sweep's own `--older-than 2` would have taken **30 trees / 968.7 GB**, including ornith, RadixArk and IFM leaves a *shipped* recipe still produces. Removed the four `9a74d993` ds4 lobes, every `db95f94c` tree, and `ca6f25af` — the labquant model's **unpinned** leaf (103.4 GB each on `.32`/`.33`, 51.8 on `.34`), a row §2 never listed, found by deriving leaves with `sparkrun.core.runtime_cache.model_key`. **≈1.30 TB freed**; `.32`/`.33` back inside the 0.5 TB cap (734.8/732.1 GB → 406.2/403.4); the live job's `11826f49` leaf was never in the set. Receipt `~/benchmarks/storage-20261016/`.
 

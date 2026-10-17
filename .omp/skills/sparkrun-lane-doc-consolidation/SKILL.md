@@ -13,7 +13,7 @@ one-line "what it holds / what question it answers". Everything else — lane st
 guards, validation rituals, measurement histories, boot IDs, A/B receipts, negative results, candidate
 lists, research docs, working notes — lives in `attic/<lane>/`, indexed from the README.
 
-The PRIMARY `recipes/README.md` is a pure index (per-family tables, `# Model Flags`, `# References`,
+The PRIMARY root `README.md` is a pure index (per-family tables, `# Model Flags`, `# References`,
 model-card link definitions). Command-template mechanics live in the tracked `recipes/MECHANICS.md`;
 research prose removed from the index goes to `attic/PRIMARY-README-ARCHIVE.md`.
 
@@ -32,7 +32,7 @@ research prose removed from the index goes to `attic/PRIMARY-README-ARCHIVE.md`.
      numbering; line numbers will shift, sections will not.
    - Append the material cut from the README to `attic/<lane>/AGENTS.md` under the dated heading.
    - Remove the lane files only after their attic copies are byte-verified (`cmp`/`md5sum`).
-3. **Primary index.** Split `recipes/README.md`: mechanics → `recipes/MECHANICS.md` (verbatim), removed
+3. **Primary index.** Split the root `README.md`: mechanics → `recipes/MECHANICS.md` (verbatim), removed
    per-lane prose → `attic/PRIMARY-README-ARCHIVE.md`, index keeps tables + flags + links.
 4. **Citation repair (repo-wide).** Path-swap every cite of a moved file (root `AGENTS.md`, `tools/README.md`,
    `mad-science/*`, `attic/*`, `mods/*` comments, `recipes/*/Dockerfile*`, tests). Drop raw line numbers

@@ -478,7 +478,7 @@ unaffected.
 > **§§7.1–7.5 below predate the 2026-09-27/28 `max_num_seqs=16` / `gmu 0.85`
 > retune** and quote the gmu-0.80 KV pools and 8-seq throughput. They remain
 > valid as the *history* and the TPs' mechanism, but for shipped numbers read
-> **§7.12** and the current `recipes/README.md` table. Their KV figures are
+> **§7.12** and the current `README.md` table. Their KV figures are
 > superseded (e.g. TP=4 300K 3.88M → 5.20M); their fingerprints of the arms
 > (mod gates, Engram rows, drafter, o_groups) still hold.
 

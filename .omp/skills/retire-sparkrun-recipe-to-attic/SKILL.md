@@ -46,7 +46,7 @@ numbers are still cited. Five waves of this already exist (`attic/{ds4,qwen4,ifm
 - Lane `README.md` (human table row + a Notes bullet) and the lane's `NOTES.md` if it lists the arm.
 - Root `AGENTS.md`: recipe file count (`recipes/`, N files), the combined Key-Directories row's
   per-lane count, and the `attic/` inventory row.
-- `recipes/README.md` root index usually lists only served recipes — check, do not assume.
+- The root `README.md` index usually lists only served recipes — check, do not assume.
 - Untracked evidence/journals (`WORK §N`-style docs, `JOURNAL.md`): a one-line path fix is fine; do
   not rewrite history. Grep the whole tree (`git grep` for tracked, a python walk for ignored
   scratch) for the filename and the old path.

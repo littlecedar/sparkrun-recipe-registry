@@ -91,6 +91,6 @@ stdlib-only; external suites run as pinned external processes.
 
 ## 8. Record
 
-Lane README row + root `recipes/README.md` index row + the number's provenance
+Lane README row + root `README.md` index row + the number's provenance
 (command, profile, node, date, n). A recipe is not shipped until a boot backs it; a
 number without its bench/config provenance does not go in a table.
