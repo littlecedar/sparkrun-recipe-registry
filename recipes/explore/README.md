@@ -145,6 +145,11 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
   `sparkrun_17678da2f7107eb2_a4bf874feb5a`, receipt `~/benchmarks/bump-20261016/`).
 - **Measured:** ~7.6 t/s single-stream; 131.7 s per 1k output tokens; across 40 rewrites, 0 dropped facts
   (1 genuine defect found outside the instrument).
+- **No t/s ladder, by design:** `benchmarking/concurrency-ladder.yaml` drives llama-benchy against
+  `/chat/completions`, and this arm serves `/v1/completions` only (it ships no chat template, so the
+  chat endpoint 400s). Its index row's C1/C2/C5/C10 stay `—` — not unmeasured but **unmeasurable with
+  this profile**; the number above is the `/v1/completions` figure, and a ladder for this arm would
+  need a completions-capable harness.
 - **Licence:** Apache-2.0.
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
