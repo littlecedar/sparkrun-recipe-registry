@@ -51,7 +51,9 @@ Every failure that matters here returns HTTP 200 with plausible content, so the
 scoring is exact (function name, required parameters present, no unexpected
 parameter, value and **type** matched against the gold answer with BFCL's
 case/punctuation standardization), `temperature` is pinned to 0, and the raw
-`tool_calls` of every question — pass or fail — are kept and written to `--json`.
+`tool_calls` of every question — pass or fail — are kept and written to `--json`
+together with the choice's `finish_reason`, so a `length` cut (the completion
+budget, not the model) is distinguishable from a genuine no-call.
 A model that emits a plausible-but-wrong call fails; a model that emits no call
 fails every AST category (and passes `irrelevance`).
 
@@ -656,7 +658,14 @@ def ask(base_url, model, messages, tools, tool_choice, max_tokens, api_key, time
         body["tools"] = tools
         body["tool_choice"] = tool_choice
     response = post_json(base_url.rstrip("/") + "/v1/chat/completions", body, api_key, timeout)
-    return response["choices"][0]["message"]
+    choice = response["choices"][0]
+    message = choice["message"]
+    # finish_reason is the only witness of a completion cut, and the message
+    # object is stored verbatim in the artifact, so it rides along under a
+    # private key that run() lifts back out.
+    if choice.get("finish_reason") is not None:
+        message["_finish_reason"] = choice["finish_reason"]
+    return message
 
 
 # ---------------------------------------------------------------------------
@@ -681,7 +690,8 @@ def run(entries, base_url, model, tool_choice="auto", max_tokens=512,
         )
 
         record = {"id": entry["id"], "category": category, "calls": [],
-                  "valid": False, "error_type": "", "error": [], "latency_s": None}
+                  "valid": False, "error_type": "", "error": [], "latency_s": None,
+                  "finish_reason": None}
         try:
             messages = [
                 {"role": m["role"], "content": flatten_content(m.get("content"))}
@@ -705,6 +715,7 @@ def run(entries, base_url, model, tool_choice="auto", max_tokens=512,
         completed += 1
 
         record["message"] = message
+        record["finish_reason"] = message.pop("_finish_reason", None)
         try:
             calls = extract_calls(message)
         except CallParseError as exc:

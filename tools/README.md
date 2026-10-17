@@ -1008,9 +1008,10 @@ python3 tools/bfcl-eval.py --selftest     # offline, in-process mock, ~1 s
 `--json`, so a scoring mistake is auditable rather than trusted. **`--max-tokens` defaults to 512**,
 which is the right default for a non-thinking arm and a truncation trap for a thinking one: a
 reasoning template spends the budget inside the think block and the record then carries `calls: []`
-with no way to tell a cut from a genuine no-call (the tool keeps `choices[0]["message"]`, not
-`finish_reason`). The suite's `eval-suite.py --bfcl-max-tokens` (default 4096) is the budget knob
-that matters for a sweep; check for it in the receipt's argv echo before comparing two arms.
+— the artifact keeps the choice's `finish_reason` (since 2026-10-17), so a `length` cut is
+distinguishable from a genuine no-call). The suite's `eval-suite.py --bfcl-max-tokens` (default 4096)
+is the budget knob that matters for a sweep; check for it in the receipt's argv echo before comparing
+two arms.
 `--tool-choice` (default `auto`) is
 there because on the explore lane's Ling arm auto mode answered in prose and only a forced
 `tool_choice` produced structured calls: `auto` is the standard BFCL condition, `required` isolates
@@ -1021,7 +1022,7 @@ tool does not send (an image) is skipped and counted, not scored.
 
 **Verified.** `--selftest` runs five mock behaviours end-to-end (correct must score 100 %;
 wrong-name, wrong-value, empty-output, and hallucinated-on-an-irrelevant-question must all be
-rejected), and `tests/test_bfcl_eval.py` (46 tests) re-runs that ladder plus the negative controls it
+rejected), and `tests/test_bfcl_eval.py` (47 tests) re-runs that ladder plus the negative controls it
 does not isolate, drives the whole CLI over a socket against a mock endpoint, and pins the loader's
 fail-closed rule. Offline against the real BFCL v3 AST split (2026-10-14), the ported checker accepts
 a correct model's output on **1000/1000** questions — **400** simple, **200** multiple, **200**
