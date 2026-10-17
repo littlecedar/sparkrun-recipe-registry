@@ -101,11 +101,14 @@ tree could have been launched with:
 | `deepseek-ai__DeepSeek-V4.1-Flash-9a74d993` | `deepseek-ai/DeepSeek-V4.1-Flash@` (**empty revision**) | none — the knapcio arm before the pin landed 2026-10-14 | **stale** |
 | `deepseek-ai__DeepSeek-V4.1-Flash-db95f94c` | `deepseek-ai/DeepSeek-V4.1-Flash@fb2764a5cf321eaa5070ca8f9e892818f477c16d` | none — this is the *image's baked* revision, which the lane explicitly decided not to serve (`attic/ds4/AGENTS.md` §5) | **stale** |
 | `littlecedar__DeepSeek-V4.1-Flash-EXL3-2.9bpw-wit-2bd42ac5` | `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram@` | `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | **live** |
-| `Mia-AiLab__DeepSeek-V4.1-Flash-EXL3-2.9bpw-a54d5c5d` | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw@64ba41b6c916a587db06eae2e19b7845f7be6e6b` | `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml` (cybersec arm 5) | **live** |
+| `Mia-AiLab__DeepSeek-V4.1-Flash-EXL3-2.9bpw-a54d5c5d` | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw@64ba41b6c916a587db06eae2e19b7845f7be6e6b` | none since 2026-10-17 — cybersec arm 5 grafts from the combined pack now, and its `--stock-model` reads the tables from there | **stale** |
 
-So the Mia-AiLab trees back arm 5 as the register suspected, and they are **not** reclaimable; the two
-same-model leftovers are the pre-pin and the baked-revision keys. Note also that `.35` holds *only*
-`9a74d993` (never the live knapcio key) — the node has a stale DS4 lobe and no current one.
+So the Mia-AiLab trees used to back arm 5; since the 2026-10-17 Engram dedup that arm names
+`littlecedar/…-2.9bpw-with-engram` (the combined pack's weight shards are the Mia shards
+byte-for-byte), so the Mia key is produced by no shipped recipe and the tree is **reclaimable** —
+that is the storage the dedup was for. The two same-model DS4 leftovers are the pre-pin and the
+baked-revision keys. Note also that `.35` holds *only* `9a74d993` (never the live knapcio key) —
+the node has a stale DS4 lobe and no current one.
 
 ### The fleet runtime-cache, measured 2026-10-15
 
