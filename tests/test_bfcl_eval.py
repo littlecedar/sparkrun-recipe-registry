@@ -448,6 +448,22 @@ class TestEndToEnd(unittest.TestCase):
                 artifact["records"][0]["calls"],
                 [{"calculate_triangle_area": {"base": 10, "height": 5}}])
 
+    def test_artifact_carries_the_choice_finish_reason(self):
+        """finish_reason is the only witness of a budget cut, so it belongs in
+        the artifact — and the private transport key must not leak into the
+        stored message."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_data(root)
+            artifact_path = root / "bfcl.json"
+            with _mock_endpoint("correct") as base, contextlib.redirect_stdout(_NullWriter()):
+                code = BFCL.main(["--base-url", base, "--data-dir", str(root),
+                                  "--categories", "simple", "--json", str(artifact_path)])
+            self.assertEqual(code, 0)
+            record = json.loads(artifact_path.read_text(encoding="utf-8"))["records"][0]
+            self.assertEqual(record["finish_reason"], "tool_calls")
+            self.assertNotIn("_finish_reason", record["message"])
+
     def test_run_rejects_a_wrong_endpoint(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
