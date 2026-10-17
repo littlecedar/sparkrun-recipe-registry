@@ -277,7 +277,8 @@ prompts and history are ignored); on `vllm serve`, pass `--generation-config vll
   `instr + draft + sep` from the shipped `prompt_format.json` bytes (a re-typed instruction is a
   quality regression by the vendor's own account);
 - (b) engine: verify `Gemma4UnifiedForConditionalGeneration` resolves on a digest-pinned image
-  (the lane's current pin is `vllm/vllm-openai:v0.29.0`) and record `--generation-config vllm`;
+  (the lane's pin at research time was `vllm/vllm-openai:v0.29.0`; the arm moved to v0.30.0 on
+  2026-10-16 — `AGENTS.md` §Engine bump) and record `--generation-config vllm`;
 - (c) acceptance criterion (owner to confirm or replace): a fixed 20-draft set across genres × 2
   samples, reporting **fact-diff count vs the source (numbers/dates/names), formatting-drop count,
   and wall-clock per 1k output tokens**; the card's detector figure is an external paid API on one
