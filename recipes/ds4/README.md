@@ -203,20 +203,26 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   1048576-token window*"); 1,048,576 = YaRN `65536 × 16`. **Concurrency and
   per-stream context trade off:** `--parallel 4` streams share one window, one
   stream may use the whole 1M, and four coexist only up to ~250K tokens each.
-- **Vision is shipped behind the launcher's `--vision` flag — and the engine runs it; the
-  HTTP surface still refuses image requests.** The recipe carries the `vision` tag and the
-  engine loads the DeepSeek-ViT tower on rank 0 (+0.90 GiB); the 2026-10-15 boot log shows
-  `VL bias for 43 gates` and a real-image warm-up, but an `image_url` part on
-  `/v1/chat/completions` returns **HTTP 400 from the chat template** ("Message content
-  contains image…") while text passes — the remaining gate is the served template, not the
-  launcher (`attic/ds4/AGENTS.md` §12.14 has the receipt). The second half of the change is
-  the MoE gates' 43-tensor `ffn.gate.bias_vl` VL-routing bias, which the EXL3 pack omits:
-  `vl_bias.safetensors` ships **inside `@littlecedar/mods/tensorfold-dsv41-launcher`**,
-  beside the launcher that points `TF_DS_VISION_EXTRA` at its own directory and **fails the
-  launch closed** if the file is missing (the engine would only warn and route image tokens
-  with the text bias). Proven on `.32`/`.33` 2026-10-06: `VL bias for 43 gates`, three
-  discriminating images read correctly — `attic/ds4/AGENTS.md` §12.14 has the evidence, and
-  the archived trial mod is kept at `attic/ds4/mods/dsv41-vision-overlay/`.
+- **Vision works end to end as of 2026-10-17 — images, not only the tower.** The recipe carries the
+  `vision` tag, the launcher appends `--vision`, the engine loads the tower on rank 0 (+0.90 GiB)
+  with all 43 VL gates, and the *served chat template* is the mod's patched copy, delivered through
+  an overlay model dir (`/cache/runtime/tensorfold/model-overlay`: symlinks to the checkpoint plus a
+  real `chat_template.jinja`). Until this date every `image_url` part answered **HTTP 400 from the
+  template**: the engine's vision path (`families/deepseek_v41/cuda/app.py`, `DsVision.split`)
+  rewrites each image part into a placeholder inside one string content, and the upstream template
+  rejects a placeholder arriving that way. Receipt (3/3 solid-colour probes, text control clean):
+  `attic/ds4/AGENTS.md` §12.14.1.
+- **Two vision contracts the value itself does not show.** (1) The served template defaults to
+  **thinking mode**, so a small `max_tokens` is spent on `reasoning_content` and `content` returns
+  empty — send `chat_template_kwargs: {"enable_thinking": false}` for one-shot answers. (2)
+  `--vision` is the launcher's opt-in and this recipe passes it; the cybersec TP=2 arm mounts the
+  same mod and passes no flag, so its serve line stays byte-identical.
+- **The 43-tensor `ffn.gate.bias_vl` VL-routing bias**, which the EXL3 pack omits, ships
+  **inside `@littlecedar/mods/tensorfold-dsv41-launcher`** as `vl_bias.safetensors`, beside the
+  launcher that points `TF_DS_VISION_EXTRA` at its own directory and **fails the launch closed**
+  when no `*.safetensors` is there (the engine would only warn and route image tokens with the text
+  bias). A `--vision` boot missing the template refuses the launch the same way. The trial that
+  proved the bias is preserved at `attic/ds4/mods/dsv41-vision-overlay/`.
 - **The Engram tables ship inside the model repo** as
   `engram/engram-l{1,14}.safetensors`; this recipe does **not** use
   `recipes/cybersec/mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so

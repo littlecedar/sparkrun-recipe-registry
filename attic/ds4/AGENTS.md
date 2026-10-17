@@ -2628,6 +2628,56 @@ The engine's own `docs/vision.md` describes `--vision` for GLM/Qwen families; th
 is the family's own `cuda/vision.py` and is what the fork's `tools/dsv41/REPORT.md` measured (6/6
 image-input checks).
 
+#### 12.14.1 2026-10-17 — the template gate is fixed; TP=2 vision receipt PASSES
+
+The 2026-10-15 receipt above blamed "the serving contract (template or request shape)" for the
+HTTP 400. The mechanism is now proven from the pinned image's own sources
+(`littlecedar/dgx-spark-dsv41@sha256:fabbe861…`):
+
+- `families/deepseek_v41/cuda/app.py` (vision branch, `app.py:49-57`): when a request carries
+  images the server calls `DsVision.split(messages)`, which **rewrites every image part into the
+  image placeholder inline in a single string `content`** and only then renders the chat template
+  (the engine's `expand()` maps those placeholders back to image spans afterwards).
+- `cuda/chat_template.py:40-42`: the served template is `<model_dir>/chat_template.jinja` when that
+  file exists, else `tokenizer_config.json["chat_template"]`.
+- The combined pack's template (`littlecedar/…-with-engram` @ `48afcd1c`, 15,348 B, the upstream
+  template ported from `encoding/encoding.py`) **raises** on a placeholder found in a content
+  string and on one found in a text block (two sites; a third guard covers `reasoning_content`).
+  So the server answered `HTTP 400 Message content contains image special token` on the engine's
+  own rewrite. The 2026-10-06 trial worked because that boot served the older exl3-era template
+  (11,410 B), which carries no such guard.
+
+**Fix, shipped in `mods/tensorfold-dsv41-launcher` (commit `f13c45b`).** The mod now ships
+`chat_template.jinja` — the upstream template with the two placeholder guards neutered and the
+`reasoning_content` guard kept — and the launcher serves it through an **overlay model dir**:
+`/cache/runtime/tensorfold/model-overlay` is a symlink farm of the resolved checkpoint plus one real
+file, the template. Nothing of a 197 GB checkpoint is copied, the node's HF snapshot is never
+written, the farm is rebuilt each boot (stale links from another checkpoint cannot survive), and
+the whole path is gated on `--vision`: without the flag the engine is handed the checkpoint itself,
+which is cybersec arm 5's contract. Both halves fail closed (missing `*.safetensors` bias, missing
+template). The shipped template is inert at rest: the placeholder is assembled from pieces, so
+neither the raw bytes nor a JSON/Python-decodable spelling sits in a tracked file
+(`tests/test_safe_text.py` property 5), and rendered output is byte-identical to upstream on seven
+text-only fixtures (system/tools/multi-turn/tool-call/no-thinking/reasoning-effort/response-format
+shapes) — the guard removal changes exactly one input class: the engine's post-split rewrite.
+
+**Receipt (2026-10-17, `.34`+`.35`, shipped recipe, task `8ef9b6c9a550c389_948390812ad5`, evidence
+`~/benchmarks/ds4-vision-20261017/`):** launch log carries
+`vision template: serving /cache/runtime/tensorfold/model-overlay (chat_template.jinja from the mod
+dir)`, `vision ON: vl_bias_dir=/workspace/mods/tensorfold-dsv41-launcher (43 gates...)`,
+`vision tower on rank 0: 0.90 GiB; VL bias for 43 gates`, `weights in 25 s (from the rank cache)`;
+both nodes' overlays carry template sha256 `297be8861c9c…` and a `config.json` symlink into the
+`48afcd1c` snapshot. `vision-check.py --no-thinking` → **3/3** solid-colour probes correct
+(Red/Green/Blue, HTTP 200 — was 400), text-only control answers `Black`, naming no probe colour;
+exit 0. Launch total 83.6 s.
+
+One probe gotcha, measured: the served template defaults to **thinking mode**. The 2026-10-15
+probe's `max_tokens: 24` was consumed by reasoning, so *every* reply — including the text control —
+returned empty `content` (a 200-token text request shows `reasoning_len=156`, `content="Hello"`,
+`finish_reason=stop`). The receipt probe therefore sends
+`chat_template_kwargs: {"enable_thinking": false}`; a client that wants one-shot answers must do the
+same. Lesson recorded in the lane README's knobs.
+
 ### 12.15 References
 
 - Engine: [bertholomus/TensorFold, branch `deepseek-v41-tp2`](https://github.com/bertholomus/TensorFold/tree/deepseek-v41-tp2)
