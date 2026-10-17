@@ -2686,6 +2686,61 @@ same. Lesson recorded in the lane README's knobs.
 - Upstream recipe: [bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10](https://github.com/bertholomus/deepseek-v4.1-tensorfold-tp2-2xgb10)
 - Base image: [`lmsysorg/sglang:dev-cu13`](https://hub.docker.com/r/lmsysorg/sglang)
 
+### 12.16 DeepSeek-V4.1-Flash-1017 refresh — trial boot + measurement (2026-10-17)
+
+The 1017 refresh boots and serves on the shipped TensorFold TP=2 arm with a trial recipe, and it
+measures **at parity with the shipped V4.1 arm at C4 and ahead at C8/C16**, with TEB equal. It is
+**not shipped**: the 1017 arm is a trial (receipt below), and the decision to re-cut the base in
+`recipes/ds4/` is the owner's.
+
+**Why a trial recipe, not `-o model=`.** `sparkrun run … -o model=LibertAIDAI/…` is honoured by the
+dry run (`-n` prints the new `--model`) and **ignored by a real launch**: measured 2026-10-17, the
+launch distributed and served `littlecedar/…-2.9bpw-with-engram` (boot.log:5/:33/:49/:68). The trial
+is therefore a copied recipe with `model:`/`model_revision:` replaced —
+`~/benchmarks/ds4-1017-20261017/ds41-1017-trial.yaml` (untracked; not a registry asset).
+
+**What the pack needs that the shipped pack did not.**
+
+- `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw` @ `c178a012…`: 66 files, 43 shards,
+  `model.safetensors.index.json` `total_size` 210,721,837,240 B (196.2 GiB) — the Mia layout,
+  tensor-for-tensor.
+- **No chat template anywhere.** The pack ships no `chat_template.jinja` and its
+  `tokenizer_config.json` is an 801 B stub with no `chat_template` key, so
+  `cuda/chat_template.py:42`'s fallback raises `KeyError`. The launcher's `--vision` overlay is what
+  makes it boot at all: the served dir is `/cache/runtime/tensorfold/model-overlay` with the mod's
+  patched template beside symlinks to the snapshot (§12.14.1).
+- **The Engram tables are rebuilt from 1017 shards 47/48**, not reused: `tools/build-dsv41-engram.py
+  --repo deepseek-ai/DeepSeek-V4.1-Flash-1017 --revision 1bae0e10…` wrote 2 × 94.4 GiB (188.8 GiB,
+  2978 s on `.34` at 65 MiB/s; `.35` lost 2 segments to a short read and finished on a resume in
+  4 s). They live at `<1017 snapshot>/engram/`, which the launcher's resolver prefers.
+
+**Boot + contract** (task `5959b937d06087c6_948390812ad5`, receipt
+`~/benchmarks/ds4-1017-20261017/`): cold rank-cache write `rank0of2-c386fc41c85758f3683a.bin`,
+`weights in 330 s (written to the rank cache)`, `/v1/models` 200 at 530 s, `reserved 104.00 GiB`,
+vision tower 0.90 GiB / 43 gates / warm-up 505 ms, `--parallel` warm-up 41.6 s. `GET /v1/models` →
+`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`; a text request with
+`chat_template_kwargs {"enable_thinking": false}` answers coherently; the vision probe is **3/3**
+with a clean text control.
+
+**Same-window A/B**, one serve at a time on `.34`+`.35`, same image/launcher/profile
+(`benchmarking/ds4-sglang-depth0-ladder.yaml`, 3 runs per cell, decode rows only) and the standard
+TEB suite (`benchmarking/standard-suite.yaml`, 15 scenarios):
+
+| arm | C1 | C4 | C8 | C16 | TEB |
+|---|---:|---:|---:|---:|---:|
+| shipped `littlecedar/…-with-engram` (V4.1) | 68.0 (70.9/73.0/60.0) | 48.0 | 43.3 | 43.4 | **100** (15/15) |
+| trial `LibertAIDAI/…-1017-EXL3` | 61.5 (59.5/61.0/64.2) | 48.9 | 49.3 | 48.2 | **100** (15/15) |
+
+Deltas: C1 **−9.6 %** (shipped σ 5.7 on that cell — one 60.0 outlier pulls its mean up; medians
+71.95 vs 61.0), C4 +1.9 %, **C8 +13.9 %, C16 +11.1 %**. Tool-call quality is identical on the
+suite that ships. **Confound, stated:** the 1017 ladder ran first, on a host 530 s out of a cold
+boot; the shipped ladder ran ~7 min into a warm boot. Decode is not a compile-cost quantity, but a
+C1 difference this small should be re-taken interleaved before it is quoted as a real regression.
+
+**Cost of adopting it:** ~385 GB per node (196 GiB pack + 189 GiB tables) re-downloaded, a new
+rank-cache write per node (330 s measured), and a re-cut of the combined repo if the dedup layout is
+kept.
+
 ## 13. Quality benchmarks (`benchmarks/`)
 
 The `benchmarks/` subdirectory holds the **quality** comparison of the two live
