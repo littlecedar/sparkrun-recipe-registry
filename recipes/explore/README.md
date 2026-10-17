@@ -147,8 +147,8 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
   (1 genuine defect found outside the instrument).
 - **No t/s ladder, by design:** `benchmarking/concurrency-ladder.yaml` drives llama-benchy against
   `/chat/completions`, and this arm serves `/v1/completions` only (it ships no chat template, so the
-  chat endpoint 400s). Its index row's C1/C2/C5/C10 stay `—` — not unmeasured but **unmeasurable with
-  this profile**; the number above is the `/v1/completions` figure, and a ladder for this arm would
+  chat endpoint 400s). Its index row's C2/C5/C10 stay `—` — not unmeasured but **unmeasurable with
+  this profile**; its C1 cell is the `/v1/completions` figure above, and a ladder for this arm would
   need a completions-capable harness.
 - **Licence:** Apache-2.0.
 
