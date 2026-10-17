@@ -73,6 +73,12 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   template*.
 - Boots (`GET /v1/models` = repo id; uncensored template confirmed in the serve log); receipts in
   attic AGENTS.md §8.
+- **Decode ladder (2026-10-17, one GB10, shipped chain): C1 30.2 ± 1.5 · C2 49.4 ± 6.8 · C5 84.6 ± 9.1
+  · C10 92.9 ± 5.1 t/s** @ d=0, pp 2048, tg 128, n=5 — `bench_3ee8fda63ada`, receipt
+  `~/benchmarks/ladders-solo-20261017/`. The index row's C2/C5/C10 are this boot; its C1 33.3 is the
+  earlier single-point figure. Per-request decode falls 30.2 → 25.8 → 21.3 → 14.6 t/s across the four
+  cells while the aggregate rises, so the arm scales by stream count, not by per-stream speed — the
+  same shape the qwen3.8-27B NVFP4 sibling shows on its own ladder.
 
 - `chat_template_path` is the file `recipes/cybersec/mods/provide-uncensored-chat-template` writes into the managed
   runtime cache (`/cache/runtime/uncensored-template/chat_template.jinja`); the command consumes it
