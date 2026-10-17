@@ -66,9 +66,10 @@ ARMS: dict[str, tuple[str, str]] = {
         "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
         "orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4",
     ),
-    # Graft overlay: stock pack on disk, the abliterated arm is what the engine advertises.
+    # Graft overlay: the combined stock pack on disk (weights + Engram tables), the abliterated
+    # arm is what the engine advertises.
     "deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml": (
-        "Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw",
+        "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram",
         "drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed",
     ),
 }
@@ -214,6 +215,25 @@ class OverlayWiring(unittest.TestCase):
         keys = defaults_keys(read(LANE / name))
         self.assertEqual(keys.get("served_model_dir"), "/cache/runtime/dsv41-ablit")
         self.assertIn("--model {served_model_dir}", command_block(read(LANE / name)))
+
+    def test_graft_arm_adds_no_second_engram_copy(self) -> None:
+        """The dedup contract: one pack per node serves both TP=2 arms.
+
+        The graft resolves its stock pack from the HF cache, so a weights-only stock would
+        reintroduce the second ~189 GiB Engram build on every node; the arm must list the
+        combined repo and must not mount `dsv41-engram-fetch`.
+        """
+        text = read(LANE / GRAFT_ARM)
+        mods = re.search(r"^mods:\n((?:  - .*\n)+)", text, re.M)
+        self.assertIsNotNone(mods)
+        block = mods.group(1) if mods else ""
+        self.assertIn("mods/graft-dsv41-ablit-wo-b", block)
+        self.assertNotIn("dsv41-engram-fetch", block)
+        self.assertEqual(top_level(text, "model"),
+                         "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram")
+        # The launcher reads the tables from the stock pack; with no flag it would fall back to
+        # the per-lane pre-warm dir that this arm no longer builds.
+        self.assertIn("--stock-model {model}", command_block(text))
 
 
 class NewMods(unittest.TestCase):

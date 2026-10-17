@@ -342,6 +342,31 @@ class LauncherEngramResolution(unittest.TestCase):
         (combined / "engram" / "engram-l14.safetensors").write_bytes(b"y")
         self.assertEqual(self.mod.resolve_engram_dir(str(combined)), str(combined / "engram"))
 
+    def test_stock_pack_engram_serves_a_grafted_dir(self) -> None:
+        # The cybersec abliterated arm serves a grafted tree (weights and tokenizer files, no
+        # tables) and passes the pack it grafted from as --stock-model; the tables must come
+        # from there, not from a per-lane pre-warm copy.
+        graft = self.root / "graft"
+        graft.mkdir()
+        (graft / "model-00001-of-00039.safetensors").write_bytes(b"w")
+        stock = self.root / "stock"
+        (stock / "engram").mkdir(parents=True)
+        (stock / "engram" / "engram-l1.safetensors").write_bytes(b"x")
+        self.assertIsNone(self.mod.resolve_engram_dir(str(graft)))
+        self.assertEqual(self.mod.resolve_engram_dir(str(graft), str(stock)),
+                         str(stock / "engram"))
+
+    def test_stock_engram_beats_the_prewarm_dir(self) -> None:
+        # Order matters: a stale /cache/huggingface/hub/dsv41-engram must not shadow the tables
+        # belonging to the pack being served.
+        mod_out = Path(self.mod.ENGRAM_DIR)
+        mod_out.mkdir(parents=True)
+        (mod_out / "engram-l1.safetensors").write_bytes(b"stale")
+        stock = self.root / "stock"
+        (stock / "engram").mkdir(parents=True)
+        (stock / "engram" / "engram-l14.safetensors").write_bytes(b"x")
+        self.assertEqual(self.mod.resolve_engram_dir(None, str(stock)), str(stock / "engram"))
+
     def test_combined_repo_without_engram_falls_through(self) -> None:
         # A plain EXL3 repo (no engram/ subdir) must not shadow the mod's output.
         combined = self.root / "exl3-only"

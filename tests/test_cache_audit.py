@@ -215,11 +215,23 @@ class ReclaimVerdict(unittest.TestCase):
         return audit.Tree("10.0.4.30", f"{FAMILY_DIR}/{leaf}", size=1, stamp=stamp)
 
     def test_live_tree_gets_no_reclaim_action(self):
-        for _, _, leaf in FLEET_LEAVES[:1] + FLEET_LEAVES[3:5]:
+        # The combined pack is live for both TP=2 arms (ds4 and the grafted cybersec arm);
+        # the Mia 2.9bpw leaf is deliberately absent from this set -- the Engram dedup moved
+        # the abliterated arm onto the combined pack, so no shipped recipe names it any more
+        # (test_mia_leaf_is_stale_after_the_engram_dedup).
+        for _, _, leaf in FLEET_LEAVES[:1] + FLEET_LEAVES[3:4]:
             tree = self._tree(leaf, "2026-01-01_00:00")
             kind, _ = audit.verdict(tree, self.keys)
             self.assertEqual(kind, "live", leaf)
             self.assertEqual(audit.reclaim_note(tree, kind, self.now), "", f"{leaf} must not be reclaimable")
+
+    def test_mia_leaf_is_stale_after_the_engram_dedup(self):
+        # The storage the dedup was for: once the abliterated arm grafts onto the combined
+        # pack, the per-node Mia tree is reclaimable rather than live.
+        tree = self._tree("Mia-AiLab__DeepSeek-V4.1-Flash-EXL3-2.9bpw-a54d5c5d", "2026-01-01_00:00")
+        kind, _ = audit.verdict(tree, self.keys)
+        self.assertEqual(kind, "stale")
+        self.assertIn("--older-than", audit.reclaim_note(tree, kind, self.now))
 
     def test_stale_tree_past_the_window_gets_the_guarded_sweep(self):
         tree = self._tree("deepseek-ai__DeepSeek-V4.1-Flash-db95f94c", "2026-10-10_13:59")
