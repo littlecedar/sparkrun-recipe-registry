@@ -1745,6 +1745,8 @@ class TensorfoldLaneContract(unittest.TestCase):
             mod_dir = Path(d) / "mods" / "tensorfold-dsv41-launcher"
             mod_dir.mkdir(parents=True)
             (mod_dir / "vl_bias.safetensors").write_bytes(b"\0" * 8)
+            (mod_dir / "chat_template.jinja").write_bytes(
+                (TF_MOD_DIR / "chat_template.jinja").read_bytes())
             _prog, argv, env = _run_tf_launcher(
                 ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
                  "--served-model-name", "x", "--context", "262144",
@@ -1777,6 +1779,69 @@ class TensorfoldLaneContract(unittest.TestCase):
             )
         self.assertNotIn("--vision", argv)
         self.assertNotIn("TF_DS_VISION_EXTRA", env)
+
+    def test_vision_template_ships_in_the_mod_dir(self):
+        """The patched chat template is part of the mod, and carries no token.
+
+        The engine reads ``<model>/chat_template.jinja`` in preference to
+        ``tokenizer_config.json["chat_template"]``, and the upstream template
+        raises on the placeholder the vision path inserts (``DsVision.split``),
+        so every image request answered HTTP 400. The patch is inert at rest:
+        the placeholder is assembled from pieces, so neither the raw bytes nor a
+        JSON/Python-decodable spelling sits in a shipped file.
+        """
+        template = TF_MOD_DIR / "chat_template.jinja"
+        self.assertTrue(template.is_file(),
+                        "chat_template.jinja must ship in the launcher mod dir")
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(
+            "safe_text_ds4", REPO_ROOT / "tools" / "safe_text.py")
+        tool = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        text = template.read_text(encoding="utf-8")
+        self.assertFalse(tool.contains_raw_token(text))
+        self.assertFalse(tool.contains_token_spelling(text))
+
+    def test_shim_vision_serves_an_overlay_with_the_patched_template(self):
+        """`--vision` hands the engine a symlink farm, not the checkpoint.
+
+        ``cuda/chat_template.py`` takes the template from whatever model dir it
+        is handed, so the shim hands it a directory of symlinks to the
+        checkpoint plus the mod's template: no copy of a 197 GB checkpoint, and
+        the node's HF snapshot is untouched. NEGATIVE CONTROL: without
+        `--vision` the engine is still handed the checkpoint itself, which is
+        the cybersec arm's contract on this same mod.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            model = Path(d) / "model"
+            model.mkdir()
+            (model / "config.json").write_text("{}")
+            (model / "tokenizer.json").write_text("{}")
+            mod_dir = Path(d) / "mods" / "tensorfold-dsv41-launcher"
+            mod_dir.mkdir(parents=True)
+            (mod_dir / "vl_bias.safetensors").write_bytes(b"\0" * 8)
+            (mod_dir / "chat_template.jinja").write_bytes(
+                (TF_MOD_DIR / "chat_template.jinja").read_bytes())
+            cache = Path(d) / "runtime"
+            base = ["--boot", "--model", str(model), "--port", "8000", "--tp", "2",
+                    "--served-model-name", "x", "--context", "262144",
+                    "--nnodes", "2", "--node-rank", "0", "--dist-init-addr", ".34:25000"]
+            _prog, vision_argv, _env = _run_tf_launcher(
+                base + ["--vision"], checkpoint_dir=str(model), cache_dir=str(cache),
+                mutate=lambda m: setattr(m, "__file__", str(mod_dir / "launcher.py")),
+            )
+            _prog, plain_argv, _env = _run_tf_launcher(
+                base, checkpoint_dir=str(model), cache_dir=str(cache),
+            )
+            overlay = cache / "model-overlay"
+            self.assertEqual(vision_argv[2], str(overlay))
+            self.assertEqual((overlay / "chat_template.jinja").read_bytes(),
+                             (TF_MOD_DIR / "chat_template.jinja").read_bytes())
+            self.assertTrue((overlay / "config.json").is_symlink())
+            self.assertEqual((overlay / "config.json").resolve(),
+                             (model / "config.json").resolve())
+            self.assertEqual(plain_argv[2], str(model))
 
     def test_no_host_device_names_in_recipe_env(self):
         # No env value may name a host adapter; sparkrun's InfiniBand probe fills
