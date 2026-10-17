@@ -122,11 +122,11 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 
 | Recipe                                | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                                                            |
 |:--------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   50 † |      — |       — | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                                                                                 |
+| qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   57.4 |   89.5 |   100.9 | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — ladder 2026-10-17 (`bench_355eee9f476f`), receipt `~/benchmarks/ladders-solo-20261017/`                                       |
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   70.4 |  114.0 |  177.1 |   249.5 |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; 2.1× DFlash2 C1; 2026-10-16 ladder, receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`                                                 |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   44.8 |   57.7 |   64.4 |    65.6 | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine (MiaAI-Lab); ladder 2026-10-17 (`bench_b10e422bb046`), arc 94.0%/gsm8k 96.5%, TEB 100, bfcl 85.7%  |
 
-* _`†` the lane's previous index headline: a c=2 aggregate on a different prompt shape, not comparable with C1. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
+* _`*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
 
 ## Qwen 4x
 
@@ -178,7 +178,7 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | Recipe                                                      | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                               |
 |:------------------------------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | qwen3.8-27b-uncensored-nvfp4-sglang                         | 🚀👀🏴📜  |   10.2 |      — |      — |       — |               24.7GB |   85% |  1 | [Model][orcarouter/Qwen3.8-27B-Uncensored-NVFP4] — **positive**, boots, battery 37/37                                                                                     |
-| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |      — |      — |       — | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **positive** (AEON body + drowzeys cyber template), battery 37/37  |
+| qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |   49.4 |   84.6 |    92.9 | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **positive**, battery 37/37; 2026-10-17 ladder `bench_3ee8fda63ada`|
 | deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
 
 * _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._
