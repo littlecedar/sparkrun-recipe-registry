@@ -159,18 +159,22 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
 
 **Arm 5 — POSITIVE (TP=2).** Graft arm: the overlay repo ships **no weights**.
 
-- Stock: [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] — ~197 GB, EXL3 mul1 K=5, 39 shards, TP 2.
-  The overlay [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] is a 682 MB
-  `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar** that `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` grafts
-  onto the stock pack under `/cache/runtime/dsv41-ablit` (104 tensors edited; L0-9, L36-39, MTP,
-  embed/head, experts stay stock), synchronously and fail-closed inside the 600 s pre-exec hook
-  budget (measured 269 s / 284 s per node).
+- Stock: the [combined littlecedar pack][combined pack] — ~197 GB of EXL3 mul1 K=5 weights (39
+  shards) **plus the Engram tables** under `engram/`, the same repo the ds4 TP=2 arm serves
+  (weight shards byte-for-byte the Mia pack; pinned to `48afcd1c…`). The overlay [drowzeys
+  DeepSeek-V4.1-Flash-Abliterated…Unleashed] is a 682 MB `layers.10-35 attn.wo_b` **EXL3 mul1
+  K=5 sidecar** that `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` grafts onto that pack under
+  `/cache/runtime/dsv41-ablit` (104 tensors edited; L0-9, L36-39, MTP, embed/head, experts stay
+  stock), synchronously and fail-closed inside the 600 s pre-exec hook budget (measured 269 s /
+  284 s per node on the weights-only stock).
 - Runtime sglang shim → `mods/tensorfold-dsv41-launcher` (reused unchanged from the ds4 lane).
-  The command carries `--stock-model {model}` (the validator's identity token) instead of
-  `--revision {model_revision}`. Served id:
-  `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's identity,
-  not the body pack. Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint and are
-  provisioned detached by `recipes/cybersec/mods/dsv41-engram-fetch`; GPU memory utilisation stays ≤ 0.85.
+  The command carries `--stock-model {model}`: the validator's identity token **and** the pack
+  the launcher reads the Engram tables from, since the grafted tree carries none. Served id:
+  `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's
+  identity, not the body pack. GPU memory utilisation stays ≤ 0.85.
+- **One pack per node serves both TP=2 arms** since 2026-10-17: the arm no longer mounts
+  `recipes/cybersec/mods/dsv41-engram-fetch`, so the second ~189 GiB Engram build per node is
+  gone (the arm and the ds4 lane read the combined pack's `engram/`).
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index
@@ -190,4 +194,5 @@ Currently the directory holds one file:
 [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
 [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4
 [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+[combined pack]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed]: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
