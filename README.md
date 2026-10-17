@@ -124,9 +124,9 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 |:--------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | qwen3.8-27b-nvfp4-dflash2-sglang      | 🌲🚀👀   |   33.8 |   57.4 |   89.5 |   100.9 | 21.9GB + 3.9GB draft |   85% |  1 | [Model][RadixArk/Qwen3.8-27B-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — ladder 2026-10-17 (`bench_355eee9f476f`), receipt `~/benchmarks/ladders-solo-20261017/`                                       |
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   70.4 |  114.0 |  177.1 |   249.5 |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; 2.1× DFlash2 C1; 2026-10-16 ladder, receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`                                                 |
-| qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   44.8 |   57.7 |   64.4 |    65.6 | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine (MiaAI-Lab); ladder 2026-10-17 (`bench_b10e422bb046`), arc 94.0%/gsm8k 96.5%, TEB 100, bfcl 85.7%  |
+| qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   44.8 |   57.7 |   64.4 |    65.6 | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine; ladder 2026-10-17 (`bench_b10e422bb046`), arc 94.0%/gsm8k 96.5%, TEB 100, bfcl 85.7%‡             |
 
-* _`*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
+* _`‡` its `tools` (bfcl) leg ran at bfcl-eval's 512-token completion default — the suite passed no `--max-tokens` until 2026-10-17 — so 25 of the 400 parallel questions came back with no call and the figure is budget-annotated, not a capability ceiling; a 4096 re-run is queued. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
 
 ## Qwen 4x
 

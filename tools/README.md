@@ -1007,12 +1007,12 @@ python3 tools/bfcl-eval.py --selftest     # offline, in-process mock, ~1 s
 `temperature` is 0, and the raw `tool_calls` of **every** question — pass or fail — go into
 `--json`, so a scoring mistake is auditable rather than trusted. **`--max-tokens` defaults to 512**,
 which is the right default for a non-thinking arm and a truncation trap for a thinking one: a
-reasoning template spends the budget inside the think block and the record then carries `calls: []`
-— the artifact keeps the choice's `finish_reason` (since 2026-10-17; the two receipts written that
-morning predate the field, so their `calls: []` rows cannot be re-diagnosed), so a `length` cut is
-distinguishable from a genuine no-call). The suite's `eval-suite.py --bfcl-max-tokens` (default 4096)
-is the budget knob that matters for a sweep; check for it in the receipt's argv echo before comparing
-two arms.
+reasoning template spends the budget inside the think block and the record then carries `calls: []`.
+The artifact keeps the choice's `finish_reason` (since 2026-10-17; the two receipts written that
+morning predate the field, so their `calls: []` rows cannot be re-diagnosed), which is what makes a
+`length` cut distinguishable from a genuine no-call. The suite's `eval-suite.py --bfcl-max-tokens`
+(default 4096) is the budget knob that matters for a sweep; check for it in the receipt's argv echo
+before comparing two arms.
 `--tool-choice` (default `auto`) is
 there because on the explore lane's Ling arm auto mode answered in prose and only a forced
 `tool_choice` produced structured calls: `auto` is the standard BFCL condition, `required` isolates
