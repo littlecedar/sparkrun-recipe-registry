@@ -43,9 +43,12 @@ untouched, so the pair still applies.
   config-bearing snapshot) — the recipe never spells a snapshot hash.
 - Fetches the author's script + sidecar from the gated overlay at the pinned revision, using
   the node token at `/cache/huggingface/token`.
-- Runs the author's script unchanged, with the stock dir as `--src` and
-  `/cache/runtime/dsv41-ablit` as `--dst`. The script hardlinks every unchanged shard and
-  refuses `--src == --dst`, so the stock snapshot is never written.
+- Runs the author's script unchanged, with a **symlink view of the stock dir as `--src`** and
+  `/cache/runtime/dsv41-ablit` as `--dst`. The script **copies** every entry and *dereferences*
+  the HF cache's blob symlinks rather than hardlinking them (measured 2026-10-17: a 386 GiB
+  graft tree from a 386 GiB pack). The view therefore omits `engram/` and the mod links the
+  stock pack's tables into the graft tree — one Engram set per node — and `--src == --dst` is
+  refused, so the stock snapshot is never written.
 - **Fail closed**: a missing token, a missing stock pack, an `OUTDIR` that resolves to the
   stock snapshot, or an incomplete graft (`n_edited != 104`) aborts the launch. Serving the
   stock, non-abliterated checkpoint under this arm's name is the one outcome worse than a

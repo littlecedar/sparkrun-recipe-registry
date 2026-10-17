@@ -104,22 +104,6 @@ log "${MOD_MAINTAINER}"
 log_var STOCK_REPO
 log_var OUTDIR
 
-# Idempotence from the artifact, not a timestamp: a completed graft carries the
-# author's ABLIT_META.json with n_edited == 104.
-if python3 - "${OUTDIR}/ABLIT_META.json" "${EXPECTED_N_EDITED}" <<'PY'
-import json, sys
-try:
-    meta = json.load(open(sys.argv[1]))
-except Exception:
-    raise SystemExit(1)
-raise SystemExit(0 if meta.get("n_edited") == int(sys.argv[2]) else 1)
-PY
-then
-  log "graft already present and complete (n_edited=${EXPECTED_N_EDITED}) -- no-op"
-  reown "${OUTDIR}"
-  log "Done."
-  exit 0
-fi
 
 mkdir -p "${WORKDIR}" "${OUTDIR}"
 reown "${WORKDIR}" "${OUTDIR}"
@@ -179,11 +163,59 @@ log "stock: ${STOCK}"
 # Never write through the stock directory: the author's script also refuses this.
 [[ "$(realpath -m "${STOCK}")" != "$(realpath -m "${OUTDIR}")" ]] || die "OUTDIR equals the stock snapshot"
 
-# 3) Graft. The author's script hardlinks every unchanged shard and rewrites only the shards
-#    carrying layers.10-35 attn.wo_b, into a NEW directory. This must fit sparkrun's 600 s
-#    pre-exec budget; a cold node that cannot is a launch failure, not a degraded serve.
+# The Engram tables live in the stock pack, and both TP=2 arms must share ONE copy. The
+# author's script copies every entry of --src and *dereferences* the HF cache's blob
+# symlinks, so grafting straight from the snapshot materializes the tables as well
+# (measured 2026-10-17: a 386 GiB graft tree, 189 GiB of it tables, ~200 s of the 600 s
+# hook budget). So: link the tables into the graft tree and hand the script a view without
+# engram/. The link step also repairs a graft built before this change.
+link_engram() {
+  if [[ -d "${STOCK}/engram" ]] && [[ "$(readlink "${OUTDIR}/engram" 2>/dev/null)" != "${STOCK}/engram" ]]; then
+    rm -rf "${OUTDIR}/engram"
+    ln -s "${STOCK}/engram" "${OUTDIR}/engram"
+    log "engram: ${OUTDIR}/engram -> ${STOCK}/engram (one table set per node, not a copy)"
+  fi
+}
+link_engram
+
+# Idempotence from the artifact, not a timestamp: a completed graft carries the
+# author's ABLIT_META.json with n_edited == 104.
+if python3 - "${OUTDIR}/ABLIT_META.json" "${EXPECTED_N_EDITED}" <<'PY'
+import json, sys
+try:
+    meta = json.load(open(sys.argv[1]))
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if meta.get("n_edited") == int(sys.argv[2]) else 1)
+PY
+then
+  log "graft already present and complete (n_edited=${EXPECTED_N_EDITED}) -- no-op"
+  reown "${OUTDIR}"
+  log "Done."
+  exit 0
+fi
+
+# The src view: every stock entry except engram/, as symlinks. The script copies through
+# them exactly as it copies the snapshot's own links, so the weights are still materialized
+# -- that is the arm -- but the tables are not.
+VIEW="${WORKDIR}/stock-view"
+rm -rf "${VIEW}"
+mkdir -p "${VIEW}"
+for entry in "${STOCK}"/*; do
+  [[ "$(basename "${entry}")" == "engram" ]] && continue
+  ln -s "${entry}" "${VIEW}/$(basename "${entry}")"
+done
+shopt -s nullglob
+view_entries=("${VIEW}"/*)
+shopt -u nullglob
+log "src view: ${VIEW} (${#view_entries[@]} entries, engram/ excluded)"
+
+# 3) Graft. The author's script copies the pack and rewrites only the shards carrying
+#    layers.10-35 attn.wo_b (~26 x ~5 GiB). It must fit sparkrun's 600 s pre-exec budget; a
+#    cold node that cannot is a launch failure, not a degraded serve.
 log "grafting (this rewrites the ~26 shards carrying layers.10-35 attn.wo_b)..."
-python3 "${SCRIPT}" --src "${STOCK}" --wo-b "${SIDECAR}" --dst "${OUTDIR}"
+python3 "${SCRIPT}" --src "${VIEW}" --wo-b "${SIDECAR}" --dst "${OUTDIR}"
+link_engram
 
 # 4) Verify the artifact the launch depends on.
 python3 - "${OUTDIR}/ABLIT_META.json" "${EXPECTED_N_EDITED}" <<'PY'
