@@ -251,14 +251,19 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
   to 32.9 ± 16.1 t/s at c10 (vs 111.9 at c1) while the engine's peak window still reaches 202.2 t/s.
   House battery **37/37** (easy 19/19, hard 18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each);
   `standard-suite` profile (tool-eval-bench) **97** — 15 scenarios, 14 pass, 1 partial; deployability
-  84, responsiveness 54; bfcl **73.5%** (911/1240, no transport errors — audited). The loss is
-  category-shaped, not noise: `parallel` 46.5% and `parallel_multiple` 41.0% carry it, and **179 of
-  their 400 questions returned no tool call at all** — bare `content: ''` plus a think block whose
-  median is ~2.0k chars against the valid records' 826 (`bfcl-eval.py` sends `max_tokens=512` by
-  default; a no-call reply is scored FAIL by design, `tools/bfcl-eval.py:55-56`). LIKELY the same
-  think-block budget shape as the needle cells below — the run records no `finish_reason`, so this is
-  inferred, not proven, and the fix-probe (one parallel question at a raised `--max-tokens`) is unrun.
-  A further 26 failures did emit exactly one call; that minority is not the mechanism.
+  84, responsiveness 54; bfcl **88.3%** (1095/1240, no transport errors — audited) at
+  `--bfcl-max-tokens 4096`, the suite's new default (`3ac9581`). This arm is why that flag exists: its
+  first leg ran at the old 512 default and scored **73.5%** (911/1240), where **179 of the two
+  parallel categories' 400 questions returned `calls: []`** — bare `content: ''` plus a think block
+  (median ~2.0k chars against the valid records' 826), a no-call reply being scored FAIL by design
+  (`tools/bfcl-eval.py:55-56`). The budget was the mechanism, and it is now measured rather than
+  inferred: at 4096 only **6** of those 400 come back with no call, every one of them
+  `finish_reason: length` (the field `c232be0` added). The residual parallel-category loss is
+  **multi-call shape**: of the 65 failures there, 34 emit exactly one call and 25 emit two or more
+  with a wrong set. Category read-out at 4096 — `simple` 94.5%, `multiple` 94.0%, `parallel` 87.5%,
+  `parallel_multiple` 80.0%, `irrelevance` 80.8% (46 of 240 called when no call was expected, the
+  arm's other loss center). Receipts: 512 leg `~/benchmarks/mellum-gguf-20261017/`, 4096 leg
+  `~/benchmarks/mellum-gguf-tools4096-20261017/` (+ its `NOTE-budget-probe.md`, the three-budget probe).
 - **Needle:** 131k rung **3/3 PASS** at `paced_target` 128,451 (completions 123–186). 32k rung: 1/3 at
   the suite's 256-token default — the two empty cells are the thinking-budget class below, not
   retrieval; re-probes reach **3/3 by union** (depth 50 PASS at `--max-tokens 4096` — 722 completion
