@@ -118,7 +118,11 @@ suite legs ran after it).
 - **Same-boot suite (2026-10-17) — §4.1's bar is met for this arm:** house **37/37** (easy 19/19, hard
   18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each); the `standard-suite` profile (tool-eval-bench)
   **97** (15 scenarios, 14 pass, 1 partial; deployability 84, responsiveness 54); bfcl **73.5%**
-  (911/1240); decode ladder C1 111.9 ± 0.3 /
+  (911/1240 — the loss is the two parallel categories (`parallel` 46.5%, `parallel_multiple` 41.0%),
+  where 179 of their 400 questions returned no tool call at all, median think block ~2.0k chars
+  against the run's 512-token default: the needle cells' budget shape, not a multi-call capability
+  limit — 26 failures did emit one call, and the raised-budget fix-probe is unrun); decode ladder
+  C1 111.9 ± 0.3 /
   C2 151.1 ± 2.6 / C5 208.0 ± 2.8 / C10 146.4 ± 1.5 t/s (`bench_4247926b7b9a`) — c10 exceeds the arm's
   8 slots, so per-request decode spreads (32.9 ± 16.1 t/s) and the aggregate falls past c5.
 - **Needle rungs:** 131k **3/3** at `paced_target` 128,451. 32k is 1/3 at the suite's 256-token
