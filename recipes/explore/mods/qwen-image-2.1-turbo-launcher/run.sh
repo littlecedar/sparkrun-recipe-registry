@@ -7,7 +7,7 @@
 #
 # The engine is diffusers' `QwenImage21Pipeline`, which is neither sglang nor
 # vLLM: there is no serving runtime for it. The serving image
-# (`vllm/vllm-openai:v0.29.0`) is used only as a base for its arm64 CUDA torch
+# (the recipe's pinned `vllm/vllm-openai` build) is used only as a base for its arm64 CUDA torch
 # build; this mod stages a *venv* on top of it (--system-site-packages, so the
 # image's torch/CUDA stack is inherited and never re-downloaded) carrying
 # diffusers >= 0.41 (pipeline-configured sampling sigmas, PR #14950) and

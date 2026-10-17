@@ -541,7 +541,8 @@ loader against every pinned arm, on a node, with the **HF repo dir** mounted —
     print(get_config('<repo>', False, revision='<pin>'))
     PY
 
-Three of the five moved arms cannot load their config on 0.30.0 (transformers 5.17.0):
+Three of the five moved arms cannot load their config on 0.30.0 — both failures are in vLLM's own
+config path, not the shipped transformers 5.17.0:
 
 - **mellum2.1-12b** — vLLM 0.30.0 ships its own `MellumConfig`
   (`vllm/transformers_utils/configs/mellum.py`, a `Qwen3MoeConfig` subclass) and registers it for
@@ -555,12 +556,16 @@ Three of the five moved arms cannot load their config on 0.30.0 (transformers 5.
   `hf_overrides_kw={'rope_parameters': <the checkpoint's own dict>}` loads clean — a recipe could
   carry the values (duplicating the checkpoint's rope config) if the arm must move before upstream
   fixes the stub.
-- **poolside-laguna-{s,xs}-2.1** — both pinned revisions fail config *construction* in transformers
-  5.17: `AutoConfig.from_pretrained` → `LagunaConfig.from_dict` raises
-  `AttributeError: 'str' object has no attribute 'get'` (identical with `trust_remote_code` True and
-  False). Upstream's `Laguna-XS.2` repo carries a "compatible with Transformers 5.17" fix (a
-  `rope_parameters` trailing-comma shape); these 2.1 pins predate it, so the unblock is a re-pin —
-  a lane decision, since the arms' measured numbers belong to the old pin.
+- **poolside-laguna-{s,xs}-2.1** — both pins fail in vLLM 0.30.0's *own* config path:
+  `get_config(<repo>, False, revision=<pin>)` raises `AttributeError: 'str' object has no attribute
+  'get'` (identical with `trust_remote_code` True — `preflight-configs{,2}.py` in the receipt). The
+  actor is not transformers: probed 2026-10-17, `AutoConfig.from_pretrained` on the same snapshot
+  builds `transformers.models.laguna.configuration_laguna.LagunaConfig` and
+  `standardize_rope_params()` keeps the nested per-layer `rope_parameters` intact, while vLLM
+  0.30.0 registers its own `LagunaConfig` (`vllm.transformers_utils.configs`) — the same shadowing
+  family as the mellum bullet above. Unblock: a vLLM-side fix or a stub-compatible re-pin — a lane
+  decision, since the arms' measured numbers belong to the old pin. Receipt:
+  `~/benchmarks/bump-20261016/laguna-config-probe.txt`.
 
 **Boot-verified on 0.30.0:** `humanizer-12b-vllm` — task `sparkrun_17678da2f7107eb2_a4bf874feb5a`
 on `.35`: engine `vllm 0.30.0`, container `.Image` == the manifest list's arm64 config digest

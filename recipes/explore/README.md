@@ -7,7 +7,8 @@ recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measu
 2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
 owner on 2026-10-15 and boot-verified the same day** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
 collection, so outside the ranking) — its index row carries the ladder and
-the 36/37 house battery, and it is the first single-node text arm with C2/C5/C10 filled); the LTX-2.5 video arm ships as a runbook. Everything else — measured
+the 36/37 house battery, and it was the first single-node text arm with C2/C5/C10 filled (the
+laguna-XS arm followed with the full suite on 2026-10-17); the LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
 
@@ -70,9 +71,9 @@ vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/i
 
 vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected.
 
-*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — the 0.30.0 image (transformers 5.17.0)
-cannot construct this revision's config; 2026-10-16 engine-bump note in
-[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
+*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 cannot construct this
+revision's config (its own `LagunaConfig` shadows the transformers 5.17 class that does); 2026-10-16
+engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 
 - **Model:** `poolside/Laguna-XS-2.1-NVFP4` (33B total / 3B active, 256 routed experts, 3:1 SWA,
   262,144 native; OpenMDW-1.1), pinned `d32afde8…` + the first-party draft `poolside/Laguna-XS-2.1-DFlash`
@@ -84,20 +85,29 @@ cannot construct this revision's config; 2026-10-16 engine-bump note in
   `revision`, so sparkrun both distributes and pins the blob; `num_speculative_tokens: 3` ships (a
   `decode-triage` sweep of n ∈ {3,4,7} → n=3 wins both depths); **thinking is NOT on by default despite
   the card** → the serve line passes `--default-chat-template-kwargs '{"enable_thinking": true}'`.
-  **Rope caveat:** a boot warning about SWA rope is unexplained, so 262k is **pool-verified only** (a
-  needle probe is the open follow-up).
+  **Rope caveat:** a boot warning about SWA rope is unexplained; the 2026-10-17 needle probe answers
+  **3/3 at 262,144** but only 2/3 at 32k/131k (n=3 each) — the long-window miss the caveat predicted
+  did not appear, and the small-depth misses are unexplained.
 - **Serving note:** util 0.55 is deliberate — the weights are only ~21.6 GB of the ~121 GiB pool and
   the SWA arch keeps 262k cheap, so the low util preserves ~95 GB of node headroom.
 - **Measured:** C1 **57.4 t/s** @ d0 (σ 3.4) / 55.1 @ d8k; accept len 1.89 / 29.5%; quality 36/37 @4096.
+- **Standard suite (2026-10-17, `bench_9b207347ec3b`):** ladder @ d0 pp2048 tg128 n=5 — C1 **55.3**
+  (σ 2.4) / C2 83.1 (σ 2.1) / C5 133.7 (σ 8.4) / C10 141.3 (σ 3.3) t/s; `tools/eval-suite.py` 3 ok /
+  2 fail — house easy 19/19 + hard 16/18, needle 2/3 @32k / 2/3 @131k / **3/3 @262k** (n=3 each), arc
+  66.0% (n=200) / gsm8k 90.5% (n=200), bfcl 60.1% (745/1240); the two fails are **contract**
+  (`finish=length`, all-empty reply at the 262,144 window — the reasoning parser's empty-`content`
+  shape, thinking burning `max_tokens`) and **needle** at the two smaller depths. TEB
+  (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97. Receipts
+  `head:~/benchmarks/explore-laguna-xs-20261017/`.
 - **Licence:** OpenMDW-1.1 (target and draft).
 
 ## [poolside-laguna-s-2.1-nvfp4-dflash-vllm](poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
 
 vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected (capped-context single-tenant).
 
-*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — the 0.30.0 image (transformers 5.17.0)
-cannot construct this revision's config; 2026-10-16 engine-bump note in
-[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
+*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 cannot construct this
+revision's config (its own `LagunaConfig` shadows the transformers 5.17 class that does); 2026-10-16
+engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 
 - **Model:** `poolside/Laguna-S-2.1-NVFP4` (117.6B total / 8.5B active MoE, native 1,048,576 ctx;
   OpenMDW-1.1) + the quantization-matched draft `poolside/Laguna-S-2.1-DFlash-NVFP4` (2.2 GB).
