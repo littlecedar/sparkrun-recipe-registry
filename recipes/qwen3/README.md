@@ -112,6 +112,7 @@ record the `finish_reason` + `reasoning` histogram beside any score.
 | size / mem / TP | one DGX Spark, TP=1 (TP=2 is **not expressible** in this recipe — attic `AGENTS.md` §13); 262,144-token window; FP8 KV; image/video input |
 | flags | 👀 (vision) |
 | decode C1 | **41.3 ± 4.0 t/s** @ d0 and 41.7 ± 2.4 @ 8k (one boot, 2026-10-14 — treat as provisional); house battery **37/37** |
+| standard suite (2026-10-17) | ladder @ d0 pp2048 tg128 n=5 — C1 **44.8** (σ 3.5) / C2 57.7 (σ 2.8) / C5 64.4 (σ 2.3) / C10 65.6 (σ 1.3) t/s (`bench_b10e422bb046`; per-request decode falls 44.8 → 16.0, so the aggregate flattens past c5); eval-suite ok on contract/house/needle/hard — house **37/37** (easy 19/19, hard 18/18), needle **3/3** at 32k and 131k (the engine reports no `max_model_len`, so the auto depths stop at 128k), arc **94.0%** / gsm8k **96.5%** (n=200 each); TEB **100** (15/15). Receipt `head:~/benchmarks/qwen3-tf-suite-20261017/` (+ `NOTES.md`). The **`tools` (bfcl) leg** was killed at 3,878 s on a misread buffered log and re-runs unbuffered into `head:~/benchmarks/qwen3-tf-tools-20261017/` — its number lands here when it finishes. |
 | licence | Apache-2.0 (checkpoint); engine/patches are upstream's, kept under their licences |
 
 Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/qwen3/AGENTS.md)
