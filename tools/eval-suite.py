@@ -217,6 +217,24 @@ def log_tail(path: str, lines: int = 1) -> str:
 # ---------------------------------------------------------------------------
 # checks -- each returns (verdict, headline, artifact)
 
+def served_window(entry: dict) -> int | None:
+    """The served context window: vLLM's ``max_model_len`` (or a variant
+    spelling), or llama.cpp's ``meta.n_ctx`` -- its /v1/models entry has no
+    top-level window key, and missing it here (found 2026-10-17, the first
+    llama-cpp arm) both mis-reported the window and let the needle ladder
+    plan a rung that fills the window exactly."""
+    for key in ("max_model_len", "max_context_length", "context_length"):
+        v = entry.get(key)
+        if isinstance(v, int) and v > 0:
+            return v
+    meta = entry.get("meta")
+    if isinstance(meta, dict):
+        v = meta.get("n_ctx")
+        if isinstance(v, int) and v > 0:
+            return v
+    return None
+
+
 def check_contract(ctx: Ctx):
     art: dict = {}
     try:
@@ -228,7 +246,7 @@ def check_contract(ctx: Ctx):
         raise CheckError("no models served (/v1/models data is empty)", kind="fail")
     entry = data[0]
     art["served_id"] = entry.get("id")
-    art["max_model_len"] = entry.get("max_model_len")
+    art["max_model_len"] = served_window(entry)
     ctx.max_model_len = art["max_model_len"]
     if not ctx.model:
         ctx.model = art["served_id"]
@@ -605,6 +623,12 @@ def _mock_handler(payload: dict):
 def selftest() -> int:
     failures: list[str] = []
     assert expand_checks("all") == list(ALL_CHECKS), "all must expand to every check"
+    if served_window({"id": "m", "max_model_len": 32768}) != 32768:
+        failures.append("served_window must read vLLM's max_model_len")
+    if served_window({"id": "m", "meta": {"n_ctx": 131072}}) != 131072:
+        failures.append("served_window must read llama.cpp's meta.n_ctx")
+    if served_window({"id": "m", "meta": {"n_vocab": 98304}}) is not None:
+        failures.append("served_window must stay None when no window is advertised")
     try:
         expand_checks("contract,nope")
         failures.append("unknown check should raise")

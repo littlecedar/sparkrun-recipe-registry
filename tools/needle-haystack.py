@@ -383,10 +383,11 @@ def fetch_max_model_len(
     """Read the served ``max_model_len`` from /v1/models, so the tool does not
     build a prompt the server will reject.
 
-    Returns the entry's ``max_model_len`` (or ``max_context_length``) for
-    ``model``, else the first entry's, else ``None`` if the server does not
-    report one.  ``None`` means "pace the request by measured token counts
-    instead" -- the caller handles both.
+    Returns the entry's ``max_model_len`` (or ``max_context_length``/
+    ``context_length``), or llama.cpp's ``meta.n_ctx``, for ``model``, else the
+    first entry's, else ``None`` if the server does not report one.  ``None``
+    means "pace the request by measured token counts instead" -- the caller
+    handles both.
     """
     try:
         req = urllib.request.Request(models_url(endpoint), headers=_headers(api_key))
@@ -402,6 +403,16 @@ def fetch_max_model_len(
             e = entries[0]
         for key in ("max_model_len", "max_context_length", "context_length"):
             v = e.get(key)
+            if isinstance(v, int) and v > 0:
+                return v
+        # llama.cpp nests the served window: its /v1/models entry carries no
+        # top-level window key, only meta.n_ctx.  Missing it (found 2026-10-17,
+        # the registry's first llama-cpp arm) left the top rung unclamped, so a
+        # probe filled the window exactly, had no room to answer, and recorded
+        # a false FAIL.
+        meta = e.get("meta")
+        if isinstance(meta, dict):
+            v = meta.get("n_ctx")
             if isinstance(v, int) and v > 0:
                 return v
     except Exception:
@@ -424,8 +435,8 @@ def ask(
     timeout: int,
     api_key: str | None,
     extra_body: dict | None = None,
-) -> tuple[str, dict, float]:
-    """One completion.  Returns ``(reply_text, usage, elapsed_s)``.
+) -> tuple[str, dict, float, str | None]:
+    """One completion.  Returns ``(reply_text, usage, elapsed_s, finish_reason)``.
 
     Raises on transport error.  The caller distinguishes a *server* error
     (HTTP 4xx/5xx, e.g. "context length exceeded") from a *miss* by catching
@@ -452,12 +463,14 @@ def ask(
     with urllib.request.urlopen(req, timeout=timeout) as r:
         out = json.load(r)
     elapsed = time.time() - t0
-    text = ""
+    text, finish = "", None
     try:
-        text = out["choices"][0]["message"]["content"] or ""
+        choice = out["choices"][0]
+        text = choice["message"]["content"] or ""
+        finish = choice.get("finish_reason")
     except (KeyError, IndexError, TypeError):
         text = ""
-    return text, out.get("usage", {}) or {}, elapsed
+    return text, out.get("usage", {}) or {}, elapsed, finish
 
 
 #: Substrings that mean "the prompt was longer than the window", across SGLang
@@ -549,8 +562,8 @@ def calibrate(
     for target in usable_targets:
         try:
             prompt, _q, _n = build_prompt(target, 50, 1, 20261003, chars_per_token)
-            _reply, usage, _elapsed = ask(endpoint, model, prompt, 8, timeout,
-                                          api_key, extra_body)
+            _reply, usage, _elapsed, _finish = ask(endpoint, model, prompt, 8, timeout,
+                                                   api_key, extra_body)
             pt = usage.get("prompt_tokens")
         except Exception as e:
             rec["probes"].append({"target": target, "error": f"{type(e).__name__}: {e}"})
@@ -676,7 +689,7 @@ def run_depth(
             "attempts": attempt + 1,
         }
         try:
-            reply, usage, elapsed = ask(
+            reply, usage, elapsed, finish = ask(
                 endpoint, model, prompt, max_tokens, timeout, api_key, extra_body
             )
         except urllib.error.HTTPError as e:
@@ -712,6 +725,7 @@ def run_depth(
             return rec
 
         rec["latency_s"] = round(elapsed, 2)
+        rec["finish_reason"] = finish
         pt = usage.get("prompt_tokens")
         rec["prompt_tokens"] = pt
         rec["usage"] = usage
@@ -743,6 +757,22 @@ def run_depth(
             rec["status"] = "TRUNCATED"
             rec["note"] = (f"server counted {pt} tokens for a {context_length}-token "
                            "request; the window was not reached")
+        elif hits == 0 and not reply.strip() and finish == "length":
+            # Cut, not answered: empty content at finish_reason=length.  Name
+            # which boundary cut it -- completion == max_tokens means the budget
+            # went to reasoning (a thinking template); less means the served
+            # window ran out -- and record TRUNCATED, never a retrieval miss.
+            # (Found on the first llama-cpp arm, 2026-10-17: two 32k cells spent
+            # the suite's 256-token default inside the think block.)
+            ct = usage.get("completion_tokens")
+            rec["status"] = "TRUNCATED"
+            if isinstance(ct, int) and ct >= max_tokens:
+                rec["note"] = (f"completion budget cut it: {ct} tokens of "
+                               "finish_reason=length with empty content "
+                               "(thinking model? raise --max-tokens)")
+            else:
+                rec["note"] = (f"the served window cut the completion ({ct} < "
+                               f"max_tokens {max_tokens}); empty content")
         else:
             rec["status"] = "PASS" if hits == len(needles) else "FAIL"
         _vlog(verbose, f"depth {depth}%: {rec['status']} "
@@ -943,17 +973,27 @@ def _make_handler(mode: dict):
                 self.wfile.write(err)
                 return
             m = mode["mode"]
+            finish = "stop"
+            n_completion = 8
             if m == "truncate":
                 n_tokens = min(n_tokens, 512)  # silently claim a tiny window
                 reply = "I could not find the access code."
             elif m == "wrong":
                 reply = "The access code is 0000-WRONG."
+            elif m == "budget":
+                # A thinking model that spends the whole completion budget in
+                # reasoning: empty content, finish_reason=length, completion
+                # pinned at max_tokens.
+                reply = ""
+                finish = "length"
+                n_completion = int(payload.get("max_tokens", 8))
             else:  # correct: echo the first planted key if one is present
                 reply = f"The access code is {keys[-1]}." if keys else "none found"
             out = {
-                "choices": [{"message": {"role": "assistant", "content": reply}}],
-                "usage": {"prompt_tokens": n_tokens, "completion_tokens": 8,
-                          "total_tokens": n_tokens + 8},
+                "choices": [{"message": {"role": "assistant", "content": reply},
+                             "finish_reason": finish}],
+                "usage": {"prompt_tokens": n_tokens, "completion_tokens": n_completion,
+                          "total_tokens": n_tokens + n_completion},
             }
             body = json.dumps(out).encode()
             self.send_response(200)

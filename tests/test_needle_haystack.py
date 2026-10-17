@@ -224,6 +224,19 @@ class TestFetchMaxModelLen(unittest.TestCase):
                                     {"id": "target", "max_model_len": 1048576}]})
         self.assertEqual(NH.fetch_max_model_len(ep, "target", None, 10), 1048576)
 
+    def test_reads_llamacpp_meta_n_ctx(self):
+        # llama.cpp's entry carries the served window as meta.n_ctx, with no
+        # top-level key (measured on the registry's first llama-cpp arm,
+        # 2026-10-17: the miss let the top needle rung fill the window exactly
+        # and record a false FAIL).
+        ep = self._server({"data": [{"id": "m", "meta": {"n_ctx": 131072,
+                                                         "n_ctx_train": 131072}}]})
+        self.assertEqual(NH.fetch_max_model_len(ep, "m", None, 10), 131072)
+
+    def test_meta_without_a_window_still_reads_as_none(self):
+        ep = self._server({"data": [{"id": "m", "meta": {"n_vocab": 98304}}]})
+        self.assertIsNone(NH.fetch_max_model_len(ep, "m", None, 10))
+
     def test_none_when_server_reports_nothing(self):
         ep = self._server({"data": [{"id": "m"}]})
         self.assertIsNone(NH.fetch_max_model_len(ep, "m", None, 10))
@@ -559,6 +572,44 @@ class TestTooLongRetry(unittest.TestCase):
                            NH.DEFAULT_CHARS_PER_TOKEN)
         self.assertEqual(rec["status"], "TRUNCATED", rec)
         self.assertEqual(rec["attempts"], 1, "a 200-OK short prompt must not retry")
+
+
+class TestCompletionBudgetCut(unittest.TestCase):
+    """An empty reply cut at finish_reason=length is a budget finding, not a miss.
+
+    The first llama-cpp arm's thinking template spent the suite's 256-token
+    default inside its think block and returned content:"" — a "0/1" that reads
+    as a retrieval failure but measured only the budget.  The mock plays the
+    same shape (empty content, finish_reason=length, completion==max_tokens) and
+    the negative control shows a real wrong answer still lands FAIL.
+    """
+
+    def _endpoint(self, mode):
+        from http.server import ThreadingHTTPServer
+        server = ThreadingHTTPServer(("127.0.0.1", 0), NH._make_handler(mode))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def test_budget_cut_is_truncated_not_fail(self):
+        ep = self._endpoint({"mode": "budget"})
+        res = NH.run_needle_test(model="mock-model", context_length=4000,
+                                 api_endpoint=ep, depths=[50], max_tokens=256)
+        rec = res["depths"][0]
+        self.assertEqual(rec["status"], "TRUNCATED")
+        self.assertEqual(rec["finish_reason"], "length")
+        self.assertEqual(rec["hits"], 0)
+        self.assertIn("budget", rec["note"])
+        self.assertEqual(res["verdict"], "TRUNCATED")
+
+    def test_a_wrong_answer_is_still_a_fail(self):
+        # Negative control: the new branch must not swallow a real miss.
+        ep = self._endpoint({"mode": "wrong"})
+        res = NH.run_needle_test(model="mock-model", context_length=4000,
+                                 api_endpoint=ep, depths=[50], max_tokens=256)
+        self.assertEqual(res["depths"][0]["status"], "FAIL")
+        self.assertEqual(res["verdict"], "FAIL")
 
 
 if __name__ == "__main__":

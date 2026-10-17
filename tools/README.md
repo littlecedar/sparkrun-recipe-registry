@@ -512,10 +512,12 @@ status line cannot:
 load-bearing, and the tool got both wrong in its first cut (`VERIFIED`
 2026-10-03 against the live 1M endpoint):
 
-- It reads `max_model_len` from `/v1/models` and **never builds a prompt longer
-  than the server advertises**, leaving a 2 % headroom. Filling exactly the
-  window is not possible — a request for 1,048,576 tokens always arrives a little
-  over and is rejected — so the deepest depth serves ~1.03–1.07M tokens.
+- It reads the served window from `/v1/models` — `max_model_len`, or
+  llama.cpp's `meta.n_ctx` (its entry carries no top-level window key) — and
+  **never builds a prompt longer than the server advertises**, leaving a 2 %
+  headroom. Filling exactly the window is not possible — a request for
+  1,048,576 tokens always arrives a little over and is rejected — so the
+  deepest depth serves ~1.03–1.07M tokens.
 - It **measures** chars-per-token with a **size sweep** (`--chars-per-token N`
   overrides it). The naive ~4.6-char estimate overshoots this fleet's tokenizer
   by ~15 %; more subtly, *each probe size builds a different haystack*, so the
@@ -528,6 +530,12 @@ load-bearing, and the tool got both wrong in its first cut (`VERIFIED`
   outcome and costs ~15 s more prefill. Smaller sizes are fallbacks for
   narrow-window servers, and probe targets are kept well below the window (the
   build overshoots its target by ~15 %), so a probe is never a request that 400s.
+- A depth that was **cut rather than answered** — empty content with
+  `finish_reason: length` — is recorded `TRUNCATED` with the cut named
+  (completion budget spent on reasoning vs window exhausted), never as a
+  retrieval miss; the per-depth `finish_reason` is in the artifact.  The first
+  llama-cpp arm hit this at the suite's 256-token needle default (a thinking
+  template spent it inside the think block).
 
 The first cut's failure mode was quiet until you watched the server logs: on a
 too-long error it shrank the *chars-per-token ratio* and rebuilt an equally-long
