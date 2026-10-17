@@ -169,12 +169,15 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   284 s per node on the weights-only stock).
 - Runtime sglang shim → `mods/tensorfold-dsv41-launcher` (reused unchanged from the ds4 lane).
   The command carries `--stock-model {model}`: the validator's identity token **and** the pack
-  the launcher reads the Engram tables from, since the grafted tree carries none. Served id:
+  the launcher reads the Engram tables from. Served id:
   `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` — the graft tree's
   identity, not the body pack. GPU memory utilisation stays ≤ 0.85.
 - **One pack per node serves both TP=2 arms** since 2026-10-17: the arm no longer mounts
-  `recipes/cybersec/mods/dsv41-engram-fetch`, so the second ~189 GiB Engram build per node is
-  gone (the arm and the ds4 lane read the combined pack's `engram/`).
+  `recipes/cybersec/mods/dsv41-engram-fetch`. The graft tree links the stock pack's `engram/`
+  rather than copying it — the author's script **copies** through the HF cache's blob symlinks
+  (measured: a 386 GiB tree before the fix), so the mod hands it a `--src` view without
+  `engram/` and symlinks the tables in. Net: the Mia weights copy and the second Engram build
+  are both gone.
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index

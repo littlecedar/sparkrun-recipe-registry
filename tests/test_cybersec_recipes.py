@@ -248,13 +248,33 @@ class NewMods(unittest.TestCase):
 
     def test_graft_mod_never_writes_the_stock_pack(self) -> None:
         script = (MODS / "graft-dsv41-ablit-wo-b" / "run.sh").read_text(encoding="utf-8")
-        # The stock dir is the graft's --src, and the mod refuses src == dst outright.
-        self.assertIn('--src "${STOCK}"', script)
+        # The stock dir is read through a symlink view (so its engram/ can be excluded) and the
+        # mod refuses src == dst outright.
+        self.assertIn('--src "${VIEW}"', script)
         self.assertIn('--dst "${OUTDIR}"', script)
         self.assertRegex(script, r"OUTDIR equals the stock snapshot")
         # Fail closed: an unverified graft must abort the launch, not serve the stock pack.
         self.assertIn("EXPECTED_N_EDITED", script)
         self.assertRegex(script, r"n_edited=\{n\}")
+
+    def test_graft_mod_shares_the_engram_tables(self) -> None:
+        """The tables must be linked, not copied: the script copies through symlinks.
+
+        Measured 2026-10-17: grafting straight from the combined snapshot materialized a 386 GiB
+        tree whose 189 GiB of Engram tables duplicated the pack. The mod now builds a src view
+        without engram/ and links the stock pack's tables into the graft tree -- and does so
+        *before* the ABLIT_META short-circuit, so an existing graft is repaired on the next
+        launch instead of waiting for a re-graft.
+        """
+        script = (MODS / "graft-dsv41-ablit-wo-b" / "run.sh").read_text(encoding="utf-8")
+        self.assertIn('ln -s "${STOCK}/engram" "${OUTDIR}/engram"', script)
+        self.assertIn('== "engram" ]] && continue', script)
+        repair = script.index("\nlink_engram\n")
+        short_circuit = script.index("ABLIT_META.json")
+        graft = script.index('python3 "${SCRIPT}" --src')
+        self.assertLess(repair, short_circuit, "the repair must precede the no-op exit")
+        self.assertLess(short_circuit, graft)
+        self.assertEqual(script.count("link_engram"), 3, "definition, repair, post-graft")
 
 
 class NegativeControls(unittest.TestCase):
