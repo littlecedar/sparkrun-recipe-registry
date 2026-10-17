@@ -14,7 +14,7 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 0 open (2026-10-16)
+# DECISIONS — 7 open (2026-10-17)
 
 New owner questions land here, each with a `→ Answer:` line. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
@@ -32,7 +32,21 @@ the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.
 - **Q4 — active-arm-only residency on `.34`** → *keep all four decision arms resident*; nothing reclaimed (recorded in `STORAGE-POLICY.md` §5).
 - **Q5 — the pooling ladder profile pair** → *ship it*: `benchmarking/pooling-ladder-embed.yaml` + `-rerank.yaml`.
 
-**No open questions as of 2026-10-16.**
+**Open questions (2026-10-17) — answer inline; a word per `→ Answer:` suffices:**
+
+- **#36 — When a tracked A/B wins, may it flip the shipped default, or does every call come back to you?** The open A/Bs all gate values we ship: ds4 `DSPARK_BLOCK_SIZE` 3 (the fork's γ=3 baseline, never measured here) vs the shipped 5; `DSV41_CACHE_GIB=0` vs shipped 4; `SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB; the `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE` re-test; ornith `moe_runner_backend: marlin` under an interleaved control; qwen4 `--enable-linear-replayssm-spec`, the `--fp4-gemm-backend` A/B (the shipped `flashinfer_cutlass` was inherited unmeasured), `--enable-int8-mamba-checkpoint`. Proposed policy: a same-window win by the mamba-ratio bar (≥ 2 % or outside σ) may flip the shipped value with a boot receipt + lane-doc/comment record; engine/container/digest changes and anything that moves accuracy semantics still come back to you first. → Answer:
+
+- **#37 — Pin the ds4 TP=2 arm's checkpoint?** `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` carries no `model_revision`, so it serves whatever `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram@main` is at launch; both nodes' snapshots and every TP=2 receipt ran `48afcd1c…` (2026-10-15). Pin that SHA, or keep tracking `main` (with the reason written down)? → Answer:
+
+- **#38 — The withdrawn K2-Horizon 36B-A4B sub-lane: revive or stay archived?** The work doc's ranked E-series was never run: D2 is the numerics gate (2 boots, precondition for any FP8 number), E6 (fp8-KV) is the largest modelled lever (+25 % @ 32K, +57 % @ 131K) but needs a scored run, E5/E7/E8 are single-node, E10 needs a TP=2 window. Revive bounded (D2 + E6), run the full E-series, or confirm withdrawn? → Answer:
+
+- **#39 — The unshipped 8B BF16 encoder tier: ship, quality-gate, or retire?** Measured: prefill within 1.2 % of the shipped AWQ 4-bit, +108 % memory, −41 % KV — no measured advantage; it exists only as `.scratch/embed/bf16ab.sh`. Its only remaining argument is embedding *quality*, which the lane has no instrument for. → Answer:
+
+- **#40 — The qwen4 workarounds: resolve the two blockers, or accept them as permanent?** `diag-qwen4-unplaced-scales` and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob ship only because the shared-expert scale blocker and the QSA-prefill crash are unexplained (the recipe comments say "removable when … retired"). Chase the explanations (medium; the W-series backlog boots the arm anyway), or declare them permanent fixtures? → Answer:
+
+- **#41 — The Laguna-M.1 2-node ceiling reference: build or drop?** Named then dropped by the lane's selection pass; the family's only 2-node datapoint is third-party (226B-A23B, NVFP4 139.3 GB — `attic/explore/EXPLORE-MODELS-RESEARCH.md:143`). Building it consumes the free `.34`/`.35` pair for a TP=2 boot. → Answer:
+
+- **#42 — Is a TP=4 window on `.30`–`.33` expected this stretch?** Six register items are gated on it — the GLM 4bpw boot, the qwen4 W6 TP=4 re-boot, the ornith 397B DFlash retry, the multi-node C2/C5/C10 cells, ds4's TP=2/TP=4 ladder rows, and the ds4 CERT/DRM re-test's node work. The peer DS4.1 TP=4 job's ETA is owner knowledge; "unknown"/"not this stretch" is a fine answer and decides whether these stay deferred or get sequenced late. → Answer:
 
 
 # TODO list
