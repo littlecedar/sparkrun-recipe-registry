@@ -10,11 +10,15 @@
 # arm is the sidecar spliced onto a stock EXL3 2.9bpw pack. This mod builds that graft into
 # sparkrun's managed runtime cache, from the *container's own* HF cache, without ever writing
 # the stock snapshot (the author's script hardlinks unchanged shards and refuses src == dst).
+# The stock it grafts onto is the combined littlecedar pack, so the Engram tables the launcher
+# reads (via --stock-model) are the ones already on the node: no second ~189 GiB copy.
 #
-# The Mia 2.9bpw pack's attention is EXL3 mul1 K=5, not FP8, so the EXL3 sidecar + the
+# The stock pack's attention is EXL3 mul1 K=5, not FP8, so the EXL3 sidecar + the
 # EXL3-specific graft script ("recipe D" in the overlay's INSTALL.md) are the correct pair;
 # the FP8 sidecar + apply_wo_b_graft.py belongs to native / Pollard / TR3 stock and mixing them
-# is explicitly forbidden by that document.
+# is explicitly forbidden by that document. Combining the tables into the stock repo
+# (tools/build-dsv41-combined.py) leaves the weights byte-identical, so the sidecar pair is
+# unchanged.
 #
 # Modifies no file under the stock snapshot. Fail closed: a graft that cannot be built and
 # verified aborts the launch rather than serving the stock (non-abliterated) checkpoint under
@@ -29,7 +33,7 @@
 set -euo pipefail
 
 export MOD_NAME="graft-dsv41-ablit-wo-b"
-export MOD_DESCRIPTION="Graft the drowzeys L10-35 attn.wo_b abliteration sidecar onto the Mia EXL3 2.9bpw pack"
+export MOD_DESCRIPTION="Graft the drowzeys L10-35 attn.wo_b abliteration sidecar onto the stock EXL3 2.9bpw pack"
 export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 export TIMEOUT="${MOD_TIMEOUT:-180}"
@@ -45,8 +49,10 @@ export USER_GROUP="$(stat -c '%G' /cache/runtime)"
 # Overlay repo + revision, pinned. Overridable for a re-pin A/B.
 OVERLAY_REPO="${OVERLAY_REPO:-drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed}"
 export OVERLAY_REVISION="${OVERLAY_REVISION:-87bb9850e6f49fd20ad9c8516b7817215cbbf5fc}"
-# The stock pack, by repo id (resolved in the container's HF cache).
-STOCK_REPO="${STOCK_REPO:-Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw}"
+# The stock pack, by repo id (resolved in the container's HF cache). The combined repo: its
+# weights are the Mia 2.9bpw shards byte-for-byte, and its engram/ subdir is what the launcher
+# hands the engine, so this arm adds no Engram copy to the node.
+STOCK_REPO="${STOCK_REPO:-littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram}"
 export STOCK_REPO
 export OUTDIR="${OUTDIR:-${CACHEDIR}/dsv41-ablit}"
 export WORKDIR="${WORKDIR:-${CACHEDIR}/dsv41-ablit-sidecar}"

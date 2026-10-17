@@ -42,11 +42,15 @@ mounted at `/cache/runtime`, not in the container's (ephemeral) home. This shim
 points TORCH_EXTENSIONS_DIR, the rank cache, and the token-map cache there.
 
 Engram. The two Engram embedding tables are ~95 GiB each and are NOT in the EXL3
-checkpoint; TensorFold reads them from the original DeepSeek shards 47/48. They
-live alongside the HF cache at `/cache/huggingface/hub/dsv41-engram` (see the
-recipe README's pre-warm step). If that directory is absent the engine still
-loads and serves, with a warning and degraded output -- the shim does not fail
-closed on it, it just does not set TF_DS_ENGRAM so the engine can say so.
+checkpoint; TensorFold reads them from the original DeepSeek shards 47/48. The
+shipped homes, in order: a combined checkpoint's own `engram/` subdir (what the
+DS4 TP=2 lane serves), the same subdir of a stock pack named by `--stock-model`
+(the cybersec abliterated arm serves a grafted tree and points back at the pack
+it was grafted from, so both lanes read one copy per node), then
+`/cache/huggingface/hub/dsv41-engram` (a hand pre-warm) and a
+sparkrun-distributed Engram repo. If none is found the engine still loads and
+serves, with a warning and degraded output -- the shim does not fail closed on
+it, it just does not set TF_DS_ENGRAM so the engine can say so.
 
 Vision. `--vision` (off by default) enables image input, which takes two parts:
 the engine flag, and the MoE gates' VL routing bias that the EXL3 pack omitted
@@ -82,21 +86,35 @@ ENGRAM_DIR = os.environ.get("TENSORFOLD_ENGRAM_DIR", "/cache/huggingface/hub/dsv
 TEMPLATE_NAME = "chat_template.jinja"
 
 
-def resolve_engram_dir(model_dir: str | None = None) -> str | None:
+def _engram_in(directory: str | None) -> str | None:
+    """``<directory>/engram`` when it holds tables, else None."""
+    if not directory:
+        return None
+    cand = Path(directory) / "engram"
+    if cand.is_dir() and any(cand.glob("*.safetensors")):
+        return str(cand)
+    return None
+
+
+def resolve_engram_dir(model_dir: str | None = None,
+                       stock_dir: str | None = None) -> str | None:
     """The directory the engine should read the Engram tables from, or None.
 
-    Three homes, in order:
+    Four homes, in order:
 
-    0. **A combined local repo** (``tools/build-dsv41-combined.py``): a single HF
-       directory holding both the EXL3 weights and the two upstream Engram
-       tables under an ``engram/`` subdir. When ``--model`` points at such a
-       repo, the tables live at ``<model_dir>/engram`` and are found here -- no
-       separate fetch, no pre-warm step. The subdir (not the root) is used on
-       purpose: the engine globs ``*.safetensors`` non-recursively, so handing it
-       the repo root would make it scan the 39 EXL3 shards.
-    1. ``TENSORFOLD_ENGRAM_DIR`` / the default ``/cache/huggingface/hub/dsv41-engram``
-       -- where the ``dsv41-engram-fetch`` mod (or a hand pre-warm) writes.
-    2. A sparkrun-*distributed* Engram repo: when the recipe declares
+    0. **The served checkpoint itself**, when it is a combined local repo
+       (``tools/build-dsv41-combined.py``): one HF directory holding both the
+       EXL3 weights and the two upstream Engram tables under an ``engram/``
+       subdir -- no separate fetch, no pre-warm step. The subdir (not the root)
+       is used on purpose: the engine globs ``*.safetensors`` non-recursively,
+       so handing it the repo root would make it scan the 39 EXL3 shards.
+    1. **The stock pack a graft was built from** (``--stock-model``): a grafted
+       tree carries weights and tokenizer files but no ``engram/``, so the arm
+       points back at the pack it grafted onto and every arm on the node reads
+       the same ~189 GiB of tables instead of storing a second copy.
+    2. ``TENSORFOLD_ENGRAM_DIR`` / the default
+       ``/cache/huggingface/hub/dsv41-engram`` -- a hand pre-warm.
+    3. A sparkrun-*distributed* Engram repo: when the recipe declares
        ``manateelazycat/DeepSeek-V4.1-Flash-TensorFold-Engram`` (or any repo
        carrying the tables) in ``distribution_config.models``, sparkrun
        downloads it on the head and rsyncs it to every worker, and it lands here
@@ -106,10 +124,10 @@ def resolve_engram_dir(model_dir: str | None = None) -> str | None:
        globs the directory non-recursively, so the dir handed to it must hold the
        ``*.safetensors`` directly.
     """
-    if model_dir:
-        cand = Path(model_dir) / "engram"
-        if cand.is_dir() and any(cand.glob("*.safetensors")):
-            return str(cand)
+    for candidate in (model_dir, stock_dir):
+        hit = _engram_in(candidate)
+        if hit:
+            return hit
     if Path(ENGRAM_DIR).is_dir() and any(Path(ENGRAM_DIR).glob("*.safetensors")):
         return ENGRAM_DIR
     root = Path(HF_HUB) / "models--manateelazycat--DeepSeek-V4.1-Flash-TensorFold-Engram"
@@ -259,6 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     # Image input. The VL routing bias this needs ships beside the launcher, so
     # the flag is the whole operator interface (see the docstring).
     parser.add_argument("--vision", action="store_true")
+    # The stock pack a graft was built from (the cybersec abliterated arm serves a
+    # grafted dir). Only the Engram resolver reads it; the served dir is --model.
+    parser.add_argument("--stock-model", default="")
     # sparkrun appends its rendezvous flags; capture them here so the shim owns
     # the mapping, and tolerate anything else the runtime may add.
     parser.add_argument("--dist-init-addr", default="")
@@ -273,14 +294,15 @@ def main(argv: list[str] | None = None) -> int:
     # The checkpoint must be resolved before the Engram tables, because a
     # combined local repo carries the tables in a subdir of the model dir.
     model_dir = resolve_checkpoint(args.model)
-    engram = resolve_engram_dir(model_dir)
+    stock_dir = resolve_checkpoint(args.stock_model) if args.stock_model else None
+    engram = resolve_engram_dir(model_dir, stock_dir)
     if engram:
         env["TF_DS_ENGRAM"] = engram
     else:
         print(
-            f"[tensorfold-launcher] no Engram tables at {ENGRAM_DIR} (or a combined "
-            "repo's engram/ subdir, or a distributed Engram repo): serving degraded "
-            "(see recipes/ds4/README.md for the pre-warm step)",
+            f"[tensorfold-launcher] no Engram tables at {ENGRAM_DIR} (or a model dir's "
+            "engram/ subdir, a --stock-model pack's, or a distributed Engram repo): "
+            "serving degraded (see recipes/ds4/README.md for the pre-warm step)",
             flush=True,
         )
     if args.vision:

@@ -1,7 +1,7 @@
 # graft-dsv41-ablit-wo-b
 
 Pre-exec mod for the `cybersec` lane's DeepSeek-V4.1-Flash abliterated arm. It grafts the
-**drowzeys `layers.10-35 attn.wo_b` sidecar** onto the **stock Mia EXL3 2.9bpw pack** and
+**drowzeys `layers.10-35 attn.wo_b` sidecar** onto the **stock EXL3 2.9bpw pack** and
 leaves the result under sparkrun's managed runtime cache, so the TensorFold launcher can
 serve an abliterated EXL3 pack without a second checkpoint on the Hub.
 
@@ -15,8 +15,11 @@ serve an abliterated EXL3 pack without a second checkpoint on the Hub.
 
 The overlay repo ships **no weights**: two small sidecars plus the author's graft scripts. The
 arm is the sidecar spliced onto a stock pack. The stock pack here is
-`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` — the same checkpoint the ds4 TP=2 TensorFold lane
-serves.
+`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` — the ds4 TP=2 TensorFold lane's
+combined repo, whose weight shards are the Mia 2.9bpw pack byte-for-byte and whose `engram/`
+subdir holds the Engram tables. One pack on a node therefore serves both TP=2 arms: this mod
+grafts from it, and the launcher reads the tables from it through `--stock-model`, so the
+second ~189 GiB Engram copy the lane used to build per node is gone.
 
 ## Which sidecar (do not mix)
 
@@ -28,8 +31,9 @@ interchangeable:
 | native MXFP4 / Pollard EXL3 3.5bpw / TR3-Hybrid | `wo_b_l10_35.safetensors` (FP8) | `apply_wo_b_graft.py` |
 | **Mia EXL3 2.9bpw** | `mia_exl3_wo_b_l10_35.safetensors` **EXL3 mul1 K=5** | `apply_mia_exl3_wob.py` |
 
-This mod uses the **EXL3** pair. The Mia pack's attention is EXL3 mul1 K=5, not FP8, and the
-author forbids mixing.
+This mod uses the **EXL3** pair. The pack's attention is EXL3 mul1 K=5, not FP8, and the
+author forbids mixing; combining the Engram tables into the stock repo left the weight shards
+untouched, so the pair still applies.
 
 ## Mechanics
 
@@ -64,6 +68,6 @@ band for such a node.
 
 ## Knobs
 
-`STOCK_REPO` (default `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`), `OVERLAY_REPO`,
+`STOCK_REPO` (default `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`), `OVERLAY_REPO`,
 `OVERLAY_REVISION`, `OUTDIR` (default `/cache/runtime/dsv41-ablit`), `WORKDIR`,
 `TOKENFILE`, `HF_HUB`.
