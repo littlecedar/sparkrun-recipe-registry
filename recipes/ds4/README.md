@@ -45,7 +45,7 @@ the recipe and the pre-launch mod (`recipes/ds4/mods/dsv41-sglang-overlay/`).
 Provenance: this lane adapts
 [`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
 (a downstream of MiaAI-Lab's recipe) onto sparkrun. The launcher, adapters, b12x
-kernels and measurement design are upstream's, kept under their licences. For
+kernels and measurement design are upstream's, kept under their licenses. For
 provenance, boot gates and limits in full, see [`attic/ds4/AGENTS.md`](../../attic/ds4/AGENTS.md).
 
 ### Run it
@@ -130,11 +130,11 @@ packed shards). The server is up when these appear in the serve log, in order:
 6. `Structured output, tool round trip and full-budget native vision passed.` —
    the image's own smoke test, which includes a native image-input check.
 
-### Licence
+### License
 
 The image's Dockerfile carries `SPDX-License-Identifier: Apache-2.0`; the overlay
 mod `recipes/ds4/mods/dsv41-sglang-overlay` is **AGPL-3.0-or-later**. The upstream launcher,
-adapters and b12x kernels are retained under their upstream licences (knapcio's
+adapters and b12x kernels are retained under their upstream licenses (knapcio's
 repo, itself a downstream of MiaAI-Lab's).
 
 ### Launch caveats
@@ -237,7 +237,7 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   port opens; later boots are much shorter. `port_timeout_s: 3600`,
   `health_timeout_s: 1800`.
 
-### Licence
+### License
 
 Engine: TensorFold **Apache-2.0** (a fork of ashhart/TensorFold v0.6.3); the
 `deepseek_v41` family is a clean-room re-implementation of DeepSeek's **MIT**

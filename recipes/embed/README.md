@@ -38,7 +38,7 @@ one Spark.
 | cpu_mask | `5-9` (fast X925 cluster half; solo: `-o cpu_mask=5-9,15-19`) |
 | flags | `--runner pooling --convert embed --limit-mm-per-prompt '{"image": 4, "video": 1}' --attention-backend b12x --block-size 128 --load-format instanttensor` |
 | tags | 🚀 fast · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
-| licence | Apache-2.0 |
+| license | Apache-2.0 |
 
 `--gpu-memory-utilization` is an **absolute cap on total device usage**, so the encoders and
 rerankers that share a host must have caps that SUM to a safe fraction: this 0.25 + the 2B
@@ -75,7 +75,7 @@ from quantization.
 | cpu_mask | `5-9,15-19` (whole fast cluster; colocated: `-o cpu_mask=5-9`, reranker on `15-19`) |
 | flags | `--runner pooling --convert embed --limit-mm-per-prompt '{"image": 4, "video": 1}' --attention-backend b12x --block-size 128 --load-format instanttensor` |
 | tags | 🚀 fast · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
-| licence | Apache-2.0 |
+| license | Apache-2.0 |
 
 **Do not size memory from `sparkrun recipe vram`'s "Model weights" line.** For a 4-bit
 checkpoint that line falls back to `param_count × dtype_bytes` (0.5 B/param for awq4) and

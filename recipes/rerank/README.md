@@ -54,7 +54,7 @@ serve score/rerank endpoints, not chat — read
 - **pooling caveat:** cross-encoder — the recipe pins `convert: classify` with the
   `Qwen3VLForSequenceClassification` / `classifier_from_token: ["no","yes"]` override;
   readiness is port + `/health` only.
-- **licence:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-2B` card).
+- **license:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-2B` card).
 
 ### `qwen3-vl-reranker-8b-vllm-b12x`
 
@@ -73,7 +73,7 @@ serve score/rerank endpoints, not chat — read
   the ~4× per-scored-document cost against the 2B is the accepted trade-off, not a defect. The
   checkpoint is **not** pre-cached: the first launch cold-fetches ~16 GB/node, taken as a
   cold-fetch cost rather than a residency. Closed by this decision; reopen only with new data.
-- **licence:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-8B` card).
+- **license:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-8B` card).
 
 ## Pooling endpoints — the client contract
 

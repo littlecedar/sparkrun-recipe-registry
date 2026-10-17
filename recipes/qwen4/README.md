@@ -7,7 +7,7 @@ tables, on DGX Spark (GB10). This directory is the `qwen4` model family (`model_
 The lane ships **two production recipes** after the 2026-10-14 cut: the fastest **TP=1** and
 the fastest **TP=2** arm of the six that used to live here, both serving the same checkpoint,
 [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4)
-(a QAD NVFP4/MXFP8 export; **licence: Qwen Community License 1.0**, `qwen-community-1.0`) — plus one
+(a QAD NVFP4/MXFP8 export; **license: Qwen Community License 1.0**, `qwen-community-1.0`) — plus one
 **revived, not-yet-measured** TP=2 high-concurrency arm (2026-10-15) that holds the
 aggregate-throughput regime the cut left in the attic. Everything else — lane state, measurement
 histories, negative results, the archived arms and their provenance — lives in
@@ -33,7 +33,7 @@ histories, negative results, the archived arms and their provenance — lives in
 | Spec decode | NEXTN — 3 steps / topk 1 / 4 draft tokens, `decode` attention mode |
 | Memory | `gpu_memory_utilization: 0.80`, mamba pool 112 (`max_mamba_cache_size`), `max_num_seqs: 24` |
 | Tags / vision | `lcg_favorite, fast, vision` — this export serves **text and vision** (BF16 vision tower) |
-| Licence | Qwen Community License 1.0 (`qwen-community-1.0`) |
+| License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 
 **Mod chain (6, ordered — `mods:` is a dependency chain, not a set).** Weights are served from the
 mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
@@ -96,7 +96,7 @@ ignored. Do not unpin: `main` has moved under us twice.
 | Spec decode | NEXTN — 3 steps / topk 1 / 4 draft tokens, `decode` attention mode |
 | Memory | `max_mamba_cache_size: 128` + `max_num_seqs: 32` (base: 112 / 24) — ~+0.85 GB/rank, ~−4.55% KV |
 | Tags / vision | `lcg_favorite, fast, vision` |
-| Licence | Qwen Community License 1.0 (`qwen-community-1.0`) |
+| License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 
 Revived 2026-10-15 from [`../../attic/qwen4/arms/…-highcon-sglang.yaml`](../../attic/qwen4/arms/) —
 the only archived arm holding the **aggregate-throughput regime**. It differs from the balanced base
@@ -139,7 +139,7 @@ balanced base (pool 112 / cap 24).
 | Spec decode | MTP — `num_speculative_tokens: 4` |
 | Memory | `gpu_memory_utilization: 0.8`, `max_num_seqs: 8`, `kv_cache_dtype: fp8` |
 | Tags / vision | `lcg_favorite` — no `vision` tag; metadata describes the text TP=1 route |
-| Licence | Qwen Community License 1.0 (`qwen-community-1.0`) |
+| License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 
 **The PLE knob.** The ~47.7 GiB FP8 PLE n-gram table — not weights + KV — is the component that does
 not fit one Spark's unified pool, so this recipe keeps it **off the device** with

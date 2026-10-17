@@ -425,9 +425,9 @@ copy — always md5 the head's file before a boot).
   `neg-1`. Thinking is on by default (replies carry `reasoning`), which is why the raised budget is
   used. Below both kept arms (Ling 37/37, Kolibri 36/37 @4096 / 37/37 union) and its XS sibling
   (36/37) on the lane's deciding factor.
-- **Draft licence (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4`
-  declares **no licence at all** — no `license` field in its card data and no LICENSE file; the BF16
-  sibling `poolside/Laguna-S-2.1-DFlash` is `license: other` with **no licence text in the repo**, so
+- **Draft license (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4`
+  declares **no license at all** — no `license` field in its card data and no LICENSE file; the BF16
+  sibling `poolside/Laguna-S-2.1-DFlash` is `license: other` with **no license text in the repo**, so
   "other" resolves only by implication to the target's OpenMDW-1.1 (`base_model: poolside/Laguna-S-2.1`).
   The target checkpoint is OpenMDW-1.1 (commercial + non-commercial). Recorded here, where the recipe
   is distributed, rather than assumed settled.
@@ -450,8 +450,8 @@ lane's `vllm-srun` precedent); `command:` runs a stdlib HTTP server (`POST /gene
 out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
 (`vllm/vllm-openai:v0.30.0` digest pin; the venv's own `transformers>=5.17` meets the card's floor —
 the image's copy is unused; see the *Engine bump* note below).
-Licence banner + policy note ship **in the recipe** (owner call 2026-10-14; MiniMax-M3 / S-2.1
-precedent): a recipe ships a repo id, not weights, and the downloader accepts the licence —
+License banner + policy note ship **in the recipe** (owner call 2026-10-14; MiniMax-M3 / S-2.1
+precedent): a recipe ships a repo id, not weights, and the downloader accepts the license —
 commercial use is still barred.
 
 - **Boot-verified on `.34`** (task `sparkrun_d87820463a694961_8ed3ce77d78f`): TTR port-open
@@ -469,7 +469,7 @@ commercial use is still barred.
   pre-exec hook with **`rc=120`** after a successful install. Both patterns are fixed in
   `mods/mod-template/run.sh` too.
 - **Verdict**: boots and serves text-to-image + editing on one GB10 at ~11.4 s per 1024²/8-step image
-  and ~36.9 GiB peak — off the lane's reasoning/tool brief **and licence-blocked for commerce**, so it
+  and ~36.9 GiB peak — off the lane's reasoning/tool brief **and license-blocked for commerce**, so it
   competes with nothing in the selection and ships as the banner-marked **eval-only** entry.
 - Receipts: `~/benchmarks/qwen-image-20261014/` on the head (`launch2.log`, `serve-tail.log`,
   `modlogs/`, `samples/`, `results.json`, `edit.json`, `measure.py`, `analyze.py`). Details:
@@ -599,7 +599,7 @@ quality tasks for speed) and the **Nemotron 1M arm** (a variant of it: 72.2 t/s,
 `Laguna-XS-2.1-NVFP4` + its DFlash draft (33B-A3B, 1 node) and `Laguna-S-2.1-NVFP4` (118B-A8B, 1 node)
 — shipped above, with `Laguna-M.1` left as an unbuilt 2-node ceiling reference; two
 **media-generation arms that sit outside this lane's reasoning/tool-calling brief** —
-`Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial licence**, shipped banner-marked eval-only,
+`Qwen/Qwen-Image-2.1-Turbo` (image; **non-commercial license**, shipped banner-marked eval-only,
 owner call 2026-10-14) and `Lightricks/LTX-2.5` (video+audio; gated repo, shipped as a runbook) — plus
 a third off-brief arm, the text-rewriting helper `jialinyyzz/humanizer` (12B Gemma-4 finetune,
 Apache-2.0, vLLM-servable via a byte-exact `/v1/completions` prompt).
@@ -650,14 +650,14 @@ YAML comments are reported per recipe below; the moved text follows.
 
 ### qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml
 
-- **Kept:** the LICENCE banner (compressed): the qwen-research NON-COMMERCIAL gate plus the
+- **Kept:** the LICENSE banner (compressed): the qwen-research NON-COMMERCIAL gate plus the
   operational directive that a commercial operator must swap the checkpoint (the serving path is
   checkpoint-agnostic). Also kept: `runtime: vllm` is the family whose distribution/launcher contract
   the diffusers script satisfies (no sglang/vLLM engine exists); "no chat surface → readiness is the
   port + `/health`, not an inference probe"; `served_model_name` is declared so the server advertises
   the repo id (sparkrun rebinds `{model}` to the snapshot path on a launch) and naming the flag stops
   the runtime's own `--served-model-name` append.
-- **Moved:** banner history — the MiniMax-M3 blocker and the Poolside S-2.1 draft-licence gap
+- **Moved:** banner history — the MiniMax-M3 blocker and the Poolside S-2.1 draft-license gap
   precedents, the owner call to ship with the banner, and the eval-only rationale (the lane's accuracy
   criterion has no axis for a text-to-image checkpoint). The full banner also lives verbatim in
   [`QWEN-IMAGE.md`](QWEN-IMAGE.md) and `recipes/explore/README.md`.

@@ -1471,7 +1471,7 @@ environment, applies the production configuration, resolves the checkpoint, and
 
 Upstream: [`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
 @ `58f2321`, a downstream of MiaAI-Lab's recipe. The launcher, adapters, b12x
-kernels, and measurement design are theirs, kept under their licences.
+kernels, and measurement design are theirs, kept under their licenses.
 
 ---
 
@@ -2802,7 +2802,7 @@ vendored image; this repository supplies only the recipe and the pre-launch mod
 Provenance: this lane adapts
 [`knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4`](https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
 (a downstream of MiaAI-Lab's recipe) onto sparkrun. The launcher, adapters, b12x
-kernels, and measurement design are upstream's, kept under their licences.
+kernels, and measurement design are upstream's, kept under their licenses.
 For provenance, boot gates, and limits in full, see [`AGENTS.md`](AGENTS.md) in
 this directory (the archived analysis behind this lane is in
 [`attic/ds4/`](../../attic/ds4/)).

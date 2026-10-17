@@ -123,7 +123,7 @@ fields and select the phase with `is_context_prefill_phase`; never quote the pri
    `COOP.md` "Live state" row** (and must be re-checked each session). Resolve hostnames to addresses and
    compare before acting. Never assume node `.30` (the NFS/HF head) is available — touching a serving
    node stalls every boot on the fleet. (Historical fixpoint: an earlier session crashed a node; the
-   operator accepts occaisional alpha-software crashes but this is not a licence to treat restricted
+   operator accepts occaisional alpha-software crashes but this is not a license to treat restricted
    nodes as free.)
 2. **One cluster job at a time.** The free pair supports exactly one TP=2 arm; cluster time is the
    scarcest resource here. Queue cluster work in the working ledger (`COOP.md`) and claim it before launching. `launch.sh`

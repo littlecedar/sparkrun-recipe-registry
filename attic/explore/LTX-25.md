@@ -10,11 +10,11 @@ precedent). **Shipped as a runbook** (no sparkrun recipe): runtime is ComfyUI
 
 ## Access
 
-`gated: auto`, licence `ltx-2.x-community-license-agreement`. Token
+`gated: auto`, license `ltx-2.x-community-license-agreement`. Token
 `twichert` (org littlecedar) **has acceptance** — README resolve over the
 token returned HTTP 200 on the head (`curl -H "Authorization: Bearer ..."`
 against `Lightricks/LTX-2.5/resolve/main/README.md`). Per-repo: a fresh node
-must re-accept + re-login before its first fetch. Licence: free commercial
+must re-accept + re-login before its first fetch. License: free commercial
 use below a $10M-revenue Commercial Entity threshold (text read 2026-10-14
 via the accepted token: 2.x follows the LTX-2 family pattern — confirm the
 exact wording before shipping to third parties; the full text is

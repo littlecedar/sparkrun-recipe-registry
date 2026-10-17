@@ -4,7 +4,7 @@
 text encoder) as a **two-stage** ComfyUI run on one GB10 node. This arm ships
 as a runbook, not a sparkrun recipe: the runtime is ComfyUI (no
 `sglang|vllm` engine), the repo is `gated: auto` (per-node `HF_TOKEN` +
-accepted terms are a prerequisite sparkrun cannot assume), and the licence is
+accepted terms are a prerequisite sparkrun cannot assume), and the license is
 `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial
 Entity threshold; read the 2.x text before shipping to third parties —
 `https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x`).

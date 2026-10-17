@@ -24,7 +24,7 @@ research prose removed from the index goes to `attic/PRIMARY-README-ARCHIVE.md`.
    and test dependencies (`grep -rn 'AGENTS\.md' tests/`) — a guard may assert a lane doc's existence.
 2. **Per lane (one agent per lane; disjoint scopes).**
    - Rewrite `recipes/<lane>/README.md`: `## Contents`, one section per shipped recipe (repo id,
-     size/mem/TP/flags, the knobs a user cannot infer and what breaks if they move, licence, launch
+     size/mem/TP/flags, the knobs a user cannot infer and what breaks if they move, license, launch
      caveats), then `## Attic index`.
    - Move to `attic/<lane>/` **verbatim**: `AGENTS.md` → `attic/<lane>/AGENTS.md`, `NOTES.md` →
      `attic/<lane>/NOTES.md`, and each standalone research doc. **If the destination exists, APPEND

@@ -399,7 +399,7 @@ keep rediscovering.
 
 ---
 
-## 4. Qwen3.8-27B "same model, three packs": licence verdict, and no sidecar
+## 4. Qwen3.8-27B "same model, three packs": license verdict, and no sidecar
 
 Three packs of the same base, each shipped as one arm:
 
@@ -409,19 +409,19 @@ Three packs of the same base, each shipped as one arm:
 | `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` | `recipes/cybersec/qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml` | 20.6 GB (+0.85 GB MTP, +3.9 draft) | `.32` |
 | `orcarouter/Qwen3.8-27B-Uncensored-NVFP4` | `recipes/cybersec/qwen3.8-27b-uncensored-nvfp4-sglang.yaml` | 24.7 GB | `.32` (and a 10.0 GB partial on `.30`) |
 
-### Licence, read from the primary artifacts (2026-10-15)
+### License, read from the primary artifacts (2026-10-15)
 
 The base is `Qwen/Qwen3.8-27B`, **Apache-2.0**, `LICENSE` = 11 544 bytes, `"Copyright 2026 Alibaba
 Cloud"` (`https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/LICENSE`, sha256
 `bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a`).
 
-| pack | declaration | licence file | redistribution |
+| pack | declaration | license file | redistribution |
 |---|---|---|---|
 | RadixArk | card front-matter `license: apache-2.0`, `base_model: Qwen/Qwen3.8-27B`; card §"License/Terms of Use: [Apache License 2.0](./LICENSE)" | `LICENSE` **byte-identical** to Qwen's (same sha256) | **clearly permitted** |
 | orcarouter | card `license: apache-2.0`, `base_model: Qwen/Qwen3.8-27B` (`quantized`); card §License: *"**Apache 2.0**, inherited from the base model … Abliteration and quantization do not change the underlying license obligations."* | `LICENSE` byte-identical to Qwen's (fetched with the node's own `HF_TOKEN`, repo is `gated: auto`; same sha256) | **clearly permitted** |
-| sakamakismile (AEON) | card `license: apache-2.0`, `base_model: AEON-7/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-BF16`; the AEON-7 pack's card §License: *"Apache 2.0 (inherited from Qwen/Qwen3.8-27B)."* | **no `LICENSE` file in either repo** — the licence is declared in the card only | permitted by the declared licence, with a caveat |
+| sakamakismile (AEON) | card `license: apache-2.0`, `base_model: AEON-7/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-BF16`; the AEON-7 pack's card §License: *"Apache 2.0 (inherited from Qwen/Qwen3.8-27B)."* | **no `LICENSE` file in either repo** — the license is declared in the card only | permitted by the declared license, with a caveat |
 
-The caveat is not the licence, it is the extra terms the AEON-7 card attaches: a "User Responsibility &
+The caveat is not the license, it is the extra terms the AEON-7 card attaches: a "User Responsibility &
 Arbitration Clause" whose acceptance is triggered by *"accessing, downloading, using, running inference
 on, fine-tuning, merging, quantizing, distributing, integrating, or otherwise interacting with this
 model"* — binding arbitration, indemnification, AS-IS. It names the same model as Apache-2.0 two
@@ -451,9 +451,9 @@ the abliterated overlay are both **EXL3 mul1 K=5** on the same base, so the delt
 682 MB over a 197 GB pack (`recipes/cybersec/mods/graft-dsv41-ablit-wo-b`) — a same-quantiser pairing.
 
 - **RadixArk** — base, stays as the resident full export. Nothing to save.
-- **orcarouter** — licence clear; **keep the full export.** A sidecar would save ~24.7 GB/node and
+- **orcarouter** — license clear; **keep the full export.** A sidecar would save ~24.7 GB/node and
   cannot be built from anything on the Hub today without a new quantiser-matched delta export.
-- **sakamakismile (AEON)** — licence permitted with the acceptance-clause caveat above; **keep the full
+- **sakamakismile (AEON)** — license permitted with the acceptance-clause caveat above; **keep the full
   export**, same reason. ~20.6 GB/node.
 
 **Size saved: 0 GB.** Building a same-quantiser delta for either pack is a re-quantisation project
@@ -476,7 +476,7 @@ positions, not questions, so a later pass reads the call rather than re-opening 
    2026-10-17T11:13 — or the four absolute paths in §2, hand-removed. 379.6 GB across `.30`–`.33`, and
    a leaf key no shipped recipe can produce is stale whatever `.sparkrun-last-used` says.
 2. **AEON-7 clause: nothing recorded.** We redistribute nothing (pull-only), so neither the
-   arbitration clause nor the three cards' licence declarations are written into the lane docs or the
+   arbitration clause nor the three cards' license declarations are written into the lane docs or the
    index rows.
 3. **Decision-lane residency on `.34`: keep all four arms resident.** No reclaim — the 45.3 GB stays
    warm, and the embed/rerank tier switch keeps costing its +15.0 GB/node separately.
@@ -495,5 +495,5 @@ positions, not questions, so a later pass reads the call rather than re-opening 
   regular-file copies, not one shared blob. The probe scripts were run once from `/tmp` and deleted.
 - `sparkrun setup prune-runtime-cache --help` and `--dry-run` on the head; the installed
   `sparkrun/core/runtime_cache.py` and `orchestration/runtime_cache.py` as cited above.
-- Licence artifacts: HF API metadata for the four repos; the three `LICENSE`/card fetches quoted in §4
+- License artifacts: HF API metadata for the four repos; the three `LICENSE`/card fetches quoted in §4
   (the orcarouter one with the node's `HF_TOKEN`; never printed here).

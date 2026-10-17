@@ -401,7 +401,7 @@ stays in the recipe with a one-line why.
 ```
 
 ```yaml
-  # Licence: Apache-2.0 (card front matter).
+  # License: Apache-2.0 (card front matter).
 ```
 
 ```yaml

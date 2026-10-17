@@ -22,7 +22,7 @@ Neither harvested variant carries this cluster's fabric addresses â€” the `.30â€
 `NCCL_SOCKET_IFNAME` and `NCCL_IB_HCA`/GID settings live in the runbook prose and must be
 re-applied on a revive.
 
-## Provenance and licence
+## Provenance and license
 
 Both sources are upstream Apache-2.0: `github.com/bertholomus/glm-5.3-tensorfold-tp4-4xgb10`
 (the `*-launcher-clone` pair) and `github.com/bertholomus/TensorFold` (the

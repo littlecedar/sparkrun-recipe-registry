@@ -55,7 +55,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 | spec decode | MTP — the checkpoint's own head, `num_speculative_tokens: 3` |
 | flags | 🌲👀🧠🦾🔧 |
 | decode C1 | card **41.86 t/s**; house **42.55 t/s** @ d0 (σ 2.78) / **38.48** @ d8192 (σ 1.91), accept len 2.68–3.06 |
-| licence | MIT (same as the family) |
+| license | MIT (same as the family) |
 
 **The speculative config is a declared default, not inline JSON — keep it that way.**
 `defaults.speculative_config` holds the whole `--speculative-config` JSON and `command:` renders it
@@ -118,7 +118,7 @@ returns the run's own loader, i.e. the standard safetensors path.
 | tool calls | BFCL v3 **86.9%** (1078/1240, 5 AST categories, 0 transport errors); tool-eval-bench **100** (15/15 core, ref `v2.6.0`) |
 | standard pass | 2026-10-15, `.34`, one boot — receipts `~/benchmarks/ornith-35b-suite-20261015/`: `summary.json` (quality), `hard/` (gsm8k/arc), `perf-ladder.yaml` (bench `bench_8c7486cad451`), `teb.yaml` (bench `bench_6b5b53dd4efb`), `serve.log`, `launch.log` |
 | standard pass (2026-10-16) | Re-run, one boot on `.34`, three legs — receipts `~/benchmarks/ornith-35b-suite-20261016/`: eval-suite 1.0.1 verdict **ok** (contract ok; house **37/37** = easy 19/19 + hard 18/18; needle **3/3 at each of 32k / 131k / 262k**, the top rung at 256,394-token prompts, 142.5–142.9 s per probe); ladder **C1 101.8 ± 8.7 · C2 153.1 ± 6.4 · C5 217.4 ± 10.0 · C10 244.2 ± 3.2 t/s** @ d0 (per-stream 101.8 / 79.8 / 54.5 / 34.2, ttfr 303 / 582 / 1208 / 1973 ms); tool-eval-bench v2.6.0 **100** (15/15 pass, 0 partial, 0 fail; deployability 95, responsiveness 83). Reproduces the 2026-10-15 pass. |
-| licence | MIT (checkpoint; the NVFP4 export is MIT) |
+| license | MIT (checkpoint; the NVFP4 export is MIT) |
 
 **The 2026-10-15 standard pass is the lane's first tool-call and concurrency measurement.** One boot,
 three legs, `benchmarking/concurrency-ladder.yaml` at d0 (5 runs/cell) and
@@ -185,7 +185,7 @@ served with no `--limit-mm-per-prompt` cap.
 | decode C1 | **~52–59 t/s** (52–57 cold / 54–59 warm), accept len mean 3.35 |
 | decode C2 · C5 · C10 | **101.1 · 159.0 · 148.9 t/s** @ d0 (σ 8.3 / 7.8 / 4.8, n=5) — same-boot C1 **58.0** (σ 8.8); bench `bench_92725c90d298` |
 | quality | 37/37 house battery (19/19 easy + 18/18 hard) |
-| licence | MIT |
+| license | MIT |
 
 **Concurrency ladder, 2026-10-15 (`.34`, one fresh boot, `benchmarking/concurrency-ladder.yaml`, d0,
 5 runs/cell, decode-phase rows only).** The C1 headline is confirmed on this boot at **58.0 t/s**
@@ -248,7 +248,7 @@ SGLang · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing me
 | flags | ✨🚚👀🧠🦾🔧 — **no** 🚀 (no measured C1) and **no** 🌲 (the arm has to earn it) |
 | draft | **none** — deliberate, see below |
 | status | `validate`-clean; `sparkrun run … -n` renders; **no boot, no C1, no house battery, no needle receipt** |
-| licence | MIT (same checkpoint as the sibling) |
+| license | MIT (same checkpoint as the sibling) |
 
 **The route is the model card's, not ours.** Both Ornith 1.5 cards publish it; the 35B card, verbatim:
 Ornith "handles context windows of up to 262,144 tokens. When a task's combined input and output must
