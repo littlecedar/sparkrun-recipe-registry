@@ -56,6 +56,13 @@ text bias). `vl_bias.safetensors` ships beside this launcher, and
 `*.safetensors` in it, so a file path reads 0 gates. Unlike Engram this DOES
 fail closed: the engine only warns when the bias is missing, which would look
 like working vision, so a `--vision` boot without the file aborts.
+
+Vision also needs the chat template. The upstream DeepSeek-V4.1 template raises
+on the placeholder the engine's own vision path inserts
+(`families/deepseek_v41/cuda/app.py`, `DsVision.split`), so the server answered
+HTTP 400 on every image request; a `--vision` boot therefore serves from a
+symlink farm of the checkpoint (`RUNTIME_CACHE/model-overlay`) whose
+`chat_template.jinja` is this mod's patched copy.
 """
 from __future__ import annotations
 
@@ -69,6 +76,10 @@ from pathlib import Path
 HF_HUB = "/cache/huggingface/hub"
 RUNTIME_CACHE = "/cache/runtime/tensorfold"
 ENGRAM_DIR = os.environ.get("TENSORFOLD_ENGRAM_DIR", "/cache/huggingface/hub/dsv41-engram")
+
+#: The template served instead of the checkpoint's own (see "Vision" above).
+#: sparkrun ships the mod directory, so this file travels with the launcher.
+TEMPLATE_NAME = "chat_template.jinja"
 
 
 def resolve_engram_dir(model_dir: str | None = None) -> str | None:
@@ -182,6 +193,40 @@ def prepare_runtime_cache() -> None:
         Path(RUNTIME_CACHE, sub).mkdir(parents=True, exist_ok=True)
 
 
+def build_model_overlay(model_dir: str) -> str:
+    """Serve a model dir whose ``chat_template.jinja`` is this mod's patched one.
+
+    ``cuda/chat_template.py`` reads ``<model_dir>/chat_template.jinja`` when it
+    exists and only falls back to ``tokenizer_config.json["chat_template"]``, so
+    the overlay is a symlink farm of the checkpoint with one real file: nothing
+    is copied (a 197 GB checkpoint) and the node's HF snapshot stays untouched.
+    The farm is rebuilt every boot: stale links from another checkpoint (this
+    lane serves both the EXL3 pack and a 1017 refresh) are dropped.
+    """
+    src = Path(model_dir).absolute()
+    overlay = Path(RUNTIME_CACHE) / "model-overlay"
+    overlay.mkdir(parents=True, exist_ok=True)
+    names: set[str] = set()
+    for entry in src.iterdir():
+        if entry.name == TEMPLATE_NAME:
+            continue
+        names.add(entry.name)
+        link = overlay / entry.name
+        if link.is_symlink() and os.readlink(link) == str(entry):
+            continue
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(entry)
+    for stale in overlay.iterdir():
+        if stale.name != TEMPLATE_NAME and stale.name not in names:
+            stale.unlink()
+    template = Path(__file__).resolve().parent / TEMPLATE_NAME
+    tmp = overlay / (TEMPLATE_NAME + ".tmp")
+    tmp.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+    os.replace(tmp, overlay / TEMPLATE_NAME)
+    return str(overlay)
+
+
 def served_model_name(value: str) -> str:
     """Normalize a `--served-model-name` that arrived as a filesystem path.
 
@@ -254,6 +299,29 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
         env["TF_DS_VISION_EXTRA"] = str(vision_dir)
+        template = vision_dir / TEMPLATE_NAME
+        if not template.is_file():
+            print(
+                f"[tensorfold-launcher] --vision: {template} missing from the mod dir; "
+                "the checkpoint's own template refuses the placeholder the vision path "
+                "inserts, so every image request would 400 -- refusing to start",
+                flush=True,
+            )
+            return 2
+        if Path(model_dir).is_dir():
+            model_dir = build_model_overlay(model_dir)
+            print(
+                f"[tensorfold-launcher] vision template: serving {model_dir} "
+                f"({TEMPLATE_NAME} from the mod dir)",
+                flush=True,
+            )
+        else:
+            print(
+                f"[tensorfold-launcher] --vision: {model_dir} is not a local directory "
+                "(dry run or unresolved repo): the checkpoint's own template is served, "
+                "image requests will 400",
+                flush=True,
+            )
     os.environ.update(env)
 
     master, _, master_port = args.dist_init_addr.partition(":")
