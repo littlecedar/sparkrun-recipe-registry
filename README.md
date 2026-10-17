@@ -15,15 +15,12 @@
 This is the **Little Cedar Group recipe registry** for [sparkrun](https://github.com/spark-arena/sparkrun) from
 the [Little Cedar Group][littlecedar] team.
 
-Our recipes are run with the `@littlecedar` prefix:
-
-```bash
-sparkrun run @littlecedar/our-awesome-recipe
-```
-
 ## Contents
-
-- [Recipes](#recipes)
+- [Install Our Registry](#install-the-registry)
+- [Run Our Recipes](#run-little-cedar-groups-recipes)
+- [Our Recipe Format](#recipe-format)
+- [Links](#links)
+- [Little Cedar Sparkrun Recipes](#little-cedar-sparkrun-recipes)
   - [DeepSeek V4](#deepseek-v4)
   - [Ornith 1.5](#ornith-15)
   - [Embed](#embed)
@@ -40,12 +37,24 @@ sparkrun run @littlecedar/our-awesome-recipe
 - [Mechanics](#mechanics)
 - [References](#references)
 
-# Recipe Format
+# Install the Registry
 
-Recipes follow the standard Sparkrun recipe schema with some additional metadata and formatting divergences (we use YAML `>` instead of `|` for readability and resilience). See
-the [recipe authoring docs](https://sparkrun.dev/recipes/format/) for the full specification.
+You can install our registry in Sparkrun like this:
+```bash
+sparkrun registry add @littlecedar https://github.com/littlecedar/sparkrun-registry
+```
+After reviewing the recipes you'd like to run, it is recommended to trust our registry like this:
+```bash
+sparkrun registry trust @littlecedar
+```
 
 # Run Little Cedar Group's Recipes
+
+Our recipes are run with the `@littlecedar` prefix:
+
+```bash
+sparkrun run @littlecedar/our-awesome-recipe
+```
 
 ```bash
 # List available recipes
@@ -60,13 +69,18 @@ sparkrun show @littlecedar/our-awesome-recipe
 sparkrun recipe vram @littlecedar/our-awesome-recipe
 ```
 
+# Recipe Format
+
+Recipes follow the standard Sparkrun recipe schema with some additional metadata and formatting divergences (we use YAML `>` instead of `|` for readability and resilience). See
+the [recipe authoring docs](https://sparkrun.dev/recipes/format/) for the full specification.
+
 # Links
 
-- [Little Cedar Group][littlecedar] — resilience-focused technology
+- [Little Cedar Group][littlecedar] — our resilience-focused technology company
 - [Spark Arena](https://spark-arena.com) — community benchmarking hub
-- [sparkrun](https://github.com/spark-arena/sparkrun) — the tool that runs recipes
-- [sparkrun docs](https://sparkrun.dev) — full documentation
-- [`mad-science/`](mad-science/README.md) — research notes: traced claims, negative results, and experiments behind the recipes (not part of the registry)
+- [sparkrun](https://github.com/spark-arena/sparkrun) — our favorite tool for AI workload management
+- [sparkrun docs](https://sparkrun.dev) — full Sparkrun documentation
+- [`mad-science/`](mad-science/README.md) — Our autoresearch notes, traced claims, negative results, and experiments behind our validated recipes and claims (not part of the registry)
 
 [//]: # (- [Recipe Explorer]&#40;https://recipes.sparkrun.dev&#41; — browse and filter all recipes)
 
@@ -126,7 +140,8 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   70.4 |  114.0 |  177.1 |   249.5 |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound] — vLLM; 2.1× DFlash2 C1; 2026-10-16 ladder, receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`                                                 |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   44.8 |   57.7 |   64.4 |    65.6 | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **TensorFold** engine; ladder 2026-10-17 (`bench_b10e422bb046`), arc 94.0%/gsm8k 96.5%, TEB 100, bfcl 85.7%‡             |
 
-* _`‡` its `tools` (bfcl) leg ran at bfcl-eval's 512-token completion default — the suite passed no `--max-tokens` until 2026-10-17 — so 25 of the 400 parallel questions came back with no call and the figure is budget-annotated, not a capability ceiling; a 4096 re-run is queued. `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
+* _`‡` its `tools` (bfcl) leg ran at bfcl-eval's 512-token completion default — the suite passed no `--max-tokens` until 2026-10-17 — so 25 of the 400 parallel questions came back with no call and the figure is budget-annotated, not a capability ceiling; a 4096 re-run is queued. 
+* `*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
 * _The `qwen3.8-27b-nvfp4-dflash2` row mixes boots: its **C1 33.8** is the arm's pre-loader-fix single-point reference (2026-10-15) and C2/C5/C10 are the 2026-10-17 re-measure, within noise of the shipped-boot ladder the lane doc also holds (31.7 / 54.3 / 95.5 / 94.5, `bench_017bdc06394d`)._
 
 ## Qwen 4x
@@ -157,7 +172,8 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | kai-0.6b-decision-vllm-srun | 🤏🖥🚮   |    47.5% |        — |        — |        — |         — |  1.5GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] |
 | sol-2b-decision-vllm-srun   | 🤏🖥🚮   |      55% |        — |        — |        — |         — |  4.8GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
 
-* _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs). The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
+* _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs). 
+* The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
 
 ## Explore
 
@@ -172,7 +188,10 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | mellum2.1-12b-a2.5b-bf16-thinking-vllm        | ✨🧠🔧   |        42.3 |   67.2 |   99.9 |   135.6 |               24.3GB |   55% | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking] — **boot-verified 2026-10-15, house battery 36/37 (easy 18/19 — `needle-1`; hard 18/18)**; ladder @ d0 pp2048 tg128 n=5: C2 67.2 / C5 99.9 / C10 135.6 t/s                             |
 | mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🧠🔧   |       111.9 |  151.1 |  208.0 |   146.4 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF] — **llama.cpp arm; boot 2026-10-17: house 37/37; needle 3/3 by union @32k+131k (32k: depth 50 at 4,096 tokens, depth 90 thinking off); arc 77.0%/gsm8k 93.5%, bfcl 88.3%, TEB 97**|
 
-* _`‡` 88 GB on disk, of which 24 GB loads. `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling. The llama-cpp arm caps nothing (llama.cpp sizes its own pool from `--ctx-size`/`--parallel`), so its Mem% cell is `—`. **The llama-cpp row's bfcl cell is the 4096-budget leg** (`--bfcl-max-tokens 4096`, `~/benchmarks/mellum-gguf-tools4096-20261017/`): at the pre-`3ac9581` 512 default the same arm scored 73.5 %, with 179 of the two parallel categories' 400 questions cut to no call at all; at 4096 only six are cut and the residual loss there is multi-call shape, not budget._
+* _`‡` 88 GB on disk, of which 24 GB loads.
+* `*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB. 
+* `📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); the Laguna-S draft declares no licence, `other` in its BF16 sibling. 
+* The llama-cpp arm caps nothing (llama.cpp sizes its own pool from `--ctx-size`/`--parallel`), so its Mem% cell is `—`. **The llama-cpp row's bfcl cell is the 4096-budget leg** (`--bfcl-max-tokens 4096`, `~/benchmarks/mellum-gguf-tools4096-20261017/`): at the pre-`3ac9581` 512 default the same arm scored 73.5 %, with 179 of the two parallel categories' 400 questions cut to no call at all; at 4096 only six are cut and the residual loss there is multi-call shape, not budget._
 
 ## Cybersec
 
@@ -182,7 +201,9 @@ from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 | qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 🚀👀🏴📜  |   33.3 |   49.4 |   84.6 |    92.9 | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2] — **positive**, battery 37/37; 2026-10-17 ladder `bench_3ee8fda63ada`|
 | deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   63.7 |      — |      — |       — |  211GB + 1.8GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed] — **positive** (stock Mia EXL3 pack + `attn.wo_b` sidecar graft), battery 36/37, 1M ctx         |
 
-* _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted. The AEON row's **C1 33.3** is its earlier single-point figure — **C2/C5/C10 are the 2026-10-17 ladder** (`bench_3ee8fda63ada`), the lane's first._
+* _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. 
+* `📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted. 
+* The AEON row's **C1 33.3** is its earlier single-point figure — **C2/C5/C10 are the 2026-10-17 ladder** (`bench_3ee8fda63ada`), the lane's first._
 
 # Model Flags
 
