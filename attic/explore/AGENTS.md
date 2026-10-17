@@ -268,7 +268,8 @@ the recipe adds `--generation-config vllm` so the checkpoint's own `generation_c
 never becomes a server default. The checkpoint ships **no chat template** at all — vLLM's
 `/v1/chat/completions/render` 400s on it — so the completion endpoint is the only surface.
 Sampling is per-request (temp 1.0, top_p 0.95, top_k off, min_p 0, rep 1.0, ≤2048 tokens, no stop
-strings). Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri.
+strings). Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri (moved to `v0.30.0` 2026-10-16 —
+boot receipt in §Engine bump below).
 
 - **Boot-verified on `.35`**: task `sparkrun_4bceadd734dbdb40_64af2f7668b6`; container start →
   **TTR port-open 277.9 s** (HTTP-ready 277.9 s), total launch 1082.9 s. The serve log resolves
@@ -447,7 +448,8 @@ NON-COMMERCIAL ONLY**) served by diffusers' `QwenImage21Pipeline` on **one** nod
 the family whose distribution + single-node launcher contract the command satisfies (the Decision
 lane's `vllm-srun` precedent); `command:` runs a stdlib HTTP server (`POST /generate`, `GET /health`)
 out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
-(`vllm/vllm-openai:v0.29.0` digest pin — the image's transformers 5.16.1 is below the card's floor).
+(`vllm/vllm-openai:v0.30.0` digest pin; the venv's own `transformers>=5.17` meets the card's floor —
+the image's copy is unused; see the *Engine bump* note below).
 Licence banner + policy note ship **in the recipe** (owner call 2026-10-14; MiniMax-M3 / S-2.1
 precedent): a recipe ships a repo id, not weights, and the downloader accepts the licence —
 commercial use is still barred.
@@ -523,6 +525,54 @@ rather than blocked.
   receipt: the engine's KV-grant line (serve-log capture gap), the tool round trip, long-context
   correctness beyond the short `needle-1` probe, and the BFCL datapoint — the per-arm record's §6.
 - Details, provenance and what the boot answered: [`MELLUM-21.md`](MELLUM-21.md).
+
+## Engine bump — vLLM 0.30.0 (2026-10-16)
+
+The 2026-10-15 advisory pass opened this: move the lane's six `vllm/vllm-openai:v0.29.0` arms to
+`v0.30.0@sha256:8a69ffad…` (**0** OSV records, vs 23 at 0.29.0). Pin commit `0c41f18` moved five of the six (Kolibri held on its plugin); three pins
+went back on `2a8243f` after the device-free preflight below.
+
+**Preflight before booting (worth repeating on every engine bump):** run the new image's own config
+loader against every pinned arm, on a node, with the **HF repo dir** mounted — never a
+`snapshots/<sha>` dir, whose entries are `../../blobs` symlinks that dangle outside the repo dir:
+
+    docker run --rm -i -v <hf-cache>/models--<org>--<name>:/repo:ro --entrypoint python3 <new-image> - <<'PY'
+    from vllm.transformers_utils.config import get_config
+    print(get_config('<repo>', False, revision='<pin>'))
+    PY
+
+Three of the five moved arms cannot load their config on 0.30.0 (transformers 5.17.0):
+
+- **mellum2.1-12b** — vLLM 0.30.0 ships its own `MellumConfig`
+  (`vllm/transformers_utils/configs/mellum.py`, a `Qwen3MoeConfig` subclass) and registers it for
+  model_type `mellum` ahead of transformers' upstream class. The stub takes the generic
+  `convert_rope_params_to_dict` path, which `setdefault`s a flat `rope_theta` / `rope_type` beside
+  this checkpoint's nested per-layer `rope_parameters`; `patch_rope_parameters` then calls
+  `validate_rope`, which iterates the dict's values and dies on the float
+  (`AttributeError: 'float' object has no attribute 'get'`, `config.py:580` →
+  `modeling_rope_utils.py:850`). Reproduced device-free and live (the first boot on `.35` died in
+  the same frame, before any weight load). **Unblock probed:**
+  `hf_overrides_kw={'rope_parameters': <the checkpoint's own dict>}` loads clean — a recipe could
+  carry the values (duplicating the checkpoint's rope config) if the arm must move before upstream
+  fixes the stub.
+- **poolside-laguna-{s,xs}-2.1** — both pinned revisions fail config *construction* in transformers
+  5.17: `AutoConfig.from_pretrained` → `LagunaConfig.from_dict` raises
+  `AttributeError: 'str' object has no attribute 'get'` (identical with `trust_remote_code` True and
+  False). Upstream's `Laguna-XS.2` repo carries a "compatible with Transformers 5.17" fix (a
+  `rope_parameters` trailing-comma shape); these 2.1 pins predate it, so the unblock is a re-pin —
+  a lane decision, since the arms' measured numbers belong to the old pin.
+
+**Boot-verified on 0.30.0:** `humanizer-12b-vllm` — task `sparkrun_17678da2f7107eb2_a4bf874feb5a`
+on `.35`: engine `vllm 0.30.0`, container `.Image` == the manifest list's arm64 config digest
+(`91d9b077…`), TTR port-open 252.4 s, `GET /v1/models` → `jialinyyzz/humanizer` (8192 ctx), a
+`/v1/completions` rewrite smoke with every number preserved (`system_fingerprint:
+vllm-0.30.0-372a78a5`), KV **371,031 tokens / 45.29× at 8192** (0.29.0: 370,597 / 45.2×). Receipts:
+`~/benchmarks/bump-20261016/`.
+
+**Bumped, verification deferred to its own boot:** `qwen-image-2.1-turbo-…-diffusers-script` — the
+mod's venv supplies its own `transformers>=5.17`, so the image's engine version does not gate it.
+
+**Holds unchanged:** `kolibri-1-78b-fp8-vllm` (the vendor plugin pins vLLM 0.29).
 
 ## Selection (2026-10-13)
 

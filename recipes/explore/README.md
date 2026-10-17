@@ -70,6 +70,10 @@ vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/i
 
 vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected.
 
+*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — the 0.30.0 image (transformers 5.17.0)
+cannot construct this revision's config; 2026-10-16 engine-bump note in
+[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
+
 - **Model:** `poolside/Laguna-XS-2.1-NVFP4` (33B total / 3B active, 256 routed experts, 3:1 SWA,
   262,144 native; OpenMDW-1.1), pinned `d32afde8…` + the first-party draft `poolside/Laguna-XS-2.1-DFlash`
   (0.92 GB), pinned `5c36361a…`.
@@ -90,6 +94,10 @@ vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected.
 ## [poolside-laguna-s-2.1-nvfp4-dflash-vllm](poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
 
 vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected (capped-context single-tenant).
+
+*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — the 0.30.0 image (transformers 5.17.0)
+cannot construct this revision's config; 2026-10-16 engine-bump note in
+[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 
 - **Model:** `poolside/Laguna-S-2.1-NVFP4` (117.6B total / 8.5B active MoE, native 1,048,576 ctx;
   OpenMDW-1.1) + the quantization-matched draft `poolside/Laguna-S-2.1-DFlash-NVFP4` (2.2 GB).
@@ -122,7 +130,8 @@ vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected
   revision (23.9 GB safetensors + 63.6 GB of GGUFs it never loads) — and not narrowable.
   `model_file_selection` is a sparkrun **config** key, not a recipe key, and with no
   `model.safetensors.index.json` both `auto` and `all` select the full snapshot (`safetensors` errors).
-  Same digest-pinned `vllm/vllm-openai:v0.29.0` as Kolibri.
+  Digest-pinned `vllm/vllm-openai:v0.30.0` — moved 2026-10-16 and boot-verified on it (task
+  `sparkrun_17678da2f7107eb2_a4bf874feb5a`, receipt `~/benchmarks/bump-20261016/`).
 - **Measured:** ~7.6 t/s single-stream; 131.7 s per 1k output tokens; across 40 rewrites, 0 dropped facts
   (1 genuine defect found outside the instrument).
 - **Licence:** Apache-2.0.
@@ -147,7 +156,8 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
 - **Flags / non-obvious knobs:** `runtime: vllm` is the family whose distribution + single-node launcher
   contract the command satisfies; `command:` runs a stdlib HTTP server (`POST /generate`, `GET /health`)
   out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
-  (`vllm/vllm-openai:v0.29.0` — its transformers 5.16.1 is below the card's floor). **VAE tiling OFF**
+  (`vllm/vllm-openai:v0.30.0`; the venv's own `transformers>=5.17` satisfies the card's floor — the
+  image's copy is unused). **VAE tiling OFF**
   (tiled decode → a pink seam column) and **`cpu_offload` OFF** (costs ~4× on a reference image);
   `--served-model-name` is rendered explicitly.
 - **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady; a reference image fed back for editing
@@ -157,6 +167,10 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
 ## [mellum2.1-12b-a2.5b-bf16-thinking-vllm](mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml)
 
 vLLM · **1 node (TP=1)** · built + **boot-verified 2026-10-15** · index row present.
+
+*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 shadows transformers 5.17's
+`MellumConfig` with its own `Qwen3MoeConfig` stub and breaks this checkpoint's nested rope config at
+load; 2026-10-16 engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 
 - **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking` (Apache-2.0, ungated) — 12B total / 2.5B active MoE
   (64 routed experts, 8 per token), 28 layers, 32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding
