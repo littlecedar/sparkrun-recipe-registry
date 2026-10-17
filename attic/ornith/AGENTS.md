@@ -37,7 +37,7 @@ secondary evidence. **SPECULATIVE** — reasoning without a source; do not build
 checkpoint (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, `model_type: qwen3_5_moe`, full attention every
 4th layer, 256 experts top-8, `max_position_embeddings: 262144`) with the
 `jzinno/Ornith-1.5-35B-A3B-DFlash2` draft, DFlash2 spec decode (4 draft tokens). Registry footprint
-45 GB at `gpu_memory_utilization: 0.85`. Published C1 ≈ **100 t/s** (parent `recipes/README.md`).
+45 GB at `gpu_memory_utilization: 0.85`. Published C1 ≈ **100 t/s** (parent `README.md`).
 
 - **Boot-verified** in the 2026-10-11 pass: the boot surface serves, spec decode is on, the honed
   template loads, and the house quality battery passes (§5). The `~100 t/s` C1 headline sits between the
@@ -637,9 +637,9 @@ ships **three** recipes, one per model scale:
 | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | 397B | vLLM | 4 (TP=4) |  41.86 | 235GB | 0.80 | 🌲👀🧠🦾🔧     | [Model][model-397b-graft]                                                                   |
 | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`          | 9B | SGLang | 1 (TP=1) |     55 |  11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧     | [Model][model-9b] · [Draft][draft-9b]                                                       |
 
-`C1 t/s` is single-stream decode as recorded in the parent [`recipes/README.md`](../README.md);
+`C1 t/s` is single-stream decode as recorded in the parent [`README.md`](../../README.md);
 `Size` is the per-node footprint the registry records and `Mem` is the recipe's
-`gpu_memory_utilization`. Flags are defined in [Model Flags](../README.md#model-flags). A dash is
+`gpu_memory_utilization`. Flags are defined in [Model Flags](../../README.md#model-flags). A dash is
 an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
 ## About the model

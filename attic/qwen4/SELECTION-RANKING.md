@@ -5,7 +5,7 @@ Tracked copy of the git-ignored working draft `.local/SELECTION-RANKING-DRAFT.md
 register in `mad-science/TODO.md`, decision #6). The working draft remains the
 scratch copy; treat THIS file as the durable record.
 
-Provenance keys used below: `[IDX n]` = `recipes/README.md` line n;
+Provenance keys used below: `[IDX n]` = `README.md` line n;
 `[lane] n` = `recipes/<lane>/README.md` line n; `[ds4-AG] §` =
 `attic/ds4/AGENTS.md` section (as cited by the lane README).
 
@@ -111,7 +111,7 @@ it briefly contradicts the "node cache is cleared" note above — `.30` still ho
 _Draft prepared 2026-10-10 by a read-only research pass. NOT tracked; do not git add._
 _Priorities (mad-science/TODO.md, in order): 1. node count ↓, 2. speed ↑, 3. accuracy ↑, 4. memory footprint ↓._
 
-Provenance keys: `[IDX n]` = recipes/README.md line n; `[lane] n` = recipes/<lane>/README.md line n; `[ds4-AG] §` = attic/ds4/AGENTS.md section (as cited by README).
+Provenance keys: `[IDX n]` = README.md line n; `[lane] n` = recipes/<lane>/README.md line n; `[ds4-AG] §` = attic/ds4/AGENTS.md section (as cited by README).
 Shipped surface = `git ls-files 'recipes/*/*.yaml'` (18 files; ifm excluded per assignment scope). Two README-documented arms are currently **untracked WIP** (`recipes/qwen3/qwen3.8-27b-nvfp4-nospec-control-sglang.yaml`, `recipes/ds4/deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml` — both show `??` in git status 2026-10-10); they are ranked below with a note.
 
 ---

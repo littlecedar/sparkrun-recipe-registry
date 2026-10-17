@@ -205,7 +205,7 @@ remove what the session created** — a leftover is anything undocumented, unkno
   records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
   when the lane depends on exact upstream code.
-- Update `recipes/README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
+- Update the root `README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
   large_context, …) when adding a shipped recipe, and the lane's `README.md`, keeping design and
   research prose in `attic/<lane>/`.
 
@@ -302,7 +302,7 @@ matching.
   from sparkrun itself, not from here).
 - `pyproject.toml` — dependencies only (`jinja2`, `netifaces`); no `[build-system]`, no `[tool.*]`.
 - `mods/mod-template/run.sh` — authoritative mod harness.
-- `recipes/README.md` — recipe index and flag taxonomy; `attic/<family>/AGENTS.md` carry lane
+- `README.md` — recipe index and flag taxonomy; `attic/<family>/AGENTS.md` carry lane
   state, constraints, and runbooks (e.g. `attic/qwen4/AGENTS.md`, `attic/ds4/AGENTS.md`).
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no

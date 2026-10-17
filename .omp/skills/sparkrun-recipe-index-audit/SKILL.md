@@ -1,9 +1,9 @@
 ---
 name: sparkrun-recipe-index-audit
-description: "Audit or refresh recipes/README.md in the sparkrun recipe registry against the recipe tree: row/name/mem/flag drift, link hygiene, and which measured numbers not to 'fix'"
+description: "Audit or refresh the root README.md in the sparkrun recipe registry against the recipe tree: row/name/mem/flag drift, link hygiene, and which measured numbers not to 'fix'"
 ---
 
-# sparkrun-recipe-index audit (`recipes/README.md`)
+# sparkrun-recipe-index audit (`README.md`)
 
 Use when asked whether the shipped recipe index is up to date, or after adding/renaming/retiring a recipe.
 
@@ -47,4 +47,4 @@ uv run --offline python -B -m unittest discover -s tests   # 372 at 2026-10-09
 find mods tests tools -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-The suite does scan `recipes/` (`test_safe_text.py`, `SHIPPED_DIRS`), so index prose must stay free of internal IPs/hostnames and image special-token spellings. Commit with explicit pathspecs (`git add recipes/README.md`), never `git add -A` — the tree is shared with a second writer.
+The suite does scan `recipes/` (`test_safe_text.py`, `SHIPPED_DIRS`), so index prose must stay free of internal IPs/hostnames and image special-token spellings. Commit with explicit pathspecs (`git add README.md`), never `git add -A` — the tree is shared with a second writer.

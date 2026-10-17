@@ -18,7 +18,7 @@ decides; smaller and faster preferred", 2026-10-13), has no §1 shortlist row an
 - GGUF card <https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF>
 
 **Booted and benchmarked 2026-10-15** (one boot on `.35`, receipt `~/benchmarks/mellum-20261015/`): the
-arm's `recipes/README.md` index row is back, per the lane's shipped rule (*shipped = bootable and
+arm's `README.md` index row is back, per the lane's shipped rule (*shipped = bootable and
 usable*); §6 lists what the boot answered and what it did not.
 
 ## 2. The checkpoint (read from the pinned revision's own files)

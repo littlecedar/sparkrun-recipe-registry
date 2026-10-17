@@ -50,7 +50,7 @@ defaults:
   # The DFlash draft MUST live here: sparkrun's vLLM draft binding distributes
   # it and reads the pin from this object's "revision" field (else the draft
   # follows the repo's `main`). A nested {placeholder} inside a defaults VALUE
-  # is never rendered and kills the launch (recipes/README.md §Notes).
+  # is never rendered and kills the launch (recipes/MECHANICS.md §Notes).
   speculative_config: '{"method": "dflash", "model": "poolside/Laguna-XS-2.1-DFlash", "revision": "5c36361aab23c8ed3afbd079c10c426b677bc607", "num_speculative_tokens": 3}'
 
 command: >

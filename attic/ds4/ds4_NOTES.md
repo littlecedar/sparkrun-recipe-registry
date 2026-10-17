@@ -6,7 +6,7 @@
 > `<model>-<stack>-tpN-<ctx>-<runtime>` convention). All docs/tests use the new name.
 
 Session log for `model_symbol=ds4`. Durable facts graduate into `AGENTS.md` and
-`recipes/README.md`; this file is pruned. Read `AGENTS.md` first.
+`README.md`; this file is pruned. Read `AGENTS.md` first.
 
 ## Prior session (2026-09-27/28) — the `max_num_seqs=16` / `gmu 0.85` retune
 

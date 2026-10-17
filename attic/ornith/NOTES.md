@@ -385,7 +385,7 @@ unchanged.
 
 ---
 
-## 6. Root index (`recipes/README.md`) — the row to add (not edited here)
+## 6. Root index (`README.md`) — the row to add (not edited here)
 
 The index is the parent agent's to edit. With §2 closed the row is measured, and the
 `🚀` condition is met — both warm C1 cells clear the ≥ 50 t/s threshold:

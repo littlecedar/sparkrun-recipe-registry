@@ -1,8 +1,8 @@
 # Primary README archive
 
-Registry-level archive of the research and lane-state prose removed from [`../recipes/README.md`](../recipes/README.md) on 2026-10-14 when that file was reduced to a pure index of shipped recipes; per-lane detail now lives in each lane's own `README.md` and `attic/` directory (the command-template rules and the per-family agent-guide paragraphs moved to [`../recipes/MECHANICS.md`](../recipes/MECHANICS.md) instead).
+Registry-level archive of the research and lane-state prose removed from [`../README.md`](../README.md) on 2026-10-14 when that file was reduced to a pure index of shipped recipes; per-lane detail now lives in each lane's own `README.md` and `attic/` directory (the command-template rules and the per-family agent-guide paragraphs moved to [`../recipes/MECHANICS.md`](../recipes/MECHANICS.md) instead).
 
-**Link note.** The quoted blocks below were written for `recipes/README.md`, so their relative links
+**Link note.** The quoted blocks below were written for `README.md`, so their relative links
 are `recipes/`-relative (e.g. `qwen4/README.md`) and do not resolve from this file's location. Paths
 have been swapped where a target moved to an `attic/` directory; for the rest, resolve them from
 `recipes/`.
