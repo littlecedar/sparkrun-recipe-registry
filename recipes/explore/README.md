@@ -249,9 +249,9 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
   84, responsiveness 54; bfcl **73.5%** (911/1240, no transport errors — audited).
 - **Needle:** 131k rung **3/3 PASS** at `paced_target` 128,451 (completions 123–186). 32k rung: 1/3 at
   the suite's 256-token default — the two empty cells are the thinking-budget class below, not
-  retrieval; re-probes reach **3/3** (depth 50 PASS at `--max-tokens 4096`; depth 90 PASS with
-  `chat_template_kwargs: {"enable_thinking": false}` — 9 completion tokens, 0.74 s). `n_ctx` 131,072
-  is honored end to end (contract check reads it after the fix below).
+  retrieval; re-probes reach **3/3 by union** (depth 50 PASS at `--max-tokens 4096` — 722 completion
+  tokens; depth 90 PASS with `chat_template_kwargs: {"enable_thinking": false}` — 9 tokens, 0.74 s).
+  `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).
 - **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
   32k prompt can spend an arbitrary budget inside the think block — empty `content` at
   `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle

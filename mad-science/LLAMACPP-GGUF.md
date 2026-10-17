@@ -123,8 +123,9 @@ suite legs ran after it).
   8 slots, so per-request decode spreads (32.9 ± 16.1 t/s) and the aggregate falls past c5.
 - **Needle rungs:** 131k **3/3** at `paced_target` 128,451. 32k is 1/3 at the suite's 256-token
   default — the two empties are the thinking-budget class, not retrieval: depth 50 PASSes at
-  `--max-tokens 4096` and depth 90 PASSes with `enable_thinking: false` (9 completion tokens, 0.74 s),
-  so retrieval is 3/3 once the budget is out of the way. Two tool-side false-FAIL classes surfaced on
+  `--max-tokens 4096` and depth 90 PASSes with `enable_thinking: false` (9 completion tokens, 0.74 s):
+  retrieval is **3/3 by union** — 1/3 at the suite's 256 default, 2/3 at 4,096, 3/3 with the
+  thinking-off probe. Two tool-side false-FAIL classes surfaced on
   this arm and are fixed in `590b9b2` — llama.cpp's window arrives as `meta.n_ctx` (the 2 % clamp
   never ran; the 131k rung overflowed and 400'd on a wording the shrink-retry list missed), and an
   empty reply at `finish_reason: length` was scored as a retrieval miss (`tools/needle-haystack.py`
