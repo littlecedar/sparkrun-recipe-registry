@@ -75,7 +75,8 @@ command: >
   --drafter-revision {speculative_draft_model_revision}
 
 readiness:
-  # true: an engine-side abort must fail the launch, not hide behind a 3600 s port wait.
-  inference: true
+  # false because every measured cell was taken under it and a chat probe at launch can trip this arm's
+  # first-start JIT; keep it until a boot with the probe on is receipted.
+  inference: false
   port_timeout_s: 3600
   health_timeout_s: 1800

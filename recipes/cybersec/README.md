@@ -12,6 +12,7 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 
 - [Gating and the token prerequisite](#gating-and-the-token-prerequisite)
 - [`qwen3.8-27b-uncensored-nvfp4-sglang`](#qwen38-27b-uncensored-nvfp4-sglang) — arm 1, positive (TP=1)
+- [`qwen3.8-27b-uncensored-nvfp4-nextn-sglang`](#qwen38-27b-uncensored-nvfp4-nextn-sglang) — arm 1's spec-decode sibling, positive (TP=1)
 - [`qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang) — arm 2, positive (TP=1), overlay
 - [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative under SGLang; vLLM route unblocked (+ `nex-n2.5-mini-uncensored-nvfp4-vllm`)
 - [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative under SGLang; vLLM route unblocked (+ `qwen3.8-flash-next-uncensored-nvfp4-vllm`)
@@ -20,8 +21,9 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 
 ## Gating and the token prerequisite
 
-**All five arms are gated on the Hub (`gated: auto`).** A distributed registry cannot assume an
-`HF_TOKEN`, so the prerequisite is explicit here and in every recipe's `metadata.caveats`:
+**Every arm is gated on the Hub (`gated: auto`)** — the five arms plus arm 1's NEXTN sibling, which
+serves arm 1's repo. A distributed registry cannot assume an `HF_TOKEN`, so the prerequisite is
+explicit here and in every recipe's `metadata.caveats`:
 
 - each runner node needs an `HF_TOKEN` whose user has **accepted that repo's release**, and
 - two arms (2 and 5) pull *two* gated repos each (the body/stock pack and the overlay).
@@ -65,6 +67,37 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   left un-retuned here (no stated traffic mix for this checkpoint).
 - `kv_cache_dtype: auto` is left at `auto` so the checkpoint keeps ownership of the KV dtype: this
   export ships a static FP8 `kv_cache_scheme`, and `auto` resolves from it.
+
+## `qwen3.8-27b-uncensored-nvfp4-nextn-sglang`
+
+**Arm 1's spec-decode sibling — POSITIVE (TP=1).** Same checkpoint, same weights, same gated repo;
+the only difference from the plain arm is the speculative block, so everything below is a measure of
+NEXTN rather than of a different body. Boot-verified 2026-10-18 (`aefb625955c32638_64af2f7668b6`),
+receipt `~/benchmarks/cybersec-nextn-20261018/`.
+
+- Runtime sglang, TP 1. `speculative_algorithm: NEXTN` is the engine's alias for EAGLE with the
+  target's own draft head: the engine rewrote it (`speculative_algorithm': 'EAGLE'`) and loaded the
+  checkpoint's own BF16 `Qwen3_5ForCausalLMMTP` as the draft — **no `--speculative-draft-model-path`
+  and nothing extra for sparkrun to distribute**. `speculative_num_steps: 3`, `topk 1`,
+  `num_draft_tokens: 4` (topk 1 forces steps+1, so 4 is the only legal width).
+- Serves (`GET /v1/models` = repo id, `max_model_len` 262144); TTR port 149.0 s / HTTP 162.9 s. Same
+  image digest as the DFlash2 sibling (`@sha256:0b3e3970…`), `mem_fraction_static` 0.85,
+  `max_num_seqs: 24`, `mamba_full_memory_ratio: 3.51`, `kv_cache_dtype: auto`.
+- **Cells (`cells.json` decode rows, `bench_cab845506821`):** C1 **14.72 ± 1.13** @ d0 /
+  **14.59 ± 1.14** @ d8192 against the plain-decode control's **10.21 / 9.66** — **+44.1 % /
+  +51.0 %**. Acceptance length **2.774** at c=1 (n=39 decode-batch lines, min 1.80, max 3.58); all 40
+  logged batches exceed 1. The arithmetic behind the gain: 2.77 tokens per verify step at 14.72 t/s
+  ≈ 0.19 s/step, against 0.098 s/token on the control — the step costs ~1.9× and returns 2.77
+  tokens. Battery **easy 19/19 + hard 18/18 = 37/37**, the control's own bar, unchanged.
+- **Capability cost to write down — the served context is not the advertised one:**
+  `max_total_num_tokens` is **167,985**, below the 262,144 `max_model_len`; a request beyond it will
+  be rejected. The attribution to the draft pool is **unverified** — the control's boot log was not
+  retained, so this number cannot be differenced against the plain arm in this receipt.
+- For scale: the DFlash2 sibling (`.34`, a different abliterated body) runs 30.2–33.8 t/s, so NEXTN
+  reaches ~44–49 % of that ceiling. Single boot: this box's inter-boot floor is 7–25 % and NEXTN's
+  C1 tracks acceptance, so a second boot cannot separate those — but a 44–51 % delta is well outside
+  that band.
+- The recipe's `metadata.caveats` still say "Unmeasured — no receipt yet": **stale as of 2026-10-18**.
 
 ## `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`
 

@@ -8,7 +8,7 @@ recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measu
 owner on 2026-10-15 and boot-verified the same day** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
 collection, so outside the ranking) — its index row carries the ladder and
 the 36/37 house battery, and it was the first single-node text arm with C2/C5/C10 filled (the
-laguna-XS arm followed with the full suite on 2026-10-17), and **2026-10-17 added the registry's first `runtime: llama-cpp` arm** (Mellum's Q4_K_M GGUF, boot-verified the same day); the LTX-2.5 video arm ships as a runbook. Everything else — measured
+laguna-XS arm followed with the full suite on 2026-10-17), and **2026-10-17 added the registry's first `runtime: llama-cpp` arm** (Mellum's Q4_K_M GGUF, boot-verified the same day). **2026-10-18 added six Kolibri-1 pack/tier arms**, all boot-verified and measured the same day — two llama.cpp GGUF tiers (2.4bpw vs Q4_K), the TensorFold block-drafter route, and three 4-bit vLLM packs (NVFP4-A16, NVFP4-experts, MXFP4) — plus a **non-shipped** 1M constant-state eval whose result is recorded here and nowhere in `recipes/`/`mods/`. The LTX-2.5 video arm ships as a runbook. Everything else — measured
 histories, selection receipts, serving traps and the full candidate research — lives in
 [`attic/explore/`](../../attic/explore/) (index below).
 
@@ -16,12 +16,19 @@ histories, selection receipts, serving traps and the full candidate research —
 
 - [ling-3.0-flash-int4-dspark-sglang](#ling-30-flash-int4-dspark-sglang)
 - [kolibri-1-78b-fp8-vllm](#kolibri-1-78b-fp8-vllm)
+- [kolibri-1-apex-24bpw-llamacpp](#kolibri-1-apex-24bpw-llamacpp)
+- [kolibri-1-apex-q4k-llamacpp](#kolibri-1-apex-q4k-llamacpp)
+- [kolibri-1-78b-fp8-tensorfold-drafter-sglang](#kolibri-1-78b-fp8-tensorfold-drafter-sglang)
+- [kolibri-1-nvfp4a16-fp8-vllm](#kolibri-1-nvfp4a16-fp8-vllm)
+- [kolibri-1-nvfp4-experts-vllm](#kolibri-1-nvfp4-experts-vllm)
+- [kolibri-1-mxfp4-mxwave-vllm](#kolibri-1-mxfp4-mxwave-vllm)
 - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](#poolside-laguna-xs-21-nvfp4-dflash-vllm)
 - [poolside-laguna-s-2.1-nvfp4-dflash-vllm](#poolside-laguna-s-21-nvfp4-dflash-vllm)
 - [humanizer-12b-vllm](#humanizer-12b-vllm)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [mellum2.1-12b-a2.5b-bf16-thinking-vllm](#mellum21-12b-a25b-bf16-thinking-vllm)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
+- [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 ComfyUI runbook (not a recipe)](#ltx-25-comfyui-runbook-not-a-recipe)
 - [Attic index](#attic-index)
 
@@ -80,6 +87,166 @@ vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/i
   **37/37 @8192** — the old 36/37 @4096 was a reply-budget cut, not a miss. Receipt
   `~/benchmarks/ladders-solo-20261018/` (`kolibri-ladder.json`, `kolibri-battery-8192.json`).
 - **License:** Apache-2.0.
+
+## [kolibri-1-apex-24bpw-llamacpp](kolibri-1-apex-24bpw-llamacpp.yaml)
+
+llama.cpp, fork `kolibri1` build · **1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not
+selected (pack-size tier).
+
+- **Model:** `Myric/Kolibri-1-APEX-GGUF:APEX-2.4bpw` @ `ed6030d7…` — 24,374,307,840 B / 22.70 GiB,
+  2.50 bits/weight (mixed: sliding-window projections Q3_K, experts IQ3_XXS/IQ2_S/IQ2_XXS, the
+  sensitive tensors left Q8_0/Q6_K/F32). Public, ungated. `/v1/models` reports `ftype` "Q4_K - Medium"
+  — that is the packer's `general.file_type` enum, **not** this pack's quant; do not quote it.
+- **Engine:** fork image `littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b@sha256:1928661c…`
+  (stock llama.cpp cannot load `kolibri1` at all); `ctx_size` 262,144 × `parallel: 4`, `kv_unified`;
+  served id `Myric/Kolibri-1-APEX-GGUF`. mmap stays at the fork's `auto` (it has no `--no-mmap`).
+- **Measured (one boot, `~/benchmarks/kolibri-gguf-20261018/`):** C1 **63.24 ± 0.50** @ d0
+  (`bench_a0ecb791dfe6`) / **60.79 ± 0.43** @ d8192; ladder @ d0 pp2048 tg128 n=5 **63.83 · 113.35 ·
+  98.30 · 78.62 t/s** (`bench_d165fa4b0bea`), decode rows only (the d8192 cell emits a second,
+  context-prefill record — pooling it is the classic 2× artifact). House battery **37/37 @4096**,
+  which is a saturation result, not a ranking. TTR **22.2 s** (container start → `listening`).
+- **Memory:** while serving the full 262,144 window, `free -g` read used 42 / buff-cache 23 /
+  **available 79 GiB** on a 121 GiB GB10; the pack is mmap'd, so its 22.70 GiB sits in page cache and
+  the 262k unified KV adds the recipe's ~5 GiB. That is a **headroom** result measured solo — no
+  second model was loaded — so it is *not* a co-residency measurement, and TTR is time-to-healthy,
+  not time-to-fully-paged (cold-page first-token latency is paid by the first request).
+- **License:** base `Aleph-Alpha/Kolibri-1` Apache-2.0; the GGUF pack's own terms are on its card.
+
+## [kolibri-1-apex-q4k-llamacpp](kolibri-1-apex-q4k-llamacpp.yaml)
+
+llama.cpp, same fork build · **1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not
+selected — the tier exists to price the 2.4bpw pack.
+
+- **Model:** `Myric/Kolibri-1-APEX-GGUF:Q4_K` @ `ed6030d7…` — 44,977,159,680 B / 41.89 GiB, uniform
+  4.50 bits/weight (the pack's closest-to-BF16 file).
+- **Measured (one boot, `~/benchmarks/kolibri-gguf-20261018/q4k/`):** C1 **57.67 ± 0.21** @ d0
+  (`bench_9c0927bbd72b`) / **53.94 ± 0.55** @ d8192; ladder **56.16 · 90.23 · 83.25 · 67.50 t/s**
+  (`bench_0725bfcd80c4`); house **37/37**; TTR **42.2 s**. c1 spans 56.16 (ladder) vs 57.67 (triage)
+  inside one serve — a 2.6 % intra-serve spread, so treat single-boot C1 deltas under ~3 % as
+  unresolved. 59 GiB available while serving (room for one more 23 GiB-class model, not a second
+  42 GiB one); `docker stats` 9.5 GiB does not reconcile with the host delta — use the `free -g` one.
+- **Verdict — the question this tier answers:** the 2.4bpw pack **wins on both axes the battery can
+  measure**. This pack is −8.8 % @ d0, −11.3 % @ d8192 and −20 / −15 / −14 % at c2/c5/c10, so nearly
+  double the weight bytes bought **no speed**. Its only claimed advantage is the uploader's card
+  (WikiText-2 KLD 0.076 vs 0.212, top-1 agreement 89.7 % vs 81.1 %), and the house battery has **zero
+  ranking power** between the two — both saturate 37/37 — so that KLD edge is **uncorroborated by this
+  registry**, not confirmed. Use Q4_K when prose fidelity matters and ~19 GiB plus 9–11 % throughput
+  are affordable; never cite 37/37 as "as good as FP8" or "better than 2.4bpw".
+- **License:** as above.
+
+## [kolibri-1-78b-fp8-tensorfold-drafter-sglang](kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml)
+
+TensorFold (`runtime: sglang` shim + [`mods/kolibri-drafter-launcher`](mods/kolibri-drafter-launcher)) ·
+**1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not selected (drafter-route trial).
+
+- **Model:** `Aleph-Alpha/Kolibri-1` @ `258cae8f…` (FP8) + `josch15366/Kolibri-1-block-drafter` @
+  `4d6cf7be…` (391.3M params, taps layers 44 / 47 / 49; Kolibri-1 ships no MTP head, so this is the
+  draft route it lacks). Verified speculative decoding, so replies match a drafter-free serve.
+- **Boot fix — the as-authored pair was unbootable:** `max_num_seqs: 6` with `max_model_len: 262144`
+  needs **34.0 GiB** of engine caches against **25.9 GiB** free after the weights, and the engine
+  raises (`--context 262144 with 6 stream(s) … which fits 190464`). The arm now ships **4 streams at
+  the full window** (22.7 GiB of caches). `readiness.inference` stays **false**: every measured cell
+  was taken under it, and a dead engine inside a live container is invisible to a port-only wait.
+- **Measured (one boot, `~/benchmarks/kolibri-mtp-20261018/`, `bench_f667f0a32253`):** C1
+  **55.6 ± 5.94** @ d0 / **54.6 ± 4.09** @ d8192 at acceptance length **1.91 / 1.89** (1+X/round from
+  the engine's own `rounds/accepted` counters; llama-benchy 0.4.0 records no acceptance field); house
+  **37/37** @4096. Against the shipped FP8 arm's 47.2 that is **+18 %** — cross-boot, so quote the
+  direction and size, not a same-boot delta. The card's 1.31–1.40× is **not reproduced**: against the
+  card's own copy-drafting baselines on this engine (46.6 / 47.6 / 50.8 t/s) 55.6 is 1.10–1.19×.
+- **Depth 4 is worse** — 44.5 ± 3.49 at acceptance 1.79: it doubles drafts per round for fewer
+  accepted tokens. The only working knob is the engine's env (`-e TENSORFOLD_KOLIBRI_DRAFTER_DEPTH=4`
+  via `--executor-args`); there is no `-o` route.
+- **Trap, measured:** the first fresh boot's JIT extension build failed, so `/v1/models` answered 200
+  and every completion returned 500 while sparkrun declared the server ready. Re-running the same
+  command succeeded and warm boots reuse the cache. **Bench a fresh arm only after one successful
+  completion.**
+- **License:** Apache-2.0 (checkpoint).
+
+## [kolibri-1-nvfp4a16-fp8-vllm](kolibri-1-nvfp4a16-fp8-vllm.yaml)
+
+vLLM `v0.29.0` (digest-pinned) + plugin `aleph-alpha-inference 1.0.0` · **1 node (TP=1)** ·
+**boot-verified + measured 2026-10-18** · util 0.78, 262,144 window, `max_num_seqs: 4`, fp8 KV — the
+FP8 arm's served shape.
+
+- **Model:** `Quantinine/Kolibri-1-NVFP4A16-FP8` @ `4a840645…` — 42.69 GiB of files / 42.8 GiB of
+  weights; routed experts W4A16, attention + shared expert stay the official W8A8 FP8 payload.
+- **Marlin is the live path on GB10, not a fallback:** `Using 'MARLIN' NvFp4 MoE backend …` plus the
+  "GPU does not have native support for FP4 … leveraging the Marlin kernel" warning (expected for a
+  weight-only pack), `CutlassFp8BlockScaledMMKernel` for the FP8 payload, FLASHINFER attention, LBNHC.
+- **Measured (`~/benchmarks/kolibri-quants-20261018/quantinine/`):** C1 **52.48 ± 0.21** @ d0
+  (`bench_94a4ba3413d9`) / **51.11 ± 0.10** @ d8192; ladder **52.11 · 91.64 · 95.15 · 106.39 t/s**
+  (`bench_553796504797`). c2→c5 saturates at the 4-slot ceiling; c10 still rises because the queue
+  keeps four slots busy. TTR 433.6 s.
+- **KV pool 4,606,739 tokens (47.03 GiB) = 2.48× the FP8 arm's 1,859,922** at the same window, and
+  tokens-per-GiB of pool matches the control to 0.01 % — so the entire gain is the freed weight
+  memory, not a changed KV geometry.
+- **Quality 36/37**, and the single miss is `needle-1` returning `''` — the same task and the same
+  empty reply the FP8 arm's 4096-budget runs fail on, so it is a task/budget artifact on both arms.
+- **Not attributable:** the +11.2 % C1. One boot per arm and this box's inter-boot floor is 7–25 %;
+  the intra-boot σ of 0.1–0.2 % says the measurement repeats, not that the boots compare. It also
+  mixes a revision delta: the pack descends from `e52eb462`, not the FP8 repo's `258cae8f`.
+- **License:** unofficial conversion (not Aleph Alpha's); base Apache-2.0, pack terms on its card.
+
+## [kolibri-1-nvfp4-experts-vllm](kolibri-1-nvfp4-experts-vllm.yaml)
+
+Same pin, plugin and shape as the arm above · **1 node (TP=1)** · **boot-verified + measured
+2026-10-18**.
+
+- **Model:** `iSkye/Kolibri-1-NVFP4-Experts` @ `44088ad9…` — only the routed experts re-quantized
+  (attention, shared expert, router, embeddings and head unchanged); 42.6 GiB of weights.
+- **Measured (`~/benchmarks/kolibri-quants-20261018/iskye/`):** C1 **52.37 ± 0.05** @ d0
+  (`bench_1e19955c353c`, same-boot ladder C1 52.00) / **51.11 ± 0.07** @ d8192; ladder **52.0 · 91.6 ·
+  95.0 · 105.6 t/s** (`bench_d3d412717939`) = **+10.2 / +20.2 / +22.4 / +26.5 %** against the FP8 arm's
+  ladder by cell (cross-boot, cross-window). KV **4,618,726 tokens (47.16 GiB)** = 2.48×. Battery
+  **37/37** @4096. TTR 408.4 s cold / 360.0 s warm. It loads on 0.29.0 — the 0.30.0 fallback the
+  recipe caveat named was not needed.
+- **The card's c8 number does not reproduce:** the card claims 265.9 t/s at 8 streams. At the shipped
+  `max_num_seqs: 4` the 8-stream cell is not an 8-stream test (in-flight caps at 4, TTFT 9,276 ms) and
+  reads **136.1** (`bench_8e8b30a2925e`); raising the cap to 8 makes it scale to **198.6**
+  (`bench_27b76d073eb6`) — still 25 % under the card. c1 reproduces the card exactly (−0.6 %), c2 is
+  within 2.6 %. The residual gap's likely cause is the engine difference (card 0.30.0, this arm 0.29.0
+  because the plugin wheel pins `vllm<0.30`) — an **untested hypothesis**, not a finding.
+- **License:** unofficial conversion of the Apache-2.0 base.
+
+## [kolibri-1-mxfp4-mxwave-vllm](kolibri-1-mxfp4-mxwave-vllm.yaml)
+
+Same pin, plugin and shape as the two arms above, `--moe-backend marlin` · **1 node (TP=1)** ·
+**boot-verified + measured 2026-10-18**.
+
+- **Model:** `kirillbilchenko/Kolibri-1-MXFP4-MxWave` @ `ae65fe48…` — 57,600 routed expert matrices at
+  OCP MXFP4 (E2M1, one E8M0 scale per 32 weights) with the official block-FP8 attention/shared-expert
+  backbone kept byte-identical; 40.93 GiB of files.
+- **Measured (`~/benchmarks/kolibri-quants-20261018/kirill/`):** C1 **51.60 ± 0.16** @ d0
+  (`bench_ed7d2ab95f36`) / **50.52 ± 0.09** @ d8192; ladder **51.41 · 92.64 · 96.28 · 108.20 t/s**
+  (`bench_a82cc0619910`), same-boot C1 matching triage to 0.4 %. **c5 and c10 are cap-limited**, not
+  scaling points: `max_num_seqs: 4` means the two highest cells queue behind four resident sequences,
+  so read them as "aggregate at cap 4". KV **4,791,929 tokens (48.92 GiB)** = 2.58× the FP8 arm.
+  TTR 396.6 s. C1 is +9.3 % over the FP8 arm, cross-boot — direction and size, not a same-boot delta.
+- **Quality: behaviour bar held, stricter gate missed.** The house battery is **37/37**, the same
+  union the FP8 arm scores, while the pack **failed its own strict KL screen** — 0.0551 nats against a
+  0.030 threshold (PPL +1.53 %, German +2.20 %, code +3.24 %; likelihood bounds and all six behaviour
+  checks passed). A 0.055-nat distributional drift is far below what pass/fail pattern checks can see,
+  so this is **not quality parity** — do not port this arm's "37/37" to the family as an accuracy
+  result.
+- **License:** experimental by the uploader's own gate; base Apache-2.0.
+
+## Kolibri-1 1M constant-state (eval-only, not a recipe)
+
+**Non-shipped, and must stay that way.** The `tfwnotops/Kolibri-1-78B-…-1M-ConstantKV` release is
+**PolyForm-Noncommercial-1.0.0**: it was run from a scratch clone outside the registry, and **no
+recipe or mod exists for it**. Measured 2026-10-18, receipt `~/benchmarks/kolibri-state-20261018/`.
+
+- **The SM121 question is closed:** the plugin patches FlashInfer for fp8 KV on this chip cleanly —
+  FlashInfer's own resolver logs `arch=sm121, kv_cache_dtype=torch.float8_e4m3fn` after the plugin
+  swaps its impl, and the boot log carries zero tracebacks.
+- **A 1M request is answered with the state active:** a **999,155-token** needle PASSES in **829.7 s**
+  (depth 10, `finish_reason: stop`) while `GPU KV cache usage: 0.2 %` of a 10,631,939-token /
+  16.15 GiB pool — a native fp8 cache would need 9.5 % of it for the same request.
+- **The real cost is the host archive, not attention state:** one 1M request measured **10.44 GiB** of
+  host memory (4.76 → 15.20 GiB cgroup peak; host `MemAvailable` fell 11.08 GiB), against the
+  release's billed **0.208 GB** — **~54× under**. So on a 121 GiB GB10 the 1M concurrency of this arm
+  is **1**, not the 4 `state.rows: auto` assumes (four rows would need ~43 GB, and one request left
+  3.9 GiB free).
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
 

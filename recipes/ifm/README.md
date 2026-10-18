@@ -13,6 +13,7 @@ indexed below. The deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` /
 
 - [Checkpoints](#checkpoints)
 - [`k2-horizon-0.9b-bf16-sglang`](#k2-horizon-09b-bf16-sglang)
+- [`k2-horizon-0.9b-bf16-uno-sglang`](#k2-horizon-09b-bf16-uno-sglang)
 - [`k2-horizon-7b-fp8-uno-sglang`](#k2-horizon-7b-fp8-uno-sglang)
 - [Container](#container)
 - [Attic index](#attic-index)
@@ -24,6 +25,7 @@ indexed below. The deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` /
 | 0.9B | `IFM/K2-Horizon-0.9B` | 2.16 GB | BF16 | dense, 28 layers, 56 KiB KV/token |
 | 7B | `IFM/K2-Horizon-7B-FP8` | 11.05 GB | block-FP8 (compressed-tensors) | dense, 36 layers, 144 KiB KV/token |
 | 7B-Uno | `IFM/K2-Horizon-7B-Uno` | 1.40 GB adapter | — | conditional-LoRA diffusion draft for the 7B |
+| 0.9B-Uno | `IFM/K2-Horizon-0.9B-Uno` | 223,917,616 B adapter | — | conditional-LoRA diffusion draft for the 0.9B (`sha256 5a499229…`, r=128 / alpha 2048, 7 target modules) |
 
 The two models declare **different context**: the 0.9B's `max_position_embeddings` is
 **131072** (YaRN 16 x 8192 — its hard ceiling), while the 7B's is **524288** (plain
@@ -66,6 +68,44 @@ this arm allocates **no mamba pool**, so there is no state-pool ceiling to clamp
 weights 2.22 GB loaded in 13.2 s, TTR 82.7 s port / 90.1 s HTTP. Do **not** pool these cells with the
 `concurrency-sweep` columns in [`NOTES.md`](../../attic/ifm/NOTES.md): that profile is tg=256 at
 c=1/4/8, this one tg=128 at c=1/2/5/10.
+
+## `k2-horizon-0.9b-bf16-uno-sglang`
+
+The 0.9B arm plus the `K2-Horizon-0.9B-Uno` conditional-LoRA diffusion draft: single node, **TP=1**
+(the same hard requirement the 7B UNO arm has), 131,072-token window, native SGLang UNO in the linear
+form (topk 1, draft width 8). **Boot-verified and measured 2026-10-18**, receipt
+`~/benchmarks/ifm-09b-uno-20261018/`.
+
+- **Adapter identity, proved on disk:** `IFM/K2-Horizon-0.9B-Uno` @ `cbb5d835…` staged by
+  [`mods/provide-uno-lora-k2-horizon-0.9b`](mods/provide-uno-lora-k2-horizon-0.9b) at
+  `/cache/runtime/uno-lora/K2-Horizon-0.9B-Uno` — **223,917,616 B**, `sha256 5a499229…`, r=128 /
+  alpha 2048 (scaling 16), 7 target modules. The engine logs `Using uno_cublas as backend of LoRA
+  kernels`, `loaded weights for target modules ['down_proj', 'gate_up_proj', 'o_proj', 'qkv_proj']`,
+  and a verify graph with `num_tokens_per_req=8`; acceptance is nowhere near 1.0, so this is a UNO
+  result and not a silently-plain serve. [`mods/probe-uno-fa4-sm121`](mods/probe-uno-fa4-sm121)
+  relaxes UNO's fa3-only gate (device capability `(12,1)`).
+- **Boot:** HTTP-ready **102.75 s** from container start; `max_total_num_tokens=1695086` of **bf16**
+  KV, `max_running_requests=64` (unclamped), `mem_fraction_static=0.82`, context 131072.
+- **Measured (one boot):** C1 **123.2 ± 13.2** @ d0 / **90.5 ± 3.6** @ d8192
+  (`bench_a42c59ba1ec8`) at acceptance length **2.75 / 2.64** — every cell 0.6–0.7 tokens/step above
+  the ~2.07 break-even for width 8 / topk 1; ladder **118.5 · 205.2 · 388.4 · 534.3 t/s**
+  (`bench_ddb8a41a69d3`, acceptance 2.65 / 2.70 / 2.80 / 2.73). Against a **same-node plain + fa4
+  control** (79.0 / 68.0 at C1; 78.6 · 178.8 · 343.3 · 500.1 on the ladder) that is **1.56× / 1.33×**
+  at C1 and 1.15× / 1.13× / 1.07× up the ladder. fa4-vs-flashinfer is a wash on the plain model
+  (79.0 vs the recorded 80.4 base), so the gain is UNO's, not the backend's. Depth 8192 costs almost
+  no acceptance (2.75 → 2.64) while costing 27 % of throughput — the depth cost is per-step KV work,
+  not drafted-token quality.
+- **Accuracy:** house **33/37**, GSM8K **173/200**, ARC-Challenge **144/200**, against the recorded
+  base's 31/37 · 174/200 · 133/200. House and GSM8K are inside the lane's ±3-item ≈ 1 SE protocol.
+  **ARC is +11 items (≈1.8 SE) in UNO's favour and is NOT claimed as an improvement:** it was taken
+  with four *more* truncations than the base (so it is not truncation inflation), and the most likely
+  mechanism is that a speculative verify batch changes the target forward's batch shape and flips
+  near-tie argmaxes. **Open item —** settling it needs an item-level diff against a same-window
+  plain-fa4 control on ARC, which was not taken. What *is* established: no accuracy loss on any of
+  the three instruments.
+- **Dispersion:** UNO's c1 run-to-run spread is ±10–13 t/s against the plain arm's ±0.3, so read C1 as
+  a boot-level number (123.2 in the dedicated profile, 118.5 in the ladder), not a 0.1 %-resolved one.
+- The recipe's `metadata.caveats` still open with "Unmeasured arm" — **stale as of 2026-10-18**.
 
 ## `k2-horizon-7b-fp8-uno-sglang`
 
