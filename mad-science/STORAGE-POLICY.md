@@ -142,6 +142,18 @@ accumulation:** TensorFold's GC (`weights.py:140`) unlinks other rank/world keys
 directory it writes to, so a re-pin strands the previous tag's ~106 GiB file — prune
 `rank-cache/<old-snapshot-hash>/` on each node by hand; nothing reclaims it automatically.
 
+**Verification hook.** The engine logs the file it used —
+`[tensorfold] rank 0: rank cache reading /cache/runtime/tensorfold/rank-cache/rank0of2-11007d0aaa3f0961a93a.bin`
+in the pre-change logs (`~/benchmarks/ds4-vision-20261017/boot.log:85`, untagged, i.e. that boot predates the
+per-tree key) — so the next boot of either arm is the receipt for the tagged layout: `reading
+…/rank-cache/48afcd1c…/rank0of2-11007d0a….bin` means the transplanted cache was hit, a `writing` line means
+the tag missed it. Until that line exists the per-tree key is implemented, test-covered
+(`test_rank_cache_is_per_served_tree`) and source-cited (`weights.py:115-140`), but not observed on hardware.
+The tag itself is settled without a boot: the rendered argv in three TP=2 receipts carries `--model
+/cache/huggingface/hub/models--littlecedar--…-with-engram/snapshots/48afcd1c4f2d73594d9d496b9f7bbb4559ddb9e8`
+(`ds4-vision-20261017/boot.log:49`), so the ds4 arm's tag is that hash — not the runtime-cache leaf's
+`littlecedar__…-2bd42ac5`, which is the directory `/cache/runtime` is mounted from.
+
 The two arms cost one combined pack (386 GB) plus arm 5's 119 GiB graft per node (measured 2026-10-17).
 
 ### The fleet runtime-cache, measured 2026-10-15
