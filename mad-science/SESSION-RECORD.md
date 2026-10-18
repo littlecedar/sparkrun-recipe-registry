@@ -449,3 +449,38 @@ appeared.
 nodes and documented: the 1017 pack + `<snapshot>/engram` (~385 GiB/node) as the decision artifact,
 and the arm-5 graft tree — both named here so the next sweep does not read them as litter. Gate:
 **635 tests OK** (2 skipped), all 38 recipes validate plain, `bash -n` + `py_compile` clean.
+
+### 2026-10-17/18 — the 1017 refresh ships on the TP=2 arm
+
+**What shipped** (`d8000bc`, `bff2259`): `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`
+now serves `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw@c178a01284fc5c0e859d8668cffaac81ca8f4042`
+(public, 66 files), with the release's own Engram tables (189 GiB, built from 1017 shards 47/48) in the
+standalone `hub/dsv41-engram` dir rather than inside the snapshot, and the launcher gained
+`--require-engram`. Boot receipt `~/benchmarks/ds4-1017-ship-20261017/` (task
+`5959b937d06087c6_3510a5e0d37d`): `/v1/models` = the 1017 id, `max_model_len 1048576`, TTR **62 s**,
+`reserved 104.00 GiB`, `engram=/cache/huggingface/hub/dsv41-engram`, `rank cache reading
+…/rank-cache/c178a012…/rank{0,1}of2-*.bin`, `weights in 26 s (from the rank cache)`, text clean,
+vision **3/3** with a clean control.
+
+**Two defects the boot exposed, both fixed.** (1) sparkrun stages mods from
+`~/.cache/sparkrun/registries/littlecedar`, not the source tree: that cache sat at `2611a1d`, so the
+first boot ran the *old* launcher — `ignoring unrecognized args: ['--require-engram']` — and rewrote
+~106 GiB/rank (TTR 368 s). `sparkrun registry update littlecedar` is now a required step after a pull;
+the 212 GiB of pre-tag residue was pruned. (2) `tools/build-dsv41-engram.py` and the
+`dsv41-engram-fetch` mod both defaulted to the superseded base, so the documented pre-warm built V4.1
+tables while `--require-engram` passed them through — the pairing the pack card forbids. Both defaults
+are now the 1017 base pinned at `1bae0e10…`.
+
+**The ladder is a null, and that is the result.** The 2026-10-17 single-boot A/B read +13.9 %/+11.1 %
+at C8/C16 and −9.6 % at C1; the interleaved re-take (3 alternating boots per arm, 5 runs/cell,
+`~/benchmarks/ds4-1017-ab-interleaved-20261018/`) leaves 1017 and V4.1 indistinguishable: c1 66.37 vs
+66.43 (−0.10 %), c4 47.83 vs 48.82, c8 44.80 vs 42.44, c16 48.39 vs 48.78 (+0.8 % for V4.1), every
+cell's 15-value range overlapping. Mechanism, from the artifacts: C16 is the tightest cell in all six
+boots (48.1–49.1 t/s), so the earlier 43.4 ± 5.85 was an outlier; C8 is unstable in both arms and its
+earlier gap was an ordering transient; C1's −9.6 % was 1017 at 530 s out of a cold boot against a warm
+V4.1. Adoption therefore rests on the card's published gains, not on this lane's speed.
+
+**Operational notes for the next campaign.** The bench id is recipe+profile+args, so a second boot
+silently re-emits the first boot's numbers (`Prior benchmark state … COMPLETE`, 1 s) unless `--fresh`
+is passed — one A2 run was discarded for exactly that. `docker logs` returns nothing for these
+containers, so per-node serve logs must come from the executor's own path, not the daemon.

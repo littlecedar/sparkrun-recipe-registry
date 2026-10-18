@@ -169,14 +169,16 @@ repo, itself a downstream of MiaAI-Lab's).
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
-| Model | [`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`](https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram) — EXL3 2.9 bpw (~197 GB) + upstream Engram tables (layers 1/14, ~189 GiB) + prompt, in one repo |
+| Model | [`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`](https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw) — the 2026-10-17 refresh's EXL3 2.9 bpw (~196 GiB), pinned `c178a012…` |
+| Engram | the 1017 tables (layers 1/14, ~189 GiB) in the node's `hub/dsv41-engram` dir, **outside** the checkpoint snapshot so a refresh cannot empty it; the recipe passes `--require-engram`, so a node without them fails the launch instead of serving degraded |
 | Size / fit | 385 GB |
 | Topology | TP=2 — two GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served (the model's full trained window, which is also the KV pool) |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
 | Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
 | Tags | `fast`, `large_context`, `single_user`, `vision` |
-| Measured | C1 ~73 t/s single-stream (our boot); upstream reports 101 code / 62 prose / 142 structured t/s, 4 streams 112 |
+| Measured | c1 **66.4** / c4 47.8 / c8 44.8 / c16 48.4 t/s — interleaved, 5 runs/cell, 3 boots per arm (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`); upstream reports 101 code / 62 prose / 142 structured, 4 streams 112 |
+| Boot-verified | 2026-10-18, shipped arm: TTR **62 s**, `/v1/models` = the 1017 id, vision 3/3, `weights in 26 s (from the rank cache)` (`~/benchmarks/ds4-1017-ship-20261017/`) |
 
 ### What it serves
 
@@ -223,12 +225,15 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   when no `*.safetensors` is there (the engine would only warn and route image tokens with the text
   bias). A `--vision` boot missing the template refuses the launch the same way. The trial that
   proved the bias is preserved at `attic/ds4/mods/dsv41-vision-overlay/`.
-- **The Engram tables ship inside the model repo** as
-  `engram/engram-l{1,14}.safetensors`; this recipe does **not** use
-  `recipes/cybersec/mods/dsv41-engram-fetch`. The engine globs `*.safetensors` non-recursively, so
-  the tables live in the `engram/` subdir and the launcher prefers
-  `<model_dir>/engram/`. A **rank-0/rank-1 Engram mismatch hangs at readiness** —
-  every rank must have the tables before booting.
+- **The Engram tables live outside the checkpoint, in `hub/dsv41-engram`.** The 1017 pack ships
+  none; the tables (layers 1/14, ~189 GiB) are pre-warmed per node into that standalone dir — the
+  launcher's second engram home — so a revision refresh or an `hf cache` prune cannot empty them
+  (the old `<snapshot>/engram/` location could, silently). `--require-engram` fails the launch when
+  they are missing: the engine would otherwise only warn and serve at the card's
+  PPL 1.87/6.43 → 4.16/9.06. Pre-warm with `tools/build-dsv41-engram.py` (its defaults are the 1017
+  base, revision-pinned) or the unmounted `recipes/cybersec/mods/dsv41-engram-fetch`. A
+  **rank-0/rank-1 Engram mismatch hangs at readiness** — every rank must have the tables before
+  booting.
 - **The serve line ignores request-level `temperature`/`repetition_penalty`**
   (byte-identical replies across override arms), so any future mitigation must go
   through the TensorFold launcher, not the client.

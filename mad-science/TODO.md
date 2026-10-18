@@ -93,12 +93,24 @@ DeepSeek V4.1
     `c178a01284fc5c0e859d8668cffaac81ca8f4042` — the Hub's `sha`, and both `.34`/`.35` hold
     `snapshots/c178a012…` — so the `afc7aa0a…` in the quant bullet above was a superseded read. The
     shipped recipe pins `c178a012…`.
+  *(**Closed 2026-10-18 — shipped.** (a) served and (b) measured: the interleaved re-take
+  (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`, 3 alternating boots per arm, 5 runs/cell) makes
+  the two arms indistinguishable on every ladder cell — c1 66.37 vs 66.43, c4 47.83 vs 48.82, c8
+  44.80 vs 42.44, c16 48.39 vs 48.78 t/s, all ranges overlapping — so the earlier +13.9 %/+11.1 %
+  C8/C16 and −9.6 % C1 were boot-slot artifacts and adoption rests on the card's published gains,
+  per the owner's 2026-10-17 directive. (c) decided: the base is the 1017 pack pinned `c178a012…`
+  with its Engram pre-warmed into `hub/dsv41-engram` (`--require-engram` fails a miss);
+  `littlecedar/…-with-engram` stays as the cybersec arm's stock. Receipts: ship
+  `~/benchmarks/ds4-1017-ship-20261017/` (TTR 62 s, vision 3/3, tag-verified rank cache). One
+  sub-item stays open and blocks nothing on the fleet: the publication route for third-party parity
+  (combined repo ≈385 GiB vs an Engram-only repo ≈189 GiB plus a launcher change) is the owner's call.)*
 - [ ] **Run the two KNAPCIO post-pin defer experiments as tracked A/Bs** — `DSV41_CACHE_GIB=0` (third-party +9% KV pool; shipped value is 4 GiB) and the `SGLANG_RUST_BUILD_MODE` cargo-probe boot-hang workaround (`mad-science/KNAPCIO-UPSTREAM-DELTA.md:49,56`; `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:116,162`). *(effort: short)*
 - [ ] **RoCEnante coverage sweep + auto-crossover microbench** — the memo's §5 E3/E5 ("actually worth running"): do TP all-reduces/gathers >2 MiB silently fall back to NCCL (`SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB), and the 1 KB…2 MiB RoCEnante-vs-NCCL crossover curve (none measured) (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:166-196`). *(effort: medium)*
 - [ ] **Re-test `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE`** — both named and deliberately off (CERT_HEAD −0.5 ms/step at c1 but slower from ~10 requests; ENGRAM_DRM_NODE needs a host display-reserve change) (`attic/ds4/AGENTS.md`). *(effort: medium)*
   *(Owner decision 2026-10-16: the host display-reserve change on the free nodes is authorized for this re-test — revert or document it afterwards.)*
+  *(Correction 2026-10-18: both are **knapcio/SGLang adapter** knobs (`/opt/dsv41/adapter/…`), listed with the RoCE set at `attic/ds4/AGENTS.md:1793-1797` — the TensorFold TP=2 image reads only `TF_DS_*`, so a boot on `.34`/`.35` measures nothing. The re-test belongs to the TP=4 lane and now rides the v2.4 boot; the host display-reserve change is **not** applied without evidence the knob acts without it, because the reboot alone moves the first KV pool 5.9–6.4M → 7.48M tokens and would confound its own comparison.)*
 - [ ] **DSpark verify-window γ=3** — only γ=2 vs γ=5 was A/B'd; the fork's own baseline point (γ=3) was never measured on this lane (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:140-158`). *(effort: short)*
-- [ ] **Pin the TP=2 arm's checkpoint revision** — `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` carries **no** `model_revision` at all, so the arm serves whatever `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`'s `main` is at launch; today's snapshot on both `.34` and `.35` is `48afcd1c4f2d73594d9d496b9f7bbb4559ddb9e8` (measured 2026-10-15). Plain `validate` passes and `--strict` does **not** flag it (its only finding is the `metadata.model_dtype 'exl3'` suggestion), so the drift-prevention convention has no machine check here. Either pin the SHA the receipts actually ran against or state the reason the arm stays unpinned. *(effort: short)*
+- [X] **Pin the TP=2 arm's checkpoint revision** — **closed 2026-10-18.** The arm now serves `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw` pinned at `c178a01284fc5c0e859d8668cffaac81ca8f4042` via top-level `model_revision:`, and the `littlecedar/…-with-engram` question is moot (it stays only as the cybersec arm's stock). `--strict` now flags this recipe as the lane's known launcher false positive — the engine receives the prepared snapshot path, not `--revision`.
 
 ## glm5
 GLM 5.3

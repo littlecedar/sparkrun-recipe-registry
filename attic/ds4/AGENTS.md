@@ -2153,6 +2153,17 @@ and `main()` **overrides** it per served tree through `rank_cache_dir(model_dir)
 dir basename>`, e.g. `…/rank-cache/48afcd1c0de5b1e0f7a9` for a snapshot (follows the pin) or
 `…/rank-cache/dsv41-ablit` for a graft.
 
+**Boot-observed 2026-10-18** (`~/benchmarks/ds4-1017-ship-20261017/`, task
+`5959b937d06087c6_3510a5e0d37d`): both ranks logged
+`rank cache reading /cache/runtime/tensorfold/rank-cache/c178a01284fc5c0e859d8668cffaac81ca8f4042/rank{0,1}of2-*.bin`
+and `weights in 26 s (from the rank cache)` — the transplanted caches were hits, not rewrites. The
+tag also survived the `--vision` overlay (the boot line names `model=/cache/runtime/tensorfold/model-overlay`
+while the cache stayed keyed on the served tree). **Trap this boot exposed:** sparkrun stages mods from
+`~/.cache/sparkrun/registries/littlecedar`, *not* the source tree; that cache sat at an older commit, so
+the first boot ran the old launcher, silently dropped the recipe's `--require-engram`
+(`ignoring unrecognized args`) and rewrote 106 GiB/rank. Run `sparkrun registry update littlecedar`
+after every pull, and read the rendered argv in the launch log rather than trusting the head tree.
+
 `serve` always runs with `--parallel 4 --mtp-drafts 5 --temperature 0 --no-update-check`. The first
 three are upstream's served line; `--no-update-check` keeps the boot off the network.
 
@@ -2760,6 +2771,29 @@ boot; the shipped ladder ran ~7 min into a warm boot. Decode is not a compile-co
 C1 difference this small should be re-taken interleaved before it is quoted as a real regression.
 The **adoption decision rests on the pack's published gains against the ~385 GB/node cost, not on
 this ladder.**
+
+**Interleaved re-take (2026-10-18) — the deltas above do not survive.** Three alternating boots per
+arm, 5 runs per cell, one window (`.34`+`.35`, task ids in the receipt; evidence
+`~/benchmarks/ds4-1017-ab-interleaved-20261018/`), with `/v1/models` asserted per boot so neither arm
+can be mistaken for the other:
+
+| cell | 1017 A mean (boot range) | V4.1 B mean (boot range) | paired diffs | Δ | verdict |
+|---|---:|---:|---|---:|---|
+| c1 | 66.37 (66.1–66.7) | 66.43 (65.3–68.4) | −2.06, +1.38, +0.48 | −0.10 % | null (t −0.07) |
+| c4 | 47.83 (46.2–49.3) | 48.82 (47.9–50.1) | +1.46, −0.61, −3.84 | −2.04 % | null (t −0.64) |
+| c8 | 44.80 (39.6–48.9) | 42.44 (40.5–45.9) | +3.02, −1.28, +5.35 | +5.57 % | null (t +1.22) |
+| c16 | 48.39 (48.1–48.5) | 48.78 (48.5–49.1) | −0.45, −0.18, −0.54 | −0.80 % | null (ranges overlap) |
+
+Every cell's 15-value range overlaps, so the earlier +13.9 %/+11.1 % (C8/C16) and −9.6 % (C1) were
+**boot-slot artifacts**, and the mechanism is visible in the artifacts: C16 is the tightest cell in all
+six boots (48.1–49.1 t/s), which makes the earlier 43.4 ± 5.85 an outlier; C8 is unstable in *both*
+arms (boot means A 48.9/39.6/45.9, B 45.9/40.9/40.5); C1's gap was 1017 at 530 s out of a cold boot
+against a warm V4.1. **Adoption rests on the card's published gains, not on this lane's speed.**
+
+Two measurement traps this cost: a bench id is recipe+profile+args, so a second boot silently re-emits
+the first boot's numbers (`Prior benchmark state … COMPLETE — no requests will be sent`) unless
+`--fresh` is passed; and `docker logs` returns nothing for these containers, so per-node serve logs
+must come from the executor's path, not the daemon.
 
 **Cost of adopting it:** ~385 GB per node (196 GiB pack + 189 GiB tables) re-downloaded, a new
 rank-cache write per node (330 s measured), and a re-cut of the combined repo if the dedup layout is
