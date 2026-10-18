@@ -72,6 +72,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -211,6 +212,33 @@ def prepare_runtime_cache() -> None:
         Path(RUNTIME_CACHE, sub).mkdir(parents=True, exist_ok=True)
 
 
+def rank_cache_dir(model_dir: str) -> str:
+    """The rank cache for one *served tree*: ``<RUNTIME_CACHE>/rank-cache/<tag>``.
+
+    sparkrun keys its runtime cache on ``model@revision``, and TF writes ONE
+    ~106 GiB weights file per rank into ``TF_DS_RANK_CACHE``. Two arms can share
+    a runtime-cache key while serving different weights: the cybersec abliterated
+    arm pins the same combined pack as the DS4 TP=2 arm (the ds4 recipe has an
+    open TODO for that same pin) and grafts 24 rewritten shards over it. So this
+    dir is keyed by the served tree -- the resolved ``--model`` directory, taken
+    BEFORE the vision overlay reuses one shared ``model-overlay`` dir -- not by
+    the runtime-cache key:
+
+    * a snapshot dir keys on its hash (``48afcd1c…``), which follows the pin;
+    * a grafted tree keys on its own name (``dsv41-ablit``).
+
+    Not a correctness knob -- TF names each file with its own checkpoint key
+    (``…/families/deepseek_v41/cuda/weights.py``: this file's bytes, rank/world,
+    and every shard's ``name:size:mtime``), so one arm can never read the other's
+    file. It is an eviction knob: that same code unlinks every other
+    ``rank<rank>of<world>-*`` in the dir before writing, so in a shared dir the
+    two arms would evict each other and every arm switch would re-pay the ~330 s
+    cold write.
+    """
+    tag = re.sub(r"[^A-Za-z0-9._-]", "_", Path(model_dir).name) or "served"
+    return str(Path(RUNTIME_CACHE) / "rank-cache" / tag)
+
+
 def build_model_overlay(model_dir: str) -> str:
     """Serve a model dir whose ``chat_template.jinja`` is this mod's patched one.
 
@@ -294,6 +322,11 @@ def main(argv: list[str] | None = None) -> int:
     # The checkpoint must be resolved before the Engram tables, because a
     # combined local repo carries the tables in a subdir of the model dir.
     model_dir = resolve_checkpoint(args.model)
+    # Keyed on the served tree, and taken BEFORE --vision may swap model_dir for
+    # the shared `model-overlay` dir (see rank_cache_dir).
+    rank_cache = rank_cache_dir(model_dir)
+    Path(rank_cache).mkdir(parents=True, exist_ok=True)
+    env["TF_DS_RANK_CACHE"] = rank_cache
     stock_dir = resolve_checkpoint(args.stock_model) if args.stock_model else None
     engram = resolve_engram_dir(model_dir, stock_dir)
     if engram:

@@ -24,8 +24,8 @@
 # verified aborts the launch rather than serving the stock (non-abliterated) checkpoint under
 # this arm's name.
 #
-# Budget note: the graft rewrites every shard carrying layers.10-35 attn.wo_b (~26 shards x
-# ~5 GiB) and must finish inside sparkrun's hard-coded 600 s pre-exec hook budget
+# Budget note: the graft rewrites every shard carrying layers.10-35 attn.wo_b (24 shards,
+# 118.58 GiB) and must finish inside sparkrun's hard-coded 600 s pre-exec hook budget
 # (sparkrun/orchestration/hooks.py::run_pre_exec). A detached graft cannot be used instead: the
 # cluster launch holds the head on a ~300 s rendezvous gate before the serve command's own
 # readiness budget applies, so a serve wrapper that waits on a background graft never gets the
@@ -164,11 +164,13 @@ log "stock: ${STOCK}"
 [[ "$(realpath -m "${STOCK}")" != "$(realpath -m "${OUTDIR}")" ]] || die "OUTDIR equals the stock snapshot"
 
 # The Engram tables live in the stock pack, and both TP=2 arms must share ONE copy. The
-# author's script copies every entry of --src and *dereferences* the HF cache's blob
-# symlinks, so grafting straight from the snapshot materializes the tables as well
-# (measured 2026-10-17: a 386 GiB graft tree, 189 GiB of it tables, ~200 s of the 600 s
-# hook budget). So: link the tables into the graft tree and hand the script a view without
-# engram/. The link step also repairs a graft built before this change.
+# author's script *copytrees* every directory of --src, and `engram/` is one: grafting
+# straight from the snapshot copies the ~189 GiB table set into the graft tree (~200 s of
+# the 600 s hook budget, measured 2026-10-17). So: link the tables into the graft tree and
+# hand the script a view without engram/. The link step also repairs a graft built before
+# this change. It is safe before a first graft: the script skips a destination that already
+# exists (apply_mia_exl3_wob.py:58-62), and the 2026-10-17 re-boot ran with an empty OUTDIR
+# (modlog: the engram link, then `src view`, then `DONE ` -- edited 104).
 link_engram() {
   if [[ -d "${STOCK}/engram" ]] && [[ "$(readlink "${OUTDIR}/engram" 2>/dev/null)" != "${STOCK}/engram" ]]; then
     rm -rf "${OUTDIR}/engram"
@@ -195,9 +197,12 @@ then
   exit 0
 fi
 
-# The src view: every stock entry except engram/, as symlinks. The script copies through
-# them exactly as it copies the snapshot's own links, so the weights are still materialized
-# -- that is the arm -- but the tables are not.
+# The src view: every stock entry except engram/, as ABSOLUTE symlinks. Absolute matters --
+# the script os.link()s each shard it does not edit (apply_mia_exl3_wob.py:70-77), and
+# Python's os.link uses link(2), which hardlinks the *symlink inode*, not the blob: over the
+# snapshot's own relative `../../blobs/...` links the graft tree would hold links that do not
+# resolve, while over this view's absolute ones it holds links that do. Nothing is copied but
+# the 24 shards the graft rewrites (118.58 GiB; `du` == `du --apparent-size`, 2026-10-17).
 VIEW="${WORKDIR}/stock-view"
 rm -rf "${VIEW}"
 mkdir -p "${VIEW}"
@@ -210,10 +215,11 @@ view_entries=("${VIEW}"/*)
 shopt -u nullglob
 log "src view: ${VIEW} (${#view_entries[@]} entries, engram/ excluded)"
 
-# 3) Graft. The author's script copies the pack and rewrites only the shards carrying
-#    layers.10-35 attn.wo_b (~26 x ~5 GiB). It must fit sparkrun's 600 s pre-exec budget; a
-#    cold node that cannot is a launch failure, not a degraded serve.
-log "grafting (this rewrites the ~26 shards carrying layers.10-35 attn.wo_b)..."
+# 3) Graft. The author's script rewrites only the shards carrying layers.10-35 attn.wo_b
+#    (24 shards, 118.58 GiB of new bytes, ~150 s measured 2026-10-17) and links the rest.
+#    It must fit sparkrun's 600 s pre-exec budget; a cold node that cannot is a launch
+#    failure, not a degraded serve.
+log "grafting (this rewrites the 24 shards carrying layers.10-35 attn.wo_b)..."
 python3 "${SCRIPT}" --src "${VIEW}" --wo-b "${SIDECAR}" --dst "${OUTDIR}"
 link_engram
 

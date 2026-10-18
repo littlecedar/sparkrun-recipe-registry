@@ -122,11 +122,9 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | Recipe                                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size |  Mem% | TP | Model Cards                                                      |
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   46.5 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash]                         |
-| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀† |   73.0 |      — |      — |       — | 413GB | 84%\* |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
+| deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀  |   73.0 |      — |      — |       — | 413GB | 84%\* |  2 | [Model][littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram] |
 
 * _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
-* _`†` vision runs in the engine, not on the HTTP surface: an `image_url` part still gets HTTP 400
-from the served chat template (`attic/ds4/AGENTS.md` §12.14)._
 
 ## Ornith 1.5
 

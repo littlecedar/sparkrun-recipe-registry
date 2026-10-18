@@ -404,21 +404,46 @@ empty `content` (a 200-token text request shows `reasoning_len=156`); send
 `LibertAIDAI/…-1017-EXL3-2.9bpw` plus Engram tables rebuilt from 1017 shards 47/48 (188.8 GiB at
 2978 s/node; one node needed a resume after two short-read segments): `/v1/models` = the 1017 repo id
 at 530 s cold, vision **3/3** (the pack ships no template at all — the overlay is what makes it
-boot), TEB **100**. Same-window A/B against the shipped arm: C1 **61.5 vs 68.0**, C4 48.9 vs 48.0,
-**C8 49.3 vs 43.3**, **C16 48.2 vs 43.4**, TEB 100 vs 100. Adoption is the owner's call and the C1
-cell wants an interleaved re-take (§12.16). **Trap: `-o model=` is ignored by a real launch** — the
+boot), TEB **100**. Same-window A/B against the shipped arm: C1 **61.5 vs 68.0**, C4 48.9 vs 48.0, C8 49.3 vs 43.3,
+C16 48.2 vs 43.4, TEB 100 vs 100 — but **every cell's three runs overlap** (shipped spread 1.56–5.85
+t/s against 1017's 0.07–0.57), so the ladder establishes the 1017 arm's consistency, not a speed
+win, and the C8/C16 deltas first read off the means are **not** established. Adoption is the owner's
+call and should rest on the pack's published gains against the ~385 GB/node cost; the C1 cell wants
+an interleaved re-take (§12.16). **Trap: `-o model=` is ignored by a real launch** — the
 dry run honours it, the launch distributed and served the recipe's own model; a model swap needs a
 recipe file.
 
 **3 — the EXL3/Engram dedup, including the mistake inside it.** Arm 5 moved to the combined pack and
 dropped `dsv41-engram-fetch`, with `--stock-model` finally carrying the launcher's Engram resolution.
-The first re-boot proved the author's graft script **copies** through the HF cache's symlinks instead
-of hardlinking: a 386 GiB tree with the 189 GiB of tables duplicated — the dedup as first wired
-*added* ~190 GB per node. Fixed by grafting from a `--src` view without `engram/` and symlinking
-`${STOCK}/engram` into the tree (with the repair ahead of the `ABLIT_META` short-circuit): graft
-**148 s / 137 s**, tree **119 GiB**, `engram=` the stock pack, `/v1/models` the drowzeys id,
-`17*19 → 323`, TTR 865.9 s with a cold rank cache (`~/benchmarks/cybersec-arm5-20261017/`). Stale
-Mia trees and `dsv41-engram` pre-warms removed from `.32`/`.33` (both 1.6T → 1.3T used).
+The dedup as first wired did not work, and the mechanism I first recorded for it was wrong — read
+from the author's script on 2026-10-17, it `os.link`s each shard it does not edit, and Python's
+`os.link` uses `link(2)`, which hardlinks the snapshot's *own relative* `../../blobs/…` symlink (a
+link that does not resolve from the graft tree), while `shutil.copytree` dereferences the `engram/`
+*directory* and so duplicated the 189 GiB table set. Fixed by grafting from a `--src` view of
+absolute symlinks without `engram/`, and symlinking `${STOCK}/engram` into the tree (with the repair
+ahead of the `ABLIT_META` short-circuit): graft **148 s / 137 s**, tree **119 GiB** with `du` == `du
+--apparent-size` — the 24 rewritten shards (118.58 GiB) are the only real bytes, the other 15 shards
+and `engram/` are links, verified by inode/nlink on both nodes — `engram=` the stock pack,
+`/v1/models` the drowzeys id, `17*19 → 323`, TTR 865.9 s with a cold rank cache
+(`~/benchmarks/cybersec-arm5-20261017/`). The graft changed the served prompt with the stock: the
+tree carries the combined pack's 15,348 B upstream template where the Mia-era graft had the
+11,410 B exl3-era one. Stale Mia trees and `dsv41-engram` pre-warms removed from `.32`/`.33` (both
+1.6T → 1.3T used).
+
+**Consequence carried with it: the rank cache is now per served tree.** The two TP=2 arms' runtime-cache
+keys stay separate today only because the ds4 arm is unpinned; the open pin TODO would merge them, and
+TensorFold unlinks every other `rank<rank>of<world>-*` file in the directory it writes to
+(`…/families/deepseek_v41/cuda/weights.py:140`, read out of the pinned image), so a shared dir would
+make the two arms evict each other and re-pay the ~330 s cold write on every switch.
+`mods/tensorfold-dsv41-launcher/launcher.py` now sets `TF_DS_RANK_CACHE` to `…/rank-cache/<served tree>`
+(snapshot hash, or `dsv41-ablit` for the graft), guarded by
+`tests/test_ds4_recipes.py::TensorfoldLaneContract.test_rank_cache_is_per_served_tree`. **Not a
+correctness knob** — TF's own file name is already checkpoint-keyed, so neither arm could read the
+other's; the reader who needs the mechanism has it in the launcher docstring. The four existing
+~106 GiB caches on `.34`/`.35` were **moved** into their tag dirs (verified per key, one file per
+rank), so nothing was invalidated and nothing is stranded — and the earlier draft of this change that
+claimed an arm "would load the other's weights silently" was wrong and is corrected in every place it
+appeared.
 
 **Hygiene.** Every serve stopped by explicit task id; `.34`/`.35` at zero containers. Kept on the
 nodes and documented: the 1017 pack + `<snapshot>/engram` (~385 GiB/node) as the decision artifact,

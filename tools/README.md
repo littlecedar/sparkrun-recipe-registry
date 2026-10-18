@@ -16,7 +16,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `../plugins/pooling_bench_framework.py` | the same two lanes, driven through a `sparkrun benchmark` profile | the `BenchmarkingPlugin` that runs `pooling-bench.py` as its subprocess; out-of-tree, so it loads only from `plugins.paths` (see §plugins/); guarded by `tests/test_pooling_bench_framework.py` |
 | `synthetic_png.py` | library for `pooling-bench.py` | also loaded by the same embed/rerank guard |
 | `quality-battery.py` | `recipes/ds4/` benchmarks rig | imported verbatim by `recipes/ds4/benchmarks/run_benchmarks.py`; scoring kinds reused by `qwen4-quality-eval.py` |
-| `build-dsv41-engram.py` | ds4 TP=2 lanes | bundled copy shipped by `recipes/cybersec/mods/dsv41-engram-fetch/`; guarded by `tests/test_dsv41_engram_builder.py` |
+| `build-dsv41-engram.py` | ds4 TP=2 lanes | still cuts the Engram tables from a repo that carries them (the open 1017 refresh path uses it); the bundled copy lives in `recipes/cybersec/mods/dsv41-engram-fetch/`, which **no shipped recipe mounts** as of 2026-10-17; guarded by `tests/test_dsv41_engram_builder.py` |
 | `build-dsv41-combined.py` | ds4 combined-repo TP=2 | shells out to `build-dsv41-engram.py`; consumed by `mods/tensorfold-dsv41-launcher/launcher.py`; guarded by `tests/test_dsv41_combined_tool.py` |
 | `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
@@ -370,11 +370,18 @@ contiguous planes. This is exactly what TensorFold's `Engram` reader expects: it
 `8 + header_len + data_offsets[0] + i * prod(shape[1:])`. `--format packed` writes the
 knapcio TP=4 layout (magic `DSV1EN41`, 4096-B header, 264-B records). Both are resumable.
 
-**Wiring.** The recipe adds `recipes/cybersec/mods/dsv41-engram-fetch`, which runs this builder on each
-runner node before the launcher. It is a no-op once the tables are complete, and it
-**always fetches detached** — sparkrun runs a mod as a pre-exec hook under a hard
+**Wiring.** `recipes/cybersec/mods/dsv41-engram-fetch/` (unmounted mod) wraps this builder as a
+pre-exec hook, but **no shipped recipe mounts it** as of 2026-10-17: both TP=2 arms read their
+Engram tables from the combined `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` pack,
+which carries them in its own `engram/` subdir and which the launcher prefers (the ds4 arm serves
+that pack directly; the cybersec abliterated arm grafts onto it and reaches the tables through the
+launcher's `--stock-model`). The mod remains the **out-of-band pre-warm path** for a node without
+the combined pack — and the engram path the open 1017 refresh item still names. Its invocation is
+unchanged: **always fetches detached** — sparkrun runs a mod as a pre-exec hook under a hard
 600 s timeout, and a slow-link fetch can take hours, so a blocking fetch is a
-launch-killing risk (observed). For a fresh deployment the honest path is to
+launch-killing risk (observed); it is a no-op once the tables are complete (`--check`), and
+`--detach` prints a pid and log path to poll with `--status`. For a fresh deployment the honest
+path is to
 **pre-warm each node out-of-band** with this tool, or to declare an Engram repo in the
 recipe's `distribution_config.models` so sparkrun downloads it once on the head and
 rsyncs it to the workers (`--verify-rows N` re-fetches N random rows from the source

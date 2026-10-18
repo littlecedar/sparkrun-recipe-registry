@@ -1,7 +1,11 @@
 # `dsv41-engram-fetch`
 
-Pre-launch mod for the DeepSeek-V4.1-Flash **TensorFold TP=2** lane
-(`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`).
+Pre-launch mod for the DeepSeek-V4.1-Flash **TensorFold TP=2** lane. **Unmounted since 2026-10-17:**
+the shipped `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` serves the combined
+`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` pack, whose `engram/` subdir the launcher
+resolves, and the cybersec abliterated arm reads the tables from that pack through the launcher's
+`--stock-model`. What remains is the out-of-band path for a node that lacks that pack — and the
+Engram path the open 1017-refresh item still names.
 
 It builds the model's two Engram embedding tables on each runner node **from the
 online Hugging Face repo**, so the lane no longer depends on someone having
@@ -12,7 +16,9 @@ the node's HF cache by hand.
 
 The TP=2 lane serves from the EXL3 checkpoint
 (`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`), whose quantizer **omitted the
-Engram tables**. The tables are 189 GiB and live only in the *official*
+Engram tables** — pre-2026-10-17 shape: the served repo is now the combined pack, whose
+weight shards are the Mia ones byte-for-byte and which carries the tables itself. This is
+what the mod exists for when a node has neither. The tables are 189 GiB and live only in the *official*
 `deepseek-ai/DeepSeek-V4.1-Flash` repo — a ~285 GB checkpoint. Pulling that repo
 just to reach the tables means materializing the whole model, which is exactly
 what the TP=2 lane is designed to avoid.

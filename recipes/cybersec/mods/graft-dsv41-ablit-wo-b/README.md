@@ -44,9 +44,13 @@ untouched, so the pair still applies.
 - Fetches the author's script + sidecar from the gated overlay at the pinned revision, using
   the node token at `/cache/huggingface/token`.
 - Runs the author's script unchanged, with a **symlink view of the stock dir as `--src`** and
-  `/cache/runtime/dsv41-ablit` as `--dst`. The script **copies** every entry and *dereferences*
-  the HF cache's blob symlinks rather than hardlinking them (measured 2026-10-17: a 386 GiB
-  graft tree from a 386 GiB pack). The view therefore omits `engram/` and the mod links the
+  `/cache/runtime/dsv41-ablit` as `--dst`. That view is load-bearing twice over: the script
+  `os.link`s each shard it does not edit, and Python's `os.link` uses `link(2)`, which hardlinks
+  the *symlink inode* — over the snapshot's own relative `../../blobs/…` links the graft tree would
+  hold links that cannot resolve from it, while the view's absolute ones resolve — and it
+  `shutil.copytree`s every directory, `engram/` included, which **dereferences** the ~189 GiB table
+  set. Measured 2026-10-17 with the view plus a linked `engram/`: a **119 GiB** tree, `du` ==
+  `du --apparent-size`, in which only the 24 rewritten shards are real bytes. The mod links the
   stock pack's tables into the graft tree — one Engram set per node — and `--src == --dst` is
   refused, so the stock snapshot is never written.
 - **Fail closed**: a missing token, a missing stock pack, an `OUTDIR` that resolves to the

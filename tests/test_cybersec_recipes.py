@@ -258,13 +258,16 @@ class NewMods(unittest.TestCase):
         self.assertRegex(script, r"n_edited=\{n\}")
 
     def test_graft_mod_shares_the_engram_tables(self) -> None:
-        """The tables must be linked, not copied: the script copies through symlinks.
+        """The tables must be linked, not copied: the script copytrees directories.
 
-        Measured 2026-10-17: grafting straight from the combined snapshot materialized a 386 GiB
-        tree whose 189 GiB of Engram tables duplicated the pack. The mod now builds a src view
-        without engram/ and links the stock pack's tables into the graft tree -- and does so
-        *before* the ABLIT_META short-circuit, so an existing graft is repaired on the next
-        launch instead of waiting for a re-graft.
+        The author's script `shutil.copytree`s every *directory* of --src, and `engram/` is one,
+        so grafting straight from the stock snapshot dereferences and duplicates ~189 GiB of
+        tables; it `os.link`s each shard it does not edit, and Python's `os.link` uses `link(2)`,
+        which hardlinks the snapshot's own *relative* `../../blobs/...` symlink -- one that cannot
+        resolve from the graft tree. The mod now builds a src view of absolute symlinks without
+        engram/ and links the stock pack's tables into the graft tree -- and does so *before* the
+        ABLIT_META short-circuit, so an existing graft is repaired on the next launch instead of
+        waiting for a re-graft.
         """
         script = (MODS / "graft-dsv41-ablit-wo-b" / "run.sh").read_text(encoding="utf-8")
         self.assertIn('ln -s "${STOCK}/engram" "${OUTDIR}/engram"', script)
