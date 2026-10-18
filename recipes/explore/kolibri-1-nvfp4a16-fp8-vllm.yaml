@@ -1,0 +1,89 @@
+recipe_version: "2"
+model: Quantinine/Kolibri-1-NVFP4A16-FP8
+model_revision: 4a8406455c474fd0fb2bd523c352cc99803eb492
+# Stock vllm/vllm-openai + the pure-Python aleph-alpha-inference plugin
+# (recipes/explore/mods/install-kolibri-plugin); the pack's own card is tested
+# on exactly vLLM 0.29.0 + plugin 1.0.0. Same pin as the FP8 arm.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+# Unpublished mod: bare `mods/NAME`, NOT `@littlecedar/mods/NAME`. Also requires
+# `--transfer-mode local` on launches.
+mods:
+  - "mods/install-kolibri-plugin"
+
+metadata:
+  description: >-
+    Quantinine/Kolibri-1-NVFP4A16-FP8 — Aleph Alpha's 78.1B / 3.46B-active MoE
+    with the routed experts re-quantized FP8 -> NVFP4 (weight-only, W4A16) and
+    the attention + shared expert left on the official FP8 path, on ONE DGX
+    Spark (TP=1). 45.8 GB of files / 42.8 GiB of weights against the official
+    73.6 GiB, so the SERVED shape is the FP8 arm's (util 0.78, 262,144 window,
+    max_num_seqs 4, fp8 KV, kolibri1 parsers) with ~31 GiB more KV headroom
+    left unspent. Thinking is ON by default; per-request
+    chat_template_kwargs {reasoning_effort: none|low|medium|high} or
+    enable_thinking false turns it off. The uploader is not Aleph Alpha
+    (unofficial conversion): its own KL screen vs the FP8 model is 0.0718 nats
+    per token, NLL +0.0040, top-1 agreement 89.4%.
+  model_url: https://huggingface.co/Quantinine/Kolibri-1-NVFP4A16-FP8
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools
+  caveats: >
+    Unofficial 4-bit conversion (not Aleph Alpha's): routed experts run as
+    W4A16 on vLLM's Marlin NVFP4 kernel with BF16 activations, attention and
+    the shared expert stay W8A8. Its "GPU does not have native support for FP4"
+    boot warning is expected for a weight-only checkpoint, not a fault. Built
+    from base revision e52eb4627d11516b0c01de49210ab5a4e4061444, NOT the FP8
+    repo's current main (258cae8f): the quantized experts are that older
+    revision's tensor values, so a comparison against the FP8 arm mixes a
+    revision delta with the quant delta. Not boot-verified here yet.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OMP_NUM_THREADS: '4'
+
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, so the served id would be the cache path.
+  served_model_name: Quantinine/Kolibri-1-NVFP4A16-FP8
+  max_model_len: 262144
+  max_num_seqs: 4
+  # The FP8 arm's measured GB10 working point, kept as-is: 42.8 GiB of weights
+  # fit far under it, and the unspent ~31 GiB of KV headroom is left for a
+  # measured concurrency ladder rather than guessed at here.
+  gpu_memory_utilization: 0.78
+  kv_cache_dtype: fp8
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--Quantinine--Kolibri-1-NVFP4A16-FP8/snapshots/4a8406455c474fd0fb2bd523c352cc99803eb492
+  --served-model-name {served_model_name}
+  --revision=4a8406455c474fd0fb2bd523c352cc99803eb492
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --enable-prefix-caching
+  --reasoning-parser kolibri1
+  --tool-call-parser kolibri1
+  --enable-auto-tool-choice

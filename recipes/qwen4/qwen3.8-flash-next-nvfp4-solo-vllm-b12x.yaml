@@ -1,5 +1,6 @@
 recipe_version: "2"
 model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc
 runtime: vllm
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
 min_nodes: 1
@@ -16,8 +17,8 @@ metadata:
     sparkrun-native form of the single-Spark cells the SGLang cookbook ships for the
     RadixArk and NVIDIA exports). BOOT-VERIFIED 2026-10-10: /health 200, chat
     completion answered correctly (17*23=391), W3 battery 38/38 n=1 (saturated —
-    cannot discriminate checkpoints). No revision pin: serves local-inference-lab
-    at main, which since 2026-10-02 is the step-5500 QAD hybrid export.
+    cannot discriminate checkpoints). Pinned 2026-10-18 to the main SHA current
+    then, the step-5500 QAD hybrid export published 2026-10-06.
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

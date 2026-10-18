@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# TensorFold `kolibri1` CUDA engine with the learned block drafter, for Aleph
+# Alpha Kolibri 1 (78B total / 3.46B active) on one NVIDIA DGX Spark (GB10),
+# vendored for the sparkrun `explore` lane.
+#
+# Provenance: branch `kolibri1-drafter` of jschmied/TensorFold (fork of
+# ashhart/TensorFold v0.6.5, Apache-2.0), pinned at commit
+# 8ea05aae1a89228fb3336d90cf103ca68dfac2f1 ("feat(kolibri1 cuda): block drafter
+# release directories and GB10 serving defaults"). Upstream main has no kolibri1
+# family at all: `src/tensorfold/families/kolibri1/` (family, CUDA engine, block
+# drafter, training recorder) exists only on this fork's branches.
+#
+# Base image: the DGX Spark SGLang image (arm64), pinned by digest, same base as
+# recipes/ds4/Dockerfile.tensorfold-dsv41. It supplies what the engine links
+# against and what `tensorfold serve` imports: CUDA toolkit 13.0 (nvcc) + ninja,
+# torch 2.13.0+cu130, triton 3.7.1, libnccl.so.2, libibverbs, python 3.12 with
+# numpy / safetensors / tokenizers / huggingface-hub / jinja2 / transformers,
+# fastapi + uvicorn. TensorFold's pyproject declares no CUDA dependency on
+# purpose (it uses the container's own torch and triton): do not pip install
+# torch here.
+#
+# The drafter is switched on by ENVIRONMENT, not by a flag: the family's
+# `cuda_engine(drafter=...)` kwarg raises "no draft model on CUDA yet", while
+# `families/kolibri1/cuda/engine.py` reads
+#   TENSORFOLD_KOLIBRI_DRAFTER=<drafter release dir>    (required, enables it)
+#   TENSORFOLD_KOLIBRI_DRAFTER_DEPTH, _VOCAB, _STREAMS  (optional)
+#   TENSORFOLD_KOLIBRI_BLOCK_QUANT / _BLOCK_HEAD / _BLOCK_GRAPH (drafter knobs)
+# at engine construction. A release dir holding config.json + model.safetensors
+# + draft_vocab.json loads through block_drafter.is_block() -> BlockDrafter; a
+# .pt checkpoint loads through drafter.Drafter.
+#
+# Architecture note: CUDA family, single GPU, GB10-only (compute capability 8.9+
+# gate in the engine, kernels built for the local device). Not portable to x86.
+# Published (docker.io, arm64, 2026-10-18):
+#   littlecedar/dgx-spark-tensorfold-kolibri1-drafter:0.6.5-8ea05aa
+#   @sha256:efcb7257b907927fb24560f3d98e2eee85211bd910feaa11408dacbb9ccbcbb7
+# Local build tag `sparkrun/tensorfold-kolibri1-drafter:0.6.5-8ea05aa`
+# (image id sha256:52b6c6d36c46f0e241b434255367dd0206c981c95152a3ee3deaf3bf22f27237).
+
+FROM lmsysorg/sglang:dev-cu13@sha256:aa878e8d38f9eefb1ac5a5176e78448705e166dd1bfaf29d02fb8569cfd28b27
+
+# Pin the engine commit, not the branch: the branch moves; this build must not.
+ARG TENSORFOLD_REPO=https://github.com/jschmied/TensorFold.git
+ARG TENSORFOLD_REF=8ea05aae1a89228fb3336d90cf103ca68dfac2f1
+
+LABEL org.opencontainers.image.title="TensorFold kolibri1 + block drafter (DGX Spark)" \
+      org.opencontainers.image.description="TensorFold kolibri1 CUDA engine with the TENSORFOLD_KOLIBRI_DRAFTER block drafter, for Aleph Alpha Kolibri 1 on one NVIDIA DGX Spark (GB10)" \
+      org.opencontainers.image.source="https://github.com/jschmied/TensorFold" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.revision="${TENSORFOLD_REF}"
+
+# The engine, installed without deps over the base's own (see the header).
+RUN git clone --quiet "${TENSORFOLD_REPO}" /opt/tensorfold \
+    && cd /opt/tensorfold \
+    && git checkout --quiet "${TENSORFOLD_REF}" \
+    && test "$(git rev-parse HEAD)" = "${TENSORFOLD_REF}" \
+    && python3 -m pip install --no-cache-dir --no-deps . \
+    && rm -rf /opt/tensorfold/.git
+
+# Build-time gate: the package imports, the kolibri1 family is discovered with a
+# CUDA backend, the block drafter module loads, and the drafter env hook is
+# present in the engine source (the flag path deliberately raises, so the env
+# var is the only way in). A failure here fails the build, not a cold boot.
+RUN python3 -c "import tensorfold; print('tensorfold', tensorfold.__version__)" \
+    && python3 -c "from tensorfold.families import families, backends_of; f = families()['kolibri1']; print('family', f.title, f.module, backends_of(f))" \
+    && python3 -c "from tensorfold.families.kolibri1 import MODEL_TYPES, TITLE, QUANT_METHODS; print('declared', TITLE, MODEL_TYPES, QUANT_METHODS)" \
+    && python3 -c "from tensorfold.families.kolibri1.cuda.block_drafter import BlockDrafter, is_block; print('block drafter ok')" \
+    && python3 -c "import inspect, tensorfold.families.kolibri1.cuda.engine as e; s = inspect.getsource(e); assert 'TENSORFOLD_KOLIBRI_DRAFTER' in s, 'drafter env hook missing'; print('drafter env hook present')" \
+    && python3 -c "import torch, triton, numpy, safetensors, tokenizers, huggingface_hub, jinja2, transformers, fastapi, uvicorn; print('py deps ok')" \
+    && tensorfold --version \
+    && tensorfold serve --help > /dev/null
+
+# Probe, `docker run --rm --entrypoint bash <image> -lc ...` on the head
+# (~/benchmarks/images-20261018/logs/probe-tensorfold.log), no GPU touched:
+#   tensorfold 0.6.5
+#   base stack: sglang 0.0.0.dev1+g09daea94a torch 2.13.0+cu130 triton 3.7.1
+#   family: Kolibri 1 tensorfold.families.kolibri1 ('cuda',)
+#   TENSORFOLD_KOLIBRI_DRAFTER honored: engine.py:62 reads it, :66-67 the
+#     DEPTH/VOCAB siblings, :76 _STREAMS
+#   block_drafter.is_block(release dir with config.json {"drafter":{"block":4}})
+#     = True  (the release-dir path the recipe will use)
+#   `--drafter` on this family: ValueError "Kolibri 1 has no draft model on
+#     CUDA yet: drop --drafter" -- the env var is the only route in
+#   `tensorfold serve --help` works (--host/--port/--name/--context/--parallel)
+
+# The launcher shim in the lane's mod runs `tensorfold serve <model_dir> --name
+# ...`; sparkrun supplies --host/--port. Not an ENTRYPOINT: the image must not
+# exec anything on its own.
+WORKDIR /workspace

@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# llama.cpp with the `kolibri1` architecture (Aleph Alpha Kolibri 1, 78B total /
+# 3.46B active), for the sparkrun `explore` lane on one NVIDIA DGX Spark (GB10).
+#
+# Why a fork: upstream llama.cpp has no kolibri1 support, so a stock llama.cpp
+# image cannot load a Kolibri 1 GGUF pack (`general.architecture = kolibri1`).
+# This builds branch `kolibri1` of brywil/llama.cpp (fork of ggml-org/llama.cpp
+# 0.4.0-dev, MIT) pinned at 68fa28b564f09a2bfa4ee590da35b6f55defae59
+# ("vocab : accept \"kolibri1\" as a Qwen2 pre-tokenizer alias"), which carries:
+#   * src/llama-arch.cpp            LLM_ARCH_KOLIBRI1 -> "kolibri1"
+#   * src/models/kolibri1.cpp       loader: logits+bias expert selection with
+#                                   sigmoid weights (rejects any other gating)
+#   * src/llama-vocab.cpp           "kolibri1" pre-tokenizer alias
+#   * conversion/kolibri1.py        Kolibri1ForCausalLM -> kolibri1 (GGUF)
+#   * gguf-py/gguf/constants.py     the GGUF tensor set
+#
+# Build: CUDA 13.0.1 devel (arm64) with 121a-real device code only (sm_121, the
+# GB10), static ggml/llama libraries, no curl, no tests. Upstream's server target
+# always stages the embedded web UI and fetches the prebuilt asset archive from
+# the ggml-org/llama-ui bucket at build time (LLAMA_USE_PREBUILT_UI defaults ON);
+# that download is the one network input beyond the pinned git commit.
+#
+# The build gate proves the fatbin carries sm_121 and that the binary carries the
+# kolibri1 arch name; the run probe happens on the built image with the host's
+# libcuda.so.1 mounted read-only (the binary links the driver library directly).
+#
+# Base images pinned by digest:
+#   devel   nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92
+#   runtime nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
+#
+# Published (docker.io, arm64, 2026-10-18):
+#   littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b
+#   @sha256:1928661c47f7f711325a4f81177da9bbee7519d04644670f8cbaa80e0165ad6f
+# Local build tag `sparkrun/llama-cpp-kolibri1:0.4.0-68fa28b` (image id
+# sha256:60c60c3fa10c36d0628a3dd53a49107e25299917d9d5a79e807be97cfcfebf8e).
+
+FROM nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92 AS build
+
+ARG LLAMA_REPO=https://github.com/brywil/llama.cpp.git
+ARG LLAMA_REF=68fa28b564f09a2bfa4ee590da35b6f55defae59
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin the commit: fetch that one object, not the branch, and verify what landed.
+# .git stays until the build step ends: cmake reads the commit into --version.
+RUN git init --quiet /opt/llama.cpp \
+    && cd /opt/llama.cpp \
+    && git remote add origin "${LLAMA_REPO}" \
+    && git fetch --quiet --depth 1 origin "${LLAMA_REF}" \
+    && git checkout --quiet FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${LLAMA_REF}"
+
+WORKDIR /opt/llama.cpp
+
+# 121a-real == sm_121 device code with no PTX: this image is GB10-only on purpose
+# (ggml's own default would also emit 75/80/86/89/90/120a, none of which a GB10
+# runs). -DGGML_NATIVE=OFF so the build host's CPU does not leak into the flags.
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_NATIVE=OFF \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=121a-real \
+        -DLLAMA_CURL=OFF \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+    && cmake --build build --config Release -j"$(nproc)" --target llama-server llama-cli \
+    && rm -rf .git
+
+# Build-time gate: the sm_121 device code is in the binary and the kolibri1 arch
+# name is in it. `llama-server --version` cannot run here: the binary links
+# libcuda.so.1 directly (CUDA::cuda_driver) and no driver library exists in a
+# build stage, so the run probe happens in the runtime image with the host's
+# libcuda.so.1 mounted read-only (still no GPU device).
+RUN cuobjdump -lelf build/bin/llama-server | grep -q sm_121 \
+    && echo "fatbin: sm_121 present" \
+    && strings build/bin/llama-server | grep -qx kolibri1 \
+    && echo "arch: kolibri1 present"
+
+FROM nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
+
+ARG LLAMA_REF=68fa28b564f09a2bfa4ee590da35b6f55defae59
+
+LABEL org.opencontainers.image.title="llama.cpp kolibri1 (DGX Spark)" \
+      org.opencontainers.image.description="llama.cpp with the kolibri1 architecture (Aleph Alpha Kolibri 1), CUDA sm_121, for NVIDIA DGX Spark (GB10)" \
+      org.opencontainers.image.source="https://github.com/brywil/llama.cpp" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${LLAMA_REF}"
+
+# libgomp1 for ggml's OpenMP pools; the CUDA runtime image already carries cudart
+# and the math libraries the statically linked ggml-cuda calls.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+COPY --from=build /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
+
+# Probe, `docker run --rm --entrypoint bash -v <host libcuda.so.1>:ro <image>`
+# (~/benchmarks/images-20261018/logs/probe-llamacpp.log), read-only and with no
+# GPU device passed in (the "failed to initialize CUDA: no CUDA-capable device"
+# line is that absence, not a fault):
+#   llama-server --version -> version: 0.4.0-dev (build 1, commit 68fa28b)
+#                             built with GNU 13.3.0 for Linux aarch64
+#   llama-cli --version    -> the same
+#   --jinja, --no-jinja    -> present, "default: enabled"
+#   rpc-server             -> absent from PATH (not built; upstream's target is
+#                             tools/rpc's ggml-rpc-server, single-node arm here)
+#   arch list              -> the binary enumerates none; the build-stage gate
+#                             finds the exact kolibri1 token in it
+#   linked                 -> libcudart.so.13 / libcublas.so.13 / libcublasLt.so.13
+#                             from the runtime image, libcuda.so.1 from the host
+#                             driver, libgomp.so.1
+
+WORKDIR /app
+ENTRYPOINT ["/usr/local/bin/llama-server"]

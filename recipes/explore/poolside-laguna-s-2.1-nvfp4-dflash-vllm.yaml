@@ -14,12 +14,15 @@ metadata:
     poolside/Laguna-S-2.1-NVFP4 (117.6B total / 8.5B active MoE, 256 experts,
     3:1 SWA, native 1,048,576 context) on ONE DGX Spark (TP=1) with the
     quantization-matched DFlash speculator. The Aug-2026 checkpoint loads to
-    92.9 GiB resident — the quantization ignores attention, both the dense
-    and the shared MLPs and layers 40-47's experts, so most of the download is
-    BF16 — which leaves a single Spark's 0.85 budget only ~4.6 GiB of fp8 KV.
-    The engine's own maximum window for that pool is 124,144 tokens, so this
-    recipe ships 120k, not the card's 262k (262k needs 9.32 GiB of KV; see the
-    lane README). DFlash n=3 is the sweep winner over the vendor default n=15.
+    95.61 GiB resident (measured 2026-10-18; the 92.9 GiB figure was an
+    estimate) — the quantization ignores attention, both the dense and the
+    shared MLPs and layers 40-47's experts, so most of the download is BF16 —
+    which leaves a single Spark's 0.85 budget only 3.89 GiB of fp8 KV once
+    CUDA-graph capture has taken its 1.52 GiB. At the boot's 39,672 B/token
+    that is 104,192 tokens of engine maximum; this recipe ships 98,304 (a
+    6.6% headroom), because 120k wanted 4.54 GiB and the pool had 3.89. Not
+    the card's 262k, which needs 9.32 GiB of KV. DFlash n=3 is the sweep
+    winner over the vendor default n=15.
     Thinking is interleaved between tool calls and ON by default;
     per-request enable_thinking toggles it. 99.7 GB download plus the 2.2 GB
     draft. Sibling arm: the 33B Laguna-XS-2.1.
@@ -56,10 +59,10 @@ defaults:
   # Never {model}: on a real launch sparkrun rebinds it to the prepared
   # snapshot path, so the served id would be the cache path (-n hides this).
   served_model_name: poolside/Laguna-S-2.1-NVFP4
-  # The card's native window is 262,144 but this checkpoint is 92.9 GiB
-  # resident; at util 0.85 one Spark grants ~4.6 GiB of fp8 KV and vLLM's own
-  # maximum for that pool is 124,144 — vLLM refuses 262,144. 120k fits.
-  max_model_len: 122880
+  # 96k, not 120k: the 2026-10-18 boot loaded 95.61 GiB of weights, leaving
+  # 3.89 GiB of fp8 KV at util 0.85 — vLLM caps that pool at 104,192 tokens
+  # and 120k needs 4.54 GiB. 98,304 is that ceiling less ~6%.
+  max_model_len: 98304
   # 32 is required, not tuned: DFlash crashes vLLM at the default 256.
   max_num_seqs: 32
   # The repo's GB10 ceiling. The weights are ~76% of the unified pool, so the

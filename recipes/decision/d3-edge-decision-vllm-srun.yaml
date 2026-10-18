@@ -1,0 +1,53 @@
+recipe_version: "2"
+model: vllm-sr/d3-edge
+model_revision: 18d61df78684675463af9ae732872478845c5a79
+container: ghcr.io/vllm-project/semantic-router/vllm-sr@sha256:2c30eeb36dca047929930770d276042584e3618fd62f67923403387e0dc2e9a1
+# sparkrun has no vllm-srun runtime: `runtime: vllm` is the family whose distribution + launcher contract this command satisfies.
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    vllm-sr/d3-edge — Decision 3.0's edge rung (594M parameters, 1.19 GB of
+    weights + readout), served by the vendor's own vllm-srun runtime (decision3
+    family) on CPU. POST /v1/systemone over text, image and video states with
+    choice / noul / score answers and no text generation. Pinned to the
+    runtime's built-in revision — the repo's head (c454ee39, 2026-10-17) is
+    newer than both the image and the recorded goldens, so serving it would
+    report golden `unverified` by design. The image's recorded CPU answers for
+    this revision were measured on x86 hosts; reproducing them on the GB10's
+    aarch64 cores is the boot gate this draft has not cleared. Apache-2.0.
+  model_url: https://huggingface.co/vllm-sr/d3-edge
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "0.6B"
+  model_dtype: bf16
+  tags: decision, smol, cpu, classifier
+
+# No chat endpoint: /v1/systemone is the surface; /health is the golden gate, not a plain liveness.
+readiness:
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+
+# The vllm-sr image's ENTRYPOINT starts the router/gateway and would consume the appended command. Keep user: root — the kill shim below writes /usr/local/bin, and the image's own uid-1000 user owns no PATH dir.
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+# Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, this python:*-slim image ships no kill binary, and without the shim the launch is declared failed while the serve comes up healthy seconds later.
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && taskset -c 0-4,10-14 vllm-srun serve
+  vllm-sr/d3-edge
+  --revision=18d61df78684675463af9ae732872478845c5a79
+  --device cpu
+  --host {host}
+  --port {port}
+  --cache-dir /cache/huggingface/hub
+  --served-model-name vllm-sr/d3-edge

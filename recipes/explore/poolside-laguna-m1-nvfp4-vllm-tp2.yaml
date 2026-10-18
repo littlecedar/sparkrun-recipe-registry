@@ -1,0 +1,81 @@
+recipe_version: "2"
+model: poolside/Laguna-M.1-NVFP4
+model_revision: e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
+# vLLM 0.29.0 (the lane's shipped pin): the card's floor is vLLM >= 0.21 and
+# 0.29's laguna implementation already reads this checkpoint's MoE layout
+# (mlp_only_layers [0,1,2] + decoder_sparse_step 1), so 225B / 67 MoE layers
+# load without remote code. Not 0.30.0: the sibling Laguna arms are held there
+# by its own LagunaConfig shadowing defect.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 2
+max_nodes: 2
+
+metadata:
+  description: >-
+    poolside/Laguna-M.1-NVFP4 — 225B total / 23B active agentic-coding MoE
+    (70 layers, 256 experts top-16 + 1 shared, global attention 64Q/8KV with
+    softplus output gating, 262,144 native) on TWO DGX Sparks (TP=2). 40 files
+    / 139.3 GB / 129.8 GiB of NVFP4 weights, i.e. ~65 GiB per rank; util 0.85
+    leaves ~36 GiB per rank for a ~18.8 GB/rank fp8 KV pool at the full window.
+    Thinking is interleaved between tool calls and is designed for preserved
+    reasoning across turns; the card does not turn it on server-side by
+    default, so the serve line passes --default-chat-template-kwargs. Apache-2.0.
+  model_url: https://huggingface.co/poolside/Laguna-M.1-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "225B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, official, reasoning, tools, large_context
+  caveats: >
+    Engine choice is inference, not measurement: the card's vLLM floor is 0.21
+    (Laguna support landed in vllm-project/vllm#41129) and this image's
+    laguna.py matches the config, but no Laguna-M.1 boot has been run on
+    0.29.0 here — the lane's two Laguna arms are the XS/S 2.1 revisions. Two
+    rank-local costs are unmeasured at this size: ~65 GiB of weights per rank
+    means the first boot is dominated by load, and MAX_JOBS=4 caps the cold
+    FP4/cutlass JIT fan-out (an uncapped nvcc has exhausted the 128 GB pool on
+    this class of arm). The card's SGLang route needs sglang main, which no
+    resident image carries, hence vLLM. Not boot-verified here.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  MAX_JOBS: '4'
+
+readiness:
+  inference: false
+  port_timeout_s: 3600
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  served_model_name: poolside/Laguna-M.1-NVFP4
+  max_model_len: 262144
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.85
+  kv_cache_dtype: fp8
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--poolside--Laguna-M.1-NVFP4/snapshots/e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
+  --served-model-name {served_model_name}
+  --revision=e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --enable-prefix-caching
+  --reasoning-parser poolside_v1
+  --tool-call-parser poolside_v1
+  --enable-auto-tool-choice
+  --default-chat-template-kwargs '{"enable_thinking": true}'

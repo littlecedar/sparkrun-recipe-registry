@@ -1,0 +1,87 @@
+recipe_version: "2"
+model: iSkye/Kolibri-1-NVFP4-Experts
+model_revision: 44088ad9404ea16f99677050a3d60f447b286b44
+# The pack's card runs vLLM 0.30.0, but its plugin wheel
+# (aleph-alpha-inference 1.0.0) pins vllm<0.30, so this arm stays on the
+# recipes' 0.29.0 pin where the wheel is a supported pairing. Bumping to
+# 0.30.0 + the same --no-deps plugin install is the documented fallback if
+# 0.29.0 cannot load this pack.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+# Unpublished mod: bare `mods/NAME`; needs `--transfer-mode local` on launches.
+mods:
+  - "mods/install-kolibri-plugin"
+
+metadata:
+  description: >-
+    iSkye/Kolibri-1-NVFP4-Experts — Aleph Alpha's 78.1B / 3.46B-active MoE with
+    ONLY its routed experts re-quantized FP8 -> NVFP4A16 (attention, shared
+    expert, router, embeddings and head unchanged), on ONE DGX Spark (TP=1).
+    42.6 GiB of weights instead of 73.4, so the served shape is the FP8 arm's
+    (util 0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with
+    the freed ~30 GiB left as KV headroom. Thinking is ON by default;
+    per-request chat_template_kwargs {reasoning_effort: none|low|medium|high}
+    disables or shortens it. The uploader's GB10 numbers (vLLM 0.30.0, fp8 KV,
+    600-token decodes) are 52.1 / 93.5 / 162.6 / 265.9 t/s at 1/2/4/8 streams
+    against the FP8 model's 48.1 / 80.4 / 127.2 / 179.3.
+  model_url: https://huggingface.co/iSkye/Kolibri-1-NVFP4-Experts
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools
+  caveats: >
+    Unofficial 4-bit conversion: experts run W4A16 on the Marlin NVFP4 MoE
+    kernel (BF16 activations), everything else is the official FP8 payload.
+    VLLM_USE_DEEP_GEMM=0 is the card's required env on this pack. Built from
+    base revision e52eb4627d11516b0c01de49210ab5a4e4061444, not the FP8 repo's
+    current main (258cae8f). Engine pin is 0.29.0 while the card measured
+    0.30.0 — the plugin wheel forbids 0.30; if this pack fails to load on
+    0.29.0, move the container to the 0.30.0 digest and keep the --no-deps
+    plugin install. Not boot-verified here yet.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OMP_NUM_THREADS: '4'
+  # The card's required env for this pack: the DeepGEMM FP4 path mis-handles
+  # the W4A16 experts on GB10.
+  VLLM_USE_DEEP_GEMM: '0'
+
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: iSkye/Kolibri-1-NVFP4-Experts
+  max_model_len: 262144
+  max_num_seqs: 4
+  gpu_memory_utilization: 0.78
+  kv_cache_dtype: fp8
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--iSkye--Kolibri-1-NVFP4-Experts/snapshots/44088ad9404ea16f99677050a3d60f447b286b44
+  --served-model-name {served_model_name}
+  --revision=44088ad9404ea16f99677050a3d60f447b286b44
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --enable-prefix-caching
+  --reasoning-parser kolibri1
+  --tool-call-parser kolibri1
+  --enable-auto-tool-choice

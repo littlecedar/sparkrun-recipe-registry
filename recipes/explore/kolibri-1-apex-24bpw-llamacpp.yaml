@@ -1,0 +1,71 @@
+recipe_version: "2"
+model: Myric/Kolibri-1-APEX-GGUF:APEX-2.4bpw
+model_revision: ed6030d74fc73634b9b75d48ff6419afa283ffcf
+runtime: llama-cpp
+# The same fork-built tier as the Q4_K sibling (recipes/explore/Dockerfile.kolibri1-llamacpp):
+# stock llama.cpp cannot load `kolibri1` at all.
+container: littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b@sha256:1928661c47f7f711325a4f81177da9bbee7519d04644670f8cbaa80e0165ad6f
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Aleph-Alpha/Kolibri-1 as Myric's APEX-2.4bpw GGUF — 24.38 GB / 22.70 GiB,
+    the smallest file in the pack (2.50 bits/weight), on ONE DGX Spark through
+    llama.cpp. Same architecture, full 262,144 window (the KV is ~5 GiB), same
+    reasoning/tool path as the Q4_K sibling. This is the size tier: the pack
+    drops 32 of the 40 sliding-window attention projections to Q3_K and bands
+    the experts IQ3_XXS (edge 10) / IQ2_S (near 10) / IQ2_XXS (middle 30),
+    everything expensive-to-get-wrong stays Q8_0/Q6_K/F32.
+  model_url: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  # No table entry covers a 2.5-bit mixed GGUF; iq2_xs is the estimator key for
+  # that packing width (0.3125 B/weight), not a claim about the tensor mix.
+  model_dtype: iq2_xs
+  kv_dtype: fp16
+  tags: explore, reasoning, tools
+  caveats: >
+    Quality is the question this arm exists to answer, and the card's own table
+    says where it lands: WikiText-2 top-1 agreement 81.1% (Q4_K 89.7%) and KLD
+    0.212 (Q4_K 0.076), while code is 91.6% / 0.132 — prose degrades first. Its
+    42/42 agentic score and ~57 t/s are one run each on the card, not ours.
+    mmap stays at this fork's `auto` default (no `--no-mmap` exists in it), as
+    in the Q4_K arm. GB10-only image (sm_121 device code).
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: Myric/Kolibri-1-APEX-GGUF
+  ctx_size: 262144
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.97
+  top_k: 128
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --reasoning-effort high
+  --jinja
+  --no-webui
+  --cont-batching

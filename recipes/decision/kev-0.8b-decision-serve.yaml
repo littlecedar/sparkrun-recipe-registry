@@ -1,0 +1,59 @@
+recipe_version: "2"
+model: jaredpalmer/kev-0.8b
+model_revision: bf75a6a8848ea6960ff2ed108d9ed44c2941174f
+container: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+# sparkrun has no runtime family for a third-party Python server: `runtime: vllm` is the launcher/distribution contract this command satisfies (the kai/sol precedent).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    jaredpalmer/kev-0.8b — a LoRA adapter (rank 16) plus a pointer head on
+    Qwen3.5-0.8B-Base, served by the project's own kev.serve on CPU. The
+    server exposes POST /v1/systemone (plus /permute, /separate and
+    /v1/models), so the lane's instrument drives it natively — the research
+    note that it had no SystemOne surface was wrong. Weights are the adapter
+    and head only (173 MB); the 3.8 GB resident figure is the GPU path, and
+    the base backbone (~1.6 GB) is fetched from the Hub at first load because
+    a recipe stages one repo. Card quality is decision-v7 0.838 / breadth-v1
+    0.586 / transfer-v4 0.697 — it publishes no typed-decisions number, so
+    the lane score is a new measurement, not a reproduction. Apache-2.0.
+  model_url: https://huggingface.co/jaredpalmer/kev-0.8b
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "0.8B"
+  model_dtype: bf16
+  tags: decision, smol, cpu, classifier
+
+# No chat endpoint: /v1/systemone is the surface; the package ships no /health, so this is a port wait.
+readiness:
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 1800
+
+defaults:
+  port: 8008
+  host: 0.0.0.0
+  # Empty on purpose: kev.serve's argparse exits on an unknown --served-model-name, which sparkrun appends for any non-empty value. Referenced below so the key is not inert.
+  served_model_name: ""
+  # kev.serve's own commit (the serving code, not the weights): a different SHA from model_revision by nature, so it lives here rather than in the command.
+  kev_code_revision: 1f04cfa28e6a708485b28a9585010b9e436b776e
+
+# kev.serve is not on PyPI (the `kev` package there is an unrelated ORM) and has no published image, so the recipe installs the repository at a pinned commit from its archive tarball — no git binary in python:*-slim. user: root — the kill shim writes /usr/local/bin.
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+# torch 2.8.0 comes from PyPI (kev's own bound is >=2.6,<2.9): the download.pytorch.org/whl/cpu index has no current aarch64 wheel, and PyPI's aarch64 wheel is CPU-only.
+# Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, and this python:*-slim tag ships no /bin/kill (verified in the image).
+# --run takes a local snapshot directory with head.pt at its root, so {model} is the staged revision. The adapter and head shas are identical at this revision and at the card's named 9a45d25e, so the content is Kev 1.0 either way. HF_HUB_OFFLINE=0 only because a recipe stages one repository and kev needs two: the backbone (adapter_config carries no base revision, so the card's dc7cdfe2 is not enforced) is fetched at first load. A cold node needs network; a warm one reuses its cache.
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && pip install --no-cache-dir --quiet 'torch==2.8.0'
+  && pip install --no-cache-dir --quiet 'kev[serve] @ https://github.com/jaredpalmer/kev/archive/{kev_code_revision}.tar.gz'
+  && HF_HUB_OFFLINE=0 taskset -c 0-4,10-14 python -m kev.serve
+  --run {model}
+  --host {host}
+  --port {port}
+  --device cpu {served_model_name}

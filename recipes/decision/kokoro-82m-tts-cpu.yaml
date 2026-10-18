@@ -1,0 +1,54 @@
+recipe_version: "2"
+model: hexgrad/Kokoro-82M
+model_revision: f3ff3571791e39611d31c381e3a41a3af07b4987
+container: ghcr.io/remsky/kokoro-fastapi-cpu@sha256:ee3111d6a2c903ed62f3b4fa19543c6901205ed39fce3c177e895b34a8386b9c
+# sparkrun has no runtime family for a third-party Python server: `runtime: vllm` is the launcher/distribution contract this command satisfies (the kai/sol precedent).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    hexgrad/Kokoro-82M — the lane's fourth co-tenant: an 82M StyleTTS2/ISTFTNet
+    TTS model at 0.305 GiB of weights, served on the same A725 cores as the
+    CPU decision arms and at no GPU cost. The server is Kokoro-FastAPI's CPU
+    image (v0.9.0, arm64 index digest), an OpenAI-compatible
+    POST /v1/audio/speech with GET /health; the lane's decision instrument
+    cannot score TTS, so the arm's gate is a wav round-trip plus real-time
+    factor, not an accuracy pass. Image choice: it is the only published,
+    digest-pinned multi-arch CPU image that already carries kokoro-onnx,
+    onnxruntime and espeak-ng with the model set baked at build (its build
+    history runs DOWNLOAD_MODEL=true), so a launch neither installs a
+    ~1 GB torch wheel nor fetches weights; the project's own Dockerfile and a
+    python:*-slim + `pip install kokoro` path were the alternatives, both
+    slower per boot and neither published. Apache-2.0.
+  model_url: https://huggingface.co/hexgrad/Kokoro-82M
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "82M"
+  model_dtype: fp32
+  tags: tts, smol, cpu
+
+# No chat endpoint and no /v1/models: port + /health readiness only.
+readiness:
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+
+defaults:
+  port: 8880
+  host: 0.0.0.0
+  # Empty on purpose: the image's entrypoint starts uvicorn from env and takes no --served-model-name; a non-empty value makes sparkrun append one to the script. Referenced below so the key is not inert.
+  served_model_name: ""
+
+# The image declares CMD ["./entrypoint.sh"] and no ENTRYPOINT, so sparkrun's appended command replaces the CMD and this line is the entrypoint. user: root — the kill shim writes /usr/local/bin (the image's appuser can write neither that directory nor its venv bin).
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+# DOWNLOAD_MODEL=false uses the model set baked into the image; leaving it default true re-runs download_model.py on every boot. The declared model_revision is the checkpoint identity: the image serves its baked ONNX export of the v1.0 weights, so bumping the pin alone does not change what is served.
+# The kill shim is required: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, and a python:*-slim-derived image ships no /bin/kill.
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && DOWNLOAD_MODEL=false HOST={host} PORT={port}
+  taskset -c 0-4,10-14 ./entrypoint.sh {served_model_name}

@@ -67,7 +67,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_DIR = REPO_ROOT / "recipes" / "ifm"
 
 BASE_09B = RECIPE_DIR / "k2-horizon-0.9b-bf16-sglang.yaml"
-ALL = [BASE_09B]
+UNO_09B = RECIPE_DIR / "k2-horizon-0.9b-bf16-uno-sglang.yaml"
+ALL = [BASE_09B, UNO_09B]
+
+# The UNO arm's second artifact is staged by a lane-local mod (bare `mods/<dir>`, the
+# form that resolves before a push), because sparkrun distributes only `model:`.
+MODS_DIR = RECIPE_DIR / "mods"
+UNO_MOD = "provide-uno-lora-k2-horizon-0.9b"
+UNO_GATE_MOD = "probe-uno-fa4-sm121"
+
+# I6 as a pattern, so the scoped exemption below cannot drift from the rule.
+UNO_FLAG = r"--speculative-algorithm\s+UNO\b"
 
 # sglang's own flag names, as emitted by the recipe (sparkrun fills
 # placeholders from `defaults:`, so guards match the *rendered* form).
@@ -105,9 +115,13 @@ def _unquote(val: str) -> str:
     return val
 
 
-def parse(path: Path) -> dict:
-    """Return {top: str, defaults: {k: v}, command: str, stripped: str}."""
-    text = _strip_comment_lines(path.read_text(encoding="utf-8"))
+def parse_text(raw: str) -> dict:
+    """Parse recipe text.  {top, defaults, command, stripped, raw}.
+
+    Takes TEXT so a negative control can feed the guard a mutated copy of a real
+    recipe.  An empty parse raises: a guard over zero keys must fail loudly.
+    """
+    text = _strip_comment_lines(raw)
     top: dict[str, str] = {}
     defaults: dict[str, str] = {}
     command = ""
@@ -135,8 +149,21 @@ def parse(path: Path) -> dict:
             defaults[key.strip()] = _unquote(val)
         elif section == "command":
             command += " " + line.strip()
+    if not top or not command:
+        raise ValueError("recipe text did not parse: empty top-level or command block")
     return {"top": top, "defaults": defaults, "command": command.strip(),
-            "stripped": text, "raw": path.read_text(encoding="utf-8")}
+            "stripped": text, "raw": raw}
+
+
+def parse(path: Path) -> dict:
+    return parse_text(path.read_text(encoding="utf-8"))
+
+
+def mod_list(recipe: dict) -> list[str]:
+    """The `mods:` entries, unquoted.  No block is an empty list, not an error."""
+    block = re.search(r"(?m)^mods:\n((?:  - .*\n)+)", recipe["stripped"])
+    return [_unquote(x) for x in re.findall(r"(?m)^  - (.+)$", block.group(1))] \
+        if block else []
 
 
 def render(recipe: dict) -> str:
@@ -149,6 +176,157 @@ def render(recipe: dict) -> str:
         if k in recipe["top"]:
             out = out.replace("{" + k + "}", recipe["top"][k])
     return re.sub(r"\s+", " ", out)
+
+
+# ---------------------------------------------------------------------------
+# The UNO arm.  UNO is verify-based speculative decoding: the engine runs the
+# target plus a conditional-LoRA draft, so the arm needs a SECOND artifact that
+# sparkrun does not distribute and a backend the stock gate refuses.
+#
+#  U1  the adapter is staged by a lane mod at a fixed container path, and that
+#      path is the one `--uno-lora-path` names .. a path nothing writes is a
+#      launch that dies before the port binds.
+#  U2  TP=PP=1 .. `_handle_uno` raises "UNO requires TP=PP=1."
+#  U3  no --speculative-draft-model-path .. passing one to UNO is an outright error.
+#  U4  I6 is waived only for an arm that mounts the fa4 gate .. the gate is what
+#      makes UNO constructible on SM121 at all (see uno_waiver_violations).
+# ---------------------------------------------------------------------------
+
+def uno_waiver_violations(recipe: dict) -> list[str]:
+    """I6's scoped exception: is this arm allowed to declare UNO?
+
+    `_handle_uno` raises unless (prefill, decode) == ("fa3","fa3") and fa3 asserts
+    SM80/90 (I1), so on GB10 the flag is fatal -- unless the arm mounts
+    mods/probe-uno-fa4-sm121, which relaxes that literal to accept fa4, and
+    declares attention_backend: fa4.  The exemption is keyed on that contract,
+    not on a filename: lose the gate and the flag is I6 again.
+    """
+    if not re.search(UNO_FLAG, render(recipe)):
+        return []
+    bad = []
+    if f"mods/{UNO_GATE_MOD}" not in mod_list(recipe):
+        bad.append(f"UNO without mods/{UNO_GATE_MOD}: _handle_uno raises unless "
+                   '(fa3,fa3), and fa3 cannot be constructed on GB10 (12,1)')
+    if recipe["defaults"].get("attention_backend") != "fa4":
+        bad.append("UNO with attention_backend "
+                   f"{recipe['defaults'].get('attention_backend')!r}: the fa4 gate "
+                   "mod admits fa4 only")
+    return bad
+
+
+def mod_reference_violations(recipe: dict) -> list[str]:
+    """U1: the provide mod (and the gate it depends on) must be listed."""
+    mods = mod_list(recipe)
+    return [m for m in (f"mods/{UNO_MOD}", f"mods/{UNO_GATE_MOD}") if m not in mods]
+
+
+def staging_violations(recipe: dict, script: str) -> list[str]:
+    """U1: the path in --uno-lora-path is the path the provide mod writes."""
+    path = recipe["defaults"].get("uno_lora_path", "")
+    bad = []
+    if not path.startswith("/cache/runtime/"):
+        bad.append(f"uno_lora_path {path!r} is not under the persistent mod cache")
+    if path not in script:
+        bad.append(f"the provide mod never writes {path!r}, so --uno-lora-path "
+                   "points at nothing")
+    if "--uno-lora-path {uno_lora_path}" not in recipe["command"]:
+        bad.append("uno_lora_path is declared but never passed to the engine")
+    return bad
+
+
+def single_device_violations(recipe: dict) -> list[str]:
+    """U2: UNO requires TP=PP=1 -- a hard requirement, not a tuning choice."""
+    keys = recipe["defaults"]
+    bad = []
+    if keys.get("tensor_parallel") != "1":
+        bad.append(f'tensor_parallel {keys.get("tensor_parallel")!r}: '
+                   '_handle_uno raises "UNO requires TP=PP=1."')
+    if keys.get("pipeline_parallel", "1") != "1":
+        bad.append(f'pipeline_parallel {keys.get("pipeline_parallel")!r}: same gate')
+    if re.search(r"--(dp|data-parallel)\b", recipe["command"]):
+        bad.append("data-parallel flag on a single-device UNO arm")
+    return bad
+
+
+class UnoArmShape(unittest.TestCase):
+    """The 0.9B UNO arm: native UNO on a second, mod-staged LoRA adapter."""
+
+    def setUp(self):
+        self.r = parse(UNO_09B)
+        self.script = (MODS_DIR / UNO_MOD / "run.sh").read_text(encoding="utf-8")
+
+    def test_uno_is_the_declared_algorithm(self):
+        self.assertEqual(self.r["defaults"].get("speculative_algorithm"), "UNO")
+        self.assertIn("--speculative-algorithm UNO", render(self.r))
+
+    def test_linear_uno_knobs(self):
+        keys = self.r["defaults"]
+        self.assertEqual(keys.get("speculative_eagle_topk"), "1",
+                         "topk 1 is LINEAR UNO; tree mode adds avoidable constraints")
+        width = int(keys["speculative_num_draft_tokens"])
+        self.assertGreater(width, 0, "_handle_uno raises unless the width is positive")
+        self.assertNotIn("--speculative-draft-model-path", self.r["command"],
+                         "UNO reuses the target + a conditional LoRA; a draft path is "
+                         "an outright error (U3)")
+
+    def test_tp_and_pp_are_one(self):
+        self.assertEqual(single_device_violations(self.r), [])
+        self.assertIn("--tp 1", render(self.r))
+
+    def test_adapter_is_staged_by_the_lane_mod(self):
+        self.assertEqual(mod_reference_violations(self.r), [])
+
+    def test_uno_lora_path_is_the_path_the_mod_writes(self):
+        self.assertEqual(staging_violations(self.r, self.script), [])
+        self.assertIn("--uno-lora-path {uno_lora_path}", self.r["command"])
+
+    def test_mod_is_a_fail_closed_bash_script(self):
+        self.assertTrue((MODS_DIR / UNO_MOD / "run.sh").is_file())
+        self.assertIn("set -euo pipefail", self.script)
+        self.assertIn("SPDX-License-Identifier: AGPL-3.0-or-later", self.script)
+        self.assertIn(f'MOD_NAME="{UNO_MOD}"', self.script,
+                      "MOD_NAME must match the directory it is mounted from")
+        # Fail closed with an explicit non-zero exit, not a silent empty dir: the arm
+        # cannot run without --uno-lora-path.
+        self.assertIn("exit 1", self.script, "no fail-closed exit on the fetch path")
+        self.assertIn("UNO_LORA_SHA256", self.script,
+                      "the adapter is fetched: it must be pinned, not just sized")
+
+
+class UnoNegativeControls(unittest.TestCase):
+    """Each UNO guard must fire on a mutation of the real files."""
+
+    def setUp(self):
+        self.raw = UNO_09B.read_text(encoding="utf-8")
+        self.script = (MODS_DIR / UNO_MOD / "run.sh").read_text(encoding="utf-8")
+        assert parse_text(self.raw)
+
+    def test_broken_mod_reference_is_caught(self):
+        mutated = parse_text(self.raw.replace(f"mods/{UNO_MOD}",
+                                              "mods/provide-uno-lora-k2-horizon-7b"))
+        self.assertEqual(mod_reference_violations(mutated), [f"mods/{UNO_MOD}"])
+
+    def test_uno_without_the_fa4_gate_is_caught(self):
+        # The scoped I6 waiver: drop the gate mod and the UNO flag is forbidden again.
+        mutated = parse_text(self.raw.replace(f'  - "mods/{UNO_GATE_MOD}"\n', ""))
+        self.assertNotIn(f"mods/{UNO_GATE_MOD}", mod_list(mutated))
+        self.assertTrue(uno_waiver_violations(mutated))
+
+    def test_tp2_is_caught(self):
+        mutated = parse_text(self.raw.replace("tensor_parallel: 1", "tensor_parallel: 2"))
+        self.assertTrue(single_device_violations(mutated))
+
+    def test_wrong_adapter_path_is_caught(self):
+        mutated = parse_text(self.raw.replace(
+            "uno_lora_path: /cache/runtime/uno-lora/K2-Horizon-0.9B-Uno",
+            "uno_lora_path: /cache/runtime/uno-lora/7B-Uno"))
+        self.assertTrue(staging_violations(mutated, self.script))
+
+    def test_unpinned_adapter_is_caught(self):
+        self.assertTrue(re.search(r"UNO_LORA_SHA256.*[0-9a-f]{64}", self.script))
+        self.assertNotRegex(self.script.replace("5a499229d19ef4a69eb0b21884819d1b67cd983ba02b7ee2031ba8567dedfe4e",
+                                                ""),
+                            r"UNO_LORA_SHA256.*[0-9a-f]{64}")
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +359,7 @@ class ForbiddenFlags(unittest.TestCase):
         (r"--quantization(\s|=)", "I2: no quant path for this family; fails in weight load"),
         (r"--enable-auto-tool-choice", "I3: vLLM flag, absent from sglang v0.5.20"),
         (r"--hf-overrides", "I4: wrong flag name; YaRN is read from config.json"),
-        (r"--speculative-algorithm\s+UNO\b", "I6: UNO requires (fa3,fa3); cannot boot on SM121"),
+        (UNO_FLAG, "I6: UNO requires (fa3,fa3); cannot boot on SM121"),
     ]
     # fa4 is deliberately NOT in FORBIDDEN: work doc §3.3/§9 arm 2 keeps it as a
     # measurement arm (flashattention_backend.py:284-292 imports an SM12x FA4
@@ -193,6 +371,14 @@ class ForbiddenFlags(unittest.TestCase):
             r = parse(path)
             cmd = render(r)
             for pat, why in self.FORBIDDEN:
+                if pat == UNO_FLAG and not uno_waiver_violations(r):
+                    # I6 EXCEPTION, scoped not deleted: this arm mounts
+                    # mods/probe-uno-fa4-sm121, whose whole purpose is to relax
+                    # _handle_uno's ("fa3","fa3") literal to accept the SM12x fa4
+                    # backend that GB10 can actually construct (see I1). Without
+                    # both the gate mod and attention_backend: fa4, the waiver
+                    # reports a violation and this assertion fires on the UNO flag.
+                    continue
                 self.assertIsNone(
                     re.search(pat, cmd),
                     f"{path.name}: rendered command contains {pat!r} ({why})",
@@ -211,9 +397,26 @@ class ForbiddenFlags(unittest.TestCase):
                     )
 
     def test_flashinfer_is_the_declared_backend(self):
-        """I1 corollary: whatever we do declare must be buildable on SM121."""
+        """I1 corollary: whatever we do declare must be buildable on SM121.
+
+        SCOPED, not relaxed: an arm that declares UNO cannot declare flashinfer --
+        _handle_uno raises unless the (prefill, decode) pair is ("fa3","fa3"), and
+        fa3 is the SM80/90 assert of I1. Its backend must be fa4 (the SM12x kernel
+        flashattention_backend.py:284-292 imports), which is legitimate ONLY because
+        the arm mounts mods/probe-uno-fa4-sm121 to relax that literal. An UNO arm
+        that loses the gate mod fails here via uno_waiver_violations, so the
+        exception cannot be inherited by a copy-paste.
+        """
         for path in ALL:
             r = parse(path)
+            if re.search(UNO_FLAG, render(r)):
+                self.assertEqual(
+                    uno_waiver_violations(r), [],
+                    f"{path.name}: UNO's fa4 waiver needs mods/{UNO_GATE_MOD} and "
+                    "attention_backend: fa4 -- _handle_uno's (fa3,fa3) gate is "
+                    "unconstructible on GB10",
+                )
+                continue
             self.assertEqual(r["defaults"].get("attention_backend"), "flashinfer",
                              f"{path.name}: attention_backend must be flashinfer")
 

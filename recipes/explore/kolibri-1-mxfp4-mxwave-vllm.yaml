@@ -1,0 +1,85 @@
+recipe_version: "2"
+model: kirillbilchenko/Kolibri-1-MXFP4-MxWave
+model_revision: ae65fe480b941c3df47bb69d07243455965d9f64
+# The pack's own DGX Spark line is vLLM 0.29.0 + aleph-alpha-inference 1.0.0,
+# i.e. exactly this pin. Its MXFP4 experts need the DeepGEMM FP4 paths off.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+# Unpublished mod: bare `mods/NAME`; needs `--transfer-mode local` on launches.
+mods:
+  - "mods/install-kolibri-plugin"
+
+metadata:
+  description: >-
+    kirillbilchenko/Kolibri-1-MXFP4-MxWave — Aleph Alpha's 78.1B /
+    3.46B-active MoE with the 57,600 routed expert matrices at OCP MXFP4
+    (E2M1, one E8M0 scale per 32 weights) and the official block-FP8
+    attention/shared-expert backbone kept byte-identical, on ONE DGX Spark
+    (TP=1). 40.45 GiB of weight files; served in the FP8 arm's shape (util
+    0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with the
+    freed ~33 GiB left as KV headroom. Experts run Marlin W4A16 on GB10
+    (--moe-backend marlin is the card's requirement, not a tuning choice).
+  model_url: https://huggingface.co/kirillbilchenko/Kolibri-1-MXFP4-MxWave
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  model_dtype: mxfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools
+  caveats: >
+    EXPERIMENTAL by the uploader's own gate: the unchanged strict KL target was
+    missed (0.0551 nats against a 0.030 threshold), though the likelihood
+    bounds and all six behavior checks passed. The screen is 48 passages
+    (WikiText-2 / GermanQuAD / HumanEval prompts): +1.53 % PPL overall, more
+    on German (+2.20 %) and code (+3.24 %). So treat any accuracy comparison
+    against the FP8 arm as a lower bound on loss, and do not port a quality
+    result from this arm to the family. Expert source is the BF16 repo at
+    7a8f290e, backbone reference e52eb4627d11516b0c01de49210ab5a4e4061444 —
+    not the FP8 repo's current main (258cae8f). Not boot-verified here yet.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OMP_NUM_THREADS: '4'
+  # Both are in the card's launch line: the MXFP4 E8M0 scale path is what the
+  # DeepGEMM kernels mis-handle, on the base and on the E8M0 variant.
+  VLLM_USE_DEEP_GEMM: '0'
+  VLLM_USE_DEEP_GEMM_E8M0: '0'
+
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: kirillbilchenko/Kolibri-1-MXFP4-MxWave
+  max_model_len: 262144
+  max_num_seqs: 4
+  gpu_memory_utilization: 0.78
+  kv_cache_dtype: fp8
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--kirillbilchenko--Kolibri-1-MXFP4-MxWave/snapshots/ae65fe480b941c3df47bb69d07243455965d9f64
+  --served-model-name {served_model_name}
+  --revision=ae65fe480b941c3df47bb69d07243455965d9f64
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --moe-backend marlin
+  --enable-prefix-caching
+  --reasoning-parser kolibri1
+  --tool-call-parser kolibri1
+  --enable-auto-tool-choice

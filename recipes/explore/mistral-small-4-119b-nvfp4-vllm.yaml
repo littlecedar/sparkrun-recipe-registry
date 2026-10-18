@@ -1,0 +1,79 @@
+recipe_version: "2"
+model: mistralai/Mistral-Small-4-119B-2603-NVFP4
+model_revision: 45331841b631f4e281df8e959ea3cc9beb84298a
+# The lane's shipped vLLM pin; mistral3 landed long before 0.29 and this
+# checkpoint is post-training-activation NVFP4 in compressed-tensors format.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    mistralai/Mistral-Small-4-119B-2603-NVFP4 — Mistral Small 4 (119B total /
+    6.5B active MoE, 128 experts top-4, 256k context, text + image in) as a
+    post-training-activation NVFP4 compressed-tensors checkpoint, on ONE DGX
+    Spark (TP=1). 70.85 GB of files / 66.0 GiB of weights; util 0.80 leaves
+    ~31 GiB for KV. Serves the three families it unifies (Instruct, Reasoning,
+    Devstral/agentic) with per-request reasoning_effort none|high, native
+    function calling and JSON. The card's own line is TP=2 with
+    --attention-backend TRITON_MLA; this arm is the single-node form and
+    disables the MLA optimizations instead (see env).
+  model_url: https://huggingface.co/mistralai/Mistral-Small-4-119B-2603-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "119B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools, vision
+  caveats: >
+    VLLM_MLA_DISABLE=1 is the load-bearing knob: the checkpoint is MLA
+    (kv_lora_rank 256, q_lora_rank 1024) and the card serves it on TRITON_MLA,
+    a backend this image does not carry on arm64/sm121 — the arm therefore runs
+    the unoptimised MLA path. That costs decode throughput and is the first
+    thing to revisit on an engine bump. The checkpoint ships Mistral's native
+    layout (params.json + tekken.json, no config.json); vLLM reads params.json,
+    which declares max_position_embeddings 1048576 while the card documents
+    262144 — the arm serves the card's window. Not boot-verified here.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OMP_NUM_THREADS: '4'
+  VLLM_MLA_DISABLE: '1'
+
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: mistralai/Mistral-Small-4-119B-2603-NVFP4
+  max_model_len: 262144
+  max_num_seqs: 128
+  max_num_batched_tokens: 16384
+  gpu_memory_utilization: 0.80
+  kv_cache_dtype: fp8
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--mistralai--Mistral-Small-4-119B-2603-NVFP4/snapshots/45331841b631f4e281df8e959ea3cc9beb84298a
+  --served-model-name {served_model_name}
+  --revision=45331841b631f4e281df8e959ea3cc9beb84298a
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --reasoning-parser mistral
+  --tool-call-parser mistral
+  --enable-auto-tool-choice

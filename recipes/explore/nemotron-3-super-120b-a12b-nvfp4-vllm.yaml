@@ -1,0 +1,89 @@
+recipe_version: "2"
+model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+model_revision: ff433f5493e25d631c9f12b5d55c674229923d02
+# nemotron_h is upstream in this image (vllm/model_executor/models/nemotron_h.py)
+# and carries the Mamba-2 + MoE + attention hybrid; the checkpoint also ships
+# its own modeling code, so --trust-remote-code is passed as the card requires.
+container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 — 120B total / 12B active
+    Nemotron-3 Super (LatentMoE on a Mamba-2 + attention hybrid) as NVIDIA's
+    modelopt NVFP4 build, on ONE DGX Spark (TP=1). 80.37 GB of files / 74.9 GiB
+    of weights; util 0.90 is the card's own DGX Spark value and leaves ~34 GiB
+    for KV + the Mamba states. Flag set follows the card's DGX Spark line:
+    marlin NVFP4 GEMM/MoE (FlashInfer FP4 MoE off), fp8 KV, fp16 Mamba SSM
+    cache, chunked prefill, 262,144-token window. Reasoning splits through the
+    built-in nemotron_v3 parser, tool calls through qwen3_coder.
+  model_url: https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "120B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools
+  caveats: >
+    The card's measured vLLM is 0.20.0 and it ships its own
+    super_v3_reasoning_parser.py plugin (--reasoning-parser-plugin); this arm
+    uses the built-in nemotron_v3 parser instead, so the boot must confirm that
+    thinking actually lands in reasoning_content rather than the reply. The
+    card's weights are modelopt NVFP4 on a hybrid Mamba-2 stack: a 120B-class
+    model at util 0.90 is the tightest memory point in this lane, and the
+    NVIDIA-published single-Spark figure (23.45 t/s) is third-party, not ours.
+    MTP is available upstream (nvidia/Nemotron-3-Super-120B-A12B-BF16-MTPv2)
+    and is deliberately NOT wired here. License OpenMDW-1.1. Not boot-verified
+    here.
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+  OMP_NUM_THREADS: '4'
+  # The card's DGX Spark env: Marlin for the NVFP4 GEMMs and routed experts,
+  # FlashInfer's FP4 MoE path off, trtllm all-reduce backend.
+  VLLM_NVFP4_GEMM_BACKEND: marlin
+  VLLM_USE_FLASHINFER_MOE_FP4: '0'
+  VLLM_FLASHINFER_ALLREDUCE_BACKEND: trtllm
+
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+  max_model_len: 262144
+  max_num_seqs: 4
+  gpu_memory_utilization: 0.90
+  kv_cache_dtype: fp8
+  mamba_ssm_cache_dtype: float16
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--nvidia--NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4/snapshots/ff433f5493e25d631c9f12b5d55c674229923d02
+  --served-model-name {served_model_name}
+  --revision=ff433f5493e25d631c9f12b5d55c674229923d02
+  --trust-remote-code
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --mamba-ssm-cache-dtype {mamba_ssm_cache_dtype}
+  --moe-backend marlin
+  --enable-chunked-prefill
+  --swap-space 0
+  --reasoning-parser nemotron_v3
+  --tool-call-parser qwen3_coder
+  --enable-auto-tool-choice

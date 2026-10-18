@@ -1,0 +1,83 @@
+recipe_version: "2"
+model: r0b0tlab/Ornith-1.5-35B-A3B-NVFP4-W4A16
+model_revision: dcbc0a25d5b3ce634c2f5d988a81ba598ca7adcc
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
+runtime: sglang
+min_nodes: 1
+
+metadata:
+  description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4-W4A16 (modelopt W4A16) with its in-checkpoint BF16 MTP head on SGLang EAGLE spec decode.
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/r0b0tlab/Ornith-1.5-35B-A3B-NVFP4-W4A16
+  model_params: "35.1B"
+  model_dtype: nvfp4
+  model_mtp_dtype: bf16
+  kv_dtype: fp8_e4m3
+  tags: vision, reasoning, agent, tools
+  caveats: >
+    Community self-quantization (MIT) of ornith-ai/Ornith-1.5-35B-A3B with NVIDIA
+    ModelOpt, not an official Ornith export: the card's parity claim is the uploader's
+    own and this arm has no house measurement. MTP is speculative-only here,
+    not a draft repo: the pack keeps 785 mtp.* tensors in BF16, so EAGLE runs against
+    the checkpoint itself (sparkrun has nothing extra to distribute). Vision is wired
+    through (multimodal checkpoint) but unproven on this pack.
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: r0b0tlab/Ornith-1.5-35B-A3B-NVFP4-W4A16
+  # The card's validated 0.80, not the sibling's 0.85: this pack's first-use FP4 GEMM
+  # JIT (~18 CUTLASS kernels) compiles with the model resident.
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 48
+  mamba_full_memory_ratio: 3.51
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  # Matches the pack's kv_cache_quant_algo: FP8 (kv_fp8_cast, constant amax).
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: triton
+  # marlin, never auto: `auto` can resolve flashinfer_trtllm, which has no NVFP4 MoE
+  # kernel in this engine. The card validated triton+marlin on SM121.
+  moe_runner_backend: marlin
+  # The pack is plain safetensors. fastsafetensors only speeds the load and its mod
+  # leaves a root-owned flashinfer_jit.log in the new model key's runtime cache.
+  load_format: safetensors
+  # The card's measured MTP seat (K=1 draft): no --speculative-draft-model-path, so
+  # EAGLE loads the target's own Qwen3_5ForCausalLMMTP.
+  speculative_algorithm: EAGLE
+  speculative_num_steps: 1
+  speculative_eagle_topk: 1
+  speculative_num_draft_tokens: 2
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format {load_format}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}

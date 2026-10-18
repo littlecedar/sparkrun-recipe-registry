@@ -1,0 +1,78 @@
+recipe_version: "2"
+model: Aleph-Alpha/Kolibri-1
+model_revision: 258cae8ffffc8c12db670bdbc6ac01bcf8826c87
+runtime: sglang
+# TensorFold's kolibri1 CUDA engine with the learned block drafter, forked
+# branch jschmied/TensorFold kolibri1-drafter @8ea05aa (built from
+# recipes/explore/Dockerfile.kolibri1-tensorfold-drafter). `runtime: sglang` is
+# the shim path: sparkrun renders the command and appends its rendezvous flags,
+# and the lane's launcher mod maps them onto `tensorfold serve`.
+container: littlecedar/dgx-spark-tensorfold-kolibri1-drafter:0.6.5-8ea05aa@sha256:efcb7257b907927fb24560f3d98e2eee85211bd910feaa11408dacbb9ccbcbb7
+min_nodes: 1
+max_nodes: 1
+mods:
+  - "mods/kolibri-drafter-launcher"
+
+metadata:
+  description: >-
+    Aleph-Alpha/Kolibri-1 FP8 (78.1B total / 3.46B active) on ONE DGX Spark,
+    served by the TensorFold kolibri1 engine with josch15366's learned block
+    drafter (391.3M params, DFlash-shaped, taps Kolibri's layers 44/47/49) —
+    the draft route the model does not ship: Kolibri-1 has no MTP head. Verified
+    speculative decoding, not a quality trade: the target checks every draft, so
+    replies match a drafter-free serve. The drafter is switched on by
+    TENSORFOLD_KOLIBRI_DRAFTER (a release directory), which the launcher exports
+    after resolving the prepared snapshot.
+  model_url: https://huggingface.co/Aleph-Alpha/Kolibri-1
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  model_dtype: fp8
+  kv_dtype: fp16
+  draft_model: josch15366/Kolibri-1-block-drafter
+  model_draft_dtype: bf16
+  tags: explore, reasoning, tools, fast
+  caveats: >
+    The drafter's 1.24-1.49x is the drafter's own card, measured with TensorFold
+    on one GB10 at its release defaults (depth 2, FP8 body, NVFP4 head slice) —
+    not this registry's number, and the card's SWE slice shares repositories
+    with its training recordings, so treat that column as optimistic. It drafts
+    German least well. Depth/quant knobs are TENSORFOLD_KOLIBRI_DRAFTER_DEPTH
+    and TENSORFOLD_KOLIBRI_BLOCK_QUANT / _BLOCK_HEAD, unset here so the release
+    defaults apply. The launcher fails closed if the drafter does not resolve or
+    is not a block-drafter release, and it refuses a model dir that is not the
+    pinned revision.
+
+executor_config:
+  # The sglang base declares a passthrough NVIDIA entrypoint; nothing to clear.
+  shm_size: 32gb
+  ulimit:
+    - memlock=-1:-1
+
+defaults:
+  port: 8000
+  tensor_parallel: 1
+  # Never {model} for the served id: sparkrun rebinds it to the snapshot path.
+  served_model_name: Aleph-Alpha/Kolibri-1
+  max_model_len: 262144
+  max_num_seqs: 6
+  # The draft entry, Laguna-style: sparkrun pre-syncs the drafter repo at this
+  # revision and passes both values through to the command.
+  speculative_draft_model: josch15366/Kolibri-1-block-drafter
+  speculative_draft_model_revision: 4d6cf7bed67c3925cc19ca79c85db92044ec5640
+
+command: >
+  python3 /workspace/mods/kolibri-drafter-launcher/launcher.py
+  --model {model}
+  --revision {model_revision}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {served_model_name}
+  --context {max_model_len}
+  --parallel {max_num_seqs}
+  --drafter {speculative_draft_model}
+  --drafter-revision {speculative_draft_model_revision}
+
+readiness:
+  inference: false
+  port_timeout_s: 3600
+  health_timeout_s: 1800

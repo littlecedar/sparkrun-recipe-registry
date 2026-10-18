@@ -45,6 +45,12 @@ ARMS: dict[str, tuple[str, str]] = {
         "orcarouter/Qwen3.8-27B-Uncensored-NVFP4",
         "orcarouter/Qwen3.8-27B-Uncensored-NVFP4",
     ),
+    # Spec-decode sibling of the arm above: same checkpoint, same pin, same engine
+    # build, plus NEXTN on the checkpoint's own BF16 MTP head (NextnSiblingPairing).
+    "qwen3.8-27b-uncensored-nvfp4-nextn-sglang.yaml": (
+        "orcarouter/Qwen3.8-27B-Uncensored-NVFP4",
+        "orcarouter/Qwen3.8-27B-Uncensored-NVFP4",
+    ),
     # Overlay: the body is the AEON-7 pack, the arm holds the cyber-unlock chat template.
     "qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml": (
         "sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4",
@@ -121,6 +127,77 @@ def command_block(text: str) -> str:
 def read(path: Path) -> str:
     """Read a recipe, stripped of comments. A missing file raises -- never ''."""
     return strip_comment_lines(path.read_text(encoding="utf-8"))
+
+
+# The lane's one matched pair: a plain-decode control and its spec-decode sibling.
+# The pairing rule is the whole point of the sibling -- a spec arm that drifts from
+# its control outside the speculative block cannot be compared to it, so any
+# speedup it reports is unattributable.
+CONTROL_QWEN_27B = "qwen3.8-27b-uncensored-nvfp4-sglang.yaml"
+NEXTN_QWEN_27B = "qwen3.8-27b-uncensored-nvfp4-nextn-sglang.yaml"
+
+SPEC_FLAGS = (
+    "--speculative-algorithm {speculative_algorithm}",
+    "--speculative-eagle-topk {speculative_eagle_topk}",
+    "--speculative-num-draft-tokens {speculative_num_draft_tokens}",
+)
+
+
+def spec_keys(text: str) -> dict[str, str]:
+    return {k: v for k, v in defaults_keys(text).items() if k.startswith("speculative_")}
+
+
+def spec_flags(text: str) -> list[str]:
+    return re.findall(r"--speculative-[a-z-]+", command_block(text))
+
+
+def pairing_violations(spec_text: str, control_text: str) -> list[str]:
+    """Identity + non-speculative defaults must be the control's, to the byte."""
+    bad = []
+    for key in ("model", "model_revision", "container"):
+        spec, control = top_level(spec_text, key), top_level(control_text, key)
+        if spec is None:
+            bad.append(f"spec arm has no {key}")
+        elif spec != control:
+            bad.append(f"{key} drifted: spec={spec!r} control={control!r}")
+    spec_defaults = {k: v for k, v in defaults_keys(spec_text).items()
+                     if not k.startswith("speculative_")}
+    control_defaults = defaults_keys(control_text)
+    if spec_defaults != control_defaults:
+        drift = sorted(set(spec_defaults.items()) ^ set(control_defaults.items()))
+        bad.append(f"non-speculative defaults drift: {drift}")
+    return bad
+
+
+def nextn_violations(text: str) -> list[str]:
+    """NEXTN on the checkpoint's own head: 3 steps, topk 1, so width 4."""
+    keys = defaults_keys(text)
+    bad = []
+    if keys.get("speculative_algorithm") != "NEXTN":
+        bad.append(f"speculative_algorithm {keys.get('speculative_algorithm')!r} is not NEXTN")
+    topk = keys.get("speculative_eagle_topk")
+    steps = keys.get("speculative_num_steps")
+    draft = keys.get("speculative_num_draft_tokens")
+    if topk != "1":
+        bad.append(f"speculative_eagle_topk {topk!r}: 1 is the linear (no-tree) chain")
+    if topk == "1" and (steps or "").isdigit() and draft != str(int(steps) + 1):
+        bad.append(f"topk 1 makes the width steps + 1: steps={steps} draft={draft}")
+    if draft != "4":
+        bad.append(f"speculative_num_draft_tokens {draft!r} is not the measured 4")
+    for flag in SPEC_FLAGS:
+        if flag not in command_block(text):
+            bad.append(f"declared but never passed to the engine: {flag}")
+    return bad
+
+
+def plain_decode_violations(text: str) -> list[str]:
+    """The control must stay plain decode, or the pair has no baseline."""
+    bad = []
+    if spec_keys(text):
+        bad.append(f"control arm grew a speculative block: {sorted(spec_keys(text))}")
+    if spec_flags(text):
+        bad.append(f"control arm grew spec flags: {spec_flags(text)}")
+    return bad
 
 
 class LaneShape(unittest.TestCase):
@@ -331,6 +408,34 @@ class NewMods(unittest.TestCase):
             self.assertEqual(moved.returncode, 1, "a foreign-generation tree must not no-op")
             self.assertIn("another generation", moved.stderr)
 
+class NextnSiblingPairing(unittest.TestCase):
+    """The lane's pairing rule: a spec arm is its control plus the speculative block.
+
+    NEXTN here is the engine's alias for EAGLE with the target's own MTP head (15
+    `mtp.*` tensors in BF16), so nothing extra is distributed and the only
+    difference from the plain-decode control may be the speculative block.
+    """
+
+    def setUp(self) -> None:
+        self.nextn = read(LANE / NEXTN_QWEN_27B)
+        self.control = read(LANE / CONTROL_QWEN_27B)
+
+    def test_same_checkpoint_pin_and_engine_as_the_control(self) -> None:
+        self.assertEqual(pairing_violations(self.nextn, self.control), [])
+
+    def test_nextn_block_is_a_consistent_linear_chain(self) -> None:
+        self.assertEqual(nextn_violations(self.nextn), [])
+        keys = defaults_keys(self.nextn)
+        self.assertEqual(keys.get("speculative_num_steps"), "3")
+        self.assertEqual(keys.get("speculative_attention_mode"), "decode")
+        self.assertNotIn("speculative_draft_model", keys,
+                         "the MTP head is in-checkpoint: no second artifact")
+        self.assertNotIn("--speculative-draft-model-path", command_block(self.nextn))
+
+    def test_control_stays_plain_decode(self) -> None:
+        self.assertEqual(plain_decode_violations(self.control), [])
+
+
 class NegativeControls(unittest.TestCase):
     """Every guard above must fail on the mutation it exists for."""
 
@@ -365,6 +470,45 @@ class NegativeControls(unittest.TestCase):
         self.assertIn("{model}", command_block(text))
         self.assertNotIn("--stock-model {model}", command_block(text))
         self.assertNotIn("--model {served_model_dir}", command_block(text))
+
+    # -- the spec/control pair: every mutation below is applied to the real text --
+
+    def _nextn_text(self) -> str:
+        return read(LANE / NEXTN_QWEN_27B)
+
+    def test_control_sibling_drifting_pin_is_caught(self) -> None:
+        pin = top_level(self._nextn_text(), "model_revision")
+        self.assertRegex(pin or "", r"^[0-9a-f]{40}$")
+        mutated = self._nextn_text().replace(pin or "", "0" * 40)
+        self.assertTrue(pairing_violations(mutated, read(LANE / CONTROL_QWEN_27B)),
+                        "a re-pinned sibling is a different checkpoint than its control")
+
+    def test_control_sibling_drifting_default_is_caught(self) -> None:
+        mutated = self._nextn_text().replace("gpu_memory_utilization: 0.85",
+                                             "gpu_memory_utilization: 0.80")
+        self.assertTrue(pairing_violations(mutated, read(LANE / CONTROL_QWEN_27B)),
+                        "a non-speculative knob that differs makes the delta unattributable")
+
+    def test_control_widened_eagle_topk_is_caught(self) -> None:
+        mutated = self._nextn_text().replace("speculative_eagle_topk: 1",
+                                             "speculative_eagle_topk: 3")
+        self.assertTrue(nextn_violations(mutated))
+
+    def test_control_dropped_spec_flag_is_caught(self) -> None:
+        mutated = self._nextn_text().replace(
+            "  --speculative-num-draft-tokens {speculative_num_draft_tokens}\n", "")
+        self.assertTrue(nextn_violations(mutated))
+
+    def test_control_control_arm_gaining_a_spec_block_is_caught(self) -> None:
+        control = read(LANE / CONTROL_QWEN_27B)
+        self.assertEqual(plain_decode_violations(control), [])
+        mutated = control.replace('  extra_args: ""',
+                                  '  speculative_algorithm: NEXTN\n  extra_args: ""')
+        self.assertNotEqual(mutated, control)
+        self.assertTrue(plain_decode_violations(mutated))
+        # The pairing guard is deliberately blind to `speculative_` keys -- that block is
+        # what the pair differs by -- so this mutation is the control's guard alone.
+        self.assertEqual(pairing_violations(mutated, control), [])
 
 
 

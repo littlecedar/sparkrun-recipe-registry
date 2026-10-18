@@ -1,0 +1,72 @@
+recipe_version: "2"
+model: Myric/Kolibri-1-APEX-GGUF:Q4_K
+model_revision: ed6030d74fc73634b9b75d48ff6419afa283ffcf
+runtime: llama-cpp
+# Fork-built: stock llama.cpp has no `kolibri1` architecture. brywil/llama.cpp
+# branch kolibri1 @68fa28b56 (built from recipes/explore/Dockerfile.kolibri1-llamacpp).
+container: littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b@sha256:1928661c47f7f711325a4f81177da9bbee7519d04644670f8cbaa80e0165ad6f
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    Aleph-Alpha/Kolibri-1 (78.1B total / 3.46B active, 384 experts top-6, 4:1
+    SWA:GQA) as Myric's uniform-Q4_K GGUF — 44.98 GB / 41.89 GiB, the pack's
+    closest-to-BF16 file — on ONE DGX Spark through llama.cpp. Full 262,144
+    native window: only the 10 full-attention layers grow with context
+    (~20 KiB/token at f16, ~5 GiB for the whole window). Thinking is on and
+    split into reasoning_content; tool calls ride llama-server's own
+    OpenAI-compatible path with --jinja.
+  model_url: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "78.1B"
+  model_dtype: q4_k
+  kv_dtype: fp16
+  tags: explore, reasoning, tools
+  caveats: >
+    The uploader's GB10 figures (~51 t/s decode, ~1,500 t/s prompt) and its
+    42/42 agentic score are the card's claims, not this registry's: the GGUF
+    route has to clear the lane battery before anything is ported from them.
+    mmap is left at the platform default and — because a `command:` template
+    never receives sparkrun's forced `mmap: false` — that default is this
+    fork's own `auto` (mmap plus lazy reads): the fork has no `--no-mmap`, only
+    `--load-mode`. The image is GB10-only (sm_121 device code, no PTX).
+
+executor_config:
+  # The image declares ENTRYPOINT ["/usr/local/bin/llama-server"]; sparkrun
+  # appends `bash -c <cmd>`, which a consuming entrypoint swallows.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: Myric/Kolibri-1-APEX-GGUF
+  ctx_size: 262144
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.97
+  top_k: 128
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --reasoning-effort high
+  --jinja
+  --no-webui
+  --cont-batching
