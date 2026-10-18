@@ -50,8 +50,11 @@ LIMIT_ROWS="${MOD_ENGRAM_LIMIT_ROWS:-}"
 EXTRA_ARGS=""
 [[ -n "${LIMIT_ROWS}" ]] && EXTRA_ARGS="${EXTRA_ARGS} --limit-rows ${LIMIT_ROWS}"
 [[ -n "${MOD_ENGRAM_HF_TOKEN:-}" ]] && EXTRA_ARGS="${EXTRA_ARGS} --token ${MOD_ENGRAM_HF_TOKEN}"
-REPO="${MOD_ENGRAM_REPO:-deepseek-ai/DeepSeek-V4.1-Flash}"
-REVISION="${MOD_ENGRAM_REVISION:-main}"
+REPO="${MOD_ENGRAM_REPO:-deepseek-ai/DeepSeek-V4.1-Flash-1017}"
+# Pinned, not main: the shipped TP=2 arm serves the 1017 pack and --require-engram
+# cannot tell 1017 tables from the old base's, so a moving ref here would pre-warm
+# the pair the pack card forbids. MOD_ENGRAM_REPO/REVISION still select the old base.
+REVISION="${MOD_ENGRAM_REVISION:-1bae0e1088993b9b82de08f59de5be5a34e42170}"
 BUILDER="${MOD_DIR}/build-dsv41-engram.py"
 FETCH_LOG="${LOGDIR}/${MOD_NAME}.fetch.log"
 

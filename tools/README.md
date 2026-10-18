@@ -17,7 +17,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `synthetic_png.py` | library for `pooling-bench.py` | also loaded by the same embed/rerank guard |
 | `quality-battery.py` | `recipes/ds4/` benchmarks rig | imported verbatim by `recipes/ds4/benchmarks/run_benchmarks.py`; scoring kinds reused by `qwen4-quality-eval.py` |
 | `build-dsv41-engram.py` | ds4 TP=2 lanes | still cuts the Engram tables from a repo that carries them (the open 1017 refresh path uses it); the bundled copy lives in `recipes/cybersec/mods/dsv41-engram-fetch/`, which **no shipped recipe mounts** as of 2026-10-17; guarded by `tests/test_dsv41_engram_builder.py` |
-| `build-dsv41-combined.py` | ds4 combined-repo TP=2 | shells out to `build-dsv41-engram.py`; consumed by `mods/tensorfold-dsv41-launcher/launcher.py`; guarded by `tests/test_dsv41_combined_tool.py` |
+| `build-dsv41-combined.py` | cybersec arm 5 (the combined `littlecedar` stock it grafts onto) | shells out to `build-dsv41-engram.py`; reached through the launcher's `--stock-model` — the ds4 TP=2 arm now serves the 1017 pack and pre-warms `hub/dsv41-engram` instead; guarded by `tests/test_dsv41_combined_tool.py` |
 | `needle-haystack.py` | ds4 1M lanes (any long-context boot) | guarded by `tests/test_needle_haystack.py` |
 | `qwen4-quality-eval.py` | qwen4 W3 labquant comparator | scoring kinds from `quality-battery.py`; self-test only, no `tests/` guard |
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |

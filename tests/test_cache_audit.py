@@ -59,6 +59,9 @@ FLEET_LEAVES = [
     ("sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4",
      "8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a",
      "sakamakismile__Qwen3.8-27B-AEON-ULTIMATE-UNCENSO-b9f737e7"),
+    ("LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw",
+     "c178a01284fc5c0e859d8668cffaac81ca8f4042",
+     "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776"),
 ]
 
 #: Leaves the fleet holds that no recipe may claim.
@@ -215,15 +218,24 @@ class ReclaimVerdict(unittest.TestCase):
         return audit.Tree(".NN", f"{FAMILY_DIR}/{leaf}", size=1, stamp=stamp)
 
     def test_live_tree_gets_no_reclaim_action(self):
-        # The combined pack is live for both TP=2 arms (ds4 and the grafted cybersec arm);
-        # the Mia 2.9bpw leaf is deliberately absent from this set -- the Engram dedup moved
-        # the abliterated arm onto the combined pack, so no shipped recipe names it any more
-        # (test_mia_leaf_is_stale_after_the_engram_dedup).
-        for _, _, leaf in FLEET_LEAVES[:1] + FLEET_LEAVES[3:4]:
+        # Live today: the knapcio pin, and the 1017 pack the ds4 TP=2 arm now serves. The
+        # combined pack is still served -- by the grafted cybersec arm, pinned -- but its
+        # *unpinned* leaf is not; see test_v41_unpinned_leaf_is_stale_after_the_1017_rebase.
+        for leaf in (FLEET_LEAVES[0][2], FLEET_LEAVES[6][2]):
             tree = self._tree(leaf, "2026-01-01_00:00")
             kind, _ = audit.verdict(tree, self.keys)
             self.assertEqual(kind, "live", leaf)
             self.assertEqual(audit.reclaim_note(tree, kind, self.now), "", f"{leaf} must not be reclaimable")
+
+    def test_v41_unpinned_leaf_is_stale_after_the_1017_rebase(self):
+        # The ds4 TP=2 arm moved to the 1017 pack on 2026-10-17. The grafted cybersec arm still
+        # names the combined pack, but *pinned*, so only the unpinned leaf goes reclaimable.
+        unpinned = self._tree("littlecedar__DeepSeek-V4.1-Flash-EXL3-2.9bpw-wit-2bd42ac5",
+                              "2026-01-01_00:00")
+        self.assertEqual(audit.verdict(unpinned, self.keys)[0], "stale")
+        pinned = self._tree("littlecedar__DeepSeek-V4.1-Flash-EXL3-2.9bpw-wit-4e17d34c",
+                            "2026-01-01_00:00")
+        self.assertEqual(audit.verdict(pinned, self.keys)[0], "live")
 
     def test_mia_leaf_is_stale_after_the_engram_dedup(self):
         # The storage the dedup was for: once the abliterated arm grafts onto the combined

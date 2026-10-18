@@ -90,7 +90,12 @@ PACKED_HEADER_BYTES = 4096
 WEIGHT_BYTES = 256
 SCALE_BYTES = 8
 PACKED_ROW_BYTES = WEIGHT_BYTES + SCALE_BYTES  # 264
-DEFAULT_REPO = "deepseek-ai/DeepSeek-V4.1-Flash"
+DEFAULT_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+# The base the shipped TP=2 arm's tables come from: a 1017 node pre-warms from
+# here, and the pack card forbids pairing 1017 weights with the superseded
+# base's tables (PPL 1.87/6.43 -> 4.16/9.06 with lookups off). `--repo`/`--revision`
+# still reach the old base for an A/B.
+DEFAULT_REVISION = "1bae0e1088993b9b82de08f59de5be5a34e42170"
 DEFAULT_ENDPOINT = "https://huggingface.co"
 DEFAULT_LAYERS = (1, 14)
 # The TensorFold TP=2 launcher's in-container ENGRAM_DIR default
@@ -876,7 +881,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=__doc__.splitlines()[0],
         formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--repo", default=DEFAULT_REPO, help="HF repo id (default: %(default)s)")
-    p.add_argument("--revision", default="main", help="HF revision (default: %(default)s)")
+    p.add_argument("--revision", default=DEFAULT_REVISION, help="HF revision (default: %(default)s)")
     p.add_argument("--endpoint", default=os.environ.get("HF_ENDPOINT", DEFAULT_ENDPOINT),
                    help="HF endpoint (default: %(default)s)")
     p.add_argument("--token", default=os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN"),

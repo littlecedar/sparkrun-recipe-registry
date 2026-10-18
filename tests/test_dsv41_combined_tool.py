@@ -31,7 +31,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL_PATH = REPO_ROOT / "tools" / "build-dsv41-combined.py"
 LAUNCHER = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher" / "launcher.py"
 COMBINED_RECIPE = (
-    REPO_ROOT / "recipes" / "ds4" / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
+    REPO_ROOT
+    / "recipes"
+    / "cybersec"
+    / "deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml"
 )
 
 
@@ -155,7 +158,13 @@ class LauncherCombinedProbe(unittest.TestCase):
 
 
 class CombinedRecipe(unittest.TestCase):
-    """The combined recipe offsets the fetch mod with the shipped tables."""
+    """The combined pack's remaining shipped consumer is the grafted cybersec arm.
+
+    The ds4 TP=2 arm now serves the 1017 EXL3 pack (its Engram tables are
+    pre-warmed into hub/dsv41-engram and the recipe passes --require-engram);
+    this class pins the grafted arm -- the last recipe still naming the combined
+    repo -- to that model and to the no-fetch-mod, no-knob contract.
+    """
 
     def setUp(self):
         self.text = COMBINED_RECIPE.read_text()
