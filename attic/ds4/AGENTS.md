@@ -1519,7 +1519,8 @@ These are load-bearing and each has a guard in
    max_model_len=…`) wins. boot.py asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`.
    Guarded by `test_context_length_wired_to_launcher`.
 4. **The image is vendored and digest-pinned.**
-   `littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab…`. Guarded by
+   `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` (the 2026-10-17 v2.4 rebuild; the
+   dated `4e5002ab…` build below is the v2.3 predecessor). Guarded by
    `test_image_is_vendored_and_pinned`.
 5. **No `distribution_config:` block.** sparkrun's default already distributes
    both the model and the container (`core/recipe.py:_default_distribution_config`).

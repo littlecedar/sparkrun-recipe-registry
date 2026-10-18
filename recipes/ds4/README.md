@@ -28,9 +28,9 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Context | 1,048,576 tokens served |
 | Spec decode | DSpark k=5, verify-all |
 | Transport | RoCEnante RDMA (shipped on) |
-| Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:4e5002ab…` (vendored, digest-pinned) |
+| Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
-| Measured | C1 46.5 / C4 106 / C8 133 / C16 193 t/s aggregate (short-prompt harness) |
+| Measured | v2.4 boot: C1 **59.2** / C4 110.9 / C8 111.4 / C16 112.8 t/s aggregate, 119k prefill 27.9 s, 231k 66.0 s, KV pool 9,386,240 (`~/benchmarks/ds4-knapcio-v24-20261017/`) |
 
 ### What it serves
 

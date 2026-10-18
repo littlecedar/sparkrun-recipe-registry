@@ -982,12 +982,13 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.runtime, "sglang")
         # Vendored, digest-pinned image (built from knapcio's Dockerfile and
         # pushed to littlecedar); sparkrun pulls it instead of building locally.
-        # This digest (4e5002ab…) is the 2026-10-03 rebuild whose baked
+        # This digest (acfc331a…) is the 2026-10-17 v2.4 rebuild: upstream
+        # 27616bec + the vendored boot.py.health-port.patch, whose baked
         # HEALTHCHECK discovers the served port at runtime.
         self.assertEqual(
             self.r.container,
             "littlecedar/dgx-spark-dsv41:canary-roce"
-            "@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05",
+            "@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93",
         )
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash")
         self.assertEqual(self.r.min_nodes, 4)
@@ -1408,7 +1409,7 @@ class SglangLaneNegativeControls(unittest.TestCase):
         # A mutable tag (no digest) must fail the vendored-and-pinned guard.
         r = self._mutated(
             "container: littlecedar/dgx-spark-dsv41:canary-roce"
-            "@sha256:4e5002ab58b5cca670e2624c6a0d0799642914f04487ea130c71e7f525fa9c05",
+            "@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93",
             "container: littlecedar/dgx-spark-dsv41:canary-roce",
         )
         with self.assertRaises(AssertionError):
