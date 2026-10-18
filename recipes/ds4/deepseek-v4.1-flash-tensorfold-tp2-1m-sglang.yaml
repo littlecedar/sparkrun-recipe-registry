@@ -1,5 +1,6 @@
 recipe_version: "2"
-model: littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
+model: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
+model_revision: c178a01284fc5c0e859d8668cffaac81ca8f4042
 runtime: sglang
 container: littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a7449d7335fb85d453cc439985c525495
 builder: docker-pull
@@ -8,20 +9,29 @@ max_nodes: 2
 
 metadata:
   description: >-
-    DeepSeek-V4.1-Flash on 2x DGX Spark (GB10), TP=2, served by the TensorFold
+    DeepSeek-V4.1-Flash-1017 on 2x DGX Spark (GB10), TP=2, served by the TensorFold
     deepseek_v41 engine (bertholomus/TensorFold, branch deepseek-v41-tp2). The
-    EXL3 2.9bpw checkpoint (~197 GB) plus the original FP8 Engram tables from
-    DeepSeek shards 47/48 (~95 GB each), DSpark k=5, at the model's full 1M-token
-    window. The recipe's `runtime: sglang` is the shim path: sparkrun renders the command
-    and appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher
-    maps them onto `tensorfold serve`. See README.md and AGENTS.md.
-  model_url: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
+    EXL3 2.9bpw conversion of the 2026-10-17 refresh (~196 GB) plus that release's
+    own Engram tables (~189 GB, built from shards 47/48 of the base pack), DSpark
+    k=5, at the model's full 1M-token window. The pack ships no chat template of
+    its own; the launcher's --vision overlay serves this lane's patched one. The
+    recipe's `runtime: sglang` is the shim path: sparkrun renders the command and
+    appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher maps
+    them onto `tensorfold serve`. See README.md and AGENTS.md.
+  model_url: https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
   model_dtype: exl3
   model_mtp_dtype: exl3
   kv_dtype: fp8
   tags: fast, large_context, single_user, vision
+  caveats: >
+    The Engram tables are ~189 GB and live in the node's HF cache at hub/dsv41-engram,
+    not inside the checkpoint snapshot (a revision refresh or an `hf cache` prune would
+    empty the latter, and the launcher would only warn). Pre-warm a new node first
+    (README). This recipe passes --require-engram, so a missing set fails the launch
+    rather than serving degraded -- the pack card measures PPL 1.87/6.43 -> 4.16/9.06
+    with the tables off.
 
 # The launcher mod also ships the 43-gate ffn.gate.bias_vl file that --vision needs.
 mods:
@@ -48,6 +58,7 @@ command: >
   --served-model-name {model}
   --context {max_model_len}
   --vision
+  --require-engram
 
 readiness:
   inference: true

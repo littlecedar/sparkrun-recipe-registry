@@ -1587,11 +1587,12 @@ class TensorfoldLaneContract(unittest.TestCase):
         # Vendored + digest-pinned: the shebang image whose `tensorfold` we built.
         self.assertEqual(self.r.container, TF_IMAGE)
         # The engine reads EXL3 ONLY (families/deepseek_v41 QUANT_METHODS); the
-        # official MXFP4 checkpoint would be rejected by family.check(). The
-        # model is the combined repo: EXL3 2.9bpw weights + upstream Engram
-        # tables + upstream's prompt, all in one snapshot.
+        # official MXFP4 checkpoint would be rejected by family.check(). Since
+        # 2026-10-17 the arm serves the 1017 refresh's EXL3 conversion; that
+        # release's Engram tables are pre-warmed into hub/dsv41-engram (the
+        # recipe pins the revision and passes --require-engram).
         self.assertEqual(
-            self.r.model, "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram"
+            self.r.model, "LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw"
         )
 
     def test_image_is_vendored_and_pinned(self):
@@ -1761,6 +1762,30 @@ class TensorfoldLaneContract(unittest.TestCase):
                                 str(cache / "rank-cache"))
             self.assertTrue((cache / "rank-cache" / "dsv41-ablit").is_dir(),
                             "the per-tree dir must exist for the engine to write into")
+
+    def test_require_engram_fails_closed(self):
+        """A missing Engram set must stop the launch, not serve degraded silently.
+
+        The engine only warns when `TF_DS_ENGRAM` is unset, and the arm answers
+        normally at a materially worse PPL (the 1017 pack card: 1.87/6.43 ->
+        4.16/9.06 with lookups off), so the shipped recipe passes
+        `--require-engram` and the shim exits 2 instead.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            mod = _tf_launcher()
+            mod.RUNTIME_CACHE = str(Path(d) / "runtime")
+            mod.HF_HUB = str(Path(d) / "hub")
+            mod.ENGRAM_DIR = str(Path(d) / "hub" / "dsv41-engram")
+            (Path(mod.HF_HUB) / "models--x--y").mkdir(parents=True)
+            self.assertEqual(mod.main(["--model", "x/y", "--require-engram"]), 2,
+                             "a missing Engram set must fail the launch")
+        text = (TF_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('parser.add_argument("--require-engram", action="store_true")', text)
+        self.assertLess(text.index("if args.require_engram"), text.index("os.execvp"),
+                        "the fail-closed branch must precede exec")
+        self.assertIn("--require-engram", self.r.command_template,
+                      "the shipped recipe must pass the flag")
 
     # -- the shipped vision opt-in ----------------------------------------
     def test_vision_bias_ships_beside_the_launcher(self):
@@ -2053,10 +2078,10 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
     def test_control_official_mxfp4_checkpoint(self):
         # Swapping in the official (MXFP4) checkpoint must fail the model guard:
         # the engine's family.check() refuses any quant_method != exl3.
-        r = self._mutated("model: littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram",
+        r = self._mutated("model: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw",
                           "model: deepseek-ai/DeepSeek-V4.1-Flash")
         with self.assertRaises(AssertionError):
-            self.assertEqual(r.model, "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram")
+            self.assertEqual(r.model, "LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw")
 
     def test_control_tp3(self):
         r = self._mutated("  tensor_parallel: 2", "  tensor_parallel: 3")

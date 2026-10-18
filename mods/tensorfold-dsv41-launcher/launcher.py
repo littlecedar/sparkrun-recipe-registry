@@ -49,8 +49,11 @@ DS4 TP=2 lane serves), the same subdir of a stock pack named by `--stock-model`
 it was grafted from, so both lanes read one copy per node), then
 `/cache/huggingface/hub/dsv41-engram` (a hand pre-warm) and a
 sparkrun-distributed Engram repo. If none is found the engine still loads and
-serves, with a warning and degraded output -- the shim does not fail closed on
-it, it just does not set TF_DS_ENGRAM so the engine can say so.
+serves, with a warning and degraded output -- by default the shim does not fail
+closed on it, it just does not set TF_DS_ENGRAM so the engine can say so.
+``--require-engram`` (what the shipped TP=2 recipe passes) turns a missing set
+into a failed launch instead, because a degraded arm still answers normally and
+only its PPL shows the difference.
 
 Vision. `--vision` (off by default) enables image input, which takes two parts:
 the engine flag, and the MoE gates' VL routing bias that the EXL3 pack omitted
@@ -311,6 +314,10 @@ def main(argv: list[str] | None = None) -> int:
     # The stock pack a graft was built from (the cybersec abliterated arm serves a
     # grafted dir). Only the Engram resolver reads it; the served dir is --model.
     parser.add_argument("--stock-model", default="")
+    # Fail closed when no Engram tables resolve: the engine only warns, and a
+    # degraded arm answers normally at a materially worse PPL, so every shipped
+    # arm that needs the tables passes this.
+    parser.add_argument("--require-engram", action="store_true")
     # sparkrun appends its rendezvous flags; capture them here so the shim owns
     # the mapping, and tolerate anything else the runtime may add.
     parser.add_argument("--dist-init-addr", default="")
@@ -335,12 +342,16 @@ def main(argv: list[str] | None = None) -> int:
     if engram:
         env["TF_DS_ENGRAM"] = engram
     else:
-        print(
+        msg = (
             f"[tensorfold-launcher] no Engram tables at {ENGRAM_DIR} (or a model dir's "
-            "engram/ subdir, a --stock-model pack's, or a distributed Engram repo): "
-            "serving degraded (see recipes/ds4/README.md for the pre-warm step)",
-            flush=True,
+            "engram/ subdir, a --stock-model pack's, or a distributed Engram repo)"
         )
+        if args.require_engram:
+            print(msg + ": refusing to serve degraded -- pre-warm the node first "
+                  "(recipes/ds4/README.md)", flush=True)
+            return 2
+        print(msg + ": serving degraded (see recipes/ds4/README.md for the pre-warm step)",
+              flush=True)
     if args.vision:
         # attach_vl_bias() takes a FOLDER and globs *.safetensors in it; sparkrun
         # copies this mod to /workspace/mods/tensorfold-dsv41-launcher, so the
