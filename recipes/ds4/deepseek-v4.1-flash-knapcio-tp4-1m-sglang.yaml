@@ -38,6 +38,10 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   max_model_len: 1048576
+  # DSpark verify-window gamma. The launcher's shipped default is the same 5;
+  # the knob exists so a sweep can reach it (-o dspark_block_size=3), since
+  # `-o env.DSPARK_BLOCK_SIZE=` is clobbered by the launcher's production env.
+  dspark_block_size: 5
 
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
@@ -47,6 +51,7 @@ command: >
   --tp {tensor_parallel}
   --served-model-name {model}
   --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
 
 readiness:
   # inference must stay false: readiness would otherwise drive /chat/completions,

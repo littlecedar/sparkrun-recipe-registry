@@ -161,6 +161,8 @@ RECIPE_ENV: dict[str, str] = {
     # sit well below the 2026-10-06 receipts (C1 46.5, C16 193) — inter-boot
     # drift on this lane is documented (README caveat); the verdict above is
     # within-pair and survives it, the absolute numbers do not.
+    # `--dspark-block-size` (the recipe's `dspark_block_size`) overrides this
+    # per launch; this is the shipped default it must stay equal to.
     "DSPARK_BLOCK_SIZE": "5",
     # --- overlay adapters (the upstream production line) -------------------
     "DSV41_INDEXER_CHUNKED": "1",
@@ -550,6 +552,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--context-length", default=None,
                         help="served context length (sparkrun's {max_model_len}); "
                              "mapped to boot.py's CONTEXT_LENGTH")
+    parser.add_argument("--dspark-block-size", default=None,
+                        help="DSpark verify window gamma (sparkrun's {dspark_block_size}); "
+                             "mapped to boot.py's DSPARK_BLOCK_SIZE")
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model", default=None,
@@ -599,6 +604,12 @@ def main(argv: list[str]) -> int:
     if args.context_length is not None:
         env["CONTEXT_LENGTH"] = args.context_length
 
+    # Same reasoning for the DSpark verify window: the recipe's
+    # `--dspark-block-size {dspark_block_size}` must win over the launcher's
+    # shipped 5, or `-o dspark_block_size=3` would be silently clobbered.
+    if args.dspark_block_size is not None:
+        env["DSPARK_BLOCK_SIZE"] = str(args.dspark_block_size)
+
     # Locate the checkpoint in the fixed HF cache (MODEL_ID from `{model}`).
     # After apply_recipe_env, which is where /cache/runtime paths are set.
     resolve_checkpoint(env)
@@ -630,7 +641,8 @@ def main(argv: list[str]) -> int:
         f"NNODES={env.get('NNODES')} NODE_RANK={env.get('NODE_RANK')} "
         f"DIST_INIT_ADDR={env.get('DIST_INIT_ADDR')} TP={env.get('TP_SIZE')} "
         f"EP={env.get('EP_SIZE')} PORT={env.get('SERVER_PORT')} "
-        f"CONTEXT={env.get('CONTEXT_LENGTH')}",
+        f"CONTEXT={env.get('CONTEXT_LENGTH')} "
+        f"DSPARK_BLOCK_SIZE={env.get('DSPARK_BLOCK_SIZE')}",
         flush=True,
     )
     os.execve(sys.executable, [sys.executable, "-u", BOOT, "run"], env)
