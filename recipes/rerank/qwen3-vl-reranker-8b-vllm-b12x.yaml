@@ -42,10 +42,15 @@ defaults:
   block_size: 128
   # --convert auto would serve this as a generic bi-encoder (wrong scores, HTTP 200, no
   # warning); the architectures rewrite + classifier_from_token softmax are load-bearing.
+  # text_config is load-bearing: the 8B checkpoint's text_config omits tie_word_embeddings
+  # (top level says false), and vLLM's seq_cls loader reads it off the text config ->
+  # AttributeError at engine init. The 2B declares it inside text_config, hence 2B-only boot.
+  # Folded style + embedded quotes keep the JSON as ONE shell word — do not delete.
   hf_overrides: >-
     '{"architectures": ["Qwen3VLForSequenceClassification"],
     "classifier_from_token": ["no", "yes"],
-    "is_original_qwen3_reranker": true}'
+    "is_original_qwen3_reranker": true,
+    "text_config": {"tie_word_embeddings": false}}'
   # Published by recipes/rerank/mods/provide-qwen3-vl-rerank-template before the serve line; must match the
   # mod's output dir (MOD_CACHEDIR) — the checkpoint's chat_template.jinja scores empty pairs.
   reranker_chat_template: ${XDG_CACHE_HOME:-/cache/runtime}/templates/qwen3-vl-reranker-query-document.jinja

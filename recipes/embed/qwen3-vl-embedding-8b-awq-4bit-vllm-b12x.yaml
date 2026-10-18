@@ -34,7 +34,12 @@ defaults:
   max_num_batched_tokens: 16384
   max_num_seqs: 32
   dtype: bfloat16
-  load_format: instanttensor
+  # `instanttensor` (the 2B lane's default) cannot load this checkpoint: it is a sharded
+  # AWQ pack behind model.safetensors.index.json, and the installed InstantTensor does not
+  # expose the metadata layout for index-aware loading — the engine dies before any weight
+  # load ("_restrict_instanttensor_to_selected_ranges"). `auto` takes the ordinary
+  # safetensors path. The 2B encoder keeps instanttensor because its weights are one file.
+  load_format: auto
   attention_backend: b12x
   # b12x aborts on vLLM's default block size — it accepts only 64 or 128.
   block_size: 128
