@@ -43,8 +43,18 @@ SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
 - **Serving note:** the official LMSYS `sglang:dev-Ling-3.0-flash` image runs the arm — the
   third-party Spark port's GHCR image predates the `dspark_components` /
   `--enable-linear-replayssm-spec` flags this recipe needs (digest-pinned).
-- **Measured:** C1 **45.5 t/s** @ d0 (σ 5.5, n=5) / 32.3 @ d8k; quality **37/37** (ties the top of the
-  pass); 262k needle PASS at 0.80.
+- **Measured:** ladder @ d0, pp 2048 / tg 128, n=5 — **C1 49.7 ± 6.0 · C2 66.2 ± 7.1 · C5 100.2 ±
+  6.4 · C10 85.9 ± 3.1 t/s** (`bench_7c46291e9bbb`); the aggregate peaks at c5 and dips at c10, one
+  window with no same-window control, so a plateau reading rather than a knee. The earlier boot's
+  single points stand as history: C1 **45.5 t/s** (σ 5.5) / 32.3 @ d8k. Quality on the ladder's boot:
+  contract ok; house **37/37**; arc **94.5 %** / gsm8k **94.0 %** (n=200 each); bfcl **88.0 %**
+  (1091/1240); needle **3/3 @32k · 3/3 @131k · 2/3 @262k**. The 262k cell and its mechanisms: the
+  suite's 900 s per-request cap (a 256k prefill plus reply measures 1,333–1,360 s) timed all three
+  out, re-probing at needle-haystack's 64-token default cut all three at `finish_reason=length`
+  (1/3), and at 512 tokens 2/3 retrieve — the remaining miss genuine: depth 90 returned
+  `79不1-ALBATROSS` for `7901-ALBATROSS` in 96 tokens at `finish_reason` stop. **This supersedes the
+  earlier "262k needle PASS".** Receipts `~/benchmarks/ladders-solo-20261018/` (`ling-suite/`,
+  `ling-needle-262k-mt512/`).
 - **License:** MIT.
 
 ## [kolibri-1-78b-fp8-vllm](kolibri-1-78b-fp8-vllm.yaml)
@@ -64,8 +74,11 @@ vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/i
   `@littlecedar/mods/…` fails) and launches need `--transfer-mode local`; `OMP_NUM_THREADS=4` and
   `gpu_memory_utilization: 0.78` (not the 0.85 ceiling) are the measured GB10 boot working point (CUDA
   reports ~11 GiB less than `MemAvailable`).
-- **Measured:** C1 **47.3 t/s** @ d0 (σ 0.10) / 46.3 @ d8k; quality 36/37 @4096 (a **37/37 union** — the
-  lone miss is a thinking-budget truncation).
+- **Measured:** ladder @ d0, pp 2048 / tg 128, n=5 — **C1 47.2 ± 0.1 · C2 76.2 ± 3.1 · C5 77.6 ±
+  0.3 · C10 83.5 ± 0.2 t/s** (`bench_b0d57361b7d7`); C1 reproduces the 47.3 above, and past c2 the
+  curve is flat to c10 (76.2 → 83.5), so the 78 % pool carries the queue without a knee. Battery
+  **37/37 @8192** — the old 36/37 @4096 was a reply-budget cut, not a miss. Receipt
+  `~/benchmarks/ladders-solo-20261018/` (`kolibri-ladder.json`, `kolibri-battery-8192.json`).
 - **License:** Apache-2.0.
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
@@ -113,9 +126,11 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 - **Model:** `poolside/Laguna-S-2.1-NVFP4` (117.6B total / 8.5B active MoE, native 1,048,576 ctx;
   OpenMDW-1.1) + the quantization-matched draft `poolside/Laguna-S-2.1-DFlash-NVFP4` (2.2 GB).
 - **Size / memory:** 99.7 GB download / **95.61 GiB resident** (the August-2026 checkpoint — the research
-  doc's ~67 GiB figure does not hold); `gpu_memory_utilization: 0.85`, `max_model_len: 122880` (120k) →
-  KV 4.64 GiB / 125,796 tokens (1.02× — a single-tenant 120k arm). The 262k window does **not** fit one
-  Spark (vLLM refuses; it needs ~0.89 util, above the repo's 0.85 ceiling).
+  doc's ~67 GiB figure does not hold); `gpu_memory_utilization: 0.85` leaves **3.89 GiB** of fp8 KV once
+  CUDA-graph capture takes its 1.52 GiB, which at that boot's 39,672 B/token is vLLM's **104,192-token**
+  ceiling. `max_model_len: 98304` (96k) sits 6.6 % under it; the boot that measured this arm granted
+  3.98 GiB = **106,010 tokens (1.078× the window)**. The old 120k window wanted 4.54 GiB and **did not
+  boot**; the card's 262k needs ~9.32 GiB and does not fit one Spark at any repo-legal util.
 - **Flags / non-obvious knobs:** DFlash `num_speculative_tokens: 3`; native FP4 path
   (`FLASHINFER_CUTLASS` NvFp4 MoE on sm121) + `FLASHINFER` attention.
   `MAX_JOBS=4` caps the cold cutlass/FP4 JIT fan-out (an uncapped nvcc can exhaust the 128 GB pool) and
@@ -123,8 +138,16 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 - **License (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares
   **no license at all**; the BF16 sibling is `license: other` with no in-repo text — "other" resolves
   only by implication to the target's OpenMDW-1.1 (commercial + non-commercial).
-- **Measured:** C1 **20.49 t/s** @ d0 (σ 0.93) / 20.11 @ d8k; accept len mean 2.52 / 50.8% rate; quality
-  32/37.
+- **Measured (pre-96k boot):** C1 **20.49 t/s** @ d0 (σ 0.93) / 20.11 @ d8k; accept len mean 2.52 /
+  50.8 % rate.
+- **Ladder + suite (2026-10-18, `bench_e3fdefdc2491`, one boot):** **C1 20.26 ± 0.87 · C2 29.26 ± 0.99 ·
+  C5 38.96 ± 1.57 · C10 53.80 ± 0.64 t/s** @ d0 — the top of the ladder is its best cell, so the 96k
+  window costs nothing measurable at c1 (20.26 vs 20.49, inside σ) and the arm's value is concurrency,
+  not single-stream. contract ok; house **33/37** (18/19 + 15/18, up from 32/37); needle **3/3 @32k ·
+  3/3 @98,304** (the top rung is a 96,499-token prompt, 98.2 % of the window). All four house misses
+  carry a stray `</think` close tag inside `content` — `BANANA` arrives as `</thinkBANANA`,
+  `nrupskrab`, `Hold The Line` and `MAYBE` the same way — so the miss is reply format, not knowledge.
+  Receipt `~/benchmarks/sweep2-20261018/` (`laguna-s-ladder.json`, `laguna-s-suite/`).
 
 ## [humanizer-12b-vllm](humanizer-12b-vllm.yaml)
 

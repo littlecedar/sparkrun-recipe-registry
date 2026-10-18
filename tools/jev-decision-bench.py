@@ -254,8 +254,9 @@ def parse_top_logprobs(top: dict) -> dict[int, float]:
     return {int(k.split(":")[1]): v for k, v in top.items()}
 
 
-def post_completion(base_url: str, model: str, prompt: str, ids: list[int], timeout: float) -> dict:
-    body = {
+def completion_body(model: str, prompt: str, ids: list[int]) -> dict:
+    """The card's ``/v1/completions`` System 1 body (also used by decision-ladder.py)."""
+    return {
         "model": model,
         "prompt": prompt,
         "max_tokens": 1,
@@ -265,6 +266,10 @@ def post_completion(base_url: str, model: str, prompt: str, ids: list[int], time
         "add_special_tokens": False,
         "return_tokens_as_token_ids": True,
     }
+
+
+def post_completion(base_url: str, model: str, prompt: str, ids: list[int], timeout: float) -> dict:
+    body = completion_body(model, prompt, ids)
     req = urllib.request.Request(
         base_url.rstrip("/") + "/v1/completions",
         data=json.dumps(body).encode("utf-8"),

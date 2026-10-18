@@ -19,6 +19,7 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
   - [Co-location budget](#co-location-budget)
 - [The clef + Kai ensemble](#the-clef--kai-ensemble)
 - [A `req/s` ladder, not a `t/s` ladder](#a-reqs-ladder-not-a-ts-ladder)
+  - [Concurrency ladder](#concurrency-ladder)
 - [Attic index](#attic-index)
 
 Accuracy on the shared instrument (`tool-eval-bench` v2.8.0, Typed Decisions test split — 400
@@ -260,16 +261,18 @@ does not scale.
 That is the honest close for this lane's C2/C5/C10 cells: the ladder exists and is
 flat-to-negative, so the columns can carry the measured `req/s` above (with the unit and the
 flatness stated) or stay `—` — but a `t/s`-shaped number here would be a category error.
-Sol-2B and JEV-9B are not ladded (Sol is the same `vllm-srun` CPU shape as Kai; JEV's
-one-request-per-question contract needs a different harness), so their cells stay `—`.
+Sol-2B and JEV-9B are not ladded (Sol is the same `vllm-srun` CPU shape as Kai, so Kai's row is
+its shape; JEV's one-request-per-question contract is supported by the harness below through
+`--api completions`, but it has not been run), so their cells stay `—`.
 
-Ladders taken 2026-10-15 on `.34` with the arms booted solo, each level a closed-loop pass
-(offer N, count completions):
+Ladders taken 2026-10-15 on `.34` with the arms booted solo, each level a **single** closed-loop
+pass (offer N, count completions; `--runs 1`, which was the only mode then and is no longer the
+default):
 
 ```bash
 # this repo's harness (any /v1/systemone arm); --model is required by the servers
 python3 tools/decision-ladder.py --base-url http://<node>:8020 --model Cloudflare/clef-flash \
-    --cases <vendored test split>.jsonl --concurrency 1,2,5,10 --json ladder.json
+    --cases <vendored test split>.jsonl --concurrency 1,2,5,10 --runs 1 --json ladder.json
 # or the instrument's own knob, on the same 400-case pass the scores come from:
 uvx tool-eval-bench@2.8.0 --base-url http://<node>:8020 --decision-bench-only --parallel 10
 ```
@@ -287,6 +290,41 @@ instrument's own full-split pass: 4.87), so the slice is representative. Receipt
 `~/benchmarks/decision-ensemble-20261015/` (`ladder-clef-stride4.json`,
 `ladder-clef-full-c1.json`, `ladder-kai-stride4.json`, `logs/clef-teb-c*.log`,
 `logs/kai-ladder-stride4.log`, `cases/SHA256SUMS`).
+
+### Concurrency ladder
+
+The `req/s` figures above have two instruments behind them and only one of them is concurrent.
+The lane's **published rate** is `tool-eval-bench --decision-bench-only`: a *serial* pass (one
+request out, the next in) unless it is given `--parallel N`, so by default it measures what one
+client sees, not what the arm can serve. **C2/C5/C10 need a concurrent harness** —
+[`tools/decision-ladder.py`](../../tools/decision-ladder.py) — which offers a fixed concurrency
+against the same vendored split and records a cell only when that cell was verified.
+
+```bash
+# /v1/systemone arms (clef, Kai, Sol): c 1/2/5/10, five passes per cell (the 5-run convention)
+python3 tools/decision-ladder.py --base-url http://<node>:8020 \
+    --model Cloudflare/clef-flash --cases <vendored test split>.jsonl \
+    --concurrency 1,2,5,10 --runs 5 --json ladder.json
+# JEV-9B: one request per question, on the card's /v1/completions contract
+python3 tools/decision-ladder.py --base-url http://<node>:8000 --api completions \
+    --decision-head ~/benchmarks/jev-card/adapter_vllm/decision_head.json \
+    --model autotrust/JEV-9B --cases <vendored test split>.jsonl --json jev-ladder.json
+```
+
+Per cell it reports `req/s`, aggregate `decisions/s`, the per-request `decisions/s` at that
+cell's median latency, TTFT p50/p95, and decisions returned against decisions asked for. A cell
+carrying a 4xx, a truncated or unparseable body, a short answer, or zero decisions is printed
+**FAILED** and the run exits 1: a rate over the survivors is not the endpoint's rate.
+Requests per cell are `--runs × cases` (`× questions` on the JEV path), times the levels, so a CPU
+arm that cannot afford the full split cuts the slice (`--limit`, or a stride file used for every
+arm) rather than the passes.
+
+**The image arm's `—` is not a missing measurement.** The media arm in
+[`recipes/explore/`](../explore/README.md) §`qwen-image-2.1-turbo-7b-bf16-diffusers-script` is a
+diffusers script launcher serving `POST /generate`, not an OpenAI-compatible endpoint: one image
+per request and **one request at a time** — the denoise loop sits behind a single lock
+([`mods/qwen-image-2.1-turbo-launcher`](../explore/mods/qwen-image-2.1-turbo-launcher/README.md)).
+A ladder there would time its own queue, so its C2/C5/C10 cells stay `—` by design.
 
 ## Attic index
 

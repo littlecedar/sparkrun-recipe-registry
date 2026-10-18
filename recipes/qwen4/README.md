@@ -133,12 +133,14 @@ balanced base (pool 112 / cap 24).
 | Recipe | `qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` |
 | Engine | vLLM — `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…` (**digest-pinned 2026-10-16**; the earlier note here said the b12x build published no digest-pinnable alias — that was wrong: the tag is a single-platform manifest whose digest resolves, verified by `docker manifest inspect <ref>@<digest>` and by matching the manifest's config digest to the container's image ID. The relay-imported image carries no `RepoDigests`, which is why `docker images --digests` showed `<none>` and the digest had to come from `docker buildx imagetools inspect`) |
 | Model | [`local-inference-lab/Qwen3.8-Flash-Next-NVFP4`](https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4) — same checkpoint as the TP=2 recipe |
-| Checkpoint pin | none — serves `main` (the step-5500 QAD hybrid export) |
+| Checkpoint pin | `model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc` — the `main` SHA on 2026-10-18, uploaded 2026-10-06, i.e. the step-5500 QAD hybrid export. Sparkrun downloads by SHA and rebinds `{model}` to `…/snapshots/6c01ac37…` (the launch's `_prepared_model_path`), so nothing resolves through `refs/`; `command:` still passes no `--revision` |
 | Nodes | 1 (TP=1, `max_nodes: 1`) |
 | Context | 262,144 tokens (`max_model_len`) |
 | Spec decode | MTP — `num_speculative_tokens: 4` |
 | Memory | `gpu_memory_utilization: 0.8`, `max_num_seqs: 8`, `kv_cache_dtype: fp8` |
 | Tags / vision | `lcg_favorite` — no `vision` tag; metadata describes the text TP=1 route |
+| Decode ladder (2026-10-18) | **C1 34.04 ± 2.84 · C2 55.49 ± 1.88 · C5 64.61 ± 1.92 · C10 62.04 ± 1.00 t/s** @ d0, pp 2048, tg 128, n=5, decode rows read from the `--output` file — `bench_6b35f675861a`, receipt `~/benchmarks/ladders-solo-20261018/qwen4-solo-ladder.yaml` |
+| Suite (same boot) | eval-suite `ok`: contract ok (`max_model_len=262144`, ready, `finish=stop`) · house 19/19 + 18/18 · needle 3/3 at 32k, 128k, 262k · hard ARC 95.5 % (n=200) / GSM8K 94.5 % (n=200) — `qwen4-solo-suite/` in the same receipt |
 | License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 
 **The PLE knob.** The ~47.7 GiB FP8 PLE n-gram table — not weights + KV — is the component that does
@@ -150,6 +152,11 @@ is archived.
 **Couplings.** `max_num_seqs` stays at 8 because with MTP k=4 the GDN mamba state pool binds
 concurrency (the eugr solo cell ships 8 too). `CUTE_DSL_ARCH` is omitted — the platform tier already
 publishes `sm_121a` for vLLM on DGX Spark.
+
+**Ladder shape.** C10's aggregate lands below C5 because `max_num_seqs: 8` binds at ten streams — the
+serve log shows `Running: 8 reqs, Waiting: 2 reqs` — not because the pool is short: the engine
+granted `14.48 GiB` of KV = `770,455` tokens = `2.94x` at 262,144. The boot was cold, TTR 784.6 s
+port-open (`init engine … 689.80 s` under b12x autotune).
 
 ## Attic index
 

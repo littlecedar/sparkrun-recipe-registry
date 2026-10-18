@@ -367,3 +367,104 @@ Facts read from the Hub on 2026-10-16 — `sha a91858f3bfeb98c0581012a5ab0297c10
 Sources: the repo's `README.md`, `NOTICE`, `LICENSE`, `kolibri.yaml`, `results/summary_1m.md` and
 `results/smoke/README.md`; Hub API `/api/models/tfwnotops/…` and `/tree/main?recursive=true`;
 `pypi.org/pypi/mrail/json`; `doi.org/10.13140/RG.2.2.30326.77125`.
+
+### 8.1 SM121 verdict — 2026-10-18: **(a) RUNNABLE eval arm**; no arch guard exists anywhere in the release
+
+Read at `a91858f3bfeb98c0581012a5ab0297c105896544`; probe run on the head node inside the §8 pin
+`vllm/vllm-openai:v0.29.0@sha256:c2914767…` (`docker run --rm`, no `--gpus`, no server, no node `.30`–`.35` touched).
+
+**(i) What the code actually is, and what it gates on.** Not a server fork and not a new model: `pyproject.toml:20-21`
+registers a vLLM **general plugin** (`[project.entry-points."vllm.general_plugins"] kolibri_state = "kolibri_state:register"`),
+and `kolibri_state/__init__.py:20-47` installs the backend off `KOLIBRI_STATE=1` when the first full-attention layer is
+constructed. Two `@triton.jit` programs carry the method — `kolibri_state/qstore.py:160-196` (flash-decoding over the
+int3/int4 Hadamard store, `tl.dot(..., out_dtype=tl.float32)` at `:183` and `:191`) and `kolibri_state/band_tl.py:19-97`
+(band LSE + mass, `tl.dot` at `:56`, `:79`) — on top of a plain-Torch path (`state.py` FP8 store, `einsum` at `:263`,
+`:325`; `core.py:36-83`). **There is no capability check, arch switch, autotune arch list or `sm_*` condition in the
+package**: the only arch text is a workaround comment, `qstore.py:178` `num_stages=1  # pipelined, the joined tile came out
+wrong on sm_120`. Triton itself is optional at import (`qstore.py:14-18`) but `store_attn` launches the kernel
+unconditionally (`:199-214`) — there is **no Torch fallback for the quantised store**, so `KOLIBRI_QBITS=3` (the
+published config, `kolibri.yaml:9`) requires Triton to JIT on whatever device serves. The hook is engine-internal:
+`state_q.py:359-417` monkey-patches `vllm.v1.attention.backends.flashinfer.FlashInferBackend.get_builder_cls` /
+`get_impl_cls` (`:416-417`), and `twin.py:7-29` re-shapes the ten full layers to `sliding_window=S` with
+`rotary_emb = None`. So the state is live **only if vLLM selects the FlashInfer backend**; that is a boot-log
+requirement, not an arch one. Band + sink + int3 store are implemented exactly as described (§8 claim 1):
+`band` = the last `W=1024` exact FP8 pages, `store` = `BQ=34816` far tokens per KV head per full layer at
+`2×48 B + 16 B` of fp16 scales, 10 full layers, `H=4` KV heads (`Aleph-Alpha/Kolibri-1/config.json`:
+`num_key_value_heads 4`, `head_dim 128`, `num_attention_heads 48`, `sliding_window 513`, 50 layers).
+
+**(ii) The 0.208 GB claim.** Structurally constant — nothing in `_buffers` (`state_q.py:69-85`) is sized by prompt length.
+Magnitude recomputes to **0.166 GB** by the code's own formula (`state_q.py:15`), **0.180 GB** once the score buffers it
+really allocates (`QVAL/QSC/QPOS/BSC`) are added, against **0.208 GB** claimed. The repo's own K16/K64 pair
+(`paper/FIGURE_DATA.json` `hero.state_k16 0.208`, `state_k64 0.753`) implies **4,838 B per store token + 39.5 MB fixed**;
+the code's marginal cost is **4,840 B** per store token — an exact match — so only the fixed term is unexplained
+(band + sink are 10.9 MB; the 40 native SWA layers' 513-token windows would add ≈21 MB, still ≈8 MB short) [INFERENCE].
+**The claim that does not survive our hardware:** the *host* archive. Every in-flight request, not just a saved session,
+copies its exact FP8 K/V to host during prefill (`state_q.py:771-787`, 10 layers × 256 B/token = **10.24 KB/token**;
+`kolibri.yaml:30-31` says so: "10 KB per token, 11 GB per million tokens"), and copies beyond 2M tokens go to a memmap
+(`:33`, `:778-781`). On GB10 host and GPU memory are the **same** 128 GB pool, so a 1M-token request costs ≈0.18 GB of
+"attention memory" **plus ≈10.7 GB of host archive** — that, not the KV pool, is what sets `rows: auto` = 4 at 1M
+(`kolibri_mrail/config.py:49`: 32/16/4/1 at 131k/262k/1M/4M).
+
+**(iii) The RULER row.** **There is no unseen-items row in the repository, and 93.9 is not a 1M number.**
+`README.md:110-112` states the 1M table is "items 0–7 of each task (n = 8)"; its per-task M-Rail cells
+(`README.md:118-124`) are **identical, digit for digit**, to the gate column of `results/summary_gate.md:3-16`,
+whose header says "items 0-7" and whose source is `results/gate_eval_r3.json` — where **every constant-state run is
+keyed `*_131072`** (`ruler_stateq_v4n8_131072.json`, `ruler_stateq_v4q50n8_131072.json`; the only 1M artifact is
+`ruler_native_1m_native_1048576.json`, 3 tasks, *native*). `paper/FIGURE_DATA.json` `ruler.mrail` is that same 13-value
+array (mean 93.9) and its `provenance` field says "Supplied figure sources and Tables 3,7,9,10; no new experiments".
+The repo's own 1M state summary reports the honest aggregates — `results/summary_1m.md:19-23`: single 68.6,
+look-8k 85.5, rules+look **92.6**, gate **90.4** over the same 13 tasks — and its native column (25 / 93.8 / 0) is what
+`README.md:131-132` quotes as the 1M native reference, which is how that file can be identified as the 1M run.
+The unseen row itself exists **only as prose** (`README.md:126-128`: "items 8–15 … mean over 13 tasks 79.4") with no
+artifact behind it; `results/gate_eval_r3.json` pools 8 items per task across three runs (n=24) and never names an item
+index, and `rules/practice-131k-32k.rules.json` is per-task-family (keys `rides`/`signature`/`left`/`mid`), so
+which items the rules were built from is not recoverable. Net: **79.4 is unverifiable and 93.9 is the 131k items-0-7
+gate mean mislabelled as 1M**; for our lane only the 90.4 / 92.6 (1M, in-family) and 68.6 (single-pass) figures are
+attributable. Reproducing either is a 13-task campaign — not what the eval arm below has to settle.
+
+**(iv) Device-free probe (head node, `docker run --rm`, no GPU).** Everything the state path needs at runtime, checked
+inside the pin:
+
+| check | result |
+|---|---|
+| toolchain | `torch 2.13.0+cu130`, `triton 3.7.1`, `vllm 0.29.0`, `flashinfer 0.6.18`, nvcc `13.0.88` |
+| `nvcc --list-gpu-arch` | `… compute_120, compute_121` — ptxas can emit SM121 |
+| repo modules import in-image | `kolibri_state` + `core/qstore/band_tl/state/state_q/twin` → **ok**, `qstore.triton is not None` |
+| patch targets present | `get_builder_cls`, `get_impl_cls`, `FlashInferMetadata`, `FlashInferMetadataBuilder`, `FlashInferImpl` all **True**; `DefaultModelState.prepare_attn(input_batch, cudagraph_mode, block_tables, slot_mappings, attn_groups, kv_cache_config, for_capture=False)` — `a[5]` in `state_q.py:365-366` is exactly `for_capture` |
+| vLLM's own FlashInfer gate | `supports_compute_capability(12.1)` → **True** (12.0 True, 13.0 False) |
+| Triton compile, repo kernels | `_store_attn_kernel` **and** `_band_kernel` compile clean for `GPUTarget('cuda', 121, 32)` (165,944 B / 253,344 B cubins, 22,528 / 16,384 B shared) and for `arch=120` |
+| PTX target emitted | `.target sm_121a` (vs `.target sm_120a` for 120) — real arch-specific SASS, not a PTX fallback |
+| FlashInfer kernels | 0.6.18 ships JIT sources (`data/csrc`, `data/include`, cutlass), no prebuilt arch tree → it compiles at first use, and nvcc 13.0 is present; `single_prefill_with_kv_cache` exists |
+
+**Why FlashInfer is the selected backend on a major-12 part (and it is a boot-observable, not an assumption):** vLLM
+0.29's priority list puts `FLASH_ATTN` first on every non-SM100 device (`vllm/platforms/cuda.py:148-163` in the pin), but
+with an fp8 KV cache `FlashAttentionBackend.supports_combination` rejects it —
+`flash_attn_supports_kv_cache_dtype` returns true only for FA3 on family 90 or FA4 on family 100
+(`vllm/v1/attention/backends/fa_utils.py`), so on **any** major-12 part the selector falls through to `FLASHINFER`.
+The author's own sm_120 run shows the same: `results/smoke/sessions_profile_gather_before.json` carries
+`_prefill_chunk# 400` / `_compact# 1`, i.e. *their* `StateImpl` was executing, with the same `--kv-cache-dtype fp8`
+line the smoke log records (`results/smoke/smoke_vllm_serve.log:1`). Both the selection rule and the state backend are
+therefore arch-neutral between sm_120 and sm_121.
+
+**(v) Decision → (a) RUNNABLE EVAL ARM, and the exact probe.** Nothing in the release, and nothing in the pin, excludes
+SM121: the kernels compile for it, the plugin's host backend admits it, and the backend-selection path that reaches the
+state is the same one the author exercised. The arm shape is **the vLLM plugin, not a standalone server** —
+`pip install "./k1v[serve]" --no-deps` + `kolibri serve` (or `kolibri vllm`, which prints the `vllm serve` line),
+started on `.34`/`.35` against the **already-cached** `Aleph-Alpha/Kolibri-1`, with `KOLIBRI_STATE=1 KOLIBRI_QBITS=3
+KOLIBRI_B=64512 KOLIBRI_W=1024`, `--kv-cache-dtype fp8`, `--attention-backend flashinfer` (forced, so activation is
+explicit rather than inferred), and `--hf-overrides '{"max_position_embeddings": 1048576}'` above 262k
+(`kolibri_mrail/config.py:152-155`). The proving probe, in order, cheapest first: (1) boot log contains
+`kolibri_state: constant-state backend installed` (`__init__.py:46`) **and** the engine did not silently fall back —
+set `KOLIBRI_PROBE_DIR` and confirm the store coverage JSON is written (`state_q.py:402-408`); (2) one 131k needle of
+`niah_multikey_3` item 8 through the open-once/ask path (`tests/smoke_vllm.sh` is exactly this shape, 131k, no 1M
+prefill); (3) only then a 1M needle, which is where the host archive bites. **The blockers that would sink it** — in
+order of likelihood: FlashInfer's sm_121 JIT at first request (all-or-nothing, and its failure mode is an exception in
+the prefill wrapper, not a slow path), the ≈10.7 GB/request host archive against 128 GB unified on a node that also
+holds 73.5 GiB of weights (so 1M concurrency is 1–2, not the claimed 4), and cold start — 1087 s weight load on GB10
+plus Triton/FlashInfer JIT, which is why this must be a scratch boot and never a shipped recipe.
+
+*(Checklist delta: §8(a) is answered "yes, non-shipped" by the 2026-10-16 decision; (b) is answered above — attribute
+nothing to this release except 68.6 / 92.6 / 90.4 at 1M and 68.6 / 93.9 at 131k, and never the 79.4 or the 0.208;
+(c) is answered "no arch guard, SM121 admitted", with the boot-log check above; (e) is now the concrete probe in (v).
+The item stays non-shippable: PolyForm Noncommercial code cannot enter `recipes/` or `mods/`, and the install is
+`pip install` of arbitrary third-party code inside the serve container.)*

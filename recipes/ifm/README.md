@@ -115,6 +115,22 @@ weights 10.66 GB loaded in 69.1 s, TTR 250.8 s port / 255.7 s HTTP. Do **not** p
 the `concurrency-sweep` figures above (tg=256 at c=1/4/8) or with the retired 7B arms' rows in
 [`NOTES.md`](../../attic/ifm/NOTES.md) — only the same profile is comparable.
 
+**`kv_cache_dtype: fp8_e4m3` accuracy gate — passes, on `triton` only (2026-10-18).** The shipped `fa4`
+backend cannot carry an fp8 KV cache: the override allocated the pool (`dtype: torch.float8_e4m3fn`,
+1,150,989 tokens) and then died in warmup on `AssertionError: q.dtype torch.bfloat16 != k.dtype
+torch.float8_e4m3fn` (`flashattention_backend.py:1553`, `present[a].dtype == present[b].dtype`) — a
+kernel dtype constraint, not a flag typo, because the arm serves bf16 queries. The sanctioned route is
+the one `probe-uno-fa4-sm121` admits and the recipe comment names: `-o attention_backend=triton -o
+kv_cache_dtype=fp8_e4m3` (1,151,086 tokens, `max_running_requests=32` unclamped). Accuracy: house
+**36/37**, GSM8K **188/200** (94.0 %), ARC-Challenge **179/200** (89.5 %) — 0 / 0 / +1 items against the
+documented plain-7B bf16-KV baseline (36/37 · 188/200 · 178/200), and no truncation inflation against a
+bf16-KV control on the same triton backend in the same window: 22 vs 19 `finish_reason: length` of 400,
+discordant pairs near-symmetric (GSM8K 7 fp8-only / 7 control-only over 5 shared misses; ARC 10 / 6 over
+15), and 21 of the 22 are empty replies whose think block spent the 1024/2048-token budget — an item
+property, not a KV-precision one. **No throughput is claimed for this leg**: a triton number is not a
+peer of the fa4 figures above, and the shipped recipe stays `fa4` + bf16 KV. Receipts
+`~/benchmarks/sweep2-20261018/` (`ifm-7b-fp8kv/`, `ifm-7b-ctl/`, `ifm-7b-fp8kv-{fa4,triton}-serve.log`).
+
 **The two mods the UNO arm needs — and why.** The recipe mounts
 `recipes/ifm/mods/provide-uno-lora-k2-horizon-7b` and `recipes/ifm/mods/probe-uno-fa4-sm121` (bare `mods/NAME`
 form, in that order — the provide mod lands the adapter on disk before the server starts,

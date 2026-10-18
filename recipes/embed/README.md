@@ -135,4 +135,4 @@ recipe's contract, so the recipe sections above can stay about serving.
 
 | file | what it holds / question it answers |
 |---|---|
-| `AGENTS.md` | Measured performance and colocation numbers (2B-pair and 8B+8B throughput penalties, the 3,900 tok/s prefill bound), the b12x block-size hardware receipt, the `cpu_mask` / `convert` / `limit_mm_per_prompt` knob rationale, negative results, the guard-suite map, and the unshipped 8B BF16 tier (why it is not a recipe) plus the scratch-recipe/`-o` overrides that reach it. |
+| `AGENTS.md` | Measured performance and colocation numbers (2B-pair and 8B+8B throughput penalties, the 3,900 tok/s prefill bound), the b12x block-size hardware receipt, the `cpu_mask` / `convert` / `limit_mm_per_prompt` knob rationale, negative results, the guard-suite map, and the retired 8B BF16 tier (measured, never shipped; retired 2026-10-18) with its receipt. |

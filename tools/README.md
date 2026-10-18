@@ -23,7 +23,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `jev-decision-bench.py` | `recipes/decision/jev-9b-decision-vllm.yaml` (JEV-9B scoring) | metric semantics mirror `tool-eval-bench` v2.8.0's decision plugin; self-test only, no `tests/` guard |
 | `decision-tandem.py` | `recipes/decision/` CPU+GPU tandem probe | parses two tool-eval-bench decision reports' Full Trace and pools per-question distributions; self-test only, no `tests/` guard |
 | `decision-ensemble.py` | the served clef+Kai ensemble (`/v1/systemone` proxy) | imports `decision-tandem.py`'s pooling rule so the served and analysed ensembles cannot drift; self-test only, no `tests/` guard |
-| `decision-ladder.py` | `recipes/decision/` arms (the concurrent req/s ladder) | replays the vendored Typed Decisions split at c 1/2/5/10; reports **req/s**, never t/s; self-test only, no `tests/` guard |
+| `decision-ladder.py` | `recipes/decision/` arms (the concurrent ladder; `/v1/systemone` plus JEV's `/v1/completions`) | replays the vendored Typed Decisions split at c 1/2/5/10; reports **req/s** and decisions/s, never t/s; a failed cell exits 1; guarded by `tests/test_decision_ladder.py` |
 | `bfcl-eval.py` | `recipes/explore/` tool-calling models (BFCL v3) | port of BFCL's official AST checker; guarded by `tests/test_bfcl_eval.py` |
 | `eval-suite.py` | every lane's standard evaluation pass (the SOP) | drives `quality-battery.py`, `needle-haystack.py`, `bfcl-eval.py` and the ds4 hard tier against one live endpoint, then the horizon probe; `--selftest` |
 | `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
@@ -877,35 +877,54 @@ p50 8.4 s co-resident) while clef alone serves 4.9 req/s. Receipts:
 The concurrent harness the decision lane's `C1`/`C2`/`C5`/`C10` columns need.
 `sparkrun`'s benchmarking frameworks both drive `/chat/completions`, which no
 arm in this lane serves, so the lane's throughput numbers can only come from a
-tool that speaks `/v1/systemone` directly; and the instrument that produces the
+tool that speaks the lane's own APIs; and the instrument that produces the
 lane's accuracy (`tool-eval-bench --decision-bench-only`) is serial unless it is
 given `--parallel N`. This tool replays the *vendored* Typed Decisions test
 split - the same 400 cases the instrument scores, extracted from
 `tool-eval-bench`'s own `vendor/typed_decisions/test.jsonl.gz` and verified
 against its manifest sha256 - at a fixed concurrency per level and reports
-**requests/s** (one request = one case = five decisions in one forward pass, so
-`decisions/s` is that number x5) with p50/p95 beside it.
+**requests/s**, aggregate **decisions/s**, the per-request decisions/s at that
+cell's median latency, TTFT p50/p95 and the decisions returned against the
+decisions asked for. One `/v1/systemone` request is one case (five decisions in
+one forward pass); `--api completions` swaps to JEV-9B's card contract, one
+question per request (one decision), reusing `jev-decision-bench.py`'s body and
+prompt rendering, so the JEV path cannot drift from the scoring tool.
 
 Read the unit strictly: `req/s` here is **not** `t/s`, and a prefill-only scorer
 has no decode rate to report, so these numbers never fill a `t/s` column. It is
 a closed-loop rate (offer N, count completions) and the concurrency is the
 client's, so quote the level with every number.
 
+**A cell is verified, never merely timed.** A 4xx, a transport failure, an
+unparseable body, a body truncated short of its `Content-Length`, a response
+with fewer decisions than the case has questions, or zero decisions marks the
+cell `ok: false`, prints `FAILED` with its error counts, and exits 1 - the rate
+over the survivors is not the endpoint's rate.
+
 ```sh
 python3 tools/decision-ladder.py --base-url http://<node>:8020 \
     --model Cloudflare/clef-flash \
-    --cases <vendored test split>.jsonl --concurrency 1,2,5,10 --json ladder.json
-python3 tools/decision-ladder.py --selftest    # offline, stub server, ~1 s
+    --cases <vendored test split>.jsonl --concurrency 1,2,5,10 --runs 5 --json ladder.json
+python3 tools/decision-ladder.py --base-url http://<node>:8000 --api completions \
+    --decision-head <jev decision_head.json> --model autotrust/JEV-9B \
+    --cases <vendored test split>.jsonl --json jev-ladder.json
+python3 tools/decision-ladder.py --selftest    # offline, stub server, ~2 s
 ```
 
 Both lane servers **require** the request's `model` field (clef's `/v1/systemone` answers
 `422 {"loc":["body","model"]}` without it), and `--model` is checked before any request is
-sent rather than left to the server.
+sent rather than left to the server. `--runs` defaults to 5 (the registry's five-run
+convention, pooled into one rate); the 2026-10-15 ladders below were single passes (`--runs 1`).
 
 `--limit` takes a deterministic *prefix*, which samples one workflow of the
 four; for a CPU arm that cannot afford 4 x 400 requests, slice with a stride
 file instead (every 4th case keeps all four workflows at 1/4 the cost) and use
 the same file for every arm being compared.
+
+Guarded by `tests/test_decision_ladder.py` (31 tests): independent stub servers over
+sockets cover the happy cell, `--runs`, both APIs, the artifact and exit codes, every failure
+mode, and a `NegativeControls` ladder that re-derives the wire-counted decisions, the measured
+wall, the per-request TTFT and the saturation ratio.
 
 Measured 2026-10-15 (`.34`, each arm booted solo, `req/s` at c1/2/5/10):
 

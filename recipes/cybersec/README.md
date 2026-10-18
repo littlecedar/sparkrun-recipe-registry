@@ -51,6 +51,14 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   checkpoint keeps ownership of the KV dtype. Served id: `orcarouter/Qwen3.8-27B-Uncensored-NVFP4`.
 - Boots (`GET /v1/models` = repo id); receipts in attic AGENTS.md §8. Plain decode — no spec decode
   wired even though the MTP head is preserved.
+- **Decode ladder (2026-10-18, one GB10, shipped chain): C1 9.75 ± 0.24 · C2 19.67 ± 0.52 ·
+  C5 41.12 ± 0.78 · C10 75.77 ± 7.18 t/s** @ d=0, pp 2048, tg 128, n=5, decode rows read from the
+  `--output` file — `bench_4c30a992c771`, receipt
+  `~/benchmarks/ladders-solo-20261018/cybersec-unc-ladder.yaml`. It keeps climbing to c10 because
+  the pool carries the whole ladder: 358,261 fp8 KV tokens at `context_len=262144` with
+  `max_running_requests=24`, so ten concurrent 2048-in/128-out requests never queue and the
+  aggregate is 10 × 7.6 t/s. Same boot: battery **easy 19/19 + hard 18/18 = 37/37**
+  (`cybersec-unc-battery.json`).
 
 - `mamba_full_memory_ratio: 3.51` splits the leftover pool between GDN state and the token pool —
   the same interior-point trade documented for the qwen3.8-27B lane (`attic/qwen3/AGENTS.md` §5);

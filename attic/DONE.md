@@ -298,3 +298,77 @@ the tables). The 1017 refresh item stays open on the owner's adoption decision.
   *(closed 2026-10-17 — the gate was the served template and it is fixed: `mods/tensorfold-dsv41-launcher/chat_template.jinja` (the two placeholder guards neutered, the token assembled from pieces so no shipped file carries it) served through a `--vision`-gated overlay model dir. Receipt: task `8ef9b6c9a550c389_948390812ad5` on `.34`+`.35`, 3/3 solid-colour probes PASS with a clean text control and HTTP 200 where it used to be 400; `~/benchmarks/ds4-vision-20261017/`, record `attic/ds4/AGENTS.md` §12.14.1.)*
 - [ ] **[storage] Collapse the DS4.1 EXL3 duplication** — *(Owner decision 2026-10-15: combined repo everywhere — cybersec arm 5 grafts onto the combined `littlecedar/…-EXL3-2.9bpw-with-engram` pack and drops `dsv41-engram-fetch`; the changed arm needs a re-boot receipt.)*; per node serving both lanes the same ~197 GB weights + ~189 GiB Engram tables exist twice (`recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`, `recipes/cybersec/README.md`, `recipes/cybersec/mods/graft-dsv41-ablit-wo-b/README.md:17-19`). *(effort: medium)*
   *(closed 2026-10-17 — arm 5 grafts from the combined pack and no longer mounts `dsv41-engram-fetch`; the graft itself stopped copying the tables (the author's script `shutil.copytree`s the `engram/` directory — ~189 GiB dereferenced — and `os.link`s the shards it does not edit, which over the snapshot's own relative `blobs/…` links yields links that cannot resolve; the first attempt produced a 386 GiB tree), so the mod hands it a `--src` view without `engram/` and symlinks `${STOCK}/engram` into the graft tree: graft **148 s / 137 s** per node and a **119 GiB** tree (the rewritten shards only). Re-boot receipt task `2f9a8f3e60a51ee4_948390812ad5`, `~/benchmarks/cybersec-arm5-20261017/`; the stale Mia trees and `dsv41-engram` pre-warms were removed from `.32`/`.33`.)*
+
+# 2026-10-18 sweep
+
+The 2026-10-18 session's completed ds4 items, archived with the closure evidence as it shipped —
+digests, receipts and mechanism sentences kept verbatim. The original item prose of the two big items
+is not re-transcribed: the pre-fold register is `git show ebb7e80:mad-science/TODO.md`, which also
+carries the `#36`–`#42` decisions answered the same day.
+
+## ds4 — closed 2026-10-18
+- **(a) Bring the TP=4 knapcio arm up to upstream v2.4 — shipped.** The original item prose is in
+  `git show ebb7e80:mad-science/TODO.md`. The four experiments this boot closed —
+  `DSV41_CACHE_GIB=0`, `SGLANG_RUST_BUILD_MODE=auto`, the RoCE coverage sweep with its E5 crossover
+  microbench, and the `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE` re-test — are the (c)/(d)/(e)
+  entries below; their numbers are in this closure paragraph.
+  *(**Closed 2026-10-18 — v2.4 is the shipped image.** Built from `27616bec` with the vendored
+  `boot.py.health-port.patch` (apply-check clean), base pinned by digest, in-image gate PASS, pushed as
+  `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` (image id `1db2155f…`); the recipe
+  re-pins it and `Dockerfile.knapcio-dsv41` is re-vendored byte-identical to upstream. TP=4 boot receipt
+  task `f0f09c470f181a68_7afff0589a33`: `/v1/models` and chat OK,
+  `ROCE_TP8_READY {world_size: 4, max_size: 2097152}`, ladder C1 59.21 / C4 110.85 / C8 111.38 /
+  C16 112.80, 119k prefill 27.93 s, 231k 66.02 s, pool 9,386,240
+  (`~/benchmarks/ds4-knapcio-v24-20261017/`; `NOTES.md` carries the per-arm launcher sha and argv/env).
+  Experiments closed with it, one boot each against that baseline: `DSV41_CACHE_GIB=0` gives pool
+  9,381,376 (−0.05 %), so the claimed +9 % third-party PV does not reproduce; `SGLANG_RUST_BUILD_MODE=auto`
+  does not hang (532 s) because the Rust image processor is unavailable in the image (the log's
+  `failed to query the Rust toolchain`), so `never` is harmless but unnecessary; RoCE 4/8 MiB is a null
+  (`bytes_posted_per_hca` 3,356,777,472 and `ops_posted` 7475 identical at 2/4/8 MiB, prefill inside the
+  ±10 % cross-boot spread, and 8 MiB costs 0.96 % of the KV pool), so the 2 MiB cap is not too high —
+  the E5 crossover measured 8→16 KiB with RoCEnante 3.1–5.4× over default-NCCL from 512 KiB to 2 MiB;
+  `DSV41_CERT_HEAD` certifies and its ladder sits inside drift at −4.5 % KV pool, so it stays off;
+  `DSV41_ENGRAM_DRM_NODE` is a null with **no host change**, because the container is unprivileged and
+  gets no `/dev/dri`, so the node is invisible inside it. Hygiene: stops by task id, `docker ps -aq` 0
+  on `.30`–`.33`, bench containers and `/tmp/roce-out-*` removed.)*
+- **(b) Assess the DeepSeek-V4.1-Flash-1017 refresh and its same-day quants — shipped.** Served, measured (the interleaved re-take), then adopted: the base is the 1017 EXL3 pack pinned `c178a012…` with its Engram pre-warmed, and `littlecedar/…-with-engram` stays as the cybersec arm's stock.
+  - **Trial receipt 2026-10-17** (`.34`+`.35`, task `5959b937d06087c6_948390812ad5`, receipt `~/benchmarks/ds4-1017-20261017/`): **(a) served** — the pack boots on the shipped TensorFold launcher via an untracked trial recipe (`-o model=` is ignored by a real launch; the dry run honours it), with the 1017 Engram built from shards 47/48 into `<snapshot>/engram` (188.8 GiB, 2978 s), `/v1/models` = the 1017 repo id at 530 s cold, and vision **3/3** — the pack ships no chat template at all, so the launcher's `--vision` overlay is what makes it boot. **(b) measured** — same-window A/B against the shipped arm, same profile and suite: ladder **C1 61.5 vs 68.0 / C4 48.9 vs 48.0 / C8 49.3 vs 43.3 / C16 48.2 vs 43.4** t/s — means of 3 runs whose **runs overlap on every cell** (shipped spreads 1.56–5.85 t/s against the 1017 arm's 0.07–0.57), so the ladder establishes that arm's *consistency*, not a speed win; the C8/C16 deltas it first suggested are not established — TEB **100 vs 100** (15/15). **(c) decision pending (owner)**: adoption costs ~385 GB per node re-download plus a 330 s rank-cache write per node, so the call should rest on the card's published gains against that cost, not on this ladder (one boot per arm; ladder order and boot warmth are unremoved confounds, and the C1 cell wants an interleaved re-take). Full record: `attic/ds4/AGENTS.md` §12.16.
+  - **Pack sha correction (2026-10-17, ship pass):** the EXL3 pack resolves to
+    `c178a01284fc5c0e859d8668cffaac81ca8f4042` — the Hub's `sha`, and both `.34`/`.35` hold
+    `snapshots/c178a012…` — so the `afc7aa0a…` in the quant bullet above was a superseded read. The
+    shipped recipe pins `c178a012…`.
+  *(**Closed 2026-10-18 — shipped.** (a) served and (b) measured: the interleaved re-take
+  (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`, 3 alternating boots per arm, 5 runs/cell) makes
+  the two arms indistinguishable on every ladder cell — c1 66.37 vs 66.43, c4 47.83 vs 48.82, c8
+  44.80 vs 42.44, c16 48.39 vs 48.78 t/s, all ranges overlapping — so the earlier +13.9 %/+11.1 %
+  C8/C16 and −9.6 % C1 were boot-slot artifacts and adoption rests on the card's published gains,
+  per the owner's 2026-10-17 directive. (c) decided: the base is the 1017 pack pinned `c178a012…`
+  with its Engram pre-warmed into `hub/dsv41-engram` (`--require-engram` fails a miss);
+  `littlecedar/…-with-engram` stays as the cybersec arm's stock. Receipts: ship
+  `~/benchmarks/ds4-1017-ship-20261017/` (TTR 62 s, vision 3/3, tag-verified rank cache). One
+  sub-item stays open and blocks nothing on the fleet: the publication route for third-party parity
+  (combined repo ≈385 GiB vs an Engram-only repo ≈189 GiB plus a launcher change) is the owner's call.)*
+  *(Owner decision 2026-10-18 — the last open sub-item, the publication route for third-party parity: publish the Engram-only repo (~189 GiB) plus the launcher change; do not ship a combined ~385 GiB repo.)*
+  - **TP=4 half (2026-10-18):** the knapcio arm now serves the same refresh,
+    `deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10…`. It needed a template source — 1017 ships none
+    and this SGLang reads `<model_dir>/chat_template.jinja` — so the mod serves a symlink farm
+    (`ensure_template_overlay`; exit 2 when it cannot stage one) and the image re-packs Engram per
+    rank on the first boot (2 × 23.6 GiB/rank, 57-73 s). Boot `a2e141223b52793c_7afff0589a33`: warm
+    relaunch 545.9 s, `/v1/models` = the 1017 id, vision 3/3 + text control, pool 9,273,856. Ladder
+    C1 81.0 / C4 118.9 / C8 107.5 / C16 115.9 — parity on C4/C8/C16 inside spread, and the +36.7 %
+    C1 is one boot against one boot, **not established** (`attic/ds4/AGENTS.md` §12.17;
+    `~/benchmarks/ds4-knapcio-1017-20261018/`).
+  - **Prompt format, known limitation (2026-10-18):** both arms serve 1017 on the lane's patched
+    **V4.1** template — 1017 ships none and its `encoding/encoding.py` grew (37,316 → 37,962 B),
+    while `test_encoding.py` grew 19,371 → 22,449 B — so the served format is a port of the older
+    encoder. Empirically adequate: vision 3/3 on both arms and TEB 15/15 on the TP=2 arm's 1017
+    ladder. A port of 1017's `encoding.py` was never measured and no shipped path requires it.
+- [ ] **Run the two KNAPCIO post-pin defer experiments as tracked A/Bs** — `DSV41_CACHE_GIB=0` (third-party +9% KV pool; shipped value is 4 GiB) and the `SGLANG_RUST_BUILD_MODE` cargo-probe boot-hang workaround (`mad-science/KNAPCIO-UPSTREAM-DELTA.md:49,56`; `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:116,162`). *(effort: short)*
+  *(c) — closed 2026-10-18 by the v2.4 boot in (a); the results are in its closure paragraph.*
+- [ ] **RoCEnante coverage sweep + auto-crossover microbench** — the memo's §5 E3/E5 ("actually worth running"): do TP all-reduces/gathers >2 MiB silently fall back to NCCL (`SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB), and the 1 KB…2 MiB RoCEnante-vs-NCCL crossover curve (none measured) (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:166-196`). *(effort: medium)*
+  *(d) — closed 2026-10-18 by the v2.4 boot in (a); the results are in its closure paragraph.*
+- [ ] **Re-test `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE`** — both named and deliberately off (CERT_HEAD −0.5 ms/step at c1 but slower from ~10 requests; ENGRAM_DRM_NODE needs a host display-reserve change) (`attic/ds4/AGENTS.md`). *(effort: medium)*
+  *(Owner decision 2026-10-16: the host display-reserve change on the free nodes is authorized for this re-test — revert or document it afterwards.)*
+  *(Correction 2026-10-18: both are **knapcio/SGLang adapter** knobs (`/opt/dsv41/adapter/…`), listed with the RoCE set at `attic/ds4/AGENTS.md:1793-1797` — the TensorFold TP=2 image reads only `TF_DS_*`, so a boot on `.34`/`.35` measures nothing. The re-test belongs to the TP=4 lane and now rides the v2.4 boot; the host display-reserve change is **not** applied without evidence the knob acts without it, because the reboot alone moves the first KV pool 5.9–6.4M → 7.48M tokens and would confound its own comparison.)*
+  *(e) — closed 2026-10-18 by the v2.4 boot in (a); the results are in its closure paragraph.*
+- [X] **Pin the TP=2 arm's checkpoint revision** — **closed 2026-10-18.** The arm now serves `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw` pinned at `c178a01284fc5c0e859d8668cffaac81ca8f4042` via top-level `model_revision:`, and the `littlecedar/…-with-engram` question is moot (it stays only as the cybersec arm's stock). `--strict` now flags this recipe as the lane's known launcher false positive — the engine receives the prepared snapshot path, not `--revision`.

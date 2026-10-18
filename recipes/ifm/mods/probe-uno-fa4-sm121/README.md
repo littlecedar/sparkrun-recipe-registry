@@ -79,7 +79,8 @@ the same model key dies with `PermissionError`. See
 
 ## Usage
 
-Mounted by `recipes/ifm/k2-horizon-7b-fp8-uno-sglang.yaml`. Restore stock
+Mounted by `recipes/ifm/k2-horizon-7b-fp8-uno-sglang.yaml` and
+`recipes/ifm/k2-horizon-0.9b-bf16-uno-sglang.yaml`. Restore stock
 behaviour without rebuilding anything:
 
 ```sh

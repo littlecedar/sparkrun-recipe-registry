@@ -184,7 +184,7 @@ served with no `--limit-mm-per-prompt` cap.
 | flags | ✨🚀🤏👀🧠🦾🔧 |
 | decode C1 | **~52–59 t/s** (52–57 cold / 54–59 warm), accept len mean 3.35 |
 | decode C2 · C5 · C10 | **101.1 · 159.0 · 148.9 t/s** @ d0 (σ 8.3 / 7.8 / 4.8, n=5) — same-boot C1 **58.0** (σ 8.8); bench `bench_92725c90d298` |
-| quality | 37/37 house battery (19/19 easy + 18/18 hard) |
+| standard suite (2026-10-18) | 5/5 legs `ok` — contract `ok` (`max_model_len=262144`, ready, finish `stop`), house **37/37**, needle **3/3** @32k · 131,072 · 262,144, arc **91.5 %** / gsm8k **92.5 %** (n=200 each, every reply `finish=stop`, empty 0), bfcl **88.1 %** (1092/1240), 0 transport errors — receipt `~/benchmarks/ornith-9b-suite-20261018/` |
 | license | MIT |
 
 **Concurrency ladder, 2026-10-15 (`.34`, one fresh boot, `benchmarking/concurrency-ladder.yaml`, d0,
@@ -202,6 +202,11 @@ serve log — the only place the engine's admission/mamba grants appear — died
 therefore stays the 2026-10-14 reading, 48 / 273 on `.30`); and re-running the same
 recipe+profile+args does **not** re-measure — sparkrun finds the completed `bench_*` state and
 re-emits the recorded numbers ("no requests will be sent"; `--fresh` is required to measure again).
+
+**The suite ran on its own boot, so it does not share a window with the ladder above.** That boot
+allocated a 1,563,690-token fp8 KV pool with `max_running_requests=48` (unclamped — the hybrid state
+pool is not the admission cap here either). No ladder was re-taken on it, and this doc does not pair
+its quality figures with the 2026-10-15 speed cells.
 
 **No `mamba_*` keys and no `moe_runner_backend`, unlike the 35B arm — deliberate.** The MoE knob is
 inert (the checkpoint is dense). The `mamba_*` trio is left to the engine defaults rather than

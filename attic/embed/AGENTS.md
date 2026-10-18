@@ -99,16 +99,17 @@ short-text-heavy traffic, not a speed lever to reach without measuring.
   taskset mask is narrowed to the X925 cluster via `{cpu_mask}`, for the same reasons as the
   2B recipe.
 
-### Unshipped 8B BF16 tier (not a recipe)
+### Retired 8B BF16 tier (measured, never shipped) — owner decision 2026-10-18
 
-The unquantized `Qwen/Qwen3-VL-Embedding-8B` encoder is **measured but ships nowhere**: it
-prefills within 1.2% of the shipped AWQ 4-bit at its own best concurrency while consuming
+The unquantized `Qwen/Qwen3-VL-Embedding-8B` encoder was **measured but never shipped**: it
+prefilled within 1.2% of the shipped AWQ 4-bit at its own best concurrency while consuming
 108% more memory and leaving 41% less KV at the same `gpu_memory_utilization` (numbers
-above). It exists only as a scratch recipe, `.scratch/embed/bf16ab.sh` (port 8013, same
-flag set as the shipped pair including `--block-size 128` and `cpu_mask=5-9,15-19`), with
-its boot log `.scratch/embed/bf16-8b-35.log` and bench output
-`.scratch/embed/cmp8b-bf16-c8.{txt,json}`. The lane README no longer documents it; shipping
-it or retiring it outright is an open task in `mad-science/TODO.md`.
+above), so it had no measured advantage and the lane has no embedding-quality instrument to
+argue the one remaining case. **Retired 2026-10-18** (owner decision): the scratch recipe
+`.scratch/embed/bf16ab.sh` (port 8013, same flag set as the shipped pair including
+`--block-size 128` and `cpu_mask=5-9,15-19`) is deleted; its boot log
+`.scratch/embed/bf16-8b-35.log` and bench output `.scratch/embed/cmp8b-bf16-c8.{txt,json}`
+are kept as the receipt. Do not re-derive the tier without a quality instrument.
 
 #### `sparkrun recipe vram` sizing caveat (8B-AWQ)
 
