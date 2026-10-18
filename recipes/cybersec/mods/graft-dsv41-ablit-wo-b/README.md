@@ -40,7 +40,10 @@ untouched, so the pair still applies.
 - **Idempotent from the artifact**: a completed graft carries `ABLIT_META.json` with
   `n_edited == 104`; that short-circuits the whole mod.
 - Resolves the stock pack in the container's HF cache (`refs/main` first, else the newest
-  config-bearing snapshot) — the recipe never spells a snapshot hash.
+  config-bearing snapshot) — the recipe never spells a snapshot hash. That ref is not a pin, so
+  the no-op path compares the tree's own copied metadata (`config.json`, `tokenizer_config.json`,
+  `model.safetensors.index.json`, `quantization_config.json`, `chat_template.jinja`) with the
+  snapshot it resolved: a moved `main` must not pair a new table set with the tree's old weights.
 - Fetches the author's script + sidecar from the gated overlay at the pinned revision, using
   the node token at `/cache/huggingface/token`.
 - Runs the author's script unchanged, with a **symlink view of the stock dir as `--src`** and
@@ -54,13 +57,14 @@ untouched, so the pair still applies.
   stock pack's tables into the graft tree — one Engram set per node — and `--src == --dst` is
   refused, so the stock snapshot is never written.
 - **Fail closed**: a missing token, a missing stock pack, an `OUTDIR` that resolves to the
-  stock snapshot, or an incomplete graft (`n_edited != 104`) aborts the launch. Serving the
-  stock, non-abliterated checkpoint under this arm's name is the one outcome worse than a
-  failed boot.
+  stock snapshot, an incomplete graft (`n_edited != 104`), or a complete tree whose copied
+  metadata disagrees with the resolved stock generation aborts the launch. Serving the stock,
+  non-abliterated checkpoint under this arm's name — or silently serving a mixed generation — is
+  worse than a failed boot; delete `OUTDIR` to rebuild.
 
 ## The budget constraint (why this is synchronous)
 
-The graft rewrites the ~26 shards that carry `layers.10-35 attn.wo_b` (~5 GiB each) and
+The graft rewrites the 24 shards (of 39) that carry `layers.10-35 attn.wo_b` (~5 GiB each) and
 hardlinks the rest, and it must finish inside sparkrun's **hard-coded 600 s** pre-exec hook
 budget (`sparkrun/orchestration/hooks.py::run_pre_exec`) — a recipe cannot raise it.
 

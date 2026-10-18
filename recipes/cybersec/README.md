@@ -181,6 +181,12 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   script a view of absolute symlinks with `engram/` excluded, and symlinks the tables in: the tree
   measures **119 GiB** (`du` == `du --apparent-size`; the 24 rewritten shards are the only real
   bytes, the other 15 and `engram/` are links).
+- **The tree is generation-checked on every boot.** The mod resolves its stock from `refs/main`
+  (the recipe's `model_revision` never reaches the mod), so a complete tree is only no-oped while
+  its copied metadata (`config.json`, `tokenizer_config.json`, `model.safetensors.index.json`,
+  `quantization_config.json`, `chat_template.jinja`) still matches the stock that resolved: a moved
+  `main` fails the launch instead of pairing a new Engram table set with the tree's old hardlinked
+  weights. Delete `/cache/runtime/dsv41-ablit` to rebuild at the new generation.
 - **The served prompt changed with the stock.** The graft tree copies the combined pack's
   `chat_template.jinja` (the pack's 15,348 B upstream file) where the Mia-era graft carried the
   older 11,410 B exl3-era template — the guard-free one `attic/ds4/AGENTS.md` §12.14 credits for the

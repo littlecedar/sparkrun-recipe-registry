@@ -127,6 +127,21 @@ The 1017 trial's leaf (`LibertAIDAI__…@c178a012…`) is deliberately named by 
 STALE by construction and the 72 h rule is what protects it while the owner's adoption decision is open
 (~385 GB/node on `.34`/`.35`).
 
+**Where those two caches actually sit (verified on `.34`+`.35`, 2026-10-17).** `rank_cache_dir()` keys
+the directory by the *served tree*, so both ~106 GiB files are reachable exactly where the launcher
+looks, and `refs/main` of the combined pack still resolves to `48afcd1c4f2d73594d9d496b9f7bbb4559ddb9e8`,
+which is the tag the ds4 arm's served snapshot produces:
+
+| node paths | file |
+|---|---|
+| `<…-2bd42ac5>/tensorfold/rank-cache/48afcd1c4f2d73594d9d496b9f7bbb4559ddb9e8/` | `rank0of2-11007d0aaa3f0961a93a.bin` (.34) / `rank1of2-deacdace7b82bb3b1e8d.bin` (.35), 106,120,462,823 B, mtime Oct 7 05:26 |
+| `<…-4e17d34c>/tensorfold/rank-cache/dsv41-ablit/` | `rank0of2-50cbbba13afcf8991af9.bin` (.34) / `rank1of2-b9f21cc2b4530de4ddb5.bin` (.35), 106,120,890,008 B, mtime Oct 17 18:42 |
+
+Both `nlink=1` — moved, not re-copied — so the per-tree key cost no warm cache. **Its cost is
+accumulation:** TensorFold's GC (`weights.py:140`) unlinks other rank/world keys only inside the
+directory it writes to, so a re-pin strands the previous tag's ~106 GiB file — prune
+`rank-cache/<old-snapshot-hash>/` on each node by hand; nothing reclaims it automatically.
+
 The two arms cost one combined pack (386 GB) plus arm 5's 119 GiB graft per node (measured 2026-10-17).
 
 ### The fleet runtime-cache, measured 2026-10-15

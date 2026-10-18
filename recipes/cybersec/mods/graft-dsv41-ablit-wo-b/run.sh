@@ -140,7 +140,9 @@ SIDECAR="${WORKDIR}/mia_exl3_wo_b_l10_35.safetensors"
 
 # 2) Locate the stock pack in the container's HF cache (refs/main first, else newest
 #    config-bearing snapshot). The recipe's `{model}` is not what the launcher serves, so this
-#    resolves independently -- same mechanism as the tensorfold launcher's resolver.
+#    resolves independently -- same mechanism as the tensorfold launcher's resolver. That ref is
+#    not a pin, so the no-op path below re-checks the tree's copied metadata against whatever it
+#    resolves here: a moved `main` must not pair a new table set with the tree's old weights.
 STOCK="$(python3 - "$HF_HUB" "$STOCK_REPO" <<'PY'
 import sys
 from pathlib import Path
@@ -191,6 +193,18 @@ except Exception:
 raise SystemExit(0 if meta.get("n_edited") == int(sys.argv[2]) else 1)
 PY
 then
+  # A complete tree can still be the wrong generation: `refs/main` moves, and the tree's copied
+  # metadata is the only generation-specific artifact left in it (the untouched shards are
+  # content-addressed links, and the 24 rewritten ones follow the pinned sidecar). Compare them
+  # with the resolved stock -- a mismatch is a mixed-generation serve, not a no-op.
+  drift=""
+  for f in config.json tokenizer_config.json model.safetensors.index.json \
+           quantization_config.json chat_template.jinja; do
+    if [[ -f "${STOCK}/${f}" && -f "${OUTDIR}/${f}" ]] && ! cmp -s "${STOCK}/${f}" "${OUTDIR}/${f}"; then
+      drift="${drift} ${f}"
+    fi
+  done
+  [[ -z "${drift}" ]] || die "graft tree holds another generation of the stock (differs:${drift}) -- delete ${OUTDIR} to rebuild from ${STOCK}"
   log "graft already present and complete (n_edited=${EXPECTED_N_EDITED}) -- no-op"
   reown "${OUTDIR}"
   log "Done."
