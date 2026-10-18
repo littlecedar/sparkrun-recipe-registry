@@ -82,7 +82,9 @@ assumed:
   format: openai` is this SGLang's confirmation that a template was found from the model dir. The
   `Loaded chat_template from …` line belongs to the *download* path (`processor.py:389`) and never
   fires for a local dir — its absence is **not** evidence of a missing template; the functional
-  proof is the vision probe.
+  proof is the vision probe. Workers show no template-resolution line by design — the tokenizer
+  lives on the serving rank — so the per-rank claim is *farm staged on every rank, template resolved
+  on rank 0*.
 
 ## Portability (the whole point of the `/cache/runtime` wiring)
 

@@ -2827,6 +2827,9 @@ line (`ships no chat_template.jinja; serving /cache/runtime/model-overlay`), and
 logs `Using default HuggingFace chat template with detected content format: openai` — this SGLang's
 confirmation that a template was found from the HF side. Its `Loaded chat_template from …` line
 belongs to the *download* path and does not fire for a local dir, so its absence proves nothing.
+Workers show no template-resolution line at all — by design: the tokenizer lives on the rank that
+serves HTTP (rank 0), so the per-rank claim is *farm staged on every rank, template resolved on the
+serving rank*.
 
 **Engram re-packs itself.** `pack_engram.py` derives each rank's shards from the checkpoint's
 `model.safetensors.index.json`, so the pre-refresh pack is invalid — shards 47/48 are
