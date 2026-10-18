@@ -2800,6 +2800,70 @@ must come from the executor's path, not the daemon.
 rank-cache write per node (330 s measured), and a re-cut of the combined repo if the dedup layout is
 kept.
 
+### 12.17 The knapcio TP=4 arm on the 1017 base (2026-10-18)
+
+The arm now serves the refresh: `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:2` is
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, pinned `1bae0e10…`; the image is unchanged
+(`littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…`, knapcio `27616bec` + the health-port
+patch). Same architecture and quant as the base — `config.json` is **byte-identical** between the
+two repos (sha256 `8be45ce0…`) — but **all 48 shards are new LFS objects**, so this is a
+new-weight bump, not a metadata change.
+
+**What had to change besides the pin.** The refresh ships **no `chat_template.jinja` by design**
+(its card replaces the Jinja template with `encoding/encoding.py` and the `deepseek-recipe`
+toolkit), and this SGLang resolves the template from `<model_dir>/chat_template.jinja` when the
+tokenizer carries no embedded one (`srt/utils/hf_transformers/processor.py:383-390`); `boot.py`
+exposes no template flag, so the farm is the only route. `launcher.py:ensure_template_overlay()`
+serves `/cache/runtime/model-overlay`: a symlink farm of the checkpoint whose one real file is the
+mod's `chat_template.jinja` (byte-identical to the TensorFold lane's, sha256 `297be886…` — a guard
+test pins that). Nothing is copied from 475 GB, the snapshot is never written through, the farm is
+rebuilt from content on every boot (foreign links dropped), a checkpoint carrying its own template
+is served untouched, and an unstaged or unstageable template exits 2 rather than serving
+templateless. `boot.py:475` re-derives `DSV41_SOURCE` from `MODEL_PATH`, so every rank's engine
+sees the farm; no rank can serve a mixed source.
+
+**Engram re-packs itself.** `pack_engram.py` derives each rank's shards from the checkpoint's
+`model.safetensors.index.json`, so the pre-refresh pack is invalid — shards 47/48 are
+`76a05106…/9dc51433…` now. The launcher started the packer detached on the first boot:
+2 × 23.6 GiB per rank in **57-73 s** (340-440 MiB/s, node-local snapshot). The second boot logs
+`Engram shards present for rank r/4` on all four ranks and the reader reports `Exact nvme` with its
+row range.
+
+**Boot receipts** (task `a2e141223b52793c_7afff0589a33`,
+`~/benchmarks/ds4-knapcio-1017-20261018/`, `arm-1017/`): cold launch 57 min — that is the
+~475 GiB/node distribution over the fabric — and the warm relaunch **545.9 s** total, most of it
+engine: weight load **300.64 s** + DSpark draft **66.81 s** on the head (187.94 + 46.20 s on a
+worker), `max_total_num_tokens=9,273,856` (−1.2 % vs the V4.1 base's 9,386,240). `/v1/models` →
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`; chat answers (`"OK"`, no reasoning leak with
+`enable_thinking:false`); **vision 3/3** solid-colour probes plus a clean text control — the whole
+point of staging the template. The launcher bytes every container ran were the shipped ones
+(`launcher.py` sha256 `162458a7…`, `chat_template.jinja` `297be886…` on all four ranks).
+
+**Ladder** — same profile as §12.16 (`benchmarking/ds4-sglang-depth0-ladder.yaml`, 3 runs/cell,
+`--fresh`; bench `bench_147c4e4cadab`):
+
+| arm | C1 | C4 | C8 | C16 |
+|---|---:|---:|---:|---:|
+| V4.1 base (§12.16 baseline boot) | 59.21 ± 3.54 | 110.85 ± 1.05 | 111.38 ± 1.53 | 112.80 ± 2.69 |
+| 1017 (this boot, runs in parentheses) | **80.97 ± 3.50** (81.9/84.7/76.3) | 118.87 ± 11.37 (104.2/131.9/120.5) | 107.53 ± 7.87 (101.9/102.1/118.7) | 115.90 ± 3.12 (111.5/117.7/118.5) |
+
+C4 +7.2 %, C8 −3.5 %, C16 +2.7 %: each sits inside the two arms' spreads, so **no speed change is
+established**. **C1 is the only cell that moved (+36.7 %) and it is the least established of all**:
+one boot per base, and this boot's C1 followed two cold 119k/231k prefill probes, so the Engram and
+L2 caches were warmer than the baseline boot's when the ladder started. Report it, do not claim it
+— an interleaved re-take is what settles it (the §12.16 lesson). Cold prefill: 119k **29.53 s**
+(3904 tok/s), 231k **64.79 s** (3455 tok/s), against 27.93/66.02 s — the same noise band.
+
+**Two traps for the next reader.** (1) `boot.py:471-475` writes the image's baked
+`REVISION = fb2764a5…` into its state record regardless of what `MODEL_PATH` serves, so a 1017 boot
+self-reports the V4.1 revision. Identify the served checkpoint by the snapshot path in
+`server_args` (`…/models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/1bae0e10…`), by
+`/v1/models`, and by the launcher's `ships no chat_template.jinja; serving …` line — never by that
+field. (2) **Node identity**: `.NN-33` are `spark-00`…`spark-03`
+(`spark-41e1`/`spark-d325`/`spark-ec1d`/`spark-3578`); the head `.30` is rank 0. `sparkrun status`
+reuses the job id across a stop and relaunch, so an unchanged id is not evidence of an unchanged
+boot.
+
 ## 13. Quality benchmarks (`benchmarks/`)
 
 The `benchmarks/` subdirectory holds the **quality** comparison of the two live

@@ -123,6 +123,20 @@ DeepSeek V4.1
   `~/benchmarks/ds4-1017-ship-20261017/` (TTR 62 s, vision 3/3, tag-verified rank cache). One
   sub-item stays open and blocks nothing on the fleet: the publication route for third-party parity
   (combined repo ≈385 GiB vs an Engram-only repo ≈189 GiB plus a launcher change) is the owner's call.)*
+  - **TP=4 half (2026-10-18):** the knapcio arm now serves the same refresh,
+    `deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10…`. It needed a template source — 1017 ships none
+    and this SGLang reads `<model_dir>/chat_template.jinja` — so the mod serves a symlink farm
+    (`ensure_template_overlay`; exit 2 when it cannot stage one) and the image re-packs Engram per
+    rank on the first boot (2 × 23.6 GiB/rank, 57-73 s). Boot `a2e141223b52793c_7afff0589a33`: warm
+    relaunch 545.9 s, `/v1/models` = the 1017 id, vision 3/3 + text control, pool 9,273,856. Ladder
+    C1 81.0 / C4 118.9 / C8 107.5 / C16 115.9 — parity on C4/C8/C16 inside spread, and the +36.7 %
+    C1 is one boot against one boot, **not established** (`attic/ds4/AGENTS.md` §12.17;
+    `~/benchmarks/ds4-knapcio-1017-20261018/`).
+  - **Prompt format, known limitation (2026-10-18):** both arms serve 1017 on the lane's patched
+    **V4.1** template — 1017 ships none and its `encoding/encoding.py` grew (37,316 → 37,962 B),
+    while `test_encoding.py` grew 19,371 → 22,449 B — so the served format is a port of the older
+    encoder. Empirically adequate: vision 3/3 on both arms and TEB 15/15 on the TP=2 arm's 1017
+    ladder. A port of 1017's `encoding.py` was never measured and no shipped path requires it.
 - [ ] **Run the two KNAPCIO post-pin defer experiments as tracked A/Bs** — `DSV41_CACHE_GIB=0` (third-party +9% KV pool; shipped value is 4 GiB) and the `SGLANG_RUST_BUILD_MODE` cargo-probe boot-hang workaround (`mad-science/KNAPCIO-UPSTREAM-DELTA.md:49,56`; `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:116,162`). *(effort: short)*
 - [ ] **RoCEnante coverage sweep + auto-crossover microbench** — the memo's §5 E3/E5 ("actually worth running"): do TP all-reduces/gathers >2 MiB silently fall back to NCCL (`SGLANG_ROCE_MAX_SIZE` 4/8 MiB vs shipped 2 MiB), and the 1 KB…2 MiB RoCEnante-vs-NCCL crossover curve (none measured) (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:166-196`). *(effort: medium)*
 - [ ] **Re-test `DSV41_CERT_HEAD` / `DSV41_ENGRAM_DRM_NODE`** — both named and deliberately off (CERT_HEAD −0.5 ms/step at c1 but slower from ~10 requests; ENGRAM_DRM_NODE needs a host display-reserve change) (`attic/ds4/AGENTS.md`). *(effort: medium)*
