@@ -32,6 +32,27 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
 | Measured | v2.4 boot: C1 **59.2** / C4 110.9 / C8 111.4 / C16 112.8 t/s aggregate, 119k prefill 27.9 s, 231k 66.0 s, KV pool 9,386,240 (`~/benchmarks/ds4-knapcio-v24-20261017/`) |
 
+**Why this arm still serves V4.1 and not the 1017 refresh.** The 2026-10-17 refresh
+([`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017),
+`1bae0e10…`) is the same architecture and the same quant (`config.json` byte-identical,
+sha256 `8be45ce0…`: fp8 block weights with fp4 experts, unchanged vision config) with **all 48 shards
+re-uploaded**, so it is a new-weight bump of ~475 GiB/node across four nodes plus a new runtime cache
+— and it ships **no `chat_template.jinja` by design** (the card states the release replaces the Jinja
+template with `encoding/encoding.py` and the `deepseek-recipe` toolkit). This arm serves the sparkrun
+snapshot through SGLang's OpenAI server, which takes its chat template from the snapshot, and the
+mod (`dsv41-sglang-overlay`) stages no template of its own; the TensorFold arm needed exactly that
+workaround for the EXL3 pack (§12.14.1, `mods/tensorfold-dsv41-launcher/chat_template.jinja`), so a
+1017 bump here must first give this mod a template source. The image also derives each rank's Engram
+shards from the checkpoint's `model.safetensors.index.json` (`/opt/dsv41/scripts/pack_engram.py`),
+so the packed cache is invalidated by the change (Engram shards 47/48 go
+`824db488…/976330f4…` → `76a05106…/9dc51433…`) and must be re-packed per rank. Nothing here is
+blocking, but the only measured delta on this family is the TP=2 interleaved ladder, which put 1017 at
+**parity on every cell** — the refresh's case is the card's quality table (HLE 36.8 → 42.6,
+Terminal-Bench 31.2 → 42.3, DeepSWE 74.2 → 77.0), which is a bench campaign, not a cache swap. The
+recommended order is: reuse the TensorFold template as this mod's template source, re-pin
+`model:`/`model_revision:` to `1bae0e10…`, distribute, re-pack Engram per rank, then re-take the
+four-cell baseline before the receipt is rewritten.
+
 ### What it serves
 
 A 1M-context chat/completions server for the official release weights, **including
