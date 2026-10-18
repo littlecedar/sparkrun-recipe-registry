@@ -7,8 +7,8 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
-suite and strict-validate counts were re-measured 2026-10-17 (38 recipes, 24 guard modules, 628 tests,
-5/38 strict).
+suite and strict-validate counts were re-measured 2026-10-18 (38 recipes, 24 guard modules, 641 tests,
+6/38 strict).
 Facts drift — re-measure (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
@@ -100,11 +100,13 @@ for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run py
 find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: all 38 pass plain; 5/38 fail strict on
-  accepted findings (re-measured 2026-10-17) — `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml`
-  (`cluster_only`, deprecated for v2, plus a `restated-managed-path` suggestion) and four launcher
+- **Plain `validate` is the gate, not `--strict`**: all 38 pass plain; 6/38 fail strict on
+  accepted findings (re-measured 2026-10-18) — `recipes/qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml`
+  (`cluster_only`, deprecated for v2, plus a `restated-managed-path` suggestion) and five launcher
   arms whose `model_revision` is pinned but never handed to the engine as `--revision`
   (`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
+  `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` — pinned to the 1017 refresh on
+  2026-10-18 —,
   `recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml`,
   `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`, and the
   boot-deferred `recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`) — for those
@@ -343,8 +345,8 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **628 tests,
-  all passing 2026-10-17 (2 skipped: the IFM research docs absent on a fresh clone, and the
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **641 tests,
+  all passing 2026-10-18 (2 skipped: the IFM research docs absent on a fresh clone, and the
   pooling guard's real-`sparkrun` case, which runs only where sparkrun is importable)**. The
   count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it.
   The K2 MoVA-36B lane's 64-test guard lives in

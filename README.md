@@ -121,7 +121,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size |  Mem% | TP | Model Cards                                                      |
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
-| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   59.2 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash] — v2.4 image (2026-10-17 rebuild), C4 110.9 / C8 111.4 / C16 112.8, pool 9.39M (`~/benchmarks/ds4-knapcio-v24-20261017/`) |
+| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   59.2 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash] — v2.4 image (2026-10-17 rebuild); **C1 is one boot**, not a ladder (C4 110.9 / C8 111.4 / C16 112.8, pool 9.39M, `~/benchmarks/ds4-knapcio-v24-20261017/`) |
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀  |   66.4 |   47.8 |   44.8 |    48.4 | 385GB | 84%\* |  2 | [Model][LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw] — 1017 refresh; interleaved ladder 2026-10-18 (5 runs/cell, `~/benchmarks/ds4-1017-ab-interleaved-20261018/`) |
 
 * _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
