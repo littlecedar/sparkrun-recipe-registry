@@ -2822,6 +2822,12 @@ is served untouched, and an unstaged or unstageable template exits 2 rather than
 templateless. `boot.py:475` re-derives `DSV41_SOURCE` from `MODEL_PATH`, so every rank's engine
 sees the farm; no rank can serve a mixed source.
 
+The per-rank evidence is in the captured logs (`arm-1017/serve-*.log`): every rank logs the farm
+line (`ships no chat_template.jinja; serving /cache/runtime/model-overlay`), and the serving rank
+logs `Using default HuggingFace chat template with detected content format: openai` — this SGLang's
+confirmation that a template was found from the HF side. Its `Loaded chat_template from …` line
+belongs to the *download* path and does not fire for a local dir, so its absence proves nothing.
+
 **Engram re-packs itself.** `pack_engram.py` derives each rank's shards from the checkpoint's
 `model.safetensors.index.json`, so the pre-refresh pack is invalid — shards 47/48 are
 `76a05106…/9dc51433…` now. The launcher started the packer detached on the first boot:
@@ -2831,7 +2837,8 @@ row range.
 
 **Boot receipts** (task `a2e141223b52793c_7afff0589a33`,
 `~/benchmarks/ds4-knapcio-1017-20261018/`, `arm-1017/`): cold launch 57 min — that is the
-~475 GiB/node distribution over the fabric — and the warm relaunch **545.9 s** total, most of it
+~475 GiB/node distribution over the fabric — and the warm relaunch **545.9 s** total, **8 m 31 s
+from container start to the first 200 on `/v1/models`** (06:30:54 → 06:39:25), most of it
 engine: weight load **300.64 s** + DSpark draft **66.81 s** on the head (187.94 + 46.20 s on a
 worker), `max_total_num_tokens=9,273,856` (−1.2 % vs the V4.1 base's 9,386,240). `/v1/models` →
 `deepseek-ai/DeepSeek-V4.1-Flash-1017`; chat answers (`"OK"`, no reasoning leak with
@@ -2848,11 +2855,13 @@ point of staging the template. The launcher bytes every container ran were the s
 | 1017 (this boot, runs in parentheses) | **80.97 ± 3.50** (81.9/84.7/76.3) | 118.87 ± 11.37 (104.2/131.9/120.5) | 107.53 ± 7.87 (101.9/102.1/118.7) | 115.90 ± 3.12 (111.5/117.7/118.5) |
 
 C4 +7.2 %, C8 −3.5 %, C16 +2.7 %: each sits inside the two arms' spreads, so **no speed change is
-established**. **C1 is the only cell that moved (+36.7 %) and it is the least established of all**:
-one boot per base, and this boot's C1 followed two cold 119k/231k prefill probes, so the Engram and
-L2 caches were warmer than the baseline boot's when the ladder started. Report it, do not claim it
-— an interleaved re-take is what settles it (the §12.16 lesson). Cold prefill: 119k **29.53 s**
-(3904 tok/s), 231k **64.79 s** (3455 tok/s), against 27.93/66.02 s — the same noise band.
+established** on the stable cells. **C1 is unattributable**: this lane's own C1 spans **59.2-75.3
+across the five single-boot v2.4 arms** (the §12.16 receipt table), and the §12.16 comparison arm's
+runs span 60.0-73.0 across three boots — so 81.0 from a boot that had just run the two cold
+119k/231k prefill probes (the baseline boot's ladder ran probe-less) is another boot slot with
+warmer Engram/L2 caches, not new weights. Report it, do not claim it; an interleaved re-take is
+what settles it (the §12.16 lesson). Cold prefill: 119k **29.53 s** (3904 tok/s), 231k **64.79 s**
+(3455 tok/s), against 27.93/66.02 s — the same shape, read with the same probe-order caveat.
 
 **Two traps for the next reader.** (1) `boot.py:471-475` writes the image's baked
 `REVISION = fb2764a5…` into its state record regardless of what `MODEL_PATH` serves, so a 1017 boot

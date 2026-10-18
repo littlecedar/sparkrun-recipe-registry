@@ -30,7 +30,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Transport | RoCEnante RDMA (shipped on) |
 | Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
-| Measured | 1017 base, v2.4 image: C1 **81.0** / C4 118.9 / C8 107.5 / C16 115.9 t/s aggregate (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`), 119k prefill 29.5 s, 231k 64.8 s, KV pool 9,273,856 (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). C4/C8/C16 are parity with the V4.1 base inside the two arms' spreads; **C1's +36.7 % is one boot against one boot and is not established** (`attic/ds4/AGENTS.md` §12.17) |
+| Measured | 1017 base, v2.4 image: C1 **81.0** / C4 118.9 / C8 107.5 / C16 115.9 t/s aggregate (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`), 119k prefill 29.5 s, 231k 64.8 s, KV pool 9,273,856 (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). C4/C8/C16 at parity with the V4.1 base inside the two arms' spreads; **C1 is unattributable** — the lane's C1 spans 59.2-75.3 across five single-boot v2.4 arms, and this boot ran its prefill probes first (`attic/ds4/AGENTS.md` §12.17) |
 | Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`) |
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant

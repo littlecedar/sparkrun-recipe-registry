@@ -71,6 +71,19 @@ serve a mixed tree. A checkpoint that already carries its own template (the base
 V4.1 repo) is served exactly as resolved. A checkpoint with no template **and**
 no mod template is refused (`exit 2`) rather than served templateless.
 
+Two facts from the image that the staging relies on — both read out of the pinned image, not
+assumed:
+
+- `boot.py:475` re-derives `DSV41_SOURCE` from `MODEL_PATH` (`env = dict(os.environ,
+  DSV41_SOURCE=str(MODEL))`), so the engine always sees the farm; there is no "keep the source on
+  the real snapshot" option, and none is needed — the packer resolves the same files through the
+  links.
+- The serving rank's log line `Using default HuggingFace chat template with detected content
+  format: openai` is this SGLang's confirmation that a template was found from the model dir. The
+  `Loaded chat_template from …` line belongs to the *download* path (`processor.py:389`) and never
+  fires for a local dir — its absence is **not** evidence of a missing template; the functional
+  proof is the vision probe.
+
 ## Portability (the whole point of the `/cache/runtime` wiring)
 
 The recipe carries **no host bind mounts**. Everything that is not the model and

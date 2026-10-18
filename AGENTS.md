@@ -7,7 +7,7 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
-suite and strict-validate counts were re-measured 2026-10-18 (38 recipes, 24 guard modules, 641 tests,
+suite and strict-validate counts were re-measured 2026-10-18 (38 recipes, 24 guard modules, 648 tests,
 6/38 strict).
 Facts drift — re-measure (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
@@ -345,7 +345,7 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **641 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **648 tests,
   all passing 2026-10-18 (2 skipped: the IFM research docs absent on a fresh clone, and the
   pooling guard's real-`sparkrun` case, which runs only where sparkrun is importable)**. The
   count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it.
