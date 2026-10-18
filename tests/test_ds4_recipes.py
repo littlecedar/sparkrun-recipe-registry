@@ -944,8 +944,10 @@ def _resolved_env(r: "Recipe") -> dict:
 
     This is the union the guards inspect for forbidden keys (host device names,
     managed comm env, DSPARK tables). Note the launcher itself applies RECIPE_ENV
-    with ``env.update`` (launcher value wins over a recipe value for launcher-owned
-    keys), whereas here the recipe is overlaid last so a *bogus* recipe value is
+    by overwriting (launcher value wins over a recipe value for launcher-owned
+    keys) except for its AB_ENV knobs, which it setdefaults so a launch's
+    `-o env.KEY=VALUE` wins; the recipe's `env:` is empty, so the two orders
+    agree today. Here the recipe is overlaid last so a *bogus* recipe value is
     visible and the guards can fail on it -- that is the direction these negative
     controls need.
     """
@@ -1296,6 +1298,81 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(env["NNODES"], "4")
         self.assertEqual(env["NODE_RANK"], "0")
         self.assertEqual(env["MODEL_ID"], "deepseek-ai/DeepSeek-V4.1-Flash")
+
+    def test_launcher_v24_serve_line(self):
+        """v2.4's serve line reaches boot.py, and each knob is a launch switch.
+
+        Two facts are being held down here. The values: the image is v2.4 but
+        the argv used to be v2.3's (0.80 / 4096 / a 9.4M pin sized for 0.80,
+        no EXTRA_SGLANG_ARGS at all), so none of upstream's serve-line changes
+        arrived. The surface: a sweep flips these with
+        `-o env.KEY=VALUE` (routed into the container env, so into the
+        launcher's process env), which is why apply_recipe_env setdefaults the
+        AB_ENV keys instead of overwriting them -- while an image-baked key
+        (STATE_PATH) must still be overridden by the launcher.
+        """
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "dsv41_launcher_v24", SGLANG_MOD_DIR / "launcher.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        self.assertEqual(mod.RECIPE_ENV["MEM_FRACTION_STATIC"], "0.78")
+        self.assertEqual(mod.RECIPE_ENV["CHUNKED_PREFILL_SIZE"], "8192")
+        # 16 is what the v2.4 launch line and its profile table both show; the
+        # 8s in that repo belong to the pre-knapcio profile.
+        self.assertEqual(mod.RECIPE_ENV["MAX_RUNNING_REQUESTS"], "16")
+        # Re-derived for 0.78 from the engine's own measured budget. The
+        # formula (9,277,952 at 0.80 minus 1,564,260 for the smaller static
+        # pool minus 26,415 for 64 extra tails -> 7,687,277) under-estimated the
+        # tails' cost; the 2026-10-18 21:33Z TP=4 boot line says the real
+        # profiled budget at 0.78 is 6,993,408 ("max_total_tokens=7500000 is
+        # larger than the profiled value 6993408"). A pin at or above the
+        # budget is silently clamped, which puts the pool back to being a boot
+        # lottery, so this must stay under the MEASURED value.
+        pin = int(mod.RECIPE_ENV["MAX_TOTAL_TOKENS"])
+        self.assertGreater(pin, 0)
+        self.assertLess(pin, 6_993_408)
+
+        # Default assembly: the prefix tails only. The prefill-decode interval
+        # ships OFF - measured cost on this fleet's ladder was 17-28 % of
+        # steady-state throughput (c2 73.2 -> 88.4, c5 95.1 -> 131.8,
+        # c10 101.5 -> 123.5 with it off), so it is an opt-in multi-user knob.
+        env: dict = {}
+        mod.apply_recipe_env(env)
+        self.assertEqual(mod.extra_sglang_args(env), "--swa-prefix-tails 128")
+        self.assertEqual(env.get("PREFILL_DECODE_INTERVAL"), "0")
+        interval_on = dict(env)
+        interval_on["PREFILL_DECODE_INTERVAL"] = "2"
+        self.assertEqual(mod.extra_sglang_args(interval_on),
+                         "--swa-prefix-tails 128 --prefill-decode-interval 2")
+        # Each knob individually disablable, and an empty env contributes
+        # nothing (no stray EXTRA_SGLANG_ARGS = "" being passed as a flag).
+        for key in ("SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL"):
+            off = dict(env)
+            off[key] = "0"
+            self.assertNotIn(key, mod.extra_sglang_args(off))
+        self.assertEqual(mod.extra_sglang_args({}), "")
+        self.assertEqual(mod.extra_sglang_args(
+            {"EXTRA_SGLANG_ARGS": "--watchdog-timeout 1800"}),
+            "--watchdog-timeout 1800")
+
+        # A launch-time override wins over the shipped default (AB_ENV), while
+        # the image-baked keys stay launcher-owned. With the tails off and the
+        # interval left at its shipped 0, no flag is assembled at all; asking
+        # for the interval at launch time is what turns it back on.
+        launched = {"MEM_FRACTION_STATIC": "0.80", "CHUNKED_PREFILL_SIZE": "4096",
+                    "SWA_PREFIX_TAILS": "0", "STATE_PATH": "/state"}
+        mod.apply_recipe_env(launched)
+        self.assertEqual(launched["MEM_FRACTION_STATIC"], "0.80")
+        self.assertEqual(launched["CHUNKED_PREFILL_SIZE"], "4096")
+        self.assertEqual(launched["STATE_PATH"], "/cache/runtime/state")
+        self.assertEqual(launched["MAX_RUNNING_REQUESTS"], "16")
+        self.assertEqual(mod.extra_sglang_args(launched), "")
+        launched["PREFILL_DECODE_INTERVAL"] = "2"
+        self.assertEqual(mod.extra_sglang_args(launched),
+                         "--prefill-decode-interval 2")
 
     def test_launcher_accepts_sparkruns_prepared_model_path(self):
         """A real launch hands `{model}` as the prepared on-disk snapshot path.

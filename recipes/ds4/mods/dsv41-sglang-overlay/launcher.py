@@ -79,11 +79,16 @@ HF_HUB = "/cache/huggingface/hub"
 # would let the image value win and silently undo the production config
 # (unwritable /state, the NaN-logits allocator mode). The keys here are disjoint
 # from the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE, so those pass through.
+# The exception is AB_ENV (defined under RECIPE_ENV): the knobs a sweep flips
+# apply with setdefault instead, so `-o env.KEY=VALUE` on the launch wins. That
+# is only sound for keys the image does NOT bake; AB_ENV says which, and why.
 #
 # REDUNDANT vars (recipe value == runtime default) are NOT here and are NOT in
 # the recipe: SKIP_SMOKE(0), WARMUP(1), HOST(0.0.0.0), SERVED_MODEL_NAME,
 # SPARK_PREFILL_TP_MIN_CONTEXT(32768), SPARK_PREFILL_TP_MIN_ROWS(1024),
-# DSV41_FAST_LOAD_TP_SLICE(auto), DSV41_FAST_LOAD_INFLIGHT_GB(6).
+# DSV41_FAST_LOAD_TP_SLICE(auto), DSV41_FAST_LOAD_INFLIGHT_GB(6),
+# CUDA_GRAPH_MAX_BS_DECODE (boot.py defaults it to MAX_RUNNING_REQUESTS, so
+# pinning it separately would be a second place to drift).
 #
 # The ONE deliberate exception to that rule is DSV41_FAST_LOAD("0") below: it is
 # also the runtime default, but it is stated to record a decision, not a no-op --
@@ -128,20 +133,64 @@ RECIPE_ENV: dict[str, str] = {
     # --- parallelism / serving (boot.py reads these) -----------------------
     "EP_SIZE": "1",            # b12x_next production line; EP>1 dies at decode
     "CONTEXT_LENGTH": "1048576",
-    "MEM_FRACTION_STATIC": "0.80",
+    # v2.4's serve line (upstream README "What runs in production", CHANGELOG
+    # 2026-10-12): 0.78 and 8192-token chunks. 0.78 is what pays for the larger
+    # chunk -- at 0.80 a 1M prefill left the head 2.7 GiB available, at 0.78 it
+    # leaves 5.7 GiB (upstream, same image). HEAD_MEM_FRACTION_STATIC is a
+    # start-tp4.sh-level knob: at TP4 it just equals MEM_FRACTION_STATIC
+    # (.env.tp4.example) and boot.py reads only MEM_FRACTION_STATIC
+    # (boot.py:312 @ 27616bec), so there is nothing to set separately here.
+    "MEM_FRACTION_STATIC": "0.78",
+    # 16, not 8. The v2.4 launch line (README: "boot log must show ...
+    # max_running_requests=16") and the profile table ("Slots:
+    # MAX_RUNNING_REQUESTS=16 adds the c16 tier") both say 16. The 8s in that
+    # repo are its *pre-knapcio* profile (README rollback: "Upstream's profile:
+    # MAX_RUNNING_REQUESTS=8, CHUNKED_PREFILL_SIZE=1024") and the stale comment
+    # above MAX_RUNNING_REQUESTS=16 in .env.tp4.example. No conflict with the
+    # v2.4 release note -> 16 stays. It also sizes --cuda-graph-max-bs-decode
+    # (boot.py:315 defaults that to this value and the launcher does not pin it),
+    # so one knob answers both and an A/B cannot leave a 16-wide graph capture
+    # behind after lowering the request cap.
     "MAX_RUNNING_REQUESTS": "16",
-    "CHUNKED_PREFILL_SIZE": "4096",
-    "CUDA_GRAPH_MAX_BS_DECODE": "16",
-    # KV pool pin, measured on this fleet 2026-10-06 (attic/ds4/AGENTS.md 7.1):
-    # at MEM_FRACTION_STATIC=0.80 the engine's own budget line reports
-    # full_token=9,493,504..9,589,504 (bytes_per_full_token=1670.75, ~15.9 GB
-    # available_bytes); a pin ABOVE that is CLAMPED to the budget, not refused. 9.4M
-    # is ~98% of the budget and was verified to boot and serve on all four nodes.
-    # The previous 4000000 left ~58% of the ceiling unused.
-    # READ full_token from the boot log after any change to weights, TP size or NCCL
-    # buffers -- it moves with the head's MemAvailable (upstream saw 6.71-7.82M
-    # across their stack; ours is a stock-loader EP1 pair at 0.80).
-    "MAX_TOTAL_TOKENS": "9400000",
+    "CHUNKED_PREFILL_SIZE": "8192",
+    # KV pool pin, re-derived for v2.4 from the engine's own budget arithmetic
+    # (pool_configurator.DSV4PoolConfigurator.calculate_pool_sizes):
+    #   full_token = (available_bytes - fixed_bytes) / bytes_per_full_token
+    #   available_bytes = available_gpu_memory - pre_model_load*(1-mem_frac)
+    #                     (kv_cache_configurator._profile_available_bytes)
+    # so lowering mem_frac by 0.02 costs 0.02 x pre_model_load of budget, and
+    # bytes_per_full_token does NOT move with it (in cap mode the SWA pool is
+    # bias bytes, not part of the coefficient).
+    # Measured input, current config, TP=4 on this fleet (attic/ds4/AGENTS.md
+    # §12.18, two boots 2026-10-18): full_token=9,277,952 at 0.80 with the stock
+    # loader at bytes_per_full_token=1670.75 -- that is the engine's profiled
+    # value, which the old 9.4M pin was already being clamped down to
+    # ("max_total_tokens=9400000 is larger than the profiled value 9277952").
+    # (The 2026-10-06 four-boot range 9,493,504..9,589,504 in §7.1 is the older
+    # number; both derivations are carried below and the pin fits under both.)
+    #   pre_model_load is the rank's 121.7 GiB unified memory (upstream docs;
+    #     sparkrun's own platform table agrees: gb10 ~121.0 GiB):
+    #     0.02 x 121.7 GiB = 2,613.5 MB / 1670.75 B = 1,564,260 tokens
+    #   prefix tails 64 -> 128: each extra tail is one sliding window plus one
+    #     page = 128 + 256 = 384 SWA slots, and bytes_per_swa_token is
+    #     kv_bytes x draft layers x spec inflation = 584 x 3 x 41/40 = 1,795.8 B
+    #     (kv_bytes = 448 nope + 2x64 rope + 8; page_size 256 is hardcoded for
+    #     DSV4, deepseek_v4_backend.py:1189). 64 x 384 x 1,795.8 B = 44.1 MB
+    #     = 26,415 tokens. The 2026-10-18 boot line confirms the slot count:
+    #     swa=51,712 at 64 tails -> 76,288 at 128 (+24,576 = 64 x 384).
+    #   => the budget the engine actually profiles at 0.78 on this fleet is
+    #      **6,993,408 tokens** (boot 2026-10-18 21:33Z, TP=4: "max_total_tokens=
+    #      7500000 is larger than the profiled value 6993408"). The 7.69M
+    #      formula above under-estimated the tails' cost by ~0.7M tokens, so the
+    #      boot line, not the formula, decides: 6,850,000 sits at 97.9 % of the
+    #      measured budget and cannot clamp. The cost is real -- 6.85M
+    #      page-shared tokens holds six full 1M contexts, not the nine the
+    #      0.80/4096 line held (upstream's own 0.78 pool is 3.67M).
+    # Read `DSV4 memory calculation: ... full_token=` at every boot: a
+    # full_token under this value means the pin is inert (silently clamped,
+    # never refused, AGENTS 7.1) and must be re-derived again.
+    # `-o env.MAX_TOTAL_TOKENS=0` unpins entirely.
+    "MAX_TOTAL_TOKENS": "6850000",
     "SPEC_ALGO": "DSPARK",
     # MEASURED, REJECTED (2026-10-10 A/B, same-window pair, profile
     # ds4-sglang-depth0-ladder, nodes .30-.33): the verify window gamma ships
@@ -164,6 +213,38 @@ RECIPE_ENV: dict[str, str] = {
     # `--dspark-block-size` (the recipe's `dspark_block_size`) overrides this
     # per launch; this is the shipped default it must stay equal to.
     "DSPARK_BLOCK_SIZE": "5",
+    # --- v2.4 serve-line flags (boot.py's EXTRA_SGLANG_ARGS) -----------------
+    # boot.py appends EXTRA_SGLANG_ARGS verbatim to the argv it builds
+    # (boot.py:373-375 @ 27616bec) and then runs required_sglang_args() over the
+    # whole list (boot.py:264-287, called at :376): that guard STRIPS every
+    # --fp8-gemm-backend the extras carry and appends
+    # `--fp8-gemm-backend flashinfer_cutlass` last (warning when the effective
+    # value differed), so an extra flag cannot drop the MXFP8 dense-kernel route
+    # DSV41_MXFP8_BACKEND=b12x requires -- the v2.4 fix (CHANGELOG: "the required
+    # --fp8-gemm-backend flashinfer_cutlass survives a custom
+    # EXTRA_SGLANG_ARGS", MiaAI-Lab#31). Verified in the pinned image's build
+    # source: knapcio boot.py @ 27616bec with this registry's
+    # recipes/ds4/boot.py.health-port.patch applied, whose hunks are the health
+    # probe, request()'s port argument and __main__'s health branch only --
+    # serve(), required_sglang_args() and the extras merge are upstream's bytes.
+    # Values are assembled by extra_sglang_args() below; each is individually
+    # disablable from the launch (0/off/none/false/empty omits the flag and the
+    # engine's own default applies).
+    #   --swa-prefix-tails 128:  room for 128 radix-cached prefix tails instead
+    #     of the engine default (4 x max_running_requests = 64 here), so a 388K
+    #     session stays cached while another 388K runs: revisit 1.5 s instead of
+    #     an 89 s re-prefill. Each extra tail costs window+page = 384 SWA slots.
+    "SWA_PREFIX_TAILS": "128",
+    #   --prefill-decode-interval 2:  decode between prefill chunks, so a short
+    #     request is answered 4.6 s into a 400K cold prefill instead of after it
+    #     (upstream v2.4). MEASURED COST on this fleet's ladder (2026-10-18,
+    #     two TP=4 boots differing only in this flag): c2 73.2 -> 88.4, c5 95.1
+    #     -> 131.8, c10 101.5 -> 123.5 t/s with it OFF, i.e. it costs 17-28 % of
+    #     steady-state ladder throughput. It is a multi-user latency feature, not
+    #     a throughput one, so it ships OFF and is flipped per launch with
+    #     `-o env.PREFILL_DECODE_INTERVAL=2` when long-prefill interleaving is
+    #     what is wanted. The engine default (0) leaves it off.
+    "PREFILL_DECODE_INTERVAL": "0",
     # --- overlay adapters (the upstream production line) -------------------
     "DSV41_INDEXER_CHUNKED": "1",
     "SGLANG_DSPARK_FOLDED_SAMPLING": "2",
@@ -243,15 +324,62 @@ RECIPE_ENV: dict[str, str] = {
 }
 
 
+# Knobs a benchmark profile flips per launch: `-o env.MEM_FRACTION_STATIC=0.80`
+# (or `-e KEY=VALUE`) lands in this process's env, so for these keys RECIPE_ENV
+# is a DEFAULT, not an override. Safe because the pinned image bakes none of
+# them (Dockerfile.canary-roce ENV = MODEL_PATH, STATE_PATH, OFFLOAD_MODE,
+# DSV41_CACHE_GIB, PYTHONPATH), so a value already present can only have come
+# from the launch. Do NOT add an image-baked key to this set (RECIPE_ENV's own
+# comment lists them): for those the launcher must win or the image silently
+# wins. Everything else here stays an override.
+AB_ENV: frozenset[str] = frozenset({
+    "MEM_FRACTION_STATIC", "MAX_RUNNING_REQUESTS", "CHUNKED_PREFILL_SIZE",
+    "MAX_TOTAL_TOKENS", "SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL",
+})
+
+
 def apply_recipe_env(env: dict[str, str]) -> None:
     """Apply the production config, overriding the image's baked ENV.
 
     Override, not setdefault: the image bakes several of these (STATE_PATH,
     DSV41_CACHE_GIB, PYTORCH_CUDA_ALLOC_CONF, ...) and those values are in the
     launcher's process env, so setdefault would let the image win. The keys here
-    never include the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE.
+    never include the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE. The
+    AB_ENV exceptions are documented at the set.
     """
-    env.update(RECIPE_ENV)
+    for key, value in RECIPE_ENV.items():
+        if key in AB_ENV:
+            env.setdefault(key, value)
+        else:
+            env[key] = value
+
+
+# The env key and the sglang flag it contributes to EXTRA_SGLANG_ARGS.
+SGLANG_EXTRA_FLAGS = (
+    ("SWA_PREFIX_TAILS", "--swa-prefix-tails"),
+    ("PREFILL_DECODE_INTERVAL", "--prefill-decode-interval"),
+)
+# A value in this set disables its flag (the engine's own default applies).
+_DISABLED_VALUES = frozenset({"", "0", "off", "none", "false", "no"})
+
+
+def extra_sglang_args(env: dict[str, str]) -> str:
+    """boot.py's EXTRA_SGLANG_ARGS: the v2.4 flags, then any user extras.
+
+    boot.py splits this on whitespace (boot.py:375), so flag values must not
+    contain spaces. An unset knob contributes nothing; so does one disabled in
+    the launch. A user-supplied EXTRA_SGLANG_ARGS is appended verbatim and is
+    still subject to boot.py's required_sglang_args() guard.
+    """
+    flags: list[str] = []
+    for key, flag in SGLANG_EXTRA_FLAGS:
+        value = env.get(key, "").strip()
+        if value.lower() not in _DISABLED_VALUES:
+            flags += [flag, value]
+    extra = env.get("EXTRA_SGLANG_ARGS", "").strip()
+    if extra:
+        flags.append(extra)
+    return " ".join(flags)
 
 
 def _pack_env(env: dict[str, str]) -> dict[str, str]:
@@ -610,6 +738,10 @@ def main(argv: list[str]) -> int:
     if args.dspark_block_size is not None:
         env["DSPARK_BLOCK_SIZE"] = str(args.dspark_block_size)
 
+    # Assemble boot.py's EXTRA_SGLANG_ARGS once every source has been applied
+    # (RECIPE_ENV defaults, then a launch's `-o env.KEY=` override on top).
+    env["EXTRA_SGLANG_ARGS"] = extra_sglang_args(env)
+
     # Locate the checkpoint in the fixed HF cache (MODEL_ID from `{model}`).
     # After apply_recipe_env, which is where /cache/runtime paths are set.
     resolve_checkpoint(env)
@@ -636,13 +768,22 @@ def main(argv: list[str]) -> int:
             print(f"launcher: could not write {HEALTH_PORT_FILE} ({exc!r}); "
                   "health probe will discover the port from the process", flush=True)
 
+    # The receipt line. It prints the memory knobs and the extras because those
+    # are the values only a boot can confirm: the engine's own
+    # `DSV4 memory calculation: ... full_token=` line then says whether the
+    # MAX_TOTAL_TOKENS pin fits under the budget or was clamped.
     print(
         "launcher: boot.py run "
         f"NNODES={env.get('NNODES')} NODE_RANK={env.get('NODE_RANK')} "
         f"DIST_INIT_ADDR={env.get('DIST_INIT_ADDR')} TP={env.get('TP_SIZE')} "
         f"EP={env.get('EP_SIZE')} PORT={env.get('SERVER_PORT')} "
         f"CONTEXT={env.get('CONTEXT_LENGTH')} "
-        f"DSPARK_BLOCK_SIZE={env.get('DSPARK_BLOCK_SIZE')}",
+        f"DSPARK_BLOCK_SIZE={env.get('DSPARK_BLOCK_SIZE')} "
+        f"MEM_FRACTION_STATIC={env.get('MEM_FRACTION_STATIC')} "
+        f"CHUNKED_PREFILL_SIZE={env.get('CHUNKED_PREFILL_SIZE')} "
+        f"MAX_TOTAL_TOKENS={env.get('MAX_TOTAL_TOKENS')} "
+        f"MAX_RUNNING_REQUESTS={env.get('MAX_RUNNING_REQUESTS')} "
+        f"EXTRA_SGLANG_ARGS={env.get('EXTRA_SGLANG_ARGS')!r}",
         flush=True,
     )
     os.execve(sys.executable, [sys.executable, "-u", BOOT, "run"], env)
