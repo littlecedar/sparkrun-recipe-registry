@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# TensorFold GLM-5.3 (full 753B) EXL3 3.0bpw CUDA engine, for four NVIDIA DGX
+# Spark (GB10) nodes at TP=4, vendored for the sparkrun `glm` lane.
+#
+# Why this file exists: the 3.0bpw serving line is boot-verified
+# (recipes/glm/README.md §"Boot-verified serving lines", 2026-10-13) but its
+# engine is an *unreleased fork branch*, not an image -- the runbook installs it
+# editable at container start (`tfrun.sh`). The 4bpw arm ships a prebuilt image
+# (ghcr.io/miaai-lab/...@sha256:eb17e092...); this line has no equivalent, so
+# promoting it to a recipe needs this source build.
+#
+# Provenance:
+#   engine  bertholomus/TensorFold, branch `glm-dsa-tp4`
+#           @ ddfad356dc16f4d6bed9cfcc9d60cd0ebc0a3595 (2026-10-04,
+#           "tools: placeholder host names (spark1..spark4) ..."),
+#           TensorFold 0.6.0, Apache-2.0. That commit is the *only* provenance
+#           anchor: unlike the 4bpw image this branch carries no patch set, so
+#           there is no `tf.patches` label to recompute and no tag suffix to
+#           match -- the commit is pinned, not the branch.
+#   base    lmsysorg/sglang:dev-cu13. The runbook's `tfrun-sglang.sh` (lost with
+#           the 2026-10-14 reclamation, re-derived in attic/glm/AGENTS.md)
+#           swapped repo A's nvcr.io/nvidia/pytorch:26.07-py3 for this
+#           already-present SGLang image at digest aa878e8d; that is the base
+#           the 35.7 t/s 3.0bpw numbers were served on. It supplies what the
+#           engine links against and what `tensorfold serve` imports: CUDA 13
+#           toolkit (nvcc) + libibverbs/libnccl for the TP4 all-gathers,
+#           torch 2.13.0+cu130, triton, python 3.12 with numpy / safetensors /
+#           tokenizers / huggingface-hub / jinja2 / transformers, fastapi +
+#           uvicorn. TensorFold's pyproject declares no CUDA dependency on
+#           purpose (it uses the container's own torch and triton): do not pip
+#           install torch here.
+#
+# Base pinning: aa878e8d... is the multi-arch *index* digest of `dev-cu13`
+# (amd64 a0d0f199..., arm64 e9aa22ad...); the tag itself has since moved to a
+# newer index (arm64 93fe0c13...). FROM pins the arm64 manifest directly, with
+# --platform so a build on an x86 host cannot silently produce an amd64 image:
+#   index  sha256:aa878e8d38f9eefb1ac5a5176e78448705e166dd1bfaf29d02fb8569cfd28b27
+#   arm64  sha256:e9aa22adaad2b1fa30130d9d033f7f0d3e706e2780973eca849827d5aed983d6
+#
+# Architecture: arm64-only (GB10, compute capability 12.1; kernels build for the
+# local device at first boot). Not portable to x86.
+#
+# Build and receipt (head, 2026-10-18 -- ~/benchmarks/glm-3bpw-image-20261018/):
+#   docker build --platform linux/arm64 \
+#     -f recipes/glm/Dockerfile.tensorfold-glm53-3bpw -t <tag> <empty-dir>
+# Nothing is published: see the receipt's REPORT.md for why the build stops at a
+# local image (the 4bpw arm's namespace, ghcr.io/miaai-lab, is upstream's).
+#
+# Runtime configuration is NOT baked in: the lane runs the engine with
+# TF_GLM_KV=q5 TF_GLM_EMBED_SPLIT=1 TF_GLM_MTP_REUSE=2 --mtp-drafts 3
+# --parallel 4 (attic/glm/AGENTS.md), which is launch config, not image
+# content. Engine defaults apply unless a launcher sets them, exactly as the
+# runbook did.
+
+FROM --platform=linux/arm64 lmsysorg/sglang:dev-cu13@sha256:e9aa22adaad2b1fa30130d9d033f7f0d3e706e2780973eca849827d5aed983d6
+
+# Pin the engine commit, not the branch: the branch moves; this build must not.
+ARG TENSORFOLD_REPO=https://github.com/bertholomus/TensorFold.git
+ARG TENSORFOLD_REF=ddfad356dc16f4d6bed9cfcc9d60cd0ebc0a3595
+
+LABEL org.opencontainers.image.title="TensorFold GLM-5.3 EXL3 3.0bpw (DGX Spark)" \
+      org.opencontainers.image.description="TensorFold 0.6.0 glm-dsa-tp4 CUDA engine for bertholomus/GLM-5.3-EXL3-3.0bpw (full 753B) on four NVIDIA DGX Spark (GB10) nodes at TP=4" \
+      org.opencontainers.image.source="https://github.com/bertholomus/TensorFold" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.revision="${TENSORFOLD_REF}"
+
+# The engine, installed without deps over the base's own (see the header). The
+# tree stays in /opt/tensorfold: LICENSE / NOTICE / LICENSES are Apache-2.0
+# notice requirements, and the engine reads package data (kernel sources) that
+# pip installed with the wheel either way.
+RUN git clone --quiet "${TENSORFOLD_REPO}" /opt/tensorfold \
+    && cd /opt/tensorfold \
+    && git checkout --quiet "${TENSORFOLD_REF}" \
+    && test "$(git rev-parse HEAD)" = "${TENSORFOLD_REF}" \
+    && python3 -m pip install --no-cache-dir --no-deps . \
+    && rm -rf /opt/tensorfold/.git
+
+# Build-time gate: fail the build, not a cold boot. Proves the engine imports,
+# the GLM family is discovered with a CUDA backend and claims this exact
+# checkpoint, the TP=4 argv the lane runs is accepted by the parser, the
+# TF_GLM_* switches the runbook exports are honored by this build's source, and
+# the Python deps the base is expected to provide are all present.
+RUN python3 -c "import tensorfold; print('tensorfold', tensorfold.__version__)" \
+    && test "$(tensorfold --version)" = "tensorfold 0.6.0" \
+    && python3 -c "from tensorfold.families import families, backends_of; f = families()['glm_moe_dsa']; print('family', f.title, f.module, backends_of(f))" \
+    && python3 -c "from tensorfold.families.glm_moe_dsa import MODELS, MODEL_TYPES, QUANT_METHODS, TITLE; assert 'bertholomus/GLM-5.3-EXL3-3.0bpw' in MODELS and MODEL_TYPES == ('glm_moe_dsa',) and QUANT_METHODS['cuda'] == ('exl3',); print('declared', TITLE, MODEL_TYPES, MODELS, QUANT_METHODS)" \
+    && python3 -c "import tensorfold.kernels.glm.flash as k; print('glm kernels ok', k.__name__)" \
+    && python3 -c "from tensorfold.families.glm_moe_dsa.cuda.engine import GlmEngine; from tensorfold.families.glm_moe_dsa import cuda_engine; print('cuda engine ok')" \
+    && python3 -c "import inspect, tensorfold.cli_args as c; s = inspect.getsource(c.build_parser); assert 'choices=(1, 2, 4, 6)' in s, 'this build does not declare TP=4'; print('--tp declares 1/2/4/6')" \
+    && python3 -c "import inspect, tensorfold.families.glm_moe_dsa.cuda.kv8 as kv8, tensorfold.families.glm_moe_dsa.cuda.weights as w, tensorfold.families.glm_moe_dsa.cuda.mtp as m; assert 'TF_GLM_KV' in inspect.getsource(kv8); assert 'TF_GLM_EMBED_SPLIT' in inspect.getsource(w); assert 'TF_GLM_MTP_REUSE' in inspect.getsource(m); print('TF_GLM_KV / TF_GLM_EMBED_SPLIT / TF_GLM_MTP_REUSE honored')" \
+    && python3 -c "import torch, triton, numpy, safetensors, tokenizers, huggingface_hub, jinja2, fastapi, uvicorn; print('py deps ok torch', torch.__version__, 'triton', triton.__version__)" \
+    && tensorfold serve --help > /dev/null
+
+# The lane's launcher shim runs `tensorfold serve <model_dir> --tp 4 --rank R
+# --master ... --master-port ...`; sparkrun supplies the rendezvous flags. Not
+# an ENTRYPOINT: the image must not exec anything on its own.
+WORKDIR /workspace
