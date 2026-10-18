@@ -54,7 +54,9 @@ defaults:
   # Never {model} for the served id: sparkrun rebinds it to the snapshot path.
   served_model_name: Aleph-Alpha/Kolibri-1
   max_model_len: 262144
-  max_num_seqs: 6
+  # 6 streams at this window needs 34.0 GiB of engine caches against 25.9 GiB free after the
+  # weights (the engine aborts: "fits 190464"), so the shipped pair is 4 streams / full window.
+  max_num_seqs: 4
   # The draft entry, Laguna-style: sparkrun pre-syncs the drafter repo at this
   # revision and passes both values through to the command.
   speculative_draft_model: josch15366/Kolibri-1-block-drafter
@@ -73,6 +75,7 @@ command: >
   --drafter-revision {speculative_draft_model_revision}
 
 readiness:
-  inference: false
+  # true: an engine-side abort must fail the launch, not hide behind a 3600 s port wait.
+  inference: true
   port_timeout_s: 3600
   health_timeout_s: 1800

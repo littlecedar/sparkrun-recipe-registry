@@ -1,15 +1,16 @@
 # GLM 5.3 lane
 
 **This lane ships one recipe**, `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` — the
-GLM-5.3-Flash EXL3 4bpw TP=4 line, the fastest arm measured here (98.4 t/s single-stream decode),
-**built but not yet booted as a sparkrun recipe** (needs a TP=4 window). It is otherwise a **runbook +
-research archive**: the other two serving lines were boot-verified on this cluster outside sparkrun,
-and a fourth was attempted and archived as a proven-negative.
+GLM-5.3-Flash EXL3 4bpw TP=4 line, **BOOT-VERIFIED as a sparkrun recipe 2026-10-18** (first boot;
+the boot receipt below). It is otherwise a **runbook + research archive**: the other two serving
+lines were boot-verified on this cluster outside sparkrun, and a fourth was attempted and archived
+as a proven-negative.
 
 ## Contents
 
 - [Status](#status)
 - [Shipped arm](#shipped-arm)
+- [Boot receipt](#boot-receipt-2026-10-18)
 - [Boot-verified serving lines](#boot-verified-serving-lines)
 - [License](#license)
 - [Runbook notes and revision pins](#runbook-notes-and-revision-pins)
@@ -18,14 +19,13 @@ and a fourth was attempted and archived as a proven-negative.
 
 ## Status
 
-- **One recipe, boot deferred.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` realizes the
+- **One recipe, booted 2026-10-18.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` realizes the
   Flash EXL3 4bpw TP=4 line in the recipe schema: the engine image is the upstream `tp4` build,
   digest-pinned, and the multi-node prepare/ssh/topology logic is replaced by sparkrun's own
   distribution + rendezvous plus the lane's launcher mod
-  ([`mods/tensorfold-glm-exl3-launcher/`](mods/tensorfold-glm-exl3-launcher/README.md)). The engine,
-  checkpoint, drafter and configuration are the ones the 2026-10-13 trial boot-verified; the recipe
-  itself has **not** been booted — `.30`–`.33` were held by a peer's TP=4 job, and the lane's own line
-  needs all four. What a boot must settle is listed in the mod README §"Boot-deferred claims".
+  ([`mods/tensorfold-glm-exl3-launcher/`](mods/tensorfold-glm-exl3-launcher/README.md)). It booted on
+  `.30`–`.33` and served; see [Boot receipt](#boot-receipt-2026-10-18). What a boot does **not**
+  settle — a quality battery, a second boot's ladder, and the trial's 98.4 t/s — is listed there.
 - **One archived arm.** `glm-5.3-flash-nvfp4-dflash-vllm.yaml` was **archived 2026-10-13** to
   [`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) as a proven-negative (owner decision): it is repo
   B's independently validated TP=4 formula, image- and checkpoint-pinned, but the pinned public image
@@ -43,7 +43,7 @@ and a fourth was attempted and archived as a proven-negative.
 
 | Recipe | What it is | Status |
 |---|---|---|
-| [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **Built, boot deferred — needs a TP=4 window.** |
+| [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **BOOT-VERIFIED 2026-10-18** — TTR 309.6 s, KV pool 5,834,752, ladder C1 83.03 ± 17.74 / C2 102.36 ± 24.01 / C5 79.49 ± 11.34 / C10 73.37 ± 8.44 t/s. |
 
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
@@ -52,6 +52,46 @@ prepared snapshot *path* via `{model}`, so there is no `--revision` for the vali
 (`--parallel 8`, `--max-tokens 32768`, `--vision`) live in the mod, not the recipe, because they are
 the upstream launcher's production constants rather than per-launch choices; the mod README inventories
 them, and its `RECIPE_ENV` is upstream `scripts/config.sh` at TP=4.
+
+## Boot receipt (2026-10-18)
+
+First boot of the recipe as a sparkrun recipe, on `.30`–`.33` (task
+`b55c050475ff4b3a_7afff0589a33`, `--transfer-mode local` from the head). Receipts:
+`~/benchmarks/tp4-20261018/` — `glm-launch.log`, `glm-serve.log`, `glm-models.json`,
+`glm-smoke.json`, `glm-ladder.{yaml,json,csv}`, `smoke_glm.py`.
+
+| fact | value |
+|---|---|
+| TTR port-open / HTTP-ready / TTFT | **309.637 s** / **309.653 s** / 310.176 s (container start) |
+| launch total | 1720.3 s — 163.65 GiB checkpoint + 2.18 GiB drafter download, 490.95 GiB copied to four hosts, image relay 233.9 s |
+| image | `…@sha256:eb17e092fa56…` — no node held the pin; the OCI relay fetched 10.6 GiB and imported it on all four (17 layers reused on each receiver). `docker manifest inspect` returns the same single-platform manifest, config `sha256:7f8f1b38…`; the container's label `tf.patches = 7a37454d3238` **equals the recipe's patch hash** |
+| `/v1/models` | id **`GLM-5.3-Flash-EXL3`**, `owned_by: tensorfold` (this server's model object carries no `max_model_len`) |
+| context / KV pool | `context: 1048576; loaded in 297.8s`; **5,834,752 tokens** at `--parallel 8` ("up to 8 requests decode together, their caches in one pool of 5834752 tokens (each up to 1048576)") — identical to the 2026-10-13 trial |
+| memory | rank 0 estimate 52.03 GiB within 90.04 GiB; workers 50.23 GiB within 90.72–91.02 GiB; ranks 1–3 ready in 291.5–291.6 s, following rank 0 |
+| smokes | chat **0.53 s** (`17 × 23 = 391.`, finish `stop`, 41 reasoning tokens); tool call **0.67 s** (`get_temperature{"city":"Reykjavik","unit":"c"}`, finish `tool_calls`) |
+
+Ladder (`--skip-run`, same live serve, `benchmarking/concurrency-ladder.yaml`, 5 runs/cell; `±` is
+the sample sd of the per-run decode samples — the receipt JSON's own `tg_throughput.std` is the
+population sd, 15.87 / 21.48 / 10.14 / 7.55):
+
+| cell | tg t/s | sd (n=5) | per-run range |             pp t/s | e2e TTFT |
+|:-----|-------:|---------:|:--------------|-------------------:|---------:|
+| C1   |  83.03 |    17.74 | 62.6–111.3    | — (single request) |   992 ms |
+| C2   | 102.36 |    24.01 | 75.4–137.0    |               2050 |  1824 ms |
+| C5   |  79.49 |    11.34 | 68.7–98.0     |               1401 |  4282 ms |
+| C10  |  73.37 |     8.44 | 63.1–85.4     |               1235 |  8428 ms |
+
+**The trial's 98.4 t/s single-stream does not reproduce on the recipe path.** C1 is 83.03, and the
+five runs are 111.3, 84.4, 77.6, 79.2, 62.6 — a warm-up ramp, so ex-first it is **76.0 ± 9.3**
+(n=4). Same image patch set, different invocation: the trial ran upstream's scripts under a local
+tag (`tensorfold-glm53:v0.6.0`). Aggregate tg peaks at C2 and falls with concurrency — the
+`--parallel 8` / DFlash2 verify-window shape, not a throughput claim.
+
+**Still unproven on this arm** (do not upgrade these from the trial's record): a quality battery
+through the recipe path (the 37/37 house result is the trial's), a second boot's ladder (every cell
+here is one boot), and any concurrency beyond 10. Benign deviation, recorded so the next reader does
+not chase it: `[4/6] Syncing tuning configs` fails on all four nodes (`RuntimeError: Cannot locate
+the installed SGLang package`) — the image is TensorFold, not SGLang, and the hook is non-fatal.
 
 ## Boot-verified serving lines
 
@@ -68,9 +108,10 @@ One line each; full operator detail (serve commands, host overrides, receipts) i
   `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`; TP=4 **C1 decode 98.4 t/s @ d0 / 99.4 @ d8k**, DFlash2
   acceptance 76.6 %, quality 37/37 on the house battery. Receipts:
   `~/benchmarks/glm53-flash-exl3-tp4-trial-20261013/` (TP=2/TP=3 siblings). The **TP=4 line is now the
-  [shipped arm](#shipped-arm)** (the same engine image, checkpoint and drafter, launched by sparkrun);
-  TP=2/TP=3 stay runbooks — they are external script launchers, and the 2-/3-Spark topologies are not
-  what this 4-node registry targets.
+  [shipped arm](#shipped-arm)** (the same engine image, checkpoint and drafter, launched by sparkrun),
+  and its **98.4 t/s does not reproduce on the recipe path** — 83.0, or 76.0 ex-warm-up; see
+  [Boot receipt](#boot-receipt-2026-10-18). TP=2/TP=3 stay runbooks — they are external script
+  launchers, and the 2-/3-Spark topologies are not what this 4-node registry targets.
 - **Flash NVFP4 / vLLM** — **ARCHIVED 2026-10-13**, proven-negative on the pinned public image; see
   [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md).
 
@@ -98,8 +139,11 @@ image + a GLM variant of the launcher mod + a `runtime: sglang` shim" note in
 3. **the `runtime: sglang` shim** — shipped: the recipe's `command:` is the mod's launcher, which maps
    sparkrun's `--dist-init-addr/--nnodes/--node-rank` onto `tensorfold serve`.
 
-What is **not** closed: a boot. The arm is built and renders; the runbook's measured numbers remain the
-external launcher's until a TP=4 window re-measures them through sparkrun.
+**All three are closed, and the boot is closed too.** The recipe booted 2026-10-18
+([Boot receipt](#boot-receipt-2026-10-18)), so the arm no longer rests on the external launcher's
+numbers: its own C1/C2/C5/C10 row exists. What a boot cannot settle stays open — a quality battery
+through this path (37/37 is still the trial's), a second boot, and the single-stream gap against
+98.4.
 
 The other serving lines are unchanged: no shipped recipe, and a revive re-stages weights (see the
 re-fetch costs under revision pins).

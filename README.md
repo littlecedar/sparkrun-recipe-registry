@@ -121,10 +121,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size |  Mem% | TP | Model Cards                                                      |
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
-| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   81.0 |      — |      — |       — | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] — v2.4 image on the 1017 base (2026-10-18); 3-run ladder (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`) C4 118.9 / C8 107.5 / C16 115.9, pool 9.27M; C1's +37 % vs the V4.1 base is one boot against one boot — **not established** |
+| deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚚🌲👀  |   67.2 |   89.9 |  113.4 |   115.4 | 510GB |   80% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] — v2.4 image on the 1017 base; **C1 is the pooled 67.18 ± 6.97** t/s (n=25, CV 10.4 %, four same-config takes in the 2026-10-18 TP=4 window), not the single-boot 81.0 it replaces; ladder + suite `~/benchmarks/tp4-20261018/` (`knapcio-ladder`, `knapcio-ladder-suiteboot`): house 36/37, needle 3/3 @32k+131k+983k, TEB 90; depth-0 C4 118.9 / C8 107.5 / C16 115.9 at parity with the V4.1 base |
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀  |   66.4 |   47.8 |   44.8 |    48.4 | 385GB | 84%\* |  2 | [Model][LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw] — 1017 refresh; interleaved ladder 2026-10-18 (5 runs/cell, `~/benchmarks/ds4-1017-ab-interleaved-20261018/`) |
 
 * _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
+* _The knapcio row's **C2/C5/C10 are the lane's first** (2026-10-18, 5 runs/cell, `benchmarking/concurrency-ladder.yaml`, decode rows only): boot A 89.89 ± 3.57 / 113.44 ± 6.84 / 115.36 ± 6.62 and boot C 86.40 ± 3.59 / 108.78 ± 14.19 / 116.27 ± 6.22 t/s (sample sd, n=5; the receipt JSON's own `tg_throughput.std` is the population sd, 0.894× these) — `~/benchmarks/tp4-20261018/`, deployment `a2e141223b52793c_7afff0589a33` (three boots under one id). Its C1 cell is the **pool of four takes** (69.65 n=5, 66.40 n=10, 64.16 n=5, 69.28 n=5) = 67.18 ± 6.97, CV 10.4 %, range 56.4-87.9; against the V4.1 baseline's 59.21 ± 3.54 that is +13.5 % in the means with overlapping intervals, so a v2.4-vs-1017 C1 delta is still not established — and the earlier single-boot 81.0 is 2.0 σ above the pool's mean. Ladder shape and the DSpark γ=3 negative: `recipes/ds4/README.md` §"Measured", `attic/ds4/AGENTS.md` §12.18._
 
 ## Ornith 1.5
 
@@ -190,7 +191,12 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 ## GLM 5.3
 
-**No shipped recipe** — this lane is runbooks only; see [`recipes/glm/README.md`](recipes/glm/README.md) for the TensorFold runbook notes and [`attic/glm/`](attic/glm/ARMS-MANIFEST.md) for the arm archived there.
+| Recipe                                           | Flags   | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                                                                                |
+|:-------------------------------------------------|:--------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang      | 🚚🚀🧠🔧👀   |   83.0 |  102.4 |   79.5 |    73.4 |  176GB + 2.3GB draft | 41%\* |  4 | [Model][Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold] [Draft][incoai/GLM-5.3-Flash-DFlash2] — **boot-verified 2026-10-18**: TTR 309.6 s, KV pool 5,834,752 at 8 streams; ladder C1 83.0 / C2 102.4 / C5 79.5 / C10 73.4 t/s. The trial 98.4 t/s single-stream does **not** reproduce on the recipe path (83.0; 76.0 ex-warm-up) |
+
+* _`*` no recipe util — the engine's own startup estimate (rank 0 52.03 GiB within a 90.04 GiB ceiling; workers 50.23 GiB within 90.72-91.02 GiB)._
+* _This row is the recipe's **first boot** — the lane was boot-deferred until 2026-10-18 (task `b55c050475ff4b3a_7afff0589a33`), and the recipe now carries a receipt, so it qualifies for an index row. Ladder `--skip-run` on that serve, d0 pp2048 tg128, 5 runs/cell; `±` (sample sd, n=5): C1 17.74, C2 24.01, C5 11.34, C10 8.44. C1's five runs ramp (111.3 / 84.4 / 77.6 / 79.2 / 62.6), so ex-first it is 76.0 ± 9.3. Aggregate tg peaks at C2 and falls with concurrency — the `--parallel 8` / DFlash2 verify-window shape, not a throughput claim. **Still unproven:** a quality battery through this path (the trial's 37/37 does not transfer) and any second boot. Receipts `~/benchmarks/tp4-20261018/glm-*`; method in [`recipes/glm/README.md`](recipes/glm/README.md) §"Boot receipt". The rest of the lane is runbooks plus one archived arm — [`recipes/glm/README.md`](recipes/glm/README.md), [`attic/glm/`](attic/glm/ARMS-MANIFEST.md)._
 
 ## Decision
 
@@ -298,3 +304,5 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [ornith-ai/Ornith-1.5-9B-DFlash]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
+[Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold]: https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold
+[incoai/GLM-5.3-Flash-DFlash2]: https://huggingface.co/incoai/GLM-5.3-Flash-DFlash2

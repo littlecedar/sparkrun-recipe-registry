@@ -2876,6 +2876,153 @@ field. (2) **Node identity**: `.NN-33` are `spark-00`…`spark-03`
 reuses the job id across a stop and relaunch, so an unchanged id is not evidence of an unchanged
 boot.
 
+### 12.18 The TP=4 ladder row, the standard suite, and DSpark γ=3 (2026-10-18)
+
+The window §12.17 asked for. Nodes `.30`-`.33`, one four-node job at a time, every launch
+`--transfer-mode local` from the head by absolute recipe path; every serve stopped by task id and
+`docker ps -aq` read 0 on all four nodes afterwards. Receipts on the head:
+`~/benchmarks/tp4-20261018/` (`REPORT.md` beside the raw `*.json`/`*.yaml`/`*.csv` and the
+serve/launch logs). Deployment id `a2e141223b52793c_7afff0589a33` spans **three boots** (A, the
+γ-pair boot, C): a relaunch reuses the id, so the id alone never identifies a boot (§12.17 trap 2).
+
+**The ladder — the lane's first C2/C5/C10 row.** `benchmarking/concurrency-ladder.yaml` (depth 0,
+2048-token prompts, 128-token replies, prefix caching, 5 runs/cell), decode records only
+(`is_context_prefill_phase: false`). `±` is the **sample sd (ddof 1)** of the per-run samples —
+the convention §12.16/§12.17 use; each receipt JSON's own `tg_throughput.std` is the population sd,
+0.894× these, which is why re-reading the JSON field gives a slightly smaller ±.
+
+| cell |   boot A (`knapcio-ladder`) | boot C (`knapcio-ladder-suiteboot`) |    A→C |
+|:-----|----------------------------:|------------------------------------:|-------:|
+| C1   |   69.65 ± 11.51 (56.8-87.9) |            69.28 ± 5.25 (64.0-77.5) | −0.5 % |
+| C2   |    89.89 ± 3.57 (85.5-95.4) |            86.40 ± 3.59 (80.3-89.6) | −3.9 % |
+| C5   | 113.44 ± 6.84 (105.1-123.6) |         108.78 ± 14.19 (86.5-125.4) | −4.1 % |
+| C10  | 115.36 ± 6.62 (107.7-123.1) |         116.27 ± 6.22 (105.2-119.8) | +0.8 % |
+
+Per cell (C1/C2/C5/C10), pp t/s: boot A 3703 / 4004 / 4532 / 4849, boot C 3674 / 4125 / 4567 /
+4671; TTFT ms: 556 / 1018 / 2167 / 3188 and 560 / 993 / 2029 / 3347.
+
+C2 is the first cell this lane has taken at exactly 2, C5/C10 its first at 5 and 10; the
+§12.16/§12.17 row (C4 110-119, C8 107-111, C16 112-116) is a *different shape*, so matching those
+bands is shape agreement, not a cross-check. C10's aggregate sits at or above C5 on both boots
+(+1.7 %, +6.9 %), which is what a page-shared 9.28M-token pool admitting ten 2048/128 requests
+without extent reservation looks like — a shape, not a queueing claim either way.
+
+**C1 arithmetic — the pool, not a cell.** Four same-config C1 takes in this window:
+
+| take                        |  n |  mean | receipt                         |
+|:----------------------------|---:|------:|:--------------------------------|
+| boot A ladder               |  5 | 69.65 | `knapcio-ladder.json`           |
+| boot A, second bench        | 10 | 66.40 | `knapcio-c1-extra.json`         |
+| γ=5 pair-1 arm (third boot) |  5 | 64.16 | `gamma-p1-g5.json`              |
+| boot C ladder               |  5 | 69.28 | `knapcio-ladder-suiteboot.json` |
+
+Pooled over the 25 per-run samples: **67.18 ± 6.97 t/s, CV 10.4 %, range 56.4-87.9**. Against the
+v2.4 baseline's **59.21 ± 3.54** (3 runs, one boot, §12.17) that is **+13.5 % in the means with
+overlapping intervals** (60.21-62.75 is the overlap) — so: the earlier 1017 boot's **81.0 is 1.98 σ
+above the pool's mean**, one warm-cache draw, and the pooled 67.18 is the only attributable C1 this
+lane has. It narrows the v2.4-vs-1017 C1 question and does **not** close it; only an interleaved
+A/B (the §12.16 lesson) can, and none was taken.
+
+**Boot facts, both boots.** KV pool **9,277,952** full tokens — the launcher's 9.4M pin is clamped
+to the engine's profiled value (`max_total_tokens=9400000 is larger than the profiled value
+9277952. Use the profiled value instead.`, all four ranks), never refused — with swa 51,712 / c4
+2,319,488 / c128 72,484 (`DSV4 pool sizes: full=9277952, swa=51712, c4=2319488, c128=72484`).
+TTR **487.797 s port / 501.714 s HTTP** (boot A), **491.887 / 505.725 s** (boot C). `ROCE_TP8_READY`
+on all four ranks with `world_size 4` (hcas `roceP2p1s0f0,rocep1s0f0`, `max_size` 2097152).
+`Engram shards present for rank r/4` on all four — neither boot packed (the 1017 pack from §12.17
+held). Template: overlay staged on all four ranks, `Using default HuggingFace chat template with
+detected content format: openai` **once**, on the serving rank. `/v1/models` →
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576.
+
+**The standard suite, one serve (boot C).** `tools/eval-suite.py` 1.0.1, verdict `ok`,
+16:49:23Z→17:20:38Z, `--checks contract,house,needle --needle-lengths
+32768,131072,983040 --needle-depths 10,50,90 --needle-max-tokens 4096 --house-tier both`:
+
+| leg | result |
+|---|---|
+| contract | ok — `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576, greedy `READY`, finish `stop` |
+| house | **36/37** — easy 19/19 (100 %), hard 17/18 (94.4 %); the miss is `hard-rev`, reply `nrukraps` |
+| needle | **3/3 at each rung** — 32,768 (max prompt 32,786) / 131,072 (131,137) / 983,040 (**981,950**); 1852 s for the three rungs |
+| tool-eval-bench | **90** — 27/30, 15 scenarios, 13 pass / 1 partial `TC-14` / 1 fail `TC-03` (`wrong_args`), ref v2.6.0 |
+
+Two harness notes for the next reader. `tool-eval-bench` is **not** reachable through
+`sparkrun benchmark performance` ("Framework 'tool-eval-bench' is not registered for category
+'performance'") — the call is `sparkrun benchmark tools … --profile
+benchmarking/standard-suite.yaml`, and the profile's own `framework:` key is not what selects it.
+`--skip-run` matches a running deployment by intent id, which hashes the `-o` overrides: pass the
+same overrides to the bench call as to the launch.
+
+**DSpark γ=3 is a proven negative on this image — the mechanism.** `DSPARK_BLOCK_SIZE` only sets
+the requested window; the engine derives `speculative_num_draft_tokens = γ + 1`, while the DSpark
+**draft head's** `block_size = 5` comes from the checkpoint. With `-o dspark_block_size=3` all four
+ranks log, at 15:57:32Z:
+
+```
+DSpark gamma mismatch: using gamma=3 (from speculative_num_draft_tokens=4) but draft config block_size=5.
+Initialized DSpark draft runner … gamma=3, verify_num_draft_tokens=4, query_token_num=3, sample_from_anchor=True
+```
+
+then die identically at decode CUDA-graph capture (~8 min in, 15:58:15Z) through this chain:
+
+`srt/model_executor/runner/decode_cuda_graph_runner.py:1044 capture` → `:1217 capture_one_shape` →
+`:1191 run_once` → `srt/speculative/draft_worker_common.py:151 capture_hook` →
+`/opt/dsv41/adapter/eager_glue.py:327` → **`/opt/dsv41/adapter/verify_cap.py:308
+compute_confidence_tensor`** → `srt/speculative/dspark_components/dspark_planner.py:267
+compute_confidence_tensor` →
+
+```
+RuntimeError: Sizes of tensors must match except in dimension 2. Expected size 5 but got size 4 for tensor number 1 in the list.
+```
+
+The shipped `DSV41_VERIFY_CAP=conf:0.1` adapter (`[verify_cap] armed (conf:0.1)`) builds a size-5
+confidence tensor against the runner's 4 verify tokens. So γ is **not a free knob on this image**:
+only the checkpoint's block size 5 coheres end to end. No γ=3 C1 exists, so **no gamma delta can be
+quoted**; the same-config spread it would have to clear is the §12.18 pool (67.18 ± 6.97, CV
+10.4 %). This also explains the register's shape — its only measured DSpark pair is 2 vs 5
+(2026-10-10, an earlier image), and the fork's γ=3 baseline has no on-lane number. Pair 1 stopped
+here by decision; nothing was re-booted to chase it (`sparkrun stop a2e141223b52793c_7afff0589a33`
+cleared the dead containers).
+
+**The knob had no route, and now does.** `DSPARK_BLOCK_SIZE` is a `RECIPE_ENV` entry applied with
+`env.update(...)` (`mods/dsv41-sglang-overlay/launcher.py:166`), so `-o env.DSPARK_BLOCK_SIZE=3` is
+silently clobbered back to 5. The minimal fix (shipped 2026-10-18): `--dspark-block-size` on the
+launcher (`launcher.py:555-557`, applied at `:607-611` *after* `apply_recipe_env`, like
+`--context-length`), `defaults.dspark_block_size: 5` plus `--dspark-block-size
+{dspark_block_size}` in the recipe (`…knapcio-tp4-1m-sglang.yaml:41-54`), and the effective value
+printed in the launcher's boot line (`launcher.py:644-645`, `… CONTEXT=1048576
+DSPARK_BLOCK_SIZE=5` on all four ranks) — that line is the per-boot proof the value landed. Shipped
+behaviour is unchanged at 5.
+
+**Cross-lane receipt from the same window: GLM-5.3-Flash EXL3 4bpw TP=4 (first boot of that
+recipe).** Recorded here because the window's receipts live together; the lane's own copy with the
+full boot log is `recipes/glm/README.md`.
+
+- task `b55c050475ff4b3a_7afff0589a33`; **TTR 309.637 s port-open / 309.653 s HTTP-ready / 310.176 s
+  TTFT**; launch total 1720.3 s (163.65 GiB checkpoint + 2.18 GiB drafter download, 490.95 GiB
+  copied to four hosts, image OCI relay 233.9 s).
+- image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` — no node
+  held the pin (10.6 GiB fetched, 17 layers reused); `docker manifest inspect` returns the same
+  single-platform manifest with config `sha256:7f8f1b38…`, and the container's label
+  `tf.patches = 7a37454d3238` equals the recipe's patch hash.
+- `/v1/models` id **`GLM-5.3-Flash-EXL3`** (`owned_by: tensorfold`, no `max_model_len` in the
+  object); `context: 1048576; loaded in 297.8s`; KV pool **5,834,752 tokens** at `--parallel 8`
+  (identical to the 2026-10-13 trial); ranks 1-3 ready in 291.5-291.6 s following rank 0.
+- ladder (`--skip-run`, same live serve): C1 83.03 ± 17.74 / C2 102.36 ± 24.01 / C5 79.49 ± 11.34 /
+  C10 73.37 ± 8.44 t/s (sample sd, n=5; the JSON field is 15.87 / 21.48 / 10.14 / 7.55). C1's five
+  runs are 111.3, 84.4, 77.6, 79.2, 62.6 — a warm-up ramp; ex-first **76.0 ± 9.3** (n=4).
+- smokes on that boot: chat 0.53 s (`17 × 23 = 391.`, finish `stop`, 41 reasoning tokens), tool
+  call 0.67 s (`get_temperature{"city":"Reykjavik","unit":"c"}`, finish `tool_calls`).
+- **The trial's 98.4 t/s single-stream does not reproduce on the recipe path** (83.0; 76.0 ± 9.3
+  ex-warm-up): same image patch set, different invocation (the trial ran upstream's scripts under a
+  local tag). Aggregate tg peaks at C2 and falls with concurrency — the `--parallel 8` / DFlash2
+  verify-window shape, not a throughput claim.
+- Benign deviation: `[4/6] Syncing tuning configs` fails on all four nodes (`RuntimeError: Cannot
+  locate the installed SGLang package`) — the image is TensorFold, not SGLang; the hook is
+  non-fatal and the boot proceeds.
+- **Follow-up for the recipe owner** (not edited here — recipes are out of this doc's scope): that
+  recipe's `metadata.description` still says "the lane's fastest measured arm (single-stream decode
+  98.4 t/s …)" and "The recipe path itself has NOT been booted". Both sentences are now false.
+
 ## 13. Quality benchmarks (`benchmarks/`)
 
 The `benchmarks/` subdirectory holds the **quality** comparison of the two live

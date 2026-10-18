@@ -13,6 +13,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 - [deepseek-v4.1-flash-tensorfold-tp2-1m-sglang](#deepseek-v41-flash-tensorfold-tp2-1m-sglang)
   — TensorFold, TP=2, EXL3 2.9 bpw, single-user.
 - [Quality benchmarks](#quality-benchmarks)
+- [Measured: TP=4 ladder and suite](#measured-tp4-ladder-and-suite)
 - [Attic index](#attic-index)
 
 ## deepseek-v4.1-flash-knapcio-tp4-1m-sglang
@@ -30,8 +31,8 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Transport | RoCEnante RDMA (shipped on) |
 | Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
-| Measured | 1017 base, v2.4 image: C1 **81.0** / C4 118.9 / C8 107.5 / C16 115.9 t/s aggregate (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`), 119k prefill 29.5 s, 231k 64.8 s, KV pool 9,273,856 (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). C4/C8/C16 at parity with the V4.1 base inside the two arms' spreads; **C1 is unattributable** — the lane's C1 spans 59.2-75.3 across five single-boot v2.4 arms, and this boot ran its prefill probes first (`attic/ds4/AGENTS.md` §12.17) |
-| Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`) |
+| Measured | **TP=4 ladder, first C2/C5/C10 row for this lane (2026-10-18)** — C1 **67.18 ± 6.97** (pooled n=25, CV 10.4 %) / C2 89.9 / C5 113.4 / C10 115.4 t/s, two boots, 5 runs/cell (`benchmarking/concurrency-ladder.yaml`; `~/benchmarks/tp4-20261018/`, see [Measured](#measured-tp4-ladder-and-suite)). Depth-0 C4/C8/C16 118.9 / 107.5 / 115.9 (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`) at parity with the V4.1 base inside the two arms' spreads; KV pool 9,277,952 (the 9.4M pin clamps), prefill 119k 29.5 s / 231k 64.8 s (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). The earlier single-boot **81.0** is one draw from that C1 pool (2.0 σ above its mean), not an attributable gain |
+| Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`). Standard suite on a later boot, one serve: house **36/37**, needle **3/3 at 32k / 131k / 983k**, tool-eval-bench **90** (`~/benchmarks/tp4-20261018/knapcio-suite/`) |
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
@@ -44,6 +45,68 @@ image's `pack_engram.py` derives each rank's packed Engram shards from the check
 `76a05106…/9dc51433…` now, and `/cache/runtime/engram` must be empty (or re-packed) before the first
 boot on the new base. A packed shard is an *optional* acceleration whose absence costs the
 checkpoint fallback, not correctness, so the launcher re-packs per rank in the background.
+
+### Measured: TP=4 ladder and suite
+
+Two same-config boots of the shipped recipe in one 2026-10-18 TP=4 window, on
+`benchmarking/concurrency-ladder.yaml` (depth 0, 2048-token prompts, 128-token replies, prefix
+caching, 5 runs/cell). `±` is the **sample sd of the per-run decode samples**
+(`is_context_prefill_phase: false`); the receipt JSON's own `tg_throughput.std` is the
+population sd, 0.894× these.
+
+| cell |   boot A (`knapcio-ladder`) | boot C (`knapcio-ladder-suiteboot`) |    A→C |
+|:-----|----------------------------:|------------------------------------:|-------:|
+| C1   |   69.65 ± 11.51 (56.8–87.9) |            69.28 ± 5.25 (64.0–77.5) | −0.5 % |
+| C2   |    89.89 ± 3.57 (85.5–95.4) |            86.40 ± 3.59 (80.3–89.6) | −3.9 % |
+| C5   | 113.44 ± 6.84 (105.1–123.6) |         108.78 ± 14.19 (86.5–125.4) | −4.1 % |
+| C10  | 115.36 ± 6.62 (107.7–123.1) |         116.27 ± 6.22 (105.2–119.8) | +0.8 % |
+
+Per cell (C1/C2/C5/C10), pp t/s: boot A 3703 / 4004 / 4532 / 4849, boot C 3674 / 4125 / 4567 /
+4671; TTFT ms: 556 / 1018 / 2167 / 3188 and 560 / 993 / 2029 / 3347.
+
+**C1 is the pooled number, not any one cell.** Four same-config C1 takes in this window — 69.65
+(n=5, boot A), 66.40 (n=10, boot A, second bench, `knapcio-c1-extra`), 64.16 (n=5, the γ=5 arm
+of the pair, `gamma-p1-g5`), 69.28 (n=5, boot C) — pool to **67.18 ± 6.97 t/s, n=25, CV 10.4 %,
+range 56.4–87.9**. That pool, not a 5-run cell, is what the v2.4 baseline's **59.21 ± 3.54**
+(3 runs, one boot — `attic/ds4/AGENTS.md` §12.17) is compared against: **+13.5 % in the means,
+with overlapping intervals**. The 81.0 read off the earlier 1017 boot is 2.0 σ above the pool's
+mean — a warm-cache draw, not a weight property. Only an interleaved v2.4-vs-1017 A/B settles a
+C1 delta; this pool narrows the question and does not close it. C2 is the lane's first cell taken
+at exactly 2, C5/C10 its first at 5 and 10, so the C4/C8/C16 row above is a different shape, not
+a comparison.
+
+**Boot facts, both boots.** KV pool **9,277,952** full tokens — the launcher's 9.4M pin is
+clamped to the engine's profiled value, never refused — with swa 51,712 / c4 2,319,488 / c128
+72,484 (`DSV4 pool sizes: …`). TTR **487.8 s port / 501.7 s HTTP** (boot A; task
+`a2e141223b52793c_7afff0589a33`), 491.9 / 505.7 s (boot C, same deployment id, relaunched).
+`ROCE_TP8_READY` reports `world_size 4` on all four ranks, `Engram shards present for rank r/4`
+on all four (no pack on either boot), and the 1017 template overlay resolves on the serving rank
+(`Using default HuggingFace chat template with detected content format: openai`, once).
+`/v1/models` → `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576.
+
+**Standard suite (boot C, one serve, `eval-suite.py` 1.0.1).** contract ok; house **36/37** —
+easy 19/19, hard 17/18, the one miss `hard-rev` (reply `nrukraps`); needle **3/3 at each of
+32,768 / 131,072 / 983,040** (top rung reached 981,950 prompt tokens, 31 min for the ladder);
+tool-eval-bench **90** — 27/30, 15 scenarios, 13 pass / 1 partial (`TC-14`) / 1 fail (`TC-03`,
+`wrong_args`), profile `benchmarking/standard-suite.yaml`, ref v2.6.0.
+
+**DSpark γ=3 is a proven negative on this image.** Booted with `-o dspark_block_size=3`, every
+rank logs `DSpark gamma mismatch: using gamma=3 (from speculative_num_draft_tokens=4) but draft
+config block_size=5` and then all four die at decode-graph capture —
+`adapter/verify_cap.py:308` → `dspark_planner.py:267`,
+`RuntimeError: Sizes of tensors must match except in dimension 2. Expected size 5 but got size 4`
+(~8 min in; the engine's own `DSV41_VERIFY_CAP=conf:0.1` builds a size-5 confidence tensor
+against the runner's 4 verify tokens). Only the checkpoint's block size 5 coheres end to end, so
+**no γ=3 number exists and no gamma delta can be quoted**; the γ=5 arm of that pair is the
+64.16 ± 7.97 take in the C1 pool. The knob is reachable at all only since 2026-10-18:
+`defaults.dspark_block_size: 5` in the recipe, `--dspark-block-size` in the launcher (applied
+after `apply_recipe_env`), because `-o env.DSPARK_BLOCK_SIZE=` was silently clobbered by the
+launcher's `RECIPE_ENV`. Shipped behaviour is unchanged (5). Full mechanism and the file:line
+chain: `attic/ds4/AGENTS.md` §12.18.
+
+Receipts: `~/benchmarks/tp4-20261018/` — `knapcio-ladder.*`, `knapcio-c1-extra.*`,
+`knapcio-ladder-suiteboot.*`, `knapcio-suite/`, `knapcio-teb.*`, `gamma-p1-g5.*`,
+`serve-p1-g3.log`, `knapcio-serve.log`, `knapcio-launch.log`, `knapcio-models.json`.
 
 ### What it serves
 
@@ -112,18 +175,26 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   scheduling table crashes the NVMe Engram reader on the first mixed batch
   (`AssertionError: engram target-verify expects one equal block per request`).
   The shipped uniform verify-all contract is deliberate.
-- **The DSpark verify window (γ) stays at 5.** A fork pre-registered γ=2 as a win;
-  the on-lane same-window paired A/B (2026-10-10) measured it *losing* at moderate
-  concurrency (C4 −5.3%, C8 −2.9%). See the launcher's `DSPARK_BLOCK_SIZE` comment.
+- **The DSpark verify window (γ) stays at 5 — and γ=3 does not boot at all.** A fork
+  pre-registered γ=2 as a win; the on-lane same-window paired A/B (2026-10-10) measured it *losing*
+  at moderate concurrency (C4 −5.3%, C8 −2.9%). On this image γ=3 aborts at decode-graph capture
+  on all four ranks (`adapter/verify_cap.py:308` → `dspark_planner.py:267`: `Expected size 5 but
+  got size 4`), because the checkpoint's DSpark draft block size is 5 and only 5 coheres with the
+  shipped `DSV41_VERIFY_CAP=conf:0.1` adapter. The knob is `defaults.dspark_block_size` /
+  `--dspark-block-size`; `-o env.DSPARK_BLOCK_SIZE=` does **not** work (the launcher's `RECIPE_ENV`
+  is applied over the process env). Evidence: [Measured](#measured-tp4-ladder-and-suite), and
+  `attic/ds4/AGENTS.md` §12.18 for the mechanism.
 - **The checkpoint revision is pinned in the recipe, not the image.** The image
   bakes `fb2764a5…` but the launcher sets `SKIP_PREPARE=1` and serves the
   sparkrun-distributed snapshot, so `model_revision:` alone decides what is served.
   `launch.json` records the baked revision and is **not** evidence; the launcher's
   `serving …/snapshots/<sha>` line is. Moving the pin invalidates every receipt in
   the lane docs.
-- **Any value can be overridden with `-o`** (e.g. `-o max_model_len=…`); the
-  context flag is applied after `RECIPE_ENV`, so the recipe/CLI wins. `boot.py`
-  asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`.
+- **Any recipe *default* can be overridden with `-o`** (e.g. `-o max_model_len=…`); the
+  launcher's flags are applied after `RECIPE_ENV`, so the recipe/CLI wins for every value it
+  takes a flag for. `boot.py` asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`. A value that exists only
+  as a `RECIPE_ENV` entry has **no** `-o` path (`env.` keys are clobbered) — that is why γ is a
+  `defaults` key with a launcher flag.
 
 ### A healthy boot
 
