@@ -2760,15 +2760,15 @@ the runs in parentheses**; the output files are `ladder.json` (1017) and `ladder
 | V4.1 — the **comparison** arm (`littlecedar/…-with-engram`, recipe from `d8000bc^`) | 68.0 ± 5.68 (70.9/73.0/60.0) | 48.0 ± 1.56 (46.0/48.0/49.9) | 43.3 ± 3.94 (48.9/40.3/40.7) | 43.4 ± 5.85 (35.2/46.9/48.2) | **100** (15/15) |
 | 1017 — the **shipped** arm since 2026-10-18 (`LibertAIDAI/…-1017-EXL3`) | 61.5 ± 1.96 (59.5/61.0/64.2) | 48.9 ± 0.57 (48.2/48.8/49.6) | 49.3 ± 0.37 (49.8/49.3/48.8) | 48.2 ± 0.07 (48.3/48.2/48.2) | **100** (15/15) |
 
-Reading it: **every cell's three runs overlap** — c8 48.8–49.8 (1017) vs 40.3–48.9 (shipped), c16
-48.2–48.3 vs 35.2–48.2 — and the shipped arm's own spread (σ 1.56–5.85) swallows the mean gaps, so
+Reading it: **every cell's three runs overlap** — c8 48.8–49.8 (1017) vs 40.3–48.9 (V4.1), c16
+48.2–48.3 vs 35.2–48.2 — and the V4.1 arm's own spread (σ 1.56–5.85) swallows the mean gaps, so
 what the ladder supports is "the 1017 arm is far more consistent", **not** a speed win: the C8/C16
 deltas first read off the means (**+13.9 % / +11.1 %**) are **not established**. The C1 gap (mean
-**−9.6 %**) is the same shape of non-result and carries its own caveat — shipped σ 5.7 there from a
+**−9.6 %**) is the same shape of non-result and carries its own caveat — V4.1 σ 5.7 there from a
 single 60.0 outlier (medians 71.95 vs 61.0) — so that sub-claim is **not established** either, and
 the interleaved re-take is what would settle it. Tool-call quality is identical on the suite that
 ships. **Confound, stated:** the 1017 ladder ran first, on a host 530 s out of a cold
-boot; the shipped ladder ran ~7 min into a warm boot. Decode is not a compile-cost quantity, but a
+boot; the V4.1 ladder ran ~7 min into a warm boot. Decode is not a compile-cost quantity, but a
 C1 difference this small should be re-taken interleaved before it is quoted as a real regression.
 The **adoption decision rests on the pack's published gains against the ~385 GB/node cost, not on
 this ladder.**

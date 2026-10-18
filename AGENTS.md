@@ -105,8 +105,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   (`cluster_only`, deprecated for v2, plus a `restated-managed-path` suggestion) and five launcher
   arms whose `model_revision` is pinned but never handed to the engine as `--revision`
   (`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
-  `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` — pinned to the 1017 refresh on
-  2026-10-18 —,
+  `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` (pinned to the 1017 refresh on
+  2026-10-18),
   `recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml`,
   `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`, and the
   boot-deferred `recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`) — for those
