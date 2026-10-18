@@ -29,6 +29,8 @@ before matching so recipe prose quoting a forbidden flag is inert.
 from __future__ import annotations
 
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -279,6 +281,55 @@ class NewMods(unittest.TestCase):
         self.assertLess(short_circuit, graft)
         self.assertEqual(script.count("link_engram"), 3, "definition, repair, post-graft")
 
+    def test_graft_mod_refuses_a_stale_stock_generation(self) -> None:
+        """`refs/main` is not a pin, so the no-op path re-checks the tree's generation.
+
+        `link_engram` re-points the tree's `engram/` at the resolved stock on every boot, and the
+        launcher reads `model_dir/engram` before `--stock-model`, so a `main` move would pair a new
+        table set with the tree's old (hardlinked) weights and report success. The tree's own
+        copied metadata is the generation-specific artifact left to compare against.
+        """
+        script = (MODS / "graft-dsv41-ablit-wo-b" / "run.sh").read_text(encoding="utf-8")
+        self.assertIn('cmp -s "${STOCK}/${f}" "${OUTDIR}/${f}"', script)
+        loop = script[script.index("\n  for f in ") : script.index("\n  done\n")]
+        for f in ("config.json", "tokenizer_config.json", "model.safetensors.index.json",
+                  "quantization_config.json", "chat_template.jinja"):
+            self.assertIn(f, loop, f"the generation check must compare {f}")
+        self.assertLess(script.index('\n  drift=""'),
+                        script.index('log "graft already present and complete'),
+                        "the generation check must precede the no-op exit")
+
+    def test_graft_mod_generation_check_trips_on_a_foreign_tree(self) -> None:
+        """The check is run, not just read: the block is sliced out of run.sh and executed.
+
+        A no-op that skips this comparison would serve a tree grafted from another generation --
+        new Engram tables (the tree's `engram/` link) over the old hardlinked weights -- and report
+        success, which is the failure the check exists for.
+        """
+        script = (MODS / "graft-dsv41-ablit-wo-b" / "run.sh").read_text(encoding="utf-8")
+        start = script.index('\n  drift=""')
+        end = script.index('to rebuild from ${STOCK}"\n', start) + len('to rebuild from ${STOCK}"\n')
+        block = script[start:end]
+        with tempfile.TemporaryDirectory() as tmp:
+            stock, tree = Path(tmp, "stock"), Path(tmp, "tree")
+            stock.mkdir()
+            tree.mkdir()
+            (stock / "config.json").write_text('{"a": 1}\n', encoding="utf-8")
+            (tree / "config.json").write_text('{"a": 1}\n', encoding="utf-8")
+            harness = (
+                "set -euo pipefail\n"
+                f'STOCK="{stock}"\nOUTDIR="{tree}"\n'
+                'die() { echo "die: $*" >&2; exit 1; }\n'
+                + block
+                + "echo NOOP\n"
+            )
+            same = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
+            self.assertEqual(same.returncode, 0, same.stderr)
+            self.assertIn("NOOP", same.stdout)
+            (tree / "config.json").write_text('{"a": 2}\n', encoding="utf-8")
+            moved = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
+            self.assertEqual(moved.returncode, 1, "a foreign-generation tree must not no-op")
+            self.assertIn("another generation", moved.stderr)
 
 class NegativeControls(unittest.TestCase):
     """Every guard above must fail on the mutation it exists for."""

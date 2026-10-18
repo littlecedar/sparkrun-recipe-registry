@@ -234,6 +234,9 @@ def rank_cache_dir(model_dir: str) -> str:
     ``rank<rank>of<world>-*`` in the dir before writing, so in a shared dir the
     two arms would evict each other and every arm switch would re-pay the ~330 s
     cold write.
+
+    That GC is per-directory, so a re-pin strands the previous tag's file: prune
+    ``rank-cache/<old-snapshot-hash>/`` on each node by hand.
     """
     tag = re.sub(r"[^A-Za-z0-9._-]", "_", Path(model_dir).name) or "served"
     return str(Path(RUNTIME_CACHE) / "rank-cache" / tag)
