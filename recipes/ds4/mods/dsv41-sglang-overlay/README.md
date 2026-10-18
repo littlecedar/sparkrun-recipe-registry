@@ -47,9 +47,29 @@ really is the overlay build:
 
 It then logs the resolved paths and creates + `reown`s the cacheable-object
 directories under the sparkrun-managed runtime cache (`/cache/runtime/engram`,
-`/cache/runtime/state`, `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce`)
-so the non-root serve user can write them. Nothing in the image is modified —
-the upstream repo's own in-image test suite gates the overlay instead.
+`/cache/runtime/state`, `/cache/runtime/b12x-compile`, `/cache/runtime/b12x-roce`,
+`/cache/runtime/model-overlay`) so the non-root serve user can write them.
+Nothing in the image is modified — the upstream repo's own in-image test suite
+gates the overlay instead.
+
+## The chat template (1017 ships none)
+
+The 2026-10-17 refresh (`deepseek-ai/DeepSeek-V4.1-Flash-1017`) deliberately
+carries **no** `chat_template.jinja`: its card points at `encoding/encoding.py`
+and the `deepseek-recipe` toolkit instead. SGLang's OpenAI server resolves the
+template from `<model_dir>/chat_template.jinja`, so a straight re-pin would serve
+a templateless chat endpoint.
+
+`launcher.py:ensure_template_overlay()` closes that: when the resolved checkpoint
+has no template, it serves `/cache/runtime/model-overlay`, a **symlink farm** of
+the checkpoint whose one real file is this mod's `chat_template.jinja` (the
+patched V4.1 template, byte-identical to the TensorFold lane's, copied here so
+sparkrun ships it with the mod). Nothing is copied from the 475 GB checkpoint and
+the node's HF snapshot is never written through. The farm is rebuilt from content
+every boot, so links to a previous checkpoint are dropped and a re-pin cannot
+serve a mixed tree. A checkpoint that already carries its own template (the base
+V4.1 repo) is served exactly as resolved. A checkpoint with no template **and**
+no mod template is refused (`exit 2`) rather than served templateless.
 
 ## Portability (the whole point of the `/cache/runtime` wiring)
 

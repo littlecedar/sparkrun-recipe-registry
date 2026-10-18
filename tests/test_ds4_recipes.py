@@ -990,7 +990,7 @@ class SglangLaneContract(unittest.TestCase):
             "littlecedar/dgx-spark-dsv41:canary-roce"
             "@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93",
         )
-        self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash-1017")
         self.assertEqual(self.r.min_nodes, 4)
 
     def test_recipe_env_is_empty(self):
@@ -1075,16 +1075,16 @@ class SglangLaneContract(unittest.TestCase):
             self.assertIn(needle, launcher)
 
     def test_checkpoint_revision_pinned_in_recipe(self):
-        # The image's boot.py bakes a checkpoint revision (boot.py:24 REVISION)
+        # The image's boot.py bakes a checkpoint revision (boot.py:26 REVISION)
         # but never acts on it here: the launcher sets SKIP_PREPARE=1 and hands
         # boot.py the sparkrun-distributed prepared path, so the RECIPE owns the
         # served checkpoint. Without the pin a launch re-distributes whatever
         # `main` is at distribution time and the lane drifts off the snapshot its
-        # receipts were measured on (AGENTS.md §5). The pin is `main`, whose
-        # weights are byte-identical to the baked fb2764a5… and which every node
-        # cache already holds; the lane's receipts were all served from it.
+        # receipts were measured on (AGENTS.md §5). Pinned to the 2026-10-17
+        # refresh: all 48 of its shards are new objects, so this pin is also what
+        # selects the refresh over the base V4.1 revision the image bakes.
         self.assertEqual(
-            self.r.model_revision, "5254448103b6254fc646dacbca1cbbf20e9216c1"
+            self.r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170"
         )
 
     def test_ep_size_is_one(self):
@@ -1345,19 +1345,42 @@ class SglangLaneContract(unittest.TestCase):
                     "--dist-init-addr", ".30:25000"]
 
         with tempfile.TemporaryDirectory() as snap:
-            path = _os.path.join(snap, "models--deepseek-ai--DeepSeek-V4.1-Flash",
-                                 "snapshots", "2cba9e42")
+            path = _os.path.join(snap, "models--deepseek-ai--DeepSeek-V4.1-Flash-1017",
+                                 "snapshots", "1bae0e10")
             _os.makedirs(path)
             with open(_os.path.join(path, "config.json"), "w") as fh:
                 fh.write("{}\n")
-            env = run(argv_for(path))
-            self.assertEqual(env.get("MODEL_PATH"), path,
-                             "the prepared on-disk path handed as --model must be "
-                             "served directly")
-            self.assertEqual(env.get("DSV41_SOURCE"), path)
-            self.assertEqual(env.get("SERVED_MODEL_NAME"),
-                             "deepseek-ai/DeepSeek-V4.1-Flash",
-                             "a path served-model-name must be reported as the repo id")
+            runtime = _os.path.join(snap, "runtime")
+            overlay = _os.path.join(runtime, "model-overlay")
+            orig_cache, orig_overlay = mod._CACHE, mod.OVERLAY_DIR
+            mod._CACHE, mod.OVERLAY_DIR = runtime, overlay
+            try:
+                env = run(argv_for(path))
+                # The 1017 checkpoint ships no chat template, so serving it directly
+                # would expose a templateless /chat/completions; the launcher serves
+                # the overlay farm of that path with the mod's template beside it.
+                self.assertEqual(env.get("MODEL_PATH"), overlay,
+                                 "a template-less checkpoint must be served through "
+                                 "the overlay farm")
+                self.assertEqual(env.get("DSV41_SOURCE"), overlay)
+                self.assertTrue(_os.path.islink(_os.path.join(overlay, "config.json")),
+                                "the farm must link the checkpoint, not copy it")
+                template = _os.path.join(overlay, "chat_template.jinja")
+                self.assertTrue(_os.path.isfile(template) and not _os.path.islink(template),
+                                "the farm's one real file is the mod's template")
+                self.assertEqual(env.get("SERVED_MODEL_NAME"),
+                                 "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                                 "a path served-model-name must be reported as the repo id")
+
+                # Control: a checkpoint that already carries a template is served
+                # exactly as resolved -- the V4.1 arm must not acquire a farm.
+                with open(_os.path.join(path, "chat_template.jinja"), "w") as fh:
+                    fh.write("{{ mine }}\n")
+                own = run(argv_for(path))
+                self.assertEqual(own.get("MODEL_PATH"), path)
+                self.assertEqual(own.get("DSV41_SOURCE"), path)
+            finally:
+                mod._CACHE, mod.OVERLAY_DIR = orig_cache, orig_overlay
 
             # Negative control (in memory): with the path branch disabled the
             # same input must leave MODEL_PATH unset -- the exact shipped failure.

@@ -21,8 +21,8 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` |
 | Engine | SGLang (`sglang.launch_server`), driven through the mod shim `recipes/ds4/mods/dsv41-sglang-overlay` |
-| Model | [`deepseek-ai/DeepSeek-V4.1-Flash`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) (native MXFP4/F8, official weights) |
-| Pin | `model_revision: 5254448103b6…` (`main`, 2026-10-12) — byte-identical weights to the image's baked `fb2764a5…`; every node cache already holds it |
+| Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) (native MXFP4/F8, official weights, 2026-10-17 refresh) |
+| Pin | `model_revision: 1bae0e10…` (the refresh's repo head, 2026-10-17) — all 48 shards are new objects vs the pre-refresh checkpoint, so the pin is what selects the refresh; the image's baked `fb2764a5…` is the superseded base and is never served |
 | Size / fit | 510 GB, `mem_fraction_static` 0.80 |
 | Topology | TP=4, EP=1 — four GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served |
@@ -30,28 +30,19 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Transport | RoCEnante RDMA (shipped on) |
 | Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
-| Measured | v2.4 boot: C1 **59.2** / C4 110.9 / C8 111.4 / C16 112.8 t/s aggregate, 119k prefill 27.9 s, 231k 66.0 s, KV pool 9,386,240 (`~/benchmarks/ds4-knapcio-v24-20261017/`) |
+| Measured | v2.4 image on the **pre-refresh V4.1** base: C1 **59.2** / C4 110.9 / C8 111.4 / C16 112.8 t/s aggregate, 119k prefill 27.9 s, 231k 66.0 s, KV pool 9,386,240 (`~/benchmarks/ds4-knapcio-v24-20261017/`). The 1017 base's re-take lands in its own receipt |
 
-**Why this arm still serves V4.1 and not the 1017 refresh.** The 2026-10-17 refresh
-([`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017),
-`1bae0e10…`) is the same architecture and the same quant (`config.json` byte-identical,
-sha256 `8be45ce0…`: fp8 block weights with fp4 experts, unchanged vision config) with **all 48 shards
-re-uploaded**, so it is a new-weight bump of ~475 GiB/node across four nodes plus a new runtime cache
-— and it ships **no `chat_template.jinja` by design** (the card states the release replaces the Jinja
-template with `encoding/encoding.py` and the `deepseek-recipe` toolkit). This arm serves the sparkrun
-snapshot through SGLang's OpenAI server, which takes its chat template from the snapshot, and the
-mod (`dsv41-sglang-overlay`) stages no template of its own; the TensorFold arm needed exactly that
-workaround for the EXL3 pack (§12.14.1, `mods/tensorfold-dsv41-launcher/chat_template.jinja`), so a
-1017 bump here must first give this mod a template source. The image also derives each rank's Engram
-shards from the checkpoint's `model.safetensors.index.json` (`/opt/dsv41/scripts/pack_engram.py`),
-so the packed cache is invalidated by the change (Engram shards 47/48 go
-`824db488…/976330f4…` → `76a05106…/9dc51433…`) and must be re-packed per rank. Nothing here is
-blocking, but the only measured delta on this family is the TP=2 interleaved ladder, which put 1017 at
-**parity on every cell** — the refresh's case is the card's quality table (HLE 36.8 → 42.6,
-Terminal-Bench 31.2 → 42.3, DeepSWE 74.2 → 77.0), which is a bench campaign, not a cache swap. The
-recommended order is: reuse the TensorFold template as this mod's template source, re-pin
-`model:`/`model_revision:` to `1bae0e10…`, distribute, re-pack Engram per rank, then re-take the
-four-cell baseline before the receipt is rewritten.
+**What the 1017 base needed that V4.1 did not.** Same architecture and same quant
+(`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
+experts, unchanged vision config), so the engine and the adapter carry over unchanged. Two things
+did not: the refresh ships **no `chat_template.jinja` by design** (its card replaces the Jinja
+template with `encoding/encoding.py` and the `deepseek-recipe` toolkit), which the mod now stages as
+a symlink farm beside the checkpoint (`ensure_template_overlay`, see the mod's README); and the
+image's `pack_engram.py` derives each rank's packed Engram shards from the checkpoint's
+`model.safetensors.index.json`, so the pre-refresh pack is invalid — shards 47/48 are
+`76a05106…/9dc51433…` now, and `/cache/runtime/engram` must be empty (or re-packed) before the first
+boot on the new base. A packed shard is an *optional* acceleration whose absence costs the
+checkpoint fallback, not correctness, so the launcher re-packs per rank in the background.
 
 ### What it serves
 

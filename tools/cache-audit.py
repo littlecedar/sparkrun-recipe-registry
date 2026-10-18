@@ -22,7 +22,8 @@ revision.  Two trees of the same model with different suffixes are two
 different pins, and a suffix no recipe's ``model@revision`` hashes to is
 material nothing can re-enter.  Measured 2026-10-15 on the ds4 lane, where the
 ``modlogs/`` heuristic in AGENTS.md could not separate them: the live tree
-(``…-11826f49``, the recipe's current pin) and the superseded one
+(``…-11826f49``, the pin at the time; the knapcio arm moved to the 1017 refresh
+on 2026-10-18) and the superseded one
 (``…-9a74d993``, the same model with an *empty* revision) both carry
 ``modlogs/dsv41-sglang-overlay.log`` and the same mod set.
 
@@ -357,8 +358,8 @@ def report(trees: list[Tree], keys: dict[str, list[str]], budget_gb: float) -> i
 #: of the same trees.  If sparkrun changes its key derivation these fail, which
 #: is the point.  The last one is the 48-char label-cap case.
 KNOWN_KEYS = [
-    ("deepseek-ai/DeepSeek-V4.1-Flash", "5254448103b6254fc646dacbca1cbbf20e9216c1",
-     "deepseek-ai__DeepSeek-V4.1-Flash-11826f49"),
+    ("deepseek-ai/DeepSeek-V4.1-Flash-1017", "1bae0e1088993b9b82de08f59de5be5a34e42170",
+     "deepseek-ai__DeepSeek-V4.1-Flash-1017-10a02831"),
     ("deepseek-ai/DeepSeek-V4.1-Flash", "", "deepseek-ai__DeepSeek-V4.1-Flash-9a74d993"),
     ("deepseek-ai/DeepSeek-V4.1-Flash", "fb2764a5cf321eaa5070ca8f9e892818f477c16d",
      "deepseek-ai__DeepSeek-V4.1-Flash-db95f94c"),
@@ -368,11 +369,18 @@ KNOWN_KEYS = [
      "Mia-AiLab__DeepSeek-V4.1-Flash-EXL3-2.9bpw-a54d5c5d"),
     ("sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4", "8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a",
      "sakamakismile__Qwen3.8-27B-AEON-ULTIMATE-UNCENSO-b9f737e7"),
+    ("deepseek-ai/DeepSeek-V4.1-Flash", "5254448103b6254fc646dacbca1cbbf20e9216c1",
+     "deepseek-ai__DeepSeek-V4.1-Flash-11826f49"),
 ]
 
 #: Keys a shipped recipe must produce, so the tool is reading the recipes it
 #: thinks it is.
-SHIPPED_KEYS = [k for _, _, k in KNOWN_KEYS if k.endswith(("11826f49", "2bd42ac5", "a54d5c5d"))]
+SHIPPED_KEYS = [k for _, _, k in KNOWN_KEYS if k.endswith(("10a02831", "b9f737e7"))] + [
+    # Produced by a recipe that is not one of the KNOWN_KEYS rows above: the ds4
+    # TP=2 arm's 1017 EXL3 pack and the combined pack the cybersec arm pins.
+    "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776",
+    "littlecedar__DeepSeek-V4.1-Flash-EXL3-2.9bpw-wit-4e17d34c",
+]
 
 
 def selftest() -> int:
@@ -431,8 +439,8 @@ def selftest() -> int:
         )
         check(verdict(merged, keys)[0] == "stale", "db95f94c must classify stale")
         check(
-            verdict(Tree("h", f"{rc}/deepseek-ai__DeepSeek-V4.1-Flash-11826f49"), keys)[0] == "live",
-            "11826f49 must classify live",
+            verdict(Tree("h", f"{rc}/deepseek-ai__DeepSeek-V4.1-Flash-1017-10a02831"), keys)[0] == "live",
+            "10a02831 (the knapcio arm's 1017 pin) must classify live",
         )
         check(verdict(Tree("h", rc), keys)[0] == "unkeyed", "a family root must classify unkeyed")
         now = dt.datetime(2026, 10, 15, 10, 0)

@@ -55,6 +55,7 @@ PACKED_DIR="${CACHE}/engram"
 STATE_DIR="${CACHE}/state"
 B12X_COMPILE_DIR="${CACHE}/b12x-compile"
 B12X_ROCE_DIR="${CACHE}/b12x-roce"
+MODEL_OVERLAY="${CACHE}/model-overlay"
 
 #####################################################################
 # Helpers
@@ -108,11 +109,11 @@ log "${MOD_MAINTAINER}"
 # Engram shards. sparkrun owns /cache/runtime itself (it creates and chowns the
 # leaf), but rootless docker would otherwise leave these mkdir'd subdirs
 # root-owned; reown() hands them back so the non-root serve user can write.
-for _dir in "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}"; do
+for _dir in "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}" "${MODEL_OVERLAY}"; do
   mkdir -p "${_dir}"
   log "cache dir ready: ${_dir}"
 done
-reown "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}"
+reown "${PACKED_DIR}" "${STATE_DIR}" "${B12X_COMPILE_DIR}" "${B12X_ROCE_DIR}" "${MODEL_OVERLAY}"
 
 #####################################################################
 # Fail-closed compatibility gate

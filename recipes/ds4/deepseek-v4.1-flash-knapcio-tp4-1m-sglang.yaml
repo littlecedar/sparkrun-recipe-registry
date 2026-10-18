@@ -1,22 +1,24 @@
 recipe_version: "2"
-model: deepseek-ai/DeepSeek-V4.1-Flash
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # The launcher sets SKIP_PREPARE=1 and serves the snapshot sparkrun renders from
 # {model}, so this pin -- not the image's baked REVISION -- decides the weights.
-model_revision: 5254448103b6254fc646dacbca1cbbf20e9216c1
+# The 1017 refresh ships no chat template; the mod stages its patched copy, and a
+# template-less checkpoint with no mod template is refused (exit 2), not served.
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 runtime: sglang
 container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93
 min_nodes: 4
 
 metadata:
   description: >-
-    DeepSeek-V4.1-Flash on 4x DGX Spark (GB10), SGLang, native MXFP4/F8
-    checkpoint with the Engram on NVMe, TP=4 EP=1, DSpark k=5, 1M context,
-    RoCEnante RDMA transport. Adaptation of
+    DeepSeek-V4.1-Flash-1017 (2026-10-17 refresh) on 4x DGX Spark (GB10),
+    SGLang, native MXFP4/F8 checkpoint with the Engram on NVMe, TP=4 EP=1,
+    DSpark k=5, 1M context, RoCEnante RDMA transport. Adaptation of
     knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
     MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
     design are theirs, kept under the upstream licenses). See AGENTS.md and
     README.md in this directory for provenance, boot gates and limits.
-  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
   model_dtype: mxfp4

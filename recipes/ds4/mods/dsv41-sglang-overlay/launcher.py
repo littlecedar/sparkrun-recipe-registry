@@ -97,6 +97,12 @@ HF_HUB = "/cache/huggingface/hub"
 # host device here would break portability.
 # ---------------------------------------------------------------------------
 _CACHE = "/cache/runtime"
+# The 1017 refresh ships no Jinja template on purpose (its card points at
+# encoding/encoding.py), and SGLang resolves the chat template from
+# <model_dir>/chat_template.jinja, so the launcher serves a symlink farm whose one
+# real file is this mod's copy (see ensure_template_overlay).
+TEMPLATE_NAME = "chat_template.jinja"
+OVERLAY_DIR = f"{_CACHE}/model-overlay"
 # Rendezvous for the image's baked HEALTHCHECK: a fixed path the health probe
 # reads its port from. A literal (not $STATE_PATH) because the image bakes
 # STATE_PATH=/state while the launcher relocates it under /cache/runtime.
@@ -395,6 +401,77 @@ def _clean_served_name(value: str) -> str:
     return _model_id_from_snapshot(value) or os.path.basename(value.rstrip("/")) or value
 
 
+def ensure_template_overlay(env: dict[str, str], checkpoint: str) -> None:
+    """Serve a dir carrying a ``chat_template.jinja`` when the checkpoint has none.
+
+    boot.py hands ``MODEL_PATH`` to SGLang's OpenAI server, which resolves the chat
+    template from ``<model_dir>/chat_template.jinja``. The 2026-10-17 refresh ships
+    no template by design (its card replaces the Jinja template with
+    ``encoding/encoding.py``), so a straight re-pin would serve a templateless
+    endpoint. The overlay is a symlink farm of the checkpoint with one real file:
+    nothing is copied (a 475 GB checkpoint), the node's HF snapshot is never
+    written through, and a checkpoint that already carries a template (the V4.1
+    arm) is served exactly as resolved.
+
+    Rebuilt from content every boot, not from timestamps: links to another
+    checkpoint's entries are dropped, so a re-pin cannot serve a mixed tree.
+    """
+    if os.path.isfile(os.path.join(checkpoint, TEMPLATE_NAME)):
+        return
+    template = os.path.join(os.path.dirname(os.path.realpath(__file__)), TEMPLATE_NAME)
+    if not os.path.isfile(template):
+        print(f"launcher: {checkpoint} ships no {TEMPLATE_NAME} and the mod dir has "
+              "none; refusing to serve a templateless endpoint", flush=True)
+        raise SystemExit(2)
+
+    os.makedirs(OVERLAY_DIR, exist_ok=True)
+    names: set[str] = set()
+    for name in os.listdir(checkpoint):
+        if name == TEMPLATE_NAME:
+            continue
+        names.add(name)
+        target = os.path.join(checkpoint, name)
+        link = os.path.join(OVERLAY_DIR, name)
+        if os.path.islink(link) and os.readlink(link) == target:
+            continue
+        if os.path.islink(link) or os.path.exists(link):
+            os.unlink(link)
+        os.symlink(target, link)
+    for name in os.listdir(OVERLAY_DIR):
+        if name == TEMPLATE_NAME or name in names:
+            continue
+        stale = os.path.join(OVERLAY_DIR, name)
+        if os.path.islink(stale) or os.path.isfile(stale):
+            os.unlink(stale)
+
+    target_file = os.path.join(OVERLAY_DIR, TEMPLATE_NAME)
+    with open(template, "rb") as handle:
+        data = handle.read()
+    try:
+        with open(target_file, "rb") as handle:
+            current = handle.read()
+    except OSError:
+        current = None
+    if current != data:
+        tmp = target_file + ".tmp"
+        with open(tmp, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp, target_file)
+
+    # Never chown through a link: that would rewrite the node's HF snapshot owner.
+    try:
+        cache = os.stat(_CACHE)
+        os.chown(OVERLAY_DIR, cache.st_uid, cache.st_gid)
+        os.chown(target_file, cache.st_uid, cache.st_gid)
+    except OSError:
+        pass
+
+    env["MODEL_PATH"] = OVERLAY_DIR
+    env["DSV41_SOURCE"] = OVERLAY_DIR
+    print(f"launcher: {checkpoint} ships no {TEMPLATE_NAME}; serving {OVERLAY_DIR} "
+          f"({TEMPLATE_NAME} from the mod dir)", flush=True)
+
+
 def resolve_checkpoint(env: dict[str, str]) -> None:
     """Set MODEL_PATH / DSV41_SOURCE for the checkpoint to serve.
 
@@ -413,27 +490,31 @@ def resolve_checkpoint(env: dict[str, str]) -> None:
     3. ``MODEL_ID`` a repo id, located in the fixed in-container HF cache
        (``refs/main``, else the newest complete snapshot). Keeps the dry-run /
        manual-invocation form working and the recipe free of a snapshot hash.
+
+    Whichever shape resolved, a checkpoint that ships no ``chat_template.jinja``
+    is served through the overlay farm (``ensure_template_overlay``: a symlink
+    farm of the checkpoint whose one real file is this mod's template), because the
+    engine would otherwise advertise a templateless chat endpoint.
     """
     model = env.get("MODEL_ID", "").strip()
     supplied = env.get("MODEL_PATH", "").strip()
     if _is_checkpoint_dir(supplied):
         env.setdefault("DSV41_SOURCE", supplied)
-        return
-    if _is_checkpoint_dir(model):
+    elif _is_checkpoint_dir(model):
         print(f"launcher: MODEL_ID is an on-disk checkpoint dir; serving {model}", flush=True)
         env["MODEL_PATH"] = model
         env["DSV41_SOURCE"] = model
-        return
-    if not model:
-        return
-    resolved = _resolved_models_dir(model)
-    if resolved:
-        print(f"launcher: resolved checkpoint {model} -> {resolved}", flush=True)
-        env["MODEL_PATH"] = resolved
-        env["DSV41_SOURCE"] = resolved
-    else:
-        print(f"launcher: checkpoint for {model} not found under {HF_HUB}; "
-              "leaving MODEL_PATH unset", flush=True)
+    elif model:
+        resolved = _resolved_models_dir(model)
+        if resolved:
+            print(f"launcher: resolved checkpoint {model} -> {resolved}", flush=True)
+            env["MODEL_PATH"] = resolved
+            env["DSV41_SOURCE"] = resolved
+        else:
+            print(f"launcher: checkpoint for {model} not found under {HF_HUB}; "
+                  "leaving MODEL_PATH unset", flush=True)
+    if _is_checkpoint_dir(env.get("MODEL_PATH", "")):
+        ensure_template_overlay(env, env["MODEL_PATH"])
 
 
 def main(argv: list[str]) -> int:
