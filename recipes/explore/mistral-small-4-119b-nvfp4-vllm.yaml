@@ -33,7 +33,13 @@ metadata:
     thing to revisit on an engine bump. The checkpoint ships Mistral's native
     layout (params.json + tekken.json, no config.json); vLLM reads params.json,
     which declares max_position_embeddings 1048576 while the card documents
-    262144 — the arm serves the card's window. Not boot-verified here.
+    262144. Neither window fits this arm: with the MLA path disabled the cache
+    costs 288 KiB/token (32 hd x 128 x 2 x 36 layers) against 11.25 KiB/token
+    with MLA, so the engine grants only ~89k tokens beside 66.0 GiB of weights
+    (measured 2026-10-18: 24.6 GiB of KV, 89,664-token pool, "estimated maximum
+    model length is 89216"). The shipped window is therefore 88064, and this is
+    a short-window reasoning arm, not a 262k one, until an SM121 MLA backend
+    exists.
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
@@ -46,7 +52,9 @@ env:
   VLLM_MLA_DISABLE: '1'
 
 readiness:
-  inference: false
+  # true: an engine-side refusal (the window test) must fail the launch, not
+  # hide behind a port wait.
+  inference: true
   port_timeout_s: 2400
   health_timeout_s: 1800
 
@@ -55,7 +63,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 1
   served_model_name: mistralai/Mistral-Small-4-119B-2603-NVFP4
-  max_model_len: 262144
+  max_model_len: 88064
   max_num_seqs: 128
   max_num_batched_tokens: 16384
   gpu_memory_utilization: 0.80
