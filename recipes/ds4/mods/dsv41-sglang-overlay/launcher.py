@@ -401,13 +401,21 @@ def _clean_served_name(value: str) -> str:
     return _model_id_from_snapshot(value) or os.path.basename(value.rstrip("/")) or value
 
 
-def ensure_template_overlay(env: dict[str, str], checkpoint: str) -> None:
+def ensure_template_overlay(
+    env: dict[str, str],
+    checkpoint: str,
+    template: str | None = None,
+    overlay_dir: str | None = None,
+) -> None:
     """Serve a dir carrying a ``chat_template.jinja`` when the checkpoint has none.
 
     boot.py hands ``MODEL_PATH`` to SGLang's OpenAI server, which resolves the chat
-    template from ``<model_dir>/chat_template.jinja``. The 2026-10-17 refresh ships
-    no template by design (its card replaces the Jinja template with
-    ``encoding/encoding.py``), so a straight re-pin would serve a templateless
+    template from ``<model_dir>/chat_template.jinja``
+    (``srt/utils/hf_transformers/processor.py:383-390``: when the tokenizer carries
+    no embedded template it reads ``Path(local_path)/"chat_template.jinja"``). The
+    2026-10-17 refresh ships no template by design (its card replaces the Jinja
+    template with ``encoding/encoding.py``), and boot.py exposes no
+    template flag of its own, so a straight re-pin would serve a templateless
     endpoint. The overlay is a symlink farm of the checkpoint with one real file:
     nothing is copied (a 475 GB checkpoint), the node's HF snapshot is never
     written through, and a checkpoint that already carries a template (the V4.1
@@ -415,60 +423,71 @@ def ensure_template_overlay(env: dict[str, str], checkpoint: str) -> None:
 
     Rebuilt from content every boot, not from timestamps: links to another
     checkpoint's entries are dropped, so a re-pin cannot serve a mixed tree.
+    ``template``/``overlay_dir`` are seams for the guard test; both default to the
+    mod-side file and the runtime cache.
     """
     if os.path.isfile(os.path.join(checkpoint, TEMPLATE_NAME)):
         return
-    template = os.path.join(os.path.dirname(os.path.realpath(__file__)), TEMPLATE_NAME)
+    template = template or os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), TEMPLATE_NAME)
+    overlay = overlay_dir or OVERLAY_DIR
     if not os.path.isfile(template):
         print(f"launcher: {checkpoint} ships no {TEMPLATE_NAME} and the mod dir has "
               "none; refusing to serve a templateless endpoint", flush=True)
         raise SystemExit(2)
 
-    os.makedirs(OVERLAY_DIR, exist_ok=True)
-    names: set[str] = set()
-    for name in os.listdir(checkpoint):
-        if name == TEMPLATE_NAME:
-            continue
-        names.add(name)
-        target = os.path.join(checkpoint, name)
-        link = os.path.join(OVERLAY_DIR, name)
-        if os.path.islink(link) and os.readlink(link) == target:
-            continue
-        if os.path.islink(link) or os.path.exists(link):
-            os.unlink(link)
-        os.symlink(target, link)
-    for name in os.listdir(OVERLAY_DIR):
-        if name == TEMPLATE_NAME or name in names:
-            continue
-        stale = os.path.join(OVERLAY_DIR, name)
-        if os.path.islink(stale) or os.path.isfile(stale):
-            os.unlink(stale)
-
-    target_file = os.path.join(OVERLAY_DIR, TEMPLATE_NAME)
-    with open(template, "rb") as handle:
-        data = handle.read()
+    target_file = os.path.join(overlay, TEMPLATE_NAME)
     try:
-        with open(target_file, "rb") as handle:
-            current = handle.read()
-    except OSError:
-        current = None
-    if current != data:
-        tmp = target_file + ".tmp"
-        with open(tmp, "wb") as handle:
-            handle.write(data)
-        os.replace(tmp, target_file)
+        os.makedirs(overlay, exist_ok=True)
+        names: set[str] = set()
+        for name in os.listdir(checkpoint):
+            if name == TEMPLATE_NAME:
+                continue
+            names.add(name)
+            target = os.path.join(checkpoint, name)
+            link = os.path.join(overlay, name)
+            if os.path.islink(link) and os.readlink(link) == target:
+                continue
+            if os.path.islink(link) or os.path.exists(link):
+                os.unlink(link)
+            os.symlink(target, link)
+        for name in os.listdir(overlay):
+            if name == TEMPLATE_NAME or name in names:
+                continue
+            stale = os.path.join(overlay, name)
+            if os.path.islink(stale) or os.path.isfile(stale):
+                os.unlink(stale)
+
+        with open(template, "rb") as handle:
+            data = handle.read()
+        try:
+            with open(target_file, "rb") as handle:
+                current = handle.read()
+        except OSError:
+            current = None
+        if current != data:
+            tmp = target_file + ".tmp"
+            with open(tmp, "wb") as handle:
+                handle.write(data)
+            os.replace(tmp, target_file)
+    except OSError as exc:
+        # An unwritable runtime cache must not surface as a traceback: the launch
+        # would fail with no statement of what was missing from where.
+        print(f"launcher: could not stage the chat template under {overlay} "
+              f"({exc!r}); refusing to serve a templateless endpoint", flush=True)
+        raise SystemExit(2)
 
     # Never chown through a link: that would rewrite the node's HF snapshot owner.
     try:
         cache = os.stat(_CACHE)
-        os.chown(OVERLAY_DIR, cache.st_uid, cache.st_gid)
+        os.chown(overlay, cache.st_uid, cache.st_gid)
         os.chown(target_file, cache.st_uid, cache.st_gid)
     except OSError:
         pass
 
-    env["MODEL_PATH"] = OVERLAY_DIR
-    env["DSV41_SOURCE"] = OVERLAY_DIR
-    print(f"launcher: {checkpoint} ships no {TEMPLATE_NAME}; serving {OVERLAY_DIR} "
+    env["MODEL_PATH"] = overlay
+    env["DSV41_SOURCE"] = overlay
+    print(f"launcher: {checkpoint} ships no {TEMPLATE_NAME}; serving {overlay} "
           f"({TEMPLATE_NAME} from the mod dir)", flush=True)
 
 

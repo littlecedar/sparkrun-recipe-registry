@@ -1374,6 +1374,12 @@ class SglangLaneContract(unittest.TestCase):
 
                 # Control: a checkpoint that already carries a template is served
                 # exactly as resolved -- the V4.1 arm must not acquire a farm.
+                # The farm built above is still on disk here: this branch returns
+                # before touching it, so MODEL_PATH == path is the early return
+                # doing the work, not a rebuild. That is the intended contract --
+                # a stale farm is harmless because nothing serves it, and the next
+                # template-less checkpoint refreshes it from content.
+
                 with open(_os.path.join(path, "chat_template.jinja"), "w") as fh:
                     fh.write("{{ mine }}\n")
                 own = run(argv_for(path))
