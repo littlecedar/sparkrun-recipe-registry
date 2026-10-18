@@ -1,10 +1,12 @@
 # GLM 5.3 lane
 
-**This lane ships one recipe**, `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` — the
-GLM-5.3-Flash EXL3 4bpw TP=4 line, **BOOT-VERIFIED as a sparkrun recipe 2026-10-18** (first boot;
-the boot receipt below). It is otherwise a **runbook + research archive**: the other two serving
-lines were boot-verified on this cluster outside sparkrun, and a fourth was attempted and archived
-as a proven-negative.
+**This lane carries two recipes.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` is the
+GLM-5.3-Flash EXL3 4bpw TP=4 line, **BOOT-VERIFIED as a sparkrun recipe 2026-10-18** (the boot
+receipt below). `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` is the full 753B EXL3 3.0bpw
+line: its engine image was built and pushed 2026-10-18 and the recipe validates, but **neither has
+been booted**. The lane also carries its **runbook + research archive**: the 3.0bpw line and the
+TP=2/TP=3 Flash topologies were boot-verified on this cluster outside sparkrun, and a fourth line
+was attempted and archived as a proven-negative.
 
 ## Contents
 
@@ -16,8 +18,6 @@ as a proven-negative.
 - [Runbook notes and revision pins](#runbook-notes-and-revision-pins)
 - [Revision pins](#revision-pins)
 - [Attic index](#attic-index)
-
-## Status
 
 - **One recipe, booted 2026-10-18.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` realizes the
   Flash EXL3 4bpw TP=4 line in the recipe schema: the engine image is the upstream `tp4` build,
@@ -33,9 +33,12 @@ as a proven-negative.
   cannot use). Do not re-add it without a public image that can serve this checkpoint. Full rationale:
   [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md),
   [`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md#from-recipesglmreadmemd-2026-10-14).
-- **Two runbook-only serving lines.** The EXL3 3.0bpw 753B line and the TP=2/TP=3 Flash topologies stay
-  external launchers: one engine is an unreleased fork branch installed editable at container start
-  (no image to pin), and the 2-/3-Spark topologies are not what this 4-node registry targets.
+- **One unbooted recipe.** The EXL3 3.0bpw 753B line now has
+  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` and its own launcher mod, over a **vendored
+  engine image built and pushed 2026-10-18** (source build of the unreleased fork branch; pin and
+  derivation under [Revision pins](#revision-pins)). Both files validate; **the boot is the open
+  item**. The TP=2/TP=3 Flash topologies stay runbook-only launchers — they are not what this
+  4-node registry targets.
 - **Research** (checkpoint/engine/topology selection, measured numbers, license traps) is in
   [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
 
@@ -102,6 +105,9 @@ One line each; full operator detail (serve commands, host overrides, receipts) i
   A's `bertholomus/glm-5.3-tensorfold-tp4-4xgb10` scripts over `bertholomus/TensorFold@glm-dsa-tp4`
   (`ddfad35`, TensorFold 0.6.0); **C1 decode 35.7 t/s @ d0 / 35.9 @ d8k**, MTP-3 acceptance 63.4 %.
   Receipts: `~/benchmarks/glm53-exl3-20261013/`.
+  The sparkrun recipe for this line, `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`, is **built
+  and validated but not booted**; every number in this bullet is the external runbook's, on an
+  editable install of the same engine commit.
 - **GLM-5.3-Flash EXL3 4bpw / TensorFold, TP=2 / TP=3 / TP=4** — **all BOOT-VERIFIED 2026-10-13**;
   `MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold` launcher (`main` `3fd60df`, `tp4` `d220030`),
   checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter
@@ -144,24 +150,42 @@ image + a GLM variant of the launcher mod + a `runtime: sglang` shim" note in
 numbers: its own C1/C2/C5/C10 row exists. What a boot cannot settle stays open — a quality battery
 through this path (37/37 is still the trial's), a second boot, and the single-stream gap against
 98.4.
-
-The other serving lines are unchanged: no shipped recipe, and a revive re-stages weights (see the
+The other serving lines are unchanged: no booted recipe, and a revive re-stages weights (see the
 re-fetch costs under revision pins).
 
 ## Revision pins
 
 **Moved to [`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md#revision-pins-verified-2026-10-14-hub-api--every-nodes-hf-cache)
-§"Revision pins" (verified 2026-10-14, Hub API + every node's HF cache).** Summary: the Flash EXL3 4bpw
-checkpoint pins `078455ff` (`main` `76c0b517`), the EXL3 3.0bpw checkpoint is `7f057383` (`main`,
-~273 GB/node re-fetch after the 2026-10-14 reclamation), the archived Flash NVFP4 pin `36c184c6` is
-gone from all nodes (`main` has moved to `18d55bfd`), and the TensorFold engine pin is `ddfad356`.
+§"Revision pins" (verified 2026-10-14, Hub API + every node's HF cache).**
 
-The **shipped arm's** two pins (`Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`,
-`incoai/GLM-5.3-Flash-DFlash2@bf582e4e`) now live in the recipe (`model_revision:` and
-`defaults.speculative_draft_model_revision`), so they are what sparkrun re-stages on a launch; the
-pins above remain the runbook's. Verified 2026-10-15 against the Hub API: `078455ff` resolves
-(97 files, 2026-10-02) and DFlash2 `main` is still `bf582e4e`, and the engine image digest resolves
-from the cluster (a read-only `docker manifest inspect` from the head).
+| pin | value | where it lives |
+|:--|:--|:--|
+| Flash EXL3 4bpw checkpoint | `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff` (`main` `76c0b517`) | shipped recipe's `model_revision:` |
+| Flash DFlash2 drafter | `incoai/GLM-5.3-Flash-DFlash2@bf582e4e` | shipped recipe's `defaults.speculative_draft_model_revision` |
+| EXL3 3.0bpw checkpoint | `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383` (`main`) | 3.0bpw recipe's `model_revision:` — ~273 GB/node re-fetch after the 2026-10-14 reclamation |
+| archived Flash NVFP4 | `RedHatAI/GLM-5.3-Flash-NVFP4@36c184c6` — gone from all nodes, `main` is now `18d55bfd` | archived arm only |
+| TensorFold engine | `bertholomus/TensorFold@glm-dsa-tp4` = `ddfad356` (TensorFold 0.6.0) | the 3.0bpw image's build arg; the commit is the whole provenance anchor (that branch carries no patch set) |
+| **3.0bpw engine image** | `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:25bb6806…` | the 3.0bpw recipe's `container:` pin |
+
+The image row is new (2026-10-18): a **source build** of the unreleased fork branch over
+`lmsysorg/sglang:dev-cu13` arm64 manifest `e9aa22ad`, from
+[`Dockerfile.tensorfold-glm53-3bpw`](Dockerfile.tensorfold-glm53-3bpw). Cite the `@sha256:` — the
+`0.6.0-ddfad35` tag is a convenience. A local-registry derivation taken during the build reported
+`44e478f1…`; that is the **local manifest**, not the registry's, and must never be cited as the
+pin. The pushed tag resolves to `25bb6806…` (verified from the head with `docker buildx imagetools
+inspect`, 2026-10-18), and that is what the recipe carries. Build receipt, including the
+build-time gate and the read-only image probe: `~/benchmarks/glm-3bpw-image-20261018/REPORT.md` on
+the workstation (its "Push: NOT done" section predates the push).
+
+**The image is built and pushed, not booted.** The build ran under qemu with no GPU, so TP=4
+rendezvous, the first-boot sm_121 JIT, the `TF_GLM_KV=q5` pool sizing and MTP-3 acceptance are all
+still the 2026-10-13 trial's — on an editable install of the same commit, not this image. A
+sparkrun boot of `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` is the open item.
+
+The **shipped Flash arm's** two pins now live in its recipe and are what sparkrun re-stages on a
+launch; the pins above remain the runbook's. Verified 2026-10-15 against the Hub API: `078455ff`
+resolves (97 files, 2026-10-02) and DFlash2 `main` is still `bf582e4e`, and the engine image digest
+resolves from the cluster (a read-only `docker manifest inspect` from the head).
 
 ## Attic index
 

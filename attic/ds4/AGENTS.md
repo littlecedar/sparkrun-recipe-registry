@@ -3023,6 +3023,89 @@ full boot log is `recipes/glm/README.md`.
   recipe's `metadata.description` still says "the lane's fastest measured arm (single-stream decode
   98.4 t/s …)" and "The recipe path itself has NOT been booted". Both sentences are now false.
 
+### 12.19 The v2.4 serve line: the flag that costs 17-28 %, and the pool pin re-derived (2026-10-18)
+
+Three more TP=4 boots in the same window, receipts `~/benchmarks/ds4-v24-line-20261018/`
+(`ladder.{csv,json,yaml}`, `house/`, `serve-evidence.txt`; `pd-off/boot-evidence.txt` +
+`pd-off/ladder.*`; `confirm/boot-evidence.txt` + `confirm/ladder.*`). Nodes `.30`-`.33`, one
+four-node job at a time, `--transfer-mode local` from the head by absolute recipe path. The
+interval-on boot is `serve-evidence.txt`'s `sparkrun_a2e141223b52793c_7afff0589a33_node_0` — the
+**same deployment id** §12.17/§12.18 use, a further boot under it, which is why a boot is named by
+its receipt directory and never by the id (§12.17 trap 2).
+
+Method: same image digest (`littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…`, read from
+each boot's `bench.log`), same checkpoint pin, same `benchmarking/concurrency-ladder.yaml` (d0,
+pp 2048, tg 128, prefix caching, 5 runs/cell, decode records only). `±` is the **sample sd
+(ddof 1)** of the five per-run samples; each JSON's own `tg_throughput.std` is the population sd,
+0.894× these. Boot 1 launched the v2.4 line as adopted — 0.78 / 8192 / 7,500,000 / 128 tails /
+`--prefill-decode-interval 2` (launch line recorded in `mad-science/TODO.md`'s ds4 item at the
+time; the launcher now commits 0) — and ran the house battery on the same serve. Its startup log
+lines were **not** retained: `serve-evidence.txt` is an ~80 s bench-window slice of `docker logs`,
+so the clamp line it booted under is the next boot's, below; the slice does show its 8192-token
+prefill batches (`#new-token: 8192`).
+
+| cell |           interval 2 (7.5M) |         interval off (7.5M) |         interval off (6.85M) |
+|:-----|----------------------------:|----------------------------:|-----------------------------:|
+| C1   |   60.22 ± 13.00 (39.0-71.4) |   51.84 ± 17.68 (23.4-64.2) |    53.40 ± 21.35 (19.5-69.9) |
+| C2   |    73.16 ± 4.96 (68.9-81.6) |    88.35 ± 6.33 (81.7-96.7) |    82.02 ± 10.14 (71.0-94.8) |
+| C5   |  95.10 ± 14.66 (69.3-106.0) | 131.83 ± 8.50 (122.4-139.7) | 130.97 ± 10.50 (117.4-143.4) |
+| C10  | 101.49 ± 10.45 (89.3-114.2) | 123.49 ± 8.45 (114.3-135.1) |  119.79 ± 8.09 (107.5-127.1) |
+
+**(a) The image pin moves nothing.** Every TP=4 SGLang boot with a retained `bench.log` —
+§12.18's A/C and these three — ran the same image digest, so no decode change is attributable to
+it. The v2.4 *line* with its interleave flag on was slower than the v2.3 line on every cell: C2
+−17.0 %, C5 −14.4 %, C10 −12.4 % against the v2.3 line's means (89.1 / 111.1 / 115.8 t/s).
+Whatever the v2.4 line buys, it buys with the flag off.
+
+**(b) `--prefill-decode-interval 2` costs 17-28 % of steady-state ladder throughput.** Same-pin
+pair (7,500,000 in both): C2 73.16 → 88.35 (−17.2 % with it on), C5 95.10 → 131.83 (−27.9 %),
+C10 101.49 → 123.49 (−17.8 %). It is a multi-user *latency* feature (a short request is answered
+mid-prefill), not a throughput one, so it ships **off**: `PREFILL_DECODE_INTERVAL: "0"`
+(`launcher.py:247`), the knob is in `AB_ENV` (`launcher.py:335-338`) so
+`-o env.PREFILL_DECODE_INTERVAL=2` re-enables it per launch, and `extra_sglang_args`
+(`launcher.py:357-382`) omits the flag at 0 so the engine default applies. Guard:
+`tests/test_ds4_recipes.py:1338-1349` (default assembly is tails-only; setting 2 yields
+`--swa-prefix-tails 128 --prefill-decode-interval 2`).
+
+**(c) With it off: C5 +18 %, C10 +3-7 %, C2 at parity at best.** C5 131.83 / 130.97 against
+113.44 / 108.78 is **+18.7 % / +17.9 %** on the line's 111.1 mean (+16.2 % / +15.5 % against its
+best cell); C10 123.49 / 119.79 against 115.36 / 116.27 is +6.6 % / +3.4 % on the mean (+6.2 % / +3.0 %
+against its best); C2 88.35 / 82.02 against 89.89 / 86.40 is +0.2 % / −6.9 % on the mean — at best
+parity, not a gain, against the v2.3 pair's own 86.40 vs 89.89 swing. The two off boots differ only
+in the pin and sit inside each other's sd, so the 7.5M → 6.85M change is not a throughput factor.
+
+**(d) None of these C1 cells is the arm's C1.** Every ladder's first run is cold — 39.0, 23.4,
+19.5 t/s — and the cell mean is the ramp: 39.0 / 64.5 / 57.4 / 68.8 / 71.4 (interval 2),
+23.4 / 45.6 / 62.3 / 64.2 / 63.8 (off, 7.5M), 19.5 / 45.5 / 63.4 / 69.9 / 68.7 (off, 6.85M).
+These are first-ladder-on-a-cold-boot numbers, not the shipped arm's single-stream figure; the
+pooled **67.18 ± 6.97** (n=25, §12.18) stays the reference until an interleaved C1 re-take on this
+line exists. No such re-take was taken.
+
+**The pool pin: formula, measured, corrected.** At 0.78 the engine's budget arithmetic predicted
+**7,687,277** full tokens — 9,277,952 measured at 0.80, minus 1,564,260 for the smaller static
+pool (0.02 × 121.7 GiB / 1670.75 B per token), minus 26,415 for 64 extra prefix tails (384 SWA
+slots × 1,795.8 B); the arithmetic is pinned in `tests/test_ds4_recipes.py:1326-1336`. The boot
+measured **6,993,408**, so that formula under-estimated the tails' cost by ~0.7M tokens:
+`max_total_tokens=7500000 is larger than the profiled value 6993408. Use the profiled value
+instead.` (`pd-off/boot-evidence.txt`, 21:33:43Z). A pin at or above the budget is silently
+clamped — never refused (§7.1) — which puts the pool back to being a boot lottery, so the pin
+became **6,850,000**, 97.9 % of the measured budget. The confirm boot reports **6,849,792** with
+**no clamp line**: the pin floored to the engine's 256-token page (6,850,000 → 256 × 26,757), with
+`available_gpu_mem` 17.53 GB against 16.70 GB at the clamp. The line to read every boot is
+`max_total_num_tokens=…`, then `chunked_prefill_size=8192`, `max_prefill_tokens=16384`,
+`max_running_requests=16`, `context_len=1048576`. Guard:
+`tests/test_ds4_recipes.py::test_launcher_v24_serve_line` (`:1302-1375`) asserts 0.78 / 8192 / 16,
+that the pin is > 0 and **below 6,993,408** ("must stay under the MEASURED value"), the tails-only
+default assembly, and that a launch-time `0` disables each knob; it deliberately does not pin the
+exact integer, because any value under the measured budget is safe and the boot line re-derives
+it. Cost: 6.85M page-shared tokens holds **six** full 1M contexts, where the 0.80 / 4096 line's
+9.28M held nine.
+
+**Quality on the shipped line was not re-taken.** The house battery ran on the interval-**on** boot
+only — **36/37**, easy 19/19 + hard 17/18 (`house/summary.json`, 21:09:14Z-21:09:28Z) — and neither
+interval-off serve ran a quality leg. That number therefore transfers to the shipped line by
+assumption, not measurement; it is also the same 36/37 the v2.3 line measured (§12.18, boot C).
+
 ## 13. Quality benchmarks (`benchmarks/`)
 
 The `benchmarks/` subdirectory holds the **quality** comparison of the two live

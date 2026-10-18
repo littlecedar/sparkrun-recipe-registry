@@ -42,14 +42,17 @@ defaults:
   # the knob exists so a sweep can reach it (-o dspark_block_size=3), since
   # `-o env.DSPARK_BLOCK_SIZE=` is clobbered by the launcher's production env.
   dspark_block_size: 5
-  # The memory line and the two v2.4 flags are launcher-owned (mods/
+  # The memory line and the extra sglang flags are launcher-owned (mods/
   # dsv41-sglang-overlay/launcher.py: RECIPE_ENV + AB_ENV): 0.78 mem fraction,
-  # 8192 chunks, a 7.5M KV pin, 16 slots, --swa-prefix-tails 128 and
-  # --prefill-decode-interval 2. They travel as container env, so an A/B flips
-  # one without editing a file: -o env.MEM_FRACTION_STATIC=0.80,
-  # -o env.CHUNKED_PREFILL_SIZE=4096, -o env.MAX_TOTAL_TOKENS=0 (unpin),
-  # -o env.SWA_PREFIX_TAILS=0 (back to the engine's 4 x slots default).
-  # The launcher prints every effective value on its boot line.
+  # 8192 chunks, a 6.85M KV pin (97.9 % of the 6,993,408-token budget the engine
+  # profiles at 0.78), 16 slots and --swa-prefix-tails 128. The prefill-decode
+  # interleave ships OFF: it cost 17-28 % of steady-state ladder throughput on
+  # this fleet's profile (2026-10-18), so it is opt-in, not default.
+  # They travel as container env, so an A/B flips one without editing a file:
+  # -o env.MEM_FRACTION_STATIC=0.80, -o env.CHUNKED_PREFILL_SIZE=4096,
+  # -o env.MAX_TOTAL_TOKENS=0 (unpin), -o env.SWA_PREFIX_TAILS=0 (engine default),
+  # -o env.PREFILL_DECODE_INTERVAL=2 (the multi-user interleave). The launcher
+  # prints every effective value on its boot line.
 
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py

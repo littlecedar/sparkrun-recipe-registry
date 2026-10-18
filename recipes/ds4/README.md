@@ -14,6 +14,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
   — TensorFold, TP=2, EXL3 2.9 bpw, single-user.
 - [Quality benchmarks](#quality-benchmarks)
 - [Measured: TP=4 ladder and suite](#measured-tp4-ladder-and-suite)
+- [Measured: the v2.4 serve line](#measured-the-v24-serve-line)
 - [Attic index](#attic-index)
 
 ## deepseek-v4.1-flash-knapcio-tp4-1m-sglang
@@ -24,14 +25,14 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Engine | SGLang (`sglang.launch_server`), driven through the mod shim `recipes/ds4/mods/dsv41-sglang-overlay` |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) (native MXFP4/F8, official weights, 2026-10-17 refresh) |
 | Pin | `model_revision: 1bae0e10…` (the refresh's repo head, 2026-10-17) — all 48 shards are new objects vs the pre-refresh checkpoint, so the pin is what selects the refresh; the image's baked `fb2764a5…` is the superseded base and is never served |
-| Size / fit | 510 GB, `mem_fraction_static` 0.80 |
+| Size / fit | 510 GB, `mem_fraction_static` 0.78, `chunked_prefill_size` 8192 |
 | Topology | TP=4, EP=1 — four GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served |
 | Spec decode | DSpark k=5, verify-all |
 | Transport | RoCEnante RDMA (shipped on) |
 | Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
 | Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
-| Measured | **TP=4 ladder, first C2/C5/C10 row for this lane (2026-10-18)** — C1 **67.18 ± 6.97** (pooled n=25, CV 10.4 %) / C2 89.9 / C5 113.4 / C10 115.4 t/s, two boots, 5 runs/cell (`benchmarking/concurrency-ladder.yaml`; `~/benchmarks/tp4-20261018/`, see [Measured](#measured-tp4-ladder-and-suite)). Depth-0 C4/C8/C16 118.9 / 107.5 / 115.9 (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`) at parity with the V4.1 base inside the two arms' spreads; KV pool 9,277,952 (the 9.4M pin clamps), prefill 119k 29.5 s / 231k 64.8 s (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). The earlier single-boot **81.0** is one draw from that C1 pool (2.0 σ above its mean), not an attributable gain |
+| Measured | **TP=4 ladder, first C2/C5/C10 row for this lane (2026-10-18)** — C1 **67.18 ± 6.97** (pooled n=25, CV 10.4 %) / C2 89.9 / C5 113.4 / C10 115.4 t/s, two **v2.3-serve-line** boots, 5 runs/cell (`benchmarking/concurrency-ladder.yaml`; `~/benchmarks/tp4-20261018/`, see [Measured](#measured-tp4-ladder-and-suite)); the shipped v2.4 line's own takes — interleave flag off — are in [the v2.4 section](#measured-the-v24-serve-line). Depth-0 C4/C8/C16 118.9 / 107.5 / 115.9 (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`) at parity with the V4.1 base inside the two arms' spreads; KV pool 9,277,952 (the 9.4M pin clamps), prefill 119k 29.5 s / 231k 64.8 s (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). The earlier single-boot **81.0** is one draw from that C1 pool (2.0 σ above its mean), not an attributable gain |
 | Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`). Standard suite on a later boot, one serve: house **36/37**, needle **3/3 at 32k / 131k / 983k**, tool-eval-bench **90** (`~/benchmarks/tp4-20261018/knapcio-suite/`) |
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
@@ -48,7 +49,8 @@ checkpoint fallback, not correctness, so the launcher re-packs per rank in the b
 
 ### Measured: TP=4 ladder and suite
 
-Two same-config boots of the shipped recipe in one 2026-10-18 TP=4 window, on
+Two same-config boots on the **v2.3 serve line** (0.80 static, 4096-token chunks, the 9.4M pin) in
+one 2026-10-18 TP=4 window, on
 `benchmarking/concurrency-ladder.yaml` (depth 0, 2048-token prompts, 128-token replies, prefix
 caching, 5 runs/cell). `±` is the **sample sd of the per-run decode samples**
 (`is_context_prefill_phase: false`); the receipt JSON's own `tg_throughput.std` is the
@@ -108,6 +110,83 @@ Receipts: `~/benchmarks/tp4-20261018/` — `knapcio-ladder.*`, `knapcio-c1-extra
 `knapcio-ladder-suiteboot.*`, `knapcio-suite/`, `knapcio-teb.*`, `gamma-p1-g5.*`,
 `serve-p1-g3.log`, `knapcio-serve.log`, `knapcio-launch.log`, `knapcio-models.json`.
 
+### Measured: the v2.4 serve line
+
+Three TP=4 boots (`.30`–`.33`, one four-node job at a time, `--transfer-mode local`) on the same
+image (`…:canary-roce@sha256:acfc331a…`), the same checkpoint pin and the same
+`benchmarking/concurrency-ladder.yaml` as the two boots above. They differ only in the launcher's
+serve line. `±` is the **sample sd (ddof 1)** of the five per-run decode samples; each receipt
+JSON's own `tg_throughput.std` is the population sd, 0.894× these.
+
+| cell | interval **on**, 7.5M pin (`ladder.json`) | interval off, 7.5M pin (`pd-off/`) | interval off, 6.85M pin (`confirm/`) |
+|:-----|------------------------------------------:|-----------------------------------:|-------------------------------------:|
+| C1   |                 60.22 ± 13.00 (39.0–71.4) |          51.84 ± 17.68 (23.4–64.2) |            53.40 ± 21.35 (19.5–69.9) |
+| C2   |                  73.16 ± 4.96 (68.9–81.6) |           88.35 ± 6.33 (81.7–96.7) |            82.02 ± 10.14 (71.0–94.8) |
+| C5   |                95.10 ± 14.66 (69.3–106.0) |        131.83 ± 8.50 (122.4–139.7) |         130.97 ± 10.50 (117.4–143.4) |
+| C10  |               101.49 ± 10.45 (89.3–114.2) |        123.49 ± 8.45 (114.3–135.1) |          119.79 ± 8.09 (107.5–127.1) |
+**(a) The image pin moves nothing.** All five TP=4 SGLang boots in this document (boots A and C
+above and these three) ran the same image digest (`acfc331a…`, read from each boot's `bench.log`),
+so no decode change is attributable to it. The v2.4 *line* with its interleave flag on was slower
+than the v2.3 line on every cell: C2 −17.0 %, C5 −14.4 %, C10 −12.4 % against the v2.3 line's
+means (89.1 / 111.1 / 115.8 t/s). Whatever the v2.4 line buys, it buys with the flag off.
+
+**(b) `--prefill-decode-interval 2` costs 17–28 % of ladder throughput and ships off.** Against the
+same-pin (7,500,000) interval-off boot: C2 73.16 → 88.35 (−17.2 % with the flag on), C5 95.10 →
+131.83 (−27.9 %), C10 101.49 → 123.49 (−17.8 %). It is a multi-user *latency* feature (a short
+request is answered mid-prefill), not a throughput one. `PREFILL_DECODE_INTERVAL: "0"` is the
+launcher default; the knob is in `AB_ENV`, so `-o env.PREFILL_DECODE_INTERVAL=2` turns it back on
+per launch. At 0 the flag is omitted entirely (`launcher.py:357-382`), so the engine default
+applies.
+
+**(c) With it off, C5/C10 beat the v2.3 line; C2 does not.** C5 131.83 (pd-off) and 130.97
+(confirm) against 113.44 / 108.78 — **+18.7 % / +17.9 %** on the line's 111.1 mean, +16.2 % /
++15.5 % against its best cell. C10 is **+6.6 % / +3.4 %** on the mean (123.49 / 119.79 vs 115.8)
+and +6.2 % / +3.0 % against its best (116.27). C2 against the line's best cell is −1.7 % to −8.8 %
+— at or under the v2.3 cells, not above them — so the v2.4 line's gain is C5 and C10, not C2.
+The pin change between the two off boots (7.5M → 6.85M) is inside their spreads and is not a
+throughput factor.
+
+**(d) The C1 cells are cold-contaminated — none is the arm's C1.** Every ladder's first run is
+19–39 t/s and the cell mean is set by the ramp: 39.0 / 64.5 / 57.4 / 68.8 / 71.4 (on), 23.4 /
+45.6 / 62.3 / 64.2 / 63.8 (off, 7.5M), 19.5 / 45.5 / 63.4 / 69.9 / 68.7 (off, 6.85M). These are
+first-ladder-on-a-cold-boot numbers, not the arm's single-stream figure. The pooled
+**67.18 ± 6.97** (n=25) above stays the C1 reference until an interleaved C1 re-take on the
+shipped line.
+
+**The pool pin: formula, measurement, correction.** At 0.78 the engine's own budget arithmetic
+predicted 7,687,277 full tokens — 9,277,952 measured at 0.80, minus 1,564,260 for the smaller
+static pool (0.02 × 121.7 GiB / 1670.75 B per token), minus 26,415 for 64 extra prefix tails
+(384 SWA slots × 1,795.8 B each); the arithmetic is pinned in
+`tests/test_ds4_recipes.py:1326-1336`. The boot measured **6,993,408**, so that formula
+under-estimated the tails' cost by ~0.7M tokens
+(`max_total_tokens=7500000 is larger than the profiled value 6993408. Use the profiled value
+instead.`, `pd-off/boot-evidence.txt`, 21:33:43Z). A pin at or above the budget is silently
+clamped, so the pin became **6,850,000** (97.9 % of the measured budget). The confirm boot reports
+**6,849,792** with **no clamp line** — the pin floored to the engine's 256-token page
+(6,850,000 → 256 × 26,757) — and `available_gpu_mem` 17.53 GB against 16.70 GB at the clamp. The
+boot line to read is `max_total_num_tokens=…`, then `chunked_prefill_size=8192`,
+`max_prefill_tokens=16384`, `max_running_requests=16`, `context_len=1048576`. The guard is
+`tests/test_ds4_recipes.py::test_launcher_v24_serve_line`: it asserts 0.78 / 8192 / 16, that the
+pin is > 0 and **below 6,993,408** ("must stay under the MEASURED value"), that the default
+assembly is `--swa-prefix-tails 128` and nothing else, and that a launch-time `0` disables each
+knob. It deliberately does not pin the exact integer: any value under the measured budget is
+safe, and every boot re-derives it.
+
+The cost is real: 6.85M page-shared tokens holds **six** full 1M contexts, where the
+0.80 / 4096 line's 9.28M held nine.
+
+**Quality on the new line was not re-taken.** The house battery ran on the interval-**on** boot
+only — **36/37** (easy 19/19, hard 17/18; `house/summary.json`) — and neither interval-off serve
+ran a quality leg, so that number transfers to the shipped line by assumption, not measurement.
+
+**Receipts.** `~/benchmarks/ds4-v24-line-20261018/`: the interval-on boot is `ladder.{csv,json,yaml}`
++ `house/` + `serve-evidence.txt` (the retained serve-log slice is the bench window, so that
+boot's own startup lines — its clamp included — were not captured; its launch line was recorded
+in `mad-science/TODO.md` at the time, and the slice does show 8192-token prefill batches
+(`#new-token: 8192`), `pd-off/boot-evidence.txt` + `ladder.*`, and
+`confirm/boot-evidence.txt` + `ladder.*`. Both interval-off `boot-evidence.txt` files prove the
+off state in `server_args`: `prefill_decode_interval: 0`, `swa_prefix_tails: 128`.
+
 ### What it serves
 
 A 1M-context chat/completions server for the official release weights, **including
@@ -152,17 +231,32 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
 ### Knobs a user cannot infer
 
 - **`max_model_len` is per-request; the KV pool is separate and pinned.** The
-  overlay launcher pins `MAX_TOTAL_TOKENS=9,400,000`; the head at
-  `mem_fraction_static=0.80` permits ~9.5–9.6M, and a larger pin is *clamped* to
-  that, never refused. The pool is **page-shared, not extent-reserved**: 16
-  concurrent requests each declaring ~1M tokens were all admitted (the bound is
-  the `MAX_RUNNING_REQUESTS=16` cap and total actual tokens, not a per-stream
-  reservation). Keep `mem_fraction_static` at 0.80 — higher has wedged nodes.
+  overlay launcher pins `MAX_TOTAL_TOKENS=6,850,000` at `mem_fraction_static=0.78`
+  and `chunked_prefill_size=8192`; the engine profiles **6,849,792** at that line
+  and the pin must stay under the *measured* budget — a larger pin is *clamped*
+  (6,993,408 at a 7.5M pin), never refused. Re-derive it by reading
+  `max_total_num_tokens=` on every boot (see
+  [the v2.4 section](#measured-the-v24-serve-line)); `-o env.MAX_TOTAL_TOKENS=0`
+  unpins. The pool is **page-shared, not extent-reserved**: 16 concurrent requests
+  each declaring ~1M tokens were all admitted (the bound is the
+  `MAX_RUNNING_REQUESTS=16` cap and total actual tokens, not a per-stream
+  reservation). Keep `mem_fraction_static` at 0.78 — the 8192-token chunks need
+  the headroom (a 1M prefill at 0.78 leaves the head 5.7 GiB, at 0.80 only 2.7
+  GiB), and higher has wedged nodes.
+- **The two v2.4 flags are per-launch switches.** `--swa-prefix-tails 128` ships on
+  (the engine default is 64 at 16 slots); each extra tail is one sliding window plus
+  a page (384 SWA slots), so the 64 extra cost 26,415 tokens of budget and buy room
+  to keep a 388K session cached (revisit 1.5 s instead of an 89 s re-prefill).
+  `--prefill-decode-interval 2` ships **off**:
+  measured cost **17–28 %** of ladder throughput at C2/C5/C10, and it is a
+  multi-user latency feature (`-o env.PREFILL_DECODE_INTERVAL=2` to enable). Both
+  are `AB_ENV` keys, and `0` omits the flag rather than passing it.
 - **`DSV41_FAST_LOAD` lives in the launcher, not the recipe** — there is no
   recipe-side knob (the recipe carries no `env:` block; everything is the
   launcher's `RECIPE_ENV`). Shipped `"0"` (stock loader, ~350 s startup). Setting
   it to `"1"` saves ~220 s/boot but shrinks the host's allowed KV budget 3–13%;
-  at the shipped fixed pin, concurrency is unchanged either way.
+  at the 9.4M pin's 9.28M pool concurrency was unchanged either way (measured
+  before the 2026-10-18 pin change; not re-taken at 6.85M).
 - **Rollback for the RDMA transport is one launcher line:**
   `SGLANG_ROCE_ALLREDUCE=0`. RoCEnante is the single largest lever measured on
   this lane (1.23–1.81× over NCCL, outside the 7–25% boot-to-boot spread).
