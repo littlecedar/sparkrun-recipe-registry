@@ -44,12 +44,21 @@ executor_config:
 # torch comes from PyPI, not the download.pytorch.org/whl/cpu index: that index carries no current aarch64 wheel, while PyPI's 2.8.0 aarch64 wheel is CPU-only on this architecture anyway.
 # Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, and this python:*-slim tag ships no /bin/kill (verified in the image), so without the shim the launch is declared failed while the serve comes up healthy seconds later.
 # LAYA_EXTRA_MODELS re-points the bundled `english` checkpoint at the staged snapshot: without it laya-serve re-resolves the Hub at startup and the {model_revision} pin would not decide the weights. Only `english` is preloaded — a non-Latin state would auto-route to `multilingual`, which is not staged.
+#
+# laya-serve's main() reads no argv (uvicorn is started from LAYA_* env only), so the staged path
+# travels in an environment variable. That export is also the launch contract: sparkrun's
+# validate_runtime_command (models/runtime.py) shlex-splits the rendered command and accepts the
+# prepared snapshot path only as a whole token or a `key=<path>` token. With {model} inside the
+# printf JSON the path arrived as `<path>)`, and sparkrun refused the launch with "serve command
+# does not identify the validated model". Exporting it first keeps the token `LAYA_MODEL_PATH=<path>`
+# and the JSON is then built from that variable, so the path the server loads is the same string.
 command: >
   printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
   && chmod 755 /usr/local/bin/kill
   && pip install --no-cache-dir --quiet 'torch==2.8.0'
   && pip install --no-cache-dir --quiet 'laya[serve]==0.4.11'
-  && export LAYA_EXTRA_MODELS=$(printf '{"english":"%s"}' {model})
+  && export LAYA_MODEL_PATH='{model}'
+  && export LAYA_EXTRA_MODELS=$(printf '{"english":"%s"}' "$LAYA_MODEL_PATH")
   && LAYA_DEVICE=cpu LAYA_PRELOAD=1 LAYA_MODELS=english LAYA_DEFAULT_MODEL=english
   LAYA_MAX_LOADED=1 LAYA_THREADS=5 LAYA_HOST={host} LAYA_PORT={port}
   taskset -c 0-4,10-14 laya-serve {served_model_name}

@@ -44,6 +44,7 @@ Run:
 from __future__ import annotations
 
 import re
+import shlex
 import unittest
 from pathlib import Path
 
@@ -77,10 +78,40 @@ JEV = "jev-27b-decision-vllm.yaml"
 KOKORO = "kokoro-82m-tts-cpu.yaml"
 CPU_ARMS = tuple(n for n in ARMS if n != JEV)
 
+# A stand-in for the prepared snapshot path sparkrun substitutes for {model}.
+STAND_IN_MODEL = "/cache/models--decision-standin/snapshots/" + "0" * 40
+
 # The shim the shipped siblings carry, character for character (a folded
 # `command:` keeps the backslash-n literals that the shell's printf expands).
 KILL_SHIM = "printf '#!/bin/bash\\nbuiltin kill \"$@\"\\n' > /usr/local/bin/kill"
 CHMOD = "chmod 755 /usr/local/bin/kill"
+
+def render(r: dict, model: str = STAND_IN_MODEL) -> str:
+    """The command as sparkrun renders it: defaults and {model} substituted."""
+    rendered = r["command"]
+    for key, value in r["defaults"].items():
+        rendered = rendered.replace("{" + key + "}", value)
+    return rendered.replace("{model}", model)
+
+
+def launch_token_violations(r: dict, model: str = STAND_IN_MODEL) -> list[str]:
+    """The launch contract of sparkrun's validate_runtime_command (models/runtime.py:80-90).
+
+    It shlex-splits the rendered command and accepts the prepared snapshot
+    path only as a whole token or as the value of a `key=<path>` token. A path
+    glued to shell syntax -- `<path>)` from a printf, `<path>,"` from JSON --
+    matches neither, and the launch dies with "serve command does not identify
+    the validated model" after the model has already been prepared.
+    """
+    if "{model}" not in r["command"]:
+        return []
+    tokens = shlex.split(render(r, model))
+    accepted = {t for t in tokens if t == model or t.endswith("=" + model)}
+    violations = [f"model path arrives inside {t!r}" for t in tokens
+                  if model in t and t not in accepted]
+    if not accepted:
+        violations.insert(0, "no whole token or key=<path> token carries the prepared model path")
+    return violations
 
 
 def arm(name: str) -> dict:
@@ -232,6 +263,13 @@ class ContentIdentity(unittest.TestCase):
         self.assertNotIn("{model}", r["command"])
         self.assertIn("/kokoro-fastapi-cpu@sha256:", r["top"]["container"])
 
+    def test_kokoro_declares_no_model_to_distribute(self):
+        # The exemption from the launch contract below is the declaration, not
+        # silence: with model distribution on, sparkrun prepares the snapshot,
+        # binds it, and then rejects a command that cannot name it.
+        self.assertRegex(arm(KOKORO)["stripped"],
+                         r"(?m)^distribution_config:\n  models:\n    enabled: false$")
+
 
 class VllmSrunShim(unittest.TestCase):
     def test_new_arms_hold_the_shim(self):
@@ -265,6 +303,20 @@ class CpuOrGpuIsExplicit(unittest.TestCase):
 
     def test_gpu_arm_bounds_gpu_residency(self):
         self.assertEqual(gpu_violations(arm(JEV)), [])
+
+
+class ModelPathIsALaunchToken(unittest.TestCase):
+    """Every arm that takes {model} must survive sparkrun's own token check."""
+
+    def test_consuming_arms_are_the_two_custom_servers(self):
+        consuming = sorted(n for n in ARMS if "{model}" in arm(n)["command"])
+        self.assertEqual(consuming, sorted(("laya-decision-serve.yaml",
+                                           "kev-0.8b-decision-serve.yaml")))
+
+    def test_model_path_is_a_whole_token_or_key_value(self):
+        for name in ARMS:
+            with self.subTest(arm=name):
+                self.assertEqual(launch_token_violations(arm(name)), [])
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +402,16 @@ class NegativeControls(unittest.TestCase):
         r = parse_text(raw)
         self.assertTrue(model_consumption_violations(r))
         self.assertEqual(foreign_repo_violations(r), ["vllm-sr/Decision-2.0-Nox-4B"])
+
+    def test_glued_model_path_fails_the_launch_guard(self):
+        # The shape this lane booted with: {model} inside printf's JSON, so the
+        # rendered path reached the validator as `<path>)`, not a token.
+        raw = (DECISION / "laya-decision-serve.yaml").read_text(encoding="utf-8")
+        raw = mutate(raw, "export LAYA_MODEL_PATH='{model}'\n  && ", "")
+        raw = mutate(raw, '"$LAYA_MODEL_PATH")', "{model})")
+        violations = launch_token_violations(parse_text(raw))
+        self.assertTrue(violations, "the guard accepted the pre-fix command shape")
+        self.assertIn(f"{STAND_IN_MODEL})", " ".join(violations))
 
 
 if __name__ == "__main__":

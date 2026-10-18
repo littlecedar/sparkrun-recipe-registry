@@ -34,6 +34,16 @@ readiness:
   port_timeout_s: 600
   health_timeout_s: 600
 
+# The image bakes the model set (DOWNLOAD_MODEL=false below) and the entrypoint takes no model
+# argument, so there is nothing to distribute. Without this declaration sparkrun still prepares and
+# mounts the declared snapshot, then rejects the command with "serve command does not identify the
+# validated model": the launch contract in models/runtime.py requires the prepared path in the
+# rendered command. Declaring the model resource off is what makes the arm exempt -- no binding is
+# registered, so bind_runtime_models never runs and validate_runtime_command returns early.
+distribution_config:
+  models:
+    enabled: false
+
 defaults:
   port: 8880
   host: 0.0.0.0
