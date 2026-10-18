@@ -1,0 +1,59 @@
+# NON-SHIPPABLE PROBE ARM (`zz-` convention). Byte-identical to
+# jev-9b-decision-vllm.yaml except for a consumed `gpu_memory_utilization`, so the co-location
+# receipt (embed 0.25 + rerank 0.30 + this 0.20 = 0.75) can be boot-tested without changing
+# the shipped arm's solo residency. 0.16 was measured and refused by vLLM
+# (`No available memory for the cache blocks`); 0.20 is the next rung. Measured 2026-10-18;
+# see ~/benchmarks/embed-colocation-20261018/REPORT.md on the head node.
+recipe_version: "2"
+model: autotrust/JEV-9B
+model_revision: 7ac669b8fb476ba926491e3d1c39f9330d68dbed
+container: vllm/vllm-openai:glm53-flash@sha256:819ec9c063412e5730d1b0e82046ba540d1bf991f3c4f661a849aae8a0c52374
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: >-
+    [PROBE, non-shippable] autotrust/JEV-9B decision model with an explicit
+    --gpu-memory-utilization cap, to boot-test the asserted three-way co-location with the
+    shipped embed + rerank 2B pair on one DGX Spark. Not a registry arm.
+  model_url: https://huggingface.co/autotrust/JEV-9B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "9B"
+  model_dtype: bf16
+  tags: decision, smol, classifier
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  max_model_len: 4096
+  max_lora_rank: 32
+  # Absolute device cap, consumed by the serve line: the shipped embed (0.25) and rerank
+  # (0.30) caps SUM with this one (0.75 of 121.69 GiB ~= 91.3 GiB). 0.16 = 19.47 GiB was too
+  # small for a 16.68 GiB checkpoint plus a 4096-token window; vLLM aborted in KV-cache init.
+  gpu_memory_utilization: 0.20
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"], which would consume the command sparkrun appends; clear it so the recipe's own serve line runs.
+executor_config:
+  entrypoint: ""
+
+command: >
+  vllm serve
+  /cache/huggingface/hub/models--autotrust--JEV-9B/snapshots/7ac669b8fb476ba926491e3d1c39f9330d68dbed
+  --served-model-name autotrust/JEV-9B
+  --revision=7ac669b8fb476ba926491e3d1c39f9330d68dbed
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --enable-lora
+  --max-lora-rank {max_lora_rank}
+  --lora-modules jev-decision=/cache/huggingface/hub/models--autotrust--JEV-9B/snapshots/7ac669b8fb476ba926491e3d1c39f9330d68dbed/adapter_vllm
+  --logprobs-mode processed_logprobs
+  --enable-prefix-caching
+  --mamba-cache-mode align
