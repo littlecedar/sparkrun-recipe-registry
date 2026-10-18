@@ -2140,13 +2140,18 @@ Engram directory (the engine loads without them and only prints a warning — se
 |:--|:--|:--|
 | `TF_DS_REPLAY` | `1` | bounded decoder replay (DeepSeek's deployment mode); the engine default is exact prefill, which is slower and can OOM at 128K |
 | `TF_DS_PREFILL_CHUNK` | `2048` | upstream's served chunk |
-| `TF_DS_RANK_CACHE` | `/cache/runtime/tensorfold/rank-cache` | ~106 GiB/rank weight cache; paid once per host |
+| `TF_DS_RANK_CACHE` | `/cache/runtime/tensorfold/rank-cache/<served tree>` | ~106 GiB/rank weight cache, paid once per host; set per **served tree** (`rank_cache_dir()` in `mods/tensorfold-dsv41-launcher/launcher.py`), because two arms share one runtime-cache key once the ds4 arm pins `48afcd1c…` and TensorFold unlinks every other rank/world key in the dir it writes to (`…/families/deepseek_v41/cuda/weights.py:140`), so a shared dir would make each arm evict the other and re-pay the ~330 s cold write. Not a correctness knob: TF's own key (shard `name:size:mtime`) already tells the two files apart. Pinned by `tests/test_ds4_recipes.py::TensorfoldLaneContract.test_rank_cache_is_per_served_tree` |
 | `TF_DS_RANK_CACHE_READERS` | `32` | upstream's value |
 | `TF_DS_WARM_LENGTHS` | `1,17,33,131,514,1024,2113` | upstream's warm-up lengths |
 | `TORCH_EXTENSIONS_DIR` | `/cache/runtime/tensorfold/torch-extensions` | persist the first-start CUDA-extension compile |
 | `TF_DS_TOKEN_MAP` | `/cache/runtime/tensorfold/token_map.json` | Engram hash table, built once from `tokenizer.json` |
 | `TF_DS_ENGRAM` | `/cache/huggingface/hub/dsv41-engram` | set only when safetensors tables are present (§12.7) |
 | `HOME` | `/cache/runtime/tensorfold` | the container runs as the ssh user, who may lack a writable home |
+
+`RECIPE_ENV` carries the base `/cache/runtime/tensorfold/rank-cache` (the `run.sh` agreement point),
+and `main()` **overrides** it per served tree through `rank_cache_dir(model_dir)` — `<base>/<served
+dir basename>`, e.g. `…/rank-cache/48afcd1c0de5b1e0f7a9` for a snapshot (follows the pin) or
+`…/rank-cache/dsv41-ablit` for a graft.
 
 `serve` always runs with `--parallel 4 --mtp-drafts 5 --temperature 0 --no-update-check`. The first
 three are upstream's served line; `--no-update-check` keeps the boot off the network.
@@ -2180,14 +2185,20 @@ the engine does not advertise a filesystem path. Verified live (2026-10-13): ten
 TTR 56.0 s); the knapcio production serve `a4c699c1299bbbdf_8296561cc1cb` (`.30`) answers
 `deepseek-ai/DeepSeek-V4.1-Flash`.
 
-### 12.7 Engram is fetched from the online repo (was: distributed out-of-band)
+### 12.7 Engram provisioning: the fetch mod (superseded 2026-10-17 — the shipped recipe serves the combined pack)
 
 The two Engram tables are **not** distributed by sparkrun, and they are **not** in the EXL3
 checkpoint: they belong to the *official* `deepseek-ai/DeepSeek-V4.1-Flash` repo, where they are
 shards 47/48 (~101.5 GB each). Pulling that whole checkpoint just to reach 189 GiB of tables ships
 ~285 GB the engine never reads — so the recipe no longer depends on anyone having copied the shards
-onto the node by hand. It carries `recipes/cybersec/mods/dsv41-engram-fetch`, which builds the tables **on each runner
-node from the online repo**:
+onto the node by hand. The mod that builds them (`recipes/cybersec/mods/dsv41-engram-fetch`) is no
+longer mounted either: the recipe serves the combined
+`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` pack, whose own `engram/` subdir the
+launcher resolves, and **no shipped recipe mounts that mod** — it stays in the tree as the
+**out-of-band pre-warm path** for a node without the combined pack. The fence below is what it runs,
+and `tools/build-dsv41-engram.py` is still the builder; the launcher's `--stock-model` flag is
+where the resolution lives for a grafted dir (a graft tree carries no `engram/` of its own, so it
+points back at the combined pack it was grafted from):
 
 ```bash
 # exactly what the mod runs (canonical source: tools/build-dsv41-engram.py):
@@ -2576,10 +2587,12 @@ so its emitted serve line and environment are unchanged — the flag is opt-in, 
 receipt `~/benchmarks/ds4-vision-20261015/`): the two-part change reaches the engine and the engine
 works — the launch log carries `vision ON: vl_bias_dir=… (43 gates; engine flag --vision)`,
 `vision tower on rank 0: 0.90 GiB; VL bias for 43 gates`, and a real-image warm-up
-(`small image (184 tokens, 546x546 px) 431 ms`). The HTTP surface is the remaining gate: an
-`image_url` part on `/v1/chat/completions` is still refused with **HTTP 400 `the chat template
-rejected the request: Message content contains image…`**, while the text control passes — i.e. the
-served chat template has no image branch even though the engine does. The 2026-10-06 trial that
+(`small image (184 tokens, 546x546 px) 431 ms`). The HTTP surface was the remaining gate: an
+`image_url` part on `/v1/chat/completions` was refused with **HTTP 400 `the chat template
+rejected the request: Message content contains image…`**, while the text control passed — i.e. the
+served chat template has no image branch even though the engine does. **(Closed 2026-10-17 — the
+template was the ticket, and the mod now ships a patched one: §12.14.1, receipt
+`~/benchmarks/ds4-vision-20261017/`.)** The 2026-10-06 trial that
 this ship was based on answered image requests, so the delta is the serving contract (template or
 request shape), not the launcher or the bias. The arm boots and serves text at TP=2 in ~80 s with
 the Engram tables loaded (combined repo, `<snapshot>/engram/`, 2 x 94.4 GiB per node).
@@ -2688,15 +2701,17 @@ same. Lesson recorded in the lane README's knobs.
 
 ### 12.16 DeepSeek-V4.1-Flash-1017 refresh — trial boot + measurement (2026-10-17)
 
-The 1017 refresh boots and serves on the shipped TensorFold TP=2 arm with a trial recipe, and it
-measures **at parity with the shipped V4.1 arm at C4 and ahead at C8/C16**, with TEB equal. It is
-**not shipped**: the 1017 arm is a trial (receipt below), and the decision to re-cut the base in
-`recipes/ds4/` is the owner's.
+The 1017 refresh boots and serves on the shipped TensorFold TP=2 arm with a trial recipe, and its A/B
+means sit at parity with the shipped V4.1 arm — but the three runs per cell **overlap on every
+cell**, so all the ladder establishes is the 1017 arm's much tighter spread, not a speed win; TEB
+equal. It is **not shipped**: the 1017 arm is a trial (receipt below), and the decision to re-cut the
+base in `recipes/ds4/` is the owner's.
 
 **Why a trial recipe, not `-o model=`.** `sparkrun run … -o model=LibertAIDAI/…` is honoured by the
 dry run (`-n` prints the new `--model`) and **ignored by a real launch**: measured 2026-10-17, the
-launch distributed and served `littlecedar/…-2.9bpw-with-engram` (boot.log:5/:33/:49/:68). The trial
-is therefore a copied recipe with `model:`/`model_revision:` replaced —
+launch distributed and served `littlecedar/…-2.9bpw-with-engram`
+(`boot-1017-override-ignored-combined.log:5/:33/:49/:68`). The trial is therefore a copied recipe
+with `model:`/`model_revision:` replaced —
 `~/benchmarks/ds4-1017-20261017/ds41-1017-trial.yaml` (untracked; not a registry asset).
 
 **What the pack needs that the shipped pack did not.**
@@ -2724,18 +2739,27 @@ with a clean text control.
 
 **Same-window A/B**, one serve at a time on `.34`+`.35`, same image/launcher/profile
 (`benchmarking/ds4-sglang-depth0-ladder.yaml`, 3 runs per cell, decode rows only) and the standard
-TEB suite (`benchmarking/standard-suite.yaml`, 15 scenarios):
+TEB suite (`benchmarking/standard-suite.yaml`, 15 scenarios). Cells are **mean ± σ of the 3 runs,
+the runs in parentheses**; the output files are `ladder.json` (1017) and `ladder-shipped.json`
+(shipped), both in `~/benchmarks/ds4-1017-20261017/`:
 
 | arm | C1 | C4 | C8 | C16 | TEB |
 |---|---:|---:|---:|---:|---:|
-| shipped `littlecedar/…-with-engram` (V4.1) | 68.0 (70.9/73.0/60.0) | 48.0 | 43.3 | 43.4 | **100** (15/15) |
-| trial `LibertAIDAI/…-1017-EXL3` | 61.5 (59.5/61.0/64.2) | 48.9 | 49.3 | 48.2 | **100** (15/15) |
+| shipped `littlecedar/…-with-engram` (V4.1) | 68.0 ± 5.68 (70.9/73.0/60.0) | 48.0 ± 1.56 (46.0/48.0/49.9) | 43.3 ± 3.94 (48.9/40.3/40.7) | 43.4 ± 5.85 (35.2/46.9/48.2) | **100** (15/15) |
+| trial `LibertAIDAI/…-1017-EXL3` | 61.5 ± 1.96 (59.5/61.0/64.2) | 48.9 ± 0.57 (48.2/48.8/49.6) | 49.3 ± 0.37 (49.8/49.3/48.8) | 48.2 ± 0.07 (48.3/48.2/48.2) | **100** (15/15) |
 
-Deltas: C1 **−9.6 %** (shipped σ 5.7 on that cell — one 60.0 outlier pulls its mean up; medians
-71.95 vs 61.0), C4 +1.9 %, **C8 +13.9 %, C16 +11.1 %**. Tool-call quality is identical on the
-suite that ships. **Confound, stated:** the 1017 ladder ran first, on a host 530 s out of a cold
+Reading it: **every cell's three runs overlap** — c8 48.8–49.8 (1017) vs 40.3–48.9 (shipped), c16
+48.2–48.3 vs 35.2–48.2 — and the shipped arm's own spread (σ 1.56–5.85) swallows the mean gaps, so
+what the ladder supports is "the 1017 arm is far more consistent", **not** a speed win: the C8/C16
+deltas first read off the means (**+13.9 % / +11.1 %**) are **not established**. The C1 gap (mean
+**−9.6 %**) is the same shape of non-result and carries its own caveat — shipped σ 5.7 there from a
+single 60.0 outlier (medians 71.95 vs 61.0) — so that sub-claim is **not established** either, and
+the interleaved re-take is what would settle it. Tool-call quality is identical on the suite that
+ships. **Confound, stated:** the 1017 ladder ran first, on a host 530 s out of a cold
 boot; the shipped ladder ran ~7 min into a warm boot. Decode is not a compile-cost quantity, but a
 C1 difference this small should be re-taken interleaved before it is quoted as a real regression.
+The **adoption decision rests on the pack's published gains against the ~385 GB/node cost, not on
+this ladder.**
 
 **Cost of adopting it:** ~385 GB per node (196 GiB pack + 189 GiB tables) re-downloaded, a new
 rank-cache write per node (330 s measured), and a re-cut of the combined repo if the dedup layout is
@@ -3219,8 +3243,8 @@ shares one KV pool across its streams rather than sizing the pool separately (se
 |:--|:--|
 | Recipe | `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
-| Model | [`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw`](https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw) (EXL3 2.9bpw, ~197 GB) |
-| Engram | Built on-node from the online official repo by `recipes/cybersec/mods/dsv41-engram-fetch` (~189 GiB) |
+| Model | [`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`](https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram) (EXL3 2.9bpw — the Mia-AiLab shards byte-for-byte — plus the Engram tables) |
+| Engram | Shipped in the served repo under `engram/` (`<model_dir>/engram`, the launcher's first choice); no fetch mod is mounted. `recipes/cybersec/mods/dsv41-engram-fetch` (~189 GiB) remains the out-of-band pre-warm path for a node without the combined pack |
 | Nodes | 2 (TP=2, one GB10 per node) |
 | Context | **1,048,576 tokens served** — the model's full trained window, which is also the KV pool |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
@@ -3251,18 +3275,23 @@ is now evidence, not hope. Second, the shipping prerequisite that bites first: t
 reference resolves from the node's registry clone, so this recipe only launches once the mod is
 committed and pushed (§12.10).
 
-**Vision: the launcher ships it and the engine runs it; the chat template still refuses image
-requests.** DeepSeek-V4.1-Flash is multimodal and the TensorFold engine supports image input behind
-its opt-in `--vision` flag. The TP=2 recipe now passes that flag and the launcher stages the
+**Vision: the launcher ships it, the engine runs it, and since 2026-10-17 the served template accepts
+it.** DeepSeek-V4.1-Flash is multimodal and the TensorFold engine supports image input behind
+its opt-in `--vision` flag. The TP=2 recipe passes that flag and the launcher stages the
 checkpoint's missing VL routing bias (43 `ffn.gate.bias_vl` tensors, extracted from the official
 weights) — the 2026-10-15 boot log shows the tower, `VL bias for 43 gates` and a real-image warm-up,
-so both parts work. What is still open is the HTTP contract: `/v1/chat/completions` with an
-`image_url` part returns HTTP 400 from the *chat template* ("Message content contains image…"),
-which the 2026-10-06 trial (on `.32`/`.33`, three discriminating images described correctly,
-including a swapped-order one) did not hit. See `AGENTS.md` §12.14 for the full picture and the
-receipt, and `attic/ds4/mods/dsv41-vision-overlay/` for the trial that proved the mechanism.
+so both parts work; the third part, the chat template, landed 2026-10-17, when the mod began serving
+a patched `chat_template.jinja` through a `--vision`-gated overlay dir (§12.14.1). Since then
+`/v1/chat/completions` with an `image_url` part answers **HTTP 200** (3/3 solid-colour probes with a
+clean text control, receipt `~/benchmarks/ds4-vision-20261017/`); until that date it answered HTTP 400
+from the *chat template* ("Message content contains image…"), which the 2026-10-06 trial (on
+`.32`/`.33`, three discriminating images described correctly, including a swapped-order one) did not
+hit. See `AGENTS.md` §12.14/§12.14.1 for the full picture and the receipt, and
+`attic/ds4/mods/dsv41-vision-overlay/` for the trial that proved the mechanism.
 
-**Engram: this lane provisions its own tables from the online repo.** The EXL3 checkpoint
+**(Superseded 2026-10-11/2026-10-17 — the shipped recipe serves the combined pack; the mod is
+unmounted. Kept as the runbook for a fresh node without it.)** **Engram: this lane provisions its
+own tables from the online repo.** The EXL3 checkpoint
 omits the two Engram embedding tables (layers 1 and 14, ~189 GiB); they exist only in the
 *official* `deepseek-ai/DeepSeek-V4.1-Flash` checkpoint. The recipe now carries
 `recipes/cybersec/mods/dsv41-engram-fetch`, which runs `tools/build-dsv41-engram.py` on each runner node: it

@@ -1711,10 +1711,56 @@ class TensorfoldLaneContract(unittest.TestCase):
         for sub in ("rank-cache", "torch-extensions"):
             self.assertIn(sub, run_sh)
         # The launcher's RECIPE_ENV must agree with the two dirs run.sh creates.
+        # TF_DS_RANK_CACHE is per served tree now (main() appends the model-dir
+        # tag), so only its parent is the dir run.sh creates.
         eff = dict(_tf_launcher().RECIPE_ENV)
-        self.assertEqual(eff["TF_DS_RANK_CACHE"], "/cache/runtime/tensorfold/rank-cache")
+        self.assertEqual(str(Path(eff["TF_DS_RANK_CACHE"]).parent),
+                         "/cache/runtime/tensorfold")
         self.assertEqual(eff["TORCH_EXTENSIONS_DIR"],
                          "/cache/runtime/tensorfold/torch-extensions")
+
+    def test_rank_cache_is_per_served_tree(self):
+        """One ~106 GiB rank cache **per served tree**, not per runtime-cache key.
+
+        sparkrun keys its runtime cache on `model@revision`; the cybersec
+        abliterated arm pins the same combined pack as this TP=2 arm (and the ds4
+        recipe has an open TODO to adopt that pin), yet grafts 24 rewritten
+        shards. TF names its file with the checkpoint's own key, so neither arm
+        could read the other's -- but the same code unlinks every other
+        rank/world key in the dir it writes to, so a shared dir would make each
+        arm evict the other and re-pay the ~330 s cold write on every switch.
+        Tagging by served tree keeps both caches: a snapshot keys on its hash
+        (follows the pin), a graft tree on its own name.
+        """
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            cache = Path(d) / "runtime"
+            snap = str(Path(d) / "snapshots" / "48afcd1c0de5b1e0f7a9")
+            graft = str(Path(d) / "dsv41-ablit")
+            mod = _tf_launcher()
+            mod.RUNTIME_CACHE = str(cache)
+            self.assertNotEqual(mod.rank_cache_dir(snap), mod.rank_cache_dir(graft))
+            self.assertEqual(mod.rank_cache_dir(snap),
+                             str(cache / "rank-cache" / "48afcd1c0de5b1e0f7a9"))
+            self.assertEqual(mod.rank_cache_dir(graft),
+                             str(cache / "rank-cache" / "dsv41-ablit"))
+
+            # Executed: main() must override the fixed dir the harness's own
+            # RECIPE_ENV still carries (that value is the run.sh agreement point).
+            tree = Path(graft)
+            tree.mkdir()
+            (tree / "config.json").write_text("{}")
+            _prog, _argv, env = _run_tf_launcher(
+                ["--boot", "--model", str(tree), "--port", "8000", "--tp", "2",
+                 "--served-model-name", "x", "--context", "262144"],
+                checkpoint_dir=str(tree), cache_dir=str(cache),
+            )
+            self.assertEqual(env.get("TF_DS_RANK_CACHE"),
+                             str(cache / "rank-cache" / "dsv41-ablit"))
+            self.assertNotEqual(env.get("TF_DS_RANK_CACHE"),
+                                str(cache / "rank-cache"))
+            self.assertTrue((cache / "rank-cache" / "dsv41-ablit").is_dir(),
+                            "the per-tree dir must exist for the engine to write into")
 
     # -- the shipped vision opt-in ----------------------------------------
     def test_vision_bias_ships_beside_the_launcher(self):
@@ -2080,6 +2126,30 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
                 _os.execvp = orig
         with self.assertRaises(AssertionError):
             self.assertIn("--master-port", captured["argv"])
+
+    def test_control_rank_cache_tag_dropped(self):
+        """Prove the per-tree tag is load-bearing: drop it and the arms collide.
+
+        The mutation is the pre-fix behaviour -- one fixed rank-cache dir for
+        every served tree -- under which this lane and the cybersec arm (one
+        runtime-cache key, different weights) share a ~106 GiB rank cache.
+        """
+        import types
+
+        src = (TF_MOD_DIR / "launcher.py").read_text()
+        broken = src.replace('(RUNTIME_CACHE) / "rank-cache" / tag',
+                             '(RUNTIME_CACHE) / "rank-cache"')
+        self.assertNotEqual(broken, src, "tagging line vanished; update the control")
+        module = types.ModuleType("tf_broken_rank_cache")
+        module.__file__ = str(TF_MOD_DIR / "launcher.py")
+        exec(compile(broken, module.__file__, "exec"), module.__dict__)
+        module.RUNTIME_CACHE = "/cache/runtime/tensorfold"
+        with self.assertRaises(AssertionError):
+            self.assertNotEqual(
+                module.rank_cache_dir(
+                    "/cache/huggingface/hub/models--a--b/snapshots/48afcd1c"),
+                module.rank_cache_dir("/cache/runtime/tensorfold/dsv41-ablit"),
+            )
 
     def test_control_vision_without_the_bias_file_fails_closed(self):
         """Prove the fail-closed gate can fail: `--vision` with no bias must abort.

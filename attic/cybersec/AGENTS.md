@@ -60,7 +60,7 @@ Pins (Hub `main` SHA, read 2026-10-14):
 | `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` | `8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a` |
 | `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` | `9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4` |
 | `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` | `cd56f6c148c6287cf26fa6618223ad046b9af27c` |
-| `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | `64ba41b6c916a587db06eae2e19b7845f7be6e6b` |
+| `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | `64ba41b6c916a587db06eae2e19b7845f7be6e6b` — its shards are the combined pack's weight shards (attribution only; arm 5 serves the combined pack) |
 | overlay `drowzeys/keys-Qwen3.8-27B…Single-DGXSpark` | `a9cf9de0e143513bb16183d65d9f4ca246906321` |
 | overlay `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` | `87bb9850e6f49fd20ad9c8516b7817215cbbf5fc` |
 
@@ -77,7 +77,7 @@ names neither naturally — it loads `/cache/runtime/dsv41-ablit` and advertises
 id — so the recipe passes `--stock-model {model}` (which renders to the prepared path, the token
 the validator looks for) and `recipes/cybersec/mods/graft-dsv41-ablit-wo-b/serve-when-grafted.sh` consumes and
 records it before exec'ing the launcher. Measured 2026-10-14: without it, the launch died at step
-[4/6] *after* the 205 GB stock pack had been distributed.
+[4/6] *after* the 205 GB stock pack of the day had been distributed.
 
 ---
 
@@ -92,7 +92,7 @@ Sizes are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10-14), 
 | 2 | `sakamakismile/…-AEON-ULTIMATE-UNCENSORED-NVFP4` | ~20.5 GB (+0.85 GB MTP) | compressed-tensors NVFP4, `qwen3_5` | AEON-7 abliteration; the overlay adds only a chat template (+ YaRN rope JSONs) |
 | 3 | `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` | ~23.9 GB | compressed-tensors NVFP4 **routed experts only**, rest BF16; `qwen3_5_moe` (256E top-8 + 1 shared, 3:1 GDN) | new family here (no Nex arm existed); **no MTP head** upstream |
 | 4 | `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` | ~183.5 GB | compressed-tensors NVFP4 experts + FP8 attention, weight-only, KV bf16; `qwen4_exp` | ~184 GB sits near the two-node 0.85 ceiling → `gpu_memory_utilization: 0.85`; the ~100 GB bf16 PLE n-gram tensor dominates the size |
-| 5 | `Mia-AiLab/…-EXL3-2.9bpw` + sidecar | ~197 GB stock + 682 MB sidecar | EXL3 mul1 K=5, 39 shards | 104 tensors edited (26 layers × trellis/suh/svh/mul1); L0-9, L36-39, MTP, embed/head, experts stay stock |
+| 5 | `littlecedar/…-EXL3-2.9bpw-with-engram` + sidecar | ~386 GB stock (the 197 GB Mia shards + ~189 GB Engram tables) + 682 MB sidecar | EXL3 mul1 K=5, 39 shards | 104 tensors edited (26 layers × trellis/suh/svh/mul1); L0-9, L36-39, MTP, embed/head, experts stay stock |
 
 Two template traps, both *measured* on the checkpoints' own cards and templates:
 
@@ -125,7 +125,8 @@ boot.
   arm 2 passes to `--chat-template`. Idempotent from the artifact (a non-empty template
   short-circuits). Needs the node token.
 - `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` — fetches the author's `apply_mia_exl3_wob.py` + the EXL3 sidecar
-  and grafts them onto the stock Mia pack under `/cache/runtime/dsv41-ablit`. Idempotent from
+  and grafts them onto the stock pack (`littlecedar/…-2.9bpw-with-engram`) under
+  `/cache/runtime/dsv41-ablit`. Idempotent from
   `ABLIT_META.json` (`n_edited == 104`); refuses `--src == --dst`.
 
 **The graft cannot exceed the pre-exec hook.** The graft rewrites every shard carrying
@@ -153,14 +154,20 @@ rendezvous flags, and the launcher maps them onto `tensorfold serve`.
 Two facts that come from the ds4 lane, not this one — do not contradict them here:
 
 - The engine's family check accepts **only** EXL3 (`quant_method`), which is why the stock must be
-  the Mia 2.9bpw pack and not the official MXFP4 repo.
-- Engram tables (~95 GiB each) are **not** in the EXL3 checkpoint. `recipes/cybersec/mods/dsv41-engram-fetch`
-  provisions them from the online official repo and deliberately does **not** block the boot; a
-  first boot can serve degraded and pick them up on the next. GPU memory utilisation stays ≤ 0.85.
+  the combined `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` pack (its weight shards are
+  the Mia 2.9bpw shards byte-for-byte) and not the official MXFP4 repo.
+- Engram tables (~95 GiB each) are **not** in the EXL3 weights, but the combined pack this arm
+  grafts onto carries them under `engram/`, so since 2026-10-17 arm 5 reads them there via the
+  launcher's `--stock-model` and mounts no fetch mod; `recipes/cybersec/mods/dsv41-engram-fetch` is
+  now mounted by no shipped recipe and stays as the fresh-node/pre-warm path (`attic/ds4/AGENTS.md`
+  §12.7). GPU memory utilisation stays ≤ 0.85.
 
-Graft never in place: the graft's `--src` is the stock snapshot and its `--dst` is the runtime
-cache; the mod compares `realpath -m` of both and dies if they are equal (the author's script also
-refuses it). The lane guard asserts both.
+Graft never in place: the graft's `--src` is a mod-built **symlink view** of the stock snapshot
+(absolute symlinks, `engram/` excluded) and its `--dst` is the runtime cache; the mod compares
+`realpath -m` of both and dies if they are equal (the author's script also refuses it). The view
+exists for two reasons: the script `os.link`s each shard it does not edit, which hardlinks the
+snapshot's own *relative* `../../blobs/…` symlink and does not resolve from the graft tree; and it
+`shutil.copytree`s `engram/` (~189 GiB). The lane guard asserts both.
 
 
 ---
@@ -505,10 +512,17 @@ another lane's workload when this was written.
 `--stock-model {model}` stopped being decorative — the launcher resolves the Engram tables from the
 pack named there when the served dir has none (commit `d7c879b`).
 
-- **The author's script copies through the HF cache's symlinks; it does not hardlink.** Measured on
-  `.34`: a graft straight from the combined snapshot produced a **386 GiB** tree — the snapshot's
-  76–79 B blob symlinks arrive as real files and the 189 GiB of Engram tables were duplicated — and
-  `/` went 2.2T → 2.7T used. The dedup as first wired *added* ~190 GB per node.
+- **The author's script `os.link`s every shard it does not edit, and `os.link` does not dereference
+  a symlink.** Verified from the script source plus a direct link-semantics experiment on the node:
+  `os.link(symlink, dst)` issues `link(2)` and hardlinks the *symlink inode*, so each untouched shard
+  became a hardlink of the snapshot's own *relative* `../../blobs/…` symlink, which cannot resolve
+  from the graft tree; and `shutil.copytree` dereferences the `engram/` directory, i.e. 189 GiB of
+  real bytes. Measured on `.34`, a graft straight from the combined snapshot produced a **386 GiB**
+  tree (`/` went 2.2T → 2.7T used). **That tree was deleted, so its composition is not
+  reconstructible:** the rewritten shards (118.58 GiB) plus the `engram/` copy (~189 GiB) account for
+  ~308 GiB, and the residual ~78 GiB is **unexplained — most likely the script's `copy2` fallback**
+  (`apply_mia_exl3_wob.py:76`), which *follows* a symlink and would materialize unedited shards as
+  real bytes. The dedup as first wired *added* ~190 GB per node.
 - **Fix (commit `a61890a`).** The mod builds a 50-entry `--src` symlink view of the stock pack
   without `engram/`, hands that to the script, and links `${STOCK}/engram` into the graft tree; the
   repair runs before the `ABLIT_META` short-circuit, so a graft already on a node is fixed on its
@@ -516,7 +530,8 @@ pack named there when the served dir has none (commit `d7c879b`).
   `~/benchmarks/cybersec-arm5-20261017/`): `src view: … (50 entries, engram/ excluded)`, graft
   **148 s** (`.34` 22:32:29→22:34:57) and **137 s** (`.35` 22:35:12→22:37:29) — ~390 s before,
   because the table copy is gone — `verified n_edited=104 method=graft-keys-l10-35-wo_b-exl3-mul1-k5`,
-  `dsv41-ablit` **119 GiB** (the ~26 rewritten shards; untouched shards and `engram/` are links),
+  `dsv41-ablit` **119 GiB** (`du` == `du --apparent-size`: 24 shards with `nlink=1` totalling
+  118.58 GiB; the other 15 shards and `engram/` are links),
   and the launcher boot line `engram=<stock>/engram`.
 - **Serve contract:** `GET /v1/models` → `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`
   at **865.9 s** TTR (graft + cold rank cache `rank0of2-50cbbba13afcf8991af9.bin`, weights 299 s,
@@ -565,14 +580,16 @@ untouched.
 | 2 | `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang` | sglang | [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] **+ the [drowzeys keys overlay]** (chat template) + [z-lab/Qwen3.8-27B-DFlash2] draft | 1 | **33.3 / 26.2** | 37/37 | boots, `GET /v1/models` = repo id; uncensored template confirmed in the serve log |
 | 3 | `nex-n2.5-mini-uncensored-nvfp4-sglang` | sglang | [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4] (`qwen3_5_moe`, 256E top-8, vision) | 1 | — | — | **negative** under SGLang (NaN sample-time logits → CUDA device-side assert); its card's vLLM route now has a boot receipt — route works, checkpoint degenerates to one repeated token in every probe, no index row — see AGENTS.md |
 | 4 | `qwen3.8-flash-next-uncensored-nvfp4-sglang` | sglang | [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4] (`qwen4_exp`, NVFP4 experts / FP8 attention) | 2 | — | — | **negative** — SGLang's compressed-tensors loader refuses the export's scheme (`CompressedTensorsW4A16Sparse24` unsupported); the card's vLLM route is the next step — see AGENTS.md |
-| 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 269 s / 284 s per node, inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
+| 5 | `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` | sglang shim → TensorFold | stock [combined littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram pack] **+ the [drowzeys wo_b sidecar]** | 2 | **63.7 / 67.7** | 36/37 | boots, `GET /v1/models` = the overlay repo id (1M ctx); graft measured at 148 s / 137 s per node (2026-10-17, on the combined stock), inside the 600 s hook budget; refusal probe 0/8 explicit refusals (1/8 completed; 7/8 truncated-empty at the cap) — see AGENTS.md |
 
 **Cache reclamation (2026-10-14, owner space directive):** the two **negatives'** checkpoints were
 deleted from every node's HF cache — an arm with no working serve ships no artifact —
 `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` (**183.5 GB/node**, `.32`+`.33`) and
 `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` (24 GB). A re-test re-fetches. The three positives'
-checkpoints — including arm 5's stock `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` pack and the staged
-Engram tables the launcher reads — are **kept cached**.
+checkpoints — including arm 5's stock combined `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`
+pack, which carries the Engram tables the launcher reads — are **kept cached**. The
+`Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` tree is **reclaimable** since 2026-10-17 (its shards
+survive inside the combined pack) and is named as such in `mad-science/STORAGE-POLICY.md`.
 
 `[bracketed]` links resolve at the bottom of this section. Every arm is one recipe; the measured
 receipts (boot id, `GET /v1/models` answer, `decode-triage` run, house battery) live in
@@ -588,12 +605,12 @@ writes the source snapshot:
 | arm | overlay repo | body / stock | what the arm adds | mod |
 |---|---|---|---|---|
 | 2 | [drowzeys keys-Qwen3.8-27B…Single-DGXSpark] | `sakamakismile/…-AEON-ULTIMATE-UNCENSORED-NVFP4` | the cybersecurity-unlock **chat template** (+ the YaRN rope overlays for the 1M route) | `recipes/cybersec/mods/provide-uncensored-chat-template` |
-| 5 | [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] | `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` | the `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar**, grafted | `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` |
+| 5 | [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed] | combined `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` pack | the `layers.10-35 attn.wo_b` **EXL3 mul1 K=5 sidecar**, grafted | `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` |
 
 For arm 5 the author's `INSTALL.md` pairs a stock pack with a sidecar and forbids mixing them —
-the Mia 2.9bpw pack takes the **EXL3** sidecar and the EXL3 graft script; native / Pollard / TR3
-take the FP8 pair. The lane ships the EXL3 pair because the Mia pack is what our 2-node EXL3
-engine serves.
+the combined pack's EXL3 weight shards take the **EXL3** sidecar and the EXL3 graft script;
+native / Pollard / TR3 take the FP8 pair. The lane ships the EXL3 pair because the combined pack
+(Mia shards, plus the Engram tables) is what our 2-node EXL3 engine serves.
 
 ### Served model id — the convention
 
@@ -666,6 +683,7 @@ build than the 2026-10-13/14 receipts did, which is what the digest pin now free
 [orcarouter/Nex-N2.5-mini-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
 [orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4
 [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+[combined littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram pack]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed]: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
 [drowzeys keys overlay]: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark
 [drowzeys wo_b sidecar]: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
