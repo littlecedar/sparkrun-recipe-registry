@@ -6,8 +6,8 @@ container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c
 runtime: sglang
 min_nodes: 1
 
+description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4-W4A16 (modelopt W4A16) with its in-checkpoint BF16 MTP head on SGLang EAGLE spec decode.
 metadata:
-  description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4-W4A16 (modelopt W4A16) with its in-checkpoint BF16 MTP head on SGLang EAGLE spec decode.
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/r0b0tlab/Ornith-1.5-35B-A3B-NVFP4-W4A16
   model_params: "35.1B"

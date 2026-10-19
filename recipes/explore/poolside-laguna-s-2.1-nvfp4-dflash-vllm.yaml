@@ -9,23 +9,23 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  poolside/Laguna-S-2.1-NVFP4 (117.6B total / 8.5B active MoE, 256 experts,
+  3:1 SWA, native 1,048,576 context) on ONE DGX Spark (TP=1) with the
+  quantization-matched DFlash speculator. The Aug-2026 checkpoint loads to
+  95.61 GiB resident (measured 2026-10-18; the 92.9 GiB figure was an
+  estimate) — the quantization ignores attention, both the dense and the
+  shared MLPs and layers 40-47's experts, so most of the download is BF16 —
+  which leaves a single Spark's 0.85 budget only 3.89 GiB of fp8 KV once
+  CUDA-graph capture has taken its 1.52 GiB. At the boot's 39,672 B/token
+  that is 104,192 tokens of engine maximum; this recipe ships 98,304 (a
+  6.6% headroom), because 120k wanted 4.54 GiB and the pool had 3.89. Not
+  the card's 262k, which needs 9.32 GiB of KV. DFlash n=3 is the sweep
+  winner over the vendor default n=15.
+  Thinking is interleaved between tool calls and ON by default;
+  per-request enable_thinking toggles it. 99.7 GB download plus the 2.2 GB
+  draft. Sibling arm: the 33B Laguna-XS-2.1.
 metadata:
-  description: >-
-    poolside/Laguna-S-2.1-NVFP4 (117.6B total / 8.5B active MoE, 256 experts,
-    3:1 SWA, native 1,048,576 context) on ONE DGX Spark (TP=1) with the
-    quantization-matched DFlash speculator. The Aug-2026 checkpoint loads to
-    95.61 GiB resident (measured 2026-10-18; the 92.9 GiB figure was an
-    estimate) — the quantization ignores attention, both the dense and the
-    shared MLPs and layers 40-47's experts, so most of the download is BF16 —
-    which leaves a single Spark's 0.85 budget only 3.89 GiB of fp8 KV once
-    CUDA-graph capture has taken its 1.52 GiB. At the boot's 39,672 B/token
-    that is 104,192 tokens of engine maximum; this recipe ships 98,304 (a
-    6.6% headroom), because 120k wanted 4.54 GiB and the pool had 3.89. Not
-    the card's 262k, which needs 9.32 GiB of KV. DFlash n=3 is the sweep
-    winner over the vendor default n=15.
-    Thinking is interleaved between tool calls and ON by default;
-    per-request enable_thinking toggles it. 99.7 GB download plus the 2.2 GB
-    draft. Sibling arm: the 33B Laguna-XS-2.1.
   model_url: https://huggingface.co/poolside/Laguna-S-2.1-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "117.6B"

@@ -12,8 +12,8 @@ mods:
   - "mods/provide-uno-lora-k2-horizon-7b"
   - "mods/probe-uno-fa4-sm121"
 
+description: IFM/K2-Horizon-7B-FP8 + K2-Horizon-7B-Uno (native UNO spec decode, LD draft) on GB10 - fastest arm in the lane (requires the fa4 gate mod)
 metadata:
-  description: IFM/K2-Horizon-7B-FP8 + K2-Horizon-7B-Uno (native UNO spec decode, LD draft) on GB10 - fastest arm in the lane (requires the fa4 gate mod)
   model_url: https://huggingface.co/IFM/K2-Horizon-7B-FP8
   model_params: "9.0B"
   model_dtype: fp8_e4m3

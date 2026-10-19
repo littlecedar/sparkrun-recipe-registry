@@ -6,13 +6,13 @@ container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897
 min_nodes: 2
 max_nodes: 2
 
+description: >-
+  [probe, not shippable] W12 cross-runtime bench arm — RadixArk Qwen3.8-Flash-Next-NVFP4
+  on vLLM, TP=2. Cloned from attic/qwen4/arms/qwen3.8-flash-next-nvfp4-vllm.yaml
+  (never benchmarked) and made attributable: checkpoint pinned, image digest-pinned.
+  The b12x digest is the arm's own engine family — the serve line carries
+  --moe-backend b12x, which is that build's backend name.
 metadata:
-  description: >-
-    [probe, not shippable] W12 cross-runtime bench arm — RadixArk Qwen3.8-Flash-Next-NVFP4
-    on vLLM, TP=2. Cloned from attic/qwen4/arms/qwen3.8-flash-next-nvfp4-vllm.yaml
-    (never benchmarked) and made attributable: checkpoint pinned, image digest-pinned.
-    The b12x digest is the arm's own engine family — the serve line carries
-    --moe-backend b12x, which is that build's backend name.
   model_url: https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4
   model_params: "180B"
   model_dtype: nvfp4

@@ -7,21 +7,21 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  hexgrad/Kokoro-82M — the lane's fourth co-tenant: an 82M StyleTTS2/ISTFTNet
+  TTS model at 0.305 GiB of weights, served on the same A725 cores as the
+  CPU decision arms and at no GPU cost. The server is Kokoro-FastAPI's CPU
+  image (v0.9.0, arm64 index digest), an OpenAI-compatible
+  POST /v1/audio/speech with GET /health; the lane's decision instrument
+  cannot score TTS, so the arm's gate is a wav round-trip plus real-time
+  factor, not an accuracy pass. Image choice: it is the only published,
+  digest-pinned multi-arch CPU image that already carries kokoro-onnx,
+  onnxruntime and espeak-ng with the model set baked at build (its build
+  history runs DOWNLOAD_MODEL=true), so a launch neither installs a
+  ~1 GB torch wheel nor fetches weights; the project's own Dockerfile and a
+  python:*-slim + `pip install kokoro` path were the alternatives, both
+  slower per boot and neither published. Apache-2.0.
 metadata:
-  description: >-
-    hexgrad/Kokoro-82M — the lane's fourth co-tenant: an 82M StyleTTS2/ISTFTNet
-    TTS model at 0.305 GiB of weights, served on the same A725 cores as the
-    CPU decision arms and at no GPU cost. The server is Kokoro-FastAPI's CPU
-    image (v0.9.0, arm64 index digest), an OpenAI-compatible
-    POST /v1/audio/speech with GET /health; the lane's decision instrument
-    cannot score TTS, so the arm's gate is a wav round-trip plus real-time
-    factor, not an accuracy pass. Image choice: it is the only published,
-    digest-pinned multi-arch CPU image that already carries kokoro-onnx,
-    onnxruntime and espeak-ng with the model set baked at build (its build
-    history runs DOWNLOAD_MODEL=true), so a launch neither installs a
-    ~1 GB torch wheel nor fetches weights; the project's own Dockerfile and a
-    python:*-slim + `pip install kokoro` path were the alternatives, both
-    slower per boot and neither published. Apache-2.0.
   model_url: https://huggingface.co/hexgrad/Kokoro-82M
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "82M"

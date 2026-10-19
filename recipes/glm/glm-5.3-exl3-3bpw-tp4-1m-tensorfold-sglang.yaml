@@ -9,18 +9,18 @@ container: littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256
 min_nodes: 4
 max_nodes: 4
 
+description: >-
+  The full GLM-5.3 753B at EXL3 3.0bpw (~273 GB) on 4x DGX Spark (GB10),
+  TP=4, TensorFold 0.6.0 from the unreleased glm-dsa-tp4 fork, 1M window
+  with decode context parallelism and the checkpoint's own MTP-3 head. The
+  only full-753B line that fits four nodes (69.86 GiB of weights per rank);
+  the trial measured 35.7 t/s single-stream and a needle found at 1,039,064
+  tokens. The launcher mod owns the engine command; receipts and the
+  runbook are in recipes/glm/README.md and attic/glm/. Booted as a sparkrun
+  recipe 2026-10-18 on four nodes (ready in ~4 min, 31.7 t/s per-request
+  decode on a 397-token prompt, 258 s TTFT at 100,559 prompt tokens);
+  quality and the 1M-window rungs are still open.
 metadata:
-  description: >-
-    The full GLM-5.3 753B at EXL3 3.0bpw (~273 GB) on 4x DGX Spark (GB10),
-    TP=4, TensorFold 0.6.0 from the unreleased glm-dsa-tp4 fork, 1M window
-    with decode context parallelism and the checkpoint's own MTP-3 head. The
-    only full-753B line that fits four nodes (69.86 GiB of weights per rank);
-    the trial measured 35.7 t/s single-stream and a needle found at 1,039,064
-    tokens. The launcher mod owns the engine command; receipts and the
-    runbook are in recipes/glm/README.md and attic/glm/. Booted as a sparkrun
-    recipe 2026-10-18 on four nodes (ready in ~4 min, 31.7 t/s per-request
-    decode on a 397-token prompt, 258 s TTFT at 100,559 prompt tokens);
-    quality and the 1M-window rungs are still open.
   model_params: "753B"
   model_url: https://huggingface.co/bertholomus/GLM-5.3-EXL3-3.0bpw
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

@@ -6,8 +6,8 @@ container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c
 runtime: sglang
 min_nodes: 1
 
+description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4 Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
 metadata:
-  description: ornith-ai/Ornith-1.5-35B-A3B-NVFP4 Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
   draft_model: jzinno/Ornith-1.5-35B-A3B-DFlash2

@@ -6,16 +6,16 @@ runtime: sglang
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  Cloudflare/clef-flash — a 9B open-weight decision model (Qwen3.5-9B backbone
+  + a joint schema head), Apache-2.0. Deliberately Jev/SystemOne-compatible:
+  POST /v1/systemone answers choice / noul / score questions with calibrated
+  probabilities and no text generation. Vendor numbers (self-reported and not
+  reproduced on the community board): median 38.8 ms, 41 GB VRAM at 64k ctx,
+  BFCL 98.8 / MMMU 91.8 on the vendor's own suite. Serves multimodal (text,
+  JSON, images, video). Lane research:
+  attic/decision/DECISION-MODELS-RESEARCH.md.
 metadata:
-  description: >-
-    Cloudflare/clef-flash — a 9B open-weight decision model (Qwen3.5-9B backbone
-    + a joint schema head), Apache-2.0. Deliberately Jev/SystemOne-compatible:
-    POST /v1/systemone answers choice / noul / score questions with calibrated
-    probabilities and no text generation. Vendor numbers (self-reported and not
-    reproduced on the community board): median 38.8 ms, 41 GB VRAM at 64k ctx,
-    BFCL 98.8 / MMMU 91.8 on the vendor's own suite. Serves multimodal (text,
-    JSON, images, video). Lane research:
-    attic/decision/DECISION-MODELS-RESEARCH.md.
   model_url: https://huggingface.co/Cloudflare/clef-flash
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "9B"

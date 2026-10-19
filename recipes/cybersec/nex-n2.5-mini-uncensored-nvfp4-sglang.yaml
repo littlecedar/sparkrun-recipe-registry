@@ -4,8 +4,8 @@ model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
+description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark
 metadata:
-  description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark
   model_url: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "35B"

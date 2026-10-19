@@ -7,8 +7,8 @@ container: lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e032b8c5bcebdc69c45664074c0
   # was pushed hours before this pin) and the mod below anchor-checks the engine it patches.
 cluster_only: false
 
+description: Qwen3.8-27B-NVFP4-DFlash2
 metadata:
-  description: Qwen3.8-27B-NVFP4-DFlash2
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"
   model_dtype: nvfp4

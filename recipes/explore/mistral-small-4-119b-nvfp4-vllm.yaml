@@ -8,17 +8,17 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  mistralai/Mistral-Small-4-119B-2603-NVFP4 — Mistral Small 4 (119B total /
+  6.5B active MoE, 128 experts top-4, 256k context, text + image in) as a
+  post-training-activation NVFP4 compressed-tensors checkpoint, on ONE DGX
+  Spark (TP=1). 70.85 GB of files / 66.0 GiB of weights; util 0.80 leaves
+  ~31 GiB for KV. Serves the three families it unifies (Instruct, Reasoning,
+  Devstral/agentic) with per-request reasoning_effort none|high, native
+  function calling and JSON. The card's own line is TP=2 with
+  --attention-backend TRITON_MLA; this arm is the single-node form and
+  disables the MLA optimizations instead (see env).
 metadata:
-  description: >-
-    mistralai/Mistral-Small-4-119B-2603-NVFP4 — Mistral Small 4 (119B total /
-    6.5B active MoE, 128 experts top-4, 256k context, text + image in) as a
-    post-training-activation NVFP4 compressed-tensors checkpoint, on ONE DGX
-    Spark (TP=1). 70.85 GB of files / 66.0 GiB of weights; util 0.80 leaves
-    ~31 GiB for KV. Serves the three families it unifies (Instruct, Reasoning,
-    Devstral/agentic) with per-request reasoning_effort none|high, native
-    function calling and JSON. The card's own line is TP=2 with
-    --attention-backend TRITON_MLA; this arm is the single-node form and
-    disables the MLA optimizations instead (see env).
   model_url: https://huggingface.co/mistralai/Mistral-Small-4-119B-2603-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "119B"

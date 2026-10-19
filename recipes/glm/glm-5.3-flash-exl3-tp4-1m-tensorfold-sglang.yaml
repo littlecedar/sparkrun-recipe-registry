@@ -18,16 +18,16 @@ builder: docker-pull
 min_nodes: 4
 max_nodes: 4
 
+description: >-
+  GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4x DGX Spark (GB10), TP=4, TensorFold
+  v0.6.0 with the 106-patch tp4 engine and DFlash2 drafts: the lane's fastest
+  measured arm (single-stream decode 98.4 t/s, C1 @ d0 on .30-.33,
+  2026-10-13). Realized as a sparkrun recipe by the lane's launcher mod,
+  which owns the engine command; receipts and the runbook are in
+  recipes/glm/README.md and attic/glm/. The recipe path itself has NOT been
+  booted (it needs a TP=4 window). The drafter is CC BY-NC-ND 4.0
+  (non-commercial; owner decision 2026-10-11).
 metadata:
-  description: >-
-    GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4x DGX Spark (GB10), TP=4, TensorFold
-    v0.6.0 with the 106-patch tp4 engine and DFlash2 drafts: the lane's fastest
-    measured arm (single-stream decode 98.4 t/s, C1 @ d0 on .30-.33,
-    2026-10-13). Realized as a sparkrun recipe by the lane's launcher mod,
-    which owns the engine command; receipts and the runbook are in
-    recipes/glm/README.md and attic/glm/. The recipe path itself has NOT been
-    booted (it needs a TP=4 window). The drafter is CC BY-NC-ND 4.0
-    (non-commercial; owner decision 2026-10-11).
   model_params: "169B"
   model_url: https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

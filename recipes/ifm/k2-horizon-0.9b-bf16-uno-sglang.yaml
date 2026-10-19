@@ -12,8 +12,8 @@ mods:
   - "mods/provide-uno-lora-k2-horizon-0.9b"
   - "mods/probe-uno-fa4-sm121"
 
+description: IFM/K2-Horizon-0.9B + K2-Horizon-0.9B-Uno (native UNO spec decode, linear draft) on GB10 - the 0.9B arm with a diffusion-style draft (requires the fa4 gate mod)
 metadata:
-  description: IFM/K2-Horizon-0.9B + K2-Horizon-0.9B-Uno (native UNO spec decode, linear draft) on GB10 - the 0.9B arm with a diffusion-style draft (requires the fa4 gate mod)
   model_url: https://huggingface.co/IFM/K2-Horizon-0.9B
   model_params: "1.19B"
   model_dtype: bf16

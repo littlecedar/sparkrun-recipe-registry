@@ -5,8 +5,8 @@ runtime: vllm
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a874b07dcd9df9f5ea776985b591cb3c213abd0e8ebe4a680e3e07214
 min_nodes: 2
 
+description: Qwen3.8-Flash-Next-Uncensored-NVFP4 - abliterated 180B MoE (qwen4_exp, NVFP4 experts / FP8 attention), 2x DGX Spark, on the vLLM route its card documents
 metadata:
-  description: Qwen3.8-Flash-Next-Uncensored-NVFP4 - abliterated 180B MoE (qwen4_exp, NVFP4 experts / FP8 attention), 2x DGX Spark, on the vLLM route its card documents
   model_url: https://huggingface.co/orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

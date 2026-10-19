@@ -6,10 +6,10 @@ container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c
 runtime: sglang
 min_nodes: 1
 
+description: >-
+  ornith-ai/Ornith-1.5-35B-A3B-NVFP4 on the card's YaRN factor-4.0 route: a ~1M-token window
+  (3.8x the native 262,144), no draft. Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
 metadata:
-  description: >-
-    ornith-ai/Ornith-1.5-35B-A3B-NVFP4 on the card's YaRN factor-4.0 route: a ~1M-token window
-    (3.8x the native 262,144), no draft. Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
   model_params: "35B"

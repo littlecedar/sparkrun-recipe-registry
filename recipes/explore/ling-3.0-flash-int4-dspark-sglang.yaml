@@ -9,30 +9,30 @@ runtime: sglang
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  inclusionAI/Ling-3.0-flash-int4 (124B total / 5.1B active, KDA 5:1
+  MLA hybrid-linear MoE) on ONE DGX Spark. Serve line is the third-party
+  Spark port's proven flag set, minus its docker wrapper: DSPARK spec decode
+  with the external 1.36B draft and the KDA ReplaySSM verify path, mem-fraction
+  0.80 (262k servable; 0.87 stays the documented ceiling and leaves the node
+  one bad boot from OOM), 262k context, 6 concurrent, fp8_e4m3 KV.
+  Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
+  column. **BOOT-VERIFIED 2026-10-11** on one node: house battery 37/37
+  (19 easy + 18 hard, zero flakes), measured C1 45.5 t/s @ d0 (sigma 5.5,
+  n=5). DSPARK engaged: single-request accept len 2.73 (engagement proof);
+  steady-state 3.64-3.73 under 4 concurrent generations, up to 116.7 t/s
+  aggregate. The third-party ~83 t/s was NOT reproduced — the acceptance
+  difference arithmetically accounts for most of the gap, and why theirs is
+  higher is untested. Long context: the rope_scaling boot warning is benign
+  (the checkpoint declares no scaling; SGLang's 1.0 default is a no-op) and a
+  verbatim needle is retrieved at 8k/64k/150k. **262k SERVABLE at mem-fraction
+  0.80 (2026-10-12)**: KV pool 313,752 tokens (0.75 measured 176,203; the
+  third-party 0.87 rung reported 576,930) and the full-window needle probe
+  PASSES at depths 10/50/90 (~256.9k-token prompts retrieved verbatim), with
+  a 4-way concurrent smoke clean (no OOM/retract). Receipts:
+  ~/benchmarks/ling-needle-20261011/ and ~/benchmarks/ling-262k-20261012/ on
+  the head node.
 metadata:
-  description: >-
-    inclusionAI/Ling-3.0-flash-int4 (124B total / 5.1B active, KDA 5:1
-    MLA hybrid-linear MoE) on ONE DGX Spark. Serve line is the third-party
-    Spark port's proven flag set, minus its docker wrapper: DSPARK spec decode
-    with the external 1.36B draft and the KDA ReplaySSM verify path, mem-fraction
-    0.80 (262k servable; 0.87 stays the documented ceiling and leaves the node
-    one bad boot from OOM), 262k context, 6 concurrent, fp8_e4m3 KV.
-    Third-party measured: ~83 t/s C1 with DSPARK, GPQA-D 83.65 on the INT4
-    column. **BOOT-VERIFIED 2026-10-11** on one node: house battery 37/37
-    (19 easy + 18 hard, zero flakes), measured C1 45.5 t/s @ d0 (sigma 5.5,
-    n=5). DSPARK engaged: single-request accept len 2.73 (engagement proof);
-    steady-state 3.64-3.73 under 4 concurrent generations, up to 116.7 t/s
-    aggregate. The third-party ~83 t/s was NOT reproduced — the acceptance
-    difference arithmetically accounts for most of the gap, and why theirs is
-    higher is untested. Long context: the rope_scaling boot warning is benign
-    (the checkpoint declares no scaling; SGLang's 1.0 default is a no-op) and a
-    verbatim needle is retrieved at 8k/64k/150k. **262k SERVABLE at mem-fraction
-    0.80 (2026-10-12)**: KV pool 313,752 tokens (0.75 measured 176,203; the
-    third-party 0.87 rung reported 576,930) and the full-window needle probe
-    PASSES at depths 10/50/90 (~256.9k-token prompts retrieved verbatim), with
-    a 4-way concurrent smoke clean (no OOM/retract). Receipts:
-    ~/benchmarks/ling-needle-20261011/ and ~/benchmarks/ling-262k-20261012/ on
-    the head node.
   model_url: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "124B"

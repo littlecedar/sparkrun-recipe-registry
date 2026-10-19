@@ -106,6 +106,33 @@ class PlaceholderResolution(unittest.TestCase):
         self.assertGreater(checked, 15, "expected to check the full shipped set")
 
 
+def _description_errors(text: str) -> list[str]:
+    """`description:` must sit at column 0; nesting it under `metadata:` is the
+    pre-0.4 form (sparkrun reads the top-level key and folds it into metadata on
+    export, so a nested block still parses and silently reverts the migration).
+    """
+    errors = []
+    if not re.search(r"(?m)^description:\s*\S", text):
+        errors.append("no top-level `description:`")
+    if re.search(r"(?m)^  description:", text):
+        errors.append("`description:` is nested under `metadata:`")
+    return errors
+
+
+class DescriptionPlacement(unittest.TestCase):
+    def test_every_recipe_has_a_top_level_description(self):
+        checked = 0
+        for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
+            text = strip_comment_lines(path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                _description_errors(text),
+                [],
+                f"{path.relative_to(REPO_ROOT)}: {_description_errors(text)}",
+            )
+            checked += 1
+        self.assertGreater(checked, 40, "expected the full shipped set")
+
+
 class NegativeControls(unittest.TestCase):
     def test_missing_default_fails(self):
         text = (
@@ -144,6 +171,17 @@ class NegativeControls(unittest.TestCase):
             if tok not in defaults and tok not in INJECTED
         ]
         self.assertEqual(missing, [])
+
+    def test_nested_description_fails(self):
+        text = (
+            "recipe_version: 2\n"
+            "metadata:\n"
+            "  description: x\n"
+            "  maintainer: y\n"
+        )
+        self.assertEqual(_description_errors(text),
+                         ["no top-level `description:`",
+                          "`description:` is nested under `metadata:`"])
 
 
 class LiteralShaConsistency(unittest.TestCase):

@@ -197,7 +197,7 @@ remove what the session created** — a leftover is anything undocumented, unkno
 
 **Prose is American English — always `license`, `licenses`.** Never the British `-ce` noun form. It applies to
 every tracked word this registry writes: READMEs, lane docs, `mad-science/` notes, recipe comments and
-`metadata.description`, and `attic/` archives (they ship to third parties too). Identifiers are exempt —
+`description:` prose, and `attic/` archives (they ship to third parties too). Identifiers are exempt —
 keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agreement`,
 `SPDX-License-Identifier` headers, a card's `license:` field) exactly as its owner wrote it.
 
@@ -214,6 +214,9 @@ keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agr
 - Pin the checkpoint with top-level **`model_revision:`** (30 recipes), never `revision:` — an
   unknown top-level key is silently absorbed into `runtime_config` and does nothing (the labquant lane
   records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
+- **`description:` is a top-level key**, never nested under `metadata:` — sparkrun reads the top-level
+  form and folds it back into metadata on export (all 59 shipped recipes moved 2026-10-18; `attic/`
+  stays frozen). Do not move `maintainer:` with it: the constructor reads that one metadata-only.
 - `runtime:` may be inferred from a `command:` hint (one recipe omits it). Digest-pin `container:`
   when the lane depends on exact upstream code.
 - Update the root `README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚

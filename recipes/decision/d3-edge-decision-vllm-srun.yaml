@@ -7,19 +7,19 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  vllm-sr/d3-edge — Decision 3.0's edge rung (594M parameters, 1.19 GB of
+  weights + readout), served by the vendor's own vllm-srun runtime (decision3
+  family) on CPU. POST /v1/systemone over text, image and video states with
+  choice / noul / score answers and no text generation. Pinned to the
+  runtime's built-in revision — the repo's head (c454ee39, 2026-10-17) is
+  newer than both the image and the recorded goldens, so serving it would
+  report golden `unverified` by design. The image's recorded CPU answers for
+  this revision were measured on x86 hosts and do not reproduce on the GB10's
+  aarch64 cores (golden gate fails at CPU_TOLERANCE 1e-3, deterministic
+  2-4e-3 deltas), and the loader resolves through the Hub tree API so a
+  staged offline node cannot load it. Both blockers are image-side. Apache-2.0.
 metadata:
-  description: >-
-    vllm-sr/d3-edge — Decision 3.0's edge rung (594M parameters, 1.19 GB of
-    weights + readout), served by the vendor's own vllm-srun runtime (decision3
-    family) on CPU. POST /v1/systemone over text, image and video states with
-    choice / noul / score answers and no text generation. Pinned to the
-    runtime's built-in revision — the repo's head (c454ee39, 2026-10-17) is
-    newer than both the image and the recorded goldens, so serving it would
-    report golden `unverified` by design. The image's recorded CPU answers for
-    this revision were measured on x86 hosts and do not reproduce on the GB10's
-    aarch64 cores (golden gate fails at CPU_TOLERANCE 1e-3, deterministic
-    2-4e-3 deltas), and the loader resolves through the Hub tree API so a
-    staged offline node cannot load it. Both blockers are image-side. Apache-2.0.
   model_url: https://huggingface.co/vllm-sr/d3-edge
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "0.6B"

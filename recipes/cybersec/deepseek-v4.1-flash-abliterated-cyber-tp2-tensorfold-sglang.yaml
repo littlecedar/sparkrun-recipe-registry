@@ -7,11 +7,11 @@ builder: docker-pull
 min_nodes: 2
 max_nodes: 2
 
+description: >-
+  DeepSeek-V4.1-Flash abliterated (cybersecurity-unlock) on 2x DGX Spark, TP=2: the stock
+  littlecedar EXL3 2.9bpw pack (weights plus the Engram tables) with the drowzeys
+  layers.10-35 attn.wo_b sidecar grafted on, served by the TensorFold deepseek_v41 engine
 metadata:
-  description: >-
-    DeepSeek-V4.1-Flash abliterated (cybersecurity-unlock) on 2x DGX Spark, TP=2: the stock
-    littlecedar EXL3 2.9bpw pack (weights plus the Engram tables) with the drowzeys
-    layers.10-35 attn.wo_b sidecar grafted on, served by the TensorFold deepseek_v41 engine
   model_url: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"

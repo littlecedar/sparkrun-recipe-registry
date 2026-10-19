@@ -5,8 +5,8 @@ runtime: sglang
 container: ghcr.io/miaai-lab/qwen3.8-27b-dgx-spark-tensorfold@sha256:043d192b9e1725f55c5439fc9672055de891433e5b31448ed8963918e3c460e9
 min_nodes: 1
 
+description: Qwen3.8-27B (MLX 4-bit) on one DGX Spark, served by TensorFold v0.6.0 + MiaAI-Lab patches
 metadata:
-  description: Qwen3.8-27B (MLX 4-bit) on one DGX Spark, served by TensorFold v0.6.0 + MiaAI-Lab patches
   model_url: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"

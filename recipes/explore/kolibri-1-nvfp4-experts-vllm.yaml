@@ -14,18 +14,18 @@ max_nodes: 1
 mods:
   - "mods/install-kolibri-plugin"
 
+description: >-
+  iSkye/Kolibri-1-NVFP4-Experts — Aleph Alpha's 78.1B / 3.46B-active MoE with
+  ONLY its routed experts re-quantized FP8 -> NVFP4A16 (attention, shared
+  expert, router, embeddings and head unchanged), on ONE DGX Spark (TP=1).
+  42.6 GiB of weights instead of 73.4, so the served shape is the FP8 arm's
+  (util 0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with
+  the freed ~30 GiB left as KV headroom. Thinking is ON by default;
+  per-request chat_template_kwargs {reasoning_effort: none|low|medium|high}
+  disables or shortens it. The uploader's GB10 numbers (vLLM 0.30.0, fp8 KV,
+  600-token decodes) are 52.1 / 93.5 / 162.6 / 265.9 t/s at 1/2/4/8 streams
+  against the FP8 model's 48.1 / 80.4 / 127.2 / 179.3.
 metadata:
-  description: >-
-    iSkye/Kolibri-1-NVFP4-Experts — Aleph Alpha's 78.1B / 3.46B-active MoE with
-    ONLY its routed experts re-quantized FP8 -> NVFP4A16 (attention, shared
-    expert, router, embeddings and head unchanged), on ONE DGX Spark (TP=1).
-    42.6 GiB of weights instead of 73.4, so the served shape is the FP8 arm's
-    (util 0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with
-    the freed ~30 GiB left as KV headroom. Thinking is ON by default;
-    per-request chat_template_kwargs {reasoning_effort: none|low|medium|high}
-    disables or shortens it. The uploader's GB10 numbers (vLLM 0.30.0, fp8 KV,
-    600-token decodes) are 52.1 / 93.5 / 162.6 / 265.9 t/s at 1/2/4/8 streams
-    against the FP8 model's 48.1 / 80.4 / 127.2 / 179.3.
   model_url: https://huggingface.co/iSkye/Kolibri-1-NVFP4-Experts
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

@@ -7,17 +7,17 @@ builder: docker-pull
 min_nodes: 2
 max_nodes: 2
 
+description: >-
+  DeepSeek-V4.1-Flash-1017 on 2x DGX Spark (GB10), TP=2, served by the TensorFold
+  deepseek_v41 engine (bertholomus/TensorFold, branch deepseek-v41-tp2). The
+  EXL3 2.9bpw conversion of the 2026-10-17 refresh (~196 GB) plus that release's
+  own Engram tables (~189 GB, built from shards 47/48 of the base pack), DSpark
+  k=5, at the model's full 1M-token window. The pack ships no chat template of
+  its own; the launcher's --vision overlay serves this lane's patched one. The
+  recipe's `runtime: sglang` is the shim path: sparkrun renders the command and
+  appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher maps
+  them onto `tensorfold serve`. See README.md and AGENTS.md.
 metadata:
-  description: >-
-    DeepSeek-V4.1-Flash-1017 on 2x DGX Spark (GB10), TP=2, served by the TensorFold
-    deepseek_v41 engine (bertholomus/TensorFold, branch deepseek-v41-tp2). The
-    EXL3 2.9bpw conversion of the 2026-10-17 refresh (~196 GB) plus that release's
-    own Engram tables (~189 GB, built from shards 47/48 of the base pack), DSpark
-    k=5, at the model's full 1M-token window. The pack ships no chat template of
-    its own; the launcher's --vision overlay serves this lane's patched one. The
-    recipe's `runtime: sglang` is the shim path: sparkrun renders the command and
-    appends its per-node rendezvous flags, and mods/tensorfold-dsv41-launcher maps
-    them onto `tensorfold serve`. See README.md and AGENTS.md.
   model_url: https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"

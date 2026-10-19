@@ -9,19 +9,19 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  poolside/Laguna-XS-2.1-NVFP4 (33B total / 3B active MoE, 256 routed
+  experts, 3:1 SWA, 262,144 native context) on ONE DGX Spark (TP=1) with the
+  first-party DFlash speculator draft. The checkpoint's own
+  generation_config.json ships the speculative_config (method dflash, 15
+  draft tokens); `num_speculative_tokens` is lowered to the swept winner here
+  and the draft is pinned. Thinking is interleaved between tool calls.
+  vLLM does NOT apply the checkpoint's `default_chat_template_kwargs`
+  (enable_thinking true), so the serve line passes it explicitly —
+  without it the model answers with thinking off and loses several
+  arithmetic/format tasks. KV is fp8. Weights ~21.6 GB download / ~0.9 GB
+  draft.
 metadata:
-  description: >-
-    poolside/Laguna-XS-2.1-NVFP4 (33B total / 3B active MoE, 256 routed
-    experts, 3:1 SWA, 262,144 native context) on ONE DGX Spark (TP=1) with the
-    first-party DFlash speculator draft. The checkpoint's own
-    generation_config.json ships the speculative_config (method dflash, 15
-    draft tokens); `num_speculative_tokens` is lowered to the swept winner here
-    and the draft is pinned. Thinking is interleaved between tool calls.
-    vLLM does NOT apply the checkpoint's `default_chat_template_kwargs`
-    (enable_thinking true), so the serve line passes it explicitly —
-    without it the model answers with thinking off and loses several
-    arithmetic/format tasks. KV is fp8. Weights ~21.6 GB download / ~0.9 GB
-    draft.
   model_url: https://huggingface.co/poolside/Laguna-XS-2.1-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "33B"

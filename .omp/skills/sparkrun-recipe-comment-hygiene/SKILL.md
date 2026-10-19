@@ -26,7 +26,7 @@ and keep it to ≤2 lines beside the value it governs.
 2. **Per lane (one agent per lane; disjoint scopes).** Classify every comment KEEP/MOVE; write the
    movers to the two destinations; delete them from the YAML. Preserve indentation and blank-line
    structure; a trailing `key: value  # note` that is not crucial loses only its `# …` tail.
-3. **Never touch** `metadata.description` (guards assert its prose). Keep comments out of a folded
+3. **Never touch** `description:` (guards assert its prose). Keep comments out of a folded
    `command:` block — a `#` **mid-command** truncates the launch line at the shell. **One tracked
    exception, do not "fix" it:** `recipes/qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` ships a
    terminal in-fold comment that is load-bearing — sparkrun's `_augment_served_model_name` skips its own

@@ -9,24 +9,24 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  JetBrains/Mellum2.1-12B-A2.5B-Thinking — a coding/agentic thinking model:
+  12B total / 2.5B active MoE (64 routed experts, 8 per token), 28 layers,
+  32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding window 1,024 on
+  3 of every 4 layers with YaRN (factor 16 over 8,192) on the full-attention
+  layers, vocab 98,304, Apache-2.0, served bf16 (24.3 GB) on ONE DGX Spark
+  (TP=1). vLLM 0.29 carries the architecture natively (MellumForCausalLM, a
+  Qwen3-MoE variant adding a per-layer sliding window and per-layer RoPE), so
+  no plugin or mod is needed. The chat template produces an empty think block
+  only when `enable_thinking` is false — thinking is ON by default, so callers
+  must budget a large `max_tokens` or a truncated reasoning run arrives with an
+  empty `content`; `--reasoning-parser qwen3` splits ` thinking` … ` response`
+  into `reasoning_content`, and the template's `<tool_call>` JSON form is
+  parsed by `hermes` (`--enable-auto-tool-choice`). No draft/speculative
+  decode: the card names the MTP head "coming soon". Card sampling is
+  per-request (temperature 0.6, top_p 0.95, top_k 20; no server-side default
+  is set).
 metadata:
-  description: >-
-    JetBrains/Mellum2.1-12B-A2.5B-Thinking — a coding/agentic thinking model:
-    12B total / 2.5B active MoE (64 routed experts, 8 per token), 28 layers,
-    32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding window 1,024 on
-    3 of every 4 layers with YaRN (factor 16 over 8,192) on the full-attention
-    layers, vocab 98,304, Apache-2.0, served bf16 (24.3 GB) on ONE DGX Spark
-    (TP=1). vLLM 0.29 carries the architecture natively (MellumForCausalLM, a
-    Qwen3-MoE variant adding a per-layer sliding window and per-layer RoPE), so
-    no plugin or mod is needed. The chat template produces an empty think block
-    only when `enable_thinking` is false — thinking is ON by default, so callers
-    must budget a large `max_tokens` or a truncated reasoning run arrives with an
-    empty `content`; `--reasoning-parser qwen3` splits ` thinking` … ` response`
-    into `reasoning_content`, and the template's `<tool_call>` JSON form is
-    parsed by `hermes` (`--enable-auto-tool-choice`). No draft/speculative
-    decode: the card names the MTP head "coming soon". Card sampling is
-    per-request (temperature 0.6, top_p 0.95, top_k 20; no server-side default
-    is set).
   model_url: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "12B"

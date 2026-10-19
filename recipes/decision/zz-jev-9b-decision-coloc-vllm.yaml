@@ -12,11 +12,11 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  [PROBE, non-shippable] autotrust/JEV-9B decision model with an explicit
+  --gpu-memory-utilization cap, to boot-test the asserted three-way co-location with the
+  shipped embed + rerank 2B pair on one DGX Spark. Not a registry arm.
 metadata:
-  description: >-
-    [PROBE, non-shippable] autotrust/JEV-9B decision model with an explicit
-    --gpu-memory-utilization cap, to boot-test the asserted three-way co-location with the
-    shipped embed + rerank 2B pair on one DGX Spark. Not a registry arm.
   model_url: https://huggingface.co/autotrust/JEV-9B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "9B"

@@ -7,20 +7,20 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  convaiinnovations/laya — the English checkpoint (ModernBERT-large, 421M,
+  512 ctx) of a multilingual, non-autoregressive System 1 decision model,
+  served by the package's own laya-serve on CPU. POST /v1/systemone speaks
+  the TypeSafe Jev wire shape (choice / noul / score with calibrated
+  probabilities, no generated tokens), so the lane's instrument drives it
+  natively. Honest limit: the base checkpoint is near chance zero-shot on
+  the typed-decisions suite (0.362 against a 0.461 majority baseline) — the
+  0.766 in the card belongs to the separately fine-tuned
+  laya-typed-decisions checkpoint, so expect a low instrument score, and
+  read the arm as a CPU-cost/calibration datapoint rather than a quality
+  contender. Apache-2.0. Lane research:
+  attic/decision/DECISION-MODELS-RESEARCH.md.
 metadata:
-  description: >-
-    convaiinnovations/laya — the English checkpoint (ModernBERT-large, 421M,
-    512 ctx) of a multilingual, non-autoregressive System 1 decision model,
-    served by the package's own laya-serve on CPU. POST /v1/systemone speaks
-    the TypeSafe Jev wire shape (choice / noul / score with calibrated
-    probabilities, no generated tokens), so the lane's instrument drives it
-    natively. Honest limit: the base checkpoint is near chance zero-shot on
-    the typed-decisions suite (0.362 against a 0.461 majority baseline) — the
-    0.766 in the card belongs to the separately fine-tuned
-    laya-typed-decisions checkpoint, so expect a low instrument score, and
-    read the arm as a CPU-cost/calibration datapoint rather than a quality
-    contender. Apache-2.0. Lane research:
-    attic/decision/DECISION-MODELS-RESEARCH.md.
   model_url: https://huggingface.co/convaiinnovations/laya
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "421M"

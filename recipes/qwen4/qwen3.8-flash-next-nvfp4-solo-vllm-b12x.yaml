@@ -6,19 +6,19 @@ container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  Qwen3.8-Flash-Next-NVFP4 on ONE DGX Spark (TP=1) — the solo lane the TP=2 recipes
+  said was impossible. It is possible because the ~47.7 GiB FP8 PLE n-gram table is
+  the checkpoint component that does not fit alongside weights + KV in one node's
+  128 GB unified pool: VLLM_PLE_TABLE_MEMORY=disk keeps that table OFF the device
+  (mmap/pread per step) and the rest of the server config is the TP=2 shape at
+  --tp 1. Ported 2026-10-10 from the eugr registry's solo recipe (the
+  sparkrun-native form of the single-Spark cells the SGLang cookbook ships for the
+  RadixArk and NVIDIA exports). BOOT-VERIFIED 2026-10-10: /health 200, chat
+  completion answered correctly (17*23=391), W3 battery 38/38 n=1 (saturated —
+  cannot discriminate checkpoints). Pinned 2026-10-18 to the main SHA current
+  then, the step-5500 QAD hybrid export published 2026-10-06.
 metadata:
-  description: >-
-    Qwen3.8-Flash-Next-NVFP4 on ONE DGX Spark (TP=1) — the solo lane the TP=2 recipes
-    said was impossible. It is possible because the ~47.7 GiB FP8 PLE n-gram table is
-    the checkpoint component that does not fit alongside weights + KV in one node's
-    128 GB unified pool: VLLM_PLE_TABLE_MEMORY=disk keeps that table OFF the device
-    (mmap/pread per step) and the rest of the server config is the TP=2 shape at
-    --tp 1. Ported 2026-10-10 from the eugr registry's solo recipe (the
-    sparkrun-native form of the single-Spark cells the SGLang cookbook ships for the
-    RadixArk and NVIDIA exports). BOOT-VERIFIED 2026-10-10: /health 200, chat
-    completion answered correctly (17*23=391), W3 battery 38/38 n=1 (saturated —
-    cannot discriminate checkpoints). Pinned 2026-10-18 to the main SHA current
-    then, the step-5500 QAD hybrid export published 2026-10-06.
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

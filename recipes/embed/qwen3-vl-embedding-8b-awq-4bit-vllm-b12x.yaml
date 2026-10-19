@@ -4,8 +4,8 @@ runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
 
+description: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit — 4-bit W4A16 quant of the 8B multimodal embedding encoder, for the quality tier that still fits one DGX Spark
 metadata:
-  description: gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit — 4-bit W4A16 quant of the 8B multimodal embedding encoder, for the quality tier that still fits one DGX Spark
   model_url: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
   model_params: "8B"
   model_dtype: awq4

@@ -4,8 +4,8 @@ container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:b94ac8ac47603f9c3d14
 runtime: vllm
 min_nodes: 4
 
+description: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
 metadata:
-  description: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft Chirp Chirp! [🐦](https://ornith.ai/ornith_1_5.html).
   model_url: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "397B"

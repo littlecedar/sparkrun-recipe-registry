@@ -4,8 +4,8 @@ runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
 
+description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier. Boots and serves colocated with the 8B AWQ encoder on one DGX Spark: 65.03 GiB of 121.69 total at the shipped caps."
 metadata:
-  description: "Qwen/Qwen3-VL-Reranker-8B - vision-language reranker, quality tier. Boots and serves colocated with the 8B AWQ encoder on one DGX Spark: 65.03 GiB of 121.69 total at the shipped caps."
   model_url: https://huggingface.co/Qwen/Qwen3-VL-Reranker-8B
   model_params: "8B"
   model_dtype: bf16

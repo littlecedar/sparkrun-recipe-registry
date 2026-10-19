@@ -6,8 +6,8 @@ container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e
 min_nodes: 1
 max_nodes: 1
 
+description: IFM/K2-Horizon-0.9B - dense 0.9B-class reasoning model, 128K YaRN context, native SGLang
 metadata:
-  description: IFM/K2-Horizon-0.9B - dense 0.9B-class reasoning model, 128K YaRN context, native SGLang
   model_url: https://huggingface.co/IFM/K2-Horizon-0.9B
   model_params: "1.08B"
   model_dtype: bf16

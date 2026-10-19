@@ -6,18 +6,18 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  autotrust/JEV-27B — the 27B student of TypeSafe Jev 1.13: the frozen
+  Qwen3.8-27B text tower (25.6B, vision tower and MTP head dropped) plus a
+  rank-16 LoRA and a 24-slot decision head re-expressed as an lm_head LoRA,
+  served by native vLLM. Prefill-only decision scorer over
+  /v1/completions with logprobs + allowed_token_ids (SystemOne-shaped), like
+  its 9B sibling; score on completions, not chat. SOLO ONLY: 52 GB of bf16
+  weights plus ~65 KB of KV per token leave no room beside the shipped
+  embed + rerank caps on one GB10, so this arm is one node for one model.
+  The card's own numbers (KL ~0.019 to the teacher) are not a lane score —
+  the instrument pass is a new measurement. Apache-2.0.
 metadata:
-  description: >-
-    autotrust/JEV-27B — the 27B student of TypeSafe Jev 1.13: the frozen
-    Qwen3.8-27B text tower (25.6B, vision tower and MTP head dropped) plus a
-    rank-16 LoRA and a 24-slot decision head re-expressed as an lm_head LoRA,
-    served by native vLLM. Prefill-only decision scorer over
-    /v1/completions with logprobs + allowed_token_ids (SystemOne-shaped), like
-    its 9B sibling; score on completions, not chat. SOLO ONLY: 52 GB of bf16
-    weights plus ~65 KB of KV per token leave no room beside the shipped
-    embed + rerank caps on one GB10, so this arm is one node for one model.
-    The card's own numbers (KL ~0.019 to the teacher) are not a lane score —
-    the instrument pass is a new measurement. Apache-2.0.
   model_url: https://huggingface.co/autotrust/JEV-27B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"

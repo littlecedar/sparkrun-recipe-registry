@@ -13,19 +13,19 @@ max_nodes: 1
 mods:
   - "mods/install-kolibri-plugin"
 
+description: >-
+  Quantinine/Kolibri-1-NVFP4A16-FP8 — Aleph Alpha's 78.1B / 3.46B-active MoE
+  with the routed experts re-quantized FP8 -> NVFP4 (weight-only, W4A16) and
+  the attention + shared expert left on the official FP8 path, on ONE DGX
+  Spark (TP=1). 45.8 GB of files / 42.8 GiB of weights against the official
+  73.6 GiB, so the SERVED shape is the FP8 arm's (util 0.78, 262,144 window,
+  max_num_seqs 4, fp8 KV, kolibri1 parsers) with ~31 GiB more KV headroom
+  left unspent. Thinking is ON by default; per-request
+  chat_template_kwargs {reasoning_effort: none|low|medium|high} or
+  enable_thinking false turns it off. The uploader is not Aleph Alpha
+  (unofficial conversion): its own KL screen vs the FP8 model is 0.0718 nats
+  per token, NLL +0.0040, top-1 agreement 89.4%.
 metadata:
-  description: >-
-    Quantinine/Kolibri-1-NVFP4A16-FP8 — Aleph Alpha's 78.1B / 3.46B-active MoE
-    with the routed experts re-quantized FP8 -> NVFP4 (weight-only, W4A16) and
-    the attention + shared expert left on the official FP8 path, on ONE DGX
-    Spark (TP=1). 45.8 GB of files / 42.8 GiB of weights against the official
-    73.6 GiB, so the SERVED shape is the FP8 arm's (util 0.78, 262,144 window,
-    max_num_seqs 4, fp8 KV, kolibri1 parsers) with ~31 GiB more KV headroom
-    left unspent. Thinking is ON by default; per-request
-    chat_template_kwargs {reasoning_effort: none|low|medium|high} or
-    enable_thinking false turns it off. The uploader is not Aleph Alpha
-    (unofficial conversion): its own KL screen vs the FP8 model is 0.0718 nats
-    per token, NLL +0.0040, top-1 agreement 89.4%.
   model_url: https://huggingface.co/Quantinine/Kolibri-1-NVFP4A16-FP8
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

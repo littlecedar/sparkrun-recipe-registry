@@ -6,27 +6,27 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  jialinyyzz/humanizer — a 12B text-rewriting model (fine-tune of
+  google/gemma-4-12B, arch Gemma4UnifiedForConditionalGeneration, Apache-2.0)
+  that rewrites one AI-written draft so it reads human, keeping every
+  number, unit, date, name and quotation. NOT a chat model: the working
+  surface is /v1/completions with a byte-exact prompt assembled from the
+  repo's prompt_format.json (instr + "\n\n" + draft.strip() + sep, sep =
+  "\n\n### Rewritten:\n\n", fingerprint cc51d66b4c593f) — the checkpoint
+  ships NO chat template, so /v1/chat/completions/render 400s ("you must
+  provide a chat template if the tokenizer does not define one") and the
+  completion endpoint is the only surface. Sampling is per-request
+  (temperature 1.0, top_p 0.95, top_k OFF, min_p 0, repetition_penalty 1.0,
+  max_tokens <=2048, EOS-only stop); --generation-config vllm keeps the
+  checkpoint's own generation_config.json top_k 64 out of the server defaults
+  (vLLM's default sampling is temperature 1.0 / top_p 1.0, still not the
+  model's). The checkpoint's config is multimodal (a vision/audio tower
+  besides the text stack) but only the text stack is served: no multimodal
+  data is present, so limit_mm_per_prompt is zeroed for all three modalities.
+  Context: the card's working point is 8192 tokens for instruction + draft +
+  rewrite (native max_position_embeddings is 262144 but is NOT probed here).
 metadata:
-  description: >-
-    jialinyyzz/humanizer — a 12B text-rewriting model (fine-tune of
-    google/gemma-4-12B, arch Gemma4UnifiedForConditionalGeneration, Apache-2.0)
-    that rewrites one AI-written draft so it reads human, keeping every
-    number, unit, date, name and quotation. NOT a chat model: the working
-    surface is /v1/completions with a byte-exact prompt assembled from the
-    repo's prompt_format.json (instr + "\n\n" + draft.strip() + sep, sep =
-    "\n\n### Rewritten:\n\n", fingerprint cc51d66b4c593f) — the checkpoint
-    ships NO chat template, so /v1/chat/completions/render 400s ("you must
-    provide a chat template if the tokenizer does not define one") and the
-    completion endpoint is the only surface. Sampling is per-request
-    (temperature 1.0, top_p 0.95, top_k OFF, min_p 0, repetition_penalty 1.0,
-    max_tokens <=2048, EOS-only stop); --generation-config vllm keeps the
-    checkpoint's own generation_config.json top_k 64 out of the server defaults
-    (vLLM's default sampling is temperature 1.0 / top_p 1.0, still not the
-    model's). The checkpoint's config is multimodal (a vision/audio tower
-    besides the text stack) but only the text stack is served: no multimodal
-    data is present, so limit_mm_per_prompt is zeroed for all three modalities.
-    Context: the card's working point is 8192 tokens for instruction + draft +
-    rewrite (native max_position_embeddings is 262144 but is NOT probed here).
   model_url: https://huggingface.co/jialinyyzz/humanizer
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "12B"

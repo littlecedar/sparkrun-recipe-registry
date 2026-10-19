@@ -11,16 +11,16 @@ max_nodes: 1
 mods:
   - "mods/install-kolibri-plugin"
 
+description: >-
+  kirillbilchenko/Kolibri-1-MXFP4-MxWave — Aleph Alpha's 78.1B /
+  3.46B-active MoE with the 57,600 routed expert matrices at OCP MXFP4
+  (E2M1, one E8M0 scale per 32 weights) and the official block-FP8
+  attention/shared-expert backbone kept byte-identical, on ONE DGX Spark
+  (TP=1). 40.45 GiB of weight files; served in the FP8 arm's shape (util
+  0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with the
+  freed ~33 GiB left as KV headroom. Experts run Marlin W4A16 on GB10
+  (--moe-backend marlin is the card's requirement, not a tuning choice).
 metadata:
-  description: >-
-    kirillbilchenko/Kolibri-1-MXFP4-MxWave — Aleph Alpha's 78.1B /
-    3.46B-active MoE with the 57,600 routed expert matrices at OCP MXFP4
-    (E2M1, one E8M0 scale per 32 weights) and the official block-FP8
-    attention/shared-expert backbone kept byte-identical, on ONE DGX Spark
-    (TP=1). 40.45 GiB of weight files; served in the FP8 arm's shape (util
-    0.78, 262,144 window, max_num_seqs 4, fp8 KV, kolibri1 parsers) with the
-    freed ~33 GiB left as KV headroom. Experts run Marlin W4A16 on GB10
-    (--moe-backend marlin is the card's requirement, not a tuning choice).
   model_url: https://huggingface.co/kirillbilchenko/Kolibri-1-MXFP4-MxWave
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

@@ -21,18 +21,18 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  Qwen/Qwen-Image-2.1-Turbo — text-to-image and image-editing checkpoint
+  (7B visual-generation DiT + Qwen3-VL text encoder + VAE, ~32.5 GB bf16),
+  8-step distilled schedule at CFG=1, served on ONE DGX Spark by diffusers'
+  `QwenImage21Pipeline` under a script launcher (no sglang/vLLM engine
+  exists for it). The checkpoint ships its own sampling schedule
+  (`sample_sigmas` in model_index.json) and prefix-KV context caching is on
+  by default. LICENSE: qwen-research — NON-COMMERCIAL ONLY (see the banner
+  at the top of this file). The mod stages a diffusers>=0.41 /
+  transformers>=5.17 venv on the image's torch and runs the HTTP server in
+  recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
 metadata:
-  description: >-
-    Qwen/Qwen-Image-2.1-Turbo — text-to-image and image-editing checkpoint
-    (7B visual-generation DiT + Qwen3-VL text encoder + VAE, ~32.5 GB bf16),
-    8-step distilled schedule at CFG=1, served on ONE DGX Spark by diffusers'
-    `QwenImage21Pipeline` under a script launcher (no sglang/vLLM engine
-    exists for it). The checkpoint ships its own sampling schedule
-    (`sample_sigmas` in model_index.json) and prefix-KV context caching is on
-    by default. LICENSE: qwen-research — NON-COMMERCIAL ONLY (see the banner
-    at the top of this file). The mod stages a diffusers>=0.41 /
-    transformers>=5.17 venv on the image's torch and runs the HTTP server in
-    recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
   model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "7B"

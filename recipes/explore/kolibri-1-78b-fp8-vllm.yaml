@@ -17,23 +17,23 @@ max_nodes: 1
 mods:
   - "mods/install-kolibri-plugin"
 
+description: >-
+  Aleph-Alpha/Kolibri-1 (78.1B total / 3.46B active MoE, 384 experts with 1
+  shared + 6 routed, 4:1 SWA:GQA) FP8 on ONE DGX Spark (TP=1) — the explore
+  lane's accuracy-champion candidate (AIME-25 96.9, GPQA-D 84.3, vendor
+  blog), ranked next after Ling by the research doc. Native context 262,144
+  (the card recommends <=262k for serving; 1M is validated by the vendor but
+  is NOT probed/shipped here). Working point follows the measured GB10 boot
+  (NVIDIA forum, 2026-10-04): util 0.78 — the weights alone are 73.5 GiB,
+  ~0.60 of usable GPU memory — max_num_seqs 4, fp8 KV, prefix caching,
+  reasoning + tool-call parsers `kolibri1` from the plugin. Thinking is ON by
+  default; per-request `chat_template_kwargs: {reasoning_effort: "none"}`
+  (or `enable_thinking: false`) turns it off. Cold start is long: weight load
+  alone was 1087 s on GB10 and one-time Triton fused_moe JIT adds a delay on
+  the first long request, hence the generous readiness timeouts. Vendor GB10
+  reference: 20.4 t/s decode C1 on stock vLLM 0.29 (48 t/s on a non-pinnable
+  sm121 build); 1.42-73.5 GiB class memory champion.
 metadata:
-  description: >-
-    Aleph-Alpha/Kolibri-1 (78.1B total / 3.46B active MoE, 384 experts with 1
-    shared + 6 routed, 4:1 SWA:GQA) FP8 on ONE DGX Spark (TP=1) — the explore
-    lane's accuracy-champion candidate (AIME-25 96.9, GPQA-D 84.3, vendor
-    blog), ranked next after Ling by the research doc. Native context 262,144
-    (the card recommends <=262k for serving; 1M is validated by the vendor but
-    is NOT probed/shipped here). Working point follows the measured GB10 boot
-    (NVIDIA forum, 2026-10-04): util 0.78 — the weights alone are 73.5 GiB,
-    ~0.60 of usable GPU memory — max_num_seqs 4, fp8 KV, prefix caching,
-    reasoning + tool-call parsers `kolibri1` from the plugin. Thinking is ON by
-    default; per-request `chat_template_kwargs: {reasoning_effort: "none"}`
-    (or `enable_thinking: false`) turns it off. Cold start is long: weight load
-    alone was 1087 s on GB10 and one-time Triton fused_moe JIT adds a delay on
-    the first long request, hence the generous readiness timeouts. Vendor GB10
-    reference: 20.4 t/s decode C1 on stock vLLM 0.29 (48 t/s on a non-pinnable
-    sm121 build); 1.42-73.5 GiB class memory champion.
   model_url: https://huggingface.co/Aleph-Alpha/Kolibri-1
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

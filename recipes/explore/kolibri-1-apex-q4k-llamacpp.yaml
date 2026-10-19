@@ -8,15 +8,15 @@ container: littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b@sha256:1928661
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  Aleph-Alpha/Kolibri-1 (78.1B total / 3.46B active, 384 experts top-6, 4:1
+  SWA:GQA) as Myric's uniform-Q4_K GGUF — 44.98 GB / 41.89 GiB, the pack's
+  closest-to-BF16 file — on ONE DGX Spark through llama.cpp. Full 262,144
+  native window: only the 10 full-attention layers grow with context
+  (~20 KiB/token at f16, ~5 GiB for the whole window). Thinking is on and
+  split into reasoning_content; tool calls ride llama-server's own
+  OpenAI-compatible path with --jinja.
 metadata:
-  description: >-
-    Aleph-Alpha/Kolibri-1 (78.1B total / 3.46B active, 384 experts top-6, 4:1
-    SWA:GQA) as Myric's uniform-Q4_K GGUF — 44.98 GB / 41.89 GiB, the pack's
-    closest-to-BF16 file — on ONE DGX Spark through llama.cpp. Full 262,144
-    native window: only the 10 full-attention layers grow with context
-    (~20 KiB/token at f16, ~5 GiB for the whole window). Thinking is on and
-    split into reasoning_content; tool calls ride llama-server's own
-    OpenAI-compatible path with --jinja.
   model_url: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

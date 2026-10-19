@@ -11,16 +11,16 @@ runtime: vllm
 min_nodes: 2
 max_nodes: 2
 
+description: >-
+  poolside/Laguna-M.1-NVFP4 — 225B total / 23B active agentic-coding MoE
+  (70 layers, 256 experts top-16 + 1 shared, global attention 64Q/8KV with
+  softplus output gating, 262,144 native) on TWO DGX Sparks (TP=2). 40 files
+  / 139.3 GB / 129.8 GiB of NVFP4 weights, i.e. ~65 GiB per rank; util 0.85
+  leaves ~36 GiB per rank for a ~18.8 GB/rank fp8 KV pool at the full window.
+  Thinking is interleaved between tool calls and is designed for preserved
+  reasoning across turns; the card does not turn it on server-side by
+  default, so the serve line passes --default-chat-template-kwargs. Apache-2.0.
 metadata:
-  description: >-
-    poolside/Laguna-M.1-NVFP4 — 225B total / 23B active agentic-coding MoE
-    (70 layers, 256 experts top-16 + 1 shared, global attention 64Q/8KV with
-    softplus output gating, 262,144 native) on TWO DGX Sparks (TP=2). 40 files
-    / 139.3 GB / 129.8 GiB of NVFP4 weights, i.e. ~65 GiB per rank; util 0.85
-    leaves ~36 GiB per rank for a ~18.8 GB/rank fp8 KV pool at the full window.
-    Thinking is interleaved between tool calls and is designed for preserved
-    reasoning across turns; the card does not turn it on server-side by
-    default, so the serve line passes --default-chat-template-kwargs. Apache-2.0.
   model_url: https://huggingface.co/poolside/Laguna-M.1-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "225B"

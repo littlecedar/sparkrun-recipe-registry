@@ -8,15 +8,15 @@ container: littlecedar/dgx-spark-llama-cpp-kolibri1:0.4.0-68fa28b@sha256:1928661
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  Aleph-Alpha/Kolibri-1 as Myric's APEX-2.4bpw GGUF — 24.38 GB / 22.70 GiB,
+  the smallest file in the pack (2.50 bits/weight), on ONE DGX Spark through
+  llama.cpp. Same architecture, full 262,144 window (the KV is ~5 GiB), same
+  reasoning/tool path as the Q4_K sibling. This is the size tier: the pack
+  drops 32 of the 40 sliding-window attention projections to Q3_K and bands
+  the experts IQ3_XXS (edge 10) / IQ2_S (near 10) / IQ2_XXS (middle 30),
+  everything expensive-to-get-wrong stays Q8_0/Q6_K/F32.
 metadata:
-  description: >-
-    Aleph-Alpha/Kolibri-1 as Myric's APEX-2.4bpw GGUF — 24.38 GB / 22.70 GiB,
-    the smallest file in the pack (2.50 bits/weight), on ONE DGX Spark through
-    llama.cpp. Same architecture, full 262,144 window (the KV is ~5 GiB), same
-    reasoning/tool path as the Q4_K sibling. This is the size tier: the pack
-    drops 32 of the 40 sliding-window attention projections to Q3_K and bands
-    the experts IQ3_XXS (edge 10) / IQ2_S (near 10) / IQ2_XXS (middle 30),
-    everything expensive-to-get-wrong stays Q8_0/Q6_K/F32.
   model_url: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

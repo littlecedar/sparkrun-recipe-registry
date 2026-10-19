@@ -4,10 +4,10 @@ model_revision: 8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
+description: >-
+  Qwen3.8-27B abliterated "cyber unlock" on one DGX Spark - AEON-7 uncensored NVFP4 body
+  + the drowzeys cybersecurity-unlock chat template + z-lab DFlash2 spec decode
 metadata:
-  description: >-
-    Qwen3.8-27B abliterated "cyber unlock" on one DGX Spark - AEON-7 uncensored NVFP4 body
-    + the drowzeys cybersecurity-unlock chat template + z-lab DFlash2 spec decode
   model_url: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"

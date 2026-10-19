@@ -4,8 +4,8 @@ model_revision: f8489198f18fcd94b124541adaba3d9cb14a7ef4
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
+description: Qwen3.8-27B-Uncensored-NVFP4 - abliterated (refusal-removed) mixed NVFP4+FP8 feed-forward build of Qwen3.8-27B
 metadata:
-  description: Qwen3.8-27B-Uncensored-NVFP4 - abliterated (refusal-removed) mixed NVFP4+FP8 feed-forward build of Qwen3.8-27B
   model_url: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "27B"

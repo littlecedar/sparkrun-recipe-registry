@@ -6,11 +6,11 @@ container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259
 min_nodes: 2
 max_nodes: 2
 
+description: >-
+  [probe, not shippable] labquant balanced base minus the diagnostic
+  diag-qwen4-unplaced-scales mod. Control for whether the unplaced-`_scale` assert at
+  qwen4_exp.py:2136 still fires without the diagnostic in front of it.
 metadata:
-  description: >-
-    [probe, not shippable] labquant balanced base minus the diagnostic
-    diag-qwen4-unplaced-scales mod. Control for whether the unplaced-`_scale` assert at
-    qwen4_exp.py:2136 still fires without the diagnostic in front of it.
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

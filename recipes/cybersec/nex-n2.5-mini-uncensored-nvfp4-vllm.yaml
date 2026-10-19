@@ -4,8 +4,8 @@ model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
 runtime: vllm
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a874b07dcd9df9f5ea776985b591cb3c213abd0e8ebe4a680e3e07214
 
+description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark, on the vLLM route its card documents
 metadata:
-  description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark, on the vLLM route its card documents
   model_url: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "35B"

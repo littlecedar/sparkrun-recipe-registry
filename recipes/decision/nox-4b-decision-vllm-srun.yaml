@@ -7,19 +7,19 @@ runtime: vllm
 min_nodes: 1
 max_nodes: 1
 
+description: >-
+  vllm-sr/Decision-2.0-Nox-4B — the 4B rung of the Decision 2.0 ladder (4.21B,
+  Qwen3.5-4B-Base backbone, 16384 ctx), served by the vendor's own vllm-srun
+  runtime on CPU. Prefill-only decision scorer: POST /v1/systemone (and the
+  /v1/decisions superset) answers choice / noul / score questions with
+  calibrated probabilities in one forward pass — no chat surface. Highest
+  published quality of the CPU-servable rungs (JevArena 63.6, Jev Decision
+  Index 43.8); the card's 12.9 ms/question is a GPU number. Pinned to the
+  runtime's own built-in revision, not the Hub head: the golden gate attaches
+  by content identity (manifest sha256 49771ea3…), and only the pinned
+  revision is golden-vouched. Apache-2.0. Lane research:
+  attic/decision/DECISION-MODELS-RESEARCH.md.
 metadata:
-  description: >-
-    vllm-sr/Decision-2.0-Nox-4B — the 4B rung of the Decision 2.0 ladder (4.21B,
-    Qwen3.5-4B-Base backbone, 16384 ctx), served by the vendor's own vllm-srun
-    runtime on CPU. Prefill-only decision scorer: POST /v1/systemone (and the
-    /v1/decisions superset) answers choice / noul / score questions with
-    calibrated probabilities in one forward pass — no chat surface. Highest
-    published quality of the CPU-servable rungs (JevArena 63.6, Jev Decision
-    Index 43.8); the card's 12.9 ms/question is a GPU number. Pinned to the
-    runtime's own built-in revision, not the Hub head: the golden gate attaches
-    by content identity (manifest sha256 49771ea3…), and only the pinned
-    revision is golden-vouched. Apache-2.0. Lane research:
-    attic/decision/DECISION-MODELS-RESEARCH.md.
   model_url: https://huggingface.co/vllm-sr/Decision-2.0-Nox-4B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "4.2B"

@@ -4,8 +4,8 @@ model_revision: 79c8a6bb73b7946095d7ece1f8fc68535f7c9ab8
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1b210066dca421bdcd7ca6f16680b6579533f348c0d8c072da194cf98
 min_nodes: 1
 
+description: Qwen3-Coder-Next-int4-Autoround
 metadata:
-  description: Qwen3-Coder-Next-int4-Autoround
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   tags: lcg_favorite, fast
 

@@ -13,16 +13,16 @@ max_nodes: 1
 mods:
   - "mods/kolibri-drafter-launcher"
 
+description: >-
+  Aleph-Alpha/Kolibri-1 FP8 (78.1B total / 3.46B active) on ONE DGX Spark,
+  served by the TensorFold kolibri1 engine with josch15366's learned block
+  drafter (391.3M params, DFlash-shaped, taps Kolibri's layers 44/47/49) —
+  the draft route the model does not ship: Kolibri-1 has no MTP head. Verified
+  speculative decoding, not a quality trade: the target checks every draft, so
+  replies match a drafter-free serve. The drafter is switched on by
+  TENSORFOLD_KOLIBRI_DRAFTER (a release directory), which the launcher exports
+  after resolving the prepared snapshot.
 metadata:
-  description: >-
-    Aleph-Alpha/Kolibri-1 FP8 (78.1B total / 3.46B active) on ONE DGX Spark,
-    served by the TensorFold kolibri1 engine with josch15366's learned block
-    drafter (391.3M params, DFlash-shaped, taps Kolibri's layers 44/47/49) —
-    the draft route the model does not ship: Kolibri-1 has no MTP head. Verified
-    speculative decoding, not a quality trade: the target checks every draft, so
-    replies match a drafter-free serve. The drafter is switched on by
-    TENSORFOLD_KOLIBRI_DRAFTER (a release directory), which the launcher exports
-    after resolving the prepared snapshot.
   model_url: https://huggingface.co/Aleph-Alpha/Kolibri-1
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "78.1B"

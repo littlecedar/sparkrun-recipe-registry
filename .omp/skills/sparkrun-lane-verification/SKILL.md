@@ -12,7 +12,7 @@ Procedure for boot-verifying and measuring a new recipe on the WOPR DGX Spark cl
 
 ## 1. Recipe readiness
 - Run the repo gate (unittest discover + recipe validate loop + bash -n + py_compile).
-- `sparkrun recipe validate <file>` catches structure but NOT: unresolved `{placeholder}` (dies at the engine), a defaults key nothing consumes, or stale prose in `metadata.description`. The repo guards (`test_recipe_placeholder_resolution.py`) cover the first; read the description yourself.
+- `sparkrun recipe validate <file>` catches structure but NOT: unresolved `{placeholder}` (dies at the engine), a defaults key nothing consumes, or stale prose in `description:`. The repo guards (`test_recipe_placeholder_resolution.py`) cover the first; read the description yourself.
 - vLLM recipes: image `ENTRYPOINT` must be cleared (`executor_config: {entrypoint: ""}`); the speculative config must live in `defaults.speculative_config` (JSON, referenced as `'{speculative_config}'`) or the draft is never distributed; hardcode the in-container snapshot path + `--revision=<sha>` + `--served-model-name <HF-id>` in the command template (the renderer rewrites `{model}` to the repo id and strips `--revision`).
 
 ## 2. Launch
