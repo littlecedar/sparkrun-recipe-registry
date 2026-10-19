@@ -36,6 +36,7 @@ Fixed cell: seed 42, 1344×768, 121 frames @ 24 fps, audio, nvfp4 transformer
 | stage 2 sampling (3 steps @ 1344×768) | 20.8 s wall (bar 20 s @ 6.93 s/it) |
 | video+audio VAE decode + mux | 46.2 s |
 | warm wall (same weights resident) | 80.1 s |
+| warm wall (re-take, 2026-10-18) | 78.1 s (2.5 % below the 80.1 above) |
 | peak unified memory | 83.6 GiB / 121 GiB (0.69 util) |
 | output | h264 1344×768 24 fps 121 frames 5.04 s + AAC (max −25.7 dB) |
 

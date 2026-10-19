@@ -51,6 +51,7 @@ repetitions (receipts2 run7 / receipts run4) and one warm repetition
 | latent upscale (x2) | 2.5 s (bracket) |
 | stage 2 sampling wall (3 steps @ 1344×768) | **20.8 s** (bar 20 s @ 6.93 s/it) |
 | warm wall (seed 44, weights resident) | **80.1 s** (execute 79.35) |
+| warm wall (re-take, 2026-10-18) | **78.1 s** — the number to compare against; the 80.1 above is 2.5 % pessimistic |
 | peak unified memory | **83.6 GiB** / 121 GiB (0.69 util) |
 | output | h264 1344×768, 24 fps, 121 frames, 5.042 s, AAC audio (mean −43.6 dB, max −25.7 dB, non-silent) |
 | frame sanity (t=2.5 s) | mean 0.185, std 0.124 (not black, not noise) |

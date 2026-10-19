@@ -983,3 +983,43 @@ and are reproduced here in full.
   # _handle_uno raises unless speculative_num_draft_tokens is a positive integer,
   # so this cannot be left to a default.
 ```
+
+## Session 2026-10-18 — the 36B-A4B D2 + E6 gate run, and the decision it hands back
+
+Owner decision #38 revived the withdrawn 36B sub-lane **bounded**: run the D2 numerics
+gate and E6 (fp8-KV, scored), and nothing else from the E-series. Both ran. Four boots,
+one GB10, serial, 32K context, TP=1, `--mem-fraction-static 0.85`,
+`lmsysorg/sglang:v0.5.20-cu130` at the archive's own digest. `attic/ifm/arms/` was not
+edited — work copies lived in `~/benchmarks/ifm-36b-20261018/arms/` with the gate mod
+beside them. Full tables: `NOTES.md` (2026-10-18).
+
+| gate | result |
+|---|---|
+| patch present in the container | `test_k2_fp8_guard.py` on the running container's `xllm.py` → `state=C`, `VERDICT: patched, invariants intact.`, exit **0** |
+| **D2** numerics | **PASS** — BF16, FP8+bf16-KV and FP8+fp8-KV all answer `15:52 \| 5h 50m \| 12%`, with all six intermediate values agreeing; prose differs (expected), no degeneration |
+| **E6** capacity | **pool 267,440 → 535,513 tokens (2.00×)** at an identical 52.6 GB footprint — the only unambiguous win |
+| **E6** throughput at 32K | **+8.1 % at d28,672, −4.6 % at d8,192** (c1, n=3, paired control). The modelled +25 % does not survive measurement |
+| **E6** quality | house battery **36/37 = 97.3 %** (easy 19/19, hard 17/18; the miss is `hard-rev` → `nurkrap`) — ties the lane's best; no control battery landed, so the KV-only delta is unmeasured |
+| **E6** ladder d0 | C1 18.36 / C2 33.28 / C5 48.51 / C10 66.73 t/s vs the bf16-KV arm's 18.21 / 32.67 / 47.31 / 62.92 |
+
+**What the owner now has to decide — ship, or stay withdrawn.** The evidence cuts both
+ways and the numbers are these:
+
+* *For shipping something*: the FP8 path is **sound** (D2 passed on a fixed prompt with an
+  exact arithmetic answer, and the patch's static argument is now backed by a read) and the
+  model is **competent** (36/37, the lane's joint best). At 18.2 t/s C1 it reproduces the
+  2026-10-08 figure to 0.5 %, so the withdrawal was never about a broken recipe.
+* *For staying withdrawn*: it is still **18.2 t/s single-stream** (62.9 t/s at c10) for a
+  **48 GB checkpoint per node**, against 32.4 t/s for the shipped 7B and 80 t/s for the
+  0.9B. E6 — the one lever that could have changed that — is **+8 % at 28.7K, not +25 %**,
+  and negative at 8K; its real product is *capacity* (16 resident 32K sequences, or a
+  reachable 131K on TP=2), which is only worth paying for if someone actually wants this
+  model at long context.
+* The middle option the numbers now support: **keep the arm archived, and treat E6 as a
+  capacity result rather than a throughput one** — i.e. do not re-open the sub-lane for
+  speed, but if a 131K-context need appears, E10 (fp8-KV + TP=2, 1 boot) is the only
+  experiment worth spending on, and the pool arithmetic for it is already checked.
+
+Do not quote E6's modelled +25 %/+57 % any more: 28,672 measured +8.1 %, and the mechanism
+is the fp8-KV read running at 151 GB/s against bf16's 237 GB/s effective. The measurement
+that settles it, and the run records: `~/benchmarks/ifm-36b-20261018/`.

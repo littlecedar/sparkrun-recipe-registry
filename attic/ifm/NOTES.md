@@ -434,3 +434,117 @@ were booted fresh, one at a time, and measured on that profile; decode-phase row
 
 **Artifacts** (durable receipts): `~/benchmarks/ifm-09b-ladder-20261015/` and
 `~/benchmarks/ifm-7b-ladder-20261015/` — `launch.log`, `serve.log`, `perf-ladder.yaml|json|csv`.
+
+## Session 2026-10-18 — the 36B D2 numerics gate and E6 (fp8-KV, scored)
+
+Owner decision #38 revived the withdrawn 36B-A4B sub-lane for **two** items and nothing
+else: the D2 numerics gate and E6. Three boots plus one 5-minute control re-boot, one node,
+serial, 32,768 context, TP=1, `--mem-fraction-static 0.85`, attention backend flashinfer,
+page size 1, chunked prefill 8192, `lmsysorg/sglang:v0.5.20-cu130` at the archive's own
+digest. The frozen `attic/ifm/arms/` files were **not edited**: each was copied to
+`~/benchmarks/ifm-36b-20261018/arms/` with the gate mod beside it
+(`arms/mods/patch-sglang-k2-horizon-fp8/`, where `_resolve_adjacent` looks).
+
+| boot | arm | KV | KV pool | readiness |
+|---|---|---|---|---|
+| D2 reference | `k2-horizon-36b-a4b-bf16-tp1-sglang`, no mods | bf16 | 132,847 tok = 24.32 GiB | TTR port-open 569.5 s / HTTP-ready 585.6 s |
+| D2 candidate, E6 control | `…-fp8-tp1-sglang` + gate mod | bf16 | 267,440 tok = 48.96 GiB | container-start TTR 409.9 / 417.6 s; model copy 271.8 s |
+| E6 | same file, `kv_cache_dtype: fp8_e4m3` | fp8_e4m3fn | **535,513 tok = 48.98 GiB** | launch 418.6 s (reused the cached copy) |
+
+**The patch is confirmed inside the container, not inferred from a clean boot.** `docker cp`
+of the running container's `srt/models/xllm.py` scored by
+`mods/patch-sglang-k2-horizon-fp8/test_k2_fp8_guard.py`:
+`state=C  both gates relaxed for block-fp8` / `VERDICT: patched, invariants intact.`,
+exit **0**. (2 would have meant "could not run" — that is not a verdict.)
+
+### D2 — PASS, and identical on all three arms
+
+Fixed prompt, greedy (`temperature 0`, `top_p 1`), `max_tokens 1500`, one endpoint per
+boot; the prompt and scorer are frozen in the receipt's `tools/d2-continuation.py`
+(`~/benchmarks/ifm-36b-20261018/`), not in the registry `tools/`.
+
+| arm | finish | completion tok (reasoning) | elapsed | ANSWER line |
+|---|---|---|---|---|
+| BF16 reference | stop | 918 (747) | 58.3 s | `ANSWER: 15:52 \| 5h 50m \| 12%` |
+| FP8 patched, bf16 KV | stop | 880 (732) | 47.1 s | `ANSWER: 15:52 \| 5h 50m \| 12%` |
+| FP8 patched, fp8 KV | stop | 895 (—) | — | `ANSWER: 15:52 \| 5h 50m \| 12%` |
+
+- Read side by side, **all six intermediate/final values agree on every arm** — departure
+  12:45 after the first leg, 13:32 after the layover, arrival 15:52, travel excluding the
+  layover 5h 50m (350 min), whole journey 6h 37m (397 min), layover share 47/397 = 11.84 %
+  → 12 % — and the final line is byte-identical. The continuation *prose* differs from word
+  0 (459 vs 456 words): expected of a different weight format, and not what the gate asks.
+  No degeneration: longest repeated-word run 2.
+- **Scoring trap, paid for twice in this lane.** This model answers inside
+  `reasoning_content` and needs ~750–900 completion tokens for this prompt. At
+  `max_tokens 512` every arm returns `finish_reason=length`, `content: null`, and the reply
+  ends `ANSWER: 15:52 | 5` — a passing gate that the score alone reports as a failure
+  (`travel_5h50: False`, `answer_line: 'ANSWER: 15:52 | 5'`). Budget ≥ 1200 for this family
+  and re-score from the stored replies rather than re-probing.
+- The shipped gate regex also needed one fix: `\b5\s*h\s*50\b` does not match `5h50m`
+  (no word boundary between `0` and `m`), so the cleanest arm scored a false miss. Fixed in
+  `tools/d2-continuation.py`; the stored records re-score True.
+
+### E6 — fp8 KV: the pool doubles and quality holds; the throughput claim does NOT
+
+**Pool.** 267,440 → **535,513 tokens**, i.e. 2.00×, at an *identical* pool footprint
+(52.58 → 52.64 GB). The allocator is byte-limited, so halving bytes/token doubles tokens
+exactly as `k2_36b_arith` predicts (196,608 → 98,304 B/token). Capacity-wise the arm now
+holds 16 full 32K sequences instead of 8.
+
+**Ladder, d0, `concurrency-ladder` (pp 2048, tg 128, 5 runs), fp8 KV vs bf16 KV on the
+same recipe:**
+
+| c | fp8 KV tg t/s | bf16 KV tg t/s | Δ | per-request, fp8 KV |
+|---|---|---|---|---|
+| 1 | 18.36 ± 0.01 | 18.21 ± 0.01 | +0.8 % | 18.36 |
+| 2 | 33.28 ± 0.28 | 32.67 ± 0.25 | +1.9 % | 16.64 |
+| 5 | 48.51 ± 0.32 | 47.31 ± 0.85 | +2.5 % | 9.80 |
+| 10 | 66.73 ± 0.31 | 62.92 ± 1.33 | **+6.1 %** | 7.27 |
+
+**Long context, c1, 3 runs, depth = context-load size (request total = depth + 2048 pp),
+bf16-KV control re-boot immediately after the E6 boot on the same node:**
+
+| depth | bf16 KV | fp8 KV | Δ |
+|---|---|---|---|
+| 0 | 18.16 | 18.36 | +1.1 % |
+| 8,192 | 16.13 | 15.38 | **−4.6 %** |
+| 28,672 | 12.67 | **13.69** | **+8.1 %** |
+
+- The WORK doc's E6 headline was **+25 % at 32K, +57 % at 131K, MODELLED**. At 28,672 it is
+  **+8.1 %**, and at 8,192 it is **negative**. The model over-states this lever by ~3× at
+  the shipped context.
+- The mechanism is in the marginal bandwidth, and it is not a mystery: bf16 KV loses
+  23.8 ms from d0→d28,672 for 5.64 GB of KV read = **237 GB/s effective**; fp8 KV loses
+  18.7 ms for 2.82 GB = **151 GB/s**. Halving the bytes on a read that then runs at ~64 %
+  of the bandwidth recovers only part of the halving. That matches the 7B lane's source
+  note — at GQA = 4 flashinfer is *already* on the tensor-core path, so fp8 KV "buys bytes
+  and nothing else" — and here it buys fewer bytes and loses bandwidth doing it.
+- d30,720 was attempted first and refused: `depth + pp = 32,768` is rejected as
+  `input (32768 tokens) is longer than the model's context length (32768 tokens)`. Use
+  ≤ 30,719 depth with the 2048 pp for a "32K" cell.
+
+**Accuracy — house battery, 37 cases, `max_tokens 1200`, one repeat:**
+**easy 19/19, hard 17/18 → 36/37 = 97.3 %.** The single miss is `hard-rev`
+(`sparkrun` backwards answered `nurkrap`; the correct string is `nurkraps`) — a
+one-character omission, and the same case the ds4 lane misses. That ties the lane's best
+(7B-Uno 36/37) and beats the 0.9B's 31/37.
+
+Stated limitation: **the two control batteries did not land.** The auto-KV battery leg
+died on a tool-copy error (the harness was never staged on the control machine, so it
+exited 2 before its first case) and the BF16 battery was cut for the clock after ~2 min
+(a BF16 case runs ~60 s; 37 of them did not fit the window). E6's 36/37 therefore stands
+*alone*, read against the lane's references, and the KV-only quality delta is **unmeasured**
+— if a future session wants it, it is one fp8-KV-vs-bf16-KV battery pair on one recipe.
+
+**Still open (unchanged by this session):** E5 (`--fp8-gemm-backend` on SM121), E7
+(`--page-size` ladder), E8 (value-expert quant mod), E10 (fp8-KV **and** TP=2 at 131K) —
+the owner did not ask for them and they stay unrun. E1 (`bf16-tp1` on `decode-triage`, n=5)
+was not run either: the BF16 boot existed only as the D2 reference, so the BF16 arm's
+18.3-style C1 is still the 2026-10-08 number.
+
+**Artifacts** (durable receipts): `~/benchmarks/ifm-36b-20261018/` — `arms/` (work copies +
+`arms/mods/patch-sglang-k2-horizon-fp8/`), `tools/` (`d2-continuation.py`,
+`quality-battery.py`, `concurrency-ladder.yaml`), `out/` (`d2-*.json`, `ladder-*.yaml|json`,
+`probe-d*-c1-*.yaml|json`, `battery-fp8-fp8kv.json`, launch logs). `runs/` under
+`~/.cache/sparkrun/benchmarks/` is scratch; the `out/` copies are the durable ones.
