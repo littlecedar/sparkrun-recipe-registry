@@ -27,10 +27,13 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
-  # Absolute device cap: the co-tenant embed (0.25) + rerank (0.30) caps must SUM with this one or
-  # the last engine raises; at JEV start only ~41 GiB is free (0.33), so 0.30 is the co-location
-  # ceiling — 0.35 is rejected by vLLM's startup free-memory check.
-  gpu_memory_utilization: 0.30
+  # Absolute cap: the co-tenant pair's measured hold leaves ~42 GiB (0.34); 0.16 profiles a NEGATIVE
+  # KV cache (-1.66 GiB) and 0.35 is refused by the free-memory check, so 0.20 (0.75 cap sum) is
+  # the working floor.
+  gpu_memory_utilization: 0.20
+  # Mamba cache blocks scale with the cap (57 at 0.16), so the engine default 256 max_num_seqs
+  # cannot capture CUDA graphs; a decision scorer needs ~32 at most.
+  max_num_seqs: 32
   max_model_len: 4096
   max_lora_rank: 32
 
@@ -50,6 +53,7 @@ command: >
   --port {port}
   --tensor-parallel-size {tensor_parallel}
   --gpu-memory-utilization {gpu_memory_utilization}
+  --max-num-seqs {max_num_seqs}
   --max-model-len {max_model_len}
   --enable-lora
   --max-lora-rank {max_lora_rank}

@@ -193,16 +193,20 @@ the repo id literally. Clients use the repo id.
 ### Co-location budget
 
 Co-location with the shipped embed + rerank 2B pair (and eventually TTS) on ONE GB10 node is the
-lane's core constraint. The caps are absolute device caps that must SUM, and the pair's real hold
-exceeds its nominal 0.55: with both up, a third engine sees **41.0 GiB free (0.337)**, not the
-54.5 GiB cap arithmetic suggests. Measured 2026-10-19 on `.34`: JEV-9B at
-`gpu_memory_utilization: 0.30` (36.5 GiB) booted and answered beside them (all three jobs rc=0,
-one embedding, one model list, one chat completion); the same recipe at 0.35 was refused by
-vLLM's startup free-memory check (`Free memory on device cuda:0 (41.03/121.69 GiB)`). clef-flash
-at the vendor's 41 GB still needs the embed/rerank caps lowered to ~0.15/0.18 first, a
-cap-bookkeeping decision rather than a memory wall; Kokoro-82M costs 0.3 GiB of the residual.
-Cores: embed pins 5-9 and rerank 15-19 (the X925 cluster), so clef-flash (and the CPU Decision 2.0
-arms) pin 0-4,10-14 (A725) to keep the tenants from contending; JEV-9B runs unpinned.
+lane's core constraint. The caps are absolute device caps that must SUM, and the pair's measured
+hold is 74 GiB — 66.93 GiB of caps plus ~7 GiB of CUDA/b12x kernel memory — so a third engine
+starts with **~42 GiB free (0.345)**, not the 54.76 GiB the cap arithmetic suggests (measured
+2026-10-19 on `.34`: idle 3 GiB used; pair up 77 used / 42 free; the nominal computation in
+`attic/decision/DECISION-MODELS-RESEARCH.md` §3 is a floor, not the runtime figure). JEV-9B ships
+`gpu_memory_utilization: 0.20` + `max_num_seqs: 32`: 0.20 leaves 5.08 GiB of KV cache and a 0.75
+cap sum, 0.16 profiles a *negative* cache (−1.66 GiB), and 0.35 is refused outright (free 40.86
+vs the 42.59 GiB request, warm). `max_num_seqs` stays low because the Mamba cache blocks the
+engine grants scale with the cap (57 at 0.16 vs the default 256), so the default cannot capture
+graphs. clef-flash at the vendor's 41 GB still needs the embed/rerank caps lowered to
+~0.15/0.18 first, a cap-bookkeeping decision rather than a memory wall; Kokoro-82M costs 0.3 GiB
+of the residual. Cores: embed pins 5-9 and rerank 15-19 (the X925 cluster), so clef-flash (and
+the CPU Decision 2.0 arms) pin 0-4,10-14 (A725) to keep the tenants from contending; JEV-9B runs
+unpinned.
 
 ## The clef + Kai ensemble
 

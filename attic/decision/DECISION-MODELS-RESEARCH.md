@@ -85,6 +85,12 @@ GiB) = 66.93 GiB → **54.76 GiB free**. TTS pick: `hexgrad/Kokoro-82M`
 (0.305 GiB, Apache-2.0) or `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice` (1.687 GiB)
 → **~54.5 GiB left for the decision model**.
 
+*(Measured 2026-10-19 on `.34`: the pair's runtime hold is 74 GiB — the 66.93 GiB of caps plus
+~7 GiB of CUDA/b12x kernel memory — so a third engine starts with ~42 GiB free, not 54.76. JEV-9B's
+working cap is 0.20 plus `max_num_seqs: 32`; 0.16 profiles a negative KV cache and 0.35 is refused
+by the free-memory check. The shipped numbers are in `recipes/decision/README.md` §Co-location
+budget.)*
+
 | Candidate | stack total (GiB) | % of 121.69 | fits? |
 |---|---:|---:|:--:|
 | Decision-2.0-Kai-0.6B | ~71 | 59% | ✅ |
@@ -100,7 +106,8 @@ GiB) = 66.93 GiB → **54.76 GiB free**. TTS pick: `hexgrad/Kokoro-82M`
 
 Reservation ≠ weights: vLLM preallocates KV up to the cap; a prefill-only
 decision model at ≤4–16k ctx needs a small own cap (~0.06–0.10 through 4B,
-~0.16 for JEV-9B).
+~0.16 for JEV-9B — the 2026-10-19 boot puts JEV's runtime floor at 0.20, because the 16.8 GiB of
+weights plus ~4.3 GiB of runtime workspace leave nothing at 0.16).
 
 Free compute: GB10 big.LITTLE interleaved clusters — embed pins cores 5-9,
 reranker 15-19; **cores 0-4 and 10-14 (A725) are unclaimed** and can host a

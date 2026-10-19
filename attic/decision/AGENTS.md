@@ -322,11 +322,16 @@ and takes port 8020 (embed 8010, rerank 8011).
 
 ## Co-location
 
-After the shipped embed (0.25) + rerank (0.30) caps, ~54.5 GiB of the node's 121.69 GiB is free
-(Kokoro-82M costs 0.3 GiB of it). Everything on the shortlist through JEV-9B fits; clef-flash at the
-vendor's 41 GB needs the embed/rerank caps lowered to ~0.15/0.18 first — a cap-bookkeeping decision,
-not a memory wall. Cores: the embed recipe pins 5-9 and the reranker 15-19 (the X925 cluster), so
-clef-flash is pinned to 0-4,10-14 (A725) to keep the three from contending.
+After the shipped embed (0.25) + rerank (0.30) caps, the cap arithmetic says ~54.5 GiB of the node's
+121.69 GiB is free — but the engines hold ~7 GiB of CUDA/b12x kernel memory above their reservations,
+so the **measured** free budget with the pair up is **~42 GiB** (77 used / 42 free on `.34`,
+2026-10-19; the nominal 54.76 GiB in `DECISION-MODELS-RESEARCH.md` §3 is a floor, not the runtime
+figure). Everything on the shortlist through JEV-9B still fits: JEV ships
+`gpu_memory_utilization: 0.20` + `max_num_seqs: 32` (0.75 cap sum, 5.08 GiB KV cache); 0.16 profiles
+a negative cache and 0.35 is refused by vLLM's free-memory check. clef-flash at the vendor's 41 GB
+needs the embed/rerank caps lowered to ~0.15/0.18 first — a cap-bookkeeping decision, not a memory
+wall. Cores: the embed recipe pins 5-9 and the reranker 15-19 (the X925 cluster), so clef-flash is
+pinned to 0-4,10-14 (A725) to keep the three from contending.
 
 ## Recipe comment archive (2026-10-14)
 
