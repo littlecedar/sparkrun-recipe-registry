@@ -58,10 +58,13 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 6. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
    `in_proj_a`/`in_proj_b` MXFP8 tensors (n=96/rank, under CUTLASS's MXFP8 floor of 128) to BF16.
 
-**Two mandatory engine flags** live in `defaults.extra_args`, not as tunables:
+**Two engine flags** live in `defaults.extra_args`, not as tunables:
 `--moe-runner-backend flashinfer_cutlass` (with `auto`, the NVFP4 MoE resolves to
-FLASHINFER_TRTLLM, dead on SM121) and `--cuda-graph-backend-prefill disabled` (else prefill
-CUDA-graph capture raises).
+FLASHINFER_TRTLLM, dead on SM121) and `--cuda-graph-backend-prefill disabled`. The second is redundant
+on this image but harmless: the vision tower makes the engine disable prefill graphs itself
+(`cuda_graph_config` resolves `prefill.backend='disabled'`), so removing the flag does not enable them
+and there is no bs>1 cost to recover
+(`~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph/`).
 
 **One knob is answered negative:** `--enable-int8-mamba-checkpoint` cannot boot this export. The
 default 224-slot pool needs 3.24 GB against 2.15 GB free at `gpu_memory_utilization: 0.80`, and a
