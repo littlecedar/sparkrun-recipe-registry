@@ -512,4 +512,6 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   ON, job `2f9a8f3e60a51ee4_3510a5e0d37d`: C1 **67.02 ± 3.19** / C2 **52.95 ± 1.49** / C5 **47.75 ±
   0.53** / C10 **46.78 ± 0.33** t/s @ d0, n=5, `bench_484eb77839b4`, receipt
   `~/benchmarks/cybersec-arm5-ladder-20261019/`; index row and lane README updated. ornith 397B
-  stays dropped by the 19:15 policy, so every shipped multi-node arm now carries C2/C5/C10.)*
+  stays dropped by the 19:15 policy, so every multi-node arm on the standard d0 ladder now carries
+  C2/C5/C10 (the labquant-highcon arm stays `—` by design — its aggregate regime is measured at d8192
+  k=16/24).)*

@@ -63,6 +63,12 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 FLASHINFER_TRTLLM, dead on SM121) and `--cuda-graph-backend-prefill disabled` (else prefill
 CUDA-graph capture raises).
 
+**One knob is answered negative:** `--enable-int8-mamba-checkpoint` cannot boot this export. The
+default 224-slot pool needs 3.24 GB against 2.15 GB free at `gpu_memory_utilization: 0.80`, and a
+112-slot retry raises `ValueError: --enable-int8-mamba-checkpoint is incompatible with Qwen4-Exp PLE
+side states` (`memory_pool.py:1337`) — no size fits. Receipts
+`~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and `b2b-int8mamba-112/`.
+
 **Mod-tree mechanics.** `served_model_dir` points at `/cache/runtime/labq-patched` — the symlink tree
 `fix-labquant-modelopt-mixed-flat-schema` builds over the HF snapshot on every node (the raw snapshot
 is never modified). Bypassing the mod (`--skip-run` against a container that never ran it) leaves that
