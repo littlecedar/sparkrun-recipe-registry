@@ -9,7 +9,7 @@
 | Correctness soak gate | **DONE / self-tested** | [`tools/gate-37111.py`](../../tools/gate-37111.py) |
 | Design memo (failure mode, toggle ladder, PASS limits, upstream status) | **DONE** | [`tools/gate-37111-design.md`](../../tools/gate-37111-design.md) |
 | Reduced live smoke on a real TP=2 boot | **DONE — PASS** (negative result) | `.scratch/q4/W4-gate-smoke.json` |
-| Full 1–2 h @ ~100k release soak | **BLOCKED — needs the cluster** | — |
+| Full 1–2 h @ ~100k release soak | **STILL OWED** — the 2026-10-18 TP=2 window closed before the shipped-arm boot it was to run on (`.34`/`.35` returned clean, 0 containers) | — |
 
 **Live smoke result (main session, 2026-10-04):** run against the RadixArk TP=2 boot on `.34/.35`
 (`--duration-min 0.5 --turns 2 --max-tokens 256`), the gate printed `=== VERDICT: PASS ===` —

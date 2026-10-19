@@ -68,6 +68,9 @@ queries and raises in CUDA-graph warmup (§15, closed 2026-10-04). `max_num_seqs
 slot pool's ceiling buys nothing, and 24→32 costs +0.42 GB of intermediate scratch for −4.55% KV
 (§19z).
 
+**`--enable-linear-replayssm-spec` is measured (2026-10-18): a capacity lever only** — 2.64 GB of spec
+scratch → 0 and the KV pool +193,920 tokens (+11.5 %) at flat throughput; see §10.1 and `NOTES.md`.
+
 **Two operational facts that each cost a boot (do not rediscover):**
 1. **The checkpoint pin key is `model_revision:`, not `revision:`.** sparkrun reads the former
    (`core/recipe.py:346`) and silently ignores a bare `revision:`, so the distribution would pull
@@ -380,6 +383,25 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   bs=8 decode is +119% aggregate over bs=1, so the flag's price at bs>1 is UNMEASURED, not zero.
   Measuring it needs a variant recipe with the flag REMOVED from `defaults` (an override cannot
   produce a flag-absent arm).
+- **`--enable-linear-replayssm-spec` — MEASURED 2026-10-18, a capacity lever, not adopted.** One
+  healthy TP=2 boot on `.34/.35` with the flag appended to `defaults.extra_args` (the two mandatory
+  flags re-stated; `-o extra_args=` replaces the whole string). The engine accepted it —
+  `GET /get_server_info` returns `enable_linear_replayssm_spec: true`, `enable_linear_replayssm:
+  false` — and the serve log's mamba line drops from **`intermediate_ssm_state_cache size: 2.64GB`
+  to `0.00GB`**, which the allocator hands to KV: **`max_total_num_tokens` 1,689,024 → 1,882,944
+  (+193,920 tokens, +11.5 %)** at an unchanged mamba pool 112, `max_num_seqs` 24 and context 262,144.
+  The arithmetic closes (193,920 × 12,288 B = 2.22 GiB into KV; 2.64 GiB freed, `available_gpu_mem`
+  18.93 → 18.47 GB). Mechanism: the spec-verify's per-draft full-state snapshots are replaced by a
+  per-slot raw-input window. **Throughput is flat** — decode ladder 41.99 / 71.20 / 91.86 / 105.22
+  t/s at k=1/2/5/10 against the shipped arm's 39.90 / 69.45 / 94.98 / 104.45: mixed signs, every
+  delta inside the control's own cell σ, and the k=10 cell is **2 runs, not 5**, so it compares to
+  nothing. The control is a cross-boot/cross-node boot (`.32/.33` 19:46 the same day), which is
+  adequate for deterministic allocation numbers and not for a speed claim. Receipts:
+  `~/benchmarks/qwen4-block-20261018/REPORT.md` + `lrs-ladder-1018.{yaml,json}` (`bench_c19a168838eb`),
+  boot log `~/benchlogs/q4-lrs-boot_1018_2107.log`; control
+  `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-{concurrency-ladder.yaml,.NN[23]-serve.log}`
+  (`bench_684c21a7cd8a`). **Why it stays out of `defaults`:** it is an engine-behaviour flag with no
+  accuracy coverage here, and the W4 `#37111` gate has not run on it (nor on the shipped arm).
 - **Proposed changes (not adopted).** `--enable-int8-mamba-checkpoint`,
   `--int8-mamba-ckpt-size <size?>` and `--revision {revision}` were sketched in the recipe tail; none
   adopted or measured.

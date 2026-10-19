@@ -38,7 +38,8 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
    `skip-labquant-vision-tower` was dropped as obsolete (the export serves **vision** again), and a
    **hybrid-tree** defect in `fix-labquant-modelopt-mixed-flat-schema` (revision switch refused to
    rebuild) was fixed — it now rebuilds on a stale stamp.
-5. **W1 (fp8 KV) = NO; W2 (EXL3) = NO-GO; W9 (long context) built then ARCHIVED (1M droppable).**
+5. **W1 (fp8 KV) = NO; W2 (EXL3) = NO-GO; W9 (long context) built then ARCHIVED (1M droppable);
+   `--enable-linear-replayssm-spec` = a capacity win (+11.5 % KV) with no speed change (2026-10-18).**
    Open: W3/W4 soaks, W6 (TP=4), W7 (kernel timing), W12 (cross-runtime vLLM benchmark).
 
 ## Session 2026-10-04 (3) — lane harvest, in brief
@@ -86,12 +87,23 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 
 ## Open questions, with the discriminating arm
 
-- **`--enable-linear-replayssm-spec`:** does it boot and what does it free on our geometry? One boot,
-  then a `../../tools/gate-37111.py` soak before any adoption. Most promising un-measured memory lever.
+- **`--enable-linear-replayssm-spec` — ANSWERED 2026-10-18, a capacity win with no speed change.**
+  It boots (`enable_linear_replayssm_spec: true` in `/get_server_info`) and frees the spec-verify's
+  per-draft state snapshots: `intermediate_ssm_state_cache` **2.64 GB → 0.00 GB**, which the allocator
+  gives to KV — `max_total_num_tokens` **1,689,024 → 1,882,944 (+11.5 %, +193,920 tokens)** at an
+  unchanged mamba pool 112 / `max_num_seqs` 24 / 262,144 context. Decode ladder 41.99 / 71.20 / 91.86
+  / 105.22 t/s at k=1/2/5/10 vs the shipped arm's 39.90 / 69.45 / 94.98 / 104.45 (k=10 cell n=2;
+  cross-boot control): **flat within the cell σ**. Not shipped — no accuracy coverage, and the W4 gate
+  has not run on it. Receipt `~/benchmarks/qwen4-block-20261018/REPORT.md` (`bench_c19a168838eb`) vs
+  `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-…` (`bench_684c21a7cd8a`).
 - **Pool 112→128 mechanism (§19x Result 4):** ~13% more k=24 tok/s at matched config, unexplained by
   the admission model; a third pool-128 replication would tighten it. Do not ship as if established.
 - **The `F` mechanism (§3b):** `F = 8.375 ms/step` is measured but unattributed.
 - **MoE kernel ceiling (W7):** `torch._grouped_mm` still untimed; `--fp4-gemm-backend` never A/B'd.
+  One arm is now *refused before weights load*: `flashinfer_cudedsl` is listed by `--help` and by the
+  error's own `choose from` set yet argparse rejects the token verbatim (2026-10-18,
+  `~/benchmarks/qwen4-tp2-20261018/b2-cudedsl-refusal-arm.log`) — probe the accept-spelling before
+  spending a boot on it; `flashinfer_cutlass` is provably accepted.
 - **#37111 (W4):** silent decode-graph corruption on this engine/topology; gate exists, release soak owed.
 - **Lane B quality (NEW):** the 1M route boots but **no needle/quality gate has run**. This is the
   prerequisite before serving 1M and is the most important open item for Lane B.
@@ -105,6 +117,8 @@ _Last condensed: 2026-10-04 (session 3 — lane harvest)._
 - **`--context-length` past the trained ceiling raises unless `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`**.
 - `max_num_seqs ≥ target + 1`, and the **mamba pool** (`max_mamba_cache_size // 4`, lazy) is the real
   admission ceiling — not `max_num_seqs`.
+- `--enable-linear-replayssm-spec` = **+11.5 % KV pool (+193,920 tokens) for 2.64 GB less spec
+  scratch, throughput unchanged** — a capacity lever, do not re-measure it as a speed lever.
 - The `~80 GB/s gather ceiling` does **not** reproduce; `67 tok/s` competitor gap **dissolved** (§13).
 
 ## Hygiene / standing
