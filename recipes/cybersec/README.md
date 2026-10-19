@@ -196,6 +196,19 @@ receipt `~/benchmarks/cybersec-nextn-20261018/`.
   `--quantization` to another value is **not** a fix: arm 1 shows SGLang reads the right scheme from
   `config.json` when the export is one it implements.
 
+**The vLLM route is measured NOT BOOTABLE on the pinned image (2026-10-19, two launches).** Both
+attempts died at model load with `ValueError: Found different quantization schemes for the shards of
+language_model.model.layers.3.self_attn.qkv_proj` from compressed-tensors' `should_ignore_layer`.
+Mechanism: the image's `qwen4_exp` model maps `qkv_proj` onto four shards including
+`indexer.index_qk_proj` (`vllm/models/qwen4_exp/nvidia/model.py:703`) so the fused QKV+indexer GEMM
+can load it, while the export keeps that indexer in bf16 (`ignore`, no `weight_scale` in the tensor
+map). A fused linear cannot carry two schemes, so the loader refuses. The model's LoRA path is
+written to avoid this — `model.py:726` swaps in a three-shard mapping and `qsa.py:508` skips the
+fusion — but the swap lands after `get_quant_config` has already captured the four-shard mapping, so
+`--enable-lora` (attempt 2, confirmed in the engine's non-default args) fails identically. Unblocking
+is image-side: a vLLM build whose mapping excludes ignored shards, or a model-code mod (engine change
+→ owner approval). Receipt `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`. No index row.
+
 ## `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`
 
 **Arm 5 — POSITIVE (TP=2).** Graft arm: the overlay repo ships **no weights**.

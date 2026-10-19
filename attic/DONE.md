@@ -676,3 +676,17 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   stands and the probe is archived. Receipt `~/benchmarks/ifm-uno-tree-20261019/`; lane note in
   `recipes/ifm/README.md`; manifest row in `attic/ifm/ARMS-MANIFEST.md`.)*
 
+# 2026-10-19 (lane documentation) — the non-t/s lanes carry a documented close
+
+## Concurrency ladder (registry-level)
+- [ ] **Give the two non-t/s lanes a ladder or a documented `—`** — the decision arms report `req/s` from a *serial* instrument (`tool-eval-bench`), so filling C2/C5/C10 there needs a concurrent harness; the image arm serves one request at a time, so its `—` should be written down as by-design in the lane doc. (`recipes/decision/README.md`; `recipes/explore/README.md`; `tools/README.md`) *(effort: medium)*
+  *(**CLOSED 2026-10-19 — documented, not laddered.** `recipes/decision/README.md` §"A `req/s`
+  ladder, not a `t/s` ladder" measures the decision arms on their own instrument
+  (`tools/decision-ladder.py`, and the instrument's full-split numbers) and states the close:
+  a `t/s`-shaped number here would be a category error, so the cells carry `req/s` or stay `—` with
+  the reason. §Concurrency ladder adds "**The image arm's `—` is not a missing measurement**": the
+  media arm holds a single denoise lock, so a ladder there would time its own queue and its C2/C5/C10
+  stay `—` by design. The explore lane's decision table now records each arm's measured cells or its
+  own documented reason (2026-10-19 sweep). Nothing was launched for this item — the documentation it
+  asked for already existed and was verified section by section.)*
+
