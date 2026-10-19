@@ -24,7 +24,7 @@ metadata:
   # that packing width (0.3125 B/weight), not a claim about the tensor mix.
   model_dtype: iq2_xs
   kv_dtype: fp16
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
   caveats: >
     Quality is the question this arm exists to answer, and the card's own table
     says where it lands: WikiText-2 top-1 agreement 81.1% (Q4_K 89.7%) and KLD

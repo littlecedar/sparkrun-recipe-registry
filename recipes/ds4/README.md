@@ -31,7 +31,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Spec decode | DSpark k=5, verify-all |
 | Transport | RoCEnante RDMA (shipped on) |
 | Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
-| Tags | `official`, `large_context`, `lcg_favorite`, `vision` |
+| Tags | `official`, `fast`, `large_context`, `lcg_favorite`, `vision` |
 | Measured | **TP=4 ladder, first C2/C5/C10 row for this lane (2026-10-18)** — C1 **67.18 ± 6.97** (pooled n=25, CV 10.4 %) / C2 89.9 / C5 113.4 / C10 115.4 t/s, two **v2.3-serve-line** boots, 5 runs/cell (`benchmarking/concurrency-ladder.yaml`; `~/benchmarks/tp4-20261018/`, see [Measured](#measured-tp4-ladder-and-suite)); the shipped v2.4 line's own takes — interleave flag off — are in [the v2.4 section](#measured-the-v24-serve-line). Depth-0 C4/C8/C16 118.9 / 107.5 / 115.9 (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`) at parity with the V4.1 base inside the two arms' spreads; KV pool 9,277,952 (the 9.4M pin clamps), prefill 119k 29.5 s / 231k 64.8 s (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). The earlier single-boot **81.0** is one draw from that C1 pool (2.0 σ above its mean), not an attributable gain |
 | Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`). Standard suite on a later boot, one serve: house **36/37**, needle **3/3 at 32k / 131k / 983k**, tool-eval-bench **90** (`~/benchmarks/tp4-20261018/knapcio-suite/`) |
 

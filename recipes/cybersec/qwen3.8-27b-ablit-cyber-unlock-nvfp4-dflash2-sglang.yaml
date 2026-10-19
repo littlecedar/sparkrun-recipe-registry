@@ -14,7 +14,7 @@ metadata:
   model_dtype: nvfp4
   model_draft_dtype: bf16
   kv_dtype: fp8_e4m3
-  tags: fast, vision
+  tags: vision
   caveats: >
     Community compile, not a new model: the overlay repo ships no weights. The body is AEON-7's
     abliterated (refusal-removed) NVFP4 pack and the served chat template is the overlay's

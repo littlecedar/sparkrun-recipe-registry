@@ -24,7 +24,7 @@ metadata:
   model_dtype: mxfp4
   model_mtp_dtype: mxfp4
   kv_dtype: fp8
-  tags: official, large_context, lcg_favorite, vision
+  tags: official, fast, large_context, lcg_favorite, vision
 
 mods:
   - "mods/dsv41-sglang-overlay"

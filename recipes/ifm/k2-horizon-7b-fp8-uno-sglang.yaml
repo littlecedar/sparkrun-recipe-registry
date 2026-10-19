@@ -20,7 +20,7 @@ metadata:
   quantization: compressed-tensors
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: experimental, fast, smol, reasoning, tools, agent
+  tags: experimental, smol, reasoning, tools, agent
 
 defaults:
   port: 8000

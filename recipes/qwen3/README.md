@@ -27,7 +27,7 @@ bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to 
 | model | [RadixArk/Qwen3.8-27B-NVFP4] — NVFP4 quant of `Qwen/Qwen3.8-27B`, 17.6 GB weights, qwen3_5 dense hybrid, image-text-to-text |
 | draft | [z-lab/Qwen3.8-27B-DFlash2] — DFLASH2 spec decode, block 8 |
 | size / mem / TP | 27B dense (64 layers = 48 GDN + 16 full-attention, no experts); `gpu_memory_utilization: 0.85`; TP=1 and **TP=2 both measured** (2026-10-15): with the shipped fix mounted, `-o tensor_parallel=2` boots and serves on two nodes — decode C1 46.8 / C2 79.2 / C5 117.7 / C10 120.3 t/s, ~+48 %/+46 %/+23 %/+27 % over TP=1 (`bench_a09eb0ce2b85`, receipt `~/benchmarks/qwen3-27b-tp2-20261015/`); the *unfixed* loader cannot boot the model at TP=2 (attic `AGENTS.md` §7, §14); 262,144 ctx declared and **reachable on the shipped chain** (KV pool 497,878 tokens, top rung of the needle probe served as a 256,650-token prompt) |
-| flags | 🌲🚀👀 (fast, lcg_favorite, vision) |
+| flags | 🌲👀 (lcg_favorite, vision) |
 | decode C1 | **33.8 t/s** @ d=0, c=1 (block 8, decode-triage) — the arm's historical reference, measured with the weight loader **unfixed** (house battery 37/37) |
 | decode ladder | **C1 31.7 ± 3.0 · C2 54.3 ± 4.2 · C5 95.5 ± 6.8 · C10 94.5 ± 4.6 t/s** @ d=0, pp 2048, tg 128, n=5, shipped boot, 2026-10-15 — `bench_017bdc06394d` (a `--fresh` re-measurement: the same bench id also covers the earlier partial-patch probe boot, whose artifacts live in the receipt's `partial-patch-probe/`) |
 | decode ladder (re-measure) | **C1 29.6 ± 2.6 · C2 57.4 ± 3.3 · C5 89.5 ± 6.5 · C10 100.9 ± 3.4 t/s** @ d=0, pp 2048, tg 128, n=5, shipped chain, one GB10, 2026-10-17 — `bench_355eee9f476f`, receipt `~/benchmarks/ladders-solo-20261017/` (the index row's C2/C5/C10 quote this boot; the two boots' spread — up to 11 % at C10, the widest cell — sits inside this profile's documented 7–25 % inter-boot noise floor, so neither is "the" number and the row's C1 33.8 stays the arm's **pre-loader-fix** triage reference) |
@@ -144,7 +144,7 @@ Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/
 
 ### Flags
 
-🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision.
+🚀 fast (> 50 t/s) · 🌲 lcg_favorite · 👀 vision.
 
 ## Attic index
 

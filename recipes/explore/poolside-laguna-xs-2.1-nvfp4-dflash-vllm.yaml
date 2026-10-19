@@ -29,7 +29,7 @@ metadata:
   kv_dtype: fp8
   draft_model: poolside/Laguna-XS-2.1-DFlash
   model_draft_dtype: bf16
-  tags: explore, official, reasoning, tools
+  tags: explore, official, reasoning, tools, fast
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

@@ -12,7 +12,7 @@ therefore disable sparkrun's default inference probe (`readiness: inference: fal
 `/health` only); the chat-completion probe can only time out, and `sparkrun run` would then
 exit 1 on a healthy server.
 
-Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
+Flags: 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
 
 ## Contents
 
@@ -37,7 +37,7 @@ one Spark.
 | context / batching | `max_model_len: 32768`, `max_num_batched_tokens: 16384`, `max_num_seqs: 32` |
 | cpu_mask | `5-9` (fast X925 cluster half; solo: `-o cpu_mask=5-9,15-19`) |
 | flags | `--runner pooling --convert embed --limit-mm-per-prompt '{"image": 4, "video": 1}' --attention-backend b12x --block-size 128 --load-format instanttensor` |
-| tags | 🚀 fast · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
+| tags | 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
 | license | Apache-2.0 |
 
 `--gpu-memory-utilization` is an **absolute cap on total device usage**, so the encoders and
@@ -74,7 +74,7 @@ from quantization.
 | context / batching | `max_model_len: 32768`, `max_num_batched_tokens: 16384`, `max_num_seqs: 32` |
 | cpu_mask | `5-9,15-19` (whole fast cluster; colocated: `-o cpu_mask=5-9`, reranker on `15-19`) |
 | flags | `--runner pooling --convert embed --limit-mm-per-prompt '{"image": 4, "video": 1}' --attention-backend b12x --block-size 128 --load-format instanttensor` |
-| tags | 🚀 fast · 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
+| tags | 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol |
 | license | Apache-2.0 |
 
 **Do not size memory from `sparkrun recipe vram`'s "Model weights" line.** For a 4-bit

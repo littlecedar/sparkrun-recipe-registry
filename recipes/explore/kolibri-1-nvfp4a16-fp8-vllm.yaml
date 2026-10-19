@@ -31,7 +31,7 @@ metadata:
   model_params: "78.1B"
   model_dtype: nvfp4
   kv_dtype: fp8
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
   caveats: >
     Unofficial 4-bit conversion (not Aleph Alpha's): routed experts run as
     W4A16 on vLLM's Marlin NVFP4 kernel with BF16 activations, attention and
@@ -40,7 +40,8 @@ metadata:
     from base revision e52eb4627d11516b0c01de49210ab5a4e4061444, NOT the FP8
     repo's current main (258cae8f): the quantized experts are that older
     revision's tensor values, so a comparison against the FP8 arm mixes a
-    revision delta with the quant delta. Not boot-verified here yet.
+    revision delta with the quant delta. Boot-verified and measured
+    2026-10-18: C1 52.48 t/s, 36/37, KV 4.61M tokens.
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

@@ -22,7 +22,7 @@ metadata:
   model_params: "78.1B"
   model_dtype: q4_k
   kv_dtype: fp16
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
   caveats: >
     The uploader's GB10 figures (~51 t/s decode, ~1,500 t/s prompt) and its
     42/42 agentic score are the card's claims, not this registry's: the GGUF

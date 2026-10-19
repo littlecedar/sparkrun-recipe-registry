@@ -11,7 +11,7 @@ metadata:
   model_params: "35B"
   model_dtype: nvfp4
   kv_dtype: bf16
-  tags: fast, vision
+  tags: vision
   caveats: >
     Abliterated (refusal-direction removed) build of nex-agi/Nex-N2.5-mini, released "research use
     only" by the uploader: it will comply with prompts the base refuses and the operator owns the

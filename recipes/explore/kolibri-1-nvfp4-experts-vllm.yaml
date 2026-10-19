@@ -31,7 +31,7 @@ metadata:
   model_params: "78.1B"
   model_dtype: nvfp4
   kv_dtype: fp8
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
   caveats: >
     Unofficial 4-bit conversion: experts run W4A16 on the Marlin NVFP4 MoE
     kernel (BF16 activations), everything else is the official FP8 payload.
@@ -40,7 +40,8 @@ metadata:
     current main (258cae8f). Engine pin is 0.29.0 while the card measured
     0.30.0 — the plugin wheel forbids 0.30; if this pack fails to load on
     0.29.0, move the container to the 0.30.0 digest and keep the --no-deps
-    plugin install. Not boot-verified here yet.
+    plugin install. Boot-verified and measured 2026-10-18: C1 52.37 t/s,
+    37/37, KV 4.62M tokens.
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

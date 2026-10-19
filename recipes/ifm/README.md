@@ -105,7 +105,8 @@ form (topk 1, draft width 8). **Boot-verified and measured 2026-10-18**, receipt
   the three instruments.
 - **Dispersion:** UNO's c1 run-to-run spread is ±10–13 t/s against the plain arm's ±0.3, so read C1 as
   a boot-level number (123.2 in the dedicated profile, 118.5 in the ladder), not a 0.1 %-resolved one.
-- The recipe's `metadata.caveats` still open with "Unmeasured arm" — **stale as of 2026-10-18**.
+- The recipe's `metadata.caveats` record the same measured state as this section — one boot, C1
+  against the fa4 control, ARC not claimed (corrected 2026-10-19 from the stale "Unmeasured arm").
 
 ## `k2-horizon-7b-fp8-uno-sglang`
 

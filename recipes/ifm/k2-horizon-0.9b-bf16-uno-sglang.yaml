@@ -19,12 +19,14 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: official, experimental, smol, reasoning, tools
+  tags: official, fast, experimental, smol, reasoning, tools
   caveats: >
-    Unmeasured arm: no boot, no ladder, no correctness receipt yet. UNO is
-    verify-based speculative decoding, so a throughput number is not a result until
-    the output distribution matches this same checkpoint without UNO. The adapter
-    (IFM/K2-Horizon-0.9B-Uno, 223.9 MB) is staged by a lane mod at launch.
+    Measured on one boot (2026-10-18): C1 123.2 +/- 13.2 t/s at d0 against a
+    same-recipe fa4 control's 79.0, house 33/37. UNO is verify-based spec
+    decoding, so the throughput does not certify quality: the ARC cell is +11
+    items on a larger truncation count and is not claimed as a gain. The
+    adapter (IFM/K2-Horizon-0.9B-Uno, 223.9 MB) is staged by a lane mod at
+    launch.
 
 defaults:
   port: 8000
@@ -40,7 +42,7 @@ defaults:
   gpu_memory_utilization: 0.82
   max_model_len: 131072
   # Not lowered from the plain arm's 64: it is a scheduler admission cap, not a
-  # memory limit, and this arm's scaling curve is unmeasured.
+  # memory limit, and the measured c1-c10 ladder never approaches it.
   max_num_seqs: 64
   # Spelled exactly as upstream validates it, NOT `auto`: config.json declares "dtype": "float32", so `auto` can load 6.5 GB where 2.16 GB was intended.
   dtype: bfloat16

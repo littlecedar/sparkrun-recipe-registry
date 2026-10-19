@@ -23,7 +23,7 @@ metadata:
   model_params: "12B"
   model_dtype: q4_k_m
   kv_dtype: fp16
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
 
 defaults:
   port: 8000

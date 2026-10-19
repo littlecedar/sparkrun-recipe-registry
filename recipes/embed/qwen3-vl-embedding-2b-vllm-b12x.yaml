@@ -11,7 +11,7 @@ metadata:
   model_dtype: bf16
   kv_dtype: bf16
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
-  tags: fast, lcg_favorite, vision, embedding, smol
+  tags: lcg_favorite, vision, embedding, smol
 
 mods:
   - "@littlecedar/mods/pip-install-orjson"

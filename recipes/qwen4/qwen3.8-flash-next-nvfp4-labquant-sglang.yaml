@@ -13,7 +13,7 @@ metadata:
   model_dtype: nvfp4
   model_mtp_dtype: fp8
   kv_dtype: bf16
-  tags: lcg_favorite, fast, vision
+  tags: lcg_favorite, vision
   caveats: >
     Checkpoint is more aggressively quantized than the RadixArk export in exactly
     the attention/GDN and PLE-n-gram paths. No accuracy evaluation exists on this

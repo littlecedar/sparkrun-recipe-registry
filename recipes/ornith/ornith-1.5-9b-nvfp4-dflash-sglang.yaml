@@ -15,7 +15,7 @@ metadata:
   model_dtype: nvfp4
   model_draft_dtype: bf16
   kv_dtype: fp8_e4m3
-  tags: official, smol, vision, reasoning, agent, tools
+  tags: official, fast, smol, vision, reasoning, agent, tools
 
 mods:
   - "@eugr/mods/drop-caches"

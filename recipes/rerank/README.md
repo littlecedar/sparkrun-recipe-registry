@@ -14,7 +14,7 @@ DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of `recipes/qwen3/` on
 - [Pooling endpoints — the client contract](#pooling-endpoints--the-client-contract)
 - [Attic index](#attic-index)
 
-Flags: 🚀 fast (≥ 50 t/s) · 🌲 lcg_favorite · 👀 vision · 🔃 reranking · 🤏 smol.
+Flags: 🚀 fast (C1 > 50 u/s) · 🌲 lcg_favorite · 👀 vision · 🔃 reranking · 🤏 smol.
 
 ## Shipped recipes
 

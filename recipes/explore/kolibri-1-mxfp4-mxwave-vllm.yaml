@@ -26,7 +26,7 @@ metadata:
   model_params: "78.1B"
   model_dtype: mxfp4
   kv_dtype: fp8
-  tags: explore, reasoning, tools
+  tags: explore, reasoning, tools, fast
   caveats: >
     EXPERIMENTAL by the uploader's own gate: the unchanged strict KL target was
     missed (0.0551 nats against a 0.030 threshold), though the likelihood
@@ -36,7 +36,8 @@ metadata:
     against the FP8 arm as a lower bound on loss, and do not port a quality
     result from this arm to the family. Expert source is the BF16 repo at
     7a8f290e, backbone reference e52eb4627d11516b0c01de49210ab5a4e4061444 —
-    not the FP8 repo's current main (258cae8f). Not boot-verified here yet.
+    not the FP8 repo's current main (258cae8f). Boot-verified and measured
+    2026-10-18: C1 51.60 t/s, 37/37, KV 4.79M tokens.
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
