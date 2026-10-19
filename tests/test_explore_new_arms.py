@@ -1,7 +1,16 @@
-"""Guards for the eight explore arms added 2026-10-18.
+"""Guards for the two explore arms that survived the 2026-10-19 selection.
 
-Each arm is pinned by content identity, and each invariant below is silent when
-broken:
+The lane's eight 2026-10-18 arms were scored against the owner's
+speed / concurrency / accuracy / size directive; six were retired to
+`attic/explore/` (see `attic/explore/ARMS-MANIFEST.md`) and their guards went
+with them. What remains here is what the shipped lane still needs:
+
+  * `kolibri-1-apex-24bpw-llamacpp.yaml` — the kept GGUF tier on the fork image.
+  * `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — authored, unbooted, the lane's
+    only two-node arm (owned by the Laguna-M.1 boot item, not a selection
+    candidate).
+
+Each invariant below is silent when broken:
 
   R  top-level `model_revision:` is a full 40-hex SHA. sparkrun distributes by
      that field; a tag or short SHA is a moving target.
@@ -16,22 +25,12 @@ broken:
      repo-id + `--revision=` pair its own CLI takes. Any other bare `org/name`
      in the command must be a model this arm declares -- a sibling's repo id is
      a copy-paste leak, never a setting.
-
-Plus the lane-level invariants, each of which a sibling copy-paste breaks:
-
-  G  the two GGUF arms declare `runtime: llama-cpp`, carry the `:quant` colon
-     form on `model:`, and pin the fork image: stock llama.cpp has no `kolibri1`
+  G  the GGUF arm declares `runtime: llama-cpp`, carries the `:quant` colon form
+     on `model:`, and pins the fork image: stock llama.cpp has no `kolibri1`
      architecture at all.
-  T  the TensorFold arm pins its fork digest, references the lane-local,
-     UNSCOPED `mods/kolibri-drafter-launcher` (scoped, it resolves against the
-     published clone, which has no lane dir), and pins the drafter repo and
-     revision it hands the launcher.
-  N  Laguna-M.1 is the ONLY two-node explore arm (min/max 2, TP=2); every other
+  N  Laguna-M.1 is the ONLY two-node explore arm (min/max 2, TP=2); the GGUF
      arm is 1/1/TP1. Asserted as an exception so a copy-paste cannot quietly
      make a solo arm two-node, or the two-node arm solo.
-  E  all three 4-bit Kolibri arms pin the SAME vLLM 0.29.0 digest: the vendor
-     plugin wheel pins vllm<0.30, so one arm drifting to another engine is
-     silent at `validate` and dies at load.
 
 Recipes are parsed as text (stdlib only, no PyYAML) by the parser the other
 lane guards use; an empty parse RAISES rather than returning empty collections.
@@ -53,26 +52,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 EXPLORE = REPO_ROOT / "recipes" / "explore"
 
 ARMS = (
-    "kolibri-1-nvfp4a16-fp8-vllm.yaml",
-    "kolibri-1-nvfp4-experts-vllm.yaml",
-    "kolibri-1-mxfp4-mxwave-vllm.yaml",
-    "kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml",
-    "kolibri-1-apex-q4k-llamacpp.yaml",
     "kolibri-1-apex-24bpw-llamacpp.yaml",
-    "mistral-small-4-119b-nvfp4-vllm.yaml",
     "poolside-laguna-m1-nvfp4-vllm-tp2.yaml",
 )
 
-GGUF_ARMS = (
-    "kolibri-1-apex-q4k-llamacpp.yaml",
-    "kolibri-1-apex-24bpw-llamacpp.yaml",
-)
-KOLIBRI_4BIT_ARMS = (
-    "kolibri-1-nvfp4a16-fp8-vllm.yaml",
-    "kolibri-1-nvfp4-experts-vllm.yaml",
-    "kolibri-1-mxfp4-mxwave-vllm.yaml",
-)
-TENSORFOLD_ARM = "kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml"
+GGUF_ARMS = ("kolibri-1-apex-24bpw-llamacpp.yaml",)
+GGUF_QUANT = "APEX-2.4bpw"
 LAGUNA_M1 = "poolside-laguna-m1-nvfp4-vllm-tp2.yaml"
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
@@ -85,14 +70,9 @@ GGUF_MODEL = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*:([A-Za-z0-9_.-]+)"
 )
 
-# Fork-built images: neither upstream project can serve these checkpoints.
+# Fork-built image: upstream llama.cpp cannot load `kolibri1` at all.
 LLAMACPP_IMAGE = "littlecedar/dgx-spark-llama-cpp-kolibri1"
 LLAMACPP_DIGEST = "1928661c"
-TENSORFOLD_IMAGE = "littlecedar/dgx-spark-tensorfold-kolibri1-drafter"
-TENSORFOLD_DIGEST = "efcb7257"
-# vLLM 0.29.0: the pin the aleph-alpha-inference 1.0.0 wheel allows.
-VLLM_IMAGE = "vllm/vllm-openai:v0.29.0@sha256:"
-VLLM_029_DIGEST = "c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1"
 
 
 def arm(name: str) -> dict:
@@ -172,34 +152,8 @@ def gguf_violations(r: dict) -> list[str]:
     return bad
 
 
-def drafter_violations(r: dict) -> list[str]:
-    bad: list[str] = []
-    container = r["top"].get("container", "")
-    if TENSORFOLD_IMAGE not in container or TENSORFOLD_DIGEST not in container:
-        bad.append("container is not the pinned TensorFold drafter fork")
-    if r["mods"] != ["mods/kolibri-drafter-launcher"]:
-        bad.append(
-            f"mods {r['mods']!r} is not the lane-local unscoped "
-            "'mods/kolibri-drafter-launcher'"
-        )
-    elif not (EXPLORE / "mods" / "kolibri-drafter-launcher").is_dir():
-        bad.append("mods/kolibri-drafter-launcher does not exist beside the lane")
-    defaults = r["defaults"]
-    if not HUB_ID.fullmatch(defaults.get("speculative_draft_model", "")):
-        bad.append("speculative_draft_model is not a Hub repo id")
-    if not SHA40.match(defaults.get("speculative_draft_model_revision", "")):
-        bad.append("speculative_draft_model_revision is not a 40-hex SHA")
-    for flag in (
-        "--drafter {speculative_draft_model}",
-        "--drafter-revision {speculative_draft_model_revision}",
-    ):
-        if flag not in r["command"]:
-            bad.append(f"command does not pass {flag!r}")
-    return bad
-
-
 def node_violations(name: str, r: dict) -> list[str]:
-    """Laguna-M.1 is the ONE 2/2/TP2 arm; every other arm is 1/1/TP1."""
+    """Laguna-M.1 is the ONE 2/2/TP2 arm; the GGUF arm is 1/1/TP1."""
     want = "2" if name == LAGUNA_M1 else "1"
     bad: list[str] = []
     for key in ("min_nodes", "max_nodes"):
@@ -215,27 +169,13 @@ def node_violations(name: str, r: dict) -> list[str]:
     return bad
 
 
-def kolibri_engine_violations(items) -> list[str]:
-    """The three 4-bit Kolibri arms share one engine pin."""
-    bad: list[str] = []
-    containers = set()
-    for name, r in items:
-        container = r["top"].get("container", "")
-        containers.add(container)
-        if not container.startswith(VLLM_IMAGE) or VLLM_029_DIGEST not in container:
-            bad.append(f"{name}: container is not the vLLM 0.29.0 pin")
-    if len(containers) != 1:
-        bad.append(f"4-bit Kolibri arms disagree on the engine: {sorted(containers)}")
-    return bad
-
-
 # ---------------------------------------------------------------------------
 
 
 class LaneArms(unittest.TestCase):
-    """The eight arms are present and each parses to the shape the guards need."""
+    """Both surviving arms are present and parse to the shape the guards need."""
 
-    def test_lane_has_the_eight_arms(self):
+    def test_lane_has_the_two_arms(self):
         for name in ARMS:
             self.assertTrue((EXPLORE / name).is_file(), name)
 
@@ -280,29 +220,16 @@ class ContentIdentity(unittest.TestCase):
                 self.assertEqual(foreign_repo_violations(arm(name)), [])
 
 
-class GgufArms(unittest.TestCase):
-    def test_both_gguf_arms_hold(self):
+class GgufArm(unittest.TestCase):
+    def test_gguf_arm_holds(self):
         for name in GGUF_ARMS:
             with self.subTest(arm=name):
                 self.assertEqual(gguf_violations(arm(name)), [])
 
-    def test_the_two_arms_serve_different_quants(self):
-        quants = set()
-        for name in GGUF_ARMS:
-            match = GGUF_MODEL.fullmatch(arm(name)["top"]["model"])
-            self.assertIsNotNone(match, name)
-            quants.add(match.group(1))
-        self.assertEqual(len(quants), 2, f"both GGUF arms serve {quants}")
-
-
-class TensorFoldDrafterArm(unittest.TestCase):
-    def test_drafter_arm_holds(self):
-        self.assertEqual(drafter_violations(arm(TENSORFOLD_ARM)), [])
-
-    def test_drafter_repo_is_the_learned_block_drafter(self):
-        self.assertEqual(
-            arm(TENSORFOLD_ARM)["defaults"]["speculative_draft_model"],
-            "josch15366/Kolibri-1-block-drafter",
+    def test_the_gguf_arm_is_the_kept_apex_tier(self):
+        self.assertRegex(
+            arm(GGUF_ARMS[0])["top"]["model"],
+            r":%s$" % re.escape(GGUF_QUANT),
         )
 
 
@@ -315,12 +242,6 @@ class NodeShape(unittest.TestCase):
     def test_exactly_one_arm_is_two_node(self):
         two_node = [n for n in ARMS if arm(n)["top"]["min_nodes"] != "1"]
         self.assertEqual(two_node, [LAGUNA_M1])
-
-
-class KolibriFourBitEngines(unittest.TestCase):
-    def test_all_three_pin_the_same_vllm_029(self):
-        items = [(n, arm(n)) for n in KOLIBRI_4BIT_ARMS]
-        self.assertEqual(kolibri_engine_violations(items), [])
 
 
 # ---------------------------------------------------------------------------
@@ -354,7 +275,7 @@ class NegativeControls(unittest.TestCase):
                       node_violations(LAGUNA_M1, parse_text(raw)))
 
     def test_second_two_node_arm_fails_the_exception_guard(self):
-        solo = "kolibri-1-nvfp4a16-fp8-vllm.yaml"
+        solo = GGUF_ARMS[0]
         raw = (EXPLORE / solo).read_text(encoding="utf-8")
         raw = mutate(raw, "min_nodes: 1", "min_nodes: 2")
         self.assertTrue(node_violations(solo, parse_text(raw)))
@@ -392,29 +313,9 @@ class NegativeControls(unittest.TestCase):
     def test_quant_less_model_on_a_gguf_arm_fails(self):
         name = GGUF_ARMS[0]
         raw = (EXPLORE / name).read_text(encoding="utf-8")
-        raw = mutate(raw, "model: Myric/Kolibri-1-APEX-GGUF:Q4_K",
+        raw = mutate(raw, "model: Myric/Kolibri-1-APEX-GGUF:APEX-2.4bpw",
                      "model: Myric/Kolibri-1-APEX-GGUF")
         self.assertTrue(gguf_violations(parse_text(raw)))
-
-    def test_scoped_drafter_mod_fails_the_locality_guard(self):
-        raw = (EXPLORE / TENSORFOLD_ARM).read_text(encoding="utf-8")
-        raw = mutate(raw, '"mods/kolibri-drafter-launcher"',
-                     '"@littlecedar/mods/kolibri-drafter-launcher"')
-        self.assertTrue(drafter_violations(parse_text(raw)))
-
-    def test_unpinned_drafter_digest_fails_the_drafter_guard(self):
-        raw = (EXPLORE / TENSORFOLD_ARM).read_text(encoding="utf-8")
-        raw = mutate(raw, TENSORFOLD_DIGEST, "0" * 8)
-        self.assertTrue(drafter_violations(parse_text(raw)))
-
-    def test_one_arm_drifting_off_the_engine_pin_fails(self):
-        items = []
-        for name in KOLIBRI_4BIT_ARMS:
-            raw = (EXPLORE / name).read_text(encoding="utf-8")
-            if name == KOLIBRI_4BIT_ARMS[0]:
-                raw = mutate(raw, VLLM_029_DIGEST, "c" * 64)
-            items.append((name, parse_text(raw)))
-        self.assertTrue(kolibri_engine_violations(items))
 
 
 if __name__ == "__main__":

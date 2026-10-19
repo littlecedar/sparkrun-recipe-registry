@@ -45,7 +45,7 @@ the image is modified.
 
 Single mod in this arm. The image is pinned by manifest digest in the recipe
 (`littlecedar/dgx-spark-tensorfold-kolibri1-drafter:0.6.5-8ea05aa`) and built
-from `recipes/explore/Dockerfile.kolibri1-tensorfold-drafter` — base
+from `attic/explore/Dockerfile.kolibri1-tensorfold-drafter` — base
 `lmsysorg/sglang:dev-cu13`, engine `jschmied/TensorFold` branch
 `kolibri1-drafter` @ `8ea05aa`. A stock TensorFold image lacks the fork
 branch, so `run.sh` fails the launch at the pre-exec gate rather than at the

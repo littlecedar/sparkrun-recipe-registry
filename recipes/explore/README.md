@@ -1,32 +1,27 @@
 # Explore lane
 
-Frontier reasoning + tool-calling models for one DGX Spark node, selected by the owner's criterion for
-this lane (**accuracy decides; smaller and faster preferred**, 2026-10-13 — supersedes the registry's
-node-count→speed default). Every arm here is single-node (TP=1). The lane ships the two selected
-recipes (**Ling-3.0-flash-int4**, rank 1; **Kolibri-1**, rank 2) plus four measured arms added
-2026-10-14 (the Poolside Laguna pair, `humanizer`, and the eval-only `Qwen-Image`), one arm **added by the
-owner on 2026-10-15 and boot-verified the same day** (**Mellum2.1-12B**, from the `JetBrains/mellum21`
-collection, so outside the ranking) — its index row carries the ladder and
-the 36/37 house battery, and it was the first single-node text arm with C2/C5/C10 filled (the
-laguna-XS arm followed with the full suite on 2026-10-17), and **2026-10-17 added the registry's first `runtime: llama-cpp` arm** (Mellum's Q4_K_M GGUF, boot-verified the same day). **2026-10-18 added six Kolibri-1 pack/tier arms**, all boot-verified and measured the same day — two llama.cpp GGUF tiers (2.4bpw vs Q4_K), the TensorFold block-drafter route, and three 4-bit vLLM packs (NVFP4-A16, NVFP4-experts, MXFP4) — plus a **non-shipped** 1M constant-state eval whose result is recorded here and nowhere in `recipes/`/`mods/`. The LTX-2.5 video arm ships as a runbook. Everything else — measured
-histories, selection receipts, serving traps and the full candidate research — lives in
-[`attic/explore/`](../../attic/explore/) (index below).
+Frontier reasoning + tool-calling models for one DGX Spark node. **Selection 2026-10-19** (owner
+directive): top candidates are optimized for **generation speed, concurrency, accuracy and small
+size**; ties break on the owner's 2026-10-11 weighting — **node count (lower) → accuracy (higher) →
+speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, so node count tied.
+
+The lane now ships **five measured arms** — the accuracy leader, the smallest 262k arm with measured
+headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, and the media-gen arm whose
+cells are closed — plus one authored-unbooted 2-node arm (`Laguna-M.1`, owned by its own boot item,
+not a selection candidate). The other **ten** measured arms from the 2026-10-14…18 expansions are
+archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
+[`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 14-row decision table with one
+receipt path per arm is [§Selection](#selection-2026-10-19); per-arm measured histories, serving traps
+and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md) and
+[`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md).
 
 ## Contents
 
+- [Selection (2026-10-19)](#selection-2026-10-19)
 - [ling-3.0-flash-int4-dspark-sglang](#ling-30-flash-int4-dspark-sglang)
-- [kolibri-1-78b-fp8-vllm](#kolibri-1-78b-fp8-vllm)
 - [kolibri-1-apex-24bpw-llamacpp](#kolibri-1-apex-24bpw-llamacpp)
-- [kolibri-1-apex-q4k-llamacpp](#kolibri-1-apex-q4k-llamacpp)
-- [kolibri-1-78b-fp8-tensorfold-drafter-sglang](#kolibri-1-78b-fp8-tensorfold-drafter-sglang)
-- [kolibri-1-nvfp4a16-fp8-vllm](#kolibri-1-nvfp4a16-fp8-vllm)
-- [kolibri-1-nvfp4-experts-vllm](#kolibri-1-nvfp4-experts-vllm)
-- [kolibri-1-mxfp4-mxwave-vllm](#kolibri-1-mxfp4-mxwave-vllm)
 - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](#poolside-laguna-xs-21-nvfp4-dflash-vllm)
-- [poolside-laguna-s-2.1-nvfp4-dflash-vllm](#poolside-laguna-s-21-nvfp4-dflash-vllm)
-- [humanizer-12b-vllm](#humanizer-12b-vllm)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
-- [mellum2.1-12b-a2.5b-bf16-thinking-vllm](#mellum21-12b-a25b-bf16-thinking-vllm)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 ComfyUI runbook (not a recipe)](#ltx-25-comfyui-runbook-not-a-recipe)
@@ -34,16 +29,72 @@ histories, selection receipts, serving traps and the full candidate research —
 
 ---
 
+## Selection (2026-10-19)
+
+The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
+pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 14
+measured root-index rows are scored; the verdict column is the selection. Decode rows only
+(`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped `max_model_len`; a
+`max_num_seqs` / `parallel` clamp — not the pool — is the in-flight ceiling where one is set.
+
+| arm | C1 t/s (d0) | ladder c1 / c2 / c5 / c10 | concurrency ceiling | accuracy (house · needle · ARC · GSM8K · BFCL · TEB) | size · memory | receipt | verdict |
+|---|---|---|---|---|---|---|---|
+| `ling-3.0-flash-int4-dspark-sglang` | **49.7 ± 6.0** | 49.7 / 66.2 / 100.2 / 85.9 (peak c5, dip c10) | KV 313,248 tok = **1.20×** at 262,144 (ladder boot; 313,752 on the 2026-10-12 boot); `max_num_seqs: 6` | **37/37** · 3/3 @32k, 3/3 @131k, **2/3 @262k** · **94.5%** · **94.0%** · **88.0%** · — | 77 GB + 2.7 GB draft · util 0.80 · 154 GB distributed | `~/benchmarks/ladders-solo-20261018/ling-ladder.json`, `ling-boot.log`, `ling-suite/summary.md`, `ling-needle-262k-mt512/` | **KEEP — accuracy leader** |
+| `kolibri-1-78b-fp8-vllm` | 47.2 ± 0.1 | 47.2 / 76.2 / 77.6 / 83.5 (flat past c2) | KV 1,859,922 tok = 7.1×; `max_num_seqs: 4` | 37/37 @8192 · — · — · — · — · — | 74 GB · util 0.78 | `~/benchmarks/ladders-solo-20261018/kolibri-ladder.json`, `kolibri-battery-8192.json`; pool `~/benchmarks/explore-repin-20261014/kolibri-boot.log` | **retire** — its 4-bit packs are smaller/faster; Ling has the deeper accuracy cells |
+| `kolibri-1-apex-24bpw-llamacpp` | 63.24 ± 0.50 | 63.83 / 113.35 / 98.30 / 78.62 (peak c2) | 262,144 × `parallel: 4`, `kv_unified` = **4 slots**; c10 is 10 streams over 4 | 37/37 · — · — · — · — · — | 22.7 GiB mmap · **79 GiB available** while serving 262k · TTR 22.2 s | `~/benchmarks/kolibri-gguf-20261018/apex24-ladder.json`, `apex24-triage.json`, `apex24-battery.json` | **KEEP — smallest 262k with measured headroom** |
+| `kolibri-1-apex-q4k-llamacpp` | 57.67 ± 0.21 | 56.16 / 90.23 / 83.25 / 67.50 | same 4-slot ceiling | 37/37 · — · — · — · — · — | 41.89 GiB · 59 GiB available | `~/benchmarks/kolibri-gguf-20261018/q4k/` (`q4k-ladder.json`, `q4k-triage.json`, `q4k-battery.json`) | **retire** — 2.4bpw wins size and every ladder cell |
+| `kolibri-1-78b-fp8-tensorfold-drafter-sglang` | 55.6 ± 5.9 (d8192 54.6) | — (C1 only; no ladder) | 4 streams @ 262,144 (22.7 GiB caches) | 37/37 @4096 · — · — · — · — · — | 79 GB + 0.8 GB drafter | `~/benchmarks/kolibri-mtp-20261018/mtp-triage.json`, `house/summary.json` | **retire** — no aggregate; 4-slot cap; fork JIT risk |
+| `kolibri-1-nvfp4a16-fp8-vllm` | 52.48 ± 0.21 | 52.11 / 91.64 / 95.15 / 106.39 | KV 4,606,739 tok = 17.6×; cap 4 | **36/37** · — · — · — · — · — | 42.69 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/quantinine/` (`c2c5c10-ladder.json`, `triage.json`, `battery.json`) | **retire** — 36/37 loses the accuracy tie |
+| `kolibri-1-nvfp4-experts-vllm` | 52.37 ± 0.05 | 52.00 / 91.58 / 95.03 / 105.58 | KV 4,618,726 tok = 17.6×; cap 4 | 37/37 · — · — · — · — · — | 42.6 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/iskye/` (`c2c5c10-ladder.json`, `triage.json`, `battery-4096.json`) | **retire** — APEX-24bpw wins speed+size at equal house accuracy |
+| `kolibri-1-mxfp4-mxwave-vllm` | 51.60 ± 0.16 | 51.41 / 92.64 / 96.28 / 108.20 | KV 4,791,929 tok = 18.3×; cap 4 | 37/37 but **strict KL fail** (0.0551 > 0.030) · — · — · — · — · — | 40.93 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/kirill/` (`perf-ladder.json`, `decode-triage.json`, `quality-battery.json`) | **retire** — fails its own quality screen |
+| `poolside-laguna-xs-2.1-nvfp4-dflash-vllm` | 55.3 ± 2.4 | 55.3 / 83.1 / 133.7 / **141.3** (still rising at c10) | KV 1,464,371 tok = **5.59×** at 262,144 (ladder boot; 1,403,263 on the 2026-10-14 boot); `max_num_seqs: 8` | 35/37 · 2/3 @32k, 2/3 @131k, **3/3 @262k** · 66.0% · 90.5% · 60.1% · **97** | 21.6 GB + 0.92 GB draft · util 0.55 → ~95 GB headroom | `~/benchmarks/explore-laguna-xs-20261017/perf-ladder.json`, `launch.log`, `house.json`, `needle-*.json`, `bfcl.json`, `teb.json` | **KEEP — best 262k aggregate at c10** |
+| `poolside-laguna-s-2.1-nvfp4-dflash-vllm` | 20.26 ± 0.87 | 20.26 / 29.26 / 38.96 / 53.80 | KV 106,010 tok = **1.078×** at 98,304; `max_num_seqs: 32` | 33/37 · 3/3 @32k, 3/3 @98,304 · — · — · — | 95.61 GiB resident · util 0.85 | `~/benchmarks/sweep2-20261018/laguna-s-ladder.json`, `laguna-s-suite/summary.md` | **retire** — dominated by XS on every axis |
+| `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s; no ladder) | KV 370,597 tok = 45.2× at 8,192; no chat surface | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
+| `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | 0.088 img/s (11.33–11.41 s @1024²; **53.24 s @2048²**) | — (one request at a time) | single denoise lock | n/a (non-commercial eval arm; 8-step CFG=1, byte-identical same-seed PNG) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | `~/benchmarks/qwen-image-20261014/results.json`, `~/benchmarks/media-gen-20261018/REPORT.md` | **KEEP — media-gen cells closed** |
+| `mellum2.1-12b-a2.5b-bf16-thinking-vllm` | 42.3 ± 0.1 | 42.3 / 67.2 / 99.9 / 135.6 | util 0.55 (66.6 GiB budget); 131,072; KV grant not captured | 36/37 · — · — · — · — · — | 24.3 GB · util 0.55 | `~/benchmarks/mellum-20261015/perf-ladder.json`, `house.json` | **retire** — dominated by its own Q4_K_M sibling |
+| `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
+
+**Memory column read-out:** for vLLM arms it is the shipped `gpu_memory_utilization` cap plus the
+engine's own KV grant (a util is a cap, not a peak); for the llama.cpp arms it is the resident pack
+plus the `free -g` available reading taken while serving; for the image arm it is the torch peak
+alloc/reserved pair. Peak *host* RSS is not in every receipt, and none is invented here.
+
+**Tie-break record.** Node count tied at 1 for all 14. Accuracy decided first: Ling is the accuracy
+leader (ARC/GSM8K/BFCL all measured, house 37/37); the Mellum GGUF ties the house score and leads BFCL
+(88.3 vs 88.0) while also leading speed and size. The `iSkye` 4-bit pack and APEX-24bpw both saturate
+the house battery (37/37, no ranking power), so speed and memory decided: APEX-24bpw wins
+**63.8 vs 52.4 t/s** and **22.7 vs 42.6 GiB**. Laguna-XS keeps the concurrency slot: its c10 cell
+(141.3) is the highest of any 262k-window arm and its ladder is still rising; the Mellum GGUF's 146.4
+is higher in absolute terms but is 10 streams over an 8-slot grant (its peak is c5) at a 131,072 window.
+
+**Two arms with no index row:**
+
+- `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — authored, **unbooted**, 2 nodes. It is not a selection
+  candidate and **stays** in `recipes/explore/`; the Laguna-M.1 boot item owns it until a TP=2 boot
+  produces a receipt.
+- `mistral-small-4-119b-nvfp4-vllm.yaml` — measured and **rejected** (C1 28.94 ± 0.03; 89,216-token
+  servable ceiling at 1.01× concurrency; house 33/37 default, 36/37 ceiling). Archived 2026-10-19 as
+  measured-rejected: see the manifest and `~/benchmarks/mistral-119b-20261018/REPORT.md`.
+
+**Retired 2026-10-19** (10 arms; receipt paths and the tie-break reason per arm are in
+[`attic/explore/ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)): the Kolibri FP8 base, its
+TensorFold-drafter trial, the Q4_K APEX tier and all three 4-bit vLLM packs; Laguna-S;
+`humanizer`; the Mellum BF16 parent; and Mistral-Small-4. The unrun Kolibri GGUF tiers
+(`Hob-forge` / `webmp3` / `aparusel`) were never authored as recipes, so there is no file to move;
+they are recorded as **unmeasured / not built** in the manifest.
+
 ## [ling-3.0-flash-int4-dspark-sglang](ling-3.0-flash-int4-dspark-sglang.yaml)
 
-SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
+SGLang · **1 node (TP=1)** · **kept — accuracy leader (2026-10-19)**.
 
 - **Model:** `inclusionAI/Ling-3.0-flash-int4` (MIT) + the DSpark draft `inclusionAI/Ling-3.0-flash-dspark`
   (pinned `d60b0e12…`).
 - **Size / memory:** ~77 GB INT4 weights (+ 2.7 GB draft); 154 GB distributed (`model_file_selection: all`
   is required — the 17.59 MiB safetensors index exceeds the 16 MiB inventory cap).
-- **Flags / non-obvious knobs:** `mem-fraction-static: 0.80` (KV pool 313,752 tokens; 0.87 stays the
-  documented OOM-risk ceiling); `served_model_name: inclusionAI/Ling-3.0-flash-int4` declared *and*
+- **Flags / non-obvious knobs:** `mem-fraction-static: 0.80` (KV pool 313,248 tokens on the
+  2026-10-18 ladder boot; 313,752 on the 2026-10-12 boot — same util, inter-boot spread; 0.87 stays
+  the documented OOM-risk ceiling); `served_model_name: inclusionAI/Ling-3.0-flash-int4` declared *and*
   rendered (sparkrun otherwise rewrites `{model}` to the snapshot path); the draft pin is rendered as
   `--speculative-draft-model-revision {speculative_draft_model_revision}` (not distribution-only). KDA
   ReplaySSM verify path.
@@ -64,34 +115,10 @@ SGLang · **1 node (TP=1)** · **rank 1 — kept (accuracy champion)**.
   `ling-needle-262k-mt512/`).
 - **License:** MIT.
 
-## [kolibri-1-78b-fp8-vllm](kolibri-1-78b-fp8-vllm.yaml)
-
-vLLM 0.29 + vendor plugin [`recipes/explore/mods/install-kolibri-plugin`](mods/install-kolibri-plugin) ·
-**1 node (TP=1)** · **rank 2 — kept (near-tie accuracy; smaller + faster)**.
-
-- **Model:** `Aleph-Alpha/Kolibri-1` (Apache-2.0), pinned `258cae8f…`.
-- **Size / memory:** 74 GB FP8 (73.5 GiB); `gpu_memory_utilization: 0.78` → KV 18.99 GiB → 1,859,922 tokens.
-- **Flags / non-obvious knobs:** the vendor image is amd64-only, so the recipe serves on the
-  digest-pinned stock `vllm/vllm-openai:v0.29.0` with the pure-Python plugin installed `--no-deps` (the
-  mod fails closed on import/entry-point failure, idempotent via a content marker);
-  `executor_config: {entrypoint: ""}` (the image declares `ENTRYPOINT ["vllm","serve"]`); **thinking is
-  ON by default** → callers need a larger `max_tokens` or thinking off, else truncated thinking yields an
-  empty `content` (`tools/quality-battery.py --max-tokens`).
-- **Flags (extra):** bare `recipes/explore/mods/install-kolibri-plugin` (unpublished-mod form — the scoped
-  `@littlecedar/mods/…` fails) and launches need `--transfer-mode local`; `OMP_NUM_THREADS=4` and
-  `gpu_memory_utilization: 0.78` (not the 0.85 ceiling) are the measured GB10 boot working point (CUDA
-  reports ~11 GiB less than `MemAvailable`).
-- **Measured:** ladder @ d0, pp 2048 / tg 128, n=5 — **C1 47.2 ± 0.1 · C2 76.2 ± 3.1 · C5 77.6 ±
-  0.3 · C10 83.5 ± 0.2 t/s** (`bench_b0d57361b7d7`); C1 reproduces the 47.3 above, and past c2 the
-  curve is flat to c10 (76.2 → 83.5), so the 78 % pool carries the queue without a knee. Battery
-  **37/37 @8192** — the old 36/37 @4096 was a reply-budget cut, not a miss. Receipt
-  `~/benchmarks/ladders-solo-20261018/` (`kolibri-ladder.json`, `kolibri-battery-8192.json`).
-- **License:** Apache-2.0.
-
 ## [kolibri-1-apex-24bpw-llamacpp](kolibri-1-apex-24bpw-llamacpp.yaml)
 
-llama.cpp, fork `kolibri1` build · **1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not
-selected (pack-size tier).
+llama.cpp, fork `kolibri1` build · **1 node (TP=1)** · **kept 2026-10-19 — smallest 262k arm with
+measured headroom**.
 
 - **Model:** `Myric/Kolibri-1-APEX-GGUF:APEX-2.4bpw` @ `ed6030d7…` — 24,374,307,840 B / 22.70 GiB,
   2.50 bits/weight (mixed: sliding-window projections Q3_K, experts IQ3_XXS/IQ2_S/IQ2_XXS, the
@@ -110,147 +137,15 @@ selected (pack-size tier).
   the 262k unified KV adds the recipe's ~5 GiB. That is a **headroom** result measured solo — no
   second model was loaded — so it is *not* a co-residency measurement, and TTR is time-to-healthy,
   not time-to-fully-paged (cold-page first-token latency is paid by the first request).
+- **Why this tier and not Q4_K:** the 2.4bpw pack wins on **both** measurable axes — −8.8 % at d0 and
+  −11.3 % at d8192 for Q4_K, and −20 / −15 / −14 % at c2/c5/c10 — while nearly half the weight bytes.
+  Q4_K's only claimed advantage is its uploader's KLD figure, which the house battery cannot see
+  (both saturate 37/37), so it is uncorroborated by this registry.
 - **License:** base `Aleph-Alpha/Kolibri-1` Apache-2.0; the GGUF pack's own terms are on its card.
-
-## [kolibri-1-apex-q4k-llamacpp](kolibri-1-apex-q4k-llamacpp.yaml)
-
-llama.cpp, same fork build · **1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not
-selected — the tier exists to price the 2.4bpw pack.
-
-- **Model:** `Myric/Kolibri-1-APEX-GGUF:Q4_K` @ `ed6030d7…` — 44,977,159,680 B / 41.89 GiB, uniform
-  4.50 bits/weight (the pack's closest-to-BF16 file).
-- **Measured (one boot, `~/benchmarks/kolibri-gguf-20261018/q4k/`):** C1 **57.67 ± 0.21** @ d0
-  (`bench_9c0927bbd72b`) / **53.94 ± 0.55** @ d8192; ladder **56.16 · 90.23 · 83.25 · 67.50 t/s**
-  (`bench_0725bfcd80c4`); house **37/37**; TTR **42.2 s**. c1 spans 56.16 (ladder) vs 57.67 (triage)
-  inside one serve — a 2.6 % intra-serve spread, so treat single-boot C1 deltas under ~3 % as
-  unresolved. 59 GiB available while serving (room for one more 23 GiB-class model, not a second
-  42 GiB one); `docker stats` 9.5 GiB does not reconcile with the host delta — use the `free -g` one.
-- **Verdict — the question this tier answers:** the 2.4bpw pack **wins on both axes the battery can
-  measure**. This pack is −8.8 % @ d0, −11.3 % @ d8192 and −20 / −15 / −14 % at c2/c5/c10, so nearly
-  double the weight bytes bought **no speed**. Its only claimed advantage is the uploader's card
-  (WikiText-2 KLD 0.076 vs 0.212, top-1 agreement 89.7 % vs 81.1 %), and the house battery has **zero
-  ranking power** between the two — both saturate 37/37 — so that KLD edge is **uncorroborated by this
-  registry**, not confirmed. Use Q4_K when prose fidelity matters and ~19 GiB plus 9–11 % throughput
-  are affordable; never cite 37/37 as "as good as FP8" or "better than 2.4bpw".
-- **License:** as above.
-
-## [kolibri-1-78b-fp8-tensorfold-drafter-sglang](kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml)
-
-TensorFold (`runtime: sglang` shim + [`mods/kolibri-drafter-launcher`](mods/kolibri-drafter-launcher)) ·
-**1 node (TP=1)** · **boot-verified + measured 2026-10-18** · not selected (drafter-route trial).
-
-- **Model:** `Aleph-Alpha/Kolibri-1` @ `258cae8f…` (FP8) + `josch15366/Kolibri-1-block-drafter` @
-  `4d6cf7be…` (391.3M params, taps layers 44 / 47 / 49; Kolibri-1 ships no MTP head, so this is the
-  draft route it lacks). Verified speculative decoding, so replies match a drafter-free serve.
-- **Boot fix — the as-authored pair was unbootable:** `max_num_seqs: 6` with `max_model_len: 262144`
-  needs **34.0 GiB** of engine caches against **25.9 GiB** free after the weights, and the engine
-  raises (`--context 262144 with 6 stream(s) … which fits 190464`). The arm now ships **4 streams at
-  the full window** (22.7 GiB of caches). `readiness.inference` stays **false**: every measured cell
-  was taken under it, and a dead engine inside a live container is invisible to a port-only wait.
-- **Measured (one boot, `~/benchmarks/kolibri-mtp-20261018/`, `bench_f667f0a32253`):** C1
-  **55.6 ± 5.94** @ d0 / **54.6 ± 4.09** @ d8192 at acceptance length **1.91 / 1.89** (1+X/round from
-  the engine's own `rounds/accepted` counters; llama-benchy 0.4.0 records no acceptance field); house
-  **37/37** @4096. Against the shipped FP8 arm's 47.2 that is **+18 %** — cross-boot, so quote the
-  direction and size, not a same-boot delta. The card's 1.31–1.40× is **not reproduced**: against the
-  card's own copy-drafting baselines on this engine (46.6 / 47.6 / 50.8 t/s) 55.6 is 1.10–1.19×.
-- **Depth 4 is worse** — 44.5 ± 3.49 at acceptance 1.79: it doubles drafts per round for fewer
-  accepted tokens. The only working knob is the engine's env (`-e TENSORFOLD_KOLIBRI_DRAFTER_DEPTH=4`
-  via `--executor-args`); there is no `-o` route.
-- **Trap, measured:** the first fresh boot's JIT extension build failed, so `/v1/models` answered 200
-  and every completion returned 500 while sparkrun declared the server ready. Re-running the same
-  command succeeded and warm boots reuse the cache. **Bench a fresh arm only after one successful
-  completion.**
-- **License:** Apache-2.0 (checkpoint).
-
-## [kolibri-1-nvfp4a16-fp8-vllm](kolibri-1-nvfp4a16-fp8-vllm.yaml)
-
-vLLM `v0.29.0` (digest-pinned) + plugin `aleph-alpha-inference 1.0.0` · **1 node (TP=1)** ·
-**boot-verified + measured 2026-10-18** · util 0.78, 262,144 window, `max_num_seqs: 4`, fp8 KV — the
-FP8 arm's served shape.
-
-- **Model:** `Quantinine/Kolibri-1-NVFP4A16-FP8` @ `4a840645…` — 42.69 GiB of files / 42.8 GiB of
-  weights; routed experts W4A16, attention + shared expert stay the official W8A8 FP8 payload.
-- **Marlin is the live path on GB10, not a fallback:** `Using 'MARLIN' NvFp4 MoE backend …` plus the
-  "GPU does not have native support for FP4 … leveraging the Marlin kernel" warning (expected for a
-  weight-only pack), `CutlassFp8BlockScaledMMKernel` for the FP8 payload, FLASHINFER attention, LBNHC.
-- **Measured (`~/benchmarks/kolibri-quants-20261018/quantinine/`):** C1 **52.48 ± 0.21** @ d0
-  (`bench_94a4ba3413d9`) / **51.11 ± 0.10** @ d8192; ladder **52.11 · 91.64 · 95.15 · 106.39 t/s**
-  (`bench_553796504797`). c2→c5 saturates at the 4-slot ceiling; c10 still rises because the queue
-  keeps four slots busy. TTR 433.6 s.
-- **KV pool 4,606,739 tokens (47.03 GiB) = 2.48× the FP8 arm's 1,859,922** at the same window, and
-  tokens-per-GiB of pool matches the control to 0.01 % — so the entire gain is the freed weight
-  memory, not a changed KV geometry.
-- **Quality 36/37**, and the single miss is `needle-1` returning `''` — the same task and the same
-  empty reply the FP8 arm's 4096-budget runs fail on, so it is a task/budget artifact on both arms.
-- **Not attributable:** the +11.2 % C1. One boot per arm and this box's inter-boot floor is 7–25 %;
-  the intra-boot σ of 0.1–0.2 % says the measurement repeats, not that the boots compare. It also
-  mixes a revision delta: the pack descends from `e52eb462`, not the FP8 repo's `258cae8f`.
-- **License:** unofficial conversion (not Aleph Alpha's); base Apache-2.0, pack terms on its card.
-
-## [kolibri-1-nvfp4-experts-vllm](kolibri-1-nvfp4-experts-vllm.yaml)
-
-Same pin, plugin and shape as the arm above · **1 node (TP=1)** · **boot-verified + measured
-2026-10-18**.
-
-- **Model:** `iSkye/Kolibri-1-NVFP4-Experts` @ `44088ad9…` — only the routed experts re-quantized
-  (attention, shared expert, router, embeddings and head unchanged); 42.6 GiB of weights.
-- **Measured (`~/benchmarks/kolibri-quants-20261018/iskye/`):** C1 **52.37 ± 0.05** @ d0
-  (`bench_1e19955c353c`, same-boot ladder C1 52.00) / **51.11 ± 0.07** @ d8192; ladder **52.0 · 91.6 ·
-  95.0 · 105.6 t/s** (`bench_d3d412717939`) = **+10.2 / +20.2 / +22.4 / +26.5 %** against the FP8 arm's
-  ladder by cell (cross-boot, cross-window). KV **4,618,726 tokens (47.16 GiB)** = 2.48×. Battery
-  **37/37** @4096. TTR 408.4 s cold / 360.0 s warm. It loads on 0.29.0 — the 0.30.0 fallback the
-  recipe caveat named was not needed.
-- **The card's c8 number does not reproduce:** the card claims 265.9 t/s at 8 streams. At the shipped
-  `max_num_seqs: 4` the 8-stream cell is not an 8-stream test (in-flight caps at 4, TTFT 9,276 ms) and
-  reads **136.1** (`bench_8e8b30a2925e`); raising the cap to 8 makes it scale to **198.6**
-  (`bench_27b76d073eb6`) — still 25 % under the card. c1 reproduces the card exactly (−0.6 %), c2 is
-  within 2.6 %. The residual gap's likely cause is the engine difference (card 0.30.0, this arm 0.29.0
-  because the plugin wheel pins `vllm<0.30`) — an **untested hypothesis**, not a finding.
-- **License:** unofficial conversion of the Apache-2.0 base.
-
-## [kolibri-1-mxfp4-mxwave-vllm](kolibri-1-mxfp4-mxwave-vllm.yaml)
-
-Same pin, plugin and shape as the two arms above, `--moe-backend marlin` · **1 node (TP=1)** ·
-**boot-verified + measured 2026-10-18**.
-
-- **Model:** `kirillbilchenko/Kolibri-1-MXFP4-MxWave` @ `ae65fe48…` — 57,600 routed expert matrices at
-  OCP MXFP4 (E2M1, one E8M0 scale per 32 weights) with the official block-FP8 attention/shared-expert
-  backbone kept byte-identical; 40.93 GiB of files.
-- **Measured (`~/benchmarks/kolibri-quants-20261018/kirill/`):** C1 **51.60 ± 0.16** @ d0
-  (`bench_ed7d2ab95f36`) / **50.52 ± 0.09** @ d8192; ladder **51.41 · 92.64 · 96.28 · 108.20 t/s**
-  (`bench_a82cc0619910`), same-boot C1 matching triage to 0.4 %. **c5 and c10 are cap-limited**, not
-  scaling points: `max_num_seqs: 4` means the two highest cells queue behind four resident sequences,
-  so read them as "aggregate at cap 4". KV **4,791,929 tokens (48.92 GiB)** = 2.58× the FP8 arm.
-  TTR 396.6 s. C1 is +9.3 % over the FP8 arm, cross-boot — direction and size, not a same-boot delta.
-- **Quality: behaviour bar held, stricter gate missed.** The house battery is **37/37**, the same
-  union the FP8 arm scores, while the pack **failed its own strict KL screen** — 0.0551 nats against a
-  0.030 threshold (PPL +1.53 %, German +2.20 %, code +3.24 %; likelihood bounds and all six behaviour
-  checks passed). A 0.055-nat distributional drift is far below what pass/fail pattern checks can see,
-  so this is **not quality parity** — do not port this arm's "37/37" to the family as an accuracy
-  result.
-- **License:** experimental by the uploader's own gate; base Apache-2.0.
-
-## Kolibri-1 1M constant-state (eval-only, not a recipe)
-
-**Non-shipped, and must stay that way.** The `tfwnotops/Kolibri-1-78B-…-1M-ConstantKV` release is
-**PolyForm-Noncommercial-1.0.0**: it was run from a scratch clone outside the registry, and **no
-recipe or mod exists for it**. Measured 2026-10-18, receipt `~/benchmarks/kolibri-state-20261018/`.
-
-- **The SM121 question is closed:** the plugin patches FlashInfer for fp8 KV on this chip cleanly —
-  FlashInfer's own resolver logs `arch=sm121, kv_cache_dtype=torch.float8_e4m3fn` after the plugin
-  swaps its impl, and the boot log carries zero tracebacks.
-- **A 1M request is answered with the state active:** a **999,155-token** needle PASSES in **829.7 s**
-  (depth 10, `finish_reason: stop`) while `GPU KV cache usage: 0.2 %` of a 10,631,939-token /
-  16.15 GiB pool — a native fp8 cache would need 9.5 % of it for the same request.
-- **The real cost is the host archive, not attention state:** one 1M request measured **10.44 GiB** of
-  host memory (4.76 → 15.20 GiB cgroup peak; host `MemAvailable` fell 11.08 GiB), against the
-  release's billed **0.208 GB** — **~54× under**. So on a 121 GiB GB10 the 1M concurrency of this arm
-  is **1**, not the 4 `state.rows: auto` assumes (four rows would need ~43 GB, and one request left
-  3.9 GiB free).
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
 
-vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected.
+vLLM · **1 node (TP=1)** · **kept 2026-10-19 — best 262k aggregate at c10**.
 
 *Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 cannot construct this
 revision's config (its own `LagunaConfig` shadows the transformers 5.17 class that does); 2026-10-16
@@ -260,7 +155,8 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   262,144 native; OpenMDW-1.1), pinned `d32afde8…` + the first-party draft `poolside/Laguna-XS-2.1-DFlash`
   (0.92 GB), pinned `5c36361a…`.
 - **Size / memory:** 21.6 GB + 0.92 GB draft; `gpu_memory_utilization: 0.55` → KV 41.56 GiB → 1,403,263
-  tokens (5.35× at the native window).
+  tokens on the 2026-10-14 boot (5.35× at the native window); the 2026-10-17 ladder boot granted
+  43.37 GiB → **1,464,371 tokens (5.59×)**.
 - **Flags / non-obvious knobs:** NVFP4 engages natively on sm121 (`FlashInferCutlassNvFp4LinearKernel` +
   `FLASHINFER_CUTLASS` NvFp4 MoE); the draft rides in `defaults.speculative_config` with its own
   `revision`, so sparkrun both distributes and pins the blob; `num_speculative_tokens: 3` ships (a
@@ -273,79 +169,19 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   the SWA arch keeps 262k cheap, so the low util preserves ~95 GB of node headroom.
 - **Measured:** C1 **57.4 t/s** @ d0 (σ 3.4) / 55.1 @ d8k; accept len 1.89 / 29.5%; quality 36/37 @4096.
 - **Standard suite (2026-10-17, `bench_9b207347ec3b`):** ladder @ d0 pp2048 tg128 n=5 — C1 **55.3**
-  (σ 2.4) / C2 83.1 (σ 2.1) / C5 133.7 (σ 8.4) / C10 141.3 (σ 3.3) t/s; `tools/eval-suite.py` 3 ok /
-  2 fail — house easy 19/19 + hard 16/18, needle 2/3 @32k / 2/3 @131k / **3/3 @262k** (n=3 each), arc
-  66.0% (n=200) / gsm8k 90.5% (n=200), bfcl 60.1% (745/1240); the two fails are **contract**
-  (`finish=length`, all-empty reply at the 262,144 window — the reasoning parser's empty-`content`
-  shape, thinking burning `max_tokens`) and **needle** at the two smaller depths. TEB
-  (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97. Receipts
-  `head:~/benchmarks/explore-laguna-xs-20261017/`.
+  (σ 2.4) / C2 83.1 (σ 2.1) / C5 133.7 (σ 8.4) / C10 141.3 (σ 3.3) t/s, the only ladder in the lane
+  still rising at c10; `tools/eval-suite.py` 3 ok / 2 fail — house easy 19/19 + hard 16/18, needle
+  2/3 @32k / 2/3 @131k / **3/3 @262k** (n=3 each), arc 66.0% (n=200) / gsm8k 90.5% (n=200), bfcl
+  60.1% (745/1240); the two fails are **contract** (`finish=length`, all-empty reply at the 262,144
+  window — the reasoning parser's empty-`content` shape, thinking burning `max_tokens`) and **needle**
+  at the two smaller depths. TEB (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97.
+  Receipts `head:~/benchmarks/explore-laguna-xs-20261017/`.
 - **License:** OpenMDW-1.1 (target and draft).
-
-## [poolside-laguna-s-2.1-nvfp4-dflash-vllm](poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
-
-vLLM · **1 node (TP=1)** · measured 2026-10-14 · not selected (capped-context single-tenant).
-
-*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 cannot construct this
-revision's config (its own `LagunaConfig` shadows the transformers 5.17 class that does); 2026-10-16
-engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
-
-- **Model:** `poolside/Laguna-S-2.1-NVFP4` (117.6B total / 8.5B active MoE, native 1,048,576 ctx;
-  OpenMDW-1.1) + the quantization-matched draft `poolside/Laguna-S-2.1-DFlash-NVFP4` (2.2 GB).
-- **Size / memory:** 99.7 GB download / **95.61 GiB resident** (the August-2026 checkpoint — the research
-  doc's ~67 GiB figure does not hold); `gpu_memory_utilization: 0.85` leaves **3.89 GiB** of fp8 KV once
-  CUDA-graph capture takes its 1.52 GiB, which at that boot's 39,672 B/token is vLLM's **104,192-token**
-  ceiling. `max_model_len: 98304` (96k) sits 6.6 % under it; the boot that measured this arm granted
-  3.98 GiB = **106,010 tokens (1.078× the window)**. The old 120k window wanted 4.54 GiB and **did not
-  boot**; the card's 262k needs ~9.32 GiB and does not fit one Spark at any repo-legal util.
-- **Flags / non-obvious knobs:** DFlash `num_speculative_tokens: 3`; native FP4 path
-  (`FLASHINFER_CUTLASS` NvFp4 MoE on sm121) + `FLASHINFER` attention.
-  `MAX_JOBS=4` caps the cold cutlass/FP4 JIT fan-out (an uncapped nvcc can exhaust the 128 GB pool) and
-  `max_num_seqs: 32` is required (DFlash crashes vLLM at the default 256).
-- **License (recorded as required):** the *shipped* draft `poolside/Laguna-S-2.1-DFlash-NVFP4` declares
-  **no license at all**; the BF16 sibling is `license: other` with no in-repo text — "other" resolves
-  only by implication to the target's OpenMDW-1.1 (commercial + non-commercial).
-- **Measured (pre-96k boot):** C1 **20.49 t/s** @ d0 (σ 0.93) / 20.11 @ d8k; accept len mean 2.52 /
-  50.8 % rate.
-- **Ladder + suite (2026-10-18, `bench_e3fdefdc2491`, one boot):** **C1 20.26 ± 0.87 · C2 29.26 ± 0.99 ·
-  C5 38.96 ± 1.57 · C10 53.80 ± 0.64 t/s** @ d0 — the top of the ladder is its best cell, so the 96k
-  window costs nothing measurable at c1 (20.26 vs 20.49, inside σ) and the arm's value is concurrency,
-  not single-stream. contract ok; house **33/37** (18/19 + 15/18, up from 32/37); needle **3/3 @32k ·
-  3/3 @98,304** (the top rung is a 96,499-token prompt, 98.2 % of the window). All four house misses
-  carry a stray `</think` close tag inside `content` — `BANANA` arrives as `</thinkBANANA`,
-  `nrupskrab`, `Hold The Line` and `MAYBE` the same way — so the miss is reply format, not knowledge.
-  Receipt `~/benchmarks/sweep2-20261018/` (`laguna-s-ladder.json`, `laguna-s-suite/`).
-
-## [humanizer-12b-vllm](humanizer-12b-vllm.yaml)
-
-vLLM · **1 node** · the lane's first **`/v1/completions`** arm · not selected (off-brief).
-
-- **Model:** `jialinyyzz/humanizer` — a 12B `google/gemma-4-12B` finetune (Apache-2.0, ungated), 23.9 GB
-  bf16, 8192 ctx. **Not a chat model** — it rewrites one AI-written draft so it reads human.
-- **Flags / non-obvious knobs:** the working surface is `/v1/completions` with a **byte-exact prompt**
-  assembled from the repo's `prompt_format.json` (`instr + "\n\n" + draft.strip() + sep`; fingerprint
-  `cc51d66b4c593fbe`, asserted on every call); the checkpoint ships **no chat template** (the chat
-  endpoint 400s); `--generation-config vllm` so the checkpoint's own `top_k 64` never becomes a server
-  default; `limit_mm_per_prompt {"image":0,"audio":0,"video":0}` → text-only; heterogeneous head dims
-  (256 sliding / 512 full) force `TRITON_ATTN`. Whole-repo distribution: **87.6 GB** at the pinned
-  revision (23.9 GB safetensors + 63.6 GB of GGUFs it never loads) — and not narrowable.
-  `model_file_selection` is a sparkrun **config** key, not a recipe key, and with no
-  `model.safetensors.index.json` both `auto` and `all` select the full snapshot (`safetensors` errors).
-  Digest-pinned `vllm/vllm-openai:v0.30.0` — moved 2026-10-16 and boot-verified on it (task
-  `sparkrun_17678da2f7107eb2_a4bf874feb5a`, receipt `~/benchmarks/bump-20261016/`).
-- **Measured:** ~7.6 t/s single-stream; 131.7 s per 1k output tokens; across 40 rewrites, 0 dropped facts
-  (1 genuine defect found outside the instrument).
-- **No t/s ladder, by design:** `benchmarking/concurrency-ladder.yaml` drives llama-benchy against
-  `/chat/completions`, and this arm serves `/v1/completions` only (it ships no chat template, so the
-  chat endpoint 400s). Its index row's C2/C5/C10 stay `—` — not unmeasured but **unmeasurable with
-  this profile**; its C1 cell is the `/v1/completions` figure above, and a ladder for this arm would
-  need a completions-capable harness.
-- **License:** Apache-2.0.
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
 
 diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) ·
-**1 node** · eval-only.
+**1 node** · eval-only · **kept 2026-10-19 — media-gen arm whose cells are closed**.
 
 > **LICENSE — NON-COMMERCIAL ONLY.** `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
 > Agreement** (card `license: other`, `license_name: qwen-research`): **FOR NON-COMMERCIAL PURPOSES
@@ -358,72 +194,27 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
 - **Model:** `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`), text-to-image + editing, 8-step distilled
   at CFG=1.
 - **Size / memory:** 32.5 GB bf16 (DiT 14.2 + text encoder 17.5 + VAE 0.68); peak ~36.85 GiB torch alloc /
-  37.68 GiB reserved.
+  37.68 GiB reserved at 1024².
 - **Flags / non-obvious knobs:** `runtime: vllm` is the family whose distribution + single-node launcher
   contract the command satisfies; `command:` runs a stdlib HTTP server (`POST /generate`, `GET /health`)
   out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
   (`vllm/vllm-openai:v0.30.0`; the venv's own `transformers>=5.17` satisfies the card's floor — the
-  image's copy is unused). **VAE tiling OFF**
-  (tiled decode → a pink seam column) and **`cpu_offload` OFF** (costs ~4× on a reference image);
-  `--served-model-name` is rendered explicitly.
-- **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady; a reference image fed back for editing
-  +3.5 s; same prompt+seed → a byte-identical PNG.
+  image's copy is unused). **VAE tiling OFF** (tiled decode → a pink seam column) and **`cpu_offload`
+  OFF** (costs ~4× on a reference image); `--served-model-name` is rendered explicitly.
+- **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady (a same-boot control on the 2048² run read
+  11.240 s ± 0.008); a reference image fed back for editing +3.5 s; same prompt+seed → a byte-identical
+  PNG. **2048² cell closed 2026-10-18**: **53.24 s/image** (mean of 3, σ 0.20) — 4× the pixels for
+  4.74× the time — peak **56.51 GiB** alloc / 59.78 GiB reserved, node `MemAvailable` floor 53.8 GiB;
+  the lane's ~26 s prediction is falsified 2.04×. A non-null `num_inference_steps` is accepted silently
+  and ignored (`12` still returned `steps: 8`: the pipeline is configured from the checkpoint's saved
+  8-step `sample_sigmas`). Receipts `~/benchmarks/qwen-image-20261014/results.json` and
+  `~/benchmarks/media-gen-20261018/REPORT.md`.
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
-
-## [mellum2.1-12b-a2.5b-bf16-thinking-vllm](mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml)
-
-vLLM · **1 node (TP=1)** · built + **boot-verified 2026-10-15** · index row present.
-
-*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 shadows transformers 5.17's
-`MellumConfig` with its own `Qwen3MoeConfig` stub and breaks this checkpoint's nested rope config at
-load; 2026-10-16 engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
-
-- **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking` (Apache-2.0, ungated) — 12B total / 2.5B active MoE
-  (64 routed experts, 8 per token), 28 layers, 32 Q / 4 KV heads (head_dim 128), 131,072 context, sliding
-  window 1,024 on 3 of every 4 layers (7 full-attention, 21 sliding) with YaRN factor 16 over 8,192 on the
-  full layers; pinned `92ddae9f…` (`main`, 2026-10-07). **Owner-added 2026-10-15** from the
-  `JetBrains/mellum21` collection, so it sits above the lane's ranked list and carries no ranking.
-- **Size / memory:** 24.3 GB bf16 (24,301,065,318 B, 5 shards); 22.4 GiB of weights to the engine.
-  `gpu_memory_utilization: 0.55` → 66.6 GiB budget, deliberately below the 0.85 ceiling: the weights are
-  ~22.4 GiB of a ~121 GiB pool and a hybrid-SWA context is cheap, so the arm keeps ~55 GiB of node
-  headroom. sparkrun's render estimate (7.0 GiB KV demand at 131,072, **all 28 layers assumed to cache the
-  full window** — it ignores the 3:1 sliding structure) is not the engine's number; the serve log's
-  `GPU KV cache size` line is.
-- **Flags / non-obvious knobs:** vLLM 0.29 carries the architecture natively — `MellumForCausalLM` is a
-  Qwen3-MoE subclass whose decoder layer picks the attention type per `config.layer_types[idx]` and reads
-  RoPE as `config.rope_parameters[layer_type]`, i.e. exactly this checkpoint's shape — so the arm needs
-  **no mods** and no registry-clone refresh. **Thinking is ON by default** (the template writes the empty
-  think block only for `enable_thinking: false`): callers must budget a large `max_tokens` or a truncated
-  reasoning run arrives with an empty `content`. `--reasoning-parser qwen3` (the card's choice; vLLM has
-  no `mellum` parser) targets the template's own think form, but whether it actually lifts
-  the trace into `reasoning_content` on this arm is **unverified** — the receipt's contract artifact
-  reports `reasoning_len: 0` against `usage.reasoning_tokens: 58` (see
-  [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md) §6.2) — and
-  `--enable-auto-tool-choice --tool-call-parser hermes` parses the template's
-  `<tool_call>{"name": …, "arguments": …}</tool_call>` form (tool results return as a
-  `<tool_response>` user turn). No draft/speculative decode: the card names the MTP head "coming soon".
-- **Client-side contract:** the card's sampling point is temperature 0.6 / top_p 0.95 / top_k 20 with
-  `max_tokens` up to 81,920 (thinking + answer). The recipe sets **no** server-side sampling default —
-  the checkpoint's `generation_config.json` carries only bos/eos, so there is nothing to protect with
-  `--generation-config` (unlike `humanizer`).
-- **Measured (2026-10-15, one boot on `.35`, receipt `~/benchmarks/mellum-20261015/`):** decode ladder
-  @ d0 pp2048 tg128 n=5 → **C1 42.3 ± 0.1 / C2 67.2 ± 0.6 / C5 99.9 ± 1.7 / C10 135.6 ± 1.1 t/s**;
-  house battery **36/37** (easy 18/19 — the one miss is `needle-1`; hard 18/18); contract ok (served id
-  is the HF repo id, `max_model_len` 131,072, finish `stop`). The arm scales cleanly to c10, which is
-  what the 66.6 GiB budget was for. **Receipt gap, stated:** the serve's container had already been
-  stopped when the log capture ran, so `serve.log`/`grants.txt` are empty — the engine's own
-  `GPU KV cache size` line is not in the receipt, and the launch record is sparkrun's
-  `launch.log` only. Card numbers (self-reported by JetBrains, unverified here): LiveCodeBench v6 82.0,
-  SWE-bench Verified 47.0, BFCL v4 62.3, MMLU-Redux 87.8.
-- **License:** Apache-2.0.
-- **Details (provenance, the GGUF-route decision, the six open boot questions):**
-  [`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md).
 
 ## [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml)
 
-llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` arm** — the GGUF route
-[`attic/explore/MELLUM-21.md`](../../attic/explore/MELLUM-21.md) §5 deferred, shipped on the owner's
-2026-10-16 directive and boot-verified 2026-10-17.
+llama.cpp · **1 node (TP=1)** · **kept 2026-10-19 — fastest decode, best aggregate peak, smallest
+weights**.
 
 - **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF` (Apache-2.0, ungated), quant `Q4_K_M` —
   8,067,705,856 B / 12,149,923,072 params (`/v1/models` meta: `ftype` `Q4_K - Medium`).
@@ -471,6 +262,26 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
 - **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
   suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
 
+## Kolibri-1 1M constant-state (eval-only, not a recipe)
+
+**Non-shipped, and must stay that way.** The `tfwnotops/Kolibri-1-78B-…-1M-ConstantKV` release is
+**PolyForm-Noncommercial-1.0.0**: it was run from a scratch clone outside the registry, and **no
+recipe or mod exists for it**. Measured 2026-10-18, receipt `~/benchmarks/kolibri-state-20261018/`.
+*(The shipped Kolibri-1 FP8 base was archived 2026-10-19 — this eval predates that call and stays as
+lane history; nothing here is shippable.)*
+
+- **The SM121 question is closed:** the plugin patches FlashInfer for fp8 KV on this chip cleanly —
+  FlashInfer's own resolver logs `arch=sm121, kv_cache_dtype=torch.float8_e4m3fn` after the plugin
+  swaps its impl, and the boot log carries zero tracebacks.
+- **A 1M request is answered with the state active:** a **999,155-token** needle PASSES in **829.7 s**
+  (depth 10, `finish_reason: stop`) while `GPU KV cache usage: 0.2 %` of a 10,631,939-token /
+  16.15 GiB pool — a native fp8 cache would need 9.5 % of it for the same request.
+- **The real cost is the host archive, not attention state:** one 1M request measured **10.44 GiB** of
+  host memory (4.76 → 15.20 GiB cgroup peak; host `MemAvailable` fell 11.08 GiB), against the
+  release's billed **0.208 GB** — **~54× under**. So on a 121 GiB GB10 the 1M concurrency of this arm
+  is **1**, not the 4 `state.rows: auto` assumes (four rows would need ~43 GB, and one request left
+  3.9 GiB free).
+
 ## LTX-2.5 ComfyUI runbook (not a recipe)
 
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) ships as a
@@ -506,28 +317,34 @@ unless noted. Receipt `~/benchmarks/ltx25-20261018/REPORT.md`.
   sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). It decodes to the same frame hash
   as the resident-model seed-42 rep — content is seed-deterministic, the h264 mux is not.
 
-**Not shipped — [`nemotron-3-super-120b-a12b-nvfp4-vllm`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) (archived 2026-10-18).** Booted and measured, but
-**no lane slot**: house **37/37** and the lane's only measured single-node **262,144** window (7,659,632-token
-KV pool, 29.22× concurrency, depth-free decode), yet C1 **15.83 ± 0.19 t/s** is 45 % below the already-rejected
-Mistral-Small-4 (28.9) and 66 % below Kolibri-1 (47.3), and batching cannot close it (1.93× for 10×). The
-recipe **never booted as authored** — `--swap-space 0` is unrecognized in vLLM 0.29.0, and under
-`readiness.inference: false` that abort presents as a hang. True size **123.6B total / ≈12.2B active**; the
-Hub's 67.2B counts packed NVFP4 expert bytes as parameters. Recipe archived frozen; receipt
-`~/benchmarks/nemotron-120b-20261018/REPORT.md`.
-
 ## Attic index
 
 Everything that is not a shipped recipe lives in [`attic/explore/`](../../attic/explore/) — lane working
-state, measured histories, selection receipts, serving traps, and the candidate research.
+state, measured histories, selection receipts, serving traps, the candidate research, and the 13
+archived recipes (3 Nemotron + 10 from the 2026-10-19 sweep).
 
 | file | what it holds / the question it answers |
 |---|---|
 | [`AGENTS.md`](../../attic/explore/AGENTS.md) | The lane's working notes: the full previous README — per-arm measured histories (Ling, Kolibri, Nemotron, the Laguna pair, humanizer, Qwen-Image, LTX-2.5), the selection record, and the serving/measurement traps 1–6. Start here for "why did this lane pick what it picked?" |
+| [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | The 2026-10-19 Pareto selection, the 14-row tie-break record, the archived-arm manifest with one receipt per arm, the archived mods/Dockerfile, and the unmeasured-tier classification. |
 | [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) | The read-only research pass: 8 candidate families (§1), top-3 sequencing (§2), corrections to `mad-science/EXPLORE-CANDIDATES.md` (§3), the battery note (§4), per-arm GB10 evidence + verification checklists for the Laguna family (§5), the media-gen arms (§6) and `humanizer` (§7), and the 2026-10-16 `tfwnotops/…-ConstantKV` Kolibri-1M research queue entry (§8). Answers "what else could this lane serve, and on what precedent?" |
 | [`LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up notes: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. Answers "how was the LTX-2.5 runbook measured, and what did it cost?" |
 | [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the license banner, engine/venv design decisions, the §6 acceptance table, and the two mod defects found. Answers "how was the eval-only image arm built and verified?" |
-| [`MELLUM-21.md`](../../attic/explore/MELLUM-21.md) | Mellum2.1-12B bring-up: the owner-added collection provenance, the checkpoint/chat-template facts read at the pin, why vLLM 0.29 needs no mod, the revision resolution, the **GGUF/llama.cpp route decision (recorded, not shipped)** and the six open boot questions. Answers "why does a JetBrains model use the `qwen3` reasoning parser, and what must the first boot prove?" |
-| [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | Manifest of the archived (measured-but-not-selected) Explore recipes with the selection ranking and the archive criterion/policy. |
-| [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |
+| [`MELLUM-21.md`](../../attic/explore/MELLUM-21.md) | Mellum2.1-12B bring-up: the owner-added collection provenance, the checkpoint/chat-template facts read at the pin, why vLLM 0.29 needs no mod, the revision resolution, the **GGUF/llama.cpp route decision** and the six open boot questions. |
+| [`mods/install-kolibri-plugin/`](../../attic/explore/mods/install-kolibri-plugin) | Archived with its only users (the FP8 base and three 4-bit packs); run an archived arm by path and it resolves adjacent to the recipe. |
+| [`mods/kolibri-drafter-launcher/`](../../attic/explore/mods/kolibri-drafter-launcher) | Archived with the TensorFold drafter arm. |
+| [`test_kolibri_plugin_mod.py`](../../attic/explore/test_kolibri_plugin_mod.py) | The archived mod's guard (no longer auto-discovered): `uv run python -B -m unittest attic.explore.test_kolibri_plugin_mod`. |
+| [`kolibri-1-78b-fp8-vllm.yaml`](../../attic/explore/kolibri-1-78b-fp8-vllm.yaml) | Archived 2026-10-19 — the 2026-10-13 rank-2 pick; 47.2 t/s, 74 GB FP8, superseded by its 4-bit re-packs and Ling. Frozen provenance. |
+| [`kolibri-1-nvfp4-experts-vllm.yaml`](../../attic/explore/kolibri-1-nvfp4-experts-vllm.yaml) | Archived 2026-10-19 — the best 4-bit pack (52.4 t/s, 105.6 c10, 37/37), lost the tie to APEX-24bpw on speed and size. |
+| [`kolibri-1-nvfp4a16-fp8-vllm.yaml`](../../attic/explore/kolibri-1-nvfp4a16-fp8-vllm.yaml) | Archived 2026-10-19 — 36/37, same speed class as the other packs. |
+| [`kolibri-1-mxfp4-mxwave-vllm.yaml`](../../attic/explore/kolibri-1-mxfp4-mxwave-vllm.yaml) | Archived 2026-10-19 — failed its own strict KL screen (0.0551 > 0.030). |
+| [`kolibri-1-apex-q4k-llamacpp.yaml`](../../attic/explore/kolibri-1-apex-q4k-llamacpp.yaml) | Archived 2026-10-19 — the 4.50 bpw tier; the 2.4bpw pack wins size and every ladder cell. |
+| [`kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml`](../../attic/explore/kolibri-1-78b-fp8-tensorfold-drafter-sglang.yaml) | Archived 2026-10-19 — +18 % C1 over FP8 but no ladder, a 4-slot cap and a fork JIT landmine. |
+| [`poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml`](../../attic/explore/poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml) | Archived 2026-10-19 — 95.61 GiB, 20.3 t/s, 33/37; dominated by Laguna-XS on every axis. |
+| [`humanizer-12b-vllm.yaml`](../../attic/explore/humanizer-12b-vllm.yaml) | Archived 2026-10-19 — off-brief `/v1/completions` rewriter; 7.6 t/s, no comparable accuracy cells. |
+| [`mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../attic/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml) | Archived 2026-10-19 — the BF16 parent of the kept Q4_K_M arm; dominated on speed, size and measured accuracy. |
+| [`mistral-small-4-119b-nvfp4-vllm.yaml`](../../attic/explore/mistral-small-4-119b-nvfp4-vllm.yaml) | Archived 2026-10-19 as measured-rejected — 28.94 t/s, 89,216-token ceiling at 1.01× concurrency. Frozen provenance. |
+| [`Dockerfile.kolibri1-tensorfold-drafter`](../../attic/explore/Dockerfile.kolibri1-tensorfold-drafter) | Build provenance for the retired TensorFold drafter image. |
+| [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm of its day (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | Archived recipe — a variant of the 262k arm testing the card's 1M-context claim at util 0.91. Frozen provenance — do not retune. |
-| [`nemotron-3-super-120b-a12b-nvfp4-vllm.yaml`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) | Archived recipe — the 123.6B/12.2B-active NVFP4 trial: house 37/37 and a unique one-node 262k window, but 15.9 t/s C1 (below the rejected Mistral-Small-4). Boots only after deleting `--swap-space 0` (unrecognized in vLLM 0.29.0). Frozen provenance — do not retune. |
+| [`nemotron-3-super-120b-a12b-nvfp4-vllm.yaml`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) | Archived recipe — the 123.6B/12.2B-active NVFP4 trial: house 37/37 and a unique one-node 262k window, but 15.9 t/s C1. Boots only after deleting `--swap-space 0` (unrecognized in vLLM 0.29.0). Frozen provenance — do not retune. |

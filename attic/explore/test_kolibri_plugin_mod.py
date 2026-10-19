@@ -1,7 +1,7 @@
 """Guards for the `install-kolibri-plugin` mod.
 
-Run:
-    python3 -m unittest discover -s tests -v
+Run (not auto-discovered; the mod is archived with its only users):
+    uv run python -B -m unittest attic.explore.test_kolibri_plugin_mod -v
 
 Stdlib-only, deliberate (AGENTS.md: "tools/ and tests/ are stdlib-only, on
 purpose") -- this must run on a head node, in a container, and on a laptop.
@@ -39,8 +39,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_DIR = REPO_ROOT / "recipes" / "explore" / "mods" / "install-kolibri-plugin"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MOD_DIR = REPO_ROOT / "attic" / "explore" / "mods" / "install-kolibri-plugin"
 # Overridable so the fail-before demonstration can point the same guards at a
 # pre-fix copy of run.sh (see NegativeControls.test_prefix_logic_skips_...).
 MOD_SCRIPT = Path(os.environ.get("KOLIBRI_MOD_SCRIPT", MOD_DIR / "run.sh"))
@@ -242,13 +242,6 @@ class NegativeControls(unittest.TestCase):
             _run_mod(_base_env(cache), root, script=prefix)
             self.assertEqual(_pip_calls(cache), 0, "pre-fix logic must skip on a stale marker")
             self.assertFalse((cache / "ephemeral-installed").exists())
-
-
-class RecipeWiring(unittest.TestCase):
-    def test_recipe_lists_the_mod(self):
-        recipe = REPO_ROOT / "recipes" / "explore" / "kolibri-1-78b-fp8-vllm.yaml"
-        text = recipe.read_text(encoding="utf-8")
-        self.assertIn("mods/install-kolibri-plugin", text)
 
 
 if __name__ == "__main__":
