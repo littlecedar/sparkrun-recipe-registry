@@ -87,7 +87,11 @@ pinned revision that is exactly **72 tensors** — `in_proj_a` + `in_proj_b` for
 `out_proj` (2560) and every `self_attn` projection stay MXFP8, so this is not
 "we dequantised the attention".
 
-**2. Named leaves (`EXTRA_LEAVES`, empty by default).** Below the floor is not the only
+**2. Named leaves (`EXTRA_LEAVES`, empty by default).** *Its only stated purpose — the QSA-prefill
+CUDA-graph crash — is falsified (2026-10-19): the crash lives in `get_prefill_mqa_inputs`' host sync and
+data-dependent shape, which reads no projection dtype, and the demoted `index_qk_proj` boot crashed
+identically. The knob ships empty; delete it unless a bisect ticket names a leaf
+(`mad-science/QWEN4-DIAGNOSTICS.md`).*  Below the floor is not the only
 possible reason to move a projection, so the mechanism exists — but it ships **empty**, and
 the history of why is the useful part. The first candidate was `index_qk_proj`: labquant
 MXFP8s it (`F8_E4M3 [640,2560]` + U8 scale) where RadixArk ships the same tensor
