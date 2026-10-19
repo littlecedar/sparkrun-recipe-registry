@@ -542,3 +542,35 @@ the job record says `executor_config.auto_remove: false` yet dockerd task-delete
 traceback. (4) The KV pool is not the recipe's — the same ornith file booted to 1,203,041 / 282,227 /
 69,281 tokens depending on a co-tenant, and at the low grant every 1M rung reads TRUNCATED, which is
 indistinguishable from a window failure.
+
+### 2026-10-19 (early) — the `description:` migration, a gate-harness bug, and the labquant TP=2 suite
+
+**Every shipped recipe's `description:` moved to the top level** (`03b01cb`, all 59; `attic/` stays
+frozen). `recipe list` / `recipe search` read `data.get("description", "")` at the top level only, so
+the nested form listed as empty and could not be searched: at HEAD~1, 0/59 summaries carried a
+description and a phrase from each description matched 2/59; after the move, 59/59. `recipe show` hid
+the bug — the constructor falls back to `metadata.description` (`recipe.py:1256`). `maintainer:`
+stays nested (the constructor reads it metadata-only), and the relocated prose is byte-identical
+after a two-column dedent (0 unexpected diff lines, 0 text mismatches across the 59 files). Guard:
+`_description_errors` in `tests/test_recipe_placeholder_resolution.py`, positive over every shipped
+recipe plus a negative control. Note this record's earlier "778 tests ... still describe the tree"
+line: the tree now carries that guard and the gate-tool change, and the gate reads **780 tests OK
+(2 skipped)** at `da18528`.
+
+**`gate-37111.py --thinking` never disabled thinking** (`9eee3a2`). "Default off" omitted
+`chat_template_kwargs` entirely, so on a thinking-default template (this export) the essay probe spent
+the whole 2048-token budget — and 8192 in a second probe — inside `reasoning_content` and returned
+`content: ""` with `finish_reason: length`, which the detectors report as degeneration + truncation:
+four findings against a healthy server, and the 90-minute soak never started. The request now always
+carries `{"enable_thinking": bool(thinking)}`; the selftest records mock bodies and fails if either
+direction misses the wire. Raw control on the live arm: `enable_thinking: false` → a 758-word essay,
+`stop`, 0 reasoning tokens. Smoke then **PASS**, canary warm==cold.
+
+**qwen4 labquant TP=2 suite on one 2026-10-19 boot** (job `1895030211ea0500_3510a5e0d37d` on
+`.34`/`.35`; `max_total_num_tokens` 1,678,528, weights 63.6 GB, `scheduler_e2e` 563.8 s): eval-suite
+**ok** — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at
+32k / 128k / 262k with `--needle-max-tokens 512` (the 256 default is spent inside the think block),
+hard ARC 95.5 % / GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15, 0 partial, 0 fail,
+`bench_eff75293e461`, 91.6 s). Rows in `recipes/qwen4/README.md`; receipt
+`~/benchmarks/qwen4-labq-suite-20261018/`. The W4 `#37111` soak (90 min, 100k depth) launched
+23:48:10 ET and was in flight when this entry was written.

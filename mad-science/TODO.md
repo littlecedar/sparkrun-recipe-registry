@@ -120,7 +120,8 @@ campaign (`1895030211ea0500_3510a5e0d37d`, 2 containers, healthy since 23:01): e
 tool-eval-bench are done, the W4 90-minute soak is in flight. `.30`–`.33` remain the owner's ds4 TP=4
 job (`a2e141223b52793c_de0b14250a90`). The head's `a2e14…` control container is that job's, not litter.
 
-**Cluster state (2026-10-18 21:52 ET).** A **new owner-launched ds4 TP=4 job** takes the four-node slot
+**Cluster state (2026-10-18 21:52 ET) — superseded by the 2026-10-19 00:00 entry above; keep for the
+job history only.** A **new owner-launched ds4 TP=4 job** takes the four-node slot
 again — `a2e141223b52793c_de0b14250a90`, `.30`–`.33`, `littlecedar/dgx-spark-dsv41:canary-roce@acfc331a`,
 **healthy** at 21:52. `.34`/`.35` are idle (0 containers, 0 `sparkrun` processes, `pgrep -af "[s]parkrun"`);
 the head carries that job's control container plus the always-on `sparkroute` gateway, its autodiscover
