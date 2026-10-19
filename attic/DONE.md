@@ -533,3 +533,10 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   the official export (100/153/217/244), with the card's 63-77 C1 claim at the measured low end. The
   recipe's caveat now records the measurement; it carries no index row. Receipt
   `~/benchmarks/ornith-r0b0t-20261019/`.)*
+
+# 2026-10-19 (later) — embed co-location boot-verified
+## embed
+- [x] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in the lane README, never receipted (`recipes/decision/README.md` §Operating constraints; `attic/decision/AGENTS.md`). *(effort: short)*
+  *(closed sub-item 2026-10-18 — the shipped 8B encoder was **unbootable** and is fixed: `load_format: instanttensor` → `auto`, because the 8B AWQ pack is sharded behind a `model.safetensors.index.json` and this image's InstantTensor has no index-aware metadata layout (`RuntimeError: Installed InstantTensor does not expose the metadata layout needed for index-aware loading`); `auto` takes the ordinary safetensors path, while the 2B encoder keeps `instanttensor` (one 3.96 GB file). Boots from the shipped recipe with no overrides (health 200 at 260 s) and its c1 cell is unchanged: **16.25 vs 16.39 u/s**. Receipt `~/benchmarks/embed-fix-20261018/`; full record in `../attic/DONE.md`.)*
+
+  *(**CLOSED 2026-10-19 — the three-way ran on `.34`.** embed (`qwen3-vl-embedding-2b-vllm-b12x`, 0.25, port 8010) + rerank (`qwen3-vl-reranker-2b-vllm-b12x`, 0.30, 8011) + JEV-9B (`jev-9b-decision-vllm`, 0.30, 8000): all three `sparkrun run` rc=0, probes 200 (2048-dim embedding; model list; chat completion). The cap finding: the pair's real hold leaves **41.03 GiB free (0.337)**, so JEV's recipe gained `gpu_memory_utilization: 0.30`; the same recipe at 0.35 was refused by vLLM's startup free-memory check (`Free memory on device cuda:0 (41.03/121.69 GiB)`). Receipt `~/benchmarks/embed-coloc30-20261019/`; failed 0.35 arm in `~/benchmarks/embed-coloc-035fail-20261019/`.)*

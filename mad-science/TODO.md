@@ -204,8 +204,7 @@ IFM K2-Horizon
 
 ## embed
 Any embed model
-- [ ] **Boot-verify the three-way co-location** (decision + embed + rerank on one node) — asserted in the budget math and in the lane README, never receipted (`recipes/decision/README.md` §Operating constraints; `attic/decision/AGENTS.md`). *(effort: short)*
-  *(closed sub-item 2026-10-18 — the shipped 8B encoder was **unbootable** and is fixed: `load_format: instanttensor` → `auto`, because the 8B AWQ pack is sharded behind a `model.safetensors.index.json` and this image's InstantTensor has no index-aware metadata layout (`RuntimeError: Installed InstantTensor does not expose the metadata layout needed for index-aware loading`); `auto` takes the ordinary safetensors path, while the 2B encoder keeps `instanttensor` (one 3.96 GB file). Boots from the shipped recipe with no overrides (health 200 at 260 s) and its c1 cell is unchanged: **16.25 vs 16.39 u/s**. Receipt `~/benchmarks/embed-fix-20261018/`; full record in `../attic/DONE.md`.)*
+*(all items completed — archived in `../attic/DONE.md`)*
 
 ## rerank
 Any rerank model

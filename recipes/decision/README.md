@@ -193,12 +193,16 @@ the repo id literally. Clients use the repo id.
 ### Co-location budget
 
 Co-location with the shipped embed + rerank 2B pair (and eventually TTS) on ONE GB10 node is the
-lane's core constraint. After the embed (0.25) + rerank (0.30) caps, ~54.5 GiB of the node's
-121.69 GiB is free (Kokoro-82M costs 0.3 GiB of it) — everything here through JEV-9B fits;
-clef-flash at the vendor's 41 GB needs the embed/rerank caps lowered to ~0.15/0.18 first, a
-cap-bookkeeping decision rather than a memory wall. Cores: embed pins 5-9 and rerank 15-19 (the
-X925 cluster), so clef-flash (and the CPU Decision 2.0 arms) pin 0-4,10-14 (A725) to keep the
-tenants from contending.
+lane's core constraint. The caps are absolute device caps that must SUM, and the pair's real hold
+exceeds its nominal 0.55: with both up, a third engine sees **41.0 GiB free (0.337)**, not the
+54.5 GiB cap arithmetic suggests. Measured 2026-10-19 on `.34`: JEV-9B at
+`gpu_memory_utilization: 0.30` (36.5 GiB) booted and answered beside them (all three jobs rc=0,
+one embedding, one model list, one chat completion); the same recipe at 0.35 was refused by
+vLLM's startup free-memory check (`Free memory on device cuda:0 (41.03/121.69 GiB)`). clef-flash
+at the vendor's 41 GB still needs the embed/rerank caps lowered to ~0.15/0.18 first, a
+cap-bookkeeping decision rather than a memory wall; Kokoro-82M costs 0.3 GiB of the residual.
+Cores: embed pins 5-9 and rerank 15-19 (the X925 cluster), so clef-flash (and the CPU Decision 2.0
+arms) pin 0-4,10-14 (A725) to keep the tenants from contending; JEV-9B runs unpinned.
 
 ## The clef + Kai ensemble
 

@@ -633,3 +633,22 @@ t/s and house 37/37 — ~40 % below the official export, at the low end of the c
 recipe's caveat now records it; no index row. Receipt `~/benchmarks/ornith-r0b0t-20261019/`; the item
 moved to `attic/DONE.md`. The ornith backlog now holds only the YaRN 1M exit capture and the 0.5.21
 bump (owner approval).
+
+### 2026-10-19 (later) — the decision + embed + rerank three-way boots
+
+The lane's co-location budget was math, not a receipt; it is now both. On `.34`, three sequential
+`sparkrun run` jobs with no overrides: embed (`qwen3-vl-embedding-2b-vllm-b12x`, cap 0.25, port
+8010) → rc=0; rerank (`qwen3-vl-reranker-2b-vllm-b12x`, 0.30, 8011) → rc=0; JEV-9B
+(`jev-9b-decision-vllm`, 8000) → rc=0. Probes while all three were up: a 2048-dim embedding, the
+reranker's model list, and a JEV chat completion. Node free memory at all-up: 18 GiB, 17 GiB
+available.
+
+The cap arithmetic was wrong by 13.7 GiB. The pair's nominal 0.55 (66.9 GiB) is not its real hold
+(80.7 GiB with CUDA contexts and b12x kernels), so a third engine sees **41.03 GiB free (0.337)**.
+The first arm asked for `gpu_memory_utilization: 0.35` (42.6 GiB) and vLLM refused it at init
+(`Free memory on device cuda:0 (41.03/121.69 GiB) on startup is less than desired GPU memory
+utilization (0.35, 42.6 GiB)`); 0.30 (36.5 GiB) clears with ~4.5 GiB slack. The recipe now carries
+the key — both decision recipes previously inherited the engine default (~0.9), which cannot
+co-exist with any co-tenant. Receipt `~/benchmarks/embed-coloc30-20261019/` (failed arm kept in
+`embed-coloc-035fail-20261019/`); the lane README's budget paragraph now carries the measured
+number; the item moved to `attic/DONE.md`.

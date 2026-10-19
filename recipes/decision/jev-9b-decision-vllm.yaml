@@ -27,6 +27,10 @@ defaults:
   port: 8000
   host: 0.0.0.0
   tensor_parallel: 1
+  # Absolute device cap: the co-tenant embed (0.25) + rerank (0.30) caps must SUM with this one or
+  # the last engine raises; at JEV start only ~41 GiB is free (0.33), so 0.30 is the co-location
+  # ceiling — 0.35 is rejected by vLLM's startup free-memory check.
+  gpu_memory_utilization: 0.30
   max_model_len: 4096
   max_lora_rank: 32
 
@@ -45,6 +49,7 @@ command: >
   --host {host}
   --port {port}
   --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
   --max-model-len {max_model_len}
   --enable-lora
   --max-lora-rank {max_lora_rank}
