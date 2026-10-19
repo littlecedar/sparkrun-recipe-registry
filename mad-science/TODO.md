@@ -336,7 +336,12 @@ Cybersecurity-research (red-team) abliterated / uncensored models
   `-o extra_args="--enable-lora"` (confirmed in the engine's non-default args) fails identically.
   Unblocking is image-side, and *Owner decision 2026-10-19 chose the image bump*: find a vLLM build
   whose mapping excludes ignored shards, validate it on the two shipped vLLM lanes first, then re-boot
-  this arm. Receipt
+  this arm. **Done:** upstream PR **#62318** is the fix and is still unmerged (checked 2026-10-19);
+  the regression is **#59533** (merged 2026-10-05, first released in v0.32.0). The recipe now pins the
+  **b12x build** (`sha256:cf5a2a53…`), whose source predates #59533 (three-shard mapping, indexer a
+  separate BF16 GEMM) and which the qwen4 lane's solo arm already runs with a full suite; a
+  `vllm-openai:v0.31.0` aarch64 digest is the fallback. The retry is pair-bound and waits for both
+  nodes. Receipt
   `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`; lane note in `recipes/cybersec/README.md`.
   No index row.)*
 
