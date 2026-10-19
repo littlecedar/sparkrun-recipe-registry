@@ -654,3 +654,17 @@ Receipts `~/benchmarks/embed-coloc30-20261019/REPORT.md` (campaign, arms table) 
 `embed-coloc-final2-20261019/` (shipped config); failed arms kept beside them. The first version
 of this entry cited 104 GiB used / 18 free read on the **head**, not on `.34` — the node's idle is
 3 GiB, and the receipt now records that mix-up.
+
+### 2026-10-19 — the YaRN 1M depth-90 rung passes, and the exit is intermittent
+
+The ornith YaRN arm's last unmeasured rung ran on `.34` (full pool 1,205,530, no co-tenant) and
+**passed**: 1M-token request at depth 90 %, 977,975 counted tokens (97.8 %), 1/1 needles, 1,891 s.
+It crossed the same end-of-prefill state — 110 GiB used, 11 GiB available — that killed the two
+2026-10-18 attempts at 398 s and 1,246 s, so the serve-side exit is intermittent rather than a
+deterministic depth limit; the mechanism is still unnamed and the item stays open. The gate is now
+6/6 on one boot, and the lane README/AGENTS ship language changed from "1M to depth 50 %" to "1M
+measured through depth 90 %, not claimed reliable". Capture lesson: the engine log is at
+`/tmp/sparkrun_serve.log` inside the container (stdout has only the CUDA banner), and `docker
+events --filter event=die` preserves the exit code past the task-delete — both armed this boot.
+The 2026-10-18 receipt tree the docs cited (`~/benchmarks/ornith-yarn-1m-20261018/`) is no longer
+on the head, so the surviving receipt is `~/benchmarks/ornith-yarn-d90-20261019/`.

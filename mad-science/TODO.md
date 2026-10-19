@@ -181,6 +181,14 @@ Ornith 1.5
   the job file, yet dockerd task-deleted it). Needs the serve log **streamed** to the host for the
   whole request plus the exit code / `OOMKilled`, or a `docker events` capture
   (`recipes/ornith/README.md` §"The YaRN 1M arm"; `attic/ornith/AGENTS.md` §9.1). *(effort: short)*
+  *(progress 2026-10-19 — **the rung passed, so the exit is intermittent**: the third attempt (full
+  pool 1,205,530, no co-tenant) retrieved the key at depth 90 % with 97.8 % fill in 1,891 s, crossing
+  the same 11 GiB-available regime that killed the two 2026-10-18 boots. The gate is now 6/6 on one
+  boot; the mechanism of the two exits is still unnamed, so this item stays open for the next failing
+  boot. The death-capture harness (streamed `docker logs -f`, `docker events --filter event=die`,
+  1 Hz `free`) is armed and working, and the engine log lives at `/tmp/sparkrun_serve.log` inside the
+  container (stdout carries only the CUDA banner) — `docker cp` it before any death. Receipt
+  `~/benchmarks/ornith-yarn-d90-20261019/`.)*
 - [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`. **Superseded 2026-10-18, 19:15: dropped, not deferred** — re-file only if `.30`–`.33` return to this work.)* *(effort: medium)*
 - [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)* *(Owner approval required: the bump changes the engine image/digest, which the 2026-10-18 19:15 policy reserves for the owner.)*
 

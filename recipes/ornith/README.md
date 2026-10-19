@@ -332,16 +332,15 @@ only if every planted key is retrieved *and* the server counts ≥95 % of the re
 | **768k** | 768,000 | 10 / 50 / 90 | 99.7–99.8 % | **PASS 3/3** — same earlier run |
 | **1M · depth 10 %** | 1,000,000 | 10 | **97.74 %** (977,427) | **PASS**, 1,737 s — same earlier run |
 | **1M · depth 50 %** | 1,000,000 | 50 | **97.75 %** (977,487) | **PASS**, 1,886 s, key `3881-RAVEN`, `finish_reason: stop` — the 19:57 boot |
-| **1M · depth 90 %** | 1,000,000 | 90 | — (no `prompt_tokens` returned) | **ERROR ×2**: `RemoteDisconnected` after 1,246 s on the 19:57 boot (container gone, no log) and after 398 s on the 20:52 retry boot (log captured — see below). Both mid-prefill, so no fill % and no verdict |
+| **1M · depth 90 %** | 1,000,000 | 90 | **97.8 %** (977,975) | **PASS on the third attempt** — 1,891 s, key retrieved, `finish_reason: stop` (2026-10-19, pool 1,205,530); the two 2026-10-18 attempts died mid-prefill (`RemoteDisconnected` after 1,246 s and 398 s) |
 
-**Outcome: the gate is 5 of 6 rungs, and the arm ships at a capped window.** Every rung through 768k
-passes 3/3, and 1M passes at depths 10 % and 50 %, each with ≥95 % of the context actually counted —
-the behavioural proof that the nested YaRN override reaches the loaded config. The 1M depth-90 % rung
-has **no measurement** after two attempts, so the pre-registered "all three depths PASS at 1M"
-condition is unmet and **the arm ships for ≤768k workloads, with 1M supported to depth 50 %**; the last
-10 % of the window stays unmeasured. The failure is a serve-side process exit, not a retrieval or
-window finding: both requests were admitted (pool 1.20M against a 980k pace target) and died
-mid-prefill with no HTTP error body.
+**Outcome: the gate is 6 of 6 rungs across three boots, and the depth-90 % rung is intermittent, not
+broken.** Every rung through 768k passes 3/3, and 1M passes at depth 10 %, 50 % (2026-10-18) and 90 %
+(2026-10-19: 97.8 % fill, 1,891 s, key retrieved). The 2026-10-19 pass crossed the same depth in the
+same memory regime — 11 GiB available at the end of prefill — that killed the two 2026-10-18 attempts
+mid-prefill, so the exit is intermittent and the pre-registered "all three depths PASS at 1M" is met
+by one boot while the mechanism behind the two failures remains unlogged. **The arm ships for ≤768k
+workloads, with 1M measured through depth 90 % and not claimed to be reliable.**
 
 **What the d90 crashes do and do not establish (retry boot, 2026-10-18, `.34`).** The retry granted
 `max_total_num_tokens` **1,202,898** with `available_gpu_mem` 12.55 GB, admitted the 980,633-token
@@ -363,6 +362,13 @@ input throughput 592 t/s) when the serve process exited at 21:01:38 local; the i
   (`~/.cache/sparkrun/jobs/dadfb04b5145d956_….yaml`) carries `executor_config.auto_remove: false`, yet
   dockerd handled a task-delete at 21:01:40. Treat these containers as ephemeral and stream the log to
   the host.
+- **And one pass, same regime (2026-10-19).** The third attempt (full pool 1,205,530, no co-tenant)
+  crossed depth 90 % with the node at **110 used / 11 GiB available** and returned `200 OK`, key
+  retrieved — so the exit is intermittent, not a deterministic d90 behaviour. The engine log lives at
+  `/tmp/sparkrun_serve.log` **inside** the container (the container's stdout carries only the CUDA
+  banner), so harvest it with `docker cp` before any death; `docker events
+  --filter event=die --format '… exit={{.Actor.Attributes.exitCode}}'` is the capture that survives a
+  task-delete. Receipt `~/benchmarks/ornith-yarn-d90-20261019/`.
 
 The evidence that would name the mechanism: a serve log **streamed** to the host (not copied on a 10 s
 interval, which lost the final ≤6 s of prefill plus any traceback) together with the container's exit
@@ -378,8 +384,11 @@ two sessions produced `max_total_num_tokens` of **1,203,041**, **282,227**, **69
 length (978633 tokens) exceeds the maximum allowed length (69275 tokens)") and every 1M rung reports
 `TRUNCATED`. Read the grant from the serve log before starting a ladder — a starved boot is
 indistinguishable from a window failure in the verdict. Receipts:
-`~/benchmarks/ornith-yarn-1m-20261018/` (`needle-1m-d50.json`, `needle-1m-d90.json`,
-`needle-1m-d90-retry.json`, `serve.log`, `serve-boot-lines.txt`, and `diag-d90-retry/` for the retry).
+`~/benchmarks/ornith-yarn-d90-20261019/` (the surviving d90 evidence: `needle-d90.json`,
+`serve.log` harvested from the container's `/tmp`, `launch.log`, and the death-capture
+`events.log`/`mem.log`/`serve-stream.log`) and `~/benchmarks/ornith-yarn-1m-20261018/` — the latter
+is **no longer on the head** (checked 2026-10-19), so the 2026-10-18 numbers are carried by this
+README and `attic/ornith/AGENTS.md`.
 
 Full provenance — the card quote, the engine citations, the KV table and three open boot
 questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.
