@@ -139,11 +139,26 @@ Selection priorities:
 
 ## ds4
 DeepSeek V4.1
-*(No open item — the v2.4 serve line is settled and carries no runnable work: with
+*(The v2.4 serve line is settled and carries no runnable work: with
 `PREFILL_DECODE_INTERVAL: "0"` it beats v2.3 at C5/C10 (`recipes/ds4/README.md` §(b)–(d)); the one
 unrun cell, an interleaved C1 re-take on the shipped line, needs `.30`–`.33` and was **dropped, not
 deferred**, by the 19:15 policy above. Measurement, launcher pins and the correction to the earlier
 "slower on every cell" reading are archived in `../attic/DONE.md`.)*
+
+- [ ] **Deep web search for unexplored DeepSeek-V4.1-Flash-1017 speedups on GB10** *(Owner directive
+  2026-10-19.)* — survey what the lane has not tried: upstream SGLang/vLLM release notes and PRs that
+  touch Blackwell/sm_121 (attention and MLA kernels, MoE GEMM paths, graph capture, DCP/DP),
+  FlashInfer/CUTLASS/DeepGEMM/DeepEP builds and their GB10 support, NVFP4/FP8/EXL3 releases of the
+  1017 base, MTP/DSpark/spec-decode work, prefix-cache and scheduler features, CUDA 13.x image
+  builds, and any published DeepSeek-V4.1 tuning or DGX Spark benchmark. Deliverable: a shortlist
+  where each candidate names the mechanism, the expected effect, the flag or artifact that carries
+  it, and a same-boot A/B plan the `.34`/`.35` pair can actually run — the TensorFold TP=2 arm is the
+  runnable shape, plus one-node probes; a TP=4-only find is written into `recipes/ds4/README.md` as
+  an upgrade candidate, not queued as a boot (the 19:15 policy froze `.30`–`.33`). Exclude the knobs
+  the lane already measured
+  (`--prefill-decode-interval`, `--swa-prefix-tails`, `DSV41_FAST_LOAD`, the DSpark block size, the
+  KV/token pins; `recipes/ds4/README.md` §(b)–(d) and the launcher-knob bullets), and re-derive any
+  claimed win with its own receipt under `~/benchmarks/`. *(effort: medium)*
 
 ## glm5
 GLM 5.3
@@ -210,6 +225,42 @@ Any model with reasoning and tool-calling capabilities
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
   *(closed 2026-10-18, late — **LTX-2.5 I2V + FLF2V + 4K/50 fps are measured.** Warm on `.34` (clock cap 2200 MHz, 1344×768 / 121 f / 24 fps): T2V **78.1 s / 83.70 GiB** (−2.5 % on the recorded 80.1 s), I2V **84.3 s (+7.9 %) / 83.79 GiB**, FLF2V **120.2 s (+54 %) / 81.94 GiB**. FLF2V is slower by mechanism, not regression: its template has no `LTXVLatentUpsampler`, so one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) replaces half-res 8-step + 3-step refine. Conditioning proven by decoded-frame MAD, not by a file existing: I2V frame 0 **4.1** vs the start image; FLF2V frame 0 **7.8** vs start / 59.5 vs end, frame 120 **16.9** vs end / 59.1 vs start. **4K/50 (3840×2160, 249 f) is OOM — a measured ceiling, not an untried preset:** stage 1 fine (8/8, 461.3 s @ 57.7 s/it at the 1920×1080 latent), killed at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines at **121.16 of 121 GiB** (85.0 GiB steady in stage 1, weights-only baseline 78.4 → not co-tenancy); the node stayed up, a process kill rather than a node loss. A smaller 4K cell at that output size is the only open question there and no register asks for one. Cold rep **204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). Receipt `~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`, `receipts{,_warm}`, and the fixed `expand2.py`/`run_cell2.py`; the runbook's expander is T2V-only — four defects listed in `attic/explore/AGENTS.md`).)*
 
+- [ ] **Select the lane's keepers and sweep the rest to `attic/explore/`** *(Owner directive 2026-10-19:
+  top candidates optimized for generation speed, concurrency, accuracy and small size; the remainder
+  moves to the attic.)* — score the **14 measured root-index rows** on those axes from their own
+  receipts: C1 and the ladder shape (decode and aggregate), the concurrency ceiling (KV pool,
+  `max_num_seqs` clamps), the accuracy cells (house / needle / ARC / GSM8K / BFCL / TEB), and size
+  plus peak memory. Keep the Pareto set — fastest decode, best aggregate at high concurrency, the
+  accuracy leaders, the smallest arm with real headroom, and any media-gen arm whose own cells are
+  closed — and retire the rest with `attic/explore/ARMS-MANIFEST.md`, the lane `README.md` section,
+  the root index row, the `tests/test_explore_new_arms.py` / `tests/test_explore_llamacpp_arm.py`
+  assertions, any lane-only mod, and a re-measured recipe count
+  (`retire-sparkrun-recipe-to-attic`). The two YAMLs with no index row are **not** sweep candidates:
+  `mistral-small-4-119b-nvfp4-vllm` is measured-rejected at **28.9 t/s C1** in
+  `attic/explore/ARMS-MANIFEST.md` (archive it as measured-rejected after re-reading its receipt),
+  and `poolside-laguna-m1-nvfp4-vllm-tp2` is authored but unbooted, so the Laguna-M.1 item above
+  governs it until its TP=2 boot produces a receipt; classify both from artifact state, not from the
+  stale "unbuilt" label in the build item. The three unrun Kolibri GGUF tiers (`Hob-forge` /
+  `webmp3` / `aparusel`) cannot win on measurement; build them first or archive them as unmeasured
+  with the reason. The owner's 2026-10-11 weighting (node count, accuracy, speed, memory) governs
+  ties. *(effort: medium)*
+- [ ] **Ship the LTX-2.5 runbook as a sparkrun recipe** *(Owner directive 2026-10-19.)* — convert
+  `recipes/explore/ltx-2.5-runbook/` (ComfyUI v0.34.0, `Lightricks/LTX-2.5`, ~36.9 GB of explicit
+  files) into a shipped arm on the qwen-image pattern: `runtime: vllm` only as the
+  distribution/launcher contract, `executor_config.entrypoint: ""`, `readiness.inference: false`, and
+  a `recipes/explore/mods/ltx-25-launcher` mod that stages the ComfyUI venv, expands the native T2V
+  graph headlessly and serves `POST /generate` + `GET /health`. Resolve the gated-distribution
+  question first: sparkrun's anonymous distribution cannot fetch a `gated: auto` repo, so either the
+  mod downloads with the node's accepted `HF_TOKEN` (documented prerequisite, as the 2026-10-14 owner
+  call allows) or the launch refuses with a clear message — do not ship a recipe that hangs on
+  distribution. Use the fixed `expand2.py` / `run_cell2.py` from `~/benchmarks/ltx25-20261018/` — the
+  repo expander has four defects (`attic/explore/AGENTS.md` §"the three unrun cells + the expander
+  defects", 2026-10-18) — keep `frames % 8 == 1`, the `SaveVideo` output node, the explicit-filename
+  download rule and the 2200 MHz clock cap as documented prerequisites; carry the
+  `ltx-2.x-community-license-agreement` banner (free below the $10M threshold; third parties read the
+  text). Land the recipe, root index row and lane section only on a boot receipt with the measured
+  cells (T2V 78.1 s / I2V 84.3 s / FLF2V 120.2 s; 4K/50 OOM at 121.16 GiB). *(effort: long)*
+
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*
@@ -222,6 +273,27 @@ Cybersecurity-research (red-team) abliterated / uncensored models
 `drowzeys/MiMo-V2.6-Flash-RL-Abliterated` (310B, FP8/MXFP4). **Over the 1–2-node bar, so recorded but NOT
 queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_arvq_hybrid`, MIT, gated —
 **315.7 GB** on-disk ⇒ ≥3 nodes; owner asked to add it only if it fit 1–2).
+
+## Recipe schema & documentation (registry-level)
+- [ ] **Update the recipe-schema docs for sparkrun 0.4.0** *(Owner directive 2026-10-19; priority:
+  high.)* — the authority is the installed 0.4.0 package, cited at `file.py:line`, never these docs
+  themselves: `_KNOWN_KEYS` (41 accepted top-level keys) and the `Recipe` constructor in
+  `sparkrun/core/recipe.py`, `core/validation.py`, `sparkrun recipe validate/show/vram`, and the
+  runtime modules under `sparkrun/runtimes/` (`sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`,
+  `atlas`, `modular_max`, `tokenary`, `llama_cpp`, plus the `eugr_vllm_ray` alias). Schema facts to
+  record: name from the filename, `recipe_version` default `"2"`, top-level `description:`,
+  metadata-only `maintainer:`, unknown keys swept into `runtime_config`, plugin-owned keys,
+  `capabilities`/`unsupported_capabilities` outside the workload fingerprint, `readiness`,
+  `distribution_config`, `layout`, `include`/`overrides`, `solo_only`, and `cluster_only` (deprecated
+  for v2). Bring
+  `recipes/MECHANICS.md` in line first (the full key set and the per-key rules, especially "a
+  `defaults:` value reaches the engine only through a `{placeholder}`, a runtime flag map or an
+  internal key"), then the root `AGENTS.md` (the same rules, plus the stale facts re-measured
+  2026-10-19: 59 recipes, 780 tests, `recipes/glm` now two arms — re-measure the module and
+  strict-validate counts instead of carrying the 38/648 snapshot), then the schema rules restated in
+  `.omp/skills/sparkrun-recipe-edit-to-boot/` and `.omp/skills/sparkrun-recipe-launch-debugging/`;
+  keep `attic/` frozen. Verify every shipped recipe validates and the repo gate passes. *(effort:
+  medium)*
 
 ## Runtimes (registry-level)
 Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtimes than the two in use —
