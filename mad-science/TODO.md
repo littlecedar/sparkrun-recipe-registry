@@ -103,10 +103,11 @@ checkpoint's sigmas win); LTX now measured too — I2V **84.3 s (+7.9 %)** / FLF
 4K/50 fps **OOM at 121.16 of 121 GiB** (`ltx25-20261018`). decision: **laya** at
 **36.1 % (723/2000)** — the vendor's near-chance expectation — its recipe now satisfying the sparkrun
 model-identity contract via `LAYA_MODEL_PATH=<path>` (guarded), ladder c1 **0.449 req/s / 2.25 decisions/s**,
-flat at c2 with doubled latency (`decision-arms-20261018`). ds4: the carried **v2.4 serve line is IN
-FLIGHT** — C1 **60.2** / C2 **73.2** / C5 **95.1** / C10 **101.5** on one boot against the v2.3 line's
-67.2 / 88 / 111 / 116, so it is **slower**;
-the interval-off isolation boot is queued and the launcher env is uncommitted (`ds4-v24-line-20261018`).
+flat at c2 with doubled latency (`decision-arms-20261018`). ds4: the carried **v2.4 serve line** was
+read on its `--prefill-decode-interval 2` arm — C1 60.2 / C2 73.2 / C5 95.1 / C10 101.5 against the
+v2.3 line's 67.2 / 88 / 111 / 116 — and **the flag, not the line, is what is slow**: the isolation
+boot then ran (C2 88.35 / C5 131.83 / C10 123.49 with it off) and the launcher ships `0`
+(`c59f00d`), with the pin re-derived to 6,850,000 (`ds4-v24-line-20261018`).
 
 **Policy (2026-10-18, 19:15).** **DeepSeek and TP>2 work was expedited and is now CLOSED by owner
 instruction**: `.30`–`.33` return to their normal workloads, `.34`/`.35` remain available. Anything
@@ -123,7 +124,11 @@ Selection priorities:
 
 ## ds4
 DeepSeek V4.1
-- [ ] **Settle the carried upstream v2.4 serve line (IN FLIGHT, not closed)** — the line the launcher now carries (`MEM_FRACTION_STATIC` 0.78 / `CHUNKED_PREFILL_SIZE` 8192 / `MAX_TOTAL_TOKENS` 7,500,000 / `--swa-prefix-tails 128` / `--prefill-decode-interval 2`, all launcher-owned in `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`) measured **C1 60.2 / C2 73.2 / C5 95.1 / C10 101.5** t/s @ d0 on one TP=4 boot (house 36/37 on the same serve) against the v2.3 line's **67.2 / 88 / 111 / 116** — slower on every cell, so it does not ship on this evidence. The knob-isolation boot (`--prefill-decode-interval` off, `pd-off/` still empty) is queued and the launcher env is **uncommitted**. Receipt `~/benchmarks/ds4-v24-line-20261018/` (`bench.log`, `ladder.{yaml,json,csv}`, `house/`, `serve-evidence.txt`).
+*(No open item — the v2.4 serve line is settled and carries no runnable work: with
+`PREFILL_DECODE_INTERVAL: "0"` it beats v2.3 at C5/C10 (`recipes/ds4/README.md` §(b)–(d)); the one
+unrun cell, an interleaved C1 re-take on the shipped line, needs `.30`–`.33` and was **dropped, not
+deferred**, by the 19:15 policy above. Measurement, launcher pins and the correction to the earlier
+"slower on every cell" reading are archived in `../attic/DONE.md`.)*
 
 ## glm5
 GLM 5.3

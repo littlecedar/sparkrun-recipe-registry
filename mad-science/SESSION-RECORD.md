@@ -488,8 +488,11 @@ containers, so per-node serve logs must come from the executor's own path, not t
 ### 2026-10-18 (late) — TP>2 closes, and `.30`–`.33` go back to their owner
 
 **Committed this stretch:** `d60f53b` (GLM 3.0bpw promotion + boot), `c936dd3` (Nemotron archive +
-LTX cells), `de71df7` (decision kev/d3), `1dbc79b` (K2 36B D2/E6 + the LTX wall correction). Gate:
-778 tests OK (2 skipped), every recipe validates plain, `bash -n` / `py_compile` clean.
+LTX cells), `de71df7` (decision kev/d3), `1dbc79b` (K2 36B D2/E6 + the LTX wall correction),
+`de81835` (ornith YaRN 1M gate), `2f44e07` (qwen4 linear-replayssm), `5e57d66` (register swept
+open-work-only). Gate at close, on the tree carrying all seven: **778 tests OK (2 skipped)**; no
+recipe YAML, mod, tool or test changed after `1dbc79b`, so that run's recipe validation, `bash -n`
+and `py_compile` still describe the tree.
 
 **GLM-5.3 EXL3 3.0bpw TP=4 — promoted, booted, receipted.** The recipe could not initialize for two
 reasons that both presented as something else. `TF_TP_WORLD` was unset and the fork's derivation guard
@@ -510,6 +513,22 @@ deferred. `.34`/`.35` carried the rest.
 modelled +25 % throughput is false (−4.6 % at d8k, +8.1 % at d28k) → stays withdrawn. ornith YaRN 1M:
 five rungs PASS, d90 ERROR ×2 (serve exit mid-prefill, OOM and client timeout excluded) → ships ≤768k,
 1M to depth 50 %.
+
+**qwen4 linear-replayssm — capacity, not speed.** One TP=2 boot on `.34`+`.35`: the flag drops the
+spec-verify's per-draft SSM state cache from **2.64 GB to 0.00 GB** and the allocator hands it to KV —
+`max_total_num_tokens` **1,689,024 → 1,882,944 (+11.5 %)** at an unchanged mamba pool of 112 and
+`max_num_seqs` 24. The ladder is flat within the cell σ — 41.99 / 71.20 / 91.86 / 105.22 t/s at
+k=1/2/5/10 against a 39.90 / 69.45 / 94.98 / 104.45 control, the k=10 cell n=2 after the stand-down
+cut it — so it buys headroom, not throughput, and it is **not shipped** without accuracy coverage or
+the W4 gate. Receipt `~/benchmarks/qwen4-block-20261018/` (`REPORT.md`, `lrs-ladder-1018.{yaml,json}`).
+
+**ds4 v2.4 — the flag cost the throughput, not the line.** The earlier "slower on every cell" verdict
+was read off the `--prefill-decode-interval 2` arm. With the flag off the same line measures C2 88.35 /
+C5 131.83 / C10 123.49 against v2.3's 88 / 111 / 116 (+18.7 % at C5, +6.6 % at C10, at best parity at
+C2), so `c59f00d` ships it with `PREFILL_DECODE_INTERVAL: "0"` and a re-derived
+`MAX_TOTAL_TOKENS: "6850000"` (a 7.5M pin was silently clamped to the profiled 6,993,408). The C1 cells
+are cold-contaminated on every ladder, so the pooled **67.18 ± 6.97** stays the reference and the
+interleaved C1 re-take is the one cell never taken — dropped with `.30`–`.33`.
 
 **Traps worth carrying.** (1) A killed boot leaves the TensorFold JIT build lock and the next start
 waits on it instead of compiling — the lane's `run.sh` now sweeps it pre-exec. (2) sparkrun's readiness

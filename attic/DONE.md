@@ -440,9 +440,14 @@ carries the `#36`–`#42` decisions answered the same day.
 # 2026-10-18 sweep — late (the TP>2 close and the `.34`/`.35` block)
 
 Archived from `mad-science/TODO.md` when the session was wrapped at the owner's request, copied
-verbatim with nested notes. Every item below was measured; what each leaves unrun is named inside it
-or carried by an open item left in the register (the GLM ≥1M probe, the ornith d90 crash mechanism,
-the qwen4 accuracy question).
+verbatim with nested notes. Every item below was measured; what each leaves unrun is named inside it.
+What the 19:15 policy dropped — the GLM ≥1M probe, the ornith 397B retry, the ds4 C1 re-take — is
+recorded here as **dropped, not deferred**, and is not carried as register work; the two questions
+that do stay open in the register are the ornith d90 crash mechanism and the qwen4 accuracy coverage.
+
+## ds4
+- [x] **Settle the carried upstream v2.4 serve line (IN FLIGHT, not closed)** — the line the launcher now carries (`MEM_FRACTION_STATIC` 0.78 / `CHUNKED_PREFILL_SIZE` 8192 / `MAX_TOTAL_TOKENS` 7,500,000 / `--swa-prefix-tails 128` / `--prefill-decode-interval 2`, all launcher-owned in `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`) measured **C1 60.2 / C2 73.2 / C5 95.1 / C10 101.5** t/s @ d0 on one TP=4 boot (house 36/37 on the same serve) against the v2.3 line's **67.2 / 88 / 111 / 116** — slower on every cell, so it does not ship on this evidence. The knob-isolation boot (`--prefill-decode-interval` off, `pd-off/` still empty) is queued and the launcher env is **uncommitted**. Receipt `~/benchmarks/ds4-v24-line-20261018/` (`bench.log`, `ladder.{yaml,json,csv}`, `house/`, `serve-evidence.txt`).
+  *(**Settled and archived: the numbers above are the interval-ON arm.** The isolation boot then ran and the launcher moved with it — `c59f00d` carries `PREFILL_DECODE_INTERVAL: "0"` and a re-derived `MAX_TOTAL_TOKENS: "6850000"` (a 7.5M pin was silently clamped to the profiled 6,993,408), so nothing is uncommitted. With the flag off the line measures **C2 88.35 / C5 131.83 / C10 123.49** against v2.3's 88 / 111 / 116 — **+18.7 % at C5, +6.6 % at C10, parity at best at C2** — so the "slower on every cell" verdict belonged to the flag, not the line (`recipes/ds4/README.md` §(b)-(d); the launcher's own comment records the same pair at `launcher.py:238-247`). The C1 cells are cold-contaminated on every ladder, so the pooled **67.18 ± 6.97** (n=25) stays the reference and an **interleaved C1 re-take on the shipped line** is the one cell never taken: it needs `.30`–`.33`, which the 19:15 policy took back — **dropped, not deferred**.)*
 
 ## glm5
 - [x] **Promote the EXL3 3.0bpw full-753B lane to a recipe** — **booted and served 2026-10-18** on `.30`–`.33`
