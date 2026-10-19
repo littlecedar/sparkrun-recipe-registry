@@ -120,7 +120,11 @@ campaign (`1895030211ea0500_3510a5e0d37d`, 2 containers, healthy since 23:01): e
 tool-eval-bench are done, the W4 90-minute soak is in flight. `.30`–`.33` remain the owner's ds4 TP=4
 job (`a2e141223b52793c_de0b14250a90`). The head's `a2e14…` control container is that job's, not litter.
 **Checked 00:43 ET:** soak pid 284384 alive (55 min elapsed); `gate-37111.json` is not written yet — the
-gate writes it on completion, 01:18:10.
+gate writes it on completion, 01:18:10. **Closed 01:20 ET:** soak **PASS** (708 turns, 0 degeneration
+/ 0 truncation findings, 0 transport errors, canary warm==cold) — the same-boot ladder reads 41.22 /
+72.88 / 95.18 / 108.13 t/s, receipt `REPORT.md`. Serve stopped and `.34`/`.35` verified idle (0
+containers, no `/tmp` leftovers). The owner's ds4 TP=4 job now reports as
+`a2e141223b52793c_e11d626ec2c6` on `.30`–`.33`, still healthy (the `de0b14250a90` id above is gone).
 
 **Cluster state (2026-10-18 21:52 ET) — superseded by the 2026-10-19 00:00 entry above; keep for the
 job history only.** A **new owner-launched ds4 TP=4 job** takes the four-node slot
@@ -186,7 +190,6 @@ Qwen 3.x
 
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
-- [ ] **Run the W4 `#37111` release soak (1–2 h / ~100k)** — only a short smoke ran, so the corruption gate is unproven (`attic/qwen4/AGENTS.md`). *(progress 2026-10-19 00:00 ET — **the soak is running** on the shipped labquant TP=2 boot (`1895030211ea0500_3510a5e0d37d`, `.34`/`.35`), 90 min at 100k depth, started 23:48:10 ET, JSON → `~/benchmarks/qwen4-labq-suite-20261018/gate-37111.json` (the `qwen4-block-20261018` path quoted here earlier does not exist). The first smoke **failed on the harness, not the server**: `gate-37111.py --thinking` documented "default off" but omitted `chat_template_kwargs`, so this thinking-default template spent all 2048 essay tokens inside `reasoning_content` and returned `content: ""` → four false degeneration/truncation findings. Fixed to always send `{"enable_thinking": bool(thinking)}` (`9eee3a2`; the selftest now guards both directions). Raw control: `enable_thinking: false` → 758-word essay, `stop`, 0 reasoning tokens; `true` with 8192 tokens → still all reasoning, content "". Smoke then **PASS**, canary warm==cold.)* *(effort: medium)*
 - [ ] **Clear the remaining qwen4 measurement backlog** — TP=4 (W6) re-boot after the `port_timeout_s` fix; the W12 cross-runtime vLLM same-checkpoint bench; the `--fp4-gemm-backend` A/B (the shipped `flashinfer_cutlass` was inherited without justification); `--enable-int8-mamba-checkpoint`; and the bs>1 cost of `--cuda-graph-backend-prefill disabled` (`attic/qwen4/AGENTS.md` §10.1). *(effort: medium)*
   *(2026-10-18: **none of this backlog ran** — the TP=2 block closed after one arm. Two facts to carry into the next window: the `--fp4-gemm-backend` A/B's first alternative arm is refused **before weights load** (`flashinfer_cudedsl` is listed in `--help` and in the error's own `choose from` set, yet argparse rejects the token verbatim — `~/benchmarks/qwen4-tp2-20261018/b2-cudedsl-refusal-arm.log`), so probe the accept-spelling first; and `--enable-linear-replayssm-spec` is now measured as a capacity lever (+11.5 % KV pool) whose remaining question is accuracy, not memory. TP=4 (W6) and the W12 cross-runtime vLLM bench need four/two nodes and are out of this session's scope.)*
 - [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*

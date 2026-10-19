@@ -36,6 +36,7 @@ histories, negative results, the archived arms and their provenance — lives in
 | Tags / vision | `lcg_favorite, vision` — this export serves **text and vision** (BF16 vision tower) |
 | Suite (2026-10-19 boot) | eval-suite `ok`: contract ok (`max_model_len=262144`, ready, `finish=stop`) · house 19/19 + 18/18 · needle 3/3 at 32k, 128k, 262k · hard ARC 95.5 % (n=200) / GSM8K 95.5 % (n=200) — `suite/` in receipt `~/benchmarks/qwen4-labq-suite-20261018/` |
 | Tool calling (2026-10-19 boot) | `tool-eval-bench` v2.6.0 `standard-suite`: **score 100 — 15/15 scenarios pass, 0 partial, 0 fail** (91.6 s) — `teb.yaml` (`bench_eff75293e461`) in the same receipt |
+| W4 release soak (`#37111`, 2026-10-19) | **PASS** — 90 min at 100k depth, 708 turns: **0 degeneration / 0 truncation findings, 0 transport errors**; the warm==cold canary agrees (4183) after a cache flush. The gate sends `enable_thinking: false` (its client contract on this thinking-default template), `max_tokens` 512, essay 2048. Wall 5,491 s; `gate-37111.json` + `gate-37111.log` in the same receipt. A PASS is a negative result — read `tools/gate-37111-design.md` §"what a PASS proves" |
 | License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 
 **Mod chain (6, ordered — `mods:` is a dependency chain, not a set).** Weights are served from the

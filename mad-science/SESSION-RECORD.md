@@ -574,3 +574,12 @@ hard ARC 95.5 % / GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/
 `bench_eff75293e461`, 91.6 s). Rows in `recipes/qwen4/README.md`; receipt
 `~/benchmarks/qwen4-labq-suite-20261018/`. The W4 `#37111` soak (90 min, 100k depth) launched
 23:48:10 ET and was in flight when this entry was written.
+
+**The W4 soak closed PASS at 01:20 ET.** 708 turns over the full 90 minutes at 100k depth,
+`max_tokens` 512, thinking off: 0 degeneration findings, 0 truncation findings, 0 transport errors,
+and the warm==cold canary agrees (`4183`) after a flush; wall 5,491 s. Receipt
+`~/benchmarks/qwen4-labq-suite-20261018/` (`gate-37111.json`, `gate-37111.log`, `REPORT.md`); the lane
+row is in `recipes/qwen4/README.md`. The same boot's own ladder re-run reads 41.22 ± 1.92 / 72.88 ±
+3.08 / 95.18 ± 1.28 / 108.13 ± 1.75 t/s (vs 39.90 / 69.45 / 94.98 / 104.45 on `bench_684c21a7cd8a`),
+no regression. The serve was stopped and `.34`/`.35` verified idle; `.30`–`.33` remain the owner's ds4
+TP=4 job (now `a2e141223b52793c_e11d626ec2c6`).

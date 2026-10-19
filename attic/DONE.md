@@ -484,3 +484,14 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
 ## ifm
 - [ ] **Re-open UNO on the 0.9B** — `IFM/K2-Horizon-0.9B-Uno` exists and the gate mod already works for the 7B; the register was falsified for the 7B only (`attic/ifm/AGENTS.md` §9). *(effort: medium)*
   *(**Closed 2026-10-18/19 — the 0.9B UNO arm was booted and measured** (`recipes/ifm/README.md` §`k2-horizon-0.9b-bf16-uno-sglang`; receipt `~/benchmarks/ifm-09b-uno-20261018/`): C1 **123.2 ± 13.2** t/s @ d0 / **90.5 ± 3.6** @ d8192 against a same-recipe fa4 control's 79.0; house **33/37**, GSM8K 173/200, ARC 144/200 with the +11 ARC delta **open and not claimed**. The shipped recipe now carries the `fast` tag on that C1, and its `metadata.caveats` — stale at "Unmeasured arm" — was corrected to the measured state on 2026-10-19. Removed from `mad-science/TODO.md`; the 7B tree-mode item stays open there.)*
+
+## qwen4
+- [x] **Run the W4 `#37111` release soak (1–2 h / ~100k)** — only a short smoke ran, so the corruption gate is unproven (`attic/qwen4/AGENTS.md`). *(progress 2026-10-19 00:00 ET — **the soak is running** on the shipped labquant TP=2 boot (`1895030211ea0500_3510a5e0d37d`, `.34`/`.35`), 90 min at 100k depth, started 23:48:10 ET, JSON → `~/benchmarks/qwen4-labq-suite-20261018/gate-37111.json` (the `qwen4-block-20261018` path quoted here earlier does not exist). The first smoke **failed on the harness, not the server**: `gate-37111.py --thinking` documented "default off" but omitted `chat_template_kwargs`, so this thinking-default template spent all 2048 essay tokens inside `reasoning_content` and returned `content: ""` → four false degeneration/truncation findings. Fixed to always send `{"enable_thinking": bool(thinking)}` (`9eee3a2`; the selftest now guards both directions). Raw control: `enable_thinking: false` → 758-word essay, `stop`, 0 reasoning tokens; `true` with 8192 tokens → still all reasoning, content "". Smoke then **PASS**, canary warm==cold.)* *(effort: medium)*
+  *(**CLOSED 2026-10-19 01:20 ET — PASS.** 708 turns over 90 min at 100k depth, `max_tokens` 512
+  (essay 2048), thinking off: **0 degeneration / 0 truncation findings, 0 transport errors**;
+  warm==cold canary `4183`; wall 5,491.33 s, exit 0. `gate-37111.json` + `.log` in
+  `~/benchmarks/qwen4-labq-suite-20261018/`; the same receipt carries the boot
+  (`max_total_num_tokens` 1,678,528, `scheduler_e2e` 563.75 s), a same-boot ladder (41.22 ± 1.92 /
+  72.88 ± 3.08 / 95.18 ± 1.28 / 108.13 ± 1.75 t/s) and `REPORT.md`. Lane row added to
+  `recipes/qwen4/README.md`; the serve was stopped and `.34`/`.35` verified idle. A PASS is a
+  negative result — `tools/gate-37111-design.md` §"what a PASS proves".)*
