@@ -77,10 +77,12 @@ lane only for a TP=2 boot. When a lane frees, the next staged arm boots immediat
 ordered cheapest-window-first in the suite item, and each lane's boot+suite commands are prepared
 before the previous leg ends. Current occupancy is recorded in the session record; the pair's
 node-hours are the binding cost, so an idle node is the defect. **Long suite legs run under
-`setsid` + `stdbuf -oL` writing to a file** — a wrapper timeout does not kill what it wrapped, and a
-pipe-backed stdout dies with its channel: both were observed on 2026-10-19 (the surviving children
-kept writing while their suite parents vanished and left 0-byte logs). Verify pids before any
-restart; an empty redirected log is buffering, not failure.
+`setsid` + `stdbuf -oL` writing to a file.** Measured 2026-10-19: a wrapper timeout kills only the
+wrapper — both "timed-out" suite parents were still alive and sequencing their children an hour
+later, while their 0-byte redirected logs looked like failure. The rule is therefore: verify pids
+(`ps -eo pid,etime,cmd`) before any restart, treat an empty redirected log as buffering, and never
+start a second leg on a node that already has one — two duplicate pairs were created that way and
+had to be killed.
 
 **Resourcing (2026-10-19).** **Sessions are unlimited** *(Owner decision 2026-10-19)*: agent runs are
 no longer bounded by a session window, so the register's content work can continue continuously until
@@ -401,7 +403,12 @@ contract check appends `/v1/...`, so the `/v1` spelling built `/v1/v1/models`. T
 not a latent defect - the receipts' tools legs had only ever been *skipped* for a missing
 `--bfcl-data-dir`. The tools now accept either spelling (`api_root`, with a selftest control) so a
 caller following the lane docs cannot hit it again, and the leg is re-running against the live arm;
-receipt `~/benchmarks/ifm-09b-suite2-20261019/`.)*
+receipt `~/benchmarks/ifm-09b-suite2-20261019/`. **Its BFCL leg then hit the suite's own 2 h
+per-check cap** (`[suite] TIMEOUT after 7200s`): simple/multiple/parallel completed and it was still
+in `irrelevance` at the cap, so this arm's tools leg is *measured-unmeasurable within the cap* at
+`--bfcl-max-tokens 4096` — record that rather than a score; a reduced-category or lower-budget run
+would answer a different question. .35's 7B tools leg runs the same profile and will settle whether
+the cap or the model is the binding constraint.)*
 
 
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
