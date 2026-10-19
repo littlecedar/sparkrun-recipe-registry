@@ -65,8 +65,9 @@ defaults:
   speculative_num_steps: 3
   speculative_eagle_topk: 1
   speculative_num_draft_tokens: 4
-  # Both flags are MANDATORY, not tunables: --moe-runner-backend flashinfer_cutlass (`auto`
-  # resolves the NVFP4 MoE to FLASHINFER_TRTLLM, dead on SM121) and --cuda-graph-backend-prefill disabled.
+  # --moe-runner-backend flashinfer_cutlass is mandatory, not a tunable: `auto` resolves the NVFP4
+  # MoE to FLASHINFER_TRTLLM, dead on SM121. The prefill disable is explicit but redundant on this
+  # image: the multimodal checkpoint makes the engine disable prefill graphs itself (2026-10-19).
   extra_args: "--moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled"
 
 command: >

@@ -610,10 +610,11 @@ Qwen4-Exp PLE side states` (`memory_pool.py:1337`). No size fits on this export.
 `~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and `b2b-int8mamba-112/`; the prefill-graph bs>1
 cost is the only unprobed knob left in the backlog item.
 
-**The prefill-graph knob closed as a no-op.** Removing `--cuda-graph-backend-prefill disabled` does
-not enable prefill graphs: the multimodal checkpoint makes the engine resolve `prefill.backend=
-'disabled'` itself ("Breakable CUDA graph is incompatible with multimodal model"), so there is no bs>1
-graph cost to recover and the flag is redundant but harmless. The same-config cross-boot also gave a
-direct noise-floor datum: C2 decode moved 7.9 % (67.1 ± 2.81 vs 72.88 ± 3.08). Receipt
-`~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph/`. All TP=2 knobs in the backlog item are now
-answered; only the TP=4 and W12 items remain, both needing a node window.
+**The prefill-graph knob closed as a no-op.** Removing `--cuda-graph-backend-prefill disabled` leaves
+the default `disabled`, and an explicit `--cuda-graph-backend-prefill full` is accepted by args parsing
+then disabled by the engine for the EAGLE target ("Disable prefill CUDA graph for EAGLE target on
+tc_piecewise…"), with the multimodal rule as the companion reason — so there is no bs>1 graph cost to
+recover and the flag is redundant but harmless. Three same-config boots gave a direct noise-floor
+datum: C2 decode spans 8.6 % (67.1-72.9) and every other cell ≤4.6 %. Receipts
+`~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph{,-full}/`. All TP=2 knobs in the backlog item are
+now answered; only the TP=4 and W12 items remain, both needing a node window.

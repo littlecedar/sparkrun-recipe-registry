@@ -409,12 +409,14 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   with `ValueError: --enable-int8-mamba-checkpoint is incompatible with Qwen4-Exp PLE side states`
   (`memory_pool.py:1337`). Receipts `~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and
   `b2b-int8mamba-112/`. `--revision {revision}` stays unmeasured.
-- **Prefill graph (2026-10-19).** Removing `--cuda-graph-backend-prefill disabled` does **not** enable
-  prefill graphs: the multimodal checkpoint forces `prefill.backend='disabled'` in the engine
-  ("Breakable CUDA graph is incompatible with multimodal model"), so the flag is redundant but
-  harmless and no bs>1 graph cost exists to recover. The same-config cross-boot differed **7.9 % at
-  C2** (tg 67.1 ± 2.81 vs 72.88 ± 3.08) — the inter-boot noise floor on this arm, measured directly.
-  Receipt `~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph/`.
+- **Prefill graph (2026-10-19).** Prefill CUDA graphs cannot engage on this arm: removing
+  `--cuda-graph-backend-prefill disabled` leaves the default `disabled`, and an explicit
+  `--cuda-graph-backend-prefill full` is accepted by args parsing then disabled by the engine for the
+  EAGLE target ("Disable prefill CUDA graph for EAGLE target on tc_piecewise…"), with the multimodal
+  rule as the companion reason ("Breakable CUDA graph is incompatible with multimodal model"). The
+  flag is redundant but harmless; no bs>1 graph cost exists to recover. Three same-config boots span
+  **8.6 % at C2** (67.1-72.9) and ≤4.6 % elsewhere — the inter-boot floor, measured directly.
+  Receipts `~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph{,-full}/`.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 599.7 s).
 
 ### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A) — **ARCHIVED 2026-10-14**, **REVIVED 2026-10-15**
