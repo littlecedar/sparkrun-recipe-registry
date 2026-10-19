@@ -540,3 +540,13 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   *(closed sub-item 2026-10-18 — the shipped 8B encoder was **unbootable** and is fixed: `load_format: instanttensor` → `auto`, because the 8B AWQ pack is sharded behind a `model.safetensors.index.json` and this image's InstantTensor has no index-aware metadata layout (`RuntimeError: Installed InstantTensor does not expose the metadata layout needed for index-aware loading`); `auto` takes the ordinary safetensors path, while the 2B encoder keeps `instanttensor` (one 3.96 GB file). Boots from the shipped recipe with no overrides (health 200 at 260 s) and its c1 cell is unchanged: **16.25 vs 16.39 u/s**. Receipt `~/benchmarks/embed-fix-20261018/`; full record in `../attic/DONE.md`.)*
 
   *(**CLOSED 2026-10-19 — the three-way ran on `.34`.** embed (`qwen3-vl-embedding-2b-vllm-b12x`, 0.25, 8010) + rerank (`qwen3-vl-reranker-2b-vllm-b12x`, 0.30, 8011) + JEV-9B (`jev-9b-decision-vllm`, **0.20 + `max_num_seqs: 32`**, 8000): all three `sparkrun run` rc=0, probes 200 (2048-dim embedding; model list; chat completion), node 104 GiB used / 16 GiB available. The measured budget corrects the lane's cap arithmetic: the pair's runtime hold is 74 GiB (caps 66.93 + ~7 GiB of kernel overhead), leaving **~42 GiB (0.345)**, and JEV's working floor is 0.20 — 0.16 profiles a negative KV cache (−1.66 GiB), 0.35 is refused with free 40.86 vs 42.59 GiB. Receipts `~/benchmarks/embed-coloc30-20261019/REPORT.md` (campaign) and `embed-coloc-final2-20261019/` (shipped config); failed arms kept in `embed-coloc-035fail-20261019/`, `embed-coloc-warm-20261019/` and `embed-coloc-final-20261019/`.)*
+
+# 2026-10-19 (register sync) — dropped by owner policy
+
+## ornith
+- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`. **Superseded 2026-10-18, 19:15: dropped, not deferred** — re-file only if `.30`–`.33` return to this work.)* *(effort: medium)*
+  *(**CLOSED 2026-10-19 — dropped, not deferred.** The 2026-10-18 19:15 owner policy froze
+  `.30`–`.33` and dropped every four-node item; this was one of the three named (with the ds4 C1
+  re-take and the GLM 1M arm). It is archived rather than carried because it cannot run without that
+  window, and the lane README still documents the 397B arm and its structural confound. Re-file only
+  if `.30`–`.33` return to registry work.)*

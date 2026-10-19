@@ -174,7 +174,7 @@ TTFT of 258.4 s on the 2026-10-18 boot; the record is archived in `../attic/DONE
 
 ## ornith
 Ornith 1.5
-- [ ] **Name the 1M prefill serve exit that caps the YaRN arm at depth 50 %** — at 1M the serve
+- [ ] **Name the intermittent 1M prefill serve exit on the YaRN arm (depth 90 % now passes)** — at 1M the serve
   process exits mid-prefill (43.7 % in, 551,863 tokens pending at 592 t/s, `RemoteDisconnected` at
   398 s of a 3,000 s budget) with host OOM, driver fault and client timeout all excluded; the
   traceback dies with the container because `--no-rm` does not preserve it (`auto_remove: false` in
@@ -189,7 +189,6 @@ Ornith 1.5
   /tmp/sparkrun_serve.log` streamed to a host file — NOT `docker logs -f`, which on this arm yields
   only the 523-byte CUDA banner — while `docker events --filter event=die` preserves the exit code
   past the task-delete. Receipt `~/benchmarks/ornith-yarn-d90-20261019/`.)*
-- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`. **Superseded 2026-10-18, 19:15: dropped, not deferred** — re-file only if `.30`–`.33` return to this work.)* *(effort: medium)*
 - [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)* *(Owner approval required: the bump changes the engine image/digest, which the 2026-10-18 19:15 policy reserves for the owner.)*
 
 ## qwen3
