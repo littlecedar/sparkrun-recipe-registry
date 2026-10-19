@@ -175,10 +175,12 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
 - [ ] **Run the now-runnable arms of the deep-search shortlist** *(delivered 2026-10-19.)* — the
   ranked note is `mad-science/DS4-SPEEDUPS.md` (11 candidates + a precondition, each with mechanism,
   expected effect, carrying flag/artifact, dated source, and a pre-registered interleaved A/B); the
-  lane README now lists them under §"Upgrade candidates". Only three can run on the `.34`/`.35` pair:
-  the **P0 GPU clock-latch audit** (host check first — a latched SM recovered 41 -> 77 tok/s on a
-  GB10), the **TensorFold v0.6 engine bump** (prefill-heavy, unquantified), and client-side
-  **`reasoning_effort: high`** (0.55-0.8x reasoning cost at equal reported quality). The TP=4-only
+  lane README now lists them under §"Upgrade candidates". Two can still run on the `.34`/`.35`
+  pair: the **TensorFold v0.6 engine bump** (prefill-heavy, unquantified) and client-side
+  **`reasoning_effort: high`** (0.55-0.8x reasoning cost at equal reported quality). The **P0 GPU
+  clock-latch audit is closed negative** (2026-10-19: both nodes idle at 208 MHz, but ramp to
+  2171-2190 MHz under load against a 3003 MHz max, with SW Power Cap the only active throttle
+  reason — no latch; receipt `~/benchmarks/ds4-p0-clock-20261019/`). The TP=4-only
   eight stay upgrade candidates while `.30`-`.33` are frozen. Re-derive any win with its own receipt
   under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
   baseline these A/B plans assume". *(effort: medium)*

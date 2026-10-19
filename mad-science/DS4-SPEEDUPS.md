@@ -87,6 +87,17 @@ zero cost. If either sits low, power-cycle that node and re-run the same ladder;
 “clocks at max and throughput unchanged”, and the confirmer is “clocks low, throughput rises
 after the cycle with no code change”.
 
+### P0 result (2026-10-19) — no latch on the pair; closed negative
+
+Probed `.34` and `.35`: idle `clocks.sm` reads 208 MHz (normal idle state, not evidence either
+way), but under a 60 s bf16 matmul load both ramp to **2171-2190 MHz** against `clocks.max.sm` =
+3003 MHz, with `clocks_throttle_reasons.active = 0x4` (**SW Power Cap**, no HW slowdown). That is
+the pair's documented ~2200 MHz operating point, not a latched-low clock. A first `.35` attempt
+produced no kernel load (container cold start outran the timeout) and was discarded rather than
+read as a latch. **P0 is closed as a precondition and costs nothing further**; the per-ladder
+`nvidia-smi dmon` sampling stays the rule for any quoted A/B. Receipt:
+`~/benchmarks/ds4-p0-clock-20261019/REPORT.md` on the head.
+
 ---
 
 ## 1. Single-slot prefill admission — `--min-free-slots-delay 1` (scheduler; TP=4)
