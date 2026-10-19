@@ -1,4 +1,4 @@
-"""Guards for the nine explore arms added 2026-10-18.
+"""Guards for the eight explore arms added 2026-10-18.
 
 Each arm is pinned by content identity, and each invariant below is silent when
 broken:
@@ -60,7 +60,6 @@ ARMS = (
     "kolibri-1-apex-q4k-llamacpp.yaml",
     "kolibri-1-apex-24bpw-llamacpp.yaml",
     "mistral-small-4-119b-nvfp4-vllm.yaml",
-    "nemotron-3-super-120b-a12b-nvfp4-vllm.yaml",
     "poolside-laguna-m1-nvfp4-vllm-tp2.yaml",
 )
 
@@ -234,9 +233,9 @@ def kolibri_engine_violations(items) -> list[str]:
 
 
 class LaneArms(unittest.TestCase):
-    """The nine arms are present and each parses to the shape the guards need."""
+    """The eight arms are present and each parses to the shape the guards need."""
 
-    def test_lane_has_the_nine_arms(self):
+    def test_lane_has_the_eight_arms(self):
         for name in ARMS:
             self.assertTrue((EXPLORE / name).is_file(), name)
 

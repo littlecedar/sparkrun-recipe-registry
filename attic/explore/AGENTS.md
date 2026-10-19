@@ -508,6 +508,50 @@ rather than blocked.
 - Receipts: `~/benchmarks/ltx25-20261014/` on the head (four MP4s, server log, `mem.tsv`, decoded
   frame, API prompt, `RESULTS.md` naming every command). Details: [`LTX-25.md`](LTX-25.md).
 
+### LTX-2.5 — the three unrun cells + the expander defects (2026-10-18)
+
+Filled the 2026-10-14 runbook's open cells on `.34` (clock cap 2200 MHz, seeds 42 then 44 — a
+same-seed rerun is fully cached at 0.01 s, so the second seed is the first non-cached rep). Receipt
+`~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`,
+`receipts{,_warm}/{server.log,mem.tsv}`, and the fixed runner scripts `expand2.py` / `run_cell2.py`).
+
+- **T2V warm 78.1 s / 83.70 GiB** — **−2.5 %** on the recorded 80.1 s (same cell, same cap). Stage
+  split 11.6 s @ 1.45 s/it → 20.9 s @ 6.94 s/it → 43.5 s decode+mux.
+- **I2V 84.3 s (+7.9 %) / 83.79 GiB**; frame 0 vs the start image MAD **4.1**, so the guide is applied.
+- **FLF2V 120.2 s (+54 %) / 81.94 GiB**, and slower **by design**: that template has no
+  `LTXVLatentUpsampler`, so the guides ride one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768)
+  instead of half-res 8-step + 3-step refine. Guides verified by MAD: frame 0 7.8 vs start / 59.5 vs
+  end; frame 120 16.9 vs end / 59.1 vs start.
+- **4K/50 (3840×2160, 249 f) is OOM — measured.** Stage 1 completed (8/8, 461.3 s @ 57.7 s/it), the
+  process died at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines, unified pool peak
+  **121.16 of 121 GiB**, no output. Not co-tenancy: weights-only baseline 78.4 GiB, 85.0 GiB steady in
+  stage 1, `free` showed 4 GiB used just after. The node stayed up — a process kill, not a node loss.
+  **Do not re-run this preset expecting a different result**; a smaller 4K cell is a different
+  question.
+- **Cold rep 204.3 s is an upper bound**, not a clean cold number: it overlapped a peer's sglang serve
+  on `.34`. It decodes to the same frame hash as the resident-model seed-42 rep.
+
+**The runbook's `expand_subgraph.py` is T2V-only.** Four defects had to be fixed before I2V/FLF2V
+would validate — the fixed scripts are `expand2.py` / `run_cell2.py` in the receipt (the repo copy is
+untouched):
+
+1. **Subgraph widget alignment.** `widgets_values` on the subgraph instance consumes a value only for
+   *widget-typed* slots; IMAGE/LATENT slots are links. The runbook's `iws[idx]` over all slots is
+   silently right on T2V (every slot is a widget) and shifts every model path by one on I2V/FLF2V —
+   the VAE name lands in the UNET loader.
+2. **`ResizeImageMaskNode` dynamic combo.** `resize_type` spawns per-option sub-inputs
+   (`resize_type.width/height/crop`); headless expansion turns those into garbage (`resize_type:
+   1536`, `scale_method: 360`) and the node raises `missing 1 required positional argument:
+   'resize_type'`. Pin `scale dimensions` at the cell size, `crop: center`, `scale_method: lanczos`.
+3. **The prompt-enhancer branch is gated by `ComfySwitchNode.switch` → `PrimitiveBoolean`**, not a
+   `value` input. Alias `on_true = on_false` and garbage-collect everything unreachable from
+   `SaveVideo`, or validation fails on `gemma4_e2b_it_int8_convrot` (not downloaded) and on
+   `TextGenerateLTX2Prompt.sampling_mode.*` (nested widget groups do not survive expansion).
+4. **Sizing trap (cost two 410 s runs).** The latent width/height are `ComfyMathExpression "a/2"` over
+   the width/height primitives. A literal on `EmptyLTXVLatentVideo` bypasses the halving: stage 1 runs
+   at full res and stage 2 at 2688×1536. Set the primitive behind the `/2`; the mis-sized frames in
+   `~/ComfyUI/output/bad_oversize/` are **not** measurements.
+
 ### Mellum2.1-12B-A2.5B-Thinking — boot-verified 2026-10-15
 
 - **Owner-added, outside the ranking**: the `JetBrains/mellum21` collection was added to this lane

@@ -476,10 +476,44 @@ llama.cpp · **1 node (TP=1)** · **the registry's first `runtime: llama-cpp` ar
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) ships as a
 **runbook, not a recipe** — the runtime is ComfyUI (no `sglang`/vLLM engine) and the repo is `gated: auto`
 (a per-node `HF_TOKEN` + accepted terms is a prerequisite sparkrun cannot assume). See
-[`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md). Weights ≈36.9 GB; two-stage T2V (8-step @
-672×384 → upscale → 3-step refine @ 1344×768, 121 frames + audio): cold 90–100 s, warm 80 s, peak
-83.6 GiB. License `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity
-threshold). Lane notes: [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md).
+[`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md). Weights ≈36.9 GB; T2V/I2V run the two-stage
+shape (8-step @ 672×384 → `LTXVLatentUpsampler` ×2 → 3-step refine @ 1344×768); license
+`ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity threshold).
+Lane notes: [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md).
+
+**Cells measured 2026-10-18** on `.34` (clock cap 2200 MHz; seeds 42 then 44 — a same-seed rerun is
+fully cached at 0.01 s, so the second seed is the first non-cached rep). 1344×768 / 121 frames / 24 fps
+unless noted. Receipt `~/benchmarks/ltx25-20261018/REPORT.md`.
+
+| cell | template | warm s/clip | peak GiB | what the output actually decodes to |
+|---|---|---|---|---|
+| T2V control | `video_ltx2_5_t2v.json` | **78.1** | 83.70 | h264 1344×768, 121 frames, 5.0417 s + AAC 5.010 s; frame at t=1.0 s decodes to a PNG (`4da91f2a…`) |
+| I2V | `video_ltx2_5_i2v.json` | **84.3** (**+7.9 %**) | 83.79 | same container; frame 0 vs the start image MAD **4.1** (0–255) → the guide is applied, not merely "it decoded" |
+| FLF2V | `video_ltx2_5_flf2v.json` | **120.2** (**+54 %**) | 81.94 | same container; frame 0 MAD **7.8** vs start / 59.5 vs end, frame 120 MAD **16.9** vs end / 59.1 vs start → both guides land |
+| 4K / 50 fps | `video_ltx2_5_t2v.json`, 3840×2160, 249 f | **OOM** | **121.16 of 121** | **no output** — killed at the ×2 latent upscale |
+
+- **The T2V baseline is 78.1 s, not the recorded 80.1 s** — same cell, same cap, resident weights:
+  **−2.5 %** on the 2026-10-14 `.35` figure, so 78.1 is the number to compare against.
+- **FLF2V is slower by mechanism, not regression:** that template has no `LTXVLatentUpsampler`, so the
+  guides ride one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) instead of half-res 8-step +
+  3-step refine — ~1.5× the T2V wall for the same output size.
+- **4K/50 is a measured ceiling, not an untried preset:** stage 1 completed (8/8, 461.3 s @ 57.7 s/it
+  at the 1920×1080 latent, 249 f) and the process died right after `Requested to load LatentUpsampler`
+  with 590 `NV_ERR_NO_MEMORY` kernel lines, at **121.16 GiB of 121** (85.0 GiB steady in stage 1,
+  weights-only baseline 78.4 → not a two-tenant artifact). The node stayed up: a process kill, not a
+  node loss. 3840×2160×249 does not fit one GB10 with this template.
+- **Cold rep = 204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first
+  sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). It decodes to the same frame hash
+  as the resident-model seed-42 rep — content is seed-deterministic, the h264 mux is not.
+
+**Not shipped — [`nemotron-3-super-120b-a12b-nvfp4-vllm`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) (archived 2026-10-18).** Booted and measured, but
+**no lane slot**: house **37/37** and the lane's only measured single-node **262,144** window (7,659,632-token
+KV pool, 29.22× concurrency, depth-free decode), yet C1 **15.83 ± 0.19 t/s** is 45 % below the already-rejected
+Mistral-Small-4 (28.9) and 66 % below Kolibri-1 (47.3), and batching cannot close it (1.93× for 10×). The
+recipe **never booted as authored** — `--swap-space 0` is unrecognized in vLLM 0.29.0, and under
+`readiness.inference: false` that abort presents as a hang. True size **123.6B total / ≈12.2B active**; the
+Hub's 67.2B counts packed NVFP4 expert bytes as parameters. Recipe archived frozen; receipt
+`~/benchmarks/nemotron-120b-20261018/REPORT.md`.
 
 ## Attic index
 
@@ -496,3 +530,4 @@ state, measured histories, selection receipts, serving traps, and the candidate 
 | [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | Manifest of the archived (measured-but-not-selected) Explore recipes with the selection ranking and the archive criterion/policy. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | Archived recipe — a variant of the 262k arm testing the card's 1M-context claim at util 0.91. Frozen provenance — do not retune. |
+| [`nemotron-3-super-120b-a12b-nvfp4-vllm.yaml`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) | Archived recipe — the 123.6B/12.2B-active NVFP4 trial: house 37/37 and a unique one-node 262k window, but 15.9 t/s C1 (below the rejected Mistral-Small-4). Boots only after deleting `--swap-space 0` (unrecognized in vLLM 0.29.0). Frozen provenance — do not retune. |
