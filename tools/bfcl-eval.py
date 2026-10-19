@@ -640,10 +640,10 @@ def post_json(url: str, body: dict, api_key=None, timeout=600) -> dict:
 def api_root(base_url: str) -> str:
     """The server root, given either `http://host:port` or `http://host:port/v1`.
 
-    eval-suite.py hands this tool its `/v1` base while a direct invocation hands
-    it the root; appending `/v1/...` to the first form built `/v1/v1/models`,
-    which every engine 404s, and the suite's tools leg was therefore never
-    exercised (the missing-`--bfcl-data-dir` skip hid it).
+    The documented convention is the root, and a direct invocation passes the
+    root. Tolerating the `/v1` spelling too keeps a caller that follows the lane
+    docs from silently requesting `/v1/v1/models`; it is a convenience, not a
+    repair of a defect - the 404 that surfaced it came from passing `/v1`.
     """
     root = base_url.rstrip("/")
     return root[:-3] if root.endswith("/v1") else root

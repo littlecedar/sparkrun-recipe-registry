@@ -159,10 +159,11 @@ def http_json(url: str, payload=None, timeout: float = 120.0):
 def api_root(endpoint: str) -> str:
     """The server root from either `http://host:port` or `http://host:port/v1`.
 
-    The suite's own checks append `/v1/...`, while several external instruments
-    accept either spelling.  Normalising once here is what makes `--base-url
-    http://host:port/v1` work for every check; without it the contract check
-    requested `/v1/v1/models` and 404'd.
+    The documented convention for `--base-url` is the endpoint root, and the
+    suite's own checks append `/v1/...` to it. The external instruments differ
+    (needle accepts either, quality-battery builds its own `/v1/...`), so
+    normalising once here makes both spellings work instead of leaving the
+    caller to remember which check tolerates which.
     """
     base = endpoint.rstrip("/")
     return base[:-3] if base.endswith("/v1") else base
