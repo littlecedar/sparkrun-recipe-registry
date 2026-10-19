@@ -634,6 +634,13 @@ python3 tools/gate-37111.py --depth-tokens 8192 --turns 3
 python3 tools/gate-37111.py --selftest     # offline, in-process mock, ~2 s
 ```
 
+**`--thinking` off is explicit** (since 2026-10-19, `9eee3a2`): every request carries
+`chat_template_kwargs.enable_thinking` as a boolean. It has to — the flag used to omit the kwarg, and a
+thinking-by-default template (Qwen3.8-Flash-Next) then spent the whole essay budget inside the think
+block and returned `content: ""` with `finish_reason: length`, which the detectors report as
+degeneration plus truncation. A thinking arm needs `--thinking` *and* a larger `--essay-max-tokens`
+(2048 is not enough here; 8192 was not either); a non-thinking arm is unaffected.
+
 **Three failure modes, three detectors.** (1) *Repetition / `!!!!` collapse*, the signature
 both reports describe: a reply is flagged if it is empty, shorter than 40 chars, more than
 30 % punctuation, contains a ≤20-char fragment repeated 6+ times, or — for replies of 40+
