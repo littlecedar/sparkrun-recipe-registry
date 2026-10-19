@@ -24,6 +24,27 @@ tree proves nothing.
 
 ## 2. Check what validate cannot see
 
+Schema rules as of sparkrun 0.4.0-alpha+g29f53fb (the installed build; the full 41-key reference is
+`recipes/MECHANICS.md`):
+
+- A `defaults:` value reaches the engine only through a `{placeholder}` in `command:` (or in another
+  default, or `env:`), a runtime flag map / `BASE_CONSUMED_CONFIG_KEYS` key, or an internal
+  (`_`-prefixed) / `overrides[].when.config` key. Anything else is dropped silently;
+  `unmapped-config-key` is only a warning (`core/launcher.py:814-899`).
+- An unknown **top-level** key is worse than a dead default: it is swept into `runtime_config`
+  (`core/recipe.py:1264-1270`) and only a by-name consumer reads it. `recipe validate` gives
+  `misplaced-config-key` (warning) when the runtime would have understood it under `defaults:`, else
+  `unknown-top-level-key` (suggestion) — both easy to miss (`core/validation.py:1176-1272`).
+- `name:` is ignored: the name is the filename stem (`core/recipe.py:1174-1175`), and declaring the
+  key draws a deprecation warning (`core/validation.py:1512-1525`). `description:` must be top-level —
+  `recipe list` and `recipe search` read only that form, so a nested one lists as empty
+  (`core/recipe.py:2744`); `maintainer:` is metadata-only (`core/recipe.py:1261-1262`).
+- `recipe_version` defaults to `"2"` (`core/recipe.py:1165`). `mode`, `solo_only`, and `cluster_only`
+  are deprecated v1 topology spellings; use `min_nodes` / `max_nodes`
+  (`core/validation.py:1371-1385`).
+- `capabilities:` / `unsupported_capabilities:` are gateway declarations and are deliberately outside
+  the workload fingerprint (`core/recipe.py:1272-1284`); editing them does not change identity.
+
 `sparkrun recipe validate` passes on:
 
 - a `{placeholder}` whose `defaults:` key was deleted — it renders as the literal
@@ -43,15 +64,42 @@ stages a template for sglang's `--chat-template`, which accepts a file path).
 
 ## 4. Custom command templates on vLLM
 
-sparkrun's vLLM runtime rewrites the model argument to the declared repo id and strips
-`--revision` from templates, then its own validator demands a path or a revision token.
-Only the equals form survives:
+0.4.0 changed what `{model}` means. On a launch with a prepared model, `bind_runtime_models` sets the
+operation-local override `model` to the prepared in-container snapshot path
+(`models/runtime.py:45-46`), so a template renders the **path**, not the repo id. `--revision` is no
+longer stripped, and `{model_revision}` resolves to the prepared revision because operation overrides
+outrank `defaults` in the chain (`models/runtime.py:40`; `core/recipe.py:1532-1538`). The pre-0.4 note
+this section used to carry described the opposite behaviour; do not debug from memory of it.
+
+`validate_runtime_command` (`models/runtime.py:80-99`) accepts a templated command that either:
+
+- names the prepared path as a token, or as `--flag=<path>`, or
+- names the declared repo id as a token **and** passes a revision flag with the prepared revision,
+  space- or `=`-separated.
+
+So both shapes boot:
 
 ```yaml
+model_revision: <sha>
 command: >
-  vllm serve <repo-id>
-  --revision=<prepared-sha>
+  vllm serve {model}
+  --served-model-name {served_model_name}
 ```
+
+```yaml
+model_revision: <sha>
+command: >
+  vllm serve /cache/huggingface/hub/models--<org>--<name>/snapshots/<sha>
+  --served-model-name <org>/<name>
+  --revision=<sha>
+```
+
+The literal form must match the prepared path byte-for-byte; the repo guard
+`LiteralShaConsistency` also requires every 40-hex token in the command to equal `model_revision`.
+`serve command does not consume the validated model` now fires only when neither clause matches.
+
+A dry run may still show the repo id, because bindings exist only when a prepared model is present;
+the acceptance check remains a live `GET /v1/models`.
 
 Check the flag surface of a pinned image without a GPU:
 `docker run --rm --entrypoint bash -v script.sh:/s:ro <img> /s` — arg parsers need a
