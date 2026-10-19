@@ -143,6 +143,12 @@ Selection priorities:
 - Memory footprint (lower is better)
 - *(Owner decision 2026-10-11: this weighting is confirmed; attic moves only if warranted, folded into each lane's quality/selection pass — no global end-of-session sweep.)*
 
+**In flight (2026-10-19 09:30 ET).** Three no-boot register items are dispatched in parallel to
+subagents and land as separate gated commits: schema docs for sparkrun 0.4.0 (§"Recipe schema &
+documentation"), the ds4 deep web search, and the explore keeper sweep. The tree is mid-edit while
+they run — their register items stay open until each commit lands. `.34`/`.35` remain idle; no boot
+work runs concurrently with them.
+
 ## ds4
 DeepSeek V4.1
 *(The v2.4 serve line is settled and carries no runnable work: with
@@ -151,20 +157,16 @@ unrun cell, an interleaved C1 re-take on the shipped line, needs `.30`–`.33` a
 deferred**, by the 19:15 policy above. Measurement, launcher pins and the correction to the earlier
 "slower on every cell" reading are archived in `../attic/DONE.md`.)*
 
-- [ ] **Deep web search for unexplored DeepSeek-V4.1-Flash-1017 speedups on GB10** *(Owner directive
-  2026-10-19.)* — survey what the lane has not tried: upstream SGLang/vLLM release notes and PRs that
-  touch Blackwell/sm_121 (attention and MLA kernels, MoE GEMM paths, graph capture, DCP/DP),
-  FlashInfer/CUTLASS/DeepGEMM/DeepEP builds and their GB10 support, NVFP4/FP8/EXL3 releases of the
-  1017 base, MTP/DSpark/spec-decode work, prefix-cache and scheduler features, CUDA 13.x image
-  builds, and any published DeepSeek-V4.1 tuning or DGX Spark benchmark. Deliverable: a shortlist
-  where each candidate names the mechanism, the expected effect, the flag or artifact that carries
-  it, and a same-boot A/B plan the `.34`/`.35` pair can actually run — the TensorFold TP=2 arm is the
-  runnable shape, plus one-node probes; a TP=4-only find is written into `recipes/ds4/README.md` as
-  an upgrade candidate, not queued as a boot (the 19:15 policy froze `.30`–`.33`). Exclude the knobs
-  the lane already measured
-  (`--prefill-decode-interval`, `--swa-prefix-tails`, `DSV41_FAST_LOAD`, the DSpark block size, the
-  KV/token pins; `recipes/ds4/README.md` §(b)–(d) and the launcher-knob bullets), and re-derive any
-  claimed win with its own receipt under `~/benchmarks/`. *(effort: medium)*
+- [ ] **Run the now-runnable arms of the deep-search shortlist** *(delivered 2026-10-19.)* — the
+  ranked note is `mad-science/DS4-SPEEDUPS.md` (11 candidates + a precondition, each with mechanism,
+  expected effect, carrying flag/artifact, dated source, and a pre-registered interleaved A/B); the
+  lane README now lists them under §"Upgrade candidates". Only three can run on the `.34`/`.35` pair:
+  the **P0 GPU clock-latch audit** (host check first — a latched SM recovered 41 -> 77 tok/s on a
+  GB10), the **TensorFold v0.6 engine bump** (prefill-heavy, unquantified), and client-side
+  **`reasoning_effort: high`** (0.55-0.8x reasoning cost at equal reported quality). The TP=4-only
+  eight stay upgrade candidates while `.30`-`.33` are frozen. Re-derive any win with its own receipt
+  under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
+  baseline these A/B plans assume". *(effort: medium)*
 
 ## glm5
 GLM 5.3
@@ -223,7 +225,13 @@ Any decision model
 - [ ] **Build the named decision candidates** — `Decision-2.0-Nox-4B` (best-scoring 4B, never booted), `laya` (CPU-real, zero-GPU), `kev-0.8b`, `GLiNER2.5-Decide`, `d3-edge`, `JEV-27B`, and the Sol-2B GGUF/llama.cpp CPU path (avoids the vllm-srun kill-shim workaround) (`attic/decision/DECISION-MODELS-RESEARCH.md`). *(effort: medium)*
   *(progress 2026-10-18 — `laya` is built, scored and ladded; the item stays open for four (`Nox-4B`, `GLiNER2.5-Decide`, `JEV-27B`, the Sol-2B GGUF path). **Decision accuracy 36.1 % (723/2000)**, KL 0.576 / Brier 0.316 / ECE 0.175, p50 4.29 s per request on 5 A725 cores (CPU-only, 1.6 GiB of the unified pool) — the vendor's near-chance expectation (0.362 zero-shot against a 0.461 majority baseline; the card's 0.766 belongs to the separate `laya-typed-decisions` checkpoint). The shipped recipe did not launch (`serve command does not identify the validated model`: the snapshot path reached the guard as `<path>)` inside a `printf` substitution); it now exports `LAYA_MODEL_PATH='{model}'` and builds the JSON from that variable, with a guard test (`test_model_path_is_a_whole_token_or_key_value`). Ladder **c1 0.449 req/s / 2.25 decisions/s**, c2 0.447 / 2.24 at doubled p50 — `/v1/systemone` is serial and does not batch. Receipt `~/benchmarks/decision-arms-20261018/`. `kev-0.8b` and `d3-edge` were booted in the next window — results below.)*
   *(closed sub-item 2026-10-18 — `kev-0.8b` is built and measured; `d3-edge` is closed as not bootable here. Receipt `~/benchmarks/decision-arms2-20261018/` (`REPORT.md`, `logs/`, `kev-evidence/`, `d3-evidence/`); lane record in `recipes/decision/README.md` §kev-0.8b-decision-serve and §d3-edge-decision-vllm-srun. **kev: Decision accuracy 46.0 % (919/2000)**, ★, KL 0.349 / Brier 0.196 / ECE 0.046, 0 decision errors, p50 5403.4 ms per request; per type noul 52.5 / choice 50.5 / score 37.6, per workflow customer_service 55.0 → agent_trace_observability 34.6; ladder c1 0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 — +9.9 pts over laya on the same 400 cases, at 1.9× laya's per-case latency. The serve is healthy but **the launch gate can never pass**: sparkrun's startup probe requires HTTP 200 on `/health` (`startup_probe.py:246-265`) and kev has no such route (404 forever), `readiness.inference: false` skips only the inference stage, and `health_path` is runtime-owned (`_vllm_common.py:24` → `/health`), so the score was taken against the detached container. **d3-edge: not booted** — (1) as shipped `/health` 503 `OfflineModeIsEnabled`, because sparkrun stages with `HF_HUB_OFFLINE=1` while the decision3 loader resolves through the Hub tree API even with `--cache-dir` pointed at the staged snapshot; (2) with `-e HF_HUB_OFFLINE=0` it loads 594,582,720 params then fails the golden gate: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`, deltas confidence 3.70e-3 / P0 2.15e-3 / P1 2.22e-3 / score 2.09e-3 / noul 3.83e-3 / domain 8.8e-5 against `CPU_TOLERANCE = 1e-3`, identical across 5 attempts — so no score and no ladder. Both fixes are image-side (an aarch64-recorded CPU reference or a per-ISA tolerance; an offline-capable decision3 loader), not recipe edits.)*
-- [ ] **Build the TTS fourth co-tenant** (Kokoro-82M, 0.305 GiB on the A725 cores) — the co-location budget is quoted net of it, but it was never built (`attic/decision/DECISION-MODELS-RESEARCH.md`). *(effort: medium)*
+- [ ] **Boot-verify the TTS fourth co-tenant** (Kokoro-82M, 0.305 GiB on the A725 cores) — the
+  recipe **ships** (`recipes/decision/kokoro-82m-tts-cpu.yaml`, tracked since `025ca2a`: digest-pinned
+  image, `readiness` block, `distribution_config`, taskset command), so the co-location budget's
+  fourth slot is authored but has **no boot receipt** — the register's "never built" label was
+  stale. Remaining work: one CPU boot, a wav that decodes and plays, and a real-time-factor
+  measurement on the A725 cores, then the co-location arithmetic can count it
+  (`attic/decision/DECISION-MODELS-RESEARCH.md`). *(effort: short)*
 
 ## explore
 Any model with reasoning and tool-calling capabilities

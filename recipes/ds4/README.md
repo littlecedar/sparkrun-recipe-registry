@@ -448,6 +448,32 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 - Vision rides the launcher's `--vision` flag (this recipe passes it, with the 43-gate
   bias shipped in the mod); see the vision knob above.
 
+## Upgrade candidates (measured elsewhere, not queued)
+
+A 2026-10-19 search of upstream SGLang / FlashInfer / DeepGEMM / DeepEP work, DeepSeek-V4.1 PRs, and
+published GB10 numbers produced a ranked shortlist in
+[`../../mad-science/DS4-SPEEDUPS.md`](../../mad-science/DS4-SPEEDUPS.md) — mechanism, expected effect,
+the exact flag or artifact, a dated primary source, and a pre-registered interleaved A/B per
+candidate. None of it is measured on this lane, and none of it is a recipe change:
+
+- **Runnable on the `.34`/`.35` pair now** — (P0) the GPU clock-latch audit, a host check that
+  recovered a GB10 stuck below 1 GHz from 41 to 77 tok/s and should precede any A/B; (4) the
+  TensorFold v0.6 engine bump, prefill-heavy and unquantified; (6) client-side
+  `reasoning_effort: high` instead of max, 0.55–0.8x reasoning cost at equal reported quality.
+- **TP=4-only, upgrade candidates for `.30`–`.33`** (frozen by the 2026-10-18 owner policy) —
+  `--min-free-slots-delay 1` (+21 % C8 decode on 4xGB10), prefix-cache truth via
+  `--enable-cache-report` / `lpm`, candidate-only indexer scoring (upstream #43401), TRT-LLM sparse
+  MLA (`--dsv4-attn-backend trtllm`, 2.26x kernel geomean on GB10), a newer SGLang tree on CUDA 13.3,
+  encoder SWA bounded replay, DSpark compact verify (#42718), and a 1017 NVFP4 W4A4 checkpoint.
+  DCP2 is blocked upstream (the DCP x DSpark allowlist is Kimi Linear only).
+- **Checked and rejected** — the SM100-only low-latency chain, mHC split-K, the verify-cap sweep,
+  L2 sub-gates, the FP4-indexer flag, locked clocks, 1,024-token chunks,
+  `--num-continuous-decode-steps`, HiCache/offload and EP>1; reasons per row in the note.
+
+The shortlist's A/B rules are this lane's own (§12.16): alternate arms A/B/A/B, `--fresh` on every
+bench call, assert `/v1/models` per boot, pre-register the target cell and falsifier, three boots per
+arm for anything quoted, and hold the shipped pool/pin constant across arms.
+
 ## Quality benchmarks
 
 `recipes/ds4/benchmarks/` holds the quality comparison of the two live cluster

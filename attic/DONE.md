@@ -550,3 +550,28 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   re-take and the GLM 1M arm). It is archived rather than carried because it cannot run without that
   window, and the lane README still documents the 397B arm and its structural confound. Re-file only
   if `.30`–`.33` return to registry work.)*
+
+# 2026-10-19 (ds4 search) — closed
+
+## ds4
+- [ ] **Deep web search for unexplored DeepSeek-V4.1-Flash-1017 speedups on GB10** *(Owner directive
+  2026-10-19.)* — survey what the lane has not tried: upstream SGLang/vLLM release notes and PRs that
+  touch Blackwell/sm_121 (attention and MLA kernels, MoE GEMM paths, graph capture, DCP/DP),
+  FlashInfer/CUTLASS/DeepGEMM/DeepEP builds and their GB10 support, NVFP4/FP8/EXL3 releases of the
+  1017 base, MTP/DSpark/spec-decode work, prefix-cache and scheduler features, CUDA 13.x image
+  builds, and any published DeepSeek-V4.1 tuning or DGX Spark benchmark. Deliverable: a shortlist
+  where each candidate names the mechanism, the expected effect, the flag or artifact that carries
+  it, and a same-boot A/B plan the `.34`/`.35` pair can actually run — the TensorFold TP=2 arm is the
+  runnable shape, plus one-node probes; a TP=4-only find is written into `recipes/ds4/README.md` as
+  an upgrade candidate, not queued as a boot (the 19:15 policy froze `.30`–`.33`). Exclude the knobs
+  the lane already measured
+  (`--prefill-decode-interval`, `--swa-prefix-tails`, `DSV41_FAST_LOAD`, the DSpark block size, the
+  KV/token pins; `recipes/ds4/README.md` §(b)–(d) and the launcher-knob bullets), and re-derive any
+  claimed win with its own receipt under `~/benchmarks/`. *(effort: medium)*
+  *(**CLOSED 2026-10-19 — the shortlist is delivered.** `mad-science/DS4-SPEEDUPS.md` (631 lines,
+  34 dated primary sources, 15 explicit UNVERIFIED markers) ranks 11 candidates plus a precondition,
+  each with mechanism, expected effect, the carrying flag/artifact, a GB10 evidence label, and a
+  pre-registered interleaved A/B with a falsifier. The lane README now carries the upgrade-candidate
+  section. No boot was run — the item's deliverable was the plan, not the measurement — and the
+  eight TP=4-only findings are recorded as upgrade candidates per the 19:15 policy. The runnable
+  subset (clock audit, TensorFold v0.6, `reasoning_effort`) is queued as its own item.)*
