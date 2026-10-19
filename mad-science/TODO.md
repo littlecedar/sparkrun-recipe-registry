@@ -25,35 +25,21 @@ the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.
 (2026-10-15, answered the same day) is `git show 043fbae:mad-science/TODO.md`; the #36–#42 register
 (2026-10-17, answered the same day) is the pre-fold state `git show ebb7e80:mad-science/TODO.md`.
 
-- **#43 — The superseded `deepseek-ai/DeepSeek-V4.1-Flash` base (510.3 GB, head cache) — reclaim or keep?**
-  Nothing shipped serves it: both ds4 arms moved to the `-1017` refresh and both Engram builders default
-  to `-1017`. But `tools/build-dsv41-combined.py` and the unmounted `dsv41-engram-fetch` mod still name
-  it, so a future combined-pack build would re-fetch 510 GB. The head sits at ~300 GiB free after today's
-  263 GiB reclaim; taking this puts it at ~783 GiB. → Answer:
+*(Answered 2026-10-19 — no open questions. The three asks are folded into the work items they
+govern, per the protocol; the verbatim asks remain in git.)*
 
-- **#44 — Unblock `qwen3.8-flash-next-uncensored` on vLLM: image bump, model-code mod, or leave it
-  as a documented negative?** The vLLM route now has a measured blocker, not a missing one
-  (2026-10-19, two launches): the pinned image's `qwen4_exp` model maps `qkv_proj` onto four shards
-  including the bf16 `indexer.index_qk_proj`, while the export keeps that indexer unquantized, so
-  compressed-tensors refuses the mixed fused linear (`should_ignore_layer`). `--enable-lora` — the
-  model's own intended escape — does not reach the quantizer. Options: **(a)** bump the vLLM image
-  to a build whose mapping excludes ignored shards (affects every vLLM lane, and it is an engine
-  change); **(b)** approve a lane-local model-code mod that forces the three-shard mapping inside
-  the pinned image (narrow, but a fork behaviour we would own); **(c)** leave the arm as a
-  documented negative until upstream fixes it, which is what the lane records today. →
-  Answer:
-
-- **#45 — Reclaim the attic-only weight caches to unblock two-node arms?** The head's root
-  filesystem hit **100 % (1.7 GB free)** during the Laguna-M.1 TP=2 distribution (it stages on the
-  head first) and the launch died at 92.1 of 129.75 GiB with `ENOSPC`; the partial repo was removed
-  (`hf cache rm`, freed 97.2 GB) and the head now sits at **93 GB free**, still short of the ~130 GiB
-  a retry needs. Every repo below is referenced by **attic only** after today's explore sweep and by
-  no shipped recipe or mod: Laguna-S 2.1 (93 GB), humanizer (82 GB), Nemotron-3-Super-120B (75 GB),
-  Mistral-Small-4 (66 GB), two Kolibri packs (43 + 43 GB) — **~402 GB** total. Nothing here is
-  load-bearing: the 476 GB `DeepSeek-V4.1-Flash-1017` base and both GLM EXL3 packs are named by
-  shipped arms and are excluded. Approve pruning? (a) prune all six, (b) prune only what a two-node
-  retry needs, (c) keep them and give the head more space some other way. →
-  Answer:
+- **#43 — superseded `deepseek-ai/DeepSeek-V4.1-Flash` base.** *Owner decision 2026-10-19: reclaim.*
+  It is already absent from the head cache (only the load-bearing `-1017` base and a 5.4 MB
+  `V4-Flash-0731` remain), so the answer is satisfied and the 510.3 GB line is retired from the
+  register.
+- **#44 — unblock `qwen3.8-flash-next-uncensored` on vLLM.** *Owner decision 2026-10-19: bump the
+  image.* The lane's next step is to identify a vLLM build whose compressed-tensors mapping excludes
+  ignored shards (or whose qwen4_exp model applies the three-shard mapping before `get_quant_config`),
+  validate it against the two shipped vLLM lanes first, then re-boot this arm.
+- **#45 — prune the attic-only weight caches.** *Owner decision 2026-10-19: prune all six.* Done the
+  same day: 430 GB freed (Laguna-S 99.7 + humanizer 87.6 + Nemotron 80.4 + Mistral 70.8 + two
+  Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
+  GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
 
 # TODO list
 
@@ -85,6 +71,13 @@ node; at most one TP=2 job on the `.34`/`.35` pair and at most one TP=4 job on `
 `sparkrun` call runs from the head with `--transfer-mode local`, and the registry clone is refreshed first.
 *(This supersedes the [#42] deferral written earlier the same day — no TP=4 window — which the release
 lifted; the TP=4 lane items below are in scope again.)*
+**Node discipline (Owner directive 2026-10-19).** Both test nodes are kept busy: the pair
+`.34`/`.35` runs **two independent single-node lanes** (one serve per node) and collapses to one
+lane only for a TP=2 boot. When a lane frees, the next staged arm boots immediately — the tail is
+ordered cheapest-window-first in the suite item, and each lane's boot+suite commands are prepared
+before the previous leg ends. Current occupancy is recorded in the session record; the pair's
+node-hours are the binding cost, so an idle node is the defect.
+
 **Resourcing (2026-10-19).** **Sessions are unlimited** *(Owner decision 2026-10-19)*: agent runs are
 no longer bounded by a session window, so the register's content work can continue continuously until
 it closes. The local **DeepSeek-V4.1-Flash-1017 TP=4 serve is stable and hosts the agent sessions**
@@ -232,7 +225,8 @@ Ornith 1.5
   /tmp/sparkrun_serve.log` streamed to a host file — NOT `docker logs -f`, which on this arm yields
   only the 523-byte CUDA banner — while `docker events --filter event=die` preserves the exit code
   past the task-delete. Receipt `~/benchmarks/ornith-yarn-d90-20261019/`.)*
-- [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)* *(Owner approval required: the bump changes the engine image/digest, which the 2026-10-18 19:15 policy reserves for the owner.)*
+- [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)* *(Owner decision 2026-10-19: **approved** — test the bump; it changes the engine
+image/digest, so validate the other ornith arms on the new digest before shipping.)*
 
 ## qwen3
 Qwen 3.x
@@ -279,8 +273,9 @@ Any model with reasoning and tool-calling capabilities
   {model_revision}`, and the lane's identity negative control was rewritten because it depended on
   that literal). The launch then died during distribution with `No space left on device` at 92.14 of
   129.75 GiB: the head was at 100 % (1.7 GB free), so it cannot stage a 130 GiB checkpoint. The
-  partial repo was removed with `hf cache rm` (freed 97.2 GB; head now 93 GB free), nodes verified
-  clean. Retry needs ~40+ GB reclaimed — owner question `#45`. Receipt
+  partial repo was removed with `hf cache rm` (freed 97.2 GB), nodes verified clean. *Owner decision
+  2026-10-19: prune the six attic-only caches* — done, 430 GB freed, head now **493 GB free**, so the
+  retry is unblocked and is the next pair-bound boot. Receipt
   `~/benchmarks/laguna-m1-20261019/REPORT.md`.)*
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
@@ -316,7 +311,9 @@ Cybersecurity-research (red-team) abliterated / uncensored models
   tensor map), and a fused linear cannot carry two schemes. The LoRA escape is written but does not
   work — `model.py:726`/`qsa.py:508` swap the mapping after `get_quant_config` has captured it, and
   `-o extra_args="--enable-lora"` (confirmed in the engine's non-default args) fails identically.
-  Unblocking is image-side: owner question `#44`. Receipt
+  Unblocking is image-side, and *Owner decision 2026-10-19 chose the image bump*: find a vLLM build
+  whose mapping excludes ignored shards, validate it on the two shipped vLLM lanes first, then re-boot
+  this arm. Receipt
   `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`; lane note in `recipes/cybersec/README.md`.
   No index row.)*
 
