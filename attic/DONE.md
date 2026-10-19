@@ -9,6 +9,10 @@ archived here, copied verbatim — nested `*(Owner decision …)*` notes include
 A third sweep followed on 2026-10-15: that session's completed items (plus a second pass the same
 night for the overnight slices) are archived under `# 2026-10-15 sweep` below, each copied verbatim
 with a closing note where a follow-up re-measurement finished it.
+A fourth sweep followed on 2026-10-18, twice: that session's completed items are archived under
+`# 2026-10-18 sweep` and, at the owner's close-out request, the late TP>2 block (glm5, ornith, qwen4,
+ifm) under `# 2026-10-18 sweep — late`, with items that were **dropped unrun** by owner policy marked
+as such rather than as completed.
 Live planning stays in `mad-science/TODO.md`; dated session records live in
 `mad-science/SESSION-RECORD.md`.
 
@@ -432,3 +436,39 @@ carries the `#36`–`#42` decisions answered the same day.
 
 ## decision — closed 2026-10-18
 - **`convaiinnovations/laya` built, scored and ladded (sub-item of the named-candidates item, which stays open for the other six) — closed 2026-10-18.** Score `tool-eval-bench` v2.8.0 `--decision-bench-only`, same 400-case split as the ladder (cases sha256 `78a228c8…`): **Decision Accuracy 36.1 % (723/2000)**, KL 0.576, Brier 0.316, ECE 0.175, 12 confident disagreements, p50 **4290 ms** / p95 6099 ms, 0 request errors — the vendor's **near-chance expectation** (its zero-shot typed-decisions figure is 0.362 against a 0.461 majority baseline; the card's 0.766 belongs to the separate `laya-typed-decisions` checkpoint), per type noul 48.7 % / choice 28.8 % / score 32.2 %. It runs CPU-only on 5 A725 cores (`/health` `device: cpu`), 421M fp32 params, 1.6 GiB, **no GPU**; TTR port 26.392 s / HTTP 26.420 s. **The shipped recipe did not launch** — `launch_inference failed: serve command does not identify the validated model`, because the snapshot path reached sparkrun's `validate_runtime_command` as `<path>)` inside a `printf` substitution; the recipe now does `export LAYA_MODEL_PATH='{model}'` and builds the JSON from that variable, so the guard sees `LAYA_MODEL_PATH=<path>` as a whole token, with a guard test (`test_model_path_is_a_whole_token_or_key_value`, including the pre-fix shape as the negative). Provenance note: the score and ladder above were taken on the **override boot** (`--served-model-name <path>`); the edited recipe has not been re-booted. Ladder (`tools/decision-ladder.py`, 30 cases, `--runs 1`): **c1 0.449 req/s / 2.25 decisions/s**, c2 **0.447 / 2.24** at doubled p50 (2218.7 → 4462.8 ms) — `/v1/systemone` is serial and does not batch, the same shape as Kai-0.6B. `kev-0.8b` and `d3-edge` were not booted (window closed; queued, not failures). Receipt `~/benchmarks/decision-arms-20261018/` (`REPORT.md`, `reports/laya-teb-report.md`, `logs/`, `ladder-laya-c1c2.json`, `cases/`).*
+
+# 2026-10-18 sweep — late (the TP>2 close and the `.34`/`.35` block)
+
+Archived from `mad-science/TODO.md` when the session was wrapped at the owner's request, copied
+verbatim with nested notes. Every item below was measured; what each leaves unrun is named inside it
+or carried by an open item left in the register (the GLM ≥1M probe, the ornith d90 crash mechanism,
+the qwen4 accuracy question).
+
+## glm5
+- [x] **Promote the EXL3 3.0bpw full-753B lane to a recipe** — **booted and served 2026-10-18** on `.30`–`.33`
+  as `recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` on a source-built image
+  (`littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…`, pushed and pinned):
+  `/v1/models` 200 at 240 s, engine load 308.7 s, c1 **31.7 t/s** / c2 25.3 agg (14.5 per req) / c4 40.6 agg
+  (11.4 per req), 100,559-token prompt TTFT **258.4 s**, TF_GLM_KV=q5 with DCP over 4 ranks, 96.27 of
+  102.86 GiB startup estimate. Two boot blockers found and fixed: an absent `TF_TP_WORLD` (defaults to 2 →
+  `NCCL error 4 Invalid rank requested: 3/2`; now set from `--tp` in the launcher) and a wheel that shipped
+  no CUDA sources (the JIT died on `latent_rows.cu`; the Dockerfile now mirrors 25 `*.cu`/`*.cuh` onto the
+  package). Receipt `~/benchmarks/glm-3bpw-boot-20261018/` (`RECEIPT.md`, `NCCL-DEBUG.md`). *(commit `d60f53b`)*
+- [x] **Measure the EXL3 3.0bpw 1M arm** — the 1M configuration (`TF_GLM_DCP=4`, `TF_GLM_EXTENTS=1`,
+  1,048,576-token window, 1,048,584 cache slots) is what the 2026-10-18 boot ran; a 100,559-token probe
+  measured 258.4 s TTFT. A true ≥1M-token probe and four concurrent 1M windows were **never run**: the
+  four-node window closed first and the owner **dropped them unrun, not deferred** (policy, 19:15). The
+  arm's shipped envelope is therefore the 100,559-token measurement, and the mod README names the
+  unprobed claims.
+
+## ornith
+- [x] **Boot the YaRN long-context (~1M) arm and run its pre-registered needle gate** — **booted and measured 2026-10-18 on `.34`, retry included.** The arm serves (`GET /v1/models` `max_model_len` **1,000,000**, served id `ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, KV pool `max_total_num_tokens` **1,203,041** first boot / **1,202,898** retry, `max_running_requests` 48), and the gate is **5 of 6 rungs**: 262,144 control **PASS 3/3** (99.66–99.86 % fill), 512k **PASS 3/3**, 768k **PASS 3/3** (99.7–99.8 %), 1M d10 **PASS** (977,427 tok, 1,737 s), 1M d50 **PASS** (977,487 tok = 97.75 %, 1,886 s, key `3881-RAVEN`), 1M **d90 ERROR ×2** — `RemoteDisconnected` after 1,246 s (first attempt, container gone) and after 398 s (retry, log captured). **The arm ships at its measured envelope: ≤768k workloads, 1M supported to depth 50 %**; d90 caps the documented depth, not the arm, and stays unmeasured. Receipt `~/benchmarks/ornith-yarn-1m-20261018/` (`needle-1m-d50.json`, `needle-1m-d90.json`, `needle-1m-d90-retry.json`, `serve.log`, `diag-d90-retry/`; table in `recipes/ornith/README.md` §"The YaRN 1M arm" and `attic/ornith/AGENTS.md` §9.1). *(effort: medium)* *(commit `de81835`)*
+  *(Two traps cost launches here: (1) a co-tenant ComfyUI process on `.34` holding ~9.9–13.6 GiB of the unified pool starved the boot to `max_total_num_tokens` 282,227 and then 69,281 — at 69,281 the instrument's 978k prompt is refused with HTTP 400 and every 1M rung reads `TRUNCATED`, so read the grant before starting a ladder; (2) sparkrun's readiness probe killed a healthy serve ~8 s after uvicorn came up, so launch with `--no-ready-wait` and verify `/v1/models` yourself.)*
+- [x] **Run the missing 1M depth-90 % needle rung — ran; CLOSED as unmeasurable, re-scoped to a depth cap.** On a clean boot (`max_total_num_tokens` 1,202,898, `available_gpu_mem` 12.55 GB) the retry admitted the 980,633-token prompt and prefilled **43.7 %** (551,863 tokens pending, 592 t/s) when the serve process exited; `RemoteDisconnected` at 398 s against a 3,000 s timeout. Excluded by evidence: **host OOM** (`earlyoom` at 1 Hz never below 11.3 GiB available, no kill line, no `dmesg` OOM record), **driver fault** (no `Xid`/`NVRM`/Oops in that second), and **client timeout**. Named: **serve-side process exit mid-prefill**, mechanism unlogged — ~109 GiB released within 2 s, container deleted 2 s later, last serve line a normal prefill chunk. `--no-rm` did **not** preserve the container (`auto_remove: false` is recorded in the job file yet dockerd handled a task-delete), so the exit code and final stderr died with it. Re-opening needs the serve log **streamed** to the host for the whole request plus the container's exit code/`OOMKilled`, or a `docker events` capture. *(effort: short)*
+
+## qwen4
+- [x] **One-boot `--enable-linear-replayssm-spec` test** — **measured 2026-10-18 on `.34`/`.35`.** A capacity lever, not a speed one: the spec-verify's per-draft state snapshots go away (`intermediate_ssm_state_cache` **2.64 GB → 0.00 GB**) and the allocator hands it to KV — `max_total_num_tokens` **1,689,024 → 1,882,944 (+193,920 tokens, +11.5 %)** at an unchanged mamba pool 112 / `max_num_seqs` 24 / 262,144 context; decode ladder 41.99 / 71.20 / 91.86 / 105.22 t/s at k=1/2/5/10 against the shipped arm's 39.90 / 69.45 / 94.98 / 104.45 (k=10 cell n=2, cross-boot control) — **flat within the cell σ**, so it buys headroom, not throughput. Not shipped: no accuracy coverage here and no W4 gate on it. Receipts `~/benchmarks/qwen4-block-20261018/REPORT.md` + `lrs-ladder-1018.{yaml,json}` (`bench_c19a168838eb`) vs `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-…` (`bench_684c21a7cd8a`); recorded in `attic/qwen4/AGENTS.md` §10.1 and `attic/qwen4/NOTES.md`. *(commit `2f44e07`)*
+
+## ifm
+- [x] **Decide the withdrawn 36B-A4B sub-lane** — both bounded gates ran on a single node, 2026-10-18 (owner #38: D2 + E6 only; E5/E7/E8/E10 stay unrun). **D2 numerics: PASS** — BF16, FP8+bf16-KV and FP8+fp8-KV all greedy-answer `15:52 | 5h 50m | 12%` with all six intermediate values agreeing, and the patch scores `state=C` exit 0 against the running container's own `xllm.py`. **E6 (fp8-KV): capacity is the win, the throughput claim is not** — KV pool **267,440 → 535,513 tokens (2.00×)** at an identical 52.6 GB footprint; house battery **36/37 = 97.3 %** (easy 19/19, hard 17/18, miss `hard-rev` → `nurkrap`), the lane's joint best; d0 ladder C1 **18.36** / C2 33.28 / C5 48.51 / C10 **66.73** t/s against the bf16-KV arm's 18.21 / 32.67 / 47.31 / 62.92; at long context only **+8.1 % at d28,672** and **−4.6 % at d8,192** (c1, n=3, paired control) — the WORK doc's modelled **+25 % at 32K is falsified**. `attic/ifm/AGENTS.md` + `NOTES.md` (2026-10-18); receipts `~/benchmarks/ifm-36b-20261018/`. *(effort: long)* *(commit `1dbc79b`)*
+  *(Owner decision 2026-10-18 [#38], now answered: the bounded run happened. The ship/stay-withdrawn call the numbers support is **stay withdrawn** on speed — 18.2 t/s C1 for a 48 GB checkpoint per node, against 32.4 for the shipped 7B — with E6 re-filed as a **capacity** result (16 resident 32K sequences; 131K only via E10 fp8-KV+TP=2), which is worth one boot only if a long-context need appears.)*

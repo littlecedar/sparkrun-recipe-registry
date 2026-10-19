@@ -78,12 +78,13 @@ GGUF APEX-2.4bpw **63.24/60.79 t/s, 37/37, 79 GiB free**; MTP drafter **55.6 t/s
 constant-state 1M eval arm answers a **999,155-token request in 829.7 s** at **10.44 GiB of host archive per 1M
 request** (0.208 GB claimed), so 1M concurrency is **1**. cybersec: NEXTN on the 27B arm **C1 14.72 (+44 %)**,
 acceptance 2.774 — and the served context is really **167,985 tokens**, not the advertised 262,144. storage:
-**263 GiB reclaimed** on the head (39.4 → 302.4 GiB free); `#43`'s 510.3 GB base is still flagged. Still open by
-lane: glm5 3.0bpw (recipe + 1M arm); ornith 397B, 0.5.21 bump, marlin pairs, r0b0tlab;
+**263 GiB reclaimed** on the head (39.4 → 302.4 GiB free); `#43`'s 510.3 GB base is still flagged. Still open at
+that point by lane: glm5 3.0bpw (recipe + 1M arm); ornith 397B, 0.5.21 bump, marlin pairs, r0b0tlab;
 qwen4 (W4 soak, linear-replayssm, backlog, diagnostics); ifm UNO 0.9B / 7B tree / 36B
 D2+E6; embed co-location; decision candidates + TTS; explore reasoning candidates, Laguna-M.1, media-gen and the
 three unrun Kolibri GGUF tiers (Hob-forge / webmp3 / aparusel); cybersec arm 4; llama.cpp residuals; ds4
 v2.4 serve line (in flight).
+*(Superseded the same day: the glm5, qwen4-linear-replayssm and ifm-36B entries closed, and ornith's 397B retry was dropped by owner policy — read the late roll-up below, not this list, for what is open.)*
 
 **Session progress (2026-10-18, late).** Two registry-level items closed: the **pooling ladders** — embed-8B
 **16.39 / 18.10 / 21.54 / 23.01**, rerank-8B **18.03 / 18.58 / 21.24 / 21.23**, embed-2B **38.82 / 46.51 /
@@ -126,26 +127,20 @@ DeepSeek V4.1
 
 ## glm5
 GLM 5.3
-- [x] **Promote the EXL3 3.0bpw full-753B lane to a recipe** — **booted and served 2026-10-18** on `.30`–`.33`
-  as `recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` on a source-built image
-  (`littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…`, pushed and pinned):
-  `/v1/models` 200 at 240 s, engine load 308.7 s, c1 **31.7 t/s** / c2 25.3 agg (14.5 per req) / c4 40.6 agg
-  (11.4 per req), 100,559-token prompt TTFT **258.4 s**, TF_GLM_KV=q5 with DCP over 4 ranks, 96.27 of
-  102.86 GiB startup estimate. Two boot blockers found and fixed: an absent `TF_TP_WORLD` (defaults to 2 →
-  `NCCL error 4 Invalid rank requested: 3/2`; now set from `--tp` in the launcher) and a wheel that shipped
-  no CUDA sources (the JIT died on `latent_rows.cu`; the Dockerfile now mirrors 25 `*.cu`/`*.cuh` onto the
-  package). Receipt `~/benchmarks/glm-3bpw-boot-20261018/` (`RECEIPT.md`, `NCCL-DEBUG.md`).
-- [x] **Measure the EXL3 3.0bpw 1M arm** — the 1M configuration (`TF_GLM_DCP=4`, `TF_GLM_EXTENTS=1`,
-  1,048,576-token window, 1,048,584 cache slots) is what the 2026-10-18 boot ran; a 100,559-token probe
-  measured 258.4 s TTFT. A true ≥1M-token probe and four concurrent 1M windows were **not** run and are
-  named open in the mod README — the four-node window closed first.
+*(No open item — the ≥1M probe and four-way 1M concurrency were **dropped unrun**, not deferred, by the
+2026-10-18 19:15 policy above (they need `.30`–`.33`). The arm's measured envelope is the 100,559-token
+TTFT of 258.4 s on the 2026-10-18 boot; the record is archived in `../attic/DONE.md`.)*
 
 ## ornith
 Ornith 1.5
-- [x] **Boot the YaRN long-context (~1M) arm and run its pre-registered needle gate** — **booted and measured 2026-10-18 on `.34`, retry included.** The arm serves (`GET /v1/models` `max_model_len` **1,000,000**, served id `ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, KV pool `max_total_num_tokens` **1,203,041** first boot / **1,202,898** retry, `max_running_requests` 48), and the gate is **5 of 6 rungs**: 262,144 control **PASS 3/3** (99.66–99.86 % fill), 512k **PASS 3/3**, 768k **PASS 3/3** (99.7–99.8 %), 1M d10 **PASS** (977,427 tok, 1,737 s), 1M d50 **PASS** (977,487 tok = 97.75 %, 1,886 s, key `3881-RAVEN`), 1M **d90 ERROR ×2** — `RemoteDisconnected` after 1,246 s (first attempt, container gone) and after 398 s (retry, log captured). **The arm ships at its measured envelope: ≤768k workloads, 1M supported to depth 50 %**; d90 caps the documented depth, not the arm, and stays unmeasured. Receipt `~/benchmarks/ornith-yarn-1m-20261018/` (`needle-1m-d50.json`, `needle-1m-d90.json`, `needle-1m-d90-retry.json`, `serve.log`, `diag-d90-retry/`; table in `recipes/ornith/README.md` §"The YaRN 1M arm" and `attic/ornith/AGENTS.md` §9.1). *(effort: medium)*
-  *(Two traps cost launches here: (1) a co-tenant ComfyUI process on `.34` holding ~9.9–13.6 GiB of the unified pool starved the boot to `max_total_num_tokens` 282,227 and then 69,281 — at 69,281 the instrument's 978k prompt is refused with HTTP 400 and every 1M rung reads `TRUNCATED`, so read the grant before starting a ladder; (2) sparkrun's readiness probe killed a healthy serve ~8 s after uvicorn came up, so launch with `--no-ready-wait` and verify `/v1/models` yourself.)*
-- [x] **Run the missing 1M depth-90 % needle rung — ran; CLOSED as unmeasurable, re-scoped to a depth cap.** On a clean boot (`max_total_num_tokens` 1,202,898, `available_gpu_mem` 12.55 GB) the retry admitted the 980,633-token prompt and prefilled **43.7 %** (551,863 tokens pending, 592 t/s) when the serve process exited; `RemoteDisconnected` at 398 s against a 3,000 s timeout. Excluded by evidence: **host OOM** (`earlyoom` at 1 Hz never below 11.3 GiB available, no kill line, no `dmesg` OOM record), **driver fault** (no `Xid`/`NVRM`/Oops in that second), and **client timeout**. Named: **serve-side process exit mid-prefill**, mechanism unlogged — ~109 GiB released within 2 s, container deleted 2 s later, last serve line a normal prefill chunk. `--no-rm` did **not** preserve the container (`auto_remove: false` is recorded in the job file yet dockerd handled a task-delete), so the exit code and final stderr died with it. Re-opening needs the serve log **streamed** to the host for the whole request plus the container's exit code/`OOMKilled`, or a `docker events` capture. *(effort: short)*
-- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`.)* *(effort: medium)*
+- [ ] **Name the 1M prefill serve exit that caps the YaRN arm at depth 50 %** — at 1M the serve
+  process exits mid-prefill (43.7 % in, 551,863 tokens pending at 592 t/s, `RemoteDisconnected` at
+  398 s of a 3,000 s budget) with host OOM, driver fault and client timeout all excluded; the
+  traceback dies with the container because `--no-rm` does not preserve it (`auto_remove: false` in
+  the job file, yet dockerd task-deleted it). Needs the serve log **streamed** to the host for the
+  whole request plus the exit code / `OOMKilled`, or a `docker events` capture
+  (`recipes/ornith/README.md` §"The YaRN 1M arm"; `attic/ornith/AGENTS.md` §9.1). *(effort: short)*
+- [ ] **Retry the 397B DFlash head with prefix caching intact (or fewer spec tokens)** — the recorded ~12% loss is partly a structural confound (vLLM treats every Mamba group as the draft group, disabling prefix caching); only n=8 was tried (`attic/ornith/AGENTS.md:324-328`; `recipes/ornith/README.md` §397B). *(Owner decision 2026-10-15: deferred — needs a TP=4 window on the restricted `.30`–`.33`. **Superseded 2026-10-18, 19:15: dropped, not deferred** — re-file only if `.30`–`.33` return to this work.)* *(effort: medium)*
 - [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)*
 - [ ] **`moe_runner_backend: marlin` under an interleaved paired control** — the ladder's best extra cell (108.9 t/s) collapsed into noise only because the control was ordered, not interleaved (`attic/ornith/AGENTS.md:497-513`). *(effort: short)*
 - [ ] **Measure the r0b0tlab W4A16 NVFP4 35B + MTP head** — 63–77 t/s claimed with accuracy parity; rejected on a paper comparison, never measured on our stack (`attic/ornith/AGENTS.md:881-882`). *(effort: short)*
@@ -157,7 +152,6 @@ Qwen 3.x
 ## qwen4
 Qwen 4.x (and 3.8 Flash Next)
 - [ ] **Run the W4 `#37111` release soak (1–2 h / ~100k)** — only a short smoke ran, so the corruption gate is unproven (`attic/qwen4/AGENTS.md`). *(2026-10-18: **not run** — the TP=2 block was closed by the owner right after the first arm; the boot the soak was to run on (the shipped arm) was never taken. Receipt path is ready in `~/benchmarks/qwen4-block-20261018/REPORT.md` item 2.)* *(effort: medium)*
-- [x] **One-boot `--enable-linear-replayssm-spec` test** — **measured 2026-10-18 on `.34`/`.35`.** A capacity lever, not a speed one: the spec-verify's per-draft state snapshots go away (`intermediate_ssm_state_cache` **2.64 GB → 0.00 GB**) and the allocator hands it to KV — `max_total_num_tokens` **1,689,024 → 1,882,944 (+193,920 tokens, +11.5 %)** at an unchanged mamba pool 112 / `max_num_seqs` 24 / 262,144 context; decode ladder 41.99 / 71.20 / 91.86 / 105.22 t/s at k=1/2/5/10 against the shipped arm's 39.90 / 69.45 / 94.98 / 104.45 (k=10 cell n=2, cross-boot control) — **flat within the cell σ**, so it buys headroom, not throughput. Not shipped: no accuracy coverage here and no W4 gate on it. Receipts `~/benchmarks/qwen4-block-20261018/REPORT.md` + `lrs-ladder-1018.{yaml,json}` (`bench_c19a168838eb`) vs `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-…` (`bench_684c21a7cd8a`); recorded in `attic/qwen4/AGENTS.md` §10.1 and `attic/qwen4/NOTES.md`.
 - [ ] **Clear the remaining qwen4 measurement backlog** — TP=4 (W6) re-boot after the `port_timeout_s` fix; the W12 cross-runtime vLLM same-checkpoint bench; the `--fp4-gemm-backend` A/B (the shipped `flashinfer_cutlass` was inherited without justification); `--enable-int8-mamba-checkpoint`; and the bs>1 cost of `--cuda-graph-backend-prefill disabled` (`attic/qwen4/AGENTS.md` §10.1). *(effort: medium)*
   *(2026-10-18: **none of this backlog ran** — the TP=2 block closed after one arm. Two facts to carry into the next window: the `--fp4-gemm-backend` A/B's first alternative arm is refused **before weights load** (`flashinfer_cudedsl` is listed in `--help` and in the error's own `choose from` set, yet argparse rejects the token verbatim — `~/benchmarks/qwen4-tp2-20261018/b2-cudedsl-refusal-arm.log`), so probe the accept-spelling first; and `--enable-linear-replayssm-spec` is now measured as a capacity lever (+11.5 % KV pool) whose remaining question is accuracy, not memory. TP=4 (W6) and the W12 cross-runtime vLLM bench need four/two nodes and are out of this session's scope.)*
 - [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*
@@ -167,8 +161,6 @@ Qwen 4.x (and 3.8 Flash Next)
 IFM K2-Horizon
 - [ ] **Re-open UNO on the 0.9B** — `IFM/K2-Horizon-0.9B-Uno` exists and the gate mod already works for the 7B; the register was falsified for the 7B only (`attic/ifm/AGENTS.md` §9). *(effort: medium)*
 - [ ] **Attempt 7B tree-mode UNO (topk>1)** — a second UNO geometry, never booted (linear is shipped) (`attic/ifm/NOTES.md` "Still open"). *(effort: medium)*
-- [x] **Decide the withdrawn 36B-A4B sub-lane** — both bounded gates ran on a single node, 2026-10-18 (owner #38: D2 + E6 only; E5/E7/E8/E10 stay unrun). **D2 numerics: PASS** — BF16, FP8+bf16-KV and FP8+fp8-KV all greedy-answer `15:52 | 5h 50m | 12%` with all six intermediate values agreeing, and the patch scores `state=C` exit 0 against the running container's own `xllm.py`. **E6 (fp8-KV): capacity is the win, the throughput claim is not** — KV pool **267,440 → 535,513 tokens (2.00×)** at an identical 52.6 GB footprint; house battery **36/37 = 97.3 %** (easy 19/19, hard 17/18, miss `hard-rev` → `nurkrap`), the lane's joint best; d0 ladder C1 **18.36** / C2 33.28 / C5 48.51 / C10 **66.73** t/s against the bf16-KV arm's 18.21 / 32.67 / 47.31 / 62.92; at long context only **+8.1 % at d28,672** and **−4.6 % at d8,192** (c1, n=3, paired control) — the WORK doc's modelled **+25 % at 32K is falsified**. `attic/ifm/AGENTS.md` + `NOTES.md` (2026-10-18); receipts `~/benchmarks/ifm-36b-20261018/`. *(effort: long)*
-  *(Owner decision 2026-10-18 [#38], now answered: the bounded run happened. The ship/stay-withdrawn call the numbers support is **stay withdrawn** on speed — 18.2 t/s C1 for a 48 GB checkpoint per node, against 32.4 for the shipped 7B — with E6 re-filed as a **capacity** result (16 resident 32K sequences; 131K only via E10 fp8-KV+TP=2), which is worth one boot only if a long-context need appears.)*
 
 ## embed
 Any embed model
