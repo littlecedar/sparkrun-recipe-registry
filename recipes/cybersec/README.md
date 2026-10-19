@@ -127,8 +127,15 @@ receipt `~/benchmarks/cybersec-nextn-20261018/`.
 - `max_num_seqs: 48` is a clamp, not the granted concurrency: the dense 27B body (48 GDN + 16
   full-attention layers) hits the same mamba-state-pool clamp as the qwen3.8-27B NVFP4 recipe —
   read `capped to` in the serve log for the real number.
-- `speculative_draft_tokens: 8` is the block size the z-lab draft was trained for (the overlay's
-  own seat used n=7).
+
+
+**Standard suite — four of five legs pass (2026-10-19, one boot).** Contract `max_model_len=262144`,
+ready, `finish=stop`; house **37/37** (19/19 + 18/18); hard **ARC 184/200 (92.0 %) · GSM8K 187/200
+(93.5 %)**; tools **1064/1240 (85.8 %)** in 8,978 s. **Needle reads `fail` at 3/3 · 3/3 · 3/3**: the
+262,144 rung's reply hit the 512-token answer budget (`status: TRUNCATED`, the reasoning-only shape the
+0.9B arm also shows), so the verdict is the instrument's, not a retrieval miss — at 131,072 and 32,768
+every depth answered. Receipt `~/benchmarks/cybersec-27b-ablit-suite-20261019/` (`summary.json`,
+per-check JSON, `bfcl.json`).
 
 ## `nex-n2.5-mini-uncensored-nvfp4-sglang`
 

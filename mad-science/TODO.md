@@ -440,6 +440,14 @@ job cap** (`bfcl-eval` under `setsid`, `--max-tokens 4096`, outdir
 **not** at risk: it runs 5.2 s/question (dflash2) and finishes its 1,239 inside 1.8 h. Lesson for the
 tail: price BFCL at the arm's measured rate before setting `--job-timeout`, not at the 7B's.)*
 
+*(Suite results 2026-10-19 — **27B-ablit (arm 2) closed four of five legs**: house 37/37, ARC
+184/200 (92.0 %), GSM8K 187/200 (93.5 %), tools 1064/1240 (85.8 %) in 8,978 s; needle is submitted
+as `fail` because the 262,144 rung truncated inside the 512-token answer budget while answering 3/3 at
+32,768 and 131,072 — an instrument verdict, recorded as such in the lane README. The 27B-uncensored
+(arm 1) sibling finished house 37/37, needle 3/3 including 262,144, ARC **187/200 (93.5 %)** and GSM8K
+**194/200 (97.0 %)**; its tools leg is the cap-free re-run described above. Both arms' ladders (NEXTN's
+C2/C5/C10 and highcon aside) are the last registry gap for the pair.)*
+
 **Correction (same day):** the BFCL leg took 6,555 s, not the "1,383 s / a quarter of the cap" first
 written here — the per-check cap was at 91 %, so a 4096-token BFCL run sits close to its budget on this
 arm family, and a larger thinking model would exceed it.)*
