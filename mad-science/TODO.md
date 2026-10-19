@@ -119,6 +119,8 @@ bounded pass — see `## glm5`.
 campaign (`1895030211ea0500_3510a5e0d37d`, 2 containers, healthy since 23:01): eval-suite and
 tool-eval-bench are done, the W4 90-minute soak is in flight. `.30`–`.33` remain the owner's ds4 TP=4
 job (`a2e141223b52793c_de0b14250a90`). The head's `a2e14…` control container is that job's, not litter.
+**Checked 00:43 ET:** soak pid 284384 alive (55 min elapsed); `gate-37111.json` is not written yet — the
+gate writes it on completion, 01:18:10.
 
 **Cluster state (2026-10-18 21:52 ET) — superseded by the 2026-10-19 00:00 entry above; keep for the
 job history only.** A **new owner-launched ds4 TP=4 job** takes the four-node slot
@@ -177,7 +179,6 @@ Qwen 4.x (and 3.8 Flash Next)
 
 ## ifm
 IFM K2-Horizon
-- [ ] **Re-open UNO on the 0.9B** — `IFM/K2-Horizon-0.9B-Uno` exists and the gate mod already works for the 7B; the register was falsified for the 7B only (`attic/ifm/AGENTS.md` §9). *(effort: medium)*
 - [ ] **Attempt 7B tree-mode UNO (topk>1)** — a second UNO geometry, never booted (linear is shipped) (`attic/ifm/NOTES.md` "Still open"). *(effort: medium)*
 
 ## embed
