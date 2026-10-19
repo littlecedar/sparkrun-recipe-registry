@@ -1187,7 +1187,10 @@ new base/quant revision since 2026-08-29, and the `jzinno` DFlash2 draft is unch
 - **A third-party vLLM-only NVFP4 MoE DFlash2 drafter** (DaoCloud, 2026-09-10) needs three
   unreleased vLLM PRs — not actionable on our pins.
 - **A DGX-Spark W4A16 NVFP4 quant with an MTP head** (r0b0tlab, 2026-08-21) claims accuracy parity
-  at 63–77 t/s — **slower than this lane's ~100 t/s C1**; not adopted.
+  at 63–77 t/s — **slower than this lane's ~100 t/s C1**; not adopted. **Measured 2026-10-19** (one
+  boot on `.34`, ladder + house): C1 **58.9** / C2 88.9 / C5 143.5 / C10 158.4 t/s @ d0 (n=5),
+  house **37/37** — ~40 % below the official export and at the card's low end. Not adopted; receipt
+  `~/benchmarks/ornith-r0b0t-20261019/`.
 - **Upstream SGLang 0.5.18→0.5.21** adds DFlash-reranker and GDN fusion wins, but also **breaks this
   lane**: the Mamba/SWA radix-cache args our 35B recipe passes (`mamba_radix_cache_strategy`,
   `mamba_full_memory_ratio`) were removed upstream. Any container bump must re-verify the serve

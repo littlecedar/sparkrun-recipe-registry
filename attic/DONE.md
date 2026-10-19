@@ -525,3 +525,11 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   240.1-244.6 vs 218.6-219.1 (-9.7 %) — marlin shifts the curve toward single-stream; no C1-only trade
   justifies losing ~10 % at c10. Receipt `~/benchmarks/ornith-marlin-20261019/`; the detail is in
   `attic/ornith/AGENTS.md`.)*
+- [x] **Measure the r0b0tlab W4A16 NVFP4 35B + MTP head** — 63–77 t/s claimed with accuracy parity; rejected on a paper comparison, never measured on our stack (`attic/ornith/AGENTS.md:881-882`). *(effort: short)*
+
+  *(**CLOSED 2026-10-19 — measured; the pack is not adopted.** One boot on `.34` (22 GiB download
+  plus first-use FP4 JIT, ready in ~9 min): ladder C1 **58.9 ± 1.65** / C2 88.9 ± 0.98 / C5 143.5 ±
+  3.13 / C10 158.4 ± 0.95 t/s @ d0, n=5 (`bench_08a4ac98212b`); house **37/37**. That is ~40 % below
+  the official export (100/153/217/244), with the card's 63-77 C1 claim at the measured low end. The
+  recipe's caveat now records the measurement; it carries no index row. Receipt
+  `~/benchmarks/ornith-r0b0t-20261019/`.)*

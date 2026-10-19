@@ -626,3 +626,10 @@ marlin; `--fresh` each) show marlin shifts the ladder curve rather than lifting 
 item moved to `attic/DONE.md`. Receipt `~/benchmarks/ornith-marlin-20261019/`. The ornith backlog now
 holds the YaRN 1M exit capture, the 0.5.21 bump (owner approval needed for the image change) and the
 r0b0tlab measure.
+
+**The r0b0tlab W4A16 pack measured slow.** One boot on `.34` (22 GiB download + first-use FP4 JIT,
+ready in ~9 min) gives ladder C1 58.9 ± 1.65 / C2 88.9 ± 0.98 / C5 143.5 ± 3.13 / C10 158.4 ± 0.95
+t/s and house 37/37 — ~40 % below the official export, at the low end of the card's 63-77 claim. The
+recipe's caveat now records it; no index row. Receipt `~/benchmarks/ornith-r0b0t-20261019/`; the item
+moved to `attic/DONE.md`. The ornith backlog now holds only the YaRN 1M exit capture and the 0.5.21
+bump (owner approval).
