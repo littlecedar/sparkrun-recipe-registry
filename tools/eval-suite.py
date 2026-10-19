@@ -156,10 +156,22 @@ def http_json(url: str, payload=None, timeout: float = 120.0):
         return json.load(resp)
 
 
+def api_root(endpoint: str) -> str:
+    """The server root from either `http://host:port` or `http://host:port/v1`.
+
+    The suite's own checks append `/v1/...`, while several external instruments
+    accept either spelling.  Normalising once here is what makes `--base-url
+    http://host:port/v1` work for every check; without it the contract check
+    requested `/v1/v1/models` and 404'd.
+    """
+    base = endpoint.rstrip("/")
+    return base[:-3] if base.endswith("/v1") else base
+
+
 class Ctx:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
-        self.base = args.base_url.rstrip("/")
+        self.base = api_root(args.base_url)
         self.model = None if args.model in (None, "auto") else args.model
         self.tools = os.path.abspath(args.tools_dir or HERE)
         self.run_benchmarks = args.run_benchmarks

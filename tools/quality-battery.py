@@ -148,6 +148,12 @@ HARD = [
 TIERS = {"easy": EASY, "hard": HARD}
 
 
+
+def _root(endpoint: str) -> str:
+    """Server root, given either the root or the `/v1` base (both are in use)."""
+    base = endpoint.rstrip("/")
+    return base[:-3] if base.endswith("/v1") else base
+
 def make_needle(n_words: int = 3000) -> str:
     words = [f"fluff{i}" for i in range(n_words)]
     words.insert(n_words // 2, "The secret access code is ZORBULON.")
@@ -157,7 +163,7 @@ def make_needle(n_words: int = 3000) -> str:
 def chat(base: str, model: str, prompt: str, max_tokens: int = 384) -> tuple[str, dict]:
     body = {"model": model, "messages": [{"role": "user", "content": prompt}],
             "temperature": 0, "max_tokens": max_tokens}
-    req = urllib.request.Request(base.rstrip("/") + "/v1/chat/completions",
+    req = urllib.request.Request(_root(base) + "/v1/chat/completions",
                                  data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     t0 = time.time()
@@ -223,7 +229,7 @@ def main() -> int:
 
     model = args.model
     if not model:
-        with urllib.request.urlopen(args.base_url.rstrip("/") + "/v1/models", timeout=30) as r:
+        with urllib.request.urlopen(_root(args.base_url) + "/v1/models", timeout=30) as r:
             model = json.load(r)["data"][0]["id"]
     print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} "
           f"repeats: {args.repeat} max_tokens: {args.max_tokens}\n")
