@@ -242,8 +242,11 @@ class Endpoint:
              thinking: bool = False) -> dict:
         body = {"model": model, "messages": messages, "temperature": 0,
                 "max_tokens": max_tokens}
-        if thinking:
-            body["chat_template_kwargs"] = {"enable_thinking": True}
+        # Always send the switch. "Default off" must be an explicit False for a
+        # template whose own default is thinking-on: omitting the kwarg let
+        # Qwen3.8-Flash-Next spend all 2048 (and all 8192) essay tokens on
+        # reasoning and return content "" (measured 2026-10-19).
+        body["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
         t0 = time.time()
         with self._post("/v1/chat/completions", body) as r:
             out = json.load(r)
@@ -703,6 +706,7 @@ class _MockHandler(BaseHTTPRequestHandler):
             return
         if self.path.startswith("/v1/chat/completions"):
             body = json.loads(raw) if raw else {}
+            self.state.setdefault("bodies", []).append(body)
             self._send(200, self._respond(body))
             return
         self._send(404, {"error": "not found"})
@@ -810,6 +814,22 @@ def selftest() -> int:
             if rep["canary"].get("agree") is not True:
                 print("[selftest] clean case canary did not agree")
                 failures += 1
+    # The `--thinking` switch must reach the wire both ways: a thinking-by-default
+    # template ignores an omitted kwarg (2026-10-19: 2048 and 8192 essay tokens
+    # both went to reasoning, content ""), so "default off" sends an explicit
+    # False rather than nothing.
+    httpd, url = _start_mock("clean")
+    try:
+        ep = Endpoint(url, timeout=30)
+        for flag in (False, True):
+            ep.chat([{"role": "user", "content": "wire check"}], "m", 16,
+                    thinking=flag)
+            sent = _MockHandler.state["bodies"][-1].get("chat_template_kwargs")
+            if sent != {"enable_thinking": flag}:
+                print(f"[selftest] thinking={flag} sent {sent!r}")
+                failures += 1
+    finally:
+        httpd.shutdown()
     if not clean_ran:
         failures += 1
     if failures:
