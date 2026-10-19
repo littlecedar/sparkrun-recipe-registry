@@ -214,9 +214,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | clef-flash-decision-sglang  | 🤏🚮    |    70.3% |      4.9 |        — |        — |         — | 19.1GB |  82% |   /v1/systemone |  1 | [Model][Cloudflare/clef-flash]         |
 | kai-0.6b-decision-vllm-srun | 🤏🖥🚮   |    47.5% |        — |        — |        — |         — |  1.5GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] |
 | sol-2b-decision-vllm-srun   | 🤏🖥🚮   |      55% |        — |        — |        — |         — |  4.8GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
+| kokoro-82m-tts-cpu          | 🤏🖥     |        — |        — |        — |        — |         — | 0.31GB |    — | /v1/audio/speech |  1 | [Model][hexgrad/Kokoro-82M]            |
 
 * _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs)._
 * _The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
+* _The **Kokoro** row is the lane's fourth co-tenant and its first TTS arm: no accuracy score (the instrument has no TTS pass) and no ladder (single-request server). 0.31GB is the ONNX weight set — the process costs **1.55 GiB** measured RSS, which is what the co-location budget counts. Boot-verified 2026-10-19 on `.34`: HTTP-ready 14.4 s, RTF 0.588-0.601 (1.66-1.70x realtime) on the A725 set; `recipes/decision/README.md` §kokoro-82m-tts-cpu._
 
 ## Explore
 

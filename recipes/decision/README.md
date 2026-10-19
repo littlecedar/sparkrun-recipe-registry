@@ -17,6 +17,7 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
 - [kev-0.8b-decision-serve](#kev-08b-decision-serve)
 - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
+- [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
 - [Operating constraints](#operating-constraints)
   - [The `vllm-srun` runtime (Kai + Sol)](#the-vllm-srun-runtime-kai--sol)
   - [Served-id caveat](#served-id-caveat)
@@ -161,6 +162,38 @@ Receipt: `~/benchmarks/decision-arms2-20261018/` — `REPORT.md`, `logs/d3-launc
 `logs/d3-launch-hfonline.log`, `d3-evidence/golden-probe.log`, `golden-reference-d3-edge.json`,
 `readiness-golden_check.py`, `compare_answers.py`, `container-inspect.json`.
 
+### kokoro-82m-tts-cpu
+
+| field | value |
+|---|---|
+| repo id | [`hexgrad/Kokoro-82M`][kokoro] (pinned `f3ff3571` — checkpoint identity; the image serves its baked ONNX export) |
+| accuracy | **not scorable** — the decision instrument has no TTS pass; the gate is a wav round-trip + real-time factor |
+| size | 0.305 GiB of ONNX weights; **1.55 GiB container / 1.41 GiB server RSS** measured |
+| API | `POST /v1/audio/speech` (OpenAI shape) + `GET /health`; **CPU** |
+| TP | 1 |
+| flags | 🤏 smol · 🖥 cpu |
+| status | **BOOT-VERIFIED 2026-10-19** (`.34`, container-start TTR HTTP-ready 14.4 s) |
+
+The lane's fourth co-tenant: an 82M StyleTTS2/ISTFTNet model served by Kokoro-FastAPI's CPU image
+(`ghcr.io/remsky/kokoro-fastapi-cpu@sha256:ee3111d6…`, the only published digest-pinned multi-arch
+CPU image with kokoro-onnx, onnxruntime and espeak-ng and the model set baked at build). The image
+bakes the voices and takes no model argument, so the recipe declares `distribution_config.models.
+enabled: false` — otherwise the launch contract rejects a command that never names the staged
+snapshot. It runs on the same `taskset -c 0-4,10-14` A725 set as the CPU decision arms and costs no
+GPU. Pinned to a digest because the image's default `DOWNLOAD_MODEL=true` would re-fetch weights on
+every boot; the recipe passes `DOWNLOAD_MODEL=false`.
+
+Measured on the first boot (`~/benchmarks/kokoro-tts-20261019/`): RTF **0.588-0.601** over two
+text lengths (77 and 1,062 chars, two measured repeats each after a warm-up), i.e. **1.66-1.70x
+realtime**; `/health` 200 in 21 ms; the server process observed at 317 % CPU. The wav is 24 kHz mono
+16-bit. **Client caveat:** the response is streamed and its `data` chunk size is `0xFFFFFFFF`, so
+decode by byte length — a naive header read reports tens of thousands of seconds.
+
+The memory line matters for the budget: the quoted 0.305 GiB is the weights, while the process
+carries Python, onnxruntime, espeak-ng and the voice tensors — `docker stats` read **1.552 GiB**.
+
+Receipt: `~/benchmarks/kokoro-tts-20261019/` (`REPORT.md`, `probe.json`, four wavs).
+
 ## Operating constraints
 
 ### The `vllm-srun` runtime (Kai + Sol)
@@ -192,7 +225,7 @@ the repo id literally. Clients use the repo id.
 
 ### Co-location budget
 
-Co-location with the shipped embed + rerank 2B pair (and eventually TTS) on ONE GB10 node is the
+Co-location with the shipped embed + rerank 2B pair (and now the boot-verified TTS arm) on ONE GB10 node is the
 lane's core constraint. The caps are absolute device caps that must SUM, and the pair's measured
 hold is 74 GiB — 66.93 GiB of caps plus ~7 GiB of CUDA/b12x kernel memory — so a third engine
 starts with **~42 GiB free (0.345)**, not the 54.76 GiB the cap arithmetic suggests (measured
@@ -203,8 +236,8 @@ cap sum, 0.16 profiles a *negative* cache (−1.66 GiB), and 0.35 is refused out
 vs the 42.59 GiB request, warm). `max_num_seqs` stays low because the Mamba cache blocks the
 engine grants scale with the cap (57 at 0.16 vs the default 256), so the default cannot capture
 graphs. clef-flash at the vendor's 41 GB still needs the embed/rerank caps lowered to
-~0.15/0.18 first, a cap-bookkeeping decision rather than a memory wall; Kokoro-82M costs 0.3 GiB
-of the residual. Cores: embed pins 5-9 and rerank 15-19 (the X925 cluster), so clef-flash (and
+~0.15/0.18 first, a cap-bookkeeping decision rather than a memory wall; Kokoro-82M costs **1.55 GiB**
+of the residual (measured 2026-10-19 — the 0.305 GiB figure is weights only, not the process). Cores: embed pins 5-9 and rerank 15-19 (the X925 cluster), so clef-flash (and
 the CPU Decision 2.0 arms) pin 0-4,10-14 (A725) to keep the tenants from contending; JEV-9B runs
 unpinned.
 
@@ -426,3 +459,4 @@ Files under [`attic/decision/`](../../attic/decision/):
 [sol]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B
 [kev]: https://huggingface.co/jaredpalmer/kev-0.8b
 [d3]: https://huggingface.co/vllm-sr/d3-edge
+[kokoro]: https://huggingface.co/hexgrad/Kokoro-82M

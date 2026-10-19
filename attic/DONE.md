@@ -643,3 +643,24 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   rows and nine dead link defs; the orphaned Kolibri mod guard moved to `attic/explore/` beside its
   mods. Gate: 752 tests OK, 48 remaining + 13 archived recipes validate.)*
 
+# 2026-10-19 (Kokoro TTS) — the fourth co-tenant boots
+
+## decision
+- [ ] **Boot-verify the TTS fourth co-tenant** (Kokoro-82M, 0.305 GiB on the A725 cores) — the
+  recipe **ships** (`recipes/decision/kokoro-82m-tts-cpu.yaml`, tracked since `025ca2a`: digest-pinned
+  image, `readiness` block, `distribution_config`, taskset command), so the co-location budget's
+  fourth slot is authored but has **no boot receipt** — the register's "never built" label was
+  stale. Remaining work: one CPU boot, a wav that decodes and plays, and a real-time-factor
+  measurement on the A725 cores, then the co-location arithmetic can count it
+  (`attic/decision/DECISION-MODELS-RESEARCH.md`). *(effort: short)*
+  *(**CLOSED 2026-10-19 — boot-verified on `.34`.** `sparkrun run` as shipped, no overrides
+  (`2b9d589b15c3af46_8ed3ce77d78f`): container-start TTR HTTP-ready **14.4 s**, `/health` 200 in
+  21 ms. `POST /v1/audio/speech` returned decodable 24 kHz mono 16-bit wavs at RTF **0.588-0.601**
+  (1.66-1.70x realtime) over 77- and 1,062-char inputs, two measured repeats each, on the
+  `taskset -c 0-4,10-14` A725 set (server observed at 317 % CPU). The budget's "0.305 GiB" is the
+  ONNX weights only: `docker stats` measured **1.552 GiB** container / **1.41 GiB** server RSS, and
+  the co-location section now counts that. Client caveat recorded: the streamed wav carries
+  `data` size `0xFFFFFFFF`, so decode by byte length. Serve stopped, `.34` verified idle, `.30`-`.33`
+  untouched. Receipt `~/benchmarks/kokoro-tts-20261019/` (`REPORT.md`, `probe.json`, four wavs);
+  lane section `recipes/decision/README.md` §kokoro-82m-tts-cpu; root index row added.)*
+
