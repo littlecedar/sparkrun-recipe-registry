@@ -115,10 +115,12 @@ still wanting four nodes (the ds4 C1 re-take, the GLM 1M arm, the ornith 397B re
 not deferred**. The GLM-5.3 EXL3 3.0bpw arm is promoted, booted and receipted to the end of its
 bounded pass — see `## glm5`.
 
-**Cluster state (2026-10-18 21:37 ET).** A **new owner-launched ds4 TP=4 job** takes the four-node slot
+**Cluster state (2026-10-18 21:52 ET).** A **new owner-launched ds4 TP=4 job** takes the four-node slot
 again — `a2e141223b52793c_de0b14250a90`, `.30`–`.33`, `littlecedar/dgx-spark-dsv41:canary-roce@acfc331a`,
-health-starting at 21:45. `.34`/`.35` are idle (0 containers, 0 `sparkrun` processes each); the head
-carries that job's control container. Treat the `.34`/`.35` pair as the only free resource.
+**healthy** at 21:52. `.34`/`.35` are idle (0 containers, 0 `sparkrun` processes, `pgrep -af "[s]parkrun"`);
+the head carries that job's control container plus the always-on `sparkroute` gateway, its autodiscover
+and a `sparkrun cluster monitor` — infrastructure, not session leftovers. Treat the `.34`/`.35` pair as
+the only free resource.
 
 Selection priorities:
 - Node count (lower is better)
