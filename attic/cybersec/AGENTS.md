@@ -492,6 +492,9 @@ another lane's workload when this was written.
 - **C1** (`bench_44534d5024c0`, `decode-triage`, `--skip-run`): **d0 63.7 t/s** · **d8192 67.7 t/s**,
   c=1, n=5. Receipt `~/benchmarks/cybersec/arm5-decode-triage.yaml`. The ds4 lane's TP=2 stock arm
   (same engine, same 2.9bpw base, with Engram) reports 73.0 t/s — so the graft costs little.
+  ***Superseded 2026-10-19:** the engram-ON ladder reads C1 **67.02 ± 3.19** t/s with C2/C5/C10
+  **52.95 / 47.75 / 46.78** (n=5, `bench_484eb77839b4`, `~/benchmarks/cybersec-arm5-ladder-20261019/`);
+  use those cells, not the 63.7 above.*
 - **House battery**: **easy 19/19, hard 17/18 = 36/37** (one hard miss), matching the ds4 lane's
   36/37 on the stock EXL3 pack. Receipt `~/benchmarks/cybersec/arm5-battery.json`.
 - **Refusal probe** (8 abstract harmful framings + 4 defensive cyber tasks; the overlay author's

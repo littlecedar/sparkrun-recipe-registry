@@ -583,3 +583,13 @@ row is in `recipes/qwen4/README.md`. The same boot's own ladder re-run reads 41.
 3.08 / 95.18 ± 1.28 / 108.13 ± 1.75 t/s (vs 39.90 / 69.45 / 94.98 / 104.45 on `bench_684c21a7cd8a`),
 no regression. The serve was stopped and `.34`/`.35` verified idle; `.30`–`.33` remain the owner's ds4
 TP=4 job (now `a2e141223b52793c_e11d626ec2c6`).
+
+**The last multi-node ladder is filled — cybersec arm 5.** The abliterated DeepSeek TP=2 graft arm
+booted on `.34`/`.35` (job `2f9a8f3e60a51ee4_3510a5e0d37d`) with the graft tree a verified no-op
+(`n_edited=104`) and Engram ON; readiness was ~40 s after a 53 s launch because the 119 GiB graft tree
+and the rank cache were warm. The concurrency ladder (`bench_484eb77839b4`) reads C1 **67.02 ± 3.19** /
+C2 **52.95 ± 1.49** / C5 **47.75 ± 0.53** / C10 **46.78 ± 0.33** t/s @ d0 (n=5, per-request decode
+50.19 / 38.24 / 34.29), the same falling-aggregate shape as the ds4 TP=2 stock arm (68.6 / 48.1 /
+44.6 / 42.1). The 63.7 t/s C1 in the index was the 2026-10-17 engram-OFF boot and is superseded; the
+index row and lane README now carry the ladder, and the multi-node ladder item moved verbatim to
+`attic/DONE.md`. Receipt `~/benchmarks/cybersec-arm5-ladder-20261019/`.

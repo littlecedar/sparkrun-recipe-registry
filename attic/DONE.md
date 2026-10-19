@@ -495,3 +495,21 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   72.88 ± 3.08 / 95.18 ± 1.28 / 108.13 ± 1.75 t/s) and `REPORT.md`. Lane row added to
   `recipes/qwen4/README.md`; the serve was stopped and `.34`/`.35` verified idle. A PASS is a
   negative result — `tools/gate-37111-design.md` §"what a PASS proves".)*
+
+## Concurrency ladder
+- [x] **Fill C2/C5/C10 for the multi-node arms** — *2026-10-18: the ds4 half is measured; the item stays open only for qwen4 labquant (TP=2), ornith 397B (TP=4) and cybersec arm 5 (TP=2), which still need a window on `.30`–`.33`* — **ds4 knapcio TP=4** (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, 1017 @ `1bae0e10`): C2 **89.89 ± 3.19** / C5 **113.44 ± 6.12** / C10 **115.36 ± 5.92** t/s @ d0, a second boot reproducing them (C2 86.40, C5 108.78, C10 116.27), and the C1 column written as **pooled 67.18 ± 6.97 t/s (n=25; four same-config takes 69.65/66.40/64.16/69.28, CV 10.4 %, range 56.4–87.9)** because a single 5-run C1 cannot separate the boots or the earlier 81.0; **ds4 TensorFold TP=2** (`deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml`, cold TTR 516.5 s, contract + house 37/37 on the same serve): C1 **68.6 ± 3.39** / C2 **48.1 ± 2.20** / C5 **44.6 ± 1.56** / C10 **42.1 ± 3.54** t/s @ d0. Receipts `~/benchmarks/tp4-20261018/` §1 (`REPORT.md`, `knapcio-ladder*.{yaml,json,csv}`) and `~/benchmarks/ds4-tp2-ladder-20261018/` (`REPORT.md`, decode rows of the `--output` ladders). *(effort: long)*
+  *(Correction 2026-10-18, 21:45 — ornith 397B is **dropped** (four-node item, 19:15 policy) and
+  `.30`–`.33` are again occupied by an owner TP=4 job, so the two remaining fills — qwen4 labquant
+  (TP=2) and cybersec arm 5 (TP=2) — are `.34`/`.35` work.)*
+  *(Progress 2026-10-18, late — **qwen4 labquant TP=2 is filled**: 39.90 ± 1.48 / 69.45 ± 7.85 /
+  94.98 ± 8.97 / 104.45 ± 3.00 t/s @ d0, n=5 per cell, decode rows of `bench_684c21a7cd8a`'s
+  `--output` file (`~/benchmarks/qwen4-tp2-20261018/b1-cutlass-concurrency-ladder.{yaml,json}`); the
+  same boot's d0 k8 cell reads 121.21 ± 3.82 aggregate. The boot was a TP=2 job on `.32`/`.33` with
+  the shipped config (control for the linear-replayssm A/B), so topology is the recipe's own TP=2,
+  not a four-node shape. Index row + `recipes/qwen4/README.md` now carry all four cells. **Only
+  cybersec arm 5 (TP=2, `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`) remains.**)*
+  *(**CLOSED 2026-10-19 — the cybersec arm 5 fill was the last one.** TP=2, shipped chain, engram
+  ON, job `2f9a8f3e60a51ee4_3510a5e0d37d`: C1 **67.02 ± 3.19** / C2 **52.95 ± 1.49** / C5 **47.75 ±
+  0.53** / C10 **46.78 ± 0.33** t/s @ d0, n=5, `bench_484eb77839b4`, receipt
+  `~/benchmarks/cybersec-arm5-ladder-20261019/`; index row and lane README updated. ornith 397B
+  stays dropped by the 19:15 policy, so every shipped multi-node arm now carries C2/C5/C10.)*

@@ -234,6 +234,13 @@ receipt `~/benchmarks/cybersec-nextn-20261018/`.
   2026-10-06 vision success. This arm passes no `--vision`, so it serves that file as-is: an
   `image_url` part answered HTTP 400 from the template before 2026-10-17 and a client-typed
   placeholder does so now, and any arm-5 number measured earlier is not template-comparable.
+- **Decode ladder (2026-10-19, TP=2, shipped chain, engram ON):** C1 **67.02 ± 3.19 · C2 52.95 ±
+  1.49 · C5 47.75 ± 0.53 · C10 46.78 ± 0.33 t/s** @ d0, pp 2048, tg 128, n=5, decode rows of
+  `bench_484eb77839b4` (`ladder.json`); receipt `~/benchmarks/cybersec-arm5-ladder-20261019/`.
+  The aggregate falls with concurrency — the TensorFold shape the ds4 TP=2 stock arm shows
+  (68.6 / 48.1 / 44.6 / 42.1) — with per-request decode 50.19 / 38.24 / 34.29 t/s at c2/5/10.
+  This C1 (engram ON) supersedes the 63.7 decode-triage figure from the engram-OFF 2026-10-17 boot
+  (`bench_44534d5024c0`).
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index
