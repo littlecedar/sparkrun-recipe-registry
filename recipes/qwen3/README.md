@@ -90,7 +90,7 @@ Non-obvious knobs (full rationale in [`attic/qwen3/AGENTS.md`](../../attic/qwen3
 | decode C1 | **71.7 t/s** @ d0 (σ 0.2, n=5) and 67.8 @ d8k (σ 0.1) — 2.1× the DFlash2 arm, the lane's fastest decode |
 | decode ladder (2026-10-16) | **C1 70.4 ± 0.2 · C2 114.0 ± 2.6 · C5 177.1 ± 14.9 · C10 249.5 ± 3.9 t/s** @ d0, pp 2048, tg 128, n=5 — `benchmarking/concurrency-ladder.yaml` on the pinned boot, decode rows read from the `--output` file (`~/benchmarks/pins-20261016/qwen3coder-ladder.{yaml,json}`). C1 here (70.4) vs the 71.7 above is the same shape re-measured on a different boot: 1.8 %, i.e. within inter-boot noise. C5's spread is the wide one. |
 | tool score (2026-10-16) | tool-eval-bench **v2.6.0**, core 15, greedy, 8 turns, sequential, thinking enabled: **90/100 (27/30 points), ★★★★★ Excellent** — deployability 89, responsiveness 87 (median turn 0.8 s), error rate 0.0. The report's engine block pins the provenance of the new image digest: **vLLM 0.32.0rc1.dev301+g1ac942555.d20261016** inside `dgx-vllm-eugr-nightly@sha256:cc47adc1…`. Receipt `~/benchmarks/pins-20261016/qwen3coder-tools.{yaml,json}`, `bench_e8e91f06209d`. |
-| quality | 35/37 house battery (misses `hard-arith-1`/`hard-arith-2`, both multi-step arithmetic) — the speed/coder arm to the DFlash2 quality reference |
+| quality | 36/37 house battery (missing `hard-arith-2`, multi-step arithmetic; the 2026-10-18 suite receipt's number) — the speed/coder arm to the DFlash2 quality reference |
 | license | the Intel card declares none and defers to the base model `Qwen/Qwen3-Coder-Next` (**Apache-2.0**) |
 
 **The non-obvious knob — the empty-`content` trap.** With the model's native thinking ON, a short

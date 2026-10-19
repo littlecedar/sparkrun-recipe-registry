@@ -21,8 +21,10 @@ metadata:
     Optimised for batched serving, where aggregate decode peaks near k=16 and per-request rate is a
     fraction of the single-stream rate — NOT for single-stream latency. Costs ~+0.85 GB/rank and
     ~-4.55% KV against the base. Same quantisation caveat as the base: more aggressively quantised
-    than the RadixArk export in the attention/GDN and PLE-n-gram paths, and no accuracy evaluation
-    exists on this cluster for this export — a throughput win is NOT evidence of equal quality.
+    than the RadixArk export in the attention/GDN and PLE-n-gram paths, and THIS configuration has no
+    accuracy run — the same checkpoint's base arm now has a full standard-suite pass (house 37/37,
+    needle 3/3 at 32k/128k/262k, ARC 95.5, GSM8K 95.5, TEB 100), which sizes the export's quality
+    but is not evidence for the high-concurrency admission window.
     Pinned to `6c01ac378d22...` (step-5500 QAD, 43 shards / ~106.3 GB): the pre-5500 revision cannot
     be served by the current mod chain (the PLE unpack mod fail-closes on the old shard layout).
 

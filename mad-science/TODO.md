@@ -349,6 +349,24 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 *(2026-10-19: the explore keeper sweep retired 10 arms, so the "~20 arms" tail above shrank —
 re-count the survivors from the index before scheduling the sweep.)*
 
+*(2026-10-19 audit — all 48 shipped recipes checked against their cited receipts: **7 COVERED ·
+14 PARTIAL · 7 UNCOVERED · 20 N/A** (11 decision arms + 4 pooling + 1 media-gen + 4 documented
+cybersec negatives, each with its own documented reason). Every cited receipt except one exists on
+the head; the exception is the Ornith YaRN 1M arm's 2026-10-18 rung directory, whose five passing
+rungs are therefore prose-only (the lane README concedes it; only the d90 negative is receipted).
+Ordered tail, cheapest window first — the first three are 131k single-node: (1) `k2-horizon-0.9b`
+needle re-take at `--needle-max-tokens 512` + tools; (2) `k2-horizon-0.9b-uno` contract+needle;
+(3) `k2-horizon-7b-fp8-uno` contract+needle **on the shipped fa4/bf16 line** (the 36/37 on file is a
+triton+fp8-KV override); (4) cybersec 27B uncensored · (5) cybersec 27B ablit · (6) cybersec 27B
+NEXTN — contract/needle/ARC/GSM8K/TEB; (7) kolibri APEX-24bpw needle/hard/TEB; (8) laguna-XS
+contract+needle (fix the empty-`content` shape first); (9) qwen3 MLX4bit needle at 262k (explicit
+`--needle-lengths`; the engine reports no `max_model_len`); then the two-node arms (laguna-M.1 after
+`#45`, qwen4 highcon, the two qwen4 probes) and the four-node arms (ornith 397B, both GLM quality
+batteries, ds4 knapcio's ARC/GSM8K leg). Doc corrections from the same audit: qwen3-coder-next's
+house number is **36/37** (receipt), not 35/37 — fixed; qwen4 highcon's "no accuracy evaluation
+exists for this export" was stale — fixed to name the base arm's suite; ds4 TensorFold's "17/18
+house hard" is the gateway harness, not `eval-suite` — the register now distinguishes them.)*
+
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
 
 ## Image pins and advisories (registry-level)
