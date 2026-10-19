@@ -410,6 +410,16 @@ in `irrelevance` at the cap, so this arm's tools leg is *measured-unmeasurable w
 would answer a different question. .35's 7B tools leg runs the same profile and will settle whether
 the cap or the model is the binding constraint.)*
 
+*(progress 2026-10-19, later — **the 7B settles it: the cap is fine, the 0.9B's speed was the
+constraint.** `k2-horizon-7b-fp8-uno-sglang` ran all five legs to `ok` on the shipped fa4/bf16 line:
+contract 131072, house **36/37** (19/19 + 17/18), needle **3/3 at 32k and 131k**, ARC **181/200** and
+GSM8K **189/200**, tools **1079/1239 (87.1 %, 1 transport error)** in 1,383 s — a quarter of the 2 h
+cap. Against the fp8-KV override's 36/37 · 188/200 · 179/200 the shipped line is +0/+1/+2, so the
+triton+fp8 detour bought no accuracy and the shipped bf16 configuration is the measured one; the
+lane README carries the paragraph and the index row its pointer, receipt
+`~/benchmarks/ifm-7b-uno-shipped-20261019/`. Tail item 3 closed. **Tail item 4 (27B uncensored) and
+item 5 (27B ablit) are booted and running one suite each**, on `.34` and `.35` respectively.)*
+
 
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
 
