@@ -2,7 +2,9 @@
 
 Small models that make classification / routing / judgment calls — **prefill-only scorers, not
 chat models** — co-located with the shipped embed + rerank pair on **one** DGX Spark (the lane's
-core constraint: nodes are at a premium). This README covers the four shipped recipes. The
+core constraint: nodes are at a premium). This README covers the four shipped recipes plus the two
+candidate CPU arms measured 2026-10-18 — `kev-0.8b` serves and scores but cannot pass sparkrun's
+launch gate, and `d3-edge` cannot load on a staged offline node. The
 candidate research, verified surfaces, official scores, the CPU+GPU tandem probe and the
 revision-drift determination are archived under [`attic/decision/`](../../attic/decision/)
 (indexed at the end).
@@ -13,6 +15,8 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [clef-flash-decision-sglang](#clef-flash-decision-sglang)
 - [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
 - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
+- [kev-0.8b-decision-serve](#kev-08b-decision-serve)
+- [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
 - [Operating constraints](#operating-constraints)
   - [The `vllm-srun` runtime (Kai + Sol)](#the-vllm-srun-runtime-kai--sol)
   - [Served-id caveat](#served-id-caveat)
@@ -23,7 +27,8 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [Attic index](#attic-index)
 
 Accuracy on the shared instrument (`tool-eval-bench` v2.8.0, Typed Decisions test split — 400
-cases / 2000 decisions): **clef-flash 70.3% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B 47.5%**.
+cases / 2000 decisions): **clef-flash 70.3% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B 47.5%**; the
+candidate `kev-0.8b` sits below that ranking at **46.0%** and `d3-edge` has no score (their sections follow).
 
 Two measurements sit outside that ranking and have their own sections below: the lane's
 accuracy record is **not** clef-flash alone but the **clef + Kai ensemble at 71.6%** (pooling
@@ -82,6 +87,79 @@ at length is needed (the card's own note).
 | TP | 1 |
 | flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
 | status | **BOOT-VERIFIED 2026-10-13** |
+
+### kev-0.8b-decision-serve
+
+| field | value |
+|---|---|
+| repo id | [`jaredpalmer/kev-0.8b`][kev] (pinned `bf75a6a8`), rank-16 LoRA adapter + pointer head on `Qwen3.5-0.8B-Base`; Apache-2.0 |
+| accuracy | **46.0%** (919/2000), ★ — KL(gold‖pred) 0.349, Brier 0.196, ECE 0.046 |
+| size | 0.06 GiB staged (adapter + head); the ~1.6 GB backbone is fetched from the Hub at first load (a recipe stages one repo) |
+| API | `/v1/systemone` (+ `/v1/systemone/permute`, `/v1/systemone/separate`), **CPU**; `/v1/models` is not OpenAI-shaped (no `data[].id`); **no `/health`** |
+| TP | 1 |
+| flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
+| status | **MEASURED 2026-10-18** (`.34`) — serve healthy, **sparkrun launch gate cannot pass** |
+
+**Blocker — the gate, not the serve.** sparkrun's in-node startup probe requires HTTP 200 on
+`/health` and polls until it sees one (`sparkrun/scripts/startup_probe.py:246-265`); `kev.serve` has
+no such route, so it 404s (≈2 polls/s for the ~20 min before the launch was cancelled) and the probe
+would raise `TimeoutError("health")` at `health_timeout_s: 1800`. `readiness.inference: false` skips
+only the inference stage, and `health_path` is runtime-owned (`sparkrun/runtimes/_vllm_common.py:24`
+→ `readiness_health_path = "/health"`), so no recipe key redirects it. The detached container keeps
+serving while the launch waits, which is how this arm was measured; TTR is bounded at ≤ ~3.5 min
+(the cold boot is `pip install torch==2.8.0` + `kev[serve]@1f04cfa2` plus the backbone fetch).
+
+**Measured 2026-10-18 on `.34`** (`runbooks/kev-smoke.py`, then `tool-eval-bench` v2.8.0
+`--decision-bench-only --model kev-latest` over the full 400-case / 2000-decision split, serial):
+p50 **5403.4 ms** / p95 6671.5 ms per case, 2126.8 s total, 202,638 input tokens, 0 decision
+errors. Per type: noul **52.5%** (315/600, KL 0.266, Brier 0.220), choice **50.5%** (303/600,
+0.359, 0.174), score **37.6%** (301/800, 0.405, 0.194). Per workflow: customer_service 55.0%,
+security_incidents 50.4%, invoice_processing 43.8%, agent_trace_observability 34.6%. Against laya on
+the same split (**36.1%**, 723/2000, p50 4290.0 ms): **+9.9 points at 26% more latency**.
+
+Ladder (`tools/decision-ladder.py --runs 1 --limit 30`): c1 **0.234 req/s / 1.17 decisions/s**
+(p50 4290.8 ms), c2 **0.235 / 1.18** (p50 8527.0 ms) — flat aggregate throughput at doubled
+per-request latency, because `Server._work` runs one request at a time without CUDA graphs; laya's
+c1 is 0.449 / 2.25, so kev is **1.9× slower per case at c1**. The case cost is the shared state prefill,
+not the question rows: `/v1/systemone/separate` costs 4360 ms against 4133 ms packed (742 vs 370
+input tokens).
+
+Receipt: `~/benchmarks/decision-arms2-20261018/` — `REPORT.md`, `logs/kev-launch.log` +
+`logs/kev-teb.log` + `logs/kev-smoke.log` + `logs/kev-ladder.log`, `runbooks/kev-smoke.py`,
+`ladder-kev-c1c2.json`, `kev-evidence/startup_probe-health-gate.py`.
+
+### d3-edge-decision-vllm-srun
+
+| field | value |
+|---|---|
+| repo id | [`vllm-sr/d3-edge`][d3] (pinned `18d61df7` — the runtime's built-in, golden-checked revision) |
+| accuracy | **unmeasured** — the runtime will not serve it |
+| size | 594,582,720 params (1.19 GB weights + readout) |
+| API | `/v1/systemone` over text, image and video states, **CPU**; `/health` is the golden gate, not plain liveness |
+| TP | 1 |
+| flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
+| status | **NOT BOOTED 2026-10-18** (`.34`) — two blockers, both image-side |
+
+**Blocker 1 — offline staging.** As shipped, `/health` returns 503 `OfflineModeIsEnabled: Cannot
+reach https://huggingface.co/api/models/vllm-sr/d3-edge/tree/18d61df7…`: sparkrun stages the model
+with `HF_HUB_OFFLINE=1`, while the decision3 loader resolves the package through the Hub tree API
+even with `--cache-dir` pointing at the staged snapshot. Kai/Sol on `vllm-srun` do not hit this, and
+the node itself reaches the Hub.
+
+**Blocker 2 — the golden gate.** With `-e HF_HUB_OFFLINE=0` (launch-time env only) the package
+resolves and the model loads (594,582,720 = the manifest's `parameters.loaded`), then the runtime
+refuses it: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`. The aarch64
+answers differ from the image's x86-recorded CPU goldens by **2-4e-3 in probability** — 2-4×
+`CPU_TOLERANCE = 1e-3` (`supervision/readiness.py:12-14`) and deterministic across 5 attempts:
+`difficulty` confidence 3.70e-3, P(0) 2.15e-3, P(1) 2.22e-3, score 2.09e-3; `reasoning` noul 3.83e-3;
+`domain` matches at 8.8e-5. `/health` stays 503 and `/v1/systemone` 503 `not_ready`, so this arm has
+**no score and no ladder**. Making it bootable is image-side on either count — an aarch64-recorded
+CPU reference (or a per-ISA tolerance), or a decision3 loader that accepts a staged local snapshot
+offline. Neither is a recipe edit.
+
+Receipt: `~/benchmarks/decision-arms2-20261018/` — `REPORT.md`, `logs/d3-launch.log` +
+`logs/d3-launch-hfonline.log`, `d3-evidence/golden-probe.log`, `golden-reference-d3-edge.json`,
+`readiness-golden_check.py`, `compare_answers.py`, `container-inspect.json`.
 
 ## Operating constraints
 
@@ -332,9 +410,11 @@ Files under [`attic/decision/`](../../attic/decision/):
 | file | what it holds |
 |---|---|
 | [`DECISION-MODELS-RESEARCH.md`](../../attic/decision/DECISION-MODELS-RESEARCH.md) | The 2026-10-11 read-only candidate research: both owner leads resolved, the 8-model shortlist, the one-node co-location budget math, the recommended first recipes, and the cross-cutting facts the recipes must handle. |
-| [`AGENTS.md`](../../attic/decision/AGENTS.md) | Archived lane notes moved out of this README (2026-10-14): the verified surfaces, the JEV-9B and clef-flash official scores, the Kai/Sol `vllm-srun` arms record, the CPU+GPU tandem probe, "what these models are", and the archive of `#` comments removed from the recipes. Extended 2026-10-15 with §"Ensemble productized, and the req/s ladder": the fresh-boot reproduction, the served-ensemble proxy, the ladder numbers, the profile-refusal mechanism and the re-pull cost. |
+| [`AGENTS.md`](../../attic/decision/AGENTS.md) | Archived lane notes moved out of this README (2026-10-14): the verified surfaces, the JEV-9B and clef-flash official scores, the Kai/Sol `vllm-srun` arms record, the CPU+GPU tandem probe, "what these models are", and the archive of `#` comments removed from the recipes. Extended 2026-10-15 with §"Ensemble productized, and the req/s ladder": the fresh-boot reproduction, the served-ensemble proxy, the ladder numbers, the profile-refusal mechanism and the re-pull cost. Extended 2026-10-18 with §"kev-0.8b and d3-edge (2026-10-18)": the `/health`-gate and golden-tolerance mechanisms, cited to source. |
 
 [jev]: https://huggingface.co/autotrust/JEV-9B
 [clef]: https://huggingface.co/Cloudflare/clef-flash
 [kai]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
 [sol]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B
+[kev]: https://huggingface.co/jaredpalmer/kev-0.8b
+[d3]: https://huggingface.co/vllm-sr/d3-edge

@@ -11,10 +11,10 @@ metadata:
   description: >-
     jaredpalmer/kev-0.8b — a LoRA adapter (rank 16) plus a pointer head on
     Qwen3.5-0.8B-Base, served by the project's own kev.serve on CPU. The
-    server exposes POST /v1/systemone (plus /permute, /separate and
-    /v1/models), so the lane's instrument drives it natively — the research
-    note that it had no SystemOne surface was wrong. Weights are the adapter
-    and head only (173 MB); the 3.8 GB resident figure is the GPU path, and
+    server exposes POST /v1/systemone (the real routes are /v1/systemone/permute
+    and /v1/systemone/separate; /v1/models is not OpenAI-shaped), so the lane's instrument
+    drives it natively — the research note that it had no SystemOne surface was wrong. Weights are
+    the adapter and head only (173 MB); the 3.8 GB resident figure is the GPU path, and
     the base backbone (~1.6 GB) is fetched from the Hub at first load because
     a recipe stages one repo. Card quality is decision-v7 0.838 / breadth-v1
     0.586 / transfer-v4 0.697 — it publishes no typed-decisions number, so
@@ -25,7 +25,8 @@ metadata:
   model_dtype: bf16
   tags: decision, smol, cpu, classifier
 
-# No chat endpoint: /v1/systemone is the surface; the package ships no /health, so this is a port wait.
+# No /health route: sparkrun's startup probe requires a 200 and cannot be
+# redirected, so this recipe never reaches ready. Serve the image by hand.
 readiness:
   inference: false
   port_timeout_s: 1800

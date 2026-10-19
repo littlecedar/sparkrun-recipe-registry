@@ -409,6 +409,59 @@ stays in the recipe with a one-line why.
   # is needed (card's own note).
 ```
 
+## kev-0.8b and d3-edge (2026-10-18)
+
+Two CPU candidate arms measured in one window on `.34` (spark-ec1d, 20 cores / 121.7 GiB),
+launched from the head, one serve at a time, each stopped by task id. Receipt
+`~/benchmarks/decision-arms2-20261018/`; the scores, ladder and status rows live in
+[`recipes/decision/README.md`](../../recipes/decision/README.md). This section records the two
+mechanisms, each read from the code that enforces it.
+
+### kev-0.8b — the serve is healthy, the launch gate cannot pass
+
+sparkrun's in-node startup probe polls `http://<host>:<port>/health` and breaks only on
+`response.status == 200` (`site-packages/sparkrun/scripts/startup_probe.py:246-265`; the excerpt is
+kept beside the receipt as `kev-evidence/startup_probe-health-gate.py`). `kev.serve` registers no
+`/health` route, so the probe 404s at ~2 polls/s until `health_timeout_s: 1800` would raise
+`TimeoutError("health")`; the launch was cancelled after ~20 min instead, leaving the detached
+container serving for the measurement. Two keys look like they should help and do not:
+`readiness.inference: false` skips only the *inference* stage (the HTTP stage still runs), and
+`health_path` is runtime-owned, not a recipe key — `sparkrun/runtimes/_vllm_common.py:24` sets
+`readiness_health_path = "/health"`. The recipe's own comment ("the package ships no /health, so this
+is a port wait") reads the probe backwards.
+
+Measured on the live container: **46.0% (919/2000)**, ★, KL(gold‖pred) 0.349, Brier 0.196, ECE
+0.046, 0 decision errors, p50 5403.4 ms; per type noul 52.5 / choice 50.5 / score 37.6; ladder c1
+0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 (`Server._work` calls
+`model.probs_batch` one request at a time without CUDA graphs). Surface detail: `/v1/models` is not
+OpenAI-shaped, and `usage.output_tokens` counts the serialised answers rather than generation.
+
+### vllm-sr/d3-edge — two independent image-side blockers, both measured
+
+1. **Offline loader.** sparkrun stages with `HF_HUB_OFFLINE=1` (`HF_HOME=/cache/huggingface`,
+   `HF_HUB_CACHE=/cache/huggingface/hub`), but the decision3 loader resolves the package through the
+   Hub tree API even with `--cache-dir` pointing at the staged snapshot, so `/health` answers 503
+   `OfflineModeIsEnabled: Cannot reach https://huggingface.co/api/models/vllm-sr/d3-edge/tree/18d61df7…`.
+   Kai/Sol (decision2) do not resolve through that path, so the same staging only breaks this family.
+2. **Golden gate.** With `-e HF_HUB_OFFLINE=0` the package resolves and the model loads
+   (594,582,720 params = the manifest's `parameters.loaded`), then `golden_check` runs each golden
+   request **twice** and compares against the device-class reference at `CPU_TOLERANCE = 1e-3`
+   (`supervision/readiness.py:12-14`); `plugins/decisions.py:compare_answers` counts a question
+   matched only if its type, probability keys and every probability are within tolerance. The
+   image's `cpu` reference block was recorded on x86, and the GB10's aarch64 answers differ
+   deterministically (identical across 5 load attempts) by 2-4e-3:
+   `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')` — `difficulty` confidence
+   3.70e-3, P(0) 2.15e-3, P(1) 2.22e-3, score 2.09e-3; `reasoning` noul 3.83e-3; `domain` matches at
+   8.8e-5. `/health` stays 503 and `/v1/systemone` answers 503 `not_ready`. [INFERENCE] the drift is
+   per-ISA (bf16 weights on the family's `CONV_VARIANT` fp64_naive kernels) — **not isolated**; what
+   is measured is that the x86-recorded goldens do not reproduce on aarch64 at 1e-3. The runtime has
+   no bypass, so this arm has no score and no ladder.
+
+Both fixes are image-side: an aarch64-recorded CPU reference (or a per-ISA tolerance), and an
+offline-capable decision3 loader. Evidence: `d3-evidence/golden-probe.log` (all 5 attempts),
+`golden-reference-d3-edge.json` (the recorded `cpu`/`rocm` blocks), `readiness-golden_check.py` and
+`compare_answers.py` (the two code paths quoted), `container-inspect.json`.
+
 [jev]: https://huggingface.co/autotrust/JEV-9B
 [clef]: https://huggingface.co/Cloudflare/clef-flash
 [kai]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
