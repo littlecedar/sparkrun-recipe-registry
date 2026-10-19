@@ -246,7 +246,8 @@ Qwen 4.x (and 3.8 Flash Next)
   *(progress 2026-10-19, later — **`--enable-int8-mamba-checkpoint` is a hard negative.** The default 224-slot pool needs 3.24 GB against 2.15 GB free at the shipped `gpu_memory_utilization: 0.80`; a 112-slot retry then dies with `ValueError: --enable-int8-mamba-checkpoint is incompatible with Qwen4-Exp PLE side states` (`memory_pool.py:1337`), so no size fits. Receipts `~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and `b2b-int8mamba-112/`. The prefill-graph bs>1 cost is the only unprobed item left.)*
   *(progress 2026-10-19, last — **the prefill-graph flag is a no-op on this image.** Removing `--cuda-graph-backend-prefill disabled` leaves the default `disabled`, and an explicit `--cuda-graph-backend-prefill full` is accepted by args parsing then disabled by the engine for the EAGLE target ("Disable prefill CUDA graph for EAGLE target on tc_piecewise…"), with the multimodal rule as the companion reason. There is no bs>1 graph cost to recover. Three same-config boots span **8.6 % at C2** (67.1-72.9) and ≤4.6 % elsewhere — the inter-boot floor measured directly. Receipts `~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph{,-full}/`. **All TP=2 knobs in this item are now answered**; it stays open only for TP=4 (W6) and the W12 cross-runtime bench — neither needs a node window:
 per the 2026-10-19 directive they run against the **offsite API endpoint**, batched behind the one
-owner switch.)*
+owner switch. *(Owner decision 2026-10-19: that switch happens **after** the `.34`/`.35`
+single-node tail closes, not now — the tail's estimates assume local boots through then.)* )*
 - [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
   *(**Both are root-caused 2026-10-19** — `mad-science/QWEN4-DIAGNOSTICS.md` carries the mechanism
@@ -282,7 +283,10 @@ Any decision model
   `Xunzhuo/llama.cpp` @ `c9f5974` (`decision2-gguf`, 959 commits ahead of the registered tier's
   `b2e5e9b`; never merged — upstream merged a different design instead). Three builds fail identically:
   `wrong number of tensors; expected 330, got 320`. Unblock is image-side: build the fork into a
-  digest-pinned arm64 image, or have the vendor re-convert to upstream's `vllm-decision2` arch.)*
+  digest-pinned arm64 image, or have the vendor re-convert to upstream's `vllm-decision2` arch.
+  *(Owner decision 2026-10-19: **build the image on `.34` or `.35`**, not the local workstation — so
+  it is a node-window step: fork build into a digest-pinned arm64 image, then the Sol-2B boot and the
+  decision-instrument score.)* )*
 
   *(closed sub-item 2026-10-18 — `kev-0.8b` is built and measured; `d3-edge` is closed as not bootable here. Receipt `~/benchmarks/decision-arms2-20261018/` (`REPORT.md`, `logs/`, `kev-evidence/`, `d3-evidence/`); lane record in `recipes/decision/README.md` §kev-0.8b-decision-serve and §d3-edge-decision-vllm-srun. **kev: Decision accuracy 46.0 % (919/2000)**, ★, KL 0.349 / Brier 0.196 / ECE 0.046, 0 decision errors, p50 5403.4 ms per request; per type noul 52.5 / choice 50.5 / score 37.6, per workflow customer_service 55.0 → agent_trace_observability 34.6; ladder c1 0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 — +9.9 pts over laya on the same 400 cases, at 1.9× laya's per-case latency. The serve is healthy but **the launch gate can never pass**: sparkrun's startup probe requires HTTP 200 on `/health` (`startup_probe.py:246-265`) and kev has no such route (404 forever), `readiness.inference: false` skips only the inference stage, and `health_path` is runtime-owned (`_vllm_common.py:24` → `/health`), so the score was taken against the detached container. **d3-edge: not booted** — (1) as shipped `/health` 503 `OfflineModeIsEnabled`, because sparkrun stages with `HF_HUB_OFFLINE=1` while the decision3 loader resolves through the Hub tree API even with `--cache-dir` pointed at the staged snapshot; (2) with `-e HF_HUB_OFFLINE=0` it loads 594,582,720 params then fails the golden gate: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`, deltas confidence 3.70e-3 / P0 2.15e-3 / P1 2.22e-3 / score 2.09e-3 / noul 3.83e-3 / domain 8.8e-5 against `CPU_TOLERANCE = 1e-3`, identical across 5 attempts — so no score and no ladder. Both fixes are image-side (an aarch64-recorded CPU reference or a per-ISA tolerance; an offline-capable decision3 loader), not recipe edits.)*
 ## explore
@@ -410,15 +414,18 @@ in `irrelevance` at the cap, so this arm's tools leg is *measured-unmeasurable w
 would answer a different question. .35's 7B tools leg runs the same profile and will settle whether
 the cap or the model is the binding constraint.)*
 
-*(progress 2026-10-19, later — **the 7B settles it: the cap is fine, the 0.9B's speed was the
-constraint.** `k2-horizon-7b-fp8-uno-sglang` ran all five legs to `ok` on the shipped fa4/bf16 line:
+*(progress 2026-10-19, later — **the 7B narrows it: the cap is marginal for this class of arm, not
+free.** `k2-horizon-7b-fp8-uno-sglang` ran all five legs to `ok` on the shipped fa4/bf16 line:
 contract 131072, house **36/37** (19/19 + 17/18), needle **3/3 at 32k and 131k**, ARC **181/200** and
-GSM8K **189/200**, tools **1079/1239 (87.1 %, 1 transport error)** in 1,383 s — a quarter of the 2 h
-cap. Against the fp8-KV override's 36/37 · 188/200 · 179/200 the shipped line is +0/+1/+2, so the
+GSM8K **189/200**, tools **1079/1239 (87.1 %, 1 transport error)** — but the BFCL leg took **6,555 s
+of the 7,200 s per-check cap (91 %)** and the suite 9,805 s, so the cap nearly bound this arm too. Against the fp8-KV override's 36/37 · 188/200 · 179/200 the shipped line is +0/+1/+2, so the
 triton+fp8 detour bought no accuracy and the shipped bf16 configuration is the measured one; the
 lane README carries the paragraph and the index row its pointer, receipt
 `~/benchmarks/ifm-7b-uno-shipped-20261019/`. Tail item 3 closed. **Tail item 4 (27B uncensored) and
-item 5 (27B ablit) are booted and running one suite each**, on `.34` and `.35` respectively.)*
+item 5 (27B ablit) are booted and running one suite each**, on `.34` and `.35` respectively.
+**Correction (same day):** the BFCL leg took 6,555 s, not the "1,383 s / a quarter of the cap" first
+written here — the per-check cap was at 91 %, so a 4096-token BFCL run sits close to its budget on this
+arm family, and a larger thinking model would exceed it.)*
 
 
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*

@@ -11,6 +11,7 @@
 **/*-WORK.md
 **/*-WORK-ARCHIVE.md
 **/COOP.md
+/mad-science/REPORT.md
 /.logs/
 **/__pycache__
 **/*.pyc

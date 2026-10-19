@@ -175,8 +175,8 @@ peer of the fa4 figures above, and the shipped recipe stays `fa4` + bf16 KV. Rec
 **Standard suite on the shipped `fa4`/bf16 line — all five legs `ok` (2026-10-19).** Contract
 `max_model_len=131072`, ready, `finish=stop`; house **36/37** (easy 19/19, hard 17/18); needle
 **3/3 at 32,768 and 3/3 at 131,072**; hard ARC-Challenge **181/200 (90.5 %)** and GSM8K **189/200
-(94.5 %)**; tools **1079/1239 (87.1 %, 1 transport error)** — 1,383 s of wall on the BFCL leg, so
-this arm clears the suite's per-check cap where the 0.9B cannot. Against the fp8-KV override's
+(94.5 %)**; tools **1079/1239 (87.1 %, 1 transport error)** — the BFCL leg alone took **6,555 s of its 7,200 s
+per-check cap** (91 %), the whole suite 9,805 s. Against the fp8-KV override's
 36/37 · 188/200 · 179/200 the shipped line is +0 / +1 / +2 items, i.e. the triton+fp8 route cost no
 accuracy and the bf16 line needs no trade — the shipped configuration is the one measured here.
 Receipt `~/benchmarks/ifm-7b-uno-shipped-20261019/` (`summary.json`, per-check JSON, `bfcl.json`).
