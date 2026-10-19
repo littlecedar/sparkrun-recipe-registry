@@ -5,16 +5,7 @@ model_revision: 7f0573836c44803030912ffe5d051ca7587edfd6
 # per-node rendezvous flags (--dist-init-addr/--nnodes/--node-rank), and the
 # launcher mod maps them onto `tensorfold serve`. See the mod's README.
 runtime: sglang
-# The engine image built for this lane: bertholomus/TensorFold branch
-# `glm-dsa-tp4` @ ddfad356 (the commit the 2026-10-13 trial boot-verified)
-# installed over lmsysorg/sglang:dev-cu13 arm64 e9aa22ad. Unlike the 4bpw arm
-# this is a source build of an unreleased branch, so there is no patch hash --
-# the manifest digest IS the identity. Built from
-# recipes/glm/Dockerfile.tensorfold-glm53-3bpw and pushed to littlecedar
-# 2026-10-18; the digest below is the REGISTRY's own (imagetools inspect). A
-# local-registry derivation had produced 44e478f1 - that is the local
-# manifest, not the pulled one, so it must never be cited as the pin.
-container: littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:25bb6806aa28bc2f7031a70417123398bb02d87cb2276bcb10d23d6525867237
+container: littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e0d0a066f909650c4aa8df49c4a467b47a082a3cd177bef59d2b7f076
 min_nodes: 4
 max_nodes: 4
 
@@ -26,8 +17,10 @@ metadata:
     only full-753B line that fits four nodes (69.86 GiB of weights per rank);
     the trial measured 35.7 t/s single-stream and a needle found at 1,039,064
     tokens. The launcher mod owns the engine command; receipts and the
-    runbook are in recipes/glm/README.md and attic/glm/. Neither this recipe
-    nor its image has been booted as a sparkrun recipe.
+    runbook are in recipes/glm/README.md and attic/glm/. Booted as a sparkrun
+    recipe 2026-10-18 on four nodes (ready in ~4 min, 31.7 t/s per-request
+    decode on a 397-token prompt, 258 s TTFT at 100,559 prompt tokens);
+    quality and the 1M-window rungs are still open.
   model_params: "753B"
   model_url: https://huggingface.co/bertholomus/GLM-5.3-EXL3-3.0bpw
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -51,17 +44,9 @@ defaults:
   # The id the boot-verified line advertised (`--name GLM-5.3-EXL3-3.0bpw`).
   # Never {model} here: a real launch renders that to the snapshot path.
   served_model_name: GLM-5.3-EXL3-3.0bpw
-  # The lane's serve line: four streams decoded together, MTP depth 3. Both
-  # are per-launch engine arguments, so they are defaults (overridable with
-  # -o) rather than constants baked into the launcher.
   parallel: 4
   mtp_drafts: 3
-  # The 1M configuration. TF_GLM_KV=q5 is 5-bit latent + fp8 indexer keys;
-  # TF_GLM_DCP=4 interleaves the cache's positions over the four ranks and
-  # TF_GLM_EXTENTS=1 makes the pool one span that streams take extents of --
-  # together what the ~64 t/s 1M arm and the 1,039,064-token needle ran on.
   # DCP must equal tensor_parallel; the launcher fails closed otherwise.
-  # Drop to dcp=1 for the small-window / replicated-cache arm (82 t/s at 32k).
   kv_format: q5
   dcp: 4
   extents: 1

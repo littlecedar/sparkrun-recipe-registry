@@ -76,6 +76,16 @@ RUN git clone --quiet "${TENSORFOLD_REPO}" /opt/tensorfold \
     && python3 -m pip install --no-cache-dir --no-deps . \
     && rm -rf /opt/tensorfold/.git
 
+# The wheel ships no CUDA sources (no package-data glob), but the runtime JIT
+# opens them next to the installed module -- without this a boot dies at
+# `No such file or directory: .../cuda/latent_rows.cu`. Mirror them onto the
+# installed package tree, same relative paths.
+RUN src=$(python3 -c 'import os, tensorfold; print(os.path.dirname(tensorfold.__file__))') \
+    && cd /opt/tensorfold/src/tensorfold \
+    && find . -type f \( -name '*.cu' -o -name '*.cuh' \) -exec sh -c 'install -D "$1" "$2/$1"' _ {} "$src" \; \
+    && test -f "$src/families/glm_moe_dsa/cuda/latent_rows.cu" \
+    && find "$src" -name '*.cu' | wc -l
+
 # Build-time gate: fail the build, not a cold boot. Proves the engine imports,
 # the GLM family is discovered with a CUDA backend and claims this exact
 # checkpoint, the TP=4 argv the lane runs is accepted by the parser, the

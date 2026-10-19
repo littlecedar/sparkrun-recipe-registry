@@ -10,8 +10,8 @@ line the lane's other recipe serves.
 | Kind | Pre-exec mod (gate + cache dirs) **and** the serve command (the shim). Modifies no image file. |
 | License | AGPL-3.0-or-later (this repo). |
 | Engine | [`bertholomus/TensorFold`](https://github.com/bertholomus/TensorFold) branch `glm-dsa-tp4` @ **`ddfad356dc16f4d6bed9cfcc9d60cd0ebc0a3595`** (2026-10-04), TensorFold **0.6.0**, Apache-2.0. No patch set — the commit is the whole provenance anchor. |
-| Image | built from [`../../Dockerfile.tensorfold-glm53-3bpw`](../../Dockerfile.tensorfold-glm53-3bpw) over `lmsysorg/sglang:dev-cu13` arm64 manifest `sha256:e9aa22adaad2b1fa30130d9d033f7f0d3e706e2780973eca849827d5aed983d6`. **Pushed 2026-10-18** to `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35`, registry digest **`sha256:25bb6806aa28bc2f7031a70417123398bb02d87cb2276bcb10d23d6525867237`** — that is the pin the recipe carries. A local-registry derivation had produced `44e478f1`, which is the image's local manifest, not the pulled one; never cite it as the pin (receipt: `~/benchmarks/glm-3bpw-image-20261018/REPORT.md`). |
-| Verified | **Not booted.** The engine commit, checkpoint and serve line are the ones the lane boot-verified outside sparkrun on `.30`–`.33` 2026-10-13 (`attic/glm/AGENTS.md` §"EXL3 3.0bpw"); the image is pullable now. A sparkrun boot is the open item — see [Boot-deferred claims](#boot-deferred-claims). |
+| Image | built from [`../../Dockerfile.tensorfold-glm53-3bpw`](../../Dockerfile.tensorfold-glm53-3bpw) over `lmsysorg/sglang:dev-cu13` arm64 manifest `sha256:e9aa22adaad2b1fa30130d9d033f7f0d3e706e2780973eca849827d5aed983d6`. **Pushed 2026-10-18** to `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35`, registry digest **`sha256:366c2d4e0d0a066f909650c4aa8df49c4a467b47a082a3cd177bef59d2b7f076`** — that is the pin the recipe carries, read back from the registry with `docker buildx imagetools inspect`. It is the tag's **second** push: the first (`sha256:25bb6806…`) shipped no `*.cu` — `pip install --no-deps .` carries no package data — and died at the first JIT kernel compile on `.../families/glm_moe_dsa/cuda/latent_rows.cu`. The Dockerfile now mirrors all 25 kernel sources from `/opt/tensorfold/src/tensorfold` onto the installed package root (verified: `find <pkg> -name '*.cu' | wc -l` → 25; receipt: `~/benchmarks/glm-3bpw-image-20261018/rebuild.log`). Never cite a local manifest id (`aabe1cac210f`, `44e478f1`) as the pin. |
+| Verified | **Booted 2026-10-18**, TP=4 on `.30`–`.33` via `sparkrun run … --transfer-mode local`, image digest `sha256:366c2d4e…`. `/v1/models` answered **240 s** after launch (engine self-report `loaded in 308.7s`); four CUDA extensions compiled at first start; smoke completion 32 tokens / 1.66 s (`prefill_s 0.2471`, `decode_s 1.3909`, 19/34 drafts accepted). 397-token/128-output ladder: c1 24.2, c2 25.3, c4 40.6 aggregate output tok/s (per-request decode 31.7 / 14.5 / 11.4). Long-context TTFT 258.4 s at 100,559 prompt tokens. Receipt: `~/benchmarks/glm-3bpw-boot-20261018/RECEIPT.md`. One boot, one ladder — a repeat boot and the 1M-window rungs remain open (see [Boot-deferred claims](#boot-deferred-claims)). |
 
 ## Why it exists
 
@@ -116,38 +116,39 @@ wrong, so this shim deliberately does none of it:
 | `--vision` (VISION=1), `--max-tokens 32768`, `--parallel 8` | no `--vision` (this line has no vision tower), no `--max-tokens` (engine default 4096), `--parallel 4` | each of those is the other lane's measured choice |
 | `TF_GLM_MTP=auto` (MTP head *not* loaded) | MTP-3 drafting, `TF_GLM_MTP_REUSE=2` | opposite drafting mechanisms |
 
-## Boot-deferred claims
+## Claims the boot did and did not settle
 
-A TP=4 window on `.30`–`.33` with this image settles these; none is settled by the build:
+The 2026-10-18 TP=4 boot on `.30`–`.33` (receipt: `~/benchmarks/glm-3bpw-boot-20261018/RECEIPT.md`):
 
-1. **TP=4 NCCL/RoCE rendezvous.** The trial set `NCCL_SOCKET_IFNAME`, `NCCL_IB_HCA` (per-node
-   device lists) and `NCCL_NET_PLUGIN=spcx` by hand in `tp4_start.sh`. sparkrun's probe supplies
-   `NCCL_IB_HCA`/`NCCL_SOCKET_IFNAME`/`NCCL_IB_GID_INDEX` per node and defaults
-   `NCCL_NET_PLUGIN=none` — the recipe names no device, by the lane's own guard rule. Whether
-   the all-gathers come up on the same rails without `spcx` needs a boot; a failure shows as a
-   rendezvous/all-gather stall, and the gate logs the two vars the diagnosis needs.
-2. **KV sizing at `TF_GLM_KV=q5`.** The pool is sized from free memory at start (the lane's
-   Flash sibling showed the README figure is best-case), so the token count is per-boot, not a
-   constant. Also unproven: that `--context 1048576` + `TF_GLM_DCP=4` + `--parallel 4` leaves a
-   pool that fits four concurrent long windows in the rank's KV headroom (69.86 GiB/rank of the
-   121 GiB is weights).
-3. **MTP-3 acceptance.** 63.4 % (1,556/2,453 draft tokens) is the 2026-10-13 trial's number on
-   an editable install of the same commit; it is not this image's, and `TF_GLM_MTP_REUSE=2` is
-   what that measurement ran with.
-4. **First-boot sm_121 JIT.** The engine compiles its CUDA extensions at first start for the
-   local device (`cuda/build.py::arch_flags` → `-gencode=arch=compute_121,code=sm_121`). A build
-   under qemu proves the Python tree imports, not that nvcc + torch in this image compile those
-   kernels for GB10; the compile is also where cold-boot time hides. It is why the recipe's
-   readiness budget is 7200 s and why the cache dirs exist.
-5. Two smaller ones: `--temperature 0` on rank 0 assumes the trial's sampling (it does —
-   `tp4_start.sh` passes it), and the checkpoint must be staged on all four nodes (~273 GB per
-   node; the 2026-10-14 hygiene pass reclaimed it).
+1. **TP=4 NCCL/RoCE rendezvous — settled, without `spcx`.** Four ranks rendezvoused on
+   `.NN:25000` under sparkrun's own probe vars and the default `NCCL_NET_PLUGIN=none`; rank 0
+   reports `decode all-gathers: RDMA writes over roceP2p1s0f0, rocep1s0f0` and serves at TP=4. No
+   hand-set `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`/`spcx` is needed.
+2. **KV sizing at `TF_GLM_KV=q5` — fits, but the four-long-window case is untested.** This boot:
+   `startup estimate 96.27 GiB within 103.38 GiB; native 1048576, allocated prompt/reply window
+   1048576, cache slots 1048584`, and `up to 4 requests decode together, each with a
+   1048576-token window (extents of one 1048584-row pool)`. Allocated, not proven: four concurrent
+   1M windows were never filled.
+3. **MTP-3 acceptance — still the trial's number only.** The 2026-10-13 trial measured 63.4 %
+   (1,556/2,453). This boot's single 32-token smoke accepted 19 of 34 drafts (55.9 %) — one short
+   greedy request is not that measurement; `TF_GLM_MTP_REUSE=2` is unset here (engine default),
+   unlike the trial.
+4. **First-boot sm_121 JIT — settled.** `tensorfold_rdma_gather_v6`,
+   `tensorfold_exl3_linear_v3`, `tensorfold_glm_latent_rows_v1` and `tensorfold_exl3_experts_v20`
+   compiled at first start for GB10; the engine reports `loaded in 308.7s`. Cold-boot cost is
+   ~95 s of launch + ~5 min of first-start compile + weight load, far inside the 7200 s budget.
+5. **Smaller ones — settled.** `--temperature 0` reaches the engine (argv in the receipt), and the
+   ~273 GB checkpoint was already staged on all four nodes (model distribution took 34.9 s).
+
+Still open: a second boot (cold-JIT cache reuse), any rung past 100,559 prompt tokens, and quality
+either inside or outside sparkrun for this image.
 
 ## Not in this mod
 
-- The image is **pulled**, not built: the recipe pins the manifest digest of the image this
-  build produced. It is **unpushed** at the time of writing — a launch before publishing needs
-  the local tag on every node (the receipt's publish target is
-  `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35`).
+- The image is **pulled**, not built: the recipe pins the registry digest of the image this
+  Dockerfile produced, and that tag is published (`littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35`),
+  so a launch on any node with registry access pulls it. A re-push of the same tag is *not*
+  re-pulled unless the launch also passes `--rebuild` or the pin changes — the pin follows the
+  digest, so bump it when the image changes.
 - The ~273 GB checkpoint is distributed by sparkrun (`distribution_config` defaults to enabled
   for models and containers).

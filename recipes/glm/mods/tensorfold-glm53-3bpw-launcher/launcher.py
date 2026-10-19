@@ -24,8 +24,10 @@ TensorFold's spelling, applies the lane's boot-verified configuration
 The engine is `bertholomus/TensorFold` branch `glm-dsa-tp4` @ `ddfad35`
 (TensorFold 0.6.0) — a *different tree* from the 4bpw lane's 106-patch build:
 no `cuda/roce.py`, no `--tp 3`, `TF_GLM_COMM`/`TF_ROCE_HCA` do not exist here,
-and its transport is plain NCCL (`TF_TP_WORLD` + `--rank/--master/--master-port`,
-which sparkrun's environment already configures). `run.sh` gates on that.
+and its transport is plain NCCL over `TF_TP_WORLD` + `--rank/--master/--master-port`.
+**sparkrun sets neither of those two engine facts**: this shim supplies `--rank`
+and `TF_TP_WORLD` (see `lane_env`), which is the whole of what the 2026-10-18
+boot died on. `run.sh` gates on the tree.
 
 Three things this shim is load-bearing for, as in the 4bpw sibling:
 
@@ -85,11 +87,23 @@ CONSTANT_ENV = {
 
 
 def lane_env(args: argparse.Namespace) -> dict[str, str]:
-    """CONSTANT_ENV plus the four values the recipe's `defaults:` own."""
+    """CONSTANT_ENV, the three values the recipe's `defaults:` own, and the TP world."""
     env = dict(CONSTANT_ENV)
     env["TF_GLM_KV"] = args.kv
     env["TF_GLM_DCP"] = str(args.dcp)
     env["TF_GLM_EXTENTS"] = str(args.extents)
+    # TF_TP_WORLD is the world every rank splits the checkpoint over and builds its
+    # NCCL comm with, and it must exist BEFORE `tensorfold` is imported: split.py
+    # bakes `WORLD = int(os.environ.get("TF_TP_WORLD", "2"))` at import, and
+    # engine.py's `world = int(os.environ.get("TF_TP_WORLD", "2"))` is the `nranks`
+    # it passes to ncclCommInitRank. The fork means to derive it from --tp
+    # (families/glm_moe_dsa/__init__.py:79) but the guard is
+    # `if tp != getenv("TF_TP_WORLD", str(tp))`, whose default makes it a no-op
+    # when unset -- so all four ranks ran at world=2 and ranks 2/3 died in
+    # ncclCommInitRank(..., world=2, rank=3) with error 4 ("Invalid rank
+    # requested : 3/2") before any transport stage. sparkrun sets no TF_TP_WORLD;
+    # only this shim knows --tp (2026-10-18 receipt: NCCL-DEBUG.md).
+    env["TF_TP_WORLD"] = str(args.tp)
     return env
 
 

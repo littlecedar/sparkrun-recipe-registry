@@ -134,6 +134,11 @@ log "engine gate OK: tensorfold ${version}, ${SITE}"
 #####################################################################
 mkdir -p "${EXT_DIR}" "${TRITON_DIR}"
 reown "${CACHEDIR}" "${EXT_DIR}" "${TRITON_DIR}"
+# A killed boot leaves the JIT build lock behind, and the next start waits on it
+# instead of compiling (its own log says so). Nothing can be building before the
+# engine execs, so any lock present here is stale; the .so is kept for reuse.
+rm -f "${EXT_DIR}"/*/lock "${EXT_DIR}"/*/.ninja_lock 2>/dev/null || true
+
 log_var EXT_DIR
 log_var TRITON_DIR
 

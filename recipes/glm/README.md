@@ -3,8 +3,8 @@
 **This lane carries two recipes.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` is the
 GLM-5.3-Flash EXL3 4bpw TP=4 line, **BOOT-VERIFIED as a sparkrun recipe 2026-10-18** (the boot
 receipt below). `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` is the full 753B EXL3 3.0bpw
-line: its engine image was built and pushed 2026-10-18 and the recipe validates, but **neither has
-been booted**. The lane also carries its **runbook + research archive**: the 3.0bpw line and the
+line, over a vendored engine image built the same day and **booted and receipted 2026-10-18**. The lane
+also carries its **runbook + research archive**: the 3.0bpw line and the
 TP=2/TP=3 Flash topologies were boot-verified on this cluster outside sparkrun, and a fourth line
 was attempted and archived as a proven-negative.
 
@@ -33,12 +33,13 @@ was attempted and archived as a proven-negative.
   cannot use). Do not re-add it without a public image that can serve this checkpoint. Full rationale:
   [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md),
   [`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md#from-recipesglmreadmemd-2026-10-14).
-- **One unbooted recipe.** The EXL3 3.0bpw 753B line now has
-  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` and its own launcher mod, over a **vendored
-  engine image built and pushed 2026-10-18** (source build of the unreleased fork branch; pin and
-  derivation under [Revision pins](#revision-pins)). Both files validate; **the boot is the open
-  item**. The TP=2/TP=3 Flash topologies stay runbook-only launchers — they are not what this
-  4-node registry targets.
+- **Two recipes, both booted.** The EXL3 3.0bpw 753B line is
+  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` plus its own launcher mod, over a **vendored
+  engine image built the same day** (source build of the unreleased fork branch; pin and derivation
+  under [Revision pins](#revision-pins)). It booted on `.30`–`.33` and served: C1 31.7 t/s, 100,559-token
+  TTFT 258.4 s, 1M window with DCP over 4 ranks. Two boot blockers it exposed are now guarded —
+  an absent `TF_TP_WORLD` and a wheel that shipped no CUDA sources. The TP=2/TP=3 Flash topologies
+  stay runbook-only launchers — they are not what this 4-node registry targets.
 - **Research** (checkpoint/engine/topology selection, measured numbers, license traps) is in
   [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
 
@@ -47,6 +48,7 @@ was attempted and archived as a proven-negative.
 | Recipe | What it is | Status |
 |---|---|---|
 | [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **BOOT-VERIFIED 2026-10-18** — TTR 309.6 s, KV pool 5,834,752, ladder C1 83.03 ± 17.74 / C2 102.36 ± 24.01 / C5 79.49 ± 11.34 / C10 73.37 ± 8.44 t/s. |
+| [`glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml) | Full GLM-5.3 753B EXL3 3.0bpw (~273 GB) on 4 Sparks, TP=4, TensorFold 0.6.0 from the unreleased `glm-dsa-tp4` fork, 1M window with DCP over 4 ranks, the checkpoint's own MTP-3 head. Checkpoint `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383`, image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | **BOOT-VERIFIED 2026-10-18** — `/v1/models` at 240 s, engine load 308.7 s, startup estimate 96.27 of 102.86 GiB, ladder c1 31.7 t/s / c2 25.3 agg / c4 40.6 agg, 100,559-token prompt TTFT 258.4 s. Not measured: quality, a warm-JIT boot, four concurrent 1M windows. |
 
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
@@ -105,9 +107,9 @@ One line each; full operator detail (serve commands, host overrides, receipts) i
   A's `bertholomus/glm-5.3-tensorfold-tp4-4xgb10` scripts over `bertholomus/TensorFold@glm-dsa-tp4`
   (`ddfad35`, TensorFold 0.6.0); **C1 decode 35.7 t/s @ d0 / 35.9 @ d8k**, MTP-3 acceptance 63.4 %.
   Receipts: `~/benchmarks/glm53-exl3-20261013/`.
-  The sparkrun recipe for this line, `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`, is **built
-  and validated but not booted**; every number in this bullet is the external runbook's, on an
-  editable install of the same engine commit.
+  The sparkrun recipe for this line, `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`, **booted on
+  this image 2026-10-18** (c1 31.7 t/s, 100,559-token TTFT 258.4 s — the recipe path, not the
+  editable install); the 35.7 / 63.4 % numbers in this bullet remain the external runbook's.
 - **GLM-5.3-Flash EXL3 4bpw / TensorFold, TP=2 / TP=3 / TP=4** — **all BOOT-VERIFIED 2026-10-13**;
   `MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold` launcher (`main` `3fd60df`, `tp4` `d220030`),
   checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter
@@ -177,10 +179,13 @@ inspect`, 2026-10-18), and that is what the recipe carries. Build receipt, inclu
 build-time gate and the read-only image probe: `~/benchmarks/glm-3bpw-image-20261018/REPORT.md` on
 the workstation (its "Push: NOT done" section predates the push).
 
-**The image is built and pushed, not booted.** The build ran under qemu with no GPU, so TP=4
-rendezvous, the first-boot sm_121 JIT, the `TF_GLM_KV=q5` pool sizing and MTP-3 acceptance are all
-still the 2026-10-13 trial's — on an editable install of the same commit, not this image. A
-sparkrun boot of `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` is the open item.
+**The image is built, pushed and booted.** The recipe booted on `.30`–`.33` 2026-10-18 and served: TP=4
+rendezvous (`TF_TP_WORLD` is now set from `--tp` — unset, the fork defaulted the world to 2 and
+`ncclCommInitRank` failed with NCCL error 4), the first-boot sm_121 JIT (four extensions, and the
+wheel's absent `*.cu` sources are now mirrored by the Dockerfile), the `TF_GLM_KV=q5` 1M pool
+(1,048,584 slots, 96.27 of 102.86 GiB) and a 100,559-token TTFT of 258.4 s. MTP-3 acceptance is still
+the trial's 63.4 % — the smoke's 19/34 drafts is one request. Receipt:
+`~/benchmarks/glm-3bpw-boot-20261018/` (`RECEIPT.md`, `NCCL-DEBUG.md`).
 
 The **shipped Flash arm's** two pins now live in its recipe and are what sparkrun re-stages on a
 launch; the pins above remain the runbook's. Verified 2026-10-15 against the Hub API: `078455ff`
