@@ -484,3 +484,38 @@ V4.1. Adoption therefore rests on the card's published gains, not on this lane's
 silently re-emits the first boot's numbers (`Prior benchmark state … COMPLETE`, 1 s) unless `--fresh`
 is passed — one A2 run was discarded for exactly that. `docker logs` returns nothing for these
 containers, so per-node serve logs must come from the executor's own path, not the daemon.
+
+### 2026-10-18 (late) — TP>2 closes, and `.30`–`.33` go back to their owner
+
+**Committed this stretch:** `d60f53b` (GLM 3.0bpw promotion + boot), `c936dd3` (Nemotron archive +
+LTX cells), `de71df7` (decision kev/d3), `1dbc79b` (K2 36B D2/E6 + the LTX wall correction). Gate:
+778 tests OK (2 skipped), every recipe validates plain, `bash -n` / `py_compile` clean.
+
+**GLM-5.3 EXL3 3.0bpw TP=4 — promoted, booted, receipted.** The recipe could not initialize for two
+reasons that both presented as something else. `TF_TP_WORLD` was unset and the fork's derivation guard
+defaults to `str(tp)`, so it never assigns: `engine.py:51` ran every rank at world=2, and ranks 2/3 died
+in `ncclCommInitRank` with "Invalid rank requested : 3/2" (NCCL error 4) — the absent NCCL WARN sent
+the first hour after the wrong knob, and the "no WARN ⇒ pre-transport" reading was right for the wrong
+reason. Then the wheel shipped no package data, so the first JIT compile died on `latent_rows.cu`.
+Measured: `/v1/models` 240 s, engine load 308.7 s, c1 **31.7** / c2 25.3 / c4 40.6 t/s, 100,559-token
+TTFT **258.4 s**, 96.27 of 102.86 GiB. Guard `tests/test_glm_3bpw_shim.py`.
+
+**Node policy changed mid-stretch:** the owner took `.30`–`.33` back for normal workloads at 19:15, so
+the four-node leftovers (ds4 v2.4 C1 re-take, ornith 397B retry, a true ≥1M probe) are **dropped**, not
+deferred. `.34`/`.35` carried the rest.
+
+**Results that ended in "no":** Nemotron-3-Super-120B (37/37 and a unique one-node 262k window, but
+15.9 t/s C1 → archived; and its recipe never booted as authored — `--swap-space 0` under
+`readiness.inference: false` hangs). K2 36B: D2 PASS, E6 doubles the pool and holds quality but the
+modelled +25 % throughput is false (−4.6 % at d8k, +8.1 % at d28k) → stays withdrawn. ornith YaRN 1M:
+five rungs PASS, d90 ERROR ×2 (serve exit mid-prefill, OOM and client timeout excluded) → ships ≤768k,
+1M to depth 50 %.
+
+**Traps worth carrying.** (1) A killed boot leaves the TensorFold JIT build lock and the next start
+waits on it instead of compiling — the lane's `run.sh` now sweeps it pre-exec. (2) sparkrun's readiness
+probe can kill a healthy serve 8 s after uvicorn comes up while CUDA graphs capture; `--no-ready-wait`
+plus a `/v1/models` check got the ornith boot through. (3) `--no-rm` does not preserve a container:
+the job record says `executor_config.auto_remove: false` yet dockerd task-deleted it, taking the
+traceback. (4) The KV pool is not the recipe's — the same ornith file booted to 1,203,041 / 282,227 /
+69,281 tokens depending on a co-tenant, and at the low grant every 1M rung reads TRUNCATED, which is
+indistinguishable from a window failure.

@@ -120,15 +120,15 @@ spelling (block-size mismatch is warning-only), and the hybrid pool does **not**
 lookup resolves only `refs/main`, so a pinned draft never starts (see §3.12). Receipts:
 [`README.md`](README.md); `~/benchmarks/ornith-9b-20261014/`.
 
-**35B YaRN 1M (`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`, 1 node, TP=1) — BUILT 2026-10-15, NOT
-BOOTED.** The 35B-A3B checkpoint at the card's YaRN factor-4.0 route
+**35B YaRN 1M (`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`, 1 node, TP=1) — BUILT 2026-10-15, BOOTED
+2026-10-18, GATE 5/6, SHIPS FOR ≤768k.** The 35B-A3B checkpoint at the card's YaRN factor-4.0 route
 (`max_model_len: 1000000`, the nested `text_config.rope_parameters` override, the load-bearing
-`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`) and **no draft**; `validate`-clean and `-n`-rendered,
-with **no boot, no C1, no house battery and no needle receipt** — the windows above 262,144 are
-exactly what is unmeasured. Memory says it fits: the recorded 262k boot's pool already held
-1,172,758 tokens (11.18 GiB of fp8 KV at 10,240 B/token for the 10 full-attention layers) against a
-1M request's ~10.0 GiB. Build record, the card quote, the engine citations and the pre-registered
-needle gate: **§9**.
+`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`) and **no draft**. The arm serves (`max_model_len`
+1,000,000, KV pool 1,202,898–1,203,041 tokens) and its needle gate passes at 262,144 / 512k / 768k and
+at 1M depth 10 % and 50 %; **1M depth 90 % failed twice** (`RemoteDisconnected` mid-prefill, serve
+process gone, mechanism unlogged — §9.1). It is **not a gate PASS**, and it ships at a capped window:
+**≤768k workloads, 1M supported to depth 50 %**. Still **no C1, no house battery**. The measured table,
+the exclusions and the three launch traps: **§9.1**; the numeric gate below.
 
 **Runtime split.** The 35B is SGLang and the 397B is vLLM; do not carry a Roofline or KV number
 across the two — they are different engines. The lane wires the `qwen3` reasoning parser and a Qwen
@@ -416,10 +416,11 @@ house battery only (the named `tool-eval-bench` suite is now configured as
 - **The 35B first-party DFlash head — CLOSED 2026-10-14.** A null A/B (indistinguishable from the
   shipped jzinno DFlash2 at n=4; n=8 no better), so the shipped draft stands and is now pinned with
   its `refs/main` seed. See §1 and [`NOTES.md`](NOTES.md) §3.
-- **The YaRN ~1M arm — BUILT 2026-10-15, gate UNRUN.** Nothing above 262,144 has been measured on
-  this fleet; the arm is the route and §9 is the pre-registered needle gate (512k / 768k / 1M plus a
-  262,144 control rung on the same boot). Do not describe the lane as having 1M context until that
-  receipt exists.
+- **The YaRN ~1M arm — MEASURED 2026-10-18; the d90 cell is CLOSED as unmeasurable.** The gate ran
+  twice: 5 of 6 rungs PASS (§9.1), and 1M depth 90 % failed in both attempts with a serve-side process
+  exit mid-prefill that leaves no log line, no kernel record, and no exit code. The arm ships at the
+  measured envelope (**≤768k, 1M to depth 50 %**); do not describe depth-90 % 1M retrieval as working.
+  Re-opening it needs a streamed serve log plus the container's exit code — see §9.1.
 
 ## 7. Validation ritual
 
@@ -470,12 +471,64 @@ corrected.*
 
 ---
 
-## 9. The YaRN ~1M arm — built 2026-10-15, **boot pending**
+## 9. The YaRN ~1M arm — built 2026-10-15, **booted 2026-10-18; gate 5/6 rungs, ships for ≤768k**
 
 `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml`. It is the shipped 35B-A3B arm at the
 model card's own long-context route with **three** changes: `max_model_len: 1000000`, the card's YaRN
-override on the serve line, and **no DFlash2 draft**. Nothing has been booted or measured on it —
-this section is the build record and the pre-registered gate, not a result.
+override on the serve line, and **no DFlash2 draft**. The sections below are the build record and the
+pre-registered gate; the gate's measured result follows immediately after this paragraph.
+
+### 9.1 Measured 2026-10-18 (`.34`, `sparkrun run … -H ${WOPR_USERNAME}@.NN --transfer-mode local --no-ready-wait --no-rm`)
+
+| rung | requested | depths | fill (`usage.prompt_tokens`) | verdict |
+|---|---|---|---|---|
+| **262,144 control** | 262,144 | 10 / 50 / 90 | 99.66–99.86 % | **PASS 3/3** — earlier run the same day, not re-run on this boot |
+| **512k** | 512,000 | 10 / 50 / 90 | ≥95 % every depth | **PASS 3/3** — same earlier run |
+| **768k** | 768,000 | 10 / 50 / 90 | 99.7–99.8 % | **PASS 3/3** — same earlier run |
+| **1M · d10** | 1,000,000 | 10 | 97.74 % (977,427) | **PASS**, 1,737 s — same earlier run |
+| **1M · d50** | 1,000,000 | 50 | 97.75 % (977,487) | **PASS**, 1,886 s, key `3881-RAVEN`, `finish_reason: stop` — the 19:57 boot |
+| **1M · d90** | 1,000,000 | 90 | — (none returned) | **ERROR ×2**: `RemoteDisconnected` after 1,246 s on the 19:57 boot (container gone, no log) and after 398 s on the 20:52 retry boot (log captured); both mid-prefill — **no fill %, no verdict** |
+
+Gate verdict: **not a PASS** — the pre-registered condition ("all three 1M depths PASS, each with
+≥950,000 server-counted tokens and its key retrieved") is unmet, because d90 has no measurement after
+two attempts. The arm nonetheless **ships at a capped window: ≤768k workloads, 1M supported to depth
+50 %**. Every rung at or below 768k and 1M at depth 50 % passes, which is the behavioural proof that
+the nested `text_config.rope_parameters` override reached the loaded config (open question 1 below is
+answered *yes*); the d90 outcome caps the documented depth, not the arm.
+
+**What the two crashes establish (retry boot).** The retry granted `max_total_num_tokens` **1,202,898**
+(`available_gpu_mem` 12.55 GB), admitted the 980,633-token prompt, and had prefilled **43.7 %**
+(551,863 tokens pending, input throughput 592 t/s) when the serve process exited at 21:01:38 local; the
+instrument reported `RemoteDisconnected` at 398 s against a 3,000 s per-request timeout.
+
+- **Not a host OOM kill.** `earlyoom` samples memory at 1 Hz here and never fell below **11.3 GiB
+  available (9.09 %)**; it logged no kill, and `dmesg` carries no OOM-killer record.
+- **Not a driver fault that logs.** No `Xid`, `NVRM`, or Oops line at the second; the ring buffer's
+  only `NV_ERR_NO_MEMORY` burst belongs to an earlier, co-tenant-starved boot.
+- **Not a client timeout.** 3,000 s budget, 398 s elapsed.
+- **Named: a serve-side process exit mid-prefill.** ~109 GiB of unified memory was released within 2 s
+  (available 11.3 → 17.8 → 68.0 → 120.5 GiB); dockerd deleted the container 2 s after that; no HTTP
+  error body was ever sent. The *mechanism* is **unlogged** — the last serve-log line is a normal
+  prefill chunk, and the final stderr plus the exit code died with the container.
+- **`--no-rm` did not preserve the container.** The launch passed it and
+  `~/.cache/sparkrun/jobs/dadfb04b5145d956_….yaml` records `executor_config.auto_remove: false`, yet
+  dockerd handled a task-delete at 21:01:40. Treat these containers as ephemeral.
+
+To name the mechanism, the next attempt needs the serve log **streamed** to the host for the whole
+request (a 10 s copy interval lost the final ≤6 s including any traceback) plus the container's exit
+code and `OOMKilled` flag, or a `docker events` capture across the death. That is the only work left
+here; open question 3's far-window quality stays open and uncounted.
+
+Boot facts for the passing ladder: `GET /v1/models` `max_model_len` **1,000,000**, served id
+`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, KV pool `max_total_num_tokens` **1,203,041** (retry boot:
+1,202,898), K 6.83 GB + V 6.83 GB fp8, `max_running_requests` 48, ready ≈ 60 s after container start,
+chat template loaded from the honed path. **The grant is not the recipe's:** two earlier launches of
+the same file on the same node granted **282,227** and **69,281** tokens because a co-tenant ComfyUI
+process held ~9.9–13.6 GiB; at 69,281 the instrument's 978k prompt is refused with HTTP 400 and every
+1M rung reports `TRUNCATED`. Always read `max_total_num_tokens` before starting a ladder. Receipts:
+`~/benchmarks/ornith-yarn-1m-20261018/` (`needle-1m-d50.json`, `needle-1m-d90.json`,
+`needle-1m-d90-retry.json`, `serve.log`, and `diag-d90-retry/` for the retry: `serve.log`,
+`metrics.log`, `dmesg.log`, `journal-crash-window.txt`, `sparkrun-job.yaml`, `launch.log`).
 
 **The card's route (fetched 2026-10-15 from the pinned repo's `README.md`).** Both Ornith 1.5 cards
 carry the same block — the 35B's (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`) and the 397B's

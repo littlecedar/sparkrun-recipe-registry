@@ -428,12 +428,14 @@ Still open (Plan B, §4):
 
 ---
 
-## 8. Plan D — the YaRN ~1M arm — BUILT 2026-10-15, GATE QUEUED
+## 8. Plan D — the YaRN ~1M arm — BUILT 2026-10-15, GATE RUN 2026-10-18
 
-**Built, not booted.** `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` — the 35B
-checkpoint (same pin as the sibling, `94e431d9…` = Hub `main`) at the model card's YaRN factor-4.0
-route with `max_model_len: 1000000` and **no DFlash2 draft**. `validate`-clean and `-n`-rendered on
-the workstation; **no boot, no C1, no house battery, no needle receipt.** Build record, the card
+**Booted; the gate is measured and the arm ships for ≤768k with 1M to depth 50 %.** The gate table,
+the d90 ERROR ×2 diagnosis and the four boot grants are in [`README.md`](README.md) §"The YaRN 1M arm"
+and [`AGENTS.md`](AGENTS.md) §9.1; receipts `~/benchmarks/ornith-trials-20261018/` and
+`~/benchmarks/ornith-yarn-1m-20261018/`. `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` —
+the 35B checkpoint (same pin as the sibling, `94e431d9…` = Hub `main`) at the model card's YaRN factor-4.0
+route with `max_model_len: 1000000` and **no DFlash2 draft**. Build record, the card
 quote, the engine citations (`sglang v0.5.18` `configs/model_config.py:819-843`, `:328-336`, `:590`,
 `utils/hf_transformers/config.py:266-275`, `environ.py:298`) and the KV arithmetic:
 [`AGENTS.md`](AGENTS.md) §9. Read [`README.md`](README.md) §"The YaRN 1M arm" for the arm itself.

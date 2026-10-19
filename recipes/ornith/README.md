@@ -17,10 +17,13 @@ ships **three** recipes, one per model scale:
 an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
 A **fourth** arm, [`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`](#the-yarn-1m-arm), serves the same 35B
-checkpoint at the model card's **YaRN long-context route** (~1M-token window, no draft). It is
-**built, not booted** — no C1, no house battery, no needle receipt — so it holds no row in the table
-above and no index row in the parent; the arm, the memory consequence and the pre-registered needle
-gate are in its own section below.
+checkpoint at the model card's **YaRN long-context route** (~1M-token window, no draft). It **boots**
+and serves (`max_model_len` 1,000,000, KV pool 1,202,898 tokens), and its pre-registered needle gate is
+**5 of 6 rungs PASS — through 768k and at 1M depths 10 % and 50 %; the 1M depth-90 % rung failed twice
+the same way** (`RemoteDisconnected` mid-prefill, serve process gone). The arm therefore **ships for
+≤768k workloads, with 1M supported to depth 50 %**; the last 10 % of the window is unmeasured, so
+depth 90 failure caps the documented depth, not the arm. The gate table, the memory consequence and
+what the two crashes do and do not establish are in its own section below.
 
 Ornith 1.5 is a **reasoning model** — assistant turns open with a ` thinking … </think>` block and
 tool calls are Qwen-style XML — so all three recipes wire the `qwen3` reasoning parser and a Qwen
@@ -28,7 +31,7 @@ tool-call parser (`qwen3_coder` on SGLang, `qwen3_xml` on vLLM), surfacing the c
 `reasoning_content` and tool calls as OpenAI `tool_calls`. Recommended sampling (model card):
 `temperature=0.6`, `top_p=0.95`, `top_k=20` for general use, `temperature=1.0` to reproduce the
 reported benchmark numbers. The three shipped recipes serve the 262,144-token native context as-is;
-the card's YaRN long-context override is served **only** by the boot-pending 1M arm (see
+the card's YaRN long-context override is served **only** by the ≤768k-capped 1M arm (see
 [Lane caveats](#lane-caveats)).
 
 Lane state, knob rationale, negative results, measurement histories, boot receipts and the
@@ -39,7 +42,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 - [`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm`](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm) — flagship 397B MoE, 4 nodes TP=4 (vLLM)
 - [`ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`](#ornith-15-35b-a3b-nvfp4-dflash2-sglang) — 35B-A3B MoE, the fast single-Spark lane (SGLang)
 - [`ornith-1.5-9b-nvfp4-dflash-sglang`](#ornith-15-9b-nvfp4-dflash-sglang) — small dense 9B single-Spark arm (SGLang)
-- [The YaRN 1M arm](#the-yarn-1m-arm) — the card's long-context route on the 35B, **built and not booted**
+- [The YaRN 1M arm](#the-yarn-1m-arm) — the card's long-context route on the 35B; **ships for ≤768k, 1M supported to depth 50 % — the 1M d90 rung failed twice**
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
 
@@ -242,7 +245,9 @@ deliberately left to engine defaults.
 
 ## The YaRN 1M arm
 
-SGLang · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing measured, no index row yet**.
+SGLang · **1 node (TP=1)** · built 2026-10-15 · **booted 2026-10-18; ships for ≤768k — gate 5 of 6 rungs
+PASS (262,144 / 512k / 768k, then 1M at depths 10 % and 50 %), 1M depth 90 % failed twice with the
+mechanism unlogged**.
 
 | | |
 |---|---|
@@ -252,7 +257,7 @@ SGLang · **1 node (TP=1)** · built 2026-10-15 · **boot pending — nothing me
 | window | `max_model_len: 1000000`, the card's number; the YaRN factor-4.0 route reaches 4 × 262,144 = 1,048,576 positions, so nothing above that is left |
 | flags | ✨🚚👀🧠🦾🔧 — **no** 🚀 (no measured C1) and **no** 🌲 (the arm has to earn it) |
 | draft | **none** — deliberate, see below |
-| status | `validate`-clean; `sparkrun run … -n` renders; **no boot, no C1, no house battery, no needle receipt** |
+| status | **boots and serves**: `GET /v1/models` `max_model_len` **1,000,000**, KV pool `max_total_num_tokens` **1,202,898** (earlier boot: 1,203,041), `max_running_requests` 48, 977k-token prompts admitted (≈60 s engine start). Needle gate below: **5 of 6 rungs PASS**, 1M d90 **ERROR ×2 and unmeasured**. Still **no C1** and **no house battery** |
 | license | MIT (same checkpoint as the sibling) |
 
 **The route is the model card's, not ours.** Both Ornith 1.5 cards publish it; the 35B card, verbatim:
@@ -304,16 +309,66 @@ Dropping it also isolates the arm's real question — does YaRN hold above 262,1
 Cost: plain decode (~34 t/s by the sibling's own 100.8 t/s ÷ acceptance 2.94), which is the right
 trade for a depth arm. The 262k sibling keeps DFlash2 and its ~100 t/s.
 
-**What a boot must prove (pre-registered gate).** One boot, `tools/needle-haystack.py`, depths
-`10,50,90`, seed 1234, 64-token budget — the shape the lane's recorded ladders use — at
-**512k, 768k and 1M**, plus a **262,144 control rung on the same boot** for the card's
-static-YaRN-degrades-ordinary-length warning. A rung passes only if every key is retrieved *and* the
-server counts ≥95% of the requested context (`usage.prompt_tokens`), so a short window reports
-`TRUNCATED` rather than a false pass; the ladder verdict is the worst rung, exit 0 only on `PASS`.
-Then: `GET /v1/models` must read `max_model_len: 1000000`, and the serve log's `max_total_num_tokens`
-must exceed the 980k-token prompt the instrument paces to. Cost ≈ 1–2 h (the recorded ladder:
-45 s per 128k, 142 s per 256k prefill on this node). Nothing in this section becomes a
-lane claim until that receipt exists.
+**The gate, measured (pre-registered; not re-cut after seeing numbers).** One ladder per boot:
+`tools/needle-haystack.py --timeout 3000 --max-tokens 512`, depths 10/50/90, seed 1234. A rung passes
+only if every planted key is retrieved *and* the server counts ≥95 % of the requested context
+(`usage.prompt_tokens`); a short count is `TRUNCATED` (exit 3), a retrieval miss is `FAIL`.
+
+| rung | requested | depths | fill (`prompt_tokens`) | verdict |
+|---|---|---|---|---|
+| **262,144 control** | 262,144 | 10 / 50 / 90 | 99.66–99.86 % | **PASS 3/3** — earlier 2026-10-18 run, not re-run on this boot |
+| **512k** | 512,000 | 10 / 50 / 90 | ≥95 % on every depth | **PASS 3/3** — same earlier run |
+| **768k** | 768,000 | 10 / 50 / 90 | 99.7–99.8 % | **PASS 3/3** — same earlier run |
+| **1M · depth 10 %** | 1,000,000 | 10 | **97.74 %** (977,427) | **PASS**, 1,737 s — same earlier run |
+| **1M · depth 50 %** | 1,000,000 | 50 | **97.75 %** (977,487) | **PASS**, 1,886 s, key `3881-RAVEN`, `finish_reason: stop` — the 19:57 boot |
+| **1M · depth 90 %** | 1,000,000 | 90 | — (no `prompt_tokens` returned) | **ERROR ×2**: `RemoteDisconnected` after 1,246 s on the 19:57 boot (container gone, no log) and after 398 s on the 20:52 retry boot (log captured — see below). Both mid-prefill, so no fill % and no verdict |
+
+**Outcome: the gate is 5 of 6 rungs, and the arm ships at a capped window.** Every rung through 768k
+passes 3/3, and 1M passes at depths 10 % and 50 %, each with ≥95 % of the context actually counted —
+the behavioural proof that the nested YaRN override reaches the loaded config. The 1M depth-90 % rung
+has **no measurement** after two attempts, so the pre-registered "all three depths PASS at 1M"
+condition is unmet and **the arm ships for ≤768k workloads, with 1M supported to depth 50 %**; the last
+10 % of the window stays unmeasured. The failure is a serve-side process exit, not a retrieval or
+window finding: both requests were admitted (pool 1.20M against a 980k pace target) and died
+mid-prefill with no HTTP error body.
+
+**What the d90 crashes do and do not establish (retry boot, 2026-10-18, `.34`).** The retry granted
+`max_total_num_tokens` **1,202,898** with `available_gpu_mem` 12.55 GB, admitted the 980,633-token
+prompt, and had prefilled **43.7 %** of it (551,863 tokens still pending at the last logged chunk,
+input throughput 592 t/s) when the serve process exited at 21:01:38 local; the instrument saw
+`RemoteDisconnected` 398 s in, against a 3,000 s per-request timeout.
+
+- **Not a host OOM kill.** `earlyoom` samples memory once a second on this node: **11.3 GiB was
+  available (9.09 %) through the last whole second**, it logged no kill, and `dmesg` carries no
+  OOM-killer record.
+- **Not a driver fault that logs.** No `Xid`, `NVRM`, or Oops line appears in `dmesg` at the second.
+  The ring buffer's only `NV_ERR_NO_MEMORY` burst is from an earlier, co-tenant-starved boot.
+- **Not a client timeout.** The instrument allowed 3,000 s; the request had run 398 s.
+- **Named: a serve-side process exit mid-prefill.** The process released ~109 GiB of unified memory
+  within 2 s (available 11.3 → 17.8 → 68.0 → 120.5 GiB) and dockerd deleted the container 2 s after
+  that, with no HTTP response ever sent. The *mechanism* is **unlogged**: the last serve-log line is a
+  normal prefill chunk, and the process's final stderr and its exit code died with the container.
+- **`--no-rm` did not preserve it.** The launch passed `--no-rm` and the job record
+  (`~/.cache/sparkrun/jobs/dadfb04b5145d956_….yaml`) carries `executor_config.auto_remove: false`, yet
+  dockerd handled a task-delete at 21:01:40. Treat these containers as ephemeral and stream the log to
+  the host.
+
+The evidence that would name the mechanism: a serve log **streamed** to the host (not copied on a 10 s
+interval, which lost the final ≤6 s of prefill plus any traceback) together with the container's exit
+code and `OOMKilled` flag, or a `docker events` capture across the death. Receipt:
+`~/benchmarks/ornith-yarn-1m-20261018/diag-d90-retry/` (`serve.log`, `metrics.log`, `dmesg.log`,
+`journal-crash-window.txt` — the 1 Hz `earlyoom` trace and the `dockerd` task-delete — plus
+`sparkrun-job.yaml` and `launch.log`).
+
+**A boot only grants what the node has free.** Four launches of this unchanged recipe on `.34` across
+two sessions produced `max_total_num_tokens` of **1,203,041**, **282,227**, **69,281**, and
+**1,202,898** — the two middle values while a co-tenant ComfyUI process held ~9.9–13.6 GiB of the
+121.7 GiB unified pool; at 69,281 tokens the instrument cannot even send its prompt (HTTP 400, "Input
+length (978633 tokens) exceeds the maximum allowed length (69275 tokens)") and every 1M rung reports
+`TRUNCATED`. Read the grant from the serve log before starting a ladder — a starved boot is
+indistinguishable from a window failure in the verdict. Receipts:
+`~/benchmarks/ornith-yarn-1m-20261018/` (`needle-1m-d50.json`, `needle-1m-d90.json`,
+`needle-1m-d90-retry.json`, `serve.log`, `serve-boot-lines.txt`, and `diag-d90-retry/` for the retry).
 
 Full provenance — the card quote, the engine citations, the KV table and three open boot
 questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.
@@ -324,12 +379,16 @@ questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.
   describe extending the native 262,144-token window with **YaRN RoPE scaling** (factor 4.0 →
   roughly 1M tokens) via `config.json` or a launch-time override (`--hf-overrides` on vLLM,
   `--json-model-override-args` on SGLang, each gated by the engine's "allow longer context" env
-  var). The three shipped recipes serve 262,144 as-is; [the 1M arm](#the-yarn-1m-arm) is the only
-  recipe that turns it on, and it is **built, not booted** — this lane has **no needle evidence
-  above 262,144** (32k 3/3, 128k 3/3 and 262,144 2/3 → 3/3 are all inside the native window).
-  Open-source runtimes apply YaRN *statically*, so the factor is in force for every request and can
-  erode quality on ordinary-length inputs; enable it only when a workload genuinely needs the
-  window, and do not serve the 1M arm until its gate passes.
+  var). The three native-window recipes serve 262,144 as-is; [the 1M arm](#the-yarn-1m-arm) is the
+  only recipe that turns it on. It is **booted and measured** (2026-10-18) and **ships for ≤768k
+  workloads, with 1M supported to depth 50 %** — every rung through 768k passes 3/3, 1M passes at
+  depths 10 % and 50 %, and **1M depth 90 % failed twice** with the serve process exiting mid-prefill,
+  so there is **no measurement at the far end of the 1M window** and none is claimed. Open-source
+  runtimes apply YaRN *statically*, so the factor is in force for every request and can erode quality
+  on ordinary-length inputs; the 262,144 control rung passes at 99.66–99.86 % fill, which is the
+  lane's check on that warning. Do not describe depth-90 % 1M retrieval as working: the depth cap is
+  the arm's documented envelope, and raising it needs a boot whose serve log is streamed to the host
+  for the whole request.
 - **`@eugr/mods/drop-caches` is inert under a default launch.** Every Ornith recipe lists it, but per
   [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) that upstream mod **silently does
   nothing**: `/proc/sys` is mounted read-only under sparkrun's default rootless launch and its
