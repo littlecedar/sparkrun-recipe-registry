@@ -32,6 +32,7 @@ histories, negative results, the archived arms and their provenance — lives in
 | Context | 262,144 tokens (`max_model_len`) |
 | Spec decode | NEXTN — 3 steps / topk 1 / 4 draft tokens, `decode` attention mode |
 | Memory | `gpu_memory_utilization: 0.80`, mamba pool 112 (`max_mamba_cache_size`), `max_num_seqs: 24` |
+| Decode ladder (2026-10-18) | **C1 39.90 ± 1.48 · C2 69.45 ± 7.85 · C5 94.98 ± 8.97 · C10 104.45 ± 3.00 t/s** @ d0, pp 2048, tg 128, n=5 per cell, decode rows read from the `--output` file — `bench_684c21a7cd8a`, receipt `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-concurrency-ladder.{yaml,json}`. C1 reproduces the 2026-10-14 baseline (40.32 ± 1.94) inside the cell σ; per-request decode falls to 36.93 / 25.34 / 15.78 t/s at c2/c5/c10 while the aggregate rises, so the arm's value is concurrency, not single-stream. A same-boot d0 k8 cell reads 121.21 ± 3.82 t/s aggregate. Not measured on that boot: d8192 (the `depth8k-c8` twin was wired for the paused arms) |
 | Tags / vision | `lcg_favorite, fast, vision` — this export serves **text and vision** (BF16 vision tower) |
 | License | Qwen Community License 1.0 (`qwen-community-1.0`) |
 

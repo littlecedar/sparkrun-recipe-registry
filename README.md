@@ -175,11 +175,12 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                           | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size | Mem% | TP | Model Cards                                                                                                                     |
 |:-------------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|-----:|---:|:--------------------------------------------------------------------------------------------------------------------------------|
-| qwen3.8-flash-next-nvfp4-labquant-sglang         | 🌲🚀👀   |   40.3 |      — |      — |       — | 106GB |  80% |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]                                                                           |
+| qwen3.8-flash-next-nvfp4-labquant-sglang         | 🌲🚀👀   |   39.9 |   69.4 |   95.0 |   104.5 | 106GB |  80% |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]                                                                           |
 | qwen3.8-flash-next-nvfp4-solo-vllm-b12x          | 🌲     |   33.9 |  55.49 |  64.61 |   62.04 | 106GB |  80% |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **solo TP=1, PLE table streamed from disk**                             |
 | qwen3.8-flash-next-nvfp4-labquant-highcon-sglang | 🌲🚀👀   |      — |      — |      — |       — | 106GB |  80% |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4] — **aggregate regime: d8192 decode 89.1 t/s at k=16 (n=7), 72.9 at k=24** |
 
 * _The solo TP=1 row's **C1 33.9** is the 2026-10-14 decode-triage C1 (33.92 ± 1.73, pre-pin); **C2/C5/C10 are the 2026-10-18 ladder** (`bench_6b35f675861a`, receipt `~/benchmarks/ladders-solo-20261018/`), whose same-boot C1 is 34.04 — inside that cell's ±2.84. C10 (62.04) sits below C5 (64.61) because `max_num_seqs: 8` binds at ten streams, not because the KV pool is short._
+* _The labquant TP=2 ladder is **39.90 ± 1.48 / 69.45 ± 7.85 / 94.98 ± 8.97 / 104.45 ± 3.00 t/s** @ d0, n=5 per cell (`bench_684c21a7cd8a`, receipt `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-concurrency-ladder.{yaml,json}`, decode rows of the `--output` file). Its same-boot C1 reproduces the 2026-10-14 baseline (40.32 ± 1.94) inside the cell σ; per-request decode falls 39.90 → 15.78 t/s by c10 while the aggregate keeps rising._
 
 ## IFM K2-Horizon
 
