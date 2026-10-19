@@ -602,3 +602,10 @@ One boot with the alternative (`-o fp4_gemm_backend=flashinfer_cutedsl`, job
 mixed and at or below the 7-25 % inter-boot floor, so the shipped `flashinfer_cutlass` stands; a
 2-boot-per-arm retake would be needed before a flip. Receipt
 `~/benchmarks/qwen4-knobs-20261019/b1-cutedsl/REPORT.md`.
+
+**The int8 mamba checkpoint probe closed negative.** The flag parses and the weights load, but the
+default 224-slot pool needs 3.24 GB against 2.15 GB free at `gpu_memory_utilization: 0.80`; cutting it
+to the active 112 slots then dies with `ValueError: --enable-int8-mamba-checkpoint is incompatible with
+Qwen4-Exp PLE side states` (`memory_pool.py:1337`). No size fits on this export. Receipts
+`~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and `b2b-int8mamba-112/`; the prefill-graph bs>1
+cost is the only unprobed knob left in the backlog item.

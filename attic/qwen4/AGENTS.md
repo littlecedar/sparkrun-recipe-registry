@@ -404,7 +404,11 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   accuracy coverage here, and the W4 `#37111` gate has not run on it (nor on the shipped arm).
 - **Proposed changes (not adopted).** `--enable-int8-mamba-checkpoint`,
   `--int8-mamba-ckpt-size <size?>` and `--revision {revision}` were sketched in the recipe tail; none
-  adopted or measured.
+  adopted. **Measured 2026-10-19 — the int8 pair is unusable on this export:** the default 224-slot
+  pool needs 3.24 GB against 2.15 GB free at `gpu_memory_utilization: 0.80`, and a 112-slot retry dies
+  with `ValueError: --enable-int8-mamba-checkpoint is incompatible with Qwen4-Exp PLE side states`
+  (`memory_pool.py:1337`). Receipts `~/benchmarks/qwen4-knobs-20261019/b2-int8mamba/` and
+  `b2b-int8mamba-112/`. `--revision {revision}` stays unmeasured.
 - **Served name (2026-10-13).** Fixed to declare `served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4`; `GET /v1/models` now returns the repo id (boot `1895030211ea0500_3510a5e0d37d`, TTR port-open 599.7 s).
 
 ### 10.2 `qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` (Lane A) — **ARCHIVED 2026-10-14**, **REVIVED 2026-10-15**
