@@ -430,6 +430,16 @@ triton+fp8 detour bought no accuracy and the shipped bf16 configuration is the m
 lane README carries the paragraph and the index row its pointer, receipt
 `~/benchmarks/ifm-7b-uno-shipped-20261019/`. Tail item 3 closed. **Tail item 4 (27B uncensored) and
 item 5 (27B ablit) are booted and running one suite each**, on `.34` and `.35` respectively.
+*(Interruption 2026-10-19 18:25 ET — **the 27B-uncensored arm cannot finish BFCL inside a 3 h cap.** Its
+phase timings: suite start 14:55, house+needle+hard 2 h 41, then BFCL at **17.8 s/question** (155 in
+46 min) — 1,239 questions is ≈6.1 h, so the 10,800 s cap I launched it with would have killed the leg at
+~600. Killed deliberately at 46 min and restarted as a tools-only run on the same live serve with **no
+job cap** (`bfcl-eval` under `setsid`, `--max-tokens 4096`, outdir
+`~/benchmarks/cybersec-27b-unc-tools-20261019/`); the arm's other four legs are already on disk in
+`cybersec-27b-unc-suite-20261019/` and are merged into one record at the end. The 27B-ablit sibling is
+**not** at risk: it runs 5.2 s/question (dflash2) and finishes its 1,239 inside 1.8 h. Lesson for the
+tail: price BFCL at the arm's measured rate before setting `--job-timeout`, not at the 7B's.)*
+
 **Correction (same day):** the BFCL leg took 6,555 s, not the "1,383 s / a quarter of the cap" first
 written here — the per-check cap was at 91 %, so a 4096-token BFCL run sits close to its budget on this
 arm family, and a larger thinking model would exceed it.)*
