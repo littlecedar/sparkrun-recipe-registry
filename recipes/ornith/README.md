@@ -139,6 +139,12 @@ by hand on the same boot into `hard/` with the suite's other parameters (limit 2
 thinking off); and the 262k needle depth passed **3/3** here against 2/3 on 2026-10-14 (that miss was
 a completion-budget artifact).
 
+**MoE backend (2026-10-19, interleaved).** The shipped `moe_runner_backend: flashinfer_cutlass` beats
+`marlin` on the ladder: a four-boot interleaved pair (control/marlin/control/marlin) reads C1 94.1-95.0
+vs 102.0-104.6 (+9.3 % means) and C2 +3.6 %, but C5 217.3-223.2 vs 198.7-209.9 (−7.2 %) and C10
+240.1-244.6 vs 218.6-219.1 (−9.7 %). Marlin shifts the curve toward single-stream; the default stands.
+Receipt `~/benchmarks/ornith-marlin-20261019/`; the detail is in the attic.
+
 **The pinned draft needs a `refs/main` seed.** `speculative_draft_model_revision` is a
 **distribution-only** key — SGLang has no serve flag for the draft head, so it never reaches the
 serve line. But sparkrun fetches a SHA-pinned draft *without writing a `refs/` entry*, and SGLang's

@@ -809,6 +809,14 @@ on our stack; the shipped config stands.** What *is* outside the noise are the l
 (−13%), float32 (−9%), and the author's full combination (−15%, the worst arm). The author's 114.2
 comes from their engine build, not from these knobs.
 
+**2026-10-19 — interleaved concurrency ladder.** The single-stream A/B above could not separate marlin;
+a four-boot interleaved pair on the full ladder (control, marlin, control, marlin; `--fresh` each,
+`bench_fa4bf736d16c`) shows a consistent shape change, not a lift: C1 **94.1-95.0** control vs
+**102.0-104.6** marlin (+9.3 % means), C2 **+3.6 %**, C5 **217.3-223.2 vs 198.7-209.9 (−7.2 %)**,
+C10 **240.1-244.6 vs 218.6-219.1 (−9.7 %)**. Both pairs agree in direction, so the trade is real:
+marlin buys single-stream and pays at high concurrency. The shipped `flashinfer_cutlass` stands.
+Receipt `~/benchmarks/ornith-marlin-20261019/`.
+
 **A voided pair, and the failure it exposed.** The `.35` confirm boot served at **30.8 t/s** — plain-decode
 speed, spec decode effectively absent — and its serve log ends in `Killed` (OOM) after decode crawled at
 ~2.4 t/s in the last batches. That node had just re-imported a 10 GiB image and carried other lanes'

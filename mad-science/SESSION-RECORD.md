@@ -618,3 +618,11 @@ recover and the flag is redundant but harmless. Three same-config boots gave a d
 datum: C2 decode spans 8.6 % (67.1-72.9) and every other cell ≤4.6 %. Receipts
 `~/benchmarks/qwen4-knobs-20261019/b3-prefillgraph{,-full}/`. All TP=2 knobs in the backlog item are
 now answered; only the TP=4 and W12 items remain, both needing a node window.
+
+**The ornith `marlin` pair closed.** Four alternating boots on `.34` (control, marlin, control,
+marlin; `--fresh` each) show marlin shifts the ladder curve rather than lifting it: C1 94.1-95.0 →
+102.0-104.6 (+9.3 % means), C2 +3.6 %, C5 217.3-223.2 → 198.7-209.9 (−7.2 %), C10 240.1-244.6 →
+218.6-219.1 (−9.7 %). Both pairs agree in direction, so the shipped `flashinfer_cutlass` stands; the
+item moved to `attic/DONE.md`. Receipt `~/benchmarks/ornith-marlin-20261019/`. The ornith backlog now
+holds the YaRN 1M exit capture, the 0.5.21 bump (owner approval needed for the image change) and the
+r0b0tlab measure.

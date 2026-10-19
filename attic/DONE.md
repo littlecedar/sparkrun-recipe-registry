@@ -515,3 +515,13 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   stays dropped by the 19:15 policy, so every multi-node arm on the standard d0 ladder now carries
   C2/C5/C10 (the labquant-highcon arm stays `—` by design — its aggregate regime is measured at d8192
   k=16/24).)*
+
+## ornith
+- [x] **`moe_runner_backend: marlin` under an interleaved paired control** — the ladder's best extra cell (108.9 t/s) collapsed into noise only because the control was ordered, not interleaved (`attic/ornith/AGENTS.md:497-513`). *(effort: short)*
+
+  *(**CLOSED 2026-10-19 — the interleaved pair ran and the shipped backend stands.** Four alternating
+  boots on `.34` (control, marlin, control, marlin; `--fresh` each): C1 **94.1-95.0** control vs
+  **102.0-104.6** marlin (+9.3 % means), C2 +3.6 %, C5 217.3-223.2 vs 198.7-209.9 (-7.2 %), C10
+  240.1-244.6 vs 218.6-219.1 (-9.7 %) — marlin shifts the curve toward single-stream; no C1-only trade
+  justifies losing ~10 % at c10. Receipt `~/benchmarks/ornith-marlin-20261019/`; the detail is in
+  `attic/ornith/AGENTS.md`.)*
