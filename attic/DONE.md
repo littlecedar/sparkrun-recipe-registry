@@ -664,3 +664,15 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   untouched. Receipt `~/benchmarks/kokoro-tts-20261019/` (`REPORT.md`, `probe.json`, four wavs);
   lane section `recipes/decision/README.md` §kokoro-82m-tts-cpu; root index row added.)*
 
+# 2026-10-19 (IFM UNO tree mode) — the second geometry is measured-rejected
+
+## ifm
+- [ ] **Attempt 7B tree-mode UNO (topk>1)** — a second UNO geometry, never booted (linear is shipped) (`attic/ifm/NOTES.md` "Still open"). *(effort: medium)*
+  *(**CLOSED 2026-10-19 — booted and rejected.** The probe (`attic/ifm/arms/zz-k2-horizon-7b-uno-tree-sglang.yaml`,
+  K=2 / steps=3 / F=4 / Q=6 — the widest legal tree for that shape) booted on `.34` at TTR 177 s with
+  the tree draft CUDA graph captured (0.61 GB). Same-window paired screen against the shipped linear
+  arm: **C1 28.3 vs 32.3 (-12.4 %), C2 54.8 vs 57.8, C5 94.9 vs 97.9, C10 127.4 vs 126.6**; accept
+  length **2.878 vs 3.058**. Tree mode costs a second graph and accepts less, so the linear arm
+  stands and the probe is archived. Receipt `~/benchmarks/ifm-uno-tree-20261019/`; lane note in
+  `recipes/ifm/README.md`; manifest row in `attic/ifm/ARMS-MANIFEST.md`.)*
+

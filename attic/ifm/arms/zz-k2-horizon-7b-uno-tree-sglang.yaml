@@ -1,0 +1,79 @@
+recipe_version: "2"
+model: IFM/K2-Horizon-7B-FP8
+model_revision: ea739ec816e0c9ed9896022056efa858aa8b87e7
+runtime: sglang
+container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+min_nodes: 1
+max_nodes: 1
+
+# The Uno adapter is a SECOND artifact: not a `model:`, and sparkrun's model sync only fetches `model:` -- the mod below lands it at a fixed container path.
+mods:
+  # Bare `mods/NAME`, NOT the scoped `@littlecedar/mods/NAME`. Order matters: the provide mod must land the adapter before the server starts.
+  - "mods/provide-uno-lora-k2-horizon-7b"
+  - "mods/probe-uno-fa4-sm121"
+
+description: PROBE (not shippable) - K2-Horizon-7B-FP8 + Uno in TREE mode (topk=2) on GB10, the never-booted second UNO geometry against the shipped linear arm
+metadata:
+  model_url: https://huggingface.co/IFM/K2-Horizon-7B-FP8
+  model_params: "9.0B"
+  model_dtype: fp8_e4m3
+  quantization: compressed-tensors
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: experimental, smol, reasoning, tools, agent
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: IFM/K2-Horizon-7B-FP8
+  # Tree mode adds a second CUDA-graph backend and PDMux/two-batch overlap are refused, so the
+  # headroom this recipe needs is larger than the linear arm's; 0.82 is the linear arm's figure,
+  # kept as the starting point rather than a measured one.
+  gpu_memory_utilization: 0.82
+  max_model_len: 131072
+  max_num_seqs: 32
+  dtype: bfloat16
+  attention_backend: fa4
+  kv_cache_dtype: auto
+  fp8_gemm_backend: cutlass
+  page_size: 1
+  chunked_prefill_size: 4096
+  speculative_algorithm: UNO
+  uno_lora_path: /cache/runtime/uno-lora/K2-Horizon-7B-Uno
+  # TREE mode: topk K>1 selects it. Range checks in speculative_hook.py:391-462: Q >= F,
+  # Q <= 128, Q*K <= 2048, the tree must be able to hold Q nodes (1+K+K^2+...), and Q-1 must fit
+  # EAGLE's parent-list ABI (Q-1 <= K*(F-2)+1). With K=2, steps=3 (F=4) only Q=4..6 is legal.
+  speculative_eagle_topk: 2
+  # Tree mode derives its draft width from steps: F = steps + 1 (linear mode forces steps=1).
+  speculative_num_steps: 3
+  # Tree mode's verify width Q, not the linear draft width. 6 with F=4, K=2.
+  speculative_num_draft_tokens: 6
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --dtype {dtype}
+  --attention-backend {attention_backend}
+  --fp8-gemm-backend {fp8_gemm_backend}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chunked-prefill-size {chunked_prefill_size}
+  --kv-cache-dtype {kv_cache_dtype}
+  --page-size {page_size}
+  --reasoning-parser k2_horizon
+  --tool-call-parser k2_horizon
+  --speculative-algorithm {speculative_algorithm}
+  --uno-lora-path {uno_lora_path}
+  --speculative-eagle-topk {speculative_eagle_topk}
+  --speculative-num-steps {speculative_num_steps}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  {extra_args}

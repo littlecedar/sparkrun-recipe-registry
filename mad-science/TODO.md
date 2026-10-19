@@ -228,8 +228,6 @@ owner switch.)*
 
 ## ifm
 IFM K2-Horizon
-- [ ] **Attempt 7B tree-mode UNO (topk>1)** — a second UNO geometry, never booted (linear is shipped) (`attic/ifm/NOTES.md` "Still open"). *(effort: medium)*
-
 ## embed
 Any embed model
 *(all items completed — archived in `../attic/DONE.md`)*

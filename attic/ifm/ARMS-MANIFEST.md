@@ -7,7 +7,11 @@ guard suite and byte-arithmetic helper (this directory), and the sub-lane's git-
 research record (`K2-36B-A4B-JOURNAL.md`, `K2-36B-A4B-MODEL-OPTIMIZATION-WORK.md`).
 **Wave 2** is the retired 7B spec-decode arms (`arms/k2-horizon-7b-fp8-sglang.yaml`,
 `arms/k2-horizon-7b-fp8-ngram-sglang.yaml`) — a selection archive, not a withdrawal
-(see below). The lane's production surface in `recipes/ifm/` is now the `0.9B` and the
+(see below). **Wave 3** is the measured-rejected UNO **tree-mode** probe
+(`arms/zz-k2-horizon-7b-uno-tree-sglang.yaml`, K=2/S=3/F=4/Q=6): same-window paired
+screen 2026-10-19 on `.34` put it 12.4 % / 5.2 % / 3.1 % behind the shipped linear
+arm at C1/C2/C5, equal at C10, with lower accept length (2.878 vs 3.058) and a second
+CUDA graph (0.61 GB) — receipt `~/benchmarks/ifm-uno-tree-20261019/`. The lane's production surface in `recipes/ifm/` is now the `0.9B` and the
 single shipped 7B arm `k2-horizon-7b-fp8-uno-sglang` — the same convention `attic/ds4/`
 and `attic/qwen4/` follow. The arms and the mod are **tracked** (so a `bench_*` id's
 provenance is never lost); the two Wave 1 research docs are git-ignored by design

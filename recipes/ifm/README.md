@@ -185,6 +185,16 @@ and both run before sglang reads `--uno-lora-path`):
    asserts major in {8,9}); without the mod the recipe fails at argument validation with
    `"UNO requires FA3 …"` (intended stock behaviour). The fa4 kernels run on this chip.
 
+**UNO tree mode is measured-rejected (2026-10-19).** A probe arm with `--speculative-eagle-topk 2`,
+`--speculative-num-steps 3` (draft width F=4) and `--speculative-num-draft-tokens 6` (verify width Q)
+booted cleanly on `.34` — the constraints are a system, not a flag: Q >= F, Q <= 128, Q*K <= 2048,
+`1+K+K^2+...` >= Q, and Q-1 <= K*(F-2)+1 in EAGLE's parent-list ABI, with PDMux, two-batch overlap
+and non-1.0 accept thresholds refused. In a same-window paired screen it lost **12.4 % at C1**,
+5.2 % at C2 and 3.1 % at C5 (equal at C10), accepted less (2.878 vs 3.058 mean accept length) and
+allocated a second CUDA graph (0.61 GB), so the shipped linear arm stands. Probe archived at
+`attic/ifm/arms/zz-k2-horizon-7b-uno-tree-sglang.yaml`; receipt
+`~/benchmarks/ifm-uno-tree-20261019/`.
+
 **`max_num_seqs` note.** `max_num_seqs: 32` is **load-bearing** on this arm — it is a
 scheduler *admission* limit, not a memory limit. At 8 the arm flatlines at c=8 (97.5
 aggregate, below its own c=4 of 98.6); at 32 it scales to 145.5, the best c8 figure in
