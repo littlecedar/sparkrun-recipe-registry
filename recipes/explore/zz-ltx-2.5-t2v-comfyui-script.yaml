@@ -1,0 +1,134 @@
+# ===========================================================================
+# NON-SHIPPABLE PROBE — NOT IN THE LANE OR ROOT INDEX
+#
+# `zz-` marks this as an unindexed probe: the LTX-2.5 arm ships as the runbook
+# in recipes/explore/ltx-2.5-runbook/, and this recipe only exists to run the
+# runbook's measured **T2V** cell (1344x768, 121 frames, 24 fps) under the
+# normal launch/readiness/receipt machinery. I2V/FLF2V are different templates
+# and are not this recipe. Do not cite it as a shipped arm and do not add it to
+# recipes/explore/README.md or the root README.
+# ===========================================================================
+#
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE OR ITS OUTPUTS
+#
+# Lightricks/LTX-2.5 is licensed under the **ltx-2.x-community-license-agreement**
+# (card `license: other`). The 2.x text follows the LTX-2 family pattern: free
+# commercial use for a "Commercial Entity" below a $10M annual-revenue
+# threshold. The authoritative text is
+# https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x — read it before
+# handing generated video/audio to a third party. A recipe ships a repo id, not
+# weights: each node downloads from the Hub and accepts the license there.
+#
+# The repo is **gated (`gated: auto`)**. sparkrun's anonymous model distribution
+# cannot fetch it, so `distribution_config.models.enabled: false` below and the
+# mod (recipes/explore/mods/ltx-25-launcher) fetches with the node's accepted
+# HF_TOKEN. Missing token / unaccepted account is a fail-closed launch error
+# naming the prerequisite — not a hang.
+# ===========================================================================
+recipe_version: "2"
+model: Lightricks/LTX-2.5
+model_revision: 49b093a39c19169a8a81721dcc541e07e945232f
+# There is no ComfyUI OCI image in the runbook (it pins ComfyUI v0.34.0 as a
+# GitHub tag + Python packages, not a container). This digest is the media-gen
+# lane's existing arm64 cu130 base, already used by the qwen-image arm: Python
+# 3.12 + CUDA 13 + python3.12-dev (triton compiles a driver stub at first
+# kernel launch). The mod pins the ComfyUI unit itself (v0.34.0 + comfy-kitchen
+# 0.2.31 + comfy-aimdo 0.4.15 + frontend 1.49.6 + workflow-templates 0.11.48 +
+# embedded-docs 0.5.10, torch cu130) by tag and exact version, content-gated on
+# every launch.
+container: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+# No sglang/vLLM engine exists for ComfyUI: `runtime: vllm` is the family whose
+# distribution + single-node launcher contract this command satisfies (same
+# pattern as the qwen-image and Decision CPU arms).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Lightricks/LTX-2.5 — video+audio world model (22B distilled DiT + Gemma-4-12B
+  text encoder, ~36.9 GB as the nvfp4 transformer + bf16 video/audio VAEs + x2
+  latent upscaler + comfy-int8 encoder) served by ComfyUI v0.34.0 on ONE DGX
+  Spark. This is the runbook's two-stage T2V template as a sparkrun launch: an
+  HTTP probe server (GET /health, GET /v1/models, POST /generate) supervises
+  ComfyUI, expands the subgraph template to an API prompt, pins
+  seed/size/frames/fps, and reports wall time plus peak unified memory.
+  LICENSE: ltx-2.x-community-license-agreement (free below a $10M-revenue
+  Commercial Entity threshold; see the banner at the top of this file). GATED
+  repo: each node needs an accepted HF_TOKEN; model distribution is disabled.
+metadata:
+  model_url: https://huggingface.co/Lightricks/LTX-2.5
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "22B"
+  model_dtype: bf16
+  quantization: nvfp4
+  tags: explore, video, single_user, probe
+
+mods:
+  - "mods/ltx-25-launcher"
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own launcher line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+readiness:
+  # No chat surface: port + HTTP readiness only. sparkrun's readiness wait
+  # probes /v1/models even with inference off, so the launcher serves that in
+  # addition to /health. The cold first boot stages a torch venv and 36.9 GB of
+  # weights in the mod's detached job; the port timeout covers that wait.
+  inference: false
+  port_timeout_s: 3600
+  health_timeout_s: 1200
+
+distribution_config:
+  models:
+    # The repo is gated: an anonymous sparkrun fetch stalls/fails, and the mod
+    # fetches with the node's accepted token. Disabling the resource also makes
+    # the launch contract skip bind_runtime_models, so the command does not
+    # have to name a prepared snapshot path.
+    enabled: false
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Declared so the server advertises the repo id, not the path sparkrun would
+  # rebind `{model}` to on a distributed launch; naming the flag also stops the
+  # vLLM runtime from appending its own `--served-model-name`.
+  served_model_name: Lightricks/LTX-2.5
+
+command: >
+  while [ ! -x /cache/runtime/ltx-25/venv/bin/python ]; do
+  if grep -q '^failed' /cache/runtime/ltx-25/stage.status 2>/dev/null; then
+  echo "ltx25 stage failed: $(cat /cache/runtime/ltx-25/stage.status)" >&2; exit 1; fi;
+  sleep 5; done;
+  exec /cache/runtime/ltx-25/venv/bin/python
+  /workspace/mods/ltx-25-launcher/launcher.py
+  --comfy-dir /cache/runtime/ltx-25/ComfyUI
+  --output-dir /cache/runtime/ltx-25/output
+  --stage-status /cache/runtime/ltx-25/stage.status
+  --stage-log /cache/runtime/ltx-25/stage.log
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+# Prerequisites carried from the receipt (~/benchmarks/ltx25-20261018/REPORT.md):
+#   * frames MUST satisfy frames % 8 == 1 (5 s at 24 fps = 121; the "124" in a
+#     third-party write-up belongs to a different draft graph). The launcher
+#     rejects a bad count with 400 rather than shaping a wrong clip.
+#   * `SaveVideo` must be the output node. A graph without it "succeeds" in
+#     0.01 s having generated nothing; the launcher GCs from SaveVideo and
+#     treats its absence as a hard error.
+#   * Weight files are fetched by explicit filename: `hf download --include`
+#     silently drops the first pattern.
+#   * The two-stage T2V latent width/height are `ComfyMathExpression "a/2"` over
+#     the primitives; a literal on EmptyLTXVLatentVideo bypasses the halving and
+#     silently runs stage 1 at full resolution (receipt defect 4). The launcher
+#     sets the primitive behind the `/2`.
+#   * HOST clock cap: `sudo nvidia-smi -lgc 0,2200` before launch (sustained-load
+#     power-loss fix; all measured LTX cells were capped). The container has no
+#     nvidia-smi, so the mod logs this as a note, not a gate.
+#   * The runbook's `expand_subgraph.py` is T2V-only: subgraph widget alignment,
+#     the dynamic ResizeImageMaskNode widgets and the dead prompt-enhancer
+#     branch all had to be fixed for I2V/FLF2V. This T2V probe ships the fixed
+#     expander (mods/ltx-25-launcher/expand2.py) so the graph it submits is the
+#     one the receipt measured.
