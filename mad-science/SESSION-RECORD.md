@@ -668,3 +668,33 @@ measured through depth 90 %, not claimed reliable". Capture lesson: the engine l
 events --filter event=die` preserves the exit code past the task-delete — both armed this boot.
 The 2026-10-18 receipt tree the docs cited (`~/benchmarks/ornith-yarn-1m-20261018/`) is no longer
 on the head, so the surviving receipt is `~/benchmarks/ornith-yarn-d90-20261019/`.
+
+### 2026-10-19 (late morning) — unlimited sessions, the ds4 shortlist, and two register corrections
+
+**Budget change.** With the local DeepSeek-V4.1-Flash-1017 TP=4 serve stable (it carries these
+agent sessions), the owner declared sessions **unlimited**: the register's work continues until it
+closes, with no session window and no per-day conversion. `.30`-`.33` are therefore **production**:
+never disturb that serve for a registry boot. The only manual owner engagement is **switching to an
+offsite API endpoint when TP=4 tests must run**, so TP=4 measurements are batched behind a single
+switch. The resourcing and policy paragraphs in `TODO.md` now say this, and the qwen4 TP=4 backlog
+(W6 re-boot, W12 cross-runtime) is reclassified from "needs a node window" to "offsite TP=4".
+
+**ds4 deep search delivered** (commit `774cea9`). `mad-science/DS4-SPEEDUPS.md` — 631 lines, 34 dated
+primary sources, 15 explicit UNVERIFIED markers — ranks 11 candidates plus a precondition (GPU
+clock-latch audit), each with mechanism, expected effect, the carrying flag/artifact, a GB10
+evidence label, and a pre-registered interleaved A/B with its falsifier; it also carries a
+checked-and-rejected table so the rejected ideas do not return as suggestions. No boot was run: the
+item's deliverable was the plan. `recipes/ds4/README.md` gained the upgrade-candidate section the
+directive required (three arms runnable on the `.34`/`.35` pair now, eight TP=4-only candidates, the
+rejected set), and the runnable subset became its own register item.
+
+**Register corrections.** The Kokoro TTS entry said the arm "was never built", but
+`recipes/decision/kokoro-82m-tts-cpu.yaml` has shipped since `025ca2a` (digest-pinned image,
+`readiness` block, `distribution_config`, taskset command) with no boot receipt anywhere — reworded
+as a boot-verify + wav/RTF measurement, the same classify-from-the-artifact fix used for Mistral.
+The ds4 search item was archived verbatim to `attic/DONE.md`.
+
+**Closed after this section was first drafted:** the sparkrun 0.4.0 schema-docs pass
+(`recipes/MECHANICS.md` rewritten to the 41-key set, root `AGENTS.md` corrected, both recipe skills
+updated) and the explore keeper sweep (6 arms kept, 10 retired to `attic/explore/`). The tree now
+stands at 48 recipes / 752 tests / 12 strict failures; both items are archived in `attic/DONE.md`.

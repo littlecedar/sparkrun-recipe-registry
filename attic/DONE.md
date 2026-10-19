@@ -575,3 +575,71 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   section. No boot was run — the item's deliverable was the plan, not the measurement — and the
   eight TP=4-only findings are recorded as upgrade candidates per the 19:15 policy. The runnable
   subset (clock audit, TensorFold v0.6, `reasoning_effort`) is queued as its own item.)*
+
+# 2026-10-19 (registry docs + explore sweep) — two no-boot items closed
+
+## Recipe schema & documentation (registry-level)
+- [ ] **Update the recipe-schema docs for sparkrun 0.4.0** *(Owner directive 2026-10-19; priority:
+  high.)* — the authority is the installed 0.4.0 package, cited at `file.py:line`, never these docs
+  themselves: `_KNOWN_KEYS` (41 accepted top-level keys) and the `Recipe` constructor in
+  `sparkrun/core/recipe.py`, `core/validation.py`, `sparkrun recipe validate/show/vram`, and the
+  runtime modules under `sparkrun/runtimes/` (`sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`,
+  `atlas`, `modular_max`, `tokenary`, `llama_cpp`, plus the `eugr_vllm_ray` alias). Schema facts to
+  record: name from the filename, `recipe_version` default `"2"`, top-level `description:`,
+  metadata-only `maintainer:`, unknown keys swept into `runtime_config`, plugin-owned keys,
+  `capabilities`/`unsupported_capabilities` outside the workload fingerprint, `readiness`,
+  `distribution_config`, `layout`, `include`/`overrides`, `solo_only`, and `cluster_only` (deprecated
+  for v2). Bring
+  `recipes/MECHANICS.md` in line first (the full key set and the per-key rules, especially "a
+  `defaults:` value reaches the engine only through a `{placeholder}`, a runtime flag map or an
+  internal key"), then the root `AGENTS.md` (the same rules, plus the stale facts re-measured
+  2026-10-19: 58 recipes after the W4A16 archive, 780 tests, `recipes/glm` now two arms — re-measure
+  the module and strict-validate counts instead of carrying the 38/648 snapshot), then the schema
+  rules restated in `.omp/skills/sparkrun-recipe-edit-to-boot/` and
+  `.omp/skills/sparkrun-recipe-launch-debugging/`; keep `attic/` frozen. Verify every shipped recipe
+  validates and the repo gate passes. *(effort: medium)*
+  *(**CLOSED 2026-10-19 — `recipes/MECHANICS.md` rewritten as the 0.4.0 key reference** (391 lines,
+  all 41 `_KNOWN_KEYS` AST-counted from `core/recipe.py:78-120`, with the placeholder/flag-map/
+  internal-key wiring rule and a runtime-consumption table), root `AGENTS.md` corrected (snapshot
+  counts, lane table, `launcher.py:683`->`814`, `{model}` semantics, `model_revision` count,
+  description/maintainer rules, strict-failure table), and both recipe skills updated. Three
+  corrections carried: 0.4.0 binds `{model}` to the prepared snapshot path (`models/runtime.py:40-46`),
+  does not strip `--revision`, and renders `{model_revision}` from the prepared revision — the old
+  text claimed the opposite. Nested/quoted placeholders in `defaults` do resolve
+  (`utils/text.py:186-229`, probe-verified). `sparkrun/commands/` does not exist in 0.4.0; the
+  `recipe validate/show/vram` surface lives in `cli/_recipe.py`. Unverified: no live boot for the
+  `{model}` template shape (code-derived); the "no consumer of `runtime_version`" claim is a
+  grep-absence over the installed tree. Gate: 752 tests OK, 48/48 plain validate, 12/48 strict.)*
+
+## explore
+- [ ] **Select the lane's keepers and sweep the rest to `attic/explore/`** *(Owner directive 2026-10-19:
+  top candidates optimized for generation speed, concurrency, accuracy and small size; the remainder
+  moves to the attic.)* — score the **14 measured root-index rows** on those axes from their own
+  receipts: C1 and the ladder shape (decode and aggregate), the concurrency ceiling (KV pool,
+  `max_num_seqs` clamps), the accuracy cells (house / needle / ARC / GSM8K / BFCL / TEB), and size
+  plus peak memory. Keep the Pareto set — fastest decode, best aggregate at high concurrency, the
+  accuracy leaders, the smallest arm with real headroom, and any media-gen arm whose own cells are
+  closed — and retire the rest with `attic/explore/ARMS-MANIFEST.md`, the lane `README.md` section,
+  the root index row, the `tests/test_explore_new_arms.py` / `tests/test_explore_llamacpp_arm.py`
+  assertions, any lane-only mod, and a re-measured recipe count
+  (`retire-sparkrun-recipe-to-attic`). The two YAMLs with no index row are **not** sweep candidates:
+  `mistral-small-4-119b-nvfp4-vllm` is measured-rejected at **28.9 t/s C1** in
+  `attic/explore/ARMS-MANIFEST.md` (archive it as measured-rejected after re-reading its receipt),
+  and `poolside-laguna-m1-nvfp4-vllm-tp2` is authored but unbooted, so the Laguna-M.1 item above
+  governs it until its TP=2 boot produces a receipt; classify both from artifact state, not from the
+  stale "unbuilt" label in the build item. The three unrun Kolibri GGUF tiers (`Hob-forge` /
+  `webmp3` / `aparusel`) cannot win on measurement; build them first or archive them as unmeasured
+  with the reason. The owner's 2026-10-11 weighting (node count, accuracy, speed, memory) governs
+  ties. *(effort: medium)*
+  *(**CLOSED 2026-10-19 — keepers selected, 10 arms retired to `attic/explore/`.** Keepers: Ling-3.0
+  (accuracy leader), Kolibri APEX-2.4bpw GGUF (smallest 262k with measured headroom), Laguna-XS
+  (best 262k aggregate at c10), Mellum Q4_K_M GGUF (fastest decode 111.9 / best peak 208.0), the
+  Qwen-Image media-gen arm, plus the authored Laguna-M.1 TP=2 pair. Retired: Kolibri FP8 base,
+  TensorFold drafter, Q4_K APEX, all three 4-bit packs, Laguna-S, humanizer, Mellum BF16, and
+  Mistral-Small-4 (measured-rejected: C1 28.94 +/- 0.03, 89,216-token ceiling at 1.01x). The three
+  unrun Kolibri GGUF tiers had no recipe files in the tree and are recorded as unmeasured/not built
+  in the manifest. Lane README carries the 14-row decision table (speed/ladder, concurrency,
+  accuracy, size/memory, receipt, verdict) and the tie-break record; the root index dropped nine
+  rows and nine dead link defs; the orphaned Kolibri mod guard moved to `attic/explore/` beside its
+  mods. Gate: 752 tests OK, 48 remaining + 13 archived recipes validate.)*
+
