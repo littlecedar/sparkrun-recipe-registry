@@ -125,6 +125,8 @@ gate writes it on completion, 01:18:10. **Closed 01:20 ET:** soak **PASS** (708 
 72.88 / 95.18 / 108.13 t/s, receipt `REPORT.md`. Serve stopped and `.34`/`.35` verified idle (0
 containers, no `/tmp` leftovers). The owner's ds4 TP=4 job now reports as
 `a2e141223b52793c_e11d626ec2c6` on `.30`–`.33`, still healthy (the `de0b14250a90` id above is gone).
+**2026-10-19 ~05:10 ET:** `.34`/`.35` idle (0 containers, `pgrep -af "[s]parkrun"` clean) after the
+marlin and r0b0t campaigns — the next window can start immediately.
 
 **Cluster state (2026-10-18 21:52 ET) — superseded by the 2026-10-19 00:00 entry above; keep for the
 job history only.** A **new owner-launched ds4 TP=4 job** takes the four-node slot
@@ -293,11 +295,11 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
   `recipes/MECHANICS.md` in line first (the full key set and the per-key rules, especially "a
   `defaults:` value reaches the engine only through a `{placeholder}`, a runtime flag map or an
   internal key"), then the root `AGENTS.md` (the same rules, plus the stale facts re-measured
-  2026-10-19: 59 recipes, 780 tests, `recipes/glm` now two arms — re-measure the module and
-  strict-validate counts instead of carrying the 38/648 snapshot), then the schema rules restated in
-  `.omp/skills/sparkrun-recipe-edit-to-boot/` and `.omp/skills/sparkrun-recipe-launch-debugging/`;
-  keep `attic/` frozen. Verify every shipped recipe validates and the repo gate passes. *(effort:
-  medium)*
+  2026-10-19: 58 recipes after the W4A16 archive, 780 tests, `recipes/glm` now two arms — re-measure
+  the module and strict-validate counts instead of carrying the 38/648 snapshot), then the schema
+  rules restated in `.omp/skills/sparkrun-recipe-edit-to-boot/` and
+  `.omp/skills/sparkrun-recipe-launch-debugging/`; keep `attic/` frozen. Verify every shipped recipe
+  validates and the repo gate passes. *(effort: medium)*
 
 ## Runtimes (registry-level)
 Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtimes than the two in use —

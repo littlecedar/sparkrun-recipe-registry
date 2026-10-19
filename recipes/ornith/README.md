@@ -145,10 +145,10 @@ vs 102.0-104.6 (+9.3 % means) and C2 +3.6 %, but C5 217.3-223.2 vs 198.7-209.9 (
 240.1-244.6 vs 218.6-219.1 (−9.7 %). Marlin shifts the curve toward single-stream; the default stands.
 Receipt `~/benchmarks/ornith-marlin-20261019/`; the detail is in the attic.
 
-**Community W4A16 pack (2026-10-19).** `ornith-1.5-35b-a3b-nvfp4-w4a16-mtp-sglang` boots with its
-in-checkpoint EAGLE head and reads C1 58.9 / C2 88.9 / C5 143.5 / C10 158.4 t/s @ d0 with house 37/37
-— ~40 % below the official export, so it carries no index row. Receipt
-`~/benchmarks/ornith-r0b0t-20261019/`.
+**Community W4A16 pack (measured 2026-10-19; archived).**
+`attic/ornith/ornith-1.5-35b-a3b-nvfp4-w4a16-mtp-sglang.yaml` boots with its in-checkpoint EAGLE head
+and reads C1 58.9 / C2 88.9 / C5 143.5 / C10 158.4 t/s @ d0 with house 37/37 — ~40 % below the official
+export, so it is archived rather than served. Receipt `~/benchmarks/ornith-r0b0t-20261019/`.
 
 **The pinned draft needs a `refs/main` seed.** `speculative_draft_model_revision` is a
 **distribution-only** key — SGLang has no serve flag for the draft head, so it never reaches the
