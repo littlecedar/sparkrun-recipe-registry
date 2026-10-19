@@ -76,7 +76,11 @@ lifted; the TP=4 lane items below are in scope again.)*
 lane only for a TP=2 boot. When a lane frees, the next staged arm boots immediately — the tail is
 ordered cheapest-window-first in the suite item, and each lane's boot+suite commands are prepared
 before the previous leg ends. Current occupancy is recorded in the session record; the pair's
-node-hours are the binding cost, so an idle node is the defect.
+node-hours are the binding cost, so an idle node is the defect. **Long suite legs run under
+`setsid` + `stdbuf -oL` writing to a file** — a wrapper timeout does not kill what it wrapped, and a
+pipe-backed stdout dies with its channel: both were observed on 2026-10-19 (the surviving children
+kept writing while their suite parents vanished and left 0-byte logs). Verify pids before any
+restart; an empty redirected log is buffering, not failure.
 
 **Resourcing (2026-10-19).** **Sessions are unlimited** *(Owner decision 2026-10-19)*: agent runs are
 no longer bounded by a session window, so the register's content work can continue continuously until

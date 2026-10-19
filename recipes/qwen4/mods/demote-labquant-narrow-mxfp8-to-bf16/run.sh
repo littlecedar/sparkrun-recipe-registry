@@ -224,56 +224,17 @@ idx_path = os.path.join(SNAP, "model.safetensors.index.json")
 os.path.isfile(idx_path) or die(f"no {idx_path}")
 wm = json.load(open(idx_path))["weight_map"]
 
-# Leaves the floor test would never select but an operator can name explicitly, via
-# MOD_DEMOTE_EXTRA_LEAVES (comma-separated). See the reasoning at the decision point
-# below; the short version is that labquant MXFP8s the QSA indexer projection while
-# RadixArk ships it BF16, and matching the reference export's placement is the control.
-# Leaves beyond the CUTLASS floor that are demoted anyway. DEFAULT_ON is EMPTY and the
-# reason is an experiment that ran and lost, so it is recorded here rather than in a
-# commit message nobody will read. MOD_DEMOTE_EXTRA_LEAVES (or a one-line file at
-# /cache/runtime/demote_extra_leaves) overrides the set completely -- a comma list to
-# name leaves, the empty string for pure floor-test behaviour.
-#
-# Why index_qk_proj is OFF, and what that costs us: it was ON, as the control for blocker
-# (f). It is 640x2560, comfortably ABOVE the floor, so nothing in the engine requires it to
-# move; the reason to try it was that labquant MXFP8s it while RadixArk ships the same
-# tensor BF16 (VERIFIED from both checkpoints' safetensors headers), and both boots that got
-# as far as CUDA-graph capture died inside the QSA prefill path -- `metadata.py:141
-# get_prefill_mqa_inputs`, which does `sequence_lengths.tolist()`, a D2H sync, during
-# capture. Boot 11b2c8b941e89cb9 on 2026-09-18 22:05 loaded with it demoted (VERIFIED from
-# the live tree: 84 tensors demoted, 84 scales dropped, 168 ignore entries, the projection
-# present as BF16 [640,2560] with no surviving scale) and CUDA-graph capture died with the
-# identical pinned-memory error in the same frames. So MXFP8 placement of that projection is
-# NOT what triggers (f). It is off because the arm should differ from the reference export
-# only where the engine mechanically forces it to, and nothing forces this one. The knob
-# stays: (f) is unresolved, this was the cheapest hypothesis, and a bisect may want it back.
-DEFAULT_ON: set = set()
-# it was designed for was run. Boot 11b2c8b941e89cb9 on 2026-09-18 22:05 loaded with
-# `index_qk_proj` demoted to BF16 (VERIFIED from the live tree: 84 tensors demoted, 84
-# scales dropped, 168 ignore entries, the projection present as BF16 [640,2560] with no
-# surviving scale) and CUDA-graph capture died with the identical
-# `Cannot copy between CPU and CUDA tensors during CUDA graph capture` in the QSA indexer.
-# So MXFP8 placement of that projection is NOT what triggers (f). It is off because the
-# arm should differ from the reference export only where the engine mechanically forces
-# it to, and nothing forces this one. The knob stays: (f) is unresolved, this was the
-# cheapest hypothesis, and a future bisect may want it.
-DEFAULT_ON: set = set()
-EXTRA_LEAVES_RAW = os.environ.get("MOD_DEMOTE_EXTRA_LEAVES", "")
-_LEAF_FILE = "/cache/runtime/demote_extra_leaves"
-if os.path.isfile(_LEAF_FILE):
-    EXTRA_LEAVES_RAW = open(_LEAF_FILE).read().strip()
-    log(f"extra leaves from {_LEAF_FILE}: {EXTRA_LEAVES_RAW!r}")
-    # Deliberately NOT deleted here. pre_exec runs this script once per node against the
-    # same host-mounted /cache/runtime, so a self-deleting file means the first node to
-    # run gets one override and every later node boots with a different set of demoted
-    # layers -- a split-brain TP group that would present as a numerical mystery.
-EXTRA_LEAVES = DEFAULT_ON if EXTRA_LEAVES_RAW == "" else \
-    {x.strip() for x in EXTRA_LEAVES_RAW.split(",") if x.strip()}
-log(f"extra leaves (default-on {sorted(DEFAULT_ON)}) -> {sorted(EXTRA_LEAVES) or '(none)'}")
+# Floor test only. The MOD_DEMOTE_EXTRA_LEAVES opt-in (and its runtime file) was REMOVED
+# 2026-10-19: its only stated purpose was the QSA-prefill CUDA-graph crash, and that
+# hypothesis is falsified -- the crash is a host sync plus a data-dependent buffer inside
+# get_prefill_mqa_inputs, which reads no projection dtype, and the demoted index_qk_proj
+# boot (11b2c8b941e89cb9) crashed identically. Nothing here can recover that. The earlier
+# file carried two contradictory copies of this rationale; the analysis lives in
+# mad-science/QWEN4-DIAGNOSTICS.md and git history keeps the knob.
 
-# Which shard files could contain a candidate. Derived from the leaf names we care about
-# rather than hardcoded, so an opt-in leaf in a different shard is still found.
-_cand = [r"\.in_proj_[ab]\.weight$"] + [rf"\.{re.escape(l)}\.weight$" for l in EXTRA_LEAVES]
+# Which shard files could contain a candidate. The floor test only ever selects the
+# in_proj_a/b pair, so its two names are the whole candidate set.
+_cand = [r"\.in_proj_[ab]\.weight$"]
 cand_files = sorted({f for n, f in wm.items()
                      if any(re.search(p, n) for p in _cand)})
 log(f"index lists candidate weights in {len(cand_files)} file(s): {cand_files}")
@@ -292,11 +253,9 @@ for fname in cand_files:
         pre = key[: -len(leaf) - 1]
         fused = FUSE.get(leaf)
         if fused is None:
-            # Unary (unfused) projection. Keep it only if named explicitly, so the
-            # default path stays exactly the floor test it was before this option.
-            if leaf not in EXTRA_LEAVES:
-                continue
-            fused = leaf
+            # A projection the engine does not fuse is outside the floor test's reach:
+            # the kernel's floor complaint was raised on the fused in_proj_a/b pair.
+            continue
         n, k = m["shape"]
         sc = f"{key}.weight_scale"
         if dtype_of.get(sc) != U8:
@@ -317,18 +276,12 @@ for (pre, fused), members in sorted(groups.items()):
         continue
     need = PAIRS.get(fused)
     if need is None:
-        # A projection the engine does not fuse (index_qk_proj and friends). It can only
-        # be here because an operator named it in MOD_DEMOTE_EXTRA_LEAVES; the candidate
-        # scan above is keyed on the same set, so an unnamed unary leaf never reaches
-        # this branch.
-        need = [fused] if fused in EXTRA_LEAVES else []
+        continue
     if not need or any(l not in members for l in need):
         log(f"  {pre}.{fused}: members {sorted(members)} != expected {need}; skipping")
         continue
-    # CUTLASS floor test, plus the explicitly-demoted leaf set (EXTRA_LEAVES, defined
-    # above the scan with its reasoning). A fused group is always handled whole, because
-    # is_layer_skipped raises "Detected some but not all shards ... are quantized" on a
-    # half-demoted pair.
+    # CUTLASS floor test. A fused group is always handled whole, because is_layer_skipped
+    # raises "Detected some but not all shards ... are quantized" on a half-demoted pair.
     n_fused = sum(members[l][0] for l in need)
     per_rank = n_fused // TP
     # Take whichever is smaller. The CUTLASS message reported `n=96` at TP=2 -- the
@@ -339,10 +292,9 @@ for (pre, fused), members in sorted(groups.items()):
     # only ever checks the fused total, a TP=4 run still demotes -- which costs a few
     # MB and is strictly safer than a boot that dies on the floor.
     narrow_n = min(n_fused, per_rank)
-    opted = any(l in EXTRA_LEAVES for l in need)
-    if narrow_n >= FLOOR and not opted:
+    if narrow_n >= FLOOR:
         continue
-    reason = "below CUTLASS floor" if narrow_n < FLOOR else "explicit opt-in"
+    reason = "below CUTLASS floor"
     k = members[need[0]][1]
     if any(members[l][1] != k for l in need):
         die(f"{pre}.{fused}: members disagree on k "
@@ -363,10 +315,7 @@ for (pre, fused), members in sorted(groups.items()):
 
 n_w = sum(len(v) for v in targets.values())
 if n_w == 0:
-    log("no projection is below the floor and none named; nothing to demote")
-elif len(EXTRA_LEAVES):
-    log(f"count includes {len(EXTRA_LEAVES)} explicitly-named leaf set(s); "
-        f"the {EXPECTED_NARROW}-tensor contract check does not apply to that config")
+    log("no projection is below the floor; nothing to demote")
 elif n_w != EXPECTED_NARROW:
     # The contract for THIS pinned revision is in_proj_a+in_proj_b for the 36
     # linear_attn layers = 72 tensors (the other 12 layers are full-attention and

@@ -87,72 +87,12 @@ pinned revision that is exactly **72 tensors** — `in_proj_a` + `in_proj_b` for
 `out_proj` (2560) and every `self_attn` projection stay MXFP8, so this is not
 "we dequantised the attention".
 
-**2. Named leaves (`EXTRA_LEAVES`, empty by default).** *Its only stated purpose — the QSA-prefill
-CUDA-graph crash — is falsified (2026-10-19): the crash lives in `get_prefill_mqa_inputs`' host sync and
-data-dependent shape, which reads no projection dtype, and the demoted `index_qk_proj` boot crashed
-identically. The knob ships empty; delete it unless a bisect ticket names a leaf
-(`mad-science/QWEN4-DIAGNOSTICS.md`).*  Below the floor is not the only
-possible reason to move a projection, so the mechanism exists — but it ships **empty**, and
-the history of why is the useful part. The first candidate was `index_qk_proj`: labquant
-MXFP8s it (`F8_E4M3 [640,2560]` + U8 scale) where RadixArk ships the same tensor
-`BF16 [640,2560]`, and both boots that reached CUDA-graph capture died inside the QSA prefill
-path. It was on by default as the cheapest control for that crash. The control was run —
-boot `11b2c8b941e89cb9`, 2026-09-18 22:05 — and the live tree was checked to confirm it
-actually took effect (84 tensors demoted, 84 scales dropped, 168 ignore entries, the
-projection present as `BF16 [640,2560]` with no surviving scale). CUDA-graph capture died
-with the **identical** pinned-memory error in the same frames. So MXFP8 placement of
-`index_qk_proj` does not cause it, and the demotion is off: this arm should differ from the
-reference export only where the engine mechanically forces it to, and nothing forces this.
-The knob stays because that crash is unresolved and a future bisect may want the lever back.
+**2. Named leaves — REMOVED 2026-10-19.** The mod once accepted `MOD_DEMOTE_EXTRA_LEAVES` (and a
+runtime file) to demote projections the floor test would not select. Its only stated purpose was the
+QSA-prefill CUDA-graph crash, and that hypothesis is falsified: the crash is a host sync plus a
+data-dependent buffer inside `get_prefill_mqa_inputs`, which reads no projection dtype, and the
+demoted-`index_qk_proj` boot (`11b2c8b941e89cb9`) crashed identically. Nothing the knob could demote
+can recover it, so the machinery is gone rather than shipped empty; git history keeps it if a future
+bisect ever names a leaf. What remains is exactly the CUTLASS floor test below, whose count contract
+is now always enforced. Analysis: `mad-science/QWEN4-DIAGNOSTICS.md`.
 
-Set `MOD_DEMOTE_EXTRA_LEAVES` to a comma list to name leaves (empty string = floor test
-only). A one-line file at `/cache/runtime/demote_extra_leaves` does the same for a real
-launch, since a pre_exec mod has no clean way to receive an env var. That file is
-deliberately **not** self-deleting: pre_exec runs once per node against the same host-mounted
-`/cache/runtime`, so a file that deletes itself gives the first node one override and every
-later node another — a split-brain TP group that would present as a numerical mystery rather
-than an error.
-
-Weight bytes: 4.72 MB of BF16 replaces 2.46 MB of MXFP8+scale → **+0.14 MB per node**.
-Negligible.
-
-Runtime cost: **none measured, and none expected** — but the reasoning is worth
-recording because it nearly went the other way. `finalize_fused_in_proj()`
-(`qwen3_5.py`) folds `in_proj_qkvz` + `in_proj_ba` into one GEMM only when **both** are
-`UnquantizedLinearMethod` **and** bf16. I initially predicted that making `in_proj_ba`
-bf16 would trip that guard and drag the fp8 `in_proj_qkvz` GEMM into bf16 arithmetic —
-a real regression. The pre-boot gate (`preflight_patched_config.py`, run against the
-patched tree on the pinned image) shows it does not: `in_proj_qkvz` is still
-`Fp8LinearMethod`, the guard still declines, and the forward pass keeps running two
-GEMMs exactly as it does today. The prediction was wrong because it only checked the
-half of the guard this mod changes.
-
-If a future change does make both bf16, the fused GEMM becomes `m=8, n=4120, k=2560`
-in bf16, which trades MXFP8 arithmetic on the big projection for bf16 on the whole
-thing — a measurement, not a claim.
-
-## Validation performed before writing this mod
-
-All on the pinned image / pinned snapshot, none requiring a GPU:
-
-- `mxfp8_floor_check.py` — enumerated every MXFP8 projection from shard headers and
-  applied the engine's own fusion rules. **72** projections are below the floor at
-  TP=2 and they are **all** `in_proj_a`/`in_proj_b`; nothing else in this checkpoint is
-  anywhere near the floor (`in_proj_qkvz` fuses to 4096, `gate_up_proj` to 2560). So
-  demoting these is sufficient, not whack-a-mole. The mod reports its own count and
-  warns if it differs from the 72 this revision is contracted to produce.
-- `probe_demote_plan4.py` — the spelling table above, the silent-cast measurement, and
-  the parameter names the GDN registers (`in_proj_ba.weight [96, 2560]`).
-- `probe_demote_plan.py` — confirmed `packed_modules_mapping` is injected by
-  `get_quant_config` from the **model** class (`qwen4_exp.py:1767`), not from the
-  checkpoint (whose own `packed_modules_mapping` is null), which is what makes
-  component-spelled `ignore` entries match the fused prefix at all.
-
-## Fails closed
-
-Refuses to run if: the pinned revision is not cached; `/cache/runtime/labq-patched`
-does not exist (i.e. the config mod has not run); a scale tensor is not `U8`; the
-members of a fused group disagree on `k`; a dequantised value is non-finite; the BF16
-round-trip is not bit-exact; or the index does not exist. It never deletes the tree,
-never writes through a symlink into the HF snapshot, and is idempotent (it
-recognises an already-demoted shard by dtype + absent scale, not by size).
