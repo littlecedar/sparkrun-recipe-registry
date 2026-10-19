@@ -380,6 +380,13 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 *(2026-10-19: the explore keeper sweep retired 10 arms, so the "~20 arms" tail above shrank —
 re-count the survivors from the index before scheduling the sweep.)*
 
+*(Owner decision 2026-10-19 — **the tools leg runs in full only where the lane's product needs tool
+calling** (cybersec, qwen4, ds4, explore, ornith, qwen3, ifm, llama.cpp text arms); embed, rerank,
+decision, media-gen and TTS arms carry "tools: not applicable" with that reason, which is what the
+audit already recorded. The policy's practical effect is to confirm the N/A set rather than to shrink
+the queue: every remaining suite arm in the tail is a text arm that qualifies, so BFCL's ~1.8 h per arm
+(91 % of its per-check cap) still stands in the budget.)*
+
 *(2026-10-19 audit — all 48 shipped recipes checked against their cited receipts: **7 COVERED ·
 14 PARTIAL · 7 UNCOVERED · 20 N/A** (11 decision arms + 4 pooling + 1 media-gen + 4 documented
 cybersec negatives, each with its own documented reason). Every cited receipt except one exists on
