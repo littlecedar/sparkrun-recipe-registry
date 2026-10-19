@@ -593,3 +593,12 @@ C2 **52.95 ± 1.49** / C5 **47.75 ± 0.53** / C10 **46.78 ± 0.33** t/s @ d0 (n=
 44.6 / 42.1). The 63.7 t/s C1 in the index was the 2026-10-17 engram-OFF boot and is superseded; the
 index row and lane README now carry the ladder, and the multi-node ladder item moved verbatim to
 `attic/DONE.md`. Receipt `~/benchmarks/cybersec-arm5-ladder-20261019/`.
+
+**The `--fp4-gemm-backend` probe closed its spelling question.** The engine's choices include
+`flashinfer_cutedsl`; the 2026-10-18 refusal of `flashinfer_cudedsl` was a typo, not an engine bug.
+One boot with the alternative (`-o fp4_gemm_backend=flashinfer_cutedsl`, job
+`1895030211ea0500_3510a5e0d37d`, `load_weight` 485 s) ran house **37/37** and the ladder
+39.02 / 70.22 / 98.38 / 106.13 t/s against the same-pair control's 41.22 / 72.88 / 95.18 / 108.13 —
+mixed and at or below the 7-25 % inter-boot floor, so the shipped `flashinfer_cutlass` stands; a
+2-boot-per-arm retake would be needed before a flip. Receipt
+`~/benchmarks/qwen4-knobs-20261019/b1-cutedsl/REPORT.md`.
