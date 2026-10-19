@@ -95,8 +95,10 @@ way), but under a 60 s bf16 matmul load both ramp to **2171-2190 MHz** against `
 the pair's documented ~2200 MHz operating point, not a latched-low clock. A first `.35` attempt
 produced no kernel load (container cold start outran the timeout) and was discarded rather than
 read as a latch. **P0 is closed as a precondition and costs nothing further**; the per-ladder
-`nvidia-smi dmon` sampling stays the rule for any quoted A/B. Receipt:
-`~/benchmarks/ds4-p0-clock-20261019/REPORT.md` on the head.
+`nvidia-smi dmon` sampling stays the rule for any quoted A/B. The production nodes `.30`-`.33`
+were then read once without extra load, while their TP=4 serve was live: **2184-2190 MHz** with
+`clocks_throttle_reasons.active = 0x0` on all four, so the fleet's serving nodes are not latched
+either. Receipt: `~/benchmarks/ds4-p0-clock-20261019/REPORT.md` on the head.
 
 ---
 

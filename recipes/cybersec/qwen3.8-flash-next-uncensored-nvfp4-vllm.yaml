@@ -22,9 +22,12 @@ metadata:
     SGLang's compressed-tensors loader maps this export's `mixed-precision` config to
     CompressedTensorsW4A16Sparse24 and refuses it; this arm is the card's vLLM route, where the
     same config resolves per group to CompressedTensorsW8A16Fp8 (FP8 attention/GDN) and
-    CompressedTensorsW4A4Fp4 (NVFP4 experts), verified in the pinned image 2026-10-15 (see
-    attic/cybersec/AGENTS.md 8). ~183.5 GB of weights and ~184 GB residency at util 0.85 sit near
-    the two-node ceiling. No boot receipt yet: the route is validated, not measured.
+    CompressedTensorsW4A4Fp4 (NVFP4 experts) - but it does NOT boot on that image (measured
+    2026-10-19, two launches): the fused qkv_proj maps onto four shards including the bf16 QSA
+    indexer (qwen4_exp/nvidia/model.py:703), so compressed-tensors refuses the mixed scheme, and
+    --enable-lora (the model's intended escape) swaps the mapping too late for the quantizer.
+    Unblocking is image-side (owner question #44). ~183.5 GB of weights and ~184 GB residency at
+    util 0.85 sit near the two-node ceiling.
 
 mods:
   - "@eugr/mods/drop-caches"
