@@ -534,8 +534,8 @@ process held ~9.9–13.6 GiB; at 69,281 the instrument's 978k prompt is refused 
 `~/benchmarks/ornith-yarn-d90-20261019/` (the surviving d90 evidence: `needle-d90.json`, `serve.log`
 harvested from the container's `/tmp`, `launch.log`, `events.log`/`mem.log`/`serve-stream.log` from the
 death-capture harness) and `~/benchmarks/ornith-yarn-1m-20261018/` — the latter is **no longer on the
-head** (checked 2026-10-19; no `ornith-yarn*` entry among 225), so the 2026-10-18 numbers are carried by
-this document and the lane README.
+head** (checked 2026-10-19 on the head, `.34` and `.35`; no `ornith-yarn*` entry), so the 2026-10-18
+numbers are carried by this document and the lane README.
 
 **The card's route (fetched 2026-10-15 from the pinned repo's `README.md`).** Both Ornith 1.5 cards
 carry the same block — the 35B's (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`) and the 397B's

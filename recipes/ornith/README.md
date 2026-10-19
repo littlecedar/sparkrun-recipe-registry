@@ -387,8 +387,8 @@ indistinguishable from a window failure in the verdict. Receipts:
 `~/benchmarks/ornith-yarn-d90-20261019/` (the surviving d90 evidence: `needle-d90.json`,
 `serve.log` harvested from the container's `/tmp`, `launch.log`, and the death-capture
 `events.log`/`mem.log`/`serve-stream.log`) and `~/benchmarks/ornith-yarn-1m-20261018/` — the latter
-is **no longer on the head** (checked 2026-10-19), so the 2026-10-18 numbers are carried by this
-README and `attic/ornith/AGENTS.md`.
+is **no longer on the head** (checked 2026-10-19, together with `.34` and `.35`), so the 2026-10-18
+numbers are carried by this README and `attic/ornith/AGENTS.md`.
 
 Full provenance — the card quote, the engine citations, the KV table and three open boot
 questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.

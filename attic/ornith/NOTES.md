@@ -479,7 +479,11 @@ done
   "static YaRN can slightly hurt ordinary-length inputs" warning on this checkpoint.
 - Cost ≈ 1–2 h of prefill (recorded: 45 s / 128k, 142 s / ~256k on this node → ~5 / 8 / 10 min per
   512k / 768k / 1M rung, ×3 depths), plus calibration.
-- Then, and only then, the §6 index row and a `big_context` claim.
+- Then, and only then, the §6 index row and a `big_context` claim. **Done 2026-10-19:** the gate is
+  6/6 across the two boots (1M at depths 10 %/50 % on 2026-10-18, 90 % on 2026-10-19 at 977,975
+  counted tokens), so the root-README row landed with the 🚚 flag and no ladder cells (the arm is
+  depth-gated, not speed-gated). The two earlier d90 serve exits make the 1M path measured but not
+  reliable — that caveat is carried in the row's footnote and the lane README.
 
 **Open boot questions** (AGENTS.md §9): does the override reach the loaded config as `rope_type:
 yarn` (the serve log does not print it — a >262,144 rung that PASSes is the behavioural proof); does
