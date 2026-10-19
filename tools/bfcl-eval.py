@@ -637,11 +637,23 @@ def post_json(url: str, body: dict, api_key=None, timeout=600) -> dict:
         return json.load(response)
 
 
+def api_root(base_url: str) -> str:
+    """The server root, given either `http://host:port` or `http://host:port/v1`.
+
+    eval-suite.py hands this tool its `/v1` base while a direct invocation hands
+    it the root; appending `/v1/...` to the first form built `/v1/v1/models`,
+    which every engine 404s, and the suite's tools leg was therefore never
+    exercised (the missing-`--bfcl-data-dir` skip hid it).
+    """
+    root = base_url.rstrip("/")
+    return root[:-3] if root.endswith("/v1") else root
+
+
 def resolve_model(base_url: str, model, api_key=None, timeout=30) -> str:
     if model:
         return model
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    request = urllib.request.Request(base_url.rstrip("/") + "/v1/models", headers=headers)
+    request = urllib.request.Request(api_root(base_url) + "/v1/models", headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         data = json.load(response)
     return data["data"][0]["id"]
@@ -657,7 +669,7 @@ def ask(base_url, model, messages, tools, tool_choice, max_tokens, api_key, time
     if tools:
         body["tools"] = tools
         body["tool_choice"] = tool_choice
-    response = post_json(base_url.rstrip("/") + "/v1/chat/completions", body, api_key, timeout)
+    response = post_json(api_root(base_url) + "/v1/chat/completions", body, api_key, timeout)
     choice = response["choices"][0]
     message = choice["message"]
     # finish_reason is the only witness of a completion cut, and the message
@@ -887,6 +899,11 @@ def _mock_ask(mode: str):
 def selftest() -> int:
     """Run the whole ladder against in-process mocks; raise AssertionError on a
     control that does not land.  Returns 0 on success."""
+    # ---- control 0: both base-url spellings resolve to one API root (the
+    # suite passes `/v1`; a direct run passes the root). No network here.
+    for spelling in ("http://h:8000", "http://h:8000/", "http://h:8000/v1", "http://h:8000/v1/"):
+        assert api_root(spelling) == "http://h:8000", spelling
+
     entries = _fixture_entries()
     call_entries = [e for e in entries if e["category"] != "irrelevance"]
     irrelevance_entries = [e for e in entries if e["category"] == "irrelevance"]

@@ -367,6 +367,17 @@ house number is **36/37** (receipt), not 35/37 — fixed; qwen4 highcon's "no ac
 exists for this export" was stale — fixed to name the base arm's suite; ds4 TensorFold's "17/18
 house hard" is the gateway harness, not `eval-suite` — the register now distinguishes them.)*
 
+*(progress 2026-10-19 — the tail started with the cheapest arm, `k2-horizon-0.9b-bf16-sglang`
+(131k, one node, TTR 75.6 s). Needle re-take at `--needle-max-tokens 512` improved the 0/9 the
+256-token cap produced to **32,768: 3/3 · 131,072: 2/3** — still one miss at the arm's edge, so the
+needle leg remains FAIL and the 0.9B arm stays PARTIAL. The tools leg exposed a tool bug instead of a
+model property: `tools/bfcl-eval.py` appended `/v1/...` to the `/v1` base eval-suite passes, building
+`/v1/v1/models` and 404ing, so **the suite's tools leg had never actually run for any arm** (the
+missing-`--bfcl-data-dir` skip hid it). The tool now normalises either spelling (`api_root`), with a
+selftest control, and the leg is re-running against the live arm; receipt
+`~/benchmarks/ifm-09b-suite2-20261019/`.)*
+
+
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
 
 ## Image pins and advisories (registry-level)
