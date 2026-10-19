@@ -93,6 +93,12 @@ required, which is the bring-up cost the lane items must budget: `kolibri1` (Kol
    any other model; no `model_file_selection` narrowing is possible or needed.
 4. **First llama.cpp arm = bring-up, not a variation** (image pin + template + reasoning-format +
    slot/ctx shape), per `attic/explore/MELLUM-21.md` §5.
+5. **Keep the GB10 platform's forced `mmap: false`.** Measured 2026-10-19 in a same-window pair on
+   `.34` (a variant recipe that drops the arm's literal `--no-mmap`, since the flag-map key is inert
+   on a template arm): mmap ON is at or below OFF at every ladder cell — C1 108.80 vs 110.64, C2
+   151.78 vs 151.87, **C5 196.48 vs 208.28 (-5.7 %)**, C10 143.45 vs 144.82 — so the fault-through
+   -unified-pool cost the platform comment predicts is real. Receipt
+   `~/benchmarks/mellum-mmap-20261019/`.
 
 ## 5. First boot of the arm — measured (2026-10-17, `.34`)
 

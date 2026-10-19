@@ -119,3 +119,9 @@ gate.
 
 *Archived 2026-10-13 by the first Explore selection pass; extended 2026-10-18 (Nemotron-Super) and
 2026-10-19 (the 10-arm Pareto sweep under the owner's speed / concurrency / accuracy / size directive).*
+
+# Probes
+
+| file | status |
+|:--|:--|
+| [`zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`](zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml) | Archived 2026-10-19 as a measured probe — the shipped Mellum GGUF with `--no-mmap` removed; mmap ON lost C1/C2/C5/C10 in a same-window pair (worst C5 -5.7 %), so the platform default stands. Receipt `~/benchmarks/mellum-mmap-20261019/`. |

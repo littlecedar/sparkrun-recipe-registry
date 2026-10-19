@@ -249,6 +249,13 @@ weights**.
   the suite's 256-token default — the two empty cells are the thinking-budget class below, not
   retrieval; re-probes reach **3/3 by union** (depth 50 PASS at `--max-tokens 4096` — 722 completion
   tokens; depth 90 PASS with `chat_template_kwargs: {"enable_thinking": false}` — 9 tokens, 0.74 s).
+- **`--no-mmap` is verified, not assumed (2026-10-19).** A variant recipe with the flag removed (the
+  flag-map key is inert on a template arm, so only a variant can test it) measured **C1 108.80 vs
+  110.64, C2 151.78 vs 151.87, C5 196.48 vs 208.28, C10 143.45 vs 144.82** in a same-window pair,
+  mmap ON vs the shipped OFF — the platform's forced default wins, worst at the peak cell where a
+  mapped GGUF faults its expert pages through the unified pool. Probe archived
+  (`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`); receipt
+  `~/benchmarks/mellum-mmap-20261019/`.
   `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).
 - **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
   32k prompt can spend an arbitrary budget inside the think block — empty `content` at
