@@ -64,9 +64,9 @@ defaults:
 
 command: >
   vllm serve
-  /cache/huggingface/hub/models--poolside--Laguna-M.1-NVFP4/snapshots/e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
+  {model}
   --served-model-name {served_model_name}
-  --revision=e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
+  --revision {model_revision}
   --host {host}
   --port {port}
   --tensor-parallel-size {tensor_parallel}

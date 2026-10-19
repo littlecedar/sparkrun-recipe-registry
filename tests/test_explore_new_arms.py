@@ -285,8 +285,11 @@ class NegativeControls(unittest.TestCase):
         self.assertIn("port", unconsumed(parse_text(raw)))
 
     def test_snapshot_path_for_a_different_model_fails_the_identity_guard(self):
-        raw = mutate(self.raw, "model: poolside/Laguna-M.1-NVFP4",
-                     "model: poolside/Laguna-S-2.1-NVFP4")
+        # The shipped recipe hands {model} to vllm, so the guard's target is a
+        # literal prepared path for some other checkpoint: inject one.
+        foreign = ("/cache/huggingface/hub/models--poolside--Laguna-S-2.1-NVFP4/"
+                   "snapshots/" + "0" * 40)
+        raw = mutate(self.raw, "  {model}\n", "  " + foreign + "\n")
         self.assertTrue(model_consumption_violations(parse_text(raw)))
 
     def test_sibling_repo_id_in_command_fails_the_foreign_id_guard(self):

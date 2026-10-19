@@ -43,6 +43,18 @@ the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.
   documented negative until upstream fixes it, which is what the lane records today. →
   Answer:
 
+- **#45 — Reclaim the attic-only weight caches to unblock two-node arms?** The head's root
+  filesystem hit **100 % (1.7 GB free)** during the Laguna-M.1 TP=2 distribution (it stages on the
+  head first) and the launch died at 92.1 of 129.75 GiB with `ENOSPC`; the partial repo was removed
+  (`hf cache rm`, freed 97.2 GB) and the head now sits at **93 GB free**, still short of the ~130 GiB
+  a retry needs. Every repo below is referenced by **attic only** after today's explore sweep and by
+  no shipped recipe or mod: Laguna-S 2.1 (93 GB), humanizer (82 GB), Nemotron-3-Super-120B (75 GB),
+  Mistral-Small-4 (66 GB), two Kolibri packs (43 + 43 GB) — **~402 GB** total. Nothing here is
+  load-bearing: the 476 GB `DeepSeek-V4.1-Flash-1017` base and both GLM EXL3 packs are named by
+  shipped arms and are excluded. Approve pruning? (a) prune all six, (b) prune only what a two-node
+  retry needs, (c) keep them and give the head more space some other way. →
+  Answer:
+
 # TODO list
 
 *(2026-10-14 documentation sweep — six parallel lane/registry scouts over `recipes/**`, `attic/**`,
@@ -262,6 +274,14 @@ Any model with reasoning and tool-calling capabilities
   *(Owner decision 2026-10-18 [#41]: build it this window (the `.34`/`.35` pair is the right shape for a TP=2 boot).)*
   *(2026-10-18, 21:45: the window closed at 19:15 without it. It needs only the `.34`/`.35` pair, which
   stayed idle, so the directive carries to the next window rather than expiring.)*
+  *(progress 2026-10-19 — **boot attempted, blocked on head disk.** The recipe's command was corrected
+  first (it hard-coded the prepared snapshot path; it now hands `{model}` + `--revision
+  {model_revision}`, and the lane's identity negative control was rewritten because it depended on
+  that literal). The launch then died during distribution with `No space left on device` at 92.14 of
+  129.75 GiB: the head was at 100 % (1.7 GB free), so it cannot stage a 130 GiB checkpoint. The
+  partial repo was removed with `hf cache rm` (freed 97.2 GB; head now 93 GB free), nodes verified
+  clean. Retry needs ~40+ GB reclaimed — owner question `#45`. Receipt
+  `~/benchmarks/laguna-m1-20261019/REPORT.md`.)*
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
   *(closed 2026-10-18, late — **LTX-2.5 I2V + FLF2V + 4K/50 fps are measured.** Warm on `.34` (clock cap 2200 MHz, 1344×768 / 121 f / 24 fps): T2V **78.1 s / 83.70 GiB** (−2.5 % on the recorded 80.1 s), I2V **84.3 s (+7.9 %) / 83.79 GiB**, FLF2V **120.2 s (+54 %) / 81.94 GiB**. FLF2V is slower by mechanism, not regression: its template has no `LTXVLatentUpsampler`, so one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) replaces half-res 8-step + 3-step refine. Conditioning proven by decoded-frame MAD, not by a file existing: I2V frame 0 **4.1** vs the start image; FLF2V frame 0 **7.8** vs start / 59.5 vs end, frame 120 **16.9** vs end / 59.1 vs start. **4K/50 (3840×2160, 249 f) is OOM — a measured ceiling, not an untried preset:** stage 1 fine (8/8, 461.3 s @ 57.7 s/it at the 1920×1080 latent), killed at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines at **121.16 of 121 GiB** (85.0 GiB steady in stage 1, weights-only baseline 78.4 → not co-tenancy); the node stayed up, a process kill rather than a node loss. A smaller 4K cell at that output size is the only open question there and no register asks for one. Cold rep **204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). Receipt `~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`, `receipts{,_warm}`, and the fixed `expand2.py`/`run_cell2.py`; the runbook's expander is T2V-only — four defects listed in `attic/explore/AGENTS.md`).)*
