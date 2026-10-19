@@ -440,7 +440,8 @@ carries the `#36`–`#42` decisions answered the same day.
 # 2026-10-18 sweep — late (the TP>2 close and the `.34`/`.35` block)
 
 Archived from `mad-science/TODO.md` when the session was wrapped at the owner's request, copied
-verbatim with nested notes. Every item below was measured; what each leaves unrun is named inside it.
+verbatim with nested notes. The closures below are measured unless the item says otherwise — the GLM
+≥1M probe and the four-way 1M window never ran — and what each leaves open is named inside it.
 What the 19:15 policy dropped — the GLM ≥1M probe, the ornith 397B retry, the ds4 C1 re-take — is
 recorded here as **dropped, not deferred**, and is not carried as register work; the two questions
 that do stay open in the register are the ornith d90 crash mechanism and the qwen4 accuracy coverage.

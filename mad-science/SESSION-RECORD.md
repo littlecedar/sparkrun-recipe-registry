@@ -520,7 +520,11 @@ spec-verify's per-draft SSM state cache from **2.64 GB to 0.00 GB** and the allo
 `max_num_seqs` 24. The ladder is flat within the cell σ — 41.99 / 71.20 / 91.86 / 105.22 t/s at
 k=1/2/5/10 against a 39.90 / 69.45 / 94.98 / 104.45 control, the k=10 cell n=2 after the stand-down
 cut it — so it buys headroom, not throughput, and it is **not shipped** without accuracy coverage or
-the W4 gate. Receipt `~/benchmarks/qwen4-block-20261018/` (`REPORT.md`, `lrs-ladder-1018.{yaml,json}`).
+the W4 gate. Receipts: `~/benchmarks/qwen4-block-20261018/` (`REPORT.md`, `lrs-ladder-1018.{yaml,json}`,
+`max_total_num_tokens=1882944` in the state; k=1/2/5/10 n=5/5/5/2) against
+`~/benchmarks/qwen4-tp2-20261018/b1-cutlass-concurrency-ladder.json` (39.90 / 69.45 / 94.98 / 104.45,
+every cell n=5). Both boots' engine logs carry the cache sizes: 2.64 GB on the control, 0.00 GB with
+the flag.
 
 **ds4 v2.4 — the flag cost the throughput, not the line.** The earlier "slower on every cell" verdict
 was read off the `--prefill-decode-interval 2` arm. With the flag off the same line measures C2 88.35 /
