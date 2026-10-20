@@ -416,7 +416,7 @@ stays in the recipe with a one-line why.
 
 ## kev-0.8b and d3-edge (2026-10-18)
 
-Two CPU candidate arms measured in one window on `.34` (spark-ec1d, 20 cores / 121.7 GiB),
+Two CPU candidate arms measured in one window on `.34` (.34, 20 cores / 121.7 GiB),
 launched from the head, one serve at a time, each stopped by task id. Receipt
 `~/benchmarks/decision-arms2-20261018/`; the scores, ladder and status rows live in
 [`recipes/decision/README.md`](../../recipes/decision/README.md). This section records the two

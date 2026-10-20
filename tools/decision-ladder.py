@@ -296,7 +296,7 @@ def report(rows: list[dict]) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base-url", required=False, help="decision endpoint root, e.g. http://.NN:8020")
+    ap.add_argument("--base-url", required=False, help="decision endpoint root, e.g. http://.34:8020")
     ap.add_argument("--cases", help="Typed Decisions jsonl/.jsonl.gz (test split)")
     ap.add_argument("--api", choices=sorted(API_PATHS), default="systemone",
                     help="systemone (clef/Kai/Sol, one case per request) or completions (JEV-9B, one question)")

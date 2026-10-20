@@ -399,7 +399,7 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   adequate for deterministic allocation numbers and not for a speed claim. Receipts:
   `~/benchmarks/qwen4-block-20261018/REPORT.md` + `lrs-ladder-1018.{yaml,json}` (`bench_c19a168838eb`),
   boot log `~/benchlogs/q4-lrs-boot_1018_2107.log`; control
-  `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-{concurrency-ladder.yaml,.NN[23]-serve.log}`
+  `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-{concurrency-ladder.yaml,.32/.33-serve.log}`
   (`bench_684c21a7cd8a`). **Why it stays out of `defaults`:** it is an engine-behaviour flag with no
   accuracy coverage here, and the W4 `#37111` gate has not run on it (nor on the shipped arm).
 - **Proposed changes (not adopted).** `--enable-int8-mamba-checkpoint`,

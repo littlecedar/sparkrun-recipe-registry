@@ -131,7 +131,7 @@ single-stream latency. Everything else is the base: same pin, same six-mod chain
 `defaults.extra_args`.
 
 ```bash
-sparkrun run recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml -H <node-a>,<node-b>
+sparkrun run recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml -H <.30>,<.31>
 ```
 
 **Measured 2026-10-15** on the pinned engine, one boot, `llama-benchy` at d=8192 / 128 output

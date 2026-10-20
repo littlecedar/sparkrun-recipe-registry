@@ -7,7 +7,7 @@ These two surviving variants were copied in so the next sweep cannot destroy the
 
 | File | Source on the node | What it is |
 |---|---|---|
-| `tp4_start.sh.launcher-clone`, `tfrun.sh.launcher-clone` | `~/src/glm-5.3-tensorfold-tp4-4xgb10/scripts/` | The upstream template (`spark1..spark4` ssh names, `MASTER=.NN`, "Edit for your cluster"). |
+| `tp4_start.sh.launcher-clone`, `tfrun.sh.launcher-clone` | `~/src/glm-5.3-tensorfold-tp4-4xgb10/scripts/` | The upstream template (`spark1..spark4` ssh names, `MASTER=<master-ip>`, "Edit for your cluster"). |
 | `tp4_start.sh.development-variant`, `tfrun.sh.development-variant` | `~/development/TensorFold/tools/` | A locally modified variant: dynamic HCA detection per node, `M=/models/glm53-exl3-3.0bpw-full`. |
 
 Still on the nodes (not reclaimed): the TensorFold checkout at `~/development/TensorFold`,

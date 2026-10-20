@@ -182,7 +182,7 @@ the `speculative_config` JSON:
 
 ```bash
 sparkrun benchmark performance @littlecedar/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm \
-  -H <node-a>,<node-b>,<node-c>,<node-d> --profile benchmarking/decode-triage.yaml \
+  -H <.30>,<.31>,<.32>,<.33> --profile benchmarking/decode-triage.yaml \
   --output ~/benchmarks/ornith-397b-spec-ab-<date>/armDFlash.json \
   -o 'speculative_config={"method":"dflash","model":"ornith-ai/Ornith-1.5-397B-DFlash","revision":"db9c35a091e89f942c609880f98bb385019dc4f8","num_speculative_tokens":8}'
 ```

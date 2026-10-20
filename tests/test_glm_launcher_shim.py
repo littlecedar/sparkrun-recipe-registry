@@ -98,21 +98,21 @@ class Rendezvous(ShimTestCase):
     """sparkrun's three flags, mapped onto TensorFold's spelling."""
 
     def test_master_port_is_the_gated_rendezvous_port(self) -> None:
-        argv = self.exec_argv(self.base_argv(dist_init_addr=".NN:25000", nodes=4, node_rank="1"))
+        argv = self.exec_argv(self.base_argv(dist_init_addr=".30:25000", nodes=4, node_rank="1"))
         self.assertIsInstance(argv, list)
         self.assertEqual("25000", argv[argv.index("--master-port") + 1])
-        self.assertEqual(".NN", argv[argv.index("--master") + 1])
+        self.assertEqual(".30", argv[argv.index("--master") + 1])
 
     def test_node_rank_reaches_the_engine(self) -> None:
-        argv = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".NN:25000", node_rank=3))
+        argv = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".30:25000", node_rank=3))
         self.assertEqual("3", argv[argv.index("--rank") + 1])
         self.assertEqual("4", argv[argv.index("--tp") + 1])
 
     def test_only_rank_zero_serves_http(self) -> None:
-        rank0 = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".NN:25000", node_rank=0))
+        rank0 = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".30:25000", node_rank=0))
         self.assertEqual("GLM-5.3-Flash-EXL3", rank0[rank0.index("--name") + 1])
         self.assertEqual("8000", rank0[rank0.index("--port") + 1])
-        worker = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".NN:25000", node_rank=2))
+        worker = self.exec_argv(self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".30:25000", node_rank=2))
         for flag in ("--name", "--host", "--port"):
             self.assertNotIn(flag, worker)
 

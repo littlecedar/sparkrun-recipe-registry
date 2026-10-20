@@ -2,7 +2,7 @@
 
 > **DRAFTS ONLY. Nothing here has been posted.** Posting (comment, issue, PR) requires explicit human
 > authorization. Do not authenticate to GitHub from an agent. This file contains no agent-executable
-> action. Node ids are `<node-a>` / `<node-b>`; no internal IPs, hostnames, or node names appear here
+> action. Node ids are `<.30>` / `<.31>`; no internal IPs, hostnames, or node names appear here
 > (repo rule, `AGENTS.md` §3.8).
 >
 > Every claim carries `VERIFIED` / `LIKELY` / `SPECULATIVE` and a source: an upstream URL with access

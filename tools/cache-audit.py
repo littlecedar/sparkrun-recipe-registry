@@ -35,7 +35,7 @@ is in use whatever its provenance.
 
 Stdlib only, no network, no cluster access.  Input is a read-only census:
 
-    sparkrun setup prune-runtime-cache --hosts .30,.31,.32,.33,.34,.35 \\
+    sparkrun setup prune-runtime-cache --hosts host-30,host-31,host-32,.33,.34,.35 \\
         --all --dry-run > census.txt
     uv run python -B tools/cache-audit.py --census census.txt --budget-gb 2000
 
@@ -412,13 +412,13 @@ def selftest() -> int:
         rc = "/<home-dir>/.cache/sparkrun/runtime-cache/sglang"
         dry = Path(tmp) / "dry.txt"
         dry.write_text(
-            f"  would-remove    45.0 GB  .NN:{rc}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
+            f"  would-remove    45.0 GB  host-30:{rc}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
             "Would remove 1 tree(s), 45.0 GB.\n",
             encoding="utf-8",
         )
         listing = Path(tmp) / "ls.txt"
         listing.write_text(
-            "##### .NN\n"
+            "##### host-30\n"
             f"49501500K\t2026-10-10_13:59\t{rc}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
             f"49980704K\t2026-10-13_11:13\t{rc}/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993\n",
             encoding="utf-8",
@@ -429,12 +429,12 @@ def selftest() -> int:
         merged = trees.get("deepseek-ai__DeepSeek-V4.1-Flash-db95f94c")
         # The coarse dry-run row must be merged with, not preferred over, the
         # fine listing: its 0.1-GB rounding under-reports and it carries no marker.
-        check(merged is not None and merged.host == ".NN", "the dry-run line lost its host")
+        check(merged is not None and merged.host == "host-30", "the dry-run line lost its host")
         check(merged is not None and merged.size == 49501500 * 1024, "the larger (KiB) size must win the merge")
         check(merged is not None and merged.stamp == "2026-10-10_13:59", "a missing marker stamp must be filled from the listing")
         listed = trees.get("deepseek-ai__DeepSeek-V4.1-Flash-9a74d993")
         check(
-            listed is not None and listed.host == ".NN" and listed.size == 49980704 * 1024,
+            listed is not None and listed.host == "host-30" and listed.size == 49980704 * 1024,
             "a `##### host` header did not attribute its hostless listing line",
         )
         check(verdict(merged, keys)[0] == "stale", "db95f94c must classify stale")
@@ -445,7 +445,7 @@ def selftest() -> int:
         check(verdict(Tree("h", rc), keys)[0] == "unkeyed", "a family root must classify unkeyed")
         now = dt.datetime(2026, 10, 15, 10, 0)
         check(
-            merged is not None and reclaim_note(merged, "stale", now).startswith("sparkrun setup prune-runtime-cache --hosts .NN"),
+            merged is not None and reclaim_note(merged, "stale", now).startswith("sparkrun setup prune-runtime-cache --hosts host-30"),
             "a 116h-old stale tree must get the sweep command",
         )
         check(

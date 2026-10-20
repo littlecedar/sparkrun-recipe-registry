@@ -5,7 +5,7 @@
 #
 # Edit for your cluster:
 NODES=(spark1 spark2 spark3 spark4)          # ssh names, rank 0 first
-MASTER=.NN                              # rank 0 address on the RoCE fabric
+MASTER=<master-ip>                              # rank 0 address on the RoCE fabric
 IFNAME=enp1s0f0np0                           # NCCL socket interface
 # active RoCE HCAs per node (both 200G ports; names differ between GB10 units, check `ibv_devinfo`)
 HCA=(mlx5_0,mlx5_2 mlx5_0,mlx5_2 rocep1s0f0,roceP2p1s0f0 rocep1s0f0,roceP2p1s0f0)

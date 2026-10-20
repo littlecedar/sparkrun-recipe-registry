@@ -64,7 +64,7 @@ upstream production line (b12x_next), a follow-up A/B.
   cache uses the two-level `hub/blobs/<xx>/<sha>` layout, so mounting only the
   `models--…` dir leaves every blob symlink dangling.
 - **Fabric is full-mesh, not a ring**: two RoCE planes (the CX7 plane-A subnet on
-  `rocep1s0f0`, plane-B subnet on `roceP2p1s0f0`), all six pairwise pings OK,
+  `rocep1s0f0`, the CX7 plane-B subnet on `roceP2p1s0f0`), all six pairwise pings OK,
   port 1 ACTIVE (port 2 DOWN — do not use `*s0f1`), **RoCEv2 GID index 3**.
   So the switchless-ring path is not needed.
 

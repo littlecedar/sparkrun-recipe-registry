@@ -1757,8 +1757,8 @@ left clear.
 
 ## 6. Fabric and NCCL
 
-The fleet is two RoCE planes (`the CX7 plane-A subnet` on `rocep1s0f0`,
-`plane-B subnet` on `roceP2p1s0f0`), **full mesh** (a switched fabric, not a
+The fleet is two RoCE planes (the CX7 plane-A subnet on `rocep1s0f0`, plane B on
+`roceP2p1s0f0`), **full mesh** (a switched fabric, not a
 ring), port 1 ACTIVE, port 2 DOWN, RoCEv2 GID index 3.
 
 **No adapter/interface name is pinned anywhere.** `NCCL_NET`, `NCCL_IB_HCA`,
@@ -2424,7 +2424,7 @@ prove a boot (see the paragraph above).
 - **Engram is not sparkrun-distributed**; a fresh node without the shards serves degraded, silently
   except for one log line. Pre-warm per 12.7.
 - **sparkrun re-syncs the model head→worker on launch even when both nodes already hold it**, over
-  the management net (`the plane-B rail addresses`) at ~400 MiB/s — 510 s for the 196 GiB checkpoint. It is a
+  the management net at ~400 MiB/s — 510 s for the 196 GiB checkpoint. It is a
   one-time cost per (head, worker) pair, but it dominates the first launch and is easy to misread
   as a hang during `[3/6] Distributing resources`. The rsync uses `--copy-unsafe-links`, which
   materializes the blob symlinks, so on the receiving node the model directory's real bytes must be
@@ -2871,8 +2871,7 @@ what settles it (the §12.16 lesson). Cold prefill: 119k **29.53 s** (3904 tok/s
 self-reports the V4.1 revision. Identify the served checkpoint by the snapshot path in
 `server_args` (`…/models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/1bae0e10…`), by
 `/v1/models`, and by the launcher's `ships no chat_template.jinja; serving …` line — never by that
-field. (2) **Node identity**: `.NN-33` are `spark-00`…`spark-03`
-(`spark-41e1`/`spark-d325`/`spark-ec1d`/`spark-3578`); the head `.30` is rank 0. `sparkrun status`
+field. (2) **Node identity**: the quartet is `.30`-`.33` (the head, `.30`, is rank 0); `sparkrun status`
 reuses the job id across a stop and relaunch, so an unchanged id is not evidence of an unchanged
 boot.
 

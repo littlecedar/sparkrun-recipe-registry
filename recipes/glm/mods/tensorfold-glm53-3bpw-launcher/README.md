@@ -121,7 +121,7 @@ wrong, so this shim deliberately does none of it:
 The 2026-10-18 TP=4 boot on `.30`–`.33` (receipt: `~/benchmarks/glm-3bpw-boot-20261018/RECEIPT.md`):
 
 1. **TP=4 NCCL/RoCE rendezvous — settled, without `spcx`.** Four ranks rendezvoused on
-   `.NN:25000` under sparkrun's own probe vars and the default `NCCL_NET_PLUGIN=none`; rank 0
+   `.30:25000` under sparkrun's own probe vars and the default `NCCL_NET_PLUGIN=none`; rank 0
    reports `decode all-gathers: RDMA writes over roceP2p1s0f0, rocep1s0f0` and serves at TP=4. No
    hand-set `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`/`spcx` is needed.
 2. **KV sizing at `TF_GLM_KV=q5` — fits, but the four-long-window case is untested.** This boot:

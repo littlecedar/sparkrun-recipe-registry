@@ -482,7 +482,7 @@ model card's own long-context route with **three** changes: `max_model_len: 1000
 override on the serve line, and **no DFlash2 draft**. The sections below are the build record and the
 pre-registered gate; the gate's measured result follows immediately after this paragraph.
 
-### 9.1 Measured 2026-10-18 (`.34`, `sparkrun run … -H ${WOPR_USERNAME}@.NN --transfer-mode local --no-ready-wait --no-rm`)
+### 9.1 Measured 2026-10-18 (`.34`, `sparkrun run … -H ${WOPR_USERNAME}@.34 --transfer-mode local --no-ready-wait --no-rm`)
 
 | rung | requested | depths | fill (`usage.prompt_tokens`) | verdict |
 |---|---|---|---|---|

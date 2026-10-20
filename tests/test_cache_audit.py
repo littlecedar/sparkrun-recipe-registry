@@ -150,13 +150,13 @@ class CensusParsing(unittest.TestCase):
     def _receipts(self, tmp: str):
         dry = Path(tmp) / "dry.txt"
         dry.write_text(
-            f"  would-remove    45.0 GB  .NN:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
+            f"  would-remove    45.0 GB  host-30:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
             "Would remove 1 tree(s), 45.0 GB.\n",
             encoding="utf-8",
         )
         listing = Path(tmp) / "ls.txt"
         listing.write_text(
-            "##### .NN\n"
+            "##### host-30\n"
             f"49501500K\t2026-10-10_13:59\t{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
             f"49980704K\t2026-10-13_11:13\t{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-9a74d993\n",
             encoding="utf-8",
@@ -173,13 +173,13 @@ class CensusParsing(unittest.TestCase):
             # no marker, which would report every tree as unmarked.
             self.assertEqual(merged.size, 49501500 * 1024, "the finer size must win")
             self.assertEqual(merged.stamp, "2026-10-10_13:59", "the marker must be filled from the listing")
-            self.assertEqual(merged.host, ".NN")
+            self.assertEqual(merged.host, "host-30")
 
     def test_hostless_listing_takes_the_preceding_header(self):
         with tempfile.TemporaryDirectory() as tmp:
             dry, listing = self._receipts(tmp)
             listed = next(t for t in audit.parse_census([dry, listing]) if t.leaf.endswith("9a74d993"))
-            self.assertEqual((listed.host, listed.size), (".NN", 49980704 * 1024))
+            self.assertEqual((listed.host, listed.size), ("host-30", 49980704 * 1024))
 
     def test_family_root_is_not_a_keyed_tree(self):
         # The sweep prunes nothing when leaf == family_root; so must the verdict,
@@ -192,8 +192,8 @@ class CensusParsing(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = Path(tmp) / "two-hosts.txt"
             receipt.write_text(
-                f"  would-remove    94.8 GB  .NN:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
-                f"  would-remove    94.8 GB  .NN:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n",
+                f"  would-remove    94.8 GB  host-31:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n"
+                f"  would-remove    94.8 GB  host-32:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n",
                 encoding="utf-8",
             )
             self.assertEqual(len(audit.parse_census([receipt])), 2)
@@ -204,8 +204,8 @@ class CensusParsing(unittest.TestCase):
             receipt.write_text(
                 "Would remove 98 tree(s), 2550.4 GB.\n"
                 "Re-run without --dry-run to apply.\n"
-                f"# command: sparkrun setup prune-runtime-cache --hosts .NN,.NN\n"
-                f"  would-remove    94.8 GB  .NN:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n",
+                f"# command: sparkrun setup prune-runtime-cache --hosts host-30,host-31\n"
+                f"  would-remove    94.8 GB  host-30:{FAMILY_DIR}/deepseek-ai__DeepSeek-V4.1-Flash-db95f94c\n",
                 encoding="utf-8",
             )
             self.assertEqual(len(audit.parse_census([receipt])), 1)
@@ -219,7 +219,7 @@ class ReclaimVerdict(unittest.TestCase):
         self.now = dt.datetime(2026, 10, 15, 10, 0)
 
     def _tree(self, leaf: str, stamp: str | None):
-        return audit.Tree(".NN", f"{FAMILY_DIR}/{leaf}", size=1, stamp=stamp)
+        return audit.Tree("host-30", f"{FAMILY_DIR}/{leaf}", size=1, stamp=stamp)
 
     def test_live_tree_gets_no_reclaim_action(self):
         # Live today: the knapcio pin, and the 1017 pack the ds4 TP=2 arm now serves. The
@@ -255,7 +255,7 @@ class ReclaimVerdict(unittest.TestCase):
         note = audit.reclaim_note(tree, "stale", self.now)
         # Shape only: the *number* is asserted by the property test below, so this
         # guard cannot re-freeze a cutoff that stops matching the tree it names.
-        self.assertIn("sparkrun setup prune-runtime-cache --hosts .NN", note)
+        self.assertIn("sparkrun setup prune-runtime-cache --hosts host-30", note)
         self.assertIn("--older-than", note)
         self.assertIn("116 h old", note)
 
@@ -309,7 +309,7 @@ class PolicyCrossReference(unittest.TestCase):
         self.assertIn("STORAGE-POLICY.md", POLICY_INDEX.read_text(encoding="utf-8"))
 
     def test_tracked_policy_carries_no_host_address(self):
-        # This tree is distributed to third parties: node labels are `.30`-`.35`
+        # This tree is distributed to third parties: node labels are `host-30`-`.35`
         # and paths are `${WOPR_USER_CACHE}`-anchored, never an address.
         text = POLICY.read_text(encoding="utf-8")
         found = re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", text)

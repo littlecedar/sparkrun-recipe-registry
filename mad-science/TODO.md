@@ -636,5 +636,25 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   fixture/docstring uses in `tests/`+`tools/`. Pushed history is deliberately **not** rewritten (no
   force-push); the non-rewriting fix is one sanitizing commit over the working tree, with the history
   rewrite a separate owner decision. *(effort: short)*
+  *(progress 2026-10-20 — **the tree is clean; history is not, and is left alone.** Masked with the
+  repo's own rule (`.omp/skills/sparkrun-tracked-file-ip-hygiene/SKILL.md`): RFC1918 literals become the
+  `.30`-`.35` node shorthand, fabric words become "the CX7 plane-A/B subnet", the internal head hostname
+  becomes `<head-node>`, upstream-template placeholders become `<master-ip>`, and the four hostnames in
+  the identity map and in a tuning `metadata.json` become their shorthand nodes. **71 lines across 22
+  tracked files held a literal; 0 do now** (per file: the two ds4 benchmark raw logs 12 each, the ds4
+  lane AGENTS.md 5, `tests/test_cache_audit.py` 10, `tools/cache-audit.py` 5,
+  `tests/test_glm_launcher_shim.py` 5, the ds4 benchmark README 4, and one to three each in 15 further
+  files: attic lane docs, a glm launcher README, the ds4 harness scripts, `tools/decision-ladder.py`).
+  **One exemption, decided by evidence:** `recipes/ds4/benchmarks/data/hle_test.jsonl:121` is a
+  benchmark question that happens to discuss a private network in its prompt — it is data, not our
+  fabric, and masking it would corrupt the eval. **Two coupled fixture changes:** the census fixtures in
+  `tests/test_cache_audit.py` + `tools/cache-audit.py` could not take the `.NN` shorthand because the
+  parser rejects a leading-dot token as a host (the merge test then produced 3 rows instead of 2), so
+  they carry `host-30`-style names instead, assertion and fixture changed together; the glm shim fixture
+  takes `.30:25000` unchanged in behaviour. Gate after the change: **752 tests OK** (2 skipped), **51/51**
+  plain validate, `bash -n` clean. **History:** the earliest commit that already carried a literal is
+  `ee973cd` (2026-09-18, "Close labquant blocker (e)…", first `10.0.4.`); the CX7 subnet form enters at
+  `c441141` (2026-10-02, ds4 knapcio). Both are published; rewriting them needs a force-push, which is
+  **not** done — the exposure record ends here unless the owner elects a rewrite.)*
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
