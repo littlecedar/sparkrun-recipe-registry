@@ -1,15 +1,16 @@
-# Session status — 2026-10-20 13:50 ET
+# Session status — 2026-10-20 14:20 ET
 
-The test pair is on **cybersec arm 5** (the TP=2 abliterated graft, up since 13:45, standard suite
-running). Laguna-M.1 closed its suite and ladder and was stopped; the Sol-2B recipe boot proof landed on
-the same window. The production quartet is untouched. Gate: **752 tests OK** (2 skipped), **51/51**
-recipes pass plain `sparkrun recipe validate`. Last commit `e8dcb3a`.
+**The test pair is drained and idle** — session winding down for an agent update. Every container is
+gone from both nodes and no leg process remains; the last in-flight item (cybersec arm 5's tools leg) was
+**interrupted at 107 of 1,240 questions** and is recorded as partial, not as a result. The production
+quartet's TP=4 serve is untouched and healthy. Gate: **752 tests OK** (2 skipped), **51/51** recipes pass
+plain `sparkrun recipe validate`. Last commit `2e5f879`.
 
 ## Table 1 — Current tasks (in flight)
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| **Cybersec arm 5 standard suite** (TP=2 abliterated graft, TensorFold, model window 1,048,576) | test pair | 0 h 05 | `/v1/models` **200** 51 s after launch, served `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`; contract passed, house running | **3–5 h** (tools leg priced from its own rate once it starts) |
+| — none: the test pair was drained at 14:15 ET (0 containers, no leg processes) — | test pair | — | see the interrupted item under Closed | 0 h |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -34,16 +35,16 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight (arm 5's suite) | 3–5 h |
+| In flight | 0 h (pair drained) |
 | Queued node-bound content, runnable now (Table 2) | 30–50 h |
 | **Node-bound wall at two lanes** | **≈24–40 h** |
 | Deferred (Table 3, owner action or event) | 21–30 h |
-| **Grand total including deferred** | **≈54–84 h** |
+| **Grand total including deferred** | **≈51–81 h** |
 
 ## Risks
 
-- **BFCL is not resumable** and it is the leg running now: the per-question records exist only at
-  completion, so an interruption costs the remaining ≈0.6 h whole. The per-check cap has ≈1.3× headroom.
+- **BFCL is not resumable**, which is what the drain cost: arm 5's tools leg stopped at 107/1,240
+  and has no score; its other four legs survive on disk. A fresh boot is the only way to finish it.
 - **Buffered logs look like stalls.** Every long leg tonight has shown a question count frozen for tens
   of minutes while the serve decoded; liveness comes from the serve log, never from the count alone.
 - **Pair-bound stall**: the 18–30 h pair block holds both test nodes; nothing single-node runs during it.
@@ -60,7 +61,9 @@ qwen4 `zz-labq-no-diag` passed, retiring the diagnostic on the balanced arm (res
 27B-NEXTN and arm-1 lane-doc blocks · Laguna-M.1 TP=2 booted, suite + ladder landed (C1 12.85 /
 C2 21.85 / C5 34.15 / C10 34.64 t/s), tools 750/1240 triaged as capability · Sol-2B recipe
 boot-verified through `sparkrun run` (1101/2000, 80.5 s) · tracked-file addresses masked (71 lines, 22
-files → 0).
+files → 0) · **cybersec arm 5 — PARTIAL, interrupted by the drain**: house 37/37, needle 3/3 at every
+rung, ARC 188/200 (94.0 %), GSM8K 197/200 (98.5 %), and its tools leg cut at 107/1,240 questions (101
+pass / 6 fail, no score). Re-run it from a fresh boot next session.
 
 ## Open ask
 
