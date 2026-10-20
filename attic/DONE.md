@@ -709,3 +709,43 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   Receipts `~/benchmarks/{mellum-gguf-20261017,mellum-mmap-20261019}/`. The CPU-only build remains a
   separate question inside the decision lane's Sol-2B GGUF item.)*
 
+# 2026-10-20 (explore ceiling reference) — the two-node Laguna-M.1 arm is built and measured
+
+## explore
+- [x] **Build the Laguna-M.1 2-node ceiling reference** — named then dropped; the family's only 2-node datapoint is third-party (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(effort: medium)*
+  *(Owner decision 2026-10-18 [#41]: build it this window (the `.34`/`.35` pair is the right shape for a TP=2 boot).)*
+  *(2026-10-18, 21:45: the window closed at 19:15 without it. It needs only the `.34`/`.35` pair, which
+  stayed idle, so the directive carries to the next window rather than expiring.)*
+  *(progress 2026-10-19 — **boot attempted, blocked on head disk.** The recipe's command was corrected
+  first (it hard-coded the prepared snapshot path; it now hands `{model}` + `--revision
+  {model_revision}`, and the lane's identity negative control was rewritten because it depended on
+  that literal). The launch then died during distribution with `No space left on device` at 92.14 of
+  129.75 GiB: the head was at 100 % (1.7 GB free), so it cannot stage a 130 GiB checkpoint. The
+  partial repo was removed with `hf cache rm` (freed 97.2 GB), nodes verified clean. *Owner decision
+  2026-10-19: prune the six attic-only caches* — done, 430 GB freed, head now **493 GB free**, so the
+  retry is unblocked and is the next pair-bound boot. Receipt
+  `~/benchmarks/laguna-m1-20261019/REPORT.md`.)*
+  *(progress 2026-10-20 — **booted on the second attempt, and the disk blocker is gone.** TP=2 on the
+  `.34`/`.35` pair (job `poolside-laguna-m1-nvfp4-vllm-tp2`, vLLM 0.29.0 by digest): the 129.75 GiB
+  checkpoint downloaded to the head at ~170 MiB/s (682 GB free throughout) and distributed as 259.51
+  GiB across four streams, then the 225B TP=2 load; `/v1/models` **200 at 07:53:48**, **≈43 min** after
+  the 07:10 launch (sparkrun's own launch phase 1,076.6 s), served id `poolside/Laguna-M.1-NVFP4` with
+  `max_model_len` **262,144**. The standard suite (contract/house/needle/hard/tools, needle 512,
+  `--job-timeout 21600`) started 07:55:55 into `~/benchmarks/laguna-m1-20261020/`; the ladder follows
+  on the same boot.)*
+  *(results 2026-10-20 — **the two-node ceiling reference is measured.** Suite 20,097 s, verdict `fail` on
+  **contract only** (`finish=length`, `ready=False`, all-empty reply — the same `enable_thinking` shape the
+  XS sibling shows): house **37/37**, needle **3/3 at 32,768 / 131,072 / 262,144**, hard **ARC 178/200
+  (89.0 %)** and **GSM8K 188/200 (94.0 %)** with 0 empty replies, tools **750/1240 = 60.5 %** (0 transport
+  errors). Ladder `bench_6ca06d393d60`: **C1 12.85 ± 0.08 · C2 21.85 ± 0.26 · C5 34.15 ± 0.20 · C10
+  34.64 ± 0.06 t/s** @ d0, n=5 — flat past c5, 2.7× from c1 to c10 on two GB10s. **Tools triaged as
+  capability, not a parser bug:** `parallel` 0/200 and `parallel_multiple` 0/200, all 400 `wrong_count`,
+  call histogram **{1: 374, 0: 26}** — one call emitted where the gold needs several, while 554
+  single-call questions passed, so calls do parse. Receipt `~/benchmarks/laguna-m1-20261020/`; lane section
+  added to `recipes/explore/README.md`.)*
+  *(**CLOSED 2026-10-20 — suite and ladder landed, so the reference needs no further boot.** Ladder
+  `bench_6ca06d393d60` C1 **12.85** / C2 **21.85** / C5 **34.15** / C10 **34.64 t/s** @ d0, n=5; tools
+  **750/1240 = 60.5 %** triaged as a capability limit (`parallel`/`parallel_multiple` 0/200 on
+  `wrong_count`, call histogram `{1: 374, 0: 26}`), not a parser or harness fault. Boot receipts
+  `~/benchmarks/laguna-m1-20261019/` and `~/benchmarks/laguna-m1-20261020/`; lane section in
+  `recipes/explore/README.md`.)*
