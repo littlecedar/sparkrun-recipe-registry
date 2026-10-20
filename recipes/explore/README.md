@@ -187,6 +187,26 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   window — the reasoning parser's empty-`content` shape, thinking burning `max_tokens`) and **needle**
   at the two smaller depths. TEB (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97.
   Receipts `head:~/benchmarks/explore-laguna-xs-20261017/`.
+- **Standard suite re-take (2026-10-20, `~/benchmarks/laguna-xs-suite-20261020/`), same boot, 3,273 s:**
+  house **36/37** (easy 19/19, hard 17/18 — `hard-rev`), needle **3/3 at 32,768, 131,072 and 262,144**
+  (683 s; the 2026-10-17 small-depth misses did not reproduce), hard **ARC 124/200 = 62.0 %** and
+  **GSM8K 187/200 = 93.5 %** (694 s), tools **742/1240 = 59.8 %** (1,673 s, 0 transport errors).
+  contract still fails with `finish=length`, `content_len 0`, `reasoning_len 0` over 64 completion
+  tokens — the empty-`content` shape named above, reproduced on this boot.
+- **Why the tools score is 59.8 %, and why it is not a re-run candidate.** The loss is concentrated and
+  mechanical: **all 400 multi-call questions fail** — `parallel` 0/200 and `parallel_multiple` 0/200,
+  every one `parallel_function_checker_no_order:wrong_count` — while `simple` is 369/400 and `multiple`
+  189/200. The records show the cause is the **model**, not the harness: each of those 398 responses
+  carries **exactly one** `calls` entry (call-count histogram over the two multi-call categories: 1 → 398,
+  0 → 2) and `error: ['Wrong number of functions.']`, and the visible `content` acknowledges both
+  requests ("I'll play songs from Taylor Swift and Maroon 5 on Spotify as requested") while emitting
+  only the first call. Structured `tool_calls` do parse on this arm — 558 single-call questions passed —
+  and the serve line carries the parsers (`--tool-call-parser poolside_v1`, `--reasoning-parser
+  poolside_v1`, `--enable-auto-tool-choice`, `--default-chat-template-kwargs '{"enable_thinking":
+  true}'`), so no flag is missing and a re-run would reproduce it. The remaining 98 failures are ordinary
+  argument errors (`value_error:string` 7, `value_error:others` 9, `wrong_count` 6+3,
+  `type_error:nested` 4) plus 56 `irrelevance_error:decoder_success` (it called where it should not).
+  This is a capability result: the arm emits one tool call per turn.
 - **License:** OpenMDW-1.1 (target and draft).
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)

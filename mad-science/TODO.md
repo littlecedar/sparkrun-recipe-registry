@@ -536,6 +536,31 @@ arm's is already receipted (`bench_d165fa4b0bea`). That serve was stopped (0 con
 with a needle-only run at 262,144 (`--needle-lengths 262144 --needle-max-tokens 512`, the engine
 publishes no `max_model_len`) writing `~/benchmarks/qwen3-mlx-needle-20261020/`.)*
 
+*(progress 2026-10-20, 05:56 ET — **laguna-XS's 59.8 % tools score is a capability result, not a parser
+bug**, and the qwen3 MLX needle rung truncates below its advertised window. Laguna-XS re-take
+(`~/benchmarks/laguna-xs-suite-20261020/`, 3,273 s, suite verdict `fail` on contract only): house
+36/37, needle 3/3 at 32k/131k/262k, hard ARC 62.0 % / GSM8K 93.5 %, tools **742/1240 = 59.8 %** in
+1,673 s with 0 transport errors. The loss is concentrated: **`parallel` 0/200 and
+`parallel_multiple` 0/200, every one `parallel_function_checker_no_order:wrong_count`**, while simple is
+369/400 and multiple 189/200. The records settle the mechanism — each of those 398 responses carries
+**exactly one** `calls` entry (histogram over the two multi-call categories: 1 → 398, 0 → 2) with
+`error: ['Wrong number of functions.']`, and the visible `content` acknowledges both requests while
+emitting only the first call. Structured calls parse fine on this arm (558 single-call questions passed)
+and the serve line carries `--tool-call-parser poolside_v1`, `--reasoning-parser poolside_v1`,
+`--enable-auto-tool-choice` and `--default-chat-template-kwargs '{"enable_thinking": true}'`, so no flag
+is missing: the arm emits one tool call per turn and a re-run would reproduce it. Its contract leg fails
+with `finish=length`, `content_len 0`, `reasoning_len 0` over 64 tokens — the empty-`content` shape the
+arm has shown since 2026-10-17. **qwen3.8-27b-mlx4bit-TensorFold needle at 262,144** (needle-only,
+`--needle-lengths 262144 --needle-max-tokens 512`, 916.8 s): **3/3 needles retrieved but verdict
+TRUNCATED** — the server counted 222,453 and 222,514 tokens for the 262,144-token request at depths 10 %
+and 90 % (only the 50 % depth reached 261,527 and PASSed), so this arm's real window is ~222.5k and the
+262k cell is an instrument verdict, not a retrieval miss (`~/benchmarks/qwen3-mlx-needle-20261020/`).
+That serve was stopped (0 containers verified) and **ornith-1.5-35b-a3b-nvfp4-yarn-1m booted on `.35`**
+(`dadfb04b5145d956_64af2f7668b6`, READY 05:55:54, served id `ornith-ai/Ornith-1.5-35B-A3B-NVFP4`,
+`max_model_len` 1,000,000) for the depth-90 % 1M re-take, with the register's failing-boot capture armed
+this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-stream.log` and
+`docker events --filter event=die` → `docker-events.log`, both inside the receipt dir.)*
+
 ## Image pins and advisories (registry-level)
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
