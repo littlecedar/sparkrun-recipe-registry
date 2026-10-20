@@ -522,6 +522,20 @@ tools measured at **3.63 s/question** over its first 513 questions (≈4,501 s f
 `tool_calls` (861 pass / 98 fail at 959 questions, every failure an argument error — none a missing
 call): that listing field is cosmetic in llama-server and is **not** evidence of absent tool support.)*
 
+*(progress 2026-10-20, 05:32 ET — **kolibri APEX-24bpw closed all five legs `ok`, 11,878 s total**, and
+the qwen3 MLX needle re-take is booted. `summary.json`: contract 1.4 s (`max_model_len=262144`, but its
+own readiness probe returned `ready=False finish=length` — the reply spent the budget in reasoning, so
+that leg's `ok` is the length check and not a readiness proof), house 133.4 s **37/37**, needle 1,377.7 s
+**3/3 at 32,768, 131,072 and 262,144** (**a real top rung** at `n_ctx_slot=262144` — the first arm
+measured here whose 262k cell is not truncated), hard 3,939.8 s **ARC 171/200 = 85.5 %** and **GSM8K
+176/200 = 88.0 %** (both **floor-limited**: 23 and 21 `length` finishes at the 512-token answer budget),
+tools 6,425.7 s **1056/1240 = 85.2 %** (5.2 s/question). Receipt
+`~/benchmarks/kolibri-apex-suite-20261020/`; lane rows in `recipes/explore/README.md`. No ladder: the
+arm's is already receipted (`bench_d165fa4b0bea`). That serve was stopped (0 containers verified) and
+**qwen3.8-27b-mlx4bit-tensorfold booted on `.35`** (`fe3054ad67464c54_64af2f7668b6`, READY 05:37:28)
+with a needle-only run at 262,144 (`--needle-lengths 262144 --needle-max-tokens 512`, the engine
+publishes no `max_model_len`) writing `~/benchmarks/qwen3-mlx-needle-20261020/`.)*
+
 ## Image pins and advisories (registry-level)
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).

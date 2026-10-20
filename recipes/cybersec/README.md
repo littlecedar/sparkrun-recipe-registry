@@ -61,6 +61,19 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `max_running_requests=24`, so ten concurrent 2048-in/128-out requests never queue and the
   aggregate is 10 × 7.6 t/s. Same boot: battery **easy 19/19 + hard 18/18 = 37/37**
   (`cybersec-unc-battery.json`).
+- **Standard suite (legs 2026-10-19, tools leg 2026-10-19/20).** The suite was relaunched tools-only
+  after its first run was killed for a cap that could not hold BFCL, so this boot has **no
+  machine-readable `contract` line**; the other four legs are in
+  `~/benchmarks/cybersec-27b-unc-suite-20261019/`. house **37/37** (easy 19/19, hard 18/18), needle
+  **3/3 at 32,768 / 131,072 and 262,144** (all PASS — this arm's pool *does* carry the top rung, unlike
+  its NEXTN sibling's 167,985), hard **ARC 187/200 (93.5 %)** and **GSM8K 194/200 (97.0 %)**, tools
+  **1072/1240 = 86.45 %** with **0 transport errors** in **37,366 s = 30.1 s/question**
+  (`~/benchmarks/cybersec-27b-unc-tools-20261019/bfcl.json`, 1,240 records).
+  The category spread degrades as the questions get harder — simple 369/400, multiple 187/200,
+  parallel 183/200, parallel_multiple 168/200, irrelevance 165/240 — and the 30.1 s/question is the
+  number that prices a plain-decode arm's tools leg: 1,240 questions cost ~10.4 h here against ~3.5 h
+  for NEXTN and ~2.5 h for DFlash2, so a plain arm's `--job-timeout` must allow for it or its tools run
+  must go cap-free.
 
 - `mamba_full_memory_ratio: 3.51` splits the leftover pool between GDN state and the token pool —
   the same interior-point trade documented for the qwen3.8-27B lane (`attic/qwen3/AGENTS.md` §5);

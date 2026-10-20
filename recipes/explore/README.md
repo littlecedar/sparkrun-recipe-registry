@@ -42,7 +42,7 @@ measured root-index rows are scored; the verdict column is the selection. Decode
 |---|---|---|---|---|---|---|---|
 | `ling-3.0-flash-int4-dspark-sglang` | **49.7 ± 6.0** | 49.7 / 66.2 / 100.2 / 85.9 (peak c5, dip c10) | KV 313,248 tok = **1.20×** at 262,144 (ladder boot; 313,752 on the 2026-10-12 boot); `max_num_seqs: 6` | **37/37** · 3/3 @32k, 3/3 @131k, **2/3 @262k** · **94.5%** · **94.0%** · **88.0%** · — | 77 GB + 2.7 GB draft · util 0.80 · 154 GB distributed | `~/benchmarks/ladders-solo-20261018/ling-ladder.json`, `ling-boot.log`, `ling-suite/summary.md`, `ling-needle-262k-mt512/` | **KEEP — accuracy leader** |
 | `kolibri-1-78b-fp8-vllm` | 47.2 ± 0.1 | 47.2 / 76.2 / 77.6 / 83.5 (flat past c2) | KV 1,859,922 tok = 7.1×; `max_num_seqs: 4` | 37/37 @8192 · — · — · — · — · — | 74 GB · util 0.78 | `~/benchmarks/ladders-solo-20261018/kolibri-ladder.json`, `kolibri-battery-8192.json`; pool `~/benchmarks/explore-repin-20261014/kolibri-boot.log` | **retire** — its 4-bit packs are smaller/faster; Ling has the deeper accuracy cells |
-| `kolibri-1-apex-24bpw-llamacpp` | 63.24 ± 0.50 | 63.83 / 113.35 / 98.30 / 78.62 (peak c2) | 262,144 × `parallel: 4`, `kv_unified` = **4 slots**; c10 is 10 streams over 4 | 37/37 · — · — · — · — · — | 22.7 GiB mmap · **79 GiB available** while serving 262k · TTR 22.2 s | `~/benchmarks/kolibri-gguf-20261018/apex24-ladder.json`, `apex24-triage.json`, `apex24-battery.json` | **KEEP — smallest 262k with measured headroom** |
+| `kolibri-1-apex-24bpw-llamacpp` | 63.24 ± 0.50 | 63.83 / 113.35 / 98.30 / 78.62 (peak c2) | 262,144 × `parallel: 4`, `kv_unified` = **4 slots**; c10 is 10 streams over 4 | 37/37 · **3/3 @32k, 3/3 @131k, 3/3 @262k** · 85.5% · 88.0% · **85.2%** · — | 22.7 GiB mmap · **79 GiB available** while serving 262k · TTR 22.2 s | `~/benchmarks/kolibri-gguf-20261018/apex24-ladder.json`, `apex24-triage.json`, `apex24-battery.json`; suite `~/benchmarks/kolibri-apex-suite-20261020/summary.json` | **KEEP — smallest 262k with measured headroom** |
 | `kolibri-1-apex-q4k-llamacpp` | 57.67 ± 0.21 | 56.16 / 90.23 / 83.25 / 67.50 | same 4-slot ceiling | 37/37 · — · — · — · — · — | 41.89 GiB · 59 GiB available | `~/benchmarks/kolibri-gguf-20261018/q4k/` (`q4k-ladder.json`, `q4k-triage.json`, `q4k-battery.json`) | **retire** — 2.4bpw wins size and every ladder cell |
 | `kolibri-1-78b-fp8-tensorfold-drafter-sglang` | 55.6 ± 5.9 (d8192 54.6) | — (C1 only; no ladder) | 4 streams @ 262,144 (22.7 GiB caches) | 37/37 @4096 · — · — · — · — · — | 79 GB + 0.8 GB drafter | `~/benchmarks/kolibri-mtp-20261018/mtp-triage.json`, `house/summary.json` | **retire** — no aggregate; 4-slot cap; fork JIT risk |
 | `kolibri-1-nvfp4a16-fp8-vllm` | 52.48 ± 0.21 | 52.11 / 91.64 / 95.15 / 106.39 | KV 4,606,739 tok = 17.6×; cap 4 | **36/37** · — · — · — · — · — | 42.69 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/quantinine/` (`c2c5c10-ladder.json`, `triage.json`, `battery.json`) | **retire** — 36/37 loses the accuracy tie |
@@ -141,6 +141,17 @@ measured headroom**.
   −11.3 % at d8192 for Q4_K, and −20 / −15 / −14 % at c2/c5/c10 — while nearly half the weight bytes.
   Q4_K's only claimed advantage is its uploader's KLD figure, which the house battery cannot see
   (both saturate 37/37), so it is uncorroborated by this registry.
+- **Standard suite (2026-10-20, `~/benchmarks/kolibri-apex-suite-20261020/`):** all five legs `ok`,
+  11,878 s total. contract `max_model_len=262144`, but its own readiness probe came back
+  `ready=False finish=length` (the reply spent its budget in reasoning), so the leg's `ok` is the
+  length check, not a readiness proof. house **37/37** (133.4 s), needle **3/3 at 32,768, 131,072 and
+  262,144** (1,377.7 s) — a **real** top rung, the first arm measured here whose 262k cell is not
+  truncated, because `n_ctx_slot` really is 262,144. hard **ARC 171/200 = 85.5 %** and **GSM8K
+  176/200 = 88.0 %** (3,939.8 s), both **floor-limited**: 23 and 21 `length` finishes at the 512-token
+  answer budget, so they understate the arm rather than rank it. tools **1056/1240 = 85.2 %**
+  (6,425.7 s = 5.2 s/question). The serve's `/v1/models` advertises `capabilities: ["completion"]`
+  only, yet the tools leg emits structured `tool_calls` — that field is cosmetic in llama-server and
+  is not evidence of missing tool support.
 - **License:** base `Aleph-Alpha/Kolibri-1` Apache-2.0; the GGUF pack's own terms are on its card.
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
