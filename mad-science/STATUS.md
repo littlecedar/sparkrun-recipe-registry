@@ -1,21 +1,15 @@
-# Session status — 2026-10-20 12:55 ET
+# Session status — 2026-10-20 13:50 ET
 
-The test pair is on **Laguna-M.1 TP=2**: booted 07:10, `/v1/models` 200 at 07:53:48, house, needle and
-hard legs landed, tools leg at **1,022/1,240 questions (≈9 s/question)** with ≈35 min left. The
-production quartet is untouched (its own TP=4 serve, healthy). Gate: **752 tests OK** (2 skipped),
-**51/51** recipes pass plain `sparkrun recipe validate`. Last commit `064aeba`.
+The test pair is on **cybersec arm 5** (the TP=2 abliterated graft, up since 13:45, standard suite
+running). Laguna-M.1 closed its suite and ladder and was stopped; the Sol-2B recipe boot proof landed on
+the same window. The production quartet is untouched. Gate: **752 tests OK** (2 skipped), **51/51**
+recipes pass plain `sparkrun recipe validate`. Last commit `e8dcb3a`.
 
 ## Table 1 — Current tasks (in flight)
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| **Laguna-M.1 TP=2 standard suite** (225B/23B-active, vLLM 0.29.0) | test pair | 5 h 46 | boot TTR ≈43 min (129.75 GiB download, 259.51 GiB distributed, TP=2 load) · house **37/37** · needle **3/3 at 32k, 131k, 262k** · **GSM8K 188/200 (94.0 %)** · **ARC 178/200 (89.0 %)**, 0 empty · tools **1,022/1,240** (573 pass / 449 fail) | **≈0.6 h** of tools, then the ladder on the same boot |
-
-Two readings from that tools leg, to be confirmed against its JSON at completion: the pass count froze
-at 554 while failures climbed past 400 — the leg has entered the `parallel` and `parallel_multiple`
-categories and every one of those fails `wrong_count`, the same one-call-where-several-are-asked shape
-the smaller Laguna-XS arm showed. That is a capability reading, not a parser one (Laguna-XS's records
-carried a single `calls` entry with the prose naming both requests).
+| **Cybersec arm 5 standard suite** (TP=2 abliterated graft, TensorFold, model window 1,048,576) | test pair | 0 h 05 | `/v1/models` **200** 51 s after launch, served `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed`; contract passed, house running | **3–5 h** (tools leg priced from its own rate once it starts) |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -40,11 +34,11 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight (Laguna tools remainder + its ladder) | 2.3–2.8 h |
+| In flight (arm 5's suite) | 3–5 h |
 | Queued node-bound content, runnable now (Table 2) | 30–50 h |
 | **Node-bound wall at two lanes** | **≈24–40 h** |
 | Deferred (Table 3, owner action or event) | 21–30 h |
-| **Grand total including deferred** | **≈54–82 h** |
+| **Grand total including deferred** | **≈54–84 h** |
 
 ## Risks
 
@@ -63,7 +57,10 @@ tools **1072/1240 (86.5 %)** · kolibri APEX five legs `ok`, needle a real 262k 
 tools, triaged as capability not parser · qwen3 MLX needle TRUNCATED at ~222.5k · ornith YaRN d90 PASS
 with a null die-capture · Sol-2B built, published and scored **55.0 % (1101/2000)** at p50 195 ms ·
 qwen4 `zz-labq-no-diag` passed, retiring the diagnostic on the balanced arm (restored in highcon only) ·
-27B-NEXTN and arm-1 lane-doc blocks.
+27B-NEXTN and arm-1 lane-doc blocks · Laguna-M.1 TP=2 booted, suite + ladder landed (C1 12.85 /
+C2 21.85 / C5 34.15 / C10 34.64 t/s), tools 750/1240 triaged as capability · Sol-2B recipe
+boot-verified through `sparkrun run` (1101/2000, 80.5 s) · tracked-file addresses masked (71 lines, 22
+files → 0).
 
 ## Open ask
 
