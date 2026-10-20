@@ -41,6 +41,25 @@ govern, per the protocol; the verbatim asks remain in git.)*
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
 
+**Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
+head-only pass: the node copies of the attic-only weights had never been pruned. **HF, by `hf cache rm`
+only** (never `rm -rf`): head **218.2 GB** (MoVA-36B pair 123.3, Kolibri MXFP4-MxWave 44.0, Mellum
+bf16 24.3, r0b0tlab 35B 23.6, Laguna-S DFlash 2.2, Kolibri block-drafter 0.8), `.34` **149.8 GB**
+(Mellum bf16, r0b0tlab, Laguna-S DFlash, **Laguna-S NVFP4 99.7**), `.35` **431.0 GB** (MoVA pair,
+Kolibri MXFP4, Mellum bf16, block-drafter, **humanizer 87.6, Mistral-Small-4 70.8, Nemotron-120B
+80.4**). Free space: head 493 → 721 GB, `.34` 730 → 893 GB, `.35` 305 → 753 GB. **Kept because a
+shipped recipe names it:** all 24 pinned digests' repos — notably the 397B graft (its recipe still
+ships), both DeepSeek EXL3 bodies (cybersec arm 5 and ds4 TensorFold), `local-inference-lab/…
+Flash-Next`, RadixArk, and the production `-1017` base. **Docker:** removed only images no recipe
+digest, no tracked doc and no container names — head **3** (24.6 GB relay-only, a dsv41 variant, a
+stale TensorFold-GLM alias), `.34` **3** (25 GB), `.35` **2** (55 GB); ~94 GB total. Kept every image
+whose full RepoDigest is in the 24-entry pin set, every image a doc names (`kolibri1-drafter`,
+`dgx-vllm-eugr-nightly`), and both nodes' live serve image. **`.30`–`.33` were audit-only** — the
+production TP=4 serve was not touched. Both test serves answered `/v1/models` 200 after the prune.
+*A join that truncates digests to 12 hex chars silently matches nothing — the first classification
+listed two recipe-pinned sglang images as deletable for exactly that reason; match full RepoDigests
+and the `oci-relay/pinned:<hex>` tag suffix before deleting.*
+
 # TODO list
 
 *(2026-10-14 documentation sweep — six parallel lane/registry scouts over `recipes/**`, `attic/**`,
