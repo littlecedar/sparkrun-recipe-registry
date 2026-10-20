@@ -70,9 +70,9 @@ is higher in absolute terms but is 10 streams over an 8-slot grant (its peak is 
 
 **Two arms with no index row:**
 
-- `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — authored, **unbooted**, 2 nodes. It is not a selection
-  candidate and **stays** in `recipes/explore/`; the Laguna-M.1 boot item owns it until a TP=2 boot
-  produces a receipt.
+- `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — **booted and measured 2026-10-20 on the test pair** (TP=2,
+  receipt `~/benchmarks/laguna-m1-20261020/`; suite + ladder in its own section below). It is still not
+  a selection candidate — it is the family's two-node ceiling reference.
 - `mistral-small-4-119b-nvfp4-vllm.yaml` — measured and **rejected** (C1 28.94 ± 0.03; 89,216-token
   servable ceiling at 1.01× concurrency; house 33/37 default, 36/37 ceiling). Archived 2026-10-19 as
   measured-rejected: see the manifest and `~/benchmarks/mistral-119b-20261018/REPORT.md`.
@@ -208,6 +208,31 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   `type_error:nested` 4) plus 56 `irrelevance_error:decoder_success` (it called where it should not).
   This is a capability result: the arm emits one tool call per turn.
 - **License:** OpenMDW-1.1 (target and draft).
+
+## [poolside-laguna-m1-nvfp4-vllm-tp2](poolside-laguna-m1-nvfp4-vllm-tp2.yaml)
+
+vLLM · **2 nodes (TP=2)** · **the family's two-node ceiling reference**, booted 2026-10-20.
+
+- **Model:** `poolside/Laguna-M.1-NVFP4` (225B total / 23B active agentic-coding MoE, 70 layers, 262,144
+  native) pinned `e4f3ba80…`, engine `vllm/vllm-openai:v0.29.0` by digest.
+- **Boot (2026-10-20, test pair):** 129.75 GiB downloaded at ~170 MiB/s and distributed as 259.51 GiB
+  over four streams, then the TP=2 load — `/v1/models` **200 ≈43 min** after launch (sparkrun's own
+  launch phase 1,076.6 s), served id `poolside/Laguna-M.1-NVFP4` with `max_model_len` 262,144.
+- **Decode ladder (same boot, `bench_6ca06d393d60`):** **C1 12.85 ± 0.08 · C2 21.85 ± 0.26 ·
+  C5 34.15 ± 0.20 · C10 34.64 ± 0.06 t/s** @ d0, pp 2048, tg 128, n=5, decode rows from the output file.
+  It flattens past c5 — 2.7× from c1 to c10 on two GB10s.
+- **Standard suite (same boot, 20,097 s):** house **37/37**; needle **3/3 at 32,768, 131,072 and
+  262,144**; hard **ARC 178/200 (89.0 %)** and **GSM8K 188/200 (94.0 %)**, both with 0 empty replies;
+  tools **750/1,240 = 60.5 %** with 0 transport errors. Suite verdict `fail` on **contract only**:
+  `finish=length`, `ready=False`, all-empty reply — the same `enable_thinking` shape the XS sibling shows,
+  not a serve failure.
+- **Why the tools score is 60.5 %, and why it is not a parser bug.** The loss is one mechanical block:
+  `parallel` **0/200** and `parallel_multiple` **0/200**, all 400 `parallel_function_checker_no_order:
+  wrong_count`, while `simple` is 365/400 and `multiple` 189/200. The records show **one** captured call
+  per response on those cells (`{1: 374, 0: 26}`) — the model names both requests in prose and emits the
+  first call only. Structured calls parse fine (554 single-call questions passed), so this is a
+  capability result for the arm, measured on the same instrument as every other lane arm.
+- **License:** OpenMDW-1.1 (checkpoint family terms on its card).
 
 ## [qwen-image-2.1-turbo-7b-bf16-diffusers-script](qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
 

@@ -467,6 +467,11 @@ Any decision model
   vendor's run line is `-np 1`. Receipt `~/benchmarks/sol2b-20261020/`; rows in
   `recipes/decision/README.md` §`sol-2b-gguf-llamacpp`. **Still open:** the image has no `RepoDigest`
   (local-only), so shipping a recipe that pins a digest needs a registry push first.)*
+  *(boot proof 2026-10-20 — **the recipe is the verified artifact, not just the image.** `sparkrun run`
+  pulled the published digest, came up in **26.8 s** (port open 0.7 s), served
+  `vllm-sr/Decision-2.0-Sol-2B-Q8_0`, and the same instrument scored **55.0 % (1101/2000)**, KL 0.351,
+  Brier 0.189, ECE 0.054 over 80.5 s — decision-for-decision the manual boot. Receipt
+  `~/benchmarks/sol2b-recipe-20261020/`; lane row now BOOT-VERIFIED.)*
   *(progress 2026-10-20, later — **shipped: the image is published and the recipe pins its digest.**
   `docker save | docker load` onto the head (the only host holding the `docker.io` credential) then
   `docker push littlecedar/dgx-spark-llama-cpp-decision2:c9f5974` gave
@@ -508,6 +513,16 @@ Any model with reasoning and tool-calling capabilities
   `max_model_len` **262,144**. The standard suite (contract/house/needle/hard/tools, needle 512,
   `--job-timeout 21600`) started 07:55:55 into `~/benchmarks/laguna-m1-20261020/`; the ladder follows
   on the same boot.)*
+  *(results 2026-10-20 — **the two-node ceiling reference is measured.** Suite 20,097 s, verdict `fail` on
+  **contract only** (`finish=length`, `ready=False`, all-empty reply — the same `enable_thinking` shape the
+  XS sibling shows): house **37/37**, needle **3/3 at 32,768 / 131,072 / 262,144**, hard **ARC 178/200
+  (89.0 %)** and **GSM8K 188/200 (94.0 %)** with 0 empty replies, tools **750/1240 = 60.5 %** (0 transport
+  errors). Ladder `bench_6ca06d393d60`: **C1 12.85 ± 0.08 · C2 21.85 ± 0.26 · C5 34.15 ± 0.20 · C10
+  34.64 ± 0.06 t/s** @ d0, n=5 — flat past c5, 2.7× from c1 to c10 on two GB10s. **Tools triaged as
+  capability, not a parser bug:** `parallel` 0/200 and `parallel_multiple` 0/200, all 400 `wrong_count`,
+  call histogram **{1: 374, 0: 26}** — one call emitted where the gold needs several, while 554
+  single-call questions passed, so calls do parse. Receipt `~/benchmarks/laguna-m1-20261020/`; lane section
+  added to `recipes/explore/README.md`.)*
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
   *(closed 2026-10-18, late — **LTX-2.5 I2V + FLF2V + 4K/50 fps are measured.** Warm on `.34` (clock cap 2200 MHz, 1344×768 / 121 f / 24 fps): T2V **78.1 s / 83.70 GiB** (−2.5 % on the recorded 80.1 s), I2V **84.3 s (+7.9 %) / 83.79 GiB**, FLF2V **120.2 s (+54 %) / 81.94 GiB**. FLF2V is slower by mechanism, not regression: its template has no `LTXVLatentUpsampler`, so one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) replaces half-res 8-step + 3-step refine. Conditioning proven by decoded-frame MAD, not by a file existing: I2V frame 0 **4.1** vs the start image; FLF2V frame 0 **7.8** vs start / 59.5 vs end, frame 120 **16.9** vs end / 59.1 vs start. **4K/50 (3840×2160, 249 f) is OOM — a measured ceiling, not an untried preset:** stage 1 fine (8/8, 461.3 s @ 57.7 s/it at the 1920×1080 latent), killed at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines at **121.16 of 121 GiB** (85.0 GiB steady in stage 1, weights-only baseline 78.4 → not co-tenancy); the node stayed up, a process kill rather than a node loss. A smaller 4K cell at that output size is the only open question there and no register asks for one. Cold rep **204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). Receipt `~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`, `receipts{,_warm}`, and the fixed `expand2.py`/`run_cell2.py`; the runbook's expander is T2V-only — four defects listed in `attic/explore/AGENTS.md`).)*

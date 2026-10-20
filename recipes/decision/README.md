@@ -100,7 +100,7 @@ at length is needed (the card's own note).
 | engine | `llama-server --version` → `0.6.0-dev (build 11508, commit c9f597487)`, GNU 13.3.0 aarch64 |
 | accuracy | **55.0 % (1101/2000), ★★** — KL(gold‖pred) 0.351, Brier 0.189, ECE 0.054, **0 decision errors** |
 | API | `/v1/systemone` (typed decision: CHOICE / SCORE / NOUL, one forward pass per case, no generated tokens), **GPU** |
-| status | **MEASURED 2026-10-20** (`.34`) — the recipe validates (plain) and renders; the score and ladder below come from the **manual container boot**, so a boot through `sparkrun run` on this recipe is the one step still outstanding |
+| status | **BOOT-VERIFIED 2026-10-20** — launched by `sparkrun run` on the digest-pinned image and re-scored on that boot: **55.0 % (1101/2000)**, identical to the manual boot |
 
 **It reproduces the CPU arm, and that is the point of the route.** On the same instrument
 (`uvx tool-eval-bench@2.8.0 --decision-bench-only`, 400 cases / 2,000 decisions) the GGUF arm scores
@@ -121,6 +121,12 @@ path and the server dies with `failed to open GGUF file`; mount the repo root (o
 from there (the head holds the `docker.io` credential; the nodes do not), which is what produced the
 `sha256:b4808c9a…` digest the recipe pins. The head's loaded id equals the node's build id
 (`sha256:1bb250bf…`), so the digest pins the same content that was measured.
+
+**The sparkrun launch reproduces the measurement.** `sparkrun run` on this recipe pulled the published
+digest, came up in **26.8 s** (port open 0.7 s, health 0.0 s afterwards), served
+`vllm-sr/Decision-2.0-Sol-2B-Q8_0`, and the same instrument scored **55.0 % (1101/2000)**, KL 0.351,
+Brier 0.189, ECE 0.054 over **80.5 s** — decision-for-decision the manual boot's result, so the recipe
+(not just the image) is the verified artifact. Receipt `~/benchmarks/sol2b-recipe-20261020/`.
 
 `-np 1` is the vendor's slot count, so the ladder above c1 queues rather than batches — and that is
 exactly what it measures: **c1 5.228 / c2 5.439 / c5 5.422 / c10 5.413 req/s** (26.14 / 27.20 / 27.11 /
