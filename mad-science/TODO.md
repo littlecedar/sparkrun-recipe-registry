@@ -568,6 +568,88 @@ Cybersecurity-research (red-team) abliterated / uncensored models
   `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`; lane note in `recipes/cybersec/README.md`.
   No index row.)*
 
+- [ ] **Research `IndrasMirror/DeepSeek-V4.1-Flash-1017-XQ-Uncensored`** — a *strata*-format GGUF
+  mixed-tier quant of the 1017 body, the XQ rename of the same pipeline as the
+  `kaushikvira/…-GSQ-agentic-strata` item above (identical header `general.name`), which ships **no
+  Engram tables** — only two placeholders that send you to the 1017 base for **203 GB** of shards.
+  **Research only, not queued for a boot** — 1017-class work needs the four production nodes, which
+  are frozen, and a TP=4 measurement needs the owner's offsite switch.
+  *(facts:* open (`gated: false`), card `license: mit`, one branch `main` @ `9d3c01d8…`, no tags,
+  created 2026-10-18T10:14:56Z (initial commit `c3cf92c7…`), last write 2026-10-19T18:17:06Z, card
+  headed "Builds in this repo (20 Oct)". Hub `usedStorage` **329,277,851,840 B = 329.28 GB /
+  306.7 GiB** over 49 files, in **two complete builds** that are plain byte-split parts —
+  `v3/V41-XQ-1017-v3.gguf.part-01..16-of-16` **162,954,903,552 B = 162.95 GB / 151.76 GiB** (15 ×
+  10 GiB + 1.89 GB) and `v2/…part-01..15-of-15` **152,239,341,568 B = 152.24 GB / 141.78 GiB** (14 ×
+  10 GiB + 1.92 GB), rejoined by `v*/reassemble.sh`, which states they are "plain byte ranges of the
+  original file (`cat` order = part number), **not llama.cpp gguf-split shards**" and checks
+  `SHA256SUMS` before joining; plus `V41-MTP-Vision-1017.gguf` 8,421,868,640 and its `.Q2_K.gguf`
+  5,661,492,320. **Not an overlay, and not self-contained:** it carries no safetensors of its own,
+  and `model-00047/00048-of-00048.safetensors.NEED-TO-DOWNLOAD-ENGRAM.txt` (1,109 B each) are
+  placeholders for the two **101.5 GB** Engram table shards, "unchanged from the original
+  checkpoint", to be pulled from `deepseek-ai/DeepSeek-V4.1-Flash-1017` (open) and extracted with the
+  author's tool — the lane's own `tools/build-dsv41-engram.py` builds the same tables at **188.8 GiB**
+  (2 × 94.4 GiB). **No `config.json` at any path**, so the only `quantization_config` is the one
+  embedded in the GGUF KV — and it describes the *teacher*, not these weights: `{"activation_scheme":
+  "dynamic", "expert_dtype": "fp4", "quant_method": "fp8", "scale_fmt": "ue8m0",
+  "weight_block_size": [32, 32]}`, **no `kv_cache_scheme`**, beside `architectures:
+  ["DeepseekV41ForCausalLM"]` and `model_type: "deepseek_v41"` (GGUF `general.architecture` =
+  `deepseek41`, `alignment` 16384, ctx 1,048,576, `rope_scaling.factor` 16.0 over
+  `original_max_position_embeddings` 65,536). The shipped scheme is the KV string
+  `deepseek41.quantization` = "routed experts: per-expert Q3_K / Q2_0 / PTQ1_0 (gate+up share a type,
+  down its own); Q8_0 attention / shared / head; F16 embedding", with `strata.v41.expert_tiers` =
+  `{"down:PTQ1_0": 5603, "down:Q2_0": 7060, "down:Q3_K": 2697, "gu:PTQ1_0": 6942, "gu:Q2_0": 5665,
+  "gu:Q3_K": 2753}` (15,360 + 15,360 = 40 layers × 384 experts) and `strata.v41.expert_layout` =
+  "uniform role: ffn_<role>_exps.weight; mixed: ffn_<role>_exps.<type>.weight per type (experts in id
+  order) + I32 ffn_exps_{gu,down}_type[384]" — the header's own census is 1,329 tensors, **120 each**
+  of ggml type 11 / 42 / 143 (9 per layer: gate, up, down × 3 tiers, so **42 = Q2_0 and 143 = PTQ1_0
+  are ids outside ggml's table**), 493 F32, 321 Q8_0, 110 F16, 80 I32. "XQ" is the card's own rename:
+  "the codes themselves come from **GPTQ**, not from GSQ's Gumbel-softmax optimisation. So it is
+  renamed **XQ** (Xolotl Quant), our own method: this build is XQ's first stage (GPTQ + our
+  budget-exact 'RCO-lite' tier allocation)" — though the header records
+  `strata.v41.expert_source` = `inplace:rtn:q2_0:491a0b0a…`, i.e. an RTN q2_0 seed, not a GPTQ fit;
+  unexplained, recorded as-is. **"Uncensored" rests on one sentence:** "We applied a
+  **mrfakename-style rank-2 refusal-direction edit** to the 1017 checkpoint, on the attention output
+  projection and the shared-expert down projection (experts untouched). The manifest id is
+  `adea0515bbf69a0b`. The edit is applied before quantization to the dense half in full precision. A
+  refusal-direction probe on the served quantized model is **to be measured**; this card does not
+  claim a refusal rate until that probe is run." The artifact agrees
+  (`strata.v41.ablate` = `adea0515bbf69a0b`) — but the card's own Quality section then reports
+  "chat mode **0/100 harmful refused, 0/100 safe refused**; think mode **0/50 harmful, 0/50 safe**"
+  from an opening-phrase classifier, which is the claim the edit section says it is not making.*)
+  *(why it matters:* it is the **smallest 1017-class body** on the Hub — 162.95 GB at 2.093 expert
+  bpw against 210.8 GB (EXL3 2.9 bpw), 382.8 GB (the GSQ sibling) and 510.3 GB (official) — and the
+  arithmetic per node (128 GB unified, the lane's **108 GB usable** at util 0.85): weights alone are
+  **40.74 GB / 37.94 GiB per rank at TP=4** and **81.48 GB / 75.88 GiB at TP=2**, both inside the
+  budget, while TP=1 needs **151.76 GiB** and therefore the engine's VRAM/pinned-RAM/NVMe tiering
+  rather than a bigger node. Add the tables and it stops fitting: **+47.2 GiB/rank at TP=4** (the
+  knapcio arm's per-rank layout, 2 × 23.6 GiB) or **+94.4 GiB/rank at TP=2** — 170.3 GiB/rank at
+  TP=2, 1.7× the 100.6 GiB pool, so the tables would stay on disk exactly as the ds4 arms keep them,
+  at ~366 GB/node staged against the TP=2 EXL3 arm's ~385 GB/node and knapcio's 510 GB over four.
+  So node count is not the constraint; a **loader is**. *(blockers/unknowns:* **no loader in either
+  engine this lane ships.** The SGLang side reads safetensors trees through compressed-tensors
+  (`recipes/ds4/README.md:25-28`, the knapcio overlay) and the TensorFold side loads EXL3 mul1
+  through `mods/tensorfold-dsv41-launcher` (`recipes/cybersec/…-tp2-tensorfold-sglang.yaml` +
+  `mods/graft-dsv41-ablit-wo-b`); there is **no `gguf` string anywhere in `mods/`,
+  `recipes/cybersec/` or `recipes/ds4/`** (grep, 2026-10-20), and the registry's only GGUF runtime is
+  `runtime: llama-cpp` (`recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml:4`), which
+  the card excludes outright: "This file is **not** a llama.cpp / Ollama / LM Studio GGUF. It uses
+  per-expert quant types those runtimes don't load. Use it with Xolotl." Its engine is
+  `Indras-Mirror/Xolotl` (MIT, C++, 225★, pushed 2026-10-20; it absorbs `Strata-DSV4.1`) and its
+  README states one host, "Linux, an NVIDIA GPU with 24 GB, CUDA 12.x/13.x, and RAM for the arena",
+  measured on one RTX 4090 — **no TP flag, no sharding, no aarch64/GB10 build named**: a new engine
+  family for this registry, not a recipe re-point. Same class of gap the GSQ item records. Other
+  unknowns: the Engram **download is not shipped**, so the arm is not runnable from this repo alone
+  (+203 GB); `base_model` is tagged 1017 but the GGUF's `general.source.url` is
+  `dealignai/DeepSeek-V4.1-Flash-UNCENSORED-FP8` (open, 510.3 GB) whose own base tag is the
+  superseded `DeepSeek-V4.1-Flash` — the same provenance wrinkle as the GSQ build; the card's own
+  quality gates are unfinished ("Per-layer … error … **to be measured**" rows, "First-token KL
+  against the unedited base is not measured"), and it self-reports a **regression** on the short
+  Gauntlet (2/5 against the V4.1 v2 build's 4/5, "03 at 0.00"); `tokenizer/chat_template.jinja` is a
+  91-byte comment stub with `tokenizer.ggml.pre` = `joyai-llm`, so a port inherits the lane's
+  template-less problem. All sizes are Hub `tree`/`usedStorage` bytes and GGUF header KV read by
+  HTTP range; no node cache was read and no node was touched.)* *(effort: research only — a boot
+  would need an aarch64/GB10 port of a new engine family first.)*
+
 **Other surfaced arms (not queued):** `orcarouter/GLM-5.3-Flash-Uncensored-NVFP4` (321B, **205.1 GB** —
 2-node-heavy/3-node; inherits the archived glm5 Flash serve blocker),
 `orcarouter/DeepSeek-V4-Flash-Vision-Uncensored` (304B, `deepseek_v4`),
