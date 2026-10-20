@@ -89,6 +89,41 @@ at length is needed (the card's own note).
 | flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
 | status | **BOOT-VERIFIED 2026-10-13** |
 
+### sol-2b-gguf-llamacpp (eval-only — no recipe yet)
+
+| field | value |
+|---|---|
+| repo id | `vllm-sr/Decision-2.0-Sol-2B-GGUF` — `Decision-2.0-Sol-2B-Q8_0.gguf`, 2,020,436,832 B (the vendor's own GGUF of the CPU arm's checkpoint; BF16 and Q4_K_M also published) |
+| image | `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974`, id `sha256:1bb250bf3a524de1f92b3c5b264b39a3974abba9dc5b9648f2687e80adef73ec`, 2.68 GB, linux/arm64 — built on `.34` from `Xunzhuo/llama.cpp@c9f597487` ("decision2: add GGUF conversion and candidate-head inference") on the CUDA 13.0.1 devel/runtime pair this registry pins, `-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real`; `llama-server --version` → `version: 0.6.0-dev (build 11508, commit c9f597487)`, GNU 13.3.0 aarch64 |
+| accuracy | **55.0 % (1101/2000), ★★** — KL(gold‖pred) 0.351, Brier 0.189, ECE 0.054, **0 decision errors** |
+| API | `/v1/systemone` (typed decision: CHOICE / SCORE / NOUL, one forward pass per case, no generated tokens), **GPU** |
+| status | **MEASURED 2026-10-20** (`.34`) — **no recipe yet and no `RepoDigest` to pin**: the image exists only on the node, so shipping it needs a registry push first |
+
+**It reproduces the CPU arm, and that is the point of the route.** On the same instrument
+(`uvx tool-eval-bench@2.8.0 --decision-bench-only`, 400 cases / 2,000 decisions) the GGUF arm scores
+**55.0 % (1101/2000)** against `sol-2b-decision-vllm-srun`'s **55.0 % (1100/2000)** — one decision
+apart — with KL 0.351 vs 0.352, Brier 0.189 vs 0.190 and ECE 0.054 vs 0.058. Per type here: `noul`
+65.7 % (394/600), `choice` 49.8 % (299/600), `score` 51.0 % (408/800). The difference is cost, not
+accuracy: **79.9 s total and p50 195.3 ms / p95 269.8 ms per case** on the GB10 against the CPU arm's
+**5,670 s (94.5 min) at p50 15.0 s** — ≈71× the pass and ≈77× the per-case latency.
+
+Boot line (vendor's, plus a real mount — the HF cache's `snapshots/…gguf` is a symlink into `blobs/`,
+so mount the repo root or a plain download, never the snapshot dir alone):
+
+```bash
+llama-server -m /models/Decision-2.0-Sol-2B-Q8_0.gguf --alias vllm-sr/Decision-2.0-Sol-2B-Q8_0 \
+  --embeddings --pooling none -c 8192 -b 8192 -ub 8192 -np 1 --host 0.0.0.0 --port 8000
+```
+
+`-np 1` is the vendor's slot count, so the ladder above c1 queues rather than batches — and that is
+exactly what it measures: **c1 5.228 / c2 5.439 / c5 5.422 / c10 5.413 req/s** (26.14 / 27.20 / 27.11 /
+27.06 decisions/s) with p50 latency **193.0 → 375.8 → 955.0 → 1941.3 ms** and every cell clean
+(2,000/2,000 requests, 10,000/10,000 decisions, five runs each, `tools/decision-ladder.py --runs 5`).
+Throughput is flat from c1 to c10 while latency scales with offered concurrency: one slot, a queue, no
+batching — the same shape the CPU arms show for a different reason. Receipt
+`~/benchmarks/sol2b-20261020/` (`teb-decision.log`, `runs/2026/10/*.md`, `build.log`, `build2.log`,
+`ladder.log`, `ladder.json`).
+
 ### kev-0.8b-decision-serve
 
 | field | value |

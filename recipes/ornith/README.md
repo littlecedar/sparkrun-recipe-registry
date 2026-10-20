@@ -260,6 +260,15 @@ SGLang · **1 node (TP=1)** · built 2026-10-15 · **booted 2026-10-18; ships fo
 PASS (262,144 / 512k / 768k, then 1M at depths 10 % and 50 %), 1M depth 90 % failed twice with the
 mechanism unlogged**.
 
+**d90 re-take 2026-10-20: PASS.** Depth 90 % at a 1,000,000-token request retrieved the needle
+(1/1 hits), prompt counted **977,975 tokens**, **1,885.7 s**; the serve stayed up afterwards
+(`GET /v1/models` 200) and the container was still healthy 34 min after boot. With the failing-boot
+capture armed for the whole request — `docker exec <c> tail -F /tmp/sparkrun_serve.log` streamed to
+`serve-stream.log` (119,827 B captured) and `docker events --filter event=die` into `docker-events.log`
+(empty) — **nothing died and nothing was written**, which is the null result this rung owes rather than
+a mechanism: this is now **2 of 2 d90 passes since the two 2026-10-18 exits**, so the exit is
+intermittent and still unnamed. Receipt `~/benchmarks/ornith-yarn-d90-20261020/`.
+
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` |

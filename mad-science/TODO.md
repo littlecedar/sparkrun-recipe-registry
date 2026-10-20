@@ -262,6 +262,15 @@ Ornith 1.5
   /tmp/sparkrun_serve.log` streamed to a host file — NOT `docker logs -f`, which on this arm yields
   only the 523-byte CUDA banner — while `docker events --filter event=die` preserves the exit code
   past the task-delete. Receipt `~/benchmarks/ornith-yarn-d90-20261019/`.)*
+  *(progress 2026-10-20 — **the d90 rung passed again with the capture armed, so there is still no
+  failure to name.** One needle at depth 90 % of a 1,000,000-token request retrieved the key (1/1),
+  prompt counted **977,975 tokens**, **1,885.7 s**; the serve answered `/v1/models` 200 afterwards and
+  the container was healthy 34 min after boot. The register's capture ran for the whole request —
+  `docker exec <c> tail -F /tmp/sparkrun_serve.log` streamed to `serve-stream.log` (**119,827 B** kept)
+  and `docker events --filter event=die` into `docker-events.log` (**empty**) — which is the null result
+  this item owes: nothing died, nothing was written. That is **2 of 2 d90 passes since the two
+  2026-10-18 exits**, so the item stays open for the next failing boot, not for a retry. Receipt
+  `~/benchmarks/ornith-yarn-d90-20261020/`; paragraph in `recipes/ornith/README.md` §The YaRN 1M arm.)*
 - [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that currently breaks the lane (`attic/ornith/AGENTS.md:883-886`). *(effort: medium)* *(Owner decision 2026-10-19: **approved** — test the bump; it changes the engine
 image/digest, so validate the other ornith arms on the new digest before shipping.)*
 
@@ -317,7 +326,23 @@ Any decision model
   digest-pinned arm64 image, or have the vendor re-convert to upstream's `vllm-decision2` arch.
   *(Owner decision 2026-10-19: **build the image on `.34` or `.35`**, not the local workstation — so
   it is a node-window step: fork build into a digest-pinned arm64 image, then the Sol-2B boot and the
-  decision-instrument score.)* )*
+  decision-instrument score.)*
+  *(progress 2026-10-20 — **the image is built, the GGUF loads, and the arm scores the CPU arm's
+  number on GPU.** `Xunzhuo/llama.cpp@c9f597487` cloned on `.34` and built there into
+  `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974` (id `sha256:1bb250bf…`, 2.68 GB, arm64) on the
+  registry's CUDA 13.0.1 devel/runtime digests with `-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=
+  121a-real`; two builds, 184 s and 134 s, the second one keeping `.git` so `llama-server --version`
+  reports `0.6.0-dev (build 11508, commit c9f597487)` (the first printed `commit unknown` — provenance
+  is worth the rebuild). The `expected 330, got 320` blocker was **the registered engine tier, not the
+  file**: on the fork image the Q8_0 pack loads in 1.6 s and the server logs `decision model type:
+  decision2`. `tool-eval-bench@2.8.0 --decision-bench-only`: **55.0 % (1101/2000), ★★, KL 0.351,
+  Brier 0.189, ECE 0.054, 0 errors, 79.9 s** — the CPU `vllm-srun` arm's 55.0 % (1100/2000) within one
+  decision — at p50 195.3 ms/case against its 15.0 s. Ladder `tools/decision-ladder.py --runs 5`:
+  **c1 5.228 / c2 5.439 / c5 5.422 / c10 5.413 req/s** (26.14 / 27.20 / 27.11 / 27.06 decisions/s) with
+  p50 193.0 → 375.8 → 955.0 → 1941.3 ms — flat throughput, latency scaling with concurrency, because the
+  vendor's run line is `-np 1`. Receipt `~/benchmarks/sol2b-20261020/`; rows in
+  `recipes/decision/README.md` §`sol-2b-gguf-llamacpp`. **Still open:** the image has no `RepoDigest`
+  (local-only), so shipping a recipe that pins a digest needs a registry push first.)* )*
 
   *(closed sub-item 2026-10-18 — `kev-0.8b` is built and measured; `d3-edge` is closed as not bootable here. Receipt `~/benchmarks/decision-arms2-20261018/` (`REPORT.md`, `logs/`, `kev-evidence/`, `d3-evidence/`); lane record in `recipes/decision/README.md` §kev-0.8b-decision-serve and §d3-edge-decision-vllm-srun. **kev: Decision accuracy 46.0 % (919/2000)**, ★, KL 0.349 / Brier 0.196 / ECE 0.046, 0 decision errors, p50 5403.4 ms per request; per type noul 52.5 / choice 50.5 / score 37.6, per workflow customer_service 55.0 → agent_trace_observability 34.6; ladder c1 0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 — +9.9 pts over laya on the same 400 cases, at 1.9× laya's per-case latency. The serve is healthy but **the launch gate can never pass**: sparkrun's startup probe requires HTTP 200 on `/health` (`startup_probe.py:246-265`) and kev has no such route (404 forever), `readiness.inference: false` skips only the inference stage, and `health_path` is runtime-owned (`_vllm_common.py:24` → `/health`), so the score was taken against the detached container. **d3-edge: not booted** — (1) as shipped `/health` 503 `OfflineModeIsEnabled`, because sparkrun stages with `HF_HUB_OFFLINE=1` while the decision3 loader resolves through the Hub tree API even with `--cache-dir` pointed at the staged snapshot; (2) with `-e HF_HUB_OFFLINE=0` it loads 594,582,720 params then fails the golden gate: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`, deltas confidence 3.70e-3 / P0 2.15e-3 / P1 2.22e-3 / score 2.09e-3 / noul 3.83e-3 / domain 8.8e-5 against `CPU_TOLERANCE = 1e-3`, identical across 5 attempts — so no score and no ladder. Both fixes are image-side (an aarch64-recorded CPU reference or a per-ISA tolerance; an offline-capable decision3 loader), not recipe edits.)*
 ## explore
