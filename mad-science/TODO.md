@@ -56,6 +56,18 @@ stale TensorFold-GLM alias), `.34` **3** (25 GB), `.35` **2** (55 GB); ~94 GB to
 whose full RepoDigest is in the 24-entry pin set, every image a doc names (`kolibri1-drafter`,
 `dgx-vllm-eugr-nightly`), and both nodes' live serve image. **`.30`–`.33` were audit-only** — the
 production TP=4 serve was not touched. Both test serves answered `/v1/models` 200 after the prune.
+**Fleet extension (same day).** `.30`–`.33` audited read-only against the same test — they hold no
+attic-only bulk, only shipped repos plus three strays: the two **49.6 GB** and **45.8 GB** Kolibri
+NVFP4 pack repos on `.32`/`.33` and a retired `incoai/Qwen3.8-27B-DFlash2` draft (the shipped draft is
+`z-lab/…`), pruned with `hf cache rm` (`.32` 950 → 996 GB free, `.33` 925 → 967); `.31` had nothing
+unreferenced and `.30` only empty shells. The production TP=4 serve answered `/v1/models` 200 on rank 0
+afterwards. **No `docker image prune -a` was used anywhere** — every removal was an explicit tag or ID,
+so a queued ladder still finds its image.
+*The `sparkrun/tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35` tag was removed with its stale build: it is
+named only in a launcher comment and it pointed at manifest `25bb6806`, whereas the recipe pins
+`366c2d4e` under `littlecedar/…` (kept). It was a local build tag that disagreed with the pin, so it
+was deliberately not restored — restoring it would have aliased a different engine than the gate
+asserts.*
 *A join that truncates digests to 12 hex chars silently matches nothing — the first classification
 listed two recipe-pinned sglang images as deletable for exactly that reason; match full RepoDigests
 and the `oci-relay/pinned:<hex>` tag suffix before deleting.*
