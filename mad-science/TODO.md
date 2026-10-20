@@ -298,6 +298,14 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   boot crashed identically) and the path is unreachable today because the engine disables prefill
   graphs for this multimodal checkpoint. Remaining work shrinks to: boot `zz-labq-no-diag` (retire the
   diag control) and delete `EXTRA_LEAVES` (code + docs, no boot).)*
+  *(progress 2026-10-20 — **`zz-labq-no-diag` booted clean, so the diag control can be retired.** TP=2 on
+  the `.34`/`.35` pair (job `1895030211ea0500_3510a5e0d37d`), ready at `/v1/models` 200 in **≈670 s**
+  from launch (mods + a 6 m 37 s sharded load), a `/v1/chat/completions` 200, and the house battery
+  **37/37** (easy 19/19, hard 18/18). The serve log's only `_scale` activity is the *other* mods' benign
+  `[remap] …weight_scale -> …weight_scale_inv` lines — **no `unplaced`/`AssertionError`** — so the assert
+  the diagnostic was insuring against does not fire without it. Receipt
+  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). Deleting the diag mod
+  from the shipped arm is now a code/doc change with a boot behind it, not an unproven edit.)*
 
 ## ifm
 IFM K2-Horizon
@@ -342,7 +350,21 @@ Any decision model
   p50 193.0 → 375.8 → 955.0 → 1941.3 ms — flat throughput, latency scaling with concurrency, because the
   vendor's run line is `-np 1`. Receipt `~/benchmarks/sol2b-20261020/`; rows in
   `recipes/decision/README.md` §`sol-2b-gguf-llamacpp`. **Still open:** the image has no `RepoDigest`
-  (local-only), so shipping a recipe that pins a digest needs a registry push first.)* )*
+  (local-only), so shipping a recipe that pins a digest needs a registry push first.)*
+  *(progress 2026-10-20, later — **shipped: the image is published and the recipe pins its digest.**
+  `docker save | docker load` onto the head (the only host holding the `docker.io` credential) then
+  `docker push littlecedar/dgx-spark-llama-cpp-decision2:c9f5974` gave
+  **`@sha256:b4808c9a6ef81775f7e05c91670f1f8853aa3d97c14f47cce3f21627cd3ba1f3`**; the head's loaded id is
+  the node's build id (`sha256:1bb250bf…`), so the digest pins the measured content. Landed
+  `recipes/decision/Dockerfile.llama-cpp-decision2` (fork pin, the exact cmake line with
+  `-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real`, the `cuobjdump` sm_121 gate, `.git` kept so
+  `--version` reports the commit, published digest in the header) and
+  `recipes/decision/sol-2b-decision2-gguf-llamacpp.yaml` (vendored run line, `readiness.inference: false`,
+  `{served_model_name}` not `{model}`, digest-pinned), plus the root index row (C1–C10 **5.2 / 5.4 / 5.4 /
+  5.4 req/s**). The recipe validates plain and renders the vendor line; **the one step still outstanding
+  is a boot through `sparkrun run`** (the score and ladder come from a manual container boot). Manual-boot
+  trap recorded in the lane doc: the HF cache's `snapshots/…gguf` is a two-level symlink into `blobs/`, so
+  mounting the snapshot dir alone fails with `failed to open GGUF file`.)* )*
 
   *(closed sub-item 2026-10-18 — `kev-0.8b` is built and measured; `d3-edge` is closed as not bootable here. Receipt `~/benchmarks/decision-arms2-20261018/` (`REPORT.md`, `logs/`, `kev-evidence/`, `d3-evidence/`); lane record in `recipes/decision/README.md` §kev-0.8b-decision-serve and §d3-edge-decision-vllm-srun. **kev: Decision accuracy 46.0 % (919/2000)**, ★, KL 0.349 / Brier 0.196 / ECE 0.046, 0 decision errors, p50 5403.4 ms per request; per type noul 52.5 / choice 50.5 / score 37.6, per workflow customer_service 55.0 → agent_trace_observability 34.6; ladder c1 0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 — +9.9 pts over laya on the same 400 cases, at 1.9× laya's per-case latency. The serve is healthy but **the launch gate can never pass**: sparkrun's startup probe requires HTTP 200 on `/health` (`startup_probe.py:246-265`) and kev has no such route (404 forever), `readiness.inference: false` skips only the inference stage, and `health_path` is runtime-owned (`_vllm_common.py:24` → `/health`), so the score was taken against the detached container. **d3-edge: not booted** — (1) as shipped `/health` 503 `OfflineModeIsEnabled`, because sparkrun stages with `HF_HUB_OFFLINE=1` while the decision3 loader resolves through the Hub tree API even with `--cache-dir` pointed at the staged snapshot; (2) with `-e HF_HUB_OFFLINE=0` it loads 594,582,720 params then fails the golden gate: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`, deltas confidence 3.70e-3 / P0 2.15e-3 / P1 2.22e-3 / score 2.09e-3 / noul 3.83e-3 / domain 8.8e-5 against `CPU_TOLERANCE = 1e-3`, identical across 5 attempts — so no score and no ladder. Both fixes are image-side (an aarch64-recorded CPU reference or a per-ISA tolerance; an offline-capable decision3 loader), not recipe edits.)*
 ## explore

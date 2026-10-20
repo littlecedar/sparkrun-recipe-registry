@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# llama.cpp with Decision 2.0 support (typed `/v1/systemone` decisions), for the
+# sparkrun `decision` lane on NVIDIA DGX Spark (GB10 / sm_121).
+#
+# Why this file exists: `vllm-sr/Decision-2.0-Sol-2B-GGUF` is a GGUF pack for a
+# *fork* of llama.cpp — the `decision2` architecture (`general.architecture =
+# decision2`), which stock llama.cpp cannot load. The lane previously recorded
+# three builds failing with `wrong number of tensors; expected 330, got 320`;
+# that was the registered engine tier, not the file. This build loads the Q8_0
+# pack and is what the recipe's digest pins.
+#
+# Provenance:
+#   fork    Xunzhuo/llama.cpp, branch `decision2-gguf`
+#           @ c9f5974870fc7982ab2f424bc0840af256189719
+#           ("decision2: add GGUF conversion and candidate-head inference",
+#           MIT). The commit adds the arch, `tools/server/server-decision.cpp`
+#           (CHOICE / SCORE / NOUL as one forward pass, no generated tokens),
+#           `conversion/decision2.py` and the gguf-py tensor set. `.git` is kept
+#           through the build step so `llama-server --version` reports it:
+#           `0.6.0-dev (build 11508, commit c9f597487)`.
+#   base    nvidia/cuda:13.0.1-devel-ubuntu24.04 and -runtime-ubuntu24.04, by
+#           digest — the same pair the `explore` lane's llama.cpp image uses.
+#
+# Build flags are the fork's own docs/build.md CUDA recipe
+# (`cmake -B build -DGGML_CUDA=ON`) plus the two GB10 pins this registry applies
+# to every llama.cpp image: `-DGGML_NATIVE=OFF` so the build host's CPU does not
+# leak into the flags, and `-DCMAKE_CUDA_ARCHITECTURES=121a-real` so the fatbin
+# carries sm_121 with no PTX and no other arch.
+#
+# Build-time gate: the sm_121 device code is in the binary. The run probe
+# happens on the built image with the host's libcuda.so.1 mounted read-only (the
+# binary links the driver library directly, and a build stage has no driver).
+#
+# Published (docker.io, arm64, 2026-10-20):
+#   littlecedar/dgx-spark-llama-cpp-decision2:c9f5974
+#   @sha256:b4808c9a6ef81775f7e05c91670f1f8853aa3d97c14f47cce3f21627cd3ba1f3
+# Local build image id sha256:1bb250bf3a524de1f92b3c5b264b39a3974abba9dc5b9648f2687e80adef73ec,
+# 2,678,291,550 B. Build on a node took 184 s from cold (with the base pull) and
+# 134 s for the rebuild that kept `.git`; receipt ~/benchmarks/sol2b-20261020/.
+
+FROM nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92 AS build
+
+ARG LLAMA_REPO=https://github.com/Xunzhuo/llama.cpp.git
+ARG LLAMA_REF=c9f5974870fc7982ab2f424bc0840af256189719
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin the commit: fetch that one object, not the branch, and verify what landed.
+# .git stays until the build step ends: cmake reads the commit into --version.
+RUN git init --quiet /opt/llama.cpp \
+    && cd /opt/llama.cpp \
+    && git remote add origin "${LLAMA_REPO}" \
+    && git fetch --quiet --depth 1 origin "${LLAMA_REF}" \
+    && git checkout --quiet FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${LLAMA_REF}"
+
+WORKDIR /opt/llama.cpp
+
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_NATIVE=OFF \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=121a-real \
+        -DLLAMA_CURL=OFF \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+    && cmake --build build --config Release -j"$(nproc)" --target llama-server llama-cli \
+    && rm -rf .git
+
+# Build-time gate: the sm_121 device code is in the binary. `llama-server
+# --version` cannot run here — the binary links libcuda.so.1 directly
+# (CUDA::cuda_driver) and no driver library exists in a build stage.
+RUN cuobjdump -lelf build/bin/llama-server | grep -q sm_121 \
+    && echo "gate: sm_121 device code present"
+
+FROM nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
+
+ARG LLAMA_REF=c9f5974870fc7982ab2f424bc0840af256189719
+
+LABEL org.opencontainers.image.title="llama.cpp decision2 (DGX Spark)" \
+      org.opencontainers.image.description="llama.cpp with the decision2 architecture (Decision 2.0 typed /v1/systemone models), CUDA sm_121, for NVIDIA DGX Spark (GB10)" \
+      org.opencontainers.image.source="https://github.com/Xunzhuo/llama.cpp" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${LLAMA_REF}"
+
+# libgomp1 for ggml's OpenMP pools; the CUDA runtime image already carries cudart
+# and the math libraries the statically linked ggml-cuda calls.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+COPY --from=build /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
+
+# Probe (host libcuda.so.1 mounted read-only, no GPU device; the
+# "no CUDA-capable device" line is that absence, not a fault):
+#   llama-server --version -> version: 0.6.0-dev (build 11508, commit c9f597487)
+#                             built with GNU 13.3.0 for Linux aarch64
+#   llama-cli --version    -> the same
+#   boot line             -> "decision model type: decision2", model loaded 1.6 s
+#                            on the Q8_0 pack, /health 200, /v1/systemone serves
+# Transcript: ~/benchmarks/sol2b-20261020/smoke.log.
+
+WORKDIR /app
+ENTRYPOINT ["/usr/local/bin/llama-server"]

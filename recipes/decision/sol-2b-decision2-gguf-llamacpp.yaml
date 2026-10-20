@@ -1,0 +1,69 @@
+recipe_version: "2"
+model: vllm-sr/Decision-2.0-Sol-2B-GGUF:Q8_0
+model_revision: 88e2937246b5bbc43ef7481e1414b117ec567608
+runtime: llama-cpp
+# Not upstream llama.cpp: Decision 2.0 is the `decision2` arch, added by
+# Xunzhuo/llama.cpp@c9f597487. Stock llama.cpp cannot load this pack
+# ("wrong number of tensors; expected 330, got 320"). Build: Dockerfile.llama-cpp-decision2.
+container: littlecedar/dgx-spark-llama-cpp-decision2:c9f5974@sha256:b4808c9a6ef81775f7e05c91670f1f8853aa3d97c14f47cce3f21627cd3ba1f3
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  vllm-sr/Decision-2.0-Sol-2B as the vendor's own Q8_0 GGUF (2.02 GB), served by
+  llama.cpp with Decision 2.0 support on ONE DGX Spark. A typed decision model:
+  POST /v1/systemone answers choice / score / noul questions from one forward
+  pass with calibrated probabilities — no generated tokens and no chat surface.
+  The same 400-case instrument that scores the CPU vllm-srun arm of this
+  checkpoint (55.0 %) scores this one 55.0 %, at ~195 ms per case instead of
+  15 s. Lane research: attic/decision/DECISION-MODELS-RESEARCH.md.
+metadata:
+  model_url: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "1.88B"
+  model_dtype: q8_0
+  kv_dtype: fp16
+  tags: decision, smol, classifier
+  caveats: >
+    One slot (`-np 1`, the vendor's own run line), so offered concurrency
+    queues rather than batches: measured throughput is flat from c1 to c10
+    (5.2-5.4 req/s) while p50 latency grows 193 ms -> 1,941 ms. Accuracy is
+    instrumented on the Typed Decisions test split, whose gold is a teacher
+    model's mean, so 55.0 % measures agreement with that teacher. MIT engine
+    fork, Apache-2.0 weights.
+
+# /v1/systemone is the surface, not /v1/chat/completions: the model emits no
+# tokens. /health is served and is the golden gate.
+readiness:
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: sparkrun rebounds it to the prepared snapshot path at launch.
+  served_model_name: vllm-sr/Decision-2.0-Sol-2B-Q8_0
+  ctx_size: 8192
+  parallel: 1
+
+# llama.cpp's ENTRYPOINT is llama-server; clear it or sparkrun's appended
+# `bash -c <cmd>` is parsed as the server's own flags.
+executor_config:
+  entrypoint: ""
+
+# The vendor's run line (llama-server -hf …:Q8_0 --embeddings --pooling none
+# -c 8192 -b 8192 -ub 8192 -np 1), plus sparkrun's host/port/alias. -b/-ub stay
+# literal: the decision path reads the whole case in one prefill batch.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --embeddings
+  --pooling none
+  -c {ctx_size}
+  -b 8192
+  -ub 8192
+  -np {parallel}
+  --no-webui

@@ -2,7 +2,7 @@
 
 Small models that make classification / routing / judgment calls — **prefill-only scorers, not
 chat models** — co-located with the shipped embed + rerank pair on **one** DGX Spark (the lane's
-core constraint: nodes are at a premium). This README covers the four shipped recipes plus the two
+core constraint: nodes are at a premium). This README covers the five shipped recipes plus the two
 candidate CPU arms measured 2026-10-18 — `kev-0.8b` serves and scores but cannot pass sparkrun's
 launch gate, and `d3-edge` cannot load on a staged offline node. The
 candidate research, verified surfaces, official scores, the CPU+GPU tandem probe and the
@@ -15,6 +15,7 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [clef-flash-decision-sglang](#clef-flash-decision-sglang)
 - [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
 - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
+- [sol-2b-decision2-gguf-llamacpp](#sol-2b-decision2-gguf-llamacpp)
 - [kev-0.8b-decision-serve](#kev-08b-decision-serve)
 - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
 - [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
@@ -89,15 +90,17 @@ at length is needed (the card's own note).
 | flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
 | status | **BOOT-VERIFIED 2026-10-13** |
 
-### sol-2b-gguf-llamacpp (eval-only — no recipe yet)
+### sol-2b-decision2-gguf-llamacpp
 
 | field | value |
 |---|---|
 | repo id | `vllm-sr/Decision-2.0-Sol-2B-GGUF` — `Decision-2.0-Sol-2B-Q8_0.gguf`, 2,020,436,832 B (the vendor's own GGUF of the CPU arm's checkpoint; BF16 and Q4_K_M also published) |
-| image | `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974`, id `sha256:1bb250bf3a524de1f92b3c5b264b39a3974abba9dc5b9648f2687e80adef73ec`, 2.68 GB, linux/arm64 — built on `.34` from `Xunzhuo/llama.cpp@c9f597487` ("decision2: add GGUF conversion and candidate-head inference") on the CUDA 13.0.1 devel/runtime pair this registry pins, `-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real`; `llama-server --version` → `version: 0.6.0-dev (build 11508, commit c9f597487)`, GNU 13.3.0 aarch64 |
+| recipe | [`sol-2b-decision2-gguf-llamacpp.yaml`](sol-2b-decision2-gguf-llamacpp.yaml) — llama.cpp, TP=1, one node |
+| image | `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974@sha256:b4808c9a6ef81775f7e05c91670f1f8853aa3d97c14f47cce3f21627cd3ba1f3` (published docker.io/arm64 2026-10-20; local id `sha256:1bb250bf…`, 2.68 GB) — built from `Xunzhuo/llama.cpp@c9f597487` on the CUDA 13.0.1 devel/runtime pair this registry pins, `-DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=121a-real`, source build vendored as [`Dockerfile.llama-cpp-decision2`](Dockerfile.llama-cpp-decision2) |
+| engine | `llama-server --version` → `0.6.0-dev (build 11508, commit c9f597487)`, GNU 13.3.0 aarch64 |
 | accuracy | **55.0 % (1101/2000), ★★** — KL(gold‖pred) 0.351, Brier 0.189, ECE 0.054, **0 decision errors** |
 | API | `/v1/systemone` (typed decision: CHOICE / SCORE / NOUL, one forward pass per case, no generated tokens), **GPU** |
-| status | **MEASURED 2026-10-20** (`.34`) — **no recipe yet and no `RepoDigest` to pin**: the image exists only on the node, so shipping it needs a registry push first |
+| status | **MEASURED 2026-10-20** (`.34`) — the recipe validates (plain) and renders; the score and ladder below come from the **manual container boot**, so a boot through `sparkrun run` on this recipe is the one step still outstanding |
 
 **It reproduces the CPU arm, and that is the point of the route.** On the same instrument
 (`uvx tool-eval-bench@2.8.0 --decision-bench-only`, 400 cases / 2,000 decisions) the GGUF arm scores
@@ -107,13 +110,17 @@ apart — with KL 0.351 vs 0.352, Brier 0.189 vs 0.190 and ECE 0.054 vs 0.058. P
 accuracy: **79.9 s total and p50 195.3 ms / p95 269.8 ms per case** on the GB10 against the CPU arm's
 **5,670 s (94.5 min) at p50 15.0 s** — ≈71× the pass and ≈77× the per-case latency.
 
-Boot line (vendor's, plus a real mount — the HF cache's `snapshots/…gguf` is a symlink into `blobs/`,
-so mount the repo root or a plain download, never the snapshot dir alone):
+The recipe carries the vendor's run line (`llama-server -hf …:Q8_0 --embeddings --pooling none
+-c 8192 -b 8192 -ub 8192 -np 1`) with sparkrun's host/port/alias and `{served_model_name}`, and it
+renders exactly that. **Mount caveat for a manual boot:** the HF cache's `snapshots/…Q8_0.gguf` is a
+symlink into `blobs/` (itself a second-level symlink), so mounting the snapshot dir yields a dangling
+path and the server dies with `failed to open GGUF file`; mount the repo root (or a plain
+`hf download --local-dir` copy) instead. That was the only boot failure this arm produced.
 
-```bash
-llama-server -m /models/Decision-2.0-Sol-2B-Q8_0.gguf --alias vllm-sr/Decision-2.0-Sol-2B-Q8_0 \
-  --embeddings --pooling none -c 8192 -b 8192 -ub 8192 -np 1 --host 0.0.0.0 --port 8000
-```
+**Publishing:** the image was built on `.34`, then `docker save | docker load` on the head and pushed
+from there (the head holds the `docker.io` credential; the nodes do not), which is what produced the
+`sha256:b4808c9a…` digest the recipe pins. The head's loaded id equals the node's build id
+(`sha256:1bb250bf…`), so the digest pins the same content that was measured.
 
 `-np 1` is the vendor's slot count, so the ladder above c1 queues rather than batches — and that is
 exactly what it measures: **c1 5.228 / c2 5.439 / c5 5.422 / c10 5.413 req/s** (26.14 / 27.20 / 27.11 /
