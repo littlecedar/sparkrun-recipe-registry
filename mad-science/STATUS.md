@@ -19,7 +19,6 @@ plain `sparkrun recipe validate`. Landed on top of `fe9207c`.
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
 | Other local — single-node | 12–20 h | ~6–10 h | media-gen 2–3 · decision Nox-4B/JEV-27B 3–5 · reasoning candidates 1–3 · ornith 0.5.21 bump + revalidation 6–9 |
 | Pair-bound | 18–30 h | 18–30 h | cybersec arm 5 3–5 · ds4 TensorFold v0.6 3–5 · flash-next b12x 3–6 · ds4 `reasoning_effort` 1–2 · qwen4 highcon + 1 probe 8–12 (highcon is also the boot that retires the restored diagnostic mod) |
-| Sol-2B `sparkrun run` boot proof | 0.2–0.3 h | 0.2–0.3 h | needs one free node; the render is verified line-for-line against the measured boot, then re-score with the decision instrument |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
 
@@ -48,8 +47,8 @@ recorded in the lane attic).
 - **Buffered logs look like stalls.** Every long leg tonight has shown a question count frozen for tens
   of minutes while the serve decoded; liveness comes from the serve log, never from the count alone.
 - **Pair-bound stall**: the 18–30 h pair block holds both test nodes; nothing single-node runs during it.
-- **Tracked-file addresses are an open hygiene item** — a history-wide audit found internal addresses in
-  tracked lane docs and benchmark harness files (counts in the register). Not yet sanitized.
+- **Address hygiene is done for the tree, not for history** — tracked files are masked (71 lines, 22
+  files); pushed history was deliberately not rewritten, so older commits still contain the addresses.
 
 ## Closed this session
 
