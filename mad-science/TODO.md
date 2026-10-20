@@ -501,6 +501,27 @@ serve was then stopped and **kolibri APEX-24bpw booted on `.35`** (`bc1ee4356daa
 `~/benchmarks/kolibri-apex-suite-20261020/`. Per-arm tools cost now measured — plain 22.5 s/q, NEXTN
 15.05, dflash2 7.2, 7B UNO 5.3 — which is what a suite's `--job-timeout` is priced from.)*
 
+*(progress 2026-10-20, later — **27B-uncensored (arm 1) closed its tools leg, and kolibri APEX landed
+four of five checks.** Arm 1 BFCL **1072/1240 = 86.5 %, 0 transport errors**, 1,240 records; the leg ran
+18:24:02→04:46:48 = **37,366 s = 30.1 s/question**, so the plain-decode arm's real cost is ~10.4 h, not
+the 7.7 h extrapolated from its first 907 questions (a buffered log read at 22.5 s/q under-called it by
+~50 min). Category split: simple 369/400 · multiple 187/200 · parallel 183/200 · parallel_multiple
+168/200 · irrelevance 165/240. **Its `--json` target directory did not exist**; `bfcl-eval` writes with
+a bare `open()` (`tools/bfcl-eval.py:1068`), so the score would have printed and then raised
+`FileNotFoundError` — the directory was created at 00:58 and the JSON landed. Receipt
+`~/benchmarks/cybersec-27b-unc-tools-20261019/bfcl.json` (legs in `cybersec-27b-unc-suite-20261019/`).
+That serve was stopped and **laguna-XS 2.1 NVFP4 booted on `.34`** (`a20dad9f9e2c72ca_8ed3ce77d78f`,
+`poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` — the `-sglang` name does not exist; READY 04:53:09,
+served id `poolside/Laguna-XS-2.1-NVFP4`, `max_model_len` 262144) with its suite at
+`--job-timeout 28800` writing `~/benchmarks/laguna-xs-suite-20261020/`. **Kolibri APEX-24bpw** on `.35`:
+house **37/37**, needle **3/3 at 32,768 / 131,072 / 262,144** — the 262k rung is a *real* pass at
+`n_ctx_slot=262144`, the first top rung tonight that is not truncated — hard **GSM8K 176/200 (88.0 %)**
+with 21 `length` finishes and **ARC 171/200 (85.5 %)** with 23, both floor-limited by the answer budget;
+tools measured at **3.63 s/question** over its first 513 questions (≈4,501 s for 1,240, well inside the
+21,600 s cap). Its `/v1/models` advertises `capabilities: ["completion"]` only, yet it emits structured
+`tool_calls` (861 pass / 98 fail at 959 questions, every failure an argument error — none a missing
+call): that listing field is cosmetic in llama-server and is **not** evidence of absent tool support.)*
+
 ## Image pins and advisories (registry-level)
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
