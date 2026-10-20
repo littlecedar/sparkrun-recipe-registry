@@ -304,12 +304,17 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   **37/37** (easy 19/19, hard 18/18). The serve log's only `_scale` activity is the *other* mods' benign
   `[remap] …weight_scale -> …weight_scale_inv` lines — **no `unplaced`/`AssertionError`** — so the assert
   the diagnostic was insuring against does not fire without it. Receipt
-  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). **Retired the same
-  hour:** the mod directory is deleted, both shipped labquant recipes dropped the entry, the lane
-  README's chain list lost its item (probe receipt cited there), and the lane-locality guard's
-  `test_every_mods_entry_resolves` failed on the dangling references before the edit and passes after it.
-  What the diagnostic was insuring against no longer fires, and the evidence is the probe receipt, not
-  the mod's own logs.)*
+  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). **Scope correction
+  (same hour):** the first pass deleted the mod outright and stripped it from both labquant recipes; the
+  probe proves only the **balanced** config, so the mod is restored and re-mounted in **highcon only**,
+  with the recipe comment naming the pending boot. The balanced arm stays diag-free (probe = its own
+  receipt). **What the mod does, read from its own README/run.sh:** it is logging-only — it inserts a
+  `_log.error(...)` statement as the first branch of the `_scale` check and changes no control flow (the
+  assert still fires; it deliberately does not relax it), plus it reowns the runtime cache because
+  importing sglang as root triggers flashinfer's JIT. So keeping it in highcon costs one anchored patch
+  and a cache reown, no engine behaviour — which is why it stays as insurance rather than as a
+  workaround. The item stays open until the **highcon arm boots clean without it**; that boot is the
+  queued retirer.)*
 
 ## ifm
 IFM K2-Horizon

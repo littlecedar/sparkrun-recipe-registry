@@ -56,11 +56,14 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 5. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
    `in_proj_a`/`in_proj_b` MXFP8 tensors (n=96/rank, under CUTLASS's MXFP8 floor of 128) to BF16.
 
-The chain used to carry a sixth, `diag-qwen4-unplaced-scales` (a logging-only pause in front of the
-`_scale` assert at `qwen4_exp.py:2136`). It is **retired 2026-10-20**: `zz-labq-no-diag` boots this exact
-chain without it — ready in ≈670 s, house 37/37, and no `unplaced`/`AssertionError` in the serve log — so
-the assert does not fire and the diagnostic had nothing left to report. The probe recipe stays as the
-record of that control (`~/benchmarks/qwen4-nodiag-20261020/`).
+A sixth entry, `diag-qwen4-unplaced-scales`, is **logging-only**: it inserts a log call as the first
+statement of the `_scale` branch at `qwen4_exp.py:2136` and changes no control flow (the assert still
+fires; its own README says so). Its retirement is per arm, because the evidence is per arm:
+**the balanced chain drops it as of 2026-10-20** — `zz-labq-no-diag` boots exactly that chain without it
+(ready in ≈670 s, house 37/37, no `unplaced`/`AssertionError` in the serve log), so there the assert does
+not fire and the probe recipe stays as the control's record (`~/benchmarks/qwen4-nodiag-20261020/`). **The
+highcon arm still mounts it**: its `max_num_seqs`/`chunked_prefill` knobs differ from the balanced arm's
+and it has never booted diag-free, so removing it there is queued behind that arm's own boot.
 
 **Two engine flags** live in `defaults.extra_args`, not as tunables:
 `--moe-runner-backend flashinfer_cutlass` (with `auto`, the NVFP4 MoE resolves to

@@ -30,13 +30,16 @@ pairs. Measured live 2026-10-19: 144 shared-expert remaps plus the attention/GDN
 shipped suite boot shows zero `UNPLACED`/`Expected 1.0` lines and passes contract/house/needle/ARC/
 GSM8K/tools/W4-soak (`~/benchmarks/qwen4-labq-suite-20261018/`).
 
-**`diag-qwen4-unplaced-scales` was insurance, not a workaround — and it is now retired
-(2026-10-20).** The control ran: `recipes/qwen4/zz-labq-no-diag.yaml` (job
+**`diag-qwen4-unplaced-scales` is insurance, not a workaround — and it is retired for one arm, pending
+for the other (2026-10-20).** It is logging-only: one log call ahead of the assert, no control-flow
+change. The control ran on the **balanced** config: `recipes/qwen4/zz-labq-no-diag.yaml` (job
 `1895030211ea0500_3510a5e0d37d`, TP=2 on the pair) served `/v1/models` 200 in ≈670 s, answered a chat
 request, and passed house **37/37**; its serve log's only `_scale` lines are the fix mod's own benign
 `[remap] …weight_scale -> …weight_scale_inv` entries, with no `unplaced` and no `AssertionError`. So the
-assert at `qwen4_exp.py:2136` does not fire on the fixed chain, the mod is deleted, and the probe recipe
-stays as the recorded control (`~/benchmarks/qwen4-nodiag-20261020/`).
+assert does not fire on the balanced fixed chain and that recipe dropped the mod. The **highcon** arm
+(`max_num_seqs`/`chunked_prefill` differ) still mounts it: its own diag-free boot is the evidence that
+retires it there, and until that boot lands the mod stays. Probe receipt
+`~/benchmarks/qwen4-nodiag-20261020/`.
 
 **Upstream etiquette.** The nameless assert is an ergonomics defect: log `name` before touching
 `.item()`, or reject multi-element non-`_inv` scales with a message that names them.
