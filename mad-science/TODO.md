@@ -239,6 +239,113 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
   baseline these A/B plans assume". *(effort: medium)*
 
+- [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a 382.8 GB "GSQ"
+  mixed-precision export of the 1017 body in a *strata*-format GGUF that no engine this lane ships
+  can open. **Research only, not queued for a boot** — the four-node window is closed and a TP=4
+  measurement needs the owner's offsite switch.
+  *(facts:* open (`gated: false`), card `license: mit`, one branch `main` @ `7aa29158…`, Hub
+  `usedStorage` **382,778,487,408 B = 382.78 GB / 356.5 GiB**: `V41-GSQ-1017.gguf.part-00`
+  96,636,764,160 + `.part-01` 77,722,075,136 (one **174.36 GB / 162.4 GiB** GGUF, `cat`-recombined,
+  and the card's "153 GiB" budget and "90 GiB + 73 GiB" parts describe a build that is not what
+  shipped), `V41-MTP-Vision-1017.Q2_K.gguf` 5,661,492,320,
+  `engram-layers.{1,14}/engram-L{1,14}.safetensors` 101,377,628,584 + 101,380,404,328 (**188.8 GiB**
+  of Engram, the same L1/L14 tables the lane already stages per node),
+  `V41-GSQ-1017.gguf.experts.json` 1,226,894, `rank.bin` 122,880, `tokenizer/` 5.8 MB. **Weights, not
+  an overlay** — unlike the `drowzeys/…` overlays (no weights; 683 MB + 1.09 GB sidecars grafted by a
+  mod), this repo ships the whole quantized body plus its own Engram tables. `config.json` is only
+  the base declaration: `quantization_config` = `{"quant_method": "fp8", "activation_scheme":
+  "dynamic", "weight_block_size": [32, 32], "scale_fmt": "ue8m0", "expert_dtype": "fp4"}` and **no
+  `kv_cache_scheme` key** (the card's FP4 KV is a serve-time `--kv-fp4` flag). The scheme is in the
+  GGUF header instead: `deepseek41.quantization` = "routed experts: per-expert Q3_K / Q2_0 / PTQ1_0
+  (gate+up share a type, down its own); Q8_0 attention / shared / head; F16 embedding";
+  `strata.v41.expert_tiers` = `{"down:PTQ1_0": 4447, "down:Q2_0": 6682, "down:Q3_K": 4231,
+  "gu:PTQ1_0": 5750, "gu:Q2_0": 5113, "gu:Q3_K": 4497}`; `strata.v41.expert_layout` = "uniform role:
+  ffn_<role>_exps.weight; mixed: ffn_<role>_exps.<type>.weight per type (experts in id order) + I32
+  ffn_exps_{gu,down}_type[384]"; `strata.v41.expert_source` = `inplace:rtn:q2_0:268d4652…`; Engram
+  `e4m3_e8m0_32_row264`. Those tier counts are exactly the `experts.json` code census over 40 layers
+  × 384 experts × 2 projections (10,197 / 11,795 / 8,728), so **143 = PTQ1_0 (the card's "ternary"),
+  42 = Q2_0, 11 = Q3_K**. "GSQ" is the card's "GSQ (Gumbel-Softmax Quantization) + per-expert
+  mixed-precision tier allocation" (method credited to antirez); "agentic" is the *calibration*
+  weighting, not a layer mix and not a pruned expert set — "Every routed-expert projection is
+  assigned its own precision tier (Q3_K / Q2_0 / ternary) from activation calibration on an agentic
+  + coding corpus" (32 × 8,192-token sequences: agentic_long 10, code 10, agent 5, reasoning 3, web
+  2, chat 1, multi 1), allocated to a fixed 153 GiB budget; "strata" is the engine
+  (`library_name: strata`). **Provenance contradicts the card:** the GGUF's own `general.name` is
+  "DeepSeek V4.1 Flash UNCENSORED (Strata v41 GSQ-RCO mixed tier)" and `general.source.url` is
+  `dealignai/DeepSeek-V4.1-Flash-UNCENSORED-FP8` (510.3 GB, tags `abliterated`/`uncensored`, its own
+  base `deepseek-ai/DeepSeek-V4.1-Flash`, not the 1017 refresh), while the card claims
+  `base_model: deepseek-ai/DeepSeek-V4.1-Flash-1017` and "no abliteration".*)
+  *(why it matters:* weight-only it is the smallest ds4 body measured against — weights + sidecar
+  **180.0 GB / 167.7 GiB** vs 510.3 GB (official), 210.8 GB (EXL3 2.9 bpw), 413.4 GB (Engram pack) —
+  and two 128 GB nodes (238.4 GiB) would hold it resident, but **the loader question is closed, not
+  open**: `recipes/ds4/README.md:25` (SGLang through `mods/dsv41-sglang-overlay`) and `:349`
+  (TensorFold `deepseek_v41`, EXL3 mul1) are the only engines this lane ships, neither reads GGUF,
+  and the card says so outright — "Not runnable on vanilla llama.cpp, Ollama, vLLM, or SGLang
+  without a strata-compatible loader". Its engine is `strata`/`ds41_generate` from
+  `Indras-Mirror/Xolotl` (public, MIT, a heavily extended fork of Strata): one host, three tiers
+  (VRAM / pinned RAM / NVMe), Linux-only, reference machine 24 GB VRAM + 90 GB RAM + NVMe at ~27
+  tok/s — weaker than one Spark, which is why size does not rule a single node out; the engine's
+  missing arm64/GB10 build and its lack of any multi-node path do.*)
+  *(blockers/unknowns:* nothing to boot on — a strata port is a new engine family for this registry,
+  not a recipe re-point; arm64 + CUDA 13 support is unknown; the card's quality gate is unfinished
+  ("Full evaluation is coming"; 21 HumanEval + 10 tool calls only); the shipped 174.36 GB GGUF does
+  not match the card's 153 GiB arithmetic; the abliteration-provenance mismatch must be settled
+  before the id is quoted as an official-weights variant; `tokenizer.ggml.pre` is `joyai-llm` and
+  `tokenizer/chat_template.jinja` is a 91-byte stub pointing at `serve_ds41.py`, so a loader port
+  inherits the lane's template-less problem. All sizes are Hub `usedStorage`/`tree` bytes; no node
+  cache was read.*) *(effort: research only — a boot needs a strata/GB10 port first.)*
+
+- [ ] **Research `local-inference-lab/DeepSeek-V4.1-Flash-1017-FLARE`** — a publisher-signed Flare
+  *runtime package* whose `gb10` branch targets **four DGX Sparks at TP4/c16**, served only by a Rust
+  runtime installed from a third-party APT repo on every host. **Research only, not queued for a
+  boot** — the four-node window is closed and a TP=4 measurement needs the owner's offsite switch.
+  *(facts:* open (`gated: false`), `license: mit` (the file is DeepSeek's own MIT text),
+  `publisher.json` carries Local Inference Lab's Ed25519 key with `"development": false`, and the
+  runtime enforces a `--trust-store` acceptance. Three branches, three packages: `main` @
+  `5f4fd653…` is card + license + publisher only (**4 files, 11,589 B** — no weights on `main`);
+  `gb202` @ `30b3987c…` = **513.48 GB** for one host with four SM120 96 GB GPUs; `gb10` @
+  `975f72da…` = **511.27 GB / 476.2 GiB** in 22 files — a 10,470,346 B metadata-only primary
+  `deepseek-v41-flash-1017-tp4-c16-dspark5.safetensors`, 12 weight shards (eight of 58.6–63.9 GB,
+  four of ~5.4 GB), and five graph/support shards (4 × ~490 MB + 6.4 MB); every shard is under 64 GB
+  and named by its sha256. Repo `usedStorage` **1,845,031,706,350 B** (all three revisions' LFS).
+  **No `config.json` at any branch**, so there is no `quantization_config` to read: the scheme is
+  stated only on the card — "MXFP4 expert weights retain losslessly compressed CSF scales, attention
+  uses BF16 arithmetic, and KV storage uses FP8 compression" (frontmatter tags `flare`, `mxfp4`,
+  `csf`, `gb10`, `tensor-parallel`). "FLARE" is the engine's and the format's product name, never
+  expanded on either card, and **not a quantization scheme**. It does **not** follow the
+  `local-inference-lab` labquant conventions this registry already consumes:
+  `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (pinned by
+  `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`) is an ordinary sharded HF checkpoint
+  — `model-000NN-of-00041.safetensors` + a `config.json` carrying
+  `quantization_config.quant_method: modelopt` (plus `hf_quant_config.json`, `HYBRID.json`,
+  `export-manifest.json`, `chat_template.jinja`) — loaded by SGLang as `quantization:
+  modelopt_mixed` behind four config-patching mods. FLARE ships no HF checkpoint, no shard index and
+  no template at any revision: weights plus compiled kernels plus captured execution graphs.*)
+  *(why it matters:* `gb10` is the first artifact this lane has seen whose target *is* four Sparks —
+  "A signed Flare package for four DGX Sparks", TP4, 16 concurrent requests, DSpark with up to five
+  adaptive draft tokens, 4096-token prefill chunks, a 1,048,576-token per-request context, and Engram
+  read from disk with `--embedding-table-cache-size 1GiB` plus ~1.4 GiB resident scales per host —
+  the lane's own shape. The loader answer is still no for both shipped arms, in the card's words:
+  "It requires the Flare image below; Transformers, vLLM, SGLang and llama.cpp cannot load this
+  runtime format." Neither `recipes/ds4/README.md:25` (SGLang) nor `:349` (TensorFold EXL3) reads it,
+  and `gb10` serves from `flare-inference` installed by `apt` on each host plus `flare orbit` pairing
+  over RoCE (TCP 29900 host-to-host, 29800 on the controller) — a `runtime:` sparkrun does not ship
+  (it has `sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`, `atlas`, `modular_max`, `tokenary`,
+  `llama_cpp`). Node arithmetic: 511.27 GB / 476.2 GiB against 4 × 128 GB = 512 GB nominal (476.8
+  GiB) leaves ~0.6 GiB before KV, runtime reserve and the 1 GiB row cache, so the vendor's c16 and
+  1M-context claims rest on KV headroom this cluster has not measured — the card itself defers to
+  "subject to available KV memory", and the gb202 figure (21,160,832 logical KV tokens on 4 × 96 GB)
+  does not transfer. Disk is the easy part: "over 515 GB free on the first Spark" plus each rank's
+  data on the peers.*)
+  *(blockers/unknowns:* engine acquisition — a third-party APT repo plus a per-host
+  `flare agent install --accept-first` service on four nodes is an owner supply-chain decision, not a
+  bench step; the package is version-locked to the runtime (`83d582e2-amd64` on the discrete-GPU
+  package, and `gb10` names no architecture; nothing verifies it on GB10's arm64 + CUDA 13); no
+  accuracy evaluation exists ("Comprehensive model-accuracy evaluation has not been run"), so nothing
+  can be claimed against the lane's 36/37 house baseline; per-rank weight residency and KV headroom
+  at c16 are unmeasured; the trust-store acceptance is interactive on first run, which a headless
+  launch must solve.*) *(effort: research only — owner decisions first.)*
+
 ## glm5
 GLM 5.3
 *(No open item — the ≥1M probe and four-way 1M concurrency were **dropped unrun**, not deferred, by the
