@@ -4,7 +4,7 @@
 gone from both nodes and no leg process remains; the last in-flight item (cybersec arm 5's tools leg) was
 **interrupted at 107 of 1,240 questions** and is recorded as partial, not as a result. The production
 quartet's TP=4 serve is untouched and healthy. Gate: **752 tests OK** (2 skipped), **51/51** recipes pass
-plain `sparkrun recipe validate`. Last commit `2e5f879`.
+plain `sparkrun recipe validate`. Landed on top of `fe9207c`.
 
 ## Table 1 — Current tasks (in flight)
 
