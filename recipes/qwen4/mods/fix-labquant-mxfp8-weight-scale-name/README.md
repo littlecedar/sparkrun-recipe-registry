@@ -79,6 +79,7 @@ have been off by ~30000×.
 # Failure mode
 
 Anchored and idempotent: refuses to patch unless the anchor matches exactly once, and the
-patched module must still import. It is a diagnostic-friendly patch — the `diag-qwen4-unplaced-scales`
-mod stays installed, so if any `_scale` still cannot be placed it will say which one instead
-of dying on an assert that cannot print a name.
+patched module must still import. The companion diagnostics-only mod that used to print the unplaceable
+`_scale` name (`diag-qwen4-unplaced-scales`) is **retired 2026-10-20**: `recipes/qwen4/zz-labq-no-diag.yaml`
+boots this chain with it absent and the assert at `qwen4_exp.py:2136` never fires
+(`~/benchmarks/qwen4-nodiag-20261020/`).

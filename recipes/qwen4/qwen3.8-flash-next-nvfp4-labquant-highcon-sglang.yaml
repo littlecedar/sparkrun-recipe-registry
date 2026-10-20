@@ -34,9 +34,6 @@ mods:
   # ORDER MATTERS: keep the config mod first -- this mod writes into the tree the config mod
   # builds, and requires --no-ple-offload-embedding (set in the command below).
   - "mods/unpack-labquant-ple-nvfp4-to-fp8"
-  # DIAGNOSTIC ONLY -- the shared-expert scale blocker is understood and fixed (see mod
-# fix-labquant-mxfp8-weight-scale-name); this stays as insurance until zz-labq-no-diag boots clean.
-  - "mods/diag-qwen4-unplaced-scales"
   - "mods/fix-labquant-mxfp8-weight-scale-name"
   # REQUIRED to boot at all: its narrow MXFP8 GDN projections (n=96/rank) sit under CUTLASS's
   # MXFP8 floor of 128. Must run LAST -- layers onto the tree the config mod builds.

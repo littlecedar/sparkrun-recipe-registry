@@ -50,13 +50,17 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
    packed NVFP4 to plain fp8 e4m3 and sets `ple_embedding_dtype: float8_e4m3fn`, so the engine uses
    its own tested fp8 PLE path (cold cost 51.2 GB / ~50 s per node; pairs with
    `--no-ple-offload-embedding`).
-4. `recipes/qwen4/mods/diag-qwen4-unplaced-scales` — **diagnostic only**: logs which `_scale` was unplaceable in
-   front of the assert at `qwen4_exp.py:2136`; changes no control flow.
-5. `recipes/qwen4/mods/fix-labquant-mxfp8-weight-scale-name` — renames the export's `<X>.weight_scale` to the
+4. `recipes/qwen4/mods/fix-labquant-mxfp8-weight-scale-name` — renames the export's `<X>.weight_scale` to the
    engine's `weight_scale_inv` for the MXFP8 shared experts/attention indexer, so the load guard does
    not mistake a differently-suffixed scale for a dropped one.
-6. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
+5. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
    `in_proj_a`/`in_proj_b` MXFP8 tensors (n=96/rank, under CUTLASS's MXFP8 floor of 128) to BF16.
+
+The chain used to carry a sixth, `diag-qwen4-unplaced-scales` (a logging-only pause in front of the
+`_scale` assert at `qwen4_exp.py:2136`). It is **retired 2026-10-20**: `zz-labq-no-diag` boots this exact
+chain without it — ready in ≈670 s, house 37/37, and no `unplaced`/`AssertionError` in the serve log — so
+the assert does not fire and the diagnostic had nothing left to report. The probe recipe stays as the
+record of that control (`~/benchmarks/qwen4-nodiag-20261020/`).
 
 **Two engine flags** live in `defaults.extra_args`, not as tunables:
 `--moe-runner-backend flashinfer_cutlass` (with `auto`, the NVFP4 MoE resolves to

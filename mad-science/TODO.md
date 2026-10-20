@@ -304,8 +304,12 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   **37/37** (easy 19/19, hard 18/18). The serve log's only `_scale` activity is the *other* mods' benign
   `[remap] …weight_scale -> …weight_scale_inv` lines — **no `unplaced`/`AssertionError`** — so the assert
   the diagnostic was insuring against does not fire without it. Receipt
-  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). Deleting the diag mod
-  from the shipped arm is now a code/doc change with a boot behind it, not an unproven edit.)*
+  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). **Retired the same
+  hour:** the mod directory is deleted, both shipped labquant recipes dropped the entry, the lane
+  README's chain list lost its item (probe receipt cited there), and the lane-locality guard's
+  `test_every_mods_entry_resolves` failed on the dangling references before the edit and passes after it.
+  What the diagnostic was insuring against no longer fires, and the evidence is the probe receipt, not
+  the mod's own logs.)*
 
 ## ifm
 IFM K2-Horizon

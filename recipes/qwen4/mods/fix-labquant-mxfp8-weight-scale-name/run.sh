@@ -39,9 +39,10 @@ set -euo pipefail
 # This changes where a byte array is stored, not its contents. It is NOT a
 # claim of numerical correctness -- see README.md and the work doc.
 #
-# Anchored, idempotent, and smoke-tested by import. Runs alongside
-# diag-qwen4-unplaced-scales (different anchor), so any scale that still cannot
-# be placed will report which one instead of dying on a nameless assert.
+# Anchored, idempotent, and smoke-tested by import. The diagnostics-only mod
+# that used to name an unplaceable scale (diag-qwen4-unplaced-scales) is retired
+# 2026-10-20: zz-labq-no-diag boots this chain without it and the assert never
+# fires (~/benchmarks/qwen4-nodiag-20261020/).
 #####################################################################
 
 MOD_NAME="fix-labquant-mxfp8-weight-scale-name"

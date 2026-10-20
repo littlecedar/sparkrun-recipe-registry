@@ -7,9 +7,11 @@ min_nodes: 2
 max_nodes: 2
 
 description: >-
-  [probe, not shippable] labquant balanced base minus the diagnostic
-  diag-qwen4-unplaced-scales mod. Control for whether the unplaced-`_scale` assert at
-  qwen4_exp.py:2136 still fires without the diagnostic in front of it.
+  [probe, not shippable] the control that retired the diagnostics-only
+  diag-qwen4-unplaced-scales mod: the labquant balanced chain with that mod absent.
+  It booted clean on 2026-10-20 (ready ~670 s, house 37/37, no unplaced-`_scale`
+  assert at qwen4_exp.py:2136), the mod is now deleted from the shipped arms, and
+  this file stays as the record of the control.
 metadata:
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -19,9 +21,9 @@ metadata:
   kv_dtype: bf16
   tags: lcg_favorite
   caveats: >
-    mods/defaults/command are the shipped base's, unchanged, except that the
-    diagnostic mod's entry is gone. A pass here says the assert no longer fires and the
-    diagnostic is retirable; it is not a new arm and carries no quality verdict.
+    mods/defaults/command are the shipped base's minus the (now deleted) diagnostic
+    mod's entry. This is the record of the control that retired it: the assert did not
+    fire. It is not a new arm and carries no quality verdict.
 
 mods:
   - "@eugr/mods/drop-caches"
