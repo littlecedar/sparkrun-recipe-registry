@@ -486,6 +486,21 @@ arm family, and a larger thinking model would exceed it.)*
 
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
 
+*(progress 2026-10-20 — **27B-NEXTN (arm 1's spec-decode sibling) closed all five checks and its
+ladder.** Suite verdict `fail` on the needle leg only, 23,600 s (sum of the per-check `seconds`;
+23:32:04Z→06:05:25Z): contract ok 2.1 s (`max_model_len=262144`), house **37/37** 129.6 s, needle
+**32k 3/3 · 131k 3/3 · 262k 3/3** 1,421.2 s with the 262k rung **TRUNCATED** at a 163,455–164,153-token
+prompt against the arm's **167,985**-token pool, hard **ARC 187/200 (93.5 %) · GSM8K 194/200 (97.0 %)**
+3,383.6 s, tools **1073/1240 = 86.5 %** in **18,663.6 s = 15.05 s/question**; same-boot ladder
+`bench_e66cbef09760` **C1 15.39 ± 0.90 · C2 28.81 ± 1.24 · C5 60.35 ± 3.54 · C10 102.82 ± 7.77 t/s**
+@ d0, pp 2048, tg 128, n=5 (means from the `ladder.csv`/`ladder.json` sidecars). Receipts
+`~/benchmarks/cybersec-27b-nextn-suite-20261019/` and `~/benchmarks/cybersec-nextn-20261020/`. That
+serve was then stopped and **kolibri APEX-24bpw booted on `.35`** (`bc1ee4356daa935d_64af2f7668b6`,
+`n_ctx_slot=262144`, `kv_unified=true`, model loaded 22.8 s per `boot.log`) with the suite
+(contract/house/needle/hard/tools, `--needle-max-tokens 512`, `--job-timeout 21600`) writing
+`~/benchmarks/kolibri-apex-suite-20261020/`. Per-arm tools cost now measured — plain 22.5 s/q, NEXTN
+15.05, dflash2 7.2, 7B UNO 5.3 — which is what a suite's `--job-timeout` is priced from.)*
+
 ## Image pins and advisories (registry-level)
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
