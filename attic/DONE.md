@@ -749,3 +749,29 @@ that do stay open in the register are the ornith d90 crash mechanism and the qwe
   `wrong_count`, call histogram `{1: 374, 0: 26}`), not a parser or harness fault. Boot receipts
   `~/benchmarks/laguna-m1-20261019/` and `~/benchmarks/laguna-m1-20261020/`; lane section in
   `recipes/explore/README.md`.)*
+
+# 2026-10-21 (cybersec arm 5 suite) — the tools leg closes the arm
+
+Archived from `mad-science/TODO.md`, copied verbatim: the last open standard-suite leg was re-run on a
+fresh boot and the arm now has all five legs.
+
+## cybersec
+- [ ] **Finish cybersec arm 5's tools leg** — the TP=2 abliterated graft was drained mid-leg on
+  2026-10-20 (session wind-down for an agent update) with four of five legs landed: contract ok, house
+  **37/37**, needle **3/3 at 32,768 / 131,072 / 262,144**, hard **ARC 188/200 (94.0 %)** and **GSM8K
+  197/200 (98.5 %)**. The tools leg stopped at **107/1,240 questions (101 pass / 6 fail)** and BFCL is
+  not resumable, so it has **no score** — this is a partial arm, not a result. Receipt
+  `~/benchmarks/cybersec-arm5-20261020/` (`boot.log`, `house.json`, `needle-*.json`, `hard-*.log`,
+  truncated `bfcl.log`). Re-run: boot the same recipe on the pair and start tools-only cap-free, or rerun
+  the full suite. *(effort: short)*
+  *(**CLOSED 2026-10-21 — the tools leg landed and the arm is 5/5.** Fresh boot of the same recipe on
+  `.34`/`.35` (task `2f9a8f3e60a51ee4_3510a5e0d37d`, TTR HTTP-ready **59.407 s**, `GET /v1/models` =
+  the graft repo id, `max_model_len` 1,048,576), then a cap-free tools-only run: **1037/1240 = 83.6 %**
+  in 3,887 s with **0 transport errors** — simple **376/400**, multiple **188/200**, parallel
+  **181/200**, parallel_multiple **177/200**, irrelevance **115/240** (all 125 misses
+  `irrelevance_error:decoder_success`, a capability shape: the AST categories all finish
+  `tool_calls`). **3.133 s/question**; the interrupted run's 1.546 s/q `simple` rate projected 32 min
+  and under-counted the non-simple categories. Receipt
+  `~/benchmarks/cybersec-arm5-tools-20261021/` (`REPORT.md` merges the four 2026-10-20 legs with this
+  one, `bfcl.json`); the 2026-10-20 receipt stays as the interruption record. Suite paragraph in
+  `recipes/cybersec/README.md`.)*

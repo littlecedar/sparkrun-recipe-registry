@@ -802,15 +802,6 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 
 ## Image pins and advisories (registry-level)
 
-- [ ] **Finish cybersec arm 5's tools leg** — the TP=2 abliterated graft was drained mid-leg on
-  2026-10-20 (session wind-down for an agent update) with four of five legs landed: contract ok, house
-  **37/37**, needle **3/3 at 32,768 / 131,072 / 262,144**, hard **ARC 188/200 (94.0 %)** and **GSM8K
-  197/200 (98.5 %)**. The tools leg stopped at **107/1,240 questions (101 pass / 6 fail)** and BFCL is
-  not resumable, so it has **no score** — this is a partial arm, not a result. Receipt
-  `~/benchmarks/cybersec-arm5-20261020/` (`boot.log`, `house.json`, `needle-*.json`, `hard-*.log`,
-  truncated `bfcl.log`). Re-run: boot the same recipe on the pair and start tools-only cap-free, or rerun
-  the full suite. *(effort: short)*
-
 - [ ] **Sanitize cluster-internal addresses out of tracked files** — a history-wide audit on 2026-10-20
   scanned `git log -p --all` and `git log --all --format='%h %s%n%b'` for fabric IPs, the CX7 RoCE
   subnets and `spark-*.<internal-domain>` names. It found **221 patch-body lines across history and 8

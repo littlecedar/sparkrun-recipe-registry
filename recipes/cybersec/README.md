@@ -274,6 +274,16 @@ is image-side: a vLLM build whose mapping excludes ignored shards, or a model-co
   (68.6 / 48.1 / 44.6 / 42.1) — with per-request decode 50.19 / 38.24 / 34.29 t/s at c2/5/10.
   This C1 (engram ON) supersedes the 63.7 decode-triage figure from the engram-OFF 2026-10-17 boot
   (`bench_44534d5024c0`).
+- **Standard suite — all five legs landed (2026-10-20 / 2026-10-21, one serve each).** contract ok
+  (`max_model_len` 1,048,576, ready, `finish=stop`); house **37/37** (easy 19/19, hard 18/18); needle
+  **3/3 at 32,768 / 131,072 / 262,144** (depth 10, `PASS` each); hard **ARC 188/200 (94.0 %)** and
+  **GSM8K 197/200 (98.5 %)** with 0 empty replies; tools **1037/1240 = 83.6 %** in 3,887 s (0
+  transport errors), split simple **376/400** · multiple **188/200** · parallel **181/200** ·
+  parallel_multiple **177/200** · irrelevance **115/240**. The AST categories are healthy (all 1,000
+  `finish=tool_calls`); the loss is `irrelevance`, all 125 misses `irrelevance_error:decoder_success`
+  — a capability result, not a parser fault. Receipts `~/benchmarks/cybersec-arm5-20261020/` (four
+  legs, plus the tools attempt drained at 116/1,240) and
+  `~/benchmarks/cybersec-arm5-tools-20261021/` (`REPORT.md` merges all five, `bfcl.json`).
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
 ## Attic index
