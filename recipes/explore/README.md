@@ -5,11 +5,11 @@ directive): top candidates are optimized for **generation speed, concurrency, ac
 size**; ties break on the owner's 2026-10-11 weighting — **node count (lower) → accuracy (higher) →
 speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, so node count tied.
 
-The lane now ships **six measured arms** — the accuracy leader, the smallest 262k arm with measured
-headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the media-gen arm whose
-cells are closed, and the LTX-2.5 video+audio arm booted 2026-10-21 — plus one authored-unbooted
-2-node arm (`Laguna-M.1`, owned by its own boot item,
-not a selection candidate). The other **ten** measured arms from the 2026-10-14…18 expansions are
+The lane now ships **seven measured arms** — the accuracy leader, the smallest 262k arm with
+measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the media-gen arm
+whose cells are closed, the LTX-2.5 video+audio arm booted 2026-10-21, and the Nemotron-3.5-Lightning
+30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here) — plus one
+authored-unbooted 2-node arm (`Laguna-M.1`, owned by its own boot item, not a selection candidate). The other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 14-row decision table with one
 receipt path per arm is [§Selection](#selection-2026-10-19); per-arm measured histories, serving traps
@@ -25,6 +25,7 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
+- [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
 - [Attic index](#attic-index)
@@ -35,8 +36,8 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 
 The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
 pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
-needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 14
-measured root-index rows are scored; the verdict column is the selection. Decode rows only
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 15
+measured arms are scored; the verdict column is the selection. Decode rows only
 (`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped `max_model_len`; a
 `max_num_seqs` / `parallel` clamp — not the pool — is the in-flight ceiling where one is set.
 
@@ -51,6 +52,7 @@ measured root-index rows are scored; the verdict column is the selection. Decode
 | `kolibri-1-nvfp4-experts-vllm` | 52.37 ± 0.05 | 52.00 / 91.58 / 95.03 / 105.58 | KV 4,618,726 tok = 17.6×; cap 4 | 37/37 · — · — · — · — · — | 42.6 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/iskye/` (`c2c5c10-ladder.json`, `triage.json`, `battery-4096.json`) | **retire** — APEX-24bpw wins speed+size at equal house accuracy |
 | `kolibri-1-mxfp4-mxwave-vllm` | 51.60 ± 0.16 | 51.41 / 92.64 / 96.28 / 108.20 | KV 4,791,929 tok = 18.3×; cap 4 | 37/37 but **strict KL fail** (0.0551 > 0.030) · — · — · — · — · — | 40.93 GiB · util 0.78 | `~/benchmarks/kolibri-quants-20261018/kirill/` (`perf-ladder.json`, `decode-triage.json`, `quality-battery.json`) | **retire** — fails its own quality screen |
 | `poolside-laguna-xs-2.1-nvfp4-dflash-vllm` | 55.3 ± 2.4 | 55.3 / 83.1 / 133.7 / **141.3** (still rising at c10) | KV 1,464,371 tok = **5.59×** at 262,144 (ladder boot; 1,403,263 on the 2026-10-14 boot); `max_num_seqs: 8` | 35/37 · 2/3 @32k, 2/3 @131k, **3/3 @262k** · 66.0% · 90.5% · 60.1% · **97** | 21.6 GB + 0.92 GB draft · util 0.55 → ~95 GB headroom | `~/benchmarks/explore-laguna-xs-20261017/perf-ladder.json`, `launch.log`, `house.json`, `needle-*.json`, `bfcl.json`, `teb.json` | **KEEP — best 262k aggregate at c10** |
+| `nemotron-3.5-lightning-30b-a3b-nvfp4-vllm` | **63.27 ± 0.65** | 63.27 / 90.81 / 122.27 / **144.15** (still rising at c10) | KV 10,703,667 tok = **326.65×** at 32,768; no `max_num_seqs` clamp | **37/37 @2048** · — · — · — · — · — | **20.1 GiB** · util 0.85 (= 0.8263 effective under CUDA-graph profiling) | `~/benchmarks/reasoning-candidates-20261021/` (`house-2048.json`, `ladder.json`, `serve.log`) | **KEEP — fastest single-node C1 at the smallest weight footprint** |
 | `poolside-laguna-s-2.1-nvfp4-dflash-vllm` | 20.26 ± 0.87 | 20.26 / 29.26 / 38.96 / 53.80 | KV 106,010 tok = **1.078×** at 98,304; `max_num_seqs: 32` | 33/37 · 3/3 @32k, 3/3 @98,304 · — · — · — | 95.61 GiB resident · util 0.85 | `~/benchmarks/sweep2-20261018/laguna-s-ladder.json`, `laguna-s-suite/summary.md` | **retire** — dominated by XS on every axis |
 | `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s; no ladder) | KV 370,597 tok = 45.2× at 8,192; no chat surface | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | 0.088 img/s (11.33–11.41 s @1024²; **53.24 s @2048²**) | — (one request at a time) | single denoise lock | n/a (non-commercial eval arm; 8-step CFG=1, byte-identical same-seed PNG) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | `~/benchmarks/qwen-image-20261014/results.json`, `~/benchmarks/media-gen-20261018/REPORT.md` | **KEEP — media-gen cells closed** |
@@ -365,6 +367,45 @@ weights**.
 - **License:** Apache-2.0.
 - **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
   suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
+
+## [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml)
+
+vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node chat arm here**.
+
+*Engine: the shipped `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1…` (vLLM
+0.32.0rc1.dev301+g1ac942555). No new image, no fork.*
+
+- **Model:** `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` — Nemotron-H hybrid (Mamba-2 + MoE +
+  attention, 52 layers, 30B total / 3B active), **20.10 GiB** on the Hub, pinned `bee7596…`; OpenMDW-1.1,
+  ungated. The checkpoint carries its own `quantization_config`, auto-detected as **`modelopt_mixed`**;
+  NVFP4 GEMM runs on `MarlinNvFp4LinearKernel`, the MoE takes **MARLIN** out of the eight backends the
+  engine offers, attention and the Mamba SSU both land on FlashInfer.
+- **Boot:** TTR **≈ 6 min** including the 20.1 GiB first download (weights 17.82 GiB loaded in 228.6 s,
+  51 piecewise + 2 full CUDA graphs). `/v1/models` → the repo id with **`max_model_len 32768`**, `/health`
+  200. KV **10,703,667 tokens** (78.06 GiB at util 0.85) = 326.65× at the served window.
+- **Serving traps (each costs an hour):** `--mamba-cache-mode align` from the vendor's flag line is
+  **deprecated in this build and does nothing** — Mamba prefix caching follows `--enable-prefix-caching`,
+  and the engine forces `mamba_ssm_cache_dtype=float32` for NemotronH itself. CUDA-graph memory profiling
+  (default) makes `--gpu-memory-utilization 0.85` effectively **0.8263**; raise it to ~0.874 for a true
+  0.85. `vllm/vllm-openai` images declare `ENTRYPOINT ["vllm","serve"]`; this one is NVIDIA's exec wrapper,
+  but the recipe clears it so the serve line is the whole command.
+- **Measured:** C1 **63.27 ± 0.65 t/s** (peak 65.67) at d0 pp2048/tg128, 3 runs/cell — above Laguna-XS-2.1
+  (57.4), Kolibri-1 (47.3) and Laguna-M.1 TP=2 (12.85 C1) in this lane, at 20.1 GiB of weights.
+  Ladder **63.27 / 90.81 / 122.27 / 144.15** t/s at c1/2/5/10 (still rising at c10); prefill flat
+  **6,142 ± 34 → 6,235 ± 10** t/s; e2e ttft 335.8 → 2,048.3 ms.
+- **Quality:** house **37/37** (easy 19/19, hard 18/18) with `--max-tokens 2048`. **The budget is part of
+  the result:** the first pass at 1024 scored 36/37, missing only `big-1` (`11111` for `1111111110`) —
+  re-asked at 2048 the same greedy request answers correctly after **1018 reasoning tokens** with
+  `finish=stop`, so that miss was a truncation, not a capability gap. Thinking is on, so budget **≥ 1536**
+  completion tokens for any reasoning arm on this instrument.
+- **Tool calling:** PASS — `finish_reason: tool_calls` with `get_weather({"location": "Paris",
+  "unit": "celsius"})` (populated arguments) under `--tool-call-parser qwen3_coder` and
+  `--reasoning-parser nemotron_v3`.
+- **Not measured here:** needle, ARC/GSM8K, BFCL/TEB, and the vendor's DSpark/DFlash drafters (separate
+  repos + `--speculative-algorithm` + block size). Thinking-off C1 is also unmeasured; the ladder cells
+  spend their 128 generated tokens inside reasoning.
+- **Receipt:** `head:~/benchmarks/reasoning-candidates-20261021/` (`REPORT.md`, `house.json` @1024 =
+  36/37, `house-2048.json` = 37/37, `ladder.json`, `serve.log`).
 
 ## Kolibri-1 1M constant-state (eval-only, not a recipe)
 

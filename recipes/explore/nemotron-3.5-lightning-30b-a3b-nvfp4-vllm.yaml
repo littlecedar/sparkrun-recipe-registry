@@ -1,0 +1,78 @@
+recipe_version: "2"
+model: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+model_revision: bee7596271d1495f6992ae224aefde4410e816b8
+# The nightly that was actually booted (vLLM 0.32.0rc1.dev301+g1ac942555, built 2026-10-16);
+# NemotronHForCausalLM is registered there and FlashInfer accepts sm121 for its XQA path.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1b210066dca421bdcd7ca6f16680b6579533f348c0d8c072da194cf98
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 — the Nemotron-H hybrid
+  (Mamba-2 + MoE + attention, 52 layers, 3B active) at NVFP4, one DGX Spark,
+  TP=1. 20.1 GiB of weights, checkpoint quantization auto-detected as
+  modelopt_mixed (MARLIN NVFP4 MoE + FlashInfer attention/Mamba SSU). Served
+  window here is 32,768; the checkpoint supports up to 1M. Reasoning parser
+  nemotron_v3 and tool parser qwen3_coder are the vendor's. Thinking is on,
+  so a grading harness needs >= 1536 completion tokens: at 1024 a greedy
+  arithmetic item truncates mid-number (11111 for 1111111110) and reads as a
+  false miss. Vendor DSpark/DFlash drafters exist but are NOT wired here.
+metadata:
+  model_url: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "30B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, official, reasoning, tools, fast
+
+executor_config:
+  # Cleared to match the measured boot: the image's own entrypoint is NVIDIA's
+  # wrapper, and the serve line below is the whole command.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, so the served id would be the cache path (-n hides this).
+  served_model_name: nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+  max_model_len: 32768
+  gpu_memory_utilization: 0.85
+  kv_cache_dtype: fp8
+  # Both chosen by the engine on this hardware when left alone; pinned here so a
+  # backend change is a recipe edit and not a silent re-selection.
+  moe_backend: marlin
+  mamba_backend: flashinfer
+
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --moe-backend {moe_backend}
+  --mamba-backend {mamba_backend}
+  --enable-prefix-caching
+  --reasoning-parser nemotron_v3
+  --tool-call-parser qwen3_coder
+  --enable-auto-tool-choice
+
+# Traps measured on the 2026-10-21 boot, kept here because each one costs an hour
+# to rediscover:
+#  * `--mamba-cache-mode align` (the vendor's flag line) is DEPRECATED in this
+#    build and does nothing: Mamba prefix caching follows --enable-prefix-caching,
+#    and the engine forces mamba_ssm_cache_dtype=float32 for NemotronH itself.
+#  * With CUDA-graph memory profiling on (the default), --gpu-memory-utilization
+#    0.85 is effectively 0.8263; the engine says so in the boot log. Raise it to
+#    ~0.874 if an effective 0.85 is what is wanted.
+#  * The vendor's DSpark/DFlash drafters need their own repos and flags
+#    (--speculative-algorithm + block size); this recipe is the plain target.
