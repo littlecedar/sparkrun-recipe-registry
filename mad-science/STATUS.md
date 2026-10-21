@@ -1,17 +1,29 @@
-# Session status — 2026-10-21 07:35 ET
+# Session status — 2026-10-21 17:40 ET
 
-**The test pair is drained and idle** (0 containers on `.34` and `.35` at write time; the ds4 v0.6
-A/B has not started). The production quartet's TP=4 serve is untouched and healthy. Gate: **752
-tests OK** (3 skipped — this workstation has no `sparkrun`, so the pooling guard's real-CLI case
-skips), **52/52** recipes pass plain `sparkrun recipe validate` on the head, **12/52** fail
-`--strict` (unchanged in count). Landed on top of `9d67131`.
+**The test pair is drained and idle** — 0 running *and* 0 exited containers on `.34` and `.35` at
+write time (the leftover sglang container from the 07:52 Muse boot is gone; its log is kept at
+`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). The production quartet's TP=4 serve
+is untouched and healthy. Gate: **752 tests OK** (2 skipped — the pooling guard's real-CLI case runs
+now that `sparkrun` is on this workstation), **52/52** recipes pass plain `sparkrun recipe validate`
+(0 errors, re-swept file by file), **12/52** fail `--strict` (unchanged in count). Landed on top of
+`3c3c134`; everything below is pushed, remote tip `745ebd3`.
+
+**2026-10-21 afternoon — four results, one of them shipped.** **Nox-4B shipped** at **67.8 %
+(1356/2000)** — the best CPU route in the decision lane, 12.8 points over Sol-2B (`39a4f00`).
+**JEV-27B does not ship**: 66.8 % (1337/2000) against its 9B sibling's 67.0 % (1340/2000) is three
+decisions, 0.15 pp, a tie below the lane's strictly-beat rule. **Muse Glimmer 30B closed as a
+checkpoint defect**, not a pack defect — the bf16 control misses `nurkrpas` identically (`3c3c134`).
+The **flash-next staging record was corrected**: both nodes have held the 183.48 GB export complete
+since 2026-10-15, so only a boot receipt is outstanding (`955c96a`). And the docs moved to the
+**sparkrun 0.4.2** build this workstation and the head now both report, with the schema cites
+re-derived and three claims that the code had outgrown rewritten (`e85c786`, `745ebd3`).
 
 **2026-10-21 — three results landed, all permanent.** Cybersec arm 5's tools leg closed at **1037/1240
 = 83.6 %** (`3fbb5e0`), the ornith **SGLang 0.5.21 bump** validated on all three arms and shipped
 (`9d67131`), and the **LTX-2.5 T2V arm** first-booted at **100.13 s cold / 78.1 s warm** (`d61cb30`).
 The ornith bump had been the 6–9 h line in Table 2; it is gone, the pair-bound block lost nothing
-else, and the single-node queue is now the media-gen residue, the decision candidates and the
-reasoning candidates.
+else, and the single-node queue is now the media-gen residue and the reasoning candidates (the
+decision candidates closed the same day: Nox-4B shipped, JEV-27B did not).
 
 **2026-10-21 02:48 ET — cybersec arm 5's tools leg is finished; the arm is 5/5.** A fresh TP=2 boot
 (`2f9a8f3e60a51ee4_3510a5e0d37d`, TTR HTTP-ready 59.407 s) and a cap-free tools-only run scored
@@ -24,14 +36,14 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| — none: the test pair is drained (0 containers, no leg processes) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; **ds4 v0.6 A/B adopted + `reasoning_effort` measured (2026-10-21)** | 0 h |
+| — none: the test pair is drained (0 containers running or exited, no leg processes) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; **Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped (2026-10-21)** | 0 h |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
 | Bucket | Content | Wall | Notes |
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
-| Other local — single-node | 6–11 h | ~3–6 h | media-gen residue (Qwen-Image non-8-step schedules via a `sigmas`-accepting mod, the vLLM-OMNI route) · decision Nox-4B/JEV-27B 3–5 · reasoning candidates 1–3 · **LTX T2V and the ornith 0.5.21 bump are done** |
+| Other local — single-node | 3–6 h | ~3–6 h | media-gen residue (Qwen-Image non-8-step schedules via a `sigmas`-accepting mod, the vLLM-OMNI route) · reasoning candidates 1–3 · **the decision candidates are done: Nox-4B shipped, JEV-27B tied and did not ship (2026-10-21)** |
 | Pair-bound | 15–25 h | 15–25 h | flash-next b12x 3–6 · qwen4 highcon + 1 probe 8–12 (highcon is also the boot that retires the restored diagnostic mod). **ds4 TensorFold v0.6 and ds4 `reasoning_effort` are done (2026-10-21)** — v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, shipped pin moved to `d6e4c10d…`); effort high is a 10.6 % paired saving carried by one task |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
@@ -49,8 +61,8 @@ recorded in the lane attic).
 | Bucket | Range |
 |---|---:|
 | In flight | 0 h (pair drained) |
-| Queued node-bound content, runnable now (Table 2) | 21–36 h |
-| **Node-bound wall at two lanes** | **≈15–27 h** |
+| Queued node-bound content, runnable now (Table 2) | 18–31 h |
+| **Node-bound wall at two lanes** | **≈12–22 h** |
 | Deferred (Table 3, owner action or event) | 21–30 h |
 | **Grand total including deferred** | **≈36–57 h** |
 
@@ -64,12 +76,53 @@ recorded in the lane attic).
 - **Stopping a serve can delete its evidence.** `sparkrun stop --all` bypasses `--no-rm` and removes
   the container, taking the in-container serve log with it (it cost the 9B `.35` log on 2026-10-21).
   Stop by cluster/task id and `docker cp /tmp/sparkrun_serve.log` out first.
+- **A CPU decision pass is a four-hour window, not two.** Nox-4B took 14,066 s (35.2 s/case) where
+  a three-case probe predicted 8,760 s — the first cases are cheaper than the mean, so price a CPU
+  arm from a wide probe or from the lane's own per-arm history.
 - **The head's `127.0.0.1:8000` is the production TP=4 serve**, so a probe that addresses loopback
   measures production, not the arm. Always use the node's IP root.
 - **Address hygiene is done for the tree, not for history** — tracked files are masked (71 lines, 22
   files); pushed history was deliberately not rewritten, so older commits still contain the addresses.
 
 ## Closed this session
+
+**Nox-4B booted, scored and shipped (`.34`, 2026-10-21).** The CPU decision arm scored **67.8 %
+(1356/2000), ★★** on `uvx tool-eval-bench@2.8.0 --decision-bench-only` (KL 0.219, Brier 0.114, ECE
+0.063, 0 completion errors, 14,066 s at 35.2 s/case), second in the lane behind clef-flash's 70.3 %
+and 12.8 points over Sol-2B. The vendor golden gate passed on aarch64 (`/health` 200 ready, no
+`GoldenResult` failure). As sparkrun stages it (`HF_HUB_OFFLINE=1`) the loader still calls the Hub
+tree API and `/health` stalled at 503 `loading`; the recipe now carries `HF_HUB_OFFLINE=0`, the
+documented mitigation, and boots clean in ~30 s. Ladder c1/c2/c5 all **0.044 req/s** at p50
+22,763/45,480/113,797 ms — a pure queue, no batching; c10 was not run (the serve was stopped to free
+the pair). Receipt `~/benchmarks/nox4b-20261021/REPORT.md`; commit `39a4f00`.
+
+**JEV-27B measured and not shipped (`.35`, 2026-10-21).** 66.8 % (1337/2000) against JEV-9B's
+67.0 % (1340/2000) — three decisions, 0.15 pp, a tie, so it fails the lane's strictly-beat rule and
+gets no README or index row. Boot wall 1244 s, most of it CUDA-graph capture (102 graphs, ~660 s);
+ladder c1 2.912 / c2 2.974 / c5 4.351 / c10 4.488 req/s with no useful scaling past c2 (the align
+path serializes decision prefill). Receipt `~/benchmarks/jev27-20261021/REPORT.md`.
+
+**Muse Glimmer 30B closed: the checkpoint, not the pack (`3c3c134`).** The bf16 control
+(`meta-models/Muse-Glimmer-30B @7af58019`, same drafter, same image digest, same flag line bar
+`mem_fraction_static 0.80`) answers `nurkrpas` on hard-rev exactly as the NVFP4 pack did — house
+36/37, same item, same string — so the weights are the cause and no repack is worth trying. C1 12.1
+t/s on bf16 against the pack's 20.2. The arm is out of both trees; route and numbers live in
+`attic/explore/AGENTS.md`.
+
+**flash-next staging corrected (`955c96a`).** The lane README said the 183.5 GB export was reclaimed
+from every node on 2026-10-14; re-verified, `.34` and `.35` have held it complete since the
+2026-10-15 staging (18/18 shards, 183.48 GB, zero bytes fetched). Only a boot receipt is outstanding,
+and `.35` carries 78.06 GB of orphan `.incomplete` blobs from the earlier attempt.
+
+**sparkrun 0.4.2 docs pass (`e85c786`, `745ebd3`).** Both files claimed `0.4.0-alpha+g29f53fb` while
+this workstation and the head both report `0.4.2-alpha+g36d8a44`. The module paths survived
+(`core/launcher.py`, `core/recipe.py`, `core/validation.py`, `models/runtime.py`); 27 line cites did
+not and were re-derived, and three sentences were rewritten because the code had outgrown them:
+`recipe list`/`recipe search` now fall back to `metadata.description`, the unmapped-key drop is no
+longer silent (0.4.2 raises `unmapped-config-key`), and the `_KNOWN_KEYS` literal set moved by two
+lines (still 41 keys). The MECHANICS header now names exactly which sections are 0.4.2-numbered and
+that the rest are still 0.4.0-numbered. The eleven arms carrying `unpinned-model-revision` were
+re-counted file by file: still eleven.
 
 27B-NEXTN suite + ladder (`bench_e66cbef09760`: 15.39 / 28.81 / 60.35 / 102.82 t/s) · 27B-uncensored
 tools **1072/1240 (86.5 %)** · kolibri APEX five legs `ok`, needle a real 262k pass · laguna-XS 59.8 %

@@ -761,8 +761,9 @@ live serve is the honest way to re-measure one cell, and `--fresh` is mandatory 
 new boot.
 
 **Counts, re-measured 2026-10-21:** **52** recipes in 11 family dirs, **29** guard modules, **752**
-tests (3 skipped), **12/52** recipes fail `--strict` (plain `validate` is the gate and passes 52/52
-on the head).
+tests (**2** skipped — the third skip was the real-CLI pooling case, which runs now that `sparkrun`
+is installed on the workstation), **12/52** recipes fail `--strict` (plain `validate` is the gate and
+passes 52/52, re-swept file by file on the workstation).
 
 **ds4 TensorFold v0.6 adopted after a six-boot interleaved A/B (`.34`/`.35`, 2026-10-21).**
 The v0.6 image (`littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…`, engine `tensorfold 0.6.6` at
@@ -785,3 +786,82 @@ Driver: `.scratch/ds4-v06/run-ab.py` (git-ignored) — six-boot interleaved, ref
 asserts `/v1/models`, the booted `Image:` and the container's `tensorfold --version` per boot, and
 pairs the prefill probes with a multiplicative rescale (the first version's additive "+1 char"
 retry could never fix a fill error).
+
+**Decision lane closed for the day: Nox-4B ships, JEV-27B ties and does not (2026-10-21).**
+`vllm-sr/Decision-2.0-Nox-4B @25e8f67d` booted on `.34` through the shipped
+`nox-4b-decision-vllm-srun` recipe and scored **67.8 % (1356/2000), ★★** on
+`uvx tool-eval-bench@2.8.0 --decision-bench-only` (run `2026-10-21T19-02-40.908377Z_a3a115d0`, KL
+0.219, Brier 0.114, ECE 0.063, **0 decision errors**, 14,066 s = 35.2 s/case, 652,665 input tokens) —
+second in the lane behind clef-flash's 70.3 %, 12.8 points over Sol-2B's 55.0 %. By type `noul` 74.2 %
+/ `choice` 66.0 % / `score` 64.4 %; the weak workflow is `agent_trace_observability` at 59.4 % against
+68.0–72.6 % elsewhere. The vendor `/health` **golden gate passed on aarch64** (200
+`{"status":"ready","reason":null}`), so the d3-edge golden divergence does not reproduce for this
+manifest (`49771ea3…`) — worth knowing, because `/health` here is a CPU golden comparison, not
+liveness. **The offline-staging class did fire:** as sparkrun stages a model (`HF_HUB_OFFLINE=1`) this
+loader still calls the Hub tree API and `/health` sat at 503 `loading` with `OfflineModeIsEnabled`
+retries while never reading the staged snapshot, exactly as d3-edge did; the recipe now carries
+`env: HF_HUB_OFFLINE: '0'` (the documented mitigation, measured here) and boots clean in ~30 s. The
+ladder is a pure queue — **c1/c2/c5 all 0.044 req/s** at p50 **22,763 / 45,480 / 113,797 ms**, 500/500
+decisions clean at each level; **c10 was not run**, because the serve was stopped by the owner's
+priority call to free the pair for the queued flash-next TP=2 boot. Grading a candidate on this route
+is a four-hour window: the three-case probe's 8,760 s estimate was 1.6× optimistic, so price CPU arms
+from a wide probe. Receipt `~/benchmarks/nox4b-20261021/` (`REPORT.md`, `teb-decision.log`, the
+instrument's `runs/2026/10/*.md`, `probe.json`, `ladder.log`, `serve.log`); commit `39a4f00` (recipe,
+lane section, root index row).
+
+`autotrust/JEV-27B @14b42526` booted solo on `.35` (53.79 GB, 14 files, `vllm-openai:glm53-flash` at
+engine `0.28.1rc1.dev580+g385dce36b`) and **does not ship**: **66.8 % (1337/2000)** against JEV-9B's
+**67.0 % (1340/2000)** is three decisions and 0.15 pp — a tie, below the lane's strictly-beat rule, so
+no README or index row and no status change. Boot wall 1244 s, of which ~660 s is CUDA-graph capture
+for 102 graphs (budget ~21 min cold, ~13 min warm with the compile cache); ladder c1 2.912 / c2 2.974
+/ c5 4.351 / c10 4.488 req/s with no useful scaling past c2, because the `--mamba-cache-mode align`
+path serializes decision prefill. KV 805,546 tokens (24.58× at 32k), so the mamba page pool binds
+before `max_num_seqs`. Receipt `~/benchmarks/jev27-20261021/REPORT.md`.
+
+**Muse Glimmer 30B: the checkpoint, not the pack (`3c3c134`, closing `0df411c`).** The bf16 control
+(`meta-models/Muse-Glimmer-30B @7af58019`, same drafter, same `sglang:v0.5.21` digest, same flag line
+bar `mem_fraction_static 0.80`) answers `nurkrpas` on hard-rev exactly as the NVFP4 pack did — house
+36/37, easy 19/19, same item, same string — which makes the weights the cause and exonerates the pack,
+so no repack is worth trying. C1 is 12.1 t/s on bf16 against the pack's 20.2 (the bandwidth of 52 GB
+of bf16 weights), with DFLASH accepted at block size 5. The arm is out of both trees; the route, flags
+and numbers live in `attic/explore/AGENTS.md`.
+
+**flash-next staging, corrected (`955c96a`).** The lane README recorded the 183.5 GB export as
+reclaimed from every node on 2026-10-14, which made a per-node re-fetch look like the boot's remaining
+cost. Re-verified 2026-10-21: `.34` and `.35` have held it complete since the 2026-10-15 staging
+(18/18 shards, 183.48 GB, zero bytes fetched), so only a boot receipt is outstanding. `.35` also
+carries **78.06 GB of orphan `.incomplete` blobs** from that attempt, named for the next storage pass.
+
+**The docs moved to sparkrun 0.4.2 (`e85c786`, `745ebd3`).** `AGENTS.md` and `recipes/MECHANICS.md`
+both claimed `0.4.0-alpha+g29f53fb` while this workstation and the head both report
+`0.4.2-alpha+g36d8a44`. The module paths survived the upgrade (`core/launcher.py`, `core/recipe.py`,
+`core/validation.py`, `models/runtime.py`); 27 line cites did not and were re-derived against the
+installed package — the unmapped-key report (`launcher.py:814-899` → `939-1029`), its overrides
+clause (`866-870` → `994-998`), the `None` early return (`863-864` → `991-992`), the warning block
+(`881-899` → `1011-1029`) and its `recipe validate` wiring (`validation.py:1821-1832` →
+`1842-1853`), the placeholder scan (`launcher.py:673-696` → `798-818`) and internal-key test
+(`662-670` → `776-789`), `runtime_config` absorption (`recipe.py:1264-1270` → `1393-1400`), the
+constructor's description/maintainer/metadata block (`1174-1176` → `1303-1307`, `1256-1259` →
+`1385-1389`, `1231-1233` → `1362-1363`, `1261-1262` → `1392`), export folding (`2406-2411` →
+`2574-2578`), `recipe_version` and the `sparkrun_version` fallback (`1165` → `1297`, `757` → `897`),
+the config chain's defaults tier (`1532-1538` → `1674-1682`), `check_unknown_top_level_keys`
+(`validation.py:1176-1272` → `1196-1275`), `check_unpinned_model_revision` (`837-914` → `866-935`),
+`known_config_keys` and `BASE_CONSUMED_CONFIG_KEYS` (`base.py:840-870` → `867-892`, `45-85` →
+`41-86`), eugr's refusal (`55-63` → `54-63`), and the model binding and validator
+(`models/runtime.py:40-55` → `44-60`, `80-87` → `85-92`, `88-99` → `93-104`). **Three sentences were
+rewritten because the code had outgrown them, not renumbered:** `recipe list`/`recipe search` no
+longer read the top-level description only — `recipe.py:2933-2936` falls back to
+`metadata.description`, so a nested description lists; the launcher's drop is no longer silent —
+0.4.2 raises `unmapped-config-key`; and the `_KNOWN_KEYS` literal set moved two lines (`78-120` →
+`80-122`) while still holding **41 keys**. The eleven arms carrying `unpinned-model-revision` were
+re-counted file by file: still eleven. The MECHANICS header now names exactly which sections are
+0.4.2-numbered and states that every other cite is still 0.4.0-numbered — re-derive with `grep -n`
+before trusting it.
+
+**Node hygiene at close (2026-10-21 17:40 ET).** `.34` and `.35` are at **0 running and 0 exited**
+containers. The one leftover was an exited `lmsysorg/sglang:v0.5.21` container from the 07:52 Muse
+boot; its 593 KB serve log was copied to
+`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log` before `docker rm`, and it was never
+force-removed while running. `sparkrun stop` on the Nox task
+(`sparkrun_f11fd90bf531e440_8ed3ce77d78f`) had already taken its own container with it, after
+`docker cp /tmp/sparkrun_serve.log` (988 B) captured the log.
