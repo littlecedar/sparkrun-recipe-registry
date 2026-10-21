@@ -858,7 +858,35 @@ re-counted file by file: still eleven. The MECHANICS header now names exactly wh
 0.4.2-numbered and states that every other cite is still 0.4.0-numbered — re-derive with `grep -n`
 before trusting it.
 
-**Node hygiene at close (2026-10-21 17:40 ET).** `.34` and `.35` are at **0 running and 0 exited**
+**flash-next closes refuted, on two different gates (`b85f611`, `510215b`, 2026-10-21).**
+The staging repair from earlier in the day paid off: the weights were already complete on both nodes
+(18/18 shards each), so the TP=2 pair boot cost **10.6 s** of distribution — the "re-fetch per node"
+worry was a measurement error, not a cost. Then both candidate engines failed, one gate apart. The
+sparkrun-built b12x image (`cf5a2a53…`, vLLM `0.1.dev21830+g8244d1c44.d20261015`) **cannot construct
+the model config at all**: `ModelConfig` rejects the checkpoint's `qwen_sparse_attention` as a
+`layer_types` member for `model_type: qwen4_exp`, so **no weight is even read**. The documented
+fallback `vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`, local ID `bbe704505570` on both nodes) gets
+**past** `ModelConfig`, warms up multimodal in **11.9 s**, starts TP=2 — and dies at worker init:
+`NotImplementedError: Qwen4Exp PLE embedding does not support quantization config
+CompressedTensorsConfig`. So the blocker is the **export↔engine combination**, not the pack, not a
+knob, and not the recipe: the search is image-side, and the answer has to clear both gates. Lane fact
+worth keeping: `vllm/vllm-openai` declares `ENTRYPOINT ["vllm","serve"]`, which swallows sparkrun's
+launcher and refuses the launch until `executor_config` sets `entrypoint: ""` — the sparkrun-built
+b12x image has no entrypoint, so swapping images needs that line. Recorded in
+`recipes/cybersec/README.md`; the item is out of the queue.
+
+**qwen4 labquant-highcon control passed — the restore does not move the serve (task
+`1895030211ea0500_3510a5e0d37d`, 2026-10-21).** The highcon boot brought back the diagnostic mod
+(the outstanding question after `zz-labq-no-diag` retired it on the balanced arm) and answered it:
+TTR **9.6 min** with `load_weight` 508.93 s, `/v1/models` at `max_model_len 262144`, admission
+**unclamped** (`max_total_num_tokens=1587072`, `max_running_requests=32`, mamba 128), **41/41**
+shards on both the main and MTP classes, no `_scale` assertion in the boot log, and the diagnostic
+payload fired **0** times. Depth sweep at d8192/pp2048/tg128, k=8/12/16/24: **86.8 / 87.5 / 89.5 /
+75.4 t/s** against the controls' **84.9 / 89.1 / 89.1 / 72.9** — every cell inside **3.4 %**, no
+10 % finding in either direction, so the restored diagnostic is carried at no measured cost and the
+highcon item closes with the pair block empty.
+
+**Node hygiene at close (2026-10-21 17:40 ET, re-checked 18:50 ET).** `.34` and `.35` are at **0 running and 0 exited**
 containers. The one leftover was an exited `lmsysorg/sglang:v0.5.21` container from the 07:52 Muse
 boot; its 593 KB serve log was copied to
 `~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log` before `docker rm`, and it was never

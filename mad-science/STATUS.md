@@ -1,4 +1,4 @@
-# Session status — 2026-10-21 17:40 ET
+# Session status — 2026-10-21 18:50 ET
 
 **The test pair is drained and idle** — 0 running *and* 0 exited containers on `.34` and `.35` at
 write time (the leftover sglang container from the 07:52 Muse boot is gone; its log is kept at
@@ -6,7 +6,19 @@ write time (the leftover sglang container from the 07:52 Muse boot is gone; its 
 is untouched and healthy. Gate: **752 tests OK** (2 skipped — the pooling guard's real-CLI case runs
 now that `sparkrun` is on this workstation), **52/52** recipes pass plain `sparkrun recipe validate`
 (0 errors, re-swept file by file), **12/52** fail `--strict` (unchanged in count). Landed on top of
-`3c3c134`; everything below is pushed, remote tip `745ebd3`.
+`510215b`; everything below is pushed, remote tip `a4f9841` plus this record.
+
+**2026-10-21 evening — the pair block is empty.** Both remaining pair items closed without a
+finding. **flash-next is refuted on both engines** (`b85f611`, `510215b`): the b12x build cannot
+construct the model config (`qwen_sparse_attention` is not a layer type it knows, so no weight is
+read) and the documented `vllm-openai:v0.31.0` fallback clears that gate and dies at worker init
+(`Qwen4Exp PLE embedding does not support CompressedTensorsConfig`) — two gates, so the answer is an
+image that has both, not a repack and not a knob. **qwen4 labquant-highcon passed its control**: TTR
+9.6 min, `max_model_len 262144`, admission unclamped, 41/41 shards, diagnostic payload fired 0 times,
+and the d8192/pp2048/tg128 sweep (86.8 / 87.5 / 89.5 / 75.4 t/s against 84.9 / 89.1 / 89.1 / 72.9)
+sits inside 3.4 % in every cell — no 10 % finding, the restore did not move the serve. Nothing
+pair-bound is runnable tonight; the offsite TP=4 block is the only pair work left and it is an
+**owner decision**, not a queued job.
 
 **2026-10-21 afternoon — four results, one of them shipped.** **Nox-4B shipped** at **67.8 %
 (1356/2000)** — the best CPU route in the decision lane, 12.8 points over Sol-2B (`39a4f00`).
@@ -36,7 +48,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| — none: the test pair is drained (0 containers running or exited, no leg processes) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; **Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped (2026-10-21)** | 0 h |
+| — none: the test pair is drained (0 containers running or exited, no leg processes, pair block empty) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped; **flash-next refuted on both engines; qwen4 highcon control passed (2026-10-21)** | 0 h |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -44,13 +56,13 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
 | Other local — single-node | 3–6 h | ~3–6 h | media-gen residue (Qwen-Image non-8-step schedules via a `sigmas`-accepting mod, the vLLM-OMNI route) · reasoning candidates 1–3 · **the decision candidates are done: Nox-4B shipped, JEV-27B tied and did not ship (2026-10-21)** |
-| Pair-bound | 15–25 h | 15–25 h | flash-next b12x 3–6 · qwen4 highcon + 1 probe 8–12 (highcon is also the boot that retires the restored diagnostic mod). **ds4 TensorFold v0.6 and ds4 `reasoning_effort` are done (2026-10-21)** — v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, shipped pin moved to `d6e4c10d…`); effort high is a 10.6 % paired saving carried by one task |
+| Pair-bound | **0 h — closed** | 0 h | every pair item is resolved: ds4 v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, pin `d6e4c10d…`), ds4 `reasoning_effort` measured (10.6 % paired saving, one task), **flash-next refuted** (b12x: `qwen_sparse_attention` not a layer type at `ModelConfig`, no weight read; `vllm-openai:v0.31.0`: clears that gate, dies at worker init on `Qwen4Exp PLE embedding … CompressedTensorsConfig`), **qwen4 highcon control passed** (86.8/87.5/89.5/75.4 t/s, all within 3.4 % of control, no 10 % finding) |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
 
 | Deferred | Unblocked by | Where it lives |
 |---|---|---|
-| **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | the owner switching the session to an offsite endpoint; the local-tail condition that held it is now met | register, under the qwen4 and ds4 items; ask repeated below |
+| **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | the owner switching the session to an offsite endpoint — **the local pair block is now empty and nothing else is pair-bound, so this is the only pair work left and it is an owner decision, not queued for tonight** | register, under the qwen4 and ds4 items; ask repeated below |
 | **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
 
 Dropped by owner policy, not waiting on anything: the GLM ≥1M probe and the ornith 397B retry (both
@@ -60,9 +72,9 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight | 0 h (pair drained) |
-| Queued node-bound content, runnable now (Table 2) | 18–31 h |
-| **Node-bound wall at two lanes** | **≈12–22 h** |
+| In flight | 0 h (pair drained, pair block empty) |
+| Queued node-bound content, runnable now (Table 2) | 3–6 h (single-node only) |
+| **Node-bound wall at two lanes** | **≈3–6 h** |
 | Deferred (Table 3, owner action or event) | 21–30 h |
 | **Grand total including deferred** | **≈36–57 h** |
 
@@ -85,6 +97,28 @@ recorded in the lane attic).
   files); pushed history was deliberately not rewritten, so older commits still contain the addresses.
 
 ## Closed this session
+
+**flash-next refuted on both engines — the pair item closes with no finding (`b85f611`, `510215b`).**
+Weights were already complete on both nodes (18/18 shards each), so the pair boot cost **10.6 s** of
+distribution and the staging fear was a measurement error, not a fact. The sparkrun-built b12x image
+(`cf5a2a53…`, vLLM `0.1.dev21830+g8244d1c44.d20261015`) cannot build the model config at all: the
+checkpoint's `qwen_sparse_attention` is not an allowed `layer_types` member for `model_type:
+qwen4_exp`, so **no weight is read**. The documented fallback `vllm/vllm-openai:v0.31.0`
+(`sha256:c1c9f6fd…`, local ID `bbe704505570` on both nodes) clears `ModelConfig`, warms up multimodal
+in **11.9 s** and starts TP=2, then dies in the worker: `NotImplementedError: Qwen4Exp PLE embedding
+does not support quantization config CompressedTensorsConfig`. Two gates, so the answer is an image
+that clears both — not a repack, and nothing in the recipe can move either. Lane fact recorded in
+`recipes/cybersec/README.md`: `vllm/vllm-openai` declares `ENTRYPOINT ["vllm","serve"]`, which eats
+sparkrun's launcher, so an `executor_config` `entrypoint: ""` is required to adopt it (the
+sparkrun-built b12x image has no entrypoint).
+
+**qwen4 labquant-highcon control passed (task `1895030211ea0500_3510a5e0d37d`).** TTR **9.6 min**
+(`load_weight` 508.93 s), `/v1/models` at `max_model_len 262144`, admission **unclamped**
+(`max_total_num_tokens=1587072`, `max_running_requests=32`, mamba 128), **41/41** shards on both the
+main and MTP classes, no `_scale` assertion, and the diagnostic payload fired **0** times. Sweep at
+d8192/pp2048/tg128, k=8/12/16/24: **86.8 / 87.5 / 89.5 / 75.4 t/s** against the controls'
+84.9 / 89.1 / 89.1 / 72.9 — every cell inside **3.4 %**, no 10 % finding. The restored diagnostic mod
+did not move the serve, which is the point of the control.
 
 **Nox-4B booted, scored and shipped (`.34`, 2026-10-21).** The CPU decision arm scored **67.8 %
 (1356/2000), ★★** on `uvx tool-eval-bench@2.8.0 --decision-bench-only` (KL 0.219, Brier 0.114, ECE
