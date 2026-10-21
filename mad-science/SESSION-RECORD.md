@@ -698,3 +698,68 @@ The ds4 search item was archived verbatim to `attic/DONE.md`.
 (`recipes/MECHANICS.md` rewritten to the 41-key set, root `AGENTS.md` corrected, both recipe skills
 updated) and the explore keeper sweep (6 arms kept, 10 retired to `attic/explore/`). The tree now
 stands at 48 recipes / 752 tests / 12 strict failures; both items are archived in `attic/DONE.md`.
+
+### 2026-10-21 — the ornith engine bump ships, arm 5 closes, and the LTX T2V arm becomes a recipe
+
+Three landings, all on the drained test pair, all permanent in the tree: the ornith SGLang
+0.5.18→0.5.21 bump validated end to end, cybersec arm 5's tools leg finished, and the LTX-2.5 T2V
+probe shipped as a recipe. The production quartet (`.30`–`.33`) was never touched.
+
+**Cybersec arm 5 — 5/5, closed (commit `3fbb5e0`).** The 2026-10-20 interruption at 107 of 1,240
+questions was re-run from a fresh TP=2 boot (`2f9a8f3e60a51ee4_3510a5e0d37d`, TTR HTTP-ready
+59.407 s) with no job cap: **1037/1240 = 83.6 %** in 3,887 s (3.133 s/question), 0 transport errors —
+simple 376/400, multiple 188/200, parallel 181/200, parallel_multiple 177/200, irrelevance 115/240.
+With house 37/37, needle 3/3 at every rung, ARC 188/200 and GSM8K 197/200 from the earlier legs, the
+arm is complete. Receipt `~/benchmarks/cybersec-arm5-tools-20261021/REPORT.md` merges the four
+2026-10-20 legs; the pair was drained afterwards. BFCL is not resumable, so this leg cost a full
+re-run rather than a resume.
+
+**Ornith SGLang 0.5.18→0.5.21 — the recorded blocker did not exist, and all three arms validated
+(commit `9d67131`).** The 2026-10-10 scan's claim that the Mamba/SWA radix-cache args "were removed
+upstream" was a misread of a v0.5.20 file move: `mamba_radix_cache_strategy` and
+`mamba_full_memory_ratio` are still declared fields at v0.5.21 and still register as flags
+(`arg_groups/fields/exec_.py:450-457`, `fields/schedule.py:214-218`, `arg_utils.py:290`), and the
+classes sglang#40313 removed are not imported by any recipe. The target is
+`lmsysorg/sglang:v0.5.21@sha256:b1259f3e…`, a multi-arch index with a native arm64 manifest (14.8 GB;
+container labels record upstream build `e00930c5…`); all three SGLang ornith arms now pin it, and
+the guards pass 29/29. Measured on `.34`/`.35`: 35B contract ok, house **37/37**, needle 3/3 at
+32k/131k/262k, ladder **C1 96.5 / C2 148.3 / C5 213.9 / C10 244.1** — every cell inside the on-file
+band's σ; 9B house **37/37**, needle 3/3 × 3, ladder C1 53.9 / C2 **89.6** / C5 151.7 / C10 147.7 on
+`.35`, whose low C2 was then re-laddered on `.34` — the node the old band was measured on — at
+**C2 97.8** (−3.2 %, inside σ), so the dip was a cross-node artifact, not an engine shift. YaRN on
+`.34`: pool 1,192,993 tokens, needle gate **6/6 rungs PASS** (262k/512k/768k 3/3; 1M depths
+10/50/90 at 97.74/97.75/97.80 % fill), and the depth-90 % rung passed **on the first attempt** under
+a pre-declared retry rule that went unused — the intermittent did not reproduce, and the streamed
+log plus `docker events` capture recorded no die event except the deliberate final stop. Of the two
+named wins, LiLiCorr (#37462) cannot reach this lane (no `lilicorr_*` draft exists) and the GDN
+target-verify change (#33778) produced no measured gain: the ladders read at or slightly below the
+prior bands. The bump's value is leaving the dead-end 2026-09-08 nightly plus 0.5.21's fixes.
+Receipts `~/benchmarks/ornith-0.5.21-bump-20261021/`; the operator form is the lane README
+§"Engine bump to SGLang 0.5.21" and the evidence is the attic's adjudication section.
+
+**Explore LTX-2.5 T2V — the probe is now a recipe (commit `d61cb30`).**
+`recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml` boots the media-gen lane's arm64 cu130
+base with the `ltx-25-launcher` mod staging ComfyUI v0.34.0 and a torch 2.14.1+cu130 venv. Measured
+on `.35` (clock capped at 2200 MHz, 1344×768 / 121 frames / 24 fps): **cold 100.13 s at 84.00 GiB
+peak, warm (seed 44) 78.1 s at 83.45 GiB** — the runbook's own cells — with a cap of 69 % of the
+unified pool and outputs that ffprobe as real h264 1344×768/121f/24fps plus AAC stereo. Receipt
+`~/benchmarks/ltx25-recipe-20261021/`.
+
+**Traps that cost time today, in the order they bit.** (1) **The head's loopback is production.**
+`127.0.0.1:8000` on the head answers the TP=4 serve, so every arm must be addressed by its node IP
+root (`http://.NN:8000`), never loopback and never `/v1`. (2) **`~/development` cannot render
+this lane.** sparkrun resolves a lane-local mod relative to the recipe path it was handed, so
+launching the symlinked `~/development/ornith-*.yaml` dies at "Could not resolve mod
+mods/ornith-honed-chat-template"; run from `/<home-dir>/src/sparkrun-recipe-registry` instead.
+(3) **`sparkrun stop --all` bypasses `--no-rm`.** It deleted the 9B container on `.35` and took its
+in-container serve log with it; stop by cluster/task id and `docker cp /tmp/sparkrun_serve.log` out
+first. (4) **sparkrun injects `HF_HUB_OFFLINE=1`**, so an in-container `hf download` fails even with
+a token — the LTX mod sets `HF_HUB_OFFLINE=0` explicitly (an `unset` was not enough). (5) **BFCL's
+`--json` target directory must exist** before the leg starts, or the tool errors at the first write.
+(6) **A benchmark without `--fresh` re-emits the previous boot's numbers** — `--skip-run` against a
+live serve is the honest way to re-measure one cell, and `--fresh` is mandatory when the point is a
+new boot.
+
+**Counts, re-measured 2026-10-21:** **52** recipes in 11 family dirs, **29** guard modules, **752**
+tests (3 skipped), **12/52** recipes fail `--strict` (plain `validate` is the gate and passes 52/52
+on the head).
