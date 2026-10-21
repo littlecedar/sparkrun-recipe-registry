@@ -15,7 +15,7 @@ it. The module paths themselves (`core/launcher.py`, `core/recipe.py`,
 `core/validation.py`, `models/runtime.py`) are the same in both builds.
 
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
-(`core/recipe.py:78-120`): **41 keys**, counted from the literal set. A key outside
+(`core/recipe.py:80-122`): **41 keys**, counted from the literal set. A key outside
 it is either plugin-owned or swept into `runtime_config`.
 
 ## The one rule that decides whether a knob works
