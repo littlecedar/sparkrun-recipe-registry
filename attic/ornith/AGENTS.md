@@ -1357,6 +1357,29 @@ the 9B `.35` serve log was lost to `sparkrun stop --all` removing the `--no-rm` 
 Operator-facing summary: [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Engine bump
 to SGLang 0.5.21".
 
+### Advisory re-query on the shipped build (2026-10-21)
+
+`api.osv.dev` now version-matches a release instead of needing a bisect, so the bump digest was
+re-queried directly: **sglang 0.5.21 matches 0 advisories, so nothing carries over to the shipped
+tag.** The PyPI feed holds 10 distinct sglang advisories (20 rows with PYSEC mirrors), and every
+range closes at or before **0.5.12**: 5 CRITICAL (the multimodal-scheduler deserialization, the
+multimodal-generation path traversal and RCE, the encoder-parallel-disaggregation RCE, and the
+`--enable-custom-logit-processor` RCE), 1 HIGH (`replay_request_dump.py` pickle), 2 MODERATE, and
+2 LOW. The bisect confirms the cutover rather than assuming it: 0.5.12 returns 6 records, and
+**0.5.13, 0.5.18, and 0.5.21 all return 0**. That is genuine absence, not a missing index — the
+same query shape on a known-vulnerable package (`requests 2.19.0`) returns 10. The 2026-10-15
+pass's warning ("the version string lies") applies only to the `0.0.0.dev1+g…` nightlies, which
+PEP 440-sorts below every release and so over-matches; a released tag does not have that problem.
+
+Two adjacent pins, same query, same day — both already adjudicated elsewhere and **unchanged**:
+`vllm/vllm-openai:glm53-flash` (vLLM `0.28.1rc1.dev580+g385dce36b`, the decision lane's image) has
+25 records and **0 HIGH/CRITICAL**, the only delta against 0.29.0 being PYSEC-2026-3998
+(CVE-2026-93840, cross-request logits corruption via `allowed_token_ids`, fixed at 0.29.0); moving it
+needs a rebuild from the tag's author, so it stays as-found. The TensorFold
+`lmsysorg/sglang:dev-cu13` family maps to **no release** — its digests report `0.0.0.dev1+g…`, and
+the one with a recorded base is v0.5.18 + 8 commits, already past every advisory bound — so no feed
+can adjudicate those digests; they remain digest-pinned known-unknowns.
+
 ## References
 
 - Ornith 1.5 announcement — <https://ornith.ai/ornith_1_5.html>
