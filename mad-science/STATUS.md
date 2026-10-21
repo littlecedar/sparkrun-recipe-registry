@@ -2,7 +2,10 @@
 
 **The test pair is drained and idle** — 0 running *and* 0 exited containers on `.34` and `.35` at
 write time (the leftover sglang container from the 07:52 Muse boot is gone; its log is kept at
-`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). The production quartet's TP=4 serve
+`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). **Since then (18:49 ET) a highcon probe
+is booting again** — task `1895030211ea0500_3510a5e0d37d`, one `node_0` + `node_1` pair on
+`recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`. It is **running, not finished**,
+and it is not this record's item. The production quartet's TP=4 serve
 is untouched and healthy. Gate: **752 tests OK** (2 skipped — the pooling guard's real-CLI case runs
 now that `sparkrun` is on this workstation), **52/52** recipes pass plain `sparkrun recipe validate`
 (0 errors, re-swept file by file), **12/52** fail `--strict` (unchanged in count). Landed on top of
