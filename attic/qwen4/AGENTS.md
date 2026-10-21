@@ -342,9 +342,13 @@ own subsection (10.7 is the `6c01ac37` re-pin).
 - **`unpack-labquant-ple-nvfp4-to-fp8`.** Without it: `RuntimeError: The size of tensor a (160) must
   match the size of tensor b (80)` in `copy_ple_rows_to_tp_embedding`. Cold cost 51.2 GB / ~50 s per
   node. (The ORDER / `--no-ple-offload-embedding` couplings stay in the recipe.)
-- **`diag-qwen4-unplaced-scales`.** DIAGNOSTIC ONLY: logs in front of the assert at
-  `qwen4_exp.py:2136` which `_scale` was unplaceable; does not change control flow (the assert still
-  fires). No-op once every `_scale` finds a destination; see its `README.md`.
+- **`diag-qwen4-unplaced-scales`.** DIAGNOSTIC ONLY: logged in front of the assert at
+  `qwen4_exp.py:2136` which `_scale` was unplaceable; changed no control flow (the assert still
+  fired). **RETIRED 2026-10-21** — moved to `attic/qwen4/mods/diag-qwen4-unplaced-scales/` and out of
+  the highcon recipe after that arm booted diag-free (payload never fired, sweep inside 3.4 % of
+  control; `~/benchmarks/qwen4-highcon-20261021/`). The archived arms in `attic/qwen4/arms/` still list
+  `mods/diag-qwen4-unplaced-scales` in their chains: those are the provenance of pre-retirement boots
+  and that path no longer resolves — rebuild against `attic/qwen4/mods/…` if one is ever re-run.
 - **`demote-labquant-narrow-mxfp8-to-bf16`.** Without it the load dies
   `ValueError: MXFP8 requires n >= 128 and k >= 128 for CUTLASS MXFP8 … got m=8, n=96, k=2560`. It
   demotes the 72 `in_proj_a`/`in_proj_b` tensors (36 `linear_attn` layers, 48 rows/rank fused to

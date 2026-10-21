@@ -465,6 +465,18 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   and a cache reown, no engine behaviour — which is why it stays as insurance rather than as a
   workaround. The item stays open until the **highcon arm boots clean without it**; that boot is the
   queued retirer.)*
+  *(**CLOSED 2026-10-21 — the highcon arm booted clean without it, and the mod is retired.** The
+  control boot ran the mod with its payload never firing (`[diag] UNPLACED _scale` = 0 on both ranks)
+  and every bs-sweep cell inside 3.4 % of its control — **86.8 / 87.5 / 89.5 / 75.4 t/s** at
+  k=8/12/16/24 against 84.9 / 89.1 / 89.1 / 72.9, TTR **9.6 min** (`scheduler_e2e=571.22`),
+  admission unclamped (`max_total_num_tokens=1587072`, `max_running_requests=32`, mamba 128) — so the
+  restore moved nothing and the mod had no work left. It then came out of the recipe's `mods:` chain
+  and the two "pending boot" comment lines, moved to `attic/qwen4/mods/diag-qwen4-unplaced-scales/`
+  (directory and README kept as provenance), and the recipe was re-booted diag-free to prove the
+  edit: `/v1/models` 200 at 262144, `max_total_num_tokens=1597376`, no `AssertionError`, and
+  `_diag_unplaced_scales` **absent** from the patched engine file. The `_scale` failure mode it
+  watched for is preserved in `recipes/qwen4/README.md` rather than lost with the comment lines.
+  Receipts `~/benchmarks/qwen4-highcon-20261021/{REPORT.md,serve-*.log.gz}`.)*
 
 ## ifm
 IFM K2-Horizon

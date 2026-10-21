@@ -56,14 +56,20 @@ mod-built `/cache/runtime/labq-patched` tree, not the raw HF snapshot.
 5. `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16` — **must be last**: demotes the 72 narrow
    `in_proj_a`/`in_proj_b` MXFP8 tensors (n=96/rank, under CUTLASS's MXFP8 floor of 128) to BF16.
 
-A sixth entry, `diag-qwen4-unplaced-scales`, is **logging-only**: it inserts a log call as the first
-statement of the `_scale` branch at `qwen4_exp.py:2136` and changes no control flow (the assert still
-fires; its own README says so). Its retirement is per arm, because the evidence is per arm:
-**the balanced chain drops it as of 2026-10-20** — `zz-labq-no-diag` boots exactly that chain without it
-(ready in ≈670 s, house 37/37, no `unplaced`/`AssertionError` in the serve log), so there the assert does
-not fire and the probe recipe stays as the control's record (`~/benchmarks/qwen4-nodiag-20261020/`). **The
-highcon arm still mounts it**: its `max_num_seqs`/`chunked_prefill` knobs differ from the balanced arm's
-and it has never booted diag-free, so removing it there is queued behind that arm's own boot.
+A sixth entry, `diag-qwen4-unplaced-scales`, was **logging-only**: it inserted a log call as the first
+statement of the `_scale` branch at `qwen4_exp.py:2136` and changed no control flow (the assert still
+fired). **It is retired from both arms and now lives at
+`attic/qwen4/mods/diag-qwen4-unplaced-scales/` (2026-10-21).** The balanced chain dropped it on
+2026-10-20 (`zz-labq-no-diag` boots that chain without it: ready in ≈670 s, house 37/37, no
+`unplaced`/`AssertionError`, `~/benchmarks/qwen4-nodiag-20261020/`), and the highcon arm — the last
+holder — booted diag-free on 2026-10-21 with the same result (`~/benchmarks/qwen4-highcon-20261021/`).
+
+**The failure mode it watched for, kept because an operator still needs it:** the loader dies on a
+bare assert at `qwen4_exp.py:2136` when a `_scale` tensor has no destination in the tree it is
+loading. That is what the export's `.weight_scale` suffix (vs the engine's `weight_scale_inv`) caused;
+`fix-labquant-mxfp8-weight-scale-name` is the fix, and the diagnostic only printed the offending name
+ahead of the assert. If the assert ever fires again, that rename mod is the first thing to check; the
+retired mod's `README.md` documents the patch it applied.
 
 **Two engine flags** live in `defaults.extra_args`, not as tunables:
 `--moe-runner-backend flashinfer_cutlass` (with `auto`, the NVFP4 MoE resolves to

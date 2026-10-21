@@ -30,16 +30,19 @@ pairs. Measured live 2026-10-19: 144 shared-expert remaps plus the attention/GDN
 shipped suite boot shows zero `UNPLACED`/`Expected 1.0` lines and passes contract/house/needle/ARC/
 GSM8K/tools/W4-soak (`~/benchmarks/qwen4-labq-suite-20261018/`).
 
-**`diag-qwen4-unplaced-scales` is insurance, not a workaround — and it is retired for one arm, pending
-for the other (2026-10-20).** It is logging-only: one log call ahead of the assert, no control-flow
-change. The control ran on the **balanced** config: `recipes/qwen4/zz-labq-no-diag.yaml` (job
-`1895030211ea0500_3510a5e0d37d`, TP=2 on the pair) served `/v1/models` 200 in ≈670 s, answered a chat
-request, and passed house **37/37**; its serve log's only `_scale` lines are the fix mod's own benign
-`[remap] …weight_scale -> …weight_scale_inv` entries, with no `unplaced` and no `AssertionError`. So the
-assert does not fire on the balanced fixed chain and that recipe dropped the mod. The **highcon** arm
-(`max_num_seqs`/`chunked_prefill` differ) still mounts it: its own diag-free boot is the evidence that
-retires it there, and until that boot lands the mod stays. Probe receipt
-`~/benchmarks/qwen4-nodiag-20261020/`.
+**`diag-qwen4-unplaced-scales` is insurance, not a workaround — and it is retired for both arms
+(2026-10-20 balanced, 2026-10-21 highcon).** It is logging-only: one log call ahead of the assert, no
+control-flow change. The control ran on the **balanced** config: `recipes/qwen4/zz-labq-no-diag.yaml`
+(job `1895030211ea0500_3510a5e0d37d`, TP=2 on the pair) served `/v1/models` 200 in ≈670 s, answered a
+chat request, and passed house **37/37**; its serve log's only `_scale` lines are the fix mod's own
+benign `[remap] …weight_scale -> …weight_scale_inv` entries, with no `unplaced` and no
+`AssertionError`. The **highcon** arm was the last holder; its own boot (`1895030211ea0500_3510a5e0d37d`
+again — the job id is derived from the launch shape, so the two boots collide in name) ran the mod
+with its payload **never firing** (`[diag] UNPLACED _scale` = 0 on both ranks) and every ladder cell
+inside 3.4 % of its control, after which the mod was removed from the recipe and the recipe re-booted
+diag-free: `/v1/models` 200, no `AssertionError`, and `_diag_unplaced_scales` absent from the patched
+engine file. The mod now lives at `attic/qwen4/mods/diag-qwen4-unplaced-scales/`. Probe receipts
+`~/benchmarks/qwen4-nodiag-20261020/` and `~/benchmarks/qwen4-highcon-20261021/`.
 
 **Upstream etiquette.** The nameless assert is an ergonomics defect: log `name` before touching
 `.item()`, or reject multi-element non-`_inv` scales with a message that names them.
