@@ -215,6 +215,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | clef-flash-decision-sglang  | 🤏🚮    |    70.3% |      4.9 |        — |        — |         — | 19.1GB |  82% |   /v1/systemone |  1 | [Model][Cloudflare/clef-flash]         |
 | kai-0.6b-decision-vllm-srun | 🤏🖥🚮   |    47.5% |        — |        — |        — |         — |  1.5GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Kai-0.6B] |
 | sol-2b-decision-vllm-srun   | 🤏🖥🚮   |      55% |        — |        — |        — |         — |  4.8GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
+| nox-4b-decision-vllm-srun   | 🤏🖥🚮   |    67.8% |    0.044 |    0.044 |        — |         — |  9.7GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Nox-4B]   |
 | sol-2b-decision2-gguf-llamacpp | 🤏🚮  |    55.0% |     5.2 |      5.4 |      5.4 |       5.4 |  2.0GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B-GGUF] |
 | kokoro-82m-tts-cpu          | 🤏🖥     |        — |        — |        — |        — |         — | 0.31GB |    — | /v1/audio/speech |  1 | [Model][hexgrad/Kokoro-82M]            |
 
@@ -302,6 +303,7 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [inclusionAI/Ling-3.0-flash-dspark]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
 [vllm-sr/Decision-2.0-Kai-0.6B]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
 [vllm-sr/Decision-2.0-Sol-2B]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B
+[vllm-sr/Decision-2.0-Nox-4B]: https://huggingface.co/vllm-sr/Decision-2.0-Nox-4B
 [vllm-sr/Decision-2.0-Sol-2B-GGUF]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B-GGUF
 [Myric/Kolibri-1-APEX-GGUF]: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
 [deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash

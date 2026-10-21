@@ -2,7 +2,7 @@
 
 Small models that make classification / routing / judgment calls — **prefill-only scorers, not
 chat models** — co-located with the shipped embed + rerank pair on **one** DGX Spark (the lane's
-core constraint: nodes are at a premium). This README covers the five shipped recipes plus the two
+core constraint: nodes are at a premium). This README covers the six shipped recipes plus the two
 candidate CPU arms measured 2026-10-18 — `kev-0.8b` serves and scores but cannot pass sparkrun's
 launch gate, and `d3-edge` cannot load on a staged offline node. The
 candidate research, verified surfaces, official scores, the CPU+GPU tandem probe and the
@@ -16,7 +16,8 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
 - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
 - [sol-2b-decision2-gguf-llamacpp](#sol-2b-decision2-gguf-llamacpp)
-- [kev-0.8b-decision-serve](#kev-08b-decision-serve)
+- [nox-4b-decision-vllm-srun](#nox-4b-decision-vllm-srun)
+- [kev-0.8b-decision-serve](#kev-0.8b-decision-serve)
 - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
 - [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
 - [Operating constraints](#operating-constraints)
@@ -29,8 +30,9 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [Attic index](#attic-index)
 
 Accuracy on the shared instrument (`tool-eval-bench` v2.8.0, Typed Decisions test split — 400
-cases / 2000 decisions): **clef-flash 70.3% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B 47.5%**; the
-candidate `kev-0.8b` sits below that ranking at **46.0%** and `d3-edge` has no score (their sections follow).
+cases / 2000 decisions): **clef-flash 70.3% > Nox-4B 67.8% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B
+47.5%**; the candidate `kev-0.8b` sits below that ranking at **46.0%** and `d3-edge` has no score (their
+sections follow).
 
 Two measurements sit outside that ranking and have their own sections below: the lane's
 accuracy record is **not** clef-flash alone but the **clef + Kai ensemble at 71.6%** (pooling
@@ -136,6 +138,52 @@ Throughput is flat from c1 to c10 while latency scales with offered concurrency:
 batching — the same shape the CPU arms show for a different reason. Receipt
 `~/benchmarks/sol2b-20261020/` (`teb-decision.log`, `runs/2026/10/*.md`, `build.log`, `build2.log`,
 `ladder.log`, `ladder.json`).
+
+### nox-4b-decision-vllm-srun
+
+| field | value |
+|---|---|
+| repo id | [`vllm-sr/Decision-2.0-Nox-4B`][nox] (4.21B, Qwen3.5-4B-Base backbone, 16384 ctx; pinned `25e8f67d`) |
+| accuracy | **67.8 % (1356/2000), ★★** — KL(gold‖pred) 0.219, Brier 0.114, ECE 0.063, **0 decision errors** |
+| size | 9.7 GB (five backbone shards + a 10.5 MB decision head); 9.03 GiB on disk |
+| API | `/v1/systemone` (+ `/v1/decisions`), **CPU**; `/health` is the vendor golden gate |
+| TP | 1 |
+| flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
+| status | **BOOT-VERIFIED 2026-10-21** (`.34`) — golden gate passes, `67.8 %` on the lane instrument |
+
+**The best CPU route the lane has, and the offline-staging class it inherits.** One request per case,
+one forward pass, no generated tokens: **67.8 % (1356/2000)** on
+`uvx tool-eval-bench@2.8.0 --decision-bench-only` (run
+`2026-10-21T19-02-40.908377Z_a3a115d0`, Typed Decisions test split `e039ebffcc28`, 400 cases) — 12.8
+points over Sol-2B's 55.0 %, second in the lane behind clef-flash's 70.3 %. By type: `noul` 74.2 %
+(445/600), `choice` 66.0 % (396/600), `score` 64.4 % (515/800); by workflow the weak cell is
+`agent_trace_observability` at 59.4 %, the others 68.0–72.6 %.
+
+**`/health` is the vendor's CPU golden comparison, not liveness** (tolerance 1e-3, goldens recorded on
+x86), so a 503 with `GoldenResult(status='failed')` means the pack diverges, not that the boot broke.
+On this aarch64 node it returned **200 `{"status":"ready","reason":null}`** — the d3-edge golden
+divergence did not reproduce for this manifest (`49771ea3…` at the pin).
+
+**The launch needs `HF_HUB_OFFLINE=0`, and the recipe now carries it.** As sparkrun stages a model
+(`HF_HUB_OFFLINE=1`), this loader still calls the Hub tree API and `/health` answers 503 `status:
+loading` with `OfflineModeIsEnabled` retries while never reading the staged snapshot — the d3-edge
+failure, reproduced. The recipe's `env: HF_HUB_OFFLINE: '0'` is the documented mitigation and it
+boots clean in ~30 s; launching without it stalls at the gate.
+
+**Cost, measured.** The full pass took **14,066 s (3.91 h)**, 35.2 s per case, 652,665 input tokens —
+1.6× the price a three-case probe predicted (21.9 s/case), because the first cases are cheaper than
+the mean. Grading a candidate on this route is a 4-hour window, not a 2.4-hour one.
+
+**Ladder: flat, as the CPU shape predicts.** `tools/decision-ladder.py --api systemone --limit 100
+--runs 1` (the same limited-slice form Kai's ladder uses — 400 cases × 5 runs × 4 cells prices at
+~30 h at this per-case cost): **C1 0.044 / C2 0.044 / C5 0.044 req/s** (0.22 decisions/s), p50
+**22,763 → 45,480 → 113,797 ms**, 500/500 decisions clean at every level. Throughput does not move
+while latency scales with offered concurrency — one forward pass at a time, no batching, a pure
+queue. **C10 was not run** — the serve was stopped to free the pair for the queued flash-next TP=2
+boot.
+
+Receipt `~/benchmarks/nox4b-20261021/` (`teb-decision.log`, `runs/2026/10/<run-id>.md`, `probe.json`,
+`ladder.log`, `serve.log`, `REPORT.md`).
 
 ### kev-0.8b-decision-serve
 
@@ -505,6 +553,7 @@ Files under [`attic/decision/`](../../attic/decision/):
 [clef]: https://huggingface.co/Cloudflare/clef-flash
 [kai]: https://huggingface.co/vllm-sr/Decision-2.0-Kai-0.6B
 [sol]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B
+[nox]: https://huggingface.co/vllm-sr/Decision-2.0-Nox-4B
 [kev]: https://huggingface.co/jaredpalmer/kev-0.8b
 [d3]: https://huggingface.co/vllm-sr/d3-edge
 [kokoro]: https://huggingface.co/hexgrad/Kokoro-82M

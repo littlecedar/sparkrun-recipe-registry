@@ -10,7 +10,9 @@ max_nodes: 1
 description: >-
   vllm-sr/Decision-2.0-Nox-4B — the 4B rung of the Decision 2.0 ladder (4.21B,
   Qwen3.5-4B-Base backbone, 16384 ctx), served by the vendor's own vllm-srun
-  runtime on CPU. Prefill-only decision scorer: POST /v1/systemone (and the
+  runtime on CPU. 9.03 GiB of weights on disk (9.695 GB: five backbone shards
+  + a 10.5 MB decision head) — the param-count estimate of 7.8 GiB
+  understates the pack. Prefill-only decision scorer: POST /v1/systemone (and the
   /v1/decisions superset) answers choice / noul / score questions with
   calibrated probabilities in one forward pass — no chat surface. Highest
   published quality of the CPU-servable rungs (JevArena 63.6, Jev Decision
@@ -40,6 +42,13 @@ defaults:
 executor_config:
   user: "root"
   entrypoint: ""
+
+# Required, not incidental, and MEASURED 2026-10-21: as sparkrun stages it (HF_HUB_OFFLINE=1), this
+# loader still calls the Hub tree API and /health answers 503 `status: loading` with
+# `OfflineModeIsEnabled` retries, then never reads the staged snapshot. HF_HUB_OFFLINE=0 is the
+# documented d3-edge mitigation and it boots clean here in ~30 s.
+env:
+  HF_HUB_OFFLINE: '0'
 
 # Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, this python:*-slim image ships no kill binary, and without the shim the launch is declared failed while the serve comes up healthy seconds later.
 command: >
