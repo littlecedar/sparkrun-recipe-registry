@@ -24,7 +24,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| — none: the test pair is drained (0 containers, no leg processes); the ds4 v0.6 A/B is next — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped | 0 h |
+| — none: the test pair is drained (0 containers, no leg processes) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; **ds4 v0.6 A/B adopted + `reasoning_effort` measured (2026-10-21)** | 0 h |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -32,7 +32,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
 | Other local — single-node | 6–11 h | ~3–6 h | media-gen residue (Qwen-Image non-8-step schedules via a `sigmas`-accepting mod, the vLLM-OMNI route) · decision Nox-4B/JEV-27B 3–5 · reasoning candidates 1–3 · **LTX T2V and the ornith 0.5.21 bump are done** |
-| Pair-bound | 15–25 h | 15–25 h | ds4 TensorFold v0.6 3–5 · flash-next b12x 3–6 · ds4 `reasoning_effort` 1–2 · qwen4 highcon + 1 probe 8–12 (highcon is also the boot that retires the restored diagnostic mod) |
+| Pair-bound | 15–25 h | 15–25 h | flash-next b12x 3–6 · qwen4 highcon + 1 probe 8–12 (highcon is also the boot that retires the restored diagnostic mod). **ds4 TensorFold v0.6 and ds4 `reasoning_effort` are done (2026-10-21)** — v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, shipped pin moved to `d6e4c10d…`); effort high is a 10.6 % paired saving carried by one task |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
 

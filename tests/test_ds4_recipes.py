@@ -1608,8 +1608,8 @@ class SglangLaneNegativeControls(unittest.TestCase):
 
 TF_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
 TF_MOD_DIR = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher"
-TF_IMAGE = ("littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a"
-            "7449d7335fb85d453cc439985c525495")
+TF_IMAGE = ("littlecedar/dgx-spark-dsv41@sha256:d6e4c10d4c0ec329196104dc98f77492"
+            "f2ce648400671bbae78dc46e7e04fe66")
 TF_MOD_REF = "@littlecedar/mods/tensorfold-dsv41-launcher"
 # The two TensorFold flags the shim MUST emit, and where their values come from.
 TF_RENDEZVOUS_FLAGS = ("--master", "--master-port", "--rank")

@@ -346,17 +346,17 @@ repo, itself a downstream of MiaAI-Lab's).
 | | |
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
-| Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `d5d7bb3`, branch `deepseek-v41-tp2`) |
+| Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `3825f62` — the v0.6 release commit, 2026-10-18; reports `tensorfold 0.6.6`) |
 | Model | [`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`](https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw) — the 2026-10-17 refresh's EXL3 2.9 bpw (~196 GiB), pinned `c178a012…` |
 | Engram | the 1017 tables (layers 1/14, ~189 GiB) in the node's `hub/dsv41-engram` dir, **outside** the checkpoint snapshot so a refresh cannot empty it; the recipe passes `--require-engram`, so a node without them fails the launch instead of serving degraded |
 | Size / fit | 385 GB |
 | Topology | TP=2 — two GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served (the model's full trained window, which is also the KV pool) |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
-| Image | `littlecedar/dgx-spark-dsv41@sha256:fabbe861…` (vendored, digest-pinned) |
+| Image | `littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…` (vendored, digest-pinned; built 2026-10-21 from `Dockerfile.tensorfold-dsv41` with `TENSORFOLD_REF=3825f62`) |
 | Tags | `fast`, `large_context`, `single_user`, `vision` |
-| Measured | c1 **66.4** / c4 47.8 / c8 44.8 / c16 48.4 t/s — interleaved, 5 runs/cell, 3 boots per arm (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`); upstream reports 101 code / 62 prose / 142 structured, 4 streams 112 |
-| Boot-verified | 2026-10-18, shipped arm: TTR **62 s**, `/v1/models` = the 1017 id, vision 3/3, `weights in 26 s (from the rank cache)` (`~/benchmarks/ds4-1017-ship-20261017/`) |
+| Measured | **v0.6 (shipped since 2026-10-21):** c1 **64.5** / c4 51.2 / c8 **52.5** / c16 **53.2** t/s (n=9: 3 boots × 3 runs) and cold prefill **2,077** t/s @ 32k / **2,073** @ 131k — `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`. The control (0.6.3, `fabbe861…`) on the same interleaved run: 64.7 / 46.1 / 41.5 / 42.3 t/s, prefill 1,667 / 1,486 — the treatment's worst boot beats the control's best at c8 and c16. Upstream reports 101 code / 62 prose / 142 structured, 4 streams 112. The older 5-run `ds4-1017` 66.4 / 47.8 / 44.8 / 48.4 cells were the 0.6.3 engine (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`). |
+| Boot-verified | 2026-10-21, v0.6 arm: six boots, `/v1/models` = the 1017 id and `tensorfold --version` = 0.6.6 on every treatment boot; launch 80.3–80.9 s after the one-time JIT (the first v0.6 start costs 264 s building three CUDA extensions). Earlier 0.6.3 ship: TTR 62 s, vision 3/3 (`~/benchmarks/ds4-1017-ship-20261017/`) |
 
 ### What it serves
 
@@ -456,10 +456,15 @@ published GB10 numbers produced a ranked shortlist in
 the exact flag or artifact, a dated primary source, and a pre-registered interleaved A/B per
 candidate. None of it is measured on this lane, and none of it is a recipe change:
 
-- **Runnable on the `.34`/`.35` pair now** — (P0) the GPU clock-latch audit, a host check that
-  recovered a GB10 stuck below 1 GHz from 41 to 77 tok/s and should precede any A/B; (4) the
-  TensorFold v0.6 engine bump, prefill-heavy and unquantified; (6) client-side
-  `reasoning_effort: high` instead of max, 0.55–0.8x reasoning cost at equal reported quality.
+- **Measured and adopted 2026-10-21** — (4) the TensorFold v0.6 engine bump: c8 **+26.5 %**, c16
+  **+25.7 %** (worst treatment boot beats the best control boot at both), cold prefill **+24.6 %**
+  at 32k and **+39.5 %** at 131k, c1 flat, c4 +10.9 % with overlapping ranges; six interleaved
+  boots — `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`. The shipped pin now is the v0.6 image
+  (`d6e4c10d…`, engine 0.6.6 at commit `3825f62`). (6) `reasoning_effort: high` instead of max:
+  paired same-task A/B, **10.6 %** fewer reasoning tokens with house 37/37 on both arms and no
+  pass→fail flip — but the bar is cleared by 0.6 points and one task (`hard-rev`, 128 → 43) carries
+  most of it; treat it as "just clears", not a headline. (P0) the GPU clock-latch audit is closed
+  negative (2026-10-19).
 - **TP=4-only, upgrade candidates for `.30`–`.33`** (frozen by the 2026-10-18 owner policy) —
   `--min-free-slots-delay 1` (+21 % C8 decode on 4xGB10), prefix-cache truth via
   `--enable-cache-report` / `lpm`, candidate-only indexer scoring (upstream #43401), TRT-LLM sparse

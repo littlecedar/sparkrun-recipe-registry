@@ -763,3 +763,25 @@ new boot.
 **Counts, re-measured 2026-10-21:** **52** recipes in 11 family dirs, **29** guard modules, **752**
 tests (3 skipped), **12/52** recipes fail `--strict` (plain `validate` is the gate and passes 52/52
 on the head).
+
+**ds4 TensorFold v0.6 adopted after a six-boot interleaved A/B (`.34`/`.35`, 2026-10-21).**
+The v0.6 image (`littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…`, engine `tensorfold 0.6.6` at
+`3825f62`, built 2026-10-21) ran A/B/A/B/A/B against the shipped `fabbe861…` (engine `0.6.3`,
+built 2026-10-05 from `d5d7bb3`) — so the delta is **0.6.3 → 0.6.6** and spans the v0.6 release
+commit. Depth-0 ladder, `--fresh`, 3 runs/cell, n=9 per cell: c1 64.70 → 64.47 (flat), c4 46.13 →
+51.15 (+10.9 %, ranges overlap), c8 41.47 → **52.45 (+26.5 %)**, c16 42.33 → **53.21 (+25.7 %)**;
+cold prefill 1,667 → **2,077 t/s** at 32k (+24.6 %) and 1,486 → **2,073** at 131k (+39.5 %). At c8
+and c16 the treatment's worst single run beats the control's best (50.43 > 47.83; 52.66 > 46.78),
+so the pre-registered falsifier is not met. The first v0.6 start costs 264 s JIT-building three
+CUDA extensions; B2/B3 launch in 80.9/80.3 s against the control's 80.1/81.5 s, so the win carries
+no launch penalty. The shipped recipe's `container:` pin moved to `d6e4c10d…`; the cybersec
+abliterated TP=2 arm still pins `fabbe861…` (unmeasured on v0.6 — left alone). `reasoning_effort:
+high` was measured request-level on the treatment serve with a paired same-task A/B (10 tasks × 2
+rounds × 2 arms): **10.6 % fewer reasoning tokens**, completion 51.7 → 41.4, house **37/37 both**
+(no pass→fail flip) — but `hard-rev` (128 → 43) carries most of it and the 10 % bar is cleared by
+0.6 points, so it is recorded as "clears, not a headline". Receipts
+`~/benchmarks/ds4-v06-ab-20261021/` (`REPORT.md`) and `~/benchmarks/ds4-v06-build-20261021/`.
+Driver: `.scratch/ds4-v06/run-ab.py` (git-ignored) — six-boot interleaved, refuses a busy node,
+asserts `/v1/models`, the booted `Image:` and the container's `tensorfold --version` per boot, and
+pairs the prefill probes with a multiplicative rescale (the first version's additive "+1 char"
+retry could never fix a fill error).

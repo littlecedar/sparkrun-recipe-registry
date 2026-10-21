@@ -49,9 +49,9 @@ upgrade candidates because `.30`–`.33` are frozen.
 | 1 | `--min-free-slots-delay 1` | scheduler | C8/C16, worst TTFT | **+21 %** C8 decode measured on GB10 | 20 | `.30`–`.33` |
 | 2 | Prefix-cache truth (`--enable-cache-report`, `lpm`) | cache | long-prefix revisit | 1.5 s vs 89 s re-prefill if hits work | 16 | `.30`–`.33` |
 | 3 | Candidate-only indexer scoring (#43401) | decode kernel | 1M decode | **−17 %** step at 1M on 2×GB10 | 10 | `.30`–`.33` |
-| 4 | TensorFold v0.6 bump | engine | prefill + C4/C8 | unquantified release, prefill-heavy | 9 | `.34`/`.35` |
+| 4 | TensorFold v0.6 bump | engine | prefill + C4/C8 | **measured 2026-10-21: c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 % — ADOPTED** | 9 | `.34`/`.35` |
 | 5 | TRT-LLM sparse MLA (`--dsv4-attn-backend trtllm`) | attention kernel | C5/C10, 128K | **2.26×** kernel geomean on GB10 | 8 | `.30`–`.33` |
-| 6 | `reasoning_effort` high, not max | workload | output tokens | **0.55–0.8×** reasoning cost | 8 | both |
+| 6 | `reasoning_effort` high, not max | workload | output tokens | **measured 2026-10-21: 10.6 % paired saving, one task carries it — clears, not headline** | 8 | both |
 | 7 | Rebuild on newer SGLang + CUDA 13.3 | composite | prefill + decode | per-PR; +19 % cold prefill claimed | 6 | `.30`–`.33` |
 | 8 | Encoder SWA bounded replay stack | prefix cache | 64K-hit TTFT | 4.6 s → ~1.0 s at 16 hits | 6 | `.30`–`.33` |
 | 9 | DSpark compact verify (#42718) | spec decode | C5/C10/C16 | high-batch only; no GB10 number | 4.5 | `.30`–`.33` |
@@ -250,27 +250,34 @@ rows a program / 2 warps with the served head-sum tree (`TF_DS_IDX_RB`, `TF_DS_I
 ([release commit](https://github.com/bertholomus/TensorFold/commit/3825f62022f25e3e5cf01fa5ea708d4a93b0a9e3));
 the branch also carries `222a9c0` (2026-10-19) for DSML tool-call parsing.
 
-**Expected effect.** **UNVERIFIED** — the release commit states the changes, not a measured
-delta. The shape is prefill-heavy, with a possible C4/C8 effect from wider rounds. Our recipe pins
-`d5d7bb3`, which predates v0.6, so this is a real engine delta, not a re-measurement.
+**Measured 2026-10-21 — ADOPTED.** The control is `fabbe861…` (engine `tensorfold 0.6.3`, built
+2026-10-05 from `d5d7bb3`), the treatment `d6e4c10d…` (engine `0.6.6` at `3825f62`). Six
+interleaved boots (A/B/A/B/A/B), depth-0 ladder at 3 runs/cell, `--fresh`, `/v1/models` and the
+container’s own `tensorfold --version` asserted per boot. Receipt
+`~/benchmarks/ds4-v06-ab-20261021/REPORT.md`.
 
-**Artifact.** `ARG TENSORFOLD_REF=3825f62` in `recipes/ds4/Dockerfile.tensorfold-dsv41`, a rebuild,
-and a new digest in the recipe’s `container:` line (that edit is **not** part of this note; the
-recipe YAMLs are off-limits here). The v0.6 indexer knobs are engine defaults; the env names exist
-only if a sweep is wanted later.
+| cell | 0.6.3 (n=9) | 0.6.6 (n=9) | Δ |
+|---|---|---|---|
+| c1 | 64.70 (57.02–74.71) | 64.47 (60.26–70.05) | −0.4 % |
+| c4 | 46.13 (42.68–48.14) | 51.15 (46.91–53.46) | +10.9 % |
+| c8 | 41.47 (37.36–47.83) | 52.45 (50.43–53.24) | **+26.5 %** |
+| c16 | 42.33 (33.75–46.78) | 53.21 (52.66–53.59) | **+25.7 %** |
+| prefill 32k | 1,667 t/s (1,550–1,745) | 2,077 (1,848–2,255) | **+24.6 %** |
+| prefill 131k | 1,486 (1,418–1,535) | 2,073 (2,032–2,098) | **+39.5 %** |
+
+The falsifier is **not** met: the treatment’s worst single run beats the control’s best at c8
+(50.43 > 47.83) and c16 (52.66 > 46.78), and at both prefill sizes. c4 and c1 overlap — quote c4
+only as a mean effect (+10.9 %) and c1 as flat. The first v0.6 start costs 264 s JIT-building three
+CUDA extensions; later boots launch in 80.3–80.9 s, inside the control’s 80.1–81.5 s, so the win
+carries no launch-time penalty. The v0.6 indexer knobs remain engine defaults (no sweep run).
+
+**Artifact.** `ARG TENSORFOLD_REF=3825f62022f25e3e5cf01fa5ea708d4a93b0a9e3` in
+`recipes/ds4/Dockerfile.tensorfold-dsv41`; the shipped recipe now pins
+`littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…`. Build log and digest:
+`~/benchmarks/ds4-v06-build-20261021/`.
 
 **GB10 / SM121 evidence.** The branch is GB10-only by construction (two nodes, TP=2); the build
-targets SM121. No performance number exists yet (`UNVERIFIED`).
-
-**A/B plan (`.34`/`.35`, runnable once the image is built).**
-- Arms: shipped `fabbe861…` vs the v0.6 rebuild; same launcher, same checkpoint pin, same Engram.
-- Interleave 3 boots/arm, A/B/A/B/A/B, `--fresh`, `/v1/models` asserted per boot.
-- Ladder: `benchmarking/ds4-sglang-depth0-ladder.yaml` (C1/C4/C8/C16, 3 runs/cell) on the TP=2
-  serve. Prefill probe: 32,768 and 131,072 cold tokens, one run each per boot (the lane’s existing
-  probe shape).
-- **Falsifier:** no cell clears the control’s 15-value range **and** prefill is within the boot
-  spread. A C1-only move with flat prefill would not match the release notes and should be
-  re-run before it is quoted.
+targets SM121, and the six measured boots are the performance evidence.
 
 ---
 
@@ -340,11 +347,22 @@ matched too at **0.4–0.6×**. “Avoid max for agent loops unless you need the
 **Expected effect.** 20–45 % fewer reasoning tokens at equal quality on that corpus; the engine’s
 tok/s does not change. It is a cost/speedup for the workload, not a kernel.
 
+**Measured 2026-10-21 (ds4 TP=2 serve, `tensorfold 0.6.6`; one serve, request-level).** Same ten
+tasks to both arms, two rounds, arm order flipped per round (40 requests), paired per task.
+`max` 47.5 reasoning tokens mean vs `high` 37.1 → **10.6 % paired saving**; completion tokens
+51.7 → 41.4; no length cuts; house battery **37/37 on both** arms (baseline 36/37); no task flipped
+pass→fail. The saving is **not uniform**: `hard-rev` 128 → 43 supplies most of it (+66 %), then
+`hard-json` +12.5 %, `hard-upper` +11.9 %, `trick-2` +11.3 %; `hard-arith-2` is slightly negative.
+Without `hard-rev` the mean paired saving is ~6–7 %. **Verdict against the pre-registered bar:
+PASS, but it clears 10 % by 0.6 points and is carried by one task — do not quote it as a headline
+saving.** Receipt `~/benchmarks/ds4-v06-ab-20261021/reasoning-effort/reasoning-effort-ab.json`.
+
 **Artifact / flag.** Request-level `reasoning_effort` (and the served alias/cookbook default). The
 SGLang V4.1 cookbook lists `SGLANG_DSV41_REASONING_EFFORT` in its env block and says the parser
-maps `reasoning_effort` values; thinking is off by default on this model. **UNVERIFIED** whether
-the pinned 2026-09-16 tree implements the same mapping — the lane’s chat template and parser are a
-separate overlay.
+maps `reasoning_effort` values; thinking is off by default on this model. The mapping is carried
+by the lane’s own chat template (`mods/tensorfold-dsv41-launcher/chat_template.jinja`: low/medium/
+high/max → 50/62/75/100), and the 2026-10-21 run proves it is wired on this serve (identical
+reasoning counts across arms would have meant INERT).
 
 **GB10 / SM121 evidence.** Quality/cost measured on the 1017 weights; the hardware is not stated
 in the card (`LIKELY` that it transfers, since it is a token-count effect, not a kernel).

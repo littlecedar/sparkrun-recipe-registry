@@ -226,18 +226,33 @@ unrun cell, an interleaved C1 re-take on the shipped line, needs `.30`–`.33` a
 deferred**, by the 19:15 policy above. Measurement, launcher pins and the correction to the earlier
 "slower on every cell" reading are archived in `../attic/DONE.md`.)*
 
-- [ ] **Run the now-runnable arms of the deep-search shortlist** *(delivered 2026-10-19.)* — the
-  ranked note is `mad-science/DS4-SPEEDUPS.md` (11 candidates + a precondition, each with mechanism,
+- [ ] **Run the now-runnable arms of the deep-search shortlist** *(delivered 2026-10-19; the two
+  runnable arms were measured 2026-10-21 — see the closed item below.)* — the ranked note is
+  `mad-science/DS4-SPEEDUPS.md` (11 candidates + a precondition, each with mechanism,
   expected effect, carrying flag/artifact, dated source, and a pre-registered interleaved A/B); the
-  lane README now lists them under §"Upgrade candidates". Two can still run on the `.34`/`.35`
-  pair: the **TensorFold v0.6 engine bump** (prefill-heavy, unquantified) and client-side
-  **`reasoning_effort: high`** (0.55-0.8x reasoning cost at equal reported quality). The **P0 GPU
+  lane README now lists them under §"Upgrade candidates". The **P0 GPU
   clock-latch audit is closed negative** (2026-10-19: both nodes idle at 208 MHz, but ramp to
   2171-2190 MHz under load against a 3003 MHz max, with SW Power Cap the only active throttle
   reason — no latch; receipt `~/benchmarks/ds4-p0-clock-20261019/`). The TP=4-only
   eight stay upgrade candidates while `.30`-`.33` are frozen. Re-derive any win with its own receipt
   under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
   baseline these A/B plans assume". *(effort: medium)*
+
+- [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
+  `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
+  asserted per boot) settled the **TensorFold v0.6 engine bump**: control `fabbe861…` is engine
+  `0.6.3` (built 2026-10-05 from `d5d7bb3`), treatment `d6e4c10d…` is `0.6.6` at `3825f62`, and on
+  the depth-0 ladder (3 runs/cell, n=9/cell) the treatment reads c1 64.47 (flat), c4 51.15
+  (+10.9 %, ranges overlap), c8 **52.45 (+26.5 %)**, c16 **53.21 (+25.7 %)**, with cold prefill
+  **2,077 t/s @ 32k (+24.6 %)** and **2,073 @ 131k (+39.5 %)**. The treatment's worst single run
+  beats the control's best at c8 and c16, so the falsifier is not met: **adopted**, and the shipped
+  recipe now pins `d6e4c10d…` (one-time 264 s JIT on the first v0.6 start; later launches 80.3-80.9 s
+  vs the control's 80.1-81.5 s). **`reasoning_effort: high`** was measured request-level on that
+  serve: paired same-task A/B (10 tasks × 2 rounds × 2 arms, arm order flipped per round) gives a
+  **10.6 % reasoning-token saving** at house 37/37 on both arms with no pass→fail flip — but
+  `hard-rev` (128 → 43) carries most of it and the bar is cleared by 0.6 points, so it is recorded
+  as "clears, not a headline". Receipts `~/benchmarks/ds4-v06-ab-20261021/` (`REPORT.md`) and
+  `~/benchmarks/ds4-v06-build-20261021/` (build log, digest); the note's §4/§6 now carry the tables.
 
 - [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a 382.8 GB "GSQ"
   mixed-precision export of the 1017 body in a *strata*-format GGUF that no engine this lane ships
