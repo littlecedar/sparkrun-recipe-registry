@@ -232,6 +232,23 @@ fusion — but the swap lands after `get_quant_config` has already captured the 
 is image-side: a vLLM build whose mapping excludes ignored shards, or a model-code mod (engine change
 → owner approval). Receipt `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`. No index row.
 
+**Both candidate engines are now refuted, on two different gates (2026-10-21).** The b12x build
+`sha256:cf5a2a53…` (vLLM `0.1.dev21830+g8244d1c44.d20261015`) cannot construct the model config at
+all — `ModelConfig` rejects the export's `layer_types` because `qwen_sparse_attention` is not one of
+its members, so no weight is read and the compressed-tensors question above is never reached.
+`vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd…` clears that schema gate (multi-modal warmup and NCCL
+`world_size=2` run) and then dies at worker init with
+`NotImplementedError: Qwen4Exp PLE embedding does not support quantization config
+CompressedTensorsConfig`. What this arm needs is an image that has **both** `qwen_sparse_attention`
+and a PLE-embedding-aware compressed-tensors path; neither named build has both, and no recipe knob
+moves either. Receipt `~/benchmarks/cybersec-flashnext-b12x-20261021/`.
+
+**Engine-image trap, for any future adoption of the upstream vLLM image:** `vllm/vllm-openai`
+declares `ENTRYPOINT ["vllm","serve"]`, which consumes the launcher sparkrun appends — the launch is
+refused until it is cleared (`executor_config: {entrypoint: ""}`, or `-o entrypoint=` for one run).
+The sparkrun-built `b12x` image has no such entrypoint, so a recipe that swaps between them needs
+that line.
+
 ## `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`
 
 **Arm 5 — POSITIVE (TP=2).** Graft arm: the overlay repo ships **no weights**.
