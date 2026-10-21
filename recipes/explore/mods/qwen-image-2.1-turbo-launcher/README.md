@@ -55,11 +55,23 @@ denoise loop):
 |---|---|
 | `GET /health` | liveness + load state; what a port/health readiness probe sees |
 | `GET /v1/models` | the loaded repo id (convenience) |
-| `POST /generate` | `{"prompt", "width", "height", "seed", "num_inference_steps", "image_path", "use_kv_cache"}` → runs the pipeline, saves a PNG under `--sample-dir`, returns timing and peak-memory metrics as JSON |
+| `POST /generate` | `{"prompt", "width", "height", "seed", "num_inference_steps", "sigmas", "image_path", "use_kv_cache"}` → runs the pipeline, saves a PNG under `--sample-dir`, returns timing, the `sigmas_used` list and peak-memory metrics as JSON |
 
 `num_inference_steps` is **null by default**: the checkpoint ships its 8-step
 schedule in `model_index.json` (`sample_sigmas`) and the card is explicit that
-setting `num_inference_steps` alone does not override it.
+setting `num_inference_steps` alone does not override it — measured 2026-10-21,
+`12` returned a byte-identical PNG in the same 11.47 s as the 8-step control.
+
+A non-8-step schedule takes one of two explicit fields:
+
+- `sigmas: [float, ...]` — handed straight to the pipeline's `sigmas=`.
+- `num_inference_steps: N` — honoured only by resampling the checkpoint's own
+  `sample_sigmas` to N+1 points (linear in index) and passing that as `sigmas=`.
+  `N` equal to the shipped step count passes nothing, so the saved schedule runs.
+
+The response carries `sigmas_used` (the list the pipeline actually received, or
+`null` when the saved schedule ran), which is how a cell proves it took the new
+path rather than silently re-running the default.
 
 ## Logs
 

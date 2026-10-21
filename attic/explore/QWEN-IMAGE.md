@@ -126,6 +126,28 @@ Boot on `.34`, task `sparkrun_d87820463a694961_8ed3ce77d78f`. Receipts under
   verdict against the vendor gallery is the owner's**, from the saved PNGs —
   this is an objective non-degeneracy check, not an eye.
 
+### Step count and custom schedules (measured 2026-10-21)
+
+`num_inference_steps` alone does nothing on this checkpoint: `12` returned the
+**byte-identical PNG** in the same 11.47 s as the 8-step control, because the pipeline
+force-loads `sample_sigmas`. The server now takes an explicit `sigmas` list or resamples
+the saved curve when `num_inference_steps` names a *different* count, and reports
+`sigmas_used` so a cell can prove it took the new path. One serve on `.34`, seed 42,
+1024², CFG=1, one cell per schedule:
+
+| schedule | server `steps` | `elapsed_s` | peak alloc |
+|---|---|---|---|
+| shipped (control) | 8 | 12.64 (cold) / 11.5 steady | 36.82 GiB |
+| `num_inference_steps: 4` | 4 | 6.38 | 36.82 GiB |
+| `num_inference_steps: 12` | 12 | 17.01 | 36.82 GiB |
+| explicit `sigmas` (4 pt) | 4 | 6.39 | 36.82 GiB |
+
+The step count is ~0.63 s per extra step at CFG=1 and **peak memory does not move** —
+a shorter schedule buys latency, not headroom. The 8-step control stayed byte-identical
+after the mod, so the default path is untouched. Quality is not judged by these cells:
+the §6 by-eye item stays open, and 4 steps is proven reproducible, not recommended.
+Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.NN`.
+
 ### §6 acceptance criterion, item by item
 
 | §6 requirement | result |

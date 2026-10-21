@@ -18,13 +18,26 @@ Surface (this arm has no chat completions):
 
 POST /generate body (JSON):
     {"prompt": str, "width": 1024, "height": 1024, "seed": 0,
-     "num_inference_steps": null, "image_path": null, "use_kv_cache": true}
+     "num_inference_steps": null, "sigmas": null, "image_path": null,
+     "use_kv_cache": true}
 
 `num_inference_steps` is null by default: the checkpoint ships its **8-step
 schedule** in model_index.json (`sample_sigmas`) and the card is explicit that
-setting `num_inference_steps` alone does not override it. Passing a non-null
-value would need an explicit `sigmas` list to mean anything, so this server
-leaves the saved schedule alone.
+setting `num_inference_steps` alone does not override it — measured 2026-10-21,
+`12` returned the byte-identical PNG in the same 11.47 s as the 8-step control.
+
+A non-8-step schedule therefore takes one of two explicit fields:
+
+  * `sigmas: [float, ...]` — passed straight to the pipeline's `sigmas=`.
+  * `num_inference_steps: N` — N is honoured only by resampling the checkpoint's
+    own `sample_sigmas` to **N points** (this checkpoint's schedule is one sigma
+    per step: 8 sigmas = the 8 steps the pipeline reports) with values linearly
+    interpolated in index, and passing that as `sigmas=`. `N` equal to the
+    shipped step count passes nothing (the saved schedule wins).
+
+The response reports `sigmas_used` (the list actually handed to the pipeline, or
+null when the saved schedule ran) so a cell can be proven to have taken the new
+path.
 
 Caching: `use_kv_cache=True` is the card's default and reuses the text and
 reference-image context prefix across denoising steps.
@@ -80,6 +93,13 @@ def load_pipeline(model: str, device: str):
     before = mem_available_gib()
     torch.cuda.reset_peak_memory_stats()
     log("loading pipeline from %s (MemAvailable %.1f GiB)" % (model, before or float("nan")))
+    try:
+        with open(os.path.join(model, "model_index.json")) as fh:
+            STATE["shipped_sigmas"] = [float(x) for x in json.load(fh).get("sample_sigmas") or []] or None
+    except (OSError, ValueError) as exc:
+        STATE["shipped_sigmas"] = None
+        log("warning: could not read sample_sigmas (%s: %s); steps= resampling disabled"
+            % (type(exc).__name__, exc))
     t0 = time.time()
     try:
         pipe = QwenImage21Pipeline.from_pretrained(model, dtype=torch.bfloat16)
@@ -97,6 +117,27 @@ def load_pipeline(model: str, device: str):
         % (load_s, alloc, reserved, before or float("nan"), after or float("nan"))
     )
     return pipe, load_s
+
+
+def resample_sigmas(base: list[float], steps: int) -> list[float]:
+    """Resample a checkpoint's saved sigma curve to `steps` points.
+
+    This checkpoint's schedule is one sigma per step (8 sigmas = the 8 steps the
+    pipeline reports), so an N-step schedule is N values linearly interpolated in
+    index between the saved endpoints. Values, not indices, are interpolated:
+    rounding indices would repeat a sigma and produce a zero-length step.
+    """
+    if steps < 2:
+        raise ValueError("steps must be >= 2")
+    scale = (len(base) - 1) / (steps - 1)
+    out = []
+    for i in range(steps):
+        pos = i * scale
+        lo = int(pos)
+        hi = min(lo + 1, len(base) - 1)
+        frac = pos - lo
+        out.append(round(base[lo] + (base[hi] - base[lo]) * frac, 6))
+    return out
 
 
 def run_generate(req: dict) -> dict:
@@ -119,8 +160,26 @@ def run_generate(req: dict) -> dict:
         "use_kv_cache": use_kv_cache,
         "generator": torch.Generator("cpu").manual_seed(seed),
     }
-    if req.get("num_inference_steps") is not None:
-        call["num_inference_steps"] = int(req["num_inference_steps"])
+    sigmas_used = None
+    req_sigmas = req.get("sigmas")
+    if req_sigmas:
+        sigmas_used = [float(x) for x in req_sigmas]
+    elif req.get("num_inference_steps") is not None:
+        steps = int(req["num_inference_steps"])
+        base = STATE.get("shipped_sigmas")
+        if not base:
+            raise ValueError("num_inference_steps needs the checkpoint's sample_sigmas, which "
+                             "could not be read at load; pass an explicit sigmas list instead")
+        if steps != len(base):
+            # This checkpoint's saved schedule is one sigma per step (8 sigmas = 8 steps as
+            # the pipeline reports it), so "an N-step schedule" is N sigmas resampled from
+            # that curve by linear interpolation in index. Values are interpolated, not
+            # indices rounded, so the list stays strictly decreasing.
+            if steps < 2:
+                raise ValueError("num_inference_steps must be >= 2 (or pass sigmas explicitly)")
+            sigmas_used = resample_sigmas(base, steps)
+    if sigmas_used:
+        call["sigmas"] = sigmas_used
     image_path = req.get("image_path")
     if image_path:
         from diffusers.utils import load_image
@@ -161,6 +220,7 @@ def run_generate(req: dict) -> dict:
         "height": height,
         "seed": seed,
         "use_kv_cache": use_kv_cache,
+        "sigmas_used": sigmas_used,
         "peak_alloc_gib": round(peak_alloc, 3),
         "peak_reserved_gib": round(peak_reserved, 3),
         "mem_available_gib_after": round(mem_available_gib() or -1, 3),
