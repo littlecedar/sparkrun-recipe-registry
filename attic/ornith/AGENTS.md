@@ -1289,6 +1289,50 @@ folded into [`recipes/ornith/README.md`](../../recipes/ornith/README.md).
   undistributed. Values are literal: a nested `{max_model_len}` here is NOT substituted (the render
   is a single pass over `command:`). Keep the shell single quotes: the JSON holds double quotes."
 
+## Engine-bump adjudication — SGLang 0.5.18 → 0.5.21 (2026-10-21, repo-side)
+
+The register item (`mad-science/TODO.md`, `## ornith`) pointed at `attic/ornith/AGENTS.md:883-886`
+for the blocker. **That pointer is stale** — 883-886 is the long-horizon agentic re-investigation.
+The blocker text is the 2026-10-10 scan under `## From recipes/ornith/README.md (2026-10-14)`,
+`AGENTS.md:1203-1206`, duplicated at `attic/DONE.md:78`.
+
+**Method.** No node was touched. Upstream claims were read from the release source trees fetched at
+their tags (`sgl-project/sglang` v0.5.21 and v0.5.22 tarballs) and from the GitHub API for merge
+commits and dates; image facts come from the Docker Hub registry API (index manifest, platform
+manifests, config blobs); lane facts come from this repo and its recorded boot logs.
+
+| claim | source | date | label |
+|---|---|---|---|
+| The lane pins `lmsysorg/sglang:dev-cu13@sha256:9a352a35…` in all three SGLang arms | `recipes/ornith/*.yaml:5` | 2026-10-15/16 | **VERIFIED** |
+| That pin's serve log reports engine `0.0.0.dev1+g20ca564bf` | this file, §"Reasoning-loop investigation" boot line | 2026-10-13 | **VERIFIED** |
+| Upstream commit `20ca564bf` is dated 2026-09-07T23:08:11Z (8 commits past v0.5.18, diverged) | GitHub API `commits/20ca564bf`, `compare/20ca564bf...v0.5.18` | 2026-09-07 | **VERIFIED** |
+| The pinned arm64 image was built 2026-09-08T01:15:40Z | registry config blob `sha256:2ec3809a…` | 2026-09-08 | **VERIFIED** — consistent with the build string; the pin is that build (**LIKELY**, timestamp chain, not a digest-to-binary read) |
+| v0.5.21 tag pushed 2026-10-01T08:06Z, release published 2026-10-02T01:09Z | Docker Hub tag metadata, GitHub `releases/tags/v0.5.21` | 2026-10-02 | **VERIFIED** |
+| v0.5.21 index digest `sha256:b1259f3e…`, platforms `linux/amd64` + `linux/arm64` (arm64 `sha256:1f176b3a…`, 14.8 GB) | registry index manifest; `v0.5.21-cu130` resolves to the same index digest | 2026-10-21 (read) | **VERIFIED** |
+| `dev-cu13` has moved off the pin (`sha256:b0473834…`) | registry tag HEAD | 2026-10-21 | **VERIFIED** |
+| "Mamba/SWA radix-cache args (`mamba_radix_cache_strategy`, `mamba_full_memory_ratio`) were removed upstream" | `AGENTS.md:1203-1206`, `attic/DONE.md:78` | 2026-10-10 | **REFUTED** at v0.5.21 |
+| Both are still declared fields at v0.5.21 and still register as CLI flags | `arg_groups/fields/exec_.py:450-457`, `arg_groups/fields/schedule.py:214-218`, `arg_groups/arg_utils.py:290` | tag v0.5.21 | **VERIFIED** |
+| `extra_buffer_lazy` remains a legal choice and the DFLASH lazy-verify hook is wired | `arg_groups/fields/exec_.py:454`, `arg_groups/mamba_hook.py:113-120` | tag v0.5.21 | **VERIFIED** |
+| Both qwen3.5 MoE archs are in the radix-cache and extra-buffer sets; the extra-buffer gate needs the Triton linear-attn backend | `arg_groups/overrides.py:348-392`, `:412-424` | tag v0.5.21 | **VERIFIED** |
+| sglang#40313 removed `MambaRadixCache` and `SWARadixCache` **classes**, not flags (23 files, two `mem_cache/*.py` deletions) | GitHub `pulls/40313`, `pulls/40313/files`; merge `a8a4d86`, merged 2026-09-20 | 2026-09-20 | **VERIFIED** |
+| Why the scan read "removed": v0.5.20 moved field declarations out of `server_args.py` into `arg_groups/fields/`; `server_args.py` still exists at v0.5.21 (812 lines of plumbing) and contains no field names | raw `server_args.py` at v0.5.18/19/20/21 (HTTP 200 at all four; `arg_groups/fields/exec_.py` 404 at 0.5.18/19, 200 at 0.5.20) | 2026-10-21 (read) | **LIKELY** (no record of the exact command the 2026-10-10 scan ran) |
+| Every other flag the recipes pass survives at v0.5.21 | `arg_groups/fields/spec.py:35`, `fields/model.py:90,144`, `model_loader/loader.py:361-368`, `parser/reasoning_parser.py:2275`, `parser/parser_names.py:37`, `models/qwen3_5.py:2844`, `models/dflash.py:1199`, `environ.py:326`, `configs/model_config.py:1120-1134` | tag v0.5.21 | **VERIFIED** |
+| Win 1: LiLiCorr DFlash reranker — sglang#37462, merge `78eee881`, first released in v0.5.21 | GitHub `pulls/37462` (merged 2026-09-27T22:36:49Z) | 2026-09-27 | **VERIFIED** |
+| LiLiCorr needs a `lilicorr_*` draft checkpoint and the PR ships none; this lane's drafts have no such head | `srt/speculative/lilicorr_utils.py:46-52`; `models/dflash.py:639` | tag v0.5.21 | gate **VERIFIED**; that the two Ornith drafts lack the head is **LIKELY** (their documented architectures are `DFlash2DraftModel` and `DFlashDraftModel`, not read from their `config.json` here) |
+| Win 2: GDN QKV materialization removed on target verify — sglang#33778, merge `9fdb7173`, first released in v0.5.21 | GitHub `pulls/33778` (merged 2026-09-22T00:04:19Z), listed in the v0.5.21 notes under Speculative Decoding | 2026-09-22 | **VERIFIED** |
+| That path is live for these arms: materialization is skipped when the verify kernel reports `supports_strided_target_verify_qkv`, true for the Triton GDN kernel, and no arm sets `--linear-attn-verify-backend` | `layers/attention/linear/gdn_backend.py:1019-1022`, `:619-635`, `kernels/gdn_triton.py:44`, `fields/exec_.py:436` | tag v0.5.21 | **VERIFIED** (code path); the size of the win is the PR's H200/Qwen3.5-4B numbers, **not** measured here |
+| v0.5.22 (2026-10-19) still declares both mamba flags | `sglang-0.5.22/…/arg_groups/fields/exec_.py:450`, `schedule.py:214` | tag v0.5.22 | **VERIFIED** |
+
+**Verdict.** The bump is **not blocked**. The register's premise was a misread of a file move, and
+the classes removed by #40313 are not imported by any recipe or mod. The two named wins do not both
+apply: the reranker needs a LiLiCorr-trained drafter this lane does not have, while the GDN target-verify
+change does apply and is the reason to measure.
+
+**Not established here.** No boot, so nothing about the 0.5.21 NVFP4/modelopt weight path, the
+qwen3_5 model code beyond `EntryClass` registration, or actual GB10 throughput. The staged digest
+diff, boot order, pass bars, and the 3.5–5.5 h cost estimate are in
+[`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Engine bump to SGLang 0.5.21".
+
 ## References
 
 - Ornith 1.5 announcement — <https://ornith.ai/ornith_1_5.html>
