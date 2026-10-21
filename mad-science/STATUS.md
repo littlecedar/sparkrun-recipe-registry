@@ -50,9 +50,9 @@ recorded in the lane attic).
 |---|---:|
 | In flight | 0 h (pair drained) |
 | Queued node-bound content, runnable now (Table 2) | 21–36 h |
-| **Node-bound wall at two lanes** | **≈17–29 h** |
+| **Node-bound wall at two lanes** | **≈15–27 h** |
 | Deferred (Table 3, owner action or event) | 21–30 h |
-| **Grand total including deferred** | **≈38–59 h** |
+| **Grand total including deferred** | **≈36–57 h** |
 
 ## Risks
 
