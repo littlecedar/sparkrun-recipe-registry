@@ -210,9 +210,12 @@ per-check JSON, `bfcl.json`).
   is resident with an identical digest on the head, `.34`, and `.35`. The "image distribution is
   unusable" gate is **superseded** (see attic AGENTS.md §8): a direct `docker pull` by digest measured
   76–142 MB/s on `.34`, and the relay's ~0.3 MB/s was the relay's own stream, not the network.
-  **Route evidence is loader-level, not measured serving behaviour**, and this checkpoint (183.5 GB
-  per node) was reclaimed from every node's cache on 2026-10-14 — so the remaining cost is a
-  183.5 GB-per-node re-fetch, which the index rows wait on along with a boot receipt. Pinning
+  **Route evidence is loader-level, not measured serving behaviour.** The checkpoint (183.5 GB per
+  node) was *not* reclaimed on 2026-10-14 as previously recorded here: both `.34` and `.35` have
+  held it complete since the 2026-10-15 staging, re-verified 2026-10-21 (18/18 shards, 183.48 GB,
+  zero bytes fetched), so no re-fetch cost remains and the index rows wait only on a boot receipt
+  (`.35` still carries 78.06 GB of orphan `.incomplete` blobs from the 2026-10-15 attempt — residue
+  for a storage pass, not a partial tree). Pinning
   `--quantization` to another value is **not** a fix: arm 1 shows SGLang reads the right scheme from
   `config.json` when the export is one it implements.
 
