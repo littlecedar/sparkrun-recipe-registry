@@ -2,7 +2,7 @@ recipe_version: 2
 model: ornith-ai/Ornith-1.5-9B-NVFP4
 model_revision: 155f200d85ad58464571c77d5e1122ea5d419d7b
   # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
-container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
+container: lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469
 runtime: sglang
 min_nodes: 1
 

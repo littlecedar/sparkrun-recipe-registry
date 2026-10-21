@@ -378,9 +378,32 @@ Ornith 1.5
   this item owes: nothing died, nothing was written. That is **2 of 2 d90 passes since the two
   2026-10-18 exits**, so the item stays open for the next failing boot, not for a retry. Receipt
   `~/benchmarks/ornith-yarn-d90-20261020/`; paragraph in `recipes/ornith/README.md` §The YaRN 1M arm.)*
-- [ ] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that was recorded as breaking the lane (blocker text at `attic/ornith/AGENTS.md:1203-1206`; the `:883-886` pointer carried here was stale). *(effort: medium)* *(Owner decision 2026-10-19: **approved** — test the bump; it changes the engine
+- [x] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that was recorded as breaking the lane (blocker text at `attic/ornith/AGENTS.md:1203-1206`; the `:883-886` pointer carried here was stale). *(effort: medium)* *(Owner decision 2026-10-19: **approved** — test the bump; it changes the engine
 image/digest, so validate the other ornith arms on the new digest before shipping.)*
   *(progress 2026-10-21 — **the recorded blocker is refuted at the target tag: the bump is testable, not blocked.** "The Mamba/SWA radix-cache args were removed upstream" is false. `mamba_radix_cache_strategy` and `mamba_full_memory_ratio` are still declared fields at v0.5.21 (`python/sglang/srt/arg_groups/fields/exec_.py:450-457`, `arg_groups/fields/schedule.py:214-218`), still register as `--mamba-radix-cache-strategy` / `--mamba-full-memory-ratio` (`arg_groups/arg_utils.py:290`), and `extra_buffer_lazy` remains a legal choice with the DFLASH lazy-verify hook wired (`arg_groups/mamba_hook.py:113-120`). sglang#40313 (merged 2026-09-20, shipped in v0.5.21) removed the `MambaRadixCache` and `SWARadixCache` *classes*, which no recipe or mod imports; the LIKELY origin of the misread is the v0.5.20 move of every field declaration out of `server_args.py` into `arg_groups/fields/`, so a grep of the old file finds nothing. Of the two named wins only one reaches this lane: the DFlash reranker (LiLiCorr, sglang#37462) engages only for a draft checkpoint carrying `lilicorr_*` geometry, which the `jzinno` DFlash2 and first-party DFlash heads do not, while the GDN QKV materialization removal (sglang#33778, also v0.5.21) applies on the Triton linear-attention verify path these arms resolve to. **Target:** `lmsysorg/sglang:v0.5.21@sha256:b1259f3e…` (tag 2026-10-01, release 2026-10-02), a multi-arch index with a native `linux/arm64` manifest (`sha256:1f176b3a…`, 14.8 GB); the current pin is a 2026-09-08 arm64 nightly whose serve log reports `0.0.0.dev1+g20ca564bf`. **Staged, not applied:** one-line digest edits in the three SGLang arms (`tests/test_ornith_recipes.py` asserts a shared digest-pinned container, not a literal). **Pass bar per arm:** contract ok, house **37/37**, needle **3/3** at 32k / 131k / 262k, and the on-file ladder bands — 35B C1 100.8-101.8 · C2 153.1-158.2 · C5 217.4-220.4 · C10 244.2-249.9 t/s at d0, 9B C1 52-59 · C2 101.1 · C5 159.0 · C10 148.9 — with the YaRN arm gated on its needle rungs (262k / 512k / 768k 3/3, 1M at depths 10/50/90 % each at ≥95 % fill, d90 retry rule declared before the run) and on reading its `max_total_num_tokens` grant first. **Estimated 3.5-5.5 h** against this item's 6-9 h; BFCL is out of the bar and would add ~2.5 h per arm. **Boot pending: needs a free pair node.** Evidence table with commit-level citations in `attic/ornith/AGENTS.md` §"Engine-bump adjudication — SGLang 0.5.18 → 0.5.21 (2026-10-21, repo-side)"; operator plan, staged diff, and pass-bar table in `recipes/ornith/README.md` §"Engine bump to SGLang 0.5.21". Note for the run: `sparkrun` is not on PATH on the local workstation — validate and render on the head node.)*
+  *(CLOSED 2026-10-21 — **all three arms validated on the new digest; the bump ships.** The pins are
+  applied to all three SGLang ornith recipes
+  (`lmsysorg/sglang:v0.5.21@sha256:b1259f3e…`, a multi-arch index with a native `linux/arm64`
+  manifest; the container labels record upstream build commit `e00930c5…`), `tests/test_ornith_recipes`
+  passes 29/29, and the pass ran on a free `.34`/`.35` pair in ~4 h against this item's 6-9 h. 35B on
+  `.34`: contract ok, house **37/37**, needle **3/3** at 32k/131k/262k, ladder d0 n=5 **C1 96.5 / C2
+  148.3 / C5 213.9 / C10 244.1** — every cell inside the on-file band's σ; accept len 2.52-2.64. 9B on
+  `.35`: house **37/37**, needle **3/3** ×3; its ladder read C2 89.6 (11.4 % low), then a ladder-only
+  re-boot **on `.34`** — the node the on-file band was measured on — read **C1 60.6 / C2 97.8 / C5
+  156.1 / C10 147.8**, so the dip was a cross-node artifact, not an engine shift. YaRN on `.34`:
+  pool 1,192,993 tokens, needle gate **6/6 rungs PASS** (1M depths 10/50/90 at fills 97.74/97.75/97.80
+  %), **the d90 intermittent did not reproduce — first-attempt pass, retry rule unused, no die event**
+  (streamed serve-log capture + `docker events` armed throughout; 4 of 4 d90 passes now, on two
+  builds). Of the two named wins, LiLiCorr (#37462) is unreachable for this lane (no `lilicorr_*`
+  draft exists) and the GDN target-verify change (#33778) produced **no measured gain** — the ladders
+  read at or slightly below the prior bands; the bump's value is escaping the dead-end 2026-09-08
+  nightly plus 0.5.21's fixes. Receipts `~/benchmarks/ornith-0.5.21-bump-20261021/`; the full
+  evidence table is `attic/ornith/AGENTS.md` §"Engine-bump adjudication — SGLang 0.5.18 → 0.5.21
+  (2026-10-21, repo-side)", the operator summary is `recipes/ornith/README.md` §"Engine bump to
+  SGLang 0.5.21". Ops learned: render/launch from `/<home-dir>/src/sparkrun-recipe-registry`, not
+  `/<home-dir>/development` (the lane-local mod resolves relative to the symlink and fails); stop with
+  `sparkrun stop <cluster-id> -H <node>` and `docker cp` the serve log first — `stop --all` deleted
+  the `--no-rm` 9B container on `.35` and its serve log.)*
 
 ## qwen3
 Qwen 3.x

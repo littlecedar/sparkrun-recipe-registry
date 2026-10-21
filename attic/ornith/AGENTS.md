@@ -1328,10 +1328,34 @@ the classes removed by #40313 are not imported by any recipe or mod. The two nam
 apply: the reranker needs a LiLiCorr-trained drafter this lane does not have, while the GDN target-verify
 change does apply and is the reason to measure.
 
-**Not established here.** No boot, so nothing about the 0.5.21 NVFP4/modelopt weight path, the
-qwen3_5 model code beyond `EntryClass` registration, or actual GB10 throughput. The staged digest
-diff, boot order, pass bars, and the 3.5–5.5 h cost estimate are in
+**Staged before it ran.** The digest diff, boot order, and pass bars were written on 2026-10-21
+before any boot and executed as staged; the operator-facing version is in
 [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Engine bump to SGLang 0.5.21".
+
+**Measured 2026-10-21 — all three arms validated on the target digest; the item closed.** The pins
+went in (all three recipes, one line each), the guards pass (29/29), and the pass ran on a free
+`.34`/`.35` pair with receipts at `~/benchmarks/ornith-0.5.21-bump-20261021/`. Boot: the engine
+answers `0.5.21` (`sglang.__version__`) and the container labels record upstream build commit
+`e00930c5489053f26d86b179cee0d087f846acbb`. 35B on `.34`: HTTP-ready 223.6 s, contract ok, house
+**37/37**, needle **3/3** at 32k/131k/262k, ladder d0 n=5 **C1 96.5 / C2 148.3 / C5 213.9 / C10
+244.1** — every cell inside the on-file band's σ (largest delta −5.2 % at C1 vs σ 8.7–12.1); accept
+len 2.52–2.64; `max_mamba_cache_size` 611 (on file 632), pool 1,125,837 tokens. 9B on `.35`:
+contract ok, house **37/37**, needle **3/3** ×3; ladder **C1 53.9 / C2 89.6 / C5 151.7 / C10 147.7**
+with C2 11.4 % below the on-file 101.1 — then a ladder-only re-boot **on `.34`** (the node the
+on-file band was measured on) read **C1 60.6 / C2 97.8 / C5 156.1 / C10 147.8**, so the C2 dip was
+a cross-node artifact, not an engine shift. YaRN on `.34`: pool **1,192,993** tokens, the needle
+gate **6/6 rungs PASS** (262k/512k/768k 3/3 each; 1M depths 10/50/90 at fills 97.74/97.75/97.80 %),
+the d90 rung passing **on the first attempt** under a pre-declared retry rule that went unused —
+4 of 4 d90 passes now, on two builds — with the streamed serve-log capture and
+`docker events --filter event=die` armed throughout (`docker-events.log` holds only the deliberate
+final `docker stop`, exit 137). The named wins: LiLiCorr (#37462) is unreachable for this lane (no
+`lilicorr_*` draft exists), and #33778's GDN target-verify change produced **no measured gain** —
+the ladders read at or slightly below the prior bands. Ops: rendering from
+`/<home-dir>/development` fails for this lane (sparkrun resolves the lane-local honed-template mod
+relative to the symlink, not its target — run from `/<home-dir>/src/sparkrun-recipe-registry`), and
+the 9B `.35` serve log was lost to `sparkrun stop --all` removing the `--no-rm` container.
+Operator-facing summary: [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Engine bump
+to SGLang 0.5.21".
 
 ## References
 

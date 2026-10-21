@@ -402,116 +402,104 @@ numbers are carried by this README and `attic/ornith/AGENTS.md`.
 Full provenance — the card quote, the engine citations, the KV table and three open boot
 questions — is [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §9.
 
-## Engine bump to SGLang 0.5.21 (prepared 2026-10-21, not booted)
+## Engine bump to SGLang 0.5.21 (executed 2026-10-21 — all three arms validated)
 
-**Status: prepared, not booted.** The register item (`mad-science/TODO.md`, `## ornith`) was worked
-repo-side only: no node was touched, no container was launched. **Verdict: the blocker on file does
-not exist at the target release**, so the bump is testable; the lane is not re-verified on it.
+**Status: validated on the new digest; the pins are applied.** The register item
+(`mad-science/TODO.md`, `## ornith`) closed with this pass: the 35B and 9B arms and the YaRN 1M arm
+each booted and passed its gate on `lmsysorg/sglang:v0.5.21`, on a free `.34`/`.35` pair, ~25 min
+of serve time plus the YaRN needle ladder. Evidence history lives in
+[`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §"Engine-bump adjudication".
 
 **Target.** `lmsysorg/sglang:v0.5.21`, index digest
 `sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` (tag pushed 2026-10-01,
-release published 2026-10-02). The index is multi-arch — `linux/arm64`
-`sha256:1f176b3a1dd1205d2a462ab80ea9fc17769a32e53cb6f3c690efa2dc2c384977` (14.8 GB compressed) and
-`linux/amd64` — so a GB10 node resolves a native image. `v0.5.21-cu130` resolves to the same index
-digest. The lane currently pins `lmsysorg/sglang:dev-cu13@sha256:9a352a35…`, whose arm64 image was
-built **2026-09-08T01:15:40Z** and whose serve log reports **`0.0.0.dev1+g20ca564bf`** (upstream
-commit `20ca564bf`, 2026-09-07T23:08Z) — v0.5.18 plus eight commits, which is why the attic's source
-citations are written against the v0.5.18 tag. `dev-cu13` has since moved
-(`sha256:b0473834763b…` on 2026-10-21), so the pin is the only build guarantee.
+release published 2026-10-02). Multi-arch: the index carries `linux/arm64`
+(`sha256:1f176b3a1dd1205d2a462ab80ea9fc17769a32e53cb6f3c690efa2dc2c384977`, 14.8 GB compressed) and
+`linux/amd64`, so a GB10 node resolves a native image; the container labels record the upstream
+build commit `e00930c5489053f26d86b179cee0d087f846acbb`. The previous pin was
+`dev-cu13@sha256:9a352a35…`, a 2026-09-08 arm64 nightly whose serve log reported
+`0.0.0.dev1+g20ca564bf` — v0.5.18 plus eight commits. `dev-cu13` has since moved
+(`sha256:b0473834763b…`), so the pin was the only build guarantee.
 
-**The recorded blocker is refuted (VERIFIED at the v0.5.21 tag).** The 2026-10-10 scan recorded in
-`attic/ornith/AGENTS.md` says the bump breaks this lane because `mamba_radix_cache_strategy` and
-`mamba_full_memory_ratio` "were removed upstream". Both are still declared fields at v0.5.21
-(`arg_groups/fields/exec_.py:450-457`, `arg_groups/fields/schedule.py:214-218`), still register as
+**The recorded blocker never existed at the target release.** The 2026-10-10 scan said the bump
+breaks this lane because `mamba_radix_cache_strategy` and `mamba_full_memory_ratio` "were removed
+upstream". Both are still declared fields at v0.5.21 (`arg_groups/fields/exec_.py:450-457`,
+`arg_groups/fields/schedule.py:214-218`), still register as
 `--mamba-radix-cache-strategy` / `--mamba-full-memory-ratio` (`arg_groups/arg_utils.py:290`), and
 `extra_buffer_lazy` is still an allowed choice with the DFLASH lazy-verify hook wired explicitly
-(`arg_groups/mamba_hook.py:113-120`). The qwen3.5 MoE architectures the lane serves are in both the
-radix-cache and extra-buffer sets (`arg_groups/overrides.py:348-392`), and the extra-buffer gate
-requires the Triton linear-attention backend, which these recipes resolve to by default. What
-sglang#40313 (merged 2026-09-20, shipped in v0.5.21) actually removed are the *classes*
-`MambaRadixCache` and `SWARadixCache`, which no recipe or mod imports. **LIKELY origin of the false
-claim:** v0.5.20 moved every field declaration out of `server_args.py` into `arg_groups/fields/`, so
-a grep for the flag in `server_args.py` returns nothing at 0.5.20 and 0.5.21 while the flag still
-works.
+(`arg_groups/mamba_hook.py:113-120`). sglang#40313 (merged 2026-09-20, shipped in v0.5.21) removed
+the *classes* `MambaRadixCache` and `SWARadixCache`, which no recipe or mod imports. LIKELY origin
+of the false claim: v0.5.20 moved every field declaration out of `server_args.py` into
+`arg_groups/fields/`, so a grep for the flag in `server_args.py` returns nothing at 0.5.20 and 0.5.21
+while the flag still works. The boot confirms it: both 35B `--mamba-*` flags and the 9B's
+`extra_buffer_lazy`-free defaults served without an argparse error.
 
-Every other flag the three SGLang recipes pass also survives at v0.5.21: `--speculative-draft-model-path`
-(`arg_groups/fields/spec.py:35`), `--model-loader-extra-config` with `enable_gds` under
-`fastsafetensors` (`arg_groups/fields/model.py:90`, `model_loader/loader.py:361-368`),
-`--json-model-override-args` (`arg_groups/fields/model.py:144`), the `qwen3` reasoning parser and
-`qwen3_coder` tool parser (`parser/reasoning_parser.py:2275`, `parser/parser_names.py:37`),
-`Qwen3_5MoeForConditionalGeneration` (`models/qwen3_5.py:2844`), `DFlash2DraftModel`
-(`models/dflash.py:1199`), and the long-context env var (`environ.py:326`, raise site
-`configs/model_config.py:1120-1134`).
+**The two named wins, measured.** The DFlash reranker (LiLiCorr, sglang#37462, first release
+v0.5.21) does **not** reach this lane: it engages only for a draft checkpoint carrying
+`lilicorr_*` geometry in `dflash_config` (`srt/speculative/lilicorr_utils.py:46-52`), and the PR
+ships no checkpoints — neither the `jzinno` DFlash2 head nor the first-party 9B DFlash head has one.
+The GDN QKV materialization removal (sglang#33778, first release v0.5.21) **does** apply on the
+Triton linear-attention verify path (`layers/attention/linear/gdn_backend.py:1019-1022`,
+`kernels/gdn_triton.py:44`) these arms resolve to — and **produced no measured gain here**: the
+ladders below read at or slightly below the prior bands, never above them. The bump's value is the
+refuted blocker (the lane stops depending on a dead-end 2026-09-08 nightly) plus 0.5.21's fixes,
+not a throughput win.
 
-**The two named wins, and which one reaches this lane.**
-
-| win | upstream | first release | reaches this lane? |
-|---|---|---|---|
-| DFlash reranker (LiLiCorr, candidate-lattice scoring) | sglang#37462, merge `78eee88`, 2026-09-27 | **v0.5.21** | **No.** It engages only when the *draft checkpoint* carries `lilicorr_*` geometry in `dflash_config` (`srt/speculative/lilicorr_utils.py:46-52`), and the PR ships no checkpoints. The `jzinno` DFlash2 head and the first-party 9B DFlash head declare no LiLiCorr head. |
-| GDN QKV tensors no longer materialized on target verify | sglang#33778, merge `9fdb717`, 2026-09-22 | **v0.5.21** | **Yes**, on the Triton linear-attention verify path (`layers/attention/linear/gdn_backend.py:1019-1022`, `kernels/gdn_triton.py:44`), which is what these arms resolve to because none sets `--linear-attn-verify-backend`. One copy kernel removed per GDN layer per verify pass; the PR's numbers are H200/Qwen3.5-4B, not a GB10 measurement. |
-
-So the honest expected value is **the #33778 decode gain plus 0.5.21's other fixes**, not the
-reranker headline. v0.5.22 (2026-10-19) exists and still declares both mamba flags; the register
-names 0.5.21, so that is the target.
-
-**Staged pin edits — shown, not applied.** One line per file, no other change:
+**Pin edits (applied to all three recipes, one line each):**
 
 ```diff
---- a/recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml
-+++ b/recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml
-@@
--container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
-+container: lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469
---- a/recipes/ornith/ornith-1.5-9b-nvfp4-dflash-sglang.yaml
-+++ b/recipes/ornith/ornith-1.5-9b-nvfp4-dflash-sglang.yaml
-@@
--container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
-+container: lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469
---- a/recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml
-+++ b/recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml
+--- a/recipes/ornith/*.yaml
++++ b/recipes/ornith/*.yaml
 @@
 -container: lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc
 +container: lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469
 ```
 
-`tests/test_ornith_recipes.py` asserts that the three SGLang arms share one digest-pinned container,
-not a literal digest, so the bump needs no guard change.
+`tests/test_ornith_recipes.py` (29 tests) passes unchanged — it asserts a shared digest-pinned
+container, not a literal digest.
 
-**Staged boot plan (when a node is free).** Boot the 35B first — it is the shipped arm and the
-subject of the item — and stop the whole pass if it does not boot: an argparse or serve failure
-there is the answer. Launch from the working tree, not `@littlecedar/…`: the cluster resolves that
-name from the registry clone (`attic/DONE.md`), which does not see an unpushed digest edit.
+**Measured 2026-10-21 (receipts `~/benchmarks/ornith-0.5.21-bump-20261021/`).** One serve per arm;
+the 35B on `.34` and the 9B on `.35` ran concurrently, then the YaRN arm alone on `.34`.
 
-```bash
-sparkrun run recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml -H <node>
-# then, against the live serve:
-python3 tools/eval-suite.py --api-endpoint http://<node>:8000 --job-timeout 14400 \
-  --out ~/benchmarks/ornith-0.5.21-bump-2026102x/arm-35b/
-sparkrun benchmark performance recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml \
-  -H <node> --profile benchmarking/concurrency-ladder.yaml \
-  --output ~/benchmarks/ornith-0.5.21-bump-2026102x/arm-35b/perf-ladder.yaml
-```
-
-| arm, in order | boot gate | quality bar | speed / window bar |
+| arm | boot / grant | quality | ladder @ d0, n=5, vs on-file band |
 |---|---|---|---|
-| 35B DFlash2 | `/v1/models` returns the repo id and `max_model_len` 262,144; serve log `Mean acceptance length > 1` | house **37/37**; needle **3/3** at 32k, 131k, 262k | C1 **100.8–101.8** · C2 **153.1–158.2** · C5 **217.4–220.4** · C10 **244.2–249.9** t/s @ d0, n=5 (the two on-file passes); `max_running_requests=48` not clamped by `max_mamba_cache_size` |
-| 9B DFlash | same, `max_model_len` 262,144, accept len ≈ 3.35 | house **37/37**; needle **3/3** at 32k, 131k, 262k | C1 **52–59** · C2 **101.1** · C5 **159.0** · C10 **148.9** t/s @ d0 (σ 8.3 / 7.8 / 4.8) |
-| YaRN 1M | `max_model_len` **1,000,000**; read `max_total_num_tokens` from the serve log first (a co-tenant boot grants 282k or 69k and every rung then reads `TRUNCATED`) | needle **3/3** at 262,144, 512k, 768k; 1M at depths 10 / 50 / 90 % each PASS with ≥ 95 % fill | 1M d90 is intermittent (two mid-prefill exits, then two passes), so declare the retry rule **before** the run; a single d90 failure is not by itself a regression |
+| 35B DFlash2 (`.34`) | engine `0.5.21`; HTTP-ready **223.6 s**; `max_running_requests=48`; `max_mamba_cache_size=611` (on file 632, does not clamp); pool **1,125,837** tokens (on file 1,172,758) | contract ok; house **37/37** (19/19 + 18/18); needle **3/3** at 32k / 131k / 262k | C1 **96.5** · C2 **148.3** · C5 **213.9** · C10 **244.1** vs 100.8–101.8 / 153.1–158.2 / 217.4–220.4 / 244.2–249.9 — every cell inside the recorded σ (largest delta −5.2 % at C1, σ 8.7–12.1) |
+| 9B DFlash (`.35`) | HTTP-ready **235.7 s**; `max_running_requests=48`; `max_mamba_cache_size=272` (on file 273); pool **1,523,077** tokens | contract ok; house **37/37**; needle **3/3** × 3 | C1 **53.9** · C2 **89.6** · C5 **151.7** · C10 **147.7** vs 52–59 / 101.1 / 159.0 / 148.9 — C1/C5/C10 inside σ; C2 −11.4 %, outside its σ 8.3 |
+| YaRN 1M (`.34`) | `context_len=1000000`; pool **1,192,993** tokens (on-file boots 1,202,898–1,205,530); 12.27 GB free | needle **6/6 rungs PASS**: 262k / 512k / 768k **3/3** each; 1M at depths 10 / 50 / 90 % **3/3**, fills **97.74 / 97.75 / 97.80 %** (977,427 / 977,487 / 977,975 tokens) | no C1 and no house battery, by the arm's registered bar |
 
-Receipts: `~/benchmarks/ornith-0.5.21-bump-<date>/arm-{35b,9b,yarn}/`. BFCL and the `hard` tier are
-not in this bar: the item is an engine bump, and the owner's condition is that the other arms are
-validated on the new digest, which the house battery plus needle plus ladder does.
+The 9B C2 cell was re-laddered **on `.34`** — the node the on-file band was measured on — in a
+ladder-only boot: C1 **60.6** · C2 **97.8** · C5 **156.1** · C10 **147.8**. C2 is −3.2 % against
+101.1 (σ 8.3), so **the .35 reading was a cross-node artifact, not an engine shift**; the flagged
+cell clears and the bump is clean on all three arms.
 
-**Cost, against the register's 6–9 h.** From the times on file: the three 1M needle rungs cost
-1,737 s, 1,886 s, and 1,891 s (≈ 92 min); a 35B or 9B suite is contract + house + a 143 s-per-probe
-top needle rung + ladder ≈ 45–60 min each; the v0.5.21 image is new to every node at 14.8 GB
-compressed. That is **≈ 3.5–5.5 h** for the pass above, so **a 6–9 h block is enough and mildly
-over-provisioned** — it covers one 1M retake (31 min) and one arm re-boot. It is **not** enough if
-BFCL is added: at the dflash2 rate of 7.2 s/question, 1,240 questions is ≈ 2.5 h per arm, so the
-full quality suite would be ≈ 12 h.
+**The 1M depth-90 % intermittent did not reproduce.** The d90 rung passed **on the first attempt**
+at 97.80 % fill (on file: two mid-prefill exits, then two passes, all on the old build); the retry
+rule was declared before the run and went unused. The streamed serve-log capture
+(`arm-yarn/serve-stream.log`, 593 KB) and `docker events --filter event=die` (`docker-events.log`)
+were armed for the whole request: no die event except the deliberate `docker stop` at the end
+(exit 137), and the serve answered through the rungs. **4 of 4 d90 passes now, on two builds** — the
+exit remains unmechanized but has not recurred since the capture was fixed.
 
-[INFERENCE] Component estimates (boot ≈ 4 min to healthy, ladder ≈ 10 min, suite legs ≈ 20 min) are
-derived from the run counts and probe times on file, not from a timed 0.5.21 boot.
+Spec decode stayed engaged on both spec arms: 35B accept len **2.52–2.64** (on file mean 2.94), 9B
+**2.56–2.59** (on file mean 3.35) — both well above the 1.0 misconfiguration mark, both slightly
+below their old means, consistent with the ladder's small downward drift.
+
+**Ops notes from this pass.**
+
+- **Rendering from `/<home-dir>/development` fails for this lane**: sparkrun resolves the lane-local
+  mod `mods/ornith-honed-chat-template` relative to the `development/` symlink, not the symlink's
+  target, and dies with "Could not resolve mod". Run from
+  `/<home-dir>/src/sparkrun-recipe-registry` (the recipe's real path) — the render there is correct.
+- The v0.5.21 image was pulled directly (`docker pull …@sha256:b1259f3e…`, ≈ 5 min per node), so
+  sparkrun's distribution step was a no-op on both nodes.
+- The 9B `.35` serve log was lost: `sparkrun stop --all` removed the `--no-rm` container. Its
+  accept-len lines above are from live `docker exec` reads during the session, not a file; the 35B
+  and YaRN logs were `docker cp`'d before their stops (`arm-35b/serve.log`, `arm-yarn/serve.log`).
+  Stop with `sparkrun stop <cluster-id> -H <node>` and copy the log first.
+
+**Cost, against the register's 6–9 h.** The pass used ~25 min of serve time for both spec arms
+(boot + suite + ladder each, concurrent) plus ~3.5 h for the YaRN needle ladder (27 min per of the
+262k/512k/768k rungs and 95 min for the 1M rung's three depths) — roughly **4 h total on a free
+pair**, inside the registered 3.5–5.5 h estimate and the register's 6–9 h block.
 
 ## Lane caveats
 
