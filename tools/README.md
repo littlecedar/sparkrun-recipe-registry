@@ -309,6 +309,12 @@ unstable, not scored.
 python3 tools/quality-battery.py http://<head>:8000 --tier both --repeat 3 --json q.json
 ```
 
+**Budget:** house runs take `--max-tokens 4096`. A thinking arm at 1024 can spend the whole
+allowance reasoning and return a truncated answer (`finish_reason: length`) — `big-1` came back
+`11111` instead of `1111111110` on Nemotron-3.5-Lightning that way. That is a **budget miss, not a
+capability miss**: re-ask before recording a failure (4096 was the budget on 42 of the 43 house
+receipts up to 2026-10-21).
+
 Measured on `deepseek-v4.1-flash-exl3-tp4-vllm` (2026-09-24): easy 19/19, hard
 17/18 = 94.4 %, stable over 3 repeats; the single hard failure is character
 reversal of an uncommon word (`sparkrun`), which common and long words pass —

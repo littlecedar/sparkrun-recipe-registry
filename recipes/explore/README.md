@@ -64,6 +64,12 @@ engine's own KV grant (a util is a cap, not a peak); for the llama.cpp arms it i
 plus the `free -g` available reading taken while serving; for the image arm it is the torch peak
 alloc/reserved pair. Peak *host* RSS is not in every receipt, and none is invented here.
 
+**The house bar, read correctly.** 37/37 in practice means **clears `hard-rev`**: the reverse-the-string
+item is the near-universal discriminator — `nurkrpas` / `nurkraps` / `nrukraps` / `nurkrasp` on
+Laguna-XS, both Muse-Glimmer exports, K2-Horizon-7B, the knapcio TP-4 and ds4 TP-2 lines, and more —
+while the other 36 tasks are typically clean. A sub-37 house score is almost always this one item, and
+it is a real capability miss there, not an instrument artifact; the bar itself is unchanged.
+
 **Tie-break record.** Node count tied at 1 for all 14. Accuracy decided first: Ling is the accuracy
 leader (ARC/GSM8K/BFCL all measured, house 37/37); the Mellum GGUF ties the house score and leads BFCL
 (88.3 vs 88.0) while also leading speed and size. The `iSkye` 4-bit pack and APEX-24bpw both saturate

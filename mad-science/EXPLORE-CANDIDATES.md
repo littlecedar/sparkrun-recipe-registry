@@ -18,11 +18,19 @@ Selection priorities (owner's order): node count ↓, speed ↑, accuracy ↑, m
 | 3 | [nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4) | 30B / 3B (Mamba-2 hybrid) | NVFP4 21.6 GB | **1** | OpenMDW-1.1 | **VERIFIED** — forum, official ARM64 vLLM, + DSpark drafter |
 | 4 | [nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4) | 120B / 12B | NVFP4 80.4 GB | **1** | OpenMDW-1.1 | **VERIFIED** — forum 23.45 tok/s + Spark Arena entry |
 | 5 | [poolside/Laguna-S-2.1](https://huggingface.co/poolside/Laguna-S-2.1) | 118B / ~8B | NVFP4 99.7 GB | 1 (tight) | OpenMDW-1.1 | **VERIFIED** — Spark Arena, DFlash spec decode, 1 Spark |
-| 6 | [MiniMaxAI/MiniMax-M3](https://huggingface.co/MiniMaxAI/MiniMax-M3) | ~428B / ~23B | MXFP4/REAP ~220 GB | 2 | **non-commercial** | **VERIFIED** — 2× Spark threads (14–15 t/s EAGLE3), 3×/4× arms |
+| 6 | [MiniMaxAI/MiniMax-M3](https://huggingface.co/MiniMaxAI/MiniMax-M3) | ~428B / ~23B | **795.5 GiB as published** (the ~220 GB was a quant target, not the repo) | **4+** | **non-commercial** | **VERIFIED** — 2× Spark threads (14–15 t/s EAGLE3) on a much smaller quant than the repo ships |
 | 7 | [XiaomiMiMo/MiMo-V2.6-Flash-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Flash-RL) | ~310B / ~12B | BF16 177.8 GB | 2 | MIT | **VERIFIED** — 2× Spark, DFlash, ~80 tok/s peak (code) |
-| 8 | [thinkingmachines/Inkling-Small](https://huggingface.co/thinkingmachines/Inkling-Small) | ~265B total [SPECULATIVE — active unknown] | NVFP4 170.8 GB | 2 | Apache-2.0 | **VERIFIED** — 2× Spark community recipe |
+| 8 | [thinkingmachines/Inkling-Small](https://huggingface.co/thinkingmachines/Inkling-Small) | ~265B total [SPECULATIVE — active unknown] | **495.4 GiB as published** — no NVFP4 export exists on the repo | **4+** | Apache-2.0 | **VERIFIED** — 2× Spark community recipe on a quant the repo does not ship |
 | 9 | [moonshotai/Kimi-K3](https://huggingface.co/moonshotai/Kimi-K3) | 2.8T / 104B | — realistic 8–16 nodes | 8+ | permissive-ish (`license:other`) | existence only (single-Spark streaming at 9.62 s/token is unusable) |
 | 10 | [IFM/K2-Horizon-375B-A23B](https://huggingface.co/IFM/K2-Horizon-375B-A23B) | 375B / 23B | FP8 390.6 GB | 3–4 | Apache-2.0 | **none — first boot**; natural home is the existing `ifm` lane |
+
+**Status, checked 2026-10-21 (sizes are Hub blob sums, not the scan's estimates):** ranks **1–5 are
+closed** — 1 Mistral-Small-4 measured-rejected (28.9 t/s C1), 2 Muse-Glimmer-30B falsified as a
+checkpoint defect (house 36/37 both exports, C1 20.2), 3 Nemotron-3.5-Lightning-30B-A3B **shipped**
+(house 37/37, C1 63.3, 20.1 GiB, `recipes/explore/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml`),
+4 Nemotron-3-Super-120B measured-rejected (15.9 t/s at 74.8 GiB), 5 Laguna-S-2.1 measured and retired
+(dominated by its XS sibling). **Nothing 1-node is left in this table**: ranks 6 and 8 are far larger
+on the Hub than the scan recorded (795.5 and 495.4 GiB), and 7, 9 and 10 were already 2+ nodes.
 
 ## Per-candidate notes
 
