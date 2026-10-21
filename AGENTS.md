@@ -357,10 +357,12 @@ matching.
 
 - **Python ≥ 3.12 via `uv`** (local venv is 3.14.7, uv 0.12.23). Run Python as
   `uv run python -B ...`. Only runtime deps are `jinja2` and `netifaces` (the latter sdist-only).
-- **`sparkrun` 0.4.0-alpha+g29f53fb** is the installed build this registry is verified against,
+- **`sparkrun` 0.4.2-alpha+g36d8a44** is the installed build this registry is verified against,
   on PATH outside uv (`uv tool install sparkrun` if missing); all invocations require the
   `HOME="$PWD/.local/sparkrun-home"` override. Schema citations in
-  [`recipes/MECHANICS.md`](recipes/MECHANICS.md) are line numbers in that installed package.
+  [`recipes/MECHANICS.md`](recipes/MECHANICS.md) are line numbers in that installed package,
+  re-derived for 0.4.2 on 2026-10-21 for the sections its header lists; a cite outside that list
+  still carries 0.4.0-alpha+g29f53fb numbering until it is re-derived.
 - **No npm/node tooling.** `package-lock.json` is a 6-line empty stub and no `package.json` exists —
   never run `npm`.
 - **No CI, no pre-commit, no formatters or linters**: no `.github/`, no CI provider configs, no

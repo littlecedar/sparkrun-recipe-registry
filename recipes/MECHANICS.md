@@ -1,10 +1,18 @@
 # Mechanics
 
 Recipe-schema reference for the `littlecedar` registry, written against **sparkrun
-0.4.0-alpha+g29f53fb** — the installed build at
-`/home/travis/.local/share/uv/tools/sparkrun/lib/python3.12/site-packages/sparkrun/`.
+0.4.2-alpha+g36d8a44** — the installed build at
+`/home/siv/.local/share/uv/tools/sparkrun/lib/python3.12/site-packages/sparkrun/`.
 Every `file.py:line` cite is relative to that package tree. Re-derive a line before
 trusting it after an upgrade; `sparkrun --version` names the build you have.
+
+**Cite provenance.** The cites re-derived against 0.4.2 on 2026-10-21 are: every cite in
+§[The one rule](#the-one-rule-that-decides-whether-a-knob-works), and in §Key reference
+under *`sparkrun_version`*, *`recipe_version`*, *`description`*, *`metadata`*,
+*`maintainer`* and *`model_revision`*, plus §[Notes](#notes). Every other cite still
+carries 0.4.0 numbering — re-derive it with `grep -n` on the named symbol before trusting
+it. The module paths themselves (`core/launcher.py`, `core/recipe.py`,
+`core/validation.py`, `models/runtime.py`) are the same in both builds.
 
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
 (`core/recipe.py:78-120`): **41 keys**, counted from the literal set. A key outside
@@ -17,27 +25,27 @@ it is either plugin-owned or swept into `runtime_config`.
 reaches the engine through exactly one of:
 
 1. a `{placeholder}` of the same name in `command:`, in another default's value, or in
-   an `env:` value (`core/launcher.py:673-696`);
-2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:840-870`;
+   an `env:` value (`core/launcher.py:798-818`);
+2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:867-892`;
    per-runtime extras in the runtime table below);
-3. a shared consumed key in `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:45-85`) —
+3. a shared consumed key in `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:41-86`) —
    parallelism dims, `max_model_len`, `gpu_memory_utilization`, `kv_cache_dtype`,
    `served_model_name`, `api_key`, `port`, `host`, executor and builder selectors, and the
    benchmark keys;
-4. an internal `_`-prefixed or dotted key (`core/launcher.py:662-670`), or a key read only
-   by an `overrides[].when.config` predicate (`core/launcher.py:866-870`).
+4. an internal `_`-prefixed or dotted key (`core/launcher.py:776-789`), or a key read only
+   by an `overrides[].when.config` predicate (`core/launcher.py:994-998`).
 
 Everything else is dropped silently. The only reporter is `report_unmapped_config_keys`,
-a **warning** named `unmapped-config-key` (`core/launcher.py:881-899`, wired into
-`recipe validate` at `core/validation.py:1821-1832`). It returns nothing when a runtime
-declares `known_config_keys() is None` (`core/launcher.py:863-864`); `eugr-vllm` does
-exactly that (`runtimes/eugr_vllm_ray.py:55-63`), so nothing warns there.
+a **warning** named `unmapped-config-key` (`core/launcher.py:1011-1029`, wired into
+`recipe validate` at `core/validation.py:1842-1853`). It returns nothing when a runtime
+declares `known_config_keys() is None` (`core/launcher.py:991-992`); `eugr-vllm` does
+exactly that (`runtimes/eugr_vllm_ray.py:54-63`), so nothing warns there.
 
 A top-level typo is the other half: an unknown top-level key is swept into
-`runtime_config` (`core/recipe.py:1264-1270`), where only a by-name consumer reads it.
+`runtime_config` (`core/recipe.py:1393-1400`), where only a by-name consumer reads it.
 `check_unknown_top_level_keys` warns `misplaced-config-key` when the runtime would have
 understood the key under `defaults:`, and suggests `unknown-top-level-key` otherwise
-(`core/validation.py:1176-1272`). When a key is deliberately read by name, declare it
+(`core/validation.py:1196-1275`). When a key is deliberately read by name, declare it
 under `runtime_config:` so it reads as intentional.
 
 ## Key reference (41)
@@ -46,9 +54,9 @@ under `runtime_config:` so it reads as intentional.
 
 - **`sparkrun_version`** — legacy v1 key, unread by `Recipe.__init__`. Only
   `resolve_builder` consults it as a fallback for version detection
-  (`core/recipe.py:757`), and canonical export drops it (`core/recipe.py:2347-2355`).
+  (`core/recipe.py:897`), and canonical export drops it (`core/recipe.py:2520-2530`).
   Omit it in v2.
-- **`recipe_version`** — string, default `"2"` (`core/recipe.py:1165`). `"1"` runs the
+- **`recipe_version`** — string, default `"2"` (`core/recipe.py:1297`). `"1"` runs the
   legacy migration: runtime inferred from the command, `builder: eugr` when the command or
   `mods:` imply it (`core/recipe.py:573-580`), plus a `deprecated-recipe-format` warning
   (`core/validation.py:1442-1460`). Omit it in v2 — the default is already `"2"`.
@@ -56,25 +64,25 @@ under `runtime_config:` so it reads as intentional.
   `packaging.version.Version`; a range is rejected (`core/version.py:24-34`).
   `validate_structure` fails when the installed core is older
   (`core/version.py:38-60`; called from `core/recipe.py:1608-1611`).
-- **`name`** — ignored. The name is the source filename stem (`core/recipe.py:1174-1175`);
+- **`name`** — ignored. The name is the source filename stem (`core/recipe.py:1303-1306`);
   a declared `name:` in a v2 recipe draws `deprecated-recipe-name`, because the value is
   discarded rather than honored (`core/validation.py:1512-1525`). Rename the file to rename
   the recipe.
-- **`description`** — string, default `""`, read from the top level (`core/recipe.py:1176`).
-  When absent it falls back to `metadata.description` (`core/recipe.py:1256-1259`), and
-  export folds it back into `metadata.description` (`core/recipe.py:2406-2409`).
-  `recipe list` and `recipe search` read the **top-level** key only
-  (`core/recipe.py:2744`), so a nested description lists as empty.
+- **`description`** — string, default `""`, read from the top level (`core/recipe.py:1307`).
+  When absent it falls back to `metadata.description` (`core/recipe.py:1385-1389`), and
+  export folds it back into `metadata.description` (`core/recipe.py:2574-2576`).
+  `recipe list` and `recipe search` read the top-level key **and** fall back to
+  `metadata.description` (`core/recipe.py:2933-2936`), so both spellings list.
 - **`metadata`** — mapping, default `{}`. Feeds VRAM estimation and display, never the
-  serve command (`core/recipe.py:1231-1233`, `1638-1713`). Recognized labels include
+  serve command (`core/recipe.py:1362-1363`, `1638-1713`). Recognized labels include
   `model_params`, `model_dtype`, `kv_dtype`, `quantization`, `quant_bits`, `model_type`,
   `layer_types`, `description`, `maintainer`, and `spark_arena_benchmarks`. A malformed
   value is a **suggestion** (`recipe-metadata`), never a launch blocker
   (`core/validation.py:1784-1788`). Metadata is excluded from the workload fingerprint
   (`orchestration/job_metadata.py:340-350`).
 - **`maintainer`** — no top-level form. The constructor reads `metadata.maintainer`
-  only (`core/recipe.py:1261-1262`) and export writes it back there
-  (`core/recipe.py:2410-2411`); a top-level `maintainer:` is not in `_KNOWN_KEYS` and is
+  only (`core/recipe.py:1392`) and export writes it back there
+  (`core/recipe.py:2577-2578`); a top-level `maintainer:` is not in `_KNOWN_KEYS` and is
   swept into `runtime_config`.
 - **`include`** — one base recipe: a sibling filename or `@registry/name`. The base is
   loaded recursively (depth cap 8), then merged: mappings merge key by key, scalars and
@@ -101,7 +109,7 @@ under `runtime_config:` so it reads as intentional.
   is stamped onto the auto-generated distribution entry (`core/recipe.py:333-350`). It
   enters the template chain only when set (`core/recipe.py:1534-1535`). A pin that never
   reaches the engine as a revision flag warns `unpinned-model-revision`
-  (`core/validation.py:837-914`) — eleven shipped arms carry that warning deliberately.
+  (`core/validation.py:866-935`) — eleven shipped arms carry that warning deliberately.
 - **`runtime`** — string, default `""`; required after resolution
   (`core/recipe.py:1628-1629`). Omitted, it is inferred from the command prefix:
   `vllm serve` → `vllm`, `sglang serve` or `python -m sglang.launch_server` → `sglang`,
@@ -267,7 +275,7 @@ On a launch with a prepared model, `bind_runtime_models` writes operation-local 
 `model` → the prepared in-container snapshot path, `model_revision` →
 `_prepared_model_revision`, `revision` → the manifest revision for vLLM and sglang, and
 `_gguf_model_path` / `mmproj` when the artifact has them
-(`models/runtime.py:40-55`). So in 0.4.0:
+(`models/runtime.py:44-60`). So in 0.4.2:
 
 - `{model}` renders the **prepared path**, not the declared repo id. That is why
   `--served-model-name {model}` advertises
@@ -275,11 +283,11 @@ On a launch with a prepared model, `bind_runtime_models` writes operation-local 
   opposite before 2026-10-19; that note was wrong for 0.4.0.
 - `--revision` is **not** stripped from the template, and `{model_revision}` does resolve
   when the recipe pins one — to the prepared revision, because operation overrides outrank
-  `defaults` in the chain (`core/recipe.py:1532-1538`).
+  `defaults` in the chain (`core/recipe.py:1674-1682`).
 - `validate_runtime_command` returns early when the prepared path appears as a token, or
-  as `--flag=<path>` (`models/runtime.py:80-87`). Otherwise the command must name the
+  as `--flag=<path>` (`models/runtime.py:85-92`). Otherwise the command must name the
   declared repo id as a token and pass a revision flag with the **prepared** revision in
-  the space or `=` spelling (`models/runtime.py:88-99`).
+  the space or `=` spelling (`models/runtime.py:93-104`).
 - A dry run (`-n`) can still print the repo id, because bindings exist only when a
   prepared model is present; a live `GET /v1/models` is the acceptance check for an
   advertised id.
@@ -305,8 +313,9 @@ command: >
   --served-model-name {served_model_name}
 ```
 
-Both lines are required together: a declared key the command never references is a silent
-drop (`core/launcher.py:814-899`), and the runtime's own append fires only when the flag is
+Both lines are required together: a declared key the command never references is
+dropped from the rendered command (`core/launcher.py:939-1029`; 0.4.2 reports it as the
+`unmapped-config-key` warning instead of dropping it silently), and the runtime's own append fires only when the flag is
 absent, with fill policy leaving an existing value untouched
 (`runtimes/base.py:925-981`; sglang call site `runtimes/sglang.py:370-374`). The two ds4
 shim arms are the deliberate exception: their in-container launchers normalize the path
