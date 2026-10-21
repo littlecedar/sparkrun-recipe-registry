@@ -140,6 +140,34 @@ def resample_sigmas(base: list[float], steps: int) -> list[float]:
     return out
 
 
+def schedule_kwargs(req: dict, shipped: list[float] | None) -> tuple[dict, list[float] | None]:
+    """Map a request's schedule fields onto pipeline kwargs.
+
+    Returns `(kwargs, sigmas_used)`; `sigmas_used` is what the response reports, so
+    a cell can prove which path ran. `None` means the checkpoint's saved schedule.
+    """
+    kw: dict = {}
+    req_sigmas = req.get("sigmas")
+    if req_sigmas:
+        sigmas_used: list[float] | None = [float(x) for x in req_sigmas]
+    else:
+        sigmas_used = None
+        if req.get("num_inference_steps") is not None:
+            steps = int(req["num_inference_steps"])
+            if not shipped:
+                raise ValueError("num_inference_steps needs the checkpoint's sample_sigmas, "
+                                 "which could not be read at load; pass an explicit sigmas "
+                                 "list instead")
+            if steps != len(shipped):
+                # One sigma per step on this checkpoint, so an N-step schedule is N
+                # sigmas resampled from the saved curve; equal counts leave the saved
+                # schedule alone (the pipeline force-loads it anyway).
+                sigmas_used = resample_sigmas(shipped, steps)
+    if sigmas_used:
+        kw["sigmas"] = sigmas_used
+    return kw, sigmas_used
+
+
 def run_generate(req: dict) -> dict:
     import torch
 
@@ -160,26 +188,7 @@ def run_generate(req: dict) -> dict:
         "use_kv_cache": use_kv_cache,
         "generator": torch.Generator("cpu").manual_seed(seed),
     }
-    sigmas_used = None
-    req_sigmas = req.get("sigmas")
-    if req_sigmas:
-        sigmas_used = [float(x) for x in req_sigmas]
-    elif req.get("num_inference_steps") is not None:
-        steps = int(req["num_inference_steps"])
-        base = STATE.get("shipped_sigmas")
-        if not base:
-            raise ValueError("num_inference_steps needs the checkpoint's sample_sigmas, which "
-                             "could not be read at load; pass an explicit sigmas list instead")
-        if steps != len(base):
-            # This checkpoint's saved schedule is one sigma per step (8 sigmas = 8 steps as
-            # the pipeline reports it), so "an N-step schedule" is N sigmas resampled from
-            # that curve by linear interpolation in index. Values are interpolated, not
-            # indices rounded, so the list stays strictly decreasing.
-            if steps < 2:
-                raise ValueError("num_inference_steps must be >= 2 (or pass sigmas explicitly)")
-            sigmas_used = resample_sigmas(base, steps)
-    if sigmas_used:
-        call["sigmas"] = sigmas_used
+    call.update(schedule_kwargs(req, STATE.get("shipped_sigmas"))[0])
     image_path = req.get("image_path")
     if image_path:
         from diffusers.utils import load_image
