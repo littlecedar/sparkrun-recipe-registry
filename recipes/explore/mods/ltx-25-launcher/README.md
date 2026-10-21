@@ -1,10 +1,12 @@
 # ltx-25-launcher
 
-Pre-launch mod + probe server for the **non-shippable** LTX-2.5 T2V probe
-([`recipes/explore/zz-ltx-2.5-t2v-comfyui-script.yaml`](../../../recipes/explore/zz-ltx-2.5-t2v-comfyui-script.yaml)).
-The shipped artifact for this arm remains the runbook at
-[`recipes/explore/ltx-2.5-runbook/`](../../ltx-2.5-runbook/); this directory only
-turns the runbook's measured T2V cell into a sparkrun launch.
+Pre-launch mod + launcher server for the LTX-2.5 T2V arm
+([`recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`](../../../recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)).
+**Booted 2026-10-21 on `.35`**: the cold stage (ComfyUI + venv + 36.9 GB of gated
+weights) completed inside the port budget, `/v1/models` answered, and the T2V cell
+landed at 100.13 s cold / 78.1 s warm, peak 84.00 / 83.45 GiB — the runbook's own
+cells (100.3 / 78.1 s, 83.6 GiB). Receipt `~/benchmarks/ltx25-recipe-20261021/`;
+the arm's measured provenance is [`recipes/explore/ltx-2.5-runbook/`](../../ltx-2.5-runbook/).
 
 ## Why this exists
 
@@ -60,6 +62,12 @@ detaches the heavy work:
 `stage.status` is `running …`, `ok …`, or `failed <reason>`; it is written by
 the same content gates that are re-checked on every launch, so a complete
 runtime dir makes the mod a no-op.
+
+**Trap (2026-10-21): sparkrun exports `HF_HUB_OFFLINE=1`** for its distribution
+contract, and `hf download` under it fails with "offline mode is enabled" — the
+first two boots died there after the engine stage had already passed. The stage
+now exports `HF_HUB_OFFLINE=0`; an `unset` inside the `hf` CLI wrapper was not
+enough.
 
 ## Gated weights: the exact prerequisite
 
@@ -145,13 +153,12 @@ bash -n recipes/explore/mods/ltx-25-launcher/run.sh
 python3 recipes/explore/mods/ltx-25-launcher/launcher.py --selftest
 uv run python -m py_compile recipes/explore/mods/ltx-25-launcher/*.py
 HOME=.local/sparkrun-home sparkrun recipe validate \
-  recipes/explore/zz-ltx-2.5-t2v-comfyui-script.yaml
+  recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml
 HOME=.local/sparkrun-home sparkrun run \
-  recipes/explore/zz-ltx-2.5-t2v-comfyui-script.yaml -H <node> -n
+  recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml -H <node> -n
 ```
 
-The dry-run renders the command without launching. No boot has been performed
-from this tree: the first launch is the acceptance test, and the open questions
-are the ones listed above (pip's unpinned torch/transformers resolution,
-ComfyUI's first import under the image, and the expanded graph against
-/object_info).
+The dry-run renders the command without launching. The 2026-10-21 boot answered
+both open questions: torch resolved to the measured cu130 pair on cp312, ComfyUI
+imported under the image, and the expanded graph passed `/object_info` — the cell
+then ran at the runbook's wall and peak-memory figures.

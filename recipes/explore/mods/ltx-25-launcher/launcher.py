@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Little Cedar Group <sparkrun@littlecedar.net>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""LTX-2.5 T2V probe server: ComfyUI supervisor + expansion + one `/generate`.
+"""LTX-2.5 T2V launcher server: ComfyUI supervisor + expansion + one `/generate`.
 
 `Lightricks/LTX-2.5` has no sglang/vLLM engine: the runtime is ComfyUI (a
 subgraph workflow driven over the backend `/prompt` route). This script is the

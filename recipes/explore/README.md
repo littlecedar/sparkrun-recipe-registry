@@ -5,9 +5,10 @@ directive): top candidates are optimized for **generation speed, concurrency, ac
 size**; ties break on the owner's 2026-10-11 weighting — **node count (lower) → accuracy (higher) →
 speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, so node count tied.
 
-The lane now ships **five measured arms** — the accuracy leader, the smallest 262k arm with measured
-headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, and the media-gen arm whose
-cells are closed — plus one authored-unbooted 2-node arm (`Laguna-M.1`, owned by its own boot item,
+The lane now ships **six measured arms** — the accuracy leader, the smallest 262k arm with measured
+headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the media-gen arm whose
+cells are closed, and the LTX-2.5 video+audio arm booted 2026-10-21 — plus one authored-unbooted
+2-node arm (`Laguna-M.1`, owned by its own boot item,
 not a selection candidate). The other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 14-row decision table with one
@@ -22,9 +23,10 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 - [kolibri-1-apex-24bpw-llamacpp](#kolibri-1-apex-24bpw-llamacpp)
 - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](#poolside-laguna-xs-21-nvfp4-dflash-vllm)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
+- [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
-- [LTX-2.5 ComfyUI runbook (not a recipe)](#ltx-25-comfyui-runbook-not-a-recipe)
+- [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
 - [Attic index](#attic-index)
 
 ---
@@ -267,6 +269,45 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   `~/benchmarks/media-gen-20261018/REPORT.md`.
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 
+## [ltx-2.5-22b-nvfp4-t2v-comfyui-script](ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)
+
+ComfyUI v0.34.0 (no `sglang`/vLLM engine serves it) + [`recipes/explore/mods/ltx-25-launcher`](mods/ltx-25-launcher) ·
+**1 node** · **booted 2026-10-21 on `.35` — first receipt**.
+
+> **LICENSE — read before shipping outputs.** `Lightricks/LTX-2.5` is under the
+> **ltx-2.x-community-license-agreement** (card `license: other`): free commercial use for a
+> Commercial Entity below a $10M annual-revenue threshold — read
+> <https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x>. The repo is **`gated: auto`**: each
+> node needs an `HF_TOKEN` whose account accepted the release. A recipe ships a repo id, not weights.
+
+- **Model:** `Lightricks/LTX-2.5` (pinned `49b093a3`) — 22B distilled DiT (nvfp4) + Gemma-4-12B text
+  encoder (comfy-int8) + video/audio VAEs + x2 latent upscaler, **36.9 GB**.
+- **Engine / staging:** the recipe pins the media-gen lane's arm64 cu130 base
+  (`vllm/vllm-openai:v0.30.0@sha256:8a69…`) and the mod stages ComfyUI v0.34.0 plus its exact
+  package set and a torch venv (resolved `torch 2.14.1+cu130`, `comfy-kitchen 0.2.31`), then the five
+  gated weight files — detached, because the 600 s `pre_exec` hook cannot hold a 36.9 GB fetch.
+  `runtime: vllm` is only the launcher/distribution contract.
+- **Flags / non-obvious knobs:** `distribution_config.models.enabled: false` (sparkrun's anonymous
+  distribution cannot fetch a gated repo); `readiness.inference: false`, `port_timeout_s: 3600` (cold
+  stage); `entrypoint: ""` clears the image's `vllm serve`; `--served-model-name` rendered explicitly
+  so `/v1/models` answers the repo id. **sparkrun injects `HF_HUB_OFFLINE=1`** — the mod sets it to 0
+  for its own fetch (an `unset` inside the `hf` CLI wrapper was not enough).
+- **Measured 2026-10-21, `.35`, clock-capped at 2200 MHz**, one boot, seeds 42 then 44 (a same-seed
+  rerun is fully cached at 0.01 s), prompt = the template's own positive text, 1344×768 / 121 frames /
+  24 fps:
+
+  | cell | wall | peak GiB | output |
+  |---|---|---|---|
+  | cold (model load in) | **100.13 s** | 84.00 | h264 1344×768, 121 f, 5.0417 s + AAC 5.010 s, 848 KB |
+  | warm (seed 44) | **78.1 s** | 83.45 | same container, 1.09 MB |
+
+  Both land on the runbook's own cells (cold 100.3 s, warm 78.1 s, peak 83.6 GiB). The frames are
+  real content (luma 96.6 / 166.5 / 164.3 at f0/f60/f120; frame-to-frame Δ 0 / 79.6 / 14.3) and the
+  audio is not silent (max −26 dB, RMS −43.8 dB). Cold stage: ComfyUI + venv in 121 s, then 36.9 GB
+  of weights in 148 s. Receipt `~/benchmarks/ltx25-recipe-20261021/`.
+- **Details:** [`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md),
+  [`mods/ltx-25-launcher/README.md`](mods/ltx-25-launcher/README.md).
+
 ## [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml)
 
 llama.cpp · **1 node (TP=1)** · **kept 2026-10-19 — fastest decode, best aggregate peak, smallest
@@ -345,14 +386,13 @@ lane history; nothing here is shippable.)*
   is **1**, not the 4 `state.rows: auto` assumes (four rows would need ~43 GB, and one request left
   3.9 GiB free).
 
-## LTX-2.5 ComfyUI runbook (not a recipe)
+## LTX-2.5 measured cells (runbook)
 
-`Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) ships as a
-**runbook, not a recipe** — the runtime is ComfyUI (no `sglang`/vLLM engine) and the repo is `gated: auto`
-(a per-node `HF_TOKEN` + accepted terms is a prerequisite sparkrun cannot assume). See
-[`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md). Weights ≈36.9 GB; T2V/I2V run the two-stage
-shape (8-step @ 672×384 → `LTXVLatentUpsampler` ×2 → 3-step refine @ 1344×768); license
-`ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity threshold).
+`Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) is measured in
+the runbook at [`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md); its T2V cell now ships as the
+recipe above. Weights ≈36.9 GB; T2V/I2V run the two-stage shape (8-step @ 672×384 →
+`LTXVLatentUpsampler` ×2 → 3-step refine @ 1344×768); license `ltx-2.x-community-license-agreement`
+(free below a $10M-revenue Commercial Entity threshold).
 Lane notes: [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md).
 
 **Cells measured 2026-10-18** on `.34` (clock cap 2200 MHz; seeds 42 then 44 — a same-seed rerun is

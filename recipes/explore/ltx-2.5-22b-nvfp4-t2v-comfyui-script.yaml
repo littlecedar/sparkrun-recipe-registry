@@ -1,14 +1,4 @@
 # ===========================================================================
-# NON-SHIPPABLE PROBE — NOT IN THE LANE OR ROOT INDEX
-#
-# `zz-` marks this as an unindexed probe: the LTX-2.5 arm ships as the runbook
-# in recipes/explore/ltx-2.5-runbook/, and this recipe only exists to run the
-# runbook's measured **T2V** cell (1344x768, 121 frames, 24 fps) under the
-# normal launch/readiness/receipt machinery. I2V/FLF2V are different templates
-# and are not this recipe. Do not cite it as a shipped arm and do not add it to
-# recipes/explore/README.md or the root README.
-# ===========================================================================
-#
 # LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE OR ITS OUTPUTS
 #
 # Lightricks/LTX-2.5 is licensed under the **ltx-2.x-community-license-agreement**
@@ -48,9 +38,9 @@ description: >-
   Lightricks/LTX-2.5 — video+audio world model (22B distilled DiT + Gemma-4-12B
   text encoder, ~36.9 GB as the nvfp4 transformer + bf16 video/audio VAEs + x2
   latent upscaler + comfy-int8 encoder) served by ComfyUI v0.34.0 on ONE DGX
-  Spark. This is the runbook's two-stage T2V template as a sparkrun launch: an
-  HTTP probe server (GET /health, GET /v1/models, POST /generate) supervises
-  ComfyUI, expands the subgraph template to an API prompt, pins
+  Spark. This is the runbook's measured two-stage T2V template as a sparkrun
+  arm: a launcher server (GET /health, GET /v1/models, POST /generate)
+  supervises ComfyUI, expands the subgraph template to an API prompt, pins
   seed/size/frames/fps, and reports wall time plus peak unified memory.
   LICENSE: ltx-2.x-community-license-agreement (free below a $10M-revenue
   Commercial Entity threshold; see the banner at the top of this file). GATED
@@ -59,9 +49,8 @@ metadata:
   model_url: https://huggingface.co/Lightricks/LTX-2.5
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "22B"
-  model_dtype: bf16
-  quantization: nvfp4
-  tags: explore, video, single_user, probe
+  model_dtype: nvfp4
+  tags: explore, video, single_user
 
 mods:
   - "mods/ltx-25-launcher"
@@ -111,24 +100,7 @@ command: >
   --served-model-name {served_model_name}
   --host {host}
   --port {port}
-# Prerequisites carried from the receipt (~/benchmarks/ltx25-20261018/REPORT.md):
-#   * frames MUST satisfy frames % 8 == 1 (5 s at 24 fps = 121; the "124" in a
-#     third-party write-up belongs to a different draft graph). The launcher
-#     rejects a bad count with 400 rather than shaping a wrong clip.
-#   * `SaveVideo` must be the output node. A graph without it "succeeds" in
-#     0.01 s having generated nothing; the launcher GCs from SaveVideo and
-#     treats its absence as a hard error.
-#   * Weight files are fetched by explicit filename: `hf download --include`
-#     silently drops the first pattern.
-#   * The two-stage T2V latent width/height are `ComfyMathExpression "a/2"` over
-#     the primitives; a literal on EmptyLTXVLatentVideo bypasses the halving and
-#     silently runs stage 1 at full resolution (receipt defect 4). The launcher
-#     sets the primitive behind the `/2`.
-#   * HOST clock cap: `sudo nvidia-smi -lgc 0,2200` before launch (sustained-load
-#     power-loss fix; all measured LTX cells were capped). The container has no
-#     nvidia-smi, so the mod logs this as a note, not a gate.
-#   * The runbook's `expand_subgraph.py` is T2V-only: subgraph widget alignment,
-#     the dynamic ResizeImageMaskNode widgets and the dead prompt-enhancer
-#     branch all had to be fixed for I2V/FLF2V. This T2V probe ships the fixed
-#     expander (mods/ltx-25-launcher/expand2.py) so the graph it submits is the
-#     one the receipt measured.
+# HOST prerequisite: `sudo nvidia-smi -lgc 0,2200` before launch — the
+# sustained-load power-loss fix (a second consecutive long generation can take
+# the node down). Every measured LTX cell was taken capped. The container has no
+# nvidia-smi, so the mod logs it as a note, not a gate.

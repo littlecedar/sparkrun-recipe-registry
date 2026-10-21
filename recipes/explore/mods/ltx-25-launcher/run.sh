@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Pre-launch mod for the LTX-2.5 T2V probe (explore lane, media-gen).
+# Pre-launch mod for the LTX-2.5 T2V arm (explore lane, media-gen).
 #
 # The engine is ComfyUI, which is neither sglang nor vLLM: the recipe's
 # `runtime: vllm` is only the launcher/distribution contract, and its
@@ -43,7 +43,7 @@
 set -euo pipefail
 
 export MOD_NAME="ltx-25-launcher"
-export MOD_DESCRIPTION="ComfyUI v0.34.0 + gated LTX-2.5 weights for the T2V probe"
+export MOD_DESCRIPTION="ComfyUI v0.34.0 + gated LTX-2.5 weights for the T2V arm"
 export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
 
 #####################################################################
@@ -265,6 +265,12 @@ stage_weights() {
   fi
   resolve_token
   [[ -n "${HF_TOKEN:-}" ]] || { log "no HF token after gate (race)"; return 1; }
+  # sparkrun exports HF_HUB_OFFLINE=1 for its distribution contract (models
+  # arrive already staged); this arm fetches its own gated weights, and under
+  # that flag `hf download` refuses to reach the Hub. Observed 2026-10-21:
+  # "offline mode is enabled" right after the engine stage passed, and an
+  # `unset` was not enough from the CLI wrapper — set it to 0 explicitly.
+  export HF_HUB_OFFLINE=0
   export HF_HUB_DOWNLOAD_TIMEOUT="${HF_HUB_DOWNLOAD_TIMEOUT:-60}"
   export HF_HUB_ETAG_TIMEOUT="${HF_HUB_ETAG_TIMEOUT:-30}"
   export HF_HUB_DISABLE_PROGRESS_BARS=1
