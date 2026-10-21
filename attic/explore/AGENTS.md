@@ -570,6 +570,51 @@ untouched):
   correctness beyond the short `needle-1` probe, and the BFCL datapoint — the per-arm record's §6.
 - Details, provenance and what the boot answered: [`MELLUM-21.md`](MELLUM-21.md).
 
+### Muse-Glimmer-30B NVFP4 + DFlash — boot-verified 2026-10-21, **NOT selected**
+
+- **The route works, and that is the result worth keeping.** `RadixArk/Muse-Glimmer-NVFP4` @
+  `1416629950` (18.3 GiB, mixed NVFP4/MXFP8 modelopt) plus `meta-models/Muse-Glimmer-30B-assistant` @
+  `c676cce9` (4.8 GiB DFlash drafter) serves on **one** Spark under the ornith lane's own
+  `lmsysorg/sglang:v0.5.21` digest — no fork, no newer build, no new image. SGLang has the model, the
+  `muse` reasoning and tool-call parsers, and the DFlash assistant path at that tag.
+- **Contract PASS, including the tool call the model exists for**: the channel-scoped
+  `to=functions.x<|message|>` framing converts through `--tool-call-parser muse` into
+  `finish=tool_calls` with `get_weather({"location": "Paris", "unit": "celsius"})` — arguments
+  populated, not empty. Greedy `27*43` → `1161`. This is the first arm in the lane whose native
+  channel format needed no shim.
+- **Engine facts.** `Use marlin as FP4 GEMM runner backend on SM120 for Muse Glimmer` fires on GB10
+  (sm_121 satisfies `is_sm120`; the FlashInfer autotune path confirms `/sm121/`). DFLASH engages at
+  block size 5 (`num_tokens_per_req=5` verify graphs), with `DFLASH draft greedy head kept eager
+  (reason=quantized lm_head)`. `enable_multimodal: None` leaves it text-only, as the pack requires.
+- **Boot cost.** Cold launch 318 s (316 s of it the 23.1 GiB distribution), `/v1/models` at 350 s;
+  warm re-boot 35 s. KV pool **235,556 tokens** bf16 at `--mem-fraction-static 0.38` (the vendor's
+  GB10-with-DFlash value), `max_running_requests=48` — **1.80x** the 131,072 window, so one
+  full-window request and not two.
+- **Quality: house 36/37** (easy 19/19, hard 17/18). The miss is `hard-rev`: "sparkrun" backwards
+  comes out **`nurkrpas`**, four of four runs at temperature 0, every one `finish=stop` with no
+  truncation — a genuine two-letter transposition, not a budget artifact. Other reversals are fine
+  (`abcdef` → `fedcba`, `hello` → `olleh`).
+- **Needle 10/10 at 32,768 and 10/10 at 131,072** (`--max-tokens 512`; the suite spells it
+  `--needle-max-tokens`), 60–67 s per request at 32k and 237–242 s at 131k.
+- **Ladder (d0, pp2048, tg128, n=5): C1 20.2 / C2 34.0 / C5 87.9 / C10 156.9 t/s**, prefill
+  909.8 / 690.0 / 648.0 / 637.2 t/s, ttfr 2.25 / 5.80 / 15.63 / 30.03 s. Acceptance from the serve
+  log: C1 mean **3.19** (max 4.60, rate 0.55), 2.57–2.94 above it. DFLASH is doing its job; the
+  ceiling is single-stream decode.
+- **Why it does not ship.** 37/37 is a tie-break here, not a gate — Kolibri-1 was kept at 36/37 as a
+  37/37 union, and Laguna-XS was kept at 36/37 with a genuine reversal for its c10 slot. Muse Glimmer
+  loses that tie-break from the wrong side: 36/37 genuine, like Laguna-XS, but at **20.2 t/s C1
+  against 57.4** — the slowest single-node arm measured in this lane — and its 156.9 at c10 rides a
+  48-request grant against Laguna-XS's 8, so it is not a like-for-like win. No BFCL number exists for
+  it, and none is quoted.
+- **Do not re-boot blind.** The recipe was removed rather than archived (its only novel content is
+  the pin set and the flag line, both recorded here). The next attempt should be the **bf16 export**
+  (`meta-models/Muse-Glimmer-30B`, 55.5 GiB, still one node): that separates pack from checkpoint on
+  both the `nurkrpas` slip and the decode rate, and restores the perception tower the quantized pack
+  drops.
+- Receipt `~/benchmarks/explore-muse-glimmer-20261021/` (`REPORT.md`, `contract.{py,json}`,
+  `house.json`, `needle-32k.json`, `needle-131k.json`, `ladder.{yaml,json,csv}`, two serve logs;
+  ladder `bench_441193bb138b`).
+
 ## Engine bump — vLLM 0.30.0 (2026-10-16)
 
 The 2026-10-15 advisory pass opened this: move the lane's six `vllm/vllm-openai:v0.29.0` arms to
