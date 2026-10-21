@@ -390,7 +390,8 @@ lane history; nothing here is shippable.)*
 
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) is measured in
 the runbook at [`ltx-2.5-runbook/README.md`](ltx-2.5-runbook/README.md); its T2V cell now ships as the
-recipe above. Weights ≈36.9 GB; T2V/I2V run the two-stage shape (8-step @ 672×384 →
+recipe above — the I2V and FLF2V templates and the 4K/50 preset are measured on the **runbook only**,
+not on the recipe, which serves T2V. Weights ≈36.9 GB; T2V/I2V run the two-stage shape (8-step @ 672×384 →
 `LTXVLatentUpsampler` ×2 → 3-step refine @ 1344×768); license `ltx-2.x-community-license-agreement`
 (free below a $10M-revenue Commercial Entity threshold).
 Lane notes: [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md).

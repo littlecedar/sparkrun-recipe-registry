@@ -83,6 +83,11 @@ QSA indexer.
 
 - The diagnostic item shrinks to two boots/edits: run `zz-labq-no-diag` (retire the diag if clean), and
   delete `EXTRA_LEAVES` (no boot needed; code + docs).
+  *(Both done — 2026-10-21. `EXTRA_LEAVES` was REMOVED 2026-10-19, machinery deleted rather than shipped
+  empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2, `run.sh`), so the "live
+  tree ships the knob empty" sentence above is superseded; and `zz-labq-no-diag` booted clean
+  2026-10-20 (receipt `~/benchmarks/qwen4-nodiag-20261020/`), which retired the diagnostic from the
+  balanced arm and left it mounted in highcon only, pending that arm's own clean boot.)*
 - Do not spend a boot on the `EXTRA_LEAVES` theory again — it is measured-negative.
 - The two mods' READMEs and the shipped recipes' "removable once … understood" comments should say
   "understood; insurance" instead.

@@ -383,6 +383,14 @@ own subsection (10.7 is the `6c01ac37` re-pin).
   bs=8 decode is +119% aggregate over bs=1, so the flag's price at bs>1 is UNMEASURED, not zero.
   Measuring it needs a variant recipe with the flag REMOVED from `defaults` (an override cannot
   produce a flag-absent arm).
+  *(Resolved 2026-10-21 — nothing is left unmeasured and no knob sits beside it. The boot cost the
+  flag was thought to buy does not exist: prefill graphs cannot engage on this checkpoint at all, so
+  removing the flag changes no effective config (the 2026-10-19 "Prefill graph" bullet below, with the
+  three-boot 8.6 % floor at C2). The crash itself is root-caused in `mad-science/QWEN4-DIAGNOSTICS.md`
+  §2 — a host sync plus a data-dependent buffer inside `get_prefill_mqa_inputs` — which also falsified
+  the demote mod's `EXTRA_LEAVES` knob; that machinery was REMOVED 2026-10-19 rather than shipped
+  empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2). This bullet is kept
+  as the September finding, not as open work.)*
 - **`--enable-linear-replayssm-spec` — MEASURED 2026-10-18, a capacity lever, not adopted.** One
   healthy TP=2 boot on `.34/.35` with the flag appended to `defaults.extra_args` (the two mandatory
   flags re-stated; `-o extra_args=` replaces the whole string). The engine accepted it —

@@ -419,7 +419,7 @@ Qwen 4.x (and 3.8 Flash Next)
 per the 2026-10-19 directive they run against the **offsite API endpoint**, batched behind the one
 owner switch. *(Owner decision 2026-10-19: that switch happens **after** the `.34`/`.35`
 single-node tail closes, not now — the tail's estimates assume local boots through then.)* )*
-- [ ] **Retire or resolve the shipping diagnostic** — `diag-qwen4-unplaced-scales` ships only because the shared-expert scale blocker is unexplained, and the `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob stays for an unresolved QSA-prefill CUDA-graph crash (`attic/qwen4/AGENTS.md` §10.1; `recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`). *(effort: medium)*
+- [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
   *(**Both are root-caused 2026-10-19** — `mad-science/QWEN4-DIAGNOSTICS.md` carries the mechanism
   with `file.py:line`. The shared-expert blocker is the checkpoint's `.weight_scale` suffix vs the
@@ -427,8 +427,12 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   is now insurance, not a workaround. The QSA-prefill crash is `get_prefill_mqa_inputs`' host sync and
   data-dependent buffer shape during capture; `EXTRA_LEAVES` is **falsified** (the demoted-projection
   boot crashed identically) and the path is unreachable today because the engine disables prefill
-  graphs for this multimodal checkpoint. Remaining work shrinks to: boot `zz-labq-no-diag` (retire the
-  diag control) and delete `EXTRA_LEAVES` (code + docs, no boot).)*
+  graphs for this multimodal checkpoint. Remaining work shrank to: boot `zz-labq-no-diag` (retire the
+  diag control) and delete `EXTRA_LEAVES` (code + docs, no boot). **Correction 2026-10-21: both of
+  those are done** — the balanced probe booted clean (next bullet) and `EXTRA_LEAVES` was removed
+  2026-10-19, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`
+  §2; `run.sh` says the same at the floor test). What is left of this item is one boot: the **highcon**
+  arm, where the diagnostic is now restored and re-mounted, retiring it only if that boot is clean.)*
   *(progress 2026-10-20 — **`zz-labq-no-diag` booted clean, so the diag control can be retired.** TP=2 on
   the `.34`/`.35` pair (job `1895030211ea0500_3510a5e0d37d`), ready at `/v1/models` 200 in **≈670 s**
   from launch (mods + a 6 m 37 s sharded load), a `/v1/chat/completions` 200, and the house battery
@@ -520,23 +524,6 @@ Any model with reasoning and tool-calling capabilities
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
   *(closed 2026-10-18, late — **LTX-2.5 I2V + FLF2V + 4K/50 fps are measured.** Warm on `.34` (clock cap 2200 MHz, 1344×768 / 121 f / 24 fps): T2V **78.1 s / 83.70 GiB** (−2.5 % on the recorded 80.1 s), I2V **84.3 s (+7.9 %) / 83.79 GiB**, FLF2V **120.2 s (+54 %) / 81.94 GiB**. FLF2V is slower by mechanism, not regression: its template has no `LTXVLatentUpsampler`, so one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) replaces half-res 8-step + 3-step refine. Conditioning proven by decoded-frame MAD, not by a file existing: I2V frame 0 **4.1** vs the start image; FLF2V frame 0 **7.8** vs start / 59.5 vs end, frame 120 **16.9** vs end / 59.1 vs start. **4K/50 (3840×2160, 249 f) is OOM — a measured ceiling, not an untried preset:** stage 1 fine (8/8, 461.3 s @ 57.7 s/it at the 1920×1080 latent), killed at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines at **121.16 of 121 GiB** (85.0 GiB steady in stage 1, weights-only baseline 78.4 → not co-tenancy); the node stayed up, a process kill rather than a node loss. A smaller 4K cell at that output size is the only open question there and no register asks for one. Cold rep **204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). Receipt `~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`, `receipts{,_warm}`, and the fixed `expand2.py`/`run_cell2.py`; the runbook's expander is T2V-only — four defects listed in `attic/explore/AGENTS.md`).)*
-
-- [ ] **Ship the LTX-2.5 runbook as a sparkrun recipe** *(Owner directive 2026-10-19.)* — convert
-  `recipes/explore/ltx-2.5-runbook/` (ComfyUI v0.34.0, `Lightricks/LTX-2.5`, ~36.9 GB of explicit
-  files) into a shipped arm on the qwen-image pattern: `runtime: vllm` only as the
-  distribution/launcher contract, `executor_config.entrypoint: ""`, `readiness.inference: false`, and
-  a `recipes/explore/mods/ltx-25-launcher` mod that stages the ComfyUI venv, expands the native T2V
-  graph headlessly and serves `POST /generate` + `GET /health`. Resolve the gated-distribution
-  question first: sparkrun's anonymous distribution cannot fetch a `gated: auto` repo, so either the
-  mod downloads with the node's accepted `HF_TOKEN` (documented prerequisite, as the 2026-10-14 owner
-  call allows) or the launch refuses with a clear message — do not ship a recipe that hangs on
-  distribution. Use the fixed `expand2.py` / `run_cell2.py` from `~/benchmarks/ltx25-20261018/` — the
-  repo expander has four defects (`attic/explore/AGENTS.md` §"the three unrun cells + the expander
-  defects", 2026-10-18) — keep `frames % 8 == 1`, the `SaveVideo` output node, the explicit-filename
-  download rule and the 2200 MHz clock cap as documented prerequisites; carry the
-  `ltx-2.x-community-license-agreement` banner (free below the $10M threshold; third parties read the
-  text). Land the recipe, root index row and lane section only on a boot receipt with the measured
-  cells (T2V 78.1 s / I2V 84.3 s / FLF2V 120.2 s; 4K/50 OOM at 121.16 GiB). *(effort: long)*
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models

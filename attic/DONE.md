@@ -775,3 +775,35 @@ fresh boot and the arm now has all five legs.
   `~/benchmarks/cybersec-arm5-tools-20261021/` (`REPORT.md` merges the four 2026-10-20 legs with this
   one, `bfcl.json`); the 2026-10-20 receipt stays as the interruption record. Suite paragraph in
   `recipes/cybersec/README.md`.)*
+
+# 2026-10-21 (explore — the LTX-2.5 runbook ships as a recipe)
+
+Archived from `mad-science/TODO.md`, copied verbatim: the item was written to land only on a boot
+receipt carrying the measured cells, and that receipt exists.
+
+## explore
+- [ ] **Ship the LTX-2.5 runbook as a sparkrun recipe** *(Owner directive 2026-10-19.)* — convert
+  `recipes/explore/ltx-2.5-runbook/` (ComfyUI v0.34.0, `Lightricks/LTX-2.5`, ~36.9 GB of explicit
+  files) into a shipped arm on the qwen-image pattern: `runtime: vllm` only as the
+  distribution/launcher contract, `executor_config.entrypoint: ""`, `readiness.inference: false`, and
+  a `recipes/explore/mods/ltx-25-launcher` mod that stages the ComfyUI venv, expands the native T2V
+  graph headlessly and serves `POST /generate` + `GET /health`. Resolve the gated-distribution
+  question first: sparkrun's anonymous distribution cannot fetch a `gated: auto` repo, so either the
+  mod downloads with the node's accepted `HF_TOKEN` (documented prerequisite, as the 2026-10-14 owner
+  call allows) or the launch refuses with a clear message — do not ship a recipe that hangs on
+  distribution. Use the fixed `expand2.py` / `run_cell2.py` from `~/benchmarks/ltx25-20261018/` — the
+  repo expander has four defects (`attic/explore/AGENTS.md` §"the three unrun cells + the expander
+  defects", 2026-10-18) — keep `frames % 8 == 1`, the `SaveVideo` output node, the explicit-filename
+  download rule and the 2200 MHz clock cap as documented prerequisites; carry the
+  `ltx-2.x-community-license-agreement` banner (free below the $10M threshold; third parties read the
+  text). Land the recipe, root index row and lane section only on a boot receipt with the measured
+  cells (T2V 78.1 s / I2V 84.3 s / FLF2V 120.2 s; 4K/50 OOM at 121.16 GiB). *(effort: long)*
+  *(**CLOSED 2026-10-21 — shipped and boot-verified, `d61cb30`.** `recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`
+  + `recipes/explore/mods/ltx-25-launcher` on `.35`, one boot, clock-capped at 2200 MHz: cold
+  **100.13 s / 84.00 GiB** (ComfyUI + venv 121 s, 36.9 GB of weights 148 s), warm (seed 44)
+  **78.1 s / 83.45 GiB**, both on the runbook's own cells; outputs are real content and the audio is
+  not silent. Receipt `~/benchmarks/ltx25-recipe-20261021/`; index row + lane section landed with it.
+  The gated-distribution question was answered by `distribution_config.models.enabled: false` plus a
+  mod-side fetch that sets `HF_HUB_OFFLINE=0` (sparkrun injects 1), with `HF_TOKEN` a documented
+  prerequisite. I2V, FLF2V and the 4K/50 preset remain measured on the **runbook** (2026-10-18 cells),
+  not on the recipe; the recipe serves T2V.)*
