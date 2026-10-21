@@ -607,13 +607,42 @@ untouched):
   48-request grant against Laguna-XS's 8, so it is not a like-for-like win. No BFCL number exists for
   it, and none is quoted.
 - **Do not re-boot blind.** The recipe was removed rather than archived (its only novel content is
-  the pin set and the flag line, both recorded here). The next attempt should be the **bf16 export**
-  (`meta-models/Muse-Glimmer-30B`, 55.5 GiB, still one node): that separates pack from checkpoint on
-  both the `nurkrpas` slip and the decode rate, and restores the perception tower the quantized pack
-  drops.
+  the pin set and the flag line, both recorded here). The revisit it named — the **bf16 export** —
+  has since run: it reproduces the `nurkrpas` slip verbatim, so the miss is the **checkpoint**, the
+  pack is exonerated, and no repack is worth trying. See the next subsection.
 - Receipt `~/benchmarks/explore-muse-glimmer-20261021/` (`REPORT.md`, `contract.{py,json}`,
   `house.json`, `needle-32k.json`, `needle-131k.json`, `ladder.{yaml,json,csv}`, two serve logs;
   ladder `bench_441193bb138b`).
+
+### Muse-Glimmer-30B bf16 control — 2026-10-21, **the checkpoint is at fault**
+
+- **The control.** `meta-models/Muse-Glimmer-30B` @ `7af58019` (open, 59.58 GB, 2 shards) plus the
+  same drafter (`…-assistant` @ `c676cce9`), the same `lmsysorg/sglang:v0.5.21` digest and the same
+  flag line as the NVFP4 arm, on `.35`. One deviation: `mem_fraction_static` 0.80 instead of 0.38,
+  because 59.6 GB of bf16 weights cannot fit inside 0.38 of ~121 GiB.
+- **Result: house 36/37, the miss is the same item and the same string** — `hard-rev` ->
+  **`nurkrpas`**, easy 19/19, hard 17/18. Every other reversal passes. Both exports of the same
+  weights therefore fail the same word deterministically, which makes the **checkpoint** the cause
+  and the NVFP4 pack innocent; the Muse Glimmer line closes and no repack is worth trying.
+- **The load was proven, not assumed:** `Load weight end. elapsed=340.21 s,
+  type=MuseGlimmerForConditionalGeneration, avail mem=60.20 GB, mem usage=52.21 GB` from
+  `model_path=…/models--meta-models--Muse-Glimmer-30B/snapshots/7af58019…`; engine runtime read
+  from the container is the same trio the NVFP4 arm ran (`sglang 0.5.21 | torch 2.13.0+cu130 |
+  cuda 13.0`), so the engine is not a confound.
+- **Trap for later readers:** `Use marlin as FP4 GEMM runner backend on SM120 for Muse Glimmer` still
+  prints on the bf16 load. It is an engine branch keyed on the model name; there are no FP4 tensors
+  in this checkpoint. Do not read that line as evidence of a quantized boot — the `mem usage` figure
+  and the `model_path` are the evidence.
+- **DFLASH works on bf16** — the same `draft config block_size=16` mismatch warning, then the draft
+  runner at block size 5 with the greedy head folded into the draft CUDA graph (no
+  `reason=quantized lm_head` eager note), acceptance 2.27-4.47 through the C1 window.
+- **C1 12.1 t/s** (prefill 1206.7 t/s, ttfr 1,700 ms, n=5, d0 pp2048 tg128) against the pack's 20.2:
+  bf16 costs 8.1 t/s of single-stream decode, which is the bandwidth of 52 GB of weights, not a
+  drafter failure. Boot 16.5 min (8.4 min of it the weight load at ~134 MB/s). KV: 513,943 full +
+  411,154 SWA tokens bf16, `max_running_requests=48`.
+- Recipe kept only in the receipt (`recipe.yaml`, git-ignored `.scratch` copy removed); receipt
+  `~/benchmarks/explore-muse-glitter-bf16-20261021/` (`REPORT.md`, `serve.log`, `house.{json,log}`,
+  `ladder.{yaml,json,csv}`, `download.log`), ladder `bench_d2ac5cf9ade0`.
 
 ## Engine bump — vLLM 0.30.0 (2026-10-16)
 
