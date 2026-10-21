@@ -569,6 +569,26 @@ Cybersecurity-research (red-team) abliterated / uncensored models
   `~/benchmarks/cybersec-flashnext-20261019/REPORT.md`; lane note in `recipes/cybersec/README.md`.
   No index row.)*
 
+  *(progress 2026-10-21 — **both candidate engines are refuted, on two different gates.** Weights:
+  verified complete on both nodes (18/18 shards, 183.48 GB `.34` / 183.43 GB `.35`), so staging cost
+  nothing and the boot's distribution read `done (10.6s)`. The two shipped b12x pooling lanes
+  (embed 2048-dim smoke, rerank `--fail-on-uniform`) pass on `cf5a2a53…`. Then: **(1) b12x
+  `cf5a2a53…` = vLLM `0.1.dev21830+g8244d1c44.d20261015` cannot construct the model config at all** —
+  `ModelConfig` `ValidationError: The layer_types entries must be in (…, 'linear_attention') but got
+  [… 'qwen_sparse_attention' …]`; the checkpoint is 48 layers over exactly `{linear_attention,
+  qwen_sparse_attention}` (`qwen4_exp`). No weight read, no quantization-mapping question reached.
+  **(2) `vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd…` (local ID `bbe70450…` on both) clears ModelConfig**
+  — multi-modal warmup and NCCL `world_size=2` run — **then dies at worker init**:
+  `NotImplementedError: Qwen4Exp PLE embedding does not support quantization config
+  CompressedTensorsConfig`. Also new: `vllm-openai` declares `ENTRYPOINT ["vllm","serve"]`, so this
+  image needs `executor_config: {entrypoint: ""}` (one-off `-o entrypoint=`) — the b12x image did not.
+  Verdict: the re-route is refuted for **both** named builds; what is needed is an image with
+  `qwen_sparse_attention` *and* a PLE-embedding-aware compressed-tensors path, i.e. an image search,
+  not a recipe knob. Scratch variant lives git-ignored at
+  `.scratch/flashnext-v0310/…` (shipped recipe untouched); receipts
+  `~/benchmarks/cybersec-flashnext-b12x-20261021/{boot.log,boot-v0310.log,v0310-serve.log}`; both
+  attempts stopped by task id and the pair returned to 0 containers each time.)*
+
 - [ ] **Research `IndrasMirror/DeepSeek-V4.1-Flash-1017-XQ-Uncensored`** — a *strata*-format GGUF
   mixed-tier quant of the 1017 body, the XQ rename of the same pipeline as the
   `kaushikvira/…-GSQ-agentic-strata` item above (identical header `general.name`), which ships **no
