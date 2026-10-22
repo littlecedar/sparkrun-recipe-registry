@@ -41,14 +41,11 @@ govern, per the protocol; the verbatim asks remain in git.)*
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
 
-- **#46 — the production quartet's TP=4 serve was stopped by the owner: restore it, or keep the quartet on
-  measurement duty?** The serve (`@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, served id
-  `deepseek-ai/DeepSeek-V4.1-Flash-1017`, TP=4, cluster `sparkrun_a2e141223b52793c_e11d626ec2c6`) was
-  stopped by the owner at **2026-10-22 00:38:39 ET** (relayed 2026-10-22 ≈01:28 ET). The four negatives —
-  no OOM, no Xid, no node reboot, model/runtime caches still warm — show nothing was lost, and the same
-  owner's node grant put `.30`–`.35` on the TP=4 queue, so the quartet being free is deliberate. `.30`–`.33`
-  now carry the TP=4 measurement queue. **This is the only open question about the quartet:** which duty it
-  has — restore production, or keep it on measurement duty.
+- **#47 — confirm the 20–28 h TP=4 block's content.** The offsite framing is obsolete (no offsite endpoint
+  exists; `#46` puts the quartet on measurement duty, so the block runs locally on `.30`–`.33`). The
+  register's queued content is: qwen4 **W6** then **W12**, the **ds4 TP=4 candidates**, and the **four-node
+  suite legs**. Confirm that set and its order, or narrow it (name what to drop and what to run instead).
+  Nothing is blocked either way — the first item is booting now.
   → Answer:
 
 **Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
@@ -248,6 +245,9 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
   baseline these A/B plans assume". *(effort: medium)*
 
+  *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
+  serves the TP=4 queue.)*
+
 - [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
   `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
   asserted per boot) settled the **TensorFold v0.6 engine bump**: control `fabbe861…` is engine
@@ -444,6 +444,11 @@ Qwen 4.x (and 3.8 Flash Next)
 per the 2026-10-19 directive they run against the **offsite API endpoint**, batched behind the one
 owner switch. *(Owner decision 2026-10-19: that switch happens **after** the `.34`/`.35`
 single-node tail closes, not now — the tail's estimates assume local boots through then.)* )*
+
+  *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
+  serves the TP=4 queue. The offsite framing in the notes above is obsolete: there is no offsite endpoint,
+  and the block runs locally on `.30`–`.33`; its content is open as `#47`.)*
+
 - [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
   *(**Both are root-caused 2026-10-19** — `mad-science/QWEN4-DIAGNOSTICS.md` carries the mechanism
