@@ -14,7 +14,7 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 1 open (2026-10-18)
+# DECISIONS — 1 open (2026-10-22)
 
 New owner questions land here, one per numbered item, each ending with an answer line the owner edits in place. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
@@ -40,6 +40,15 @@ govern, per the protocol; the verbatim asks remain in git.)*
   same day: 430 GB freed (Laguna-S 99.7 + humanizer 87.6 + Nemotron 80.4 + Mistral 70.8 + two
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
+
+- **#46 — the production quartet's TP=4 serve is stopped: restore it, or keep the quartet on
+  measurement duty?** The serve (`@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, served id
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017`, TP=4, cluster `sparkrun_a2e141223b52793c_e11d626ec2c6`) was
+  stopped **deliberately and in coordination at 2026-10-22 00:38:39 ET** — no OOM, no Xid, no node
+  reboot, and the model/runtime caches still warm, so nothing is broken and no work is blocked either
+  way. `.30`–`.33` are now carrying the TP=4 measurement queue under the 2026-10-22 node grant, and
+  the question is only which duty the quartet has.
+  → Answer:
 
 **Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
 head-only pass: the node copies of the attic-only weights had never been pruned. **HF, by `hf cache rm`
@@ -544,6 +553,22 @@ Any decision model
   mounting the snapshot dir alone fails with `failed to open GGUF file`.)* )*
 
   *(closed sub-item 2026-10-18 — `kev-0.8b` is built and measured; `d3-edge` is closed as not bootable here. Receipt `~/benchmarks/decision-arms2-20261018/` (`REPORT.md`, `logs/`, `kev-evidence/`, `d3-evidence/`); lane record in `recipes/decision/README.md` §kev-0.8b-decision-serve and §d3-edge-decision-vllm-srun. **kev: Decision accuracy 46.0 % (919/2000)**, ★, KL 0.349 / Brier 0.196 / ECE 0.046, 0 decision errors, p50 5403.4 ms per request; per type noul 52.5 / choice 50.5 / score 37.6, per workflow customer_service 55.0 → agent_trace_observability 34.6; ladder c1 0.234 req/s / 1.17 decisions/s, c2 0.235 / 1.18 at doubled p50 — +9.9 pts over laya on the same 400 cases, at 1.9× laya's per-case latency. The serve is healthy but **the launch gate can never pass**: sparkrun's startup probe requires HTTP 200 on `/health` (`startup_probe.py:246-265`) and kev has no such route (404 forever), `readiness.inference: false` skips only the inference stage, and `health_path` is runtime-owned (`_vllm_common.py:24` → `/health`), so the score was taken against the detached container. **d3-edge: not booted** — (1) as shipped `/health` 503 `OfflineModeIsEnabled`, because sparkrun stages with `HF_HUB_OFFLINE=1` while the decision3 loader resolves through the Hub tree API even with `--cache-dir` pointed at the staged snapshot; (2) with `-e HF_HUB_OFFLINE=0` it loads 594,582,720 params then fails the golden gate: `GoldenResult(status='failed', checked=3, matched=1, reference='cpu')`, deltas confidence 3.70e-3 / P0 2.15e-3 / P1 2.22e-3 / score 2.09e-3 / noul 3.83e-3 / domain 8.8e-5 against `CPU_TOLERANCE = 1e-3`, identical across 5 attempts — so no score and no ladder. Both fixes are image-side (an aarch64-recorded CPU reference or a per-ISA tolerance; an offline-capable decision3 loader), not recipe edits.)*
+  *(2026-10-22 — **the head revision was probed and reverted; the pin stays at `18d61df7`.** Both pin
+  sites (`model_revision:` line 3 and the literal `--revision=` in `command:` line 50) were moved to
+  `c454ee39…`, booted twice — `.31` as shipped, `.35` with `-e HF_HUB_OFFLINE=0` — and reverted. At the
+  new pin `/health` answers 503 `{"status":"failed","reason":"VerificationError: golden answers differ
+  from the reference"}` with `/v1/models` reporting `ready:false` and golden
+  `{checked:3, matched:1, reference:"cpu"}` — **the same 3-checked / 1-matched result the lane README
+  recorded at the old pin on 2026-10-18**, so the aarch64-vs-x86 golden-reference divergence is
+  revision-independent and the bump is not a regression either way. No `/v1/systemone` round-trip exists
+  in either boot (`503 not_ready`). **Label correction:** `18d61df7` is the `d3-edge v3.1.0` release
+  commit (2026-10-11) and `c454ee39` is "Add Typed Decisions benchmark eval results (#2)" (2026-10-17),
+  a post-release card/eval commit — so the earlier "vendor runtime moved" framing was wrong. The ten
+  commits do touch `d3_format.py`, `d3_runtime.py`, `d3_server.py`, `requirements.txt` and
+  `MODEL_MANIFEST.json`, and the repo's two safetensors (1,215.7 MB) are byte-identical across both
+  revisions. Receipt `~/benchmarks/decision-d3-repin-20261022/`; lane record
+  `recipes/decision/README.md` §`d3-edge-decision-vllm-srun`; commit `df2c259`.)*
+
 ## explore
 Any model with reasoning and tool-calling capabilities
 - [ ] **Build the top-ranked unbuilt reasoning candidates** — `Muse-Glimmer-30B` (rank 2; blocked on unmerged vLLM PR #51655); license/availability-blocked: MiniMax-M3 (non-commercial), MiMo-V2.6-Flash-RL (no quant), Inkling-Small (unpublished active params); plus `IFM/K2-Horizon-375B-A23B` (`mad-science/EXPLORE-CANDIDATES.md:16-57`; `attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Mistral-Small-4 is **not** unbuilt: it was measured-rejected at 28.9 t/s C1 and archived by the 2026-10-19 sweep — `attic/explore/ARMS-MANIFEST.md`.)* *(effort: long)*

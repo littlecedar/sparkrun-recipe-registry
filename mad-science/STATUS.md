@@ -16,13 +16,14 @@ container and its serve log with it — so this is a deliberate stop, not a faul
 attributed beyond "a coordinated sparkrun stop": attribution was not needed to clear the measurement
 window, and no operator action is recorded here that did not happen.
 
-**Still open, and the only thing still open:** whether production should be restored on the quartet at
-all. That is **the owner's call**; until it is made the nodes stay available to measurement. A
+**Still open from this section:** whether production should be restored on the quartet at all — carried
+as `mad-science/TODO.md` **#46**, an owner call, not work. Until it is made the nodes stay available to
+measurement. A
 relay-imported `solo` boot (`sparkrun_6c7626d237f22cdd_68907e0cb1d8_solo`) appeared on `.31` at ≈01:07
 local, after both censuses — reported by the re-pin campaign, unverified here — which is consistent
 with that availability and is not the missing serve.
 
-**Gate: `782 tests OK` (2 skipped) as of this commit.** It read red earlier today —
+**Gate: `782 tests OK` (2 skipped), measured 2026-10-22 at `df2c259`.** It read red earlier today —
 `782 tests, 2 failures, 2 skipped` — on two `tests/test_k2_7b_recipes` container-pin assertions while
 the SGLang `v0.5.22` re-pin was half-applied in that lane (one arm already on
 `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`, its guard still asserting the `v0.5.20-cu130` tag and
@@ -89,8 +90,21 @@ the recipe pins that govern them**, so no cybersec arm serves drifted weights.
 **Open runtime gaps — in flight as of this entry, no verdict:** SGLang `v0.5.22` (upstream 2026-10-16,
 index `e3a4f060…`, arm64 child `06441be3…`) against three ornith arms on `v0.5.21` and three IFM arms on
 `v0.5.20-cu130`; vLLM `v0.32.0` against the two Laguna arms on the CVE-bearing `v0.29.0` and the three
-media-gen arms on `v0.30.0`; `vllm-sr/d3-edge` `18d61df7…` → `c454ee39…` (10 vendor-code commits, no
-tensors, both pin sites must move).
+media-gen arms on `v0.30.0`.
+
+**`vllm-sr/d3-edge` is closed, reverted, not in flight (`df2c259`).** The head-revision probe
+(`18d61df7…` → `c454ee39…`) ran on **both** pin sites (`model_revision:` line 3 and the literal
+`--revision=` in `command:` line 50), booted twice (`.31` as shipped, `.35` with `-e HF_HUB_OFFLINE=0`)
+and was **reverted** — the arm stays on `18d61df7…`. At the new pin `/health` is 503
+`{"status":"failed","reason":"VerificationError: golden answers differ from the reference"}` with
+`/v1/models` `ready:false` and golden `{checked:3, matched:1, reference:"cpu"}`, the **same 3-checked /
+1-matched result the README recorded at the old pin on 2026-10-18**, so the aarch64-vs-x86
+golden-reference divergence is revision-independent, not a regression from the bump; no
+`/v1/systemone` round-trip exists in either boot (`503 not_ready`). The earlier "10 vendor-code commits,
+both pin sites must move" framing was also wrong on the label: `18d61df7` is the `d3-edge v3.1.0`
+release commit (2026-10-11) and `c454ee39` is a post-release card/eval commit (2026-10-17), and the
+repo's two safetensors (1,215.7 MB) are byte-identical across both. Receipt
+`~/benchmarks/decision-d3-repin-20261022/` on the head.
 
 ## Session status — 2026-10-21 20:15 ET
 
@@ -181,7 +195,6 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 |---|---|---:|---|---:|
 | SGLang `v0.5.22` re-pin — three ornith arms (off `v0.5.21`) + three IFM arms (off `v0.5.20-cu130`) | test pair | — | index `e3a4f060…` and arm64 child `06441be3…` resolved; the K2-7B pin landed and its guard is green again | **4–8 h** — derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) |
 | vLLM `v0.32.0` re-pin — two Laguna arms (off CVE-bearing `v0.29.0`) + three media-gen arms (off `v0.30.0`) | test pair | — | none yet: no boot on `v0.32.0` | **4–6 h** — derived from the media-gen receipts (≈4 min TTR per arm) plus the Laguna-M.1 TP=2 boot + suite receipt; no `v0.32.0` measurement exists |
-| `vllm-sr/d3-edge` pin `18d61df7…` → `c454ee39…` | workstation | — | refs resolved, 10 vendor-code commits with no tensors | **≈0.5 h** — two pin sites, no boot required |
 | TP=4 offsite block, worked under the 2026-10-22 node grant — qwen4 W6 first | production quartet (`.30`–`.33`) | — | boot relaunch in flight; the switch question itself is still an open owner call (Open ask) | **20–28 h block** — the Table 3 estimate, unchanged and not restated as finished |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
@@ -197,7 +210,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 | Deferred | Unblocked by | Where it lives |
 |---|---|---|
 | **(in flight since 2026-10-22 — see Table 1)** **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — the queue is being worked on `.30`–`.33` under the separate 2026-10-22 node grant; the legs not yet started are still this block | register, under the qwen4 and ds4 items |
-| **Production quartet TP=4 serve is down** — cause **DETERMINED**: a deliberate coordinated stop at 2026-10-22 00:38:39 ET (no OOM, no Xid, no reboot, caches warm; the 2026-10-14 `stop --all` fingerprint) | an **owner call** on whether to restore production at all; the nodes stay available to measurement until it is made | this entry; the quartet descriptor `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` |
+| **Production quartet TP=4 serve is down** — cause **DETERMINED**: a deliberate coordinated stop at 2026-10-22 00:38:39 ET (no OOM, no Xid, no reboot, caches warm; the 2026-10-14 `stop --all` fingerprint) | an **owner call**, carried as `mad-science/TODO.md` **#46**, on whether to restore production at all; the nodes stay available to measurement until it is made | this entry; `TODO.md` #46; the quartet descriptor `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` |
 | **The ds4 rebuild is not byte-reproducible** (behavior-identical: 91 layers with 0–69 identical, four recompiled `.pyc`, 6,707 hash-equal files) | a deterministic build step; until then the shipped `acfc331a…` stays pinned | `recipes/ds4/Dockerfile.knapcio-dsv41` |
 | **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture; **owner's answer, 2026-10-21: park it until a real failure** | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
 
@@ -208,11 +221,11 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight (Table 1: SGLang 0.5.22 4–8 h · vLLM 0.32.0 4–6 h · d3-edge pin 0.5 h · TP=4 block 20–28 h) | ≈29–43 h |
+| In flight (Table 1: SGLang 0.5.22 4–8 h · vLLM 0.32.0 4–6 h · TP=4 block 20–28 h) | ≈29–42 h |
 | Queued node-bound content, runnable now (Table 2) | **0 h — both rows closed** |
-| **Node-bound wall at two lanes** | ≈29–43 h, of which 20–28 h is the TP=4 block |
+| **Node-bound wall at two lanes** | ≈29–42 h, of which 20–28 h is the TP=4 block |
 | Deferred (Table 3: ornith intermittent 1–2 h; the quartet restore and the deterministic build step are unpriced) | 1–2 h priced |
-| **Grand total** | **≈30–45 h; 1–2 h of it waits on a failing boot, the rest on nodes or on two named owner calls** |
+| **Grand total** | **≈30–44 h; 1–2 h of it waits on a failing boot, the rest on nodes or on two named owner calls** |
 
 ## Risks
 
@@ -339,7 +352,7 @@ the owner asked which gate steps can now leave the head.
 | tool | what the repo needs it for (one caller) | on the workstation | where it works today | ask |
 |---|---|---|---|---|
 | `sparkrun` | validate, render with `-n`, registry lookup, launch — the whole recipe surface | **yes.** `sparkrun recipe validate <path>` returns the head's answer verbatim, with and without an override; anything registry-qualified (`@littlecedar/…`) or cluster-profile-driven needs `HOME=$PWD/.local/sparkrun-home`, because the real `~/.config/sparkrun/registries.yaml` carries no `littlecedar` entry and `~/.config/sparkrun/clusters/` is empty while the repo-local home has both | head, and the nodes for launches | none |
-| `uv`, `uvx` | the guard suite (`uv run python -B -m unittest discover -s tests`, 752 tests) and the docs' own instruments (`uvx tool-eval-bench@2.8.0` at `recipes/decision/README.md:332`, `uvx llama-benchy@0.4.0` via sparkrun) | **yes** (uv 0.13.4); `uvx tool-eval-bench@2.8.0 --version` answers 2.8.0 here | head | none |
+| `uv`, `uvx` | the guard suite (`uv run python -B -m unittest discover -s tests`, **782 tests**, 2 skipped, measured 2026-10-22 at `df2c259`) and the docs' own instruments (`uvx tool-eval-bench@2.8.0` at `recipes/decision/README.md:332`, `uvx llama-benchy@0.4.0` via sparkrun) | **yes** (uv 0.13.4); `uvx tool-eval-bench@2.8.0 --version` answers 2.8.0 here | head | none |
 | `hf` | model sizing and revision probes (`tools/build-dsv41-combined.py`, the per-arm revision checks) | **yes** (1.29.0) | head | none |
 | `docker` | resolving an image ref to its digest (`docker buildx imagetools inspect`, the pin method in `mad-science/SESSION-RECORD.md:354`), plus the node-side log and liveness ops every runbook depends on (`docker cp /tmp/sparkrun_serve.log`, `docker exec … kill -0`, `docker events --filter event=die`) | **partly**: the daemon runs (29.9.1) and `imagetools inspect` resolves the sglang v0.5.21 index and its amd64 manifest from here; there is no GPU, so any command that runs a container stays meaningless | head, and the nodes for container work | none — container work belongs where the hardware is |
 | `python3` | the stdlib instruments (`python3 tools/decision-ladder.py`, `tools/quality-battery.py`, `tools/jev-decision-bench.py`) | **yes** (3.14.8; all three print usage) | head | none |
@@ -348,7 +361,7 @@ the owner asked which gate steps can now leave the head.
 Checked and present, no row needed because none is a local gate step: `git`, `ssh`, `scp`, `rsync`,
 `curl`, `jq`, `setsid`, `stdbuf`, `taskset`, `nproc`, `timeout`, `sha256sum`.
 
-**Effect on the gate.** Recipe validation, `-n` rendering, the 752-test guard suite, `@littlecedar/…`
+**Effect on the gate.** Recipe validation, `-n` rendering, the 782-test guard suite, `@littlecedar/…`
 resolution, `hf` sizing probes, and container-digest resolution can now all run on the workstation; what
 stays head-side is anything that needs a GPU or a live container (boots, serves, `docker cp`, benchmarks,
 the ladder instruments that measure a live endpoint) and video-receipt verification until `ffprobe`
