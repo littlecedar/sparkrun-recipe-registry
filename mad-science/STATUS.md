@@ -1,4 +1,4 @@
-# Board — 2026-10-22 02:43 ET
+# Board — 2026-10-22 02:50 ET
 
 Eight streams ran in parallel. The gate is **894 tests OK**, CI is green, and both long blocks are stopped on an external limit rather than on a verdict.
 
@@ -26,7 +26,7 @@ Eight streams ran in parallel. The gate is **894 tests OK**, CI is green, and bo
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **894 tests OK** (2 skipped) | **53/53**, 0 errors | **17/53 fail** (known false positives) | `0ba9515` | suite 02:39 ET; validation last run 01:58 ET, not re-run since |
+| **894 tests OK** (2 skipped) | **52/52**, 0 errors | **17/52 fail** (known false positives) | `de841f8` | suite 02:50 ET, plain and strict 02:50 ET — tracked bytes at `de841f8`; tree dirty: 11 paths (6 recipes), none in the strict set and all six clean at the tip's bytes |
 
 ## Recently landed
 
