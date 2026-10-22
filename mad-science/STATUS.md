@@ -4,7 +4,7 @@
 |---|---|
 | census | 2026-10-22 **04:07 ET**, all six nodes |
 | gate | **922 tests OK** (2 skipped) at `2007b6e`-era tree, 2026-10-22; validate **56/56** plain, **17/56** strict at `4570ade` 03:49 ET, where that run read **899 tests OK** (not re-run since) |
-| baseline (`#48`) | DSv4-Flash **knapcio TP=4 1M** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; C1 **69.28 ± 5.25** → C10 **116.27 ± 6.22** (1.68×), house **36/37**, needle **3/3** at 32,768 / 131,072 / 983,040 (981,950 tok) |
+| baseline (`#48`) | DSv4-Flash **knapcio TP=4 1M** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; C1 **69.28 ± 5.25** → C10 **116.27 ± 6.22** (1.68×), house **36/37**, needle **3/3** at 32,768 / 131,072 / 983,040 (981,950 tok) — **re-measured 2026-10-22 on a fresh online boot** (`.30`–`.33`, task `sparkrun_a2e141223b52793c_d7960e70d961`, TTR 544 s, `max_model_len` 1,048,576, KV 6,849,792): C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** (n=5, `--skip-run`), house **37/37** @4096 thinking-on, needle **5/5** at ~999k (depths 10–50); the 69.28 / 36/37 figures stay the historical row, not replaced |
 | foundation shape | **TP=4**; TP=2 arms supplement it; GLM-5.3 3bpw TP=4 **deferred** ("in a few days") |
 | easy-traffic gate (`#49`) | single node qualifies only at C1 **≥ 69.28** *and* C10 **≥ 116.27** t/s, **≥ 10** streams, house **37/37** @4096 thinking-on — nothing clears it yet |
 | owner queue | **empty** — all seven Attention rows acknowledged and closed 2026-10-22 |
@@ -35,7 +35,7 @@
 
 | arm | node set | cells | verdict | receipt |
 |---|---|---|---|---|
-| knapcio TP=4 1M (baseline) | 4 nodes | C1 **69.28 ± 5.25** / C2 86.40 / C10 **116.27 ± 6.22**; house 36/37; needle 3/3 to 981,950 | **the bar**, not a candidate | `recipes/ds4/README.md` |
+| knapcio TP=4 1M (baseline) | 4 nodes | C1 **69.28 ± 5.25** / C2 86.40 / C10 **116.27 ± 6.22**; house 36/37; needle 3/3 to 981,950 — 2026-10-22 fresh boot: C1 **60.20** / C10 **116.86**, house **37/37**, needle **5/5** at ~999k | **the bar**, not a candidate | `recipes/ds4/README.md`; `~/benchmarks/knapcio-tp4-20261022/` (head: REPORT.md, perf-ladder.json, sparkrun_serve.log) |
 | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp) | 1 (`.32`) | C1 **102.03 ± 0.35**; C10 **unmeasured**; house unmeasured | passes C1 (+47 %), needs C10 + battery | `~/benchmarks/mellum-mtp-draft-20261022/` |
 | Spark-X2.6-4B FP8 (`v0.5.22`) | 1 | **40.80 / 77.06 / 146.63 / 217.58** at c1/2/5/10 (5.3×); house **37/37** on the 4096 rerun (first pass 109/111 = 98.2 %, `trick-2` runaway) | **shipped fast tier**; fails the easy-traffic gate on C1 | `~/benchmarks/spark-x26-20261022/` |
 | Spark-X2.6-4B INT8 | 1 (`.35`) | — | **dead at the kernel** — no `int8_scaled_mm` on sm_121; do not re-boot | `.35` serve log |
