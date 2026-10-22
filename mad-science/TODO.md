@@ -14,7 +14,7 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 1 open (2026-10-22)
+# DECISIONS — 0 open (2026-10-22)
 
 New owner questions land here, one per numbered item, each ending with an answer line the owner edits in place. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
@@ -41,12 +41,8 @@ govern, per the protocol; the verbatim asks remain in git.)*
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
 
-- **#47 — confirm the 20–28 h TP=4 block's content.** The offsite framing is obsolete (no offsite endpoint
-  exists; `#46` puts the quartet on measurement duty, so the block runs locally on `.30`–`.33`). The
-  register's queued content is: qwen4 **W6** then **W12**, the **ds4 TP=4 candidates**, and the **four-node
-  suite legs**. Confirm that set and its order, or narrow it (name what to drop and what to run instead).
-  Nothing is blocked either way — the first item is booting now.
-  → Answer:
+*(Answered 2026-10-22 — no open questions. `#47` is folded into the TP=4 work items as the
+run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).)*
 
 **Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
 head-only pass: the node copies of the attic-only weights had never been pruned. **HF, by `hf cache rm`
@@ -247,6 +243,8 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
 
   *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
   serves the TP=4 queue.)*
+  *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
+  then the four-node suite legs; the block is resumable, so a pause is never a loss.)*
 
 - [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
   `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
@@ -447,7 +445,9 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
 
   *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
   serves the TP=4 queue. The offsite framing in the notes above is obsolete: there is no offsite endpoint,
-  and the block runs locally on `.30`–`.33`; its content is open as `#47`.)*
+  and the block runs locally on `.30`–`.33`.)*
+  *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
+  then the four-node suite legs; the block is resumable, so a pause is never a loss.)*
 
 - [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
