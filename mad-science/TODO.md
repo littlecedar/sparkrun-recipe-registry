@@ -1036,12 +1036,16 @@ the way** (`--stage-init-timeout`, default 300, `vllm_omni/entrypoints/cli/serve
 log says DeepGemm is "auto-disabled … on Blackwell … Falling back to CUTLASS" at config time *and* selects
 DEEPGEMM as the FP8 MoE backend later — same run, so read the backend line, not the gate. And the second
 `/v1/models` check answered **empty**, which is the identity gate that the port probe is not.
-*Unblocker — one free node once the TP=4 quartet (`.30`–`.33`) frees; no boot before that.* Exact command:
-`HOME=$PWD/.local/sparkrun-home sparkrun run recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H <node>
--o stage_init_timeout=1800`; then assert `/v1/models` names `fishaudio/drama-3` (the second boot reuses
-`/cache/runtime/vllm/torch_compile_cache`, so ~250 s is the floor, not ~10 min), run the five pre-registered
-cells above, `docker cp /tmp/sparkrun_serve.log` into `~/benchmarks/drama-20261022/`, stop by task id,
-re-assert 0 containers. Cleanup after this attempt: container stopped, `.34` re-censused to **0 containers**,
+*Unblocker — one free node once the TP=4 quartet (`.30`–`.33`) frees; no boot before that.* Exact command, no
+override — the recipe now ships `stage_init_timeout: 1800` in `defaults:` and renders it into the serve
+command (verified with `sparkrun run <recipe> -n`, which printed
+`--stage-init-timeout 1800` verbatim):
+`HOME=$PWD/.local/sparkrun-home sparkrun run recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H <node>`;
+**first assertion is `/v1/models` naming `fishaudio/drama-3`** — not a port-open, which is what lied on the
+first attempt (the second boot reuses `/cache/runtime/vllm/torch_compile_cache`, so ~250 s is the floor, not
+~10 min), then run the five pre-registered cells above, `docker cp /tmp/sparkrun_serve.log` into
+`~/benchmarks/drama-20261022/`, stop by task id, re-assert 0 containers. Cleanup after this attempt: container
+stopped, `.34` re-censused to **0 containers**,
 job row gone, serve log (327 lines) archived at `~/benchmarks/drama-20261022/sparkrun_serve.log`. *(effort:
 medium)*
 
@@ -1444,6 +1448,10 @@ medium)*
   are 8.22 GB and ungated, the licence needs no banner, and no mod is required (the template is in the snapshot).
   Run cell 1 (bf16) first, with cells 2 and 3 as same-image follow-ups; the GGUF route is a separate image build and
   belongs to a `## Runtimes` decision, not this item. *(effort: medium)*
+
+  *(progress 2026-10-22 — **cell 1 measured and the falsifier fired: bf16 is a control, not a ship candidate.** On `.30` (task `sparkrun_31a011c489646cf6_2d38dfc4605e`, 0 containers before and after): C1 **20.38 ± 0.09 t/s** (20.24–20.51, n=5 decode rows) and ladder **20.38 / 46.38 / 99.27 / 156.20** at c1/2/5/10, still rising at the cap because `max_num_seqs: 32` clamps it, not the pool; that is **61 % of the ~33 t/s roofline**, so bf16 survives only as the control the tier A/B is measured against. Contract confirmed on the wire: default → `reasoning_content` populated (`reasoning_tokens: 18`), `enable_thinking: false` → 0 reasoning tokens, one tool definition → `finish_reason: tool_calls` with `get_weather({"city":"Lisbon"})` parsed by `spark25`. House **37/37 thinking-on vs 30/37 (90/111)** thinking-off, so the reasoning channel is load-bearing. Memory: the hybrid split pools **84.48 GB** of KV (723,730 full + 578,984 sliding) = **5.52×** the 131,072 window, against the estimator's all-36-layers 18.0 GiB. Commits `6b82a39` + `6a1129d` (which added `--thinking on|off` to `tools/quality-battery.py`); receipt `~/benchmarks/spark-x2.6-20261022/`. **Open cells:** the **FP8 W8A8 and INT8 tiers** (2.6 GiB less weight, ≈2× the ceiling) — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` is authored and its boot was **live on `.33` from 03:18:56 ET** (`max_total_num_tokens` 779,390, `max_running_requests` 32, 131,072 window), so that receipt is the open one; a ladder **above c10** needs `max_num_seqs` raised past 32 first; needle, ARC/GSM8K and BFCL/TEB are unmeasured.)*
+
+- [x] **Ship the humanizer-12B rewrite arm at Q6_K, the smallest tier that passes its own instrument** — measured 2026-10-22 on `.33` (`sparkrun_7b0a21d0dbeb323d_80fa71eb085e`), commit **`475d07f`**: C1 **17.92 ± 0.04 t/s** @ d0 and 17.87 ± 0.05 @ d8192 (pp 999 / 1,366 t/s) — **2.36× the archived bf16 arm's 7.6** at 10 GB instead of an 88 GB repo; TTR **10.8 s**; **`/v1/completions` only**, because the checkpoint defines no chat template; **0 genuine fact errors across 40 rewrites vs the bf16 baseline's 1** (69 flags, all notation). Q4_K_M is recorded **measured-rejected**: 23.18 ± 0.19 t/s but 2 genuine fact errors ("about 90 minutes" → "A couple hours"; year 2026 → 2006), so it lost the only variable under test. Receipt `~/benchmarks/humanizer-20261022-q6k/`; lane row + tier reasoning `recipes/explore/README.md`. *(no ladder by design — a single-request rewriter has no C2/C5/C10 cell.)*
 
 - [ ] **Bisect llama.cpp's ~12 % decode regression — only when a current-ref arm's 12 % is worth ~6 h** —
   measured 2026-10-22 on one node with the same bytes and flags: `b2e5e9b` (2026-08-21) **114.2 / 113.9 t/s**
