@@ -60,13 +60,25 @@ govern, per the protocol; the verbatim asks remain in git.)*
   |---|---|---|---|---|---|
   | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **102.03 ± 0.35** (measured, `~/benchmarks/mellum-mtp-draft-20261022/`) | **unmeasured — the gap** | — | unmeasured (coding-tuned; the general battery is the question) | passes C1, needs C10 + quality |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
-  | Ornith-1.5-122B NVFP4 | unmeasured (boot in flight) | unmeasured | — | unmeasured | open |
+  | Ornith-1.5-122B — UD-Q3_K_XL (llama.cpp, 59.76 GB) | **27.94 ± 0.07** (measured, `~/benchmarks/ornith-122b-20261022/`) | ran 5 rounds, **JSON unflushed → not evidence** | — | unmeasured | **fails C1**; C2 42.75 ± 0.48 / C5 43.20 ± 4.50 means C5 < C2, i.e. batching-poor at 8 slots |
+  | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | unmeasured — **never reached readiness** (weight shard 2/8) | unmeasured | — | unmeasured | open |
   | Sage-A1.5 FP8 (36B) | unmeasured (boot in flight) | unmeasured | — | unmeasured | open |
   | knapcio TP=4 itself (4 nodes) | 69.28 ± 5.25 | 116.27 ± 6.22 | 1.68× | 36/37 | the bar, not a candidate |
 
   **Consequence: the cheapest path to a qualifying arm is Mellum-12B's missing C10 rung plus a house
-  run** — it already clears C1 by **47 %** (102.03 vs 69.28) at ~8 GB resident, while the two 100B+
-  candidates are unmeasured and cost a whole node each.
+  run** — it already clears C1 by **47 %** (102.03 vs 69.28) at ~8 GB resident, while the 100B+
+  candidates have produced one hard failure (Q3_K_XL, C1 27.94) and one still-unmeasured tier
+  (NVFP4), and each costs a whole node.
+
+- **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
+  `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at
+  **55 GB**.* A staged boot of a 59.76 GB body died verbatim with
+  `insufficient disk space on control: 57.35 GB free, needs 59.76`, and the same window lost a
+  77.63 GB OCI-relay transfer at 24 GB available — two separate boots, one cause. Fleet rule now in
+  `AGENTS.md`: **bodies above 60 GB go node-local** (`hf download --revision` on the target,
+  `sparkrun model-cache resolve` on the control, `model-cache import --offline` onto the node, then
+  `run --transfer-mode local --offline`). A node-local TTR excludes staging and transfer, so it is
+  **not comparable** to a staged boot's and must be labelled as such.
 
 *(Answered 2026-10-22 — no open questions. `#47` is folded into the TP=4 work items as the
 run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).)*
@@ -863,10 +875,26 @@ Any decision model
 Any model with reasoning and tool-calling capabilities
 - [ ] **Scope `ornith-ai/Ornith-1.5-122B` as a one-node replacement for the easy half of the
   DeepSeek-V4.1-Flash TP=4 traffic** — EXL3 and Unsloth-GGUF are the two routes of primary interest.
-  **Phase 1 is research + authoring only: nothing was booted, no node was touched, and the blocker is
-  a free node** (all six are on other streams: `.30`–`.33` the ds4 EXL3 TP=2 twin A/B, `.34` a
-  `drama-3` TTS boot, `.35` a Spark-X2.6 FP8 re-test). Two DRAFT recipes exist and neither is
-  claimed to serve. *(effort: medium; one boot per arm.)*
+  **Phase 1 (research + authoring) is DONE; Phase 2 booted two tiers once and was then preempted
+  for the DSv4 TP=4 baseline boot.** Two boots happened on owner-granted `.33`/`.34`, both recipe
+  defects they exposed are fixed and committed (`8d3f803` — the llama.cpp image declares its own
+  ENTRYPOINT, so `executor_config.entrypoint: ""` is required; `1c9dab0` — `a37cc4610` rejects
+  `--no-mmap`, it wants `--load-mode none`), and **no tier has a full cell set yet**, so the
+  easy-traffic answer is still open. *(effort: medium; one boot per arm, gate cells first.)*
+
+  *(measured 2026-10-22, one node each, `~/benchmarks/ornith-122b-20261022/`, ladder
+  `benchmarking/concurrency-ladder.yaml` d0 pp 2048 / tg 128 n=5:)*
+
+  | tier | weights | TTR | window | C1 | C2 | C5 | C10 | house | verdict |
+  |---|---|---|---|---|---|---|---|---|---|
+  | vendor NVFP4 (vLLM, `.33`) | 77.63 GB | — | 262,144 (recipe, never asserted live) | — | — | — | — | — | **unmeasured** — never reached readiness (weight shard 2/8, ~63 s/shard), preempted |
+  | Unsloth UD-Q3_K_XL (llama.cpp `a37cc4610`, `.34`) | 59.76 GB | **50.7 s** (node-local cache, no control staging) | 131,072 × 8 slots `kv_unified` | **27.94 ± 0.07** | **42.75 ± 0.48** | **43.20 ± 4.50** | five rounds ran, JSON unflushed → **not evidence** | not run | **fails C1** (bar 69.28) and C5 < C2, so it is a capability arm, not the easy-traffic one |
+
+  *(why this tier settles nothing: 27.94 t/s against a 69.28 bar, on the fastest-fitting GGUF, and
+  its C5 sitting below C2 says the 8-slot shape is the limit at 10 streams. The image, the 77.63 GB
+  NVFP4 weights and an imported manifest stay resident on `.33` for the next window — and
+  `--offline` alone is **not** enough there: the node cache must be `model-cache import`ed against
+  a resolved manifest or it reads `unverified` and the launch refuses.)*
 
   *(family position — **new to the lane, and a sibling of the 35B-A3B, not of the 397B.** Repo-wide
   `grep 122B` found **0 hits** before this item, so nothing in `recipes/ornith/` or `attic/ornith/`
