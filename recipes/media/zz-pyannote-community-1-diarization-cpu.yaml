@@ -15,8 +15,12 @@ description: >-
   cost. Measured 2026-10-22 on one node: HTTP-ready 9.56 s from container start, RTF 0.25
   on a two-voice spliced dialogue and 0.62 on a 30 s synthetic file, DER 2.83 % / JER
   2.83 % on the spliced dialogue (collar 0.25, overlaps scored), identical segments across
-  repeat runs. It collapses a synthetic tonal two- and three-voice fixture to one speaker
-  (DER 50.0 % / 69.9 %), so it counts speakers in real speech only. It exists to be the
+  repeat runs. **Synthetic harmonic stacks are adversarial to embedding-based clustering:** it
+  reports one speaker for a 2- and a 3-voice tonal fixture (DER 50.0 % / 69.9 %, unchanged when the
+  count is forced with `?num_speakers=2`). That is the fixture, not the arm — segmentation found
+  every turn boundary on those files and only the clustering collapsed — so the tier-A bar is
+  evaluated on the spliced real-voice dialogue, and nobody should re-tune a working serve over the
+  tonal DER. It exists to be the
   instrument the drama-3 TTS arm lacks: it can report how many
   speakers a clip contains and whether speaker segments are self-consistent, and it
   cannot report whether any word was dropped. Route: pyannote.audio + torch (aarch64
