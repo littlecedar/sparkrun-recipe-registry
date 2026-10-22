@@ -1,22 +1,21 @@
-# Board — 2026-10-22 03:21 ET
+# Board — 2026-10-22 03:36 ET census, 03:39 ET gate
 
-Seven of the night's streams closed with a verdict; three are still moving. Gate **899 tests OK**, plain validate **54/54** with 0 failures, strict **17/54** — the same seventeen known false positives, no new ones.
+The night's verdicts are in: the SGLang `v0.5.22` bump closed with six arms held, humanizer-12B ships at Q6_K, Spark-X2.6's FP8 tier is measured-rejected despite being 2× faster, and the TP=4 block is booting. Gate **899 tests OK** (2 skipped), plain **56/56**, strict **17/56** — the same seventeen known false positives.
 
 ## Now
 
 | where | what | since | state |
 |---|---|---|---|
-| `.30`–`.33` | `tp4-queue` — W6 → W12 → ds4 TP=4 → four-node suite, resumable | 01:52 | **idle, not running** — census 03:35 ET: `.30`/`.31`/`.32` at 0 containers and `.33` held by the Spark-X2.6 FP8 cell, so a quartet boot waits on `.33`; W6 **failed at the engine** (`modelopt_quant.py:2624`, gated-activation MoE padding, every rank, fit was 21 GiB/rank); W12 boot 6 died in `_restrict_instanttensor_to_selected_ranges` because the pinned b12x image's `instanttensor` has no `_determine_buffer_size`, so the arm now loads through **safetensors** (03:11) and the PLE mod patches the installed module in place (03:04); **no W12 number yet** |
-| `.33` | `sparkx-probe` — FP8 tier A/B live, bf16 settled as the control | 03:19 | **bf16 is a control**: C1 20.38 ± 0.09 is 61 % of the ~33 t/s roofline, so the ≥25 t/s falsifier fired; the **FP8 arm is running** since 03:18:56 ET (`XHToken/Spark-X2.6-4B-FP8`, 779,390 tokens pooled, `max_running_requests` 32, ~40 t/s per stream at 03:32) — its receipt is the open cell, and a ladder above c10 needs `max_num_seqs` raised past 32 |
-| repo | `ds4-refresh` — fork-patch experiment on the EXL3 decode regression | 03:04 | **nothing landed**: no commit since `1099db9`, so the 8 t/s build still has no replacement and every arm keeps its own `container:` pin |
+| `.30`+`.31`+`.32`+`.33` | `tp4-queue` — W6 on `v0.5.22`, the block's first TP=4 boot | 03:35 | **booting**: task `sparkrun_08acf79cd757a666_7afff0589a33`, `node_0`–`node_3` on `.30`/`.31`/`.32`/`.33`, four containers up since **03:35:35 ET** on `lmsysorg/sglang:v0.5.22-cu130`; client live on the head (`sparkrun run .scratch/w6-v0522/tp4-v0522.yaml -H .NN,.31,.32,.33 --transfer-mode local --no-ready-wait`, pid 97943). Inside the containers: **no serve process and no `/tmp/sparkrun_serve.log` yet** — only `sleep infinity` plus the drop_caches loop, so weights are still staging. The set this launch chose is `.30`–`.33` (`.34` and `.35` are at 0 containers) because the consecutive-node rule is lifted, so **every receipt must name the node set it used** |
 
 ## Attention
 
 | what | why it matters | where it is tracked |
 |---|---|---|
-| A llama.cpp **ref below `a37cc4610`** (e.g. `9df0b73c7`) decodes **7.9–8.4 t/s** where `a37cc4610` does 98–103 — ref-level, reproduced from a clean rebuild, fixed upstream in `a37cc4610` (2026-10-22) | never pin below it; the fix ships in the ref this lane already uses | `attic/explore/AGENTS.md` §"The ref floor moved to `a37cc4610`" |
+| A llama.cpp **ref below `a37cc4610`** (e.g. `9df0b73c7`) decodes **7.9–8.4 t/s** where `a37cc4610` does 98–103 — ref-level, reproduced from a clean rebuild, fixed upstream in `a37cc4610` (2026-10-22) | never pin below it; the fork's speed is simply an older ref (`b2e5e9b`, 1254 commits), not its patches | `attic/explore/AGENTS.md` §"The ref floor moved"; `mad-science/LLAMACPP-GGUF.md` §1 |
 | `sparkrun run @littlecedar/<name>` resolves the **published registry**, not the worktree (2026-10-22: a bump boot served `v0.5.21` while the file said `v0.5.22`) | pass the recipe **file path** for any bump or candidate boot | `AGENTS.md` §serving traps; `recipes/ornith/README.md` |
 | `docker pull repo:tag@sha256:…` stores the image **untagged**, so a peer's `image prune` deletes the very build just pulled (2026-10-22) | re-tag at once, and guard the pin before every boot: `grep -q e3a4f060 <recipe>` | `AGENTS.md`; `recipes/ornith/README.md` |
+| `readiness.inference: false` makes "HTTP-ready" satisfiable by a **dead serve or a foreign listener** (2026-10-22: drama reported HTTP-ready 14.7 s while its serve had died at `sock.bind`) | assert `/v1/models` names the model; a bare port check is not a cell | `mad-science/TODO.md` drama item |
 | **Mellum MTP is rejected** on the shipped engine: 108.4/109.9 t/s against the pre-registered 114 bar, acceptance 0.80, mean len 1.80 (measured 03:18) | the earlier "+44 %" was a slow-baseline artefact and must not be quoted | `recipes/explore/README.md`; `attic/explore/AGENTS.md` |
 | Two licence banners owed before either arm ships (registered 02:28–02:35): Timestral **Modified MIT at a $20M/month revenue cap**; indra-ocr **modified OpenRAIL whose share-alike reaches the output** | owner decision, not a footnote — and the banner must not conflate Apache-2.0 code with restricted weights | `mad-science/TODO.md` explore items |
 
@@ -24,18 +23,18 @@ Seven of the night's streams closed with a verdict; three are still moving. Gate
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **899 tests OK** (2 skipped) | **54/54**, 0 errors | **17/54 fail** (known false positives) | `014e0b2` | suite 03:21 ET, plain and strict 03:21 ET — tracked bytes at `014e0b2`; tree dirty: 1 path (the spark-x2.6 recipe mid-edit, itself clean in both modes) |
+| **899 tests OK** (2 skipped) | **56/56**, 0 errors | **17/56 fail** (known false positives) | `146b13c` | suite 03:39 ET, plain and strict 03:39 ET — tree clean, 0 dirty tracked paths |
 
 ## Recently landed
 
 | time ET | commit | one clause |
 |---|---|---|
-| 03:33 | `9f12054` | drama-3 **parked**: attempt #2 on a free node loaded 37.69 GiB in 242.84 s and resolved `FishOmniForConditionalGeneration` + the stage-1 DAC decoder, then was killed 2 s after `torch.compile` by vllm-omni's default `--stage-init-timeout 300`; the recipe ships as a labelled draft with that knob exposed and the re-boot is pre-registered behind the quartet |
-| 03:22 | `ff33ec5` | the ~15 % is the **upstream ref era**, not the fork's build: the fork's tree `b2e5e9b` through our Dockerfile and flags measures 114.2/113.9, and `b2e5e9b` is 1254 upstream commits older — so no flag or CUDA difference matters |
+| 03:36 | `146b13c` | **FP8 rejected**: 40.80 / 77.06 / 146.63 / 217.58 t/s (+100/+66/+48/+39 %) but house 109/111 = 98.2 %, `trick-2` looping to 4096 reasoning tokens with empty content — and `max_num_seqs: 96` is inert (all deltas inside one σ, pool 743,780), so 32 stays |
+| 03:35 | `767a0f8` | the drama-3 row points at the baked `stage_init_timeout: 1800` instead of an override |
+| 03:33 | `9f12054` | drama-3 **parked**: 37.69 GiB loaded in 242.84 s, then killed 2 s after `torch.compile` by vllm-omni's default 300 s stage deadline; recipe ships as a draft |
+| 03:22 | `ff33ec5` | the ~15 % is the **upstream ref era**, not the fork's build: the fork's tree through our Dockerfile measures 114.2/113.9 and is 1254 commits older |
 | 03:11 | `cc05822` | W12 loads through safetensors — instanttensor cannot shard at TP=2 on the pinned image |
 | 03:10 | `6b82a39` + `6a1129d` | the spark-x2.6 control carries its measured outcome; the battery gains `--thinking on\|off` |
-| 03:07 | `475d07f` | humanizer Q6_K ships: C1 17.92 ± 0.04 t/s, 0/40 fact errors vs the baseline's 1, TTR 10.8 s, `/v1/completions` only |
-| 03:04 | `29410d2` | the `v0.5.22` re-pin is **closed** — six arms held (TTR 238/251/129/94/94/240 s, house 37-37/37-37/—/32-37/33-37/36-37, arm A n=5 C1 97.6 ± 8.8), index digest `e3a4f060…` verified with `imagetools inspect`, 0 OSV advisories |
 
 ## Pointers
 
