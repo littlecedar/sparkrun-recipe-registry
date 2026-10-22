@@ -168,9 +168,11 @@ measured headroom**.
 
 vLLM · **1 node (TP=1)** · **kept 2026-10-19 — best 262k aggregate at c10**.
 
-*Engine held at digest-pinned `vllm/vllm-openai:v0.29.0` — vLLM 0.30.0 cannot construct this
-revision's config (its own `LagunaConfig` shadows the transformers 5.17 class that does); 2026-10-16
-engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
+*Engine re-pinned on 2026-10-22 to `vllm/vllm-openai:v0.32.0` (index `befccf0e…`, `linux/arm64`
+child `6ff5ff0d…`); the `v0.29.0` digest that 23 OSV records / 16 CVEs sat on is gone. vLLM 0.30.0
+could not construct this revision's config (its own `LagunaConfig` shadows the transformers 5.17
+class that does) — 0.32.0 loads and serves it (below). 2026-10-16 engine-bump note in
+[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
 
 - **Model:** `poolside/Laguna-XS-2.1-NVFP4` (33B total / 3B active, 256 routed experts, 3:1 SWA,
   262,144 native; OpenMDW-1.1), pinned `d32afde8…` + the first-party draft `poolside/Laguna-XS-2.1-DFlash`
@@ -188,6 +190,18 @@ engine-bump note in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md).*
   did not appear, and the small-depth misses are unexplained.
 - **Serving note:** util 0.55 is deliberate — the weights are only ~21.6 GB of the ~121 GiB pool and
   the SWA arch keeps 262k cheap, so the low util preserves ~95 GB of node headroom.
+- **Re-pin boot (2026-10-22, `.34`, `sparkrun_7b22b626acd6a019_8ed3ce77d78f`):** `/v1/models` 200
+  **282 s** after launch on the first v0.32.0 boot (cold flashinfer-JIT for the xqa/fused-MoE kernels,
+  then CUDA-graph capture); served id `poolside/Laguna-XS-2.1-NVFP4`, `max_model_len` 262,144; engine
+  reports vLLM **v0.32.0** with `speculative_config=SpeculativeConfig(method='dflash',
+  num_spec_tokens=3, …)`; KV **41.87 GiB → 1,413,525 tokens (5.39×)** vs 0.29.0's 41.56 GiB /
+  1,403,263. Thinking on: `finish_reason=stop`, 4,675 chars of reasoning, correct answer
+  ("18:05", 1,933 completion tokens). **0.32.0 serves the thinking text at `message.reasoning`,
+  not `message.reasoning_content`, and `usage.completion_tokens_details.reasoning_tokens` reads 0
+  while it is emitted** — a client or contract check keyed on the old field name sees the
+  all-empty-reply shape even though the text is there, and a 1,024-token budget truncates a trivial
+  arithmetic prompt (`finish_reason=length`) in this reasoning mode. Receipt
+  `head:~/benchmarks/vllm-032-20261022/RECEIPT-xs.md`.
 - **Measured:** C1 **57.4 t/s** @ d0 (σ 3.4) / 55.1 @ d8k; accept len 1.89 / 29.5%; quality 36/37 @4096.
 - **Standard suite (2026-10-17, `bench_9b207347ec3b`):** ladder @ d0 pp2048 tg128 n=5 — C1 **55.3**
   (σ 2.4) / C2 83.1 (σ 2.1) / C5 133.7 (σ 8.4) / C10 141.3 (σ 3.3) t/s, the only ladder in the lane
@@ -225,6 +239,13 @@ vLLM · **2 nodes (TP=2)** · **the family's two-node ceiling reference**, boote
 
 - **Model:** `poolside/Laguna-M.1-NVFP4` (225B total / 23B active agentic-coding MoE, 70 layers, 262,144
   native) pinned `e4f3ba80…`, engine `vllm/vllm-openai:v0.29.0` by digest.
+- **Engine re-pin (2026-10-22): DEFERRED, not cancelled.** The recipe's `container:` now pins
+  `vllm/vllm-openai:v0.32.0` (index `befccf0e…`; the XS sibling boot-verifies that engine on this
+  checkpoint family), but **the TP=2 boot is unverified on 0.32.0**: no node pair was free — `.30` is
+  the production head, `.31`–`.33` and `.35` belong to other workers' campaigns. Re-run
+  `sparkrun run recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml -H <pair> --transfer-mode local`
+  on two free nodes and assert `/v1/models` before quoting this arm on the new engine. The numbers
+  below are all the 2026-10-20 **v0.29.0** boot.
 - **Boot (2026-10-20, test pair):** 129.75 GiB downloaded at ~170 MiB/s and distributed as 259.51 GiB
   over four streams, then the TP=2 load — `/v1/models` **200 ≈43 min** after launch (sparkrun's own
   launch phase 1,076.6 s), served id `poolside/Laguna-M.1-NVFP4` with `max_model_len` 262,144.
@@ -264,9 +285,9 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
 - **Flags / non-obvious knobs:** `runtime: vllm` is the family whose distribution + single-node launcher
   contract the command satisfies; `command:` runs a stdlib HTTP server (`POST /generate`, `GET /health`)
   out of a `diffusers>=0.41` / `transformers>=5.17` venv the mod stages on the image's own torch
-  (`vllm/vllm-openai:v0.30.0`; the venv's own `transformers>=5.17` satisfies the card's floor — the
-  image's copy is unused). **VAE tiling OFF** (tiled decode → a pink seam column) and **`cpu_offload`
-  OFF** (costs ~4× on a reference image); `--served-model-name` is rendered explicitly.
+  (`vllm/vllm-openai:v0.32.0`, re-pinned 2026-10-22; the venv's own `transformers>=5.17` satisfies the
+  card's floor — the image's copy is unused). **VAE tiling OFF** (tiled decode → a pink seam column) and
+  **`cpu_offload` OFF** (costs ~4× on a reference image); `--served-model-name` is rendered explicitly.
 - **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady (a same-boot control on the 2048² run read
   11.240 s ± 0.008); a reference image fed back for editing +3.5 s; same prompt+seed → a byte-identical
   PNG. **2048² cell closed 2026-10-18**: **53.24 s/image** (mean of 3, σ 0.20) — 4× the pixels for
@@ -276,6 +297,19 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   8-step `sample_sigmas`) — since 2026-10-21 an explicit `sigmas` list does take, which is what makes
   the other schedules reachable at all. Receipts `~/benchmarks/qwen-image-20261014/results.json` and
   `~/benchmarks/media-gen-20261021/REPORT.md`.
+- **Re-pin boot (2026-10-22, `.34`, `sparkrun_138e576f5771494d_8ed3ce77d78f`):** `/health` 200 **222 s**
+  after launch (188.9 s of it the pipeline load), `/v1/models` = the repo id, `torch 2.13.0+cu130` /
+  `diffusers 0.41.0` / `transformers 5.19.0`. The 1024² 8-step cell (same prompt and seed 42 as the
+  2026-10-21 reference) read **12.686 s** server / 13.019 s client, `steps: 8`, `sigmas_used: null`,
+  peak **36.824 GiB** alloc / **37.648 GiB** reserved — identical to the `v0.30.0` cell — and produced a
+  **byte-identical PNG (`e24f6e3a…`)**. The reason is visible in the images: `v0.30.0` and `v0.32.0`
+  both ship **torch 2.13.0+cu130**, so this bump moves the vLLM wheel, not the torch build the mod
+  stages on. A 4-step request on the same boot took the launcher's native path: `steps: 4`,
+  `sigmas_used: [1.0, 0.944995, 0.861792, 0.414568]` (the saved 8-point curve resampled, endpoints
+  kept), **6.365 s**, same peak, PNG `2e41a540…` — which is the probe the `qwen-image-sigmas` mod used
+  to exist for; the launcher's own `schedule_kwargs` now does it, and that mod's fail-closed anchor no
+  longer matches the launcher (see the probe recipe's header). Receipt
+  `head:~/benchmarks/vllm-032-20261022/qwen-image/`.
 - **A faster route exists and is not shipped:** `vllm/vllm-omni:nightly` serves this checkpoint
   natively (its own `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same
   1024² 8-step image, **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs
@@ -316,10 +350,19 @@ ComfyUI v0.34.0 (no `sglang`/vLLM engine serves it) + [`recipes/explore/mods/ltx
 - **Model:** `Lightricks/LTX-2.5` (pinned `49b093a3`) — 22B distilled DiT (nvfp4) + Gemma-4-12B text
   encoder (comfy-int8) + video/audio VAEs + x2 latent upscaler, **36.9 GB**.
 - **Engine / staging:** the recipe pins the media-gen lane's arm64 cu130 base
-  (`vllm/vllm-openai:v0.30.0@sha256:8a69…`) and the mod stages ComfyUI v0.34.0 plus its exact
+  (`vllm/vllm-openai:v0.32.0@sha256:befccf0e…`, re-pinned 2026-10-22 from `v0.30.0@sha256:8a69…`) and
+  the mod stages ComfyUI v0.34.0 plus its
   package set and a torch venv (resolved `torch 2.14.1+cu130`, `comfy-kitchen 0.2.31`), then the five
   gated weight files — detached, because the 600 s `pre_exec` hook cannot hold a 36.9 GB fetch.
   `runtime: vllm` is only the launcher/distribution contract.
+- **Re-pin boot (2026-10-22, `.34`, clock-capped, `sparkrun_14f1a40e099ae86c_8ed3ce77d78f`):** `/health`
+  200 **233 s** after launch (68 s engine install/verify, weights from the node cache), `/v1/models` =
+  `Lightricks/LTX-2.5`. One T2V cell (1344×768, 121 frames, 24 fps, seed 42): **wall 98.24 s**, peak
+  **81.77 GiB**, `status success`, 1,569,011 B mp4 (`0aa0ff1994…`; `avc1` 121 samples + `mp4a`). The
+  engine bump is inert here by construction — the mod stages its own torch venv on the image — and the
+  2026-10-21 cells were 100.13 s / 84.00 GiB, so this is parity, not a new measurement: that receipt
+  used the workflow template's own prompt while this cell used a plain one. Receipt
+  `head:~/benchmarks/vllm-032-20261022/RECEIPT-media-and-ltx.md`.
 - **Flags / non-obvious knobs:** `distribution_config.models.enabled: false` (sparkrun's anonymous
   distribution cannot fetch a gated repo); `readiness.inference: false`, `port_timeout_s: 3600` (cold
   stage); `entrypoint: ""` clears the image's `vllm serve`; `--served-model-name` rendered explicitly

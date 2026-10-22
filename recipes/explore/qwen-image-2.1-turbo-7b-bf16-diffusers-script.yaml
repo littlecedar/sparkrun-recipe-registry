@@ -16,7 +16,7 @@ model_revision: fc13ba1986fcb905854dc8de2f52eee395f49b5b
 # No sglang/vLLM engine exists for this checkpoint: `runtime: vllm` is the
 # family whose distribution + single-node launcher contract this command
 # satisfies (the engine is diffusers' QwenImage21Pipeline, venv staged by the mod).
-container: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 runtime: vllm
 min_nodes: 1
 max_nodes: 1

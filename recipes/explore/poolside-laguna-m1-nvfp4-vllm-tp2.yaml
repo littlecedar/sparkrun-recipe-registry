@@ -1,12 +1,11 @@
 recipe_version: "2"
 model: poolside/Laguna-M.1-NVFP4
 model_revision: e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
-# vLLM 0.29.0 (the lane's shipped pin): the card's floor is vLLM >= 0.21 and
-# 0.29's laguna implementation already reads this checkpoint's MoE layout
-# (mlp_only_layers [0,1,2] + decoder_sparse_step 1), so 225B / 67 MoE layers
-# load without remote code. Not 0.30.0: the sibling Laguna arms are held there
-# by its own LagunaConfig shadowing defect.
-container: vllm/vllm-openai:v0.29.0@sha256:c2914767605584b6d8f45686b82de173ecc99e781897aa3d0a66dacd72c51ae1
+# vLLM 0.32.0 (the CVE-bearing 0.29.0 pin is retired). 0.30.0 was never usable
+# for this family: its own LagunaConfig stub shadows the transformers 5.17 class.
+# 0.32.0 still reads this checkpoint's MoE layout (mlp_only_layers [0,1,2] +
+# decoder_sparse_step 1), so 225B / 67 MoE layers load without remote code.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 runtime: vllm
 min_nodes: 2
 max_nodes: 2

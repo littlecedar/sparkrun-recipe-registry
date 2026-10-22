@@ -26,7 +26,7 @@ model_revision: 49b093a39c19169a8a81721dcc541e07e945232f
 # 0.2.31 + comfy-aimdo 0.4.15 + frontend 1.49.6 + workflow-templates 0.11.48 +
 # embedded-docs 0.5.10, torch cu130) by tag and exact version, content-gated on
 # every launch.
-container: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 # No sglang/vLLM engine exists for ComfyUI: `runtime: vllm` is the family whose
 # distribution + single-node launcher contract this command satisfies (same
 # pattern as the qwen-image and Decision CPU arms).

@@ -188,7 +188,8 @@ def run_generate(req: dict) -> dict:
         "use_kv_cache": use_kv_cache,
         "generator": torch.Generator("cpu").manual_seed(seed),
     }
-    call.update(schedule_kwargs(req, STATE.get("shipped_sigmas"))[0])
+    sigmas_kw, sigmas_used = schedule_kwargs(req, STATE.get("shipped_sigmas"))
+    call.update(sigmas_kw)
     image_path = req.get("image_path")
     if image_path:
         from diffusers.utils import load_image
