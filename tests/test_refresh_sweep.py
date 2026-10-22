@@ -352,6 +352,150 @@ class Containers(unittest.TestCase):
         self.assertEqual(row["class"], sweep_tool.CONTAINER_UNRESOLVABLE)
 
 
+
+class BuildInputs(unittest.TestCase):
+    def _classify(self, ref, rules):
+        fetcher = sweep_tool.Fetcher(fetch=FakeFetch(rules))
+        return sweep_tool.classify_image_build_input(ref, fetcher, "df", "FROM")
+
+    def test_digest_pin_with_moved_tag_is_current_not_stale(self):
+        # The repo's rule: a digest pin is a deliberate freeze. `dev-cu13` moving
+        # under it is the tag's business, not the Dockerfile's drift.
+        row = self._classify("ns/img:t@" + OLD_DIGEST, hub_rules("ns", "img", "t", NEW_DIGEST))
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_CURRENT)
+        self.assertEqual(row["observed"], NEW_DIGEST)  # visible, just not drift
+        self.assertIn("frozen here on purpose", row["reason"])
+
+    def test_digest_pin_at_the_same_digest_is_current(self):
+        row = self._classify("ns/img:t@" + OLD_DIGEST, hub_rules("ns", "img", "t", OLD_DIGEST))
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_CURRENT)
+
+    def test_tag_only_from_is_floating(self):
+        fetch = FakeFetch([])
+        row = sweep_tool.classify_image_build_input(
+            "ns/img:t", sweep_tool.Fetcher(fetch=fetch), "df", "FROM")
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_FLOATING)
+        self.assertEqual(fetch.calls, [], "a floating ref needs no registry call")
+
+    def test_retired_tag_is_newer_release(self):
+        rules = [("hub.docker.com/v2/repositories/ns/img/tags/gone",
+                  sweep_tool.FetchError("x", "HTTP 404", 404)),
+                 ("hub.docker.com/v2/repositories/ns/img/tags?", (200, {}, json.dumps(
+                     {"results": [{"name": "2027.1", "digest": NEW_DIGEST,
+                                   "last_updated": "2026-10-21T00:00:00Z"}]})))]
+        row = self._classify("ns/img:gone@" + OLD_DIGEST, rules)
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_NEWER_RELEASE)
+        self.assertEqual(row["observed"], "2027.1")
+        self.assertNotIn("appliable", row, "a build input is never applied")
+
+    def test_network_failure_is_unresolvable(self):
+        rules = [("hub.docker.com/v2/repositories/ns/img/tags/t",
+                  sweep_tool.FetchError("x", "HTTP 503", 503))]
+        self.assertEqual(self._classify("ns/img:t@" + OLD_DIGEST, rules)["class"],
+                         sweep_tool.BUILD_INPUT_UNRESOLVABLE)
+
+    def test_current_build_input_is_a_row_in_the_sweep(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(root, {
+                "recipes/lane/a.yaml": RECIPE.format(pin=PIN, container="ns/img:t@" + OLD_DIGEST),
+                "recipes/lane/Dockerfile.x":
+                    "FROM nvidia/cuda:13@sha256:" + "2" * 64 + " AS build\n",
+            })
+            rules = all_rules(
+                hub_rules("ns", "img", "t", OLD_DIGEST)
+                + hub_rules("nvidia", "cuda", "13", "sha256:" + "2" * 64)
+                + hf_rules("Org/Model", PIN))
+            report = sweep_tool.sweep(Path(tmp),
+                                      sweep_tool.Fetcher(fetch=FakeFetch(rules)))
+            rows = [r for r in report["rows"] if r["scope"] == "dockerfile"]
+            self.assertEqual([r["class"] for r in rows], [sweep_tool.BUILD_INPUT_CURRENT])
+            self.assertEqual(report["totals"]["build_inputs"], 1)
+
+
+class Acceptance(unittest.TestCase):
+    ARM = ("recipe_version: \"2\"\n"
+           "model: Org/Model\n"
+           "model_revision: " + PIN + "\n"
+           "container: ns/img:t@" + OLD_DIGEST + "\n")
+
+    def rules(self, model_head=PIN):
+        return all_rules(hub_rules("ns", "img", "t", NEW_DIGEST)
+                         + hf_rules("Org/Model", model_head))
+
+    def accept_file(self, directory, entries):
+        path = Path(directory) / "accepted.json"
+        path.write_text(json.dumps({"accepted": entries}))
+        return str(path)
+
+    def test_accepted_drift_does_not_gate(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as side:
+            git_repo(Path(tmp), {"recipes/lane/a.yaml": self.ARM})
+            accepted = self.accept_file(side, [{
+                "ref": "^ns/img:t@", "class": "container-newer-release",
+                "reason": "digest-frozen on purpose", "since": "2026-10-22"}])
+            code, report = run_quiet(["--exit-code", "--accept-file", accepted],
+                                     fetch=FakeFetch(self.rules()), root=tmp)
+            self.assertEqual(code, 0)
+            row = [r for r in report["rows"] if r["field"] == "container"][0]
+            self.assertEqual(row["class"], sweep_tool.CONTAINER_NEWER_RELEASE)
+            self.assertEqual(row["accepted"]["since"], "2026-10-22")
+            self.assertEqual(report["totals"]["accepted"], 1)
+
+    def test_stale_acceptance_gates(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as side:
+            git_repo(Path(tmp), {"recipes/lane/a.yaml": self.ARM})
+            accepted = self.accept_file(side, [{
+                "ref": "^nothing-matches-this", "class": "model-stale-docs",
+                "reason": "a hold that was fixed", "since": "2026-01-01"}])
+            code, report = run_quiet(["--exit-code", "--accept-file", accepted],
+                                     fetch=FakeFetch(self.rules()), root=tmp)
+            self.assertEqual(code, 1)
+            stale = [r for r in report["rows"] if r["class"] == sweep_tool.STALE_ACCEPTANCE]
+            self.assertEqual(len(stale), 1)
+            self.assertEqual(stale[0]["pinned"], "^nothing-matches-this")
+
+    def test_default_accept_file_is_discovered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            git_repo(root, {
+                "recipes/lane/a.yaml": self.ARM,
+                "tools/refresh-sweep-accepted.json": json.dumps({"accepted": [{
+                    "ref": "^ns/img:t@", "class": "container-newer-release",
+                    "reason": "digest-frozen on purpose", "since": "2026-10-22"}]}),
+            })
+            code, report = run_quiet(["--exit-code"], fetch=FakeFetch(self.rules()), root=tmp)
+            self.assertEqual(code, 0)
+            self.assertTrue(report["accept_file"].endswith("refresh-sweep-accepted.json"))
+
+    def test_invalid_accept_file_raises(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as side:
+            git_repo(Path(tmp), {"recipes/lane/a.yaml": self.ARM})
+            for bad in ({"ref": "x", "class": "not-a-class",
+                         "reason": "r", "since": "2026-10-22"},
+                        {"ref": "x", "class": "model-stale-docs",
+                         "reason": "", "since": "2026-10-22"},
+                        {"ref": "(", "class": "model-stale-docs",
+                         "reason": "r", "since": "2026-10-22"}):
+                accepted = self.accept_file(side, [bad])
+                with self.assertRaises(sweep_tool.SweepError):
+                    run_quiet(["--accept-file", accepted], fetch=FakeFetch(self.rules()),
+                              root=tmp)
+
+    def test_apply_skips_an_accepted_container(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as side:
+            root = Path(tmp)
+            arm = "recipes/lane/a.yaml"
+            git_repo(root, {arm: self.ARM})
+            accepted = self.accept_file(side, [{
+                "ref": "^ns/img:t@", "class": "container-newer-release",
+                "reason": "digest-frozen on purpose", "since": "2026-10-22"}])
+            _code, report = run_quiet(["--apply", "--accept-file", accepted],
+                                      fetch=FakeFetch(self.rules()), root=tmp)
+            self.assertEqual(report["applied"], [])
+            self.assertIn("container: ns/img:t@" + OLD_DIGEST, (root / arm).read_text())
+
+
 class LlamaCpp(unittest.TestCase):
     DOCKERFILE = ("FROM nvidia/cuda:13.0.1-devel@sha256:" + "1" * 64 + " AS build\n"
                   "ARG LLAMA_REPO=https://github.com/brywil/llama.cpp.git\n"

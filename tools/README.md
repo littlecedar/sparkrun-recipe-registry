@@ -29,7 +29,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
 | `horizon-analyze.py` | the horizon probe's JSONL arms | prints the per-arm loop/degradation summary; used by `eval-suite.py --checks horizon` |
 | `cache-audit.py` | the fleet `sparkrun` runtime-cache (every lane's compiles) | registry-level, not lane-level: maps each cache tree to the recipe that owns its leaf key, so "which of these 99 trees is stale?" is a command and not a hand-derivation; `--selftest`; guarded by `tests/test_cache_audit.py`; policy and reclaim list in `mad-science/STORAGE-POLICY.md` |
-| `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
+| `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; `--accept-file` declares deliberate holds and a dead entry gates as `stale-acceptance`; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
 
 ## eval-suite.py (the SOP pass)
 
@@ -1129,17 +1129,28 @@ uv run python -B tools/refresh-sweep.py --json /tmp/sweep.json --markdown /tmp/s
 tools/refresh-sweep.py --lane explore --only container-newer-release --exit-code   # one lane, one class
 tools/refresh-sweep.py --recipe recipes/explore/kolibri-1-apex-24bpw-llamacpp.yaml
 tools/refresh-sweep.py --cache ~/.cache/refresh-sweep.json --apply               # containers only
+tools/refresh-sweep.py --accept-file tools/refresh-sweep-accepted.json --exit-code
 ```
 
 **What it answers.** Per pin, a class from a fixed vocabulary — `model-current`,
 `model-stale-weights`, `model-stale-docs`, `model-unpinned`, `model-unresolvable`,
 `container-current`, `container-newer-release`, `container-floating`,
-`container-unresolvable`, `build-input-floating`, `build-input-stale`,
-`build-input-unresolvable` — printed verbatim in the table, the JSON and the markdown so an issue
+`container-unresolvable`, `build-input-current`, `build-input-newer-release`,
+`build-input-floating`, `build-input-stale`, `build-input-unresolvable`, and
+`stale-acceptance` — printed verbatim in the table, the JSON and the markdown so an issue
 body can be assembled from it. Stale models are split **weights** vs **docs** by the unified diff
 of `…/compare/{pin}..main`: a changed `.safetensors`/`.gguf` is a re-boot, a changed `README.md` or
 `.eval_results/` is not. A repo id keeps its owner's spelling (`Qwen/…`, `inclusionAI/…`) — Hub
 lookups are case-sensitive and are never lower-cased before a request.
+
+**A digest pin is a freeze, and the two kinds of pin are read differently.** In a recipe,
+`container: tag@sha256:…` whose tag moved is `container-newer-release`, because that is the line CI is
+asked to bump. In a Dockerfile, `FROM tag@sha256:…` (or `ARG BASE_IMAGE`) is the reproducible form the
+repo writes on purpose, so the same tag resolving elsewhere is `build-input-current` with the live
+digest recorded — `build-input-stale` is reserved for a git build ref (`ARG <NAME>_REF`) that its
+branch has moved past, `build-input-floating` for a tag with no digest (the actual reproducibility
+defect), and `build-input-newer-release` for a tag the registry no longer publishes (report-only,
+never applied).
 
 **Fail closed.** A pin the tool could not check is `*-unresolvable`, never silent cleanliness: an
 unparseable recipe is an error, an empty selection is an error, an empty diff behind a moved head is
@@ -1178,17 +1189,30 @@ matching text, so a 404 is `false` and only a network failure is `unknown` — a
 image's publisher status (newest tag, newest upload date). That is the answer to "can a stock build
 replace this fork image?".
 
-Measured 2026-10-22 against the tracked tree: 52 recipes, **59 model pins, 52 container pins, 16
-build inputs**, 0 unresolvable, 24 drift rows, exit 1 — `lmsysorg/sglang:dev-cu13` had moved under 5
-arms and `python:3.12-slim` under 2 (the seven `--apply` candidates), 9 arms were behind on docs
-only, 1 behind on weights (the Mellum GGUF pack grew its MTP files), 1 unpinned
-(`littlecedar-ornith-1.5-397b…`), the `dev-cu13` base digest had moved under three Dockerfiles, two
-`ARG <NAME>_REF` build inputs have no default, and `upstream_supports` was yes for all four features
-while the `scitrera` publisher's newest upload was still 2026-08-21.
+**Deliberate holds are declared, not silenced.** `--accept-file PATH` (default
+`tools/refresh-sweep-accepted.json` when it exists) takes
+`{"accepted": [{"ref", "class", "reason", "since"}]}`, where `ref` is a regex matched against a row's
+pinned ref or its path, so one entry can cover a group of arms. An accepted row is still printed and
+still appears in the markdown under its own **Accepted** table, but it does not gate `--exit-code` and
+`--apply` will not touch it. An entry that matches nothing is reported as `stale-acceptance` and
+**gates**: a hold that was fixed silently must not linger. The shipped file is the three holds that
+are correct today — the five `lmsysorg/sglang:dev-cu13` arms (digest-frozen per lane policy), the two
+`python:3.12-slim` decision arms (the base is only an interpreter; their server is pip-installed at
+boot), and the Mellum GGUF's additive `mtp/*` drafts (the shipped `Q4_K_M` is byte-identical).
+
+Measured 2026-10-22 against the tracked tree: 52 recipes, **59 model pins, 52 container pins, 13
+build inputs**, 0 unresolvable, 12 gating drift rows and 8 accepted holds, exit 1 — `lmsysorg/sglang:dev-cu13`
+had moved under 5 arms and `python:3.12-slim` under 2 (the seven `--apply` candidates, all accepted
+holds today), 9 arms were behind on docs only, 1 behind on weights (the Mellum `mtp/*` files, also
+accepted), 10 Dockerfile base images were digest-frozen and current, 2 `ARG <NAME>_REF` build inputs
+have no default, and `upstream_supports` was yes for all four features while the `scitrera`
+publisher's newest upload was still 2026-08-21.
 
 **It needs network.** Run it where Docker Hub, ghcr, Hugging Face and GitHub are reachable; offline it
 exits 2 rather than reporting a clean tree, which is the point. Guard: `tests/test_refresh_sweep.py`
-(35 tests, stdlib only, every registry call served by a fixture, an unmatched URL is a failure) — the
-negative controls are that `revision:` is not a pin, that a missing tag is not `current`, that an empty
-selection and an unparseable recipe raise, that `--apply` refuses a dirty tree and leaves
-`model_revision:` bytes untouched, and that the `graph_mtp` map flips when the fetched file lacks it.
+(46 tests, stdlib only, every registry call served by a fixture, an unmatched URL is a failure) — the
+negative controls are that `revision:` is not a pin, that a missing tag is not `current`, that a
+digest-pinned base whose tag moved is *current* while a tag-only `FROM` is *floating*, that an accepted
+drift stops gating while a dead acceptance starts, that an empty selection and an unparseable recipe
+raise, that `--apply` refuses a dirty tree and leaves `model_revision:` bytes untouched, and that the
+`graph_mtp` map flips when the fetched file lacks it.

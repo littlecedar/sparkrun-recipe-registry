@@ -386,7 +386,11 @@ matching.
 - **CI never bumps a model pin.** `refresh-sweep.yml` reports drift and opens/updates one
   `pin-drift` issue; even its manual `apply: true` mode only rewrites the runner's throwaway tree,
   prints the per-arm boot checklist, and stops (no commit, no push). A pin change is still
-  boot-gated by lane policy, on hardware a hosted runner does not have.
+  boot-gated by lane policy, on hardware a hosted runner does not have. **A deliberate hold is
+  declared, never silenced**: `tools/refresh-sweep-accepted.json` lists the pinnings that are
+  correct as frozen (each with a `reason` and a `since`), an accepted row is still printed and does
+  not gate, and an entry that matches nothing is `stale-acceptance` and does gate — so a hold that
+  was fixed cannot linger.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.

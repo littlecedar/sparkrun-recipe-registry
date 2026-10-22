@@ -1,5 +1,6 @@
 recipe_version: "2"
 model: littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
+model_revision: b4864e449b75e694a2f3af95791b50d775dbd8ac
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:b94ac8ac47603f9c3d14f88c12b90eacbc37c7a42f922631cb8c9ac80f7b37c3
 runtime: vllm
 min_nodes: 4

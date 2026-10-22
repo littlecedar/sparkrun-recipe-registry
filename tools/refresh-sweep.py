@@ -68,19 +68,23 @@ CONTAINER_CURRENT = "container-current"
 CONTAINER_NEWER_RELEASE = "container-newer-release"
 CONTAINER_FLOATING = "container-floating"
 CONTAINER_UNRESOLVABLE = "container-unresolvable"
+BUILD_INPUT_CURRENT = "build-input-current"
+BUILD_INPUT_NEWER_RELEASE = "build-input-newer-release"
 BUILD_INPUT_FLOATING = "build-input-floating"
 BUILD_INPUT_STALE = "build-input-stale"
 BUILD_INPUT_UNRESOLVABLE = "build-input-unresolvable"
+STALE_ACCEPTANCE = "stale-acceptance"
 
 CLASSES = (
     MODEL_CURRENT, MODEL_STALE_WEIGHTS, MODEL_STALE_DOCS, MODEL_UNPINNED,
     MODEL_UNRESOLVABLE,
     CONTAINER_CURRENT, CONTAINER_NEWER_RELEASE, CONTAINER_FLOATING,
     CONTAINER_UNRESOLVABLE,
-    BUILD_INPUT_FLOATING, BUILD_INPUT_STALE, BUILD_INPUT_UNRESOLVABLE,
+    BUILD_INPUT_CURRENT, BUILD_INPUT_NEWER_RELEASE, BUILD_INPUT_FLOATING,
+    BUILD_INPUT_STALE, BUILD_INPUT_UNRESOLVABLE,
+    STALE_ACCEPTANCE,
 )
-#: `*-current` is the only non-drift suffix; build inputs have no current class
-#: at all, so a clean build input is counted but emits no row.
+#: `*-current` is the only non-drift suffix, so `stale-acceptance` gates too.
 DRIFT_CLASSES = frozenset(c for c in CLASSES if not c.endswith("-current"))
 
 #: A changed file with one of these suffixes means the weights moved.
@@ -597,24 +601,61 @@ def classify_container(ref, fetcher, scope, path, field="container"):
                 reason=f"no adapter for registry host {host!r}")
 
 
-BUILD_CLASS = {
-    CONTAINER_CURRENT: "",
-    CONTAINER_NEWER_RELEASE: BUILD_INPUT_STALE,
-    CONTAINER_FLOATING: BUILD_INPUT_FLOATING,
-    CONTAINER_UNRESOLVABLE: BUILD_INPUT_UNRESOLVABLE,
-}
-
-
 def classify_image_build_input(ref, fetcher, path, field):
-    row = classify_container(ref, fetcher, "dockerfile", path, field)
-    cls = BUILD_CLASS.get(row["class"], BUILD_INPUT_UNRESOLVABLE)
-    if not cls:
-        return None
-    row["class"] = cls
-    row.pop("appliable", None)
-    row.pop("new_tag", None)
-    row.pop("new_digest", None)
-    return row
+    """A Dockerfile image input.  A digest pin is a freeze, not staleness.
+
+    `FROM tag@sha256:…` is the reproducible form the repo writes on purpose, so
+    the same tag resolving elsewhere is `build-input-current` with the live
+    digest recorded — only a *retired* tag (the release series moved on) is
+    `build-input-newer-release`, and that is report-only (never `--apply`).
+    A tag with no digest is the reproducibility defect: `build-input-floating`.
+    """
+    info = parse_container_ref(ref)
+    if info["error"]:
+        return _row(BUILD_INPUT_UNRESOLVABLE, "dockerfile", path, field, ref,
+                    reason=info["error"])
+    host, repo, tag, digest = info["host"], info["repo"], info["tag"], info["digest"]
+    if not digest:
+        return _row(BUILD_INPUT_FLOATING, "dockerfile", path, field, ref,
+                    reason="tag without a digest: the build is not reproducible")
+    if not tag:
+        return _row(BUILD_INPUT_CURRENT, "dockerfile", path, field, ref,
+                    reason="digest-only pin; no tag tracked, so nothing can move")
+    try:
+        if host == "docker.io":
+            try:
+                current = hub_tag_digest(repo, tag, fetcher)
+            except FetchError as exc:
+                if exc.status != 404:
+                    raise
+                newest = hub_newest_tag(repo, fetcher)
+                return _row(BUILD_INPUT_NEWER_RELEASE, "dockerfile", path, field, ref,
+                            observed=newest["name"], cached_at=newest["cached_at"],
+                            reason=f"{repo}:{tag} is no longer published; the newest "
+                                   f"tag is {newest['name']} ({_fmt_ts(newest['last_updated'])})")
+            note = ("" if current["digest"] == digest
+                    else f"; the tag now resolves to {current['digest']} (frozen here on purpose)")
+            return _row(BUILD_INPUT_CURRENT, "dockerfile", path, field, ref,
+                        observed=current["digest"], cached_at=current["cached_at"],
+                        reason=f"digest-pinned against {repo}:{tag}{note}")
+        if host == "ghcr.io":
+            try:
+                current = ghcr_manifest_digest(repo, tag, fetcher)
+            except FetchError as exc:
+                if exc.status != 404:
+                    raise
+                return _row(BUILD_INPUT_NEWER_RELEASE, "dockerfile", path, field, ref,
+                            reason=f"ghcr {repo}:{tag} is no longer published")
+            note = ("" if current["digest"] == digest
+                    else f"; the tag now resolves to {current['digest']} (frozen here on purpose)")
+            return _row(BUILD_INPUT_CURRENT, "dockerfile", path, field, ref,
+                        observed=current["digest"], cached_at=current["cached_at"],
+                        reason=f"digest-pinned against ghcr {repo}:{tag}{note}")
+    except FetchError as exc:
+        return _row(BUILD_INPUT_UNRESOLVABLE, "dockerfile", path, field, ref,
+                    reason=exc.reason)
+    return _row(BUILD_INPUT_UNRESOLVABLE, "dockerfile", path, field, ref,
+                reason=f"no adapter for registry host {host!r}")
 
 
 def classify_github_ref(repo, ref, fetcher, path, field):
@@ -751,7 +792,69 @@ def _read(root, rel):
         raise SweepError(f"{rel}: unreadable ({exc})") from None
 
 
-def sweep(root, fetcher, only_recipe=None, lane=None):
+ACCEPT_DEFAULT = "tools/refresh-sweep-accepted.json"
+
+
+def load_accept_file(path):
+    """`{"accepted": [{ref, class, reason, since}]}` → a validated list.
+
+    `ref` is a regex matched against a row's pinned ref *or* its path, so one
+    entry can hold a group of arms that share a deliberate freeze.  Every field
+    is required: an acceptance without a reason and a date is not reviewable.
+    """
+    try:
+        payload = json.loads(Path(path).read_text())
+    except (OSError, ValueError) as exc:
+        raise SweepError(f"--accept-file {path}: unreadable ({exc})") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("accepted"), list):
+        raise SweepError(f"--accept-file {path}: expected {{\"accepted\": [...]}}")
+    entries = []
+    for index, entry in enumerate(payload["accepted"]):
+        if not isinstance(entry, dict):
+            raise SweepError(f"--accept-file {path}: entry {index} is not an object")
+        missing = [k for k in ("ref", "class", "reason", "since") if not entry.get(k)]
+        if missing:
+            raise SweepError(f"--accept-file {path}: entry {index} is missing "
+                             f"{', '.join(missing)}")
+        if entry["class"] not in DRIFT_CLASSES:
+            raise SweepError(f"--accept-file {path}: entry {index} names class "
+                             f"{entry['class']!r}, which is not a drift class")
+        try:
+            re.compile(entry["ref"])
+        except re.error as exc:
+            raise SweepError(f"--accept-file {path}: entry {index} has an invalid "
+                             f"ref regex ({exc})") from None
+        entries.append(entry)
+    return entries
+
+
+def apply_acceptances(rows, entries):
+    """Mark accepted rows and return one `stale-acceptance` row per dead entry.
+
+    An acceptance that matches nothing is drift in its own right: the hold it
+    documents has been fixed or the ref was re-pinned, and leaving the entry
+    behind would keep a now-false claim in the tree.
+    """
+    if not entries:
+        return []
+    matched = set()
+    for row in rows:
+        for index, entry in enumerate(entries):
+            if entry["class"] != row["class"]:
+                continue
+            if re.search(entry["ref"], row["pinned"] or "") or \
+                    re.search(entry["ref"], row["path"] or ""):
+                row["accepted"] = {"reason": entry["reason"], "since": entry["since"]}
+                matched.add(index)
+                break
+    return [_row(STALE_ACCEPTANCE, "accept", "<accept-file>", "ref", entry["ref"],
+                 reason=f"accepted `{entry['class']}` entry matches no row "
+                        f"(accepted since {entry['since']}): the hold is gone, drop the entry",
+                 accept_class=entry["class"], accepted_since=entry["since"])
+            for index, entry in enumerate(entries) if index not in matched]
+
+
+def sweep(root, fetcher, only_recipe=None, lane=None, accept_entries=None):
     """Classify every pin in the tracked tree.  Raises SweepError, never returns []."""
     paths = tracked_paths(root)
     recipes = recipe_files(paths)
@@ -773,7 +876,7 @@ def sweep(root, fetcher, only_recipe=None, lane=None):
         raise SweepError("no recipes matched the selection — refusing to report "
                          "an empty sweep as clean")
 
-    rows, warnings, clean_build_inputs = [], [], 0
+    rows, warnings = [], []
     models = 0
     for rel in recipes:
         recipe = parse_recipe(_read(root, rel), rel)
@@ -810,27 +913,19 @@ def sweep(root, fetcher, only_recipe=None, lane=None):
                     continue
                 seen.add(ref)
                 row = classify_image_build_input(ref, fetcher, rel, "FROM")
-                if row:
+                if row:  # `$VAR` and repeats are skipped; a row always comes back
                     rows.append(row)
-                else:
-                    clean_build_inputs += 1
             base = parsed["args"].get("BASE_IMAGE", "")
             if base and base not in seen:
                 seen.add(base)
-                row = classify_image_build_input(base, fetcher, rel, "ARG BASE_IMAGE")
-                if row:
-                    rows.append(row)
-                else:
-                    clean_build_inputs += 1
+                rows.append(classify_image_build_input(base, fetcher, rel, "ARG BASE_IMAGE"))
             for name, value in parsed["args"].items():
                 if not name.endswith("_REF"):
                     continue
                 repo = github_repo(parsed["args"].get(f"{name[:-4]}_REPO", ""))
                 row = classify_github_ref(repo, value, fetcher, rel, f"ARG {name}")
-                if row:
+                if row:  # None means the ref is at its branch head
                     rows.append(row)
-                else:
-                    clean_build_inputs += 1
 
     llama = collect_llama_cpp(root, paths, recipes, fetcher)
     llama_rows = llama.pop("rows")
@@ -841,28 +936,29 @@ def sweep(root, fetcher, only_recipe=None, lane=None):
         rows = [r for r in rows if (r["path"], r["field"]) != key]
         rows.append(row)
 
+    if not rows:
+        raise SweepError("the sweep classified nothing — refusing to report that as clean")
+    rows.extend(apply_acceptances(rows, list(accept_entries or ())))
     for row in rows:
         if row["class"] not in CLASSES:
             raise SweepError(f"internal: unknown class {row['class']!r}")
-    if not rows:
-        raise SweepError("the sweep classified nothing — refusing to report that as clean")
 
     counts = {}
     for row in rows:
         counts[row["class"]] = counts.get(row["class"], 0) + 1
-
+    gated = [r for r in rows if r["class"] in DRIFT_CLASSES and not r.get("accepted")]
     return {
         "rows": rows,
         "counts": counts,
         "llama_cpp": llama,
         "warnings": warnings,
+        "gated": [r["class"] for r in gated],
         "totals": {
             "recipes": len(recipes),
             "model_pins": models,
             "container_pins": sum(1 for r in rows if r["field"] == "container"),
-            "build_inputs": sum(1 for r in rows if r["scope"] in ("dockerfile", "llama_cpp"))
-                            + clean_build_inputs,
-            "clean_build_inputs": clean_build_inputs,
+            "build_inputs": sum(1 for r in rows if r["scope"] in ("dockerfile", "llama_cpp")),
+            "accepted": sum(1 for r in rows if r.get("accepted")),
         },
     }
 
@@ -1024,12 +1120,18 @@ def summary(report, exit_code=None):
         lines += [f"  {cls.ljust(width)}  {counts[cls]}" for cls in CLASSES if cls in counts]
     else:
         lines.append("  (nothing classified)")
-    drift = [r for r in report["rows"] if r["class"] in DRIFT_CLASSES]
+    drift = [r for r in report["rows"]
+             if r["class"] in DRIFT_CLASSES and not r.get("accepted")]
+    accepted = [r for r in report["rows"] if r.get("accepted")]
     unresolvable = [r for r in drift if r["class"].endswith("-unresolvable")]
-    lines += ["", f"drift: {len(drift)} row(s); unresolvable: {len(unresolvable)}"]
+    lines += ["", f"drift: {len(drift)} row(s); unresolvable: {len(unresolvable)}"
+                  f"; accepted holds: {len(accepted)}"]
     for row in drift:
         lines.append(f"  {row['class']:<22} {row['path']}:{row['field']}  "
                      f"{row['pinned'] or '-'} -> {row['observed'] or '-'}  {row['reason']}")
+    for row in accepted:
+        lines.append(f"  accepted {row['class']:<14} {row['path']}:{row['field']}  "
+                     f"since {row['accepted']['since']}: {row['accepted']['reason']}")
     if report["warnings"]:
         lines += ["", "warnings:"] + [f"  {w}" for w in report["warnings"]]
 
@@ -1055,21 +1157,34 @@ def summary(report, exit_code=None):
 
 def markdown(report, exit_code=None):
     totals = report["totals"]
-    drift = [r for r in report["rows"] if r["class"] in DRIFT_CLASSES]
+    drift = [r for r in report["rows"]
+             if r["class"] in DRIFT_CLASSES and not r.get("accepted")]
+    accepted = [r for r in report["rows"] if r.get("accepted")]
     out = [f"# Pin refresh sweep — {_iso()}", "",
            f"{totals['recipes']} recipes, {totals['model_pins']} model pins, "
            f"{totals['container_pins']} container pins, {totals['build_inputs']} build inputs; "
-           f"**{len(drift)} drift row(s)**"
+           f"**{len(drift)} drift row(s)**, {len(accepted)} accepted hold(s)"
            + (f", exit {exit_code}" if exit_code is not None else "") + ".", ""]
-    if drift:
-        out += ["| class | arm | field | pinned | observed | reason |", "|---|---|---|---|---|---|"]
-        for row in drift:
+
+    def table(rows):
+        lines = ["| class | arm | field | pinned | observed | reason |",
+                 "|---|---|---|---|---|---|"]
+        for row in rows:
+            lines.append(f"| `{row['class']}` | `{row['path']}` | `{row['field']}` | "
+                         f"`{row['pinned'] or '-'}` | `{row['observed'] or '-'}` | "
+                         f"{row['reason'].replace('|', '/')} |")
+        return lines
+
+    out += (table(drift) if drift else ["No drift class present."]) + [""]
+    if accepted:
+        out += ["## Accepted holds (reported, not gating)", "",
+                "| class | arm | field | pinned | since | reason |",
+                "|---|---|---|---|---|---|"]
+        for row in accepted:
             out.append(f"| `{row['class']}` | `{row['path']}` | `{row['field']}` | "
-                       f"`{row['pinned'] or '-'}` | `{row['observed'] or '-'}` | "
-                       f"{row['reason'].replace('|', '/')} |")
+                       f"`{row['pinned'] or '-'}` | {row['accepted']['since']} | "
+                       f"{row['accepted']['reason'].replace('|', '/')} |")
         out.append("")
-    else:
-        out += ["No drift class present.", ""]
 
     llama = report["llama_cpp"]
     up = llama["upstream"]
@@ -1111,10 +1226,13 @@ def apply_container_bumps(report, root):
     The dirty-worktree refusal lives in `run()`, before any registry call, so an
     `--apply` run can never mix a bump with someone else's in-flight edit.
     """
+    # An accepted hold is a deliberate freeze: never apply over it.
     appliable = [r for r in report["rows"]
-                 if r["class"] == CONTAINER_NEWER_RELEASE and r.get("appliable")]
+                 if r["class"] == CONTAINER_NEWER_RELEASE and r.get("appliable")
+                 and not r.get("accepted")]
     skipped = [r for r in report["rows"]
-               if r["class"] == CONTAINER_NEWER_RELEASE and not r.get("appliable")]
+               if r["class"] == CONTAINER_NEWER_RELEASE
+               and (not r.get("appliable") or r.get("accepted"))]
     applied, stamp = [], time.strftime("%Y%m%d")
     for row in appliable:
         path = root / row["path"]
@@ -1142,9 +1260,12 @@ def apply_container_bumps(report, root):
     else:
         print("applied 0 container bumps")
     if skipped:
-        print(f"skipped {len(skipped)} newer-release row(s) with no resolved digest target:")
+        print(f"skipped {len(skipped)} newer-release row(s) (accepted hold, or no resolved "
+              "digest target):")
         for row in skipped:
-            print(f"  {row['path']}: {row['pinned']} — {row['reason']}")
+            accepted = row.get("accepted")
+            why = f"accepted since {accepted['since']}" if accepted else row["reason"]
+            print(f"  {row['path']}: {row['pinned']} — {why}")
     return applied
 
 
@@ -1170,6 +1291,9 @@ def build_parser():
                         help="per-request timeout (default: 30)")
     parser.add_argument("--cache", metavar="PATH",
                         help="JSON cache of registry responses (stale entries are refetched)")
+    parser.add_argument("--accept-file", metavar="PATH",
+                        help="JSON list of accepted holds that must not gate "
+                             f"(default: {ACCEPT_DEFAULT} when present)")
     return parser
 
 
@@ -1194,12 +1318,19 @@ def run(argv, fetch=None, root=None):
             raise SweepError("--apply refuses to run on a dirty worktree:\n  "
                              + "\n  ".join(dirty[:20]))
 
+    accept_path = Path(args.accept_file) if args.accept_file else repo / ACCEPT_DEFAULT
+    accept_entries = []
+    if args.accept_file or accept_path.exists():
+        accept_entries = load_accept_file(accept_path)
+
     fetcher = Fetcher(timeout=args.timeout, cache_path=args.cache,
                       token=_hf_token(args.token_env), fetch=fetch)
     try:
-        report = sweep(repo, fetcher, only_recipe=args.recipe, lane=args.lane)
+        report = sweep(repo, fetcher, only_recipe=args.recipe, lane=args.lane,
+                       accept_entries=accept_entries)
         report["generated_at"] = _iso()
         report["root"] = str(repo)
+        report["accept_file"] = str(accept_path) if accept_entries else ""
         if only:
             report["rows"] = [r for r in report["rows"] if r["class"] in only]
             report["counts"] = {}
@@ -1207,13 +1338,15 @@ def run(argv, fetch=None, root=None):
                 report["counts"][row["class"]] = report["counts"].get(row["class"], 0) + 1
             report["only"] = only
 
-        drift = [r for r in report["rows"] if r["class"] in DRIFT_CLASSES]
-        unresolvable = [r for r in drift if r["class"].endswith("-unresolvable")]
+        gated = [r for r in report["rows"]
+                 if r["class"] in DRIFT_CLASSES and not r.get("accepted")]
+        unresolvable = [r for r in gated if r["class"].endswith("-unresolvable")]
         code = 0
         if unresolvable:
             code = 2
-        elif drift and args.exit_code:
+        elif gated and args.exit_code:
             code = 1
+        report["gated"] = [r["class"] for r in gated]
         report["exit_code"] = code
 
         if args.apply:

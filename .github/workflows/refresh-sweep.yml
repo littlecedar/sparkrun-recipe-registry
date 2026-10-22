@@ -5,6 +5,10 @@
 # Both 1 and 2 open or update the single open issue labelled `pin-drift`; 2 gets its own title so
 # "we found drift" is never confused with "the sweep itself broke".
 #
+# Deliberate holds live in tools/refresh-sweep-accepted.json and are passed explicitly: an accepted
+# row is still reported (and lands in the issue body under its own table) but does not gate, while an
+# entry that no longer matches anything is `stale-acceptance` and does gate.
+#
 # This workflow never edits recipes unless `apply` is true, and even then it only prints the
 # per-arm boot checklist and stops: no commit, no push. Recipe and pin changes stay boot-gated by
 # lane policy (AGENTS.md), which a hosted x86 runner cannot satisfy.
@@ -43,7 +47,8 @@ jobs:
         if: env.APPLY != 'true'
         run: |
           set +e
-          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code
+          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code \
+            --accept-file tools/refresh-sweep-accepted.json
           code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "sweep exit code: $code (0 clean, 1 drift, 2 could not run)"
@@ -54,7 +59,8 @@ jobs:
         if: env.APPLY == 'true'
         run: |
           set +e
-          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code --apply
+          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code \
+            --accept-file tools/refresh-sweep-accepted.json --apply
           code=$?
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "sweep --apply exit code: $code (0 clean, 1 drift, 2 could not run)"

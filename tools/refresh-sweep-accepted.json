@@ -1,0 +1,23 @@
+{
+  "note": "Deliberate holds for tools/refresh-sweep.py. An entry's `ref` is a regex matched against a row's pinned ref or its path; `reason` says why the hold is correct today and `since` dates it. An accepted row is still printed and still appears in the markdown, but it does not gate --exit-code. A read-only review cadence keeps this honest: an entry that matches nothing is reported as `stale-acceptance` and gates, so a fixed hold cannot linger.",
+  "accepted": [
+    {
+      "ref": "^lmsysorg/sglang:dev-cu13@sha256:",
+      "class": "container-newer-release",
+      "reason": "the five cybersec/qwen3 sglang arms are deliberately digest-frozen per lane policy: `dev-cu13` is a moving tag, each arm boots the exact digest it was measured on, and a bump needs its own boot + receipt. Covers 4 arms on sha256:0b3e3970… and the qwen3 arm on sha256:0a1ba33a…",
+      "since": "2026-10-22"
+    },
+    {
+      "ref": "^python:3\\.12-slim@sha256:",
+      "class": "container-newer-release",
+      "reason": "the kev/laya decision arms `pip install` their released server at boot, so the base image is only an interpreter: a Docker Hub rollup of 3.12-slim cannot change what is served. Bump it opportunistically with those arms' next boot, not as drift (2 arms)",
+      "since": "2026-10-22"
+    },
+    {
+      "ref": "mellum2\\.1-12b-a2\\.5b-q4km-thinking-llamacpp\\.yaml",
+      "class": "model-stale-weights",
+      "reason": "the post-pin commits add `mtp/*` draft GGUFs only — the shipped `Q4_K_M` (8,071,295,264 B) is byte-identical (`ecc4d5b8…`). The MTP path needs the Mellum-MTP image and a draft staging step before it is servable, so the pin stays until that arm exists",
+      "since": "2026-10-22"
+    }
+  ]
+}

@@ -52,7 +52,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 |---|---|
 | recipe | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` |
 | runtime / container | vLLM — `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:b94ac8ac47603f9c3d14f88c12b90eacbc37c7a42f922631cb8c9ac80f7b37c3` (digest-pinned; tag `nightly-20260913`, vLLM `0.29.1rc1.dev17+gd2d649e67`) |
-| model | [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft] — a Little Cedar derivative that **grafts the BFP16 MTP MoE from the base model onto the NVFP4 quantization** (the base is `ornith-ai/Ornith-1.5-397B`, ≈800 GB in bf16) |
+| model | [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft] — a Little Cedar derivative that **grafts the BFP16 MTP MoE from the base model onto the NVFP4 quantization** (the base is `ornith-ai/Ornith-1.5-397B`, ≈800 GB in bf16); `model_revision: b4864e44…` (2026-09-04) — our own artifact, so it is pinned like any other installed repo |
 | nodes / TP | 4 nodes, `tensor_parallel: 4` + `--enable-expert-parallel` |
 | size / mem | **235 GB per node** at `gpu_memory_utilization: 0.80`; `max_model_len: 262144`; `max_num_seqs: 12`; `kv_cache_dtype: fp8_e4m3` |
 | spec decode | MTP — the checkpoint's own head, `num_speculative_tokens: 3` |
