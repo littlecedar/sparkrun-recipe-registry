@@ -194,6 +194,40 @@ in `mad-science/TODO.md` at the time, and the slice does show 8192-token prefill
 `confirm/boot-evidence.txt` + `ladder.*`. Both interval-off `boot-evidence.txt` files prove the
 off state in `server_args`: `prefill_decode_interval: 0`, `swa_prefix_tails: 128`.
 
+### Measured: 2026-10-22 live baseline boot (online, scheduler-placed)
+
+The owner's verbatim command, no flags — the recipe's `min_nodes: 4` plus the default cluster's
+hosts did the placement:
+
+```bash
+sparkrun run deepseek-v4.1-flash-knapcio-tp4-1m-sglang
+```
+
+| | |
+|:--|:--|
+| Task | `sparkrun_a2e141223b52793c_d7960e70d961` (containers `…_node_0`…`_node_3`) |
+| Rank set | `.30` (head) `.31` `.32` `.33` — "4 of 6 hosts from default cluster 'WOPR' (occupancy-sparse scheduler)". Not chosen by hand: `-H` was not passed |
+| TTR | **544 s** to `The server is fired up and ready to roll!` / first `/v1/models` 200 (~68 s of it weight load, 48/48 shards per rank) |
+| `max_model_len` | **1,048,576, unclamped** — what the engine reports, matching the recipe |
+| KV pool | **`max_total_num_tokens=6,849,792`** = 97.9 % of the 6,993,408 budget at 0.78, `max_running_requests=16` |
+| House | **37/37** (easy 19/19, hard 18/18), `--max-tokens 4096`, **thinking on**, 30.9 s for all 37 items — vs the historical **36/37** |
+| Needle | **5/5 at ~999k prompt tokens** (998,446 / 997,583 / 999,044 / 999,281 / 999,241; 592.8 / 626.2 / 550.1 / 567.9 / 543.9 s), serial c1, depths 10–50 %; **depths 60–100 were NOT attempted** (the serve became production traffic — a 10-min 1M prefill on 16 slots would have blocked the handover), so this is five depths at the full window, not the whole ladder |
+| Ladder | C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** t/s, n=5, decode rows only (`is_context_prefill_phase: false`), `--skip-run` on this same boot, 4/4 tasks in 143.8 s |
+| Receipts | `~/benchmarks/knapcio-tp4-20261022/` on the head: `REPORT.md`, `boot.log`, `perf-ladder.{yaml,json,csv}`, `sparkrun_serve.log`, `battery-thinking-on.json` |
+
+**JSON completeness (checked, because a previous C10 row was non-evidence).** `perf-ladder.json` was
+re-parsed after the run: 21,898 bytes, `model = deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+`max_concurrency = 10`, four records, each with `pp_throughput`/`tg_throughput` means and five
+`values`, `is_context_prefill_phase: false` on every row. The C10 row exists and parses.
+
+**C1 gap is an open question, not a regression.** C1 60.20 sits below the v2.3 reference 69.28 and
+below the v2.4 interval-off 123.49-class C10 shape it otherwise matches; the rank set here includes
+the **head node `.30` as a TP rank**, which also carries the control's ssh and syncthing duties —
+whereas the historical 69.28 came from a different node set. The clean test is a same-window
+`.31`–`.34` boot once `.34` is a resident (it is not a rank here), and it was deliberately **not**
+run in this window. C10 (116.86) is at the historical 116.27, so the shortfall is concentrated at
+low concurrency, which is what a busy head rank would cost first.
+
 ### What it serves
 
 A 1M-context chat/completions server for the official release weights, **including
