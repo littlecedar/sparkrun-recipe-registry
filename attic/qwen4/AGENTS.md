@@ -585,6 +585,32 @@ re-pin), plus the W3 serve run under `~/benchmarks/q4-w3-repin-20261014/`.
 - **Throughput did not move.** Clean pre-pin vs re-pinned C1 decode: 41.32/38.58 → 40.32/43.29 tok/s
   (overlapping 2–4 tok/s stds). TTR port 674.7 s on both.
 
+### 10.8 Archived arms rot across a re-pin: the TP=4 arm's four silent defects (2026-10-22)
+
+W6 (`arms/qwen3.8-flash-next-labquant-tp4-sglang.yaml`) was unguarded and unmaintained since the
+2026-10-14 re-pin. It still validated — and every defect below was silent until the launch:
+
+- **`revision:` instead of `model_revision:`** — sparkrun ignores the bare key, so the pin was dead
+  and the engine would have resolved `main` (§1 fact 1's trap, now in a shipped-adjacent arm).
+- **The pre-re-cut pin `7c4f1bc1`** (36 shards) against a mod chain written for the step-5500
+  `6c01ac37` (43 shards).
+- **3 of the 5 required mods.** Missing `fix-labquant-mxfp8-weight-scale-name` (the load asserts on
+  an unplaceable `_scale`) and `demote-labquant-narrow-mxfp8-to-bf16` (`MXFP8 requires n >= 128` on
+  the n=96 GDN projections). Both are documented in §10.1 — the documentation was right and the arm
+  was stale, so this is an arm defect, not a missing doc.
+- **`moe_runner_backend: auto`** — resolves the NVFP4 MoE to FLASHINFER_TRTLLM, dead on SM121 (§10.1).
+  The arm also predates the old-schema top-level `container:` mapping, so it carried no `runtime:`.
+
+Repaired as a **diff of the shipped TP=2 arm**: same model, pin, image, five-mod chain in order and
+every default, with only `tensor_parallel: 4` / `min_nodes: 4`, NEXTN dropped (W6's TP>2 confound)
+and `readiness.port_timeout_s: 3600` differing. That invariant is now a guard:
+`tests/test_qwen4_recipes.py` diffs the two arms and fails on any divergence beyond those three, with
+negative controls for the bare key, the stale pin, a missing mod, `auto` and a reintroduced NEXTN.
+
+**The rule this earns:** an arm under `arms/` is a measurement artifact, not a maintained sibling —
+before re-running one, diff it against the shipped arm it was cut from. Nothing here needed a fifth
+mod or a flag the lane docs did not already name.
+
 
 ---
 
