@@ -7,6 +7,9 @@ read-sector and read-completion deltas around two short completions (128 and 512
 production arm already running on `.30`. Nothing here is booted hardware evidence for BeeGFS itself, and
 no BeeGFS number was measured — the pool's performance is bounded from the hardware it would run on.
 
+**Addendum 2026-10-22:** §9 adds measured inter-node transfer throughput (control→node and
+node→node, three shapes, two rails) and the fetch-once/fan-out rule that follows from it.
+
 **Question:** what would it cost, in resources and in boot/serve performance, to install and operate
 BeeGFS across `.30`–`.35` as one shared Hugging Face cache — and is it worth doing.
 
@@ -65,9 +68,10 @@ Two properties of that shape decide the rest, and neither is a tuning choice:
 
 - **It is unmirrored.** Buddy mirroring and HA are Enterprise features (license agreement §3.4.3), so the
   free design has one copy of every byte. A single node's disk loss takes its share of the pool with it,
-  and the pool is then the only copy of that content — re-fetched from the internet at 76–142 MB/s
-  (`mad-science/TODO.md:519`), i.e. 1.0–1.9 h for a 510 GB repo. A mirrored variant (three buddy pairs,
-  3.6 TB usable) is costed in §3 and marked Enterprise-only throughout.
+  and the pool is then the only copy of that content — re-fetched from the internet at the measured
+  6 MB/s for a large body (§9), i.e. ≈9.8 h for the 210.72 GB TensorFold body and ≈24 h for a 510 GB
+  repo, per node. A mirrored variant (three buddy pairs, 3.6 TB usable) is costed in §3 and marked
+  Enterprise-only throughout.
 - **The default file pattern is one target.** A file lands on a single storage node, so aggregate read
   bandwidth needs `beegfs-ctl --setpattern --numtargets`; and because there is no mirror, striping
   multiplies per-file exposure to a target loss rather than reducing it.
@@ -83,7 +87,7 @@ Two properties of that shape decide the rest, and neither is a tuning choice:
 | Disk, pool | 1.2 TB per target, grown as duplicate copies are pruned | BeeGFS adds chunk files as a target fills; today a node has only 0.59–1.2 TB free |
 | Disk, metadata | 20 GB | 0.3–0.5 % of capacity, or 500 GB ≈ 150 M files per the requirements page |
 | Disk, steady state | ≈ 1.75 TB free/node unmirrored; ≈ 1.15 TB/node mirrored | 5.1 TB free + 8.97 TB reclaimed − 3.59 TB pool (mirrored: − 7.18 TB), both above the 1.0 TB floor |
-| Fabric | 112 Gb/s measured, shared with NCCL/EP and with Engram reads | `ib_write_bw`, 4 MiB × 8 QP and 8 MiB × 16 QP |
+| Fabric | 112 Gb/s measured over RDMA verbs, shared with NCCL/EP and with Engram reads; file transfers reach 2.05–6.6 GB/s (§9) | `ib_write_bw`, 4 MiB × 8 QP and 8 MiB × 16 QP |
 | License | free for internal use; a key is required at six clients; mirroring/HA is Enterprise | licensing page, agreement §3.1–3.4; capacity caps (200 TB SSD) are far above a 3.6 TB pool |
 | Operator | one working day for a first node, 2–3 h per remaining node, plus a reboot window | `[ESTIMATE]` |
 
@@ -127,10 +131,12 @@ available, that advice is actively hostile and this design does not adopt it.
 
 ## 5. Performance impact, measured
 
-The ceiling comparison is blunt. A 200 Gb/s RoCE port measures 112 Gb/s (14 GB/s). One node's NVMe,
+The ceiling comparison is blunt. A 200 Gb/s RoCE port measures 112 Gb/s (14 GB/s) over RDMA verbs —
+that is not a file-transfer rate: measured file transfer is 5.1–6.6 GB/s with four plain TCP streams
+and 2.05–2.25 GB/s with four ssh streams (§9). One node's NVMe,
 on a PCIe Gen5 ×4 link, reads 6.2–8.0 GB/s sequentially from a fully allocated file, and serves
 **102,969 random 4 KiB reads/s with 32 outstanding reads** (≈ 0.42 GB/s, implied ≈ 0.31 ms per read) —
-32 being the engine's own Engram reader width. The internet delivers 76–142 MB/s.
+32 being the engine's own Engram reader width. The internet delivers **6 MB/s** for a large body (§9).
 
 - **Quantized and repacked loads are engine-bound, not storage-bound.** SGLang's repack load of a
   63.03 GB checkpoint took 407.20 s — **155 MB/s**. vLLM loading a 139.3 GB TP=2 checkpoint took 540.28 s
@@ -144,7 +150,7 @@ on a PCIe Gen5 ×4 link, reads 6.2–8.0 GB/s sequentially from a fully allocate
   (`[INFERENCE]`, from 16 GB/s demanded against 14 GB/s available, not measured). Striping helps, and
   also widens per-file exposure to a target loss.
 - **The cold path saves fan-out, not download time.** Dedup replaces five copies with one fetch plus five
-  reads from the pool, but the fetch is internet-bound at 76–142 MB/s. The saving is the copies.
+  reads from the pool, but the fetch is internet-bound at 6 MB/s (§9). The saving is the copies.
 - **Metadata cost is real but unquantified here.** Every cache operation becomes one RPC to the metadata
   service instead of a local syscall. A boot touches a few hundred cache entries; an `hf cache ls` or a
   fresh download touches thousands. No latency number is claimed — the latter is the case to measure
@@ -193,7 +199,7 @@ prevent — so the pilot in §8 measures the batch on the pool rather than re-de
    served — into infrastructure; nothing measured requires the infrastructure. The one honest difference:
    a pool re-materializes a model on any node on demand, where the policy needs a re-fetch.
 2. **The license-free shape is unmirrored.** Today a node failure costs that node's cache. With a pool,
-   one target loss costs a sixth of the fleet's only copy, re-fetched at 76–142 MB/s.
+   one target loss costs a sixth of the fleet's only copy, re-fetched at 6 MB/s (§9).
 3. **Install risk on this exact platform.** Secure Boot is enabled with only Canonical's key enrolled, so
    an out-of-tree client needs a MOK enrollment and a console reboot on each of six nodes. The headers for
    `6.17.0-1032-nvidia` are installed, so the DKMS build can start — but that kernel is not a combination
@@ -210,8 +216,8 @@ prevent — so the pilot in §8 measures the batch on the pool rather than re-de
 - Fleet free space ≥ 16 TB, enough to hold the pool beside the existing caches (3.59 + 12.56 ≈ 16.2 TB)
   so every byte can be verified before anything is deleted. Today: 5.1 TB.
 - An Enterprise relationship exists for mirroring/HA, *and* one namespace is wanted over six.
-- A workload appears whose load path exceeds the fabric's ~14 GB/s. None measured: everything runs at
-  0.129–4 GB/s.
+- A workload appears whose load path exceeds the measured file-transfer ceiling (§9). None measured:
+  everything runs at 0.129–4 GB/s, and no transfer path exceeded 6.6 GB/s.
 - The pain shifts from capacity to per-node cache *management* — operator time deciding what lives where —
   which is the one thing the pool genuinely removes.
 
@@ -230,13 +236,152 @@ A two-node pilot on `.34`/`.35` (idle, 107–112 GiB available), measuring:
 Those three numbers are the prerequisites for any adoption decision. None was taken here, and none should
 be taken on a node that is serving.
 
+## 9. Getting a body onto a node: fetch once, fan out on the fabric (measured 2026-10-22)
+
+**Status:** measured `[VERIFIED]` for every shape in the table; the RDMA link capacity remains
+`[LIKELY]` because no file path reaches it. Taken on an existing 5.42 GiB / 5.818 GB safetensors
+blob already resident in two nodes' HF caches
+(`littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram`), so no bytes were written to measure it.
+Nothing was booted, stopped or reconfigured; every test file and tmpfs destination was removed
+afterwards and the container count on each node touched is unchanged.
+Receipts: `.scratch/beegfs/xfer-head-cx7-20261022.log`, `xfer-n4n5-cx7-20261022.log`,
+`xfer-head-mgmt-20261022.log`.
+
+**The asymmetry that decides placement policy.** A 210.72 GB body fetched from the Hub over the
+WAN ran at **6 MB/s effective** (`bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard`, 210.72 GB),
+because the throttle is per-IP: two nodes fetching in parallel split that budget rather than
+doubling it. That is **≈9.8 h per node**, ≈49 h to place the same body on five. The same bytes
+move node-to-node in **≈1.5–2 min** (measured, below). Inter-node transfer is therefore the default
+path for any large body, not an optimisation.
+
+### Throughput per path and shape, 2026-10-22
+
+Node roles only; "CX7 rail 1/2" are the two 200 GbE NIC ports (both `Speed: 200000Mb/s`), and
+"management" is the 2.5 GbE link. `nc` is a plain TCP pipe with no ssh; `rsync`/`scp` are
+ssh-over-CX7, i.e. what the fan-out commands actually use. Repeat runs are listed `a / b / …`;
+the single-stream file is 5.818 GB, the 4-shard shapes 20.87 GB.
+
+| path | shape (what it measures) | MiB/s | GB/s |
+|---|---|---:|---:|
+| control → compute node, CX7 rail 1 | `nc` 1 stream (link, no ssh) | 1739 / 1837 / 1904 / 2130 | 1.82–2.23 |
+| control → compute node, CX7 rail 1 | `nc` 4 streams, disjoint ranges (link aggregate) | 5345 / 4896 / 5767 / 6296 | 5.13–6.60 |
+| control → compute node, CX7 rail 1 | `rsync` 1 stream (**the staging path**) | 540 / 552 | 0.566 / 0.579 |
+| control → compute node, CX7 rail 1 | `scp` 1 stream | 593 / 589 | 0.622 / 0.618 |
+| control → compute node, CX7 rail 1 | `rsync` 4 streams, 4 shards | 2150 / 1954 / 2076 | 2.05–2.25 |
+| control → compute node, CX7 rail 1 | `scp` 4 streams, 4 shards | 2130 / 1978 / 2074 | 2.07–2.23 |
+| compute node → compute node, CX7 rail 1 | `nc` 1 stream | 1543 / 1741 | 1.62 / 1.83 |
+| compute node → compute node, CX7 rail 1 | `nc` 4 streams | 3911 / 4705 | 4.10 / 4.93 |
+| compute node → compute node, CX7 rail 1 | `rsync` 1 stream | 304 / 281 | 0.319 / 0.295 |
+| compute node → compute node, CX7 rail 1 | `scp` 1 stream | 351 / 324 | 0.368 / 0.340 |
+| compute node → compute node, CX7 rail 1 | `rsync` 4 streams, 4 shards | 934 | 0.980 |
+| compute node → compute node, CX7 rail 1 | `scp` 4 streams, 4 shards | 2151 | 2.255 |
+| compute node → compute node, CX7 rail 2 | `nc` 1 stream / 4 streams | 560 / 3749 | 0.587 / 3.93 |
+| control → compute node, management | `nc` 1 / `nc` 4 / `rsync` 1 / `scp` 1 / `rsync` 4 | 33–56 | 0.03–0.06 |
+
+Source of every row: `.scratch/beegfs/xfer-*-20261022.log`; disk baselines from the same script.
+
+**What is the bottleneck, per shape.**
+
+- **One ssh stream is crypto-bound, not fabric-bound.** Every `rsync`/`scp` single stream landed in
+  0.28–0.62 GB/s while one plain TCP stream on the same pair carried 1.62–2.23 GB/s. A single
+  `rsync` is one ssh channel in one core: it reports the cipher and per-core throughput, not the
+  link. **`iperf3` is not installed on any node** (checked), so the clean-link figures here are
+  TCP-based (`nc`), not RDMA; the link's RDMA capacity is the earlier `ib_write_bw` 112 Gb/s
+  (14 GB/s) figure and remains `[LIKELY]` for file transfer because no file path comes near it.
+- **Parallel ssh streams scale linearly until CPU runs out, then flat.** 4 streams gave 2.05–2.25
+  GB/s on the control → node path (3.6–3.9× one stream) and 0.98–2.26 GB/s on the node → node path,
+  while 4 plain TCP streams on the same links gave 4.1–6.6 GB/s. So the extra ~2.5–4 GB/s is there
+  and unreachable through ssh; ~2.2 GB/s is the practical fan-out ceiling with 4 streams, and it is
+  the same on both paths — stream count, not node pair, is what moves.
+- **Disk is not the limit at these volumes.** Local reads of the same file: `O_DIRECT` 4 MiB reads
+  5.50–6.28 GB/s on three nodes; a warm cached read 21.6 GB/s (two other warm reads of the same file
+  on a busy node returned 0.84–1.26 GB/s, so the cached-read figure is not load-bearing). Cold disk
+  and 4-stream TCP are the same order (5.5–6.6 GB/s), so the 4-stream `nc` figure is at the
+  disk/link boundary and the ssh shapes sit far below both.
+- **The management network is the wrong path for staging.** 33–56 MiB/s, and `nc` did not scale
+  across streams — measured while the fleet was fetching over the WAN through the same uplink, so
+  treat it as *shared and contended*, not as a clean 2.5 GbE number. The cluster profile already
+  routes transfers over CX7 (`transfer_interface: cx7`); this is why that setting matters, and a
+  fallback to management hostnames would make a 210 GB fan-out a 1-day operation instead of a
+  2-minute one.
+
+### The rule
+
+A model body above roughly **100 GB** is fetched **once** over the WAN, on a node, and fanned out
+node-to-node. Below that the arithmetic no longer favours the extra hop strongly (a 30 GB body is
+~1.4 h of WAN against ~15 s of fan-out — the fan-out still wins, but it is a convenience, not a
+rescue). Never fetch the same body N times: the WAN throttle is per-IP, so N parallel fetches cost
+N × 9.8 h of the *same* budget.
+
+### The procedure
+
+```bash
+# 1. fetch once, on a compute node with room — not on the control
+hf download <org>/<name> --revision <pin>
+du -s ~/.cache/huggingface/hub/models--<org>--<name>     # record; compare against the Hub file sum
+
+# 2. fan out, 4 streams at a time (one per peer), over the CX7 addresses
+for p in <peer-a> <peer-b> <peer-c> <peer-d>; do
+  rsync -a --copy-unsafe-links --ignore-times \
+    ~/.cache/huggingface/hub/models--ORG--NAME/ \
+    ${WOPR_USERNAME}@$p:~/.cache/huggingface/hub/models--ORG--NAME/ &
+done; wait
+
+# 3. verify on every node, then launch from the node-local copy
+du -s ~/.cache/huggingface/hub/models--ORG--NAME   # before/after; equal size = complete
+sparkrun run recipes/<lane>/<recipe>.yaml -H <nodes> --offline
+```
+
+- Copy the repo **directory**, never a snapshot entry: `rsync -a` of a single snapshot file copies the
+  76 B symlink and exits 0, which reads as a successful transfer of nothing (measured while setting
+  this up). `-L` would dereference and double the tree's disk use; `--copy-unsafe-links` keeps
+  `blobs/` single and the snapshot symlinks relative. The 4-shard rows above used `-aL` and were
+  size-verified at 20,874,597,228 B on the destination.
+- 4 streams, not 8: 4 is where scaling was measured linear (2.05–2.25 GB/s). More streams buy CPU
+  exhaustion, not bandwidth.
+- `--offline` at launch is what makes the node-local fetch authoritative; sparkrun otherwise stages
+  through the control, which does not fit a body of this size (§ Capacity note below).
+
+### Caveats this cluster has already been bitten by
+
+- **A partial download must never be pruned.** Interrupted `hf download`s leave incomplete `blobs/`;
+  deleting the tree discards hours of a 6 MB/s fetch.
+- **`du -shL snapshots/*` reports sparse apparent size** (a partial cache once read 207 GB at 8 %
+  complete). Completeness is `du -s` on the repo directory, per node, before and after.
+- **A digest-pulled image is stored untagged**, so a peer's `docker image prune` deletes the build
+  that was just pulled; re-tag immediately, and check dangling images with `docker images -a`.
+- **`dsv41-engram` is not a `models--*` tree.** An `hf cache` prune empties it and the launch then
+  fails `--require-engram`; the documented recovery was a re-fetch. Copy it by path like a model
+  (step 2 above) and keep it out of any prune.
+
+### Capacity note that decides staging vs node-local
+
+The control's root filesystem holds a 141 GB free margin at the time of writing, and a 210.72 GB
+TensorFold body plus its Engram tables does not fit in it. Practical rule: **bodies above ~130 GB
+are node-local** (`hf download` on the node, `--offline` at launch); bodies below that may stage
+through the control. This is exactly the decision that blocked the TP=2 twin A/B.
+
+### Claims this measurement corrects
+
+- §2, §5 and §6 quoted the internet fetch as 76–142 MB/s. That figure came from a 2026-10-15
+  prefetch of two smaller repos, and it does not hold for a 210 GB body today: **6 MB/s, ≈9.8 h**
+  is the number to plan with. (The cited `mad-science/TODO.md:519` no longer resolves — that file
+  has been rewritten since.) The conclusion is unchanged and strengthened: a pool cannot save a
+  fetch, and neither can a policy; only fetching once can.
+- §3's "112 Gb/s measured" and §5's "14 GB/s" are **RDMA verbs**, not file transfer. The measured
+  file-transfer ceiling is 5.1–6.6 GB/s with 4 plain TCP streams and 2.05–2.25 GB/s with 4 ssh
+  streams; read those numbers wherever a boot or fan-out time is being derived.
+- §7's revisit trigger "a workload whose load path exceeds the fabric's ~14 GB/s" is restated: no
+  measured load path exceeds 4 GB/s, and no file-transfer path exceeds 6.6 GB/s.
+
 ---
 
 ## How these numbers were taken
 
 - Cache census: `hf cache ls`, `df -h /home`, `free -g` on `.30`–`.35`, 2026-10-20; receipt
   `.scratch/beegfs/hf-cache-census-20261020.txt`. Fleet figures are decimal GB from `hf cache ls`.
-- Fabric: `ib_write_bw` between two idle nodes, 4 MiB × 8 QP and 8 MiB × 16 QP, 4 s.
+- Fabric, verbs: `ib_write_bw` between two idle nodes, 4 MiB × 8 QP and 8 MiB × 16 QP, 4 s. RDMA
+  verbs only; the file-transfer numbers in §9 were measured separately.
 - Disk: `dd iflag=direct bs=4M count=256` at three offsets of a fully allocated 101.38 GB Engram blob,
   and a threaded 4 KiB `O_DIRECT` random-read probe over the same file (`os.preadv`, aligned buffer).
   Link geometry from `current_link_speed` / `current_link_width` (32 GT/s, ×4).
@@ -244,6 +389,15 @@ be taken on a node that is serving.
   calls (128 and 512 generated tokens, greedy) on the live TP=2 arm; reads and sectors divided by
   completion tokens. Disk-observed values are a floor because warm rows never reach the device.
 - Load rates: the `Loading weights took` / `Load weight end` lines of the arms' own boot logs.
+- Inter-node transfer (§9), 2026-10-22: a 5,817,580,796 B safetensors blob already resident in two
+  nodes' HF caches, so the measurement wrote no source data. `nc` 1 and 4 streams (`dd bs=4M` piped
+  to `nc -N`, 4 streams over disjoint byte ranges), `rsync -aL --ignore-times` and `scp` at 1 and 4
+  concurrent streams, each shape twice (the 4-stream shapes three times); the 4-shard destination was
+  size-verified at 20,874,597,228 B with `stat`. Local `dd iflag=direct bs=4M` and a warm cached read
+  give the disk/memory baseline. `iperf3` is installed on none of the nodes, so every link figure is
+  TCP, not RDMA. Receipts: `.scratch/beegfs/xfer-{head-cx7,n4n5-cx7,head-mgmt}-20261022.log`.
+- WAN baseline (§9): 6 MB/s effective on `bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard`
+  (210.72 GB), 2026-10-22; per-IP throttled, since two parallel node fetches split the budget.
 - BeeGFS facts, read 2026-10-20 (the Community license agreement §3.1–3.4 supplies the client,
   capacity and Enterprise-feature limits):
   - <https://doc.beegfs.io/latest/system_design/system_requirements.html>
