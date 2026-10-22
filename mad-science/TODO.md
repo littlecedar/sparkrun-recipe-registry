@@ -651,6 +651,123 @@ Any model with reasoning and tool-calling capabilities
   `~/benchmarks/media-gen-20261021/eight-step-{diffusers,omni}.png`, identified by
   `e24f6e3a…24ee24a` and `38ce554a…45704690`.)*
 
+- [ ] **Probe MOSS-Image (Base/SFT) — the lane's first Apache-2.0 image pair — on one free GB10** —
+  research-only so far: **no recipe, no download, no boot**. `OpenMOSS-Team/MOSS-Image-SFT` (`f972bd4b`)
+  and `OpenMOSS-Team/MOSS-Image-Base` (`85975793`) are both `pipeline_tag: text-to-image`,
+  `library_name: diffusers`, `_class_name: MOSSImagePipeline` (`model_index.json`), `gated: false`, and
+  **`license: apache-2.0` with the full Apache text in the repo's `LICENSE`** on both cards (vendor words:
+  "The model weights and bundled inference code are released under the Apache License, Version 2.0").
+  **That is the licence position: no banner, no revenue threshold, no non-commercial clause** — unlike
+  `qwen-image-2.1-turbo` (qwen-research, non-commercial, banner) and `ltx-2.5` (community agreement, $10M
+  threshold, gated, banner), so this pair needs **no banner decision** and is the first image arm the registry
+  could ship to a third party without a licence caveat. *(checked 2026-10-22; counts and likes drift, do not
+  freeze them.)*
+  *What they are — bytes, not names.* Both repos are **27.229 GB** and byte-identical in layout:
+  `transformer/` 10.165 GB (`MOSSImageTransformer`, **5.08B** params per `safetensors.total` — dim 3072,
+  42 layers, 24 heads, `ffn_dim` 8192, `latent_channels` 128, `text_dim` 4096, RoPE base 10000),
+  `text_encoder/` **16.786 GB** bf16 (`Qwen3_5Model` — a hybrid linear-attention + full-attention 32-layer
+  text model, `head_dim` 256, `mrope_interleaved`, vocab 248,320, `transformers_version` 5.12.1 in its
+  config), `vae/` 0.250 GB (`AutoencoderKLFlux2`, FLUX.2 *small* decoder, `latent_channels` 32, force_upcast),
+  `tokenizer/` 0.020 GB. The text encoder's bytes count against the node budget and are the **larger half** of
+  this arm. Its ~8.4B-by-bytes size is ~2.5 GB under the Comfy repack's 9.65B `qwen3.5_9b_bf16.safetensors`;
+  the arithmetic fits a base `Qwen3_5Model` export with no `lm_head` (vocab×hidden = 1.02B params = 2.03 GB)
+  *[INFERENCE — no doc states it]*. Sampling is **not** Qwen-Image's distilled 8-step path: flow-matching
+  Euler, shift 5.0, **≥50 steps**, **CFG 3.0 = two transformer forwards per step**, negative-branch skip layer
+  22 (`uncond_skip_layers=(22,)`, `scheduler/scheduler_config.json` + `pipeline_moss_image.py:344`).
+  Resolution: 1M / 1.5M / 2M total pixels recommended, extrapolable **0.25M (512²) to 4M (2K)**, multiples of
+  16 (`USERGUIDE.md:7-9`, vendor prose).
+  *Base vs SFT — one engine, one serving path.* SFT carries `base_model: OpenMOSS-Team/MOSS-Image-Base` with
+  `base_model_relation: finetune`, and the two repos share the architecture, `model_index.json` and every file
+  size above, so **they are not two pipelines**: the same `MOSSImagePipeline` serves both and only the
+  `transformer/` bytes differ. **SFT is the serving candidate**; Base is the reference/finetune source and is
+  explicit that it was *not* tuned for inference ("has not undergone any post-training or distillation of
+  inference parameters such as CFG", `USERGUIDE.md:5`), so comparing them is a checkpoint A/B on one boot, not
+  a second arm.
+  *Quantisations — 27 SFT-derived + 10 Base-derived repos enumerated (`base_model:quantized:` + `base_model:`
+  filters, plus `?author=` for each quantising org and `OpenMOSS-Team`'s own 100 siblings).* **None is gated;
+  every one is `license: apache-2.0`.** Sizes are tree-API bytes:
+  `unsloth/MOSS-Image-SFT-FP8` (54.95 GB repo) ships the unchanged bf16 diffusers tree **plus** single-file
+  roots — DiT `INT8-ConvRot` 5.42 GB / `FP8` 5.41 GB / plain `INT8` 5.42 GB, TE `INT8-ConvRot` 11.49 GB;
+  vendor LPIPS 0.058 (INT8-ConvRot) / 0.111 (INT8) / 0.163 (FP8), and FP8 is the one it warns changes the
+  image visibly. It loads **only** in Unsloth Studio — not OMNI (single-file quants unsupported), not the
+  diffusers custom pipeline.
+  `Comfy-Org/MOSS-Image` (`24147db8`, 68.45 GB, ~1.29 M downloads) is the official ComfyUI repack of **both**
+  checkpoints: DiT bf16 10.16 / `int8_convrot` 5.41 each, TE `qwen3.5_9b` bf16 19.31 / `int8_convrot` 9.75 /
+  `w4a8_gptq` 7.34, VAE `flux2-vae_small` 0.25 + `flux2-vae` 0.34 — **complete per checkpoint as ComfyUI
+  single files**, no diffusers tree.
+  `Abiray/MOSS-Image-SFT-INT8-convrot` (14.12 GB) is the same int8 pair with the VAE (0.336 GB) and a native
+  ComfyUI workflow; vendor mean relative error 0.868 % (ConvRot/Hadamard). `tsolful/MOSS_Image_INT6_INT4GPTQ`
+  (31.84 GB) is **DiT-only, both checkpoints**, ComfyUI's INT6 W6A8 (4.37 GB) / INT4 W4A8 mixed GPTQ
+  (3.84 GB GPTQ, 3.33 GB RTN) — needs the Comfy-Org TE+VAE; vendor output error 0.020 (W6A8 GPTQ) vs 0.023
+  (mixed W4A8). GGUF is DiT-only in all three (`leejet/MOSS-Image-SFT-GGUF` 25.74 GB, Q2_K 2.21 → Q8_0 5.71;
+  `realrebelai/MOSS_Image_GGUFs` 88.11 GB with W4A8-ConvRot too; `molbal/MOSS-Image-GGUF` 52.86 GB incl. a
+  turbo set) and needs the ComfyUI-GGUF loader. **DiT-only and no engine claims the format**:
+  `BennyDaBall/MOSS-Image-SFT-NVFP4` 4.49 GB, `gguf-org/moss-image-gguf` 3.46 GB (nvfp4 GGUF).
+  **MLX** (`mlx-community/…-bf16`, `vanch007/…-mlx-{4,8}bit`, `VisualInference/…-MX-{8bit,compact}`,
+  `mflux-community/moss-image-sft-mflux-q3…q8`) is **Apple-only — cannot run on a GB10 at all**.
+  Distillations rather than quants, and the only real latency lever: `lodestones/MOSS-Image-SFT-8-steps-dmd`
+  (fp32 merged transformer 20.33 GB + `lora.safetensors`, **no TE/VAE/pipeline**), `akhaliq/MOSS-Image-SFT-4-steps`
+  (LoRA steps + a full pipeline tree, 120 GB repo), `toxicdog/MOSS-Image-SFT-Turbo-INT8-ConvRot-AIO`
+  (15.50 GB single file, format asserted by nobody but its card).
+  *Engine gate — decided against the package/registry, not memory.*
+  **diffusers: real, but as a repo-shipped custom pipeline.** `MOSSImagePipeline` is **not upstream** —
+  `diffusers` v0.41.0's `pipelines/__init__.py` has no MOSS symbol — and the repo ships
+  `pipeline_moss_image.py` (440 lines) that defines `MOSSImageTransformer` and `MOSSImageScheduler` **itself**,
+  with `model_index.json` binding both components to that module; the card's call is
+  `DiffusionPipeline.from_pretrained(..., custom_pipeline="pipeline_moss_image", trust_remote_code=True)`.
+  Upstream is needed only for `AutoencoderKLFlux2` (`from .autoencoder_kl_flux2 import AutoencoderKLFlux2` in
+  `models/autoencoders/__init__.py` — line 7 at v0.36.0, line 8 at v0.41.0, so it exists at every tag
+  v0.36.0…v0.41.0) and `transformers` for `Qwen3_5Model` (`models/qwen3_5/modeling_qwen3_5.py:1404`, present at
+  tag **v5.3.0** — the card's stated floor). **The qwen-image launcher's venv (diffusers 0.41.0 /
+  transformers 5.19.0 / torch 2.13.0+cu130) already clears every floor**, so this route costs a new server mod,
+  not a new image and not a venv bump.
+  **vLLM-OMNI: real and native.** `vllm_omni/diffusion/registry.py` maps
+  `"MOSSImagePipeline" → ("mossimage", "pipeline_mossimage", "MOSSImagePipeline")` with
+  `get_mossimage_{pre,post}_process_func` hooks; landed 2026-10-19 (`2c72dea3aa`, PR #8926, *with SLG*) and
+  present at tag `v0.32.0rc1`. It refuses ring attention and any cache backend, and
+  `_NATIVE_SINGLE_FILE_MODELS` holds Anima only, so **no quant repack above is loadable there**.
+  **ComfyUI: real and native since v0.42.0** — `comfy/supported_models.py:2038 class MOSSImage`
+  (`latent_format` Flux2, `shift` 5.0, `memory_usage_factor` 14.6) with `comfy/ldm/moss_image/model.py` and
+  `comfy/text_encoders/moss_image.py`, from commit `e087d8f6cb` (2026-10-16). The lane's ComfyUI pin for LTX
+  is **v0.34.0, which has none of it** (class absent at every tag v0.34.0–v0.41.0), so a Comfy route needs a
+  new ComfyUI pin. **sglang / the vLLM text engine: no.**
+  *GB10 ranking (128 GB unified, arm64 sm_121, one node), reasoning shown.*
+  1. **`MOSS-Image-SFT` bf16 through diffusers** — 27.23 GB of weights; expect ~30–36 GiB peak *[INFERENCE:
+  scaled from the Qwen arm's 32.5 GB → 36.85 GiB peak + ~8.7 GiB transient]*, i.e. ~90 GiB of headroom. The
+  one untested cost is denoise: 50 steps × CFG 3 = **100 DiT forwards** against Qwen-Image's 8 → ~1.5–2
+  min/image at 1024² *[INFERENCE, 1.0–1.2 s/forward from Qwen's measured 1.43 s at a 7B DiT]*. Fits.
+  2. **Same bytes on vLLM-OMNI nightly** — the Qwen A/B measured OMNI ~24 % faster per denoise step at equal
+  peak, so the same 100 forwards should cost less; blocked on a **digest-pinned nightly** (the lane recorded a
+  floating tag only) and inherits the OMNI prompt-adherence caveat above.
+  3. **SFT bf16 through ComfyUI ≥ v0.42** — same bytes, needs a new ComfyUI pin and its output parity with the
+  reference pipeline is unmeasured.
+  4. **INT8-ConvRot (DiT 5.41 + TE 8.45 + VAE 0.34 = 14.20 GB)** — ComfyUI only, halves the footprint and buys
+  ~13 GB **this node does not need**; the quality risk is real and vendor-quantified (LPIPS 0.059). A headroom
+  experiment for *after* a bf16 cell, never a first boot.
+  5. GGUF / INT6-W6A8 / NVFP4 / MLX — DiT-only, unloadadable here, or Apple-only. **Nothing in the bf16 pair
+  fails to fit, and no quant tier is needed for fit.**
+  *Pre-registered measurement (nothing ran).* Cells: **TTR** (container start → port open → `/health`, plus
+  the pipeline-load seconds), then the lane's fixed prompt (`poster-typography: a bold sans-serif poster
+  reading SPARKRUN, two-color screenprint, centered`) at **1024², seed 42, 50 steps, guidance 3.0, shift 5.0,
+  `uncond_skip_layers=[22]`, n=3** → wall s (mean±σ), torch peak alloc/reserved, node `MemAvailable` floor,
+  **PNG sha256**; a same-seed repeat for the determinism cell; and **2048² at the same knobs** for the
+  resolution ceiling. Non-degeneracy: **Pillow in the engine venv** — mode/size, distinct gray levels, channel
+  extrema, stddev (a flat, all-black or noise-only image falsifies the cell); PNGs are never read as text.
+  Falsifiers: the two same-seed runs differ → the determinism cell is dropped rather than reported; a step
+  change that yields a **byte-identical PNG** → the knob is inert on this pipeline (the Qwen/OMNI trap) and is
+  reported as inert, not as a schedule; 2048² OOM inside the 0.85 budget → a measured ceiling, receipted as
+  one; two boots disagreeing beyond the inter-boot spread → no number is quotable. **Quality against the vendor
+  gallery is the owner's eye from the saved PNGs** — this pre-registration measures latency, memory,
+  determinism and non-degeneracy only, and says so.
+  *Unblocker — a free node, not research.* Phase 2 did not run: `.34`/`.35` belong to the ds4 worker's queue
+  (`.local/BOOT-QUEUE-20261022.md` §Reduced-capacity fallbacks) — `.35` carried a foreign container at check
+  time (`sparkrun_78c7e2fa…solo`, up 5 min) and `.34` is that queue's next TP=2 target — while `.30`–`.33` are
+  the TP=4 block with items 1–2 still outstanding. When one node frees: author `recipes/explore/mods/moss-image-launcher`
+  as a copy of the qwen-image launcher (same fail-closed venv gate, `MOSSImagePipeline` via `custom_pipeline` +
+  `trust_remote_code` instead of `QwenImage21Pipeline`), pin the checkpoint by `model_revision:` (a bump boot
+  passes the recipe file path, never `@littlecedar/…`), boot, run the cells, `docker cp` the serve log, stop by
+  task id, re-assert 0 containers, receipt under `~/benchmarks/moss-image-20261022/`. *(effort: medium)*
+
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
 - [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window, and the arm64 self-hosted runner for the weekly CI report (`vars.ARM64_RUNNER_ENABLED`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
