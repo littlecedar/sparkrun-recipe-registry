@@ -38,6 +38,7 @@ This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from
   - [Decision](#decision)
   - [Explore](#explore)
   - [Cybersec](#cybersec)
+- [CI](#ci)
 - [License Policy](#license-policy)
 - [Mechanics](#mechanics)
 - [References](#references)
@@ -265,6 +266,19 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 * _The AEON row's **C1 33.3** is its earlier single-point figure — **C2/C5/C10 are the 2026-10-17 ladder** (`bench_3ee8fda63ada`), the lane's first._
 * _The uncensored-27B row's **C1 10.2** is its earlier decode-triage C1 (`bench_edd91a07aee4`); **C2/C5/C10 are the 2026-10-18 ladder** (`bench_4c30a992c771`, receipt `~/benchmarks/ladders-solo-20261018/`), same-boot C1 9.75 — 4.4 % below the triage figure, outside that cell's ±0.24 but one boot. It climbs to c10 because 358,261 fp8 KV tokens carry ten concurrent 2048/128 requests with no queueing._
 * _The **NEXTN** row is the plain arm's checkpoint with SGLang spec decode on its own BF16 MTP head — one boot 2026-10-18, `~/benchmarks/cybersec-nextn-20261018/` (`cells.json` decode rows, `bench_cab845506821`). Its control is the same recipe without the speculative block (`bench_edd91a07aee4` / the 2026-10-14 arm-1 triage), so C1 is cross-boot; accept len 2.774 at c=1 (n=39 decode-batch lines, min 1.80). The one capability cost is the scheduler budget: `max_total_num_tokens` 167,985, i.e. the served context is **below** the advertised 262,144 — attributed to the draft pool only **unverified**, because the control's boot log was not retained. For scale, the DFlash2 sibling's ceiling is 30.2–33.8 t/s, so this arm reaches ~44–49 % of it on a different body._
+
+# CI
+
+Three GitHub workflows in [`.github/workflows/`](.github), all secret-free and x86-only:
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `gate.yml` | push to `main`, every PR | the repo gate: `uv sync --frozen`, `uv run python -B -m unittest discover -s tests`, `sparkrun recipe validate` over `recipes/*/*.yaml` (prints `SKIPPED: sparkrun not installable in CI` instead of failing when the CLI is unavailable), `bash -n` on every mod script, `py_compile` over `tools/`, `plugins/` and mod Python |
+| `refresh-sweep.yml` | daily 06:17 UTC, manual | `tools/refresh-sweep.py --exit-code`: **exit 0 = clean, 1 = pin drift, 2 = could not run**. Either non-zero code opens or updates one tracking issue labelled `pin-drift`, titled for the case, with the markdown report in the body; the report is uploaded as an artifact regardless. A manual `apply: true` run prints the per-arm boot checklist and stops — it never commits or pushes |
+| `llamacpp-engine.yml` | weekly, manual | reports our pinned llama.cpp refs against upstream head (with `behind_by`), upstream releases, and the feature gates the stock-upstream image needs. Its arm64 GB10 image build is manual-only and **inactive until a self-hosted DGX Spark runner is registered** (`ARM64_RUNNER_ENABLED != 'true'` today) |
+
+CI validates artifacts; it never bumps a model pin. Recipe and pin changes stay boot-gated by lane
+policy.
 
 # License Policy
 

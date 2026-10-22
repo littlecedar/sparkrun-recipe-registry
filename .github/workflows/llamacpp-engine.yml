@@ -1,0 +1,96 @@
+# llama.cpp engine freshness + the arm64 GB10 image build.
+#
+# Why this exists: every llama.cpp arm in this tree runs a third-party or fork build, and the
+# publisher of the stock pin (`scitrera/dgx-spark-llama-cpp`) stopped — its newest tag is still
+# `b10549-cu131` (2026-08-21, llama.cpp `b2e5e9b`) while upstream has since absorbed what the forks
+# existed for. See attic/explore/AGENTS.md.
+#
+# report: never fails. `.github/scripts/llamacpp-engine-report.py` prints our pinned refs against
+#         upstream head (with `behind_by`), upstream releases, and the four source-level feature
+#         gates `recipes/explore/Dockerfile.llamacpp-upstream` builds for.
+# build:  workflow_dispatch ONLY, arm64 DGX Spark ONLY.
+#         **No self-hosted runner is registered today** — no machine carries the labels
+#         [self-hosted, linux, arm64, dgx-spark] for this repository. The job is therefore gated on
+#         the repository variable ARM64_RUNNER_ENABLED == 'true' (Settings → Variables), so a
+#         dispatch runs report only instead of parking a build in "queued" forever and looking
+#         green. Register a runner with those labels and set the variable to activate it.
+name: llamacpp-engine
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      llama_ref:
+        description: "llama.cpp commit to build (40-hex). Required by the build job; the report job ignores it."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    # Report only: no engine is booted, nothing is pushed, and a failed probe is printed as an
+    # ERROR line rather than failing the run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refs, releases and upstream feature gates
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 -B .github/scripts/llamacpp-engine-report.py
+
+  build:
+    # Arm64 GB10 only: the Dockerfile refuses any other architecture and builds sm_121 device code.
+    # No runner with [self-hosted, linux, arm64, dgx-spark] exists today, so this job stays out of
+    # the queue until an operator sets the repository variable ARM64_RUNNER_ENABLED to 'true'.
+    if: github.event_name == 'workflow_dispatch' && vars.ARM64_RUNNER_ENABLED == 'true'
+    runs-on: [self-hosted, linux, arm64, dgx-spark]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check ref and credentials
+        env:
+          LLAMA_REF: ${{ inputs.llama_ref }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$LLAMA_REF" ]; then
+            echo "::error::llama_ref is required for the build job (a 40-hex llama.cpp commit; a tag can move)"
+            exit 1
+          fi
+          if ! printf '%s' "$LLAMA_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::llama_ref must be a full 40-hex commit, got '$LLAMA_REF'"
+            exit 1
+          fi
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::error::set secrets.DOCKERHUB_USERNAME and secrets.DOCKERHUB_TOKEN on this repository before dispatching the build"
+            exit 1
+          fi
+
+      - name: Build and push the pinned upstream image
+        env:
+          LLAMA_REF: ${{ inputs.llama_ref }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -e
+          SHORT="${LLAMA_REF:0:7}"
+          IMAGE="littlecedar/dgx-spark-llama-cpp:upstream-$SHORT"
+          printf '%s' "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker build -f recipes/explore/Dockerfile.llamacpp-upstream \
+            --build-arg LLAMA_REF="$LLAMA_REF" -t "$IMAGE" .
+          docker push "$IMAGE"
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          {
+            echo "## llama.cpp upstream image built"
+            echo
+            echo "- llama.cpp ref: \`$LLAMA_REF\`"
+            echo "- image: \`$IMAGE\`"
+            echo "- digest: \`$DIGEST\`"
+            echo
+            echo "Nothing was committed: a recipe adopting this image is boot-gated by lane policy."
+          } >> "$GITHUB_STEP_SUMMARY"

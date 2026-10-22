@@ -1,0 +1,123 @@
+# Scheduled pin/recipe drift sweep: one tracking issue that stays current instead of a daily new one.
+#
+# tools/refresh-sweep.py is added by the same PR series as this workflow. Exit-code contract:
+#   0 = clean, 1 = drift found, 2 = could not run (network, parse, missing tool).
+# Both 1 and 2 open or update the single open issue labelled `pin-drift`; 2 gets its own title so
+# "we found drift" is never confused with "the sweep itself broke".
+#
+# This workflow never edits recipes unless `apply` is true, and even then it only prints the
+# per-arm boot checklist and stops: no commit, no push. Recipe and pin changes stay boot-gated by
+# lane policy (AGENTS.md), which a hosted x86 runner cannot satisfy.
+name: refresh-sweep
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      exit_code_on_drift:
+        description: "Fail the run when the sweep reports drift or could-not-run"
+        type: boolean
+        default: true
+      apply:
+        description: "Write pin updates into the runner's working tree, print the per-arm boot checklist and stop (no commit, no push)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      APPLY: ${{ inputs.apply }}
+      FAIL_ON_DRIFT: ${{ github.event_name == 'schedule' || inputs.exit_code_on_drift }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sweep (report only)
+        id: sweep
+        if: env.APPLY != 'true'
+        run: |
+          set +e
+          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "sweep exit code: $code (0 clean, 1 drift, 2 could not run)"
+          exit 0
+
+      - name: Sweep and apply pin updates locally
+        id: sweep_apply
+        if: env.APPLY == 'true'
+        run: |
+          set +e
+          python3 -B tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code --apply
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "sweep --apply exit code: $code (0 clean, 1 drift, 2 could not run)"
+          exit 0
+
+      - name: Upload the sweep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refresh-sweep-${{ github.run_id }}
+          path: |
+            sweep.json
+            sweep.md
+          if-no-files-found: warn
+
+      - name: Per-arm boot checklist (apply mode stops here)
+        if: env.APPLY == 'true'
+        run: |
+          echo "## apply: what changed is now uncommitted in the runner's tree — and that is all"
+          echo
+          if [ -f sweep.md ]; then cat sweep.md; else echo "(no report produced)"; fi
+          echo
+          echo "### Per-arm boot checklist — run on the cluster, not here"
+          arms=$(grep -oE 'recipes/[A-Za-z0-9_./-]+\.yaml' sweep.md 2>/dev/null | sort -u)
+          if [ -z "$arms" ]; then echo "(no arm named in the report)"; fi
+          for arm in $arms; do
+            echo "- arm: $arm"
+            echo "    HOME=\$PWD/.local/sparkrun-home sparkrun recipe validate $arm"
+            echo "    HOME=\$PWD/.local/sparkrun-home sparkrun run $arm -H <free-node> -n   # render first"
+            echo "    then boot-test on that node, measure per lane policy, record the receipt"
+            echo "    then commit the pin with an explicit pathspec — CI does not commit for you"
+          done
+
+      - name: Open or update the pin-drift issue
+        if: env.APPLY != 'true' && steps.sweep.outputs.code != '0'
+        run: |
+          set -e
+          code="${{ steps.sweep.outputs.code }}"
+          case "$code" in
+            1) title="Pin drift found by refresh-sweep" ;;
+            2) title="Refresh sweep could not run" ;;
+            *) echo "unexpected exit code $code"; exit 1 ;;
+          esac
+          # A missing label would fail `gh issue create`; create it idempotently.
+          gh label create pin-drift --description "Refresh sweep: pinned refs drifted from upstream" \
+            --color B60205 --force >/dev/null 2>&1 || true
+          {
+            echo "Sweep exit code: \`$code\` (0 clean, 1 drift, 2 could not run)"
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            if [ -f sweep.md ]; then cat sweep.md; else echo "_no markdown report was produced_"; fi
+          } > issue-body.md
+          number=$(gh issue list --label pin-drift --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --title "$title" --body-file issue-body.md
+            echo "updated issue #$number: $title"
+          else
+            gh issue create --title "$title" --body-file issue-body.md --label pin-drift
+          fi
+
+      - name: Fail on drift when asked
+        if: env.APPLY != 'true' && env.FAIL_ON_DRIFT == 'true' && steps.sweep.outputs.code != '0'
+        run: |
+          echo "::error::refresh-sweep exited ${{ steps.sweep.outputs.code }} (1 = drift, 2 = could not run); see the pin-drift issue"
+          exit 1

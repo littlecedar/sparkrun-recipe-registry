@@ -7,8 +7,8 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
-suite and strict-validate counts were re-measured **2026-10-21 19:55 ET** (52 tracked recipes — 53 files
-in the working tree until the last in-flight one lands — 29 guard modules, 765 tests, 12/52 strict).
+suite and strict-validate counts were re-measured **2026-10-22** (52 tracked recipes — 53 files in
+the working tree until the last in-flight one lands — 31 guard modules, 806 tests, 12/52 strict).
 Facts drift — re-measure (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
@@ -69,7 +69,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 29 importable guard modules, plus one skipped `*.sync-conflict-*.py` |
+| `tests/` | 31 importable guard modules, plus one skipped `*.sync-conflict-*.py` |
 | `tools/` | 18 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
 | `plugins/` | One module, `pooling_bench_framework.py`: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/). |
 | `benchmarking/` | 35 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile, + the 2-profile `pooling-bench` ladder) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
@@ -371,9 +371,22 @@ matching.
   still carries 0.4.0-alpha+g29f53fb numbering until it is re-derived.
 - **No npm/node tooling.** `package-lock.json` is a 6-line empty stub and no `package.json` exists —
   never run `npm`.
-- **No CI, no pre-commit, no formatters or linters**: no `.github/`, no CI provider configs, no
-  pytest/ruff/black/mypy configuration anywhere (`.ruff_cache/` on disk is leftover). Linting is
-  syntax checks only: `bash -n`, `py_compile`, `sparkrun recipe validate`.
+- **Three GitHub workflows, no pre-commit, no formatters or linters.** `.github/workflows/` holds
+  `gate.yml` (the gate below, on push to `main` and on every PR), `refresh-sweep.yml` (nightly
+  pin/recipe drift sweep) and `llamacpp-engine.yml` (weekly upstream llama.cpp report). CI runs
+  **x86-side checks only** on `ubuntu-latest` — the suite, text `sparkrun recipe validate`,
+  `bash -n`, `py_compile` — because nothing in CI boots an engine. `gate.yml` attempts
+  `uv tool install sparkrun` and prints `SKIPPED: sparkrun not installable in CI` rather than
+  failing when the CLI is unavailable, so a skipped check is visible, never silently green. The
+  one arm64 job (`llamacpp-engine.yml` `build`, sm_121 image build) is `workflow_dispatch`-only
+  and gated on the repository variable `ARM64_RUNNER_ENABLED == 'true'`: **no self-hosted DGX
+  Spark runner is registered yet**, so it cannot run today. There is still no
+  pytest/ruff/black/mypy configuration anywhere (`.ruff_cache/` on disk is leftover) and no
+  pre-commit: linting is syntax checks only — `bash -n`, `py_compile`, `sparkrun recipe validate`.
+- **CI never bumps a model pin.** `refresh-sweep.yml` reports drift and opens/updates one
+  `pin-drift` issue; even its manual `apply: true` mode only rewrites the runner's throwaway tree,
+  prints the per-arm boot checklist, and stops (no commit, no push). A pin change is still
+  boot-gated by lane policy, on hardware a hosted runner does not have.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.
@@ -382,8 +395,8 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **765 tests,
-  all passing 2026-10-21 19:55 ET (2 skipped:** the IFM research docs absent on a fresh clone and the
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **806 tests,
+  all passing 2026-10-22 (2 skipped:** the IFM research docs absent on a fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
   why this count is 2 skips and not the 3 recorded earlier the same day). The
