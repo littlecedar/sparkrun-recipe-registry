@@ -1,0 +1,114 @@
+# ===========================================================================
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+#
+# MiniMaxAI/MiniMax-H3 is licensed under the **MiniMax H3 Community License
+# Agreement** (card `license: other`, `license_name:
+# minimax-h3-community-license-agreement`). It is NOT a commercial-availability
+# question — the licence is **territorially** restricted. Verbatim, LICENSE:5
+# and :3:
+#   "5. "Excluded Territories" means the European Union, the United Kingdom,
+#        the Republic of Korea and the United States of America."
+#   "3. "Applicable Territory" means worldwide, excluding the Excluded
+#        Territories."
+# and LICENSE:42: "You may not use, reproduce, modify, distribute, or display
+# the MiniMax H3 Works or any of their Outputs or results outside the
+# Applicable Territory."
+# A recipe ships a repo id, not weights — each downloader fetches from the Hub
+# and accepts the licence there — but that downloader may not use the weights
+# or the video/audio generated from them inside those four territories.
+# The MiniMax-M3 "our use is noncommercial" owner call does NOT transfer here:
+# this clause is not about revenue. §IV.1 additionally requires separate
+# written MiniMax authorization above 20M USD/yr of commercial revenue, §IV.2
+# requires displaying "MiniMax H3" on a commercial UI, and §V.3 bars using the
+# outputs to improve any other AI model. The Qwen3-VL-32B text encoder inside
+# it is Apache-2.0 (LICENSE Additional Note); the whole is not.
+# ===========================================================================
+recipe_version: "2"
+model: MiniMaxAI/MiniMax-H3
+model_revision: 42ed227ee7df40d41602854ae760620d6eb651fe
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  MiniMaxAI/MiniMax-H3 — joint video+stereo-audio diffusion model (33.1B
+  DiT x50 layers + a 33.4B Qwen3-VL-32B text encoder + f16t4d24 visual VAE +
+  a 0.56 GiB audio VAE), served on ONE DGX Spark with SGLang v0.5.22's native
+  diffusion pipeline. DRAFT, never booted: the shipped set is 134.1 GiB in
+  bf16 and one node has ~109 GB usable, so this arm keeps the full-fidelity
+  bf16 DiT and takes the two components that can be swapped without pruning
+  it — an NVFP4-AWQ text encoder (25.28 -> 14.61 GiB) and an fp16 visual VAE
+  — for 81.75 GiB resident. INT8 ConvRot is deliberately absent: GB10 (sm_121)
+  has no int8 scaled GEMM (a Spark-X2.6 INT8 boot died with
+  "No implemented int8_scaled_mm for current compute capability"), so every
+  INT8/W6A8 component in the Hub census is unavailable here, not untested.
+  Task is `t2va`/`fl2va` (text or first/last frame -> video + 32 kHz stereo
+  audio, 4-15 s, 768p, 24 fps). LICENSE: MiniMax H3 Community Licence,
+  Excluded Territories are the EU, UK, South Korea and the US — read the
+  banner at the top of this file before distributing it.
+metadata:
+  model_url: https://huggingface.co/MiniMaxAI/MiniMax-H3
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "33.1B"
+  model_dtype: bf16
+  model_type: diffusion
+  tags: explore, video, audio, single_user
+
+defaults:
+  port: 30010
+  host: 0.0.0.0
+  model_variant: fl2va
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, which is the repo root SGLang needs (it maps the variant
+  # subdirectory itself; do not point --model-path at a subdirectory).
+  served_model_name: MiniMaxAI/MiniMax-H3
+  num_gpus: 1
+  # `auto` is the model-aware residency policy (auto_tune.py
+  # DEFAULT_KEEP_RESIDENT_MIN_AVAILABLE_GB = 120.0); `speed` keeps components
+  # resident and OOMs if the workload does not fit, `memory` forces layerwise
+  # offload that buys nothing when host and GPU memory are the same pool.
+  performance_mode: auto
+  # The DiT is NOT overridden: `fl2va` resolves to the base repo's own
+  # transformer/ in bf16, which keeps the AdaLN branches (the pruned variants
+  # remove them and then need --minimax-h3-adaln-online or a cache built from
+  # the unquantized checkpoint, neither of which is free).
+  text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
+
+readiness:
+  # No chat surface: readiness is the port plus SGLang's /health, which only
+  # answers once server_warmup_done is set (http_server.py:186-189). A 12 min
+  # load and a first-use JIT compile are expected on GB10.
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
+
+# Pre-quantized component files are self-describing and must not be combined
+# with --quantization or --component-quantizations.*, and SGLang advertises no
+# int8 VAE format, so the visual VAE is the fp16 export.
+#
+# The pin has to reach the engine (sparkrun downloads by commit SHA, which
+# writes no refs/ entry, under HF_HUB_OFFLINE=1), but SGLang hands that one
+# revision to EVERY component load — `revision=server_args.revision` on
+# get_hf_config and AutoModel.from_pretrained in
+# multimodal_gen/runtime/loader/component_loaders/component_loader.py — and the
+# Comfy-Org repo carries no commit 42ed227e. First boot decides this; see the
+# open question in mad-science/TODO.md §explore.
+# Component values are OWNER/REPO/path/FILE and the file header supplies shape
+# and dtype. sparkrun's VRAM estimate only counts --model-path (33.1B bf16 =>
+# 61.73 GiB), so read it as the DiT alone, not the arm (81.75 GiB resident).
+# No '#' inside the folded block below: folding joins every line into one shell
+# word, so a comment there would swallow the flags that follow it.
+command: >
+  sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --model-variant {model_variant}
+  --served-model-name {served_model_name}
+  --component-weights-paths.text_encoder {text_encoder_weights}
+  --component-weights-paths.video_vae {video_vae_weights}
+  --num-gpus {num_gpus}
+  --performance-mode {performance_mode}
+  --host {host}
+  --port {port}
