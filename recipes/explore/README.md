@@ -283,8 +283,12 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   an arm**: it has no recipe, its `num_inference_steps` is inert *and* its own
   `denoise_step_latency_ms` divides one total by the requested count (4/8/12 → the byte-identical PNG
   at 8.7 s while claiming 2164/1086/721 ms per step), and same seed ≠ same image (`38ce554a…` vs this
-  arm's `e24f6e3a…`). **Both 8-step images were inspected at full resolution against the prompt**, which
-  says `two-color screenprint`: this arm honors it — two inks, blue over orange on cream, correct
+  arm's `e24f6e3a…`). **Both 8-step images were inspected at full resolution against the prompt**, whose
+  string is identical in both recorded bodies (`cells-premod.json` cells 0–1 vs `vllm-omni/omni.json`
+  cells 0–3: same `prompt`, 1024×1024, seed 42 — only the CFG spelling differs, `guidance_scale: 1.0`
+  in the OMNI request vs CFG=1 from this arm's serve config, plus `use_kv_cache`, which is a
+  launcher-only knob), so the divergence is a route property and not a request artifact; and it says
+  `two-color screenprint`: this arm honors it — two inks, blue over orange on cream, correct
   spelling, crisp edges — and OMNI **violates** it, rendering `SPARKRUN` as a rainbow of many hues on
   white (correctly spelled and crisply edged, but not two inks). No blended glyphs or step-starvation
   artifacts in either, so the ~24 % win is real and defect-free; it is simply spent on the wrong

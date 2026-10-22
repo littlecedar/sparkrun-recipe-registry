@@ -240,6 +240,17 @@ decides this comparison is **"two-color screenprint"**.
 choice**. The §6 item stays *"which look ships is the owner's call"* — and it applies to both routes, so
 the shipped Diffusers arm is not validated by it either.
 
+**Request provenance, so the "different image at the same seed" cannot be re-litigated as a prompt
+artifact.** Both recorded bodies on the head carry the same prompt string: the Diffusers 8-step control
+is `cells-premod.json` cells 0 and 1 (`prompt` exactly as quoted above with `width`/`height` 1024,
+`seed` 42, `use_kv_cache: true`, and *no* `guidance_scale` field — CFG=1 comes from the serve config),
+and all four OMNI cells in `vllm-omni/omni.json` carry the identical `prompt` string with
+`size: "1024x1024"`, `seed` 42 and `guidance_scale: 1.0`. Byte-identical inputs where they matter, so
+the divergence is a route property (sampler/VAE path), not a request difference. Two request-shape
+asymmetries are worth naming for reproduction and change nothing about the comparison: OMNI spells
+`guidance_scale: 1.0` in the request while the Diffusers arm gets CFG=1 from its serve config, and
+`use_kv_cache` is a Diffusers-launcher knob with no OMNI counterpart.
+
 ### Why it is not an arm
 
 - **On this prompt OMNI fails an instruction Diffusers honors.** Same prompt and seed: Diffusers writes
