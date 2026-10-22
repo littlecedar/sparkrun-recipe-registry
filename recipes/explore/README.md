@@ -513,25 +513,33 @@ same container, same knobs, **no `--quantization` flag** — the engine auto-det
   and a clamp cell would have to sweep c 32/48/64/96 to justify anything higher.
 - **Quality — and its one rated risk:** the `.33` boot scored house **109/111 = 98.2 %** (easy 19/19
   clean, hard 17/18 stable) with `trick-2` — the 5-machines/5-widgets item — empty on 2 of 3 reps,
-  `finish_reason=length` at the 4,096 cap with `content: ''`. The re-ask showed the answer is *there*:
-  at `--max-tokens 8192` it returns **`5` 3/3**, `finish=stop`, after only **159 / 177 / 177**
-  reasoning tokens — so this is **not a capability loss**. But it is **not a one-off either**: n=10 at
-  4096 on a third boot came back empty on **4 of 6** completed reps (**6 of 12 empty overall** at 4096)
-  against **0 of 3** at 8192 (n=3; the n=10 rerun was preempted), while the **full 37-item battery at 4096 still scores 37/37 stable**
-  (111/111, no flaky) — no other item shows it. Mechanism: a default-sampling runaway that only ends
-  at the cap, so a 4096 cap truncates it into an empty reply. Temperature-0 repeats were prepared and
-  **preempted** (the TP=4 baseline needed the node), so deterministic sampling is **UNTESTED, not
-  exonerated**.
-- **Retry guidance (ship this with the arm):** on `finish_reason=length` with empty content, **retry
-  once**; better, serve it at `max_tokens >= 8192`, where 3 of 3 measured attempts answered (n=3; an n=10 rerun was preempted). One empty reply on
-  a reasoning arm is a re-boot, not a verdict.
-- **The trade runs both ways:** TTFR **232 ms (bf16) → 1,664 ms (FP8)** against 2× the decode — one
-  measurement each, the repeat cell was preempted, so quote the TTFR as indicative.
+  `finish_reason=length` at the 4,096 cap with `content: ''`. The answer is *there*: at
+  `--max-tokens 8192` it returns **`5` 3/3**, `finish=stop`, after **159 / 177 / 177** reasoning
+  tokens — **not a capability loss**. But it is **not a one-off**: at served defaults and a 4096 cap
+  the item came back empty on **4 of 6** reps (.35) plus 2 of 3 (.33) and 0 of 3 (an earlier .35
+  pass) — **6 of 12 empty** — against **0 of 3** at 8192, while the **full 37-item battery at 4096
+  still scores 37/37 stable** (111/111, no flaky). No other item shows it.
+- **Temperature 0 does not remove the runaway** (n=5, `temperature: 0`, 4096 cap, .35): **1 of 5
+  empty** at the cap after 4,096 reasoning tokens, the other four answered `5` after **84**
+  reasoning tokens each. Greedy *does* remove the wrong-answer mode — **0 of 5 wrong** against
+  **2 of 5** at served defaults, which returned `0.25` twice (`finish=stop`, **3,482** and **394**
+  reasoning tokens); the default run scored right/wrong/empty = **1 / 2 / 2** of 5. So the trigger
+  is **not sampling alone** — the runaway survives greedy decoding (per-request nondeterminism in
+  the engine/batch path), and default sampling additionally degrades this item's answer.
+- **Retry guidance (ship this with the arm):** serve **`temperature: 0`** for math/single-answer
+  prompts (4/5 right, 1/5 empty here); on `finish_reason=length` with empty content **retry once**;
+  the stronger mitigation is `max_tokens >= 8192`, where 3 of 3 measured attempts answered and none
+  were empty. One empty reply on a reasoning arm is a re-boot, not a verdict.
+- **TTFT on its own instrument:** a trivial-prompt streaming TTFT on this tier is **96 ms cold,
+  then 35–37 ms warm** (median **35.7 ms**, n=5). The 232 → 1,664 ms pair in the ladder is a
+  **2,048-token-prefill first token**, so it is a prefill-inclusive figure — never quote it as a 7×
+  per-request regression, and never quote it as measured TTFT.
 - **Not measured:** tool-call contract (not probed on this tier), needle/ARC/GSM8K/BFCL/TEB, INT4.
   INT8 is answered: kernel-rejected, see the `zz-` row below.
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`,
   `ladder-fp8.{json,yaml,csv}`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`,
-  `flaky-fp8-4096.json`, `flaky-fp8-8192.json`, `probe_flaky.py`). Tasks
+  `flaky-fp8-4096.json`, `flaky-fp8-8192.json`, `temp0-4096.json`,
+  `temp-default-4096.json`, `ttft-fp8-repeats.json`, `probe_flaky.py`). Tasks
   `sparkrun_9c8e0fffc3be638_80fa71eb085e` on `.33` (ladder + first battery) and
   `sparkrun_9c8e0fffc3be638_64af2f7668b6` on `.35` (8192 re-ask, rerun, and the n=10 flakiness boot),
   0 containers after each.
