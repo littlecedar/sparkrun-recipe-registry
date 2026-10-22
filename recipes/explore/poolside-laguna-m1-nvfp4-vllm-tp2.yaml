@@ -1,10 +1,14 @@
 recipe_version: "2"
 model: poolside/Laguna-M.1-NVFP4
 model_revision: e4f3ba80ca1d8d83443df18e03ecebd7ef55a066
-# vLLM 0.32.0 (the CVE-bearing 0.29.0 pin is retired). 0.30.0 was never usable
-# for this family: its own LagunaConfig stub shadows the transformers 5.17 class.
-# 0.32.0 still reads this checkpoint's MoE layout (mlp_only_layers [0,1,2] +
-# decoder_sparse_step 1), so 225B / 67 MoE layers load without remote code.
+# vLLM 0.32.0: the pin was bumped for the CVE reason (0.29.0 carried 23 OSV
+# records), NOT because this arm was re-booted on it — no node pair was free on
+# 2026-10-22, so this remains UNVERIFIED here and every number in the lane doc
+# is still a v0.29.0 measurement. The XS sibling boot-verifies 0.32.0 on the
+# same checkpoint family; that is not this 225B TP=2 load. 0.30.0 was never
+# usable for the family (its LagunaConfig stub shadows the transformers 5.17
+# class). Verify with `-H <free pair> --transfer-mode local` and assert
+# /v1/models before quoting this arm on the new engine.
 container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 runtime: vllm
 min_nodes: 2
@@ -27,15 +31,16 @@ metadata:
   kv_dtype: fp8
   tags: explore, official, reasoning, tools, large_context
   caveats: >
-    Engine choice is inference, not measurement: the card's vLLM floor is 0.21
-    (Laguna support landed in vllm-project/vllm#41129) and this image's
-    laguna.py matches the config, but no Laguna-M.1 boot has been run on
-    0.29.0 here — the lane's two Laguna arms are the XS/S 2.1 revisions. Two
-    rank-local costs are unmeasured at this size: ~65 GiB of weights per rank
-    means the first boot is dominated by load, and MAX_JOBS=4 caps the cold
-    FP4/cutlass JIT fan-out (an uncapped nvcc has exhausted the 128 GB pool on
-    this class of arm). The card's SGLang route needs sglang main, which no
-    resident image carries, hence vLLM. Not boot-verified here.
+    Engine pin is v0.32.0 and is NOT re-booted on this arm: the one measured
+    boot is 2026-10-20 on v0.29.0 (/v1/models 200 at ~43 min, ladder and suite
+    in the lane README), and the 2026-10-22 bump was made for the CVE reason
+    only. The card's vLLM floor is 0.21 (Laguna support landed in
+    vllm-project/vllm#41129) and this image's laguna.py matches the config, but
+    a TP=2 boot on 0.32.0 is outstanding. Two rank-local costs are unmeasured
+    at this size: ~65 GiB of weights per rank means the first boot is dominated
+    by load, and MAX_JOBS=4 caps the cold FP4/cutlass JIT fan-out (an uncapped
+    nvcc has exhausted the 128 GB pool on this class of arm). The card's SGLang
+    route needs sglang main, which no resident image carries, hence vLLM.
 
 executor_config:
   # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the

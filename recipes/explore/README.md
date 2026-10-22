@@ -190,17 +190,24 @@ class that does) — 0.32.0 loads and serves it (below). 2026-10-16 engine-bump 
   did not appear, and the small-depth misses are unexplained.
 - **Serving note:** util 0.55 is deliberate — the weights are only ~21.6 GB of the ~121 GiB pool and
   the SWA arch keeps 262k cheap, so the low util preserves ~95 GB of node headroom.
+- **Engine contract at the `v0.32.0` pin — the reasoning fields moved.** vLLM 0.32.0 returns the
+  thinking text at **`message.reasoning`**; `message.reasoning_content` is **absent**, and
+  **`usage.completion_tokens_details.reasoning_tokens` reads 0** even while thousands of characters of
+  reasoning are emitted. Every contract and needle check in this lane keys on the old shape, so a re-run
+  reads an *all-empty reply* (`content` null, `reasoning_len` 0) while the text is present under the new
+  key — that is the documented "empty-`content`" failure mode, now an artifact of the field name, not of
+  the serve. The second half of the same contract: with thinking on, a **1,024-token budget** returns
+  `finish_reason=length` on a one-line arithmetic prompt (this arm spent 1,933 completion tokens on
+  "14:40 + 3h25m"), so `--max-tokens 4096` is the floor for any re-measure, and a `length` is a
+  truncation, never a capability miss.
 - **Re-pin boot (2026-10-22, `.34`, `sparkrun_7b22b626acd6a019_8ed3ce77d78f`):** `/v1/models` 200
   **282 s** after launch on the first v0.32.0 boot (cold flashinfer-JIT for the xqa/fused-MoE kernels,
   then CUDA-graph capture); served id `poolside/Laguna-XS-2.1-NVFP4`, `max_model_len` 262,144; engine
   reports vLLM **v0.32.0** with `speculative_config=SpeculativeConfig(method='dflash',
   num_spec_tokens=3, …)`; KV **41.87 GiB → 1,413,525 tokens (5.39×)** vs 0.29.0's 41.56 GiB /
   1,403,263. Thinking on: `finish_reason=stop`, 4,675 chars of reasoning, correct answer
-  ("18:05", 1,933 completion tokens). **0.32.0 serves the thinking text at `message.reasoning`,
-  not `message.reasoning_content`, and `usage.completion_tokens_details.reasoning_tokens` reads 0
-  while it is emitted** — a client or contract check keyed on the old field name sees the
-  all-empty-reply shape even though the text is there, and a 1,024-token budget truncates a trivial
-  arithmetic prompt (`finish_reason=length`) in this reasoning mode. Receipt
+  ("18:05", 1,933 completion tokens). The engine-contract change above is the load-bearing part for a
+  re-run; measured facts here are `/v1/models` 200 at 282 s and the KV pool. Receipt
   `head:~/benchmarks/vllm-032-20261022/RECEIPT-xs.md`.
 - **Measured:** C1 **57.4 t/s** @ d0 (σ 3.4) / 55.1 @ d8k; accept len 1.89 / 29.5%; quality 36/37 @4096.
 - **Standard suite (2026-10-17, `bench_9b207347ec3b`):** ladder @ d0 pp2048 tg128 n=5 — C1 **55.3**
@@ -238,14 +245,20 @@ class that does) — 0.32.0 loads and serves it (below). 2026-10-16 engine-bump 
 vLLM · **2 nodes (TP=2)** · **the family's two-node ceiling reference**, booted 2026-10-20.
 
 - **Model:** `poolside/Laguna-M.1-NVFP4` (225B total / 23B active agentic-coding MoE, 70 layers, 262,144
-  native) pinned `e4f3ba80…`, engine `vllm/vllm-openai:v0.29.0` by digest.
-- **Engine re-pin (2026-10-22): DEFERRED, not cancelled.** The recipe's `container:` now pins
-  `vllm/vllm-openai:v0.32.0` (index `befccf0e…`; the XS sibling boot-verifies that engine on this
-  checkpoint family), but **the TP=2 boot is unverified on 0.32.0**: no node pair was free — `.30` is
-  the production head, `.31`–`.33` and `.35` belong to other workers' campaigns. Re-run
-  `sparkrun run recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml -H <pair> --transfer-mode local`
-  on two free nodes and assert `/v1/models` before quoting this arm on the new engine. The numbers
-  below are all the 2026-10-20 **v0.29.0** boot.
+  native) pinned `e4f3ba80…`; engine pin **`vllm/vllm-openai:v0.32.0` (bumped 2026-10-22, not
+  re-booted on it — see below); every measurement in this section is the 2026-10-20 `v0.29.0` boot.**
+- **Engine pin (2026-10-22): BUMPED, NOT RE-BOOTED — the 2026-10-20 numbers remain `v0.29.0`
+  measurements.** The recipe's `container:` moved to `vllm/vllm-openai:v0.32.0` (index `befccf0e…`)
+  for the CVE reason only: 0.29.0 carried 23 OSV records / 16 CVEs, and the XS sibling boot-verifies
+  0.32.0 on the same checkpoint family. The TP=2 boot on 0.32.0 is **outstanding** — no node pair was
+  free on 2026-10-22 (`.30` is the production head, `.31`–`.33`/`.35` other workers' campaigns) — so
+  nothing here was measured on the new engine. **Decision: keep the bump, labelled** (the recipe
+  already ships an explicit engine caveat, so an unverified pin is in-convention *when stated*;
+  reverting it would leave the CVE-bearing digest in the tree for an arm whose only blocker is a free
+  pair). Verify first:
+  `sparkrun run recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml -H <pair> --transfer-mode local`,
+  then assert `/v1/models` = `poolside/Laguna-M.1-NVFP4` at `max_model_len` 262,144 before quoting
+  any cell on 0.32.0.
 - **Boot (2026-10-20, test pair):** 129.75 GiB downloaded at ~170 MiB/s and distributed as 259.51 GiB
   over four streams, then the TP=2 load — `/v1/models` **200 ≈43 min** after launch (sparkrun's own
   launch phase 1,076.6 s), served id `poolside/Laguna-M.1-NVFP4` with `max_model_len` 262,144.

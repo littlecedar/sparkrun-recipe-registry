@@ -13,15 +13,24 @@ kept, and no `sigmas` kwarg at all when the shipped schedule is asked for.
 `NegativeControls` re-runs each guard against shadow copies of `server.py` whose
 schedule function is mutated back to the pre-mod behaviour and to the
 index-rounding bug — the guards must go red on those, or they prove nothing.
+
+`RequestPathTest` drives `run_generate()` itself with a stubbed torch and
+pipeline: `schedule_kwargs()` being right does not prove its caller unpacks it,
+and on 2026-10-22 it did not — `call.update(schedule_kwargs(...)[0])` left
+`sigmas_used` undefined, so **every** `POST /generate` returned 500 while every
+test above stayed green. Its control mutates that line back and must raise.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import itertools
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SERVER = (Path(__file__).resolve().parent.parent
           / "recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py")
@@ -69,6 +78,87 @@ def assert_schedule_guard(case: unittest.TestCase, module) -> None:
         case.assertGreater(a, b)
 
 
+class _FakeImage:
+    def save(self, path: str) -> None:
+        Path(path).write_bytes(b"\x89PNG-stub")
+
+
+class _FakePipeline:
+    """Fires the step callback once per sigma the caller handed it.
+
+    `default_steps` is the checkpoint's own schedule length, used when the call
+    carries no `sigmas` (the pipeline force-loads `config.sample_sigmas`).
+    """
+
+    def __init__(self, default_steps: int):
+        self.default_steps = default_steps
+        self.calls: list[dict] = []
+
+    def __call__(self, **call):
+        self.calls.append(call)
+        steps = len(call["sigmas"]) if call.get("sigmas") else self.default_steps
+        callback = call.get("callback_on_step_end")
+        for index in range(steps):
+            if callback is not None:
+                callback(self, index, None, call)
+        return types.SimpleNamespace(images=[_FakeImage()])
+
+
+def _stub_torch():
+    class _Cuda:
+        def reset_peak_memory_stats(self):
+            pass
+
+        def max_memory_allocated(self):
+            return 1024 ** 3
+
+        def max_memory_reserved(self):
+            return 1024 ** 3
+
+    class _Generator:
+        def __init__(self, device):
+            self.device = device
+            self.seed = None
+
+        def manual_seed(self, seed):
+            self.seed = seed
+            return self
+
+    return types.SimpleNamespace(Generator=_Generator, cuda=_Cuda())
+
+
+def run_generate_stubbed(case: unittest.TestCase, module, req: dict):
+    """Call run_generate() with no GPU, no diffusers and no network.
+
+    Returns `(response, pipeline_call)`. The stub exists to reach the schedule
+    unpacking; everything the pipeline itself does is out of scope here.
+    """
+    sample_dir = tempfile.TemporaryDirectory()
+    case.addCleanup(sample_dir.cleanup)
+    pipe = _FakePipeline(len(BASE))
+    module.STATE["pipe"] = pipe
+    module.STATE["sample_dir"] = sample_dir.name
+    module.STATE["shipped_sigmas"] = list(BASE)
+    with mock.patch.dict(sys.modules, {"torch": _stub_torch()}):
+        response = module.run_generate(req)
+    return response, pipe.calls[-1]
+
+
+def assert_generate_guard(case: unittest.TestCase, module) -> None:
+    """run_generate() must survive the schedule call and report what it ran."""
+    response, call = run_generate_stubbed(
+        case, module, {"prompt": "poster", "num_inference_steps": 4})
+    case.assertEqual(response["steps"], 4)
+    case.assertEqual(len(response["sigmas_used"]), 4)
+    case.assertEqual(call["sigmas"], response["sigmas_used"])
+
+    plain, plain_call = run_generate_stubbed(case, module, {"prompt": "poster"})
+    case.assertIsNone(plain["sigmas_used"])
+    case.assertNotIn("sigmas", plain_call)
+    case.assertEqual(plain["steps"], len(BASE))
+    case.assertTrue(Path(plain["image_path"]).is_file())
+
+
 class ResampleSigmasTest(unittest.TestCase):
     def test_endpoints_and_length(self):
         for steps in (2, 4, 8, 12, 40):
@@ -89,6 +179,11 @@ class ResampleSigmasTest(unittest.TestCase):
     def test_rejects_degenerate_step_count(self):
         with self.assertRaises(ValueError):
             server.resample_sigmas(BASE, 1)
+
+
+class RequestPathTest(unittest.TestCase):
+    def test_reports_the_schedule_it_ran(self):
+        assert_generate_guard(self, server)
 
 
 class ScheduleKwargsTest(unittest.TestCase):
@@ -163,6 +258,25 @@ class NegativeControls(unittest.TestCase):
         shadow = _load_shadow("qwen_shadow_dropped", self.source.replace(self.live, dropped))
         with self.assertRaises(AssertionError):
             assert_schedule_guard(self, shadow)
+
+    def test_control_a_single_element_unpack_fails_the_guard(self):
+        # The 2026-10-22 live defect, verbatim: schedule_kwargs() was right, but
+        # run_generate() read only element [0] while the response reports
+        # `sigmas_used`, so every POST /generate raised NameError.
+        unpacked = (
+            '    sigmas_kw, sigmas_used = schedule_kwargs(req,'
+            ' STATE.get("shipped_sigmas"))\n'
+            "    call.update(sigmas_kw)\n"
+        )
+        self.assertIn(unpacked, self.source)
+        broken = self.source.replace(
+            unpacked,
+            '    call.update(schedule_kwargs(req, STATE.get("shipped_sigmas"))[0])\n',
+        )
+        self.assertNotEqual(broken, self.source)
+        shadow = _load_shadow("qwen_shadow_unpack", broken)
+        with self.assertRaises(NameError):
+            assert_generate_guard(self, shadow)
 
 
 if __name__ == "__main__":
