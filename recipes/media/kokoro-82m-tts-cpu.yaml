@@ -12,7 +12,7 @@ description: >-
   TTS model at 0.305 GiB of weights, served on the same A725 cores as the
   CPU decision arms and at no GPU cost. The server is Kokoro-FastAPI's CPU
   image (v0.9.0, arm64 index digest), an OpenAI-compatible
-  POST /v1/audio/speech with GET /health; the lane's decision instrument
+  POST /v1/audio/speech with GET /health; no instrument in the registry
   cannot score TTS, so the arm's gate is a wav round-trip plus real-time
   factor, not an accuracy pass. Image choice: it is the only published,
   digest-pinned multi-arch CPU image that already carries kokoro-onnx,
@@ -26,7 +26,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "82M"
   model_dtype: fp32
-  tags: tts, smol, cpu
+  tags: media, tts, smol, cpu
 
 # No chat endpoint and no /v1/models: port + /health readiness only.
 readiness:

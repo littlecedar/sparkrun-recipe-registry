@@ -33,7 +33,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "35B"
   model_dtype: fp8
-  tags: explore, tts, audio, single_user, license-gated
+  tags: media, tts, audio, single_user, license-gated
 
 executor_config:
   entrypoint: ""

@@ -1,4 +1,4 @@
-# LTX-2.5 — ComfyUI runbook (DGX Spark / GB10, explore lane)
+# LTX-2.5 — ComfyUI runbook (DGX Spark / GB10, media lane)
 
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B
 text encoder) as a **two-stage** ComfyUI run on one GB10 node. This arm ships
@@ -129,7 +129,7 @@ prompt-enhancer branch pruned). See the file header.
 ## Run (one node, clock-capped)
 
 ```bash
-cd ~/ltx25   # scripts live here; or use recipes/explore/ltx-2.5-runbook/
+cd ~/ltx25   # scripts live here; or use recipes/media/ltx-2.5-runbook/
 # sustained-load power-loss fix (see ../../../attic/explore/EXPLORE-MODELS-RESEARCH.md §6(e)):
 # without the cap, a second consecutive long generation can take the node
 # down. Costs ~20% per run; all timings above were taken capped.
