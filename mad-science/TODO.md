@@ -67,9 +67,15 @@ govern, per the protocol; the verbatim asks remain in git.)*
   | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **110.52 ± 1.77** (ten slots, `~/benchmarks/mellum-c10-20261022/REPORT.md`) | **185.96 ± 2.31** | 1.68× | **0.168** (measured) | **36/37** thinking-on @4096 (`needle-1` empty reply, 1 of 3) | **passes C1 (+59 %) and C10 (+60 %), house at the bar; FAILS the C5→C10 leg — c5 208.29 ± 5.67 → c10 185.96, −10.7 %** |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **0.533** | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
   | Ornith-1.5-122B — UD-Q3_K_XL (llama.cpp, 59.76 GB) | **27.94 ± 0.07** (measured, `~/benchmarks/ornith-122b-20261022/`) | ran 5 rounds, **JSON unflushed → not evidence** | — | — (C5 < C2 already) | unmeasured | **fails C1**; C2 42.75 ± 0.48 / C5 43.20 ± 4.50 means C5 < C2, i.e. batching-poor at 8 slots |
-  | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | unmeasured — **never reached readiness** (weight shard 2/8) | unmeasured | — | — | unmeasured | open |
+  | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | **27.11 ± 0.38** (measured 2026-10-22, `~/benchmarks/ornith-nvfp4-20261022/`) | **73.91 ± 0.70** | 2.73× | **0.273** | **37/37** @4096 thinking-on | **fails C1 (39 % of bar) and C10 (64 %); C5 60.37 → C10 73.91 monotone, 10 slots** |
   | Sage-A1.5 FP8 (36B) | **39.25 ± 0.13** (measured, `~/benchmarks/sage-a15-20261022/ladder.json`) | **134.74 ± 2.12** | 3.43× | **0.343** | not run — the gate stopped at C1 | **fails C1** (39.25 vs 69.28); C10 clears its bar, so the cap is the untuned triton fp8 MoE runner, not FP8 on GB10 |
   | knapcio TP=4 itself (4 nodes) | 69.28 ± 5.25 | 116.27 ± 6.22 | 1.68× | **0.168** | 36/37 | the bar, not a candidate |
+
+  **The two Ornith-1.5-122B rows are the useful pair, because they agree at C1 and disagree under
+  batching.** C1 27.11 sits within 3 % of the llama.cpp Q3_K_XL tier's 27.94 — two engines and two
+  quantisations landing on the same single-stream wall means the wall is the 8.85 B-active shape on one
+  Spark, not the stack; the tiers separate only under batching (NVFP4 monotone 60.37 → 73.91; GGUF
+  regresses at C5), and closing the gap needs ~2.6× C1, i.e. fan-out, not tuning.
 
   **Consequence, measured (2026-10-22): Mellum is the only arm that has now run the whole gate, and it
   clears the two absolute bars by ~60 % at ~8 GB resident while failing only the C5→C10 leg** — C1
