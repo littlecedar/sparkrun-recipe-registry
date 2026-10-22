@@ -667,9 +667,13 @@ Any decision model
 - [ ] **Probe `pyannote/speaker-diarization-community-1` as a speaker instrument for the drama-3 TTS
   arm — and record up front that "quantised" barely applies to it** — an ~8.1M-param pyannote
   *pipeline* (powerset segmentation → wespeaker ResNet34 embeddings → VBx/PLDA clustering) in a
-  **33.7 MB repo / 32.8 MB of weights**, **gated (`auto`)**, **CC-BY-4.0**. **Research + authoring
-  only: nothing was booted, no node was touched, and the blocker is a free 5-core CPU span, not a
-  GPU.** One DRAFT recipe exists and is not claimed to serve. *(effort: short — one CPU boot.)*
+  **33.7 MB repo / 32.8 MB of weights**, **gated (`auto`)**, **CC-BY-4.0**. **One boot attempt was
+  made and it never reached readiness: the launch died before the readiness probe with `OSError:
+  libgomp.so.1`** — `python:3.12-slim` ships no GCC OpenMP runtime and the aarch64 `torchaudio`
+  wheel links it, so the fix is `apt-get install -y libgomp1` **before** the pip chain, in the
+  image build rather than one-off — the locally baked `pyannote-cpu:4.0.7` image (`593d07c93c74`,
+  1.32 GB) carries the same gap. The launch was then stopped to free the head for the TP=4 boot.
+  One DRAFT recipe exists and is not claimed to serve. *(effort: short — one CPU boot.)*
 
   *(tree first — **no prior mention anywhere.** a case-insensitive `grep` for `pyannote|diariz` over
   the tracked tree returns **0 hits**: no recipe, no tool, no test, no `attic/` note. `tools/` holds
@@ -807,16 +811,19 @@ Any decision model
   CPU co-tenants) rather than occupy a node.)*
 
   *(pre-registered instrument, written before any boot so the cells cannot be fitted afterwards;
-  **both tools exist and are committed (2026-10-22), and nothing has been booted yet.** **Fixture in
-  two tiers, because one is honest and the other is cheap.** (A) **Generated, byte-deterministic,
-  licence-clean by construction:** `tools/diarize-fixture.py` *(stdlib `wave`/`math`/`struct`, **no
+  **both tools exist and are committed (2026-10-22) and the tier-A fixtures are green; nothing has
+  reached readiness.** **Fixture in two tiers, because one is honest and the other is cheap.** (A)
+  **Generated, byte-deterministic, licence-clean by construction:** `tools/diarize-fixture.py`
+  *(stdlib `wave`/`math`/`struct`, **no
   random number generator anywhere**)* renders two fixed 16 kHz PCM16 mono layouts from closed-form
   harmonic stacks — `two-speaker` (30 s, 8 × 3 s turns at f0 110/165 Hz with per-voice harmonic
   weight and phase tables) and `three-speaker` (35 s, A/B/C rotation ending in a 2.5 s A+B overlap,
   which is what makes `--overlap` a real choice instead of a declared unknown) — and writes each wav
   plus its RTTM ground truth from the same turn table, so regeneration is byte-identical. The wavs
   are **not committed** (~1 MB each of weight nobody reads); the manifest carries the synthesis
-  parameters and the sha256, and `--check` re-derives the bytes and compares them. Tier A measures
+  parameters and the sha256, and `--check` re-derives the bytes and compares them — **verified green
+  2026-10-22 on this working tree**: `two-speaker.wav` sha256 `caf7076452d7d6a0…`, `three-speaker.wav`
+  `315e4cddba42aeab…`. Tier A measures
   **plumbing, determinism and speaker counting**; its DER is a *calibration* number and **must not
   be read as speech accuracy**, because a speech-trained embedding net is being fed tones. (B) The
   **DER cell proper**: two speech takes from the registry's own `drama-3` TTS arm (two distinct
@@ -848,9 +855,9 @@ Any decision model
   (`result.json`, `fixtures/` incl. `manifest.json`, the RTTM ground truth, both `/diarize` JSONs
   per file, `der.json`, `sparkrun_serve.log`).)*
 
-  *(drafts + blocker — `recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` (DRAFT, `zz-`,
-  no index row, no boot claim) with its lane mod
-  `recipes/decision/mods/pyannote-diarize-server/`, which writes a stdlib `GET /health` +
+  *(drafts + blocker — `recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` (DRAFT, `zz-`,
+  no index row, no boot claim, and **the lane split moved it out of `recipes/decision/`**) with its
+  lane mod `recipes/media/mods/pyannote-diarize-server/`, which writes a stdlib `GET /health` +
   `POST /diarize` server into `/cache/runtime/pyannote/`, compiles it before allowing the launch,
   and reowns it. Shape copied from `kokoro-82m-tts-cpu` / `laya-decision-serve`: `runtime: vllm` as
   the launcher contract, `python:3.12-slim` digest-pinned, `executor_config.user: root` +
@@ -860,12 +867,13 @@ Any decision model
   plain: 1 warning (`unpinned-model-revision`, the known false positive for a prepared-path arm —
   `{model_revision}` is consumed for `/health` identity, not as `--revision`) and 2 suggestions
   (`inline-script` on the pip chain, `restated-managed-path` on the literal cache path).
-  **Blocker: a free CPU slice, not a free node** — all six nodes were on other streams
-  (`.30`–`.33` the TP=4 production block, `.34`/`.35` the registry pair), and this arm needs 5 cores
-  and no GPU, so the cheapest unblock is one node with an idle core span plus
-  `--transfer-mode local`. Two things must hold before the first boot and neither is verified: the
-  launching host's HF token has accepted the gate (ours has), and the in-command
-  `pyannote.audio` + torch install completes inside `port_timeout_s: 1800` (unmeasured).)*
+  **Blocker, and what the one attempt settled** — the arm needs 5 cores and no GPU, so the cheapest
+  unblock is a node with an idle core span plus `--transfer-mode local` (all six were on other
+  streams: `.30`–`.33` the TP=4 production block, `.34`/`.35` the registry pair). The attempt that
+  did run settled the install gate the other way round than it was stated: the pip chain completed
+  and the process died at import with `OSError: libgomp.so.1`, so `libgomp1` belongs in the image
+  build rather than the launch command, and **`port_timeout_s: 1800` is still unmeasured — no
+  attempt has reached readiness.** The launching host's HF token has accepted the gate (ours has).)*
 
   *(what it does **not** solve — **TTS intelligibility.** Diarization answers "how many speakers are
   in this clip, and do their segments hold together over time"; it cannot say whether words were
@@ -1968,6 +1976,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   **Still open, and worth one boot:** the FP8 tier's **tool-call contract** (it was probed on bf16
   only — `spark25` parsed `get_weather({"city":"Lisbon"})` with `finish_reason: tool_calls`), and
   the clamp cell below. **(3) The clamp cell the ladder never reached** — `--max-running-requests 96` vs `32` measured **no delta at c ≤ 10** (c1 20.75 ± 0.40, c2 48.46 ± 1.22, c5 96.31 ± 6.57, c10 156.94 ± 0.47; every delta inside 1σ, c10 +0.5 %), because ten streams never approached the clamp. To justify 96 at all, run a ladder profile with `concurrency: [32, 48, 64, 96]` at pp 2048 / tg 128 / n=5 / decode rows only, and quote the pool arithmetic: **779,390 pooled tokens (FP8) ÷ 96 ≈ 8.1k per sequence at full occupancy**. *(effort: short; pre-registered 2026-10-22, cells 1–2 closed same day)*
+  *(flakiness, measured — **trick-2-style runaway: 6/12 empty replies at a 4096-token cap across three boots (50 %), 0/3 empty at 8192 (159/177/177 reasoning tokens, `finish=stop`) — cap-dependent, sampler-side trigger.** The temperature-0 repeat cell is **NOT RUN (untested)**, and the earlier TTFR repeats (1664 vs 232 ms) are **indicative only, not measured repeats**.)*
 
 - [ ] **Register `orcarouter/OrcaCyber-Nano-1.0` for the cybersec lane — a 27B dense GGUF-only "AI
   Defense" model whose only engine is llama.cpp, and whose two tiers trade quality for ~2.5 GB of
@@ -2207,7 +2216,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 
   Engine gate: SGLang **v0.5.22** (`lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`) `sglang serve --model-variant fl2va`; the **video** surface is `/v1/videos` (`multimodal_gen/…/video_api.py:473`) and readiness is the port plus `/health` answering only once `server_warmup_done` is set (`http_server.py:186-189`). vLLM 0.32.0 has no MiniMax-H3 path; llama.cpp a37cc4610 has no GGUF.
 
-  Draft `recipes/explore/zz-minimax-h3-fl2va-t2va-sglang.yaml` (DRAFT, never booted, `validate --strict` clean) pins `model_revision: 42ed227e…` at top level and passes the three Comfy exports through `--component-weights-paths.*`; the audio VAE comes from the base repo. Two first-boot questions: (a) SGLang hands that one revision to **every** component load (`revision=server_args.revision` on `get_hf_config` and all three `from_pretrained` calls in `component_loader.py`) while the Comfy-Org repo has no commit `42ed227e` — fix is a mods/ stage linking the files into the prepared snapshot; (b) an AdaLN-pruned DiT may need `--minimax-h3-adaln-online` (unquantized weights only) or a cache from `tools/build_minimax_h3_adalcache` — read the serve log's AdaLN decision before changing precision.
+  Draft `recipes/media/zz-minimax-h3-fl2va-t2va-sglang.yaml` (DRAFT, never booted, `validate --strict` clean) pins `model_revision: 42ed227e…` at top level and passes the three Comfy exports through `--component-weights-paths.*`; the audio VAE comes from the base repo. Two first-boot questions: (a) SGLang hands that one revision to **every** component load (`revision=server_args.revision` on `get_hf_config` and all three `from_pretrained` calls in `component_loader.py`) while the Comfy-Org repo has no commit `42ed227e` — fix is a mods/ stage linking the files into the prepared snapshot; (b) an AdaLN-pruned DiT may need `--minimax-h3-adaln-online` (unquantized weights only) or a cache from `tools/build_minimax_h3_adalcache` — read the serve log's AdaLN decision before changing precision.
 
   **Cells — media-gen instrument, not a chat ladder.** One 4-5 s 768p clip, `t2va` first then `fl2va`; per cell record duration/frames/fps, **audio-stream presence** (expected 32 kHz stereo), peak unified memory, wall time per clip, and one prompt-adherence check with a countable constraint (e.g. a two-ink screenprint look: count chromatic hue bins, demand one dominant ink). Step sweep on one prompt+seed with outputs **hashed against each other** at 8/16/32/48 steps to prove `num_inference_steps` is live — `scheduler_config.json` is `{"shift": 12.0}` only, so it should be, but the Qwen-Image checkpoint's saved sigmas silently won and cost a campaign. **Wall-time bar: 30 min per warm clip** (the vendor's 12.1 s/step is a 480p RTX PRO 6000 figure; budget ~10-12 min load, ~5.5 min encoder, then denoise). Falsifiers: identical hashes across the step sweep, no audio stream in the output, or wall time past 30 min. If the bar breaks, the lever is Comfy's Turbo LoRA (`loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16`); whether v0.5.22 can load a diffusion LoRA is unverified and is a separate experiment. *(Not booted yet: every node is claimed. No index row.)*
 
