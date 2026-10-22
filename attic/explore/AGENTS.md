@@ -736,8 +736,9 @@ Xunzhuo's patched qwen35 loader; that arm stays on
   pre-registered 114 t/s bar, so the arm keeps no speculative decoding (acceptance 0.80, mean len 1.80 of
   a possible 2.0). The 8.4 t/s seen on the `9df0b73c7` build reproduces from a clean context, so it is a
   window in that tree, not a bad artifact; the earlier `+44 %` MTP figure was that slow baseline's
-  artefact and must not be quoted. The stock image's ~15 % decode cost against the fork is the fork's own
-  patches, not CUDA (13.1.1 build measured equal) — so the pin stays for this arm's speed.
+  artefact and must not be quoted. The ~15 % the stock image gives up is the **upstream ref era**, not the
+  fork's build: the fork's own tree (`b2e5e9b`) built through our Dockerfile and flags measures 114.2 /
+  113.9 on that node — so the pin stays for this arm's speed, and nothing about the fork needs adopting.
 - `kolibri-1-apex-24bpw-llamacpp` (and the Q4_K sibling) — loadable on stock upstream; the fork image
   can retire after one boot proves it, and stays the fallback until then.
 - `sol-2b-decision2-gguf-llamacpp` — **not** unlocked: different arch string and tensor contract, so
@@ -835,14 +836,15 @@ now require** (the source gate demands `src/models/flint.cpp`, so an older ref f
 | same tree + `GGML_CUDA_FA_ALL_QUANTS` | `a37cc4610` | `…:upstream-a37cc46-cu130-fa` | `sha256:9c31e0f3fd3d57f5fef56bee013438732e96bdcafa61e4a53486787d7a1cb0af` | 216.51 s |
 | same tree on a **CUDA 13.1.1** base | `a37cc4610` | `…:upstream-a37cc46-cu131` | `sha256:a6b47a2ca14db1ffa5d95e8026f3212c23666831536d72fc19f962955869f259` | 193.63 s |
 | `9df0b73c7` clean-context rebuild (receipt only, local tag) | `9df0b73c7` | `…:upstream-9df0b73-cu130-clean` | image id `97c98b0d8b08`, not pushed | 737.70 s |
+| `b2e5e9b` (fork's tree) + our Dockerfile/flags, gates off (local tag, not pushed) | `b2e5e9b` | `…:upstream-b10549-cu130-ourflags` | image id `5ab3a83d16ed` | 145.68 s |
 
 Gate output at the flint ref, verbatim: `features: mellum MTP + kolibri1 + vllm-decision2 + flint
 present`, then `gate: sm_121 + kolibri1 + vllm-decision2 + mellum + flint present`; the binary reports
 `version: 0.7.0-dev (build 1, commit a37cc46)`. The 505 s is the full CUDA recompile a changed tree costs
 (the first build's 155 s was partly reused layers).
 
-**Measured, same day, on idle nodes: the ref is healthy and the collapse is the build.** One boot each,
-two 128-token requests, same GGUF pin and serve flags as the table above:
+**Measured, same day, on idle nodes — first the flint build's health, then what the slowness actually is:**
+one boot each, two 128-token requests, same GGUF pin and serve flags as the table above:
 
 | build | decode t/s |
 |---|---|
@@ -866,21 +868,30 @@ experiments because the fix already ships in `a37cc4610`, which this lane can us
 ref has to be pinned below `a37cc4610` (method: one build per first-parent commit, ~12 min each, one
 128-token greedy probe; suspect the graph/backend-meta and top-k-mask changes, not the model files).
 
-**The residual 15 % is real, and it is the fork's source patches — not the node and not CUDA.** Same node
-(`.30`), same GGUF pin, same serve flags, two 128-token greedy requests per side:
+**The residual ~15 % is the upstream ref era — not the node, not CUDA, not the fork's build.** Same node
+(`.30`), same GGUF pin and serve flags, two 128-token greedy requests per side:
 
-| image | decode t/s |
-|---|---|
-| `scitrera/dgx-spark-llama-cpp:b10549-cu131` (fork, CUDA 13.1.1) | **114.1 / 116.2** |
-| upstream `a37cc4610` (CUDA 13.0.1, `ef2d4bc8`) | **100.3 / 98.7** |
-| upstream `a37cc4610` rebuilt on a **CUDA 13.1.1** base (`3af29ed556c8`, digest `a6b47a2c…`) | **99.4 / 100.6** |
+| image | tree | base / flags | decode t/s |
+|---|---|---|---|
+| `scitrera/dgx-spark-llama-cpp:b10549-cu131` (fork) | `b2e5e9b` | CUDA 13.1.1, `121`, RPC+CURL+FA_ALL_QUANTS | **114.1 / 116.2** |
+| upstream `a37cc4610` (`ef2d4bc8`) | `a37cc4610` | CUDA 13.0.1, `121a-real`, ours | **100.3 / 98.7** |
+| upstream `a37cc4610` on a CUDA 13.1.1 base (`a6b47a2c…`) | `a37cc4610` | CUDA 13.1.1, `121a-real`, ours | 99.4 / 100.6 |
+| **`b2e5e9b` + our Dockerfile and flags** (local `5ab3a83d16ed`) | `b2e5e9b` | CUDA 13.0.1, `121a-real`, ours | **114.2 / 113.9** |
 
-The CUDA-13.1.1 build carries the same llama.cpp source and flag set as the 13.0.1 flint image
-(`NVARCH=sbsa` on both bases, same `121a-real`, both gates green; 193.63 s) and buys **nothing**, so the
-15 % is the fork's own tree, not the toolkit — and not node variance (upstream measures 97–103 t/s on
-`.31`, `.33` and `.30`). **Image policy: the fork image stays the fast route; the upstream image's whole
-value is current refs (Mellum MTP, Kolibri-1, flint) at a measured ~15 % decode cost — pin the fork for
-speed, upstream only for archs the fork lacks.**
+That fourth row closes the question: the fork's *tree* through *our* build is as fast as the fork's image,
+so every flag difference (`GGML_RPC`, `LLAMA_CURL/OPENSSL`, `FA_ALL_QUANTS`, `-G Ninja`, `BUILD_JOBS`,
+arch `121`) is irrelevant to decode, and so is the CUDA base. The fork is not a patched fork at all — its
+`Dockerfile.llamacpp` clones `ggml-org/llama.cpp` at a `b<number>` tag with no patch step and
+`llamacpp-release-tracker.yml` only bumps that number — so its speed is simply an older upstream:
+`b2e5e9b` (2026-08-21) vs `a37cc4610` (2026-10-21), **1254 upstream commits** apart (GitHub compare).
+Something in those two months costs this GGUF ~13 % decode; that is an upstream matter, not this lane's,
+and chasing it is out of scope here.
+
+**Image policy (measured):** the fork image is the fast route and nothing about it needs rebuilding — but
+it is just "older upstream", reproducible by us (row 4), so an arm that tolerates an older ref should get
+an older-ref build from our own Dockerfile rather than the fork tag. The current-ref image buys Mellum
+MTP, Kolibri-1 and flint at a ~15 % decode cost; for `mellum2.1-12b` the pin therefore stays on the fork
+image, because the MTP it would gain is rejected anyway.
 
 Node attribution while these ran: `.34` was held by a peer's `humanizer-12b-q4km-llamacpp` job
 (`082a4f322a793ea0_8ed3ce77d78f`, image `2dcf49ada913`, started 06:26:31Z), `.31`/`.32` by a peer's b12x
