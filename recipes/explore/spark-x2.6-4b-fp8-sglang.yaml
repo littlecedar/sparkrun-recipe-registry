@@ -28,22 +28,29 @@ description: >-
   distribution, and the KV pools grow to 779,390 full + 623,512 sliding tokens (5.95x the
   window). Speed is the predicted 2x: ladder 40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 /
   217.58 ± 2.72 t/s at c1/2/5/10 (+100 / +66 / +48 / +39 % on the bf16 control), prefill
-  8,986 -> 8,496 t/s (+71 %), TTFR 232 -> 1,664 ms.
-  SHIPPED as the fast tier, and its one real risk is now RATED, not anecdotal. `trick-2` (the
-  5-machines/5-widgets item) is a default-sampling runaway that only ends at the token cap: at
-  `--max-tokens 4096` it returns empty content with finish_reason=length on **4 of 6 reps**
-  (.35, 2026-10-22) plus 2 of 3 in the .33 pass and 0 of 3 in an earlier .35 pass — **6 of 12
-  empty overall** — while at 8192 the same prompt answers "5" 3/3 after only 159 / 177 / 177
-  reasoning tokens, **0 of 3 empty** (n=3 — an n=10 rerun at 8192 was preempted). The full 37-item battery at 4096 still scores 37/37 stable
-  (111/111, no flaky): no other item showed the behaviour. Temperature-0 repeats were prepared
-  and preempted (the TP=4 baseline needed the node), so the sampler is the proximate trigger and
-  the loop itself is a weight behaviour — deterministic sampling is UNTESTED, not exonerated.
-  RETRY GUIDANCE: on `finish_reason=length` with empty content, retry once; better, serve this
-  arm at `max_tokens >= 8192`, where 3 of 3 measured attempts answered (n=3; an n=10 rerun was preempted).
+  8,986 -> 8,496 t/s (+71 %), TTFR 232 -> 1,664 ms (the ladder's 2,048-token-prefill first token,
+  not a fixed per-request TTFT — see the TTFT note below).
+  SHIPPED as the fast tier, and its one real risk is RATED. `trick-2` (the 5-machines/5-widgets
+  item) runs away at a 4096 cap: at served defaults it came back empty with finish_reason=length on
+  **4 of 6 reps** (.35, 2026-10-22) plus 2 of 3 (.33) and 0 of 3 (an earlier .35 pass) — **6 of 12
+  empty** — while at 8192 it answered "5" 3/3 after 159 / 177 / 177 reasoning tokens, **0 of 3
+  empty**. The 37-item battery at 4096 still scores 37/37 stable (111/111, no flaky), so no other
+  item shows the behaviour.
+  **Temperature 0 does not remove it** (n=5 @ 4096, greedy, .35): **1 of 5 empty** at the cap with
+  4,096 reasoning tokens; the other four answered "5" after 84 reasoning tokens each. Greedy does
+  remove the WRONG-ANSWER mode — **0 of 5 wrong** against **2 of 5** at served default sampling,
+  which returned `0.25` twice (finish=stop, 3,482 and 394 reasoning tokens); the default run scored
+  right/wrong/empty = 1/2/2 of 5. So the trigger is NOT sampling alone: the runaway survives greedy
+  decoding, i.e. per-request nondeterminism in the engine/batch path, and default sampling
+  additionally degrades this item's answer.
+  RETRY GUIDANCE: serve temperature 0 for math/single-answer prompts (4/5 right, 1/5 empty here);
+  on `finish_reason=length` with empty content retry once; the stronger mitigation is
+  `max_tokens >= 8192`, where 3 of 3 measured attempts answered and none were empty.
   Roles: this file is the FAST tier (2x the control's C1 at every rung, 40.80 ± 0.09 at C1);
   spark-x2.6-4b-bf16-sglang.yaml is the accuracy control (20.38 ± 0.09, 3/3 on this item).
-  TTFR is the trade in the other direction: 1,664 ms here vs 232 ms on bf16 (one measurement
-  each; the repeat cell was preempted, so quote it as indicative).
+  TTFT, measured on its own instrument: a trivial-prompt streaming TTFT is **96 ms cold, then
+  35–37 ms warm** (median 35.7 ms, n=5), so quote the 232-vs-1,664 ms ladder pair as a
+  prefill-inclusive figure for a 2,048-token prompt, never as a 7x per-request regression.
 
 env:
   PYTHONUNBUFFERED: '1'
