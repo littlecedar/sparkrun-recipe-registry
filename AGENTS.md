@@ -250,8 +250,9 @@ remove what the session created** — a leftover is anything undocumented, unkno
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and
-  measured on `.30` at 08:16 and 08:18 on 2026-10-22. Remove only ids you created and can name, and
-  prefer `sparkrun stop <task-id>`, which cleans up the launcher's own containers.
+  measured on `.30` at 04:16 and 04:18 ET (08:16 and 08:18 UTC) on 2026-10-22. Remove only ids you
+  created and can name, and prefer `sparkrun stop <task-id>`, which cleans up the launcher's own
+  containers.
 
 **Bodies above 60 GB are node-local, never staged on the head.** A model body larger than 60 GB is
 downloaded on the target node (`HF_HOME=~/.cache/huggingface hf download <repo>`), or copied

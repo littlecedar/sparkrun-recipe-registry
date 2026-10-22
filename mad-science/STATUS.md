@@ -1,9 +1,9 @@
-# Board — 2026-10-22 ~14:00 ET census
+# Board — 2026-10-22 ~10:07 ET census
 
 | field | value |
 |---|---|
-| census | 2026-10-22 **~14:00 ET**, all six nodes |
-| gate | **928 tests OK** (2 skipped) at `eb1a2a4`, measured 2026-10-22 ~14:00 ET; validate **not re-run this hour** (last: **56/56** plain, **17/56** strict at `4570ade` 03:49 ET) |
+| census | 2026-10-22 **~10:07 ET**, all six nodes |
+| gate | **928 tests OK** (2 skipped) at `eb1a2a4`, measured 2026-10-22 ~10:07 ET; validate **not re-run this hour** (last: **56/56** plain, **17/56** strict at `4570ade` 03:49 ET) |
 | baseline (`#48`) | DSv4-Flash **knapcio TP=4 1M** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; C1 **69.28 ± 5.25** → C10 **116.27 ± 6.22** (1.68×), house **36/37**, needle **3/3** at 32,768 / 131,072 / 983,040 (981,950 tok) — **re-measured 2026-10-22 on a fresh online boot** (`.30`–`.33`, task `sparkrun_a2e141223b52793c_d7960e70d961`, TTR 544 s, `max_model_len` 1,048,576, KV 6,849,792): C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** (n=5, `--skip-run`), house **37/37** @4096 thinking-on, needle **5/5** at ~999k (depths 10–50); the 69.28 / 36/37 figures stay the historical row, not replaced; the `60.20` was taken while **the same four ranks served the fleet's own inference**, so the 13 % C1 deficit is `LIKELY` self-inflicted contention and `69.28` is **not a like-for-like control today** (`recipes/ds4/README.md:218-225`) |
 | foundation shape | **TP=4**; TP=2 arms supplement it; GLM-5.3 3bpw TP=4 **deferred** ("in a few days") |
 | easy-traffic gate (`#49`) | single node qualifies only at C1 **≥ 69.28** *and* C10 **≥ 116.27** t/s, **≥ 10** streams, house **37/37** @4096 thinking-on — nothing clears it yet |
@@ -14,9 +14,9 @@
 
 | where | owner | what | since | state |
 |---|---|---|---|---|
-| `.34` | control | idle after today's **Sage-A1.5 FP8** gate cell and the **pyannote** CPU diarization boot | ~14:00 | **0 containers**; both arms stand as measured rows, not as assignments |
-| `.35` | control | idle after the **Ornith-1.5-122B NVFP4** one-node gate cell | ~14:00 | **0 containers**; the INT8 dead serve is **not an assignment** — it lives in Measurements only (dead at the kernel, no `int8_scaled_mm` on sm_121) |
-| `.30`–`.33` | control | **production inference** — these ranks serve the fleet's own model (the knapcio TP=4 1M baseline arm, `#48`), i.e. a serving surface, not a cell surface; **`.30` is the control node**, so driving the cluster from it (ssh, `sparkrun` launches, config, inspection, log reads) is expected work | 08:49:58 | serve **up since 08:49:58, never restarted** (`sparkrun_a2e141223b52793c_d7960e70d961`, four ranks). What is fenced is executing **workloads** on `.30`–`.33` beyond what the operators placed — no research boot, benchmark cell, load or restart — and **loading the production serve** (`curl /v1/chat/completions`, any benchmark client on `:8000`); reading is fine (`AGENTS.md` §Node hygiene, the `.30`–`.33` bullet). Also banned: **removing containers by list expansion on a shared node** (`docker rm -f $(docker ps -aq)`, `\| xargs rm -f`, `prune`), measured on `.30` 08:16/08:18 — remove only ids you created and can name |
+| `.34` | control | idle after today's **Sage-A1.5 FP8** gate cell and the **pyannote** CPU diarization boot | ~10:07 | **0 containers**; both arms stand as measured rows, not as assignments |
+| `.35` | control | idle after the **Ornith-1.5-122B NVFP4** one-node gate cell | ~10:07 | **0 containers**; the INT8 dead serve is **not an assignment** — it lives in Measurements only (dead at the kernel, no `int8_scaled_mm` on sm_121) |
+| `.30`–`.33` | control | **production inference** — these ranks serve the fleet's own model (the knapcio TP=4 1M baseline arm, `#48`), i.e. a serving surface, not a cell surface; **`.30` is the control node**, so driving the cluster from it (ssh, `sparkrun` launches, config, inspection, log reads) is expected work | 04:49 ET (08:49:58 UTC) | serve **up since 04:49 ET (08:49:58 UTC), never restarted** (`sparkrun_a2e141223b52793c_d7960e70d961`, four ranks). What is fenced is executing **workloads** on `.30`–`.33` beyond what the operators placed — no research boot, benchmark cell, load or restart — and **loading the production serve** (`curl /v1/chat/completions`, any benchmark client on `:8000`); reading is fine (`AGENTS.md` §Node hygiene, the `.30`–`.33` bullet). Also banned: **removing containers by list expansion on a shared node** (`docker rm -f $(docker ps -aq)`, `\| xargs rm -f`, `prune`), measured on `.30` 04:16/04:18 ET (08:16/08:18 UTC) — remove only ids you created and can name |
 | `<head-node>` | control | **disk/staging blocker** — a boot needing **59.76 GB** died with `insufficient disk space on control` | 04:07 | **141 GB free of 3.7 TB** after the sweep (docker 20 images / 0 containers / 0 build cache); closed as a **rule, not a number**: bodies **> 60 GB node-local** (`hf download` on the node or node-to-node copy + `--offline`), control staging **≤ 60 GB** only, because the head is shared and one 78 GB stage eats nearly all of it (`AGENTS.md` §Node hygiene); the image the sweep wrongly deleted (`vllm/vllm-openai:v0.32.0@sha256:befccf0e…`, the explore qwen-image/Laguna pin) is re-pulled **by digest**, re-tagged, `RepoDigest` verified |
 
 ## Attention
@@ -54,13 +54,13 @@
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **928 tests OK** (2 skipped) | **not re-run this hour** (last: **56/56**, 0 errors at `4570ade`) | **not re-run this hour** (last: **17/56 fail**, known false positives at `4570ade`) | suite at `eb1a2a4` | suite 2026-10-22 ~14:00 ET (`uv run python -B -m unittest discover -s tests`, 87.8 s); validates 03:49 ET — not fresh |
+| **928 tests OK** (2 skipped) | **not re-run this hour** (last: **56/56**, 0 errors at `4570ade`) | **not re-run this hour** (last: **17/56 fail**, known false positives at `4570ade`) | suite at `eb1a2a4` | suite 2026-10-22 ~10:07 ET (`uv run python -B -m unittest discover -s tests`, 87.8 s); validates 03:49 ET — not fresh |
 
 ## Recently landed
 
 | time ET | commit | one clause |
 |---|---|---|
-| 09:47 | `eb1a2a4` | **never remove containers by list expansion** on a shared node (`docker rm -f $(docker ps -aq)`, `\| xargs`, `prune`) — measured on `.30` 08:16/08:18 |
+| 09:47 | `eb1a2a4` | **never remove containers by list expansion** on a shared node (`docker rm -f $(docker ps -aq)`, `\| xargs`, `prune`) — measured on `.30` 04:16/04:18 ET (08:16/08:18 UTC) |
 | 09:47 | `b6e7fd1` | corrected fence wording: `.30`–`.33` are fenced against **workloads**, not against control from `.30` — ssh, `sparkrun` launches and inspection stay normal work |
 | 09:40 | `1e3917c` | body-copy attribution corrected: the original copy ran over the **management NIC** (`enP7s7`), never the rails |
 | 09:36 | `122a28f` | MiniMax-H3 fit table completed with the **2-node and 4-node** rows |
