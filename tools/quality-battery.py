@@ -160,9 +160,13 @@ def make_needle(n_words: int = 3000) -> str:
     return (" ".join(words) + "\n\nWhat is the secret access code? Reply with just the code word.")
 
 
-def chat(base: str, model: str, prompt: str, max_tokens: int = 384) -> tuple[str, dict]:
+def chat(base: str, model: str, prompt: str, max_tokens: int = 384,
+         thinking: str | None = None) -> tuple[str, dict]:
     body = {"model": model, "messages": [{"role": "user", "content": prompt}],
             "temperature": 0, "max_tokens": max_tokens}
+    # Unset keeps the served template default byte-identical for every lane.
+    if thinking is not None:
+        body["chat_template_kwargs"] = {"enable_thinking": thinking == "on"}
     req = urllib.request.Request(_root(base) + "/v1/chat/completions",
                                  data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
@@ -185,7 +189,7 @@ def score(kind: str, expect, reply: str) -> bool:
     raise ValueError(kind)
 
 
-def run_tier(name, tasks, base, model, repeat, max_tokens=384):
+def run_tier(name, tasks, base, model, repeat, max_tokens=384, thinking=None):
     per_task: dict[str, list[bool]] = {}
     replies: dict[str, list[str]] = {}
     for rep in range(repeat):
@@ -193,7 +197,7 @@ def run_tier(name, tasks, base, model, repeat, max_tokens=384):
             if prompt is None:
                 prompt = make_needle()
             try:
-                reply, meta = chat(base, model, prompt, max_tokens)
+                reply, meta = chat(base, model, prompt, max_tokens, thinking)
                 ok = score(kind, expect, reply)
             except Exception as e:
                 reply, meta, ok = f"<ERROR {type(e).__name__}: {e}>", {}, False
@@ -224,6 +228,9 @@ def main() -> int:
     # every lane measured so far; models that think by default (Kolibri-1)
     # need a larger budget or the answer is truncated into `content: null`.
     ap.add_argument("--max-tokens", type=int, default=384)
+    # Reasoning toggle for templates that key on `enable_thinking`; unset sends
+    # no chat_template_kwargs at all, so other lanes' request bytes are unchanged.
+    ap.add_argument("--thinking", default=None, choices=["on", "off"])
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
 
@@ -232,14 +239,15 @@ def main() -> int:
         with urllib.request.urlopen(_root(args.base_url) + "/v1/models", timeout=30) as r:
             model = json.load(r)["data"][0]["id"]
     print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} "
-          f"repeats: {args.repeat} max_tokens: {args.max_tokens}\n")
+          f"repeats: {args.repeat} max_tokens: {args.max_tokens} "
+          f"thinking: {args.thinking or 'served-default'}\n")
 
     names = ["easy", "hard"] if args.tier == "both" else [args.tier]
-    out = {"model": model, "base_url": args.base_url,
+    out = {"model": model, "base_url": args.base_url, "thinking": args.thinking,
            "max_tokens": args.max_tokens, "tiers": {}}
     for n in names:
         out["tiers"][n] = run_tier(n, TIERS[n], args.base_url, model,
-                                   args.repeat, args.max_tokens)
+                                   args.repeat, args.max_tokens, args.thinking)
         print()
     if args.json:
         json.dump(out, open(args.json, "w"), indent=1)
