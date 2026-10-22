@@ -43,6 +43,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 - [`ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`](#ornith-15-35b-a3b-nvfp4-dflash2-sglang) — 35B-A3B MoE, the fast single-Spark lane (SGLang)
 - [`ornith-1.5-9b-nvfp4-dflash-sglang`](#ornith-15-9b-nvfp4-dflash-sglang) — small dense 9B single-Spark arm (SGLang)
 - [The YaRN 1M arm](#the-yarn-1m-arm) — the card's long-context route on the 35B; **ships for ≤768k, 1M supported to depth 50 % — the 1M d90 rung failed twice**
+- [The 122B one-node probe](#the-122b-one-node-probe-measured-not-shipped) — draft arms, out of the shipped surface; **both quant tiers fail the owner's easy-traffic gate on single-node decode**
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
 
@@ -582,6 +583,58 @@ meaning.
 
 **Cost.** Six sequential arms on one node, ~2 h wall: three boots (~4 min each) + the 35B suite
 (~11 min needle) + two 35B ladders + three sub-2-minute house batteries on the small arms.
+
+## The 122B one-node probe (measured, not shipped)
+
+Two **draft** arms, [`zz-ornith-1.5-122b-nvfp4-vllm.yaml`](zz-ornith-1.5-122b-nvfp4-vllm.yaml) and
+[`zz-ornith-1.5-122b-ud-q3k-xl-llamacpp.yaml`](zz-ornith-1.5-122b-ud-q3k-xl-llamacpp.yaml), answer a
+question the three shipped recipes cannot: can **one** DGX Spark absorb *simple* DeepSeek-V4.1-Flash
+traffic with the 125.09B / **8.85B-active** MoE? The owner's easy-traffic gate is one boot that clears
+**C1 ≥ 69.28**, **C10 ≥ 116.27 t/s** (both from the TP=4 DSv4 baseline, `bench_21011c740763`),
+non-decreasing C5→C10, ≥ 10 streams, and house **≥ 36/37 at `--max-tokens 4096` thinking-on.
+**Both tiers fail it on single-node decode, so both stay capability arms** — the fan-out that a TP=4
+baseline buys is not recoverable by picking a quant or an engine.
+
+| tier | engine · node | boot | decode @ d0, pp2048/tg128, n=5 | house | verdict |
+|---|---|---|---|---|---|
+| **vendor NVFP4** (mixed: attention/linear-attn FP8, rest NVFP4) | vLLM nightly `cc47adc1…`, TP=1, `.35` | TTR **665.9 s** port-open / 666.0 s HTTP-ready / 666.2 s TTFT; weights 77.63 GB, model loading 67.61 GiB in 497.1 s | C1 **27.11 ± 0.38** · C2 **39.53 ± 0.16** · C5 **60.37 ± 0.57** · C10 **73.91 ± 0.70** (ttfr 1181/1424/2896/4820 ms) | **37/37** (19/19 + 18/18) | **FAILS C1 (39 % of bar) and C10 (64 %)**; monotone, 10 streams served → capability arm |
+| **unsloth UD-Q3_K_XL** (3.82 bpw) | llama.cpp `a37cc4610`, TP=1, `.34` | TTR **50.7 s** (node-local cache); 131,072 × 8 slots, `kv_unified` | C1 **27.94 ± 0.07** · C2 **42.75 ± 0.48** · C5 **43.20 ± 4.50** · C10 **not captured** | not run | **FAILS C1**; C5 < C2 means batching-poor at 8 slots → capability arm |
+
+**What the two tiers together settle.** The **C1 wall is shared** — 27.11 t/s on vLLM/NVFP4 and
+27.94 t/s on llama.cpp/Q3_K_XL, two engines and two quantisations, within 3 % — so single-stream decode
+is a property of the 8.85B-active shape on one Spark, not of the stack. The tiers diverge only under
+batching: NVFP4 climbs monotonically to **73.91** at C10 (2.7× C1) while the GGUF tier *loses* bandwidth
+by C5 (43.20 < 42.75 C2), so **NVFP4 is the tier to keep** and the GGUF draft is superseded for this
+question. Prefill is not the problem either: aggregate pp ran 1803 / 2479 / 2898 / 3136 t/s across the
+four cells, i.e. healthy and rising; the gap is entirely decode-side. Against the bar the arm needs
+**2.6× its C1 and 1.6× its C10**, which no launch knob on one node closes.
+
+**Boot facts from the NVFP4 pass** (`.35`, 2026-10-22; receipts on the head in
+`~/benchmarks/ornith-nvfp4-20261022/`: `ladder-nvfp4.{yaml,json,csv}`, `house-nvfp4-on.json`,
+`serve.log`). `/v1/models` reported the served id `ornith-ai/Ornith-1.5-122B-NVFP4` at
+`max_model_len` **262,144**; the pool line was `Available KV cache memory: 31.1 GiB` /
+`GPU KV cache size: 2,341,091 tokens, Maximum concurrency for 262,144 tokens per request: 8.93x`
+with `max_num_seqs=32`, `max_num_batched_tokens=8192`, `kv_cache_dtype=fp8`, flashinfer + marlin.
+It is a **hybrid** model (`Qwen3_5MoeForConditionalGeneration`): the engine pads the mamba page 1.34 %
+to make it equal the attention page and sets the attention block to **4224** tokens, and it logs
+`Mamba cache mode is set to 'align' … when prefix caching is enabled` — so the pool is not pure
+attention KV and the 8.93× figure is the engine's own estimate, not a slot count.
+
+- **Launch it from the node, not from the control.** With `--transfer-mode local --offline`, a
+  workstation-side launch refuses (`offline: model … is not in the control machine's cache
+  (/home/siv/.cache/huggingface)`) even when the *node's* imported manifest reads `complete`; the same
+  recipe launched on the node itself went to serving in 4.7 s. Node-side sparkrun is 0.4.1 here
+  (control is 0.4.2) and still prints `Model … is unverified: offline: no saved authoritative model
+  manifest … legacy compatibility` — with a `complete` manifest on the node plus
+  `--transfer-mode local` that warning is benign, not a refusal.
+- **Stage the weights on the node you are about to use** (`hf download … --revision f049036f…`, 23
+  files, 4:56 at ~262 MB/s) rather than copying 77.63 GB off a node holding production.
+- **The pin needs a `docker pull` even when the bytes are already resident.** The local image ID
+  (`9a876c399945…`) matches the pinned manifest's config digest, but the repo-digest record is what
+  sparkrun matches; `docker pull <repo>@sha256:cc47adc1…` took 0.3 s and moved no bytes.
+- **Not measured, and not claimed:** no needle or long-context rung on either tier, no thinking-off
+  leg, one repeat of the house battery, and no C10 for the GGUF tier (its `runs/` JSON was never
+  flushed before the stop). This section is a two-cell gate verdict, nothing wider.
 
 ## Lane caveats
 

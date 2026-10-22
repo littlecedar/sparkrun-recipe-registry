@@ -1,6 +1,9 @@
 recipe_version: "2"
-# DRAFT (2026-10-22): authored from the Hub census, NEVER booted. Not in the root README
-# index and not claimed to serve. See mad-science/TODO.md §explore, item "Ornith-1.5-122B".
+# DRAFT (2026-10-22): booted and gated on .35 (TP=1) the same day — TTR 665.9 s, /v1/models
+# max_model_len 262,144, ladder C1 27.11 / C10 73.91 t/s, house 37/37 @4096 thinking-on. Fails the
+# owner's easy-traffic gate (69.28 / 116.27) on both speed bars, so it is a CAPABILITY arm: not in the
+# root README index and not claimed as the single-node easy-traffic recipe. See the lane README,
+# §"The 122B one-node probe".
 model: ornith-ai/Ornith-1.5-122B-NVFP4
 model_revision: f049036f794622db10bb69855bf9819207334626
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1b210066dca421bdcd7ca6f16680b6579533f348c0d8c072da194cf98
