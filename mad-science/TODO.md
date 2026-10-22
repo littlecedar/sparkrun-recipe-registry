@@ -452,6 +452,10 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   can be claimed against the lane's 36/37 house baseline; per-rank weight residency and KV headroom
   at c16 are unmeasured; the trust-store acceptance is interactive on first run, which a headless
   launch must solve.*) *(effort: research only — owner decisions first.)*
+  *(Owner deliverable 2026-10-22 (`QUESTIONS.md` `#6`, still open): a brief at
+  `mad-science/FLARE-AGENT-BRIEF.md` on what `flare agent` does and why it cannot be folded into a
+  container instead of the bare-metal APT install — the install decision follows that brief, and the
+  row is not closed by it. The brief itself is not written yet.)*
 
 - [ ] **Repair the b12x backend declaration by explicit flag — `QUESTIONS.md` `#9`, answered
   2026-10-22: "repair by explicit flag instead"** — **boot-gated; the recipe is not edited until a boot
@@ -1620,7 +1624,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
-- [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window, and the arm64 self-hosted runner for the weekly CI report (`vars.ARM64_RUNNER_ENABLED`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
+- [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window (the CI report's runner half is closed — `7954650` builds on GitHub's hosted `ubuntu-24.04-arm`, `QUESTIONS.md` `#8`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
 
 - [ ] **Probe the `RecursiveSI` org's flagship `flint` — a 39.8B-A2.5B agentic-coding MoE — for a GB10 arm** — new release
   (org `RecursiveSI`, checked 2026-10-22: **one model family only** — `flint` plus three same-day quantizations, no
@@ -2484,7 +2488,15 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
   empty-reply cases at 4096 are classified as indeterminate in that audit; the cheapest fix is to have the
   instrument record `finish_reason`, which is not yet done.)*
 
-- [ ] **Register an arm64 self-hosted runner so the llama.cpp build job can run** — `.github/workflows/llamacpp-engine.yml` builds only when `vars.ARM64_RUNNER_ENABLED == 'true'`, and no such runner is registered, so the weekly job currently reports ref drift and feature gates without ever building; `tests/test_ci_workflows.py` guards the gate. This is the prerequisite for the stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `5ce1d02`) and for the Mellum MTP A/B. *(effort: short, owner-side infrastructure)*
+- [X] **Give the llama.cpp build job a runner — closed 2026-10-22 as a GitHub-hosted arm64 job**
+  (`QUESTIONS.md` `#8`: "GitHub-hosted arm64 — confirmed"). The self-hosted ask above is **retired, not
+  kept as a fallback**: `7954650` puts the build job on `runs-on: ubuntu-24.04-arm`, deletes the
+  `vars.ARM64_RUNNER_ENABLED` gate and its guard, adds a 20 GB disk preflight (the hosted `/` is the
+  constraint, and a failed build under it is reported with `::error::` rather than an ENOSPC link
+  failure), and moves the guard suite to **931 tests**. What this unblocks is unchanged: the
+  stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `5ce1d02`) and the
+  Mellum MTP A/B, whose pre-registration is recorded in the lane item above — the first hosted run,
+  not the landing, is what proves the build.
 
 ## Runtimes (registry-level)
 Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtimes than the two in use —

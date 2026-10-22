@@ -501,11 +501,14 @@ matching.
   errors print as `ERROR:` lines and never turn the run red. Neither workflow edits recipes — even
   the sweep's manual `apply: true` mode only rewrites the runner's throwaway tree, prints the
   per-arm boot checklist and stops (no commit, no push). A pin change is still boot-gated by lane
-  policy, on hardware a hosted runner does not have. **This repository has Issues disabled**, so
-  the tracker path is itself conditional: the sweep checks `hasIssuesEnabled`, prints
-  `SKIPPED: repository issues are disabled` and leaves the run summary as the signal. Enabling the
-  tracker (`gh api -X PATCH repos/<owner>/<repo> -f has_issues=true`) turns the in-place issue back
-  on. **A deliberate hold is declared, never silenced**: `tools/refresh-sweep-accepted.json` lists
+  policy, on hardware a hosted runner does not have. **Issues are enabled** — owner decision
+  2026-10-22 (`mad-science/QUESTIONS.md` `#10`), applied as
+  `gh api -X PATCH repos/littlecedar/sparkrun-recipe-registry -f has_issues=true` returning
+  `has_issues: true` — so the sweep's `hasIssuesEnabled` check passes and it maintains its single
+  `pin-drift` issue **in place**, one row that is updated rather than re-created. If the tracker is
+  ever turned off again, the sweep still degrades cleanly: it prints
+  `SKIPPED: repository issues are disabled` and leaves the run summary as the signal.
+  **A deliberate hold is declared, never silenced**: `tools/refresh-sweep-accepted.json` lists
   the pinnings that are correct as frozen
   (each with a `reason` and a `since`), an accepted row is still printed and does not count as
   gating drift, and an entry that matches no row is `stale-acceptance` and does gate — so a hold
@@ -518,7 +521,8 @@ matching.
   (2) the artifact **`refresh-sweep`** is the retained copy — `sweep.md` + `sweep.json`, retention
   **90 days** — fetched with `gh run download <run-id> --name refresh-sweep`; that file, not a
   re-run, is where a session should read the full drift table. (3) the single `pin-drift` issue,
-  only while the tracker is enabled: `gh api -X PATCH repos/<owner>/<repo> -f has_issues=true`.
+  **live since 2026-10-22** and updated in place; if the tracker is ever disabled the sweep prints
+  `SKIPPED: repository issues are disabled` and this leg greys out, leaving (1) and (2).
   `exit_code_on_drift: true` re-arms a red run if a human ever wants the page.
 - **CI never bumps a model pin, and `--apply` is container-only.** The sweep's `--apply` rewrites
   only `container:` lines whose tag resolves to a newer digest, refuses a non-empty
