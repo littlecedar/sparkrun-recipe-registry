@@ -1,0 +1,82 @@
+recipe_version: "2"
+model: jialinyyzz/humanizer-GGUF:humanizer-12b-Q6_K.gguf
+model_revision: d9c6be435fe29e6e96dc42f4c3cc185e06ae3eac
+runtime: llama-cpp
+# Stock upstream llama.cpp: the gemma4 arch ships in src/models/gemma4.cpp at
+# this image's commit b2e5e9b (2026-08-21) — no fork needed. The scitrera tier
+# is the registry's proven GB10 build (mellum ships on the same pin).
+container: scitrera/dgx-spark-llama-cpp:b10549-cu131@sha256:ad14055470c2bd5c2b4c088dc5727d950da00f62408f438f4f3833c704af0dca
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  jialinyyzz/humanizer as the vendor's own Q6_K GGUF (10,029,799,584 B) of a
+  12B google/gemma-4-12B finetune (arch gemma4_unified, Apache-2.0) on ONE DGX
+  Spark through llama.cpp. A text REWRITER, not a chat model: the checkpoint
+  defines no chat template, so the working surface is /v1/completions with the
+  byte-exact prompt from the repo's prompt_format.json (instr + "\n\n" +
+  draft.strip() + sep, fingerprint cc51d66b4c593fbe asserted by
+  tools/humanizer-measure.py). Sampling matches the archived bf16 measurement
+  (temperature 1.0, top_p 0.95, top_k disabled — llama.cpp spells that 0 where
+  vLLM used -1 — min_p 0, repetition_penalty 1.0, max_tokens <=2048).
+  ctx_size 8192 is the card's working point for instruction + draft + rewrite
+  (native window is 262144 but unprobed here); parallel 2 slots, kv unified.
+  MEASURED 2026-10-22 (.33, sparkrun_7b0a21d0dbeb323d_80fa71eb085e): C1
+  17.92 ± 0.04 t/s @ d0 and 17.87 ± 0.05 @ d8192 (pp 999 / 1,366 t/s), TTR
+  10.8 s. Quality on the bf16 arm's own 40-rewrite instrument: 0 genuine fact
+  errors (vs the bf16 baseline's 1; 69 heuristic flags, all notation).
+  Q6_K is the shipping tier because it is the SMALLEST one that passes: the
+  7.63 GB Q4_K_M ran 23.18 t/s but lost 2 facts ("about 90 minutes" → "A
+  couple hours"; year 2026 → 2006), so it is recorded as measured-rejected.
+metadata:
+  model_url: https://huggingface.co/jialinyyzz/humanizer-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "12B"
+  model_dtype: q6_k
+  kv_dtype: fp16
+  tags: explore, text_rewriting
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: jialinyyzz/humanizer-GGUF
+  ctx_size: 8192
+  parallel: 2
+  n_gpu_layers: 999
+  flash_attn: auto
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 0
+  min_p: 0.0
+  repeat_penalty: 1.0
+
+# These sampling flags are literals, not defaults: a `defaults:` key in the
+# llama.cpp flag map is only consumed on the command-less path, so declared
+# values here would be silent drops. `--no-mmap` matches the GB10 platform
+# default (the template path never injects it); this build accepts it as
+# deprecated in favour of `--load-mode`.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --min-p {min_p}
+  --repeat-penalty {repeat_penalty}
+  --flash-attn {flash_attn}
+  --no-webui
+  --no-mmap
+  --cont-batching

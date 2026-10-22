@@ -5,12 +5,12 @@ directive): top candidates are optimized for **generation speed, concurrency, ac
 size**; ties break on the owner's 2026-10-11 weighting — **node count (lower) → accuracy (higher) →
 speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, so node count tied.
 
-The lane now ships **seven measured arms** — the accuracy leader, the smallest 262k arm with
+The lane now ships **eight measured arms** — the accuracy leader, the smallest 262k arm with
 measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the media-gen arm
-whose cells are closed, the LTX-2.5 video+audio arm booted 2026-10-21, and the Nemotron-3.5-Lightning
-30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here) — plus the
-two-node **Laguna-M.1** ceiling reference, booted 2026-10-20 on `v0.29.0` and not a selection
-candidate (its `v0.32.0` pin is *not* re-booted — see its section). The
+whose cells are closed, the LTX-2.5 video+audio arm booted 2026-10-21, the Nemotron-3.5-Lightning
+30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here), and the
+**humanizer-12b Q6_K text rewriter** booted 2026-10-22 (the lane's only non-chat arm, shipped for a
+rewrite-fidelity job) — plus the
 other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 16-row decision table with one
@@ -28,9 +28,10 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
-- [Humanizer-12B quant round — measured, no recipe](#humanizer-12b-quant-round--measured-no-recipe)
+- [humanizer-12b-q6k-llamacpp](#humanizer-12b-q6k-llamacpp)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
+- [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
 - [Attic index](#attic-index)
 
 ---
@@ -39,10 +40,10 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 
 The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
 pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
-needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 16
-measured arms are listed; 15 are scored on these axes, and the humanizer quant row records a measured
-**non-ship** (off-brief, and it missed its own pre-registered fact bar). The verdict column is the
-selection. Decode rows only
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 19
+measured arms are listed. 16 are scored on these axes; the shipper records one rewriter with a
+rewrite-fidelity cell instead (the bf16 humanizer it replaced, plus Q4_K_M, are measured-rejected
+rows). The verdict column is the selection. Decode rows only
 (`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped `max_model_len`; a
 `max_num_seqs` / `parallel` clamp — not the pool — is the in-flight ceiling where one is set.
 
@@ -59,11 +60,13 @@ selection. Decode rows only
 | `poolside-laguna-xs-2.1-nvfp4-dflash-vllm` | 55.3 ± 2.4 | 55.3 / 83.1 / 133.7 / **141.3** (still rising at c10) | KV 1,464,371 tok = **5.59×** at 262,144 (ladder boot; 1,403,263 on the 2026-10-14 boot); `max_num_seqs: 8` | 35/37 · 2/3 @32k, 2/3 @131k, **3/3 @262k** · 66.0% · 90.5% · 60.1% · **97** | 21.6 GB + 0.92 GB draft · util 0.55 → ~95 GB headroom | `~/benchmarks/explore-laguna-xs-20261017/perf-ladder.json`, `launch.log`, `house.json`, `needle-*.json`, `bfcl.json`, `teb.json` | **KEEP — best 262k aggregate at c10** |
 | `nemotron-3.5-lightning-30b-a3b-nvfp4-vllm` | **63.27 ± 0.65** | 63.27 / 90.81 / 122.27 / **144.15** (still rising at c10) | KV 10,703,667 tok = **326.65×** at 32,768; no `max_num_seqs` clamp | **37/37 @2048** · — · — · — · — · — | **20.1 GiB** · util 0.85 (= 0.8263 effective under CUDA-graph profiling) | `~/benchmarks/reasoning-candidates-20261021/` (`house-2048.json`, `ladder.json`, `serve.log`) | **KEEP — fastest single-node C1 at the smallest weight footprint** |
 | `poolside-laguna-s-2.1-nvfp4-dflash-vllm` | 20.26 ± 0.87 | 20.26 / 29.26 / 38.96 / 53.80 | KV 106,010 tok = **1.078×** at 98,304; `max_num_seqs: 32` | 33/37 · 3/3 @32k, 3/3 @98,304 · — · — · — | 95.61 GiB resident · util 0.85 | `~/benchmarks/sweep2-20261018/laguna-s-ladder.json`, `laguna-s-suite/summary.md` | **retire** — dominated by XS on every axis |
-| `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s; no ladder) | KV 370,597 tok = 45.2× at 8,192; no chat surface | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
+| `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s: the checkpoint defines **no chat template at all**, so vLLM refuses the chat route — not an engine fault; no chat route ⇒ no ladder) | KV 370,597 tok = 45.2× at 8,192 | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
+| `humanizer-12b-q6k-llamacpp` | **17.92 ± 0.04** | 17.92 / — (C1 only; no concurrency sweep) | 8,192 × `parallel: 2`, `kv_unified` = 2 slots; `/v1/completions` only (no chat template in the checkpoint) | — · — · — · — · — · — (off-brief; rewrite-fidelity instrument: **0 genuine fact errors / 40 rewrites vs the bf16 baseline's 1**, 69 flags all notation) | 10.03 GB pack · TTR 10.8 s | `~/benchmarks/humanizer-20261022-q6k/` (`boot.log`, `serve.log`, `models.json`, `decode-triage.json`, `measure.json`, `analyze.log`, `probe-q6k.yaml`) | **KEEP — 2.36× the bf16 arm's C1 and fact-preserving where Q4_K_M is not** |
 | `humanizer-12b-q4km-llamacpp` (probe) | 23.18 ± 0.19 | 23.18 / — (C1 only; no concurrency sweep) | 8,192 × `parallel: 2`, `kv_unified` = 2 slots; `/v1/completions` only (no chat template) | — · — · — · — · — · — (off-brief; same instrument as the bf16 arm: **2 genuine fact errors / 40 rewrites vs 1**, 15 other fact flags all reformattings, 41 word→digit / notation added numbers) | 7.63 GB pack · 99 GiB available while serving · TTR 5.7 s | `~/benchmarks/humanizer-20261022/` (`decode-triage.json`, `measure.json`, `analyze.log`, `serve.log`, `probe-recipe.yaml`) | **no ship — 3.05× the bf16's C1 (23.18 vs 7.6) but one fact error worse on its own instrument** |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | 0.088 img/s (11.33–11.41 s @1024²; **53.24 s @2048²**) | — (one request at a time) | single denoise lock | n/a (non-commercial eval arm; 8-step CFG=1, byte-identical same-seed PNG) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | `~/benchmarks/qwen-image-20261014/results.json`, `~/benchmarks/media-gen-20261018/REPORT.md` | **KEEP — media-gen cells closed** |
 | `mellum2.1-12b-a2.5b-bf16-thinking-vllm` | 42.3 ± 0.1 | 42.3 / 67.2 / 99.9 / 135.6 | util 0.55 (66.6 GiB budget); 131,072; KV grant not captured | 36/37 · — · — · — · — · — | 24.3 GB · util 0.55 | `~/benchmarks/mellum-20261015/perf-ladder.json`, `house.json` | **retire** — dominated by its own Q4_K_M sibling |
 | `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
+| `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **measured control — C1 20.38 misses its own ≥25 t/s bar; the FP8/INT8 tiers are the A/B** |
 
 **Memory column read-out:** for vLLM arms it is the shipped `gpu_memory_utilization` cap plus the
 engine's own KV grant (a util is a cap, not a peak); for the llama.cpp arms it is the resident pack
@@ -528,44 +531,55 @@ vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node
 - **Receipt:** `head:~/benchmarks/reasoning-candidates-20261021/` (`REPORT.md`, `house.json` @1024 =
   36/37, `house-2048.json` = 37/37, `ladder.json`, `serve.log`).
 
-## Humanizer-12B quant round — measured, no recipe
+## [humanizer-12b-q6k-llamacpp](humanizer-12b-q6k-llamacpp.yaml)
 
-The owner asked whether any published quant of `jialinyyzz/humanizer` (12B `gemma4_unified`
-rewriter, Apache-2.0) deserves a recipe now that the 2026-10-14 bf16 arm is archived. **Answer: not
-at the shipped quality bar — the fastest quant is 3.05× faster and lands one fact error worse than
-the retired baseline.**
+The lane's first **text-rewriting** arm, shipped on the owner's ask (2026-10-22): any draft in, the
+same draft out in a human voice with every number, unit, date, name and quotation intact. It is
+off-brief for the four selection axes by construction (no reasoning, no tool calls), so it ships as a
+*measured capability*, not as a selection candidate — and its bar was set before the run.
 
-- **Family (14 Hub repos, all ungated, all Apache-2.0):** vendor `jialinyyzz/humanizer-GGUF`
-  (imatrix; IQ2_XS-QAT 3.89 GB, IQ3_XXS-QAT 5.59, Q4_K_M 7.63, Q6_K 10.03, Q8_0 12.67, bf16 23.83),
-  `mradermacher/humanizer{,-i1}-GGUF` (11 / 25), `ngquocvinh/Humanizer-12B-GGUF` (17),
-  `webmp3/Sakura-humanizer-12B-GGUF` (3 mixed), two `hoja-solutions` NVFP4 packs (8.25 GB, vLLM
-  route), six MLX packs (**Apple-only, no engine here**) and `infosave/humanizer-cmf` (CortiQ
-  format, no engine here).
-- **Route:** stock upstream llama.cpp already carries `src/models/gemma4.cpp` at the registry's
-  `b2e5e9b` pin — no fork needed, and the NVFP4 packs run on the pinned vLLM 0.30. Measured:
-  **`jialinyyzz/humanizer-GGUF:humanizer-12b-Q4_K_M.gguf`** (7,625,160,864 B, `ftype Q4_K - Medium`,
-  11,907,350,576 params) on `scitrera/dgx-spark-llama-cpp:b10549-cu131` (b2e5e9b).
-- **Boot (`.34`, `sparkrun_082a4f322a793ea0_8ed3ce77d78f`):** TTR port-open **5.7 s**, total launch
-  229.3 s (7.6 GB distribution included); `GET /v1/models` → `jialinyyzz/humanizer-GGUF`;
-  `/v1/completions` only — the checkpoint defines no chat template, so the predecessor's 400 was a
-  property of the checkpoint, never an engine bug.
-- **Speed — PASS:** `decode-triage` C1 **23.18 ± 0.19 t/s @ d0** (pp 1,315 t/s, ttfr 1,559 ms) and
-  23.24 ± 0.11 @ d8192; the rewrite harness independently saw **42.1 s per 1k output tokens**
-  (23.8 t/s). Against the archived bf16 arm's 7.6 t/s: **3.05×**.
-- **Quality — FAIL at the pre-registered bar.** Same instrument, same 40 rewrites: the tight analyzer
-  flags **59** items against the bf16's **64** (numbers 10 vs 10, dates 0 vs 2, names 7 vs 8, added
-  numbers 42 vs 44), yet review of every flag finds **2 genuine fact errors vs the baseline's 1** —
-  the tutorial's "about 90 minutes" became "A couple hours", and the trip report's year `2026`
-  became `2006`. The other 15 fact flags are the same value in another notation (`4,200`→`4.200`,
-  `18,000 USD`→`18K USD`, `15:00`→`3pm`), and 41 of 42 added numbers are word→digit (`eleven`→`11`)
-  or enumeration. No CJK output in 40 rewrites (the card's short-English failure mode did not
-  appear); 46 formatting drops, all markdown markers.
-- **Read honestly:** one event per arm cannot separate their rates — 2/40 vs 1/40 is inside sampling
-  noise, which is exactly why the bar was set before the run. Deciding it needs a wider sample of
-  this pack, the Q6_K/Q8_0 tiers (10.03 / 12.67 GB), or the NVFP4 packs' vLLM route.
-- **Receipt:** `head:~/benchmarks/humanizer-20261022/` (`boot.log`, `serve.log`, `models.json`,
-  `decode-triage.json`, `measure.json`, `analyze.log`, `probe-recipe.yaml`); node `.34` re-censused
-  to 0 containers after the stop. Instrument: `tools/humanizer-measure.py` +
+- **Model:** `jialinyyzz/humanizer-GGUF:humanizer-12b-Q6_K.gguf` (10,029,799,584 B) — the vendor's own
+  Q6_K of a 12B `gemma4_unified` fine-tune of `google/gemma-4-12B`, Apache-2.0, ungated, 262,144-token
+  native window. **No chat template exists in the checkpoint** — the working surface is
+  `/v1/completions` with the byte-exact prompt from the repo's `prompt_format.json`
+  (`instr + "\n\n" + draft + sep`, fingerprint `cc51d66b4c593fbe`, asserted on every call), which is
+  also why the archived vLLM bf16 arm's chat route 400'd. That was a property of the checkpoint, never
+  an engine fault: vLLM says so verbatim ("you must provide a chat template if the tokenizer does not
+  define one"), and this boot's `/v1/models` advertises no template either.
+- **Boot (`.33`, `sparkrun_7b0a21d0dbeb323d_80fa71eb085e`):** TTR port-open **10.8 s** (engine init
+  0.8 s, model load 10.0 s); `GET /v1/models` → `jialinyyzz/humanizer-GGUF`; 10,029,799,584 B pack.
+  Engine `scitrera/dgx-spark-llama-cpp:b10549-cu131` — stock upstream llama.cpp carries
+  `src/models/gemma4.cpp` at our `b2e5e9b` pin, so the arch needs no fork.
+- **Speed:** `decode-triage` C1 **17.92 ± 0.04 t/s @ d0** (pp 999 t/s; five samples 17.87–17.96) and
+  **17.87 ± 0.05 @ d8192** (pp 1,366 t/s). **2.36× the archived bf16 arm's 7.6 t/s**, at 10 GB instead
+  of 88 GB of repo. The 40-rewrite harness independently read 55.1 s per 1k output tokens (18.1 t/s),
+  matching the bench.
+- **Quality — PASS at the pre-registered bar.** Same instrument, same 40 rewrites as the bf16 arm:
+  **0 genuine fact errors vs the baseline's 1**. 69 heuristic flags, every one reviewed: numbers 8,
+  dates 8, names 8, added numbers 45 — all the same value in another notation (`3,140`→`3140`,
+  `2,840 EUR`→`2.840 EUR`, `4,100 USD`→`4.1k USD`, `September 25`→`9/25`), word→digit (`eleven`→`11`,
+  `four years`→`4 years`), enumeration (`Step 1/2/3`) or a heading re-worded (`Little Cedar Group
+  Opens Second…` → `Second Bristol Facility Launched by…`, company name intact). One compression worth
+  knowing: the policy memo's "50 Mbps down and 10 Mbps up" becomes "50/10 (download/upload)" — both
+  values survive, the unit is implied. No CJK output in 40 rewrites; 42 formatting drops, all markdown
+  markers.
+- **Why Q6_K ships and Q4_K_M does not** (the same 20×2 instrument, one boot each, one variable):
+  Q4_K_M (7.63 GB) is **29 % faster — 23.18 ± 0.19 t/s @ d0** — and loses **2 facts**: the tutorial's
+  "about 90 minutes" became "A couple hours", and the trip report's year `2026` became `2006`. The
+  falsifier was "no more genuine fact errors than the bf16 baseline (1/40)", so Q4_K_M is
+  measured-rejected and Q6_K (10.03 GB) is the smallest tier that passes. Q8_0 (12.67 GB) and the
+  `hoja-solutions` NVFP4 packs (8.25 GB, vLLM route) are unmeasured; the MLX packs and the CortiQ
+  `.cmf` have no engine here.
+- **Read honestly:** 0/40 vs 1/40 is not a quality *win* — the bar was "no worse than the baseline",
+  and it met that. A one-event difference cannot rank two arms; the 29 % speed gap between Q6_K and
+  Q4_K_M is far outside the 7–25 % inter-boot noise floor, which is why the quantisation variable is
+  the one that decided the ship. Sampling is per-request (temp 1.0, top_p 0.95, top_k off, min_p 0,
+  rep 1.0, ≤2048 tokens); do not raise the temperature for longer drafts without re-running the
+  instrument.
+- **Receipts:** `head:~/benchmarks/humanizer-20261022-q6k/` (`boot.log`, `serve.log`, `models.json`,
+  `decode-triage.{yaml,json,csv}`, `measure.json`, `analyze.log`, `probe-q6k.yaml`) and
+  `head:~/benchmarks/humanizer-20261022/` for the Q4_K_M rejection; nodes `.33` and `.34` re-censused
+  to 0 containers after each stop. Instrument: `tools/humanizer-measure.py` +
   `tools/humanizer-analyze.py`, guarded by `tests/test_humanizer_measure.py`.
 
 ## Kolibri-1 1M constant-state (eval-only, not a recipe)
@@ -622,6 +636,50 @@ unless noted. Receipt `~/benchmarks/ltx25-20261018/REPORT.md`.
 - **Cold rep = 204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first
   sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). It decodes to the same frame hash
   as the resident-model seed-42 rep — content is seed-deterministic, the h264 mux is not.
+
+## [spark-x2.6-4b-bf16-sglang](spark-x2.6-4b-bf16-sglang.yaml)
+
+SGLang · **1 node (TP=1)** · **measured control, 2026-10-22 — bf16 C1 20.38 fails its own ≥25 t/s bar**.
+
+*Engine: no new image, no fork, no mod, nothing staged. `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`
+ships `srt/models/spark2_5.py` (`Spark2_5ForCausalLM`, per-layer sliding-window RadixAttention, per-type
+rope — full layers 5e6/0.25, sliding 1e4/1.0), registers the card's `--tool-call-parser spark25`, and the
+checkpoint carries its own `chat_template.jinja`, so there is no `--chat-template` line.*
+
+- **Model:** `XHToken/Spark-X2.6-4B` — 4.11B dense, 36 layers of which **9 full-attention / 27
+  sliding-window (window 512)**, GQA 16 heads / 4 KV heads, `head_dim 256`, `hidden 2560`, tied
+  embeddings, Apache-2.0, pinned `66e3ae7b…`. Card window 1,048,576; shipped window **131,072**.
+- **Boot:** TTR **167.4 s port-open / 252.5 s HTTP-ready** after a 7.67 GiB distribution (288.4 s);
+  `/v1/models` → the repo id with **`max_model_len 131072`**; `server_args` carries `--revision
+  66e3ae7b…`, `qwen3` reasoning and `spark25` tool parsers, `mem_fraction_static 0.85`; weights 9.27 GB
+  in 48.7 s; default `flashinfer` attention backend.
+- **Memory — the number an operator gets wrong:** sparkrun's estimator prints "KV demand 18.0 GiB at
+  131,072", which is the *all-36-layers-full* arithmetic. The hybrid split makes it **84.48 GB of pooled
+  KV**: full pool **723,730 tok (24.84 GB)** + sliding pool **578,984 tok (59.64 GB)**, 14.80 GB spare
+  under util 0.85. So the shipped window holds **5.52×** concurrency, and the vendor's 1,048,576 would
+  need ~8× that — a multi-node artifact, not a flag.
+- **Measured (d0, pp 2048 / tg 128, n=5, decode rows only):** C1 **20.38 ± 0.09** t/s (20.24–20.51); ladder
+  **20.38 / 46.38 / 99.27 / 156.20** at c1/2/5/10, still rising at the cap, where the ceiling is
+  `max_num_seqs: 32`, not the pool. Prefill 5,259 → 7,499 t/s; TTFR 403 → 1,891 ms.
+- **Falsifier, fired:** the recipe pre-registered "bf16 C1 < 25 t/s demotes bf16 to a control" against the
+  8.22 GB weight-traffic roofline (~33 t/s at ~273 GB/s). 20.38 is **61 % of it**, so bf16 is not the
+  tier candidate — it is the control that the **FP8/INT8 tiers (4.45 GB each, ≈2× that ceiling)** have to
+  beat. That A/B is the open cell; this boot does not answer it.
+- **Quality:** house **37/37** (19/19 easy, 18/18 hard, 111/111 requests, no flaky) at `--max-tokens 4096`
+  on the served default, which is **thinking-on**. Same instrument with
+  `chat_template_kwargs {"enable_thinking": false}`: **90/111 = 81.1 %**, **30/37** stable tasks — the
+  reasoning channel is load-bearing here too, so a caller must not turn it off to save time.
+- **Contract, confirmed on the wire:** default → `reasoning_content` populated (`reasoning_tokens: 18`);
+  `enable_thinking: false` → zero reasoning tokens, 2 completion tokens; `reasoning_effort: "low"`
+  accepted (not raised); one tool definition returns `finish_reason: tool_calls` with
+  `get_weather({"city":"Lisbon"})` parsed by `spark25`.
+- **Instrument change:** `tools/quality-battery.py` gained `--thinking on|off`, which sends
+  `chat_template_kwargs {"enable_thinking": bool}`; unset sends nothing, so every earlier lane's request
+  bytes are unchanged. The thinking-on row above predates the flag and is the served default.
+- **Not measured:** needle, ARC/GSM8K, BFCL/TEB, the FP8/INT8/INT4 tiers, and any decode-side knob.
+- **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`README.md`, `boot.log`, `serve.log`,
+  `ladder.{yaml,json,csv}`, `battery-thinking-{on,off}.json`). Task
+  `sparkrun_31a011c489646cf6_2d38dfc4605e` on `.30`, 0 containers before and after.
 
 ## Attic index
 

@@ -136,5 +136,52 @@ class Analyzer(unittest.TestCase):
         self.assertNotIn("99.94", out)
 
 
+
+RECIPE = (Path(__file__).resolve().parent.parent / "recipes" / "explore"
+          / "humanizer-12b-q6k-llamacpp.yaml")
+
+
+def _recipe_text(text=None):
+    text = RECIPE.read_text(encoding="utf-8") if text is None else text
+    return "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
+
+
+class Recipe(unittest.TestCase):
+    """The shipped tier's load-bearing literals — each is silent until a boot.
+
+    Q6_K is the only tier that passed the bar above, so a silent drift back to
+    Q4_K_M (or to a floating container tag) would re-ship the measured-rejected
+    weights while the lane README still cites the Q6_K cells.
+    """
+
+    def test_pins_the_q6k_file_and_revision(self):
+        text = _recipe_text()
+        self.assertIn("model: jialinyyzz/humanizer-GGUF:humanizer-12b-Q6_K.gguf", text)
+        self.assertIn("model_revision: d9c6be435fe29e6e96dc42f4c3cc185e06ae3eac", text)
+
+    def test_container_is_tag_and_digest(self):
+        self.assertIn(
+            "scitrera/dgx-spark-llama-cpp:b10549-cu131"
+            "@sha256:ad14055470c2bd5c2b4c088dc5727d950da00f62408f438f4f3833c704af0dca",
+            _recipe_text())
+
+    def test_alias_is_the_served_name_not_the_model_placeholder(self):
+        text = _recipe_text()
+        self.assertIn("--alias {served_model_name}", text)
+        self.assertNotIn("--alias {model}", text)
+
+    def test_kv_unified_and_window(self):
+        text = _recipe_text()
+        self.assertIn("--kv-unified", text)
+        self.assertIn("ctx_size: 8192", text)
+        self.assertIn("parallel: 2", text)
+
+    def test_commented_pins_do_not_satisfy_the_guards(self):
+        # Prose quoting a pin must not pass: a re-pin that landed in a comment
+        # would otherwise read as still pinned.
+        self.assertEqual(_recipe_text("model: x\n# model_revision: y\n"), "model: x")
+
+
+
 if __name__ == "__main__":
     unittest.main()

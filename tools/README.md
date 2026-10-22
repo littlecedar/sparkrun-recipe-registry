@@ -28,6 +28,8 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `eval-suite.py` | every lane's standard evaluation pass (the SOP) | drives `quality-battery.py`, `needle-haystack.py`, `bfcl-eval.py` and the ds4 hard tier against one live endpoint, then the horizon probe; `--selftest` |
 | `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
 | `horizon-analyze.py` | the horizon probe's JSONL arms | prints the per-arm loop/degradation summary; used by `eval-suite.py --checks horizon` |
+| `humanizer-measure.py` | the **rewrite-integrity instrument** — any arm whose job is to rewrite text without changing its facts (`recipes/explore/humanizer-12b-q6k-llamacpp.yaml` is its first shipped user) | 20 fixed drafts × 2 samples through `/v1/completions` with a byte-exact prompt (fingerprint `cc51d66b4c593fbe`) and a deterministic sampler; reports fact-diff, formatting-drop and wall-clock per 1k output tokens. Recovered verbatim from the 2026-10-14 receipt so the 2026-10-22 quant tiers compare against the archived bf16 baseline on one scale |
+| `humanizer-analyze.py` | the scorer of the same instrument | re-imports the drafts from `humanizer-measure.py` rather than from a receipt, and re-scores any arm's `results.json` — that is how bf16 / Q4_K_M / Q6_K were compared; guarded with the recipe by `tests/test_humanizer_measure.py` |
 | `cache-audit.py` | the fleet `sparkrun` runtime-cache (every lane's compiles) | registry-level, not lane-level: maps each cache tree to the recipe that owns its leaf key, so "which of these 99 trees is stale?" is a command and not a hand-derivation; `--selftest`; guarded by `tests/test_cache_audit.py`; policy and reclaim list in `mad-science/STORAGE-POLICY.md` |
 | `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; `--accept-file` declares deliberate holds and a dead entry gates as `stale-acceptance`; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
 
@@ -315,6 +317,12 @@ allowance reasoning and return a truncated answer (`finish_reason: length`) — 
 `11111` instead of `1111111110` on Nemotron-3.5-Lightning that way. That is a **budget miss, not a
 capability miss**: re-ask before recording a failure (4096 was the budget on 42 of the 43 house
 receipts up to 2026-10-21).
+
+**Mode is part of the number:** `--thinking on|off` sends
+`chat_template_kwargs {"enable_thinking": bool}`, and **unset sends no kwargs at all**, so every
+lane measured before 2026-10-22 sent the identical request bytes and its receipts stay comparable.
+Say which mode a score came from: on `Spark-X2.6-4B` the same battery scores **37/37 thinking-on and
+30/37 stable thinking-off** (decode rate is not the only thing a caller gives up).
 
 Measured on `deepseek-v4.1-flash-exl3-tp4-vllm` (2026-09-24): easy 19/19, hard
 17/18 = 94.4 %, stable over 3 repeats; the single hard failure is character
