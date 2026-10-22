@@ -29,6 +29,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `agentic-horizon-probe.py` | long-horizon agentic arms (ornith lane; any agentic serve) | writes `<out>.jsonl` + `<out>.jsonl.summary.json`; `--selftest` |
 | `horizon-analyze.py` | the horizon probe's JSONL arms | prints the per-arm loop/degradation summary; used by `eval-suite.py --checks horizon` |
 | `cache-audit.py` | the fleet `sparkrun` runtime-cache (every lane's compiles) | registry-level, not lane-level: maps each cache tree to the recipe that owns its leaf key, so "which of these 99 trees is stale?" is a command and not a hand-derivation; `--selftest`; guarded by `tests/test_cache_audit.py`; policy and reclaim list in `mad-science/STORAGE-POLICY.md` |
+| `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
 
 ## eval-suite.py (the SOP pass)
 
@@ -1111,3 +1112,83 @@ the recipe scan finding the shipped keys and *not* producing the two stale ds4 k
 shapes, the merge rule, and the 72 h gate; `tests/test_cache_audit.py` re-runs that ladder inside the
 repo's gate. Policy, budget derivation, and the reclaim list live in
 `mad-science/STORAGE-POLICY.md`.
+
+## refresh-sweep.py
+
+`sparkrun` records pins in six places and nothing reads them back: the recipe's `model:` +
+`model_revision:`, its `container:` digest, the mod/launcher revision constants
+(`DEFAULT_REVISION`, `OVERLAY_REVISION`, `MODEL_REVISION`, `hf download … --revision`), the
+Dockerfile's `ARG BASE_IMAGE` / `FROM …@sha256:` / `ARG <NAME>_REF`, and the engine ref inside a
+fork-built image. Two hand surveys on 2026-10-22 found all of the failure modes at once — model
+revisions behind Hub heads across five arms, a floating `ARG BASE_IMAGE` that made a rebuild
+non-reproducible, and every llama.cpp arm frozen behind a publisher that stopped — so the survey is
+a command now, and CI runs it.
+
+```sh
+uv run python -B tools/refresh-sweep.py --json /tmp/sweep.json --markdown /tmp/sweep.md --exit-code
+tools/refresh-sweep.py --lane explore --only container-newer-release --exit-code   # one lane, one class
+tools/refresh-sweep.py --recipe recipes/explore/kolibri-1-apex-24bpw-llamacpp.yaml
+tools/refresh-sweep.py --cache ~/.cache/refresh-sweep.json --apply               # containers only
+```
+
+**What it answers.** Per pin, a class from a fixed vocabulary — `model-current`,
+`model-stale-weights`, `model-stale-docs`, `model-unpinned`, `model-unresolvable`,
+`container-current`, `container-newer-release`, `container-floating`,
+`container-unresolvable`, `build-input-floating`, `build-input-stale`,
+`build-input-unresolvable` — printed verbatim in the table, the JSON and the markdown so an issue
+body can be assembled from it. Stale models are split **weights** vs **docs** by the unified diff
+of `…/compare/{pin}..main`: a changed `.safetensors`/`.gguf` is a re-boot, a changed `README.md` or
+`.eval_results/` is not. A repo id keeps its owner's spelling (`Qwen/…`, `inclusionAI/…`) — Hub
+lookups are case-sensitive and are never lower-cased before a request.
+
+**Fail closed.** A pin the tool could not check is `*-unresolvable`, never silent cleanliness: an
+unparseable recipe is an error, an empty selection is an error, an empty diff behind a moved head is
+an error (the state is contradictory, so nothing is claimed), and a registry 404 for a pinned tag
+is `container-unresolvable`. Exit codes, which CI depends on: **0** no drift class present, **1**
+drift present, **2** the sweep could not run (network, parse, git). `--only` narrows both the report
+and the gate to the classes named, so a container-only job cannot be failed by model drift; an exit
+of 2 is *always* 2, with or without `--exit-code`, so a broken sweep can never read as clean.
+
+**`--apply` is container-only by policy.** It rewrites `container:` lines whose class is
+`container-newer-release` — the same tag resolving to a newer digest, which is a rebuild of the tag
+the arm already names — and nothing else. It refuses to run on a non-empty `git status --porcelain`
+(so a bump can never be folded into someone else's in-flight edit), refuses if the `container:` line
+no longer matches the ref it surveyed, and prints per edited arm the boot command and the receipt the
+bump needs (TTR to port-open, `/v1/models`, one smoke completion, then the arm's own ladder/battery).
+**A model re-pin is never applied**: those are boot-gated by lane policy, and a newer tag the arm does
+not already name is reported (`newest_tag`) for a human to choose, never auto-selected.
+
+**Sources and caching.** Docker Hub tag listings and tag details, ghcr's anonymous pull token plus
+the manifest digest, Hugging Face model metadata + raw compare diffs + commit lists (token from
+`--token-env`/`HF_TOKEN`, else `~/.cache/huggingface/token`), and the GitHub API for llama.cpp and its
+forks (`GITHUB_TOKEN`/`GH_TOKEN`, else the gh CLI's stored oauth token — unauthenticated GitHub is
+60 requests/hour and the llama section needs about a dozen). `--cache PATH` stores responses with
+their `cached_at`, and the report prints it beside any row served from cache; an entry older than an
+hour is refetched, so a stale cache is never presented as current.
+
+**The llama.cpp section is why the tool exists.** Every llama.cpp arm here runs a fork or a
+third-party build: `brywil/llama.cpp@68fa28b` (`kolibri1`), `Xunzhuo/llama.cpp@c9f5974`
+(`decision2`), and `scitrera/dgx-spark-llama-cpp:b10549-cu131` whose publisher stopped. The section
+reports our refs with `behind_by` against **upstream** `ggml-org/llama.cpp` master (cross-repo
+compare, same fork network) *and* against the branch that holds the ref, upstream head + date + latest
+release, the `upstream_supports` map for the three features that motivated the forks (`graph_mtp` in
+`src/models/mellum.cpp`, `src/models/kolibri1.cpp`, `src/models/vllm-decision2.cpp`) plus `121a-real`
+in `ggml/src/ggml-cuda/CMakeLists.txt` — determined by fetching those paths at the upstream head and
+matching text, so a 404 is `false` and only a network failure is `unknown` — and each llama-cpp
+image's publisher status (newest tag, newest upload date). That is the answer to "can a stock build
+replace this fork image?".
+
+Measured 2026-10-22 against the tracked tree: 52 recipes, **59 model pins, 52 container pins, 16
+build inputs**, 0 unresolvable, 24 drift rows, exit 1 — `lmsysorg/sglang:dev-cu13` had moved under 5
+arms and `python:3.12-slim` under 2 (the seven `--apply` candidates), 9 arms were behind on docs
+only, 1 behind on weights (the Mellum GGUF pack grew its MTP files), 1 unpinned
+(`littlecedar-ornith-1.5-397b…`), the `dev-cu13` base digest had moved under three Dockerfiles, two
+`ARG <NAME>_REF` build inputs have no default, and `upstream_supports` was yes for all four features
+while the `scitrera` publisher's newest upload was still 2026-08-21.
+
+**It needs network.** Run it where Docker Hub, ghcr, Hugging Face and GitHub are reachable; offline it
+exits 2 rather than reporting a clean tree, which is the point. Guard: `tests/test_refresh_sweep.py`
+(35 tests, stdlib only, every registry call served by a fixture, an unmatched URL is a failure) — the
+negative controls are that `revision:` is not a pin, that a missing tag is not `current`, that an empty
+selection and an unparseable recipe raise, that `--apply` refuses a dirty tree and leaves
+`model_revision:` bytes untouched, and that the `graph_mtp` map flips when the fetched file lacks it.
