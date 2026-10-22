@@ -273,8 +273,19 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   4.74× the time — peak **56.51 GiB** alloc / 59.78 GiB reserved, node `MemAvailable` floor 53.8 GiB;
   the lane's ~26 s prediction is falsified 2.04×. A non-null `num_inference_steps` is accepted silently
   and ignored (`12` still returned `steps: 8`: the pipeline is configured from the checkpoint's saved
-  8-step `sample_sigmas`). Receipts `~/benchmarks/qwen-image-20261014/results.json` and
-  `~/benchmarks/media-gen-20261018/REPORT.md`.
+  8-step `sample_sigmas`) — since 2026-10-21 an explicit `sigmas` list does take, which is what makes
+  the other schedules reachable at all. Receipts `~/benchmarks/qwen-image-20261014/results.json` and
+  `~/benchmarks/media-gen-20261021/REPORT.md`.
+- **A faster route exists and is not shipped:** `vllm/vllm-omni:nightly` serves this checkpoint
+  natively (its own `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same
+  1024² 8-step image, **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs
+  36.82 GiB) — measured 2026-10-21 on `.34`, one serve per route. It is a **measured alternative, not
+  an arm**: it has no recipe, its `num_inference_steps` is inert *and* its own
+  `denoise_step_latency_ms` divides one total by the requested count (4/8/12 → the byte-identical PNG
+  at 8.7 s while claiming 2164/1086/721 ms per step), and same seed ≠ same image (`38ce554a…` vs this
+  arm's `e24f6e3a…`). **The §6 "quality judged by eye" item is open for both routes**, so do not swap
+  this script for an OMNI serve on latency alone. Notes:
+  [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 
 ## [ltx-2.5-22b-nvfp4-t2v-comfyui-script](ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)
@@ -492,7 +503,7 @@ archived recipes (3 Nemotron + 10 from the 2026-10-19 sweep).
 | [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md) | The 2026-10-19 Pareto selection, the 14-row tie-break record, the archived-arm manifest with one receipt per arm, the archived mods/Dockerfile, and the unmeasured-tier classification. |
 | [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) | The read-only research pass: 8 candidate families (§1), top-3 sequencing (§2), corrections to `mad-science/EXPLORE-CANDIDATES.md` (§3), the battery note (§4), per-arm GB10 evidence + verification checklists for the Laguna family (§5), the media-gen arms (§6) and `humanizer` (§7), and the 2026-10-16 `tfwnotops/…-ConstantKV` Kolibri-1M research queue entry (§8). Answers "what else could this lane serve, and on what precedent?" |
 | [`LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up notes: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. Answers "how was the LTX-2.5 runbook measured, and what did it cost?" |
-| [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the license banner, engine/venv design decisions, the §6 acceptance table, and the two mod defects found. Answers "how was the eval-only image arm built and verified?" |
+| [`QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up notes: the license banner, engine/venv design decisions, the §6 acceptance table, the two mod defects found, and the faster **vLLM-OMNI route** (measured, not shipped). Answers "how was the eval-only image arm built and verified, and what is the alternative?" |
 | [`MELLUM-21.md`](../../attic/explore/MELLUM-21.md) | Mellum2.1-12B bring-up: the owner-added collection provenance, the checkpoint/chat-template facts read at the pin, why vLLM 0.29 needs no mod, the revision resolution, the **GGUF/llama.cpp route decision** and the six open boot questions. |
 | [`mods/install-kolibri-plugin/`](../../attic/explore/mods/install-kolibri-plugin) | Archived with its only users (the FP8 base and three 4-bit packs); run an archived arm by path and it resolves adjacent to the recipe. |
 | [`mods/kolibri-drafter-launcher/`](../../attic/explore/mods/kolibri-drafter-launcher) | Archived with the TensorFold drafter arm. |

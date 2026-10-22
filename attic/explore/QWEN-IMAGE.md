@@ -23,8 +23,10 @@ for it.
 | [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, license banner at the top |
 | [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
 
-The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang`/`vLLM` runtime
-serves this checkpoint**, so §6(b)'s "script-launcher/runbook-shaped arm" is the
+The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang` runtime serves this
+checkpoint** ([`vLLM-OMNI` does, measured 2026-10-21 — see "vLLM-OMNI route"
+below, and it is a measured alternative rather than an arm](#vllm-omni-route-measured-2026-10-21)),
+so §6(b)'s "script-launcher/runbook-shaped arm" is the
 shape that shipped — the same mechanism as the TensorFold DSV41 shim and the
 Decision lane's `vllm-srun` arms: `runtime: vllm` is the family whose
 model-distribution and single-node launcher contract the command satisfies,
@@ -147,6 +149,81 @@ a shorter schedule buys latency, not headroom. The 8-step control stayed byte-id
 after the mod, so the default path is untouched. Quality is not judged by these cells:
 the §6 by-eye item stays open, and 4 steps is proven reproducible, not recommended.
 Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.NN`.
+
+## vLLM-OMNI route (measured 2026-10-21)
+
+`vllm/vllm-omni:nightly` serves this checkpoint natively and beats the shipped Diffusers launcher by
+**~24 % warm at the same step count and the same peak memory**. It is **recorded as a measured
+alternative, not as an arm**: there is no visual verdict, and the same seed does not give the same
+image (below). One boot on `.34`, one serve each route, same prompt, seed 42, 1024², CFG=1
+(`guidance_scale: 1.0`), shipped 8-step schedule.
+
+| route | 8-step cold | 8-step warm | peak GPU memory | per step (warm) | engine |
+|---|---:|---:|---:|---:|---|
+| Diffusers mod (`server.py`) | 12.64 s | **11.49 s** | 36.82 GiB alloc / 37.65 GiB reserved | 1.43 s | diffusers 0.41 venv |
+| **vLLM-OMNI** | **11.19 s** | **8.66–8.75 s** | **36.84 GiB** (`vllm_omni:peak_memory_mb{stage="0"}` = 37,726 MB) | **1.08 s** | vllm-omni 0.32.0rc2.dev29 / vllm 0.32.0, torch 2.13 cu130, transformers 5.19.0 |
+
+The 2.79 s warm delta is all denoise: no venv is staged and nothing is loaded twice — OMNI ships its
+own `QwenImage21Pipeline` under `vllm_omni/diffusion/models/qwen_image_21/`, so the checkpoint needs
+nothing from the mod. Boot: `docker run -d --name omni-qwen --network host --gpus all -v
+/<home-dir>/.cache/huggingface:/root/.cache/huggingface -e HF_HUB_OFFLINE=1 vllm/vllm-omni:nightly vllm
+serve <snapshot>/fc13ba19… --omni --served-model-name Qwen/Qwen-Image-2.1-Turbo --port 8000`; the
+endpoint for a diffusion model is `POST /v1/images/generations` (`/health` → `{"status":"healthy"}`).
+
+| boot fact | value |
+|---|---|
+| TTR | container start 01:12:37Z → `Application startup complete` **≈ 4 min** (weights 30.22 GiB in 225 s; 750 tensors, 2 shards) |
+| resolved pipeline | `QwenImage21Pipeline`, `final_output_type='image'` |
+| attention backend | **`CUDNN_ATTN`** auto-selected for "Blackwell sm_121, cuDNN 92000, head_dim 128" |
+| memory after load | 30.44 GiB process-scoped GPU memory |
+
+### The two probes that saved a dead boot
+
+Both were run before the serve, and each one alone would have been a boot that could not start:
+
+- **`:latest` cannot load this checkpoint.** `vllm/vllm-omni:latest` is vllm-omni **0.31.0rc1**
+  (diffusers 0.40.0) and its diffusion registry has **`QwenImagePipeline` only — no
+  `QwenImage21Pipeline`**, while `model_index.json` declares `_class_name: QwenImage21Pipeline`. The
+  **nightly** (0.32.0rc2.dev29) carries it. Anyone re-running this: pin the nightly digest, not
+  `:latest`.
+- **GB10's kernel arch is not a blocker.** `torch.cuda.get_device_capability()` → **(12, 1)**, i.e.
+  sm_121, and torch's `arch_flags` list sm_80…sm_120 with **no sm_121 cubin**, so a `no kernel image is
+  available` failure looked likely; a bf16 512² matmul on `--gpus all` runs anyway through PTX JIT, and
+  the full serve then ran. Arch is a risk to check, not a reason to skip the route.
+
+### The step knob lies harder here than in the Diffusers mod
+
+`num_inference_steps` is inert on this endpoint exactly as it is in the mod — the checkpoint's saved
+`sample_sigmas` still wins — **and the engine reports the fiction instead of dropping the field**.
+Three requests differing only in that field, same seed, all three wrote the **byte-identical PNG**
+(`sha256 38ce554a1ccb4e85…45704690`, 4,196,804 B):
+
+| requested steps | wall (`stage_gen_time_ms`) | server's `denoise_step_latency_ms` |
+|---:|---:|---:|
+| 4 | 8.73 s (8,655) | 2,164 |
+| 8 | 8.75 s (8,686) | 1,086 |
+| 12 | 8.72 s (8,651) | 721 |
+
+It accepts the field, ignores it, then **divides the same total by the requested count** — so asking for
+more steps makes it *claim each step was faster*. Anyone benchmarking this endpoint on its reported
+per-step latency is quoting fiction; the mod at least echoed `steps: 8` honestly. The 4 and 12 rows are
+therefore provenance, not schedules: there is no working 4-step OMNI cell to set against the Diffusers
+4-step 6.38 s.
+
+### Why it is not an arm
+
+- **No visual verdict, and the two routes disagree on pixels.** Same prompt and seed give a *different*
+  image — OMNI `38ce554a…45704690` vs Diffusers `e24f6e3a…24ee24a` — which is expected across different
+  sampler/VAE code paths, and nothing was compared by eye. So the §6 "quality judged by eye" item stays
+  **open for both routes**, and the OMNI route cannot be preferred on latency alone.
+- **No recipe was written.** Shipping it would need a script/burst recipe plus a decision about the inert
+  step knob; that is the lane owner's call, not this measurement's.
+
+Both 8-step PNGs are named by route in the receipt for that eye:
+`~/benchmarks/media-gen-20261021/eight-step-diffusers.png` (`e24f6e3aa694fbcc566367fb9590f5f4f9fbaa483c65f594594aa4a2724ee24a`)
+and `~/benchmarks/media-gen-20261021/eight-step-omni.png` (`38ce554a1ccb4e85789f590121bc545fb7ae69bc3d7f9fb4b75f86db45704690`);
+the measurement itself is `~/benchmarks/media-gen-20261021/vllm-omni/REPORT.md` + `omni.json`,
+`omni-warm8.json`, `serve.log.gz`.
 
 ### §6 acceptance criterion, item by item
 

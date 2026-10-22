@@ -581,6 +581,23 @@ Any model with reasoning and tool-calling capabilities
   interpolation, a dropped `sigmas` kwarg), run against temp-dir shadow copies so nothing on disk moves
   (`75fb9fc`). 13 cases; the suite reads 752 with the file moved aside and **765** with it present. The 8-step
   control still takes the saved schedule, so no shipped number changed.)*
+  *(closed 2026-10-21, latest — **the vLLM-OMNI route works and is ~24 % faster, and it stays
+  unshipped on a quality caveat.** `vllm/vllm-omni:nightly` (0.32.0rc2.dev29) serves
+  `Qwen/Qwen-Image-2.1-Turbo` natively through its own `QwenImage21Pipeline` on one GB10: TTR ≈ 4 min,
+  `CUDNN_ATTN` auto-selected for sm_121/cuDNN 92000/head_dim 128, `POST /v1/images/generations`.
+  **8.66–8.75 s warm / 11.19 s cold** per 1024² 8-step image against the Diffusers arm's 11.49 / 12.64
+  s — 1.08 vs 1.43 s per step — at the **same** peak (36.84 vs 36.82 GiB). Two probes saved a dead
+  boot and are worth not repeating: **`:latest` is 0.31.0rc1 and cannot load this checkpoint** (its
+  registry has `QwenImagePipeline` only, while `model_index.json` declares `QwenImage21Pipeline`), and
+  **sm_121 has no cubin in torch's arch flags yet bf16 matmul runs through PTX JIT**, so arch was never
+  the blocker. **Not an arm:** no recipe was written; `num_inference_steps` is inert *and* the engine
+  divides one total by the requested count (4/8/12 all wrote the byte-identical PNG in ~8.7 s while
+  `denoise_step_latency_ms` read 2164/1086/721 — asking for more steps claims each step got faster); and
+  same seed ≠ same image (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). So the media-gen cells are all
+  measured, and what is left is a **by-eye verdict on both routes**, open in `recipes/explore/README.md`
+  §6 and in `attic/explore/QWEN-IMAGE.md`. Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
+  (`REPORT.md`, `omni.json`, `omni-warm8.json`); both 8-step PNGs named by route one directory up.)*
+
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
