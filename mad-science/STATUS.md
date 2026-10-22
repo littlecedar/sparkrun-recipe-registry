@@ -6,7 +6,7 @@ The night's verdicts are in: the SGLang `v0.5.22` bump closed with six arms held
 
 | where | what | since | state |
 |---|---|---|---|
-| `.30`+`.31`+`.32`+`.33` | `tp4-queue` — W6 on `v0.5.22`, the block's first TP=4 boot | 03:35 | **loading weights, live**: task `sparkrun_08acf79cd757a666_7afff0589a33`, `node_0`–`node_3` on `.30`/`.31`/`.32`/`.33`, four containers up since **03:35:35 ET** on `lmsysorg/sglang:v0.5.22-cu130`; client live on the head (`sparkrun run .scratch/w6-v0522/tp4-v0522.yaml -H .NN,.31,.32,.33 --transfer-mode local --no-ready-wait`, pid 97943); at **03:40 ET** the serve log on `.30` reads **`Multi-thread loading shards: 8/41` at ~13 s/shard** (~7.5 min of load left) and no endpoint yet. The set this launch chose is `.30`–`.33` (`.34` and `.35` at 0 containers) because the consecutive-node rule is lifted, so **every receipt must name the node set it used** |
+| — | `tp4-queue` — W6 on `v0.5.22` and W12 on the b12x vLLM build, both finished 03:44 ET | 03:35 | **W6: TP=4 refused by the engine on v0.5.22 exactly as on v0.5.20** — all four ranks (`modelopt_quant.py:2942`, gated-activation padding) → a checkpoint limit, not a build defect; quartet `.30`/`.31`/`.32`/`.33`, task `08acf79cd757a666_7afff0589a33`, 0 containers after. **W12: served** TP=2 on `.31`/`.32` (`6a76d7f90a79f4f4_6eb961eae222`) at 42.8/51.2/40.1 t/s (median 42.8, 256 tok, temp 0), `max_model_len` 262144, KV 1.76M tok; needed `load_format: safetensors` because the image's instanttensor lacks `_determine_buffer_size` (`weight_utils.py:1679`). All four nodes at 0 containers after. Receipts `~/benchmarks/tp4-20261022/{w6-tp4-v0522,w12-vllm-b12x}/REPORT.md` |
 
 ## Attention
 
