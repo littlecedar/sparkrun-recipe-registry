@@ -180,11 +180,12 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   traceback (`generate rejected: …` + `400` in the serve log, zero `Traceback` lines), and `/health`
   then read `requests 1, attempts 3, failed 2`. Receipt
   `head:~/benchmarks/vllm-032-20261022/qwen-image-live/` (cell JSON, PNG, serve log, preflight).
-- **A faster route exists and is not shipped:** `vllm/vllm-omni:nightly` serves this checkpoint
-  natively (its own `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same
-  1024² 8-step image, **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs
-  36.82 GiB) — measured 2026-10-21 on `.34`, one serve per route. It is a **measured alternative,
-  not an arm**: it has no recipe, its `num_inference_steps` is inert *and* its own
+- **A faster route exists and now ships as its own arm** (the next section; authored 2026-10-22,
+  not yet booted): `vllm/vllm-omni:nightly` serves this checkpoint natively (its own
+  `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same 1024² 8-step image,
+  **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs 36.82 GiB) — measured
+  2026-10-21 on `.34`, one serve per route. Two properties stay attached to that route: its
+  `num_inference_steps` is inert *and* its own
   `denoise_step_latency_ms` divides one total by the requested count (4/8/12 → the byte-identical
   PNG at 8.7 s while claiming 2164/1086/721 ms per step), and same seed ≠ same image (`38ce554a…`
   vs this arm's `e24f6e3a…`). **Both 8-step images were inspected at full resolution against the
