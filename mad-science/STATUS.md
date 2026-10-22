@@ -31,12 +31,12 @@ Six of the night's streams closed with a verdict; four are still moving. Gate **
 
 | time ET | commit | one clause |
 |---|---|---|
-| 03:18 | `014e0b2` | the residual 15 % is the fork's own patches: same node 114.1/116.2 vs upstream 100.3/98.7, and a CUDA-13.1.1 upstream build buys nothing (99.4/100.6) |
+| 03:22 | `ff33ec5` | the ~15 % is the **upstream ref era**, not the fork's build: the fork's tree `b2e5e9b` through our Dockerfile and flags measures 114.2/113.9, and `b2e5e9b` is 1254 upstream commits older — so no flag or CUDA difference matters |
+| 03:18 | `014e0b2` | same-node A/B closes the residual: fork 114.1/116.2 vs upstream 100.3/98.7, and a CUDA-13.1.1 upstream build buys nothing (99.4/100.6) |
 | 03:11 | `cc05822` | W12 loads through safetensors — instanttensor cannot shard at TP=2 on the pinned image |
 | 03:10 | `6b82a39` + `6a1129d` | the spark-x2.6 control carries its measured outcome; the battery gains `--thinking on\|off` |
 | 03:07 | `475d07f` | humanizer Q6_K ships: C1 17.92 ± 0.04 t/s, 0/40 fact errors vs the baseline's 1, TTR 10.8 s, `/v1/completions` only |
-| 03:04 | `29410d2` | the `v0.5.22` re-pin is **closed** — six arms, index digest `e3a4f060…` verified with `imagetools inspect`, 0 OSV advisories |
-| 03:03 | `20da8f2` | six arms bumped and held: TTR 238 / 251 / 129 / 94 / 94 / 240 s, house 37-37 / 37-37 / — / 32-37 / 33-37 / 36-37, arm A's n=5 ladder C1 97.6 ± 8.8 |
+| 03:04 | `29410d2` | the `v0.5.22` re-pin is **closed** — six arms held (TTR 238/251/129/94/94/240 s, house 37-37/37-37/—/32-37/33-37/36-37, arm A n=5 C1 97.6 ± 8.8), index digest `e3a4f060…` verified with `imagetools inspect`, 0 OSV advisories |
 
 ## Pointers
 
