@@ -63,18 +63,24 @@ govern, per the protocol; the verbatim asks remain in git.)*
 
   | candidate | C1 | C10 | ratio | E | house ≥36/37 | verdict |
   |---|---|---|---|---|---|---|
-  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **102.03 ± 0.35** (measured, `~/benchmarks/mellum-mtp-draft-20261022/`) | **unmeasured — the gap** | — | **0.131** (8-slot history, not this arm's shape) | unmeasured (coding-tuned; the general battery is the question) | passes C1, needs C10 + E + quality |
+  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **110.52 ± 1.77** (ten slots, `~/benchmarks/mellum-c10-20261022/REPORT.md`) | **185.96 ± 2.31** | 1.68× | **0.168** (measured) | **36/37** thinking-on @4096 (`needle-1` empty reply, 1 of 3) | **passes C1 (+59 %) and C10 (+60 %), house at the bar; FAILS the C5→C10 leg — c5 208.29 ± 5.67 → c10 185.96, −10.7 %** |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **0.533** | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
   | Ornith-1.5-122B — UD-Q3_K_XL (llama.cpp, 59.76 GB) | **27.94 ± 0.07** (measured, `~/benchmarks/ornith-122b-20261022/`) | ran 5 rounds, **JSON unflushed → not evidence** | — | — (C5 < C2 already) | unmeasured | **fails C1**; C2 42.75 ± 0.48 / C5 43.20 ± 4.50 means C5 < C2, i.e. batching-poor at 8 slots |
   | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | unmeasured — **never reached readiness** (weight shard 2/8) | unmeasured | — | — | unmeasured | open |
   | Sage-A1.5 FP8 (36B) | **39.25 ± 0.13** (measured, `~/benchmarks/sage-a15-20261022/ladder.json`) | **134.74 ± 2.12** | 3.43× | **0.343** | not run — the gate stopped at C1 | **fails C1** (39.25 vs 69.28); C10 clears its bar, so the cap is the untuned triton fp8 MoE runner, not FP8 on GB10 |
   | knapcio TP=4 itself (4 nodes) | 69.28 ± 5.25 | 116.27 ± 6.22 | 1.68× | **0.168** | 36/37 | the bar, not a candidate |
 
-  **Consequence: the cheapest path to a qualifying arm is Mellum-12B's missing C10 rung plus a house
-  run** — it already clears C1 by **47 %** (102.03 vs 69.28) at ~8 GB resident, while the 100B+
-  candidates have produced one hard failure (Q3_K_XL, C1 27.94) and one still-unmeasured tier
-  (NVFP4), and each costs a whole node. Its pass needs C10 ≥ 116.27 (E ≥ 0.168) on its own shape;
-  the 0.131 history is reference only.
+  **Consequence, measured (2026-10-22): Mellum is the only arm that has now run the whole gate, and it
+  clears the two absolute bars by ~60 % at ~8 GB resident while failing only the C5→C10 leg** — C1
+  110.52 ± 1.77, C10 185.96 ± 2.31, house 36/37 at 4096 thinking-on, geometry verified at ten real
+  slots (`n_slots = 10, n_ctx_slot = 131072, kv_unified = true`). The dip below c5 is **not** the old
+  8-slot queue artifact: with the queue removed the aggregate still falls (208.29 → 185.96, −10.7 %),
+  per-stream decode 41.7 → 18.6 t/s, so this arm's throughput peak is genuinely five streams, and the
+  ten-slot c10 is 39.6 t/s above the 8-slot figure (146.39). The 100B+ candidates remain where they
+  were — one hard C1 failure (Q3_K_XL 27.94) and one tier still unmeasured (NVFP4).
+  **Open owner question:** whether leg (2) should disqualify an arm whose c10 clears the absolute bar
+  by 60 % merely because its c5 is higher — i.e. whether "non-decreasing C5→C10" is the right
+  expression of "without degrading too much" for a small arm that saturates early. Not a worker call.
 
 - **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
   `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at
