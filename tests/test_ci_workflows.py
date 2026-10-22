@@ -114,6 +114,24 @@ def nonzero_exit_blocks(text):
     return out
 
 
+def push_findings(text):
+    """The built image goes to GHCR on the run's own token: a `packages: write`-less job fails 403
+    after the arm64 build, and a Docker Hub credential path needs a secret nobody has to store."""
+    build = text[text.index("  build:"):]
+    findings = []
+    if "ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-$SHORT" not in build:
+        findings.append("build job does not tag ghcr.io/littlecedar/dgx-spark-llama-cpp")
+    if not re.search(r"(?m)^  packages: write", text[text.index("\npermissions:"):text.index("jobs:")]):
+        findings.append("no workflow-level `packages: write`")
+    if 'docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin' not in build:
+        findings.append("no GHCR login as the run's actor")
+    if "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" not in build:
+        findings.append("the login does not draw on secrets.GITHUB_TOKEN")
+    if "DOCKERHUB" in text.upper():
+        findings.append("a Docker Hub credential reference remains")
+    return findings
+
+
 def disk_floor_findings(text, floor_gb=20):
     """The build job must prune a hosted runner's disk, print it, and refuse to start under the
     floor instead of letting `docker build` die mid-link. Returns what is missing."""
@@ -354,10 +372,9 @@ class LlamaCppEngine(unittest.TestCase):
                         self.text.index("name: Build and push the pinned upstream image"),
                         "the preflight must run before the build step, not after it")
 
-    def test_build_credentials_come_from_secrets_and_fail_loudly(self):
-        for name in ("secrets.DOCKERHUB_USERNAME", "secrets.DOCKERHUB_TOKEN"):
-            self.assertIn(name, self.build, name)
-        self.assertIn("set secrets.DOCKERHUB_USERNAME and secrets.DOCKERHUB_TOKEN", self.build)
+    def test_build_pushes_to_ghcr_on_the_runs_own_token(self):
+        self.assertEqual(push_findings(self.text), [])
+        self.assertIn("ghcr.io", self.text, "the header must name the registry the image lands in")
 
     def test_report_script_is_stdlib_only_and_non_fatal(self):
         text = _text(REPORT_SCRIPT)
@@ -433,6 +450,19 @@ class NegativeControls(unittest.TestCase):
                                " && vars.ARM64_RUNNER_ENABLED == 'true'"))
         self.assertEqual(len(hosted_runner_findings(broken)), 3,
                          "the pre-fix runner gate must trip every needle")
+
+    def test_a_docker_hub_push_is_caught(self):
+        text = _text(LLAMA)
+        self.assertEqual(push_findings(text), [])
+        broken = (text.replace('IMAGE="ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-$SHORT"',
+                               'IMAGE="littlecedar/dgx-spark-llama-cpp:upstream-$SHORT"')
+                      .replace('echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR"',
+                               'echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME"')
+                      .replace("  packages: write", "")
+                      .replace("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+                               "DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}"))
+        self.assertEqual(len(push_findings(broken)), 5,
+                         "the pre-GHCR push shape must trip every needle")
 
     def test_disk_preflight_without_the_refusal_is_caught(self):
         text = _text(LLAMA)

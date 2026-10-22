@@ -21,6 +21,12 @@
 #         starts with only ~14 GB free on `/` — the CUDA devel stage plus a full llama.cpp compile
 #         is tight there, so one step prunes toolchains a Docker build cannot use and fails with a
 #         clear error under 20 GB instead of letting `docker build` die mid-link.
+#
+# push:   GHCR — `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-<short>`. The login is the run's own
+#         `GITHUB_TOKEN` (workflow-level `packages: write`), so no registry secret is stored on the
+#         repository and nothing has to be rotated by hand. A package the workflow creates starts
+#         private: anonymous pulls 403 until its visibility is flipped to public in the package
+#         settings (GitHub exposes no REST endpoint for visibility).
 name: llamacpp-engine
 
 on:
@@ -34,7 +40,8 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: read     # the report job reads the tree; the build job also pushes the image
+  packages: write    # `docker push ghcr.io/...` authenticated by the run's own GITHUB_TOKEN
 
 jobs:
   report:
@@ -73,11 +80,9 @@ jobs:
             exit 1
           fi
 
-      - name: Check ref and credentials
+      - name: Check the dispatch ref
         env:
           LLAMA_REF: ${{ inputs.llama_ref }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -e
           if [ -z "$LLAMA_REF" ]; then
@@ -88,21 +93,16 @@ jobs:
             echo "::error::llama_ref must be a full 40-hex commit, got '$LLAMA_REF'"
             exit 1
           fi
-          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::error::set secrets.DOCKERHUB_USERNAME and secrets.DOCKERHUB_TOKEN on this repository before dispatching the build"
-            exit 1
-          fi
 
       - name: Build and push the pinned upstream image
         env:
           LLAMA_REF: ${{ inputs.llama_ref }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           SHORT="${LLAMA_REF:0:7}"
-          IMAGE="littlecedar/dgx-spark-llama-cpp:upstream-$SHORT"
-          printf '%s' "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          IMAGE="ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-$SHORT"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker build -f recipes/explore/Dockerfile.llamacpp-upstream \
             --build-arg LLAMA_REF="$LLAMA_REF" -t "$IMAGE" .
           docker push "$IMAGE"
