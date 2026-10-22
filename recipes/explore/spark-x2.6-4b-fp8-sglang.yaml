@@ -1,0 +1,74 @@
+recipe_version: "2"
+model: XHToken/Spark-X2.6-4B-FP8
+model_revision: 0318d6f6ab070c7b5b43052db571489b2508006c
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  XHToken/Spark-X2.6-4B-FP8 on ONE DGX Spark, 131,072 context — the FP8 tier A/B against
+  recipes/explore/spark-x2.6-4b-bf16-sglang.yaml, whose C1 20.38 t/s is 61 % of the bf16
+  weight-traffic roofline and therefore the number this tier has to beat. 4.47 GB of weights
+  (W8A8: float-quantized, weights per-channel symmetric, activations dynamic per-token,
+  targets q_k_v_proj / out_proj / the MLP gate-up-down regexes), so half of the bf16 tier's
+  weight traffic. The headwise attention output gate (self_attn.g_proj) stays bf16 in the
+  checkpoint's own `ignore` list, and the KV cache is bf16 on both tiers.
+  No --quantization flag on purpose: the checkpoint ships a compressed-tensors
+  `quantization_config` and the engine auto-detects it; forcing a name is how a hybrid-SWA
+  arch gets a quant path it was never measured on. Compressed-tensors on a 9-full/27-sliding
+  layer stack is NOT a given — if the engine refuses the checkpoint or the pooled KV falls,
+  that is the result, and this file stays a zz- probe. Pre-registered bar: ship only if it
+  loads AND house is >= 37/37 thinking-on AND C1 >= 20.38 ± 0.09; otherwise the bf16 control
+  ships and this is the measured-rejected row.
+  MEASURED 2026-10-22 on .33 (task sparkrun_9c8e0fffc3be638_80fa71eb085e, receipt
+  ~/benchmarks/spark-x26-20261022/): it LOADS — quant=compressed-tensors auto-detected with no
+  flag, weights 5.52 GB in 24.78 s, TTR 130.8 s port / 145.6 s HTTP including the 4.47 GB
+  distribution, and the KV pools grow to 779,390 full + 623,512 sliding tokens (5.95x the
+  window). Speed is the predicted 2x: ladder 40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 /
+  217.58 ± 2.72 t/s at c1/2/5/10 (+100 / +66 / +48 / +39 % on the bf16 control), prefill
+  8,986 -> 8,496 t/s (+71 %), TTFR 232 -> 1,664 ms.
+  REJECTED anyway, on the pre-registered quality bar: house 109/111 = 98.2 % (easy 19/19 clean,
+  hard 17/18 stable) with `trick-2` (the 5-machines/5-widgets item) empty on 2 of 3 reps.
+  Re-asked directly, that item returns finish_reason=length with 4,096 reasoning tokens and
+  content '' — an empty reply, not a wrong one: on this tier the item loops in the think block
+  until the budget is gone, where bf16 answers it 3/3. 36/37 stable < 37/37, so bf16 remains
+  the shipped tier and this file is the measured-rejected row.
+  Open (needs a node, pre-registered): the same item at --max-tokens 8192 to separate a budget
+  miss from a capability loss, and the INT8 tier (4.45 GB) as the last untried sibling.
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path.
+  served_model_name: XHToken/Spark-X2.6-4B-FP8
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 32
+  chunked_prefill_size: 8192
+
+# Same engine line as the bf16 control, minus nothing: no --attention-backend, no
+# --kv-cache-dtype, no --quantization (see the description). The chat template is in the
+# snapshot, so no --chat-template.
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser spark25
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}

@@ -32,6 +32,7 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
 - [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
+- [spark-x2.6-4b-fp8-sglang](#spark-x26-4b-fp8-sglang)
 - [Attic index](#attic-index)
 
 ---
@@ -40,8 +41,8 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 
 The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
 pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
-needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 19
-measured arms are listed. 16 are scored on these axes; the shipper records one rewriter with a
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 20
+measured arms are listed. 17 are scored on these axes; the shipper records one rewriter with a
 rewrite-fidelity cell instead (the bf16 humanizer it replaced, plus Q4_K_M, are measured-rejected
 rows). The verdict column is the selection. Decode rows only
 (`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped `max_model_len`; a
@@ -67,6 +68,7 @@ rows). The verdict column is the selection. Decode rows only
 | `mellum2.1-12b-a2.5b-bf16-thinking-vllm` | 42.3 ± 0.1 | 42.3 / 67.2 / 99.9 / 135.6 | util 0.55 (66.6 GiB budget); 131,072; KV grant not captured | 36/37 · — · — · — · — · — | 24.3 GB · util 0.55 | `~/benchmarks/mellum-20261015/perf-ladder.json`, `house.json` | **retire** — dominated by its own Q4_K_M sibling |
 | `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
 | `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **measured control — C1 20.38 misses its own ≥25 t/s bar; the FP8/INT8 tiers are the A/B** |
+| `spark-x2.6-4b-fp8-sglang` | **40.80 ± 0.09** | 40.80 / 77.06 / 146.63 / **217.58** (still rising at c10) | KV 779,390 tok = **5.95×** at 131,072 (hybrid: 26.76 GB + 64.22 GB pools); `max_num_seqs: 32` | **36/37** thinking-on @4096 (109/111; `trick-2` empty on 2 of 3 reps, re-ask = `finish=length` with 4,096 reasoning tokens) · — · — · tool-call not re-probed · — | 5.52 GB resident (4.47 GB checkpoint) · util 0.85 (90.98 GB KV, 11.38 GB spare) · TTR 130.8 s port / 145.6 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot-fp8.log`, `serve-fp8.log`, `ladder-fp8.json`, `battery-fp8-thinking-on.json`) | **rejected — 2× the control's C1, but 36/37 stable misses the ≥37/37 bar; bf16 ships** |
 | `drama-3-35b-a3b-fp8-vllm-omni-tts` (draft) | — (TTS: speech, no decode ladder) | — (none taken) | unknown — 2-stage omni pipeline (AR backbone + DAC codec stage), util split 0.55 / 0.06 | — (no text battery applies; pre-registered cells in the `mad-science/TODO.md` item) | 36.88 GiB checkpoint, **37.69 GiB loaded** · util 0.55 + 0.06 | `~/benchmarks/drama-20261022/sparkrun_serve.log` (killed boot) | **DRAFT — never served a request**: weights loaded in 242.8 s and torch.compile took 34.7 s, so vllm-omni's default 300 s `--stage-init-timeout` fired 2 s after compile finished — the recipe now ships `stage_init_timeout: 1800`. Licence-gated (Fish Audio community licence, USD 500k revenue threshold) |
 
 **Memory column read-out:** for vLLM arms it is the shipped `gpu_memory_utilization` cap plus the
@@ -662,10 +664,14 @@ checkpoint carries its own `chat_template.jinja`, so there is no `--chat-templat
 - **Measured (d0, pp 2048 / tg 128, n=5, decode rows only):** C1 **20.38 ± 0.09** t/s (20.24–20.51); ladder
   **20.38 / 46.38 / 99.27 / 156.20** at c1/2/5/10, still rising at the cap, where the ceiling is
   `max_num_seqs: 32`, not the pool. Prefill 5,259 → 7,499 t/s; TTFR 403 → 1,891 ms.
+- **Concurrency knob, one knob, same window:** `--max-running-requests` **96 vs this 32** gave c1
+  20.75 ± 0.40 / c2 48.46 ± 1.22 / c5 96.31 ± 6.57 / c10 156.94 ± 0.47 t/s — every delta inside one
+  sigma (c10 +0.5 %), so **32 stays**. Ten streams never approached the clamp; the pool at 96 was
+  743,780 tokens (7.7k per sequence at full occupancy), so the ladder's ceiling was never the clamp.
 - **Falsifier, fired:** the recipe pre-registered "bf16 C1 < 25 t/s demotes bf16 to a control" against the
   8.22 GB weight-traffic roofline (~33 t/s at ~273 GB/s). 20.38 is **61 % of it**, so bf16 is not the
   tier candidate — it is the control that the **FP8/INT8 tiers (4.45 GB each, ≈2× that ceiling)** have to
-  beat. That A/B is the open cell; this boot does not answer it.
+  beat. That A/B has since run — see the FP8 arm below; bf16 keeps the shipped slot.
 - **Quality:** house **37/37** (19/19 easy, 18/18 hard, 111/111 requests, no flaky) at `--max-tokens 4096`
   on the served default, which is **thinking-on**. Same instrument with
   `chat_template_kwargs {"enable_thinking": false}`: **90/111 = 81.1 %**, **30/37** stable tasks — the
@@ -677,10 +683,36 @@ checkpoint carries its own `chat_template.jinja`, so there is no `--chat-templat
 - **Instrument change:** `tools/quality-battery.py` gained `--thinking on|off`, which sends
   `chat_template_kwargs {"enable_thinking": bool}`; unset sends nothing, so every earlier lane's request
   bytes are unchanged. The thinking-on row above predates the flag and is the served default.
-- **Not measured:** needle, ARC/GSM8K, BFCL/TEB, the FP8/INT8/INT4 tiers, and any decode-side knob.
+- **Not measured:** needle, ARC/GSM8K, BFCL/TEB, the INT8/INT4 tiers, and any decode-side knob.
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`README.md`, `boot.log`, `serve.log`,
   `ladder.{yaml,json,csv}`, `battery-thinking-{on,off}.json`). Task
   `sparkrun_31a011c489646cf6_2d38dfc4605e` on `.30`, 0 containers before and after.
+
+## [spark-x2.6-4b-fp8-sglang](spark-x2.6-4b-fp8-sglang.yaml)
+
+SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-22 — 2× the control's C1, one house item short**.
+
+The tier A/B the bf16 control was booted for: `XHToken/Spark-X2.6-4B-FP8` (4.47 GB, W8A8
+compressed-tensors — weights per-channel symmetric, activations dynamic per-token, on
+`q_k_v_proj` / `out_proj` / the MLP regexes; `self_attn.g_proj` stays bf16 per its `ignore` list),
+same container, same knobs, **no `--quantization` flag** — the engine auto-detects it.
+
+- **Boot:** quant=compressed-tensors on a hybrid-SWA stack is not a given, and here it works: weights
+  **5.52 GB in 24.8 s**, TTR **130.8 s port / 145.6 s HTTP** counting the 4.47 GB distribution, and the
+  pools grow to **779,390 full + 623,512 sliding tokens (5.95×)** with 11.38 GB spare.
+- **Speed:** ladder **40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 / 217.58 ± 2.72** at c1/2/5/10 —
+  **+100 / +66 / +48 / +39 %** on the bf16 control, i.e. exactly the halved weight traffic, with prefill
+  +71 % (8,986 t/s) and TTFR 232 → 1,664 ms.
+- **Why it still loses:** house **109/111 = 98.2 %** thinking-on (easy **19/19** clean, hard 17/18
+  stable) with `trick-2` — the 5-machines/5-widgets item — empty on 2 of 3 reps. Re-asked directly it
+  returns `finish_reason=length` after **4,096 reasoning tokens with `content: ''`**: it loops in the
+  think block until the budget is gone, where bf16 answers the same item 3/3. **36/37 stable < the
+  pre-registered 37/37**, so the bar decides and the faster tier does not ship. Budget 8192 is the open
+  cell that would separate a loop from a capability loss (it was not run — the node was needed back).
+- **Not measured:** tool-call contract (not re-probed on this tier), needle/ARC/GSM8K/BFCL/TEB, INT8/INT4.
+- **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-fp8.log`, `serve-fp8.log`,
+  `ladder-fp8.{json,yaml,csv}`, `battery-fp8-thinking-on.json`). Task
+  `sparkrun_9c8e0fffc3be638_80fa71eb085e` on `.33`, 0 containers before and after.
 
 ## Attic index
 

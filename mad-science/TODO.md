@@ -1467,6 +1467,31 @@ medium)*
   context too. Tables, per-flag elimination and receipts: `attic/explore/AGENTS.md` §"The residual ~15 % is
   the upstream ref era"; the one-line policy is `mad-science/LLAMACPP-GGUF.md` §1. *(effort: long)*
 
+- [ ] **Spark-X2.6-4B: three pre-registered cells left, one boot each (needs 1 free node; nothing
+  running)** — the bf16 control (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`, C1 **20.38 ± 0.09**,
+  house 37/37 thinking-on / 30/37 off, 5.52× pool) and the FP8 tier
+  (`recipes/explore/spark-x2.6-4b-fp8-sglang.yaml`, C1 **40.80 ± 0.09** = +100 %, house **36/37**) are
+  both measured; receipts `~/benchmarks/spark-x26-20261022/` on the head. The three cells below are
+  written out so a later session needs no re-derivation. **(1) Is the FP8 rejection a budget miss?**
+  `trick-2` (prompt: *"If it takes 5 machines 5 minutes to make 5 widgets, how long would 100 machines
+  take (in minutes)? Reply with just the number."*) returns `finish_reason=length`, **4,096
+  `reasoning_tokens` and `content: ''`** at `--max-tokens 4096`, where bf16 answers it 3/3. Re-run
+  `tools/quality-battery.py http://<node>:8000 --tier both --repeat 3 --max-tokens 8192 --thinking on
+  --json fp8-mt8192.json` **plus** a direct re-ask of that one prompt recording `finish_reason` /
+  `reasoning_tokens` / `content`. If 8192 answers it, FP8's verdict becomes "needs a bigger budget" and
+  the ≥37/37 bar is re-read **with the budget stated**; if it still loops, the loop is a tier property.
+  **(2) INT8 tier** — the last untried sibling (4.45 GB per the card). Author it as a copy of the FP8
+  recipe with `model:`/`model_revision:`/`served_model_name:` swapped (**check the Hub repo id first**;
+  no `--quantization` flag), then the same pre-registered bar as FP8: loads AND house ≥ 37/37
+  thinking-on @4096 AND C1 ≥ **20.38 ± 0.09**, else measured-rejected. **(3) The clamp cell the ladder
+  never reached** — `--max-running-requests 96` vs `32` measured **no delta at c ≤ 10** (c1 20.75 ± 0.40,
+  c2 48.46 ± 1.22, c5 96.31 ± 6.57, c10 156.94 ± 0.47; every delta inside 1σ, c10 +0.5 %), because ten
+  streams never approached the clamp. To justify 96 at all, run a ladder profile with
+  `concurrency: [32, 48, 64, 96]` at pp 2048 / tg 128 / n=5 / decode rows only, and quote the pool
+  arithmetic: **723,730 pooled tokens ÷ 96 ≈ 7.5k per sequence at full occupancy** (743,780 measured at
+  96). Nothing here blocks the TP=4 block — all three wait for a free node. *(effort: short each;
+  pre-registered 2026-10-22)*
+
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*

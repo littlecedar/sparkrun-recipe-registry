@@ -34,6 +34,10 @@ description: >-
   FIRED — C1 20.38 is 61 % of this tier's ~33 t/s roofline, under the 25 t/s bar — so this
   file ships as the MEASURED CONTROL for the FP8/INT8 tier A/B, not as a verdict. Do not
   quote 20.38 as "the model's speed" without the tier next to it.
+  Concurrency knob, same window, one knob: --max-running-requests 96 vs the 32 above gave
+  c1 20.75 ± 0.40 / c2 48.46 ± 1.22 / c5 96.31 ± 6.57 / c10 156.94 ± 0.47 — every delta inside
+  one sigma (c10 +0.5 %), so 32 stays. Ten streams never approached the clamp; the pool at 96
+  was 743,780 tokens (7.7k per sequence), so the clamp was not the ceiling the ladder hit.
 metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/XHToken/Spark-X2.6-4B
