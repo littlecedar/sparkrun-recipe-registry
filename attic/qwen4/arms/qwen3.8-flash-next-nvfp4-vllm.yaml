@@ -24,9 +24,11 @@ metadata:
 mods:
   - "@eugr/mods/drop-caches"
   - "@eugr/mods/instanttensor-hybrid-draft-loader"
-  # House copy, not `@eugr/…`: the eugr registry no longer carries this mod (2026-10-22), and a
-  # `mods:` entry resolves against THIS file's directory, so the path climbs to the repo root.
-  - "../../../recipes/qwen4/mods/fix-qwen3.8-flash-next-vllm"
+  # House copy under this lane's own `mods/`, not `@eugr/…`: the eugr registry no longer carries this
+  # mod (2026-10-22). sparkrun resolves a `mods:` entry against THIS file's directory (measured: it
+  # tried `attic/qwen4/arms/<name>` and `attic/qwen4/arms/mods/<name>`), so from `arms/` the lane's
+  # mods dir is one level up.
+  - "../mods/fix-qwen3.8-flash-next-vllm"
 
 env:
   SAFETENSORS_FAST_GPU: 1

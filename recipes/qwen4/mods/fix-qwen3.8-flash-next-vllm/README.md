@@ -27,13 +27,14 @@ anchor is gone the script exits non-zero rather than writing a half-patched modu
 
 ## Why it lives here, not in `mods/`
 
-Lane-local on purpose. A `@registry/mods/<name>` reference resolves only from the registry clone's
-**top-level** `mods/`, so this mod cannot be reached from `mods/` either — an arm in
-`recipes/qwen4/` resolves an **unscoped** `mods/<name>` against its own lane's `mods/` directory.
-That is why both consumers name it `mods/fix-qwen3.8-flash-next-vllm`:
+Lane-local on purpose, and it exists **twice, one copy per lane**, because that is this repo's rule:
+an arm resolves its `mods:` entry against *its own recipe directory*, and
+`tests/test_mods_lane_locality.py` forbids a shipped recipe from reaching into `attic/`. The two
+copies are byte-identical — `tests/test_qwen4_vllm_ple_mod.py` asserts it, so duplication cannot
+drift:
 
-- `attic/qwen4/arms/qwen3.8-flash-next-nvfp4-vllm.yaml` (W12)
-- `recipes/qwen4/zz-qwen38-next-vllm-tp2-pinned.yaml`
+- `attic/qwen4/mods/` for the archived W12 arm, which names `../mods/fix-qwen3.8-flash-next-vllm`
+- `recipes/qwen4/mods/` for the shipped-tree probe, which names `mods/fix-qwen3.8-flash-next-vllm`
 
 ## Provenance
 
@@ -61,10 +62,9 @@ That is why both consumers name it `mods/fix-qwen3.8-flash-next-vllm`:
    when `"PLE_FORCE_FP8" in src`, but the inserted lines contain `VLLM_PLE_FP8_CHECKPOINT`, so a
    second run stacked a duplicate block. The guard now keys on the env var the branch actually reads.
 
-The two consumers sit at different depths, so their references differ and both are correct:
-`recipes/qwen4/zz-qwen38-next-vllm-tp2-pinned.yaml` names `mods/fix-qwen3.8-flash-next-vllm`, while
-the attic arm names `../../../recipes/qwen4/mods/fix-qwen3.8-flash-next-vllm`. Each resolves from the
-recipe's own directory, which is the only thing sparkrun checks.
+Each consumer names the path that reaches *its* lane's copy: from `arms/` the attic one is one level
+up (`../mods/…`), and the probe resolves its own lane's `mods/`. Both resolve from the recipe's own
+directory, which is the only thing sparkrun checks.
 
 ## Guard
 

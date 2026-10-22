@@ -25,7 +25,10 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD_DIR = REPO_ROOT / "recipes" / "qwen4" / "mods" / "fix-qwen3.8-flash-next-vllm"
+MOD_DIR = REPO_ROOT / "attic" / "qwen4" / "mods" / "fix-qwen3.8-flash-next-vllm"
+# One copy per lane: the attic arm resolves `../mods`, the shipped-tree probe resolves its own
+# `mods/`. Duplication is the repo's lane-locality rule, so parity is asserted instead of assumed.
+MOD_DIR_LANE = REPO_ROOT / "recipes" / "qwen4" / "mods" / "fix-qwen3.8-flash-next-vllm"
 MOD_NAME = "fix-qwen3.8-flash-next-vllm"
 ARMS = (
     REPO_ROOT / "attic" / "qwen4" / "arms" / "qwen3.8-flash-next-nvfp4-vllm.yaml",
@@ -84,10 +87,16 @@ class PatchBehaviour(unittest.TestCase):
 
 class ConsumersResolveTheMod(unittest.TestCase):
     def test_mod_ships_with_its_readme(self):
-        self.assertTrue((MOD_DIR / "run.sh").is_file())
-        self.assertTrue((MOD_DIR / "apply-ple-patch.py").is_file())
-        self.assertTrue((MOD_DIR / "README.md").is_file())
+        for directory in (MOD_DIR, MOD_DIR_LANE):
+            for name in ("run.sh", "apply-ple-patch.py", "README.md"):
+                self.assertTrue((directory / name).is_file(), f"{directory}/{name}")
 
+    def test_the_two_lane_copies_are_byte_identical(self):
+        for name in ("run.sh", "apply-ple-patch.py", "README.md"):
+            self.assertEqual(
+                (MOD_DIR / name).read_bytes(), (MOD_DIR_LANE / name).read_bytes(),
+                f"the lane copies of {name} have drifted",
+            )
     def test_no_arm_asks_the_registry_for_it(self):
         for arm in ARMS:
             self.assertNotIn(f"@eugr/mods/{MOD_NAME}", arm.read_text(encoding="utf-8"), arm.name)
@@ -97,8 +106,6 @@ class ConsumersResolveTheMod(unittest.TestCase):
             entries = [e for e in mod_entries(arm.read_text(encoding="utf-8")) if e.startswith((".", "mods/"))]
             self.assertIn(MOD_NAME, [e.rsplit("/", 1)[-1] for e in entries], arm.name)
             for entry in entries:
-                if entry.startswith("@"):
-                    continue
                 self.assertTrue(
                     (arm.parent / entry).resolve().is_dir(),
                     f"{arm.name}: {entry} does not resolve from the recipe directory",
@@ -106,10 +113,16 @@ class ConsumersResolveTheMod(unittest.TestCase):
 
 
 class NegativeControls(unittest.TestCase):
-    def test_repo_root_style_reference_does_not_resolve_from_the_attic_arm(self):
+    def test_bare_mods_ref_does_not_resolve_from_the_arms_dir(self):
+        # sparkrun joins `mods:` onto the RECIPE's directory, so from arms/ a bare `mods/<name>`
+        # looks in arms/mods/ (absent) while `../mods/<name>` finds the attic lane's copy.
         arm = ARMS[0]
         self.assertFalse((arm.parent / f"mods/{MOD_NAME}").is_dir())
-        self.assertTrue((arm.parent / f"../../../recipes/qwen4/mods/{MOD_NAME}").is_dir())
+        self.assertTrue((arm.parent / f"../mods/{MOD_NAME}").is_dir())
+
+    def test_shipped_probe_resolves_its_own_lane_copy(self):
+        arm = ARMS[1]
+        self.assertTrue((arm.parent / f"mods/{MOD_NAME}").is_dir())
 
     def test_registry_reference_is_detected(self):
         text = ARMS[1].read_text(encoding="utf-8").replace(
@@ -121,6 +134,7 @@ class NegativeControls(unittest.TestCase):
         text = ARMS[1].read_text(encoding="utf-8").replace(f'  - "mods/{MOD_NAME}"\n', "")
         names = [e.rsplit("/", 1)[-1] for e in mod_entries(text)]
         self.assertNotIn(MOD_NAME, names)
+
 
 
 if __name__ == "__main__":
