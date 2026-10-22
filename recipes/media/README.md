@@ -6,9 +6,9 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the two CPU serves cost no GPU.
 
-The lane ships **nine recipes**: five measured arms (drama TTS, Kokoro TTS, Qwen-Image, LTX-2.5,
-humanizer Q6_K), three probe/draft arms (`zz-minimax-h3`, `zz-qwen-image-…-4step`,
-`zz-pyannote-…`), and one authored-not-booted arm (Qwen-Image on vLLM-OMNI). Design and bring-up
+The lane ships **nine recipes**: six measured arms (drama TTS, Kokoro TTS, Qwen-Image on both routes,
+LTX-2.5, humanizer Q6_K) and three probe/draft arms (`zz-minimax-h3`, `zz-qwen-image-…-4step`,
+`zz-pyannote-…`). Design and bring-up
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
 
@@ -42,7 +42,7 @@ below are by design, not missing measurements.
 | `drama-3-35b-a3b-fp8-vllm-omni-tts` | **RTF 0.848 ± 0.015** at 4.6 s audio; **0.813** at 28.7 s; streaming TTFA **0.646 s** | 36.88 GiB checkpoint · **37.69 GiB loaded** · TTR 437.0 s cold / 417.0 s warm | WAV integrity (44.1 kHz mono 16-bit, peak 0.48–0.95 FS), seeded byte-identical decodes; **intelligibility unmeasured** | `~/benchmarks/drama-20261022/` |
 | `kokoro-82m-tts-cpu` | **RTF 0.588–0.601** (1.66–1.70× realtime) | 0.305 GiB ONNX weights · **1.55 GiB process RSS** · HTTP-ready 14.4 s | wav round-trip + `/health`; 24 kHz mono 16-bit | `~/benchmarks/kokoro-tts-20261019/` |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **0.088 img/s** (11.33–11.41 s @1024²; **53.24 s @2048²**) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | single denoise lock, one request at a time | `~/benchmarks/qwen-image-20261014/`, `~/benchmarks/media-gen-20261018/REPORT.md` |
-| `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **authored 2026-10-22, never booted** — no cell yet | same checkpoint · engine peak 36.84 GiB per the research route | none on this arm | — |
+| `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **8.610–8.704 s warm** (11.0 s first request of a boot) @1024² 8-step; **10/10 PNGs byte-identical** | same checkpoint · engine peak **34.91 GiB** (`peak_memory_mb` 35,748) · TTR **251 s cold / 209 s warm** | seeded renders deterministic across boots; **two-ink prompt violated** (6 hue families); 4/8/12 steps byte-identical; stopped, node back to 0 containers | `~/benchmarks/omni-qwen-image-20261022/` |
 | `ltx-2.5-22b-nvfp4-t2v-comfyui-script` | **78.1 s/clip warm** (100.13 s cold) @1344×768, 121 f, 24 fps | 36.9 GB · peak **83.45–84.00 GiB** | ffprobe (h264 + AAC) and a decoded frame | `~/benchmarks/ltx25-recipe-20261021/` |
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
@@ -180,8 +180,8 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   traceback (`generate rejected: …` + `400` in the serve log, zero `Traceback` lines), and `/health`
   then read `requests 1, attempts 3, failed 2`. Receipt
   `head:~/benchmarks/vllm-032-20261022/qwen-image-live/` (cell JSON, PNG, serve log, preflight).
-- **A faster route exists and now ships as its own arm** (the next section; authored 2026-10-22,
-  not yet booted): `vllm/vllm-omni:nightly` serves this checkpoint natively (its own
+- **A faster route exists and now ships as its own arm** (the next section; booted and measured
+  2026-10-22 on `.35`): `vllm/vllm-omni:nightly` serves this checkpoint natively (its own
   `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same 1024² 8-step image,
   **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs 36.82 GiB) — measured
   2026-10-21 on `.34`, one serve per route. Two properties stay attached to that route: its
@@ -202,14 +202,15 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   against swapping on latency alone, **not** a measured general quality gap. **This arm stays the
    default**; the OMNI variant is a *different look* the owner likes — declined as an arm on
    2026-10-21, **reversed 2026-10-22 (`QUESTIONS.md` `#13`: "ship both")**, so that look now has its
-   own arm below, authored and not yet booted. The §6 "quality judged by eye" item stays open for
+   own arm below, booted 2026-10-22. The §6 "quality judged by eye" item stays open for
    **this** arm's gallery comparison. Notes:
    [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 
 ## [qwen-image-2.1-turbo-7b-bf16-vllm-omni](qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml)
 
-vLLM-Omni · **1 node (TP=1)** · **authored 2026-10-22 — NOT BOOTED by this change**.
+vLLM-Omni · **1 node (TP=1)** · **booted and measured 2026-10-22 (`.35`)**, four acceptance cells
+closed.
 
 > **LICENSE — NON-COMMERCIAL ONLY.** Same checkpoint as the Diffusers arm, and the license follows
 > the checkpoint, not the engine: `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
@@ -235,18 +236,40 @@ vLLM-Omni · **1 node (TP=1)** · **authored 2026-10-22 — NOT BOOTED by this c
   Qwen/Qwen-Image-2.1-Turbo`; `POST /v1/images/generations` is the generation endpoint and `/health`
   answers `{"status":"healthy"}`, so `readiness.inference: false`. `stage_init_timeout: 900` ships
   because the measured TTR is ~4 min against the engine's 300 s stage default.
-- **Measured — research receipt, NOT this arm's boot** (2026-10-21, `.34`, one serve per route, same
+- **Measured on this arm's own boots** — 2026-10-22, `.35`, task
+  `sparkrun_ff85d35d30f290e3_64af2f7668b6` twice (`~/benchmarks/omni-qwen-image-20261022/`): TTR
+  **251 s cold** (container start → `/v1/models` naming the served id; `StartedAt` 19:22:28.978Z,
+  `Application startup complete` 19:26:34, weights 30.21 GiB in 214.6 s, engine init 229.87 s) and
+  **209.2 s warm** on a second boot taken through sparkrun's own readiness gate
+  (`container-start TTR port-open 209.181s, HTTP-ready 209.217s`, weights in 181.75 s, engine init
+  193.25 s), both against `stage_init_timeout: 900`. The load line reads
+  `model_class_name='QwenImage21Pipeline'` on both boots and the attention backend resolved to
+  `CUDNN_ATTN` (Blackwell sm_121, cuDNN 92000, head_dim 128). 1024² 8-step seed 42: **10.995 /
+  11.084 s first request after readiness**, then **8.610–8.704 s warm** (six requests across the two
+  boots, mean 8.652; server `stage_gen_time_ms` 8,492–8,589 ms) — inside the research band and
+  slightly under it. **Peak memory 35,748 MB = 34.91 GiB** (engine gauge
+  `vllm_omni:peak_memory_mb{stage="0"}`; 30.42 GiB process-scoped after load), lower than the
+  research boot's 37,726 MB at the same request shape. **Ten requests — seven on the first boot,
+  three on the second — returned one byte-identical PNG**
+  (`49927f99993c8c0fb1e8db646ce6f10880e16597028a5102a0773c00dcd9508e`, 4,196,804 B), so a seeded
+  render is reproducible **across boots on this node**, not only within one process. It is still not
+  reproducible **across serves**: the 2026-10-21 research serve returned `38ce554a…45704690` for the
+  identical request body, and since two of this arm's boots agree with each other the difference sits
+  between the two serves (the research one was a plain `docker run` without `--revision`), not in
+  boot-to-boot memory layout — cause unestablished, image hash therefore a provenance stamp for a
+  serve rather than a cross-serve check.
+- **Measured — research receipt (route comparison, 2026-10-21)** (one serve per route, same
   prompt and seed 42, 1024² 8-step): **8.66–8.75 s warm / 11.19 s cold** against the Diffusers arm's
   11.49 / 12.64 s — **~24 % faster**, 1.08 vs 1.43 s per step — at the **same** peak memory
   (36.84 GiB `vllm_omni:peak_memory_mb{stage="0"}` = 37,726 MB vs 36.82 GiB torch alloc). Receipt
   `head:~/benchmarks/media-gen-20261021/vllm-omni/` (`REPORT.md`, `omni.json`, `omni-warm8.json`);
   numbers and route in [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md)
   §"vLLM-OMNI route".
-- **Two properties written down rather than discovered:** `num_inference_steps` is **inert** — the
-  checkpoint's saved `sample_sigmas` win, so 4/8/12 write a byte-identical PNG in ~8.7 s, and the
-  engine's `denoise_step_latency_ms` merely divides one total by the requested count
-  (2164/1086/721 ms, i.e. asking for more steps claims each step got faster); and **same seed is
-  not the same picture** across routes (OMNI `38ce554a…45704690`, Diffusers `e24f6e3a…24ee24a`).
+- **The inert step knob — re-verified by hash on this engine version, not repeated from memory.**
+  `num_inference_steps` 4 / 8 / 12 at seed 42 returned the **byte-identical PNG** (same hash, same
+  4,196,804 B) in 8.594 / 8.644 / 8.622 s, while the engine's claimed `denoise_step_latency_ms` fell
+  **2,124.6 → 1,064.5 → 711.0 ms** — one total divided by the requested count, so asking for more
+  steps makes each step *look* cheaper. There is no working 4-step or 12-step cell on this route.
 - **Adherence defect — this arm ships with a caveat, not a clean bill.** Both 8-step PNGs were
   inspected at full resolution against the prompt, whose string is identical in both recorded
   request bodies. It says `two-color screenprint`: the Diffusers render honors it (two inks, blue
@@ -255,19 +278,32 @@ vLLM-Omni · **1 node (TP=1)** · **authored 2026-10-22 — NOT BOOTED by this c
   style difference**, and the earlier reading of it as "composition" was wrong about the constraint.
   Scope: one prompt, one seed, one image per route — evidence against swapping on latency alone,
   **not** a measured general quality gap (no multi-prompt adherence battery was run). Owner decision
-  2026-10-22 (`QUESTIONS.md` `#13`): **ship both looks** as separate arms.
-- **Queued acceptance — required before the selection row says shipped.** This YAML has passed
-  `sparkrun recipe validate` and a dry-run render only; **nothing has booted it** (`.34`/`.35` were
-  held by the BeeGFS pilot on 2026-10-22). The cells that close it, on one free Spark:
-  1. boot **this recipe file** (`-H <ip>`) and gate readiness on `/health` healthy plus
-     `/v1/models` naming `Qwen/Qwen-Image-2.1-Turbo`, and confirm the engine's own load line names
-     `QwenImage21Pipeline` — that line, not a file listing, is the identity gate;
-  2. re-render the 1024² 8-step seed-42 cell and check warm wall time against the 8.66–8.75 s
-     research receipt (a re-pin or engine drift shows up here);
-  3. re-render the two-color screenprint prompt and review it at full resolution — the row must
-     carry either the same defect or its resolution;
-  4. record a cold TTR against `stage_init_timeout: 900`.
-  Until those exist the arm is **authored, not shipped**, and the row above says so.
+  2026-10-22 (`QUESTIONS.md` `#13`): **ship both looks** as separate arms. Re-reviewed on this arm's
+  own boot (2026-10-22, `.35`, `cold-0.png`): the render **reproduces the defect** — single-line
+  `SPARKRUN` on white, each glyph a different ink, spelling correct and edges crisp; chromatic
+  pixels (12 % of the frame) fall into **6 hue families with no dominant one** (red/orange 27.8 %,
+  cyan 25.1 %, magenta 23.7 %, yellow-orange 12.7 %, blue 10.7 %). So the arm ships with this defect
+  as its caveat, unchanged.
+- **Acceptance closed 2026-10-22 (`.35`) — all four cells pass.** This recipe file was booted twice
+  on that node with `-H <node-ip>` (once detached for timing, once through sparkrun's readiness
+  gate) and stopped by its task id each time (`docker ps -aq` = 0 on the node afterwards):
+  1. readiness gated on `/health` + `/v1/models` naming `Qwen/Qwen-Image-2.1-Turbo`, and the
+     **engine's own load line names `QwenImage21Pipeline`** — the identity gate, not a file listing;
+     the shipped `readiness:` block also resolves on its own (sparkrun reported `HTTP-ready
+     209.217s`, `TTFT not applicable (inference disabled)`, no timeout);
+  2. the 1024² 8-step seed-42 re-render read **8.610–8.704 s warm** over six requests on the two
+     boots, inside the 8.66–8.75 s research band, so the pin has not drifted in speed (the first
+     request of a boot costs ~11.0–11.1 s: lazy regional `torch.compile` fires there);
+  3. the two-color screenprint prompt re-rendered and reviewed at full resolution — **same defect**
+     (see above), not a resolution, so the row still ships with the caveat;
+  4. cold TTR **251 s** (warm boot **209.2 s**) against `stage_init_timeout: 900` — the 900 s stage
+     budget is comfortable, and the engine's own 300 s default would also have covered these boots
+     (load+init 229.9 s cold / 193.3 s warm), but only by 70 s on the cold one.
+  One property to keep beside the numbers: the seeded PNG is byte-identical **across boots on this
+  node** (10/10 here) but **not across serves** — the 2026-10-21 research serve returned
+  `38ce554a…` for the same request body, so an image hash is a provenance stamp for one serve, not a
+  reproducibility check. Receipt: `~/benchmarks/omni-qwen-image-20261022/` (`SUMMARY.md`,
+  `serve.log`/`serve2.log`, per-cell JSON, ten PNGs, `/metrics` peak gauge).
 
 ## [zz-qwen-image-2.1-turbo-4step-diffusers-script](zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml)
 
@@ -504,7 +540,7 @@ The bring-up notes written while these arms lived in Explore stay in that archiv
 
 | file | what it holds |
 |---|---|
-| [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up: license banner, engine/venv design, the §6 acceptance table, the two mod defects, and the faster vLLM-OMNI route (measured; its separate arm is authored, not booted). |
+| [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up: license banner, engine/venv design, the §6 acceptance table, the two mod defects, and the faster vLLM-OMNI route (measured 2026-10-21; its separate arm booted 2026-10-22). |
 | [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. |
 | [`attic/explore/EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) §6–§7 | The media-gen and humanizer research passes that produced these arms. |
 | [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md) | Per-arm measured histories and serving traps, including drama-3 and the media-gen arms. |
@@ -520,6 +556,6 @@ not resurrected into this lane.
   decoder could open; the arm then answered `400 file does not start with RIFF id`. `--check` now
   decodes every fixture as well as comparing bytes, and a guard goes red on headerless PCM.
 - **Push history, for anyone reading a reflog:** commit `92b7931` quoted the tier-A *reference speech
-  seconds* (20.0 / 24.0) as DER; the real values are 50.0 % / 69.9 %. It was replaced by `f82d0e7`
+  seconds* (20.0 / 24.0) as DER; the real values are 50.0 % / 69.9 %. It was replaced by `811f67f`
   with a `--force-with-lease` over my own commit — the one sanctioned force-push case here. `92b7931`
-  may survive in another clone's reflog carrying the wrong numbers; `f82d0e7` is the record.
+  may survive in another clone's reflog carrying the wrong numbers; `811f67f` is the record.
