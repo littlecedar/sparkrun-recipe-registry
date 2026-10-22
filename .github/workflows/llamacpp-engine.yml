@@ -11,12 +11,16 @@
 #         wrapped: a rate-limited or error-shaped API payload is printed as an `ERROR:` line and the
 #         report continues, so an API hiccup cannot mail the owner. Editorially it is a report, not
 #         a gate — drift here never turns the run red.
-# build:  workflow_dispatch ONLY, arm64 DGX Spark ONLY.
-#         **No self-hosted runner is registered today** — no machine carries the labels
-#         [self-hosted, linux, arm64, dgx-spark] for this repository. The job is therefore gated on
-#         the repository variable ARM64_RUNNER_ENABLED == 'true' (Settings → Variables), so a
-#         dispatch runs report only instead of parking a build in "queued" forever and looking
-#         green. Register a runner with those labels and set the variable to activate it.
+# build:  workflow_dispatch ONLY, on GitHub's own arm64 runner (`ubuntu-24.04-arm`, hosted and free
+#         to this public repository) — nothing has to be registered and no repository variable
+#         gates the job. Hosted hardware is enough because a GPU is not needed at build time:
+#         `nvidia/cuda:13.0.1-devel-ubuntu24.04` carries nvcc, and the sm_121 gate is `cuobjdump`
+#         reading the linked binary. The binary links libcuda.so.1 but a build stage never loads
+#         it, so the absence of a driver changes nothing. arm64 is still mandatory (the Dockerfile
+#         refuses any other architecture and builds sm_121 device code), and a hosted arm64 runner
+#         starts with only ~14 GB free on `/` — the CUDA devel stage plus a full llama.cpp compile
+#         is tight there, so one step prunes toolchains a Docker build cannot use and fails with a
+#         clear error under 20 GB instead of letting `docker build` die mid-link.
 name: llamacpp-engine
 
 on:
@@ -46,13 +50,28 @@ jobs:
         run: python3 -B .github/scripts/llamacpp-engine-report.py
 
   build:
-    # Arm64 GB10 only: the Dockerfile refuses any other architecture and builds sm_121 device code.
-    # No runner with [self-hosted, linux, arm64, dgx-spark] exists today, so this job stays out of
-    # the queue until an operator sets the repository variable ARM64_RUNNER_ENABLED to 'true'.
-    if: github.event_name == 'workflow_dispatch' && vars.ARM64_RUNNER_ENABLED == 'true'
-    runs-on: [self-hosted, linux, arm64, dgx-spark]
+    # arm64 required (the Dockerfile refuses any other architecture and builds sm_121 device code),
+    # but no GPU is needed to build: nvcc compiles and cuobjdump verifies. `ubuntu-24.04-arm` is a
+    # GitHub-hosted arm64 runner, so there is no runner to register and no variable to set.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free disk space and check headroom
+        # Hosted runners start with ~14 GB free on `/`; the CUDA devel stage plus a full llama.cpp
+        # CUDA compile exceeds that, and an ENOSPC mid-link reads like a compiler bug. Prune what a
+        # Docker build cannot use, then refuse to start under the floor.
+        run: |
+          set -e
+          sudo rm -rf /usr/share/dotnet /usr/lib/android-sdk /usr/local/lib/android \
+            /usr/local/lib/android/sdk/ndk /opt/ghc /opt/hostedtoolcache
+          df -h /
+          FREE_GB=$(( $(df -B1 --output=avail / | tail -1) / 1073741824 ))
+          if [ "$FREE_GB" -lt 20 ]; then
+            echo "::error::only ${FREE_GB} GB free on / after pruning; the CUDA devel build stage needs 20 GB"
+            exit 1
+          fi
 
       - name: Check ref and credentials
         env:

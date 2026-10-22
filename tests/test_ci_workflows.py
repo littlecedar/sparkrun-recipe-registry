@@ -114,6 +114,39 @@ def nonzero_exit_blocks(text):
     return out
 
 
+def disk_floor_findings(text, floor_gb=20):
+    """The build job must prune a hosted runner's disk, print it, and refuse to start under the
+    floor instead of letting `docker build` die mid-link. Returns what is missing."""
+    blocks = [b for b in step_blocks(text) if "df -h /" in b]
+    if not blocks:
+        return ["no step prints `df -h /`"]
+    block = blocks[0]
+    findings = [f"does not prune {path}" for path in
+                ("/usr/share/dotnet", "/usr/lib/android-sdk", "/usr/local/lib/android",
+                 "/opt/ghc", "/opt/hostedtoolcache") if path not in block]
+    if f"-lt {floor_gb}" not in block:
+        findings.append(f"no `-lt {floor_gb}` free-space refusal")
+    if "::error::" not in block or "exit 1" not in block:
+        findings.append("no `::error::` + `exit 1` failure")
+    return findings
+
+
+def hosted_runner_findings(text):
+    """The build job must be dispatch-only on GitHub's hosted arm64 runner: no repository-variable
+    gate and no self-hosted label array whose runner is never registered."""
+    build = text[text.index("  build:"):]
+    findings = []
+    if "runs-on: ubuntu-24.04-arm" not in build:
+        findings.append("build job does not name `runs-on: ubuntu-24.04-arm`")
+    if "vars.ARM64_RUNNER_ENABLED" in text:
+        findings.append("build job is still gated on a repository variable")
+    if "self-hosted" in text:
+        findings.append("a self-hosted label array or register-a-runner claim remains")
+    if "github.event_name == 'workflow_dispatch'" not in build:
+        findings.append("build job is not restricted to workflow_dispatch")
+    return findings
+
+
 class WorkflowFiles(unittest.TestCase):
     def test_the_three_workflows_exist(self):
         for path in (GATE, SWEEP, LLAMA):
@@ -304,15 +337,22 @@ class LlamaCppEngine(unittest.TestCase):
         self.assertIn(".github/scripts/llamacpp-engine-report.py", self.report)
         self.assertNotIn("docker build", self.report)
 
-    def test_build_is_arm64_dispatch_only_and_guarded(self):
-        self.assertIn("runs-on: [self-hosted, linux, arm64, dgx-spark]", self.build)
-        self.assertIn("github.event_name == 'workflow_dispatch'", self.build)
-        self.assertIn("vars.ARM64_RUNNER_ENABLED == 'true'", self.build,
-                      "an unguarded self-hosted job would sit queued forever")
-        self.assertIn("No self-hosted runner is registered today", self.text)
+    def test_build_is_arm64_dispatch_only_on_a_hosted_runner(self):
+        self.assertEqual(hosted_runner_findings(self.text), [])
+        self.assertIn("no GPU is needed", self.text,
+                      "the header must say why a GPU-less hosted runner can build this")
+        self.assertIn("cuobjdump", self.text, "the arch gate is cuobjdump on the binary")
         self.assertIn("--build-arg LLAMA_REF=", self.build)
         self.assertIn("recipes/explore/Dockerfile.llamacpp-upstream", self.build)
         self.assertIn("GITHUB_STEP_SUMMARY", self.build, "the digest must land in the run summary")
+
+    def test_build_prunes_disk_and_refuses_under_the_floor(self):
+        # A hosted arm64 runner has ~14 GB free on `/`; the CUDA devel stage plus the compile is
+        # over that, so the job fails loudly before `docker build` rather than mid-link.
+        self.assertEqual(disk_floor_findings(self.text), [])
+        self.assertLess(self.text.index("df -h /"),
+                        self.text.index("name: Build and push the pinned upstream image"),
+                        "the preflight must run before the build step, not after it")
 
     def test_build_credentials_come_from_secrets_and_fail_loudly(self):
         for name in ("secrets.DOCKERHUB_USERNAME", "secrets.DOCKERHUB_TOKEN"):
@@ -382,6 +422,25 @@ class NegativeControls(unittest.TestCase):
 
     def test_repo_root_is_the_tree_this_test_lives_in(self):
         self.assertTrue((REPO_ROOT / "AGENTS.md").is_file(), REPO_ROOT)
+
+    def test_self_hosted_label_array_is_caught(self):
+        text = _text(LLAMA)
+        self.assertEqual(hosted_runner_findings(text), [])
+        broken = (text.replace("runs-on: ubuntu-24.04-arm",
+                               "runs-on: [self-hosted, linux, arm64, dgx-spark]")
+                      .replace("if: github.event_name == 'workflow_dispatch'",
+                               "if: github.event_name == 'workflow_dispatch'"
+                               " && vars.ARM64_RUNNER_ENABLED == 'true'"))
+        self.assertEqual(len(hosted_runner_findings(broken)), 3,
+                         "the pre-fix runner gate must trip every needle")
+
+    def test_disk_preflight_without_the_refusal_is_caught(self):
+        text = _text(LLAMA)
+        self.assertEqual(disk_floor_findings(text), [])
+        self.assertTrue(disk_floor_findings(text.replace('if [ "$FREE_GB" -lt 20 ]; then', "")),
+                        "a preflight that never refuses a nearly-full disk must be caught")
+        self.assertTrue(disk_floor_findings(text.replace("/opt/hostedtoolcache", "")),
+                        "a preflight missing a prune path must be caught")
 
 
 if __name__ == "__main__":

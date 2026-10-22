@@ -477,15 +477,19 @@ matching.
 - **Three GitHub workflows, no pre-commit, no formatters or linters.** `.github/workflows/` holds
   `gate.yml` (the gate below, on push to `main`, on every PR, and by `workflow_dispatch`),
   `refresh-sweep.yml` (nightly pin/recipe drift sweep) and `llamacpp-engine.yml` (weekly upstream
-  llama.cpp report). CI runs **x86-side checks only** on `ubuntu-latest` — the suite, text
+  llama.cpp report). The gate runs **x86-side checks only** on `ubuntu-latest` — the suite, text
   `sparkrun recipe validate`, `bash -n`, `py_compile` — because nothing in CI boots an engine.
   Two checks cannot run on a hosted runner and degrade visibly rather than silently:
   `uv sync` (netifaces builds from its sdist and needs a C toolchain — if that fails the sync step
   is tolerated and the stdlib suite plus `py_compile` run on the runner's own `python3`) and
   `sparkrun recipe validate` (prints `SKIPPED: sparkrun not installable in CI`). The one arm64 job
-  (`llamacpp-engine.yml` `build`, sm_121 image build) is `workflow_dispatch`-only and gated on the
-  repository variable `ARM64_RUNNER_ENABLED == 'true'`: **no self-hosted DGX Spark runner is
-  registered yet**, so it cannot run today. There is still no pytest/ruff/black/mypy configuration
+  (`llamacpp-engine.yml` `build`, sm_121 image build) is `workflow_dispatch`-only and runs on
+  GitHub's own arm64 runner, `ubuntu-24.04-arm` — nothing to register, no repository variable to
+  set. A hosted runner is enough because no GPU is needed at build time: `nvcc` comes from
+  `nvidia/cuda:13.0.1-devel-ubuntu24.04` and the arch gate is `cuobjdump` on the linked binary (it
+  links `libcuda.so.1` but never loads it). That runner has only ~14 GB free on `/`, so one step
+  prunes toolchains a Docker build cannot use and fails with an `::error::` under 20 GB rather than
+  letting the link die on ENOSPC. There is still no pytest/ruff/black/mypy configuration
   anywhere (`.ruff_cache/` on disk is leftover) and no pre-commit: linting is syntax checks only —
   `bash -n`, `py_compile`, `sparkrun recipe validate`.
 - **CI never fails a run for finding drift — the report is the signal.** Drift is this registry's

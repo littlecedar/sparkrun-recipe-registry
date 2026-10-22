@@ -3,7 +3,8 @@
 #
 # x86 only, on purpose: GitHub-hosted ubuntu-latest does text validation and the stdlib suite.
 # Nothing here boots an engine, pulls a model, or builds an arm64 image — the GB10 (sm_121) build
-# lives in llamacpp-engine.yml and needs a self-hosted arm64 runner that is not registered today.
+# lives in llamacpp-engine.yml and runs on GitHub's own arm64 runner (`ubuntu-24.04-arm`), never
+# here: it is a separate, dispatch-only job and nothing in it boots an engine either.
 # CI never bumps a model pin: a pin change stays boot-gated by lane policy.
 #
 # Which checks cannot run here, and how they degrade (each prints a `SKIPPED:` line):
