@@ -1,10 +1,105 @@
-# Session status — 2026-10-21 20:15 ET
+# Session status — 2026-10-22 ET
+
+**CORRECTION, first: the previous entry's "The production quartet's TP=4 serve is untouched and
+healthy" (2026-10-21 20:15 ET) is stale.** Measured independently twice on 2026-10-22 — ≈01:05 ET by
+one worker, and again minutes later: **0 containers on `.30`–`.33`**, no `:8000` listener on any
+quartet node IP, the head's loopback `127.0.0.1:8000` **refusing connections**, no vllm or sglang
+process on the host, and the gateway reporting `deployments: []` (last `sparkrun sync` 04:39Z). The
+quartet's descriptor (`@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, served id
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, TP=4, cluster `sparkrun_a2e141223b52793c_e11d626ec2c6`) has
+been static since 2026-10-18, so it proves the role, not liveness.
+
+**Cause: DETERMINED — a deliberate coordinated stop at 2026-10-22 00:38:39 ET.** Four negatives clear
+the fleet: **no OOM, no Xid, no node reboot, and the model/runtime caches still warm**. That is the
+2026-10-14 fingerprint exactly — a coordinated `sparkrun stop` bypasses `--no-rm` and takes the
+container and its serve log with it — so this is a deliberate stop, not a fault. The **who** is not
+attributed beyond "a coordinated sparkrun stop": attribution was not needed to clear the measurement
+window, and no operator action is recorded here that did not happen.
+
+**Still open, and the only thing still open:** whether production should be restored on the quartet at
+all. That is **the owner's call**; until it is made the nodes stay available to measurement. A
+relay-imported `solo` boot (`sparkrun_6c7626d237f22cdd_68907e0cb1d8_solo`) appeared on `.31` at ≈01:07
+local, after both censuses — reported by the re-pin campaign, unverified here — which is consistent
+with that availability and is not the missing serve.
+
+**Gate: RED, honestly reported — `782 tests, 2 failures, 2 skipped`.** Both failures are
+`tests/test_k2_7b_recipes` container-pin assertions, because the SGLang `v0.5.22` re-pin is half-applied
+in that lane as of this entry (one arm already reads
+`lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` while its guard still asserts the `v0.5.20-cu130` tag
+and `sha256:06e4f2ed…` digest). That campaign is in flight (Table 1), not abandoned; this entry is a
+documentation commit and does not change the suite.
+
+### 2026-10-22 model and runtime refresh (VERIFIED — every item carries its commit)
+
+**Model-pin sweep, all 52 tracked recipes** (47 distinct Hub repos, one API call per repo, authenticated
+as the `littlecedar` user): **31 current, 5 stale-weights, 5 stale-docs, 6 unpinned, 0 unresolvable**.
+The two DeepSeek-v4.1-Flash artifacts split: `deepseek-ai/DeepSeek-V4.1-Flash-1017` (the TP=4 knapcio
+pack, and the Engram tables' `DEFAULT_REVISION`) is **pin == head** (`1bae0e10…`, 2026-10-17), so
+production weights are unaffected; `LibertAIDAI/…-EXL3-2.9bpw` (the TP=2 TensorFold pack) was 4 commits
+behind, its pin..main diff being `README.md` plus a new `chat_template.jinja` and **zero safetensors**.
+
+**`b39bf63` — the EXL3 pack is re-pinned and re-booted.** Pin moves `c178a012…` →
+`0be63c3337efbb2a0061d5b8bb4006fa186d433f` and boots on `.34`/`.35` (task
+`sparkrun_a9804d09ec5e137d_3510a5e0d37d`): `/v1/models` answers
+`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw` at `max_model_len` **1,048,576**; **TTR 590 s cold**
+— a new pin keys a new per-tree rank cache (318 s weight re-conversion plus three CUDA extension
+rebuilds), and **a warm second boot was NOT measured, so no warm TTR is quoted**. Both chat modes
+smoke-tested: thinking off → `PINEAPPLE-42`, `finish_reason` stop, 0 reasoning tokens; thinking on →
+`reasoning_content` plus `391` = 17×23, DSpark accepted 13/31 drafts. Distribution was a 9.1 s
+blob-cache hit. **The checkpoint's new template is ignored by design**: the `--vision` overlay skips any
+`chat_template.jinja` in the snapshot (`launcher.py:263`) and writes the mod's copy as the one real
+file — the served template sha `297be886…` is the mod's and the snapshot's `2ed8bc33…` is absent.
+Recorded decision, not an open question: adopting the upstream template would require changing the
+overlay, and the arm serves the overlay's template.
+
+**Reproducibility defect fixed, base image digest-pinned, rebuild published.**
+`recipes/ds4/Dockerfile.knapcio-dsv41`'s `ARG BASE_IMAGE=lmsysorg/sglang:dev-dsv41` was the only
+floating build input in the shipped tree; it is now pinned to `sha256:4a5d132a…` (tag kept). The rebuild
+on `.30` (native arm64, 208.8 s) is pushed as `littlecedar/dgx-spark-dsv41:canary-roce-20261022` =
+`sha256:0cbe228a8788ec06472dd2dc5cd31acb117ec5ba5101f2442d32e54d2ae5b8ea`: **config identical**
+(entrypoint, cmd, env, healthcheck, labels; 91 layers, layers 0–69 identical) and the content diff is
+four recompiled `__pycache__/*.pyc` plus 6,707 hash-equal files — **behavior-identical but NOT
+byte-reproducible**. The shipped `acfc331a…` therefore stays pinned, and a deterministic build step is
+the open prerequisite for reproducibility.
+
+**`af8c88f` — the TensorFold rebuild can no longer pick a different engine.** `ARG TENSORFOLD_REF` is
+now mandatory in `recipes/ds4/Dockerfile.tensorfold-dsv41` (it defaulted to 0.6.3 `d5d7bb38…` while the
+shipped ds4 image is 0.6.6 `3825f62…`), enforced by a fail-closed `RUN test -n`. `recipes/ds4/README.md`
+gained a per-image Rebuild block, and the one documented no-arg build command
+(`attic/ds4/AGENTS.md:2336`) now passes its ref.
+
+**`3b8c2c8` — the ornith lane doc stops advertising the pre-bump engine.** Three live runtime rows
+(`recipes/ornith/README.md:111`, `:193`, `:275`) still said `dev-cu13@9a352a35…` and "sglang v0.5.18"
+after the 0.5.21 bump; they are corrected. The `9d67131` diff record at `:449-455` is history and stays
+verbatim.
+
+**`5655019` — the four unpinned embed/rerank checkpoints are pinned** to today's Hub heads:
+`Qwen/Qwen3-VL-Embedding-2B` `9f2f7e71…`, `gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit` `5c4cca00…`,
+`Qwen/Qwen3-VL-Reranker-2B` `4bd860ac…`, `Qwen/Qwen3-VL-Reranker-8B` `b212dc8c…`. Each pin == head, so
+no served byte changes; strict-validate moves **12/52 → 16/52** and `unpinned-model-revision`
+**eleven → fifteen**, because these arms pass the prepared path and the finding is the lane's known
+false positive.
+
+**Container and runtime sweep.** 26 distinct container refs across the shipped recipes, all
+digest-pinned; our seven own-namespace images enumerated against their Dockerfiles; the mod- and
+launcher-level Hub pins (`drowzeys/…` `87bb9850`, `drowzeys/keys-…` `a9cf9de`; launcher defaults
+`DFLASH2_REVISION` `bf582e4e`, Engram `DEFAULT_REVISION` `1bae0e10`) are **all current and agree with
+the recipe pins that govern them**, so no cybersec arm serves drifted weights.
+
+**Open runtime gaps — in flight as of this entry, no verdict:** SGLang `v0.5.22` (upstream 2026-10-16,
+index `e3a4f060…`, arm64 child `06441be3…`) against three ornith arms on `v0.5.21` and three IFM arms on
+`v0.5.20-cu130`; vLLM `v0.32.0` against the two Laguna arms on the CVE-bearing `v0.29.0` and the three
+media-gen arms on `v0.30.0`; `vllm-sr/d3-edge` `18d61df7…` → `c454ee39…` (10 vendor-code commits, no
+tensors, both pin sites must move).
+
+## Session status — 2026-10-21 20:15 ET
 
 **Both queues are empty and both nodes are idle** — 0 running and 0 exited containers on `.34` and
 `.35` (the highcon probe that was up at 18:49 is finished and gone; the earlier leftover sglang
 container from the 07:52 Muse boot is logged at
 `~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). The production quartet's TP=4 serve
-is untouched and healthy. Gate: **765 tests OK** (2 skipped — the pooling guard's real-CLI case runs
+is untouched and healthy **[stale — corrected by the 2026-10-22 entry at the top of this file]**. Gate:
+**765 tests OK** (2 skipped — the pooling guard's real-CLI case runs
 now that `sparkrun` is on this workstation; the count moved 752 → 765 when the Qwen-Image guard
 landed), **52/52 tracked recipes** pass plain `sparkrun recipe validate` (0 errors, 53 files on disk),
 **12/52** fail `--strict` (re-run file by file). Everything is pushed, remote tip `2e4a775`.
@@ -84,7 +179,10 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| — none: both queues are empty (0 containers running or exited, no leg processes, no queued node-bound item) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped; **flash-next refuted on both engines; qwen4 highcon control passed (2026-10-21)** | 0 h |
+| SGLang `v0.5.22` re-pin — three ornith arms (off `v0.5.21`) + three IFM arms (off `v0.5.20-cu130`) | test pair | — | index `e3a4f060…` and arm64 child `06441be3…` resolved; one arm half-flipped, gate red | **4–8 h** — derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) |
+| vLLM `v0.32.0` re-pin — two Laguna arms (off CVE-bearing `v0.29.0`) + three media-gen arms (off `v0.30.0`) | test pair | — | none yet: no boot on `v0.32.0` | **4–6 h** — derived from the media-gen receipts (≈4 min TTR per arm) plus the Laguna-M.1 TP=2 boot + suite receipt; no `v0.32.0` measurement exists |
+| `vllm-sr/d3-edge` pin `18d61df7…` → `c454ee39…` | workstation | — | refs resolved, 10 vendor-code commits with no tensors | **≈0.5 h** — two pin sites, no boot required |
+| TP=4 offsite block, relaunched — qwen4 W6 first | production quartet | — | the owner's 2026-10-21 "first job" call is being executed; boot relaunch in flight | **20–28 h block** — the Table 3 estimate, unchanged and not restated as finished |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -98,7 +196,9 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Deferred | Unblocked by | Where it lives |
 |---|---|---|
-| **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — the endpoint is opened at session start; the local pair block is empty and nothing else is pair-bound | register, under the qwen4 and ds4 items |
+| **(in flight since 2026-10-22 — see Table 1)** **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — executed 2026-10-22, the W6 boot relaunch is in flight; the legs not yet started are still this block | register, under the qwen4 and ds4 items |
+| **Production quartet TP=4 serve is down** — cause **DETERMINED**: a deliberate coordinated stop at 2026-10-22 00:38:39 ET (no OOM, no Xid, no reboot, caches warm; the 2026-10-14 `stop --all` fingerprint) | an **owner call** on whether to restore production at all; the nodes stay available to measurement until it is made | this entry; the quartet descriptor `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` |
+| **The ds4 rebuild is not byte-reproducible** (behavior-identical: 91 layers with 0–69 identical, four recompiled `.pyc`, 6,707 hash-equal files) | a deterministic build step; until then the shipped `acfc331a…` stays pinned | `recipes/ds4/Dockerfile.knapcio-dsv41` |
 | **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture; **owner's answer, 2026-10-21: park it until a real failure** | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
 
 Dropped by owner policy, not waiting on anything: the GLM ≥1M probe and the ornith 397B retry (both
@@ -108,11 +208,11 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight | 0 h |
+| In flight (Table 1: SGLang 0.5.22 4–8 h · vLLM 0.32.0 4–6 h · d3-edge pin 0.5 h · TP=4 block 20–28 h) | ≈29–43 h |
 | Queued node-bound content, runnable now (Table 2) | **0 h — both rows closed** |
-| **Node-bound wall at two lanes** | **0 h** |
-| Deferred (Table 3: offsite TP=4 20–28 h + ornith intermittent 1–2 h) | 21–30 h |
-| **Grand total including deferred** | **≈21–30 h, every hour of it blocked on an owner decision or a failing boot** |
+| **Node-bound wall at two lanes** | ≈29–43 h, of which 20–28 h is the TP=4 block |
+| Deferred (Table 3: ornith intermittent 1–2 h; the quartet restore and the deterministic build step are unpriced) | 1–2 h priced |
+| **Grand total** | **≈30–45 h; 1–2 h of it waits on a failing boot, the rest on nodes or on two named owner calls** |
 
 ## Risks
 
@@ -121,16 +221,26 @@ recorded in the lane attic).
 - **Buffered logs look like stalls.** Every long leg tonight has shown a question count frozen for tens
   of minutes while the serve decoded; liveness comes from the serve log, never from the count alone.
 - **Pair-bound stall**: the 15–25 h pair block holds both test nodes; nothing single-node runs during it.
-- **Stopping a serve can delete its evidence.** `sparkrun stop --all` bypasses `--no-rm` and removes
-  the container, taking the in-container serve log with it (it cost the 9B `.35` log on 2026-10-21).
+- **Stopping a serve can delete its evidence.** `sparkrun stop` bypasses `--no-rm` and removes the
+  container, taking the in-container serve log with it — it cost the 9B `.35` log on 2026-10-21 and it
+  is the fingerprint of the quartet's TP=4 stop at 2026-10-22 00:38:39 ET, whose serve log is gone.
   Stop by cluster/task id and `docker cp /tmp/sparkrun_serve.log` out first.
 - **A CPU decision pass is a four-hour window, not two.** Nox-4B took 14,066 s (35.2 s/case) where
   a three-case probe predicted 8,760 s — the first cases are cheaper than the mean, so price a CPU
   arm from a wide probe or from the lane's own per-arm history.
-- **The head's `127.0.0.1:8000` is the production TP=4 serve**, so a probe that addresses loopback
-  measures production, not the arm. Always use the node's IP root.
+- **The head's `127.0.0.1:8000` was the production TP=4 serve**, so a probe that addresses loopback
+  measures production, not the arm. Always use the node's IP root. As of 2026-10-22 that loopback
+  refuses connections because the quartet serve is down (top of this file) — refusing loopback is not
+  evidence that a probe is misconfigured.
 - **Address hygiene is done for the tree, not for history** — tracked files are masked (71 lines, 22
   files); pushed history was deliberately not rewritten, so older commits still contain the addresses.
+- **A quartet descriptor proves the role, not liveness.** `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`
+  has been static since 2026-10-18; only containers, listeners, gateway `deployments` and host
+  processes answer "is it up". The 2026-10-21 entry trusted the descriptor and was wrong.
+- **The head's `.git` is syncthing-shared with a second writer** — 11 `.git/index.sync-conflict-*` files
+  have accumulated there. After an edit that syncs to the head before its pull, the repair is
+  `git checkout HEAD -- <path>`, never `git checkout -- <path>`, which restores the stale index blob
+  and loops.
 
 ## Closed this session
 
