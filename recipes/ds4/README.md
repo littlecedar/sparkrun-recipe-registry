@@ -297,8 +297,8 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   temp files — the destination went from 390 GB (78 %) back to 307 GB (60 %), ~83 GB of progress
   destroyed about seven minutes from completion. Check `ps -o pid,ppid,lstart,args` before signalling
   anything on a node (a pid you did not create is someone else's work), and do not move a body over the
-  the management subnet management interface while a RoCE copy is on the critical path — use
-  `the plane-A rail addresses`/`the plane-B rail addresses`.
+  management subnet while a RoCE copy is on the critical path — use
+  the plane-A/plane-B rail addresses.
 
 ### Knobs a user cannot infer
 

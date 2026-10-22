@@ -45,7 +45,7 @@ below are by design, not missing measurements.
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
 | `zz-qwen-image-…-4step-diffusers-script` | 4-step request **6.365 s** on the launcher's native `sigmas` path | same peak as the shipped arm | probe only, not a shipped arm | `head:~/benchmarks/vllm-032-20261022/qwen-image/` |
-| `zz-pyannote-community-1-diarization-cpu` | **TTR 9.56 s**, RTF **0.247** (real two-voice dialogue) / 0.62 (30 s synthetic) on 5 cores, no GPU | 8.1M params, 33.7 MB repo, CPU only | **DER = JER 2.83 %** on `tier-b-two-voice.wav` (real speech, correct 2-speaker count, deterministic); **one speaker** on 2- and 3-voice synthetic tonal files (DER 50.0 / 69.9 %) | `.NN:~/benchmarks-pyannote/` |
+| `zz-pyannote-community-1-diarization-cpu` | **TTR 9.56 s**, RTF **0.247** (real two-voice dialogue) / 0.62 (30 s synthetic) on 5 cores, no GPU | 8.1M params, 33.7 MB repo, CPU only | **DER = JER 2.83 %** on `tier-b-two-voice.wav` (real speech, correct 2-speaker count, deterministic); **one speaker** on 2- and 3-voice synthetic tonal files (DER 50.0 / 69.9 %) | `.35:~/benchmarks-pyannote/` |
 
 **What is not here.** MOSS-Image and indra-ocr are research-only entries in `mad-science/TODO.md`
 (no recipe, no download, no boot); Timestral is a time-series forecaster with no recipe at all.
@@ -401,11 +401,11 @@ pyannote.audio on CPU + [`recipes/media/mods/pyannote-diarize-server`](mods/pyan
 - **Instrument:** measured by `tools/diarize-score.py` against `tools/diarize-fixture.py` (collar
   0.25, permutations mapped, DER>10% = falsifier), which scores who-spoke-when only: whether a TTS
   clip's words are intelligible still needs an ASR pass or the owner's ears.
-- **Measured (2026-10-22, `.NN`, 5 A725 cores, no GPU):** TTR port-open 9.540 s / HTTP-ready
+- **Measured (2026-10-22, `.35`, 5 A725 cores, no GPU):** TTR port-open 9.540 s / HTTP-ready
   9.560 s from container start (`port_timeout_s: 1800` never bound); RTF **0.247** on an 11.4 s real
   two-voice dialogue and 0.62 on the 30 s synthetic file; **DER = JER 2.83 %** (collar 0.25, overlaps
   scored, speaker error 0) on `tier-b-two-voice.wav`; identical segments across repeat runs.
-  Receipts: `.NN:~/benchmarks-pyannote/`.
+  Receipts: `.35:~/benchmarks-pyannote/`.
 - **Tier A is adversarial by construction:** synthetic harmonic stacks are adversarial to
   embedding-based clustering — the arm reports **one speaker for a 2- and a 3-voice tonal file
   (DER 50.0 / 69.9 %, unchanged when the count is forced)**, while real speech scores DER/JER

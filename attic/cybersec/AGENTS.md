@@ -556,7 +556,7 @@ pack named there when the served dir has none (commit `d7c879b`).
   "multimodal"],"n_ctx":32768,"n_ctx_train":262144,"n_params":27320697856}`, `owned_by: llamacpp`.
 - TTR **30.29 s** (launch → first 200), warm by construction: the image pin was already verified
   (`no transfer`), the 15.7G tier + F16 `mmproj` were rsynced from `.31` over the rail
-  (plane-B rail .31 → .35), sparkrun's model stage was 6.1 s of it and llama-server's own load 16.5 s
+  (`.31` → `.35`), sparkrun's model stage was 6.1 s of it and llama-server's own load 16.5 s
   (serve log: `model loaded`, `n_slots 4`, `n_ctx_slot 32768`, `kv_unified 'true'`, MTP draft
   context created against the target GGUF).
 - **C1** (`bench_2e3d1141622c`, `benchmarking/concurrency-ladder.yaml` with `-b concurrency=1`,

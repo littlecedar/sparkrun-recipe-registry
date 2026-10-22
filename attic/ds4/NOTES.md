@@ -48,7 +48,7 @@ prefers `<model_dir>/engram/` — `model: <this repo>` is then all a recipe need
 ### Boot-verified (2026-10-07, `.34`/`.35`) — cold boot from the combined repo
 
 `sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml -H .34,.35
---transfer-mode local` from <head-node>; job `8ef9b6c9a550c389_3510a5e0d37d`, exit 0.
+--transfer-mode local` from `<head-node>`; job `8ef9b6c9a550c389_3510a5e0d37d`, exit 0.
 
 - Distribution: image already current on both hosts; model head→2 hosts in 867 s with
   `--copy-unsafe-links` (the hub-level xet blob store is materialised, node caches land

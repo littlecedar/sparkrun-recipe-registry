@@ -148,7 +148,7 @@ The step count is ~0.63 s per extra step at CFG=1 and **peak memory does not mov
 a shorter schedule buys latency, not headroom. The 8-step control stayed byte-identical
 after the mod, so the default path is untouched. Quality is not judged by these cells:
 the §6 by-eye item stays open, and 4 steps is proven reproducible, not recommended.
-Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.NN`.
+Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.30`.
 
 ## vLLM-OMNI route (measured 2026-10-21)
 

@@ -321,9 +321,9 @@ below exists for — was launched against **management hostnames**, so every byt
 management NIC and the rails were never exercised. The evidence is routing and socket state, not a
 stopwatch:
 
-- `ip route get .NN` from the sender resolved to **`dev enP7s7`**, the management port, not a
+- `ip route get <node-ip>` from the sender resolved to **`dev enP7s7`**, the management port, not a
   CX7 rail port;
-- the copy's own ssh socket read `.NN:44468 -> .NN:22` in `ss -tnp` — both ends
+- the copy's own ssh socket read `.31:44468 -> .34:22` in `ss -tnp` — both ends
   management;
 - the single stream held **247–250 MB/s**, ≈80 % of the 2.5 GbE line rate (2.0 of 2.5 Gbit/s), which
   is what a *clean* management link does and is nowhere near a rail's 0.55–0.62 GB/s ssh shape.
@@ -341,7 +341,7 @@ not separately timed)*. On management the port, not the cipher, is the ceiling, 
 almost nothing and the rail advantage grows with body size.
 
 **The rail measurement taken after the copy was re-addressed.** Two parallel ssh streams on the
-`the CX7 plane-A subnet` rail measured **646–751 MB/s aggregate** (≈323–375 MB/s per stream). That is less
+CX7 plane-A subnet measured **646–751 MB/s aggregate** (≈323–375 MB/s per stream). That is less
 than twice the single-stream rail `rsync` figure (0.57–0.58 GB/s), so the second stream's gain on
 this pair is partial: the "4 streams scale 3.6–3.9× one stream" result above was measured
 control→node, and node→node did not scale the same way.
@@ -355,7 +355,7 @@ archived artifact. If either becomes load-bearing for a plan, re-measure it and 
 ### The rule
 
 A model body above roughly **100 GB** is fetched **once** over the WAN, on a node, and fanned out
-node-to-node **by rail address** (`the CX7 plane-A subnet` / `plane-B subnet`), never by management
+node-to-node **by rail address** (CX7 plane-A / plane-B subnets), never by management
 hostname — the section above is what the hostname form costs. Below that the arithmetic no longer
 favours the extra hop strongly (a 30 GB body is ~1.4 h of WAN against ~15 s of fan-out — the
 fan-out still wins, but it is a convenience, not a rescue). Never fetch the same body N times: the
@@ -387,7 +387,7 @@ sparkrun run recipes/<lane>/<recipe>.yaml -H <nodes> --offline
   size-verified at 20,874,597,228 B on the destination.
 - 4 streams, not 8: 4 is where scaling was measured linear (2.05–2.25 GB/s). More streams buy CPU
   exhaustion, not bandwidth.
-- Every `<peer-*>` in step 2 must be a **rail** address (`the CX7 plane-A subnet` / `plane-B subnet`), never a
+- Every `<peer-*>` in step 2 must be a **rail** address (plane-A / plane-B subnet), never a
   management hostname. A management-addressed loop still exits 0, still moves the bytes, and runs at
   ~250 MB/s per stream — and it is the mistake §"The copy that actually ran" records, whose rate was
   then quoted for a whole window as if it were a fabric number.
@@ -432,7 +432,7 @@ hostnames.
   measured load path exceeds 4 GB/s, and no file-transfer path exceeds 6.6 GB/s.
 - **Any statement that the cross-node body copies ran "on the fabric" is wrong, this report's own
   framing included.** They were addressed by management hostnames, so `ip route get` resolved them
-  to `dev enP7s7` and the socket was `.NN:44468 -> .NN:22` — the 2.5 GbE management
+  to `dev enP7s7` and the socket was `.31:44468 -> .34:22` — the 2.5 GbE management
   NIC, at 247–250 MB/s per ssh stream. The CX7 rows above measure what the rails do with a test
   blob between rail addresses; no large copy has yet used them, and the 112 Gb/s RDMA figure has
   still never been exercised by a file transfer at all.

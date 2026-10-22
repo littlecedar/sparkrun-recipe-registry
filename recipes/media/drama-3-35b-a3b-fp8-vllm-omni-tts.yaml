@@ -1,4 +1,4 @@
-# MEASURED — serves on one GB10 (2026-10-22, .NN; two boots, TTR 437.0 s cold /
+# MEASURED — serves on one GB10 (2026-10-22, `.34`; two boots, TTR 437.0 s cold /
 # 417.0 s compile-cache warm): warm single-stream RTF 0.848 ± 0.015 at ~4.6 s of audio
 # and 0.813 at 28.7 s, streaming PCM TTFA 0.646 s, 44.1 kHz mono 16-bit out.
 # Determinism: **pass `seed`** — seeded takes are byte-identical (10/10) and length

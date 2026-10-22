@@ -922,7 +922,7 @@ Any decision model
   **or** an automatic speaker count wrong **on that fixture** (a count wrong on the synthetic tonal
   files is a property of the fixture, not of the arm — see above), **or** any difference between two
   runs of the same input (segment boundary or label) — any one of the three and the arm is
-  measured-rejected rather than re-tuned. **Receipt:** `.NN:~/benchmarks-pyannote/`
+  measured-rejected rather than re-tuned. **Receipt:** `.35:~/benchmarks-pyannote/`
   (`measure.json`, `measure-tierb.json`, `fixtures/` incl. `manifest.json`, the RTTM ground truth,
   the `/diarize` JSONs per file, `der-*.json`, `sparkrun_serve.log`).)*
 
@@ -1579,7 +1579,7 @@ DEEPGEMM as the FP8 MoE backend later — same run, so read the backend line, no
 *Phase 3 — **IT SERVES** (2026-10-22, boot 07:41:10Z–07:48:52Z; `.34` verified open at 03:39:31 ET before the
 launch; task `sparkrun_c8829c3570d86002_8ed3ce77d78f`, the same id as the failed boot because sparkrun hashes
 the launch shape — never read an id match as a restart).* `HOME=$PWD/.local/sparkrun-home sparkrun run
-recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H .NN --transfer-mode local` → **TTR 437.0 s**
+recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H <node-ip> --transfer-mode local` → **TTR 437.0 s**
 (container start → port open 436.997 s, HTTP-ready 437.038 s; `[AsyncOmni] AsyncOmniEngine initialized in
 418.69 seconds`, of which model load was 239.81 s and stage-1 codec init the rest), `/health` 200, and
 `/v1/models` naming **`fishaudio/drama-3`** rooted at the pinned snapshot — the identity gate passed **before**
@@ -2710,7 +2710,7 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   they carry `host-30`-style names instead, assertion and fixture changed together; the glm shim fixture
   takes `.30:25000` unchanged in behaviour. Gate after the change: **752 tests OK** (2 skipped), **51/51**
   plain validate, `bash -n` clean. **History:** the earliest commit that already carried a literal is
-  `ee973cd` (2026-09-18, "Close labquant blocker (e)…", first `10.0.4.`); the CX7 subnet form enters at
+  `ee973cd` (2026-09-18, "Close labquant blocker (e)…", first management-subnet literal); the CX7 subnet form enters at
   `c441141` (2026-10-02, ds4 knapcio). Both are published; rewriting them needs a force-push, which was
   **not** done at the time — the owner elected the rewrite on 2026-10-22 (`QUESTIONS.md` `#16`), so it
   continues as the `history-purge` item below.)*

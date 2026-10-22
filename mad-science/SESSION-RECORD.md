@@ -747,7 +747,7 @@ unified pool and outputs that ffprobe as real h264 1344×768/121f/24fps plus AAC
 
 **Traps that cost time today, in the order they bit.** (1) **The head's loopback is production.**
 `127.0.0.1:8000` on the head answers the TP=4 serve, so every arm must be addressed by its node IP
-root (`http://.NN:8000`), never loopback and never `/v1`. (2) **`~/development` cannot render
+root (`http://<head-node>:8000`), never loopback and never `/v1`. (2) **`~/development` cannot render
 this lane.** sparkrun resolves a lane-local mod relative to the recipe path it was handed, so
 launching the symlinked `~/development/ornith-*.yaml` dies at "Could not resolve mod
 mods/ornith-honed-chat-template"; run from `/<home-dir>/src/sparkrun-recipe-registry` instead.
