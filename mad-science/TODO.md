@@ -41,13 +41,14 @@ govern, per the protocol; the verbatim asks remain in git.)*
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
 
-- **#46 — the production quartet's TP=4 serve is stopped: restore it, or keep the quartet on
+- **#46 — the production quartet's TP=4 serve was stopped by the owner: restore it, or keep the quartet on
   measurement duty?** The serve (`@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, served id
   `deepseek-ai/DeepSeek-V4.1-Flash-1017`, TP=4, cluster `sparkrun_a2e141223b52793c_e11d626ec2c6`) was
-  stopped **deliberately and in coordination at 2026-10-22 00:38:39 ET** — no OOM, no Xid, no node
-  reboot, and the model/runtime caches still warm, so nothing is broken and no work is blocked either
-  way. `.30`–`.33` are now carrying the TP=4 measurement queue under the 2026-10-22 node grant, and
-  the question is only which duty the quartet has.
+  stopped by the owner at **2026-10-22 00:38:39 ET** (relayed 2026-10-22 ≈01:28 ET). The four negatives —
+  no OOM, no Xid, no node reboot, model/runtime caches still warm — show nothing was lost, and the same
+  owner's node grant put `.30`–`.35` on the TP=4 queue, so the quartet being free is deliberate. `.30`–`.33`
+  now carry the TP=4 measurement queue. **This is the only open question about the quartet:** which duty it
+  has — restore production, or keep it on measurement duty.
   → Answer:
 
 **Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
