@@ -1,0 +1,187 @@
+recipe_version: "2"
+model: bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+runtime: vllm
+container: littlecedar/dgx-spark-dsv41:exl3a
+min_nodes: 2
+#
+# TP=2 TWIN of `deepseek-v4.1-flash-exl3-tp4-vllm.yaml`, authored 2026-10-22 for the one comparison
+# this lane has never taken: ONE engine, ONE quant, TWO topologies, A/B/A/B boot slots
+# (DEEPSEEK-1017-DECODE-RESEARCH.md §"What would have to happen next" item 4). Everything except
+# `min_nodes` and `tensor_parallel` is byte-identical to the TP=4 arm on purpose — a knob that differs
+# between the arms makes the topology result unreadable.
+#
+# WHY THIS BODY AND THIS STACK. The register offers two candidate bodies; only one can sit on both
+# topologies. The official base is 76.89 GB/node at TP=4, i.e. ~154 GB/node at TP=2 — larger than a
+# 121.7 GiB device, so it cannot be a TP=2 arm at all. This EXL3 3.5 bpw body is 210.72 GB of routed
+# experts, 105.36 GB/node at TP=2 (the register's own per-node figure) and 52.7 GB/node at TP=4, so it
+# fits both. Of the engines that can serve EXL3, only this vLLM+cuda-exl3 lane has a TP=4 arm on disk
+# (TensorFold, the other EXL3 engine, cannot run four nodes — its custom all-reduce wants one node or
+# one NVLink clique, CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md), so the twin is cut from this stack.
+#
+# TWO CONSEQUENCES TO RESPECT WHEN RUNNING IT:
+#   * At 105.36 GB of weights against a 111 GB budget (gmu 0.85) the KV pool is thin. Read the pool
+#     from the first boot log and set the SAME `-o max_model_len=` override on BOTH arms for the A/B;
+#     never compare a 300K TP=4 cell against a shrunk TP=2 cell.
+#   * The Engram still streams from node-local disk (`DSV41_ENGRAM_DIR`), so the pair pays the same
+#     ~460 GB read this arm's TP=4 sibling does before it serves.
+metadata:
+  description: >-
+    DeepSeek-V4.1-Flash EXL3 3.5 bpw routed experts at TP=2 on two DGX Sparks — the TP=2 half of the
+    topology A/B. Same image, mods, body and knobs as the TP=4 arm; Engram streamed from disk,
+    DSpark k=3, 300K context (override both arms to one context for the pairing).
+    Adaptation of tonyd2wild's measured 4x-Spark lane (MIT) onto sparkrun.
+    TP=4 sibling booted and serving 2026-09-24 (KV 3,879,721 tokens; C1/C4/C8 36.7/72.8/96.1 t/s warm).
+  model_url: https://huggingface.co/bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp4
+  tags: large-context, research_preview
+
+tuning:
+  vllm_tune_repo: https://github.com/SeraphimSerapis/vllm-tune.git
+  vllm_tune_ref: main
+
+mods:
+  # Unscoped: an attic arm resolves `mods:` against its own directory, where these two live. The
+  # TP=4 sibling still carries the old `@littlecedar/…` form; that resolves only if a littlecedar
+  # registry clone is present, and the mods were moved here by 9d12b93.
+  - "mods/mount-dsv41-exl3-patches"
+  # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
+  # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral
+  # 2026-09-27 (KV 4.11M vs 3.97M baseline, 27*43->1161). See AGENTS.md §7.8.1,
+  # MEMORY-RECLAIM-PLAN.md §7.
+  - "mods/bound-engram-cache"
+
+# The image declares ENTRYPOINT ["vllm","serve"]; clear it or sparkrun refuses
+# to launch. See AGENTS.md §6.1.
+executor_config:
+  entrypoint: ""
+
+# CUDA_EXL3_MODEL_PATH: required by the spawned DSpark drafter to find the full
+# quantization_config.json; a serve-line prefix, not an env: (sparkrun does not
+# interpolate env:). Use the literal snapshot path. Do NOT solve this with
+# cluster_config.resolved_model_path: an HF snapshot dir is a symlink tree into
+# ../../blobs, so identity-mounting only the snapshot leaves config.json
+# dangling. See AGENTS.md §6.1.
+
+# ---------------------------------------------------------------------------
+# READ AGENTS.md (same directory) BEFORE BURNING A BOOT.
+# ---------------------------------------------------------------------------
+# Port of tonyd2wild's measured 4x-Spark lane (MIT) onto sparkrun; upstream's
+# numbers are theirs. Booted and serving on our cluster 2026-09-24.
+#
+# THE ENGRAM CANNOT LIVE IN RAM. The two Engram tensors are 202.76 GB of
+# F8_E4M3; at TP=4 the non-Engram weights are ~64 GB/node, but the tables do not
+# fit alongside them on a 128 GB unified part. mount-dsv41-exl3-patches replaces
+# vLLM's engram.py with an O_DIRECT row reader (DSV41_ENGRAM_DIR below); WITHOUT
+# THAT MOD THIS RECIPE OOMs ~25 min in. Bench discipline: AGENTS.md §11.
+
+env:
+  # HF_HOME is NOT set: the vllm-distributed runtime overwrites it. Point
+  # sparkrun's cache_dir at another tree instead.
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+  # GNU malloc hysteresis; reduces the loader's retained anonymous memory on GB10.
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  VLLM_USE_RUST_FRONTEND: "0"
+  VLLM_HAS_FLASHINFER_CUBIN: "1"
+  # JIT caps; without these a first-boot compile can OOM the box.
+  MAX_JOBS: "2"
+  FLASHINFER_NVCC_THREADS: "1"
+  VLLM_USE_FLASHINFER_SAMPLER: "0"
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_CUDA_ARCH_LIST: "12.1a"
+  FLASHINFER_DISABLE_VERSION_CHECK: "1"
+  # CUDA graphs are REQUIRED for throughput here; breakable graphs, not eager.
+  VLLM_USE_BREAKABLE_CUDAGRAPH: "1"
+
+  # --- Engram on disk (see header) ----------------------------------------
+  # DSV41_ENGRAM_DIR is a per-node row copy (tools/engram_local.py
+  # builds it, ~48 GB); absent, the reader falls back to the model files.
+  DSV41_ENGRAM_DISK: "1"
+  DSV41_ENGRAM_DISK_THREADS: "32"
+  DSV41_ENGRAM_DISK_CHUNK: "16"
+  DSV41_ENGRAM_DIR: /engram-local
+
+  # --- NCCL over RoCE -----------------------------------------------------
+  # sparkrun's IB probe fills NCCL_NET/HCA/GID_INDEX/DISABLE/CROSS_NIC/
+  # MERGE_NICS/IGNORE_CPU_AFFINITY per cluster (a recipe value overrides that
+  # detection), so those are deliberately unset. The vars below are the levers:
+  # NCCL_MAX_NCHANNELS=8 (+11% C6), NCCL_CUMEM_ENABLE=0 (4.7 -> 0.14 GiB),
+  # NCCL_NVLS_ENABLE=0 (not a 4-node RoCE topology). See AGENTS.md §6.3.
+  NCCL_MAX_NCHANNELS: "8"
+  NCCL_CUMEM_ENABLE: "0"
+  NCCL_NVLS_ENABLE: "0"
+  NCCL_IB_ROCE_VERSION_NUM: "2"
+  NCCL_IB_ADDR_FAMILY: AF_INET
+  NCCL_DEBUG: WARN
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  # 0.85 aligns with the rest of the registry's pinned recipes (and the measured
+  # per-rank usage: weights+non-torch 60.6 GiB, activation 4.9, graph 0.6 at
+  # gmu 0.80 -> ~66 GiB fixed; 0.85 gives ~103 GiB of the 121.69 GiB device, so
+  # the freed ~6 GiB/rank becomes KV). Read the pool from the boot log, never
+  # compute it (AGENTS.md §6.5).
+  gpu_memory_utilization: 0.85
+  # 300K is what upstream serves; the 1M sibling is a separate recipe. Read the
+  # pool from the boot log, never compute it (AGENTS.md §6.5).
+  max_model_len: 300000
+  # 16 = 2x the old default. The TP=4 pool is replicated per rank; at gmu 0.85
+  # the earlier 0.80 boot granted 3.88M tokens (12.9x300K), so 16 seqs fit with
+  # headroom. max concurrency is pool/ctx, not this number (AGENTS.md §6.5).
+  max_num_seqs: 16
+  # Multiple of the 128 block size (64x128); a non-multiple wastes budget.
+  max_num_batched_tokens: 8192
+  block_size: 128
+  # DSpark k=3 = measured optimum (13-boot sweep; AGENTS.md §7.7). Use k=1 for
+  # batch-serving; do NOT use k=4 or k=5. Adaptive verification MUST stay off.
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}'
+  # Capture sizes are multiples of k and k+1 and must reach
+  # max_num_seqs*(k+1) = 16*4 = 64 (guard: KCaptureSizes). Rebuilt for
+  # max_num_seqs=16: exact n*k and n*(k+1) for n<=8, then multiples of (k+1)=4
+  # to 64. A k change is not a one-line edit.
+  compilation_config: '{"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[3,4,6,8,9,12,15,16,18,20,21,24,28,32,36,40,44,48,52,56,60,64]}'
+  mm_processor_cache_gb: 1
+  extra_args: ""
+
+command: >
+  CUDA_EXL3_MODEL_PATH=/cache/huggingface/hub/models--bot-lab-21--DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard/snapshots/f129e31a81e1337aa33e129e2d847fc7e37c8733
+  vllm serve {model}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --block-size {block_size}
+  --engram-config '{"cpu_offload": false}'
+  --default-chat-template-kwargs '{"thinking": false}'
+  --speculative-config '{speculative_config}'
+  --compilation-config '{compilation_config}'
+  --limit-mm-per-prompt '{"image":4}'
+  --mm-processor-cache-gb {mm_processor_cache_gb}
+  --tool-call-parser deepseek_v41
+  --enable-auto-tool-choice
+  --reasoning-parser deepseek_v41
+  --trust-remote-code
+  {extra_args}
+
+readiness:
+  # 460 GB read from node-local disk, then draft weights, KV, graph capture.
+  # ~12 min warm.
+  port_timeout_s: 7200
+  health_timeout_s: 1800
+
+# Deliberately NOT set: --quantization (config.json declares exl3; the plugin
+# picks it up), --kv-cache-memory-bytes (a pin changes the pool; §6.5),
+# --enforce-eager (4x penalty; graphs work on this stack), --enable-expert-parallel
+# (EP over RoCE unmeasured for this model).
+#
+# Boot-log checklist and the full rationale: AGENTS.md §6.7.
