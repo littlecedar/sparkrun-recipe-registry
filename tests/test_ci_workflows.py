@@ -223,6 +223,14 @@ class RefreshSweep(unittest.TestCase):
         self.assertIn("Refresh sweep could not run", self.text)
         self.assertIn("gh issue edit", self.text, "must update the open issue, not add one a day")
 
+    def test_the_issue_path_skips_when_issues_are_disabled(self):
+        # Measured: this repository has has_issues=false, and an unconditional `gh issue create`
+        # turned every sweep run red. The fallback signal is the run summary.
+        blocks = [b for b in step_blocks(self.text) if "gh issue edit" in b]
+        self.assertTrue(blocks, "no issue-upsert step")
+        self.assertIn("hasIssuesEnabled", blocks[0])
+        self.assertIn("SKIPPED: repository issues are disabled", blocks[0])
+
     def test_sweep_never_fails_a_run_on_drift(self):
         self.assertIn("FAIL_ON_DRIFT: ${{ inputs.exit_code_on_drift }}", self.text)
         self.assertEqual(nonzero_exit_blocks(self.text), [],

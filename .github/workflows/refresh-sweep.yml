@@ -124,6 +124,12 @@ jobs:
             2) title="Refresh sweep could not run" ;;
             *) echo "unexpected exit code $code"; exit 1 ;;
           esac
+          # This repository ships with Issues disabled, and `gh issue create` then fails the job even
+          # though the sweep itself succeeded. The run summary is the fallback signal; never red.
+          if [ "$(gh repo view "$GITHUB_REPOSITORY" --json hasIssuesEnabled --jq .hasIssuesEnabled)" != "true" ]; then
+            echo "SKIPPED: repository issues are disabled — the report is in this run's summary (enable the tracker with: gh api -X PATCH repos/$GITHUB_REPOSITORY -f has_issues=true)"
+            exit 0
+          fi
           gh label create pin-drift --description "Refresh sweep: pinned refs drifted from upstream" \
             --color B60205 --force >/dev/null 2>&1 || true
           gh label create sweep-broken --description "Refresh sweep exited 2: it could not run" \
