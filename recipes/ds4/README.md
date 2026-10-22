@@ -369,12 +369,24 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   halves the eager launch count at 1M and is the only knob that plausibly moves long-prefill cost
   without touching the 16-slot decode path — it needs a fresh boot and an A/B, so it waits for a
   window where this serve is not the owner's production endpoint. Forensics: `~/benchmarks/knapcio-tp4-20261022/REPORT.md`.
-- **Known image/launcher inconsistency (harmless today, a trap later):** the image carries
+- **The dense FP8 GEMM backend is declared by the recipe, not substituted by the image — boot-gated.**
+  Recorded 2026-10-22 and left unfixed then because the serve was live: the boot log carried
   `DSV41_MXFP8_BACKEND=b12x requires --fp8-gemm-backend flashinfer_cutlass; effective value
-  'auto (omitted)' replaced`. b12x **is** active (the launcher substitutes the required value), but the
-  flag requirement is asserted by the image and satisfied by a substitution nobody declared — anyone who
-  reads `--fp8-gemm-backend` as "unset" will mis-diagnose prefill GEMM behaviour. The recipe is
-  deliberately unchanged: the serve is live and this note is not a reason to re-boot it.
+  'auto (omitted)' replaced`. b12x **is** active and the value the engine ran with was
+  `flashinfer_cutlass` either way, but it was *stamped in* by `boot.py` and declared by nobody, so
+  anyone reading `--fp8-gemm-backend` as "unset" mis-diagnoses prefill GEMM behaviour. The recipe now
+  spells `--fp8-gemm-backend flashinfer_cutlass` in `command:` and the launcher forwards it into
+  `EXTRA_SGLANG_ARGS`. The arg still cannot win the *order* — `required_sglang_args()`
+  (`boot.py:264-287`, called at `:376` @ `27616bec`) strips every `--fp8-gemm-backend` from the extras
+  and appends its own last — so the repair is that the value re-emitted as the last one is the value the
+  recipe declared: the substitution warning cannot fire, and if the image's `DSV41_MXFP8_BACKEND` default
+  ever goes away the declared flag, not `auto`, is what reaches the engine. Reproduced offline against
+  `boot.py` @ `27616bec`: the declared extras yield exactly one `--fp8-gemm-backend flashinfer_cutlass`
+  with no warning under both `DSV41_MXFP8_BACKEND=b12x` and `=off`, while the pre-change extras yield the
+  warning above. **Acceptance is UNVERIFIED until a quartet boot** (`.30`–`.33` are fenced for workloads):
+  it must show `[moe_b12x_next] armed`, a `server_args=` dump naming `fp8_gemm_backend='flashinfer_cutlass'`,
+  **no** `WARNING: DSV41_MXFP8_BACKEND=` line, and `launch.json`'s `args` carrying exactly one
+  `--fp8-gemm-backend flashinfer_cutlass`.
 - **Any recipe *default* can be overridden with `-o`** (e.g. `-o max_model_len=…`); the
   launcher's flags are applied after `RECIPE_ENV`, so the recipe/CLI wins for every value it
   takes a flag for. `boot.py` asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`. A value that exists only

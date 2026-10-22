@@ -924,6 +924,15 @@ def _clean(path: Path) -> str:
     return _strip_comment_lines(path.read_text())
 
 
+def _launcher_module():
+    """Import the mod launcher as a module (stdlib-only, like the mod itself)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("dsv41_launcher", SGLANG_MOD_DIR / "launcher.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _launcher_recipe_env() -> dict:
     """The env the mod launcher fills into the container (its RECIPE_ENV).
 
@@ -932,11 +941,7 @@ def _launcher_recipe_env() -> dict:
     travels with the mod instead of each recipe. The launcher is stdlib-only, so
     importing it here keeps tests/ stdlib-only too.
     """
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("dsv41_launcher", SGLANG_MOD_DIR / "launcher.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return dict(mod.RECIPE_ENV)
+    return dict(_launcher_module().RECIPE_ENV)
 
 
 def _resolved_env(r: "Recipe") -> dict:
@@ -1040,6 +1045,27 @@ class SglangLaneContract(unittest.TestCase):
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         self.assertIn('add_argument("--context-length"', launcher)
         self.assertIn('env["CONTEXT_LENGTH"] = args.context_length', launcher)
+
+    def test_fp8_gemm_backend_is_declared_not_inherited(self):
+        # boot.py's required_sglang_args() (27616bec:264-287, called at :376)
+        # STRIPS every --fp8-gemm-backend from EXTRA_SGLANG_ARGS and appends its
+        # own flashinfer_cutlass last, keyed off the image's DSV41_MXFP8_BACKEND
+        # default (b12x). So the arg can never win the order and an undeclared
+        # recipe boots on an image substitution -- the serve log said "effective
+        # value 'auto (omitted)' replaced" (README, 2026-10-22). The recipe must
+        # declare the value the engine runs with; the guard's rewrite is then
+        # value-identical and silent.
+        self.assertIn("--fp8-gemm-backend flashinfer_cutlass", self.r.command_template)
+        launcher = _launcher_module()
+        self.assertIn(("FP8_GEMM_BACKEND", "--fp8-gemm-backend"), launcher.SGLANG_EXTRA_FLAGS)
+        source = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('add_argument("--fp8-gemm-backend"', source)
+        self.assertIn('env["FP8_GEMM_BACKEND"] = args.fp8_gemm_backend', source)
+        # ... and the assembled extras actually carry it (what boot.py then re-stamps).
+        self.assertEqual(
+            launcher.extra_sglang_args({"FP8_GEMM_BACKEND": "flashinfer_cutlass"}),
+            "--fp8-gemm-backend flashinfer_cutlass",
+        )
 
     def test_nccl_buffsize_is_not_context_length(self):
         # NCCL_BUFFSIZE is a NCCL *connection buffer* size (pinned memory per

@@ -54,6 +54,16 @@ defaults:
   # -o env.PREFILL_DECODE_INTERVAL=2 (the multi-user interleave). The launcher
   # prints every effective value on its boot line.
 
+# The dense FP8 GEMM backend is declared HERE rather than inherited from the
+# image. boot.py's required_sglang_args() strips every --fp8-gemm-backend from
+# EXTRA_SGLANG_ARGS and appends its own last (boot.py:264-287 @ 27616bec), keyed
+# off DSV41_MXFP8_BACKEND (image default b12x) -- so the arg cannot win the
+# order, and an undeclared recipe boots with a substitution warning ("effective
+# value 'auto (omitted)' replaced") instead of a value anyone wrote. Carrying it
+# here makes the guard's rewrite value-identical, silences that warning, and
+# keeps the b12x dense route (DSV41_MXFP8_BACKEND=b12x needs
+# flashinfer_cutlass) even if the image's env default goes away. The launcher
+# maps it to EXTRA_SGLANG_ARGS; see mods/dsv41-sglang-overlay/launcher.py.
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot
@@ -63,6 +73,7 @@ command: >
   --served-model-name {model}
   --context-length {max_model_len}
   --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
 
 readiness:
   # inference must stay false: readiness would otherwise drive /chat/completions,

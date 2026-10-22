@@ -219,14 +219,20 @@ RECIPE_ENV: dict[str, str] = {
     # whole list (boot.py:264-287, called at :376): that guard STRIPS every
     # --fp8-gemm-backend the extras carry and appends
     # `--fp8-gemm-backend flashinfer_cutlass` last (warning when the effective
-    # value differed), so an extra flag cannot drop the MXFP8 dense-kernel route
-    # DSV41_MXFP8_BACKEND=b12x requires -- the v2.4 fix (CHANGELOG: "the required
-    # --fp8-gemm-backend flashinfer_cutlass survives a custom
-    # EXTRA_SGLANG_ARGS", MiaAI-Lab#31). Verified in the pinned image's build
-    # source: knapcio boot.py @ 27616bec with this registry's
+    # value differed), so an extra flag cannot win the ARG ORDER -- the v2.4 fix
+    # (CHANGELOG: "the required --fp8-gemm-backend flashinfer_cutlass survives a
+    # custom EXTRA_SGLANG_ARGS", MiaAI-Lab#31). Verified in the pinned image's
+    # build source: knapcio boot.py @ 27616bec with this registry's
     # recipes/ds4/boot.py.health-port.patch applied, whose hunks are the health
     # probe, request()'s port argument and __main__'s health branch only --
     # serve(), required_sglang_args() and the extras merge are upstream's bytes.
+    # The route is therefore DECLARED, not inherited: the recipe's `command:`
+    # passes --fp8-gemm-backend (FP8_GEMM_BACKEND below), so the value the guard
+    # re-emits is the one the recipe asked for and its substitution warning
+    # ("effective value 'auto (omitted)' replaced") cannot fire. The declaration
+    # is also what survives if the image's DSV41_MXFP8_BACKEND default ever goes
+    # away: with that backend disabled the guard returns the argv untouched and
+    # this flag is the only thing naming the dense-kernel route.
     # Values are assembled by extra_sglang_args() below; each is individually
     # disablable from the launch (0/off/none/false/empty omits the flag and the
     # engine's own default applies).
@@ -358,6 +364,10 @@ def apply_recipe_env(env: dict[str, str]) -> None:
 SGLANG_EXTRA_FLAGS = (
     ("SWA_PREFIX_TAILS", "--swa-prefix-tails"),
     ("PREFILL_DECODE_INTERVAL", "--prefill-decode-interval"),
+    # Deliberately has NO RECIPE_ENV default: the backend is one value the recipe
+    # declares in its own `command:` (see the guard note above), so this table only
+    # carries whatever the launch supplied.
+    ("FP8_GEMM_BACKEND", "--fp8-gemm-backend"),
 )
 # A value in this set disables its flag (the engine's own default applies).
 _DISABLED_VALUES = frozenset({"", "0", "off", "none", "false", "no"})
@@ -683,6 +693,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--dspark-block-size", default=None,
                         help="DSpark verify window gamma (sparkrun's {dspark_block_size}); "
                              "mapped to boot.py's DSPARK_BLOCK_SIZE")
+    parser.add_argument("--fp8-gemm-backend", default=None,
+                        help="dense FP8 GEMM backend for boot.py's EXTRA_SGLANG_ARGS "
+                             "(MAPPED to FP8_GEMM_BACKEND). boot.py re-stamps the last "
+                             "--fp8-gemm-backend itself, so this declares the value "
+                             "instead of racing it")
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model", default=None,
@@ -737,6 +752,13 @@ def main(argv: list[str]) -> int:
     # shipped 5, or `-o dspark_block_size=3` would be silently clobbered.
     if args.dspark_block_size is not None:
         env["DSPARK_BLOCK_SIZE"] = str(args.dspark_block_size)
+
+    # The dense FP8 GEMM backend is the ONE serve flag the recipe has to declare
+    # itself: boot.py's required_sglang_args() re-stamps it (see the RECIPE_ENV
+    # note by the v2.4 flags), so a launch cannot override it and there is no
+    # launcher default either -- the recipe is the single declaration.
+    if args.fp8_gemm_backend:
+        env["FP8_GEMM_BACKEND"] = args.fp8_gemm_backend
 
     # Assemble boot.py's EXTRA_SGLANG_ARGS once every source has been applied
     # (RECIPE_ENV defaults, then a launch's `-o env.KEY=` override on top).

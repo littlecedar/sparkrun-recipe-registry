@@ -140,6 +140,17 @@ parameters boot.py reads from env rather than argv:
 - `--port {port}` → `SERVER_PORT` (the launcher's own process env; it also
   persists the port to `/tmp/sparkrun_health_port` for the image's dynamic
   healthcheck — see below).
+- `--fp8-gemm-backend <value>` → `FP8_GEMM_BACKEND`, which `extra_sglang_args()`
+  emits as that same flag in `EXTRA_SGLANG_ARGS`. This is the one serve flag the
+  *recipe* has to declare: `boot.py`'s `required_sglang_args()`
+  (`boot.py:264-287`, called at `:376` @ `27616bec`) strips every
+  `--fp8-gemm-backend` the extras carry and appends its own
+  `flashinfer_cutlass` last, keyed off the image's `DSV41_MXFP8_BACKEND` default.
+  Declaring it makes that rewrite value-identical (and silent — the pre-repair
+  boot log said `effective value 'auto (omitted)' replaced`) and keeps the b12x
+  dense route named by the recipe instead of inherited from the image. There is
+  deliberately **no `RECIPE_ENV` default** for it: the recipe is the single
+  declaration, and a launch cannot override the guard's last word anyway.
 
 ## Docker's HEALTHCHECK and the served port
 
