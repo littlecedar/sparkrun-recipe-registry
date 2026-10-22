@@ -893,3 +893,61 @@ boot; its 593 KB serve log was copied to
 force-removed while running. `sparkrun stop` on the Nox task
 (`sparkrun_f11fd90bf531e440_8ed3ce77d78f`) had already taken its own container with it, after
 `docker cp /tmp/sparkrun_serve.log` (988 B) captured the log.
+
+**Nemotron-3.5-Lightning-30B-A3B NVFP4 shipped, and the single-node queue closed (2026-10-21, late).**
+`nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` (`bee7596…`, 20.10 GiB, Nemotron-H hybrid at 52
+layers / 3B active) booted on `.35` through the image the lane already ships
+(`ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1…`, vLLM 0.32.0rc1.dev301+g1ac942555 — no
+new image, no fork) with its own quantization config auto-detected as `modelopt_mixed`: MARLIN NVFP4
+MoE out of the eight backends offered, FlashInfer attention and Mamba SSU, `mamba_ssm_cache_dtype`
+forced to float32 by the engine. TTR ≈ 6 min including the 20.1 GiB download (weights 17.82 GiB in
+228.6 s), `/v1/models` → the repo id with **`max_model_len 32768`**, KV **10,703,667 tokens** = 326.65×
+at the served window. **House 37/37** at `--max-tokens 2048`, **C1 63.27 ± 0.65 t/s** (peak 65.67) with
+a ladder of **63.27 / 90.81 / 122.27 / 144.15** at c1/2/5/10 and prefill flat at 6,142 → 6,235 t/s, and
+**tool calling passes** (`finish_reason: tool_calls`, `get_weather({"location": "Paris", "unit":
+"celsius"})`). It is the fastest single-node chat arm this lane has measured, at 20.1 GiB. Recipe
+`recipes/explore/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml`, commit `3800002`, receipt
+`~/benchmarks/reasoning-candidates-20261021/`.
+
+**Two things the arm taught that are not in its speed number.** First, **thinking-off is decode-identical
+and quality-worse**: 62.73 t/s thinking-off against 62.74 on (recipe serve 63.49 vs 63.85), all inside
+each other's spread, but the house battery drops to **32/37** — `wp-3`, all three `hard-arith` items and
+`trick-3`. So both shipped numbers are thinking-on, and the reasoning channel is load-bearing for
+arithmetic and trap items; a caller must not disable thinking to save time here. Second, a **one-off boot
+failure**: the very first `sparkrun` boot died inside PIECEWISE CUDA-graph capture with `CUDA error: an
+illegal instruction`, and it did not reproduce across five further boots/variants on the same node and
+image (repo-id with and without the deprecated `--mamba-cache-mode align`, local-path + `--revision`, a
+fresh boot). Retry once before debugging it, and it is not an argument for the mamba flag.
+
+**The ranked candidate table is dead for 1-node work.** Ranks 1–5 are all closed — Mistral-Small-4
+rejected, Muse-Glimmer falsified as a checkpoint defect, Lightning shipped, Nemotron-3-Super rejected at
+15.9 t/s, Laguna-S retired — and 6–10 are 2+ nodes. Two entries were also badly under-sized by the
+2026-10-10 scan: **MiniMax-M3 is 795.5 GiB** on the Hub (not ~220 GB) and **Inkling-Small 495.4 GiB**
+with no NVFP4 export at all. `mad-science/EXPLORE-CANDIDATES.md` now records the closures and the
+measured sizes.
+
+**Node-free QA that closed with it.** (1) **House-budget audit of the instrument's own history:** 42 of
+the 43 `~/benchmarks/**/house*.json` receipts were taken at 4096, so no historical bar is a budget
+artifact; the only 1024 pass was Lightning's first, whose single miss was a truncation (`11111` for
+`1111111110`, `finish=stop` at 2048 after 1,018 reasoning tokens). Every shipped arm's bar is a
+non-empty wrong-string miss. Two durable outcomes: the budget convention now sits in `tools/README.md`,
+and **`hard-rev` is the near-universal discriminator** (`nurkrpas` / `nurkraps` / `nrukraps` /
+`nurkrasp` across seven-plus arms including both DeepSeek lines), stated in the explore lane so 37/37
+reads as "clears `hard-rev`" without weakening the bar. (2) **Repo-wide render sweep:** all 53 recipe
+files rendered with `sparkrun run -n`; 46 clean, 7 flagged — four are the launcher refusing TP=4 on a
+one-GPU host list (all four render clean on four hosts) and three are checker artifacts (two `pip
+install` chains on one command line; flags inside a load-bearing `#` comment). One genuine note, written
+into `recipes/qwen3/README.md` rather than fixed: the mlx4bit arm's `speculative_draft_model_revision`
+pins the drafter for distribution while its own template means sglang's `--speculative-draft-model-
+revision` never renders — `unpinned-model-revision`-adjacent, not a boot risk, and not to be "fixed" by
+adding a flag to the fold whose terminal comment is load-bearing. Receipt
+`~/benchmarks/render-sweep-20261021/{REPORT.md,render-sweep.json}`; the sweep re-runs from
+`.scratch/render_sweep.py`, which needs `sparkrun` on PATH and so can never be a `tests/` guard.
+(3) **The Qwen-Image schedule path is guarded:** the launcher mod takes a `sigmas` list (`f610cba`) and
+schedule selection was extracted into a pure `schedule_kwargs(req, shipped)` with 13 cases and **three
+negative controls that must go red** — the pre-fix forwarded-field function, index rounding instead of
+value interpolation, a dropped `sigmas` kwarg — run against temp-dir shadow copies (`75fb9fc`). The suite
+reads 752 with that module moved aside and **765** with it present. (4) **AGENTS.md counts re-measured**
+rather than adjusted: 52 tracked recipes (53 files on disk) in 11 dirs, 29 guard modules, 765 tests with
+2 skips, 12/52 strict, 18 tools, 35 benchmark profiles, 53/53 folded command templates, and the attic
+re-counted per directory (where the IFM line's "two retired 7B arms" became three).

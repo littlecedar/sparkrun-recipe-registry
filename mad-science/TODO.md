@@ -553,9 +553,34 @@ Any model with reasoning and tool-calling capabilities
   *(closed 2026-10-21 — **`Muse-Glimmer-30B` is booted, measured, and does not ship.** One Spark on the ornith lane's own `sglang:v0.5.21` digest, no fork: contract PASS including a populated-argument `tool_calls` reply (the lane's first native channel-format arm), needle **10/10 at 32,768 and 10/10 at 131,072**, but **house 36/37** (`hard-rev`, `nurkrpas`, deterministic 4/4, no truncation) and **C1 20.2 t/s** — the slowest single-node arm measured here, against Laguna-XS's 57.4 at the same 36/37. 37/37 is a tie-break, not a gate, so the arm loses on the speed axis rather than on the bar. The recipe was removed; the route, flags, KV pool (235,556 tokens at mem-fraction 0.38), acceptance (C1 mean 3.19) and ladder are in `attic/explore/AGENTS.md` §"Muse-Glimmer-30B NVFP4 + DFlash — boot-verified 2026-10-21", receipt `~/benchmarks/explore-muse-glimmer-20261021/`. Worth revisiting only against the **bf16 export** (55.5 GiB, still one node), which separates pack from checkpoint on both the reversal and the decode rate.)*
   *(closed 2026-10-21, late — **the bf16 control ran and the answer is the CHECKPOINT, not the pack.** `meta-models/Muse-Glimmer-30B` @ `7af58019` (59.58 GB) on `.35` with the same drafter, the same `sglang:v0.5.21` digest and the same flag line (only `mem_fraction_static` 0.38 → 0.80, because 59.6 GB of bf16 weights do not fit the pack's fraction) reproduces the miss **exactly**: house **36/37**, `hard-rev` → **`nurkrpas`**, same item, same string, easy 19/19. bf16 load proven by the engine's own line (`MuseGlimmerForConditionalGeneration`, `mem usage=52.21 GB`, snapshot `7af58019…`), not by a file existing. C1 **12.1 t/s** (prefill 1206.7, ttfr 1,700 ms), DFLASH accepted on bf16 at block size 5 with acceptance 2.27-4.47. So both exports of the same weights fail the same word deterministically: **the Muse Glimmer line closes for good and no repack is worth trying.** Note for anyone reading serve logs later: the `marlin as FP4 GEMM runner … on SM120` line is a model-name-keyed engine branch and prints on a bf16 load with zero FP4 tensors. Receipt `~/benchmarks/explore-muse-glitter-bf16-20261021/`; detail in `attic/explore/AGENTS.md` §"Muse-Glimmer-30B bf16 control".)*
   *(closed sub-item 2026-10-18 — **`Nemotron-3-Super-120B-A12B-NVFP4` is built and measured, and does not ship.** C1 **15.83 ± 0.19 t/s** @ d0 (15.91 ± 0.12 @ d8192, depth-free) is 45 % below the already-rejected Mistral-Small-4 (28.9) and 66 % below Kolibri-1 (47.3); batching does not close it (c2/c5/c10 25.52 / 26.94 / 30.60 = 1.93× for 10× concurrency). Quality is the lane's best — house **37/37**, ties ling and mellum GGUF — and it is the only measured single-node arm serving the full **262,144** window (KV pool 7,659,632 tokens, 29.22× concurrency), which is why it is archived rather than deleted. **Params corrected: 123.6B true total (112.74B 4-bit experts + 4.83B FP8 + 6.02B BF16) / ≈12.2B active (22/512 experts); the Hub's 67.2B counts packed U8 NVFP4 expert bytes (2 values/byte) as parameters.** The as-authored recipe cannot boot: `--swap-space 0` is unrecognized in vLLM 0.29.0 (hard abort, which under `readiness.inference: false` shows as a hang, not a failure), and `VLLM_NVFP4_GEMM_BACKEND` / `VLLM_USE_FLASHINFER_MOE_FP4` are also unknown to 0.29.0, so its metadata describes behaviour that does not happen. Archived frozen at `attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml`; receipt `~/benchmarks/nemotron-120b-20261018/REPORT.md`.)*
+  *(closed 2026-10-21, late — **`Nemotron-3.5-Lightning-30B-A3B-NVFP4` is booted, measured and SHIPPED**, and it
+  empties this item for single-node work: it booted on `.35` through the shipped
+  `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1…` (vLLM 0.32.0rc1.dev301+g1ac942555, no new image)
+  with the checkpoint quant auto-detected as `modelopt_mixed` (MARLIN NVFP4 MoE, FlashInfer attention + Mamba
+  SSU), 20.10 GiB of weights, TTR ≈ 6 min in, `max_model_len 32768`, KV 10,703,667 tokens = 326.65×. House
+  **37/37** at `--max-tokens 2048`, C1 **63.27 ± 0.65 t/s** (peak 65.67) and ladder **63.27 / 90.81 / 122.27 /
+  144.15** at c1/2/5/10 with prefill flat at ~6.2k — the fastest single-node chat arm this lane has measured.
+  Tool calling passes (`get_weather` with populated arguments). Thinking-off is decode-identical (62.73 vs
+  62.74) but costs **five** house items (32/37), so the shipped numbers are thinking-on and the reasoning
+  channel is load-bearing. This closes the ranked table for 1-node work: ranks 1–5 are all closed and 6–10
+  are 2+ nodes (MiniMax-M3 is 795.5 GiB on the Hub, Inkling-Small 495.4). Recipe
+  `recipes/explore/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml`; commit `3800002`; receipt
+  `~/benchmarks/reasoning-candidates-20261021/REPORT.md`.)*
+
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
   *(progress 2026-10-18 — the Qwen-Image 2048² cell is **CLOSED**: **53.24 s/image** (σ 0.20, n=3) against a same-boot **11.240 s** at 1024² (n=3, σ 0.008), tiling off, the three 2048² PNGs byte-identical (`sha256 86973bfb…`) and decoded at 2048×2048; peak 56.505 GiB torch alloc / 59.779 GiB reserved, node `MemAvailable` floor 53.8 GiB. The lane's ~26 s prediction is **falsified 2.04×** (+18.4 % per-pixel cost at 2048²). A non-null `num_inference_steps` is **silently ignored** — `12` was accepted and the pipeline ran the checkpoint's saved 8-step sigmas at the same 11.23 s — so a non-8-step schedule needs a `sigmas`-accepting mod, not a knob. Receipt `~/benchmarks/media-gen-20261018/` (`REPORT.md`, `cells.json`, `proof.json`). The non-8-step schedule and the vLLM-OMNI engine route stay **OPEN**; LTX-2.5's cells were closed late the same day — next bullet.)*
   *(closed 2026-10-18, late — **LTX-2.5 I2V + FLF2V + 4K/50 fps are measured.** Warm on `.34` (clock cap 2200 MHz, 1344×768 / 121 f / 24 fps): T2V **78.1 s / 83.70 GiB** (−2.5 % on the recorded 80.1 s), I2V **84.3 s (+7.9 %) / 83.79 GiB**, FLF2V **120.2 s (+54 %) / 81.94 GiB**. FLF2V is slower by mechanism, not regression: its template has no `LTXVLatentUpsampler`, so one full-res 8-step pass (76.9 s @ 9.6 s/it at 1344×768) replaces half-res 8-step + 3-step refine. Conditioning proven by decoded-frame MAD, not by a file existing: I2V frame 0 **4.1** vs the start image; FLF2V frame 0 **7.8** vs start / 59.5 vs end, frame 120 **16.9** vs end / 59.1 vs start. **4K/50 (3840×2160, 249 f) is OOM — a measured ceiling, not an untried preset:** stage 1 fine (8/8, 461.3 s @ 57.7 s/it at the 1920×1080 latent), killed at the ×2 latent upscale with 590 `NV_ERR_NO_MEMORY` kernel lines at **121.16 of 121 GiB** (85.0 GiB steady in stage 1, weights-only baseline 78.4 → not co-tenancy); the node stayed up, a process kill rather than a node loss. A smaller 4K cell at that output size is the only open question there and no register asks for one. Cold rep **204.3 s is an upper bound** (it overlapped a peer's serve; model load 25 s, first sampler step 12 s, cold tiled VAE decode 82.7 s vs 43.5 s warm). Receipt `~/benchmarks/ltx25-20261018/` (`REPORT.md`, 7 frames, 7 mp4s, per-rep `api/err/out`, `receipts{,_warm}`, and the fixed `expand2.py`/`run_cell2.py`; the runbook's expander is T2V-only — four defects listed in `attic/explore/AGENTS.md`).)*
+
+  *(closed 2026-10-21 — **the Qwen-Image non-8-step schedule works, and the path is guarded.** `num_inference_steps`
+  was silently ignored because the pipeline re-read the checkpoint's saved 8-step sigmas; the launcher mod now
+  accepts a `sigmas` list and passes it through (`f610cba`). The guard that came with it asserted behaviour it
+  could not be shown to catch, so schedule selection moved into a pure `schedule_kwargs(req, shipped)` and the
+  tests exercise it directly — sigmas pass-through, the shipped count and the absent count both leaving the
+  saved schedule alone, the resample's endpoints and monotonicity, and both `ValueError`s — with three
+  negative controls that must go red (the pre-fix forwarded-field function, index rounding instead of value
+  interpolation, a dropped `sigmas` kwarg), run against temp-dir shadow copies so nothing on disk moves
+  (`75fb9fc`). 13 cases; the suite reads 752 with the file moved aside and **765** with it present. The 8-step
+  control still takes the saved schedule, so no shipped number changed.)*
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
@@ -693,6 +718,24 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
 **315.7 GB** on-disk ⇒ ≥3 nodes; owner asked to add it only if it fit 1–2).
 
 ## Recipe schema & documentation (registry-level)
+- [ ] **Sweep every recipe through `sparkrun run -n`** *(done 2026-10-21 for all 53 files: 46 renders clean, 7
+  flagged — four are the launcher refusing TP=4 on a one-GPU host list (all four render clean on four hosts) and
+  three are checker artifacts (two `pip install` chains in one command line; flags inside a load-bearing `#`
+  comment). One genuine note recorded in `recipes/qwen3/README.md`: the mlx4bit arm's
+  `speculative_draft_model_revision` pins the drafter for distribution while its own template means sglang's
+  `--speculative-draft-model-revision` never renders — `unpinned-model-revision`-adjacent, not a boot risk. No
+  recipe was edited on the sweep's strength. Receipt `~/benchmarks/render-sweep-20261021/REPORT.md` +
+  `render-sweep.json`; the sweep itself re-runs from `.scratch/render_sweep.py`, which needs `sparkrun` on PATH
+  and therefore can never become a `tests/` guard. Still open: repeat it after any render-affecting change.)*
+- [ ] **Audit the house-battery budget behind every recorded score** *(done 2026-10-21: 42 of the 43
+  `~/benchmarks/**/house*.json` receipts were taken at `--max-tokens 4096`; the only 1024 pass was the first
+  Lightning run, and its single miss was a truncation (`11111` for `1111111110`, `finish=stop` at 2048). Every
+  shipped arm's bar is a non-empty wrong-string miss, so nothing needs re-checking. Two durable findings: **the
+  budget convention now lives in `tools/README.md` §`quality-battery.py`**, and **`hard-rev` is the near-universal
+  discriminator** — `nurkrpas` / `nurkraps` / `nrukraps` / `nurkrasp` across seven-plus arms including both
+  DeepSeek lines — so 37/37 in practice means "clears `hard-rev`", stated in `recipes/explore/README.md`. Seven
+  empty-reply cases at 4096 are classified as indeterminate in that audit; the cheapest fix is to have the
+  instrument record `finish_reason`, which is not yet done.)*
 ## Runtimes (registry-level)
 Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtimes than the two in use —
 `sparkrun/runtimes/` holds `sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`, `atlas`, `modular_max`,

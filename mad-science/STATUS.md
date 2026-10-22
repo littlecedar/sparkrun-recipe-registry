@@ -1,15 +1,30 @@
-# Session status — 2026-10-21 18:50 ET
+# Session status — 2026-10-21 20:15 ET
 
-**The test pair is drained and idle** — 0 running *and* 0 exited containers on `.34` and `.35` at
-write time (the leftover sglang container from the 07:52 Muse boot is gone; its log is kept at
-`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). **Since then (18:49 ET) a highcon probe
-is booting again** — task `1895030211ea0500_3510a5e0d37d`, one `node_0` + `node_1` pair on
-`recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml`. It is **running, not finished**,
-and it is not this record's item. The production quartet's TP=4 serve
-is untouched and healthy. Gate: **752 tests OK** (2 skipped — the pooling guard's real-CLI case runs
-now that `sparkrun` is on this workstation), **52/52** recipes pass plain `sparkrun recipe validate`
-(0 errors, re-swept file by file), **12/52** fail `--strict` (unchanged in count). Landed on top of
-`510215b`; everything below is pushed, remote tip `a4f9841` plus this record.
+**Both queues are empty and both nodes are idle** — 0 running and 0 exited containers on `.34` and
+`.35` (the highcon probe that was up at 18:49 is finished and gone; the earlier leftover sglang
+container from the 07:52 Muse boot is logged at
+`~/benchmarks/_leftover-logs/43acfc12bcc4-sglang-20261021.log`). The production quartet's TP=4 serve
+is untouched and healthy. Gate: **765 tests OK** (2 skipped — the pooling guard's real-CLI case runs
+now that `sparkrun` is on this workstation; the count moved 752 → 765 when the Qwen-Image guard
+landed), **52/52 tracked recipes** pass plain `sparkrun recipe validate` (0 errors, 53 files on disk),
+**12/52** fail `--strict` (re-run file by file). Everything is pushed, remote tip `2e4a775`.
+
+**2026-10-21 20:00 ET — the single-node queue is now empty too.** **Nemotron-3.5-Lightning-30B-A3B
+NVFP4 shipped** (house **37/37**, C1 **63.27 ± 0.65 t/s** with a ladder of 63.27 / 90.81 / 122.27 /
+144.15 and prefill flat at ~6.2k, 20.10 GiB, tool calls passing) — the lane's fastest single-node chat
+arm, `3800002`. Two follow-ups landed with it: thinking-off is **decode-identical** (62.73 vs 62.74
+t/s, recipe serve 63.85 vs 63.49, all inside each other's spread) but costs **five** house items
+(**32/37**: `wp-3`, the three `hard-arith` items, `trick-3`), so both shipped numbers are thinking-on
+and the reasoning channel is load-bearing; and its **first `sparkrun` boot died once** inside
+PIECEWISE CUDA-graph capture with `CUDA error: an illegal instruction` and did not reproduce across
+five further boots/variants — retry once before debugging, and it is not a reason to set the
+deprecated mamba flag. **That empties the ranked candidate table for 1-node work**: ranks 1–5 are all
+closed and 6–10 are 2+ nodes (MiniMax-M3 is 795.5 GiB on the Hub, not the ~220 GB the dossier carried;
+Inkling-Small 495.4 GiB). Node-free work also closed tonight: the **house-budget audit** (42 of 43
+receipts at 4096; `hard-rev` named as the near-universal discriminator; convention written into
+`tools/README.md`), the **render sweep** (53 files, 46 clean, 7 flagged — four host-count refusals and
+three checker artifacts, no real defect), the **Qwen-Image sigmas guard** with three negative
+controls, and the AGENTS count refresh.
 
 **2026-10-21 evening — the pair block is empty.** Both remaining pair items closed without a
 finding. **flash-next is refuted on both engines** (`b85f611`, `510215b`): the b12x build cannot
@@ -37,8 +52,9 @@ re-derived and three claims that the code had outgrown rewritten (`e85c786`, `74
 = 83.6 %** (`3fbb5e0`), the ornith **SGLang 0.5.21 bump** validated on all three arms and shipped
 (`9d67131`), and the **LTX-2.5 T2V arm** first-booted at **100.13 s cold / 78.1 s warm** (`d61cb30`).
 The ornith bump had been the 6–9 h line in Table 2; it is gone, the pair-bound block lost nothing
-else, and the single-node queue is now the media-gen residue and the reasoning candidates (the
-decision candidates closed the same day: Nox-4B shipped, JEV-27B did not).
+else, and the single-node queue was then the media-gen residue and the reasoning candidates (the
+decision candidates closed the same day: Nox-4B shipped, JEV-27B did not; both remaining lines closed
+later the same evening, see the header).
 
 **2026-10-21 02:48 ET — cybersec arm 5's tools leg is finished; the arm is 5/5.** A fresh TP=2 boot
 (`2f9a8f3e60a51ee4_3510a5e0d37d`, TTR HTTP-ready 59.407 s) and a cap-free tools-only run scored
@@ -51,14 +67,14 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| — none: the test pair is drained (0 containers running or exited, no leg processes, pair block empty) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped; **flash-next refuted on both engines; qwen4 highcon control passed (2026-10-21)** | 0 h |
+| — none: both queues are empty (0 containers running or exited, no leg processes, no queued node-bound item) — | test pair | — | ornith 0.5.21 bump shipped; arm 5 5/5; LTX T2V shipped; ds4 v0.6 A/B adopted + `reasoning_effort` measured; Nox-4B shipped 67.8 %; JEV-27B measured 66.8 % and not shipped; **flash-next refuted on both engines; qwen4 highcon control passed (2026-10-21)** | 0 h |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
 | Bucket | Content | Wall | Notes |
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
-| Other local — single-node | 3–6 h | ~3–6 h | media-gen residue (Qwen-Image non-8-step schedules via a `sigmas`-accepting mod, the vLLM-OMNI route) · reasoning candidates 1–3 · **the decision candidates are done: Nox-4B shipped, JEV-27B tied and did not ship (2026-10-21)** |
+| Other local — single-node | **0 h — closed** | 0 h | everything closed on 2026-10-21: the decision candidates (Nox-4B shipped 67.8 %, JEV-27B tied at 66.8 % and did not ship), the reasoning candidates (Lightning shipped 37/37 at 63.27 t/s; the ranked table has no 1-node entry left), the media-gen non-8-step schedule (Qwen-Image `sigmas` mod + guard with negative controls), the house-budget audit and the repo-wide render sweep. The **vLLM-OMNI route is the one media-gen cell still unrun** and it is not queued for a node |
 | Pair-bound | **0 h — closed** | 0 h | every pair item is resolved: ds4 v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, pin `d6e4c10d…`), ds4 `reasoning_effort` measured (10.6 % paired saving, one task), **flash-next refuted** (b12x: `qwen_sparse_attention` not a layer type at `ModelConfig`, no weight read; `vllm-openai:v0.31.0`: clears that gate, dies at worker init on `Qwen4Exp PLE embedding … CompressedTensorsConfig`), **qwen4 highcon control passed** (86.8/87.5/89.5/75.4 t/s, all within 3.4 % of control, no 10 % finding) |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
@@ -75,11 +91,11 @@ recorded in the lane attic).
 
 | Bucket | Range |
 |---|---:|
-| In flight | 0 h (pair drained, pair block empty) |
-| Queued node-bound content, runnable now (Table 2) | 3–6 h (single-node only) |
-| **Node-bound wall at two lanes** | **≈3–6 h** |
-| Deferred (Table 3, owner action or event) | 21–30 h |
-| **Grand total including deferred** | **≈36–57 h** |
+| In flight | 0 h |
+| Queued node-bound content, runnable now (Table 2) | **0 h — both rows closed** |
+| **Node-bound wall at two lanes** | **0 h** |
+| Deferred (Table 3: offsite TP=4 20–28 h + ornith intermittent 1–2 h) | 21–30 h |
+| **Grand total including deferred** | **≈21–30 h, every hour of it blocked on an owner decision or a failing boot** |
 
 ## Risks
 

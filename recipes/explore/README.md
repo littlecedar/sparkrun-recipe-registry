@@ -407,9 +407,21 @@ vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node
 - **Tool calling:** PASS — `finish_reason: tool_calls` with `get_weather({"location": "Paris",
   "unit": "celsius"})` (populated arguments) under `--tool-call-parser qwen3_coder` and
   `--reasoning-parser nemotron_v3`.
+- **Thinking-off, measured — and the number above is thinking-on.** Decode rate and TTFT are
+  **mode-independent**: 62.74 t/s thinking-on vs 62.73 off, and on the recipe serve 63.85 vs 63.49, all
+  inside each other's spread. Quality is not: house **37/37 thinking-on vs 32/37 off**, the five losses
+  being `wp-3`, all three `hard-arith` items and `trick-3`. So the shipped **63.27 t/s and the 37/37 are
+  both thinking-on**, the default — and the reasoning channel is **load-bearing for arithmetic and the
+  trap items**. A caller must not turn thinking off to save time on this arm; it buys no throughput and
+  costs five quality items.
+- **First-boot fragility, seen once:** the very first `sparkrun` boot died inside PIECEWISE CUDA-graph
+  capture with `CUDA error: an illegal instruction`. It did **not** reproduce across five further
+  boots/variants on the same node and image (repo-id with and without `--mamba-cache-mode align`,
+  local-path + `--revision`, and a fresh boot). **Retry once before debugging it** — and it is not a
+  reason to set the deprecated mamba flag.
 - **Not measured here:** needle, ARC/GSM8K, BFCL/TEB, and the vendor's DSpark/DFlash drafters (separate
-  repos + `--speculative-algorithm` + block size). Thinking-off C1 is also unmeasured; the ladder cells
-  spend their 128 generated tokens inside reasoning.
+  repos + `--speculative-algorithm` + block size). The ladder cells spend their 128 generated tokens
+  inside reasoning.
 - **Receipt:** `head:~/benchmarks/reasoning-candidates-20261021/` (`REPORT.md`, `house.json` @1024 =
   36/37, `house-2048.json` = 37/37, `ladder.json`, `serve.log`).
 
