@@ -54,7 +54,7 @@ govern, per the protocol; the verbatim asks remain in git.)*
   ratio showing **little degradation at 10 concurrent streams**; (2) it sustains **≥ 10 concurrent
   streams**; (3) output quality is **high** — house battery **37/37** at 4096 thinking-on, no
   fact-error regressions.* **Being bigger is not an argument; missing any leg disqualifies.**
-  Measured vs unmeasured is marked per cell, because three of the five rows are still empty:
+  Measured vs unmeasured is marked per cell, because three of the six rows are still empty:
 
   | candidate | C1 | C10 | ratio | house 37/37 | verdict |
   |---|---|---|---|---|---|
