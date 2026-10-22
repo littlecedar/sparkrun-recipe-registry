@@ -1,0 +1,77 @@
+recipe_version: "2"
+model: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M
+model_revision: 20b439426f1e997ba575eaccaf4856ac0f76f5d5
+runtime: llama-cpp
+# PROBE (not shippable) — the Mellum llama-cpp arm plus the checkpoint's own MTP
+# draft head, on a stock-upstream llama.cpp built from our Dockerfile. The
+# draft-length sweep runs this file once per cell with
+# `-o spec_draft_n_max=<n>`; 1 is the value the 2026-10-22 rejection measured.
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE (not shippable) - the Mellum2.1-12B-A2.5B-Thinking Q4_K_M arm with its
+  own MTP (multi-token-prediction) draft head enabled, on the stock-upstream
+  llama.cpp `a37cc4610` build. The main GGUF (8,071,295,264 B) is the shipped
+  file at the shipped pin; the head is a second GGUF in the same repo
+  (`mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, 1.77 GB) which exists only at
+  revision 4159d684 and must be staged on the node by hand
+  (`/cache/huggingface/hub/mellum-mtp-head/`) because sparkrun distributes one
+  repository per recipe. `--spec-draft-n-max` is the draft-length knob under
+  test. Apache-2.0.
+metadata:
+  model_url: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "12B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: explore, reasoning, tools, fast
+
+# entrypoint: "" — this image keeps llama-server as ENTRYPOINT, which would eat the launcher command (the decision-lane precedent).
+executor_config:
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
+  ctx_size: 131072
+  parallel: 8
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  # The knob under test: tokens the MTP head may draft per step (>= 1).
+  spec_draft_n_max: 1
+
+# Four literals, not defaults: a `defaults:` key in the llama.cpp flag map is
+# only consumed on the command-less path (`runtimes/llama_cpp.py::_build_command`),
+# so `jinja:` / `webui:` / `mmap:` here would be silent drops. `--no-mmap`
+# matches the GB10 platform default (which the template path never injects);
+# this build removed that spelling in favour of `--load-mode`.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  -md /cache/huggingface/hub/mellum-mtp-head/mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf
+  --spec-type draft-mtp
+  --spec-draft-n-max {spec_draft_n_max}
+  --no-webui
+  --load-mode none
+  --cont-batching
