@@ -36,7 +36,7 @@
 | arm | node set | cells | verdict | receipt |
 |---|---|---|---|---|
 | knapcio TP=4 1M (baseline) | 4 nodes | C1 **69.28 ± 5.25** / C2 86.40 / C10 **116.27 ± 6.22**; house 36/37; needle 3/3 to 981,950 — 2026-10-22 fresh boot: C1 **60.20** / C10 **116.86**, house **37/37**, needle **5/5** at ~999k | **the bar**, not a candidate | `recipes/ds4/README.md`; `~/benchmarks/knapcio-tp4-20261022/` (head: REPORT.md, perf-ladder.json, sparkrun_serve.log) |
-| Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp) | 1 (`.32`) | C1 **102.03 ± 0.35**; C10 **unmeasured**; house unmeasured | passes C1 (+47 %), needs C10 + battery | `~/benchmarks/mellum-mtp-draft-20261022/` |
+| Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp) | 1 (`.34`) | **ten-slot 2026-10-22: C1 110.52 ± 1.77 / C2 154.30 / C5 208.29 ± 5.67 / C10 185.96 ± 2.31**; house @4096 thinking-on **36/37** (needle-1 empty reply, 1 of 3); thinking-off 31/37 | **passes the absolute bars (+59 % each) and house at the bar, FAILS the c5→c10 leg (186.0 vs 208.3, −10.7 %) — a real five-stream peak; the open question (should that forbid a c5 peak when c10 clears the bar by 60 %?) is an owner call** | `~/benchmarks/mellum-c10-20261022/REPORT.md` |
 | Spark-X2.6-4B FP8 (`v0.5.22`) | 1 | **40.80 / 77.06 / 146.63 / 217.58** at c1/2/5/10 (5.3×); house **37/37** on the 4096 rerun (first pass 109/111 = 98.2 %, `trick-2` runaway) | **shipped fast tier**; fails the easy-traffic gate on C1 | `~/benchmarks/spark-x26-20261022/` |
 | Spark-X2.6-4B INT8 | 1 (`.35`) | — | **dead at the kernel** — no `int8_scaled_mm` on sm_121; do not re-boot | `.35` serve log |
 | drama-3 TTS | 1 (`.34`) | RTF **0.813** @28.7 s, TTFA 0.646 s, seeded byte-identical, unseeded 4.2–7.7 s (σ0.93) | **arm stands** | `~/benchmarks/drama-20261022/` |

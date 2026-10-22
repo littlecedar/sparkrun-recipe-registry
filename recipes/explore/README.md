@@ -61,7 +61,7 @@ one is set.
 | `poolside-laguna-s-2.1-nvfp4-dflash-vllm` | 20.26 ± 0.87 | 20.26 / 29.26 / 38.96 / 53.80 | KV 106,010 tok = **1.078×** at 98,304; `max_num_seqs: 32` | 33/37 · 3/3 @32k, 3/3 @98,304 · — · — · — | 95.61 GiB resident · util 0.85 | `~/benchmarks/sweep2-20261018/laguna-s-ladder.json`, `laguna-s-suite/summary.md` | **retire** — dominated by XS on every axis |
 | `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s: the checkpoint defines **no chat template at all**, so vLLM refuses the chat route — not an engine fault; no chat route ⇒ no ladder) | KV 370,597 tok = 45.2× at 8,192 | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
 | `mellum2.1-12b-a2.5b-bf16-thinking-vllm` | 42.3 ± 0.1 | 42.3 / 67.2 / 99.9 / 135.6 | util 0.55 (66.6 GiB budget); 131,072; KV grant not captured | 36/37 · — · — · — · — · — | 24.3 GB · util 0.55 | `~/benchmarks/mellum-20261015/perf-ladder.json`, `house.json` | **retire** — dominated by its own Q4_K_M sibling |
-| `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
+| `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (8 slots, peak c5); **ten slots 2026-10-22: 110.5 / 154.3 / 208.3 / 186.0** (peak still c5) | 131,072 × `parallel: 8` shipped; `parallel: 10` probe logs `n_slots = 10, n_ctx_slot = 131,072`, `kv_unified` | 37/37 · **36/37 battery @4096** (`needle-1` empty reply in 1 of 3) · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; ten-slot `~/benchmarks/mellum-c10-20261022/REPORT.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
 | `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **accuracy control — 37/37 at C1 20.38; the FP8 tier doubles C1 and ties it** |
 | `spark-x2.6-4b-fp8-sglang` | **40.80 ± 0.09** | 40.80 / 77.06 / 146.63 / **217.58** (still rising at c10) | KV 779,390 tok = **5.95×** at 131,072 (hybrid: 26.76 GB + 64.22 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 on the rerun (111/111, no flaky) · — · — · tool-call not probed on this tier · — | 5.52 GB resident (4.47 GB checkpoint) · util 0.85 (90.98 GB KV, 11.38 GB spare) · TTR 129.5 s port / 136.4 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`, `ladder-fp8.json`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`) | **KEEP — the fast tier: 2× the control's C1 at every rung, quality tied on the rerun** |
 | `zz-spark-x2.6-4b-int8-sglang` | — (never served) | — (never served) | — | — | 5.47 GB resident (4.47 GB checkpoint) · loaded in 28.08 s, died 57 s in | `~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) | **measured-rejected at the kernel level — `int8_scaled_mm` unimplemented for sm_121** |
@@ -83,7 +83,9 @@ leader (ARC/GSM8K/BFCL all measured, house 37/37); the Mellum GGUF ties the hous
 the house battery (37/37, no ranking power), so speed and memory decided: APEX-24bpw wins
 **63.8 vs 52.4 t/s** and **22.7 vs 42.6 GiB**. Laguna-XS keeps the concurrency slot: its c10 cell
 (141.3) is the highest of any 262k-window arm and its ladder is still rising; the Mellum GGUF's 146.4
-is higher in absolute terms but is 10 streams over an 8-slot grant (its peak is c5) at a 131,072 window.
+was higher in absolute terms but measured 10 streams over an 8-slot grant — re-measured at ten real
+slots (2026-10-22) it is **186.0 ± 2.3**, still below its own c5 208.3, so it is a genuine five-stream
+peak at a 131,072 window and not a slot limit; Laguna-XS keeps the slot because its ladder rises to c10.
 
 **Two arms with no index row:**
 
@@ -323,6 +325,21 @@ weights**.
   the suite's 256-token default — the two empty cells are the thinking-budget class below, not
   retrieval; re-probes reach **3/3 by union** (depth 50 PASS at `--max-tokens 4096` — 722 completion
   tokens; depth 90 PASS with `chat_template_kwargs: {"enable_thinking": false}` — 9 tokens, 0.74 s).
+- **Ten-slot re-measure (2026-10-22, `.34`; receipt `~/benchmarks/mellum-c10-20261022/`).** The shipped
+  recipe byte for byte except `parallel: 10`, `-c 131072 -np 10 --kv-unified`, with the engine logging
+  `n_slots = 10, n_ctx_slot = 131072, kv_unified = 'true'` — the unified pool keeps the full 131,072
+  per-slot ceiling, so a pp2048+tg128 cell (10 × 2176 ≈ 21.8k tokens) cannot truncate. Ladder @ d0
+  pp2048 tg128 n=5 → **C1 110.5 ± 1.8 / C2 154.3 ± 1.6 / C5 208.3 ± 5.7 / C10 186.0 ± 2.3 t/s**. Two
+  things this settles. (a) The ten-slot c10 is **39.6 t/s above the 8-slot c10** (186.0 vs 146.4) —
+  that is the queue the eight slots imposed, recovered. (b) The aggregate **still falls from c5 to
+  c10, −10.7 %**, so the dip was contention and not queueing: per-stream decode runs **41.7 t/s at c5
+  vs 18.6 t/s at c10**, i.e. this arm's aggregate peak is five streams and adding more costs total
+  tokens/s. Both numbers are right and they measure different things; the 146.4 was slot-limited, the
+  186.0 is the real ten-stream figure, and neither is a monotone ladder. House battery at 4096
+  thinking-on: easy 56/57 · hard 54/54 = **stable 36/37 tasks** — the one non-stable cell, `needle-1`,
+  returned an **empty reply** in one of three repeats and `ZORBULON` in the other two, a serving-side
+  empty-content event, not a retrieval miss. Thinking-off, recorded as extra: easy 54/57 · hard 42/54
+  = **stable 31/37**, and it leaks raw `</think>` text into `content` — a separate defect.
 - **`--no-mmap` is verified, not assumed (2026-10-19).** A variant recipe with the flag removed (the
   flag-map key is inert on a template arm, so only a variant can test it) measured **C1 108.80 vs
   110.64, C2 151.78 vs 151.87, C5 196.48 vs 208.28, C10 143.45 vs 144.82** in a same-window pair,
