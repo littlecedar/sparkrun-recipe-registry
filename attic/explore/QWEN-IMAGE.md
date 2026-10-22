@@ -154,8 +154,9 @@ Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.NN`.
 
 `vllm/vllm-omni:nightly` serves this checkpoint natively and beats the shipped Diffusers launcher by
 **~24 % warm at the same step count and the same peak memory**. It is **recorded as a measured
-alternative, not as an arm**: there is no visual verdict, and the same seed does not give the same
-image (below). One boot on `.34`, one serve each route, same prompt, seed 42, 1024², CFG=1
+alternative, not as an arm**: it has no recipe, and the same seed does not give the same picture (below).
+Both routes' 8-step images were inspected for defects and are clean — the remaining choice between the two
+looks is the owner's, not this measurement's. One boot on `.34`, one serve each route, same prompt, seed 42, 1024², CFG=1
 (`guidance_scale: 1.0`), shipped 8-step schedule.
 
 | route | 8-step cold | 8-step warm | peak GPU memory | per step (warm) | engine |
@@ -210,12 +211,33 @@ per-step latency is quoting fiction; the mod at least echoed `steps: 8` honestly
 therefore provenance, not schedules: there is no working 4-step OMNI cell to set against the Diffusers
 4-step 6.38 s.
 
+### Operator review of both 8-step images (2026-10-21)
+
+Both PNGs were opened at full resolution (the copies in `koder/omni-pngs` on the workstation) and read
+deliberately for defects:
+
+- **Diffusers — clean.** A two-line poster, **`SPARK` / `RUN`**, blue over orange on cream, heavy
+  grotesque, correct spelling, crisp edges.
+- **OMNI — clean.** A single-line **`SPARKRUN`** in a rainbow run of letters on white, correct spelling,
+  clean edges.
+- **No gross defect in either**: no smearing, no blended or doubled glyphs, no gibberish letterforms, no
+  step-count starvation artifacts. So the OMNI route's ~24 % warm win is **not bought with visible quality
+  loss at 8 steps**.
+- **They differ in composition, not merely palette** — two-line vs single-line, different weight and
+  colour logic — which is what the hash mismatch already implied: the same seed does not mean the same
+  picture across routes. Do **not** describe OMNI as "the same image, faster".
+
+**The limit of this review:** it is a **defect inspection, not the owner's aesthetic choice**. The §6 item
+therefore moves from *"nobody has looked"* to *"inspected for defects; which look ships is the owner's
+call"* — and it applies to both routes, so the shipped Diffusers arm is not validated by it either.
+
 ### Why it is not an arm
 
-- **No visual verdict, and the two routes disagree on pixels.** Same prompt and seed give a *different*
-  image — OMNI `38ce554a…45704690` vs Diffusers `e24f6e3a…24ee24a` — which is expected across different
-  sampler/VAE code paths, and nothing was compared by eye. So the §6 "quality judged by eye" item stays
-  **open for both routes**, and the OMNI route cannot be preferred on latency alone.
+- **The two routes disagree on composition, not just pixels.** Same prompt and seed give visibly
+  *different* images — two-line `SPARK`/`RUN` (Diffusers, `e24f6e3a…24ee24a`) vs single-line rainbow
+  `SPARKRUN` (OMNI, `38ce554a…45704690`) — which is expected across different sampler/VAE code paths.
+  Both inspected clean (above), so neither route can be preferred on defects, and **which look ships is
+  the owner's call**; latency alone does not decide it.
 - **No recipe was written.** Shipping it would need a script/burst recipe plus a decision about the inert
   step knob; that is the lane owner's call, not this measurement's.
 
@@ -233,7 +255,7 @@ the measurement itself is `~/benchmarks/media-gen-20261021/vllm-omni/REPORT.md` 
 | one 1024² image at the shipped step count | 1024×1024 at **8 steps** (the checkpoint's saved `sample_sigmas`) |
 | wall-clock per item | 11.3–11.4 s steady (table above) |
 | peak unified memory | 36.85 GiB torch alloc; 76.9 GiB node `MemAvailable` during a request |
-| quality judged by eye against the vendor gallery | **open** — images saved under `samples/`; objective non-degeneracy recorded above |
+| quality judged by eye against the vendor gallery | **open — but no longer unlooked-at.** An operator defect review of the 8-step images (both routes, full resolution) found clean typographic posters with correct spelling and crisp edges, no smearing or blended glyphs, and no step-starvation artifacts. Which *look* ships is the owner's aesthetic call |
 
 ### Verdict
 

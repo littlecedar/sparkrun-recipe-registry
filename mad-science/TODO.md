@@ -593,9 +593,18 @@ Any model with reasoning and tool-calling capabilities
   the blocker. **Not an arm:** no recipe was written; `num_inference_steps` is inert *and* the engine
   divides one total by the requested count (4/8/12 all wrote the byte-identical PNG in ~8.7 s while
   `denoise_step_latency_ms` read 2164/1086/721 — asking for more steps claims each step got faster); and
-  same seed ≠ same image (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). So the media-gen cells are all
-  measured, and what is left is a **by-eye verdict on both routes**, open in `recipes/explore/README.md`
-  §6 and in `attic/explore/QWEN-IMAGE.md`. Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
+  same seed ≠ same picture (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). **Operator defect review
+  2026-10-21, both PNGs at full resolution:** both are **clean typographic posters** — Diffusers a
+  two-line `SPARK` / `RUN` in blue over orange on cream, heavy grotesque, correct spelling, crisp edges;
+  OMNI a single-line `SPARKRUN` in a rainbow run of letters on white, correct spelling, clean edges — with
+  **no gross defect in either** (no smearing, no blended or doubled glyphs, no gibberish letterforms, no
+  step-count starvation artifacts), so the ~24 % win is **not bought with visible quality loss at 8
+  steps**. They differ in **composition, not merely palette** (two-line vs single-line, different weight
+  and colour logic), consistent with the sampler/VAE divergence the hash mismatch implied — this is
+  deliberately **not** "the same image, faster". So the media-gen cells are all measured and inspected;
+  what is left is that **this is a defect inspection, not the owner's aesthetic choice** — §6 has moved
+  from "nobody has looked" to "inspected for defects; which look ships is the owner's call", for **both**
+  routes (`recipes/explore/README.md` §6, `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
   (`REPORT.md`, `omni.json`, `omni-warm8.json`); both 8-step PNGs named by route one directory up.)*
 
 

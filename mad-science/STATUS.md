@@ -30,9 +30,13 @@ cold** per 1024² 8-step image against the shipped Diffusers arm's 11.49 / 12.64
 identical peak (36.84 vs 36.82 GiB), TTR ≈ 4 min, `CUDNN_ATTN` auto-selected for sm_121. It is
 **recorded as a measured alternative, not an arm**: no recipe, the step knob is inert *and* mis-reported
 (4/8/12 → one byte-identical PNG at ~8.7 s while `denoise_step_latency_ms` read 2164/1086/721), and same
-seed gives a different image (`38ce554a…` vs `e24f6e3a…`). The one thing that can close it is the
-**owner's by-eye verdict, and it is open for both routes** — both 8-step PNGs are named by route in
-`~/benchmarks/media-gen-20261021/`.
+seed gives a different picture (`38ce554a…` vs `e24f6e3a…`). **Both 8-step images were then inspected at
+full resolution** — an operator defect review, not the owner's eye — and **both are clean typographic
+posters**: Diffusers a two-line `SPARK` / `RUN` in blue over orange on cream, OMNI a single-line
+`SPARKRUN` in a rainbow run of letters on white, both correctly spelled with crisp edges and **no gross
+defect in either** (no smearing, no blended or doubled glyphs, no gibberish letterforms, no step-count
+starvation). So the ~24 % win is not bought with visible quality loss, the two differ in **composition,
+not merely palette**, and OMNI is not "the same image, faster".
 
 **2026-10-21 evening — the pair block is empty.** Both remaining pair items closed without a
 finding. **flash-next is refuted on both engines** (`b85f611`, `510215b`): the b12x build cannot
@@ -82,7 +86,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 | Bucket | Content | Wall | Notes |
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
-| Other local — single-node | **0 h — closed** | 0 h | everything closed on 2026-10-21: the decision candidates (Nox-4B shipped 67.8 %, JEV-27B tied at 66.8 % and did not ship), the reasoning candidates (Lightning shipped 37/37 at 63.27 t/s; the ranked table has no 1-node entry left), the media-gen non-8-step schedule (Qwen-Image `sigmas` mod + guard with negative controls), the house-budget audit and the repo-wide render sweep. The **vLLM-OMNI route is measured and closed-with-a-comparison** (8.66–8.75 s warm vs 11.49 s, same peak, ~24 % faster; not shipped — no recipe and no by-eye verdict). What is left anywhere is the owner's by-eye call on two PNGs plus the offsite TP=4 block |
+| Other local — single-node | **0 h — closed** | 0 h | everything closed on 2026-10-21: the decision candidates (Nox-4B shipped 67.8 %, JEV-27B tied at 66.8 % and did not ship), the reasoning candidates (Lightning shipped 37/37 at 63.27 t/s; the ranked table has no 1-node entry left), the media-gen non-8-step schedule (Qwen-Image `sigmas` mod + guard with negative controls), the house-budget audit and the repo-wide render sweep. The **vLLM-OMNI route is measured and closed-with-a-comparison** (8.66–8.75 s warm vs 11.49 s, same peak, ~24 % faster; not shipped — no recipe, and both 8-step images inspected clean). **What is left anywhere: (a) the owner's aesthetic choice between the two looks and (b) the offsite TP=4 block** |
 | Pair-bound | **0 h — closed** | 0 h | every pair item is resolved: ds4 v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, pin `d6e4c10d…`), ds4 `reasoning_effort` measured (10.6 % paired saving, one task), **flash-next refuted** (b12x: `qwen_sparse_attention` not a layer type at `ModelConfig`, no weight read; `vllm-openai:v0.31.0`: clears that gate, dies at worker init on `Qwen4Exp PLE embedding … CompressedTensorsConfig`), **qwen4 highcon control passed** (86.8/87.5/89.5/75.4 t/s, all within 3.4 % of control, no 10 % finding) |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
