@@ -263,11 +263,16 @@ back into every copy and resets a file another session is writing: a blanket `gi
 before a `pull --ff-only` destroyed uncommitted item text on 2026-10-22. If the head's pull is blocked by a
 dirty file, leave it dirty and report it; commit here with explicit pathspecs and push.
 
-**A bare `git commit` takes the whole shared index.** This tree has a live second writer, so another
-session's staged entries ride out under your message: a peer's `git add -- <one recipe>` followed by a
-bare commit carried 24 staged `recipes/{explore,decision} → recipes/media/` renames (`bf6ab39`) that its
-message did not describe. Commit with a pathspec — `git commit -o <paths>` or `git commit -m … --
-<paths>` — and print `git diff --cached --stat` *before* the commit, not in the same command chain.
+**Never `git add` in one command and commit in another.** The shared index accumulates other sessions'
+staged entries between them, so the commit publishes work whose message does not describe it — measured
+twice in one session: `bf6ab39` swept 24 staged `recipes/{explore,decision} → recipes/media/` renames and
+`d913fcc` swept 33 already-staged foreign paths. Commit in a single command that names the paths —
+`git commit -m "<msg>" -- <paths>` or `git commit -o <paths>` — so only those paths are taken. If the index
+already holds entries that are not yours, neither clear nor include them: stage your own hunks only (a
+filtered `git apply --cached`, or the throwaway `GIT_INDEX_FILE` + `write-tree`/`commit-tree` route) and
+check `git diff --cached --stat` immediately before committing. Never revert or force-push another
+session's misattributed commit: the bytes are intact, and rewriting shared history is worse than a wrong
+message.
 
 **`fatal: unable to read <blob>` is a stale index entry, not a dead repository.** A synced `.git/index` can
 reference an object that never arrived, and then every `git status` dies. Rebuild the index from HEAD with
