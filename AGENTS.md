@@ -235,6 +235,18 @@ remove what the session created** — a leftover is anything undocumented, unkno
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule
   exists to prevent.
 
+**Bodies above 60 GB are node-local, never staged on the head.** A model body larger than 60 GB is
+downloaded on the target node (`HF_HOME=~/.cache/huggingface hf download <repo>`), or copied
+node-to-node from a node that already has it, and launched with `--offline`; the control staging path is
+for bodies ≤ 60 GB only. The head's free space is shared by every concurrent session, a single 78 GB
+staged body consumes nearly all of it, and the node-local route carries no shared-resource race — so the
+threshold is a property of the body, not of current free space. Measured 2026-10-22: two staged bodies
+drove the head to 24 GB free; after the clean-up it holds 141 GB and two concurrent 80 GB stages would
+still refill it. Boot-need side effect of that clean-up: `vllm/vllm-openai:v0.32.0@sha256:befccf0e…`,
+which `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and
+`recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` pin, was deleted from the head as
+unattributed and has to be re-pulled there (the node copies survived).
+
 ## Code Conventions & Common Patterns
 
 **Prose is American English — always `license`, `licenses`.** Never the British `-ce` noun form. It applies to
