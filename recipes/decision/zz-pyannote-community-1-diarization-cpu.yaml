@@ -1,0 +1,61 @@
+recipe_version: "2"
+model: pyannote/speaker-diarization-community-1
+model_revision: 3533c8cf8e369892e6b79ff1bf80f7b0286a54ee
+container: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+# sparkrun has no runtime family for a third-party Python server: `runtime: vllm` is the launcher/distribution contract this command satisfies (the kokoro/laya precedent).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT, never booted, no boot claim. pyannote/speaker-diarization-community-1 — an
+  8.1M-param (fp32, derived from bytes) speaker-diarization pipeline: a 5.9 MB powerset
+  segmentation net over a 26.6 MB wespeaker ResNet34 embedding net, plus VBx/PLDA
+  clustering, all three bundled in one 33.7 MB repo. Served on 5 A725 cores at no GPU
+  cost. It exists to be the instrument the drama-3 TTS arm lacks: it can report how many
+  speakers a clip contains and whether speaker segments are self-consistent, and it
+  cannot report whether any word was dropped. Route: pyannote.audio + torch (aarch64
+  PyPI wheels) on CPU behind a stdlib HTTP server written by a lane mod — no engine here
+  can serve it. Card DER 8.9 (REPERE) to 46.8 (Ego4D), no collar, overlaps scored.
+  License CC-BY-4.0, gated (auto-approve form), so preparing the snapshot needs an HF
+  token with the conditions accepted on the launching host.
+
+metadata:
+  model_url: https://huggingface.co/pyannote/speaker-diarization-community-1
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "8.1M"
+  model_dtype: fp32
+  tags: diarization, audio, cpu, draft
+
+readiness:
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 600
+
+defaults:
+  port: 8881
+  host: 0.0.0.0
+  # Empty on purpose: the server takes no --served-model-name, while any non-empty value makes sparkrun append one to the script. Referenced below so the key is not inert.
+  served_model_name: ""
+  # Matches the taskset span: the pipeline's thread count must be fixed for the RTF cell to mean anything.
+  pyannote_threads: 5
+
+# The upstream image is python:*-slim + pip (no published server image exists), so this pins the base digest. user: root — the kill shim writes /usr/local/bin and the pip install needs it.
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+mods:
+  - mods/pyannote-diarize-server
+
+# torch from PyPI, not download.pytorch.org/whl/cpu: that index carries no current aarch64 wheel, and PyPI's 2.8.0 aarch64 wheel is CPU-only here anyway (the laya precedent).
+# Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, and python:*-slim ships no /bin/kill, so without the shim a healthy serve is declared failed.
+# PYANNOTE_MODEL_PATH={model} is the launch contract: the prepared snapshot path must reach the command as a whole or `key=<path>` token (models/runtime.py), and it is also what makes the pipeline load offline instead of re-resolving the gated repo at request time.
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && pip install --no-cache-dir --quiet 'torch==2.8.0' 'torchaudio==2.8.0'
+  && pip install --no-cache-dir --quiet 'pyannote.audio==4.0.7'
+  && PYANNOTE_HOST={host} PYANNOTE_PORT={port} PYANNOTE_THREADS={pyannote_threads}
+  PYANNOTE_MODEL_PATH='{model}' PYANNOTE_REVISION='{model_revision}'
+  taskset -c 0-4,10-14 python3 /cache/runtime/pyannote/diarize_server.py {served_model_name}
