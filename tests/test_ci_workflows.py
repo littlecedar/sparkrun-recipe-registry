@@ -80,10 +80,45 @@ def unguarded_apply_steps(text):
             if "--apply" in b and "env.APPLY == 'true'" not in b]
 
 
+def job_env_lines(text):
+    """Values of every job-level `env:` block. `runner` is NOT a legal context there — using it
+    makes the workflow fail to compile before any job starts (measured: seven runs, zero jobs)."""
+    lines, inside = [], False
+    for line in text.splitlines():
+        if re.fullmatch(r"    env:", line):
+            inside = True
+            continue
+        if inside and re.match(r"      \S", line):
+            lines.append(line)
+            continue
+        if inside and line.strip() and not line.startswith("      "):
+            inside = False
+    return lines        # [] means the workflow has no job-level env at all
+
+
+def nonzero_exit_blocks(text):
+    """Steps that can end the job non-zero, except the two sanctioned shapes: the opt-in
+    `FAIL_ON_DRIFT` step and the impossible-branch `unexpected exit code` guard."""
+    out = []
+    for b in step_blocks(text):
+        if "exit 1" not in b:
+            continue
+        if "env.FAIL_ON_DRIFT == 'true'" in b or "unexpected exit code" in b:
+            continue
+        out.append(b.splitlines()[0])
+    return out
+
+
 class WorkflowFiles(unittest.TestCase):
     def test_the_three_workflows_exist(self):
         for path in (GATE, SWEEP, LLAMA):
             self.assertTrue(path.is_file(), f"missing {path.relative_to(REPO_ROOT)}")
+
+    def test_only_the_three_workflow_files_exist(self):
+        # A syncthing conflict copy (`*.sync-conflict-*.yml`) in this directory would be loaded by
+        # GitHub as a fourth workflow — a second nightly sweep — so the listing is exact.
+        self.assertEqual(sorted(p.name for p in WORKFLOWS.iterdir()),
+                         ["gate.yml", "llamacpp-engine.yml", "refresh-sweep.yml"])
 
     def test_each_is_workflow_shaped(self):
         for path in (GATE, SWEEP, LLAMA):
@@ -94,6 +129,15 @@ class WorkflowFiles(unittest.TestCase):
             self.assertTrue(job_ids(text), f"{path.name}: no jobs")
             self.assertNotIn("\t", text, f"{path.name}: YAML indentation must not use tabs")
             self.assertNotIn("\r", text, f"{path.name}: CRLF in a workflow file")
+
+    def test_no_runner_context_in_a_job_level_env(self):
+        # `runner` is not a legal context at jobs.<id>.env: GitHub rejects the whole file
+        # ("Invalid workflow file") and the run shows zero jobs — the failure this guards against.
+        self.assertTrue(job_env_lines(_text(GATE)), "gate has no job-level env to check")
+        for path in (GATE, SWEEP, LLAMA):
+            for line in job_env_lines(_text(path)):
+                self.assertNotIn("${{ runner.", line,
+                                 f"{path.name}: runner context in a job-level env: {line.strip()}")
 
     def test_no_cluster_identifiers_and_no_literal_credentials(self):
         for path in (GATE, SWEEP, LLAMA):
@@ -121,7 +165,7 @@ class Gate(unittest.TestCase):
             "sparkrun recipe validate",
             'for s in mods/*/*.sh recipes/*/mods/*/*.sh; do bash -n "$s"; done',
             "for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do",
-            "uv run python -m py_compile",
+            "-m py_compile",
             "find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +",
         ):
             self.assertIn(fragment, self.text, fragment)
@@ -141,6 +185,15 @@ class Gate(unittest.TestCase):
                          "the arm64 build must not live in the gate")
         self.assertIn("CI never bumps a model pin", self.text)
 
+    def test_gate_can_be_dispatched_manually(self):
+        self.assertIn("workflow_dispatch:", self.text, "`gh workflow run gate.yml` needs it")
+
+    def test_sync_failure_falls_back_to_the_runner_python(self):
+        blocks = [b for b in step_blocks(self.text) if "uv sync --frozen" in b]
+        self.assertTrue(blocks, "no uv sync step")
+        self.assertIn("continue-on-error: true", blocks[0])
+        self.assertIn("python3 -B -m unittest discover -s tests", self.text)
+
 
 class RefreshSweep(unittest.TestCase):
     def setUp(self):
@@ -152,6 +205,10 @@ class RefreshSweep(unittest.TestCase):
         for name in ("exit_code_on_drift:", "apply:"):
             self.assertIn(name, self.text, name)
         self.assertRegex(self.text, r"(?m)^      apply:\n(?:        .*\n)+        default: false$")
+        # Drift is the registry's normal state: the run stays green unless a human re-arms it.
+        self.assertRegex(
+            self.text,
+            r"(?m)^      exit_code_on_drift:\n(?:        .*\n)+        default: false$")
 
     def test_exit_code_contract_and_artifact(self):
         self.assertIn("tools/refresh-sweep.py --json sweep.json --markdown sweep.md --exit-code",
@@ -165,6 +222,13 @@ class RefreshSweep(unittest.TestCase):
         self.assertIn("Pin drift found by refresh-sweep", self.text)
         self.assertIn("Refresh sweep could not run", self.text)
         self.assertIn("gh issue edit", self.text, "must update the open issue, not add one a day")
+
+    def test_sweep_never_fails_a_run_on_drift(self):
+        self.assertIn("FAIL_ON_DRIFT: ${{ inputs.exit_code_on_drift }}", self.text)
+        self.assertEqual(nonzero_exit_blocks(self.text), [],
+                         "a step can fail the run without the opt-in guard")
+        self.assertIn("GITHUB_STEP_SUMMARY", self.text, "the report must land in the summary")
+        self.assertIn("sweep-broken", self.text, "exit 2 must be label-distinct, not an email")
 
     def test_apply_is_guarded_and_nothing_commits_or_pushes(self):
         self.assertIn("APPLY: ${{ inputs.apply }}", self.text)
@@ -244,6 +308,19 @@ class NegativeControls(unittest.TestCase):
         broken = text.replace("env.APPLY == 'true'", "true")
         self.assertTrue(unguarded_apply_steps(broken),
                         "removing the apply guard must be caught")
+
+    def test_job_env_runner_context_is_caught(self):
+        broken = _text(GATE).replace("${{ github.workspace }}/.local/sparkrun-home",
+                                     "${{ runner.temp }}/sparkrun-home")
+        self.assertTrue([ln for ln in job_env_lines(broken) if "${{ runner." in ln],
+                        "the compile-breaking job-level env must be caught")
+
+    def test_unguarded_failing_step_is_caught(self):
+        text = _text(SWEEP)
+        self.assertEqual(nonzero_exit_blocks(text), [])
+        broken = text.replace("env.FAIL_ON_DRIFT == 'true'", "true")
+        self.assertTrue(nonzero_exit_blocks(broken),
+                        "a step that can fail the run must be caught")
 
     def test_cluster_identifier_is_caught(self):
         text = _text(GATE)

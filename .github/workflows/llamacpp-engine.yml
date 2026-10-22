@@ -5,9 +5,12 @@
 # `b10549-cu131` (2026-08-21, llama.cpp `b2e5e9b`) while upstream has since absorbed what the forks
 # existed for. See attic/explore/AGENTS.md.
 #
-# report: never fails. `.github/scripts/llamacpp-engine-report.py` prints our pinned refs against
-#         upstream head (with `behind_by`), upstream releases, and the four source-level feature
-#         gates `recipes/explore/Dockerfile.llamacpp-upstream` builds for.
+# report: never fails the run. `.github/scripts/llamacpp-engine-report.py` prints our pinned refs
+#         against upstream head (with `behind_by`), upstream releases, and the four source-level
+#         feature gates `recipes/explore/Dockerfile.llamacpp-upstream` builds for. Every probe is
+#         wrapped: a rate-limited or error-shaped API payload is printed as an `ERROR:` line and the
+#         report continues, so an API hiccup cannot mail the owner. Editorially it is a report, not
+#         a gate — drift here never turns the run red.
 # build:  workflow_dispatch ONLY, arm64 DGX Spark ONLY.
 #         **No self-hosted runner is registered today** — no machine carries the labels
 #         [self-hosted, linux, arm64, dgx-spark] for this repository. The job is therefore gated on

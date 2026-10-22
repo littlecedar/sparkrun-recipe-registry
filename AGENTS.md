@@ -374,25 +374,33 @@ matching.
 - **No npm/node tooling.** `package-lock.json` is a 6-line empty stub and no `package.json` exists —
   never run `npm`.
 - **Three GitHub workflows, no pre-commit, no formatters or linters.** `.github/workflows/` holds
-  `gate.yml` (the gate below, on push to `main` and on every PR), `refresh-sweep.yml` (nightly
-  pin/recipe drift sweep) and `llamacpp-engine.yml` (weekly upstream llama.cpp report). CI runs
-  **x86-side checks only** on `ubuntu-latest` — the suite, text `sparkrun recipe validate`,
-  `bash -n`, `py_compile` — because nothing in CI boots an engine. `gate.yml` attempts
-  `uv tool install sparkrun` and prints `SKIPPED: sparkrun not installable in CI` rather than
-  failing when the CLI is unavailable, so a skipped check is visible, never silently green. The
-  one arm64 job (`llamacpp-engine.yml` `build`, sm_121 image build) is `workflow_dispatch`-only
-  and gated on the repository variable `ARM64_RUNNER_ENABLED == 'true'`: **no self-hosted DGX
-  Spark runner is registered yet**, so it cannot run today. There is still no
-  pytest/ruff/black/mypy configuration anywhere (`.ruff_cache/` on disk is leftover) and no
-  pre-commit: linting is syntax checks only — `bash -n`, `py_compile`, `sparkrun recipe validate`.
-- **CI never bumps a model pin.** `refresh-sweep.yml` reports drift and opens/updates one
-  `pin-drift` issue; even its manual `apply: true` mode only rewrites the runner's throwaway tree,
-  prints the per-arm boot checklist, and stops (no commit, no push). A pin change is still
-  boot-gated by lane policy, on hardware a hosted runner does not have. **A deliberate hold is
-  declared, never silenced**: `tools/refresh-sweep-accepted.json` lists the pinnings that are
-  correct as frozen (each with a `reason` and a `since`), an accepted row is still printed and does
-  not gate, and an entry that matches nothing is `stale-acceptance` and does gate — so a hold that
-  was fixed cannot linger.
+  `gate.yml` (the gate below, on push to `main`, on every PR, and by `workflow_dispatch`),
+  `refresh-sweep.yml` (nightly pin/recipe drift sweep) and `llamacpp-engine.yml` (weekly upstream
+  llama.cpp report). CI runs **x86-side checks only** on `ubuntu-latest` — the suite, text
+  `sparkrun recipe validate`, `bash -n`, `py_compile` — because nothing in CI boots an engine.
+  Two checks cannot run on a hosted runner and degrade visibly rather than silently:
+  `uv sync` (netifaces builds from its sdist and needs a C toolchain — if that fails the sync step
+  is tolerated and the stdlib suite plus `py_compile` run on the runner's own `python3`) and
+  `sparkrun recipe validate` (prints `SKIPPED: sparkrun not installable in CI`). The one arm64 job
+  (`llamacpp-engine.yml` `build`, sm_121 image build) is `workflow_dispatch`-only and gated on the
+  repository variable `ARM64_RUNNER_ENABLED == 'true'`: **no self-hosted DGX Spark runner is
+  registered yet**, so it cannot run today. There is still no pytest/ruff/black/mypy configuration
+  anywhere (`.ruff_cache/` on disk is leftover) and no pre-commit: linting is syntax checks only —
+  `bash -n`, `py_compile`, `sparkrun recipe validate`.
+- **CI never fails a run for finding drift — the issue is the signal.** Drift is this registry's
+  normal state, so `refresh-sweep.yml` always exits 0: the counts and the drift table go to the run
+  summary, the report is uploaded as an artifact, and one open issue labelled `pin-drift` is
+  updated in place (exit 2, "could not run", also adds `sweep-broken` so it stands out in the issue
+  list). `exit_code_on_drift: true` on a manual dispatch is the only way to make drift fail a run,
+  and its default is `false`. `llamacpp-engine.yml`'s report job is likewise report-only: API
+  errors print as `ERROR:` lines and never turn the run red. Neither workflow edits recipes — even
+  the sweep's manual `apply: true` mode only rewrites the runner's throwaway tree, prints the
+  per-arm boot checklist and stops (no commit, no push). A pin change is still boot-gated by lane
+  policy, on hardware a hosted runner does not have. **A deliberate hold is declared, never
+  silenced**: `tools/refresh-sweep-accepted.json` lists the pinnings that are correct as frozen
+  (each with a `reason` and a `since`), an accepted row is still printed and does not count as
+  gating drift, and an entry that matches no row is `stale-acceptance` and does gate — so a hold
+  that was fixed cannot linger.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.

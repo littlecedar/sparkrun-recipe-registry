@@ -46,7 +46,11 @@ def say(line=""):
 # Our pins, read from the Dockerfiles that carry them.
 pins = []
 for d in sorted(pathlib.Path("recipes").rglob("Dockerfile*")):
-    text = d.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = d.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:          # report-only: an unreadable Dockerfile is a printed gap
+        say("- could not read %s: %s" % (d, exc))
+        continue
     repo = re.search(r"(?m)^ARG LLAMA_REPO=https://github\.com/(\S+?)\.git", text)
     ref = re.search(r"(?m)^ARG LLAMA_REF=(\S*)", text)
     if repo and ref and ref.group(1):
@@ -56,12 +60,14 @@ for d in sorted(pathlib.Path("recipes").rglob("Dockerfile*")):
 pins.append(("scitrera/dgx-spark-llama-cpp:b10549-cu131", "ggml-org/llama.cpp", "b2e5e9b"))
 
 head = try_fetch(API + "/repos/ggml-org/llama.cpp/commits/master")
-if isinstance(head, dict):
+# An error body (rate limit, 403) is JSON and therefore a dict, so key presence — not type — decides.
+if isinstance(head, dict) and "sha" in head:
     head_sha = head["sha"]
-    say("upstream head: `%s` (%s)" % (head_sha[:12], head["commit"]["committer"]["date"]))
+    date = (head.get("commit") or {}).get("committer", {}).get("date", "date unknown")
+    say("upstream head: `%s` (%s)" % (head_sha[:12], date))
 else:
     head_sha = ""
-    say(head)
+    say(head if isinstance(head, str) else "ERROR: unexpected upstream-head payload: %r" % (head,))
 say()
 
 say("| our ref | repo | ref | upstream commits we lack | `behind_by` |")
@@ -69,7 +75,7 @@ say("|---|---|---|---|---|")
 for label, repo, ref in pins:
     ahead = behind = "?"
     base = try_fetch("%s/repos/%s/commits/%s" % (API, repo, ref))
-    base_sha = base["sha"] if isinstance(base, dict) else ref
+    base_sha = base.get("sha", ref) if isinstance(base, dict) else ref
     if repo == "ggml-org/llama.cpp":
         cmp_url = "%s/repos/ggml-org/llama.cpp/compare/%s...master" % (API, base_sha)
     else:
@@ -131,6 +137,9 @@ else:
 
 summary = os.environ.get("GITHUB_STEP_SUMMARY")
 if summary:
-    with open(summary, "a", encoding="utf-8") as fh:
-        fh.write("## llama.cpp engine report\n\n")
-        fh.write("\n".join(out) + "\n")
+    try:
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write("## llama.cpp engine report\n\n")
+            fh.write("\n".join(out) + "\n")
+    except OSError as exc:   # the report is already on stdout; a summary write must not fail the job
+        print("could not write $GITHUB_STEP_SUMMARY: %s" % exc)

@@ -269,16 +269,19 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 # CI
 
-Three GitHub workflows in [`.github/workflows/`](.github), all secret-free and x86-only:
+Three GitHub workflows in [`.github/workflows/`](.github), all secret-free and x86-only. **No
+workflow fails a run for finding drift**: the report and the issue are the signal.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `gate.yml` | push to `main`, every PR | the repo gate: `uv sync --frozen`, `uv run python -B -m unittest discover -s tests`, `sparkrun recipe validate` over `recipes/*/*.yaml` (prints `SKIPPED: sparkrun not installable in CI` instead of failing when the CLI is unavailable), `bash -n` on every mod script, `py_compile` over `tools/`, `plugins/` and mod Python |
-| `refresh-sweep.yml` | daily 06:17 UTC, manual | `tools/refresh-sweep.py --exit-code --accept-file tools/refresh-sweep-accepted.json`: **exit 0 = clean, 1 = pin drift, 2 = could not run**. Either non-zero code opens or updates one tracking issue labelled `pin-drift`, titled for the case, with the markdown report in the body; the report is uploaded as an artifact regardless. Deliberate holds are declared in the accept file and neither gate nor get applied — but an entry that matches nothing is `stale-acceptance` and gates. A manual `apply: true` run prints the per-arm boot checklist and stops — it never commits or pushes |
-| `llamacpp-engine.yml` | weekly, manual | reports our pinned llama.cpp refs against upstream head (with `behind_by`), upstream releases, and the feature gates the stock-upstream image needs. Its arm64 GB10 image build is manual-only and **inactive until a self-hosted DGX Spark runner is registered** (`ARM64_RUNNER_ENABLED != 'true'` today) |
+| `gate.yml` | push to `main`, every PR, manual | the repo gate: `uv sync --frozen`, `uv run python -B -m unittest discover -s tests`, `sparkrun recipe validate` over `recipes/*/*.yaml`, `bash -n` on every mod script, `py_compile` over `tools/`, `plugins/` and mod Python. Two hosted-runner gaps degrade visibly instead of silently: if `uv sync` fails (netifaces builds from its sdist) the stdlib suite and `py_compile` run on the runner's `python3`, and an unavailable CLI prints `SKIPPED: sparkrun not installable in CI` |
+| `refresh-sweep.yml` | daily 06:17 UTC, manual | `tools/refresh-sweep.py --exit-code --accept-file tools/refresh-sweep-accepted.json`: **exit 0 = clean, 1 = pin drift, 2 = could not run**. The job always succeeds — the counts and drift table go to the run summary and the report is uploaded as an artifact — and either non-zero code opens or updates one issue labelled `pin-drift`, titled for the case, with the report in the body; exit 2 also labels it `sweep-broken`. Deliberate holds are declared in the accept file and neither gate nor get applied — but an entry that matches nothing is `stale-acceptance` and does gate. `exit_code_on_drift: true` on a manual dispatch is the only way to make drift fail the run, and it defaults to `false`. A manual `apply: true` run prints the per-arm boot checklist and stops — it never commits or pushes |
+| `llamacpp-engine.yml` | weekly, manual | reports our pinned llama.cpp refs against upstream head (with `behind_by`), upstream releases, and the feature gates the stock-upstream image needs; API errors print as `ERROR:` lines and never fail the run. Its arm64 GB10 image build is manual-only and **inactive until a self-hosted DGX Spark runner is registered** (`ARM64_RUNNER_ENABLED != 'true'` today) |
 
-CI validates artifacts; it never bumps a model pin. Recipe and pin changes stay boot-gated by lane
-policy.
+CI validates artifacts; it never bumps a model pin and it never pages anyone for drift. Recipe and
+pin changes stay boot-gated by lane policy — and a pin edit has to satisfy the daily sweep too:
+either move the pin, or retire the hold that covered it in `tools/refresh-sweep-accepted.json`,
+because a hold that matches nothing is reported as `stale-acceptance` and does gate.
 
 # License Policy
 
