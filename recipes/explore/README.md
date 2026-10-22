@@ -332,6 +332,15 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   to exist for; the launcher's own `schedule_kwargs` now does it, and that mod's fail-closed anchor no
   longer matches the launcher (see the probe recipe's header). Receipt
   `head:~/benchmarks/vllm-032-20261022/qwen-image/`.
+- **Hardened server re-verified live (2026-10-22, `.34`, same task id):** the 400/500 split and the
+  `/health` counters boot and serve, not just stub-test. `/health` 200 at **207 s** (load 179.6 s,
+  payload now carrying `attempts`/`failed`); the same 1024² 8-step seed-42 cell returned **200** at
+  **12.311 s** server / 12.624 s client, `steps: 8`, `sigmas_used: null`, peak **36.824 / 37.648 GiB**,
+  and a **byte-identical PNG (`e24f6e3a…`)** — the success path did not move. Against the live serve,
+  `{"sigmas": []}` and a missing `prompt` both answered **400** with their reason and no traceback
+  (`generate rejected: …` + `400` in the serve log, zero `Traceback` lines), and `/health` then read
+  `requests 1, attempts 3, failed 2`. Receipt
+  `head:~/benchmarks/vllm-032-20261022/qwen-image-live/` (cell JSON, PNG, serve log, preflight).
 - **A faster route exists and is not shipped:** `vllm/vllm-omni:nightly` serves this checkpoint
   natively (its own `QwenImage21Pipeline`) at **8.66–8.75 s warm / 11.19 s cold** for the same
   1024² 8-step image, **~24 % faster** than this arm's 11.49 s at *the same* peak memory (36.84 vs
