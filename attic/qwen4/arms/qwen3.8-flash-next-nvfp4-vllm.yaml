@@ -1,7 +1,11 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-Flash-Next-NVFP4
 runtime: vllm
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest
+# Pinned 2026-10-22 for the W12 measurement: `:latest` resolved to this digest that day
+# (`docker buildx imagetools inspect`, config `sha256:e90182b5…`) — the same build the shipped TP=1
+# solo arm pins, so the two vLLM qwen4 receipts describe one engine. W12's row requires the digest
+# beside the number; a floating tag would make the token/s unquotable.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
 min_nodes: 2
 
 metadata:

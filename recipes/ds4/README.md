@@ -92,6 +92,13 @@ easy 19/19, hard 17/18, the one miss `hard-rev` (reply `nrukraps`); needle **3/3
 tool-eval-bench **90** — 27/30, 15 scenarios, 13 pass / 1 partial (`TC-14`) / 1 fail (`TC-03`,
 `wrong_args`), profile `benchmarking/standard-suite.yaml`, ref v2.6.0.
 
+**The two open accuracy legs were closed on 2026-10-22** (same recipe and node set, one fresh
+four-node boot, task `sparkrun_a2e141223b52793c_7afff0589a33`): hard **ARC 93.5 %** (187/200) and
+**GSM8K 97.5 %** (195/200), thinking off, seed 1234, `--hard-limit 200`, **0 errors / 0 empty
+replies**, both legs in one serve (427.6 s, suite 1.0.1, verdict `ok`). `/v1/models` at
+`max_model_len 1048576`, Engram packed on both layers (hit_rate 100 %). Receipt
+`~/benchmarks/tp4-20261022/knapcio-arc-gsm8k/` (`REPORT.md`, `suite/hard/`, `serve-node0..3.log`).
+
 **DSpark γ=3 is a proven negative on this image.** Booted with `-o dspark_block_size=3`, every
 rank logs `DSpark gamma mismatch: using gamma=3 (from speculative_num_draft_tokens=4) but draft
 config block_size=5` and then all four die at decode-graph capture —
