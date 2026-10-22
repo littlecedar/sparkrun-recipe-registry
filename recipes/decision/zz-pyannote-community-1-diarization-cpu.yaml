@@ -17,6 +17,9 @@ description: >-
   cannot report whether any word was dropped. Route: pyannote.audio + torch (aarch64
   PyPI wheels) on CPU behind a stdlib HTTP server written by a lane mod — no engine here
   can serve it. Card DER 8.9 (REPERE) to 46.8 (Ego4D), no collar, overlaps scored.
+  Measured by tools/diarize-score.py against tools/diarize-fixture.py (collar 0.25,
+  permutations mapped, DER>10% = falsifier), which scores who-spoke-when only: whether
+  a TTS clip's words are intelligible still needs an ASR pass or the owner's ears.
   License CC-BY-4.0, gated (auto-approve form), so preparing the snapshot needs an HF
   token with the conditions accepted on the launching host.
 

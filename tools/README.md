@@ -32,6 +32,8 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `humanizer-analyze.py` | the scorer of the same instrument | re-imports the drafts from `humanizer-measure.py` rather than from a receipt, and re-scores any arm's `results.json` — that is how bf16 / Q4_K_M / Q6_K were compared; guarded with the recipe by `tests/test_humanizer_measure.py` |
 | `cache-audit.py` | the fleet `sparkrun` runtime-cache (every lane's compiles) | registry-level, not lane-level: maps each cache tree to the recipe that owns its leaf key, so "which of these 99 trees is stale?" is a command and not a hand-derivation; `--selftest`; guarded by `tests/test_cache_audit.py`; policy and reclaim list in `mad-science/STORAGE-POLICY.md` |
 | `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; `--accept-file` declares deliberate holds and a dead entry gates as `stale-acceptance`; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
+| `diarize-score.py` | the CPU diarization arm (`recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml`) | DER + its three components and JER over RTTM or the server's own `segments` JSON; exhaustive speaker-permutation mapping, ±collar exclusion, `--overlap score\|exclude`; `--fail-above` turns the arm's pre-registered DER bar into an exit code; guarded by `tests/test_diarize_score.py` |
+| `diarize-fixture.py` | the same arm's ground truth | two committed-nowhere, byte-deterministic synthetic layouts (two-speaker turn taking; three-speaker with an A+B overlap) plus `--splice` to turn two single-speaker recordings into a labelled dialogue; `--check` re-derives the bytes and compares sha256; guarded by the same test file |
 
 ## eval-suite.py (the SOP pass)
 
@@ -1224,3 +1226,45 @@ digest-pinned base whose tag moved is *current* while a tag-only `FROM` is *floa
 drift stops gating while a dead acceptance starts, that an empty selection and an unparseable recipe
 raise, that `--apply` refuses a dirty tree and leaves `model_revision:` bytes untouched, and that the
 `graph_mtp` map flips when the fetched file lacks it.
+
+## diarize-score.py / diarize-fixture.py
+
+`sparkrun`'s benchmarking path measures speed, and every other instrument here scores **text**.
+The diarization arm's product is *who spoke when*, so it needs a scorer whose answer is known
+before a model is in the loop: `diarize-score.py` computes DER (with missed speech, false alarm
+and speaker error reported separately) and JER, and `diarize-fixture.py` generates the reference
+it is scored against.
+
+The choices a reader has to be able to check, all of them in the tool's docstring: the
+reference→hypothesis speaker mapping is an **exact search over injections**, capped at 8 speakers
+(diarization has single-digit speaker counts, so 8! is cheap and Hungarian would be more code for
+the same answer; above the cap the tool refuses rather than guessing); the collar (default 0.25 s)
+excludes a band on both sides of every *reference* boundary but does not excuse speech past the
+band, which stays a false alarm; `--overlap exclude` drops intervals with two simultaneous
+reference speakers from the denominator while the default scores them per label; and the scored
+region defaults to `[0, latest end over both sides]`, so invented speech past the reference is a
+false alarm rather than something clipping hides. Where both sides have speech, one interval costs
+one unit of speaker error (the worse side), not two -- otherwise merging two speakers would score
+worse than being silent.
+
+Fixtures are **generated, not committed**: a 30 s 16 kHz WAV is ~1 MB of weight nobody reads. Tier A
+is two fixed layouts (two-speaker turn taking; three-speaker ending in a 2.5 s A+B overlap) rendered
+from closed-form harmonics with the `wave` module and *no random number generator anywhere*, so the
+bytes are reproducible on any machine; `--check` regenerates and compares sha256 against
+`manifest.json`. Tier B (`--splice a.wav b.wav`) alternates fixed chunks of two real single-speaker
+recordings into a labelled dialogue -- the route from a TTS pair to a diarization fixture that is
+not hand-labelled.
+
+**What the number does not say.** DER/JER measure "who spoke when" on the fixture. They say nothing
+about whether the speech is intelligible, so a drama-3 intelligibility claim still needs an ASR pass
+or the owner's ears; and the synthetic tier proves the plumbing, not the model.
+
+Guard: `tests/test_diarize_score.py` (23 tests, stdlib only). Each claim above has a control -- a
+perfect hypothesis is exactly 0, a relabelled perfect hypothesis is also 0 with the mapping
+asserted, the same pair scores 0.6 with no collar and 0.2 with a 0.25 s collar, a false-alarm-only
+hypothesis is DER 2.0 (missed 1 / false alarm 1), a merged pair is speaker error rather than
+missed+speaker-error, an empty *file* raises while an empty *in-memory* hypothesis scores 1.0,
+`pooled` is 0.25 where averaging would say 0.5, and `--check` goes red on a tampered WAV. The two
+shadow-tree mutations used to prove the file fires (mapping disabled: 11 failures including the
+relabelling case; collar forced to 0: the two collar tests) are the negative controls of the
+controls.
