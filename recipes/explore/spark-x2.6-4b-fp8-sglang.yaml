@@ -34,12 +34,12 @@ description: >-
   `--max-tokens 4096` it returns empty content with finish_reason=length on **4 of 6 reps**
   (.35, 2026-10-22) plus 2 of 3 in the .33 pass and 0 of 3 in an earlier .35 pass — **6 of 12
   empty overall** — while at 8192 the same prompt answers "5" 3/3 after only 159 / 177 / 177
-  reasoning tokens, **0 of 6 empty**. The full 37-item battery at 4096 still scores 37/37 stable
+  reasoning tokens, **0 of 3 empty** (n=3 — an n=10 rerun at 8192 was preempted). The full 37-item battery at 4096 still scores 37/37 stable
   (111/111, no flaky): no other item showed the behaviour. Temperature-0 repeats were prepared
   and preempted (the TP=4 baseline needed the node), so the sampler is the proximate trigger and
   the loop itself is a weight behaviour — deterministic sampling is UNTESTED, not exonerated.
   RETRY GUIDANCE: on `finish_reason=length` with empty content, retry once; better, serve this
-  arm at `max_tokens >= 8192`, where 6 of 6 attempts answered.
+  arm at `max_tokens >= 8192`, where 3 of 3 measured attempts answered (n=3; an n=10 rerun was preempted).
   Roles: this file is the FAST tier (2x the control's C1 at every rung, 40.80 ± 0.09 at C1);
   spark-x2.6-4b-bf16-sglang.yaml is the accuracy control (20.38 ± 0.09, 3/3 on this item).
   TTFR is the trade in the other direction: 1,664 ms here vs 232 ms on bf16 (one measurement
