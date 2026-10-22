@@ -730,16 +730,18 @@ Xunzhuo's patched qwen35 loader; that arm stays on
 `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974`.
 
 **What a stock-upstream image unlocks, one line per arm:**
-- `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — **DISPROVEN 2026-10-22**: the stock
-  image builds and loads the arm, but decodes it **14× slower** than the `scitrera` pin (below), so the
-  pin stays where it is. The MTP path is real and works (69–78 % draft acceptance) — it just arrives on
-  an engine this lane cannot use yet.
+- `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — **stock image works, MTP rejected
+  on it (2026-10-22)**: `a37cc4610` decodes **101.5 / 102.1 t/s** on `.31` where the `scitrera` pin gives
+  120, and with MTP on **108.4 / 109.9** — short of the pre-registered 114 t/s bar, so the arm keeps no
+  speculative decoding (acceptance 0.80, mean len 1.80 of a possible 2.0). The 8.4 t/s seen on the
+  `9df0b73c7` build reproduces from a clean context, so it is a window in that tree, not a bad artifact;
+  the earlier `+44 %` MTP figure was that slow baseline's artefact and must not be quoted.
 - `kolibri-1-apex-24bpw-llamacpp` (and the Q4_K sibling) — loadable on stock upstream; the fork image
   can retire after one boot proves it, and stays the fallback until then.
 - `sol-2b-decision2-gguf-llamacpp` — **not** unlocked: different arch string and tensor contract, so
   the Xunzhuo fork image remains the only engine for that pack.
 
-**Build — pre-registered, waits for a free node (no boot yet).** `recipes/explore/Dockerfile.llamacpp-upstream`
+**Build — pre-registered; built 2026-10-22 (four builds, receipts below).** `recipes/explore/Dockerfile.llamacpp-upstream`
 is arm64-only, `121a-real`, with `LLAMA_REF` **required** and no default, and fails closed on: a
 non-arm64 host, a missing ref, a ref whose `git rev-parse HEAD` differs, a tree without the three model
 sources or without `nextn_flags`/`graph_mtp` in `mellum.cpp`, a fatbin without `sm_121`, and a binary
@@ -755,7 +757,8 @@ foreign container (`.30` only while the quartet is between boots); sibling build
     docker inspect --format '{{index .RepoDigests 0}}' \
       littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130
 
-**Mellum MTP A/B — pre-registered with its falsifier, to run the moment the image exists.** The recipe
+**Mellum MTP A/B — pre-registered with its falsifier (ran 2026-10-22: FALSIFIER FIRED, see the measured
+section; kept as written so the bar is on record).** The recipe
 bytes stay as shipped except `container:` and the draft staging: sparkrun stages one repository per
 recipe, and the head is a second file in the same repo
 (`mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, 1.77 GB, `-md` → that path, plus
