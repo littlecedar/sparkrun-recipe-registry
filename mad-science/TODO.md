@@ -262,6 +262,8 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   as "clears, not a headline". Receipts `~/benchmarks/ds4-v06-ab-20261021/` (`REPORT.md`) and
   `~/benchmarks/ds4-v06-build-20261021/` (build log, digest); the note's §4/§6 now carry the tables.
 
+- [ ] **Make the ds4 knapcio image byte-reproducible** — the 2026-10-22 rebuild is behavior-identical but not reproducible: config identical (entrypoint, cmd, env, healthcheck, labels; 91 layers, layers 0–69 identical) and the content diff is four recompiled `__pycache__/*.pyc` plus 6,707 hash-equal files, so `littlecedar/dgx-spark-dsv41:canary-roce-20261022` = `sha256:0cbe228a…` is not the shipped `acfc331a…`, which stays pinned. Unblocker: a deterministic build step (bytecode off, `SOURCE_DATE_EPOCH` set). *(effort: medium; recorded 2026-10-22 01:10 ET)*
+
 - [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a 382.8 GB "GSQ"
   mixed-precision export of the 1017 body in a *strata*-format GGUF that no engine this lane ships
   can open. **Research only, not queued for a boot** — the four-node window is closed and a TP=4
@@ -448,6 +450,10 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   and the block runs locally on `.30`–`.33`.)*
   *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
   then the four-node suite legs; the block is resumable, so a pause is never a loss.)*
+
+  *(progress 2026-10-22 01:55 ET — **TP=4 W6 is blocked at the engine, not the arm and not memory.** The boot loaded 41/41 shards on four ranks and died in `modelopt_quant.py:2624` (gated-activation MoE padding) on every rank, so TP=4 is an engine limit on this build. `e8d34fc`; `attic/qwen4/AGENTS.md`.)*
+
+- [ ] **Finish the TP=4 block after W6** — W12's cross-runtime vLLM same-checkpoint bench first (its arm now pins the b12x build by digest, `cf5a2a53…`, the build the shipped TP=1 solo arm already pins), then the ds4 TP=4 upgrade candidates, then the four-node suite legs. The knapcio four-node arm already closed the two accuracy cells the 2026-10-18 suite left open: **ARC 93.5 % / GSM8K 97.5 %** (n=200 each, seed 1234). Evidence: `recipes/qwen4/README.md`, `recipes/ds4/README.md`, `attic/qwen4/AGENTS.md`, `~/benchmarks/tp4-20261018/`. *(effort: long; resumable — Owner decision 2026-10-22: run the full block, a pause is never a loss)*
 
 - [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
@@ -647,6 +653,7 @@ Any model with reasoning and tool-calling capabilities
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
+- [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window, and the arm64 self-hosted runner for the weekly CI report (`vars.ARM64_RUNNER_ENABLED`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
