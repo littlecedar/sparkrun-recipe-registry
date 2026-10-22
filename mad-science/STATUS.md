@@ -3,7 +3,7 @@
 | field | value |
 |---|---|
 | census | 2026-10-22 **~10:07 ET**, all six nodes |
-| gate | **928 tests OK** (2 skipped) at `b717792`, three consecutive runs ~10:40–11:00 ET; at `eb1a2a4` the clean-tree count was 929, the one-test difference is the duplicate deleted by `b717792`; validate **not re-run this hour** (last: **56/56** plain, **17/56** strict at `4570ade` 03:49 ET) |
+| gate | **928 tests OK** (2 skipped) at `9cceeea`; at `b717792` three consecutive runs gave the same count and at `eb1a2a4` it was 929, the one-test difference being the duplicate `b717792` deleted; validate **re-run on the same tree**: **66/66** plain, **18/66** strict, all 18 the known false positives |
 | baseline (`#48`) | DSv4-Flash **knapcio TP=4 1M** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; C1 **69.28 ± 5.25** → C10 **116.27 ± 6.22** (1.68×), house **36/37**, needle **3/3** at 32,768 / 131,072 / 983,040 (981,950 tok) — **re-measured 2026-10-22 on a fresh online boot** (`.30`–`.33`, task `sparkrun_a2e141223b52793c_d7960e70d961`, TTR 544 s, `max_model_len` 1,048,576, KV 6,849,792): C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** (n=5, `--skip-run`), house **37/37** @4096 thinking-on, needle **5/5** at ~999k (depths 10–50); the 69.28 / 36/37 figures stay the historical row, not replaced; the `60.20` was taken while **the same four ranks served the fleet's own inference**, so the 13 % C1 deficit is `LIKELY` self-inflicted contention and `69.28` is **not a like-for-like control today** (`recipes/ds4/README.md:218-225`) |
 | foundation shape | **TP=4**; TP=2 arms supplement it; GLM-5.3 3bpw TP=4 **deferred** ("in a few days") |
 | easy-traffic gate (`#49`) | single node qualifies only at C1 **≥ 69.28** *and* C10 **≥ 116.27** t/s, **≥ 10** streams, house **37/37** @4096 thinking-on — nothing clears it yet |
@@ -54,7 +54,7 @@
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **928 tests OK** (2 skipped) | **not re-run this hour** (last: **56/56**, 0 errors at `4570ade`) | **not re-run this hour** (last: **17/56 fail**, known false positives at `4570ade`) | suite at `b717792` — the clean-tree count at `eb1a2a4` was 929, less the duplicate `b717792` deleted | suite 2026-10-22 ~10:40–11:00 ET, three consecutive runs (`uv run python -B -m unittest discover -s tests`); validates 03:49 ET — not fresh |
+| **928 tests OK** (2 skipped) | **66/66**, 0 errors | **18/66 fail** — all 18 the known false positives, filenames unchanged since the 17/52 snapshot | `9cceeea` (suite 928 at `b717792`, 929 at `eb1a2a4` less the duplicate `b717792` deleted) | suite 2026-10-22 (`uv run python -B -m unittest discover -s tests`); validates 2026-10-22 on the same tree — fresh, not carried forward |
 
 ## Recently landed
 

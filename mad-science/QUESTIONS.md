@@ -5,8 +5,7 @@ that raises it; `TODO.md` holds work, not questions, and a decision is recorded 
 
 | summary | value |
 |---|---|
-| open | **12** — 10 answerable now, 2 wait on a boot no window has run |
-| blocked on hardware | **2** (`#3`, `#7`) |
+| unanswered | **14** — 12 answerable now, 2 blocked on a boot no window has run (`#3`, `#7`); counted from the status column, `answered` rows excluded |
 | blocks the most downstream work | **`#4`** — whether the TP=4 queue may run on `.30`–`.33` at all decides the ds4 upgrade candidates, the four-node suite legs, the one-engine topology A/B and every four-node artifact probe |
 
 ## Baseline & gate
@@ -21,7 +20,7 @@ that raises it; `TODO.md` holds work, not questions, and a decision is recorded 
 
 | # | question | status | why it matters | provenance | asked |
 |---|---|---|---|---|---|
-| 4 | May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood down? | open | It is the gate on the whole TP=4 queue — the ds4 candidates, the four-node suite legs, the `#3` topology A/B, and every four-node artifact probe — and the record currently carries both instructions. | `mad-science/TODO.md:552` + `mad-science/TODO.md:290` (queue) against `AGENTS.md:262-266` (fence) and `mad-science/STATUS.md:21` (the serve occupying those ranks) | 2026-10-22 |
+| 4 | May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood down? | open | It is the gate on the whole TP=4 queue — the ds4 candidates, the four-node suite legs, the `#3` topology A/B, and every four-node artifact probe — and the record currently carries both instructions. | `mad-science/TODO.md:552` + `mad-science/TODO.md:290` (queue) against `AGENTS.md:239-250` (fence) and `mad-science/STATUS.md:19` (the serve occupying those ranks) | 2026-10-22 |
 | 5 | Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict stand unaudited? | open | The pilot's three numbers are the prerequisites of any adoption decision, none has been taken, and a shared cache would change every lane's fetch and residency arithmetic. | `mad-science/BEEGFS-REPORT.md:228-239` (verdict `:194-214`) | 2026-10-20 |
 | 6 | May a third-party APT repository and a per-host `flare agent` service be installed on four nodes to evaluate the FLARE `gb10` package? | open | It is the only artifact seen whose target is this lane's exact shape (four Sparks, TP4, c16, 1M context), and it cannot be served at all without that supply-chain step. | `mad-science/TODO.md:423-425` | 2026-10-22 |
 | 7 | Is a four-rank MiniMax-H3 video cell authorized on `.30`–`.33`? | blocked on hardware | The 33.12 B DiT's per-step activation exchange may need TP=2 or TP=4, and a four-rank cell would displace the fleet's production serve for its whole wall time. | `mad-science/TODO.md:2243` | 2026-10-22 |
@@ -32,7 +31,7 @@ that raises it; `TODO.md` holds work, not questions, and a decision is recorded 
 | # | question | status | why it matters | provenance | asked |
 |---|---|---|---|---|---|
 | 9 | Should the silent `DSV41_MXFP8_BACKEND=b12x` override be repaired — a launcher assertion rather than a value that never reaches the engine — or stay recorded-only? | open | The shipped ds4 arm requests a backend the engine never receives, so any future MXFP8 A/B measures `auto` and reads as a null result. | `mad-science/STATUS.md:34` | 2026-10-22 |
-| 10 | Should the repository Issues tracker be enabled so the nightly pin-drift sweep can maintain its issue in place? | open | Without it the drift signal is the run summary plus a 90-day artifact only, and there is no single updated row to read. | `AGENTS.md:484-488` | undated |
+| 10 | Should the repository Issues tracker be enabled so the nightly pin-drift sweep can maintain its issue in place? | open | Without it the drift signal is the run summary plus a 90-day artifact only, and there is no single updated row to read. | `AGENTS.md:491-495` | undated |
 
 ## Licences & shipping
 
