@@ -1,44 +1,42 @@
-# Board — 2026-10-22 02:50 ET
+# Board — 2026-10-22 03:21 ET
 
-Eight streams ran in parallel. The gate is **894 tests OK**, CI is green, and both long blocks are stopped on an external limit rather than on a verdict.
+Six of the night's streams closed with a verdict; four are still moving. Gate **899 tests OK**, plain validate **54/54** with 0 failures, strict **17/54** — the same seventeen known false positives, no new ones.
 
 ## Now
 
 | where | what | since | state |
 |---|---|---|---|
-| `.30`–`.33` | TP=4 block — W6 → W12 → ds4 TP=4 → four-node suite, resumable | 01:52 | W6 **failed** on all four ranks (`modelopt_quant.py:2624`, gated-activation MoE padding) — an engine limit, not memory (fit was 21 GiB/rank); knapcio TP=4 suite **closed**: ARC 93.5 % / GSM8K 97.5 % in 427.6 s; W12 waits on staging at 2–5 MiB/s, attribution in flight |
-| `.34` | llama.cpp regression + Mellum MTP A/B | 01:22 | **the 14× collapse is build `9df0b73c7`, not the ref**: flint ref `a37cc4610` decodes 101.4/102.7 t/s, `FA_ALL_QUANTS` adds nothing (97.1/101.7), the fork does 120/122, the crippled build 8.3–8.7; clean-rebuild test and the 15 % attribution in flight |
-| `.35` | SGLang `v0.5.22` re-pin | 01:34 | arms A and B **kept** (A: TTR 238 s, pool 1,133,804, house 37/37, needle 3/3, ladder n=3 C1 94.3 vs band 100.8–101.8; B: TTR 251 s, pool 1,531,959, house 37/37); arms C–F in flight |
-| repo/CI | CI gate, nightly pin sweep, weekly engine report | 01:38 | **green** on three re-dispatched runs; drift reads on the run summary plus the 90-day `refresh-sweep` artifact, and the `pin-drift` issue stays SKIPPED while the tracker is disabled |
-| probes | five explorer probes and one arm authoring | 02:14 | humanizer Q4_K_M **NO_SHIP** (falsifier: 2 genuine fact errors vs the baseline's 1), one Q6_K A/B boot authorized; Spark-X2.6 arm authored — `spark2_5` is already in the pinned SGLang, so no image work |
+| `.30`–`.33` | `tp4-queue` — W6 → W12 → ds4 TP=4 → four-node suite, resumable | 01:52 | W6 **failed at the engine** (`modelopt_quant.py:2624`, gated-activation MoE padding, every rank, fit was 21 GiB/rank); W12 boot 6 died in `_restrict_instanttensor_to_selected_ranges` because the pinned b12x image's `instanttensor` has no `_determine_buffer_size`, so the arm now loads through **safetensors** (03:11) and the PLE mod patches the installed module in place (03:04); **no W12 number yet** |
+| `.34` | `drama-probe` — drama-3 on the resident vLLM-Omni nightly | 02:26 | **blocked, not failed**: boot `c8829c3570d86002` died at `sock.bind` (`Address already in use`) on a node a peer had claimed, and sparkrun still printed "HTTP-ready 14.707 s" — it needs one node with no foreign listener on the recipe port |
+| `.30` | `sparkx-probe` — bf16 in as a control, tier A/B open | 03:08 | **bf16 is a control**: C1 20.38 ± 0.09 is 61 % of the ~33 t/s roofline, so the ≥25 t/s falsifier fired; the **FP8/INT8 A/B (4.45 GB each, ≈2× that ceiling) is the open cell**, and the ladder stops at c10 because `max_num_seqs: 32` clamps it, not the pool |
+| repo | `ds4-refresh` — fork-patch experiment on the EXL3 decode regression | 03:04 | **nothing landed**: no commit since `1099db9`, so the 8 t/s build still has no replacement and every arm keeps its own `container:` pin |
 
 ## Attention
 
 | what | why it matters | where it is tracked |
 |---|---|---|
-| ds4 EXL3 vLLM image `9df0b73c7` decodes 8.4 t/s where the same bytes do 101–103 | any arm booted from it under-measures ~12×; do not reuse that image | `attic/explore/AGENTS.md` §measured; the arms' `container:` |
-| W6 cannot boot at TP=4 on this build, on every rank | a re-run without an engine fix is wasted quartet time | `attic/qwen4/arms/qwen3.8-flash-next-labquant-tp4-sglang.yaml`; `recipes/qwen4/README.md` |
-| Quartet TP=4 production serve stays stopped (owner; stopped 00:38:39 ET) | `.30`–`.33` are measurement-only now | `mad-science/TODO.md` TP=4 items |
-| Timestral weights are Modified MIT at a **$20M/month** revenue cap; indra-ocr weights are a modified OpenRAIL whose share-alike reaches the *output* | both need a top-of-file banner before they can ship — an owner decision, not a footnote | `mad-science/TODO.md` explore items |
-| vLLM `v0.32.0` puts thinking at `message.reasoning` and reads `reasoning_tokens` as 0 | a harness reading `reasoning_content` reports a false empty reply | `recipes/explore/README.md`; TODO explore item |
+| A llama.cpp **ref below `a37cc4610`** (e.g. `9df0b73c7`) decodes **7.9–8.4 t/s** where `a37cc4610` does 98–103 — ref-level, reproduced from a clean rebuild, fixed upstream in `a37cc4610` (2026-10-22) | never pin below it; the fix ships in the ref this lane already uses | `attic/explore/AGENTS.md` §"The ref floor moved to `a37cc4610`" |
+| `sparkrun run @littlecedar/<name>` resolves the **published registry**, not the worktree (2026-10-22: a bump boot served `v0.5.21` while the file said `v0.5.22`) | pass the recipe **file path** for any bump or candidate boot | `AGENTS.md` §serving traps; `recipes/ornith/README.md` |
+| `docker pull repo:tag@sha256:…` stores the image **untagged**, so a peer's `image prune` deletes the very build just pulled (2026-10-22) | re-tag at once, and guard the pin before every boot: `grep -q e3a4f060 <recipe>` | `AGENTS.md`; `recipes/ornith/README.md` |
+| **Mellum MTP is rejected** on the shipped engine: 108.4/109.9 t/s against the pre-registered 114 bar, acceptance 0.80, mean len 1.80 (measured 03:18) | the earlier "+44 %" was a slow-baseline artefact and must not be quoted | `recipes/explore/README.md`; `attic/explore/AGENTS.md` |
+| Two licence banners owed before either arm ships (registered 02:28–02:35): Timestral **Modified MIT at a $20M/month revenue cap**; indra-ocr **modified OpenRAIL whose share-alike reaches the output** | owner decision, not a footnote — and the banner must not conflate Apache-2.0 code with restricted weights | `mad-science/TODO.md` explore items |
 
 ## Gate
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **894 tests OK** (2 skipped) | **52/52**, 0 errors | **17/52 fail** (known false positives) | `de841f8` | suite 02:50 ET, plain and strict 02:50 ET — tracked bytes at `de841f8`; tree dirty: 11 paths (6 recipes), none in the strict set and all six clean at the tip's bytes |
+| **899 tests OK** (2 skipped) | **54/54**, 0 errors | **17/54 fail** (known false positives) | `014e0b2` | suite 03:21 ET, plain and strict 03:21 ET — tracked bytes at `014e0b2`; tree dirty: 1 path (the spark-x2.6 recipe mid-edit, itself clean in both modes) |
 
 ## Recently landed
 
 | time ET | commit | one clause |
 |---|---|---|
-| 02:37 | `05283d0` + `0ba9515` | humanizer quant round recorded as a measured non-ship, its instrument cited by name |
-| 02:36 | `43d94a1` | the 14× decode collapse is the `9df0b73c7` build, not the ref |
-| 02:35 | `9b78221` | Timestral reframed as a CPU arm with a pre-registered CRPS instrument |
-| 02:31 | `93afaea` | indra-ocr registered: a CPU ONNX serve with an output share-alike |
-| 02:30 | `1b28975` | drama-3 registered: licence-gated TTS, no bf16 route, no pinned engine |
-| 02:28 | `a61033d` | MOSS-Image pair registered, with why no quant is needed |
-| 01:38 | `d8c1339` | CI gate, nightly pin sweep, weekly llama.cpp engine report |
+| 03:18 | `014e0b2` | the residual 15 % is the fork's own patches: same node 114.1/116.2 vs upstream 100.3/98.7, and a CUDA-13.1.1 upstream build buys nothing (99.4/100.6) |
+| 03:11 | `cc05822` | W12 loads through safetensors — instanttensor cannot shard at TP=2 on the pinned image |
+| 03:10 | `6b82a39` + `6a1129d` | the spark-x2.6 control carries its measured outcome; the battery gains `--thinking on\|off` |
+| 03:07 | `475d07f` | humanizer Q6_K ships: C1 17.92 ± 0.04 t/s, 0/40 fact errors vs the baseline's 1, TTR 10.8 s, `/v1/completions` only |
+| 03:04 | `29410d2` | the `v0.5.22` re-pin is **closed** — six arms, index digest `e3a4f060…` verified with `imagetools inspect`, 0 OSV advisories |
+| 03:03 | `20da8f2` | six arms bumped and held: TTR 238 / 251 / 129 / 94 / 94 / 240 s, house 37-37 / 37-37 / — / 32-37 / 33-37 / 36-37, arm A's n=5 ladder C1 97.6 ± 8.8 |
 
 ## Pointers
 
