@@ -52,15 +52,24 @@ drift:
 ## Repairs made on restore
 
 1. **`extract()` was missing** — `main()` called it and the name did not exist, so any run died with
-   `NameError`. It now creates a container with `--entrypoint ""`, `docker cp`s the module out into
-   a temp dir and removes the container.
+   `NameError`; the restored body shelled out to `docker`, which does not exist inside the serve
+   container the mod runs in (`FileNotFoundError: 'docker'`, W12 boot 4). Extraction is gone. The
+   script now discovers the installed module with a glob over `sysconfig` `purelib`/`platlib` plus
+   `dist-packages` and patches it **in place**, keeping one `.orig` backup.
 2. **It patched nothing** — `main()` wrote the result to `<mods>/patched/ple_layer.py`, a copy the
-   engine never imports. It now patches `ple_layer.py` **in place** inside the serve container
-   (keeping one `.orig` backup) and only falls back to the file-output mode under `--out` or when
-   the module is not present locally.
+   engine never imports. Nothing writes a copy any more: if no `ple_layer.py` is found, or the
+   anchor is absent from a module that is not b12x-aware, the script exits non-zero.
 3. **The idempotency guard looked for a string the patch never inserts** — `apply()` skipped work
    when `"PLE_FORCE_FP8" in src`, but the inserted lines contain `VLLM_PLE_FP8_CHECKPOINT`, so a
    second run stacked a duplicate block. The guard now keys on the env var the branch actually reads.
+
+**The b12x builds are already fixed upstream.** In
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…` the PLE layer is
+`vllm/models/qwen4_exp/nvidia/ple_layer.py` (not `vllm/models/qwen3_8_flash_next/nvidia/`), it has
+no `if not isinstance(quant_config, Fp8Config):` guard at all, and it is b12x-aware
+(`_use_b12x`, `quant_config=None if self._use_b12x else quant_config`). On that image this mod
+logs `is b12x-aware with no upstream Fp8Config guard; nothing to patch` and exits 0 — the env var
+is then inert, which is the honest outcome, not a silent half-apply.
 
 Each consumer names the path that reaches *its* lane's copy: from `arms/` the attic one is one level
 up (`../mods/…`), and the probe resolves its own lane's `mods/`. Both resolve from the recipe's own
@@ -70,5 +79,5 @@ directory, which is the only thing sparkrun checks.
 
 `tests/test_qwen4_vllm_ple_mod.py` asserts the anchor/insertion behaviour of `apply()` and that both
 consumer arms reference the mod **unscoped** and that this directory exists — the two failure modes
-that cost the 2026-10-22 attempt. It does not need the image; the engine-side anchor is proven by the
-`--out` run recorded in the W12 receipt.
+that cost the 2026-10-22 attempt. It does not need the image; the image-side facts above (module
+path, absent anchor, b12x marker) were read out of the pinned image by `docker run --rm`.
