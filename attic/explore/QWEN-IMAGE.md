@@ -211,33 +211,47 @@ per-step latency is quoting fiction; the mod at least echoed `steps: 8` honestly
 therefore provenance, not schedules: there is no working 4-step OMNI cell to set against the Diffusers
 4-step 6.38 s.
 
-### Operator review of both 8-step images (2026-10-21)
+### Operator review of both 8-step images (2026-10-21, corrected 2026-10-21 late)
 
-Both PNGs were opened at full resolution (the copies in `koder/omni-pngs` on the workstation) and read
-deliberately for defects:
+Both PNGs were opened at full resolution and read against the **request**, not just for defects. The
+prompt both routes received is the same one: `poster-typography: a bold sans-serif poster reading
+SPARKRUN, two-color screenprint, centered` at 1024×1024, seed 42, guidance 1.0. The constraint that
+decides this comparison is **"two-color screenprint"**.
 
-- **Diffusers — clean.** A two-line poster, **`SPARK` / `RUN`**, blue over orange on cream, heavy
-  grotesque, correct spelling, crisp edges.
-- **OMNI — clean.** A single-line **`SPARKRUN`** in a rainbow run of letters on white, correct spelling,
-  clean edges.
-- **No gross defect in either**: no smearing, no blended or doubled glyphs, no gibberish letterforms, no
-  step-count starvation artifacts. So the OMNI route's ~24 % warm win is **not bought with visible quality
-  loss at 8 steps**.
-- **They differ in composition, not merely palette** — two-line vs single-line, different weight and
-  colour logic — which is what the hash mismatch already implied: the same seed does not mean the same
-  picture across routes. Do **not** describe OMNI as "the same image, faster".
+- **Diffusers — honors it.** A two-line poster, **`SPARK` / `RUN`**, exactly two inks — blue over
+  orange on cream — heavy grotesque, correct spelling, crisp edges. Sampled colour agrees: one dominant
+  chromatic ink (~72 % of chromatic pixels in a single orange bin) plus a blue, and nothing else.
+- **OMNI — violates it.** A single-line **`SPARKRUN`** rendered as a **rainbow of distinct hues on
+  white**, i.e. far more than two inks (sampled: ≥5 chromatic hue bins with no dominant one, the largest
+  ~28 %). Correct spelling, clean edges — and the wrong instruction.
+- **This is a prompt-adherence defect, not a style difference.** On the one prompt both routes were
+  given, OMNI ignores an explicit, checkable constraint that Diffusers follows; the earlier framing
+  ("composition, not merely palette", "no gross defect in either") read the rainbow as an aesthetic
+  choice and was wrong about that.
+- **What still stands:** both text renders are correctly spelled with crisp edges, there is no smearing,
+  no blended or doubled glyphs, no gibberish letterforms and no step-count starvation artifact; and the
+  latency win is real — 8.66–8.75 s warm against 11.49 s, at 36.84 vs 36.82 GiB peak.
+- **What this defect does not say:** it is one prompt, one seed, one sampled image per route. It is
+  evidence against **swapping the shipped arm for OMNI on latency alone**, not a measured general
+  quality gap between the engines — a multi-prompt adherence battery is what would settle that, and none
+  was run.
 
-**The limit of this review:** it is a **defect inspection, not the owner's aesthetic choice**. The §6 item
-therefore moves from *"nobody has looked"* to *"inspected for defects; which look ships is the owner's
-call"* — and it applies to both routes, so the shipped Diffusers arm is not validated by it either.
+**The limit of this review:** it is a **prompt-adherence and defect inspection, not the owner's aesthetic
+choice**. The §6 item stays *"which look ships is the owner's call"* — and it applies to both routes, so
+the shipped Diffusers arm is not validated by it either.
 
 ### Why it is not an arm
 
-- **The two routes disagree on composition, not just pixels.** Same prompt and seed give visibly
-  *different* images — two-line `SPARK`/`RUN` (Diffusers, `e24f6e3a…24ee24a`) vs single-line rainbow
-  `SPARKRUN` (OMNI, `38ce554a…45704690`) — which is expected across different sampler/VAE code paths.
-  Both inspected clean (above), so neither route can be preferred on defects, and **which look ships is
-  the owner's call**; latency alone does not decide it.
+- **On this prompt OMNI fails an instruction Diffusers honors.** Same prompt and seed: Diffusers writes
+  two-line `SPARK`/`RUN` in two inks (`e24f6e3a…24ee24a`), OMNI a single-line rainbow `SPARKRUN` in many
+  hues (`38ce554a…45704690`) — against a prompt that says **"two-color screenprint"**. Both renders are
+  correctly spelled and crisply edged, but "which look ships" is now a *different* question from "which
+  route follows the prompt": only one does. One prompt, one seed, one image per route, so this is
+  evidence against swapping on latency, not a measured quality gap.
+- **The shipped Diffusers arm stays the default.** The ~24 % warm win (8.66–8.75 s vs 11.49 s at the
+  same peak) does not buy back a violated instruction. An OMNI variant is a *different look* — the owner
+  likes the rainbow — so it is an **opt-in arm, not a replacement**; its recipe is deliberately not
+  written yet, pending the owner's go.
 - **No recipe was written.** Shipping it would need a script/burst recipe plus a decision about the inert
   step knob; that is the lane owner's call, not this measurement's.
 

@@ -283,12 +283,16 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   an arm**: it has no recipe, its `num_inference_steps` is inert *and* its own
   `denoise_step_latency_ms` divides one total by the requested count (4/8/12 → the byte-identical PNG
   at 8.7 s while claiming 2164/1086/721 ms per step), and same seed ≠ same image (`38ce554a…` vs this
-  arm's `e24f6e3a…`). Both 8-step images were then **inspected at full resolution and both are clean**
-  typographic posters (two-line `SPARK`/`RUN` vs single-line rainbow `SPARKRUN`, correct spelling, crisp
-  edges, no blended glyphs or step-starvation artifacts), so the win is not bought with visible defects and
-  the two differ in **composition, not merely palette** — it is not "the same image, faster". **The §6
-  "quality judged by eye" item is open for both routes and is now the owner's aesthetic choice, not an
-  unlooked-at image**, so do not swap this script for an OMNI serve on latency alone. Notes:
+  arm's `e24f6e3a…`). **Both 8-step images were inspected at full resolution against the prompt**, which
+  says `two-color screenprint`: this arm honors it — two inks, blue over orange on cream, correct
+  spelling, crisp edges — and OMNI **violates** it, rendering `SPARKRUN` as a rainbow of many hues on
+  white (correctly spelled and crisply edged, but not two inks). No blended glyphs or step-starvation
+  artifacts in either, so the ~24 % win is real and defect-free; it is simply spent on the wrong
+  instruction. **That is a prompt-adherence defect, not a style difference** — and it is scoped to one
+  prompt, one seed, one image per route, so it is evidence against swapping on latency alone, **not** a
+  measured general quality gap. **This arm stays the default**; an OMNI variant would be a *different
+  look* the owner likes, i.e. an opt-in arm, and its recipe is deliberately unwritten pending that go.
+  The §6 "quality judged by eye" item stays open for both routes. Notes:
   [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 

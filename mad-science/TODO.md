@@ -593,19 +593,24 @@ Any model with reasoning and tool-calling capabilities
   the blocker. **Not an arm:** no recipe was written; `num_inference_steps` is inert *and* the engine
   divides one total by the requested count (4/8/12 all wrote the byte-identical PNG in ~8.7 s while
   `denoise_step_latency_ms` read 2164/1086/721 — asking for more steps claims each step got faster); and
-  same seed ≠ same picture (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). **Operator defect review
-  2026-10-21, both PNGs at full resolution:** both are **clean typographic posters** — Diffusers a
-  two-line `SPARK` / `RUN` in blue over orange on cream, heavy grotesque, correct spelling, crisp edges;
-  OMNI a single-line `SPARKRUN` in a rainbow run of letters on white, correct spelling, clean edges — with
-  **no gross defect in either** (no smearing, no blended or doubled glyphs, no gibberish letterforms, no
-  step-count starvation artifacts), so the ~24 % win is **not bought with visible quality loss at 8
-  steps**. They differ in **composition, not merely palette** (two-line vs single-line, different weight
-  and colour logic), consistent with the sampler/VAE divergence the hash mismatch implied — this is
-  deliberately **not** "the same image, faster". So the media-gen cells are all measured and inspected;
-  what is left is that **this is a defect inspection, not the owner's aesthetic choice** — §6 has moved
-  from "nobody has looked" to "inspected for defects; which look ships is the owner's call", for **both**
-  routes (`recipes/explore/README.md` §6, `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
-  (`REPORT.md`, `omni.json`, `omni-warm8.json`); both 8-step PNGs named by route one directory up.)*
+  same seed ≠ same picture (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). **Operator review 2026-10-21
+  (corrected the same evening), both PNGs at full resolution and read against the prompt** — which says
+  `two-color screenprint`: Diffusers **honors it** (two-line `SPARK` / `RUN`, exactly two inks, blue over
+  orange on cream, heavy grotesque, correct spelling, crisp edges); OMNI **violates it** (single-line
+  `SPARKRUN` as a rainbow of many hues on white — correctly spelled and crisply edged, but not two
+  inks). **That is a prompt-adherence defect, not a style difference**, and an earlier note here calling
+  it "composition, not merely palette" with "no gross defect in either" read the rainbow as aesthetics
+  and was wrong about the constraint. What still stands: no smearing, no blended or doubled glyphs, no
+  gibberish letterforms, no step-count starvation artifacts, so the ~24 % win is real and defect-free — it
+  is just spent on the wrong instruction. Scoped: one prompt, one seed, one image per route, so this is
+  evidence against swapping on latency alone, **not** a measured general quality gap (no multi-prompt
+  adherence battery was run). **Conclusion for the lane:** the shipped Diffusers arm stays the default; an
+  OMNI variant is a *different look* the owner likes, so it becomes an **opt-in arm, not a replacement**,
+  and its recipe is deliberately **not authored yet — awaiting the owner's go**. §6 "which look ships"
+  remains the owner's call for **both** routes (`recipes/explore/README.md` §6,
+  `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
+  (`REPORT.md`, `omni.json`, `omni-warm8.json`); both 8-step PNGs kept in the tree at
+  `mad-science/eight-step-{diffusers,omni}.png`.)*
 
 
 ## cybersec
