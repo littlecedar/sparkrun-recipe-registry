@@ -1,0 +1,68 @@
+recipe_version: "2"
+model: orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G
+model_revision: 1af1635aa22b97e965450c2d69525761d9bd463f
+runtime: llama-cpp
+# a37cc4610 is the ref floor and carries qwen35 + the qwen35 MTP graph
+# (src/models/qwen35.cpp:494-498) and the qwen3vl_merger projector.
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+mmproj: mmproj-OrcaCyber-Nano-1.0-AI-Defense-F16.gguf
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT — never booted, no measurements, not a shipped arm.
+  OrcaCyber Nano 1.0 (GGUF `general.architecture = qwen35`, 27.32B dense,
+  48 gated-delta-net + 16 full-attention layers, 1 MTP block) on ONE DGX
+  Spark through llama.cpp, 15.7G tier + F16 vision projector, in-file MTP
+  speculative decode.
+metadata:
+  model_url: https://huggingface.co/orcarouter/OrcaCyber-Nano-1.0
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27.32B"
+  model_dtype: iq4_xs
+  kv_dtype: fp16
+  tags: cybersec, vision, reasoning, speculative-decode, gguf
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: orcarouter/OrcaCyber-Nano-1.0
+  ctx_size: 32768
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  # The MTP head is inside the main file; `draft-mtp` needs no `-md`.
+  spec_type: draft-mtp
+  spec_draft_n_max: 3
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --spec-type {spec_type}
+  --spec-draft-n-max {spec_draft_n_max}
+  --jinja
+  --no-webui
+  --no-mmap
+  --cont-batching
