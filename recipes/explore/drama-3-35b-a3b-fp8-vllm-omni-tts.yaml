@@ -1,16 +1,18 @@
-# DRAFT — engine-feasible, never served a request (2026-10-22).
+# MEASURED — serves on one GB10 (2026-10-22, .NN): TTR 437.0 s cold, warm
+# single-stream RTF 0.848 ± 0.015, streaming PCM TTFA 0.646 s, 44.1 kHz mono 16-bit
+# out. Open caveat: the same 15-word prompt returned 2.37–5.48 s of audio over five
+# takes, so at least one take probably drops words — intelligibility is unmeasured
+# (no ASR/speaker model on the node); a listener check is the next cell.
 # `fishaudio/drama-3` is licence-gated: the FISH AUDIO COMMUNITY LICENSE AGREEMENT
 # v1.0 allows non-commercial and research use, and commercial use only below a
 # USD 500,000 annual-revenue threshold; read LICENSE.md in the checkpoint before
 # serving this to anyone. Weights stay in the HF cache, never in the image.
 #
-# Boot attempted on .NN 2026-10-22: the model LOADED on this pinned nightly
-# (FishOmniForConditionalGeneration + FishSpeechDACDecoder, 37.69 GiB, 242.84 s) and
-# then the stage-init deadline killed it 2 s after torch.compile finished, because
-# vllm-omni defaults `--stage-init-timeout 300` and cold load+compile is ~298 s, so the
-# recipe ships 1800 itself — boot it with no override. (For a pure TTR reading, pass
-# `-o stage_init_timeout=300` and expect the same death.) A second boot reuses
-# /cache/runtime/vllm/torch_compile_cache, so ~250 s is the floor, not ~10 min.
+# History worth keeping: the first boot (same node) loaded the model in 242.84 s and
+# was killed 2 s after torch.compile finished, because vllm-omni defaults
+# `--stage-init-timeout 300` and cold load+compile was ~298 s. Hence 1800 below —
+# boot with no override, and do not trust a port answer as readiness (`/v1/models`
+# must name fishaudio/drama-3; a foreign listener once satisfied a port probe).
 recipe_version: "2"
 model: fishaudio/drama-3
 model_revision: b2b5ee998034b2975720906c815e7fb0e9f007bd

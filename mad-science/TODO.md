@@ -1016,8 +1016,8 @@ Any model with reasoning and tool-calling capabilities
   non-RIFF/empty; **single-stream RTF > 1.0** (slower than playback — the arm's practical bar); or audio the
   listener calls unintelligible.
   Receipt: `~/benchmarks/drama-20261022/` on the head (`drama-cells.py` — the client, whose `wav_stats`
-  self-check was verified against a synthetic 0.5 s 44.1 kHz WAV; `retry.sh` — the guarded launch/reap driver;
-  `sparkrun_serve.log` — the killed boot, 327 lines).
+  self-check was verified against a synthetic 0.5 s 44.1 kHz WAV; `drama-probe.py` — the streaming/integrity
+  probe; `sparkrun_serve.log` — the serving boot, 270 lines).
 *Phase 2 — attempted; a port false green, then a real load that died on a deadline.* First attempt (02:20
 EDT): `.34` was at 0 containers, but `humanizer-probe` took it at 02:26:31Z, and my container died at
 `sock.bind` with `OSError: [Errno 98] Address already in use` **while sparkrun still printed "TTR
@@ -1038,18 +1038,32 @@ the way** (`--stage-init-timeout`, default 300, `vllm_omni/entrypoints/cli/serve
 log says DeepGemm is "auto-disabled … on Blackwell … Falling back to CUTLASS" at config time *and* selects
 DEEPGEMM as the FP8 MoE backend later — same run, so read the backend line, not the gate. And the second
 `/v1/models` check answered **empty**, which is the identity gate that the port probe is not.
-*Unblocker — one free node once the TP=4 quartet (`.30`–`.33`) frees; no boot before that.* Exact command, no
-override — the recipe now ships `stage_init_timeout: 1800` in `defaults:` and renders it into the serve
-command (verified with `sparkrun run <recipe> -n`, which printed
-`--stage-init-timeout 1800` verbatim):
-`HOME=$PWD/.local/sparkrun-home sparkrun run recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H <node>`;
-**first assertion is `/v1/models` naming `fishaudio/drama-3`** — not a port-open, which is what lied on the
-first attempt (the second boot reuses `/cache/runtime/vllm/torch_compile_cache`, so ~250 s is the floor, not
-~10 min), then run the five pre-registered cells above, `docker cp /tmp/sparkrun_serve.log` into
-`~/benchmarks/drama-20261022/`, stop by task id, re-assert 0 containers. Cleanup after this attempt: container
-stopped, `.34` re-censused to **0 containers**,
-job row gone, serve log (327 lines) archived at `~/benchmarks/drama-20261022/sparkrun_serve.log`. *(effort:
-medium)*
+*Phase 3 — **IT SERVES** (2026-10-22, boot 07:41:10Z–07:48:52Z; `.34` verified open at 03:39:31 ET before the
+launch; task `sparkrun_c8829c3570d86002_8ed3ce77d78f`, the same id as the failed boot because sparkrun hashes
+the launch shape — never read an id match as a restart).* `HOME=$PWD/.local/sparkrun-home sparkrun run
+recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H .NN --transfer-mode local` → **TTR 437.0 s**
+(container start → port open 436.997 s, HTTP-ready 437.038 s; `[AsyncOmni] AsyncOmniEngine initialized in
+418.69 seconds`, of which model load was 239.81 s and stage-1 codec init the rest), `/health` 200, and
+`/v1/models` naming **`fishaudio/drama-3`** rooted at the pinned snapshot — the identity gate passed **before**
+any cell. Boot identity lines: `Image: vllm/vllm-omni:nightly-15bce345…@sha256:f3473cb3…`, `Model:
+fishaudio/drama-3`; the serve command carried `--stage-init-timeout 1800`, and Phase 2's 300 s kill did not
+recur (engine init alone was 418.69 s, i.e. it would have died once over on the old default).
+Cells — every take is RIFF/WAVE **44,100 Hz mono 16-bit**, peak ≫ 0.01 FS, sha256 per take:
+**c1 plain, n=5** — warm **RTF 0.848 ± 0.015** (0.835 / 0.836 / 0.850 / 0.872) with the **cold first request at
+RTF 1.568**, so the `RTF > 1.0` falsifier is hit by the warmup take only, not by the arm; **c2 voice clone**
+with the card's `en0` reference → 4.551 s, RTF 1.178; **c3 tags** (`[sighs] Fine. … [laughs] …`) → 6.223 s,
+RTF 0.86; **c4 streaming pcm** → **TTFA 0.646 s**, 8 chunks, 476,111 B = 5.398 s of audio, RTF 0.633.
+*Caveat that must travel with the number.* The same 15-word prompt returned **2.368 / 3.715 / 4.923 / 5.155 /
+5.480 s** of audio across five identical requests, each ending in natural decay rather than a mid-frame cut
+(peak in the last 100 ms 0.0012–0.0439 FS). Length is therefore non-deterministic, and a **2.368 s take of that
+sentence is implausibly fast — at least one take probably drops words**. The WAV-integrity cells pass;
+**intelligibility does not**, because the pre-registered instrument needs an ASR model and a speaker encoder and
+no node here has either. **Open cell — the owner's listener check:** `c1-plain.wav` (5.155 s) against
+`c1-plain-r2.wav` (2.368 s) on the same text, plus whether the tags land in `c3-tags.wav`, scored against the
+shipped reference wavs; a WER / speaker-similarity cell follows once an ASR model is staged.
+Receipt `~/benchmarks/drama-20261022/`: `result.json`, `stream-integrity.json`, seven wavs, the two scripts, and
+`sparkrun_serve.log` (270 lines, this boot). Serve stopped by full task id, `.34` re-censused to **0
+containers**, no job row left. *(effort: medium)*
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
