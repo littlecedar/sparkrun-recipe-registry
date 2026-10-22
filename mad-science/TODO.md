@@ -1013,22 +1013,37 @@ Any model with reasoning and tool-calling capabilities
   Falsifiers: no `/v1/models` naming drama-3 within the port timeout (3600 s); a POST that returns
   non-RIFF/empty; **single-stream RTF > 1.0** (slower than playback — the arm's practical bar); or audio the
   listener calls unintelligible.
-  Receipt: `~/benchmarks/drama-20261022/` (client
-  `.scratch/drama/drama-cells.py`, its `wav_stats` self-check verified against a synthetic 0.5 s 44.1 kHz
-  WAV).
-  *Phase 2 — attempted 2026-10-22, stopped by a port collision, not by the model.* `.34` was at **0
-  containers** at 02:20 EDT and I claimed it; `humanizer-probe` took it at 02:26:31Z for its GGUF serve. My
-  boot (`sparkrun run .scratch/drama/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H .NN --transfer-mode
-  pull`, task `c8829c3570d86002_8ed3ce77d78f`) died in the container at `sock.bind` with
-  `OSError: [Errno 98] Address already in use` (`/tmp/sparkrun_serve.log`) — **and sparkrun still reported
-  "Endpoint ready … TTR HTTP-ready 14.707s", because with `readiness: inference: false` the probe is
-  port+HTTP only and the foreign server answered it.** The 14.7 s "TTR" is therefore a measured false green,
-  not this arm's load time; no weight ever loaded. Job stopped by task id, `.34` re-censused to the foreign
-  container alone; the 41.50 GB pinned snapshot (`b2b5ee9…`) and the pinned omni image stay resident on `.34`
-  as evidence-in-waiting, not litter. `.35` carries the sglang re-pin serve (112 GB resident), `.30`–`.33` are
-  the TP=4 block. Unblocker: **one node with no foreign listener on the recipe port** — retry the same recipe
-  file (bump boots pass the file path, never `@littlecedar/…`), assert `/v1/models` names drama-3, run the
-  cells, `docker cp /tmp/sparkrun_serve.log`, stop by task id, re-assert 0 containers. *(effort: medium)*
+  Receipt: `~/benchmarks/drama-20261022/` on the head (`drama-cells.py` — the client, whose `wav_stats`
+  self-check was verified against a synthetic 0.5 s 44.1 kHz WAV; `retry.sh` — the guarded launch/reap driver;
+  `sparkrun_serve.log` — the killed boot, 327 lines).
+*Phase 2 — attempted; a port false green, then a real load that died on a deadline.* First attempt (02:20
+EDT): `.34` was at 0 containers, but `humanizer-probe` took it at 02:26:31Z, and my container died at
+`sock.bind` with `OSError: [Errno 98] Address already in use` **while sparkrun still printed "TTR
+HTTP-ready 14.707s"** — with `readiness: inference: false` the probe is port+HTTP only and the foreign
+server answered it, so that 14.7 s is a measured **false green**, not a load time (no weight had loaded).
+Second attempt (02:35, node genuinely free — 0 containers, 99 GiB available, port 8000 clear; task
+`c8829c3570d86002_8ed3ce77d78f`, boot log 06:36:06Z): **the checkpoint loads on the pinned nightly.** vLLM
+0.32.0 resolved `FishOmniForConditionalGeneration` plus a stage-1 `FishSpeechDACDecoder`, started a private
+CUDA MPS pipe, took the `bsgemm-moe` FP8 experts through **DEEPGEMM** (`Using DEEPGEMM Fp8 MoE backend out of
+['AITER', 'FLASHINFER_TRTLLM', 'FLASHINFER_CUTLASS', 'DEEPGEMM', 'TRITON', 'MARLIN', 'HUMMING']`), read 8
+shards at **29.6 s each / 242.84 s total** (36.88 GiB checkpoint, 78.11 GiB RAM available), and reported
+**37.69 GiB** resident with the DAC encoder loaded — then vllm-omni killed it **2 s after torch.compile
+finished** (`[backbone] torch.compile took 34.66 s`, 06:41:18) on its default budget:
+`LLM stage-0 replica-0 did not become ready within 300s (stage_init_timeout)` at 06:41:20. Cold load 242.8 s
++ compile 34.7 s ≈ **298 s against a 300 s deadline**, so this arm was one flag from serving and its engine
+question is answered: **the pinned `vllm/vllm-omni` nightly can hold drama-3; only the stage deadline is in
+the way** (`--stage-init-timeout`, default 300, `vllm_omni/entrypoints/cli/serve.py`). Two side facts: the
+log says DeepGemm is "auto-disabled … on Blackwell … Falling back to CUTLASS" at config time *and* selects
+DEEPGEMM as the FP8 MoE backend later — same run, so read the backend line, not the gate. And the second
+`/v1/models` check answered **empty**, which is the identity gate that the port probe is not.
+*Unblocker — one free node once the TP=4 quartet (`.30`–`.33`) frees; no boot before that.* Exact command:
+`HOME=$PWD/.local/sparkrun-home sparkrun run recipes/explore/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H <node>
+-o stage_init_timeout=1800`; then assert `/v1/models` names `fishaudio/drama-3` (the second boot reuses
+`/cache/runtime/vllm/torch_compile_cache`, so ~250 s is the floor, not ~10 min), run the five pre-registered
+cells above, `docker cp /tmp/sparkrun_serve.log` into `~/benchmarks/drama-20261022/`, stop by task id,
+re-assert 0 containers. Cleanup after this attempt: container stopped, `.34` re-censused to **0 containers**,
+job row gone, serve log (327 lines) archived at `~/benchmarks/drama-20261022/sparkrun_serve.log`. *(effort:
+medium)*
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
