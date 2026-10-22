@@ -326,6 +326,9 @@ receipts `~/benchmarks/ornith-0.5.21-bump-20261021/` · **LTX-2.5 T2V arm shippe
 switch **now** (20–28 h of TP=4 work becomes runnable while the test pair keeps working), switch **after
 the pair-bound block**, or **park** it. Nothing is blocked either way.
 
+**Answered 2026-10-22: "switch now."** The block is in flight (Table 1); the remaining ask is the
+different one — whether the quartet's stopped TP=4 production serve is restored at all (Table 3).
+
 **Missing tools on the workstation** (measured 2026-10-21, after `sparkrun` landed there and reported
 `0.4.2-alpha+g36d8a44`, the head's own build). One row asks for something; the others are here because
 the owner asked which gate steps can now leave the head.
