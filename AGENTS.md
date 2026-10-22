@@ -247,13 +247,11 @@ which `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and
 `recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` pin, was deleted from the head as
 unattributed and has to be re-pulled there (the node copies survived).
 
-**Never blanket-reset a dirty tree on the head clone.** The head is a syncthing *mirror*, not a sandbox: a
-`git checkout` there writes back and overwrites the workstation's uncommitted copy — a
-`for f in $(git diff --name-only); do git checkout HEAD -- $f; done` before a `pull --ff-only` did exactly
-that on 2026-10-22 and destroyed another session's item text. To unblock a pull on the head, name the
-*specific* blocking path and reset it only if that file has no uncommitted work anywhere (it is clean here,
-or already committed here and synced); otherwise leave it dirty, commit the work here first, and pull with
-`git -c rebase.autoStash=false pull --ff-only` — never autostash, which can drop a peer's edit.
+**Never `git checkout`, `git restore`, `git reset` — or a `for f in $(git diff --name-only)` loop — on the
+`<head-node>` clone.** The head is the syncthing *source of truth*, so a checkout there propagates HEAD bytes
+back into every copy and resets a file another session is writing: a blanket `git checkout HEAD -- $f` loop
+before a `pull --ff-only` destroyed uncommitted item text on 2026-10-22. If the head's pull is blocked by a
+dirty file, leave it dirty and report it; commit here with explicit pathspecs and push.
 
 **`fatal: unable to read <blob>` is a stale index entry, not a dead repository.** A synced `.git/index` can
 reference an object that never arrived, and then every `git status` dies. Rebuild the index from HEAD with
