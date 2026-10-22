@@ -1,5 +1,8 @@
 recipe_version: "2"
 model: RadixArk/Qwen3.8-Flash-Next-NVFP4
+# Pinned 2026-10-22 (Hub `sha`, last write 2026-08-26). The arm shipped unpinned, which is the same
+# class of defect as a floating image tag: the W12 number would not name the weights it measured.
+model_revision: 7b719225242aacd3dbd3f9407468c2ee9a9d2594
 runtime: vllm
 # Pinned 2026-10-22 for the W12 measurement: `:latest` resolved to this digest that day
 # (`docker buildx imagetools inspect`, config `sha256:e90182b5…`) — the same build the shipped TP=1
@@ -57,6 +60,7 @@ defaults:
 
 command: >
   taskset -c 5-9,15-19 vllm serve {model}
+  --revision {model_revision}
   --host {host}
   --port {port}
   --quantization {quantization}
