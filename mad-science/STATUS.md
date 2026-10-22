@@ -22,12 +22,12 @@ relay-imported `solo` boot (`sparkrun_6c7626d237f22cdd_68907e0cb1d8_solo`) appea
 local, after both censuses — reported by the re-pin campaign, unverified here — which is consistent
 with that availability and is not the missing serve.
 
-**Gate: RED, honestly reported — `782 tests, 2 failures, 2 skipped`.** Both failures are
-`tests/test_k2_7b_recipes` container-pin assertions, because the SGLang `v0.5.22` re-pin is half-applied
-in that lane as of this entry (one arm already reads
-`lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` while its guard still asserts the `v0.5.20-cu130` tag
-and `sha256:06e4f2ed…` digest). That campaign is in flight (Table 1), not abandoned; this entry is a
-documentation commit and does not change the suite.
+**Gate: `782 tests OK` (2 skipped) as of this commit.** It read red earlier today —
+`782 tests, 2 failures, 2 skipped` — on two `tests/test_k2_7b_recipes` container-pin assertions while
+the SGLang `v0.5.22` re-pin was half-applied in that lane (one arm already on
+`lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`, its guard still asserting the `v0.5.20-cu130` tag and
+`sha256:06e4f2ed…` digest), and went green when that pin landed. **The campaign still carries no
+verdict** (Table 1); this entry is a documentation commit and changes no test.
 
 ### 2026-10-22 model and runtime refresh (VERIFIED — every item carries its commit)
 
@@ -179,10 +179,10 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Task | Machine role | Elapsed | Landed | Remaining |
 |---|---|---:|---|---:|
-| SGLang `v0.5.22` re-pin — three ornith arms (off `v0.5.21`) + three IFM arms (off `v0.5.20-cu130`) | test pair | — | index `e3a4f060…` and arm64 child `06441be3…` resolved; one arm half-flipped, gate red | **4–8 h** — derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) |
+| SGLang `v0.5.22` re-pin — three ornith arms (off `v0.5.21`) + three IFM arms (off `v0.5.20-cu130`) | test pair | — | index `e3a4f060…` and arm64 child `06441be3…` resolved; the K2-7B pin landed and its guard is green again | **4–8 h** — derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) |
 | vLLM `v0.32.0` re-pin — two Laguna arms (off CVE-bearing `v0.29.0`) + three media-gen arms (off `v0.30.0`) | test pair | — | none yet: no boot on `v0.32.0` | **4–6 h** — derived from the media-gen receipts (≈4 min TTR per arm) plus the Laguna-M.1 TP=2 boot + suite receipt; no `v0.32.0` measurement exists |
 | `vllm-sr/d3-edge` pin `18d61df7…` → `c454ee39…` | workstation | — | refs resolved, 10 vendor-code commits with no tensors | **≈0.5 h** — two pin sites, no boot required |
-| TP=4 offsite block, relaunched — qwen4 W6 first | production quartet | — | the owner's 2026-10-21 "first job" call is being executed; boot relaunch in flight | **20–28 h block** — the Table 3 estimate, unchanged and not restated as finished |
+| TP=4 offsite block, worked under the 2026-10-22 node grant — qwen4 W6 first | production quartet (`.30`–`.33`) | — | boot relaunch in flight; the switch question itself is still an open owner call (Open ask) | **20–28 h block** — the Table 3 estimate, unchanged and not restated as finished |
 
 ## Table 2 — Remaining tasks (queued and runnable now)
 
@@ -196,7 +196,7 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 
 | Deferred | Unblocked by | Where it lives |
 |---|---|---|
-| **(in flight since 2026-10-22 — see Table 1)** **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — executed 2026-10-22, the W6 boot relaunch is in flight; the legs not yet started are still this block | register, under the qwen4 and ds4 items |
+| **(in flight since 2026-10-22 — see Table 1)** **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — the queue is being worked on `.30`–`.33` under the separate 2026-10-22 node grant; the legs not yet started are still this block | register, under the qwen4 and ds4 items |
 | **Production quartet TP=4 serve is down** — cause **DETERMINED**: a deliberate coordinated stop at 2026-10-22 00:38:39 ET (no OOM, no Xid, no reboot, caches warm; the 2026-10-14 `stop --all` fingerprint) | an **owner call** on whether to restore production at all; the nodes stay available to measurement until it is made | this entry; the quartet descriptor `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` |
 | **The ds4 rebuild is not byte-reproducible** (behavior-identical: 91 layers with 0–69 identical, four recompiled `.pyc`, 6,707 hash-equal files) | a deterministic build step; until then the shipped `acfc331a…` stays pinned | `recipes/ds4/Dockerfile.knapcio-dsv41` |
 | **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture; **owner's answer, 2026-10-21: park it until a real failure** | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
@@ -326,8 +326,11 @@ receipts `~/benchmarks/ornith-0.5.21-bump-20261021/` · **LTX-2.5 T2V arm shippe
 switch **now** (20–28 h of TP=4 work becomes runnable while the test pair keeps working), switch **after
 the pair-bound block**, or **park** it. Nothing is blocked either way.
 
-**Answered 2026-10-22: "switch now."** The block is in flight (Table 1); the remaining ask is the
-different one — whether the quartet's stopped TP=4 production serve is restored at all (Table 3).
+**Owner grant 2026-10-22, verbatim: "You have .30-.35 available for you to work on the TP=4 queue."**
+That authorizes working the TP=4 queue on those nodes; it is **not** an answer to the switch question
+above and it does not decide production. The block is running on `.30`–`.33` under that grant (Table 1).
+**Both questions stay open owner calls:** (a) the offsite TP=4 switch, and (b) whether the quartet's
+stopped TP=4 production serve is restored at all (Table 3).
 
 **Missing tools on the workstation** (measured 2026-10-21, after `sparkrun` landed there and reported
 `0.4.2-alpha+g36d8a44`, the head's own build). One row asks for something; the others are here because
