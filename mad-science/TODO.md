@@ -1430,6 +1430,20 @@ Any model with reasoning and tool-calling capabilities
   Run cell 1 (bf16) first, with cells 2 and 3 as same-image follow-ups; the GGUF route is a separate image build and
   belongs to a `## Runtimes` decision, not this item. *(effort: medium)*
 
+- [ ] **Bisect llama.cpp's ~12 % decode regression — only when a current-ref arm's 12 % is worth ~6 h** —
+  measured 2026-10-22 on one node with the same bytes and flags: `b2e5e9b` (2026-08-21) **114.2 / 113.9 t/s**
+  against `a37cc4610` (2026-10-21) **100.3 / 98.7**. The delta is **1254 upstream commits**, not the
+  `scitrera` build: that image carries no patches (its Dockerfile clones `ggml-org/llama.cpp` at the tag),
+  and its tree rebuilt through our own Dockerfile and flags reproduces **114**, while a CUDA-13.1.1 rebase
+  (99.4 / 100.6), `GGML_CUDA_FA_ALL_QUANTS` (97.1 / 101.7), arch `121` and the RPC/CURL flags all measure
+  irrelevant. **Decision rule:** a *fast + current* image needs the regression located — ~12 min build plus
+  one 128-token probe per first-parent commit, so a **~6 h ceiling** at ~30 steps — therefore do it only
+  when a new-arch arm's 12 % becomes worth that cost, and start from the suspects already recorded
+  (`ggml-backend-meta.cpp`, `ggml-cuda/top-k-mask.{cu,cuh}`, `llama-graph.cpp` +100/−24, `ggml-cuda.cu` +6)
+  rather than blindly. Separate and unrepaired: the `9df0b73c7` 8 t/s window reproduces from a clean
+  context too. Tables, per-flag elimination and receipts: `attic/explore/AGENTS.md` §"The residual ~15 % is
+  the upstream ref era"; the one-line policy is `mad-science/LLAMACPP-GGUF.md` §1. *(effort: long)*
+
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*

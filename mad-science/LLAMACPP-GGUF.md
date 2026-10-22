@@ -25,6 +25,13 @@ digest:
 | `rpc-server` | **absent** — the image ships `llama-server` only, so the experimental multi-node RPC path cannot be exercised with this tier |
 | `--no-mmap` | accepted but marked DEPRECATED in favour of `--load-mode`. **The GB10 platform's forced `{"mmap": False}` never reaches a template recipe** (see §3), so the arm passes `--no-mmap` itself |
 
+**The fast route is the ref, not the image** (VERIFIED 2026-10-22): `b2e5e9b` decodes **114.2 / 113.9 t/s**
+where `a37cc4610` gives **100.3 / 98.7** on the same bytes, same node and same flags, and this image
+carries **no patches** — its Dockerfile clones `ggml-org/llama.cpp` at the tag — so treat the pin as a
+convenient carrier of an old upstream ref, not as a tuned build. Pick by which archs the arm needs:
+`b2e5e9b` for speed, `a37cc4610` for Mellum MTP / Kolibri-1 / flint. Measurements and the flag-by-flag
+elimination: `attic/explore/AGENTS.md` §"The residual ~15 % is the upstream ref era".
+
 Receipt: `~/benchmarks/llamacpp-pin-20261017/pull.txt` + `llama-server-help.txt` (head), pulled from
 `.34`. Exec-time loading needs no extra env: a container started `sleep infinity` + `docker exec`
 finds `libllama-server-impl.so` (measured 2026-10-17; the library lives in `/usr/local/lib` and the
