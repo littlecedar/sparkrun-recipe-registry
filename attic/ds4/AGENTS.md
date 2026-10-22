@@ -2054,8 +2054,8 @@ above; read this section before touching it.
   **384** routed experts (top-6). Two Engram tables (~203 GB) hold the FP8 embedding rows.
 - Engine: [`bertholomus/TensorFold`](https://github.com/bertholomus/TensorFold),
   branch `deepseek-v41-tp2`, a fork of [ashhart/TensorFold](https://github.com/ashhart/TensorFold)
-  v0.6.3 (Apache-2.0), pinned in `Dockerfile.tensorfold-dsv41` at
-  `d5d7bb389ddf4325c1edf4a15dd1c23727040ea1`. The `deepseek_v41` family is a clean-room
+  v0.6.3 (Apache-2.0), built from `Dockerfile.tensorfold-dsv41` with
+  `--build-arg TENSORFOLD_REF=d5d7bb389ddf4325c1edf4a15dd1c23727040ea1`. The `deepseek_v41` family is a clean-room
   re-implementation of DeepSeek's MIT inference code; the fork's `tools/dsv41/ATTRIBUTION.md`
   records every source.
 - Checkpoint: `Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw` (~197 GB, 39 shards, MIT). Verified
@@ -2333,12 +2333,16 @@ Rebuild:
 ```bash
 # on the arm64 head node, from a clone of the fork (the Dockerfile needs the repo context only
 # if you COPY it; it git-clones the pinned ref itself, so build from an empty dir is fine)
-docker build -f Dockerfile.tensorfold-dsv41 -t littlecedar/dgx-spark-dsv41:tensorfold-tp2 .
+docker build -f Dockerfile.tensorfold-dsv41 \
+  --build-arg TENSORFOLD_REF=d5d7bb389ddf4325c1edf4a15dd1c23727040ea1 \
+  -t littlecedar/dgx-spark-dsv41:tensorfold-tp2 .
 docker push littlecedar/dgx-spark-dsv41:tensorfold-tp2
 # then pin the returned digest in the recipe's container: line
 ```
 
-Bumping the engine is one `ARG TENSORFOLD_REF=...` change.
+Bumping the engine is one `--build-arg TENSORFOLD_REF=...` change; the arg has no default (the ds4
+`tensorfold-v06` image is built from `3825f62…`, this one from `d5d7bb38…`), so a build without it
+fails closed.
 
 ### 12.9 Boot gates and a healthy boot
 

@@ -26,7 +26,17 @@ FROM lmsysorg/sglang:dev-cu13@sha256:aa878e8d38f9eefb1ac5a5176e78448705e166dd1bf
 
 # Pin the engine commit, not the branch: the branch moves; this build must not.
 ARG TENSORFOLD_REPO=https://github.com/bertholomus/TensorFold.git
-ARG TENSORFOLD_REF=d5d7bb389ddf4325c1edf4a15dd1c23727040ea1
+#
+# No default ref, on purpose: two shipped images are built from different commits
+# -- 0.6.3 `d5d7bb38...` for the cybersec `tensorfold-tp2` image, 0.6.6
+# `3825f62...` for the ds4 `tensorfold-v06` image -- so any default silently
+# rebuilds the wrong engine. Pass --build-arg TENSORFOLD_REF=<40-hex commit>.
+ARG TENSORFOLD_REF
+
+# Fail closed on a missing ref, which would otherwise surface as a confusing
+# `git checkout` error below. The `git rev-parse HEAD` equality test after the
+# checkout is what proves the ref is a real commit, so no shape check is added.
+RUN test -n "${TENSORFOLD_REF}"
 
 LABEL org.opencontainers.image.title="TensorFold deepseek_v41 TP2 (DGX Spark)" \
       org.opencontainers.image.description="TensorFold deepseek_v41 engine for DeepSeek-V4.1-Flash, TP=2 across two NVIDIA DGX Spark (GB10) nodes" \

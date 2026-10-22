@@ -353,10 +353,31 @@ repo, itself a downstream of MiaAI-Lab's).
 | Topology | TP=2 — two GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served (the model's full trained window, which is also the KV pool) |
 | Spec decode | DSpark k=5 (in-checkpoint draft blocks) |
-| Image | `littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…` (vendored, digest-pinned; built 2026-10-21 from `Dockerfile.tensorfold-dsv41` with `TENSORFOLD_REF=3825f62`) |
+| Image | `littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…` (vendored, digest-pinned; built 2026-10-21 from `Dockerfile.tensorfold-dsv41` with `--build-arg TENSORFOLD_REF=3825f62` — the arg is mandatory, see Rebuild below) |
 | Tags | `fast`, `large_context`, `single_user`, `vision` |
 | Measured | **v0.6 (shipped since 2026-10-21):** c1 **64.5** / c4 51.2 / c8 **52.5** / c16 **53.2** t/s (n=9: 3 boots × 3 runs) and cold prefill **2,077** t/s @ 32k / **2,073** @ 131k — `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`. The control (0.6.3, `fabbe861…`) on the same interleaved run: 64.7 / 46.1 / 41.5 / 42.3 t/s, prefill 1,667 / 1,486 — the treatment's worst boot beats the control's best at c8 and c16. Upstream reports 101 code / 62 prose / 142 structured, 4 streams 112. The older 5-run `ds4-1017` 66.4 / 47.8 / 44.8 / 48.4 cells were the 0.6.3 engine (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`). |
 | Boot-verified | 2026-10-21, v0.6 arm: six boots, `/v1/models` = the 1017 id and `tensorfold --version` = 0.6.6 on every treatment boot; launch 80.3–80.9 s after the one-time JIT (the first v0.6 start costs 264 s building three CUDA extensions). Earlier 0.6.3 ship: TTR 62 s, vision 3/3 (`~/benchmarks/ds4-1017-ship-20261017/`) |
+
+### Rebuild
+
+`Dockerfile.tensorfold-dsv41` has **no default `TENSORFOLD_REF`**: the two shipped images come from
+different commits, so a default would silently rebuild the wrong engine. Pass the ref the image you
+want is supposed to carry:
+
+```bash
+# ds4 arm (`tensorfold-v06`, sha256:d6e4c10d…) — TensorFold 0.6.6, v0.6 release commit 2026-10-18
+docker build -f Dockerfile.tensorfold-dsv41 \
+  --build-arg TENSORFOLD_REF=3825f62022f25e3e5cf01fa5ea708d4a93b0a9e3 \
+  -t littlecedar/dgx-spark-dsv41:tensorfold-v06 .
+
+# cybersec arm (`tensorfold-tp2`, sha256:fabbe861…) — TensorFold 0.6.3
+docker build -f Dockerfile.tensorfold-dsv41 \
+  --build-arg TENSORFOLD_REF=d5d7bb389ddf4325c1edf4a15dd1c23727040ea1 \
+  -t littlecedar/dgx-spark-dsv41:tensorfold-tp2 .
+```
+
+The build fails closed on a missing ref (`RUN test -n "${TENSORFOLD_REF}"`) and on a ref that is not
+a real commit (the `git rev-parse HEAD` equality check after the checkout).
 
 ### What it serves
 
