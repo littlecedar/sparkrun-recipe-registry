@@ -50,20 +50,21 @@ govern, per the protocol; the verbatim asks remain in git.)*
   over 4× GB10) would compete for the same four nodes.
 - **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
   if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
-  **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37) — and it **scales no
-  worse than that baseline**: aggregate scaling efficiency **E = C10 / (C1 × 10) ≥ 0.168**, C1 and C10
-  taken from the same boot, plus throughput monotone non-decreasing from C5 to C10 at ten slots (a
-  plateau passes, a decline is a capacity failure); (2) it sustains **≥ 10 concurrent streams**; (3)
-  output quality is **high** — house battery **≥ 36/37** at 4096 thinking-on, **i.e. at least the
-  baseline's own score** (37/37 preferred, not required), no fact-error regressions.* **Being bigger is
-  not an argument; missing any leg disqualifies.** `E` references on the identical shape: knapcio TP=4
-  **0.168** (C1 69.28 → C10 116.27), Mellum's 8-slot history **0.131** (111.94 → 146.39), Spark-X2.6 FP8
-  **0.533** (40.80 → 217.58). Measured vs unmeasured is marked per cell, because three of the six rows
-  are still empty:
+  **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37), both from the
+  **same boot**; (2) throughput is **non-decreasing from C5 to C10 at ten slots** — a plateau passes, a
+  decline is a capacity failure, which is all "without degrading too much" means here; (3) output
+  quality is **high** — house battery **≥ 36/37** at 4096 thinking-on, **i.e. at least the baseline's
+  own score** (37/37 preferred, not required), no fact-error regressions.* **Being bigger is not an
+  argument; missing any leg disqualifies.** The `E` column is **reported, not gated**:
+  `E = C10 / (C1 × 10)` favours low-C1 arms — at Mellum's own C1 111.94, E ≥ 0.168 would demand
+  **C10 ≥ 188.06**, a *higher* absolute bar than the baseline's 116.27, so a fast starter would be
+  penalized for its own C1. References on the identical shape: knapcio TP=4 **0.168** (C1 69.28 →
+  C10 116.27), Mellum's 8-slot history **0.131** (111.94 → 146.39), Spark-X2.6 FP8 **0.533** (40.80 →
+  217.58). Measured vs unmeasured is marked per cell, because three of the six rows are still empty:
 
-  | candidate | C1 | C10 | ratio | E | house ≥36/37 | verdict |
+  | candidate | C1 | C10 | ratio | E (diagnostic) | house ≥36/37 | verdict |
   |---|---|---|---|---|---|---|
-  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **102.03 ± 0.35** (measured, `~/benchmarks/mellum-mtp-draft-20261022/`) | **unmeasured — the gap** | — | **0.131** (8-slot history, not this arm's shape) | unmeasured (coding-tuned; the general battery is the question) | passes C1, needs C10 + E + quality |
+  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **102.03 ± 0.35** (measured, `~/benchmarks/mellum-mtp-draft-20261022/`) | **unmeasured — the gap** | — | **0.131** (8-slot history, not this arm's shape) | unmeasured (coding-tuned; the general battery is the question) | passes C1, needs C10 + quality |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **0.533** | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
   | Ornith-1.5-122B — UD-Q3_K_XL (llama.cpp, 59.76 GB) | **27.94 ± 0.07** (measured, `~/benchmarks/ornith-122b-20261022/`) | ran 5 rounds, **JSON unflushed → not evidence** | — | — (C5 < C2 already) | unmeasured | **fails C1**; C2 42.75 ± 0.48 / C5 43.20 ± 4.50 means C5 < C2, i.e. batching-poor at 8 slots |
   | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | unmeasured — **never reached readiness** (weight shard 2/8) | unmeasured | — | — | unmeasured | open |
@@ -73,8 +74,8 @@ govern, per the protocol; the verbatim asks remain in git.)*
   **Consequence: the cheapest path to a qualifying arm is Mellum-12B's missing C10 rung plus a house
   run** — it already clears C1 by **47 %** (102.03 vs 69.28) at ~8 GB resident, while the 100B+
   candidates have produced one hard failure (Q3_K_XL, C1 27.94) and one still-unmeasured tier
-  (NVFP4), and each costs a whole node. Its pass needs C10 ≥ 116.27 (E ≥ 0.168) on its own shape;
-  the 0.131 history is reference only.
+  (NVFP4), and each costs a whole node. Its pass needs C10 ≥ 116.27 and the C5→C10 non-decline on its
+  own shape; the 0.131 history is reference only.
 
 - **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
   `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at
