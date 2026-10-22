@@ -771,7 +771,7 @@ the serve line can name it — that staging, not the engine, is the work.
   Q4_K_M main's hidden states do not suit the BF16-trained head — quote accept-len, not just t/s.
 
 
-### Measured on `.34`, 2026-10-22 — the engine regresses 14×, so the pin stays
+### Measured on `.34`, 2026-10-22 — the `9df0b73c7` build regresses 14×, not the ref
 
 The build passed both gates (154.93 s; `features: … present`, `gate: sm_121 + kolibri1 + vllm-decision2 +
 mellum present`) and pushed as `littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130`
@@ -791,22 +791,21 @@ Two recipe-level facts this arm will need if the image is ever adopted: `executo
 (the image keeps `llama-server` as ENTRYPOINT) and `--no-mmap` → `--load-mode none` (upstream removed the
 old spelling).
 
-**The MTP head itself is good, and the falsifier is unreachable rather than failed.** With the head staged
+**The MTP head itself is good, and the falsifier is unreachable on this build rather than failed.** With the head staged
 at its own revision (`4159d684…` — it does not exist at the model pin `20b43942…`; the main GGUF is
 byte-identical at both) and `-md …BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`, the engine logs
 `draft acceptance = 0.77465 (55/71), mean len 1.77` and `0.69333 (52/75), mean len 1.69`, and decode rises
-to **12.5 / 12.1 t/s — +44 %** on the crippled engine. So MTP is mechanically working and materially
-faster; the pre-registered bar (C1 > 114 t/s vs 111.9 ± 0.3) cannot be measured on any build of this ref,
-because nothing on it reaches a tenth of the baseline.
+to **12.5 / 12.1 t/s — +44 %** on the crippled build. So MTP is mechanically working and materially
+faster; the pre-registered bar (C1 > 114 t/s vs 111.9 ± 0.3) cannot be measured on the `9df0b73c7`
+build, because nothing on it reaches a tenth of the baseline — but it *is* measurable on `a37cc4610`,
+which decodes at ~100 t/s (below), where +44 % would clear the bar. The A/B is open, not dead.
 
-**Where the next hour goes, if anyone picks this up:** bisect upstream between `b2e5e9b` (2026-08-21) and
-`9df0b73c7` (2026-10-20) on this GGUF with a decode-only bench — that locates the regression long before an
-MTP ladder is worth repeating. Until then: no recipe change, and the `kolibri1` fork image stays too (it
-has not been booted on this engine, and this engine is the slow one).
-
-Receipt: `~/benchmarks/mellum-mtp-20261022/` on `.34` — `REPORT.md`, `build.log`, `build121.log`,
+Until that A/B runs: no recipe change. The `kolibri1` fork image stays too (it has not been booted on
+this engine, and the two builds compared disagree by 12×).
+Receipt: `~/benchmarks/mellum-mtp-20261022/` on the head (reachable from `.31`/`.33`) — `REPORT.md`, `build.log`, `build121.log`,
 `probe.log`, `push*.log`, `control-ladder.{json,csv}`, `oldengine-boot.log`, `new-mmap-boot.log`,
-`arch121-boot.log`, `mtp-boot.log`, `head-download.log`, and the five variant recipes.
+`arch121-boot.log`, `mtp-boot.log`, `head-download.log`, `build-fa.log`, `flint-probe-boot.log`,
+`fa-boot-33.log`, and the five variant recipes.
 
 ### The ref floor moved to `a37cc4610`, and why (same day)
 
@@ -823,16 +822,33 @@ now require** (the source gate demands `src/models/flint.cpp`, so an older ref f
 | Mellum-MTP image | `9df0b73c7` | `littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130` | `sha256:31181fd3105001f503136ff6a4cbbf5ac7d3ab53fd0c5d88a723a844826f94a1` | 154.93 s |
 | same, plain `121` probe | `9df0b73c7` | `…:upstream-9df0b73-cu130-121` | `sha256:21a1b75e57414ab70a0fb04156867f9e73e74163c6f289efa4c0b86c6a6d8bd4` | 151.19 s |
 | **Flint image** | `a37cc4610` | `…:upstream-a37cc46-cu130` | `sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93` | **505.56 s** |
+| same tree + `GGML_CUDA_FA_ALL_QUANTS` | `a37cc4610` | `…:upstream-a37cc46-cu130-fa` | `sha256:9c31e0f3fd3d57f5fef56bee013438732e96bdcafa61e4a53486787d7a1cb0af` | 216.51 s |
 
 Gate output at the flint ref, verbatim: `features: mellum MTP + kolibri1 + vllm-decision2 + flint
 present`, then `gate: sm_121 + kolibri1 + vllm-decision2 + mellum + flint present`; the binary reports
 `version: 0.7.0-dev (build 1, commit a37cc46)`. The 505 s is the full CUDA recompile a changed tree costs
 (the first build's 155 s was partly reused layers).
 
-**Not measured, stated plainly:** the 14× decode regression above is established at `9df0b73c7` only.
-Whether `a37cc4610` shares it is unknown — `.34` went to another campaign (a `vllm-omni` container) the
-moment the flint image was pushed, and a co-located launch would have been wrong. One boot of the flint
-image plus a single 128-token request answers it before anyone plans a Flint cell.
+**Measured, same day, on idle nodes: the ref is healthy and the collapse is the build.** One boot each,
+two 128-token requests, same GGUF pin and serve flags as the table above:
+
+| build | decode t/s |
+|---|---|
+| flint image (`ef2d4bc8`) on `.31` | **101.4 / 102.7** |
+| + `-DGGML_CUDA_FA_ALL_QUANTS=ON` (`9c31e0f3`) on `.33` | 97.1 / 101.7 |
+
+So the 14× gap is a property of the `9df0b73c7` image, not of upstream llama.cpp on GB10: a build four
+commits later, through the identical Dockerfile and arch flag, decodes at ~100 t/s. `GGML_CUDA_FA_ALL_QUANTS`
+— the one cmake difference in the `scitrera` build — buys nothing measurable; the residual ~15 % against
+its 120 t/s is unresolved and is **not** that flag. Note also that the four commits between `9df0b73c7`
+and `a37cc4610` touch no CUDA code, so a source bisect is the wrong next step: rebuild `9df0b73c7` from a
+fresh context (the 155 s build reused layers) and, if it comes out fast, treat the 8.4 t/s image as a bad
+artifact rather than a regression window.
+
+Node attribution while these ran: `.34` was held by a peer's `humanizer-12b-q4km-llamacpp` job
+(`082a4f322a793ea0_8ed3ce77d78f`, image `2dcf49ada913`, started 06:26:31Z) and `.31`/`.32` by a peer's b12x
+TP=2 (`6a76d7f90a79f4f4_6eb961eae222`); the `vllm-omni:nightly` container named `sweet_rosalind` seen at
+02:25:42Z carried no sparkrun task id and was gone by 02:31.
 
 **Flint's other route is closed on this fleet**, so the engine is the only one: `RecursiveSI/flint`'s
 SGLang kit imports `add_grammar_backend_choices` from `sglang.srt.server_args`, which exists at v0.5.16
