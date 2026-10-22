@@ -731,17 +731,19 @@ Xunzhuo's patched qwen35 loader; that arm stays on
 
 **What a stock-upstream image unlocks, one line per arm:**
 - `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — **stock image works, MTP rejected
-  on it (2026-10-22)**: `a37cc4610` decodes **101.5 / 102.1 t/s** on `.31` where the `scitrera` pin gives
-  120, and with MTP on **108.4 / 109.9** — short of the pre-registered 114 t/s bar, so the arm keeps no
-  speculative decoding (acceptance 0.80, mean len 1.80 of a possible 2.0). The 8.4 t/s seen on the
-  `9df0b73c7` build reproduces from a clean context, so it is a window in that tree, not a bad artifact;
-  the earlier `+44 %` MTP figure was that slow baseline's artefact and must not be quoted.
+  on it (2026-10-22)**: same-node A/B on `.30` gives `a37cc4610` **100.3 / 98.7 t/s** against the
+  `scitrera` pin's **114.1 / 116.2**, and MTP on `a37cc4610` adds only **108.4 / 109.9** — short of the
+  pre-registered 114 t/s bar, so the arm keeps no speculative decoding (acceptance 0.80, mean len 1.80 of
+  a possible 2.0). The 8.4 t/s seen on the `9df0b73c7` build reproduces from a clean context, so it is a
+  window in that tree, not a bad artifact; the earlier `+44 %` MTP figure was that slow baseline's
+  artefact and must not be quoted. The stock image's ~15 % decode cost against the fork is the fork's own
+  patches, not CUDA (13.1.1 build measured equal) — so the pin stays for this arm's speed.
 - `kolibri-1-apex-24bpw-llamacpp` (and the Q4_K sibling) — loadable on stock upstream; the fork image
   can retire after one boot proves it, and stays the fallback until then.
 - `sol-2b-decision2-gguf-llamacpp` — **not** unlocked: different arch string and tensor contract, so
   the Xunzhuo fork image remains the only engine for that pack.
 
-**Build — pre-registered; built 2026-10-22 (four builds, receipts below).** `recipes/explore/Dockerfile.llamacpp-upstream`
+**Build — pre-registered; built 2026-10-22 (six builds, receipts below).** `recipes/explore/Dockerfile.llamacpp-upstream`
 is arm64-only, `121a-real`, with `LLAMA_REF` **required** and no default, and fails closed on: a
 non-arm64 host, a missing ref, a ref whose `git rev-parse HEAD` differs, a tree without the three model
 sources or without `nextn_flags`/`graph_mtp` in `mellum.cpp`, a fatbin without `sm_121`, and a binary
@@ -831,6 +833,8 @@ now require** (the source gate demands `src/models/flint.cpp`, so an older ref f
 | same, plain `121` probe | `9df0b73c7` | `…:upstream-9df0b73-cu130-121` | `sha256:21a1b75e57414ab70a0fb04156867f9e73e74163c6f289efa4c0b86c6a6d8bd4` | 151.19 s |
 | **Flint image** | `a37cc4610` | `…:upstream-a37cc46-cu130` | `sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93` | **505.56 s** |
 | same tree + `GGML_CUDA_FA_ALL_QUANTS` | `a37cc4610` | `…:upstream-a37cc46-cu130-fa` | `sha256:9c31e0f3fd3d57f5fef56bee013438732e96bdcafa61e4a53486787d7a1cb0af` | 216.51 s |
+| same tree on a **CUDA 13.1.1** base | `a37cc4610` | `…:upstream-a37cc46-cu131` | `sha256:a6b47a2ca14db1ffa5d95e8026f3212c23666831536d72fc19f962955869f259` | 193.63 s |
+| `9df0b73c7` clean-context rebuild (receipt only, local tag) | `9df0b73c7` | `…:upstream-9df0b73-cu130-clean` | image id `97c98b0d8b08`, not pushed | 737.70 s |
 
 Gate output at the flint ref, verbatim: `features: mellum MTP + kolibri1 + vllm-decision2 + flint
 present`, then `gate: sm_121 + kolibri1 + vllm-decision2 + mellum + flint present`; the binary reports
@@ -853,17 +857,30 @@ so the residual ~15 % against its 120 t/s is not that flag.
 **Reproduced from a clean context, so it is ref-level after all.** Rebuilt `9df0b73c7` from the pre-flint
 `5ce1d02` Dockerfile in an empty build context on `.30` (737.70 s, image `97c98b0d8b08`, gate passed),
 booted it on `.31`: **7.9 / 8.0 t/s** — the slow number again, so the 8.4 t/s image was not a bad artifact
-and a bisect is now the right next step. Its window is **38 commits** (an earlier note here said four,
-which was wrong) and it does touch device code: `ggml-cuda.cu` (+6, new `GGML_OP_TOP_K_MASK` dispatch and
+and a bisect was the right next step. Its window is **38 commits** (an earlier note here said four, which
+was wrong), and it does touch device code: `ggml-cuda.cu` (+6, new `GGML_OP_TOP_K_MASK` dispatch and
 support check), `ggml-cuda/top-k-mask.{cu,cuh}` (new), `ggml-cuda/ssm-conv.cu` (k=7), `ggml-backend-meta.cpp`
 (+12/-2), `ggml-cpu/vec.{h,cpp}` (`GGML_GELU_QUICK_FP16` dropped, `ggml_vec_gelu_quick_f32` de-inlined),
-and `src/llama-graph.cpp` (+100/-24). Bisect first-parent commits with one build (~12 min) and one
-128-token greedy probe each; suspect the graph/backend-meta and top-k-mask changes, not the model files.
+and `src/llama-graph.cpp` (+100/-24). **Bisect deferred deliberately:** it is the lowest-value of the three
+experiments because the fix already ships in `a37cc4610`, which this lane can use; run it only if a future
+ref has to be pinned below `a37cc4610` (method: one build per first-parent commit, ~12 min each, one
+128-token greedy probe; suspect the graph/backend-meta and top-k-mask changes, not the model files).
 
-**The residual 15 % is confounded, stated plainly.** From the images' own env: `scitrera` carries
-`CUDA_VERSION=13.1.1` / `NV_CUDA_CUDART_VERSION=13.1.80-1`, ours `13.0.1` / `13.0.88-1` (both `NVARCH=sbsa`).
-That co-varies with the fork's own source patches, so this evidence cannot separate CUDA-13.1.1 speedups
-from fork patches; a `a37cc4610` build on a 13.1.1 base would, and was not run.
+**The residual 15 % is real, and it is the fork's source patches — not the node and not CUDA.** Same node
+(`.30`), same GGUF pin, same serve flags, two 128-token greedy requests per side:
+
+| image | decode t/s |
+|---|---|
+| `scitrera/dgx-spark-llama-cpp:b10549-cu131` (fork, CUDA 13.1.1) | **114.1 / 116.2** |
+| upstream `a37cc4610` (CUDA 13.0.1, `ef2d4bc8`) | **100.3 / 98.7** |
+| upstream `a37cc4610` rebuilt on a **CUDA 13.1.1** base (`3af29ed556c8`, digest `a6b47a2c…`) | **99.4 / 100.6** |
+
+The CUDA-13.1.1 build carries the same llama.cpp source and flag set as the 13.0.1 flint image
+(`NVARCH=sbsa` on both bases, same `121a-real`, both gates green; 193.63 s) and buys **nothing**, so the
+15 % is the fork's own tree, not the toolkit — and not node variance (upstream measures 97–103 t/s on
+`.31`, `.33` and `.30`). **Image policy: the fork image stays the fast route; the upstream image's whole
+value is current refs (Mellum MTP, Kolibri-1, flint) at a measured ~15 % decode cost — pin the fork for
+speed, upstream only for archs the fork lacks.**
 
 Node attribution while these ran: `.34` was held by a peer's `humanizer-12b-q4km-llamacpp` job
 (`082a4f322a793ea0_8ed3ce77d78f`, image `2dcf49ada913`, started 06:26:31Z), `.31`/`.32` by a peer's b12x
