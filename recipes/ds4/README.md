@@ -30,7 +30,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Context | 1,048,576 tokens served |
 | Spec decode | DSpark k=5, verify-all |
 | Transport | RoCEnante RDMA (shipped on) |
-| Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch |
+| Image | `littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a…` — vendored, digest-pinned, rebuilt 2026-10-17 on upstream knapcio `27616bec` (v2.4) with the local health-port patch. Reproducibly rebuilt 2026-10-22 as `canary-roce-20261022` (`sha256:0cbe228a…`) from the same context with the base digest-pinned: config and layer count identical, the 21 build-step layers differ only by recompiled `__pycache__` (6,707 files hashed equal), so it is a drop-in — the shipped tag and this recipe's `container:` are deliberately unchanged (`~/benchmarks/ds4-expin-20261022/image-compare.txt`) |
 | Tags | `official`, `fast`, `large_context`, `lcg_favorite`, `vision` |
 | Measured | **TP=4 ladder, first C2/C5/C10 row for this lane (2026-10-18)** — C1 **67.18 ± 6.97** (pooled n=25, CV 10.4 %) / C2 89.9 / C5 113.4 / C10 115.4 t/s, two **v2.3-serve-line** boots, 5 runs/cell (`benchmarking/concurrency-ladder.yaml`; `~/benchmarks/tp4-20261018/`, see [Measured](#measured-tp4-ladder-and-suite)); the shipped v2.4 line's own takes — interleave flag off — are in [the v2.4 section](#measured-the-v24-serve-line). Depth-0 C4/C8/C16 118.9 / 107.5 / 115.9 (3 runs/cell, `benchmarking/ds4-sglang-depth0-ladder.yaml`, `--fresh`) at parity with the V4.1 base inside the two arms' spreads; KV pool 9,277,952 (the 9.4M pin clamps), prefill 119k 29.5 s / 231k 64.8 s (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`). The earlier single-boot **81.0** is one draw from that C1 pool (2.0 σ above its mean), not an attributable gain |
 | Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`). Standard suite on a later boot, one serve: house **36/37**, needle **3/3 at 32k / 131k / 983k**, tool-eval-bench **90** (`~/benchmarks/tp4-20261018/knapcio-suite/`) |
@@ -347,7 +347,7 @@ repo, itself a downstream of MiaAI-Lab's).
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` |
 | Engine | TensorFold `deepseek_v41` ([bertholomus/TensorFold](https://github.com/bertholomus/TensorFold) @ `3825f62` — the v0.6 release commit, 2026-10-18; reports `tensorfold 0.6.6`) |
-| Model | [`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`](https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw) — the 2026-10-17 refresh's EXL3 2.9 bpw (~196 GiB), pinned `c178a012…` |
+| Model | [`LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`](https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw) — the 2026-10-17 refresh's EXL3 2.9 bpw (~196 GiB), pinned `0be63c33…` (2026-10-19). The four commits past the previous `c178a012…` pin touch only `README.md` and add a `chat_template.jinja`: every safetensors blob is unchanged, so the weights are the same bytes |
 | Engram | the 1017 tables (layers 1/14, ~189 GiB) in the node's `hub/dsv41-engram` dir, **outside** the checkpoint snapshot so a refresh cannot empty it; the recipe passes `--require-engram`, so a node without them fails the launch instead of serving degraded |
 | Size / fit | 385 GB |
 | Topology | TP=2 — two GB10 nodes, one rank per node |
@@ -356,7 +356,7 @@ repo, itself a downstream of MiaAI-Lab's).
 | Image | `littlecedar/dgx-spark-dsv41@sha256:d6e4c10d…` (vendored, digest-pinned; built 2026-10-21 from `Dockerfile.tensorfold-dsv41` with `--build-arg TENSORFOLD_REF=3825f62` — the arg is mandatory, see Rebuild below) |
 | Tags | `fast`, `large_context`, `single_user`, `vision` |
 | Measured | **v0.6 (shipped since 2026-10-21):** c1 **64.5** / c4 51.2 / c8 **52.5** / c16 **53.2** t/s (n=9: 3 boots × 3 runs) and cold prefill **2,077** t/s @ 32k / **2,073** @ 131k — `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`. The control (0.6.3, `fabbe861…`) on the same interleaved run: 64.7 / 46.1 / 41.5 / 42.3 t/s, prefill 1,667 / 1,486 — the treatment's worst boot beats the control's best at c8 and c16. Upstream reports 101 code / 62 prose / 142 structured, 4 streams 112. The older 5-run `ds4-1017` 66.4 / 47.8 / 44.8 / 48.4 cells were the 0.6.3 engine (`~/benchmarks/ds4-1017-ab-interleaved-20261018/`). |
-| Boot-verified | 2026-10-21, v0.6 arm: six boots, `/v1/models` = the 1017 id and `tensorfold --version` = 0.6.6 on every treatment boot; launch 80.3–80.9 s after the one-time JIT (the first v0.6 start costs 264 s building three CUDA extensions). Earlier 0.6.3 ship: TTR 62 s, vision 3/3 (`~/benchmarks/ds4-1017-ship-20261017/`) |
+| Boot-verified | 2026-10-21, v0.6 arm: six boots, `/v1/models` = the 1017 id and `tensorfold --version` = 0.6.6 on every treatment boot; launch 80.3–80.9 s after the one-time JIT (the first v0.6 start costs 264 s building three CUDA extensions). Earlier 0.6.3 ship: TTR 62 s, vision 3/3 (`~/benchmarks/ds4-1017-ship-20261017/`). **Re-verified on the `0be63c33…` pin 2026-10-22:** TTR **590 s** — a new pin keys a new per-tree rank cache, so the boot re-converts the weights (318 s) and rebuilds the three CUDA extensions — then `/v1/models` = the 1017 id at `max_model_len` 1,048,576, `loaded in 556.8s`, DSpark accepting 13/31 drafts (17×23 → 391, thinking **and** `enable_thinking:false` both answered), overlay symlinks resolving into the new snapshot (`~/benchmarks/ds4-expin-20261022/`) |
 
 ### Rebuild
 
@@ -413,6 +413,12 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml
   rewrites each image part into a placeholder inside one string content, and the upstream template
   rejects a placeholder arriving that way. Receipt (3/3 solid-colour probes, text control clean):
   `attic/ds4/AGENTS.md` §12.14.1.
+- **The checkpoint's own chat template is never served on this arm.** The `--vision` overlay skips any
+  `chat_template.jinja` the snapshot ships (`launcher.py:263`) and writes the mod's copy as the one real
+  file, so a template the pack itself starts shipping cannot take effect while `--vision` is on — and
+  this recipe passes it. Proved 2026-10-22 on the `0be63c33…` pin, whose new commits add exactly such a
+  file: the served template is `297be886…` (the mod's) and the snapshot's `2ed8bc33…` is absent from the
+  54-entry overlay. Dropping `--vision` serves the checkpoint's own template, and gives up image input.
 - **Two vision contracts the value itself does not show.** (1) The served template defaults to
   **thinking mode**, so a small `max_tokens` is spent on `reasoning_content` and `content` returns
   empty — send `chat_template_kwargs: {"enable_thinking": false}` for one-shot answers. (2)

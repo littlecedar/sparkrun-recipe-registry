@@ -59,17 +59,25 @@ FLEET_LEAVES = [
     ("sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4",
      "8d5a3317b4fcb6f278e1cde7fcae5ed88a27443a",
      "sakamakismile__Qwen3.8-27B-AEON-ULTIMATE-UNCENSO-b9f737e7"),
+#: The EXL3 pack's previous pin (the ds4 TP=2 arm served it until 2026-10-22), now on the
+#: fleet as a leftover: see STALE_LEAVES.
     ("LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw",
      "c178a01284fc5c0e859d8668cffaac81ca8f4042",
      "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776"),
     ("deepseek-ai/DeepSeek-V4.1-Flash", "5254448103b6254fc646dacbca1cbbf20e9216c1",
      "deepseek-ai__DeepSeek-V4.1-Flash-11826f49"),
+    #: The pin the ds4 TP=2 arm serves since 2026-10-22 (the pack's post-pin commits
+    #: are template-only, so the weights are the ones above).
+    ("LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw",
+     "0be63c3337efbb2a0061d5b8bb4006fa186d433f",
+     "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-55410efc"),
 ]
 
 #: Leaves the fleet holds that no recipe may claim.
 STALE_LEAVES = ["deepseek-ai__DeepSeek-V4.1-Flash-9a74d993",
                 "deepseek-ai__DeepSeek-V4.1-Flash-db95f94c",
-                "deepseek-ai__DeepSeek-V4.1-Flash-11826f49"]
+                "deepseek-ai__DeepSeek-V4.1-Flash-11826f49",
+                "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776"]
 
 
 def _load():
@@ -222,14 +230,24 @@ class ReclaimVerdict(unittest.TestCase):
         return audit.Tree("host-30", f"{FAMILY_DIR}/{leaf}", size=1, stamp=stamp)
 
     def test_live_tree_gets_no_reclaim_action(self):
-        # Live today: the knapcio pin, and the 1017 pack the ds4 TP=2 arm now serves. The
+        # Live today: the knapcio pin, and the 1017 pack the ds4 TP=2 arm serves. The
         # combined pack is still served -- by the grafted cybersec arm, pinned -- but its
         # *unpinned* leaf is not; see test_v41_unpinned_leaf_is_stale_after_the_1017_rebase.
-        for leaf in (FLEET_LEAVES[0][2], FLEET_LEAVES[6][2]):
+        for leaf in (FLEET_LEAVES[0][2], FLEET_LEAVES[-1][2]):
             tree = self._tree(leaf, "2026-01-01_00:00")
             kind, _ = audit.verdict(tree, self.keys)
             self.assertEqual(kind, "live", leaf)
             self.assertEqual(audit.reclaim_note(tree, kind, self.now), "", f"{leaf} must not be reclaimable")
+
+    def test_pre_repin_exl3_leaf_is_stale_after_the_2026_10_22_repin(self):
+        # The arm's pin moved to 0be63c33… (template-only commits), so the tree keyed on
+        # the previous pin is no longer served by anything and becomes reclaimable once the
+        # 72 h in-use window has passed.
+        tree = self._tree("LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776",
+                          "2026-10-01_00:00")
+        kind, _ = audit.verdict(tree, self.keys)
+        self.assertEqual(kind, "stale")
+        self.assertIn("--older-than", audit.reclaim_note(tree, kind, self.now))
 
     def test_v41_unpinned_leaf_is_stale_after_the_1017_rebase(self):
         # The ds4 TP=2 arm moved to the 1017 pack on 2026-10-17. The grafted cybersec arm still

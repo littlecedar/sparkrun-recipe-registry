@@ -7,9 +7,11 @@
 #   knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ 27616bec (v2.4, 2026-10-12)
 #   (https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4)
 # Everything below this header is exactly upstream's `Dockerfile.canary-roce`
-# (sha256 dbd1cfbf…); only this header was added when vendoring. Do not edit the
-# body without also updating the upstream pin, or the digest in AGENTS.md 5 stops
-# matching a reproducible build.
+# (sha256 dbd1cfbf…) except `ARG BASE_IMAGE`, whose floating tag is digest-pinned
+# here (2026-10-22) so the base cannot move under a rebuild. Only the header and
+# that one line were added when vendoring. Do not edit the body further without
+# also updating the upstream pin, or the digest in AGENTS.md 5 stops matching a
+# reproducible build.
 #
 # NOT self-contained: every COPY reads from the knapcio repo as build context
 # (adapter/, boot.py, scripts/, tests/, benchmarks/, runtime/), and the SGLang
@@ -51,7 +53,7 @@
 # git cannot fetch unauthenticated. Mia's SM120 page-split override is re-applied on top of
 # the branch's kernel file. Everything else is the production Dockerfile.
 # Tag: dsv41-4x-spark:canary
-ARG BASE_IMAGE=lmsysorg/sglang:dev-dsv41
+ARG BASE_IMAGE=lmsysorg/sglang:dev-dsv41@sha256:4a5d132a06a77c8331e15845f2e925adc788b00105097ad55409afa3f4fa4860
 FROM ${BASE_IMAGE}
 # Same mirror knob as Dockerfile.canary (Saolence, #6): --build-arg PIP_INDEX=<mirror>/simple
 ARG PIP_INDEX=https://pypi.org/simple

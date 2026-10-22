@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
-model_revision: c178a01284fc5c0e859d8668cffaac81ca8f4042
+model_revision: 0be63c3337efbb2a0061d5b8bb4006fa186d433f
 runtime: sglang
 container: littlecedar/dgx-spark-dsv41@sha256:d6e4c10d4c0ec329196104dc98f77492f2ce648400671bbae78dc46e7e04fe66
 builder: docker-pull
