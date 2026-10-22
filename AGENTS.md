@@ -243,10 +243,19 @@ for bodies ≤ 60 GB only. The head's free space is shared by every concurrent s
 staged body consumes nearly all of it, and the node-local route carries no shared-resource race — so the
 threshold is a property of the body, not of current free space. Measured 2026-10-22: two staged bodies
 drove the head to 24 GB free; after the clean-up it holds 141 GB and two concurrent 80 GB stages would
-still refill it. Boot-need side effect of that clean-up: `vllm/vllm-openai:v0.32.0@sha256:befccf0e…`,
-which `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and
-`recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` pin, was deleted from the head as
-unattributed and has to be re-pulled there (the node copies survived).
+still refill it.
+
+**An image is protected by any tree reference, and the allowlist is rebuilt per host.** An image stays if
+its `RepoDigest` — or its `repo:tag` — appears anywhere in `recipes/`, `attic/`, `mods/`, `tools/`,
+`benchmarks/`, `plugins/` or `mad-science/`, **including `container:` pins inside a recipe's `defaults:`
+block, not only an `image:` in prose**; regenerate that list with `git grep` against the current tree on
+every host that prunes, and never carry one host's list to another. Measured 2026-10-22: the head
+clean-up deleted `vllm/vllm-openai:v0.32.0@sha256:befccf0e…` (image `4ceb6c60eed2`) as unattributed
+because the match ran on image ID/`RepoDigest` against a list built from `image:`-style lines while the
+live citation was a `container:` pin — `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml:19`
+and `recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml:7`. It has since been re-pulled **by
+digest** on the head and re-tagged `vllm/vllm-openai:v0.32.0` (`RepoDigest` verified `befccf0e…`,
+24.4 GB), so it is present: do not conclude the head is missing it by accident.
 
 **Never `git checkout`, `git restore`, `git reset` — or a `for f in $(git diff --name-only)` loop — on the
 `<head-node>` clone.** The head is the syncthing *source of truth*, so a checkout there propagates HEAD bytes
