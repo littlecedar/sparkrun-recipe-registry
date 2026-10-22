@@ -8,7 +8,7 @@ the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
 suite and strict-validate counts were re-measured **2026-10-22** (52 tracked recipes — 53 files in
-the working tree until the last in-flight one lands — 31 guard modules, 806 tests, 12/52 strict).
+the working tree until the last in-flight one lands — 32 guard modules, 852 tests, 17/52 strict).
 Facts drift — re-measure (`ls recipes/*/*.yaml`, test discovery) before trusting a number.
 
 ## Project Overview
@@ -69,8 +69,8 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 29 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 31 importable guard modules, plus one skipped `*.sync-conflict-*.py` |
-| `tools/` | 18 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze) |
+| `tests/` | 32 importable guard modules, plus one skipped `*.sync-conflict-*.py` |
+| `tools/` | 19 stdlib CLIs (bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep) |
 | `plugins/` | One module, `pooling_bench_framework.py`: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/). |
 | `benchmarking/` | 35 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile, + the 2-profile `pooling-bench` ladder) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -105,8 +105,8 @@ for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run py
 find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: all 52 tracked recipes pass plain; 16/52 fail
-  strict on accepted findings (re-measured 2026-10-22). Fifteen carry `unpinned-model-revision` —
+- **Plain `validate` is the gate, not `--strict`**: all 52 tracked recipes pass plain; 17/52 fail
+  strict on accepted findings (re-measured 2026-10-22). Sixteen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 
   | Recipe | Findings |
@@ -121,6 +121,7 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
   | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
+  | `ornith/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | `unpinned-model-revision` |
   | `qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` | `unpinned-model-revision` |
   | `qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | `deprecated-topology` (`cluster_only`), `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | `unpinned-model-revision` |
@@ -239,7 +240,8 @@ keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agr
   validator accepts when it matches byte-for-byte (`sparkrun/models/runtime.py:86-87`); either way the served
   id comes from `--served-model-name {served_model_name}`, never from `{model}`. No host bind-mount
   paths — ship a mod (`volumes:` appears in 0 recipes).
-- Pin the checkpoint with top-level **`model_revision:`** (43 recipes), never `revision:` — an
+- Pin the checkpoint with top-level **`model_revision:`** (52 recipes — every tracked one, measured
+  2026-10-22), never `revision:` — an
   unknown top-level key is silently absorbed into `runtime_config` and does nothing (the labquant lane
   records the defect: `recipes/qwen4/README.md` §"Pin key trap", `attic/qwen4/AGENTS.md`).
 - **`description:` is a top-level key**, never nested under `metadata:` — sparkrun reads the top-level
@@ -351,12 +353,12 @@ matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index; documents all 18 tools (`safe_text.py` added 2026-10-07 and the
-  standard-suite trio 2026-10-15; the three before `safe_text.py` describe behaviour and caveats only
-  — this repo records measured results next to the arm that produced them, e.g.
-  `attic/qwen4/status/*.md`), plus §plugins/ for the out-of-tree pooling `BenchmarkingPlugin` that
-  lives in `plugins/` — including why a registry cannot ship one and the exact command that carries
-  a pooling number.
+- `tools/README.md` — tool index; documents all 19 tools (`safe_text.py` added 2026-10-07, the
+  standard-suite trio 2026-10-15, `refresh-sweep.py` 2026-10-22; the three before `safe_text.py`
+  describe behaviour and caveats only — this repo records measured results next to the arm that
+  produced them, e.g. `attic/qwen4/status/*.md`), plus §plugins/ for the out-of-tree pooling
+  `BenchmarkingPlugin` that lives in `plugins/` — including why a registry cannot ship one and the
+  exact command that carries a pooling number.
 - `.local/CONFIDENTIAL.md` — git-ignored definition of the `${WOPR_*}` variables these docs refer to.
 
 ## Runtime/Tooling Preferences
@@ -399,7 +401,7 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **806 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **852 tests,
   all passing 2026-10-22 (2 skipped:** the IFM research docs absent on a fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
@@ -422,8 +424,8 @@ matching.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML
   subset parser, mod `run.sh` sliced/executed in temp dirs (the `<<'TPL'` heredoc is executed by
   `tests/test_qwen3_vl_embeddings.py`), tools imported by path. Design rules: **every guard needs a
-  proven negative control** (121 control tests in 17 `NegativeControls` classes, re-measured
-  2026-10-19); an empty or missing parse must raise, never return `[]` or pass vacuously; text scans
+  proven negative control** (166 control tests in 24 `NegativeControls` classes, re-measured
+  2026-10-22); an empty or missing parse must raise, never return `[]` or pass vacuously; text scans
   strip whole-line comments and anchor with `(?m)^`.
 - Dash-named tools (`tools/pooling-bench.py`, `tools/needle-haystack.py`) are imported via
   `importlib.util.spec_from_file_location` with the module registered in `sys.modules` **before**
