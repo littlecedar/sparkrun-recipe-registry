@@ -50,18 +50,19 @@ govern, per the protocol; the verbatim asks remain in git.)*
   over 4× GB10) would compete for the same four nodes.
 - **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
   if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
-  **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37) — and it **scales no
-  worse than that baseline**: aggregate scaling efficiency **E = C10 / (C1 × 10) ≥ 0.168**, C1 and C10
-  taken from the same boot, plus throughput monotone non-decreasing from C5 to C10 at ten slots (a
-  plateau passes, a decline is a capacity failure); (2) it sustains **≥ 10 concurrent streams**; (3)
-  output quality is **high** — house battery **≥ 36/37** at 4096 thinking-on, **i.e. at least the
-  baseline's own score** (37/37 preferred, not required), no fact-error regressions.* **Being bigger is
-  not an argument; missing any leg disqualifies.** `E` references on the identical shape: knapcio TP=4
-  **0.168** (C1 69.28 → C10 116.27), Mellum's 8-slot history **0.131** (111.94 → 146.39), Spark-X2.6 FP8
-  **0.533** (40.80 → 217.58). Measured vs unmeasured is marked per cell, because three of the six rows
-  are still empty:
+  **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37), both from the
+  **same boot**; (2) throughput is **non-decreasing from C5 to C10 at ten slots** — a plateau passes, a
+  decline is a capacity failure, which is all "without degrading too much" means here; (3) output
+  quality is **high** — house battery **≥ 36/37** at 4096 thinking-on, **i.e. at least the baseline's
+  own score** (37/37 preferred, not required), no fact-error regressions.* **Being bigger is not an
+  argument; missing any leg disqualifies.** The `E` column is **reported, not gated**:
+  `E = C10 / (C1 × 10)` favours low-C1 arms — at Mellum's own C1 111.94, E ≥ 0.168 would demand
+  **C10 ≥ 188.06**, a *higher* absolute bar than the baseline's 116.27, so a fast starter would be
+  penalized for its own C1. References on the identical shape: knapcio TP=4 **0.168** (C1 69.28 →
+  C10 116.27), Mellum's 8-slot history **0.131** (111.94 → 146.39), Spark-X2.6 FP8 **0.533** (40.80 →
+  217.58). Measured vs unmeasured is marked per cell, because three of the six rows are still empty:
 
-  | candidate | C1 | C10 | ratio | E | house ≥36/37 | verdict |
+  | candidate | C1 | C10 | ratio | E (diagnostic) | house ≥36/37 | verdict |
   |---|---|---|---|---|---|---|
   | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **110.52 ± 1.77** (ten slots, `~/benchmarks/mellum-c10-20261022/REPORT.md`) | **185.96 ± 2.31** | 1.68× | **0.168** (measured) | **36/37** thinking-on @4096 (`needle-1` empty reply, 1 of 3) | **passes C1 (+59 %) and C10 (+60 %), house at the bar; FAILS the C5→C10 leg — c5 208.29 ± 5.67 → c10 185.96, −10.7 %** |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **0.533** | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
