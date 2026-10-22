@@ -16,6 +16,15 @@ Surface (this arm has no chat completions):
     GET  /v1/models       -> the loaded repo id      convenience
     POST /generate        -> run the pipeline, save a PNG, return metrics
 
+Errors: a request this server cannot accept — malformed JSON, a body that is not
+an object, a missing prompt, a non-integer width/height/seed, an empty `sigmas`
+list, an unreadable `image_path`, a bad `Content-Length` — is **400** with
+`{"error": …}`. A fault of the server itself (the pipeline returns no image, the
+sample dir is unwritable, this diffusers build has no `load_image`) is **500**,
+with its traceback in the log and never in the response body. `/health` reports
+`requests` (successes), `attempts` and `failed`, so a serve whose generates all
+reject cannot look idle.
+
 POST /generate body (JSON):
     {"prompt": str, "width": 1024, "height": 1024, "seed": 0,
      "num_inference_steps": null, "sigmas": null, "image_path": null,
@@ -55,7 +64,17 @@ import os
 import sys
 import threading
 import time
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class ClientError(ValueError):
+    """A request the client got wrong: answered 400, never 500.
+
+    Everything else is a fault of this process (a broken pipeline, an unwritable
+    sample dir) and stays a 500 with its traceback in the log — the two must be
+    distinguishable by status alone, or a bad caller reads as a broken serve.
+    """
 
 STATE: dict = {
     "pipe": None,
@@ -66,6 +85,8 @@ STATE: dict = {
     "load_s": None,
     "sample_dir": None,
     "requests": 0,
+    "attempts": 0,
+    "failed": 0,
     "lock": threading.Lock(),
 }
 
@@ -128,7 +149,7 @@ def resample_sigmas(base: list[float], steps: int) -> list[float]:
     rounding indices would repeat a sigma and produce a zero-length step.
     """
     if steps < 2:
-        raise ValueError("steps must be >= 2")
+        raise ClientError("steps must be >= 2")
     scale = (len(base) - 1) / (steps - 1)
     out = []
     for i in range(steps):
@@ -147,17 +168,32 @@ def schedule_kwargs(req: dict, shipped: list[float] | None) -> tuple[dict, list[
     a cell can prove which path ran. `None` means the checkpoint's saved schedule.
     """
     kw: dict = {}
-    req_sigmas = req.get("sigmas")
-    if req_sigmas:
-        sigmas_used: list[float] | None = [float(x) for x in req_sigmas]
+    raw_sigmas = req.get("sigmas")
+    if raw_sigmas is not None:
+        # An explicit list is authoritative: an empty or one-point list is a
+        # client mistake, not "use the saved schedule" (omit the field for that).
+        if not isinstance(raw_sigmas, (list, tuple)):
+            raise ClientError("sigmas must be a list of floats, got %s"
+                              % type(raw_sigmas).__name__)
+        try:
+            sigmas_used: list[float] | None = [float(x) for x in raw_sigmas]
+        except (TypeError, ValueError):
+            raise ClientError("sigmas must be a list of floats, got %r" % (raw_sigmas,))
+        if len(sigmas_used) < 2:
+            raise ClientError("sigmas needs at least 2 points, got %d; omit the field to "
+                              "run the checkpoint's saved schedule" % len(sigmas_used))
     else:
         sigmas_used = None
         if req.get("num_inference_steps") is not None:
-            steps = int(req["num_inference_steps"])
+            try:
+                steps = int(req["num_inference_steps"])
+            except (TypeError, ValueError):
+                raise ClientError("num_inference_steps must be an integer, got %r"
+                                  % (req["num_inference_steps"],))
             if not shipped:
-                raise ValueError("num_inference_steps needs the checkpoint's sample_sigmas, "
-                                 "which could not be read at load; pass an explicit sigmas "
-                                 "list instead")
+                raise ClientError("num_inference_steps needs the checkpoint's sample_sigmas, "
+                                  "which could not be read at load; pass an explicit sigmas "
+                                  "list instead")
             if steps != len(shipped):
                 # One sigma per step on this checkpoint, so an N-step schedule is N
                 # sigmas resampled from the saved curve; equal counts leave the saved
@@ -174,11 +210,15 @@ def run_generate(req: dict) -> dict:
     pipe = STATE["pipe"]
     sample_dir = STATE["sample_dir"]
     prompt = req.get("prompt")
-    if not prompt:
-        raise ValueError("prompt is required")
-    width = int(req.get("width", 1024))
-    height = int(req.get("height", 1024))
-    seed = int(req.get("seed", 0))
+    if not isinstance(prompt, str) or not prompt:
+        raise ClientError("prompt is required and must be a non-empty string")
+    try:
+        width = int(req.get("width", 1024))
+        height = int(req.get("height", 1024))
+        seed = int(req.get("seed", 0))
+    except (TypeError, ValueError):
+        raise ClientError("width, height and seed must be integers (got %r, %r, %r)"
+                          % (req.get("width"), req.get("height"), req.get("seed")))
     use_kv_cache = bool(req.get("use_kv_cache", True))
 
     call: dict = {
@@ -192,9 +232,19 @@ def run_generate(req: dict) -> dict:
     call.update(sigmas_kw)
     image_path = req.get("image_path")
     if image_path:
-        from diffusers.utils import load_image
-
-        call["image"] = load_image(image_path).convert("RGBA")
+        # diffusers is imported lazily (the text-to-image path never needs it), so a
+        # build without `load_image` must fail loudly here instead of on every POST.
+        try:
+            from diffusers.utils import load_image
+        except ImportError as exc:
+            raise RuntimeError("this diffusers build has no diffusers.utils.load_image "
+                               "(%s): the image-editing path is unavailable" % exc)
+        try:
+            call["image"] = load_image(image_path).convert("RGBA")
+        except OSError as exc:  # missing/corrupt file, unreadable image
+            raise ClientError("cannot load image_path %r: %s" % (image_path, exc))
+        except ValueError as exc:  # PIL's own refusals
+            raise ClientError("image_path %r is not a usable image: %s" % (image_path, exc))
 
     step_times: list = []
     step_t0 = [None]
@@ -211,16 +261,24 @@ def run_generate(req: dict) -> dict:
     with STATE["lock"]:
         out = pipe(**call)
     elapsed = time.time() - step_t0[0]
-    image = out.images[0]
+    images = getattr(out, "images", None) or []
+    if not images:
+        raise RuntimeError("pipeline returned no images (out.images is empty): "
+                           "nothing to save and nothing to report")
+    image = images[0]
 
     peak_alloc = torch.cuda.max_memory_allocated() / (2 ** 30)
     peak_reserved = torch.cuda.max_memory_reserved() / (2 ** 30)
 
-    os.makedirs(sample_dir, exist_ok=True)
-    stamp = time.strftime("%Y%m%dT%H%M%S")
-    name = "t2i_%dx%d_seed%d_%s.png" % (width, height, seed, stamp)
-    path = os.path.join(sample_dir, name)
-    image.save(path)
+    try:
+        os.makedirs(sample_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%dT%H%M%S")
+        name = "t2i_%dx%d_seed%d_%s.png" % (width, height, seed, stamp)
+        path = os.path.join(sample_dir, name)
+        image.save(path)
+    except OSError as exc:
+        # The GPU work is already spent; say so instead of losing it silently.
+        raise RuntimeError("could not persist the PNG under %r: %s" % (sample_dir, exc))
 
     return {
         "elapsed_s": round(elapsed, 3),
@@ -260,6 +318,8 @@ class Handler(BaseHTTPRequestHandler):
                 "loaded": STATE["pipe"] is not None,
                 "load_s": STATE["load_s"],
                 "requests": STATE["requests"],
+                "attempts": STATE["attempts"],
+                "failed": STATE["failed"],
                 "mem_available_gib": round(mem_available_gib() or -1, 2),
             })
         elif self.path.split("?")[0] == "/v1/models":
@@ -272,13 +332,40 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.split("?")[0] != "/generate":
             self._send(404, {"error": "unknown path %s" % self.path})
             return
-        length = int(self.headers.get("Content-Length") or 0)
+        # Counted before anything can fail, so /health can never read as idle load
+        # while every generate is erroring.
+        STATE["attempts"] += 1
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length < 0:
+                raise ValueError("negative Content-Length")
+        except (TypeError, ValueError):
+            STATE["failed"] += 1
+            log("generate rejected: Content-Length %r is not a non-negative integer"
+                % (self.headers.get("Content-Length"),))
+            self._send(400, {"error": "Content-Length must be a non-negative integer"})
+            return
         raw = self.rfile.read(length) if length else b"{}"
         try:
             req = json.loads(raw or b"{}")
+            if not isinstance(req, dict):
+                raise ClientError("request body must be a JSON object, got %s"
+                                  % type(req).__name__)
             result = run_generate(req)
-        except Exception as exc:  # surface the failure, keep the server up
+        except ClientError as exc:
+            STATE["failed"] += 1
+            log("generate rejected: %s" % exc)
+            self._send(400, {"error": str(exc)})
+            return
+        except json.JSONDecodeError as exc:
+            STATE["failed"] += 1
+            log("generate rejected: body is not valid JSON (%s)" % exc)
+            self._send(400, {"error": "body is not valid JSON: %s" % exc})
+            return
+        except Exception as exc:  # a genuine fault: log the trace, keep serving
+            STATE["failed"] += 1
             log("generate failed: %r" % (exc,))
+            log(traceback.format_exc())
             self._send(500, {"error": "%s: %s" % (type(exc).__name__, exc)})
             return
         STATE["requests"] += 1

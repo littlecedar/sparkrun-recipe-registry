@@ -6,9 +6,9 @@ speed / concurrency / accuracy / size directive; six were retired to
 with them. What remains here is what the shipped lane still needs:
 
   * `kolibri-1-apex-24bpw-llamacpp.yaml` — the kept GGUF tier on the fork image.
-  * `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — authored, unbooted, the lane's
-    only two-node arm (owned by the Laguna-M.1 boot item, not a selection
-    candidate).
+  * `poolside-laguna-m1-nvfp4-vllm-tp2.yaml` — the lane's only two-node arm, booted
+    2026-10-20 on `v0.29.0` (not a selection candidate; its `v0.32.0` pin is not
+    re-booted yet).
 
 Each invariant below is silent when broken:
 

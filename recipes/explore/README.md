@@ -8,8 +8,10 @@ speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, 
 The lane now ships **seven measured arms** — the accuracy leader, the smallest 262k arm with
 measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the media-gen arm
 whose cells are closed, the LTX-2.5 video+audio arm booted 2026-10-21, and the Nemotron-3.5-Lightning
-30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here) — plus one
-authored-unbooted 2-node arm (`Laguna-M.1`, owned by its own boot item, not a selection candidate). The other **ten** measured arms from the 2026-10-14…18 expansions are
+30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here) — plus the
+two-node **Laguna-M.1** ceiling reference, booted 2026-10-20 on `v0.29.0` and not a selection
+candidate (its `v0.32.0` pin is *not* re-booted — see its section). The other **ten** measured arms
+from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 14-row decision table with one
 receipt path per arm is [§Selection](#selection-2026-10-19); per-arm measured histories, serving traps

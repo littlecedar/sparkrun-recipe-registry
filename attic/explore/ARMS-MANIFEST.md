@@ -26,6 +26,14 @@ The shipped set after this pass — 5 measured arms plus 1 authored-unbooted arm
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **media-gen, cells closed** | 0.088 img/s (11.33–11.41 s @1024²; 53.24 s @2048²) | one request at a time | n/a (non-commercial eval arm) | 32.5 GB; peak 59.78 GiB @2048² |
 | `poolside-laguna-m1-nvfp4-vllm-tp2` | authored, **unbooted** — stays | — | — | — | 139.3 GB / 2 nodes |
 
+> **2026-10-22 correction — the history above is kept as written.** The
+> `poolside-laguna-m1-nvfp4-vllm-tp2` row says "authored, **unbooted**", which was true on
+> 2026-10-19 and false from **2026-10-20**, when the arm booted on a test pair: `/v1/models` 200
+> ≈43 min after launch, then a decode ladder and the standard suite (both in
+> [`recipes/explore/README.md` §Laguna-M.1](../../recipes/explore/README.md#poolside-laguna-m1-nvfp4-vllm-tp2)).
+> On 2026-10-22 its `container:` pin moved to `vllm/vllm-openai:v0.32.0` for the CVE reason **without**
+> a re-boot, so every number quoted for this arm remains a `v0.29.0` measurement.
+
 The full 14-row decision table, with one receipt path per row, is
 [`recipes/explore/README.md` §Selection](../../recipes/explore/README.md#selection-2026-10-19).
 
