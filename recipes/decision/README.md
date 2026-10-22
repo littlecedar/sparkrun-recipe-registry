@@ -229,13 +229,13 @@ Receipt: `~/benchmarks/decision-arms2-20261018/` — `REPORT.md`, `logs/kev-laun
 
 | field | value |
 |---|---|
-| repo id | [`vllm-sr/d3-edge`][d3] (pinned `18d61df7` — the runtime's built-in, golden-checked revision) |
+| repo id | [`vllm-sr/d3-edge`][d3] (pinned `18d61df7` — the runtime's built-in, golden-checked revision; the head `c454ee39` was probed 2026-10-22 and reverted, see below) |
 | accuracy | **unmeasured** — the runtime will not serve it |
 | size | 594,582,720 params (1.19 GB weights + readout) |
 | API | `/v1/systemone` over text, image and video states, **CPU**; `/health` is the golden gate, not plain liveness |
 | TP | 1 |
 | flags | 🤏 smol · 🖥 cpu · 🚮 classifier |
-| status | **NOT BOOTED 2026-10-18** (`.34`) — two blockers, both image-side |
+| status | **NOT BOOTED 2026-10-18** (`.34`) — two blockers, both image-side. **Re-probed 2026-10-22** on the head revision (`.31` as shipped, `.35` with the Hub reachable): both blockers reproduce unchanged, pin reverted |
 
 **Blocker 1 — offline staging.** As shipped, `/health` returns 503 `OfflineModeIsEnabled: Cannot
 reach https://huggingface.co/api/models/vllm-sr/d3-edge/tree/18d61df7…`: sparkrun stages the model
@@ -257,6 +257,21 @@ offline. Neither is a recipe edit.
 Receipt: `~/benchmarks/decision-arms2-20261018/` — `REPORT.md`, `logs/d3-launch.log` +
 `logs/d3-launch-hfonline.log`, `d3-evidence/golden-probe.log`, `golden-reference-d3-edge.json`,
 `readiness-golden_check.py`, `compare_answers.py`, `container-inspect.json`.
+
+**Re-pin probed 2026-10-22, and it changes nothing — the pin stays at `18d61df7`.** The repo's head
+moved 10 commits past the pin (2026-10-11…17): `d3_format.py`, `d3_runtime.py`, `d3_server.py`,
+`requirements.txt`, `MODEL_MANIFEST.json` and card / assets / `.eval_results` only, with both
+`*.safetensors` blobs byte-identical, so the delta is vendor code, not weights. `18d61df7` is itself
+the `d3-edge v3.1.0` release commit and the head is a post-release card/eval commit — not a newer
+release. Booted at the head: `/v1/models` 200 with `ready:false`, and `/health` 503
+`status:"loading"` → `OfflineModeIsEnabled: Cannot reach …/tree/c454ee39…`, i.e. blocker 1 verbatim at
+the new revision; with `-e HF_HUB_OFFLINE=0` the loader resolves and the runtime then answers
+`/health` 503 `"failed"` / `VerificationError: golden answers differ from the reference`, golden
+`{status: failed, checked: 3, matched: 1, reference: "cpu"}` — the **same 3-checked / 1-matched
+result as the pin**, so the divergence is the image's x86 reference on aarch64, not the revision.
+Both sites (`model_revision:` and the literal `--revision=`) were reverted. Receipt:
+`~/benchmarks/decision-d3-repin-20261022/` — `bootA.log` + `bootA-{models,health,systemone}.txt`
+(as shipped), `bootB.log` + `bootB-{models,health,systemone}.json` (Hub online), `REPORT.md`.
 
 ### kokoro-82m-tts-cpu
 
