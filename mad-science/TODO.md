@@ -1979,12 +1979,12 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 
 - [ ] **Spark-X2.6-4B: only the clamp cell is left (FP8 quality and the INT8 tier both closed
   2026-10-22)** — receipts `~/benchmarks/spark-x26-20261022/` on the head. **Cell 1 closed: FP8
-  SHIPS as the fast tier, and the 98.2 % was a transient runaway, not a budget miss and not a
-  capability loss.** On a second boot (`.35`, `sparkrun_9c8e0fffc3be638_64af2f7668b6`) `trick-2`
-  answers **`5` 3/3** with `finish_reason=stop` after only **159 / 177 / 177** `reasoning_tokens`,
-  and the full 37-item battery at the **same 4096 budget** scores **37/37 stable (111/111, no
-  flaky)**. A budget cap would have burned all 8,192 too; it never passed 177 — so the `.33` pass
-  (2/3 empty at exactly 4,096 reasoning tokens) was a nondeterministic degenerate episode. Roles:
+  SHIPS as the fast tier; its `trick-2` empty replies are a cap-truncated runaway, not a budget miss
+  and not a capability loss.** On a second boot (`.35`, `sparkrun_9c8e0fffc3be638_64af2f7668b6`)
+  `trick-2` answers **`5` 3/3** with `finish_reason=stop` after only **159 / 177 / 177**
+  `reasoning_tokens`, and the full 37-item battery at the **same 4096 budget** scores **37/37 stable
+  (111/111, no flaky)** — yet at served defaults the item comes back empty **6 of 12** reps at a 4096
+  cap, so it is a real rate, not a one-off episode. Roles:
   `spark-x2.6-4b-fp8-sglang.yaml` = **fast tier** (C1 **40.80 ± 0.09**, 2× the control at every
   rung, house tied), `spark-x2.6-4b-bf16-sglang.yaml` = **accuracy control** (20.38 ± 0.09, 37/37
   on / 30/37 off). **Cell 2 closed: INT8 rejected at the kernel level** —
@@ -1999,7 +1999,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   **Still open, and worth one boot:** the FP8 tier's **tool-call contract** (it was probed on bf16
   only — `spark25` parsed `get_weather({"city":"Lisbon"})` with `finish_reason: tool_calls`), and
   the clamp cell below. **(3) The clamp cell the ladder never reached** — `--max-running-requests 96` vs `32` measured **no delta at c ≤ 10** (c1 20.75 ± 0.40, c2 48.46 ± 1.22, c5 96.31 ± 6.57, c10 156.94 ± 0.47; every delta inside 1σ, c10 +0.5 %), because ten streams never approached the clamp. To justify 96 at all, run a ladder profile with `concurrency: [32, 48, 64, 96]` at pp 2048 / tg 128 / n=5 / decode rows only, and quote the pool arithmetic: **779,390 pooled tokens (FP8) ÷ 96 ≈ 8.1k per sequence at full occupancy**. *(effort: short; pre-registered 2026-10-22, cells 1–2 closed same day)*
-  *(flakiness, measured — **trick-2-style runaway: 6/12 empty replies at a 4096-token cap across three boots (50 %), 0/3 empty at 8192 (159/177/177 reasoning tokens, `finish=stop`) — cap-dependent, sampler-side trigger.** The temperature-0 repeat cell is **NOT RUN (untested)**, and the earlier TTFR repeats (1664 vs 232 ms) are **indicative only, not measured repeats**.)*
+  *(flakiness, measured 2026-10-22 — **`trick-2` runaway: 6/12 empty replies at a 4096-token cap across three boots (50 %), 0/3 empty at 8192 (159/177/177 reasoning tokens, `finish=stop`). Temperature 0 does NOT stop it** (n=5 @4096 on `.35`: **1/5 empty** after 4,096 reasoning tokens, the other four right after 84) — per-request nondeterminism in the engine/batch path, **not a sampler trigger**; serving defaults additionally answer **WRONG 2/5** (`0.25` at `finish=stop`, 3,482 / 394 reasoning tokens) against **0/5 wrong at greedy**, so every Spark-X2.6 measurement and client must pin `temperature: 0`. Retry guidance: retry once on `finish_reason=length` with empty content; `max_tokens >= 8192` is the stronger mitigation. TTFT re-measured on its own instrument: **96 ms cold / 35–37 ms warm** (median 35.7, n=5); the 232-vs-1,664 ms pair is the 2,048-token-prefill first token, prefill-inclusive, not a per-request regression — a like-for-like 2,048-token TTFT on both tiers is still unmeasured.)*
 
 - [ ] **Register `orcarouter/OrcaCyber-Nano-1.0` for the cybersec lane — a 27B dense GGUF-only "AI
   Defense" model whose only engine is llama.cpp, and whose two tiers trade quality for ~2.5 GB of
