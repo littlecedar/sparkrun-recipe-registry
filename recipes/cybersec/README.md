@@ -17,13 +17,14 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 - [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative under SGLang; vLLM route unblocked (+ `nex-n2.5-mini-uncensored-nvfp4-vllm`)
 - [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative under SGLang; vLLM route unblocked (+ `qwen3.8-flash-next-uncensored-nvfp4-vllm`)
 - [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang) — arm 5, positive (TP=2), graft
+- [`orcacyber-nano-1.0-15.7g-gguf-llamacpp`](#orcacyber-nano-10-157g-gguf-llamacpp) — arm 6, positive (TP=1), the lane's only llama.cpp arm (GGUF 15.7G tier)
 - [Attic index](#attic-index)
 
 ## Gating and the token prerequisite
 
-**Every arm is gated on the Hub (`gated: auto`)** — the five arms plus arm 1's NEXTN sibling, which
-serves arm 1's repo. A distributed registry cannot assume an `HF_TOKEN`, so the prerequisite is
-explicit here and in every recipe's `metadata.caveats`:
+**Every arm is gated on the Hub (`gated: auto`)** — the five SGLang/vLLM arms, arm 1's NEXTN
+sibling (which serves arm 1's repo), and arm 6's GGUF repo. A distributed registry cannot assume an
+`HF_TOKEN`, so the prerequisite is explicit here and in every recipe's `metadata.caveats`:
 
 - each runner node needs an `HF_TOKEN` whose user has **accepted that repo's release**, and
 - two arms (2 and 5) pull *two* gated repos each (the body/stock pack and the overlay).
@@ -306,6 +307,65 @@ that line.
   `~/benchmarks/cybersec-arm5-tools-20261021/` (`REPORT.md` merges all five, `bfcl.json`).
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
 
+## `orcacyber-nano-1.0-15.7g-gguf-llamacpp`
+
+**Arm 6 — POSITIVE (TP=1), the lane's only llama.cpp arm and its only single-file GGUF.** No overlay
+and no separate drafter: the vision projector and the MTP head both ride in the vendor's published
+files.
+
+- Model: [orcarouter/OrcaCyber-Nano-1.0] `:Mix-15.7G` — **15,695,148,832 B (14.62 GiB) at 4.60 bpw**
+  imatrix (IQ4_XS 244 · Q6_K 129 · Q5_K 106 · IQ3_S 18 · Q4_K 10 · F32 360 tensors) plus the
+  **927,606,848 B** F16 `mmproj` carrying the `qwen3vl_merger` projector. The GGUF header reads
+  `general.architecture = qwen35`, **27.32B dense over 866 tensors** (48 gated-delta-net + 16
+  full-attention layers, one MTP block at `blk.64`) — "Nano" is marketing, this is a 27B. The repo is
+  GGUF-only (no `config.json`, no safetensors, no `LICENSE`), and no EXL3 or NVFP4 of *this* model
+  exists, so llama.cpp is the only engine and the arm is single-node by construction.
+- Runtime llama-cpp on `littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8…`
+  (`a37cc4610`, the floor that carries `qwen35` + its MTP graph, `src/models/qwen35.cpp:494-498`, and
+  the `qwen3vl_merger` projector). `--ctx-size 32768 --parallel 4 --kv-unified`, the in-file MTP head
+  as `--spec-type draft-mtp --spec-draft-n-max 3`, `--load-mode none` (no mmap). `mmproj:` at top
+  level is what makes sparkrun append `--mmproj`; the arm serves as `completion` **+ `multimodal`**.
+  Served id: `orcarouter/OrcaCyber-Nano-1.0`.
+- **Boot (2026-10-22, `.35`, one boot, task `f5f1433d7dd0b74e_a4bf874feb5a`).** `GET /v1/models` →
+  `{"id":"orcarouter/OrcaCyber-Nano-1.0","capabilities":["completion","multimodal"],"n_ctx":32768,
+  "n_ctx_train":262144,"n_params":27320697856,"size":15684153344}`. TTR **30.29 s** (launch →
+  first 200) on a warm node: the image pin was already verified (`no transfer`), the 15.7 GB tier and
+  projector were pre-staged by rsync from `.31` over the rail, sparkrun's model stage took 6.1 s and
+  llama-server's own load 16.5 s of the 30.29. The same recipe's first boot on `.31` (commit
+  `bf6ab39`) measured **109.6 s cold**, that definition including the image pull and the 15.5 GB
+  distribution — quote cold and warm with their definitions, never as one number.
+- **Serve contract from the log** (`~/benchmarks/orcacyber-nano-20261022/serve.log`): `loading model
+  '…/OrcaCyber-Nano-1.0-AI-Defense-Mix-15.7G.gguf'`, `creating MTP draft context against the target
+  model …`, `loaded multimodal model '…/mmproj-…-F16.gguf'`, `n_slots = 4, n_ctx_slot = 32768,
+  kv_unified = 'true'`, `model loaded` at 16.5 s. Footprint is the ~24 GiB the tier arithmetic
+  predicts (14.62 GiB weights + 0.86 projector + 2.0 GiB KV at 32k + ~0.6 GiB GDN state over 4
+  slots), against ~108 GB usable — this node is nowhere near its ceiling, which is the point.
+- **C1 cell (warm, same boot):** **25.62 ± 2.31 t/s** decode · 742.9 ± 72.0 t/s prefill · TTFR
+  2,399 ms @ d0, pp 2048, tg 128, n=5, llama-benchy 0.4.0, decode rows with
+  `is_context_prefill_phase: false` (`bench_2e3d1141622c`; per-run 28.50 / 25.77 / 25.10 / 21.63 /
+  27.10). **C2/C5/C10 are unmeasured** — one cell was this boot's budget, so the index row leaves
+  them `—`.
+- **Why it beats the 17 t/s roofline, and why that is not free throughput.** 27.32B dense at 4.60 bpw
+  streams ~15.7 GB per step, which at GB10's ~273 GB/s caps plain decode near 17 t/s. The log's own
+  speculative counters read `draft acceptance 0.40–0.86 (mean len 2.19–3.57)` across the five cells,
+  i.e. each weight read emits 2.2–3.6 tokens, and per-request decode lands at 21.6–28.5 t/s. That
+  attribution comes from the engine's counters, **not from a paired MTP-off control** — an
+  `-o spec_type=none` boot is the missing half of this measurement.
+- **The 13G tier is the control, never the default.** `:Mix-13G` is 12,993,304,352 B (12.10 GiB) at
+  **3.80 bpw** (IQ4_XS 199 · Q6_K 96 · IQ3_S 122 · IQ3_XXS 39 · IQ2_S 24 · Q5_K 17 · Q4_K 8): ~2.5 GB
+  smaller and faster per token, but it puts IQ2_S/IQ3_XXS on 63 tensors, which is a visible quality
+  risk on a cyber arm whose value is precision. The owner ruling of 2026-10-22 ships 15.7G as the
+  default and keeps 13G as the A/B; **the 13G arm has not been booted**, so no tier delta is claimed
+  in either direction.
+- **Gating:** the repo is `gated: auto` and the card says `license: other` / `license_name: qwen`
+  with no `LICENSE` file in the tree, so the licence position is the card's declaration only — same
+  shape as the AEON arm. Each node needs an `HF_TOKEN` with that release accepted.
+- **One footgun in this route:** llama.cpp warns on load that `Qwen-VL models require at minimum
+  1024 image tokens` (`--image-min-tokens 1024`). The arm serves without the flag, so a vision cell
+  that answers shallow should try it before the projector is blamed. The 2026-10-22 boot never
+  exercised a vision request — `multimodal` is the server's own capability advertisement, not a
+  measured answer.
+
 ## Attic index
 
 Lane state, receipts, and research notes live in [`attic/cybersec/`](../../attic/cybersec/).
@@ -317,6 +377,7 @@ Currently the directory holds one file:
 
 <!-- Links -->
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4
+[orcarouter/OrcaCyber-Nano-1.0]: https://huggingface.co/orcarouter/OrcaCyber-Nano-1.0
 [sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4]: https://huggingface.co/sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
 [drowzeys keys-Qwen3.8-27B…Single-DGXSpark]: https://huggingface.co/drowzeys/keys-Qwen3.8-27B-NVFP4-DFlash2-Ablit-Cybersecurity-Unlock-1M-Context-YARN-Single-DGXSpark

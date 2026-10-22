@@ -1,0 +1,88 @@
+recipe_version: "2"
+model: orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G
+model_revision: 1af1635aa22b97e965450c2d69525761d9bd463f
+runtime: llama-cpp
+# a37cc4610 is the floor for this arch, not a preference: `qwen35` with its in-file
+# MTP graph (src/models/qwen35.cpp:494-498) and the `qwen3vl_merger` projector.
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+mmproj: mmproj-OrcaCyber-Nano-1.0-AI-Defense-F16.gguf
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  OrcaCyber Nano 1.0 "AI Defense" at the vendor's 15.7G tier — 15,695,148,832 B
+  / 14.62 GiB, 4.60 bpw, imatrix — on ONE DGX Spark through llama.cpp, with the
+  F16 vision projector and the checkpoint's own in-file MTP head as speculative
+  decode. "Nano" is marketing: the GGUF header reads 27.32B dense over 866
+  tensors, `general.architecture = qwen35` (48 gated-delta-net + 16
+  full-attention layers). GGUF-only — no safetensors, EXL3 or NVFP4 of this
+  model exists — so llama.cpp is the only engine and the arm is single-node by
+  construction.
+metadata:
+  model_url: https://huggingface.co/orcarouter/OrcaCyber-Nano-1.0
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27.32B"
+  # No table entry covers a mixed tier; iq4_xs is the packing-width estimator key
+  # (0.5625 B/weight), not a claim about the tensor mix (IQ4_XS 244 · Q6_K 129 ·
+  # Q5_K 106 · IQ3_S 18 · Q4_K 10 · F32 360).
+  model_dtype: iq4_xs
+  kv_dtype: fp16
+  tags: cybersec, vision, reasoning, speculative-decode, gguf
+  caveats: >
+    Gated (gated: auto; the card says license other / qwen and the repo ships no
+    LICENSE file) — each node needs an HF_TOKEN with this repo's release
+    accepted. The GGUF's own tags read abliterated, uncensored: it answers
+    prompts its base refuses and the operator owns the guardrails. `model:`
+    carries the tier as the `:Mix-15.7G` file suffix while `model_revision:` pins
+    the commit, so changing tier is a `model:` edit plus a re-measurement; the
+    13G tier (`:Mix-13G`, 12,993,304,352 B, 3.80 bpw, IQ2_S/IQ3_XXS on 63
+    tensors) is the A/B control, never the default. 27.32B dense at 4.60 bpw
+    reads ~15.7 GB per token, so the GB10 roofline is ~17 t/s — this is a slow
+    arm that sells concurrency, not speed.
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: orcarouter/OrcaCyber-Nano-1.0
+  ctx_size: 32768
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  # The MTP head is inside the main file; `draft-mtp` needs no `-md`.
+  spec_type: draft-mtp
+  spec_draft_n_max: 3
+  # `--no-mmap` was removed at a37cc4610 (it is `--load-mode`, common/arg.cpp:2695);
+  # a launch died on the old spelling.
+  load_mode: none
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --spec-type {spec_type}
+  --spec-draft-n-max {spec_draft_n_max}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching

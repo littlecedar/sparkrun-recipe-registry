@@ -93,6 +93,7 @@ Sizes are **measured on-disk weight bytes** (Hub `files_metadata`, 2026-10-14), 
 | 3 | `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` | ~23.9 GB | compressed-tensors NVFP4 **routed experts only**, rest BF16; `qwen3_5_moe` (256E top-8 + 1 shared, 3:1 GDN) | new family here (no Nex arm existed); **no MTP head** upstream |
 | 4 | `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` | ~183.5 GB | compressed-tensors NVFP4 experts + FP8 attention, weight-only, KV bf16; `qwen4_exp` | ~184 GB sits near the two-node 0.85 ceiling → `gpu_memory_utilization: 0.85`; the ~100 GB bf16 PLE n-gram tensor dominates the size |
 | 5 | `littlecedar/…-EXL3-2.9bpw-with-engram` + sidecar | ~386 GB stock (the 197 GB Mia shards + ~189 GB Engram tables) + 682 MB sidecar | EXL3 mul1 K=5, 39 shards | 104 tensors edited (26 layers × trellis/suh/svh/mul1); L0-9, L36-39, MTP, embed/head, experts stay stock |
+| 6 | `orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G` | 15.70 GB (14.62 GiB) + 0.93 GB `mmproj` | GGUF mixed **4.60 bpw** (IQ4_XS 244 · Q6_K 129 · Q5_K 106 · IQ3_S 18 · Q4_K 10 · F32 360), `qwen35`, 27.32B dense over 866 tensors | GGUF-only vendor file: in-file MTP block (`blk.64`) + a separate `qwen3vl_merger` projector, so llama.cpp is the only engine; the `:Mix-13G` tier (12.99 GB, 3.80 bpw) is its A/B control, never the default (sizes read 2026-10-22, Hub `files_metadata`, byte-identical on `.31`/`.35`) |
 
 Two template traps, both *measured* on the checkpoints' own cards and templates:
 
@@ -546,6 +547,27 @@ pack named there when the served dir has none (commit `d7c879b`).
 
 
 ---
+
+### Arm 6 — `orcacyber-nano-1.0-15.7g-gguf-llamacpp` — POSITIVE (TP=1)
+
+- Boot: task `f5f1433d7dd0b74e_a4bf874feb5a`, container
+  `sparkrun_f5f1433d7dd0b74e_a4bf874feb5a_solo` on `.35` (0 containers before and after the boot).
+  `GET /v1/models` → `{"id":"orcarouter/OrcaCyber-Nano-1.0","capabilities":["completion",
+  "multimodal"],"n_ctx":32768,"n_ctx_train":262144,"n_params":27320697856}`, `owned_by: llamacpp`.
+- TTR **30.29 s** (launch → first 200), warm by construction: the image pin was already verified
+  (`no transfer`), the 15.7G tier + F16 `mmproj` were rsynced from `.31` over the rail
+  (plane-B rail .31 → .35), sparkrun's model stage was 6.1 s of it and llama-server's own load 16.5 s
+  (serve log: `model loaded`, `n_slots 4`, `n_ctx_slot 32768`, `kv_unified 'true'`, MTP draft
+  context created against the target GGUF).
+- **C1** (`bench_2e3d1141622c`, `benchmarking/concurrency-ladder.yaml` with `-b concurrency=1`,
+  `--skip-run`, d0 pp 2048 tg 128, n=5): **25.62 ± 2.31 t/s** (28.50 / 25.77 / 25.10 / 21.63 /
+  27.10), prefill 742.9 ± 72.0 t/s, ttfr 2,399 ms. Every ladder value appears in the serve log as
+  that slot's `eval time` line, and those lines carry `draft acceptance 0.40–0.86, mean len
+  2.19–3.57` — the counters are what attribute the speed to the in-file MTP head.
+- Not measured on this boot: C2/C5/C10, an MTP-off control (`-o spec_type=none`), the 13G tier, any
+  quality battery, and any vision request (`multimodal` is the server's capability advertisement).
+  Receipt `~/benchmarks/orcacyber-nano-20261022/` (`serve.log`, `ladder.yaml`/`.json`/`.csv`,
+  `ttr.txt`).
 
 ## Recipe comment archive (2026-10-14)
 
