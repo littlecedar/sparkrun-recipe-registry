@@ -6,11 +6,11 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the two CPU serves cost no GPU.
 
-The lane ships **eight recipes**: five measured arms (drama TTS, Kokoro TTS, Qwen-Image, LTX-2.5,
-humanizer Q6_K) and three probe/draft arms (`zz-minimax-h3`, `zz-qwen-image-…-4step`,
-`zz-pyannote-…`). Design and bring-up history lives in [`attic/explore/`](../../attic/explore/),
-written while these arms were in that lane; the recipe YAML keeps only the crucial operational
-notes.
+The lane ships **nine recipes**: five measured arms (drama TTS, Kokoro TTS, Qwen-Image, LTX-2.5,
+humanizer Q6_K), three probe/draft arms (`zz-minimax-h3`, `zz-qwen-image-…-4step`,
+`zz-pyannote-…`), and one authored-not-booted arm (Qwen-Image on vLLM-OMNI). Design and bring-up
+history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
+lane; the recipe YAML keeps only the crucial operational notes.
 
 ## Contents
 
@@ -18,6 +18,7 @@ notes.
 - [drama-3-35b-a3b-fp8-vllm-omni-tts](#drama-3-35b-a3b-fp8-vllm-omni-tts)
 - [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
+- [qwen-image-2.1-turbo-7b-bf16-vllm-omni](#qwen-image-21-turbo-7b-bf16-vllm-omni)
 - [zz-qwen-image-2.1-turbo-4step-diffusers-script](#zz-qwen-image-21-turbo-4step-diffusers-script)
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
@@ -41,6 +42,7 @@ below are by design, not missing measurements.
 | `drama-3-35b-a3b-fp8-vllm-omni-tts` | **RTF 0.848 ± 0.015** at 4.6 s audio; **0.813** at 28.7 s; streaming TTFA **0.646 s** | 36.88 GiB checkpoint · **37.69 GiB loaded** · TTR 437.0 s cold / 417.0 s warm | WAV integrity (44.1 kHz mono 16-bit, peak 0.48–0.95 FS), seeded byte-identical decodes; **intelligibility unmeasured** | `~/benchmarks/drama-20261022/` |
 | `kokoro-82m-tts-cpu` | **RTF 0.588–0.601** (1.66–1.70× realtime) | 0.305 GiB ONNX weights · **1.55 GiB process RSS** · HTTP-ready 14.4 s | wav round-trip + `/health`; 24 kHz mono 16-bit | `~/benchmarks/kokoro-tts-20261019/` |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **0.088 img/s** (11.33–11.41 s @1024²; **53.24 s @2048²**) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | single denoise lock, one request at a time | `~/benchmarks/qwen-image-20261014/`, `~/benchmarks/media-gen-20261018/REPORT.md` |
+| `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **authored 2026-10-22, never booted** — no cell yet | same checkpoint · engine peak 36.84 GiB per the research route | none on this arm | — |
 | `ltx-2.5-22b-nvfp4-t2v-comfyui-script` | **78.1 s/clip warm** (100.13 s cold) @1344×768, 121 f, 24 fps | 36.9 GB · peak **83.45–84.00 GiB** | ffprobe (h264 + AAC) and a decoded frame | `~/benchmarks/ltx25-recipe-20261021/` |
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
@@ -197,12 +199,74 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   it is simply spent on the wrong instruction. **That is a prompt-adherence defect, not a style
   difference** — and it is scoped to one prompt, one seed, one image per route, so it is evidence
   against swapping on latency alone, **not** a measured general quality gap. **This arm stays the
-  default**; an OMNI variant would be a *different look* the owner likes, i.e. an opt-in arm — **which
-  the owner declined on 2026-10-21: this arm is the only route the registry ships, and the OMNI
-  numbers stay in the attic note as a measurement.** The §6 "quality judged by eye" item stays open
-  for **this** arm's gallery comparison; OMNI's look is moot now that no OMNI arm ships. Notes:
-  [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
+   default**; the OMNI variant is a *different look* the owner likes — declined as an arm on
+   2026-10-21, **reversed 2026-10-22 (`QUESTIONS.md` `#13`: "ship both")**, so that look now has its
+   own arm below, authored and not yet booted. The §6 "quality judged by eye" item stays open for
+   **this** arm's gallery comparison. Notes:
+   [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
+
+## [qwen-image-2.1-turbo-7b-bf16-vllm-omni](qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml)
+
+vLLM-Omni · **1 node (TP=1)** · **authored 2026-10-22 — NOT BOOTED by this change**.
+
+> **LICENSE — NON-COMMERCIAL ONLY.** Same checkpoint as the Diffusers arm, and the license follows
+> the checkpoint, not the engine: `Qwen/Qwen-Image-2.1-Turbo` is under the **Qwen Research License
+> Agreement** (card `license: other`, `license_name: qwen-research`), **FOR NON-COMMERCIAL PURPOSES
+> ONLY** — neither weights nor generated images may be used commercially. Read the sibling arm's
+> banner above for the full note; the recipe repeats it.
+
+- **Model:** `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`) — the same 8-step distilled,
+  CFG=1 checkpoint and revision as the Diffusers arm, so the two arms differ only in route.
+- **Engine:** `vllm/vllm-omni:nightly-15bce345…@sha256:f3473cb3…`, **digest-pinned** (index digest;
+  arm64 child `sha256:9c155dff…`, 11.23 GB). It carries `vllm_omni 0.32.0rc2.dev29+g15bce3458` —
+  the version the OMNI measurement reported, and the version the drama-3 boot read inside the same
+  digest on `.34` (`docker run … python -c "import vllm, vllm_omni"`). **The pipeline is in the
+  image**, verified 2026-10-22 without running a container: exporting the pinned image's rootfs and
+  reading it shows `vllm_omni/diffusion/registry.py` mapping `QwenImage21Pipeline` →
+  `qwen_image_21` / `pipeline_qwen_image_21` / `QwenImage21Pipeline`, and
+  `models/qwen_image_21/pipeline_qwen_image_21.py:297` defining that class. No launcher mod and no
+  staged venv are needed.
+- **Tag trap, the reason for the pin:** `vllm/vllm-omni:latest` is 0.31.0rc1 and its diffusion
+  registry has **`QwenImagePipeline` only**, while the checkpoint's `model_index.json` declares
+  `_class_name: QwenImage21Pipeline` — a guaranteed dead boot, not a degraded one.
+- **Command / surface:** `vllm-omni serve {model} --omni --served-model-name
+  Qwen/Qwen-Image-2.1-Turbo`; `POST /v1/images/generations` is the generation endpoint and `/health`
+  answers `{"status":"healthy"}`, so `readiness.inference: false`. `stage_init_timeout: 900` ships
+  because the measured TTR is ~4 min against the engine's 300 s stage default.
+- **Measured — research receipt, NOT this arm's boot** (2026-10-21, `.34`, one serve per route, same
+  prompt and seed 42, 1024² 8-step): **8.66–8.75 s warm / 11.19 s cold** against the Diffusers arm's
+  11.49 / 12.64 s — **~24 % faster**, 1.08 vs 1.43 s per step — at the **same** peak memory
+  (36.84 GiB `vllm_omni:peak_memory_mb{stage="0"}` = 37,726 MB vs 36.82 GiB torch alloc). Receipt
+  `head:~/benchmarks/media-gen-20261021/vllm-omni/` (`REPORT.md`, `omni.json`, `omni-warm8.json`);
+  numbers and route in [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md)
+  §"vLLM-OMNI route".
+- **Two properties written down rather than discovered:** `num_inference_steps` is **inert** — the
+  checkpoint's saved `sample_sigmas` win, so 4/8/12 write a byte-identical PNG in ~8.7 s, and the
+  engine's `denoise_step_latency_ms` merely divides one total by the requested count
+  (2164/1086/721 ms, i.e. asking for more steps claims each step got faster); and **same seed is
+  not the same picture** across routes (OMNI `38ce554a…45704690`, Diffusers `e24f6e3a…24ee24a`).
+- **Adherence defect — this arm ships with a caveat, not a clean bill.** Both 8-step PNGs were
+  inspected at full resolution against the prompt, whose string is identical in both recorded
+  request bodies. It says `two-color screenprint`: the Diffusers render honors it (two inks, blue
+  over orange on cream), and OMNI **violates** it — `SPARKRUN` in a rainbow of many hues on white,
+  correctly spelled and crisply edged, but not two inks. That is a **prompt-adherence defect, not a
+  style difference**, and the earlier reading of it as "composition" was wrong about the constraint.
+  Scope: one prompt, one seed, one image per route — evidence against swapping on latency alone,
+  **not** a measured general quality gap (no multi-prompt adherence battery was run). Owner decision
+  2026-10-22 (`QUESTIONS.md` `#13`): **ship both looks** as separate arms.
+- **Queued acceptance — required before the selection row says shipped.** This YAML has passed
+  `sparkrun recipe validate` and a dry-run render only; **nothing has booted it** (`.34`/`.35` were
+  held by the BeeGFS pilot on 2026-10-22). The cells that close it, on one free Spark:
+  1. boot **this recipe file** (`-H <ip>`) and gate readiness on `/health` healthy plus
+     `/v1/models` naming `Qwen/Qwen-Image-2.1-Turbo`, and confirm the engine's own load line names
+     `QwenImage21Pipeline` — that line, not a file listing, is the identity gate;
+  2. re-render the 1024² 8-step seed-42 cell and check warm wall time against the 8.66–8.75 s
+     research receipt (a re-pin or engine drift shows up here);
+  3. re-render the two-color screenprint prompt and review it at full resolution — the row must
+     carry either the same defect or its resolution;
+  4. record a cold TTR against `stage_init_timeout: 900`.
+  Until those exist the arm is **authored, not shipped**, and the row above says so.
 
 ## [zz-qwen-image-2.1-turbo-4step-diffusers-script](zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml)
 

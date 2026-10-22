@@ -1,0 +1,71 @@
+# ===========================================================================
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+#
+# Qwen/Qwen-Image-2.1-Turbo is licensed under the **Qwen Research License
+# Agreement** (card `license: other`, `license_name: qwen-research`): **FOR
+# NON-COMMERCIAL PURPOSES ONLY**. A recipe ships a repo id, not weights — each
+# downloader fetches from the Hub and accepts the license there — but that
+# downloader cannot use the weights, or images generated from them,
+# commercially. Identical to the Diffusers arm's banner; the checkpoint is the
+# same and the license follows it, not the engine.
+# ===========================================================================
+#
+# FOOTGUNS, both measured 2026-10-21 on `.34`:
+#   * `vllm/vllm-omni:latest` CANNOT load this checkpoint (0.31.0rc1 registers
+#     `QwenImagePipeline` only, the checkpoint declares `QwenImage21Pipeline`)
+#     — a guaranteed dead boot. Hence the digest-pinned nightly below.
+#   * `num_inference_steps` is inert: the checkpoint's saved `sample_sigmas`
+#     win, so 4/8/12 write a byte-identical PNG, and the engine's
+#     `denoise_step_latency_ms` merely divides one total by the requested
+#     count (2164/1086/721 ms for 4/8/12 at the same ~8.7 s).
+recipe_version: "2"
+model: Qwen/Qwen-Image-2.1-Turbo
+model_revision: fc13ba1986fcb905854dc8de2f52eee395f49b5b
+container: vllm/vllm-omni:nightly-15bce345863c6e2db882534876b8977f5b1ae1e3@sha256:f3473cb3ee7577d4e2595aa6c33eebe6734f79df26cb76c1f03f35542cab5a45
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Qwen/Qwen-Image-2.1-Turbo — text-to-image and image-editing checkpoint,
+  8-step distilled schedule at CFG=1, served natively by vLLM-Omni on ONE DGX
+  Spark (`vllm-omni serve --omni`, endpoint `POST /v1/images/generations`).
+  The engine ships its own `QwenImage21Pipeline`, so no launcher mod and no
+  staged venv: this is the ~24 % faster sibling of the Diffusers arm at the
+  same peak memory, and a different look (see recipes/media/README.md for the
+  two-ink adherence defect). LICENSE: qwen-research — NON-COMMERCIAL ONLY.
+metadata:
+  model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "7B"
+  model_dtype: bf16
+  tags: media, image, single_user
+
+executor_config:
+  # Clear the image's entrypoint so the recipe's own `vllm-omni` line runs —
+  # the drama-3 TTS arm carries the same two lines on this same digest.
+  entrypoint: ""
+
+readiness:
+  # No chat surface: readiness is the port plus `/health`. The generation
+  # endpoint is POST /v1/images/generations, so there is no probe to make an
+  # "inference" readiness gate.
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1200
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: Qwen/Qwen-Image-2.1-Turbo
+  stage_init_timeout: 900  # measured TTR ~4 min against the engine's 300 s stage default
+
+command: >
+  vllm-omni serve
+  {model}
+  --omni
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --stage-init-timeout {stage_init_timeout}
