@@ -104,6 +104,15 @@ digest, and the engine reported `sglang: 0.5.21`) while the same command with
 `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` booted the new one.
 Use a registry ref only when the published copy is what you mean to serve.
 
+**And extend that to the pin itself: commit before you boot, re-tag after a pull.** Two ways a bump
+campaign silently measures the previous engine, both hit on 2026-10-22. (1) `docker pull
+repo:tag@sha256:…` stores the image **untagged** — a peer's `docker image prune` on the shared fleet
+then deletes the very build you pulled, so re-tag it at once (`docker tag lmsysorg/sglang@sha256:e3a4f060…
+lmsysorg/sglang:v0.5.22`). (2) This repo is syncthing-shared: a peer's `git pull`/`checkout` in
+another clone reverts your **uncommitted** `container:` edit in place, and the next boot launches the
+previous image. Commit the pin before the first boot, and assert it before every boot with
+`grep -q <new digest> "$f" || exit 3`.
+
 The repo-mandated gate after every edit:
 
 ```bash

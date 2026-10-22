@@ -429,6 +429,42 @@ image/digest, so validate the other ornith arms on the new digest before shippin
   `/<home-dir>/development` (the lane-local mod resolves relative to the symlink and fails); stop with
   `sparkrun stop <cluster-id> -H <node>` and `docker cp` the serve log first — `stop --all` deleted
   the `--no-rm` 9B container on `.35` and its serve log.)*
+- [x] **Re-pin all six SGLang arms to `v0.5.22` and re-validate each on the new digest** — one patch past the ornith lane's 0.5.21, two past the ifm lane's 0.5.20, so the ifm UNO arms put the FA4 anchor patch on trial as well. *(effort: medium)*
+  *(CLOSED 2026-10-22 — **all six arms booted and held their bars on the new digest; the pins ship**
+  (commit `20da8f2`). Pin: `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`
+  — a published multi-arch index (`docker buildx imagetools inspect`, not a local image id) with a
+  native `linux/arm64` child `06441be3…`; `v0.5.22-cu130` and `latest` resolve to the same index. The
+  three ifm arms are pinned to the `-cu130` spelling of that digest. Runtime moved to torch
+  `2.14.1+cu130`, python `3.12.15`, cuDNN `9.14.0.64`, `nccl_torch 2.30.7`. **OSV: 0 vulns** for PyPI
+  `sglang` 0.5.22. Six sequential single-node serves on `.35` (receipts
+  `~/benchmarks/sglang-0522-20261022/`), `TTR / pool / house`: 35B DFlash2 **238 s / 1,133,804 /
+  37/37** (needle 3/3 at 32k/131k/262k, mamba 614, mrr 48); 9B DFlash **251 s / 1,531,959 / 37/37**
+  (mamba 273); YaRN 1M **129 s / 1,187,727** with `max_model_len` 1000000 confirmed in `/v1/models`
+  (mamba 1293, 11.11 GB free); 0.9B **94 s / 1,764,610 / 32/37**; 0.9B-UNO **94 s / 1,690,881 /
+  33/37**; 7B-FP8-UNO **240 s / 574,698 / 36/37**. The ifm scores reproduce their on-file baselines
+  **item for item** (`fmt-2`, `needle-1` / `hard-rev`, `trick-1`, `trick-2`) — 37/37 is the ornith
+  lane's ceiling, not this one's, so the gate was no regression against each arm's own recorded score.
+  The FA4+UNO mod still applies: its probe logged `anchor count = 1` on 0.5.22 and the arms served
+  `--attention-backend fa4` + `UNO`, which stock 0.5.22 refuses at argument validation. **Arm A's
+  ladder, n=5 (the recorded reading — the `runs=3` triage read 94.3/146.0/207.1/247.7): C1 97.6 ± 8.8
+  / C2 152.1 ± 7.4 / C5 228.7 ± 16.0 / C10 242.3 ± 5.0**, every cell inside the on-file band's σ
+  (100.8-101.8 / 153.1-158.2 / 217.4-220.4 / 244.2-249.9) with the direction stated: C1 −3.2 %,
+  C2 −0.7 %, C5 +3.8 %, C10 −0.8 %; against the 0.5.21 n=5 readings +1.1 / +2.6 / +6.9 / −0.7 %. Zero
+  `WARNING`/`ERROR` lines in all six serve logs, same as the 0.5.20/0.5.21 boots. Gate: 894 tests OK
+  (2 skipped); `sparkrun recipe validate` clean on all six (suggestions only). Lane records:
+  `recipes/ornith/README.md` §"Engine bump to SGLang 0.5.22", `recipes/ifm/README.md` §"Engine bump to
+  SGLang 0.5.22", evidence tables `attic/ornith/AGENTS.md` + `attic/ifm/AGENTS.md` §"Engine-bump
+  adjudication". **Registry trap found and recorded:** `@littlecedar/<name>` resolves the *published*
+  registry, so a bump boot through it silently served the previous pin (it booted v0.5.21 while the
+  worktree was at v0.5.22) — boot by recipe **file path**, and `grep -q <new digest> <recipe> || exit 3`
+  before each boot after a shared-tree checkout. **Not done, deliberately:** no ladder re-take for arms
+  B-F (only the `container:` line changed, the recorded ladders stand), no 1M needle on the YaRN arm
+  (the pass's bar was boot + grant; the 6-rung ladder is ~3.5 h), and 0.9B / 0.9B-UNO were run as
+  **probes** of the lane baseline and the FA4 mod rather than as candidates.)*
+  *(follow-up 2026-10-22 — the only verification this pass left unspent: a **1M needle on the YaRN arm
+  at the 0.5.22 pin**, ~3.5 h, worth doing only if a long-context need appears; the 0.5.21 pass's 6/6
+  rungs and its non-reproducing d90 exit are the standing evidence. Re-take it before quoting a 1M
+  quality claim on 0.5.22.)*
 
 ## qwen3
 Qwen 3.x

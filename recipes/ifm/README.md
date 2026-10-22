@@ -212,13 +212,14 @@ the lane. Do not lower it — `tests/test_k2_7b_recipes.UnoConcurrencyCap` enfor
 ## Container
 
 All recipes pin the container to `lmsysorg/sglang:v0.5.22-cu130` by **digest**
-(`sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`), bumped from
-`v0.5.20-cu130@06e4f2ed…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22". `v0.5.22-cu130` and
-`v0.5.22` are the same index digest, so the `-cu130` spelling is cosmetic and kept for lane
-continuity. v0.5.20 remains the **version floor**, and it is a floor no longer equal to the pin: it
-is the first release that ships `models/xllm.py`, which registers `K2HorizonForCausalLM`, and
-`tests/test_k2_7b_recipes.ContainerPin` now parses the version and asserts `>= v0.5.20` rather than
-matching that literal tag. A moving `dev-*` tag is not a guarantee.
+(`sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` — the **published**
+multi-arch index digest, which `docker buildx imagetools inspect` prints and `docker images` never
+will: that shows a config digest), bumped from `v0.5.20-cu130@06e4f2ed…` on 2026-10-22 —
+§"Engine bump to SGLang 0.5.22". `v0.5.22-cu130` and `v0.5.22` are the same index digest, so the
+`-cu130` spelling is cosmetic and kept for lane continuity. v0.5.20 remains the **version floor**, and
+it is a floor no longer equal to the pin: it is the first release that ships `models/xllm.py`, which
+registers `K2HorizonForCausalLM`, and `tests/test_k2_7b_recipes.ContainerPin` now parses the version
+and asserts `>= v0.5.20` rather than matching that literal tag. A moving `dev-*` tag is not a guarantee.
 
 ## Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)
 

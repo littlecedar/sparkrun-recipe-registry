@@ -108,7 +108,7 @@ returns the run's own loader, i.e. the standard safetensors path.
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned to the **published** multi-arch index — `docker buildx imagetools inspect` prints it, it is not a local `docker images` id; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
 | model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — NVFP4 (`modelopt` mixed precision: FP8 on attention / linear-attention projections, W4A16_NVFP4 on experts and `lm_head`); `model_type: qwen3_5_moe`, 40 layers, `full_attention_interval: 4`, 256 experts top-8, `max_position_embeddings: 262144` |
 | checkpoint pin | `model_revision: 94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (the engine is offline, so `--revision {model_revision}` is required) |
 | draft | [jzinno/Ornith-1.5-35B-A3B-DFlash2] — DFlash2 spec decode, 4 draft tokens; pin `speculative_draft_model_revision: 9b4852c05fd00b672b7434b1bb105bc03c8682b0` |
@@ -190,7 +190,7 @@ served with no `--limit-mm-per-prompt` cap.
 | | |
 |---|---|
 | recipe | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned to the **published** multi-arch index — `docker buildx imagetools inspect` prints it, it is not a local `docker images` id; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
 | model | [ornith-ai/Ornith-1.5-9B-NVFP4] — 8.8 GB of weights, dense ~9B, multimodal; `model_revision: 155f200d85ad58464571c77d5e1122ea5d419d7b` |
 | draft | [ornith-ai/Ornith-1.5-9B-DFlash] — first-party plain `DFlashDraftModel` (hidden-state taps 1/5/9/…/29 of the 32-layer target), 8 draft tokens, **deliberately unpinned** |
 | nodes / TP | 1 node, `tensor_parallel: 1` |
@@ -272,7 +272,7 @@ intermittent and still unnamed. Receipt `~/benchmarks/ornith-yarn-d90-20261020/`
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` |
-| runtime / container | SGLang — the same digest-pinned `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` as the 35B sibling (sglang v0.5.21 — §9 of the attic carries the derivation and the source citations; the 0.5.18 derivation is history) |
+| runtime / container | SGLang — the same digest-pinned `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` as the 35B sibling (a **published** index digest, not a local image id — §"Engine bump to SGLang 0.5.22" carries the derivation and the boot receipt; the 0.5.18/0.5.21 derivations are history) |
 | model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — the 35B checkpoint the sibling serves, at the same pin `94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (Hub `main`, 2026-08-26) |
 | window | `max_model_len: 1000000`, the card's number; the YaRN factor-4.0 route reaches 4 × 262,144 = 1,048,576 positions, so nothing above that is left |
 | flags | ✨🚚👀🧠🦾🔧 — **no** 🚀 (no measured C1) and **no** 🌲 (the arm has to earn it) |
@@ -514,6 +514,12 @@ the same index; `latest` did too on 2026-10-22). The index carries a native `lin
 `sha256:06441be3de19a816ddbac917535e920cbfc7fc43171abc08417394f43634ffb6`, verified **on the node**
 with `docker manifest inspect` before the pull. Runtime moved with the tag: sglang `0.5.22`,
 torch `2.14.1+cu130` (was `2.13.0+cu130`), python `3.12.15`, cuDNN `9.14.0.64`, `nccl_torch 2.30.7`.
+
+That digest is a **registry manifest, not an image id**: `docker buildx imagetools inspect
+lmsysorg/sglang:v0.5.22` (run 2026-10-22) prints it as the index digest with three child manifests
+(`linux/amd64` `5fc09edb…`, `linux/arm64` `06441be3…`, and the `unknown/unknown` attestation
+`5d21fc51…`). A number read off `docker images` is a config digest and never matches this one — do not
+compare the two, and do not "correct" the pin to a local id.
 
 **Pin edit (all three recipes, one line each):**
 
