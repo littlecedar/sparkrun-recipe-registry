@@ -48,6 +48,25 @@ govern, per the protocol; the verbatim asks remain in git.)*
   C1 **69.28** → C10 **116.27** t/s — and its `-1017` body is being made resident on four nodes,
   where GLM-5.3 is **boot-verified but unmeasured** and its ~273 GB body (the recipe's own figure,
   over 4× GB10) would compete for the same four nodes.
+- **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
+  if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
+  **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37) with the C10/C1
+  ratio showing **little degradation at 10 concurrent streams**; (2) it sustains **≥ 10 concurrent
+  streams**; (3) output quality is **high** — house battery **37/37** at 4096 thinking-on, no
+  fact-error regressions.* **Being bigger is not an argument; missing any leg disqualifies.**
+  Measured vs unmeasured is marked per cell, because three of the five rows are still empty:
+
+  | candidate | C1 | C10 | ratio | house 37/37 | verdict |
+  |---|---|---|---|---|---|
+  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **102.03 ± 0.35** (measured, `~/benchmarks/mellum-mtp-draft-20261022/`) | **unmeasured — the gap** | — | unmeasured (coding-tuned; the general battery is the question) | passes C1, needs C10 + quality |
+  | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
+  | Ornith-1.5-122B NVFP4 | unmeasured (boot in flight) | unmeasured | — | unmeasured | open |
+  | Sage-A1.5 FP8 (36B) | unmeasured (boot in flight) | unmeasured | — | unmeasured | open |
+  | knapcio TP=4 itself (4 nodes) | 69.28 ± 5.25 | 116.27 ± 6.22 | 1.68× | 36/37 | the bar, not a candidate |
+
+  **Consequence: the cheapest path to a qualifying arm is Mellum-12B's missing C10 rung plus a house
+  run** — it already clears C1 by **47 %** (102.03 vs 69.28) at ~8 GB resident, while the two 100B+
+  candidates are unmeasured and cost a whole node each.
 
 *(Answered 2026-10-22 — no open questions. `#47` is folded into the TP=4 work items as the
 run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).)*

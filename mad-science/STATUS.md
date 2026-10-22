@@ -4,6 +4,8 @@ Four verdicts landed between 03:30 and 03:45 ET: TP=4 is **closed as a checkpoin
 
 **Baseline = `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`** (DSv4-Flash knapcio, **TP=4, 1M window** — owner decision 2026-10-22, `#48`): TP=4 is the foundation shape and TP=2 arms supplement it; **GLM-5.3 3bpw TP=4 is deferred** for a few days, and knapcio is the one that is measured (house 36/37, needle 3/3 to ~983k, C1 69.28 → C10 116.27 t/s).
 
+**Easy-traffic gate (owner, 2026-10-22, `#49`)** — a **single-node** arm qualifies only at C1 **≥ 69.28** and C10 **≥ 116.27** t/s (the knapcio TP=4 baseline, 1.68× at c10), **≥ 10 concurrent streams**, and house **37/37** at 4096 thinking-on. Nothing single-node clears it yet: Mellum-12B measures C1 **102.03** with **no C10 rung and no house run**, Spark-X2.6 FP8 is 37/37 and 217.58 at c10 but **fails C1** at 40.80, and ornith-122B NVFP4 / Sage-A1.5 FP8 are unmeasured -> the cheapest qualifying arm is Mellum's missing C10 + battery.
+
 ## Now
 
 | where | what | since | state |
