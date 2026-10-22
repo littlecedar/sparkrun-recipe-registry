@@ -108,7 +108,7 @@ returns the run's own loader, i.e. the standard safetensors path.
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc` (digest-pinned) |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` (digest-pinned; bumped from `dev-cu13@9a352a35…` on 2026-10-21 — §"Engine bump to SGLang 0.5.21") |
 | model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — NVFP4 (`modelopt` mixed precision: FP8 on attention / linear-attention projections, W4A16_NVFP4 on experts and `lm_head`); `model_type: qwen3_5_moe`, 40 layers, `full_attention_interval: 4`, 256 experts top-8, `max_position_embeddings: 262144` |
 | checkpoint pin | `model_revision: 94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (the engine is offline, so `--revision {model_revision}` is required) |
 | draft | [jzinno/Ornith-1.5-35B-A3B-DFlash2] — DFlash2 spec decode, 4 draft tokens; pin `speculative_draft_model_revision: 9b4852c05fd00b672b7434b1bb105bc03c8682b0` |
@@ -190,7 +190,7 @@ served with no `--limit-mm-per-prompt` cap.
 | | |
 |---|---|
 | recipe | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc` (digest-pinned) |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` (digest-pinned; bumped from `dev-cu13@9a352a35…` on 2026-10-21 — §"Engine bump to SGLang 0.5.21") |
 | model | [ornith-ai/Ornith-1.5-9B-NVFP4] — 8.8 GB of weights, dense ~9B, multimodal; `model_revision: 155f200d85ad58464571c77d5e1122ea5d419d7b` |
 | draft | [ornith-ai/Ornith-1.5-9B-DFlash] — first-party plain `DFlashDraftModel` (hidden-state taps 1/5/9/…/29 of the 32-layer target), 8 draft tokens, **deliberately unpinned** |
 | nodes / TP | 1 node, `tensor_parallel: 1` |
@@ -272,7 +272,7 @@ intermittent and still unnamed. Receipt `~/benchmarks/ornith-yarn-d90-20261020/`
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` |
-| runtime / container | SGLang — the same digest-pinned `lmsysorg/sglang:dev-cu13@sha256:9a352a35c973a2357372e85f3bcb5388b6b3c46c1329165987260f3b089647dc` as the 35B sibling (sglang v0.5.18 — §9 of the attic carries the derivation and the source citations) |
+| runtime / container | SGLang — the same digest-pinned `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` as the 35B sibling (sglang v0.5.21 — §9 of the attic carries the derivation and the source citations; the 0.5.18 derivation is history) |
 | model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — the 35B checkpoint the sibling serves, at the same pin `94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (Hub `main`, 2026-08-26) |
 | window | `max_model_len: 1000000`, the card's number; the YaRN factor-4.0 route reaches 4 × 262,144 = 1,048,576 positions, so nothing above that is left |
 | flags | ✨🚚👀🧠🦾🔧 — **no** 🚀 (no measured C1) and **no** 🌲 (the arm has to earn it) |
