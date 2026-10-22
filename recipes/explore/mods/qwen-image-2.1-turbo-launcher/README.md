@@ -73,6 +73,40 @@ The response carries `sigmas_used` (the list the pipeline actually received, or
 `null` when the saved schedule ran), which is how a cell proves it took the new
 path rather than silently re-running the default.
 
+### Status codes: a 4xx is never a broken serve
+
+Every refusal names its reason in the body as `{"error": "…"}`. Read the status
+before anything else — the 2026-10-22 defect was a blanket
+`except Exception -> 500` that made a bad caller look like a dead engine.
+
+| status | meaning | body |
+|---|---|---|
+| `200` | the pipeline ran and the PNG is on disk | the metrics JSON (below) |
+| `400` | **this request** cannot be accepted — fix it and retry, the serve is fine | `{"error": "<reason>"}` |
+| `404` | unknown path (only `/health`, `/healthz`, `/v1/models`, `/generate` exist) | `{"error": "unknown path …"}` |
+| `500` | **the server** failed: pipeline returned no image, the sample dir is unwritable, this diffusers build has no `load_image` | `{"error": "<Type>: <message>"}` — the traceback goes to the log, never to the client |
+
+The 400 reasons, exhaustively: the body is not valid JSON; the body is not a JSON
+object; `prompt` missing, empty or not a string; `width`/`height`/`seed` not an
+integer; `sigmas` present but not a list of >=2 numbers (`[]` included — omit the
+field to run the checkpoint's saved schedule, an empty list is not a fallback);
+`num_inference_steps` not an integer, or requested when the checkpoint's
+`sample_sigmas` could not be read; `image_path` unreadable or not a usable image;
+`Content-Length` absent, negative or non-numeric.
+
+`/health` carries the counters that separate "idle" from "rejecting everything":
+
+| counter | counts |
+|---|---|
+| `attempts` | every `POST /generate`, counted before anything can fail |
+| `failed` | those answered 400 or 500 |
+| `requests` | those answered 200 |
+
+`attempts` climbing while `requests` stays flat means the caller is wrong — read
+`failed` against the 400 list above. `attempts` flat means nothing is reaching the
+serve at all. `status`, `model`, `loaded`, `load_s` and `mem_available_gib` are
+unchanged.
+
 ## Logs
 
 - mod log: `~/.cache/sparkrun/runtime-cache/vllm/Qwen__Qwen-Image-2.1-Turbo-*/modlogs/qwen-image-2.1-turbo-launcher.log`

@@ -303,6 +303,13 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   (`vllm/vllm-openai:v0.32.0`, re-pinned 2026-10-22; the venv's own `transformers>=5.17` satisfies the
   card's floor — the image's copy is unused). **VAE tiling OFF** (tiled decode → a pink seam column) and
   **`cpu_offload` OFF** (costs ~4× on a reference image); `--served-model-name` is rendered explicitly.
+- **Status contract (2026-10-22):** `POST /generate` answers **400** with `{"error": …}` for a request
+  this server cannot accept (bad JSON, non-object body, missing prompt, non-integer size/seed,
+  `sigmas: []`, unreadable `image_path`, bad `Content-Length`) and **500** only for a fault of the
+  server itself (no image returned, unwritable sample dir, missing `diffusers.utils.load_image`) —
+  its traceback goes to the log, never to the client. `/health` reports `attempts`/`failed`
+  alongside `requests`, so a serve rejecting everything cannot read as idle. Full table:
+  [`mods/qwen-image-2.1-turbo-launcher/README.md`](mods/qwen-image-2.1-turbo-launcher/README.md).
 - **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady (a same-boot control on the 2048² run read
   11.240 s ± 0.008); a reference image fed back for editing +3.5 s; same prompt+seed → a byte-identical
   PNG. **2048² cell closed 2026-10-18**: **53.24 s/image** (mean of 3, σ 0.20) — 4× the pixels for
