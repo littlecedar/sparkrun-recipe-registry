@@ -17,3 +17,7 @@
 **/*.pyc
 **/.syncthing.*.tmp
 **/*.sync-conflict-*
+
+# benchmark tooling scratch: a re-runnable index and per-run notes, never inputs to a recipe.
+/data/benchmarks.sqlite
+/runs/
