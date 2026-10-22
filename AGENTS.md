@@ -14,7 +14,7 @@ the working tree can carry in-flight drafts that git does not, so `ls recipes/*/
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 65 tracked files in 11 family dirs; the working tree carries further in-flight drafts) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 65 tracked files in 12 family dirs; the working tree carries further in-flight drafts) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -65,7 +65,7 @@ Load-bearing contracts:
 
 | Path | Contents |
 |---|---|
-| `recipes/cybersec/` (9), `recipes/decision/` (13), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (18), `recipes/glm/` (2), `recipes/ifm/` (3), `recipes/ornith/` (6), `recipes/qwen3/` (3), `recipes/qwen4/` (5), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (13 arms: JEV-9B/27B, clef-flash, the CPU `vllm-srun` Kai/Sol/Nox/d3-edge set plus the Sol-2B GGUF llama.cpp arm, plus the `kokoro`, `kev`, and `laya` CPU serves), the Explore lane (eighteen arms after the 2026-10-19 keeper sweep and the media-gen builds: Ling-3.0-flash, Kolibri-1 APEX 24bpw GGUF, Mellum2.1 Q4_K_M (plus its `mmap` variant), the Poolside Laguna M1 TP=2 and Laguna-XS 2.1, the Qwen-Image 2.1 Diffusers script (plus a 4-step variant), the LTX-2.5 22B T2V ComfyUI script, the Nemotron-3.5-Lightning 30B-A3B NVFP4 arm booted 2026-10-21 — the lane's fastest single-node C1 at 20.1 GiB — and the Spark-X2.6-4B pair (bf16 accuracy control + FP8 fast tier, with an INT8 `zz-` probe rejected at the kernel level); the retired arms moved to `attic/explore/`) and the Cybersec lane (nine arms: six SGLang plus two vLLM-route companions plus the OrcaCyber llama.cpp probe) and the GLM lane (two TP=4 EXL3 TensorFold arms, both boot-verified 2026-10-18) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
+| `recipes/cybersec/` (9), `recipes/decision/` (11), `recipes/ds4/` (2), `recipes/embed/` (2), `recipes/explore/` (12), `recipes/glm/` (2), `recipes/ifm/` (3), `recipes/media/` (8), `recipes/ornith/` (6), `recipes/qwen3/` (3), `recipes/qwen4/` (5), `recipes/rerank/` (2) | Recipes by model family, each lane keeping one `README.md`, with lane state and constraints in `attic/<lane>/AGENTS.md`. The Decision lane (11 arms: JEV-9B/27B, clef-flash, the CPU `vllm-srun` Kai/Sol/Nox/d3-edge set plus the Sol-2B GGUF llama.cpp arm, plus the `kev` and `laya` CPU serves), the Explore lane (twelve arms after the 2026-10-19 keeper sweep: Ling-3.0-flash, Kolibri-1 APEX 24bpw GGUF, Mellum2.1 Q4_K_M (plus its `mmap` variant and an MTP probe), the Poolside Laguna M1 TP=2/Laguna-S 2.1/Laguna-XS 2.1 set, the Nemotron-3.5-Lightning 30B-A3B NVFP4 arm booted 2026-10-21 — the lane's fastest single-node C1 at 20.1 GiB — and the Spark-X2.6-4B pair (bf16 accuracy control + FP8 fast tier, with an INT8 `zz-` probe rejected at the kernel level); the retired arms moved to `attic/explore/`), the Media lane (eight recipes split out of Explore/Decision 2026-10-22: drama-3 TTS, Kokoro TTS, Qwen-Image 2.1 Diffusers script plus its 4-step variant, the LTX-2.5 22B T2V ComfyUI script and runbook, the humanizer Q6_K rewriter, plus `zz-` probes for MiniMax-H3 and pyannote diarization) and the Cybersec lane (nine arms: six SGLang plus two vLLM-route companions plus the OrcaCyber llama.cpp probe) and the GLM lane (two TP=4 EXL3 TensorFold arms, both boot-verified 2026-10-18) carry `README.md` lane docs. The Qwen3-VL embedding/reranking pairs moved out of `recipes/qwen3/` into `recipes/embed/` and `recipes/rerank/` on 2026-10-10 (`tests/test_qwen3_vl_embeddings.py` still guards all four); the qwen3 no-spec control recipe was retired to `attic/qwen3/` with its metrics moved into `attic/qwen3/AGENTS.md` |
 | `recipes/glm/` | Two TP=4 EXL3 TensorFold arms, both boot-verified on `.30`–`.33` on 2026-10-18: `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` (Flash 4bpw) and `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` (full 753B 3.0bpw, over a vendored engine image), each with a lane-local launcher mod under `recipes/glm/mods/`. Receipts and revision pins live in `README.md`; `GLM-5.3-RECOMMENDATIONS.md` and the earlier `glm-5.3-flash-nvfp4-dflash-vllm.yaml` remain archived to `attic/glm/` (proven-negative on the pinned public image, 2026-10-13) |
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs) and their EXL3 patch/cache mods in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`. Not served by the registry |
@@ -133,9 +133,9 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   |---|---|
   | `cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata`, `restated-managed-path` |
   | `decision/kev-0.8b-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
-  | `decision/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
   | `decision/laya-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
-  | `decision/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
+  | `media/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
+  | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
   | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
@@ -252,7 +252,7 @@ block, not only an `image:` in prose**; regenerate that list with `git grep` aga
 every host that prunes, and never carry one host's list to another. Measured 2026-10-22: the head
 clean-up deleted `vllm/vllm-openai:v0.32.0@sha256:befccf0e…` (image `4ceb6c60eed2`) as unattributed
 because the match ran on image ID/`RepoDigest` against a list built from `image:`-style lines while the
-live citation was a `container:` pin — `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml:19`
+live citation was a `container:` pin — `recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml:19`
 and `recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml:7`. It has since been re-pulled **by
 digest** on the head and re-tagged `vllm/vllm-openai:v0.32.0` (`RepoDigest` verified `befccf0e…`,
 24.4 GB), so it is present: do not conclude the head is missing it by accident.
@@ -275,6 +275,9 @@ every tracked word this registry writes: READMEs, lane docs, `mad-science/` note
 `description:` prose, and `attic/` archives (they ship to third parties too). Identifiers are exempt —
 keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agreement`,
 `SPDX-License-Identifier` headers, a card's `license:` field) exactly as its owner wrote it.
+
+**`mad-science/STATUS.md` is a table-only board.** Every entry is a row carrying its evidence and date, never a
+paragraph — the context belongs in the lane doc the row cites.
 
 ### Recipes
 
