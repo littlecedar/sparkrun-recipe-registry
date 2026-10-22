@@ -19,11 +19,25 @@
 #     still needs the Xunzhuo fork. That arm is not what this image is for.
 #   * CUDA 13 / sm_121 — upstream-native (`121a-real` in
 #     ggml/src/ggml-cuda/CMakeLists.txt).
+#   * Flint — `a37cc4610` (2026-10-21, #30928): src/models/flint.cpp +
+#     conversion/flint.py, arch string `flint`. This is the newest feature the
+#     image must carry, and therefore the ref floor: the gate below requires
+#     the file, so a ref older than a37cc4610 fails the build on purpose.
 #
 # No release tag carries all of it: the newest, v0.7.0 (`620d2225cc`,
-# 2026-10-15), predates Mellum MTP and Kolibri-1. That is why LLAMA_REF is a
-# REQUIRED build arg with no default — a default would silently rebuild a tree
-# without the features the image claims.
+# 2026-10-15), predates Mellum MTP, Kolibri-1 and Flint. The earliest ref that
+# has every one is `a37cc46104eb…` (2026-10-21T21:26Z); the eight commits after
+# it are sycl/webgpu/opencl kernels, a dflash FC-scale load, lora, ui and a
+# jinja namespace fix — none adds a model we serve and none touches CUDA decode.
+# That is why LLAMA_REF is a REQUIRED build arg with no default — a default
+# would silently rebuild a tree without the features the image claims.
+#
+# MEASURED 2026-10-22 (.34) at `9df0b73c7`: this ref builds and loads, and is 14x
+# SLOWER than the `scitrera` pin the Mellum arm runs (8.4 vs 120-122 t/s decode,
+# 29/29 layers offloaded, both `--load-mode` values and both CUDA arch flags) — do
+# not adopt any ref for performance work before that regression is bisected.
+# Details and receipts: attic/explore/AGENTS.md  Engine bump - upstream llama.cpp
+# (2026-10-22).
 #
 # Build flags, gates and the base pair are the same as
 # `Dockerfile.kolibri1-llamacpp` and `Dockerfile.llama-cpp-decision2`: arm64-only,
@@ -66,9 +80,10 @@ WORKDIR /opt/llama.cpp
 RUN test -f src/models/mellum.cpp \
     && test -f src/models/kolibri1.cpp \
     && test -f src/models/vllm-decision2.cpp \
+    && test -f src/models/flint.cpp \
     && grep -q nextn_flags src/models/mellum.cpp \
     && grep -q graph_mtp src/models/mellum.cpp \
-    && echo "features: mellum MTP + kolibri1 + vllm-decision2 present"
+    && echo "features: mellum MTP + kolibri1 + vllm-decision2 + flint present"
 
 # 121a-real == sm_121 device code with no PTX: GB10-only on purpose.
 RUN cmake -B build \
@@ -82,14 +97,15 @@ RUN cmake -B build \
     && cmake --build build --config Release -j"$(nproc)" --target llama-server llama-cli \
     && rm -rf .git
 
-# Build-time gate: sm_121 device code and the three arch names are in the binary.
-# `llama-server --version` cannot run here — the binary links libcuda.so.1
-# directly (CUDA::cuda_driver) and a build stage has no driver library.
+# Build-time gate: sm_121 device code and the four arch names this image claims
+# are in the binary. `llama-server --version` cannot run here — the binary links
+# libcuda.so.1 directly (CUDA::cuda_driver) and a build stage has no driver.
 RUN cuobjdump -lelf build/bin/llama-server | grep -q sm_121 \
     && grep -qa kolibri1 build/bin/llama-server \
     && grep -qa "vllm-decision2" build/bin/llama-server \
     && grep -qa mellum build/bin/llama-server \
-    && echo "gate: sm_121 + kolibri1 + vllm-decision2 + mellum present"
+    && grep -qa flint build/bin/llama-server \
+    && echo "gate: sm_121 + kolibri1 + vllm-decision2 + mellum + flint present"
 
 FROM nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
 

@@ -730,8 +730,10 @@ Xunzhuo's patched qwen35 loader; that arm stays on
 `littlecedar/dgx-spark-llama-cpp-decision2:c9f5974`.
 
 **What a stock-upstream image unlocks, one line per arm:**
-- `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — the pin can leave `scitrera`
-  outright, which retires the stalled-publisher risk, and the arm gains the MTP path its pack ships.
+- `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — **DISPROVEN 2026-10-22**: the stock
+  image builds and loads the arm, but decodes it **14× slower** than the `scitrera` pin (below), so the
+  pin stays where it is. The MTP path is real and works (69–78 % draft acceptance) — it just arrives on
+  an engine this lane cannot use yet.
 - `kolibri-1-apex-24bpw-llamacpp` (and the Q4_K sibling) — loadable on stock upstream; the fork image
   can retire after one boot proves it, and stays the fallback until then.
 - `sol-2b-decision2-gguf-llamacpp` — **not** unlocked: different arch string and tensor contract, so
@@ -767,6 +769,76 @@ the serve line can name it — that staging, not the engine, is the work.
   ±0.3 sample spread) with `accepted / drafted` recorded per request, **or** any C2/C5 regression, **or**
   house drops off 37/37 / bfcl off 88.3 %. An accept rate of 0 is the expected failure mode if the
   Q4_K_M main's hidden states do not suit the BF16-trained head — quote accept-len, not just t/s.
+
+
+### Measured on `.34`, 2026-10-22 — the engine regresses 14×, so the pin stays
+
+The build passed both gates (154.93 s; `features: … present`, `gate: sm_121 + kolibri1 + vllm-decision2 +
+mellum present`) and pushed as `littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130`
+(`sha256:31181fd3…`; a plain-`121` probe build `…-cu130-121` came out at `sha256:21a1b75e…`). One request
+each, same node, same GGUF pin, same serve flags:
+
+| boot | engine | decode t/s |
+|---|---|---|
+| old (control) | `scitrera` `b10549-cu131`, llama.cpp `b2e5e9b` (2026-08-21) | **120.0 / 122.1** |
+| new, `--load-mode none` | this build | **8.4** |
+| new, `--load-mode mmap` | this build | 8.6 |
+| new, arch `121` | second build | 8.7 / 8.3 |
+
+Not a launch defect, not a flag: the log shows `using device CUDA0`, `offloaded 29/29 layers to GPU`,
+`CUDA0 model buffer size = 7572.50 MiB`; decode runs the GPU at ~46 % with the process at ~470 % CPU.
+Two recipe-level facts this arm will need if the image is ever adopted: `executor_config: {entrypoint: ""}`
+(the image keeps `llama-server` as ENTRYPOINT) and `--no-mmap` → `--load-mode none` (upstream removed the
+old spelling).
+
+**The MTP head itself is good, and the falsifier is unreachable rather than failed.** With the head staged
+at its own revision (`4159d684…` — it does not exist at the model pin `20b43942…`; the main GGUF is
+byte-identical at both) and `-md …BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`, the engine logs
+`draft acceptance = 0.77465 (55/71), mean len 1.77` and `0.69333 (52/75), mean len 1.69`, and decode rises
+to **12.5 / 12.1 t/s — +44 %** on the crippled engine. So MTP is mechanically working and materially
+faster; the pre-registered bar (C1 > 114 t/s vs 111.9 ± 0.3) cannot be measured on any build of this ref,
+because nothing on it reaches a tenth of the baseline.
+
+**Where the next hour goes, if anyone picks this up:** bisect upstream between `b2e5e9b` (2026-08-21) and
+`9df0b73c7` (2026-10-20) on this GGUF with a decode-only bench — that locates the regression long before an
+MTP ladder is worth repeating. Until then: no recipe change, and the `kolibri1` fork image stays too (it
+has not been booted on this engine, and this engine is the slow one).
+
+Receipt: `~/benchmarks/mellum-mtp-20261022/` on `.34` — `REPORT.md`, `build.log`, `build121.log`,
+`probe.log`, `push*.log`, `control-ladder.{json,csv}`, `oldengine-boot.log`, `new-mmap-boot.log`,
+`arch121-boot.log`, `mtp-boot.log`, `head-download.log`, and the five variant recipes.
+
+### The ref floor moved to `a37cc4610`, and why (same day)
+
+`src/models/flint.cpp` landed in **`a37cc46104eb50900d5ab4a9ba02a0abdac039db`** (2026-10-21T21:26Z,
+#30928, 18 files incl. `conversion/flint.py`; arch string `flint`) — after `9df0b73c7`, so the first
+build cannot serve a Flint pack. The eight commits after it are sycl / webgpu / opencl kernels, a dflash
+optional FC-input scale, lora prism weights, two UI items and a jinja namespace fix: none adds a model
+this lane would serve and none touches CUDA decode. **`a37cc4610` is therefore the earliest ref carrying
+Mellum MTP + `kolibri1` + `vllm-decision2` + `flint` + `121a-real`, and the one the Dockerfile's gates
+now require** (the source gate demands `src/models/flint.cpp`, so an older ref fails on purpose).
+
+| build | ref | tag | digest | wall |
+|---|---|---|---|---|
+| Mellum-MTP image | `9df0b73c7` | `littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130` | `sha256:31181fd3105001f503136ff6a4cbbf5ac7d3ab53fd0c5d88a723a844826f94a1` | 154.93 s |
+| same, plain `121` probe | `9df0b73c7` | `…:upstream-9df0b73-cu130-121` | `sha256:21a1b75e57414ab70a0fb04156867f9e73e74163c6f289efa4c0b86c6a6d8bd4` | 151.19 s |
+| **Flint image** | `a37cc4610` | `…:upstream-a37cc46-cu130` | `sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93` | **505.56 s** |
+
+Gate output at the flint ref, verbatim: `features: mellum MTP + kolibri1 + vllm-decision2 + flint
+present`, then `gate: sm_121 + kolibri1 + vllm-decision2 + mellum + flint present`; the binary reports
+`version: 0.7.0-dev (build 1, commit a37cc46)`. The 505 s is the full CUDA recompile a changed tree costs
+(the first build's 155 s was partly reused layers).
+
+**Not measured, stated plainly:** the 14× decode regression above is established at `9df0b73c7` only.
+Whether `a37cc4610` shares it is unknown — `.34` went to another campaign (a `vllm-omni` container) the
+moment the flint image was pushed, and a co-located launch would have been wrong. One boot of the flint
+image plus a single 128-token request answers it before anyone plans a Flint cell.
+
+**Flint's other route is closed on this fleet**, so the engine is the only one: `RecursiveSI/flint`'s
+SGLang kit imports `add_grammar_backend_choices` from `sglang.srt.server_args`, which exists at v0.5.16
+and not at our v0.5.22 (ImportError at plugin load), its `install.sh` sha256-verifies a
+`flash_fwd_sm100.py` anchored to the 0.5.16 image, and its README requires >= 141 GB per replica — a GB10
+is outside that envelope regardless. No Flint arm exists or should: the register item stays research-only.
 
 ## Selection (2026-10-13)
 
