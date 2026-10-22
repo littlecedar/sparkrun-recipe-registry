@@ -1242,6 +1242,157 @@ Any model with reasoning and tool-calling capabilities
   *(research 2026-10-22 — what the collection is, read from the four cards and the upstream repo rather than from the name. All four repos are **ungated** and ship **F32 only** (`model.safetensors`: 20.8 / 111.3 / 490.4 / 837.3 MB), each holding just `config.json` + `model.safetensors` + `LICENSE` — no tokenizer, no chat template, no GGUF, no quant upstream. One architecture at four widths: patch-based transformer over **32-step patches** with alternating time and variate attention (209M = 24 layers, d_model 768, 12 heads, mlp 2048, 6 of 24 blocks `time_variate`; 5M = 8 layers, d_model 192, 3 heads, 2 variate blocks), `rope_theta 10000` with `rope_partial_factor 0.5`, `use_asinh` scaling, `attend_missing_patches`, 21 quantile knots 0.01…0.99, context up to **32,768 steps**, horizon up to **1,024 steps** per pass (longer horizons run block by block on the running median). Card accuracy, 5M/28M/123M/209M: GIFT-Eval MASE 0.705 / 0.678 / 0.659 / **0.658** and CRPS 0.479 / 0.461 / 0.448 / **0.446**; TIME MASE 0.652 / 0.638 / 0.628 / **0.626**; fev-bench SQL skill 46.19 / 48.42 / 50.18 / **50.39**. The card also ranks 209M ahead of t0-gamma (0.661), TimesFM-3 (0.667), Toto-2.0-2.5B (0.696) and Chronos-2 (0.698) on GIFT-Eval MASE — **vendor claims, not ours**; the `model-index` metadata carries the same three leaderboard links and nothing here is independently reproduced. **Serving candidate = 209M**: it tops all three boards, 123M→209M costs 347 MB for 0.001 MASE, and no member is too large to serve — the ordering below is accuracy, not fit.)*
   *(research 2026-10-22 — licence, engine gate, quants, GB10 placement, pre-registration. **Licence:** `license: other` with no `license_name` on the Mistral repos; the LICENSE file is verbatim a **"Modified MIT License"**, attribution "2026 - Mistral AI", and condition 2 withholds every right from anyone whose "global consolidated monthly revenue … exceeds $20 million … for the preceding month", explicitly reaching "the Model and any derivatives, modifications, or combined works based on it, whether provided by Mistral AI or by a third party". That classifies **threshold-community on a MONTHLY measure** — a stricter cadence than LTX-2.5's $10M *annual* threshold — so the arm ships **with a banner**, the way `qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and `ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml` carry theirs: quote the restriction, say the registry distributes a repo id and not weights, name Mistral's commercial channel (sales@mistral.ai) for anyone above it. The **code is Apache-2.0 while the weights are Modified MIT** — do not conflate them in that banner. **Engine gate, decisive: no engine this registry ships can load it.** vLLM `v0.32.0`'s `model_executor/models/registry.py` (1,595 lines) matches **zero** of `timestral`, `timeseries`, `forecast`, `chronos`, `timesfm`, `moirai`, `toto`, `lag_llama`, `patch` — vLLM carries no time-series arch at all, so unlike Muse-Glimmer this is not a "wait for a PR" gate. SGLang `v0.5.22` has 291 files in `srt/models/` and none is time-series. llama.cpp `master` (`src/llama-arch.cpp`) lists 247 archs, no `timestral`/time-series (it does have `t5encoder`, so the absence is real, not an unlucky grep). The usual escape hatch is closed too: the model never reaches transformers, so `trust_remote_code` is not even a lever — `config.json` has no `model_type` to dispatch on, and the loader is Mistral's own `src/timestral/loading.py`. **Quants, by runtime format** (every derivative repo found is `license: other` / modified-mit and ungated, so the banner covers them and not just the base): **GGUF** — `EvoAwaken-Workshop/Timestral-209M-gguf` is one **lossless F32** GGUF (837.3 MB, 203 byte-preserved F32 tensors, plus `conversion.json` and `example_request.json`) and its runtime **is published** (`gouzil/rust-model-inference` @ `cc72a61f`, with an `oracle/timestral` verification and converter); `mudler/timestral-cpp-gguf` has 14 files / 2.90 GB with real K-quants (209M Q4_K 119.8 MB, Q5_K 146.0, Q6_K 173.7, Q8_0 224.4, F16 420.3) but its card states *"Native qualification is incomplete for 28M and 123M"* and, for 209M, *"the Q8 mean-deviation gate fails"* — **and the `timestral.cpp` repo it links is 404 today**, so the quantised GGUF route has no auditable runtime and only the F32 conversion is loadable with evidence. **ONNX** — `mrfakename/Timestral-209M-ONNX` (`model.onnx` 837.5 MB, `model_fp16.onnx` 419.0 MB), `onnx-community/Timestral-5M-ONNX` (21.2 MB), `konfi-labs/Timestral-28M-batched-ONNX` (1.7 MB graph + 111.3 MB external data, batched); `onnxruntime` loads them, but none is a server and onnxruntime is not a runtime family this registry ships. **MLX** — `jbilcke/timestral-mlx` is a **repack, not a quant** (209M is the same 837.3 MB F32), `vikiival/timestral-mlx` is empty; Apple-only and not our hardware. Plain copies (`general-forecast/timestral-209m`, `leonflux/Timestral-209M`, `6ieyd9hx/Timestral-209M`) add nothing. Nothing in the family is NVFP4-tagged and nothing needs Blackwell. **GB10 placement, decided by the byte count rather than by a ladder:** the family tops out at **837 MB, 0.7 % of a Spark's 121 GiB**, so no member can fail to fit and the lane's util-0.85 KV arithmetic does not apply — there is no KV cache, attention runs over patches inside one forward pass. Ranking is therefore accuracy per byte at a fixed latency budget: **209M** for accuracy, **28M** (111 MB) as the throughput pick if a 209M CPU forecast is too slow for a useful cell rate, **5M** only as the route-settling smoke. **Pre-registered measurement** (the chat-shaped cells are marked N/A with the reason, so their absence cannot read as an omission): (a) **TTR** to `/health` 200 and to the first successful forecast in **both** device modes the library offers (`device="cpu"`, `"cuda"`), because the CPU number decides whether this arm needs a node at all; (b) **`/v1/models`** must answer the served id `mistralai/Timestral-209M` **plus `context_length: 32768` and `horizon: 1024`** — sparkrun's readiness probe asks that path even with `readiness.inference: false`, and the lane's habit of asserting `max_model_len` from it maps onto `context_length` here (a forecaster has no `max_model_len`, and inventing one would put a false number in the receipt); (c) **ladder N/A** — no tokenizer and no chat completions, so d0 pp2048/tg128 and its `runs/*.json` decode rows do not exist; the same-discipline substitute is a forecast table read from a JSON sidecar: T ∈ {512, 2048, 32768} × horizon ∈ {96, 1024} × batch ∈ {1, 8, 32}, wall per forecast plus peak memory, warm/cold flagged; (d) **house battery N/A** (`tools/quality-battery.py` is 37 chat items), replaced by the model's own headline: one pinned GIFT-Eval subset forecast (deterministic, no sampling, fixed horizon and stride) scored MASE and CRPS against a seasonal-naive baseline on the same split, plus a calibration read — the 21 quantiles must be monotone and empirical 80 % interval coverage must land in **0.70–0.90**; (e) **falsifiers, pre-registered:** the arm does not ship if MASE is **not better than seasonal-naive** on that subset, if it misses the card's 0.658 by more than a stated tolerance, or if coverage lands outside 0.70–0.90 — a calibrated-forecast claim that does not calibrate is the finding, not a footnote. Receipt `~/benchmarks/timestral-2026102X/` (REPORT.md with the subset definition + checksum, forecast cells JSON, coverage table). **Unblocker and order:** nothing here is node-blocked — the 5M smoke and a 209M CPU cell can run on the head or a laptop, the same allowance the OCR item makes — so: `tools/forecast-bench.py` + the reference subset first, then `recipes/explore/mods/timestral-launcher` (server + `pip install git+https://github.com/mistralai/timestral@<pinned commit>` + `model_revision: 9874d252ab0a`) and the recipe on `runtime: vllm` with `entrypoint: ""`, with the licence banner landing **with** the recipe, not after it.)*
 
+- [ ] **Probe Spark-X2.6-4B — a 4B dense hybrid-window agent model whose engine is *already resident*** —
+  research-only so far: **no recipe, no download, no boot, no receipt.** `XHToken/Spark-X2.6-4B` (`66e3ae7b`,
+  created 2026-10-19, **ungated**, 195 likes / 85 downloads at the check — counts drift, do not freeze them)
+  is `pipeline_tag: text-generation`, `library_name: transformers`, and — the part that decides the arm —
+  `model_type: spark2_5`, `architectures: [Spark2_5ForCausalLM]`, with `auto_map` custom code
+  (`configuration_spark.py` 4.3 KB + `modeling_spark.py` 19.4 KB), i.e. `trust_remote_code` is mandatory.
+  **Bytes, not names:** **4,112,079,360 params BF16** (`safetensors.total`), dense (no MoE keys anywhere in
+  `config.json`), `tie_word_embeddings: true`, **8.224 GB across 5 shards** (`1.982 + 1.993 + 1.993 + 1.993 +
+  0.262` GB = 7.66 GiB). hidden 2560, **36 layers**, 16 query / **4 KV heads at head_dim 256**, intermediate
+  10240, vocab 131,072, `hidden_act: gelu`, `rms_norm_eps` 1e-6. The attention is a **hybrid window stack**:
+  `layer_types` is 27 `sliding_attention` (window 512) + 9 `full_attention` (every fourth layer, the first at
+  index 3), with **per-type rope** — full: `rope_theta` 5,000,000 at `partial_rotary_factor` 0.25; sliding:
+  10,000 at 1.0 — and `headwise_attn_output_gate: true` (`gate_attn_act_mode: sigmoid`) on the q path.
+  Tokenizer: fast BPE, 131,072 entries (`tokenizer.json` 10.1 MB + `vocab.json` + `merges.txt`), bos 0 / eos 1 /
+  pad 2. Context: `max_position_embeddings` **1,048,576** in `config.json`, but `tokenizer_config.model_max_length`
+  is **131,072** — the two disagree, and the KV arithmetic below says 131,072 is the single-node window.
+  **Vendor claims, not measurements:** "retains exactly the same architecture" as Spark-X2.5-4B with gains
+  "through improved post-training"; SOTA-among-4B on agent/code/long-context; and a **controllable thinking budget
+  with three levels (none / low / high)**. The last is real and visible in the template, not just prose:
+  `enable_thinking` (default `true`) plus `reasoning_effort` ∈ {`high` (default), `low`}, and anything else
+  **raises** (`raise_exception('Unexpected reasoning effort …')`) — so "none" is `enable_thinking=false` and there
+  is no third effort value.
+  *Licence — the position, plainly, because this tree ships to third parties.* Card front-matter
+  `license: apache-2.0`; the card body says "The Spark-X2.6 model series is licensed under the [Apache 2.0
+  License](LICENSE)", and the repo's `LICENSE` is the **verbatim Apache-2.0 text** (11,338 B, "Apache License
+  Version 2.0, January 2004") with no banner, no revenue threshold, no acceptable-use annex and no separate NOTICE
+  clause. **That is a clean ship** — the same licence class as MOSS-Image, and the opposite of the qwen-research /
+  community-agreement arms this lane already carries caveats for. Every X2.6 sibling and every derived quant repo
+  below carries the same `license: apache-2.0` tag and is ungated — checked per repo, not inherited from the card.
+  *Family — one item, and why.* `?author=XHToken&limit=100` returns **16 repos**: the X2.6 generation is
+  `Spark-X2.6-4B` (this), `-Base` (17 likes), `-FP8`, `-INT8`, `-INT4` and `-GGUF`, all created 2026-10-19/20; the
+  previous generation `Spark-X2.5` is `-4B` (36,890 downloads), `-1.7B`, `-Base`, `-FP8`, `-INT8`, `-GGUF` (the
+  GGUF pair at 241k–420k downloads). **Scope decision: a single-model item on the 4B chat checkpoint, with the
+  quant repos folded in as the quant table.** X2.6 has **no other size** (the 1.7B is X2.5-only), `-Base` is a
+  finetune source with no serving decision of its own, and FP8/INT8/INT4/GGUF are the same bytes in other formats —
+  rows in one table, not arms. X2.5 earns a mention only as a **same-arch control** (identical `model_type`,
+  identical file layout, one generation older), so a boot that misfires can be diffed against a checkpoint the
+  engines also claim to serve.
+  *Engine gate — decided against the package/registry source, and it decides the arm.*
+  **SGLang: YES, at the pin we already ship.** `python/sglang/srt/models/spark2_5.py` exists at **both** `v0.5.21`
+  and `v0.5.22` (560 lines, `EntryClass = [Spark2_5ForCausalLM]`) and implements *this* config, not a lookalike:
+  per-layer `layer_types` become per-layer `RadixAttention(sliding_window_size=…)` (`:174-185`, and an unknown
+  layer_type **raises**), `head_dim` comes from config (`:232`), the gate projection is pinned
+  `quant_config=None  # g_proj keeps bf16.` (`:145-153`), and per-type rope is read from
+  `config.rope_parameters[layer_type]` (`:233-247`) so the 5e6/0.25 full-layer rope and the 10k/1.0 sliding rope
+  both land. The qkv projection is named **`q_k_v_proj`** (`:135`) — the same name the vendor's compressed-tensors
+  configs target, which is what makes the official quants plausible. Tool calling and reasoning are registered at
+  both tags too: `function_call/function_call_parser.py` carries `"spark25": Spark25Detector` (the card's
+  `--tool-call-parser spark25`) and `parser/reasoning_parser_names.py` carries `"qwen3"` (the card's
+  `--reasoning-parser qwen3`). The card's own example names a nightly `lmsysorg/sglang:nightly-dev-cu13-…` image,
+  but **nothing here needs it**: the module is in the release tags this registry pins
+  (`lmsysorg/sglang:v0.5.21@sha256:b1259f3e…` on the tracked ornith arms).
+  **vLLM: NO at `v0.32.0`.** `vllm/model_executor/models/registry.py` at that tag has no `spark2_5` /
+  `Spark2_5ForCausalLM` entry — every "Spark" key in it is a **DSpark draft** model for DeepSeek-V4 / Qwen3 /
+  Kimi-K3 / Gemma4, a different architecture — and no module of that name exists (`spark2_5.py`, `spark25.py`,
+  `spark.py`, `spark2.py` all 404 at the tag). A vLLM route would be a `--model-impl transformers` /
+  `trust_remote_code` fallback experiment on a custom hybrid arch, not a route.
+  **transformers: the repo's own code, only.** No `spark` model dir at `v4.57.1` (384 model dirs) and `main` has
+  only `muse_spark` (a different arch), so the card's `transformers==4.57.1` + `trust_remote_code=True` is the
+  whole transformers story — good for a sanity forward, useless as a serve.
+  **llama.cpp: YES above build b10828, NO at our pin.** `src/models/spark2-5.cpp` (144 lines,
+  `llama_model_spark2_5::load_arch_tensors` / `build_arch_graph`) landed **2026-09-06 in `3ad1ba7336`** ("[Model]
+  Support for Spark2_5ForCausalLM", PR #27868), is present at `a37cc4610` (2026-10-21) and **absent at our pinned
+  `b2e5e9b`** (2026-08-21; 150 files under `src/models/`, no spark), which is engine `b10549` — 279 builds short of
+  the card's floor. The GGUF side is otherwise clean: a range-read of the official Q4_K_M header gives
+  `general.architecture = spark2_5` with an inline `tokenizer.chat_template` at byte 5,365,658.
+  **Verdict: an SGLang arm on the image already pinned — no new image, no fork, no mod-staged template, no engine
+  work.** That is the cheapest engine gate this lane has seen for a new arch.
+  *Chat template — present, so this is not the usual 4B failure mode.* `chat_template.jinja` is in the snapshot
+  (5,629 B) **and** embedded in `tokenizer_config.json` (4,766 chars): no mod has to stage one. It takes
+  `enable_thinking` (default `true`), `reasoning_effort` (`high`/`low`), tool definitions and a
+  `reasoning_content` field, so both the thinking channel and function calling are template-level.
+  *Quantisations and derivatives — enumerated from `filter=base_model:quantized:` (22 repos), the author listing
+  and per-repo tree APIs. Every one is **ungated** and `license: apache-2.0`. Sizes are tree-API bytes.*
+  **Official, complete (weights + config + tokenizer + template + `auto_map` code):** the bf16 parent, 5 shards,
+  **8.224 GB**; `-FP8` — compressed-tensors `float-quantized` W8A8, dynamic token-strategy activations, targets
+  `self_attn.q_k_v_proj` + the MLP set, **4.452 GB** (one shard); `-INT8` — `int-quantized` W8A8 symmetric, targets
+  `Linear` (everything), **4.454 GB**; `-INT4` — **`pack-quantized` W4A16, group_size 32**, `memoryless_minmax`
+  static scales, targets `q_k_v_proj` + MLP, **3.412 GB** (the repo carries no `4-bit` tag — the scheme is read
+  from `config.json`, not the tags). **Official GGUF, complete for llama.cpp only** (tokenizer + template embedded,
+  no separate config): `XHToken/Spark-X2.6-4B-GGUF`, 16.15 GB repo — bf16 **8.230**, Q8_0 **4.375**,
+  **Q4_K_M 3.543** GB, i.e. larger than every third-party Q4_K_M below, so the official build keeps more of the
+  embedding/head at higher precision. **Third-party GGUF re-quants, complete-as-GGUF:**
+  `bartowski/Spark-X2.6-4B-GGUF` 62.60 GB (bf16 8.230 → Q2_K; **Q4_K_M 2.621**, Q5_K_M 3.165, Q6_K 3.611),
+  `mradermacher/Spark-X2.6-4B-i1-GGUF` 50.41 GB (imatrix; i1-Q4_K_M **2.600**, i1-Q5_K_M 2.978),
+  `mradermacher/Spark-X2.6-4B-GGUF` 37.51 GB (Q4_K_M 2.600, Q2_K 1.787), `prithivMLmods/XHToken-Spark-X2.6-4B-GGUF`
+  31.42 GB (Q4_K_M 2.600). **Incomplete or unusable here:** `WhiskyAKM/Spark-X2.6-4B-NVFP4-GGUF` (nvfp4 **2.487** +
+  "small-nvfp4" 2.319 GB, four files total, format asserted only by the filename),
+  `abenzerps/Spark-X2.6-4B-Quantized` (bf16 GGUF 8.230 + **single-file** `fp8.safetensors` 4.448 +
+  `NVFP4.safetensors` 2.796 + four GGUFs, **no config and no tokenizer** — nothing loads those safetensors as a
+  model), `UnstableLlama/Spark-X2.6-4B-exl3` (**no weights at all**: 0.01 GB of `selfcal/` traces and 2/3/4bpw
+  recipes, an EXL3 build input). **Cannot run on a GB10:** every MLX repo (`abenzerps -4/6/8bit`, `0x36 -4/8bit`,
+  `Jakevin` mixed/gptq, `pgmharikrishnan` mixed 4-8bit). Not quant tiers: `cinnybun02` and `SC117` (abliterated),
+  `Harsha001` (ROCmFPX, AMD).
+  *GB10 ranking (128 GB unified, arm64 sm_121, one node = the lane's **108 GB usable at util 0.85**, 273 GB/s
+  LPDDR5X), reasoning shown.* Two numbers decide everything. **KV is 144.0 KiB/token** — 2 × 4 KV heads × 256
+  head_dim × 2 B × 36 layers = 147,456 B/token — so 4.50 GiB at 32k, **18.00 GiB at 131,072**, 36.00 GiB at
+  262,144, and **144.00 GiB at the card's 1,048,576**: the vendor's window is a **>1-node artifact** (weights + KV
+  = 151.7 GiB; even fp8 KV at 72.00 GiB leaves no headroom). **131,072 is the honest single-node window at 25.7 GiB
+  of weights+KV — 4.2× under the 108 GB budget — and 262,144 also fits at 43.7 GiB** if a long-context cell is
+  wanted. Second: **decode is bandwidth-bound.** 8.224 GB of bf16 over 273 GB/s caps single-stream decode at **≈33
+  t/s** ([INFERENCE] roofline; this lane's 0.9B precedent reached ~145 GB/s of spec, so ~53 % is the realistic
+  haircut), and the same arithmetic gives ≈61 t/s at FP8/INT8 (4.45 GB), ≈80 t/s at INT4 (3.41 GB), ≈77 t/s at
+  Q4_K_M (3.54 GB). So the bf16 4B lands **below every shipped chat arm here** (Laguna-XS 57.4, Nemotron-3.5
+  63.3): its case is context-per-GiB, licence clarity and 4B tool calling — never speed.
+  1. **SGLang bf16 on the pinned v0.5.21/v0.5.22 image, 131,072 window** — 8.22 GB weights, 18.00 GiB KV, zero new
+     infrastructure. The control that must exist before any quant tier is credited, and the only route that costs
+     nothing to try.
+  2. **Same image, official FP8 W8A8, same window** — 2.6 GiB less weight and a ~1.8× decode ceiling (≈61 t/s);
+     KV unchanged unless `--kv-cache-dtype fp8_e4m3` (then 9.00 GiB at 131,072). One flag
+     (`--quantization compressed-tensors`), and the vendor's target names match the SGLang module names. **The
+     shipping candidate if the battery holds.**
+  3. **Same image, official INT4 W4A16, same window** — fastest ceiling (≈80 t/s), smallest weights (3.41 GB), but
+     two extra risks: group-32 W4A16 on a 4B dense model, and `g_proj` deliberately stays bf16 (`spark2_5.py:150`),
+     so the quant is not uniform. Only after 2 clears.
+  4. **GGUF Q4_K_M on llama.cpp ≥ b10828** (official 3.543, bartowski 2.621, i1 2.600 GB) — same speed class as 3
+     and the lane's existing llama.cpp harness applies, but it needs a **new image build** (our `b10549`/`b2e5e9b`
+     has no `spark2-5.cpp`), which is real bring-up cost for a model that already fits bf16.
+  5. **NVFP4 GGUF / `abenzerps` single files / EXL3 / MLX — not viable here**: an unverified llama.cpp NVFP4 path,
+     single files with no config or tokenizer, no weights shipped, and Apple-only respectively.
+  Nothing is too big to fit one node; the constraint is bandwidth, not capacity.
+  *Pre-registered measurement (nothing ran).* Pin `model_revision: 66e3ae7bee54e0a523d692cb8ef841f35409807b`
+  (`main` at the check), container `lmsysorg/sglang:v0.5.21@sha256:b1259f3e…` (the digest tracked arms already pin;
+  a v0.5.22 re-pin carries the same module).
+  **Boot cells:** TTR = launch → `/v1/models` 200; **served id = the HF repo id `XHToken/Spark-X2.6-4B`** unless a
+  recipe alias intervenes; the serve log must name `Spark2_5ForCausalLM` and report `max_model_len` **131072**
+  (pre-registered — the card's 1,048,576 is not a single-node cell, and a boot advertising it is a
+  misconfiguration, not a result).
+  **Ladder at d0:** `benchmarking/concurrency-ladder.yaml` (depth 0, pp 2048 / tg 128, c 1/2/5/10, 5 runs) via
+  `sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/concurrency-ladder.yaml --output
+  <out>.yaml`, **decode rows only**, `--skip-run` against the boot the battery used so speed and quality share one
+  window.
+  **House battery, 37 items (19 easy + 18 hard):** `python3 tools/quality-battery.py http://<node>:<port> --tier
+  both --repeat 3 --max-tokens 4096 --json quality-battery.json` — 4096 because a thinking arm at a smaller budget
+  returns `finish_reason: length`, which is a budget miss and not a capability miss (`tools/README.md:313-317`).
+  **Contract cells:** one `get_weather`-shaped tool call with populated arguments through `--tool-call-parser
+  spark25` + `--reasoning-parser qwen3`; and a thinking control (`enable_thinking=false` via
+  `--chat-template-kwargs`) — thinking-off is a quality claim with its own number, not an assumption
+  (Nemotron-3.5 pays five house items for it).
+  **Falsifier:** bf16 **C1 < 25 t/s** (under the roofline's ≈33 at ~75 % efficiency, and below the archived
+  Mistral-Small-4 reject at 28.9) means the bf16 cell survives only as a control and the arm ships quantised or not
+  at all; and pooled house **≤ 34/37** on whichever tier wins the ladder kills it, because 37/37 is this lane's
+  tie-break rather than its gate — 35–36/37 only ships alongside a ladder that beats Laguna-XS's 57.4 at 36/37.
+  **Receipt:** `~/benchmarks/spark-x2.6-20261022/` (`REPORT.md`, `ladder.json`, `quality-battery.json`,
+  `serve.log`).
+  *Unblocker — one free single GB10, nothing else.* `.30`–`.33` are the TP=4 block and `.34`/`.35` belong to other
+  workers (`.local/BOOT-QUEUE-20261022.md`). No other gate: the arch is in the engine we already pin, the weights
+  are 8.22 GB and ungated, the licence needs no banner, and no mod is required (the template is in the snapshot).
+  Run cell 1 (bf16) first, with cells 2 and 3 as same-image follow-ups; the GGUF route is a separate image build and
+  belongs to a `## Runtimes` decision, not this item. *(effort: medium)*
+
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*
