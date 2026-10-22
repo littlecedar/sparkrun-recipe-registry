@@ -40,8 +40,8 @@ rainbow as aesthetics and was wrong about the constraint. What still stands: no 
 doubled glyphs, no gibberish letterforms, no step-count starvation — so the ~24 % win is real and
 defect-free, just spent on the wrong instruction. Scoped: one prompt, one seed, one image per route, so
 it is evidence against swapping on latency alone, **not** a measured general quality gap. **The shipped
-Diffusers arm stays the default; an OMNI variant is a different look the owner likes, i.e. an opt-in arm
-rather than a replacement, and its recipe is not authored yet pending the owner's go.**
+Diffusers arm stays the default; an OMNI variant is a different look the owner likes, and the owner
+declined it on 2026-10-21 — the registry ships the Diffusers script only.**
 
 **2026-10-21 evening — the pair block is empty.** Both remaining pair items closed without a
 finding. **flash-next is refuted on both engines** (`b85f611`, `510215b`): the b12x build cannot
@@ -91,15 +91,15 @@ was drained afterwards. That removes the arm from Table 2's pair-bound block.
 | Bucket | Content | Wall | Notes |
 |---|---:|---:|---|
 | Suite tail — single-node | **0 h — closed** | 0 h | every single-node arm now has a boot, a ladder and a suite receipt; the qwen3 MLX top rung is TRUNCATED at its real ~222.5k window and the ornith YaRN d90 rung passed |
-| Other local — single-node | **0 h — closed** | 0 h | everything closed on 2026-10-21: the decision candidates (Nox-4B shipped 67.8 %, JEV-27B tied at 66.8 % and did not ship), the reasoning candidates (Lightning shipped 37/37 at 63.27 t/s; the ranked table has no 1-node entry left), the media-gen non-8-step schedule (Qwen-Image `sigmas` mod + guard with negative controls), the house-budget audit and the repo-wide render sweep. The **vLLM-OMNI route is measured and closed-with-a-comparison** (8.66–8.75 s warm vs 11.49 s, same peak, ~24 % faster; not shipped — no recipe; on the one shared prompt OMNI violates `two-color screenprint` with a rainbow while Diffusers honors it, so the shipped arm stays the default and an OMNI variant is an opt-in look pending the owner's go). **What is left anywhere: (a) the owner's go on an opt-in OMNI arm and (b) the offsite TP=4 block** |
+| Other local — single-node | **0 h — closed** | 0 h | everything closed on 2026-10-21: the decision candidates (Nox-4B shipped 67.8 %, JEV-27B tied at 66.8 % and did not ship), the reasoning candidates (Lightning shipped 37/37 at 63.27 t/s; the ranked table has no 1-node entry left), the media-gen non-8-step schedule (Qwen-Image `sigmas` mod + guard with negative controls), the house-budget audit and the repo-wide render sweep. The **vLLM-OMNI route is measured and closed-with-a-comparison** (8.66–8.75 s warm vs 11.49 s, same peak, ~24 % faster; not shipped — no recipe; on the one shared prompt OMNI violates `two-color screenprint` with a rainbow while Diffusers honors it, so the shipped arm stays the default and the OMNI variant was offered and declined (2026-10-21)). **What is left anywhere: the offsite TP=4 block, which is next session's first job (owner decision 2026-10-21); the OMNI arm was declined, so no recipe is pending)** |
 | Pair-bound | **0 h — closed** | 0 h | every pair item is resolved: ds4 v0.6 adopted (c8 +26.5 %, c16 +25.7 %, prefill +24.6 %/+39.5 %, pin `d6e4c10d…`), ds4 `reasoning_effort` measured (10.6 % paired saving, one task), **flash-next refuted** (b12x: `qwen_sparse_attention` not a layer type at `ModelConfig`, no weight read; `vllm-openai:v0.31.0`: clears that gate, dies at worker init on `Qwen4Exp PLE embedding … CompressedTensorsConfig`), **qwen4 highcon control passed** (86.8/87.5/89.5/75.4 t/s, all within 3.4 % of control, no 10 % finding) |
 
 ## Table 3 — Deferred tasks (cannot run without a named unblocker)
 
 | Deferred | Unblocked by | Where it lives |
 |---|---|---|
-| **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | the owner switching the session to an offsite endpoint — **the local pair block is now empty and nothing else is pair-bound, so this is the only pair work left and it is an owner decision, not queued for tonight** | register, under the qwen4 and ds4 items; ask repeated below |
-| **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
+| **Offsite TP=4 measurement block** (20–28 h: qwen4 W6/W12, ds4 TP=4 candidates, four-node suite legs) | **the owner's answer, 2026-10-21: this is next session's first job** — the endpoint is opened at session start; the local pair block is empty and nothing else is pair-bound | register, under the qwen4 and ds4 items |
+| **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — **4 of 4 d90 passes now on two builds**, the last one a first-attempt pass on 0.5.21 with a null die-capture; **owner's answer, 2026-10-21: park it until a real failure** | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
 
 Dropped by owner policy, not waiting on anything: the GLM ≥1M probe and the ornith 397B retry (both
 recorded in the lane attic).

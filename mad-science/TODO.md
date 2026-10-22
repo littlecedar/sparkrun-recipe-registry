@@ -604,13 +604,15 @@ Any model with reasoning and tool-calling capabilities
   gibberish letterforms, no step-count starvation artifacts, so the ~24 % win is real and defect-free — it
   is just spent on the wrong instruction. Scoped: one prompt, one seed, one image per route, so this is
   evidence against swapping on latency alone, **not** a measured general quality gap (no multi-prompt
-  adherence battery was run). **Conclusion for the lane:** the shipped Diffusers arm stays the default; an
-  OMNI variant is a *different look* the owner likes, so it becomes an **opt-in arm, not a replacement**,
-  and its recipe is deliberately **not authored yet — awaiting the owner's go**. §6 "which look ships"
-  remains the owner's call for **both** routes (`recipes/explore/README.md` §6,
-  `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
-  (`REPORT.md`, `omni.json`, `omni-warm8.json`); both 8-step PNGs kept in the tree at
-  `mad-science/eight-step-{diffusers,omni}.png`.)*
+  adherence battery was run). **Conclusion for the lane, settled by the owner on 2026-10-21:** the shipped
+  Diffusers arm stays the only route the registry ships; an OMNI variant was offered as a *different look*
+  the owner likes and **declined**, so no recipe is pending and none will be written unless that is
+  reversed. §6 "which look ships" remains the owner's call for **both** routes (`recipes/explore/README.md`
+  §6, `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
+  (`REPORT.md`, `omni.json`, `omni-warm8.json`); the two 8-step PNGs are **not tracked** (owner decision:
+  the registry ships as text) and live only in the head receipt as
+  `~/benchmarks/media-gen-20261021/eight-step-{diffusers,omni}.png`, identified by
+  `e24f6e3a…24ee24a` and `38ce554a…45704690`.)*
 
 
 ## cybersec

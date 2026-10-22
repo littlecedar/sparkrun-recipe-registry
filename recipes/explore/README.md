@@ -295,7 +295,8 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   instruction. **That is a prompt-adherence defect, not a style difference** — and it is scoped to one
   prompt, one seed, one image per route, so it is evidence against swapping on latency alone, **not** a
   measured general quality gap. **This arm stays the default**; an OMNI variant would be a *different
-  look* the owner likes, i.e. an opt-in arm, and its recipe is deliberately unwritten pending that go.
+  look* the owner likes, i.e. an opt-in arm — **which the owner declined on 2026-10-21: this arm is the
+  only route the registry ships, and the OMNI numbers stay in the attic note as a measurement.**
   The §6 "quality judged by eye" item stays open for both routes. Notes:
   [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).

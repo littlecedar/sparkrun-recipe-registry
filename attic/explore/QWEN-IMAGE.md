@@ -261,19 +261,19 @@ asymmetries are worth naming for reproduction and change nothing about the compa
   evidence against swapping on latency, not a measured quality gap.
 - **The shipped Diffusers arm stays the default.** The ~24 % warm win (8.66–8.75 s vs 11.49 s at the
   same peak) does not buy back a violated instruction. An OMNI variant is a *different look* — the owner
-  likes the rainbow — so it is an **opt-in arm, not a replacement**; its recipe is deliberately not
-  written yet, pending the owner's go.
-- **No recipe was written.** Shipping it would need a script/burst recipe plus a decision about the inert
-  step knob; that is the lane owner's call, not this measurement's.
+  likes the rainbow — not a replacement. **The owner declined an OMNI arm
+  on 2026-10-21: the registry ships the Diffusers script only.** The route stays recorded because the
+  ~24 % is real and reproducible, not because it is queued.
+- **No recipe will be written** unless the owner reverses that call.
 
-Both 8-step PNGs are named by route and kept **in the tree** for that eye:
-[`mad-science/eight-step-diffusers.png`](../mad-science/eight-step-diffusers.png)
-(`e24f6e3aa694fbcc566367fb9590f5f4f9fbaa483c65f594594aa4a2724ee24a`) and
-[`mad-science/eight-step-omni.png`](../mad-science/eight-step-omni.png)
-(`38ce554a1ccb4e85789f590121bc545fb7ae69bc3d7f9fb4b75f86db45704690`), copied byte-for-byte
-from the head receipt's `~/benchmarks/media-gen-20261021/{eight-step-diffusers.png,vllm-omni/omni-warm8-0.png}`;
-the measurement itself is `~/benchmarks/media-gen-20261021/vllm-omni/REPORT.md` + `omni.json`,
-`omni-warm8.json`, `serve.log.gz`.
+Both 8-step PNGs were inspected for the review above and are **not tracked** — the registry ships as text,
+and 5.2 MB of binaries is not a cost these notes justify. They live in the head receipt
+(`~/benchmarks/media-gen-20261021/eight-step-diffusers.png` and `.../eight-step-omni.png`, byte copies of
+`samples/t2i_1024x1024_seed42_20261021T234214.png` and `vllm-omni/omni-warm8-0.png`); the hashes
+`e24f6e3aa694fbcc566367fb9590f5f4f9fbaa483c65f594594aa4a2724ee24a` and
+`38ce554a1ccb4e85789f590121bc545fb7ae69bc3d7f9fb4b75f86db45704690` identify them, so a re-render can be
+checked against the review. The measurement itself is `~/benchmarks/media-gen-20261021/vllm-omni/REPORT.md`
++ `omni.json`, `omni-warm8.json`, `serve.log.gz`.
 
 ### §6 acceptance criterion, item by item
 
