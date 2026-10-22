@@ -29,7 +29,7 @@ metadata:
 mods:
   - "@eugr/mods/drop-caches"
   - "@eugr/mods/instanttensor-hybrid-draft-loader"
-  - "@eugr/mods/fix-qwen3.8-flash-next-vllm"
+  - "mods/fix-qwen3.8-flash-next-vllm"
 
 env:
   SAFETENSORS_FAST_GPU: 1
