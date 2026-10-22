@@ -1,0 +1,67 @@
+recipe_version: "2"
+model: InternScience/Sage-A1.5-Q4_K_M-GGUF:Q4_K_M
+model_revision: 203833acd28996f5442cead68e637f6f046bab3d
+runtime: llama-cpp
+# The resident scitrera pin carries llama.cpp b2e5e9b, which already has
+# src/models/qwen35moe.cpp and the qwen3vl_merger projector this GGUF pair needs.
+container: scitrera/dgx-spark-llama-cpp:b10549-cu131@sha256:ad14055470c2bd5c2b4c088dc5727d950da00f62408f438f4f3833c704af0dca
+mmproj: Sage-A1.5-mmproj.gguf
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT — never booted, no measurements, not a shipped arm.
+  The vendor's own Q4_K_M GGUF of Sage-A1.5 (21.71 GB trunk + 0.90 GB vision
+  projector, `general.architecture = qwen35moe`) on ONE DGX Spark through
+  llama.cpp, with the vision tower enabled via the bundled mmproj. The in-GGUF
+  MTP block (blk.40) is not exercised: this arm runs without speculative decode.
+metadata:
+  model_url: https://huggingface.co/InternScience/Sage-A1.5-Q4_K_M-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "35.95B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: explore, vision, reasoning, agent, tools, apache-2.0
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: InternScience/Sage-A1.5
+  ctx_size: 262144
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 1.5
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --min-p {min_p}
+  --presence-penalty {presence_penalty}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  --no-webui
+  --no-mmap
+  --cont-batching

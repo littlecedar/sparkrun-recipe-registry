@@ -1,0 +1,59 @@
+recipe_version: "2"
+model: InternScience/Sage-A1.5-FP8
+model_revision: b442b0c6a66c8e845c5ded85bc129eb4a44f32fc
+# v0.5.22 ships srt/models/qwen3_5.py, whose EntryClass is the MoE VLM class this
+# checkpoint declares; the digest is the lane's published-index pin.
+container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT — never booted, no measurements, not a shipped arm.
+  InternScience/Sage-A1.5-FP8, the vendor's own W8A8 float-quantized export of
+  Sage-A1.5 (35.95B-parameter / 3B-active hybrid linear-attention MoE VLM,
+  262,144-token window, Apache-2.0) on ONE DGX Spark through SGLang.
+  The vision tower stays BF16 (the export's compressed-tensors `ignore` list
+  names the visual blocks), and the in-checkpoint MTP head is carried.
+metadata:
+  model_url: https://huggingface.co/InternScience/Sage-A1.5-FP8
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "35.95B"
+  model_dtype: fp8
+  kv_dtype: fp8_e4m3
+  tags: explore, vision, reasoning, agent, tools, apache-2.0
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served id would be the cache path (-n does not show this).
+  served_model_name: InternScience/Sage-A1.5
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  # Unmeasured admission cap: the hybrid state pool, not this literal, is the
+  # granted concurrency (grep "max_mamba_cache_size" in the serve log).
+  max_num_seqs: 32
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: flashinfer_cutlass
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
