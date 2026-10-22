@@ -1,0 +1,61 @@
+recipe_version: "2"
+# DRAFT (2026-10-22): authored from the Hub census, NEVER booted. Not in the root README
+# index and not claimed to serve. See mad-science/TODO.md §explore, item "Ornith-1.5-122B".
+model: ornith-ai/Ornith-1.5-122B-NVFP4
+model_revision: f049036f794622db10bb69855bf9819207334626
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:cc47adc1b210066dca421bdcd7ca6f16680b6579533f348c0d8c072da194cf98
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT - ornith-ai/Ornith-1.5-122B-NVFP4: the vendor's modelopt NVFP4 export of the
+  122B-A9B MoE (qwen3_5_moe, 48 layers, 256 experts top-8, 36 GDN + 12 full-attention,
+  262,144 window), 77.63 GB of shards on one DGX Spark at TP=1. The export keeps
+  attention/linear-attention projections at FP8 and the rest NVFP4, so the engine
+  auto-detects modelopt_mixed. Thinking is on by default, so a grading harness needs
+  a large completion budget; MIT.
+metadata:
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-122B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "122B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: ornith, official, reasoning, agent, tools, vision
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path, so the
+  # served id would be the cache path and the pre-registered max_model_len assert would miss.
+  served_model_name: ornith-ai/Ornith-1.5-122B-NVFP4
+  max_model_len: 262144
+  gpu_memory_utilization: 0.85
+  max_num_seqs: 32
+  max_num_batched_tokens: 8192
+  kv_cache_dtype: fp8
+  moe_backend: marlin
+  attention_backend: flashinfer
+
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --kv-cache-dtype {kv_cache_dtype}
+  --moe-backend {moe_backend}
+  --attention-backend {attention_backend}
+  --enable-prefix-caching
+  --enable-auto-tool-choice
+  --tool-call-parser qwen3_xml
+  --reasoning-parser qwen3

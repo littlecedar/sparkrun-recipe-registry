@@ -621,6 +621,170 @@ Any decision model
 
 ## explore
 Any model with reasoning and tool-calling capabilities
+- [ ] **Scope `ornith-ai/Ornith-1.5-122B` as a one-node replacement for the easy half of the
+  DeepSeek-V4.1-Flash TP=4 traffic** — EXL3 and Unsloth-GGUF are the two routes of primary interest.
+  **Phase 1 is research + authoring only: nothing was booted, no node was touched, and the blocker is
+  a free node** (all six are on other streams: `.30`–`.33` the ds4 EXL3 TP=2 twin A/B, `.34` a
+  `drama-3` TTS boot, `.35` a Spark-X2.6 FP8 re-test). Two DRAFT recipes exist and neither is
+  claimed to serve. *(effort: medium; one boot per arm.)*
+
+  *(family position — **new to the lane, and a sibling of the 35B-A3B, not of the 397B.** Repo-wide
+  `grep 122B` found **0 hits** before this item, so nothing in `recipes/ornith/` or `attic/ornith/`
+  mentions it and no lane item is duplicated here. It is the same `model_type: qwen3_5_moe` /
+  `Qwen3_5MoeForConditionalGeneration` family the 35B arm already ships (`recipes/ornith/README.md`
+  §ornith-1.5-35b-a3b-nvfp4-dflash2-sglang), at 48 layers instead of 40 and 256 experts top-8 instead
+  of the 35B's expert count, so **the 35B recipe is the template and its traps transfer** (honed vs
+  checkpoint template, `served_model_name` literal, `refs/main` seed for a pinned draft, qwen3
+  reasoning + qwen3_coder/qwen3_xml parsers).)*
+
+  *(what it is, read from the Hub API 2026-10-22 — base `ornith-ai/Ornith-1.5-122B`, `gated: false`,
+  `lastModified 2026-10-21T08:29Z`, 77 files. `config.json`: `model_type: qwen3_5_moe`,
+  `architectures: [Qwen3_5MoeForConditionalGeneration]`, `text_config` 48 layers =
+  **36 `linear_attention` (GDN) + 12 `full_attention`** (`full_attention_interval: 4`), hidden 3072,
+  32 q heads / **2 kv heads**, `head_dim` 256, 256 experts **top-8**, `moe_intermediate_size` 1024,
+  shared expert 1024, vocab 248320, `max_position_embeddings: 262144`,
+  `rope_parameters: {rope_type: default, rope_theta 1e7, partial_rotary_factor 0.25, mrope_section
+  [11,11,10], mrope_interleaved true}`, `mamba_ssm_dtype: float32`, `mtp_num_hidden_layers: 1`,
+  `tie_word_embeddings: false`, plus a `vision_config` (image-text-to-text like its siblings).
+  **Weights 250.17 GB / 233.0 GiB** over 62/62 safetensors shards; `safetensors.total` =
+  **125,086,497,008** params. **Active ≈ 8.85B/token** (derived, not published: 48 × [(8/256) ×
+  2.416 G expert params + 9.44 M shared + 0.79 M router] + 12 × 78.6 M full-attn + 36 × 62.9 M GDN
+  + 2 × 762.8 M embedding/lm_head) — 2.9× the 35B's ~3B, which is the whole speed question.
+  **No `auto_map`, no `*.py` in the tree**, so no custom code and `--trust-remote-code` is not
+  required (the card's `vllm serve` line carries it anyway; add it only if a boot demands it).)*
+
+  *(license — card field verbatim `license: mit`, and `license_link` points at
+  `…/blob/main/LICENSE` which **404s: there is no `LICENSE` file in the repo at all** (the tree lists
+  77 files, none of them a licence). Class: **permissive** (MIT, declared only on the card). The
+  family's other arms are MIT too and the lane carries no banner machinery — unlike the explore
+  lane's `qwen-image`/`ltx` arms — so no banner decision is needed here; the missing licence *text* is
+  worth a line in the lane doc, not a blocker. `unsloth/…-GGUF` inherits the same card
+  (`license: mit`), and the `incoai` draft below is its own `apache-2.0`.)*
+
+  *(chat template — **present twice, and it is a chat serve.** `chat_template.jinja` (7,593 B) in the
+  snapshot and an embedded copy in `tokenizer_config.json` (7,756 chars). It handles
+  `tools`/`tool_calls` in Qwen3 XML (`<tool_call><function=…><parameter=…>`) and the **thinking toggle
+  is `enable_thinking`**: `chat_template.jinja:145-146` writes an empty `<think>\n\n</think>` when
+  `enable_thinking is false`, otherwise opens ` thinking`. There is **no `reasoning_effort` parameter**
+  — thinking is on/off, not a budget. So the arm is a chat serve with `--reasoning-parser qwen3` +
+  `qwen3_xml` (vLLM) / `qwen3_coder` (SGLang), exactly the 35B wiring; `/v1/completions`-only is not
+  needed and a missing template is not a risk for this checkpoint.)*
+
+  *(quant census, 2026-10-22, from `?filter=base_model:quantized:ornith-ai/Ornith-1.5-122B`,
+  `?author=`, `?search=`, tree API + `usedStorage`; bpw = bytes × 8 ÷ 125.08e9. Ranked by fitness for
+  the stated purpose, not by bytes:)*
+
+  | tier | repo | bytes GB | bpw | engine | verdict |
+  |---|---|---|---|---|---|
+  | **vendor NVFP4** | `ornith-ai/Ornith-1.5-122B-NVFP4` @ `f049036f` | 77.63 (8/8 shards) | 4.96 | vLLM `cc47adc1`, SGLang `e3a4f060` | **primary draft** — vendor-made, modelopt `MIXED_PRECISION` with `ignore: ["mtp*"]` (so the MTP head ships *unquantised*), template present |
+  | **Unsloth UD-Q3_K_XL** | `unsloth/Ornith-1.5-122B-GGUF` @ `745bd742` | 59.76 (3/3) | 3.82 | llama.cpp `a37cc4610` | **secondary draft** — best fit/speed balance on the GGUF route |
+  | Unsloth UD-Q4_K_XL | same repo | 79.71 (3/3) | 5.10 | llama.cpp | accuracy control for the Q3 tier, slower |
+  | EXL3 4.19 bpw | `Mia-AiLab/Ornith-1.5-122B-EXL3-EAQv1-4-bpw` | 65.54 (9/9) | 4.19 | **none** | fits well, **no engine** (see gate) |
+  | EXL3 4.13 bpw | `0xBakeer/TandemLLM-…-EXL3-4.0` | 64.63 (9/9) | 4.13 | **none** | third party, 19 downloads, same engine gap |
+  | vendor FP8 | `ornith-ai/Ornith-1.5-122B-FP8` | 132.81 | 8.49 | vLLM/SGLang | **does not fit** (108.8 GB usable) |
+  | bf16 | `ornith-ai/Ornith-1.5-122B` | 250.17 | 16 | — | no |
+  | vendor GGUF tiers | `ornith-ai/Ornith-1.5-122B-GGUF` | BF16 249.4 / Q8_0 132.6 / Q6_K 102.4 / Q5_K_M 88.7 / **Q4_K_M 75.84** | 4.85 @Q4_K_M | llama.cpp | Q4_K_M is a fine fallback if the Unsloth tier misbehaves |
+  | sub-3-bit | `UD-Q2_K_XL` 44.53 / `UD-IQ2_XXS` 44.53→41.97 / MLX mixed-2bit 40.6 | 2.7–2.9 | llama.cpp / MLX | **excluded**: a 2.8 bpw reasoning-coder is a demo tier, and the lane's precedent says a faster quant is not a better arm |
+  | gated EXL3 | `vcruz305/…-EXL3-SAGE-2.58bpw` (45.13 GB, measured **2.887** bpw) | — | 2.89 | — | **gated (`manual`)**, so unreadable without an owner token, and sub-3-bit |
+  | MLX (all 19 repos) | e.g. `…-MLX-4bit` 68.71 / `…-MLX` 244.25 | — | — | MLX | **Apple-only**, out of scope |
+
+  *Absent, verified, not assumed:* no EXL2, no AWQ, no INT4-GPTQ (`gptq` appears only as a *tag* on an
+  NVFP4 repo), no Unsloth NVFP4/FP8/FastModel for this size, no vendor EXL3, and two `dealignai/
+  Ornith-1.5-122B-ABLITERATED-*` repos with `usedStorage: 0` (empty) plus a `scorpoon/…-exl3-SC`
+  whose HEAD holds only a README and PNGs. Third-party NVFP4 neighbours worth knowing:
+  `Sherlock-Comms/Ornith-1.5-122B-NVFP4-DFlash2-RTX-Spark` (78.75 GB, tagged `dgx-spark`/`gb10`, ships
+  a DFlash2 draft) and `dealignai/…-UNCENSORED-NVFP4` (77.55 GB) — fallbacks only, not candidates.)*
+
+  *(engine gate — verified against the pins in source, not memory. **SGLang `v0.5.22`: PRESENT**,
+  `python/sglang/srt/models/qwen3_5.py:2510` `class Qwen3_5MoeForConditionalGeneration` and
+  `:2942 EntryClass = [...]`; the registry file itself is a `pkgutil` scan (`registry.py:116-151`), not
+  a table, so a literal-grep there reads as "absent" and is wrong. **vLLM `v0.32.0`: PRESENT**,
+  `vllm/model_executor/models/registry.py:595-598` plus **`Qwen3_5MoeMTP` at `:697-698`** and the MoE
+  mixin in `models/qwen3_5.py:691`. **llama.cpp: PRESENT as `qwen35moe` at BOTH refs** —
+  `src/llama-arch.cpp:43-44` at `a37cc4610…` and `:41-42` at `b2e5e9b…`, converter
+  `conversion/qwen.py:734-737`; the 35B's own `b2e5e9b` image (`scitrera …b10549-cu131`) can
+  therefore load this GGUF, but **the lane's ref floor is `a37cc4610`** (below it the tree decodes
+  ~8 t/s), so the draft pins
+  `littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8…` and names the b2e5e9b
+  image as the faster-but-older A/B knob (−13–15 % on the ref era, same arch). **EXL3: NO ENGINE in
+  this registry.** `exllamav3` itself does support the arch — `architecture/qwen3_5.py:255`
+  `arch_string = "Qwen3_5MoeForConditionalGeneration"`, and `convert.py` needs no new code — but
+  nothing here runs it: the two EXL3 engines are (a) the retired vLLM `0.28.1rc1` `exl3a` image with
+  the `cuda-exl3` plugin baked in, built for DeepSeek-V4.1 (`attic/ds4/AGENTS.md:326-334`, tag-only, no
+  digest), and (b) **TensorFold**, `QUANT_METHODS = {"cuda": ("exl3",)}` and family-gated to
+  dsv41/glm/DSA (`attic/ds4/AGENTS.md:2065-2066`). Serving the 122B EXL3 quant needs a new
+  exllamav3-capable image plus a GB10/`sm_121` + aarch64 build that has never been verified here —
+  **the EXL3 route is a conversion-and-engine project, not a recipe**, which is why no EXL3 draft was
+  written.)*
+
+  *(single-node fit on GB10 — unified 128 GB, budget `0.85 × 128 = 108.8 GB`. **KV is cheap**: only 12
+  full-attention layers × 2 kv heads × 256 head_dim × 2 (K,V) = **12,288 B/token fp8 = 12.0 KiB**,
+  so a full 262,144 window is **3.0 GiB** (6.0 GiB bf16 KV) — the opposite of the ds4 constraint.
+  The real per-sequence cost is the **GDN recurrent state**: 36 layers × (64 v-heads × 128 × 128) ≈
+  **151 MB/seq at the checkpoint's `float32`** (75.5 MB bf16), i.e. ~4.8 GB at 32 sequences —
+  *ESTIMATE, and the engine's own `max_total_num_tokens` / `max_mamba_cache_size` grant is the truth*
+  (the YaRN arm's four launches on one node granted 69,281–1,203,041 tokens, so a starved boot is
+  indistinguishable from a failure). Weight headroom: NVFP4 77.63 GB → **31 GB left**; UD-Q3_K_XL
+  59.76 GB → **49 GB left**; UD-Q4_K_XL 79.71 GB → 29 GB; EXL3 4.19 65.54 GB → 43 GB; vendor FP8
+  132.81 GB → **−24 GB, does not fit**; bf16 250.17 GB → no.)*
+
+  *(speed expectation, stated before any measurement so the boot cannot rationalise it. Active
+  ~8.85B × bpw/8 bytes/token against NVIDIA's published 273 GB/s GB10 figure
+  (`attic/ifm/AGENTS.md:413`) gives a **ceiling** of ~62 t/s at 4.5 bpw, ~70 at 3.8 bpw, ~31 at
+  8.5 bpw — and the fleet's own analogue says the achieved fraction is far below the ceiling:
+  `Nemotron-3-Super-120B-A12B` NVFP4 (12.2B active, 67.2 GiB) measured **C1 15.83 t/s** on one node.
+  So a plain 4-bit 122B-A9B is expected in the **15–30 t/s** band, and **spec decode is the whole
+  case**: the 35B's DFlash2 lifts ~34 t/s of plain decode to ~100. Two drafter options need no new
+  weights for the first: the checkpoint's **own MTP head** (`mtp_num_hidden_layers: 1`, kept out of
+  NVFP4 by the export's `ignore: ["mtp*"]`, `Qwen3_5MoeMTP` in vLLM `:697`), then the third-party
+  **DFlash2** `incoai/Ornith-1.5-122B-DFlash2` (1.861 GB, `DFlash2DraftModel`, 6 layers,
+  `max_position_embeddings` 262,144, apache-2.0, tagged `sglang`/`dflash2`).)*
+
+  *(cost of replacement — the quartet's own cells, **historical, 2026-10-18**, SGLang knapcio TP=4,
+  `-1017` weights, `benchmarking/concurrency-ladder.yaml` d0 pp 2048 / tg 128, n=5, decode rows:
+  **C1 67.18 ± 6.97 · C2 89.9 · C5 113.4 · C10 115.4 t/s**, bench `bench_21011c740763`, receipt
+  `~/benchmarks/tp4-20261018/`. Per node that is **16.8 t/s at C1 and 28.9 at C10** — which is the bar
+  a single 122B node has to clear to be a like-for-like quarter. No d8192 C1 exists for that arm, and
+  no same-window re-take was run, so a head-to-head report must either re-take the quartet or label
+  the comparison historical.)*
+
+  *(pre-registered measurement — one boot per arm, receipts in `~/benchmarks/ornith-122b-20261022/`.
+  **Cell 1, contract:** TTR (port-open **and** HTTP-ready) then `GET /v1/models` must return
+  `ornith-ai/Ornith-1.5-122B-NVFP4` **with `max_model_len` 262,144** — a port answer is not readiness
+  (the ds4 readiness trap printed "HTTP-ready" from a foreign listener); capture the serve log's
+  `max_total_num_tokens`, `max_mamba_cache_size`, `max_running_requests` and the loaded-GB line.
+  **Cell 2, ladder:** `benchmarking/concurrency-ladder.yaml`, d0, pp 2048 / tg 128, c1/2/5/10, n=5,
+  decode rows read from `runs/*.json` (never the printed table). **Cell 3, quality:**
+  `tools/quality-battery.py` 37 items at **`--max-tokens 4096`**, thinking **ON** (the served default,
+  and the mode the number is quoted in) — plus one thinking-off control (`enable_thinking: false`),
+  because the lane measured 37/37 vs 30/37 across modes on a sibling and speed is mode-independent.
+  **Cell 4, spec decode:** re-run cells 2–3 with
+  `-o 'speculative_config={"method":"mtp","num_speculative_tokens":3}'` and gate on serve-log
+  `Mean acceptance length > 1`; if MTP misses, the DFlash2 alternative is the same one-knob shape with
+  `{"method":"dflash","num_speculative_tokens":4}` and the draft repo+revision inside the JSON.
+  **Falsifier (pre-registered, not re-cut after the numbers):** *if the best spec-decode arm's C1 is
+  below **17 t/s** — the quartet's C1 per node (67.18 ÷ 4) — then one 122B node does not replace a
+  quarter of the quartet for the easy half of the traffic, and the arm closes as a measured negative
+  with its ladder kept;* a house score below 36/37 is a demotion for cause, 36/37 is a tie-break and
+  not a gate (lane precedent).)*
+
+  *(drafts authored 2026-10-22, **DRAFT, never booted, not in the root `README.md` index**, both
+  `sparkrun recipe validate` clean **plain and `--strict`**:
+  `recipes/ornith/zz-ornith-1.5-122b-nvfp4-vllm.yaml` (primary; vLLM `cc47adc1`, TP=1, 262,144,
+  `modelopt` NVFP4 auto-detected, `moe_backend: marlin`, qwen3/qwen3_xml parsers) and
+  `recipes/ornith/zz-ornith-1.5-122b-ud-q3k-xl-llamacpp.yaml` (secondary; llama-server on
+  `a37cc4610`, `UD-Q3_K_XL`, 131,072 ctx, `--jinja`, `--no-mmap`). A boot must pass the **file path**,
+  never `@littlecedar/<name>` — the published registry lags the worktree (measured 2026-10-22 on the
+  ornith 35B arm).)*
+
+  *(open questions for the first boot, all decided by hardware, none by reading: does vLLM's
+  `modelopt_mixed` path accept this export's 349 quantized layers with `ignore: ["mtp*"]` (proven for
+  `NemotronH`, unproven for `qwen3_5_moe`); does the MTP head actually accept here (vLLM strips `mtp.`
+  from the target and serves it separately, `models/qwen3_5.py:322-323`); what the GDN state pool
+  grants at 32 sequences; and whether SGLang `v0.5.22` is the better engine for the same checkpoint,
+  since the 35B lane runs this family's NVFP4 on SGLang and the vLLM route has never carried a
+  `qwen3_5_moe` NVFP4 here.)*
+
 - [ ] **Build the top-ranked unbuilt reasoning candidates** — `Muse-Glimmer-30B` (rank 2; blocked on unmerged vLLM PR #51655); license/availability-blocked: MiniMax-M3 (non-commercial), MiMo-V2.6-Flash-RL (no quant), Inkling-Small (unpublished active params); plus `IFM/K2-Horizon-375B-A23B` (`mad-science/EXPLORE-CANDIDATES.md:16-57`; `attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Mistral-Small-4 is **not** unbuilt: it was measured-rejected at 28.9 t/s C1 and archived by the 2026-10-19 sweep — `attic/explore/ARMS-MANIFEST.md`.)* *(effort: long)*
   *(recheck 2026-10-21 on both names blocked on time-sensitive facts — **`Muse-Glimmer-30B` is UNBLOCKED and cheaper than the dossier assumed; `MiMo-V2.6-Flash-RL` changed its blocking reason but stays out of the 1-node brief.** Neither is authored; the owner queues it.*
   *Muse Glimmer: vLLM PR #51655 merged 2026-08-14 (merge commit `6adad087`), and support landed in **v0.28.0** — `registry.py:186` `MuseGlimmerForCausalLM`, `:534` the conditional-generation alias, and `:635-636` both the drafter and the `DFlash{MuseGlimmerAssistantModel}` key the `EAGLEConfig` rewrite needs. A GB10 (`sm_121`) datapoint in the PR thread boots it with `--max-num-batched-tokens 4096` and `TRITON_ATTN`. The cheaper route needs **no new image**: the lane's pinned **SGLang v0.5.21** already ships `srt/models/muse_glimmer.py`, its configs, processor, and function-call detector, plus `test/registered/spec/dflash/test_muse_glimmer_dflash_assistant_gsm8k.py`, and the third-party GB10 run used that shape (11.16 → 23.74 t/s single-stream with the drafter). Size arithmetic from Hub `blobs=true` sums, not estimates: `meta-models/Muse-Glimmer-30B` bf16 **55.5 GiB** (`7af58019`), `RadixArk/Muse-Glimmer-NVFP4` **18.3 GiB** (`1416629950`) — the dossier's "NVFP4 24.7 GB" is 34 % high — and the drafter `meta-models/Muse-Glimmer-30B-assistant` **4.8 GiB** (`c676cce9`), so 23.1 GiB of weights with ~95 GiB left on one node. Geometry from `text_config`: 52 layers, 2 KV heads × 128 head_dim = 1 KiB per layer per token at bf16, and 13 of the 52 layers are full-attention (the other 39 sliding at 2048), so ~13 KiB/token ⇒ **~50 concurrent 131k sequences** in that headroom. Apache-2.0, 128k window, tool calling via `--tool-call-parser muse_glimmer` plus `--reasoning-parser muse_glimmer` (the latter forces `skip_special_tokens=False`).*

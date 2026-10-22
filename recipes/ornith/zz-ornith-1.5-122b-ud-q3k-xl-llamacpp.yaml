@@ -1,0 +1,60 @@
+recipe_version: "2"
+# DRAFT (2026-10-22): authored from the Hub census, NEVER booted. Not in the root README
+# index and not claimed to serve. See mad-science/TODO.md §explore, item "Ornith-1.5-122B".
+model: unsloth/Ornith-1.5-122B-GGUF:UD-Q3_K_XL
+model_revision: 745bd742473a6cdddb1c6f78fb9a3b3a9293bd41
+# a37cc4610 is this lane's llama.cpp ref floor (house rule: below it the tree decodes ~8 t/s).
+# `qwen35moe` is registered at that ref — src/llama-arch.cpp:43-44, conversion/qwen.py:734-737.
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+runtime: llama-cpp
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT - unsloth/Ornith-1.5-122B-GGUF at the UD-Q3_K_XL dynamic tier (59.76 GB, 3.82 bit
+  per weight over 3 shards): the 122B-A9B MoE (qwen3_5_moe, 256 experts top-8, 36 GDN +
+  12 full-attention) served by llama-server on one DGX Spark, from the GGUF's own embedded
+  chat template (--jinja). Thinking is on by default and split into reasoning_content.
+  MIT.
+metadata:
+  model_url: https://huggingface.co/unsloth/Ornith-1.5-122B-GGUF
+  # Unsloth dynamic tier (3.82 bit/weight, mixed), labelled `int4` because the checker's
+  # recognized set has no dynamic-GGUF label and `int4` is the honest bit class.
+  model_dtype: int4
+  model_params: "122B"
+  kv_dtype: fp16
+  tags: ornith, reasoning, agent, tools, vision
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF shard, so the
+  # served id would be the cache path (-n hides this). --alias carries the client-visible id.
+  served_model_name: unsloth/Ornith-1.5-122B-GGUF
+  ctx_size: 131072
+  parallel: 8
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  --no-mmap
+  --no-webui
+  --cont-batching
