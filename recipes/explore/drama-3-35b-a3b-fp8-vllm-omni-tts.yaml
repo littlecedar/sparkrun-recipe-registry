@@ -7,9 +7,10 @@
 # Boot attempted on .NN 2026-10-22: the model LOADED on this pinned nightly
 # (FishOmniForConditionalGeneration + FishSpeechDACDecoder, 37.69 GiB, 242.84 s) and
 # then the stage-init deadline killed it 2 s after torch.compile finished, because
-# vllm-omni defaults `--stage-init-timeout 300` and load+compile is ~298 s cold.
-# Re-boot as-is for TTR evidence, or with `--stage-init-timeout 1800` for a servable
-# arm (the second boot reuses /cache/runtime/vllm/torch_compile_cache).
+# vllm-omni defaults `--stage-init-timeout 300` and cold load+compile is ~298 s, so the
+# recipe ships 1800 itself — boot it with no override. (For a pure TTR reading, pass
+# `-o stage_init_timeout=300` and expect the same death.) A second boot reuses
+# /cache/runtime/vllm/torch_compile_cache, so ~250 s is the floor, not ~10 min.
 recipe_version: "2"
 model: fishaudio/drama-3
 model_revision: b2b5ee998034b2975720906c815e7fb0e9f007bd
@@ -46,7 +47,7 @@ defaults:
   max_model_len: 3072
   max_num_seqs: 8
   mamba_ssm_cache_dtype: bfloat16
-  stage_init_timeout: 300
+  stage_init_timeout: 1800  # vllm-omni's 300 s default is a deadline for the load+compile budget, not a load time: 242.84 s of weights + 34.66 s of torch.compile overshot it by 2 s on 2026-10-22
   stage_overrides: '{"0": {"gpu_memory_utilization": 0.55}, "1": {"gpu_memory_utilization": 0.06}}'
 
 command: >
