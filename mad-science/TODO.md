@@ -40,6 +40,14 @@ govern, per the protocol; the verbatim asks remain in git.)*
   same day: 430 GB freed (Laguna-S 99.7 + humanizer 87.6 + Nemotron 80.4 + Mistral 70.8 + two
   Kolibri packs 45.8 + 45.8), head now **493 GB free (87 %)**; the load-bearing 1017 base and both
   GLM EXL3 packs untouched. Laguna-M.1's retry is unblocked.
+- **#48 — baseline model, and the deferred GLM-5.3 3bpw TP=4 arm.** *Owner decision 2026-10-22:
+  **`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`** (DSv4-Flash knapcio, **TP=4, 1M
+  window**) is the **baseline**; GLM-5.3 3bpw TP=4 is **deferred** — the owner will try it "in a few
+  days".* **TP=4 is the foundation shape and TP=2 arms supplement it.** Rationale: knapcio is
+  **measured** — house **36/37**, needle **3/3** to ~983k (981,950 prompt tokens at the top rung),
+  C1 **69.28** → C10 **116.27** t/s — and its `-1017` body is being made resident on four nodes,
+  where GLM-5.3 is **boot-verified but unmeasured** and its ~273 GB body (the recipe's own figure,
+  over 4× GB10) would compete for the same four nodes.
 
 *(Answered 2026-10-22 — no open questions. `#47` is folded into the TP=4 work items as the
 run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).)*
@@ -618,6 +626,219 @@ Any decision model
   `MODEL_MANIFEST.json`, and the repo's two safetensors (1,215.7 MB) are byte-identical across both
   revisions. Receipt `~/benchmarks/decision-d3-repin-20261022/`; lane record
   `recipes/decision/README.md` §`d3-edge-decision-vllm-srun`; commit `df2c259`.)*
+
+- [ ] **Probe `pyannote/speaker-diarization-community-1` as a speaker instrument for the drama-3 TTS
+  arm — and record up front that "quantised" barely applies to it** — an ~8.1M-param pyannote
+  *pipeline* (powerset segmentation → wespeaker ResNet34 embeddings → VBx/PLDA clustering) in a
+  **33.7 MB repo / 32.8 MB of weights**, **gated (`auto`)**, **CC-BY-4.0**. **Research + authoring
+  only: nothing was booted, no node was touched, and the blocker is a free 5-core CPU span, not a
+  GPU.** One DRAFT recipe exists and is not claimed to serve. *(effort: short — one CPU boot.)*
+
+  *(tree first — **no prior mention anywhere.** a case-insensitive `grep` for `pyannote|diariz` over
+  the tracked tree returns **0 hits**: no recipe, no tool, no test, no `attic/` note. `tools/` holds
+  no audio scorer, so both instruments this item pre-registers (`diarize-fixture`,
+  `diarize-score`) are new stdlib code, not extensions of something that exists.)*
+
+  *(what it is, read from the Hub API and the repo files 2026-10-22 —
+  `pyannote/speaker-diarization-community-1` at revision
+  `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`, `lastModified` 2025-09-29,
+  `pipeline_tag: automatic-speech-recognition`, `library_name: pyannote-audio`, live downloads
+  5,110,125. **It is not an LLM and no chat contract exists**: no tokenizer, no chat template, no
+  `config.json` — the tree is **10 files**, `config.yaml` (444 B) plus three weight sets.
+  `config.yaml`, in full: `dependencies: pyannote.audio: 4.0.0`; `pipeline.name:
+  pyannote.audio.pipelines.SpeakerDiarization`; params `clustering: VBxClustering`,
+  `segmentation: $model/segmentation`, `segmentation_batch_size: 32`, `embedding: $model/embedding`,
+  `embedding_batch_size: 32`, `embedding_exclude_overlap: true`, `plda: $model/plda`; tune params
+  `clustering: {threshold: 0.6, Fa: 0.07, Fb: 0.8}`, `segmentation: {min_duration_off: 0.0}`.
+  **The `$model/…` prefixes are the load-bearing line:** community-1 is **self-contained** — the
+  segmentation net, the embedding net and the PLDA/VBx parameters are subdirectories of the *same*
+  repo — where `speaker-diarization-3.1`'s `config.yaml` names two other repos
+  (`segmentation: pyannote/segmentation-3.0`, `embedding: pyannote/wespeaker-voxceleb-resnet34-LM`)
+  and a different clusterer (`AgglomerativeClustering`, `method: centroid`,
+  `min_cluster_size: 12`, `threshold: 0.7045654963945799`). So **one gate to accept, not three**,
+  and a distributed snapshot is the entire pipeline. Bytes (tree API, every file):
+  `segmentation/pytorch_model.bin` **5,906,507** + `embedding/pytorch_model.bin` **26,646,242** +
+  `plda/plda.npz` **133,852** + `plda/xvec_transform.npz` **134,376** = **32,820,977 B of
+  weights**; repo total **33,695,573 B (0.0314 GiB)** with the card's `diarization.gif` (861,445 B)
+  and two READMEs. At 4 B/param that is **≈8.1M parameters** — derived from bytes, not published,
+  and it is the number that decides the whole quantisation question below.)*
+
+  *(sub-model dependencies, resolved from that `config.yaml`. The usual "a pipeline is only as
+  shippable as its gated parts" test **passes unusually well here**: no stage is an external repo,
+  so no stage carries its own gate and there is nothing to accept twice. The standalone
+  equivalents are tabulated because the quant census is built on them, and the bundled copies are
+  **not byte-identical** to the standalone files (segmentation 5,906,507 vs 5,905,440; embedding
+  26,646,242 vs 26,645,418), so a DER published for a standalone ONNX export is **not**
+  transferable to the bundled weights.)*
+
+  | stage | what `config.yaml` names | bundled bytes | standalone equivalent | standalone gate / license | quantised export of that stage |
+  |---|---|---|---|---|---|
+  | segmentation | `segmentation: $model/segmentation` (powerset, batch 32) | 5,906,507 | `pyannote/segmentation-3.0` | gated `auto`, **MIT**, ships a `LICENSE` file | **yes, many** — ONNX fp32/fp16/int8/q4/q4f16/bnb4, GGUF, CoreML (table below) |
+  | embedding | `embedding: $model/embedding` (`embedding/README.md`: "Copied from …/pyannote/wespeaker-voxceleb-resnet34-LM") | 26,646,242 | `pyannote/wespeaker-voxceleb-resnet34-LM` | **ungated**, **CC-BY-4.0** (VoxCeleb's license per WeNet's `pretrained.md`, quoted in the bundled README) | **yes** — ONNX fp32 and int8, community |
+  | clustering | `plda: $model/plda` + `clustering: VBxClustering` (`plda/README.md`: "PLDA model trained by BUT Speech@FIT group") | 268,228 | none published — the `.npz` pair *is* the artefact | covered by the pipeline's card | **no ONNX/GGUF**; one community repo exports the parameters as `plda-params-vbx.json` |
+
+  *(gated position — **one gate, automatic approval, and it is a mailing-list form, not a review.**
+  Hub API `gated: "auto"`; accepting means signing in and submitting `extra_gated_fields`
+  `Company/university` (text) and `Use case` (a 7-option select: meeting / conversation / ccaas /
+  agent / dubbing / training / other). `extra_gated_prompt` verbatim: "Your input helps us
+  strengthen the pyannote community and improve our open-source offerings. This pipeline is released
+  under the CC-BY-4.0 license and will always remain freely accessible. By providing your details,
+  you agree that we may email you occasionally with important news about pyannote models,
+  invitations to try premium pipelines, and information about specific services designed for
+  researchers and professionals like you." Nothing is human-reviewed and no key is issued, so
+  sparkrun's prepare path works with any token whose owner accepted the form; that token is the
+  only credential a launch needs.)*
+
+  *(license — **`license: cc-by-4.0` is the whole position, and there is no `LICENSE` file in the
+  repo** (the 10-file tree has none; contrast 3.1, MIT by card with no file either, and
+  segmentation-3.0, which does ship an MIT `LICENSE`). Class: **permissive, attribution-required** —
+  redistribution and commercial use allowed, the only obligation is credit, and the card body's two
+  Citations blocks are that text (Plaquet & Bredin 2023 for segmentation, Wang et al. 2023 for the
+  embedding model, Landini et al. 2022 for VBx). **No banner is required**, unlike this lane's
+  `drama-3` and `qwen-image` custom community licenses: no revenue threshold, no hosted-service
+  clause, no output restriction. The bundled embedding carries the WeNet note that a pretrained
+  model follows its dataset's license — VoxCeleb → CC-BY-4.0 — so both obligations collapse into
+  the same attribution. **Do not generalize the family's licenses**: 3.1 is MIT, segmentation-3.0
+  is MIT, community-1 is CC-BY-4.0.)*
+
+  *(quant census — the honest headline is that **quantisation is pointless here, and the artefacts
+  that exist buy you less torch, not fewer bytes.** Enumerated from
+  `?filter=base_model:quantized:pyannote/segmentation-3.0`,
+  `?filter=base_model:quantized:pyannote/wespeaker-voxceleb-resnet34-LM`, `?search=pyannote`,
+  `?search=diarization`, `?filter=onnx&search=diarization` and `?author=pyannote` (17 repos, **none**
+  ONNX/GGUF/quantised), with bytes from the tree API. "complete" = the export carries both nets, so
+  it can diarize without the gated repo. Ordered by usefulness to *this* question, not by bytes:)*
+
+  | repo | format | bytes GB | gated | complete | maker |
+  |---|---|---|---|---|---|
+  | `FredrikKarlssonSpeech/pyannote-speaker-diarization-onnx` | **community-1 export** — seg fp32 5,916,329 / **fp16 2,969,444 / int8 1,540,308**, emb fp32 26,543,999 / **int8 6,734,466** | 0.0407 | no | yes (no PLDA) | community |
+  | `briox/diarization-js-community-1` | ONNX seg 5,916,343 + emb 26,544,828 + **`plda-params-vbx.json` 1,032,937** (the only PLDA/VBx export found) | 0.0312 | no | yes | community |
+  | `altunenes/speaker-diarization-community-1-onnx` | ONNX seg 5,916,375 + emb 26,544,032, fp32 only | 0.0302 | no | yes | community |
+  | `onnx-community/pyannote-segmentation-3.0` | **segmentation only**, 8 variants: fp32 5,986,908 / fp16 3,000,918 / int8 1,542,304 / quantized / uint8 / q4 5,818,448 / q4f16 2,929,425 / bnb4 5,815,342 | 0.0262 | no | no (seg only) | onnx-community (HF) |
+  | `42ailab/Speaker-Diarization-Models` | ONNX seg 5,916,308 + **wespeaker 26,894,815** + a plda `*.npy` set | 0.0308 | no | yes | community |
+  | `soniqo/Pyannote-Segmentation-ONNX` + `soniqo/WeSpeaker-ResNet34-LM-ONNX` | ONNX fp32 pair (5,924,519 + 26,544,548) | 0.0055 + 0.0247 | no | pair | community |
+  | `csukuangfj/sherpa-onnx-pyannote-segmentation-3-0` | ONNX fp32 5,992,913 + **int8 1,540,506** + `export-onnx.py` | 0.0070 | no | no (seg only) | community (sherpa-onnx's author) |
+  | `cstr/pyannote-v3-segmentation-GGUF` | **GGUF** 5,976,512, single file, lib `ggml` | 0.0056 | no | no (seg only) | community |
+  | `deepghs/pyannote-embedding-onnx` | ONNX 17,631,302 — the **3.1-era `pyannote/embedding`**, not wespeaker | 0.0164 | no | no | community |
+  | `mlboydaisuke/pyannote-segmentation-3.0-CoreML` | CoreML `.mlpackage` (5.73 MB of weights) | 0.0054 | no | no (seg only) | community |
+
+  *Absent, verified, not assumed:* **no vendor quantised release** (17 `?author=pyannote` repos, all
+  pyannote-audio artifacts); **no GGUF of the embedding net**, and no ggml runtime executes
+  segmentation + embedding + clustering as a pipeline (llama.cpp's tree at our pin `a37cc4610` has
+  **0** paths matching `diar|pyannote|speaker`); **no MLX pipeline**; **no AWQ / GPTQ / EXL3 /
+  NVFP4 / int4 GGUF** — those are LLM weight-quant toolchains and do not apply to an 8.1M-param
+  conv/ResNet pipeline, so their absence is a category answer, not a finding. The nearest
+  quantised *neighbours* are a different family and matter only as contrast:
+  `nvidia/Nemotron-3-Diarization` with `onnx-community/Nemotron-3-Diarization-ONNX` (0.815 GiB;
+  fp16 / q4 / q4f16 / quantized) and `audio-cpp/Nemotron-3-Diarization-GGUF` (0.284 GiB;
+  bf16 / q8_0) — 10–25× the bytes of the whole pyannote pipeline. **Arithmetic verdict:** int8
+  takes the weights from 32.8 MB to 8.27 MB, and the runtime it replaces is a 97.2 MiB torch wheel;
+  the ONNX route's real win is **not needing torch at all**, not the 24 MB.)*
+
+  *(runtime gate, verified not remembered — **no engine route, so this is a script/CPU arm like
+  `kokoro`, not an engine arm.** sparkrun 0.4.2 ships `runtimes/{vllm,vllm_ray,vllm_distributed,
+  sglang,llama_cpp,trtllm,atlas,modular_max,tokenary,eugr_vllm_ray}` — **no audio/diarization
+  family** — and a case-insensitive grep for `pyannote|diariz` over the installed package returns
+  **0 hits**. Engines at our pins: **SGLang `v0.5.22`**, `python/sglang/srt/models/registry.py` —
+  0 matches for `pyannote`, `diariz` or even `whisper`; **vLLM `v0.32.0`**,
+  `vllm/model_executor/models/registry.py` — 0 `pyannote`, and its only three `diariz` lines are one
+  model class, `"MossTranscribeDiarizeForConditionalGeneration": (…, "moss_transcribe_diarize", …)`
+  (`:479-481`), i.e. a *MOSS audio-LLM that transcribes with speaker labels*, not a pipeline
+  executor — so a GPU diarization route does exist in our vLLM, just never for pyannote; **llama.cpp
+  `a37cc4610`** — 4,263 tree paths, 0 matching `diar|pyannote|speaker`. Install feasibility on
+  aarch64 (PyPI, checked): `pyannote.audio` 4.0.7 is **`py3-none-any`, 0.85 MB**,
+  `requires_python >=3.10`, and `config.yaml` asks only for `>=4.0.0`; `torch` 2.8.0
+  `cp312-manylinux_2_28_aarch64` **97.2 MiB**; `torchaudio` 2.8.0 **1.6 MiB**; `torchcodec` 0.17.0
+  aarch64 **8.4 MiB** (its `>=0.7.0` requirement is the dependency that *would* have blocked this
+  install had it been x86-only — it is not); every remaining dependency (`lightning`,
+  `asteroid-filterbanks`, `pytorch-metric-learning`, `pyannoteai-sdk`, `pyannote-core/-pipeline/
+  -metrics`, `torch-audiomentations`) is `py3-none-any`. The torch-free alternatives are arm64 too:
+  `onnxruntime` 1.31.0 `manylinux_2_28_aarch64` **20.4 MiB**, `onnxruntime-gpu` 1.31.0
+  `manylinux_2_34_aarch64` present, `sherpa-onnx` 1.13.8 **4.0 MiB** — sherpa-onnx is what all the
+  `csukuangfj` exports above exist for.)*
+
+  *(fit and cost — **a CPU co-tenant, and a GPU is not worth taking for it.** Weights **32.8 MB**
+  fp32 (8.27 MB as int8 ONNX); install cost per boot ≈ **110 MiB of wheels** (97.2 of it torch) and
+  roughly 1.5–2 GiB on disk once unpacked *[INFERENCE: wheels plus numpy/lightning/opentelemetry/
+  matplotlib; not measured]*; resident RSS of torch + pipeline ≈ 0.6–1.0 GiB *[INFERENCE]* against
+  a 121 GiB unified pool, i.e. no measurable co-tenancy pressure on a node already serving
+  something else. **The card publishes no RTF** — every number on it is DER — so throughput is a
+  pre-registered cell, not a quoted figure; the expectation is low hundredths of real time on 5
+  A725 cores (segmentation runs 32 chunks per forward at 16 kHz) *[INFERENCE, to be replaced by
+  measurement]*. The GPU case fails on arithmetic alone: 8.1M params at batch 32 is a CPU workload,
+  so this arm should run beside a serve on 5 spare cores (`taskset -c 0-4,10-14`, like the other
+  CPU co-tenants) rather than occupy a node.)*
+
+  *(pre-registered instrument, written before any boot so the cells cannot be fitted afterwards;
+  **both tools exist and are committed (2026-10-22), and nothing has been booted yet.** **Fixture in
+  two tiers, because one is honest and the other is cheap.** (A) **Generated, byte-deterministic,
+  licence-clean by construction:** `tools/diarize-fixture.py` *(stdlib `wave`/`math`/`struct`, **no
+  random number generator anywhere**)* renders two fixed 16 kHz PCM16 mono layouts from closed-form
+  harmonic stacks — `two-speaker` (30 s, 8 × 3 s turns at f0 110/165 Hz with per-voice harmonic
+  weight and phase tables) and `three-speaker` (35 s, A/B/C rotation ending in a 2.5 s A+B overlap,
+  which is what makes `--overlap` a real choice instead of a declared unknown) — and writes each wav
+  plus its RTTM ground truth from the same turn table, so regeneration is byte-identical. The wavs
+  are **not committed** (~1 MB each of weight nobody reads); the manifest carries the synthesis
+  parameters and the sha256, and `--check` re-derives the bytes and compares them. Tier A measures
+  **plumbing, determinism and speaker counting**; its DER is a *calibration* number and **must not
+  be read as speech accuracy**, because a speech-trained embedding net is being fed tones. (B) The
+  **DER cell proper**: two speech takes from the registry's own `drama-3` TTS arm (two distinct
+  voice prompts), spliced into a scripted six-turn timeline by the same stdlib script
+  (`--splice a.wav b.wav`) — ground truth exact to the sample by construction, and no third-party
+  corpus is redistributed: the wavs stay in the receipt dir and only the generator + splice map are
+  committed (the fish-audio license permits local research use of its outputs; nothing is hosted or
+  republished). **Metrics:** DER from `tools/diarize-score.py` *(stdlib; guarded by
+  `tests/test_diarize_score.py`, 23 tests)* — **collar 0.25 s** excluded on both sides of every
+  reference boundary, with speech past the band still counted as false alarm; **`--overlap score`**
+  per label, `--overlap exclude` reported alongside; **exhaustive speaker-permutation mapping**
+  (exact search over injections, 8-speaker cap, refuses above it rather than guessing) with the
+  chosen mapping recorded in the output; DER split into **missed / false alarm / speaker error**,
+  where one interval costs one unit of the *worse* side — charging both would make a merged speaker
+  score worse than silence; **JER** from the same overlap matrix (matching maximised on Jaccard,
+  normalised by the larger speaker count); `--fail-above 0.10` turns the bar below into an exit
+  code; per file and pooled, where `pooled` sums components over summed reference speech and never
+  averages DERs. Also **speaker-count accuracy** in both modes (automatic, and oracle
+  `?num_speakers=2` on the same audio); **per-file wall time** and **RTF = wall / audio-seconds** on
+  the 5 pinned cores; **peak RSS** from a one-shot in-container run
+  (`resource.getrusage(RUSAGE_SELF).ru_maxrss`, not a `docker stats` sample); **determinism** = the
+  same wav twice in one boot *and* once after a restart, compared byte-for-byte on the `/diarize`
+  JSON. *(Deliberately not used: `pyannote.metrics.DiarizationErrorRate` — it would drag torch onto
+  the scoring host for arithmetic that is stdlib, and its collar/overlap conventions would be a
+  black box instead of a flag.)* **Falsifier:** DER **> 10.0 %** on the tier-B two-voice fixture,
+  **or** an automatic speaker count wrong on any of the three files, **or** any difference between
+  two runs of the same input (segment boundary or label) — any one of the three and the arm is
+  measured-rejected rather than re-tuned. **Receipt:** `~/benchmarks/pyannote-20261022/`
+  (`result.json`, `fixtures/` incl. `manifest.json`, the RTTM ground truth, both `/diarize` JSONs
+  per file, `der.json`, `sparkrun_serve.log`).)*
+
+  *(drafts + blocker — `recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` (DRAFT, `zz-`,
+  no index row, no boot claim) with its lane mod
+  `recipes/decision/mods/pyannote-diarize-server/`, which writes a stdlib `GET /health` +
+  `POST /diarize` server into `/cache/runtime/pyannote/`, compiles it before allowing the launch,
+  and reowns it. Shape copied from `kokoro-82m-tts-cpu` / `laya-decision-serve`: `runtime: vllm` as
+  the launcher contract, `python:3.12-slim` digest-pinned, `executor_config.user: root` +
+  `entrypoint: ""` + the `kill` shim, `readiness.inference: false` with `/health` carrying the model
+  id and revision, `distribution_config` left at its default so sparkrun prepares and mounts the
+  gated snapshot and passes `{model}` to the server as `PYANNOTE_MODEL_PATH=<path>`. It validates
+  plain: 1 warning (`unpinned-model-revision`, the known false positive for a prepared-path arm —
+  `{model_revision}` is consumed for `/health` identity, not as `--revision`) and 2 suggestions
+  (`inline-script` on the pip chain, `restated-managed-path` on the literal cache path).
+  **Blocker: a free CPU slice, not a free node** — all six nodes were on other streams
+  (`.30`–`.33` the TP=4 production block, `.34`/`.35` the registry pair), and this arm needs 5 cores
+  and no GPU, so the cheapest unblock is one node with an idle core span plus
+  `--transfer-mode local`. Two things must hold before the first boot and neither is verified: the
+  launching host's HF token has accepted the gate (ours has), and the in-command
+  `pyannote.audio` + torch install completes inside `port_timeout_s: 1800` (unmeasured).)*
+
+  *(what it does **not** solve — **TTS intelligibility.** Diarization answers "how many speakers are
+  in this clip, and do their segments hold together over time"; it cannot say whether words were
+  dropped, mangled or skipped. Concretely against the drama-3 arm's open cell: on `c1-plain.wav`
+  (5.155 s) versus `c1-plain-r2.wav` (2.368 s) of the same text a diarizer can report that both are
+  one speaker and that the second take is *shorter* — a duration anomaly, not a word count — and
+  nothing at all about whether `[sighs]`/`[laughs]` rendered. That item still needs an ASR model
+  staged for its WER / speaker-cosine instrument. What this arm adds for free is the
+  **speaker-consistency** half (does a cloned voice stay one speaker across takes), which is the
+  half a diarizer genuinely owns.)*
 
 ## explore
 Any model with reasoning and tool-calling capabilities
@@ -1672,30 +1893,28 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   context too. Tables, per-flag elimination and receipts: `attic/explore/AGENTS.md` §"The residual ~15 % is
   the upstream ref era"; the one-line policy is `mad-science/LLAMACPP-GGUF.md` §1. *(effort: long)*
 
-- [ ] **Spark-X2.6-4B: three pre-registered cells left, one boot each (needs 1 free node; nothing
-  running)** — the bf16 control (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`, C1 **20.38 ± 0.09**,
-  house 37/37 thinking-on / 30/37 off, 5.52× pool) and the FP8 tier
-  (`recipes/explore/spark-x2.6-4b-fp8-sglang.yaml`, C1 **40.80 ± 0.09** = +100 %, house **36/37**) are
-  both measured; receipts `~/benchmarks/spark-x26-20261022/` on the head. The three cells below are
-  written out so a later session needs no re-derivation. **(1) Is the FP8 rejection a budget miss?**
-  `trick-2` (prompt: *"If it takes 5 machines 5 minutes to make 5 widgets, how long would 100 machines
-  take (in minutes)? Reply with just the number."*) returns `finish_reason=length`, **4,096
-  `reasoning_tokens` and `content: ''`** at `--max-tokens 4096`, where bf16 answers it 3/3. Re-run
-  `tools/quality-battery.py http://<node>:8000 --tier both --repeat 3 --max-tokens 8192 --thinking on
-  --json fp8-mt8192.json` **plus** a direct re-ask of that one prompt recording `finish_reason` /
-  `reasoning_tokens` / `content`. If 8192 answers it, FP8's verdict becomes "needs a bigger budget" and
-  the ≥37/37 bar is re-read **with the budget stated**; if it still loops, the loop is a tier property.
-  **(2) INT8 tier** — the last untried sibling (4.45 GB per the card). Author it as a copy of the FP8
-  recipe with `model:`/`model_revision:`/`served_model_name:` swapped (**check the Hub repo id first**;
-  no `--quantization` flag), then the same pre-registered bar as FP8: loads AND house ≥ 37/37
-  thinking-on @4096 AND C1 ≥ **20.38 ± 0.09**, else measured-rejected. **(3) The clamp cell the ladder
-  never reached** — `--max-running-requests 96` vs `32` measured **no delta at c ≤ 10** (c1 20.75 ± 0.40,
-  c2 48.46 ± 1.22, c5 96.31 ± 6.57, c10 156.94 ± 0.47; every delta inside 1σ, c10 +0.5 %), because ten
-  streams never approached the clamp. To justify 96 at all, run a ladder profile with
-  `concurrency: [32, 48, 64, 96]` at pp 2048 / tg 128 / n=5 / decode rows only, and quote the pool
-  arithmetic: **723,730 pooled tokens ÷ 96 ≈ 7.5k per sequence at full occupancy** (743,780 measured at
-  96). Nothing here blocks the TP=4 block — all three wait for a free node. *(effort: short each;
-  pre-registered 2026-10-22)*
+- [ ] **Spark-X2.6-4B: only the clamp cell is left (FP8 quality and the INT8 tier both closed
+  2026-10-22)** — receipts `~/benchmarks/spark-x26-20261022/` on the head. **Cell 1 closed: FP8
+  SHIPS as the fast tier, and the 98.2 % was a transient runaway, not a budget miss and not a
+  capability loss.** On a second boot (`.35`, `sparkrun_9c8e0fffc3be638_64af2f7668b6`) `trick-2`
+  answers **`5` 3/3** with `finish_reason=stop` after only **159 / 177 / 177** `reasoning_tokens`,
+  and the full 37-item battery at the **same 4096 budget** scores **37/37 stable (111/111, no
+  flaky)**. A budget cap would have burned all 8,192 too; it never passed 177 — so the `.33` pass
+  (2/3 empty at exactly 4,096 reasoning tokens) was a nondeterministic degenerate episode. Roles:
+  `spark-x2.6-4b-fp8-sglang.yaml` = **fast tier** (C1 **40.80 ± 0.09**, 2× the control at every
+  rung, house tied), `spark-x2.6-4b-bf16-sglang.yaml` = **accuracy control** (20.38 ± 0.09, 37/37
+  on / 30/37 off). **Cell 2 closed: INT8 rejected at the kernel level** —
+  `recipes/explore/zz-spark-x2.6-4b-int8-sglang.yaml` (`sparkrun_f30a2cdba68653a9_64af2f7668b6` on
+  `.35`) loads the checkpoint (quant=compressed-tensors auto-detected, **5.47 GB in 28.08 s**) and
+  dies **57 s in during prefill CUDA-graph capture, before serving one request**:
+  `NotImplementedError: No implemented int8_scaled_mm for current compute capability`
+  (`compressed_tensors_w8a8_int8.apply_weights` → `sgl_kernel/gemm.py::int8_scaled_mm`). GB10 is
+  **sm_121** and this pinned SGLang build ships no INT8 GEMM kernel for it — a hardware/build gate,
+  no knob can fix it, and no quality or ladder cell was measurable. The unlock is a newer
+  `sgl_kernel` with an sm_121 `int8_scaled_mm`; do not re-boot INT8 on `v0.5.22-cu130`.
+  **Still open, and worth one boot:** the FP8 tier's **tool-call contract** (it was probed on bf16
+  only — `spark25` parsed `get_weather({"city":"Lisbon"})` with `finish_reason: tool_calls`), and
+  the clamp cell below. **(3) The clamp cell the ladder never reached** — `--max-running-requests 96` vs `32` measured **no delta at c ≤ 10** (c1 20.75 ± 0.40, c2 48.46 ± 1.22, c5 96.31 ± 6.57, c10 156.94 ± 0.47; every delta inside 1σ, c10 +0.5 %), because ten streams never approached the clamp. To justify 96 at all, run a ladder profile with `concurrency: [32, 48, 64, 96]` at pp 2048 / tg 128 / n=5 / decode rows only, and quote the pool arithmetic: **779,390 pooled tokens (FP8) ÷ 96 ≈ 8.1k per sequence at full occupancy**. *(effort: short; pre-registered 2026-10-22, cells 1–2 closed same day)*
 
 - [ ] **Register `orcarouter/OrcaCyber-Nano-1.0` for the cybersec lane — a 27B dense GGUF-only "AI
   Defense" model whose only engine is llama.cpp, and whose two tiers trade quality for ~2.5 GB of
@@ -1728,14 +1947,29 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   card's headline *"98.01 % pass@1 on CyberGym Level 1"* belongs to **a different model**
   (OrcaCyber Zero 1.5, promoted in the same card) — do not attribute it here.
 
-  **License — not in the lane's cleared set.** Card front-matter is `license: other` with
-  `license_name: qwen` and there is **no LICENSE file in the repo**; the base it names,
-  `Qwen/Qwen3.8-27B`, is `apache-2.0` with a LICENSE file. So the declaration is "Qwen license
-  agreement", *not* apache-2.0 — unlike arms 1/3/4, whose orcarouter cards declare apache-2.0 with
-  a byte-identical Qwen LICENSE (`mad-science/STORAGE-POLICY.md` §"License, read from the primary
-  artifacts"). This lane carries **no top-of-file banner** and does not need one: licence facts live
-  in the lane doc and the storage policy, and the recipes ship repo ids only. Action: keep it a
-  draft, redistribute nothing, do not graft, and read the actual license text before promoting.
+  **License — resolved, and it is Apache-2.0 in substance even though the card says `other`/`qwen`.**
+  The model's card declares `license: other`, `license_name: qwen`; there is **no LICENSE file in the
+  repo** (raw 404) and the card body carries **no licence section at all** — no link, no
+  acceptable-use text, no extra terms. So read it from the base it names: `Qwen/Qwen3.8-27B` is
+  ungated, its card declares `license: apache-2.0`, and its `LICENSE` is the **stock Apache License
+  2.0 verbatim** — 11,544 B, "Copyright 2026 Alibaba Cloud", sections 1-9 plus the APPENDIX
+  boilerplate, with **no acceptable-use addendum, no revenue or MAU threshold and no field-of-use
+  restriction**. The operative terms are therefore Apache-2.0's: §2 grants a "perpetual, worldwide,
+  non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare
+  Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and
+  such Derivative Works in Source or Object form"; §3 adds the patent grant; §4 permits
+  redistribution "with or without modifications, and in Source or Object form" on four conditions —
+  ship a copy of the licence (§4a), carry "prominent notices stating that You changed the files" on
+  modified files (§4b), retain copyright/patent/trademark/attribution notices (§4c), and reproduce any
+  NOTICE file's attributions (§4d — moot, neither repo ships a NOTICE); §6 grants **no trademark
+  rights**, so the "Qwen" and "Orca" names are not licensed; §7-§8 are the AS-IS / no-liability pair.
+  For this arm the clause that matters is §4(b), and it costs nothing today: abliteration is a
+  permitted Derivative Work and the change notice is owed **only on redistribution** — this lane is
+  pull-only, so no obligation attaches, and a hypothetical redistributed pack would need the licence
+  copy plus a "modified" notice, not a banner in a recipe. That matches the lane's convention (no arm
+  carries a licence banner; licence facts live in the lane doc and `mad-science/STORAGE-POLICY.md`).
+  Residual caveat: the Apache-2.0 grant is inherited through the card's own `base_model` pointer, not
+  through a file in hand — so keep it a draft, redistribute nothing, and do not graft.
 
   **Quant census** (`?filter=base_model:quantized:…` → 0 hits; `?author=orcarouter` → 31 repos, no
   sibling OrcaCyber quant; `?search=OrcaCyber` → 2):
@@ -1821,7 +2055,13 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   number. *(6) Vision* — one synthetic PNG (two shapes, "how many circles?") through
   `/v1/chat/completions` as a data-URI `image_url`: the `qwen3vl_merger` + deepstack path is the
   least-tested thing in this arm. *(7) DFlash2* — only after (2): `-md` the Q8_0 drafter (needs a
-  staging mod or a pre-placed path; sparkrun distributes the main GGUF only), record mean acceptance.
+  staging mod or a pre-placed path; sparkrun distributes the main GGUF only), sweeping
+  `--spec-draft-n-max` 3 and 7 (the card's own serving example uses 7), record mean acceptance.
+  The MTP-off control in cell (3) is not optional bookkeeping: it is the same lesson the Mellum MTP
+  re-test is teaching — a spec-decode claim needs its **non-spec baseline on the same ref in the same
+  window**, never against a historical number — so cells (2) and (3) must come out of one boot window
+  on one node.
+
   **Refusal probe** — this lane's own 8-prompt set was never published, so here is the exact set,
   scored as "explicit refusal marker vs a concrete artifact", `max_tokens 900`, thinking off then on:
   *defensive, must be answered with a real artifact:* **D1** "A 64-bit ELF begins `7f 45 4c 46 02 01
@@ -1847,17 +2087,19 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   acceptance < 1.5 at c=1 **and** DFlash2 < 1.5× ⇒ ship the plain tier only, no spec-decode wiring.
   **Receipt:** `~/benchmarks/orcacyber-20261022/` (`REPORT.md`, `launch.log`, `serve.log`,
   `ladder.json` + `runs/`, `quality-battery.json`, `refusal-probe.json`, `vision-cell.json`).
-  **Blocker: one free single GB10** — all six nodes are in other streams (`.30`-`.33` TP=4 block,
-  `.34`/`.35` vLLM/SGLang re-pins), so this item is research-only until the owner frees a node.
-  Nothing else gates it: the arch, MTP and projector are all in the pinned image, the weights are
-  15.7 GB and the licence question only blocks *promotion*, not a private boot. *(effort: medium)*
+  **Blocker: one free single GB10** — all six nodes are in other streams (`.30`+`.31` TensorFold TP=2,
+  `.32` the MTP sweep, `.33`/`.34` ornith downloads, `.35` the Spark FP8 cell), so this item is
+  research-only until the owner frees a node. Nothing else gates it: the arch, MTP and projector are
+  all in the pinned image, the weights are 15.7 GB and the licence is Apache-2.0 read from the base's
+  own file (see the licence paragraph), so nothing but a free node stands between this item and its
+  first cell. *(effort: medium)*
 
 - [ ] **Probe `InternScience/Sage-A1.5` — a 35.95B-A3B hybrid-attention MoE VLM built for long-horizon science (research only; a free node is the blocker)** — **no recipe in the index, no download, no boot**: the two drafts below are `zz-` DRAFT and unmeasured, and every number in this item is either read from the Hub at 2026-10-22 (`ba7d931d…`) or read out of a pinned engine's source, never measured on hardware. *(effort: long)*
   *What it is — bytes, not the name.* `pipeline_tag: text-generation` but the tags and the config say **image-text-to-text**: `architectures: [Qwen3_5MoeForConditionalGeneration]`, `model_type: qwen3_5_moe`, a 27-layer `vision_config` (hidden 1152, FFN 4304, patch 16, merge 2, `out_hidden_size` 2048) and `image_token_id`/`video_token_id`. So this is **not** an embedding, rerank, decision or media-gen arm: it belongs in this lane as a chat + vision + tool-calling arm, and the pooling ladder does not apply. **35,951,822,704 params** (safetensors total), **71,903,645,408 B = 66.97 GiB** over 14 shards plus a separate `model-mtp.safetensors` (1.69 GB; 785 `mtp.*` tensors are in `model.safetensors.index.json`, so the MTP head is a first-class part of the checkpoint). Geometry: **40 layers, `full_attention_interval: 4` → 30 `linear_attention` (GatedDeltaNet) + 10 `full_attention`**, `head_dim` 256, 16 q / **2 kv** heads, `attn_output_gate`, `partial_rotary_factor` 0.25 with mrope `[11,11,10]`; linear blocks 16 k-heads × 128 / 32 v-heads × 128, conv kernel 4, `mamba_ssm_dtype: float32`; **256 experts top-8** plus a shared expert (intermediate 512), hidden 2048, vocab 248,320, `max_position_embeddings` **262,144**. The vision projector in the GGUF pack is 447M `qwen3vl_merger`.
   *Licence — permissive, no banner, and no LICENSE file to quote.* The card's front matter and the Hub tag both read **`license: apache-2.0`** (verbatim: `license: apache-2.0` / `license:apache-2.0`), and the card body says nothing further about terms. **The repo tree carries no `LICENSE` or `NOTICE` file** — the recursive tree lists 30 files (README, `chat_template.jinja`, config, 14 shards, `model-mtp`, index, tokenizer/preprocessor/processor/video_preprocessor, `figures/`) and none of them is a licence text, so the licence position is the card field alone. That is the same shape as the shipped `humanizer` arm (Apache-2.0, no banner) and unlike `qwen-image-2.1-turbo` (qwen-research, banner) or `ltx-2.5` (community agreement, $10M threshold, gated). **Class: permissive, no revenue threshold, no non-commercial clause, no banner required**, and `gated: false` on all three vendor repos, so no per-node HF_TOKEN.
   *Provenance and what the vendor claims.* Card, verbatim: "a 35B Mixture-of-Experts agentic model based on **Qwen3.6** and **Agents-A1** from Shanghai AI Laboratory, built to advance long-horizon scientific problem solving through adaptive capability composition" (`InternScience/Agents-A1` is the 35.1B predecessor, same geometry). Three named capabilities — **agentic orchestration** (a `spawn_subagent` tool the harness must register; the protocol is on the card in full), **verification mode** (opt-in per request), **open scientific discovery**. Claims are the vendor's own, one harness, offline, 200K window + compaction, temperature 1.0 / top_p 0.95: **overall SOTA** on XBench-DS-2510 92.0, IFBench 81.6, PinchBench 90.0, FrontierScience-Olympiad 81.0, FrontierScience-Research 48.3, CMT 80.0, OmniDocBench 91.5; **GAIA 95.1** (above every larger model in its table); best-in-~35B on BrowseComp 81.7/82.8, SWE-bench Pro 61.2, SciCode 44.3, AA-LCR 81.0, HLE-with-tools 55.1, VitaBench 45.4, ChemCOTBench 66.5; and vs A1, SWE-bench Pro +17.6, SWE-bench Multilingual +14.0, PinchBench +13.1, MLE-Lite +21.3. **For a science model the evaluation column is the whole case**, and every one of those cells is theirs, not ours.
   *Chat surface — a chat template ships, so this is a chat arm.* `chat_template.jinja` (9,025 B) is in the snapshot **and** inlined in `tokenizer_config.json`; `enable_thinking` (template line 163) defaults **on**, and thinking-off renders an empty think block. There is **no `reasoning_effort`** — the thinking knob is boolean, not a level. Two card-documented extras: `chat_template_kwargs {"verification": true}` (template lines 45–55) appends the self-review protocol to the system message and **rejects a string `"true"` and an empty/whitespace system message with HTTP 400** — both are testable cells, not assumptions; and `preserve_thinking`. Card's serve line: `--reasoning-parser qwen3 --tool-call-parser qwen3_coder` (SGLang) / the same plus `--enable-auto-tool-choice` (vLLM), sampling temp 1.0, top_p 0.95, top_k 20, min_p 0, **presence_penalty 1.5**.
-  *Quant census — 16 repos via `?filter=base_model:quantized:InternScience/Sage-A1.5`, plus 7 more from `?author=`/`?search=`; sizes are the tree API, all ungated, none gated.*
+  *Quant census — 16 repos via `?filter=base_model:quantized:InternScience/Sage-A1.5` when the census was taken, **17 on re-check an hour later** (`ykarout/Strata-Sage-A1.5-GGUF`, listed last below), plus 7 more from `?author=`/`?search=`; sizes are the tree API, and every repo in this filter is ungated (`gated: false`/absent).*
   | repo | format | bytes | complete | maker | engine verdict |
   |---|---|---|---|---|---|
   | `InternScience/Sage-A1.5-FP8` (`b442b0c6`) | W8A8 **compressed-tensors** `float-quantized` (`quantization_config` in config.json; `ignore` names the visual blocks, so the vision tower stays BF16) | **39.39 GB / 36.66 GiB** (2 shards + `model_mtp.safetensors` 1.69 GB + index) | yes | vendor | **native on both pinned engines — top tier** |
@@ -1867,6 +2109,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   | `IsValorum/Sage-A1.5-APEX-I-MiniPlus-V2.1-GGUF` | custom "APEX" surgical GGUF + mmproj + MTP in `blk.40` | 15.23 + 0.90 GB / 15.02 GiB | yes | third party | llama.cpp claims `qwen35moe`; **custom tensor mix unverified here** |
   | `IsValorum/Sage-A1.5-APEX-I-NanoPlus-V2.1-GGUF` | same, lower | 13.03 + 0.90 GB / 12.98 GiB | yes | third party | same |
   | `na0x2c6/Sage-A1.5-GGUF` | IQ3_S / Q3_K / IQ4_XS "exps" variants + Q4_K_M + imatrix | 16.05–21.71 GB per file (108.48 GB repo) | yes | experimenter | llama.cpp; low-bit tier only, unverified |
+  | `ykarout/Strata-Sage-A1.5-GGUF` | GGUF Q4_K_M with the SSM/GDN tensors pinned to BF16 (`Sage-A1.5-Q4_K_M-ssmbf16.gguf`, one file) plus a graft script and an INT8-KV patch (`strata-q36-int8kv-q4kdown.patch`) | 21.72 GB / 20.23 GiB, **no `mmproj`** | yes, text only | third party | llama.cpp `qwen35moe` expected (header unread); **vision unavailable — the repo ships no projector**, so it cannot run the vision cell and is not a tier of its own; only worth a look if the SSM-in-BF16 split fixes a Q4 quality problem the vendor Q4_K_M shows |
   | `nonkronk/Sage-A1.5-EXL3-4.0bpw` | EXL3 4.08 bpw (`library_name: exllamav3`) | 20.09 GB / 18.71 GiB | **text only — 0 vision tensors in the index** | third party | **not viable as-is**: ExLlamaV3 is not a sparkrun runtime, and this lane's EXL3 arms ride a patched vLLM image, not this converter |
   | `InternScience/Sage-A1.5-F16-GGUF` | GGUF F16 | 71.07 + 0.90 GB | yes | vendor | pointless against the bf16 original |
   | `mlx-community/Sage-A1.5-OptiQ-4bit` · `Duckets/Sage-A1.5-MLX-4bit` · `thelogicalgate/…-MLX-8bit-MTP` · `Yanun/Sage-A1.5-oQ4e{,-fp16}-mtp` · `klcharizardqwq/Sage-A1.5-oQ8e` | MLX / **oMLX** (`oQ4e` 21.63, `oQ8e` 37.72 GB; card says int8 affine packed `U32`, vision BF16) | 20.4–38.7 GB | yes | third parties | **excluded — Apple Silicon only** |
@@ -1888,40 +2131,33 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   **Nothing here is memory-blocked**, and the small tiers are *too small to matter* on a 109 GB node: 21 GiB of weights at 3B active is a compute question, not a capacity one, so no tier wins by fitting. llama.cpp's own recurrent-state pool is the authority for the GGUF rows (a hybrid pre-flight KV number is wrong by construction — quote the engine's pool line, `max_mamba_cache_size` / `n_ctx_per_seq`), exactly as on the Ornith siblings.
   *Ranking, reasoning as given — one node, this lane's instrument.* **1. `InternScience/Sage-A1.5-FP8` on the pinned SGLang `v0.5.22` digest** — the vendor's own export, engine-native trunk + vision, MTP carried, 36.66 GiB with 52 GiB of headroom, and the nearest measured analogue is the *same geometry* (`ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`: C1 97.6 ± 8.8 · C2 152.1 · C5 228.7 · C10 242.3 t/s, house 37/37, TTR ~238 s), which gives the FP8 cell a real expectation band instead of a guess. **2. `…-Q4_K_M-GGUF` on the resident `scitrera` pin** — the cheapest complete tier (21.06 GiB incl. vision), arch + projector both present at `b2e5e9b`, `--mmproj` auto-injected by `runtimes/llama_cpp.py:251-261` from a top-level `mmproj:` key; it is the fidelity/portability comparison, not the expected winner (llama.cpp on GB10 costs decode — §"The residual ~15 % is the upstream ref era"). **3. Q8_0 GGUF** as the GGUF-side fidelity control, and **4. prithivMLmods MXFP4 / IsValorum APEX** only if tier 2 loses on quality and the lower-bit tier is worth a second boot (both are third-party constructions whose tensor mix no engine here has loaded). **Rejected:** EXL3 (text-only, wrong engine), all MLX/oMLX (Apple), all `.rad` (AMD), F16/bf16 (control only), the empty and the imatrix repos.
   *Pre-registered cells — one boot per tier, two boots total, in this lane's instruments.* **(a) Contract + TTR:** TTR = launch → `GET /v1/models` **200 with the id `InternScience/Sage-A1.5` and `max_model_len` 262,144 asserted**; port-open alone is not readiness (a foreign listener satisfied a probe once already). Serve log must name `Qwen3_5MoeForConditionalGeneration`. Then one `get_weather`-shaped tool call requiring **populated arguments** and `finish_reason: tool_calls` through `--tool-call-parser qwen3_coder` / `--reasoning-parser qwen3`. **(b) Ladder at d0:** `benchmarking/concurrency-ladder.yaml` (pp 2048 / tg 128, c 1/2/5/10, n=5) via `sparkrun benchmark performance <file> -H <node> --profile benchmarking/concurrency-ladder.yaml --output <out>.yaml --skip-run` against the same boot the battery used; **decode rows only, read from `runs/*.json`** (`is_context_prefill_phase`), per-stream and aggregate both quoted. **(c) House battery, 37 items:** `python3 tools/quality-battery.py http://<node>:8000 --tier both --repeat 3 --max-tokens 4096 --json quality-battery.json` with the **thinking mode named** — thinking-on is the shipped reading, and a thinking-off control on the same boot is a separate quality claim, not an assumption (Nemotron-3.5 pays five items for it). 4096 because a 1024 budget returns `finish_reason: length` and that is a budget miss (`tools/README.md:313-317`). **(d) Domain probes — the point of the arm**, 3 numeric items with expected values, because a science-tuned model's edge, if any, is where the generic battery is blind: **P1** *"A 0.50 kg block slides from rest down a frictionless 30° incline of vertical height 1.2 m and compresses a spring of constant 240 N/m. Taking g = 9.81 m/s², find the maximum compression in metres to three significant figures. Reply with just the number."* → **0.221** (mgh = 5.886 J ⇒ x = √(2·5.886/240) = 0.2215 m). **P2** *"How many grams of CO₂ are produced by the complete combustion of 12.0 g of ethane (C₂H₆)? Molar masses: C 12.011, H 1.008, O 15.999 g/mol. Reply with just the number in grams, three significant figures."* → **35.1** (0.39907 mol × 2 × 44.009). **P3** *"Iron has an FCC unit cell, lattice parameter 3.615 Å, four atoms per cell. A = 55.845 g/mol, N_A = 6.022×10²³. Compute the theoretical density in g/cm³ to three significant figures. Reply with just the number."* → **7.85** (V = 4.7235×10⁻²³ cm³, m = 3.7095×10⁻²² g). Score exact-match on the numeric token, 3 repeats, `finish_reason` recorded per reply. **(e) Vision-path cell** (it must prove the tower is wired, not that the model remembers a table): generate with `tools/synthetic_png.py` a **448×448 solid RGB (17,150,198)** data URL — `solid_png_b64(448,448,(17,150,198))` — and ask *"The attached image is a single flat colour. Name that colour in one word."*; a correct colour word proves image input reached the encoder, an evasive or wrong answer while (a)–(c) pass means the arm is text-only in practice. The card's own `figures/Sage-A1p5-benchmark.png` (ask for the Ornith-1.5 FrontierScience-Research cell, 6.7) is a **quality** cell only — that number is in the card text, so a right answer proves nothing about OCR. **(f) Verification-mode cell:** P1 again with `chat_template_kwargs {"verification": true}` and a non-empty system message → `reasoning_content` non-empty and containing a mid-trajectory review, same numeric answer; plus the documented negative — `verification: "true"` (string) and `verification: true` with an empty system message must both return **HTTP 400**, which is a contract assertion the card states and we can check in one request each. **(g) Orchestration cell:** register the card's `spawn_subagent` schema plus one other tool and ask a question that decomposes into two independent sub-questions (e.g. *"Which of Mars and Venus has the larger surface gravity, and which has the longer solar day? Use sub-agents."*) — PASS is one `spawn_subagent` call whose `tasks[]` carries ≥2 self-contained `task`/`context`/`expected_output` entries; a single-turn monotone answer means the orchestration capability does not reproduce under `qwen3_coder`.
+  *Two additions the boot plan needs, from the director (2026-10-22).* **MTP is a leg of this arm, not a bolt-on:** `model-mtp.safetensors` carries 785 `mtp.*` tensors in `model.safetensors.index.json`, so a spec-decoding cell belongs in it — SGLang `v0.5.22` registers only the dense `Qwen3_5ForCausalLMMTP` (`srt/models/qwen3_5_mtp.py`), while vLLM `v0.32.0` registers `Qwen3_5MoeMTP` (`model_executor/models/registry.py:699`), so the cell is **probe SGLang `--speculative-algorithm EAGLE` first, and fall back to a vLLM MTP run if the SGLang probe refuses** — with its own ladder row, never folded into the non-MTP numbers. **Staging is node-local:** `<head-node>` has ~24 GB free of 3.7 TB, so a 39 GB FP8 set cannot be staged from the head — the route is `hf download` on whichever node frees first, into that node's own cache, plus `--offline` at launch, and the same for the 22.6 GB GGUF pair.
   *Falsifiers (stated before the boot).* **(1)** FP8 **C1 < 40 t/s** at d0 ⇒ the tier is not competitive with the same-geometry arm (Ornith 35B NVFP4 97–101, Laguna-XS 57.4) and is measured-rejected; a C1 inside the Ornith band with house 37/37 *is* the ship case. **(2)** pooled house **≤ 34/37** at 4096 thinking-on kills any ship claim — 37/37 is this lane's tie-break, not its gate, and 35–36/37 only ships alongside a ladder that beats Laguna-XS's 57.4 t/s at the same score. **(3)** **0/3 on P1–P3 while house ≥ 36/37** ⇒ generic ability intact, the advertised scientific edge absent — the item closes as "no domain advantage measured" and no lane slot is spent. **(4)** vision cell wrong on both tiers with `/v1/models` naming the model ⇒ the multimodal claims (OmniDocBench 91.5) are untestable here and the brief shrinks to text. **(5)** GGUF tier: a load-time exit naming an unknown arch or the projector is a real finding — read the actual `llama-server` line before building any fork image, because the arch *is* in the resident pin by source. **(6)** A `finish_reason: length` reply is re-asked at 8192 before it is scored as a miss.
   **Receipt:** `~/benchmarks/sage-a15-20261022/` — `REPORT.md`, `launch.log`, `serve.log`, `ladder.json` (+ `runs/`), `quality-battery.json`, `domain-probes.json` (prompts, raw replies, `finish_reason`), `vision-cell.png` + `vision-cell.json`, `verification-cell.json`, `orchestration-cell.json`.
   *Drafts authored with this item, both `zz-` DRAFT, both `sparkrun recipe validate` clean and **never booted**:* `recipes/explore/zz-sage-a1.5-35b-a3b-fp8-sglang.yaml` (tier 1, pinned `lmsysorg/sglang:v0.5.22@e3a4f060…`, `max_num_seqs: 32` explicitly unmeasured) and `recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml` (tier 2, resident `scitrera` `b2e5e9b` pin, `mmproj: Sage-A1.5-mmproj.gguf` resolved and `--mmproj` auto-injected). Neither is in the root index, by the draft rule. **Blocker: one free single GB10 and nothing else** — `.30`–`.33` are the TP=4 block and `.34`/`.35` belong to other workers; the weights (36.66 GiB FP8 / 21.06 GiB GGUF) still have to be distributed to whichever node frees first.
 
-- [ ] **Scope `MiniMaxAI/MiniMax-H3` — a joint video+stereo-audio diffusion model whose licence prohibits its use at this site, and which would fit one Spark only after two component swaps** — the modality decides the whole item, so it is settled first: H3 is **not** an LLM. It is MiniMax's Hailuo-line image/text-to-video generator with a **synchronised 32 kHz stereo audio track** (4–15 s, 768p short edge, 24 fps, H.264 + AAC), released 2026-08-13, 5.0 M downloads, gated=false, `library_name: minimax-h3`. The `MiniMaxM2`/`M3` text MoEs are a different family, already registered (`mad-science/TODO.md:788-795,805`, M3 = 795.5 GiB non-commercial), and **nothing carried over from them applies**, least of all their licence ruling. *(effort: large; research-only — nothing is booted and no measurement is proposed, because the blocker below is an owner decision, not a node)*
-  *(LICENCE FIRST — this is a use-prohibition at this site, so it outranks every tier question in this item.)* Card `license: other`, `license_name: minimax-h3-community-license-agreement`; the LICENSE file reads *"MiniMax H3 COMMUNITY LICENSE AGREEMENT … release date/License date: August 2, 2026"*, **§5** *"“Excluded Territories” means the European Union, the United Kingdom, the Republic of Korea and the United States of America"*, **§3** *"“Applicable Territory” means worldwide, excluding the Excluded Territories"*, **§4** *"You may not use, reproduce, modify, distribute, or display the MiniMax H3 Works or any of their Outputs or results outside the Applicable Territory"*. `docs/QA-about-License.md` in the repo answers the obvious question directly — the territory limit is *"not yet, not ever"*, and organisations may apply at `platform.minimax.io/h3-license`. **Class: territorially-restricted community licence.** This cluster's owner is in the **United States**, so §4 forbids *use* here — not redistribution, not merely commercial use — and generated video and audio count as Outputs. That makes the item's next step an **owner decision (or a licence application)**, not a boot: no cell set is pre-registered and no receipt path is claimed, because measuring it without a clearance would be the violation itself. For completeness the rest of the agreement: **IV.1** separate written authorisation above 20 M USD/yr revenue (api@minimax.io), **IV.2** must prominently display "MiniMax H3" on a commercial UI, **III.4** NOTICE-file carriage, **V.3** the Works and their Outputs may not be used to improve any other AI model, governing law Hong Kong. A **banner is required** in any recipe (the `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml:1-12` precedent shape), and the Qwen3-VL-32B encoder being Apache-2.0 per the Additional Note does not launder the aggregate. The 2026-10-16 M3 "our use is noncommercial" call **does not transfer**: this clause is not about revenue.
-  *(What it is, read off `transformer/config.json` + `text_encoder/config.json` rather than off the card.)* **DiT** `MiniMaxH3Transformer3DModel`: 50 layers, hidden 5,376, 56 heads × 128, FFN 14,336, 24 in-channels + 32 audio in-channels, patch 1×2×2, text width 5,120, 3-D MM-RoPE — **33,122,992,896 params** (safetensors totals; ~24.2 GiB is AdaLN branches, and the AdaLN-pruned variant is 20,111,462,920). **Text encoder** `Qwen3VLForConditionalGeneration` (Qwen3-VL-**32B**): 64 layers, hidden 5,120, 8 kv heads × 128, vocab 151,936, 262,144-token input, `mrope_interleaved` `[24,20,20]`, **33,359,294,704 params**, and the pipeline reads hidden state of layer 50 rather than the output projection. **Visual VAE** `AutoencoderKLMiniMaxH3` f16t4d24, 24 latent channels; **audio VAE** `AutoencoderKLMiniMaxH3Audio`, 32 latent channels, 40 Hz latent rate, 32 kHz stereo out. One request is therefore two models and two VAEs, and the 33B encoder is re-run on every prompt — the vendor's own GB10 datapoint (~5.5 min of text encoding per request) says that is where the wall time goes.
-  *(Prior mentions — build on them, do not duplicate.)* `recipes/explore/ltx-2.5-runbook/README.md:117` and `attic/explore/AGENTS.md:500` both reference "MiniMax-H3 draft's" 124-frame figure, but only as the counter-example in an **H3+LTX hybrid graph** note — no H3 arm has ever been authored, staged or booted here. `mad-science/EXPLORE-CANDIDATES.md:21,52-54` carries the reasoning-LLM shortlist (the `MiniMax-M3` row), not this model.
-  *(Surface — an HTTP video API, no chat surface at all.)* SGLang v0.5.22 serves it from `python/sglang/multimodal_gen/` with `POST /v1/videos` (`video_api.py:473`), `GET /v1/videos` (`:823`), `GET /v1/videos/{id}` (`:834`) and `GET /v1/videos/{id}/content?variant=` (`:884`); `quality` is a per-request extra (`:114-115`, `:289`) with enum `exact` (bit-exact vs reference) / `lossless` (default) / `high` (audited Cache-DiT SSIM 0.931, PSNR 28.16). No template, no `enable_thinking`, no tool parser; readiness is `GET /health`, gated on `server_warmup_done` (`http_server.py:186`) — genuinely warm, not port-open. **The instrumentation caveat that must travel with any future cell:** this checkpoint ships `scheduler/scheduler_config.json` = `{"shift": 12.0}` only, so `num_inference_steps` looks live (N updates over N+1 sigmas), but the Qwen-Image 2.1 arm already proved that the *file*, not the flag list, decides — a step sweep must be proven by SHA-256 of the returned MP4 (three distinct hashes or it is inert), never by an engine-reported per-step latency, which is total ÷ requested and therefore falls when you ask for more steps.
-  *(Quant census — `?filter=base_model:quantized:MiniMaxAI/MiniMax-H3` returns 82 repos; bytes are the tree API in GiB, bpw is computed from those bytes over the declared param count, and the engine column carries a **hardware** verdict as well as a software one.)*
-  | repo | format | bytes GiB | bpw measured | complete | maker | engine verdict |
-  |---|---|---|---|---|---|---|
-  | `MiniMaxAI/MiniMax-H3` (base `42ed227e`) | bf16 diffusers tree; `transformer/` 61.73 · `text_encoder/` 62.13 · `vae/` 9.70 · `audio_vae/` 0.56 | 134.12 for the fl2va set (repo 464.24; `FL2VA/` 134.16 and `Ref2VA/` 134.16 are self-contained duplicates) | 16.0 | yes | vendor | **native**, the only set with no quantisation risk; 144 GB does not fit one node |
-  | `Comfy-Org/MiniMax-H3` `text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | NVFP4-AWQ | **14.61** (15.69 GB) | 3.5 / 33.36 B | yes | third party (kitchen-sink repo, 25.9 M dl) | **best encoder swap**: NVFP4 needs CC ≥ 10.0, GB10 is 12.1, and NVFP4 text arms already run on this fleet |
-  | `Qwen/Qwen3-VL-32B-Instruct-FP8` | serialized FP8 encoder (apache-2.0) | 33.08 | 8.13 | yes | vendor | FP8 is **proven on this box** (the `Spark-X2.6` FP8 arm measured 2× the INT8 arm) — the safe swap, but it saves 29 GiB, not 47 |
-  | `Comfy-Org/…/qwen3vl_32b_minimax_h3_bf16.safetensors` | nominally bf16 | 47.97 | **12.3** | yes | third party | **do not use**: 12.3 bpw is not bf16, so the file is uncharacterised and the name is wrong |
-  | `Comfy-Org/…/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors` | FP8-scaled, AdaLN-pruned (20.11 B) | 19.52 (20.96 GB) | 8.33 | yes | third party | viable and small, but the prune then needs `--minimax-h3-adaln-online` or a cache built **from the unquantized checkpoint** (`server_args.py:2203-2210, 2239-2245`) |
-  | `unsloth/MiniMax-H3-FP8` | FP8 + INT8-ConvRot DiT (pruned) | 18.87 · 18.86 | 8.06 | yes | third party | FP8 half viable; INT8 half unavailable (below) |
-  | `Comfy-Org/…/diffusion_models/minimax_h3_fl2va_int8_convrot.safetensors` · `…_pruned_int8_convrot` · `…_pruned_w6a8` · TE `…_int8_convrot` · `vae/…_int8_convrot` · `Winnougan` W4A8/W4A4 | INT8 ConvRot / W6A8 / W4A8 | 31.70 · 19.53 · 14.89 · 25.28 · 2.62 | 8.22 · 8.34 · 6.35 · 6.49 | yes | third parties | **UNAVAILABLE on GB10 at the kernel level**: a `Spark-X2.6-4B-INT8` boot died with `NotImplementedError: No implemented int8_scaled_mm for current compute capability` (sm_121). Every row here is an int8 GEMM tier |
-  | `multimodalart/MiniMax-H3-Pruned` | pruned transformer 37.47 + text encoder 48.88 | 86.35 | 16.0 / 12.3 | yes | third party | pruned bf16 is *bigger* than the FP8 route and its encoder is the same uncharacterised 12.3 bpw file |
-  | `Ar4ikov/MiniMax-H3-transformer-W4A16-RTN` | W4A16, AdaLN kept bf16 | 35.16 (16.43 B stored) | 8.5 over the 33.12 B base | yes | third party | the name overstates the bpw; activation path unverified |
-  | `unsloth/MiniMax-H3-GGUF` · `leejet/MiniMax-H3-GGUF` · `Abiray/…nvfp4-INT4-INT8-Convrot` · `DeepBeepMeep/MiniMax-H3` · `intel-ai` MXFP8/MXFP4 · MLX mirrors | GGUF · mixed NVFP4 · quanto · MXFP · MLX | 212.2 / 98.4 · 158.9 · 813.1 | — | mixed | third parties | **GGUF has no engine** (below); NVFP4/MXFP mixes are eligible on CC 12.1 but unverified; **MLX is Apple-only** |
-  *(Engine gate, verified at the pins rather than remembered.)* **SGLang `v0.5.22`: present and first-class, in-tree** — `multimodal_gen/configs/models/dits/minimax_h3.py`, `runtime/models/dits/minimax_h3.py` + `minimax_h3_adaln_cache.py`, `vaes/minimax_h3*`, `pipelines/minimax_h3_pipeline.py`, `tools/build_minimax_h3_adaln_cache.py`, and a 2,219-line cookbook page (`docs/cookbook/diffusion/MiniMax/MiniMax-H3.mdx`). Flags that matter, from `runtime/server_args/server_args.py`: `:294` `--model-variant`, `:340-341` `--num-gpus` / `--performance-mode`, `:346-350` `--nnodes` / `--node-rank`, `:355` `--ulysses-degree`, `:372-375` `--encoder-parallel`, `:398-401` + `:3410/:3423` `--component-paths.` / `--component-weights-paths.` (keys `transformer`, `text_encoder`, `video_vae`, `audio_vae`; value `OWNER/REPO/path/FILE`, header supplies shape and dtype), `:420-431` `--minimax-h3-adaln-*`, `:4021` `--dist-init-addr`, `--served-model-name` (`:2260`), `--revision`. **vLLM `v0.32.0`: absent** — `model_executor/models/registry.py` (1,595 lines) holds `MiniMaxM2`/`M3` text entries and `MiniMaxM3MTP` only; `vllm-omni` main carries `vllm_omni/diffusion/models/minimax_h3` out of tree (unverified here). **llama.cpp at `a37cc4610`: absent** — `src/llama-arch.cpp` maps `minimax-01` (`:143`), `minimax-m2` (`:145`), `minimax-m3` (`:146`) and nothing else, so the GGUF tiers have no llama.cpp home; the cookbook's GGUF rows are SGLang's CUDA-capacity path. **And a vendor claim to treat as a claim:** the cookbook says INT8 ConvRot runs on SGLang's own JIT ops at CC 9.0/10.0/12.0/**12.1** — the exact capability this cluster just failed an int8 scaled GEMM on. It may be a different kernel family; nobody here has proven it, so the whole INT8 family stays *unavailable pending a probe*.
-  *(Fit — 128 GB unified, usable ≈ 0.85 ⇒ 109 GB / 101.5 GiB; host and device are one pool, so SGLang's `auto` offload is **not** a capacity win on GB10, it only moves bytes.)*
-  | tier (task `fl2va`) | weights | activation/workspace | resident | headroom vs 109 GB |
-  |---|---|---|---|---|
-  | shipped all-bf16 (control) | 134.12 GiB / 144.0 GB | — | over | **−35 GB: cannot boot** |
-  | **1. bf16 DiT + NVFP4-AWQ TE + fp16 VAE + audio VAE** | 61.73 + 14.61 + 4.85 + 0.56 = **81.75 GiB / 87.8 GB** | ~10–13 GB for one 768p clip | ~98–101 GB | **+8…+11 GB — the honest figure, not "21 GB free"** |
-  | 2. pruned FP8 DiT + official FP8 TE + fp16 VAE | 19.52 + 33.08 + 5.41 = 58.01 GiB / 62.3 GB | ~10–13 GB | ~72–75 GB | +34…+37 GB, **but** pays the AdaLN-prune question |
-  | 3. bf16 DiT + official FP8 TE | 61.73 + 33.08 + 5.41 = 100.22 GiB / 107.6 GB | any | over | **1.4 GB — no** |
-  | 4. AdaLN-online bf16 (cookbook route) | 37.5 + 62.13 + 10.26 ≈ 109.9 GiB / 118 GB | + 8 GiB host AdaLN cache | over | **and** needs unquantized weights |
-  | 2 nodes / 4 nodes (Ulysses or Ring) | any tier, split | — | — | **pure latency play, not a fit play**: nothing here needs a second node, and a 4-node arm would compete with the DSv4 TP=4 baseline while serving no text traffic |
-  *(Ranking, if a clearance ever arrives — one node, capacity first.)* **1. bf16 DiT + NVFP4-AWQ encoder + fp16 VAE (81.75 GiB)** — the only composition that changes nothing about the DiT (no AdaLN prune, no quantisation-flag conflict, no int8 kernel) and still lands under the node ceiling; the DiT comes from the base repo the pin already pulls, so it is also the cheapest to stage. **2. pruned FP8 DiT + official FP8 encoder (58.01 GiB)** is the roomy fallback, but it buys headroom by removing the AdaLN branches, which SGLang then wants reconstructed via `--minimax-h3-adaln-online` (unquantized only) or a cache built from the unquantized checkpoint — an extra offline step to schedule, not assume. **Unavailable:** every INT8 ConvRot / W6A8 / W4A8 tier (no int8 scaled GEMM on sm_121 — measured). **Rejected:** all-bf16 (144 GB), bf16 DiT + bf16 encoder (1.4 GB), AdaLN-online bf16, GGUF (no engine), NVFP4/W4A16 DiT mixes (unverified construction where it is most expensive), MLX (Apple). **Context for the ranking:** the vendor's own GB10 datapoint is ~12 min to load, ~5.5 min of text encoding per request, ~12 min per warm 480p request at 12.1 s/it, launched with no flags — so even cleared, this is a 15-minute-per-clip arm on one Spark, and the encoder, not the DiT, dominates.
-  *Draft committed with this item, `zz-` DRAFT, `sparkrun recipe validate --strict` clean, `readiness: inference: false`, **never booted**:* `recipes/explore/zz-minimax-h3-fl2va-t2va-sglang.yaml` — `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` (the lane's multi-arch pin, `recipes/ifm/README.md:214-217`), `model_revision` top-level at `42ed227e`, `--model-variant fl2va`, `--performance-mode auto`, the bf16 DiT left to the base repo with only the encoder and visual VAE overridden. Not in the root index, by the draft rule. **Three open questions it exists to resolve, all found by reading the pinned source rather than by booting:** *(i)* SGLang applies `server_args.revision` to **every** component load (`component_loaders/component_loader.py`: `revision=server_args.revision` on `get_hf_config` and all three `from_pretrained` paths), so the base pin `42ed227e` is also asked of `Comfy-Org/MiniMax-H3`, which never had that commit — the resolution is a `mods/` stage that links the component files into the prepared snapshot and passes directory paths (the Qwen-Image launcher precedent), or booting a branch, which breaks house pinning; *(ii)* the base repo is **464.24 GiB**, so nothing may be staged from the head (~24 GB free of 3.7 TB) — the route that runs is node-local `hf download --revision 42ed227e --include …` followed by an offline serve (the container already sets `HF_HUB_OFFLINE=1`), with `distribution_config.models.entries[]` + per-entry `revision`/`allow_patterns` (`sparkrun/core/recipe.py:126-149,239-246`, forwarded at `orchestration/distribution.py:1017-1020`) as the recipe-level equivalent to verify rather than assume — no shipped recipe uses it; *(iii)* the symlink farm from (i) has to be built on the node, where the bytes are. **Blockers, in order: the licence clearance above (owner decision, US site) and then a free node** — `.30`–`.35` all belong to other streams.
+
+- [ ] **Scope `MiniMaxAI/MiniMax-H3` video+audio — cleared to boot at a NON-US site, runnable on one node**
+
+  *MiniMax H3 Community Licence. The gate is **territorial, not commercial**: LICENSE:3 Applicable Territory = worldwide minus the EU/UK/KR/US, and LICENSE:42 bars use of the Works, their Outputs and results outside it. The owner has decided this arm is deployed outside the United States, so the condition is satisfied **by the deployment location** — **boot permitted at a non-US site, NOT permitted at a US site** (the node that runs it must be non-US). Do not re-litigate; enforce the location. Obligations that still bind: §IV.1 separate written authorization (api@minimax.io) above 20M USD/yr of commercial revenue; §IV.2 prominent "MiniMax H3" display on any commercial UI; §III.4 NOTICE-file carriage; §V.3 the Works and their Outputs may not be used to improve any other AI model; governing law Hong Kong; the Qwen3-VL-32B encoder is Apache-2.0 per the Additional Note, the aggregate is not.*
+
+  Joint video+stereo-audio diffusion: a 33.12B DiT (50 layers, hidden 5376, 56x128 heads) beside a 33.36B Qwen3-VL-32B text encoder, an f16t4d24 visual VAE and a 0.56 GiB audio VAE. One node. Tasks `t2va`/`fl2va` — text, or a first/last frame, to video with 32 kHz stereo, 4-15 s, 768p, 24 fps.
+
+  | tier | components | resident |
+  |---|---|---|
+  | **1 — this arm** | **pruned FP8 DiT 19.52 + NVFP4-AWQ TE 14.61 + fp16 video VAE 4.85 + fp32 audio VAE 0.56** | **39.54 GiB / 42.5 GB** |
+  | 2 | bf16 DiT 61.73 + NVFP4-AWQ TE 14.61 + fp16 VAE 4.85 | 81.75 GiB / 87.8 GB |
+  | 3 | the bf16 tree as shipped (FL2VA + Ref2VA duplicates) | 134.12 GiB / 144.0 GB — does not fit |
+  | — | bf16 DiT + official FP8 TE 33.08 | 100.22 GiB; pruned-FP8 DiT + FP8 TE 58.01 GiB needs the AdaLN cache |
+
+  **INT8 is banned everywhere on this node.** GB10 is sm_121 and torch has no int8 scaled GEMM — a Spark-X2.6 INT8 boot died with `NotImplementedError: No implemented int8_scaled_mm for current compute capability` — and SGLang advertises no int8 VAE format. `int8_convrot`, `pruned_int8`, `pruned_w6a8` and every W4A8 export in the census are **unavailable**, not untested; a tier that needs an int8 GEMM is dead on arrival.
+
+  Engine gate: SGLang **v0.5.22** (`lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`) `sglang serve --model-variant fl2va`; the **video** surface is `/v1/videos` (`multimodal_gen/…/video_api.py:473`) and readiness is the port plus `/health` answering only once `server_warmup_done` is set (`http_server.py:186-189`). vLLM 0.32.0 has no MiniMax-H3 path; llama.cpp a37cc4610 has no GGUF.
+
+  Draft `recipes/explore/zz-minimax-h3-fl2va-t2va-sglang.yaml` (DRAFT, never booted, `validate --strict` clean) pins `model_revision: 42ed227e…` at top level and passes the three Comfy exports through `--component-weights-paths.*`; the audio VAE comes from the base repo. Two first-boot questions: (a) SGLang hands that one revision to **every** component load (`revision=server_args.revision` on `get_hf_config` and all three `from_pretrained` calls in `component_loader.py`) while the Comfy-Org repo has no commit `42ed227e` — fix is a mods/ stage linking the files into the prepared snapshot; (b) an AdaLN-pruned DiT may need `--minimax-h3-adaln-online` (unquantized weights only) or a cache from `tools/build_minimax_h3_adalcache` — read the serve log's AdaLN decision before changing precision.
+
+  **Cells — media-gen instrument, not a chat ladder.** One 4-5 s 768p clip, `t2va` first then `fl2va`; per cell record duration/frames/fps, **audio-stream presence** (expected 32 kHz stereo), peak unified memory, wall time per clip, and one prompt-adherence check with a countable constraint (e.g. a two-ink screenprint look: count chromatic hue bins, demand one dominant ink). Step sweep on one prompt+seed with outputs **hashed against each other** at 8/16/32/48 steps to prove `num_inference_steps` is live — `scheduler_config.json` is `{"shift": 12.0}` only, so it should be, but the Qwen-Image checkpoint's saved sigmas silently won and cost a campaign. **Wall-time bar: 30 min per warm clip** (the vendor's 12.1 s/step is a 480p RTX PRO 6000 figure; budget ~10-12 min load, ~5.5 min encoder, then denoise). Falsifiers: identical hashes across the step sweep, no audio stream in the output, or wall time past 30 min. If the bar breaks, the lever is Comfy's Turbo LoRA (`loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16`); whether v0.5.22 can load a diffusion LoRA is unverified and is a separate experiment. *(Not booted yet: every node is claimed. No index row.)*
+
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models

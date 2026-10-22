@@ -2,6 +2,8 @@
 
 Four verdicts landed between 03:30 and 03:45 ET: TP=4 is **closed as a checkpoint limit** on this NVFP4 export, W12 **served** for the first time, the SGLang `v0.5.22` bump closed with six arms held, and Spark-X2.6's FP8 tier is measured-rejected despite being 2× faster. **Nothing on this board waits on the owner** — every Attention item was acknowledged and is closed below.
 
+**Baseline = `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`** (DSv4-Flash knapcio, **TP=4, 1M window** — owner decision 2026-10-22, `#48`): TP=4 is the foundation shape and TP=2 arms supplement it; **GLM-5.3 3bpw TP=4 is deferred** for a few days, and knapcio is the one that is measured (house 36/37, needle 3/3 to ~983k, C1 69.28 → C10 116.27 t/s).
+
 ## Now
 
 | where | what | since | state |
