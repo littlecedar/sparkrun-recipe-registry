@@ -683,32 +683,65 @@ Any model with reasoning and tool-calling capabilities
   explicit that it was *not* tuned for inference ("has not undergone any post-training or distillation of
   inference parameters such as CFG", `USERGUIDE.md:5`), so comparing them is a checkpoint A/B on one boot, not
   a second arm.
-  *Quantisations — 27 SFT-derived + 10 Base-derived repos enumerated (`base_model:quantized:` + `base_model:`
-  filters, plus `?author=` for each quantising org and `OpenMOSS-Team`'s own 100 siblings).* **None is gated;
-  every one is `license: apache-2.0`.** Sizes are tree-API bytes:
-  `unsloth/MOSS-Image-SFT-FP8` (54.95 GB repo) ships the unchanged bf16 diffusers tree **plus** single-file
-  roots — DiT `INT8-ConvRot` 5.42 GB / `FP8` 5.41 GB / plain `INT8` 5.42 GB, TE `INT8-ConvRot` 11.49 GB;
-  vendor LPIPS 0.058 (INT8-ConvRot) / 0.111 (INT8) / 0.163 (FP8), and FP8 is the one it warns changes the
-  image visibly. It loads **only** in Unsloth Studio — not OMNI (single-file quants unsupported), not the
-  diffusers custom pipeline.
-  `Comfy-Org/MOSS-Image` (`24147db8`, 68.45 GB, ~1.29 M downloads) is the official ComfyUI repack of **both**
-  checkpoints: DiT bf16 10.16 / `int8_convrot` 5.41 each, TE `qwen3.5_9b` bf16 19.31 / `int8_convrot` 9.75 /
-  `w4a8_gptq` 7.34, VAE `flux2-vae_small` 0.25 + `flux2-vae` 0.34 — **complete per checkpoint as ComfyUI
-  single files**, no diffusers tree.
-  `Abiray/MOSS-Image-SFT-INT8-convrot` (14.12 GB) is the same int8 pair with the VAE (0.336 GB) and a native
-  ComfyUI workflow; vendor mean relative error 0.868 % (ConvRot/Hadamard). `tsolful/MOSS_Image_INT6_INT4GPTQ`
-  (31.84 GB) is **DiT-only, both checkpoints**, ComfyUI's INT6 W6A8 (4.37 GB) / INT4 W4A8 mixed GPTQ
-  (3.84 GB GPTQ, 3.33 GB RTN) — needs the Comfy-Org TE+VAE; vendor output error 0.020 (W6A8 GPTQ) vs 0.023
-  (mixed W4A8). GGUF is DiT-only in all three (`leejet/MOSS-Image-SFT-GGUF` 25.74 GB, Q2_K 2.21 → Q8_0 5.71;
-  `realrebelai/MOSS_Image_GGUFs` 88.11 GB with W4A8-ConvRot too; `molbal/MOSS-Image-GGUF` 52.86 GB incl. a
-  turbo set) and needs the ComfyUI-GGUF loader. **DiT-only and no engine claims the format**:
-  `BennyDaBall/MOSS-Image-SFT-NVFP4` 4.49 GB, `gguf-org/moss-image-gguf` 3.46 GB (nvfp4 GGUF).
-  **MLX** (`mlx-community/…-bf16`, `vanch007/…-mlx-{4,8}bit`, `VisualInference/…-MX-{8bit,compact}`,
-  `mflux-community/moss-image-sft-mflux-q3…q8`) is **Apple-only — cannot run on a GB10 at all**.
-  Distillations rather than quants, and the only real latency lever: `lodestones/MOSS-Image-SFT-8-steps-dmd`
-  (fp32 merged transformer 20.33 GB + `lora.safetensors`, **no TE/VAE/pipeline**), `akhaliq/MOSS-Image-SFT-4-steps`
-  (LoRA steps + a full pipeline tree, 120 GB repo), `toxicdog/MOSS-Image-SFT-Turbo-INT8-ConvRot-AIO`
+  *Quantisations — re-censused 2026-10-22 and split by **runtime format**, because the format, not the bit
+  width, decides the route.* Union of `base_model:quantized:` on both checkpoints (27 SFT-derived, 10
+  Base-derived), `base_model:` on both (68 / 63), `?search=MOSS-Image` (154), the `moss-image` tag (126) and
+  `?search=moss&full=true` (847) = **181 repos**, of which ~60 are LoRAs/finetunes rather than quants. Gated:
+  only two, both plain mirrors (`modelarchive/MOSS-{SFT,Base}`, `gated: manual`). Licence: apache-2.0 on
+  essentially all of them, with three exceptions named below. Sizes are tree-API bytes.
+  **(a) diffusers-loadable — can ride the qwen-image launcher pattern with no new runtime.**
+  `Rin247/MOSS-Image-SFT-{INT4,FP4,INT8,FP8}` — 11.60 / 11.82 / 13.91 / 13.90 GB, **complete diffusers trees**
+  (`model_index.json` + `pipeline_moss_image.py`, DiT 3.10-5.41 GB, TE 8.40, VAE 0.06, per-component
+  `quantization.json`); **licence gap: no `license:` tag on any of the four** — the only quant repos here
+  without one, so no path may ship through them until the author states terms.
+  `OzzyGT/MOSS_Image_SFT_sdnq_dynamic_{4,8}bit` (and the Base pair) — 9.12 / 14.37 GB, DiT 2.92 / 5.13 + TE
+  5.93 / 8.97 + VAE 0.25, `modular_model_index.json` + `transformer/transformer_moss_image.py`; SDNQ dynamic
+  quant loads through diffusers but needs the `sdnq` package in the venv — a dependency, not a runtime.
+  `WaveCut/MOSS-Image-SFT-OrbitQuant-W4A8` — 8.81 GB, DiT 3.03 + TE 5.51, ships its own
+  `moss_orbitquant.py` + `run_moss.py`. `AcademiaSD/MOSS-Image-NF4-for-LoRA-Training` — 40.89 GB, **Base**
+  bitsandbytes NF4 with bf16/int8/nf4 text-encoder variants plus the 4-step adapter; training-oriented.
+  `unsloth/MOSS-Image-{SFT,Base}-FP8` — 54.95 / 43.47 GB repos: the unchanged bf16 diffusers tree **plus**
+  single-file DiT `FP8` 5.41 / `INT8-ConvRot` 5.42 / `INT8` 5.42 and TE `INT8-ConvRot` 11.49, and those roots
+  load **only** in Unsloth Studio (vendor LPIPS 0.058 INT8-ConvRot / 0.111 INT8 / 0.163 FP8). Also in this
+  class but loader-specific: `fal/MOSS-Image-SFT-flashpack` 27.23 GB (`*.flashpack`, fal's loader) and
+  `KBlueLeaf/MOSS-Image-FP16-fixed` 40.69 GB (fp16 fix for both).
+  **(b) ComfyUI / single-file / GGUF — a runtime this lane does not ship yet.** ConvRot-INT8:
+  `Comfy-Org/MOSS-Image` (`24147db8`, 68.45 GB, ~1.29 M downloads; DiT bf16 10.16 / int8 5.41 each, TE
+  `qwen3.5_9b` bf16 19.31 / int8 9.75 / w4a8 7.34, VAE 0.25 + 0.34), `Abiray/…-INT8-convrot` 14.12 GB (vendor
+  mean rel. error 0.868 %), `a2815742427/…`, `SumomoLee/MOSS-Image-Base-ConvRot-ComfyUI` 17.15 GB (Base int4
+  3.04 + int8 5.41 + TE 8.45, workflows + `quantize_moss.py`), `nif0/MOSS-Image-SFT-ComfyUI` 10.97 GB (int8 DiT
+  5.41 + TE w4a8 5.43 + VAE 0.12), `Epyan/…`, `MATLOWAI/MOSS-Image-SFT-DeBand-int8`. INT6/INT4-GPTQ:
+  `tsolful/MOSS_Image_INT6_INT4GPTQ` 31.84 GB (W6A8 4.37 / mixed W4A8-GPTQ 3.84 / RTN 3.33, DiT-only both
+  checkpoints; vendor error 0.020), `Andylinux/…-W5A8-W6A8` 7.85 GB (DiT-only), and
+  `DiffSynth-Studio/MOSS-Image-EntroPack` 43.97 GB (DiT 3.5/4.5/6-bit 2.24-3.85 + TE 4.5-bit 5.97) which needs
+  **DiffSynth's own loader — a third runtime**. GGUF: `leejet/…` 25.74 GB (+ Base 730 dl), `realrebelai/…`
+  88.11 GB (all tiers + W4A8-ConvRot, `other` licence on its `MOSS-Imagine_ComfyUI` sibling), `molbal/…`
+  52.86 GB, `unsloth/…-GGUF` 23.42 GB (Q3_K_XL 2.84 → Q8_0 5.48), `axiomofmind/*` (DiT GGUFs + 7 GGUF LoRAs),
+  `gguf-org` 3.47 GB, `AbrahamPJ/nightmare-moss-image`; plus Comfy split/repack repos (`RunningHubAI/rh-*`
+  unet-only, `MOSSImagefok`, `taurusduan`, `mingyi456`, `Ateeph`, `TenStrip/MOSSkr2`, `nynxz`,
+  `DeepBeepMeep/Moss`, `Kijai/MOSS-image_experimental`) and TE-only files (`sorryhyun/…-Qwen3.5-9B-{fp8,int8}`
+  9.87 GB fp8_e4m3fn, `synta/…w4a8_gptq` 5.43 GB). **NVFP4**: `BennyDaBall/MOSS-Image-SFT-NVFP4` 4.52 GB — the
+  only tier tagged **`blackwell`**, still DiT-only with no loader that claims the format — and
+  `shayudabiaoge/MOSS-Image-SFT-NVFP4` (licence `unknown`).
+  **(c) Apple-only — cannot run on a GB10 at all**: `mlx-community/MOSS-Image-{Base,SFT}-bf16`,
+  `vanch007/…-mlx-{bf16,8bit,4bit}`, `VisualInference/…-MX-{8bit,compact}`,
+  `mflux-community/moss-image-sft-mflux-{bf16,q8,q6,q5,q4,q3}`, `ddalcu/…-MLX-Serve-8bit`,
+  `LocalMuseAI/mlx-moss-image-sft-dmd-4bit`, `Ouinche/…-te-mlx-q8g64`.
+  **Not quants at all, and the only real latency lever:** the distillations — `lodestones/MOSS-Image-SFT-8-steps-dmd`
+  (fp32 merged transformer 20.33 GB + LoRA, **no TE/VAE/pipeline**), its Base sibling `lodestones/MOSS-Image-Base-8-steps-dmd`
+  and finetune `lodestones/Kromoss`, `akhaliq/MOSS-Image-SFT-4-steps` (LoRA steps + full pipeline tree, 120 GB
+  repo) with its `moss-image-turbo-{2step,v2,v3,v3b,3step}` LoRA-only siblings, `darask0`/`Epyan` 4-step
+  adapter, `p1atdev` KV-cache LoRA, `congruency/MOSS-Image-Turbo-MFD`, `Coffmeteor/MOSS-Image-Turbo` (bf16 10.16
+  / FP8 5.41 / LoRA 0.59), `Kijai` rank-512 LoRAs, `BassionAI/…4steps-turbo-merged`, `toxicdog/…Turbo-INT8-ConvRot-AIO`
   (15.50 GB single file, format asserted by nobody but its card).
+  **This table is a census, not a recommendation: the bf16 pair is still rank 1, and no quant row above is
+  queued.** What (a) buys the lane is optionality, not speed: a diffusers-loadable 4-bit tier (Rin247 INT4
+  11.60 GB, OzzyGT SDNQ-4bit 9.12 GB) is the only quant shape that could become an arm **without adding a
+  runtime**, since this lane's only image precedent is a Diffusers script.
+  **The cheapest honest speed lever is the step count, not quantisation** — 50 steps at CFG 3 is 100 DiT
+  forwards per 1024² image, so an unmeasured 4-/8-step DMD or turbo LoRA above is a ~6-12× lever where a
+  weight quant is a 0× lever on latency unless int8/fp8 GEMM happens to be faster on this silicon, which
+  nothing here measured. A future session reaching for a quant first is reaching for the wrong knob.
   *Engine gate — decided against the package/registry, not memory.*
   **diffusers: real, but as a repo-shipped custom pipeline.** `MOSSImagePipeline` is **not upstream** —
   `diffusers` v0.41.0's `pipelines/__init__.py` has no MOSS symbol — and the repo ships
@@ -741,11 +774,13 @@ Any model with reasoning and tool-calling capabilities
   floating tag only) and inherits the OMNI prompt-adherence caveat above.
   3. **SFT bf16 through ComfyUI ≥ v0.42** — same bytes, needs a new ComfyUI pin and its output parity with the
   reference pipeline is unmeasured.
-  4. **INT8-ConvRot (DiT 5.41 + TE 8.45 + VAE 0.34 = 14.20 GB)** — ComfyUI only, halves the footprint and buys
-  ~13 GB **this node does not need**; the quality risk is real and vendor-quantified (LPIPS 0.059). A headroom
-  experiment for *after* a bf16 cell, never a first boot.
-  5. GGUF / INT6-W6A8 / NVFP4 / MLX — DiT-only, unloadadable here, or Apple-only. **Nothing in the bf16 pair
-  fails to fit, and no quant tier is needed for fit.**
+  4. **diffusers-loadable 4/8-bit (Rin247 INT4 11.60 GB, OzzyGT SDNQ-4bit 9.12 GB, WaveCut W4A8 8.81 GB)** —
+  these ride the same launcher, so they are the only quant shape that could become an arm without a new
+  runtime; they halve the footprint and buy ~13-18 GB **this node does not need**, and Rin247 states no licence
+  at all. A headroom/quality experiment for *after* a bf16 cell, never a first boot.
+  5. **ComfyUI / GGUF / NVFP4 / Apple-only tiers** — INT8-ConvRot (14.20 GB), the GGUF and INT6-W6A8 sets and
+  the only `blackwell`-tagged NVFP4 file all need a runtime this lane does not ship, or are DiT-only; MLX is
+  Apple silicon. **Nothing in the bf16 pair fails to fit, and no quant tier is needed for fit.**
   *Pre-registered measurement (nothing ran).* Cells: **TTR** (container start → port open → `/health`, plus
   the pipeline-load seconds), then the lane's fixed prompt (`poster-typography: a bold sans-serif poster
   reading SPARKRUN, two-color screenprint, centered`) at **1024², seed 42, 50 steps, guidance 3.0, shift 5.0,
