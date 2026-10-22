@@ -38,12 +38,19 @@ defaults:
   parallel: 4
   n_gpu_layers: 999
   flash_attn: auto
+  # dynamic-resolution Qwen-VL reads its floor from the model and warns otherwise;
+  # the solid-colour vision cell needs the floor stated, not inherited.
+  image_min_tokens: 1024
   reasoning_format: deepseek
   temperature: 1.0
   top_p: 0.95
   top_k: 20
   min_p: 0.0
   presence_penalty: 1.5
+  load_mode: none
+
+  # --no-mmap is deprecated at b2e5e9b (common/arg.cpp:2668) and gone by a37cc4610
+  # ("invalid argument"); --load-mode none is the same intent at both.
 
 command: >
   llama-server -hf {model}
@@ -60,8 +67,9 @@ command: >
   --min-p {min_p}
   --presence-penalty {presence_penalty}
   --flash-attn {flash_attn}
+  --image-min-tokens {image_min_tokens}
   --reasoning-format {reasoning_format}
   --jinja
   --no-webui
-  --no-mmap
+  --load-mode {load_mode}
   --cont-batching

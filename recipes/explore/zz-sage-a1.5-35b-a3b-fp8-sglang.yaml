@@ -38,7 +38,8 @@ defaults:
   kv_cache_dtype: fp8_e4m3
   chunked_prefill_size: 4096
   attention_backend: flashinfer
-  moe_runner_backend: flashinfer_cutlass
+  # flashinfer_cutlass MoE runner hits `AttributeError: 'CompressedTensorsW8A8Fp8MoE' object has no
+  # attribute 'runner'` during CUDA-graph capture on sglang v0.5.22; leave the backend implicit.
 
 command: >
   taskset -c 5-9,15-19 sglang serve
@@ -56,4 +57,3 @@ command: >
   --chunked-prefill-size {chunked_prefill_size}
   --mem-fraction-static {gpu_memory_utilization}
   --attention-backend {attention_backend}
-  --moe-runner-backend {moe_runner_backend}
