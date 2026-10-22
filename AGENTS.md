@@ -235,6 +235,13 @@ remove what the session created** — a leftover is anything undocumented, unkno
   them.
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule
   exists to prevent.
+- **`.30`–`.33` are the fleet's own inference nodes, not a measurement surface.** They serve the model
+  the agents themselves run on, so a benchmark cell placed there measures a box that is simultaneously
+  answering this session's requests — and every probe, `docker exec`, or health `curl` spends the
+  owner's production headroom. Treat them as **out of bounds for work**: no boots, no cells, no load,
+  no restarts, and no read-only census either (the owner's authorization covers `.34`/`.35` only).
+  Anything that needs a node goes to `.34` or `.35`; anything that needs four ranks is a question for
+  the owner, not a launch.
 
 **Bodies above 60 GB are node-local, never staged on the head.** A model body larger than 60 GB is
 downloaded on the target node (`HF_HOME=~/.cache/huggingface hf download <repo>`), or copied

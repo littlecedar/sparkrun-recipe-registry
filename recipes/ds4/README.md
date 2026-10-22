@@ -215,6 +215,15 @@ sparkrun run deepseek-v4.1-flash-knapcio-tp4-1m-sglang
 | Ladder | C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** t/s, n=5, decode rows only (`is_context_prefill_phase: false`), `--skip-run` on this same boot, 4/4 tasks in 143.8 s |
 | Receipts | `~/benchmarks/knapcio-tp4-20261022/` on the head: `REPORT.md`, `boot.log`, `perf-ladder.{yaml,json,csv}`, `sparkrun_serve.log`, `battery-thinking-on.json` |
 
+**Every cell above carries this session's own traffic.** The rank set is `.30`–`.33`, which are the
+fleet's inference nodes: the same four ranks were answering the agent fleet's requests — this session's
+included — while the ladder, house and needle legs ran, so the numbers are contended by traffic the
+benchmark campaign itself generated. The C1 deficit against the historical 69.28 is therefore `LIKELY`
+self-inflicted contention rather than a property of the arm, `SPECULATIVE` because nothing was measured
+with and without that traffic in the same window; and 69.28 is not a like-for-like control in any case,
+having been taken under different traffic conditions and a different node set. The clean comparison
+needs a window in which the ranks answer nothing else.
+
 **JSON completeness (checked, because a previous C10 row was non-evidence).** `perf-ladder.json` was
 re-parsed after the run: 21,898 bytes, `model = deepseek-ai/DeepSeek-V4.1-Flash-1017`,
 `max_concurrency = 10`, four records, each with `pp_throughput`/`tg_throughput` means and five
