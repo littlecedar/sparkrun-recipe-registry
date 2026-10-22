@@ -84,6 +84,7 @@ jobs:
             *) verdict="the sweep produced no exit code" ;;
           esac
           marker=$(python3 -B .github/scripts/sweep-marker.py sweep.json)
+          echo "$marker"      # stdout too, so `gh run view <id> --log` shows the marker
           {
             echo "$marker"
             echo
