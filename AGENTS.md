@@ -235,13 +235,18 @@ remove what the session created** — a leftover is anything undocumented, unkno
   them.
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule
   exists to prevent.
-- **`.30`–`.33` are the fleet's own inference nodes, not a measurement surface.** They serve the model
-  the agents themselves run on, so a benchmark cell placed there measures a box that is simultaneously
-  answering this session's requests — and every probe, `docker exec`, or health `curl` spends the
-  owner's production headroom. Treat them as **out of bounds for work**: no boots, no cells, no load,
-  no restarts, and no read-only census either (the owner's authorization covers `.34`/`.35` only).
-  Anything that needs a node goes to `.34` or `.35`; anything that needs four ranks is a question for
-  the owner, not a launch.
+- **`.30`–`.33` are the fleet's own inference nodes, not a measurement surface — but `.30` is still the
+  control node, and driving the cluster from it is expected.** Orchestrating there (ssh, `sparkrun`
+  launches, config, inspection) is normal work; what is forbidden is executing **workloads** on
+  `.30`–`.33` — no research boot, benchmark cell, load or restart may run there beyond what the
+  operators themselves placed. A cell on ranks that also serve the model the agents run on measures a
+  box answering its own requests, and probing that live serve spends the owner's production headroom.
+  **Reading is fine, loading is not**: `sparkrun status`, `docker ps`/`inspect` and log reads on `.30`
+  are legitimate control-plane work; a `curl` to `/v1/chat/completions` and any benchmark client
+  pointed at `:8000` are not. Constrain the launch so no rank lands there — a research boot or cell
+  names `.34`/`.35` explicitly with `-H` and their real IPs (dot-aliases like `.34` crash sparkrun
+  0.4.2 in `socket.getaddrinfo`), and a launch that would place a rank on a fenced node, or that needs
+  four ranks, is a question for the owner, not a default.
 
 **Bodies above 60 GB are node-local, never staged on the head.** A model body larger than 60 GB is
 downloaded on the target node (`HF_HOME=~/.cache/huggingface hf download <repo>`), or copied
