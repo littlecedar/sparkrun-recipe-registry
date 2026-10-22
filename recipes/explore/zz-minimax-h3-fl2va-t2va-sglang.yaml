@@ -1,11 +1,10 @@
 # ===========================================================================
-# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+# LICENCE — DEPLOYMENT-LOCATION CONDITION (read before distributing)
 #
 # MiniMaxAI/MiniMax-H3 is licensed under the **MiniMax H3 Community License
 # Agreement** (card `license: other`, `license_name:
-# minimax-h3-community-license-agreement`). It is NOT a commercial-availability
-# question — the licence is **territorially** restricted. Verbatim, LICENSE:5
-# and :3:
+# minimax-h3-community-license-agreement`). It is not a revenue licence and not
+# an open licence: it is a **territorial** one. Verbatim, LICENSE:3 and :5:
 #   "5. "Excluded Territories" means the European Union, the United Kingdom,
 #        the Republic of Korea and the United States of America."
 #   "3. "Applicable Territory" means worldwide, excluding the Excluded
@@ -13,15 +12,23 @@
 # and LICENSE:42: "You may not use, reproduce, modify, distribute, or display
 # the MiniMax H3 Works or any of their Outputs or results outside the
 # Applicable Territory."
-# A recipe ships a repo id, not weights — each downloader fetches from the Hub
-# and accepts the licence there — but that downloader may not use the weights
-# or the video/audio generated from them inside those four territories.
-# The MiniMax-M3 "our use is noncommercial" owner call does NOT transfer here:
-# this clause is not about revenue. §IV.1 additionally requires separate
-# written MiniMax authorization above 20M USD/yr of commercial revenue, §IV.2
-# requires displaying "MiniMax H3" on a commercial UI, and §V.3 bars using the
-# outputs to improve any other AI model. The Qwen3-VL-32B text encoder inside
-# it is Apache-2.0 (LICENSE Additional Note); the whole is not.
+#
+# STATUS: the owner has decided this arm is deployed OUTSIDE the United States,
+# so the run is inside the Applicable Territory and the condition is met BY THE
+# DEPLOYMENT LOCATION. A boot is permitted at a non-US site and NOT permitted
+# at a US site; the node that runs this recipe must therefore be a non-US one.
+# Do not re-litigate the licence — enforce the location.
+#
+# Obligations that still bind on any use, US or not:
+#   IV.1  separate written authorization (api@minimax.io) above 20M USD/yr
+#         of commercial revenue.
+#   IV.2  must prominently display "MiniMax H3" on any commercial UI.
+#   III.4 NOTICE-file carriage.
+#   V.3   the Works and their Outputs MAY NOT be used to improve any other AI
+#         model.
+#   Governing law: Hong Kong.
+# The Qwen3-VL-32B text encoder is Apache-2.0 per the agreement's Additional
+# Note; the aggregate is not.
 # ===========================================================================
 recipe_version: "2"
 model: MiniMaxAI/MiniMax-H3
@@ -32,26 +39,25 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  MiniMaxAI/MiniMax-H3 — joint video+stereo-audio diffusion model (33.1B
-  DiT x50 layers + a 33.4B Qwen3-VL-32B text encoder + f16t4d24 visual VAE +
-  a 0.56 GiB audio VAE), served on ONE DGX Spark with SGLang v0.5.22's native
-  diffusion pipeline. DRAFT, never booted: the shipped set is 134.1 GiB in
-  bf16 and one node has ~109 GB usable, so this arm keeps the full-fidelity
-  bf16 DiT and takes the two components that can be swapped without pruning
-  it — an NVFP4-AWQ text encoder (25.28 -> 14.61 GiB) and an fp16 visual VAE
-  — for 81.75 GiB resident. INT8 ConvRot is deliberately absent: GB10 (sm_121)
-  has no int8 scaled GEMM (a Spark-X2.6 INT8 boot died with
-  "No implemented int8_scaled_mm for current compute capability"), so every
-  INT8/W6A8 component in the Hub census is unavailable here, not untested.
-  Task is `t2va`/`fl2va` (text or first/last frame -> video + 32 kHz stereo
-  audio, 4-15 s, 768p, 24 fps). LICENSE: MiniMax H3 Community Licence,
-  Excluded Territories are the EU, UK, South Korea and the US — read the
-  banner at the top of this file before distributing it.
+  MiniMaxAI/MiniMax-H3 — joint video+stereo-audio diffusion model (33.1B DiT
+  x50 layers + a 33.4B Qwen3-VL-32B text encoder + f16t4d24 visual VAE + a
+  0.56 GiB audio VAE), served on ONE DGX Spark with SGLang v0.5.22's native
+  diffusion pipeline. DRAFT, never booted. The shipped set is 134.1 GiB bf16
+  against ~109 GB of usable unified memory, so this arm runs the
+  AdaLN-pruned FP8 DiT (19.52 GiB) with an NVFP4-AWQ text encoder
+  (14.61 GiB), the fp16 visual VAE and the fp32 audio VAE: 39.54 GiB / 42.5 GB
+  resident, ~58 GB of headroom. INT8 ConvRot is deliberately absent — GB10 is
+  sm_121 and has no int8 scaled GEMM ("No implemented int8_scaled_mm for
+  current compute capability"), so every INT8/W6A8/W4A8 component in the Hub
+  census is unavailable here, not untested. Task is `t2va`/`fl2va` (text or
+  first/last frame -> video + 32 kHz stereo audio, 4-15 s, 768p, 24 fps).
+  LICENSE: territorial — deployable at a NON-US site only; read the banner.
 metadata:
   model_url: https://huggingface.co/MiniMaxAI/MiniMax-H3
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "33.1B"
-  model_dtype: bf16
+  model_dtype: fp8
+  quant_bits: "8"
   model_type: diffusion
   tags: explore, video, audio, single_user
 
@@ -69,35 +75,46 @@ defaults:
   # resident and OOMs if the workload does not fit, `memory` forces layerwise
   # offload that buys nothing when host and GPU memory are the same pool.
   performance_mode: auto
-  # The DiT is NOT overridden: `fl2va` resolves to the base repo's own
-  # transformer/ in bf16, which keeps the AdaLN branches (the pruned variants
-  # remove them and then need --minimax-h3-adaln-online or a cache built from
-  # the unquantized checkpoint, neither of which is free).
+  # Component values are OWNER/REPO/path/FILE; SGLang reads each file header
+  # for shape and dtype. Pre-quantized files must not be combined with
+  # --quantization or --component-quantizations.*. The audio VAE (0.60 GB
+  # fp32) is not overridden; the base repo supplies it.
+  dit_weights: Comfy-Org/MiniMax-H3/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
   text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
   video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
 
 readiness:
   # No chat surface: readiness is the port plus SGLang's /health, which only
-  # answers once server_warmup_done is set (http_server.py:186-189). A 12 min
-  # load and a first-use JIT compile are expected on GB10.
+  # answers once server_warmup_done is set (http_server.py:186-189). Expect a
+  # multi-minute load and a first-use JIT compile on GB10.
   inference: false
-  port_timeout_s: 2400
-  health_timeout_s: 1800
+  port_timeout_s: 3000
+  health_timeout_s: 2400
 
-# Pre-quantized component files are self-describing and must not be combined
-# with --quantization or --component-quantizations.*, and SGLang advertises no
-# int8 VAE format, so the visual VAE is the fp16 export.
-#
 # The pin has to reach the engine (sparkrun downloads by commit SHA, which
 # writes no refs/ entry, under HF_HUB_OFFLINE=1), but SGLang hands that one
 # revision to EVERY component load — `revision=server_args.revision` on
-# get_hf_config and AutoModel.from_pretrained in
+# get_hf_config and on all three from_pretrained paths in
 # multimodal_gen/runtime/loader/component_loaders/component_loader.py — and the
-# Comfy-Org repo carries no commit 42ed227e. First boot decides this; see the
-# open question in mad-science/TODO.md §explore.
-# Component values are OWNER/REPO/path/FILE and the file header supplies shape
-# and dtype. sparkrun's VRAM estimate only counts --model-path (33.1B bf16 =>
-# 61.73 GiB), so read it as the DiT alone, not the arm (81.75 GiB resident).
+# Comfy-Org repo carries no commit 42ed227e. First boot decides this; the fix
+# is a mods/ stage that links the component files into the prepared snapshot
+# and passes directory paths.
+#
+# FIRST-BOOT QUESTION: an AdaLN-pruned DiT may need
+# `--minimax-h3-adaln-online` (which requires UNQUANTIZED weights) or a cache
+# built from the unquantized checkpoint by tools/build_minimax_h3_adalcache
+# (`--minimax-h3-adaln-cache-path`, server_args.py:2239-2245). Read the serve
+# log for the pipeline's AdaLN decision before changing precision.
+#
+# WALL TIME. The published 12.1 s/step is a vendor figure on an RTX PRO 6000
+# Blackwell at 480p; GB10 is a fraction of that GPU. Budget: ~10-12 min load,
+# ~5.5 min for the Qwen3-VL encoder pass, then the denoise loop - so a warm
+# 4-5 s 768p clip is expected in the 15-30 min band and the falsifier bar is
+# 30 min. If wall time is what breaks the arm, the lever is Comfy's Turbo LoRA
+# (loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16, 4 or 8 steps
+# instead of ~50); whether SGLang v0.5.22 can load a diffusion LoRA is
+# unverified and is NOT part of this draft.
+#
 # No '#' inside the folded block below: folding joins every line into one shell
 # word, so a comment there would swallow the flags that follow it.
 command: >
@@ -106,6 +123,7 @@ command: >
   --revision {model_revision}
   --model-variant {model_variant}
   --served-model-name {served_model_name}
+  --component-weights-paths.transformer {dit_weights}
   --component-weights-paths.text_encoder {text_encoder_weights}
   --component-weights-paths.video_vae {video_vae_weights}
   --num-gpus {num_gpus}
