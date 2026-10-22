@@ -697,6 +697,77 @@ mod's venv supplies its own `transformers>=5.17`, so the image's engine version 
 
 **Holds unchanged:** `kolibri-1-78b-fp8-vllm` (the vendor plugin pins vLLM 0.29).
 
+## Engine bump — upstream llama.cpp (2026-10-22)
+
+Every llama.cpp arm in the tree runs a third-party or fork build, and the publisher of the one
+`scitrera` pin has stopped: Docker Hub's newest tag for `scitrera/dgx-spark-llama-cpp` is still
+`b10549-cu131` — and `:latest` points at it, uploaded 2026-08-21, i.e. llama.cpp `b2e5e9b` (2026-08-21).
+Upstream has since absorbed what the forks existed for. Feature by feature, read in source at the named
+commit (not from release notes):
+
+| need | who carried it | upstream now | landed |
+|---|---|---|---|
+| Mellum2.1 MTP (`nextn_flags`, `graph_mtp`, `-md` / `--spec-type draft-mtp`) | nobody — absent at `b2e5e9b` | **native**, `src/models/mellum.cpp` | `9a16f1dbe` 2026-10-16 (#30612) |
+| Kolibri-1 (`kolibri1`) | `brywil/llama.cpp` @ `68fa28b` | **native**, `src/models/kolibri1.cpp` | `62318cd57` 2026-10-17 (#30673), then `9df0b73c7` 2026-10-20 (#30865) |
+| Decision-2 | `Xunzhuo/llama.cpp` @ `c9f597487` | **fork-only in practice** — upstream's arch is `vllm-decision2` (`097cf33d9`, 2026-10-12, #30378) with its own converter; the shipped pack is a different contract (below) | — |
+| CUDA 13 / sm_121 | the fork images' own flags | **native**, `121a-real` in `ggml/src/ggml-cuda/CMakeLists.txt` | present by `v0.7.0` |
+
+No release tag carries all of it: the newest, `v0.7.0` (`620d2225cc`, 2026-10-15), predates Mellum MTP
+and Kolibri-1 (verified: its `src/models/kolibri1.cpp` and its `mellum.cpp`'s `graph_mtp` are both
+absent). The minimal feature-complete ref verified 2026-10-22 is
+**`9df0b73c707900b7277a46b5ae52ff7e7e567d13`** (2026-10-20T12:58Z): `mellum.cpp` carries
+`nextn_flags` / `graph_mtp` / `LLM_GRAPH_TYPE_DECODER_MTP`, `kolibri1.cpp` and `vllm-decision2.cpp` are
+present, and the CUDA 121 entry is in the tree. Anything later also works — which is why the build
+takes a required `--build-arg`, not a tag.
+
+**Two pack-level facts decide what may move** (read from the packs' own GGUF headers, not assumed):
+`Kolibri-1-APEX-2.4bpw.gguf` declares `general.architecture = kolibri1` *and*
+`tokenizer.ggml.pre = qwen2`, so the fork's "accept `kolibri1` as a Qwen2 pre-tokenizer alias" patch is
+not needed for the shipped packs (upstream has no such alias, and does not need one here). The decision
+pack `Decision-2.0-Sol-2B-Q8_0.gguf` declares `general.architecture = qwen35` with **330** tensors — ten
+more than upstream's qwen35 loader expects (320) — so upstream's `vllm-decision2` cannot substitute for
+Xunzhuo's patched qwen35 loader; that arm stays on
+`littlecedar/dgx-spark-llama-cpp-decision2:c9f5974`.
+
+**What a stock-upstream image unlocks, one line per arm:**
+- `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` (+ its `mmap` probe) — the pin can leave `scitrera`
+  outright, which retires the stalled-publisher risk, and the arm gains the MTP path its pack ships.
+- `kolibri-1-apex-24bpw-llamacpp` (and the Q4_K sibling) — loadable on stock upstream; the fork image
+  can retire after one boot proves it, and stays the fallback until then.
+- `sol-2b-decision2-gguf-llamacpp` — **not** unlocked: different arch string and tensor contract, so
+  the Xunzhuo fork image remains the only engine for that pack.
+
+**Build — pre-registered, waits for a free node (no boot yet).** `recipes/explore/Dockerfile.llamacpp-upstream`
+is arm64-only, `121a-real`, with `LLAMA_REF` **required** and no default, and fails closed on: a
+non-arm64 host, a missing ref, a ref whose `git rev-parse HEAD` differs, a tree without the three model
+sources or without `nextn_flags`/`graph_mtp` in `mellum.cpp`, a fatbin without `sm_121`, and a binary
+without the three arch names. Build on the first node with `docker ps -aq` = 0 and **never** beside a
+foreign container (`.30` only while the quartet is between boots); sibling builds took 184 s cold
+(including the base pull) and 134 s for a rebuild, so expect ~200–250 s. Push to a NEW tag — never move
+`scitrera`'s tag or either fork image:
+
+    docker build -f recipes/explore/Dockerfile.llamacpp-upstream \
+      --build-arg LLAMA_REF=9df0b73c707900b7277a46b5ae52ff7e7e567d13 \
+      -t littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130 .
+    docker push littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130
+    docker inspect --format '{{index .RepoDigests 0}}' \
+      littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130
+
+**Mellum MTP A/B — pre-registered with its falsifier, to run the moment the image exists.** The recipe
+bytes stay as shipped except `container:` and the draft staging: sparkrun stages one repository per
+recipe, and the head is a second file in the same repo
+(`mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, 1.77 GB, `-md` → that path, plus
+`--spec-type draft-mtp --spec-draft-n-max 1`), so it needs a mod or a second distribution step before
+the serve line can name it — that staging, not the engine, is the work.
+
+- Cell: **C1 @ d0 pp2048 tg128 n=5**, the baseline's own method and receipt shape.
+- Baseline: **111.9 ± 0.3 t/s** (`~/benchmarks/mellum-gguf-20261017/`), with C2 151.1 / C5 208.0 /
+  C10 146.4 and house 37/37, bfcl 88.3 %.
+- Falsifier (pre-registered): C1 does **not** clear **114 t/s** (the baseline mean plus ~7× the
+  ±0.3 sample spread) with `accepted / drafted` recorded per request, **or** any C2/C5 regression, **or**
+  house drops off 37/37 / bfcl off 88.3 %. An accept rate of 0 is the expected failure mode if the
+  Q4_K_M main's hidden states do not suit the BF16-trained head — quote accept-len, not just t/s.
+
 ## Selection (2026-10-13)
 
 The lane keeps **two** recipes. **Owner decision 2026-10-13: for the explore lane the deciding factor is

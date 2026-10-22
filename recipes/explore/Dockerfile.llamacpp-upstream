@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Stock upstream llama.cpp server for the sparkrun `explore` lane on one NVIDIA
+# DGX Spark (GB10 / sm_121) — the image this registry has been missing.
+#
+# Why it exists. Every llama.cpp arm here runs a third-party or fork build, and
+# the publisher of the one `scitrera` pin has stopped: its newest tag is still
+# `b10549-cu131` (`:latest` points at it, uploaded 2026-08-21), i.e. llama.cpp
+# `b2e5e9b`. Upstream has since absorbed what the forks existed for (verified in
+# source 2026-10-22; the feature table is in attic/explore/AGENTS.md):
+#   * Mellum2.1 MTP — `9a16f1dbe` (2026-10-16, #30612): `nextn_flags` +
+#     `graph_mtp` in src/models/mellum.cpp, the `-md` / `--spec-type draft-mtp`
+#     path the Mellum pack's card requires (absent at b2e5e9b).
+#   * Kolibri-1 — `62318cd57` (2026-10-17, #30673), fix `9df0b73c7`
+#     (2026-10-20, #30865): src/models/kolibri1.cpp.
+#   * Decision-2 — `097cf33d9` (2026-10-12, #30378) as arch `vllm-decision2`,
+#     which is NOT the fork's `decision2` contract: the shipped Sol-2B pack is
+#     `general.architecture = qwen35` + 10 decision tensors (330 vs 320) and
+#     still needs the Xunzhuo fork. That arm is not what this image is for.
+#   * CUDA 13 / sm_121 — upstream-native (`121a-real` in
+#     ggml/src/ggml-cuda/CMakeLists.txt).
+#
+# No release tag carries all of it: the newest, v0.7.0 (`620d2225cc`,
+# 2026-10-15), predates Mellum MTP and Kolibri-1. That is why LLAMA_REF is a
+# REQUIRED build arg with no default — a default would silently rebuild a tree
+# without the features the image claims.
+#
+# Build flags, gates and the base pair are the same as
+# `Dockerfile.kolibri1-llamacpp` and `Dockerfile.llama-cpp-decision2`: arm64-only,
+# 121a-real (sm_121 device code, no PTX), `GGML_NATIVE=OFF`, no curl, no tests.
+#
+# Base images pinned by digest:
+#   devel   nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92
+#   runtime nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
+
+FROM nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92 AS build
+
+ARG LLAMA_REPO=https://github.com/ggml-org/llama.cpp.git
+# Required, never defaulted: see the header.
+ARG LLAMA_REF=
+
+# GB10-only image, and a missing ref must fail before the network is touched.
+RUN test "$(dpkg --print-architecture)" = "arm64" \
+    && test -n "${LLAMA_REF}" \
+    || { echo "build needs an arm64 host and --build-arg LLAMA_REF=<40-hex llama.cpp commit>" >&2; exit 1; }
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates build-essential cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin the commit: fetch that one object, not the branch, and verify what landed.
+# .git stays until the build step ends: cmake reads the commit into --version.
+RUN git init --quiet /opt/llama.cpp \
+    && cd /opt/llama.cpp \
+    && git remote add origin "${LLAMA_REPO}" \
+    && git fetch --quiet --depth 1 origin "${LLAMA_REF}" \
+    && git checkout --quiet FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${LLAMA_REF}"
+
+WORKDIR /opt/llama.cpp
+
+# Fail closed on a ref that predates the features this image exists for, rather
+# than shipping a binary whose `--spec-type draft-mtp` cannot build a Mellum
+# graph (the b2e5e9b behaviour). Source-level, because the binary gate below can
+# only prove arch strings.
+RUN test -f src/models/mellum.cpp \
+    && test -f src/models/kolibri1.cpp \
+    && test -f src/models/vllm-decision2.cpp \
+    && grep -q nextn_flags src/models/mellum.cpp \
+    && grep -q graph_mtp src/models/mellum.cpp \
+    && echo "features: mellum MTP + kolibri1 + vllm-decision2 present"
+
+# 121a-real == sm_121 device code with no PTX: GB10-only on purpose.
+RUN cmake -B build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGGML_NATIVE=OFF \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES=121a-real \
+        -DLLAMA_CURL=OFF \
+        -DLLAMA_BUILD_TESTS=OFF \
+        -DBUILD_SHARED_LIBS=OFF \
+    && cmake --build build --config Release -j"$(nproc)" --target llama-server llama-cli \
+    && rm -rf .git
+
+# Build-time gate: sm_121 device code and the three arch names are in the binary.
+# `llama-server --version` cannot run here — the binary links libcuda.so.1
+# directly (CUDA::cuda_driver) and a build stage has no driver library.
+RUN cuobjdump -lelf build/bin/llama-server | grep -q sm_121 \
+    && grep -qa kolibri1 build/bin/llama-server \
+    && grep -qa "vllm-decision2" build/bin/llama-server \
+    && grep -qa mellum build/bin/llama-server \
+    && echo "gate: sm_121 + kolibri1 + vllm-decision2 + mellum present"
+
+FROM nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
+
+ARG LLAMA_REF=
+
+LABEL org.opencontainers.image.title="llama.cpp upstream (DGX Spark)" \
+      org.opencontainers.image.description="stock upstream llama.cpp server (Mellum2.1 MTP, Kolibri-1, vllm-decision2), CUDA sm_121, for NVIDIA DGX Spark (GB10)" \
+      org.opencontainers.image.source="https://github.com/ggml-org/llama.cpp" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${LLAMA_REF}"
+
+# libgomp1 for ggml's OpenMP pools; the CUDA runtime image already carries cudart
+# and the math libraries the statically linked ggml-cuda calls.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+COPY --from=build /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
+
+# Probe on the built image with the host's libcuda.so.1 mounted read-only and no
+# GPU device ("failed to initialize CUDA: no CUDA-capable device" is that
+# absence, not a fault), as the sibling images were probed:
+#   llama-server --version -> version: <x>-dev (build NNNNN, commit <LLAMA_REF>)
+#   llama-server --help    -> --spec-type (values include draft-mtp), -md/--spec-draft-model,
+#                             --spec-draft-n-max, --jinja, --no-mmap
+#   rpc-server             -> absent (not built; single-node arms)
+
+WORKDIR /app
+ENTRYPOINT ["/usr/local/bin/llama-server"]
