@@ -18,6 +18,6 @@
 **/.syncthing.*.tmp
 **/*.sync-conflict-*
 
-# benchmark tooling scratch: a re-runnable index and per-run notes, never inputs to a recipe.
-/data/benchmarks.sqlite
-/runs/
+# lane receipt root (AGENTS.md §Node hygiene): benchmark/serve evidence, incl. the salvaged
+# tool-eval-bench reports it writes relative to its CWD under runs/ and data/.
+/.scratch/
