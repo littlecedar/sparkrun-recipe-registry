@@ -1,4 +1,4 @@
-# Board — 2026-10-22 03:36 ET census, 03:39 ET gate
+# Board — 2026-10-22 03:40 ET (census 03:36, gate 03:39)
 
 The night's verdicts are in: the SGLang `v0.5.22` bump closed with six arms held, humanizer-12B ships at Q6_K, Spark-X2.6's FP8 tier is measured-rejected despite being 2× faster, and the TP=4 block is booting. Gate **899 tests OK** (2 skipped), plain **56/56**, strict **17/56** — the same seventeen known false positives.
 
@@ -6,7 +6,7 @@ The night's verdicts are in: the SGLang `v0.5.22` bump closed with six arms held
 
 | where | what | since | state |
 |---|---|---|---|
-| `.30`+`.31`+`.32`+`.33` | `tp4-queue` — W6 on `v0.5.22`, the block's first TP=4 boot | 03:35 | **booting**: task `sparkrun_08acf79cd757a666_7afff0589a33`, `node_0`–`node_3` on `.30`/`.31`/`.32`/`.33`, four containers up since **03:35:35 ET** on `lmsysorg/sglang:v0.5.22-cu130`; client live on the head (`sparkrun run .scratch/w6-v0522/tp4-v0522.yaml -H .NN,.31,.32,.33 --transfer-mode local --no-ready-wait`, pid 97943). Inside the containers: **no serve process and no `/tmp/sparkrun_serve.log` yet** — only `sleep infinity` plus the drop_caches loop, so weights are still staging. The set this launch chose is `.30`–`.33` (`.34` and `.35` are at 0 containers) because the consecutive-node rule is lifted, so **every receipt must name the node set it used** |
+| `.30`+`.31`+`.32`+`.33` | `tp4-queue` — W6 on `v0.5.22`, the block's first TP=4 boot | 03:35 | **loading weights, live**: task `sparkrun_08acf79cd757a666_7afff0589a33`, `node_0`–`node_3` on `.30`/`.31`/`.32`/`.33`, four containers up since **03:35:35 ET** on `lmsysorg/sglang:v0.5.22-cu130`; client live on the head (`sparkrun run .scratch/w6-v0522/tp4-v0522.yaml -H .NN,.31,.32,.33 --transfer-mode local --no-ready-wait`, pid 97943); at **03:40 ET** the serve log on `.30` reads **`Multi-thread loading shards: 8/41` at ~13 s/shard** (~7.5 min of load left) and no endpoint yet. The set this launch chose is `.30`–`.33` (`.34` and `.35` at 0 containers) because the consecutive-node rule is lifted, so **every receipt must name the node set it used** |
 
 ## Attention
 
