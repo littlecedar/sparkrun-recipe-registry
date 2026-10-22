@@ -45,6 +45,9 @@ defaults:
   # The MTP head is inside the main file; `draft-mtp` needs no `-md`.
   spec_type: draft-mtp
   spec_draft_n_max: 3
+  # `--no-mmap` no longer exists at a37cc4610 (it is `--load-mode`, common/arg.cpp:2695);
+  # a boot died on the old spelling.
+  load_mode: none
 
 command: >
   llama-server -hf {model}
@@ -64,5 +67,5 @@ command: >
   --spec-draft-n-max {spec_draft_n_max}
   --jinja
   --no-webui
-  --no-mmap
+  --load-mode {load_mode}
   --cont-batching
