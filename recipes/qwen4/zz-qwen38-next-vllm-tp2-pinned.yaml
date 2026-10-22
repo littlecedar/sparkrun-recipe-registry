@@ -57,7 +57,10 @@ defaults:
   max_num_seqs: 12
   dtype: bfloat16
   moe_backend: b12x
-  load_format: instanttensor
+  # safetensors, not instanttensor: this image's instanttensor exposes no _determine_buffer_size
+  # (weight_utils.py:1679), so the index-aware shard path dies at TP=2. TP=1 never takes that
+  # path, which is why the solo arm boots on the same digest. Measured 2026-10-22 (W12, TP=2).
+  load_format: safetensors
   quantization: modelopt
   speculative_tokens: 3
 
