@@ -452,26 +452,36 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   can be claimed against the lane's 36/37 house baseline; per-rank weight residency and KV headroom
   at c16 are unmeasured; the trust-store acceptance is interactive on first run, which a headless
   launch must solve.*) *(effort: research only — owner decisions first.)*
-  *(Owner deliverable 2026-10-22 (`QUESTIONS.md` `#6`, still open): a brief at
-  `mad-science/FLARE-AGENT-BRIEF.md` on what `flare agent` does and why it cannot be folded into a
-  container instead of the bare-metal APT install — the install decision follows that brief, and the
-  row is not closed by it. The brief itself is not written yet.)*
+  *(Owner deliverable 2026-10-22 (`QUESTIONS.md` `#6`, still open): the brief at
+  `mad-science/FLARE-AGENT-BRIEF.md` is **delivered** (`52db8cb`). It answers the premise rather than
+  confirming it — `flare agent` is a per-user systemd *user* unit that needs no kernel module, no root
+  and no capability, so it is **containerizable in principle**, and the narrow frictions are the vendor
+  serve image's **amd64-only human tags**, the user-unit + lingering lifecycle, and disk-Engram's
+  `io_uring`, which Docker's default seccomp profile blocks. Its supply-chain split is the fact the
+  install decision turns on: the **engine is NVIDIA's Apache-2.0 research prototype**, while the
+  `.deb`, the APT repository and the weights are **Local Inference Lab's** — so the repo key is root on
+  any node that later runs `apt upgrade`. Nothing was installed and no node was contacted (the `.deb`
+  was read with `bsdtar`/`readelf`/`strings`, never executed), so GB10/arm64 behaviour and the
+  package's ABI match remain **unverified**. The row stays open on the install authorization, not on
+  the brief.)*
 
-- [ ] **Repair the b12x backend declaration by explicit flag — `QUESTIONS.md` `#9`, answered
-  2026-10-22: "repair by explicit flag instead"** — **boot-gated; the recipe is not edited until a boot
-  window.** Today the shipped arm carries no declared `--fp8-gemm-backend`: the image's
-  `DSV41_MXFP8_BACKEND=b12x` asserts it requires `flashinfer_cutlass`, and the launcher substitutes the
-  value, so the effective backend reads `auto (omitted)` replaced (`recipes/ds4/README.md:372-377`). The
-  ruling is **not** a launcher assertion: delete the `DSV41_MXFP8_BACKEND=b12x` env dependency and spell
-  the backend flag explicitly in `command:` so it reaches the engine. Two facts the boot must settle,
-  both already read out of the pinned image rather than assumed: `boot.py` (`@ 27616bec`, the branch the
-  image is built from) **strips every `--fp8-gemm-backend` carried in `EXTRA_SGLANG_ARGS` and appends its
-  own last** (`launcher.py:219-229`), so "explicit in `command:`" has to be shown to reach the engine —
-  the acceptance is the serve log's effective value naming the declared flag instead of the substitution,
-  plus `[moe_b12x_next] armed` — and this arm is the one serving the fleet on `.30`–`.33`
-  (`mad-science/STATUS.md:19`), so the repair boot waits for the `#4` fence to lift. Compare prefill GEMM
-  behaviour on a short-context ladder against the recorded 2897 t/s cold pp at C1, within the
-  inter-boot floor. *(effort: short)*
+- [ ] **The b12x backend is declared by explicit flag (`5198297`) — only the quartet boot is left —
+  `QUESTIONS.md` `#9`, answered 2026-10-22: "repair by explicit flag instead"** — **the recipe edit has
+  landed; the boot has not.** `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` now spells
+  `--fp8-gemm-backend flashinfer_cutlass` in `command:`, and the lane's overlay launcher
+  (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`) maps it to `FP8_GEMM_BACKEND` →
+  `EXTRA_SGLANG_ARGS`. That is what makes the image's own guard harmless rather than a substitution: the
+  pinned image's `boot.py` (`@ 27616bec`) **strips every `--fp8-gemm-backend` carried in
+  `EXTRA_SGLANG_ARGS` and appends its own last** (`launcher.py:219-229`), keyed off
+  `DSV41_MXFP8_BACKEND=b12x` — with the flag declared, that rewrite re-stamps the same value and goes
+  silent instead of replacing an omitted one, and it still supplies the value if the image default ever
+  goes away. `tests/test_ds4_recipes.py` guards the declaration
+  (`test_fp8_gemm_backend_is_declared_not_inherited`). **Acceptance is a quartet boot and is
+  UNVERIFIED** — it must show `[moe_b12x_next] armed`, `fp8_gemm_backend='flashinfer_cutlass'` in the
+  `server_args` dump, **no** `WARNING: DSV41_MXFP8_BACKEND=` line, and one flag in `launch.json`'s args.
+  This arm is the one serving the fleet on `.30`–`.33` (`mad-science/STATUS.md` §Now), so the boot waits
+  for the `#4` fence to lift. Compare prefill GEMM behaviour on a short-context ladder against the
+  recorded 2897 t/s cold pp at C1, within the inter-boot floor. *(effort: short)*
 
 ## glm5
 GLM 5.3
@@ -1184,7 +1194,7 @@ Any model with reasoning and tool-calling capabilities
   boot and are worth not repeating: **`:latest` is 0.31.0rc1 and cannot load this checkpoint** (its
   registry has `QwenImagePipeline` only, while `model_index.json` declares `QwenImage21Pipeline`), and
   **sm_121 has no cubin in torch's arch flags yet bf16 matmul runs through PTX JIT**, so arch was never
-  the blocker. **Not an arm:** no recipe was written; `num_inference_steps` is inert *and* the engine
+  the blocker. **Not an arm at the time:** no recipe was written in that window; `num_inference_steps` is inert *and* the engine
   divides one total by the requested count (4/8/12 all wrote the byte-identical PNG in ~8.7 s while
   `denoise_step_latency_ms` read 2164/1086/721 — asking for more steps claims each step got faster); and
   same seed ≠ same picture (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). **Operator review 2026-10-21
@@ -1199,12 +1209,15 @@ Any model with reasoning and tool-calling capabilities
   is just spent on the wrong instruction. Scoped: one prompt, one seed, one image per route, so this is
   evidence against swapping on latency alone, **not** a measured general quality gap (no multi-prompt
   adherence battery was run). **Conclusion for the lane, settled by the owner on 2026-10-21:** the shipped
-  Diffusers arm stays the only route the registry ships; an OMNI variant was offered as a *different look*
-  the owner likes and **declined**, so no recipe is pending and none will be written unless that is
+  Diffusers arm stayed the only route the registry shipped; an OMNI variant was offered as a *different look*
+  the owner likes and **declined then**, so no recipe was pending until that was
   reversed. **Reversed 2026-10-22 (`QUESTIONS.md` `#13`): "ship both"** — the Diffusers render and the
-  vLLM-OMNI variant land as separate arms and the OMNI arm carries the two-ink adherence defect in
-  `recipes/explore/README.md`; see the ship item after this block. §6 "which look ships" was the owner's
-  call for **both** routes and is now answered (`recipes/explore/README.md`
+  vLLM-OMNI variant land as separate arms, and the OMNI arm **has landed as a recipe**:
+  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`a574eaf`, media lane after the split),
+  validated and rendered only — **never booted** — carrying the two-ink adherence defect and **four
+  queued boot cells** as its acceptance (`recipes/media/README.md` §"qwen-image … vllm-omni"); see the
+  ship item after this block. §6 "which look ships" was the owner's
+  call for **both** routes and is now answered (`recipes/media/README.md`
   §6, `attic/explore/QWEN-IMAGE.md`). Receipt `~/benchmarks/media-gen-20261021/vllm-omni/`
   (`REPORT.md`, `omni.json`, `omni-warm8.json`); the two 8-step PNGs are **not tracked** (owner decision:
   the registry ships as text) and live only in the head receipt as
@@ -1215,9 +1228,9 @@ Any model with reasoning and tool-calling capabilities
   — the Diffusers render stays as shipped (`recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`,
   11.49 s warm / 12.64 s cold per 1024² 8-step) and the **vLLM-OMNI variant is authored as its own arm**
   on `vllm/vllm-omni:nightly` (the measured route, 0.32.0rc2.dev29; 8.66–8.75 s warm / 11.19 s cold, same
-  36.8 GiB peak) — **digest-pin the tag**, because `:latest` is 0.31.0rc1 and ships only
+  36.8 GiB peak) — **digest-pinned in the arm**, because `:latest` is 0.31.0rc1 and ships only
   `QwenImagePipeline` while the checkpoint declares `QwenImage21Pipeline`, a guaranteed dead boot.
-  Two properties must be written down rather than discovered by an operator: **`num_inference_steps` is
+  Two properties are written down rather than left to be discovered by an operator: **`num_inference_steps` is
   inert on this route** (the checkpoint's saved sigmas win, so 4/8/12 write a byte-identical PNG while
   `denoise_step_latency_ms` merely divides one total by the requested count), and **same seed is not the
   same picture** across routes (OMNI `38ce554a…`, Diffusers `e24f6e3a…`). **The lane README carries the
@@ -1225,6 +1238,16 @@ Any model with reasoning and tool-calling capabilities
   cream) and OMNI violates it (single-line wordmark in a rainbow of hues) — a prompt-adherence defect,
   scoped to one prompt/one seed/one image per route, not a measured general quality gap. Both arms carry
   the Qwen Research License banner and its non-commercial note (`AGENTS.md` §Recipes, `#11`).
+  **Landed 2026-10-22 in `a574eaf`: the authoring half of this item is done** — the arm file exists,
+  validates and renders (`recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml`). **What is left is
+  its acceptance, four boot cells, and none of them has run** (`.34`/`.35` were held by the BeeGFS pilot):
+  (1) boot **this recipe file** and gate on `/health` healthy plus `/v1/models` naming
+  `Qwen/Qwen-Image-2.1-Turbo`, with the engine's own load line naming `QwenImage21Pipeline` — that line,
+  not a file listing, is the identity gate; (2) re-render the 1024² 8-step seed-42 cell and check warm
+  wall time against the 8.66–8.75 s research receipt; (3) re-render the two-color screenprint prompt and
+  review it at full resolution, so the row carries either the same defect or its resolution; (4) record a
+  cold TTR against the shipped `stage_init_timeout: 900`. Until those exist the arm is **authored, not
+  shipped**, and both the recipe section and the selection row say so.
   *(effort: medium)*
 
 - [ ] **Probe MOSS-Image (Base/SFT) — the lane's first Apache-2.0 image pair — on one free GB10** —
@@ -2074,12 +2097,16 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   Defense" model whose only engine is llama.cpp, and whose two tiers trade quality for ~2.5 GB of
   bytes** — the owner question was *ship a single-node cybersec arm or not, and at which tier*, not a
   model survey; **answered 2026-10-22 (`QUESTIONS.md` `#12`): ship the 15.7G tier, with the 13G tier as
-  the A/B control rather than the default** — see the ship item after this one. **Research only: nothing
-  booted, downloaded or served.** The model is **not mentioned
-  anywhere in this tree** (checked 2026-10-22); its vendor `orcarouter` already ships lane arms 1, 3
-  and 4, so the item inherits the lane's conventions rather than inventing any. Draft:
-  `recipes/cybersec/zz-orcacyber-nano-1.0-ai-defense-mix-15.7g-llamacpp.yaml` (DRAFT, never booted,
-  no root-index row).
+  the A/B control rather than the default** — see the ship item after this one. **This research item is
+  closed by the ship:** the 15.7G tier was booted and measured on `.35` on 2026-10-22 (`0243e57`; TTR
+  30.29 s warm, one warm C1 call **25.62 ± 2.31** t/s, prefill 742.9 ± 72.0, ttfr 2,399 ms, the in-file
+  MTP head doing the work with log acceptance 0.40–0.86 / mean len 2.19–3.57 and **no paired MTP-off
+  control**), so the paragraph below is the profile that preceded that boot. The model is **not mentioned
+  anywhere else in this tree** (checked 2026-10-22); its vendor `orcarouter` already ships lane arms 1, 3
+  and 4, so the item inherits the lane's conventions rather than inventing any. Draft at research
+  time: `recipes/cybersec/zz-orcacyber-nano-1.0-ai-defense-mix-15.7g-llamacpp.yaml` — **superseded by the
+  shipped arm** `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (`0243e57`; the `zz-` path
+  no longer exists).
 
   **Family facts, read out of the GGUF headers, not the card.** The repo is **GGUF-only** — four
   files, no `config.json`, no safetensors, no `LICENSE` (`/raw/main/LICENSE` → 404), gated `auto`;
@@ -2248,18 +2275,24 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   research-only until the owner frees a node. Nothing else gates it: the arch, MTP and projector are
   all in the pinned image, the weights are 15.7 GB and the licence is Apache-2.0 read from the base's
   own file (see the licence paragraph), so nothing but a free node stands between this item and its
-  first cell. *(effort: medium)*
+  first cell. *(Superseded the same day: `.35` was freed and the 15.7G tier booted — `0243e57`.)*
+  *(effort: medium)*
 
 - [ ] **Ship the OrcaCyber arm at the 15.7G tier, 13G as the A/B control — `QUESTIONS.md` `#12`,
   answered 2026-10-22** — the ship decision is taken, the tier is not to be re-litigated: default tier
   **`orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G`** (15,695,148,832 B ≈ 14.62 GiB, 4.60 bpw mixed, imatrix,
   gated `auto`), control **`:Mix-13G`** (12,993,304,352 B ≈ 12.10 GiB, 3.80 bpw) — the control, not the
-  default. Mechanics left to the lane: the 13G control ships as its own recipe or as a documented
-  per-launch override, whichever the lane's conventions make cheaper; the 15.7G arm is promoted from
-  `recipes/cybersec/zz-orcacyber-nano-1.0-ai-defense-mix-15.7g-llamacpp.yaml` (still DRAFT, never
-  booted). **The ruling does not ship an unmeasured arm**: the boot cells and the four pre-registered
-  falsifiers in the item above still apply, and the weights are gated, so the fetch itself needs the
-  owner's Hub access. *(effort: medium)*
+  default. **Landed 2026-10-22 in `0243e57`** — the 15.7G arm is shipped as
+  `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (the `zz-` draft it was promoted from no
+  longer exists), pinned to `1af1635a…` with the 927,606,848 B F16 `mmproj` and the in-file MTP head as
+  `--spec-type draft-mtp --spec-draft-n-max 3`. Its first boot on `.35` (task
+  `f5f1433d7dd0b74e_a4bf874feb5a`) read **TTR 30.29 s warm**, one warm C1 call **25.62 ± 2.31** t/s
+  (prefill 742.9 ± 72.0, ttfr 2,399 ms), and the serve log's counters — acceptance 0.40–0.86, mean len
+  2.19–3.57 — are what carry 27.32B dense at 4.60 bpw past the ~17 t/s weight-streaming roofline; that
+  attribution comes from the engine, not a paired MTP-off control, which is unmeasured. **What is still
+  open is the control and the four falsifiers**: the `:Mix-13G` tier has no cell (it ships as a documented
+  per-launch override or its own recipe, the lane's choice), and the quality/refusal/vision cells from the
+  item above have not run. *(effort: medium)*
 
 - [ ] **Probe `InternScience/Sage-A1.5` — a 35.95B-A3B hybrid-attention MoE VLM built for long-horizon science (research only; a free node is the blocker)** — **no recipe in the index, two boots, one gate result**: the two drafts below are `zz-` DRAFT, and tier 1 served on `.34` on 2026-10-22 and was **measured-rejected on C1 (39.25 t/s)** — see the gate paragraph before the receipts. Every other number in this item is either read from the Hub at 2026-10-22 (`ba7d931d…`) or read out of a pinned engine's source; the ladder figures are the only measured ones. *(effort: long)*
   *What it is — bytes, not the name.* `pipeline_tag: text-generation` but the tags and the config say **image-text-to-text**: `architectures: [Qwen3_5MoeForConditionalGeneration]`, `model_type: qwen3_5_moe`, a 27-layer `vision_config` (hidden 1152, FFN 4304, patch 16, merge 2, `out_hidden_size` 2048) and `image_token_id`/`video_token_id`. So this is **not** an embedding, rerank, decision or media-gen arm: it belongs in this lane as a chat + vision + tool-calling arm, and the pooling ladder does not apply. **35,951,822,704 params** (safetensors total), **71,903,645,408 B = 66.97 GiB** over 14 shards plus a separate `model-mtp.safetensors` (1.69 GB; 785 `mtp.*` tensors are in `model.safetensors.index.json`, so the MTP head is a first-class part of the checkpoint). Geometry: **40 layers, `full_attention_interval: 4` → 30 `linear_attention` (GatedDeltaNet) + 10 `full_attention`**, `head_dim` 256, 16 q / **2 kv** heads, `attn_output_gate`, `partial_rotary_factor` 0.25 with mrope `[11,11,10]`; linear blocks 16 k-heads × 128 / 32 v-heads × 128, conv kernel 4, `mamba_ssm_dtype: float32`; **256 experts top-8** plus a shared expert (intermediate 512), hidden 2048, vocab 248,320, `max_position_embeddings` **262,144**. The vision projector in the GGUF pack is 447M `qwen3vl_merger`.

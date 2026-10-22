@@ -154,7 +154,8 @@ Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.30`.
 
 `vllm/vllm-omni:nightly` serves this checkpoint natively and beats the shipped Diffusers launcher by
 **~24 % warm at the same step count and the same peak memory**. It is **recorded as a measured
-alternative, not as an arm**: it has no recipe, and the same seed does not give the same picture (below).
+alternative**: at measurement time it had no recipe (one was authored later, `a574eaf` — see
+§"Why it was not an arm on 2026-10-21", corrected 2026-10-22), and the same seed does not give the same picture (below).
 Both routes' 8-step images were inspected for defects and are clean — the remaining choice between the two
 looks is the owner's, not this measurement's. One boot on `.34`, one serve each route, same prompt, seed 42, 1024², CFG=1
 (`guidance_scale: 1.0`), shipped 8-step schedule.
@@ -251,7 +252,7 @@ asymmetries are worth naming for reproduction and change nothing about the compa
 `guidance_scale: 1.0` in the request while the Diffusers arm gets CFG=1 from its serve config, and
 `use_kv_cache` is a Diffusers-launcher knob with no OMNI counterpart.
 
-### Why it is not an arm
+### Why it was not an arm on 2026-10-21 — and what changed
 
 - **On this prompt OMNI fails an instruction Diffusers honors.** Same prompt and seed: Diffusers writes
   two-line `SPARK`/`RUN` in two inks (`e24f6e3a…24ee24a`), OMNI a single-line rainbow `SPARKRUN` in many
@@ -262,9 +263,15 @@ asymmetries are worth naming for reproduction and change nothing about the compa
 - **The shipped Diffusers arm stays the default.** The ~24 % warm win (8.66–8.75 s vs 11.49 s at the
   same peak) does not buy back a violated instruction. An OMNI variant is a *different look* — the owner
   likes the rainbow — not a replacement. **The owner declined an OMNI arm
-  on 2026-10-21: the registry ships the Diffusers script only.** The route stays recorded because the
+  on 2026-10-21: the registry shipped the Diffusers script alone at that point.** The route stays recorded because the
   ~24 % is real and reproducible, not because it is queued.
-- **No recipe will be written** unless the owner reverses that call.
+- **Reversed 2026-10-22** (`QUESTIONS.md` `#13`: *"ship both"*). The OMNI look has an arm of its own —
+  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`a574eaf`, media lane after the split),
+  digest-pinned to the nightly that carries `QwenImage21Pipeline`, validated and rendered only and
+  **never booted**. Its acceptance is **four boot cells** (identity line naming `QwenImage21Pipeline`,
+  warm-time re-render against 8.66–8.75 s, the two-color screenprint prompt re-reviewed, cold TTR
+  against `stage_init_timeout: 900`) — `recipes/media/README.md` §"qwen-image … vllm-omni". It ships
+  with the adherence defect above as its caveat, not as a clean bill.
 
 Both 8-step PNGs were inspected for the review above and are **not tracked** — the registry ships as text,
 and 5.2 MB of binaries is not a cost these notes justify. They live in the head receipt
@@ -283,7 +290,7 @@ checked against the review. The measurement itself is `~/benchmarks/media-gen-20
 | one 1024² image at the shipped step count | 1024×1024 at **8 steps** (the checkpoint's saved `sample_sigmas`) |
 | wall-clock per item | 11.3–11.4 s steady (table above) |
 | peak unified memory | 36.85 GiB torch alloc; 76.9 GiB node `MemAvailable` during a request |
-| quality judged by eye against the vendor gallery | **open for this arm only — but no longer unlooked-at.** An operator defect review of the 8-step images (both routes, full resolution) found clean typographic posters with correct spelling and crisp edges, no smearing or blended glyphs, and no step-starvation artifacts. The **look** question is settled: the owner declined an OMNI arm on 2026-10-21, so this is the only shipped route and the remaining §6 work is the gallery comparison for this arm |
+| quality judged by eye against the vendor gallery | **open for this arm only — but no longer unlooked-at.** An operator defect review of the 8-step images (both routes, full resolution) found clean typographic posters with correct spelling and crisp edges, no smearing or blended glyphs, and no step-starvation artifacts. The **look** question was decided by the owner: the OMNI look is its own authored arm as of 2026-10-22 (reversing the 2026-10-21 decline), so this remains the *default* route and the remaining §6 work is its gallery comparison against the vendor's |
 
 ### Verdict
 

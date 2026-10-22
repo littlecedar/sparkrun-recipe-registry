@@ -504,7 +504,7 @@ The bring-up notes written while these arms lived in Explore stay in that archiv
 
 | file | what it holds |
 |---|---|
-| [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up: license banner, engine/venv design, the §6 acceptance table, the two mod defects, and the faster vLLM-OMNI route (measured, not shipped). |
+| [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) | Qwen-Image-2.1-Turbo bring-up: license banner, engine/venv design, the §6 acceptance table, the two mod defects, and the faster vLLM-OMNI route (measured; its separate arm is authored, not booted). |
 | [`attic/explore/LTX-25.md`](../../attic/explore/LTX-25.md) | LTX-2.5 bring-up: access/prerequisite, the pinned ComfyUI unit, weights, the two-stage measurement table, the traps re-learned. |
 | [`attic/explore/EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md) §6–§7 | The media-gen and humanizer research passes that produced these arms. |
 | [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md) | Per-arm measured histories and serving traps, including drama-3 and the media-gen arms. |
