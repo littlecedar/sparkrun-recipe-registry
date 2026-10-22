@@ -16,6 +16,14 @@ a **tool-eval-bench** profile for `sparkrun benchmark tools` (see §Standard ext
 `pooling-ladder-embed.yaml` / `-rerank.yaml` pair is **pooling-bench**, for
 `sparkrun benchmark pooling` (see §Pooling ladder).
 
+**Where tool-eval-bench's own output goes.** The instrument writes a state DB
+(`data/benchmarks.sqlite`: `scenario_runs` / `run_checkpoints` / `scenario_traces`) and one report per
+run (`runs/YYYY/MM/<run-id>.md`) **relative to its CWD**, so an invocation from a registry checkout
+litters the tree instead of the receipt. Neither path is ignored: the salvaged DB is
+`.scratch/benchmark-tooling/benchmarks.sqlite` and the per-run reports sit under
+`.scratch/<lane>/*-teb-*/`, each named by the lane doc whose score it backs. Run the suite from a
+receipt dir (`~/benchmarks/<lane>-<date>/`), not from the repo root.
+
 A third framework exists but is **not registered by default**: `framework: pooling-bench` drives
 `tools/pooling-bench.py` against a pooling engine (`/v1/embeddings`, `/v2/embed`, `/v1/score`).
 The embed and rerank lanes have no chat endpoint at all, so no llama-benchy profile can measure

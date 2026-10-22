@@ -226,7 +226,8 @@ class that does) — 0.32.0 loads and serves it (below). 2026-10-16 engine-bump 
   60.1% (745/1240); the two fails are **contract** (`finish=length`, all-empty reply at the 262,144
   window — the reasoning parser's empty-`content` shape, thinking burning `max_tokens`) and **needle**
   at the two smaller depths. TEB (`standard-suite.yaml`): 15 scenarios, 14 pass + 1 partial, score 97.
-  Receipts `head:~/benchmarks/explore-laguna-xs-20261017/`.
+  Receipts `head:~/benchmarks/explore-laguna-xs-20261017/`; the tool's own per-scenario TEB report —
+  the only copy — is `.scratch/explore/laguna-xs-teb-20261017/2026-10-17T06-02-24.493866Z_4070a159.md`.
 - **Standard suite re-take (2026-10-20, `~/benchmarks/laguna-xs-suite-20261020/`), same boot, 3,273 s:**
   house **36/37** (easy 19/19, hard 17/18 — `hard-rev`), needle **3/3 at 32,768, 131,072 and 262,144**
   (683 s; the 2026-10-17 small-depth misses did not reproduce), hard **ARC 124/200 = 62.0 %** and
@@ -308,7 +309,7 @@ weights**.
   to 32.9 ± 16.1 t/s at c10 (vs 111.9 at c1) while the engine's peak window still reaches 202.2 t/s.
   House battery **37/37** (easy 19/19, hard 18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each);
   `standard-suite` profile (tool-eval-bench) **97** — 15 scenarios, 14 pass, 1 partial; deployability
-  84, responsiveness 54; bfcl **88.3%** (1095/1240, no transport errors — audited) at
+  84, responsiveness 54 (report — the only copy — `.scratch/explore/mellum-teb-20261017/2026-10-17T07-52-40.740345Z_e604d040.md`); bfcl **88.3%** (1095/1240, no transport errors — audited) at
   `--bfcl-max-tokens 4096`, the suite's new default (`3ac9581`). This arm is why that flag exists: its
   first leg ran at the old 512 default and scored **73.5%** (911/1240), where **179 of the two
   parallel categories' 400 questions returned `calls: []`** — bare `content: ''` plus a think block
