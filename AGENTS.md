@@ -247,6 +247,19 @@ which `recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and
 `recipes/explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` pin, was deleted from the head as
 unattributed and has to be re-pulled there (the node copies survived).
 
+**Never blanket-reset a dirty tree on the head clone.** The head is a syncthing *mirror*, not a sandbox: a
+`git checkout` there writes back and overwrites the workstation's uncommitted copy — a
+`for f in $(git diff --name-only); do git checkout HEAD -- $f; done` before a `pull --ff-only` did exactly
+that on 2026-10-22 and destroyed another session's item text. To unblock a pull on the head, name the
+*specific* blocking path and reset it only if that file has no uncommitted work anywhere (it is clean here,
+or already committed here and synced); otherwise leave it dirty, commit the work here first, and pull with
+`git -c rebase.autoStash=false pull --ff-only` — never autostash, which can drop a peer's edit.
+
+**`fatal: unable to read <blob>` is a stale index entry, not a dead repository.** A synced `.git/index` can
+reference an object that never arrived, and then every `git status` dies. Rebuild the index from HEAD with
+`git read-tree HEAD`: it rewrites the index only, so the worktree and every uncommitted edit survive. Do not
+`reset --hard`, and do not restore from a backup.
+
 ## Code Conventions & Common Patterns
 
 **Prose is American English — always `license`, `licenses`.** Never the British `-ce` noun form. It applies to
