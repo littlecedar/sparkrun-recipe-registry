@@ -667,13 +667,14 @@ Any decision model
 - [ ] **Probe `pyannote/speaker-diarization-community-1` as a speaker instrument for the drama-3 TTS
   arm — and record up front that "quantised" barely applies to it** — an ~8.1M-param pyannote
   *pipeline* (powerset segmentation → wespeaker ResNet34 embeddings → VBx/PLDA clustering) in a
-  **33.7 MB repo / 32.8 MB of weights**, **gated (`auto`)**, **CC-BY-4.0**. **One boot attempt was
-  made and it never reached readiness: the launch died before the readiness probe with `OSError:
-  libgomp.so.1`** — `python:3.12-slim` ships no GCC OpenMP runtime and the aarch64 `torchaudio`
-  wheel links it, so the fix is `apt-get install -y libgomp1` **before** the pip chain, in the
-  image build rather than one-off — the locally baked `pyannote-cpu:4.0.7` image (`593d07c93c74`,
-  1.32 GB) carries the same gap. The launch was then stopped to free the head for the TP=4 boot.
-  One DRAFT recipe exists and is not claimed to serve. *(effort: short — one CPU boot.)*
+  **33.7 MB repo / 32.8 MB of weights**, **gated (`auto`)**, **CC-BY-4.0**. **Booted and measured
+  2026-10-22 on one CPU-only node (5 cores, no GPU): HTTP-ready 9.56 s, RTF 0.247 on a real
+  two-voice dialogue, DER = JER 2.83 % there and one speaker on the synthetic tonal files — the
+  instrument works on speech and the tonal fixture is adversarial, see the pre-registered cell.**
+  The first attempt died before readiness with `OSError: libgomp.so.1` (`python:3.12-slim` ships no
+  GCC OpenMP runtime and the aarch64 `torchaudio` wheel links it), so `libgomp1` now belongs in the
+  image — `pyannote-cpu:4.0.7` on `.35`, built as base digest + `libgomp1` + the pip chain. The DRAFT
+  recipe stays `zz-` and out of the index. *(effort: done for the boot; open cell is intelligibility.)*
 
   *(tree first — **no prior mention anywhere.** a case-insensitive `grep` for `pyannote|diariz` over
   the tracked tree returns **0 hits**: no recipe, no tool, no test, no `attic/` note. `tools/` holds
@@ -811,8 +812,8 @@ Any decision model
   CPU co-tenants) rather than occupy a node.)*
 
   *(pre-registered instrument, written before any boot so the cells cannot be fitted afterwards;
-  **both tools exist and are committed (2026-10-22) and the tier-A fixtures are green; nothing has
-  reached readiness.** **Fixture in two tiers, because one is honest and the other is cheap.** (A)
+  **both tools exist and are committed (2026-10-22); booted and measured 2026-10-22 (HTTP-ready
+  9.56 s, DER/JER 2.83 % on real speech — see the results cell below).**
   **Generated, byte-deterministic, licence-clean by construction:** `tools/diarize-fixture.py`
   *(stdlib `wave`/`math`/`struct`, **no
   random number generator anywhere**)* renders two fixed 16 kHz PCM16 mono layouts from closed-form
@@ -821,18 +822,24 @@ Any decision model
   which is what makes `--overlap` a real choice instead of a declared unknown) — and writes each wav
   plus its RTTM ground truth from the same turn table, so regeneration is byte-identical. The wavs
   are **not committed** (~1 MB each of weight nobody reads); the manifest carries the synthesis
-  parameters and the sha256, and `--check` re-derives the bytes and compares them — **verified green
-  2026-10-22 on this working tree**: `two-speaker.wav` sha256 `caf7076452d7d6a0…`, `three-speaker.wav`
-  `315e4cddba42aeab…`. Tier A measures
+  parameters and the sha256, and `--check` re-derives the bytes **and decodes every fixture** — the
+  manifest is the single source of truth for those hashes; never quote one in prose, because they
+  changed on 2026-10-22 when `--check` was caught passing headerless PCM under a `.wav` name. Tier A
+  measures
   **plumbing, determinism and speaker counting**; its DER is a *calibration* number and **must not
-  be read as speech accuracy**, because a speech-trained embedding net is being fed tones. (B) The
+  be read as speech accuracy**, because a speech-trained embedding net is being fed tones.
+  **It is adversarial by construction, and now measured:** the arm reports **one speaker for the
+  2- and the 3-voice tonal files (DER 50.0 % / 69.9 %, unchanged when the count is forced via
+  `?num_speakers=2`)**, while real speech scores DER/JER 2.83 %. The fixture is at fault, not the
+  serve — the tier-A bar must be evaluated on `tier-b-two-voice.wav`, and nobody should "fix" a
+  working arm because of the tonal DER. (B) The
   **DER cell proper**: two speech takes from the registry's own `drama-3` TTS arm (two distinct
   voice prompts), spliced into a scripted six-turn timeline by the same stdlib script
   (`--splice a.wav b.wav`) — ground truth exact to the sample by construction, and no third-party
   corpus is redistributed: the wavs stay in the receipt dir and only the generator + splice map are
   committed (the fish-audio license permits local research use of its outputs; nothing is hosted or
   republished). **Metrics:** DER from `tools/diarize-score.py` *(stdlib; guarded by
-  `tests/test_diarize_score.py`, 23 tests)* — **collar 0.25 s** excluded on both sides of every
+  `tests/test_diarize_score.py`, 24 tests)* — **collar 0.25 s** excluded on both sides of every
   reference boundary, with speech past the band still counted as false alarm; **`--overlap score`**
   per label, `--overlap exclude` reported alongside; **exhaustive speaker-permutation mapping**
   (exact search over injections, 8-speaker cap, refuses above it rather than guessing) with the
@@ -849,14 +856,15 @@ Any decision model
   JSON. *(Deliberately not used: `pyannote.metrics.DiarizationErrorRate` — it would drag torch onto
   the scoring host for arithmetic that is stdlib, and its collar/overlap conventions would be a
   black box instead of a flag.)* **Falsifier:** DER **> 10.0 %** on the tier-B two-voice fixture,
-  **or** an automatic speaker count wrong on any of the three files, **or** any difference between
-  two runs of the same input (segment boundary or label) — any one of the three and the arm is
-  measured-rejected rather than re-tuned. **Receipt:** `~/benchmarks/pyannote-20261022/`
-  (`result.json`, `fixtures/` incl. `manifest.json`, the RTTM ground truth, both `/diarize` JSONs
-  per file, `der.json`, `sparkrun_serve.log`).)*
+  **or** an automatic speaker count wrong **on that fixture** (a count wrong on the synthetic tonal
+  files is a property of the fixture, not of the arm — see above), **or** any difference between two
+  runs of the same input (segment boundary or label) — any one of the three and the arm is
+  measured-rejected rather than re-tuned. **Receipt:** `.NN:~/benchmarks-pyannote/`
+  (`measure.json`, `measure-tierb.json`, `fixtures/` incl. `manifest.json`, the RTTM ground truth,
+  the `/diarize` JSONs per file, `der-*.json`, `sparkrun_serve.log`).)*
 
   *(drafts + blocker — `recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` (DRAFT, `zz-`,
-  no index row, no boot claim, and **the lane split moved it out of `recipes/decision/`**) with its
+  no index row, and **the lane split moved it out of `recipes/decision/`**) with its
   lane mod `recipes/media/mods/pyannote-diarize-server/`, which writes a stdlib `GET /health` +
   `POST /diarize` server into `/cache/runtime/pyannote/`, compiles it before allowing the launch,
   and reowns it. Shape copied from `kokoro-82m-tts-cpu` / `laya-decision-serve`: `runtime: vllm` as
@@ -867,13 +875,15 @@ Any decision model
   plain: 1 warning (`unpinned-model-revision`, the known false positive for a prepared-path arm —
   `{model_revision}` is consumed for `/health` identity, not as `--revision`) and 2 suggestions
   (`inline-script` on the pip chain, `restated-managed-path` on the literal cache path).
-  **Blocker, and what the one attempt settled** — the arm needs 5 cores and no GPU, so the cheapest
-  unblock is a node with an idle core span plus `--transfer-mode local` (all six were on other
-  streams: `.30`–`.33` the TP=4 production block, `.34`/`.35` the registry pair). The attempt that
-  did run settled the install gate the other way round than it was stated: the pip chain completed
-  and the process died at import with `OSError: libgomp.so.1`, so `libgomp1` belongs in the image
-  build rather than the launch command, and **`port_timeout_s: 1800` is still unmeasured — no
-  attempt has reached readiness.** The launching host's HF token has accepted the gate (ours has).)*
+  **Blocker cleared 2026-10-22, and what the two attempts settled.** The arm needs 5 cores and no
+  GPU, so the cheapest unblock is a node with an idle core span (`.35` freed up; `.30`–`.33` are the
+  TP=4 production block and were never touched). The first attempt settled the install gate the
+  other way round than it was stated: the pip chain completed and the process died at import with
+  `OSError: libgomp.so.1`, so `libgomp1` belongs in the image (`pyannote-cpu:4.0.7` on `.35`) — and
+  a second wall followed it, because torchaudio 2.8 decodes only through torchcodec whose aarch64
+  wheel dlopens `libnvrtc`, so the server reads the WAV body itself and passes the pipeline an
+  in-memory waveform instead of a path. **`port_timeout_s: 1800` is now measured as never binding:
+  readiness in 9.56 s.** The launching host's HF token has accepted the gate (ours has).)*
 
   *(what it does **not** solve — **TTS intelligibility.** Diarization answers "how many speakers are
   in this clip, and do their segments hold together over time"; it cannot say whether words were
