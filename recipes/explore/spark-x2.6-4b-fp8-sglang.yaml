@@ -29,17 +29,21 @@ description: >-
   window). Speed is the predicted 2x: ladder 40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 /
   217.58 ± 2.72 t/s at c1/2/5/10 (+100 / +66 / +48 / +39 % on the bf16 control), prefill
   8,986 -> 8,496 t/s (+71 %), TTFR 232 -> 1,664 ms.
-  SHIPPED as the fast tier, after one bad first pass. The .33 run scored house 109/111 = 98.2 %
-  with `trick-2` (the 5-machines/5-widgets item) empty on 2 of 3 reps — finish_reason=length,
-  4,096 reasoning tokens, content ''. The pre-registered 8192 re-ask refuted the "it loops"
-  reading: on a second boot (.35, task sparkrun_9c8e0fffc3cbe638_64af2f7668b6) that item answers
-  "5" 3/3 with finish=stop after only 159 / 177 / 177 reasoning tokens, and the full 37-item
-  battery at the SAME 4096 budget scores 37/37 stable (111/111, no flaky). So the first pass was
-  a nondeterministic runaway episode — not a budget artifact and not a capability loss (a budget
-  cap would have burned 8,192 too; it never got past 177). Lesson for the lane: one empty reply
-  on a reasoning arm is a re-boot, not a verdict.
-  Roles now: this file is the FAST tier (2x the control's C1 at every rung) and
-  spark-x2.6-4b-bf16-sglang.yaml remains the accuracy control a caller compares against.
+  SHIPPED as the fast tier, and its one real risk is now RATED, not anecdotal. `trick-2` (the
+  5-machines/5-widgets item) is a default-sampling runaway that only ends at the token cap: at
+  `--max-tokens 4096` it returns empty content with finish_reason=length on **4 of 6 reps**
+  (.35, 2026-10-22) plus 2 of 3 in the .33 pass and 0 of 3 in an earlier .35 pass — **6 of 12
+  empty overall** — while at 8192 the same prompt answers "5" 3/3 after only 159 / 177 / 177
+  reasoning tokens, **0 of 6 empty**. The full 37-item battery at 4096 still scores 37/37 stable
+  (111/111, no flaky): no other item showed the behaviour. Temperature-0 repeats were prepared
+  and preempted (the TP=4 baseline needed the node), so the sampler is the proximate trigger and
+  the loop itself is a weight behaviour — deterministic sampling is UNTESTED, not exonerated.
+  RETRY GUIDANCE: on `finish_reason=length` with empty content, retry once; better, serve this
+  arm at `max_tokens >= 8192`, where 6 of 6 attempts answered.
+  Roles: this file is the FAST tier (2x the control's C1 at every rung, 40.80 ± 0.09 at C1);
+  spark-x2.6-4b-bf16-sglang.yaml is the accuracy control (20.38 ± 0.09, 3/3 on this item).
+  TTFR is the trade in the other direction: 1,664 ms here vs 232 ms on bf16 (one measurement
+  each; the repeat cell was preempted, so quote it as indicative).
 
 env:
   PYTHONUNBUFFERED: '1'
