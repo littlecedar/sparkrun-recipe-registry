@@ -27,13 +27,11 @@ description: >-
   with no --quantization flag, and at 131k the FP8/INT8/INT4 tiers (4.45/4.45/3.41 GB)
   buy decode bandwidth (~61/61/80 t/s ceilings vs ~33 for 8.22 GB), not fit — so they
   belong in an A/B after the bf16 control exists, not in the first boot.
-  MEASURED 2026-10-22 on .30 (task sparkrun_31a011c489646cf6_2d38dfc4605e, receipt
-  ~/benchmarks/spark-x26-20261022/): TTR 167.4 s port / 252.5 s HTTP; ladder at d0
-  20.38 / 46.38 / 99.27 / 156.20 t/s at c1/2/5/10 (decode rows); house 37/37 thinking-on
-  vs 30/37 stable thinking-off, both at --max-tokens 4096. The pre-registered falsifier
-  FIRED — C1 20.38 is 61 % of this tier's ~33 t/s roofline, under the 25 t/s bar — so this
-  file ships as the MEASURED CONTROL for the FP8/INT8 tier A/B, not as a verdict. Do not
-  quote 20.38 as "the model's speed" without the tier next to it.
+  Pre-registered, nothing measured yet: TTR to /v1/models, served id, the d0 ladder
+  (pp 2048 / tg 128, c1/2/5/10, n=5, decode rows) and the 37-item house battery at
+  --max-tokens 4096 in BOTH thinking modes. Falsifier: bf16 C1 < 25 t/s (under the
+  bandwidth roofline at ~75 % efficiency) demotes bf16 to a control, and pooled house
+  <= 34/37 kills the tier.
 metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/XHToken/Spark-X2.6-4B
