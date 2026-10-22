@@ -34,7 +34,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "7B"
   model_dtype: bf16
-  tags: explore, image, single_user, experimental
+  tags: media, image, single_user, experimental
 
 mods:
   - "mods/qwen-image-2.1-turbo-launcher"

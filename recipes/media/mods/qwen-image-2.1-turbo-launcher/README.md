@@ -1,7 +1,7 @@
 # qwen-image-2.1-turbo-launcher
 
-Pre-launch mod for the explore lane's Qwen-Image-2.1-Turbo arm
-([`recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
+Pre-launch mod for the media lane's Qwen-Image-2.1-Turbo arm
+([`recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../../recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
 
 ## Why this exists
 
@@ -122,4 +122,4 @@ VAE tiling stays **off** (tiled decode produces a pink seam column on this
 checkpoint) and `cpu_offload` stays **off** (sequential offload roughly
 quadruples a reference-image edit). Neither is enabled anywhere in this mod;
 they are listed here because the base-model write-up in
-`../../attic/explore/EXPLORE-MODELS-RESEARCH.md` §6 flags them.
+`../../../../attic/explore/EXPLORE-MODELS-RESEARCH.md` §6 flags them.

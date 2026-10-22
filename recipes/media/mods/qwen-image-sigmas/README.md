@@ -1,6 +1,6 @@
 # qwen-image-sigmas
 
-Pre-launch mod that makes a **non-8-step schedule** expressible on the explore
+Pre-launch mod that makes a **non-8-step schedule** expressible on the media
 lane's Qwen-Image-2.1-Turbo arm. Companion to
 [`qwen-image-2.1-turbo-launcher`](../qwen-image-2.1-turbo-launcher/) (which
 stages the diffusers venv and ships the server) and to the probe recipe
