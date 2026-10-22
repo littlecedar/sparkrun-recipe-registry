@@ -25,6 +25,12 @@ metadata:
   kv_dtype: fp16
   tags: ornith, reasoning, agent, tools, vision
 
+# The llama.cpp image declares its own ENTRYPOINT, and sparkrun refuses to append the serve
+# line to it (same reason sol-2b-decision2-gguf-llamacpp.yaml clears it). MEASURED 2026-10-22:
+# without this line the launch dies at step 5 with "declares ENTRYPOINT [...]".
+executor_config:
+  entrypoint: ""
+
 defaults:
   port: 8000
   host: 0.0.0.0
