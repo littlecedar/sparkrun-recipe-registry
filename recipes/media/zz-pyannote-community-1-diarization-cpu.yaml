@@ -28,7 +28,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "8.1M"
   model_dtype: fp32
-  tags: media, diarization, audio, cpu, draft
+  tags: diarization, audio, cpu, draft
 
 readiness:
   inference: false

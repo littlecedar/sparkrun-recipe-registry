@@ -11,7 +11,7 @@
 #
 # The repo is **gated (`gated: auto`)**. sparkrun's anonymous model distribution
 # cannot fetch it, so `distribution_config.models.enabled: false` below and the
-# mod (recipes/media/mods/ltx-25-launcher) fetches with the node's accepted
+# mod (recipes/explore/mods/ltx-25-launcher) fetches with the node's accepted
 # HF_TOKEN. Missing token / unaccepted account is a fail-closed launch error
 # naming the prerequisite — not a hang.
 # ===========================================================================
@@ -50,7 +50,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "22B"
   model_dtype: nvfp4
-  tags: media, video, single_user
+  tags: explore, video, single_user
 
 mods:
   - "mods/ltx-25-launcher"

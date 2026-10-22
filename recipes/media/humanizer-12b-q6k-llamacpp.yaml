@@ -34,7 +34,7 @@ metadata:
   model_params: "12B"
   model_dtype: q6_k
   kv_dtype: fp16
-  tags: media, text_rewriting
+  tags: explore, text_rewriting
 
 executor_config:
   # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's

@@ -235,6 +235,27 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
 No host bind mounts are used: Engram shards, boot state and JIT caches all live
 under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
 
+- **Disk residency for the four ranks, measured 2026-10-22.** The `-1017` body must be a complete
+  per-node tree; the plain `deepseek-ai/DeepSeek-V4.1-Flash` repo is a *builder* input (Engram
+  shards 47–48, `tools/build-dsv41-combined.py`), not a boot input, and only one copy is kept
+  cluster-wide:
+
+  | node | `-1017` body (`du -s` on `hub/models--…-1017`) | plain `V4.1-Flash` | free `/` after the 2026-10-22 sweep |
+  |---|---|---|---|
+  | `.31` | complete, 475.2 GiB (real-file tree, no `blobs/`) | **present — the only copy** | 794 G |
+  | `.32` | complete, 475.2 GiB | removed (`hf cache rm`, 510.3 G) | 1.1 T |
+  | `.33` | complete, 475.2 GiB | removed (510.3 G) | 1.2 T |
+  | `.34` | partial 307 GB of 510.3 GB (60 %, 51/56 entries) — a transfer owns it | removed (510.3 G) | 506 G |
+  | `.35` | absent | removed (510.3 G) | 705 G |
+
+  A body transfer has **exactly one owning session**. Measured 2026-10-22: two sessions each believed
+  they owned the same `.31`→`.34` copy, one killed the other's `rsync` pids, and rsync deleted its own
+  temp files — the destination went from 390 GB (78 %) back to 307 GB (60 %), ~83 GB of progress
+  destroyed about seven minutes from completion. Check `ps -o pid,ppid,lstart,args` before signalling
+  anything on a node (a pid you did not create is someone else's work), and do not move a body over the
+  the management subnet management interface while a RoCE copy is on the critical path — use
+  `the plane-A rail addresses`/`the plane-B rail addresses`.
+
 ### Knobs a user cannot infer
 
 - **`max_model_len` is per-request; the KV pool is separate and pinned.** The

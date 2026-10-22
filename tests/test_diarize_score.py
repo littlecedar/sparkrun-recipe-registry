@@ -9,7 +9,7 @@ importlib and registered in sys.modules before exec_module (the house idiom).
 
 What this guards
 ----------------
-`recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` is scored by DER,
+`recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` is scored by DER,
 and DER is the kind of number that is easy to compute wrongly in a direction that
 flatters the arm.  Every claim the scorer's docstring makes has a control here,
 because a guard that has only ever passed proves nothing:

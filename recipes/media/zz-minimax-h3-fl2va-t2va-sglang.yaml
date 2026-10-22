@@ -59,7 +59,7 @@ metadata:
   model_dtype: fp8
   quant_bits: "8"
   model_type: diffusion
-  tags: media, video, audio, single_user
+  tags: explore, video, audio, single_user
 
 defaults:
   port: 30010

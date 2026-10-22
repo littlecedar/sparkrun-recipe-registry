@@ -4,7 +4,7 @@ Writes the DRAFT pyannote speaker-diarization HTTP server to
 `${MOD_CACHEDIR:-/cache/runtime}/pyannote/diarize_server.py` so a recipe can name the
 path unconditionally, and refuses the launch if the bundled file does not compile.
 
-Used by `recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` only. It exists
+Used by `recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` only. It exists
 because `pyannote/speaker-diarization-community-1` is a `pyannote.audio` pipeline with no
 published server image and no engine in this registry that can serve it (see the lane
 item in `mad-science/TODO.md` §explore).

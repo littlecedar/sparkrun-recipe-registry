@@ -2,7 +2,7 @@
 """Qwen-Image-2.1-Turbo image-generation server (diffusers engine).
 
 `QwenImage21Pipeline` has no serving runtime (it is neither sglang nor vLLM),
-so this script *is* the server for the media lane's media-gen arm. It is
+so this script *is* the server for the explore lane's media-gen arm. It is
 launched by the recipe as
 
     <RUNTIME_DIR>/venv/bin/python /workspace/mods/qwen-image-2.1-turbo-launcher/server.py

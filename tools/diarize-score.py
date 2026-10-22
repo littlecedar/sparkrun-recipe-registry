@@ -6,7 +6,7 @@
 
 Why this file exists
 --------------------
-`recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` is a CPU arm whose
+`recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` is a CPU arm whose
 only product is "who spoke when".  Nothing in `tools/` scores that: the standard
 suite (`eval-suite.py`) scores text, and a diarizer's output is a set of time
 segments.  Without a scorer the arm's boot produces a transcript of boundaries and

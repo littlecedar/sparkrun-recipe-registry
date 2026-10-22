@@ -259,7 +259,7 @@ import/entry-point failure and is idempotent via a content marker).
 
 ### humanizer-12b-vllm — text-rewriting arm (2026-10-14)
 
-New recipe [`humanizer-12b-vllm.yaml`](humanizer-12b-vllm.yaml) — the lane's first `/v1/completions`
+New recipe [`humanizer-12b-vllm.yaml`](../../recipes/explore/humanizer-12b-vllm.yaml) — the lane's first `/v1/completions`
 arm: `jialinyyzz/humanizer`, a 12B `google/gemma-4-12B` finetune (Apache-2.0, ungated, 23.9 GB bf16)
 that rewrites one AI-written draft so it reads human. **Not a chat model**: the working surface is
 `/v1/completions` with a **byte-exact prompt** assembled from the repo's `prompt_format.json`
@@ -441,8 +441,8 @@ copy — always md5 the head's file before a boot).
 
 ### Qwen-Image-2.1-Turbo — media-gen arm (2026-10-14)
 
-New recipe [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
-+ [`recipes/media/mods/qwen-image-2.1-turbo-launcher`](../../recipes/media/mods/qwen-image-2.1-turbo-launcher) — the lane's
+New recipe [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)
++ [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) — the lane's
 first **non-`sglang`/vLLM** engine: `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`; **qwen-research,
 NON-COMMERCIAL ONLY**) served by diffusers' `QwenImage21Pipeline` on **one** node. `runtime: vllm` is
 the family whose distribution + single-node launcher contract the command satisfies (the Decision
@@ -479,7 +479,7 @@ commercial use is still barred.
 
 `Lightricks/LTX-2.5` (video+audio world model, 22B distilled DiT + Gemma-4-12B encoder) as a
 **two-stage ComfyUI** run on one GB10 — shipped as a **runbook, not a recipe**
-([`ltx-2.5-runbook/`](../../recipes/media/ltx-2.5-runbook/README.md)): the runtime is ComfyUI (no `sglang`/vLLM engine)
+([`ltx-2.5-runbook/`](../../recipes/explore/ltx-2.5-runbook/README.md)): the runtime is ComfyUI (no `sglang`/vLLM engine)
 and the repo is `gated: auto`, so a per-node `HF_TOKEN` + accepted terms is a prerequisite sparkrun
 cannot assume (owner decision 2026-10-14: ship gated arms with the documented prerequisite). The
 cluster token (`twichert`) **has acceptance** (README resolve → HTTP 200), so the arm was measured
@@ -1032,7 +1032,7 @@ YAML comments are reported per recipe below; the moved text follows.
 - **Moved:** banner history — the MiniMax-M3 blocker and the Poolside S-2.1 draft-license gap
   precedents, the owner call to ship with the banner, and the eval-only rationale (the lane's accuracy
   criterion has no axis for a text-to-image checkpoint). The full banner also lives verbatim in
-  [`QWEN-IMAGE.md`](QWEN-IMAGE.md) and `recipes/media/README.md`.
+  [`QWEN-IMAGE.md`](QWEN-IMAGE.md) and `recipes/explore/README.md`.
 - **Moved:** "The Hub revision of 2026-10-12; this arm was brought up and measured on it."
 - **Moved:** container rationale — the digest-pinned image serves only as the arm64 CUDA torch base;
   the diffusers `QwenImage21Pipeline` venv is staged on top by the mod; the Kai vllm-srun arm in

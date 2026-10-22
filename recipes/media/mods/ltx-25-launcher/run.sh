@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Pre-launch mod for the LTX-2.5 T2V arm (media lane, media-gen).
+# Pre-launch mod for the LTX-2.5 T2V arm (explore lane, media-gen).
 #
 # The engine is ComfyUI, which is neither sglang nor vLLM: the recipe's
 # `runtime: vllm` is only the launcher/distribution contract, and its

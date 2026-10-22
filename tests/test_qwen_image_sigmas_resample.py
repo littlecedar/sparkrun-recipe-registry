@@ -33,7 +33,7 @@ from pathlib import Path
 from unittest import mock
 
 SERVER = (Path(__file__).resolve().parent.parent
-          / "recipes/media/mods/qwen-image-2.1-turbo-launcher/server.py")
+          / "recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py")
 
 # The checkpoint's shipped 8-step curve (model_index.json, Qwen/Qwen-Image-2.1-Turbo).
 BASE = [1.0, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568]

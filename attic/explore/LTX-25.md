@@ -78,7 +78,7 @@ int8-convrot sibling was needed).
   kernel launch fails with a gcc `CalledProcessError`, not at import).
 - Subgraph workflow templates need frontend-side expansion; the backend
   `/prompt` API only takes flat graphs. `expand_subgraph.py` (in
-  `recipes/media/ltx-2.5-runbook/`) does it: widget order from
+  `recipes/explore/ltx-2.5-runbook/`) does it: widget order from
   `/object_info` INPUT_TYPES declaration order (multi-type `FLOAT,INT`
   widgets included — a naive filter mis-maps `LTXVEmptyLatentAudio`
   batch_size 25 vs 1), outer links parsed as arrays, dead lazy
@@ -91,7 +91,7 @@ int8-convrot sibling was needed).
 
 ## Deliverables
 
-- Runbook: `recipes/media/ltx-2.5-runbook/` (README + flattener + runner +
+- Runbook: `recipes/explore/ltx-2.5-runbook/` (README + flattener + runner +
   server script).
 - Receipts: `~/benchmarks/ltx25-20261014/` (scripts, API prompt, server log,
   mem.tsv, output MP4, decoded frame).

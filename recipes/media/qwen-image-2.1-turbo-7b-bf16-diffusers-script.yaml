@@ -8,7 +8,7 @@
 # downloader cannot use the weights, or images generated from them,
 # commercially. An operator needing a commercially usable text-to-image arm
 # must swap the checkpoint; the serving path here
-# (recipes/media/mods/qwen-image-2.1-turbo-launcher + this recipe) is checkpoint-agnostic.
+# (recipes/explore/mods/qwen-image-2.1-turbo-launcher + this recipe) is checkpoint-agnostic.
 # ===========================================================================
 recipe_version: "2"
 model: Qwen/Qwen-Image-2.1-Turbo
@@ -31,13 +31,13 @@ description: >-
   by default. LICENSE: qwen-research — NON-COMMERCIAL ONLY (see the banner
   at the top of this file). The mod stages a diffusers>=0.41 /
   transformers>=5.17 venv on the image's torch and runs the HTTP server in
-  recipes/media/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
+  recipes/explore/mods/qwen-image-2.1-turbo-launcher/server.py (POST /generate, GET /health).
 metadata:
   model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "7B"
   model_dtype: bf16
-  tags: media, image, single_user
+  tags: explore, image, single_user
 
 mods:
   - "mods/qwen-image-2.1-turbo-launcher"

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Pre-launch mod for the Qwen-Image-2.1-Turbo (media lane, media-gen) arm.
+# Pre-launch mod for the Qwen-Image-2.1-Turbo (explore lane, media-gen) arm.
 #
 # The engine is diffusers' `QwenImage21Pipeline`, which is neither sglang nor
 # vLLM: there is no serving runtime for it. The serving image

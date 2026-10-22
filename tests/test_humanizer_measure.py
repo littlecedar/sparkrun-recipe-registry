@@ -137,7 +137,7 @@ class Analyzer(unittest.TestCase):
 
 
 
-RECIPE = (Path(__file__).resolve().parent.parent / "recipes" / "media"
+RECIPE = (Path(__file__).resolve().parent.parent / "recipes" / "explore"
           / "humanizer-12b-q6k-llamacpp.yaml")
 
 

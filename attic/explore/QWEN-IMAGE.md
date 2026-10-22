@@ -9,7 +9,7 @@
 > used commercially. Precedent: the MiniMax-M3 blocker and the Poolside S-2.1
 > draft-license gap. **Owner call 2026-10-14: ship the recipe with this banner.**
 > An operator needing commercial use must swap the checkpoint; the serving path
-> (`recipes/media/mods/qwen-image-2.1-turbo-launcher` + the recipe) is checkpoint-agnostic.
+> (`recipes/explore/mods/qwen-image-2.1-turbo-launcher` + the recipe) is checkpoint-agnostic.
 
 Arm queued 2026-10-13 (owner directive, media-gen — outside the lane's
 reasoning/tool-calling brief); research and the per-arm verification checklist
@@ -20,8 +20,8 @@ for it.
 
 | file | role |
 |---|---|
-| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, license banner at the top; lives in `recipes/media/` since the 2026-10-22 lane split |
-| [`recipes/media/mods/qwen-image-2.1-turbo-launcher`](../../recipes/media/mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
+| [`qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../recipes/explore/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml) | the arm: `Qwen/Qwen-Image-2.1-Turbo` pinned `fc13ba1986`, 1 node, license banner at the top |
+| [`recipes/explore/mods/qwen-image-2.1-turbo-launcher`](../../recipes/explore/mods/qwen-image-2.1-turbo-launcher) | the engine: a diffusers>=0.41 / transformers>=5.17 venv staged on the image's torch, plus the HTTP server |
 
 The engine is `diffusers`' `QwenImage21Pipeline`; **no `sglang` runtime serves this
 checkpoint** ([`vLLM-OMNI` does, measured 2026-10-21 — see "vLLM-OMNI route"

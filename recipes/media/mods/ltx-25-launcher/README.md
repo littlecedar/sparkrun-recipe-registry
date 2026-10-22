@@ -1,12 +1,12 @@
 # ltx-25-launcher
 
 Pre-launch mod + launcher server for the LTX-2.5 T2V arm
-([`recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`](../../../recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)).
+([`recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`](../../../recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)).
 **Booted 2026-10-21 on `.35`**: the cold stage (ComfyUI + venv + 36.9 GB of gated
 weights) completed inside the port budget, `/v1/models` answered, and the T2V cell
 landed at 100.13 s cold / 78.1 s warm, peak 84.00 / 83.45 GiB — the runbook's own
 cells (100.3 / 78.1 s, 83.6 GiB). Receipt `~/benchmarks/ltx25-recipe-20261021/`;
-the arm's measured provenance is [`recipes/media/ltx-2.5-runbook/`](../../ltx-2.5-runbook/).
+the arm's measured provenance is [`recipes/explore/ltx-2.5-runbook/`](../../ltx-2.5-runbook/).
 
 ## Why this exists
 
@@ -149,13 +149,13 @@ widget indexing is T2V-only and shifts every model path by one on I2V/FLF2V.
 ## Checks
 
 ```bash
-bash -n recipes/media/mods/ltx-25-launcher/run.sh
-python3 recipes/media/mods/ltx-25-launcher/launcher.py --selftest
-uv run python -m py_compile recipes/media/mods/ltx-25-launcher/*.py
+bash -n recipes/explore/mods/ltx-25-launcher/run.sh
+python3 recipes/explore/mods/ltx-25-launcher/launcher.py --selftest
+uv run python -m py_compile recipes/explore/mods/ltx-25-launcher/*.py
 HOME=.local/sparkrun-home sparkrun recipe validate \
-  recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml
+  recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml
 HOME=.local/sparkrun-home sparkrun run \
-  recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml -H <node> -n
+  recipes/explore/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml -H <node> -n
 ```
 
 The dry-run renders the command without launching. The 2026-10-21 boot answered

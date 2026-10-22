@@ -5,7 +5,7 @@
 """Flatten the LTX-2.5 UI-format workflow to the API prompt `POST /prompt` takes.
 
 Provenance: verbatim from `~/benchmarks/ltx25-20261018/expand2.py` on the head
-(the fixed copy), itself `recipes/media/ltx-2.5-runbook/expand_subgraph.py`
+(the fixed copy), itself `recipes/explore/ltx-2.5-runbook/expand_subgraph.py`
 with the subgraph-instance widget alignment fixed:
 
     widgets_values on a subgraph instance consumes a value only for
