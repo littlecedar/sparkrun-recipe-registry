@@ -771,7 +771,7 @@ the serve line can name it — that staging, not the engine, is the work.
   Q4_K_M main's hidden states do not suit the BF16-trained head — quote accept-len, not just t/s.
 
 
-### Measured on `.34`, 2026-10-22 — the `9df0b73c7` build regresses 14×, not the ref
+### Measured on `.34`, 2026-10-22 — the `9df0b73c7` tree decodes 12× slower; `a37cc4610` is healthy
 
 The build passed both gates (154.93 s; `features: … present`, `gate: sm_121 + kolibri1 + vllm-decision2 +
 mellum present`) and pushed as `littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130`
@@ -791,17 +791,22 @@ Two recipe-level facts this arm will need if the image is ever adopted: `executo
 (the image keeps `llama-server` as ENTRYPOINT) and `--no-mmap` → `--load-mode none` (upstream removed the
 old spelling).
 
-**The MTP head itself is good, and the falsifier is unreachable on this build rather than failed.** With the head staged
-at its own revision (`4159d684…` — it does not exist at the model pin `20b43942…`; the main GGUF is
-byte-identical at both) and `-md …BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`, the engine logs
-`draft acceptance = 0.77465 (55/71), mean len 1.77` and `0.69333 (52/75), mean len 1.69`, and decode rises
-to **12.5 / 12.1 t/s — +44 %** on the crippled build. So MTP is mechanically working and materially
-faster; the pre-registered bar (C1 > 114 t/s vs 111.9 ± 0.3) cannot be measured on the `9df0b73c7`
-build, because nothing on it reaches a tenth of the baseline — but it *is* measurable on `a37cc4610`,
-which decodes at ~100 t/s (below), where +44 % would clear the bar. The A/B is open, not dead.
+**The MTP A/B ran on the healthy ref and the falsifier fires: MTP is not worth its place on this arm.**
+Same node (`.31`), same GGUF pin, same serve flags, two 128-token greedy requests per side:
 
-Until that A/B runs: no recipe change. The `kolibri1` fork image stays too (it has not been booted on
-this engine, and the two builds compared disagree by 12×).
+| side | decode t/s | draft acceptance |
+|---|---|---|
+| base, `a37cc4610` (`ef2d4bc8`) | **101.5 / 102.1** | — |
+| `-md …BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1` | **108.4 / 109.9** | 0.800 (56/70) and 0.789 (56/71), mean len 1.80 / 1.79 |
+
+**+7.4 %**, against a pre-registered bar of C1 > 114 t/s (baseline 111.9 ± 0.3). Acceptance is near the
+ceiling for `n-max 1` (mean len 1.80 of a possible 2.0) and it still buys only 7 %: the verify pass of a
+2.5B-active MoE costs about what the saved decode step yields. On the crippled `9df0b73c7` build the same
+head looked like +44 % (12.5 vs 8.4 t/s) — that number was an artefact of the slow baseline and must not
+be quoted. Conclusion: no MTP in the arm, no recipe change.
+
+The earlier paragraph on this head stands as mechanics (head lives at its own revision `4159d684…`, not
+at the model pin `20b43942…`; main GGUF byte-identical at both), not as a speed claim.
 Receipt: `~/benchmarks/mellum-mtp-20261022/` on the head (reachable from `.31`/`.33`) — `REPORT.md`, `build.log`, `build121.log`,
 `probe.log`, `push*.log`, `control-ladder.{json,csv}`, `oldengine-boot.log`, `new-mmap-boot.log`,
 `arch121-boot.log`, `mtp-boot.log`, `head-download.log`, `build-fa.log`, `flint-probe-boot.log`,
@@ -837,18 +842,33 @@ two 128-token requests, same GGUF pin and serve flags as the table above:
 | flint image (`ef2d4bc8`) on `.31` | **101.4 / 102.7** |
 | + `-DGGML_CUDA_FA_ALL_QUANTS=ON` (`9c31e0f3`) on `.33` | 97.1 / 101.7 |
 
-So the 14× gap is a property of the `9df0b73c7` image, not of upstream llama.cpp on GB10: a build four
-commits later, through the identical Dockerfile and arch flag, decodes at ~100 t/s. `GGML_CUDA_FA_ALL_QUANTS`
-— the one cmake difference in the `scitrera` build — buys nothing measurable; the residual ~15 % against
-its 120 t/s is unresolved and is **not** that flag. Note also that the four commits between `9df0b73c7`
-and `a37cc4610` touch no CUDA code, so a source bisect is the wrong next step: rebuild `9df0b73c7` from a
-fresh context (the 155 s build reused layers) and, if it comes out fast, treat the 8.4 t/s image as a bad
-artifact rather than a regression window.
+So the 14× gap is a property of the `9df0b73c7` **tree**, not of upstream llama.cpp on GB10 in general:
+`a37cc4610`, 38 commits later, decodes at ~100 t/s through the same Dockerfile, arch flag and node family.
+`GGML_CUDA_FA_ALL_QUANTS` — the one cmake difference in the `scitrera` build — buys nothing measurable,
+so the residual ~15 % against its 120 t/s is not that flag.
+
+**Reproduced from a clean context, so it is ref-level after all.** Rebuilt `9df0b73c7` from the pre-flint
+`5ce1d02` Dockerfile in an empty build context on `.30` (737.70 s, image `97c98b0d8b08`, gate passed),
+booted it on `.31`: **7.9 / 8.0 t/s** — the slow number again, so the 8.4 t/s image was not a bad artifact
+and a bisect is now the right next step. Its window is **38 commits** (an earlier note here said four,
+which was wrong) and it does touch device code: `ggml-cuda.cu` (+6, new `GGML_OP_TOP_K_MASK` dispatch and
+support check), `ggml-cuda/top-k-mask.{cu,cuh}` (new), `ggml-cuda/ssm-conv.cu` (k=7), `ggml-backend-meta.cpp`
+(+12/-2), `ggml-cpu/vec.{h,cpp}` (`GGML_GELU_QUICK_FP16` dropped, `ggml_vec_gelu_quick_f32` de-inlined),
+and `src/llama-graph.cpp` (+100/-24). Bisect first-parent commits with one build (~12 min) and one
+128-token greedy probe each; suspect the graph/backend-meta and top-k-mask changes, not the model files.
+
+**The residual 15 % is confounded, stated plainly.** From the images' own env: `scitrera` carries
+`CUDA_VERSION=13.1.1` / `NV_CUDA_CUDART_VERSION=13.1.80-1`, ours `13.0.1` / `13.0.88-1` (both `NVARCH=sbsa`).
+That co-varies with the fork's own source patches, so this evidence cannot separate CUDA-13.1.1 speedups
+from fork patches; a `a37cc4610` build on a 13.1.1 base would, and was not run.
 
 Node attribution while these ran: `.34` was held by a peer's `humanizer-12b-q4km-llamacpp` job
-(`082a4f322a793ea0_8ed3ce77d78f`, image `2dcf49ada913`, started 06:26:31Z) and `.31`/`.32` by a peer's b12x
-TP=2 (`6a76d7f90a79f4f4_6eb961eae222`); the `vllm-omni:nightly` container named `sweet_rosalind` seen at
-02:25:42Z carried no sparkrun task id and was gone by 02:31.
+(`082a4f322a793ea0_8ed3ce77d78f`, image `2dcf49ada913`, started 06:26:31Z), `.31`/`.32` by a peer's b12x
+TP=2 (`6a76d7f90a79f4f4_6eb961eae222`), and `.33` by a peer's `probe-q6k` (`7b0a21d0dbeb323d_80fa71eb085e`);
+the `vllm-omni:nightly` container named `sweet_rosalind` seen at 02:25:42Z carried no sparkrun task id and
+was gone by 02:31. `sparkrun` refuses a reserved host with `ResourceBusy`; the reservation lives in
+`~/.config/sparkrun/operations.sqlite3` (`reservations`), so a stale row names the owning pid — check that
+pid before clearing anything, and never clear a live peer's row.
 
 **Flint's other route is closed on this fleet**, so the engine is the only one: `RecursiveSI/flint`'s
 SGLang kit imports `add_grammar_backend_choices` from `sglang.srt.server_args`, which exists at v0.5.16
