@@ -855,11 +855,17 @@ Any model with reasoning and tool-calling capabilities
   - `fishaudio/drama-3-int4` — hybrid **W4A16**, routed experts + selected attention projections int4, shared
     expert and audio decoder bf16 (GPTQ-Marlin) — **24.03 GB** (22.1 GB of weights; the rest is 8 eval wavs,
     `eval.py`, `eval/eval_results.json`, `apply_patch.py`, `UPSTREAM_PR.md`) — complete — **its stated runtime
-    is SGLang-Omni, applied as a patch**: the tags are `int4`/`w4a16`/`sglang`/`sglang-omni` and
-    `apply_patch.py` + `UPSTREAM_PR.md` exist because the Marlin path is not upstream — i.e. **not our
-    `v0.5.22`**. Card numbers: Seed-TTS English WER 1.63 % corpus (1.42 % trimmed) vs 1.99 % / 1.32 % for the
-    FP8 base, +8 % per-request latency. `akhaliq/drama-3-int4` is the same quantization under the quantizer's
-    own account — **one candidate, not two**.
+    is SGLang-Omni, and it needs a loader patch on top of it**: tags `int4`/`w4a16`/`sglang`/`sglang-omni`, and
+    `UPSTREAM_PR.md` states the case — the quant_method is a *new* `drama3-int4` config that
+    `apply_patch.py` appends to `sglang_omni/models/fishaudio_drama3/quantization.py` plus two registration
+    lines in `engine_builder.py` (routed experts → `MoeWNA16Method` int4 group-128, dense targets →
+    `GPTQMarlinLinearMethod`, everything else bf16). **Not our `v0.5.22`, and not even stock SGLang-Omni.**
+    The owner's own warning is the silent-failure mode to watch: without the fused-prefix mapping the int4
+    weights are missed and generation "returns zero audio frames". Serving memory 57.3 GiB on A100-80GB at
+    `--tts_engine.gpu_memory_fraction 0.62 --vocoder.gpu_memory_fraction 0.2` (vendor). Card numbers: Seed-TTS
+    English WER 1.63 % corpus (1.42 % trimmed) vs 1.99 % / 1.32 % for the FP8 base, +8 % per-request latency.
+    `akhaliq/drama-3-int4` is the same quantization under the quantizer's own account — **one candidate, not
+    two**.
   - `dangvansam/drama-3-nvfp4` — experts FP8 → **NVFP4** W4A16 (ModelOpt-style layout, group 16, FP8 block
     scales, no calibration), everything else bf16 — **27.42 GB** — complete, plus
     `examples/{sglang_omni.yaml, vllm_omni_deploy.yaml}`, so **both Omni forks** are its stated runtimes.
@@ -937,7 +943,9 @@ Any model with reasoning and tool-calling capabilities
      vLLM-Omni), NVFP4 is Blackwell-native which is exactly sm_121, ~90 GB headroom. Its numbers are sm_120 on
      an unknown engine build, so it still needs its own boot.
   3. **`fishaudio/drama-3-int4`, 24.03 GB** — the only quant with the owner's name and published Seed-TTS
-     WER (1.63 % vs 1.99 %); documented on SGLang-Omni only, i.e. it inherits the build.
+     WER (1.63 % vs 1.99 %), and it fits with room (57.3 GiB on an 80 GB A100, so ~60 GiB here); but it
+     inherits **both** an SGLang-Omni build *and* its loader patch, and its documented flags
+     (`--tts_engine.gpu_memory_fraction`, `--vocoder.gpu_memory_fraction`) are that fork's, not ours.
   4. **`dangvansam/drama-3-pruned-128e-nvfp4`, 18.33 GB** — smallest real fit, and measurably worse (CER
      5.2 % vs 2.9 %): a headroom experiment after a full-size cell, never a first boot.
   5. **MLX (19.75–42.18 GB) and GGUF (10.46–71.61 GB)** — cannot run: no CUDA backend, or no engine arch.
