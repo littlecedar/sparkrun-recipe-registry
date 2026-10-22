@@ -1381,6 +1381,64 @@ needs a rebuild from the tag's author, so it stays as-found. The TensorFold
 the one with a recorded base is v0.5.18 + 8 commits, already past every advisory bound — so no feed
 can adjudicate those digests; they remain digest-pinned known-unknowns.
 
+## Engine-bump adjudication — SGLang 0.5.21 → 0.5.22 (2026-10-22, on hardware)
+
+One patch past the shipped 0.5.21, so the question is narrower than last time: not "does the lane's
+flag surface survive", but "does a patch release move anything we measure". The answer is **no
+regression and no win** — the bump's value is being on the current release, not throughput.
+
+| claim | source | date | label |
+|---|---|---|---|
+| The lane pinned `lmsysorg/sglang:v0.5.21@sha256:b1259f3e…` in all three SGLang arms | `recipes/ornith/*.yaml:5` | 2026-10-21 | **VERIFIED** |
+| v0.5.22 index `sha256:e3a4f060…` carries a `linux/arm64` child `sha256:06441be3…`; `v0.5.22-cu130` and `latest` resolve to the same index digest | `docker manifest inspect` on `.31` and `.35` | 2026-10-22 | **VERIFIED** |
+| The runtime under the tag moved: sglang `0.5.22`, torch `2.14.1+cu130` (was `2.13.0+cu130`), python `3.12.15`, cuDNN `9.14.0.64`, `nccl_torch 2.30.7` | each boot's versions block | 2026-10-22 | **VERIFIED** |
+| Every `--mamba-*` / spec-decode flag the 35B and 9B arms pass is still accepted; the 9B still omits them by design | both arms served | 2026-10-22 | **VERIFIED** on hardware |
+| sglang 0.5.22 matches **0** OSV advisories | `api.osv.dev/v1/query`, version match | 2026-10-22 | **VERIFIED** |
+| 35B d0 ladder sits inside the on-file band's σ in every cell | `arm-a-35b/perf-ladder-n5.json` | 2026-10-22 | **VERIFIED** (n=5, see table) |
+
+**Verdict: not blocked; the pins are applied.** Nothing in the bump changes a knob this lane sets, and
+the measured surface is flat. Both spec arms kept their grants within ~1 % of 0.5.21
+(`max_mamba_cache_size` 614 vs 611, pool 1,133,804 vs 1,125,837; 9B 273 vs 272, pool 1,531,959 vs
+1,523,077; both `max_running_requests=48`, unclamped), and the YaRN arm still grants a 1,000,000-token
+window (pool 1,187,727 vs 1,192,993).
+
+**Measured 2026-10-22, one serve per arm, sequential on `.35`** (receipts
+`~/benchmarks/sglang-0522-20261022/`): 35B HTTP-ready **238 s** (0.5.21: 223.6), house **37/37**,
+needle **3/3** at 32k/131k/262k; 9B **251 s** (235.7), house **37/37**; YaRN **129 s**, `/v1/models`
+`max_model_len` **1000000**, and **no 1M needle** — the arm's registered bar for this pass was the boot
+and the grant, and the 6-rung needle ladder is ~3.5 h for a question a one-line engine diff cannot
+change. All three serve logs carry **zero** `WARNING`/`ERROR`/`Traceback` lines, the same count as the
+0.5.21 boots.
+
+**The ladder, at the profile's own n=5** (`benchmarking/concurrency-ladder.yaml`, d0, pp 2048 / tg 128):
+
+| cell | 0.5.22 | on-file band | delta vs band | σ | 0.5.21 reading | delta vs 0.5.21 |
+|---|---|---|---|---|---|---|
+| C1 | **97.6** | 100.8–101.8 | **−3.2 %** | 8.8 | 96.5 | +1.1 % |
+| C2 | **152.1** | 153.1–158.2 | −0.7 % | 7.4 | 148.3 | +2.6 % |
+| C5 | **228.7** | 217.4–220.4 | **+3.8 % (above the band)** | 16.0 | 213.9 | +6.9 % |
+| C10 | **242.3** | 244.2–249.9 | −0.8 % | 5.0 | 244.1 | −0.7 % |
+
+Every cell is inside the band's σ, so the pass criterion holds; the *direction* is C1 −3 %, C2/C10
+flat, C5 +4 %, i.e. noise-shaped rather than a shift, and the σ recomputed from this boot (8.8 / 7.4 /
+16.0 / 5.0) is the same shape as the band's (8.7–12.1 / 6.2–6.4 / 10.0 / 3.2–4.6). The ticked triage
+pass at `runs=3` read 94.3 / 146.0 / 207.1 / 247.7 — quoted only as triage, never as the recorded cell,
+because "inside σ" is a claim about the same instrument the band came from.
+
+**What the bump does not deliver.** 0.5.21's named-but-inapplicable wins stay inapplicable (there is
+still no `lilicorr_*` draft for this lane), and 0.5.22 adds nothing this lane can use. Do not re-derive:
+the honest summary is "same numbers, current patch level".
+
+**Ops traps, both new.**
+
+- `sparkrun run @littlecedar/<name>` resolves the **published** registry, not the worktree: with the
+  worktree at `v0.5.22`, the first launch booted `v0.5.21` and reported `sglang: 0.5.21`. Read the boot
+  log's `Image:` line before trusting a bump boot; use the recipe **file path**.
+- A peer's `git pull`/checkout on the shared head reverted an uncommitted `container:` edit
+  mid-campaign and the next boot silently launched the previous engine. Guard:
+  `grep -q e3a4f06001a29542 <recipe> || exit 3`. Related: `docker pull repo:tag@sha256:…` stores the
+  image **untagged**, so any fleet peer's `image prune` can delete it — re-tag after pulling.
+
 ## References
 
 - Ornith 1.5 announcement — <https://ornith.ai/ornith_1_5.html>

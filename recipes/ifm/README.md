@@ -211,10 +211,51 @@ the lane. Do not lower it — `tests/test_k2_7b_recipes.UnoConcurrencyCap` enfor
 
 ## Container
 
-All recipes pin the container to `lmsysorg/sglang:v0.5.20-cu130` by **digest**
-(`sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f`). v0.5.20 is
-the version floor: it is the first release that ships `models/xllm.py`, which registers
-`K2HorizonForCausalLM`. A moving `dev-*` tag is not a guarantee.
+All recipes pin the container to `lmsysorg/sglang:v0.5.22-cu130` by **digest**
+(`sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`), bumped from
+`v0.5.20-cu130@06e4f2ed…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22". `v0.5.22-cu130` and
+`v0.5.22` are the same index digest, so the `-cu130` spelling is cosmetic and kept for lane
+continuity. v0.5.20 remains the **version floor**, and it is a floor no longer equal to the pin: it
+is the first release that ships `models/xllm.py`, which registers `K2HorizonForCausalLM`, and
+`tests/test_k2_7b_recipes.ContainerPin` now parses the version and asserts `>= v0.5.20` rather than
+matching that literal tag. A moving `dev-*` tag is not a guarantee.
+
+## Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)
+
+**Status: validated on the new digest; the pins are applied.** One serve per arm, sequential on `.35`,
+each boot log's `Image:` line naming `v0.5.22-cu130@sha256:e3a4f060…` and the engine reporting
+`sglang: 0.5.22` / torch `2.14.1+cu130` (was `2.13.0+cu130`). Receipts
+`~/benchmarks/sglang-0522-20261022/{arm-d-09b,arm-e-09b-uno,arm-f-7b-uno}/`; evidence history in
+[`attic/ifm/AGENTS.md`](../../attic/ifm/AGENTS.md) §"Engine-bump adjudication — 0.5.20 → 0.5.22".
+
+This is the lane's **first engine bump**, so it is also the first test of the assumption the UNO arms
+were built on: that `mods/probe-uno-fa4-sm121`'s anchored patch still applies to a newer
+`arg_groups/speculative_hook.py`. It does — the mod's own probe logged
+`PROBE UNO fa3 gate anchor  OK  anchor count = 1` and the arms booted `--attention-backend fa4` with
+`--speculative-algorithm UNO`, which stock 0.5.22 refuses at argument validation
+(`"UNO requires FA3 …"`). A patch that no longer applied would have failed the launch closed; nothing
+was worked around.
+
+| arm | boot / grant (0.5.20 on file) | house (on-file bar) | verdict |
+|---|---|---|---|
+| `k2-horizon-0.9b-bf16-sglang` | HTTP-ready **94 s** (82.7 port / 90.1 HTTP); `max_total_num_tokens=1,764,610` (1,773,893), `max_running_requests=64`, 12.24 GB free | **32/37** — easy 17/19 (`fmt-2`, `needle-1`), hard 15/18 (`hard-rev`, `trick-1`, `trick-2`) vs the recorded 17/19 + 15/18 with the **same five items** | keep |
+| `k2-horizon-0.9b-bf16-uno-sglang` | HTTP-ready **94 s** (102.75); `max_total_num_tokens=1,690,881` (1,695,086), `max_running_requests=64`, 16.30 GB free | **33/37** — easy 18/19 (`needle-1`), hard 15/18 (same three) == the recorded **33/37** | keep |
+| `k2-horizon-7b-fp8-uno-sglang` | HTTP-ready **240 s** (250.8 port / 255.7 HTTP); `max_total_num_tokens=574,698` (577,994), `max_running_requests=32`, 15.38 GB free | **36/37** — easy 19/19, hard 17/18 (`hard-rev`) == the recorded **36/37** | keep |
+
+**About the 37/37 bar.** The house battery's ceiling is per model, not per lane: the Ornith arms score
+37/37 on it, and the IFM arms have never — their on-file bars are 32/37 / 33/37 / 36/37, with the same
+miss lists reproduced here item for item. A 37/37 requirement applied to this lane would have failed
+every arm on its own baseline, so the gate used is **no regression against the arm's recorded score and
+misses**, which all three meet.
+
+**Engine-log delta vs the 0.5.20 boots: none** — `WARNING`/`ERROR`/`Traceback` count is 0 in all three
+serve logs, and 0 in the FA4 mod log apart from the probe notes.
+
+**Ops notes.** Boot by recipe file path, never `@littlecedar/<name>` (the registry ref resolves the
+published copy and silently serves the previous pin — root `AGENTS.md` §"Development Commands"); a
+`docker pull …@sha256:…` leaves the image untagged and prune-able, so re-tag it; and re-verify the
+`container:` line on the node immediately before each boot, because a peer's checkout of the shared
+tree can revert an uncommitted pin.
 
 ## Attic index
 

@@ -1023,3 +1023,48 @@ ways and the numbers are these:
 Do not quote E6's modelled +25 %/+57 % any more: 28,672 measured +8.1 %, and the mechanism
 is the fp8-KV read running at 151 GB/s against bf16's 237 GB/s effective. The measurement
 that settles it, and the run records: `~/benchmarks/ifm-36b-20261018/`.
+
+## Engine-bump adjudication — SGLang 0.5.20 → 0.5.22 (2026-10-22, on hardware)
+
+**Why this lane's bump is a different risk class from the Ornith one.** The two UNO arms mount
+[`mods/probe-uno-fa4-sm121`](../../recipes/ifm/mods/probe-uno-fa4-sm121), which patches
+`arg_groups/speculative_hook.py` by exact-anchor text and **refuses to write** unless it finds
+`!= ("fa3", "fa3")` exactly once. A base image that moved that code fails the launch at hook time,
+by design. So a re-pin here is a claim about that anchor, and it has to be measured, not inferred.
+
+| claim | source | date | label |
+|---|---|---|---|
+| The lane pinned `lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed…` in all three shipped recipes | `recipes/ifm/*.yaml:5` | 2026-10-18 | **VERIFIED** |
+| v0.5.22 index `sha256:e3a4f060…` carries a `linux/arm64` child `sha256:06441be3…`; `v0.5.22-cu130` resolves to the same index digest | `docker manifest inspect` on `.31` and `.35` | 2026-10-22 | **VERIFIED** |
+| 0.5.22 still declares the UNO fields the recipes pass (`--speculative-algorithm UNO`, `--uno-lora-path`, `--speculative-eagle-topk`, `--speculative-num-draft-tokens`) | boots below reached a serving engine | 2026-10-22 | **VERIFIED** on hardware |
+| The FA4 anchor still matches: `anchor count = 1 at …/srt/arg_groups/speculative_hook.py` | the mod's own probe, `/cache/runtime/modlogs/probe-uno-fa4-sm121.log` in each UNO boot | 2026-10-22 | **VERIFIED** |
+| The patch is in force, not merely applicable: the arms served `--attention-backend fa4` + `UNO`, which stock 0.5.22 refuses with `"UNO requires FA3 for both prefill and decode"` | 0.9B-UNO and 7B-UNO boot logs | 2026-10-22 | **VERIFIED** (behavioural) |
+| House batteries reproduce the lane's recorded scores item for item: 0.9B 32/37, 0.9B-UNO 33/37, 7B-UNO 36/37 | `~/benchmarks/sglang-0522-20261022/arm-{d,e,f}*/suite/house.json` | 2026-10-22 | **VERIFIED** |
+
+**Verdict: not blocked; the pins are applied.** No mod edit was needed, no anchor moved, and no
+work-around was taken. The engine moved torch `2.13.0+cu130 → 2.14.1+cu130` and python `3.12.x →
+3.12.15`; the arms' boot shapes, admission (`max_running_requests` 64/64/32, none clamped) and pool
+grants landed within 0.5 % of their 0.5.20 readings (1,764,610 vs 1,773,893; 1,690,881 vs 1,695,086;
+574,698 vs 577,994). Zero `WARNING`/`ERROR`/`Traceback` lines in all three serve logs.
+
+**The bar.** The bump's gate for this lane is *no regression against the arm's own recorded score and
+miss list*, not 37/37 — this family has never scored 37/37 (its recorded bars are 32/37, 33/37 and
+36/37, and the misses are the same items: `fmt-2`, `needle-1`, `hard-rev`, `trick-1`, `trick-2`). A
+37/37 requirement would have failed every arm on its own baseline.
+
+**Measured 2026-10-22, one serve per arm, sequential on `.35`** (receipts
+`~/benchmarks/sglang-0522-20261022/`): 0.9B HTTP-ready **94 s** (on file 90.1), pool 1,764,610,
+12.24 GB free; 0.9B-UNO **94 s** (on file 102.75), pool 1,690,881, 16.30 GB free; 7B-UNO **240 s**
+(on file 255.7), pool 574,698, 15.38 GB free. No ladder was re-taken on this pass: the recipe bytes
+changed in exactly one line (`container:`), so throughput is not a new question, and the lane's
+recorded ladders stand as the reference for the same flags.
+
+**Ops traps, both new to this lane.**
+
+- `sparkrun run @littlecedar/<name>` resolves the **published** registry, not the worktree: with the
+  worktree already at `v0.5.22-cu130`, the first launch booted `v0.5.21` — caught only because the boot
+  log's `Image:` line and the versions block were read. Bump boots pass the **recipe file path**.
+- A peer's `git pull`/checkout of the shared head reverted an uncommitted `container:` edit
+  mid-campaign, and the next boot silently launched the previous engine. Guard before every boot:
+  `grep -q <new digest> <recipe> || exit 3`. Also: `docker pull repo:tag@sha256:…` stores the image
+  **untagged**, so it is prune-able by anyone on the fleet — re-tag it immediately.

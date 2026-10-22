@@ -94,6 +94,16 @@ H=$PWD/.local/sparkrun-home
 HOME="$H" sparkrun recipe validate recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml
 ```
 
+**A bump boot must pass the recipe file path, never a registry-qualified ref.**
+`@littlecedar/<name>` resolves the *published* registry clone, not the worktree, so a recipe
+whose `container:` line was just edited still launches the previous image. Measured
+2026-10-22: with the worktree at `v0.5.22@sha256:e3a4f060…`,
+`sparkrun run @littlecedar/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` booted
+`v0.5.21@sha256:b1259f3e…` (its launch log's `Image:` and `Distributing image` lines name the old
+digest, and the engine reported `sglang: 0.5.21`) while the same command with
+`recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` booted the new one.
+Use a registry ref only when the published copy is what you mean to serve.
+
 The repo-mandated gate after every edit:
 
 ```bash

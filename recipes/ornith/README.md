@@ -108,7 +108,7 @@ returns the run's own loader, i.e. the standard safetensors path.
 | | |
 |---|---|
 | recipe | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` (digest-pinned; bumped from `dev-cu13@9a352a35…` on 2026-10-21 — §"Engine bump to SGLang 0.5.21") |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
 | model | [ornith-ai/Ornith-1.5-35B-A3B-NVFP4] — NVFP4 (`modelopt` mixed precision: FP8 on attention / linear-attention projections, W4A16_NVFP4 on experts and `lm_head`); `model_type: qwen3_5_moe`, 40 layers, `full_attention_interval: 4`, 256 experts top-8, `max_position_embeddings: 262144` |
 | checkpoint pin | `model_revision: 94e431d9cc47fa1986a7a1a4e9a80f7f118b03aa` (the engine is offline, so `--revision {model_revision}` is required) |
 | draft | [jzinno/Ornith-1.5-35B-A3B-DFlash2] — DFlash2 spec decode, 4 draft tokens; pin `speculative_draft_model_revision: 9b4852c05fd00b672b7434b1bb105bc03c8682b0` |
@@ -190,7 +190,7 @@ served with no `--limit-mm-per-prompt` cap.
 | | |
 |---|---|
 | recipe | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` |
-| runtime / container | SGLang — `lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469` (digest-pinned; bumped from `dev-cu13@9a352a35…` on 2026-10-21 — §"Engine bump to SGLang 0.5.21") |
+| runtime / container | SGLang — `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (digest-pinned; bumped from `v0.5.21@b1259f3e…` on 2026-10-22 — §"Engine bump to SGLang 0.5.22") |
 | model | [ornith-ai/Ornith-1.5-9B-NVFP4] — 8.8 GB of weights, dense ~9B, multimodal; `model_revision: 155f200d85ad58464571c77d5e1122ea5d419d7b` |
 | draft | [ornith-ai/Ornith-1.5-9B-DFlash] — first-party plain `DFlashDraftModel` (hidden-state taps 1/5/9/…/29 of the 32-layer target), 8 draft tokens, **deliberately unpinned** |
 | nodes / TP | 1 node, `tensor_parallel: 1` |
@@ -500,6 +500,82 @@ below their old means, consistent with the ladder's small downward drift.
 (boot + suite + ladder each, concurrent) plus ~3.5 h for the YaRN needle ladder (27 min per of the
 262k/512k/768k rungs and 95 min for the 1M rung's three depths) — roughly **4 h total on a free
 pair**, inside the registered 3.5–5.5 h estimate and the register's 6–9 h block.
+
+## Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)
+
+**Status: validated on the new digest; the pins are applied.** One patch past 0.5.21. Each arm booted
+alone on **`.35`**, one at a time, and passed its gate; receipts are
+`~/benchmarks/sglang-0522-20261022/` (`arm-a-35b/`, `arm-b-9b/`, `arm-c-yarn/`). Evidence history lives
+in [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md) §"Engine-bump adjudication — 0.5.21 → 0.5.22".
+
+**Target.** `lmsysorg/sglang:v0.5.22`, index digest
+`sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae` (`v0.5.22-cu130` resolves to
+the same index; `latest` did too on 2026-10-22). The index carries a native `linux/arm64` child,
+`sha256:06441be3de19a816ddbac917535e920cbfc7fc43171abc08417394f43634ffb6`, verified **on the node**
+with `docker manifest inspect` before the pull. Runtime moved with the tag: sglang `0.5.22`,
+torch `2.14.1+cu130` (was `2.13.0+cu130`), python `3.12.15`, cuDNN `9.14.0.64`, `nccl_torch 2.30.7`.
+
+**Pin edit (all three recipes, one line each):**
+
+```diff
+--- a/recipes/ornith/*.yaml
++++ b/recipes/ornith/*.yaml
+@@
+-container: lmsysorg/sglang:v0.5.21@sha256:b1259f3ea3275f66237c498ea388919729018bc9f01c3d638391e06e2cf3f469
++container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+```
+
+`tests/test_ornith_recipes.py` (29 tests) passes unchanged — it asserts a shared digest-pinned
+container, not a literal digest.
+
+**Measured 2026-10-22 (receipts `~/benchmarks/sglang-0522-20261022/`).** One serve per arm, sequential
+on `.35`; every boot log's `Image:` line read the new digest and the engine reported `sglang: 0.5.22`.
+
+| arm | boot / grant | quality | ladder @ d0, vs on-file band |
+|---|---|---|---|
+| 35B DFlash2 | HTTP-ready **238 s** (0.5.21: 223.6); `max_running_requests=48`; `max_mamba_cache_size=614` (0.5.21: 611; on file 632, does not clamp); pool **1,133,804** tokens (0.5.21: 1,125,837) | contract ok; house **37/37** (19/19 + 18/18); needle **3/3** at 32k / 131k / 262k | n=5: C1 **97.6 ± 8.8** · C2 **152.1 ± 7.4** · C5 **228.7 ± 16.0** · C10 **242.3 ± 5.0** (ttfr 311/569/1233/2014 ms) |
+| 9B DFlash | HTTP-ready **251 s** (0.5.21: 235.7); `max_mamba_cache_size=273` (0.5.21: 272); pool **1,531,959** tokens (0.5.21: 1,523,077) | contract ok; house **37/37** | not laddered (no on-file pass bar); no regression expected or claimed |
+| YaRN 1M | `context_len=1000000` in `/v1/models`; pool **1,187,727** tokens (on-file boots 1,202,898–1,205,530; 0.5.21: 1,192,993); `max_mamba_cache_size=1293`; 11.11 GB free; HTTP-ready **129 s** | window assertion only, by the arm's registered bar — **no 1M needle was run** (not cheap, and the ticked bar is the boot) | — |
+
+**The ladder, both readings, because they are not the same instrument.** The triage pass ran the
+profile at `-b runs=3` (the ticket's shape): **C1 94.3 · C2 146.0 · C5 207.1 · C10 247.7**. The recorded
+reading re-took the same cell set at the profile's own `runs=5` and is the one to quote:
+
+| cell | 0.5.22, n=5 | on-file band (n=5) | delta | σ | 0.5.21 n=5 reading | delta |
+|---|---|---|---|---|---|---|
+| C1 | **97.6** | 100.8–101.8 | **−3.2 %** | 8.8 | 96.5 | +1.1 % |
+| C2 | **152.1** | 153.1–158.2 | −0.7 % | 7.4 | 148.3 | +2.6 % |
+| C5 | **228.7** | 217.4–220.4 | **+3.8 % above the band** | 16.0 | 213.9 | +6.9 % |
+| C10 | **242.3** | 244.2–249.9 | −0.8 % | 5.0 | 244.1 | −0.7 % |
+
+Every cell sits inside the band's own σ, and the **direction** is: C1 down ~3 %, C2/C10 flat, C5 up
+~4 %. That is not a regression to plan around, but it is also not the "GDN win" 0.5.21 hoped for — the
+bump's value here stays *being on the current patch release*, not throughput.
+
+**Engine-log delta vs the 0.5.21 boot: none.** Both builds' serve logs carry **zero** `WARNING` /
+`ERROR` / `Traceback` lines (`arm-a-35b/serve.log` 707 lines, `0` matches; the 0.5.21 arm's log, `0`).
+The 35B spec decode stayed engaged; the 9B and 1M arms booted without the `--mamba-*` flags changing
+meaning.
+
+**Ops notes from this pass.**
+
+- **Boot by recipe file path, never `@littlecedar/<name>`.** The registry ref resolves the *published*
+  copy, so the first launch silently booted `v0.5.21` from it while the worktree was already at
+  `v0.5.22`; the give-away is the launch log's `Image:`/`Distributing image` lines naming the old
+  digest plus `sglang: 0.5.21` in the versions block. See the root `AGENTS.md` §"Development Commands".
+- **`docker pull repo:tag@sha256:…` leaves the image UNTAGGED**; a peer's `image prune` on the shared
+  fleet removed one such pull. Re-tag it (`docker tag lmsysorg/sglang@sha256:e3a4f060… lmsysorg/sglang:v0.5.22`)
+  as soon as the pull lands.
+- **Verify the pin on the node immediately before each boot.** A peer's `git pull`/checkout on the
+  shared head reverted an uncommitted `container:` edit mid-campaign and the next boot silently
+  launched the previous engine; the guard used here is
+  `grep -q e3a4f06001a29542 <recipe> || exit 3`.
+- Nodes are scarce: `.31`–`.33` were held by another worker's TP=4 boot, so this pass ran entirely on
+  `.35`, one arm at a time. `sparkrun stop <cluster-id> -H <node>` then **assert `docker ps -aq` = 0**
+  worked at every arm boundary.
+
+**Cost.** Six sequential arms on one node, ~2 h wall: three boots (~4 min each) + the 35B suite
+(~11 min needle) + two 35B ladders + three sub-2-minute house batteries on the small arms.
 
 ## Lane caveats
 

@@ -2,7 +2,7 @@ recipe_version: "2"
 model: IFM/K2-Horizon-7B-FP8
 model_revision: ea739ec816e0c9ed9896022056efa858aa8b87e7
 runtime: sglang
-container: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
 min_nodes: 1
 max_nodes: 1
 

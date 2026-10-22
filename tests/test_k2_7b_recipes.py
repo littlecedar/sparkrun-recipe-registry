@@ -78,9 +78,18 @@ EXPECTED_PINS = {BASE: ATTIC_MODEL_REVISION,
                  UNO: MODEL_REVISION}
 # v0.5.20 is the first release containing models/xllm.py (PR #37654).
 MIN_SGLANG_TAG = "v0.5.20"
+MIN_SGLANG = tuple(int(x) for x in MIN_SGLANG_TAG.lstrip("v").split("."))
 CONTAINER_DIGEST = (
+    "sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae"
+)
+# The archived arms are frozen at the build they were measured on (2026-10-08) and
+# keep that pin; only the shipped arm follows the lane's engine bump.
+ARCHIVED_CONTAINER_DIGEST = (
     "sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f"
 )
+EXPECTED_CONTAINER_DIGEST = {BASE: ARCHIVED_CONTAINER_DIGEST,
+                             NGRAM: ARCHIVED_CONTAINER_DIGEST,
+                             UNO: CONTAINER_DIGEST}
 
 # Flags sglang does not accept at all.
 BANNED_ALWAYS = [
@@ -198,14 +207,22 @@ class ContainerPin(unittest.TestCase):
     def test_tag_is_new_enough_for_xllm(self):
         for p in ALL:
             c = strip_comments(read(p))
-            self.assertIn(MIN_SGLANG_TAG, c,
-                          "%s does not pin >= %s, the first release with "
-                          "models/xllm.py" % (p.name, MIN_SGLANG_TAG))
+            m = re.search(r"sglang:v(\d+)\.(\d+)\.(\d+)", c)
+            self.assertIsNotNone(
+                m, "%s: cannot read the sglang version from the container pin"
+                   % p.name)
+            got = tuple(int(x) for x in m.groups())
+            self.assertGreaterEqual(got, MIN_SGLANG,
+                                    "%s pins sglang %s, but %s (the first release "
+                                    "with models/xllm.py) is the floor"
+                                    % (p.name, ".".join(map(str, got)),
+                                       MIN_SGLANG_TAG))
 
     def test_digest_pinned_not_moving_tag(self):
         for p in ALL:
-            self.assertIn(CONTAINER_DIGEST, strip_comments(read(p)),
-                          "%s is not digest-pinned" % p.name)
+            self.assertIn(EXPECTED_CONTAINER_DIGEST[p], strip_comments(read(p)),
+                          "%s is not digest-pinned to its lane's engine build"
+                          % p.name)
 
     def test_no_dev_tag(self):
         for p in ALL:
