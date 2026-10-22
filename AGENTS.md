@@ -105,9 +105,9 @@ for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run py
 find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
 ```
 
-- **Plain `validate` is the gate, not `--strict`**: all 52 tracked recipes pass plain; 12/52 fail
-  strict on accepted findings (re-measured 2026-10-21 19:55 ET). Eleven carry `unpinned-model-revision` — the pin never
-  reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
+- **Plain `validate` is the gate, not `--strict`**: all 52 tracked recipes pass plain; 16/52 fail
+  strict on accepted findings (re-measured 2026-10-22). Fifteen carry `unpinned-model-revision` —
+  the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 
   | Recipe | Findings |
   |---|---|
@@ -115,6 +115,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   | `decision/kev-0.8b-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
   | `decision/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
   | `decision/laya-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
+  | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
@@ -123,6 +125,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   | `qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | `deprecated-topology` (`cluster_only`), `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `qwen4/zz-qwen38-next-vllm-tp2-pinned.yaml` | `unpinned-model-revision`, 2× `restated-platform-env` |
+  | `rerank/qwen3-vl-reranker-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `rerank/qwen3-vl-reranker-8b-vllm-b12x.yaml` | `unpinned-model-revision` |
 
   These arms either pass the prepared path through `{model}` or serve a model set baked into the image
   (`kokoro`), so the missing `--revision` does not select a different artifact;
@@ -130,6 +134,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   (`sparkrun/core/validation.py:837-914`). Never edit a recipe merely to clear a `suggestion` (such as
   deliberate `/cache/runtime` paths flagged `restated-managed-path`) or a documented, deliberate
   warning.
+  The four embed/rerank pins added 2026-10-22 are the same class: `{model}` renders to the prepared
+  snapshot there too, so the pin selects the bytes and the engine never resolves a ref.
 - `py_compile` leaves `__pycache__/`; the suite's own child processes may recreate it even under
   `-B`, so keep the cleanup line.
 

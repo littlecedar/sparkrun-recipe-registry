@@ -1,5 +1,6 @@
 recipe_version: "2"
 model: Qwen/Qwen3-VL-Embedding-2B
+model_revision: 9f2f7e710d6d81056aa5c0a4f04764fec6bb7bda
 runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8

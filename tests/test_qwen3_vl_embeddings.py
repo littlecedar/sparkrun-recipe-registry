@@ -540,6 +540,14 @@ class TestRecipeInvariants(unittest.TestCase):
             self.assertNotIn("async_scheduling", joined, p)
             self.assertNotIn("--async-scheduling", joined, p)
 
+    def test_model_revision_pinned_below_model(self):
+        """The served bytes must be a commit, not whatever `main` holds at pull time."""
+        for p in RECIPES:
+            self.assertIsNotNone(
+                re.search(r"(?m)^model: \S+\nmodel_revision: ([0-9a-f]{40})$", self._text(p)),
+                (p, "`model:` must be followed by a 40-hex `model_revision:`"),
+            )
+
     def test_attention_backend_is_a_real_enum_member(self):
         """--attention-backend resolves via AttentionBackendEnum[value.upper()]."""
         valid = {"B12X", "FLASHINFER", "TRITON_ATTN", "FLASH_ATTN", "TORCH_SDPA"}
@@ -719,7 +727,10 @@ class TestSparkrunValidation(unittest.TestCase):
                     cwd=str(REPO_ROOT),
                 )
                 self.assertEqual(r.returncode, 0, (p, r.stdout, r.stderr))
-                self.assertNotIn("error", r.stdout.lower(), (p, r.stdout))
+                # Severity lines, not a substring: the `unpinned-model-revision` warning is
+                # expected here (the command passes the prepared path through `{model}`), and
+                # its text says "LocalEntryNotFoundError", which a substring check reads as one.
+                self.assertNotRegex(r.stdout, r"(?m)^error\b", (p, r.stdout))
 
 
 if __name__ == "__main__":

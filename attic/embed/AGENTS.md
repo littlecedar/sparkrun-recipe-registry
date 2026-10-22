@@ -120,7 +120,7 @@ printed 3.73 GB here — the same number it prints for the 2B bf16 model — aga
 `metadata.total_size` instead:
 
 ```
-curl -s https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit/raw/main/model.safetensors.index.json \
+curl -s https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit/raw/5c4cca00fcac14b9f1ab88ed432cacf1c57645c1/model.safetensors.index.json \
   | python3 -c 'import json,sys;print(json.load(sys.stdin)["metadata"]["total_size"]/1e9)'
 ```
 

@@ -1,5 +1,6 @@
 recipe_version: "2"
 model: Qwen/Qwen3-VL-Reranker-2B
+model_revision: 4bd860ac4f15ad1897a214615cccc700f8f71818
 runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
