@@ -5,7 +5,7 @@ description: "Before committing/pushing tracked docs in sparkrun-recipe-registry
 
 # Tracked-file IP hygiene (sparkrun-recipe-registry)
 
-The registry is distributed to third parties and `AGENTS.md` forbids hostnames/IPs in tracked files — but **the gate is syntax-only** (`unittest discover -s tests`, `sparkrun recipe validate`, `bash -n`, `py_compile`) and never scans for addresses. Subagent-authored lane docs leak them readily (they transcribe the real IPs they measured).
+The registry is distributed to third parties and `AGENTS.md` forbids hostnames/IPs in tracked files. Since 2026-10-22 the gate does scan **tracked** files — `tests/test_tracked_address_hygiene.py` walks `git ls-files` and fails on an RFC1918 literal or a bare `<head-node>` — so a leak that is already committed reddens the suite instead of shipping quietly. What the guard cannot see is a file that is not tracked yet, and subagent-authored lane docs leak addresses readily because they transcribe the real IPs they measured.
 
 ## Pre-commit scan
 
