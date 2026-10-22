@@ -133,10 +133,12 @@ available, that advice is actively hostile and this design does not adopt it.
 
 The ceiling comparison is blunt. A 200 Gb/s RoCE port measures 112 Gb/s (14 GB/s) over RDMA verbs —
 that is not a file-transfer rate: measured file transfer is 5.1–6.6 GB/s with four plain TCP streams
-and 2.05–2.25 GB/s with four ssh streams (§9). One node's NVMe,
-on a PCIe Gen5 ×4 link, reads 6.2–8.0 GB/s sequentially from a fully allocated file, and serves
-**102,969 random 4 KiB reads/s with 32 outstanding reads** (≈ 0.42 GB/s, implied ≈ 0.31 ms per read) —
-32 being the engine's own Engram reader width. The internet delivers **6 MB/s** for a large body (§9).
+and 2.05–2.25 GB/s with four ssh streams (§9) — both on a test blob addressed over the rails, whereas
+the body copies that have actually run went over management at 247–250 MB/s per stream (§9). One
+node's NVMe, on a PCIe Gen5 ×4 link, reads 6.2–8.0 GB/s sequentially from a fully allocated file,
+and serves **102,969 random 4 KiB reads/s with 32 outstanding reads** (≈ 0.42 GB/s, implied ≈ 0.31 ms
+per read) — 32 being the engine's own Engram reader width. The internet delivers **6 MB/s** for a
+large body (§9).
 
 - **Quantized and repacked loads are engine-bound, not storage-bound.** SGLang's repack load of a
   63.03 GB checkpoint took 407.20 s — **155 MB/s**. vLLM loading a 139.3 GB TP=2 checkpoint took 540.28 s
@@ -247,6 +249,12 @@ afterwards and the container count on each node touched is unchanged.
 Receipts: `.scratch/beegfs/xfer-head-cx7-20261022.log`, `xfer-n4n5-cx7-20261022.log`,
 `xfer-head-mgmt-20261022.log`.
 
+**One correction is recorded below and it changes the policy, not the table.** Every rail figure here
+was taken on a 5.818 GB test blob addressed by rail address. The multi-hundred-GB body copies that
+actually ran on this fleet were addressed by management hostnames and therefore crossed the 2.5 GbE
+management NIC, never the rails (§"The copy that actually ran", below). The rails are what a fan-out
+*should* use; they are not the path any large copy has yet taken.
+
 **The asymmetry that decides placement policy.** A 210.72 GB body fetched from the Hub over the
 WAN ran at **6 MB/s effective** (`bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard`, 210.72 GB),
 because the throttle is per-IP: two nodes fetching in parallel split that budget rather than
@@ -277,6 +285,7 @@ the single-stream file is 5.818 GB, the 4-shard shapes 20.87 GB.
 | compute node → compute node, CX7 rail 1 | `scp` 4 streams, 4 shards | 2151 | 2.255 |
 | compute node → compute node, CX7 rail 2 | `nc` 1 stream / 4 streams | 560 / 3749 | 0.587 / 3.93 |
 | control → compute node, management | `nc` 1 / `nc` 4 / `rsync` 1 / `scp` 1 / `rsync` 4 | 33–56 | 0.03–0.06 |
+| control → compute node, **management** (`enP7s7`) | `rsync` 1 stream, **an actual body copy** (not the test blob) | 236–238 | 0.247–0.250 |
 
 Source of every row: `.scratch/beegfs/xfer-*-20261022.log`; disk baselines from the same script.
 
@@ -305,13 +314,52 @@ Source of every row: `.scratch/beegfs/xfer-*-20261022.log`; disk baselines from 
   fallback to management hostnames would make a 210 GB fan-out a 1-day operation instead of a
   2-minute one.
 
+### The copy that actually ran, 2026-10-22: management, not the rails
+
+A cross-node body copy of several hundred GB from `.31` to `.34` — exactly the fan-out the rule
+below exists for — was launched against **management hostnames**, so every byte crossed the 2.5 GbE
+management NIC and the rails were never exercised. The evidence is routing and socket state, not a
+stopwatch:
+
+- `ip route get .NN` from the sender resolved to **`dev enP7s7`**, the management port, not a
+  CX7 rail port;
+- the copy's own ssh socket read `.NN:44468 -> .NN:22` in `ss -tnp` — both ends
+  management;
+- the single stream held **247–250 MB/s**, ≈80 % of the 2.5 GbE line rate (2.0 of 2.5 Gbit/s), which
+  is what a *clean* management link does and is nowhere near a rail's 0.55–0.62 GB/s ssh shape.
+
+**This does not contradict the 33–56 MiB/s row.** That row was `nc`/`rsync` against a node whose
+uplink the fleet was saturating with a concurrent WAN fetch; it measures a *contended* management
+link. The body copy ran when nothing else was competing. Both numbers are real — they describe
+different load — and the pair is the reason management must be sized from the copy that is
+competing with it, never from a single sample.
+
+**What the mistake cost.** At 247–250 MB/s a 210 GB body takes ≈14 min on one management stream.
+The same bytes take ≈1.6–1.8 min across four rail ssh streams at 2.05–2.25 GB/s, and ≈35 s across
+four plain-TCP streams at 5.1–6.6 GB/s *(both divisions arithmetic on this section's own numbers,
+not separately timed)*. On management the port, not the cipher, is the ceiling, so extra streams buy
+almost nothing and the rail advantage grows with body size.
+
+**The rail measurement taken after the copy was re-addressed.** Two parallel ssh streams on the
+`the CX7 plane-A subnet` rail measured **646–751 MB/s aggregate** (≈323–375 MB/s per stream). That is less
+than twice the single-stream rail `rsync` figure (0.57–0.58 GB/s), so the second stream's gain on
+this pair is partial: the "4 streams scale 3.6–3.9× one stream" result above was measured
+control→node, and node→node did not scale the same way.
+
+**Provenance gap, stated rather than filled.** Neither the 247–250 MB/s body-copy rate nor the
+646–751 MB/s two-stream figure has a log in `.scratch/beegfs/`; the three receipts there are the
+synthetic test-blob runs. Both numbers come from the running copies' own progress plus `ip route
+get` and `ss -tnp` taken on the sender at the time, so they are `[VERIFIED]` observations with no
+archived artifact. If either becomes load-bearing for a plan, re-measure it and keep the log.
+
 ### The rule
 
 A model body above roughly **100 GB** is fetched **once** over the WAN, on a node, and fanned out
-node-to-node. Below that the arithmetic no longer favours the extra hop strongly (a 30 GB body is
-~1.4 h of WAN against ~15 s of fan-out — the fan-out still wins, but it is a convenience, not a
-rescue). Never fetch the same body N times: the WAN throttle is per-IP, so N parallel fetches cost
-N × 9.8 h of the *same* budget.
+node-to-node **by rail address** (`the CX7 plane-A subnet` / `plane-B subnet`), never by management
+hostname — the section above is what the hostname form costs. Below that the arithmetic no longer
+favours the extra hop strongly (a 30 GB body is ~1.4 h of WAN against ~15 s of fan-out — the
+fan-out still wins, but it is a convenience, not a rescue). Never fetch the same body N times: the
+WAN throttle is per-IP, so N parallel fetches cost N × 9.8 h of the *same* budget.
 
 ### The procedure
 
@@ -339,6 +387,12 @@ sparkrun run recipes/<lane>/<recipe>.yaml -H <nodes> --offline
   size-verified at 20,874,597,228 B on the destination.
 - 4 streams, not 8: 4 is where scaling was measured linear (2.05–2.25 GB/s). More streams buy CPU
   exhaustion, not bandwidth.
+- Every `<peer-*>` in step 2 must be a **rail** address (`the CX7 plane-A subnet` / `plane-B subnet`), never a
+  management hostname. A management-addressed loop still exits 0, still moves the bytes, and runs at
+  ~250 MB/s per stream — and it is the mistake §"The copy that actually ran" records, whose rate was
+  then quoted for a whole window as if it were a fabric number.
+- `du -s` equality is necessary but not sufficient for completeness; verify `blobs/` against the
+  Hub's own LFS `sha256` before a multi-rank boot rather than trusting the size.
 - `--offline` at launch is what makes the node-local fetch authoritative; sparkrun otherwise stages
   through the control, which does not fit a body of this size (§ Capacity note below).
 
@@ -359,7 +413,10 @@ sparkrun run recipes/<lane>/<recipe>.yaml -H <nodes> --offline
 The control's root filesystem holds a 141 GB free margin at the time of writing, and a 210.72 GB
 TensorFold body plus its Engram tables does not fit in it. Practical rule: **bodies above ~130 GB
 are node-local** (`hf download` on the node, `--offline` at launch); bodies below that may stage
-through the control. This is exactly the decision that blocked the TP=2 twin A/B.
+through the control. This is the decision that shaped the 2026-10-22 cross-node body copy: a body
+far above the ~130 GB line, so it was fetched once on a node and fanned out node-to-node — and, per
+§"The copy that actually ran", over the management NIC because the copy was addressed by management
+hostnames.
 
 ### Claims this measurement corrects
 
@@ -373,6 +430,12 @@ through the control. This is exactly the decision that blocked the TP=2 twin A/B
   streams; read those numbers wherever a boot or fan-out time is being derived.
 - §7's revisit trigger "a workload whose load path exceeds the fabric's ~14 GB/s" is restated: no
   measured load path exceeds 4 GB/s, and no file-transfer path exceeds 6.6 GB/s.
+- **Any statement that the cross-node body copies ran "on the fabric" is wrong, this report's own
+  framing included.** They were addressed by management hostnames, so `ip route get` resolved them
+  to `dev enP7s7` and the socket was `.NN:44468 -> .NN:22` — the 2.5 GbE management
+  NIC, at 247–250 MB/s per ssh stream. The CX7 rows above measure what the rails do with a test
+  blob between rail addresses; no large copy has yet used them, and the 112 Gb/s RDMA figure has
+  still never been exercised by a file transfer at all.
 
 ---
 
