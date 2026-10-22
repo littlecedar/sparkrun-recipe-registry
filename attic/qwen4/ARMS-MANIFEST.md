@@ -84,7 +84,7 @@ production set. They are archived here, tracked, with their provenance.
 | `eugr-qwen3.8-flash-next-nvfp4-radixark.yaml` | RadixArk | vllm-distributed | Contributor recipe (eugr); a third-party vLLM path, not our sglang serving lane. |
 | `eugr-qwen3.8-flash-next-nvfp4-cluster.yaml` | RadixArk | vllm-distributed | Contributor recipe (eugr); cluster variant. |
 | `qwen3.8-flash-next-nvfp4-vllm.yaml` | RadixArk | vllm-distributed | Cross-runtime competitor; never benchmarked (W12). Its recipe mounts `@eugr/mods/fix-qwen3.8-flash-next-vllm`; the unused house copy `mods/fix-qwen3.8-flash-next-vllm` (a humanrouter `apply-ple-patch.py` wrapper, mounted by no recipe anywhere) was deleted 2026-10-11 — recover it from git history if the eugr dependency is unwanted. |
-| `qwen3.8-flash-next-labquant-tp4-sglang.yaml` | local-inference-lab | sglang | TP=4 arm; never produced a number (§6 item 1b). Recovered from git HEAD (the live writer had staged its deletion). |
+| `qwen3.8-flash-next-labquant-tp4-sglang.yaml` | local-inference-lab | sglang | TP=4 arm; never produced a number (§6 item 1b). Recovered from git HEAD (the live writer had staged its deletion). Repaired and booted 2026-10-22, then **closed as a checkpoint limit** on a second engine build — see wave 5 and `AGENTS.md` §10.8/§10.9. |
 | `ursuciprian-qwen3.8-flash-next-nvfp4-fastqsa4096bigkv-g8-sglang.yaml` | RadixArk | sglang | Contributor recipe (ursuciprian); carries a **non-portable** host bind-mount (`executor_config.volumes`), so it is not shippable as-is. |
 | `qwen3.8-flash-next-nvfp4-nvidia-sglang.yaml` | nvidia/Qwen3.8-Flash-Next-NVFP4 | sglang | Accuracy-candidate arm built 2026-10-10 from the RadixArk quality reference with only the checkpoint swapped (blazux head-to-head: NVIDIA 88.8%±1.0 vs RadixArk 86.1%±1.9, +15–22% KV, −7–8% decode on their vLLM route). **BOOT-ANSWERED 2026-10-10: REJECTED on this engine** — the checkpoint's per-layer quant map violates the pinned SGLang loader's block divisibility (`ValueError: The output_size of gate's and up's weight = 320 is not divisible by weight quantization block_n = 128`, scheduler init). Upstream served it on vLLM with engine patches. Adopting needs an engine patch on our pinned image or a vLLM route — its own slice, not a config change. |
 
@@ -144,6 +144,18 @@ shipped TP=1 pick is unchanged.
 Parent assignment and exact deltas are from `.scratch/q4/recipe_manifest.md` (produced by direct
 diff of the parsed documents, not by filename inference) and are reproduced here so the manifest can
 be deleted if the scratch tree is reaped.
+
+### Wave 5 — the TP=4 shape closed (archived 2026-10-22)
+
+The wave-3 TP=4 arm was repaired and booted the same day (`AGENTS.md` §10.8, W6) and then booted a
+second time on a different engine build (§10.9). Both boots loaded every shard and then refused the
+checkpoint in the quant/padding path, so TP=4 is a **checkpoint/export limit of this NVFP4 export**,
+not a build a different nightly fixes. Its recipes are frozen here as provenance; TP=2 stays the
+shipped topology.
+
+| file | checkpoint | runtime | why archived |
+|---|---|---|---|
+| `qwen3.8-flash-next-labquant-tp4-v0522-sglang.yaml` | local-inference-lab | sglang | The row above with `container:` alone changed to `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` — the boot that closed TP=4: the same `AssertionError` in `process_weights_after_loading` on **all four ranks** after **41/41 shards per rank** (`modelopt_quant.py:2942`; `:2624` on the pinned build). Moved verbatim from the git-ignored `.scratch/w6-v0522/tp4-v0522.yaml` (sha256 `a42f3ca…`) so the receipt's recipe survives the scratch dir. Its `mods:` paths are the scratch file's (`../../recipes/qwen4/mods/…`) and do **not** resolve from `arms/`. |
 
 ## Provenance notes
 

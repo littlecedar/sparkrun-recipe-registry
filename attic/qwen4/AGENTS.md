@@ -169,7 +169,7 @@ Legend: **C** = needs the cluster (serialize); **O** = off-cluster, parallel-saf
 | **W3** | **Quality eval for the labquant export** (§6 item 5) | O | — | **Advanced 2026-10-04: eval built and run.** `tools/qwen4-quality-eval.py` (38-task fixed battery, selftest green) + `attic/qwen4/status/W3-QUALITY-EVAL-PLAN.md` + `…-STATUS.md`. Live paired: RadixArk **35/36**, labquant **37/38**, **0 disagreements on the 36 shared tasks**. n=1 and the battery drifted 36→38 between runs — re-run on one frozen battery before quoting. Not a certifying accuracy measurement. |
 | **W4** | **#37111 silent-decode-corruption gate** (§6 item 11, §14) | O→C | reproducer code | **Built 2026-10-04: `tools/gate-37111.py`** (selftest green, 5 negative controls) + `tools/gate-37111-design.md` + `attic/qwen4/status/W4-GATE-STATUS.md`. Live smoke **PASSED** (warm==cold canary correct) — a negative result, not proof. The 1–2 h / ~100k release soak is still owed. |
 | **W5** | **The `max_num_seqs` ↔ KV-capacity trade** (§19n/§19o/§19x) | C | none | **Measured 2026-10-04 (§19z).** cap 24→32 = +0.42 GB intermediate scratch, −4.55% KV, and it **boots** at `cps 4096`. Mechanism VERIFIED: scratch ∝ `spec_state_size = max_running_requests` (`kv_cache_configurator.py:489`). `capped to 28` at cap 32 → the mamba slot pool, not `max_num_seqs`, is the ceiling. Residual: the `cps=8192 + cap=32` non-boot (§19o) is untested. |
-| **W6** | **TP=4 under SGLang** (§6 item 1b) | C | fix `attic/qwen4/arms/qwen3.8-flash-next-labquant-tp4-sglang.yaml` first (moved to the archive in the production-dir narrowing) | **Measured 2026-10-22: CAPTURED BOOT FAILURE, and it is the engine's, not the arm's.** The repaired arm (§10.8) loaded **41/41 shards in 5:08** per rank and then aborted in `process_weights_after_loading` on all four ranks — `modelopt_quant.py:2624`, `AssertionError: The intermediate size required padding, but padding is also implemented for gated activations`. At TP=4 the per-rank MoE intermediate size needs padding and the NVFP4 quantizer refuses to pad gated activations; at TP=2 it divides evenly, which is why the pair boots. Memory was never the constraint: 21.0 GiB of weights per rank against a 97.4 GiB budget, `Fit: YES`. No recipe knob reaches it — the arm was already the shipped chain minus the two documented TP>2 confounds. Levers are image-side (a modelopt path that pads gated MoE intermediates at TP=4). Receipt `~/benchmarks/tp4-20261022/w6-tp4-sglang/` (`REPORT.md`, `boot.log`, `serve-node0..3.log`). |
+| **W6** | **TP=4 under SGLang** (§6 item 1b) | C | fix `attic/qwen4/arms/qwen3.8-flash-next-labquant-tp4-sglang.yaml` first (moved to the archive in the production-dir narrowing) | **Measured 2026-10-22: CAPTURED BOOT FAILURE, and it is the engine's, not the arm's.** The repaired arm (§10.8) loaded **41/41 shards in 5:08** per rank and then aborted in `process_weights_after_loading` on all four ranks — `modelopt_quant.py:2624`, `AssertionError: The intermediate size required padding, but padding is also implemented for gated activations`. At TP=4 the per-rank MoE intermediate size needs padding and the NVFP4 quantizer refuses to pad gated activations; at TP=2 it divides evenly, which is why the pair boots. Memory was never the constraint: 21.0 GiB of weights per rank against a 97.4 GiB budget, `Fit: YES`. No recipe knob reaches it — the arm was already the shipped chain minus the two documented TP>2 confounds. Levers are image-side (a modelopt path that pads gated MoE intermediates at TP=4). Receipt `~/benchmarks/tp4-20261022/w6-tp4-sglang/` (`REPORT.md`, `boot.log`, `serve-node0..3.log`). **CLOSED 2026-10-22 as a CHECKPOINT limit, not a build limit (§10.9):** the same arm on `lmsysorg/sglang:v0.5.22-cu130` reproduced the identical assertion on all four ranks (`modelopt_quant.py:2942`) after 41/41 shards per rank, so no other nightly is owed. Receipt `~/benchmarks/tp4-20261022/w6-tp4-v0522/`. |
 | **W7** | **MoE/kernel ceiling probes** (§6 items 2, 9) | C | — | Time `torch._grouped_mm` (present, **still untimed** — its argument contract rejects the naive shapes, so the real SGLang MoE layout is needed; a *dedicated* container works, a shell in a *serving* container OOMs on `set_device(0)`); and A/B `--fp4-gemm-backend`. Current `flashinfer_cutlass` was inherited from vLLM without justification. **Probed 2026-10-19:** `flashinfer_cutedsl` (the accepted spelling; the 2026-10-18 `…cudedsl` refusal was a typo) boots, house 37/37, ladder 39.02 / 70.22 / 98.38 / 106.13 against the control's 41.22 / 72.88 / 95.18 / 108.13 — mixed and at or below the 7-25 % inter-boot floor, so the shipped backend stands; a 2-boot-per-arm retake is still needed before a flip (`~/benchmarks/qwen4-knobs-20261019/b1-cutedsl/REPORT.md`). |
 | **W8** | **Upstream engagement** (§14) | O | W4 reproducer | **Drafted 2026-10-04: `attic/qwen4/status/W8-UPSTREAM-DRAFTS.md`** (nothing posted — posting needs explicit authorization). Upstream states re-verified: #37111 OPEN, #38319 OPEN, #38355 OPEN/unmerged. |
 | **W9** | **Long-context route (262k→1M)** (§6 item 13) | C | needle gate | **Built 2026-10-04, ARCHIVED 2026-10-14** as `attic/qwen4/arms/qwen3.8-flash-next-nvfp4-labquant-longctx-sglang.yaml` (owner: 1M droppable). It exposes the 1M route (`--context-length 1000000` + YaRN `--json-model-override-args` + the **required** env `SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`, which the build needs or it *raises* rather than warns). **Quality above 262k is still UNMEASURED** — the 262144 point is the quality-safe one, and it is what the shipped TP=2 recipe keeps. The needle gate (WORK §15 step 3) remains the prerequisite before serving 1M. |
@@ -610,6 +610,39 @@ negative controls for the bare key, the stale pin, a missing mod, `auto` and a r
 **The rule this earns:** an arm under `arms/` is a measurement artifact, not a maintained sibling —
 before re-running one, diff it against the shipped arm it was cut from. Nothing here needed a fifth
 mod or a flag the lane docs did not already name.
+
+### 10.9 TP=4 is closed as a checkpoint limit (2026-10-22)
+
+§10.8's W6 boot killed TP=4 on the **pinned** `dev-cu13-qwen38-next-local` build. The open question
+was whether the refusal belonged to that build or to the export; one boot answered it, and the answer
+retires the shape.
+
+- **Boot.** Same arm, engine line only changed to `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…`,
+  on four nodes `.30`–`.33`, 2026-10-22 (task `08acf79cd757a666_7afff0589a33`), weights
+  `local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37…`, TP=4, `--quantization modelopt_mixed`.
+- **Failure signature.** Every rank loaded **41/41 shards** and then aborted in
+  `process_weights_after_loading` with
+  `AssertionError: The intermediate size required padding, but padding is also implemented for gated activations`
+  at `modelopt_quant.py:2942` (it was `:2624` on the older build — same message, same phase). One
+  occurrence per rank. `/v1/models` never answered.
+- **Reading.** The weights are fine (41/41 on all four ranks) and the refusal is the quant/padding
+  path for a gated-activation MoE at TP=4. Two builds, two line numbers, one answer: **this is a
+  checkpoint/export-level TP=4 limit, not a memory limit, not a bad arm, and not a nightly that a
+  different build fixes. Do not re-try TP=4 on another nightly.**
+- **Receipts.** `~/benchmarks/tp4-20261022/w6-tp4-v0522/` (`REPORT.md` = pre-registration + verdict,
+  `boot2.log`, `w6b2-node0..3.log`); the pinned-build boot is `~/benchmarks/tp4-20261022/w6-tp4-sglang/`.
+- **The arm this ran.** `arms/qwen3.8-flash-next-labquant-tp4-v0522-sglang.yaml` — moved here verbatim
+  from git-ignored `.scratch/w6-v0522/tp4-v0522.yaml` on 2026-10-22 so the boot's recipe is not lost
+  with the scratch dir. It differs from the committed TP=4 arm in `container:` alone. **Its `mods:`
+  paths are the scratch file's (`../../recipes/qwen4/mods/…`, two levels up) and do not resolve from
+  `arms/`; re-point them to `../../../recipes/qwen4/mods/…` if you ever re-run it** — and §10.8 says
+  to diff it against the shipped TP=2 arm first anyway.
+- **What replaced it (TP=2 stays shipped).** `recipes/qwen4/zz-qwen38-next-vllm-tp2-pinned.yaml`, i.e.
+  `RadixArk/Qwen3.8-Flash-Next-NVFP4 @7b71922` on the b12x nightly at TP=2 across a pair, served KV
+  pool **1,757,475 tokens** (6.70× a 262,144 window) and decode **42.8 / 51.2 / 40.1 t/s**
+  (median 42.8; single stream, 256 tokens, temperature 0) after two fixes (`load_format:
+  safetensors`, and the in-place PLE patch mod). Receipt `~/benchmarks/tp4-20261022/w12-vllm-b12x/`.
+  A TP=4 labquant number was never produced and is not owed: the shape cannot load.
 
 
 ---

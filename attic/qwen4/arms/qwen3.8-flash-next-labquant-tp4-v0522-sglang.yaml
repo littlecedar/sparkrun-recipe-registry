@@ -1,0 +1,112 @@
+recipe_version: "2"
+# TP=4 attempt on the labquant checkpoint — the W6 workstream (attic/qwen4/AGENTS.md §plan, §10.1).
+#
+# WHY THIS EXISTS. The decode model predicts that if per-node bandwidth is the binding constraint,
+# splitting the same byte budget across more devices should raise concurrency-1 decode. RadixArk
+# TP=4 measured worse than TP=2 (30.94 vs 39.3), which either falsifies the model or says the TP=4
+# configuration was bad. It was: `--enable-two-batch-overlap` is listed UNSUPPORTED for qwen4 by both
+# sglang docs and eugr, and NEXTN is known to be much slower at TP>2 in eugr. This recipe removes
+# both confounds (the overlap flag was never here; NEXTN is dropped, see `defaults` below).
+#
+# REFRESHED 2026-10-22 so the arm can boot at all. The pre-re-cut attempt could not: it pinned
+# `revision:` (silently ignored — the pin key is `model_revision:`) to the superseded `7c4f1bc1`
+# revision, carried 3 of the 5 mods the checkpoint now needs, set `moe_runner_backend: auto` (which
+# resolves the NVFP4 MoE to FLASHINFER_TRTLLM, dead on SM121), and used `chunked_prefill_size 8192`
+# (regresses k=8/k=16 on this checkpoint). Everything except `tensor_parallel`, `min_nodes`, the
+# dropped NEXTN block and the readiness budget is now byte-identical to the shipped TP=2 arm
+# (`recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`), so a TP=4 number differs from its
+# TP=2 sibling in topology and spec-decode only.
+#
+# W6 FOLLOW-UP VARIANT (2026-10-22, scratch, never committed): the SAME arm on the v0.5.22 stack, to
+# test whether the TP=4 `modelopt_quant.py:2624` gated-activation padding refusal is a property of the
+# pinned `dev-cu13-qwen38-next-local` build or of the model. One boot, receipt either way; a reproduced
+# assertion is as valuable as a pass. Bytes below are the committed arm's, engine line excepted.
+model: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+model_revision: 6c01ac378d22f6652c9f392c87700496eca8e5dc
+runtime: sglang
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+min_nodes: 4
+
+description: >-
+  TP=4 control for the labquant checkpoint, with the two known-bad TP>2 knobs removed: no
+  two-batch overlap (never present) and NEXTN dropped (eugr reports NEXTN much slower than plain at
+  TP>2). Answers whether TP=4 loses because of TP itself or because of those flags.
+
+metadata:
+  model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  model_dtype: nvfp4
+  model_mtp_dtype: fp8
+  kv_dtype: bf16
+# This file sits in .scratch/w6-v0522/, so the lane's mods are two levels up.
+mods:
+  - "@eugr/mods/drop-caches"
+  - "../../recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema"
+  # ORDER MATTERS: this mod writes into the tree the config mod builds, and requires
+  # --no-ple-offload-embedding (set in the command below).
+  - "../../recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8"
+  - "../../recipes/qwen4/mods/fix-labquant-mxfp8-weight-scale-name"
+  # REQUIRED to boot at all: its narrow MXFP8 GDN projections (n=96/rank) sit under CUTLASS's MXFP8
+  # floor of 128. Must run LAST — layers onto the tree the config mod builds.
+  - "../../recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 24
+  kv_dtype: bf16
+  quantization: modelopt_mixed
+  fp4_gemm_backend: flashinfer_cutlass
+  page_size: 64
+  chunked_prefill_size: 4096
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  mamba_ssm_dtype: bfloat16
+  # Kept at the TP=2 arm's pool so the topology comparison holds every other knob fixed; at TP=4 the
+  # weights per rank halve, so this is the conservative direction.
+  max_mamba_cache_size: 112
+  load_format: safetensors
+  served_model_dir: /cache/runtime/labq-patched
+  served_model_name: local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+  # --moe-runner-backend flashinfer_cutlass is mandatory, not a tunable: `auto` resolves the NVFP4
+  # MoE to FLASHINFER_TRTLLM, dead on SM121. The prefill disable is explicit but redundant on this
+  # image: the multimodal checkpoint makes the engine disable prefill graphs itself (2026-10-19).
+  extra_args: "--moe-runner-backend flashinfer_cutlass --cuda-graph-backend-prefill disabled"
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {served_model_dir}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --mem-fraction-static {gpu_memory_utilization}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --max-running-requests {max_num_seqs}
+  --quantization {quantization}
+  --fp4-gemm-backend {fp4_gemm_backend}
+  --page-size {page_size}
+  --chunked-prefill-size {chunked_prefill_size}
+  --context-length {max_model_len}
+  --kv-cache-dtype {kv_dtype}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --max-mamba-cache-size {max_mamba_cache_size}
+  --load-format {load_format}
+  --reasoning-parser auto
+  --tool-call-parser auto
+  --no-ple-offload-embedding
+  {extra_args}
+
+# The previous TP=4 attempt (RadixArk, NEXTN on) reported "Available for KV: 75.8 GB" and was torn
+# down with readiness reason="port", i.e. it never bound the port inside the 1800 s default. A
+# four-node sharded load is slower than the pair's ~670 s, so the budget is raised: a timeout must
+# not be the thing that decides this experiment, and if it still times out that is itself the
+# finding. Field names are validated at recipe load, so a typo fails loudly rather than silently
+# reverting to the default.
+readiness:
+  port_timeout_s: 3600
+  health_timeout_s: 900
