@@ -1814,7 +1814,8 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   pool lines (`n_ctx_per_seq`, the KV-cache and mamba-state sizes) recorded because a hybrid model's
   pre-flight KV number is wrong by construction. *(2) Ladder at d0* — `benchmarking/concurrency-ladder.yaml`
   (pp 2048 / tg 128, c1/2/5/10, n=5), decode rows read from `runs/*.json`, on 15.7G with MTP on.
-  *(3) Same ladder, MTP off* — the control that prices the MTP head, and *(4) 13G MTP on* — the tier
+  *(3) Same ladder, MTP off* — the control that prices the MTP head (override `-o spec_type=none`;
+  `none` is one of the eleven accepted names, `common/speculative.cpp:74`), and *(4) 13G MTP on* — the tier
   A/B, `--max-tokens 4096` throughout. *(5) House battery* `tools/quality-battery.py … --tier both
   --repeat 3 --max-tokens 4096 --thinking {on,off}` — 37 items, thinking mode stated with every
   number. *(6) Vision* — one synthetic PNG (two shapes, "how many circles?") through
