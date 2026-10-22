@@ -126,9 +126,11 @@ govern, per the protocol; the verbatim asks remain in git.)*
   The pilot (`QUESTIONS.md` `#5`) was authorized **without a pre-registered pass/fail**, so it is
   recorded as measurements plus the control rows, and **no threshold invented after the run** converts
   it into a verdict. The adoption answer therefore stays the report's own "not now", restated with the
-  measured reason: the client mount is blocked by **firmware** — Secure Boot enabled, one Canonical MOK
-  certificate enrolled, and no prebuilt module in any official index — not by packaging, and the
-  fabric-level comparison is the NFS-over-rail stand-in. `mad-science/BEEGFS-REPORT.md` §10 is the
+  measured reason: the client mount is blocked on **both official apt routes** by this pair's firmware
+  state — Secure Boot enabled, one Canonical MOK certificate enrolled, and no prebuilt module in any
+  official index — which is a packaging-and-firmware statement, **not** a platform one: a source build is
+  demonstrably buildable here (§10 "The reconciliation"), and the untested route is a source build for
+  the current kernel. The fabric-level comparison remains the NFS-over-rail stand-in. `mad-science/BEEGFS-REPORT.md` §10 is the
   record.
 
 *(Answered 2026-10-22 — no open questions **at that pass**. `#47` is folded into the TP=4 work items as
@@ -2739,7 +2741,8 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   node that is serving**. This is the one open question in the register whose work runs on the free pair,
   so it is not held by the `#4` fence. *(effort: medium)*
   *(progress 2026-10-22 — **the pilot ran; only the two control rows are measurable, and the blocker is
-  firmware, not packaging.** Both official module routes install and **neither yields a loadable
+  the official apt routes under this pair's Secure Boot, not BeeGFS on this fleet.** Both official module
+  routes install and **neither yields a loadable
   module**: `beegfs-client`'s postinst builds an unsigned `beegfs.ko` (`modinfo` shows no signer) and
   `modprobe` answers `Key was rejected by service`, while `beegfs-client-dkms` signs with the local
   `spark-324e` MOK, which is not enrolled — `mokutil --sb-state` says Secure Boot enabled and
@@ -2752,9 +2755,21 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   target benchmark reports 307.16/311.51 MiB/s single-task write and 1.49/1.57 GiB/s at four tasks.
   Owner ruling (`QUESTIONS.md` `#5`): the pilot **reports numbers with no pre-registered pass/fail**,
   and none is invented after the fact — so the adoption verdict stays *not now*, with its reason
-  restated as the physical-console MOK enrollment. Everything was torn down and both nodes are back to
-  0 containers with 615/279 GB free. Full record: `mad-science/BEEGFS-REPORT.md` §10; receipts
-  `~/benchmarks/beegfs-pilot-20261022/`.)*
+  restated as the official apt routes' physical-console requirement. Everything was torn down and both
+  nodes are back to 0 containers with 615/279 GB free. Full record: `mad-science/BEEGFS-REPORT.md` §10;
+  receipts `~/benchmarks/beegfs-pilot-20261022/`.)*
+  *(**Reconciled the same day — the owner's earlier install was a *source build*, and the next step is
+  cheaper than the pilot's.** Read-only inspection of `.30`–`.33` found a source-built client tree on all
+  four: `beegfs.ko` 76,105,072 B built 2026-08-21 against `6.17.0-1031-nvidia`, **unsigned** and **not
+  loaded**, with no `beegfs-client`/daemon package in dpkg (only `libbeegfs-ib` and `libbeegfs-license`,
+  `20:8.4.1`), so this was never an apt client install; `.34`/`.35` never had any of it. The cluster now
+  runs `6.17.0-1032-nvidia`, so nothing from 1031 can load as-is. **The open testable question is a
+  source build for `1032` plus one `modprobe`** — one build answers whether the route the owner used still
+  works under today's firmware, and it supersedes the NFS stand-in as the path to §8 cell (2). The
+  leftovers on the production four (stale 1031 module tree, an orphaned `conn.auth`, an empty
+  `/mnt/beegfs`, `mgmtd.sqlite` and a dangling `beegfs-mgmtd` symlink on `.30`) are recorded as
+  **undocumented, unverified state** — nothing deleted or restarted, owner's call:
+  `BEEGFS-REPORT.md` §"The reconciliation" and §"Unverified legacy state".)*
 
 ## Image pins and advisories (registry-level)
 

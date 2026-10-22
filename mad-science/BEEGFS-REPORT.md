@@ -13,20 +13,28 @@ node→node, three shapes, two rails) and the fetch-once/fan-out rule that follo
 **Pilot addendum 2026-10-22 (round 2):** **§10 reports the two-node pilot that the owner authorized**
 (`QUESTIONS.md` `#5`), run on `.34`/`.35` exclusively. It installed the official packages, ran the
 BeeGFS server stack, measured the storage targets, and established that the **client** cannot load on
-either node: the gate is the nodes' firmware state, not the packaging. The pilot carried **no
+either node through **either official apt route** — those routes compile on the node and Secure Boot,
+with only Canonical's certificate enrolled, refuses the result. The pilot carried **no
 pre-registered pass/fail** (owner ruling, `TODO.md` `#52`), so §10 reports numbers and does not invent a
-threshold.
+threshold. **§10 also carries the reconciliation, found after the pilot: the owner's earlier working
+install was a source build on `.30`–`.33` against kernel `1031`, not an apt install** — so the bound is
+the *official packaging routes on a Secure Boot pair*, not BeeGFS on this fleet, and the open question is
+a source build for the cluster's current `1032` kernel.
 
 **Question:** what would it cost, in resources and in boot/serve performance, to install and operate
 BeeGFS across `.30`–`.35` as one shared Hugging Face cache — and is it worth doing.
 
-**Answer:** **not now — and after the pilot the reason is narrower and measured.** The pilot (§10) ran:
-the official packages install from the vendor repo, the **server** stack starts, registers both storage
-targets and speaks RDMA on the rail, and the **client** cannot load on either node because the nodes run
-Secure Boot with only Canonical's certificate enrolled and no official index ships a prebuilt module —
-so the blocker is **firmware enrollment**, not packaging, and it needs a physical console. The capacity
-benefit remains one the existing storage policy already reaches by pruning, and no pass/fail threshold
-was pre-registered for the pilot (§10 reports numbers, `TODO.md` `#52`), so none is claimed: the verdict
+**Answer:** **not now — and the pilot narrowed the reason to one route rather than the design.** The
+pilot (§10) ran: the vendor repo installs, the **server** stack starts, registers both storage targets and
+speaks RDMA on the rail, and the **client** cannot load on `.34`/`.35` through either official apt route
+because both compile locally and the nodes' Secure Boot store holds only Canonical's certificate. That is
+a statement about **packaging and firmware state**, not about BeeGFS on this hardware: `.30`–`.33` carry a
+**source-built** client (kernel `1031`, unsigned) from the owner's earlier install, so a source build is
+the path that has actually been used here — its **load** is unverified today, and the cluster now runs
+`1032`, which nothing on those hosts was built for. The cheapest decidable next step is therefore **one
+source build for `1032` and one `modprobe`** (§10), not a console MOK ceremony. The capacity benefit
+remains one the existing storage policy already reaches by pruning, and no pass/fail threshold was
+pre-registered for the pilot (§10 reports numbers, `TODO.md` `#52`), so none is claimed: the verdict
 stands on §6's four reasons, with its install-risk item now measured instead of predicted.
 
 ---
@@ -214,16 +222,19 @@ prevent — so the pilot in §8 measures the batch on the pool rather than re-de
    a pool re-materializes a model on any node on demand, where the policy needs a re-fetch.
 2. **The license-free shape is unmirrored.** Today a node failure costs that node's cache. With a pool,
    one target loss costs a sixth of the fleet's only copy, re-fetched at 6 MB/s (§9).
-3. **Install risk on this exact platform — measured 2026-10-22, and it is worse than predicted.** Secure
-   Boot is enabled on `.34`/`.35` with **one** certificate enrolled (Canonical Ltd. Master CA), and a
-   module built on the node is either unsigned (`beegfs-client`, whose `modinfo` shows no signer, refused
-   with `Key was rejected by service`) or signed with the local `spark-324e` MOK, which is not enrolled
-   (refused the same way). **No official index ships a prebuilt module** for any kernel, so every route
-   compiles on the node and every result is refused: mounting needs a `mokutil --import` plus a
-   MokManager confirmation **at a physical console** on each of six nodes. The headers for
-   `6.17.0-1032-nvidia` are installed, so the DKMS build starts — but that kernel is not a combination
-   BeeGFS tests, and every DGX OS update re-opens the build. The management service then sits in front of
-   every boot. Full evidence in §10.
+3. **Install risk on this exact platform — measured 2026-10-22, and it is a route problem, not a platform
+   one.** Secure Boot is enabled on `.34`/`.35` with **one** certificate enrolled (Canonical Ltd. Master
+   CA), and both official apt routes compile on the node: `beegfs-client` leaves `beegfs.ko` unsigned
+   (`modinfo` shows no signer, refused with `Key was rejected by service`) and `beegfs-client-dkms` signs
+   with the local `spark-324e` MOK, which is not enrolled (refused the same way). **No official index
+   ships a prebuilt module** for any kernel, so neither route can load without a `mokutil --import` plus a
+   MokManager confirmation **at a physical console**. That is a real cost, but it is **not the only
+   route**: `.30`–`.33` carry a **source-built** `beegfs.ko` from the owner's earlier install (§10), so
+   the build itself is known to work on this fleet; whether a source build for the current
+   `6.17.0-1032-nvidia` loads on a Secure Boot node is **unverified and cheap to test** — one build and
+   one `modprobe`. The standing risk is the same either way: that kernel is not a combination BeeGFS
+   tests, and every DGX OS update re-opens the build. The management service then sits in front of every
+   boot. Full evidence in §10.
 4. **No measured performance upside.** The only hot-path reader needs 340–600 IOPS and 1.5–2.7 MB/s
    against 102,969 IOPS and 6.2–8.0 GB/s — 170–300× inside the device — so the pool neither fixes a
    bottleneck nor starves on bandwidth. Its only exposure is the Engram batch's latency, and the engine
@@ -257,12 +268,20 @@ be taken on a node that is serving.
 
 **Outcome, 2026-10-22:** **the pilot ran, and it overturned nothing — because two of the three cells
 cannot be measured on these nodes.** (2) is unreachable: it needs a BeeGFS **client** mount, and the
-client module cannot load under this fleet's Secure Boot/MOK state (§10). (1) and (3) therefore fall back
-to the NFS-over-rail stand-in that the same pair can mount — a single-stream read of **564.1 MiB/s**
-against **6,358.3 MiB/s** local NVMe, **3,055.7 MiB/s** at eight streams, metadata create **9.28 ms**
-on a `sync` export against **0.67 ms** `async` and **0.0097 ms** local (§10). The pilot pre-registered no
-pass/fail threshold, so these are reported as measurements, not as a scored test; the verdict stays
-"not now" with §6's install-risk item now measured rather than predicted.
+client module cannot load on `.34`/`.35` through either official apt route under this pair's Secure
+Boot/MOK state (§10). (1) and (3) therefore fall back to the NFS-over-rail stand-in that the same pair can
+mount — a single-stream read of **564.1 MiB/s** against **6,358.3 MiB/s** local NVMe, **3,055.7 MiB/s** at
+eight streams, metadata create **9.28 ms** on a `sync` export against **0.67 ms** `async` and
+**0.0097 ms** local (§10). Those NFS rows stay labelled as the stand-in; they are not BeeGFS numbers. The
+pilot pre-registered no pass/fail threshold, so these are reported as measurements, not as a scored test;
+the verdict stays "not now" with §6's install-risk item now measured rather than predicted.
+
+**Superseding route, 2026-10-22 (same day, after the pilot):** the client cell is not closed — it was
+being attempted on the wrong route. `.30`–`.33` carry a **source-built** `beegfs.ko` (kernel `1031`,
+unsigned, built 2026-08-21) from the owner's earlier install, so board the next attempt through a source
+build for the current `1032` kernel and one `modprobe` (§10 "The reconciliation"), which is cheaper than
+either apt route plus a console enrollment. If that loads, cell (2) becomes measurable and this section's
+three cells can finally be taken on a real client mount.
 
 ## 9. Getting a body onto a node: fetch once, fan out on the fabric (measured 2026-10-22)
 
@@ -502,22 +521,65 @@ pending now.
 | index | `Components: non-free`, `Architectures: amd64 arm64`; `non-free/binary-arm64/Packages` lists **24 packages**, none kernel-version-specific |
 | module delivery | **none prebuilt, ever**: `beegfs-client` builds `/opt/beegfs/src/client/client_module_8/source/beegfs.ko` in its postinst and leaves it **unsigned**; `beegfs-client-dkms` builds and signs with `/var/lib/shim-signed/mok/MOK.priv`. No `kmod-beegfs` / `beegfs-client-<kver>` package exists on **noble, jammy or bookworm**; the Ubuntu archive itself ships nothing (`apt-cache policy beegfs-client` had no candidate before the vendor repo was added) |
 
-So **the route is not the discriminator**: `apt-get install` succeeds and version `20:8.4.1` installs
-from the vendor repo, the postinst builds a 76 MB `beegfs.ko`, and `modprobe beegfs` then fails as
-above; `beegfs-client.service` (installed and enabled by the package) ends `status=1/FAILURE` on the same
-error. The DKMS route reaches the identical end with a **signed-but-unenrolled** module.
+So **neither official apt route is the discriminator**: `apt-get install` succeeds and version `20:8.4.1`
+installs from the vendor repo, the postinst builds a 76 MB `beegfs.ko`, and `modprobe beegfs` then fails
+as above; `beegfs-client.service` (installed and enabled by the package) ends `status=1/FAILURE` on the
+same error. The DKMS route reaches the identical end with a **signed-but-unenrolled** module. The next
+subsection is the route that has actually worked on this fleet — a plain source build, which is what the
+owner's install turns out to have been.
 
-### The owner's earlier working install: report vs evidence
+### The reconciliation: the owner's install was a **source build on `.30`–`.33`**, not an apt install
 
 **The owner reports a prior working install on these nodes, from official packages, which survived a
-reboot.** **What today's measurements show** is that no build-on-node module can load without a
-**physical-console MOK enrollment** or Secure Boot off. Both statements are recorded as what they are —
-a report and a measurement — and the discrepancy is attributed to **the Secure Boot/MOK state at the
-time of that install**, not to the install: the store today holds exactly one certificate, so a working
-client on these nodes must have run with Secure Boot off, or with a MOK enrolled and later cleared.
-Nothing here contradicts the owner's report; the one thing today's state cannot do is reproduce it.
+reboot.** Round 1 and the pilot both read that as an apt client install and could not reproduce it on
+`.34`/`.35`. **Read-only inspection of `.30`–`.33` on 2026-10-22 found it — and it was never on the pilot
+pair.** Nothing was stopped, restarted or deleted to look; the reads are `ls`, `dpkg -l`, `modinfo`,
+`systemctl is-enabled`, `sha256sum` and `mokutil`.
+
+| what the production four carry | evidence |
+|---|---|
+| a **source-built client tree** at `/opt/beegfs/src/client/client_module_8/source/` | `beegfs.ko` **76,105,072 B**, built **2026-08-21 21:27**, `vermagic 6.17.0-1031-nvidia`; `.beegfs.ko.cmd` names the `1031` headers, which are still under `/usr/src` on `.30` |
+| that module is **unsigned and not loaded** | `modinfo` returns no signer; `lsmod` shows no `beegfs`; `.30`'s build hashes `230ff15216a023f3bc45bb9c8ef3dc8dc3ecd214c725f716e4dc61dfd339236c` |
+| **no client/daemon package** — a source install, not apt | `dpkg -l` on `.30` lists exactly two BeeGFS packages, the userspace libraries `libbeegfs-ib` and `libbeegfs-license` (`20:8.4.1`); no `beegfs-client`, `-mgmtd`, `-meta` or `-storage` row exists in any retained archive |
+| a management daemon **ran** on `.30` | `/var/lib/beegfs/mgmtd.sqlite` (**151,552 B**, 2026-08-21 21:31) and an enable symlink for `beegfs-mgmtd` (2026-08-07 23:21) |
+| `.34`/`.35` never had any of it | `/opt/beegfs`, `/etc/beegfs` and `/mnt/beegfs` are **absent** on `.34`; its `/lib/modules/6.17.0-1032-nvidia/updates/fs` exists but is **empty**, so nothing was ever `make install`ed there either; every retained Secure Boot record on the pair back to 2026-10-18 shows Secure Boot enabled with only Canonical's CA |
+
+**What that changes, in four steps:**
+
+1. **The source build path is proven to build on this fleet** — out-of-tree module, `1031` headers,
+   `-j8`-style build, no MOK ceremony recorded in any surviving artefact. It is the route the owner
+   actually used, and it is not blocked by packaging at all.
+2. **It does not prove the load under today's firmware.** The surviving artifact is **unsigned**, and
+   `.30` itself reports **Secure Boot enabled**; on that state an unsigned module is refused with
+   `Key was rejected by service`. So the earlier install's *load* is **unverified** — it cannot be
+   reconstructed from the artefacts, and the report records the owner's account beside this measurement
+   rather than correcting it.
+3. **Nothing from that install can load as-is today:** the cluster now runs
+   `6.17.0-1032-nvidia` while the module is vermagic `1031`, and the `1031` module tree is no longer
+   under `/lib/modules` on `.30` (only its headers remain), so a rebuild is required either way.
+4. **The open, testable question is therefore a source build for `1032`.** One build and one
+   `modprobe` answers whether the route the owner used still works under the firmware state this fleet
+   runs now — and it supersedes the NFS-over-rail stand-in as the path to a real client mount, which is
+   what §8 cell (2) needs. That is a cheaper next step than either apt route plus a console enrollment.
+
+### Unverified legacy state on the production four
+
+These are **documented leftovers, not a working install**: nobody has deleted them, restarted them or
+rebuilt them, and they sit on fenced production hosts, so their disposition is the owner's call. Recorded
+because a future "BeeGFS was never on this fleet" claim would be false, and because two of them are
+security-relevant.
+
+| leftover | where | state |
+|---|---|---|
+| stale module source tree (`beegfs.ko` + `.beegfs.ko.cmd` + `beegfs.mod`, …) | `/opt/beegfs/src/client/client_module_8/source/` on all four | built 2026-08-21 for kernel `1031`, **unsigned**, **not loaded**; nothing maintains it |
+| `conn.auth` — a 32-hex cluster secret, **the only file in `/etc/beegfs`** on `.30` | `/etc/beegfs/conn.auth` (175 B, 2026-08-07 23:37) | orphaned: there is no client config, no client unit and no loaded module to use it |
+| an empty mount point | `/mnt/beegfs` (2026-08-08 00:00) | empty, not mounted, not in `/etc/fstab` |
+| a management database | `/var/lib/beegfs/mgmtd.sqlite` on `.30` (151,552 B, 2026-08-21 21:31) | no `beegfs-mgmtd` binary or unit to read it |
+| a **dangling unit enable symlink** | `/etc/systemd/system/multi-user.target.wants/beegfs-mgmtd.service` → `/usr/lib/systemd/system/beegfs-mgmtd.service` (2026-08-07 23:21) | `systemctl is-enabled beegfs-mgmtd` answers **`not-found`** — the unit file is gone, so the symlink points at nothing and nothing starts |
+| two userspace libraries | `libbeegfs-ib`, `libbeegfs-license` (`20:8.4.1`) in dpkg on `.30` | installed, unused by anything running |
+
 The server half (§"The part that does work") needs no module at all, and is very likely the install the
-owner remembers.
+owner remembers; the client tree above is what survives of the rest.
 
 ### The part that does work: the server stack, and the drop-in it needs to survive a reboot
 
@@ -598,18 +660,27 @@ pre-pilot backup). Final state on both nodes: `dpkg -l | grep beegfs` = 0, no DK
 `systemctl --failed` = 0 units, **`docker ps -aq` = 0**, no `beegfs` mount, `/` back to **279 GB free
 (93 % used) on `.34`** and **615 GB free (83 % used) on `.35`**.
 
-### What finishing it would take (the one thing a remote session cannot do)
+### What finishing it would take, cheapest first
 
-1. At the **physical console** of each node that should mount:
+1. **A source build for `6.17.0-1032-nvidia`, then one `modprobe`** — no console, no key ceremony, and it
+   is the route the owner's install already used (§"The reconciliation"). Build the 8.4 client tree
+   against the current kernel *on the pair*, `insmod`/`modprobe` the result, and read the answer off
+   `lsmod` plus `dmesg`: **loads** ⇒ mount and take §8 cells (1) and (2) on a real client; **refused**
+   (`Key was rejected by service`) ⇒ the module needs signing, which is step 2. This is the test that
+   turns the pilot's NFS stand-in into a measured pool.
+2. **Only if step 1 is refused:** at the **physical console** of each node that should mount,
    `sudo mokutil --import /var/lib/shim-signed/mok/MOK.der` (or a fresh key the module is signed with),
    reboot, confirm at the MokManager screen. `mokutil --list-enrolled` must then show **2** certificates.
-2. Re-add the repo and install `beegfs-client beegfs-client-dkms`, set `sysMgmtdHost`, start
-   `beegfs-client`; `mount | grep beegfs` then exists and the round's harness
-   (`~/benchmarks/beegfs-pilot-20261022/bench.py`) runs unchanged against `/mnt/beegfs` — which is what
-   §8 cells (1) and (2) were written to measure.
+   Then install `beegfs-client beegfs-client-dkms`, set `sysMgmtdHost`, start `beegfs-client`; the
+   round's harness (`~/benchmarks/beegfs-pilot-20261022/bench.py`) runs unchanged against `/mnt/beegfs`.
 3. Alternatively, Secure Boot may be turned off in firmware on the pilot pair, and the same package set
    works with no console key work at all — but that is a fleet-wide security posture change, i.e. an
    owner decision, not a pilot step.
+
+Before any of that, the **legacy state on the production four** (§"Unverified legacy state") needs an
+owner decision of its own: a stale 1031 module tree, an orphaned `conn.auth`, an empty `/mnt/beegfs`, a
+management database and a dangling `beegfs-mgmtd` symlink are sitting on fenced hosts and nothing has
+been removed or restarted.
 
 ---
 
@@ -650,8 +721,12 @@ pre-pilot backup). Final state on both nodes: `dpkg -l | grep beegfs` = 0, no DK
   `async` export and the local filesystem; harness and summary `~/benchmarks/beegfs-pilot-20261022/`
   (`bench.py`, `summarize.py`, `SUMMARY.md`). Same pair, same rail, so it is the shape a BeeGFS mount
   would fill — it is **not** a BeeGFS number.
-- The owner's prior working install is recorded as a **report** (§10), not re-measured: nothing in the
-  current MOK store can explain it, so it cannot be reproduced from today's node state.
+- The owner's prior working install was located, not re-measured: read-only inspection of `.30`–`.33` on
+  2026-10-22 (`ls`, `dpkg -l`, `modinfo -F signer`, `modinfo -F vermagic`, `lsmod`, `systemctl is-enabled`,
+  `sha256sum`, `mokutil --list-enrolled`) — nothing stopped, restarted or deleted on those fenced hosts.
+  The `1031`-built module, its `.beegfs.ko.cmd`, the `/etc/beegfs` and `/var/lib/beegfs` contents and the
+  dangling unit symlink are recorded in §"The reconciliation" and §"Unverified legacy state" with the
+  sizes and timestamps those reads returned.
 - BeeGFS facts, read 2026-10-20 (the Community license agreement §3.1–3.4 supplies the client,
   capacity and Enterprise-feature limits):
   - <https://doc.beegfs.io/latest/system_design/system_requirements.html>
