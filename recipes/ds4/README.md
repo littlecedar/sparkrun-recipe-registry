@@ -276,10 +276,11 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
 
   | node | `-1017` body (`du -s` on `hub/models--…-1017`) | plain `V4.1-Flash` | free `/` after the 2026-10-22 sweep |
   |---|---|---|---|
+  | `.30` | complete, 498,351,024 KB (475.2 GiB) — head of the 2026-10-22 boot | removed | 117 G |
   | `.31` | complete, 475.2 GiB (real-file tree, no `blobs/`) | **present — the only copy** | 794 G |
   | `.32` | complete, 475.2 GiB | removed (`hf cache rm`, 510.3 G) | 1.1 T |
   | `.33` | complete, 475.2 GiB | removed (510.3 G) | 1.2 T |
-  | `.34` | partial 307 GB of 510.3 GB (60 %, 51/56 entries) — a transfer owns it | removed (510.3 G) | 506 G |
+  | `.34` | **complete, 498,350,468 KB** — all 57 snapshot entries byte-size identical to `.31` (diff of size+name lists empty); the 556–608 KB `du` delta is filesystem/metadata, not a short file, and no rsync remained at the end | removed (510.3 G) | 506 G |
   | `.35` | absent | removed (510.3 G) | 705 G |
 
   A body transfer has **exactly one owning session**. Measured 2026-10-22: two sessions each believed
@@ -346,6 +347,25 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   `launch.json` records the baked revision and is **not** evidence; the launcher's
   `serving …/snapshots/<sha>` line is. Moving the pin invalidates every receipt in
   the lane docs.
+- **Long-context prefill is flat-cost per chunk, not compute-bound.** Measured on the 2026-10-22
+  live boot: 1M prefill runs **~1.7× the per-token cost** of short-context prefill (mean **1738** t/s
+  over five ~999k-token requests vs a cold 2048-token pp of **2897** t/s at C1, and **1.97×** against
+  the cold 8192-chunk first-chunk median **3428** t/s). The cost is *not* expert all-to-all —
+  `routed MoE at EP_SIZE=1` means all 384 experts are local per rank, so no dispatch exists — and it
+  is not compute: 40 layers × 495 MFLOP/token ≈ **19.8 GFLOP/token** ⇒ ~0.02 EFLOP for 1M tokens, i.e.
+  ~35 TF/s aggregate at 550 s, and ~15 GB/s/rank of weight traffic. What is left is ~122 eager
+  **8192-token chunk launches** (prefill CUDA graph is disabled for this model) each costing a flat
+  ~4.5 s; per-chunk throughput decays 3428 → 1447 t/s early and then saturates at ~1500 t/s rather
+  than following 1/L. **Not run, recorded as the candidate:** `-o env.CHUNKED_PREFILL_SIZE=16384`
+  halves the eager launch count at 1M and is the only knob that plausibly moves long-prefill cost
+  without touching the 16-slot decode path — it needs a fresh boot and an A/B, so it waits for a
+  window where this serve is not the owner's production endpoint. Forensics: `~/benchmarks/knapcio-tp4-20261022/REPORT.md`.
+- **Known image/launcher inconsistency (harmless today, a trap later):** the image carries
+  `DSV41_MXFP8_BACKEND=b12x requires --fp8-gemm-backend flashinfer_cutlass; effective value
+  'auto (omitted)' replaced`. b12x **is** active (the launcher substitutes the required value), but the
+  flag requirement is asserted by the image and satisfied by a substitution nobody declared — anyone who
+  reads `--fp8-gemm-backend` as "unset" will mis-diagnose prefill GEMM behaviour. The recipe is
+  deliberately unchanged: the serve is live and this note is not a reason to re-boot it.
 - **Any recipe *default* can be overridden with `-o`** (e.g. `-o max_model_len=…`); the
   launcher's flags are applied after `RECIPE_ENV`, so the recipe/CLI wins for every value it
   takes a flag for. `boot.py` asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`. A value that exists only
