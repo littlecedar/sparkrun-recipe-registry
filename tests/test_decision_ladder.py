@@ -21,9 +21,10 @@ instrument cannot catch a broken instrument) and the final class is the
 negative-control ladder: each control asserts the property the tool would lose
 if its accounting were faked.
 
-Timing assertions use generous bands: they must survive a loaded machine and
-still fail on the arithmetic bug they exist for (an order-of-magnitude gap, not
-a scheduling jitter).
+Timing assertions state a bound that holds by construction (the stub's own
+capacity, `admit / delay`) or an exact identity between reported fields; none
+compares two separately measured walls, because a load spike during one cell
+inverts such a comparison on a shared machine.
 """
 
 from __future__ import annotations
@@ -103,16 +104,20 @@ class _Stats:
 
 
 @contextlib.contextmanager
-def _endpoint(mode="good", delay=0.02, admit=None):
+def _endpoint(mode="good", delay=0.02, admit=None, rendezvous=None):
     """A stub decision endpoint. Yields (base_url, stats).
 
     It records the peak number of requests the client had in flight, which is
     how a test proves the ladder really offered a concurrency level instead of
-    running serially behind the scenes.
+    running serially behind the scenes.  `rendezvous=N` makes that N a
+    construction rather than a won race: each handler waits until N requests are
+    inside at once, so a client offering fewer breaks the barrier and its
+    requests come back 500.
     """
     stats = _Stats(mode, delay)
     lock = threading.Lock()
     gate = threading.Semaphore(admit) if admit else None
+    barrier = threading.Barrier(rendezvous, timeout=5.0) if rendezvous else None
 
     def answer(body, path):
         """-> (payload, status); the body of a well-behaved lane API."""
@@ -145,6 +150,11 @@ def _endpoint(mode="good", delay=0.02, admit=None):
                 stats.live += 1
                 stats.peak = max(stats.peak, stats.live)
             try:
+                if barrier:
+                    try:
+                        barrier.wait()
+                    except threading.BrokenBarrierError:
+                        return self._send(b'{"error": "rendezvous"}', 500)
                 if gate:
                     gate.acquire()
                 try:
@@ -231,6 +241,14 @@ class TestCellAccounting(unittest.TestCase):
             row = _run(base, _cases(4, 2), 2)
         self.assertAlmostEqual(row["req_per_s"], row["ok_requests"] / row["wall_s"], places=9)
         self.assertAlmostEqual(row["decisions_per_s"], row["decisions"] / row["wall_s"], places=9)
+        # per-req is one request's own rate at the cell's median latency: an
+        # exact identity, so it pins the formula without timing anything.
+        self.assertAlmostEqual(
+            row["per_request_decisions_per_s"],
+            row["decisions"] / row["ok_requests"] / (row["latency_ms_p50"] / 1000.0),
+            places=9,
+            msg=row,
+        )
 
     def test_serial_cell_agrees_with_its_own_per_request_rate(self):
         # One request in flight: the aggregate decisions/s IS the request's own
@@ -240,14 +258,6 @@ class TestCellAccounting(unittest.TestCase):
         self.assertLess(abs(row["decisions_per_s"] - row["per_request_decisions_per_s"]),
                         0.3 * row["decisions_per_s"], row)
         self.assertGreater(row["per_request_decisions_per_s"], 20.0, row)
-
-    def test_queueing_shows_up_as_a_per_request_rate_below_the_aggregate(self):
-        # The stub admits one at a time: offered concurrency buys nothing, and
-        # the per-request rate (at inflated latency) must fall below the aggregate.
-        with _endpoint(delay=0.03, admit=1) as (base, _stats):
-            row = _run(base, _cases(4, 2), 4)
-        self.assertTrue(row["ok"], row)
-        self.assertLess(row["per_request_decisions_per_s"], 0.9 * row["decisions_per_s"], row)
 
     def test_ttft_and_latency_are_per_request_never_the_wall(self):
         delay = 0.03
@@ -259,9 +269,13 @@ class TestCellAccounting(unittest.TestCase):
         self.assertLess(row["ttft_ms_p50"], row["wall_s"] * 1000.0, row)
 
     def test_concurrency_is_actually_offered(self):
-        with _endpoint(delay=0.03) as (base, stats):
-            _run(base, _cases(8, 1), 4)
-        self.assertGreaterEqual(stats.peak, 3, "the ladder ran requests serially")
+        # The stub holds four handlers until four are inside, so peak 4 is its
+        # construction, not a scheduling race: a ladder that offers one at a
+        # time breaks the barrier and the cell fails with 500s.
+        with _endpoint(delay=0.03, rendezvous=4) as (base, stats):
+            row = _run(base, _cases(8, 1), 4)
+        self.assertTrue(row["ok"], row)
+        self.assertEqual(stats.peak, 4, "the ladder did not offer 4 in flight")
 
     def test_runs_repeat_the_slice(self):
         with _endpoint() as (base, stats):
@@ -273,13 +287,21 @@ class TestCellAccounting(unittest.TestCase):
 
     def test_a_stub_at_its_ceiling_saturates(self):
         # Offer 2 vs 4 to a server that admits 2: the extra concurrency must not
-        # become throughput.  This is the shape the lane's arms show.
-        with _endpoint(delay=0.03, admit=2) as (base, _stats):
+        # become throughput.  Asserted as the stub's own capacity bound, never as
+        # a ratio of two cells' measured walls -- `four < 1.4 * two` (and
+        # `four per-req < two per-req`) compare two separately timed runs, so one
+        # load spike during the first cell inverts them (seen: 15.99 vs 15.13).
+        # `admit / delay` holds by construction and load can only lower the rate.
+        delay, admit = 0.03, 2
+        with _endpoint(delay=delay, admit=admit) as (base, stats):
             two = _run(base, _cases(6, 1), 2)
             four = _run(base, _cases(6, 1), 4)
         self.assertTrue(two["ok"] and four["ok"], (two, four))
-        self.assertLess(four["decisions_per_s"], 1.4 * two["decisions_per_s"], (two, four))
-        self.assertLess(four["per_request_decisions_per_s"], two["per_request_decisions_per_s"], (two, four))
+        self.assertEqual(stats.hits, 12, "both cells' requests reached the wire")
+        ceiling = admit / delay  # decisions/s the stub can physically produce
+        for row in (two, four):
+            self.assertLessEqual(row["decisions_per_s"], ceiling, row)
+            self.assertLessEqual(row["req_per_s"], ceiling, row)
 
 
 class TestFailuresAreCellsNotRates(unittest.TestCase):
@@ -492,12 +514,20 @@ class NegativeControls(unittest.TestCase):
         # Serial: the wall is 6 requests, one TTFT is one request.
         self.assertLess(row["ttft_ms_p50"], row["wall_s"] * 1000.0 / 3.0, row)
 
-    def test_per_request_rate_is_not_the_aggregate_under_load(self):
-        # At c=4 with a one-at-a-time server, aggregate/4 is queueing, not speed.
-        with _endpoint(delay=0.03, admit=1) as (base, _stats):
+    def test_offered_concurrency_is_not_achieved_throughput(self):
+        # At c=4 a one-at-a-time server still yields 1/delay: aggregate/4 is
+        # queueing, not speed.  Asserted as the stub's capacity bound, not as
+        # `per_req < 0.5 * aggregate` -- that compares two fields of one cell and
+        # a loaded machine closes the gap (it went red under 32x `yes`).
+        delay = 0.03
+        with _endpoint(delay=delay, admit=1) as (base, _stats):
             row = _run(base, _cases(6, 1), 4)
-        self.assertGreater(row["wall_s"], 6 * 0.03 * 0.8, row)
-        self.assertLess(row["per_request_decisions_per_s"], 0.5 * row["decisions_per_s"], row)
+        self.assertTrue(row["ok"], row)
+        # Six serialised services are in the wall, and no client can beat the
+        # stub's one-per-delay: both hold by construction, load only adds.
+        self.assertGreater(row["wall_s"], 6 * delay * 0.8, row)
+        self.assertLessEqual(row["decisions_per_s"], 1 / delay, row)
+        self.assertLessEqual(row["per_request_decisions_per_s"], 1 / delay, row)
 
     def test_an_error_is_counted_even_when_other_requests_succeed(self):
         with _endpoint("flaky") as (base, _stats):
