@@ -640,6 +640,8 @@ Any model with reasoning and tool-calling capabilities
   `~/benchmarks/media-gen-20261021/eight-step-{diffusers,omni}.png`, identified by
   `e24f6e3a…24ee24a` and `38ce554a…45704690`.)*
 
+- [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
+
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
@@ -795,6 +797,9 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
   DeepSeek lines — so 37/37 in practice means "clears `hard-rev`", stated in `recipes/explore/README.md`. Seven
   empty-reply cases at 4096 are classified as indeterminate in that audit; the cheapest fix is to have the
   instrument record `finish_reason`, which is not yet done.)*
+
+- [ ] **Register an arm64 self-hosted runner so the llama.cpp build job can run** — `.github/workflows/llamacpp-engine.yml` builds only when `vars.ARM64_RUNNER_ENABLED == 'true'`, and no such runner is registered, so the weekly job currently reports ref drift and feature gates without ever building; `tests/test_ci_workflows.py` guards the gate. This is the prerequisite for the stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `5ce1d02`) and for the Mellum MTP A/B. *(effort: short, owner-side infrastructure)*
+
 ## Runtimes (registry-level)
 Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtimes than the two in use —
 `sparkrun/runtimes/` holds `sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`, `atlas`, `modular_max`,
