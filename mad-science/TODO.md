@@ -1051,6 +1051,189 @@ Any model with reasoning and tool-calling capabilities
   (`recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`). Research first — no download, no
   boot, no receipt. *(effort: medium)*
 
+- [ ] **Probe Indra OCR — the registry's first document-AI arm, and its first non-LLM serve** — research-only so
+  far: **no recipe, no download, no boot, no receipt.** `datalab-to/indra-ocr` (checked 2026-10-22) is
+  `pipeline_tag: image-to-text`, `library_name: onnx`, **ungated**, 3,588 downloads, `lastModified`
+  2026-10-19T14:36Z. **It is not a GPU LLM and it is not a transformer**: `config.json` declares
+  `model_type: indra-ocr`, `framework: onnxruntime`, `install: pip install indra-ocr`, `library: indra-ocr`,
+  16 model files, no `architectures`. It is a **det → line-classify → four-CTC-recognizer → reading-order**
+  ONNX stack over grayscale page images: `det.onnx` 0.39 MB, `script.onnx` 0.19 MB (routes each line to
+  base/cjk/rtl/world), recognizers `rec.onnx` **5.04 MB** (Latin ~50 languages + Latin handwriting, plus
+  Cyrillic and Greek), `rec_cjk` 10.18, `rec_rtl` 4.81, `rec_world` 5.63, `order.onnx` 2.97 (layout label +
+  reading order), `orient.onnx` 0.37, optional math (`math_enc` 9.89 / `math_dec_step` 8.43 /
+  `math_dec_init` 1.36 / `mathcls` 0.19, fetched only with `--math`), and three n-gram LMs (`lm.npz` 15.70,
+  `lm_cjk` 18.96, `lm_world` 11.64) that only rescore lines the classifier was unsure of (`meta.json`
+  `lm_params` gate 0.95). **Parameters: 1,250,566 F32 in `model.safetensors`** (Hub `safetensors.total`) —
+  `config.json` says that file is *only* the float weights of the Latin recognizer, published "for the Hub
+  parameter count; the package does not use it". Vendor claim, not measured here: 7.3M params across all
+  default models, "1M-parameter OCR model". **Bytes: 102.01 MB in 27 files** (tree API at main `bd02167f`),
+  of which the default download is **76 MB** (30 MB of networks + 46 MB of LMs); an external note put the
+  repo at ~127 MB, the tree sum does not support that, so the number used here is the measured one. There
+  are **no tokenizer files** — the vocabulary is a JSON char list in `meta.json` (`vocab`, `vocab_cjk`,
+  `vocab_rtl`, `vocab_world`; `script_groups: [base, cjk, rtl, world]`), and the `lm*.npz` are the only
+  language-model-shaped artifacts. **Complete for OCR** means det + recognizers + `order` + `orient` +
+  `script` + `meta.json` + the three LMs + `math_meta.json`; a set missing the LMs still runs (the code
+  treats them as optional, `pipeline.py:352-368`), it just loses unsure-line rescoring.
+  *Input contract.* One **page image** at a time — grayscale preferred, PNG/JPEG/TIFF/BMP/WebP, one page per
+  TIFF frame, or a PDF rasterised by `pypdfium2` at `--dpi` **200** default (`pipeline.py:1015-1027`); an
+  in-memory `uint8` gray array via `conv.ocr(gray)`. Detector at `meta.json det_long_side` **1024**, with a
+  second pass up to `ADAPTIVE_MAX_SIDE` **2048** when the median line height falls under 9 px
+  (`pipeline.py:43-55, 381-397`); recognizers read **32-px**-high line crops (`rec_height: 32`) in batches
+  of **64**, the base recognizer through a 3-line tall window (`rec_window: 3`).
+  *Output contract.* Per page: `markdown` (headings, lists, tables as HTML), `text` (one line per detected
+  line), `lines` = `Line(box, text, conf)` with pixel boxes, `blocks` = `{label, bbox, text}` in reading
+  order over 10 labels (`Text`, `Section-Header`, `Page-Header`, `Page-Footer`, `List-Group`, `Table`,
+  `Caption`, `Footnote`, `Table-Of-Contents`, `Form`), `source` (`text` layer / `ocr` / `hybrid` /
+  `error`), `rotation`, `skew`, `vertical`, `timings` with `total_ms`, `note`; `--format json` writes one
+  JSON object per page. **Boxes and confidences are in the output** — that is what makes an OCR cell
+  machine-checkable rather than a matter of taste.
+  *Accuracy — everything below is the card's own benchmark, i.e. a **vendor claim**, and none of it is
+  reproduced here.* OmniParseBench (16,288 pass/fail tests, 2,937 pages): headline **66.7** (text 46.7,
+  tables 61.1, layout 92.2), **71.4** with `--math` (text 62.7, math tests 14.0 → 55.8); PaddleOCR
+  PP-StructureV3 58.4 on the same scorer. OmniDocBench v1.5 (OCR only, 1,651 pages): text edit distance
+  **0.114 EN / 0.237 zh-CN**, table TEDS 0.47. olmOCR-bench: multi_column 70.0, long_tiny_text 67.9,
+  table_tests 60.5, **old_scans 20.0**. Per-script OmniParseBench: Latin 61.6 (9,406 tests), Chinese 64.0,
+  Korean 79.2, Japanese kana 57.9, Arabic 69.2, Devanagari 69.6, Thai 87.2 — with the card's own caveat that
+  most scripts have 13–60 tests, so one test moves a score by 2–8 points. **57** declared language tags in
+  `cardData.language`. **The capability delta against a GPU OCR candidate is handwriting and degraded
+  scans**: **25.2 %** on the OmniParseBench handwriting tests (about a third of words on held-out cursive
+  pages) and **29.5 %** on degraded scans, against a transformer VLM OCR arm (the vendor's own
+  `surya-ocr-2` / `chandra-ocr-2` line, or vLLM's `dots_ocr`/`paddleocr_vl` family) — so this is a *fast
+  clean-print* arm, not a hard-document arm, and any future GPU OCR probe is a different capability, not a
+  faster version of this one.
+  *Licence position — the decisive shipping fact, and it is stricter than the `openrail` tag suggests.* The
+  card frontmatter says `license: openrail`, but the repo's `LICENSE` is the **AI PUBS OPEN RAIL-M LICENSE
+  (MODIFIED), Version 0.1, March 2, 2023 (Modified)** — an AI Pubs OpenRAIL-M text, not the bigscience
+  OpenRAIL-M that `openrail` normally denotes, so **read the file, not the tag**. Verbatim from Attachment A:
+  no use "for any purpose if You (your employer, or the entity you are affiliated with) generated more than
+  twenty million US Dollars ($20,000,000) in gross revenue in the prior year, except where Your Use is
+  limited to personal use or research purposes", the same "raised more than twenty million US dollars"
+  threshold, and no use "for any purpose if You … provides or otherwise makes available any product or
+  service that competes with any product or service offered by or made available by Licensor". §4(a)–(d)
+  makes those restrictions flow through any redistribution; §7 requires attribution plus a copy of the
+  licence. **§8 is a share-alike on the Output**: "You agree to apply this License (to the exclusion of all
+  others) to any and all copies of the Model, Derivatives of the Model, … and to the Output and any
+  derivatives, changes or improvements to or of the Output." For a registry shipped to third parties that is
+  the load-bearing clause: **every page this arm transcribes inherits a use-restricted licence**, so OCR
+  output cannot be passed downstream as unrestricted text. Code (`datalab-to/indra`, 901★) is Apache-2.0 and
+  separate from the weights. **Banner decision — owner's, and stricter than the Qwen-Image one**: a recipe
+  carries a top-of-file LICENSE BANNER naming the $20M revenue/funding cap, the no-competing-service clause,
+  attribution, and the output share-alike; without it the arm ships to nobody. An operator needing
+  commercially unrestricted OCR text swaps the checkpoint (or buys a Datalab licence).
+  *Engine gate 1 — no engine serves it, and both pinned registries say so.* **vLLM `v0.32.0`: no.** Its
+  registry carries autoregressive OCR *VLMs* — `DeepseekOCR{2}ForCausalLM` (`registry.py:366-368`),
+  `UnlimitedOCRForCausalLM`/`DotsOCRForCausalLM` (`:381-382`), `GlmOcrForConditionalGeneration` (`:422`),
+  `LightOnOCRForConditionalGeneration` (`:483-486`), `PaddleOCRVLForConditionalGeneration` (`:548-551`),
+  `QianfanOCRForConditionalGeneration` (`:560-563`) — and **zero hits for indra or surya**. That family is
+  precisely what Indra is not: no vision tower feeding an LM head, no autoregressive decode, so vLLM's
+  multimodal path has nothing to carry. **SGLang `v0.5.22`: no** — 0 hits for indra/surya/ocr/donut in
+  `python/sglang/srt/models/registry.py`. **transformers: no** — no `architectures`, no modelling file.
+  **ONNX Runtime: yes, and it is the only route.** `pip install indra-ocr` (PyPI **1.1.2**, 2026-10-20
+  01:41Z) pulls `numpy`, `opencv-python-headless`, `onnxruntime`, `pypdfium2`, `huggingface_hub`, and **all
+  four publish aarch64 wheels** (onnxruntime 1.31.0, opencv-python-headless 5.0.0.93, pypdfium2 5.14.0,
+  numpy 2.5.4) — a wheel install with no build step on any arm64 host. Execution providers:
+  `OrtOCR(providers=…)` defaults to `["CPUExecutionProvider"]` (`pipeline.py:258-294`) and
+  `load(providers=…)` is public API (`__init__.py:25-49`) but not on the CLI; `onnxruntime-gpu` 1.31.0 does
+  ship a `manylinux_2_34_aarch64` wheel, so a CUDA EP is *installable* — untested by the vendor ("no
+  PyTorch, no GPU" is its selling point). That is a knob, not a route, and not a reason to call this a GB10
+  arm.
+  *Engine gate 2 — can sparkrun exec a non-LLM ONNX server at all? Yes; this is the `vllm-srun` class of
+  arm, not a model route.* Precedent: `recipes/decision/kokoro-82m-tts-cpu.yaml` states it outright —
+  "sparkrun has no runtime family for a third-party Python server: `runtime: vllm` is the launcher/
+  distribution contract this command satisfies" — with `readiness.inference: false`,
+  `executor_config.entrypoint: ""`, and `distribution_config.models.enabled: false` when the image bakes the
+  weights; `kev-0.8b-decision-serve.yaml`/`laya-decision-serve.yaml` are the same shape as inline scripts.
+  What an Indra arm needs, concretely: (a) **no `--revision` fanfare and no KV story** — the package resolves
+  its own model tag (`models.py:10 HF_REVISION = "v1.1.0"` = `a1283c4b…`) but also takes a local folder via
+  `INDRA_OCR_MODEL_DIR`/`--model-dir`, so the mod points it at sparkrun's staged `{model}` snapshot and the
+  Hub is never contacted; (b) **a mod that pins `pip install indra-ocr==1.1.2`** into a small base image —
+  five wheels, no torch, no CUDA — and a ~60-line server exposing `POST /ocr` + `GET /health` with a
+  documented status-code contract (the qwen-image launcher's shape, `recipes/explore/mods/
+  qwen-image-2.1-turbo-launcher/`); (c) the lane's `/bin/kill` trap: sparkrun's detached-launch liveness
+  check runs `docker exec <c> kill -0` and `python:*-slim` ships no `/bin/kill`, so the base must carry it or
+  the serve is declared failed while healthy (recorded verbatim in `kev`/`laya`); (d) a core pin — the
+  decision lane's CPU slot is `taskset -c 0-4,10-14` (A725), and `usable_cores()` honours it via
+  `sched_getaffinity` (`parallel.py:24-29`), so `convert_many` fans out to exactly 5 workers. Model tags are
+  **not ordered by name**: `v1.1.0` (`a1283c4b…`) is the full 102 MB set, while `v3.1`/`v3.1.1` are a
+  **43.2 MB two-recognizer set** (base + cjk only, no `rec_rtl`/`rec_world`, no LMs, `meta.json` lacks the
+  `vocab_rtl`/`vocab_world` groups) — a mirror card calls those "Indra OCR 1.0" and v1.1.0 "1.1", so a
+  recipe pins the **sha**, never a tag's apparent order.
+  *Fit — not a GB10 question, and the ranking a GPU arm would get is n/a.* There is nothing to size: 76 MB
+  of weights and 5–7.5 GB of worker memory cannot fail to fit 128 GB, so **no quant table, no memory
+  column, no CUDA ranking**. Quantisation effectively does not exist for this model either. That matters on
+  two counts: the *only* quantised derivative is a half-precision conversion, and the risk a quant tier
+  normally buys down is inverted here — the recognizer is a **1.25M-parameter CTC model over characters**,
+  so narrowing it eats the logit margin that decides a single glyph (the card's own limitation list shows
+  the failure mode: `ñ` for `ň`, `ú` for `ů`), and CER punishes a substituted character as hard as a dropped
+  word. **The real deployment fact is the opposite of a fit question: CPU-only means this arm runs
+  anywhere** — a GB10 node, the head, or a laptop — and displaces no GPU tenant. The binding constraint is
+  cores, not bytes: work is line-level (a US-Letter page at 200 dpi is 1700×2200 = 3.74 MP = 3.74 MB as
+  `uint8`; the adaptive re-detect ≤2048 long side is 5.4 MP), the package budgets `WORKER_MEMORY = 1.5e9`
+  per worker for giant scans and caps the pool at `RAM // 1.5 GB` (`parallel.py:16-18, 32-37`), and a vendor
+  code comment records a 40-page scan peaking at **4.9 GB** with the ORT CPU arena off
+  (`pipeline.py:290-293`). `THREADS_PER_WORKER = 1`, one page per task: **pages/s scales with cores**
+  (vendor: 6.2 pages/s on 4 EPYC cores, 43.9 on 32; on the lane's 5 pinned A725 cores expect single digits
+  *[INFERENCE]*, and the lane's CPU precedent is that concurrency buys nothing there — Kai loses 32 % at c10,
+  `recipes/decision/README.md:485-489`).
+  *Quantisations, derivatives and mirrors — enumerated from `base_model:quantized:datalab-to/indra-ocr`, the
+  `search=indra-ocr` index and `author=datalab-to&limit=100` (17 repos).* **None is gated; no GGUF, no int4,
+  no int8, no ONNX Runtime int8 file exists.** `datalab-to/indra-ocr`: float32 ONNX + npz LMs, 102.01 MB,
+  `openrail` tag over the modified OpenRAIL-M `LICENSE`, complete. `CharlZKP/indra-ocr-fp16`: **mixed fp16
+  ONNX, 56.84 MB**, `base_model_relation: quantized`, built for **onnxruntime-web/WebGPU** per its own tags,
+  `license: other`/`openrail-m-modified`, complete (all four recognizers + the LMs). The only lever the code
+  itself looks for is `rec.int8.onnx`, auto-detected at load (`pipeline.py:303`) and **shipped by nothing in
+  the search** — an int8 tier would be a build, not a download. `snowfluke/ppu-indra-ocr-models` is an
+  **unmodified 134.17 MB mirror** of both generations (`v1.1/` = `a1283c4b…`, root = `d7c839c8…` tag
+  `v3.1`), and `Jinstudio/indra-ocr` is a byte-for-byte copy of the 102.01 MB set — copies, not variants.
+  The remaining four are **fine-tunes, not quants**: `wjbmattingly/comma-indra-ocr-1k`, `…-10k` and
+  `nara-indra-ocr-r2` (18th–19th-century NARA handwriting) at 18.3 MB each, and `johnlockejrr/
+  ocs-mix-indra-ocr` (39.96 MB, Church Slavonic / Old Cyrillic), each shipping det + recognizer + order +
+  orient + script + `meta.json` with **no LMs and no math models** — complete for OCR, degraded at the
+  unsure-line margin. All `openrail`.
+  *Pre-registered measurement (nothing ran).* **Page set: text-only and committed.** This tree tracks no
+  binaries (`git ls-files '*.png|*.jpg|*.pdf|*.tif'` is empty, and the owner's rule is that the registry
+  ships as text), and `tools/synthetic_png.py` cannot substitute: its only generator is `solid_png_b64`,
+  flat-colour PNGs for vision-token cost, with no text rendering. So the fixture is **reference text** plus a
+  builder: `tools/ocr-bench.py` (**to be written, stdlib-only**) emits base-14 Helvetica PDFs from the
+  committed reference (exact strings, one text object per reference line), the engine's own `pypdfium2`
+  rasterises them at `--dpi 200`, `indra-ocr` runs, and the emitted JSON is scored against the reference.
+  **Instrument — the objective one, named:** **CER** = `(S+D+I)/N` over characters after NFKC and per-line
+  whitespace collapse, **WER** over whitespace tokens, per page and pooled; **TTR** (distinct ÷ total
+  whitespace tokens) as the repetition check; **seconds/page** from the engine's own `timings.total_ms` plus
+  wall clock; **peak RSS per worker** and the node `MemAvailable` floor; and a **`--mode text` vs `--mode
+  ocr` pair** on the same pages, because the text-layer path is a different capability from OCR and the
+  registry should not quote one as the other. **Two traps to pre-register, each of which voids a cell:**
+  (a) `--mode auto`, the default, **reads a generated PDF's own text layer** and would score ~100 % for
+  free — every OCR cell passes **`--mode ocr`**, and a cell whose `timings` show no detection stage is
+  discarded as a text-layer read; (b) a rendered-print page is not a scan — no skew, no noise, no
+  degradation — so the clean cell measures the recognizer only and the vendor's 29.5 % degraded-scan and
+  25.2 % handwriting figures stay unmeasured claims. Robustness cells, same references, scored separately
+  and never pooled: one page rotated 90°, one 180°, one light-on-dark (the card claims all three).
+  **Falsifier:** pooled **CER > 0.02** on clean rendered Latin text falsifies "ships as a text-extraction
+  arm" — a 1.25M-param model may be fast, not wrong one character in fifty; a rotation/light-on-dark cell
+  returning non-empty text at **CER > 0.10** downgrades the orientation claim to a demo. Two boots
+  disagreeing beyond the inter-boot spread → no number quotable. **If a real scanned page set cannot be
+  committed under a licence that permits it**, that cell is cited from an external receipt under
+  `~/benchmarks/ocr-20261022/` and no subjective quality claim substitutes for CER. Receipt:
+  `~/benchmarks/ocr-20261022/` (`REPORT.md`, `cells.json`, per-page `jsonl`, the reference set's sha256).
+  *Unblocker — a free node, not research, and this is the cheapest arm in the queue.* Phase 1 (this item) is
+  the whole deliverable this window: `.30`–`.33` are the TP=4 block and `.34`/`.35` belong to other workers
+  (`.local/BOOT-QUEUE-20261022.md`). Because it needs **no GPU**, a single node with five pinned cores is
+  enough and no co-tenant is displaced — and, uniquely here, the first cells could be run on the head or a
+  laptop and receipted the same way. When a node frees: write `tools/ocr-bench.py` + the reference set;
+  author `recipes/explore/mods/indra-ocr-launcher` (server + `pip install indra-ocr==1.1.2` + `INDRA_OCR_
+  MODEL_DIR` at the staged snapshot + a `/bin/kill`-bearing base) and the recipe on `runtime: vllm` with
+  `entrypoint: ""`, `readiness.inference: false`, `model_revision:` `a1283c4b42a273c09480ad50e71461daff50fcc7`;
+  boot, run the cells, `docker cp` the serve log, stop by task id, re-assert 0 containers. **And the licence
+  banner lands with the recipe, not after it.** If the lane later wants OCR *on the GPU* that is a different
+  probe with a different licence: the vendor's transformer line (`datalab-to/surya-ocr-2`, 1.48M downloads,
+  and its `surya-ocr-2-gguf` sibling, `image-text-to-text` with its own code — vLLM `v0.32.0` has no
+  `surya` entry either, so it is a `trust_remote_code` transformers arm). *(effort: medium)*
+
+- [ ] **Timestral (Mistral AI) time-series family — no engine here serves it; the arm would be a script-launcher, and the first cell needs no GPU** — the whole [`mistralai/timestral` collection](https://huggingface.co/collections/mistralai/timestral) is four F32 checkpoints of one bespoke architecture (5M / 28M / 123M / 209M parameters; `pipeline_tag: time-series-forecasting`, `library_name: timestral`), and none of them is a language model: the cards describe **zero-shot probabilistic forecasting**, with no tokenizer, no chat template and no `model_type` or `architectures` key in `config.json` at all. So this is not a chat arm: the serving candidate is **`mistralai/Timestral-209M` @ `9874d252ab0a`** (209,312,256 params, 837.3 MB F32) driven by the upstream `TimestralForecaster` library behind a small stdlib HTTP wrapper in a mod — exactly the Qwen-Image/ComfyUI shape (`runtime: vllm` is only the distribution + single-node launcher contract, `entrypoint: ""`, `readiness.inference: false`, served id rendered explicitly). Runner-up for a zero-GPU first cell: **`Timestral-5M` @ `bdd20cfc15a3`** (5,208,960 params, 21 MB), small enough to run on the head or a laptop and enough to settle the whole route before a node is touched. *(effort: medium)*
+  *(research 2026-10-22 — what the collection is, read from the four cards and the upstream repo rather than from the name. All four repos are **ungated** and ship **F32 only** (`model.safetensors`: 20.8 / 111.3 / 490.4 / 837.3 MB), each holding just `config.json` + `model.safetensors` + `LICENSE` — no tokenizer, no chat template, no GGUF, no quant upstream. One architecture at four widths: patch-based transformer over **32-step patches** with alternating time and variate attention (209M = 24 layers, d_model 768, 12 heads, mlp 2048, 6 of 24 blocks `time_variate`; 5M = 8 layers, d_model 192, 3 heads, 2 variate blocks), `rope_theta 10000` with `rope_partial_factor 0.5`, `use_asinh` scaling, `attend_missing_patches`, 21 quantile knots 0.01…0.99, context up to **32,768 steps**, horizon up to **1,024 steps** per pass (longer horizons run block by block on the running median). Card accuracy, 5M/28M/123M/209M: GIFT-Eval MASE 0.705 / 0.678 / 0.659 / **0.658** and CRPS 0.479 / 0.461 / 0.448 / **0.446**; TIME MASE 0.652 / 0.638 / 0.628 / **0.626**; fev-bench SQL skill 46.19 / 48.42 / 50.18 / **50.39**. The card also ranks 209M ahead of t0-gamma (0.661), TimesFM-3 (0.667), Toto-2.0-2.5B (0.696) and Chronos-2 (0.698) on GIFT-Eval MASE — **vendor claims, not ours**; the `model-index` metadata carries the same three leaderboard links and nothing here is independently reproduced. **Serving candidate = 209M**: it tops all three boards, 123M→209M costs 347 MB for 0.001 MASE, and no member is too large to serve — the ordering below is accuracy, not fit.)*
+  *(research 2026-10-22 — licence, engine gate, quants, GB10 placement, pre-registration. **Licence:** `license: other` with no `license_name` on the Mistral repos; the LICENSE file is verbatim a **"Modified MIT License"**, attribution "2026 - Mistral AI", and condition 2 withholds every right from anyone whose "global consolidated monthly revenue … exceeds $20 million … for the preceding month", explicitly reaching "the Model and any derivatives, modifications, or combined works based on it, whether provided by Mistral AI or by a third party". That classifies **threshold-community on a MONTHLY measure** — a stricter cadence than LTX-2.5's $10M *annual* threshold — so the arm ships **with a banner**, the way `qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` and `ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml` carry theirs: quote the restriction, say the registry distributes a repo id and not weights, name Mistral's commercial channel (sales@mistral.ai) for anyone above it. The **code is Apache-2.0 while the weights are Modified MIT** — do not conflate them in that banner. **Engine gate, decisive: no engine this registry ships can load it.** vLLM `v0.32.0`'s `model_executor/models/registry.py` (1,595 lines) matches **zero** of `timestral`, `timeseries`, `forecast`, `chronos`, `timesfm`, `moirai`, `toto`, `lag_llama`, `patch` — vLLM carries no time-series arch at all, so unlike Muse-Glimmer this is not a "wait for a PR" gate. SGLang `v0.5.22` has 291 files in `srt/models/` and none is time-series. llama.cpp `master` (`src/llama-arch.cpp`) lists 247 archs, no `timestral`/time-series (it does have `t5encoder`, so the absence is real, not an unlucky grep). The usual escape hatch is closed too: the model never reaches transformers, so `trust_remote_code` is not even a lever — `config.json` has no `model_type` to dispatch on, and the loader is Mistral's own `src/timestral/loading.py`. **Quants, by runtime format** (every derivative repo found is `license: other` / modified-mit and ungated, so the banner covers them and not just the base): **GGUF** — `EvoAwaken-Workshop/Timestral-209M-gguf` is one **lossless F32** GGUF (837.3 MB, 203 byte-preserved F32 tensors, plus `conversion.json` and `example_request.json`) and its runtime **is published** (`gouzil/rust-model-inference` @ `cc72a61f`, with an `oracle/timestral` verification and converter); `mudler/timestral-cpp-gguf` has 14 files / 2.90 GB with real K-quants (209M Q4_K 119.8 MB, Q5_K 146.0, Q6_K 173.7, Q8_0 224.4, F16 420.3) but its card states *"Native qualification is incomplete for 28M and 123M"* and, for 209M, *"the Q8 mean-deviation gate fails"* — **and the `timestral.cpp` repo it links is 404 today**, so the quantised GGUF route has no auditable runtime and only the F32 conversion is loadable with evidence. **ONNX** — `mrfakename/Timestral-209M-ONNX` (`model.onnx` 837.5 MB, `model_fp16.onnx` 419.0 MB), `onnx-community/Timestral-5M-ONNX` (21.2 MB), `konfi-labs/Timestral-28M-batched-ONNX` (1.7 MB graph + 111.3 MB external data, batched); `onnxruntime` loads them, but none is a server and onnxruntime is not a runtime family this registry ships. **MLX** — `jbilcke/timestral-mlx` is a **repack, not a quant** (209M is the same 837.3 MB F32), `vikiival/timestral-mlx` is empty; Apple-only and not our hardware. Plain copies (`general-forecast/timestral-209m`, `leonflux/Timestral-209M`, `6ieyd9hx/Timestral-209M`) add nothing. Nothing in the family is NVFP4-tagged and nothing needs Blackwell. **GB10 placement, decided by the byte count rather than by a ladder:** the family tops out at **837 MB, 0.7 % of a Spark's 121 GiB**, so no member can fail to fit and the lane's util-0.85 KV arithmetic does not apply — there is no KV cache, attention runs over patches inside one forward pass. Ranking is therefore accuracy per byte at a fixed latency budget: **209M** for accuracy, **28M** (111 MB) as the throughput pick if a 209M CPU forecast is too slow for a useful cell rate, **5M** only as the route-settling smoke. **Pre-registered measurement** (the chat-shaped cells are marked N/A with the reason, so their absence cannot read as an omission): (a) **TTR** to `/health` 200 and to the first successful forecast in **both** device modes the library offers (`device="cpu"`, `"cuda"`), because the CPU number decides whether this arm needs a node at all; (b) **`/v1/models`** must answer the served id `mistralai/Timestral-209M` **plus `context_length: 32768` and `horizon: 1024`** — sparkrun's readiness probe asks that path even with `readiness.inference: false`, and the lane's habit of asserting `max_model_len` from it maps onto `context_length` here (a forecaster has no `max_model_len`, and inventing one would put a false number in the receipt); (c) **ladder N/A** — no tokenizer and no chat completions, so d0 pp2048/tg128 and its `runs/*.json` decode rows do not exist; the same-discipline substitute is a forecast table read from a JSON sidecar: T ∈ {512, 2048, 32768} × horizon ∈ {96, 1024} × batch ∈ {1, 8, 32}, wall per forecast plus peak memory, warm/cold flagged; (d) **house battery N/A** (`tools/quality-battery.py` is 37 chat items), replaced by the model's own headline: one pinned GIFT-Eval subset forecast (deterministic, no sampling, fixed horizon and stride) scored MASE and CRPS against a seasonal-naive baseline on the same split, plus a calibration read — the 21 quantiles must be monotone and empirical 80 % interval coverage must land in **0.70–0.90**; (e) **falsifiers, pre-registered:** the arm does not ship if MASE is **not better than seasonal-naive** on that subset, if it misses the card's 0.658 by more than a stated tolerance, or if coverage lands outside 0.70–0.90 — a calibrated-forecast claim that does not calibrate is the finding, not a footnote. Receipt `~/benchmarks/timestral-2026102X/` (REPORT.md with the subset definition + checksum, forecast cells JSON, coverage table). **Unblocker and order:** nothing here is node-blocked — the 5M smoke and a 209M CPU cell can run on the head or a laptop, the same allowance the OCR item makes — so: `tools/forecast-bench.py` + the reference subset first, then `recipes/explore/mods/timestral-launcher` (server + `pip install git+https://github.com/mistralai/timestral@<pinned commit>` + `model_revision: 9874d252ab0a`) and the recipe on `runtime: vllm` with `entrypoint: ""`, with the licence banner landing **with** the recipe, not after it.)*
+
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
 - [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*
