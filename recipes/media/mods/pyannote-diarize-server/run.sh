@@ -91,14 +91,16 @@ cat > "${tmp}" <<'PY'
 Written by mods/pyannote-diarize-server. PYANNOTE_MODEL_PATH is sparkrun's prepared
 snapshot, so the pipeline loads offline and the recipe's pin decides the bytes.
 """
+import io
 import json
 import os
 import sys
-import tempfile
 import urllib.parse
+import wave
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import torch
+import torchaudio.functional
 from pyannote.audio import Pipeline
 
 MODEL_PATH = os.environ["PYANNOTE_MODEL_PATH"]
@@ -107,6 +109,27 @@ HOST = os.environ.get("PYANNOTE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PYANNOTE_PORT", "8881"))
 THREADS = int(os.environ.get("PYANNOTE_THREADS", "5"))
 MAX_BYTES = 512 << 20
+SAMPLE_RATE = 16000
+
+
+def load_wav(raw):
+    """Raw 16-bit PCM WAV bytes -> pyannote's in-memory input.
+
+    Decoding here rather than handing the pipeline a path is deliberate: torchaudio 2.8
+    decodes only through torchcodec, whose aarch64 wheel dlopens libnvrtc (a CUDA runtime
+    lib) at import, so a path input fails on a CPU-only image. A dict input never touches
+    torchcodec.
+    """
+    with wave.open(io.BytesIO(raw), "rb") as w:
+        if w.getsampwidth() != 2:
+            raise ValueError("16-bit PCM wav required")
+        channels = w.getnchannels()
+        sr = w.getframerate()
+        pcm = torch.frombuffer(bytearray(w.readframes(w.getnframes())), dtype=torch.int16)
+    signal = pcm.float().div_(32768.0).view(-1, channels).mean(dim=1)
+    if sr != SAMPLE_RATE:
+        signal = torchaudio.functional.resample(signal, sr, SAMPLE_RATE)
+    return {"waveform": signal.unsqueeze(0), "sample_rate": SAMPLE_RATE}
 
 
 def turns(annotation):
@@ -151,13 +174,11 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(url.query)
         kwargs = {k: int(query[k][0]) for k in ("num_speakers", "min_speakers", "max_speakers") if k in query}
         raw = self.rfile.read(length)
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as fh:
-            fh.write(raw)
-            path = fh.name
         try:
-            output = self.pipeline(path, **kwargs)
-        finally:
-            os.unlink(path)
+            audio = load_wav(raw)
+        except (ValueError, wave.Error) as exc:
+            return self._reply(400, {"error": str(exc)})
+        output = self.pipeline(audio, **kwargs)
         segments = turns(output.speaker_diarization)
         body = {
             "num_speakers": len({s["speaker"] for s in segments}),

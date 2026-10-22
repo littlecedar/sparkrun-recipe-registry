@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import struct
@@ -113,12 +114,20 @@ def render(turns, duration, sample_rate=SAMPLE_RATE):
     return bytes(frames)
 
 
-def write_wav(path, frames, sample_rate=SAMPLE_RATE):
-    with wave.open(str(path), "wb") as handle:
+def wav_bytes(frames, sample_rate=SAMPLE_RATE):
+    """Raw PCM16 mono -> a complete RIFF/WAVE container."""
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as handle:
         handle.setnchannels(1)
         handle.setsampwidth(2)
         handle.setframerate(sample_rate)
         handle.writeframes(frames)
+    return buffer.getvalue()
+
+
+def write_wav(path, frames, sample_rate=SAMPLE_RATE):
+    """Raw PCM16 mono -> a WAV file on disk."""
+    Path(path).write_bytes(wav_bytes(frames, sample_rate))
 
 
 def read_wav(path):
@@ -193,6 +202,17 @@ def build_splice(name, first, second, chunk, gap, turns_wanted):
         raise ValueError(
             f"a spliced input is shorter than one {chunk}s chunk ({min(len(f) for f in sources)} bytes)"
         )
+    # A turn whose chunk offset starts at or past a source's end comes out zero-length,
+    # and no scorer accepts that: refuse instead of writing unscoreable ground truth.
+    # A trailing partial chunk is fine -- it is real audio, just shorter.
+    last_offset = ((turns_wanted - 1) // 2) * chunk_bytes
+    shortest = min(len(frames) for frames in sources)
+    if last_offset >= shortest:
+        raise ValueError(
+            f"--turns {turns_wanted} needs chunk {((turns_wanted - 1) // 2) + 1} of both "
+            f"inputs, but the shorter one holds {shortest / 2 / SAMPLE_RATE:.3f}s -- "
+            f"lower --turns or --chunk"
+        )
     gaps = b"\x00\x00" * int(round(gap * SAMPLE_RATE))
     frames = bytearray(gaps)
     truth = []
@@ -230,10 +250,11 @@ def emit(out_dir, built):
     out_dir.mkdir(parents=True, exist_ok=True)
     wav_path = out_dir / f"{built['meta']['layout']}.wav"
     rttm_path = out_dir / f"{built['meta']['layout']}.rttm"
-    wav_path.write_bytes(built["wav"])
+    data = wav_bytes(built["wav"])
+    wav_path.write_bytes(data)
     rttm_path.write_text(built["rttm"])
-    built["meta"]["wav_sha256"] = hashlib.sha256(built["wav"]).hexdigest()
-    built["meta"]["wav_bytes"] = len(built["wav"])
+    built["meta"]["wav_sha256"] = hashlib.sha256(data).hexdigest()
+    built["meta"]["wav_bytes"] = len(data)
     built["meta"]["rttm_sha256"] = hashlib.sha256(built["rttm"].encode()).hexdigest()
     return built["meta"]
 
@@ -249,15 +270,22 @@ def check(out_dir):
         if entry["synthesis"]["kind"] == "splice":
             continue  # inputs are not in the manifest; --check covers tier A only
         rebuilt = build_layout(name)
-        if hashlib.sha256(rebuilt["wav"]).hexdigest() != entry["wav_sha256"]:
+        if hashlib.sha256(wav_bytes(rebuilt["wav"])).hexdigest() != entry["wav_sha256"]:
             problems.append(f"{name}.wav: rebuilt bytes differ from the manifest sha256")
         if hashlib.sha256(rebuilt["rttm"].encode()).hexdigest() != entry["rttm_sha256"]:
             problems.append(f"{name}.rttm: rebuilt ground truth differs from the manifest sha256")
         on_disk = out_dir / f"{name}.wav"
         if not on_disk.is_file():
             problems.append(f"{name}.wav: missing from {out_dir}")
-        elif hashlib.sha256(on_disk.read_bytes()).hexdigest() != entry["wav_sha256"]:
+            continue
+        if hashlib.sha256(on_disk.read_bytes()).hexdigest() != entry["wav_sha256"]:
             problems.append(f"{name}.wav: on disk differs from the manifest sha256")
+        # A byte-stable file can still be headerless raw PCM (sha256 cannot see a format
+        # defect); only decoding proves the container is there.
+        try:
+            read_wav(on_disk)
+        except ValueError as exc:
+            problems.append(str(exc))
     return "; ".join(problems)
 
 

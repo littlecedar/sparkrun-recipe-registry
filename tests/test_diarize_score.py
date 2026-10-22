@@ -9,7 +9,7 @@ importlib and registered in sys.modules before exec_module (the house idiom).
 
 What this guards
 ----------------
-`recipes/decision/zz-pyannote-community-1-diarization-cpu.yaml` is scored by DER,
+`recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` is scored by DER,
 and DER is the kind of number that is easy to compute wrongly in a direction that
 flatters the arm.  Every claim the scorer's docstring makes has a control here,
 because a guard that has only ever passed proves nothing:
@@ -32,6 +32,7 @@ decides it, not the model.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import statistics
@@ -296,6 +297,22 @@ class TestFixtures(TempDirCase):
         wav.write_bytes(bytes(data))
         self.assertIn("on disk differs", DF.check(self.dir))
 
+    def test_emitted_wav_is_a_container_and_check_catches_raw_pcm(self):
+        # A byte-stable file can still be headerless raw PCM: the sha256 assertions above
+        # passed on exactly that defect, so the container itself needs its own guard.
+        entry = DF.emit(self.dir, DF.build_layout("two-speaker"))
+        wav = self.dir / "two-speaker.wav"
+        self.assertEqual(wav.read_bytes()[:4], b"RIFF")
+        DF.read_wav(wav)
+        manifest = self.dir / "manifest.json"
+        manifest.write_text(json.dumps({"sample_rate": DF.SAMPLE_RATE, "layouts": [entry]}))
+        self.assertEqual(DF.check(self.dir), "")
+        raw = wav.read_bytes()[44:]
+        wav.write_bytes(raw)
+        entry["wav_sha256"] = hashlib.sha256(raw).hexdigest()
+        manifest.write_text(json.dumps({"sample_rate": DF.SAMPLE_RATE, "layouts": [entry]}))
+        self.assertIn("not a readable PCM WAV", DF.check(self.dir))
+
     def test_splice_builds_a_dialogue_that_scores_zero(self):
         a, b = self.dir / "a.wav", self.dir / "b.wav"
         DF.write_wav(a, DF.render([(0.0, 3.0, "A")], 3.0))
@@ -307,6 +324,9 @@ class TestFixtures(TempDirCase):
         self.assertEqual(DS.score_pair(reference, reference)["der"], 0.0)
         with self.assertRaises(ValueError):
             DF.build_splice("short", a, b, chunk=10.0, gap=0.5, turns_wanted=4)
+        with self.assertRaises(ValueError):
+            # 3 s inputs cannot source six 2 s chunks; a zero-length turn would follow.
+            DF.build_splice("over", a, b, chunk=2.0, gap=0.0, turns_wanted=6)
 
 
 if __name__ == "__main__":

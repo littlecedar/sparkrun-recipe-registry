@@ -8,11 +8,16 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  DRAFT, never booted, no boot claim. pyannote/speaker-diarization-community-1 — an
-  8.1M-param (fp32, derived from bytes) speaker-diarization pipeline: a 5.9 MB powerset
+  DRAFT: booted once, on CPU only, with the numbers below. pyannote/speaker-diarization-community-1
+  — an 8.1M-param (fp32, derived from bytes) speaker-diarization pipeline: a 5.9 MB powerset
   segmentation net over a 26.6 MB wespeaker ResNet34 embedding net, plus VBx/PLDA
   clustering, all three bundled in one 33.7 MB repo. Served on 5 A725 cores at no GPU
-  cost. It exists to be the instrument the drama-3 TTS arm lacks: it can report how many
+  cost. Measured 2026-10-22 on one node: HTTP-ready 9.56 s from container start, RTF 0.25
+  on a two-voice spliced dialogue and 0.62 on a 30 s synthetic file, DER 2.83 % / JER
+  2.83 % on the spliced dialogue (collar 0.25, overlaps scored), identical segments across
+  repeat runs. It collapses a synthetic tonal two- and three-voice fixture to one speaker
+  (DER 50.0 % / 69.9 %), so it counts speakers in real speech only. It exists to be the
+  instrument the drama-3 TTS arm lacks: it can report how many
   speakers a clip contains and whether speaker segments are self-consistent, and it
   cannot report whether any word was dropped. Route: pyannote.audio + torch (aarch64
   PyPI wheels) on CPU behind a stdlib HTTP server written by a lane mod — no engine here
@@ -44,6 +49,7 @@ defaults:
   pyannote_threads: 5
 
 # The upstream image is python:*-slim + pip (no published server image exists), so this pins the base digest. user: root — the kill shim writes /usr/local/bin and the pip install needs it.
+# Boots only on an image that carries libgomp1: the aarch64 torchaudio wheel links libgomp.so.1 and python:*-slim has no GCC OpenMP runtime, so the serve dies at import on the base digest above. `--image pyannote-cpu:4.0.7` is that base plus `apt-get install -y libgomp1` plus these two pip lines, and it is what the measured boot used.
 executor_config:
   user: "root"
   entrypoint: ""
@@ -52,6 +58,7 @@ mods:
   - mods/pyannote-diarize-server
 
 # torch from PyPI, not download.pytorch.org/whl/cpu: that index carries no current aarch64 wheel, and PyPI's 2.8.0 aarch64 wheel is CPU-only here anyway (the laya precedent).
+# torchaudio 2.8 decodes only through torchcodec, whose aarch64 wheel dlopens libnvrtc at import, so the mod reads the WAV body itself and hands the pipeline an in-memory {'waveform', 'sample_rate'} dict — a file path would fail on a CPU-only image.
 # Required, not incidental: sparkrun's detached-launch liveness check runs `docker exec <c> kill -0`, and python:*-slim ships no /bin/kill, so without the shim a healthy serve is declared failed.
 # PYANNOTE_MODEL_PATH={model} is the launch contract: the prepared snapshot path must reach the command as a whole or `key=<path>` token (models/runtime.py), and it is also what makes the pipeline load offline instead of re-resolving the gated repo at request time.
 command: >
