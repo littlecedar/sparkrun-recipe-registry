@@ -388,7 +388,7 @@ matching.
   registered yet**, so it cannot run today. There is still no pytest/ruff/black/mypy configuration
   anywhere (`.ruff_cache/` on disk is leftover) and no pre-commit: linting is syntax checks only —
   `bash -n`, `py_compile`, `sparkrun recipe validate`.
-- **CI never fails a run for finding drift — the issue is the signal.** Drift is this registry's
+- **CI never fails a run for finding drift — the report is the signal.** Drift is this registry's
   normal state, so `refresh-sweep.yml` always exits 0: the counts and the drift table go to the run
   summary, the report is uploaded as an artifact, and one open issue labelled `pin-drift` is
   updated in place (exit 2, "could not run", also adds `sweep-broken` so it stands out in the issue
@@ -406,6 +406,21 @@ matching.
   (each with a `reason` and a `since`), an accepted row is still printed and does not count as
   gating drift, and an entry that matches no row is `stale-acceptance` and does gate — so a hold
   that was fixed cannot linger.
+  **Where the daily drift signal lands, in order** — a green run is not a subscription, so read
+  these and not the run's colour: (1) the run summary's **first line is a stable marker**,
+  `pin-drift: <n> rows (<m> accepted) | exit <code> | <recipe/pin/build-input counts> | generated
+  <ts>`, written by `.github/scripts/sweep-marker.py`; find the run with
+  `gh run list --workflow refresh-sweep.yml --limit 1` and grep `^pin-drift:` in its log or page.
+  (2) the artifact **`refresh-sweep`** is the retained copy — `sweep.md` + `sweep.json`, retention
+  **90 days** — fetched with `gh run download <run-id> --name refresh-sweep`; that file, not a
+  re-run, is where a session should read the full drift table. (3) the single `pin-drift` issue,
+  only while the tracker is enabled: `gh api -X PATCH repos/<owner>/<repo> -f has_issues=true`.
+  `exit_code_on_drift: true` re-arms a red run if a human ever wants the page.
+- **CI never bumps a model pin, and `--apply` is container-only.** The sweep's `--apply` rewrites
+  only `container:` lines whose tag resolves to a newer digest, refuses a non-empty
+  `git status --porcelain`, and never touches a `model_revision:`; a model re-pin stays a boot-gated
+  lane decision (see `tools/README.md` §refresh-sweep.py). Do not expect CI to move a pin, and do
+  not treat its drift report as a request to.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.
@@ -434,6 +449,14 @@ matching.
   Untracked lane copies on a working tree, like `recipes/qwen3/COOP.md`, are a live writer's scratch.
 - `tests/*.sync-conflict-*.py` (22 tests) is **skipped** because discover rejects dashed module
   names before it can report them, and it is tracked in git — do not delete it.
+- **A syncthing conflict copy is a launchable artifact, not litter.** `.gitignore:19`
+  (`**/*.sync-conflict-*`) keeps such a file out of git while it still lands on disk, and sparkrun
+  reads the working tree: a copy under `recipes/` is a runnable recipe, one under a lane's `mods/`
+  changes what a recipe ships, and one under `.github/workflows/` becomes another workflow (a second
+  nightly sweep, measured 2026-10-22). `tests/test_no_sync_conflict_copies.py` walks `recipes/`,
+  `mods/`, `tools/`, `tests/`, `benchmarking/`, `plugins/`, `tuning/`, `.sparkrun/` and `.github/`
+  and allows exactly one path — the tracked `test_qwen3_vl_embeddings` fixture just above. Delete a
+  copy the moment it appears; never `git add` it, and never leave it where a launch can see it.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML
   subset parser, mod `run.sh` sliced/executed in temp dirs (the `<<'TPL'` heredoc is executed by
   `tests/test_qwen3_vl_embeddings.py`), tools imported by path. Design rules: **every guard needs a

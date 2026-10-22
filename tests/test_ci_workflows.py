@@ -6,7 +6,11 @@ TEXT: top-level keys at column 0, job ids at two spaces under `jobs:` (or one sp
 `jobs:`), steps as `      - ` blocks. A missing or empty structure RAISES; it never passes
 vacuously. Every guard has a negative control that mutates text in memory.
 """
+import json
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,6 +20,7 @@ GATE = WORKFLOWS / "gate.yml"
 SWEEP = WORKFLOWS / "refresh-sweep.yml"
 LLAMA = WORKFLOWS / "llamacpp-engine.yml"
 REPORT_SCRIPT = REPO_ROOT / ".github" / "scripts" / "llamacpp-engine-report.py"
+MARKER_SCRIPT = REPO_ROOT / ".github" / "scripts" / "sweep-marker.py"
 
 # Cluster/DGX identifiers that must never reach a workflow: the registry ships to third parties.
 IDENTIFIERS = (r"littlecedar\.net", r"\bspark-head\b", r"\b10\.0\.4\.\d", r"\bwopr\b", r"\bWOPR_")
@@ -238,12 +243,52 @@ class RefreshSweep(unittest.TestCase):
         self.assertIn("GITHUB_STEP_SUMMARY", self.text, "the report must land in the summary")
         self.assertIn("sweep-broken", self.text, "exit 2 must be label-distinct, not an email")
 
+    def test_the_daily_signal_is_a_retained_artifact_and_a_summary_marker(self):
+        # Nobody subscribes to a green run: the artifact is the retained copy and the summary's
+        # first line is the stable, greppable marker a session can look for.
+        self.assertIn("sweep-marker.py", self.text)
+        self.assertRegex(self.text, r"(?m)^          name: refresh-sweep$")
+        self.assertIn("retention-days: 90", self.text)
+        self.assertIn("gh run download", self.text)
+
+    def test_the_marker_line_is_well_formed(self):
+        script = _text(MARKER_SCRIPT)
+        imports = set(re.findall(r"(?m)^import ([a-z_.]+)", script))
+        self.assertLessEqual(imports, {"json", "sys"}, imports)
+        self.assertIn("pin-drift:", script)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "sweep.json"
+            report.write_text(json.dumps({
+                "generated_at": "2026-10-22T06:09:42Z", "exit_code": 1, "gated": [{}] * 12,
+                "totals": {"recipes": 52, "model_pins": 59, "container_pins": 52,
+                           "build_inputs": 13, "accepted": 8},
+            }), encoding="utf-8")
+            out = subprocess.run([sys.executable, "-B", str(MARKER_SCRIPT), str(report)],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertTrue(out.stdout.startswith("pin-drift: 12 rows (8 accepted) | exit 1 |"),
+                            out.stdout)
+            # An unreadable report must still be a marker, not a failed step.
+            broken = subprocess.run([sys.executable, "-B", str(MARKER_SCRIPT),
+                                     str(Path(tmp) / "absent.json")],
+                                    capture_output=True, text=True)
+            self.assertEqual(broken.returncode, 0, broken.stderr)
+            self.assertIn("pin-drift: report unreadable", broken.stdout)
+
     def test_apply_is_guarded_and_nothing_commits_or_pushes(self):
         self.assertIn("APPLY: ${{ inputs.apply }}", self.text)
         self.assertEqual(unguarded_apply_steps(self.text), [],
                          "a step passes --apply without the apply guard")
         for forbidden in ("git commit", "git push", "git add"):
             self.assertNotIn(forbidden, self.text)
+
+
+class DocsSignal(unittest.TestCase):
+    def test_agents_states_where_the_daily_signal_lands(self):
+        agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        for needle in ("refresh-sweep", "retention", "pin-drift:", "has_issues=true",
+                       "container-only"):
+            self.assertIn(needle, agents, needle)
 
 
 class LlamaCppEngine(unittest.TestCase):

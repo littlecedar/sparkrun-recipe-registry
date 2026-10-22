@@ -1,11 +1,16 @@
-# Scheduled pin/recipe drift sweep: one tracking issue that stays current, and NO red run for drift.
+# Scheduled pin/recipe drift sweep: the report is the signal, and NO run goes red for drift.
 #
 # Drift is this registry's normal state — a frozen digest or a publisher that stopped is a decision,
-# not an outage — so the sweep job always exits 0. What a reader needs is the report: the counts and
-# the drift table go to $GITHUB_STEP_SUMMARY, and the single open issue labelled `pin-drift` is
-# updated in place with the markdown report in its body. Exit 2 (could not run) is not paged either;
-# that case adds the `sweep-broken` label so it stands out in the issue list instead of mailing the
-# owner once a day. `exit_code_on_drift: true` on a manual dispatch re-arms the hard failure.
+# not an outage — so the sweep job always exits 0. Where the daily signal lands, in order:
+#   1. the run summary's first line, a stable marker: `pin-drift: <n> rows (<m> accepted) | exit …`
+#      (grep it with `grep '^pin-drift:'`);
+#   2. the artifact `refresh-sweep` (sweep.md + sweep.json, 90 days), fetched with
+#      `gh run download <run-id> --name refresh-sweep`;
+#   3. the single open issue labelled `pin-drift`, updated in place — only when the repository has
+#      Issues enabled. **This repository does not today** (`has_issues: false`), so the step checks
+#      `hasIssuesEnabled`, prints `SKIPPED: repository issues are disabled` and stops. Exit 2 (could
+#      not run) is not paged either; it adds the `sweep-broken` label when the tracker is on.
+# `exit_code_on_drift: true` on a manual dispatch re-arms the hard failure.
 #
 # tools/refresh-sweep.py exit-code contract: 0 = clean, 1 = drift found, 2 = could not run
 # (network, parse, missing tool).
@@ -74,14 +79,20 @@ jobs:
           [ -n "$code" ] || code="${{ steps.sweep_apply.outputs.code }}"
           case "$code" in
             0) verdict="clean" ;;
-            1) verdict="pin drift found — see the \`pin-drift\` issue" ;;
-            2) verdict="sweep could not run — see the \`pin-drift\` + \`sweep-broken\` issue" ;;
-            *) verdict="sweep produced no exit code" ;;
+            1) verdict="drift reported (the pin-drift issue opens only when the tracker is enabled)" ;;
+            2) verdict="the sweep could not run (labelled sweep-broken when the tracker is enabled)" ;;
+            *) verdict="the sweep produced no exit code" ;;
           esac
+          marker=$(python3 -B .github/scripts/sweep-marker.py sweep.json)
           {
+            echo "$marker"
+            echo
             echo "## refresh-sweep"
             echo
             echo "Exit code \`$code\`: $verdict."
+            echo
+            echo "Delivery: \`$marker\` is the stable line (\`grep '^pin-drift:'\`); the full report "
+            echo "is this summary and the artifact \`refresh-sweep\` (sweep.md + sweep.json, 90 days)."
             echo
             if [ -f sweep.md ]; then cat sweep.md; else echo "_no markdown report was produced_"; fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -90,10 +101,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: refresh-sweep-${{ github.run_id }}
+          name: refresh-sweep
           path: |
             sweep.json
             sweep.md
+          retention-days: 90
           if-no-files-found: warn
 
       - name: Per-arm boot checklist (apply mode stops here)
