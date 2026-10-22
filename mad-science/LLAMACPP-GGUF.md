@@ -31,6 +31,15 @@ carries **no patches** — its Dockerfile clones `ggml-org/llama.cpp` at the tag
 convenient carrier of an old upstream ref, not as a tuned build. Pick by which archs the arm needs:
 `b2e5e9b` for speed, `a37cc4610` for Mellum MTP / Kolibri-1 / flint. Measurements and the flag-by-flag
 elimination: `attic/explore/AGENTS.md` §"The residual ~15 % is the upstream ref era".
+**Mellum MTP is not a reason to take `a37cc4610` for speed** (VERIFIED 2026-10-22, `.32`): the ref does
+carry the head, but a draft-length sweep of `--spec-draft-n-max` 1–8 (same GGUF, same flags, three
+128-token greedy requests per cell, baseline in the same window) peaks at **103.4 ± 2.8 t/s with one
+drafted token** — the vendor card's own recommendation — against the ref's own no-MTP baseline of
+**101.5 ± 0.7**, and every longer draft is slower: **90.0 / 75.9 / 66.6 / 51.4 / 47.7 t/s** at 2 / 3 /
+4 / 6 / 8. Mean accepted length saturates at 2.0–2.3, so the verify pass costs more than the drafts
+save. Pick the ref for Kolibri-1 / flint; speculative decoding buys nothing on this model. Receipt:
+`~/benchmarks/mellum-mtp-draft-20261022/`.
+
 
 Receipt: `~/benchmarks/llamacpp-pin-20261017/pull.txt` + `llama-server-help.txt` (head), pulled from
 `.34`. Exec-time loading needs no extra env: a container started `sleep infinity` + `docker exec`

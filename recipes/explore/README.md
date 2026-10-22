@@ -472,6 +472,16 @@ weights**.
   (`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`); receipt
   `~/benchmarks/mellum-mmap-20261019/`.
   `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).
+- **MTP is measured-rejected across draft lengths (2026-10-22).** The checkpoint's own BF16 MTP head needs
+  the stock-upstream `a37cc4610` build (the shipped `b2e5e9b` pin has no `graph_mtp` for `mellum`), so it
+  was swept there: `--spec-type draft-mtp --spec-draft-n-max 1…8` gives **103.4 ± 2.8 t/s at `n-max 1`**
+  — the vendor's own recommended value, and only **+1.9 %** over that ref's 101.5 ± 0.7 no-MTP baseline —
+  then **90.0 / 75.9 / 66.6 / 51.4 / 47.7 t/s** at 2 / 3 / 4 / 6 / 8, i.e. every longer draft is slower
+  than plain decoding, with mean accepted length saturating at 2.0–2.3. MTP also doubles prefill (TTFT
+  65 → 111–127 ms) and adds ~2 s of load. Do not re-add it, and do not re-test it by raising the draft
+  length — 2–4 is the steepest part of the loss. Probe arm
+  `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` (`-o spec_draft_n_max=<n>`); receipt
+  `~/benchmarks/mellum-mtp-draft-20261022/`.
 - **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
   32k prompt can spend an arbitrary budget inside the think block — empty `content` at
   `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle

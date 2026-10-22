@@ -817,6 +817,50 @@ Receipt: `~/benchmarks/mellum-mtp-20261022/` on the head (reachable from `.31`/`
 `probe.log`, `push*.log`, `control-ladder.{json,csv}`, `oldengine-boot.log`, `new-mmap-boot.log`,
 `arch121-boot.log`, `mtp-boot.log`, `head-download.log`, `build-fa.log`, `flint-probe-boot.log`,
 `fa-boot-33.log`, and the five variant recipes.
+### The draft-length sweep — the rejection holds as a curve, and it was never the shipped engine (2026-10-22, same day)
+
+The 03:18 verdict measured **one** draft length (`--spec-draft-n-max 1`), so it could not tell "that
+setting is wrong" from "MTP is wrong". Re-tested as a curve on `.32` — same image digest (`ef2d4bc8…`),
+same GGUF pin, same head bytes, same `--ctx-size 131072 --parallel 8 --kv-unified --load-mode none`
+flags, three 128-token greedy requests per cell, one boot per cell, and the no-MTP baseline taken in the
+**same window** before and after the sweep. Receipt: `~/benchmarks/mellum-mtp-draft-20261022/`
+(`PRE-REGISTRATION.md` was written before the first boot; `cell.sh` + `summarize.py` regenerate
+everything).
+
+| `--spec-draft-n-max` | decode t/s (mean ± σ, 3 runs) | vs its own baseline | acceptance | mean accepted len | TTFT |
+|--:|---|--:|--:|--:|--:|
+| 0 (no MTP, open) | **102.03 ± 0.35** | — | — | — | 65 ms |
+| 1 | **103.38 ± 2.83** | **+1.9 %** | 0.701 | 1.70 | 118 ms |
+| 2 | 90.02 ± 9.00 | −11.3 % | 0.477 | 1.95 | 125 ms |
+| 3 | 75.94 ± 9.00 | −25.2 % | 0.355 | 2.06 | 127 ms |
+| 4 | 66.60 ± 10.66 | −34.4 % | 0.287 | 2.14 | 124 ms |
+| 6 | 51.38 ± 8.70 | −49.4 % | 0.196 | 2.15 | 115 ms |
+| 8 | 47.73 ± 5.07 | −53.0 % | 0.164 | 2.28 | 111 ms |
+| 0 (no MTP, close) | **100.97 ± 0.57** | — | — | — | 62 ms |
+
+Baseline pooled over both control cells: **101.50 ± 0.74 t/s**. The curve is **monotone decreasing from
+`n=1`**, with no interior peak; `n=1` is the only cell that is not clearly worse than plain decoding and
+its own range (100.38–106.00) brackets the baseline's (100.35–102.40). Every draft length ≥ 2 is slower
+per prompt, all three prompts, every cell. Mean accepted length saturates at 2.0–2.3 while the drafted
+count rises 8× (at `n=8`: 385 drafted, 77 accepted), so the 2.5B-active MoE pays a 9-token verify pass
+for ~2.3 tokens of output — the same conclusion the vendor's card reached on Metal ("two or more drafted
+tokens were slower than plain decoding in every configuration").
+
+**Two corrections to how the rejection was recorded.** (1) `mad-science/STATUS.md` attributed
+108.4/109.9 to "the shipped engine"; they came from the stock-upstream `a37cc4610` build (image
+`littlecedar/dgx-spark-llama-cpp@sha256:ef2d4bc8…`). The shipped `scitrera b10549-cu131` pin is
+`b2e5e9b`, whose `src/models/mellum.cpp` has no `nextn`/`graph_mtp` — it cannot load this head at all.
+(2) The 114 bar is that pin's **111.9 ± 0.3**, a different ref that decodes the same GGUF ~10 % faster,
+so the original was a cross-ref comparison. Scored against its own ref instead, MTP at the vendor's
+setting is **+1.9 %, i.e. inside the noise**, and raising the draft length only loses throughput. The
+rejection therefore stands — as a rejection of MTP on this model, peak **103.4 t/s < 114 bar**, measured
+across draft lengths 1–8 — and no longer as a single-point verdict.
+
+Probe arm kept as the reproducer: `recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml`
+(`zz-` = not shippable; `-o spec_draft_n_max=<n>` selects the cell). The head is not distributed by
+sparkrun (one repository per recipe) — stage it on the node at
+`/cache/huggingface/hub/mellum-mtp-head/mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, sha256 `9c7b2c37…`.
+
 
 ### The ref floor moved to `a37cc4610`, and why (same day)
 
