@@ -1,6 +1,6 @@
 # Status — 2026-10-22 ET
 
-Six-node fleet (`.30`–`.35`): `.30`–`.33` on the TP=4 queue, `.34`/`.35` free after today's re-pin boots; gate **782 tests OK** (2 skipped) at `df2c259`; **3 campaigns in flight** plus one feasibility probe.
+Six-node fleet (`.30`–`.35`): `.30`–`.33` on the TP=4 W6 block, `.34` on the vLLM `v0.32.0` re-pin (Laguna-XS), `.35` on the SGLang `v0.5.22` re-pin (arm A, 35B dflash2, booting); gate **782 tests OK** (2 skipped), re-measured 2026-10-22 at this commit and first counted at `df2c259`; **3 campaigns in flight** plus one finished negative feasibility probe.
 
 ## Alerts
 
@@ -11,6 +11,7 @@ Six-node fleet (`.30`–`.35`): `.30`–`.33` on the TP=4 queue, `.34`/`.35` fre
 | Foreign or unowned container on a quartet node | `sparkrun_6c7626d237f22cdd_68907e0cb1d8_solo` on `.31`, relay-imported image | 2026-10-22 ≈01:07 local, after both censuses | **reported by the re-pin campaign, unverified here** | consistent with the node grant and measurement duty; not the missing serve |
 | Known-bad pin in service | vLLM `v0.29.0` (CVE-bearing) under the two Laguna arms; `v0.30.0` under the three media-gen arms | 2026-10-22 | runtime sweep | re-pin campaign in flight (In flight); the arms still ship the old pin |
 | Gate red, then cleared | `782 tests, 2 failures, 2 skipped` — two `tests/test_k2_7b_recipes` container-pin assertions, one arm on `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` while its guard asserted the `v0.5.20-cu130` tag and `sha256:06e4f2ed…` digest | 2026-10-22, before `df2c259` | this register | cleared when the pin landed; the campaign itself still carries no verdict |
+| **The llama.cpp image the tree depends on is a stalled publisher** | `scitrera/dgx-spark-llama-cpp` `:latest` == `b10549-cu131` == 2026-08-21, and that is the tag sparkrun's llama-cpp runtime advertises | 2026-10-22 | pin sweep | **standing risk, no verdict**: every llama.cpp arm in the tree is frozen ~2 months behind upstream; the stock-upstream route is a Deferred row, and nothing about a shipped llama.cpp arm changes today |
 
 ## Landed (2026-10-22)
 
@@ -32,10 +33,10 @@ Six-node fleet (`.30`–`.35`): `.30`–`.33` on the TP=4 queue, `.34`/`.35` fre
 
 | campaign | nodes | arms | started | est | state |
 |---|---|---|---|---|---|
-| SGLang `v0.5.22` re-pin | `.34`/`.35` | 6 — three ornith (off `v0.5.21`), three IFM (off `v0.5.20-cu130`) | 2026-10-22 | 4–8 h, derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) | index `e3a4f060…` and arm64 child `06441be3…` resolved; the K2-7B pin landed and its guard is green; **no verdict** |
-| vLLM `v0.32.0` re-pin | `.34`/`.35` | 5 — two Laguna (off CVE-bearing `v0.29.0`), three media-gen (off `v0.30.0`) | 2026-10-22 | 4–6 h, derived from the media-gen receipts (≈4 min TTR per arm) plus the Laguna-M.1 TP=2 boot + suite receipt | no boot on `v0.32.0` yet; **no verdict** |
+| SGLang `v0.5.22` re-pin | `.35` | 6 — three ornith (off `v0.5.21`), three IFM (off `v0.5.20-cu130`); arm A (35B dflash2) booting now | 2026-10-22 | 4–8 h, derived from the 0.5.21 bump receipt (~4 h for three ornith arms on a free pair, same shape per three-arm lane) | index `e3a4f060…` and arm64 child `06441be3…` resolved; the K2-7B pin landed and its guard is green; **no verdict** |
+| vLLM `v0.32.0` re-pin | `.34` | 5 — two Laguna (off CVE-bearing `v0.29.0`), three media-gen (off `v0.30.0`); Laguna-XS first | 2026-10-22 | 4–6 h, derived from the media-gen receipts (≈4 min TTR per arm) plus the Laguna-M.1 TP=2 boot + suite receipt | no boot on `v0.32.0` yet; **Laguna-M.1's TP=2 phase is deferred for lack of a free pair**; **no verdict** |
 | TP=4 W6 block | `.30`–`.33` | qwen4 W6 first, then W12, the ds4 TP=4 candidates and the four-node suite legs | 2026-10-22 | 20–28 h block | boot relaunch in flight under the 2026-10-22 node grant; **not restated as finished** |
-| Mellum MTP feasibility probe | — | — | 2026-10-22 | — | listed by the owner 2026-10-22; this register carries no measurement of it yet |
+| Mellum MTP feasibility probe — **finished, negative** | — | shipped Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf` | 2026-10-22 | — | **NOT FEASIBLE on the shipped pin.** Needs llama.cpp `b11747` (2026-10-19) or newer: at our `b2e5e9b`, `src/models/mellum.cpp` has no `nextn`/`graph_mtp` and `llama-model.cpp`'s MTP-aware KV path lists QWEN3NEXT / QWEN35 / QWEN35MOE / BAILINGMOE3 / NEMOTRON_H_MOE but not MELLUM; the support lands in `b2e5e9b..b11747` as `nextn_flags`, the `nextn.eh_proj` / `enorm` / `hnorm` / `shared_head_norm` loads and `graph_mtp`. Found by the 2026-10-22 pin sweep, which saw the Mellum GGUF repo publish an additive MTP head at `4159d684…`. Our engine is `b2e5e9b` and `scitrera/dgx-spark-llama-cpp` has published nothing since `b10549-cu131` (2026-08-21). Pre-registered for the day the gate is met: existing Q4_K_M main + `-md mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`, falsifier "C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held". The shipped main file is byte-identical (`ecc4d5b8…`) at both the pin and the head, so **nothing about the shipped arm changes** |
 
 Node-bound wall ≈29–42 h in flight (20–28 h of it the TP=4 block); queued runnable now 0 h; deferred 1–2 h priced plus two unpriced → grand total ≈30–44 h.
 
@@ -53,6 +54,7 @@ Node-bound wall ≈29–42 h in flight (20–28 h of it the TP=4 block); queued 
 | **The ds4 rebuild is not byte-reproducible** (behavior-identical: 91 layers, 0–69 identical, four recompiled `.pyc`, 6,707 hash-equal files) | a deterministic build step; until then the shipped `acfc331a…` stays pinned | `recipes/ds4/Dockerfile.knapcio-dsv41` |
 | **Ornith intermittent 1M serve exit** (1–2 h) | a failing boot with the capture armed — 4 of 4 d90 passes now on two builds, the last a first-attempt pass on 0.5.21 with a null die-capture; owner's answer 2026-10-21: park it until a real failure | `~/benchmarks/ornith-yarn-d90-20261020/` and the 0.5.21 receipt, plus the register item that stays open for the next failure |
 | Dropped by owner policy, not waiting on anything: the GLM ≥1M probe and the ornith 397B retry | — | both recorded in the lane attic |
+| **Stock-upstream llama.cpp image (source ref ≥ `b11747`)** | a build host window plus a required-`--build-arg` Dockerfile | `recipes/explore/` — the engine work is in flight |
 
 ## Risks
 
