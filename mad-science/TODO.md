@@ -803,6 +803,189 @@ Any model with reasoning and tool-calling capabilities
   passes the recipe file path, never `@littlecedar/…`), boot, run the cells, `docker cp` the serve log, stop by
   task id, re-assert 0 containers, receipt under `~/benchmarks/moss-image-20261022/`. *(effort: medium)*
 
+- [ ] **Probe `fishaudio/drama-3` — a 35B/A3B TTS with a 10-codebook decoder — on one free GB10** — new
+  release (checked 2026-10-22 on the Hub API: revision `b2b5ee998034b2975720906c815e7fb0e9f007bd`,
+  `lastModified` 2026-10-17T05:06Z, `pipeline_tag: text-to-speech`, **ungated**, 15,274 downloads / 896 likes —
+  live counts, do not freeze them).
+  *What it is — bytes, not names.* One repo holding `FishOmniModel` (`model_type: fish_omni`) with three
+  parts: a **`fish_omni_text`** MoE backbone (40 layers, hidden 2048, **256 experts top-8**,
+  `moe_intermediate_size` 512, hybrid attention — 30 `linear_attention` gated-delta-net layers (16 key / 32
+  value heads × 128) and 10 `full_attention` layers (16 Q / **2 KV** heads × 256) — `max_position_embeddings`
+  **262,144**); a **`fish_qwen3_audio_decoder`** (`decoder_type: codebook_mtp_shared`, 4 layers, **10
+  codebooks**, `vocab_size` 4096, per-frame window `max_seq_len` 11); and a separate **1.87 GB `codec.pth`**
+  vocoder (vLLM-Omni's recipe: the "same Fish DAC codec as Fish Speech S2 Pro"). Dtype `bfloat16` with the
+  routed experts in **FP8 block-128** — `quantization_config.quant_method: **bsgemm-moe**`, not a standard
+  compressed-tensors label; vLLM-Omni maps it to its block-FP8 MoE kernels. Vendor claim, not measured here:
+  **35B total / 3B active**. **The published base is already quantized and there is no bf16 route**: the
+  `quantization_config` and the card agree — "FP8 MoE experts with the
+  remaining weights in bf16" — 39.6 GB for 35B params is ≈1.13 B/param, the arithmetic of bf16-everything-else
+  with 8-bit experts, so an operator cannot downgrade to a plain bf16 reference (which is also why the
+  publishers' tables call this checkpoint "FP8 original"). Bytes: 39.60 GB of safetensors in 8 shards (index `total_size`
+  39,594,895,616) + 1.87 GB codec + 20.8 MB tokenizer = **41.50 GB repo** (tree API). Audio contract:
+  **44.1 kHz mono**, **~21.5 codec frames/s** (46.4 ms per frame, `vllm_omni/deploy/fish_omni.yaml`), long
+  text chunked automatically and streamable per chunk (card); `<|speaker:0|>`…`<|speaker:15|>` carry up to 16
+  characters, and the `[sighs]`/`[laughs]` "tags" are **plain text, not special tokens** (vLLM-Omni
+  `recipes/fishaudio/Drama-3.md` — which also records that a line *starting* with a tag more often renders the
+  tag and then silence until `max_new_tokens`: model behaviour, not a bug to tune away).
+  *License position — a banner decision, not a footnote.* Card frontmatter reads **`license: other`,
+  `license_name: fish-audio-research-license`, `license_link: LICENSE.md`**, while the card body and that
+  `LICENSE` file are the **FISH AUDIO COMMUNITY LICENSE AGREEMENT, Version 1.0 — Last Updated: October 13,
+  2026** (verbatim: "This Agreement is intended to allow, free of charge, research and non-commercial uses of
+  the Fish Audio Materials and, as set out in Section III, limited uses for a Commercial Purpose by Licensees
+  whose Annual Revenue is less than the Revenue Threshold"; threshold **USD 500,000**; and "**any Hosted
+  Service, requires a separate written license agreement from Fish Audio**" — a Hosted Service being "an
+  application programming interface, software development kit, **model-inference or model-hosting service**,
+  or a website, application, or feature whose primary purpose is text-to-speech"; outputs must not be used to
+  "create, train, distill, or improve any foundational generative AI model or any speech, audio, or voice
+  generation model"; distribution requires the Agreement plus a Notice and "**Built with Fish Audio**"
+  attribution). So the `license_name` field is **stale against the text it links** — the text is
+  authoritative. Classification: **custom community license — research/non-commercial free, commercial only
+  under the revenue cap, hosted service prohibited**. That is the `qwen-image-2.1-turbo` class (banner, and a
+  third party receiving this recipe cannot offer it as a TTS service), *not* the `ltx-2.5` class (gated,
+  $10M threshold) and not the Apache-2.0 MOSS pair; and the derivatives that re-tag themselves Apache-2.0
+  (`AMAImedia/…`, `robertbschuette/…`) or invent a model type (`mlx-community/…`, `model_type:
+  fish_drama3`) do not change that.
+  *Quantizations — 43 `base_model:quantized:` repos enumerated* (`base_model:quantized:fishaudio/drama-3`
+  filter + `?author=fishaudio`, whose 11 repos include the owner's own `drama-3-int4`). **None is gated.**
+  Repo bytes are tree-API; "complete" = carries `codec.pth`/`codec.safetensors` + tokenizer + chat template, so
+  it can synthesize without the base repo:
+  - `fishaudio/drama-3` — **FP8 block-128 experts + bf16 rest** (the base itself; already quantized, so it is
+    the reference, not a bf16 fallback) — **41.50 GB** — complete — vLLM-Omni or SGLang-Omni, both named on the
+    card.
+  - `fishaudio/drama-3-int4` — hybrid **W4A16**, routed experts + selected attention projections int4, shared
+    expert and audio decoder bf16 (GPTQ-Marlin) — **24.03 GB** (22.1 GB of weights; the rest is 8 eval wavs,
+    `eval.py`, `eval/eval_results.json`, `apply_patch.py`, `UPSTREAM_PR.md`) — complete — **its stated runtime
+    is SGLang-Omni, applied as a patch**: the tags are `int4`/`w4a16`/`sglang`/`sglang-omni` and
+    `apply_patch.py` + `UPSTREAM_PR.md` exist because the Marlin path is not upstream — i.e. **not our
+    `v0.5.22`**. Card numbers: Seed-TTS English WER 1.63 % corpus (1.42 % trimmed) vs 1.99 % / 1.32 % for the
+    FP8 base, +8 % per-request latency. `akhaliq/drama-3-int4` is the same quantization under the quantizer's
+    own account — **one candidate, not two**.
+  - `dangvansam/drama-3-nvfp4` — experts FP8 → **NVFP4** W4A16 (ModelOpt-style layout, group 16, FP8 block
+    scales, no calibration), everything else bf16 — **27.42 GB** — complete, plus
+    `examples/{sglang_omni.yaml, vllm_omni_deploy.yaml}`, so **both Omni forks** are its stated runtimes.
+    Publisher numbers on **RTX PRO 6000, sm_120**: 36.3 GiB VRAM on SGLang-Omni / **30.9 GiB on vLLM-Omni**,
+    CER 6.6 % hard / 2.9 % plain, speaker sim 0.844.
+  - `dangvansam/drama-3-pruned-192e-nvfp4` **22.87 GB** (publisher 31.7 / 27.2 GiB) and
+    `…-pruned-128e-nvfp4` **18.33 GB** (27.0 / 23.6 GiB) — 192 of 256 and 128 of 256 experts kept; 128E pays
+    for its size in quality (CER 5.2 % plain vs 2.9 %).
+    `dangvansam/drama-3-pruned-128e-fp8` **25.37 GB**, `…-192e-fp8` (publisher 29.4 GiB checkpoint) — same
+    prune, experts still FP8. All complete, all with both engines' example configs.
+  - `Reza2kn/drama-3-nvfp4` **27.42 GB** (25.49 GB tensor payload, per-layer `layer-NN.safetensors` + codec) —
+    complete, and **a third engine variant, not a drop-in**: tags are `modelopt_fp4`, `blackwell`,
+    `sglang-omni`, `experimental`, `library_name: sglang`; it pins **SGLang `v0.5.21` (`e00930c5`) + SGLang-Omni
+    `00ac898e`** and ships a launcher that keeps only a **64-expert GPU cache, streaming the rest from disk**,
+    validated on **sm_120 (RTX 5080 Laptop, 16 GB)** — no WER claimed, a 3-clip listening review. GB10/sm_121 is
+    a *different* compute capability from its validated sm_120, and our SGLang pin is v0.5.22.
+    `darioooooo0o/drama-3-w4a16` **25.89 GB** and `…-w4a16-32gb` **24.52 GB** (+ `apply_patch.py`),
+    `asfberlin`/`Tintler` 128E w4a16 — complete, engine unstated beyond "w4a16", unmeasured by anyone but
+    their cards.
+  - `mlx-community/fish-audio-drama-3-{3bit,4bit,8bit}` **19.75 / 23.78 / 42.18 GB** — complete but the codec
+    is `codec.safetensors` and the runtime is **MLX: Apple silicon only, cannot run on a GB10 at all**.
+  - **GGUF family — none loadable by an engine this registry runs** (see the engine gate): `Jmica/Drama-3-GGUF`
+   135.66 GB repo, six files 17.05–25.63 GB (Q2_K→Q4_K_S experts × Q8/Q4 backbones; **tagged `audio.cpp`**,
+    card: "native audio.cpp conversions … built with … the converter in my llama.cpp branch") —
+    **`audio.cpp` is an audio-side llama.cpp fork, not our `b2e5e9b` and not upstream**;
+    `sakasegawa/drama-3-GGUF` 185.97 GB repo, Q4_K **20.79** → Q8_0 38.47 → F16 **71.61 GB** (engine unstated,
+    same GGUF layout);
+    `EryriLabs/drama-3-llamacpp-GGUF` **20.82** GB + `mmproj` 1.67 GB (card: built with **its own llama.cpp
+    branch**, run through `dwain-barnes/mara-drama3`); `AMAImedia/…-FP8-BF16-GGUF` 65.09 GB (23.39 GB GGUF +
+    the whole bf16 tree, Apache-2.0 mis-tag); `thetom-ai/Drama-3-ConfigI-GGUF` 57.64 GB (one 28.94 GB file +
+    427 profiling artefacts); `pentacoxian-dev/drama3-small-GGUF` **10.46 GB** single IQ3_XXS (**a pruned
+    "small" derivative**, not this checkpoint's bytes); `Frosty40…B70-Turbo`, `Harsha001…ROCmFPX`,
+    `UltimateIntent…Q2-Q3`, `t8star`/`PedroMarinhoDev` Comfy packs, `Eng-Ahmd…Windows` — enumerated, none a
+    route. (`WaveCut/Drama-3-OrbitQuant-{W2A2,W4A4}` 25.44 GB W4A4 and the `fcmeyer`/`cguldogan`/`Nav8ha`
+    MLX mixes are enumerated and unwrapped: format asserted only by their cards.)
+  *Engine gate — read off the registries and the image, not memory. **No candidate quant rides a resident
+  image**: each one names a different runtime (base → vLLM-Omni/SGLang-Omni; int4 → patched SGLang-Omni;
+  dangvansam → either Omni fork; Reza2kn → SGLang v0.5.21 + SGLang-Omni `00ac898e` + its own disk-backed
+  launcher; GGUF → `audio.cpp` or a personal branch; MLX → Apple).*
+  **vLLM (our pin, `vllm/vllm-openai:v0.32.0@sha256:befccf0e…`): NO** — `vllm/model_executor/models/registry.py`
+  at tag `v0.32.0` has **no `FishOmni` symbol**.
+  **SGLang (our pin, `v0.5.22`): NO** — `python/sglang/srt/models/` at that tag has no fish/drama module (its
+  only `*_omni` file is `qwen3_omni_moe.py`).
+  **vLLM-Omni: YES, and it is the no-build route.** `vllm_omni/model_executor/models/fish_omni/` is present at
+  tag **`v0.32.0rc1`** and **absent at `v0.31.0rc1`**; `docs/models/supported_models.md:116` maps
+  `FishOmniForConditionalGeneration → fishaudio/drama-3`. The image
+  `vllm/vllm-omni:nightly-15bce345863c6e2db882534876b8977f5b1ae1e3` (manifest `sha256:f3473cb3…`, **arm64
+  child `sha256:9c155dff…`, 11.23 GB**) is already resident on `.34`, and inside it `vllm 0.32.0` +
+  `vllm_omni 0.32.0rc2.dev29+g15bce3458` with the `fish_omni` and `fish_speech` model dirs (verified by
+  `docker run … python -c "import vllm, vllm_omni"`). **Trap: the vendor's own line is `vllm serve … --omni`,
+  but this image's `/usr/local/bin/vllm` is plain vLLM** (`vllm.entrypoints.cli.main`) and its
+  `serve --help=all` contains no `--omni`; the omni CLI is the separate **`vllm-omni`** console script
+  (`vllm_omni.entrypoints.cli.main:main`, which takes the omni path only when `--omni` is in argv). Two stages
+  share GPU 0 through a private MPS daemon on CUDA (`deploy/fish_omni.yaml` `platforms.cuda.cuda_mps: true`),
+  and the default budgets are stage 0 `0.78` + stage 1 `0.1`.
+  **SGLang-Omni: YES, and it is what the owner's int4 checkpoint documents**, but **no published image**:
+  `docker/Dockerfile` builds `FROM lmsysorg/sglang@sha256:5fc09edb…` and **clones sglang-omni at container
+  start**; `install.sh` defaults `SGLANG_REF=v0.5.22`; the model lives in
+  `sglang_omni/models/fishaudio_drama3/` (30 modules, `vocoder.py` + `quantization.py` among them). A route,
+  not a recipe — it costs a build.
+  **llama.cpp: NO.** Upstream master `src/models/` (168 files) carries no fish/omni/drama architecture — only
+  `pockettts.cpp` and `qwen3tts.cpp` — and at our pin `b2e5e9b` the same two among 150. Every GGUF above
+  therefore targets `audio.cpp` or a personal fork, so "GGUF ⇒ runs on llama.cpp" is card optimism here.
+  **transformers/torch and the `fish-speech` package: NO** — the config declares `FishOmniModel` but the
+  implementation lives in the two Omni engines, and the card links only those.
+  Verdict: **two real routes, both Omni forks of engines this registry already runs, neither at our pins.**
+  *GB10 ranking (128 GB unified, arm64 sm_121, one node), reasoning shown.*
+  1. **Base checkpoint on vLLM-Omni nightly** — 41.50 GB of weights, ~79 GB of the 121 GB pool left before KV,
+     graph pools and activations. The vendor budgets (0.78 + 0.1) would claim **104 GB** of a ~119 GB device
+     and squeeze the host, so the arm must declare its own stage budgets (`--stage-overrides
+     '{"0":{…0.55},"1":{…0.06}}'` ≈ 71 GB) — the knob exists and parses (`vllm_omni/entrypoints/utils.py:61`
+     `parse_stage_overrides`). This is also the pairing the vendor measured (H200: TTFA p50 88.9 ms, RTF 0.131
+     at c1) — the only row with a vendor number to falsify.
+  2. **`dangvansam/drama-3-nvfp4`, 27.42 GB** — the cheapest *measured* fit (publisher: **30.9 GiB** on
+     vLLM-Omni), NVFP4 is Blackwell-native which is exactly sm_121, ~90 GB headroom. Its numbers are sm_120 on
+     an unknown engine build, so it still needs its own boot.
+  3. **`fishaudio/drama-3-int4`, 24.03 GB** — the only quant with the owner's name and published Seed-TTS
+     WER (1.63 % vs 1.99 %); documented on SGLang-Omni only, i.e. it inherits the build.
+  4. **`dangvansam/drama-3-pruned-128e-nvfp4`, 18.33 GB** — smallest real fit, and measurably worse (CER
+     5.2 % vs 2.9 %): a headroom experiment after a full-size cell, never a first boot.
+  5. **MLX (19.75–42.18 GB) and GGUF (10.46–71.61 GB)** — cannot run: no CUDA backend, or no engine arch.
+  **Nothing here fails to fit** — even the 71.61 GB F16 GGUF would fit 121 GB. The engine is the constraint,
+  and on a GB10 the open question is not bytes but whether the FP8 block-MoE kernels, the GDN linear-attention
+  path, the two-stage MPS co-tenancy and the CUDA-graph capture all survive sm_121 [SPECULATIVE — no vendor
+  claim for GB10 exists; their table is H200 and the nvfp4 publisher's is sm_120].
+  *Pre-registered measurement (nothing ran).* Cells: **TTR** container start → `/v1/models` **200 naming
+  `fishaudio/drama-3`** (identity assert first: the 2026-10-22 attempt below shows port-only readiness is
+  satisfiable by a foreign listener, so a bare port check is not a cell) plus the weight-load seconds from the
+  serve log; the **fixed script** `The quarterly report is due on Thursday, so please finish it by noon.`,
+  non-streaming `POST /v1/audio/speech`, **n=3**, → wall s (mean±σ) and **RTF = wall / audio duration**;
+  **output integrity** — RIFF/WAVE parses, **44,100 Hz mono 16-bit**, duration > 0.5 s, peak > 0.01 full scale
+  (a silent or truncated take falsifies the cell), sha256 per run; **cloning** with the card's own `en0`
+  reference (`common_voice_en_10119832.wav` + its transcript) and **tag rendering** on
+  `[sighs] Fine. If we miss it, it's on you. [laughs] Well, maybe that's fair.`; and one streaming `pcm`
+  request for **TTFA**. Quality instrument — **named, not invented**: the owner's int4 repo ships the exact
+  instrument, `eval/eval_results.json` + 16 reference wavs (`eval/theirs32/`, `eval/int4/`, one per prompt:
+  plain×3, long, tags, zh, ja, clone) — **ASR round-trip WER per prompt plus speaker-embedding cosine
+  similarity** (vendor-measured on the FP8 base vs int4: `mean_wer` **0.2593 → 0.1968**, `mean_speaker_sim`
+  **0.8458 → 0.8456**, and the per-row numbers show why that mean is not a clean comparison: the FP8 `long1`
+  row truncated to WER 0.6667 and `zh1` scores 1.0 on *both* because the reference uses full-width
+  punctuation — so quote a row, never the mean, and never compare across a truncated take). **Reproducing it
+  on a GB10 needs an ASR model and a speaker encoder, and no node here has either resident**, so the first GB10
+  cell is honest about its limits: **WAV integrity cells (above) + a listener check by the owner** on two
+  saved clips (intelligibility, and whether `[sighs]`/`[laughs]` land), scored against the same prompts'
+  shipped reference wavs — with the vendor's Seed-TTS and FP8-vs-int4 tables cited as the only comparable
+  published numbers. A later cell can reproduce the WER/similarity pair once an ASR model is staged.
+  Falsifiers: no `/v1/models` naming drama-3 within the port timeout (3600 s); a POST that returns
+  non-RIFF/empty; **single-stream RTF > 1.0** (slower than playback — the arm's practical bar); or audio the
+  listener calls unintelligible.
+  Receipt: `~/benchmarks/drama-20261022/` (client
+  `.scratch/drama/drama-cells.py`, its `wav_stats` self-check verified against a synthetic 0.5 s 44.1 kHz
+  WAV).
+  *Phase 2 — attempted 2026-10-22, stopped by a port collision, not by the model.* `.34` was at **0
+  containers** at 02:20 EDT and I claimed it; `humanizer-probe` took it at 02:26:31Z for its GGUF serve. My
+  boot (`sparkrun run .scratch/drama/drama-3-35b-a3b-fp8-vllm-omni-tts.yaml -H .NN --transfer-mode
+  pull`, task `c8829c3570d86002_8ed3ce77d78f`) died in the container at `sock.bind` with
+  `OSError: [Errno 98] Address already in use` (`/tmp/sparkrun_serve.log`) — **and sparkrun still reported
+  "Endpoint ready … TTR HTTP-ready 14.707s", because with `readiness: inference: false` the probe is
+  port+HTTP only and the foreign server answered it.** The 14.7 s "TTR" is therefore a measured false green,
+  not this arm's load time; no weight ever loaded. Job stopped by task id, `.34` re-censused to the foreign
+  container alone; the 41.50 GB pinned snapshot (`b2b5ee9…`) and the pinned omni image stay resident on `.34`
+  as evidence-in-waiting, not litter. `.35` carries the sglang re-pin serve (112 GB resident), `.30`–`.33` are
+  the TP=4 block. Unblocker: **one node with no foreign listener on the recipe port** — retry the same recipe
+  file (bump boots pass the file path, never `@littlecedar/…`), assert `/v1/models` names drama-3, run the
+  cells, `docker cp /tmp/sparkrun_serve.log`, stop by task id, re-assert 0 containers. *(effort: medium)*
+
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
 - [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window, and the arm64 self-hosted runner for the weekly CI report (`vars.ARM64_RUNNER_ENABLED`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
