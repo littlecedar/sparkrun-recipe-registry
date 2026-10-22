@@ -346,6 +346,15 @@ answered keeps its answer, so the question is not re-opened.
 - Update the root `README.md` (index + emoji flag table: ✨ official, 🌲 lcg_favorite, 🚀 fast, 🚚
   large_context, …) when adding a shipped recipe, and the lane's `README.md`, keeping design and
   research prose in `attic/<lane>/`.
+- **Non-commercial weights ship as eval-only arms.** An arm whose weights carry a non-commercial or
+  otherwise restricted license may land in `recipes/`, presented as **eval-only** rather than as a
+  production default. Two things are then mandatory: the license banner in the recipe itself (the `#`
+  block drama-3 and the Qwen-Image script arm carry) and an explicit non-commercial note where an
+  operator reads it (the recipe's `description:` and the lane `README.md`). The precedent is
+  `fishaudio/drama-3` and the Qwen Research License image arm; the ruling that opened the class is
+  `mad-science/QUESTIONS.md` `#11` (owner, 2026-10-22), so a *new* license class still goes to that
+  register first — this paragraph permits eval-only shipping, it does not decide whether a given
+  license allows it.
 
 ### Recipe comments
 

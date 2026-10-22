@@ -54,8 +54,11 @@ govern, per the protocol; the verbatim asks remain in git.)*
 - **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
   if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
   **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37), both from the
-  **same boot**; (2) throughput is **non-decreasing from C5 to C10 at ten slots** — a plateau passes, a
-  decline is a capacity failure, which is all "without degrading too much" means here; (3) output
+  **same boot**; (2) throughput **does not sag below the C10 bar at ten slots** — *amended 2026-10-22 by
+  the owner (`QUESTIONS.md` `#1`): a **genuine peak at five streams is acceptable** when the ten-slot C10
+  clears the absolute bar, so this leg **no longer requires C10 ≥ C5**; a plateau passes, and a C10
+  **below 116.27** is still a capacity failure, which is all "without degrading too much" means here;*
+  (3) output
   quality is **high** — house battery **≥ 36/37** at 4096 thinking-on, **i.e. at least the baseline's
   own score** (37/37 preferred, not required), no fact-error regressions.* **Being bigger is not an
   argument; missing any leg disqualifies.** The `E` column is **reported, not gated**:
@@ -67,7 +70,7 @@ govern, per the protocol; the verbatim asks remain in git.)*
 
   | candidate | C1 | C10 | ratio | E (diagnostic) | house ≥36/37 | verdict |
   |---|---|---|---|---|---|---|
-  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **110.52 ± 1.77** (ten slots, `~/benchmarks/mellum-c10-20261022/REPORT.md`) | **185.96 ± 2.31** | 1.68× | **0.168** (measured) | **36/37** thinking-on @4096 (`needle-1` empty reply, 1 of 3) | **passes C1 (+59 %) and C10 (+60 %), house at the bar; FAILS the C5→C10 leg — c5 208.29 ± 5.67 → c10 185.96, −10.7 %** |
+  | Mellum2.1-12B-A2.5B-Q4_K_M (llama.cpp, ~8 GB) | **110.52 ± 1.77** (ten slots, `~/benchmarks/mellum-c10-20261022/REPORT.md`) | **185.96 ± 2.31** | 1.68× | **0.168** (measured) | **36/37** thinking-on @4096 (`needle-1` empty reply, 1 of 3) | **passes C1 (+59 %) and C10 (+60 %), house at the bar; the C5→C10 decline (c5 208.29 ± 5.67 → c10 185.96, −10.7 %) is an accepted genuine five-stream peak under the amended leg (2), so this is the SELECTED single-node easy-traffic arm (`QUESTIONS.md` `#1`)** |
   | Spark-X2.6-4B FP8 | 40.80 ± 0.09 | 217.58 ± 2.72 | 5.3× | **0.533** | **37/37** (111/111 stable, rerun at 4096) | **fails C1** |
   | Ornith-1.5-122B — UD-Q3_K_XL (llama.cpp, 59.76 GB) | **27.94 ± 0.07** (measured, `~/benchmarks/ornith-122b-20261022/`) | ran 5 rounds, **JSON unflushed → not evidence** | — | — (C5 < C2 already) | unmeasured | **fails C1**; C2 42.75 ± 0.48 / C5 43.20 ± 4.50 means C5 < C2, i.e. batching-poor at 8 slots |
   | Ornith-1.5-122B — vendor NVFP4 (vLLM, 77.63 GB) | **27.11 ± 0.38** (measured 2026-10-22, `~/benchmarks/ornith-nvfp4-20261022/`) | **73.91 ± 0.70** | 2.73× | **0.273** | **37/37** @4096 thinking-on | **fails C1 (39 % of bar) and C10 (64 %); C5 60.37 → C10 73.91 monotone, 10 slots** |
@@ -80,17 +83,21 @@ govern, per the protocol; the verbatim asks remain in git.)*
   Spark, not the stack; the tiers separate only under batching (NVFP4 monotone 60.37 → 73.91; GGUF
   regresses at C5), and closing the gap needs ~2.6× C1, i.e. fan-out, not tuning.
 
-  **Consequence, measured (2026-10-22): Mellum is the only arm that has now run the whole gate, and it
-  clears the two absolute bars by ~60 % at ~8 GB resident while failing only the C5→C10 leg** — C1
+  **Consequence, measured (2026-10-22): Mellum is the only arm that has now run the whole gate: it
+  clears the two absolute bars by ~60 % at ~8 GB resident, and the one leg it missed is now accepted by
+  the owner's amendment below** — C1
   110.52 ± 1.77, C10 185.96 ± 2.31, house 36/37 at 4096 thinking-on, geometry verified at ten real
   slots (`n_slots = 10, n_ctx_slot = 131072, kv_unified = true`). The dip below c5 is **not** the old
   8-slot queue artifact: with the queue removed the aggregate still falls (208.29 → 185.96, −10.7 %),
   per-stream decode 41.7 → 18.6 t/s, so this arm's throughput peak is genuinely five streams, and the
   ten-slot c10 is 39.6 t/s above the 8-slot figure (146.39). The 100B+ candidates remain where they
   were — one hard C1 failure (Q3_K_XL 27.94) and one tier still unmeasured (NVFP4).
-  **Leg (2) is still open: filed as `QUESTIONS.md` `#1`** — whether an arm whose c10 clears the
-  absolute bar by 60 % is disqualified merely because its c5 is higher. Owner call; the row carries
-  the ask and its provenance.
+  **Leg (2) is settled: `QUESTIONS.md` `#1`, answered 2026-10-22** — a genuine five-stream peak is
+  acceptable when the ten-slot C10 clears the absolute bar, so **Mellum2.1 is the selected single-node
+  easy-traffic arm** and the gate's verdict is now its absolute bars (C1 **110.52 ± 1.77** vs 69.28,
+  C10 **185.96 ± 2.31** vs 116.27, house **36/37** at 4096 thinking-on, ten real slots). Every later
+  candidate is judged the same way: a C10 below 116.27 still fails, a higher C5 no longer rescues it or
+  disqualifies it.
 
 - **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
   `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at
@@ -302,10 +309,24 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
   baseline these A/B plans assume". *(effort: medium)*
 
-  *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
-  serves the TP=4 queue.)*
-  *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
-  then the four-node suite legs; the block is resumable, so a pause is never a loss.)*
+  *(Owner decision 2026-10-22 — **the fence holds** (`QUESTIONS.md` `#4`): no workload runs on `.30`–`.33`
+  until the owner stands the production serve down, so the ds4 TP=4 candidates are queued, not runnable.
+  Superseded: an earlier note here read "production stays stopped, the quartet serves the TP=4 queue" —
+  production is **up**, on those ranks, since 04:49 ET.)*
+  *(Owner decision 2026-10-22: the 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates, then the
+  four-node suite legs — is the intended order **once the serve is stood down**, and it is resumable, so
+  a pause is never a loss. W6 (blocked at the engine) and W12 (served, TP=2 on `.31`/`.32`) both landed
+  on those ranks **before** this ruling, so under the fence the only remaining item is the ds4 TP=4
+  candidates plus the four-node suite legs.)*
+
+- [ ] **Try a larger 1M prefill chunk than the shipped 8192** — **blocked behind the fence** (`#4`),
+  and its own question is `QUESTIONS.md` `#2`: needs four ranks, so it waits for the owner to stand
+  the production serve down. The 1M penalty is chunk-launch-bound, not hardware-bound — effective
+  **1684/1593/1816/1760/1837** t/s (mean 1738, 1.67× vs c1), **0.02 EFLOP** ⇒ not compute-bound,
+  **~15 GB/s/rank** of ~273 ⇒ not bandwidth-bound, prefill CUDA graphs disabled ⇒ **122 eager chunk
+  launches** at 1M — so the chunk size is the only lever left. One boot, `chunked_prefill` 16384 against
+  the shipped 8192, interleaved needle on the same serve; quote cold first-chunk throughput, not the
+  TTFT-derived ladder row. *(effort: short)*
 
 - [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
   `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
@@ -542,17 +563,23 @@ per the 2026-10-19 directive they run against the **offsite API endpoint**, batc
 owner switch. *(Owner decision 2026-10-19: that switch happens **after** the `.34`/`.35`
 single-node tail closes, not now — the tail's estimates assume local boots through then.)* )*
 
-  *(Owner decision 2026-10-22: keep the quartet on measurement duty — production stays stopped, the quartet
-  serves the TP=4 queue. The offsite framing in the notes above is obsolete: there is no offsite endpoint,
-  and the block runs locally on `.30`–`.33`.)*
+  *(Owner decision 2026-10-22 — **the fence holds** (`QUESTIONS.md` `#4`): no workload runs on `.30`–`.33`
+  until the owner stands the production serve down, and the quartet is therefore **not** on measurement
+  duty. Superseded: an earlier note here read "production stays stopped, the quartet serves the TP=4
+  queue" — production is up on those ranks. The offsite framing in the notes above stays obsolete: there
+  is no offsite endpoint, and the block would run locally on `.30`–`.33` once the fence lifts.)*
   *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
-  then the four-node suite legs; the block is resumable, so a pause is never a loss.)*
-
+  then the four-node suite legs; the block is resumable, so a pause is never a loss. That order is an
+  intent, not a permission: every remaining item in it needs four ranks, so it starts only when the fence
+  lifts.)*
   *(progress 2026-10-22 01:55 ET — **TP=4 W6 is blocked at the engine, not the arm and not memory.** The boot loaded 41/41 shards on four ranks and died in `modelopt_quant.py:2624` (gated-activation MoE padding) on every rank, so TP=4 is an engine limit on this build. `e8d34fc`; `attic/qwen4/AGENTS.md`.)*
   *(progress 2026-10-22 03:44 ET — **the v0.5.22 follow-up closes it as a checkpoint limit, not a build defect.** One boot of the same arm on `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` (task `08acf79cd757a666_7afff0589a33`, quartet `.30`/`.31`/`.32`/`.33`) loaded 41 shards and asserted identically on **all four ranks**: `modelopt_quant.py:2942` (`:2624` on v0.5.20 — same message, `The intermediate size required padding, but padding is also implemented for gated activations`). So TP=4 stays closed for this NVFP4 export on both builds; do not re-try another nightly expecting a different answer. By-products: the relay reports the pinned image `already verified on all 4 receiver(s)` and the model distributes in 18.3 s from a node-local HF cache (the 2-5 MiB/s leg only exists cold). Receipt `~/benchmarks/tp4-20261022/w6-tp4-v0522/REPORT.md` §Verdict, MANIFEST row.)*
   *(progress 2026-10-22 03:31 ET — **W12 served**, so the cross-runtime column has its vLLM number. TP=2 on `.31`/`.32` (`6a76d7f90a79f4f4_6eb961eae222`), `RadixArk/Qwen3.8-Flash-Next-NVFP4` @ `7b71922`, b12x `cf5a2a53`, `max_model_len` 262144 accepted, KV 1,757,475 tokens (6.70x). Decode 42.8/51.2/40.1 t/s over three 256-token samples at temp 0 (median 42.8). Two engine-side traps recorded: the restored PLE mod cannot run in-container (`docker` absent) and is inert on this image anyway (its PLE layer is `qwen4_exp/nvidia`, b12x-aware, no `Fp8Config` guard — vLLM flags `VLLM_PLE_FP8_CHECKPOINT` as unknown), and `load_format: instanttensor` dies at `weight_utils.py:1679` because the image's instanttensor has no `_determine_buffer_size` (TP=1 never takes that path, TP>1 always does) — the arm now loads safetensors. Cold boot to first 200: ~19 min, mostly b12x autotune. Receipt `~/benchmarks/tp4-20261022/w12-vllm-b12x/REPORT.md`.)*
 
 - [ ] **Finish the TP=4 block after W6** — W12's cross-runtime vLLM same-checkpoint bench is **done** (42.8/51.2/40.1 t/s at TP=2, `max_model_len` 262144, KV 1.76M tok; see the 03:31 progress note), so next are the ds4 TP=4 upgrade candidates, then the four-node suite legs. The knapcio four-node arm already closed the two accuracy cells the 2026-10-18 suite left open: **ARC 93.5 % / GSM8K 97.5 %** (n=200 each, seed 1234). Evidence: `recipes/qwen4/README.md`, `recipes/ds4/README.md`, `attic/qwen4/AGENTS.md`, `~/benchmarks/tp4-20261018/`. *(effort: long; resumable — Owner decision 2026-10-22: run the full block, a pause is never a loss)*
+  *(**Held by the fence** — `QUESTIONS.md` `#4`, answered 2026-10-22: the ds4 TP=4 candidates and the
+  four-node suite legs need `.30`–`.33` and do not run until the owner stands the production serve down.
+  Blocked, not cancelled.)*
 
 - [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
   *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
@@ -2609,7 +2636,18 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   takes `.30:25000` unchanged in behaviour. Gate after the change: **752 tests OK** (2 skipped), **51/51**
   plain validate, `bash -n` clean. **History:** the earliest commit that already carried a literal is
   `ee973cd` (2026-09-18, "Close labquant blocker (e)…", first `10.0.4.`); the CX7 subnet form enters at
-  `c441141` (2026-10-02, ds4 knapcio). Both are published; rewriting them needs a force-push, which is
-  **not** done — the exposure record ends here unless the owner elects a rewrite.)*
+  `c441141` (2026-10-02, ds4 knapcio). Both are published; rewriting them needs a force-push, which was
+  **not** done at the time — the owner elected the rewrite on 2026-10-22 (`QUESTIONS.md` `#16`), so it
+  continues as the `history-purge` item below.)*
+
+- [ ] **`history-purge` — rewrite git history to remove the cluster-internal addresses** —
+  **authorized 2026-10-22** (`mad-science/QUESTIONS.md` `#16`) and **not started**. Scope is the 221
+  patch-body lines and 8 commit-message lines the 2026-10-20 audit counted (the item above carries the
+  audit and the earliest offending commits); the working tree is already masked, so this is history
+  only. Rewrite and **force-push** are both authorized — a rewritten history is accepted as the cost.
+  Do it with `git filter-repo --replace-text` over one substitution file built from the same masking map
+  the tree sweep used, then verify with the audit's own scanner over `git log -p --all` and
+  `git log --all --format='%h %s%n%b'` (0 hits), and re-pull the suite/validate gate on the rewritten
+  tip. *(effort: medium)*
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
