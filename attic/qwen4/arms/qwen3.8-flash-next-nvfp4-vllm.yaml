@@ -56,7 +56,10 @@ defaults:
   max_num_seqs: 12
   dtype: bfloat16
   moe_backend: b12x
-  load_format: instanttensor
+  # instanttensor at TP=2 dies in _restrict_instanttensor_to_selected_ranges: this image's
+  # instanttensor exposes no _determine_buffer_size (WeightUtils:1679), so the index-aware shard
+  # path cannot run. safetensors is the same weights through the plain loader.
+  load_format: safetensors
   quantization: modelopt
   speculative_tokens: 3
 
