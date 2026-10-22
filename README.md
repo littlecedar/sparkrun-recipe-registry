@@ -36,6 +36,7 @@ This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from
   - [IFM K2-Horizon](#ifm-k2-horizon)
   - [GLM 5.3](#glm-53)
   - [Decision](#decision)
+  - [Media](#media)
   - [Explore](#explore)
   - [Cybersec](#cybersec)
 - [CI](#ci)
@@ -218,11 +219,33 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | sol-2b-decision-vllm-srun   | 🤏🖥🚮   |      55% |        — |        — |        — |         — |  4.8GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B]   |
 | nox-4b-decision-vllm-srun   | 🤏🖥🚮   |    67.8% |    0.044 |    0.044 |        — |         — |  9.7GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Nox-4B]   |
 | sol-2b-decision2-gguf-llamacpp | 🤏🚮  |    55.0% |     5.2 |      5.4 |      5.4 |       5.4 |  2.0GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B-GGUF] |
-| kokoro-82m-tts-cpu          | 🤏🖥     |        — |        — |        — |        — |         — | 0.31GB |    — | /v1/audio/speech |  1 | [Model][hexgrad/Kokoro-82M]            |
 
 * _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs)._
 * _The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
-* _The **Kokoro** row is the lane's fourth co-tenant and its first TTS arm: no accuracy score (the instrument has no TTS pass) and no ladder (single-request server). 0.31GB is the ONNX weight set — the process costs **1.55 GiB** measured RSS, which is what the co-location budget counts. Boot-verified 2026-10-19 on `.34`: HTTP-ready 14.4 s, RTF 0.588-0.601 (1.66-1.70x realtime) on the A725 set; `recipes/decision/README.md` §kokoro-82m-tts-cpu._
+
+## Media
+
+Generation and tooling arms — speech synthesis, speaker diarization, image and video generation, and a
+text rewriter — split out of Explore and Decision on 2026-10-22 (lane doc and why-notes:
+[`recipes/media/README.md`](recipes/media/README.md)). None is a chat arm, so the t/s ladder does not
+apply: the rate column is the arm's own task rate and every `—` cell is by design, not a missing
+measurement.
+
+| Recipe                                        | Flags  | Task rate                            |  Size  | Mem% |             API | TP | Model Cards                            |
+|:----------------------------------------------|:-------|:-------------------------------------|-------:|-----:|----------------:|---:|:---------------------------------------|
+| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜1  | 0.088 img/s (11.3–11.4 s @1024²)     | 32.5GB | 29%\* |   POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo]     |
+| ltx-2.5-22b-nvfp4-t2v-comfyui-script          | 🎥1    | 78.1 s/clip warm (100.13 s cold)     | 36.9GB | 69%\* |   POST /generate |  1 | [Model][Lightricks/LTX-2.5]            |
+| drama-3-35b-a3b-fp8-vllm-omni-tts             | 👄🎼📜1 | RTF 0.848 @ 4.6 s audio              | 36.9GB |    — | /v1/audio/speech |  1 | [Model][fishaudio/drama-3]             |
+| kokoro-82m-tts-cpu                            | 🤏🖥👄  | RTF 0.588–0.601 (1.66–1.70x realtime) | 0.31GB |    — | /v1/audio/speech |  1 | [Model][hexgrad/Kokoro-82M]            |
+| humanizer-12b-q6k-llamacpp                    | ✍️      | C1 17.92 t/s (`/v1/completions`)     | 10.03GB |   — |   /v1/completions |  1 | [Model][jialinyyzz/humanizer-GGUF]     |
+
+* _`*` no recipe util — qwen-image is peak reserved memory (37.68 GiB of 128 GB); LTX is `MemTotal − MemAvailable` of the unified pool at 84.0 GiB of 121, not a reserved figure._
+* _`📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); drama-3 is revenue-gated (Fish Audio Community License, commercial use only below USD 500k/yr)._
+* _The **LTX-2.5** row is its first boot (2026-10-21, `.35`, clock-capped at 2200 MHz): 1344×768 / 121 frames / 24 fps warm **78.1 s/clip** (cold, model load in, 100.13 s), peak **84.0 GiB** of 121 = the `69%` cell. Output ffprobe: h264 1344×768, 121 frames, 24 fps, 5.0417 s + AAC stereo 5.010 s. The repo is `gated: auto` — the mod fails closed without a per-node `HF_TOKEN`, and the license is `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity). Receipt `~/benchmarks/ltx25-recipe-20261021/`; lane section [`recipes/media/README.md`](recipes/media/README.md#ltx-25-22b-nvfp4-t2v-comfyui-script)._
+* _The **drama-3** row is its first measured boot (2026-10-22, `.34`, two boots): warm RTF **0.848 ± 0.015** at ~4.6 s of audio and **0.813** at 28.7 s, streaming TTFA **0.646 s**, 44.1 kHz mono 16-bit out, TTR 437.0 s cold / 417.0 s warm. **Pass a `seed`**: seeded takes are byte-identical (10/10) and length scales with input, while unseeded one 13-word sentence returns 4.2–7.7 s (σ 0.93, n=10). Intelligibility is unmeasured — the owner's ears decide it, and `zz-pyannote` covers who-spoke-when only. Receipt `~/benchmarks/drama-20261022/`; lane section [`recipes/media/README.md`](recipes/media/README.md#drama-3-35b-a3b-fp8-vllm-omni-tts)._
+* _The **Kokoro** row: no accuracy score (the instrument has no TTS pass) and no ladder (single-request server). 0.31GB is the ONNX weight set — the process costs **1.55 GiB** measured RSS, which is what a co-location budget counts. Boot-verified 2026-10-19 on `.34`: HTTP-ready 14.4 s, RTF 0.588-0.601 on the A725 set; `recipes/media/README.md` §kokoro-82m-tts-cpu._
+* _The **humanizer-12b** row is the lane's only non-chat arm (`✍️` text rewriting, off-brief for the four axes): no C2/C5/C10 (single-request rewriter) and no accuracy battery — its quality cell is a **rewrite-fidelity** score instead, 0 genuine fact errors across the archived bf16 arm's own 40-rewrite instrument vs that baseline's 1. C1 17.92 ± 0.04 @ d0 pp999 tg128, n=5 decode rows, `--skip-run` on the boot (`bench_5575691dd5bc`); the 7.63 GB Q4_K_M tier is 3.05× faster (23.18) and **measured-rejected** (2 fact errors). Receipts `~/benchmarks/humanizer-20261022-q6k/`; lane section [`recipes/media/README.md`](recipes/media/README.md#humanizer-12b-q6k-llamacpp)._
+* _Not indexed yet: `zz-minimax-h3` (t2va, never booted), `zz-pyannote-community-1` (the drama intelligibility instrument, never booted) and `zz-qwen-image-…-4step` (a probe of the shipped Qwen-Image arm's `sigmas` path). No row is given to an arm with no receipt._
 
 ## Explore
 
@@ -232,12 +255,8 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | kolibri-1-apex-24bpw-llamacpp                 | 🚀🧠🔧   |       63.24 |  113.4 |   98.3 |    78.6 |               22.7GB |     — | /v1/chat/completions |  1 | [Model][Myric/Kolibri-1-APEX-GGUF]                                                                                                                                                                                                                                       |
 | poolside-laguna-xs-2.1-nvfp4-dflash-vllm      | ✨🚀🧠🔧   |        55.3 |   83.1 |  133.7 |   141.3 | 21.6GB + 0.9GB draft |   55% | /v1/chat/completions |  1 | [Model][poolside/Laguna-XS-2.1-NVFP4] [Draft][poolside/Laguna-XS-2.1-DFlash]                                                                                                                                                                                             |
 | nemotron-3.5-lightning-30b-a3b-nvfp4-vllm      | ✨🚀🧠🔧   |       63.27 |   90.8 |  122.3 |   144.2 |               20.1GB |   85% | /v1/chat/completions |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] |
-| qwen-image-2.1-turbo-7b-bf16-diffusers-script | 🐢📜    | 0.088 img/s |      — |      — |       — |               32.5GB | 29%\* |       POST /generate |  1 | [Model][Qwen/Qwen-Image-2.1-Turbo]                                                                                                                                                                                                                                       |
-| ltx-2.5-22b-nvfp4-t2v-comfyui-script          | 🎥 1    | 78.1 s/clip |      — |      — |       — |              36.9GB  | 69%\* |       POST /generate |  1 | [Model][Lightricks/LTX-2.5]                                                                                                                                                                                                                                              |
 | mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🚀🧠🔧   |       111.9 |  151.1 |  208.0 |   146.4 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF]                                                                                                                                                                                                                     |
-| humanizer-12b-q6k-llamacpp                    | ✍️      |       17.92 |      — |      — |       — |              10.03GB |     — |    /v1/completions |  1 | [Model][jialinyyzz/humanizer-GGUF]                                                                                                                                                                                                                                       |
 
-* _`*` no recipe util — peak reserved memory, 37.68 GiB of 128 GB._
 * _The **Nemotron-3.5-Lightning** row is its first boot (2026-10-21, `.35`, manual docker, no new image):
   TTR ≈ 6 min in, 20.10 GiB of NVFP4 weights, `max_model_len 32768`, KV 10,703,667 tokens = 326.65×, C1 63.27 ± 0.65
   at d0 pp2048/tg128. House **37/37** — the first pass at `--max-tokens 1024` read 36/37 because the greedy `big-1`
@@ -245,13 +264,10 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
   ≥1536 completion tokens for any thinking arm on this instrument. Tool calling passes
   (`get_weather` with populated arguments). Receipt `~/benchmarks/reasoning-candidates-20261021/`; lane section
   [`recipes/explore/README.md`](recipes/explore/README.md#nemotron-35-lightning-30b-a3b-nvfp4-vllm)._
-* _`📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner)._
-* _The **LTX-2.5** row is its first boot (2026-10-21, `.35`, clock-capped at 2200 MHz): 1344×768 / 121 frames / 24 fps warm **78.1 s/clip** (cold, model load in, 100.13 s), peak **84.0 GiB** of 121 = the `69%` cell, measured as `MemTotal − MemAvailable` of the unified pool, not a reserved-memory figure. Output ffprobe: h264 1344×768, 121 frames, 24 fps, 5.0417 s + AAC stereo 5.010 s. The repo is `gated: auto` — the mod fails closed without a per-node `HF_TOKEN`, and the license is `ltx-2.x-community-license-agreement` (free below a $10M-revenue Commercial Entity). Receipt `~/benchmarks/ltx25-recipe-20261021/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#ltx-25-22b-nvfp4-t2v-comfyui-script)._
-* _**2026-10-19 selection:** five measured arms remain — accuracy leader (ling), smallest 262k with measured headroom (APEX-24bpw), best 262k aggregate at c10 (Laguna-XS), fastest/smallest GGUF (Mellum Q4_K_M), and the media-gen arm (Qwen-Image); **the 2026-10-21 Lightning boot adds a sixth kept arm** (fastest single-node C1 in the lane at 20.1 GiB), and **the 2026-10-22 humanizer Q6_K boot adds a seventh** (the lane's only text rewriter — kept as a measured capability, not an axis candidate). Ten measured arms were retired to [`attic/explore/`](attic/explore/) with one receipt per arm in [`ARMS-MANIFEST.md`](attic/explore/ARMS-MANIFEST.md); the full 18-row decision table is in [`recipes/explore/README.md`](recipes/explore/README.md#selection-2026-10-19)._
 * _The two llama.cpp rows render no util, so their Mem% is `—`: llama.cpp sizes its own pool from `--ctx-size`/`--parallel`. **The Mellum row's bfcl cell is the 4096-budget leg** (`--bfcl-max-tokens 4096`, `~/benchmarks/mellum-gguf-tools4096-20261017/`): at the pre-`3ac9581` 512 default the same arm scored 73.5 %, with 179 of the two parallel categories' 400 questions cut to no call at all; at 4096 only six are cut and the residual loss there is multi-call shape, not budget._
-* _The **humanizer-12b** row is the lane's only non-chat arm (`✍️` text rewriting, off-brief for the four axes): no C2/C5/C10 (single-request rewriter) and no accuracy battery — its quality cell is a **rewrite-fidelity** score instead, 0 genuine fact errors across the archived bf16 arm's own 40-rewrite instrument vs that baseline's 1. C1 17.92 ± 0.04 @ d0 pp999 tg128, n=5 decode rows, `--skip-run` on the boot (`bench_5575691dd5bc`); the 7.63 GB Q4_K_M tier is 3.05× faster (23.18) and **measured-rejected** (2 fact errors). Receipts `~/benchmarks/humanizer-20261022-q6k/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#humanizer-12b-q6k-llamacpp)._
 * _The **ling** row's C2/C5/C10 are the 2026-10-18 ladder @ d0 pp2048 tg128 n=5, decode rows only (`bench_7c46291e9bbb`, `~/benchmarks/ladders-solo-20261018/`), whose same-boot C1 is 49.7 ± 6.0 — inside the C1 σ the row quotes. Ling's 262k needle cell is 2/3: two instrument artifacts (the suite's 900 s per-request cap, needle-haystack's 64-token default) plus one genuine depth-90 miss, so it supersedes the earlier 262k PASS._
 * _The **APEX-24bpw** row is one boot, decode rows only (`is_context_prefill_phase: false`): ladder `bench_d165fa4b0bea` + triage `bench_a0ecb791dfe6` in `~/benchmarks/kolibri-gguf-20261018/`, whose same-boot C1s are 63.83 / 63.24._
+* _**2026-10-19 selection:** five measured chat arms remain — accuracy leader (ling), smallest 262k with measured headroom (APEX-24bpw), best 262k aggregate at c10 (Laguna-XS), fastest/smallest GGUF (Mellum Q4_K_M), and the 2026-10-21 Lightning boot (fastest single-node C1 in the lane at 20.1 GiB). Ten measured arms were retired to [`attic/explore/`](attic/explore/) with one receipt per arm in [`ARMS-MANIFEST.md`](attic/explore/ARMS-MANIFEST.md); the media-gen, TTS and text-rewriter arms moved to the [Media](#media) lane on 2026-10-22; the lane's full 17-row decision table is in [`recipes/explore/README.md`](recipes/explore/README.md#selection-2026-10-19)._
 * _A **Kolibri-1 1M constant-state** arm was measured 2026-10-18 (`~/benchmarks/kolibri-state-20261018/`) and gets **no row**: it is not a recipe. That release is PolyForm-Noncommercial-1.0.0, so the arm was eval-only — nothing entered `recipes/` or `mods/`. Result: a 999,155-token needle passes in 829.7 s with GPU KV at 0.2 % of a 10.63 M-token pool (the plugin patches FlashInfer fp8 KV on SM121 cleanly), but the real per-request cost is a **10.44 GiB host archive per 1M request** — ~54× the release's billed 0.208 GB — so concurrency at 1M is 1._
 
 ## Cybersec
@@ -345,6 +361,8 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [Lightricks/LTX-2.5]: https://huggingface.co/Lightricks/LTX-2.5
 [JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF]: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
 [jialinyyzz/humanizer-GGUF]: https://huggingface.co/jialinyyzz/humanizer-GGUF
+[fishaudio/drama-3]: https://huggingface.co/fishaudio/drama-3
+[hexgrad/Kokoro-82M]: https://huggingface.co/hexgrad/Kokoro-82M
 [ornith-ai/Ornith-1.5-9B-NVFP4]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4
 [ornith-ai/Ornith-1.5-9B-DFlash]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit

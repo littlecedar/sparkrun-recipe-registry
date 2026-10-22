@@ -12,7 +12,7 @@ silent when broken:
      the serve line (sparkrun's detached-launch liveness check runs
      `docker exec <c> kill -0`; the python:*-slim base has no /bin/kill, so
      without the shim a healthy serve is declared failed).
-  N  laya / kev / kokoro declare `served_model_name: ""` and reference it, so
+  N  laya / kev declare `served_model_name: ""` and reference it, so
      sparkrun appends nothing. A non-empty value makes sparkrun append
      `--served-model-name <id>`, and each of these servers exits in argparse on
      the unknown flag. The key must be empty AND live (referenced), or the
@@ -31,9 +31,9 @@ silent when broken:
 The command-side identity rule is the shared one from
 `tests/test_explore_new_arms.py`: `{model}` (laya / kev), a hardcoded prepared
 snapshot path (JEV-27B, per recipes/MECHANICS.md's vLLM template rule), or the
-vllm-srun repo-id + `--revision=` pair (Nox / d3-edge). Kokoro-82M has no such
-form: its model set is baked into the digest-pinned image, so the arm's
-identity is the image digest itself and is asserted as that.
+vllm-srun repo-id + `--revision=` pair (Nox / d3-edge). Kokoro-82M moved to the
+media lane on 2026-10-22; its identity is the digest-pinned image itself and is
+guarded by `tests/test_media_recipes.py`.
 No PyYAML: the recipes are parsed as text by the parser the lane guards use, and
 an empty parse RAISES rather than passing vacuously.
 
@@ -66,16 +66,14 @@ ARMS = (
     "laya-decision-serve.yaml",
     "kev-0.8b-decision-serve.yaml",
     "jev-27b-decision-vllm.yaml",
-    "kokoro-82m-tts-cpu.yaml",
 )
 SRUN_ARMS = ("nox-4b-decision-vllm-srun.yaml", "d3-edge-decision-vllm-srun.yaml")
 SHIPPED_SRUN = ("kai-0.6b-decision-vllm-srun.yaml",
                 "sol-2b-decision-vllm-srun.yaml")
 SUPPRESS_ARMS = ("laya-decision-serve.yaml",
-                 "kev-0.8b-decision-serve.yaml",
-                 "kokoro-82m-tts-cpu.yaml")
+                 "kev-0.8b-decision-serve.yaml")
 JEV = "jev-27b-decision-vllm.yaml"
-KOKORO = "kokoro-82m-tts-cpu.yaml"
+
 CPU_ARMS = tuple(n for n in ARMS if n != JEV)
 
 # A stand-in for the prepared snapshot path sparkrun substitutes for {model}.
@@ -212,7 +210,7 @@ def gpu_violations(r: dict) -> list[str]:
 
 
 class LaneArms(unittest.TestCase):
-    def test_lane_has_the_six_arms(self):
+    def test_lane_has_the_five_arms(self):
         for name in ARMS:
             self.assertTrue((DECISION / name).is_file(), name)
 
@@ -246,10 +244,8 @@ class ContentIdentity(unittest.TestCase):
             with self.subTest(arm=name):
                 self.assertEqual(unconsumed(arm(name)), [])
 
-    def test_command_consumes_the_pinned_model(self):
+    def test_command_consumes_the_pinned_model_all_arms(self):
         for name in ARMS:
-            if name == KOKORO:
-                continue  # the model set is baked into the image; see below
             with self.subTest(arm=name):
                 self.assertEqual(model_consumption_violations(arm(name)), [])
 
@@ -257,18 +253,6 @@ class ContentIdentity(unittest.TestCase):
         for name in ARMS:
             with self.subTest(arm=name):
                 self.assertEqual(foreign_repo_violations(arm(name)), [])
-
-    def test_kokoro_identity_is_the_baked_image(self):
-        r = arm(KOKORO)
-        self.assertNotIn("{model}", r["command"])
-        self.assertIn("/kokoro-fastapi-cpu@sha256:", r["top"]["container"])
-
-    def test_kokoro_declares_no_model_to_distribute(self):
-        # The exemption from the launch contract below is the declaration, not
-        # silence: with model distribution on, sparkrun prepares the snapshot,
-        # binds it, and then rejects a command that cannot name it.
-        self.assertRegex(arm(KOKORO)["stripped"],
-                         r"(?m)^distribution_config:\n  models:\n    enabled: false$")
 
 
 class VllmSrunShim(unittest.TestCase):
