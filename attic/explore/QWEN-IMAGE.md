@@ -241,9 +241,12 @@ call"* — and it applies to both routes, so the shipped Diffusers arm is not va
 - **No recipe was written.** Shipping it would need a script/burst recipe plus a decision about the inert
   step knob; that is the lane owner's call, not this measurement's.
 
-Both 8-step PNGs are named by route in the receipt for that eye:
-`~/benchmarks/media-gen-20261021/eight-step-diffusers.png` (`e24f6e3aa694fbcc566367fb9590f5f4f9fbaa483c65f594594aa4a2724ee24a`)
-and `~/benchmarks/media-gen-20261021/eight-step-omni.png` (`38ce554a1ccb4e85789f590121bc545fb7ae69bc3d7f9fb4b75f86db45704690`);
+Both 8-step PNGs are named by route and kept **in the tree** for that eye:
+[`mad-science/eight-step-diffusers.png`](../mad-science/eight-step-diffusers.png)
+(`e24f6e3aa694fbcc566367fb9590f5f4f9fbaa483c65f594594aa4a2724ee24a`) and
+[`mad-science/eight-step-omni.png`](../mad-science/eight-step-omni.png)
+(`38ce554a1ccb4e85789f590121bc545fb7ae69bc3d7f9fb4b75f86db45704690`), copied byte-for-byte
+from the head receipt's `~/benchmarks/media-gen-20261021/{eight-step-diffusers.png,vllm-omni/omni-warm8-0.png}`;
 the measurement itself is `~/benchmarks/media-gen-20261021/vllm-omni/REPORT.md` + `omni.json`,
 `omni-warm8.json`, `serve.log.gz`.
 
