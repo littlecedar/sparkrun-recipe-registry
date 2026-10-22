@@ -655,38 +655,58 @@ Any model with reasoning and tool-calling capabilities
 
 - [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window, and the arm64 self-hosted runner for the weekly CI report (`vars.ARM64_RUNNER_ENABLED`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
 
-- [ ] **Probe `RecursiveSI/flint` — a 39.8B-A2.5B agentic-coding MoE — for a GB10 arm** — new release
-  (org `RecursiveSI`, model updated 2026-10-21, Apache-2.0, 306 likes): `FlintForCausalLM` /
-  `model_type: flint`, i.e. a **custom architecture**; 49 layers (2 dense then 47 MoE), 256 routed experts
-  with 6 selected per token plus an always-active shared expert, 32 query / 4 KV heads at head_dim 128,
-  35 sliding-window layers (513-token window) and 14 full-attention layers (no positional encoding on the
-  full-attention ones), vocab 150,144, documented context **262,144**. Card scores, at temperature 1.0 /
-  top-p 0.95 / top-k 20: **54.9 % Terminal-Bench 2.1, 89.7 % SWE-bench Pro v2, 74.2 % SWE-bench
-  Verified**. Repo size **79.59 GB** across 15 BF16 shards; quantized siblings already published —
-  `flint-nvfp4-gguf`, `flint-int4-gguf` (NVIDIA GGUF) and `flint-int4` (MLX). **The card ships an SGLang
-  kit in `sglang/`** (`Dockerfile`, `install.sh`, `flint_sglang-0.1.4-py3-none-any.whl`,
-  `fa4-learned-sink-fix.patch`, `serve_{b300,h200,node_8x}.sh`) and states it runs on one **B300 or
-  H200** per replica, with "Transformers modeling code not included yet" — so **engine support is the
-  gate, not memory**. First step is offline and cheap: read `sglang/README.md`, the kit `Dockerfile` and
-  the wheel's SGLang pin, and decide whether `flint` can ride our pinned `lmsysorg/sglang` (v0.5.22) with
-  the kit's FA4 patch or needs a vendored engine image like the GLM / ds4 TensorFold arms; the second
-  question is the serving scripts' target arch (B300/H200 are SM100/SM90, a GB10 is sm_121). Size, if the
-  engine clears: 79.59 GB of BF16 weights alone leaves little room for a 262k KV cache on a 128 GB GB10,
-  so the NVFP4 or int4 sibling is the plausible route. Research only until the engine question is
-  answered — no download, no boot, no receipt yet. *(effort: medium)*
+- [ ] **Probe the `RecursiveSI` org's flagship `flint` — a 39.8B-A2.5B agentic-coding MoE — for a GB10 arm** — new release
+  (org `RecursiveSI`, checked 2026-10-22: **one model family only** — `flint` plus three same-day quantizations, no
+  datasets, no spaces; model updated 2026-10-21T14:24Z, Apache-2.0, **307** likes — a live count, it drifts, so
+  do not freeze a number): `FlintForCausalLM` /
+  `model_type: flint`, i.e. a **custom architecture**; 49 layers (2 dense then 47 MoE — `mlp_only_layers [0,1]`), 256
+  routed experts with 6 selected per token plus an always-active shared expert (`shared_expert_intermediate_size`
+  1024), 32 query / 4 KV heads at head_dim 128, 35 sliding-window layers (513-token window) and 14 full-attention
+  layers — the same 14 are `no_rope_layer_indices`, i.e. no positional encoding (verified set-equal) — vocab
+  150,144, documented context **262,144**. **Vendor claims, not measurements:** the card reports 54.9 %
+  Terminal-Bench 2.1, 89.7 % SWE-bench Pro v2 and 74.2 % SWE-bench Verified at temperature 1.0 / top-p 0.95 /
+  top-k 20, as **pass@1 averaged over ≥5 attempts**, with Terminal-Bench counting web-retrieval solutions as
+  unsuccessful. Weights **79,575,138,056 B = 79.58 GB across 15 BF16 shards** (repo `usedStorage` 79.59 GB is
+  the whole repo, SGLang kit and card included).
+  **Org scope (checked 2026-10-22):** the other three repos are derivations, not probes: `flint-int4` (MLX 4-bit,
+  22.58 GB, 6 likes), `flint-nvfp4-gguf` (single `flint-nvfp4.gguf`, 22.86 GB, 3 likes) and `flint-int4-gguf`
+  (single `flint-int4-q4_1.gguf`, 25.99 GB, 5 likes); all Apache-2.0, ungated, `text-generation`, newest
+  2026-10-21T15:54Z. None is a second architecture or size class and none needs its own item: MLX runs on Apple
+  silicon only, and the two single-file GGUFs are 22.86 / 25.99 GB — *larger* than Unsloth's 3-bit 18.49 GB tier —
+  so they are an accuracy fallback for this arm, not a separate lane candidate. (`NVIDIA/…` and `MLX-Community/…`
+  carry no flint repo; the whole quant family lives under `RecursiveSI/`.) No second family exists to probe.
+  **Engine verdict, folded in as the decisive fact: the SGLang route is blocked, on three independent locks.**
+  The kit targets **SGLang v0.5.16-cu130**, not a range: the wheel (`flint_sglang-0.1.4-py3-none-any.whl`)
+  declares no `Requires-Dist` at all, so the real pin is `sglang/Dockerfile`'s
+  `FROM lmsysorg/sglang@sha256:7b6a35df…` plus `install.sh`'s header. (1) The plugin does
+  `from sglang.srt.server_args import ServerArgs, add_grammar_backend_choices`, and
+  `add_grammar_backend_choices` is present at v0.5.16 but **absent at our pinned v0.5.22** → ImportError at
+  plugin load. (2) `install.sh` sha256-verifies `sglang/jit_kernel/flash_attn/cute/flash_fwd_sm100.py` before
+  *and* after applying `fa4-learned-sink-fix.patch`, so the patch is anchored to that one image's file.
+  (3) The kit's own envelope excludes us: its README requires "One GPU with >=141 GB per replica: B300/B200
+  or H200. 80 GB GPUs are not supported", and `serve_b300.sh` says validated on B300 x86_64 — a GB10 is
+  128 GB unified and sm_121. So the **only plausible route is llama.cpp + Unsloth's GGUF**, plausible tier
+  **UD-Q3_K_XL (18.49 GB)**, gated by **`LLAMA_REF >= a37cc4610`**. That makes the stock-upstream image
+  (`recipes/explore/Dockerfile.llamacpp-upstream`) **the gate for any flint cell, not an optional upgrade**;
+  the Unsloth item below carries the tier list, the vendor t/s claims and the open questions. 79.58 GB of
+  BF16 still leaves no room for a 262k KV cache on one 128 GB GB10, so the BF16 route stays out of scope.
+  Research only — no download, no boot, no receipt yet. *(effort: medium)*
 
 - [ ] **Leverage the Unsloth runtime for GB10 arms, Flint first** — Unsloth publishes pre-quantized
   **Dynamic v3 GGUFs** and documents both an engine path (their llama.cpp build) and a GUI runtime
   (Unsloth Studio / Desktop), which is exactly the gap our llama.cpp route has: our publisher is stalled
   at `b10549-cu131` (2026-08-21) and our pinned engine is `b2e5e9b`. The first target is
-  `unsloth/flint-GGUF` (Apache-2.0, `base_model: RecursiveSI/flint`, repo 283.2 GB) — measured tiers:
+  `unsloth/flint-GGUF` (Apache-2.0, `base_model: RecursiveSI/flint`, repo 283.2 GB) — published tier sizes (Hub
+  tree, 2026-10-22; all nine verified to 2 dp):
   UD-IQ1_M **11.35 GB**, UD-IQ2_XXS 11.86, UD-Q2_K_XL 13.56, UD-IQ3_XXS 14.54, UD-Q3_K_XL **18.49 GB**,
   UD-Q4_K_XL 25.05, UD-Q5_K_XL 29.92, UD-Q6_K_XL 36.32, Q8_0 42.30 — so every tier from Q3_K_XL down
   fits one GB10 with room for KV. Their guide claims the 3-bit tier fits 24 GB setups at 125+ t/s on an
   M4 Pro and 150+ on a 64 GB RTX Spark (their numbers, not ours; the guide is
   `unsloth.ai/docs/models/flint`, quant scheme `unsloth.ai/docs/basics/unsloth-dynamic-v3.0-gguf`, and
   they keep a "DGX Spark and Unsloth" page). **The engine gate is already answerable:** upstream
-  llama.cpp gained `src/models/flint.cpp` in **`a37cc4610` (2026-10-21 21:26Z, PR #30928)**, so
+  llama.cpp gained `src/models/flint.cpp` in **`a37cc4610` (2026-10-21 21:26Z, PR #30928)** — and it is
+  still the **only** commit touching that file at master `e3797b18` (2026-10-22T05:30Z; seven commits
+  since, none mentioning flint), so `≥ a37cc4610` is the whole floor and no follow-up fix has moved it.
   `flint` is upstream-native but *newer* than both our pin and the `9df0b73c` (2026-10-20) ref the
   stock-upstream task queued — that Dockerfile's `LLAMA_REF` must be ≥ `a37cc4610` for any Flint GGUF.
   Open questions to settle before a recipe: whether Unsloth Studio/Desktop exposes an OpenAI-compatible
