@@ -10,10 +10,10 @@ measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm
 whose cells are closed, the LTX-2.5 video+audio arm booted 2026-10-21, and the Nemotron-3.5-Lightning
 30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm here) — plus the
 two-node **Laguna-M.1** ceiling reference, booted 2026-10-20 on `v0.29.0` and not a selection
-candidate (its `v0.32.0` pin is *not* re-booted — see its section). The other **ten** measured arms
-from the 2026-10-14…18 expansions are
+candidate (its `v0.32.0` pin is *not* re-booted — see its section). The
+other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
-[`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 14-row decision table with one
+[`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 16-row decision table with one
 receipt path per arm is [§Selection](#selection-2026-10-19); per-arm measured histories, serving traps
 and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md) and
 [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md).
@@ -28,6 +28,7 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
+- [Humanizer-12B quant round — measured, no recipe](#humanizer-12b-quant-round--measured-no-recipe)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
 - [Attic index](#attic-index)
@@ -38,8 +39,10 @@ and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/
 
 The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
 pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
-needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 15
-measured arms are scored; the verdict column is the selection. Decode rows only
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 16
+measured arms are listed; 15 are scored on these axes, and the humanizer quant row records a measured
+**non-ship** (off-brief, and it missed its own pre-registered fact bar). The verdict column is the
+selection. Decode rows only
 (`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped `max_model_len`; a
 `max_num_seqs` / `parallel` clamp — not the pool — is the in-flight ceiling where one is set.
 
@@ -57,6 +60,7 @@ measured arms are scored; the verdict column is the selection. Decode rows only
 | `nemotron-3.5-lightning-30b-a3b-nvfp4-vllm` | **63.27 ± 0.65** | 63.27 / 90.81 / 122.27 / **144.15** (still rising at c10) | KV 10,703,667 tok = **326.65×** at 32,768; no `max_num_seqs` clamp | **37/37 @2048** · — · — · — · — · — | **20.1 GiB** · util 0.85 (= 0.8263 effective under CUDA-graph profiling) | `~/benchmarks/reasoning-candidates-20261021/` (`house-2048.json`, `ladder.json`, `serve.log`) | **KEEP — fastest single-node C1 at the smallest weight footprint** |
 | `poolside-laguna-s-2.1-nvfp4-dflash-vllm` | 20.26 ± 0.87 | 20.26 / 29.26 / 38.96 / 53.80 | KV 106,010 tok = **1.078×** at 98,304; `max_num_seqs: 32` | 33/37 · 3/3 @32k, 3/3 @98,304 · — · — · — | 95.61 GiB resident · util 0.85 | `~/benchmarks/sweep2-20261018/laguna-s-ladder.json`, `laguna-s-suite/summary.md` | **retire** — dominated by XS on every axis |
 | `humanizer-12b-vllm` | 7.6 | — (chat endpoint 400s; no ladder) | KV 370,597 tok = 45.2× at 8,192; no chat surface | — · — · — · — · — · — (off-brief; 0 fact losses / 40 rewrites) | 23.9 GB weights / **88 GB repo on disk** · util 0.85 | `~/benchmarks/humanizer-20261014/results.json`, `SUMMARY.md` | **retire** — off-brief, unscoreable on the axes |
+| `humanizer-12b-q4km-llamacpp` (probe) | 23.18 ± 0.19 | 23.18 / — (C1 only; no concurrency sweep) | 8,192 × `parallel: 2`, `kv_unified` = 2 slots; `/v1/completions` only (no chat template) | — · — · — · — · — · — (off-brief; §7(c) instrument vs the bf16 baseline: **2 genuine fact errors / 40 rewrites vs 1**, 15 other fact flags all reformattings, 41 word→digit / notation added numbers) | 7.63 GB pack · 99 GiB available while serving · TTR 5.7 s | `~/benchmarks/humanizer-20261022/` (`decode-triage.json`, `measure.json`, `analyze.log`, `serve.log`, `probe-recipe.yaml`) | **no ship — 3.05× the bf16's C1 (23.18 vs 7.6) but one fact error worse on its own instrument** |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | 0.088 img/s (11.33–11.41 s @1024²; **53.24 s @2048²**) | — (one request at a time) | single denoise lock | n/a (non-commercial eval arm; 8-step CFG=1, byte-identical same-seed PNG) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | `~/benchmarks/qwen-image-20261014/results.json`, `~/benchmarks/media-gen-20261018/REPORT.md` | **KEEP — media-gen cells closed** |
 | `mellum2.1-12b-a2.5b-bf16-thinking-vllm` | 42.3 ± 0.1 | 42.3 / 67.2 / 99.9 / 135.6 | util 0.55 (66.6 GiB budget); 131,072; KV grant not captured | 36/37 · — · — · — · — · — | 24.3 GB · util 0.55 | `~/benchmarks/mellum-20261015/perf-ladder.json`, `house.json` | **retire** — dominated by its own Q4_K_M sibling |
 | `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
@@ -523,6 +527,46 @@ vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node
   inside reasoning.
 - **Receipt:** `head:~/benchmarks/reasoning-candidates-20261021/` (`REPORT.md`, `house.json` @1024 =
   36/37, `house-2048.json` = 37/37, `ladder.json`, `serve.log`).
+
+## Humanizer-12B quant round — measured, no recipe
+
+The owner asked whether any published quant of `jialinyyzz/humanizer` (12B `gemma4_unified`
+rewriter, Apache-2.0) deserves a recipe now that the 2026-10-14 bf16 arm is archived. **Answer: not
+at the shipped quality bar — the fastest quant is 3.05× faster and lands one fact error worse than
+the retired baseline.**
+
+- **Family (14 Hub repos, all ungated, all Apache-2.0):** vendor `jialinyyzz/humanizer-GGUF`
+  (imatrix; IQ2_XS-QAT 3.89 GB, IQ3_XXS-QAT 5.59, Q4_K_M 7.63, Q6_K 10.03, Q8_0 12.67, bf16 23.83),
+  `mradermacher/humanizer{,-i1}-GGUF` (11 / 25), `ngquocvinh/Humanizer-12B-GGUF` (17),
+  `webmp3/Sakura-humanizer-12B-GGUF` (3 mixed), two `hoja-solutions` NVFP4 packs (8.25 GB, vLLM
+  route), six MLX packs (**Apple-only, no engine here**) and `infosave/humanizer-cmf` (CortiQ
+  format, no engine here).
+- **Route:** stock upstream llama.cpp already carries `src/models/gemma4.cpp` at the registry's
+  `b2e5e9b` pin — no fork needed, and the NVFP4 packs run on the pinned vLLM 0.30. Measured:
+  **`jialinyyzz/humanizer-GGUF:humanizer-12b-Q4_K_M.gguf`** (7,625,160,864 B, `ftype Q4_K - Medium`,
+  11,907,350,576 params) on `scitrera/dgx-spark-llama-cpp:b10549-cu131` (b2e5e9b).
+- **Boot (`.34`, `sparkrun_082a4f322a793ea0_8ed3ce77d78f`):** TTR port-open **5.7 s**, total launch
+  229.3 s (7.6 GB distribution included); `GET /v1/models` → `jialinyyzz/humanizer-GGUF`;
+  `/v1/completions` only — the checkpoint defines no chat template, so the predecessor's 400 was a
+  property of the checkpoint, never an engine bug.
+- **Speed — PASS:** `decode-triage` C1 **23.18 ± 0.19 t/s @ d0** (pp 1,315 t/s, ttfr 1,559 ms) and
+  23.24 ± 0.11 @ d8192; the rewrite harness independently saw **42.1 s per 1k output tokens**
+  (23.8 t/s). Against the archived bf16 arm's 7.6 t/s: **3.05×**.
+- **Quality — FAIL at the pre-registered bar.** Same instrument, same 40 rewrites: the tight analyzer
+  flags **59** items against the bf16's **64** (numbers 10 vs 10, dates 0 vs 2, names 7 vs 8, added
+  numbers 42 vs 44), yet review of every flag finds **2 genuine fact errors vs the baseline's 1** —
+  the tutorial's "about 90 minutes" became "A couple hours", and the trip report's year `2026`
+  became `2006`. The other 15 fact flags are the same value in another notation (`4,200`→`4.200`,
+  `18,000 USD`→`18K USD`, `15:00`→`3pm`), and 41 of 42 added numbers are word→digit (`eleven`→`11`)
+  or enumeration. No CJK output in 40 rewrites (the card's short-English failure mode did not
+  appear); 46 formatting drops, all markdown markers.
+- **Read honestly:** one event per arm cannot separate their rates — 2/40 vs 1/40 is inside sampling
+  noise, which is exactly why the bar was set before the run. Deciding it needs a wider sample of
+  this pack, the Q6_K/Q8_0 tiers (10.03 / 12.67 GB), or the NVFP4 packs' vLLM route.
+- **Receipt:** `head:~/benchmarks/humanizer-20261022/` (`boot.log`, `serve.log`, `models.json`,
+  `decode-triage.json`, `measure.json`, `analyze.log`, `probe-recipe.yaml`); node `.34` re-censused
+  to 0 containers after the stop. Instrument: `tools/humanizer-measure.py` +
+  `tools/humanizer-analyze.py`, guarded by `tests/test_humanizer_measure.py`.
 
 ## Kolibri-1 1M constant-state (eval-only, not a recipe)
 
