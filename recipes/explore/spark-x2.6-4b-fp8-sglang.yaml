@@ -29,14 +29,17 @@ description: >-
   window). Speed is the predicted 2x: ladder 40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 /
   217.58 ± 2.72 t/s at c1/2/5/10 (+100 / +66 / +48 / +39 % on the bf16 control), prefill
   8,986 -> 8,496 t/s (+71 %), TTFR 232 -> 1,664 ms.
-  REJECTED anyway, on the pre-registered quality bar: house 109/111 = 98.2 % (easy 19/19 clean,
-  hard 17/18 stable) with `trick-2` (the 5-machines/5-widgets item) empty on 2 of 3 reps.
-  Re-asked directly, that item returns finish_reason=length with 4,096 reasoning tokens and
-  content '' — an empty reply, not a wrong one: on this tier the item loops in the think block
-  until the budget is gone, where bf16 answers it 3/3. 36/37 stable < 37/37, so bf16 remains
-  the shipped tier and this file is the measured-rejected row.
-  Open (needs a node, pre-registered): the same item at --max-tokens 8192 to separate a budget
-  miss from a capability loss, and the INT8 tier (4.45 GB) as the last untried sibling.
+  SHIPPED as the fast tier, after one bad first pass. The .33 run scored house 109/111 = 98.2 %
+  with `trick-2` (the 5-machines/5-widgets item) empty on 2 of 3 reps — finish_reason=length,
+  4,096 reasoning tokens, content ''. The pre-registered 8192 re-ask refuted the "it loops"
+  reading: on a second boot (.35, task sparkrun_9c8e0fffc3cbe638_64af2f7668b6) that item answers
+  "5" 3/3 with finish=stop after only 159 / 177 / 177 reasoning tokens, and the full 37-item
+  battery at the SAME 4096 budget scores 37/37 stable (111/111, no flaky). So the first pass was
+  a nondeterministic runaway episode — not a budget artifact and not a capability loss (a budget
+  cap would have burned 8,192 too; it never got past 177). Lesson for the lane: one empty reply
+  on a reasoning arm is a re-boot, not a verdict.
+  Roles now: this file is the FAST tier (2x the control's C1 at every rung) and
+  spark-x2.6-4b-bf16-sglang.yaml remains the accuracy control a caller compares against.
 
 env:
   PYTHONUNBUFFERED: '1'

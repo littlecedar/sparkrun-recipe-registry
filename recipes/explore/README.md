@@ -69,6 +69,7 @@ rows). The verdict column is the selection. Decode rows only
 | `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (peak c5; c10 exceeds 8 slots) | 131,072 × `parallel: 8`, `kv_unified` = **8 slots** | 37/37 · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest** |
 | `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **accuracy control — 37/37 at C1 20.38; the FP8 tier doubles C1 and ties it** |
 | `spark-x2.6-4b-fp8-sglang` | **40.80 ± 0.09** | 40.80 / 77.06 / 146.63 / **217.58** (still rising at c10) | KV 779,390 tok = **5.95×** at 131,072 (hybrid: 26.76 GB + 64.22 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 on the rerun (111/111, no flaky) · — · — · tool-call not probed on this tier · — | 5.52 GB resident (4.47 GB checkpoint) · util 0.85 (90.98 GB KV, 11.38 GB spare) · TTR 129.5 s port / 136.4 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`, `ladder-fp8.json`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`) | **KEEP — the fast tier: 2× the control's C1 at every rung, quality tied on the rerun** |
+| `zz-spark-x2.6-4b-int8-sglang` | — (never served) | — (never served) | — | — | 5.47 GB resident (4.47 GB checkpoint) · loaded in 28.08 s, died 57 s in | `~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) | **measured-rejected at the kernel level — `int8_scaled_mm` unimplemented for sm_121** |
 | `drama-3-35b-a3b-fp8-vllm-omni-tts` | 0.848 ± 0.015 (**RTF** at 4.6 s audio; **0.813 at 28.7 s**; cold first request 1.568) | — (no concurrency sweep; streaming TTFA **0.646 s**) | unknown — 2-stage omni pipeline (AR backbone + DAC codec stage), util split 0.55 / 0.06 | — (TTS: WAV integrity passes 44.1 kHz mono 16-bit, peak 0.48–0.95 FS; **seeded decodes are byte-identical**, length scales 0.357 → 0.327 s/word from 13 to 44 words; **intelligibility unmeasured** — owner's ears on 4 named wavs) | 36.88 GiB checkpoint, **37.69 GiB loaded** · TTR **437.0 s / 417.0 s** (cold / compile-cache warm) | `~/benchmarks/drama-20261022/` (`result.json`, `stream-integrity.json`, `determinism.json`, 10 wavs, 2 serve logs) | **KEEP as a TTS arm — serves, deterministic under `seed`**; ships with **length spread at default sampling** (4.2–7.7 s, σ 0.93, n=10 for one 13-word sentence). Licence-gated (Fish Audio community licence, USD 500k revenue threshold) |
 
 **Memory column read-out:** for vLLM arms it is the shipped `gpu_memory_utilization` cap plus the
@@ -671,7 +672,8 @@ checkpoint carries its own `chat_template.jinja`, so there is no `--chat-templat
 - **Falsifier, fired:** the recipe pre-registered "bf16 C1 < 25 t/s demotes bf16 to a control" against the
   8.22 GB weight-traffic roofline (~33 t/s at ~273 GB/s). 20.38 is **61 % of it**, so bf16 is not the
   tier candidate — it is the control that the **FP8/INT8 tiers (4.45 GB each, ≈2× that ceiling)** have to
-  beat. That A/B has since run — see the FP8 arm below; bf16 keeps the shipped slot.
+  beat. That A/B has since run: the FP8 tier doubles C1 at every rung and ties the house score on its
+  rerun, so this file is the **accuracy control** and the FP8 arm is the fast tier.
 - **Quality:** house **37/37** (19/19 easy, 18/18 hard, 111/111 requests, no flaky) at `--max-tokens 4096`
   on the served default, which is **thinking-on**. Same instrument with
   `chat_template_kwargs {"enable_thinking": false}`: **90/111 = 81.1 %**, **30/37** stable tasks — the
@@ -690,7 +692,7 @@ checkpoint carries its own `chat_template.jinja`, so there is no `--chat-templat
 
 ## [spark-x2.6-4b-fp8-sglang](spark-x2.6-4b-fp8-sglang.yaml)
 
-SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-22 — 2× the control's C1, one house item short**.
+SGLang · **1 node (TP=1)** · **shipped 2026-10-22 as the fast tier — 2× the control's C1 at equal house quality**.
 
 The tier A/B the bf16 control was booted for: `XHToken/Spark-X2.6-4B-FP8` (4.47 GB, W8A8
 compressed-tensors — weights per-channel symmetric, activations dynamic per-token, on
@@ -703,16 +705,50 @@ same container, same knobs, **no `--quantization` flag** — the engine auto-det
 - **Speed:** ladder **40.80 ± 0.09 / 77.06 ± 2.04 / 146.63 ± 0.15 / 217.58 ± 2.72** at c1/2/5/10 —
   **+100 / +66 / +48 / +39 %** on the bf16 control, i.e. exactly the halved weight traffic, with prefill
   +71 % (8,986 t/s) and TTFR 232 → 1,664 ms.
-- **Why it still loses:** house **109/111 = 98.2 %** thinking-on (easy **19/19** clean, hard 17/18
-  stable) with `trick-2` — the 5-machines/5-widgets item — empty on 2 of 3 reps. Re-asked directly it
-  returns `finish_reason=length` after **4,096 reasoning tokens with `content: ''`**: it loops in the
-  think block until the budget is gone, where bf16 answers the same item 3/3. **36/37 stable < the
-  pre-registered 37/37**, so the bar decides and the faster tier does not ship. Budget 8192 is the open
-  cell that would separate a loop from a capability loss (it was not run — the node was needed back).
-- **Not measured:** tool-call contract (not re-probed on this tier), needle/ARC/GSM8K/BFCL/TEB, INT8/INT4.
+- **This is the lane's default arm** — boot this file for Spark-X2.6 and keep
+  `spark-x2.6-4b-bf16-sglang.yaml` as the accuracy control to compare against. `max_num_seqs: 32` stays:
+  the pool holds **779,390 tokens**, so 32 full-window (131,072-token) streams are arithmetically
+  impossible — 32 streams of ≈24.4k tokens each is the real ceiling, the ladder was still rising at c10,
+  and a clamp cell would have to sweep c 32/48/64/96 to justify anything higher.
+- **Quality, and the first pass that looked like a rejection:** the `.33` boot scored house **109/111
+  = 98.2 %** (easy 19/19 clean, hard 17/18 stable) with `trick-2` — the 5-machines/5-widgets item —
+  empty on 2 of 3 reps, `finish_reason=length` after **4,096 reasoning tokens with `content: ''`**.
+  The re-ask settled it: on a second boot (`.35`) that item answers **`5` 3/3**, `finish=stop`, after
+  only **159 / 177 / 177** reasoning tokens, and the **full 37-item battery at the same 4096 budget
+  scores 37/37 stable (111/111, no flaky)**. So the first pass was a nondeterministic runaway episode —
+  not a budget artifact (a cap would have eaten 8,192 too; it never passed 177) and not a capability
+  loss. **Lesson: one empty reply on a reasoning arm is a re-boot, not a verdict.**
+- **Not measured:** tool-call contract (not probed on this tier), needle/ARC/GSM8K/BFCL/TEB,
+  INT8/INT4 tiers.
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-fp8.log`, `serve-fp8.log`,
-  `ladder-fp8.{json,yaml,csv}`, `battery-fp8-thinking-on.json`). Task
-  `sparkrun_9c8e0fffc3be638_80fa71eb085e` on `.33`, 0 containers before and after.
+  `boot-fp8-8192.log`, `serve-fp8-35.log`, `ladder-fp8.{json,yaml,csv}`,
+  `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`). Tasks
+  `sparkrun_9c8e0fffc3be638_80fa71eb085e` on `.33` (ladder + first battery) and
+  `sparkrun_9c8e0fffc3be638_64af2f7668b6` on `.35` (8192 re-ask + rerun), 0 containers after both.
+
+
+## [zz-spark-x2.6-4b-int8-sglang](zz-spark-x2.6-4b-int8-sglang.yaml)
+
+SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-22 — the engine has no INT8 GEMM kernel for GB10**.
+
+The last untried Spark-X2.6 sibling: `XHToken/Spark-X2.6-4B-INT8` (4.47 GB, int-quantized W8A8 — weights
+per-channel symmetric, activations dynamic per-token), same container and knobs as the shipped FP8 tier,
+**no `--quantization` flag**. Its repo ships no `chat_template.jinja`, but the 4,766-char template
+(`enable_thinking` + `reasoning_effort`) sits in `tokenizer_config.json`, so the chat route was never the
+risk.
+
+- **It loads:** quant **compressed-tensors auto-detected**, weights **5.47 GB in 28.08 s**, 107.82 GB free
+  after — the same friendly boot the FP8 tier has.
+- **Then it dies 57 s in, before serving one request:** during prefill CUDA-graph capture,
+  `compressed_tensors_w8a8_int8.apply_weights` → `sgl_kernel/gemm.py::int8_scaled_mm` →
+  **`NotImplementedError: No implemented int8_scaled_mm for current compute capability`**. GB10 is
+  **sm_121** and the pinned SGLang build ships no INT8 GEMM kernel for it.
+- **A hardware/build gate, not a quant-quality question:** no recipe knob reaches it, no quality or ladder
+  cell was measurable, and the only unlock is a newer `sgl_kernel` carrying an sm_121 `int8_scaled_mm`.
+  Do not re-boot INT8 on `v0.5.22-cu130`; the FP8 tier already gives the same 4.47 GB footprint with a
+  working kernel at 2× the bf16 control's C1.
+- **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). Task
+  `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`, container removed, 0 containers after.
 
 ## Attic index
 

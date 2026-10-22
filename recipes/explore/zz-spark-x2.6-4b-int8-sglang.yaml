@@ -1,0 +1,68 @@
+recipe_version: "2"
+model: XHToken/Spark-X2.6-4B-INT8
+model_revision: 69bb238e31da242529da9c5be06b6eaf7f8b2355
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  XHToken/Spark-X2.6-4B-INT8 on ONE DGX Spark, 131,072 context — the last untried sibling of the
+  Spark-X2.6 tiers. Same 4.47 GB as the FP8 fast tier, but int-quantized W8A8 (weights per-channel
+  symmetric, activations dynamic per-token) instead of float-quantized, and the repo ships NO
+  chat_template.jinja — the 4,766-char template lives inside tokenizer_config.json with both
+  `enable_thinking` and `reasoning_effort`. No --quantization flag: the compressed-tensors config
+  is auto-detected.
+  MEASURED 2026-10-22 on .35 (task sparkrun_f30a2cdba68653a9_64af2f7668b6, receipt
+  ~/benchmarks/spark-x26-20261022/boot-int8.log + serve-int8.log): it loads — quant=compressed-tensors
+  auto-detected, weights 5.47 GB in 28.08 s, 107.82 GB free after — and then dies 57 s in, during
+  prefill CUDA-graph capture, before a single request is served:
+  `NotImplementedError: No implemented int8_scaled_mm for current compute capability`
+  (compressed_tensors_w8a8_int8.apply_weights -> sgl_kernel/gemm.py::int8_scaled_mm ->
+  torch.ops.sgl_kernel.int8_scaled_mm). GB10 is sm_121 and this pinned SGLang build ships no
+  int8_scaled_mm kernel for it: a HARDWARE/BUILD gate, not a quant-quality question — no knob on
+  this recipe can fix it, and no quality or ladder cell was measurable. Rejected at the kernel level.
+  Do not re-boot on this container; a newer sgl_kernel with an sm_121 INT8 GEMM is the only unlock,
+  and the FP8 tier (which does ship, at 40.80 ± 0.09 C1 and house 37/37) is the fast tier meanwhile.
+metadata:
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/XHToken/Spark-X2.6-4B-INT8
+  model_params: "4B"
+  model_dtype: int8
+  kv_dtype: bf16
+  tags: explore, reasoning, agent, tools, apache-2.0, int8
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path.
+  served_model_name: XHToken/Spark-X2.6-4B-INT8
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 32
+  chunked_prefill_size: 8192
+
+# Same engine line as the bf16 control and the FP8 tier: no --attention-backend, no
+# --kv-cache-dtype, no --quantization, no --chat-template (see the description).
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser spark25
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
