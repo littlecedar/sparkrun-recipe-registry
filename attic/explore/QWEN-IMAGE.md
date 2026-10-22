@@ -283,7 +283,7 @@ checked against the review. The measurement itself is `~/benchmarks/media-gen-20
 | one 1024² image at the shipped step count | 1024×1024 at **8 steps** (the checkpoint's saved `sample_sigmas`) |
 | wall-clock per item | 11.3–11.4 s steady (table above) |
 | peak unified memory | 36.85 GiB torch alloc; 76.9 GiB node `MemAvailable` during a request |
-| quality judged by eye against the vendor gallery | **open — but no longer unlooked-at.** An operator defect review of the 8-step images (both routes, full resolution) found clean typographic posters with correct spelling and crisp edges, no smearing or blended glyphs, and no step-starvation artifacts. Which *look* ships is the owner's aesthetic call |
+| quality judged by eye against the vendor gallery | **open for this arm only — but no longer unlooked-at.** An operator defect review of the 8-step images (both routes, full resolution) found clean typographic posters with correct spelling and crisp edges, no smearing or blended glyphs, and no step-starvation artifacts. The **look** question is settled: the owner declined an OMNI arm on 2026-10-21, so this is the only shipped route and the remaining §6 work is the gallery comparison for this arm |
 
 ### Verdict
 

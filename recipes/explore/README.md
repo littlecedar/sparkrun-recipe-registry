@@ -297,7 +297,8 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/explore/mods/qwen-imag
   measured general quality gap. **This arm stays the default**; an OMNI variant would be a *different
   look* the owner likes, i.e. an opt-in arm — **which the owner declined on 2026-10-21: this arm is the
   only route the registry ships, and the OMNI numbers stay in the attic note as a measurement.**
-  The §6 "quality judged by eye" item stays open for both routes. Notes:
+  The §6 "quality judged by eye" item stays open for **this** arm's gallery comparison; OMNI's look is
+  moot now that no OMNI arm ships. Notes:
   [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md) §"vLLM-OMNI route".
 - **Details:** [`attic/explore/QWEN-IMAGE.md`](../../attic/explore/QWEN-IMAGE.md).
 
