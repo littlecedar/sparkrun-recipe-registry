@@ -1204,6 +1204,7 @@ new base/quant revision since 2026-08-29, and the `jzinno` DFlash2 draft is unch
   lane**: the Mamba/SWA radix-cache args our 35B recipe passes (`mamba_radix_cache_strategy`,
   `mamba_full_memory_ratio`) were removed upstream. Any container bump must re-verify the serve
   line first.
+  **Refuted 2026-10-21:** the fields still exist at v0.5.21 and the bump shipped — see §"Engine-bump adjudication — SGLang 0.5.18 → 0.5.21" below.
 - **A known lead, not yet tested:** the DFlash2 author's own reference run measured **114.2 tok/s**
   with `moe_runner_backend marlin`, `mamba_radix_cache_strategy extra_buffer`, `mamba_ssm_dtype
   float32`, and **10 draft tokens** — we ship `flashinfer_cutlass` / `extra_buffer_lazy` /
