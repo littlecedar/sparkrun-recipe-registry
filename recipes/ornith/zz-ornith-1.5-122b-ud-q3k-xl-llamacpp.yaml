@@ -46,6 +46,9 @@ defaults:
   top_p: 0.95
   top_k: 20
 
+# a37cc4610 dropped the --no-mmap spelling in favour of --load-mode (MEASURED 2026-10-22: the
+# boot died with "invalid argument: --no-mmap"). `none` is the same policy the lane's shipped
+# arms ask for, and the mmap A/B says a mapped GGUF loses at the peak cell on GB10.
 command: >
   llama-server -hf {model}
   --alias {served_model_name}
@@ -61,6 +64,6 @@ command: >
   --flash-attn {flash_attn}
   --reasoning-format {reasoning_format}
   --jinja
-  --no-mmap
+  --load-mode none
   --no-webui
   --cont-batching
