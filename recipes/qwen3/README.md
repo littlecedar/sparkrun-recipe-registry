@@ -133,6 +133,13 @@ Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/
   reaches it as the prepared snapshot path), so `sparkrun recipe validate --strict` reports
   `unpinned-model-revision`; plain `validate` passes and is the repo's gate. Do not clear it by
   dropping the pin or by adding a flag the engine cannot parse.
+- **The drafter's revision sits in the same class.** `speculative_draft_model_revision` pins the
+  DFlash2 *download*, and sglang's flag map would emit `--speculative-draft-model-revision`, but this
+  arm writes its own `command:` template, so no such flag appears in the rendered command — the
+  engine loads the drafter from the pinned cache snapshot. That is the `unpinned-model-revision`-
+  adjacent shape again: real for distribution, invisible at the serve line, **not a boot risk**, and
+  not something to "fix" by adding a flag to the fold (that fold's terminal `#` comment is
+  load-bearing — see above).
 - `TORCH_EXTENSIONS_DIR` points at sparkrun's runtime cache so the `sm_121a` kernel compile is paid
   once a node instead of once a boot; `executor_config.entrypoint: ""` clears the image's inherited
   entrypoint. TP=2 needs a launcher shim (the ds4 lane's pattern), not this recipe.
