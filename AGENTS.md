@@ -263,6 +263,12 @@ back into every copy and resets a file another session is writing: a blanket `gi
 before a `pull --ff-only` destroyed uncommitted item text on 2026-10-22. If the head's pull is blocked by a
 dirty file, leave it dirty and report it; commit here with explicit pathspecs and push.
 
+**A bare `git commit` takes the whole shared index.** This tree has a live second writer, so another
+session's staged entries ride out under your message: a peer's `git add -- <one recipe>` followed by a
+bare commit carried 24 staged `recipes/{explore,decision} → recipes/media/` renames (`bf6ab39`) that its
+message did not describe. Commit with a pathspec — `git commit -o <paths>` or `git commit -m … --
+<paths>` — and print `git diff --cached --stat` *before* the commit, not in the same command chain.
+
 **`fatal: unable to read <blob>` is a stale index entry, not a dead repository.** A synced `.git/index` can
 reference an object that never arrived, and then every `git status` dies. Rebuild the index from HEAD with
 `git read-tree HEAD`: it rewrites the index only, so the worktree and every uncommitted edit survive. Do not
