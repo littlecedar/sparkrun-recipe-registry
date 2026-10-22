@@ -1,8 +1,12 @@
-# MEASURED — serves on one GB10 (2026-10-22, .NN): TTR 437.0 s cold, warm
-# single-stream RTF 0.848 ± 0.015, streaming PCM TTFA 0.646 s, 44.1 kHz mono 16-bit
-# out. Open caveat: the same 15-word prompt returned 2.37–5.48 s of audio over five
-# takes, so at least one take probably drops words — intelligibility is unmeasured
-# (no ASR/speaker model on the node); a listener check is the next cell.
+# MEASURED — serves on one GB10 (2026-10-22, .NN; two boots, TTR 437.0 s cold /
+# 417.0 s compile-cache warm): warm single-stream RTF 0.848 ± 0.015 at ~4.6 s of audio
+# and 0.813 at 28.7 s, streaming PCM TTFA 0.646 s, 44.1 kHz mono 16-bit out.
+# Determinism: **pass `seed`** — seeded takes are byte-identical (10/10) and length
+# scales with input (0.357 s/word at 13 words, 0.327 at 44); unseeded, one 13-word
+# sentence returns 4.2–7.7 s of audio (σ 0.93, n=10), so never compare two unseeded
+# takes. `temperature` is not a request field on this API (server default; only
+# `seed`, `max_new_tokens`, `speed`, `response_format`, … are). Intelligibility is
+# unmeasured — no ASR/speaker model on the node; the owner's ears are the open cell.
 # `fishaudio/drama-3` is licence-gated: the FISH AUDIO COMMUNITY LICENSE AGREEMENT
 # v1.0 allows non-commercial and research use, and commercial use only below a
 # USD 500,000 annual-revenue threshold; read LICENSE.md in the checkpoint before

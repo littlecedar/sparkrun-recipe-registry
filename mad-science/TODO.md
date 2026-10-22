@@ -1217,17 +1217,36 @@ Cells — every take is RIFF/WAVE **44,100 Hz mono 16-bit**, peak ≫ 0.01 FS, s
 RTF 1.568**, so the `RTF > 1.0` falsifier is hit by the warmup take only, not by the arm; **c2 voice clone**
 with the card's `en0` reference → 4.551 s, RTF 1.178; **c3 tags** (`[sighs] Fine. … [laughs] …`) → 6.223 s,
 RTF 0.86; **c4 streaming pcm** → **TTFA 0.646 s**, 8 chunks, 476,111 B = 5.398 s of audio, RTF 0.633.
-*Caveat that must travel with the number.* The same 15-word prompt returned **2.368 / 3.715 / 4.923 / 5.155 /
-5.480 s** of audio across five identical requests, each ending in natural decay rather than a mid-frame cut
-(peak in the last 100 ms 0.0012–0.0439 FS). Length is therefore non-deterministic, and a **2.368 s take of that
-sentence is implausibly fast — at least one take probably drops words**. The WAV-integrity cells pass;
-**intelligibility does not**, because the pre-registered instrument needs an ASR model and a speaker encoder and
-no node here has either. **Open cell — the owner's listener check:** `c1-plain.wav` (5.155 s) against
-`c1-plain-r2.wav` (2.368 s) on the same text, plus whether the tags land in `c3-tags.wav`, scored against the
-shipped reference wavs; a WER / speaker-similarity cell follows once an ASR model is staged.
-Receipt `~/benchmarks/drama-20261022/`: `result.json`, `stream-integrity.json`, seven wavs, the two scripts, and
-`sparkrun_serve.log` (270 lines, this boot). Serve stopped by full task id, `.34` re-censused to **0
-containers**, no job row left. *(effort: medium)*
+*Phase 4 — determinism / duration attribution (same node, second boot, TTR **416.98 s**: compile cache warm
+but weights are the cost).* `/v1/models` named `fishaudio/drama-3` before any take. **The request schema has no
+`temperature` field** (`OpenAICreateSpeechRequest` accepts `input, model, voice, ref_audio, ref_text, seed,
+max_new_tokens, response_format, sample_rate, speed, stream, language, task_type, extra_params, …` — no
+`temperature`/`top_p`), so the arm's sampling knobs are **server-side defaults; `seed` is the only per-request
+control**. Measured with that in mind:
+**temp-0/seed-fixed ×10 → byte-identical**: one sha256 (`10bc5cb898a34d05`) and 4.644 s on all ten takes,
+RTF 0.841–0.843 (first take 1.696 = warmup), i.e. **the decoder is deterministic under a fixed seed** — the
+earlier 2.37–5.48 s spread was unseeded sampling, not a truncation bug.
+**Default sampling ×10 → 4.226 / 4.551 / 4.598 / 4.598 / 4.644 / 4.969 / 4.969 / 5.341 / 7.663 s**
+(mean 5.011, **σ 0.931**, i.e. ±19 %), ten distinct sha256 values.
+**Input-length scaling (temp 0/seed fixed):** the same prompt is **13** words → 4.644 s (**0.357 s/word**); a
+44-word paragraph → **14.396 s** (0.327 s/word, ratio **0.916**), and its three takes were byte-identical too;
+an 86-word passage → **28.653 s** at **RTF 0.813**. So length scales with input (a 3.4× input gives 3.1×
+audio, slightly faster speech) and **RTF holds — even improves — past 28 s of audio**; nothing is being
+dropped, and the earlier short takes were the low tail of an unseeded distribution.
+**Verdict (pre-registered rule: scaling *and* seeded determinism): the arm STANDS.** It ships with the caveat
+**"non-deterministic audio length at default sampling (4.2–7.7 s, σ 0.93, n=10 for one 13-word sentence) —
+pass `seed` when a fixed take matters"**, not as a capacity or decoding defect. Note the length spread was
+wider on the first boot (2.37–5.48 s, n=5), so quote the range per boot, never a single number.
+*Open decision — the owner's ears, not my claim.* Intelligibility is still unmeasured: the pre-registered
+instrument needs an ASR model plus a speaker encoder and no node here has either. Four named wavs in
+`~/benchmarks/drama-20261022/` are the decision: `c1-plain.wav` (5.155 s) and `c1-plain-r2.wav` (2.368 s) are
+the same 13-word sentence at default sampling — do they say the same words? — plus `t0-r1.wav` (4.644 s, the
+seeded take) and `para-r1.wav` (14.396 s, the 44-word paragraph), with `c3-tags.wav` for whether `[sighs]` and
+`[laughs]` land. A WER / speaker-similarity cell follows once an ASR model is staged.
+Receipt `~/benchmarks/drama-20261022/`: `result.json`, `stream-integrity.json`, `determinism.json`, ten wavs,
+three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-determinism.log` (296 lines, boot
+3). Both serves stopped by full task id, `.34` re-censused to **0 containers** each time, no job row left.
+*(effort: medium)*
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
