@@ -91,10 +91,10 @@ required, which is the bring-up cost the lane items must budget: `kolibri1` (Kol
   no top-level window key, so the suite tools — which read `max_model_len` — treated this arm as
   window-less until 2026-10-17: the top needle rung filled the window exactly (130,964 prompt +
   108 completion tokens, empty reply) and a sibling probe 400'd ("exceeds the available context
-  size", a wording the shrink-retry list still misses). Fixed in `590b9b2`; the rung re-probes
+  size", a wording the shrink-retry list still misses). Fixed in `e13ccd5`; the rung re-probes
   3/3 at `paced_target` 128,451 (receipt `~/benchmarks/mellum-gguf-20261017/recheck-needle/`).
 - **The suite's 256-token needle budget is below this template's thinking spend.** Two 32k cells
-  returned empty content with `completion == max_tokens`; `590b9b2` records that shape as a
+  returned empty content with `completion == max_tokens`; `e13ccd5` records that shape as a
   budget-cut `TRUNCATED` (never a retrieval miss) and the rung re-probes at `--max-tokens 4096`.
 
 ## 4. Standing policy for GGUF arms
@@ -155,7 +155,7 @@ suite legs ran after it).
   `--max-tokens 4096` and depth 90 PASSes with `enable_thinking: false` (9 completion tokens, 0.74 s):
   retrieval is **3/3 by union** — 1/3 at the suite's 256 default, 2/3 at 4,096, 3/3 with the
   thinking-off probe. Two tool-side false-FAIL classes surfaced on
-  this arm and are fixed in `590b9b2` — llama.cpp's window arrives as `meta.n_ctx` (the 2 % clamp
+  this arm and are fixed in `e13ccd5` — llama.cpp's window arrives as `meta.n_ctx` (the 2 % clamp
   never ran; the 131k rung overflowed and 400'd on a wording the shrink-retry list missed), and an
   empty reply at `finish_reason: length` was scored as a retrieval miss (`tools/needle-haystack.py`
   now records `finish_reason` and marks that shape TRUNCATED). Originals keep their false FAILs; the

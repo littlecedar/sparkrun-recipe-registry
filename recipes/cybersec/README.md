@@ -332,7 +332,7 @@ files.
   first 200) on a warm node: the image pin was already verified (`no transfer`), the 15.7 GB tier and
   projector were pre-staged by rsync from `.31` over the rail, sparkrun's model stage took 6.1 s and
   llama-server's own load 16.5 s of the 30.29. The same recipe's first boot on `.31` (commit
-  `bf6ab39`) measured **109.6 s cold**, that definition including the image pull and the 15.5 GB
+  `eb2ba94`) measured **109.6 s cold**, that definition including the image pull and the 15.5 GB
   distribution — quote cold and warm with their definitions, never as one number.
 - **Serve contract from the log** (`~/benchmarks/orcacyber-nano-20261022/serve.log`): `loading model
   '…/OrcaCyber-Nano-1.0-AI-Defense-Mix-15.7G.gguf'`, `creating MTP draft context against the target

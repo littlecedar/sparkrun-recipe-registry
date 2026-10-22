@@ -22,11 +22,11 @@ stays here is the decisions already taken**, each with its rationale, so a later
 rather than re-opening it. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `attic/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
-register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 registers (#16–#23, #24–#27) are
-the pre-fold states, `git show baecfa8:mad-science/TODO.md` and `git show c7c7a81:mad-science/TODO.md`;
-the #28–#33 register is the pre-fold state `git show 0d8014d:mad-science/TODO.md`; the #34/#35 register
-(2026-10-15, answered the same day) is `git show 043fbae:mad-science/TODO.md`; the #36–#42 register
-(2026-10-17, answered the same day) is the pre-fold state `git show ebb7e80:mad-science/TODO.md`.
+register is `git show 31d1d82:mad-science/TODO.md`; the 2026-10-14 registers (#16–#23, #24–#27) are
+the pre-fold states, `git show 2fb32d7:mad-science/TODO.md` and `git show 600d6cb:mad-science/TODO.md`;
+the #28–#33 register is the pre-fold state `git show f8b4ac3:mad-science/TODO.md`; the #34/#35 register
+(2026-10-15, answered the same day) is `git show 5037b60:mad-science/TODO.md`; the #36–#42 register
+(2026-10-17, answered the same day) is the pre-fold state `git show f6eb2d3:mad-science/TODO.md`.
 
 *(Answered 2026-10-19 — no open questions. The three asks are folded into the work items they
 govern, per the protocol; the verbatim asks remain in git.)*
@@ -97,7 +97,10 @@ govern, per the protocol; the verbatim asks remain in git.)*
   easy-traffic arm** and the gate's verdict is now its absolute bars (C1 **110.52 ± 1.77** vs 69.28,
   C10 **185.96 ± 2.31** vs 116.27, house **36/37** at 4096 thinking-on, ten real slots). Every later
   candidate is judged the same way: a C10 below 116.27 still fails, a higher C5 no longer rescues it or
-  disqualifies it.
+  disqualifies it. **The promotion landed docs-only (`31a5d1c`):** `recipes/explore/README.md` and the
+  root index name this arm as the selected one and **no recipe byte changed** — it already was the
+  shipped arm — so **the ten-slot arm remains the selection**, the five-stream peak is its measured
+  shape rather than a second arm, and no re-measure is queued.
 
 - **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
   `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at
@@ -109,8 +112,29 @@ govern, per the protocol; the verbatim asks remain in git.)*
   `run --transfer-mode local --offline`). A node-local TTR excludes staging and transfer, so it is
   **not comparable** to a staged boot's and must be labelled as such.
 
-*(Answered 2026-10-22 — no open questions. `#47` is folded into the TP=4 work items as the
-run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).)*
+- **#51 — "stood down" has one definition, and only that definition lifts the fence.** *Owner decision
+  2026-10-22.* The production serve on `.30`–`.33` counts as stood down when **all three** hold:
+  (a) it was stopped by **`sparkrun stop` by task id** — `sparkrun_a2e141223b52793c_d7960e70d961`, named
+  explicitly, never by a list expansion; (b) **zero containers** on `.30`, `.31`, `.32` and `.33`
+  (`docker ps -aq | wc -l` = 0 on each rank, which is a stronger test than an empty `sparkrun ps`);
+  and (c) the **clients are repointed** — nothing still addresses `:8000` on those ranks, which is the
+  half a container census cannot see, because a gateway deployment or a harness config keeps the old
+  endpoint alive after the serve is gone. Until all three hold, the `#4` fence stands and no four-rank
+  boot, benchmark cell or load is queued.
+
+- **#52 — the BeeGFS pilot reports numbers; no pass/fail threshold exists.** *Owner decision 2026-10-22.*
+  The pilot (`QUESTIONS.md` `#5`) was authorized **without a pre-registered pass/fail**, so it is
+  recorded as measurements plus the control rows, and **no threshold invented after the run** converts
+  it into a verdict. The adoption answer therefore stays the report's own "not now", restated with the
+  measured reason: the client mount is blocked by **firmware** — Secure Boot enabled, one Canonical MOK
+  certificate enrolled, and no prebuilt module in any official index — not by packaging, and the
+  fabric-level comparison is the NFS-over-rail stand-in. `mad-science/BEEGFS-REPORT.md` §10 is the
+  record.
+
+*(Answered 2026-10-22 — no open questions **at that pass**. `#47` is folded into the TP=4 work items as
+the run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).
+The live queue is `QUESTIONS.md`: **1 open** (`#6`) and **3 blocked** (`#2`, `#3`, `#7`), all listed
+there and none carried here.)*
 
 **Storage (2026-10-19, late).** Cache audit and prune across the head and the test pair, after `#45`'s
 head-only pass: the node copies of the attic-only weights had never been pruned. **HF, by `hf cache rm`
@@ -242,7 +266,7 @@ flat at c2 with doubled latency (`decision-arms-20261018`). ds4: the carried **v
 read on its `--prefill-decode-interval 2` arm — C1 60.2 / C2 73.2 / C5 95.1 / C10 101.5 against the
 v2.3 line's 67.2 / 88 / 111 / 116 — and **the flag, not the line, is what is slow**: the isolation
 boot then ran (C2 88.35 / C5 131.83 / C10 123.49 with it off) and the launcher ships `0`
-(`c59f00d`), with the pin re-derived to 6,850,000 (`ds4-v24-line-20261018`).
+(`ba38d13`), with the pin re-derived to 6,850,000 (`ds4-v24-line-20261018`).
 
 **Policy (2026-10-18, 19:15).** **DeepSeek and TP>2 work was expedited and is now CLOSED by owner
 instruction**: `.30`–`.33` return to their normal workloads, `.34`/`.35` remain available. Anything
@@ -453,7 +477,7 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   at c16 are unmeasured; the trust-store acceptance is interactive on first run, which a headless
   launch must solve.*) *(effort: research only — owner decisions first.)*
   *(Owner deliverable 2026-10-22 (`QUESTIONS.md` `#6`, still open): the brief at
-  `mad-science/FLARE-AGENT-BRIEF.md` is **delivered** (`52db8cb`). It answers the premise rather than
+  `mad-science/FLARE-AGENT-BRIEF.md` is **delivered** (`e1c32a2`). It answers the premise rather than
   confirming it — `flare agent` is a per-user systemd *user* unit that needs no kernel module, no root
   and no capability, so it is **containerizable in principle**, and the narrow frictions are the vendor
   serve image's **amd64-only human tags**, the user-unit + lingering lifecycle, and disk-Engram's
@@ -465,7 +489,7 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   package's ABI match remain **unverified**. The row stays open on the install authorization, not on
   the brief.)*
 
-- [ ] **The b12x backend is declared by explicit flag (`5198297`) — only the quartet boot is left —
+- [ ] **The b12x backend is declared by explicit flag (`18a05d2`) — only the quartet boot is left —
   `QUESTIONS.md` `#9`, answered 2026-10-22: "repair by explicit flag instead"** — **the recipe edit has
   landed; the boot has not.** `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` now spells
   `--fp8-gemm-backend flashinfer_cutlass` in `command:`, and the lane's overlay launcher
@@ -543,7 +567,7 @@ image/digest, so validate the other ornith arms on the new digest before shippin
   the `--no-rm` 9B container on `.35` and its serve log.)*
 - [x] **Re-pin all six SGLang arms to `v0.5.22` and re-validate each on the new digest** — one patch past the ornith lane's 0.5.21, two past the ifm lane's 0.5.20, so the ifm UNO arms put the FA4 anchor patch on trial as well. *(effort: medium)*
   *(CLOSED 2026-10-22 — **all six arms booted and held their bars on the new digest; the pins ship**
-  (commit `20da8f2`). Pin: `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`
+  (commit `0f74bc3`). Pin: `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`
   — a published multi-arch index (`docker buildx imagetools inspect`, not a local image id) with a
   native `linux/arm64` child `06441be3…`; `v0.5.22-cu130` and `latest` resolve to the same index. The
   three ifm arms are pinned to the `-cu130` spelling of that digest. Runtime moved to torch
@@ -602,7 +626,7 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   then the four-node suite legs; the block is resumable, so a pause is never a loss. That order is an
   intent, not a permission: every remaining item in it needs four ranks, so it starts only when the fence
   lifts.)*
-  *(progress 2026-10-22 01:55 ET — **TP=4 W6 is blocked at the engine, not the arm and not memory.** The boot loaded 41/41 shards on four ranks and died in `modelopt_quant.py:2624` (gated-activation MoE padding) on every rank, so TP=4 is an engine limit on this build. `e8d34fc`; `attic/qwen4/AGENTS.md`.)*
+  *(progress 2026-10-22 01:55 ET — **TP=4 W6 is blocked at the engine, not the arm and not memory.** The boot loaded 41/41 shards on four ranks and died in `modelopt_quant.py:2624` (gated-activation MoE padding) on every rank, so TP=4 is an engine limit on this build. `649d3c7`; `attic/qwen4/AGENTS.md`.)*
   *(progress 2026-10-22 03:44 ET — **the v0.5.22 follow-up closes it as a checkpoint limit, not a build defect.** One boot of the same arm on `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` (task `08acf79cd757a666_7afff0589a33`, quartet `.30`/`.31`/`.32`/`.33`) loaded 41 shards and asserted identically on **all four ranks**: `modelopt_quant.py:2942` (`:2624` on v0.5.20 — same message, `The intermediate size required padding, but padding is also implemented for gated activations`). So TP=4 stays closed for this NVFP4 export on both builds; do not re-try another nightly expecting a different answer. By-products: the relay reports the pinned image `already verified on all 4 receiver(s)` and the model distributes in 18.3 s from a node-local HF cache (the 2-5 MiB/s leg only exists cold). Receipt `~/benchmarks/tp4-20261022/w6-tp4-v0522/REPORT.md` §Verdict, MANIFEST row.)*
   *(progress 2026-10-22 03:31 ET — **W12 served**, so the cross-runtime column has its vLLM number. TP=2 on `.31`/`.32` (`6a76d7f90a79f4f4_6eb961eae222`), `RadixArk/Qwen3.8-Flash-Next-NVFP4` @ `7b71922`, b12x `cf5a2a53`, `max_model_len` 262144 accepted, KV 1,757,475 tokens (6.70x). Decode 42.8/51.2/40.1 t/s over three 256-token samples at temp 0 (median 42.8). Two engine-side traps recorded: the restored PLE mod cannot run in-container (`docker` absent) and is inert on this image anyway (its PLE layer is `qwen4_exp/nvidia`, b12x-aware, no `Fp8Config` guard — vLLM flags `VLLM_PLE_FP8_CHECKPOINT` as unknown), and `load_format: instanttensor` dies at `weight_utils.py:1679` because the image's instanttensor has no `_determine_buffer_size` (TP=1 never takes that path, TP>1 always does) — the arm now loads safetensors. Cold boot to first 200: ~19 min, mostly b12x autotune. Receipt `~/benchmarks/tp4-20261022/w12-vllm-b12x/REPORT.md`.)*
 
@@ -735,7 +759,7 @@ Any decision model
   commits do touch `d3_format.py`, `d3_runtime.py`, `d3_server.py`, `requirements.txt` and
   `MODEL_MANIFEST.json`, and the repo's two safetensors (1,215.7 MB) are byte-identical across both
   revisions. Receipt `~/benchmarks/decision-d3-repin-20261022/`; lane record
-  `recipes/decision/README.md` §`d3-edge-decision-vllm-srun`; commit `df2c259`.)*
+  `recipes/decision/README.md` §`d3-edge-decision-vllm-srun`; commit `440346c`.)*
 
 - [ ] **Probe `pyannote/speaker-diarization-community-1` as a speaker instrument for the drama-3 TTS
   arm — and record up front that "quantised" barely applies to it** — an ~8.1M-param pyannote
@@ -974,8 +998,8 @@ Any model with reasoning and tool-calling capabilities
   DeepSeek-V4.1-Flash TP=4 traffic** — EXL3 and Unsloth-GGUF are the two routes of primary interest.
   **Phase 1 (research + authoring) is DONE; Phase 2 booted two tiers once and was then preempted
   for the DSv4 TP=4 baseline boot.** Two boots happened on owner-granted `.33`/`.34`, both recipe
-  defects they exposed are fixed and committed (`8d3f803` — the llama.cpp image declares its own
-  ENTRYPOINT, so `executor_config.entrypoint: ""` is required; `1c9dab0` — `a37cc4610` rejects
+  defects they exposed are fixed and committed (`2973866` — the llama.cpp image declares its own
+  ENTRYPOINT, so `executor_config.entrypoint: ""` is required; `50a1a68` — `a37cc4610` rejects
   `--no-mmap`, it wants `--load-mode none`), and **no tier has a full cell set yet**, so the
   easy-traffic answer is still open. *(effort: medium; one boot per arm, gate cells first.)*
 
@@ -1168,7 +1192,7 @@ Any model with reasoning and tool-calling capabilities
   62.74) but costs **five** house items (32/37), so the shipped numbers are thinking-on and the reasoning
   channel is load-bearing. This closes the ranked table for 1-node work: ranks 1–5 are all closed and 6–10
   are 2+ nodes (MiniMax-M3 is 795.5 GiB on the Hub, Inkling-Small 495.4). Recipe
-  `recipes/explore/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml`; commit `3800002`; receipt
+  `recipes/explore/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml`; commit `a9d4c27`; receipt
   `~/benchmarks/reasoning-candidates-20261021/REPORT.md`.)*
 
 - [ ] **Exercise the media-gen cells left unrun** — LTX-2.5's I2V + FLF2V templates and the 4K/50 fps preset; Qwen-Image non-8-step schedules and 2048²; and the faster vLLM-OMNI engine route (40 vs 54 s on the base model) (`attic/explore/EXPLORE-MODELS-RESEARCH.md`). *(Owner decision 2026-10-15: next-window scope, on the free `.34`/`.35`.)* *(effort: medium)*
@@ -1177,13 +1201,13 @@ Any model with reasoning and tool-calling capabilities
 
   *(closed 2026-10-21 — **the Qwen-Image non-8-step schedule works, and the path is guarded.** `num_inference_steps`
   was silently ignored because the pipeline re-read the checkpoint's saved 8-step sigmas; the launcher mod now
-  accepts a `sigmas` list and passes it through (`f610cba`). The guard that came with it asserted behaviour it
+  accepts a `sigmas` list and passes it through (`11836f0`). The guard that came with it asserted behaviour it
   could not be shown to catch, so schedule selection moved into a pure `schedule_kwargs(req, shipped)` and the
   tests exercise it directly — sigmas pass-through, the shipped count and the absent count both leaving the
   saved schedule alone, the resample's endpoints and monotonicity, and both `ValueError`s — with three
   negative controls that must go red (the pre-fix forwarded-field function, index rounding instead of value
   interpolation, a dropped `sigmas` kwarg), run against temp-dir shadow copies so nothing on disk moves
-  (`75fb9fc`). 13 cases; the suite reads 752 with the file moved aside and **765** with it present. The 8-step
+  (`32d046e`). 13 cases; the suite reads 752 with the file moved aside and **765** with it present. The 8-step
   control still takes the saved schedule, so no shipped number changed.)*
   *(closed 2026-10-21, latest — **the vLLM-OMNI route works and is ~24 % faster, and it stays
   unshipped on a quality caveat.** `vllm/vllm-omni:nightly` (0.32.0rc2.dev29) serves
@@ -1213,7 +1237,7 @@ Any model with reasoning and tool-calling capabilities
   the owner likes and **declined then**, so no recipe was pending until that was
   reversed. **Reversed 2026-10-22 (`QUESTIONS.md` `#13`): "ship both"** — the Diffusers render and the
   vLLM-OMNI variant land as separate arms, and the OMNI arm **has landed as a recipe**:
-  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`a574eaf`, media lane after the split),
+  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`11cc155`, media lane after the split),
   validated and rendered only — **never booted** — carrying the two-ink adherence defect and **four
   queued boot cells** as its acceptance (`recipes/media/README.md` §"qwen-image … vllm-omni"); see the
   ship item after this block. §6 "which look ships" was the owner's
@@ -1238,7 +1262,7 @@ Any model with reasoning and tool-calling capabilities
   cream) and OMNI violates it (single-line wordmark in a rainbow of hues) — a prompt-adherence defect,
   scoped to one prompt/one seed/one image per route, not a measured general quality gap. Both arms carry
   the Qwen Research License banner and its non-commercial note (`AGENTS.md` §Recipes, `#11`).
-  **Landed 2026-10-22 in `a574eaf`: the authoring half of this item is done** — the arm file exists,
+  **Landed 2026-10-22 in `11cc155`: the authoring half of this item is done** — the arm file exists,
   validates and renders (`recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml`). **What is left is
   its acceptance, four boot cells, and none of them has run** (`.34`/`.35` were held by the BeeGFS pilot):
   (1) boot **this recipe file** and gate on `/health` healthy plus `/v1/models` naming
@@ -1645,9 +1669,9 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 3). Both serves stopped by full task id, `.34` re-censused to **0 containers** each time, no job row left.
 *(effort: medium)*
 
-- [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`9bce38b`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
+- [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`1a306ca`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
 
-- [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window (the CI report's runner half is closed — `7954650` builds on GitHub's hosted `ubuntu-24.04-arm`, `QUESTIONS.md` `#8`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
+- [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window (the CI report's runner half is closed — `0976a1e` builds on GitHub's hosted `ubuntu-24.04-arm`, `QUESTIONS.md` `#8`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
 
 - [ ] **Probe the `RecursiveSI` org's flagship `flint` — a 39.8B-A2.5B agentic-coding MoE — for a GB10 arm** — new release
   (org `RecursiveSI`, checked 2026-10-22: **one model family only** — `flint` plus three same-day quantizations, no
@@ -2051,9 +2075,9 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   Run cell 1 (bf16) first, with cells 2 and 3 as same-image follow-ups; the GGUF route is a separate image build and
   belongs to a `## Runtimes` decision, not this item. *(effort: medium)*
 
-  *(progress 2026-10-22 — **cell 1 measured and the falsifier fired: bf16 is a control, not a ship candidate.** On `.30` (task `sparkrun_31a011c489646cf6_2d38dfc4605e`, 0 containers before and after): C1 **20.38 ± 0.09 t/s** (20.24–20.51, n=5 decode rows) and ladder **20.38 / 46.38 / 99.27 / 156.20** at c1/2/5/10, still rising at the cap because `max_num_seqs: 32` clamps it, not the pool; that is **61 % of the ~33 t/s roofline**, so bf16 survives only as the control the tier A/B is measured against. Contract confirmed on the wire: default → `reasoning_content` populated (`reasoning_tokens: 18`), `enable_thinking: false` → 0 reasoning tokens, one tool definition → `finish_reason: tool_calls` with `get_weather({"city":"Lisbon"})` parsed by `spark25`. House **37/37 thinking-on vs 30/37 (90/111)** thinking-off, so the reasoning channel is load-bearing. Memory: the hybrid split pools **84.48 GB** of KV (723,730 full + 578,984 sliding) = **5.52×** the 131,072 window, against the estimator's all-36-layers 18.0 GiB. Commits `6b82a39` + `6a1129d` (which added `--thinking on|off` to `tools/quality-battery.py`); receipt `~/benchmarks/spark-x2.6-20261022/`. **Open cells:** the **FP8 W8A8 and INT8 tiers** (2.6 GiB less weight, ≈2× the ceiling) — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` is authored and its boot was **live on `.33` from 03:18:56 ET** (`max_total_num_tokens` 779,390, `max_running_requests` 32, 131,072 window), so that receipt is the open one; a ladder **above c10** needs `max_num_seqs` raised past 32 first; needle, ARC/GSM8K and BFCL/TEB are unmeasured.)*
+  *(progress 2026-10-22 — **cell 1 measured and the falsifier fired: bf16 is a control, not a ship candidate.** On `.30` (task `sparkrun_31a011c489646cf6_2d38dfc4605e`, 0 containers before and after): C1 **20.38 ± 0.09 t/s** (20.24–20.51, n=5 decode rows) and ladder **20.38 / 46.38 / 99.27 / 156.20** at c1/2/5/10, still rising at the cap because `max_num_seqs: 32` clamps it, not the pool; that is **61 % of the ~33 t/s roofline**, so bf16 survives only as the control the tier A/B is measured against. Contract confirmed on the wire: default → `reasoning_content` populated (`reasoning_tokens: 18`), `enable_thinking: false` → 0 reasoning tokens, one tool definition → `finish_reason: tool_calls` with `get_weather({"city":"Lisbon"})` parsed by `spark25`. House **37/37 thinking-on vs 30/37 (90/111)** thinking-off, so the reasoning channel is load-bearing. Memory: the hybrid split pools **84.48 GB** of KV (723,730 full + 578,984 sliding) = **5.52×** the 131,072 window, against the estimator's all-36-layers 18.0 GiB. Commits `4218f3f` + `14a5f86` (which added `--thinking on|off` to `tools/quality-battery.py`); receipt `~/benchmarks/spark-x2.6-20261022/`. **Open cells:** the **FP8 W8A8 and INT8 tiers** (2.6 GiB less weight, ≈2× the ceiling) — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` is authored and its boot was **live on `.33` from 03:18:56 ET** (`max_total_num_tokens` 779,390, `max_running_requests` 32, 131,072 window), so that receipt is the open one; a ladder **above c10** needs `max_num_seqs` raised past 32 first; needle, ARC/GSM8K and BFCL/TEB are unmeasured.)*
 
-- [x] **Ship the humanizer-12B rewrite arm at Q6_K, the smallest tier that passes its own instrument** — measured 2026-10-22 on `.33` (`sparkrun_7b0a21d0dbeb323d_80fa71eb085e`), commit **`475d07f`**: C1 **17.92 ± 0.04 t/s** @ d0 and 17.87 ± 0.05 @ d8192 (pp 999 / 1,366 t/s) — **2.36× the archived bf16 arm's 7.6** at 10 GB instead of an 88 GB repo; TTR **10.8 s**; **`/v1/completions` only**, because the checkpoint defines no chat template; **0 genuine fact errors across 40 rewrites vs the bf16 baseline's 1** (69 flags, all notation). Q4_K_M is recorded **measured-rejected**: 23.18 ± 0.19 t/s but 2 genuine fact errors ("about 90 minutes" → "A couple hours"; year 2026 → 2006), so it lost the only variable under test. Receipt `~/benchmarks/humanizer-20261022-q6k/`; lane row + tier reasoning `recipes/explore/README.md`. *(no ladder by design — a single-request rewriter has no C2/C5/C10 cell.)*
+- [x] **Ship the humanizer-12B rewrite arm at Q6_K, the smallest tier that passes its own instrument** — measured 2026-10-22 on `.33` (`sparkrun_7b0a21d0dbeb323d_80fa71eb085e`), commit **`8282f91`**: C1 **17.92 ± 0.04 t/s** @ d0 and 17.87 ± 0.05 @ d8192 (pp 999 / 1,366 t/s) — **2.36× the archived bf16 arm's 7.6** at 10 GB instead of an 88 GB repo; TTR **10.8 s**; **`/v1/completions` only**, because the checkpoint defines no chat template; **0 genuine fact errors across 40 rewrites vs the bf16 baseline's 1** (69 flags, all notation). Q4_K_M is recorded **measured-rejected**: 23.18 ± 0.19 t/s but 2 genuine fact errors ("about 90 minutes" → "A couple hours"; year 2026 → 2006), so it lost the only variable under test. Receipt `~/benchmarks/humanizer-20261022-q6k/`; lane row + tier reasoning `recipes/explore/README.md`. *(no ladder by design — a single-request rewriter has no C2/C5/C10 cell.)*
 
 - [ ] **Bisect llama.cpp's ~12 % decode regression — only when a current-ref arm's 12 % is worth ~6 h** —
   measured 2026-10-22 on one node with the same bytes and flags: `b2e5e9b` (2026-08-21) **114.2 / 113.9 t/s**
@@ -2098,14 +2122,14 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   bytes** — the owner question was *ship a single-node cybersec arm or not, and at which tier*, not a
   model survey; **answered 2026-10-22 (`QUESTIONS.md` `#12`): ship the 15.7G tier, with the 13G tier as
   the A/B control rather than the default** — see the ship item after this one. **This research item is
-  closed by the ship:** the 15.7G tier was booted and measured on `.35` on 2026-10-22 (`0243e57`; TTR
+  closed by the ship:** the 15.7G tier was booted and measured on `.35` on 2026-10-22 (`66612be`; TTR
   30.29 s warm, one warm C1 call **25.62 ± 2.31** t/s, prefill 742.9 ± 72.0, ttfr 2,399 ms, the in-file
   MTP head doing the work with log acceptance 0.40–0.86 / mean len 2.19–3.57 and **no paired MTP-off
   control**), so the paragraph below is the profile that preceded that boot. The model is **not mentioned
   anywhere else in this tree** (checked 2026-10-22); its vendor `orcarouter` already ships lane arms 1, 3
   and 4, so the item inherits the lane's conventions rather than inventing any. Draft at research
   time: `recipes/cybersec/zz-orcacyber-nano-1.0-ai-defense-mix-15.7g-llamacpp.yaml` — **superseded by the
-  shipped arm** `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (`0243e57`; the `zz-` path
+  shipped arm** `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (`66612be`; the `zz-` path
   no longer exists).
 
   **Family facts, read out of the GGUF headers, not the card.** The repo is **GGUF-only** — four
@@ -2275,14 +2299,14 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   research-only until the owner frees a node. Nothing else gates it: the arch, MTP and projector are
   all in the pinned image, the weights are 15.7 GB and the licence is Apache-2.0 read from the base's
   own file (see the licence paragraph), so nothing but a free node stands between this item and its
-  first cell. *(Superseded the same day: `.35` was freed and the 15.7G tier booted — `0243e57`.)*
+  first cell. *(Superseded the same day: `.35` was freed and the 15.7G tier booted — `66612be`.)*
   *(effort: medium)*
 
 - [ ] **Ship the OrcaCyber arm at the 15.7G tier, 13G as the A/B control — `QUESTIONS.md` `#12`,
   answered 2026-10-22** — the ship decision is taken, the tier is not to be re-litigated: default tier
   **`orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G`** (15,695,148,832 B ≈ 14.62 GiB, 4.60 bpw mixed, imatrix,
   gated `auto`), control **`:Mix-13G`** (12,993,304,352 B ≈ 12.10 GiB, 3.80 bpw) — the control, not the
-  default. **Landed 2026-10-22 in `0243e57`** — the 15.7G arm is shipped as
+  default. **Landed 2026-10-22 in `66612be`** — the 15.7G arm is shipped as
   `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (the `zz-` draft it was promoted from no
   longer exists), pinned to `1af1635a…` with the 927,606,848 B F16 `mmproj` and the in-file MTP head as
   `--spec-type draft-mtp --spec-draft-n-max 3`. Its first boot on `.35` (task
@@ -2368,7 +2392,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
-- [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `202f482`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*
+- [ ] **Unblock the two cybersec negatives via their card-documented vLLM routes** *(2026-10-15: both routes now ship as recipes — `nex-n2.5-mini-uncensored-nvfp4-vllm.yaml` and `qwen3.8-flash-next-uncensored-nvfp4-vllm.yaml`, pinned `9f11be0e`/`cd56f6c1`, `--quantization compressed-tensors` on the resident `dgx-vllm-eugr-nightly@sha256:7717585a…`; commit `8abe604`. The distribution gate that blocked them is superseded (direct pull measured 76–142 MB/s). Weights pre-staged on `.34`/`.35` 2026-10-15 (`~/benchmarks/_prefetch-20261015/`, 23.95 GB + 183.54 GB on **both** `.34` and `.35`, verified complete; index rows still gated on a boot receipt.)* — arm 3 (`nex-n2.5-mini-uncensored-nvfp4-sglang`; SGLang NaN sample-time logits) via its image-distribution route; arm 4 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`; SGLang's compressed-tensors loader refuses the export's scheme) via the `qwen4_exp` route, whose sole measured obstacle is the ~0.3 MB/s OCI relay. **Their index rows return only on a boot receipt** — they were dropped on 2026-10-14 when the index adopted *shipped = bootable and usable*, while the files stayed in `recipes/cybersec/` *(Owner decision 2026-10-15: unblock both; retirement to `attic/cybersec/` rejected — the reconcile item folded in here.)* (`recipes/cybersec/README.md:86-122`; `attic/cybersec/AGENTS.md` §8; `README.md` §Cybersec; precedent `recipes/glm/README.md:18-24`) *(effort: long)* *(nex vLLM booted 2026-10-15, four bounded boots, receipt `~/benchmarks/cybersec-nex-20261015/`: the card's route works — HTTP ready at TTR 257.6 s, `/v1/models` = repo id, engine `0.32.0rc1.dev161` — but generation degenerates to a single repeated token in every probe (greedy and sampled, thinking-on and answer-channel, `reasoning_tokens` 96/96 and the trace never closing at 800 tokens), so the route gate is closed and the *checkpoint* is what blocks the arm: recipe stays as the route record, no index row. The recipe's documented `reasoning_effort: none` is inert on this route and `enable_thinking: false` is the working switch, now shipped. `qwen3.8-flash-next-uncensored-nvfp4-vllm` is still unbooted.)*
 
   *(progress 2026-10-19 — **the vLLM route is measured NOT BOOTABLE on the pinned image.** Two
   launches on the `.34`/`.35` pair, ~31 min each: both die at model load with
@@ -2523,11 +2547,11 @@ queued:** `drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated` (`nvfp4_ar
 
 - [X] **Give the llama.cpp build job a runner — closed 2026-10-22 as a GitHub-hosted arm64 job**
   (`QUESTIONS.md` `#8`: "GitHub-hosted arm64 — confirmed"). The self-hosted ask above is **retired, not
-  kept as a fallback**: `7954650` puts the build job on `runs-on: ubuntu-24.04-arm`, deletes the
+  kept as a fallback**: `0976a1e` puts the build job on `runs-on: ubuntu-24.04-arm`, deletes the
   `vars.ARM64_RUNNER_ENABLED` gate and its guard, adds a 20 GB disk preflight (the hosted `/` is the
   constraint, and a failed build under it is reported with `::error::` rather than an ENOSPC link
   failure), and moves the guard suite to **931 tests**. What this unblocks is unchanged: the
-  stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `5ce1d02`) and the
+  stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `f1b458d`) and the
   Mellum MTP A/B, whose pre-registration is recorded in the lane item above — the first hosted run,
   not the landing, is what proves the build.
 
@@ -2539,11 +2563,11 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 
 ## Concurrency ladder (registry-level)
 **The census below is the 2026-10-15 snapshot and is stale:** most text arms now carry a full ladder — ds4 (TP=2 and TP=4), ornith 35B/9B, all three qwen3 arms, IFM 0.9B/7B, explore laguna-XS and both mellum arms (bf16 + llama-cpp), cybersec arm 2 — and only these still read `—` for C2/C5/C10 in `README.md`: qwen4's TP=1 solo arm, explore ling / kolibri / laguna-S, and cybersec arm 1 (orcarouter). `humanizer` needs no ladder — its `—` is by design, because the arm serves `/v1/completions` only and the ladder profile drives `/chat/completions` (`recipes/explore/README.md:148-151`). **Do not fill cells from the wrong receipt:** `attic/ds4/PERF-ISSUES.md:49-52`'s c1/c2/c5/c10 table is a cold-prefill triage on a different harness (its d0 c1 is 36.2, not the index's 46.5) and `attic/ifm/NOTES.md`'s c=2 53.697 belongs to the withdrawn 36B arm.
-- [ ] **Fill C2/C5/C10 for the single-node text arms** *(ornith 35B done 2026-10-15: C2 158.2 / C5 220.4 / C10 249.9 t/s @ d0, σ 6.2/10.0/4.6, `bench_8c7486cad451`; 9B done 2026-10-15: C2 101.1 / C5 159.0 / C10 148.9 t/s @ d0, σ 8.3/7.8/4.8, `bench_92725c90d298`)* — the 14 that fit one Spark (ornith 35B/9B, qwen3 dflash2/coder-next/mlx4bit-TensorFold, IFM 0.9B/7B, explore ling/kolibri/laguna-XS/laguna-S/humanizer, cybersec arms 1/2) on the free `.34`/`.35`; per cell quote the **decode** row of the `--output` file (never the printed table, which shows only that row and no header) and cite the receipt beside the number in `README.md` and the lane doc. *(effort: long)* *(progress 2026-10-15: IFM 0.9B (C1 80.4 / C2 181.6 / C5 317.6 / C10 503.9) and 7B (31.3 / 56.1 / 94.0 / 126.0) done — receipts `~/benchmarks/ifm-{09b,7b}-ladder-20261015/`, docs in `recipes/ifm/README.md` + `attic/ifm/NOTES.md` (commit `84aa52f`); **2026-10-16: qwen3 coder-next done** — C1 70.4 / C2 114.0 / C5 177.1 / C10 249.5 t/s @ d0, σ 0.2/2.6/14.9/3.9, decode rows read from `benchmarking/concurrency-ladder.yaml`'s `--output`; receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`; index row filled and the lane README carries the ladder plus the shape note. Remaining: qwen3 dflash2, explore ×5, cybersec ×2. **2026-10-17: the qwen3 mlx4bit-TensorFold arm done** — C1 44.8 / C2 57.7 / C5 64.4 / C10 65.6 t/s @ d0, σ 3.5/2.8/2.3/1.3, `bench_b10e422bb046`; the index row now carries all four cells and the lane README the ladder plus the scale shape (per-request decode falls 44.8 → 16.0, so the aggregate flattens past c5). **2026-10-17: the llama-cpp arm done** — C1 111.9 / C2 151.1 / C5 208.0 / C10 146.4 t/s @ d0, σ 0.3/2.6/2.8/1.5, `bench_4247926b7b9a`; the index row + lane README carry the four cells and the shape note (c10 runs 10 streams over the arm's 8 slots, so per-request decode spreads to 32.9 ± 16.1 and the aggregate falls past c5). Remaining single-node text arms: explore ling/kolibri/laguna-S, cybersec arm 1 (orcarouter), humanizer (needs the documented `—`: `/v1/completions` only, so llama-benchy cannot drive it). **2026-10-17: the qwen3 dflash2 arm re-measured and cybersec arm 2 (AEON) measured** — on `.35`, one boot each, `benchmarking/concurrency-ladder.yaml` with `--output`: dflash2 C1 29.6 ± 2.6 / C2 57.4 ± 3.3 / C5 89.5 ± 6.5 / C10 100.9 ± 3.4 t/s @ d0, `bench_355eee9f476f`; AEON C1 30.2 ± 1.5 / C2 49.4 ± 6.8 / C5 84.6 ± 9.1 / C10 92.9 ± 5.1 t/s @ d0, `bench_3ee8fda63ada`; receipt `~/benchmarks/ladders-solo-20261017/` (decode rows read from the `--output` JSON; values, per-request fall-off and the two-boot spread are in the rows and lane docs).)*
+- [ ] **Fill C2/C5/C10 for the single-node text arms** *(ornith 35B done 2026-10-15: C2 158.2 / C5 220.4 / C10 249.9 t/s @ d0, σ 6.2/10.0/4.6, `bench_8c7486cad451`; 9B done 2026-10-15: C2 101.1 / C5 159.0 / C10 148.9 t/s @ d0, σ 8.3/7.8/4.8, `bench_92725c90d298`)* — the 14 that fit one Spark (ornith 35B/9B, qwen3 dflash2/coder-next/mlx4bit-TensorFold, IFM 0.9B/7B, explore ling/kolibri/laguna-XS/laguna-S/humanizer, cybersec arms 1/2) on the free `.34`/`.35`; per cell quote the **decode** row of the `--output` file (never the printed table, which shows only that row and no header) and cite the receipt beside the number in `README.md` and the lane doc. *(effort: long)* *(progress 2026-10-15: IFM 0.9B (C1 80.4 / C2 181.6 / C5 317.6 / C10 503.9) and 7B (31.3 / 56.1 / 94.0 / 126.0) done — receipts `~/benchmarks/ifm-{09b,7b}-ladder-20261015/`, docs in `recipes/ifm/README.md` + `attic/ifm/NOTES.md` (commit `952acb7`); **2026-10-16: qwen3 coder-next done** — C1 70.4 / C2 114.0 / C5 177.1 / C10 249.5 t/s @ d0, σ 0.2/2.6/14.9/3.9, decode rows read from `benchmarking/concurrency-ladder.yaml`'s `--output`; receipt `~/benchmarks/pins-20261016/qwen3coder-ladder.yaml`; index row filled and the lane README carries the ladder plus the shape note. Remaining: qwen3 dflash2, explore ×5, cybersec ×2. **2026-10-17: the qwen3 mlx4bit-TensorFold arm done** — C1 44.8 / C2 57.7 / C5 64.4 / C10 65.6 t/s @ d0, σ 3.5/2.8/2.3/1.3, `bench_b10e422bb046`; the index row now carries all four cells and the lane README the ladder plus the scale shape (per-request decode falls 44.8 → 16.0, so the aggregate flattens past c5). **2026-10-17: the llama-cpp arm done** — C1 111.9 / C2 151.1 / C5 208.0 / C10 146.4 t/s @ d0, σ 0.3/2.6/2.8/1.5, `bench_4247926b7b9a`; the index row + lane README carry the four cells and the shape note (c10 runs 10 streams over the arm's 8 slots, so per-request decode spreads to 32.9 ± 16.1 and the aggregate falls past c5). Remaining single-node text arms: explore ling/kolibri/laguna-S, cybersec arm 1 (orcarouter), humanizer (needs the documented `—`: `/v1/completions` only, so llama-benchy cannot drive it). **2026-10-17: the qwen3 dflash2 arm re-measured and cybersec arm 2 (AEON) measured** — on `.35`, one boot each, `benchmarking/concurrency-ladder.yaml` with `--output`: dflash2 C1 29.6 ± 2.6 / C2 57.4 ± 3.3 / C5 89.5 ± 6.5 / C10 100.9 ± 3.4 t/s @ d0, `bench_355eee9f476f`; AEON C1 30.2 ± 1.5 / C2 49.4 ± 6.8 / C5 84.6 ± 9.1 / C10 92.9 ± 5.1 t/s @ d0, `bench_3ee8fda63ada`; receipt `~/benchmarks/ladders-solo-20261017/` (decode rows read from the `--output` JSON; values, per-request fall-off and the two-boot spread are in the rows and lane docs).)*
   *(Correction 2026-10-18 — the arm list above and its closing "Remaining" sentence are superseded: strike `humanizer` from both (its `—` is by design and already documented, `recipes/explore/README.md:148-151`), and add the two arms the list omits — qwen4's TP=1 solo arm and the mellum bf16 arm. Measured already: mellum bf16 ladder 2026-10-15 (C1 42.3 / C2 67.2 / C5 99.9 / C10 135.6 t/s @ d0) and the mellum llama-cpp arm 2026-10-17 (`bench_4247926b7b9a`), so neither is outstanding. Still lacking a ladder: qwen4's TP=1 solo arm, explore ling / kolibri / laguna-S, and cybersec arm 1 (orcarouter).)*
   *(Correction 2026-10-18, late — **that remaining list is itself stale; verified against the index rows, not against this register.** Measured since: qwen4 TP=1 solo (`bench_6b35f675861a`), explore ling (`bench_7c46291e9bbb`), kolibri FP8 (`bench_b0d57361b7d7`) plus each of the six pack/tier arms' own ladders, laguna-S (`bench_e3fdefdc2491`), and cybersec arm 1 plain (`bench_4c30a992c771`). What actually remains is two arms: the **cybersec NEXTN sibling** (`qwen3.8-27b-uncensored-nvfp4-nextn-sglang`, C1 14.72 only — one boot, `~/benchmarks/cybersec-nextn-20261018/`) and **qwen4 labquant-highcon**, whose `—` is deliberate: it is the aggregate regime, measured at d8192 k=16/24 rather than on the standard d0 ladder. `humanizer` stays `—` by design.)*
 ## Standard evaluation suite (registry-level)
-- [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)* *(progress 2026-10-15: ornith 35B done; IFM 0.9B/7B ladders measured; the decision-lane ensemble + ladder and the qwen3 27B headline suite both landed. **2026-10-16: the ornith 35B re-run in full** — eval-suite 1.0.1 `ok` (house 37/37; needle 3/3 at each of 32k/131k/262k), same-boot ladder C1 101.8 / C2 153.1 / C5 217.4 / C10 244.2 t/s, tool-eval-bench v2.6.0 **100** (15/15); receipts `~/benchmarks/ornith-35b-suite-20261016/`, rows in `recipes/ornith/README.md` + the index. **And the qwen3 coder-next arm** — one boot: pin + ladder (C1 70.4 / C2 114.0 / C5 177.1 / C10 249.5) + tool leg **90/100 (27/30)**, deployability 89, responsiveness 87, engine `vLLM 0.32.0rc1.dev301`; receipts `~/benchmarks/pins-20261016/`. **2026-10-17: the laguna-XS-2.1 arm's suite landed** — same-boot ladder C1 55.3 / C2 83.1 / C5 133.7 / C10 141.3 t/s (`bench_9b207347ec3b`), `tools/eval-suite.py` 3 ok / 2 fail (the fails: contract, all-empty reply at the 262,144 window; needle 2/3 at 32k and 131k but **3/3 at 262k** — the rope caveat's predicted long-window miss did not appear), TEB **97**; receipts `~/benchmarks/explore-laguna-xs-20261017/`, the index row + `recipes/explore/README.md` carry the numbers. **And the qwen3 mlx4bit-TensorFold arm** — one boot on `.35`: ladder C1 44.8 / C2 57.7 / C5 64.4 / C10 65.6 t/s (`bench_b10e422bb046`), house 37/37, needle 3/3 at 32k and 131k (the engine reports no `max_model_len`, so the auto depths stop at 128k), arc 94.0% / gsm8k 96.5%, TEB **100** (15/15); receipts `~/benchmarks/qwen3-tf-suite-20261017/` (+ `NOTES.md`). Its `tools` leg was killed at 3,878 s because the leg's Python-block-buffered log read as a hang; the fix (`678cb0c`, `PYTHONUNBUFFERED` in `tools/eval-suite.py`'s child env) landed mid-sweep; the leg re-ran unbuffered (4,487 s) and landed **85.7% (1063/1240)** in `~/benchmarks/qwen3-tf-tools-20261017/` (`parallel` 85.5%, `parallel_multiple` 72.0%). In the same window the first llama-cpp arm (mellum Q4_K_M, `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`) booted in ~100 s with its `--alias` intact and ran the same legs on `.34` (results at the end of this paragraph). One operational trap worth carrying: a legs-runner waiting on `pgrep -f "tools/eval-suite.py"` never exits, because a peer's day-old watcher loop carries that string in its own command line — match a pid file or a unique marker, not a substring of a command line. **2026-10-17: the first llama-cpp arm (mellum Q4_K_M, `.34`) ran the full legs** — house 37/37 (easy 19/19, hard 18/18); needle 131k 3/3, and 32k 3/3 after two manual re-probes of the thinking-budget class (depth 50 PASS at `--max-tokens 4096`; depth 90 PASS with `enable_thinking:false`, 9 completion tokens); hard arc 77.0% / gsm8k 93.5% (n=200 each); tool-eval-bench **97** (15 scenarios, 14 pass, 1 partial); bfcl **73.5 % at the 512 default → 88.3 % at 4096** (`~/benchmarks/mellum-gguf-tools4096-20261017/`: 179 → 6 no-call in the two parallel categories, all six `finish_reason: length`, the residual loss multi-call shape); ladder `bench_4247926b7b9a`; receipt `~/benchmarks/mellum-gguf-20261017/`. **Queued:** a `--bfcl-max-tokens 4096` re-run of the qwen3-TensorFold tools leg — its 85.7 % came from the 512 default, so its row and lane doc carry a `‡` budget annotation meanwhile.)*
+- [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)* *(progress 2026-10-15: ornith 35B done; IFM 0.9B/7B ladders measured; the decision-lane ensemble + ladder and the qwen3 27B headline suite both landed. **2026-10-16: the ornith 35B re-run in full** — eval-suite 1.0.1 `ok` (house 37/37; needle 3/3 at each of 32k/131k/262k), same-boot ladder C1 101.8 / C2 153.1 / C5 217.4 / C10 244.2 t/s, tool-eval-bench v2.6.0 **100** (15/15); receipts `~/benchmarks/ornith-35b-suite-20261016/`, rows in `recipes/ornith/README.md` + the index. **And the qwen3 coder-next arm** — one boot: pin + ladder (C1 70.4 / C2 114.0 / C5 177.1 / C10 249.5) + tool leg **90/100 (27/30)**, deployability 89, responsiveness 87, engine `vLLM 0.32.0rc1.dev301`; receipts `~/benchmarks/pins-20261016/`. **2026-10-17: the laguna-XS-2.1 arm's suite landed** — same-boot ladder C1 55.3 / C2 83.1 / C5 133.7 / C10 141.3 t/s (`bench_9b207347ec3b`), `tools/eval-suite.py` 3 ok / 2 fail (the fails: contract, all-empty reply at the 262,144 window; needle 2/3 at 32k and 131k but **3/3 at 262k** — the rope caveat's predicted long-window miss did not appear), TEB **97**; receipts `~/benchmarks/explore-laguna-xs-20261017/`, the index row + `recipes/explore/README.md` carry the numbers. **And the qwen3 mlx4bit-TensorFold arm** — one boot on `.35`: ladder C1 44.8 / C2 57.7 / C5 64.4 / C10 65.6 t/s (`bench_b10e422bb046`), house 37/37, needle 3/3 at 32k and 131k (the engine reports no `max_model_len`, so the auto depths stop at 128k), arc 94.0% / gsm8k 96.5%, TEB **100** (15/15); receipts `~/benchmarks/qwen3-tf-suite-20261017/` (+ `NOTES.md`). Its `tools` leg was killed at 3,878 s because the leg's Python-block-buffered log read as a hang; the fix (`cb44b09`, `PYTHONUNBUFFERED` in `tools/eval-suite.py`'s child env) landed mid-sweep; the leg re-ran unbuffered (4,487 s) and landed **85.7% (1063/1240)** in `~/benchmarks/qwen3-tf-tools-20261017/` (`parallel` 85.5%, `parallel_multiple` 72.0%). In the same window the first llama-cpp arm (mellum Q4_K_M, `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`) booted in ~100 s with its `--alias` intact and ran the same legs on `.34` (results at the end of this paragraph). One operational trap worth carrying: a legs-runner waiting on `pgrep -f "tools/eval-suite.py"` never exits, because a peer's day-old watcher loop carries that string in its own command line — match a pid file or a unique marker, not a substring of a command line. **2026-10-17: the first llama-cpp arm (mellum Q4_K_M, `.34`) ran the full legs** — house 37/37 (easy 19/19, hard 18/18); needle 131k 3/3, and 32k 3/3 after two manual re-probes of the thinking-budget class (depth 50 PASS at `--max-tokens 4096`; depth 90 PASS with `enable_thinking:false`, 9 completion tokens); hard arc 77.0% / gsm8k 93.5% (n=200 each); tool-eval-bench **97** (15 scenarios, 14 pass, 1 partial); bfcl **73.5 % at the 512 default → 88.3 % at 4096** (`~/benchmarks/mellum-gguf-tools4096-20261017/`: 179 → 6 no-call in the two parallel categories, all six `finish_reason: length`, the residual loss multi-call shape); ladder `bench_4247926b7b9a`; receipt `~/benchmarks/mellum-gguf-20261017/`. **Queued:** a `--bfcl-max-tokens 4096` re-run of the qwen3-TensorFold tools leg — its 85.7 % came from the 512 default, so its row and lane doc carry a `‡` budget annotation meanwhile.)*
   *(progress 2026-10-18 — two legs landed. **ds4 knapcio TP=4, 1017 weights** (task `a2e141223b52793c_7afff0589a33`): house **36/37** (easy 19/19, hard 17/18; the miss is `hard-rev`), needle **3/3 at each of 32,768 / 131,072 / 983,040** (top rung 981,950 prompt tokens), tool-eval-bench **90** (15 scenarios: 13 pass, 1 partial, 1 fail `TC-03 wrong_args`, `benchmarking/standard-suite.yaml`), same-boot ladder C1 69.28 / C2 86.40 / C5 108.78 / C10 116.27 t/s; receipts `~/benchmarks/tp4-20261018/` — `REPORT.md` §4, `knapcio-suite/`, `knapcio-teb.{yaml,json,csv}`. **qwen3 coder-next re-run** (`.30`, job `3d9fbe520b47c3a3_2d38dfc4605e`), all four legs `ok`: house 36/37 (easy 19/19, hard 17/18, the same `hard-arith-2` miss), needle 3/3 at 32k/128k/**256k** (262k rung filled 97.7 %, the tool's calibrated target, no `TRUNCATED`), ARC-Challenge 92.0 % (184/200) / GSM8K 96.0 % (192/200); `--timeout 3000 --needle-max-tokens 512` were applied proactively and never needed (256k prefill ~129 s, suite 1,319 s); the `tools` leg skipped on purpose (TEB already 90/100 on this arm); receipt `~/benchmarks/qwen3-coder-next-suite-20261018/`.)*
   *(progress 2026-10-18, late — **IFM 0.9B: PARTIAL, not a pass.** One serve on `.31` (cluster `e2b91b75cf01d3ab_68907e0cb1d8`, TTR 74.6 s, served `IFM/K2-Horizon-0.9B` @ 131,072, recipe sha256 `3c93459e…`): **contract ok**; **house ok** — easy **17/19** (`fmt-2`, `needle-1`), hard **15/18** (`hard-rev`, `trick-1`, `trick-2`); **needle FAIL** — 0/9 cells answered, every reply `finish_reason=length` with all 256 tokens spent inside `reasoning_content` and empty content, i.e. the SOP's 256-token cap and **not** a retrieval result (the 32k ladder's own calibration probes truncated too, so `chars_per_token` fell back to 4.6 and it filled 46.5k for a 32,768 target — a 42 % overshoot); **hard ok but floors** — gsm8k 86.0 % (172/200, 11 `length` + 11 empty replies) and arc 68.5 % (137/200, 18 `length` + 18 empty), the reasoning block eating the budget; **tools CUT** — SIGTERM'd when `.31` was reclaimed for a TP=4 boot, **585/904 logged (64.7 %)** with `irrelevance` never started and no `bfcl.json`, so that tally is **not** this arm's BFCL score. No ladder on this boot (the arm's stands at `edd4029e004f`). A valid re-take needs `--needle-max-tokens >= 512` and a completed tools leg. Receipt `~/benchmarks/ifm-09b-suite-20261018/` (`REPORT.md`, `house.json`, `needle-*.json`, `hard/`, partial `bfcl.log`, 0-byte `suite.log`).)*
 
@@ -2703,10 +2727,10 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 ## Shared storage (registry-level)
 `QUESTIONS.md` `#5` — **answered 2026-10-22: run the pilot.**
 
-- [ ] **Run the two-node BeeGFS pilot on `.34`/`.35`** — **the two nodes must be exclusive to it**
+- [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — **the two nodes must be exclusive to it**
   (owner condition: the pair is the pilot's whole infrastructure, so no lane serve, no transfer and no
   benchmark cell runs beside it for the duration). The verdict it tests is `BEEGFS-REPORT.md`'s
-  "not now" (`:194-214`), and §8 (`:228-239`) names the three numbers that are the prerequisites of any
+  "not now" (§6), and §8 names the three numbers that are the prerequisites of any
   adoption decision: **(1)** a cold plain-safetensors load, local disk versus the pool; **(2)** ds4 decode
   with Engram on the pool versus NVMe — record per-step throughput and `/proc/diskstats` on both paths,
   timing the Engram batch's wall time per step, because the engine's 32-thread pool already parallelizes
@@ -2714,19 +2738,38 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   `hf download` to price the metadata path. §8's own rule holds: **no adoption decision may be taken on a
   node that is serving**. This is the one open question in the register whose work runs on the free pair,
   so it is not held by the `#4` fence. *(effort: medium)*
+  *(progress 2026-10-22 — **the pilot ran; only the two control rows are measurable, and the blocker is
+  firmware, not packaging.** Both official module routes install and **neither yields a loadable
+  module**: `beegfs-client`'s postinst builds an unsigned `beegfs.ko` (`modinfo` shows no signer) and
+  `modprobe` answers `Key was rejected by service`, while `beegfs-client-dkms` signs with the local
+  `spark-324e` MOK, which is not enrolled — `mokutil --sb-state` says Secure Boot enabled and
+  `mokutil --list-enrolled` holds **one** certificate, Canonical's. So **§8 (2) cannot be measured at
+  all** and **(1)/(3) fall back to the NFS-over-rail stand-in**: 564.1 MiB/s single-stream read against
+  6,358.3 MiB/s local NVMe, 3,055.7 MiB/s at eight streams, metadata create 9.28 ms on a `sync` export
+  vs 0.67 ms `async`. The **server** half does work — mgmtd/meta/storage start, register both storage
+  targets and speak RDMA on the rail — but only after a `network-online` + rail-address drop-in, and
+  `node list` reports the stored targets while they are down, so it is not a liveness test; the BeeGFS
+  target benchmark reports 307.16/311.51 MiB/s single-task write and 1.49/1.57 GiB/s at four tasks.
+  Owner ruling (`QUESTIONS.md` `#5`): the pilot **reports numbers with no pre-registered pass/fail**,
+  and none is invented after the fact — so the adoption verdict stays *not now*, with its reason
+  restated as the physical-console MOK enrollment. Everything was torn down and both nodes are back to
+  0 containers with 615/279 GB free. Full record: `mad-science/BEEGFS-REPORT.md` §10; receipts
+  `~/benchmarks/beegfs-pilot-20261022/`.)*
 
 ## Image pins and advisories (registry-level)
 
-- [ ] **Sanitize cluster-internal addresses out of tracked files** — a history-wide audit on 2026-10-20
+- [x] **Sanitize cluster-internal addresses out of tracked files** — a history-wide audit on 2026-10-20
   scanned `git log -p --all` and `git log --all --format='%h %s%n%b'` for fabric IPs, the CX7 RoCE
   subnets and `spark-*.<internal-domain>` names. It found **221 patch-body lines across history and 8
   commit-message lines**, and confirmed the two by-design-ignored paths (`mad-science/REPORT.md`,
   `.local/`) were **never tracked**. The live exposure is the *current tree*, not only history: attic
   lane docs, the ds4 benchmark harness under `recipes/ds4/benchmarks/`, one glm launcher README, and
-  fixture/docstring uses in `tests/`+`tools/`. Pushed history is deliberately **not** rewritten (no
-  force-push); the non-rewriting fix is one sanitizing commit over the working tree, with the history
-  rewrite a separate owner decision. *(effort: short)*
-  *(progress 2026-10-20 — **the tree is clean; history is not, and is left alone.** Masked with the
+  fixture/docstring uses in `tests/`+`tools/`. The 2026-10-20 pass took **the tree only** and left the
+  history to a separate owner decision; **that decision was taken and executed on 2026-10-22** — the
+  history is rewritten as well (`QUESTIONS.md` `#16`, tip `240ecd6`; the `history-purge` item below
+  carries the execution record), and `tests/test_tracked_address_hygiene.py` now walks `git ls-files`
+  on every gate run. *(effort: short)*
+  *(progress 2026-10-20 — **the tree is clean; the history was left to the owner.** Masked with the
   repo's own rule (`.omp/skills/sparkrun-tracked-file-ip-hygiene/SKILL.md`): RFC1918 literals become the
   `.30`-`.35` node shorthand, fabric words become "the CX7 plane-A/B subnet", the internal head hostname
   becomes `<head-node>`, upstream-template placeholders become `<master-ip>`, and the four hostnames in
@@ -2743,19 +2786,36 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   they carry `host-30`-style names instead, assertion and fixture changed together; the glm shim fixture
   takes `.30:25000` unchanged in behaviour. Gate after the change: **752 tests OK** (2 skipped), **51/51**
   plain validate, `bash -n` clean. **History:** the earliest commit that already carried a literal is
-  `ee973cd` (2026-09-18, "Close labquant blocker (e)…", first management-subnet literal); the CX7 subnet form enters at
-  `c441141` (2026-10-02, ds4 knapcio). Both are published; rewriting them needs a force-push, which was
-  **not** done at the time — the owner elected the rewrite on 2026-10-22 (`QUESTIONS.md` `#16`), so it
-  continues as the `history-purge` item below.)*
+  `d8f38a3` (2026-09-18, "Close labquant blocker (e)…", first management-subnet literal); the CX7 subnet form enters at
+  `3c518d1` (2026-10-02, ds4 knapcio). Both were published under the pre-rewrite history; the owner
+  elected the rewrite on 2026-10-22 (`QUESTIONS.md` `#16`) and it is **executed** — every SHA in this
+  file is now a rewritten one, and the `history-purge` item below carries the pre-rewrite tip.)*
 
-- [ ] **`history-purge` — rewrite git history to remove the cluster-internal addresses** —
-  **authorized 2026-10-22** (`mad-science/QUESTIONS.md` `#16`) and **not started**. Scope is the 221
-  patch-body lines and 8 commit-message lines the 2026-10-20 audit counted (the item above carries the
-  audit and the earliest offending commits); the working tree is already masked, so this is history
-  only. Rewrite and **force-push** are both authorized — a rewritten history is accepted as the cost.
-  Do it with `git filter-repo --replace-text` over one substitution file built from the same masking map
-  the tree sweep used, then verify with the audit's own scanner over `git log -p --all` and
-  `git log --all --format='%h %s%n%b'` (0 hits), and re-pull the suite/validate gate on the rewritten
-  tip. *(effort: medium)*
+- [x] **`history-purge` — rewrite git history to remove the cluster-internal addresses** —
+  **authorized 2026-10-22** (`mad-science/QUESTIONS.md` `#16`) and **executed the same day**. Scope was
+  the 221 patch-body lines and 8 commit-message lines the 2026-10-20 audit counted (the item above
+  carries the audit); the working tree was already masked, so this was history only, and a rewritten
+  history was the accepted cost.
+  *(progress 2026-10-22 — **done: `aac85ec` → `240ecd6`, force-pushed.** `git filter-repo
+  --replace-text` over one substitution file built from the same masking map the tree sweep used;
+  **849 commits preserved**, **one ref** (`refs/heads/main`, with `origin/main` and the remote HEAD on
+  the same commit), **0 tags**; the push was `--force-with-lease`. **Verification at the new tip:** the
+  audit's own scanner re-run over `git log -p --all` reports **7 address lines, all inside the three
+  exempt files** — the published HLE question (`recipes/ds4/benchmarks/data/hle_test.jsonl:121`), the
+  CI detector's planted control, and the hygiene guard's own pattern plus four controls — and
+  `git log --all --format='%h %s%n%b'` reports **0** commit-message hits; the tracked-tree guard
+  (`tests/test_tracked_address_hygiene.py`) is green. **Signatures: 10 `E` + 839 `N` before, 849 `N`
+  after** — a consequence, not a loss: filter-repo strips `gpgsig`, so the rewrite drops commit
+  signatures while every commit object survives. **Every commit SHA changed**, so every citation in the
+  tree was re-pointed through filter-repo's own `.git/filter-repo/commit-map` — **298 citations across
+  26 tracked files**, and a pre-rewrite SHA in an older copy of any doc no longer resolves here.
+  **Backups:** `/tmp/purge-backup/pre-purge-20261022-141525.git` is a `git bundle` (13.8 MB,
+  `git bundle verify` reports a **complete history** at `aac85ec`), and
+  `/tmp/purge-backup/pre-purge-mirror.git` is the mirror clone. **Clones:** the workstation cache and the
+  `.34`/`.35` registry caches were re-cloned at the new tip so no cache still carries the old objects;
+  `.30`–`.33` were left untouched. **`origin` is the only remote — there is no `spark-arena` remote**,
+  and re-adding one later would need the same care about which history it fetches. Gate at the new tip:
+  **940 tests OK** (2 skipped), **67/67** plain validate, **49/67** strict (the same 18 accepted
+  findings).)* *(effort: medium)*
 
-**Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `4ef53ad`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
+**Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `16896e1`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).

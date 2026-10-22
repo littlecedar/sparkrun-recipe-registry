@@ -673,7 +673,7 @@ arms. Cite it rather than this README for anything historical.
 | [`ornith-1.5-35b-a3b-nvfp4-vllm.yaml`](../../attic/ornith/ornith-1.5-35b-a3b-nvfp4-vllm.yaml) | Archived arm — a 35B vLLM recipe. The registry carries **no measured figure** for it, and the DFlash2 draft is an SGLang-targeted artifact, so the shipped 35B lane is the SGLang one; retained as provenance. |
 | [`ornith-1.5-35b-a3b-nvfp4-vllm-b12x.yaml`](../../attic/ornith/ornith-1.5-35b-a3b-nvfp4-vllm-b12x.yaml) | Archived arm — the `b12x` sibling of the 35B vLLM recipe; same status (no measured figure, retained as provenance). |
 
-The three archived recipes were moved to `attic/ornith/` (commit `e0633ed`) and are **not** part of
+The three archived recipes were moved to `attic/ornith/` (commit `9942a40`) and are **not** part of
 the shipped surface.
 
 ## References

@@ -7,8 +7,9 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
-suite and strict-validate counts were re-measured **2026-10-22** at `1ccf56a` (67 tracked recipes,
-39 importable guard modules, 940 tests, 18/67 strict).
+suite and strict-validate counts were re-measured **2026-10-22** at `240ecd6` — the rewritten history's
+tip — and are **unchanged by the rewrite** (67 tracked recipes, 39 importable guard modules, 940 tests,
+18/67 strict), as they were at `dd26c01` before it.
 Facts drift — re-measure (`git ls-files 'recipes/*/*.yaml'`, test discovery) before trusting a number;
 the working tree can carry in-flight drafts that git does not, so `ls recipes/*/*.yaml` overcounts.
 
@@ -126,7 +127,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
 ```
 
 - **Plain `validate` is the gate, not `--strict`**: all 67 tracked recipes pass plain; 18/67 fail
-  strict on accepted findings (re-measured 2026-10-22 at `1ccf56a`; the same 18 files listed below).
+  strict on accepted findings (re-measured 2026-10-22 at `240ecd6`, unchanged from `dd26c01`; the same
+  18 files listed below).
   Seventeen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 
@@ -284,8 +286,8 @@ dirty file, leave it dirty and report it; commit here with explicit pathspecs an
 
 **Never `git add` in one command and commit in another.** The shared index accumulates other sessions'
 staged entries between them, so the commit publishes work whose message does not describe it — measured
-twice in one session: `bf6ab39` swept 24 staged `recipes/{explore,decision} → recipes/media/` renames and
-`d913fcc` swept 33 already-staged foreign paths. Commit in a single command that names the paths —
+twice in one session: `eb2ba94` swept 24 staged `recipes/{explore,decision} → recipes/media/` renames and
+`56240cf` swept 33 already-staged foreign paths. Commit in a single command that names the paths —
 `git commit -m "<msg>" -- <paths>` or `git commit -o <paths>` — so only those paths are taken. If the index
 already holds entries that are not yours, neither clear nor include them: stage your own hunks only (a
 filtered `git apply --cached`, or the throwaway `GIT_INDEX_FILE` + `write-tree`/`commit-tree` route) and
@@ -442,6 +444,14 @@ matching.
 - Journal/work docs are git-ignored by design (`**/*JOURNAL.md`, `**/*-WORK.md`,
   `**/*-WORK-ARCHIVE.md`, `.local/`) because they hold internal IPs and this registry is distributed
   to third parties. Never `git add -f` them; keep hostnames/IPs out of tracked files.
+- **That rule now covers history as well as the tree.** The tree was masked on 2026-10-20, and the
+  history was rewritten on 2026-10-22 (`aac85ec` → `240ecd6`, 849 commits, force-with-lease): the only
+  address literals left in the repository are **7 by-design ones** (a published HLE question, a planted
+  detector control, and the hygiene guard's own pattern plus four controls). Two consequences for a
+  contributor: `tests/test_tracked_address_hygiene.py` fails the gate on any RFC1918 or head-hostname
+  literal in a tracked file that is not on its path-keyed exemption list, and **every commit SHA
+  changed in the rewrite** — a SHA cited before 2026-10-22 resolves only against
+  `/tmp/purge-backup/pre-purge-mirror.git`, so cite the rewritten one.
 
 ## Important Files
 
@@ -540,7 +550,8 @@ matching.
 ## Testing & QA
 
 - Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **940 tests,
-  all passing 2026-10-22 at `1ccf56a` (2 skipped:** the IFM research docs absent on a fresh clone and the
+  all passing 2026-10-22 at `240ecd6`, the rewritten tip (2 skipped:** the IFM research docs absent on a
+  fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
   why this count is 2 skips and not the 3 recorded earlier the same day). The

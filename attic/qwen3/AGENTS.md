@@ -177,7 +177,7 @@ back into this lane first** — while it sits in `attic/`, the lane's validation
   belongs to the *unfixed* arm. TP=2 grants the full `max_num_seqs` 48 — the recovered admission line
   is `max_total_num_tokens=1815619`, no `capped to`. That receipt is benchmark-only (no house battery
   or contract verdict), and the boot ran the then-unpinned `dev-cu13` tag (the digest pin landed
-  after it, `4ef53ad`).
+  after it, `16896e1`).
 - **`--enable-linear-replayssm-spec`** — rejected; the scheduler raises
   `ValueError: --enable-linear-replayssm-spec with DSPARK/DFLASH requires a KDA (kimi_linear) model;
   got a non-KDA model` **after both weight loads** (`kv_cache_configurator.py:1106-1114`) — a full
@@ -358,7 +358,7 @@ reading `[staging-buffer-release] anchor found 0 time(s), expecting 1` and
 `try/finally: loader.close()` and no release call anywhere in
 `model_loader/weight_utils.py` — so the mod's fail-closed gate fired. The leaks themselves were
 untouched by that drift. This was a shipped-recipe regression rather than a missing number, since
-cybersec arm 5 mounts the same mod. Re-anchored the same day (`37e5b00`, one candidate anchor per known
+cybersec arm 5 mounts the same mod. Re-anchored the same day (`3447bcd`, one candidate anchor per known
 upstream shape with `fb = None` bound above the `try`), guarded by
 `tests/test_fix_fastsafetensors_tp2_mod.py`, which fails against the pre-change script and covers the
 partial-apply fatal.

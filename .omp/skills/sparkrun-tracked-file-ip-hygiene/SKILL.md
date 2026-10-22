@@ -25,4 +25,4 @@ leaving `192.168.x.x` — the CX7 range — and `172.16-31.x.x` invisible):
 
 ## Why
 
-2026-10-13: `recipes/glm/README.md` runbook bullets shipped to commit `cdf7ab1` (pushed) with raw fabric/CX7 addresses and a `MASTER_ADDR` line. The rest of that session masked everything consistently; only the subagent-written doc slipped, and the gate was green. A leak that reaches origin costs a follow-up commit and looks sloppy to third parties.
+2026-10-13: `recipes/glm/README.md` runbook bullets shipped to commit `7177bfa` (pushed) with raw fabric/CX7 addresses and a `MASTER_ADDR` line. The rest of that session masked everything consistently; only the subagent-written doc slipped, and the gate was green. A leak that reaches origin costs a follow-up commit and looks sloppy to third parties.

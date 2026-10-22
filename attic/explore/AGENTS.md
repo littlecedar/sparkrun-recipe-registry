@@ -647,8 +647,8 @@ untouched):
 ## Engine bump — vLLM 0.30.0 (2026-10-16)
 
 The 2026-10-15 advisory pass opened this: move the lane's six `vllm/vllm-openai:v0.29.0` arms to
-`v0.30.0@sha256:8a69ffad…` (**0** OSV records, vs 23 at 0.29.0). Pin commit `0c41f18` moved five of the six (Kolibri held on its plugin); three pins
-went back on `2a8243f` after the device-free preflight below.
+`v0.30.0@sha256:8a69ffad…` (**0** OSV records, vs 23 at 0.29.0). Pin commit `7e6bf2b` moved five of the six (Kolibri held on its plugin); three pins
+went back on `27e4563` after the device-free preflight below.
 
 **Preflight before booting (worth repeating on every engine bump):** run the new image's own config
 loader against every pinned arm, on a node, with the **HF repo dir** mounted — never a
@@ -901,7 +901,7 @@ So the 14× gap is a property of the `9df0b73c7` **tree**, not of upstream llama
 so the residual ~15 % against its 120 t/s is not that flag.
 
 **Reproduced from a clean context, so it is ref-level after all.** Rebuilt `9df0b73c7` from the pre-flint
-`5ce1d02` Dockerfile in an empty build context on `.30` (737.70 s, image `97c98b0d8b08`, gate passed),
+`f1b458d` Dockerfile in an empty build context on `.30` (737.70 s, image `97c98b0d8b08`, gate passed),
 booted it on `.31`: **7.9 / 8.0 t/s** — the slow number again, so the 8.4 t/s image was not a bad artifact
 and a bisect was the right next step. Its window is **38 commits** (an earlier note here said four, which
 was wrong), and it does touch device code: `ggml-cuda.cu` (+6, new `GGML_OP_TOP_K_MASK` dispatch and

@@ -46,7 +46,7 @@ tuning:
 mods:
   # Unscoped: an attic arm resolves `mods:` against its own directory, where these two live. The
   # TP=4 sibling still carries the old `@littlecedar/…` form; that resolves only if a littlecedar
-  # registry clone is present, and the mods were moved here by 9d12b93.
+  # registry clone is present, and the mods were moved here by d46d338.
   - "mods/mount-dsv41-exl3-patches"
   # Bounds the Engram reader's host page cache (POSIX_FADV_DONTNEED per batch).
   # POST-PATCH: must come AFTER mount-dsv41-exl3-patches. Booted safe/neutral

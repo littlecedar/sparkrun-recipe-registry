@@ -5,8 +5,8 @@ llama-benchy profiles used by `sparkrun benchmark performance <recipe> --profile
 **This directory is the curated library, not the archive.** It holds the profiles that are tracked,
 named below, or cited by a recipe/tool/test. The **82 single-use experiment arms** from the finished
 qwen4 and qwen3 optimization campaigns were archived under `attic/benchmarking/` with a per-profile
-`ARMS-MANIFEST.md`, and that archive was itself deleted from the tree in commit `b4ab22b` (2026-10-06).
-If a `bench_*` id cites a profile that is not here, recover it with `git show b4ab22b^:<path>`.
+`ARMS-MANIFEST.md`, and that archive was itself deleted from the tree in commit `5acda89` (2026-10-06).
+If a `bench_*` id cites a profile that is not here, recover it with `git show 5acda89^:<path>`.
 Twelve profiles stranded later by the qwen4/qwen3 lane cuts were preserved the same way on
 2026-10-15 — nine under `attic/qwen4/profiles/` and three under `attic/qwen3/profiles/`, each with a
 line in its lane's `ARMS-MANIFEST.md`.
@@ -178,8 +178,8 @@ is archived is the lane's records.
 
 **Archived 2026-10-04, deleted 2026-10-06 — the four `NOT RUN` rows of this family.** `pp-sweep-c4c8`,
 `a2-depth-gap-c8`, `kv-residency-dissociation`, and `d0-baseline-dissociation` were moved to
-`attic/benchmarking/` with manifest rows, then deleted with that archive in `b4ab22b`
-(`git show b4ab22b^:attic/benchmarking/<name>.yaml`). They were never executed, so
+`attic/benchmarking/` with manifest rows, then deleted with that archive in `5acda89`
+(`git show 5acda89^:attic/benchmarking/<name>.yaml`). They were never executed, so
 they produced no `bench_*` id; their questions are closed by other means (`pp-sweep-c4c8` superseded by
 `pp-slope` / `pp-vs-depth-acceptance`; `a2-depth-gap-c8` closed by the c=8 depth-cost work;
 `kv-residency-dissociation` carries a `depth: 26624` cell that exceeds any pool here — a design note,
@@ -225,7 +225,7 @@ because a live recipe or the qwen4 lane still cites them — `rk-nograph-cps8192
 
 - Keep the directory to the curated set. An arm whose question is closed is removed in a commit that
   records its rationale and a closure pointer (the `attic/benchmarking/` archive was itself deleted
-  in `b4ab22b`); `git show b4ab22b^:<path>` recovers any archived profile. **A profile whose question
+  in `5acda89`); `git show 5acda89^:<path>` recovers any archived profile. **A profile whose question
   is closed *and* whose arm is archived is preserved instead of deleted**: move it (plain `mv`, it
   stays tracked) to `attic/<lane>/profiles/`, add one line to that lane's `ARMS-MANIFEST.md`, and
   update this README — the 2026-10-15 sweep did that for the qwen4 `bs-*` and qwen3 depth-cost

@@ -422,7 +422,7 @@ edited to force the STALE `dba1be0a…` → launcher logged `checkpoint …dba1b
 is not present; resolved to …2cba9e42…` and booted normally (TTR 181 s), Engram
 `packed=True`, no `missing config.json`. The self-heal works.
 
-**Coordination note:** commit `fd0fb21` (external) captured most of the
+**Coordination note:** commit `64c38e7` (external) captured most of the
 portability+vendoring work but **dropped the `distribution_config:` block** from
 the recipe (the portability rework was written over a base that predated it).
 Re-added it; the recipe now carries `containers.enabled: true` + the digest pin.
@@ -476,7 +476,7 @@ If a later sync/merge clobbers it again, `test_image_is_vendored_and_pinned` and
 - Stub-server test on `.30` before pushing: container created with no
   `SERVER_PORT`, serving 8000 → `health=healthy`.
 
-**Also restored, then removed again by request:** commit `78a099f` had dropped the
+**Also restored, then removed again by request:** commit `612cf19` had dropped the
 recipe's `distribution_config:` block, so the guards (`test_image_is_vendored_and_pinned`,
 `test_models_are_distributed`) were failing. I re-added it (containers+models
 `enabled: true`); the user then asked to **remove it for good** as development-only.

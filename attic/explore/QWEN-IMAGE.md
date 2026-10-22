@@ -154,7 +154,7 @@ Receipt: `~/benchmarks/media-gen-20261021/REPORT.md` on `.30`.
 
 `vllm/vllm-omni:nightly` serves this checkpoint natively and beats the shipped Diffusers launcher by
 **~24 % warm at the same step count and the same peak memory**. It is **recorded as a measured
-alternative**: at measurement time it had no recipe (one was authored later, `a574eaf` — see
+alternative**: at measurement time it had no recipe (one was authored later, `11cc155` — see
 §"Why it was not an arm on 2026-10-21", corrected 2026-10-22), and the same seed does not give the same picture (below).
 Both routes' 8-step images were inspected for defects and are clean — the remaining choice between the two
 looks is the owner's, not this measurement's. One boot on `.34`, one serve each route, same prompt, seed 42, 1024², CFG=1
@@ -266,7 +266,7 @@ asymmetries are worth naming for reproduction and change nothing about the compa
   on 2026-10-21: the registry shipped the Diffusers script alone at that point.** The route stays recorded because the
   ~24 % is real and reproducible, not because it is queued.
 - **Reversed 2026-10-22** (`QUESTIONS.md` `#13`: *"ship both"*). The OMNI look has an arm of its own —
-  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`a574eaf`, media lane after the split),
+  `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml` (`11cc155`, media lane after the split),
   digest-pinned to the nightly that carries `QwenImage21Pipeline`, validated and rendered only and
   **never booted**. Its acceptance is **four boot cells** (identity line naming `QwenImage21Pipeline`,
   warm-time re-render against 8.66–8.75 s, the two-color screenprint prompt re-reviewed, cold TTR

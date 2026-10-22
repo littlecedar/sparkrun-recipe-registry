@@ -651,7 +651,7 @@ python3 tools/gate-37111.py --depth-tokens 8192 --turns 3
 python3 tools/gate-37111.py --selftest     # offline, in-process mock, ~2 s
 ```
 
-**`--thinking` off is explicit** (since 2026-10-19, `9eee3a2`): every request carries
+**`--thinking` off is explicit** (since 2026-10-19, `5eca6ba`): every request carries
 `chat_template_kwargs.enable_thinking` as a boolean. It has to — the flag used to omit the kwarg, and a
 thinking-by-default template (Qwen3.8-Flash-Next) then spent the whole essay budget inside the think
 block and returned `content: ""` with `finish_reason: length`, which the detectors report as

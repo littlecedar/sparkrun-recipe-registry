@@ -19,7 +19,7 @@ the `.34`/`.35` shorthand.
 | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml` | 9B | SGLang | 1 (TP=1) | **booted + measured 2026-10-14** — C1 ≈ 52–59 t/s, battery 37/37, spec engaged; state in §1 and [`NOTES.md`](NOTES.md) §2 (closed) |
 
 Three further Ornith recipes (a b12x `broken` 397B fork and two vLLM arms for the 35B) were moved
-to [`attic/ornith/`](../../attic/ornith/) at commit `e0633ed`; they are provenance, not shipped
+to [`attic/ornith/`](../../attic/ornith/) at commit `9942a40`; they are provenance, not shipped
 surface. All three shipped recipes are `sparkrun recipe validate`-clean, and the lane is guarded by
 [`tests/test_ornith_recipes.py`](../../tests/test_ornith_recipes.py) (added 2026-10-14 — the lane
 had no recipe guard before that).
@@ -468,7 +468,7 @@ window, and the deliberate absence of `--speculative-*`.
 - 397B checkpoint: [littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft](https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft)
 - 397B base: [ornith-ai/Ornith-1.5-397B](https://huggingface.co/ornith-ai/Ornith-1.5-397B)
 - DFlash 2: [Keep Drafting Parallel](https://inco.ai/blog/dflash2/) · [arxiv 2602.06036](https://arxiv.org/abs/2602.06036)
-- Archived recipes: [`attic/ornith/`](../../attic/ornith/) (moved at `e0633ed`)
+- Archived recipes: [`attic/ornith/`](../../attic/ornith/) (moved at `9942a40`)
 
 *Evidence over memory: if this file and a boot log disagree, the log wins — and this file gets
 corrected.*
@@ -1170,7 +1170,7 @@ silent failures above) and `FlagshipContainerIsDigestPinned` (§3.8).
 
 ## Archived recipes
 
-Three Ornith recipes were moved to [`attic/ornith/`](../../attic/ornith/) (commit `e0633ed`) and are **not**
+Three Ornith recipes were moved to [`attic/ornith/`](../../attic/ornith/) (commit `9942a40`) and are **not**
 part of the shipped surface:
 
 - A `littlecedar-ornith-1.5-397b-*` b12x fork of the 397B vLLM recipe — an earlier variant carrying

@@ -41,10 +41,10 @@ drift:
 - Upstream: [`humanrouter/qwen38-flash-next-2x-spark`](https://github.com/humanrouter/qwen38-flash-next-2x-spark),
   `scripts/apply-ple-patch.py` (linked in the script header).
 - House copy first landed under `mods/fix-qwen3.8-flash-next-vllm/`, was mounted by no recipe, and
-  was deleted on 2026-10-11 in `9d12b93` ("Archive the retired-lane mods and drop four unreferenced
+  was deleted on 2026-10-11 in `d46d338` ("Archive the retired-lane mods and drop four unreferenced
   ones") on the recorded assumption that the only consumer, the archived W12 arm, would mount the
   **eugr registry's** mod of the same name.
-- **Restored 2026-10-22 from `9d12b93^`** because that assumption had rotted: the mirrored eugr
+- **Restored 2026-10-22 from `d46d338^`** because that assumption had rotted: the mirrored eugr
   registry (`spark-arena/eugr-recipes@0bdc9c9`, 26 mods) no longer carries
   `fix-qwen3.8-flash-next-vllm`, so the W12 arm failed at `Could not resolve mod` before launch.
   Files restored byte-identical, then three defects fixed (see below).

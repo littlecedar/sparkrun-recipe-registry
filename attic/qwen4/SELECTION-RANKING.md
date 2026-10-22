@@ -19,7 +19,7 @@ These rows changed after it was written:
 
 - **ds4** — the untracked `deepseek-v4.1-flash-exl3-engram-tp2-1m-sglang.yaml`
   packaging variant (ds4 row 3 in the table below) was **deleted** 2026-10-11
-  (commit `5ec5019`): it was a byte-duplicate of the tensorfold TP=2 recipe,
+  (commit `5cc2740`): it was a byte-duplicate of the tensorfold TP=2 recipe,
   which already serves from the combined HF repo. The TP=2 lane is a single
   recipe.
 - **qwen3** — `qwen3.8-27b-nvfp4-dspark-sglang.yaml` (qwen3 row 2) is now

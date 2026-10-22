@@ -514,7 +514,7 @@ another lane's workload when this was written.
 **2026-10-17 — re-boot on the combined pack: the Engram dedup done, engram ON.** The arm grafts from
 `littlecedar/…-2.9bpw-with-engram` (owner decision 2026-10-15: combined repo everywhere) and
 `--stock-model {model}` stopped being decorative — the launcher resolves the Engram tables from the
-pack named there when the served dir has none (commit `d7c879b`).
+pack named there when the served dir has none (commit `1dd1ece`).
 
 - **The author's script `os.link`s every shard it does not edit, and `os.link` does not dereference
   a symlink.** Verified from the script source plus a direct link-semantics experiment on the node:
@@ -527,7 +527,7 @@ pack named there when the served dir has none (commit `d7c879b`).
   ~308 GiB, and the residual ~78 GiB is **unexplained — most likely the script's `copy2` fallback**
   (`apply_mia_exl3_wob.py:76`), which *follows* a symlink and would materialize unedited shards as
   real bytes. The dedup as first wired *added* ~190 GB per node.
-- **Fix (commit `a61890a`).** The mod builds a 50-entry `--src` symlink view of the stock pack
+- **Fix (commit `3bb82a1`).** The mod builds a 50-entry `--src` symlink view of the stock pack
   without `engram/`, hands that to the script, and links `${STOCK}/engram` into the graft tree; the
   repair runs before the `ABLIT_META` short-circuit, so a graft already on a node is fixed on its
   next launch. Re-boot receipt (task `2f9a8f3e60a51ee4_948390812ad5`, receipt

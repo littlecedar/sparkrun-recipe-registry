@@ -359,13 +359,13 @@ weights**.
   House battery **37/37** (easy 19/19, hard 18/18); hard arc 77.0% / gsm8k 93.5% (n=200 each);
   `standard-suite` profile (tool-eval-bench) **97** — 15 scenarios, 14 pass, 1 partial; deployability
   84, responsiveness 54 (report — the only copy — `.scratch/explore/mellum-teb-20261017/2026-10-17T07-52-40.740345Z_e604d040.md`); bfcl **88.3%** (1095/1240, no transport errors — audited) at
-  `--bfcl-max-tokens 4096`, the suite's new default (`3ac9581`). This arm is why that flag exists: its
+  `--bfcl-max-tokens 4096`, the suite's new default (`ecddfd4`). This arm is why that flag exists: its
   first leg ran at the old 512 default and scored **73.5%** (911/1240), where **179 of the two
   parallel categories' 400 questions returned `calls: []`** — bare `content: ''` plus a think block
   (median ~2.0k chars against the valid records' 826), a no-call reply being scored FAIL by design
   (`tools/bfcl-eval.py:55-56`). The budget was the mechanism, and it is now measured rather than
   inferred: at 4096 only **6** of those 400 come back with no call, every one of them
-  `finish_reason: length` (the field `c232be0` added). The residual parallel-category loss is
+  `finish_reason: length` (the field `4f78018` added). The residual parallel-category loss is
   **multi-call shape**: of the 65 failures there, 34 emit exactly one call and 25 emit two or more
   with a wrong set. Category read-out at 4096 — `simple` 94.5%, `multiple` 94.0%, `parallel` 87.5%,
   `parallel_multiple` 80.0%, `irrelevance` 80.8% (46 of 240 called when no call was expected, the
@@ -413,7 +413,7 @@ weights**.
   `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle
   leg scored that shape FAIL, and llama.cpp's window lives at `meta.n_ctx` (no top-level
   `max_model_len`), so the 2 % clamp never ran and the 131k rung overflowed the window. Both tool-side
-  false-FAIL classes are fixed in `590b9b2` (`tools/needle-haystack.py` records `finish_reason` and
+  false-FAIL classes are fixed in `e13ccd5` (`tools/needle-haystack.py` records `finish_reason` and
   marks the shape TRUNCATED; both tools read the nested window) — receipt note
   `NOTE-needle-tool-fix.md`.
 - **License:** Apache-2.0.

@@ -848,8 +848,8 @@ cache drops are not a mitigation; **no recipe change**.
 
 All five recipes were briefly switched to `--load-format instanttensor` plus the
 vendored `@littlecedar/mods/instanttensor-hybrid-draft-loader`. The TP=6 1M boot
-with both **crashed all six nodes**; reverted in `f274545` to the last known-good
-lane (`63b1e49`). The recipes load weights the way they did before (no
+with both **crashed all six nodes**; reverted in `cd88fa3` to the last known-good
+lane (`d27e51a`). The recipes load weights the way they did before (no
 `--load-format`, no hybrid-draft mod).
 
 Mechanism vs safety (both facts true): `instanttensor` IS a valid, installed, wired
@@ -861,7 +861,7 @@ mode, harsher than a single-node OOM. **Do not re-apply without booting a single
 node first.**
 
 Post-mortem questions (`.swival/trash/instanttensor-reverted-2026-09-25/`, and
-recoverable from `7de6c41`; reverted commits `0cc6285`, `7de6c41`): (1) did the
+recoverable from `4a34b76`; reverted commits `3af0f36`, `4a34b76`): (1) did the
 crash need the mod, the flag, or both — boot `--load-format instanttensor` alone on
 a single node; (2) does the mod's `get_model()` patch interact with multi-node
 TP/`torch.distributed` init; (3) does InstantTensor's memory accounting
@@ -2676,7 +2676,7 @@ HTTP 400. The mechanism is now proven from the pinned image's own sources
   own rewrite. The 2026-10-06 trial worked because that boot served the older exl3-era template
   (11,410 B), which carries no such guard.
 
-**Fix, shipped in `mods/tensorfold-dsv41-launcher` (commit `f13c45b`).** The mod now ships
+**Fix, shipped in `mods/tensorfold-dsv41-launcher` (commit `239f51c`).** The mod now ships
 `chat_template.jinja` — the upstream template with the two placeholder guards neutered and the
 `reasoning_content` guard kept — and the launcher serves it through an **overlay model dir**:
 `/cache/runtime/tensorfold/model-overlay` is a symlink farm of the resolved checkpoint plus one real
@@ -2761,7 +2761,7 @@ the runs in parentheses**; the output files are `ladder.json` (1017) and `ladder
 
 | arm | C1 | C4 | C8 | C16 | TEB |
 |---|---:|---:|---:|---:|---:|
-| V4.1 — the **comparison** arm (`littlecedar/…-with-engram`, recipe from `d8000bc^`) | 68.0 ± 5.68 (70.9/73.0/60.0) | 48.0 ± 1.56 (46.0/48.0/49.9) | 43.3 ± 3.94 (48.9/40.3/40.7) | 43.4 ± 5.85 (35.2/46.9/48.2) | **100** (15/15) |
+| V4.1 — the **comparison** arm (`littlecedar/…-with-engram`, recipe from `3aadba4^`) | 68.0 ± 5.68 (70.9/73.0/60.0) | 48.0 ± 1.56 (46.0/48.0/49.9) | 43.3 ± 3.94 (48.9/40.3/40.7) | 43.4 ± 5.85 (35.2/46.9/48.2) | **100** (15/15) |
 | 1017 — the **shipped** arm since 2026-10-18 (`LibertAIDAI/…-1017-EXL3`) | 61.5 ± 1.96 (59.5/61.0/64.2) | 48.9 ± 0.57 (48.2/48.8/49.6) | 49.3 ± 0.37 (49.8/49.3/48.8) | 48.2 ± 0.07 (48.3/48.2/48.2) | **100** (15/15) |
 
 Reading it: **every cell's three runs overlap** — c8 48.8–49.8 (1017) vs 40.3–48.9 (V4.1), c16
@@ -3476,7 +3476,7 @@ holds, so this difference does not change concurrency at the shipped settings. S
 
 #### Shipped Configuration Decision
 
-* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` (commit `f91fe43`) to keep the larger budget for long-context / multi-stream serving.
+* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` (commit `a014ba9`) to keep the larger budget for long-context / multi-stream serving.
 
 **Summary Table** (upstream's measurements for the two loader columns)
 
