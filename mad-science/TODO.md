@@ -2,21 +2,24 @@
 
 This file is the interface for planning rounds:
 
-1. **Questions for the owner live only under `# DECISIONS`**, one per item, each ending with a
-   `→ Answer:` line. **To answer: edit that line** — a word is enough ("defer", "skip", or a full
-   call; replacing the ask with the answer is fine). Replying in chat or a numbered questionnaire
-   works too. No special format needed.
-2. **The agent folds answered items** into the work item(s) they govern as advisory notes tagged
-   *"(Owner decision YYYY-MM-DD: …)"*, removes them from `# DECISIONS`, and restates whatever is
-   left. Verbatim history is always in git (`git log -- mad-science/TODO.md`).
-3. **Everything outside `# DECISIONS` is agent-maintained** — statuses, measurements, lane scope,
-   the session record. State claims carry dates or commit hashes.
+1. **Questions for the owner do not live in this file.** Every one is a row in
+   [`QUESTIONS.md`](QUESTIONS.md) — one question per row, with its provenance — and this file holds
+   **work, not questions**. To answer, edit the row's `status` there; a word is enough ("defer",
+   "skip", or a full call). A session never leaves a question buried in a lane README, a board cell
+   or a commit body: it lands in `QUESTIONS.md` or it does not exist.
+2. **The agent folds an answered question** out of `QUESTIONS.md` into the work item(s) it governs as
+   an advisory note tagged *"(Owner decision YYYY-MM-DD: …)"*, and keeps the answer as a row so the
+   question is not re-opened. Verbatim history is always in git (`git log -- mad-science/TODO.md`).
+3. **Everything in this file is agent-maintained** — statuses, measurements, lane scope, the session
+   record. State claims carry dates or commit hashes.
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — 0 open (2026-10-22)
+# DECISIONS — settled record (questions live in `QUESTIONS.md`)
 
-New owner questions land here, one per numbered item, each ending with an answer line the owner edits in place. Numbered decisions cited elsewhere —
+Owner questions are rows in [`QUESTIONS.md`](QUESTIONS.md), one per row with its provenance; **what
+stays here is the decisions already taken**, each with its rationale, so a later pass reads the call
+rather than re-opening it. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,
 #10/#11/#14 in `attic/explore/EXPLORE-MODELS-RESEARCH.md` — live in git history: the 2026-10-11
 register is `git show 8a98379:mad-science/TODO.md`; the 2026-10-14 registers (#16–#23, #24–#27) are
@@ -85,9 +88,9 @@ govern, per the protocol; the verbatim asks remain in git.)*
   per-stream decode 41.7 → 18.6 t/s, so this arm's throughput peak is genuinely five streams, and the
   ten-slot c10 is 39.6 t/s above the 8-slot figure (146.39). The 100B+ candidates remain where they
   were — one hard C1 failure (Q3_K_XL 27.94) and one tier still unmeasured (NVFP4).
-  **Open owner question:** whether leg (2) should disqualify an arm whose c10 clears the absolute bar
-  by 60 % merely because its c5 is higher — i.e. whether "non-decreasing C5→C10" is the right
-  expression of "without degrading too much" for a small arm that saturates early. Not a worker call.
+  **Leg (2) is still open: filed as `QUESTIONS.md` `#1`** — whether an arm whose c10 clears the
+  absolute bar by 60 % is disqualified merely because its c5 is higher. Owner call; the row carries
+  the ask and its provenance.
 
 - **#50 — the control root's disk, not the nodes, is the staging ceiling.** *Measured 2026-10-22:
   `<head-node>` root **24 GB free of 3.7 TB**, with `~/.local/sparkrun-home/.cache/huggingface` at

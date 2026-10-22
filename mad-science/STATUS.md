@@ -3,11 +3,11 @@
 | field | value |
 |---|---|
 | census | 2026-10-22 **~10:07 ET**, all six nodes |
-| gate | **928 tests OK** (2 skipped) at `eb1a2a4`, measured 2026-10-22 ~10:07 ET; validate **not re-run this hour** (last: **56/56** plain, **17/56** strict at `4570ade` 03:49 ET) |
+| gate | **928 tests OK** (2 skipped) at `b717792`, three consecutive runs ~10:40–11:00 ET; at `eb1a2a4` the clean-tree count was 929, the one-test difference is the duplicate deleted by `b717792`; validate **not re-run this hour** (last: **56/56** plain, **17/56** strict at `4570ade` 03:49 ET) |
 | baseline (`#48`) | DSv4-Flash **knapcio TP=4 1M** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; C1 **69.28 ± 5.25** → C10 **116.27 ± 6.22** (1.68×), house **36/37**, needle **3/3** at 32,768 / 131,072 / 983,040 (981,950 tok) — **re-measured 2026-10-22 on a fresh online boot** (`.30`–`.33`, task `sparkrun_a2e141223b52793c_d7960e70d961`, TTR 544 s, `max_model_len` 1,048,576, KV 6,849,792): C1 **60.20** / C2 85.13 / C5 114.87 / C10 **116.86** (n=5, `--skip-run`), house **37/37** @4096 thinking-on, needle **5/5** at ~999k (depths 10–50); the 69.28 / 36/37 figures stay the historical row, not replaced; the `60.20` was taken while **the same four ranks served the fleet's own inference**, so the 13 % C1 deficit is `LIKELY` self-inflicted contention and `69.28` is **not a like-for-like control today** (`recipes/ds4/README.md:218-225`) |
 | foundation shape | **TP=4**; TP=2 arms supplement it; GLM-5.3 3bpw TP=4 **deferred** ("in a few days") |
 | easy-traffic gate (`#49`) | single node qualifies only at C1 **≥ 69.28** *and* C10 **≥ 116.27** t/s, **≥ 10** streams, house **37/37** @4096 thinking-on — nothing clears it yet |
-| owner queue | **one open item** — `#8` (larger prefill chunk) is a boot-gated experiment awaiting an owner go; `#9` recorded not fixed; `#10` is a rule; `#1`–`#7` acknowledged and closed 2026-10-22 |
+| owner queue | **`mad-science/QUESTIONS.md` is the queue of record**; board items still open: `#8` (larger prefill chunk) is a boot-gated experiment awaiting an owner go, `#9` recorded not fixed; `#10` is a rule, `#1`–`#7` acknowledged and closed 2026-10-22 |
 | verdicts 03:30–03:45 | TP=4 **closed as a checkpoint limit**; W12 **served**; SGLang `v0.5.22` bump closed with six arms held; Spark-X2.6 FP8 **fails C1** despite +100/+66/+48/+39 % at c1/2/5/10 |
 
 ## Now
@@ -54,12 +54,13 @@
 
 | suite | plain validate | strict validate | tip | measured at |
 |---|---|---|---|---|
-| **928 tests OK** (2 skipped) | **not re-run this hour** (last: **56/56**, 0 errors at `4570ade`) | **not re-run this hour** (last: **17/56 fail**, known false positives at `4570ade`) | suite at `eb1a2a4` | suite 2026-10-22 ~10:07 ET (`uv run python -B -m unittest discover -s tests`, 87.8 s); validates 03:49 ET — not fresh |
+| **928 tests OK** (2 skipped) | **not re-run this hour** (last: **56/56**, 0 errors at `4570ade`) | **not re-run this hour** (last: **17/56 fail**, known false positives at `4570ade`) | suite at `b717792` — the clean-tree count at `eb1a2a4` was 929, less the duplicate `b717792` deleted | suite 2026-10-22 ~10:40–11:00 ET, three consecutive runs (`uv run python -B -m unittest discover -s tests`); validates 03:49 ET — not fresh |
 
 ## Recently landed
 
 | time ET | commit | one clause |
 |---|---|---|
+| 10:17 | `b717792` | the ladder guard asserts the stub's **capacity and exact field identities** instead of comparing two wall clocks — and a negative control goes red when `--concurrency` is ignored; one duplicate test deleted, suite **928** (2 skipped) |
 | 09:47 | `eb1a2a4` | **never remove containers by list expansion** on a shared node (`docker rm -f $(docker ps -aq)`, `\| xargs`, `prune`) — measured on `.30` 04:16/04:18 ET (08:16/08:18 UTC) |
 | 09:47 | `b6e7fd1` | corrected fence wording: `.30`–`.33` are fenced against **workloads**, not against control from `.30` — ssh, `sparkrun` launches and inspection stay normal work |
 | 09:40 | `1e3917c` | body-copy attribution corrected: the original copy ran over the **management NIC** (`enP7s7`), never the rails |
