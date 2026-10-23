@@ -519,6 +519,21 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
   `restart_policy` only), so an executor-level addition or a mod precedes the boot.)* *(effort: medium)*
 
+- [ ] **Test `DSV41_TP_PAD=0` — the replicated split is OFF on the shipped line** — the pad adapter
+  defaults the key to `1` (`tp3_pad.py:26 @ 27616bec`) and nothing in this tree names it
+  (`git grep DSV41_TP_PAD` = 0 hits), so the `wqkv_a` 1792×5120 / `engram.wkv` 25600×6144 split never arms:
+  the 2026-10-02 quartet log has 42/42 layers `split OFF` with `slice failed on rank 0: AssertionError()`
+  after `DSV41 TP pad installed (tp=4)` (`DEEPSEEK.md` §18). **Work: one A/B boot with
+  `-o env.DSV41_TP_PAD=0`** against the shipped line, `--fresh`, ladder C1/C10 plus one long-context cell,
+  and the boot log must show 42/42 `split ON, window GEMMs (no pad)` with no `DSV41 TP pad installed`
+  line — a gain without the split arming is a boot slot. **Permanent landing: one `RECIPE_ENV` line**, kept
+  deliberately **out of `AB_ENV`** so a launch override still wins (or a one-line recipe `env:` block the
+  recipe does not have today); the override itself needs no file change, because the launcher owns neither
+  the key nor an SGLang flag for it (`launcher.py:354-364,384-391`, env passed through at `:729,831`).
+  *(blockers:* the `#4` fence closes `.30`–`.33` to workloads and this arm **is** the production serve;
+  the log evidence is canary-era on the pre-1017 body, so the first step is a grep of the shipped boot log
+  confirming 42/42 OFF on `acfc331a` + 1017 — no boot needed for that.)* *(effort: one boot + one line.)*
+
 ## glm5
 GLM 5.3
 *(No open item — the ≥1M probe and four-way 1M concurrency were **dropped unrun**, not deferred, by the

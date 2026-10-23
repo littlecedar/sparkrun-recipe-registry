@@ -21,6 +21,7 @@ measured, what failed and why, and what is still open.**
 | §10 | `DS4-SPEEDUPS.md` (whole survey, including its two TP=2 items) | 2026-10-19, plus the 2026-10-21 measurements recorded in it |
 | §14 | `TODO.md` §ds4, `QUESTIONS.md` | live work items |
 | §17 | vLLM's own DeepSeek-V4.1 recipe and model-registry entries; the `local-inference-lab/vllm` b12x fork's Engram config, disk table and four-Spark launchers; the `spark-vllm-docker` 4x recipe and image tag; the retired `attic/ds4/` vLLM verdicts; the 1017 model card | study 2026-10-23, no boot — upstream `main` @ `d561af5d`, fork `dev/karmic-kraken` @ `8244d1c4` |
+| §18 | `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` (recipe, docs, benchmark CSVs); knapcio `403a5aa2` vs our `27616bec`; the git-ignored `.scratch/ds4/knapcio/logs/boot9-head-serve.log` | study 2026-10-23, no boot |
 
 The three source notes were deleted (`git rm`) in the same commit that created this document; the
 filenames above are provenance, not live paths. Everything they stated is in the sections named, and
@@ -55,6 +56,10 @@ a controlled TP sweep. The registry has never booted one engine on both topologi
 
 Stack C is **unbooted**, so no ratio involving it exists: §17 treats it as a documented route with a
 declared parity bar and one acceptance test, not as a measured arm.
+
+The community 1017 repository in §18 is **not** a fourth stack: it is Stack A carrying a different env
+line — same base-image digest, same SGLang tree, same adapters — so it explains a candidate on our own
+serve rather than adding an engine to compare.
 
 ## 3. Stack A — what the knapcio TP=4 stack is
 
@@ -1403,3 +1408,105 @@ project changelog, both on hardware we do not own (`LIKELY`), neither on a workl
 `config.json` byte-for-byte (`recipes/ds4/README.md:38-40`), but no vLLM boot has served it. No C10, house
 or needle result exists on any vLLM DeepSeek-V4.1 route, here or elsewhere.
 
+## 18. The community 1017 repo is our own stack — and `DSV41_TP_PAD=0` is live on our line (2026-10-23)
+
+**Subject.** `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @
+`ec61f23890c3ddea832b637cb5b6ab72aa8a5ae1` (2026-10-23T13:45+01:00), MIT, 39 tracked files: two recipes,
+three docs, eleven aggregate CSVs and twelve raw `llama-benchy` JSONs from a 2026-10-19 tuning window on
+four DGX Sparks (`README.md:24-28,378-386`). It presents itself as an independent production note, "not an
+official Little Cedar Group or knapcio repository" (`README.md:7-9`).
+
+**Identity — this is Stack A.** Both lanes build knapcio's `Dockerfile.canary-roce` on the **same base
+image** `lmsysorg/sglang:dev-dsv41@sha256:4a5d132a…` (`README.md:252`; `recipes/ds4/Dockerfile.knapcio-dsv41:56`),
+with the **same SGLang tree** `f80c91a4b` and the same `sglang-kernel 0.4.7` / `sgl-deep-gemm 0.2.0`
+(`README.md:257-259`; `Dockerfile.knapcio-dsv41:48-51,60-72`), on four GB10 nodes and the same checkpoint
+revision `1bae0e10…` (`README.md:16-17`; recipe `:7`). Their build sits at knapcio `403a5aa2` (2026-10-18),
+ours at `27616bec` (2026-10-12) plus the health-port patch, and `git diff --stat 27616bec 403a5aa2` touches
+**no** `adapter/`, `boot.py` or `Dockerfile` — only `README.md`, `docs/switchless-ring.md`,
+`files/nccl.sh`, `scripts/ring_mesh/plan.py`, `start.sh` and two tests. Their decode numbers are therefore
+one env line away from ours, not a different engine — which is exactly what makes the next finding
+load-bearing.
+
+**`DSV41_TP_PAD=0` is live on our line: the replicated split is OFF on all 42 layers.** The adapter
+defaults padding on — `tp3_pad.py:26 @ 27616bec` reads
+`if os.environ.get('DSV41_TP_PAD', '1') in ('0', 'false', 'off')` — and no file in this repository ever
+mentions the key (`git grep DSV41_TP_PAD` = 0 hits; `git log -S DSV41_TP_PAD --all` = no commits). With
+padding on, the per-layer split probe fails and `replicated_split` falls back to the stock replicated GEMM
+plus a padded all-gather for `wqkv_a` 1792×5120 and `engram.wkv` 25600×6144 on every one of 42 layers. The
+archived head-rank serve log of our 2026-10-02 quartet boot
+`.scratch/ds4/knapcio/logs/boot9-head-serve.log` (**git-ignored**, `.gitignore:23` — which is why the
+evidence never surfaced in a `git grep` of the tracked tree) records it directly:
+
+```text
+:8            DSV41 TP pad installed (tp=4)
+:9            launcher: boot.py run NNODES=4 NODE_RANK=0 ... TP=4 EP=1 PORT=8888
+:233-234      [replicated_split] model.layers.0.self_attn.wqkv_a: slice failed on rank 0: AssertionError()
+              [replicated_split] model.layers.0.self_attn.wqkv_a 1792x5120: split OFF (rank 0 window False, slice False; 0/1 layers on so far)
+:242-243      [replicated_split] model.layers.1.engram.wkv: slice failed on rank 0: AssertionError()
+              [replicated_split] model.layers.1.engram.wkv 25600x6144: split OFF (... 0/2 layers on so far)
+:322-324      [replicated_split] model.layers.39.self_attn.wqkv_a: slice failed on rank 0: AssertionError()
+              [replicated_split] model.layers.39.self_attn.wqkv_a 1792x5120: split OFF (... 0/42 layers on so far)
+```
+
+Counts in that file: `split OFF` 42, `slice failed` 42, `split ON` 0, `window GEMMs` 0, `compact gather
+(roce)` 0; the six `armed for ['wqkv_a', 'engram.wkv']` lines are install-time prints and report no
+per-layer outcome (`replicated_split.py:345 @ 27616bec`, versus the per-layer line at `:307`). That is
+byte-for-byte the failure the community repo documents, together with its fix (`docs/gates.md:35-43`;
+`README.md:102-127`), and upstream reports the same shape at its own build, where the key is pinned:
+`DSV41_TP_PAD: "0"` (`recipe/production.yaml:115`).
+
+**Why it carries from that boot to the shipped line.** The adapters are the same code:
+`git diff --stat 58f2321 27616bec -- adapter/replicated_split.py adapter/tp3_pad.py` is empty — only
+`adapter/sitecustomize.py` gained nine lines, the Anthropic-protocol and `DSV41_PREFILL_BYPASS` hooks, and
+the `tp3_pad.install()` call site (`sitecustomize.py:324-325 @ 27616bec`) is untouched. The failing tensor
+shapes are the 1017 refresh's shapes too, since `config.json` is byte-identical between the two weight
+repositories (`recipes/ds4/README.md:38-40`). The one honest gap: the log is **canary-era on the pre-1017
+checkpoint** `dba1be0a` (`:40`, `:61`) with the old `max_total_num_tokens=4000000, chunked_prefill_size=4096`
+line (`:422`), so "still OFF on `acfc331a` + 1017" rests on code identity plus identical shapes, not on a
+second log — `LIKELY`, one grep of the next shipped boot promotes it to VERIFIED.
+
+**Ownership: the flip is free.** Nothing in the shipped path can set or override the key. `RECIPE_ENV`
+does not contain it and `AB_ENV` is a seven-key set that does not either (`launcher.py:354-364`), so
+`apply_recipe_env` never writes it (`:376-380`); `SGLANG_EXTRA_FLAGS` carries only `SWA_PREFIX_TAILS`,
+`PREFILL_DECODE_INTERVAL` and `FP8_GEMM_BACKEND` (`:384-391`), and TP_PAD is an adapter-read env var, not
+an SGLang flag, so that path can neither add nor strip it; `run.sh` sets no environment at all (it creates
+and reowns cache directories, `run.sh:112-116`, then gates on files, `:121-133`); and the launcher hands
+the process env through untouched — `env = dict(os.environ)` (`launcher.py:729`) into
+`os.execve(..., env)` (`:831`). So `-o env.DSV41_TP_PAD=0` reaches the adapter today with no file change;
+a permanent landing is one `RECIPE_ENV` line, deliberately **not** added to `AB_ENV`.
+
+**The delta table — only rows that could move performance.**
+
+| parameter | upstream | ours | direction and mechanism |
+|---|---|---|---|
+| `DSV41_TP_PAD` | `0` (`recipe/production.yaml:115`) | unset → `1` (`tp3_pad.py:26 @ 27616bec`) | **upstream ≻ ours, magnitude unmeasured.** Split ON replaces per-layer replicated GEMM + padded all-gather with window GEMMs and a compact RoCE column gather on 42 layers/step; upstream never isolated it same-image (`README.md:393-395`), and the boot9 log above proves our side of the comparison |
+| memory line | `mem_fraction_static 0.80` + `chunked_prefill 4096` (`recipe/production.yaml:41-42`) | `0.78` + `8192` (`launcher.py:144,156`) | **capacity, not tok/s.** Their 0.01 ≈ 1.22 GB ≈ 0.73M tokens (`docs/boot-and-memory.md:57`) is a pool rule; our pairing is deliberate — at 0.80 a 1M prefill leaves 2.7 GiB head versus 5.7 at 0.78 (§9) — so copying one half of their pairing would regress the other |
+| our `DSV41_FAST_LOAD` pool cost | they ship `0` to keep 9.12M tokens; the fast loader costs −24.5 % at 0.80 (`recipe/production.yaml:119`; `docs/boot-and-memory.md:95-111`) | we ship `1` (`launcher.py:282`) for boot time; EP1 delta **UNMEASURED** (`launcher.py:187-199`) | **ours ≺ upstream in capacity, ≻ in boot time.** Decode showed no defensible change on their six-run pair (p ≥ 0.061, `docs/tuning-log.md:124-136`); our effective pool is unknown until a fast-loader boot prints its budget |
+| `SGLANG_FLASHINFER_MOE_FUSED_FINALIZE` | `0` (`recipe/production.yaml:127`) | unset → `True` (`python/sglang/srt/environ.py:1048 @ f80c91a4b`) | **ours ≻ upstream ≈0.3 ms/step**, paid for with run-to-run drift up to ~1 nat on first-token logprobs. Our own note says keep it 0 (`attic/ds4/AGENTS.md:1205-1207`) and the launcher never applies it: a determinism divergence on our side, not a speed lever to copy |
+
+**Not a delta, stated so it is not re-opened.** `DSV41_CERT_HEAD` is already effective `0` for us
+(`cert_head.py:99 @ 27616bec`), so the +26.6 % d8k c1 the community repo banks for turning it off
+(`README.md:129-150`) is a gain this lane already holds; `--enable-decoder-swa-bounded-replay` is hardcoded
+in `boot.py:330 @ 27616bec`, making their `enable_decoder_swa_bounded_replay: true`
+(`recipe/production.yaml:47`) decorative on both sides; `DSV41_PREFILL_EMPTY_CACHE_TOKENS` is 8192 by
+adapter default (`prefill_empty_cache.py:30 @ 27616bec`), so their explicit pin is a no-op; `MAX_RUNNING_REQUESTS`
+16, `cuda_graph_max_bs_decode` 16, `attention_backend dsv4`, `moe_runner_backend flashinfer_mxfp4` and
+`fp8_gemm_backend flashinfer_cutlass` match (`boot.py:322-323 @ 27616bec`; recipe `:67-76`). Their
+production carries **no** scheduler or cache flag we lack — `--min-free-slots-delay`, the fp4 indexer,
+`--sleep-on-idle` and `--enable-cache-report` appear only in their bridge experiment
+(`docs/tuning-log.md:64-70`) — and EP > 1 stays falsified on our hardware (§8.1).
+
+**Reproduction trap in their repo.** `recipe/production.yaml` is described as "the flattened,
+self-contained recipe" (`README.md:304`), yet it carries **no** `MEM_FRACTION_STATIC` and **no**
+`MAX_RUNNING_REQUESTS`, and this image's `boot.py` defaults those to **0.95** and **4**
+(`boot.py:312,314 @ 27616bec`) while ignoring CLI argv entirely (`:431-443`). The documented live values
+`mem_fraction_static=0.8 max_running_requests=16` (`README.md:45,47`) can therefore only have come from the
+unseen `@experimental/…` base (`recipe/overlay.yaml:17`) that the flatten dropped. **Do not copy that file
+as a recipe**; its CSVs and raw JSONs are real artifacts, but its recipe is not self-contained.
+
+**Not verified here.** No boot was run for this section, no node was contacted, and none of the upstream
+numbers are transferred: their cells are depth 0 / 8192 at concurrency 1 / 10 with n=3–6
+(`benchmarks/ab-4cell.yaml:5-9`; `benchmarks/summary.csv:1-9`), a different profile and a different pool
+from this lane's ladder, and their own d8k c1 values spread 54.8–72.0 within one day
+(`docs/tuning-log.md:133-136`). The TP_PAD magnitude is unmeasured on either side. What is established is
+the *state* — split OFF on our line — and the *price of finding out* — one boot, no file edit.
