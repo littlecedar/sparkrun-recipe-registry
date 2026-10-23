@@ -587,10 +587,10 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 ## Upgrade candidates (measured elsewhere, not queued)
 
 A 2026-10-19 search of upstream SGLang / FlashInfer / DeepGEMM / DeepEP work, DeepSeek-V4.1 PRs, and
-published GB10 numbers produced a ranked shortlist in
-[`../../mad-science/DS4-SPEEDUPS.md`](../../mad-science/DS4-SPEEDUPS.md) — mechanism, expected effect,
-the exact flag or artifact, a dated primary source, and a pre-registered interleaved A/B per
-candidate. None of it is measured on this lane, and none of it is a recipe change:
+published GB10 numbers produced a ranked shortlist, now consolidated in
+[`../../mad-science/DEEPSEEK.md`](../../mad-science/DEEPSEEK.md) §10 — mechanism, expected effect, the
+exact flag or artifact, a dated primary source, and a pre-registered interleaved A/B per candidate.
+None of it is measured on this lane, and none of it is a recipe change:
 
 - **Measured and adopted 2026-10-21** — (4) the TensorFold v0.6 engine bump: c8 **+26.5 %**, c16
   **+25.7 %** (worst treatment boot beats the best control boot at both), cold prefill **+24.6 %**

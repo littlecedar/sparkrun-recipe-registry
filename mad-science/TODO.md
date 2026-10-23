@@ -408,23 +408,28 @@ stayed idle throughout.
 
 ## ds4
 DeepSeek V4.1
+
+**Research record: [`DEEPSEEK.md`](DEEPSEEK.md)** — the whole DeepSeek family in one note: the knapcio
+TP=4 1M SGLang stack (upstream delta, image pins and the reproducibility verdict, the overlay launcher,
+every measured ladder and accuracy cell with receipts, the EP/γ/SPS/prefix-cache failures with their
+mechanisms, the b12x finding, the 1M prefill-chunk arithmetic), then the TensorFold EXL3 TP=2 line, the
+TP=2-vs-TP=4 comparison, the TP=1 byte wall and the ranked candidate survey. Work and acceptance stay
+in this section; evidence and mechanism live there. `recipes/ds4/README.md` stays authoritative on any
+measured cell.
+
 *(The v2.4 serve line is settled and carries no runnable work: with
 `PREFILL_DECODE_INTERVAL: "0"` it beats v2.3 at C5/C10 (`recipes/ds4/README.md` §(b)–(d)); the one
 unrun cell, an interleaved C1 re-take on the shipped line, needs `.30`–`.33` and was **dropped, not
 deferred**, by the 19:15 policy above. Measurement, launcher pins and the correction to the earlier
 "slower on every cell" reading are archived in `../attic/DONE.md`.)*
 
-- [ ] **Run the now-runnable arms of the deep-search shortlist** *(delivered 2026-10-19; the two
-  runnable arms were measured 2026-10-21 — see the closed item below.)* — the ranked note is
-  `mad-science/DS4-SPEEDUPS.md` (11 candidates + a precondition, each with mechanism,
-  expected effect, carrying flag/artifact, dated source, and a pre-registered interleaved A/B); the
-  lane README now lists them under §"Upgrade candidates". The **P0 GPU
-  clock-latch audit is closed negative** (2026-10-19: both nodes idle at 208 MHz, but ramp to
-  2171-2190 MHz under load against a 3003 MHz max, with SW Power Cap the only active throttle
-  reason — no latch; receipt `~/benchmarks/ds4-p0-clock-20261019/`). The TP=4-only
-  eight stay upgrade candidates while `.30`-`.33` are frozen. Re-derive any win with its own receipt
-  under `~/benchmarks/`; the A/B rules are `recipes/ds4/README.md` §(b)-(d) plus the note's §"The
-  baseline these A/B plans assume". *(effort: medium)*
+- [ ] **Run the TP=4 arms of the candidate survey when `.30`–`.33` unfreeze** *(delivered 2026-10-19;
+  the two `.34`/`.35`-runnable arms were measured 2026-10-21 — see the closed item below.)* — the
+  survey, the P0 result, each candidate's mechanism and expected effect, the carrying flag, the
+  checked-and-rejected list and the A/B rules are `mad-science/DEEPSEEK.md` §10; the lane README still
+  lists them under §"Upgrade candidates". Work: re-derive any win with its own receipt under
+  `~/benchmarks/`, alternating A/B/A/B with `--fresh` and holding the pool/pin constant across arms.
+  *(effort: medium)*
 
   *(Owner decision 2026-10-22 — **the fence holds** (`QUESTIONS.md` `#4`): no workload runs on `.30`–`.33`
   until the owner stands the production serve down, so the ds4 TP=4 candidates are queued, not runnable.
@@ -436,13 +441,11 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   on those ranks **before** this ruling, so under the fence the only remaining item is the ds4 TP=4
   candidates plus the four-node suite legs.)*
 
-- [ ] **Try a larger 1M prefill chunk than the shipped 8192** — **blocked behind the fence** (`#4`),
-  and its own question is `QUESTIONS.md` `#2`: needs four ranks, so it waits for the owner to stand
-  the production serve down. The 1M penalty is chunk-launch-bound, not hardware-bound — effective
-  **1684/1593/1816/1760/1837** t/s (mean 1738, 1.67× vs c1), **0.02 EFLOP** ⇒ not compute-bound,
-  **~15 GB/s/rank** of ~273 ⇒ not bandwidth-bound, prefill CUDA graphs disabled ⇒ **122 eager chunk
-  launches** at 1M — so the chunk size is the only lever left. One boot, `chunked_prefill` 16384 against
-  the shipped 8192, interleaved needle on the same serve; quote cold first-chunk throughput, not the
+- [ ] **Try a larger 1M prefill chunk than the shipped 8192** — **blocked behind the fence** (`#4`), and
+  its own question is `QUESTIONS.md` `#2`: needs four ranks, so it waits for the owner to stand the
+  production serve down. The measured accounting (mean 1738 t/s at 1M, 0.02 EFLOP, ~15 GB/s/rank, 122
+  eager launches) is `mad-science/DEEPSEEK.md` §9. Work: one boot, `chunked_prefill` 16384 against the
+  shipped 8192, interleaved needle on the same serve; quote cold first-chunk throughput, not the
   TTFT-derived ladder row. *(effort: short)*
 
 - [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
@@ -459,65 +462,21 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   **10.6 % reasoning-token saving** at house 37/37 on both arms with no pass→fail flip — but
   `hard-rev` (128 → 43) carries most of it and the bar is cleared by 0.6 points, so it is recorded
   as "clears, not a headline". Receipts `~/benchmarks/ds4-v06-ab-20261021/` (`REPORT.md`) and
-  `~/benchmarks/ds4-v06-build-20261021/` (build log, digest); the note's §4/§6 now carry the tables.
+  `~/benchmarks/ds4-v06-build-20261021/` (build log, digest); `mad-science/DEEPSEEK.md` §11.3/§11.4 carry the tables.
 
-- [ ] **Make the ds4 knapcio image byte-reproducible** — the 2026-10-22 rebuild is behavior-identical but not reproducible: config identical (entrypoint, cmd, env, healthcheck, labels; 91 layers, layers 0–69 identical) and the content diff is four recompiled `__pycache__/*.pyc` plus 6,707 hash-equal files, so `littlecedar/dgx-spark-dsv41:canary-roce-20261022` = `sha256:0cbe228a…` is not the shipped `acfc331a…`, which stays pinned. Unblocker: a deterministic build step (bytecode off, `SOURCE_DATE_EPOCH` set). *(effort: medium; recorded 2026-10-22 01:10 ET)*
+- [ ] **Make the ds4 knapcio image byte-reproducible** — the 2026-10-22 rebuild is behavior-identical but
+  not byte-reproducible; both digests and the full diff census are `mad-science/DEEPSEEK.md` §5.
+  Unblocker: a deterministic build step (bytecode off, `SOURCE_DATE_EPOCH` set). *(effort: medium;
+  recorded 2026-10-22 01:10 ET)*
 
-- [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a 382.8 GB "GSQ"
-  mixed-precision export of the 1017 body in a *strata*-format GGUF that no engine this lane ships
-  can open. **Research only, not queued for a boot** — the four-node window is closed and a TP=4
-  measurement needs the owner's offsite switch.
-  *(facts:* open (`gated: false`), card `license: mit`, one branch `main` @ `7aa29158…`, Hub
-  `usedStorage` **382,778,487,408 B = 382.78 GB / 356.5 GiB**: `V41-GSQ-1017.gguf.part-00`
-  96,636,764,160 + `.part-01` 77,722,075,136 (one **174.36 GB / 162.4 GiB** GGUF, `cat`-recombined,
-  and the card's "153 GiB" budget and "90 GiB + 73 GiB" parts describe a build that is not what
-  shipped), `V41-MTP-Vision-1017.Q2_K.gguf` 5,661,492,320,
-  `engram-layers.{1,14}/engram-L{1,14}.safetensors` 101,377,628,584 + 101,380,404,328 (**188.8 GiB**
-  of Engram, the same L1/L14 tables the lane already stages per node),
-  `V41-GSQ-1017.gguf.experts.json` 1,226,894, `rank.bin` 122,880, `tokenizer/` 5.8 MB. **Weights, not
-  an overlay** — unlike the `drowzeys/…` overlays (no weights; 683 MB + 1.09 GB sidecars grafted by a
-  mod), this repo ships the whole quantized body plus its own Engram tables. `config.json` is only
-  the base declaration: `quantization_config` = `{"quant_method": "fp8", "activation_scheme":
-  "dynamic", "weight_block_size": [32, 32], "scale_fmt": "ue8m0", "expert_dtype": "fp4"}` and **no
-  `kv_cache_scheme` key** (the card's FP4 KV is a serve-time `--kv-fp4` flag). The scheme is in the
-  GGUF header instead: `deepseek41.quantization` = "routed experts: per-expert Q3_K / Q2_0 / PTQ1_0
-  (gate+up share a type, down its own); Q8_0 attention / shared / head; F16 embedding";
-  `strata.v41.expert_tiers` = `{"down:PTQ1_0": 4447, "down:Q2_0": 6682, "down:Q3_K": 4231,
-  "gu:PTQ1_0": 5750, "gu:Q2_0": 5113, "gu:Q3_K": 4497}`; `strata.v41.expert_layout` = "uniform role:
-  ffn_<role>_exps.weight; mixed: ffn_<role>_exps.<type>.weight per type (experts in id order) + I32
-  ffn_exps_{gu,down}_type[384]"; `strata.v41.expert_source` = `inplace:rtn:q2_0:268d4652…`; Engram
-  `e4m3_e8m0_32_row264`. Those tier counts are exactly the `experts.json` code census over 40 layers
-  × 384 experts × 2 projections (10,197 / 11,795 / 8,728), so **143 = PTQ1_0 (the card's "ternary"),
-  42 = Q2_0, 11 = Q3_K**. "GSQ" is the card's "GSQ (Gumbel-Softmax Quantization) + per-expert
-  mixed-precision tier allocation" (method credited to antirez); "agentic" is the *calibration*
-  weighting, not a layer mix and not a pruned expert set — "Every routed-expert projection is
-  assigned its own precision tier (Q3_K / Q2_0 / ternary) from activation calibration on an agentic
-  + coding corpus" (32 × 8,192-token sequences: agentic_long 10, code 10, agent 5, reasoning 3, web
-  2, chat 1, multi 1), allocated to a fixed 153 GiB budget; "strata" is the engine
-  (`library_name: strata`). **Provenance contradicts the card:** the GGUF's own `general.name` is
-  "DeepSeek V4.1 Flash UNCENSORED (Strata v41 GSQ-RCO mixed tier)" and `general.source.url` is
-  `dealignai/DeepSeek-V4.1-Flash-UNCENSORED-FP8` (510.3 GB, tags `abliterated`/`uncensored`, its own
-  base `deepseek-ai/DeepSeek-V4.1-Flash`, not the 1017 refresh), while the card claims
-  `base_model: deepseek-ai/DeepSeek-V4.1-Flash-1017` and "no abliteration".*)
-  *(why it matters:* weight-only it is the smallest ds4 body measured against — weights + sidecar
-  **180.0 GB / 167.7 GiB** vs 510.3 GB (official), 210.8 GB (EXL3 2.9 bpw), 413.4 GB (Engram pack) —
-  and two 128 GB nodes (238.4 GiB) would hold it resident, but **the loader question is closed, not
-  open**: `recipes/ds4/README.md:25` (SGLang through `mods/dsv41-sglang-overlay`) and `:349`
-  (TensorFold `deepseek_v41`, EXL3 mul1) are the only engines this lane ships, neither reads GGUF,
-  and the card says so outright — "Not runnable on vanilla llama.cpp, Ollama, vLLM, or SGLang
-  without a strata-compatible loader". Its engine is `strata`/`ds41_generate` from
-  `Indras-Mirror/Xolotl` (public, MIT, a heavily extended fork of Strata): one host, three tiers
-  (VRAM / pinned RAM / NVMe), Linux-only, reference machine 24 GB VRAM + 90 GB RAM + NVMe at ~27
-  tok/s — weaker than one Spark, which is why size does not rule a single node out; the engine's
-  missing arm64/GB10 build and its lack of any multi-node path do.*)
-  *(blockers/unknowns:* nothing to boot on — a strata port is a new engine family for this registry,
-  not a recipe re-point; arm64 + CUDA 13 support is unknown; the card's quality gate is unfinished
-  ("Full evaluation is coming"; 21 HumanEval + 10 tool calls only); the shipped 174.36 GB GGUF does
-  not match the card's 153 GiB arithmetic; the abliteration-provenance mismatch must be settled
-  before the id is quoted as an official-weights variant; `tokenizer.ggml.pre` is `joyai-llm` and
-  `tokenizer/chat_template.jinja` is a 91-byte stub pointing at `serve_ds41.py`, so a loader port
-  inherits the lane's template-less problem. All sizes are Hub `usedStorage`/`tree` bytes; no node
-  cache was read.*) *(effort: research only — a boot needs a strata/GB10 port first.)*
+- [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a **382.8 GB** "GSQ"
+  mixed-precision strata-format GGUF of a 1017-class body that **no engine this lane ships can open**
+  (`recipes/ds4/README.md:25`, `:349`), so its 180.0 GB weight-only body — the smallest measured — buys
+  a new engine family, not a recipe re-point. **Research only, not queued for a boot.** The full fact
+  block (Hub file census and every size, the GGUF header's quantization scheme and expert-tier census,
+  the fixed 153 GiB budget arithmetic, and the **provenance contradiction**: `general.source.url` is
+  `dealignai/…-UNCENSORED-FP8` while the card claims official 1017 and "no abliteration") is
+  `mad-science/DEEPSEEK.md` §15.2. *(effort: research only — a boot needs a strata/GB10 port first.)*
 
 - [ ] **Research `local-inference-lab/DeepSeek-V4.1-Flash-1017-FLARE`** — a publisher-signed Flare
   *runtime package* whose `gb10` branch targets **four DGX Sparks at TP4/c16**, a 1,048,576-token
@@ -536,21 +495,15 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
 
 - [ ] **The b12x backend is declared by explicit flag (`18a05d2`) — only the quartet boot is left —
   `QUESTIONS.md` `#9`, answered 2026-10-22: "repair by explicit flag instead"** — **the recipe edit has
-  landed; the boot has not.** `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` now spells
-  `--fp8-gemm-backend flashinfer_cutlass` in `command:`, and the lane's overlay launcher
-  (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`) maps it to `FP8_GEMM_BACKEND` →
-  `EXTRA_SGLANG_ARGS`. That is what makes the image's own guard harmless rather than a substitution: the
-  pinned image's `boot.py` (`@ 27616bec`) **strips every `--fp8-gemm-backend` carried in
-  `EXTRA_SGLANG_ARGS` and appends its own last** (`launcher.py:219-229`), keyed off
-  `DSV41_MXFP8_BACKEND=b12x` — with the flag declared, that rewrite re-stamps the same value and goes
-  silent instead of replacing an omitted one, and it still supplies the value if the image default ever
-  goes away. `tests/test_ds4_recipes.py` guards the declaration
-  (`test_fp8_gemm_backend_is_declared_not_inherited`). **Acceptance is a quartet boot and is
-  UNVERIFIED** — it must show `[moe_b12x_next] armed`, `fp8_gemm_backend='flashinfer_cutlass'` in the
-  `server_args` dump, **no** `WARNING: DSV41_MXFP8_BACKEND=` line, and one flag in `launch.json`'s args.
-  This arm is the one serving the fleet on `.30`–`.33` (`mad-science/STATUS.md` §Now), so the boot waits
-  for the `#4` fence to lift. Compare prefill GEMM behaviour on a short-context ladder against the
-  recorded 2897 t/s cold pp at C1, within the inter-boot floor. *(effort: short)*
+  landed; the boot has not.** The recipe spells `--fp8-gemm-backend flashinfer_cutlass` and the overlay
+  launcher maps it to `EXTRA_SGLANG_ARGS`, so the image's last-wins rewrite re-stamps the same value and
+  goes silent; the strip-and-append mechanism, the offline reproduction and the guard
+  (`test_fp8_gemm_backend_is_declared_not_inherited`) are `mad-science/DEEPSEEK.md` §6.1. **Acceptance is
+  a quartet boot and is UNVERIFIED** — it must show `[moe_b12x_next] armed`,
+  `fp8_gemm_backend='flashinfer_cutlass'` in the `server_args` dump, **no** `WARNING:
+  DSV41_MXFP8_BACKEND=` line, and one flag in `launch.json`'s args. This arm serves the fleet on
+  `.30`–`.33`, so the boot waits for the `#4` fence; compare prefill GEMM against the recorded 2897 t/s
+  cold pp at C1, within the inter-boot floor. *(effort: short)*
 
 ## glm5
 GLM 5.3
