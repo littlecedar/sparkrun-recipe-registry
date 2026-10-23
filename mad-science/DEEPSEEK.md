@@ -20,6 +20,7 @@ measured, what failed and why, and what is still open.**
 | §9 | `TODO.md` §ds4 prefill-chunk item; `recipes/ds4/README.md` §Knobs | measured 2026-10-22 |
 | §10 | `DS4-SPEEDUPS.md` (whole survey, including its two TP=2 items) | 2026-10-19, plus the 2026-10-21 measurements recorded in it |
 | §14 | `TODO.md` §ds4, `QUESTIONS.md` | live work items |
+| §17 | vLLM's own DeepSeek-V4.1 recipe and model-registry entries; the `local-inference-lab/vllm` b12x fork's Engram config, disk table and four-Spark launchers; the `spark-vllm-docker` 4x recipe and image tag; the retired `attic/ds4/` vLLM verdicts; the 1017 model card | study 2026-10-23, no boot — upstream `main` @ `d561af5d`, fork `dev/karmic-kraken` @ `8244d1c4` |
 
 The three source notes were deleted (`git rm`) in the same commit that created this document; the
 filenames above are provenance, not live paths. Everything they stated is in the sections named, and
@@ -37,12 +38,13 @@ contaminate C1 (first run 19–39 t/s) — no ladder's C1 cell is an arm's singl
 
 ## 2. The family boundary
 
-Four distinct things, kept apart throughout:
+Five distinct things, kept apart throughout:
 
 | what | body / engine | topology | this document |
 |---|---|---|---|
 | **Stack A — knapcio SGLang** | official `deepseek-ai/DeepSeek-V4.1-Flash-1017`, native MXFP4/F8 (510.31 GB), SGLang `dsv4.1` + b12x/b12x_next + RoCEnante | TP=4 EP=1 over four GB10 (`.30`–`.33`) | §3–§10 |
 | **Stack B — TensorFold EXL3** | `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw`, 210.72 GB, Engram streamed from NVMe; TensorFold fork | TP=2 (`.34`/`.35`) | §11 |
+| **Stack C — vLLM b12x (unbooted)** | official `deepseek-ai/DeepSeek-V4.1-Flash-1017` on `local-inference-lab/vllm` (a fork of upstream vLLM) with b12x kernels and **disk-backed** Engram — the only vLLM route not excluded by memory | TP=4 over four GB10 | §17 |
 | **The TP=1 byte wall** | any 1017-class body on one 128 GB node | TP=1 | §12, §13 |
 | **Excluded artifacts** | `mad-science/FLARE.md` (own consolidated document), the GSQ strata export (§15.2), `recipes/*`, `attic/*`, `tests/`, `tools/`, `benchmarking/` | — | cited, never absorbed |
 
@@ -50,6 +52,9 @@ The single most important boundary: **Stack A and Stack B differ in engine, quan
 at once**, so every TP=2-vs-TP=4 ratio in §12 is a lane-vs-lane comparison at matched concurrency, not
 a controlled TP sweep. The registry has never booted one engine on both topologies (§14, `QUESTIONS.md`
 `#3`).
+
+Stack C is **unbooted**, so no ratio involving it exists: §17 treats it as a documented route with a
+declared parity bar and one acceptance test, not as a measured arm.
 
 ## 3. Stack A — what the knapcio TP=4 stack is
 
@@ -1136,6 +1141,7 @@ Work items live in `TODO.md` §ds4 and stay there; this section is the index, no
 | Interleaved C1 re-take on the shipped line | needs the quartet; **dropped, not deferred**, by the 2026-10-18 19:15 policy | §7.5 |
 | One-engine TP=2 vs TP=4 A/B | `QUESTIONS.md` `#3`, queued behind the fence | §13 item 4 |
 | TP=2 `--parallel` / admitted-request re-measure | `.34`/`.35` (runnable today) | §11.2, §13 item 3 |
+| vLLM parity acceptance boot | same fence; needs the third-party image authorization (`QUESTIONS.md` `#17`) | §17 |
 
 **Open unknowns.**
 
@@ -1263,3 +1269,137 @@ All sizes are Hub `usedStorage`/`tree` bytes; no node cache was read.
 | 2026-10-22 | live baseline boot, ladder, house, needle | `~/benchmarks/knapcio-tp4-20261022/` (task `sparkrun_a2e141223b52793c_d7960e70d961`) |
 | 2026-10-22 | ARC/GSM8K legs | `~/benchmarks/tp4-20261022/knapcio-arc-gsm8k/` |
 | 2026-10-22 | image-reproducibility compare | `~/benchmarks/ds4-expin-20261022/image-compare.txt` |
+
+## 17. A vLLM route to the shipped bar — what exists, what it costs, and the test that settles it (2026-10-23)
+
+**Question.** Can a vLLM serve of the same body reach the shipped arm's numbers, and where such a route
+exists, which axis decides it? **Parity, stated once and held to below:** the same checkpoint and
+revision (`1bae0e1088993b9b82de08f59de5be5a34e42170`), one rank on each of four GB10 nodes at TP=4, a
+served window of ≥1,048,576 tokens, **C1 ≥ 64.0 t/s** and **C10 ≥ 110.5 t/s** on
+`benchmarking/concurrency-ladder.yaml`, house ≥36/37 at `--max-tokens 4096` thinking-on, and the needle
+passing 3/3 at 32,768 / 131,072 / 983,040. The tolerances are the bars' own noise — C1 69.28 ± 5.25
+(n=5, 7.6 %) and C10 116.27 ± 6.22 (5.3 %), so one sample sd on C1 and 95 % on C10 are each the smallest
+gap a five-run cell can resolve (`recipes/ds4/README.md:59-64`; accuracy cells `:89-93`). A miss on
+a speed bar is a **decode-parity** miss; a serve that cannot hold 1M is a **context** miss. They are
+independent, and neither substitutes for the other.
+
+**What vLLM can and cannot do here.**
+
+| capability | status | source |
+|:--|:--|:--|
+| `deepseek_v41` target + `DSparkV41DraftModel` draft | **upstream, no patch**; the architecture shipped in vLLM 0.30.0 and the model recipe's floor is 0.31.0 | `vllm/models/deepseek_v41/` and registry entries (`vllm/model_executor/models/registry.py:383-386,659-662` @ fork `8244d1c4`); `vllm-project/vllm` `recipes/models/deepseek-ai/DeepSeek-V4.1-Flash.yaml:36-41` |
+| vendor declaration | **none** — the card documents a Torch reference implementation and the `deepseek-recipe` encoding toolkit, not an engine | card `README.md` §*Minimal Inference*; `inference/README.md` |
+| Engram placement, upstream | device or **pinned host RAM** only: `cpu_offload`, `embedding_across_dp`, `dp_shared_memory`, `use_thp`; weight offload (`--offload-backend {auto,prefetch,uva}`, `--cpu-offload-gb`) is also host DRAM | `vllm/config/engram.py` @ upstream `main` `d561af5d` (2026-10-23) |
+| Engram placement, b12x fork | **disk**: `table_memory: Literal["device","ram","disk"]` (io_uring staging) plus `disk_resident_scales`, `projection_tp` | `vllm/config/engram.py:76-86`; `vllm/models/deepseek_v4_1/common/engram.py` (`DiskTable`, `prepare_disk`) @ fork `8244d1c4` |
+| four-Spark TP=4 serve line | published: `--engram-config '{"cpu_offload":false,"table_memory":"disk"}'`, b12x attention/MoE/linear, k=7 DSpark, `VLLM_ENABLE_ROCE_ALLREDUCE=1` | `eugr/spark-vllm-docker` `recipes/4x-spark-cluster/deepseek-v4.1-flash.yaml:26-56`; fork `scripts/serve-ds41-flash-dspark-tp4-rdma.sh:18-20` |
+| GB10-aware decode path | `CUTE_DSL_ARCH=sm_121a`, b12x attention/MoE/linear, and an SM121 L2 weight-prefetch pass | `eugr/spark-vllm-docker` `recipes/4x-spark-cluster/deepseek-v4.1-flash.yaml:26-34,50-52`; `vllm/models/deepseek_v4_1/l2_prefetch.py:3-25` |
+| hardware coverage upstream | **no GB10 row** — the matrix is H100/H200/B200/GB200/GB300/B300/MI3xx/`dgx_station_gb300`, and the fit floor is `vram_minimum_gb: 614` | same recipe `:20-35,679-681` |
+| image | `eugr/spark-vllm-b12x:latest` is **arm64/linux**, digest `sha256:03a9565…`, pushed 2026-10-15, built from the fork; the registry's own resident b12x pin is `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…` | Docker Hub tag metadata; `recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml:5` |
+
+Two consequences follow. (a) Upstream vLLM's Engram placements *are* the unified pool itself (below), so
+only the fork's disk path fits; (b) that fork is a third-party branch with no release wheel, so a vLLM bump
+can strand the route — a maintenance cost, not a reachability one.
+
+**The Engram arithmetic at 1M on four Sparks.** At TP=4 every byte is charged per rank, and a Spark's
+pool is *unified*: a byte "offloaded" to pinned host RAM is still one of the 121.7 GiB.
+
+| component | cluster total | per rank at TP=4 | source |
+|:--|--:|--:|:--|
+| checkpoint | 510.29 GB (475.2 GiB) | — | `recipes/ds4/README.md:26`; disk census `:286-293` |
+| Engram tables (layers 1, 14) | 202.76 GB (188.8 GiB) | 50.7 GB = **47.2 GiB** | `attic/ds4/AGENTS.md:74-83`; packed shards 2 × 23.6 GiB/rank (§3) |
+| everything else (experts, dense, DSpark, vision, head) | 307.53 GB (286.4 GiB) | 76.9 GB = **71.6 GiB** | `attic/ds4/AGENTS.md:158-163` |
+| KV at the shipped pool | — | 6,849,792 tok × 1,670.75 B = 11.44 GB = **10.7 GiB** | `attic/ds4/AGENTS.md:241-247`; pool `recipes/ds4/README.md:212` |
+
+With the Engram **resident or host-mapped** (upstream's only options): 71.6 + 47.2 = **118.8 GiB/rank**
+against a 121.69 GiB device and, after the ~18 GiB the OS and page cache hold, about **103.7 GiB usable** —
+a **~15 GiB deficit at zero KV, zero activation, zero graph memory**. `gpu_memory_utilization` is a promise
+against device capacity, so this is a refusal, not a tuning question, and it is the same wall §3.2 records
+for SGLang's host-table feature: upstream's targets are 80–288 GiB **per GPU**, not one shared 121.7 GiB.
+
+With `table_memory: "disk"`: 71.6 + 10.7 = **82.3 GiB/rank**, plus activation/graphs (single-digit GiB) and,
+with `disk_resident_scales` on, ~5.7 GiB of pinned host RAM for the E8M0 scales (`vllm/config/engram.py:80-82`)
+— inside 0.85 × 121.69 = 103.4 GiB and the ~103.7 GiB physical ceiling, but not with much room; the fork's
+own TP=4 script defaults to 0.82, 10 GiB of KV/rank and `MAX_MODEL_LEN=500000`
+(`scripts/serve-ds4-flash-dspark-tp4-rdma.sh:50-59`). **Context is reachable, not free.**
+
+**Verdict.** *Reachable in principle, unproven in fact — the deciding axis is aggregate decode (C10), not
+memory and not 1M context.* The disk-Engram path removes the two reasons to expect this route to die; what
+remains is throughput, and the evidence is thin in exactly one place:
+
+- **C1 has one structural number and one supporting number.** The fork's GB10 decode note measures TP=4
+  decode at **47.45 ms/step** at a fixed eight-row verifier, down from 49.36 without the L2 prefetch
+  (`l2_prefetch.py:12-15`) — 69.28 t/s at an acceptance length of 3.29, and the lane's own prose
+  acceptance is ~3 tokens/step (~6 on code, `recipes/ds4/README.md:446-448`). The image project's
+  changelog reports **~73 t/s** on SPEED-Bench coding for its 3- and 4-Spark V4.1 recipes
+  (`spark-vllm-docker` README §2026-10-05). So C1 sits **on** the bar and can land either side: at the
+  retired lane's measured acceptance (2.40–2.64) the same step time yields 50.6–55.6 t/s.
+- **C10 has no number at all.** The only same-hardware vLLM-vs-SGLang batch comparison in this repo is
+  the retired EXL3 lane — C4/C8/C16 66.3 / 88.5 / 122.0 t/s against SGLang's short-prompt 106 / 133 / 193
+  on the same four nodes (`attic/ds4/AGENTS.md:41-45,986-1005`), **63–67 %** at every batch cell. That
+  lane used NCCL and vLLM 0.28.1; this route adds `VLLM_ENABLE_ROCE_ALLREDUCE=1` and the b12x kernels,
+  which is exactly the pair of levers SGLang's 1.7× came from. It could close the gap; it is not
+  evidence that it does.
+- The published four-Spark recipe also ships `--max-num-seqs 2`, which **cannot** produce a C10 cell (ten
+  clients queue in five batches). A parity attempt must set 16, matching the SGLang arm's slot count.
+
+**If reachable: the serve line, the recipe sketch, and the acceptance test.** The sketch below is a
+document, not a shipped recipe (`recipes/` is out of scope for this study). It holds the SGLang arm's
+comparison frame — k=5 rather than the vendor recipe's k=7, 16 slots rather than 2, 1M declared rather
+than `auto`:
+
+```yaml
+runtime: vllm
+container: eugr/spark-vllm-b12x@sha256:03a956544e9f9b4b7ba91690469fbe7848bdbef29a7d2e0f5788368467bb3595
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+min_nodes: 4
+executor_config: { entrypoint: "", shm_size: 32gb, ulimit: [memlock=-1:-1] }
+env: { VLLM_ENABLE_ROCE_ALLREDUCE: "1", VLLM_ROCE_ALLREDUCE_MAX_SIZE: "2MB", CUTE_DSL_ARCH: "sm_121a",
+       VLLM_USE_V2_MODEL_RUNNER: "1", VLLM_USE_BREAKABLE_CUDAGRAPH: "1", VLLM_MXFP8_LM_HEAD: "1" }
+command: >
+  vllm serve {model} --revision {model_revision} --served-model-name {model}
+  --host 0.0.0.0 --port 8000 --tensor-parallel-size 4 --dtype bfloat16
+  --load-format b12x --block-size 256 --kv-cache-dtype fp8
+  --gpu-memory-utilization 0.85 --max-model-len 1048576
+  --max-num-seqs 16 --max-num-batched-tokens 4096
+  --enable-prefix-caching --enable-chunked-prefill
+  --engram-config '{"table_memory":"disk","disk_resident_scales":true}'
+  --linear-backend b12x --moe-backend b12x --attention-backend b12x
+  --speculative-config '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"standard","enable_adaptive_verification":true}'
+  --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"],"cudagraph_capture_sizes":[6,12,18,24,30,36,48,60,72,96]}'
+  --tokenizer-mode deepseek_v41 --reasoning-parser deepseek_v41
+  --tool-call-parser deepseek_v41 --enable-auto-tool-choice
+  --limit-mm-per-prompt '{"image":1}'
+```
+
+Two prerequisites the sketch cannot express. **io_uring**: the fork ships `scripts/seccomp/spark-io-uring.json`
+for disk Engram (`scripts/seccomp/README.md:8-9`), while this repository's recipes expose only
+`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/`restart_policy` under `executor_config`, so a profile is
+an executor-level addition or a mod. The qwen4 b12x arm boots with `VLLM_PLE_TABLE_MEMORY=disk` and no
+profile (`recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml:13-14,46`) — `LIKELY` evidence this
+fleet's Docker permits the syscalls, but probe it (`io_uring_setup` under `--rm`) either way. **Image
+content**: confirm the pin exposes `table_memory` before paying for a boot (`docker run --rm --entrypoint
+python <image> -c "from vllm.config.engram import EngramConfig; print('table_memory' in EngramConfig.model_fields)"`).
+
+**The acceptance test** is one four-node boot on `.30`–`.33` after the owner stands the production serve
+down (`QUESTIONS.md` `#4`), with the checkpoint already resident per node. On that one serve:
+`/v1/models` reports `max_model_len 1,048,576`; the startup banner echoes the `--engram-config` and the
+Engram module logs its disk table; `benchmarking/concurrency-ladder.yaml` gives C1 and C10
+(`is_context_prefill_phase: false` rows only, `--fresh`); the house battery runs at 4096 tokens
+thinking-on; and the needle ladder runs 32,768 / 131,072 / 983,040 **on the same serve**. Pass = both
+speed bars and both accuracy bars inside the tolerances at the top of this section, on one boot. A C1
+pass with a C10 miss is a partial, and it is the expected shape if the batch path has not closed.
+
+**If the test fails on C10: the closest reachable point, and the single dependency.** The closest point
+is then low-concurrency parity with a C10 near 70 % of the bar — the retired lane's batch ratio, with the
+C1 gap closed by RoCEnante and b12x. One dependency would change the verdict: **an upstream release
+carrying both the disk-Engram placement and the b12x batch path**, which is what turns a fork-held
+capability into a pinnable one. Until then the route's risk is concentrated in one cell, and one boot
+measures it.
+
+**Not verified here.** No boot was run. The 47.45 ms/step and the ~73 t/s figures are a source comment and a
+project changelog, both on hardware we do not own (`LIKELY`), neither on a workload comparable to
+`concurrency-ladder.yaml`; the fork pins the 0909 body (`fb2764a5…`), not `1bae0e10…` — the refresh shares
+`config.json` byte-for-byte (`recipes/ds4/README.md:38-40`), but no vLLM boot has served it. No C10, house
+or needle result exists on any vLLM DeepSeek-V4.1 route, here or elsewhere.
+

@@ -505,6 +505,20 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   `.30`–`.33`, so the boot waits for the `#4` fence; compare prefill GEMM against the recorded 2897 t/s
   cold pp at C1, within the inter-boot floor. *(effort: short)*
 
+- [ ] **Settle the vLLM parity question with one four-rank acceptance boot** — the route is documented and
+  the memory wall is solved on paper; only a boot can say whether vLLM reaches the shipped bars. §17 of
+  `DEEPSEEK.md` carries the capability table, the Engram arithmetic (118.8 GiB/rank with the Engram
+  resident or host-mapped vs 82.3 GiB with `table_memory: "disk"`), the serve line, the recipe sketch
+  and the thresholds (C1 ≥ 64.0, C10 ≥ 110.5 t/s, house ≥36/37 @4096 thinking-on, needle 3/3 at
+  control rungs). Work: pre-flight the image (`EngramConfig.model_fields` must contain `table_memory`, or
+  the pin predates the disk path), then one boot on `.30`–`.33` running ladder + house + needle on the
+  same serve, `--fresh`, decode rows only.
+  *(blockers:* the `#4` fence closes `.30`–`.33` to workloads, and consuming a third-party arm64 image
+  built from the `local-inference-lab/vllm` fork is an owner supply-chain act — `QUESTIONS.md` `#17`.
+  Disk Engram reads through `io_uring`, which the fork serves with a seccomp profile this repository's
+  `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
+  `restart_policy` only), so an executor-level addition or a mod precedes the boot.)* *(effort: medium)*
+
 ## glm5
 GLM 5.3
 *(No open item — the ≥1M probe and four-way 1M concurrency were **dropped unrun**, not deferred, by the
