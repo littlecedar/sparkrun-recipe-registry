@@ -15,6 +15,15 @@ supply-chain evidence; **not** on `.30`–`.33` while they serve.
 That is the brief's §7 verdict restated as an authorization, not a new recommendation. The alternative
 answers and their consequences are at the end.
 
+**This is a narrower grant than `#6` as written, and the difference is deliberate.** The row asks whether
+the repository and agent may be installed "on four nodes"; this memo asks for two. The reason is the
+brief's own §5/§7 reading: `.30`–`.33` serve the fleet's production inference under the `#4` fence, the
+agent's Orbit launch binds port 8000 on rank zero — the production serve's own port — and the APT key's
+root grant would sit on the serving ranks. Two nodes settle the supply-chain question; four add no
+supply-chain evidence and would put a root-capable source on the ranks that must not be disturbed. **A
+yes to this memo should be recorded as a two-node authorization, not as an answer to the four-node
+wording** — the row's scope needs that amendment when it closes.
+
 ## What authorizing it grants, per artifact
 
 | artifact | signed by | what acceptance grants | blast radius |
