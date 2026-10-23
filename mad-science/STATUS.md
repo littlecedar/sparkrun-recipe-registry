@@ -108,6 +108,6 @@
 
 | doc | holds |
 |---|---|
-| `mad-science/TODO.md` | the queue and `# DECISIONS` (`#48` baseline, `#49` easy-traffic gate) |
+| `mad-science/TODO.md` | the queue, `# DECISIONS` (`#48` baseline, `#49` easy-traffic gate) and §"Settled questions" — the answered `QUESTIONS.md` rows moved there verbatim with their numbers |
 | `mad-science/SESSION-RECORD.md` | dated history |
 | `recipes/<lane>/README.md` | per-arm evidence and receipts |

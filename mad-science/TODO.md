@@ -2,14 +2,14 @@
 
 This file is the interface for planning rounds:
 
-1. **Questions for the owner do not live in this file.** Every one is a row in
-   [`QUESTIONS.md`](QUESTIONS.md) — one question per row, with its provenance — and this file holds
-   **work, not questions**. To answer, edit the row's `status` there; a word is enough ("defer",
-   "skip", or a full call). A session never leaves a question buried in a lane README, a board cell
-   or a commit body: it lands in `QUESTIONS.md` or it does not exist.
-2. **The agent folds an answered question** out of `QUESTIONS.md` into the work item(s) it governs as
-   an advisory note tagged *"(Owner decision YYYY-MM-DD: …)"*, and keeps the answer as a row so the
-   question is not re-opened. Verbatim history is always in git (`git log -- mad-science/TODO.md`).
+1. **Live questions for the owner live only in [`QUESTIONS.md`](QUESTIONS.md)** — one question per row,
+   with its provenance — and this file holds **work, not open questions**. To answer, edit the row's
+   `status` there; a word is enough ("defer", "skip", or a full call). A session never leaves a question
+   buried in a lane README, a board cell or a commit body: it lands in `QUESTIONS.md` or it does not exist.
+2. **An answered question is folded into the work item it governs** as an advisory note tagged *"(Owner
+   decision YYYY-MM-DD: …)"* **and moved into §"Settled questions" below**, keeping its number, provenance
+   and asked date verbatim, so the question is not re-opened and `QUESTIONS.md #N` still resolves. Verbatim
+   history is always in git (`git log -- mad-science/TODO.md`).
 3. **Everything in this file is agent-maintained** — statuses, measurements, lane scope, the session
    record. State claims carry dates or commit hashes.
 
@@ -168,6 +168,110 @@ asserts.*
 *A join that truncates digests to 12 hex chars silently matches nothing — the first classification
 listed two recipe-pinned sglang images as deletable for exactly that reason; match full RepoDigests
 and the `oci-relay/pinned:<hex>` tag suffix before deleting.*
+
+## Settled questions (moved from `QUESTIONS.md`, 2026-10-23)
+
+Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was narrowed to unresolved rows only. Numbering is stable and shared with `QUESTIONS.md`, which keeps a pointer so a citation such as `QUESTIONS.md #9` still resolves. A moved row keeps its answer and is never re-opened.
+
+- **#1 — Should the easy-traffic gate's non-decreasing C5→C10 leg disqualify an arm whose ten-slot C10
+  clears the absolute bar by 60 % but whose throughput genuinely peaks at five streams?** *answered
+  2026-10-22* **Answered 2026-10-22:** a genuine five-stream peak is **acceptable** when C10 clears
+  the absolute bar, so the leg no longer requires C10 ≥ C5 — **Mellum2.1 is the selected single-node
+  easy-traffic arm** (C1 **110.52 ± 1.77**, C10 **185.96 ± 2.31** against the 69.28 / 116.27 bars;
+  house **36/37** @4096 thinking-on; ten real slots) — Settles the gate's leg (2) as the absolute bars
+  rather than monotonicity, so the only candidate that clears both bars ships as the easy-traffic arm
+  and every later candidate is judged the same way — a C10 **below 116.27** still fails, however high
+  its C5. — provenance: `mad-science/TODO.md:88-90` (leg itself `:54-62`; duplicate `mad-science/STATUS.md:44`); asked 2026-10-22.
+- **#4 — May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those
+  ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood
+  down?** *answered 2026-10-22* **Answered 2026-10-22:** the **fence holds** — no workload runs on
+  `.30`–`.33`, and no `.30`–`.33` boot, benchmark cell or load is queued, until the owner stands the
+  production serve down — It was the gate on the whole TP=4 queue; with the fence holding, nothing
+  that needs four ranks can run — the ds4 candidates, the four-node suite legs, the `#3` topology A/B
+  and `#2`'s chunk experiment all wait on one owner act, and the record no longer carries two
+  instructions. — provenance: `mad-science/TODO.md:576` + `mad-science/TODO.md:314` (queue) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
+  those ranks); asked 2026-10-22.
+- **#5 — Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict
+  stand unaudited?** *answered 2026-10-22* **Answered 2026-10-22:** **run the pilot** — two nodes,
+  `.34`/`.35`, which it needs **exclusively** → **Ran the same day, without a pre-registered pass/fail**
+  (`TODO.md` `#52`): the official packages install and the **server** stack works (targets register, RDMA on
+  the rail, survives a reboot behind a `network-online` + rail-address drop-in), but the **client** module cannot
+  load on either node — Secure Boot enabled, **one** enrolled certificate (Canonical's), no prebuilt
+  module in the vendor index on noble/jammy/bookworm, so `modprobe` answers `Key was rejected by service` on both official routes.
+  Cells (1)/(2) therefore fall back to the NFS-over-rail control (564.1 MiB/s single stream vs 6,358.3
+  MiB/s local NVMe; 9.28 ms vs 0.67 ms metadata create). **Adoption stays "not now", reason restated
+  as the official apt routes' firmware requirement** — and **reconciled after the pilot: the owner's
+  earlier working install is real and was a *source build* on `.30`–`.33` (kernel `1031`, unsigned, not
+  loaded), so the untested route is a source build for the current `1032` kernel plus one `modprobe`**; report
+  in `BEEGFS-REPORT.md` §10 — The verdict is now tested rather than carried: the pilot's three cells (`BEEGFS-REPORT.md` §8 — a
+  cold plain-safetensors load local disk vs the pool, ds4 decode with Engram on the pool vs NVMe, and
+  `hf cache ls` plus one `hf download`) are the prerequisites of the adoption decision, and the run established that
+  **one of them cannot be measured through either official apt route without a physical-console MOK
+  enrollment** — which is a decision input, not a pilot defect — and the follow-up reconciliation
+  found a **source build** on `.30`–`.33`, so the cheaper untested route is one build for the current
+  kernel plus a `modprobe`. Work item closed in `mad-science/TODO.md`. — provenance: `mad-science/BEEGFS-REPORT.md:256-285` (verdict `:214-243`, pilot `:485-686`,
+  reconciliation `:531`); asked 2026-10-20.
+- **#8 — Which host becomes the arm64 runner for the llama.cpp build job?** *answered 2026-10-22*
+  **Owner asked back 2026-10-22:** *"Can the build be performed on GitHub with an Actions pipeline?"*
+  → **Answered 2026-10-22: GitHub-hosted arm64 — confirmed.** Landed in `0976a1e`: the build job is `runs-on: ubuntu-24.04-arm`, the
+  `ARM64_RUNNER_ENABLED` gate is gone, a 20 GB disk preflight was added, and the guard suite moved to **931 tests**; the
+  **self-hosted runner path is retired, not kept as a fallback** — The weekly job could never build
+  without a runner, so the stock-upstream image work and the Mellum MTP A/B stayed unstartable; a
+  hosted runner removes the host question entirely, and retiring the self-hosted path means no
+  parallel runner story to maintain. — provenance: `mad-science/TODO.md:2433`, `.github/workflows/llamacpp-engine.yml`; asked 2026-10-22.
+- **#9 — Should the silent `DSV41_MXFP8_BACKEND=b12x` override be repaired — a launcher assertion rather than a value that
+  never reaches the engine — or stay recorded-only?** *answered 2026-10-22* **Answered 2026-10-22:**
+  **repair by explicit flag** — *not* a launcher assertion: delete the `DSV41_MXFP8_BACKEND=b12x` env dependency and spell
+  the backend flag explicitly in `command:` so it reaches the engine; the recipe change is **boot-gated** —
+  The shipped ds4 arm requests a backend the engine never receives as a declared flag (the launcher
+  substitutes it and the effective value reads `auto (omitted)` replaced), so any future MXFP8 A/B measures an
+  undeclared default and reads as a null result; the work item is in `mad-science/TODO.md`. — provenance: `mad-science/STATUS.md:34`, `recipes/ds4/README.md:372-377`;
+  asked 2026-10-22.
+- **#10 — Should the repository Issues tracker be enabled so the nightly pin-drift sweep can maintain
+  its issue in place?** *answered 2026-10-22* **Answered 2026-10-22:** **enable Issues** — done: `gh api -X PATCH repos/littlecedar/sparkrun-recipe-registry -f has_issues=true`
+  returned `has_issues: true`, so the sweep now maintains its single `pin-drift` issue in place instead of printing `SKIPPED: repository issues are disabled` —
+  Without the tracker the drift signal was the run summary plus a 90-day artifact only; the in-place
+  issue is now the third leg and the one an operator can watch. — provenance: `AGENTS.md:505-536`; asked undated.
+- **#11 — May the registry ship an eval-only arm for MiniMax-M3 under its non-commercial Community
+  License, or is that license a hard no for a tree distributed to third parties?** *answered
+  2026-10-22* **Answered 2026-10-22:** ship **eval-only**, with the license banner and an explicit
+  non-commercial note — permitted, not a hard no — It is the highest accuracy-per-node candidate at
+  two nodes, and the licence was the only thing keeping it out of the tree; the shipping policy that
+  carries the answer is `AGENTS.md` §Recipes. — provenance: `mad-science/EXPLORE-CANDIDATES.md:53-54` (duplicate `:75`); asked undated.
+- **#12 — Should the cybersec lane ship a single-node OrcaCyber-Nano-1.0 arm, and at which GGUF
+  tier?** *answered 2026-10-22* **Answered 2026-10-22:** **ship the 15.7G tier** (`:Mix-15.7G`, 15,695,148,832
+  B ≈ 14.62 GiB, 4.60 bpw, imatrix) — the **13G tier becomes the A/B control, not the default** — The
+  tier is a ship decision rather than a bench result, and the ruling fixes both the default and the
+  comparison: one default arm at 15.7G with the 13G tier kept as its measured control. — provenance:
+  `mad-science/TODO.md:2058-2060`; asked 2026-10-22.
+- **#13 — Which look does the shipped image arm serve — the current Diffusers render, or is the
+  declined vLLM-OMNI variant reopened?** *answered 2026-10-22* **Answered 2026-10-22:** **ship both**
+  — the Diffusers render and the vLLM-OMNI variant land as **separate arms**, and the OMNI arm carries
+  the two-ink adherence defect in its lane README — It reopens a route recorded as declined: the ~24 %
+  faster OMNI path ships beside the Diffusers look, with the prompt-adherence defect written down
+  where an operator choosing between them will read it. — provenance: `mad-science/TODO.md:1205-1209`; asked 2026-10-21.
+- **#14 — Does the MiniMax H3 Community Licence permit this cluster to run the arm?** *answered
+  2026-10-22* Settles the boot location: permitted at a non-US site by deployment location, not
+  permitted at a US site. — provenance: `mad-science/TODO.md:2253`, `recipes/media/README.md:310-314`; asked 2026-10-22.
+- **#15 — Do the Timestral and indra-ocr modified licences block shipping their arms?** *answered
+  2026-10-22* Both banners are accepted and ship inside the recipes; the remaining gap is the runtime,
+  not permission. — provenance: `mad-science/STATUS.md:32`; asked 2026-10-22.
+- **#16 — Is a rewrite of git history authorized to purge the cluster-internal addresses that the
+  tree-level sweep masked?** *answered 2026-10-22* **Answered 2026-10-22:** **authorized** — rewrite
+  and force-push to purge them — **and executed the same day: `aac85ec` → `240ecd6`**, `git filter-repo --replace-text` then `--force-with-lease`. **849 commits
+  preserved**, one ref (`refs/heads/main` with `origin/main` on the same commit), 0 tags. **Residual literals: 7**, all by
+  design — the published HLE question, the CI detector's planted control, and the hygiene guard's own
+  pattern plus four controls; commit messages: **0** hits. **Signatures 10 `E` + 839 `N` → 849 `N`**
+  (filter-repo strips `gpgsig`; no commit object was lost). **Every SHA changed**, so 298 in-tree citations
+  were re-pointed through filter-repo's commit-map. **Backups:** `/tmp/purge-backup/pre-purge-20261022-141525.git` (bundle, `git bundle verify` = complete history
+  at `aac85ec`) and `/tmp/purge-backup/pre-purge-mirror.git`. **Clones:** workstation and `.34`/`.35` caches re-cloned at the new tip; `.30`–`.33`
+  untouched. **No `spark-arena` remote remains** — re-adding one later would need a check of which history it
+  would fetch. Gate at the new tip: 940 tests OK (2 skipped), 67/67 plain, 49/67 strict — 221
+  patch-body lines and 8 commit-message lines carried fabric addresses in a registry distributed to
+  third parties, and the rewrite was the only fix left once the tree was masked; with it executed, no
+  revision of this repository — tree or history — exposes the fabric, and the guard `tests/test_tracked_address_hygiene.py` holds the
+  tree half on every gate run. Work item `mad-science/TODO.md` §Image pins (`history-purge`). — provenance: `mad-science/TODO.md:2794-2819`; asked
+  2026-10-20.
 
 # TODO list
 
