@@ -14,9 +14,9 @@ measured, what failed and why, and what is still open.**
 
 | section | fed by | date / commit |
 |---|---|---|
-| §3, §4 | `KNAPCIO-UPSTREAM-DELTA.md` (whole) | memo 2026-10-10, upstream HEAD `fa13563`; absorbed at commit `fd282f3` |
-| §5, §7, §8 | `DS4-SPEEDUPS.md` §§1–11, the checked-and-rejected table, unverified leads, method/limits; the image-reproducibility and b12x detail previously inlined in `TODO.md` §ds4 | survey 2026-10-19 (no boot); inlined detail 2026-10-22; absorbed at `fd282f3` |
-| §7, §11, §12, §13 | `DEEPSEEK-1017-DECODE-RESEARCH.md` (whole) | note 2026-10-20 (no boot); absorbed at `fd282f3` |
+| §3, §4 | `KNAPCIO-UPSTREAM-DELTA.md` (whole) | memo 2026-10-10, upstream HEAD `fa13563`; absorbed at commit `0c335ec` |
+| §5, §7, §8 | `DS4-SPEEDUPS.md` §§1–11, the checked-and-rejected table, unverified leads, method/limits; the image-reproducibility and b12x detail previously inlined in `TODO.md` §ds4 | survey 2026-10-19 (no boot); inlined detail 2026-10-22; absorbed at `0c335ec` |
+| §7, §11, §12, §13 | `DEEPSEEK-1017-DECODE-RESEARCH.md` (whole) | note 2026-10-20 (no boot); absorbed at `0c335ec` |
 | §9 | `TODO.md` §ds4 prefill-chunk item; `recipes/ds4/README.md` §Knobs | measured 2026-10-22 |
 | §10 | `DS4-SPEEDUPS.md` (whole survey, including its two TP=2 items) | 2026-10-19, plus the 2026-10-21 measurements recorded in it |
 | §14 | `TODO.md` §ds4, `QUESTIONS.md` | live work items |
