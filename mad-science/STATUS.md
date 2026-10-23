@@ -62,7 +62,7 @@
 
 | time ET | commit | one clause |
 |---|---|---|
-| 15:43 10-23 | — | community-1017 **delta study + TP_PAD finding**: `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` is Stack A on the same base image digest and SGLang tree, its documented 42/42 `split OFF` matches the git-ignored 2026-10-02 quartet log, and the `DSV41_TP_PAD=0` flip needs no file change — `DEEPSEEK.md` §18 |
+| 15:43 10-23 | `75bfc41` | community-1017 **delta study + TP_PAD finding**: `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` is Stack A on the same base image digest and SGLang tree, its documented 42/42 `split OFF` matches the git-ignored 2026-10-02 quartet log, and the `DSV41_TP_PAD=0` flip needs no file change — `DEEPSEEK.md` §18 |
 | 15:42 10-23 | `4e5136f` | vLLM parity study (`DEEPSEEK.md` §17): upstream vLLM has no disk Engram, so four Sparks fit only via the b12x fork — the deciding axis is C10 and the acceptance boot is gated by `#17` |
 | 01:48 10-23 | `8a35e2e` | FLARE install memo records the two-node scope gap: the memo's gb10 decision covers a pair, not the six-node fleet, so the remaining four nodes are out of its scope |
 | 01:40 10-23 | `1db2090` | FLARE `gb10` install decision memo delivered as the `#6` deliverable: recommendation recorded with its evidence gaps named, no install performed and no node contacted |
