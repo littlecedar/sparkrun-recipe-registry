@@ -6,7 +6,7 @@ min_nodes: 2
 #
 # TP=2 TWIN of `deepseek-v4.1-flash-exl3-tp4-vllm.yaml`, authored 2026-10-22 for the one comparison
 # this lane has never taken: ONE engine, ONE quant, TWO topologies, A/B/A/B boot slots
-# (mad-science/DEEPSEEK.md §13 item 4, "an interleaved TP=2-vs-TP=4 comparison on one engine"). Everything
+# (DEEPSEEK-1017-DECODE-RESEARCH.md §"What would have to happen next" item 4). Everything except
 # `min_nodes` and `tensor_parallel` is byte-identical to the TP=4 arm on purpose — a knob that differs
 # between the arms makes the topology result unreadable.
 #

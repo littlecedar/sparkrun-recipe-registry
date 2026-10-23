@@ -179,7 +179,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   house **36/37** @4096 thinking-on; ten real slots) — Settles the gate's leg (2) as the absolute bars
   rather than monotonicity, so the only candidate that clears both bars ships as the easy-traffic arm
   and every later candidate is judged the same way — a C10 **below 116.27** still fails, however high
-  its C5. — provenance: `mad-science/TODO.md:88-90` (leg itself `:54-62`; duplicate `mad-science/STATUS.md:44`); asked 2026-10-22.
+  its C5. — provenance: `TODO.md` §DECISIONS `#49` (the gate's leg (2); duplicate `mad-science/STATUS.md:44`); asked 2026-10-22.
 - **#4 — May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those
   ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood
   down?** *Answered 2026-10-22.* the **fence holds** — no workload runs on
@@ -187,7 +187,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   production serve down — It was the gate on the whole TP=4 queue; with the fence holding, nothing
   that needs four ranks can run — the ds4 candidates, the four-node suite legs, the `#3` topology A/B
   and `#2`'s chunk experiment all wait on one owner act, and the record no longer carries two
-  instructions. — provenance: `mad-science/TODO.md:576` + `mad-science/TODO.md:314` (queue) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
+  instructions. — provenance: `TODO.md` §qwen4 (the TP=4 queue item) + §ds4 (the fence note) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
   those ranks); asked 2026-10-22.
 - **#5 — Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict
   stand unaudited?** *Answered 2026-10-22.* **run the pilot** — two nodes, `.34`/`.35`, exclusively → it
@@ -205,7 +205,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   **self-hosted runner path is retired, not kept as a fallback** — The weekly job could never build
   without a runner, so the stock-upstream image work and the Mellum MTP A/B stayed unstartable; a
   hosted runner removes the host question entirely, and retiring the self-hosted path means no
-  parallel runner story to maintain. — provenance: `mad-science/TODO.md:2433`, `.github/workflows/llamacpp-engine.yml`; asked 2026-10-22.
+  parallel runner story to maintain. — provenance: `TODO.md` §Recipe schema & documentation (registry-level), the llama.cpp runner item; `.github/workflows/llamacpp-engine.yml`; asked 2026-10-22.
 - **#9 — Should the silent `DSV41_MXFP8_BACKEND=b12x` override be repaired — a launcher assertion rather than a value that
   never reaches the engine — or stay recorded-only?** *Answered 2026-10-22.*
   **repair by explicit flag** — *not* a launcher assertion: delete the `DSV41_MXFP8_BACKEND=b12x` env dependency and spell
@@ -230,16 +230,16 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   B ≈ 14.62 GiB, 4.60 bpw, imatrix) — the **13G tier becomes the A/B control, not the default** — The
   tier is a ship decision rather than a bench result, and the ruling fixes both the default and the
   comparison: one default arm at 15.7G with the 13G tier kept as its measured control. — provenance:
-  `mad-science/TODO.md:2058-2060`; asked 2026-10-22.
+  `TODO.md` §explore (the OrcaCyber tier item); asked 2026-10-22.
 - **#13 — Which look does the shipped image arm serve — the current Diffusers render, or is the
   declined vLLM-OMNI variant reopened?** *Answered 2026-10-22.* **ship both**
   — the Diffusers render and the vLLM-OMNI variant land as **separate arms**, and the OMNI arm carries
   the two-ink adherence defect in its lane README — It reopens a route recorded as declined: the ~24 %
   faster OMNI path ships beside the Diffusers look, with the prompt-adherence defect written down
-  where an operator choosing between them will read it. — provenance: `mad-science/TODO.md:1205-1209`; asked 2026-10-21.
+  where an operator choosing between them will read it. — provenance: `TODO.md` §explore (the Qwen-Image look item); asked 2026-10-21.
 - **#14 — Does the MiniMax H3 Community Licence permit this cluster to run the arm?**
   *Answered 2026-10-22.* Settles the boot location: permitted at a non-US site by deployment location, not
-  permitted at a US site. — provenance: `mad-science/TODO.md:2253`, `recipes/media/README.md:310-314`; asked 2026-10-22.
+  permitted at a US site. — provenance: `TODO.md` §explore (the MiniMax-H3 licence item), `recipes/media/README.md:310-314`; asked 2026-10-22.
 - **#15 — Do the Timestral and indra-ocr modified licences block shipping their arms?**
   *Answered 2026-10-22.* Both banners are accepted and ship inside the recipes; the remaining gap is the runtime,
   not permission. — provenance: `mad-science/STATUS.md:32`; asked 2026-10-22.
@@ -257,7 +257,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   patch-body lines and 8 commit-message lines carried fabric addresses in a registry distributed to
   third parties, and the rewrite was the only fix left once the tree was masked; with it executed, no
   revision of this repository — tree or history — exposes the fabric, and the guard `tests/test_tracked_address_hygiene.py` holds the
-  tree half on every gate run. Work item `mad-science/TODO.md` §Image pins (`history-purge`). — provenance: `mad-science/TODO.md:2794-2819`; asked
+  tree half on every gate run. Work item `mad-science/TODO.md` §Image pins (`history-purge`). — provenance: `TODO.md` §Image pins and advisories (registry-level), the `history-purge` item; asked
   2026-10-20.
 
 # TODO list
