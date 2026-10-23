@@ -188,7 +188,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   that needs four ranks can run — the ds4 candidates, the four-node suite legs, the `#3` topology A/B
   and `#2`'s chunk experiment all wait on one owner act, and the record no longer carries two
   instructions. — provenance: `TODO.md` §qwen4 (the TP=4 queue item) + §ds4 (the fence note) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
-  those ranks); asked 2026-10-22.
+  those ranks); asked 2026-10-22. **Fence lifted 2026-10-23** (`TP4-BGFS Q1`): the owner stood the serve down and declared the cluster free for research, so this answer's gate no longer stands — the queued items are open and a four-rank window exists whenever the owner declares one (`TP4-BGFS Q3`).
 - **#5 — Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict
   stand unaudited?** *Answered 2026-10-22.* **Run the pilot** — two nodes, `.34`/`.35`, exclusively → it
   ran the same day with no pre-registered pass/fail (`#52`): the packages install and the **server**
@@ -259,6 +259,116 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   revision of this repository — tree or history — exposes the fabric, and the guard `tests/test_tracked_address_hygiene.py` holds the
   tree half on every gate run. Work item `mad-science/TODO.md` §Image pins (`history-purge`). — provenance: `TODO.md` §Image pins and advisories (registry-level), the `history-purge` item; asked
   2026-10-20.
+
+**TP4-BGFS — the 2026-10-23 owner sheet (20 answers).** A one-shot untracked sheet carried the questions
+whose decisions were recorded nowhere (the TP=4 window terms and the cluster-wide BeeGFS plan); the owner
+answered all 20 and said "consume it", so the answers are transcribed here under stable `TP4-BGFS Q1`–`Q20`
+labels and the sheet was deleted. A label is cited from `QUESTIONS.md`, `STATUS.md` and `AGENTS.md`; it is
+never re-opened.
+
+- **TP4-BGFS Q1 — Is the `#4` fence lifted, now that the production serve is absent?**
+  *Answered 2026-10-23.* **Yes — lifted.** "I stood it down for you to use and declared it in a prompt
+  last night. You have had the enite cluster to yourself to be performing research and you have not been
+  using it. In the future, be very loud about your blocker questions to the owner so they can provide
+  help. However, you did the right thing by standing down instead of risking conflict with a production
+  workload. I am proud of you. Good job." — Unlocks the whole TP=4 queue and sets a standing instruction:
+  escalate blocker questions loudly, and never risk a running workload. — provenance:
+  `mad-science/STATUS.md` `.30`–`.33` row and `Attention` `#11`; settled `#4` above; asked 2026-10-23;
+  answered 2026-10-23.
+- **TP4-BGFS Q2 — If a production serve returns, does a research boot displace it for a window?**
+  *Answered 2026-10-23.* "If you see a production workload running on a node, leave it alone and ask for
+  help. You did the right thing. The owner will declare when you have the entire cluster to yourself for
+  research." — No displacement ever; a window exists only by owner declaration. — provenance:
+  `mad-science/DEEPSEEK.md` §3 (the production arm); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q3 — How long is a window, how many boots, and who approves it?** *Answered 2026-10-23.*
+  "A TP=4 window is available whenever it is declared by the owner." — No standing budget and no
+  self-serve window: ask, then run inside the declared one. — provenance: `mad-science/DEEPSEEK.md` §13
+  item 4; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q4 — Which queued item takes the first window?** *Answered 2026-10-23.* "Run whichever queued
+  item makes the most sense to run. If a run unblocks downstream research, it should get priority. If a run
+  sets important baselines for other runs, it should get priority. I'll leave the final decision up to
+  you." — The order is delegated; prioritise downstream unblocking and baselines. — provenance:
+  `mad-science/DEEPSEEK.md` §9 and §13 item 4, `mad-science/STATUS.md` `Attention` `#9`; asked 2026-10-23;
+  answered 2026-10-23.
+- **TP4-BGFS Q5 — Is `#9`'s acceptance its four log conditions, or also a cold-pp number?** *Answered
+  2026-10-23.* "Always preference the more thorough and complete path when you have reasonable confidence
+  that it will save research effort for future agents. Otherwise, the YAGNI principle applies and you
+  should follow it." — Acceptance rule for every boot-gated item: thorough where it saves later work,
+  YAGNI otherwise. — provenance: `mad-science/DEEPSEEK.md` §6.1; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q6 — What tolerance and sample size make a TP=4 result actionable?** *Answered 2026-10-23.*
+  "This sounds like you need a larger sample size to detect a difference between the two arms to tighten
+  those gaps and have a less ambiguous quality signal. This is important because optimizing these recipes,
+  models, and runtimes is complex and sometimes gains are subtle. In addition, every boot is expensive and
+  time-consuming, so a larger sample size can help ensure that the results are statistically significant
+  and reliable, and contribute meaningfully to confident choices." — Larger n and significance are
+  required; the paired-spread falsifier (worst treatment run against best control run) is endorsed, and
+  anything inside it is reported as not separable. — provenance: `mad-science/DEEPSEEK.md` §10.16 (the
+  lane's A/B rules); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q7 — Must every TP=4 candidate carry the full 1M context?** *Answered 2026-10-23.* "A shorter
+  ladder is acceptable to settle a knob faster." — Candidates are qualified short; only the winner is
+  re-checked near 1M, pool and pin held constant. — provenance: `mad-science/DEEPSEEK.md` §9, §13; asked
+  2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q8 — May `.30` be a rank, and may ranks split across node sets?** *Answered 2026-10-23.*
+  ".30 is always the controller node. Nodes all share the same switch, network topology, and interconnect
+  shape, so ranks may be split across any free nodes. When the owner has declared that .30 - .33 are open
+  for your use, then .30 is available to be used as a working node as well as the controller node." —
+  Controller fixed, rank placement free inside the declared set. — provenance: `AGENTS.md` §Node hygiene
+  (as amended 2026-10-23); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q9 — May `.30`–`.33` be rebooted for a boot-parameter change?** *Answered 2026-10-23.*
+  ".30 MUST NOT be rebooted without owner approval. All other nodes may be rebooted at your discretion."
+  — The memory-fraction wedge stays a no-reboot-on-`.30` hazard. — provenance: `attic/ds4/AGENTS.md` §12
+  (the `MEM_FRACTION_STATIC=0.90` incident); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q10 — Should the shipped arm declare `DSV41_TP_PAD=0`, as b12x was repaired?** *Answered
+  2026-10-23.* "Author the declaration as a candidate arm, test it, and then ship it as the production arm
+  if it passes." — One declaration change, one confirming boot, and production only on a pass. —
+  provenance: `mad-science/DEEPSEEK.md` §18; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q11 — Is cluster-wide BeeGFS still wanted?** *Answered 2026-10-23.* "Yes, we want the Hugging
+  Face cache shared between nodes via BeeGFS, but we must first fix the secureboot posture." — The goal
+  stands; the blocker is firmware, not design. — provenance: `mad-science/BEEGFS-REPORT.md` §6; asked
+  2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q12 — MOK enrollment with a signed module, or Secure Boot off?** *Answered 2026-10-23.* "The
+  correct call is 'not now', but keep this in the TODO as a deferred item. We will work on fixing
+  secureboot later." — No firmware change and no key ceremony now; the programme item is deferred, not
+  dropped. — provenance: `mad-science/BEEGFS-REPORT.md` §10 round-3 addendum; asked 2026-10-23; answered
+  2026-10-23.
+- **TP4-BGFS Q13 — Which nodes get the client loaded and a mount configured?** *Answered 2026-10-23.* "All
+  nodes will get the BeeGFS client loaded and a mount configured." — Fleet-wide activation, not the pair.
+  — provenance: `mad-science/BEEGFS-REPORT.md` round-3 addendum; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q14 — Which node carries the metadata service, and where do clients mount?** *Answered
+  2026-10-23.* ".30 (the head node) will carry the metadata service, and the clients will mount at
+  `/mnt/beegfs`." — Topology fixed: metadata on `.30`, mountpoint `/mnt/beegfs`. — provenance:
+  `mad-science/BEEGFS-REPORT.md` §6 (the costed design); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q15 — Management plane or a RoCE rail?** *Answered 2026-10-23.* "Our prior tests confirmed
+  NFS-over-ROCE performed faster than the NVMe could keep up with, so we think your test was using the IP
+  interface rather than the RDMA interface for transfer (we got similar 550-600MB/s numbers in the IP stack
+  configuration). In any case, BeeGFS should be configured to use the ROCE interfaces." — Transport is
+  RoCE; the pilot's 564 MiB/s is read as an IP-stack measurement. — provenance:
+  `mad-science/BEEGFS-REPORT.md` §8 (the transfer measurements); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q16 — Keep the vendor APT repo and key, pin, or drop it?** *Answered 2026-10-23.* "The BeeGFS
+  packages are directly from the vendor and trusted by us. Leave them alone." — The trust anchor stands;
+  no package action without a new owner decision. — provenance: `mad-science/BEEGFS-REPORT.md` round-3
+  install; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q17 — May the nine packages be removed if BeeGFS is dropped?** *Answered 2026-10-23.* "Do not
+  touch the BeeGFS packages. Leave them alone." — The failed `beegfs-client.service` on every node is
+  owner-installed state, not a defect to clean up. — provenance: `mad-science/BEEGFS-REPORT.md` §10;
+  `AGENTS.md` §Node hygiene (destructive breadth); asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q18 — What lives on the pool, and does it need backup?** *Answered 2026-10-23.* "The Hugging
+  Face cache would live in the pool. Durability is not a concern and we already have a back-up solution in
+  place (which you cannot see because of separation of concerns), but this is a good question and we are
+  happy you asked it." — A re-downloadable cache with an owner-side backup; no backup contract on us. —
+  provenance: `mad-science/BEEGFS-REPORT.md` §1, §6; asked 2026-10-23; answered 2026-10-23.
+- **TP4-BGFS Q19 — Is read-only inspection authorized fleet-wide?** *Answered 2026-10-23.* "You are
+  authorized to use any non-destructive read to verify the state of the system. For example, you can use
+  `sparkrun status`, `docker ps`/`inspect`, log reads, `dpkg -l`, `modinfo`, and `mokutil --sb-state` to
+  gather information about the system without modifying any files." — Reads need no further ask; container
+  and package actions still do. — provenance: `AGENTS.md` §Node hygiene; asked 2026-10-23; answered
+  2026-10-23.
+- **TP4-BGFS Q20 — How is a window announced to other sessions?** *Answered 2026-10-23.* "In the future, we
+  will have an agent chat system to facilitate communication between sessions. This system will allow
+  sessions to announce their intentions and coordinate actions without the need for a central coordinator.
+  Until that system is released to you, use a lock file in this tree." — The convention is now `AGENTS.md`'s
+  `.scratch/fleet-window.lock` rule. — provenance: `mad-science/STATUS.md` `Attention` `#10`
+  (one-owner-per-transfer); asked 2026-10-23; answered 2026-10-23.
 
 # TODO list
 
@@ -2752,10 +2862,11 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 `docker events --filter event=die` → `docker-events.log`, both inside the receipt dir.)*
 
 ## Shared storage (registry-level)
-**BeeGFS is answered and closed — `mad-science/BEEGFS-REPORT.md` is the record.** §1–§9 are the read-only
-assessment (cache census, resource cost, fabric and disk measurements, Engram demand, the fetch-once
-fan-out rule), §10 is the two-node pilot with its reconciliation and end state, and the round-3 addendum
-at its top is the owner's apt install now sitting on all six nodes. Settled `#5` and `#52` point there;
+**BeeGFS is wanted but deferred on firmware — `mad-science/BEEGFS-REPORT.md` is the record.** §1–§9 are the
+read-only assessment (cache census, resource cost, fabric and disk measurements, Engram demand, the
+fetch-once fan-out rule), §10 is the two-node pilot with its reconciliation and end state, and the round-3
+addendum at its top is the owner's apt install now sitting on all six nodes. Settled `#5` and `#52` point
+there, and the owner's 2026-10-23 answers (`TP4-BGFS Q11`–`Q18`) keep the goal and block it on Secure Boot;
 no BeeGFS measurement, path or fingerprint is restated in this file.
 
 - [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — ran 2026-10-22, `13:26–13:46:41` ET, with the
@@ -2764,6 +2875,15 @@ no BeeGFS measurement, path or fingerprint is restated in this file.
   `.34` and 615 GB on `.35`. Numbers, the source-build reconciliation and the round-3 install that
   followed: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
   *(effort: medium)*
+
+- [ ] **BeeGFS over the shared HF cache — deferred on Secure Boot (owner decision 2026-10-23)** — wanted
+  (`TP4-BGFS Q11`) but explicitly **"not now"** until the Secure Boot posture is fixed (`Q12`). The eventual
+  shape: client loaded and a mount on **all six nodes** (`Q13`), metadata service on **`.30`** (`Q14`),
+  clients at **`/mnt/beegfs`** (`Q14`), transport on the **RoCE** interfaces (`Q15`; the pilot's 564 MiB/s
+  is read as an IP-stack transfer). **The nine vendor packages are trusted and must be left alone**
+  (`Q16`/`Q17`): the failed `beegfs-client.service` on every node is owner-installed state, not something
+  to clean up or purge. The pool is a re-downloadable HF cache with an owner-side backup (`Q18`).
+  *(effort: medium; unpark only on an owner Secure Boot decision.)*
 
 ## Image pins and advisories (registry-level)
 

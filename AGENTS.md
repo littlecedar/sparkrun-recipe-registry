@@ -238,18 +238,23 @@ remove what the session created** — a leftover is anything undocumented, unkno
   them.
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule
   exists to prevent.
-- **`.30`–`.33` are the fleet's own inference nodes, not a measurement surface — but `.30` is still the
-  control node, and driving the cluster from it is expected.** Orchestrating there (ssh, `sparkrun`
-  launches, config, inspection) is normal work; what is forbidden is executing **workloads** on
-  `.30`–`.33` — no research boot, benchmark cell, load or restart may run there beyond what the
-  operators themselves placed. A cell on ranks that also serve the model the agents run on measures a
-  box answering its own requests, and probing that live serve spends the owner's production headroom.
-  **Reading is fine, loading is not**: `sparkrun status`, `docker ps`/`inspect` and log reads on `.30`
-  are legitimate control-plane work; a `curl` to `/v1/chat/completions` and any benchmark client
-  pointed at `:8000` are not. Constrain the launch so no rank lands there — a research boot or cell
-  names `.34`/`.35` explicitly with `-H` and their real IPs (dot-aliases like `.34` crash sparkrun
-  0.4.2 in `socket.getaddrinfo`), and a launch that would place a rank on a fenced node, or that needs
-  four ranks, is a question for the owner, not a default.
+- **`.30`–`.33` are the fleet's inference ranks, and a measurement surface only while a window is
+  declared.** `.30` is always the controller — driving the cluster from it (ssh, `sparkrun` launches,
+  config, inspection, log reads) is expected work — and while a window is declared it may also carry a
+  rank. **If a production workload is running on a node, leave it alone and ask; never displace it**
+  (`TP4-BGFS Q2`): a cell on ranks that also serve the model the agents run on measures a box answering
+  its own requests, so wait for the declared window. **Reading is always fine** — `sparkrun status`,
+  `docker ps`/`inspect`, log reads, `dpkg -l`, `modinfo`, `mokutil --sb-state` (`Q19`). Constrain the
+  launch so no rank lands on a node outside the declared set: name the hosts with `-H` and their real
+  IPs (dot-aliases like `.34` crash sparkrun 0.4.2 in `socket.getaddrinfo`).
+- **A four-rank window is claimed with a lock file, not a message.** Before booting any node, write
+  `.scratch/fleet-window.lock` naming your session, the node set, the declared window and a timestamp;
+  delete it when the window ends. A session that finds the lock must not boot on the named nodes —
+  report and wait. Until an agent-chat system exists, this file is the coordination mechanism
+  (`TP4-BGFS Q20`).
+- **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
+  discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
+  and one interconnect shape — and `.30` stays the controller either way (`Q8`).
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and

@@ -58,6 +58,16 @@ remains one the existing storage policy already reaches by pruning, and no pass/
 pre-registered for the pilot (§10 reports numbers, `TODO.md` `#52`), so none is claimed: the verdict
 stands on §6's four reasons, with its install-risk item now measured instead of predicted.
 
+**Owner decision 2026-10-23 — wanted, deferred, and hands off the packages.** All eight BeeGFS questions
+are answered, transcribed in `TODO.md` §"Settled questions" as `TP4-BGFS Q11`–`Q18`: the shared HF cache
+**is** wanted, the Secure Boot fix is explicitly **"not now"** and stays a deferred programme item,
+activation is eventual on **all six nodes** with the metadata service on **`.30`** and clients at
+**`/mnt/beegfs`** over the **RoCE** interfaces, and **the nine vendor packages are trusted and must not be
+touched** (`Q16`, `Q17`). The failed `beegfs-client.service` on every node is therefore owner-installed
+state, not a defect for a later session to clean up — do not remove, purge or "repair" it. Nothing in
+§1–§10 changes: its measurements stand, and the transport reading (the pilot's 564 MiB/s is an IP-stack
+transfer, not the rail) is the owner's and belongs in the register, not in this section.
+
 ---
 
 ## 1. What the cache is today
