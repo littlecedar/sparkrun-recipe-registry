@@ -95,6 +95,12 @@ H=$PWD/.local/sparkrun-home
 HOME="$H" sparkrun recipe validate recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml
 ```
 
+**But that override is not for a quartet boot of the ds4 arm.** Measured 2026-10-23: with
+`HOME=$PWD/.local/sparkrun-home`, the four-rank ds4 serve mounts an **empty HF cache** (model-cache
+publication lease error — no 475 GB body) and a **root-owned runtime tree**, so chat-template staging
+fails with `PermissionError` on ranks 2/3. Every successful boot that day used the real `HOME`; keep the
+override for `recipe validate` and single-node work.
+
 **A bump boot must pass the recipe file path, never a registry-qualified ref.**
 `@littlecedar/<name>` resolves the *published* registry clone, not the worktree, so a recipe
 whose `container:` line was just edited still launches the previous image. Measured

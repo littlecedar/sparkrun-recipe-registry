@@ -22,6 +22,7 @@ measured, what failed and why, and what is still open.**
 | §14 | `TODO.md` §ds4, `QUESTIONS.md` | live work items |
 | §17 | vLLM's own DeepSeek-V4.1 recipe and model-registry entries; the `local-inference-lab/vllm` b12x fork's Engram config, disk table and four-Spark launchers; the `spark-vllm-docker` 4x recipe and image tag; the retired `attic/ds4/` vLLM verdicts; the 1017 model card | study 2026-10-23, no boot — upstream `main` @ `d561af5d`, fork `dev/karmic-kraken` @ `8244d1c4` |
 | §18 | `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` (recipe, docs, benchmark CSVs); knapcio `403a5aa2` vs our `27616bec`; the git-ignored `.scratch/ds4/knapcio/logs/boot9-head-serve.log` | study 2026-10-23, no boot |
+| §18.1 | the 2026-10-23 TP=4 window's receipts (`~/benchmarks/tp4-pad-20261023/` on the head: `a1-control-*`, `b1-treatment*`) | measured 2026-10-23, four boots attempted (one clean serve) |
 
 The three source notes were deleted (`git rm`) in the same commit that created this document; the
 filenames above are provenance, not live paths. Everything they stated is in the sections named, and
@@ -1139,15 +1140,17 @@ Work items live in `TODO.md` §ds4 and stay there; this section is the index, no
 
 | open item | gate | detail lives in |
 |:--|:--|:--|
-| Run the TP=4 arms of the survey (§10 candidates 1, 2, 3, 5, 7, 8, 9, 10, 11) | `.30`–`.33` fenced (`QUESTIONS.md` `#4`) | §10 |
-| Larger 1M prefill chunk (`CHUNKED_PREFILL_SIZE=16384`) | same fence; own question `#2` | §9 |
-| b12x quartet acceptance boot | same fence | §6.1 |
+| Run the TP=4 arms of the survey (§10 candidates 1, 2, 3, 5, 7, 8, 9, 10, 11) | owner-declared window (`QUESTIONS.md` `#4` lifted 2026-10-23) | §10 |
+| Larger 1M prefill chunk (`CHUNKED_PREFILL_SIZE=16384`) | same window; own question `#2` | §9 |
+| b12x quartet acceptance boot | **closed 2026-10-23** — `QUESTIONS.md` `#9` | §6.1, §18.1 |
 | Make the image byte-reproducible | deterministic build step (bytecode off, `SOURCE_DATE_EPOCH`) | §5 |
 | Interleaved C1 re-take on the shipped line | needs the quartet; **dropped, not deferred**, by the 2026-10-18 19:15 policy | §7.5 |
-| One-engine TP=2 vs TP=4 A/B | `QUESTIONS.md` `#3`, queued behind the fence | §13 item 4 |
+| One-engine TP=2 vs TP=4 A/B | `QUESTIONS.md` `#3`, queued | §13 item 4 |
 | TP=2 `--parallel` / admitted-request re-measure | `.34`/`.35` (runnable today) | §11.2, §13 item 3 |
-| vLLM parity acceptance boot | same fence; needs the third-party image authorization (`QUESTIONS.md` `#17`) | §17 |
-| `DSV41_TP_PAD=0` A/B boot (replicated split is OFF on the shipped line) | same fence (`QUESTIONS.md` `#4`); the first step is a grep of the shipped boot log, no boot needed | §18 |
+| vLLM parity acceptance boot | owner-declared window; needs the third-party image authorization (`QUESTIONS.md` `#17`) | §17 |
+| `DSV41_TP_PAD=0` A/B boot | **closed 2026-10-23: falsified** — the split was already ON and the treatment never booted; do not ship the line | §18.1 |
+| RDMA registration wedge (`ibv_reg_mr_iova2` ENOMEM at `ncclCommInitRank`) | **owner approval to reboot `.30`** (`QUESTIONS.md` `#18`); other nodes at discretion | §18.1 |
+| KV pool regression / inert 6.85M pin | one boot's `max_total_num_tokens` plus a `DSV41_FAST_LOAD` A/B | §18.1 |
 
 **Open unknowns.**
 
@@ -1411,6 +1414,9 @@ or needle result exists on any vLLM DeepSeek-V4.1 route, here or elsewhere.
 
 ## 18. The community 1017 repo is our own stack — and `DSV41_TP_PAD=0` is live on our line (2026-10-23)
 
+> **Falsified 2026-10-23 — the split is ON on the shipped pair; see §18.1.** Everything below is the
+> record as it stood before the window, kept because the boot9 quote is the historical evidence.
+
 **Subject.** `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @
 `ec61f23890c3ddea832b637cb5b6ab72aa8a5ae1` (2026-10-23T13:45+01:00), MIT, 39 tracked files: two recipes,
 three docs, eleven aggregate CSVs and twelve raw `llama-benchy` JSONs from a 2026-10-19 tuning window on
@@ -1509,5 +1515,66 @@ as a recipe**; its CSVs and raw JSONs are real artifacts, but its recipe is not 
 numbers are transferred: their cells are depth 0 / 8192 at concurrency 1 / 10 with n=3–6
 (`benchmarks/ab-4cell.yaml:5-9`; `benchmarks/summary.csv:1-9`), a different profile and a different pool
 from this lane's ladder, and their own d8k c1 values spread 54.8–72.0 within one day
-(`docs/tuning-log.md:133-136`). The TP_PAD magnitude is unmeasured on either side. What is established is
-the *state* — split OFF on our line — and the *price of finding out* — one boot, no file edit.
+(`docs/tuning-log.md:133-136`). The TP_PAD magnitude is unmeasured on either side. What §18 established was
+the *history* — a canary-era `42/42 split OFF` — and the *price of finding out* — one boot, no file edit;
+§18.1 records that the window falsified the transfer to the shipped pair.
+
+### 18.1 The window's resolution: the split was never OFF, and the treatment never booted (2026-10-23)
+
+**Falsified — on the shipped pair the split is ON.** The first post-fence window booted the shipped arm
+(image `acfc331a`, 1017 body `1bae0e10…`, pad left at its default) on `.30`–`.33`, and every rank logged
+`split ON, window GEMMs (no pad)` with **`split OFF` 0** and **`slice failed` 0** (`a1-control-node*.log`):
+
+```text
+[replicated_split] model.layers.0.self_attn.wqkv_a 1792x5120: split ON, window GEMMs (no pad) (rank 0 window True, slice True; 1/1 layers on so far)
+[replicated_split] model.layers.1.engram.wkv 25600x6144: split ON, window GEMMs (no pad) (rank 0 window True, slice True; 2/2 layers on so far)
+```
+
+The 2026-10-22 baseline serve log shows the same, so the canary-era boot9 `42/42 split OFF` **does not
+carry** to the shipped pair despite byte-identical adapters. The pad adapter still prints `DSV41 TP pad
+installed (tp=4)` — 5× on rank 0, 4× per worker — and the per-layer probe succeeds anyway: the install
+print is a precondition, not the outcome. §18's inference from adapter identity was wrong in the only
+direction that mattered. **Consequence: do not ship the one-line `RECIPE_ENV` change.** The owner's
+ship-if-passes permission was conditional on a passing treatment, and the treatment never served.
+
+**The treatment never booted — an infrastructure result, not a knob result.** All three
+`-o env.DSV41_TP_PAD=0` launches died before weights load: `RuntimeError: NCCL error: unhandled system
+error` at `ncclCommInitRank`, then `Call to ibv_reg_mr_iova2 failed with error Cannot allocate memory`
+(3 lines across the harvested logs, the first-failing rank moving rank 3 → rank 0). The **ownership test
+passed in the direction that matters**: `DSV41 TP pad installed` count is **0** in all ten harvested
+treatment rank logs against 5/4 in control — the override reaches the adapter with no file edit, exactly
+as §18 argued. Only the premise about split state was wrong.
+
+**New open item — RDMA registration wedge.** After several engine starts the *control* stopped booting too
+(2/2 failures at 22:43Z and 22:57Z, first-failing rank moving `.31` → `.30`), and a `.30`-free rerun on
+`.31`–`.34` died with the same NCCL error. Three reboots (`.32`/`.33` at 22:24Z, `.31` at 22:53Z) cleared
+it temporarily each time. It correlates with nodes not rebooted since the window opened (`.30`, `.31`)
+and with cumulative engine starts, and it is **not** attributable to the pad flip. Mitigation: reboot the
+implicated node. `.30` was never rebooted, per the owner's rule, and is now implicated — a clean quartet
+needs owner approval to reboot it (`QUESTIONS.md` `#18`).
+
+**New open item — the KV pool regressed by half, and the pin is inert.** A1 profiled
+`max_total_num_tokens=3,424,000` with `available_bytes=7.21 GB`, where the 2026-10-22 boot on the same
+nodes, image and pin profiled 7,342,336 → pinned 6,849,792 at `available_bytes=13.31 GB`. Both ran
+`mem_fraction_static=0.78` with `DSV41_FAST_LOAD=1`; ~6 GB more was resident at pool-sizing time. Cause
+undetermined — `LIKELY` the fast loader's uncounted memory, whose documented 3–6 % at EP2 cannot explain
+46 %. `MAX_TOTAL_TOKENS=6,850,000` is therefore **inert** on today's boot, and 6.85M must not be quoted as
+today's pool.
+
+**`QUESTIONS.md` `#9` closes on this boot.** `[moe_b12x_next] armed: routed MoE on b12x_next a7d7d29b
+(W4A8, in-place repack); graph bs [1 … 16]`, zero `WARNING: DSV41_MXFP8_BACKEND=` lines, and exactly one
+`--fp8-gemm-backend flashinfer_cutlass` in `/cache/runtime/state/launch.json`. **Field-name correction:**
+this SGLang capitalises the dump key as **`fp8_gemm_runner_backend`**, so grep for that; the original
+acceptance wording (`fp8_gemm_backend=`) would read as a failure on a passing boot.
+
+**The window's cells (A1, `.30`–`.33`, task `a2e141223b52793c_7afff0589a33`).** TTR port **161.3 s** /
+HTTP **168.5 s**; C1 **65.63 ± 5.08**, C2 94.89 ± 7.47, C5 132.94 ± 6.97, C10 **133.34 ± 11.38** (n=5,
+sample sd); prefill 3905.8 / 4884.5 / 5399.2 / 5636.4 t/s; the 131,072-depth cell prefills at 5242.3 t/s
+→ TTFR 25.02 s, decode 75.68 ± 9.73. C10 is **above** the 116.27 bar while C1 sits ~5 % under 69.28 —
+**not a new baseline**: one boot, and a pool that differs from the pinned one. Receipts
+`~/benchmarks/tp4-pad-20261023/` on the head.
+
+**Operational rule.** On the head, `HOME=$PWD/.local/sparkrun-home` **fails** for this arm: it mounts an
+empty HF cache (model-cache publication lease error — no 475 GB body) and a root-owned runtime tree
+(chat-template `PermissionError` on ranks 2/3). Every successful boot used the real `HOME`; recorded in
+`AGENTS.md`.

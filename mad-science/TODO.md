@@ -629,20 +629,32 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
   `restart_policy` only), so an executor-level addition or a mod precedes the boot.)* *(effort: medium)*
 
-- [ ] **Test `DSV41_TP_PAD=0` — the replicated split is OFF on the shipped line** — the pad adapter
-  defaults the key to `1` (`tp3_pad.py:26 @ 27616bec`) and nothing in this tree names it
-  (`git grep DSV41_TP_PAD` = 0 hits), so the `wqkv_a` 1792×5120 / `engram.wkv` 25600×6144 split never arms:
-  the 2026-10-02 quartet log has 42/42 layers `split OFF` with `slice failed on rank 0: AssertionError()`
-  after `DSV41 TP pad installed (tp=4)` (`DEEPSEEK.md` §18). **Work: one A/B boot with
-  `-o env.DSV41_TP_PAD=0`** against the shipped line, `--fresh`, ladder C1/C10 plus one long-context cell,
-  and the boot log must show 42/42 `split ON, window GEMMs (no pad)` with no `DSV41 TP pad installed`
-  line — a gain without the split arming is a boot slot. **Permanent landing: one `RECIPE_ENV` line**, kept
-  deliberately **out of `AB_ENV`** so a launch override still wins (or a one-line recipe `env:` block the
-  recipe does not have today); the override itself needs no file change, because the launcher owns neither
-  the key nor an SGLang flag for it (`launcher.py:354-364,384-391`, env passed through at `:729,831`).
-  *(blockers:* the `#4` fence closes `.30`–`.33` to workloads and this arm **is** the production serve;
-  the log evidence is canary-era on the pre-1017 body, so the first step is a grep of the shipped boot log
-  confirming 42/42 OFF on `acfc331a` + 1017 — no boot needed for that.)* *(effort: one boot + one line.)*
+- [x] **`DSV41_TP_PAD=0` — FALSIFIED and closed 2026-10-23: the split was already ON, and the treatment
+  never booted.** The control boot of the shipped arm (image `acfc331a` + 1017 body, pad at its default) on
+  `.30`–`.33` logged `split ON, window GEMMs (no pad)` with `split OFF` 0 and `slice failed` 0, and the
+  2026-10-22 baseline serve log shows the same — so the canary-era 42/42 `split OFF` did **not** carry to
+  the shipped pair despite byte-identical adapters (`DEEPSEEK.md` §18.1). All three
+  `-o env.DSV41_TP_PAD=0` launches died before weights load at `ncclCommInitRank`
+  (`ibv_reg_mr_iova2`, Cannot allocate memory); their logs carry `DSV41 TP pad installed` **0** times
+  against 5/4 in control, so the override does reach the adapter but no knob result exists. **Do not ship
+  the `RECIPE_ENV` line** — the owner's ship-if-passes permission was conditional on a passing treatment.
+  Receipts `~/benchmarks/tp4-pad-20261023/`. *(effort: none.)*
+
+- [ ] **KV pool regression: 3,424,000 tokens with the 6.85M pin inert** — the first post-fence boot
+  profiled `max_total_num_tokens=3,424,000` at `available_bytes=7.21 GB`, where the 2026-10-22 boot on the
+  same nodes, image and pin profiled 6,849,792 at 13.31 GB; ~6 GB more was resident at pool-sizing time.
+  Both ran `mem_fraction_static=0.78` with `DSV41_FAST_LOAD=1`, and the fast loader's documented 3–6 % at
+  EP2 cannot explain 46 % (`LIKELY`; cause undetermined). **Work: one boot reading
+  `max_total_num_tokens=` and one `-o env.DSV41_FAST_LOAD=0` boot on the same serve line**, then re-derive
+  the pin from the measured budget — until then quote the pool from the boot, never 6.85M. Detail:
+  `DEEPSEEK.md` §18.1. *(effort: two boots.)*
+
+- [ ] **RDMA registration wedge blocks a clean quartet** — successive engine starts on `.30`/`.31` now fail
+  at `ncclCommInitRank` with `Call to ibv_reg_mr_iova2 failed with error Cannot allocate memory` (2/2
+  control launches at 22:43Z and 22:57Z, first-failing rank moving `.31` → `.30`; a `.30`-free rerun on
+  `.31`–`.34` failed the same way). Rebooting `.32`/`.33` and then `.31` cleared it only temporarily. `.30`
+  was never rebooted, per the owner's rule, and is implicated; **the unblock is owner approval to reboot
+  `.30`** (`QUESTIONS.md` `#18`). Detail: `DEEPSEEK.md` §18.1. *(effort: one reboot + one boot.)*
 
 ## glm5
 GLM 5.3
