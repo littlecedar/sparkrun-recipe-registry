@@ -1147,6 +1147,7 @@ Work items live in `TODO.md` §ds4 and stay there; this section is the index, no
 | One-engine TP=2 vs TP=4 A/B | `QUESTIONS.md` `#3`, queued behind the fence | §13 item 4 |
 | TP=2 `--parallel` / admitted-request re-measure | `.34`/`.35` (runnable today) | §11.2, §13 item 3 |
 | vLLM parity acceptance boot | same fence; needs the third-party image authorization (`QUESTIONS.md` `#17`) | §17 |
+| `DSV41_TP_PAD=0` A/B boot (replicated split is OFF on the shipped line) | same fence (`QUESTIONS.md` `#4`); the first step is a grep of the shipped boot log, no boot needed | §18 |
 
 **Open unknowns.**
 
