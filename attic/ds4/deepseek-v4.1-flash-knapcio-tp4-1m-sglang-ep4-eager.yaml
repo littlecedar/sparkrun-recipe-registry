@@ -1,0 +1,88 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# The launcher sets SKIP_PREPARE=1 and serves the snapshot sparkrun renders from
+# {model}, so this pin -- not the image's baked REVISION -- decides the weights.
+# The 1017 refresh ships no chat template; the mod stages its patched copy, and a
+# template-less checkpoint with no mod template is refused (exit 2), not served.
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: sglang
+container: littlecedar/dgx-spark-dsv41:canary-roce@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93
+min_nodes: 4
+
+description: >-
+  EXPERIMENT ARM (2026-10-22), not a production recipe: DeepSeek-V4.1-Flash-1017
+  on 4x DGX Spark (GB10), SGLang, native MXFP4/F8 checkpoint with the Engram on
+  NVMe, TP=4 with expert parallelism set to the TP degree (EP_SIZE=4), and the
+  decode/prefill CUDA-graph backends disabled. The production knapcio recipe
+  ships EP=1 because EP>1 dies at the first decode plan under b12x_next
+  ("planned dynamic direct routing is unsupported for this launch shape"); this
+  arm tested whether the eager decode path changes that. RESULT (2026-10-22):
+  it does not — the trial booted EP=4 and died at MoE prepare on
+  dsv41-moe-E96-N2304-k6-M5 with the same guard, so the failure is route-plan
+  geometry, not graph capture. Serve log on the head:
+  ~/benchmarks/knapcio-tp4-20261022/ep4-eager-serve.log. Archived; to re-run it,
+  move it back to recipes/ds4/ so its mods/ path resolves. DSpark k=5, 1M context,
+  RoCEnante RDMA transport. Adaptation of knapcio's TP4 repo (downstream of
+  MiaAI-Lab's; the launcher, adapters and b12x kernels are theirs).
+
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: official, fast, large_context, lcg_favorite, vision
+
+mods:
+  - "mods/dsv41-sglang-overlay"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+
+# The knapcio production recipe carries no env: block; the mod's launcher owns
+# the production configuration. This arm needs two launch-time overrides, and
+# both are deliberately in the launcher's AB_ENV set so a recipe env: value
+# wins over the shipped default:
+#   EP_SIZE  -- shipped "1" (the b12x_next production line); this arm asks for
+#              4 = TP, which turns on the expert-parallel dispatch path. Each
+#              rank then owns 96 of the 384 routed experts instead of all 384.
+#   EXTRA_SGLANG_ARGS -- appended verbatim to boot.py's argv. SGLang has no
+#              --enable-ep-moe and no --enforce-eager/--enforce_eager=True (that
+#              spelling is vLLM); EP-on-MoE is just --ep-size > 1, and the
+#              eager equivalent is disabling the CUDA-graph backends. The
+#              deprecated umbrella --disable-cuda-graph also exists, but the
+#              per-phase backends are the supported spelling.
+env:
+  EP_SIZE: "4"
+  EXTRA_SGLANG_ARGS: >-
+    --cuda-graph-backend-decode disabled --cuda-graph-backend-prefill disabled
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  dspark_block_size: 5
+
+# Same boot path as the production recipe; the mod maps --tp to TP_SIZE,
+# --context-length to CONTEXT_LENGTH, and --fp8-gemm-backend to the dense GEMM
+# declaration boot.py's required_sglang_args() re-stamps last.
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+
+readiness:
+  # inference must stay false: readiness would otherwise drive /chat/completions,
+  # and the engine answers /health (with HTTP 200) from the moment the server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600

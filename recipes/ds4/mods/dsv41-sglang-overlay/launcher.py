@@ -90,11 +90,12 @@ HF_HUB = "/cache/huggingface/hub"
 # CUDA_GRAPH_MAX_BS_DECODE (boot.py defaults it to MAX_RUNNING_REQUESTS, so
 # pinning it separately would be a second place to drift).
 #
-# The ONE deliberate exception to that rule is DSV41_FAST_LOAD("0") below: it is
-# also the runtime default, but it is stated to record a decision, not a no-op --
-# upstream ships it on, and "0" is the production choice here. Do not "clean it
-# up" as redundant. (Its N_EXPERTS companion is gone: it only served the fast
-# path and defaults from config.json's n_routed_experts when unset.)
+# DSV41_FAST_LOAD("1") is NOT redundant: adapter/fast_load.py's enabled() reads
+# the variable with a "0" default, so the image's loader is stock unless this
+# line turns the eager path on. It is stated here to record the 2026-10-22
+# decision (fast boot over the larger pool); "0" is the rollback. (Its N_EXPERTS
+# companion is gone: it only served the fast path and defaults from
+# config.json's n_routed_experts when unset.)
 #
 # NCCL_NET / NCCL_IB_HCA / NCCL_IB_GID_INDEX / NCCL_IB_DISABLE / NCCL_CROSS_NIC
 # and B12X_ROCE_HCA are also absent on purpose: sparkrun's InfiniBand probe fills
@@ -182,13 +183,19 @@ RECIPE_ENV: dict[str, str] = {
     #      **6,993,408 tokens** (boot 2026-10-18 21:33Z, TP=4: "max_total_tokens=
     #      7500000 is larger than the profiled value 6993408"). The 7.69M
     #      formula above under-estimated the tails' cost by ~0.7M tokens, so the
-    #      boot line, not the formula, decides: 6,850,000 sits at 97.9 % of the
-    #      measured budget and cannot clamp. The cost is real -- 6.85M
-    #      page-shared tokens holds six full 1M contexts, not the nine the
-    #      0.80/4096 line held (upstream's own 0.78 pool is 3.67M).
-    # Read `DSV4 memory calculation: ... full_token=` at every boot: a
-    # full_token under this value means the pin is inert (silently clamped,
-    # never refused, AGENTS 7.1) and must be re-derived again.
+    #      boot line, not the formula, decides.
+    # PIN UNCHANGED for the 2026-10-22 DSV41_FAST_LOAD=1 flip: 6,850,000 is a
+    # STOCK-loader measurement (6,993,408 budget at 0.78, 97.9 % of it). The
+    # fast loader leaves memory uncounted at the moment the engine measures, so
+    # the same boot profiles a smaller budget -- upstream docs/fast-load.md puts
+    # the EP2 cost at 3-6 % (README's summary line carries the older 3-13 %),
+    # and its EP1 slab rework "gave back ~0.7M tokens" against the per-tensor
+    # precursor. The EP1 delta on this lane is UNMEASURED, so do NOT pre-scale
+    # the pin: boot once on the fast loader and read the boot line's
+    # `full_token`. If it is at or above 6.85M the pin applies unchanged; if it
+    # is lower the engine silently clamps to the budget (never refused), the
+    # pin becomes inert, and it must be re-derived from that line. The protocol
+    # and the one EP1 receipt we hold are in attic/ds4/AGENTS.md 7.1.
     # `-o env.MAX_TOTAL_TOKENS=0` unpins entirely.
     "MAX_TOTAL_TOKENS": "6850000",
     "SPEC_ALGO": "DSPARK",
@@ -256,17 +263,23 @@ RECIPE_ENV: dict[str, str] = {
     "SGLANG_DSPARK_FOLDED_SAMPLING": "2",
     "SGLANG_RUST_BUILD_MODE": "never",
     "SPARK_PREFILL_TP_SPLIT": "1",
-    # Fast weight loading is OFF BY CHOICE. adapter/fast_load.py cuts engine
-    # start from 343 s to ~124 s, but SGLang sizes the KV pool from the head's
-    # MemAvailable right after the loads and the eager pinned reads leave
-    # 0.8-1.5 GB less of it visible then, so the pool comes out 3-13 % smaller
-    # (upstream's EP2 measurement; see attic/ds4/AGENTS.md 7.1 and
-    # docs/fast-load.md in the image's source). We prefer the pool and pay
-    # ~220 s per boot. The image does not set this var, so "0" is the stock
-    # loader; it is explicit to record the decision, and "1" is the rollback.
-    # Evidence labels: the 3-13 % and the 343 s -> 124 s are upstream's
-    # (VERIFIED in its docs); the EP1 delta on this lane is UNMEASURED.
-    "DSV41_FAST_LOAD": "0",
+    # Fast weight loading is ON BY CHOICE (owner decision 2026-10-22; the
+    # pool-vs-boot-time tradeoff was re-weighed and boot time won). The gate
+    # ships on upstream ("The gate ships on", docs/fast-load.md) and cuts
+    # engine start from 343 s to ~124 s. The cost: SGLang sizes the KV pool
+    # from the head's MemAvailable right after the loads and the eager pinned
+    # reads leave memory visible-but-uncounted then, so the pool comes out
+    # smaller and more variable between boots. Upstream's own two documents
+    # quote different widths -- docs/fast-load.md 3-6 % at EP2 (7.27M vs
+    # 7.47-7.82M tokens), README's summary line the older 3-13 % -- and the
+    # EP1 slab rework "gave back ~0.7M tokens" against its per-tensor
+    # precursor. The EP1 delta on THIS lane is still UNMEASURED, so the pin is
+    # NOT pre-scaled: the first fast-loader boot's `full_token` is the receipt,
+    # and the pin is re-derived from it if it clamps. "0" is the stock loader
+    # and the rollback; the image's own default is "0" too
+    # (adapter/fast_load.py enabled()), so "1" here is a real enablement, not a
+    # recorded no-op.
+    "DSV41_FAST_LOAD": "1",
     "DSV41_SHARED_PAD_K": "1",
     "DSV41_WO_A_W8": "1",
     "DSV41_WO_A_W8_MID": "1",
@@ -341,6 +354,13 @@ RECIPE_ENV: dict[str, str] = {
 AB_ENV: frozenset[str] = frozenset({
     "MEM_FRACTION_STATIC", "MAX_RUNNING_REQUESTS", "CHUNKED_PREFILL_SIZE",
     "MAX_TOTAL_TOKENS", "SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL",
+    # EP_SIZE is here so an experiment recipe can override the production
+    # EP=1 without editing this file. The shipped value stays "1" (the
+    # b12x_next production line); a launch that sets EP_SIZE>1 is asking for
+    # the expert-parallel dispatch path that the lane records as dying at the
+    # first decode plan (attic/ds4/AGENTS.md §11, "planned dynamic direct
+    # routing is unsupported for this launch shape").
+    "EP_SIZE",
 })
 
 

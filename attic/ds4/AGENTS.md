@@ -1005,10 +1005,13 @@ outside the 7–25 % boot spread. **C1 46.5 beats the shipped vLLM/EXL3 TP=4 lan
 ~47 GiB/node of packed Engram shards.
 
 **Three findings that are load-bearing and easy to get wrong:**
-1. **`EP_SIZE=1`, never 2.** EP=2 loads (clears the MXFP4 `%128` check) but dies at
+1. **`EP_SIZE=1`, never >1.** EP=2 loads (clears the MXFP4 `%128` check) but dies at
    the first decode plan: `planned dynamic direct routing is unsupported for this
-   launch shape` (E192-N1152). The adapter says so: "the production profile is
-   EP_SIZE=1".
+   launch shape` (E192-N1152). EP=4 with the decode and prefill CUDA graphs
+   disabled was tried 2026-10-22 and died identically (E96-N2304, M5) — the route
+   plan is chosen before any graph capture, so graphs-off does not reach it (trial
+   log `~/benchmarks/knapcio-tp4-20261022/ep4-eager-serve.log`). The adapter says
+   so: "the production profile is EP_SIZE=1".
 2. **The SPS ragged-verify table crashes the Engram path** — upstream's own
    README lists it under "Not used". With a fitted `/state/dspark_sps.json` the
    scheduler enables and the first mixed batch dies with `AssertionError: engram
@@ -1789,23 +1792,33 @@ token count; it is deliberately not wired to `CONTEXT_LENGTH`. Upstream pairs
   `AssertionError: engram target-verify expects one equal block per request, got
   84 tokens for 16 requests of 6` → server never healthy. Upstream's own README
   lists it as not used. **Do not ship it** (guard: `test_sps_table_absent`).
-- **`DSV41_FAST_LOAD=0` (shipped).** Upstream's eager loader is off: it buys
-  ~220 s per boot and costs 3–13% of the KV pool. Mechanism and the A/B that
-  would replace the number: §7.1 below.
+- **`DSV41_FAST_LOAD=1` (shipped since 2026-10-22; `0` is the rollback).** The
+  eager loader is on: it saves ~220 s per boot and costs 3–6% of the KV pool at
+  EP2 per `docs/fast-load.md` (the README summary still carries 3–13%). The
+  `MAX_TOTAL_TOKENS` pin is deliberately not pre-scaled: it stays at 6.85M for
+  the first fast-loader boot and is re-derived from that boot's `full_token` if
+  it clamps. It stays in this section because it is the pool-vs-boot-time trade;
+  mechanism, the EP1 caveat and the A/B: §7.1 below.
 - **`DSV41_CERT_HEAD`** — -0.5 ms/step at c1 but slower from ~10 requests.
 - **`DSV41_ENGRAM_DRM_NODE`** — needs a host display-reserve change.
 
 RoCEnante is **on** (`SGLANG_ROCE_ALLREDUCE=1`, `SGLANG_ROCE_MAX_SIZE`,
 `DSV41_ROCE_GATHER`); rollback is one line.
 
-### 7.1 Fast load (`DSV41_FAST_LOAD`) — shipped `0`
+### 7.1 Fast load (`DSV41_FAST_LOAD`) — shipped `1` since 2026-10-22
 
-**Decision.** The launcher sets `"DSV41_FAST_LOAD": "0"`. The image does not set
-the variable (`Dockerfile.canary-roce` `ENV` carries only `PYTHONPATH`,
-`MODEL_PATH`, `STATE_PATH`, `OFFLOAD_MODE`, `DSV41_CACHE_GIB`), and
-`adapter/fast_load.py:enabled()` defaults false, so `0` is the stock SGLang
-safetensors loader. We set it explicitly to record a deliberate choice rather
-than an inherited default.
+**Decision.** The launcher sets `"DSV41_FAST_LOAD": "1"` as of 2026-10-22 (owner
+decision: boot time won over the larger pool; it was `0` from 2026-10-02 to that
+date). The image does not set the variable (`Dockerfile.canary-roce` `ENV`
+carries only `PYTHONPATH`, `MODEL_PATH`, `STATE_PATH`, `OFFLOAD_MODE`,
+`DSV41_CACHE_GIB`), and `adapter/fast_load.py:enabled()` defaults false, so the
+line is a real enablement and `0` is the stock SGLang safetensors loader (the
+rollback). `MAX_TOTAL_TOKENS` is deliberately **not** pre-scaled: 6,850,000 is a
+stock-loader measurement (6,993,408 budget at 0.78), the EP1 fast-loader delta is
+unmeasured, and the engine clamps silently rather than refusing. Leave the pin at
+6.85M for the first fast-loader boot and re-derive it from that boot's
+`full_token` if the budget comes in lower; the derivation lives in the launcher
+comment.
 
 **What it trades** (upstream's numbers, not ours — `VERIFIED` from the vendored
 source's docs, `.scratch/ds4/knapcio/docs/history.md:121,127` and
@@ -1836,8 +1849,8 @@ receipt below for the one EP1 number we hold.
 
 **What our fleet actually measured.** One EP1 head log exists:
 `.scratch/ds4/knapcio/logs/boot9-head-serve.log` (2026-10-02). It booted with
-`DSV41_FAST_LOAD` **on**, so it is not the shipped config, but it is the only real
-receipt we hold:
+`DSV41_FAST_LOAD` **on**, which is the shipped config again since 2026-10-22,
+and it is the only real EP1 receipt we hold:
 
 ```
 DSV4 memory calculation: … bytes_per_full_token=1670.75, available_bytes=11.71 GB, full_token=6786560
@@ -1850,8 +1863,8 @@ So on our hardware the fast loader left a **6.79M**-token budget (inside upstrea
 6.71–7.27M fast-loader interval), and the server then **pinned the pool to 4,000,000**
 regardless.
 
-**Shipped-config ceiling, measured 2026-10-06 (`.30/.31/.32/.33`, stock loader, 0.80).** The
-boot9 log above is fast-loader; these four boots are the shipped config:
+**Stock-loader ceiling, measured 2026-10-06 (`.30/.31/.32/.33`, 0.80).** The boot9
+log above is fast-loader; these four boots are the then-shipped stock-loader config:
 
 ```
 DSV4 memory calculation: … bytes_per_full_token=1670.75, available_bytes≈15.9 GB, full_token=9493504..9589504
@@ -1863,7 +1876,7 @@ DSV4 pool sizes: full=<pin>      # what MAX_TOTAL_TOKENS selects, clamped to the
 |--:|--:|--:|
 | 4,000,000 (old shipped) | 4,000,000 | 25.10 GB |
 | 9,000,000 | 8,999,936 | 14.39 GB |
-| 9,400,000 (now shipped) | 9,399,808 | 13.68 GB |
+| 9,400,000 (shipped 2026-10-06 → 2026-10-18) | 9,399,808 | 13.68 GB |
 | 10,000,000 | 9,589,504 (clamped) | 13.14 GB |
 
 **The true ceiling is `full_token` ≈ 9.5–9.6M tokens**, stable to ~1% across boots; a larger pin
@@ -1895,10 +1908,12 @@ caps the pool and keeps the transient reserve. The incident is written up in §1
 **A/B if you want the shipped-config number** (mirrors §10's discipline; read the pool
 from the boot log, never computed):
 
-1. Boot the shipped recipe; record `DSV4 memory calculation: … full_token=<N>`
-   from `/tmp/sparkrun_serve.log` inside the container.
-2. Flip `"DSV41_FAST_LOAD": "1"` in the launcher, commit it (mod references
-   resolve from the registry git clone, §4), boot again, record the same line.
+1. Boot the shipped recipe (`DSV41_FAST_LOAD=1`); record `DSV4 memory
+   calculation: … full_token=<N>` from `/tmp/sparkrun_serve.log` inside the
+   container. This is the EP1 number the 6.85M pin needs.
+2. Flip `"DSV41_FAST_LOAD": "0"` in the launcher, commit it (mod references
+   resolve from the registry git clone, §4), boot again, record the same line
+   as the stock-loader control.
 3. Three boots each. `full_token` varies boot to boot (upstream saw 6.71–7.27M
    across fast-loader boots alone); a same-config control on either side is part
    of the protocol, and a single pair of boots resolves nothing.
@@ -1921,16 +1936,17 @@ gate is not a win.
 3. `[moe_b12x_next] armed` — routed MoE on the b12x_next kernel, not a Triton
    fallback.
 4. `DSV4 memory calculation: … full_token=<N>` — the granted KV pool. With the
-   stock loader shipped, expect the larger pool (7.47–7.82M on upstream's EP2
-   stack, §7.1); a 6.71–7.27M reading means `DSV41_FAST_LOAD` is on.
+   fast loader shipped (2026-10-22), expect the smaller interval (6.71–7.27M on
+   upstream's EP2 stack, §7.1); a 7.47–7.82M reading means the loader is off.
+   The pin stays at 6.85M for the first fast-loader boot, so a `full_token`
+   under that means the pin clamped and must be re-derived.
 5. `Mean acceptance length > 1` on `Decode batch` lines (DSpark working).
 
 **Timings:** boot to ready **~9 min cold**; TTR observed 171–270 s once the
 checkpoint and image are resident. A first cold boot also packs Engram in the
-background. **Both of those were observed with the fast loader on**, which is not
-what ships: the stock loader's weight read is the slow one (~220 s more), so a
-fresh boot on the shipped config will land above these figures. They are kept as
-the fast-loader reference, not as the shipped recipe's boot time (§7.1).
+background. **Both of those were observed with the fast loader on**, which is
+what ships as of 2026-10-22; the stock loader's weight read is the slow one
+(~220 s more), so a `DSV41_FAST_LOAD=0` boot lands above these figures (§7.1).
 
 **Cluster hygiene before any boot test:** a killed/abandoned `sparkrun run`
 leaves containers holding the serve port. Because sparkrun uses `--network=host`,
@@ -2007,9 +2023,12 @@ rendered line and the boot log.
 
 ## 11. Negative results and do-not-retry
 
-- **EP_SIZE=2 does not work.** It loads (clears the MXFP4 MoE `%128` check) but
+- **EP_SIZE>1 does not work.** EP=2 loads (clears the MXFP4 MoE `%128` check) but
   dies at the first decode plan: `planned dynamic direct routing is unsupported
-  for this launch shape`. The production profile is **EP_SIZE=1**.
+  for this launch shape`. EP=4 with `--cuda-graph-backend-decode disabled
+  --cuda-graph-backend-prefill disabled` died identically (E96-N2304, M5, trial log
+  `~/benchmarks/knapcio-tp4-20261022/ep4-eager-serve.log`) — the failing route plan
+  is prepared before graph capture. The production profile is **EP_SIZE=1**.
 - **The SPS ragged-verify table crashes the Engram path** (section 7).
 - **Pinning a host adapter or a `snapshots/<hash>` path breaks portability.** The
   former pins one machine's adapter naming; the latter breaks when the cache
@@ -3476,11 +3495,17 @@ holds, so this difference does not change concurrency at the shipped settings. S
 
 #### Shipped Configuration Decision
 
-* **Deliberately Disabled:** The recipe explicitly ships with `"DSV41_FAST_LOAD": "0"` in `launcher.py` (commit `a014ba9`) to keep the larger budget for long-context / multi-stream serving.
+> **SUPERSEDED 2026-10-22.** This section records the original 2026-10-02 decision
+> (commit `a014ba9`) to disable the fast loader. The owner reversed it on
+> 2026-10-22: `launcher.py` now ships `"DSV41_FAST_LOAD": "1"`, the boot time won
+> over the larger pool, and the pin stays at 6.85M pending the first fast-loader
+> boot's `full_token`. See §7.1 for the current decision and the EP1 caveat.
+
+* **Was disabled 2026-10-02 → 2026-10-22:** The recipe shipped with `"DSV41_FAST_LOAD": "0"` in `launcher.py` (commit `a014ba9`) to keep the larger budget for long-context / multi-stream serving.
 
 **Summary Table** (upstream's measurements for the two loader columns)
 
-| Metric / Attribute | Stock Loader (`DSV41_FAST_LOAD=0`, Shipped) | Fast Loader (`DSV41_FAST_LOAD=1`) |
+| Metric / Attribute | Stock Loader (`DSV41_FAST_LOAD=0`, was shipped until 2026-10-22) | Fast Loader (`DSV41_FAST_LOAD=1`) |
 | :--- | :--- | :--- |
 | **Engine Startup Time (`scheduler_e2e`)** | ~343–354 s | **~124–129 s** (~220 s faster) |
 | **KV budget the host allows (`full_token`)** | **~7.47–7.82M tokens** | ~6.71–7.27M tokens (~3–13% smaller) |

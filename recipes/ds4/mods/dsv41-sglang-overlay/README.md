@@ -9,7 +9,7 @@ Compatibility gate and launcher shim for the **knapcio DSV41 SGLang image**
 |:--|:--|
 | Kind | Pre-exec mod; **modifies no image file**. |
 | License | AGPL-3.0-or-later (this repo). |
-| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Those boots ran the fast loader, which has since been turned **off** in the launcher (`DSV41_FAST_LOAD=0`, below); the gated boot is otherwise unchanged. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `attic/ds4/AGENTS.md`. |
+| Verified | Booted live on 4 Sparks (`.32`–`.35`) 2026-10-02; ~12 healthy boots. Those boots ran the fast loader, which was then turned **off** in the launcher and is **on again as of 2026-10-22** (`DSV41_FAST_LOAD=1`, below; the boot time won over the larger KV pool). The gated boot is otherwise unchanged. Portability rewrite (no host mounts; `/cache/runtime` Engram) booted 2026-10-02. See `attic/ds4/AGENTS.md`. |
 
 The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker Hub
 (digest-pinned), so sparkrun pulls it and no node builds it. sparkrun distributes
@@ -224,23 +224,35 @@ query tokens). The TP degree and context length are *not* here: they arrive as
 `--tp {tensor_parallel}` / `--context-length {max_model_len}` from the recipe's
 `command:` and are mapped in `main()` (see above).
 
-The recipe's own `env:` is therefore **empty** — the TP degree, context length
-and port all arrive via the `command:` template from `defaults`, and the image's
-dynamic healthcheck needs no container-level env (see above). `RECIPE_ENV` values
+The production recipe's own `env:` is therefore **empty** — the TP degree, context
+length and port all arrive via the `command:` template from `defaults`, and the
+image's dynamic healthcheck needs no container-level env (see above). One
+experiment arm was the exception:
+`attic/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang-ep4-eager.yaml` set
+`EP_SIZE=4` (expert parallelism at the TP degree) and the graph-disable extras in
+its `env:`, which is why `EP_SIZE` joined the launcher's `AB_ENV` set on
+2026-10-22. That arm was tried 2026-10-22 and failed at the first decode plan
+(`planned dynamic direct routing is unsupported for this launch shape`), so it is
+archived; `EP_SIZE` stays in `AB_ENV` so a future EP experiment needs no launcher
+edit. The shipped production value remains `EP_SIZE=1`. `RECIPE_ENV` values
 that the runtime already defaults to (SKIP_SMOKE,
 WARMUP, HOST, SERVED_MODEL_NAME, the prefill thresholds, the fast-load
-slice/inflight defaults) are **not** set anywhere — with one deliberate
-exception: `DSV41_FAST_LOAD=0` is also the runtime default, but it is stated to
-record a production decision (below), not as a no-op, so it is not to be removed
-as redundant.
+slice/inflight defaults) are **not** set anywhere. `DSV41_FAST_LOAD=1` is **not**
+redundant: the image does not set the variable and `adapter/fast_load.py`'s
+`enabled()` defaults to `0`, so this line is what turns the eager loader on.
 
-One production switch is deliberately **off**: `DSV41_FAST_LOAD=0` selects
-SGLang's stock loader over upstream's eager loader. The eager path cuts engine
-start from 343 s to ~124 s but leaves the KV pool 3–13% smaller (it sizes from the
-head's `MemAvailable` right after the loads), and this lane prefers the pool.
-Setting the key is how the decision is recorded — the image does not set it, and
-the loader's own gate defaults false. Rationale, the upstream numbers, and the
-boot-log A/B live in `attic/ds4/AGENTS.md` §7.1.
+The fast loader is deliberately **on** as of 2026-10-22 (owner decision): the
+eager path cuts engine start from 343 s to ~124 s but leaves the KV pool smaller
+and more variable between boots, because SGLang sizes the pool from the head's
+`MemAvailable` right after the loads and the pinned reads leave memory
+visible-but-uncounted then. Upstream's two documents quote different widths —
+`docs/fast-load.md` 3–6% at EP2 (7.27M vs 7.47–7.82M tokens), the README's
+summary line the older 3–13% — and its EP1 slab rework "gave back ~0.7M tokens"
+against the per-tensor precursor. The lane's EP1 delta is UNMEASURED, so the
+`MAX_TOTAL_TOKENS` pin is not pre-scaled: it stays at 6.85M for the first
+fast-loader boot and is re-derived from that boot's `full_token` if it clamps.
+`DSV41_FAST_LOAD=0` is the rollback. Rationale and the upstream numbers live in
+`attic/ds4/AGENTS.md` §7.1.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old

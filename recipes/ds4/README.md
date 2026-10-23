@@ -325,10 +325,16 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   are `AB_ENV` keys, and `0` omits the flag rather than passing it.
 - **`DSV41_FAST_LOAD` lives in the launcher, not the recipe** — there is no
   recipe-side knob (the recipe carries no `env:` block; everything is the
-  launcher's `RECIPE_ENV`). Shipped `"0"` (stock loader, ~350 s startup). Setting
-  it to `"1"` saves ~220 s/boot but shrinks the host's allowed KV budget 3–13%;
-  at the 9.4M pin's 9.28M pool concurrency was unchanged either way (measured
-  before the 2026-10-18 pin change; not re-taken at 6.85M).
+  launcher's `RECIPE_ENV`). Shipped `"1"` as of 2026-10-22 (owner decision:
+  ~220 s saved per boot over the pool). The eager path cuts engine start from
+  343 s to ~124 s but shrinks the host's allowed KV budget; upstream's own docs
+  quote 3–6 % at EP2 (`docs/fast-load.md`) and the older 3–13 % in its README
+  summary, while the EP1 slab rework "gave back ~0.7M tokens". The lane's EP1
+  delta is unmeasured, so the pin is **not** pre-scaled: it stays at 6.85M for
+  the first fast-loader boot and is re-derived from that boot's `full_token` if
+  it clamps. `"0"` is the rollback. At the old 9.4M pin's 9.28M pool
+  concurrency was unchanged either way (measured before the 2026-10-18 pin
+  change; not re-taken since).
 - **Rollback for the RDMA transport is one launcher line:**
   `SGLANG_ROCE_ALLREDUCE=0`. RoCEnante is the single largest lever measured on
   this lane (1.23–1.81× over NCCL, outside the 7–25% boot-to-boot spread).
@@ -604,6 +610,11 @@ candidate. None of it is measured on this lane, and none of it is a recipe chang
 - **Checked and rejected** — the SM100-only low-latency chain, mHC split-K, the verify-cap sweep,
   L2 sub-gates, the FP4-indexer flag, locked clocks, 1,024-token chunks,
   `--num-continuous-decode-steps`, HiCache/offload and EP>1; reasons per row in the note.
+  The EP=4 arm was re-tested 2026-10-22 with the decode and prefill CUDA graphs disabled and
+  still hit the same guard at MoE prepare (`dsv41-moe-E96-N2304-k6-M5 failed to prepare …
+  planned dynamic direct routing is unsupported for this launch shape`) — so the rejection is
+  route-plan geometry, not graph capture. Trial log on the head:
+  `~/benchmarks/knapcio-tp4-20261022/ep4-eager-serve.log`.
 
 The shortlist's A/B rules are this lane's own (§12.16): alternate arms A/B/A/B, `--fresh` on every
 bench call, assert `/v1/models` per boot, pre-register the target cell and falsifier, three boots per

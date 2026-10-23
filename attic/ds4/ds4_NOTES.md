@@ -68,12 +68,15 @@ upstream production line (b12x_next), a follow-up A/B.
   port 1 ACTIVE (port 2 DOWN — do not use `*s0f1`), **RoCEv2 GID index 3**.
   So the switchless-ring path is not needed.
 
-**EP_SIZE: use 1, not 2.** EP=2 *loads* (2304/2 = 1152 = 9×128, clearing the
+**EP_SIZE: use 1, not >1.** EP=2 *loads* (2304/2 = 1152 = 9×128, clearing the
 MXFP4-MoE `%128` check) but **dies at the first decode plan**:
 `dsv41-moe-E192-N1152-k6-M5 failed to prepare … planned dynamic direct routing is
-unsupported for this launch shape`. `adapter/moe_b12x_next.py` states it plainly:
-"the production profile is EP_SIZE=1, EP>1 is an A/B setup". All measured numbers
-below are EP=1.
+unsupported for this launch shape`. EP=4 with `--cuda-graph-backend-decode disabled
+--cuda-graph-backend-prefill disabled` was tried 2026-10-22 and died the same way at
+`dsv41-moe-E96-N2304-k6-M5` (trial log `~/benchmarks/knapcio-tp4-20261022/ep4-eager-serve.log`
+on the head), so the guard is route-plan geometry at MoE prepare, not graph capture.
+`adapter/moe_b12x_next.py` states it plainly: "the production profile is EP_SIZE=1,
+EP>1 is an A/B setup". All measured numbers below are EP=1.
 
 **Sparkrun wiring (the load-bearing bits):**
 - The image's entrypoint is `boot.py`, which builds the whole `sglang.launch_server`
