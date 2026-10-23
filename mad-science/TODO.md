@@ -533,67 +533,19 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   cache was read.*) *(effort: research only — a boot needs a strata/GB10 port first.)*
 
 - [ ] **Research `local-inference-lab/DeepSeek-V4.1-Flash-1017-FLARE`** — a publisher-signed Flare
-  *runtime package* whose `gb10` branch targets **four DGX Sparks at TP4/c16**, served only by a Rust
-  runtime installed from a third-party APT repo on every host. **Research only, not queued for a
-  boot** — the four-node window is closed and a TP=4 measurement needs the owner's offsite switch.
-  *(facts:* open (`gated: false`), `license: mit` (the file is DeepSeek's own MIT text),
-  `publisher.json` carries Local Inference Lab's Ed25519 key with `"development": false`, and the
-  runtime enforces a `--trust-store` acceptance. Three branches, three packages: `main` @
-  `5f4fd653…` is card + license + publisher only (**4 files, 11,589 B** — no weights on `main`);
-  `gb202` @ `30b3987c…` = **513.48 GB** for one host with four SM120 96 GB GPUs; `gb10` @
-  `975f72da…` = **511.27 GB / 476.2 GiB** in 22 files — a 10,470,346 B metadata-only primary
-  `deepseek-v41-flash-1017-tp4-c16-dspark5.safetensors`, 12 weight shards (eight of 58.6–63.9 GB,
-  four of ~5.4 GB), and five graph/support shards (4 × ~490 MB + 6.4 MB); every shard is under 64 GB
-  and named by its sha256. Repo `usedStorage` **1,845,031,706,350 B** (all three revisions' LFS).
-  **No `config.json` at any branch**, so there is no `quantization_config` to read: the scheme is
-  stated only on the card — "MXFP4 expert weights retain losslessly compressed CSF scales, attention
-  uses BF16 arithmetic, and KV storage uses FP8 compression" (frontmatter tags `flare`, `mxfp4`,
-  `csf`, `gb10`, `tensor-parallel`). "FLARE" is the engine's and the format's product name, never
-  expanded on either card, and **not a quantization scheme**. It does **not** follow the
-  `local-inference-lab` labquant conventions this registry already consumes:
-  `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` (pinned by
-  `recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`) is an ordinary sharded HF checkpoint
-  — `model-000NN-of-00041.safetensors` + a `config.json` carrying
-  `quantization_config.quant_method: modelopt` (plus `hf_quant_config.json`, `HYBRID.json`,
-  `export-manifest.json`, `chat_template.jinja`) — loaded by SGLang as `quantization:
-  modelopt_mixed` behind four config-patching mods. FLARE ships no HF checkpoint, no shard index and
-  no template at any revision: weights plus compiled kernels plus captured execution graphs.*)
-  *(why it matters:* `gb10` is the first artifact this lane has seen whose target *is* four Sparks —
-  "A signed Flare package for four DGX Sparks", TP4, 16 concurrent requests, DSpark with up to five
-  adaptive draft tokens, 4096-token prefill chunks, a 1,048,576-token per-request context, and Engram
-  read from disk with `--embedding-table-cache-size 1GiB` plus ~1.4 GiB resident scales per host —
-  the lane's own shape. The loader answer is still no for both shipped arms, in the card's words:
-  "It requires the Flare image below; Transformers, vLLM, SGLang and llama.cpp cannot load this
-  runtime format." Neither `recipes/ds4/README.md:25` (SGLang) nor `:349` (TensorFold EXL3) reads it,
-  and `gb10` serves from `flare-inference` installed by `apt` on each host plus `flare orbit` pairing
-  over RoCE (TCP 29900 host-to-host, 29800 on the controller) — a `runtime:` sparkrun does not ship
-  (it has `sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`, `atlas`, `modular_max`, `tokenary`,
-  `llama_cpp`). Node arithmetic: 511.27 GB / 476.2 GiB against 4 × 128 GB = 512 GB nominal (476.8
-  GiB) leaves ~0.6 GiB before KV, runtime reserve and the 1 GiB row cache, so the vendor's c16 and
-  1M-context claims rest on KV headroom this cluster has not measured — the card itself defers to
-  "subject to available KV memory", and the gb202 figure (21,160,832 logical KV tokens on 4 × 96 GB)
-  does not transfer. Disk is the easy part: "over 515 GB free on the first Spark" plus each rank's
-  data on the peers.*)
-  *(blockers/unknowns:* engine acquisition — a third-party APT repo plus a per-host
-  `flare agent install --accept-first` service on four nodes is an owner supply-chain decision, not a
-  bench step; the package is version-locked to the runtime (`83d582e2-amd64` on the discrete-GPU
-  package, and `gb10` names no architecture; nothing verifies it on GB10's arm64 + CUDA 13); no
-  accuracy evaluation exists ("Comprehensive model-accuracy evaluation has not been run"), so nothing
-  can be claimed against the lane's 36/37 house baseline; per-rank weight residency and KV headroom
-  at c16 are unmeasured; the trust-store acceptance is interactive on first run, which a headless
-  launch must solve.*) *(effort: research only — owner decisions first.)*
-  *(Owner deliverable 2026-10-22 (`QUESTIONS.md` `#6`, still open): the brief at
-  `mad-science/FLARE-AGENT-BRIEF.md` is **delivered** (`e1c32a2`). It answers the premise rather than
-  confirming it — `flare agent` is a per-user systemd *user* unit that needs no kernel module, no root
-  and no capability, so it is **containerizable in principle**, and the narrow frictions are the vendor
-  serve image's **amd64-only human tags**, the user-unit + lingering lifecycle, and disk-Engram's
-  `io_uring`, which Docker's default seccomp profile blocks. Its supply-chain split is the fact the
-  install decision turns on: the **engine is NVIDIA's Apache-2.0 research prototype**, while the
-  `.deb`, the APT repository and the weights are **Local Inference Lab's** — so the repo key is root on
-  any node that later runs `apt upgrade`. Nothing was installed and no node was contacted (the `.deb`
-  was read with `bsdtar`/`readelf`/`strings`, never executed), so GB10/arm64 behaviour and the
-  package's ABI match remain **unverified**. The row stays open on the install authorization, not on
-  the brief.)*
+  *runtime package* whose `gb10` branch targets **four DGX Sparks at TP4/c16**, a 1,048,576-token
+  per-request context and disk-backed Engram. No shipped engine reads it — the card: "Transformers,
+  vLLM, SGLang and llama.cpp cannot load this runtime format" — so `flare-inference` from a
+  third-party APT repo on each host plus `flare orbit` pairing over RoCE is the only route.
+  **Research only, not queued for a boot.** The record — the package and branch arithmetic, why a
+  container is not the route, and the two-node install ask with its grant table and preconditions —
+  is `mad-science/FLARE.md`.
+  *(blockers/unknowns:* the install is an owner supply-chain authorization, not a bench step —
+  `QUESTIONS.md` `#6`, open, and that ask is narrowed to `.34`/`.35`; the TP4 cell also needs the `#4`
+  fence lifted, since the four-node window is closed and the measurement needs the owner's offsite
+  switch; nothing verifies the package on GB10's arm64 + CUDA 13; no accuracy evaluation exists, so
+  nothing is claimable against the 36/37 house baseline; the trust-store acceptance is interactive on
+  first run.)* *(effort: research only — owner decisions first.)*
 
 - [ ] **The b12x backend is declared by explicit flag (`18a05d2`) — only the quartet boot is left —
   `QUESTIONS.md` `#9`, answered 2026-10-22: "repair by explicit flag instead"** — **the recipe edit has
