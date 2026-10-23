@@ -477,13 +477,14 @@ sparkrun run recipes/<lane>/<recipe>.yaml -H <nodes> --offline
 
 ### Capacity note that decides staging vs node-local
 
-The control's root filesystem holds a 141 GB free margin at the time of writing, and a 210.72 GB
-TensorFold body plus its Engram tables does not fit in it. Practical rule: **bodies above ~130 GB
-are node-local** (`hf download` on the node, `--offline` at launch); bodies below that may stage
-through the control. This is the decision that shaped the 2026-10-22 cross-node body copy: a body
-far above the ~130 GB line, so it was fetched once on a node and fanned out node-to-node — and, per
-§"The copy that actually ran", over the management NIC because the copy was addressed by management
-hostnames.
+The control's root filesystem held a 141 GB free margin at the time of writing, and a 210.72 GB
+TensorFold body plus its Engram tables does not fit in it. The staging rule is not this report's to set:
+`AGENTS.md` §Node hygiene says **bodies above 60 GB are node-local, never staged on the head**, and that
+is the shipped rule. The ~130 GB figure this section originally derived is a 2026-10-22 observation of
+that day's free margin, **not a threshold**. The cross-node body copy of the same day was shaped by the
+shipped rule: a body far above 60 GB, so it was fetched once on a node and fanned out node-to-node —
+and, per §"The copy that actually ran", over the management NIC because the copy was addressed by
+management hostnames.
 
 ### Claims this measurement corrects
 
@@ -506,8 +507,9 @@ hostnames.
 
 ## 10. The two-node pilot, `.34`/`.35` (run 2026-10-22)
 
-**Status:** installed, run, measured, torn down. Both nodes were **exclusive** to the pilot for its
-duration (no lane serve, no transfer, no benchmark cell). Receipts:
+**Status:** installed, run, measured, torn down; the pilot ran **13:26–13:46:41 ET**. Both nodes were
+**exclusive** to it for its duration (no lane serve, no transfer, no benchmark cell); `.30`–`.33` were
+not touched and kept serving throughout, and nothing was measured on them. Receipts:
 `~/benchmarks/beegfs-pilot-20261022/` (`SUMMARY-BEEGFS.md` for the BeeGFS round, `SUMMARY.md` for the
 NFS/control round, `logs/` for the install, reboot, Secure Boot and teardown captures, `raw/` for the
 benchmark and `/proc` counters). **No pass/fail threshold was pre-registered for this pilot** (owner

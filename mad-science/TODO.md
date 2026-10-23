@@ -123,15 +123,13 @@ govern, per the protocol; the verbatim asks remain in git.)*
   boot, benchmark cell or load is queued.
 
 - **#52 — the BeeGFS pilot reports numbers; no pass/fail threshold exists.** *Owner decision 2026-10-22.*
-  The pilot (`QUESTIONS.md` `#5`) was authorized **without a pre-registered pass/fail**, so it is
-  recorded as measurements plus the control rows, and **no threshold invented after the run** converts
-  it into a verdict. The adoption answer therefore stays the report's own "not now", restated with the
-  measured reason: the client mount is blocked on **both official apt routes** by this pair's firmware
-  state — Secure Boot enabled, one Canonical MOK certificate enrolled, and no prebuilt module in any
-  official index — which is a packaging-and-firmware statement, **not** a platform one: a source build is
-  demonstrably buildable here (§10 "The reconciliation"), and the untested route is a source build for
-  the current kernel. The fabric-level comparison remains the NFS-over-rail stand-in. `mad-science/BEEGFS-REPORT.md` §10 is the
-  record.
+  The pilot (`#5`, settled below) was authorized **without a pre-registered pass/fail**, it was recorded
+  as measurements plus the control rows, and **no threshold invented after the run** converts it into a
+  verdict: the adoption answer stays the report's own **"not now"**, with its install-risk item now
+  measured rather than predicted and its blocker narrowed to Secure Boot policy. The measurements, the
+  pilot run and the round-3 install are `mad-science/BEEGFS-REPORT.md` — §6 (verdict), §8 (pilot
+  outcome), §10 (pilot, reconciliation, end state) and the round-3 addendum at its top. **That report is
+  the record**; no BeeGFS number, path or fingerprint is restated here.
 
 *(Answered 2026-10-22 — no open questions **at that pass**. `#47` is folded into the TP=4 work items as
 the run-everything directive; the verbatim ask and answer stay in git (`git log -- mad-science/TODO.md`).
@@ -192,25 +190,14 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   instructions. — provenance: `mad-science/TODO.md:576` + `mad-science/TODO.md:314` (queue) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
   those ranks); asked 2026-10-22.
 - **#5 — Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict
-  stand unaudited?** *Answered 2026-10-22.* **run the pilot** — two nodes,
-  `.34`/`.35`, which it needs **exclusively** → **Ran the same day, without a pre-registered pass/fail**
-  (`TODO.md` `#52`): the official packages install and the **server** stack works (targets register, RDMA on
-  the rail, survives a reboot behind a `network-online` + rail-address drop-in), but the **client** module cannot
-  load on either node — Secure Boot enabled, **one** enrolled certificate (Canonical's), no prebuilt
-  module in the vendor index on noble/jammy/bookworm, so `modprobe` answers `Key was rejected by service` on both official routes.
-  Cells (1)/(2) therefore fall back to the NFS-over-rail control (564.1 MiB/s single stream vs 6,358.3
-  MiB/s local NVMe; 9.28 ms vs 0.67 ms metadata create). **Adoption stays "not now", reason restated
-  as the official apt routes' firmware requirement** — and **reconciled after the pilot: the owner's
-  earlier working install is real and was a *source build* on `.30`–`.33` (kernel `1031`, unsigned, not
-  loaded), so the untested route is a source build for the current `1032` kernel plus one `modprobe`**; report
-  in `BEEGFS-REPORT.md` §10 — The verdict is now tested rather than carried: the pilot's three cells (`BEEGFS-REPORT.md` §8 — a
-  cold plain-safetensors load local disk vs the pool, ds4 decode with Engram on the pool vs NVMe, and
-  `hf cache ls` plus one `hf download`) are the prerequisites of the adoption decision, and the run established that
-  **one of them cannot be measured through either official apt route without a physical-console MOK
-  enrollment** — which is a decision input, not a pilot defect — and the follow-up reconciliation
-  found a **source build** on `.30`–`.33`, so the cheaper untested route is one build for the current
-  kernel plus a `modprobe`. Work item closed in `mad-science/TODO.md`. — provenance: `mad-science/BEEGFS-REPORT.md:256-285` (verdict `:214-243`, pilot `:485-686`,
-  reconciliation `:531`); asked 2026-10-20.
+  stand unaudited?** *Answered 2026-10-22.* **run the pilot** — two nodes, `.34`/`.35`, exclusively → it
+  ran the same day with no pre-registered pass/fail (`#52`): the packages install and the **server**
+  stack works, but the **client** module is refused by Secure Boot on both official apt routes, so
+  adoption stays **"not now"** and the only open lever is firmware policy (a console MOK enrollment plus
+  a module signed with that key, or Secure Boot off on a pair). The numbers, the source-build
+  reconciliation and the round-3 install that closed the build question are in
+  `mad-science/BEEGFS-REPORT.md` §10, which is the record. — provenance:
+  `mad-science/BEEGFS-REPORT.md` §6, §8, §10; asked 2026-10-20.
 - **#8 — Which host becomes the arm64 runner for the llama.cpp build job?** *Answered 2026-10-22.*
   **Owner asked back 2026-10-22:** *"Can the build be performed on GitHub with an Actions pipeline?"*
   → **GitHub-hosted arm64 — confirmed.** Landed in `0976a1e`: the build job is `runs-on: ubuntu-24.04-arm`, the
@@ -2783,52 +2770,18 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 `docker events --filter event=die` → `docker-events.log`, both inside the receipt dir.)*
 
 ## Shared storage (registry-level)
-`QUESTIONS.md` `#5` — **answered 2026-10-22: run the pilot.**
+**BeeGFS is answered and closed — `mad-science/BEEGFS-REPORT.md` is the record.** §1–§9 are the read-only
+assessment (cache census, resource cost, fabric and disk measurements, Engram demand, the fetch-once
+fan-out rule), §10 is the two-node pilot with its reconciliation and end state, and the round-3 addendum
+at its top is the owner's apt install now sitting on all six nodes. Settled `#5` and `#52` point there;
+no BeeGFS measurement, path or fingerprint is restated in this file.
 
-- [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — **the two nodes must be exclusive to it**
-  (owner condition: the pair is the pilot's whole infrastructure, so no lane serve, no transfer and no
-  benchmark cell runs beside it for the duration). The verdict it tests is `BEEGFS-REPORT.md`'s
-  "not now" (§6), and §8 names the three numbers that are the prerequisites of any
-  adoption decision: **(1)** a cold plain-safetensors load, local disk versus the pool; **(2)** ds4 decode
-  with Engram on the pool versus NVMe — record per-step throughput and `/proc/diskstats` on both paths,
-  timing the Engram batch's wall time per step, because the engine's 32-thread pool already parallelizes
-  that batch, so the question is what one network round trip adds to it; **(3)** `hf cache ls` plus one
-  `hf download` to price the metadata path. §8's own rule holds: **no adoption decision may be taken on a
-  node that is serving**. This is the one open question in the register whose work runs on the free pair,
-  so it is not held by the `#4` fence. *(effort: medium)*
-  *(progress 2026-10-22 — **the pilot ran; only the two control rows are measurable, and the blocker is
-  the official apt routes under this pair's Secure Boot, not BeeGFS on this fleet.** Both official module
-  routes install and **neither yields a loadable
-  module**: `beegfs-client`'s postinst builds an unsigned `beegfs.ko` (`modinfo` shows no signer) and
-  `modprobe` answers `Key was rejected by service`, while `beegfs-client-dkms` signs with the local
-  `spark-324e` MOK, which is not enrolled — `mokutil --sb-state` says Secure Boot enabled and
-  `mokutil --list-enrolled` holds **one** certificate, Canonical's. So **§8 (2) cannot be measured at
-  all** and **(1)/(3) fall back to the NFS-over-rail stand-in**: 564.1 MiB/s single-stream read against
-  6,358.3 MiB/s local NVMe, 3,055.7 MiB/s at eight streams, metadata create 9.28 ms on a `sync` export
-  vs 0.67 ms `async`. The **server** half does work — mgmtd/meta/storage start, register both storage
-  targets and speak RDMA on the rail — but only after a `network-online` + rail-address drop-in, and
-  `node list` reports the stored targets while they are down, so it is not a liveness test; the BeeGFS
-  target benchmark reports 307.16/311.51 MiB/s single-task write and 1.49/1.57 GiB/s at four tasks.
-  Owner ruling (`QUESTIONS.md` `#5`): the pilot **reports numbers with no pre-registered pass/fail**,
-  and none is invented after the fact — so the adoption verdict stays *not now*, with its reason
-  restated as the official apt routes' physical-console requirement. Everything was torn down and both
-  nodes are back to 0 containers with 615/279 GB free. Full record: `mad-science/BEEGFS-REPORT.md` §10;
-  receipts `~/benchmarks/beegfs-pilot-20261022/`.)*
-  *(**Reconciled the same day — the owner's earlier install was a *source build*, and the next step is
-  cheaper than the pilot's.** Read-only inspection of `.30`–`.33` found a source-built client tree on all
-  four: `beegfs.ko` 76,105,072 B built 2026-08-21 against `6.17.0-1031-nvidia`, **unsigned** and **not
-  loaded**, with no `beegfs-client`/daemon package in dpkg (only `libbeegfs-ib` and `libbeegfs-license`,
-  `20:8.4.1`), so this was never an apt client install; `.34`/`.35` never had any of it. The cluster now
-  runs `6.17.0-1032-nvidia`, so nothing from 1031 can load as-is. **The open testable question is a
-  source build for `1032` plus one `modprobe`** — one build answers whether the route the owner used still
-  works under today's firmware, and it supersedes the NFS stand-in as the path to §8 cell (2). **Superseded
-  2026-10-22 (round 3):** the owner reinstalled the apt route on all six nodes and the fleet moved to
-  `7.0.0-1019-nvidia`; the postinst already autobuilt an unsigned `beegfs.ko` for it, so the build question
-  is answered and only the Secure Boot policy remains — see `BEEGFS-REPORT.md` round-3 addendum. The
-  leftovers on the production four (stale 1031 module tree, an orphaned `conn.auth`, an empty
-  `/mnt/beegfs`, `mgmtd.sqlite` and a dangling `beegfs-mgmtd` symlink on `.30`) are recorded as
-  **undocumented, unverified state** — nothing deleted or restarted, owner's call:
-  `BEEGFS-REPORT.md` §"The reconciliation" and §"Unverified legacy state".)*
+- [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — ran 2026-10-22, `13:26–13:46:41` ET, with the
+  pair exclusive to it (owner condition: no lane serve, no transfer and no benchmark cell beside it).
+  End state on teardown: 0 beegfs packages, 0 failed units, **0 containers**, `/` back to 279 GB free on
+  `.34` and 615 GB on `.35`. Numbers, the source-build reconciliation and the round-3 install that
+  followed: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
+  *(effort: medium)*
 
 ## Image pins and advisories (registry-level)
 
