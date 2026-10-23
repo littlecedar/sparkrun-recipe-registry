@@ -2765,7 +2765,10 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
   `20:8.4.1`), so this was never an apt client install; `.34`/`.35` never had any of it. The cluster now
   runs `6.17.0-1032-nvidia`, so nothing from 1031 can load as-is. **The open testable question is a
   source build for `1032` plus one `modprobe`** — one build answers whether the route the owner used still
-  works under today's firmware, and it supersedes the NFS stand-in as the path to §8 cell (2). The
+  works under today's firmware, and it supersedes the NFS stand-in as the path to §8 cell (2). **Superseded
+  2026-10-22 (round 3):** the owner reinstalled the apt route on all six nodes and the fleet moved to
+  `7.0.0-1019-nvidia`; the postinst already autobuilt an unsigned `beegfs.ko` for it, so the build question
+  is answered and only the Secure Boot policy remains — see `BEEGFS-REPORT.md` round-3 addendum. The
   leftovers on the production four (stale 1031 module tree, an orphaned `conn.auth`, an empty
   `/mnt/beegfs`, `mgmtd.sqlite` and a dangling `beegfs-mgmtd` symlink on `.30`) are recorded as
   **undocumented, unverified state** — nothing deleted or restarted, owner's call:

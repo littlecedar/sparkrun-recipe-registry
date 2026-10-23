@@ -19,7 +19,25 @@ pre-registered pass/fail** (owner ruling, `TODO.md` `#52`), so §10 reports numb
 threshold. **§10 also carries the reconciliation, found after the pilot: the owner's earlier working
 install was a source build on `.30`–`.33` against kernel `1031`, not an apt install** — so the bound is
 the *official packaging routes on a Secure Boot pair*, not BeeGFS on this fleet, and the open question is
-a source build for the cluster's current `1032` kernel.
+a source build for the cluster's then-current `1032` kernel.
+
+**Owner install addendum 2026-10-22 (round 3):** **after the pilot was torn down, the owner ran the vendor
+apt route — repo key, `beegfs-noble.list`, `apt install` of all nine packages — on every WOPR node and
+rebooted with no Secure Boot or MOK issue.** Verified read-only the same evening: all six nodes now run
+**`7.0.0-1019-nvidia`** — the fleet moved off `1032` — and each carries the nine `20:8.4.1` packages plus
+an autobuilt, **unsigned** `beegfs.ko` at
+`/lib/modules/7.0.0-1019-nvidia/updates/fs/beegfs_autobuild/beegfs.ko` (`modinfo`: no signer; it replaced
+the 1031 module the reconciliation found in the same source tree), with `/opt/bgfs-meta` created as the
+metadata directory. On every node `beegfs-client.service` is **failed** and its journal shows `modprobe:
+ERROR: could not insert 'beegfs': Key was rejected by service`, with `dmesg` recording `Loading of
+unsigned module is rejected`; the server units are installed but not configured or running; Secure Boot is
+still enabled with one certificate enrolled. **The reboot succeeded and the client did not load** — both
+are true and neither contradicts the other, because a failed client unit does not block boot. Round 3
+therefore confirms the install and narrows the blocker to Secure Boot policy alone: the apt postinst
+already builds against whatever kernel is running, so **no separate source build is needed** — the
+remaining choices are a MOK enrollment at the console **plus a module signed with that key** (or
+`beegfs-client-dkms`, which signs it), or Secure Boot off on the pilot pair. The "build for `1032`" step in
+§10 is stale; `1032` is no longer the fleet's kernel.
 
 **Question:** what would it cost, in resources and in boot/serve performance, to install and operate
 BeeGFS across `.30`–`.35` as one shared Hugging Face cache — and is it worth doing.
@@ -30,9 +48,12 @@ speaks RDMA on the rail, and the **client** cannot load on `.34`/`.35` through e
 because both compile locally and the nodes' Secure Boot store holds only Canonical's certificate. That is
 a statement about **packaging and firmware state**, not about BeeGFS on this hardware: `.30`–`.33` carry a
 **source-built** client (kernel `1031`, unsigned) from the owner's earlier install, so a source build is
-the path that has actually been used here — its **load** is unverified today, and the cluster now runs
-`1032`, which nothing on those hosts was built for. The cheapest decidable next step is therefore **one
-source build for `1032` and one `modprobe`** (§10), not a console MOK ceremony. The capacity benefit
+the path that has actually been used here — its **load** was unverified, and the cluster then ran
+`1032`, which nothing on those hosts was built for. Round 3 has since moved the fleet to
+`7.0.0-1019-nvidia`, rebuilt the module through the apt postinst and reproduced the refusal on all six
+nodes, so the build question is answered and the next decidable step is Secure Boot policy — a MOK
+enrollment plus a signed module at the console, or Secure Boot off on the pair (§10, round-3 addendum).
+The capacity benefit
 remains one the existing storage policy already reaches by pruning, and no pass/fail threshold was
 pre-registered for the pilot (§10 reports numbers, `TODO.md` `#52`), so none is claimed: the verdict
 stands on §6's four reasons, with its install-risk item now measured instead of predicted.
@@ -230,10 +251,10 @@ prevent — so the pilot in §8 measures the batch on the pool rather than re-de
    ships a prebuilt module** for any kernel, so neither route can load without a `mokutil --import` plus a
    MokManager confirmation **at a physical console**. That is a real cost, but it is **not the only
    route**: `.30`–`.33` carry a **source-built** `beegfs.ko` from the owner's earlier install (§10), so
-   the build itself is known to work on this fleet; whether a source build for the current
-   `6.17.0-1032-nvidia` loads on a Secure Boot node is **unverified and cheap to test** — one build and
-   one `modprobe`. The standing risk is the same either way: that kernel is not a combination BeeGFS
-   tests, and every DGX OS update re-opens the build. The management service then sits in front of every
+   the build itself is known to work on this fleet; whether a source build for the then-current
+   `6.17.0-1032-nvidia` loads on a Secure Boot node was **unverified** — round 3 has since rebuilt it for
+   `7.0.0-1019-nvidia` and measured the refusal on all six nodes. The standing risk is the same either
+   way: that kernel is not a combination BeeGFS tests, and every DGX OS update re-opens the build. The management service then sits in front of every
    boot. Full evidence in §10.
 4. **No measured performance upside.** The only hot-path reader needs 340–600 IOPS and 1.5–2.7 MB/s
    against 102,969 IOPS and 6.2–8.0 GB/s — 170–300× inside the device — so the pool neither fixes a
@@ -279,9 +300,10 @@ the verdict stays "not now" with §6's install-risk item now measured rather tha
 **Superseding route, 2026-10-22 (same day, after the pilot):** the client cell is not closed — it was
 being attempted on the wrong route. `.30`–`.33` carry a **source-built** `beegfs.ko` (kernel `1031`,
 unsigned, built 2026-08-21) from the owner's earlier install, so board the next attempt through a source
-build for the current `1032` kernel and one `modprobe` (§10 "The reconciliation"), which is cheaper than
-either apt route plus a console enrollment. If that loads, cell (2) becomes measurable and this section's
-three cells can finally be taken on a real client mount.
+build for the then-current `1032` kernel and one `modprobe` (§10 "The reconciliation"), which was cheaper
+than either apt route plus a console enrollment. **Superseded 2026-10-22 (round 3):** the fleet moved to
+`7.0.0-1019-nvidia`, the apt postinst rebuilt the module for it and the refusal was reproduced on all six
+nodes — the build is answered; only the load remains.
 
 ## 9. Getting a body onto a node: fetch once, fan out on the fabric (measured 2026-10-22)
 
@@ -554,17 +576,26 @@ pair.** Nothing was stopped, restarted or deleted to look; the reads are `ls`, `
    `Key was rejected by service`. So the earlier install's *load* is **unverified** — it cannot be
    reconstructed from the artefacts, and the report records the owner's account beside this measurement
    rather than correcting it.
-3. **Nothing from that install can load as-is today:** the cluster now runs
+3. **Nothing from that install could load as-is:** the cluster then ran
    `6.17.0-1032-nvidia` while the module is vermagic `1031`, and the `1031` module tree is no longer
    under `/lib/modules` on `.30` (only its headers remain), so a rebuild is required either way.
 4. **The open, testable question is therefore a source build for `1032`.** One build and one
    `modprobe` answers whether the route the owner used still works under the firmware state this fleet
    runs now — and it supersedes the NFS-over-rail stand-in as the path to a real client mount, which is
    what §8 cell (2) needs. That is a cheaper next step than either apt route plus a console enrollment.
+   **Superseded 2026-10-22 (round 3):** the fleet moved to `7.0.0-1019-nvidia`, the round-3 apt install
+   rebuilt and replaced this module in place, and the refusal was reproduced on all six nodes — so the
+   build question is answered and only the load remains.
 
 ### Unverified legacy state on the production four
 
-These are **documented leftovers, not a working install**: nobody has deleted them, restarted them or
+**Superseded in part 2026-10-22 (round 3):** the owner installed the apt package set on all six nodes and
+rebooted, so these leftovers now sit beside a fresh `20:8.4.1` install, and the surviving 1031 module at
+`/opt/beegfs/src/client/client_module_8/source/beegfs.ko` was overwritten in place by the round-3
+autobuild for `7.0.0-1019-nvidia` (76,732,736 B, 19:56–19:57). The paths below were not cleaned up or
+restarted; the 1031 artefact is a historical read.
+
+These are **documented leftovers, not a working install**: until round 3, nobody had deleted, restarted or
 rebuilt them, and they sit on fenced production hosts, so their disposition is the owner's call. Recorded
 because a future "BeeGFS was never on this fleet" claim would be false, and because two of them are
 security-relevant.
@@ -579,7 +610,7 @@ security-relevant.
 | two userspace libraries | `libbeegfs-ib`, `libbeegfs-license` (`20:8.4.1`) in dpkg on `.30` | installed, unused by anything running |
 
 The server half (§"The part that does work") needs no module at all, and is very likely the install the
-owner remembers; the client tree above is what survives of the rest.
+owner remembers; the client tree above was what survived of the rest until round 3 replaced its module.
 
 ### The part that does work: the server stack, and the drop-in it needs to survive a reboot
 
@@ -650,6 +681,10 @@ metadata traversal on this fleet.
 
 ### End state
 
+**Superseded 2026-10-22 (round 3):** the owner reinstalled the apt package set on all six nodes after this
+teardown — the clean state below describes the pilot's end, not the fleet's current state (round-3
+addendum at the top).
+
 The client cannot mount, so per the brief the nodes were left **clean** rather than carrying a service
 nobody can use: `beegfs-{client,mgmtd,meta,storage,tools,utils}` + `libbeegfs-ib` + `libbeegfs-license`
 purged (and only those — `logs/apt-history.txt`; `build-essential` was already present), `/etc/beegfs`,
@@ -668,6 +703,10 @@ pre-pilot backup). Final state on both nodes: `dpkg -l | grep beegfs` = 0, no DK
    `lsmod` plus `dmesg`: **loads** ⇒ mount and take §8 cells (1) and (2) on a real client; **refused**
    (`Key was rejected by service`) ⇒ the module needs signing, which is step 2. This is the test that
    turns the pilot's NFS stand-in into a measured pool.
+   **Superseded 2026-10-22 (round 3):** the fleet now runs `7.0.0-1019-nvidia`, not `1032`, and the apt
+   postinst already autobuilt an unsigned `beegfs.ko` for it on every node — so the build half of this
+   step is answered and needs no separate source build. Only the load remains, and its refusal is
+   already measured on all six nodes (round-3 addendum at the top).
 2. **Only if step 1 is refused:** at the **physical console** of each node that should mount,
    `sudo mokutil --import /var/lib/shim-signed/mok/MOK.der` (or a fresh key the module is signed with),
    reboot, confirm at the MokManager screen. `mokutil --list-enrolled` must then show **2** certificates.
