@@ -196,6 +196,15 @@ RECIPE_ENV: dict[str, str] = {
     # is lower the engine silently clamps to the budget (never refused), the
     # pin becomes inert, and it must be re-derived from that line. The protocol
     # and the one EP1 receipt we hold are in attic/ds4/AGENTS.md 7.1.
+    # MEASURED 2026-10-23 (TP=4 window on .30-.33, image acfc331a, 1017 body):
+    # the first fast-loader boot profiled full_token=3,424,000 with
+    # available_bytes=7.21 GB at MEM_FRACTION_STATIC=0.78, so the 6.85M pin is
+    # INERT today and the engine served a 3.42M-token pool. Deliberately NOT
+    # re-derived: the ~6 GB extra residency at sizing time is unexplained (the
+    # fast loader's documented 3-6 % at EP2 cannot account for 46 %), so writing
+    # this number in would bake a possibly transient measurement into
+    # production. See mad-science/DEEPSEEK.md 18.1 and the TODO pool-regression
+    # item; re-derive only after a DSV41_FAST_LOAD=0 control on this line.
     # `-o env.MAX_TOTAL_TOKENS=0` unpins entirely.
     "MAX_TOTAL_TOKENS": "6850000",
     "SPEC_ALGO": "DSPARK",

@@ -1412,7 +1412,7 @@ project changelog, both on hardware we do not own (`LIKELY`), neither on a workl
 `config.json` byte-for-byte (`recipes/ds4/README.md:38-40`), but no vLLM boot has served it. No C10, house
 or needle result exists on any vLLM DeepSeek-V4.1 route, here or elsewhere.
 
-## 18. The community 1017 repo is our own stack — and `DSV41_TP_PAD=0` is live on our line (2026-10-23)
+## 18. The community 1017 repo is our own stack — and the TP_PAD inference it suggested (refuted 2026-10-23, see §18.1)
 
 > **Falsified 2026-10-23 — the split is ON on the shipped pair; see §18.1.** Everything below is the
 > record as it stood before the window, kept because the boot9 quote is the historical evidence.
@@ -1434,8 +1434,9 @@ ours at `27616bec` (2026-10-12) plus the health-port patch, and `git diff --stat
 one env line away from ours, not a different engine — which is exactly what makes the next finding
 load-bearing.
 
-**`DSV41_TP_PAD=0` is live on our line: the replicated split is OFF on all 42 layers.** The adapter
-defaults padding on — `tp3_pad.py:26 @ 27616bec` reads
+**The pre-window hypothesis: `DSV41_TP_PAD=0` is live on our line, so the replicated split is OFF on all 42
+layers.** (Refuted 2026-10-23 — see §18.1: the shipped pair logs the split ON.) The adapter defaults
+padding on — `tp3_pad.py:26 @ 27616bec` reads
 `if os.environ.get('DSV41_TP_PAD', '1') in ('0', 'false', 'off')` — and no file in this repository ever
 mentions the key (`git grep DSV41_TP_PAD` = 0 hits; `git log -S DSV41_TP_PAD --all` = no commits). With
 padding on, the per-layer split probe fails and `replicated_split` falls back to the stock replicated GEMM
