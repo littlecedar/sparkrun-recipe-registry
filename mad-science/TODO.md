@@ -173,7 +173,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
 
 - **#1 — Should the easy-traffic gate's non-decreasing C5→C10 leg disqualify an arm whose ten-slot C10
   clears the absolute bar by 60 % but whose throughput genuinely peaks at five streams?**
-  *Answered 2026-10-22.* a genuine five-stream peak is **acceptable** when C10 clears
+  *Answered 2026-10-22.* A genuine five-stream peak is **acceptable** when C10 clears
   the absolute bar, so the leg no longer requires C10 ≥ C5 — **Mellum2.1 is the selected single-node
   easy-traffic arm** (C1 **110.52 ± 1.77**, C10 **185.96 ± 2.31** against the 69.28 / 116.27 bars;
   house **36/37** @4096 thinking-on; ten real slots) — Settles the gate's leg (2) as the absolute bars
@@ -182,7 +182,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   its C5. — provenance: `TODO.md` §DECISIONS `#49` (the gate's leg (2); duplicate `mad-science/STATUS.md:44`); asked 2026-10-22.
 - **#4 — May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those
   ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood
-  down?** *Answered 2026-10-22.* the **fence holds** — no workload runs on
+  down?** *Answered 2026-10-22.* The **fence holds** — no workload runs on
   `.30`–`.33`, and no `.30`–`.33` boot, benchmark cell or load is queued, until the owner stands the
   production serve down — It was the gate on the whole TP=4 queue; with the fence holding, nothing
   that needs four ranks can run — the ds4 candidates, the four-node suite legs, the `#3` topology A/B
@@ -190,7 +190,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   instructions. — provenance: `TODO.md` §qwen4 (the TP=4 queue item) + §ds4 (the fence note) against `AGENTS.md:241-252` (fence) and `mad-science/STATUS.md:19` (the serve occupying
   those ranks); asked 2026-10-22.
 - **#5 — Should the two-node BeeGFS pilot be run to settle adoption, or does the "not now" verdict
-  stand unaudited?** *Answered 2026-10-22.* **run the pilot** — two nodes, `.34`/`.35`, exclusively → it
+  stand unaudited?** *Answered 2026-10-22.* **Run the pilot** — two nodes, `.34`/`.35`, exclusively → it
   ran the same day with no pre-registered pass/fail (`#52`): the packages install and the **server**
   stack works, but the **client** module is refused by Secure Boot on both official apt routes, so
   adoption stays **"not now"** and the only open lever is firmware policy (a console MOK enrollment plus
@@ -208,31 +208,31 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   parallel runner story to maintain. — provenance: `TODO.md` §Recipe schema & documentation (registry-level), the llama.cpp runner item; `.github/workflows/llamacpp-engine.yml`; asked 2026-10-22.
 - **#9 — Should the silent `DSV41_MXFP8_BACKEND=b12x` override be repaired — a launcher assertion rather than a value that
   never reaches the engine — or stay recorded-only?** *Answered 2026-10-22.*
-  **repair by explicit flag** — *not* a launcher assertion: delete the `DSV41_MXFP8_BACKEND=b12x` env dependency and spell
+  **Repair by explicit flag** — *not* a launcher assertion: delete the `DSV41_MXFP8_BACKEND=b12x` env dependency and spell
   the backend flag explicitly in `command:` so it reaches the engine; the recipe change is **boot-gated** —
   The shipped ds4 arm requests a backend the engine never receives as a declared flag (the launcher
   substitutes it and the effective value reads `auto (omitted)` replaced), so any future MXFP8 A/B measures an
   undeclared default and reads as a null result; the work item is in `mad-science/TODO.md`. — provenance: `mad-science/STATUS.md:34`, `recipes/ds4/README.md:372-377`;
   asked 2026-10-22.
 - **#10 — Should the repository Issues tracker be enabled so the nightly pin-drift sweep can maintain
-  its issue in place?** *Answered 2026-10-22.* **enable Issues** — done: `gh api -X PATCH repos/littlecedar/sparkrun-recipe-registry -f has_issues=true`
+  its issue in place?** *Answered 2026-10-22.* **Enable Issues** — done: `gh api -X PATCH repos/littlecedar/sparkrun-recipe-registry -f has_issues=true`
   returned `has_issues: true`, so the sweep now maintains its single `pin-drift` issue in place instead of printing `SKIPPED: repository issues are disabled` —
   Without the tracker the drift signal was the run summary plus a 90-day artifact only; the in-place
   issue is now the third leg and the one an operator can watch. — provenance: `AGENTS.md:505-536`; asked undated.
 - **#11 — May the registry ship an eval-only arm for MiniMax-M3 under its non-commercial Community
   License, or is that license a hard no for a tree distributed to third parties?**
-  *Answered 2026-10-22.* ship **eval-only**, with the license banner and an explicit
+  *Answered 2026-10-22.* Ship **eval-only**, with the license banner and an explicit
   non-commercial note — permitted, not a hard no — It is the highest accuracy-per-node candidate at
   two nodes, and the licence was the only thing keeping it out of the tree; the shipping policy that
   carries the answer is `AGENTS.md` §Recipes. — provenance: `mad-science/EXPLORE-CANDIDATES.md:53-54` (duplicate `:75`); asked undated.
 - **#12 — Should the cybersec lane ship a single-node OrcaCyber-Nano-1.0 arm, and at which GGUF
-  tier?** *Answered 2026-10-22.* **ship the 15.7G tier** (`:Mix-15.7G`, 15,695,148,832
+  tier?** *Answered 2026-10-22.* **Ship the 15.7G tier** (`:Mix-15.7G`, 15,695,148,832
   B ≈ 14.62 GiB, 4.60 bpw, imatrix) — the **13G tier becomes the A/B control, not the default** — The
   tier is a ship decision rather than a bench result, and the ruling fixes both the default and the
   comparison: one default arm at 15.7G with the 13G tier kept as its measured control. — provenance:
   `TODO.md` §explore (the OrcaCyber tier item); asked 2026-10-22.
 - **#13 — Which look does the shipped image arm serve — the current Diffusers render, or is the
-  declined vLLM-OMNI variant reopened?** *Answered 2026-10-22.* **ship both**
+  declined vLLM-OMNI variant reopened?** *Answered 2026-10-22.* **Ship both**
   — the Diffusers render and the vLLM-OMNI variant land as **separate arms**, and the OMNI arm carries
   the two-ink adherence defect in its lane README — It reopens a route recorded as declined: the ~24 %
   faster OMNI path ships beside the Diffusers look, with the prompt-adherence defect written down
@@ -244,7 +244,7 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   *Answered 2026-10-22.* Both banners are accepted and ship inside the recipes; the remaining gap is the runtime,
   not permission. — provenance: `mad-science/STATUS.md:32`; asked 2026-10-22.
 - **#16 — Is a rewrite of git history authorized to purge the cluster-internal addresses that the
-  tree-level sweep masked?** *Answered 2026-10-22.* **authorized** — rewrite
+  tree-level sweep masked?** *Answered 2026-10-22.* **Authorized** — rewrite
   and force-push to purge them — **and executed the same day: `aac85ec` → `240ecd6`**, `git filter-repo --replace-text` then `--force-with-lease`. **849 commits
   preserved**, one ref (`refs/heads/main` with `origin/main` on the same commit), 0 tags. **Residual literals: 7**, all by
   design — the published HLE question, the CI detector's planted control, and the hygiene guard's own
