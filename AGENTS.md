@@ -68,6 +68,15 @@ Load-bearing contracts:
   `_netdev,nofail` and **boot-time persistence is still unverified**: after a slow pool mount a
   container can see an empty `/cache` instead of an error, so assert the model path exists before
   blaming a recipe for an empty reply.
+  The **`WOPR` cluster profile is configured for this**: `distribution.model` = `enabled: false`,
+  `skip_fan_out: true`, `preserve_perms: false` on the head's
+  `~/.config/sparkrun/clusters/WOPR.yaml` (applied 2026-10-24; backup
+  `WOPR.yaml.bak-pre-shared-cache-20261024` beside it), so sparkrun neither downloads nor rsyncs
+  models at launch — a model missing from the pool fails at engine load, loudly. **Caveat, dry-run
+  verified**: a launch that passes bare `-H <node>` builds an anonymous cluster carrying the safe
+  defaults and **will still fan out models** — name the cluster (`--cluster WOPR`) or launch against
+  the cluster's own host set; tuning-config distribution inherits the same prefs (no
+  `distribution.tuning` block), which is correct now that the tuning cache is on the pool too.
 
 ## Key Directories
 

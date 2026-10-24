@@ -2937,6 +2937,16 @@ there, and no BeeGFS measurement, path or fingerprint is restated in this file.
   path yet); and the head no longer stages or fans out bodies, so `AGENTS.md` §Node hygiene's >60 GB
   node-local rule has lost its reason and should be revisited after the first boot from the pool.
   Receipts: `~/benchmarks/beegfs-migrate-20261024/`. *(effort: large, multi-window — executed.)*
+  **Cluster config follows (2026-10-24):** the head's `~/.config/sparkrun/clusters/WOPR.yaml` now sets
+  `distribution.model` = `enabled: false`, `skip_fan_out: true`, `preserve_perms: false` (backup
+  `WOPR.yaml.bak-pre-shared-cache-20261024` beside it), so sparkrun neither downloads nor rsyncs models
+  at launch; tuning-config distribution inherits the same prefs. Dry-run verified on the head
+  (sparkrun `0.4.2-alpha+g7f0acf0`): a named-cluster launch (`sparkrun run <recipe>` or with
+  `--cluster WOPR`) shows no "Distributing model" phase, while a bare `-H <node>` launch builds an
+  anonymous cluster with the safe defaults and **still fans out models** — name the cluster or launch
+  against its own host set. Cache-sharing prerequisite verified read-only: `~/.cache/huggingface` is a
+  symlink to `/mnt/beegfs/huggingface` on the nodes probed (`.30`, `.34`), same 56-repo listing
+  (md5-identical directory listing).
 
 ## Image pins and advisories (registry-level)
 
