@@ -50,6 +50,14 @@ was attempted and archived as a proven-negative.
 | [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **BOOT-VERIFIED 2026-10-18** — TTR 309.6 s, KV pool 5,834,752, ladder C1 83.03 ± 17.74 / C2 102.36 ± 24.01 / C5 79.49 ± 11.34 / C10 73.37 ± 8.44 t/s. |
 | [`glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml) | Full GLM-5.3 753B EXL3 3.0bpw (~273 GB) on 4 Sparks, TP=4, TensorFold 0.6.0 from the unreleased `glm-dsa-tp4` fork, 1M window with DCP over 4 ranks, the checkpoint's own MTP-3 head. Checkpoint `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383`, image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | **BOOT-VERIFIED 2026-10-18** — `/v1/models` at 240 s, engine load 308.7 s, startup estimate 96.27 of 102.86 GiB, ladder c1 31.7 t/s / c2 25.3 agg (14.5 per request) / c4 40.6 agg (11.4 per request), 100,559-token prompt TTFT 258.4 s. Not measured: quality, a warm-JIT boot, four concurrent 1M windows. |
 
+  The 2026-10-24 pool-era boot of this arm stalled twice before weights load
+  (DCP banner, then frozen; NVRM `NV_ERR_NO_MEMORY` on rank 0 at 15:36:57) —
+  the ranked hypotheses and the one-boot next-window experiment (32k window +
+  the 2026-10-13 `TF_GLM_*` env, `dmesg -w` armed) are
+  `~/benchmarks/tp4-window-20261024/GLM-BOOT9-TRIAGE.md` on the head; the
+  1M-window memory margin (7.4 GiB vs the 2026-10-13 boot's 14.6) is the
+  leading suspect, not the pool read path (977 MB/s sustained through the
+  snapshot).
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
 prepared snapshot *path* via `{model}`, so there is no `--revision` for the validator to find
