@@ -21,7 +21,8 @@ metadata:
     static FP8 KV cache); capability numbers for THIS build are unmeasured by the uploader.
     This is the spec-decode sibling of qwen3.8-27b-uncensored-nvfp4-sglang (the plain-decode
     control, 10.2 t/s C1): NEXTN runs the checkpoint's 15 BF16 mtp.* tensors, so the only
-    difference from the control is the speculative block. Unmeasured — no receipt yet.
+    difference from the control is the speculative block. Ladder measured 2026-10-24, receipt
+    ~/benchmarks/tp2-queue-20261024/REPORT.md.
 
 mods:
   - "@eugr/mods/drop-caches"
