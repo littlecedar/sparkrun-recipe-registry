@@ -678,14 +678,19 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   the `RECIPE_ENV` line** — the owner's ship-if-passes permission was conditional on a passing treatment.
   Receipts `~/benchmarks/tp4-pad-20261023/`. *(effort: none.)*
 
-- [ ] **KV pool regression: 3,424,000 tokens with the 6.85M pin inert** — the first post-fence boot
-  profiled `max_total_num_tokens=3,424,000` at `available_bytes=7.21 GB`, where the 2026-10-22 boot on the
-  same nodes, image and pin profiled 6,849,792 at 13.31 GB; ~6 GB more was resident at pool-sizing time.
-  Both ran `mem_fraction_static=0.78` with `DSV41_FAST_LOAD=1`, and the fast loader's documented 3–6 % at
-  EP2 cannot explain 46 % (`LIKELY`; cause undetermined). **Work: one boot reading
-  `max_total_num_tokens=` and one `-o env.DSV41_FAST_LOAD=0` boot on the same serve line**, then re-derive
-  the pin from the measured budget — until then quote the pool from the boot, never 6.85M. Detail:
-  `DEEPSEEK.md` §18.1. *(effort: two boots.)*
+- [x] **KV pool regression: 3,424,000 tokens with the 6.85M pin inert — SETTLED 2026-10-24: the fast
+  loader is the cause.** The owed control ran on `.31`–`.34` (shared-cache pool, image `acfc331a`,
+  same serve line): `-o env.DSV41_FAST_LOAD=0` first **did not reach the engine** — `DSV41_FAST_LOAD`
+  was a `RECIPE_ENV` override and the launcher clobbered it (the §6.2 trap, third instance); the key
+  joined `AB_ENV` (`49471a2`) and the relaunched control profiled **6,999,040** full tokens at
+  `available_bytes=12.77 GB` with zero `fast load ARMED` lines, clamping the pin to
+  **6,849,792 — identical to the 2026-10-22 baseline**. FAST_LOAD=1 boots profile 3.42–4.36M,
+  variable with page-cache timing (four observations: 3,424,000 / 3,846,656 / 4,238,080 /
+  4,355,584), so no fast-loader figure is pinnable; the shipped 6.85M pin is correct as shipped at
+  FAST_LOAD=0 and inert-but-harmless at FAST_LOAD=1, and the per-mode pin choice is the owner's
+  (`QUESTIONS.md` `#21`). Cost side: stock loader `load_weight=583.97 s` vs 71–138 s eager.
+  Full triad table: `DEEPSEEK.md` §18.2; receipts `~/benchmarks/tp4-window-20261024/`
+  (`boot1-baseline.launch.log`, `boot3-fastload0*`). *(effort: none — done; three boots.)*
 
 - [x] **RDMA registration wedge — root cause found and fixed 2026-10-24: `kho=off`.** The wedge was never
   a hardware state needing a power-cycle: kernel `7.0.0-1019-nvidia` enables Kexec HandOver, whose
@@ -717,8 +722,8 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   "boot times may be longer" worry is refuted; faster than the node-local era), `/v1/models` answers
   with `max_model_len` 1,048,576, and **`max_total_num_tokens=4,238,080`** — the 6.85M pin again inert
   ("larger than the profiled value ... use the profiled value"), between the 3,424,000 regression boot
-  and the 6,849,792 baseline, with 18.82 GB free at pool sizing; the `DSV41_FAST_LOAD=0` control boot
-  is still owed.
+  with 18.82 GB free at pool sizing; the `DSV41_FAST_LOAD=0` control boot ran later the same day and
+  **settled the item** (6,999,040 profiled / 6,849,792 clamped — see the KV-pool item above).
   The reboot cycles en route also **proved boot-time persistence on all six nodes** — after fixing two
   real fstab defects: the rail-wait drop-in was written with a `[Service]` section on the `.mount`
   unit (invalid, ignored — systemd warned) so the mount raced the rail address, and the client's mount

@@ -1579,3 +1579,43 @@ sample sd); prefill 3905.8 / 4884.5 / 5399.2 / 5636.4 t/s; the 131,072-depth cel
 empty HF cache (model-cache publication lease error — no 475 GB body) and a root-owned runtime tree
 (chat-template `PermissionError` on ranks 2/3). Every successful boot used the real `HOME`; recorded in
 `AGENTS.md`.
+
+### 18.2 The FAST_LOAD=0 control (2026-10-24): the KV triad, and the pin per mode
+
+The owed control boot ran in the 2026-10-24 window on `.31`–`.34` (shared BeeGFS cache, same image
+`acfc331a`, same 1017 body `1bae0e10…`, same serve line), after a fix to the overlay launcher: the
+first control launch passed `-o env.DSV41_FAST_LOAD=0` and the serve still logged `DSV41 fast load
+ARMED` five times — `DSV41_FAST_LOAD` sat in `RECIPE_ENV` as a hard override, so the launch env was
+clobbered (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`, the same trap §6.2 recorded for
+`DSPARK_BLOCK_SIZE`). The key joined `AB_ENV` (`49471a2`) and the relaunched control profiled with
+**zero** `fast load ARMED` lines. That clobbered first attempt is still a FAST_LOAD=1 data point:
+it profiled 4,355,584 at `available_bytes=8.66 GB`, `load_weight=77.04 s`.
+
+**The triad, one serve line, one image, one body:**
+
+| boot | FAST_LOAD | max_total_num_tokens | available_bytes at sizing | load_weight | task |
+|:--|:--|--:|--:|--:|:--|
+| 2026-10-22 baseline (`.30`–`.33`) | 1 | 6,849,792 | 13.31 GB | — | `a2e141223b52793c_e11d626ec2c6` |
+| 2026-10-23 regression (§18.1) | 1 | 3,424,000 | 7.21 GB | — | A1 window |
+| 2026-10-24 pool boot 2 | 1 | 4,238,080 | 18.82 GB | 71.15 s | `~/benchmarks/pool-boot-20261024/` |
+| 2026-10-24 window boot 1 | 1 | 3,846,656 | 7.87 GB | 138.12 s | `a2e141223b52793c_c3190282f4d4` |
+| 2026-10-24 control | **0** | **6,849,792** | 12.77 GB | 583.97 s | `a2e141223b52793c_2472013827ce` |
+
+The control settles the causality the regression item left `LIKELY`: at FAST_LOAD=0 the same line
+profiles **6,999,040** full tokens (`bytes_per_full_token=1670.75`) and the 6.85M pin clamps to
+**6,849,792 — bit-identical to the 2026-10-22 baseline**, not near it. Every FAST_LOAD=1 boot
+profiles a smaller and variable pool (3.42–4.36M across four boots) because SGLang sizes from the
+head's `MemAvailable` while the eager loader's pinned reads leave memory visible-but-uncounted; the
+spread between the 18.82 GB and 7.87 GB boots is page-cache timing, and no FAST_LOAD=1 figure is
+reproducible enough to pin against.
+
+**What the pin should be per mode.** At FAST_LOAD=0 the shipped `MAX_TOTAL_TOKENS=6850000` is
+**correct as shipped** — 97.9 % of the 6,999,040 budget, and the engine clamps it to the profiled
+6,849,792. At FAST_LOAD=1 the pin is inert-but-harmless: the profiled value is always smaller, the
+engine always takes its own profile, and quoting "the pin" for a fast-loader boot is wrong (quote
+`max_total_num_tokens` from the boot). The open owner call is whether the recipe should keep the
+single 6.85M pin (correct where it matters, self-limiting where it does not) or pin per-mode —
+`QUESTIONS.md` `#21`. The control's cost side is recorded for that decision: the stock loader's
+`load_weight` is **583.97 s** against 71–138 s eager over the pool, i.e. the ~8.5× load cost is what
+the larger pool buys. Receipts `~/benchmarks/tp4-window-20261024/` on the head
+(`boot1-baseline.launch.log`, `boot3-fastload0.launch.log`, `boot3-fastload0-rank0-serve.log`).
