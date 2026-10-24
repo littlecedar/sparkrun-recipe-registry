@@ -1351,17 +1351,23 @@ class SglangLaneContract(unittest.TestCase):
         # 16 is what the v2.4 launch line and its profile table both show; the
         # 8s in that repo belong to the pre-knapcio profile.
         self.assertEqual(mod.RECIPE_ENV["MAX_RUNNING_REQUESTS"], "16")
-        # Re-derived for 0.78 from the engine's own measured budget. The
-        # formula (9,277,952 at 0.80 minus 1,564,260 for the smaller static
-        # pool minus 26,415 for 64 extra tails -> 7,687,277) under-estimated the
-        # tails' cost; the 2026-10-18 21:33Z TP=4 boot line says the real
-        # profiled budget at 0.78 is 6,993,408 ("max_total_tokens=7500000 is
-        # larger than the profiled value 6993408"). A pin at or above the
-        # budget is silently clamped, which puts the pool back to being a boot
-        # lottery, so this must stay under the MEASURED value.
-        pin = int(mod.RECIPE_ENV["MAX_TOTAL_TOKENS"])
-        self.assertGreater(pin, 0)
-        self.assertLess(pin, 6_993_408)
+        # The KV pool pin is PER-MODE since 2026-10-24 (owner: "Any pins should
+        # be accurate, even if a wrong pin would be harmless" — closes
+        # QUESTIONS.md #21). The stock-loader pool is the measured 2026-10-24
+        # control value 6,849,792 (profiled 6,999,040 at 0.78); under the fast
+        # loader the engine's own profile is the only accurate number, so the
+        # pin is dropped there; an explicit launch override always wins.
+        env_fast = {}
+        mod.apply_recipe_env(env_fast)
+        self.assertEqual(env_fast["MAX_TOTAL_TOKENS"], "0")
+        self.assertEqual(env_fast["DSV41_FAST_LOAD"], "1")
+        env_stock = {"DSV41_FAST_LOAD": "0"}
+        mod.apply_recipe_env(env_stock)
+        self.assertEqual(env_stock["MAX_TOTAL_TOKENS"], "6849792")
+        self.assertLess(int(env_stock["MAX_TOTAL_TOKENS"]), 6_993_408)
+        env_override = {"DSV41_FAST_LOAD": "0", "MAX_TOTAL_TOKENS": "1000"}
+        mod.apply_recipe_env(env_override)
+        self.assertEqual(env_override["MAX_TOTAL_TOKENS"], "1000")
 
         # Default assembly: the prefix tails only. The prefill-decode interval
         # ships OFF - measured cost on this fleet's ladder was 17-28 % of

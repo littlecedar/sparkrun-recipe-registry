@@ -113,6 +113,11 @@ OVERLAY_DIR = f"{_CACHE}/model-overlay"
 # reads its port from. A literal (not $STATE_PATH) because the image bakes
 # STATE_PATH=/state while the launcher relocates it under /cache/runtime.
 HEALTH_PORT_FILE = "/tmp/sparkrun_health_port"
+
+# The accurate KV pool pin for the STOCK loader (DSV41_FAST_LOAD=0): the
+# measured 2026-10-24 control pool. Under the fast loader the pin is dropped
+# entirely (see apply_recipe_env) — that is a per-mode decision, not a value.
+MAX_TOTAL_TOKENS_STOCK = "6849792"
 RECIPE_ENV: dict[str, str] = {
     # --- locations (all under the sparkrun-managed runtime cache) ----------
     "STATE_PATH": f"{_CACHE}/state",
@@ -194,29 +199,16 @@ RECIPE_ENV: dict[str, str] = {
     #      7500000 is larger than the profiled value 6993408"). The 7.69M
     #      formula above under-estimated the tails' cost by ~0.7M tokens, so the
     #      boot line, not the formula, decides.
-    # PIN UNCHANGED for the 2026-10-22 DSV41_FAST_LOAD=1 flip: 6,850,000 is a
-    # STOCK-loader measurement (6,993,408 budget at 0.78, 97.9 % of it). The
-    # fast loader leaves memory uncounted at the moment the engine measures, so
-    # the same boot profiles a smaller budget -- upstream docs/fast-load.md puts
-    # the EP2 cost at 3-6 % (README's summary line carries the older 3-13 %),
-    # and its EP1 slab rework "gave back ~0.7M tokens" against the per-tensor
-    # precursor. The EP1 delta on this lane is UNMEASURED, so do NOT pre-scale
-    # the pin: boot once on the fast loader and read the boot line's
-    # `full_token`. If it is at or above 6.85M the pin applies unchanged; if it
-    # is lower the engine silently clamps to the budget (never refused), the
-    # pin becomes inert, and it must be re-derived from that line. The protocol
-    # and the one EP1 receipt we hold are in attic/ds4/AGENTS.md 7.1.
-    # MEASURED 2026-10-23 (TP=4 window on .30-.33, image acfc331a, 1017 body):
-    # the first fast-loader boot profiled full_token=3,424,000 with
-    # available_bytes=7.21 GB at MEM_FRACTION_STATIC=0.78, so the 6.85M pin is
-    # INERT today and the engine served a 3.42M-token pool. Deliberately NOT
-    # re-derived: the ~6 GB extra residency at sizing time is unexplained (the
-    # fast loader's documented 3-6 % at EP2 cannot account for 46 %), so writing
-    # this number in would bake a possibly transient measurement into
-    # production. See mad-science/DEEPSEEK.md 18.1 and the TODO pool-regression
-    # item; re-derive only after a DSV41_FAST_LOAD=0 control on this line.
-    # `-o env.MAX_TOTAL_TOKENS=0` unpins entirely.
-    "MAX_TOTAL_TOKENS": "6850000",
+    # KV pool pin history, kept because the numbers are the lane's record:
+    # the 2026-10-22 pin 6,850,000 was a STOCK-loader measurement (97.9 % of
+    # the 6,993,408 budget the engine profiles at 0.78) and the engine clamped
+    # it to 6,849,792. Under the fast loader every boot profiles a smaller,
+    # variable budget (3,424,000 / 3,846,656 / 4,238,080 / 4,355,584 across the
+    # 2026-10-23/24 boots — DEEPSEEK.md §18.2), so a literal there is always
+    # clamped and inert. Owner 2026-10-24: pins must be ACCURATE — the static
+    # entry is gone; apply_recipe_env derives the pin per mode (6,849,792 on
+    # the stock loader via MAX_TOTAL_TOKENS_STOCK, unpinned under the fast
+    # loader, an explicit launch override still wins).
     "SPEC_ALGO": "DSPARK",
     # MEASURED, REJECTED (2026-10-10 A/B, same-window pair, profile
     # ds4-sglang-depth0-ladder, nodes .30-.33): the verify window gamma ships
@@ -403,6 +395,22 @@ def apply_recipe_env(env: dict[str, str]) -> None:
             env.setdefault(key, value)
         else:
             env[key] = value
+    # The KV pool pin is PER-MODE (owner 2026-10-24, closing QUESTIONS.md #21:
+    # "Any pins should be accurate, even if a wrong pin would be harmless").
+    #   FAST_LOAD=0: the stock loader profiles 6,999,040 full tokens at 0.78
+    #     (control 2026-10-24) and the accurate pool is the MEASURED clamp
+    #     6,849,792 — bit-identical to the 2026-10-22 baseline.
+    #   FAST_LOAD=1 (the shipped default): four boots profile 3.42-4.36M,
+    #     variable with page-cache timing, so no literal is accurate — leave
+    #     the pin off (0) and the engine's own profile is the number.
+    # A launch that supplies MAX_TOTAL_TOKENS explicitly still wins (the
+    # AB_ENV launch-wins semantics, implemented here because the key is no
+    # longer a static RECIPE_ENV entry).
+    if "MAX_TOTAL_TOKENS" not in env:
+        if env.get("DSV41_FAST_LOAD", RECIPE_ENV["DSV41_FAST_LOAD"]) == "1":
+            env["MAX_TOTAL_TOKENS"] = "0"
+        else:
+            env["MAX_TOTAL_TOKENS"] = MAX_TOTAL_TOKENS_STOCK
 
 
 # The env key and the sglang flag it contributes to EXTRA_SGLANG_ARGS.

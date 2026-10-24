@@ -45,8 +45,10 @@ defaults:
   # The memory line and the extra sglang flags are launcher-owned (mods/
   # dsv41-sglang-overlay/launcher.py: RECIPE_ENV + AB_ENV): 0.78 mem fraction,
   # 8192 -> 16384 chunks (2026-10-24, the #2 cell: 2.35x the 1M prefill, needle
-  # 5/5 at ~999k), a 6.85M KV pin (97.9 % of the 6,993,408-token budget the engine
-  # profiles at 0.78), 16 slots and --swa-prefix-tails 128. The prefill-decode
+  # 5/5 at ~999k), a PER-MODE KV pin (owner 2026-10-24, closing QUESTIONS #21:
+  # 6,849,792 on the stock loader, unpinned under the fast loader — the
+  # launcher's apply_recipe_env derives it), 16 slots and --swa-prefix-tails 128.
+  # The prefill-decode
   # interleave ships OFF: it cost 17-28 % of steady-state ladder throughput on
   # this fleet's profile (2026-10-18), so it is opt-in, not default.
   # They travel as container env, so an A/B flips one without editing a file:
