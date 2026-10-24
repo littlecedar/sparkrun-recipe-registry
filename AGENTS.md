@@ -281,12 +281,24 @@ remove what the session created** — a leftover is anything undocumented, unkno
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
   and one interconnect shape — and `.30` stays the controller either way (`Q8`).
-- **GB10's onboard ConnectX-7 has a known issue that needs an occasional power-cycle.** Warm reboots
-  clear the RDMA registration wedge only temporarily; on a `ibv_reg_mr_iova2` / NCCL `unhandled system
-  error` failure, **one warm reboot of the implicated rank is allowed, then stop and request an owner
-  power-cycle rather than iterating reboots** (owner instruction 2026-10-22; amended 2026-10-24 to
-  permit the single warm retry inside a declared window; receipts
-  `~/benchmarks/beegfs-activate-20261024/`).
+- **The RDMA registration wedge is a KHO kernel issue, and `kho=off` fixes it.** On kernel
+  `7.0.0-1019-nvidia`, Kexec HandOver (KHO, enabled by default) donates its ~9.3 GiB scratch area to
+  the page allocator as `MIGRATE_CMA` pageblocks; when `MemFree` is low (checkpoint reads fill page
+  cache and the driver's freed-UMA pool), NCCL's `cudaHostAlloc` buffers land on those pages and the
+  NIC's `FOLL_LONGTERM` pin cannot migrate them — `Call to ibv_reg_mr_iova2 failed with error Cannot
+  allocate memory` → `NCCL error: unhandled system error`, at `ncclCommInitRank`, rank moving between
+  nodes. **The tell is `CmaFree > CmaTotal`** (`CmaTotal: 0 kB`, `CmaFree: ~9.3 GiB`, `grep nr_free_cma
+  /proc/vmstat`) — watch `MemFree`, not `MemAvailable`. Fix: `/etc/default/grub.d/99-zz-kho-off.cfg`
+  with `GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT kho=off"` (the `99-zz-` prefix and
+  the `$GRUB_CMDLINE_LINUX_DEFAULT` expansion both matter — a file that resets the variable drops
+  `initcall_blacklist`/`pci=pcie_bus_safe`), then `update-grub` and reboot. Verified 2026-10-24 on
+  `.31`–`.34`: CMA pageblocks 9.3 GiB → **0**, and the quartet boot that died at `ncclCommInitRank`
+  38 s in got past init. Safe where `kexec_crash_size` = 0 (kdump unused). Warm reboots only clear the
+  state temporarily — the reboot's "fix" was really an emptied page cache, which is why the wedge
+  always returned. Sources: NVIDIA forum thread 383023 (the `7.0.0-1019` regression, NVES advisory),
+  `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (KHO root cause, `kho=off`, two independent
+  confirmations). `.30`/`.35` still carry the old cmdline; power-cycle remains the fallback for a
+  genuinely wedged HCA.
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and

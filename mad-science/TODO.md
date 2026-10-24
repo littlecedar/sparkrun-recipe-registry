@@ -687,12 +687,20 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   the pin from the measured budget — until then quote the pool from the boot, never 6.85M. Detail:
   `DEEPSEEK.md` §18.1. *(effort: two boots.)*
 
-- [ ] **RDMA registration wedge blocks a clean quartet** — successive engine starts on `.30`/`.31` now fail
-  at `ncclCommInitRank` with `Call to ibv_reg_mr_iova2 failed with error Cannot allocate memory` (2/2
-  control launches at 22:43Z and 22:57Z, first-failing rank moving `.31` → `.30`; a `.30`-free rerun on
-  `.31`–`.34` failed the same way). Rebooting `.32`/`.33` and then `.31` cleared it only temporarily. `.30`
-  was never rebooted, per the owner's rule, and is implicated; **the unblock is owner approval to reboot
-  `.30`** (`QUESTIONS.md` `#18`). Detail: `DEEPSEEK.md` §18.1. *(effort: one reboot + one boot.)*
+- [x] **RDMA registration wedge — root cause found and fixed 2026-10-24: `kho=off`.** The wedge was never
+  a hardware state needing a power-cycle: kernel `7.0.0-1019-nvidia` enables Kexec HandOver, whose
+  ~9.3 GiB scratch area is donated to the allocator as `MIGRATE_CMA` pageblocks; with `MemFree` low the
+  allocator hands them to NCCL's host buffers and the NIC's long-term pin fails (`ibv_reg_mr_iova2`
+  ENOMEM → `ncclCommInitRank` system error), which is why every warm reboot "fixed" it temporarily — a
+  reboot empties page cache, the mechanism, not the cure. The tell is **`CmaFree > CmaTotal`**
+  (`CmaTotal: 0 kB`, `CmaFree: ~9.3 GiB` on every node). Fix: `kho=off` via
+  `/etc/default/grub.d/99-zz-kho-off.cfg` (grub.d prefix + `$GRUB_CMDLINE_LINUX_DEFAULT` expansion
+  both load-bearing), applied to `.31`–`.34` and verified across two reboot cycles: **CmaFree 0**,
+  `nr_free_cma 0`, and the quartet boot that died at `ncclCommInitRank` 38 s in got past init
+  (`ROCE_TP8_READY` with zero errors). Sources: NVIDIA forum 383023;
+  `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (ftrace proof + two independent `kho=off`
+  confirmations). `.30`/`.35` still carry the old cmdline pending the owner's call; power-cycle stays
+  the fallback for a genuinely wedged HCA. *(effort: none — done.)*
 
 - [ ] **First quartet boot under the shared-cache WOPR profile** — created 2026-10-24 when
   `distribution.model.enabled: false` landed on the cluster profile (`960e164`): it is the only event
@@ -702,6 +710,13 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   so the launch must assert the prepared model path exists before the engine execs. Boot the shipped
   knapcio line, read `max_total_num_tokens` and the load-time line, and record both against the
   node-local era. *(effort: one boot; pairs naturally with the KV-pool pricing boots above.)*
+  *(progress 2026-10-24 — boot 1 **crashed at `ncclCommInitRank`** on the KHO/CMA wedge (see the closed
+  item above); boot 2, post-`kho=off`, got past init and is the KV-pool reading in flight. The two
+  reboot cycles en route also **proved boot-time persistence** — after fixing two real fstab defects:
+  the rail-wait drop-in was written with a `[Service]` section on the `.mount` unit (invalid, ignored
+  — systemd warned) so the mount raced the rail address, and the client's mount sanity check
+  (`sysMountSanityCheckMS`, was 11000) canceled three of four simultaneous re-registrations; fixed
+  with a `rail-wait.service` + `[Unit]`-only drop-in and `sysMountSanityCheckMS = 0`.)*
 
 ## glm5
 GLM 5.3
