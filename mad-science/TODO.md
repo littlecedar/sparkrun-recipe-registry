@@ -718,7 +718,7 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   with `max_model_len` 1,048,576, and **`max_total_num_tokens=4,238,080`** — the 6.85M pin again inert
   ("larger than the profiled value ... use the profiled value"), between the 3,424,000 regression boot
   and the 6,849,792 baseline, with 18.82 GB free at pool sizing; the `DSV41_FAST_LOAD=0` control boot
-  is still owed. Boot 1 **crashed at `ncclCommInitRank`** on the KHO/CMA wedge (closed item above).
+  is still owed.
   The reboot cycles en route also **proved boot-time persistence on all six nodes** — after fixing two
   real fstab defects: the rail-wait drop-in was written with a `[Service]` section on the `.mount`
   unit (invalid, ignored — systemd warned) so the mount raced the rail address, and the client's mount
