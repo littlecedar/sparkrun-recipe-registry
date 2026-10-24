@@ -1,0 +1,75 @@
+# ===========================================================================
+# LICENCE — DEPLOYMENT-LOCATION CONDITION (read before distributing)
+#
+# MiniMaxAI/MiniMax-H3 is licensed under the MiniMax H3 Community License
+# Agreement (territorial: Applicable Territory = worldwide minus EU/UK/KR/US).
+# The owner has decided this arm is deployed OUTSIDE the United States, so the
+# run is inside the Applicable Territory BY THE DEPLOYMENT LOCATION. A boot is
+# permitted at a non-US site and NOT permitted at a US site. Do not re-litigate
+# the licence — enforce the location. See the single-node draft
+# zz-minimax-h3-fl2va-t2va-sglang.yaml for the full banner and the binding
+# obligations (IV.1, IV.2, III.4, V.3; governing law Hong Kong).
+# ===========================================================================
+recipe_version: "2"
+model: MiniMaxAI/MiniMax-H3
+model_revision: 42ed227ee7df40d41602854ae760620d6eb651fe
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  DRAFT probe arm (`zz-`), not shippable as-is: the QUESTIONS.md #7 four-rank
+  video cell — the same components the single-node draft serves (AdaLN-pruned
+  FP8 DiT 19.52 GiB + NVFP4-AWQ Qwen3-VL-32B text encoder 14.61 GiB + fp16
+  video VAE + fp32 audio VAE), rendered at TP=4 over the quartet so the
+  DiT/encoder sharding question (per-step activation exchange across ranks) is
+  measured rather than argued. Engine-source read 2026-10-24 inside the pinned
+  v0.5.22 image: --num-gpus is plumbed through the diffusion runtime
+  (gpu_worker.py computes local_num_gpus = num_gpus // nnodes and sets
+  WORLD_SIZE; only SenseNovaU1 hard-restricts to num_gpus=1), so a four-rank
+  boot is expressible in principle; whether the MiniMax-H3 denoise loop
+  actually parallelizes is what this cell decides. Two first-boot hazards
+  travel with the single-node draft: (a) the pinned revision reaches every
+  component load and the Comfy-Org repo has no commit 42ed227e — the
+  component-weights-paths values may need to become snapshot-local paths via a
+  mod stage; (b) the AdaLN-pruned DiT may need --minimax-h3-adaln-online or a
+  built cache. Read the serve log before changing precision.
+metadata:
+  model_url: https://huggingface.co/MiniMaxAI/MiniMax-H3
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "33.1B"
+  model_dtype: fp8
+  quant_bits: "8"
+  model_type: diffusion
+  tags: media, video, audio, large_context
+
+defaults:
+  port: 30010
+  host: 0.0.0.0
+  model_variant: fl2va
+  served_model_name: MiniMaxAI/MiniMax-H3
+  num_gpus: 4
+  performance_mode: auto
+  dit_weights: Comfy-Org/MiniMax-H3/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
+  text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
+
+readiness:
+  inference: false
+  port_timeout_s: 3000
+  health_timeout_s: 2400
+
+command: >
+  sglang serve
+  --model-path {model}
+  --revision {model_revision}
+  --model-variant {model_variant}
+  --served-model-name {served_model_name}
+  --component-weights-paths.transformer {dit_weights}
+  --component-weights-paths.text_encoder {text_encoder_weights}
+  --component-weights-paths.video_vae {video_vae_weights}
+  --num-gpus {num_gpus}
+  --performance-mode {performance_mode}
+  --host {host}
+  --port {port}
