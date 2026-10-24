@@ -345,6 +345,15 @@ the 16384 chunk plausibly reduces prefill/decode switching under concurrency, wh
 interleaved re-take would have to confirm. Receipts `~/benchmarks/tp4-window-20261024/`
 (`boot6-suite-eval/`, `boot6-toolbench.{json,csv}`, `suite-ladder.json{,.csv}`).
 
+**Long-needle re-take, 2026-10-24 ~15:45 ET (boot 10, same shipped line, task in
+`boot10-needle.launch.log`): the boot-6 caveat is RESOLVED UPWARD.** `tools/needle-haystack.py`
+depths 10–50 at a 1,048,576-token window, `--chars-per-token 4.0065`, `--max-tokens 512`
+(non-truncated answers): **5/5 PASS at ~999k prompt tokens** — 998,468 / 997,583 / 999,044 /
+999,281 / 999,241 prompt tokens, latencies **257.5 / 252.2 / 248.5 / 262.4 / 268.0 s** (~4.1 min
+per 1M prefill at the shipped 16384 chunk). The window's needle leg now matches the baseline
+receipt's bar (5/5 at ~999k, depths 10–50) rather than the auto-length 262,144 top rung.
+Receipts `needle-983k-retake.{log,json}` in the window root.
+
 ### 7.3 The v2.4 line: three boots and the pool re-derivation
 
 Same image digest, same pin, same ladder; three TP=4 boots on `.30`–`.33`, one four-node job at a
