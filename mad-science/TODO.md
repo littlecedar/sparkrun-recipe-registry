@@ -2911,6 +2911,16 @@ no BeeGFS measurement, path or fingerprint is restated in this file.
   trust-copy refresh in 2027; (c) the HF-cache migration decision (`QUESTIONS.md` `#20`), with the `Low`
   targets on `.30`/`.34` and the create cost in view. *(effort: medium.)*
 
+- [ ] **Execute the HF-cache migration onto BeeGFS (owner-authorized 2026-10-24)** — the owner's
+  instruction, quoted: *"We want to move the entire head node's cache into beegfs, delete duplicates from
+  the other nodes, and then repeat that process for each node until all models are deduplicated and live
+  in beegfs."* Execution follows `mad-science/BEEGFS-REPORT.md` §11 (`9c96975`): the head's cache first,
+  then dedupe the other nodes, then repeat per node. **Gates:** hash parity plus the `bind,ro` mount
+  proven before any local disposal; a trash-rename before any `rm`; the pool free floor 500 GB; and
+  boot-time persistence proven on `.31` (unit + one reboot) before the first node's bytes are destroyed.
+  Non-live bodies are in scope under the owner's "entire head node's cache" wording until pool free forces
+  a stop. Receipts: `~/benchmarks/beegfs-migrate-20261024/`. *(effort: large, multi-window.)*
+
 ## Image pins and advisories (registry-level)
 
 - [x] **Sanitize cluster-internal addresses out of tracked files** — a history-wide audit on 2026-10-20
