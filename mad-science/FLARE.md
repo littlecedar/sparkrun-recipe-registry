@@ -501,40 +501,52 @@ rejected (commit skew, or distrust of Local Inference Lab's build):
   Residual risk: a custom profile freezes Docker's syscall protections at today's default and drifts
   as Docker updates — but the delta is three allowlist entries, reviewable in one glance, and the
   profile is ours to re-diff on engine upgrades. Kernel-side, a node with `kernel.io_uring_disabled`
-  set would fail the probe too; DGX OS's default is assumed to be 0 [SPECULATIVE].
+  set would fail the probe too — this was settled on `.35` the same day (below); the kernel permits it.
 - **If it cannot be permitted:** the container keeps only RAM-backed Engram modes, losing the card's
   recommended `--embedding-table-storage disk`. The honest phrasing of that outcome is "disk-Engram
-  unavailable in container", not "container impossible" — and the probe below decides it before any
-  build work is spent.
+  unavailable in container", not "container impossible" — and the probe decides it before any
+  build work is spent. **It did: both probes ran on `.35` on 2026-10-24** (results in §12.5).
 
-### 12.5 Go/no-go
+### 12.5 Probes executed, and the remaining go/no-go
 
-**Recommendation: proceed to a container trial on `.34`/`.35`, using the vendor arm64 image pinned by
-digest — no APT install, no third-party repository.** The de-risking probes, in order, all `docker run --rm`:
+Two of the three de-risking probes were executed on `.35` only (never `.34`, a quartet rank in the
+declared window), seconds-long `docker run --rm` calls alongside the TP≤2 boots, on 2026-10-24,
+Docker `29.6.2`; receipts and the generated seccomp profile in `~/benchmarks/flare-probe-20261024/`
+on `.35` [VERIFIED, observed output]:
 
-1. `docker run --rm ghcr.io/local-inference-lab/flare@sha256:1bda9d9129970f57af027e0e153c9766fa390cef559c602be3409d02b9db1fb2 --version`
-   — image runs, binary is the expected commit's.
-2. An `io_uring` syscall probe under Docker's *default* profile (e.g. a `python3:slim` container whose
-   `ctypes` calls `io_uring_setup`): EPERM expected; then the same probe under the three-syscall profile:
-   success expected.
-3. `flare agent --listen` as PID 1 with the §12.3 grants; pair by code from the controller.
+1. **The image runs from the pinned digest.**
+   `docker run --rm ghcr.io/local-inference-lab/flare@sha256:1bda9d91… --version` pulled the arm64
+   image by digest and printed **`flare 0.1.0`**. The arm64 route is real, not a tag-list inference.
+2. **The `io_uring` block is confirmed and is unblocked exactly as designed.** A `ctypes` probe calling
+   `io_uring_setup` (syscall 425) inside `python:3.13-slim` returned
+   `io_uring_setup syscall 425 -> -1 errno 1` (EPERM) under Docker's *default* profile, and
+   `io_uring_setup syscall 425 -> 3 errno 0` (an open fd) under the custom profile — moby's default
+   `default.json` plus one allowlist group naming the three `io_uring_*` syscalls. The custom-profile
+   route is proven, not just plausible.
 
-Expected blockers, in order of likelihood: the commit-skew acceptance — 2193455 image vs the bb204798
-`.deb` pin — which is an owner-visible judgment rather than a technical failure; the undocumented
-agent-in-container shape we own thereafter; and the seccomp profile as a standing artifact. If all
-three probes pass, the APT route is unnecessary for everything the repository supplies, and `#6` can be
-closable as "container route authorized; APT never installed."
+Both images were removed again (`docker rmi`) so `.35` is left as found; the profile JSON stays in the
+receipts directory.
 
-**One remaining owner question, stated rather than buried: is the image commit skew acceptable, or must
-the binary be exactly `bb204798`?** If exact, §12.3 applies — and even then no third-party APT is touched.
+**Reframed verdict: the two cheap probes passed; what remains is not cheap and does not go ahead in
+this window's endgame.** Probe 3 — `flare agent --listen` as PID 1 with the §12.3 grants, pairing, and
+then the actual `gb10` package trial — is the real container trial, and it is **not authorized inside
+this window**; it goes to the owner together with the commit-skew question: is the `2193455` image
+acceptable, or must the binary be exactly the `bb204798` `.deb` pin (§12.3 self-build, still
+APT-free)? If the owner authorizes the trial and answers the skew question, the APT route is
+unnecessary for everything the repository supplies, and `#6` is closable as "container route
+authorized; APT never installed."
 
 ### 12.6 What this does not decide
 
-No install was performed, no node was contacted, nothing was downloaded or executed on the fleet for
-this section. The APT route is not formally declined — §5 remains the standing verdict for it, and this
-addendum only shows the owner's preference is satisfiable if the trial passes. Whether the `gb10`
-package loads and serves at all — accuracy, KV headroom, the c16 and 1M-context claims — remains
-unmeasured by either route, and `QUESTIONS.md` `#6` stays open until the owner rules.
+Nothing was installed, no agent ran, no pairing was made, and no serving container was touched. The
+only node contact was two seconds-long `docker run --rm` probes on `.35` — a `--version` call on the
+digest-pinned image and the `io_uring` seccomp pair — with both pulled images removed afterward and
+the profile JSON left in `~/benchmarks/flare-probe-20261024/` on `.35`. The APT route is not formally
+declined — §5 remains the standing verdict for it, and this addendum shows the owner's preference is
+satisfiable if the trial passes. Whether the `gb10` package loads and serves at all — accuracy, KV
+headroom, the c16 and 1M-context claims — remains unmeasured by either route, and `QUESTIONS.md` `#6`
+stays open until the owner rules.
+
 
 Sources added by this section:
 
