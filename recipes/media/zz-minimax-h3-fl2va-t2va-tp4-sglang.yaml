@@ -88,6 +88,7 @@ command: >
   --component-weights-paths.video_vae {video_vae_weights}
   --num-gpus {num_gpus}
   --performance-mode {performance_mode}
+  --warmup-mode off
   --port {port}
   --input-save-path {input_save_path}
   --output-path {output_path}

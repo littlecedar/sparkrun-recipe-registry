@@ -70,18 +70,30 @@ defaults:
   # subdirectory itself; do not point --model-path at a subdirectory).
   served_model_name: MiniMaxAI/MiniMax-H3
   num_gpus: 1
-  # `auto` is the model-aware residency policy (auto_tune.py
-  # DEFAULT_KEEP_RESIDENT_MIN_AVAILABLE_GB = 120.0); `speed` keeps components
-  # resident and OOMs if the workload does not fit, `memory` forces layerwise
-  # offload that buys nothing when host and GPU memory are the same pool.
-  performance_mode: auto
-  # Component values are OWNER/REPO/path/FILE; SGLang reads each file header
-  # for shape and dtype. Pre-quantized files must not be combined with
-  # --quantization or --component-quantizations.*. The audio VAE (0.60 GB
-  # fp32) is not overridden; the base repo supplies it.
-  dit_weights: Comfy-Org/MiniMax-H3/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
-  text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
-  video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
+  # `speed` (as in the four-rank arm, walls fixed 2026-10-24): keeps components
+  # resident and OOMs if the workload does not fit; 39.54 GiB resident fits the
+  # ~58 GB headroom. `memory` forces layerwise offload that buys nothing when
+  # host and GPU memory are the same pool.
+  performance_mode: speed
+  # Component weights as ABSOLUTE pool paths (container /cache -> the shared
+  # BeeGFS HF cache): under HF_HUB_OFFLINE=1 the loader resolves any
+  # repo-id-shaped override via HfApi().model_info and dies with
+  # OfflineModeIsEnabled before the cache is consulted (tp4 arm boot13).
+  # Pinned snapshot e5eb578a89295337b8ff433a035929ce0279e0b6.
+  dit_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
+  text_encoder_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  video_vae_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/vae/minimax_h3_video_vae_fp16.safetensors
+  # Engine runs as uid 1000 on a root-owned 0755 CWD: the relative defaults
+  # `inputs/uploads` and `outputs/` die in os.makedirs (tp2-queue root cause,
+  # 2026-10-24). Do NOT use the "" disable: the engine's post-init warmup
+  # stages warmup_image.png into the input dir. An absolute writable path
+  # satisfies both.
+  input_save_path: /tmp/h3-inputs
+  output_path: /tmp/h3-outputs
+  # SGLang reads each component file header for shape and dtype. Pre-quantized
+  # files must not be combined with --quantization or
+  # --component-quantizations.*. The audio VAE (0.60 GB fp32) is not
+  # overridden; the base repo supplies it.
 
 readiness:
   # No chat surface: readiness is the port plus SGLang's /health, which only
@@ -130,3 +142,5 @@ command: >
   --performance-mode {performance_mode}
   --host {host}
   --port {port}
+  --input-save-path {input_save_path}
+  --output-path {output_path}
