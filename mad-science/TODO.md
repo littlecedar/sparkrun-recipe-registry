@@ -899,15 +899,174 @@ Any decision model
 
 ## media
 Any model with multimedia output, diarization, TTS, STT, or other multimedia capabilities
-- [ ] https://huggingface.co/lodestones/Kromoss
-- [ ] https://huggingface.co/pyannote/speaker-diarization-community-1
-- [ ] https://huggingface.co/gradium/phonon-31m-en
-- [ ] https://huggingface.co/Cactus-Compute/whistle
+- [ ] **lodestones/Kromoss — a 5.08B-param MOSS-Image text-to-image fine-tune; probe whether the diffusers route holds the same one-node cell as the shipped Qwen-Image arms, with the turbo LoRA as the fast arm** — *What it is:* a full fine-tune of [OpenMOSS-Team/MOSS-Image-Base](https://huggingface.co/OpenMOSS-Team/MOSS-Image-Base) at 1024 px, Apache-2.0, ungated, diffusers `MOSSImagePipeline` via `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True` (card: https://huggingface.co/lodestones/Kromoss, last modified 2026-10-24, 21.1k downloads). It needs `diffusers>=0.38` and `transformers>=5.3` (card Quick start). *Weights (file listing, https://huggingface.co/lodestones/Kromoss/tree/main):* diffusers layout — `transformer/` bf16 shards **15.19 GB** (3×5.0 + 189.5 MB), `text_encoder/` bf16 shards **16.9 GB** (Qwen3.5-9B), `vae/` fp32 **249.5 MB** (FLUX.2-small decoder); Comfy single-files — `diffusion_models/kromoss_bf16.safetensors` **10.2 GB** (fused `proj.qkv`), `kromoss_int8_convrot.safetensors` **5.4 GB** (ConvRot W8A8 int8, 168 block linears, Hadamard-rotated), `text_encoders/qwen3.5_9b_bf16.safetensors` **19.3 GB**; two fp32 rank-128 **8-step turbo LoRAs** (`8-steps-dmd2-lora.safetensors`, recommended, best PartiPrompts score per the card; `8-steps-dmd-lora.safetensors`), each 1.2 GB. *Resident on one GB10:* bf16 pipeline ≈ **~27–30 GiB** (transformer ~10.2 + TE ~16.9–19.3 + VAE 0.25), trivially inside the 121 GiB pool; the int8 single-file route needs a ComfyUI/dequant path rather than diffusers — [INFERENCE: not yet verified that the int8 file loads outside ComfyUI]. *Engine fit:* diffusers script arm, same shape as the shipped `recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`; **no vLLM-OMNI route is evidenced** — the shipped vLLM-OMNI arms carry `QwenImagePipeline`/`QwenImage21Pipeline` only and the repo ships no vLLM-family model class (NOT FOUND — nothing in the card or tree suggests one). *Quants:* vendor bf16 + the int8_convrot file only; no GGUF/EXL3/NVFP4 of the transformer (NOT FOUND in the tree). *Instrument:* the image-lane per-image wall cell (the Qwen-Image precedent measured 2048² at 53.24 s σ 0.20 n=3 vs 11.24 s at 1024²), plus the lane's recorded trap that **`num_inference_steps` can be silently inert when the scheduler's sigmas win** — Kromoss's euler/simple scheduler must be step-probed by hashing outputs across step counts before any steps claim. *Gate/first cell:* 1024², 50 steps CFG 3 control, then 8 steps CFG 1 + `8-steps-dmd2-lora` at strength 1 (card instructs: apply unmerged, never merge into bf16 weights); falsifier = if the LoRA arm does not reproduce the card's 8-step/CFG-1 look on the same seed, the arm is measured-rejected, not re-tuned. *(effort: medium — one boot, two cells + a step-knob proof; research 2026-10-24.)*
+- [ ] **pyannote/speaker-diarization-community-1 — ALREADY SHIPPED as a measured CPU probe arm; the re-listing opens no work beyond the already-open ASR/WER intelligibility cell — reconcile, do not duplicate** — *Already measured* (item above in §decision; receipts `.35:~/benchmarks-pyannote/`; draft recipe `recipes/media/zz-pyannote-community-1-diarization-cpu.yaml` + lane mod `recipes/media/mods/pyannote-diarize-server/`, built 2026-10-22): ~8.1M-param powerset-segmentation → wespeaker ResNet34 embedding → VBx/PLDA pipeline, 32.8 MB of weights in a 33.7 MB self-contained repo (revision `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`, gated `auto`, CC-BY-4.0 — https://huggingface.co/pyannote/speaker-diarization-community-1), booted CPU-only on `.35` (`pyannote-cpu:4.0.7` image), HTTP-ready 9.56 s, **DER = JER 2.83 % on real two-voice speech**, RTF 0.247, stdlib instruments `tools/diarize-fixture.py` + `tools/diarize-score.py`, tonal-fixture adversarial finding recorded. *What remains open is named inside the existing item:* **TTS intelligibility — diarization answers speaker structure, not word fidelity; the drama-3 arm's open cell needs an ASR model for its WER instrument.** *Verdict:* the `## media` re-listing adds nothing the arm does not already carry — the correct action is de-duplication: this row is a pointer, and the open ASR/WER gap is carried by the whistle item below. No boot, no recipe, no instrument work is authorized by this line. *(effort: trivial — a register edit; research 2026-10-24.)*
+- [ ] **gradium/phonon-31m-en — a 31M-param streaming on-device English TTS (Pocket-TTS/Mimi lineage) at 64.5 MB q8; probe as a second, much smaller CPU TTS arm beside kokoro, with its WER numbers as the falsifiable claim** — *What it is:* text-to-speech, flow-matching transformer predicting audio latents one 80 ms frame at a time, Mimi codec decoder, mono 24 kHz output, streaming while generating; builds on [kyutai-labs/pocket-tts](https://github.com/kyutai-labs/pocket-tts); English only (card: https://huggingface.co/gradium/phonon-31m-en, updated 2026-10-22, 20.6k downloads, `library_name: transformers`, class `GradiumPhononTTSForConditionalGeneration`). *Weights (file listing, https://huggingface.co/gradium/phonon-31m-en/tree/main):* `model.safetensors` **102.8 MB** fp, `model.q8.gguf` **64.5 MB**, `model.q4k.gguf` **55.1 MB**, `default-voice.safetensors` 256 KB — ~31M params excluding the audio tokenizer; ~100 voices in [gradium/phonon-voices](https://huggingface.co/gradium/phonon-voices) (voice cloning is Gradium-studio, not this repo). *Licence + gating:* Apache-2.0, **ungated**; the family split matters — the 40m siblings and multilingual are **CC BY-NC 4.0** (card table), so this lane ships only the 31m-en Apache arm. *Engine fit:* no LLM-engine route — a **bespoke-runtime CPU arm like `kokoro-82m-tts-cpu`**: the vendor runtime is the Rust `ptts` (PyPI `pip install ptts`; runtime repo https://github.com/gradium-ai/xn-ptts, MIT OR Apache-2.0) or transformers-from-source via `AutoProcessor` + `apply_chat_template` with `audio_prompt_latents` (documented on the card). **Arm64/manylinux wheel availability for `ptts` on aarch64 is NOT YET VERIFIED** — that check is the item's first cell, and its failure falls back to the transformers-from-source path inside a digest-pinned `python:3.12-slim` image on the kokoro shape (`recipes/media/kokoro-82m-tts-cpu.yaml`). Resident footprint is negligible (<1 GiB). *Instrument:* once the whistle ASR arm lands, the pair gives the lane its first full TTS-intelligibility cell (transcribe phonon's renders, score WER with the Whisper normalizers) — exactly the gap the pyannote item names. The card's own numbers are the falsifier bar: **Hard-set LLM WER 1.5 % / Seed-TTS LLM WER 0.51 %, Elo 2098 vs Kokoro 2043** (card Benchmarks) — Elo is not reproducible here, the WER claims on hard sentences are. *Overlap flag:* **kokoro-82m already ships as the CPU TTS arm** — phonon is not redundant only if it wins the hard-sentence WER cell, where the card says Kokoro is weakest (3.5 % vs 1.5 %). *Gate/first cell:* install-feasibility check on aarch64, then a fixed-voice render of the drama-3 c1 text through the shipped instrument chain. *(effort: medium — one CPU boot, no GPU node-hour; research 2026-10-24.)*
+- [ ] **Cactus-Compute/whistle — a 16.9 MB single-file multilingual on-device ASR on the Needle CPU engine; probe as the lane's WER instrument for the drama-3 intelligibility cell that pyannote cannot fill** — *What it is:* speech-to-text, `library_name: cactus-needle`, 7 languages (en, de, fr, es, it, nl, pl), log-mel + conv stem → audio encoder → Needle-shaped decoder with gated cross attention, word timestamps from decoder attention, speech embeddings per 80 ms frame, keyword biasing, streaming with two-pass commit; Apache-2.0, ungated (card: https://huggingface.co/Cactus-Compute/whistle, updated 2026-10-18, 54.9k downloads). *Weights (file listing, https://huggingface.co/Cactus-Compute/whistle/tree/main):* the whole model is one **`whistle.cact` 16.9 MB** blob in 2–4-bit Cactus Quants, plus a reference `checkpoints/whistle.safetensors` **220.6 MB**; the engine lives in [Cactus-Compute/needle3](https://huggingface.co/Cactus-Compute/needle3), which ships a **`linux-arm64` platform folder** (verified in the repo tree, alongside `linux-x86_64`, wasm, macos-arm64) each holding a `needle` binary, `libneedle.a` and `needle.h` — so the GB10's aarch64 host is covered by a vendor binary, not a build. *Engine fit:* **no GPU, no LLM engine** — a CPU arm in the kokoro/pyannote shape; `pip install cactus-needle` (https://github.com/cactus-compute/needle) or the direct `needle --model whistle.cact --audio clip.wav` binary; every behaviour is a compiled default or explicit flag and "the engine reads no environment variables", which suits the lane's determinism falsifiers. The decoder is laddered (`--audio-depth`, every depth from 2 layers up), so depth is the one knob worth an A/B. *Resident:* bytes are trivial; per-call cost is the measured quantity. *Instrument:* the lane's missing ASR half — **WER on the drama-3 TTS renders** with the card's own scoring convention (Whisper normalizers, card Benchmarks), plus silence-must-return-empty-transcript as a negative control, and determinism (same wav twice, byte-identical transcript). *Gate/first cell:* verify the `linux-arm64` needle binary runs on a GB10 node (aarch64, no GPU), then WER on the two-voice tier-B fixture's transcripts and on a drama-3 render; falsifier = a WER on real-speech fixtures materially worse than the card's published WER bars (card publishes its chart over 86,174 utterances against Whisper/Moonshine — quote our cell against the chart, never restate it as measured here), or any non-determinism. *Overlap flag:* **this item is the ASR/WER instrument the pyannote item explicitly names as its gap** — pair them; also check `needle whistle compare` (card) as a built-in cross-check against Whisper on the same clip. *(effort: medium — CPU-only, one boot; research 2026-10-24.)*
 
 ## explore
 Any model with reasoning and tool-calling capabilities
-- [ ] https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf
-- [ ] https://huggingface.co/reflection/Beam-1.0-501B-A23B
+- [ ] **Scope `prism-ml/Ternary-Bonsai-2-9B-gguf` as a 2.4 GB ternary vision-reasoner on one Spark** —
+  a **9B-class ternary (−1/0/+1) VLM**: ~8.95B language + ~0.46B vision tower, base `Qwen/Qwen3.5-9B`
+  with the architecture unchanged (32 blocks, hidden 4096, **hybrid attention 24 linear + 8 full**,
+  262,144-token context), weights folded with a blockwise Hadamard rotation whose matching activation
+  transform the runtime applies. **Three packings of the same weights** (`PTQ1_0` dense trits
+  **1,997,486,976 B / 1.86 GiB**, `PQ2_0` 2-bit slots **2,416,851,840 B / 2.25 GiB**, `Q2_0`
+  **2,556,640,128 B / 2.38 GiB**), plus an optional mmproj (**Q8_0 624,229,664 B**, BF16
+  921,704,864 B of reference precision), an in-file MTP head (`PQ2_0-MTP-Q8_0`, 2,675,410,720 B) and
+  a DFlash2 block drafter (1,574,233,856 B); whole repo `usedStorage` **12,766,558,048 B**, one
+  branch `main` @ **`5b2abb02…`**, Apache-2.0, `gated: false` (no token, no acceptance step). *(Every
+  number: the card's own file table and
+  [`api/models/prism-ml/Ternary-Bonsai-2-9B-gguf/tree/main`](https://huggingface.co/api/models/prism-ml/Ternary-Bonsai-2-9B-gguf/tree/main);
+  pin from `expand[]=sha,gated`; research 2026-10-24.)*
+
+  *(**engine fit is a build question, and it splits three ways.** `Q2_0` is the upstream-compatible
+  packing — ggml already carries `GGML_TYPE_Q2_0 = 42` / `GGML_FTYPE_MOSTLY_Q2_0 = 28`, and master's
+  `llama-model.cpp` has the whole `prism.hadamard.*` loader (`load_hparams_hadamard`,
+  `load_tensors_hadamard`, `LLM_KV_PRISM_HADAMARD_VERSION` 1/2, block-size/transform/axis/sign-mode
+  validation). `PQ2_0` (ggml id **142**, group-128) and `PTQ1_0` need the **PrismML fork**
+  (`PrismML-Eng/llama.cpp`, `prism` branch, releases `prism-b1077x`), and the fork is *also* required
+  for **both drafters** — so MTP/DFlash2 cells cannot run on stock. The trap is the third case:
+  builds that predate the merge can load `Q2_0` and **produce gibberish** by skipping the Hadamard
+  transform, so "it boots" is not the gate. **First cell therefore uses a fresh upstream pin, not the
+  resident ones** — `.github/workflows/llamacpp-engine.yml`'s weekly stock-upstream job (the `#8`
+  ruling) gives one without forking; `littlecedar/…-llama-cpp:upstream-a37cc46` / scitrera
+  `b10549-cu131` (llama.cpp `b2e5e9b`, 2026-08-21) are **unverified against the Hadamard loader** and
+  are what the arm should fail on first if it fails. Command shape is already proven twice in-repo:
+  [`recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml`](../../recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml)
+  (same `qwen35` arch family, `mmproj:`, in-file MTP via `spec_type: draft-mtp`, `load_mode: none`,
+  `entrypoint: ""` — the llama.cpp image declares its own ENTRYPOINT) and
+  [`recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml`](../../recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml)
+  (VL + projector). If the fork route is taken, the vendored-build precedent is
+  [`recipes/explore/Dockerfile.kolibri1-llamacpp`](../../recipes/explore/Dockerfile.kolibri1-llamacpp)
+  — arm64-only, `121a-real`, `GGML_NATIVE=OFF`.)*
+
+  *(**which lane, honestly.** It is a single-node **explore** arm, and it is a *candidate* for the
+  easy-traffic gate, not a presumptive winner: the gate is C1 **≥ 69.28**, C10 **≥ 116.27** t/s and
+  house **≥ 36/37** @4096 thinking-on (`TODO.md` §DECISIONS `#49`, `#1`). 2.38 GiB of weights is
+  ~1/5 of Mellum's 8.07 GB, so both throughput bars are plausible; the bar a **1.78–2.28 bpw 9B**
+  will actually fail is the accuracy leg. The card carries **no benchmark table at all**, so nothing
+  about Bonsai's quality is on the record to argue from — the house battery is the first thing that
+  has to speak. Its **vision** claim is on the *demo repo*, not the card
+  ([`PrismML-Eng/Bonsai-demo`](https://github.com/PrismML-Eng/Bonsai-demo) — vision, "native
+  OpenAI-style `tool_calls` with full round-trips, plus MCP"), and this lane has **no vision-quality
+  instrument**: the mmproj cell is a load-and-round-trip probe (does the projector bind, does an
+  image request answer), the same bespoke-instrument situation as the pyannote item's ASR half.
+  Reasoning is card-stated only as sampling policy: thinking is the default, **"allow at least 8,192
+  output tokens"**, avoid greedy with thinking on, `chat_template_kwargs: {"enable_thinking": false}`
+  for the off mode — a budget trap identical in shape to Mellum's.)*
+
+  *(**gate / first cell proposal** — three cells, one node, no owner window needed:
+  (a) boot `Q2_0` on the newest upstream image with `mmproj:` Q8_0, `ctx_size 32768`, `parallel 4`,
+  `kv_unified`, and read the serve log for the Hadamard line — **falsifier: no
+  `loaded … Hadamard-folded weight(s)` line, or duplicated/garbage text on a fixed prompt ⇒ the pin
+  is pre-merge and the arm needs the rebuild, not a re-run**; (b)
+  `benchmarking/concurrency-ladder.yaml` d0 pp 2048 / tg 128 n=5 for C1/C2/C5/C10 at `parallel: 10`
+  to match the ten-slot gate geometry; (c) house battery at 4096 thinking-on. **Then** the second
+  engine candidate (`PQ2_0` + MTP draft-2 on the fork) only if `Q2_0` is slow enough to matter, and
+  the 2B/4B/27B siblings are a ladder, not separate items. Do **not** quote `--spec-draft-n-max 2`
+  cells as the model's decode rate without saying spec is on.)*
+
+  *(**overlaps checked:** repo-wide `grep -i 'bonsai|ternary|prism-ml'` returns **only the bare URL
+  this item replaces** — no recipe, doc or lane note names it. Nearest shipped shapes, none
+  duplicating it: the two VL llama.cpp arms above, the fork-image precedent (`kolibri1`), and
+  `DEEPSEEK.md` §15.2's strata export — whose `PTQ1_0`/`Q2_0` type ids look like this family's but
+  whose engine is `Xolotl`/strata with **no llama.cpp path**, so there is no shared runtime to
+  maintain.)*
+  *(effort: small — one staging pull of 12.8 GB, one image pin (weekly upstream or a vendored fork
+  Dockerfile), three cells; medium if the fork route is needed for spec-decode.)*
+
+- [ ] **Take `reflection/Beam-1.0-501B-A23B` seriously only as a TP=4 capability candidate** — a
+  **501.3B-total / 23.4B-active** sparse MoE (52 layers: 3 dense + 49 MoE, hidden 5120, **256 routed
+  experts top-8 of 8 groups, no shared expert**, DeepSeek-V3-style routing ×2.5), **1,048,576-token**
+  context via **43 sliding-window (512) layers + 9 full-attention NoPE layers**, 48 Q / 8 KV heads,
+  head_dim 128, 152k vocab, modified-Harmony chat template, knowledge cutoff 2026-06-30, English,
+  **Apache-2.0, `gated: false`**. Config is `model_type: beam` / `BeamForCausalLM` — a *new*
+  architecture, so engine support is the whole question, not a knob. *(Card `config.json`; every
+  benchmark number quoted below is the card's own BF16/FP8/NVFP4 triple; research 2026-10-24.)*
+
+  *(**byte math, explicit, because this model's whole story is memory.** Repo `usedStorage`, one tree
+  each, cross-checked against per-shard listings:*
+
+  | checkpoint | repo | weights on disk | per rank @ TP4 | card's min GPU memory |
+  |---|---|---|---|---|
+  | BF16 `reflection/Beam-1.0-501B-A23B` | 188 shards, `…-of-00188` | **1,002,668,503,017 B = 1002.7 GB / 933.8 GiB** | — | 1,204 GB |
+  | FP8 (`compressed-tensors`) `…-FP8` | 188 shards | **503,285,923,088 B = 503.3 GB / 468.7 GiB** (`F8_E4M3` 499,646,464,000 params) | — | 604 GB |
+  | **NVFP4 (`modelopt`) `…-NVFP4`** | 188 layer shards | **293,648,862,719 B = 293.6 GB / 273.5 GiB** (`U8` packed 4-bit 246,625,075,200 + BF16 7,953,224,128 + F32 64,237,824) | **73.4 GB / 68.4 GiB** | 353 GB |
+  | DFlash2 drafter `…-DFlash2` (@`163b276b…`) | — | 3,854,978,296 B | +~1.7 GB/rank (vLLM recipe) | — |
+
+  *Against the fleet's **measured** per-node usable envelope (101.3 GiB — the MiniMax-H3 fit note in
+  this file's media §), and TP must divide the 8 KV heads, so only TP ∈ {1,2,4,8} exist and the fleet
+  is six nodes:*
+
+  | quant | 1 node (101.3 GiB) | 2 nodes (202.6 GiB) | **4 nodes (405.2 GiB)** | 8 nodes |
+  |---|---|---|---|---|
+  | BF16 933.8 GiB | ✗ 9.2× | ✗ 4.6× | ✗ **2.3×** | ✗ (4 nodes short, fleet has 6) |
+  | FP8 468.7 GiB | ✗ 4.6× | ✗ 2.3× | ✗ **1.16×** — 63.5 GiB short before a single activation | ✗ |
+  | **NVFP4 273.5 GiB** | ✗ 2.7× | ✗ 1.35× — 71 GiB short | **✓ fits: 68.4 GiB/rank of weights, 131.7 GiB fleet-wide left for KV + CUDA graphs + activations** — ~23 % above the card's 353 GB minimum | n/a (6-node fleet) |
+
+  *KV is what that 131.7 GiB buys, and it is the model's one cheap axis: only the 9 full-attention
+  layers keep KV — **36 KiB/token BF16, 18 KiB/token FP8** — so ~18 GiB per full 1M-token sequence
+  before sharding: ~7.6M FP8 tokens gross fleet-wide (≈ 7× 1M contexts, before graphs), ~3.8M BF16.
+  **Verdict on fit: NVFP4 at TP=4 or not at all** — FP8 and BF16 are rejected on bytes alone, and
+  TP=3 is not a legal shape, so there is no three-node compromise.)*
+
+  *(**engine fit — this is the real gate.** Beam is **not in any vLLM release** ("Beam support has
+  not shipped in a vLLM release yet", recipe page; badge reads `vLLM 0.33.0+`), so the resident vLLM
+  **v0.32.0** cannot serve it and `vllm.models.beam` is `latest`-docs-only. The one published runtime
+  is `vllm/vllm-openai:reflection-beam`, pushed 2026-10-16 — and it **does carry an arm64 manifest**
+  (`sha256:7fc940745c389123cf06d150f0dc5022b7d7dafa5e958426f…`, 16.78 GB), so its DGX-Spark
+  viability is a kernel question, not an architecture question. The kernels are the risk: the NVFP4
+  default path is **FlashInfer/TRT-LLM-gen** (blog: "TRTLLM NVFP4 MoE path", `flashinfer_trtllm`;
+  Blackwell W4A4, Hopper falls back to Marlin), developed on GB200/GB300 — **whether those cubins
+  cover sm_121 is unverified and is cell (a)'s falsifier**. Fallbacks in the same recipe:
+  `--moe-backend marlin` (FP4 experts, BF16 activations) and, for FP8 only, `--moe-backend triton` —
+  the latter is moot at 468.7 GiB. SGLang is not a route: no `beam` entry in its model registry (grep
+  of the model registry = 0 hits). Prepare for `VLLM_ENGINE_READY_TIMEOUT_S=3600`: FlashInfer
+  autotunes the MoE kernel for **~10 minutes** on first start, close to vLLM's 600 s default.)*
+
+  *(**reasoning and tool calling are on the card as numbers, not adjectives** — this is the arm's
+  actual justification: SWE-bench Verified **81.6 / 80.2 / 80.7 %** (BF16/FP8/NVFP4), Terminal-Bench
+  v2.1 **80.1 / 78.9 / 78.4**, SWE-bench Pro v2-Hard **76.5 / 78.4 / 78.6**, DeepSWE v1.1 **43.3 /
+  43.0 / 42.7**, GPQA-Diamond **90.6 / 90.3 / 89.3**, AIME 2026 **97.7 / 98.0 / 97.5**, HLE no-tools
+  **36.0** and with-tools **51.1**, MCP Atlas **80.8 / 81.5 / 80.5**, Tau3 Banking **36.1 / 36.8 /
+  35.4**, AA-LCR **78.2 / 79.4 / 78.7**, LongBench v2 **67.5 / 67.6 / 67.2**, IFBench **79.6 / 80.7 /
+  79.2**. Note the card's own framing that the *point* is token efficiency (~3× fewer reasoning
+  tokens than leading open models at comparable quality) — so the honest instrument is
+  **quality-per-token**, not raw t/s. Serve-side knobs: `--reasoning-parser beam --tool-call-parser
+  beam --enable-auto-tool-choice`, and **by default vLLM constrains every assistant turn to the
+  checkpoint's grammar** (`VLLM_BEAM_ALWAYS_CONSTRAIN_OUTPUT=0` to disable) — a BFCL tools-leg run
+  that ignores that default measures the grammar, not the model.)*
+
+  *(**gate / first cell proposal** — the four-rank queue, owner-window only (`#51` stand-down
+  definition still governs `.30`–`.33`; `#4` fence lifted 2026-10-23 but a window must still be
+  declared): (a) **boot gate, before any benchmark**: NVFP4 at `-tp 4`, `--kv-cache-dtype fp8`,
+  `max_num_seqs` modest, `VLLM_ENGINE_READY_TIMEOUT_S=3600` — **falsifier: MoE-backend init failure
+  or an sm_121 "no kernel image" on `flashinfer_trtllm` ⇒ retry `--moe-backend marlin`, and if that
+  also fails the model is rejected-on-engine, not on bytes**; (b) house battery 37 @4096 plus the
+  needle at ≥131k (the card's AA-LCR 78.2 is the only long-context claim to argue from, so measure
+  our own); (c) BFCL tools leg for the MCP/tool-calling claim; (d) DFlash2 A/B
+  (`num_speculative_tokens 7`, `enable_adaptive_verification`) last, since the blog's own numbers say
+  it is neutral at low concurrency and +10 % only at high. **This is a capability arm, never the
+  easy-traffic candidate** — a 501B body at TP=4 has nothing to do with the C1 ≥ 69.28 /
+  C10 ≥ 116.27 single-node bars.)*
+
+  *(**staging is its own item, per `#50`**: 293.6 GB is node-local only under the pre-pool rule — but
+  the pool era changes it: the cheapest path is the shared BeeGFS pool (`/mnt/beegfs/huggingface`,
+  all six nodes symlinked), verified with the hf exit code plus `du -sbL` through the snapshot —
+  then `--transfer-mode local --offline` from a resolved manifest only if the cluster profile were
+  overridden (the WOPR profile disables model fan-out, so the pool path needs no staging at all).
+  The 16.78 GB arm64 image is a second, separate transfer, and it is **not** in the 24-entry
+  RepoDigest pin set.)*
+
+  *(**overlaps checked:** repo-wide `grep -i 'beam-1\.0|reflection/'` returns **only the bare URL
+  this item replaces** — no lane has scoped it, and no shipped arm is a MoE of this class at TP=4
+  (the DSv4 TP=4 line is `deepseek_v41` on TensorFold/SGLang; Beam needs a *different* engine
+  entirely, so the two do not share a boot shape). Its only shared instrument with the DSv4 work is
+  the quartet window itself.)*
+  *(effort: large — a non-release engine image, a 294 GB pool prefetch, a ~10-minute FlashInfer
+  autotune on first start, four-rank owner window, and a kernel-availability verdict that can land
+  before the first token.)*
 - [ ] **Scope `ornith-ai/Ornith-1.5-122B` as a one-node replacement for the easy half of the
   DeepSeek-V4.1-Flash TP=4 traffic** — EXL3 and Unsloth-GGUF are the two routes of primary interest.
   **Phase 1 (research + authoring) is DONE; Phase 2 booted two tiers once and was then preempted
