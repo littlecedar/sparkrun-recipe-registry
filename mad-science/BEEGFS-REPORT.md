@@ -68,7 +68,8 @@ state, not a defect for a later session to clean up — do not remove, purge or 
 §1–§10 changes: its measurements stand, and the transport reading (the pilot's 564 MiB/s is an IP-stack
 transfer, not the rail) is the owner's and belongs in the register, not in this section.
 
-**Activation addendum 2026-10-24 (round 4) — the fleet was rebooted, Secure Boot is off, 5 of 6 mounted.**
+**Activation addendum 2026-10-24 (round 4) — the fleet was rebooted, Secure Boot is off, the pool
+activated (five clients at the 01:33Z census; all six by the license fix below).**
 The owner's fix was neither a MOK enrollment nor a signed module on an enabled store: `mokutil --sb-state`
 reads **Secure Boot disabled on all six**, and the client is **`beegfs-client-dkms` 20:8.4.1**, DKMS-built
 and signed with each node's own local key (signer `spark-<node> Secure Boot Module Signature key`,
@@ -91,6 +92,8 @@ no reboot was performed in the window.** Five clients registered and mounted at 
 Client registration denied.`; `.35` is fully configured (storage target `s:6` live and serving, fstab and
 client config in place) but cannot mount until a BeeGFS license is installed on the management host. **No
 license file exists anywhere**; obtaining the free Community key is an owner action (`QUESTIONS.md` `#19`).
+**Resolved the same day — see the license paragraph below; this paragraph is the 01:33Z state, not the
+current one.**
 
 **Capacity.** Pool 4.6 TiB free of 23 TiB; the two `Low`-pool targets are the controller's (`.30`: 294G
 free with its root 92 % full) and a pilot node's (`.34`: 422G) — the pair to look at before any HF-cache
@@ -109,6 +112,33 @@ removed; no HF-cache migration started. The fleet reboot also cleared the RDMA-w
 quartet boot ran in this window**, so the wedge is cleared-by-reboot and unproven until the next boot; the
 owner's standing instruction is that GB10's onboard ConnectX-7 needs an occasional **power-cycle** — warm
 reboots only clear it temporarily (recorded in `AGENTS.md` §Node hygiene).
+
+**Continuation — the mgmtd TLS certificate (2026-10-24, later the same day).** The owner's
+`sudo beegfs license` against `.30` failed with `x509: cannot validate certificate … because it doesn't
+contain any IP SANs`. Cause: the activation generated the pair with
+`openssl req -x509 … -subj /CN=$(hostname)` and no `-addext`, so the certificate carried **no
+subjectAltName at all** (`openssl x509 -ext subjectAltName` → *No extensions in certificate*). It was
+regenerated with SANs for the `.30` rail and management addresses, the loopback address, and the
+controller's own hostname plus `localhost` (365 d); the old pair is backed up under
+`~/benchmarks/beegfs-activate-20261024/cert-backup-20261024/`, and the restart cost one ~3 s mgmtd
+outage. The public certificate was copied to `/etc/beegfs/cert.pem` on the other five nodes — public
+only, no key, no remount — so a CLI run on any node now verifies mgmtd. The architectural point that made
+this safe: **TLS is only the gRPC control channel (CLI↔mgmtd, port 8010); the mounts ride BeeMsg on
+8008/8005/8003 with `conn.auth` + RDMA and never touch the certificate** — which is why five live mounts
+were unaffected and why no client had held a cert copy before. Maintenance obligation: the certificate
+expires in **365 days**, and the five clients' trust copies must be refreshed then; mounts keep working
+regardless, because expiry only breaks management commands.
+
+**Continuation — the license and the sixth client (2026-10-24).** The owner installed the BeeGFS
+Community license **`COM-1504544369`** at `/etc/beegfs/license.pem` on `.30` (Little Cedar Group,
+**unlimited licensed machines**, 1.1 PiB, valid 2026-10-24 → 2031-10-24) and ran `beegfs license
+--reload`. `.35` **joined on the first plain mount attempt** — no service restart, no retry — so the
+fleet is complete: **six clients (`c:31`–`c:36`), `m:1` meta, `s:1`–`s:6` storage, all six mounted at
+`/mnt/beegfs`**, 4.6 TiB free of 23 TiB (18 TiB used, 80 %). `.35`'s kernel log shows `protocol: RDMA` to
+all six servers (meta on `.30` plus storage on all six; evidence
+`~/benchmarks/beegfs-activate-20261024/logs/node-5-rdma-evidence.log`), write+read on `.35` verified, and
+the mgmtd journal has no registration-denied line after the reload. The capacity caveat is unchanged:
+`.30` (294G, root 92 % full) and `.34` (422G) are still `Low`.
 
 ---
 

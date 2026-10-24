@@ -369,6 +369,15 @@ never re-opened.
   Until that system is released to you, use a lock file in this tree." — The convention is now `AGENTS.md`'s
   `.scratch/fleet-window.lock` rule. — provenance: `mad-science/STATUS.md` `Attention` `#10`
   (one-owner-per-transfer); asked 2026-10-23; answered 2026-10-23.
+- **#19 — Install the free BeeGFS Community license key on the management host (`.30`) so `.35`'s client
+  can register and mount?** *Answered 2026-10-24.* **Installed** — the owner put the Community license
+  **`COM-1504544369`** at `/etc/beegfs/license.pem` on `.30` (Little Cedar Group, **unlimited licensed
+  machines**, 1.1 PiB, valid 2026-10-24 → 2031-10-24) and ran `beegfs license --reload`; `.35` **joined on
+  the first plain mount attempt** — no service restart, no retry — so the fleet is **6/6 mounted** and the
+  unlicensed 5-client cap is gone. — The cap was the only thing between a fully configured `.35` and the
+  pool, so the answer completes the activation rather than opening new work; the register's open row is
+  closed rather than left to its default. — provenance: `mad-science/BEEGFS-REPORT.md` round-4 addendum
+  (the license continuation); asked 2026-10-24; answered 2026-10-24.
 
 # TODO list
 
@@ -2888,18 +2897,19 @@ no BeeGFS measurement, path or fingerprint is restated in this file.
   followed: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
   *(effort: medium)*
 
-- [ ] **BeeGFS over the shared HF cache — activated 5/6; the Secure Boot blocker was resolved by the owner
-  (2026-10-24)** — the owner's answer to `TP4-BGFS Q12` was "not now", but the owner then turned **Secure
-  Boot off on all six** and the signed per-node DKMS client loads. Round 4 of `mad-science/BEEGFS-REPORT.md`
-  records the activation: management + metadata on `.30`, one storage target per node (`s:1`–`s:6`),
-  clients mounted at `/mnt/beegfs` on **five** nodes (`.30`–`.34`), the rail transport confirmed in the
-  kernel log, and the throughput probe (1.2 GB/s single-stream write, 3.90/4.68 GiB/s at four streams;
-  create 8–14 ms — the one 0.026 ms reading is suspect and non-reproducible). The vendor packages stayed
-  untouched (`Q16`/`Q17`). **Open work, none started:** (a) the BeeGFS license key on the management host
-  lifts the 5-client cap so `.35` mounts (`QUESTIONS.md` `#19`); (b) boot-time persistence verification on
-  the next reboot — fstab `_netdev,nofail` and the rail-wait drop-in are in place but unverified; (c) the
-  HF-cache migration decision (`QUESTIONS.md` `#20`), with the `Low` targets on `.30`/`.34` and the create
-  cost in view. *(effort: medium.)*
+- [ ] **BeeGFS over the shared HF cache — activation complete, 6/6 mounted (2026-10-24)** — the owner's
+  answer to `TP4-BGFS Q12` was "not now", but the owner then turned **Secure Boot off on all six**, the
+  signed per-node DKMS client loads, and the Community license (`COM-1504544369`) lifted the 5-client cap,
+  so `.35` joined on its first mount attempt and the fleet is complete: six clients, `m:1` meta on `.30`,
+  `s:1`–`s:6` storage, all six mounted at `/mnt/beegfs`. Round 4 of `mad-science/BEEGFS-REPORT.md` carries
+  the activation, the mgmtd-certificate fix (SANs regenerated; the trust copies on the five clients must
+  be refreshed when it expires in 2027 — mounts keep working regardless), and the throughput probe (1.2
+  GB/s single-stream write over the RDMA rail, 3.90/4.68 GiB/s at four streams; create 8–14 ms — the one
+  0.026 ms reading is suspect and non-reproducible). The vendor packages stayed untouched (`Q16`/`Q17`).
+  **Open work, none started:** (a) boot-time persistence verification on the next reboot — fstab
+  `_netdev,nofail` and the rail-wait drop-in are in place but unverified; (b) the certificate-renewal
+  trust-copy refresh in 2027; (c) the HF-cache migration decision (`QUESTIONS.md` `#20`), with the `Low`
+  targets on `.30`/`.34` and the create cost in view. *(effort: medium.)*
 
 ## Image pins and advisories (registry-level)
 
