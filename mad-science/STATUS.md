@@ -63,6 +63,7 @@
 
 | time ET | commit | one clause |
 |---|---|---|
+| 00:09 10-24 | `579ff2d` | **HF-cache migration authorized and executing** under the owner's quoted instruction (head cache first, dedupe the rest, repeat per node) — `QUESTIONS.md` `#20` now authorized-executing, execution item in `TODO.md` §Shared storage with the plan's gates |
 | 00:00 10-24 | `514956a` | BeeGFS fleet complete at 6/6 clients: the Community license (`COM-1504544369`) lifted the 5-client cap and `.35` mounted on its first attempt; the mgmtd TLS certificate was regenerated with SANs (mounts unaffected — TLS is CLI↔mgmtd only) — `QUESTIONS.md` `#19` settled |
 | 21:40 10-24 | `4437804` | BeeGFS activated fleet-wide on the owner's reboot (5/6 mounted; .35 blocked by the unlicensed 5-client cap), Secure Boot resolution recorded as owner-disabled, rail probe 1.2 GB/s single-stream — BEEGFS-REPORT round-4 addendum |
 | 15:41 10-23 | `a585028` | **TP_PAD falsified and `#9` closed by the first TP=4 window**: the shipped pair logs `split ON, window GEMMs (no pad)` (boot9's 42/42 OFF was canary-only), the treatment never booted (NCCL/`ibv_reg_mr`), and the window's cells (C1 65.63 / C10 133.34) are one boot, not a baseline — `DEEPSEEK.md` §18.1, `QUESTIONS.md` `#18` |
