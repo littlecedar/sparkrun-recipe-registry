@@ -2888,14 +2888,18 @@ no BeeGFS measurement, path or fingerprint is restated in this file.
   followed: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
   *(effort: medium)*
 
-- [ ] **BeeGFS over the shared HF cache — deferred on Secure Boot (owner decision 2026-10-23)** — wanted
-  (`TP4-BGFS Q11`) but explicitly **"not now"** until the Secure Boot posture is fixed (`Q12`). The eventual
-  shape: client loaded and a mount on **all six nodes** (`Q13`), metadata service on **`.30`** (`Q14`),
-  clients at **`/mnt/beegfs`** (`Q14`), transport on the **RoCE** interfaces (`Q15`; the pilot's 564 MiB/s
-  is read as an IP-stack transfer). **The nine vendor packages are trusted and must be left alone**
-  (`Q16`/`Q17`): the failed `beegfs-client.service` on every node is owner-installed state, not something
-  to clean up or purge. The pool is a re-downloadable HF cache with an owner-side backup (`Q18`).
-  *(effort: medium; unpark only on an owner Secure Boot decision.)*
+- [ ] **BeeGFS over the shared HF cache — activated 5/6; the Secure Boot blocker was resolved by the owner
+  (2026-10-24)** — the owner's answer to `TP4-BGFS Q12` was "not now", but the owner then turned **Secure
+  Boot off on all six** and the signed per-node DKMS client loads. Round 4 of `mad-science/BEEGFS-REPORT.md`
+  records the activation: management + metadata on `.30`, one storage target per node (`s:1`–`s:6`),
+  clients mounted at `/mnt/beegfs` on **five** nodes (`.30`–`.34`), the rail transport confirmed in the
+  kernel log, and the throughput probe (1.2 GB/s single-stream write, 3.90/4.68 GiB/s at four streams;
+  create 8–14 ms — the one 0.026 ms reading is suspect and non-reproducible). The vendor packages stayed
+  untouched (`Q16`/`Q17`). **Open work, none started:** (a) the BeeGFS license key on the management host
+  lifts the 5-client cap so `.35` mounts (`QUESTIONS.md` `#19`); (b) boot-time persistence verification on
+  the next reboot — fstab `_netdev,nofail` and the rail-wait drop-in are in place but unverified; (c) the
+  HF-cache migration decision (`QUESTIONS.md` `#20`), with the `Low` targets on `.30`/`.34` and the create
+  cost in view. *(effort: medium.)*
 
 ## Image pins and advisories (registry-level)
 

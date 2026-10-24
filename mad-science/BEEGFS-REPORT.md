@@ -68,6 +68,48 @@ state, not a defect for a later session to clean up — do not remove, purge or 
 §1–§10 changes: its measurements stand, and the transport reading (the pilot's 564 MiB/s is an IP-stack
 transfer, not the rail) is the owner's and belongs in the register, not in this section.
 
+**Activation addendum 2026-10-24 (round 4) — the fleet was rebooted, Secure Boot is off, 5 of 6 mounted.**
+The owner's fix was neither a MOK enrollment nor a signed module on an enabled store: `mokutil --sb-state`
+reads **Secure Boot disabled on all six**, and the client is **`beegfs-client-dkms` 20:8.4.1**, DKMS-built
+and signed with each node's own local key (signer `spark-<node> Secure Boot Module Signature key`,
+vermagic `7.0.0-1019-nvidia` matching the running kernel). This overtakes `TP4-BGFS Q12`'s "not now"
+posture — the six-node firmware change happened, by the owner's own hand, and is recorded here as dated
+history, not as a recommendation anyone made. Primary source: the receipt
+`~/benchmarks/beegfs-activate-20261024/SUMMARY-ACTIVATION.md` on the head (state as of
+2026-10-24T01:33Z), with per-node logs beside it.
+
+Activation: management **and** metadata on `.30` — a fresh `beegfs-mgmtd --init` after backing the legacy
+2026-08-21 database to `mgmtd.sqlite.legacy-20261024.bak`, plus a self-signed TLS pair because 8.4's gRPC
+refuses to start without one — one directory-based storage target per node on the existing ext4
+(`s:1`–`s:6`), clients configured on all six with `sysMgmtdHost` = the `.30` **rail** address (plane A,
+per Q15), `conn-interfaces = enp1s0f0np0`, `tuneRemoteFSync=false` per Q18, an fstab
+`_netdev,nofail` line and a `network-online` + rail-wait drop-in. **Boot-time persistence is UNVERIFIED —
+no reboot was performed in the window.** Five clients registered and mounted at `/mnt/beegfs`
+(`.30`–`.34`), file write/read verified.
+
+**Blocker: the unlicensed 5-client cap.** The mgmtd log reads `Number of licensed clients (5) exhausted.
+Client registration denied.`; `.35` is fully configured (storage target `s:6` live and serving, fstab and
+client config in place) but cannot mount until a BeeGFS license is installed on the management host. **No
+license file exists anywhere**; obtaining the free Community key is an owner action (`QUESTIONS.md` `#19`).
+
+**Capacity.** Pool 4.6 TiB free of 23 TiB; the two `Low`-pool targets are the controller's (`.30`: 294G
+free with its root 92 % full) and a pilot node's (`.34`: 422G) — the pair to look at before any HF-cache
+migration (`QUESTIONS.md` `#20`).
+
+**Throughput probe (client `.31`; the kernel log shows `protocol: RDMA` on every server connection, i.e.
+the rail, not the management plane):** single-stream write **1.2 GB/s** / read **1.3 GB/s** (4 GiB
+O_DIRECT), 4-stream write **3.90** / read **4.68 GiB/s**, metadata create **8.0–14.2 ms** (mean of 100).
+That is ~2× the owner's NFS-over-RoCE recollection and ~2.3× the pilot's 564.1 MiB/s single-stream,
+confirming Q15's suspicion that earlier tests rode the IP stack. One early create reading of **0.026 ms is
+recorded as suspect and non-reproducible** (isolated re-runs on the same mount give 8–14 ms); the 8–14 ms
+row is the honest metadata price, and it is the number that matters for bulk `hf download` ingest.
+
+Housekeeping: vendor packages untouched; `docker ps -aq` = 0 on all six before and after; the window lock
+removed; no HF-cache migration started. The fleet reboot also cleared the RDMA-wedge state, but **no
+quartet boot ran in this window**, so the wedge is cleared-by-reboot and unproven until the next boot; the
+owner's standing instruction is that GB10's onboard ConnectX-7 needs an occasional **power-cycle** — warm
+reboots only clear it temporarily (recorded in `AGENTS.md` §Node hygiene).
+
 ---
 
 ## 1. What the cache is today

@@ -261,6 +261,10 @@ remove what the session created** — a leftover is anything undocumented, unkno
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
   and one interconnect shape — and `.30` stays the controller either way (`Q8`).
+- **GB10's onboard ConnectX-7 has a known issue that needs an occasional power-cycle.** Warm reboots
+  clear the RDMA registration wedge only temporarily; after **one** failed warm-boot attempt with
+  `ibv_reg_mr_iova2` / NCCL `unhandled system error`, stop and request an owner power-cycle rather than
+  iterating reboots (owner instruction; `~/benchmarks/beegfs-activate-20261024/`).
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and
