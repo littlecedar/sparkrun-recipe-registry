@@ -369,9 +369,15 @@ AB_ENV: frozenset[str] = frozenset({
     # the expert-parallel dispatch path that the lane records as dying at the
     # first decode plan (attic/ds4/AGENTS.md §11, "planned dynamic direct
     # routing is unsupported for this launch shape").
+    # DSV41_FAST_LOAD is here for the same reason: the image does not bake it
+    # (adapter/fast_load.py enabled() defaults to "0"), and the 2026-10-24
+    # FAST_LOAD=0 control boot needs `-o env.DSV41_FAST_LOAD=0` to reach the
+    # engine — measured 2026-10-24: with the key left as an override, the
+    # launcher's RECIPE_ENV clobbered the override and the serve still logged
+    # "DSV41 fast load ARMED" (the §6.2 RECIPE_ENV trap, third instance).
+    "DSV41_FAST_LOAD",
     "EP_SIZE",
 })
-
 
 def apply_recipe_env(env: dict[str, str]) -> None:
     """Apply the production config, overriding the image's baked ENV.
