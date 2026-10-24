@@ -389,6 +389,25 @@ never re-opened.
   pool boot has measured yet) and the retired head-staging rationale — provenance:
   `mad-science/BEEGFS-REPORT.md` §11 + the round-5 addendum; asked 2026-10-24; answered 2026-10-24.
 
+- **#17 — May the vLLM parity acceptance boot consume a third-party arm64 image built from the
+  `local-inference-lab/vllm` fork (`eugr/spark-vllm-b12x`, arm64/linux, digest `sha256:03a9565…`,
+  pushed 2026-10-15) on four ranks in an owner-declared window?** *Answered 2026-10-24.*
+  **Authorized, pending a workable io_uring/seccomp route** — the owner authorized the image on four
+  ranks; the disk-Engram `io_uring` reads still need a seccomp route sparkrun's `executor_config`
+  cannot express today (a mod or an executor-level addition), so the boot waits on that mechanism, not
+  on permission. — Closes the supply-chain leg of the vLLM parity question; the remaining gate is
+  engineering, not authorization — provenance: `mad-science/DEEPSEEK.md` §17 (`:1273-1405`); asked
+  2026-10-23; answered 2026-10-24.
+
+**TP=4 window (declared 2026-10-24, owner answers in this session's ask).** Node set **`.31`–`.34`**
+("other node set"; `.30` controller-only, `.35` spare), declared in `.scratch/fleet-window.lock`. First
+boot = the shipped knapcio baseline with the shared-cache persistence assertions, then the KV-pool
+pricing boots (`FAST_LOAD=0` control), the b12x acceptance boot, `#2` (prefill chunk), `#3` (topology
+A/B), the ds4 candidate survey and four-node suite legs, and the DSpark window-sweep profiler run —
+**promoted from `attic/ds4/AGENTS.md` §10 into this window**. The wedge remedy inside the window is
+**one warm reboot of the implicated rank, then stop and request a power-cycle** (owner amendment
+2026-10-24; `AGENTS.md` §Node hygiene carries the amended rule).
+
 # TODO list
 
 *(2026-10-14 documentation sweep — six parallel lane/registry scouts over `recipes/**`, `attic/**`,
