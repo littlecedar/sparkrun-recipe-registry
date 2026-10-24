@@ -403,3 +403,146 @@ containerizing, so a no is a durable no for this artifact, not a "later, in a co
 | `[nvct]` | https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities |
 | `[nvflare]` | https://developer.nvidia.com/flare |
 | `[flarellm]` | https://github.com/sauravpanda/flarellm |
+
+## 12. The container route, re-run as the primary option (owner-directed 2026-10-24)
+
+The owner's directive answering `QUESTIONS.md` `#6`: "Explore building our own container — we prefer to
+avoid installing third-party APT repositories unless absolutely necessary." This section re-runs the
+container analysis as the primary route rather than the ruled-out one, and it begins with a search the
+directive did not originally call for and the owner then added explicitly: whether a usable arm64 image
+already exists. **The search changed the answer — the vendor now publishes one.**
+
+### 12.1 Pre-existing arm64 container search (exhaustive)
+
+Since §4's GHCR snapshot (2026-10-23), the registry has grown CI `sha-<commit>` tags and, dated
+2026-10-22, multi-arch `release-<commit>-…` indexes. Every candidate below was resolved through the
+registry v2 API with an anonymous pull token; architecture comes from the manifest, never the tag name.
+Fetched 2026-10-24.
+
+| Source → probe | Result | Evidence |
+|---|---|---|
+| `ghcr.io/local-inference-lab/flare` → tags list | 40 tags. Multi-arch indexes (`latest`, `beta`, `release`, `release-947a5a6-k7-20261022`, `release-2193455-k7-20261022`, `release-2193455-k7-pf4096-20261022`, `sha-8f32be2a…-39362982142-2`, `sha-e7b8c016…-manual-20261020T182758Z-1`), each with a `linux/arm64` child | `[ghcr2]` [VERIFIED] |
+| … `release-2193455-k7-20261022` index | arm64 child `sha256:1bda9d9129970f57af027e0e153c9766fa390cef559c602be3409d02b9db1fb2`; index annotation `org.opencontainers.image.revision: 2193455651794642debdaad0dda91e77ab675031` ("Show observed peaks in dashboard chart labels", 2026-10-22T23:06Z). `latest` and `release` resolve to the same children | `[ghcr2]` + GitHub commits API [VERIFIED] |
+| … `release-947a5a6-k7-20261022` index | arm64 child `sha256:012e4ce8…`; revision `947a5a6dd17…` ("Allocate packed verification graphs with an independent count budget", 2026-10-22T18:37Z) | same [VERIFIED] |
+| … `sha-8f32be2a…` index | arm64 child `sha256:8ee211dd…`; commit = APT build `0.1.0~git20261020031126.8f32be2a-1` | `[ghcr2]`, `[Packages-arm64]` [VERIFIED] |
+| … `beta-5beb454-arm64` | a single-arch arm64 manifest — the one tag §4 already knew | `[ghcr2]` [VERIFIED] |
+| … `release-2193455-k7-pf4096-20261022` index | arm64 child identical to the un-suffixed tag's — an alias, not a variant | `[ghcr2]` [VERIFIED] |
+| Docker Hub: `local-inference-lab` namespace; search "flare-inference"/"flare-local-inference"; `nvidia/flare`, `nvidia/flare-inference` | empty namespace; only fuzzy non-vendor matches; both NVIDIA names 404 | Hub v2 API [VERIFIED negative] |
+| NVIDIA NGC (`catalog.ngc.nvidia.com`) | catalog not queryable anonymously (JS app shell, no public search API answered); `nvcr.io/nvidia/flare` is the unrelated federated-learning product | [NEGATIVE UNPROVEN — LIKELY none; an NGC pull needs an account this fleet has not used] |
+| Quay.io public search | no `local-inference-lab` or flare-inference image | Quay API [VERIFIED negative] |
+| GitHub Packages (`orgs/local-inference-lab/packages`) | 401 unauthenticated — but this org's containers are exactly the GHCR listing above, enumerated directly | [VERIFIED by substitution] |
+| GitHub Releases of `NVIDIA/flare-local-inference` | none — the releases list is empty; no binary tarball, no wheel, no image artifact | Releases API [VERIFIED negative] |
+| PyPI `flare-inference` / `flare-local-inference`; npm `flare-inference` | 404 ×3 | [VERIFIED negative] |
+| `local-inference-lab` org repos (`p2pmark`, `rtx6kpro`, `llm-inference-bench`, `quant-toolkit`) | none is a container or agent-packaging repo | org repos API [VERIFIED negative] |
+| GitHub repo search: "flare-local-inference"; "flare dgx-spark" | upstream plus 67 plain forks, none repackaging the agent; closest community work is **source builds, not containers**: `sxuff/qwen38-flash-next-flare` builds Flare 0.1.0 from source (`1fd1f91`) and serves on one GB10 | `[gh-search]`, `[sxuff]` [VERIFIED as searched] |
+| Web search for a community arm64 flare-agent container | none found; `MiaAI-Lab/sparkDash` only *monitors* Flare endpoints on arm64 Sparks | `[sparkdash]` [VERIFIED as searched] |
+
+**Conclusion:** a vendor-published, commit-annotated `linux/arm64` image exists. The memo's flip
+condition (§10, first bullet) is satisfied structurally. Two caveats keep the self-build sketch (§12.3)
+alive as the fallback: (a) there is **no `sha-bb204798` tag** — the image commits (2026-10-22) are
+*newer* than the `.deb` pin (`bb204798`, built 2026-10-21), and whether a newer binary satisfies the
+`gb10` package's graph contract and RoCE proxy ABI (`[multi-host.md:38-41]`) is unverifiable without a
+boot; (b) `k7` and `pf4096` are undocumented in the repo tree [SPECULATIVE: `pf4096` plausibly the
+card's 4096-token prefill chunk, but its manifest children are byte-identical to the un-suffixed tag's,
+so the tag is an alias either way].
+
+### 12.2 What the APT route supplies, and what a container can supply
+
+| Artifact | In the APT repo? | Container substitute | Status |
+|---|---|---|---|
+| the binary — agent, rank runner, and Helios engine in one stripped aarch64 PIE (`/usr/bin/flare`, 20.5 MB) | yes — the `.deb`'s only payload beyond docs (`[deb-data-tar]`) | the image's `/usr/local/bin/flare`, built from the same repo (`cargo build --locked --release`, rustc 1.94.1) | [VERIFIED] `[Dockerfile]` |
+| engine runtime | same binary (Helios links in; no CUDA toolkit, no Python in the image) | same | [VERIFIED] `[Dockerfile]`, `container.md` (2193455) intro |
+| runtime package — weights, cubins, graphs | **no — never in the repo**; fetched from the HF Hub (`flare download ORG/MODEL --revision gb10`) | same; bind-mount a Hub cache owned by UID 10001, or `--user` the host UID | [VERIFIED] `container.md` (2193455), "Downloading packages" |
+| config — trust store, publisher key, HF token | no; operator-provisioned (`trust.toml`, `publisher.json`) | bind-mount + `--trust-store`; unattended approval via the §7.4 flags | [VERIFIED] `container.md` (2193455), "Run" |
+
+The APT repository supplies exactly **one** needed artifact: the binary. Everything else already comes
+from outside the repository. That is what makes the owner's preference actionable rather than symbolic.
+
+### 12.3 Build recipe sketch — shrunk to the fallback delta
+
+Because §12.1 found a usable arm64 image, the sketch below is what remains **if** the vendor image is
+rejected (commit skew, or distrust of Local Inference Lab's build):
+
+- **Base and toolchain.** Upstream's own `Dockerfile` already targets both architectures: `rust:1.94.1-slim-trixie`
+  build stage, `debian:trixie-slim` runtime, `libibverbs1` + providers on arm64 only,
+  `ENTRYPOINT ["/usr/local/bin/flare"]`, UID 10001, no CUDA toolkit and no Python — `libcuda.so.1` is
+  loaded from the host through `--gpus` [VERIFIED, re-read 2026-10-24]. Build with
+  `docker buildx build --platform linux/arm64 .` on a Spark; the rustc version matches the `.deb`'s
+  `build-info`.
+- **No third-party APT at any step.** The base images are official Docker Hub images and the runtime
+  stage's `apt-get` lines hit only Debian's own repositories [VERIFIED, Dockerfile].
+- **Provenance tie.** `cargo build --locked` from a chosen commit reproduces the build; comparing
+  against the `.deb` binary (§7.3) extends to an image the same way [LIKELY — Lockfile pins crates;
+  the aarch64 toolchain is pinned by the base image tag].
+- **Lifecycle mapping.** `flare agent install` + `loginctl enable-linger` becomes `flare agent --listen`
+  as PID 1 under `--restart=unless-stopped`; `Restart=on-failure, RestartSec=5` maps onto the restart
+  policy. `$HOME` state — `node.key` (0600), the `~/.local/lib/flare-agent/flare` copy, `~/.cache/flare`
+  — moves to a named volume or a bind so pairing survives recreation; pair by code, per §5 [LIKELY —
+  spec'd, not tested; the agent-in-container shape remains undocumented, §4 friction 2].
+- **Host grants.** `--net=host` (grant names rail addresses), `--device /dev/infiniband`,
+  `--gpus …,capabilities=compute,utility` (a containerized agent needs NVML, so `utility`),
+  `--ulimit memlock=-1:-1`.
+- **Secrets.** `node.key`, pairing code, `trust.toml`, `publisher.json`, optional HF token — all
+  mounted, none baked into the image.
+
+### 12.4 The `io_uring` / seccomp question
+
+- **Verified:** the engine's disk modes need `io_uring_setup`, `io_uring_enter`, `io_uring_register`,
+  and the vendor says so plainly: "The container's seccomp policy must permit … Docker's default policy
+  can block them; use a policy allowing those calls" (`container.md` at 2193455, closing paragraph).
+- **Verified:** Docker's default profile denies all three. The engine's syscall table lists them as
+  "Blocked due to security vulnerabilities that can be exploited to break out of containers. See
+  moby/moby#46762"; moby's generated default profile is `SCMP_ACT_ERRNO` with no `io_uring_*` entry in
+  its allowlist, so the syscalls are denied by absence (moby master, 2026-10-24; the block PR closed
+  2023-11-02 and shipped in the Nov-2023 security releases [LIKELY — the version attribution was not
+  re-confirmed]).
+- **The unblock route:** start from the engine's own default profile JSON, add the three syscall names
+  to the allowlist, pass `--security-opt seccomp=profile.json`. Do **not** use `seccomp=unconfined`.
+  Residual risk: a custom profile freezes Docker's syscall protections at today's default and drifts
+  as Docker updates — but the delta is three allowlist entries, reviewable in one glance, and the
+  profile is ours to re-diff on engine upgrades. Kernel-side, a node with `kernel.io_uring_disabled`
+  set would fail the probe too; DGX OS's default is assumed to be 0 [SPECULATIVE].
+- **If it cannot be permitted:** the container keeps only RAM-backed Engram modes, losing the card's
+  recommended `--embedding-table-storage disk`. The honest phrasing of that outcome is "disk-Engram
+  unavailable in container", not "container impossible" — and the probe below decides it before any
+  build work is spent.
+
+### 12.5 Go/no-go
+
+**Recommendation: proceed to a container trial on `.34`/`.35`, using the vendor arm64 image pinned by
+digest — no APT install, no third-party repository.** The de-risking probes, in order, all `docker run --rm`:
+
+1. `docker run --rm ghcr.io/local-inference-lab/flare@sha256:1bda9d9129970f57af027e0e153c9766fa390cef559c602be3409d02b9db1fb2 --version`
+   — image runs, binary is the expected commit's.
+2. An `io_uring` syscall probe under Docker's *default* profile (e.g. a `python3:slim` container whose
+   `ctypes` calls `io_uring_setup`): EPERM expected; then the same probe under the three-syscall profile:
+   success expected.
+3. `flare agent --listen` as PID 1 with the §12.3 grants; pair by code from the controller.
+
+Expected blockers, in order of likelihood: the commit-skew acceptance — 2193455 image vs the bb204798
+`.deb` pin — which is an owner-visible judgment rather than a technical failure; the undocumented
+agent-in-container shape we own thereafter; and the seccomp profile as a standing artifact. If all
+three probes pass, the APT route is unnecessary for everything the repository supplies, and `#6` can be
+closable as "container route authorized; APT never installed."
+
+**One remaining owner question, stated rather than buried: is the image commit skew acceptable, or must
+the binary be exactly `bb204798`?** If exact, §12.3 applies — and even then no third-party APT is touched.
+
+### 12.6 What this does not decide
+
+No install was performed, no node was contacted, nothing was downloaded or executed on the fleet for
+this section. The APT route is not formally declined — §5 remains the standing verdict for it, and this
+addendum only shows the owner's preference is satisfiable if the trial passes. Whether the `gb10`
+package loads and serves at all — accuracy, KV headroom, the c16 and 1M-context claims — remains
+unmeasured by either route, and `QUESTIONS.md` `#6` stays open until the owner rules.
+
+Sources added by this section:
+
+| Handle | URL / method |
+|---|---|
+| `[ghcr2]` | ghcr.io registry v2 API (`local-inference-lab/flare` tags list and manifests, anonymous pull token), fetched 2026-10-24 |
+| `[moby-seccomp]` | docs.docker.com/engine/security/seccomp (syscall table) and moby master `vendor/github.com/moby/profiles/seccomp/{default.json,default_linux.go}`, 2026-10-24 |
+| `[moby-46762]` | github.com/moby/moby/pull/46762 (closed 2023-11-02) |
+| `[gh-search]` | api.github.com repo search: `flare-local-inference`, `flare dgx-spark`; upstream forks list (67) |
+| `[sxuff]` | github.com/sxuff/qwen38-flash-next-flare (README, main) |
+| `[sparkdash]` | github.com/MiaAI-Lab/sparkDash (README) |
