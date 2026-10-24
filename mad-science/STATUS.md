@@ -63,6 +63,7 @@
 
 | time ET | commit | one clause |
 |---|---|---|
+| 00:00 10-24 | `514956a` | BeeGFS fleet complete at 6/6 clients: the Community license (`COM-1504544369`) lifted the 5-client cap and `.35` mounted on its first attempt; the mgmtd TLS certificate was regenerated with SANs (mounts unaffected — TLS is CLI↔mgmtd only) — `QUESTIONS.md` `#19` settled |
 | 21:40 10-24 | `4437804` | BeeGFS activated fleet-wide on the owner's reboot (5/6 mounted; .35 blocked by the unlicensed 5-client cap), Secure Boot resolution recorded as owner-disabled, rail probe 1.2 GB/s single-stream — BEEGFS-REPORT round-4 addendum |
 | 15:41 10-23 | `a585028` | **TP_PAD falsified and `#9` closed by the first TP=4 window**: the shipped pair logs `split ON, window GEMMs (no pad)` (boot9's 42/42 OFF was canary-only), the treatment never booted (NCCL/`ibv_reg_mr`), and the window's cells (C1 65.63 / C10 133.34) are one boot, not a baseline — `DEEPSEEK.md` §18.1, `QUESTIONS.md` `#18` |
 | 15:43 10-23 | `75bfc41` | community-1017 **delta study + TP_PAD finding**: `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` is Stack A on the same base image digest and SGLang tree, its documented 42/42 `split OFF` matches the git-ignored 2026-10-02 quartet log, and the `DSV41_TP_PAD=0` flip needs no file change — `DEEPSEEK.md` §18 |
