@@ -807,3 +807,329 @@ receipt carrying the measured cells, and that receipt exists.
   mod-side fetch that sets `HF_HUB_OFFLINE=0` (sparkrun injects 1), with `HF_TOKEN` a documented
   prerequisite. I2V, FLF2V and the 4K/50 preset remain measured on the **runbook** (2026-10-18 cells),
   not on the recipe; the recipe serves T2V.)*
+
+
+# 2026-10-24 sweep
+
+Archived 2026-10-24 from `mad-science/TODO.md`, copied verbatim: the completed `- [x]` items
+and the one self-closing item (the qwen4 diagnostic retirement), with nested notes included.
+Live planning stays in `mad-science/TODO.md`; dated session records live in
+`mad-science/SESSION-RECORD.md`.
+
+## ds4
+
+- [x] **Try a larger 1M prefill chunk than the shipped 8192 — MEASURED AND SHIPPED 2026-10-24.**
+  `CHUNKED_PREFILL_SIZE=16384` on the shipped line (`-o env.CHUNKED_PREFILL_SIZE=16384`, quartet
+  `.31`–`.34`, task `a2e141223b52793c_e2c160f10849`): five cold ~999k prefills at **235.3–269.8 s
+  (mean 245.0 s, ~4.09k t/s) vs the 8192 control's mean ~576 s / 1738 t/s — 2.35×**, per-chunk mean
+  4179 t/s (n=299) vs the control's saturated ~1500, and needle **5/5 PASS** at ~999k so accuracy
+  is intact. Shipped as the default under the 2026-10-18 `[#36]` rule (`06ca895`: launcher
+  `RECIPE_ENV`, recipe comment, guard updated). Accounting and comparison: `DEEPSEEK.md` §9;
+  receipts `~/benchmarks/tp4-window-20261024/`. *(effort: none — done; one boot.)*
+
+- [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
+  `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
+  asserted per boot) settled the **TensorFold v0.6 engine bump**: control `fabbe861…` is engine
+  `0.6.3` (built 2026-10-05 from `d5d7bb3`), treatment `d6e4c10d…` is `0.6.6` at `3825f62`, and on
+  the depth-0 ladder (3 runs/cell, n=9/cell) the treatment reads c1 64.47 (flat), c4 51.15
+  (+10.9 %, ranges overlap), c8 **52.45 (+26.5 %)**, c16 **53.21 (+25.7 %)**, with cold prefill
+  **2,077 t/s @ 32k (+24.6 %)** and **2,073 @ 131k (+39.5 %)**. The treatment's worst single run
+  beats the control's best at c8 and c16, so the falsifier is not met: **adopted**, and the shipped
+  recipe now pins `d6e4c10d…` (one-time 264 s JIT on the first v0.6 start; later launches 80.3-80.9 s
+  vs the control's 80.1-81.5 s). **`reasoning_effort: high`** was measured request-level on that
+  serve: paired same-task A/B (10 tasks × 2 rounds × 2 arms, arm order flipped per round) gives a
+  **10.6 % reasoning-token saving** at house 37/37 on both arms with no pass→fail flip — but
+  `hard-rev` (128 → 43) carries most of it and the bar is cleared by 0.6 points, so it is recorded
+  as "clears, not a headline". Receipts `~/benchmarks/ds4-v06-ab-20261021/` (`REPORT.md`) and
+  `~/benchmarks/ds4-v06-build-20261021/` (build log, digest); `mad-science/DEEPSEEK.md` §11.3/§11.4 carry the tables.
+
+- [x] **`DSV41_TP_PAD=0` — FALSIFIED and closed 2026-10-23: the split was already ON, and the treatment
+  never booted.** The control boot of the shipped arm (image `acfc331a` + 1017 body, pad at its default) on
+  `.30`–`.33` logged `split ON, window GEMMs (no pad)` with `split OFF` 0 and `slice failed` 0, and the
+  2026-10-22 baseline serve log shows the same — so the canary-era 42/42 `split OFF` did **not** carry to
+  the shipped pair despite byte-identical adapters (`DEEPSEEK.md` §18.1). All three
+  `-o env.DSV41_TP_PAD=0` launches died before weights load at `ncclCommInitRank`
+  (`ibv_reg_mr_iova2`, Cannot allocate memory); their logs carry `DSV41 TP pad installed` **0** times
+  against 5/4 in control, so the override does reach the adapter but no knob result exists. **Do not ship
+  the `RECIPE_ENV` line** — the owner's ship-if-passes permission was conditional on a passing treatment.
+  Receipts `~/benchmarks/tp4-pad-20261023/`. *(effort: none.)*
+
+- [x] **KV pool regression: 3,424,000 tokens with the 6.85M pin inert — SETTLED 2026-10-24: the fast
+  loader is the cause.** The owed control ran on `.31`–`.34` (shared-cache pool, image `acfc331a`,
+  same serve line): `-o env.DSV41_FAST_LOAD=0` first **did not reach the engine** — `DSV41_FAST_LOAD`
+  was a `RECIPE_ENV` override and the launcher clobbered it (the §6.2 trap, third instance); the key
+  joined `AB_ENV` (`49471a2`) and the relaunched control profiled **6,999,040** full tokens at
+  `available_bytes=12.77 GB` with zero `fast load ARMED` lines, clamping the pin to
+  **6,849,792 — identical to the 2026-10-22 baseline**. FAST_LOAD=1 boots profile 3.42–4.36M,
+  variable with page-cache timing (four observations: 3,424,000 / 3,846,656 / 4,238,080 /
+  4,355,584), so no fast-loader figure is pinnable; the shipped 6.85M pin is correct as shipped at
+  FAST_LOAD=0 and inert-but-harmless at FAST_LOAD=1, and the per-mode pin choice is the owner's
+  (`QUESTIONS.md` `#21`). Cost side: stock loader `load_weight=583.97 s` vs 71–138 s eager.
+  Full triad table: `DEEPSEEK.md` §18.2; receipts `~/benchmarks/tp4-window-20261024/`
+  (`boot1-baseline.launch.log`, `boot3-fastload0*`). *(effort: none — done; three boots.)*
+  *(Owner decision 2026-10-24 (SURVEY row 1 / `QUESTIONS.md` `#21`) — the per-mode choice is settled:
+  **"Any pins should be accurate, even if a wrong pin would be harmless."** The single 6.85M pin is correct
+  at FAST_LOAD=0 and stays; FAST_LOAD=1 gets its own accurate pin (or an explicit no-pin) — the inert
+  6.85M clamp must not stand for the fast-load mode, and the launcher's `AB_ENV` makes the per-mode pin
+  expressible. This closes `#21` (moved to `TODO.md` §"Settled questions").)*
+
+- [x] **RDMA registration wedge — root cause found and fixed 2026-10-24: `kho=off`.** The wedge was never
+  a hardware state needing a power-cycle: kernel `7.0.0-1019-nvidia` enables Kexec HandOver, whose
+  ~9.3 GiB scratch area is donated to the allocator as `MIGRATE_CMA` pageblocks; with `MemFree` low the
+  allocator hands them to NCCL's host buffers and the NIC's long-term pin fails (`ibv_reg_mr_iova2`
+  ENOMEM → `ncclCommInitRank` system error), which is why every warm reboot "fixed" it temporarily — a
+  reboot empties page cache, the mechanism, not the cure. The tell is **`CmaFree > CmaTotal`**
+  (`CmaTotal: 0 kB`, `CmaFree: ~9.3 GiB` on every node). Fix: `kho=off` via
+  `/etc/default/grub.d/99-zz-kho-off.cfg` (grub.d prefix + `$GRUB_CMDLINE_LINUX_DEFAULT` expansion
+  both load-bearing), applied to `.31`–`.34` and verified across two reboot cycles: **CmaFree 0**,
+  `nr_free_cma 0`, and the quartet boot that died at `ncclCommInitRank` 38 s in got past init
+  (`ROCE_TP8_READY` with zero errors). Sources: NVIDIA forum 383023;
+  `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (ftrace proof + two independent `kho=off`
+  confirmations). **Fleet-wide by owner instruction the same hour** (`.30`/`.35` patched and rebooted;
+  `beegfs-mgmtd` back active on `.30`); power-cycle stays the fallback for a genuinely wedged HCA.
+  *(effort: none — done.)*
+
+- [ ] **First quartet boot under the shared-cache WOPR profile** — created 2026-10-24 when
+  `distribution.model.enabled: false` landed on the cluster profile (`960e164`): it is the only event
+  that exercises the shared-cache launch path end-to-end and the cell that prices the pool load path
+  (§5's load-rate table is the pre-migration baseline). It is also the boot-time-persistence proof the
+  migration left open — if the fstab `_netdev,nofail` mount is slow, containers see an empty `/cache`,
+  so the launch must assert the prepared model path exists before the engine execs. Boot the shipped
+  knapcio line, read `max_total_num_tokens` and the load-time line, and record both against the
+  node-local era. *(effort: one boot; pairs naturally with the KV-pool pricing boots above.)*
+  *(progress 2026-10-24 — boot 1 **crashed at `ncclCommInitRank`** on the KHO/CMA wedge (see the closed
+  item above). **Boot 2 is the result**: post-`kho=off`, the quartet served healthy —
+  launch→ready ≈251 s, `load_weight=71.15 s` for the fp8 body (**≈6.7 GB/s from the pool** — the
+  "boot times may be longer" worry is refuted; faster than the node-local era), `/v1/models` answers
+  with `max_model_len` 1,048,576, and **`max_total_num_tokens=4,238,080`** — the 6.85M pin again inert
+  ("larger than the profiled value ... use the profiled value"), between the 3,424,000 regression boot
+  with 18.82 GB free at pool sizing; the `DSV41_FAST_LOAD=0` control boot ran later the same day and
+  **settled the item** (6,999,040 profiled / 6,849,792 clamped — see the KV-pool item above).
+  The reboot cycles en route also **proved boot-time persistence on all six nodes** — after fixing two
+  real fstab defects: the rail-wait drop-in was written with a `[Service]` section on the `.mount`
+  unit (invalid, ignored — systemd warned) so the mount raced the rail address, and the client's mount
+  sanity check (`sysMountSanityCheckMS`, was 11000) canceled three of four simultaneous
+  re-registrations; fixed with a `rail-wait.service` + `[Unit]`-only drop-in and
+  `sysMountSanityCheckMS = 0` fleet-wide. Receipts `~/benchmarks/pool-boot-20261024/`.)*
+
+
+## ornith
+
+- [x] **Re-verify the 35B serve line on the SGLang 0.5.18→0.5.21 bump** — a named perf lead (DFlash-reranker + GDN fusion wins) that was recorded as breaking the lane (blocker text at `attic/ornith/AGENTS.md:1203-1206`; the `:883-886` pointer carried here was stale). *(effort: medium)* *(Owner decision 2026-10-19: **approved** — test the bump; it changes the engine
+image/digest, so validate the other ornith arms on the new digest before shipping.)*
+  *(progress 2026-10-21 — **the recorded blocker is refuted at the target tag: the bump is testable, not blocked.** "The Mamba/SWA radix-cache args were removed upstream" is false. `mamba_radix_cache_strategy` and `mamba_full_memory_ratio` are still declared fields at v0.5.21 (`python/sglang/srt/arg_groups/fields/exec_.py:450-457`, `arg_groups/fields/schedule.py:214-218`), still register as `--mamba-radix-cache-strategy` / `--mamba-full-memory-ratio` (`arg_groups/arg_utils.py:290`), and `extra_buffer_lazy` remains a legal choice with the DFLASH lazy-verify hook wired (`arg_groups/mamba_hook.py:113-120`). sglang#40313 (merged 2026-09-20, shipped in v0.5.21) removed the `MambaRadixCache` and `SWARadixCache` *classes*, which no recipe or mod imports; the LIKELY origin of the misread is the v0.5.20 move of every field declaration out of `server_args.py` into `arg_groups/fields/`, so a grep of the old file finds nothing. Of the two named wins only one reaches this lane: the DFlash reranker (LiLiCorr, sglang#37462) engages only for a draft checkpoint carrying `lilicorr_*` geometry, which the `jzinno` DFlash2 and first-party DFlash heads do not, while the GDN QKV materialization removal (sglang#33778, also v0.5.21) applies on the Triton linear-attention verify path these arms resolve to. **Target:** `lmsysorg/sglang:v0.5.21@sha256:b1259f3e…` (tag 2026-10-01, release 2026-10-02), a multi-arch index with a native `linux/arm64` manifest (`sha256:1f176b3a…`, 14.8 GB); the current pin is a 2026-09-08 arm64 nightly whose serve log reports `0.0.0.dev1+g20ca564bf`. **The change:** one-line digest edits in the three SGLang arms (`tests/test_ornith_recipes.py` asserts a shared digest-pinned container, not a literal). **Pass bar per arm:** contract ok, house **37/37**, needle **3/3** at 32k / 131k / 262k, and the on-file ladder bands — 35B C1 100.8-101.8 · C2 153.1-158.2 · C5 217.4-220.4 · C10 244.2-249.9 t/s at d0, 9B C1 52-59 · C2 101.1 · C5 159.0 · C10 148.9 — with the YaRN arm gated on its needle rungs (262k / 512k / 768k 3/3, 1M at depths 10/50/90 % each at ≥95 % fill, d90 retry rule declared before the run) and on reading its `max_total_num_tokens` grant first. **Estimated 3.5-5.5 h** against this item's 6-9 h; BFCL is out of the bar and would add ~2.5 h per arm. Evidence table with commit-level citations in `attic/ornith/AGENTS.md` §"Engine-bump adjudication — SGLang 0.5.18 → 0.5.21 (2026-10-21, repo-side)"; operator plan, staged diff, and pass-bar table in `recipes/ornith/README.md` §"Engine bump to SGLang 0.5.21". Note for the run: `sparkrun` is not on PATH on the local workstation — validate and render on the head node.)*
+  *(CLOSED 2026-10-21 — **all three arms validated on the new digest; the bump ships.** The pins are
+  applied to all three SGLang ornith recipes
+  (`lmsysorg/sglang:v0.5.21@sha256:b1259f3e…`, a multi-arch index with a native `linux/arm64`
+  manifest; the container labels record upstream build commit `e00930c5…`), `tests/test_ornith_recipes`
+  passes 29/29, and the pass ran on a free `.34`/`.35` pair in ~4 h against this item's 6-9 h. 35B on
+  `.34`: contract ok, house **37/37**, needle **3/3** at 32k/131k/262k, ladder d0 n=5 **C1 96.5 / C2
+  148.3 / C5 213.9 / C10 244.1** — every cell inside the on-file band's σ; accept len 2.52-2.64. 9B on
+  `.35`: house **37/37**, needle **3/3** ×3; its ladder read C2 89.6 (11.4 % low), then a ladder-only
+  re-boot **on `.34`** — the node the on-file band was measured on — read **C1 60.6 / C2 97.8 / C5
+  156.1 / C10 147.8**, so the dip was a cross-node artifact, not an engine shift. YaRN on `.34`:
+  pool 1,192,993 tokens, needle gate **6/6 rungs PASS** (1M depths 10/50/90 at fills 97.74/97.75/97.80
+  %), **the d90 intermittent did not reproduce — first-attempt pass, retry rule unused, no die event**
+  (streamed serve-log capture + `docker events` armed throughout; 4 of 4 d90 passes now, on two
+  builds). Of the two named wins, LiLiCorr (#37462) is unreachable for this lane (no `lilicorr_*`
+  draft exists) and the GDN target-verify change (#33778) produced **no measured gain** — the ladders
+  read at or slightly below the prior bands; the bump's value is escaping the dead-end 2026-09-08
+  nightly plus 0.5.21's fixes. Receipts `~/benchmarks/ornith-0.5.21-bump-20261021/`; the full
+  evidence table is `attic/ornith/AGENTS.md` §"Engine-bump adjudication — SGLang 0.5.18 → 0.5.21
+  (2026-10-21, repo-side)", the operator summary is `recipes/ornith/README.md` §"Engine bump to
+  SGLang 0.5.21". Ops learned: render/launch from `/<home-dir>/src/sparkrun-recipe-registry`, not
+  `/<home-dir>/development` (the lane-local mod resolves relative to the symlink and fails); stop with
+  `sparkrun stop <cluster-id> -H <node>` and `docker cp` the serve log first — `stop --all` deleted
+  the `--no-rm` 9B container on `.35` and its serve log.)*
+
+- [x] **Re-pin all six SGLang arms to `v0.5.22` and re-validate each on the new digest** — one patch past the ornith lane's 0.5.21, two past the ifm lane's 0.5.20, so the ifm UNO arms put the FA4 anchor patch on trial as well. *(effort: medium)*
+  *(CLOSED 2026-10-22 — **all six arms booted and held their bars on the new digest; the pins ship**
+  (commit `0f74bc3`). Pin: `lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae`
+  — a published multi-arch index (`docker buildx imagetools inspect`, not a local image id) with a
+  native `linux/arm64` child `06441be3…`; `v0.5.22-cu130` and `latest` resolve to the same index. The
+  three ifm arms are pinned to the `-cu130` spelling of that digest. Runtime moved to torch
+  `2.14.1+cu130`, python `3.12.15`, cuDNN `9.14.0.64`, `nccl_torch 2.30.7`. **OSV: 0 vulns** for PyPI
+  `sglang` 0.5.22. Six sequential single-node serves on `.35` (receipts
+  `~/benchmarks/sglang-0522-20261022/`), `TTR / pool / house`: 35B DFlash2 **238 s / 1,133,804 /
+  37/37** (needle 3/3 at 32k/131k/262k, mamba 614, mrr 48); 9B DFlash **251 s / 1,531,959 / 37/37**
+  (mamba 273); YaRN 1M **129 s / 1,187,727** with `max_model_len` 1000000 confirmed in `/v1/models`
+  (mamba 1293, 11.11 GB free); 0.9B **94 s / 1,764,610 / 32/37**; 0.9B-UNO **94 s / 1,690,881 /
+  33/37**; 7B-FP8-UNO **240 s / 574,698 / 36/37**. The ifm scores reproduce their on-file baselines
+  **item for item** (`fmt-2`, `needle-1` / `hard-rev`, `trick-1`, `trick-2`) — 37/37 is the ornith
+  lane's ceiling, not this one's, so the gate was no regression against each arm's own recorded score.
+  The FA4+UNO mod still applies: its probe logged `anchor count = 1` on 0.5.22 and the arms served
+  `--attention-backend fa4` + `UNO`, which stock 0.5.22 refuses at argument validation. **Arm A's
+  ladder, n=5 (the recorded reading — the `runs=3` triage read 94.3/146.0/207.1/247.7): C1 97.6 ± 8.8
+  / C2 152.1 ± 7.4 / C5 228.7 ± 16.0 / C10 242.3 ± 5.0**, every cell inside the on-file band's σ
+  (100.8-101.8 / 153.1-158.2 / 217.4-220.4 / 244.2-249.9) with the direction stated: C1 −3.2 %,
+  C2 −0.7 %, C5 +3.8 %, C10 −0.8 %; against the 0.5.21 n=5 readings +1.1 / +2.6 / +6.9 / −0.7 %. Zero
+  `WARNING`/`ERROR` lines in all six serve logs, same as the 0.5.20/0.5.21 boots. Gate: 894 tests OK
+  (2 skipped); `sparkrun recipe validate` clean on all six (suggestions only). Lane records:
+  `recipes/ornith/README.md` §"Engine bump to SGLang 0.5.22", `recipes/ifm/README.md` §"Engine bump to
+  SGLang 0.5.22", evidence tables `attic/ornith/AGENTS.md` + `attic/ifm/AGENTS.md` §"Engine-bump
+  adjudication". **Registry trap found and recorded:** `@littlecedar/<name>` resolves the *published*
+  registry, so a bump boot through it silently served the previous pin (it booted v0.5.21 while the
+  worktree was at v0.5.22) — boot by recipe **file path**, and `grep -q <new digest> <recipe> || exit 3`
+  before each boot after a shared-tree checkout. **Not done, deliberately:** no ladder re-take for arms
+  B-F (only the `container:` line changed, the recorded ladders stand), no 1M needle on the YaRN arm
+  (the pass's bar was boot + grant; the 6-rung ladder is ~3.5 h), and 0.9B / 0.9B-UNO were run as
+  **probes** of the lane baseline and the FA4 mod rather than as candidates.)*
+  *(follow-up 2026-10-22 — the only verification this pass left unspent: a **1M needle on the YaRN arm
+  at the 0.5.22 pin**, ~3.5 h, worth doing only if a long-context need appears; the 0.5.21 pass's 6/6
+  rungs and its non-reproducing d90 exit are the standing evidence. Re-take it before quoting a 1M
+  quality claim on 0.5.22.)*
+
+
+## qwen4
+
+- [ ] **Retire the restored highcon diagnostic** — `diag-qwen4-unplaced-scales` is mounted in the **highcon** labquant arm only, as insurance now that the shared-expert scale blocker is explained (the rename mod fixes it, and the diagnostic changes no control flow). The `demote-labquant-narrow-mxfp8-to-bf16` `EXTRA_LEAVES` knob is **not shipping**: it was removed 2026-10-19 once its only stated purpose — the QSA-prefill CUDA-graph crash — was falsified, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md` §2; `mad-science/QWEN4-DIAGNOSTICS.md`; `attic/qwen4/AGENTS.md` §10.1). Only open work: the highcon boot that retires the diagnostic. *(effort: medium)*
+  *(Owner decision 2026-10-18 [#40]: chase both explanations — root-cause the shared-expert scale blocker and the QSA-prefill crash rather than declaring the workarounds permanent.)*
+  *(**Both are root-caused 2026-10-19** — `mad-science/QWEN4-DIAGNOSTICS.md` carries the mechanism
+  with `file.py:line`. The shared-expert blocker is the checkpoint's `.weight_scale` suffix vs the
+  engine's `.weight_scale_inv` registration plus gate/up stacking; the rename mod fixes it and the diag
+  is now insurance, not a workaround. The QSA-prefill crash is `get_prefill_mqa_inputs`' host sync and
+  data-dependent buffer shape during capture; `EXTRA_LEAVES` is **falsified** (the demoted-projection
+  boot crashed identically) and the path is unreachable today because the engine disables prefill
+  graphs for this multimodal checkpoint. Remaining work shrank to: boot `zz-labq-no-diag` (retire the
+  diag control) and delete `EXTRA_LEAVES` (code + docs, no boot). **Correction 2026-10-21: both of
+  those are done** — the balanced probe booted clean (next bullet) and `EXTRA_LEAVES` was removed
+  2026-10-19, machinery deleted rather than shipped empty (`recipes/qwen4/mods/demote-labquant-narrow-mxfp8-to-bf16/README.md`
+  §2; `run.sh` says the same at the floor test). What is left of this item is one boot: the **highcon**
+  arm, where the diagnostic is now restored and re-mounted, retiring it only if that boot is clean.)*
+  *(progress 2026-10-20 — **`zz-labq-no-diag` booted clean, so the diag control can be retired.** TP=2 on
+  the `.34`/`.35` pair (job `1895030211ea0500_3510a5e0d37d`), ready at `/v1/models` 200 in **≈670 s**
+  from launch (mods + a 6 m 37 s sharded load), a `/v1/chat/completions` 200, and the house battery
+  **37/37** (easy 19/19, hard 18/18). The serve log's only `_scale` activity is the *other* mods' benign
+  `[remap] …weight_scale -> …weight_scale_inv` lines — **no `unplaced`/`AssertionError`** — so the assert
+  the diagnostic was insuring against does not fire without it. Receipt
+  `~/benchmarks/qwen4-nodiag-20261020/` (`boot.log`, `house.log`, `house.json`). **Scope correction
+  (same hour):** the first pass deleted the mod outright and stripped it from both labquant recipes; the
+  probe proves only the **balanced** config, so the mod is restored and re-mounted in **highcon only**,
+  with the recipe comment naming the pending boot. The balanced arm stays diag-free (probe = its own
+  receipt). **What the mod does, read from its own README/run.sh:** it is logging-only — it inserts a
+  `_log.error(...)` statement as the first branch of the `_scale` check and changes no control flow (the
+  assert still fires; it deliberately does not relax it), plus it reowns the runtime cache because
+  importing sglang as root triggers flashinfer's JIT. So keeping it in highcon costs one anchored patch
+  and a cache reown, no engine behaviour — which is why it stays as insurance rather than as a
+  workaround. The item stays open until the **highcon arm boots clean without it**; that boot is the
+  queued retirer.)*
+  *(**CLOSED 2026-10-21 — the highcon arm booted clean without it, and the mod is retired.** The
+  control boot ran the mod with its payload never firing (`[diag] UNPLACED _scale` = 0 on both ranks)
+  and every bs-sweep cell inside 3.4 % of its control — **86.8 / 87.5 / 89.5 / 75.4 t/s** at
+  k=8/12/16/24 against 84.9 / 89.1 / 89.1 / 72.9, TTR **9.6 min** (`scheduler_e2e=571.22`),
+  admission unclamped (`max_total_num_tokens=1587072`, `max_running_requests=32`, mamba 128) — so the
+  restore moved nothing and the mod had no work left. It then came out of the recipe's `mods:` chain
+  and the two "pending boot" comment lines, moved to `attic/qwen4/mods/diag-qwen4-unplaced-scales/`
+  (directory and README kept as provenance), and the recipe was re-booted diag-free to prove the
+  edit: `/v1/models` 200 at 262144, `max_total_num_tokens=1597376`, no `AssertionError`, and
+  `_diag_unplaced_scales` **absent** from the patched engine file. The `_scale` failure mode it
+  watched for is preserved in `recipes/qwen4/README.md` rather than lost with the comment lines.
+  Receipts `~/benchmarks/qwen4-highcon-20261021/{REPORT.md,serve-*.log.gz}`.)*
+
+
+## explore
+
+- [x] **Ship the humanizer-12B rewrite arm at Q6_K, the smallest tier that passes its own instrument** — measured 2026-10-22 on `.33` (`sparkrun_7b0a21d0dbeb323d_80fa71eb085e`), commit **`8282f91`**: C1 **17.92 ± 0.04 t/s** @ d0 and 17.87 ± 0.05 @ d8192 (pp 999 / 1,366 t/s) — **2.36× the archived bf16 arm's 7.6** at 10 GB instead of an 88 GB repo; TTR **10.8 s**; **`/v1/completions` only**, because the checkpoint defines no chat template; **0 genuine fact errors across 40 rewrites vs the bf16 baseline's 1** (69 flags, all notation). Q4_K_M is recorded **measured-rejected**: 23.18 ± 0.19 t/s but 2 genuine fact errors ("about 90 minutes" → "A couple hours"; year 2026 → 2006), so it lost the only variable under test. Receipt `~/benchmarks/humanizer-20261022-q6k/`; lane row + tier reasoning `recipes/explore/README.md`. *(no ladder by design — a single-request rewriter has no C2/C5/C10 cell.)*
+
+
+## Recipe schema & documentation (registry-level)
+
+- [X] **Give the llama.cpp build job a runner — closed 2026-10-22 as a GitHub-hosted arm64 job**
+  (`QUESTIONS.md` `#8`: "GitHub-hosted arm64 — confirmed"). The self-hosted ask above is **retired, not
+  kept as a fallback**: `0976a1e` puts the build job on `runs-on: ubuntu-24.04-arm`, deletes the
+  `vars.ARM64_RUNNER_ENABLED` gate and its guard, adds a 20 GB disk preflight (the hosted `/` is the
+  constraint, and a failed build under it is reported with `::error::` rather than an ENOSPC link
+  failure), and moves the guard suite to **931 tests**. What this unblocks is unchanged: the
+  stock-upstream image work (`recipes/explore/Dockerfile.llamacpp-upstream`, `f1b458d`) and the
+  Mellum MTP A/B, whose pre-registration is recorded in the lane item above — the first hosted run,
+  not the landing, is what proves the build.
+
+
+## Shared storage (registry-level)
+
+- [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — ran 2026-10-22, `13:26–13:46:41` ET, with the
+  pair exclusive to it (owner condition: no lane serve, no transfer and no benchmark cell beside it).
+  End state on teardown: 0 beegfs packages, 0 failed units, **0 containers**, `/` back to 279 GB free on
+  `.34` and 615 GB on `.35`. Numbers, the source-build reconciliation and the round-3 install that
+  followed: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
+  *(effort: medium)*
+
+- [x] **Execute the HF-cache migration onto BeeGFS (owner-authorized 2026-10-24)** — the owner's
+  instruction, quoted: *"We want to move the entire head node's cache into beegfs, delete duplicates from
+  the other nodes, and then repeat that process for each node until all models are deduplicated and live
+  in beegfs."* Execution followed `mad-science/BEEGFS-REPORT.md` §11 (`9c96975`) under the gates recorded
+  here (hash parity and the `bind,ro` mount before any local disposal, a trash-rename before any `rm`,
+  the pool free floor 500 GB). **Boot-time persistence is STILL UNVERIFIED** — no post-migration reboot
+  is recorded, and the fstab `_netdev,nofail` + rail-wait risk (a slow mount leaves containers seeing an
+  empty `/cache`) stays open under the activation item's (a).
+  **Done 2026-10-24:** the owner reports the cache is **entirely on the pool** — all models deduplicated
+  and live on BeeGFS, per-node duplicates deleted — closing `QUESTIONS.md` `#20`. The completion state
+  is the owner's report; the receipts above are the execution record. Consequences:
+  **boots read weights over the pool, so boot times may be longer** (no pool boot has priced the new
+  path yet); and the head no longer stages or fans out bodies, so `AGENTS.md` §Node hygiene's >60 GB
+  node-local rule has lost its reason and should be revisited after the first boot from the pool.
+  Receipts: `~/benchmarks/beegfs-migrate-20261024/`. *(effort: large, multi-window — executed.)*
+
+
+## Image pins and advisories (registry-level)
+
+- [x] **Sanitize cluster-internal addresses out of tracked files** — a history-wide audit on 2026-10-20
+  scanned `git log -p --all` and `git log --all --format='%h %s%n%b'` for fabric IPs, the CX7 RoCE
+  subnets and `spark-*.<internal-domain>` names. It found **221 patch-body lines across history and 8
+  commit-message lines**, and confirmed the two by-design-ignored paths (`mad-science/REPORT.md`,
+  `.local/`) were **never tracked**. The live exposure is the *current tree*, not only history: attic
+  lane docs, the ds4 benchmark harness under `recipes/ds4/benchmarks/`, one glm launcher README, and
+  fixture/docstring uses in `tests/`+`tools/`. The 2026-10-20 pass took **the tree only** and left the
+  history to a separate owner decision; **that decision was taken and executed on 2026-10-22** — the
+  history is rewritten as well (`QUESTIONS.md` `#16`, tip `240ecd6`; the `history-purge` item below
+  carries the execution record), and `tests/test_tracked_address_hygiene.py` now walks `git ls-files`
+  on every gate run. *(effort: short)*
+  *(progress 2026-10-20 — **the tree is clean; the history was left to the owner.** Masked with the
+  repo's own rule (`.omp/skills/sparkrun-tracked-file-ip-hygiene/SKILL.md`): RFC1918 literals become the
+  `.30`-`.35` node shorthand, fabric words become "the CX7 plane-A/B subnet", the internal head hostname
+  becomes `<head-node>`, upstream-template placeholders become `<master-ip>`, and the four hostnames in
+  the identity map and in a tuning `metadata.json` become their shorthand nodes. **71 lines across 22
+  tracked files held a literal; 0 do now** (per file: the two ds4 benchmark raw logs 12 each, the ds4
+  lane AGENTS.md 5, `tests/test_cache_audit.py` 10, `tools/cache-audit.py` 5,
+  `tests/test_glm_launcher_shim.py` 5, the ds4 benchmark README 4, and one to three each in 15 further
+  files: attic lane docs, a glm launcher README, the ds4 harness scripts, `tools/decision-ladder.py`).
+  **One exemption, decided by evidence:** `recipes/ds4/benchmarks/data/hle_test.jsonl:121` is a
+  benchmark question that happens to discuss a private network in its prompt — it is data, not our
+  fabric, and masking it would corrupt the eval. **Two coupled fixture changes:** the census fixtures in
+  `tests/test_cache_audit.py` + `tools/cache-audit.py` could not take the `.NN` shorthand because the
+  parser rejects a leading-dot token as a host (the merge test then produced 3 rows instead of 2), so
+  they carry `host-30`-style names instead, assertion and fixture changed together; the glm shim fixture
+  takes `.30:25000` unchanged in behaviour. Gate after the change: **752 tests OK** (2 skipped), **51/51**
+  plain validate, `bash -n` clean. **History:** the earliest commit that already carried a literal is
+  `d8f38a3` (2026-09-18, "Close labquant blocker (e)…", first management-subnet literal); the CX7 subnet form enters at
+  `3c518d1` (2026-10-02, ds4 knapcio). Both were published under the pre-rewrite history; the owner
+  elected the rewrite on 2026-10-22 (`QUESTIONS.md` `#16`) and it is **executed** — every SHA in this
+  file is now a rewritten one, and the `history-purge` item below carries the pre-rewrite tip.)*
+
+- [x] **`history-purge` — rewrite git history to remove the cluster-internal addresses** —
+  **authorized 2026-10-22** (`mad-science/QUESTIONS.md` `#16`) and **executed the same day**. Scope was
+  the 221 patch-body lines and 8 commit-message lines the 2026-10-20 audit counted (the item above
+  carries the audit); the working tree was already masked, so this was history only, and a rewritten
+  history was the accepted cost.
+  *(progress 2026-10-22 — **done: `aac85ec` → `240ecd6`, force-pushed.** `git filter-repo
+  --replace-text` over one substitution file built from the same masking map the tree sweep used;
+  **849 commits preserved**, **one ref** (`refs/heads/main`, with `origin/main` and the remote HEAD on
+  the same commit), **0 tags**; the push was `--force-with-lease`. **Verification at the new tip:** the
+  audit's own scanner re-run over `git log -p --all` reports **7 address lines, all inside the three
+  exempt files** — the published HLE question (`recipes/ds4/benchmarks/data/hle_test.jsonl:121`), the
+  CI detector's planted control, and the hygiene guard's own pattern plus four controls — and
+  `git log --all --format='%h %s%n%b'` reports **0** commit-message hits; the tracked-tree guard
+  (`tests/test_tracked_address_hygiene.py`) is green. **Signatures: 10 `E` + 839 `N` before, 849 `N`
+  after** — a consequence, not a loss: filter-repo strips `gpgsig`, so the rewrite drops commit
+  signatures while every commit object survives. **Every commit SHA changed**, so every citation in the
+  tree was re-pointed through filter-repo's own `.git/filter-repo/commit-map` — **298 citations across
+  26 tracked files**, and a pre-rewrite SHA in an older copy of any doc no longer resolves here.
+  **Backups:** `/tmp/purge-backup/pre-purge-20261022-141525.git` is a `git bundle` (13.8 MB,
+  `git bundle verify` reports a **complete history** at `aac85ec`), and
+  `/tmp/purge-backup/pre-purge-mirror.git` is the mirror clone. **Clones:** the workstation cache and the
+  `.34`/`.35` registry caches were re-cloned at the new tip so no cache still carries the old objects;
+  `.30`–`.33` were left untouched. **`origin` is the only remote — there is no `spark-arena` remote**,
+  and re-adding one later would need the same care about which history it fetches. Gate at the new tip:
+  **940 tests OK** (2 skipped), **67/67** plain validate, **49/67** strict (the same 18 accepted
+  findings).)* *(effort: medium)*
+
