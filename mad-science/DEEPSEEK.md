@@ -332,6 +332,19 @@ hard **ARC 93.5 %** (187/200) and **GSM8K 97.5 %** (195/200), thinking off, seed
 `ok`), Engram packed on both layers (hit_rate 100 %). Receipt
 `~/benchmarks/tp4-20261022/knapcio-arc-gsm8k/`.
 
+**The 2026-10-24 window's suite legs (boot 6, `.31`–`.34`, shared-cache pool, shipped 16384-chunk
+line, task `a2e141223b52793c_d9b5393d1cb6`, KV 3,132,416 this boot).** House **37/37** (easy 19/19,
+hard 18/18, 14.2 s); needle **3/3** with `--needle-max-tokens 512` at 32,768 / 131,072 / 262,144
+(167.0 s) — **caveat: the lengths were the tool's `auto` set, so the top rung is 262,144, NOT the
+historical 983,040**; the 983k rung is not re-claimed by this leg. tool-eval-bench **90, ★★★★★
+Excellent** (15 scenarios, ref v2.6.0, run `2026-10-24T18-13-07…afc6319b`). The ladder leg ran on
+the earlier boot 5 (`a2e141223b52793c_b696795db281`, KV 2,887,936, n=5/cell, decode rows):
+**C1 65.98 / C2 84.94 / C5 126.69 / C10 152.5 t/s** (pp 3890 / 4734 / 4621 / 3886) — C5 and C10
+sit above the v2.3 bands (111/116); **one boot each, low-KV pools both**, so not a new baseline;
+the 16384 chunk plausibly reduces prefill/decode switching under concurrency, which the
+interleaved re-take would have to confirm. Receipts `~/benchmarks/tp4-window-20261024/`
+(`boot6-suite-eval/`, `boot6-toolbench.{json,csv}`, `suite-ladder.json{,.csv}`).
+
 ### 7.3 The v2.4 line: three boots and the pool re-derivation
 
 Same image digest, same pin, same ladder; three TP=4 boots on `.30`–`.33`, one four-node job at a
