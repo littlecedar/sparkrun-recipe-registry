@@ -112,7 +112,17 @@ receipt `~/benchmarks/cybersec-nextn-20261018/`.
   reaches ~44–49 % of that ceiling. Single boot: this box's inter-boot floor is 7–25 % and NEXTN's
   C1 tracks acceptance, so a second boot cannot separate those — but a 44–51 % delta is well outside
   that band.
-- The recipe's `metadata.caveats` still say "Unmeasured — no receipt yet": **stale as of 2026-10-18**.
+- **Full ladder (2026-10-24, `.35`, warm, one boot, `--cluster WOPR`, real HOME):** C1 **15.15 ±
+  0.46** · C2 **29.06 ± 1.23** · C5 **61.36 ± 3.78** · C10 **60.44 ± 4.50 t/s** (decode rows from
+  `~/benchmarks/tp2-queue-20261024/ladder.json`, `bench_e66cbef09760`, 5 runs per cell, task
+  `sparkrun_aefb625955c32638_97cac2b14a84`, boot-to-ready 273.4 s). C1 is within 3 % of the
+  2026-10-18 cell (inside the 7–25 % inter-boot floor); C10 plateaus at C5 (−1.5 %). Against the
+  plain-decode control's C1 10.21 the +48 % NEXTN gain reproduces on the full ladder. Two earlier
+  launch attempts that day failed pre-boot and root-caused: the HOME override's fresh cache 401s the
+  gated repo, and a bare `-H` launch builds an anonymous cluster whose model fan-out dies with
+  "prepared model is not visible through the workload mounts" — `--cluster WOPR` is required
+  (`~/benchmarks/tp2-queue-20261024/{REPORT.md,ATTEMPT-NOTES.md,bench*.log}`). The recipe's
+  `metadata.caveats` now carry the 2026-10-24 receipt pointer.
 
 ## `qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`
 
