@@ -351,6 +351,11 @@ files.
   kv_unified = 'true'`, `model loaded` at 16.5 s. Footprint is the ~24 GiB the tier arithmetic
   predicts (14.62 GiB weights + 0.86 projector + 2.0 GiB KV at 32k + ~0.6 GiB GDN state over 4
   slots), against ~108 GB usable — this node is nowhere near its ceiling, which is the point.
+- **Quality / refusal / vision cells (2026-10-24, `.35`, warm, one boot each tier, `--max-tokens 4096`).**
+  House battery thinking-on **37/37** (easy 57/57 + hard 54/54 over 3 repeats, stable 19/19 + 18/18) —
+  receipts `~/benchmarks/tp2-queue-20261024/battery-157-{on,off}.json`; refusal probe **0/4 refusals**
+  (complies with all four red-team prompts, one at `finish=length` under a 2,048-token cap);
+  vision **2/2 exact** (3 and 7 circles, synthetic 256² PNGs, `finish=stop`).
 - **C1 cell (warm, same boot):** **25.62 ± 2.31 t/s** decode · 742.9 ± 72.0 t/s prefill · TTFR
   2,399 ms @ d0, pp 2048, tg 128, n=5, llama-benchy 0.4.0, decode rows with
   `is_context_prefill_phase: false` (`bench_2e3d1141622c`; per-run 28.50 / 25.77 / 25.10 / 21.63 /
@@ -394,8 +399,13 @@ default except the `model:` tier suffix and the `model_dtype` estimator key is i
   inter-boot floor of the 15.7G arm's 25.62 (which was a single warm call, not a 5-run ladder, so the
   pair is indicative only). First boot attempt died pre-load on the post-migration cache gap (repo
   not in the BeeGFS pool, image has no TLS for `-hf`); fixed by staging the tier + mmproj into the
-  pool at the pinned revision (`~/benchmarks/tp2-queue-20261024/ORCACYBER-13G-LADDER.md`). Quality
-  and vision cells remain unmeasured.
+  pool at the pinned revision (`~/benchmarks/tp2-queue-20261024/ORCACYBER-13G-LADDER.md`).
+- **Quality / refusal / vision cells (2026-10-24, same boot).** House battery thinking-on **37/37**
+  (easy 57/57 + hard 54/54 over 3 repeats, stable 19/19 + 18/18); thinking-off holds easy at 19/19
+  and drops hard to 42/54 (stable 14/18) — the same drop the 15.7G arm shows, so it is
+  mode-dependent, not tier-dependent; refusal probe **0/4 refusals**; vision **2/2 exact** (3 and 7
+  circles). The 13G control matches the 15.7G default on every quality leg measured so far
+  (`~/benchmarks/tp2-queue-20261024/{battery-13g-{on,off}.json, vision-refusal-{13g,157}.json}`).
 
 ## Attic index
 
