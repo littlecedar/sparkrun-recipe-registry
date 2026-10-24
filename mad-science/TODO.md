@@ -675,6 +675,15 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   was never rebooted, per the owner's rule, and is implicated; **the unblock is owner approval to reboot
   `.30`** (`QUESTIONS.md` `#18`). Detail: `DEEPSEEK.md` §18.1. *(effort: one reboot + one boot.)*
 
+- [ ] **First quartet boot under the shared-cache WOPR profile** — created 2026-10-24 when
+  `distribution.model.enabled: false` landed on the cluster profile (`960e164`): it is the only event
+  that exercises the shared-cache launch path end-to-end and the cell that prices the pool load path
+  (§5's load-rate table is the pre-migration baseline). It is also the boot-time-persistence proof the
+  migration left open — if the fstab `_netdev,nofail` mount is slow, containers see an empty `/cache`,
+  so the launch must assert the prepared model path exists before the engine execs. Boot the shipped
+  knapcio line, read `max_total_num_tokens` and the load-time line, and record both against the
+  node-local era. *(effort: one boot; pairs naturally with the KV-pool pricing boots above.)*
+
 ## glm5
 GLM 5.3
 *(No open item — the ≥1M probe and four-way 1M concurrency were **dropped unrun**, not deferred, by the
