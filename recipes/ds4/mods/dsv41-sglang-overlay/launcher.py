@@ -153,7 +153,17 @@ RECIPE_ENV: dict[str, str] = {
     # so one knob answers both and an A/B cannot leave a 16-wide graph capture
     # behind after lowering the request cap.
     "MAX_RUNNING_REQUESTS": "16",
-    "CHUNKED_PREFILL_SIZE": "8192",
+    # CHUNKED_PREFILL_SIZE flipped 8192 -> 16384 on 2026-10-24 (the QUESTIONS.md #2
+    # cell, quartet .31-.34, image acfc331a, task a2e141223b52793c_e2c160f10849):
+    # the 1M prefill is chunk-launch-bound, and doubling the chunk halves the launch
+    # count (122 -> 61) — five ~999k cold prefills ran 235.3-269.8 s (mean 245.0 s,
+    # ~4.09k t/s) against the 8192 control's 543.9-626.2 s (mean ~576 s, 1738 t/s),
+    # 2.35x; per-chunk mean 4179 t/s (n=299, median 4159) against the control's
+    # saturated ~1500; needle 5/5 PASS at ~999k prompt tokens, so accuracy is intact.
+    # Receipts ~/benchmarks/tp4-window-20261024/ (chunk16k-needle.*, boot4-*); the
+    # owner's 2026-10-18 [#36] rule (>=2% same-window win, accuracy-neutral flag,
+    # boot receipt + lane-doc record) authorizes the flip. DEEPSEEK.md §9.
+    "CHUNKED_PREFILL_SIZE": "16384",
     # KV pool pin, re-derived for v2.4 from the engine's own budget arithmetic
     # (pool_configurator.DSV4PoolConfigurator.calculate_pool_sizes):
     #   full_token = (available_bytes - fixed_bytes) / bytes_per_full_token

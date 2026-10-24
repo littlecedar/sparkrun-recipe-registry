@@ -1345,7 +1345,9 @@ class SglangLaneContract(unittest.TestCase):
         spec.loader.exec_module(mod)
 
         self.assertEqual(mod.RECIPE_ENV["MEM_FRACTION_STATIC"], "0.78")
-        self.assertEqual(mod.RECIPE_ENV["CHUNKED_PREFILL_SIZE"], "8192")
+        # 16384 since 2026-10-24 (the #2 cell: 2.35x the 1M prefill, needle 5/5
+        # at ~999k; was 8192 through the v2.3/v2.4 era).
+        self.assertEqual(mod.RECIPE_ENV["CHUNKED_PREFILL_SIZE"], "16384")
         # 16 is what the v2.4 launch line and its profile table both show; the
         # 8s in that repo belong to the pre-knapcio profile.
         self.assertEqual(mod.RECIPE_ENV["MAX_RUNNING_REQUESTS"], "16")

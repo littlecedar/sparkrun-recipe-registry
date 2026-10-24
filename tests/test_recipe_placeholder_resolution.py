@@ -341,7 +341,7 @@ class ServedModelNameNotRebound(unittest.TestCase):
     `--served-model-name {served_model_name}` (sparkrun's own suggestion,
     `core/validation.py:339-343`).
 
-    Exceptions, with reasons: the two ds4 shim arms render `{model}` on purpose — an
+    Exceptions, with reasons: the three ds4 shim arms render `{model}` on purpose — an
     in-container launcher normalizes the path back to the repo id before the engine starts
     (`mods/tensorfold-dsv41-launcher/launcher.py:176-196`,
     `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:391-395`), guarded by tests/test_ds4_recipes.py.
@@ -350,6 +350,7 @@ class ServedModelNameNotRebound(unittest.TestCase):
     ALLOWED = {
         "ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
         "ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml",
+        "ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
     }
     REBOUND = re.compile(r"--served-model-name\s+\{model\}")
 
