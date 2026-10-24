@@ -140,6 +140,207 @@ all six servers (meta on `.30` plus storage on all six; evidence
 the mgmtd journal has no registration-denied line after the reload. The capacity caveat is unchanged:
 `.30` (294G, root 92 % full) and `.34` (422G) are still `Low`.
 
+## 11. The migration plan — one canonical body per repo on the pool, read-only per-node mounts
+**(2026-10-24; census run this day, nothing moved, nothing deleted, no recipe changed. The plan is
+written; the decision to execute it is the owner's — `QUESTIONS.md` `#20`.)**
+
+**The chosen shape (director's proposal, verified against the census below).** Not a fleet-wide
+`HF_HOME=/mnt/beegfs`. The hub cache is a concurrent-write protocol — `refs/`, `.locks/` (fcntl),
+relative-symlinked snapshots, `.no_exist` bookkeeping — and N nodes writing one repo directory over the
+fabric is the fragile part of any shared-cache design. The shape instead: **one canonical copy of each
+model repo on the pool** at `/mnt/beegfs/hf-canonical/`, and per-repo **read-only bind-mounts** into
+each node's existing hub directory (`mount -o bind,ro /mnt/beegfs/hf-canonical/models--<org>--<name>`
+onto `<node>:/home/red/.cache/huggingface/hub/models--<org>--<name>`). Consequences: the container path
+`/cache` is byte-for-byte unchanged (sparkrun binds the host hub at `/cache/huggingface` and sets
+`HF_HOME` there — §2), no client ever writes a shared repo dir, every write stays node-local or is an
+explicit single-writer ingest, and rollback is one `umount` per repo per node.
+
+### The census (2026-10-24, read-only; `du -s` per repo, per node; no file touched)
+
+| node | hub `du -sh` | `models--*` dirs | free `/` |
+|---|---:|---:|---:|
+| `.30` | 2.9 TB | 62 | 104 GB |
+| `.31` | 2.3 TB | 16 | 743 GB |
+| `.32` | 2.1 TB | 15 | 981 GB |
+| `.33` | 2.1 TB | 15 | 906 GB |
+| `.34` | 2.1 TB | 42 | 232 GB |
+| `.35` | 1.9 TB | 38 | 583 GB |
+| **fleet** | **≈13.4 TB** | | **≈3.5 TB** |
+
+`HF_HOME` is unset in the login environment on every node; the cache root is the huggingface_hub default
+`/home/red/.cache/huggingface/hub` everywhere (read from the live shells, not from a config file).
+
+**Dedupe is real and byte-verified.** Sample hash: `model-00001-of-00048.safetensors`
+(970,533,624 B) of `deepseek-ai/DeepSeek-V4.1-Flash-1017` has sha256 `13bd121075f0b68cb7e8e802…` on
+`.30`, `.31` and `.34` **across two different cache layouts** — `.30` holds the stock symlinked
+`blobs/` farm, `.31`/`.34` hold real-file trees with no `blobs/` (the 2026-10-22 rsync copies, whose
+57 snapshot entries were already size-verified identical, `recipes/ds4/README.md:281-293`). Within the
+25 largest repos per node (8.3 TB of the 13.4 TB), the per-node instances hold **3,139 GB of distinct
+content across 45 repos — ≈5.2 TB of those instances is duplicate** (arithmetic over the census
+tables; the arithmetic is VERIFIED, the small-repo tail beneath it is not separately hashed).
+Canonicalizing **the live set alone** reclaims ≈5.5–5.9 TB of duplicate bytes while adding ≈2.5–2.6 TB
+of canonical copy — a net fleet gain of ≈+3 TB for one-copy-per-model (arithmetic over the presence
+matrix below; the per-repo `(copies−1)×size` column is LIKELY where a repo's per-node copies differ in
+completeness, e.g. `bot-lab-21/…-EXL3-3.5bpw-Pollard` 9 GB on `.32` vs 20 GB on `.33`).
+
+### The live set (candidate canonical list)
+
+54 repo ids are named by the 67 tracked recipes (`model:` / `speculative_draft_model:` / `command:`
+model args; extracted from the worktree at `a5c5843` with a stdlib scan, method recorded under "How
+these numbers were taken" below). Presence matrix, per node (VERIFIED, `ls -d` per hub):
+
+| id | copies | nodes |
+|---|---:|---|
+| `deepseek-ai/DeepSeek-V4.1-Flash-1017` | 5 | .30 .31 .32 .33 .34 |
+| `local-inference-lab/Qwen3.8-Flash-Next-NVFP4` | 6 | all six |
+| `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` | 3 | .30 .34 .35 |
+| `bertholomus/GLM-5.3-EXL3-3.0bpw` | 4 | .30 .31 .32 .33 |
+| `littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft` | 4 | .30 .31 .32 .33 |
+| `LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw` | 4 | .30 .31 .34 .35 |
+| `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold` | 4 | .30 .31 .32 .33 |
+| `poolside/Laguna-M.1-NVFP4` | 3 | .30 .34 .35 |
+| `orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4` | 3 | .30 .34 .35 |
+| `inclusionAI/Ling-3.0-flash-int4` | 2 | .30 .35 |
+| `autotrust/JEV-27B` | 2 | .30 .35 |
+| `Intel/Qwen3-Coder-Next-int4-AutoRound` | 2 | .30 .35 |
+| `InternScience/Sage-A1.5-FP8` | 2 | .32 .34 |
+| `Qwen/Qwen-Image-2.1-Turbo` | 3 | .30 .34 .35 |
+| `orcarouter/Qwen3.8-27B-Uncensored-NVFP4` | 4 | .30 .32 .34 .35 |
+| `sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4` | 4 | .30 .32 .34 .35 |
+| `Myric/Kolibri-1-APEX-GGUF` | 2 | .30 .35 |
+| `ornith-ai/Ornith-1.5-35B-A3B-NVFP4` | 3 | .30 .34 .35 |
+| `nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4` | 3 | .30 .34 .35 |
+| `autotrust/JEV-9B` | 3 | .30 .34 .35 |
+| `ornith-ai/Ornith-1.5-9B-NVFP4` | 3 | .30 .34 .35 |
+| `orcarouter/Nex-N2.5-mini-Uncensored-NVFP4` | 3 | .30 .34 .35 |
+| `Qwen/Qwen3-VL-Embedding-2B` | 3 | .30 .34 .35 |
+| `Qwen/Qwen3-VL-Reranker-2B` | 3 | .30 .34 .35 |
+| `Qwen/Qwen3-VL-Reranker-8B` | 2 | .30 .34 |
+| `Lightricks/LTX-2.5` | 3 | .30 .34 .35 |
+| `TensorFold/Qwen3.8-27B-MLX-4bit` | 2 | .30 .35 |
+| `poolside/Laguna-XS-2.1-NVFP4` | 2 | .30 .34 |
+| `Cloudflare/clef-flash` | 2 | .30 .34 |
+| `gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit` | 2 | .30 .34 |
+| `vllm-sr/Decision-2.0-Nox-4B` | 2 | .30 .34 |
+| `vllm-sr/Decision-2.0-Kai-0.6B` | 2 | .30 .34 |
+| `jialinyyzz/humanizer-GGUF` | 3 | .30 .33 .34 |
+| `IFM/K2-Horizon-0.9B` | 5 | .30 .31 .33 .34 .35 |
+| `IFM/K2-Horizon-7B-FP8` | 3 | .30 .34 .35 |
+| `RadixArk/Qwen3.8-27B-NVFP4` | 4 | .30 .31 .34 .35 |
+| `RadixArk/Qwen3.8-Flash-Next-NVFP4` | 4 | .30 .31 .32 .33 |
+| `JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF` | 5 | .30 .31 .32 .33 .34 |
+| `vllm-sr/d3-edge` | 4 | .30 .31 .34 .35 |
+| `orcarouter/OrcaCyber-Nano-1.0` | 2 | .31 .35 |
+| `ornith-ai/Ornith-1.5-122B-NVFP4` | 2 | .33 .35 |
+| `XHToken/Spark-X2.6-4B-FP8` | 2 | .33 .35 |
+| `XHToken/Spark-X2.6-4B` | 1 | .30 |
+| `XHToken/Spark-X2.6-4B-INT8` | 1 | .35 |
+| `unsloth/Ornith-1.5-122B-GGUF` | 1 | .34 |
+| `vllm-sr/Decision-2.0-Sol-2B` | 1 | .34 |
+| `vllm-sr/Decision-2.0-Sol-2B-GGUF` | 1 | .34 |
+| `fishaudio/drama-3` | 1 | .34 |
+| `pyannote/speaker-diarization-community-1` | 2 | .30 .35 |
+| `hexgrad/Kokoro-82M` | 1 | .30 |
+| `jaredpalmer/kev-0.8b` | 2 | .30 .34 |
+| `convaiinnovations/laya` | 2 | .30 .32 |
+
+**Three live-set ids exist nowhere in any node cache**: `InternScience/Sage-A1.5-Q4_K_M-GGUF`,
+`MiniMaxAI/MiniMax-H3`, and (in its repo form) `hexgrad/Kokoro-82M`'s siblings — Kokoro is served from
+the image's baked model set, and the decision-lane CPU arms pass their model through `command:`, so
+the canonical-set rule for them is "fetch on first need", not "copy from a node".
+
+### Fit verdict against the ACTUAL pool budget
+
+**The pool is not 23 TiB of new space; it is the six nodes' root disks seen through one namespace, and
+the 18 T "used" is largely the per-node caches this plan wants to consolidate** — `df /mnt/beegfs`
+(23 T / 18 T used / 4.6 T avail) is the sum of the six underlying ext4 root filesystems' `statfs`
+(2.9 + 2.3 + 2.1 + 2.1 + 2.1 + 1.9 TB of hub alone, plus each node's runtime cache, 202–681 GB by
+`du` on `.30`/`.34`, plus everything else on those disks). **The fit verdict is therefore:
+unique-set bytes vs 4.6 TiB free, growing with each evicted local copy** — migration is physical
+dedupe: ingest the unique body once into the pool, delete the duplicate local copies, and the backing
+filesystems free up by ≈(N−1)× the duplicate bytes per repo, so pool free rises from today's ≈3.5 TB
+of per-node room toward ≈9 TB as the live-set cutover completes (unique set ≈2.5–2.6 TB; duplicates
+reclaimed ≈5.5–5.9 TB). Today's true free is ≈**3.5 TB summed** (104 + 743 + 981 + 906 + 232 + 583 GB),
+and the house floor (`df` free ≥ 1.0 TB per node, `STORAGE-POLICY.md:380-381`) is already violated on
+`.30` (104 GB) and `.34` (232 GB) before anything moves. Consequences:
+
+- **The live set fits only if the migration is strictly repo-by-repo and self-funding**: ingest the
+  canonical copy of one repo, cut its binds over, then delete the node-local duplicates **of that
+  repo** before ingesting the next. Each big repo is net-positive the moment its duplicates go
+  (the 1017 body: +476 GB canonical, −1.9 TB of duplicates).
+- **The first ingest is the binding constraint, not the total**: the largest body (476 GB) must land
+  on targets with room — `.31`/`.32`/`.33`/`.35` (0.7–1.0 TB free each); `.30` and `.34` cannot
+  receive it. BeeGFS 8.4 exposes exactly the lever needed and it is **not configured** (read-only
+  finding): `beegfs pool create` / `beegfs pool assign` put a chosen target set into a storage pool,
+  and a directory's storage-pool assignment directs new files into it — so an `hf-canonical` pool
+  containing only `.31`/`.32`/`.33`/`.35`'s targets keeps the controller's 92 %-full root and the
+  88 %-full `.34` out of the write path. Recorded as the mechanism; configuring it is part of
+  execution, not of this census.
+- **The `.30` metadata target shares the controller's root disk.** A pool full of HF bodies on `.30`
+  would squeeze the metadata service that every boot of every arm depends on — one more reason the
+  `hf-canonical` pool must exclude `s:1`.
+
+### Ingest procedure
+
+Canonical root `/mnt/beegfs/hf-canonical/`, owner `red:red`, one subdirectory per repo in hub naming
+(`models--<org>--<name>`). Ingest is `cp -a` from a node that holds the **complete** body, one repo at
+a time, **single writer** — never two ingests concurrently, never an `hf download` against the
+canonical tree. `cp -a` preserves the symlink farm; relative `blobs/<sha>` links resolve inside the
+copied directory, so the canonical copy is mount-ready without re-linking. The one repo whose copies
+are real-file trees with no `blobs/` (`DeepSeek-V4.1-Flash-1017` on `.31`/`.34`) should be ingested
+**from `.30`'s stock-layout copy**, so every canonical repo has the same shape.
+
+Throughput reference: the activation probe measured **1.2 GB/s single-stream write** over the mount
+(§"Activation addendum"), i.e. a 476 GB body is ≈7 min of streaming plus per-file overhead at shard
+granularity. The measured metadata **create cost of 8–14 ms** is irrelevant at safetensors-shard
+granularity (48 files for the flagship, ~60 for most repos) and relevant only if anyone ever
+bulk-downloads many small files into the pool — do not. Verify before any bind: file count + byte
+sizes against the source, plus one sha256 spot-check (the method that caught `.33`'s
+size-matched-wrong-bytes Engram set, §10's "Pre-launch gate", is the precedent: **size alone passes;
+a hash is the only cheap discriminator**).
+
+### Mount procedure and the two hard invariants
+
+Every mount is read-only from day one: `mount -o bind,ro …`, and the fstab bind entries carry `ro`,
+so a client physically cannot write into a canonical repo even by accident.
+
+- **Invariant (a) — a canonical repo dir is immutable.** Nobody writes it; `hf download` must never
+  target `/mnt/beegfs/hf-canonical` (it would either fail on the read-only bind or, worse, run against
+  the pool directly and fork the one true copy). The only writer is the single-stream ingest.
+- **Invariant (b) — no recipe cut-over until boot-time persistence is proven.** The fstab mount is
+  `_netdev,nofail`: if the pool is slow or absent at boot, the mount silently does not appear and the
+  bind target is then an ordinary **empty** directory — a container sees an empty
+  `/cache/huggingface/hub/models--X` rather than an error. The concrete checks this plan requires
+  before any recipe relies on a canonical body: (i) a reboot of one client node with the fstab bind
+  entries in place, after which `mountpoint -q` and `test -f <repo>/snapshots/<pin>/config.json` are
+  asserted per mounted repo; and (ii) a **launch-path assertion** — a pre-serve check (mod or
+  pre_exec hook, one `test -d`) that the recipe's prepared snapshot path exists before the engine
+  execs, so the failure mode is a loud launch refusal, not a silent wrong-state. Both are proposed
+  here and neither exists yet; (ii) is a recipe/mod change and belongs to its own reviewed change,
+  not to this plan.
+
+### Rollout order and rollback
+
+1. Canonical ingest, biggest dedupe winners first (`DeepSeek-V4.1-Flash-1017`, `…-with-engram`,
+   `GLM-5.3-EXL3-3.0bpw`, `Ornith-1.5-397B`, the EXL3/GLM TP=4 set), hash-verified per body.
+2. Bind-mount **one node** (`.31` — the most room and the richest cache), verify with a boot of the
+   owning recipe, including invariant (b)'s reboot check.
+3. Then the remaining nodes, one at a time, deleting the node-local duplicate only after that node's
+   bind is verified.
+4. Rollback: `umount` the bind (restores the underlying node-local directory — but once a node's local
+   copy has been deleted, rollback for that node means re-downloading at the measured ≈6 MB/s internet
+   rate, ≈24 h for the 1017 body, or copying back from another node while one still holds it). **Do
+   not delete the last node-local copy of a repo until at least one full boot has served from the
+   canonical copy**; the fleet stays one `umount` from node-local state until then.
+
+### Explicitly not decided by this document
+
+- **When** to migrate (owner's `QUESTIONS.md` `#20`) — this is the how, not the when.
+- Whether **retired/attic-arm bodies** ever get canonical copies — default **no**: the canonical set
+  is the live set above; anything else (e.g. `deepseek-ai/DeepSeek-V4.1-Flash` the builder input, the
+  drowzeys/Muse-Glimmer/Kolibri-state bodies) stays subject to the existing pruning/hygiene decisions,
+  not to this plan.
+
 ---
 
 ## 1. What the cache is today
