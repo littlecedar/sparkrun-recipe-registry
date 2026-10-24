@@ -51,12 +51,26 @@ was attempted and archived as a proven-negative.
 | [`glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml) | Full GLM-5.3 753B EXL3 3.0bpw (~273 GB) on 4 Sparks, TP=4, TensorFold 0.6.0 from the unreleased `glm-dsa-tp4` fork, 1M window with DCP over 4 ranks, the checkpoint's own MTP-3 head. Checkpoint `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383`, image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | **BOOT-VERIFIED 2026-10-18** — `/v1/models` at 240 s, engine load 308.7 s, startup estimate 96.27 of 102.86 GiB, ladder c1 31.7 t/s / c2 25.3 agg (14.5 per request) / c4 40.6 agg (11.4 per request), 100,559-token prompt TTFT 258.4 s. Not measured: quality, a warm-JIT boot, four concurrent 1M windows. |
 
   The 2026-10-24 pool-era boot of this arm stalled twice before weights load
-  (DCP banner, then frozen; NVRM `NV_ERR_NO_MEMORY` on rank 0 at 15:36:57) —
-  the ranked hypotheses and the one-boot next-window experiment (32k window +
-  the 2026-10-13 `TF_GLM_*` env, `dmesg -w` armed) are
-  `~/benchmarks/tp4-window-20261024/GLM-BOOT9-TRIAGE.md` on the head; the
-  1M-window memory margin (7.4 GiB vs the 2026-10-13 boot's 14.6) is the
-  leading suspect, not the pool read path (977 MB/s sustained through the
+  (DCP banner, then frozen; NVRM `NV_ERR_NO_MEMORY` on rank 0 at 15:36:57).
+  The triage's one-boot experiment RAN the same window (`GLM-BOOT9-TRIAGE.md`
+  on the head, updated): at `max_model_len=32768` the stall **reproduces
+  identically with ZERO NVRM events** — 17.0 GiB margin, same frozen DCP
+  banner, `/v1/models` never bound at 20 min — so **H1 (unified-memory
+  exhaustion at the 1M window) is refuted as the sole mechanism**, and **H2
+  is refuted by source**: the launcher mod sets `TF_GLM_EMBED_SPLIT=1` and
+  `TF_GLM_MTP_REUSE=2` itself (`CONSTANT_ENV`), so the env was correct in
+  every boot. Remaining hypothesis **H3, sharpened to NCCL interface
+  selection**: this fork transports over *plain NCCL* (`TF_TP_WORLD` +
+  `--rank/--master/--master-port`, supplied by the shim), and the lane's own
+  "claims not settled" item 2 records that the working 2026-10-13 runbook
+  **hand-set `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`** — the sparkrun path does
+  not, and the signature (rendezvous banner, silent indefinite wait, no
+  allocation failures) is an NCCL bootstrap wedged on a wrong-default
+  interface on the multi-NIC GB10 nodes. Next-window one-knob experiment:
+  the same boot plus the `tp4_start.sh` NCCL vars
+  (`-o env.NCCL_SOCKET_IFNAME=… -o env.NCCL_IB_HCA=…`, values read from
+  `~/glm53-tf/tp4_start.sh` on the node holding the 2026-10-13 runbook).
+  The pool read path remains excluded (977 MB/s sustained through the
   snapshot).
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the

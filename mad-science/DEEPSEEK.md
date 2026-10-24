@@ -1658,3 +1658,26 @@ single 6.85M pin (correct where it matters, self-limiting where it does not) or 
 `load_weight` is **583.97 s** against 71–138 s eager over the pool, i.e. the ~8.5× load cost is what
 the larger pool buys. Receipts `~/benchmarks/tp4-window-20261024/` on the head
 (`boot1-baseline.launch.log`, `boot3-fastload0.launch.log`, `boot3-fastload0-rank0-serve.log`).
+
+### 18.3 The 2026-10-24 window's two non-DS4 outcomes (window record)
+
+Both belong to other lanes; recorded here because they are this window's closures and the lane docs
+carry the detail.
+
+- **`#7` MiniMax-H3 four-rank video cell — measured negative** (`recipes/media/README.md`
+  §"The four-rank probe"). Three walls in boot order: (1) the `auto` performance mode's auto-tuner
+  probes torch device ids `0..num_gpus-1` as *local* and a 1-GPU-per-node fleet dies at arg parse
+  (`speed` mode skips it); (2) repo-id-shaped component-weight overrides die under
+  `HF_HUB_OFFLINE=1` on `HfApi().model_info` with no cache fallback (absolute pool paths
+  short-circuit to the local branch — commit `b9ca89a`); (3) engine-side, unresolved: after the
+  warmup-staging fix (input saving must stay *enabled* at an absolute path on the four-rank serve),
+  the first distributed video request **deadlocks** — four ranks at 0 % GPU, warmup frozen at
+  `0/1`, zero errors. Receipt: `~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md`.
+- **GLM-5.3 3bpw TP=4 stall triage — H1/H2 refuted, H3 sharpened** (`recipes/glm/README.md`). The
+  triage's one-boot 32k-window experiment ran the same window: the stall reproduces identically
+  with **zero NVRM events** at a 17.0 GiB margin (H1, unified-memory exhaustion, refuted as the
+  sole mechanism), and the launcher mod sets `TF_GLM_EMBED_SPLIT=1`/`TF_GLM_MTP_REUSE=2` itself
+  (H2, missing env, refuted by source). Remaining hypothesis: **NCCL interface selection** — the
+  fork transports over plain NCCL and the working 2026-10-13 runbook hand-set
+  `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`, which the sparkrun path does not. Next-window one-knob
+  experiment recorded in the triage file.

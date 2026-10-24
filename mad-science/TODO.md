@@ -56,6 +56,13 @@ govern, per the protocol; the verbatim asks remain in git.)*
   however it makes sense."** The board's `foundation shape` order (suite legs → `#3` → `#7` → GLM) stands
   as the agent's own ordering, not an owner instruction; with the suite legs run and `#3` closed on the
   engine, only `#7` sits ahead of the GLM boot.)*
+  *(TP=4 window close (2026-10-24): the GLM 3bpw boot stalled twice pre-load on the pool era; the
+  triage's 32k-window experiment ran and REFUTED the memory hypothesis (zero NVRM events at a
+  17.0 GiB margin, identical stall) and the env hypothesis (the launcher mod sets
+  `TF_GLM_EMBED_SPLIT=1`/`TF_GLM_MTP_REUSE=2` itself). Remaining: NCCL interface selection —
+  the fork transports over plain NCCL and the working 2026-10-13 runbook hand-set
+  `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`; one-knob next-window experiment recorded in
+  `recipes/glm/README.md` and `~/benchmarks/tp4-window-20261024/GLM-BOOT9-TRIAGE.md`.)*
 
 - **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
   if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
@@ -238,6 +245,12 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   shape is a time question rather than a capability one; a one-node tier-1 or TP=2 cell may run when it
   unblocks the four-rank boot. — provenance: `mad-science/TODO.md` §explore (the MiniMax-H3 item),
   `recipes/media/zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml` (`7b7d912`); asked 2026-10-22.
+  *(MEASURED 2026-10-24, four-rank cell on `.31`–`.34` — negative: SGLang v0.5.22's TP=4 serve
+  deadlocks in the first distributed video request (denoise exchange; all four GPUs 0 %, warmup
+  frozen at `0/1`, zero errors). Walls 1–2 (auto-tuner device probe → `speed` mode; hub-shaped
+  component overrides under offline mode → absolute pool paths) are fixed in-recipe; wall 3 is
+  engine-side. Full chain: `recipes/media/README.md` §"The four-rank probe" and
+  `~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md`.)*
 
 - **#8 — Which host becomes the arm64 runner for the llama.cpp build job?** *Answered 2026-10-22.*
   **Owner asked back 2026-10-22:** *"Can the build be performed on GitHub with an Actions pipeline?"*

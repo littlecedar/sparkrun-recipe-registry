@@ -46,6 +46,7 @@ below are by design, not missing measurements.
 | `ltx-2.5-22b-nvfp4-t2v-comfyui-script` | **78.1 s/clip warm** (100.13 s cold) @1344×768, 121 f, 24 fps | 36.9 GB · peak **83.45–84.00 GiB** | ffprobe (h264 + AAC) and a decoded frame | `~/benchmarks/ltx25-recipe-20261021/` |
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
+| `zz-minimax-h3-fl2va-t2va-tp4-sglang` | **measured negative 2026-10-24** — four-rank serve deadlocks in the first video request (denoise exchange; see the arm section) | 13.94 GiB/node resident at TP=4 | walls 1–2 fixed in-recipe; wall 3 is engine-side | `head:~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md` |
 | `zz-qwen-image-…-4step-diffusers-script` | 4-step request **6.365 s** on the launcher's native `sigmas` path | same peak as the shipped arm | probe only, not a shipped arm | `head:~/benchmarks/vllm-032-20261022/qwen-image/` |
 | `zz-pyannote-community-1-diarization-cpu` | **TTR 9.56 s**, RTF **0.247** (real two-voice dialogue) / 0.62 (30 s synthetic) on 5 cores, no GPU | 8.1M params, 33.7 MB repo, CPU only | **DER = JER 2.83 %** on `tier-b-two-voice.wav` (real speech, correct 2-speaker count, deterministic); **one speaker** on 2- and 3-voice synthetic tonal files (DER 50.0 / 69.9 %) | `.35:~/benchmarks-pyannote/` |
 
@@ -429,6 +430,34 @@ SGLang diffusion · **1 node** · **DRAFT, never booted**.
 - **Task:** `t2va` / `fl2va` — text or first/last frame → video + 32 kHz stereo audio, 4–15 s,
   768p, 24 fps. Never booted; the first boot decides the AdaLN cache question and the wall time.
 - **License:** MiniMax H3 Community License (territorial; non-US deployment only).
+
+### The four-rank probe [`zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml`](zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml) — measured negative (2026-10-24)
+
+The QUESTIONS #7 four-rank cell ran on `.31`–`.34` (SGLang v0.5.22, `--num-gpus 4`,
+`nnodes: 4, sp_degree: 4, ulysses_degree: 4` all rendered correctly). Three walls, in boot order:
+
+1. **Arg parse** (`performance_mode: auto`): the auto-tuner probes torch device ids
+   `0..num_gpus-1` as *local* (`auto_tune.py:840` → `AssertionError: Invalid device id`) — a
+   1-GPU-per-node fleet cannot satisfy it. `speed` mode skips the auto-tuner; TP=4 resident is
+   13.94 GiB/node, so `speed` fits trivially. **Fixed in-recipe.**
+2. **Component staging**: repo-id-shaped `--component-weights-paths.*` overrides resolve via
+   `HfApi().model_info`, which `HF_HUB_OFFLINE=1` kills before any cache fallback
+   (`OfflineModeIsEnabled`, `weights/source.py:277`). Absolute pool paths short-circuit to the
+   local branch. **Fixed in-recipe** (commit `b9ca89a`; all three Comfy files du-verified on the
+   shared cache).
+3. **The warmup + denoise wall — engine-side, unresolved.** With input saving *disabled* (the
+   tp2-queue single-node fix) the engine's post-init warmup fails `FileNotFoundError` on the staged
+   `warmup_image.png` on every rank and `/health` never flips past `workers_ready` — the four-rank
+   serve needs input saving **enabled** at an absolute writable path (`/tmp/h3-inputs`, fixed
+   in-recipe). With that fixed, the warmup request is accepted and then **the denoise loop
+   deadlocks**: ~25 min frozen at `Warmup requests 0/1`, all four GPUs **0 % utilization**, zero
+   errors in the serve log. The per-step activation exchange across ranks does not complete a
+   single video request on this engine state; Torch SDPA is the auto-fallback attention backend on
+   SM12.x and `nccl_port` is unset — the candidate axes for an upstream investigation.
+
+Verdict: arg-plumbing and staging are solved and recorded in the recipe; the TP=4 video cell
+cannot produce numbers on SGLang v0.5.22. Receipt:
+`head:~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md` (the full four-boot chain).
 
 ## [humanizer-12b-q6k-llamacpp](humanizer-12b-q6k-llamacpp.yaml)
 
