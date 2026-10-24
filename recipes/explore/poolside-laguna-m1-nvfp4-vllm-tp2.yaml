@@ -47,6 +47,15 @@ executor_config:
   # recipe's own serve line runs instead of being parsed as the image's flags.
   entrypoint: ""
 
+# The checkpoint's `sliding_window: 0` meets vLLM v0.32.0's deliberate 0 -> None
+# conversion (vllm/config/model.py:806-808, and again at :901-904), which the
+# transformers strict-dataclass setattr rejects (observed 2026-10-24,
+# `~/benchmarks/tp2-queue-20261024/LAGUNA-M1-REBOOT-FAILED.md`). This mod routes
+# those two assignments through `object.__setattr__` and fails closed if the
+# pinned file no longer carries the needle.
+mods:
+  - "mods/fix-vllm-strict-sliding-window"
+
 env:
   PYTHONUNBUFFERED: '1'
   MAX_JOBS: '4'
