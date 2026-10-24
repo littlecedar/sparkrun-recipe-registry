@@ -36,7 +36,7 @@ flowchart LR
   S -->|"mods: pre_exec, in order, as root"| M["mods/NAME/run.sh"]
   M -->|"writes, then reown() to cache owner"| C
   S -->|"command: rendered from defaults + placeholders"| C["serving container (sglang / vllm)"]
-  C -->|"reads"| H["node-local HF cache, bind-mounted at /cache"]
+  C -->|"reads"| H["HF cache on the BeeGFS pool, bind-mounted at /cache"]
 ```
 
 Load-bearing contracts:
@@ -59,8 +59,15 @@ Load-bearing contracts:
 - **Mods run as root** in the container and must `reown()` anything created under `/cache/runtime` to
   the cache mount's UID/GID, or downstream user processes fail on root-owned leftovers. A non-zero
   mod exit tears the whole launch down, so transient failures log and continue.
-- **Each runner node has its own HF cache** at `${WOPR_USER_CACHE}/huggingface` mounted at `/cache`.
-  There is no shared `/cache/models`; sparkrun distributes every model to each serving node.
+- **The HF cache is one pool, not six copies** — each node reaches it at
+  `${WOPR_USER_CACHE}/huggingface`, mounted at `/cache`; the bytes live on the BeeGFS pool at
+  `/mnt/beegfs` (migration complete, owner-reported 2026-10-24: all models deduplicated, per-node
+  duplicates deleted — `mad-science/BEEGFS-REPORT.md` round-5 addendum). There is no longer a per-node
+  body for a model to be fanned out to; **boots read weights over the fabric, which is why boot times
+  may be longer than the node-local era**. The mount is
+  `_netdev,nofail` and **boot-time persistence is still unverified**: after a slow pool mount a
+  container can see an empty `/cache` instead of an error, so assert the model path exists before
+  blaming a recipe for an empty reply.
 
 ## Key Directories
 
@@ -272,14 +279,15 @@ remove what the session created** — a leftover is anything undocumented, unkno
   created and can name, and prefer `sparkrun stop <task-id>`, which cleans up the launcher's own
   containers.
 
-**Bodies above 60 GB are node-local, never staged on the head.** A model body larger than 60 GB is
-downloaded on the target node (`HF_HOME=~/.cache/huggingface hf download <repo>`), or copied
-node-to-node from a node that already has it, and launched with `--offline`; the control staging path is
-for bodies ≤ 60 GB only. The head's free space is shared by every concurrent session, a single 78 GB
-staged body consumes nearly all of it, and the node-local route carries no shared-resource race — so the
-threshold is a property of the body, not of current free space. Measured 2026-10-22: two staged bodies
-drove the head to 24 GB free; after the clean-up it holds 141 GB and two concurrent 80 GB stages would
-still refill it.
+**Bodies above 60 GB are node-local, never staged on the head — superseded 2026-10-24.** The rule
+existed because the control's root disk had to hold a staged body before it was handed to a runner:
+a body larger than 60 GB was downloaded on the target node
+(`HF_HOME=~/.cache/huggingface hf download <repo>`) or copied node-to-node from a node that already had
+it, and launched with `--offline`, leaving the control's staging path for bodies ≤ 60 GB. Measured
+2026-10-22: two staged bodies drove the head to 24 GB free. **With the HF cache on the BeeGFS pool there
+is no per-node body to stage or fan out**, so the head is out of that path entirely
+(`mad-science/BEEGFS-REPORT.md` round-5 addendum); the rule's history stays here because the free-space
+observations are still true of the head, which every concurrent session shares.
 
 **An image is protected by any tree reference, and the allowlist is rebuilt per host.** An image stays if
 its `RepoDigest` — or its `repo:tag` — appears anywhere in `recipes/`, `attic/`, `mods/`, `tools/`,
