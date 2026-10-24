@@ -50,10 +50,17 @@ defaults:
   model_variant: fl2va
   served_model_name: MiniMaxAI/MiniMax-H3
   num_gpus: 4
-  performance_mode: auto
-  dit_weights: Comfy-Org/MiniMax-H3/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
-  text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
-  video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
+  performance_mode: speed
+  # Component weights as ABSOLUTE pool paths (container /cache -> the shared
+  # BeeGFS HF cache): under HF_HUB_OFFLINE=1 the loader resolves any
+  # repo-id-shaped override via HfApi().model_info and dies with
+  # OfflineModeIsEnabled before the cache is consulted (boot13, auto_tune
+  # aside). Local paths short-circuit resolve_weight to the on-disk branch.
+  # Pinned snapshot e5eb578a89295337b8ff433a035929ce0279e0b6 (verified on the
+  # pool 2026-10-24: all three files du-verified resident).
+  dit_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
+  text_encoder_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+  video_vae_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/vae/minimax_h3_video_vae_fp16.safetensors
   # The engine runs as uid 1000 on a root-owned 0755 CWD; the relative
   # defaults `inputs/uploads` and `outputs/` die in os.makedirs with a bare
   # 500 before any job runs (video_api.py:545 via server_args.py:582; the
