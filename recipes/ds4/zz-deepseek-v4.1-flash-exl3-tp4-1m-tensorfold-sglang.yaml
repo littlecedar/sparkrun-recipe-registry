@@ -1,0 +1,58 @@
+recipe_version: "2"
+model: LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
+model_revision: 0be63c3337efbb2a0061d5b8bb4006fa186d433f
+runtime: sglang
+container: littlecedar/dgx-spark-dsv41@sha256:d6e4c10d4c0ec329196104dc98f77492f2ce648400671bbae78dc46e7e04fe66
+builder: docker-pull
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  DRAFT probe arm (`zz-`), not shippable as-is: the 2026-10-24 `QUESTIONS.md` #3
+  topology A/B treatment — the same TensorFold deepseek_v41 engine and the same
+  EXL3 2.9bpw body the shipped TP=2 pair serves, rendered at TP=4 over the
+  quartet, so one engine at one quant can be measured at both topologies in
+  interleaved A/B slots (DEEPSEEK.md §13 item 4). Whether the engine's
+  dsv41 branch accepts tp=4 is itself part of the cell: a refusal at weights
+  load is the recorded answer, not a defect to fix silently. Same Engram
+  requirement and caveat as the TP=2 recipe: ~189 GB of tables under
+  hub/dsv41-engram, --require-engram fails a miss.
+metadata:
+  model_url: https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: exl3
+  model_mtp_dtype: exl3
+  kv_dtype: fp8
+  tags: large_context, vision
+
+mods:
+  - "@littlecedar/mods/tensorfold-dsv41-launcher"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+  ulimit:
+    - memlock=-1:-1
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+
+command: >
+  python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context {max_model_len}
+  --vision
+  --require-engram
+
+readiness:
+  inference: true
+  port_timeout_s: 3600
+  health_timeout_s: 1800
