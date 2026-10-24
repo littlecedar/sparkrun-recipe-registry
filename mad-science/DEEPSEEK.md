@@ -555,6 +555,23 @@ path. **Not run** — it needs a fresh boot and an A/B, which needs the `#4` fen
 (`QUESTIONS.md` `#2`). Quote cold first-chunk throughput when it is run, not the TTFT-derived ladder
 row. Forensics: `~/benchmarks/knapcio-tp4-20261022/REPORT.md`.
 
+**Ran 2026-10-24 — 16384 wins decisively and ships (`06ca895`).** One boot on `.31`–`.34`
+(image `acfc331a`, task `a2e141223b52793c_e2c160f10849`, `-o env.CHUNKED_PREFILL_SIZE=16384`),
+five cold ~999k needle requests (serial c1, `chars_per_token` 4.0065): latencies **269.8 / 239.4 /
+237.0 / 243.1 / 235.3 s** — mean **245.0 s ⇒ ~4.09k t/s mean prefill, 2.35× the 8192-chunk
+control's 1738** — and **needle 5/5 PASS** at ~999k prompt tokens, so accuracy is intact at the
+doubled chunk. The mechanism is exactly §9's launch-bound accounting: the chunk count halves
+(122 → 61) and the per-chunk rate collapses upward — 16384-token chunks log **mean 4179 t/s
+(n=299, median 4159, 2156–5594)** where the 8192 chunks decayed 3428 → ~1500; cold first-chunk
+3003 t/s (warm-up chunk, not the metric that moved). `CHUNKED_PREFILL_SIZE` is `AB_ENV`, so the
+cell was one `-o` on the shipped line, and the shipped value flipped 8192 → 16384 under the
+owner's 2026-10-18 `[#36]` same-window rule (≥ 2 % win, accuracy-neutral flag, boot receipt +
+lane record); the guard `test_launcher_v24_serve_line` pins the new value. Open follow-up, not
+run: a larger chunk still (32768) would halve the launch count again, but 16384 already puts 1M
+prefill under 4.2 min and each further doubling shrinks the pool-sizing margin at the same
+`mem_fraction_static`. Receipts `~/benchmarks/tp4-window-20261024/` (`chunk16k-needle.{log,json}`,
+`boot4-chunk16k-rank0-serve.log`).
+
 Related, and the reason the pool is a pin: a 1M prefill at 0.78 leaves the head **5.7 GiB**, at 0.80
 only **2.7 GiB** — which is why `mem_fraction_static` stays 0.78 and why a prefill-graph capture pool
 (~39 GB at a 16K capture on GB300) is plausibly infeasible here (§10, candidate 7).

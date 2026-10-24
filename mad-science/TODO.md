@@ -180,6 +180,16 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   rather than monotonicity, so the only candidate that clears both bars ships as the easy-traffic arm
   and every later candidate is judged the same way — a C10 **below 116.27** still fails, however high
   its C5. — provenance: `TODO.md` §DECISIONS `#49` (the gate's leg (2); duplicate `mad-science/STATUS.md:44`); asked 2026-10-22.
+- **#2 — Is a quartet boot worth spending on a larger 1M prefill chunk than the shipped 8192?**
+  *Answered 2026-10-24.* **Yes — measured and shipped.** `CHUNKED_PREFILL_SIZE=16384` on the
+  shipped line (one `-o`, quartet `.31`–`.34`, task `a2e141223b52793c_e2c160f10849`): five cold
+  ~999k prefills at **235.3–269.8 s (mean 245.0 s, ~4.09k t/s) vs the 8192 control's mean ~576 s /
+  1738 t/s — 2.35×**, per-chunk mean 4179 t/s (n=299, median 4159) vs the control's saturated
+  ~1500, needle **5/5 PASS** at ~999k prompt tokens — the chunk-launch-bound mechanism §9 recorded
+  is confirmed by halving the launch count. The value ships as the default under the 2026-10-18
+  `[#36]` same-window rule (`06ca895`). — settles the 1M prefill lever at the doubled chunk; a
+  32768 probe stays an unqueued follow-up, not a promise — provenance: `mad-science/DEEPSEEK.md`
+  §9 (the addendum) and `TODO.md` §ds4 (the closed item); asked 2026-10-22.
 - **#4 — May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those
   ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood
   down?** *Answered 2026-10-22.* The **fence holds** — no workload runs on
@@ -589,12 +599,14 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   on those ranks **before** this ruling, so under the fence the only remaining item is the ds4 TP=4
   candidates plus the four-node suite legs.)*
 
-- [ ] **Try a larger 1M prefill chunk than the shipped 8192** — **blocked behind the fence** (`#4`), and
-  its own question is `QUESTIONS.md` `#2`: needs four ranks, so it waits for the owner to stand the
-  production serve down. The measured accounting (mean 1738 t/s at 1M, 0.02 EFLOP, ~15 GB/s/rank, 122
-  eager launches) is `mad-science/DEEPSEEK.md` §9. Work: one boot, `chunked_prefill` 16384 against the
-  shipped 8192, interleaved needle on the same serve; quote cold first-chunk throughput, not the
-  TTFT-derived ladder row. *(effort: short)*
+- [x] **Try a larger 1M prefill chunk than the shipped 8192 — MEASURED AND SHIPPED 2026-10-24.**
+  `CHUNKED_PREFILL_SIZE=16384` on the shipped line (`-o env.CHUNKED_PREFILL_SIZE=16384`, quartet
+  `.31`–`.34`, task `a2e141223b52793c_e2c160f10849`): five cold ~999k prefills at **235.3–269.8 s
+  (mean 245.0 s, ~4.09k t/s) vs the 8192 control's mean ~576 s / 1738 t/s — 2.35×**, per-chunk mean
+  4179 t/s (n=299) vs the control's saturated ~1500, and needle **5/5 PASS** at ~999k so accuracy
+  is intact. Shipped as the default under the 2026-10-18 `[#36]` rule (`06ca895`: launcher
+  `RECIPE_ENV`, recipe comment, guard updated). Accounting and comparison: `DEEPSEEK.md` §9;
+  receipts `~/benchmarks/tp4-window-20261024/`. *(effort: none — done; one boot.)*
 
 - [X] **The two runnable shortlist arms, measured and closed 2026-10-21.** Six interleaved boots on
   `.34`/`.35` (A/B/A/B/A/B, `--fresh`, `/v1/models` + the container's own `tensorfold --version`
