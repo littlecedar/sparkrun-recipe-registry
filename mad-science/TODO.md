@@ -2940,7 +2940,11 @@ there, and no BeeGFS measurement, path or fingerprint is restated in this file.
   **Cluster config follows (2026-10-24):** the head's `~/.config/sparkrun/clusters/WOPR.yaml` now sets
   `distribution.model` = `enabled: false`, `skip_fan_out: true`, `preserve_perms: false` (backup
   `WOPR.yaml.bak-pre-shared-cache-20261024` beside it), so sparkrun neither downloads nor rsyncs models
-  at launch; tuning-config distribution inherits the same prefs. Dry-run verified on the head
+  at launch. **A first version inherited those prefs into tuning-config distribution — wrong:** the
+  Triton tuning cache is node-local (`~/.cache/sparkrun/tuning`, ext4, per-node divergent contents:
+  `.30` sglang+vllm, `.34` sglang only, probed 2026-10-24), so an explicit `distribution.tuning` block
+  restored the defaults (`enabled: true`, `skip_fan_out: false`, `preserve_perms: true`; second backup
+  `WOPR.yaml.bak-pre-tuning-explicit-20261024`). Dry-run verified on the head
   (sparkrun `0.4.2-alpha+g7f0acf0`): a named-cluster launch (`sparkrun run <recipe>` or with
   `--cluster WOPR`) shows no "Distributing model" phase, while a bare `-H <node>` launch builds an
   anonymous cluster with the safe defaults and **still fans out models** — name the cluster or launch

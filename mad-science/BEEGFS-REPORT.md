@@ -161,8 +161,12 @@ instruction (`QUESTIONS.md` `#20`, now settled) and §11's gates. Receipts:
 - **The WOPR cluster profile is configured for the shared cache (2026-10-24, later the same day).**
   The head's `~/.config/sparkrun/clusters/WOPR.yaml` sets `distribution.model` = `enabled: false`,
   `skip_fan_out: true`, `preserve_perms: false` (backup `WOPR.yaml.bak-pre-shared-cache-20261024`),
-  so sparkrun neither downloads nor rsyncs models at launch; tuning-config distribution inherits the
-  same prefs. Dry-run verified on sparkrun `0.4.2-alpha+g7f0acf0`: named-cluster launches
+  so sparkrun neither downloads nor rsyncs models at launch. **Tuning is deliberately excluded:** the
+  Triton tuning cache is node-local (`~/.cache/sparkrun/tuning`, per-node divergent contents), so an
+  explicit `distribution.tuning` block restores the default fan-out — an inheritance-first version of
+  the edit silently disabled it (corrected the same day, second backup
+  `WOPR.yaml.bak-pre-tuning-explicit-20261024`). Dry-run verified on sparkrun `0.4.2-alpha+g7f0acf0`:
+  named-cluster launches
   (default cluster or `--cluster WOPR`) show no "Distributing model" phase; a bare `-H <node>` launch
   builds an anonymous cluster with the safe defaults and still fans out. The sharing prerequisite was
   verified read-only: `~/.cache/huggingface` is a symlink to `/mnt/beegfs/huggingface` on `.30` and

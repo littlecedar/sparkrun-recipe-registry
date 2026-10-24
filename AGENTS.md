@@ -75,8 +75,12 @@ Load-bearing contracts:
   models at launch — a model missing from the pool fails at engine load, loudly. **Caveat, dry-run
   verified**: a launch that passes bare `-H <node>` builds an anonymous cluster carrying the safe
   defaults and **will still fan out models** — name the cluster (`--cluster WOPR`) or launch against
-  the cluster's own host set; tuning-config distribution inherits the same prefs (no
-  `distribution.tuning` block), which is correct now that the tuning cache is on the pool too.
+  the cluster's own host set. **Tuning is deliberately NOT disabled**: a Triton tuning cache would
+  inherit `distribution.model`'s prefs, but `~/.cache/sparkrun/tuning` is node-local ext4 with
+  per-node divergent contents (`.30` sglang+vllm, `.34` sglang only — probed 2026-10-24), so the
+  profile spells out `distribution.tuning` = `enabled: true`, `skip_fan_out: false`,
+  `preserve_perms: true` (the defaults) to keep the real fan-out; a pool-backed tuning cache would be
+  the follow-up if node-local divergence ever bites.
 
 ## Key Directories
 
