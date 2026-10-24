@@ -54,6 +54,13 @@ defaults:
   dit_weights: Comfy-Org/MiniMax-H3/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
   text_encoder_weights: Comfy-Org/MiniMax-H3/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
   video_vae_weights: Comfy-Org/MiniMax-H3/vae/minimax_h3_video_vae_fp16.safetensors
+  # The engine runs as uid 1000 on a root-owned 0755 CWD; the relative
+  # defaults `inputs/uploads` and `outputs/` die in os.makedirs with a bare
+  # 500 before any job runs (video_api.py:545 via server_args.py:582; the
+  # tp2-queue root cause, 2026-10-24). Disable input saving (the empty string
+  # trims to None per server_args.py:878-881) and point outputs at an
+  # absolute writable dir.
+  output_path: /tmp/h3-outputs
 
 readiness:
   inference: false
@@ -73,3 +80,5 @@ command: >
   --performance-mode {performance_mode}
   --host {host}
   --port {port}
+  --input-save-path ""
+  --output-path {output_path}
