@@ -52,6 +52,11 @@ govern, per the protocol; the verbatim asks remain in git.)*
   C1 **69.28** → C10 **116.27** t/s — and its `-1017` body is being made resident on four nodes,
   where GLM-5.3 is **boot-verified but unmeasured** and its ~273 GB body (the recipe's own figure,
   over 4× GB10) would compete for the same four nodes.
+  *(Owner decision 2026-10-24 (SURVEY row 2) — the owner left the queue order to the agent: **"Order it
+  however it makes sense."** The board's `foundation shape` order (suite legs → `#3` → `#7` → GLM) stands
+  as the agent's own ordering, not an owner instruction; with the suite legs run and `#3` closed on the
+  engine, only `#7` sits ahead of the GLM boot.)*
+
 - **#49 — the easy-traffic arm gate.** *Owner decision 2026-10-22: a **single-node** arm qualifies only
   if (1) decode is **at least as fast as the knapcio TP=4 baseline** — C1 **≥ 69.28 t/s** and C10
   **≥ 116.27 t/s** (the TP=4 boot-C ladder in `recipes/ds4/README.md`, house 36/37), both from the
@@ -191,6 +196,23 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   `[#36]` same-window rule (`06ca895`). — settles the 1M prefill lever at the doubled chunk; a
   32768 probe stays an unqueued follow-up, not a promise — provenance: `mad-science/DEEPSEEK.md`
   §9 (the addendum) and `TODO.md` §ds4 (the closed item); asked 2026-10-22.
+- **#3 — Will a quartet window be scheduled for one engine booted at both TP=2 and TP=4 in interleaved
+  A/B slots?**
+  *Answered 2026-10-24, twice over.* **The TP=4 arm closed first on the engine itself** — the treatment
+  arm WAS booted (`boot7`, task `0e1ba22adca89044_62e26734c214`, `.31`–`.34`) and `tensorfold serve`
+  refused the topology at argument validation, before weights load (`--tp 4: DeepSeek-V4.1-Flash runs on
+  one or two GPUs on CUDA`); diagnosed in-image (`d6e4c10d`): the gate is `tensorfold/cli.py:253` in
+  `_serve_cuda` — the dsv41 family package does not declare `CUDA_TP4` (the GLM family's `glm-dsa-tp4`
+  fork does) and no CLI override exists — so the controlled topology number cannot exist on the TensorFold
+  dsv41 stack at any window; an A/B needs the dsv41 engine branch to implement TP=4 sharding and declare
+  `CUDA_TP4` (upstream/fork work), or a different engine. **The owner then ruled the TP=2 side (2026-10-24):
+  "No, a post-window session is not authorized. When TP=4 session is complete, this session drains and
+  closes. Another session will complete the TP≤2 queue when production inference restarts on .30-.33."**
+  — the mixed A/Bs' TP=2 legs are not scheduled as an agent session; they pass to the session that follows
+  the production restart — provenance: `DEEPSEEK.md` §13 item 4;
+  `~/benchmarks/tp4-window-20261024/boot7-exl3tp4.launch.log`; `~/benchmarks/tp2-queue-20261024/`;
+  asked 2026-10-22.
+
 - **#4 — May the ds4 TP=4 upgrade candidates and the four-node suite legs run on `.30`–`.33` while those
   ranks serve the fleet's own inference, or does the workload fence hold until the serve is stood
   down?** *Answered 2026-10-22.* The **fence holds** — no workload runs on
@@ -209,6 +231,14 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   reconciliation and the round-3 install that closed the build question are in
   `mad-science/BEEGFS-REPORT.md` §10, which is the record. — provenance:
   `mad-science/BEEGFS-REPORT.md` §6, §8, §10; asked 2026-10-20.
+- **#7 — Is a four-rank MiniMax-H3 video cell authorized on `.30`–`.33`?**
+  *Answered 2026-10-24.* **Authorized 2026-10-22, and shape-flexible: "If a non-TP4 boot unblocks a TP4
+  boot then it is authorized."** — the research item reads fit as a non-constraint (tier 1 is 39.54 of
+  101.3 GiB usable on one node), so a split's only possible purchase is the denoise loop and the rank
+  shape is a time question rather than a capability one; a one-node tier-1 or TP=2 cell may run when it
+  unblocks the four-rank boot. — provenance: `mad-science/TODO.md` §explore (the MiniMax-H3 item),
+  `recipes/media/zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml` (`7b7d912`); asked 2026-10-22.
+
 - **#8 — Which host becomes the arm64 runner for the llama.cpp build job?** *Answered 2026-10-22.*
   **Owner asked back 2026-10-22:** *"Can the build be performed on GitHub with an Actions pipeline?"*
   → **GitHub-hosted arm64 — confirmed.** Landed in `0976a1e`: the build job is `runs-on: ubuntu-24.04-arm`, the
@@ -409,6 +439,15 @@ never re-opened.
   on permission. — Closes the supply-chain leg of the vLLM parity question; the remaining gate is
   engineering, not authorization — provenance: `mad-science/DEEPSEEK.md` §17 (`:1273-1405`); asked
   2026-10-23; answered 2026-10-24.
+- **#21 — Should the shipped `MAX_TOTAL_TOKENS=6850000` KV pin stay single-valued, or pin per-mode for
+  `DSV41_FAST_LOAD`?**
+  *Answered 2026-10-24.* **"Any pins should be accurate, even if a wrong pin would be harmless."** — i.e.
+  **pin per mode**: the FAST_LOAD=0 pin is correct as shipped (it clamps the profiled 6,999,040 to
+  6,849,792, baseline-identical) and stays; the FAST_LOAD=1 mode must not carry the inert 6.85M clamp — its
+  boot's own `max_total_num_tokens` (3.42–4.36M, page-cache-timing dependent) is the only quotable figure,
+  and the launcher's `AB_ENV` makes the per-mode pin expressible (`49471a2`). — provenance:
+  `mad-science/DEEPSEEK.md` §18.2; `~/benchmarks/tp4-window-20261024/`; asked 2026-10-24.
+
 
 **TP=4 window (declared 2026-10-24, owner answers in this session's ask).** Node set **`.31`–`.34`**
 ("other node set"; `.30` controller-only, `.35` spare), declared in `.scratch/fleet-window.lock`. First
@@ -418,6 +457,11 @@ A/B), the ds4 candidate survey and four-node suite legs, and the DSpark window-s
 **promoted from `attic/ds4/AGENTS.md` §10 into this window**. The wedge remedy inside the window is
 **one warm reboot of the implicated rank, then stop and request a power-cycle** (owner amendment
 2026-10-24; `AGENTS.md` §Node hygiene carries the amended rule).
+**Owner decision 2026-10-24 (SURVEY row 3) — session drain.** **No post-window TP≤2 session is
+authorized**: when the TP=4 session completes, this session drains and closes; another session completes
+the TP≤2 queue when production inference restarts on `.30`–`.33`. The TP=2 halves stay with the TP≤2 queue
+(two nodes), not with this window.
+
 
 # TODO list
 
@@ -704,6 +748,11 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   (`QUESTIONS.md` `#21`). Cost side: stock loader `load_weight=583.97 s` vs 71–138 s eager.
   Full triad table: `DEEPSEEK.md` §18.2; receipts `~/benchmarks/tp4-window-20261024/`
   (`boot1-baseline.launch.log`, `boot3-fastload0*`). *(effort: none — done; three boots.)*
+  *(Owner decision 2026-10-24 (SURVEY row 1 / `QUESTIONS.md` `#21`) — the per-mode choice is settled:
+  **"Any pins should be accurate, even if a wrong pin would be harmless."** The single 6.85M pin is correct
+  at FAST_LOAD=0 and stays; FAST_LOAD=1 gets its own accurate pin (or an explicit no-pin) — the inert
+  6.85M clamp must not stand for the fast-load mode, and the launcher's `AB_ENV` makes the per-mode pin
+  expressible. This closes `#21` (moved to `TODO.md` §"Settled questions").)*
 
 - [x] **RDMA registration wedge — root cause found and fixed 2026-10-24: `kho=off`.** The wedge was never
   a hardware state needing a power-cycle: kernel `7.0.0-1019-nvidia` enables Kexec HandOver, whose
@@ -1907,6 +1956,9 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 *(effort: medium)*
 
 - [ ] **Re-boot Laguna-M.1 on vLLM `v0.32.0`** — the pin moved for the CVE on 2026-10-22 (`1a306ca`, index digest `befccf0e…` / arm64 child `6ff5ff0d…`) and the arm in `recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml` is labelled **BUMPED, NOT RE-BOOTED**: its TTR, KV pool and suite numbers stay 2026-10-20 v0.29.0 measurements until a boot replaces them. Blocked on a free node pair — `.34` carries the vLLM re-pin and `.35` the SGLang `v0.5.22` re-pin. Expect the thinking contract to read differently on `v0.32.0`: thinking arrives at `message.reasoning`, and `usage.completion_tokens_details.reasoning_tokens` reads 0 while emitting characters. *(effort: short)*
+  *(Owner decision 2026-10-24 (SURVEY row 4) — **the tracked-tree / engine-side patch investigation is
+  authorized** for the `sliding_window: None` defect; the arm need not stay parked for an upstream fix.)*
+
 
 - [ ] **Build the stock-upstream llama.cpp image and run the Mellum MTP A/B** — `recipes/explore/Dockerfile.llamacpp-upstream` is ready (pinned CUDA base digests, required `LLAMA_REF` with no default, gates against the `b2e5e9b` failure mode, `docker build --check` clean) and stock upstream `9df0b73c` (2026-10-20) carries Mellum MTP, `kolibri1` and `121a-real`/sm_121 upstream-native; only the decision2 pack still needs its fork (`qwen35`, 330 tensors where upstream expects 320). Unblockers: a build host window (the CI report's runner half is closed — `0976a1e` builds on GitHub's hosted `ubuntu-24.04-arm`, `QUESTIONS.md` `#8`). Pre-registered A/B: existing Q4_K_M main + `mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf --spec-type draft-mtp --spec-draft-n-max 1`; falsifier C1 > 114 t/s n=5 vs 111.9 ± 0.3, accept-len recorded, no C2/C5 regression, house 37/37 and bfcl 88.3 % held. *(effort: medium; recorded 2026-10-22 01:22 ET)*
 
@@ -2626,6 +2678,11 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
 
   **Cells — media-gen instrument, not a chat ladder.** One 4-5 s 768p clip, `t2va` first then `fl2va`; per cell record duration/frames/fps, **audio-stream presence** (expected 32 kHz stereo), peak unified memory, wall time per clip, and one prompt-adherence check with a countable constraint (e.g. a two-ink screenprint look: count chromatic hue bins, demand one dominant ink). Step sweep on one prompt+seed with outputs **hashed against each other** at 8/16/32/48 steps to prove `num_inference_steps` is live — `scheduler_config.json` is `{"shift": 12.0}` only, so it should be, but the Qwen-Image checkpoint's saved sigmas silently won and cost a campaign. **Wall-time bar: 30 min per warm clip** (the vendor's 12.1 s/step is a 480p RTX PRO 6000 figure; budget ~10-12 min load, ~5.5 min encoder, then denoise). Falsifiers: identical hashes across the step sweep, no audio stream in the output, or wall time past 30 min. If the bar breaks, the lever is Comfy's Turbo LoRA (`loras/minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16`); whether v0.5.22 can load a diffusion LoRA is unverified and is a separate experiment. *(Not booted yet: every node is claimed. No index row.)*
 
+  *(Owner decision 2026-10-24 (SURVEY row 5) — the rank shape is a **time** question, not a capability one,
+  and the owner set the rule: **"If a non-TP4 boot unblocks a TP4 boot then it is authorized."** A one-node
+  tier-1 or TP=2 cell may run when it unblocks the four-rank boot; `#7`'s four-rank authorization stands.)*
+
+
 
 ## cybersec
 Cybersecurity-research (red-team) abliterated / uncensored models
@@ -2807,6 +2864,12 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 - [ ] **Run the standard suite against every shipped arm** — the SOP pass (`tools/eval-suite.py`, then the `benchmarking/concurrency-ladder.yaml` leg `--skip-run` on the same boot, then `benchmarking/standard-suite.yaml` where the arm serves tool calls) for each shipped recipe; receipts under `~/benchmarks/<lane>-<date>/`, numbers into the lane docs and the index with their receipt/bench id. This is the sweep that fills the C2/C5/C10 cells above and each lane's unmeasured accuracy cells; start with the ornith 35B and work the free `.34`/`.35` window. *(effort: long)* *(progress 2026-10-15: ornith 35B done; IFM 0.9B/7B ladders measured; the decision-lane ensemble + ladder and the qwen3 27B headline suite both landed. **2026-10-16: the ornith 35B re-run in full** — eval-suite 1.0.1 `ok` (house 37/37; needle 3/3 at each of 32k/131k/262k), same-boot ladder C1 101.8 / C2 153.1 / C5 217.4 / C10 244.2 t/s, tool-eval-bench v2.6.0 **100** (15/15); receipts `~/benchmarks/ornith-35b-suite-20261016/`, rows in `recipes/ornith/README.md` + the index. **And the qwen3 coder-next arm** — one boot: pin + ladder (C1 70.4 / C2 114.0 / C5 177.1 / C10 249.5) + tool leg **90/100 (27/30)**, deployability 89, responsiveness 87, engine `vLLM 0.32.0rc1.dev301`; receipts `~/benchmarks/pins-20261016/`. **2026-10-17: the laguna-XS-2.1 arm's suite landed** — same-boot ladder C1 55.3 / C2 83.1 / C5 133.7 / C10 141.3 t/s (`bench_9b207347ec3b`), `tools/eval-suite.py` 3 ok / 2 fail (the fails: contract, all-empty reply at the 262,144 window; needle 2/3 at 32k and 131k but **3/3 at 262k** — the rope caveat's predicted long-window miss did not appear), TEB **97**; receipts `~/benchmarks/explore-laguna-xs-20261017/`, the index row + `recipes/explore/README.md` carry the numbers. **And the qwen3 mlx4bit-TensorFold arm** — one boot on `.35`: ladder C1 44.8 / C2 57.7 / C5 64.4 / C10 65.6 t/s (`bench_b10e422bb046`), house 37/37, needle 3/3 at 32k and 131k (the engine reports no `max_model_len`, so the auto depths stop at 128k), arc 94.0% / gsm8k 96.5%, TEB **100** (15/15); receipts `~/benchmarks/qwen3-tf-suite-20261017/` (+ `NOTES.md`). Its `tools` leg was killed at 3,878 s because the leg's Python-block-buffered log read as a hang; the fix (`cb44b09`, `PYTHONUNBUFFERED` in `tools/eval-suite.py`'s child env) landed mid-sweep; the leg re-ran unbuffered (4,487 s) and landed **85.7% (1063/1240)** in `~/benchmarks/qwen3-tf-tools-20261017/` (`parallel` 85.5%, `parallel_multiple` 72.0%). In the same window the first llama-cpp arm (mellum Q4_K_M, `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`) booted in ~100 s with its `--alias` intact and ran the same legs on `.34` (results at the end of this paragraph). One operational trap worth carrying: a legs-runner waiting on `pgrep -f "tools/eval-suite.py"` never exits, because a peer's day-old watcher loop carries that string in its own command line — match a pid file or a unique marker, not a substring of a command line. **2026-10-17: the first llama-cpp arm (mellum Q4_K_M, `.34`) ran the full legs** — house 37/37 (easy 19/19, hard 18/18); needle 131k 3/3, and 32k 3/3 after two manual re-probes of the thinking-budget class (depth 50 PASS at `--max-tokens 4096`; depth 90 PASS with `enable_thinking:false`, 9 completion tokens); hard arc 77.0% / gsm8k 93.5% (n=200 each); tool-eval-bench **97** (15 scenarios, 14 pass, 1 partial); bfcl **73.5 % at the 512 default → 88.3 % at 4096** (`~/benchmarks/mellum-gguf-tools4096-20261017/`: 179 → 6 no-call in the two parallel categories, all six `finish_reason: length`, the residual loss multi-call shape); ladder `bench_4247926b7b9a`; receipt `~/benchmarks/mellum-gguf-20261017/`. **Queued:** a `--bfcl-max-tokens 4096` re-run of the qwen3-TensorFold tools leg — its 85.7 % came from the 512 default, so its row and lane doc carry a `‡` budget annotation meanwhile.)*
   *(progress 2026-10-18 — two legs landed. **ds4 knapcio TP=4, 1017 weights** (task `a2e141223b52793c_7afff0589a33`): house **36/37** (easy 19/19, hard 17/18; the miss is `hard-rev`), needle **3/3 at each of 32,768 / 131,072 / 983,040** (top rung 981,950 prompt tokens), tool-eval-bench **90** (15 scenarios: 13 pass, 1 partial, 1 fail `TC-03 wrong_args`, `benchmarking/standard-suite.yaml`), same-boot ladder C1 69.28 / C2 86.40 / C5 108.78 / C10 116.27 t/s; receipts `~/benchmarks/tp4-20261018/` — `REPORT.md` §4, `knapcio-suite/`, `knapcio-teb.{yaml,json,csv}`. **qwen3 coder-next re-run** (`.30`, job `3d9fbe520b47c3a3_2d38dfc4605e`), all four legs `ok`: house 36/37 (easy 19/19, hard 17/18, the same `hard-arith-2` miss), needle 3/3 at 32k/128k/**256k** (262k rung filled 97.7 %, the tool's calibrated target, no `TRUNCATED`), ARC-Challenge 92.0 % (184/200) / GSM8K 96.0 % (192/200); `--timeout 3000 --needle-max-tokens 512` were applied proactively and never needed (256k prefill ~129 s, suite 1,319 s); the `tools` leg skipped on purpose (TEB already 90/100 on this arm); receipt `~/benchmarks/qwen3-coder-next-suite-20261018/`.)*
   *(progress 2026-10-18, late — **IFM 0.9B: PARTIAL, not a pass.** One serve on `.31` (cluster `e2b91b75cf01d3ab_68907e0cb1d8`, TTR 74.6 s, served `IFM/K2-Horizon-0.9B` @ 131,072, recipe sha256 `3c93459e…`): **contract ok**; **house ok** — easy **17/19** (`fmt-2`, `needle-1`), hard **15/18** (`hard-rev`, `trick-1`, `trick-2`); **needle FAIL** — 0/9 cells answered, every reply `finish_reason=length` with all 256 tokens spent inside `reasoning_content` and empty content, i.e. the SOP's 256-token cap and **not** a retrieval result (the 32k ladder's own calibration probes truncated too, so `chars_per_token` fell back to 4.6 and it filled 46.5k for a 32,768 target — a 42 % overshoot); **hard ok but floors** — gsm8k 86.0 % (172/200, 11 `length` + 11 empty replies) and arc 68.5 % (137/200, 18 `length` + 18 empty), the reasoning block eating the budget; **tools CUT** — SIGTERM'd when `.31` was reclaimed for a TP=4 boot, **585/904 logged (64.7 %)** with `irrelevance` never started and no `bfcl.json`, so that tally is **not** this arm's BFCL score. No ladder on this boot (the arm's stands at `edd4029e004f`). A valid re-take needs `--needle-max-tokens >= 512` and a completed tools leg. Receipt `~/benchmarks/ifm-09b-suite-20261018/` (`REPORT.md`, `house.json`, `needle-*.json`, `hard/`, partial `bfcl.log`, 0-byte `suite.log`).)*
+  *(Owner decision 2026-10-24 (SURVEY row 6) — **the longer-needle re-take cell is authorized.** Boot #6's
+  needle leg passed 3/3, but at the suite's automatic lengths its top rung is 262,144 against the baseline
+  bar's ~999k (5/5 at depths 10–50), so closing the gap needs the needle rung raised (`--needle-max-tokens`)
+  and a re-take on a live TP=4 serve; 262,144 does not stand for this window. Provenance:
+  `DEEPSEEK.md` §7.2; receipts `~/benchmarks/tp4-window-20261024/` (`boot6-suite-eval/`).)*
+
 
 *(2026-10-19: the explore keeper sweep retired 10 arms, so the "~20 arms" tail above shrank —
 re-count the survivors from the index before scheduling the sweep.)*
