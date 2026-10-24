@@ -61,12 +61,15 @@ defaults:
   dit_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors
   text_encoder_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
   video_vae_weights: /cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/snapshots/e5eb578a89295337b8ff433a035929ce0279e0b6/vae/minimax_h3_video_vae_fp16.safetensors
-  # The engine runs as uid 1000 on a root-owned 0755 CWD; the relative
-  # defaults `inputs/uploads` and `outputs/` die in os.makedirs with a bare
-  # 500 before any job runs (video_api.py:545 via server_args.py:582; the
-  # tp2-queue root cause, 2026-10-24). Disable input saving (the empty string
-  # trims to None per server_args.py:878-881) and point outputs at an
-  # absolute writable dir.
+  # Engine runs as uid 1000 on a root-owned 0755 CWD: the relative defaults
+  # `inputs/uploads` and `outputs/` die in os.makedirs (tp2-queue root cause,
+  # 2026-10-24). BUT input saving cannot be DISABLED ("") on the four-rank
+  # serve: the engine's post-init warmup request stages warmup_image.png into
+  # the input dir and reads it back; with saving off every rank's warmup
+  # fails FileNotFoundError and /health stays 503 past workers_ready (boot14,
+  # 2026-10-24: workers ready 21:37:16, liveness 200, warmup dead on all four
+  # ranks). An absolute writable path satisfies both.
+  input_save_path: /tmp/h3-inputs
   output_path: /tmp/h3-outputs
 
 readiness:
@@ -85,7 +88,6 @@ command: >
   --component-weights-paths.video_vae {video_vae_weights}
   --num-gpus {num_gpus}
   --performance-mode {performance_mode}
-  --host {host}
   --port {port}
-  --input-save-path ""
+  --input-save-path {input_save_path}
   --output-path {output_path}
