@@ -18,6 +18,7 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 - [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative under SGLang; vLLM route unblocked (+ `qwen3.8-flash-next-uncensored-nvfp4-vllm`)
 - [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang) — arm 5, positive (TP=2), graft
 - [`orcacyber-nano-1.0-15.7g-gguf-llamacpp`](#orcacyber-nano-10-157g-gguf-llamacpp) — arm 6, positive (TP=1), the lane's only llama.cpp arm (GGUF 15.7G tier)
+- [`orcacyber-nano-1.0-13g-gguf-llamacpp`](#orcacyber-nano-10-13g-gguf-llamacpp) — arm 6's tier A/B control (TP=1, llama.cpp, GGUF 13G tier)
 - [Attic index](#attic-index)
 
 ## Gating and the token prerequisite
@@ -365,6 +366,26 @@ files.
   that answers shallow should try it before the projector is blamed. The 2026-10-22 boot never
   exercised a vision request — `multimodal` is the server's own capability advertisement, not a
   measured answer.
+
+## `orcacyber-nano-1.0-13g-gguf-llamacpp`
+
+**Arm 6's tier A/B control (TP=1), shipped 2026-10-24 as its own recipe** — the `#12` ruling's
+`:Mix-13G` control with the same engine pin, `mmproj` and in-file MTP head as the 15.7G arm; every
+default except the `model:` tier suffix and the `model_dtype` estimator key is identical.
+
+- Model: [orcarouter/OrcaCyber-Nano-1.0] `OrcaCyber-Nano-1.0-AI-Defense-Mix-13G.gguf` —
+  **12,993,304,352 B (12.10 GiB) at 3.80 bpw** (IQ4_XS 199 · Q6_K 96 · IQ3_S 122 · IQ3_XXS 39 ·
+  IQ2_S 24 · Q5_K 17 · Q4_K 8), same commit pin `1af1635a…` as the 15.7G arm. Control tier, never a
+  default serve.
+- **Ladder (2026-10-24, `.35`, warm, task auto-stopped, 0 containers after).** Decode rows from
+  `~/benchmarks/tp2-queue-20261024/ladder-13g.json` (5 runs per cell): **C1 28.09 ± 1.26 · C2 46.32
+  ± 2.84 · C5 38.33 ± 2.39 · C10 34.13 ± 0.68 t/s**; prefill 789.4 (C1) collapsing to 479.2 (C10).
+  The tier peaks at C2 and falls to C10 — not the sustained shape — and C1 28.09 sits inside the
+  inter-boot floor of the 15.7G arm's 25.62 (which was a single warm call, not a 5-run ladder, so the
+  pair is indicative only). First boot attempt died pre-load on the post-migration cache gap (repo
+  not in the BeeGFS pool, image has no TLS for `-hf`); fixed by staging the tier + mmproj into the
+  pool at the pinned revision (`~/benchmarks/tp2-queue-20261024/ORCACYBER-13G-LADDER.md`). Quality
+  and vision cells remain unmeasured.
 
 ## Attic index
 

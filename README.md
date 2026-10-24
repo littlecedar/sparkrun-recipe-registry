@@ -280,6 +280,7 @@ measurement.
 | qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang         | 👀🏴📜  |   33.3 |   49.4 |   84.6 |    92.9 | 20.6GB + 3.9GB draft |   85% |  1 | [Model][sakamakismile/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-NVFP4] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                      |
 | deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang | 🚀🚚1🏴📜 |   67.0 |   53.0 |   47.8 |    46.8 |          119GB graft | 85%\* |  2 | [Model][drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed]                                                                                                 |
 | orcacyber-nano-1.0-15.7g-gguf-llamacpp                      | 👀🏴📜  |   25.6 |    —   |    —   |     —   | 15.7GB + 0.9 mmproj  |   —   |  1 | [Model][orcarouter/OrcaCyber-Nano-1.0]                                                                                                                                    |
+| orcacyber-nano-1.0-13g-gguf-llamacpp                        | 👀🏴📜  |   28.1 |   46.3 |   38.3 |   34.1 |  12.1GB + 0.9 mmproj  |   —   |  1 | [Model][orcarouter/OrcaCyber-Nano-1.0]                                                                    |
 
 * _`*` no recipe util — the arm's documented `≤ 0.85` ceiling._ 
 * _`📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._ 
