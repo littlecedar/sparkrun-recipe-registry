@@ -297,8 +297,8 @@ remove what the session created** — a leftover is anything undocumented, unkno
   state temporarily — the reboot's "fix" was really an emptied page cache, which is why the wedge
   always returned. Sources: NVIDIA forum thread 383023 (the `7.0.0-1019` regression, NVES advisory),
   `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (KHO root cause, `kho=off`, two independent
-  confirmations). `.30`/`.35` still carry the old cmdline; power-cycle remains the fallback for a
-  genuinely wedged HCA.
+  confirmations). **Applied fleet-wide 2026-10-24** (all six nodes carry `kho=off`; `.30` rebooted
+  under the owner's apply instruction); power-cycle remains the fallback for a genuinely wedged HCA.
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and

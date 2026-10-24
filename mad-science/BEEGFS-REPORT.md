@@ -155,9 +155,17 @@ instruction (`QUESTIONS.md` `#20`, now settled) and §11's gates. Receipts:
   the first boot from the pool.
 - **§1–§10 stand as dated history.** The "not now" verdict was overtaken by the owner's own acts —
   the round-4 activation, then this migration — not by any new measurement in this report.
-- **Boot-time persistence is still unverified.** No post-migration reboot is recorded; the fstab
-  `_netdev,nofail` risk (a slow mount leaves containers seeing an empty `/cache`) predates the
-  migration and stays open — see §"Activation addendum".
+- **Boot-time persistence is PROVEN (2026-10-24, same day, later).** Three reboot cycles on all six
+  nodes came back with the pool mounted and the pinned snapshot resolvable — but only after fixing two
+  real fstab defects the first cycle exposed: the rail-wait drop-in had been written with a
+  `[Service]` section on the `.mount` unit (invalid there — systemd warned and ignored it), so the
+  mount raced the rail address (`Couldn't find any usable NIC`), and the client's mount sanity check
+  (`sysMountSanityCheckMS`, was 11000) canceled three of four simultaneous re-registrations at boot
+  (`Mount sanity check failed. Canceling mount.`). Fixed with a `rail-wait.service` + `[Unit]`-only
+  drop-in on `mnt-beegfs.mount` and `sysMountSanityCheckMS = 0` fleet-wide. The first pool boot also
+  priced the load path: `load_weight=71.15 s` for the fp8 body ≈ **6.7 GB/s from the pool**, launch→ready
+  ≈251 s — faster than the node-local era, so this section's "boot times may be longer" worry is
+  refuted; the KV pool read 4,238,080 tokens (the 6.85M pin again inert).
 - **The WOPR cluster profile is configured for the shared cache (2026-10-24, later the same day).**
   The head's `~/.config/sparkrun/clusters/WOPR.yaml` sets `distribution.model` = `enabled: false`,
   `skip_fan_out: true`, `preserve_perms: false` (backup `WOPR.yaml.bak-pre-shared-cache-20261024`),

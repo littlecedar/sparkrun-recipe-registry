@@ -699,8 +699,9 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   `nr_free_cma 0`, and the quartet boot that died at `ncclCommInitRank` 38 s in got past init
   (`ROCE_TP8_READY` with zero errors). Sources: NVIDIA forum 383023;
   `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (ftrace proof + two independent `kho=off`
-  confirmations). `.30`/`.35` still carry the old cmdline pending the owner's call; power-cycle stays
-  the fallback for a genuinely wedged HCA. *(effort: none — done.)*
+  confirmations). **Fleet-wide by owner instruction the same hour** (`.30`/`.35` patched and rebooted;
+  `beegfs-mgmtd` back active on `.30`); power-cycle stays the fallback for a genuinely wedged HCA.
+  *(effort: none — done.)*
 
 - [ ] **First quartet boot under the shared-cache WOPR profile** — created 2026-10-24 when
   `distribution.model.enabled: false` landed on the cluster profile (`960e164`): it is the only event
@@ -711,12 +712,19 @@ deferred**, by the 19:15 policy above. Measurement, launcher pins and the correc
   knapcio line, read `max_total_num_tokens` and the load-time line, and record both against the
   node-local era. *(effort: one boot; pairs naturally with the KV-pool pricing boots above.)*
   *(progress 2026-10-24 — boot 1 **crashed at `ncclCommInitRank`** on the KHO/CMA wedge (see the closed
-  item above); boot 2, post-`kho=off`, got past init and is the KV-pool reading in flight. The two
-  reboot cycles en route also **proved boot-time persistence** — after fixing two real fstab defects:
-  the rail-wait drop-in was written with a `[Service]` section on the `.mount` unit (invalid, ignored
-  — systemd warned) so the mount raced the rail address, and the client's mount sanity check
-  (`sysMountSanityCheckMS`, was 11000) canceled three of four simultaneous re-registrations; fixed
-  with a `rail-wait.service` + `[Unit]`-only drop-in and `sysMountSanityCheckMS = 0`.)*
+  item above). **Boot 2 is the result**: post-`kho=off`, the quartet served healthy —
+  launch→ready ≈251 s, `load_weight=71.15 s` for the fp8 body (**≈6.7 GB/s from the pool** — the
+  "boot times may be longer" worry is refuted; faster than the node-local era), `/v1/models` answers
+  with `max_model_len` 1,048,576, and **`max_total_num_tokens=4,238,080`** — the 6.85M pin again inert
+  ("larger than the profiled value ... use the profiled value"), between the 3,424,000 regression boot
+  and the 6,849,792 baseline, with 18.82 GB free at pool sizing; the `DSV41_FAST_LOAD=0` control boot
+  is still owed. Boot 1 **crashed at `ncclCommInitRank`** on the KHO/CMA wedge (closed item above).
+  The reboot cycles en route also **proved boot-time persistence on all six nodes** — after fixing two
+  real fstab defects: the rail-wait drop-in was written with a `[Service]` section on the `.mount`
+  unit (invalid, ignored — systemd warned) so the mount raced the rail address, and the client's mount
+  sanity check (`sysMountSanityCheckMS`, was 11000) canceled three of four simultaneous
+  re-registrations; fixed with a `rail-wait.service` + `[Unit]`-only drop-in and
+  `sysMountSanityCheckMS = 0` fleet-wide. Receipts `~/benchmarks/pool-boot-20261024/`.)*
 
 ## glm5
 GLM 5.3
