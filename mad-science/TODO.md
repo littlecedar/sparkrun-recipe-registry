@@ -46,7 +46,8 @@ govern, per the protocol; the verbatim asks remain in git.)*
 - **#48 — baseline model, and the deferred GLM-5.3 3bpw TP=4 arm.** *Owner decision 2026-10-22:
   **`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`** (DSv4-Flash knapcio, **TP=4, 1M
   window**) is the **baseline**; GLM-5.3 3bpw TP=4 is **deferred** — the owner will try it "in a few
-  days".* **TP=4 is the foundation shape and TP=2 arms supplement it.** Rationale: knapcio is
+  days".* *(Owner decision 2026-10-24: undeferred — the arm joins the declared TP=4 window's
+  queue.)* **TP=4 is the foundation shape and TP=2 arms supplement it.** Rationale: knapcio is
   **measured** — house **36/37**, needle **3/3** to ~983k (981,950 prompt tokens at the top rung),
   C1 **69.28** → C10 **116.27** t/s — and its `-1017` body is being made resident on four nodes,
   where GLM-5.3 is **boot-verified but unmeasured** and its ~273 GB body (the recipe's own figure,
