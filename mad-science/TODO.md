@@ -379,6 +379,16 @@ never re-opened.
   closed rather than left to its default. — provenance: `mad-science/BEEGFS-REPORT.md` round-4 addendum
   (the license continuation); asked 2026-10-24; answered 2026-10-24.
 
+- **#20 — Move the HF cache onto the BeeGFS pool — and if so, when?** *Answered 2026-10-24.*
+  **Authorized and executed the same day**, in the owner's words: *"We want to move the entire head
+  node's cache into beegfs, delete duplicates from the other nodes, and then repeat that process for
+  each node until all models are deduplicated and live in beegfs."* Execution followed
+  `mad-science/BEEGFS-REPORT.md` §11 (`9c96975`) and **completed**: the owner reports the cache is
+  **entirely on the pool**, all models deduplicated, per-node duplicates deleted. — Closed the last
+  open storage question; the consequences are the pool-boot pricing (boot times may be longer; no
+  pool boot has measured yet) and the retired head-staging rationale — provenance:
+  `mad-science/BEEGFS-REPORT.md` §11 + the round-5 addendum; asked 2026-10-24; answered 2026-10-24.
+
 # TODO list
 
 *(2026-10-14 documentation sweep — six parallel lane/registry scouts over `recipes/**`, `attic/**`,
@@ -2883,12 +2893,14 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 `docker events --filter event=die` → `docker-events.log`, both inside the receipt dir.)*
 
 ## Shared storage (registry-level)
-**BeeGFS is wanted but deferred on firmware — `mad-science/BEEGFS-REPORT.md` is the record.** §1–§9 are the
-read-only assessment (cache census, resource cost, fabric and disk measurements, Engram demand, the
-fetch-once fan-out rule), §10 is the two-node pilot with its reconciliation and end state, and the round-3
-addendum at its top is the owner's apt install now sitting on all six nodes. Settled `#5` and `#52` point
-there, and the owner's 2026-10-23 answers (`TP4-BGFS Q11`–`Q18`) keep the goal and block it on Secure Boot;
-no BeeGFS measurement, path or fingerprint is restated in this file.
+**BeeGFS is activated fleet-wide and the HF cache now lives on the pool — `mad-science/BEEGFS-REPORT.md`
+is the record.** §1–§9 are the read-only assessment (cache census, resource cost, fabric and disk
+measurements, Engram demand, the fetch-once fan-out rule), §10 is the two-node pilot with its
+reconciliation and end state, the round-3 addendum at its top is the owner's apt install now sitting
+on all six nodes, the round-4 addendum is the 6/6 activation, and the round-5 addendum is the
+completed HF-cache migration. The owner's 2026-10-23 answers (`TP4-BGFS Q11`–`Q18`) fixed the goal;
+the firmware blocker was overtaken by the owner's own acts. Settled `#5`, `#52` and `#20` point
+there, and no BeeGFS measurement, path or fingerprint is restated in this file.
 
 - [x] **Run the two-node BeeGFS pilot on `.34`/`.35`** — ran 2026-10-22, `13:26–13:46:41` ET, with the
   pair exclusive to it (owner condition: no lane serve, no transfer and no benchmark cell beside it).
@@ -2908,18 +2920,23 @@ no BeeGFS measurement, path or fingerprint is restated in this file.
   0.026 ms reading is suspect and non-reproducible). The vendor packages stayed untouched (`Q16`/`Q17`).
   **Open work, none started:** (a) boot-time persistence verification on the next reboot — fstab
   `_netdev,nofail` and the rail-wait drop-in are in place but unverified; (b) the certificate-renewal
-  trust-copy refresh in 2027; (c) the HF-cache migration decision (`QUESTIONS.md` `#20`), with the `Low`
-  targets on `.30`/`.34` and the create cost in view. *(effort: medium.)*
+  trust-copy refresh in 2027; (c) the HF-cache migration — **done 2026-10-24**, the next item below. *(effort: medium.)*
 
-- [ ] **Execute the HF-cache migration onto BeeGFS (owner-authorized 2026-10-24)** — the owner's
+- [x] **Execute the HF-cache migration onto BeeGFS (owner-authorized 2026-10-24)** — the owner's
   instruction, quoted: *"We want to move the entire head node's cache into beegfs, delete duplicates from
   the other nodes, and then repeat that process for each node until all models are deduplicated and live
-  in beegfs."* Execution follows `mad-science/BEEGFS-REPORT.md` §11 (`9c96975`): the head's cache first,
-  then dedupe the other nodes, then repeat per node. **Gates:** hash parity plus the `bind,ro` mount
-  proven before any local disposal; a trash-rename before any `rm`; the pool free floor 500 GB; and
-  boot-time persistence proven on `.31` (unit + one reboot) before the first node's bytes are destroyed.
-  Non-live bodies are in scope under the owner's "entire head node's cache" wording until pool free forces
-  a stop. Receipts: `~/benchmarks/beegfs-migrate-20261024/`. *(effort: large, multi-window.)*
+  in beegfs."* Execution followed `mad-science/BEEGFS-REPORT.md` §11 (`9c96975`) under the gates recorded
+  here (hash parity and the `bind,ro` mount before any local disposal, a trash-rename before any `rm`,
+  the pool free floor 500 GB). **Boot-time persistence is STILL UNVERIFIED** — no post-migration reboot
+  is recorded, and the fstab `_netdev,nofail` + rail-wait risk (a slow mount leaves containers seeing an
+  empty `/cache`) stays open under the activation item's (a).
+  **Done 2026-10-24:** the owner reports the cache is **entirely on the pool** — all models deduplicated
+  and live on BeeGFS, per-node duplicates deleted — closing `QUESTIONS.md` `#20`. The completion state
+  is the owner's report; the receipts above are the execution record. Consequences:
+  **boots read weights over the pool, so boot times may be longer** (no pool boot has priced the new
+  path yet); and the head no longer stages or fans out bodies, so `AGENTS.md` §Node hygiene's >60 GB
+  node-local rule has lost its reason and should be revisited after the first boot from the pool.
+  Receipts: `~/benchmarks/beegfs-migrate-20261024/`. *(effort: large, multi-window — executed.)*
 
 ## Image pins and advisories (registry-level)
 

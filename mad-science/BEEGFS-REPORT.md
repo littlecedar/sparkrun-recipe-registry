@@ -140,9 +140,29 @@ all six servers (meta on `.30` plus storage on all six; evidence
 the mgmtd journal has no registration-denied line after the reload. The capacity caveat is unchanged:
 `.30` (294G, root 92 % full) and `.34` (422G) are still `Low`.
 
+**Completion addendum 2026-10-24 (round 5) — the HF-cache migration ran to the owner's stated end
+state.** The owner reports the Hugging Face cache is **entirely on the pool**: all models
+deduplicated and live on BeeGFS, per-node duplicates deleted, executed under the owner's quoted
+instruction (`QUESTIONS.md` `#20`, now settled) and §11's gates. Receipts:
+`~/benchmarks/beegfs-migrate-20261024/` on the head. What an operator plans with now:
+
+- **Boots read weights over the pool**, so boot times may be longer than the node-local NVMe era.
+  §5's load-rate table and §10's NFS stand-in rows are the pre-migration baselines, not the current
+  path; the first boot from the pool is the cell that prices the new path.
+- **The head is out of the staging business.** §9's "bodies above 60 GB are node-local" rule existed
+  because the control's root disk had to hold a staged body; with the cache shared on the pool that
+  reason is gone. The rule itself lives in `AGENTS.md` §Node hygiene and should be revisited after
+  the first boot from the pool.
+- **§1–§10 stand as dated history.** The "not now" verdict was overtaken by the owner's own acts —
+  the round-4 activation, then this migration — not by any new measurement in this report.
+- **Boot-time persistence is still unverified.** No post-migration reboot is recorded; the fstab
+  `_netdev,nofail` risk (a slow mount leaves containers seeing an empty `/cache`) predates the
+  migration and stays open — see §"Activation addendum".
+
 ## 11. The migration plan — one canonical body per repo on the pool, read-only per-node mounts
-**(2026-10-24; census run this day, nothing moved, nothing deleted, no recipe changed. The plan is
-written; the decision to execute it is the owner's — `QUESTIONS.md` `#20`.)**
+**(2026-10-24; census run this day, nothing moved, nothing deleted, no recipe changed at the time of
+writing. The plan was **executed later the same day — see the round-5 completion addendum above**;
+the owner decision that authorized it was `QUESTIONS.md` `#20`, now settled.)**
 
 **The chosen shape (director's proposal, verified against the census below).** Not a fleet-wide
 `HF_HOME=/mnt/beegfs`. The hub cache is a concurrent-write protocol — `refs/`, `.locks/` (fcntl),
