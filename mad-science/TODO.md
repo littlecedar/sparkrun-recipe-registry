@@ -1047,6 +1047,16 @@ Any model with reasoning and tool-calling capabilities
   `.30` under the owner's work-node ruling (functional boot; the comparative ladder/house cells wait
   for a `.34`/`.35` gap per the coordination contract).)*
 
+  *(**tp4-lane boot cells 2026-10-24, all on `.30` (controller-load caveat beside every number)** —
+  receipts `~/benchmarks/tp4-lane-20261024/bonsai/` (`REPORT.md`, `ladder-boot2.{yaml,json,csv}`,
+  `house-boot3.json`): ladder n=5 --fresh at parallel 10 — **C1 80.6** (bar 69.28 — PASS), C2 137.9,
+  C5 118.1, **C10 107.6** (bar 116.27 — **7.5 % short**); house battery @4096 thinking-on — easy
+  19/19, hard 17/18 = **36/37** (bar ≥ 36/37 — PASS). Two of three bars clear; the deciding cell is
+  a C10 confirm on a quiet node (first `.34`/`.35` gap; the `.30` number carries the controller +
+  mgmtd host-load caveat and window2 held the quartet all session). Boot1 functional cell: coherent
+  text + vision round-trip "Red" — see the falsifier amendment below. All boots stopped by task id,
+  0 containers after.)*
+
   *(**falsifier amendment, tp4-lane 2026-10-24:** the "no `loaded … Hadamard-folded weight(s)`
   line" half of the first-cell falsifier is RETIRED — at default verbosity llama.cpp `b1-9df0b73`
   prints no such line at all (the load log shows only `load_model: loading/loaded multimodal model`),
