@@ -71,9 +71,11 @@ executor_config:
   entrypoint: ""
 
 
-# Cell (d) treatment shape (window 4): the vendor vLLM recipe's DFlash2 line, inline
-# because sparkrun's -o strips double quotes from values (dry-run verified). Boot 1 of
-# the screen ran WITHOUT this line (the recorded no-spec baseline).
+# attempt-5 failure recorded (2026-10-26): the vendor recipe's explicit drafter
+# "attention_backend":"FLASH_ATTN" is invalid here — FLASH_ATTN rejects the serve's
+# fp8 KV cache on this build (vendor pairing verified on B300); the drafter takes
+# vLLM's own backend selection. Boot 1 of the screen ran WITHOUT this line (the
+# recorded no-spec baseline).
 command: >
   taskset -c 5-9,15-19 vllm serve {model}
   --served-model-name {served_model_name}
@@ -90,7 +92,7 @@ command: >
   {moe_backend}
   --reasoning-parser beam
   --tool-call-parser beam
-  --speculative-config '{"method":"dflash","model":"/cache/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-DFlash2/snapshots/163b276be744c8ce2b8385ea85de54edb3088211","num_speculative_tokens":7,"attention_backend":"FLASH_ATTN","enable_adaptive_verification":true}'
+  --speculative-config '{"method":"dflash","model":"/cache/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-DFlash2/snapshots/163b276be744c8ce2b8385ea85de54edb3088211","num_speculative_tokens":7,"enable_adaptive_verification":true}'
   {extra_args}
 
 readiness:
