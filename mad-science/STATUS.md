@@ -1,13 +1,11 @@
-# Board — generated 2026-10-25 23:22 ET
+# Board — generated 2026-10-26 00:51 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **23:22 ET 2026-10-25, all six nodes (read-only `ssh` + `docker ps` + `df`)**: `.30` **0**, `.31`–`.35` **1** each (5 containers fleet-wide, matching `sparkrun status`); free root 2.2/2.3/2.3/2.3/1.7/1.8 TB — drift: none; `.30` idle while two live jobs hold `.31`–`.35` |
-| `.31`–`.34` (window 3) | tp4-window3 | GLM 3bpw TP=4 quartet boot `7d9a3a61b33a29e4_e1ba2bd6f9d9` live on all four ranks (1 container each), serve answering `/v1/models` as `GLM-5.3-EXL3-3.0bpw`; the boot1-auto ladder/house cell is running on the head (`~/benchmarks/tp4-window3-20261024/boot1-auto.log`) |
-| `.35` | tplt4-research | Ornith-122B NVFP4 MTP probe **boot 4 live** `390833e14b644c0e_fb7d9a6647cf` (solo, ~6 min at 23:22, 1 container), past the two arg-parse failures fixed in `10fb558`/`57543db`; in weight load |
-| `.30` | tp4-window3 | **nothing live — Beam staging DONE** (re-verified 23:2x ET: `dl-beam.log` ends `✓ Downloaded` at **63/63 files**, snapshot `/mnt/beegfs/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-NVFP4/snapshots/f8ecac0e…`; `docker ps` 0) |
+| census | board-keeper | **00:51 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `df`)**: `.30`–`.34` **0 containers** (idle), `.35` **1**; free root 2.1/2.2/2.3/2.3/1.6/1.8 TB — drift: none; `sparkrun status` matches (1 container fleet-wide) |
+| `.35` | tplt4-research | **phonon 31M TTS CPU boot live** `a3927977698d21bb_506599b05471` (solo, `Up About a minute` at 00:51, image `sha256:ce9a404c2c01`) — the queue item 7 kokoro-shaped phonon arm; the GLM TP=4 quartet and ornith MTP boots have ended (0 containers on `.31`–`.34`) |
 
 ## Work queue
 
@@ -39,3 +37,4 @@ Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1�
 | 23:21 10-25 | `cc81898` | board restructured to the owner's three-table spec (In flight / Work queue / Landed this session), history swept |
 | 23:16 10-25 | `57543db` | ornith MTP: `--speculative-config` placeholder single-quoted (boot3's stripped double quotes reached argparse) |
 | 23:13 10-25 | `10fb558` | ornith MTP: speculative-config JSON quoted inside the command template (boot2's bash-strip failure) |
+| 23:2x 10-25 | `e5997ca` | board reconciliation: Beam staging verified DONE 63/63 (`dl-beam.log` tail), queue row 3 state flipped |
