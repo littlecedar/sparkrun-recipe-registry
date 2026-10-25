@@ -1,6 +1,9 @@
 {
   "priority_models": [
-    ["deepseek-v4.1-flash-1017", "dsv4.1-1017"],
+    [
+      "deepseek-v4.1-flash-1017",
+      "dsv4.1-1017"
+    ],
     "glm-5.3",
     "glm-5.3-flash"
   ],
@@ -9,7 +12,11 @@
       "id": "w4-s0-control",
       "title": "Survey S0 control: boot the stock main-image tree (sglang-main-arm64:6563312) against the 1017 checkpoint — gates the whole flag track",
       "estimate_h": 1.0,
-      "blocks": ["w4-s1-cache-report", "w4-s2-lpm", "w4-s3-min-free-slots-delay"],
+      "blocks": [
+        "w4-s1-cache-report",
+        "w4-s2-lpm",
+        "w4-s3-min-free-slots-delay"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "dsv4.1-1017",
@@ -26,10 +33,10 @@
       "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "claimed_by tp4-window4 (2026-10-26, boot-2 window); needle 0/3 was budget truncation, finish=length — rerun at --needle-max-tokens 512 before quoting a capability miss.",
+      "notes": "claimed_by tp4-window4 → adopted by tp4-recovery (2026-10-26). Cells (b) needle@512 20/20 PASS + (c) BFCL direct DONE; cell (d) treatment ladder LIVE on attempt-8 serve 30078b4aa125dd7d_e6ffa2719fcc (DFlash2 config fixed in 6d9eae2: FLASHINFER + adaptive_verification off; drafter pool snapshot 163b276b), stale sibling pid 3474781 running it against the healthy serve; harvesting beam-b2-ladder.yaml on exit. Attempt-7 dead boot 8022b0f2ab64 already stopped+harvested before the wedge — NO retry task needed.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 1",
-      "claimed_by": "tp4-window4",
-      "claimed_at": "2026-10-26"
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-25T19:19:21Z"
     },
     {
       "id": "w4-candidate6-reasoning-effort",
@@ -48,7 +55,9 @@
       "title": "Survey candidate 2, leg S1: prefix-cache truth (--enable-cache-report; target long-prefix revisit 1.5 s vs 89 s)",
       "estimate_h": 1.5,
       "blocks": [],
-      "blocked_by": ["w4-s0-control"],
+      "blocked_by": [
+        "w4-s0-control"
+      ],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -60,7 +69,9 @@
       "title": "Survey candidate 2, leg S2: lpm (long-prefix matching) alongside --enable-cache-report",
       "estimate_h": 1.5,
       "blocks": [],
-      "blocked_by": ["w4-s0-control"],
+      "blocked_by": [
+        "w4-s0-control"
+      ],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -72,7 +83,9 @@
       "title": "Survey candidate 1: --min-free-slots-delay 1 (target C8/C16 worst TTFT, expected +21% C8)",
       "estimate_h": 1.5,
       "blocks": [],
-      "blocked_by": ["w4-s0-control"],
+      "blocked_by": [
+        "w4-s0-control"
+      ],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -96,7 +109,9 @@
       "title": "Survey arm 3 (build-gated): SGLang PR #43401 candidate-only indexer scoring (upstream −17% step time at 1M decode on 2×GB10)",
       "estimate_h": 3.0,
       "blocks": [],
-      "blocked_by": ["ds4-adapter-report-gate"],
+      "blocked_by": [
+        "ds4-adapter-report-gate"
+      ],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -108,7 +123,9 @@
       "title": "Survey arm 5 (build-gated): TRT-LLM sparse-MLA attention backend (--dsv4-attn-backend trtllm; 2.26x kernel geomean at C5/C10/128K on GB10)",
       "estimate_h": 3.0,
       "blocks": [],
-      "blocked_by": ["ds4-adapter-report-gate"],
+      "blocked_by": [
+        "ds4-adapter-report-gate"
+      ],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -131,7 +148,10 @@
       "id": "ds4-adapter-report-gate",
       "title": "Re-port the knapcio adapter set to newer SGLang trees and update the in-image test gate to upstream's new shape (owner-directed path)",
       "estimate_h": 20.0,
-      "blocks": ["w4-survey-arm3-indexer-scoring", "w4-survey-arm5-trtllm-mla"],
+      "blocks": [
+        "w4-survey-arm3-indexer-scoring",
+        "w4-survey-arm5-trtllm-mla"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "dsv4.1-1017",
