@@ -71,11 +71,14 @@ executor_config:
   entrypoint: ""
 
 
-# DFlash2 drafter backend (2026-10-26): the drafter's own code asserts its attention
-# backend is FLASH_ATTN or FLASHINFER (vllm/models/beam/nvidia/dflash2.py:330); the
-# vendor's FLASH_ATTN default rejects the serve's fp8 KV on this build (attempt 5),
-# and vLLM's own selection picks neither (attempt 6 AssertionError at dflash2.py:330),
-# so the allowed-and-fp8-capable FLASHINFER is declared explicitly.
+# DFlash2 drafter backend bind (2026-10-26, attempts 5-7): the drafter's own code
+# allows only FLASH_ATTN/FLASHINFER (vllm/models/beam/nvidia/dflash2.py:330);
+# FLASH_ATTN rejects the serve's fp8 KV (attempt 5); FLASHINFER is rejected only
+# because adaptive verification needs device-cpu query lens it cannot provide
+# (attempt 7: "this is needed for adaptive verification"); unset, vLLM selects
+# neither (attempt 6 AssertionError at dflash2.py:330). The one consistent pairing:
+# FLASHINFER + adaptive verification OFF (the vendor documents removing it — the
+# drafter then verifies the full 7-token draft every step).
 command: >
   taskset -c 5-9,15-19 vllm serve {model}
   --served-model-name {served_model_name}
@@ -92,7 +95,7 @@ command: >
   {moe_backend}
   --reasoning-parser beam
   --tool-call-parser beam
-  --speculative-config '{"method":"dflash","model":"/cache/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-DFlash2/snapshots/163b276be744c8ce2b8385ea85de54edb3088211","num_speculative_tokens":7,"attention_backend":"FLASHINFER","enable_adaptive_verification":true}'
+  --speculative-config '{"method":"dflash","model":"/cache/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-DFlash2/snapshots/163b276be744c8ce2b8385ea85de54edb3088211","num_speculative_tokens":7,"attention_backend":"FLASHINFER","enable_adaptive_verification":false}'
   {extra_args}
 
 readiness:
