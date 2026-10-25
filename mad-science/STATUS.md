@@ -1,11 +1,12 @@
-# Board — generated 2026-10-24 23:20 ET
+# Board — generated 2026-10-25 23:22 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
+| census | board-keeper | **23:22 ET 2026-10-25, all six nodes (read-only `ssh` + `docker ps` + `df`)**: `.30` **0**, `.31`–`.35` **1** each (5 containers fleet-wide, matching `sparkrun status`); free root 2.2/2.3/2.3/2.3/1.7/1.8 TB — drift: none; `.30` idle while two live jobs hold `.31`–`.35` |
 | `.31`–`.34` (window 3) | tp4-window3 | GLM 3bpw TP=4 quartet boot `7d9a3a61b33a29e4_e1ba2bd6f9d9` live on all four ranks (1 container each), serve answering `/v1/models` as `GLM-5.3-EXL3-3.0bpw`; the boot1-auto ladder/house cell is running on the head (`~/benchmarks/tp4-window3-20261024/boot1-auto.log`) |
-| `.35` | tplt4-research | Ornith-122B NVFP4 MTP spec-decode probe relaunching: `sparkrun_390833e14b644c0e_*` solo boots (1 container, ~1–3 min); the first attempt died at vLLM arg parse (`--speculative-config` unquoted JSON) and the retry is in weight load |
+| `.35` | tplt4-research | Ornith-122B NVFP4 MTP probe **boot 4 live** `390833e14b644c0e_fb7d9a6647cf` (solo, ~6 min at 23:22, 1 container), past the two arg-parse failures fixed in `10fb558`/`57543db`; in weight load |
 | `.30` | tp4-window3 | Beam staging runner (detached, `~/benchmarks/tp4-window3-20261024/beam-stage/`, ~51/63 files at the last look) + the Beam image pull — cache prefill, not a boot |
 
 ## Work queue
@@ -35,3 +36,6 @@ Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1�
 | 23:05 10-24 | `8448b4c` | ornith `zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml` — the 122B MTP spec-decode probe (cell 4, pre-registered), `--speculative-config` via placeholder |
 | 23:10 10-24 | `846328a` | seven board jobs unparked into the `TODO.md` retry queue (owner directive) |
 | 23:10 10-24 | `37bcf03` | restore of `zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml` — a stale shared index had recorded a phantom deletion in `846328a` |
+| 23:21 10-25 | `cc81898` | board restructured to the owner's three-table spec (In flight / Work queue / Landed this session), history swept |
+| 23:16 10-25 | `57543db` | ornith MTP: `--speculative-config` placeholder single-quoted (boot3's stripped double quotes reached argparse) |
+| 23:13 10-25 | `10fb558` | ornith MTP: speculative-config JSON quoted inside the command template (boot2's bash-strip failure) |
