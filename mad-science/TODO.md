@@ -2065,9 +2065,21 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   the quantile-ordering hard fail (exit 3), `--emit-baseline` so the baseline is scored through the
   same path (its degenerate grid makes CRPS = MAE exactly), and the exact Gaussian `oracle_crps` on
   the walk series so the >25 %-above-0.446 sanity band is checkable at runtime — plus
-  `tests/test_forecast_bench.py`, 10 guards over both. **Still open:** the `timestral` mod + recipe
-  staging (the torch ≥2.4 wheel stage risk) and the runtime cells (load time, s per 1,024-step
-  forecast at the 32,768-step context, peak RSS, determinism).)*
+  `tests/test_forecast_bench.py`, 10 guards over both.)*(tp4-lane took this 2026-10-24/25 —
+  **stage 2 + the runtime cells are DONE**: `recipes/decision/mods/timestral-forecast-server/`
+  + `recipes/decision/zz-timestral-209m-forecast-cpu.yaml` (commits 65caa46→dc6b694), served
+  `mistralai/Timestral-209M` @ `9874d252` on `.30` CPU (taskset 0-4,10-14). Measured
+  (`~/benchmarks/tp4-lane-20261024/timestral/REPORT.md`): **load 1.9 s, peak RSS 2.26 GiB**;
+  per-forecast wall at the 4,096-step context / h=96: **1.18–1.44 s** (bivariate+covariate
+  2.38 s); **no hard fails** — all six 21-quantile grids monotone; **CRPS beats the
+  seasonal-naive MAE on every series** (walk 2.2306 vs analytic-oracle 2.4653 — inside the
+  quantile-grid approximation; the 0.446 GIFT-Eval figure is a hundreds-of-series aggregate,
+  quoted as context only); MASE 1.36–2.05; PICP80 0.77–1.0; **determinism:
+  byte-identical quantile JSON across repeat requests**. Boot chain of five in-tree fixes
+  recorded in the receipt (amd64-only pytorch base → multi-arch CUDA + staged aarch64 torch
+  wheel; python3/git bootstrap; server installed to the runtime dir; repo-id → snapshot-path
+  resolution under HF_HUB_OFFLINE, the Kromoss trap again; `refs/main` had to be hand-created
+  on the pool). The recipe is a probe (zz-); shipping it is a lane decision.)*
 
 - [ ] **Probe Spark-X2.6-4B — a 4B dense hybrid-window agent model whose engine is *already resident*** —
   research-only so far: **no recipe, no download, no boot, no receipt.** `XHToken/Spark-X2.6-4B` (`66e3ae7b`,
