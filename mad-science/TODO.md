@@ -1110,8 +1110,11 @@ Any model with reasoning and tool-calling capabilities
   *(**tplt4 quiet-node confirm 2026-10-25 (`.35`, no other container on the node)** — receipts
   `~/benchmarks/tplt4-20261024/bonsai/` (`ladder-quiet.{yaml,json,csv,log}`, `house-quiet.json`,
   `house-quiet.launch.log`): ladder n=5 --fresh at parallel 10 on the same recipe/image/pin —
-  **C1 75.51 ± 1.38** (bar 69.28 — PASS), C2 152.86, C5 137.02, **C10 129.79 ± 0.90** (bar 116.27 —
-  **PASS, +11.6 %**); house @4096 thinking-on — easy 19/19, hard 17/18 = **36/37** (bar ≥ 36/37 —
+  **C1 75.51 ± 1.38** (bar 69.28 — PASS), C2 **129.24 ± 0.76**, C5 **151.95 ± 1.21**, **C10 129.79 ± 0.90**
+  (bar 116.27 — **PASS, +11.6 %**; tg aggregate means at n=10 slots for c2/c5/c10 — and the shape
+  **peaks at five streams**: C5 151.95 > C10 129.79 > C2 129.24, the same genuine five-stream peak
+  Mellum2.1 showed, accepted under the amended leg (2) (`QUESTIONS.md #1`) because C10 clears the
+  absolute bar); house @4096 thinking-on — easy 19/19, hard 17/18 = **36/37** (bar ≥ 36/37 —
   PASS; the miss is `hard-rev`, reply `nurkrap`). **The quiet-node numbers clear all three gate
   legs and refute the controller-load caveat on the `.30` C10** (107.6 there vs 129.8 here — the
   gap is host load, not the arm). Gate verdict: **Bonsai Q2_0 passes the easy-traffic gate**

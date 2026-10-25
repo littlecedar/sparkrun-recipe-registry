@@ -626,11 +626,14 @@ the ship/no-ship call sits with the parked zz- recipe-ship decisions.
 - **Gate result (2026-10-24/25, two boots):** the first ladder/house ran on `.30` (controller-load
   caveat: C1 80.6 PASS / house 36/37 PASS / **C10 107.6, 7.5 % short**); the deciding confirm on a
   quiet `.35` (n=5, `--fresh`, parallel 10, same recipe/image/pin) cleared it —
-  **C1 75.51 ± 1.38 / C2 152.86 / C5 137.02 / C10 129.79 ± 0.90**, house **36/37** @4096
+  **C1 75.51 ± 1.38 / C2 129.24 ± 0.76 / C5 151.95 ± 1.21 / C10 129.79 ± 0.90**, house **36/37** @4096
   thinking-on (miss: `hard-rev`). Bars: C1 ≥ 69.28, C10 ≥ 116.27, house ≥ 36/37 — all three PASS,
-  and the `.30` C10 deficit is attributed to controller/mgmtd host load, not the arm.
+  and the `.30` C10 deficit is attributed to controller/mgmtd host load, not the arm. The ladder
+  shape **peaks at five streams** (C5 151.95 > C10 129.79 > C2 129.24) — the same genuine
+  five-stream peak Mellum2.1 showed, acceptable under the amended gate leg (2) (`QUESTIONS.md #1`)
+  because the ten-slot C10 clears the absolute bar.
 - **Why it matters:** 2.38 GiB of ternary Q2_0 weights (~1/5 of Mellum's resident footprint) at
-  87 % of Mellum's C10 and 68 % of its C1 — the smallest resident footprint of any gate-passing
+  70 % of Mellum's C10 and 68 % of its C1 — the smallest resident footprint of any gate-passing
   arm. Vision (mmproj Q8_0) round-trips (solid-red PNG → "Red"); base64 data-URI images fail in
   this build, use an http URL. Thinking defaults on — budget ≥ 8,192 tokens.
 - **Launch trap (recorded 2026-10-25):** a bare `-H` launch builds an anonymous cluster and runs
