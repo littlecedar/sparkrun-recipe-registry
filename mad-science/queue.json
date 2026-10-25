@@ -221,10 +221,10 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "owner round-5 §1(b): EXISTING receipts only — GLM boot-verified ladders 2026-10-18 (pointers in recipes/glm/README.md), ds4 shipped bars, Beam window-4 cells; fresh cells only where geometry differs; structure = one row per arm per cell with receipt pointers",
+      "notes": "DONE 2026-10-26 (tp4-single): authored mad-science/TP4-HEAD-TO-HEAD-1025.md (indexed in mad-science/README.md) — receipts-only per owner round-5 §1(b): one row per arm per cell with receipt pointers for ds4-1017 knapcio TP=4 (+TP=2 comparison row), GLM-5.3-Flash 4bpw and GLM-5.3-753B 3bpw TF TP=4, Beam-1.0-501B NVFP4 ± DFlash2; ladder C1/C2/C5/C10 + house/needle/tools cells; receipt-backed shape notes (ds4 is the only monotone-aggregate ladder, GLM-Flash C2-peaked, GLM-753B flat per-request under load, Beam DFlash2 C1 +20 % within-noise elsewhere); open cells named (GLM-Flash house is the trial's, Beam house/BFCL-summary absent, ds4 131k/983k prefill wrapper-clipped). BFCL counts read from the logs: 657/722 (91.0 %) across beam-b1-bfcl2+3. Committed 0212cb4+.",
       "provenance": "owner round-4 §8; round-5 §1",
       "claimed_by": "",
       "claimed_at": ""
@@ -238,7 +238,7 @@
       "state": "running",
       "model": "",
       "node_cost": "single",
-      "notes": "Progress 2026-10-26 (tp4-single): Kokoro demo DONE (artifact ~/benchmarks/tp4-single-20261026/media-demo/kokoro-sample.wav, RTF 0.64, RECEIPT-kokoro.md; fastapi image rejects the repo id — OpenAI-compatible model id is \"kokoro\"). humanizer demo DONE (RECEIPT-humanizer.md, 173 tokens @ ~18.7 t/s matching shipped 17.92 C1; prerequisite: Kokoro container had to stop first — sparkrun allocations are GPU-exclusive even for a CPU arm). drama-3 boot FAILED: pool stub — models--fishaudio--drama-3 is config.json-only fleet-wide (5,535 B; 2026-10-24 migration dedup dropped the 68 GB body everywhere incl. the .34 node-local copy); engine error LocalEntryNotFoundError with correct HF env is the signature; re-fetch owned by tp4-recovery (drama3-fetch.DONE marker = swap signal). Slot filled with kev-0.8b CPU decision arm meanwhile (sparkrun_a66bbd2049b3d70e_6a63edc310b6). Remaining: drama-3 sample, Qwen-Image render pair, LTX-2.5 clip — GPU arms, coordinated per mitigation contract; DEMO.md authored at the end.",
+      "notes": "Progress 2026-10-26 (tp4-single): Kokoro demo DONE (artifact kokoro-sample.wav RTF 0.64, RECEIPT-kokoro.md; OpenAI-compatible model id is \"kokoro\" — the fastapi image rejects the repo id). humanizer demo DONE (RECEIPT-humanizer.md, ~18.7 t/s matching shipped 17.92 C1; sparkrun allocations are GPU-exclusive even for a CPU arm — Kokoro had to stop first). drama-3 boot FAILED on a pool stub (68 GB body dropped by the 2026-10-24 migration dedup fleet-wide; LocalEntryNotFoundError with correct HF env is the signature); re-fetch owned by tp4-recovery, drama3-fetch.DONE = swap signal. Slot then filled with kev-0.8b CPU decision arm — DIED on a bind conflict, NOT the stub class: kev.serve fetched 9 files + loaded 320 weights then [Errno 98] address already in use on 0.0.0.0:8008 (decision-lane follow-up: diagnose the recipe's inline serve command double-start before kev can ever reach ready; log harvested serve-kev-dead.log). Kokoro re-booted as the refill (sparkrun_2b9d589b15c3af46_915e0f0f8c03). Remaining: drama-3 sample, Qwen-Image render pair, LTX-2.5 clip — GPU arms per the phase contract; DEMO.md authored at the end.",
       "provenance": "owner round-5 §4",
       "claimed_by": "tp4-single",
       "claimed_at": "2026-10-25T23:24:54Z"
@@ -254,6 +254,20 @@
       "node_cost": "single",
       "notes": "DONE 2026-10-26 (tp4-single): boot half = two baseline serves on .35 (Sol-2B decision2 GGUF: 5.121/5.433/5.411/5.419 req/s c1/2/5/10 single-pass, reproduces 2026-10-20 within 2 %; Ternary-Bonsai Q2_0 first decode rows 77.70 ± 0.85 t/s). Triage authored: mad-science/GGUF-VIABILITY-TRIAGE.md — one conversion warranted (qwen3.8 spark2_5 official Q4_K_M, engine at ref floor, ~16 GB fit, separate task), JEV GGUF not viable (no allowed_token_ids surface), Ornith measured-rejected, GLM/ds4 not viable, Mellum/Bonsai/Sol/Kolibri already served. Logistics finding: migration dedup drops large GGUF bodies (Mellum re-fetched this window; drama-3 68 GB stub — tp4-recovery re-fetching); pool-era launch route recorded in recipes/ds4/README.md. Receipts ~/benchmarks/tp4-single-20261026/gguf-triage/.",
       "provenance": "owner round-5 §5",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "kev-bind-conflict-fix",
+      "title": "Fix kev-0.8b decision-serve bind conflict so sparkrun's startup probe reaches ready",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Diagnose the double server start in recipes/decision/kev-0.8b-decision-serve.yaml's inline serve command (recipe header caveat: no /health route, sparkrun's 200-probe can never pass, 'serve the image by hand'). Boot sparkrun_a66bbd2049b3d70e_6a63edc310b6 on .30 loaded all 320 weights then died [Errno 98] address already in use on 0.0.0.0:8008 — uvicorn bound second; the recipe's model body itself resolves (snapshot bf75a6a8 fetched, 9 files in ~1 s — the pool-stub suspicion does NOT explain this death). Fix so sparkrun's startup probe reaches ready (add a /health route or drop the duplicate bind), boot-verify on a spare node, run the decision serve's own smoke. Receipt: ~/benchmarks/tp4-single-20261026/media-demo/serve-kev-dead.log (2,079 B).",
+      "provenance": "window-4 single-lane finding 2026-10-26 (tp4-single) + serve-kev-dead.log receipt",
       "claimed_by": "",
       "claimed_at": ""
     }
