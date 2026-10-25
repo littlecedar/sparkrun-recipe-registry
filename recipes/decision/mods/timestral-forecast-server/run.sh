@@ -114,6 +114,9 @@ else
   mkdir -p "${PIP_CACHE_DIR}"
   python3 -m venv --system-site-packages "${VENV_DIR}"
   "${VENV_DIR}/bin/python" -m pip install --quiet --upgrade pip
+  # The CUDA-runtime base ships no torch: stage the aarch64 PyPI wheel (CPU-only
+  # build for this arm — the laya precedent). This is the ~1 GB stage the item names.
+  "${VENV_DIR}/bin/python" -m pip install --quiet torch
   "${VENV_DIR}/bin/python" -m pip install --quiet "${TIMESTRAL_REQ}"
   if engine_ok; then
     log "engine gate OK after install"

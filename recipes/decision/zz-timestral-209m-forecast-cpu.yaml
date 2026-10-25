@@ -4,7 +4,10 @@ model_revision: 9874d252ab0aae16f7f7c999f98f98d6ad7d8365
 # sparkrun has no runtime family for a third-party Python server: `runtime: vllm`
 # is the launcher/distribution contract this command satisfies (the
 # kokoro/pyannote/laya precedent). The engine is the upstream `timestral` pip
-container: pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime@sha256:c16f4c749e2d9e96878875cdf6cc45cddda1d1a36fddd371dd6f2360f1b6e2a2
+# pytorch/pytorch ships amd64-only (boot2 died at exec format on the GB10), so the
+# base is NVIDIA's multi-arch CUDA runtime and the mod stages torch's aarch64 PyPI
+# wheel (~1 GB, the stage risk the item names — one-time, cached in the runtime tree).
+container: nvidia/cuda@sha256:c3fde347d52d578c84fd644bc177bc7ec333feaf11550d990da4084d7612e4c7
 runtime: vllm
 min_nodes: 1
 max_nodes: 1
