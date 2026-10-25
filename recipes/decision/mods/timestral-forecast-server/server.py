@@ -62,10 +62,36 @@ def peak_rss_gib():
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024 * 1024)
 
 
+def resolve_snapshot_dir(model: str) -> str:
+    """Map a repo id to its local HF snapshot dir; pass a path through untouched.
+
+    The upstream `load_model` routes a repo id through `snapshot_download`, which
+    under HF_HUB_OFFLINE dies with LocalEntryNotFoundError when the snapshot is
+    not keyed by the requested revision — and the staged pool snapshot is. A
+    local path skips the Hub entirely (the card's own "local directory with
+    config.json and model.safetensors" loading option).
+    """
+    if os.path.isdir(model):
+        return model
+    cache_root = os.environ.get("HF_HUB_CACHE", "/cache/huggingface/hub")
+    repo_dir = os.path.join(cache_root, "models--" + model.replace("/", "--"))
+    if not os.path.isdir(repo_dir):
+        return model  # let timestral raise its own error for an unknown id
+    refs_main = os.path.join(repo_dir, "refs", "main")
+    if os.path.isfile(refs_main):
+        with open(refs_main) as fh:
+            pin = fh.read().strip()
+        snapshot = os.path.join(repo_dir, "snapshots", pin)
+        if os.path.isfile(os.path.join(snapshot, "config.json")):
+            return snapshot
+    return model
+
+
 def load_forecaster(model: str, revision: str):
     from timestral import TimestralForecaster
-
+ 
     t0 = time.time()
+    model = resolve_snapshot_dir(model)
     # A local snapshot path never touches the Hub (the checkpoint is staged);
     # from_pretrained also takes local dirs per the card's Loading options.
     fc = TimestralForecaster.from_pretrained(model, local_files_only=True)
