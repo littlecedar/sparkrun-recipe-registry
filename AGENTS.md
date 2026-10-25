@@ -264,15 +264,22 @@ remove what the session created** — a leftover is anything undocumented, unkno
   them.
 - Document what stays as well as what goes: a node file nothing documents is the defect this rule
   exists to prevent.
-- **`.30`–`.33` are the fleet's inference ranks, and a measurement surface only while a window is
-  declared.** `.30` is always the controller — driving the cluster from it (ssh, `sparkrun` launches,
-  config, inspection, log reads) is expected work — and while a window is declared it may also carry a
-  rank. **If a production workload is running on a node, leave it alone and ask; never displace it**
-  (`TP4-BGFS Q2`): a cell on ranks that also serve the model the agents run on measures a box answering
-  its own requests, so wait for the declared window. **Reading is always fine** — `sparkrun status`,
-  `docker ps`/`inspect`, log reads, `dpkg -l`, `modinfo`, `mokutil --sb-state` (`Q19`). Constrain the
-  launch so no rank lands on a node outside the declared set: name the hosts with `-H` and their real
-  IPs (dot-aliases like `.34` crash sparkrun 0.4.2 in `socket.getaddrinfo`).
+- **`.30`–`.33` are the fleet's inference ranks; a four-rank measurement needs a declared window, an
+  ordinary single-node job does not.** **`.30` is a normal worker node, not a controller-only box** (owner, 2026-10-25/26): it
+  carries research workloads exactly like every other node. Driving the cluster from it (ssh,
+  `sparkrun` launches, config, inspection, log reads) and its BeeGFS mgmtd/storage duties are
+  **incidental** — they may never be used to describe it as unavailable, reserved, "controller only",
+  "idle as controller", or excluded "by role"; navigating from it says nothing about where it runs
+  work. **Leaving `.30` idle while research runs is a violation, not a policy** — an idle node is
+  reported as "nothing live (no reservation)", never with a reason. **This framing has regressed three
+  times (2026-10-24 twice, 2026-10-25/26): sweep it on sight in board rows, briefs, lock rows, skills
+  and memory, and correct the wording before anything else in the turn.** **If a production workload is
+  running on a node, leave it alone and ask; never displace it** (`TP4-BGFS Q2`): a cell on ranks that
+  also serve the model the agents run on measures a box answering its own requests, so wait for the
+  declared window. **Reading is always fine** — `sparkrun status`, `docker ps`/`inspect`, log reads,
+  `dpkg -l`, `modinfo`, `mokutil --sb-state` (`Q19`). Constrain the launch so no rank lands on a node
+  outside the declared set: name the hosts with `-H` and their real IPs (dot-aliases like `.34` crash
+  sparkrun 0.4.2 in `socket.getaddrinfo`).
 - **A four-rank window is claimed with a lock file, not a message.** Before booting any node, write
   `.scratch/fleet-window.lock` naming your session, the node set, the declared window and a timestamp;
   delete it when the window ends. A session that finds the lock must not boot on the named nodes —
@@ -280,7 +287,8 @@ remove what the session created** — a leftover is anything undocumented, unkno
   (`TP4-BGFS Q20`).
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
-  and one interconnect shape — and `.30` stays the controller either way (`Q8`).
+  and one interconnect shape — and a node's controller or mgmtd duty is never a reason to exclude it
+  from a rank (`Q8`: `.30` works normally; splitting is free).
 - **The RDMA registration wedge is a KHO kernel issue, and `kho=off` fixes it.** On kernel
   `7.0.0-1019-nvidia`, Kexec HandOver (KHO, enabled by default) donates its ~9.3 GiB scratch area to
   the page allocator as `MIGRATE_CMA` pageblocks; when `MemFree` is low (checkpoint reads fill page

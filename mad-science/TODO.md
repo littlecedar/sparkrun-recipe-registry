@@ -373,8 +373,12 @@ never re-opened.
   ".30 is always the controller node. Nodes all share the same switch, network topology, and interconnect
   shape, so ranks may be split across any free nodes. When the owner has declared that .30 - .33 are open
   for your use, then .30 is available to be used as a working node as well as the controller node." —
-  Controller fixed, rank placement free inside the declared set. — provenance: `AGENTS.md` §Node hygiene
-  (as amended 2026-10-23); asked 2026-10-23; answered 2026-10-23.
+  Controller fixed, rank placement free inside the declared set. — **(Owner, 2026-10-25/26: `.30` is a
+  normal worker node — its controller/mgmtd duties are incidental and are never a reason to call it
+  unavailable, reserved, "controller only", "idle as controller", or excluded by role; leaving it idle
+  while research runs is a violation. Q8's "controller node" wording is the owner's own 2026-10-23
+  answer, kept verbatim; the rank-placement half is the operative rule.)** — provenance: `AGENTS.md`
+  §Node hygiene (as amended 2026-10-25/26); asked 2026-10-23; answered 2026-10-23.
 - **TP4-BGFS Q9 — May `.30`–`.33` be rebooted for a boot-parameter change?** *Answered 2026-10-23.*
   ".30 MUST NOT be rebooted without owner approval. All other nodes may be rebooted at your discretion."
   — The memory-fraction wedge stays a no-reboot-on-`.30` hazard. — provenance: `attic/ds4/AGENTS.md` §12
@@ -470,8 +474,8 @@ never re-opened.
 
 
 **TP=4 window (declared 2026-10-24, owner answers in this session's ask).** Node set **`.31`–`.34`**
-("other node set"; `.30` controller-only per the lock's wording — superseded: `.30` is a full cluster
-member (owner, 2026-10-24), controller + mgmtd duties are additional, never a fence; `.35` spare), declared in `.scratch/fleet-window.lock`. First
+("other node set"; `.30` works normally like every other node — a lock row states hold scope only, never
+a role-based exclusion — `.35` spare), declared in `.scratch/fleet-window.lock`. First
 boot = the shipped knapcio baseline with the shared-cache persistence assertions, then the KV-pool
 pricing boots (`FAST_LOAD=0` control), the b12x acceptance boot, `#2` (prefill chunk), `#3` (topology
 A/B), the ds4 candidate survey and four-node suite legs, and the DSpark window-sweep profiler run —
