@@ -1456,8 +1456,14 @@ Two prerequisites the sketch cannot express. **io_uring**: the fork ships `scrip
 for disk Engram (`scripts/seccomp/README.md:8-9`), while this repository's recipes expose only
 `entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/`restart_policy` under `executor_config`, so a profile is
 an executor-level addition or a mod. The qwen4 b12x arm boots with `VLLM_PLE_TABLE_MEMORY=disk` and no
-profile (`recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml:13-14,46`) — `LIKELY` evidence this
-fleet's Docker permits the syscalls, but probe it (`io_uring_setup` under `--rm`) either way. **Image
+profile (`recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml:13-14,46`) — which says nothing
+about seccomp. **Probed 2026-10-26: this fleet's Docker DENIES all three** — `io_uring_setup(425)`
+returns `ret=-1 errno=1` (EPERM) in a `--rm` container while the host reports
+`kernel.io_uring_disabled=0`, because the built-in profile is an allowlist (`defaultErrnoRet: 1`) with
+no io_uring name on it. Fixed fleet-wide the same day by `tools/enable-io-uring.py` +
+`tools/enable-io-uring.sh` (`seccomp-profile` in `daemon.json`; index and caveats in
+`tools/README.md` §enable-io-uring): after the change `io_uring_setup` returns `fd=3`,
+`io_uring_enter` `ret=0`, `io_uring_register` `errno=14` (EINVAL — allowed, no buffers registered). **Image
 content**: confirm the pin exposes `table_memory` before paying for a boot (`docker run --rm --entrypoint
 python <image> -c "from vllm.config.engram import EngramConfig; print('table_memory' in EngramConfig.model_fields)"`).
 

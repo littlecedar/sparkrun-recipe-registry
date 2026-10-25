@@ -34,6 +34,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `refresh-sweep.py` | every lane's pins (the CI refresh gate) | registry-level like `cache-audit.py`: surveys recipe `model:`/`model_revision:`/`container:` lines, the mod/launcher revision pins and the Dockerfiles' `ARG BASE_IMAGE`/`FROM`/`ARG <NAME>_REF` build inputs against Hugging Face, Docker Hub, ghcr and GitHub, plus the dedicated llama.cpp fork-vs-upstream section; `--apply` moves containers only; `--accept-file` declares deliberate holds and a dead entry gates as `stale-acceptance`; guarded by `tests/test_refresh_sweep.py`; needs network and exits 2 without it |
 | `diarize-score.py` | the CPU diarization arm (`recipes/media/zz-pyannote-community-1-diarization-cpu.yaml`) | DER + its three components and JER over RTTM or the server's own `segments` JSON; exhaustive speaker-permutation mapping, ±collar exclusion, `--overlap score\|exclude`; `--fail-above` turns the arm's pre-registered DER bar into an exit code; guarded by `tests/test_diarize_score.py` |
 | `diarize-fixture.py` | the same arm's ground truth | two committed-nowhere, byte-deterministic synthetic layouts (two-speaker turn taking; three-speaker with an A+B overlap) plus `--splice` to turn two single-speaker recordings into a labelled dialogue; `--check` re-derives the bytes and compares sha256; guarded by the same test file |
+| `enable-io-uring.py` + `enable-io-uring.sh` | the **fleet's Docker daemons**, for the b12x parity route (`mad-science/DEEPSEEK.md` §17) | the only tool here that changes a machine rather than a recipe: ships a copy of the engine's default seccomp profile with `io_uring_setup`/`io_uring_enter`/`io_uring_register` (425/426/427) allowed, points `seccomp-profile` at it and restarts Docker — per node, refusing any node with a running container; `--probe-only` changes nothing; guarded by `tests/test_enable_io_uring_tool.py` |
 
 ## eval-suite.py (the SOP pass)
 
@@ -1268,3 +1269,79 @@ missed+speaker-error, an empty *file* raises while an empty *in-memory* hypothes
 shadow-tree mutations used to prove the file fires (mapping disabled: 11 failures including the
 relabelling case; collar forced to 0: the two collar tests) are the negative controls of the
 controls.
+
+## enable-io-uring.py / enable-io-uring.sh
+
+The only tool here that changes a **machine**: it replaces Docker's built-in seccomp profile for
+every container on a node, because that profile is an allowlist and io_uring is not on it.
+
+Why. The vLLM b12x parity route (`DEEPSEEK.md` §17) serves DeepSeek-V4.1-Flash with the Engram table
+on disk, and the fork's `DiskTable` opens an io_uring ring — `io_uring_setup` (**425**),
+`io_uring_enter` (**426**), `io_uring_register` (**427**). Docker's profile is
+`defaultAction: SCMP_ACT_ERRNO` with `defaultErrnoRet: 1` and names none of the three, so all of
+them return `EPERM` in a container even though the host kernel allows io_uring. sparkrun's
+`executor_config` exposes only `entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/`restart_policy`,
+so a profile cannot ride with the recipe: the grant has to live in the daemon, as
+`"seccomp-profile"` in `/etc/docker/daemon.json`.
+
+Measured 2026-10-26 on all six nodes (docker 29.6.2, Ubuntu 24.04, arm64, 0 containers at the time):
+
+| | before | after |
+|---|---|---|
+| `docker run --rm` probe | `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)`, `kernel.io_uring_disabled=0` | `io_uring_setup(425): fd=3 allowed`; `io_uring_enter(426): seccomp allowed (ret=0)`; `io_uring_register(427): seccomp allowed (ret=-1 errno=14)` |
+| `docker info` security options | `name=seccomp,profile=builtin` | `name=seccomp,profile=/etc/docker/seccomp-profiles/io-uring.json` |
+
+`errno=14` (`EINVAL`) on `io_uring_register` is an **allowed** verdict: the probe registers no
+buffers, so the bad-argument path is reachable — only `EPERM` means seccomp. The probe calls all
+three, so a profile that allowed only `io_uring_setup` still fails.
+
+Per node, in this order, each step failing closed (`enable-io-uring.py`):
+
+1. probe → 2. idempotence (daemon already points at a profile with the three grants *and* the probe
+passes → `already enabled`, nothing written) → 3. refuse a node with a running container (a daemon
+restart stops containers; `live-restore` is off on this fleet) → 4. base profile: a bundled
+`default.json` if the engine ships one, else the exact engine version's vendored copy from moby,
+else the newest released moby tag's copy (URL + sha256 printed; 2026-10-26 used
+`moby/moby/v28.5.2/vendor/github.com/moby/profiles/seccomp/default.json`, sha256
+`01536f1d1df938ae611eba20d6349e0de7a99b6ecdee1549427a0b01b8301e28` — engine 29.6.2 has no public
+moby tag, and that file's 426-name allow set is identical to `moby/profiles` `main`) → 5. append
+**one** `SCMP_ACT_ALLOW` block naming the three syscalls, then assert structurally that nothing else
+moved (`validate_modified_profile`) → 6. **pre-flight against the running daemon** with
+`--security-opt seccomp=<file>` — the profile must load and the probe must pass before
+`daemon.json` is touched → 7. back up `daemon.json`, merge `seccomp-profile` (other keys kept),
+`dockerd --validate`, restart Docker, wait for the daemon, re-probe → 8. on any failure after the
+restart starts, restore the backup, restart Docker again and exit non-zero.
+
+Caveats worth knowing before re-running:
+
+- **`dockerd --validate` does not look at the profile.** Measured: a missing file *and* a garbage
+  `{"foo": 1}` profile both validate `configuration OK`; it only catches daemon.json keys. That is
+  why step 6 exists — the profile is proven by a container, not by the config check.
+- **The restart is the real cost**: every container on the node stops, hence step 3. The fleet was
+  at 0 containers on 2026-10-26, so no node was skipped.
+- **The profile replaces the engine default fleet-wide.** A future engine upgrade's newer default
+  syscalls do not arrive on their own — re-run after an upgrade (it is idempotent and cheap), and
+  the base-profile step then fetches that version's copy.
+- **Leftovers**: nothing beyond `/etc/docker/seccomp-profiles/io-uring.json` (all six nodes carry the
+  same bytes, sha256 `11b3d8a6…`), the `daemon.json` that had not existed on any node, and the pulled
+  `python:3.12-slim` probe image on the three nodes that lacked it (`spark-01`–`spark-03`). Both are
+  documented here on purpose.
+- **Rollback**: restore the printed `daemon.json.bak-pre-io-uring-<UTC>` over `/etc/docker/daemon.json`
+  and `systemctl restart docker`. On 2026-10-26 no node had a `daemon.json`, so rollback is
+  `rm /etc/docker/daemon.json` + restart; the profile file can stay, unreferenced.
+- **Not a recipe-side capability.** A recipe or mod still cannot choose a seccomp profile; this is
+  fleet configuration, and the `sparkrun` `executor_config` gap is unchanged.
+
+Usage: `tools/enable-io-uring.sh --probe-only` (probe the six nodes, change nothing, exit 0 only if
+io_uring is already allowed), then `tools/enable-io-uring.sh` to apply. `--nodes a,b` narrows the
+set; ssh aliases only, never addresses (the registry ships to third parties). Any other argument is
+forwarded to the Python tool (`--probe-image`, `--profile-source`). The orchestrator pipes the tool
+over ssh stdin and runs it with `sudo -n python3 -`, so no copy is left on the node. Exit 0 = all
+nodes ok (or, with `--probe-only`, allowed), 1 = a failure, 3 = a node skipped for running
+containers.
+
+Guard: `tests/test_enable_io_uring_tool.py` (15 tests, stdlib only). The live run is the evidence
+that it works; the guard is what proves the *scope* of the change — gaining exactly the three
+syscalls, losing no allow rule, touching no deny rule, `daemon.json` keys preserved, a running
+container aborting the node, and a negative control that an unmodified (io_uring-less) profile fails
+the structural check.
