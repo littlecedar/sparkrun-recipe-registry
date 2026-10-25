@@ -207,10 +207,10 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "owner: 'look for alternative drafters, such as DFlash and DSpark!' — read-only; outputs feed drafter decisions on existing arms",
+      "notes": "DONE 2026-10-26 (tp4-single): survey authored as mad-science/DRAFTER-ALTERNATIVES-1026.md (indexed in mad-science/README.md) — current drafter set per arm (DSpark k=5 on ds4, DFlash2 on GLM-Flash/Beam/qwen3.8, MTP graft/head on ornith/Mellum, ngram/UNO retired negative); families surfaced: DSpark (sglang#30261, ragged per-request verify + SPS cost table, dev-dspark image, high-batch trim win), DFlash/DFlash2/DLoop (block diffusion, beats EAGLE-3, adoption gated by per-checkpoint drafter weights), EAGLE/MTP (already represented), Medusa-style (vLLM coverage, no heads for our checkpoints), retrieval/tree family (our own negative precedent). Concrete next boot identified: check our ds4 engine for post-#30261 DSpark (SGLANG_RAGGED_VERIFY_MODE) — highest-value single boot. Read-only, no boots, sources cited.",
       "provenance": "owner round-4",
       "claimed_by": "",
       "claimed_at": ""
@@ -249,13 +249,13 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "LAUNCH FINDING (2026-10-26, load-bearing): $PWD/.local/sparkrun-home override fails for single-node boots against the pool-era WOPR cluster — bare -H dies in 10 s with 'Error: launch_inference failed: prepared model is not visible through the workload mounts' (boot-sol2b.log attempt 1); working form = head real HOME + --cluster WOPR -H <rail-IP> (fan-out skipped, node reads the shared pool cache). Recorded in recipes/ds4/README.md 'Launch caveats'. Baseline serve: Sol-2B decision2 GGUF Q8_0 on .35, image digest b4808c9a… verified, /health ok; ladder c1/2/5/10 single-pass vs the 2026-10-20 receipt (c1 5.228 req/s) — numbers in receipt.",
+      "notes": "DONE 2026-10-26 (tp4-single): boot half = two baseline serves on .35 (Sol-2B decision2 GGUF: 5.121/5.433/5.411/5.419 req/s c1/2/5/10 single-pass, reproduces 2026-10-20 within 2 %; Ternary-Bonsai Q2_0 first decode rows 77.70 ± 0.85 t/s). Triage authored: mad-science/GGUF-VIABILITY-TRIAGE.md — one conversion warranted (qwen3.8 spark2_5 official Q4_K_M, engine at ref floor, ~16 GB fit, separate task), JEV GGUF not viable (no allowed_token_ids surface), Ornith measured-rejected, GLM/ds4 not viable, Mellum/Bonsai/Sol/Kolibri already served. Logistics finding: migration dedup drops large GGUF bodies (Mellum re-fetched this window; drama-3 68 GB stub — tp4-recovery re-fetching); pool-era launch route recorded in recipes/ds4/README.md. Receipts ~/benchmarks/tp4-single-20261026/gguf-triage/.",
       "provenance": "owner round-5 §5",
-      "claimed_by": "tp4-single",
-      "claimed_at": "2026-10-25T23:27:33Z"
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
