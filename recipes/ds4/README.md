@@ -389,7 +389,8 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   ever goes away the declared flag, not `auto`, is what reaches the engine. Reproduced offline against
   `boot.py` @ `27616bec`: the declared extras yield exactly one `--fp8-gemm-backend flashinfer_cutlass`
   with no warning under both `DSV41_MXFP8_BACKEND=b12x` and `=off`, while the pre-change extras yield the
-  warning above. **Acceptance is UNVERIFIED until a quartet boot** (`.30`–`.33` are fenced for workloads):
+  warning above. **Acceptance is UNVERIFIED until a quartet boot** (`.30`–`.33` were fenced for workloads —
+  superseded: the `#4` fence lifted 2026-10-23 and `.30` is a full cluster member, owner 2026-10-24):
   it must show `[moe_b12x_next] armed`, a `server_args=` dump naming `fp8_gemm_backend='flashinfer_cutlass'`,
   **no** `WARNING: DSV41_MXFP8_BACKEND=` line, and `launch.json`'s `args` carrying exactly one
   `--fp8-gemm-backend flashinfer_cutlass`.

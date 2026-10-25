@@ -301,6 +301,9 @@ decision" is separable from "the benchmark's".
 Fleet-specific blast radius, per node class:
 
 - **`.30`–`.33`** — production inference, fenced: no workload runs there until the serve is stood down
+  *(superseded 2026-10-23/24: the `#4` fence lifted (`TP4-BGFS Q1`) and `.30` is a full cluster member
+  (owner, 2026-10-24) — its controller + BeeGFS mgmtd/storage duties are additional, never a fence; the
+  port-8000 concern below is the real remaining constraint)*
   (`STATUS.md` §Now; settled `#4` in `TODO.md` §"Settled questions"). Installing the *package* starts
   nothing and binds nothing (no maintainer scripts, no system unit), so the marginal risk today is
   supply-chain only: a third-party root-capable APT source that every future `apt upgrade` will exercise.
@@ -349,14 +352,15 @@ benchmark's.
 
 **Does not buy:** the `gb10` TP4, c16, and 1M-context claims. The package fixes four ranks and Orbit
 cannot re-cut it for fewer hosts `[multi-host.md:3-5, 35-37]`, so that boot needs four eligible ranks and
-waits on the `#4` fence. Accuracy is unmeasured by the vendor on any card — only the x86 card says
+waits on the `#4` fence *(superseded 2026-10-23: the fence lifted — `.30`–`.33` are open)*. Accuracy is unmeasured by the vendor on any card — only the x86 card says
 "Comprehensive model-accuracy evaluation has not been run" `[card:131]`. The node arithmetic (§3.1)
 leaves almost no KV headroom, so the card's concurrency and context claims rest on memory no node here
 has measured. GB10 behavior of either route needs a boot.
 
 Authorizing the install therefore does **not** unblock the package's evaluation; it only removes the
 acquisition blocker from the `#4` act. The `gb10` TP4 cell cannot be evaluated at all until its engine can
-be acquired; it stays **research-only**, behind the settled `#4` fence and the owner's offsite switch.
+be acquired; it stays **research-only** *(the `#4` fence it sat behind lifted 2026-10-23; the remaining
+gate is the owner's offsite switch and the `#6` container decision)*.
 `QUESTIONS.md` `#6` is not closed by this document.
 
 ## 9. If the answer is no

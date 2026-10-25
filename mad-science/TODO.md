@@ -463,7 +463,8 @@ never re-opened.
 
 
 **TP=4 window (declared 2026-10-24, owner answers in this session's ask).** Node set **`.31`–`.34`**
-("other node set"; `.30` controller-only, `.35` spare), declared in `.scratch/fleet-window.lock`. First
+("other node set"; `.30` controller-only per the lock's wording — superseded: `.30` is a full cluster
+member (owner, 2026-10-24), controller + mgmtd duties are additional, never a fence; `.35` spare), declared in `.scratch/fleet-window.lock`. First
 boot = the shipped knapcio baseline with the shared-cache persistence assertions, then the KV-pool
 pricing boots (`FAST_LOAD=0` control), the b12x acceptance boot, `#2` (prefill chunk), `#3` (topology
 A/B), the ds4 candidate survey and four-node suite legs, and the DSpark window-sweep profiler run —
@@ -578,7 +579,8 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   a quartet boot and is UNVERIFIED** — it must show `[moe_b12x_next] armed`,
   `fp8_gemm_backend='flashinfer_cutlass'` in the `server_args` dump, **no** `WARNING:
   DSV41_MXFP8_BACKEND=` line, and one flag in `launch.json`'s args. This arm serves the fleet on
-  `.30`–`.33`, so the boot waits for the `#4` fence; compare prefill GEMM against the recorded 2897 t/s
+  `.30`–`.33`, so the boot waits for the `#4` fence *(superseded 2026-10-23: the `#4` fence lifted
+  `TP4-BGFS Q1` — `.30`–`.33` are open and `.30` is a full cluster member)*; compare prefill GEMM against the recorded 2897 t/s
   cold pp at C1, within the inter-boot floor. *(effort: short)*
 
 - [ ] **Settle the vLLM parity question with one four-rank acceptance boot** — the route is documented and
@@ -589,7 +591,8 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   control rungs). Work: pre-flight the image (`EngramConfig.model_fields` must contain `table_memory`, or
   the pin predates the disk path), then one boot on `.30`–`.33` running ladder + house + needle on the
   same serve, `--fresh`, decode rows only.
-  *(blockers:* the `#4` fence closes `.30`–`.33` to workloads, and consuming a third-party arm64 image
+  *(blockers:* the `#4` fence closes `.30`–`.33` to workloads *(superseded 2026-10-23: the fence lifted
+  `TP4-BGFS Q1` — `.30`–`.33` are open; `.30` is a full cluster member, owner 2026-10-24)*, and consuming a third-party arm64 image
   built from the `local-inference-lab/vllm` fork is an owner supply-chain act — `QUESTIONS.md` `#17`.
   Disk Engram reads through `io_uring`, which the fork serves with a seccomp profile this repository's
   `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
@@ -603,7 +606,7 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   `families/` for a `deepseek_v4` package — free, and it unblocks or kills the best-quality EXL3 route;
   (ii) verify the `ryant0000` Q1_0 tier is actually complete on the Hub (card said "uploads in progress");
   (iii) only then build the RPC image (`-DGGML_RPC=ON` + CUDA sm_121) and pay a 4-node boot. Any boot also
-  waits on the `#4` fence. *(effort: medium; research first — the image build is the first owner-visible cost.)*
+  waits on the `#4` fence *(superseded 2026-10-23: the fence lifted — `.30`–`.33` are open)*. *(effort: medium; research first — the image build is the first owner-visible cost.)*
 
 
 
@@ -640,7 +643,8 @@ Qwen 4.x (and 3.8 Flash Next)
 
   *(Owner decision 2026-10-22 — **the fence holds** (`QUESTIONS.md` `#4`): no workload runs on `.30`–`.33`
   until the owner stands the production serve down, and the quartet is therefore **not** on measurement
-  duty. Superseded: an earlier note here read "production stays stopped, the quartet serves the TP=4
+  duty. *(Superseded 2026-10-23: the `#4` fence was lifted (`TP4-BGFS Q1`) and `.30` is a full cluster
+  member (owner, 2026-10-24) — these rows are history, not current policy.)* Superseded: an earlier note here read "production stays stopped, the quartet serves the TP=4
   queue" — production is up on those ranks. The offsite framing in the progress notes (now in `SESSION-RECORD.md`) stays obsolete: there
   is no offsite endpoint, and the block would run locally on `.30`–`.33` once the fence lifts.)*
   *(Owner decision 2026-10-22: run the full 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates,
@@ -650,6 +654,7 @@ Qwen 4.x (and 3.8 Flash Next)
 - [ ] **Finish the TP=4 block after W6** — W12's cross-runtime vLLM same-checkpoint bench is **done** (42.8/51.2/40.1 t/s at TP=2, `max_model_len` 262144, KV 1.76M tok; progress note in `SESSION-RECORD.md`), so next are the ds4 TP=4 upgrade candidates, then the four-node suite legs. The knapcio four-node arm already closed the two accuracy cells the 2026-10-18 suite left open: **ARC 93.5 % / GSM8K 97.5 %** (n=200 each, seed 1234). Evidence: `recipes/qwen4/README.md`, `recipes/ds4/README.md`, `attic/qwen4/AGENTS.md`, `~/benchmarks/tp4-20261018/`. *(effort: long; resumable — Owner decision 2026-10-22: run the full block, a pause is never a loss)*
   *(**Held by the fence** — `QUESTIONS.md` `#4`, answered 2026-10-22: the ds4 TP=4 candidates and the
   four-node suite legs need `.30`–`.33` and do not run until the owner stands the production serve down.
+  *(Superseded 2026-10-23: the fence lifted — these nodes are open.)*
   Blocked, not cancelled.)*
 
 

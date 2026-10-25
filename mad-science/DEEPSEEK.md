@@ -968,8 +968,10 @@ Limits, stated because they bound how much any of this can be trusted:
 - **One-variable discipline.** The sparkring delayer record and the NVFP4 record both bundle a memory
   change with the tested change; hold the pool constant wherever the checkpoint permits, and state a
   budget difference instead of hiding it.
-- **Node policy.** `.30`–`.33` are fenced (`QUESTIONS.md` `#4`). Nothing in §10 is queued; the TP=4 items
-  are upgrade candidates for when the owner unfreezes those nodes. `.34`/`.35` can run P0, candidate 4
+- **Node policy.** `.30`–`.33` were fenced (`QUESTIONS.md` `#4`) — *(superseded: the fence lifted
+  2026-10-23, `TP4-BGFS Q1`; `.30` is a full cluster member (owner, 2026-10-24) whose controller +
+  mgmtd duties are additional, never a fence)*. Nothing in §10 is queued; the TP=4 items
+  are upgrade candidates for the next owner-declared window. `.34`/`.35` can run P0, candidate 4
   and candidate 6 today, and nothing else.
 
 ## 11. Stack B — the TensorFold EXL3 TP=2 line
@@ -1170,8 +1172,8 @@ cannot boot is not a plan):
 4. **An interleaved TP=2-vs-TP=4 comparison on one engine.** No such receipt exists; §12 compares two
    stacks. The honest version is one engine, one quant, two topologies, A/B/A/B boot slots — which needs
    the quartet's owner-scheduled window and a TP=2 body the quartet can also serve (EXL3 2.9 bpw at
-   105.36 GB/node, or the official base at 76.89 GB/node). Tracked as `QUESTIONS.md` `#3` (queued behind
-   the fence).
+   105.36 GB/node, or the official base at 76.89 GB/node). Tracked as `QUESTIONS.md` `#3` (the `#4`
+   fence it was queued behind lifted 2026-10-23).
 
 ## 14. Open work and open unknowns
 
