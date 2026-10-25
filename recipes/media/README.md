@@ -50,6 +50,7 @@ below are by design, not missing measurements.
 | `zz-qwen-image-…-4step-diffusers-script` | 4-step request **6.365 s** on the launcher's native `sigmas` path | same peak as the shipped arm | probe only, not a shipped arm | `head:~/benchmarks/vllm-032-20261022/qwen-image/` |
 | `zz-pyannote-community-1-diarization-cpu` | **TTR 9.56 s**, RTF **0.247** (real two-voice dialogue) / 0.62 (30 s synthetic) on 5 cores, no GPU | 8.1M params, 33.7 MB repo, CPU only | **DER = JER 2.83 %** on `tier-b-two-voice.wav` (real speech, correct 2-speaker count, deterministic); **one speaker** on 2- and 3-voice synthetic tonal files (DER 50.0 / 69.9 %) | `.35:~/benchmarks-pyannote/` |
 | `whistle-asr-cpu` (probe, no recipe yet) | **WER 0.000** on c1/c2/c3/t0/para renders, **0.0118** on the 85-word long render (1 sub: "Rita"→"Reader"); transcripts **byte-identical 11/11** across runs; silence/−60 dBFS noise hard-rejected (exit 1, no hallucination) | 16.9 MB `whistle.cact` + 1.4 MB vendor `linux-arm64` needle binary, CPU only | vendor binary runs unmodified on GB10 aarch64; depth A/B (depth 2 = 2.6× faster, costs accuracy) | `~/benchmarks/tp4-lane-20261024/whistle/` |
+| `phonon-31m-tts-cpu` (probe, no recipe yet) | **RTF ~0.17** (4.56 s audio / 0.755 s wall, q8, CPU); **WER 0.000** through the whistle instrument on all four renders | 64.5 MB q8 gguf + tokenizer, ~1 ptts wheel install | `ptts` aarch64 wheel exists (0.4.1, no source fallback); **not byte-deterministic per invocation** (same seed/text/threads differs in PCM) | `~/benchmarks/tp4-lane-20261024/phonon/` |
 
 **What is not here.** MOSS-Image and indra-ocr are research-only entries in `mad-science/TODO.md`
 (no recipe, no download, no boot); Timestral is a time-series forecaster with no recipe at all.
@@ -74,6 +75,23 @@ A recipe appears in this lane only once it is authored.
   instrument default. `needle whistle compare` is absent from this build's flag surface.
 - **Unblocks:** the phonon-31m item's full TTS-intelligibility cell (render → transcribe → WER).
   A `whistle` serve recipe is a candidate once the instrument chain is exercised end-to-end.
+
+## phonon-31m TTS probe (no recipe yet)
+
+`gradium/phonon-31m-en` · **31M-param English TTS, 64.5 MB q8** · **probed 2026-10-24 (`.34`, CPU-only one-shot containers)**.
+
+- **Install:** `pip install ptts` on aarch64 resolves `ptts-0.4.1` from a manylinux-aarch64 wheel —
+  the item's documented transformers-from-source fallback is not needed. Model staged as a local
+  snapshot (`-m <dir>`), so the Hub is never contacted at render time.
+- **Render:** fixed default voice, drama-3 c1 text: 4.56 s of 24 kHz mono audio in 0.755 s wall
+  (**RTF ~0.17**, ~6× realtime).
+- **Determinism caveat:** ptts 0.4.1 is **not byte-reproducible across invocations** — same text,
+  seed and temperature produce identical-length but different PCM (persists with `-t 0` and
+  `--threads 1`). Score phonon A/Bs at the transcript/metric level, never byte level.
+- **Intelligibility (the lane's first full cell):** whistle transcribes all four renders at
+  **WER 0.000** against the c1 ground truth (`~/benchmarks/tp4-lane-20261024/phonon/REPORT.md`).
+  The kokoro-vs-phonon hard-sentence WER A/B the item wants is the next instrument use.
+
 
 ## [drama-3-35b-a3b-fp8-vllm-omni-tts](drama-3-35b-a3b-fp8-vllm-omni-tts.yaml)
 
