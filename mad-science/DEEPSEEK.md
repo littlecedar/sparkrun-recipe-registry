@@ -1693,3 +1693,17 @@ carry the detail.
   fork transports over plain NCCL and the working 2026-10-13 runbook hand-set
   `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA`, which the sparkrun path does not. Next-window one-knob
   experiment recorded in the triage file.
+- **GLM-5.3 3bpw TP=4 — the H3 one-knob fix CONFIRMED, and the arm's perf + quality cells are
+  measured (window 2 → window 3, 2026-10-24/25)** (`recipes/glm/README.md`). With
+  `-o env.NCCL_SOCKET_IFNAME=enp1s0f0np0 -o env.NCCL_IB_HCA=rocep1s0f0,roceP2p1s0f0`
+  (`NCCL_NET_PLUGIN=spcx` is absent from the image — dropped) the boot passes the pre-load stall
+  every time: window-2 boot2b HTTP-ready 2746.3 s, window-3 boot1 **2538.9 s**. Window-3 measured
+  cells (task `7d9a3a61b33a29e4_e1ba2bd6f9d9`, quartet, n=5 decode rows, `--fresh`): C1 **28.83 ±
+  1.37**, C2 per-request 28.94 ± 0.99 (agg 37.4), C5 per-request 26.71 ± 5.44 (agg 76.3), C10
+  per-request 28.21 ± 3.49 (agg 145.8) t/s — per-request decode flat 27–29 t/s across C1→C10, so
+  the MTP-3 draft head sustains under load and aggregate scales ~5.1× at C10; house @4096
+  thinking-on **37/37** (easy 19/19, hard 18/18), the arm's first quality battery through the
+  recipe path. Receipts `~/benchmarks/tp4-window3-20261024/` (`glm-perf-ladder.*`, `suite-glm/`).
+  The one-knob env is load-bearing every boot (TTR ~42–46 min at ~95 MB/s pool reads with
+  CPU-dequant gaps); window-2's ladder `--skip-run` auto-finish failure (bench-id collision →
+  stale state, c10 FAILED) is why the cells took two windows.

@@ -1,0 +1,84 @@
+# ===========================================================================
+# DRAFT probe arm (`zz-`) — boot-gate cell, never benchmarked as a shipped arm.
+# Engine-support question first: Beam (`model_type: beam` / `BeamForCausalLM`)
+# is in NO vLLM release; the only published runtime is the vendor's
+# `vllm/vllm-openai:reflection-beam` dev build. Kernel falsifier (TODO §Beam):
+# MoE-backend init failure or an sm_121 "no kernel image" on the default
+# `flashinfer_trtllm` NVFP4 path => retry `--moe-backend marlin`; if marlin also
+# fails the model is rejected-on-engine, not on bytes.
+# Staging (2026-10-25, window 3): pool snapshot f8ecac0e verified
+# du -sbL 293,654,945,142 B vs usedStorage 293,648,862,719 B (+6 MB overhead);
+# image pulled on .30, RepoDigest sha256:c1a6be6ad080… (the TODO's pull-time
+# 7fc940745c… digest no longer matches the tag — the tag was re-pushed).
+# ===========================================================================
+recipe_version: "2"
+model: reflection/Beam-1.0-501B-A23B-NVFP4
+model_revision: f8ecac0e16045babf60156f6ba996a77fcb48cf9
+runtime: vllm
+container: vllm/vllm-openai:reflection-beam@sha256:c1a6be6ad08016f8cebcb449146b3d992791fe1868f9a26f3e48a51040517b77
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  DRAFT — never booted, no measurements, not a shipped arm. Boot-gate probe for
+  reflection/Beam-1.0-501B-A23B (501.3B-total / 23.4B-active sparse MoE, 256
+  routed experts top-8, 1M window via 43 sliding-window-512 + 9 full NoPE
+  layers, Apache-2.0) at its only fitting shape: NVFP4 at TP=4 (68.4 GiB of
+  weights per rank). Engine is the vendor dev image (vLLM dev
+  0.1.dev23042+g8e0922e88, `vllm.models.beam` present); FlashInfer autotunes the
+  MoE kernel ~10 min on first start, hence the 3600 s ready timeout. The gate
+  measures loads + answers only; house/needle/BFCL cells come after the
+  kernel-availability verdict. FlashInfer TRT-LLM-gen NVFP4 kernels were
+  developed on GB200/GB300 — whether the cubins cover GB10 sm_121 is the cell's
+  falsifier.
+metadata:
+  model_url: https://huggingface.co/reflection/Beam-1.0-501B-A23B-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "501.3B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, agent, tools, apache-2.0
+
+env:
+  VLLM_ENGINE_READY_TIMEOUT_S: "3600"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: reflection/Beam-1.0-501B-A23B-NVFP4
+  # Gate-shape knobs per the TODO gate proposal: modest admission, modest
+  # window (KV is 18 KiB/token fp8 on the 9 full layers, but the gate does not
+  # need 1M), fp8 KV.
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 16
+  max_num_batched_tokens: 8192
+  kv_dtype: fp8
+  # Falsifier lever: leave empty for the default flashinfer_trtllm path; on an
+  # init failure or "no kernel image" relaunch with -o moe_backend=marlin.
+  moe_backend: ""
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --trust-remote-code
+  --kv-cache-dtype {kv_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  {moe_backend}
+  {extra_args}
+
+readiness:
+  inference: true
+  port_timeout_s: 7200
+  health_timeout_s: 3600

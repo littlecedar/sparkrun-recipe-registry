@@ -48,7 +48,7 @@ was attempted and archived as a proven-negative.
 | Recipe | What it is | Status |
 |---|---|---|
 | [`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml) | GLM-5.3-Flash EXL3 4bpw (~176 GB) on 4 Sparks, TP=4, TensorFold v0.6.0 + the 106-patch `tp4` engine, DFlash2 drafts, 1M window, RoCE all-gathers. Checkpoint `Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold@078455ff`, drafter `incoai/GLM-5.3-Flash-DFlash2@bf582e4e`, image `ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…` | **BOOT-VERIFIED 2026-10-18** — TTR 309.6 s, KV pool 5,834,752, ladder C1 83.03 ± 17.74 / C2 102.36 ± 24.01 / C5 79.49 ± 11.34 / C10 73.37 ± 8.44 t/s. |
-| [`glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml) | Full GLM-5.3 753B EXL3 3.0bpw (~273 GB) on 4 Sparks, TP=4, TensorFold 0.6.0 from the unreleased `glm-dsa-tp4` fork, 1M window with DCP over 4 ranks, the checkpoint's own MTP-3 head. Checkpoint `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383`, image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | **BOOT-VERIFIED 2026-10-18** — `/v1/models` at 240 s, engine load 308.7 s, startup estimate 96.27 of 102.86 GiB, ladder c1 31.7 t/s / c2 25.3 agg (14.5 per request) / c4 40.6 agg (11.4 per request), 100,559-token prompt TTFT 258.4 s. Not measured: quality, a warm-JIT boot, four concurrent 1M windows. |
+| [`glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`](glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml) | Full GLM-5.3 753B EXL3 3.0bpw (~273 GB) on 4 Sparks, TP=4, TensorFold 0.6.0 from the unreleased `glm-dsa-tp4` fork, 1M window with DCP over 4 ranks, the checkpoint's own MTP-3 head. Checkpoint `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383`, image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | **BOOT-VERIFIED 2026-10-18; perf + quality MEASURED 2026-10-25 (window 3)** — TTR 2538.9 s on the NCCL-env boot, ladder C1 28.83 ± 1.37 / C2 per-req 28.94 ± 0.99 (agg 37.4) / C5 per-req 26.71 ± 5.44 (agg 76.3) / C10 per-req 28.21 ± 3.49 (agg 145.8) t/s (n=5, decode rows), house @4096 thinking-on **37/37**. Still not measured: a warm-JIT boot, four concurrent 1M windows. |
 
   The 2026-10-24 pool-era boot of this arm stalled twice before weights load
   (DCP banner, then frozen; NVRM `NV_ERR_NO_MEMORY` on rank 0 at 15:36:57).
@@ -77,10 +77,22 @@ was attempted and archived as a proven-negative.
   (`NCCL_NET_PLUGIN=spcx` is absent from the image and was dropped) the boot got past the pre-load
   stall to **inference-ready — container-start TTR port-open 2746.273 s / HTTP-ready 2746.298 s**
   (`boot2b-glm-launch.log` in `~/benchmarks/tp4-window2-20261024/`; an earlier board row quoted
-  2888.8 s — superseded by the launch-log figure). Pool reads ~95 MB/s with CPU-dequant gaps. The
-  ladder cells are still owed (the auto-finish launched with `--skip-run`, so GLM perf numbers
-  remain unmeasured); one stray-stop incident is recorded from that window: a peer's prefix-grep
-  `sparkrun stop` killed boot2 2 min post-ready — never stop by parsed id.
+  2888.8 s — superseded by the launch-log figure). Pool reads ~95 MB/s with CPU-dequant gaps.
+  **Window 3 measured the ladder (2026-10-25,
+  task `sparkrun_7d9a3a61b33a29e4_e1ba2bd6f9d9`, quartet `.31`–`.34`, same NCCL env):** TTR
+  port-open **2538.9 s** (~42 min — the confirmed env reproduces clean boots; the one-knob fix is
+  therefore load-bearing every boot, not a one-off), ladder C1 **28.83 ± 1.37** (peak 29.4) / C2
+  per-request **28.94 ± 0.99** (aggregate 37.4) / C5 per-request **26.71 ± 5.44** (aggregate 76.3) /
+  C10 per-request **28.21 ± 3.49** (aggregate 145.8) t/s — n=5 decode rows, `--fresh`
+  (`glm-perf-ladder.{yaml,json,csv}` in `~/benchmarks/tp4-window3-20261024/`). Per-request decode
+  is **flat 27–29 t/s from C1 through C10** — the MTP-3 draft head sustains under load and
+  aggregate scales ~5.1× at C10 — and house @4096 thinking-on is **37/37** (easy 19/19, hard
+  18/18, 124.7 s; `suite-glm/`), the arm's first quality battery through the recipe path. One
+  stray-stop incident is recorded from window 2: a peer's prefix-grep `sparkrun stop` killed boot2
+  2 min post-ready — never stop by parsed id. Boot-1 harvest caveat: the four in-container serve
+  logs were lost to a worker-side path bug in the harvest script (containers stopped before a
+  successful cp); the head launch log retains the launcher-streamed engine lines, and the perf +
+  house receipts above are complete.
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
 prepared snapshot *path* via `{model}`, so there is no `--revision` for the validator to find
