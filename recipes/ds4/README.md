@@ -15,6 +15,8 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 - [Quality benchmarks](#quality-benchmarks)
 - [Measured: TP=4 ladder and suite](#measured-tp4-ladder-and-suite)
 - [Measured: the v2.4 serve line](#measured-the-v24-serve-line)
+- [The vendored adapter set](#the-vendored-adapter-set)
+  — what the knapcio adapter overlay is, component by component, and what its build gate protects.
 - [Attic index](#attic-index)
 
 ## deepseek-v4.1-flash-knapcio-tp4-1m-sglang
@@ -450,6 +452,203 @@ repo, itself a downstream of MiaAI-Lab's).
 - **Greedy text equality is not a prefill-correctness gate.** ~70k-token cold
   prompts diverge run to run (non-associative FP reductions across TP); verify
   with semantic/needle batteries, not exact string equality.
+
+## The vendored adapter set
+
+**What it is.** The ds4/knapcio production arm serves DeepSeek-V4.1-Flash-1017 through a third-party
+stack: SGLang's `dsv4.1` branch pinned at `f80c91a4b` (2026-09-16), staged into the image at build time
+(`mad-science/DEEPSEEK.md:141-145`; `recipes/ds4/Dockerfile.knapcio-dsv41:20-23`), wrapped by an
+adapter overlay from `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` (our pin `27616bec`, v2.4) that
+bakes to `/opt/dsv41/adapter` on `PYTHONPATH` and installs itself through `sitecustomize.py`
+(`recipes/ds4/mods/dsv41-sglang-overlay/README.md:21-25`). The adapters patch engine symbols at
+import time — weight-loading, attention, collective and speculative-decode paths — and refuse to boot
+on source drift (`mad-science/DEEPSEEK.md:838-839`). Our registry does not carry the adapter source:
+the build `COPY`s it from a knapcio clone (`recipes/ds4/Dockerfile.knapcio-dsv41:16-23`), plus one
+patch we do carry locally, and the launcher mod (`recipes/ds4/mods/dsv41-sglang-overlay`) gates the
+result fail-closed and applies the production environment that switches individual adapter modules on
+(`launcher.py:121-313`). "Vendored" means exactly that: upstream's code, our pinned build, verified
+by an in-image test suite before a boot is allowed.
+
+**Component by component, with a verdict for each:**
+
+- **Engram reader** (`adapter/engram_backend.py` + the compiled `row_store.so`; env
+  `DSV41_PACKED_DIR`, `DSV41_CACHE_*` — `launcher.py:124,132-138`). Reads the model's Engram tables as
+  packed 264-byte per-rank shards from node-local NVMe (2 × 23.6 GiB per rank packed in 57–73 s on a
+  first boot — `mad-science/DEEPSEEK.md:80,227`). The packed shard is an *optional acceleration* with
+  an exact checkpoint fallback, and `row_store.cpp` fails closed on a range mismatch
+  (`recipes/ds4/mods/dsv41-sglang-overlay/README.md:111-113`; `launcher.py:49-51`). **Verdict:
+  performance convenience** — the arm boots, fits and serves correctly without it.
+- **`replicated_split`** (`adapter/replicated_split.py`; `DSV41_REPLICATED_SPLIT=wqkv_a,engram.wkv`,
+  `launcher.py:304`). Slices two per-layer replicated GEMMs — `wqkv_a` 1792×5120 and `engram.wkv`
+  25600×6144, on all 42 layers per step — into rank-window GEMMs plus a compact RoCE column gather
+  (`mad-science/DEEPSEEK.md:1529-1531`). Measured state on the shipped line: every rank logs
+  `split ON, window GEMMs (no pad)` with zero `split OFF` and zero `slice failed`
+  (`mad-science/DEEPSEEK.md:1612-1617`, receipt `~/benchmarks/tp4-pad-20261023/a1-control-node*.log`
+  on the head). Upstream never isolated its same-image magnitude (`DEEPSEEK.md:1577`), so no t/s
+  number is recorded for the split itself. **Verdict: performance** — it is upstream's production
+  shape and we run it on, but the arm would serve without it (the fallback is the stock replicated
+  GEMM plus a padded all-gather).
+- **`tp3_pad`** (`adapter/tp3_pad.py`; `DSV41_TP_PAD`, adapter default on — `DEEPSEEK.md:1526-1528`).
+  Pads tensors so the split probe can slice on TP degrees where the dimensions do not divide; when the
+  slice fails it is the mechanism behind the fallback above. On the shipped TP=4 line the split
+  succeeds and the boot logs `no pad` (`DEEPSEEK.md:1617`), so the padding path never engages. The
+  2026-10-23 `DSV41_TP_PAD=0` A/B was closed **falsified and moot**: the treatment never booted (NCCL
+  RDMA-registration wedge, `DEEPSEEK.md:1628-1634`) and the record's consequence is "do not ship the
+  line" (`DEEPSEEK.md:1222,1625-1626`). Upstream's own production pin is `DSV41_TP_PAD: "0"`
+  (`DEEPSEEK.md:1551`). **Verdict: obsolete on the TP=4-only vendored line** — a leftover of the
+  upstream lineage's other topologies; it costs nothing while the split is on, and turning it off
+  is one `RECIPE_ENV` line away. **Qualified 2026-10-26 (S0 evidence):** obsolete applies to our
+  TP=4 vendored line only. On a stock tree the pad/selection mechanism is load-bearing for boot:
+  the S0 control's stock main image rejected the checkpoint at its default MoE backend —
+  `Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be
+  multiples of 128 (got hidden=5120, intermediate=576)` — which is precisely the divisibility case
+  the vendored padding path absorbs (receipt
+  `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`).
+- **DSpark speculative-decode adapters** (`verify_cap`, `block_verify`, `draft_main_proj_split`,
+  `draft_head_fp8`, folded fence/sampling; `launcher.py:274,298-308`). Hold the shipped DSpark k=5
+  configuration coherent: the confidence cap (`DSV41_VERIFY_CAP=conf:0.1`) builds a size-5 verify
+  tensor that must match the checkpoint's draft block size 5, and a mismatched block size aborts all
+  four ranks at decode-graph capture — measured when γ=3 was tried
+  (`recipes/ds4/README.md:102-108`). **Verdict: load-bearing for the shipped configuration** — not
+  for memory fit, but the shipped arm's spec-decode path aborts without the coherent pairing.
+- **`fast_load`** (`adapter/fast_load.py`; `DSV41_FAST_LOAD=1`, `launcher.py:293` with the decision
+  record at `:277-292`). Eager pinned weight loading: cuts engine start from 343 s to ~124 s, at the
+  cost of a smaller, boot-variable KV pool (3.42M–4.36M tokens across the 2026-10-23/24 boots versus
+  the stock loader's profiled 6.99M — `launcher.py:198-211`; `DEEPSEEK.md` §18.2). **Verdict:
+  deliberate performance trade** (owner decision 2026-10-22), reversible with `DSV41_FAST_LOAD=0`.
+- **`spec_sync_free`** (`adapter/spec_sync_free.py`; `DSV41_SPEC_SYNC_FREE=all`). Drops and merges
+  the spec-decode sync broadcasts; audited bit-identical on greedy rows
+  (`mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md:123-124`). **Verdict: performance**, small —
+  the whole collective family is ~1.2 % of a step on this lane (`:126-127`).
+- **Anthropic-protocol / Messages-thinking / prefill-bypass hooks** (nine lines added to
+  `sitecustomize.py` between knapcio `58f2321` and our pin `27616bec` —
+  `mad-science/DEEPSEEK.md:1554-1556`). Enable the Anthropic-protocol prefill-bypass behaviour for
+  the Messages API. No throughput or latency measurement for it is recorded anywhere in the tracked
+  docs. **Verdict: feature convenience, not load-bearing** — the arm would boot, fit and serve
+  without it — but it is the component whose gate test fails behaviourally on candidate 3's tree
+  (`test_prefill_bypass` 6F/2E — `mad-science/TODO.md` §Retry queue — window 4, Build-gate drift
+  advisory), so it is what drives the re-port.
+- **Build-time encoding anchor check** (`runtime/patch_encoding_dsv41.py`,
+  `recipes/ds4/Dockerfile.knapcio-dsv41:78-80`). Fails the build if either pinned
+  textual-placeholder anchor in SGLang's `encoding_dsv41.py` has drifted. The newer trees moved this
+  file: the candidate builds had to re-derive anchor 1 because upstream dropped the
+  `_validate_no_image_sp_tokens` docstring line the anchor matched
+  (`recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml:14-16`), and candidate 5's tree dropped
+  `encoding_dsv41.py` entirely, forcing the re-pin to the #41603 merge commit `620c76f2`
+  (window-4 evidence: build receipts `~/benchmarks/tp4-window4-20261026/build-c{3,5}.log`;
+  `mad-science/TODO.md` §Retry queue — window 4, Build-gate drift advisory). **Verdict:
+  load-bearing build gate** — it is the canary that says the adapter's assumptions about the tree
+  no longer hold — but it is not a runtime component.
+- **Chat-template staging** sits beside the adapter set but is not part of it: the 1017 refresh ships
+  no `chat_template.jinja` on purpose, and both the overlay launcher (symlink farm,
+  `launcher.py:106-111`) and the stock-tree mod (`recipes/ds4/mods/dsv41-chat-template-stage/run.sh:11-19`)
+  stage the same file; without it a templateless checkpoint serves under SGLang's default template,
+  which is the wrong output shape (`run.sh:13-15`). **Verdict: load-bearing correctness on any tree**
+  — which is why the stock-tree S0 arm carries the staging mod even with no adapter at all.
+- **Our one local patch, `boot.py.health-port.patch`** (`recipes/ds4/boot.py.health-port.patch`).
+  Dynamic port discovery for the image HEALTHCHECK. A plain fresh-clone build silently drops it and
+  yields a *different* image — measured 2026-10-14, image `dd9d1c3c…` / digest `ac9bc917…`, never to
+  be pushed as `canary-roce` (`boot.py.health-port.patch:17-20`; `mad-science/DEEPSEEK.md:150-159`).
+  **Verdict: load-bearing** for sparkrun's boot and health lifecycle.
+
+**Would the arm run without the adapter set? No, on no stock main tree and at neither MoE backend — measured
+2026-10-26.** The S0 control boot of `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` (the stock
+main tree `6563312` with the staging mod and no knapcio overlay —
+`recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml:5-6,28-29`;
+`recipes/ds4/mods/dsv41-chat-template-stage/run.sh:12`; the knapcio `boot.py` is not in that image,
+which is why the overlay launcher exits rc=2 there) FAILED at engine init on rank 0:
+`ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and
+intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576)` →
+child sigquit → process tree killed (receipt
+`~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`, copied there by the recovery
+holder). The checkpoint's per-partition intermediate (576 = 2304/4) violates the MXFP4-FlashInfer-Cutlass
+÷128 rule — precisely the divisibility case the vendored padding path absorbs — so at the stock
+default the pad/selection handling is load-bearing for boot, not a convenience. The
+owner-authorized one-shot retry with `--moe-runner-backend triton` ALSO failed (2026-10-26): the
+engine confirmed `moe_runner_backend=triton`, got past the ÷128 geometry check and began weight
+load (108.83 GB available), then died 16 s in with an NVRM `NV_ERR_NO_MEMORY` GPU OOM — the un-fused
+runner cannot materialize the fp4 experts inside the 128 GB unified GPU. So the stock main tree
+(`6563312`) does NOT serve the 1017 on GB10 TP=4 at either in-arm MoE backend: cutlass rejects the
+geometry, triton cannot fit the memory. The corrected conclusion is a memory-fit one as much as a
+geometry one: the vendored fused/packed MoE path is load-bearing for MEMORY FIT on this checkpoint,
+so the adapter set is not optional for boot. Both tracebacks: cutlass
+`~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`; the triton retry's
+`s0-retry-node{1..4}-serve.log` saved beside it, its OOM in spark-d325's kernel log and the
+launch-side failure in `s0-retry-launch.log` (record: `mad-science/TODO.md:749-763`; queue verdict
+e84ce8d, S0 DONE NEGATIVE; any shipped-image fallback is a control-lineage change reserved to the
+owner).
+Upstream knapcio (checked 2026-10-26, HEAD `aff52fa5`) carries no guard or pad for this
+MoE-divisibility case on stock trees — its whole patch stack is pinned to the same `f80c91a4b`
+dsv4.1 branch, where the vendored selection applies (see `mad-science/DEEPSEEK.md` §19).
+What the adapter set buys beyond boot remains the upstream production configuration: the RoCEnante
+transport (the lane's single largest measured lever, 1.70× at C1 —
+`mad-science/DEEPSEEK.md:82-84`), packed-Engram boot speed, the split, fast load and the DSpark
+line. What we still do not have is a same-window measurement of the shipped overlay line against
+a stock-tree line — the survey was how we were about to get one.
+
+**The gate.** The image build runs the adapter test suite as one `RUN` chain and fails the build on
+any failure (`recipes/ds4/Dockerfile.knapcio-dsv41:85-110`): `test_anthropic_thinking`,
+`test_prefill_bypass` (run with `DSV41_PREFILL_BYPASS_SOURCE_ROOT` pointed *into* the tree's own
+`sglang/srt/managers` code and `DSV41_PREFILL_BYPASS_EXPECT=supported`),
+`test_thinking_alias`, `test_max_new_tokens`, `test_loop_abort`, `test_replay_guard`,
+`test_replicated_split`, `test_compact_gather`, `test_verify_cap` (with `VC_TEST_N=60000`), and
+`test_spec_sync_free`. Why it exists: the adapters patch engine symbols and refuse to boot on source
+drift (`mad-science/DEEPSEEK.md:838-839`), and the gate is the build-time expression of that refusal
+— a build whose adapter no longer matches its tree may carry a silently-wrong adapter and produce
+plausible-but-wrong numbers (`mad-science/TODO.md` §Retry queue — window 4, Build-gate drift
+advisory). Honest
+limit: the test sources are vendored from the knapcio build context, not carried in this repo
+(`recipes/ds4/Dockerfile.knapcio-dsv41:16-23`), so the gate's negative controls are not enumerable
+from tracked files — the tracked record asserts they exist and directs that any gate rewrite preserve
+them (`mad-science/TODO.md` §Retry queue — window 4, Build-gate drift advisory). What the gate
+prevents, concretely, is the neutered-gate shortcut the owner rejected (option (b) of the trimmed
+round-1 question): neutering it on a mismatched tree would ship a boot whose adapter semantics
+nobody verified.
+
+**Why the re-port costs 16–24 h.** Four work items, itemized:
+
+1. **Re-derive each adapter patch against upstream's rewritten code** — hours, the bulk of the
+   estimate. The adapters sit on specific upstream files (`sglang/srt/managers` for the bypass,
+   `encoding_dsv41.py` for the placeholders). Candidate 3's tree fails `test_prefill_bypass` 6F/2E
+   behaviourally — our vendored patch no longer matches that tree's code
+   (`mad-science/TODO.md` §Retry queue — window 4, Build-gate drift advisory; window-4 evidence
+   `~/benchmarks/tp4-window4-20261026/build-c{3,5}.log` on the head) — and main @ `ad950cdd` dropped
+   `encoding_dsv41.py` entirely (same advisory). Every module must be re-read against the
+   new code, re-diffed, re-patched and made to probe successfully. **~8–12 h.**
+2. **Rewrite the gate's behavioural expectations to the new semantics while preserving its negative
+   controls** (`mad-science/TODO.md` §Retry queue — window 4, Build-gate drift advisory) — smaller but careful: each test's assertions must
+   match what the new upstream code actually does, and the deliberately-broken-input cases must still
+   go red. **~2–4 h.**
+3. **Rebuild and boot-verify the shipped 1017 line on the new base** — a boot-gated check, not a unit
+   test: image build is ~10 min per node including the in-image tests
+   (`attic/ds4/AGENTS.md:992-993`), plus push, plus a quartet TTR measured at 545.9 s warm
+   (`recipes/ds4/README.md:36`). **~2–4 h** including margin for a failed attempt.
+4. **Re-measure that the shipped line still hits its bars** — C1/C10 ladder, house ≥ 36/37, needle
+   3/3 (the shipped bars: `recipes/ds4/README.md`; `mad-science/DEEPSEEK.md` §17 carries the same
+   acceptance shape and the boot-cost precedent) — one boot plus cells at ~45–60 min TTR. This is
+   not bureaucracy: an adapter silently mismatched to its tree produces plausible-but-wrong
+   numbers, which is exactly what the gate exists to prevent (`mad-science/TODO.md` §Retry queue —
+   window 4, Build-gate drift advisory). **~2–4 h.**
+
+Total ~16–24 h; the queue carries it as `ds4-adapter-report-gate`, estimate 20.0 h
+(task `ds4-adapter-report-gate` in `mad-science/queue.json`). What would shorten it: merging the
+adapter semantics upstream as PRs and keeping only a thin shim locally (round-2 option (b),
+`mad-science/GUIDANCE.md` §5), or shrinking the patch surface the adapters touch. The survey's own
+limits section already said it: "the real cost is the re-port, not the flag"
+(`mad-science/DEEPSEEK.md:995-997`).
+
+**Consequence for this window.** Arms 3 and 5 are blocked behind this re-port
+(`mad-science/STATUS.md:8`; `mad-science/TODO.md` §Retry queue — window 4, Build-gate drift
+advisory; queue task `ds4-adapter-report-gate`), while
+the flag-level arms (S0, 1, 2, 6) and the b12x parity boot are not build-gated and run
+(`mad-science/TODO.md` §Retry queue — window 4). Under the owner's queueing formula the re-port's
+weight is its 20 h estimate minus the 6 h of candidate work it blocks (arms 3 and 5 at 3.0 h each
+— queue tasks `w4-survey-arm3-indexer-scoring` / `w4-survey-arm5-trtllm-mla`), i.e. 14 h — so it
+sinks well below its raw cost in the queue, and the model-priority ruling (1017 is the primary
+model — `mad-science/TODO.md` §Retry queue — window 4, Priority-models ruling) keeps it ahead of
+non-1017 work regardless. Note the re-port also blocks every future newer-tree build, not just
+these two arms (task `ds4-adapter-report-gate`), so its true blocked-set weight grows each time
+the survey wants a newer base.
 
 ## deepseek-v4.1-flash-tensorfold-tp2-1m-sglang
 

@@ -755,8 +755,8 @@ together:
   into weight load with an NVRM GPU OOM (`NV_ERR_NO_MEMORY`, spark-d325 kernel log) — the
   un-fused runner exceeds the 128 GB unified GPU materializing the fp4 experts. The recipe's
   pre-registered falsifier fired. Consequence: the vendored pad/adapter set in the shipped
-  overlay image is LOAD-BEARING for boot, not a convenience (matches `GUIDANCE.md` Background's
-  MoE-divisibility finding); the flag-level arms (candidates 1/2/6) have NO main-tree base and
+  overlay image is LOAD-BEARING for boot, not a convenience (matches `recipes/ds4/README.md`
+  §"The vendored adapter set", the MoE-divisibility finding); the flag-level arms (candidates 1/2/6) have NO main-tree base and
   fall back to the shipped knapcio image — a control-lineage change that is an OWNER decision,
   so queue rows `w4-s{1,2,3}` + `w4-candidate6` are BLOCKED with that reason, not released.
   Candidates 3/5 stay build-gate-blocked. Receipts: `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`,

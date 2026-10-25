@@ -173,7 +173,7 @@
       "model": "dsv4.1-1017",
       "node_cost": "single",
       "notes": "Evidence (GitHub-read 2026-10-26, NOT boot-verified): upstream quarantined the v2.4 lineage our overlay pins (issue #16 SWA/prefix-cache Xid 13/43; fix = their PR #18's SGLang #41303 bounded-replay backport + rebuild, 'old v2.4 images require a rebuild' — de6ef51c, docs/issue-16-swa-crash.md); v2.5 re-qualified the v2.4 lever set on rebuilt images and fixed the logprob-decode hang (c3fe50a8/4123250f/f9a1de41); prefill-SP adapter repaired after hash-pin drift (57a98886); Engram NVMe keepalive measured c16 +5% on their fleet A/B/A (a2e805a2/1059dfe4); #44923 greedy-flags refresh restores DSpark folded-verify eligibility (c0b07102). Scope: re-pin overlay, rebuild, boot-verify the shipped 1017 line's bars — SAME tree (fetch-sglang-canary.sh:6 still f80c91a4b), so this does NOT replace the newer-tree re-port (ds4-adapter-report-gate keeps arms 3/5). estimate: provisional.",
-      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/GUIDANCE.md §Upstream knapcio adapter update (2026-10-26); mad-science/TODO.md §Retry queue — window 4"
+      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4"
     }
   ]
 }

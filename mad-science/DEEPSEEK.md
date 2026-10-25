@@ -23,6 +23,7 @@ measured, what failed and why, and what is still open.**
 | §17 | vLLM's own DeepSeek-V4.1 recipe and model-registry entries; the `local-inference-lab/vllm` b12x fork's Engram config, disk table and four-Spark launchers; the `spark-vllm-docker` 4x recipe and image tag; the retired `attic/ds4/` vLLM verdicts; the 1017 model card | study 2026-10-23, no boot — upstream `main` @ `d561af5d`, fork `dev/karmic-kraken` @ `8244d1c4` |
 | §18 | `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` (recipe, docs, benchmark CSVs); knapcio `403a5aa2` vs our `27616bec`; the git-ignored `.scratch/ds4/knapcio/logs/boot9-head-serve.log` | study 2026-10-23, no boot |
 | §18.1 | the 2026-10-23 TP=4 window's receipts (`~/benchmarks/tp4-pad-20261023/` on the head: `a1-control-*`, `b1-treatment*`) | measured 2026-10-23, four boots attempted (one clean serve) |
+| §19 | the uncommitted owner-guidance file's upstream survey: GitHub API/raw reads of `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` against our overlay pin `27616bec`, upstream HEAD `aff52fa5` | survey 2026-10-26, no boot |
 
 The three source notes were deleted (`git rm`) in the same commit that created this document; the
 filenames above are provenance, not live paths. Everything they stated is in the sections named, and
@@ -1780,3 +1781,54 @@ carry the detail.
   (`beam-gate-launch.log`, `beam-gate.log`, `beam-gate-node{1..4}-serve.log` harvested pre-stop,
   `beam-gate-stop.log`); stopped by literal id, quartet 0 containers. TODO §Retry queue item 3
   closes on this.
+
+## 19. Upstream knapcio adapter update — findings (2026-10-26)
+
+**Method.** GitHub API/raw reads of `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` against our
+adapter-overlay pin `27616bec` (v2.4, 2026-10-12); nothing below is boot-verified by us — every
+number is upstream's own claim, cited to its commit.
+
+**What changed upstream since `27616bec` (79 commits, HEAD `aff52fa5`, 2026-10-24):**
+
+- Upstream quarantined the v2.4 era we pin: issue #16 reported Xid 13/43 CUDA faults under large
+  prefix-cache hits (200k–966k cached tokens); the fix path is their PR #18 backporting SGLang
+  #41303 (bounded-replay window safety) with `--fuzz=0` plus a rebuild — "old v2.4 images require
+  a rebuild" (`de6ef51c`, `docs/issue-16-swa-crash.md`). Our vendored overlay descends from exactly
+  that quarantined lineage, on the same tree, without the #41303 backport.
+- v2.5 (`c3fe50a8`/`4123250f`, 2026-10-22) re-qualified the v2.4 lever set on rebuilt images
+  (their sparkDash c1 prose/code 88.6/144.9, speedbench 85.9), fixed the logprob-decode hang and
+  the Linux staging path (`f9a1de41`), and repaired the prefill-SP adapter after its hash-pins
+  drifted against the #42901/#45301 backports (`57a98886`) — the same adapter-drift failure shape
+  our gate exists to catch.
+- The tree pin did NOT move: `scripts/fetch-sglang-canary.sh` at HEAD still sets
+  `SGLANG_CANARY_REF=f80c91a4b…` (the 2026-09-16 dsv4.1 branch we build from). Instead upstream
+  backports ~26 upstream SGLang PRs onto that pin as zero-fuzz patches with per-patch verify+test
+  pairs (`patches/sglang-*.patch`, `scripts/verify_*.py`/`scripts/test_*.py`): #41303 safety,
+  #42901 layer-20 tail (upstream claims 5–10 % cold-TTFT at 16K–200K on GB300 — unmeasured on
+  GB10), #44001 prefill-interval min-BS, #41259/#45410 parallel native encode, #43549
+  inline-system prefix cache, #44751 tool-image/thinking ordering, #45301 padded-query buffer,
+  #40424 DP-padding, #43448 MHC prewarm, #44923 greedy-flags refresh (`c0b07102` — restores DSpark
+  folded-verify eligibility once a sampled request drains), #45450/#45663/#45518 DSpark fixes,
+  #45630 MXFP8 decode tactics, #45745/#45793/#45794/#45762/#45804 dsv41 indexer/thinking fixes,
+  #45726 fused window layout, #45579 window-history source, #45586/#45699 idle-SWA stores.
+- Measured additions: Engram NVMe keepalive (`a2e805a2`/`1059dfe4`, c16 decode +5 % on their fleet
+  A/B/A), two weights profiles (`36d2bd33`), `DSV41_WO_A_INPUT_FP8` measured ~3 % slower decode
+  and left off (`7991d4a5`), and the #45251 grouped-verify backport carried for a day then dropped
+  for hanging every TP rank on a greedy logprob request (`030813ad`, bisected across the 26
+  backport steps).
+- The in-image gate grew from ~11 tests to ~40: per-patch verify/test pairs plus vendored
+  upstream tests run in-image (`Dockerfile.canary` delta), packaging/provenance tests
+  (`tests/test_adapter_engine_pins.py`), and the prefill-bypass gate still runs with
+  `DSV41_PREFILL_BYPASS_EXPECT=supported` against the tree's own managers code.
+- Provenance/licence: new code is credited and documented — the `NOTICE` delta adds SGLang #39665
+  `deepseekv41_detector.py` vendored unmodified and the NCCL #2393 AArch64 CTS-fence patch, both
+  Apache-2.0; the repo licence is AGPL-3.0; `docs/upstream-watch.md` records per-PR carry/HOLD
+  decisions with mechanisms.
+
+**Consequence for our queue.** Upstream has no adapter state for trees newer than `f80c91a4b`, so
+the 16–24 h in-house re-port (`ds4-adapter-report-gate`) remains the only route to survey arms 3/5
+— its blocking edges stay. What upstream DOES offer is a same-tree overlay upgrade: our v2.4-era
+overlay is the quarantined lineage without the #41303 SWA-safety backport, and v2.5+ carries
+measured wins on the tree we already build. Queued as `ds4-upstream-adapter-trial` (~4 h,
+GitHub-read evidence only — not boot-verified here).
+
