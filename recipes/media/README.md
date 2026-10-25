@@ -90,7 +90,31 @@ A recipe appears in this lane only once it is authored.
   `--threads 1`). Score phonon A/Bs at the transcript/metric level, never byte level.
 - **Intelligibility (the lane's first full cell):** whistle transcribes all four renders at
   **WER 0.000** against the c1 ground truth (`~/benchmarks/tp4-lane-20261024/phonon/REPORT.md`).
-  The kokoro-vs-phonon hard-sentence WER A/B the item wants is the next instrument use.
+  The kokoro-vs-phonon hard-sentence A/B is closed below.
+
+### The kokoro-vs-phonon hard-sentence WER A/B (2026-10-25, `.35`)
+
+The card's hard set is unpublished, so the A/B renders an authored 12-sentence structured-data set
+(numbers, dates, codes, units; `.scratch/tplt4/hard-sentences.tsv`) plus the c1 control, twice per
+arm — kokoro through the shipped recipe's `kokoro-fastapi-cpu` image (`af_heart`), phonon through
+`ptts` q8 seed 1234 — and transcribes every wav twice with whistle at full depth (104 rows, rc 0
+across the board). Scoring is **literal WER** (whisper-normalizer + difflib, no LLM-assisted
+equivalence), so the numbers sit far above the card's published 1.5 %/3.5 % and are comparable only
+to each other:
+
+| arm | renders | literal WER | typical misses |
+|---|---|---:|---|
+| **phonon-31m q8** | 26 (2 takes × 13 sentences) | **0.1747** | calibration words ("mL" → "millilitres"), "shipped" → "ship" |
+| **kokoro-82m** | 26 (2 takes × 13 sentences) | **0.2329** | flight codes ("BA 287" → "B.A. 200, and 87"), serials ("SN-00-7X-4412" → "SN0 to 7x4412"), "gate T-9" → "189" |
+
+**Verdict: phonon wins the hard-sentence cell** (over 584 scored reference-word instances),
+direction agreeing with the card's claim that kokoro is weakest on structured text. Instrument
+question decided: **whistle + transcript-level scoring is the lane's hard-sentence instrument**;
+whistle transcripts were byte-identical across independent container runs (52/52), while phonon's
+same-seed take pairs differ in PCM (13/13) — confirming both instruments' known determinism
+properties. Operational trap for any ptts caller: pass the model **directory** to `-m` (`ptts -m
+/m …`); a bare `.gguf` path fails, and mounting a symlinked HF snapshot dir breaks the checkpoint
+check — copy the snapshot files first. Receipts: `~/benchmarks/tplt4-20261024/ab/`.
 
 
 ## [drama-3-35b-a3b-fp8-vllm-omni-tts](drama-3-35b-a3b-fp8-vllm-omni-tts.yaml)

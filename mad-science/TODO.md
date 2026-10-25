@@ -959,6 +959,27 @@ Any model with multimedia output, diarization, TTS, STT, or other multimedia cap
   WER 0.000** vs the c1 ground truth. The kokoro-vs-phonon hard-sentence A/B is the next instrument
   use; a kokoro-shaped recipe arm is a mechanical follow-up, not shipped by this probe.)*
 
+  *(**tplt4 closed the kokoro-vs-phonon hard-sentence A/B 2026-10-25 (`.35`, CPU-only, after the
+  Bonsai C10 confirm)** — receipts `~/benchmarks/tplt4-20261024/ab/` (52 wavs + `transcripts.json`,
+  `wer-scores.json`, `sentences.tsv`, `score_wer.py`). The card's hard set is unpublished, so the
+  A/B uses an authored 12-sentence structured-data set (numbers, dates, codes, units; the c1
+  control sentence carried over at WER 0.000) rendered twice per arm — kokoro via the shipped
+  recipe's `kokoro-fastapi-cpu` image (voice `af_heart`), phonon via `ptts` q8 seed 1234 — then
+  transcribed twice each by whistle at full depth (104 rows, every rc 0). **Literal WER**
+  (whisper-normalizer `EnglishTextNormalizer` + difflib, no LLM-assisted equivalence — the card's
+  metric would forgive equivalence classes like "per cent" ↔ "%", so these numbers sit far above
+  the card's 1.5 %/3.5 % and are comparable only to each other): **phonon 0.1747 vs kokoro 0.2329**
+  over 584 scored reference-word instances — **phonon wins the hard-sentence cell**, direction
+  agreeing with the card (kokoro mangles flight codes "BA 287" → "B.A. 200, and 87", serials
+  "SN-00-7X-4412" → "SN0 to 7x4412", gate "T-9" → "189"; phonon's misses are calibration words
+  "mL" → "millilitres" and "shipped" → "ship"). Instrument question **decided: whistle +
+  transcript-level scoring is the lane's hard-sentence instrument, and phonon is the stronger
+  hard-text renderer of the two CPU TTS arms.** Verification notes: whistle transcripts
+  byte-identical across independent container runs **52/52**; phonon non-determinism reconfirmed
+  (13/13 same-seed take pairs differ in PCM); one operational trap — a bare `ptts -m <file.gguf>`
+  fails, the model must be passed as its **directory** (`-m /m`), and a snapshot-dir mount of
+  symlinks breaks the checkpoint check, so copy the snapshot files first.)*
+
 - [ ] **Cactus-Compute/whistle — a 16.9 MB single-file multilingual on-device ASR on the Needle CPU engine; probe as the lane's WER instrument for the drama-3 intelligibility cell that pyannote cannot fill** — *What it is:* speech-to-text, `library_name: cactus-needle`, 7 languages (en, de, fr, es, it, nl, pl), log-mel + conv stem → audio encoder → Needle-shaped decoder with gated cross attention, word timestamps from decoder attention, speech embeddings per 80 ms frame, keyword biasing, streaming with two-pass commit; Apache-2.0, ungated (card: https://huggingface.co/Cactus-Compute/whistle, updated 2026-10-18, 54.9k downloads). *Weights (file listing, https://huggingface.co/Cactus-Compute/whistle/tree/main):* the whole model is one **`whistle.cact` 16.9 MB** blob in 2–4-bit Cactus Quants, plus a reference `checkpoints/whistle.safetensors` **220.6 MB**; the engine lives in [Cactus-Compute/needle3](https://huggingface.co/Cactus-Compute/needle3), which ships a **`linux-arm64` platform folder** (verified in the repo tree, alongside `linux-x86_64`, wasm, macos-arm64) each holding a `needle` binary, `libneedle.a` and `needle.h` — so the GB10's aarch64 host is covered by a vendor binary, not a build. *Engine fit:* **no GPU, no LLM engine** — a CPU arm in the kokoro/pyannote shape; `pip install cactus-needle` (https://github.com/cactus-compute/needle) or the direct `needle --model whistle.cact --audio clip.wav` binary; every behaviour is a compiled default or explicit flag and "the engine reads no environment variables", which suits the lane's determinism falsifiers. The decoder is laddered (`--audio-depth`, every depth from 2 layers up), so depth is the one knob worth an A/B. *Resident:* bytes are trivial; per-call cost is the measured quantity. *Instrument:* the lane's missing ASR half — **WER on the drama-3 TTS renders** with the card's own scoring convention (Whisper normalizers, card Benchmarks), plus silence-must-return-empty-transcript as a negative control, and determinism (same wav twice, byte-identical transcript). *Gate/first cell:* verify the `linux-arm64` needle binary runs on a GB10 node (aarch64, no GPU), then WER on the two-voice tier-B fixture's transcripts and on a drama-3 render; falsifier = a WER on real-speech fixtures materially worse than the card's published WER bars (card publishes its chart over 86,174 utterances against Whisper/Moonshine — quote our cell against the chart, never restate it as measured here), or any non-determinism. *Overlap flag:* **this item is the ASR/WER instrument the pyannote item explicitly names as its gap** — pair them; also check `needle whistle compare` (card) as a built-in cross-check against Whisper on the same clip. *(effort: medium — CPU-only, one boot; research 2026-10-24.)*
 
   *(tp4-lane took this 2026-10-24 — **MEASURED, instrument live**; receipts
@@ -1085,6 +1106,21 @@ Any model with reasoning and tool-calling capabilities
   loader yields gibberish, not a missing log line. Also recorded from boot1: base64 data-URI images
   FAIL in this build ("failed to decode buffer as either image/audio/video"); vision requests must
   pass an http URL.)*
+
+  *(**tplt4 quiet-node confirm 2026-10-25 (`.35`, no other container on the node)** — receipts
+  `~/benchmarks/tplt4-20261024/bonsai/` (`ladder-quiet.{yaml,json,csv,log}`, `house-quiet.json`,
+  `house-quiet.launch.log`): ladder n=5 --fresh at parallel 10 on the same recipe/image/pin —
+  **C1 75.51 ± 1.38** (bar 69.28 — PASS), C2 152.86, C5 137.02, **C10 129.79 ± 0.90** (bar 116.27 —
+  **PASS, +11.6 %**); house @4096 thinking-on — easy 19/19, hard 17/18 = **36/37** (bar ≥ 36/37 —
+  PASS; the miss is `hard-rev`, reply `nurkrap`). **The quiet-node numbers clear all three gate
+  legs and refute the controller-load caveat on the `.30` C10** (107.6 there vs 129.8 here — the
+  gap is host load, not the arm). Gate verdict: **Bonsai Q2_0 passes the easy-traffic gate**
+  (C1 +9 %, C10 +11.6 %, house at the bar) — the ship/no-ship call on the `zz-` probe joins the
+  parked zz- recipe-ship decisions (Timestral/Kromoss/Bonsai). Operational note recorded: a bare
+  `-H` launch (anonymous cluster) runs sparkrun's GGUF quant matcher at preparation and dies on
+  `ambiguous GGUF selection` — this recipe must launch against a cluster profile with
+  `distribution.model.enabled: false` (`--cluster WOPR`), matching the recipe comment's matcher
+  warning. Serve stopped by literal task id `6231a3f235e04004_527e2ba31301`; 0 containers after.)*
 
 - [ ] **Take `reflection/Beam-1.0-501B-A23B` seriously only as a TP=4 capability candidate** — a
   **501.3B-total / 23.4B-active** sparse MoE (52 layers: 3 dense + 49 MoE, hidden 5120, **256 routed

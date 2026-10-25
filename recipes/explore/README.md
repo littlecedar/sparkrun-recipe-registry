@@ -617,6 +617,31 @@ risk.
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). Task
   `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`, container removed, 0 containers after.
 
+## [zz-ternary-bonsai-2-9b-q2_0-llamacpp](zz-ternary-bonsai-2-9b-q2_0-llamacpp.yaml)
+
+llama.cpp (upstream `9df0b73-cu130` image, full `prism.hadamard.*` loader) · **1 node (TP=1)** ·
+**probe, not shipped** — the easy-traffic-gate cells are closed and the arm **passes the gate**;
+the ship/no-ship call sits with the parked zz- recipe-ship decisions.
+
+- **Gate result (2026-10-24/25, two boots):** the first ladder/house ran on `.30` (controller-load
+  caveat: C1 80.6 PASS / house 36/37 PASS / **C10 107.6, 7.5 % short**); the deciding confirm on a
+  quiet `.35` (n=5, `--fresh`, parallel 10, same recipe/image/pin) cleared it —
+  **C1 75.51 ± 1.38 / C2 152.86 / C5 137.02 / C10 129.79 ± 0.90**, house **36/37** @4096
+  thinking-on (miss: `hard-rev`). Bars: C1 ≥ 69.28, C10 ≥ 116.27, house ≥ 36/37 — all three PASS,
+  and the `.30` C10 deficit is attributed to controller/mgmtd host load, not the arm.
+- **Why it matters:** 2.38 GiB of ternary Q2_0 weights (~1/5 of Mellum's resident footprint) at
+  87 % of Mellum's C10 and 68 % of its C1 — the smallest resident footprint of any gate-passing
+  arm. Vision (mmproj Q8_0) round-trips (solid-red PNG → "Red"); base64 data-URI images fail in
+  this build, use an http URL. Thinking defaults on — budget ≥ 8,192 tokens.
+- **Launch trap (recorded 2026-10-25):** a bare `-H` launch builds an anonymous cluster and runs
+  sparkrun's GGUF quant matcher at preparation, which dies on `ambiguous GGUF selection` (the
+  `*Q2_0*` glob hits `PQ2_0`/`PQ2_0-MTP` too). Launch against `--cluster WOPR`
+  (`distribution.model.enabled: false`) — consistent with the recipe's own matcher warning and
+  `AGENTS.md`'s anonymous-cluster caveat.
+- **Receipts:** `head:~/benchmarks/tp4-lane-20261024/bonsai/` (boot1 functional, ladder/house on
+  `.30`), `head:~/benchmarks/tplt4-20261024/bonsai/` (quiet-node ladder + house). TODO item:
+  `mad-science/TODO.md` §explore.
+
 ## Attic index
 
 Everything that is not a shipped recipe lives in [`attic/explore/`](../../attic/explore/) — lane working
