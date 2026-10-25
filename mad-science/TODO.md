@@ -1037,6 +1037,16 @@ Any model with reasoning and tool-calling capabilities
   `.30` under the owner's work-node ruling (functional boot; the comparative ladder/house cells wait
   for a `.34`/`.35` gap per the coordination contract).)*
 
+  *(**falsifier amendment, tp4-lane 2026-10-24:** the "no `loaded … Hadamard-folded weight(s)`
+  line" half of the first-cell falsifier is RETIRED — at default verbosity llama.cpp `b1-9df0b73`
+  prints no such line at all (the load log shows only `load_model: loading/loaded multimodal model`),
+  so the grep can never fire and a future boot must not re-apply it. The operative half is the
+  text-sanity check: coherent output on a fixed prompt (boot1 answered "Paris" with clean reasoning;
+  vision round-trip answered "Red"), which also proves the activation transform ran — a pre-merge
+  loader yields gibberish, not a missing log line. Also recorded from boot1: base64 data-URI images
+  FAIL in this build ("failed to decode buffer as either image/audio/video"); vision requests must
+  pass an http URL.)*
+
 - [ ] **Take `reflection/Beam-1.0-501B-A23B` seriously only as a TP=4 capability candidate** — a
   **501.3B-total / 23.4B-active** sparse MoE (52 layers: 3 dense + 49 MoE, hidden 5120, **256 routed
   experts top-8 of 8 groups, no shared expert**, DeepSeek-V3-style routing ×2.5), **1,048,576-token**
@@ -1048,6 +1058,7 @@ Any model with reasoning and tool-calling capabilities
 
   *(**byte math, explicit, because this model's whole story is memory.** Repo `usedStorage`, one tree
   each, cross-checked against per-shard listings:*
+
 
   | checkpoint | repo | weights on disk | per rank @ TP4 | card's min GPU memory |
   |---|---|---|---|---|
