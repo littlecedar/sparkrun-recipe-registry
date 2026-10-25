@@ -74,6 +74,7 @@
 
 | time ET | commit | one clause |
 |---|---|---|
+| 22:1x 10-25 | `33a987d` | **tplt4 lane closes its two cells**: Bonsai Q2_0 **passes the easy-traffic gate on a quiet `.35`** (C1 75.51 ± 1.38 / C10 129.79 ± 0.90, house 36/37 — the `.30` C10 107.6 was controller load) and the **kokoro-vs-phonon hard-sentence WER A/B lands** (phonon 0.1747 vs kokoro 0.2329 literal WER; whistle + transcript scoring decided as the lane's instrument) — explore + media READMEs, TODO, board |
 | 18:33 10-24 | `c357510` | docs close-out: the media README's four-rank probe section, the GLM README's 32k experiment, `TODO.md` closes and `DEEPSEEK.md` §18.3 |
 | 17:52 10-24 | `de59a84` | the H3 warmup **input-save path fixed** to an absolute `/tmp/h3-inputs` — the tp2-queue disable had broken the four-rank warmup; recipe + receipt |
 | 17:27 10-24 | `b9ca89a` | H3 probe arm: **absolute component-weight paths** (pool-resident loads) + **speed mode** |
