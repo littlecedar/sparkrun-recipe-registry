@@ -32,6 +32,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
 - [spark-x2.6-4b-fp8-sglang](#spark-x26-4b-fp8-sglang)
+- [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
 - [Attic index](#attic-index)
 
 ---
@@ -583,8 +584,24 @@ same container, same knobs, **no `--quantization` flag** — the engine auto-det
   then 35–37 ms warm** (median **35.7 ms**, n=5). The 232 → 1,664 ms pair in the ladder is a
   **2,048-token-prefill first token**, so it is a prefill-inclusive figure — never quote it as a 7×
   per-request regression, and never quote it as measured TTFT.
-- **Not measured:** tool-call contract (not probed on this tier), needle/ARC/GSM8K/BFCL/TEB, INT4.
-  INT8 is answered: kernel-rejected, see the `zz-` row below.
+- **Closed 2026-10-25 (tplt4, `.30`, both cells pre-registered):** the **tool-call contract passes** —
+  3/3 reps return `finish_reason: tool_calls` with populated arguments
+  (`get_weather({"city":"Lisbon"})`, `spark25` parser, `temperature: 0`, n=3), so the tier's
+  agentic surface is proven, not just the bf16 control's. The **clamp cell closes negative**: the
+  `--max-running-requests 96` sweep reads **c32 294.5 / c48 272.2 / c64 291.9 / c96 294.7** tg t/s
+  (n=5, pp 2048 / tg 128, decode rows) — flat within ±4 % across the whole sweep, c96 +0.07 % on
+  c32 — so the shipped `max_num_seqs: 32` stays; the pool arithmetic (779,390 ÷ 96 ≈ 8.1k tokens
+  per sequence) never became the constraint because decode is compute-limited well below it.
+  Node note: measured on `.30` as a normal worker node (it is a full cluster member; the
+  paired-in-window plain control reproduced the 2026-10-22 `.33` numbers within 1.3 %, so the
+  controller's mgmtd duties were not a factor at these rates).
+- **Receipt:** `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-clamp30.yaml`,
+  `tool-call-contract.json`, `ladder-ngram.yaml`, `ladder-plain-ctl30.yaml`, launch logs), 0
+  containers after.
+
+- **Not measured:** needle/ARC/GSM8K/BFCL/TEB, INT4. INT8 is answered: kernel-rejected, see the
+  `zz-` row below. The tool-call contract and the clamp cell were the FP8 tier's last open cells
+  (both closed 2026-10-25, above).
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`,
   `ladder-fp8.{json,yaml,csv}`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`,
   `flaky-fp8-4096.json`, `flaky-fp8-8192.json`, `temp0-4096.json`,
@@ -592,6 +609,26 @@ same container, same knobs, **no `--quantization` flag** — the engine auto-det
   `sparkrun_9c8e0fffc3be638_80fa71eb085e` on `.33` (ladder + first battery) and
   `sparkrun_9c8e0fffc3be638_64af2f7668b6` on `.35` (8192 re-ask, rerun, and the n=10 flakiness boot),
   0 containers after each.
+
+## [zz-spark-x2.6-4b-fp8-ngram-sglang](zz-spark-x2.6-4b-fp8-ngram-sglang.yaml)
+
+SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-25 — NGRAM spec decode is slower than
+plain decoding at every rung**.
+
+- **Why it existed:** the "Spark-X2.6 MTP" parked line has no MTP to test — the checkpoint carries
+  no mtp/nextn/draft keys (config verified 2026-10-25) and the 16-repo family census has no
+  drafter, so the Mellum MTP mechanism is unavailable and **NGRAM** (engine built-in, no draft
+  weights, flag shape from the retired IFM K2-Horizon NGRAM arm: breadth 4, draft tokens 8,
+  page_size 1) is the only spec route.
+- **Measured (paired, same node `.30`, same window, n=5):** NGRAM **38.0 / 69.6 / 134.7 / 189.0**
+  vs plain-in-window **40.3 / 75.7 / 143.8 / 214.8** at c1/2/5/10 — **−5.7 % C1 to −12.0 % C10**.
+  The pre-registered falsifier fired (spec C1 ≤ plain C1): **NGRAM is measured-rejected for this
+  arm, no breadth sweep** — verify cost grew faster than acceptance on a 4B dense whose plain
+  decode is already at 5.3× its C1 by c10.
+- **Receipt:** `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-ngram.yaml`,
+  `ladder-plain-ctl30.yaml`), serve stopped by literal task id, 0 containers after.
+
+
 
 
 ## [zz-spark-x2.6-4b-int8-sglang](zz-spark-x2.6-4b-int8-sglang.yaml)
@@ -617,11 +654,11 @@ risk.
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). Task
   `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`, container removed, 0 containers after.
 
-## [zz-ternary-bonsai-2-9b-q2_0-llamacpp](zz-ternary-bonsai-2-9b-q2_0-llamacpp.yaml)
+## [ternary-bonsai-2-9b-q2_0-llamacpp](ternary-bonsai-2-9b-q2_0-llamacpp.yaml)
 
 llama.cpp (upstream `9df0b73-cu130` image, full `prism.hadamard.*` loader) · **1 node (TP=1)** ·
-**probe, not shipped** — the easy-traffic-gate cells are closed and the arm **passes the gate**;
-the ship/no-ship call sits with the parked zz- recipe-ship decisions.
+**shipped 2026-10-25 — passes the easy-traffic gate** (C1 ≥ 69.28, C10 ≥ 116.27, house ≥ 36/37
+all cleared); a gate-passing alternative, not the selected arm — Mellum2.1 keeps the SELECTED row.
 
 - **Gate result (2026-10-24/25, two boots):** the first ladder/house ran on `.30` (controller-load
   caveat: C1 80.6 PASS / house 36/37 PASS / **C10 107.6, 7.5 % short**); the deciding confirm on a

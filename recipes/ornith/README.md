@@ -636,6 +636,35 @@ attention KV and the 8.93× figure is the engine's own estimate, not a slot coun
   leg, one repeat of the house battery, and no C10 for the GGUF tier (its `runs/` JSON was never
   flushed before the stop). This section is a two-cell gate verdict, nothing wider.
 
+**Cell 4 — MTP spec decode, the completion cell (tplt4, 2026-10-25, `.35`).** The NVFP4 export keeps
+the checkpoint's own MTP head unquantised (`ignore: ["mtp*"]`, vLLM `Qwen3_5MoeMTP`), so the
+pre-registered spec-decode cell could run without a second model:
+[`zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml`](zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml)
+(`--speculative-config '{"method":"mtp","num_speculative_tokens":3}'`). Paired, same window,
+same node (n=5, `--fresh`):
+
+| cell | plain (control boot, same window) | **MTP n=3** | delta |
+|---|---|---|---|
+| C1 | 26.9 | **38.8** | **+44 %** |
+| C2 | 39.3 | 48.9 | +24 % |
+| C5 | 60.9 | 71.8 | +18 % |
+| C10 | 74.4 | 81.2 | +9 % |
+| house @4096 thinking-on | **37/37** (19/19 + 18/18) | **36/37** (easy 18/19, one miss) | −1 |
+
+Serve-log **mean acceptance length 2.43–2.60** (> 1 — the gate passes). The control boot reproduces
+the 2026-10-22 numbers within 1 % (26.9 vs 27.11), so the +44 % is spec decode, not window drift.
+The 2026-10-22 verdict stands **against the easy-traffic gate** (MTP C1 38.8 is still 56 % of the
+69.28 bar; the 17 t/s replacement falsifier passes with 2.3× margin, but a one-node 122B does not
+replace a quartet on the owner's bars) — the cell's value is the **capability** record: MTP is a
+real ~40 % C1 lever on this arm, the first one measured that moves the shared single-stream wall.
+Contrast with the Mellum MTP rejection (+1.9 % at best, llama.cpp draft-mtp on a 12B-A2.5B): the
+difference is the engine (vLLM's native `Qwen3_5MoeMTP` path) and the head being first-class in the
+checkpoint. Recipe trap recorded: an explicit `command:` template consumes **only placeholders** —
+a bare `-o speculative_config=…` is consumed nowhere (two boots rendered
+`speculative_config=None`), and the JSON must be single-quoted in the template.
+Receipts: `~/benchmarks/tplt4-20261024/ornith122b/` (`ladder-mtp.*`, `ladder-plain-ctl.*`,
+`house-mtp.json`, `house-plain-ctl.json`, launch logs).
+
 ## Lane caveats
 
 - **The YaRN long-context route is now an arm, and only that arm enables it.** Both model cards

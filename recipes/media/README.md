@@ -6,9 +6,9 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the two CPU serves cost no GPU.
 
-The lane ships **nine recipes**: six measured arms (drama TTS, Kokoro TTS, Qwen-Image on both routes,
-LTX-2.5, humanizer Q6_K) and three probe/draft arms (`zz-minimax-h3`, `zz-qwen-image-…-4step`,
-`zz-pyannote-…`). Design and bring-up
+The lane ships **ten recipes**: seven measured arms (drama TTS, Kokoro TTS, Qwen-Image on both
+routes, LTX-2.5, humanizer Q6_K, Kromoss image) and three probe/draft arms (`zz-minimax-h3`,
+`zz-qwen-image-…-4step`, `zz-pyannote-…`). Design and bring-up
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
 
@@ -19,12 +19,14 @@ lane; the recipe YAML keeps only the crucial operational notes.
 - [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [qwen-image-2.1-turbo-7b-bf16-vllm-omni](#qwen-image-21-turbo-7b-bf16-vllm-omni)
+- [kromoss-mossimage-5b-bf16-diffusers-script](#kromoss-mossimage-5b-bf16-diffusers-script)
 - [zz-qwen-image-2.1-turbo-4step-diffusers-script](#zz-qwen-image-21-turbo-4step-diffusers-script)
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
 - [zz-minimax-h3-fl2va-t2va-sglang](#zz-minimax-h3-fl2va-t2va-sglang)
 - [humanizer-12b-q6k-llamacpp](#humanizer-12b-q6k-llamacpp)
 - [zz-pyannote-community-1-diarization-cpu](#zz-pyannote-community-1-diarization-cpu)
+- [phonon-31m-tts-cpu](#phonon-31m-tts-cpu)
 - [Mods](#mods)
 - [Lane notes](#lane-notes)
 
@@ -43,6 +45,7 @@ below are by design, not missing measurements.
 | `kokoro-82m-tts-cpu` | **RTF 0.588–0.601** (1.66–1.70× realtime) | 0.305 GiB ONNX weights · **1.55 GiB process RSS** · HTTP-ready 14.4 s | wav round-trip + `/health`; 24 kHz mono 16-bit | `~/benchmarks/kokoro-tts-20261019/` |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **0.088 img/s** (11.33–11.41 s @1024²; **53.24 s @2048²**) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | single denoise lock, one request at a time | `~/benchmarks/qwen-image-20261014/`, `~/benchmarks/media-gen-20261018/REPORT.md` |
 | `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **8.610–8.704 s warm** (11.0 s first request of a boot) @1024² 8-step; **10/10 PNGs byte-identical** | same checkpoint · engine peak **34.91 GiB** (`peak_memory_mb` 35,748) · TTR **251 s cold / 209 s warm** | seeded renders deterministic across boots; **two-ink prompt violated** (6 hue families); 4/8/12 steps byte-identical; stopped, node back to 0 containers | `~/benchmarks/omni-qwen-image-20261022/` |
+| `kromoss-mossimage-5b-bf16-diffusers-script` | **143.884 s/img** control (50-step CFG-3); **18.341 s/img** with the 8-step dmd2 LoRA | ≈27.2 GiB resident (bf16 10.16 GB + TE 16.79 GB + VAE 0.25 GB) · peak alloc 28.19 GiB control / 26.44 GiB LoRA | seeded renders; **step knob proven live** (8- vs 12-step) | `head:~/benchmarks/tp4-lane-20261024/kromoss/` |
 | `ltx-2.5-22b-nvfp4-t2v-comfyui-script` | **78.1 s/clip warm** (100.13 s cold) @1344×768, 121 f, 24 fps | 36.9 GB · peak **83.45–84.00 GiB** | ffprobe (h264 + AAC) and a decoded frame | `~/benchmarks/ltx25-recipe-20261021/` |
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
@@ -52,8 +55,10 @@ below are by design, not missing measurements.
 | `whistle-asr-cpu` (probe, no recipe yet) | **WER 0.000** on c1/c2/c3/t0/para renders, **0.0118** on the 85-word long render (1 sub: "Rita"→"Reader"); transcripts **byte-identical 11/11** across runs; silence/−60 dBFS noise hard-rejected (exit 1, no hallucination) | 16.9 MB `whistle.cact` + 1.4 MB vendor `linux-arm64` needle binary, CPU only | vendor binary runs unmodified on GB10 aarch64; depth A/B (depth 2 = 2.6× faster, costs accuracy) | `~/benchmarks/tp4-lane-20261024/whistle/` |
 | `phonon-31m-tts-cpu` (probe, no recipe yet) | **RTF ~0.17** (4.56 s audio / 0.755 s wall, q8, CPU); **WER 0.000** through the whistle instrument on all four renders | 64.5 MB q8 gguf + tokenizer, ~1 ptts wheel install | `ptts` aarch64 wheel exists (0.4.1, no source fallback); **not byte-deterministic per invocation** (same seed/text/threads differs in PCM) | `~/benchmarks/tp4-lane-20261024/phonon/` |
 
-**What is not here.** MOSS-Image and indra-ocr are research-only entries in `mad-science/TODO.md`
-(no recipe, no download, no boot); Timestral is a time-series forecaster with no recipe at all.
+**What is not here.** indra-ocr remains a research-only entry in `mad-science/TODO.md`
+(no recipe, no download, no boot). MOSS-Image ships above as
+`kromoss-mossimage-5b-bf16-diffusers-script`; Timestral, the time-series forecaster, ships in the
+[decision lane](../decision/README.md#timestral-209m-forecast-cpu).
 A recipe appears in this lane only once it is authored.
 
 ## whistle ASR probe (no recipe yet)
@@ -369,6 +374,29 @@ closed.
   reproducibility check. Receipt: `~/benchmarks/omni-qwen-image-20261022/` (`SUMMARY.md`,
   `serve.log`/`serve2.log`, per-cell JSON, ten PNGs, `/metrics` peak gauge).
 
+## [kromoss-mossimage-5b-bf16-diffusers-script](kromoss-mossimage-5b-bf16-diffusers-script.yaml)
+
+diffusers' custom `MOSSImagePipeline` + [`recipes/media/mods/kromoss-launcher`](mods/kromoss-launcher) ·
+**1 node** · **measured 2026-10-24 on `.30`, shipped 2026-10-25**.
+
+- **Model:** `lodestones/Kromoss`, a 5.08B-param MOSS-Image text-to-image full fine-tune
+  (base `OpenMOSS-Team/MOSS-Image-Base`, 1024 px, Qwen3.5-9B text encoder + FLUX.2-small VAE
+  decoder), Apache-2.0 (weights and the bundled pipeline code). No sglang/vLLM engine serves the
+  checkpoint: the pipeline file ships inside it and loads via
+  `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True`; the mod stages a
+  diffusers ≥ 0.41 / transformers ≥ 5.17 venv on the image's own torch.
+- **Measured cells** (receipt `head:~/benchmarks/tp4-lane-20261024/kromoss/` — `REPORT.md`,
+  3 PNGs, `boot9-serve.log`): control 1024² 50-step CFG-3 `uncond_skip_layers=[22]` =
+  **143.884 s** (2.88 s/step, peak alloc 28.19 GiB); fast cell with `8-steps-dmd2-lora`
+  applied UNMERGED via the card's own forward-hook recipe = **18.341 s** at 8 steps CFG-1
+  (2.29 s/step, 252 modules hooked, peak 26.44 GiB). **The step knob is proven live.**
+  Pass `-o lora=/cache/huggingface/hub/models--lodestones--Kromoss/snapshots/
+  a4fe97449297af2e3be7841e1c18e431f3b06031/8-steps-dmd2-lora.safetensors` for the fast
+  cell; the default runs the plain control.
+- **Not measured:** image-quality scoring (the lane has no image instrument) and the
+  int8_convrot single-file route — expected kernel-dead on sm_121 (same ConvRot-W8A8 class
+  MiniMax-H3's INT8 boot verified as rejected), so it is not staged.
+
 ## [zz-qwen-image-2.1-turbo-4step-diffusers-script](zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml)
 
 diffusers engine + [`recipes/media/mods/qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) ·
@@ -613,6 +641,36 @@ pyannote.audio on CPU + [`recipes/media/mods/pyannote-diarize-server`](mods/pyan
   (`~/pyannote-img/Dockerfile`), and the recipe documents both requirements next to the base digest.
 - **License:** CC-BY-4.0, gated (auto-approve form), so preparing the snapshot needs an HF token
   with the conditions accepted on the launching host.
+
+## [phonon-31m-tts-cpu](phonon-31m-tts-cpu.yaml)
+
+`ptts` (PyPI, the vendor runtime) on `python:3.12-slim` +
+[`recipes/media/mods/phonon-tts-server`](mods/phonon-tts-server) ·
+**1 node, CPU only** · **authored and boot-verified 2026-10-25 (`.35`)** — the
+kokoro-82m-tts-cpu shape (`runtime: vllm` as the launcher contract, `readiness.inference:
+false`, kill shim, `distribution_config.models.enabled: false` because the server reads the
+pool snapshot itself through the mod's real-file copy).
+
+- **Contract:** `POST /v1/audio/speech` with `{"input": text, "seed": N}` (seed default 1234)
+  answers 24 kHz mono 16-bit WAV; `GET /health` carries the model id + revision. The mod gates
+  fail-closed: it stages the `ptts` venv (floor 0.4.1), a **real-file copy** of the checkpoint
+  (a symlinked snapshot fails ptts' checkpoint check — measured), and the server at
+  `/cache/runtime/phonon/`.
+- **Boot receipt (`.35`, fixed recipe):** TTR **8.227 s** port-open / **8.257 s** HTTP-ready;
+  c1 render **0.622 s wall for 4.56 s audio (RTF 0.136)**, repeat 0.641 (RTF 0.140); h01
+  structured-data render 0.776 s / 7.52 s (**RTF 0.103**) — RTF consistent with the 2026-10-24
+  probe (~0.17), byte-length identical to it.
+- **Why this arm ships beside kokoro:** it **won the hard-sentence WER A/B** (literal WER
+  **0.1747 vs kokoro 0.2329**, section above) — the two CPU TTS arms now split on measured
+  strengths; clients choose per text class. Known limit (measured, both boots): **not
+  byte-deterministic per invocation** — same seed/text, different PCM; score at the
+  transcript/metric level. English only; Apache-2.0 (the 40m siblings are CC BY-NC).
+- **Boot chain fixes recorded in the recipes' history:** the server accepts the
+  runtime-appended `--served-model-name`; render uses the venv's `ptts` binary explicitly
+  (`--ptts`); `--model-dir` feeds the render config; an explicit `command:` template consumes
+  only placeholders, so every server flag is spelled in the template.
+- **Receipt:** `head:~/benchmarks/tplt4-20261024/phonon-arm/` (`boot*.launch.log`,
+  `RENDER-TIMINGS.txt`, `c1-boot5.wav`), stopped by literal task id, 0 containers after.
 
 ## Mods
 
