@@ -435,6 +435,12 @@ repo, itself a downstream of MiaAI-Lab's).
   tree — the mod must be committed and pushed before a launch sees new code.
   `sparkrun recipe validate` does **not** check mod existence; only a real launch
   (or `-n`) surfaces a resolution failure.
+- **Pool era: the `$PWD/.local/sparkrun-home` override fails for single-node boots too, not only
+  quartet ds4 boots** — measured 2026-10-26, Sol-2B GGUF on `.35`: bare `-H` under the override dies
+  in 10 s with `Error: launch_inference failed: prepared model is not visible through the workload
+  mounts` (the anonymous cluster's model fan-out no longer lands the prepared snapshot in the node's
+  workload mounts); the working form is the head's real `HOME` plus `--cluster WOPR -H <rail-IP>`,
+  which skips fan-out and reads the shared pool cache. Keep the override for `recipe validate`.
 - `readiness.port_timeout_s: 7200` / `health_timeout_s: 3600` are deliberately
   generous — a cold boot reads/packs a 510 GB checkpoint.
 - `sparkrun recipe validate --strict` fails this recipe with

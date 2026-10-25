@@ -3,17 +3,21 @@ model: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M
 model_revision: 20b439426f1e997ba575eaccaf4856ac0f76f5d5
 runtime: llama-cpp
 # PROBE (not shippable) — the Mellum llama-cpp arm plus the checkpoint's own MTP
-# draft head, on a stock-upstream llama.cpp built from our Dockerfile. The
-# draft-length sweep runs this file once per cell with
-# `-o spec_draft_n_max=<n>`; 1 is the value the 2026-10-22 rejection measured.
-container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+# draft head, on a stock-upstream llama.cpp build. The 2026-10-22 sweep measured
+# the a37cc4610 tree; the 2026-10-25 retest (owner round-4 §7(c): retest when
+# upstream changes) re-pins the current ref `d854d98bae` (86 commits later, 2026-10-25,
+# touches llama-graph/speculative/ggml-cuda). Local build on .35 over
+# recipes/explore/Dockerfile.llamacpp-upstream, both gates green (features + sm_121);
+# image id sha256:47d3efa2b07636d01e99f77292f25492f630f3e76902f4f9abb1968a738b1d05 —
+# local tag only, nothing pushed, so the pin is the tag and the id is the provenance.
+container: littlecedar/dgx-spark-llama-cpp:upstream-d854d98-cu130
 min_nodes: 1
 max_nodes: 1
 
 description: >-
   PROBE (not shippable) - the Mellum2.1-12B-A2.5B-Thinking Q4_K_M arm with its
   own MTP (multi-token-prediction) draft head enabled, on the stock-upstream
-  llama.cpp `a37cc4610` build. The main GGUF (8,071,295,264 B) is the shipped
+  llama.cpp `d854d98bae` build (2026-10-25 HEAD; the 2026-10-22 sweep ran a37cc4610). The main GGUF (8,071,295,264 B) is the shipped
   file at the shipped pin; the head is a second GGUF in the same repo
   (`mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, 1.77 GB) which exists only at
   revision 4159d684 and must be staged on the node by hand
