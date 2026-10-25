@@ -21,8 +21,10 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Full-breakfast gate PASSED 2026-10-25 on the main image; this boot answers whether it serves the 1017 checkpoint at all.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
+      "notes": "FAILED 2026-10-26 (boot bb9f3743ec80ca1f_bbe16c378e11, stopped by literal id, 0 containers) — failure class: CHECKPOINT-GEOMETRY × KERNEL-CONSTRAINT, the recipe's own falsifier (zz-ds4-1017-main-tree-sglang.yaml description) fired. Stock main tree @ 6563312 builds Mxfp4FlashinferCutlassMoEMethod for DeepseekV41ForCausalLM and create_weights raises ValueError: hidden_size/intermediate_size_per_partition must be multiples of 128 (got hidden=5120, intermediate=576); 2304 moe_intermediate_size / TP4 = 576 = 4.5×128. Not image pull (distributed to .31-.34 OK), not template staging (mod staged + path passed), not KV fit. NOT a config fix — any flag override changes the arm's meaning; per the recipe: flag-level arms fall back to the shipped image, recorded not iterated. Fallback decision = owner input. Receipts: s0-launch.log lines 115-183.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10",
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-25T19:22:52Z"
     },
     {
       "id": "w4-beam-cells-remainder",
