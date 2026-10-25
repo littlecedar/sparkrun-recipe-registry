@@ -305,6 +305,13 @@ remove what the session created** — a leftover is anything undocumented, unkno
   measured on `.30` at 04:16 and 04:18 ET (08:16 and 08:18 UTC) on 2026-10-22. Remove only ids you
   created and can name, and prefer `sparkrun stop <task-id>`, which cleans up the launcher's own
   containers.
+- **One owning session per in-flight transfer on a shared node.** Verify ownership with
+  `ps -o pid,ppid,lstart,args` before signalling any pid: a session with no ownership of an
+  in-flight body copy killed a foreign `rsync` on `.34` (2026-10-22, 04:0x ET), dropping it
+  390 GB → 307.2 GB (~83 GB); a queued resume over the RoCE rail then completed it (2 streams,
+  646–751 MB/s, 57 entries byte-identical to `.31`). While a RoCE copy is on the critical path,
+  address rail IPs (plane-A/plane-B) — **never management addresses** — and note the incident's
+  own correction: the original copy had run over the management NIC (`enP7s7`), not a rail.
 
 **Bodies above 60 GB are node-local, never staged on the head — superseded 2026-10-24.** The rule
 existed because the control's root disk had to hold a staged body before it was handed to a runner:

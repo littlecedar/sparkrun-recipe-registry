@@ -72,6 +72,15 @@ was attempted and archived as a proven-negative.
   `~/glm53-tf/tp4_start.sh` on the node holding the 2026-10-13 runbook).
   The pool read path remains excluded (977 MB/s sustained through the
   snapshot).
+  **Window 2 ran the one-knob experiment (2026-10-24) and it CONFIRMED H3**: with
+  `-o env.NCCL_SOCKET_IFNAME=enp1s0f0np0 -o env.NCCL_IB_HCA=rocep1s0f0,roceP2p1s0f0`
+  (`NCCL_NET_PLUGIN=spcx` is absent from the image and was dropped) the boot got past the pre-load
+  stall to **inference-ready — container-start TTR port-open 2746.273 s / HTTP-ready 2746.298 s**
+  (`boot2b-glm-launch.log` in `~/benchmarks/tp4-window2-20261024/`; an earlier board row quoted
+  2888.8 s — superseded by the launch-log figure). Pool reads ~95 MB/s with CPU-dequant gaps. The
+  ladder cells are still owed (the auto-finish launched with `--skip-run`, so GLM perf numbers
+  remain unmeasured); one stray-stop incident is recorded from that window: a peer's prefix-grep
+  `sparkrun stop` killed boot2 2 min post-ready — never stop by parsed id.
 The recipe validates (plain) and renders with `-n` on the workstation; it carries one accepted
 `unpinned-model-revision` warning, as the lane's other shim recipes do: the engine is handed the
 prepared snapshot *path* via `{model}`, so there is no `--revision` for the validator to find

@@ -90,6 +90,13 @@ govern, per the protocol; the verbatim asks remain in git.)*
   | Sage-A1.5 FP8 (36B) | **39.25 ± 0.13** (measured, `~/benchmarks/sage-a15-20261022/ladder.json`) | **134.74 ± 2.12** | 3.43× | **0.343** | not run — the gate stopped at C1 | **fails C1** (39.25 vs 69.28); C10 clears its bar, so the cap is the untuned triton fp8 MoE runner, not FP8 on GB10 |
   | knapcio TP=4 itself (4 nodes) | 69.28 ± 5.25 | 116.27 ± 6.22 | 1.68× | **0.168** | 36/37 | the bar, not a candidate |
 
+  *(Owner-provided gate re-measures, board-only until the 2026-10-25 board restructure: the
+  2026-10-24 re-measure on the then-tip was **940 tests OK (2 skipped), 70/70 plain validate**
+  (67 baseline + OrcaCyber 13G + zz-EXL3-TP=4 + zz-MiniMax-H3-TP=4), and the final window
+  re-measure was **948 tests OK (2 skipped), 70/70 plain validate**. Strict was **not**
+  re-measured: the 18 accepted findings (17 `unpinned-model-revision`, 1 `deprecated-topology`)
+  stand as recorded in `AGENTS.md`.)*
+
   **The two Ornith-1.5-122B rows are the useful pair, because they agree at C1 and disagree under
   batching.** C1 27.11 sits within 3 % of the llama.cpp Q3_K_XL tier's 27.94 — two engines and two
   quantisations landing on the same single-stream wall means the wall is the 8.85 B-active shape on one

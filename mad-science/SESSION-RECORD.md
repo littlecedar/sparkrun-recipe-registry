@@ -1680,3 +1680,83 @@ this time: `docker exec <c> tail -F -n +1 /tmp/sparkrun_serve.log` → `serve-st
 *(source: pre-cleanup TODO.md:3171-3171)*
 
 **Advisory pass 2026-10-15 — what was checked and found clean** (method: `api.osv.dev` package queries per version, then a version bisect against upstream release dates; only public upstreams are covered — the `littlecedar/*`, TensorFold and miaai-lab images are forks with no advisory feed). **sglang: clean, and the version string lies.** Our pinned build reports `0.0.0.dev1+g4ccff141d`, whose source commit `4ccff141db` is 2026-09-07; PEP 440 sorts that *below* every release, so OSV matches 14 of the 20 sglang advisories against it (the 6 it misses have ranges starting above a dev build — `introduced` 0.4.1.post7 or 0.5.5) and a version-based audit would report 14 false positives (those 14 are not merely unrated records: 2 are database-rated CRITICAL and 1 HIGH). The decidable side is the fix side: **`0.5.13` (released 2026-06-11) carries zero advisories** (the first clean 0.5.x release is `0.5.12.post1`, 2026-05-23), ~3 months before our source, so none of them is live in our tree. **vLLM nightly (cybersec route): clean.** `ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a…` carries `vLLM 0.32.0rc1.dev161+g660bd051d`, past the 0.30.0 fix line, 0 advisories. **Unreachable surfaces do not apply:** no recipe passes `--enable-custom-logit-processor`, none runs disaggregated/router mode with a public ROUTER socket, and the three cybersec `dev-cu13` arms sit on the same >0.5.13 source (the qwen3 27B arm was pinned by `16896e1`; `dev-cu13` as pulled today reports `0.0.0.dev1+ga6a8c5601`).
+
+## Board restructure (2026-10-25, 23:20 ET)
+
+The board `mad-science/STATUS.md` was rebuilt under the owner's 2026-10-24 spec: one title line carrying
+only the generation timestamp, then exactly three tables — **In flight**, **Work queue** (mirroring
+`TODO.md` §"Retry queue — unparked 2026-10-25" items 1–7), **Landed this session** (session opened
+2026-10-24 ~19:00 ET; only `45d085e`..`37bcf03` rows kept). Everything else was swept to the homes
+verified below; nothing was deleted without a surviving home.
+
+Swept content → destination:
+
+- **Field table (header rows)**: census row → the new In-flight census (superseded numbers: the
+  22:29 all-zero census was 45 min stale, replaced by a fresh per-node container census); gate row →
+  `AGENTS.md:619` (940 tests, snapshot rule) and `:155` (67/67 plain, 18/67 strict accepted
+  findings); baseline `#48` + re-measure rows → `mad-science/TODO.md:46-58` (#48) and
+  `mad-science/DEEPSEEK.md:431` (the 60.20 contended re-take) + `:1623` (A1 65.63/133.34);
+  foundation-shape row → `mad-science/TODO.md:50` ("TP=4 is the foundation shape and TP=2 arms
+  supplement it"); easy-traffic gate `#49` → `mad-science/TODO.md:67-91`; owner-queue row →
+  `mad-science/QUESTIONS.md` (open rows live there) + `:474`/`TODO.md:216` (no-post-window drain);
+  verdicts row → its constituents (qwen4 checkpoint limit `attic/qwen4/AGENTS.md:614`, W12
+  `attic/qwen4/AGENTS.md:642`, SGLang bump `recipes/ornith/README.md:505-549`, Spark FP8
+  `mad-science/TODO.md:87`).
+- **Now table (14 rows)**: window 3, `.30` full-member, tplt4 close and window-2 rows → the new
+  In-flight table or Work queue; `.34`/`.35` BeeGFS round-3/4 states → `mad-science/BEEGFS-REPORT.md`
+  (cited by the rows themselves); tp2-queue close → `attic/cybersec/README.md:116` (NEXTN) and
+  lane docs; `<head-node>` staging rows → `AGENTS.md:309` (the superseded 60 GB rule);
+  `.31`–`.34` window close + boot9 triage → `mad-science/TODO.md:59-65` + `recipes/glm/README.md:53-74`;
+  pool-cache row → the head receipt `~/benchmarks/cache-prefill-20261024/QUEUE.md` (all figures
+  du-verified there; the GLM 292.765 GB figure verified on the pool directly). window-2's TTR figure
+  (2888.8 s claimed vs 2746.273 s in `boot2b-glm-launch.log` on the head) and the NCCL-confirm
+  outcome were **appended to `recipes/glm/README.md` §Shipped arm** (below) before the row was
+  deleted — the launch-log number is the corrected one.
+- **Attention (13 rules)**: each verified present elsewhere before deletion — qwen4 checkpoint limit
+  `attic/qwen4/AGENTS.md:614`; llama.cpp ref floor `recipes/explore/Dockerfile.llamacpp-upstream:24`
+  + `attic/explore/AGENTS.md:865`; registry-ref trap `AGENTS.md:124`; untagged-pull trap
+  `AGENTS.md:136`; readiness.inference false-green `mad-science/TODO.md:1834-1836` +
+  `recipes/MECHANICS.md:430`; Mellum MTP rejection `recipes/explore/README.md:401-410`; licence
+  banners `mad-science/TODO.md:2031-2036` (indra-ocr) + `:2154` (Timestral) + the recipes' own
+  banners; chunk-bound prefill `mad-science/DEEPSEEK.md:561-578` (§9); b12x closure
+  `mad-science/TODO.md:263-265`; transfer authority → **appended to `AGENTS.md` §Node hygiene**
+  (was homeless — the rule existed only in the board row); three-test stand-down
+  `mad-science/TODO.md:128-134` (`#51`); history-rewrite SHA rule `AGENTS.md:514-521` +
+  `mad-science/AGENTS.md:183-187`; KHO wedge `AGENTS.md:284-301`.
+- **Measurements (15 rows)**: knapcio baseline → `recipes/ds4/README.md` + `DEEPSEEK.md:431/1623`;
+  Mellum2.1 → `recipes/explore/README.md:54-75`; Spark-X2.6 FP8/INT8 → `recipes/explore/README.md:114-116`;
+  Ornith-122B NVFP4 → `recipes/ornith/README.md:587-617`; Sage-A1.5 → `mad-science/TODO.md:90,2616`;
+  pyannote/drama-3 → `recipes/media/README.md:42,51`; qwen4 W12 → `attic/qwen4/AGENTS.md:642`;
+  Mellum MTP sweep → `recipes/explore/README.md:401-410`; llama.cpp fork A/B →
+  `attic/explore/AGENTS.md:918-938`; Bonsai Q2_0 → `recipes/explore/README.md:620-646`;
+  kokoro-vs-phonon A/B → `recipes/media/README.md:95-117`. Nothing appended — every row was covered.
+- **Gate table**: 940/70-plain/18-strict snapshot → `AGENTS.md:155,619`; the 2026-10-24/25 owner
+  re-measures (948 tests, 70/70 plain) were board-only → **appended to `mad-science/TODO.md`
+  §`#49` block** (below) so the current counts survive the board deletion.
+- **Recently landed (~78 rows)**: session rows (`45d085e`–`37bcf03`) kept on the new board;
+  pre-session rows are history and were checked against `mad-science/SESSION-RECORD.md`'s dated
+  sections + the lane docs cited in each row (each pre-session row already names its durable doc:
+  `DEEPSEEK.md` §17/§18, `BEEGFS-REPORT.md`, `FLARE.md`, lane READMEs, `attic/DONE.md`); no append
+  was needed beyond the two appends below.
+- **Pointers table**: redundant with `mad-science/README.md` §Master locator — deleted, no append.
+
+Appends made by this sweep (the only facts that had no surviving home):
+
+1. **Transfer authority rule → `AGENTS.md` §Node hygiene** — one owning session per in-flight
+   transfer; verify with `ps -o pid,ppid,lstart,args` before signalling any pid; address rail IPs
+   (plane-A/plane-B), never management addresses; the 2026-10-22 incident: a foreign `rsync` on
+   `.34` was killed by a session with no ownership, dropping a body copy 390 GB → 307.2 GB, and the
+   queued RoCE-rail resume then completed it (2 streams, 646–751 MB/s, 57 entries byte-identical to
+   `.31`); the original copy had run over the management NIC (`enP7s7`), not a rail.
+2. **Window-2 GLM one-knob NCCL confirm → `recipes/glm/README.md`** — `NCCL_SOCKET_IFNAME=
+   enp1s0f0np0` + `NCCL_IB_HCA=rocep1s0f0,roceP2p1s0f0` (`NCCL_NET_PLUGIN=spcx` absent from the
+   image, dropped) took the 3bpw boot past the pre-load stall to inference-ready; container-start
+   TTR **2746.273 s port-open / 2746.298 s HTTP-ready** (`boot2b-glm-launch.log` on the head — the
+   board's "2888.8 s" was a misquote, superseded here); pool reads ~95 MB/s with CPU-dequant gaps;
+   ladder cells still owed (the auto-finish ran `--skip-run`); one stray-stop incident recorded
+   (a peer's prefix-grep `sparkrun stop` killed boot2 2 min post-ready — never stop by parsed id).
+3. **Owner-provided gate re-measures → `mad-science/TODO.md` §`#49`** — 2026-10-24 re-measure on the
+   then-tip: 940 tests OK (2 skipped), 70/70 plain validate (67 baseline + OrcaCyber 13G +
+   zz-EXL3-TP=4 + zz-MiniMax-H3-TP=4); final window re-measure: 948 tests OK (2 skipped), 70/70
+   plain; strict NOT re-measured — the 18 accepted findings (17 `unpinned-model-revision`,
+   1 `deprecated-topology`) stand.
