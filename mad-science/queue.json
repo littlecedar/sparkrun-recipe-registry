@@ -21,7 +21,7 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE NEGATIVE 2026-10-26 by tp4-recovery (boot bb9f3743ec80ca1f_bbe16c378e11 + one owner-authorized retry bb9f3743ec80ca1f_17a8924a0f51). VERDICT: the stock main tree (sglang-main-arm64:6563312) does NOT serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE backend — (1) default cutlass: Mxfp4FlashinferCutlassMoEMethod.create_weights raises ValueError, hidden=5120 ok but moe_intermediate 2304/TP4=576 is not a multiple of 128 (s0-stock-tree-rank0-serve.log); (2) triton retry (-o extra_args=--moe-runner-backend triton, confirmed in engine server_args): got past geometry, died 16 s into weight load with NVRM NV_ERR_NO_MEMORY GPU OOM — the un-fused runner exceeds the 128 GB unified GPU materializing fp4 experts (s0-retry-node1-serve.log + spark-d325 kernel log 15:49:37). The recipe's pre-registered falsifier fired; the vendored pad/adapter set in the shipped overlay image is LOAD-BEARING for boot, not a convenience (matches GUIDANCE.md Background §MoE-divisibility finding — guidance-fold owns that text). Flag-level arms fall back to the shipped image pending owner input. Receipts: s0-launch.log, s0-retry-node{1..4}-serve.log, s0-stock-tree-rank0-serve.log.",
+      "notes": "DONE NEGATIVE 2026-10-26 by tp4-recovery (boot bb9f3743ec80ca1f_bbe16c378e11 + one owner-authorized retry bb9f3743ec80ca1f_17a8924a0f51). VERDICT: the stock main tree (sglang-main-arm64:6563312) does NOT serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE backend — (1) default cutlass: Mxfp4FlashinferCutlassMoEMethod.create_weights raises ValueError, hidden=5120 ok but moe_intermediate 2304/TP4=576 is not a multiple of 128 (s0-stock-tree-rank0-serve.log); (2) triton retry (-o extra_args=--moe-runner-backend triton, confirmed in engine server_args): got past geometry, died 16 s into weight load with NVRM NV_ERR_NO_MEMORY GPU OOM — the un-fused runner exceeds the 128 GB unified GPU materializing fp4 experts (s0-retry-node1-serve.log + spark-d325 kernel log 15:49:37). The recipe's pre-registered falsifier fired; the vendored pad/adapter set in the shipped overlay image is LOAD-BEARING for boot, not a convenience (matches recipes/ds4/README.md §\"The vendored adapter set\" — the GUIDANCE.md Background section was folded there; guidance-fold-4, cbede11). Flag-level arms fall back to the shipped image pending owner input. Receipts: s0-launch.log, s0-retry-node{1..4}-serve.log, s0-stock-tree-rank0-serve.log.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10",
       "claimed_by": "",
       "claimed_at": ""
@@ -45,7 +45,9 @@
       "title": "Survey candidate 6: reasoning_effort high on the main-image base (paired output-token saving, 10.6% measured precedent)",
       "estimate_h": 1.5,
       "blocks": [],
-      "blocked_by": [],
+      "blocked_by": [
+        "ds4-upstream-adapter-trial"
+      ],
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -58,6 +60,7 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [
+        "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
       "state": "blocked",
@@ -72,6 +75,7 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [
+        "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
       "state": "blocked",
@@ -86,6 +90,7 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [
+        "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
       "state": "blocked",
@@ -103,7 +108,7 @@
       "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Externally gated by the owner's parity-retry policy (mad-science/TODO.md §Retry queue — window 4 item 3 — a first miss is a measured number, not a hang). Technically unblocked: the fleet-wide io_uring seccomp change landed 2026-10-26 (tools/enable-io-uring.sh --probe-only).",
+      "notes": "VERDICT-SO-FAR (tp4-recovery, cells continuing): decode axis = MISS at C1 — 34.04 agg / 40.4 peak vs §17 bar 64.0 (−47%), DSpark k=5 engagement PROVEN (B12X drafter backend line in serve log); C10 peak 113.8 ≥ 110.5 (aggregate 12.0 — bar definition on n=5 decode rows reads aggregate, both recorded). Context axis partial: /v1/models max_model_len 1048576 PASS, needle 32768 10/10 PASS; 131072 + 983040 hit the runner's 40-min timeout (rc=124, artifact of the wrapper not the serve) — rerun at timeout 7200 in flight. Boot history: boot 1 fd-death at first step (nofile 1024), boots 2-4 proved the limits split (ibv_create_cq ENOMEM = memlock wall), boot 5 READY with recipe-carried nofile=524288 + memlock=-1:-1 (7fa352d). Receipts: parity-ladder.{csv,yaml}, parity-suite/house.{log,json} 37/37, parity-needle-32768.json, parity-b5-node1-serve.log, boot traces parity-retry-node{1..4}-serve.log.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-25T19:50:04Z"
@@ -160,20 +165,123 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "estimate: provisional, 16–24 h — the gate fails on newer trees because the vendored patch no longer matches upstream (candidate 3 behaviorally, candidate 5 after the encoding re-pin). Blocks every future newer-tree build, not just arms 3/5. Upstream check 2026-10-26 (GitHub-read, not boot-verified): knapcio HEAD aff52fa5 still pins SGLANG_CANARY_REF=f80c91a4b and backports ~26 upstream SGLang PRs onto that pin (scripts/fetch-sglang-canary.sh:6; docs/upstream-watch.md) — no newer-tree adapter state exists upstream, so this task remains the only route to arms 3/5 and its blocking edges are unchanged. Same-tree overlay upgrade queued separately as ds4-upstream-adapter-trial.",
+      "notes": "REBASED (owner round-4 §1): the 20 h re-port must now rebase onto knapcio upstream HEAD (v2.5+ adapter set, 26-backport base, per-patch gate shape) rather than our v2.4 vendored copy. Estimate kept provisional: it may shrink if upstream's base already carries much of the vendored delta, or grow if the v2.4→v2.5 adapter rewrite diverges further; no measurement basis yet. Upstream survey (aff52fa5) pins SGLANG_CANARY_REF=f80c91a4b — no newer-tree adapter state exists upstream.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2"
     },
     {
       "id": "ds4-upstream-adapter-trial",
       "title": "Re-pin the knapcio adapter overlay 27616bec (v2.4) to upstream HEAD aff52fa5 (v2.5+) on the same f80c91a4b tree; rebuild and boot-verify the shipped 1017 line's bars",
       "estimate_h": 4.0,
-      "blocks": [],
+      "blocks": [
+        "w4-s1-cache-report",
+        "w4-s2-lpm",
+        "w4-s3-min-free-slots-delay",
+        "w4-candidate6-reasoning-effort"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "Evidence (GitHub-read 2026-10-26, NOT boot-verified): upstream quarantined the v2.4 lineage our overlay pins (issue #16 SWA/prefix-cache Xid 13/43; fix = their PR #18's SGLang #41303 bounded-replay backport + rebuild, 'old v2.4 images require a rebuild' — de6ef51c, docs/issue-16-swa-crash.md); v2.5 re-qualified the v2.4 lever set on rebuilt images and fixed the logprob-decode hang (c3fe50a8/4123250f/f9a1de41); prefill-SP adapter repaired after hash-pin drift (57a98886); Engram NVMe keepalive measured c16 +5% on their fleet A/B/A (a2e805a2/1059dfe4); #44923 greedy-flags refresh restores DSpark folded-verify eligibility (c0b07102). Scope: re-pin overlay, rebuild, boot-verify the shipped 1017 line's bars — SAME tree (fetch-sglang-canary.sh:6 still f80c91a4b), so this does NOT replace the newer-tree re-port (ds4-adapter-report-gate keeps arms 3/5). estimate: provisional.",
+      "notes": "ADOPTION PATH, not a probe (owner round-4 §1): re-pin 27616bec→aff52fa5 (knapcio upstream HEAD, carries SGLang #41303 bounded-replay SWA-safety backport); after boot-verifying the shipped bars the new overlay becomes the PRODUCTION line. Flag track (S1/S2/S3/candidate 6) re-bases on this overlay — each flag runs as an -o override with a same-window no-flag A/B. Hazard evidence target: upstream issue #16 documents Xid 13/43 CUDA faults under large prefix-cache hits (200k-966k) on the quarantined v2.4 lineage — any such crash on knapcio-line cells is recorded as the documented defect, not re-derived.",
       "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4"
+    },
+    {
+      "id": "mellum-mtp-zz-probe",
+      "title": "Mellum2.1 MTP drafter at n=1 as a zz- probe arm beside the shipped plain arm (boot + cells)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "mellum",
+      "node_cost": "single",
+      "notes": "owner round-4 §7(c): single-node zz- probe; ordering by the queue weight formula only (round-5 §3 — no artificial tier/priority boost)",
+      "provenance": "owner round-4 §7(c); round-5 §3",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "drafter-alternatives-search",
+      "title": "Survey DFlash/DSpark-style alternative drafters for existing arms (read-only research)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "owner: 'look for alternative drafters, such as DFlash and DSpark!' — read-only; outputs feed drafter decisions on existing arms",
+      "provenance": "owner round-4",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "tp4-head-to-head-2025",
+      "title": "Author mad-science/TP4-HEAD-TO-HEAD-1025.md — Beam vs DSv4.1-Flash-1017 vs GLM-5.3/GLM-5.3-Flash",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "owner round-5 §1(b): EXISTING receipts only — GLM boot-verified ladders 2026-10-18 (pointers in recipes/glm/README.md), ds4 shipped bars, Beam window-4 cells; fresh cells only where geometry differs; structure = one row per arm per cell with receipt pointers",
+      "provenance": "owner round-4 §8; round-5 §1",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "b12x-vllm-tuning-round",
+      "title": "b12x vLLM tuning round — tune for a strong 1017 recipe (C1 decode gap)",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "owner round-4 §9(a): worth further experimentation for a strong vLLM recipe — this is the live path on a parity miss, not a terminal stop. Real gap: C1 34.04 agg / 40.4 peak vs §17 bar 64.0 (−47%), DSpark k=5 engagement PROVEN on the limits-fixed boot 5 — levers: drafter/verify config (DSpark k, verify cap), slot count, the fork's scheduler defaults; not a near-bar nudge",
+      "provenance": "owner round-4 §9(a); window-4 parity receipts",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "dsv41-vllm-ship-recipe",
+      "title": "Ship-recipe: vLLM-engine 1017 arm (author + index + validate)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "EXTERNAL GATE (owner round-5 §2(a), fires ONLY on a parity PASS verdict; TODO.md:773 advisory): current verdict is a C1 decode miss — stays blocked until b12x-vllm-tuning-round produces a boot-verified pass. A done-blocker would release it unconditionally, hence state-blocked rather than blocked_by",
+      "provenance": "owner round-5 §2(a) + keeper correction",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "media-demo-workproduct",
+      "title": "Media lane demo workproduct: one demo artifact per media arm linked in tracked recipes/media/DEMO.md",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "research-only + DEMO.md: drama-3 TTS sample, Qwen-Image 2.1 render pair, LTX-2.5 clip, Kokoro sample, humanizer rewrite, two zz- probes documented as probes; no addresses — artifacts referenced by head-side receipt paths",
+      "provenance": "owner round-5 §4",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "gguf-viability-triage",
+      "title": "GGUF viability triage: per-candidate viability check + expected-benefit argument before any conversion",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "case-by-case (owner round-5 §5); include trialing llama.cpp clones of shipped recipes as baselines; conversions are separate later tasks",
+      "provenance": "owner round-5 §5",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
