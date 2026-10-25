@@ -1,0 +1,107 @@
+# ===========================================================================
+# DRAFT probe arm (`zz-`) — candidate-survey instrument, never a shipped arm.
+# Serves deepseek-ai/DeepSeek-V4.1-Flash-1017 on the STOCK main-line SGLang
+# build `sglang-main-arm64:6563312` (built 2026-10-25 from sgl-project/sglang
+# @ 656331295619a4d0267b40b7da0b5cd5b549fcbc, 2026-10-24; full-breakfast gate
+# PASSED on the spark-x2.6 control shape) instead of the knapcio overlay image.
+# Window-4 candidate-build pins (owner-authorized builds, committed BEFORE any boot;
+# build trees staged by scripts/fetch-sglang-canary.sh with SGLANG_CANARY_REF):
+#   candidate 3 (indexer scoring, upstream PR #43401 head):
+#     container dsv41-c4-indexer-43401:103ad321 (tree @ 103ad321d2f870c191dc71d470a375d0a51e9170)
+#   candidate 5 (TRT-LLM sparse MLA #41603 + FlashInfer 0.7.2 on the base's 0.6.18):
+#     container dsv41-c5-trtllm-41603:ad950cdd (tree @ ad950cdcd9666a104321deeaf1cbf883b4e8c60b,
+#     upstream main 2026-10-25)
+#   build-local delta, both: patch_encoding_dsv41.py anchor 1 re-derived for the newer
+#   encoding_dsv41.py (its `_validate_no_image_sp_tokens` docstring line was dropped upstream);
+#   anchor 2 matched verbatim. Applied inside the build clones only.
+# Owner decision 2026-10-26: the ds4 candidate survey's FLAG-level arms
+# (DEEPSEEK.md §10.3/§10.4/§10.8 — `--min-free-slots-delay 1`,
+# `--enable-cache-report` + `--schedule-policy lpm`, `reasoning_effort: high`)
+# run WITHOUT image builds on this base; the A/B control is this same recipe
+# with `extra_args` empty, so pool/pin are held constant across arms
+# (§10.1). The shipped `v0.5.22` knapcio cells (`recipes/ds4/README.md`) are
+# the reference range, not the A/B control — the main tree is ~5 weeks newer
+# than the overlay image's `f80c91a4b` tree, and its native `deepseek_v4`
+# family carries the same checkpoint support upstream.
+# mem_fraction_static 0.78 and 16 slots match the shipped serve line; the KV
+# pool the stock tree derives is REPORTED AS-IS (SURVEY #3 rule).
+# The knapcio stack's `boot.py` is NOT in this image — that is why this arm
+# exists (the overlay launcher exits rc=2 without it).
+# ===========================================================================
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# The 2026-10-17 refresh ships no chat template (the mod stages the lane's
+# patched copy and the command passes it to --chat-template).
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: sglang
+container: sglang-main-arm64:6563312
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  DRAFT probe arm — the stock main-tree SGLang serve of the DeepSeek-V4.1-Flash
+  1017 checkpoint at TP=4, 1M declared context, 16 slots, mem fraction 0.78.
+  Vehicle for the flag-level ds4 candidate survey arms (candidates 1, 2 and 6
+  of DEEPSEEK.md §10); no measured numbers yet. Falsifier for the base itself:
+  the stock tree refuses or fails the 1017 checkpoint (no native deepseek_v41
+  support for this MXFP4/F8 layout) — then the flag-level arms fall back to
+  the shipped image and that is recorded, not iterated.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  tags: probe, candidate-survey
+
+mods:
+  - "mods/dsv41-chat-template-stage"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+
+env:
+  PYTHONUNBUFFERED: "1"
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  # Never {model} here: sparkrun rebinds {model} to the prepared snapshot path
+  # at launch, so the served id would be the cache path.
+  served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
+  # Shipped-line shape: 16 slots (v2.4 launch line), 0.78 mem fraction.
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.78
+  # Staged by the mod to this literal path.
+  chat_template: /cache/runtime/dsv41-maintree/chat_template.jinja
+  # Flag-level arms ride here: -o extra_args=--min-free-slots-delay 1,
+  # -o extra_args=--enable-cache-report, -o extra_args=--schedule-policy lpm.
+  extra_args: ""
+
+# No speculative/DSpark line: the stock tree's deepseek_v4 family is probed as
+# it ships; spec-decode parity with the shipped DSpark k=5 line is NOT this
+# arm's question (that is the b12x/vLLM §17 boot and the shipped arm itself).
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --mem-fraction-static {gpu_memory_utilization}
+  --chat-template {chat_template}
+  {extra_args}
+
+readiness:
+  # inference false: the sglang runtime answers /health from bind time.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
