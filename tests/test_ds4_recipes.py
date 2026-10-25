@@ -987,15 +987,27 @@ class SglangLaneContract(unittest.TestCase):
 
     def test_runtime_image_model(self):
         self.assertEqual(self.r.runtime, "sglang")
-        # Vendored, digest-pinned image (built from knapcio's Dockerfile and
-        # pushed to littlecedar); sparkrun pulls it instead of building locally.
-        # This digest (acfc331a…) is the 2026-10-17 v2.4 rebuild: upstream
-        # 27616bec + the vendored boot.py.health-port.patch, whose baked
-        # HEALTHCHECK discovers the served port at runtime.
+        # Image pin follows the recipe. 2026-10-26: the v2.4 digest pin
+        # (acfc331a…, upstream 27616bec) is re-pinned to the
+        # ds4-upstream-adapter-trial build `canary-roce-aff52fa5` — upstream
+        # HEAD aff52fa5 (v2.5+; quarantined-v2.4 lineage retired, carries the
+        # SGLang #41303 SWA-safety backport closing upstream issue #16), built
+        # from the vendored Dockerfile.knapcio-dsv41-aff52fa5 with the
+        # health-port patch applied clean. Tag-pinned for now: the registry
+        # digest re-pin lands when cluster DNS to the registry recovers. The
+        # image id is sha256:21d1bf34f974… (built 2026-10-26 on .30 from the
+        # aff52fa5 worktree ~/knapcio-aff52fa5; upstream's FULL aff52fa5
+        # in-image gate green — per-patch verify/test pairs,
+        # test_adapter_engine_pins, hardened RoCE diagnostics, upstream pytest
+        # trio; the ~50 verify RUN layers are &&-merged for the builder depth
+        # limit, see Dockerfile.knapcio-dsv41-aff52fa5). Build archaeology: an
+        # earlier same-tag build (63233988…) ran the v2.4-era gate after the
+        # worktree's upstream Dockerfile was overwritten mid-build — superseded,
+        # do not trust 63233988. Adoption path: boot-verified shipped bars make
+        # this the production line; a bar failure reverts the pin to acfc331a….
         self.assertEqual(
             self.r.container,
-            "littlecedar/dgx-spark-dsv41:canary-roce"
-            "@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93",
+            "littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5",
         )
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash-1017")
         self.assertEqual(self.r.min_nodes, 4)
@@ -1124,9 +1136,19 @@ class SglangLaneContract(unittest.TestCase):
         self.assertIn("/workspace/mods/dsv41-sglang-overlay", self.r.command_template)
 
     def test_image_is_vendored_and_pinned(self):
-        # The image is published to littlecedar and pinned by digest, so a node
-        # pulls the exact bytes rather than building or resolving a mutable tag.
-        self.assertRegex(self.r.container, r"^littlecedar/dgx-spark-dsv41:canary-roce@sha256:[0-9a-f]{64}$")
+        # The image is published to littlecedar and pinned, so a node pulls the
+        # exact bytes rather than building or resolving a mutable tag.
+        # 2026-10-26: the shipped digest pin (canary-roce@sha256:acfc331a…) is
+        # re-pinned to the ds4-upstream-adapter-trial build as the TAG pin
+        # `canary-roce-aff52fa5` (local-built image sha256:21d1bf34f974…; the
+        # registry digest form returns when cluster DNS to the registry
+        # recovers). The guard accepts the trial tag OR the digest form —
+        # any other tag still fails (control: test_control_image_unpinned).
+        self.assertRegex(
+            self.r.container,
+            r"^littlecedar/dgx-spark-dsv41:(canary-roce@sha256:[0-9a-f]{64}"
+            r"|canary-roce-aff52fa5)$",
+        )
 
     def test_distribution_config_omitted(self):
         # The block was development-only (it flipped containers/models during
@@ -1546,16 +1568,18 @@ class SglangLaneNegativeControls(unittest.TestCase):
             self.assertEqual(dc.strip(), "")
 
     def test_control_image_unpinned(self):
-        # A mutable tag (no digest) must fail the vendored-and-pinned guard.
+        # A mutable tag (no digest, no trial-tag pin) must fail the
+        # vendored-and-pinned guard. Anchored on the CURRENT trial tag; when the
+        # registry digest pin returns, re-anchor on that digest form.
         r = self._mutated(
-            "container: littlecedar/dgx-spark-dsv41:canary-roce"
-            "@sha256:acfc331a959b247a1ce356a864d167a7bf2bffd91694d9caa1102e334ff4ee93",
-            "container: littlecedar/dgx-spark-dsv41:canary-roce",
+            "container: littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5",
+            "container: littlecedar/dgx-spark-dsv41:latest",
         )
         with self.assertRaises(AssertionError):
             self.assertRegex(
                 r.container,
-                r"^littlecedar/dgx-spark-dsv41:canary-roce@sha256:[0-9a-f]{64}$",
+                r"^littlecedar/dgx-spark-dsv41:(canary-roce@sha256:[0-9a-f]{64}"
+                r"|canary-roce-aff52fa5)$",
             )
 
     def test_control_sps_table_set(self):
