@@ -1,11 +1,10 @@
-# Board — generated 2026-10-26 00:56 ET
+# Board — generated 2026-10-26 07:46 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **00:55 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `sparkrun status`)**: `.30`–`.35` **1 container each** (6 fleet-wide, matching `sparkrun status`); free root 2.1/2.2/2.3/2.3/1.6/1.8 TB — drift: none |
-| `.31`–`.34` | tp4-window3 | **Beam quartet boot live** — `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (tp=4) task `30078b4aa125dd7d_b2f8c6e5117c`, 4 containers (`Up 3 minutes` at 00:56, image `sha256:58aa975fed12…`), one per rank |
+| census | board-keeper | **07:46 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps -a` + `df` + `sparkrun status`)**: **all six at 0 containers** (owner's idle report confirmed); free root 2.1/2.2/2.3/2.3/1.6/1.8 TB; `sparkrun status`: no sparkrun containers running, all six hosts idle — the 00:5x Beam quartet, `.30` Spark-X2.6 and `.35` phonon boots have all ended |
 
 ## Work queue
 
@@ -42,3 +41,9 @@ Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1�
 | 00:52 10-26 | `47de13f` | wording fix: `.30` idleness stated as "nothing live (no reservation)", role-based framing removed |
 | 00:55 10-26 | `3aef0f9` | Beam quartet boot row landed (the tp4-window3 ordered boot) |
 | 01:2x 10-26 | `2584701` | **tplt4 round 2 lands**: Ornith-122B MTP cell (+44 % C1 paired), Spark-X2.6 tool-call PASS + clamp negative + NGRAM rejected, phonon-31m-tts-cpu arm boot-verified + indexed; `d767a07` is the gate-green phonon recipe fix (guards + suite BEFORE push) |
+| 00:57 10-26 | `8dd74ec` | agent rules updated: `.30` a normal worker node, role-based reservations purged |
+| 01:14 10-26 | `82cf6de` | ship cutover: `zz-` probe prefixes dropped from Bonsai/Kromoss/Timestral (owner ship decision); measured cells kept as operator facts |
+| 01:17 10-26 | `772d706` | the 2026-10-25 SURVEY answers folded into TODO/DEEPSEEK/cybersec; SURVEY deleted |
+| 01:19 10-26 | `e5dab7c` | tplt4 round 2: retry-queue items 5–7 closed (board rows + queue states updated) |
+| 01:20 10-26 | `4a89fde` | TODO: SURVEY-#2 ship annotations corrected — Bonsai ships in `recipes/explore/` |
+| 02:22 10-26 | `74a6d79` | H3 quartet retry: second independent deadlock repro under `--warmup-mode off` (NCCL init clean, health gate never binds, 4× 0 % GPU); filed sgl-project/sglang#46390 |
