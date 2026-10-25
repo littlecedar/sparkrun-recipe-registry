@@ -41,7 +41,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
   model_dtype: bfloat16
-  kv_dtype: fp8
+  # Inlined in command: (no placeholder — the §17 sketch value is fixed here).
   tags: probe, parity, vllm-b12x
 
 mods:
@@ -83,7 +83,7 @@ command: >
   --dtype bfloat16
   --load-format b12x
   --block-size 256
-  --kv-cache-dtype {kv_dtype}
+  --kv-cache-dtype fp8
   --gpu-memory-utilization {gpu_memory_utilization}
   --max-model-len {max_model_len}
   --max-num-seqs {max_num_seqs}
