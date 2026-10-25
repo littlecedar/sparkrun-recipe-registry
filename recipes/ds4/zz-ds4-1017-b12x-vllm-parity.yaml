@@ -1,0 +1,110 @@
+# ===========================================================================
+# DRAFT probe arm (`zz-`) — the §17 vLLM b12x parity boot, NOT a shipped arm.
+# Sketch: mad-science/DEEPSEEK.md §17 ("If reachable: the serve line, the recipe
+# sketch, and the acceptance test"). Owner authorization: QUESTIONS.md #17 and
+# the window-4 scope decision (2026-10-26).
+#
+# Deltas from the sketch, both documented there or since:
+# 1. The sketch's io_uring prerequisite is now met at the DAEMON level: the
+#    fleet-wide Docker seccomp profile (`/etc/docker/seccomp-profiles/io-uring.json`,
+#    tools/enable-io-uring.{sh,py}, verified on all six nodes 2026-10-26) allows
+#    io_uring_setup/enter/register, so no executor_config surface is needed.
+# 2. The 1017 checkpoint ships no chat template (the sketch predates the
+#    templateless-refusal finding); the lane's staging mod + --chat-template are
+#    added so the house battery measures the model, not SGLang/vLLM's default
+#    template. Same staged file the main-tree probe arm uses.
+#
+# Acceptance (§17, on ONE serve): /v1/models reports max_model_len 1048576;
+# benchmarking/concurrency-ladder.yaml C1 >= 64.0 and C10 >= 110.5 t/s (n=5
+# decode rows, --fresh, is_context_prefill_phase false); house >= 36/37 at
+# --max-tokens 4096 thinking-on; needle 3/3 at 32,768 / 131,072 / 983,040.
+# A speed-bar miss is a decode-parity miss; a serve that cannot hold 1M is a
+# context miss — recorded as which, no iterations without the owner's say-so.
+# ===========================================================================
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: vllm
+container: eugr/spark-vllm-b12x@sha256:03a956544e9f9b4b7ba91690469fbe7848bdbef29a7d2e0f5788368467bb3595
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  DRAFT parity probe — the b12x fork's vLLM serve of DeepSeek-V4.1-Flash-1017 at
+  TP=4 over four GB10 nodes, disk-Engram, DSpark k=5, 16 slots, 1M declared
+  window; measured only against the §17 acceptance test (C1 >= 64.0, C10 >=
+  110.5, house >= 36/37 @4096 thinking-on, needle 3/3 to 983k). Not a candidate
+  for any gate; the fork has no release wheel and this arm exists to settle the
+  §17 question, not to ship.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: bfloat16
+  kv_dtype: fp8
+  tags: probe, parity, vllm-b12x
+
+mods:
+  - "mods/dsv41-chat-template-stage"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+  ulimit: [memlock=-1:-1]
+
+env:
+  VLLM_ENABLE_ROCE_ALLREDUCE: "1"
+  VLLM_ROCE_ALLREDUCE_MAX_SIZE: "2MB"
+  CUTE_DSL_ARCH: "sm_121a"
+  VLLM_USE_V2_MODEL_RUNNER: "1"
+  VLLM_USE_BREAKABLE_CUDAGRAPH: "1"
+  VLLM_MXFP8_LM_HEAD: "1"
+
+defaults:
+  # Never {model}: sparkrun rebinds it to the prepared snapshot path at launch.
+  served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.85
+  # Staged by the mod to this literal path.
+  chat_template: /cache/runtime/dsv41-maintree/chat_template.jinja
+  extra_args: ""
+
+command: >
+  vllm serve {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --dtype bfloat16
+  --load-format b12x
+  --block-size 256
+  --kv-cache-dtype {kv_dtype}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens 4096
+  --enable-prefix-caching
+  --enable-chunked-prefill
+  --engram-config '{"table_memory":"disk","disk_resident_scales":true}'
+  --linear-backend b12x
+  --moe-backend b12x
+  --attention-backend b12x
+  --speculative-config '{"method":"dspark","num_speculative_tokens":5,"draft_sample_method":"probabilistic","rejection_sample_method":"standard","enable_adaptive_verification":true}'
+  --compilation-config '{"cudagraph_mode":"FULL_AND_PIECEWISE","custom_ops":["all"],"cudagraph_capture_sizes":[6,12,18,24,30,36,48,60,72,96]}'
+  --tokenizer-mode deepseek_v41
+  --reasoning-parser deepseek_v41
+  --tool-call-parser deepseek_v41
+  --enable-auto-tool-choice
+  --limit-mm-per-prompt '{"image":1}'
+  --chat-template {chat_template}
+  {extra_args}
+
+readiness:
+  inference: true
+  port_timeout_s: 7200
+  health_timeout_s: 3600
