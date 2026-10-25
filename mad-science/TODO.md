@@ -677,7 +677,7 @@ together:
   "update the gate" on the newer trees IS the re-port — reconcile the patch with upstream's
   rewrite, rewrite the test expectations preserving the negative controls, boot-verify, re-measure
   ("the real cost is the re-port, not the flag" — `DEEPSEEK.md` §10.16). Provenance: owner,
-  2026-10-26, `GUIDANCE.md` §1 + discussion (file since trimmed; open questions remain there).)*
+  2026-10-26, `GUIDANCE.md` §1 + discussion (file since deleted after fold).)*
 - **Model priority (owner decision 2026-10-26): `DeepSeek-V4.1-Flash-1017` is the primary
   model; GLM-5.3 and GLM-5.3-Flash are secondary.** Items touching those preempt other arms
   at the next boot boundary.
@@ -762,6 +762,40 @@ together:
   stock main tree, which the S0 negative disqualified (2026-10-26) — and the arms stay blocked
   until `ds4-upstream-adapter-trial` establishes the new base.
   *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §12 (file since trimmed).)*
+- **Head-to-head protocol (owner decision 2026-10-26 (round 5) — `GUIDANCE.md` §1, file deleted
+  after fold): (b) — existing receipts suffice where a model already has same-geometry numbers;
+  fresh cells only where geometry differs.** Consequence: the comparison in
+  `mad-science/TP4-HEAD-TO-HEAD-1025.md` is built from existing receipts — the GLM-5.3 and
+  GLM-5.3-Flash boot-verified ladders (2026-10-18, receipt pointers in `recipes/glm/README.md`),
+  the ds4 shipped bars, and the Beam cells from this window — with the confirmed document
+  structure: one row per arm per cell with receipt pointers.
+  *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §1 (file deleted after fold).)*
+- **b12x parity pass case (owner decision 2026-10-26 (round 5) — `GUIDANCE.md` §2, file deleted
+  after fold): (a) — if the parity route clears all its bars (C1 ≥ 64.0, C10 ≥ 110.5, house ≥
+  36/37 @4096 thinking-on, needle 3/3 at 32,768/131,072/983,040), vLLM becomes a SECOND SHIPPED
+  1017 recipe** with its own engine-variant filename, index row and flag, alongside the SGLang
+  shipped arm. (The miss case stays §9's (a): keep experimenting.)
+  *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §2 (file deleted after fold).)*
+- **Idle-node fill priority (owner decision 2026-10-26 (round 5), verbatim — `GUIDANCE.md` §3,
+  file deleted after fold): "I provided a queuing strategy earlier, use that. All TP<4 work is
+  normal priority at this time, so the queue strategy wins."** Consequence: no manual ordering —
+  all TP<4 candidates (Bonsai vision instrument, Laguna-M.1 retry, Nemotron-30B NVFP4 ladder,
+  Mellum `zz-` MTP probe, media follow-ups) are ordinary queue tasks ordered by the task-queue
+  weight formula.
+  *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §3 (file deleted after fold).)*
+- **Media lane (owner decision 2026-10-26 (round 5) — `GUIDANCE.md` §4, file deleted after
+  fold): (b) research-only — "and create work product from each one linked in a DEMO.md file
+  for owner to review and select the production recipes."** Consequence: the lane ships nothing
+  itself, but each media arm produces a linked demo artifact indexed in a tracked
+  `recipes/media/DEMO.md` — no internal addresses; artifacts referenced by head-side receipt
+  paths in relative form.
+  *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §4 (file deleted after fold).)*
+- **GGUF route (owner decision 2026-10-26 (round 5) — `GUIDANCE.md` §5, file deleted after
+  fold): (c) case-by-case — "convert only for models that benefit significantly; this implies
+  also trialing llama.cpp clones of shipped recipes to get baselines."** Consequence: each GGUF
+  candidate is gated on a recorded viability check (the house precedent) AND an expected-benefit
+  argument; llama.cpp clone baselines of shipped recipes are in scope as baseline tasks.
+  *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §5 (file deleted after fold).)*
 
 - [x] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
   `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's
