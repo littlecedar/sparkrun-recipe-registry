@@ -149,7 +149,7 @@ to reproduce reported benchmarks.
 | the staged plans (9B arm, the two A/Bs, the quality set) and their acceptance criteria | [`NOTES.md`](NOTES.md) — working state, moved here into `README.md`/this file when a plan runs |
 | the honed-template delivery contract | [`recipes/ornith/mods/ornith-honed-chat-template/README.md`](../../recipes/ornith/mods/ornith-honed-chat-template/README.md) |
 | why `@eugr/mods/drop-caches` is inert | [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) |
-| engine-flag semantics (SGLang/vLLM) | [`mad-science/RESEARCH_LORE.md`](../../mad-science/RESEARCH_LORE.md) §5–§6 |
+| engine-flag semantics (SGLang/vLLM) | [`recipes/MECHANICS.md`](../../recipes/MECHANICS.md) §"Engine flag semantics" (distributed from `RESEARCH_LORE.md` §5–§6, 2026-10-24) |
 | guards | `tests/test_ornith_recipes.py`, `tests/test_ornith_honed_chat_template.py`, `tests/test_drop_caches_mod.py` |
 
 Receipt pointers for §4/§5 live on the head at `~/benchmarks/ornith-dflash2-ab-20261011/` (arms:

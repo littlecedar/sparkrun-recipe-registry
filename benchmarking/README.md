@@ -77,6 +77,47 @@ different: over the archived cells with ≥ 2 runs the median per-run cv is **3.
 detect, not from a blanket minimum, and prefer **same-boot or interleaved** over more runs — a control
 in the same container removes the 7–25 % term that repetition cannot touch. **And low concurrency is
 not the quiet regime:** the worst within-cell cvs in the archive (11–15 %) are at depth 0, c = 1.
+A **noise floor belongs to a (configuration, cell) pair, never to "the boot"**, and it must not be
+inferred from a comparison you already decided is null.
+
+**Provenance and artifacts.**
+
+4. **A bench cell emits TWO records and both carry `tg_throughput`** — a context-prefill record
+   (`is_context_prefill_phase: true`) and a decode record. Grouping the JSON by concurrency alone
+   doubles the cell count and fakes bimodal boots; select the phase explicitly and print the record
+   count per cell before interpreting any table.
+5. **`pp_req_throughput` is prompt-size ÷ TTFT, not a prefill speed** (verified numerically:
+   `pp_req_throughput × e2e_ttft == prompt_size`). The aggregate `pp_`/`tg_` columns are windows
+   opening at submission, so they charge scheduler queueing to a phase; use the per-request columns
+   for any "this phase got slower" claim.
+6. **Provenance of an arm is several separate facts.** A run's recipe comes from *that run's*
+   `recipe_qualified_name` (the `measurement_recipe_state` field is often `None`); a `declared_hash`
+   is a registry-declaration hash, **not** the executed configuration; and a cross-recipe throughput
+   comparison is not a knob comparison. Derive any output-file → bench-id mapping by hashing
+   (`sha256(output.json) == sha256(bench_<id>/consolidated.json)`), not by recollection.
+7. **Pass `--fresh` for any intended new measurement, and give every citable run an explicit
+   `--output` name.** A complete bench id is re-emitted with no requests and exits 0 — grep the log
+   for `re-emitting`. The derived filename is overwritten by the next run of the same
+   recipe+profile; `runs/` is scratch and gets reaped, so the `--output` file is the durable
+   artifact and carries the same records. Read `runs/*.json` while it exists, but cite the
+   `--output` file for anything you may need later.
+8. **An `-o` override that changes nothing reads as a null result.** Read the launched serve command
+   and the *resolved* value of the default it is meant to beat before calling an arm neutral.
+9. **Do not benchmark on a node that still has your probe containers** (the readiness probe hits the
+   old server and reports ready in ~74 s versus ~250 s; check `docker ps -aq --filter name=sparkrun`
+   on every node), and **the corpus is part of the measurement**: synthetic/repetitive prompts
+   measured +25 % higher speculative acceptance over natural ones.
+10. **C1 is completion-length sensitive** — a varied short-answer prompt dilutes the decode rate;
+    quote the steady-state C4/C8/C16 columns, and read the granted KV pool from the boot log, never
+    from a computed estimate.
+11. **A deep prefill looks like a wedge.** A ~799K-token prompt at ~600 t/s takes 20–23 minutes,
+    `/health` returns 200 while generation times out, and killing the client does not cancel the
+    in-flight prefill. Distinguish busy from wedged by worker CPU ticks (`/proc/<pid>/stat`),
+    serve-log progress, and load average — not by a second request.
+
+**Prometheus gauges scraped during a run are keyed by label set, not metric name**, so the obvious
+nested lookup returns `None` for every row; assert a nonzero before believing a zero.
+`spec_accept_length` is last-written, not a window mean; `cache_hit_rate` is 0 during pure decode.
 
 ---
 

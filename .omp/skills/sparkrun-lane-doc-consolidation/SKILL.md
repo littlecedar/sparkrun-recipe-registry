@@ -55,4 +55,5 @@ research prose removed from the index goes to `attic/PRIMARY-README-ARCHIVE.md`.
 - **Relative links break silently.** A moved doc's internal links must be recomputed for its new depth.
 - **Frozen archives** (`attic/DONE.md`) get path swaps only — the completed-item prose is history.
 - Keep the primary README's **counts** consistent with `git ls-files 'recipes/*/*.yaml'`; stale counts are
-  a recurring defect (see `mad-science/RESEARCH_LORE.md` §10).
+  a recurring defect (provenance: `RESEARCH_LORE.md` §10, mined 2026-10-09, deleted on distribution
+  2026-10-24 — verbatim in git history; the rule now lives in root [`../../../AGENTS.md`](../../../AGENTS.md)).

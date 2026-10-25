@@ -110,6 +110,9 @@ under `runtime_config:` so it reads as intentional.
   enters the template chain only when set (`core/recipe.py:1534-1535`). A pin that never
   reaches the engine as a revision flag warns `unpinned-model-revision`
   (`core/validation.py:866-935`) — eleven shipped arms carry that warning deliberately.
+  A typo'd top-level `revision:` is a dead pin: it is not in `_KNOWN_KEYS`, so it is swept
+  into `runtime_config` and never reaches the engine — the spelling is top-level
+  `model_revision:`.
 - **`runtime`** — string, default `""`; required after resolution
   (`core/recipe.py:1628-1629`). Omitted, it is inferred from the command prefix:
   `vllm serve` → `vllm`, `sglang serve` or `python -m sglang.launch_server` → `sglang`,
@@ -237,7 +240,13 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
   including `entries: []` and `enabled: false`. A model entry's `revision` is
   authoritative and never falls back to the recipe pin (`core/recipe.py:124-160`,
   `181-202`, `307-398`). Only a hand-written block is exported
-  (`core/recipe.py:2480-2484`).
+  (`core/recipe.py:2480-2484`). A cluster profile's `distribution:` block **overrides** the
+  recipe, so a stale `{enabled: false, skip_fan_out: true}` on a cluster silently strands
+  every worker with a bare `missing …/config.json`; omit the block and rely on the default
+  (`models.enabled: true`, `containers.enabled: true`) — there is no CLI flag for
+  `distribution`, hand-edit `~/.config/sparkrun/clusters/<name>.yaml`. The HF cache is
+  per-node: the checkpoint must be distributed to every runner node. — src:
+  `.swival/memory/sparkrun-notes.md:476-496,417-428`.
 - **`cluster_config`** — mapping or null; internal, undocumented per-recipe launch
   overrides: `remote_cache_dir`, `local_cache_dir`, `resolved_model_path`. Applied only for
   trusted recipes, because it can expose host paths to the container
@@ -335,9 +344,10 @@ v2 recipe the convention is detected from `{{` and collapsed, but it draws
 
 Traps that remain:
 
-- A `{key}` with no matching default renders as the literal and dies at the engine;
-  `recipe validate` does not check placeholder resolvability, so
-  `tests/test_recipe_placeholder_resolution.py` does.
+- A `{key}` with no matching default renders as the literal and dies at the engine; an
+  uncommented flag whose placeholder has no default renders as the flag alone and **swallows
+  the next token** (or errors at argparse). `recipe validate` does not check placeholder
+  resolvability, so `tests/test_recipe_placeholder_resolution.py` does.
 - vLLM's speculative-config field is **`model`**, not `draft_model`; sparkrun's draft
   detection reads `speculative_config.model` and adds that repo to the distribution set
   with its **own** `revision` (`runtimes/_vllm_common.py:356-374`;
@@ -350,6 +360,34 @@ Traps that remain:
   (`core/validation.py:722-770`).
 - Comments never go inside a folded `command:` block: a `>` scalar keeps them as literal
   text and the shell then treats the rest of the line as its own.
+
+- **A `command:` template suppresses sparkrun's own flag emission for a key it references** —
+  with a template present, sparkrun substitutes the placeholder instead of injecting the
+  mapped flag (only the no-template `_build_base_command` consults the flag map,
+  `runtimes/sglang.py`); a launcher shim that "ignores unknown args" then drops the value and
+  the engine falls back to its own default (observed TP=3 on a 4-node cluster) — silently
+  wrong, not an error. Check the rendered serve line *and* the launcher log that echoes the
+  resolved value. — src: `.swival/memory/sparkrun-notes.md:502-516`.
+- **Folded `>` commands turn JSON-shaped defaults into four bare words if the shell quotes
+  are eaten by YAML**: `limit_mm_per_prompt: '{"image": 4, "video": 1}'` as a plain scalar
+  loses its quotes at parse time; written `>-` they survive as one shell word. `recipe
+  validate` (even `--strict`) passes on the broken form — only the rendered command via
+  `sparkrun run --dry-run --hosts 127.0.0.1` catches it. — src:
+  `.swival/memory/sparkrun-notes.md:271-277`.
+- **YAML quoting traps**: a scalar beginning with `@` must be quoted
+  (`mods: ["@littlecedar/mods/name"]`; unquoted it fails near column 1), and generated YAML
+  must quote any value containing `: ` (`description: x: y` dies with
+  `yaml.scanner.ScannerError`). — src: `.swival/memory/sparkrun-notes.md:211-212,366-369`.
+- **Never transcribe a value you cannot see** — some strings (for example a model class name
+  inside `hf_overrides`) come back through the read layer as a placeholder token, so a
+  hand-written new recipe ships the placeholder — and it can round-trip back to the real
+  string on write, so nothing looks wrong. Lift it: read the sibling recipe in Python, splice
+  the block verbatim, and `assert` the extracted value is unchanged. — src:
+  `.swival/memory/sparkrun-notes.md:370-376`.
+- **`env:` cannot carry a value derived from `{model}`** — where a recipe needs a model-path
+  env (observed: `CUDA_EXL3_MODEL_PATH` for a DSpark drafter), the only working route is a
+  serve-line prefix (`CUDA_EXL3_MODEL_PATH=<path> vllm serve …`); without it the engine fails
+  at init *after* a 7-minute weight load. — src: `.swival/memory/MEMORY.md:574-585`.
 
 ### What `recipe validate` can see
 
@@ -366,6 +404,255 @@ VRAM estimate (`cli/_recipe.py:128-155`); `recipe vram` estimates with `--tp`,
 Findings that pass plain validate and still matter at boot — a missing placeholder
 default, an unreferenced default, a path a managed mount owns, a hardcoded serve flag —
 are exactly the ones the repo's guards enforce.
+
+- **`recipe validate` does not check that mods exist** — a nonexistent mod validates clean, so
+  a green gate does not mean the recipe will launch; the real launch fails fast with
+  `Could not resolve mod '<ref>'. Tried: <paths>`. — src: `.swival/memory/MEMORY.md:526`;
+  `.swival/memory/sparkrun-notes.md:60-72`.
+- **A `recipe validate` suggestion can be pre-existing** — compare against a sibling before
+  "fixing" it (`restated-managed-path` fires identically on a shipped recipe). — src:
+  `.swival/memory/sparkrun-notes.md:377-379`.
+- **`recipe vram`'s "Model weights" line can be an invented number** — when the HF metadata
+  fetch exceeds its 30 s budget it falls back to `param_count × dtype_bytes` with no marking;
+  the tell is identical sizes for different models, and for a 4-bit checkpoint the fallback is
+  ~1.9 GB optimistic, so the "fit: YES" verdict is computed from a made-up number. Take the
+  real size from `model.safetensors.index.json` `metadata.total_size`. — src:
+  `.swival/memory/sparkrun-notes.md:110-121`.
+
+### Pooling (embedding / reranker) recipes
+
+- **`metadata.native_apis` cannot express "embeddings"** — it is validated as a subset of the
+  runtime family's `native_api_options()`; for vLLM that set is exactly
+  `["chat_completions", "responses", "messages"]`, so declaring `embeddings` fails
+  `recipe validate` with `readiness-incompatible` — the honest-looking edit is the wrong one.
+  Declare nothing and set `readiness: {inference: false}`; the consequence is no `sparkrun
+  proxy` routing for `/v1/embeddings`. — src: `.swival/memory/sparkrun-notes.md:254-265`.
+- **The default readiness probe fails a healthy pooling server** (it streams a chat
+  completion and requires a token); `readiness.inference: false` keeps the port and
+  `/health`. — src: `.swival/memory/sparkrun-notes.md:266-270`.
+- **`sparkrun benchmarking/*.yaml` cannot measure a pooling recipe at all** — every profile
+  drives `/chat/completions`, and the "no measured rows" path is a *skip*, not an error, so a
+  run can look clean and have measured nothing. — src:
+  `.swival/memory/sparkrun-notes.md:289-292`.
+- **Multi-document YAML is not a way to colocate a pair** (`ComposerError: expected a single
+  document`), and vLLM's `--gpu-memory-utilization` is an absolute cap on total device usage,
+  so two engines that sum past the device fail at init. — src:
+  `.swival/memory/sparkrun-notes.md:284-288`.
+
+### CLI mechanics
+
+Corpus-derived launch/CLI mechanics (2026-10-09); re-verify flag spellings against the
+installed build before quoting one.
+
+- **`-n`/`--dry-run` is not inert**: it really executes `pre_exec`, but **skips** the
+  registry-sync step and the InfiniBand detection step — so a clean dry-run (a) does not
+  predict a node-side clone failure, and (b) prints "No InfiniBand detected" and renders **no**
+  `NCCL_IB_*` env, a false negative; judge comm env only in the live container. It requires a
+  host (`-n` alone: `No hosts specified`), and a TP=2 recipe needs **both** nodes even for a
+  dry run — a single host fails with a misleading `cluster has no free capacity`. — src:
+  `.swival/memory/sparkrun-notes.md:90-107,342-351,429-451`; `.swival/HISTORY.md:4010`.
+- **`-o key=value` reaches `defaults:` only.** It cannot change a top-level key (there is no
+  `-o` that swaps `model:` and no error is raised), and it is a silent no-op for a key the
+  recipe never declares. To add a flag: edit the recipe to route it, or `-o 'extra_args=…'` —
+  and `extra_args` **appends**, so a flag the recipe already sets lands twice (last wins,
+  fragile); grep the rendered line for the flag *and* its duplicate. `-b key=value` overrides
+  benchmark args; replication count is a benchmark-profile arg (`-b runs=7`), there is no
+  `--runs` flag. — src: `.swival/memory/sparkrun-notes.md:216,358-362,399-415,230-232`.
+- **`sparkrun benchmark -o unmapped_flag=…` warns, then completes normally and writes JSONs
+  while recording the override in `state.yaml`** — it reads as a genuine null result for a
+  flag that never reached the server. `sparkrun benchmark --dry-run` surfaces that warning in
+  ~3 s and is the cheapest guard before any new override. — src:
+  `.swival/memory/sparkrun-notes.md:8-16`.
+- **`--profile NAME` resolves against the cached registry clone, not the working tree** — a
+  just-written profile is "not found". `--profile` accepts a path, so pass an absolute path.
+  — src: `.swival/memory/sparkrun-notes.md:233-235`.
+- **`--timeout` defaults to 14400 s and applies to a *hung* server** — a wedged config holds
+  the slot for hours; pass `--timeout 1800` on exploratory arms. — src:
+  `.swival/memory/sparkrun-notes.md:236-238`.
+- **There is no `sparkrun up` and no `sparkrun stop all`**; launch and measure via
+  `sparkrun benchmark performance --hosts a,b --profile <name> <recipe>`. List args **zip
+  positionally**, not as a cross product — confirm the cell count with `--dry-run`. — src:
+  `.swival/memory/sparkrun-notes.md:227-229`; `.swival/HISTORY.md:4010`.
+- **Never identify a job to stop by parsing `sparkrun status`** — it lists the whole cluster,
+  so "the first job id" can be somebody else's workload. Derive the id from the container name
+  on the node you measured (the id is embedded in it); `sparkrun stop` can report success on
+  the wrong containers when given a stale id, and can claim success while a container lives —
+  `docker ps` the node. — src: `.swival/memory/sparkrun-notes.md:304-331`.
+- **`docker logs <sparkrun-container>` is empty** — serve output goes to
+  `/tmp/sparkrun_serve.log` *inside* the container; read it with `docker exec <c> cat`.
+  Containers auto-remove by default, so a post-mortem needs `sparkrun run --no-rm`. — src:
+  `.swival/memory/MEMORY.md:942-946`.
+- **Leftover containers hold the serve port and fake a healthy boot** — a killed launch
+  leaves `node_*` containers on workers, and the next boot's readiness probe hits the *old*
+  server (ready at ~74 s versus ~250 s). Check every node's
+  `docker ps -aq --filter name=sparkrun`. — src: `.swival/HISTORY.md:3215`;
+  `.swival/memory/measurement-hygiene.md:146-166`.
+- **Benchmark result artifacts carry no provenance** — the `.json`/`.csv` hold only model and
+  per-cell throughput, no recipe text and no serve command; only the launcher's own stdout
+  (`Serve command:` + `Pinned image SHA:`) records what ran, so **keep the per-arm log**. —
+  src: `.swival/memory/sparkrun-notes.md:239-243`.
+- **`runs/` is scratch and gets reaped; the `--output` file is the durable artifact** and
+  carries the same records — read `runs/` while it exists, but cite the `--output` file for
+  anything you may need later. — src: `.swival/memory/bench-artifact-metrics.md:28-39`.
+- **sparkrun is a uv tool with its own interpreter** (not a repo-venv dependency); its flag
+  maps, validation checks, and recipe grammar live under
+  `~/.local/share/uv/tools/sparkrun/lib/python3.12/site-packages/sparkrun/`. A flag's presence
+  in the recipe grammar and its presence in the runtime flag map are different questions:
+  `recipe validate` checks grammar, not engine semantics. — src:
+  `.swival/memory/sparkrun-notes.md:385-395`.
+
+### Env, portability, and distribution
+
+- **The portability rule is broader than the managed comm set: *any* env value naming a host
+  device is forbidden.** The concrete case was a vendor `B12X_ROCE_HCA:
+  rocep1s0f0,roceP2p1s0f0` — not sparkrun-managed, so it looked acceptable, but the engine
+  takes a literal HCA list and falls back to the *detected* `NCCL_IB_HCA` when unset
+  (`roce_oneshot.py` → `discover_hcas`), so setting it was contraindicated. Test by grepping
+  env **values** for device patterns (`rocep|enp|ens|enP|eth` + digit/f). Levers that carry no
+  device name and are fine to set: `NCCL_P2P_DISABLE`, `NCCL_SHM_DISABLE`, `NCCL_PROTO`,
+  `NCCL_BUFFSIZE`, `NCCL_MAX_NCHANNELS`. — src:
+  `.swival/memory/sparkrun-notes.md:466-474`.
+- **sparkrun fills NCCL/IB env from its live probe and it is *better* than a pin** — only the
+  ACTIVE ports are included, where a hand-written `NCCL_IB_HCA` silently includes a DOWN port.
+  — src: `.swival/memory/sparkrun-notes.md:437-451`.
+- **`HF_HOME` is likewise overridden by sparkrun** (`overridden-cache-env`); check
+  `recipe validate --json` codes before shipping a recipe that "validates clean". — src:
+  `.swival/memory/MEMORY.md:536-541`.
+- **`transfer_mode` semantics matter for arch and registry location**: `local` pulls the image
+  on the control machine (fails for an arm64-only image when the control host is amd64, `no
+  matching manifest`); `pull` had a sparkrun bug; `delegated` builds/pulls on the head node
+  and works when architectures differ. — src: `.swival/memory/MEMORY.md:593-598`.
+
+### Engine flag semantics — SGLang/vLLM
+
+The registry is mostly SGLang; the vLLM pins are mutable nightly tags, so treat these as
+semantics, not as a fixed version — a recipe's version comes from its container image.
+Several items are lane-specific; re-verify on the pinned image before trusting a spelling.
+**Do not cross-apply flags across engines**: the SGLang UNO draft rejects `--enable-lora`, and
+the vLLM memory model (`gpu-memory-utilization`, `compilation_config`) and multi-node flags
+differ from SGLang's — pick the column that matches the recipe's `runtime:`. — src:
+`.swival/doc_conserving_memory.md:39-75`.
+
+SGLang column:
+
+- **`--mamba-ssm-dtype` unset reads `config.json`'s `mamba_ssm_dtype`** (`float32` for
+  Qwen3.8-Flash-Next, so the linear-attention/GDN state pool runs fp32 by default); setting
+  `bfloat16` is the single biggest memory lever (~11–22 GB/node). — src:
+  `.swival/HISTORY.md:139-158`.
+- **`--linear-attn-decode-backend flashinfer` is a no-op on GB10**: the auto-enable gate
+  requires `is_sm100_supported()` (False on SM121, silently) *and*
+  `mamba_ssm_dtype == bfloat16`. An explicit-flag guard checking `capability[0] >= 10` passes
+  on GB10 (12), so the flag is not *rejected* — it is just not auto-enabled, and no log line
+  says so. — src: `.swival/HISTORY.md:292-316`; `.swival/memory/gb10-notes.md:41-55`.
+- **`num_speculative_tokens` is validated against the drafter's fixed block size** (`must be
+  divisible by n_predict=5`), so legal `k` is ≤5 or ×5 — read the constraint off the *error*,
+  then design the sweep around it. — src: `.swival/memory/MEMORY.md:932-936`.
+- **Accept length and throughput can point opposite ways** — `k=5` accepted more tokens/step
+  than `k=3` and was still slower; the per-position acceptance curve shows why (tail slots
+  accept at 12%/5% and still cost a verify pass). Read per-position, not just the mean: a
+  speedup is a **profile**, not a scalar — the optimum moved with concurrency. — src:
+  `.swival/memory/MEMORY.md:921-931`.
+- **`draft_tensor_parallel_size` is a first-class `SpeculativeConfig` field** ("1 or the same
+  as the target TP size") — pointing it at 1 under a TP=3/TP=6 target sidesteps the
+  drafter-divisibility wall. — src: `.swival/HISTORY.md:2369-2371`.
+- **The bare `--cuda-graph-max-bs` does not exist in this SGLang line** — only the `-decode`
+  and `-prefill` variants. — src: `.swival/HISTORY.md` (ds4 flag bundle).
+- **fp8 KV is not automatically worth it on a sparse-attention model** — the sparse-attention
+  index dtype is hardcoded (`index_state_dtype = bfloat16`) and the bytes-per-token helper
+  takes no dtype parameter, so fp8 only shrinks the full-attention layers. — src:
+  `.swival/HISTORY.md:476`.
+- **`--no-ple-offload-embedding` is the right default on GB10** — on unified memory the
+  "offloaded" PLE table is a pinned host copy out of the same pool, so it frees nothing and
+  costs a host gather per step. — src: `.swival/HISTORY.md:174`.
+- **`--moe-runner-backend auto` can resolve to a backend that cannot run, per checkpoint** —
+  two exports of "the same model" (same image digest) can disagree; `flashinfer_trtllm` is
+  dead on this hardware (no SM121 cubins), so name `flashinfer_cutlass` explicitly; do not
+  generalise a backend-resolution result across exports. — src:
+  `.swival/memory/gb10-notes.md:56-76`.
+- **`mem_fraction_static = (weights + KV pool) / capacity`, and on GB10 "available GPU
+  memory" is `psutil.virtual_memory().available` (system RAM)** — it is relative to free
+  memory at *each engine's own boot*, so stacking engines needs absolute-GiB budgeting, not
+  summed caps; the precise pool pin is `--max-total-tokens`. Raising `MEM_FRACTION_STATIC`
+  above ~0.80–0.85 wedges nodes on unified memory — a `0.90` probe wedged three of four nodes
+  (ping alive, SSH banner timeout) and bricked one into a manual power cycle; on GB10 GPU
+  memory *is* host memory. — src: `.swival/HISTORY.md:1792-1809,4469-4473`.
+- **`/metrics` is served on `port_base + 3`, not the API port**, and only exists if the recipe
+  sets `--enable-metrics` — check the recipe, not the node. — src:
+  `.swival/memory/bench-artifact-metrics.md:88-91`.
+- **`#queue-req` is informative only on `Prefill batch` lines; it is always 0 on `Decode
+  batch` lines** (a false null indistinguishable from a real zero — contradict any all-zero
+  parser column with a bare `re.findall`). Capacity claims read decode lines, admission claims
+  read prefill lines; never a bare `grep '#running-req'` (the field order differs between line
+  types); the `Decode`/`Prefill` label describes the batch, not the harness phase. — src:
+  `.swival/memory/queue-metrics.md:7-39`.
+
+vLLM column (from the vendored upstream corpus — upstream vLLM docs and verbatim upstream
+modules under `.swival/`):
+
+- **vLLM snapshots its environment after service init** (`enable_envs_cache()` wraps
+  `__getattr__` in `functools.cache`): setting a `VLLM_*` var after the server has started has
+  no effect. — src: `.swival/envs.py:2222-2240`.
+- **The memory contract is `requested_memory = ceil(init_snapshot.total_memory ×
+  gpu_memory_utilization)`**, and boot raises with "Decrease GPU memory utilization…" when
+  free memory is short. On **integrated GPUs** (`MemorySnapshot.measure`) free memory is
+  overridden with `psutil.virtual_memory().available`, because `cudaMemGetInfo` underreports
+  on UMA — the upstream comment names GH200, **DGX Spark**, and Jetson Orin. — src:
+  `.swival/worker_utils.py:533-550`; `.swival/mem_utils.py:143-151`.
+- **The manual KV-pool pin is the flag `--kv-cache-memory=<bytes>`** (config field
+  `kv_cache_memory_bytes`); setting it skips profiling and does **not** respect
+  `--gpu-memory-utilization`. — src: `.swival/gpu_worker.py:884,547-563`.
+- **Multi-node spelling differs from SGLang's**: vLLM uses `--nnodes --node-rank
+  --master-addr --headless` plus `-e VLLM_HOST_IP=<node-ip>` and
+  `--distributed-executor-backend ray|mp`; SGLang recipes here are driven with
+  `--dist-init-addr`, so a vLLM recipe must not copy that. GPUDirect RDMA in a container needs
+  `IPC_LOCK` and a `/dev/shm` mount (`--ipc=host --shm-size=16G`). — src:
+  `.swival/doc_parallelism_scaling.md:146-158,174-200`.
+- **Strategy rules**: fits one GPU → no distribution; fits one node → `tensor_parallel_size` =
+  GPUs/node; too big → TP within a node plus `pipeline_parallel_size` = nodes. Nodes without
+  NVLink should prefer PP over TP, and an uneven layer split also prefers PP. — src:
+  `.swival/doc_parallelism_scaling.md:7-27`.
+- **Sleep mode has a two-part online prerequisite** — the server must be started with
+  `VLLM_SERVER_DEV_MODE=1` **and** `--enable-sleep-mode`; the endpoints only register in dev
+  mode. Level 1 offloads weights to CPU RAM and discards KV; level 2 discards both. — src:
+  `.swival/doc_sleep_mode.md:14-22,91-139`.
+- **LoRA silent-corruption hazard**: under `--enable-mixed-moe-lora-format` vLLM trusts the
+  caller's `is_3d_lora_weight` and does **not** verify the checkpoint — a wrong declaration
+  loads into wrong buffers and emits garbage with no load-time error. `--max-lora-rank` must
+  equal the maximum adapter rank in use (too high wastes memory and hurts performance). —
+  src: `.swival/doc_lora.md:281-300,441-453`.
+- **`limit_mm_per_prompt` sets multimodal input limits**; setting a modality to `0` allocates
+  nothing for it (even a text-only run of a multimodal model). — src:
+  `.swival/doc_conserving_memory.md:94-160`.
+
+### Checkpoint and model-path mechanics
+
+- **The HF cache is a two-level layout** (`blobs/<xx>/<sha>` written to, `snapshots/<hash>` as
+  symlinks): any mount that exposes only a `models--…` or a snapshot directory leaves
+  symlinks dangling — **mount the whole `hub/` directory**. `du` on a model directory lies
+  because shards are symlinks into `blobs/`: measure with `find -L … -printf %s`. — src:
+  `.swival/trash/…/KNAPCIO-SGLANG-INTEGRATION.md` (Engram packing);
+  `.swival/trash/…/NOTES.md`; `.swival/memory/MEMORY.md:586-592`.
+- **`cluster_config.resolved_model_path` is wrong for an HF snapshot dir** — a snapshot is a
+  tree of symlinks into `../../blobs`, so mounting only the snapshot leaves `config.json`
+  dangling and the engine rejects it (`Invalid repository ID or local directory`); the managed
+  `/cache/huggingface` mount is the right surface. — src:
+  `.swival/memory/MEMORY.md:586-592`.
+- **A recipe must not pin a `container:` without resolving the right digest.** A multi-arch
+  image has an **index** digest and per-platform **manifest** digests, and Docker accepts
+  both, so the wrong one looks plausible; the tag's `Docker-Content-Digest` header reports the
+  index digest, which is what belongs in the pin. A mutable tag can resolve to a different
+  commit than the pinned digest of the same tag — resolve the pin and compare `git log` inside
+  each before treating two images as the same build. — src:
+  `.swival/memory/sparkrun-notes.md:332-338`; `.swival/memory/remote-execution.md:75-94`.
+- **A launcher/mod that `execve`s the engine inherits the image's baked `ENV`**, so a
+  `setdefault(...)` for a var the image already bakes is a **silent no-op** (the image wins) —
+  use `env.update(MY_ENV)` and keep keys disjoint from the recipe-owned ones. Corollary:
+  `docker exec <c> env` is **not** a valid probe for what the launcher sets (fresh shell from
+  the container's *creation* env). — src: `.swival/memory/sparkrun-notes.md:518-534`;
+  `.swival/memory/MEMORY.md:115-119`.
+- **A consuming image `ENTRYPOINT` blocks a sparkrun launch, and the fix is a recipe key, not
+  a flag**: `executor_config: entrypoint: ""` (or `-o entrypoint=''`). A good failure — it
+  fires before any GPU work. — src: `.swival/memory/MEMORY.md:568-573`.
 
 ## Per-family agent guides
 

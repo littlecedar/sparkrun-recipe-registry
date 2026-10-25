@@ -462,14 +462,28 @@ their comments verbatim.
 - Harness: `MOD_NAME`/`MOD_DESCRIPTION`/`MOD_MAINTAINER` exports; `MOD_TIMEOUT` (default 180),
   `MOD_CACHEDIR` (`/cache/runtime`), `MOD_LOGDIR` (`/cache/runtime/modlogs`), `UV_LINK_MODE=copy`,
   UID/GID inferred via `stat -c '%u' /cache/runtime`, `reown()`, `log`/`log_var`/`log_cmd`, log
-  rotation (prior run gzipped). All knobs are `${VAR:-default}`.
+  rotation (prior run gzipped). All knobs are `${VAR:-default}`. `MOD_TIMEOUT` cannot extend the
+  runtime's hard 600 s `pre_exec` kill on top of it.
 - **Fail closed.** Unknown state → `die`, never a quiet default. Assert numeric contracts
   (`EXPECTED_NARROW = 72`, …) and refuse to patch when anchors are missing rather than guessing.
+  Verify a mod's effect from the artifact it wrote in the runtime cache, never from its log or exit
+  status.
 - **Idempotence from content, not timestamps**: read markers/sentinels or `--check` the real
   artifact. Writes are `tmp` + `os.replace` (restore original owner/mode); `unlink` a symlink before
   writing, because writing through one rewrites the node's HF snapshot.
-- Do not import the runtime engine from a pre_exec mod (import/JIT side effects); locate target files
-  by filesystem search. A fetch that can outlive the 600 s hook timeout must detach.
+- Do not import the runtime engine from a pre_exec mod: `import sglang` triggers flashinfer JIT,
+  which writes root-owned build artifacts under `/cache/runtime`, and the uid-1000 server then dies
+  at launch with `PermissionError` on every later boot until `sudo chown -R 1000:1000` the runtime
+  cache. Locate target files by filesystem search; a fetch that can outlive the 600 s hook timeout
+  must detach.
+- `pre_exec` runs once **per node** against one shared host-mounted dir, so a mod that writes a
+  config file and deletes it after use (a self-deleting workaround) splits the group: the first node
+  gets the override, every later node the default — a numerical mystery, not an error. And a bash
+  helper (`warn`/`die`) is invisible to a `python3 - <<'PY'` heredoc (own scope), while `set -euo
+  pipefail` aborts the whole mod if `find` hits a nonexistent dir — `mkdir -p` first.
+- Cache hygiene is point-of-use `posix_fadvise(DONTNEED)`, not a node-wide `drop_caches`: under
+  sparkrun's rootless default `/proc/sys` is read-only and a naive drop silently does nothing (the
+  shipped fix is `mods/drop-caches/`, which fails closed; see its README for the redirect-order bug).
 - New mods get a `README.md`, and a guard test when the mod makes a safety claim
   (see `tests/test_drop_caches_mod.py`).
 
@@ -636,7 +650,11 @@ matching.
   `tests/test_qwen3_vl_embeddings.py`), tools imported by path. Design rules: **every guard needs a
   proven negative control** (166 control tests in 24 `NegativeControls` classes, re-measured
   2026-10-22); an empty or missing parse must raise, never return `[]` or pass vacuously; text scans
-  strip whole-line comments and anchor with `(?m)^`.
+  strip whole-line comments and anchor with `(?m)^`; a negative-control anchor must be a stable key
+  name, never a tunable value (`gpu_memory_utilization: 0.80` broke at the next retune); and a guard
+  suite silently covers only the files in its roster constant — when a suite grows a lane, add the
+  lane's files to every roster constant and expect new failures (that is the point: three ds4
+  spelling guards passed vacuously on a new vLLM recipe until its file was added).
 - Dash-named tools (`tools/pooling-bench.py`, `tools/needle-haystack.py`) are imported via
   `importlib.util.spec_from_file_location` with the module registered in `sys.modules` **before**
   `exec_module`, or `@dataclass` fails.

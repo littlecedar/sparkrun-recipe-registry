@@ -358,11 +358,20 @@ are `SPDX: Apache-2.0` vLLM derivatives), cloned to `.scratch/ds4/tonyd2wild-vll
   serve one: identity-mounting only the snapshot leaves `config.json` dangling and
   vLLM rejects it ("Invalid repository ID or local directory"). Use the managed
   `/cache/huggingface` mount.
-- **`transfer_mode`.** The HF cache is **per-node** (no NFS export; verified
+- **`transfer_mode`.** ~~The HF cache is **per-node** (no NFS export; verified
   2026-10-03 — every node's `~/.cache/huggingface` is node-local ext4 on
   `/dev/nvme0n1p2`), so the checkpoint **must be distributed to every node** and
   `distribution.model.enabled` stays **true**. (It was `false` when the head
-  exported the cache over NFS; do not restore that.) With a `local` `file://`
+  exported the cache over NFS; do not restore that.)~~
+  **SUPERSEDED 2026-10-24 — the cache moved back to the shared BeeGFS pool**
+  (`/mnt/beegfs/huggingface` at `/cache`; `mad-science/BEEGFS-REPORT.md` round-5
+  addendum), and the WOPR cluster profile now sets `distribution.model` =
+  `enabled: false`, `skip_fan_out: true` so sparkrun neither downloads nor
+  rsyncs models — a cluster profile's `distribution:` block **overrides** the
+  recipe, so no recipe-side setting is needed or wanted. A missing model fails
+  at engine load, loudly. The `transfer_mode` notes below still describe how the
+  *container* image is fetched.
+  With a `local` `file://`
   registry, `transfer_mode: local` fetches on the control machine and pushes —
   and it pulls the image on an amd64 control host, which fails for an arm64-only
   image (`no matching manifest for linux/amd64/v4`); `pull` hits a sparkrun 0.3.9
@@ -1529,7 +1538,11 @@ These are load-bearing and each has a guard in
    both the model and the container (`core/recipe.py:_default_distribution_config`).
    Omitting the block is behaviorally identical and one fewer thing to drift; a
    reintroduced `enabled: false` would strand workers. Guarded by
-   `test_distribution_config_omitted`.
+   `test_distribution_config_omitted`. (2026-10-24: on WOPR the *cluster* profile
+   now disables model fan-out for the shared BeeGFS pool, and a cluster
+   `distribution:` block **overrides** the recipe — the recipe-side rule still
+   holds for any cluster profile that does not, and omitting the block keeps the
+   recipe portable to both.)
 6. **No host bind mounts and no host device names.** No `volumes:`; no env value
    names a host adapter. Guarded by `test_no_host_bind_mounts`,
    `test_no_host_device_names_in_env`, `test_managed_comm_env_not_pinned`.
