@@ -1324,21 +1324,24 @@ Caveats worth knowing before re-running:
   the base-profile step then fetches that version's copy.
 - **Leftovers**: nothing beyond `/etc/docker/seccomp-profiles/io-uring.json` (all six nodes carry the
   same bytes, sha256 `11b3d8a6…`), the `daemon.json` that had not existed on any node, and the pulled
-  `python:3.12-slim` probe image on the three nodes that lacked it (`spark-01`–`spark-03`). Both are
-  documented here on purpose.
+  `python:3.12-slim` probe image on the three nodes that lacked it. All three are documented here on
+  purpose.
 - **Rollback**: restore the printed `daemon.json.bak-pre-io-uring-<UTC>` over `/etc/docker/daemon.json`
   and `systemctl restart docker`. On 2026-10-26 no node had a `daemon.json`, so rollback is
   `rm /etc/docker/daemon.json` + restart; the profile file can stay, unreferenced.
 - **Not a recipe-side capability.** A recipe or mod still cannot choose a seccomp profile; this is
   fleet configuration, and the `sparkrun` `executor_config` gap is unchanged.
 
-Usage: `tools/enable-io-uring.sh --probe-only` (probe the six nodes, change nothing, exit 0 only if
-io_uring is already allowed), then `tools/enable-io-uring.sh` to apply. `--nodes a,b` narrows the
-set; ssh aliases only, never addresses (the registry ships to third parties). Any other argument is
-forwarded to the Python tool (`--probe-image`, `--profile-source`). The orchestrator pipes the tool
-over ssh stdin and runs it with `sudo -n python3 -`, so no copy is left on the node. Exit 0 = all
-nodes ok (or, with `--probe-only`, allowed), 1 = a failure, 3 = a node skipped for running
-containers.
+Usage: `SPARKRUN_FLEET_NODES=node-a,node-b tools/enable-io-uring.sh --probe-only` (probe every node,
+change nothing, exit 0 only if io_uring is already allowed), then drop `--probe-only` to apply.
+**No fleet aliases are compiled in**: the node set comes from `--nodes a,b` (repeatable),
+`--nodes-file FILE` (one alias per line, `#` comments allowed) or `$SPARKRUN_FLEET_NODES`, and with
+none of the three the script exits 2 — this registry ships to third parties, and
+`tests/test_tracked_address_hygiene.py` already gates the address half of that rule. Any other
+argument is forwarded to the Python tool (`--probe-image`, `--profile-source`). The orchestrator
+pipes the tool over ssh stdin and runs it with `sudo -n python3 -`, so no copy is left on the node.
+Exit 0 = all nodes ok (or, with `--probe-only`, allowed), 1 = a failure, 2 = no node list,
+3 = a node skipped for running containers.
 
 Guard: `tests/test_enable_io_uring_tool.py` (15 tests, stdlib only). The live run is the evidence
 that it works; the guard is what proves the *scope* of the change — gaining exactly the three

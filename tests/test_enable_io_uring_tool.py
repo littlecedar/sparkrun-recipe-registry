@@ -155,12 +155,12 @@ class DaemonJsonMerge(unittest.TestCase):
 class RestartSafety(unittest.TestCase):
     def test_running_container_aborts_the_node(self):
         with self.assertRaises(SystemExit) as caught:
-            TOOL_MODULE.require_idle(["9c8e0fffc3cb"], "spark-03")
+            TOOL_MODULE.require_idle(["9c8e0fffc3cb"], "node-b")
         self.assertIn("abort", str(caught.exception))
-        self.assertIn("spark-03", str(caught.exception))
+        self.assertIn("node-b", str(caught.exception))
 
     def test_idle_node_passes(self):
-        TOOL_MODULE.require_idle([], "spark-03")
+        TOOL_MODULE.require_idle([], "node-b")
 
     def test_container_ids_parse(self):
         self.assertEqual(TOOL_MODULE.parse_container_ids("abc\n\ndef\n"), ["abc", "def"])
