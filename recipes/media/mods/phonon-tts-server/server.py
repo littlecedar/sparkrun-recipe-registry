@@ -110,6 +110,15 @@ class Handler(BaseHTTPRequestHandler):
         except subprocess.TimeoutExpired:
             self._json(504, {"error": "render timed out"})
             return
+        except Exception as error:
+            self._json(500, {"error": str(error)[:400]})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Length", str(len(wav)))
+        self.end_headers()
+        self.wfile.write(wav)
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", required=True)

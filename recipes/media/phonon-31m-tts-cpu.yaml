@@ -33,7 +33,7 @@ metadata:
   tags: media, tts, smol, cpu
 
 mods:
-  - phonon-tts-server
+  - mods/phonon-tts-server
 
 # No chat endpoint and no /v1/models: port + /health readiness only.
 readiness:
@@ -51,7 +51,6 @@ distribution_config:
 defaults:
   port: 8890
   host: 0.0.0.0
-  served_model_name: gradium/phonon-31m-en
   # Referenced so the key is not inert; the server's default seed is 1234 (the
   # tp4-lane probe's seed) and clients may override per request.
   seed: 1234
