@@ -110,22 +110,23 @@ class Handler(BaseHTTPRequestHandler):
         except subprocess.TimeoutExpired:
             self._json(504, {"error": "render timed out"})
             return
-        except Exception as error:
-            self._json(500, {"error": str(error)[:400]})
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", "audio/wav")
-        self.send_header("Content-Length", str(len(wav)))
-        self.end_headers()
-        self.wfile.write(wav)
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", required=True)
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--model-dir", default=str(CFG["model_dir"]))
+    ap.add_argument("--revision", default=None)
+    ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--lang", default=None)
+    # Accepted and ignored: the runtime appends it to satisfy its model-binding check.
+    ap.add_argument("--served-model-name", default=None)
     args = ap.parse_args()
+    if args.revision is not None:
+        CFG["revision"] = args.revision
+    if args.seed is not None:
+        CFG["seed"] = args.seed
+    if args.lang is not None:
+        CFG["lang"] = args.lang
     if not (Path(args.model_dir) / "model.q8.gguf").exists():
         raise SystemExit("phonon model.q8.gguf missing under %s" % args.model_dir)
     ThreadingHTTPServer((args.host, args.port), Handler).serve_forever()
