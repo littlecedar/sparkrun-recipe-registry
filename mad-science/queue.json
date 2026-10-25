@@ -30,13 +30,13 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "claimed_by tp4-window4 → adopted by tp4-recovery (2026-10-26). Cells (b) needle@512 20/20 PASS + (c) BFCL direct DONE; cell (d) treatment ladder LIVE on attempt-8 serve 30078b4aa125dd7d_e6ffa2719fcc (DFlash2 config fixed in 6d9eae2: FLASHINFER + adaptive_verification off; drafter pool snapshot 163b276b), stale sibling pid 3474781 running it against the healthy serve; harvesting beam-b2-ladder.yaml on exit. Attempt-7 dead boot 8022b0f2ab64 already stopped+harvested before the wedge — NO retry task needed.",
+      "notes": "DONE 2026-10-26 by tp4-recovery. (b) needle@512: 20/20 PASS at 32768+131072 all depths (beam-b1-needle-*-512.json). (c) BFCL tools leg: direct bfcl-eval run (eval-suite wrapper stalls 52 min — instrument finding, beam-b1-bfcl*.log). (d) DFlash2 A/B: baseline C1 26.20/C2 40.66/C5 63.96/C10 69.80 vs treatment C1 31.57/C2 40.72/C5 58.86/C10 74.14 t/s aggregate decode (beam-b1-ladder.csv vs beam-b2-ladder.{csv,yaml}; per-run stds 6-16 t/s — deltas within noise except C1 +20%). Engagement: dflash2 CUDA graphs FULL captured, FlashInfer draft attention, 7 spec tokens (beam-b2-attempt8-node1-serve.log). Serve stopped by literal id, 0 containers.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 1",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-25T19:19:21Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-candidate6-reasoning-effort",
