@@ -200,9 +200,9 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   1738 t/s — 2.35×**, per-chunk mean 4179 t/s (n=299, median 4159) vs the control's saturated
   ~1500, needle **5/5 PASS** at ~999k prompt tokens — the chunk-launch-bound mechanism §9 recorded
   is confirmed by halving the launch count. The value ships as the default under the 2026-10-18
-  `[#36]` same-window rule (`06ca895`). — settles the 1M prefill lever at the doubled chunk; a
-  32768 probe stays an unqueued follow-up, not a promise — provenance: `mad-science/DEEPSEEK.md`
-  §9 (the addendum) and `TODO.md` §ds4 (the closed item); asked 2026-10-22.
+  `[#36]` same-window rule (`06ca895`). — settles the 1M prefill lever at the doubled chunk; the
+  32768 probe is the queued follow-up (`TODO.md` §Retry queue item 2), not a promise — provenance:
+  `mad-science/DEEPSEEK.md` §9 (the addendum) and `TODO.md` §ds4 (the closed item); asked 2026-10-22.
 - **#3 — Will a quartet window be scheduled for one engine booted at both TP=2 and TP=4 in interleaved
   A/B slots?**
   *Answered 2026-10-24, twice over.* **The TP=4 arm closed first on the engine itself** — the treatment
@@ -502,6 +502,59 @@ Selection priorities:
 - Speed (higher is better)
 - Memory footprint (lower is better)
 - *(Owner decision 2026-10-11: this weighting is confirmed; attic moves only if warranted, folded into each lane's quality/selection pass — no global end-of-session sweep.)*
+
+
+## Retry queue — unparked 2026-10-25 (owner directive)
+
+The owner's 2026-10-24 unpark ruling (everything not dependent on system-level changes leaves its parking;
+the production-restart clause of `QUESTIONS.md #3` is superseded for these items) moved these seven jobs
+off the `STATUS.md` board into the queue. Jobs 1–4 are TP=4 (one boot at a time on the quartet
+`.31`–`.34`); jobs 5–7 are single-node. Schedule order is 1→7 as written; the only genuine dependency is
+inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no reorder.
+
+- [ ] **1. H3 quartet retry (stage 4, MiniMax-H3 four-rank video probe)** — the stage-4 retry parked at the
+  `.31`–`.34` (window 2) board row (`STATUS.md:24`; receipts `.scratch/tp4-window2/progress.md`,
+  `~/benchmarks/tp4-window2-20261024/`). The retry's hypothesis list carries the two unprobed axes from the
+  `#7` close (`STATUS.md:23`): the **SDPA-on-SM12x attention-backend fallback** and **NCCL
+  init/transport selection** (instrument per tp4-window3: `NCCL_DEBUG=INFO`, NVLS off, grep both axes in
+  the four serve logs before any stop). Node cost: four ranks.
+- [ ] **2. 32768 prefill-chunk probe (ds4 knapcio)** — the follow-up the settled `QUESTIONS.md #2` row
+  called a follow-up that was not queued and not a promise (that row is now amended to point here); now
+  queued. One ds4 boot with `-o env.CHUNKED_PREFILL_SIZE=32768`, five cold ~999k needle requests, the
+  primary metric cold prefill
+  latency vs the 16384 bar (mean 245.0 s, ~4.09k t/s); §9's arithmetic (`DEEPSEEK.md` §9, addendum —
+  122 eager launches at 8192, halved to 61 at 16384) says 32768 halves the launch count again, each
+  further doubling shrinking the pool-sizing margin at the same `mem_fraction_static`. Node cost: four ranks.
+- [ ] **3. Beam staging (293.6 GB) + quartet boot-gate** — parked at the `.31`–`.34` (window 2) board row
+  (`STATUS.md:24`). Leg 1, staging: `reflection/Beam-1.0-501B-A23B-NVFP4` to the shared BeeGFS pool
+  (293,648,862,719 B, matching the TODO byte figure exactly; staged in flight on `.30` per
+  `.scratch/tp4-window3/progress.md`), staging being its own item per `#50` (TODO §explore Beam item,
+  line 1257). Leg 2, boot-gate: `vllm/vllm-openai:reflection-beam` (arm64, 16.78 GB, **not** in the
+  RepoDigest pin set) on the quartet against the pre-registered cells in the Beam item (line 1181).
+  Node cost: staging is control-side; the boot-gate is four ranks.
+- [ ] **4. Main-image boot-gate (`sglang-main-arm64:6563312`)** — parked at the `.31`–`.34` (window 2)
+  board row (`STATUS.md:24`); build state: the image completed on the head (28.9 GB,
+  `.scratch/tp4-window3/progress.md`). Gate = boot the resident Spark-X2.6-4B bf16 control shape
+  (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`) on the main-line image and compare against the
+  `v0.5.22` control (C1 20.38). Node cost: one node.
+- [ ] **5. Ornith-1.5-122B NVFP4 completion — the pre-registered spec-decode cell** — parked at the
+  `TP<4 (tplt4 lane)` board row (`STATUS.md:28`, "parked for the production-restart session"; the unpark
+  ruling supersedes). Cell 4 of the plan in TODO §explore (lines 1426-1434): re-run ladder + house with
+  `-o 'speculative_config={"method":"mtp","num_speculative_tokens":3}'` on
+  `recipes/ornith/zz-ornith-1.5-122b-nvfp4-vllm.yaml`, gate on serve-log `Mean acceptance length > 1`,
+  falsifier fires below C1 17 t/s; the DFlash2 alternative is the same one-knob shape. Boot script already
+  staged: `.scratch/tplt4/boot_ornith_mtp.sh`; receipts `~/benchmarks/tplt4-20261024/ornith122b/`.
+  Node cost: one node.
+- [ ] **6. Spark-X2.6-4B remaining open cells (the board's "Spark-X2.6 MTP" job)** — parked at the
+  `TP<4 (tplt4 lane)` board row (`STATUS.md:28`). The arm's still-open, worth-one-boot cells (TODO
+  §explore, line 2367): the FP8 fast tier's **tool-call contract** (`--tool-call-parser spark25` through
+  `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml`, probed on bf16 only) and the **clamp cell** (justify
+  `--max-running-requests 96` with a `concurrency: [32, 48, 64, 96]` ladder at pp 2048 / tg 128).
+  Receipts `~/benchmarks/spark-x2.6-20261022/`. Node cost: one node.
+- [ ] **7. kokoro-shaped recipe arm (phonon)** — the mechanical follow-up the kokoro-vs-phonon A/B named
+  (TODO §media, "a kokoro-shaped recipe arm is a mechanical follow-up, not shipped by this probe");
+  pointer `recipes/media/README.md` §A/B, receipts `~/benchmarks/tplt4-20261024/ab/`). Author the
+  phonon-31m CPU recipe on the `recipes/decision/kokoro-82m-tts-cpu.yaml` shape. Node cost: one node.
 
 
 ## ds4
@@ -957,7 +1010,8 @@ Any model with multimedia output, diarization, TTS, STT, or other multimedia cap
   `-t 0` and `--threads 1`) — phonon A/Bs must be scored at transcript/metric level, never bytes;
   (4) **the lane's first full TTS-intelligibility cell: whistle transcribes all four renders at
   WER 0.000** vs the c1 ground truth. The kokoro-vs-phonon hard-sentence A/B is the next instrument
-  use; a kokoro-shaped recipe arm is a mechanical follow-up, not shipped by this probe.)*
+  use; a kokoro-shaped recipe arm is a mechanical follow-up, not shipped by this probe — queued as
+  §Retry queue item 7.)*
 
   *(**tplt4 closed the kokoro-vs-phonon hard-sentence A/B 2026-10-25 (`.35`, CPU-only, after the
   Bonsai C10 confirm)** — receipts `~/benchmarks/tplt4-20261024/ab/` (52 wavs + `transcripts.json`,
