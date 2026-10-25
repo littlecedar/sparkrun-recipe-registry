@@ -112,6 +112,9 @@ else
   rm -rf "${VENV_DIR}"
   export PIP_CACHE_DIR="${RUNTIME_DIR}/pip-cache"
   mkdir -p "${PIP_CACHE_DIR}"
+  # The CUDA-runtime base ships no python3 either (unlike python:*-slim) — use
+  # the venv's own python to bootstrap: apt-get installs python3 first.
+  command -v python3 >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq python3 python3-venv >/dev/null; }
   python3 -m venv --system-site-packages "${VENV_DIR}"
   "${VENV_DIR}/bin/python" -m pip install --quiet --upgrade pip
   # The CUDA-runtime base ships no torch: stage the aarch64 PyPI wheel (CPU-only
