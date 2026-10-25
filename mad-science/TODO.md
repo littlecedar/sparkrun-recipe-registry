@@ -655,6 +655,26 @@ together:
   near-threshold.
 - **Image builds (owner decision 2026-10-26): authorized for candidates 3 and 5 ONLY** (ds4
   candidate survey, below); flag-level candidates run without builds on the main-image base.
+- **Drafter policy (owner decision 2026-10-26, verbatim): "Even if a drafter's delta improvement
+  is insignificant, we still prefer recipes with drafters so we can be testing that shape… we
+  optimistically include drafters (despite KISS & YAGNI) because upstream changes trend toward
+  higher performance."** Drafters are exempt from the delta-clears-the-bar test: the DFlash2
+  A/B (Beam item below) measures and records the delta, and the drafter STAYS attached to the
+  recipe even if the A/B is flat — the "keeper threshold" question is dropped entirely.
+- **Build-gate drift (owner decision 2026-10-26, binding): the vendored knapcio in-image test
+  gate fails behaviourally on the newer trees (window 4 recorded 6F/2E on test_prefill_bypass
+  at the #43401 tree, plus `encoding_dsv41.py` dropped entirely by main @ ad950cdd). The owner
+  rejected all four holder options and directed the durable path: RE-PORT the vendored adapter
+  patch onto the newer tree (reconcile with upstream's rewrite of the bypass/encoding code),
+  then update the gate's behavioural expectations to the new semantics WHILE PRESERVING its
+  negative controls, then boot-verify the shipped 1017 line still measures the same on the new
+  base before any survey number from it is trusted. Consequence: candidates 3 and 5 are
+  BLOCKED on that re-port — no stock-tree variants, nothing neutered; the flag-level arms
+  (S0, 1, 2, 6) are NOT build-gated and run. The re-port is its own task (queue weight comes
+  from the director's queueing system when it lands).**
+- **Model priority (owner decision 2026-10-26): `DeepSeek-V4.1-Flash-1017` is the primary
+  model; GLM-5.3 and GLM-5.3-Flash are secondary.** Items touching those preempt other arms
+  at the next boot boundary.
 - **Fleet-wide Docker seccomp change (owner decision 2026-10-26, verbatim): "Implement fleet-wide
   Docker seccomp change to enable io-uring. Save the script you use to tools/enable-io-uring.{sh,py}."**
   Authorized, and owned by the `sys-uring` peer workstream — the b12x parity boot waited for the
@@ -672,6 +692,10 @@ together:
   condition per `tools/README.md` §bfcl-eval.py); (d) DFlash2 A/B (`num_speculative_tokens 7`,
   `enable_adaptive_verification`) last. Rigor: screen-then-extend. Parser-engagement check: the
   markers disappear from responses. Record outcomes in `recipes/explore/README.md` + this item.
+  *(Owner drafter policy 2026-10-26, advisories above: the DFlash2 A/B is measured and
+  recorded, and the drafter STAYS on the recipe even if the delta is flat — no keeper
+  threshold. Window 4 note: the drafter must be named by its POOL SNAPSHOT PATH — vLLM's
+  SpeculativeConfig cannot resolve a repo id under `HF_HUB_OFFLINE` (attempt-4 failure).)*
 - [ ] **2. ds4 candidate survey** — flag-level arms run WITHOUT builds on the **main-image base**
   `sglang-main-arm64:6563312` (full-breakfast gate PASSED 2026-10-25) against the shipped
   `v0.5.22` control numbers: candidate 1 `--min-free-slots-delay 1` (target C8/C16 worst TTFT,
@@ -680,7 +704,11 @@ together:
   saving, 10.6 % measured precedent). Builds authorized for candidates 3 (indexer scoring,
   upstream #43401) and 5 (TRT-LLM sparse MLA, `--dsv4-attn-backend trtllm`) ONLY, from trees
   newer than `f80c91a4b` (`DEEPSEEK.md` §10.5/§10.7 carry each one's exact source tree, PR and
-  build recipe); commit each build's pin/tag before any boot. A/B discipline (`DEEPSEEK.md`
+  build recipe); commit each build's pin/tag before any boot — **BUT BOTH ARE BLOCKED on the
+  build-gate re-port (owner ruling 2026-10-26, in the advisories above; window-4 evidence:
+  `~/benchmarks/tp4-window4-20261026/build-c{3,5}.log`).** The S0 control boot of
+  `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` gates the whole flag-level track (the stock
+  tree must serve the 1017 at all). A/B discipline (`DEEPSEEK.md`
   §10.1): `--fresh` every bench, assert `/v1/models`, pre-register target cell + falsifier BEFORE
   each arm, hold the pool/pin constant, alternate A/B/A/B; a delta counts only if the mean clears
   the control's 15-value range AND the mechanism signal moves. Screen-then-extend. Keep the
@@ -698,6 +726,13 @@ together:
   and C10 ≥ 110.5 t/s (n=5 decode rows, `--fresh`); house ≥ 36/37 @4096 thinking-on; needle 3/3 at
   32,768/131,072/983,040. Any miss is a decode-parity or context miss — record which; no
   iterations without the owner's say-so.
+  *(Window-4 sequencing, 2026-10-26: the parity boot additionally WAITS for the owner's relay
+  that the director's queueing system has landed — the holder's retry-policy answer is pending
+  with it — and the model-priority ruling (advisories above) puts the 1017 flag-level S0
+  control boot ahead of it at the boot boundary. Pre-boot probes PASSED 2026-10-26:
+  `~/benchmarks/tp4-window4-20261026/B12X-PREBOOT-PROBES.md` — `table_memory` True,
+  `disk_resident_scales` True, `--load-format b12x` supported, fork pin 8244d1c4 confirmed in
+  the image.)*
 
 
 
