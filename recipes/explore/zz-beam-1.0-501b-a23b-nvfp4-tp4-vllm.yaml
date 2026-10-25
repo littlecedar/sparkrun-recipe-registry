@@ -48,6 +48,7 @@ defaults:
   tensor_parallel: 4
   # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
   # path, so the served model id would be the cache path (-n does not show this).
+
   served_model_name: reflection/Beam-1.0-501B-A23B-NVFP4
   # Gate-shape knobs per the TODO gate proposal: modest admission, modest
   # window (KV is 18 KiB/token fp8 on the 9 full layers, but the gate does not
@@ -61,6 +62,11 @@ defaults:
   # init failure or "no kernel image" relaunch with -o moe_backend=marlin.
   moe_backend: ""
   extra_args: ""
+# The image declares ENTRYPOINT ["vllm","serve"], which would consume sparkrun's
+# appended launcher flags as its own arguments; clear it so the command runs.
+executor_config:
+  entrypoint: ""
+
 
 command: >
   taskset -c 5-9,15-19 vllm serve {model}
