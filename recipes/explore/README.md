@@ -699,11 +699,56 @@ all cleared); a gate-passing alternative, not the selected arm — Mellum2.1 kee
   `.30`), `head:~/benchmarks/tplt4-20261024/bonsai/` (quiet-node ladder + house). TODO item:
   `mad-science/TODO.md` §explore.
 
+## [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml)
+
+`reflection/Beam-1.0-501B-A23B-NVFP4` (501.3B-total / 23.4B-active sparse MoE, 1M window) on
+the quartet, engine `vllm/vllm-openai:reflection-beam` (a non-release vendor dev build — the
+only published runtime for `BeamForCausalLM`). A capability arm, never the easy-traffic
+candidate. Boot-gate PASSED window 3 (kernel falsifier never fired; record `DEEPSEEK.md`
+§18.4); the window-4 screen ran the pre-registered cells:
+
+- **Parser engagement PASS (2026-10-26):** the card's `--reasoning-parser beam` /
+  `--tool-call-parser beam` are in the recipe (commit 5141c20); `server_args` carries all
+  three flags with `--enable-auto-tool-choice`, the smoke content is clean (17×23=391, no
+  `<|channel|>` markers), and `reasoning_tokens` populate — the Harmony analysis channel
+  parses into `reasoning_content`.
+- **Cell (b) PASS:** house **37/37 @4096 thinking-on** (easy 19/19, hard 18/18) on boot 1;
+  needle **20/20** at 32,768 and 131,072 (10 depths each) at `--max-tokens 512`. The first
+  needle run (0/3) was a **budget-truncation artifact**, not a miss: `finish_reason: length`
+  with 61 of 64 completion tokens spent reasoning — the model reasons at max effort (~512
+  tokens), so the needle needs the 512 budget (receipts `beam-b1-needle-*.json`).
+- **Cell (c) BFCL (partial, tool_choice auto, `--max-tokens 4096`):** the tool-call contract
+  works end to end — `finish_reason: tool_calls` with structured arguments on clean probes.
+  Scored per-question: simple ~360/400, multiple 115/200 scored-in-run, parallel-family
+  misses concentrate in `parallel_function_checker_no_order` (wrong_count /
+  cannot_find_match — multi-call formatting), irrelevance 26/30 sampled. The eval-suite
+  wrapper stalled 52 min on the tools leg (0 requests served) while direct probes answered
+  in 5–18 s — an instrument finding (`bfcl-eval` serial + a 4096-token reasoning budget on a
+  max-effort model), not a serve defect. Full-category completion deferred (~30 min per
+  category on this arm); receipts `beam-b1-bfcl*.log/json`.
+- **Cell (d) DFlash2 A/B:** boot 1 is the no-spec baseline — decode ladder C1 26.20 / C2
+  40.66 / C5 63.96 / C10 69.80 t/s aggregate (`beam-b1-ladder.json`). The treatment boot
+  carries the vendor's DFlash2 line with window-4 fixes recorded in the recipe history:
+  JSON must be inline in the folded `command:` (sparkrun `-o` strips double quotes — dry-run
+  proven); comment lines inside the fold become literal arguments; the drafter is named by
+  its POOL SNAPSHOT PATH (vLLM's SpeculativeConfig cannot resolve a repo id under
+  `HF_HUB_OFFLINE`); and the drafter attention backend is a three-way bind — FLASH_ATTN
+  rejects the serve's fp8 KV, FLASHINFER only rejects adaptive verification's device-cpu
+  query lens, and unset selects neither, so the shipped pairing is **FLASHINFER + adaptive
+  verification OFF** (full 7-token draft verified every step, the vendor's documented
+  alternative). **Owner drafter policy 2026-10-26:** the drafter stays attached regardless
+  of the measured delta — drafters are optimistically included, exempt from the delta bar.
+
+Receipts: `head:~/benchmarks/tp4-window4-20261026/` (preregistrations, per-attempt serve
+  logs, ladder/BFCL/needle JSON). TODO item: `mad-science/TODO.md` §Retry queue window 4.
+
 ## Attic index
 
 Everything that is not a shipped recipe lives in [`attic/explore/`](../../attic/explore/) — lane working
 state, measured histories, selection receipts, serving traps, the candidate research, and the 13
 archived recipes (3 Nemotron + 10 from the 2026-10-19 sweep).
+
+
 
 | file | what it holds / the question it answers |
 |---|---|
