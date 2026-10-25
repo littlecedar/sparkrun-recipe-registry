@@ -643,6 +643,63 @@ inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no
   `ModsResolveAdjacent` + `InertDefaults` caught the first draft post-commit). Receipts
   `~/benchmarks/tplt4-20261024/phonon-arm/`.)*
 
+## Retry queue — window 4 (declared 2026-10-26)
+
+Holder: `tp4-window4` (lock row in `.scratch/fleet-window.lock`). Scope and rigor are the owner's
+dated decisions of 2026-10-26, carried here as advisories so the queue row and the ruling stay
+together:
+- **Scope (owner decision 2026-10-26): ALL FOUR tracks below** — Beam cells (b)–(d), the ds4
+  candidate survey (flag-level arms 1/2/6 + build-gated arms 3/5), the b12x parity boot, and the
+  drain — in that priority order, one boot at a time on the quartet `.31`–`.34`.
+- **Rigor (owner decision 2026-10-26): screen-then-extend** — 2 boots per arm; extend to 3 only
+  near-threshold.
+- **Image builds (owner decision 2026-10-26): authorized for candidates 3 and 5 ONLY** (ds4
+  candidate survey, below); flag-level candidates run without builds on the main-image base.
+- **Fleet-wide Docker seccomp change (owner decision 2026-10-26, verbatim): "Implement fleet-wide
+  Docker seccomp change to enable io-uring. Save the script you use to tools/enable-io-uring.{sh,py}."**
+  Authorized, and owned by the `sys-uring` peer workstream — the b12x parity boot waited for the
+  relay that the change was done; no early attempt. **DONE 2026-10-26, all six nodes** (item 3 carries
+  the before/after): the scripts are `tools/enable-io-uring.py` (per-node logic, fail closed) and
+  `tools/enable-io-uring.sh` (fleet orchestrator, `--probe-only` / `--nodes`), documented in
+  `tools/README.md` §enable-io-uring and guarded by `tests/test_enable_io_uring_tool.py`.
+
+- [ ] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
+  `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's
+  `--reasoning-parser beam`/`--tool-call-parser beam` (window-3 smoke showed raw modified-Harmony
+  `<|channel|>` markers); add them to `command:` and commit before the boot. Cells, per the
+  pre-registered definitions in the §explore Beam item above: (b) house battery 37 @4096
+  thinking-on + needle at ≥131k; (c) BFCL tools leg (`tools/bfcl-eval.py`, the tool-eval profile's
+  condition per `tools/README.md` §bfcl-eval.py); (d) DFlash2 A/B (`num_speculative_tokens 7`,
+  `enable_adaptive_verification`) last. Rigor: screen-then-extend. Parser-engagement check: the
+  markers disappear from responses. Record outcomes in `recipes/explore/README.md` + this item.
+- [ ] **2. ds4 candidate survey** — flag-level arms run WITHOUT builds on the **main-image base**
+  `sglang-main-arm64:6563312` (full-breakfast gate PASSED 2026-10-25) against the shipped
+  `v0.5.22` control numbers: candidate 1 `--min-free-slots-delay 1` (target C8/C16 worst TTFT,
+  expected +21 % C8), candidate 2 prefix-cache truth (`--enable-cache-report` + `lpm`; target
+  long-prefix revisit, 1.5 s vs 89 s), candidate 6 `reasoning_effort` high (paired output-token
+  saving, 10.6 % measured precedent). Builds authorized for candidates 3 (indexer scoring,
+  upstream #43401) and 5 (TRT-LLM sparse MLA, `--dsv4-attn-backend trtllm`) ONLY, from trees
+  newer than `f80c91a4b` (`DEEPSEEK.md` §10.5/§10.7 carry each one's exact source tree, PR and
+  build recipe); commit each build's pin/tag before any boot. A/B discipline (`DEEPSEEK.md`
+  §10.1): `--fresh` every bench, assert `/v1/models`, pre-register target cell + falsifier BEFORE
+  each arm, hold the pool/pin constant, alternate A/B/A/B; a delta counts only if the mean clears
+  the control's 15-value range AND the mechanism signal moves. Screen-then-extend. Keep the
+  quartet saturated during the ~45–60 min knapcio-class TTRs: prep the next arm while a boot runs.
+- [ ] **3. b12x parity boot** — **UNBLOCKED 2026-10-26: the fleet-wide seccomp change landed on all
+  six nodes** (`tools/enable-io-uring.sh`, owner decision 2026-10-26 above). Evidence, same probe on
+  every node: before `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)` with host
+  `kernel.io_uring_disabled=0`, after `fd=3 allowed` + `io_uring_enter(426)` `ret=0` +
+  `io_uring_register(427)` `errno=14` (EINVAL = allowed, no buffers registered), `docker info`
+  `seccomp,profile=/etc/docker/seccomp-profiles/io-uring.json`; GPU containers and the BeeGFS
+  services survived the daemon restarts. Re-check any time with
+  `tools/enable-io-uring.sh --probe-only`. Then boot the fork image per
+  the `DEEPSEEK.md` §17 sketch (k=5 DSpark, 16 slots, 1M declared, disk-Engram config) on the
+  quartet and run the §17 parity acceptance: `/v1/models` shows `max_model_len 1048576`; C1 ≥ 64.0
+  and C10 ≥ 110.5 t/s (n=5 decode rows, `--fresh`); house ≥ 36/37 @4096 thinking-on; needle 3/3 at
+  32,768/131,072/983,040. Any miss is a decode-parity or context miss — record which; no
+  iterations without the owner's say-so.
+
+
 
 ## ds4
 DeepSeek V4.1

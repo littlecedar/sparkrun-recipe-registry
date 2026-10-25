@@ -10,6 +10,9 @@
 # du -sbL 293,654,945,142 B vs usedStorage 293,648,862,719 B (+6 MB overhead);
 # image pulled on .30, RepoDigest sha256:c1a6be6ad080… (the TODO's pull-time
 # 7fc940745c… digest no longer matches the tag — the tag was re-pushed).
+# Window 4 (2026-10-26): the card's --reasoning-parser beam/--tool-call-parser beam added after
+# the window-3 smoke showed raw modified-Harmony <|channel|> markers without them; cell (c)'s
+# BFCL leg additionally passes --enable-auto-tool-choice via {extra_args} at launch.
 # ===========================================================================
 recipe_version: "2"
 model: reflection/Beam-1.0-501B-A23B-NVFP4
@@ -82,6 +85,8 @@ command: >
   --max-num-batched-tokens {max_num_batched_tokens}
   --gpu-memory-utilization {gpu_memory_utilization}
   {moe_backend}
+  --reasoning-parser beam
+  --tool-call-parser beam
   {extra_args}
 
 readiness:
