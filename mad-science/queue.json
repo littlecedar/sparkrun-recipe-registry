@@ -103,7 +103,7 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Externally gated by the owner's parity-retry policy (GUIDANCE.md #2 — a first miss is a measured number, not a hang). Technically unblocked: the fleet-wide io_uring seccomp change landed 2026-10-26 (tools/enable-io-uring.sh --probe-only).",
+      "notes": "Externally gated by the owner's parity-retry policy (mad-science/TODO.md §Retry queue — window 4 item 3 — a first miss is a measured number, not a hang). Technically unblocked: the fleet-wide io_uring seccomp change landed 2026-10-26 (tools/enable-io-uring.sh --probe-only).",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17"
     },
     {
@@ -118,7 +118,7 @@
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "Needs an image build from a tree newer than f80c91a4b; the build is blocked behind the adapter re-port + gate update. estimate: provisional.",
-      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
     },
     {
       "id": "w4-survey-arm5-trtllm-mla",
@@ -132,7 +132,7 @@
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "Same build gate as arm 3. estimate: provisional.",
-      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
     },
     {
       "id": "ds4-knapcio-byte-reproducible",
@@ -158,8 +158,20 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "estimate: provisional, 16–24 h — the gate fails on newer trees because the vendored patch no longer matches upstream (candidate 3 behaviorally, candidate 5 after the encoding re-pin). Blocks every future newer-tree build, not just arms 3/5.",
-      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "estimate: provisional, 16–24 h — the gate fails on newer trees because the vendored patch no longer matches upstream (candidate 3 behaviorally, candidate 5 after the encoding re-pin). Blocks every future newer-tree build, not just arms 3/5. Upstream check 2026-10-26 (GitHub-read, not boot-verified): knapcio HEAD aff52fa5 still pins SGLANG_CANARY_REF=f80c91a4b and backports ~26 upstream SGLang PRs onto that pin (scripts/fetch-sglang-canary.sh:6; docs/upstream-watch.md) — no newer-tree adapter state exists upstream, so this task remains the only route to arms 3/5 and its blocking edges are unchanged. Same-tree overlay upgrade queued separately as ds4-upstream-adapter-trial.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2"
+    },
+    {
+      "id": "ds4-upstream-adapter-trial",
+      "title": "Re-pin the knapcio adapter overlay 27616bec (v2.4) to upstream HEAD aff52fa5 (v2.5+) on the same f80c91a4b tree; rebuild and boot-verify the shipped 1017 line's bars",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "Evidence (GitHub-read 2026-10-26, NOT boot-verified): upstream quarantined the v2.4 lineage our overlay pins (issue #16 SWA/prefix-cache Xid 13/43; fix = their PR #18's SGLang #41303 bounded-replay backport + rebuild, 'old v2.4 images require a rebuild' — de6ef51c, docs/issue-16-swa-crash.md); v2.5 re-qualified the v2.4 lever set on rebuilt images and fixed the logprob-decode hang (c3fe50a8/4123250f/f9a1de41); prefill-SP adapter repaired after hash-pin drift (57a98886); Engram NVMe keepalive measured c16 +5% on their fleet A/B/A (a2e805a2/1059dfe4); #44923 greedy-flags refresh restores DSpark folded-verify eligibility (c0b07102). Scope: re-pin overlay, rebuild, boot-verify the shipped 1017 line's bars — SAME tree (fetch-sglang-canary.sh:6 still f80c91a4b), so this does NOT replace the newer-tree re-port (ds4-adapter-report-gate keeps arms 3/5). estimate: provisional.",
+      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/GUIDANCE.md §Upstream knapcio adapter update (2026-10-26); mad-science/TODO.md §Retry queue — window 4"
     }
   ]
 }

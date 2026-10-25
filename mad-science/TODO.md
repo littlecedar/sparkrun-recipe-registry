@@ -672,10 +672,17 @@ together:
   BLOCKED on that re-port — no stock-tree variants, nothing neutered; the flag-level arms
   (S0, 1, 2, 6) are NOT build-gated and run. The re-port is its own task (queue weight comes
   from the director's queueing system when it lands).**
+  *(Folded 2026-10-26 from `GUIDANCE.md` §1 and its pushback discussion — the reasoning the owner
+  endorsed: the gate is not a lint, it pins behavioural properties of the vendored adapter, so
+  "update the gate" on the newer trees IS the re-port — reconcile the patch with upstream's
+  rewrite, rewrite the test expectations preserving the negative controls, boot-verify, re-measure
+  ("the real cost is the re-port, not the flag" — `DEEPSEEK.md` §10.16). Provenance: owner,
+  2026-10-26, `GUIDANCE.md` §1 + discussion (file since trimmed; open questions remain there).)*
 - **Model priority (owner decision 2026-10-26): `DeepSeek-V4.1-Flash-1017` is the primary
   model; GLM-5.3 and GLM-5.3-Flash are secondary.** Items touching those preempt other arms
   at the next boot boundary.
-- **Task-queue policy (owner decision 2026-10-26, verbatim, `GUIDANCE.md` #2): "The amount of
+- **Task-queue policy (owner decision 2026-10-26, verbatim — `GUIDANCE.md` §2, file since
+  trimmed): "The amount of
   time something takes should only determine its position in the queue -- heavier tasks (more
   time) sink lower in the queue.  Lighter tasks (less time) float to the top.  A task's weight
   is reduced by a value equal to the weight of tasks it blocks.  This means that if a queue is
@@ -685,7 +692,8 @@ together:
   would need to define a standard task schema and queue protocol."** Implemented as
   `tools/task-queue.py` + `mad-science/queue.json`, protocol in `mad-science/QUEUE.md`
   (weight = estimate_h − Σ transitively blocked estimate_h, ascending, recomputed on read).
-- **Priority-models ruling (owner decision 2026-10-26, verbatim, `GUIDANCE.md` #4): "DeepSeek-
+- **Priority-models ruling (owner decision 2026-10-26, verbatim — `GUIDANCE.md` §4, file since
+  trimmed): "DeepSeek-
   V4.1-Flash-1017 is our primary model at this time, with GLM-5.3 and GLM-5.3-Flash as our
   secondary models of interest.  Always prioritize unblocking and running items related to
   those models until told to do otherwise."** Implemented as the `priority_models` tier list in

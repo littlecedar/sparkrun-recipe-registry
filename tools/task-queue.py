@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The registry's task queue: weigh tasks, compute what they block, order the queue.
 
-Why this exists.  Owner policy (2026-10-26, `mad-science/GUIDANCE.md` #2/#4, verbatim):
+Why this exists.  Owner policy (2026-10-26, verbatim; answered in `mad-science/GUIDANCE.md` §2/§4,
+file since trimmed — the dated decisions live in `mad-science/TODO.md` §"Retry queue — window 4"):
 
     The amount of time something takes should only determine its position in the queue --
     heavier tasks (more time) sink lower in the queue.  Lighter tasks (less time) float to

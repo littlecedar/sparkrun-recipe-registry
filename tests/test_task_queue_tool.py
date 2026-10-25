@@ -5,8 +5,8 @@ Run:
 
 Stdlib-only, no network, no cluster, like every other guard here.
 
-What is pinned (owner policy 2026-10-26, `mad-science/GUIDANCE.md` #2/#4; protocol in
-`mad-science/QUEUE.md`):
+What is pinned (owner policy 2026-10-26, verbatim; the dated decisions live in
+`mad-science/TODO.md` §"Retry queue — window 4"; protocol in `mad-science/QUEUE.md`):
 
 * weight arithmetic — simple and transitive: a task's weight is its estimate minus the sum of
   the estimates of everything it transitively blocks (`test_simple_weight`,

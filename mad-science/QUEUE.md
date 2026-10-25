@@ -1,6 +1,7 @@
 # The task queue protocol (`queue.json` + `tools/task-queue.py`)
 
-Owner policy, 2026-10-26 (`GUIDANCE.md` #2/#4, verbatim):
+Owner policy, 2026-10-26 (verbatim; answered in `GUIDANCE.md` §2/§4, file since trimmed — the
+dated decisions live in `TODO.md` §"Retry queue — window 4"):
 
 > The amount of time something takes should only determine its position in the queue — heavier
 > tasks (more time) sink lower in the queue. Lighter tasks (less time) float to the top. A task's
@@ -36,7 +37,7 @@ task carries every field — no field is optional in the file, because a missing
 | `model` | string, free tag | The model the task serves, e.g. `dsv4.1-1017`, `glm-5.3`, `glm-5.3-flash`, or empty. Drives tiering (below). |
 | `node_cost` | `` / `single` / `quartet` | Fleet cost of the task's run. |
 | `notes` | string | Caveats, claim stamps, `estimate: provisional` markers. |
-| `provenance` | string | Pointer into the work record (`TODO.md` §section, `DEEPSEEK.md` §…, `GUIDANCE.md` #…). A queued task with no provenance is a defect. |
+| `provenance` | string | Pointer into the work record (`TODO.md` §section, `DEEPSEEK.md` §…, `GUIDANCE.md` §…). A queued task with no provenance is a defect. |
 | `claimed_by`, `claimed_at` | strings, optional | Set by `update --claimed-by` (the tool stamps the UTC timestamp); cleared by `done`. A `done` task carrying either fails `check`. |
 
 ## Weight
@@ -91,7 +92,7 @@ tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `pr
    the mirror is derived either way). Refuse to queue work whose estimate you cannot state; the
    whole mechanism runs on estimates.
 5. **External gates** use `block --id X` / `unblock --id X` (a state flip, not an edge) plus a
-   `notes` line naming the gate, e.g. an owner decision in `GUIDANCE.md`.
+   `notes` line naming the gate, e.g. an owner decision in `TODO.md` §"Retry queue — window 4".
 6. **Escalation**: when the queue and reality disagree — a task has been `running` with no
    heartbeat across sessions, a blocker turned out to be unmeasurable, or the ordering contradicts
    what actually ran — fix the queue first (`update` the state/estimate), then say so in the
