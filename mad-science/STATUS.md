@@ -1,12 +1,12 @@
-# Board — generated 2026-10-26 00:55 ET
+# Board — generated 2026-10-26 00:56 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
 | census | board-keeper | **00:55 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `sparkrun status`)**: `.30`–`.35` **1 container each** (6 fleet-wide, matching `sparkrun status`); free root 2.1/2.2/2.3/2.3/1.6/1.8 TB — drift: none |
-| `.30` | tp4-window3 | **live boot** — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` (tp=1) task `9c8e0fffc3cbe638_d07096c80017`, solo, `Up 5 seconds` at 00:55, image `sha256:fd8439732b16…` |
-| `.31`–`.34` | tp4-window3 | **Beam quartet boot live** — `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (tp=4) task `30078b4aa125dd7d_b2f8c6e5117c`, 4 containers (`Up 2 minutes` at 00:55, image `sha256:58aa975fed12…`), one per rank |
+| `.30` | tplt4-research | **live boot** — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` (tp=1) task `9c8e0fffc3cbe638_d07096c80017`, solo, `Up 53 seconds` at 00:56, image `sha256:fd8439732b16…`; owner cell corrected from `tp4-window3` per the lock row naming `.30` |
+| `.31`–`.34` | tp4-window3 | **Beam quartet boot live** — `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (tp=4) task `30078b4aa125dd7d_b2f8c6e5117c`, 4 containers (`Up 3 minutes` at 00:56, image `sha256:58aa975fed12…`), one per rank |
 | `.35` | tplt4-research | **phonon 31M TTS CPU boot live** `a3927977698d21bb_76e7a554d159` (solo, `Up 2 minutes` at 00:55, image `sha256:ce9a404c2c01`) — the queue item 7 kokoro-shaped phonon arm |
 
 ## Work queue
