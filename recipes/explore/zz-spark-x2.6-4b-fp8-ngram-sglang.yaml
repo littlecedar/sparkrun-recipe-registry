@@ -1,0 +1,77 @@
+recipe_version: "2"
+# PROBE (2026-10-25, tplt4 round 2): the shipped Spark-X2.6-4B FP8 fast tier with
+# SGLang NGRAM speculative decode — no draft weights exist for this family
+# (verified 2026-10-25: config.json carries no mtp/nextn/draft keys; the 16-repo
+# census has no drafter), so the Mellum MTP mechanism is unavailable and NGRAM
+# (engine built-in, no draft model) is the only spec route. Flag shape copied from
+# the retired IFM K2-Horizon NGRAM arm (attic/ifm/ARMS-MANIFEST.md:76 — measured
+# 27.9 C1 there, retired at d0 but kept as the recipe precedent): breadth 4,
+# draft tokens 8. Every Spark-X2.6 measurement pins temperature 0 (the per-request
+# nondeterminism rule, TODO §Spark-X2.6). Cell: ladder c1/c2 + c5/c10 + house with
+# a paired NGRAM-off control on the same node/window. Prior-art contrast (Mellum
+# rejection: best +1.9 % at n-max 1, longer drafts slower): Spark-X2.6 is a 4B
+# dense at C1 40.8/C10 217.6 — spec decode buys C1, the arm's weakest rung — and
+# NGRAM costs no verify-model load on a 4B where a second model would not fit
+# headroom-wise anyway. Falsifier: spec C1 <= plain C1 40.80 on the same window ⇒
+# NGRAM measured-rejected for this arm, no retry at other breadths.
+model: XHToken/Spark-X2.6-4B-FP8
+model_revision: 0318d6f6ab070c7b5b43052db571489b2508006c
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE — Spark-X2.6-4B-FP8 with SGLang NGRAM speculative decode (breadth 4,
+  draft 8): the only spec-decode route for a family with no draft weights. Same
+  engine line as the shipped fast tier plus the three NGRAM flags; temperature 0
+  pinned per the arm's measured per-request nondeterminism. Research-only zz-
+  probe; the ladder/house cells are the deliverable, paired with a same-window
+  NGRAM-off control. Apache-2.0.
+metadata:
+  model_url: https://huggingface.co/XHToken/Spark-X2.6-4B-FP8
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "4B"
+  model_dtype: fp8
+  kv_dtype: bf16
+  tags: explore, probe, spec-decode, ngram
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: XHToken/Spark-X2.6-4B-FP8
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 32
+  chunked_prefill_size: 8192
+  speculative_algorithm: NGRAM
+  speculative_ngram_max_bfs_breadth: 4
+  speculative_num_draft_tokens: 8
+
+# Same engine line as the FP8 fast tier plus the three NGRAM flags. The family
+# has no attention-backend constraint for NGRAM (_handle_ngram has no backend
+# gate; topk>1 × page_size>1 needs flashinfer, and page_size stays 1 here).
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser spark25
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-ngram-max-bfs-breadth {speculative_ngram_max_bfs_breadth}
+  --speculative-num-draft-tokens {speculative_num_draft_tokens}
