@@ -1,22 +1,22 @@
-# Board — generated 2026-10-26 13:15 ET
+# Board — generated 2026-10-26 17:43 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **13:15 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `df`)**: `.31`/`.32`/`.33`/`.34` 1 container each — one live sparkrun Beam boot (`sparkrun_30078b4aa125dd7d_d8aab09b0c41`, up ~8 min, one container per rank); `.30` 0, `.35` 0 — nothing live (no reservation) on the single-node cells, which the lock row designates "as needed" |
-| beam-boot | tp4-window4 | window-4 Beam cells remainder ((b) needle rerun `--needle-max-tokens 512`, (c) BFCL tools leg, (d) DFlash2 A/B): quartet boot live, up ~8 min at census; **S0 control is next** per the new run order (Beam cells → S0 → candidate 6/S1/S2/S3 → parity; arms 3/5 stay blocked behind the 20 h adapter re-port) |
+| census | board-keeper | **17:43 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.31`/`.32`/`.33`/`.34` 1 container each — one live sparkrun boot (`sparkrun_10aee0c5ca8d5bdb_f31ef03f5cb9`, up ~1 h, one container per rank), **all four GPUs at 96 % util** — a live benchmark; `.30` 0, `.35` 0 — nothing live (no reservation) on the single-node cells, which the lock row designates "as needed" |
+| b12x-parity-boot | tp4-recovery | queue `w4-b12x-parity` (running): upstream vLLM b12x fork serving DeepSeek-V4.1-Flash-1017 on the quartet (disk-Engram, io_uring) against the pre-registered §17 bars — boot `10aee0c5ca8d5bdb_f31ef03f5cb9` live, GPUs saturated at census |
 
 ## Work queue
 
-Mirrors the owner-directed task-queue system (`cd2a60a`: `tools/task-queue.py` weight order, `mad-science/queue.json` as source; TODO §"Retry queue — window 4" still the provenance). Scheduler top-3 at 13:15: S0 control (weight −3.50, queued), Beam cells remainder (**running**), candidate 6 (queued). Owner input: `GUIDANCE.md` round-2 questions §5–§9 were ANSWERED and folded 2026-10-26 (evening) as dated advisories in `mad-science/TODO.md` §"Retry queue — window 4" (adapter ownership → upstream HEAD; BeeGFS mitigation not a hard gate; Mellum `zz-` MTP probe + DFlash/DSpark search; Beam ships if bars pass, head-to-head vs 1017/GLM in `TP4-HEAD-TO-HEAD-1025.md`; parity C10 fallback = more vLLM experimentation). The queue implications (unblock/retarget rows) are applied to `queue.json` separately:
+Mirrors the owner-directed task-queue system (`cd2a60a`: `tools/task-queue.py` weight order, `mad-science/queue.json` as source; TODO §"Retry queue — window 4" still the provenance). `task-queue.py check`: **ok** (12 tasks) at 17:43. Scheduler top-3 at 17:43: candidate 6 (blocked), S1 cache-report (blocked), S2 lpm (blocked); the running job is `w4-b12x-parity`. Owner input: `GUIDANCE.md` round-2 questions §5–§9 were ANSWERED and folded 2026-10-26 (evening) as dated advisories in `mad-science/TODO.md` §"Retry queue — window 4" (adapter ownership → upstream HEAD; BeeGFS mitigation not a hard gate; Mellum `zz-` MTP probe + DFlash/DSpark search; Beam ships if bars pass, head-to-head vs 1017/GLM in `TP4-HEAD-TO-HEAD-1025.md`; parity C10 fallback = more vLLM experimentation). The queue implications (unblock/retarget rows) are applied to `queue.json` separately:
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. w4-s0-control — stock main-image control boot, gates the flag-level survey track | quartet | tp4-window4 | queued — scheduler top (weight −3.50) |
-| 2. w4-beam-cells-remainder — needle 512 rerun, BFCL tools leg, DFlash2 A/B | quartet `.31`–`.34` | tp4-window4 | **running** (boot live at 13:15 census) |
-| 3. w4-candidate6-reasoning-effort — `reasoning_effort` high on the main-image base | quartet | tp4-window4 | queued |
-*(Later scheduler rows, weights 1.50–2.00, tier dsv4.1-1017: S1 cache-report, S2 lpm, S3 min-free-slots-delay, b12x parity; arms 3/5 build-gated behind the adapter re-port.)*
+| 1. w4-candidate6-reasoning-effort — `reasoning_effort` high on the main-image base | quartet | tp4-recovery | blocked (S0 answered NEGATIVE — shipped-image fallback = owner decision) |
+| 2. w4-s1-cache-report — prefix-cache truth (`--enable-cache-report`) | quartet | tp4-recovery | blocked (designed for the stock main-tree base; S0 negative) |
+| 3. w4-s2-lpm — lpm alongside `--enable-cache-report` | quartet | tp4-recovery | blocked (same base dependency as S1) |
+*(Later scheduler rows, tier dsv4.1-1017: S3 min-free-slots-delay (blocked, w 1.50); `w4-b12x-parity` **running** (w 2.00, boot live); survey arms 3/5 (build-gated, w 3.00); `ds4-knapcio-byte-reproducible` and `ds4-upstream-adapter-trial` (w 4.00); `ds4-adapter-report-gate` (the 20 h re-port, w 14.00, blocked). S0 and Beam cells remainder are **done** in the ledger.)*
 
 ## Landed this session
 
@@ -28,3 +28,6 @@ Mirrors the owner-directed task-queue system (`cd2a60a`: `tools/task-queue.py` w
 | ~10:35 ET | `3de5d70` | Beam DFlash2 drafter by pool snapshot path (vLLM SpeculativeConfig cannot resolve a repo id under `HF_HUB_OFFLINE`); snapshot `163b276b` verified |
 | ~11:00 ET | `689ee3b` | TODO window-4: owner's three dated rulings landed — drafter policy (DFlash2 stays), build-gate drift (durable re-port path), model priority (1017 primary) |
 | ~11:30 ET | `cd2a60a` | Owner-directed task queue: `tools/task-queue.py` weighted scheduler + `mad-science/queue.json` seed + `QUEUE.md` protocol + guard tests |
+| 16:26 ET | `7fa352d` | Beam sha guard exempts `--speculative-config` tokens + two controls; parity recipe carries BOTH ulimits (boots 2–4 proved each half alone is fatal) |
+| 17:34 ET | `055ab3d` | GUIDANCE adapter background folded into tracked records; only open questions remain |
+| 17:42 ET | `cbede11` | Owner answers §5–§12 folded into TODO dated advisories; GUIDANCE rewound to open questions |
