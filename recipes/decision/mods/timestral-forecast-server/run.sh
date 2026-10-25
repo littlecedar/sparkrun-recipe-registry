@@ -136,5 +136,8 @@ ENGINE_VERSIONS="$("${VENV_DIR}/bin/python" -c 'import importlib.metadata as md;
 log "engine versions: ${ENGINE_VERSIONS}"
 
 reown "${RUNTIME_DIR}"
+# The recipe's command runs the server from the managed runtime dir (the
+# workspace mount is per-container and not addressed by the absolute path).
+install -m 755 "${MOD_DIR}/server.py" "${RUNTIME_DIR}/forecast_server.py"
 log_var VENV_DIR
 log "Done."
