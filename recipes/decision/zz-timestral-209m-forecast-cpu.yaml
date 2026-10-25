@@ -3,7 +3,7 @@ model: mistralai/Timestral-209M
 model_revision: 9874d252ab0aae16f7f7c999f98f98d6ad7d8365
 # sparkrun has no runtime family for a third-party Python server: `runtime: vllm`
 # is the launcher/distribution contract this command satisfies (the
-# kokoro/pyannote/laya precedent). The engine is the upstream `timestral` pip
+# pyannote/laya CPU-serve precedents). The engine is the upstream `timestral` pip
 # pytorch/pytorch ships amd64-only (boot2 died at exec format on the GB10), so the
 # base is NVIDIA's multi-arch CUDA runtime and the mod stages torch's aarch64 PyPI
 # wheel (~1 GB, the stage risk the item names — one-time, cached in the runtime tree).
@@ -44,7 +44,8 @@ defaults:
   host: 0.0.0.0
   # Empty on purpose: the server takes no --served-model-name, while any
   # non-empty value makes sparkrun append one to the script (the pyannote
-  # precedent). Referenced below so the key is not inert.
+  # precedent). Referenced in the command as a TS_SERVED prefix assignment so
+  # the key is not inert and the launcher contract is explicit.
   served_model_name: ""
   cores: 0-4,10-14
 
@@ -59,6 +60,6 @@ command: >
   printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
   && chmod 755 /usr/local/bin/kill
   && /cache/runtime/timestral/venv/bin/python -c "import timestral"
-  && TS_MODEL='{model}' TS_REVISION='{model_revision}'
+  && TS_SERVED='{served_model_name}' TS_REVISION='{model_revision}'
   taskset -c {cores} /cache/runtime/timestral/venv/bin/python /cache/runtime/timestral/forecast_server.py
   --model '{model}' --revision '{model_revision}' --host {host} --port {port}
