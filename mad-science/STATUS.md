@@ -1,22 +1,22 @@
-# Board — generated 2026-10-26 18:05 ET
+# Board — generated 2026-10-26 18:38 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **18:05 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.31`/`.32`/`.33`/`.34` 1 container each — `sparkrun_10aee0c5ca8d5bdb_f31ef03f5cb9` up ~2 h; GPUs 0 % at the census instant (between-cells gap; rank-0 serve log advanced ~9 min before the census, APIServer alive, `Running: 0 reqs`); `.30` 0, `.35` 0 — nothing live (no reservation) on the single-node cells, which the lock row designates "as needed" |
-| b12x-parity-boot | tp4-recovery | queue `w4-b12x-parity` (running): upstream vLLM b12x fork serving DeepSeek-V4.1-Flash-1017 on the quartet (disk-Engram, io_uring; `--load-format b12x`, dspark spec-decode confirmed in server args) against the pre-registered §17 bars — boot `10aee0c5ca8d5bdb_f31ef03f5cb9` live ~2 h; between-cells gap at census (GPUs 0 %, serve log advanced ~9 min prior) |
+| census | board-keeper | **18:38 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.31`/`.32`/`.33`/`.34` 1 container each — `sparkrun_10aee0c5ca8d5bdb_f31ef03f5cb9` up ~2 h; `.31` GPU 96 % (needle@983k cell running), `.32`–`.34` 0 % (TP-sharded ranks idle between their exchanges); `.30` 0, `.35` 0 — nothing live (no reservation) on the single-node cells, which the lock row designates "as needed" |
+| b12x-parity-boot + needle rerun | tp4-recovery | queue `w4-b12x-parity` (running): b12x serve live on the quartet (`--load-format b12x`, dspark spec-decode, disk-Engram); detached `parity-cells.sh` runner on the head is advancing — house battery exited, parity ladder rc=0, needle@32768 rc=0, needle@131072 timed out rc=124 (its own `timeout 2400`), needle@983040 in flight under the same cap (receipts dir `~/benchmarks/tp4-window4-20261026/`) |
 
 ## Work queue
 
-Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 12 tasks, at 18:05). Scheduler top-3 at 18:05: candidate 6 (blocked, w 1.50), S1 cache-report (blocked, w 1.50), S2 lpm (blocked, w 1.50); `w4-b12x-parity` **running** (w 2.00, live boot above); S0 and Beam cells remainder **done**. Queue-edit spot-check: tp4-recovery's pending ledger changes (flag-track `blocked_by` → `ds4-upstream-adapter-trial`, four new tasks, S0 note re-point) are **still unapplied** — flagged to the director at 18:05. Owner round-5 answers folded into `TODO.md` dated advisories by `541d843` (GUIDANCE.md deleted):
+Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 19 tasks, at 18:38; holder turn 1's ledger edits `0550ac7` landed and verified). Scheduler top-3 at 18:38: `ds4-upstream-adapter-trial` (queued, w −2.00, the adoption path), candidate 6 (blocked, w 1.50), S1 cache-report (blocked, w 1.50). Later rows: S2 lpm, S3 min-free-slots-delay (blocked, w 1.50); `w4-b12x-parity` **running** (w 2.00); build-gated arms 3/5 (w 3.00); `ds4-knapcio-byte-reproducible` (w 4.00); new tasks `mellum-mtp-zz-probe`, `drafter-alternatives-search`, `tp4-head-to-head-2025`, `b12x-vllm-tuning-round`, `media-demo-workproduct`, `gguf-viability-triage`; `dsv41-vllm-ship-recipe` state-blocked on the external pass gate; `ds4-adapter-report-gate` rebased on upstream HEAD (w 14.00 class). S0 and Beam cells remainder **done**:
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. w4-candidate6-reasoning-effort — `reasoning_effort` high on the main-image base | quartet | tp4-recovery | blocked (S0 answered NEGATIVE — shipped-image fallback = owner decision) |
-| 2. w4-s1-cache-report — prefix-cache truth (`--enable-cache-report`) | quartet | tp4-recovery | blocked (designed for the stock main-tree base; S0 negative) |
-| 3. w4-s2-lpm — lpm alongside `--enable-cache-report` | quartet | tp4-recovery | blocked (same base dependency as S1) |
-*(Later scheduler rows: S3 min-free-slots-delay (blocked, w 1.50); arms 3/5 build-gated (w 3.00); `ds4-knapcio-byte-reproducible` and `ds4-upstream-adapter-trial` (w 4.00); `ds4-adapter-report-gate` (the 20 h re-port, w 14.00, blocked).)*
+| 1. `ds4-upstream-adapter-trial` — re-pin the knapcio adapter overlay `27616bec` (v2.4) to upstream HEAD `aff52fa5` on `f80c91a4b`; rebuild + boot-verify the shipped 1017 line | single | tp4-recovery | queued — scheduler top (w −2.00, the adoption path; blocks S1/S2/S3/candidate-6) |
+| 2. w4-candidate6-reasoning-effort — `reasoning_effort` high on the main-image base | quartet | tp4-recovery | blocked by `ds4-upstream-adapter-trial` |
+| 3. w4-s1-cache-report — prefix-cache truth (`--enable-cache-report`) | quartet | tp4-recovery | blocked by `ds4-upstream-adapter-trial` |
+*(Later scheduler rows: S2 lpm, S3 min-free-slots-delay (blocked by the adapter trial, w 1.50); `w4-b12x-parity` **running** (w 2.00, boot live above); build-gated survey arms 3/5 (w 3.00); `ds4-knapcio-byte-reproducible` (w 4.00); new tasks `mellum-mtp-zz-probe`, `drafter-alternatives-search`, `tp4-head-to-head-2025`, `b12x-vllm-tuning-round`, `media-demo-workproduct`, `gguf-viability-triage`; `dsv41-vllm-ship-recipe` state-blocked on the external pass gate; `ds4-adapter-report-gate` rebased onto upstream HEAD. S0 and Beam cells remainder **done** in the ledger.)*
 
 ## Landed this session
 
@@ -32,3 +32,4 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 12 tas
 | 17:34 ET | `055ab3d` | GUIDANCE adapter background folded into tracked records; only open questions remain |
 | 17:42 ET | `cbede11` | Owner answers §5–§12 folded into TODO dated advisories; GUIDANCE rewound to open questions |
 | 18:00 ET | `541d843` | Owner round-5 answers folded into TODO dated advisories; `mad-science/GUIDANCE.md` deleted |
+| ~18:30 ET | `0550ac7` | Queue ledger round-4/5 rulings folded: adapter trial becomes the adoption path blocking the flag track; 7 new tasks; ship-recipe state-blocked; S0 stale cite repointed to `recipes/ds4/README.md` |
