@@ -707,7 +707,7 @@ together:
   `tools/enable-io-uring.sh` (fleet orchestrator, `--probe-only` / `--nodes`), documented in
   `tools/README.md` §enable-io-uring and guarded by `tests/test_enable_io_uring_tool.py`.
 
-- [ ] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
+- [x] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
   `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's
   `--reasoning-parser beam`/`--tool-call-parser beam` (window-3 smoke showed raw modified-Harmony
   `<|channel|>` markers); add them to `command:` and commit before the boot. Cells, per the
@@ -720,6 +720,15 @@ together:
   recorded, and the drafter STAYS on the recipe even if the delta is flat — no keeper
   threshold. Window 4 note: the drafter must be named by its POOL SNAPSHOT PATH — vLLM's
   SpeculativeConfig cannot resolve a repo id under `HF_HUB_OFFLINE` (attempt-4 failure).)*
+  **DONE 2026-10-26 (tp4-recovery)**: (b) needle 20/20 at 32768 + 131072 all depths after the
+  512-budget rerun (the 0/3 was budget truncation, finish=length); (c) BFCL tools leg ran direct
+  (`tools/bfcl-eval.py`) after the eval-suite wrapper stalled 52 min — instrument finding, not a
+  serve defect; (d) DFlash2 A/B: baseline C1 26.20/C2 40.66/C5 63.96/C10 69.80 vs treatment
+  C1 31.57/C2 40.72/C5 58.86/C10 74.14 t/s aggregate decode — deltas within the per-run noise
+  (stds 6–16 t/s) except C1 +20 %. Engagement proven (dflash2 CUDA graphs FULL, FlashInfer draft
+  attention, 7 spec tokens). DFlash2 STAYS on the recipe per the owner's drafter policy; the
+  A/B numbers are recorded, no keeper threshold. Receipts: `beam-b1-*`/`beam-b2-*` files +
+  `recipes/explore/README.md` (commit `23bda60`).
 - [ ] **2. ds4 candidate survey** — flag-level arms run WITHOUT builds on the **main-image base**
   `sglang-main-arm64:6563312` (full-breakfast gate PASSED 2026-10-25) against the shipped
   `v0.5.22` control numbers: candidate 1 `--min-free-slots-delay 1` (target C8/C16 worst TTFT,
@@ -737,6 +746,21 @@ together:
   each arm, hold the pool/pin constant, alternate A/B/A/B; a delta counts only if the mean clears
   the control's 15-value range AND the mechanism signal moves. Screen-then-extend. Keep the
   quartet saturated during the ~45–60 min knapcio-class TTRs: prep the next arm while a boot runs.
+  *(Window-4 status, tp4-recovery 2026-10-26: the S0 control boot
+  `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` ran NEGATIVE — the stock main tree
+  (`sglang-main-arm64:6563312`) does not serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE
+  backend: the default `Mxfp4FlashinferCutlassMoEMethod` rejects the checkpoint's
+  per-partition intermediate (2304/TP4 = 576, not a multiple of 128), and the owner-authorized
+  one-shot retry with `--moe-runner-backend triton` (confirmed in engine server_args) died 16 s
+  into weight load with an NVRM GPU OOM (`NV_ERR_NO_MEMORY`, spark-d325 kernel log) — the
+  un-fused runner exceeds the 128 GB unified GPU materializing the fp4 experts. The recipe's
+  pre-registered falsifier fired. Consequence: the vendored pad/adapter set in the shipped
+  overlay image is LOAD-BEARING for boot, not a convenience (matches `GUIDANCE.md` Background's
+  MoE-divisibility finding); the flag-level arms (candidates 1/2/6) have NO main-tree base and
+  fall back to the shipped knapcio image — a control-lineage change that is an OWNER decision,
+  so queue rows `w4-s{1,2,3}` + `w4-candidate6` are BLOCKED with that reason, not released.
+  Candidates 3/5 stay build-gate-blocked. Receipts: `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`,
+  `s0-retry-node{1..4}-serve.log`, `s0-launch.log`, `s0-retry-launch.log`.)*
 - [ ] **3. b12x parity boot** — **UNBLOCKED 2026-10-26: the fleet-wide seccomp change landed on all
   six nodes** (`tools/enable-io-uring.sh`, owner decision 2026-10-26 above). Evidence, same probe on
   every node: before `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)` with host
@@ -757,6 +781,9 @@ together:
   `~/benchmarks/tp4-window4-20261026/B12X-PREBOOT-PROBES.md` — `table_memory` True,
   `disk_resident_scales` True, `--load-format b12x` supported, fork pin 8244d1c4 confirmed in
   the image.)*
+  *(Window-4 status, tp4-recovery 2026-10-26: this is the queue's next runnable item after the
+  S0 negative — claimed by `tp4-recovery` (`w4-b12x-parity` running), pre-boot probes passed,
+  boot pending.)*
 
 
 

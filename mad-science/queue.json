@@ -18,13 +18,13 @@
         "w4-s3-min-free-slots-delay"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "FAILED 2026-10-26 (boot bb9f3743ec80ca1f_bbe16c378e11, stopped by literal id, 0 containers) — failure class: CHECKPOINT-GEOMETRY × KERNEL-CONSTRAINT, the recipe's own falsifier (zz-ds4-1017-main-tree-sglang.yaml description) fired. Stock main tree @ 6563312 builds Mxfp4FlashinferCutlassMoEMethod for DeepseekV41ForCausalLM and create_weights raises ValueError: hidden_size/intermediate_size_per_partition must be multiples of 128 (got hidden=5120, intermediate=576); 2304 moe_intermediate_size / TP4 = 576 = 4.5×128. Not image pull (distributed to .31-.34 OK), not template staging (mod staged + path passed), not KV fit. NOT a config fix — any flag override changes the arm's meaning; per the recipe: flag-level arms fall back to the shipped image, recorded not iterated. Fallback decision = owner input. Receipts: s0-launch.log lines 115-183.",
+      "notes": "DONE NEGATIVE 2026-10-26 by tp4-recovery (boot bb9f3743ec80ca1f_bbe16c378e11 + one owner-authorized retry bb9f3743ec80ca1f_17a8924a0f51). VERDICT: the stock main tree (sglang-main-arm64:6563312) does NOT serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE backend — (1) default cutlass: Mxfp4FlashinferCutlassMoEMethod.create_weights raises ValueError, hidden=5120 ok but moe_intermediate 2304/TP4=576 is not a multiple of 128 (s0-stock-tree-rank0-serve.log); (2) triton retry (-o extra_args=--moe-runner-backend triton, confirmed in engine server_args): got past geometry, died 16 s into weight load with NVRM NV_ERR_NO_MEMORY GPU OOM — the un-fused runner exceeds the 128 GB unified GPU materializing fp4 experts (s0-retry-node1-serve.log + spark-d325 kernel log 15:49:37). The recipe's pre-registered falsifier fired; the vendored pad/adapter set in the shipped overlay image is LOAD-BEARING for boot, not a convenience (matches GUIDANCE.md Background §MoE-divisibility finding — guidance-fold owns that text). Flag-level arms fall back to the shipped image pending owner input. Receipts: s0-launch.log, s0-retry-node{1..4}-serve.log, s0-stock-tree-rank0-serve.log.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-25T19:22:52Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-beam-cells-remainder",
@@ -46,10 +46,10 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Flag-level arm, no build. Screen-then-extend rigor per the owner's 2026-10-26 ruling.",
+      "notes": "BLOCKED 2026-10-26: flag-level arm on the same stock main-tree base as S0 (reasoning_effort high); S0 answered NEGATIVE (no booting main-tree MoE backend at TP4 on GB10) — shipped-image fallback = owner decision.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
     },
     {
@@ -60,10 +60,10 @@
       "blocked_by": [
         "w4-s0-control"
       ],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Blocked by the S0 control boot: the flag track only runs if the stock tree serves the checkpoint.",
+      "notes": "BLOCKED 2026-10-26: designed to ride the stock main-tree base (S0 control); S0 answered NEGATIVE — no booting main-tree MoE backend exists (cutlass geometry reject, triton GPU OOM), so this flag has no in-survey base. Fallback = the shipped knapcio image (changes the control lineage) = owner decision; NOT released by S0-done.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
     },
     {
@@ -74,10 +74,10 @@
       "blocked_by": [
         "w4-s0-control"
       ],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Same gate as S1: runs only behind a passing S0 control.",
+      "notes": "BLOCKED 2026-10-26: same base dependency as w4-s1-cache-report — S0 negative (no booting main-tree MoE backend); shipped-image fallback = owner decision.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
     },
     {
@@ -88,10 +88,10 @@
       "blocked_by": [
         "w4-s0-control"
       ],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Same gate as S1: runs only behind a passing S0 control.",
+      "notes": "BLOCKED 2026-10-26: same base dependency as w4-s1-cache-report — S0 negative (no booting main-tree MoE backend); shipped-image fallback = owner decision.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
     },
     {
@@ -100,11 +100,13 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "Externally gated by the owner's parity-retry policy (mad-science/TODO.md §Retry queue — window 4 item 3 — a first miss is a measured number, not a hang). Technically unblocked: the fleet-wide io_uring seccomp change landed 2026-10-26 (tools/enable-io-uring.sh --probe-only).",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17"
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17",
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-25T19:50:04Z"
     },
     {
       "id": "w4-survey-arm3-indexer-scoring",
