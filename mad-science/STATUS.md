@@ -1,14 +1,14 @@
-# Board — generated 2026-10-26 07:56 ET
+# Board — generated 2026-10-26 08:09 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **07:56 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps -a` + `sparkrun status`)**: **all six at 0 containers**; `sparkrun status`: no sparkrun containers running, all six hosts idle — window 3 has drained and closed |
+| census | board-keeper | **08:09 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps -aq` + `df`)**: **all six at 0 containers** (`.30` 0, `.31` 0, `.32` 0, `.33` 0, `.34` 0, `.35` 0); docker responsive on every node (sys-uring's seccomp daemon restarts produced no downtime this cycle); `sparkrun status`: nothing running — window 4 is declared (`.scratch/fleet-window.lock`: holder `sparkrun-recipe-r-699593`, quartet `.31`–`.34` + `.30`/`.35` single-node) but **no boots are live yet**: idle window while the lock row exists is an escalation trigger |
 
 ## Work queue
 
-Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1–7): **all seven items are closed** (`[x]` in `TODO.md`; items 1–4 landed by the window-3 drain-close `25c918f` — H3 retry terminal negative, 32768/4096 lost with 16384 bracketed, Beam staging + boot-gate PASS, main-image gate PASS; items 5–7 closed by tplt4 round 2, `e5dab7c`). Nothing open; the table carries no rows.
+Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1–7): **all seven items remain closed** (`[x]` in `TODO.md`; items 1–4 landed by the window-3 drain-close `25c918f`; items 5–7 closed by tplt4 round 2, `e5dab7c`). Nothing open in the queue section; the table carries no rows. Note: the director's task list carries three workstreams (sys-uring seccomp, tp4-window4 holder, board keeper) that are **not** rows in `TODO.md` §Retry queue — divergence flagged in the 08:09 cycle report.
 
 | job | node cost | holds | state |
 |---|---|---|---|
