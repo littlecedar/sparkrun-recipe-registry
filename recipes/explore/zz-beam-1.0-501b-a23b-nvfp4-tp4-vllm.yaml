@@ -87,6 +87,11 @@ command: >
   {moe_backend}
   --reasoning-parser beam
   --tool-call-parser beam
+  # Cell (d) treatment shape (window 4): the vendor vLLM recipe's DFlash2 line,
+  # inline because sparkrun's -o strips double quotes from values (verified by
+  # dry run — the JSON arrives quote-stripped and the engine rejects it). Boot 1
+  # of the screen ran WITHOUT this line (the recorded no-spec baseline).
+  --speculative-config '{"method":"dflash","model":"reflection/Beam-1.0-501B-A23B-DFlash2","num_speculative_tokens":7,"attention_backend":"FLASH_ATTN","enable_adaptive_verification":true}'
   {extra_args}
 
 readiness:
