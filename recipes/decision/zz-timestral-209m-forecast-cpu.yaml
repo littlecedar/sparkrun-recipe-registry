@@ -1,0 +1,61 @@
+recipe_version: "2"
+model: mistralai/Timestral-209M
+model_revision: 9874d252ab0aae16f7f7c999f98f98d6ad7d8365
+# sparkrun has no runtime family for a third-party Python server: `runtime: vllm`
+# is the launcher/distribution contract this command satisfies (the
+# kokoro/pyannote/laya precedent). The engine is the upstream `timestral` pip
+container: pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime@sha256:c16f4c749e2d9e96878875cdf6cc45cddda1d1a36fddd371dd6f2360f1b6e2a2
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE (authored 2026-10-24, runtime cells not yet run) — mistralai/Timestral-209M,
+  the largest member of the four-width zero-shot probabilistic forecasting family
+  (209,312,256 params, 837.3 MB F32), served on CPU behind a stdlib
+  POST /forecast server (21 quantiles per step) staged by the lane mod from the
+  pinned upstream runtime (git+https://github.com/mistralai/timestral@a534bdbd).
+  The arm's gate is the pre-registered forecasting instrument: tools/forecast-
+  fixtures.py (six synthesised series) scored by tools/forecast-bench.py (mean
+  CRPS from the 21-quantile grid, MASE vs seasonal-naive, PICP80, the
+  quantile-ordering hard fail). LICENSE: the code repo is Apache-2.0 while the
+  weights are a Modified MIT License whose condition 2 withholds every right
+  from anyone whose global consolidated monthly revenue exceeds $20M — the
+  banner is ACCEPTED by the owner (recorded 2026-10-22) and quoted here because
+  the terms bind the operator: Mistral AI sells commercial licences above the
+  cap (commercial@mistral.ai).
+metadata:
+  model_url: https://huggingface.co/mistralai/Timestral-209M
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "209M"
+  model_dtype: fp32
+  tags: decision, forecasting, cpu, probe, modified-mit
+
+readiness:
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 600
+
+defaults:
+  port: 8895
+  host: 0.0.0.0
+  # Empty on purpose: the server takes no --served-model-name, while any
+  # non-empty value makes sparkrun append one to the script (the pyannote
+  # precedent). Referenced below so the key is not inert.
+  served_model_name: ""
+  cores: 0-4,10-14
+
+mods:
+  - mods/timestral-forecast-server
+
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && /cache/runtime/timestral/venv/bin/python -c "import timestral"
+  && TS_MODEL='{model}' TS_REVISION='{model_revision}'
+  taskset -c {cores} /cache/runtime/timestral/venv/bin/python /cache/runtime/timestral/forecast_server.py
+  --model '{model}' --revision '{model_revision}' --host {host} --port {port}
