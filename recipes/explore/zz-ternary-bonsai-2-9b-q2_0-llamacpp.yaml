@@ -1,0 +1,73 @@
+recipe_version: "2"
+model: prism-ml/Ternary-Bonsai-2-9B-gguf:Q2_0
+model_revision: 5b2abb02362efbed46bbe204014b02837778b2c2
+runtime: llama-cpp
+# The Hadamard loader is load-bearing: builds that predate the `prism.hadamard.*`
+# merge can load Q2_0 and produce gibberish by skipping the activation transform.
+# `upstream-9df0b73-cu130` (built 2026-10-22) carries the full loader surface —
+# verified by binary strings (prism.hadamard.axis/block_size/transform/sign_mode...)
+# before the first boot. The card's own sampling policy: thinking defaults ON, allow
+# >= 8,192 output tokens, avoid greedy with thinking on.
+container: littlecedar/dgx-spark-llama-cpp:upstream-9df0b73-cu130@sha256:31181fd3105001f503136ff6a4cbbf5ac7d3ab53fd0c5d88a723a844826f94a1
+mmproj: Q8_0
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE (first cells in flight, not a shipped arm) — prism-ml/Ternary-Bonsai-2-9B-gguf,
+  the upstream-compatible Q2_0 packing (2.38 GiB, 2-bit slots) of a 9B-class ternary
+  VLM (~8.95B language + 0.46B vision, base Qwen3.5-9B, 262,144-token context,
+  hybrid attention 24 linear + 8 full), weights folded with a blockwise Hadamard
+  rotation the runtime applies at load. One DGX Spark through llama.cpp with the
+  Q8_0 vision projector. NOT exercised: the PQ2_0/PTQ1_0 packings and both drafters
+  (in-file MTP + DFlash2), which need the PrismML fork. The `:Q2_0` spec is resolved
+  by an explicit snapshot path in `command:`, NOT by sparkrun's quant matcher — the
+  matcher's `*Q2_0*` glob also hits `PQ2_0-MTP-Q8_0.gguf` and `PQ2_0.gguf` and
+  sorted-first picks the wrong artifact. Easy-traffic gate (TODO.md §DECISIONS):
+  C1 >= 69.28, C10 >= 116.27 t/s, house >= 36/37 @4096 thinking-on.
+metadata:
+  model_url: https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "9.41B"
+  model_dtype: q2_0
+  kv_dtype: fp16
+  tags: explore, vision, reasoning, ternary, gguf, probe
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's
+  # appended `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: prism-ml/Ternary-Bonsai-2-9B-gguf
+  ctx_size: 32768
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  load_mode: none
+
+command: >
+  llama-server -m /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/5b2abb02362efbed46bbe204014b02837778b2c2/Ternary-Bonsai-2-9B-Q2_0.gguf
+  --mmproj /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/5b2abb02362efbed46bbe204014b02837778b2c2/Ternary-Bonsai-2-9B-mmproj-Q8_0.gguf
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching
