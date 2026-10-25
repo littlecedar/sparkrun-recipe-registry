@@ -9,7 +9,7 @@
 
 ## Work queue
 
-Mirrors the owner-directed task-queue system (`cd2a60a`: `tools/task-queue.py` weight order, `mad-science/queue.json` as source; TODO §"Retry queue — window 4" still the provenance). Scheduler top-3 at 13:15: S0 control (weight −3.50, queued), Beam cells remainder (**running**), candidate 6 (queued). Owner input pending: `mad-science/GUIDANCE.md` round-2 questions §5–§9 (uncommitted, awaiting the owner — cited, not folded):
+Mirrors the owner-directed task-queue system (`cd2a60a`: `tools/task-queue.py` weight order, `mad-science/queue.json` as source; TODO §"Retry queue — window 4" still the provenance). Scheduler top-3 at 13:15: S0 control (weight −3.50, queued), Beam cells remainder (**running**), candidate 6 (queued). Owner input: `GUIDANCE.md` round-2 questions §5–§9 were ANSWERED and folded 2026-10-26 (evening) as dated advisories in `mad-science/TODO.md` §"Retry queue — window 4" (adapter ownership → upstream HEAD; BeeGFS mitigation not a hard gate; Mellum `zz-` MTP probe + DFlash/DSpark search; Beam ships if bars pass, head-to-head vs 1017/GLM in `TP4-HEAD-TO-HEAD-1025.md`; parity C10 fallback = more vLLM experimentation). The queue implications (unblock/retarget rows) are applied to `queue.json` separately:
 
 | job | node cost | holds | state |
 |---|---|---|---|

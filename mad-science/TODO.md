@@ -706,6 +706,62 @@ together:
   the before/after): the scripts are `tools/enable-io-uring.py` (per-node logic, fail closed) and
   `tools/enable-io-uring.sh` (fleet orchestrator, `--probe-only` / `--nodes`), documented in
   `tools/README.md` §enable-io-uring and guarded by `tests/test_enable_io_uring_tool.py`.
+- **Adapter ownership (owner decision 2026-10-26 evening, verbatim — `GUIDANCE.md` §5, file
+  since trimmed): "Knapcio upstream is authoritative for all knapcio recipes. Follow upstream's
+  HEAD."** Consequence: the 16–24 h re-port task (the build-gate re-port advisory above) is
+  REBASED onto knapcio upstream HEAD (`aff52fa5`, v2.5+, the per-patch verify+test gate shape)
+  rather than our v2.4-era vendored copy, and any future overlay change follows upstream.
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §5 (file since trimmed).)*
+- **TP<4 parallelism (owner decision 2026-10-26 evening, verbatim — `GUIDANCE.md` §6, file
+  since trimmed): "Problem-solve and mitigate rather than hard gate on the shared BeeGFS pool
+  'contamination'. We cannot and will not eliminate the BeeGFS pool traffic colocating with
+  active serve traffic… identify scheduling strategies that minimize the impact of BeeGFS pool
+  use on NCCL traffic: for example, coordinate boot times with TP=4 and TP<4 tests and
+  introduce rest periods in TP=4 tests to boot TP<4 tests."** Consequence: idle nodes may be
+  filled with single-node work; quartet measurement cells schedule rest periods around
+  co-located boots (the `.30` C10 107.6 vs quiet-node 129.8 load-effect precedent stands as a
+  caveat to correct for, not a gate).
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §6 (file since trimmed).)*
+- **Mellum MTP drafter (owner decision 2026-10-26 evening — `GUIDANCE.md` §7, file since
+  trimmed): (c) — keep a `zz-` drafter probe arm and retest when upstream changes. Also look
+  for alternative drafters, such as DFlash and DSpark!** Consequence: the 2026-10-22 measured
+  rejection (monotone decline n=1→8) stands for what ships — Mellum stays plain — and a `zz-`
+  Mellum MTP probe arm is authorized, plus a search for alternative drafters (DFlash, DSpark).
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §7 (file since trimmed).)*
+- **Beam endgame (owner decision 2026-10-26 evening — `GUIDANCE.md` §8, file since trimmed):
+  (b) — if it passes quality and performance checks, ship it; its competition is
+  DeepSeek-V4.1-Flash-1017, GLM-5.3, and GLM-5.3-Flash. We want a head-to-head comparison
+  between Beam, DeepSeek, and GLM recorded in `mad-science/TP4-HEAD-TO-HEAD-1025.md`.**
+  Consequence: the owner-named doc `TP4-HEAD-TO-HEAD-1025.md` is the record of record for the
+  Beam vs 1017 vs GLM-5.3/GLM-5.3-Flash comparison; a Beam pass over the bars flips it from
+  `zz-` to a shipped arm (lane, index row, licence check still owed).
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §8 (file since trimmed).)*
+- **b12x parity C10 fallback (owner decision 2026-10-26 evening — `GUIDANCE.md` §9, file since
+  trimmed): (a) — it is worth further experimentation to find a strong vLLM recipe.**
+  Consequence: a C10 miss on the parity boot is not a terminal negative like H3 — the fallback
+  is an engine-side tuning round (b12x knobs, slot count, DSpark k) chasing a strong vLLM
+  recipe.
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §9 (file since trimmed).)*
+- **Overlay adoption (owner decision 2026-10-26 evening, verbatim — `GUIDANCE.md` §10, file
+  since trimmed): "Knapcio upstream is AUTHORITATIVE for our Knapcio-based recipes… We follow
+  them."** Consequence: the `ds4-upstream-adapter-trial` (re-pin the overlay
+  `27616bec`→`aff52fa5` on the same `f80c91a4b` tree) proceeds as the adoption path;
+  boot-verify on our hardware is our verification, and upstream's numbers are their claims.
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §10 (file since trimmed).)*
+- **Re-port base and gate (owner decision 2026-10-26 evening, verbatim — `GUIDANCE.md` §11,
+  file since trimmed): "Knapcio upstream is authoritative for all knapcio recipes. Any re-port
+  work we need to do for our repo must be based on the Knapcio upstream's HEAD."** Consequence:
+  the build-gate re-port advisory above starts from upstream HEAD's adapter set (v2.5+,
+  carrying the #41303 SWA-safety backport and the logprob-hang fix already in), not our
+  v2.4-era vendored copy.
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §11 (file since trimmed).)*
+- **Flag-track base (owner decision 2026-10-26 evening, verbatim — `GUIDANCE.md` §12, file
+  since trimmed): "Knapcio upstream is authoritative for all knapcio-based recipes. Follow what
+  upstream does; it is your base even when it changes. Update accordingly."** Consequence: the
+  flag track (S1/S2/S3/candidate 6) RE-BASES on the knapcio-upstream overlay image — not the
+  stock main tree, which the S0 negative disqualified (2026-10-26) — and the arms stay blocked
+  until `ds4-upstream-adapter-trial` establishes the new base.
+  *(Owner, 2026-10-26 (evening), `GUIDANCE.md` §12 (file since trimmed).)*
 
 - [x] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
   `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's
