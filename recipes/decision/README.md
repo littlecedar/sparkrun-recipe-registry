@@ -2,7 +2,7 @@
 
 Small models that make classification / routing / judgment calls — **prefill-only scorers, not
 chat models** — co-located with the shipped embed + rerank pair on **one** DGX Spark (the lane's
-core constraint: nodes are at a premium). This README covers the six shipped recipes plus the two
+core constraint: nodes are at a premium). This README covers the seven shipped recipes plus the two
 candidate CPU arms measured 2026-10-18 — `kev-0.8b` serves and scores but cannot pass sparkrun's
 launch gate, and `d3-edge` cannot load on a staged offline node. The
 candidate research, verified surfaces, official scores, the CPU+GPU tandem probe and the
@@ -19,6 +19,7 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 - [nox-4b-decision-vllm-srun](#nox-4b-decision-vllm-srun)
 - [kev-0.8b-decision-serve](#kev-0.8b-decision-serve)
 - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
+- [timestral-209m-forecast-cpu](#timestral-209m-forecast-cpu)
 - [Operating constraints](#operating-constraints)
   - [The `vllm-srun` runtime (Kai + Sol)](#the-vllm-srun-runtime-kai--sol)
   - [Served-id caveat](#served-id-caveat)
@@ -32,6 +33,10 @@ Accuracy on the shared instrument (`tool-eval-bench` v2.8.0, Typed Decisions tes
 cases / 2000 decisions): **clef-flash 70.3% > Nox-4B 67.8% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B
 47.5%**; the candidate `kev-0.8b` sits below that ranking at **46.0%** and `d3-edge` has no score (their
 sections follow).
+
+One shipped arm sits outside that instrument entirely: `timestral-209m-forecast-cpu` is a
+probabilistic forecaster, not a classifier — it is scored by its own pre-registered
+instrument, not `tool-eval-bench` (section below).
 
 Two measurements sit outside that ranking and have their own sections below: the lane's
 accuracy record is **not** clef-flash alone but the **clef + Kai ensemble at 71.6%** (pooling
@@ -271,6 +276,23 @@ result as the pin**, so the divergence is the image's x86 reference on aarch64, 
 Both sites (`model_revision:` and the literal `--revision=`) were reverted. Receipt:
 `~/benchmarks/decision-d3-repin-20261022/` — `bootA.log` + `bootA-{models,health,systemone}.txt`
 (as shipped), `bootB.log` + `bootB-{models,health,systemone}.json` (Hub online), `REPORT.md`.
+
+### timestral-209m-forecast-cpu
+
+| field | value |
+|---|---|
+| repo id | [`mistralai/Timestral-209M`][timestral] (pinned `9874d252`) — the largest of the four-width zero-shot probabilistic forecasting family; 209,312,256 params, 837.3 MB F32 |
+| instrument | `tools/forecast-fixtures.py` (six synthesized series) scored by `tools/forecast-bench.py` (mean CRPS from the 21-quantile grid, MASE vs seasonal-naive, PICP80, the quantile-ordering hard fail) — the registry had no probabilistic-forecast instrument, so this one was pre-registered for the arm |
+| measured (2026-10-25, `.30` CPU, taskset 0-4,10-14) | load **1.9 s**, peak RSS **2.26 GiB**; per-forecast wall 1.18–1.44 s at the 4,096-step context / h=96 (bivariate+covariate 2.38 s); **no hard fails** — all six 21-quantile grids monotone; **CRPS beats the seasonal-naive MAE on every series** (walk 2.2306 vs analytic-oracle 2.4653, inside the stated sanity band) |
+| API | `POST /forecast` (21 quantiles per step) behind the `runtime: vllm` launcher contract — no engine serves this checkpoint; the lane mod stages the upstream `timestral` pip runtime (`git+https://github.com/mistralai/timestral@a534bdbd`) plus torch's aarch64 wheel into a venv, and the command runs the mod's stdlib `forecast_server.py` (a bash-builtin `kill` shim prepends, as in the pyannote CPU serve) |
+| TP | 1 (CPU only, no GPU) |
+| flags | 🤏 smol · 🖥 cpu |
+| license | code Apache-2.0; **weights Modified MIT** whose condition 2 withholds every right above USD $20M global consolidated monthly revenue — banner accepted by the owner (recorded 2026-10-22) and quoted in the recipe; Mistral AI sells commercial licenses above the cap |
+| status | **SHIPPED 2026-10-25** — every pre-registered runtime cell passed at first run |
+
+Receipt: `~/benchmarks/tp4-lane-20261024/timestral/REPORT.md` (fixture hash + scorer
+version, per-cell JSON, coverage table). The mod lives at
+[`recipes/decision/mods/timestral-forecast-server`](mods/timestral-forecast-server).
 
 ## Operating constraints
 
@@ -539,3 +561,4 @@ Files under [`attic/decision/`](../../attic/decision/):
 [nox]: https://huggingface.co/vllm-sr/Decision-2.0-Nox-4B
 [kev]: https://huggingface.co/jaredpalmer/kev-0.8b
 [d3]: https://huggingface.co/vllm-sr/d3-edge
+[timestral]: https://huggingface.co/mistralai/Timestral-209M

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Pre-launch mod for the lodestones/Kromoss probe arm (media lane, media-gen).
+# Pre-launch mod for the lodestones/Kromoss arm (media lane, media-gen).
 #
 # The engine is diffusers' `MOSSImagePipeline` — shipped as the checkpoint's own
 # `pipeline_moss_image.py` and loaded via `custom_pipeline="pipeline_moss_image"`

@@ -13,26 +13,30 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  PROBE (authored 2026-10-24, runtime cells not yet run) — mistralai/Timestral-209M,
+  mistralai/Timestral-209M,
   the largest member of the four-width zero-shot probabilistic forecasting family
   (209,312,256 params, 837.3 MB F32), served on CPU behind a stdlib
   POST /forecast server (21 quantiles per step) staged by the lane mod from the
   pinned upstream runtime (git+https://github.com/mistralai/timestral@a534bdbd).
   The arm's gate is the pre-registered forecasting instrument: tools/forecast-
-  fixtures.py (six synthesised series) scored by tools/forecast-bench.py (mean
+  fixtures.py (six synthesized series) scored by tools/forecast-bench.py (mean
   CRPS from the 21-quantile grid, MASE vs seasonal-naive, PICP80, the
-  quantile-ordering hard fail). LICENSE: the code repo is Apache-2.0 while the
+  quantile-ordering hard fail). Measured 2026-10-25 on `.30` CPU (taskset 0-4,10-14,
+  receipt ~/benchmarks/tp4-lane-20261024/timestral/REPORT.md): load 1.9 s, peak RSS
+  2.26 GiB, per-forecast wall 1.18–1.44 s at the 4,096-step context (bivariate+covariate
+  2.38 s), no hard fails — all six 21-quantile grids monotone, CRPS beats the
+  seasonal-naive MAE on every series. LICENSE: the code repo is Apache-2.0 while the
   weights are a Modified MIT License whose condition 2 withholds every right
   from anyone whose global consolidated monthly revenue exceeds $20M — the
   banner is ACCEPTED by the owner (recorded 2026-10-22) and quoted here because
-  the terms bind the operator: Mistral AI sells commercial licences above the
+  the terms bind the operator: Mistral AI sells commercial licenses above the
   cap (commercial@mistral.ai).
 metadata:
   model_url: https://huggingface.co/mistralai/Timestral-209M
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "209M"
   model_dtype: fp32
-  tags: decision, forecasting, cpu, probe, modified-mit
+  tags: decision, forecasting, cpu, modified-mit
 
 readiness:
   inference: false

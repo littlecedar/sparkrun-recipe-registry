@@ -12,7 +12,7 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  PROBE (authored 2026-10-24, cells not yet run) — lodestones/Kromoss, a 5.08B-param
+  lodestones/Kromoss, a 5.08B-param
   MOSS-Image text-to-image full fine-tune (base OpenMOSS-Team/MOSS-Image-Base, 1024 px,
   Qwen3.5-9B text encoder + FLUX.2-small VAE decoder), served on ONE DGX Spark by
   diffusers' custom `MOSSImagePipeline` under a script launcher in the shape of the
@@ -24,13 +24,16 @@ description: >-
   via the card's own forward-hook recipe — pass `-o lora=/cache/huggingface/hub/
   models--lodestones--Kromoss/snapshots/a4fe97449297af2e3be7841e1c18e431f3b06031/
   8-steps-dmd2-lora.safetensors` for the fast cell; the default runs the plain
-  50-step CFG-3 control. Apache-2.0 (weights and the bundled pipeline code).
+  50-step CFG-3 control. Measured on one node (receipt ~/benchmarks/tp4-lane-20261024/
+  kromoss/): control 143.884 s/image (2.88 s/step), the LoRA fast cell 18.341 s at
+  8 steps CFG-1 — the step knob is proven live. Apache-2.0 (weights and the
+  bundled pipeline code).
 metadata:
   model_url: https://huggingface.co/lodestones/Kromoss
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "5.08B"
   model_dtype: bf16
-  tags: media, image, single_user, probe
+  tags: media, image, single_user
 
 mods:
   - "mods/kromoss-launcher"

@@ -14,7 +14,7 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  PROBE (first cells in flight, not a shipped arm) — prism-ml/Ternary-Bonsai-2-9B-gguf,
+  prism-ml/Ternary-Bonsai-2-9B-gguf,
   the upstream-compatible Q2_0 packing (2.38 GiB, 2-bit slots) of a 9B-class ternary
   VLM (~8.95B language + 0.46B vision, base Qwen3.5-9B, 262,144-token context,
   hybrid attention 24 linear + 8 full), weights folded with a blockwise Hadamard
@@ -23,15 +23,16 @@ description: >-
   (in-file MTP + DFlash2), which need the PrismML fork. The `:Q2_0` spec is resolved
   by an explicit snapshot path in `command:`, NOT by sparkrun's quant matcher — the
   matcher's `*Q2_0*` glob also hits `PQ2_0-MTP-Q8_0.gguf` and `PQ2_0.gguf` and
-  sorted-first picks the wrong artifact. Easy-traffic gate (TODO.md §DECISIONS):
-  C1 >= 69.28, C10 >= 116.27 t/s, house >= 36/37 @4096 thinking-on.
+  sorted-first picks the wrong artifact. Easy-traffic gate bars (TODO.md §DECISIONS):
+  C1 >= 69.28, C10 >= 116.27 t/s, house >= 36/37 @4096 thinking-on — measured
+  2026-10-25 on a quiet node: 75.51 ± 1.38 / 129.79 ± 0.90 / 36/37, PASS.
 metadata:
   model_url: https://huggingface.co/prism-ml/Ternary-Bonsai-2-9B-gguf
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "9.41B"
   model_dtype: q2_0
   kv_dtype: fp16
-  tags: explore, vision, reasoning, ternary, gguf, probe
+  tags: explore, vision, reasoning, ternary, gguf
 
 executor_config:
   # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's

@@ -4,7 +4,7 @@
 `MOSSImagePipeline` (shipped as the repo's own `pipeline_moss_image.py`, loaded
 via `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True`) has no
 serving runtime, so this script *is* the server for the media lane's Kromoss
-probe arm, in the shape of the Qwen-Image-2.1-Turbo launcher
+arm, in the shape of the Qwen-Image-2.1-Turbo launcher
 (`recipes/media/mods/qwen-image-2.1-turbo-launcher/server.py`). Launched by the
 recipe as
 
