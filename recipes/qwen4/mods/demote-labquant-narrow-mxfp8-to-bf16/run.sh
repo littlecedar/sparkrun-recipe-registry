@@ -230,7 +230,7 @@ wm = json.load(open(idx_path))["weight_map"]
 # get_prefill_mqa_inputs, which reads no projection dtype, and the demoted index_qk_proj
 # boot (11b2c8b941e89cb9) crashed identically. Nothing here can recover that. The earlier
 # file carried two contradictory copies of this rationale; the analysis lives in
-# mad-science/QWEN4-DIAGNOSTICS.md and git history keeps the knob.
+# attic/qwen4/QWEN4-DIAGNOSTICS.md and git history keeps the knob.
 
 # Which shard files could contain a candidate. The floor test only ever selects the
 # in_proj_a/b pair, so its two names are the whole candidate set.

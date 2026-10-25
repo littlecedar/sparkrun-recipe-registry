@@ -94,5 +94,5 @@ data-dependent buffer inside `get_prefill_mqa_inputs`, which reads no projection
 demoted-`index_qk_proj` boot (`11b2c8b941e89cb9`) crashed identically. Nothing the knob could demote
 can recover it, so the machinery is gone rather than shipped empty; git history keeps it if a future
 bisect ever names a leaf. What remains is exactly the CUTLASS floor test below, whose count contract
-is now always enforced. Analysis: `mad-science/QWEN4-DIAGNOSTICS.md`.
+is now always enforced. Analysis: `attic/qwen4/QWEN4-DIAGNOSTICS.md`.
 

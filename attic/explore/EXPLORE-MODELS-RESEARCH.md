@@ -1,7 +1,7 @@
 # Explore-lane model research (2026-10-11; §5–§7 added 2026-10-13; §8 added 2026-10-16)
 
 Frontier reasoning + tool-calling candidates for the `explore` lane. Supersedes
-parts of `mad-science/EXPLORE-CANDIDATES.md` (2026-10-10): five of its claims
+parts of `attic/explore/EXPLORE-CANDIDATES.md` (2026-10-10): five of its claims
 corrected (§3), four families added. Read-only research pass; fit arithmetic is
 Hub blob-sums, NOT boots. Every number is `[measured]` (third party, on-GB10
 unless stated) or `[card]` (vendor, different silicon). No candidate below has
@@ -93,7 +93,7 @@ Kolibri only if 1–2 land early.
   https://forums.developer.nvidia.com/t/kolibri-1-aleph-alphas-78b-fp8-moe-runs-on-the-spark-setup-numbers-and-a-few-things-id-love-to-share/385048;
   https://github.com/Aleph-Alpha/aleph-alpha-inference.
 
-## 3. Corrections to `mad-science/EXPLORE-CANDIDATES.md` (2026-10-10)
+## 3. Corrections to `attic/explore/EXPLORE-CANDIDATES.md` (2026-10-10)
 
 | Prior claim | Correction | Evidence |
 |---|---|---|

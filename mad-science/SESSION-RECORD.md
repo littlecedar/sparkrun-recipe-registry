@@ -923,7 +923,7 @@ fresh boot). Retry once before debugging it, and it is not an argument for the m
 rejected, Muse-Glimmer falsified as a checkpoint defect, Lightning shipped, Nemotron-3-Super rejected at
 15.9 t/s, Laguna-S retired — and 6–10 are 2+ nodes. Two entries were also badly under-sized by the
 2026-10-10 scan: **MiniMax-M3 is 795.5 GiB** on the Hub (not ~220 GB) and **Inkling-Small 495.4 GiB**
-with no NVFP4 export at all. `mad-science/EXPLORE-CANDIDATES.md` now records the closures and the
+with no NVFP4 export at all. `attic/explore/EXPLORE-CANDIDATES.md` now records the closures and the
 measured sizes.
 
 **Node-free QA that closed with it.** (1) **House-budget audit of the instrument's own history:** 42 of

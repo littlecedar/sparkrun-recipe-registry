@@ -15,7 +15,7 @@ supersedes the registry's node-count→speed default, which had decided this lan
 1.8 t/s gap inside one arm's own σ). The lane ships the
 **two selected models** (owner selection 2026-10-13; the 2026-10-11 "no recipe cap" round built
 four and moved the rest to the attic). Full candidate research — 8 families, five corrections to the earlier
-`mad-science/EXPLORE-CANDIDATES.md`, per-candidate verification checklists — is in
+`attic/explore/EXPLORE-CANDIDATES.md`, per-candidate verification checklists — is in
 [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md).
 
 | recipe | runtime | model | nodes | C1 t/s | status |

@@ -16,7 +16,7 @@ min_nodes: 2
 # experts, 105.36 GB/node at TP=2 (the register's own per-node figure) and 52.7 GB/node at TP=4, so it
 # fits both. Of the engines that can serve EXL3, only this vLLM+cuda-exl3 lane has a TP=4 arm on disk
 # (TensorFold, the other EXL3 engine, cannot run four nodes — its custom all-reduce wants one node or
-# one NVLink clique, CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md), so the twin is cut from this stack.
+# one NVLink clique, ../../mad-science/CUSTOM_ALL_REDUCE_SM120_EXPERIMENTS.md), so the twin is cut from this stack.
 #
 # TWO CONSEQUENCES TO RESPECT WHEN RUNNING IT:
 #   * At 105.36 GB of weights against a 111 GB budget (gmu 0.85) the KV pool is thin. Read the pool

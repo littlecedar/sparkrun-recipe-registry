@@ -1451,6 +1451,16 @@ project changelog, both on hardware we do not own (`LIKELY`), neither on a workl
 `config.json` byte-for-byte (`recipes/ds4/README.md:38-40`), but no vLLM boot has served it. No C10, house
 or needle result exists on any vLLM DeepSeek-V4.1 route, here or elsewhere.
 
+
+**2026-10-24:** the window-1 candidate survey is archived at `attic/ds4/DS4-CANDIDATES.md`. Its
+still-live next-window top picks carry forward: (1) **Stack C — the vLLM b12x parity boot**
+(`DEEPSEEK.md` §17 sketch + acceptance test; authorized per `QUESTIONS.md` #17; remaining gate is the
+io_uring/seccomp probe — `io_uring_setup` under `--rm` first); (2) the **bertholomus EXL3 2.5 bpw
+(1017)** trial as the cheapest new-body route, TP=2 pair first. Its §3 counterexample worth keeping:
+the VQ route is a measured single-Spark TP=1 exception to §13's byte wall (YoungAi 113.6 GB body,
+prefill 489 t/s / decode 30.7 t/s, 2026-09-28) — single-node only, no TP=4 path, but §13's "no
+1017-class body fits TP=1" should be read with it named.
+
 ## 18. The community 1017 repo is our own stack — and the TP_PAD inference it suggested (refuted 2026-10-23, see §18.1)
 
 > **Falsified 2026-10-23 — the split is ON on the shipped pair; see §18.1.** Everything below is the
