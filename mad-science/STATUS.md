@@ -1,12 +1,13 @@
-# Board — generated 2026-10-26 00:52 ET
+# Board — generated 2026-10-26 00:55 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **00:52 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `df` + `sparkrun status`)**: `.30` **0** (nothing live, no reservation), `.31`–`.35` **1** each (5 containers fleet-wide, matching `sparkrun status`); free root 2.1/2.2/2.3/2.3/1.6/1.8 TB — drift: none |
-| `.31`–`.34` | tp4-window3 | **Beam quartet boot just up** — `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (tp=4) task `30078b4aa125dd7d_b2f8c6e5117c`, 4 containers (`Up 1 second` at 00:52, image `sha256:58aa975fed12…`), one per rank; the Beam staging payoff boot |
-| `.35` | tplt4-research | **phonon 31M TTS CPU boot live** `a3927977698d21bb_506599b05471` (solo, `Up 2 minutes` at 00:52, image `sha256:ce9a404c2c01`) — the queue item 7 kokoro-shaped phonon arm |
+| census | board-keeper | **00:55 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `sparkrun status`)**: `.30`–`.35` **1 container each** (6 fleet-wide, matching `sparkrun status`); free root 2.1/2.2/2.3/2.3/1.6/1.8 TB — drift: none |
+| `.30` | tp4-window3 | **live boot** — `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml` (tp=1) task `9c8e0fffc3cbe638_d07096c80017`, solo, `Up 5 seconds` at 00:55, image `sha256:fd8439732b16…` |
+| `.31`–`.34` | tp4-window3 | **Beam quartet boot live** — `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (tp=4) task `30078b4aa125dd7d_b2f8c6e5117c`, 4 containers (`Up 2 minutes` at 00:55, image `sha256:58aa975fed12…`), one per rank |
+| `.35` | tplt4-research | **phonon 31M TTS CPU boot live** `a3927977698d21bb_76e7a554d159` (solo, `Up 2 minutes` at 00:55, image `sha256:ce9a404c2c01`) — the queue item 7 kokoro-shaped phonon arm |
 
 ## Work queue
 
@@ -28,7 +29,7 @@ Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1�
 |---|---|---|
 | 22:29 10-24 | `45d085e` | board refresh 2026-10-24 22:29 ET (all six nodes 0 containers) |
 | 22:49 10-24 | `31a595b` | board fix: `.30` is a full member; window-3 and tplt4 boots live |
-| 22:51 10-24 | `731f651` | sweep of the stale `.30` controller-only reservation out of the docs |
+| 22:51 10-24 | `731f651` | sweep of the stale `.30` reservation framing out of the docs |
 | 22:57 10-24 | `33a987d` | tplt4 closes its two cells: Bonsai Q2_0 passes the easy-traffic gate on a quiet `.35` (C1 75.51 ± 1.38 / C10 129.79 ± 0.90, house 36/37) and the kokoro-vs-phonon hard-sentence WER A/B lands (phonon 0.1747 vs kokoro 0.2329) |
 | 22:57 10-24 | `ca7dee0` | board Recently-landed row for `33a987d` |
 | 23:01 10-24 | `3a1e6d9` | tplt4: Bonsai quiet-node C2/C5 corrected to the receipt (129.24 ± 0.76 / 151.95 ± 1.21) and the five-stream peak shape stated |
@@ -40,3 +41,5 @@ Mirrors `mad-science/TODO.md` §"Retry queue — unparked 2026-10-25" (items 1�
 | 23:13 10-25 | `10fb558` | ornith MTP: speculative-config JSON quoted inside the command template (boot2's bash-strip failure) |
 | 23:2x 10-25 | `e5997ca` | board reconciliation: Beam staging verified DONE 63/63 (`dl-beam.log` tail), queue row 3 state flipped |
 | 00:51 10-26 | `d8b31c4` | board refresh: In-flight reduced to the fresh census + the live phonon boot, stale GLM/ornith/Beam rows swept |
+| 00:52 10-26 | `47de13f` | wording fix: `.30` idleness stated as "nothing live (no reservation)", role-based framing removed |
+| 00:55 10-26 | `3aef0f9` | Beam quartet boot row landed (the tp4-window3 ordered boot) |
