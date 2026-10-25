@@ -588,11 +588,38 @@ doubled chunk. The mechanism is exactly §9's launch-bound accounting: the chunk
 3003 t/s (warm-up chunk, not the metric that moved). `CHUNKED_PREFILL_SIZE` is `AB_ENV`, so the
 cell was one `-o` on the shipped line, and the shipped value flipped 8192 → 16384 under the
 owner's 2026-10-18 `[#36]` same-window rule (≥ 2 % win, accuracy-neutral flag, boot receipt +
-lane record); the guard `test_launcher_v24_serve_line` pins the new value. Open follow-up, not
-run: a larger chunk still (32768) would halve the launch count again, but 16384 already puts 1M
-prefill under 4.2 min and each further doubling shrinks the pool-sizing margin at the same
-`mem_fraction_static`. Receipts `~/benchmarks/tp4-window-20261024/` (`chunk16k-needle.{log,json}`,
+lane record); the guard `test_launcher_v24_serve_line` pins the new value. Receipts
+`~/benchmarks/tp4-window-20261024/` (`chunk16k-needle.{log,json}`,
 `boot4-chunk16k-rank0-serve.log`).
+
+**Ran 2026-10-25 (window 3) — 32768 loses, 16384 stays.** One boot on `.31`–`.34`
+(`-o env.CHUNKED_PREFILL_SIZE=32768`, task `sparkrun_a2e141223b52793c_8428af90136f`), five cold
+~999k needles (serial c1): latencies **284.9 / 270.2 / 268.1 / 246.7 / 247.9 s — mean 263.6 s ⇒
+~3.79k t/s mean prefill, 7.6 % SLOWER than the 16384 bar's 245.0 s / 4.09k t/s** — needle 5/5
+PASS at ~999k, so accuracy is intact but there is no win to buy. Two mechanism notes: (a) the
+chunk really was live — 153 `#new-token: 32768` prefill batches in the rank-0 serve log, and
+`max_prefill_tokens=16384` did NOT clamp it (the two knobs are independent in this engine); (b)
+the bigger chunk is not free capacity-wise — `max_total_num_tokens` collapsed 3,042,304 (16384
+boot) → **1,356,288** (−55 %, chunk activation buffers at the same 0.78), so a 32768 line would
+also cost three full 1M contexts of pool. Both axes say **16384 is the optimum on this
+hardware**: the per-chunk rate had already saturated (~4179 t/s at 16384) and the flat launch
+cost §9 attributed the gap to is no longer the binding term. Receipts
+`~/benchmarks/tp4-window3-20261024/` (`chunk32k-needle.{log,json}`,
+`chunk32k-node{1..4}-serve.log`).
+
+**Ran 2026-10-25 (window 3, owner-directed) — 4096 loses harder; the curve is peaked at 16384.**
+Same cell design, `-o env.CHUNKED_PREFILL_SIZE=4096` (task
+`sparkrun_a2e141223b52793c_33a0348fab26`): five cold ~999k needles **322.1 /
+304.8 / 306.5 / 305.2 / 307.8 s — mean 309.3 s ⇒ ~3.23k t/s, 26 % slower than the shipped 16384**
+(and 17 % slower than 32768). Chunk proven live: **1,242 `#new-token: 4096` batches** (~248
+chunks per 1M request vs ~61 at 16384), needle 5/5 PASS. The pool moves the mirror-image way, as
+predicted: `max_total_num_tokens` **rises** 3,042,304 (16384) → **4,352,000** — a smaller chunk
+buys pool capacity that nothing here needs at the cost of prefill speed. Per-chunk rate: ~1.25
+s per 4096-token chunk = **3.28k t/s/chunk** vs 4179 at 16384 — the flat per-chunk cost dominates
+a smaller denominator exactly as §9's arithmetic says, and 32768 showed the other wall (pool
+collapse). **The 16384 optimum is now bracketed from both sides and stays shipped; the chunk
+ladder is closed.** Receipts `~/benchmarks/tp4-window3-20261024/` (`chunk4k-needle.{log,json}`,
+`chunk4k-node{1..4}-serve.log`).
 
 Related, and the reason the pool is a pin: a 1M prefill at 0.78 leaves the head **5.7 GiB**, at 0.80
 only **2.7 GiB** — which is why `mem_fraction_static` stays 0.78 and why a prefill-graph capture pool
