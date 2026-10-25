@@ -541,6 +541,23 @@ checkpoint carries its own `chat_template.jinja`, so there is no `--chat-templat
   `ladder.{yaml,json,csv}`, `battery-thinking-{on,off}.json`). Task
   `sparkrun_31a011c489646cf6_2d38dfc4605e` on `.30`, 0 containers before and after.
 
+### The main-image gate (2026-10-25, window 3) — this arm is the instrument
+
+`sglang-main-arm64:6563312` (sglang `main` @ `65633129…`, built on the head 2026-10-24, image
+`fe903216cd88`) was boot-gated with this recipe at `-o container=…` — the arm is single-node,
+pool-resident, and carries the 2026-10-22 `.30` control, so it is the cheapest like-for-like probe
+of a candidate base image. Attempt 1 failed at tokenizer load: the **pool snapshot for
+`XHToken/Spark-X2.6-4B` held only `config.json`** — the body did not survive the BeeGFS migration
+dedup; one `hf download` (8,239,287,315 B, rc=0) restored it. Gate 1 (C1 n=3): 21.3 t/s. The owner
+then raised the bar to the full breakfast (2026-10-25): ladder n=5 decode rows **C1 20.88 / C2
+49.53 / C5 99.30 / C10 159.43** vs the control's 20.38 / 46.38 / 99.27 / 156.20 — every delta
+inside the run-to-run band (+2.5 / +6.8 / +0.0 / +2.1 %) — and **house 37/37** (134.1 s). Verdict:
+**the main image is indistinguishable from the v0.5.22 pin on this arm and passes the adoption
+bar**; both `.30` measurements carry the controller-load caveat, but the control carries it too, so
+the comparison holds. Receipts `head:~/benchmarks/tp4-window3-20261024/`
+(`gate-main-image-launch{,2}.log`, `gate-c1.*`, `gate-full-ladder.*`, `suite-gate-full/`,
+`gate-full-node30-serve.log`), tasks `…_57452cfd0e37` / `…_d250d3ad4a0c`, 0 containers after.
+
 ## [spark-x2.6-4b-fp8-sglang](spark-x2.6-4b-fp8-sglang.yaml)
 
 SGLang · **1 node (TP=1)** · **shipped 2026-10-22 as the fast tier — 2× the control's C1 at equal house quality**.

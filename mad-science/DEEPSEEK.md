@@ -1749,3 +1749,28 @@ carry the detail.
   The one-knob env is load-bearing every boot (TTR ~42–46 min at ~95 MB/s pool reads with
   CPU-dequant gaps); window-2's ladder `--skip-run` auto-finish failure (bench-id collision →
   stale state, c10 FAILED) is why the cells took two windows.
+
+### 18.4 The 2026-10-25 window's Beam boot-gate (window record, explore lane)
+
+- **Beam staging + quartet boot-gate — PASSED (window 3, 2026-10-25).** Staging leg:
+  `reflection/Beam-1.0-501B-A23B-NVFP4` @ `f8ecac0e…` to the shared BeeGFS pool, `du -sbL`
+  **293,654,945,142 B** vs the card's `usedStorage` **293,648,862,719 B** (+6 MB overhead);
+  `vllm/vllm-openai:reflection-beam` pulled to the head (38.5 GB on disk, RepoDigest
+  `sha256:c1a6be6ad080…` — the TODO's pull-time `7fc940745c…` no longer matches the tag, it was
+  re-pushed). Boot-gate leg: `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml`
+  (`7afcafb`; ENTRYPOINT fix `debb1eb` — the image declares `ENTRYPOINT ["vllm","serve"]`, which
+  sparkrun's launcher refuses, so `executor_config.entrypoint: ""` is required), task
+  `sparkrun_30078b4aa125dd7d_b2f8c6e5117c` on `.31`–`.34`, NVFP4 TP=4, fp8 KV, default
+  `flashinfer_trtllm` MoE path: `/v1/models` 200 at 05:11:26Z (TTR ~18 min from the 04:53 relaunch
+  — the 293.6 GB pool read went fast and no 10-min FlashInfer autotune stall followed), smoke chat
+  correct (17×23 = 391, `finish_reason: stop`). **The kernel falsifier never fired — the marlin
+  retry was not needed.** One knob gap recorded: the recipe omits the card's
+  `--reasoning-parser beam`/`--tool-call-parser beam`, so the smoke content shows raw
+  modified-Harmony `<|channel|>` markers — content correct, parser follow-up for any full cell
+  (TODO §explore Beam item cells (b)–(d) remain: house+needle, BFCL tools leg, DFlash2 A/B). One
+  process miss on the record: the first gate fire (04:41:57Z) failed fast at sparkrun validation
+  and sat unnoticed ~10 min because no completion watcher was armed — any auto-fire script now
+  gets its watcher at fire time. Receipts `~/benchmarks/tp4-window3-20261024/`
+  (`beam-gate-launch.log`, `beam-gate.log`, `beam-gate-node{1..4}-serve.log` harvested pre-stop,
+  `beam-gate-stop.log`); stopped by literal id, quartet 0 containers. TODO §Retry queue item 3
+  closes on this.

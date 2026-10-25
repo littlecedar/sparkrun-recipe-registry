@@ -528,12 +528,20 @@ off the `STATUS.md` board into the queue. Jobs 1–4 are TP=4 (one boot at a tim
 `.31`–`.34`); jobs 5–7 are single-node. Schedule order is 1→7 as written; the only genuine dependency is
 inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no reorder.
 
-- [ ] **1. H3 quartet retry (stage 4, MiniMax-H3 four-rank video probe)** — the stage-4 retry parked at the
+- [x] **1. H3 quartet retry (stage 4, MiniMax-H3 four-rank video probe)** — the stage-4 retry parked at the
   `.31`–`.34` (window 2) board row (`STATUS.md:24`; receipts `.scratch/tp4-window2/progress.md`,
   `~/benchmarks/tp4-window2-20261024/`). The retry's hypothesis list carries the two unprobed axes from the
   `#7` close (`STATUS.md:23`): the **SDPA-on-SM12x attention-backend fallback** and **NCCL
   init/transport selection** (instrument per tp4-window3: `NCCL_DEBUG=INFO`, NVLS off, grep both axes in
   the four serve logs before any stop). Node cost: four ranks.
+  *(RAN 2026-10-25 (window 3): SECOND INDEPENDENT DEADLOCK REPRO under `--warmup-mode off` — the
+  recon's action-1 lever is exhausted (NCCL init clean on every rank) and the serve still wedges:
+  with warmup off, the health gate's own generation never returns and `/health` never binds
+  (40+ min, 4 × 0 % GPU, zero errors). FILED upstream as sgl-project/sglang#46390 — a terminal
+  negative per the owner's ruling; no further iterations planned on this route. Record:
+  `DEEPSEEK.md` §18.3 and `recipes/media/README.md` §"The four-rank probe"; receipts
+  `~/benchmarks/tp4-window3-20261024/` (`h3-retry-node{1..4}-serve.log`, `h3-retry-launch.log`);
+  upstream draft `.scratch/tp4-window3/upstream-h3-a2a.md`.)*
 - [x] **2. 32768 prefill-chunk probe (ds4 knapcio)** — the follow-up the settled `QUESTIONS.md #2` row
   called a follow-up that was not queued and not a promise (that row is now amended to point here); now
   queued. One ds4 boot with `-o env.CHUNKED_PREFILL_SIZE=32768`, five cold ~999k needle requests, the
@@ -547,14 +555,27 @@ inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no
   is closed — record in `DEEPSEEK.md` §9. Owner decision 2026-10-25 (SURVEY #3): the precedent is
   confirmed as the standing rule for chunk-size arms — `mem_fraction_static` stays pinned, the
   shrunken pool is reported as-is, no fraction compensation on any future arm.)*
-- [ ] **3. Beam staging (293.6 GB) + quartet boot-gate** — parked at the `.31`–`.34` (window 2) board row
+- [x] **3. Beam staging (293.6 GB) + quartet boot-gate** — parked at the `.31`–`.34` (window 2) board row
   (`STATUS.md:24`). Leg 1, staging: `reflection/Beam-1.0-501B-A23B-NVFP4` to the shared BeeGFS pool
   (293,648,862,719 B, matching the TODO byte figure exactly; staged in flight on `.30` per
   `.scratch/tp4-window3/progress.md`), staging being its own item per `#50` (TODO §explore Beam item,
   line 1257). Leg 2, boot-gate: `vllm/vllm-openai:reflection-beam` (arm64, 16.78 GB, **not** in the
   RepoDigest pin set) on the quartet against the pre-registered cells in the Beam item (line 1181).
   Node cost: staging is control-side; the boot-gate is four ranks.
-- [ ] **4. Main-image boot-gate (`sglang-main-arm64:6563312`)** — parked at the `.31`–`.34` (window 2)
+  *(RAN 2026-10-25 (window 3): BOTH LEGS COMPLETE. Staging: pool snapshot `f8ecac0e…`, `du -sbL`
+  293,654,945,142 B vs the card's usedStorage 293,648,862,719 (+6 MB overhead); image
+  `vllm/vllm-openai:reflection-beam` pulled to the head (RepoDigest `sha256:c1a6be6ad080…` — the
+  pull-time `7fc940745c…` above no longer matches the tag). Boot-gate: the probe arm
+  `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (`7afcafb`, entrypoint fix `debb1eb`
+  — the image declares `ENTRYPOINT ["vllm","serve"]`), task `sparkrun_30078b4aa125dd7d_b2f8c6e5117c`,
+  `/v1/models` 200 at 05:11:26Z (TTR ~18 min), smoke correct (17×23=391); **the kernel falsifier
+  never fired — the marlin retry was not needed.** One knob gap: the card's
+  `--reasoning-parser beam`/`--tool-call-parser beam` are not in the recipe, so raw
+  modified-Harmony `<|channel|>` markers show in the smoke content — follow-up for any full cell.
+  Cells (b)–(d) of the Beam item above (house+needle, BFCL, DFlash2 A/B) are NOT run — the TP=4
+  queue exhausted here and the session drains. Record: `DEEPSEEK.md` §18.4; receipts
+  `~/benchmarks/tp4-window3-20261024/beam-gate-*`.)*
+- [x] **4. Main-image boot-gate (`sglang-main-arm64:6563312`)** — parked at the `.31`–`.34` (window 2)
   board row (`STATUS.md:24`); build state: the image completed on the head (28.9 GB,
   `.scratch/tp4-window3/progress.md`). Gate = boot the resident Spark-X2.6-4B bf16 control shape
   (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`) on the main-line image and compare against the
@@ -562,6 +583,16 @@ inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no
   *(Owner decision 2026-10-25 (SURVEY #4): the C1-only pass is NOT sufficient — the adoption bar
   is the full English breakfast, ladder + house on `sglang-main-arm64:6563312`, before the image
   becomes a candidate base; a worker is queued for the full pass.)*
+  *(RAN 2026-10-25 (window 3): the FULL BREAKFAST PASSES — on `.30` (single-node arm, like-for-like
+  with the 2026-10-22 control measured on the same node; owner directive): ladder n=5 decode rows
+  **C1 20.88 / C2 49.53 / C5 99.30 / C10 159.43** vs the v0.5.22 control 20.38/46.38/99.27/156.20
+  (deltas +2.5/+6.8/+0.0/+2.1 %, inside the run-to-run band) and **house @4096 thinking-on 37/37**
+  (134.1 s). Verdict: the main image is indistinguishable from the `v0.5.22` pin on this arm and
+  passes the adoption bar. Attempt 1 exposed a pool hole — the `XHToken/Spark-X2.6-4B` snapshot
+  held only `config.json` after the BeeGFS dedup; one refetch restored 8,239,287,315 B. Record:
+  `recipes/explore/README.md` §"The main-image gate"; task `sparkrun_31a011c489646cf6_d250d3ad4a0c`,
+  stopped by literal id, 0 containers; receipts `~/benchmarks/tp4-window3-20261024/` (`gate-full-*`,
+  `suite-gate-full/`, `gate-main-image-launch{,2}.log`).)*
 - [x] **5. Ornith-1.5-122B NVFP4 completion — the pre-registered spec-decode cell** — parked at the
   `TP<4 (tplt4 lane)` board row (`STATUS.md:28`, "parked for the production-restart session"; the unpark
   ruling supersedes). Cell 4 of the plan in TODO §explore (lines 1426-1434): re-run ladder + house with
