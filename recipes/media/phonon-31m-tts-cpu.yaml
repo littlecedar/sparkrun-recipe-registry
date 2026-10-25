@@ -1,0 +1,73 @@
+recipe_version: "2"
+model: gradium/phonon-31m-en
+model_revision: 92741c5b07d085ff840e26fea8ce43110b87852f
+container: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+# sparkrun has no runtime family for a third-party Python server: `runtime: vllm` is the
+# launcher/distribution contract this command satisfies (the kokoro/kai/sol precedent).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  gradium/phonon-31m-en — a 31M-param streaming on-device English TTS (Pocket-TTS/Mimi
+  lineage) at 64.5 MB q8, served on the same A725 cores as the CPU decision arms at no
+  GPU cost. The engine is the vendor `ptts` CLI (PyPI ptts, aarch64 manylinux wheel)
+  behind a stdlib HTTP server staged by the phonon-tts-server mod — the
+  kokoro-82m-tts-cpu shape: `runtime: vllm` is only the launcher contract, readiness is
+  port + /health, and the endpoint is POST /v1/audio/speech {"input": text, "seed": N}
+  answering 24 kHz mono 16-bit WAV. MEASURED before this recipe existed
+  (~/benchmarks/tp4-lane-20261024/phonon/ and ~/benchmarks/tplt4-20261024/ab/): RTF
+  ~0.17 (~6x realtime), and the lane's hard-sentence WER A/B winner — literal WER
+  0.1747 vs kokoro's 0.2329 over an authored 12-sentence structured-data set, scored
+  through the whistle instrument. Known limits, both measured: `ptts` is NOT
+  byte-deterministic per invocation (same seed/text gives identical length, different
+  PCM — clients must not cache by content hash; A/Bs score at the transcript level),
+  and `-m` needs a real-file model directory (the mod copies the snapshot out; a
+  symlinked snapshot fails the checkpoint check). One render at a time. English only;
+  Apache-2.0 (the 40m siblings are CC BY-NC — this is the only shippable member).
+metadata:
+  model_url: https://huggingface.co/gradium/phonon-31m-en
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "31M"
+  model_dtype: q8
+  tags: media, tts, smol, cpu
+
+mods:
+  - phonon-tts-server
+
+# No chat endpoint and no /v1/models: port + /health readiness only.
+readiness:
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+
+# The server does not name a validated chat model; nothing to distribute (the mod
+# reads the pool snapshot itself). This declaration makes the launch exempt from the
+# serve-command model-binding check (the kokoro precedent, models/runtime.py).
+distribution_config:
+  models:
+    enabled: false
+
+defaults:
+  port: 8890
+  host: 0.0.0.0
+  served_model_name: gradium/phonon-31m-en
+  # Referenced so the key is not inert; the server's default seed is 1234 (the
+  # tp4-lane probe's seed) and clients may override per request.
+  seed: 1234
+
+# The image ships no /bin/kill (the kokoro kill-shim reason): sparkrun's detached
+# liveness check runs `docker exec <c> kill -0`.
+executor_config:
+  user: "root"
+  entrypoint: ""
+
+command: >
+  printf '#!/bin/bash\nbuiltin kill "$@"\n' > /usr/local/bin/kill
+  && chmod 755 /usr/local/bin/kill
+  && /cache/runtime/phonon/venv/bin/python /cache/runtime/phonon/server.py
+  --host {host}
+  --port {port}
+  --model-dir /cache/runtime/phonon/model
+  --revision {model_revision}
+  --seed {seed}
