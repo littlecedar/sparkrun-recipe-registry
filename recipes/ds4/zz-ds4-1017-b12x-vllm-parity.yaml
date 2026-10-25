@@ -50,7 +50,12 @@ mods:
 executor_config:
   entrypoint: ""
   shm_size: 32gb
-  ulimit: [memlock=-1:-1]
+  # BOTH limits here, never split across tiers: a `-o ulimit=` override REPLACES this
+  # whole list (repeated -o ulimit keys collapse to the last one), and boots 2-4 proved
+  # each half alone is fatal — nofile 1024 killed the first engine step (NCCL "Too many
+  # open files"), and dropping this memlock=-1:-1 for the nofile override killed init
+  # itself (ibv_create_cq ENOMEM — RoCE CQs need pinned-memory headroom).
+  ulimit: ["nofile=524288:524288", "memlock=-1:-1"]
 
 env:
   VLLM_ENABLE_ROCE_ALLREDUCE: "1"

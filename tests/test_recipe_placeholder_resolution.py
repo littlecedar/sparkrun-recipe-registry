@@ -190,9 +190,26 @@ class LiteralShaConsistency(unittest.TestCase):
     revision bump that edits one of the three places (top-level pin, snapshot
     path, --revision=) silently serves a stale snapshot or dies at
     distribution.
+
+    Exemption (2026-10-26): 40-hex tokens inside a `--speculative-config`
+    literal name a DIFFERENT model — the drafter, staged by pool snapshot
+    because SpeculativeConfig cannot resolve a repo id under HF_HUB_OFFLINE
+    (recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml, commit 3de5d70).
+    The drafter has no top-level pin to check against; the target model's own
+    snapshot tokens stay pinned by the rule.
     """
 
     SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
+
+    @classmethod
+    def _command_shas(cls, command_text: str) -> set[str]:
+        spec = re.search(r"--speculative-config\s*'[^']*'", command_text)
+        span = spec.span() if spec else (len(command_text), len(command_text))
+        return {
+            m.group(0)
+            for m in cls.SHA_RE.finditer(command_text)
+            if not (span[0] <= m.start() < span[1])
+        }
 
     def test_command_shas_match_model_revision(self):
         checked = 0
@@ -205,7 +222,7 @@ class LiteralShaConsistency(unittest.TestCase):
                 r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)", text, re.M | re.S
             )
             self.assertIsNotNone(command, f"{path}: no folded command block")
-            shas = set(self.SHA_RE.findall(command.group(1) or ""))
+            shas = self._command_shas(command.group(1) or "")
             unexpected = sorted(s for s in shas if s != pin.group(1))
             self.assertEqual(
                 unexpected,
@@ -230,8 +247,45 @@ class LiteralShaConsistency(unittest.TestCase):
             r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
             strip_comment_lines(text), re.M | re.S,
         )
-        shas = set(self.SHA_RE.findall(command.group(1)))
+        shas = self._command_shas(command.group(1))
         self.assertEqual(len(shas), 2, "control must produce two distinct SHAs")
+
+    def test_drafter_snapshot_token_is_exempt(self):
+        # The Beam shape: the target snapshot matches the pin; the DFlash2
+        # drafter rides its own pool snapshot inside --speculative-config.
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "model_revision: " + "a" * 40 + "\n"
+            "command: >\n"
+            "  vllm serve /cache/huggingface/hub/models--m--n/snapshots/" + "a" * 40 + "\n"
+            "  --revision=" + "a" * 40 + "\n"
+            "  --speculative-config '{\"model\":\"/cache/huggingface/hub/"
+            "models--m--draft/snapshots/" + "d" * 40 + "\",\"n\":7}'\n"
+        )
+        command = re.search(
+            r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
+            strip_comment_lines(text), re.M | re.S,
+        )
+        self.assertEqual(self._command_shas(command.group(1)), {"a" * 40})
+
+    def test_drafter_config_does_not_shield_target_mismatch(self):
+        # The exemption must not let a stale TARGET snapshot hide behind a
+        # drafter line that also happens to carry a mismatched sha.
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "model_revision: " + "a" * 40 + "\n"
+            "command: >\n"
+            "  vllm serve /cache/huggingface/hub/models--m--n/snapshots/" + "b" * 40 + "\n"
+            "  --speculative-config '{\"model\":\"/cache/huggingface/hub/"
+            "models--m--draft/snapshots/" + "d" * 40 + "\"}'\n"
+        )
+        command = re.search(
+            r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
+            strip_comment_lines(text), re.M | re.S,
+        )
+        self.assertEqual(self._command_shas(command.group(1)), {"b" * 40})
 
 
 class InertDefaults(unittest.TestCase):
