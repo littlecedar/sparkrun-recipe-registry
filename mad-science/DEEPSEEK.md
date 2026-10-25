@@ -1353,6 +1353,16 @@ All sizes are Hub `usedStorage`/`tree` bytes; no node cache was read.
 
 ## 17. A vLLM route to the shipped bar — what exists, what it costs, and the test that settles it (2026-10-23)
 
+**CLOSED NEGATIVE 2026-10-26 (owner: "That's horrible. Cancel it." — the vLLM route for 1017 is
+cancelled and retired to `attic/ds4/zz-ds4-1017-b12x-vllm-parity.yaml`, metrics in
+`attic/ds4/AGENTS.md`):** the fork's boot reached every boot gate (b12x load, disk-Engram,
+RoCEnante, DSpark k=5 engaged, house 37/37, 1M context, needle 32k 10/10) but the ladder read
+**C1 34.04 aggregate / 40.4 peak vs the 64.0 bar** — ~half the shipped SGLang C1 (66.14 band);
+C10 peak 113.8 clears 110.5 while the aggregate column reads 12.00 with the per-request
+identity broken at C≥5 (recorded as an anomaly). Receipts:
+`~/benchmarks/tp4-window4-20261026/parity-ladder.{csv,yaml}`. No tuning iterations were run;
+the tuning-round and ship-recipe queue tasks were withdrawn with the route.
+
 **Question.** Can a vLLM serve of the same body reach the shipped arm's numbers, and where such a route
 exists, which axis decides it? **Parity, stated once and held to below:** the same checkpoint and
 revision (`1bae0e1088993b9b82de08f59de5be5a34e42170`), one rank on each of four GB10 nodes at TP=4, a

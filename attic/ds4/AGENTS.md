@@ -3865,3 +3865,74 @@ Two comments moved to `recipes/ds4/README.md` as bullets under this recipe's
 RDMA gather and NCCL over the CX7 fabric need registered memory) and the
 generous `readiness` timeouts (a cold first boot compiles the CUDA extensions
 and writes the ~106 GiB/rank weight cache before the serve port opens).
+
+## The vLLM b12x parity arm (`zz-ds4-1017-b12x-vllm-parity.yaml`) — measured, then retired (2026-10-26)
+
+Retired by owner decision 2026-10-26 ("That's horrible. Cancel it." / "Shove that
+shit into the attic."): the vLLM b12x route for the 1017 checkpoint measured **~half
+the shipped SGLang C1** and is not worth further quartet time. SGLang is the sole
+TP=4 engine for the primary model. The recipe file moved verbatim to
+`attic/ds4/zz-ds4-1017-b12x-vllm-parity.yaml` (hash-equal, comments frozen); this
+section is its only durable record.
+
+**What the arm was.** `local-inference-lab/vllm` b12x fork (`dev/karmic-kraken` @
+`8244d1c4`, image `eugr/spark-vllm-b12x@sha256:03a9565…`) serving
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` @ `1bae0e10…` at TP=4 over four GB10 nodes:
+disk-Engram (`table_memory=disk`, `disk_resident_scales=True`), DSpark k=5,
+`--load-format b12x`, RoCEnante one-shot RoCE collectives. Study question:
+`mad-science/DEEPSEEK.md` §17 acceptance (C1 ≥ 64.0, C10 ≥ 110.5 t/s on
+`benchmarking/concurrency-ladder.yaml`, house ≥ 36/37 @4096 thinking-on, needle
+3/3 at 32,768/131,072/983,040).
+
+**Boot facts (boot 5, the limits-fixed serve; task
+`sparkrun_10aee0c5ca8d5bdb_f31ef03f5cb9`, 2026-10-25 20:26:52Z → ready 20:31:52Z).**
+Weights loaded clean on the fork: 76.44 GB selected/rank over 150.81 GB physical
+reads (40.85 s, b12x routing), RoCEnante all-reduce `world=4 hcas=roceP2p1s0f0,rocep1s0f0`,
+`max_model_len` 1,048,576 in `/v1/models` (`parity-models.json`), DSpark k=5 engaged
+(`SpeculativeConfig(method='dspark', num_spec_tokens=5)` + "Using the target model's
+B12X attention backend for the DeepSeek-V4 DSpark drafter",
+`parity-final-node1-serve.log`). Container limits carried in the recipe's
+`executor_config` (`nofile=524288:524288` + `memlock=-1:-1`, commit `7fa352d`;
+verified 524288/unlimited in-container) — boots 1–4 proved each half alone is fatal:
+nofile 1024 killed the first engine step (NCCL "Too many open files") and dropping
+the memlock pin killed init itself (`ibv_create_cq … Cannot allocate memory`,
+NCCL_DEBUG boot 3). docker's default 1024/8 MB are both NCCL-hostile on this route.
+
+**Ladder (decode rows, `benchmarking/concurrency-ladder.yaml`, pp 2048 / tg 128,
+prefix caching, 5 runs/cell, `--fresh`; `~/benchmarks/tp4-window4-20261026/parity-ladder.{csv,yaml}`):**
+
+| cell | t_s_mean ± sd (aggregate) | t_s_req_mean ± sd (per request) | peak_ts_mean ± sd |
+|:--|--:|--:|--:|
+| C1 | 34.04 ± 1.70 | 34.04 ± 1.70 | 40.4 ± 1.62 |
+| C2 | 35.73 ± 10.71 | 19.55 ± 4.32 | 52.8 ± 5.19 |
+| C5 | 15.05 ± 1.25 | 8.47 ± 4.98 | 86.6 ± 2.33 |
+| C10 | 12.00 ± 0.48 | 4.00 ± 2.74 | 113.8 ± 5.04 |
+
+No C8/C16 rows (the profile is 1/2/5/10). **Aggregate anomaly, recorded as
+anomaly, not a bar:** at C≥5 the b1 identity `t_s_req_mean × n ≈ t_s_mean` breaks
+(C10: 4.00 × 10 = 40 ≠ 12.00; the no-spec Beam baseline `beam-b1-ladder.csv`
+satisfies it: 7.31 × 10 ≈ 69.8) and mean sits at ~10 % of peak (12.0 vs 113.8) —
+the spec-decode scheduler starves streams between bursts at C≥5 on this fork
+(`max_num_scheduled_tokens` capped 4096 by the spec settings). The §17 bars are
+defined on the **aggregate** `t_s_mean` column (n=5 decode rows) — the same column
+the shipped line's C1 66.14/C10 116.27 bands were read from — so C10 reads a MISS
+on the defined metric even though the peak column clears the bar.
+
+**Quality and context:** house **37/37** @4096 thinking-on (EASY 19/19, HARD 18/18,
+`parity-suite/house.{log,json}`); needle **32,768: 10/10 depths PASS**
+(`parity-needle-32768.json`); 131,072 and 983,040 were **never measured** — both
+clipped by a 40 min wrapper timeout and the rerun was cancelled mid-flight with the
+route (the wrapper artifact, not a serve result; the rerun used `--max-tokens 512`
+per the budget-truncation lesson).
+
+**Boot history (all stopped by literal task id, 0 containers between boots):** boot 1
+`…bbe16c378e11` fd-death at first step; boot 2 `…0c5887d6839b` ncclCommInitRank fail
+(memlock wall); boot 3 `…1bb71801288c` NCCL_DEBUG shape capture (ibv_create_cq ENOMEM);
+boot 4 `…ee0af21419dc` nofile reverted (the `-o ulimit` collapse trap); boot 5
+`…f31ef03f5cb9` the measured serve. Serve logs `parity-final-node{1..4}-serve.log`;
+earlier failures `parity-retry-node{1..4}-serve.log`. vLLM-side root cause for the
+C1 gap was not iterated on (owner cancelled at first sight of the ladder); the
+tuning levers recorded in the queue notes (drafter/verify config, slot count,
+scheduler defaults) died with the route.
+
+

@@ -640,7 +640,8 @@ limits section already said it: "the real cost is the re-port, not the flag"
 **Consequence for this window.** Arms 3 and 5 are blocked behind this re-port
 (`mad-science/STATUS.md:8`; `mad-science/TODO.md` §Retry queue — window 4, Build-gate drift
 advisory; queue task `ds4-adapter-report-gate`), while
-the flag-level arms (S0, 1, 2, 6) and the b12x parity boot are not build-gated and run
+the flag-level arms (S0, 1, 2, 6) are not build-gated and run; the b12x parity boot ran, measured
+~half the shipped C1, and was retired to `attic/ds4/` by owner decision 2026-10-26
 (`mad-science/TODO.md` §Retry queue — window 4). Under the owner's queueing formula the re-port's
 weight is its 20 h estimate minus the 6 h of candidate work it blocks (arms 3 and 5 at 3.0 h each
 — queue tasks `w4-survey-arm3-indexer-scoring` / `w4-survey-arm5-trtllm-mla`), i.e. 14 h — so it

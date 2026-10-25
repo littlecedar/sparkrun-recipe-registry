@@ -105,13 +105,13 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "VERDICT-SO-FAR (tp4-recovery, cells continuing): decode axis = MISS at C1 — 34.04 agg / 40.4 peak vs §17 bar 64.0 (−47%), DSpark k=5 engagement PROVEN (B12X drafter backend line in serve log); C10 peak 113.8 ≥ 110.5 (aggregate 12.0 — bar definition on n=5 decode rows reads aggregate, both recorded). Context axis partial: /v1/models max_model_len 1048576 PASS, needle 32768 10/10 PASS; 131072 + 983040 hit the runner's 40-min timeout (rc=124, artifact of the wrapper not the serve) — rerun at timeout 7200 in flight. Boot history: boot 1 fd-death at first step (nofile 1024), boots 2-4 proved the limits split (ibv_create_cq ENOMEM = memlock wall), boot 5 READY with recipe-carried nofile=524288 + memlock=-1:-1 (7fa352d). Receipts: parity-ladder.{csv,yaml}, parity-suite/house.{log,json} 37/37, parity-needle-32768.json, parity-b5-node1-serve.log, boot traces parity-retry-node{1..4}-serve.log.",
+      "notes": "DONE — CANCELLED by owner decision 2026-10-26 (\"That's horrible. Cancel it.\" / \"Shove that shit into the attic.\"). Terminal two-axis verdict: DECODE MISS — C1 34.04 agg / 40.4 peak vs §17 bar 64.0 (~half the shipped SGLang C1 66.14 band), DSpark k=5 engagement PROVEN (B12X drafter backend line); C10 peak 113.8 ≥ 110.5 but the AGGREGATE column (the bar's definition, n=5 decode rows — same column as the shipped bands) reads 12.00 with the per-request identity broken at C≥5 (req 4.00×10=40 ≠ 12.0; no-spec b1 satisfies 7.31×10≈69.8) and mean ~10% of peak — spec scheduler starvation anomaly, recorded not tuned. CONTEXT/QUALITY PASS: /v1/models max_model_len 1048576; house 37/37 @4096 thinking-on; needle 32k 10/10; 131k/983k never measured (40-min wrapper clip; rerun cancelled with the route). The follow-on tasks b12x-vllm-tuning-round and dsv41-vllm-ship-recipe (round-4 §9(a)/round-5 §2(a)) are WITHDRAWN — the miss path and the pass case both died with the route; TODO.md:773 pass-case advisory is MOOT. Arm retired to attic/ds4/zz-ds4-1017-b12x-vllm-parity.yaml (hash-equal move, metrics in attic/ds4/AGENTS.md). Boot history: 5 boots, all stopped by literal id; boot 5 (limits-fixed, commit 7fa352d: nofile=524288 + memlock=-1:-1 from recipe executor_config) is the measured serve. Receipts: ~/benchmarks/tp4-window4-20261026/parity-ladder.{csv,yaml}, parity-suite/house.{log,json}, parity-needle-32768.json, parity-models.json, parity-final-node{1..4}-serve.log, parity-retry-node{1..4}-serve.log.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-25T19:50:04Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-survey-arm3-indexer-scoring",
@@ -179,11 +179,13 @@
         "w4-candidate6-reasoning-effort"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "ADOPTION PATH, not a probe (owner round-4 §1): re-pin 27616bec→aff52fa5 (knapcio upstream HEAD, carries SGLang #41303 bounded-replay SWA-safety backport); after boot-verifying the shipped bars the new overlay becomes the PRODUCTION line. Flag track (S1/S2/S3/candidate 6) re-bases on this overlay — each flag runs as an -o override with a same-window no-flag A/B. Hazard evidence target: upstream issue #16 documents Xid 13/43 CUDA faults under large prefix-cache hits (200k-966k) on the quarantined v2.4 lineage — any such crash on knapcio-line cells is recorded as the documented defect, not re-derived.",
-      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4"
+      "notes": "ADOPTION PATH, not a probe (owner round-4 §1): re-pin 27616bec→aff52fa5 (knapcio upstream HEAD, carries SGLang #41303 bounded-replay SWA-safety backport); after boot-verifying the shipped bars the new overlay becomes the PRODUCTION line. Flag track (S1/S2/S3/candidate 6) re-bases on this overlay — each flag runs as an -o override with a same-window no-flag A/B. Hazard evidence target: upstream issue #16 documents Xid 13/43 CUDA faults under large prefix-cache hits (200k-966k) on the quarantined v2.4 lineage — any such crash on knapcio-line cells is recorded as the documented defect, not re-derived. WORKING: clone @ aff52fa5 + re-derived health-port patch + same f80c91a4b canary tree; upstream's own ~40-test in-image gate should pass on their HEAD (v2.5 repaired the adapter-drift class, 57a98886); boot-verify = shipped-bar ladder C1/C10 + house + needle on the quartet.",
+      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4",
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-25T22:38:56Z"
     },
     {
       "id": "mellum-mtp-zz-probe",
@@ -224,34 +226,6 @@
       "node_cost": "single",
       "notes": "owner round-5 §1(b): EXISTING receipts only — GLM boot-verified ladders 2026-10-18 (pointers in recipes/glm/README.md), ds4 shipped bars, Beam window-4 cells; fresh cells only where geometry differs; structure = one row per arm per cell with receipt pointers",
       "provenance": "owner round-4 §8; round-5 §1",
-      "claimed_by": "",
-      "claimed_at": ""
-    },
-    {
-      "id": "b12x-vllm-tuning-round",
-      "title": "b12x vLLM tuning round — tune for a strong 1017 recipe (C1 decode gap)",
-      "estimate_h": 4.0,
-      "blocks": [],
-      "blocked_by": [],
-      "state": "queued",
-      "model": "dsv4.1-1017",
-      "node_cost": "quartet",
-      "notes": "owner round-4 §9(a): worth further experimentation for a strong vLLM recipe — this is the live path on a parity miss, not a terminal stop. Real gap: C1 34.04 agg / 40.4 peak vs §17 bar 64.0 (−47%), DSpark k=5 engagement PROVEN on the limits-fixed boot 5 — levers: drafter/verify config (DSpark k, verify cap), slot count, the fork's scheduler defaults; not a near-bar nudge",
-      "provenance": "owner round-4 §9(a); window-4 parity receipts",
-      "claimed_by": "",
-      "claimed_at": ""
-    },
-    {
-      "id": "dsv41-vllm-ship-recipe",
-      "title": "Ship-recipe: vLLM-engine 1017 arm (author + index + validate)",
-      "estimate_h": 2.0,
-      "blocks": [],
-      "blocked_by": [],
-      "state": "blocked",
-      "model": "dsv4.1-1017",
-      "node_cost": "single",
-      "notes": "EXTERNAL GATE (owner round-5 §2(a), fires ONLY on a parity PASS verdict; TODO.md:773 advisory): current verdict is a C1 decode miss — stays blocked until b12x-vllm-tuning-round produces a boot-verified pass. A done-blocker would release it unconditionally, hence state-blocked rather than blocked_by",
-      "provenance": "owner round-5 §2(a) + keeper correction",
       "claimed_by": "",
       "claimed_at": ""
     },
