@@ -371,8 +371,11 @@ files.
   **3.80 bpw** (IQ4_XS 199 · Q6_K 96 · IQ3_S 122 · IQ3_XXS 39 · IQ2_S 24 · Q5_K 17 · Q4_K 8): ~2.5 GB
   smaller and faster per token, but it puts IQ2_S/IQ3_XXS on 63 tensors, which is a visible quality
   risk on a cyber arm whose value is precision. The owner ruling of 2026-10-22 ships 15.7G as the
-  default and keeps 13G as the A/B; **the 13G arm has not been booted**, so no tier delta is claimed
-  in either direction.
+  default and keeps 13G as the A/B; **the 13G arm was booted 2026-10-24 on the same instruments** —
+  house 37/37 thinking-on, refusal probe 0/4, vision 2/2 exact, receipts
+  `~/benchmarks/tp2-queue-20261024/` (its ladder section below) — so no tier delta is claimed beyond
+  what those cells show. *(Owner decision 2026-10-25 (SURVEY #5): the tier A/B item is closed as
+  landed; the earlier "has not been booted" sentence was stale.)*
 - **Gating:** the repo is `gated: auto` and the card says `license: other` / `license_name: qwen`
   with no `LICENSE` file in the tree, so the licence position is the card's declaration only — same
   shape as the AEON arm. Each node needs an `HF_TOKEN` with that release accepted.

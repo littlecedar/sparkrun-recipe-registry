@@ -222,8 +222,11 @@ Rows `#1`, `#4`, `#5`, `#8`–`#16` moved here verbatim when `QUESTIONS.md` was 
   `CUDA_TP4` (upstream/fork work), or a different engine. **The owner then ruled the TP=2 side (2026-10-24):
   "No, a post-window session is not authorized. When TP=4 session is complete, this session drains and
   closes. Another session will complete the TP≤2 queue when production inference restarts on .30-.33."**
-  — the mixed A/Bs' TP=2 legs are not scheduled as an agent session; they pass to the session that follows
-  the production restart — provenance: `DEEPSEEK.md` §13 item 4;
+  — the mixed A/Bs' TP=2 legs are not scheduled as an agent session; they pass to the session that
+  follows the production restart — *(Owner decision 2026-10-25 (SURVEY #1): superseding — when the
+  TP=4 queue is exhausted, this session drains and closes with TP≤2 items possibly unfinished; the
+  unparked TP≤2 items (§Retry queue, 2026-10-25) do NOT extend the session.)* — provenance:
+  `DEEPSEEK.md` §13 item 4;
   `~/benchmarks/tp4-window-20261024/boot7-exl3tp4.launch.log`; `~/benchmarks/tp2-queue-20261024/`;
   asked 2026-10-22.
 
@@ -485,7 +488,9 @@ A/B), the ds4 candidate survey and four-node suite legs, and the DSpark window-s
 **Owner decision 2026-10-24 (SURVEY row 3) — session drain.** **No post-window TP≤2 session is
 authorized**: when the TP=4 session completes, this session drains and closes; another session completes
 the TP≤2 queue when production inference restarts on `.30`–`.33`. The TP=2 halves stay with the TP≤2 queue
-(two nodes), not with this window.
+  (two nodes), not with this window. *(Owner decision 2026-10-25 (SURVEY #1): the drain ruling
+  stands — the session closes when the TP=4 queue is exhausted, with TP≤2 items possibly
+  unfinished; the unpark does not extend the session.)*
 
 
 # TODO list
@@ -529,13 +534,19 @@ inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no
   `#7` close (`STATUS.md:23`): the **SDPA-on-SM12x attention-backend fallback** and **NCCL
   init/transport selection** (instrument per tp4-window3: `NCCL_DEBUG=INFO`, NVLS off, grep both axes in
   the four serve logs before any stop). Node cost: four ranks.
-- [ ] **2. 32768 prefill-chunk probe (ds4 knapcio)** — the follow-up the settled `QUESTIONS.md #2` row
+- [x] **2. 32768 prefill-chunk probe (ds4 knapcio)** — the follow-up the settled `QUESTIONS.md #2` row
   called a follow-up that was not queued and not a promise (that row is now amended to point here); now
   queued. One ds4 boot with `-o env.CHUNKED_PREFILL_SIZE=32768`, five cold ~999k needle requests, the
   primary metric cold prefill
   latency vs the 16384 bar (mean 245.0 s, ~4.09k t/s); §9's arithmetic (`DEEPSEEK.md` §9, addendum —
   122 eager launches at 8192, halved to 61 at 16384) says 32768 halves the launch count again, each
   further doubling shrinking the pool-sizing margin at the same `mem_fraction_static`. Node cost: four ranks.
+  *(RAN 2026-10-25 (window 3): 32768 lost — mean cold prefill 263.6 s / ~3.79k t/s vs the 16384
+  bar's 245.0 s / 4.09k t/s (−7.6 %), pool collapsed 3,042,304 → 1,356,288 at the same 0.78;
+  the owner-directed 4096 control also lost (309.3 s), so 16384 is bracketed and the chunk ladder
+  is closed — record in `DEEPSEEK.md` §9. Owner decision 2026-10-25 (SURVEY #3): the precedent is
+  confirmed as the standing rule for chunk-size arms — `mem_fraction_static` stays pinned, the
+  shrunken pool is reported as-is, no fraction compensation on any future arm.)*
 - [ ] **3. Beam staging (293.6 GB) + quartet boot-gate** — parked at the `.31`–`.34` (window 2) board row
   (`STATUS.md:24`). Leg 1, staging: `reflection/Beam-1.0-501B-A23B-NVFP4` to the shared BeeGFS pool
   (293,648,862,719 B, matching the TODO byte figure exactly; staged in flight on `.30` per
@@ -548,24 +559,58 @@ inside item 3 (its boot-gate waits on the staging leg and a free quartet) — no
   `.scratch/tp4-window3/progress.md`). Gate = boot the resident Spark-X2.6-4B bf16 control shape
   (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`) on the main-line image and compare against the
   `v0.5.22` control (C1 20.38). Node cost: one node.
-- [ ] **5. Ornith-1.5-122B NVFP4 completion — the pre-registered spec-decode cell** — parked at the
+  *(Owner decision 2026-10-25 (SURVEY #4): the C1-only pass is NOT sufficient — the adoption bar
+  is the full English breakfast, ladder + house on `sglang-main-arm64:6563312`, before the image
+  becomes a candidate base; a worker is queued for the full pass.)*
+- [x] **5. Ornith-1.5-122B NVFP4 completion — the pre-registered spec-decode cell** — parked at the
   `TP<4 (tplt4 lane)` board row (`STATUS.md:28`, "parked for the production-restart session"; the unpark
   ruling supersedes). Cell 4 of the plan in TODO §explore (lines 1426-1434): re-run ladder + house with
-  `-o 'speculative_config={"method":"mtp","num_speculative_tokens":3}'` on
-  `recipes/ornith/zz-ornith-1.5-122b-nvfp4-vllm.yaml`, gate on serve-log `Mean acceptance length > 1`,
-  falsifier fires below C1 17 t/s; the DFlash2 alternative is the same one-knob shape. Boot script already
-  staged: `.scratch/tplt4/boot_ornith_mtp.sh`; receipts `~/benchmarks/tplt4-20261024/ornith122b/`.
+  the checkpoint's own MTP head on a `--speculative-config '{"method":"mtp","num_speculative_tokens":3}'
+  probe arm, gate on serve-log `Mean acceptance length > 1`, falsifier fires below C1 17 t/s.
   Node cost: one node.
-- [ ] **6. Spark-X2.6-4B remaining open cells (the board's "Spark-X2.6 MTP" job)** — parked at the
+  *(RAN 2026-10-25 (tplt4, `.35`, paired same-window control): **MTP is a real lever — C1 +44 %**.
+  MTP n=3: C1 **38.8** / C2 48.9 / C5 71.8 / C10 81.2 vs the plain control boot in the same window
+  C1 26.9 / C2 39.3 / C5 60.9 / C10 74.4 (reproduces the 2026-10-22 numbers within 1 %, so the delta
+  is spec decode); serve-log **mean acceptance 2.43–2.60**; house MTP **36/37** (easy 18/19) vs
+  plain-in-window **37/37** — both at the ≥36 bar. Above the 17 t/s falsifier with 2.3× margin, but
+  still 56 % of the 69.28 easy-traffic bar — the arm stays a capability arm; **DFlash2 alternative
+  not needed** (it was only owed if MTP missed). Recipe:
+  `recipes/ornith/zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml`; two launch traps recorded — an explicit
+  `command:` template consumes only placeholders (a bare `-o speculative_config=…` is consumed
+  nowhere; two boots rendered `speculative_config=None`), and JSON-valued placeholders must be
+  single-quoted in the template. Lane section: `recipes/ornith/README.md` §"The 122B one-node probe";
+  receipts `~/benchmarks/tplt4-20261024/ornith122b/`.)*
+- [x] **6. Spark-X2.6-4B remaining open cells (the board's "Spark-X2.6 MTP" job)** — parked at the
   `TP<4 (tplt4 lane)` board row (`STATUS.md:28`). The arm's still-open, worth-one-boot cells (TODO
-  §explore, line 2367): the FP8 fast tier's **tool-call contract** (`--tool-call-parser spark25` through
-  `recipes/explore/spark-x2.6-4b-fp8-sglang.yaml`, probed on bf16 only) and the **clamp cell** (justify
-  `--max-running-requests 96` with a `concurrency: [32, 48, 64, 96]` ladder at pp 2048 / tg 128).
-  Receipts `~/benchmarks/spark-x2.6-20261022/`. Node cost: one node.
-- [ ] **7. kokoro-shaped recipe arm (phonon)** — the mechanical follow-up the kokoro-vs-phonon A/B named
-  (TODO §media, "a kokoro-shaped recipe arm is a mechanical follow-up, not shipped by this probe");
+  §explore): the FP8 fast tier's **tool-call contract** and the **clamp cell**.
+  Node cost: one node.
+  *(RAN 2026-10-25 (tplt4, `.30` as a normal worker node — the paired-in-window plain control
+  reproduced the 2026-10-22 `.33` numbers within 1.3 %): **tool-call contract PASS** — 3/3 reps
+  `finish_reason: tool_calls` with populated arguments (`get_weather({"city":"Lisbon"})`, `spark25`
+  parser, `temperature: 0`); **clamp cell closed negative** — `--max-running-requests 96` sweep
+  reads c32 294.5 / c48 272.2 / c64 291.9 / c96 294.7 tg t/s, flat within ±4 % (c96 +0.07 % on
+  c32), so the shipped `max_num_seqs: 32` stays; the pool arithmetic (779,390 ÷ 96 ≈ 8.1k/seq)
+  never became the constraint. The job's "MTP" half is resolved by **absence**: the checkpoint has
+  no mtp/nextn/draft keys and the 16-repo family census has no drafter, so the only spec route was
+  **NGRAM — probed and measured-rejected** (`zz-spark-x2.6-4b-fp8-ngram-sglang.yaml`, flag shape
+  from the retired IFM NGRAM arm): NGRAM **38.0 / 69.6 / 134.7 / 189.0** vs plain-in-window
+  **40.3 / 75.7 / 143.8 / 214.8** — slower at every rung (−5.7 % C1 to −12 % C10); the
+  pre-registered falsifier (spec C1 ≤ plain C1) fired, no breadth sweep. Lane sections:
+  `recipes/explore/README.md` §spark-x2.6-4b-fp8 + §zz-ngram; receipts
+  `~/benchmarks/tplt4-20261024/sparkx26/`.)*
+- [x] **7. kokoro-shaped recipe arm (phonon)** — the mechanical follow-up the kokoro-vs-phonon A/B named;
   pointer `recipes/media/README.md` §A/B, receipts `~/benchmarks/tplt4-20261024/ab/`). Author the
   phonon-31m CPU recipe on the `recipes/decision/kokoro-82m-tts-cpu.yaml` shape. Node cost: one node.
+  *(DONE 2026-10-25: `recipes/media/phonon-31m-tts-cpu.yaml` + `recipes/media/mods/phonon-tts-server/`
+  (stdlib server + ptts venv + real-file model copy, kokoro shape: `runtime: vllm` as the launcher
+  contract, `readiness.inference: false`, kill shim, `distribution_config.models.enabled: false`);
+  boot-verified on `.35` from the committed file — TTR **8.2 s**, c1 render **0.622 s wall / 4.56 s
+  audio (RTF 0.136)**, h01 0.776 s / 7.52 s (RTF 0.103); root README index row added. Boot chain
+  fixes recorded in the recipe history: server accepts the runtime-appended
+  `--served-model-name`, render names the venv's `ptts` binary explicitly, `--model-dir` feeds the
+  render config, and `mods:` uses the house `mods/<name>` ref form (the guards'
+  `ModsResolveAdjacent` + `InertDefaults` caught the first draft post-commit). Receipts
+  `~/benchmarks/tplt4-20261024/phonon-arm/`.)*
 
 
 ## ds4
@@ -979,6 +1024,9 @@ Any decision model
 ## media
 Any model with multimedia output, diarization, TTS, STT, or other multimedia capabilities
 - [ ] **lodestones/Kromoss — a 5.08B-param MOSS-Image text-to-image fine-tune; probe whether the diffusers route holds the same one-node cell as the shipped Qwen-Image arms, with the turbo LoRA as the fast arm** — *What it is:* a full fine-tune of [OpenMOSS-Team/MOSS-Image-Base](https://huggingface.co/OpenMOSS-Team/MOSS-Image-Base) at 1024 px, Apache-2.0, ungated, diffusers `MOSSImagePipeline` via `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True` (card: https://huggingface.co/lodestones/Kromoss, last modified 2026-10-24, 21.1k downloads). It needs `diffusers>=0.38` and `transformers>=5.3` (card Quick start). *Weights (file listing, https://huggingface.co/lodestones/Kromoss/tree/main):* diffusers layout — `transformer/` bf16 shards **15.19 GB** (3×5.0 + 189.5 MB), `text_encoder/` bf16 shards **16.9 GB** (Qwen3.5-9B), `vae/` fp32 **249.5 MB** (FLUX.2-small decoder); Comfy single-files — `diffusion_models/kromoss_bf16.safetensors` **10.2 GB** (fused `proj.qkv`), `kromoss_int8_convrot.safetensors` **5.4 GB** (ConvRot W8A8 int8, 168 block linears, Hadamard-rotated), `text_encoders/qwen3.5_9b_bf16.safetensors` **19.3 GB**; two fp32 rank-128 **8-step turbo LoRAs** (`8-steps-dmd2-lora.safetensors`, recommended, best PartiPrompts score per the card; `8-steps-dmd-lora.safetensors`), each 1.2 GB. *Resident on one GB10:* bf16 pipeline ≈ **~27–30 GiB** (transformer ~10.2 + TE ~16.9–19.3 + VAE 0.25), trivially inside the 121 GiB pool. **The int8 single-file route is likely kernel-dead on GB10** — it is the same ConvRot-W8A8 class as MiniMax-H3's INT8, which the media lane boot-verified as rejected at the kernel level on sm_121 ("No implemented int8_scaled_mm for current compute capability", `recipes/media/README.md`), so the bf16 diffusers route is the real candidate and the int8 file is a ComfyUI-only curiosity at best (whether it even loads outside ComfyUI is unverified and low-value to verify). *Engine fit:* diffusers script arm, same shape as the shipped `recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`; **no vLLM-OMNI route is evidenced** — the shipped vLLM-OMNI arms carry `QwenImagePipeline`/`QwenImage21Pipeline` only and the repo ships no vLLM-family model class (NOT FOUND — nothing in the card or tree suggests one). *Quants:* vendor bf16 + the int8_convrot file only; no GGUF/EXL3/NVFP4 of the transformer (NOT FOUND in the tree). *Instrument:* the image-lane per-image wall cell (the Qwen-Image precedent measured 2048² at 53.24 s σ 0.20 n=3 vs 11.24 s at 1024²), plus the lane's recorded trap that **`num_inference_steps` can be silently inert when the scheduler's sigmas win** — Kromoss's euler/simple scheduler must be step-probed by hashing outputs across step counts before any steps claim. *Gate/first cell:* 1024², 50 steps CFG 3 control, then 8 steps CFG 1 + `8-steps-dmd2-lora` at strength 1 (card instructs: apply unmerged, never merge into bf16 weights); falsifier = if the LoRA arm does not reproduce the card's 8-step/CFG-1 look on the same seed, the arm is measured-rejected, not re-tuned. *(effort: medium — one boot, two cells + a step-knob proof; research 2026-10-24.)*
+  *(Owner decision 2026-10-25 (SURVEY #2): ship all three zz- probes as recipes — Bonsai/Kromoss
+  to `recipes/media/`, Timestral to `recipes/decision/`; the cutover is in flight by a peer
+  worker.)*
   *(tp4-lane took this 2026-10-24 — **MEASURED end-to-end, cells closed**. Staging: the FULL
   37-file snapshot @ `a4fe9744…` is resident and du-verified (40.0 GB, 0 zero-byte, hf exit 0; the
   first `--include` pull staged only a 21-file subset whose missing `refs/main` broke offline
@@ -990,7 +1038,7 @@ Any model with multimedia output, diarization, TTS, STT, or other multimedia cap
   trust_remote_code=True, torch_dtype={"default": bf16, "vae": fp32})`, scheduler rebuilt from
   config, the card's unmerged-LoRA forward-hook recipe for the dmd2 turbo,
   `uncond_skip_layers=[22]` on the CFG-3 control) and
-  `recipes/media/zz-kromoss-mossimage-5b-bf16-diffusers-script.yaml` (`lora: none` default =
+  `recipes/media/kromoss-mossimage-5b-bf16-diffusers-script.yaml` (`lora: none` default =
   plain control; the fast cell passes `-o lora=<snapshot>/8-steps-dmd2-lora.safetensors`).
   Validated; the int8 route stays unverified by design.)*
 
@@ -1070,6 +1118,9 @@ Any model with multimedia output, diarization, TTS, STT, or other multimedia cap
 ## explore
 Any model with reasoning and tool-calling capabilities
 - [ ] **Scope `prism-ml/Ternary-Bonsai-2-9B-gguf` as a 2.4 GB ternary vision-reasoner on one Spark** —
+  *(Owner decision 2026-10-25 (SURVEY #2): ship all three zz- probes as recipes — Bonsai/Kromoss
+  to `recipes/media/`, Timestral to `recipes/decision/`; the cutover is in flight by a peer
+  worker.)*
   a **9B-class ternary (−1/0/+1) VLM**: ~8.95B language + ~0.46B vision tower, base `Qwen/Qwen3.5-9B`
   with the architecture unchanged (32 blocks, hidden 4096, **hybrid attention 24 linear + 8 full**,
   262,144-token context), weights folded with a blockwise Hadamard rotation whose matching activation
@@ -1146,7 +1197,7 @@ Any model with reasoning and tool-calling capabilities
   binary-strings on its llama-server (prism.hadamard.axis/block_size/transform/sign_mode/gdn_v_grouped…);
   the GHCR public tag list still only shows `upstream-a37cc46` and the two 2026-10-22 CI build runs
   pushed nothing publicly visible, so the resident pin is the fresh-engine route. Recipe:
-  `recipes/explore/zz-ternary-bonsai-2-9b-q2_0-llamacpp.yaml` (committed before boot) — NOTE the
+  `recipes/explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml` (committed before boot) — NOTE the
   quant-matcher trap: `model: …:Q2_0` resolves `*Q2_0*` glob-first into `PQ2_0-MTP-Q8_0.gguf`, so the
   recipe hardcodes the exact snapshot path for the Q2_0 file and the Q8_0 mmproj. First cell boots on
   `.30` under the owner's work-node ruling (functional boot; the comparative ladder/house cells wait
@@ -1183,8 +1234,8 @@ Any model with reasoning and tool-calling capabilities
   PASS; the miss is `hard-rev`, reply `nurkrap`). **The quiet-node numbers clear all three gate
   legs and refute the controller-load caveat on the `.30` C10** (107.6 there vs 129.8 here — the
   gap is host load, not the arm). Gate verdict: **Bonsai Q2_0 passes the easy-traffic gate**
-  (C1 +9 %, C10 +11.6 %, house at the bar) — the ship/no-ship call on the `zz-` probe joins the
-  parked zz- recipe-ship decisions (Timestral/Kromoss/Bonsai). Operational note recorded: a bare
+  (C1 +9 %, C10 +11.6 %, house at the bar) — shipped 2026-10-25 with Timestral and Kromoss under
+  the owner's ship decision (all three `zz-` prefixes dropped). Operational note recorded: a bare
   `-H` launch (anonymous cluster) runs sparkrun's GGUF quant matcher at preparation and dies on
   `ambiguous GGUF selection` — this recipe must launch against a cluster profile with
   `distribution.model.enabled: false` (`--cluster WOPR`), matching the recipe comment's matcher
@@ -2161,6 +2212,9 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   `surya` entry either, so it is a `trust_remote_code` transformers arm). *(effort: medium)*
 
 - [ ] **Timestral (Mistral AI) time-series family — a CPU-class arm whose runtime is a pip package, and the registry has no instrument that can score it** — the whole [`mistralai/timestral` collection](https://huggingface.co/collections/mistralai/timestral) is four F32 checkpoints of one bespoke forecaster (5M / 28M / 123M / 209M parameters; `pipeline_tag: time-series-forecasting`, `library_name: timestral`), and none of them is a language model: the cards describe **zero-shot probabilistic forecasting**, with no tokenizer, no chat template and no `model_type` or `architectures` key in `config.json`. **It is a CPU arm, not a GPU one** — the largest member is 837 MB F32 and the library runs on `device="cpu"` — so the shape is the decision lane's CPU serve, precedent [`recipes/decision/kokoro-82m-tts-cpu.yaml`](../../recipes/decision/kokoro-82m-tts-cpu.yaml): `runtime: vllm` is only the launcher/distribution contract (no runtime family exists for a third-party Python server), the engine is a script behind a mod, readiness is port + `/health`, and **the arm's gate is a forecasting instrument this registry does not have yet** — pre-registered below rather than inherited from the chat cells. Serving candidate **`mistralai/Timestral-209M` @ `9874d252ab0a`** (209,312,256 params, 837.3 MB F32); route-settling smoke **`Timestral-5M` @ `bdd20cfc15a3`** (5,208,960 params, 21 MB, so the first cell needs no node at all). *(effort: medium)*
+  *(Owner decision 2026-10-25 (SURVEY #2): ship all three zz- probes as recipes — Bonsai/Kromoss
+  to `recipes/media/`, Timestral to `recipes/decision/`; the cutover is in flight by a peer
+  worker.)*
   *(research 2026-10-22 — family and ranking, read from the four cards and the upstream repo. All four repos are ungated and ship **F32 only** (`model.safetensors`: 20.8 / 111.3 / 490.4 / 837.3 MB) with just `config.json` + `model.safetensors` + `LICENSE`; no upstream GGUF and no upstream quant. One architecture at four widths: a patch-based transformer over **32-step patches** with alternating time and variate attention (209M = 24 layers, d_model 768, 12 heads, mlp 2048, 6 of 24 blocks `time_variate`; 5M = 8 layers, d_model 192, 3 heads, 2 variate blocks), `rope_theta 10000` / `rope_partial_factor 0.5`, `use_asinh` scaling, `attend_missing_patches`, 21 quantile knots 0.01…0.99, context up to **32,768 steps**, horizon up to **1,024 steps** per pass with longer horizons rolled block by block on the running median. Card accuracy, 5M/28M/123M/209M — **vendor claims, nothing independently reproduced**: GIFT-Eval MASE 0.705 / 0.678 / 0.659 / **0.658** and CRPS 0.479 / 0.461 / 0.448 / **0.446**; TIME MASE 0.652 / 0.638 / 0.628 / **0.626**; fev-bench SQL skill 46.19 / 48.42 / 50.18 / **50.39**; the card also places 209M ahead of t0-gamma (0.661), TimesFM-3 (0.667), Toto-2.0-2.5B (0.696) and Chronos-2 (0.698) on GIFT-Eval MASE. **The ranking is an accuracy choice, not a fit choice:** 209M tops all three boards and 123M→209M costs 347 MB for 0.001 MASE; 28M is the throughput pick if 209M CPU forecasts are too slow for a useful cell rate; 5M is the smoke only. **The engine question is closed, in one sentence:** no vLLM / SGLang / llama.cpp arch exists for it (vLLM `v0.32.0`'s model registry has no time-series entry at all, SGLang `v0.5.22`'s 291 model files none, llama.cpp `master`'s 247 archs none) and `trust_remote_code` is not a lever because there is no `model_type` to dispatch on — the pip package *is* the runtime, and the derivative formats inherit the same gap (a lossless F32 GGUF with a published Rust harness at `gouzil/rust-model-inference@cc72a61f`; K-quant GGUFs whose own `timestral.cpp` link is 404 and whose own card admits 28M/123M inference pending; ONNX exports; MLX repacks, not quants).)*
   *(research 2026-10-22 — **the two gates; (b) is now closed.** (a) **Can sparkrun exec a non-LLM forecasting server at all?** This is the same question the OCR probe answers for ONNX, and the Kokoro arm is the working template of the answer: `distribution_config.models.enabled: false` (a server that does not name the validated model in its command is otherwise rejected at launch with "serve command does not identify the validated model"), `readiness.inference: false` with port + `/health` only — though sparkrun's readiness still asks `/v1/models`, so the server must answer that path with the repo id — an empty `served_model_name` where the server takes no such flag, and a `/bin/kill` shim because the detached-launch liveness check runs `docker exec <c> kill -0` on images that may ship none. A **`timestral` mod** then has to stage `pip install git+https://github.com/mistralai/timestral@<pinned commit>` (Python ≥3.10, **torch ≥2.4** — a ~1 GB wheel, so the stage is the TTR risk Kokoro avoided by baking its model into the image) and run a stdlib server exposing `POST /forecast` (context ± covariates in, 21 quantiles out), pinned onto the lane's spare cores with `taskset`. There is no KV story and no distribution question: the 837 MB checkpoint is smaller than the venv that serves it. (b) **The licence is settled — accepted by the owner on 2026-10-22, so it is not a blocker; the terms still bind downstream users.** `license: other` with no `license_name` on the Mistral repos; the LICENSE file is verbatim a **"Modified MIT License"**, attribution "2026 - Mistral AI", and its condition 2 withholds every right from anyone whose *"global consolidated monthly revenue … exceeds $20 million … for the preceding month"*, explicitly reaching *"the Model and any derivatives, modifications, or combined works based on it, whether provided by Mistral AI or by a third party"* — **threshold-community on a MONTHLY measure**, a stricter cadence than LTX-2.5's $10M *annual* bar. The **code repo is Apache-2.0 while the weights are Modified MIT**, so the banner must not conflate them. **Owner decision, recorded 2026-10-22: the banner is ACCEPTED** — the organization's revenue is nowhere near the **$20M/month** cap, so a revenue-capped arm is allowed — and the banner still lands **with** the recipe, quoting the clause and naming Mistral's commercial channel, in the Qwen-Image / LTX-2.5 style, because those terms are the operator's to honour. That leaves **(a) the runtime question** as this item's only blocker.)*
   *(research 2026-10-22 — **the missing instrument, pre-registered.** The lane has no probabilistic-forecast instrument: `tools/quality-battery.py` is 37 chat items, the ladder is pp2048/tg128 decode, needle is a haystack, and the TTS arm's answer ("a wav round-trip plus real-time factor") does not transfer. **Series set:** synthesised, committed, licence-free — `tools/forecast-fixtures.py`, stdlib only, fixed seed, six series of 4,096 steps with a fixed context/horizon split: (1) a **Gaussian random walk**, the important one, because its h-step predictive law is analytic (N(0, h·σ²)) and therefore gives exact quantiles to score against; (2) trend + weekly seasonality + AR(1) noise; (3) the same with a level shift; (4) one with a missing block (NaN) to exercise `attend_missing_patches`; (5) a 2-variate pair with a known-future covariate; (6) a constant series for the degenerate case. **No third-party series is redistributed** — GIFT-Eval / TIME / fev-bench licences differ and their published numbers are leaderboard aggregates over hundreds of series that a handful of committed series cannot reproduce; a committed generator plus seed is byte-reproducible and yields an oracle the leaderboards cannot. **Outputs a cell must produce:** the 21 quantiles 0.01…0.99 for a fixed horizon (h = 96) on every series, as JSON. **Metrics, `tools/forecast-bench.py` (stdlib):** mean CRPS computed from the quantile grid as `(2/K)·Σ_τ pinball_τ` with K = 21, mean pinball loss per level, MASE against a seasonal-naive baseline on the same split, a **quantile-ordering check** (non-decreasing across the 21 levels at every step), and PICP at the 80 % interval. **Cells:** load time, **seconds per 1,024-step forecast at the 32,768-step context**, **peak RSS on CPU** (`resource.getrusage`), and **determinism** (same input twice → byte-identical quantile JSON). **Falsifiers, pre-registered:** any **non-monotone quantile** is a hard fail — it is the failure mode these models actually exhibit and it invalidates the whole 21-quantile claim; CRPS worse than the seasonal-naive baseline on the oracle series does not ship; and **CRPS more than 25 % above the card's 0.446 GIFT-Eval figure** on the analytic-oracle series is a reproducibility failure to re-run before anything is quoted — stated as a sanity band, not parity, because a six-series subset is not that leaderboard. Receipt `~/benchmarks/timestral-2026102X/` (REPORT.md with the fixture hash and scorer version, per-cell JSON, coverage table). Order: fixtures and scorer first (both CPU-only and node-free), then the mod + recipe, with the licence banner landing with the recipe.)*
@@ -2176,7 +2230,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   the walk series so the >25 %-above-0.446 sanity band is checkable at runtime — plus
   `tests/test_forecast_bench.py`, 10 guards over both.)*(tp4-lane took this 2026-10-24/25 —
   **stage 2 + the runtime cells are DONE**: `recipes/decision/mods/timestral-forecast-server/`
-  + `recipes/decision/zz-timestral-209m-forecast-cpu.yaml` (commits 65caa46→dc6b694), served
+  + `recipes/decision/timestral-209m-forecast-cpu.yaml` (commits 65caa46→dc6b694), served
   `mistralai/Timestral-209M` @ `9874d252` on `.30` CPU (taskset 0-4,10-14). Measured
   (`~/benchmarks/tp4-lane-20261024/timestral/REPORT.md`): **load 1.9 s, peak RSS 2.26 GiB**;
   per-forecast wall at the 4,096-step context / h=96: **1.18–1.44 s** (bivariate+covariate
@@ -2188,7 +2242,8 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   recorded in the receipt (amd64-only pytorch base → multi-arch CUDA + staged aarch64 torch
   wheel; python3/git bootstrap; server installed to the runtime dir; repo-id → snapshot-path
   resolution under HF_HUB_OFFLINE, the Kromoss trap again; `refs/main` had to be hand-created
-  on the pool). The recipe is a probe (zz-); shipping it is a lane decision.)*
+  on the pool). The recipe ships as `recipes/decision/timestral-209m-forecast-cpu.yaml`
+  (owner ship decision 2026-10-25, `zz-` prefix dropped).)*
 
 - [ ] **Probe Spark-X2.6-4B — a 4B dense hybrid-window agent model whose engine is *already resident*** —
   research-only so far: **no recipe, no download, no boot, no receipt.** `XHToken/Spark-X2.6-4B` (`66e3ae7b`,
@@ -2566,7 +2621,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   first cell. *(Superseded the same day: `.35` was freed and the 15.7G tier booted — `66612be`.)*
   *(effort: medium)*
 
-- [ ] **Ship the OrcaCyber arm at the 15.7G tier, 13G as the A/B control — `QUESTIONS.md` `#12`,
+- [x] **Ship the OrcaCyber arm at the 15.7G tier, 13G as the A/B control — `QUESTIONS.md` `#12`,
   answered 2026-10-22** — the ship decision is taken, the tier is not to be re-litigated: default tier
   **`orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G`** (15,695,148,832 B ≈ 14.62 GiB, 4.60 bpw mixed, imatrix,
   gated `auto`), control **`:Mix-13G`** (12,993,304,352 B ≈ 12.10 GiB, 3.80 bpw) — the control, not the
@@ -2577,10 +2632,11 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   `f5f1433d7dd0b74e_a4bf874feb5a`) read **TTR 30.29 s warm**, one warm C1 call **25.62 ± 2.31** t/s
   (prefill 742.9 ± 72.0, ttfr 2,399 ms), and the serve log's counters — acceptance 0.40–0.86, mean len
   2.19–3.57 — are what carry 27.32B dense at 4.60 bpw past the ~17 t/s weight-streaming roofline; that
-  attribution comes from the engine, not a paired MTP-off control, which is unmeasured. **What is still
-  open is the control and the four falsifiers**: the `:Mix-13G` tier has no cell (it ships as a documented
-  per-launch override or its own recipe, the lane's choice), and the quality/refusal/vision cells from the
-  item above have not run. *(effort: medium)*
+  attribution comes from the engine, not a paired MTP-off control, which is unmeasured. **CLOSED AS
+  LANDED — Owner decision 2026-10-25 (SURVEY #5):** the 13G control's quality/refusal/vision cells ran
+  on the same 2026-10-24 boot (house 37/37 thinking-on, 0/4 refusals, vision 2/2 exact; receipts
+  `~/benchmarks/tp2-queue-20261024/`, recorded in `recipes/cybersec/README.md`), so the earlier
+  "cells open" note was stale, not unfulfilled — nothing is owed. *(effort: medium)*
 
 - [ ] **Probe `InternScience/Sage-A1.5` — a 35.95B-A3B hybrid-attention MoE VLM built for long-horizon science (research only; a free node is the blocker)** — **no recipe in the index, two boots, one gate result**: the two drafts below are `zz-` DRAFT, and tier 1 served on `.34` on 2026-10-22 and was **measured-rejected on C1 (39.25 t/s)** — see the gate paragraph before the receipts. Every other number in this item is either read from the Hub at 2026-10-22 (`ba7d931d…`) or read out of a pinned engine's source; the ladder figures are the only measured ones. *(effort: long)*
   *What it is — bytes, not the name.* `pipeline_tag: text-generation` but the tags and the config say **image-text-to-text**: `architectures: [Qwen3_5MoeForConditionalGeneration]`, `model_type: qwen3_5_moe`, a 27-layer `vision_config` (hidden 1152, FFN 4304, patch 16, merge 2, `out_hidden_size` 2048) and `image_token_id`/`video_token_id`. So this is **not** an embedding, rerank, decision or media-gen arm: it belongs in this lane as a chat + vision + tool-calling arm, and the pooling ladder does not apply. **35,951,822,704 params** (safetensors total), **71,903,645,408 B = 66.97 GiB** over 14 shards plus a separate `model-mtp.safetensors` (1.69 GB; 785 `mtp.*` tensors are in `model.safetensors.index.json`, so the MTP head is a first-class part of the checkpoint). Geometry: **40 layers, `full_attention_interval: 4` → 30 `linear_attention` (GatedDeltaNet) + 10 `full_attention`**, `head_dim` 256, 16 q / **2 kv** heads, `attn_output_gate`, `partial_rotary_factor` 0.25 with mrope `[11,11,10]`; linear blocks 16 k-heads × 128 / 32 v-heads × 128, conv kernel 4, `mamba_ssm_dtype: float32`; **256 experts top-8** plus a shared expert (intermediate 512), hidden 2048, vocab 248,320, `max_position_embeddings` **262,144**. The vision projector in the GGUF pack is 447M `qwen3vl_merger`.

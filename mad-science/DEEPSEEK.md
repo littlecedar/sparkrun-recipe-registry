@@ -620,6 +620,9 @@ a smaller denominator exactly as §9's arithmetic says, and 32768 showed the oth
 collapse). **The 16384 optimum is now bracketed from both sides and stays shipped; the chunk
 ladder is closed.** Receipts `~/benchmarks/tp4-window3-20261024/` (`chunk4k-needle.{log,json}`,
 `chunk4k-node{1..4}-serve.log`).
+  *(Owner decision 2026-10-25 (SURVEY #3): the precedent is confirmed as the standing rule for
+  chunk-size arms — `mem_fraction_static` stays pinned, the shrunken pool is reported as-is, no
+  fraction compensation on any future arm.)*
 
 Related, and the reason the pool is a pin: a 1M prefill at 0.78 leaves the head **5.7 GiB**, at 0.80
 only **2.7 GiB** — which is why `mem_fraction_static` stays 0.78 and why a prefill-graph capture pool
