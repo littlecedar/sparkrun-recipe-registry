@@ -111,6 +111,36 @@ def apply_lora(transformer, path: str, strength: float = 1.0) -> int:
     _ = torch
     return hooked
 
+def resolve_snapshot_dir(model: str) -> str:
+    """Map a repo id to its local HF snapshot dir; pass a path through untouched.
+
+    The recipe's `{model}` renders to the prepared snapshot path on a real
+    sparkrun launch, so this is mostly a guard for manual runs: a repo id is
+    resolved through the in-container cache (refs/main, else the newest snapshot
+    with a model_index.json), never the Hub.
+    """
+    if os.path.isdir(model):
+        return model
+    cache_root = os.environ.get("HF_HUB_CACHE", "/cache/huggingface/hub")
+    repo_dir = os.path.join(cache_root, "models--" + model.replace("/", "--"))
+    if not os.path.isdir(repo_dir):
+        return model  # let diffusers raise its own error for an unknown id
+    refs_main = os.path.join(repo_dir, "refs", "main")
+    if os.path.isfile(refs_main):
+        with open(refs_main) as fh:
+            pin = fh.read().strip()
+        snapshot = os.path.join(repo_dir, "snapshots", pin)
+        if os.path.isfile(os.path.join(snapshot, "model_index.json")):
+            return snapshot
+    candidates = []
+    snap_root = os.path.join(repo_dir, "snapshots")
+    for name in sorted(os.listdir(snap_root)) if os.path.isdir(snap_root) else []:
+        if os.path.isfile(os.path.join(snap_root, name, "model_index.json")):
+            candidates.append(os.path.join(snap_root, name))
+    if candidates:
+        return candidates[-1]
+    return model
+
 
 def load_pipeline(model: str, device: str, lora: str | None, lora_strength: float):
     import torch
@@ -121,13 +151,18 @@ def load_pipeline(model: str, device: str, lora: str | None, lora_strength: floa
     log("loading pipeline from %s (MemAvailable %.1f GiB)" % (model, before or float("nan")))
     t0 = time.time()
     dtype_kw = {"torch_dtype": {"default": torch.bfloat16, "vae": torch.float32}}
+    # diffusers' custom_pipeline loader hits `model_info()` (a Hub API call)
+    # when given a repo id, even with the repo fully cached — dead under
+    # HF_HUB_OFFLINE. A local snapshot path takes the file-copy branch instead.
+    snapshot = resolve_snapshot_dir(model)
+    log("resolving %s -> snapshot %s" % (model, snapshot))
     try:
         pipe = DiffusionPipeline.from_pretrained(
-            model, custom_pipeline="pipeline_moss_image", trust_remote_code=True, **dtype_kw)
+            snapshot, custom_pipeline="pipeline_moss_image", trust_remote_code=True, **dtype_kw)
     except TypeError:
         # diffusers < the torch_dtype rename spells the per-module map differently.
         pipe = DiffusionPipeline.from_pretrained(
-            model, custom_pipeline="pipeline_moss_image", trust_remote_code=True,
+            snapshot, custom_pipeline="pipeline_moss_image", trust_remote_code=True,
             torch_dtype=torch.bfloat16)
     # The card rebuilds the scheduler from its own config (fresh Euler state).
     pipe.scheduler = type(pipe.scheduler).from_config(pipe.scheduler.config)
