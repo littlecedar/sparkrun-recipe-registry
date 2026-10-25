@@ -675,6 +675,22 @@ together:
 - **Model priority (owner decision 2026-10-26): `DeepSeek-V4.1-Flash-1017` is the primary
   model; GLM-5.3 and GLM-5.3-Flash are secondary.** Items touching those preempt other arms
   at the next boot boundary.
+- **Task-queue policy (owner decision 2026-10-26, verbatim, `GUIDANCE.md` #2): "The amount of
+  time something takes should only determine its position in the queue -- heavier tasks (more
+  time) sink lower in the queue.  Lighter tasks (less time) float to the top.  A task's weight
+  is reduced by a value equal to the weight of tasks it blocks.  This means that if a queue is
+  48 hours deep, a task that takes 24 hours at the bottom of the queue would be pushed to the
+  top of the queue if it is blocking 24 hours worth of other tasks.  You could write a python
+  script to weigh tasks, calculate what they're blocking, and update the queue accordingly. You
+  would need to define a standard task schema and queue protocol."** Implemented as
+  `tools/task-queue.py` + `mad-science/queue.json`, protocol in `mad-science/QUEUE.md`
+  (weight = estimate_h − Σ transitively blocked estimate_h, ascending, recomputed on read).
+- **Priority-models ruling (owner decision 2026-10-26, verbatim, `GUIDANCE.md` #4): "DeepSeek-
+  V4.1-Flash-1017 is our primary model at this time, with GLM-5.3 and GLM-5.3-Flash as our
+  secondary models of interest.  Always prioritize unblocking and running items related to
+  those models until told to do otherwise."** Implemented as the `priority_models` tier list in
+  `mad-science/queue.json` — tier 0 1017, tier 1 GLM-5.3, tier 2 GLM-5.3-Flash — applied before
+  weight ordering; to change the policy, edit that list (`QUEUE.md` §Priority tiers).
 - **Fleet-wide Docker seccomp change (owner decision 2026-10-26, verbatim): "Implement fleet-wide
   Docker seccomp change to enable io-uring. Save the script you use to tools/enable-io-uring.{sh,py}."**
   Authorized, and owned by the `sys-uring` peer workstream — the b12x parity boot waited for the

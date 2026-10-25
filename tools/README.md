@@ -35,6 +35,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `diarize-score.py` | the CPU diarization arm (`recipes/media/zz-pyannote-community-1-diarization-cpu.yaml`) | DER + its three components and JER over RTTM or the server's own `segments` JSON; exhaustive speaker-permutation mapping, ±collar exclusion, `--overlap score\|exclude`; `--fail-above` turns the arm's pre-registered DER bar into an exit code; guarded by `tests/test_diarize_score.py` |
 | `diarize-fixture.py` | the same arm's ground truth | two committed-nowhere, byte-deterministic synthetic layouts (two-speaker turn taking; three-speaker with an A+B overlap) plus `--splice` to turn two single-speaker recordings into a labelled dialogue; `--check` re-derives the bytes and compares sha256; guarded by the same test file |
 | `enable-io-uring.py` + `enable-io-uring.sh` | the **fleet's Docker daemons**, for the b12x parity route (`mad-science/DEEPSEEK.md` §17) | the only tool here that changes a machine rather than a recipe: ships a copy of the engine's default seccomp profile with `io_uring_setup`/`io_uring_enter`/`io_uring_register` (425/426/427) allowed, points `seccomp-profile` at it and restarts Docker — per node, refusing any node with a running container; `--probe-only` changes nothing; guarded by `tests/test_enable_io_uring_tool.py` |
+| `task-queue.py` | the research programme's scheduling (any lane's queued work) | registry-level like `cache-audit.py`: weighs `mad-science/queue.json` by the owner's blocking policy and orders it by model-priority tier; the protocol is `mad-science/QUEUE.md`; guarded by `tests/test_task_queue_tool.py` |
 
 ## eval-suite.py (the SOP pass)
 
@@ -1348,3 +1349,59 @@ that it works; the guard is what proves the *scope* of the change — gaining ex
 syscalls, losing no allow rule, touching no deny rule, `daemon.json` keys preserved, a running
 container aborting the node, and a negative control that an unmodified (io_uring-less) profile fails
 the structural check.
+
+## task-queue.py
+
+The one tool here that schedules work instead of measuring it. `mad-science/queue.json` is the
+tracked queue data (JSON, human-diffable); the owner's policy and the full protocol — schema,
+weight arithmetic with the worked 48 h / 24 h example, tier rule, session protocol, the TODO.md
+relationship — are `mad-science/QUEUE.md`. In short: `weight = estimate_h − Σ(estimate_h of every
+task the task transitively blocks)`, sort ascending within a priority tier, where the tier comes
+from `priority_models` in the data file (seeded `[[deepseek-v4.1-flash-1017, dsv4.1-1017],
+glm-5.3, glm-5.3-flash]` — a tier may be a list of equivalent tags; unmatched or empty models
+fall to a trailing tier). Weights are recomputed from the file on every read, never stored; a
+`done` task drops out of the ordering and stops contributing blocking credit, so finishing work
+re-sorts the queue by itself.
+
+Commands (`uv run python -B tools/task-queue.py <command>`; `--file` overrides the queue path):
+
+```sh
+uv run python -B tools/task-queue.py queue        # the ordered queue: tier, weight, est, blocked sum
+uv run python -B tools/task-queue.py check        # validate only
+uv run python -B tools/task-queue.py weight --id X  # one task's arithmetic, line by line
+uv run python -B tools/task-queue.py render       # markdown table for pasting into TODO/STATUS
+uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
+    --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
+    # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists
+uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
+    # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
+uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared
+uv run python -B tools/task-queue.py block --id X     # manual external gate (state flip, not an edge)
+uv run python -B tools/task-queue.py unblock --id X   # back to queued
+```
+
+Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse). The tool
+fails closed — duplicate ids, a dangling `blocks`/`blocked_by` ref, a cycle (message prints the
+cycle path), a missing/non-numeric/negative `estimate_h`, a bad `state`/`node_cost`, a stored
+`blocked_by` drifted from its derived mirror, or a `done` task still carrying claim fields all
+exit 1 naming the offending id. There are no silent defaults: the queue never guesses an estimate
+or invents a dependency.
+
+Caveats:
+
+- **`blocked_by` is a stored mirror, not an independent field.** The tool rewrites it on every
+  mutation; hand-edited divergence fails `check` with the exact diff (`rerun update` fixes it).
+- **`state: blocked` is an annotation, not a dependency.** It marks an external gate (an owner
+  decision, a missing authorization); structural blocking lives in `blocks`/`blocked_by`. A task
+  whose blockers are all `done` is runnable even with a non-empty `blocked_by`.
+- **Estimates are hours and are the mechanism's fuel.** An uncertain estimate carries
+  `estimate: provisional` in `notes`; refusing to queue work with no stateable estimate is the
+  protocol, not a tool bug.
+- **The seed's `priority_models` carries both DeepSeek spellings** because the registry uses
+  `dsv4.1-1017` as shorthand; matching is case-insensitive exact-tag, never substring, so a new
+  spelling needs its own entry (or a shared tier list) in `queue.json`.
+
+Guard: `tests/test_task_queue_tool.py` (13 tests, stdlib only) — weight arithmetic simple and
+transitive, the owner's 48/24 example, done-releases-credit, the three-tier override with both
+tag spellings, the 2-cycle negative control (library and CLI exit code), dangling ref, missing
+and non-numeric estimates, and `check`/`queue` exiting 0 on the tracked seed.

@@ -1,0 +1,143 @@
+{
+  "priority_models": [
+    ["deepseek-v4.1-flash-1017", "dsv4.1-1017"],
+    "glm-5.3",
+    "glm-5.3-flash"
+  ],
+  "tasks": [
+    {
+      "id": "w4-s0-control",
+      "title": "Survey S0 control: boot the stock main-image tree (sglang-main-arm64:6563312) against the 1017 checkpoint — gates the whole flag track",
+      "estimate_h": 1.0,
+      "blocks": ["w4-s1-cache-report", "w4-s2-lpm", "w4-s3-min-free-slots-delay"],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Full-breakfast gate PASSED 2026-10-25 on the main image; this boot answers whether it serves the 1017 checkpoint at all.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
+    },
+    {
+      "id": "w4-beam-cells-remainder",
+      "title": "Beam cells remainder: (b) needle rerun with --needle-max-tokens 512, (c) BFCL tools leg, (d) DFlash2 A/B",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "running",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "claimed_by tp4-window4 (2026-10-26, boot-2 window); needle 0/3 was budget truncation, finish=length — rerun at --needle-max-tokens 512 before quoting a capability miss.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 1",
+      "claimed_by": "tp4-window4",
+      "claimed_at": "2026-10-26"
+    },
+    {
+      "id": "w4-candidate6-reasoning-effort",
+      "title": "Survey candidate 6: reasoning_effort high on the main-image base (paired output-token saving, 10.6% measured precedent)",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Flag-level arm, no build. Screen-then-extend rigor per the owner's 2026-10-26 ruling.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
+    },
+    {
+      "id": "w4-s1-cache-report",
+      "title": "Survey candidate 2, leg S1: prefix-cache truth (--enable-cache-report; target long-prefix revisit 1.5 s vs 89 s)",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": ["w4-s0-control"],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Blocked by the S0 control boot: the flag track only runs if the stock tree serves the checkpoint.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+    },
+    {
+      "id": "w4-s2-lpm",
+      "title": "Survey candidate 2, leg S2: lpm (long-prefix matching) alongside --enable-cache-report",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": ["w4-s0-control"],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Same gate as S1: runs only behind a passing S0 control.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+    },
+    {
+      "id": "w4-s3-min-free-slots-delay",
+      "title": "Survey candidate 1: --min-free-slots-delay 1 (target C8/C16 worst TTFT, expected +21% C8)",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": ["w4-s0-control"],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Same gate as S1: runs only behind a passing S0 control.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+    },
+    {
+      "id": "w4-b12x-parity",
+      "title": "b12x parity boot: upstream vLLM b12x fork serves DeepSeek-V4.1-Flash-1017 on the quartet (disk-Engram, io_uring) against the pre-registered bars",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Externally gated by the owner's parity-retry policy (GUIDANCE.md #2 — a first miss is a measured number, not a hang). Technically unblocked: the fleet-wide io_uring seccomp change landed 2026-10-26 (tools/enable-io-uring.sh --probe-only).",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17"
+    },
+    {
+      "id": "w4-survey-arm3-indexer-scoring",
+      "title": "Survey arm 3 (build-gated): SGLang PR #43401 candidate-only indexer scoring (upstream −17% step time at 1M decode on 2×GB10)",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": ["ds4-adapter-report-gate"],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Needs an image build from a tree newer than f80c91a4b; the build is blocked behind the adapter re-port + gate update. estimate: provisional.",
+      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
+    },
+    {
+      "id": "w4-survey-arm5-trtllm-mla",
+      "title": "Survey arm 5 (build-gated): TRT-LLM sparse-MLA attention backend (--dsv4-attn-backend trtllm; 2.26x kernel geomean at C5/C10/128K on GB10)",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": ["ds4-adapter-report-gate"],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "Same build gate as arm 3. estimate: provisional.",
+      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
+    },
+    {
+      "id": "ds4-knapcio-byte-reproducible",
+      "title": "Make the ds4 knapcio image byte-reproducible (deterministic build step: bytecode off, SOURCE_DATE_EPOCH set)",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "estimate: provisional — the 2026-10-22 rebuild is behavior-identical but not byte-reproducible; no prior measurement of the fix's cost.",
+      "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5"
+    },
+    {
+      "id": "ds4-adapter-report-gate",
+      "title": "Re-port the knapcio adapter set to newer SGLang trees and update the in-image test gate to upstream's new shape (owner-directed path)",
+      "estimate_h": 20.0,
+      "blocks": ["w4-survey-arm3-indexer-scoring", "w4-survey-arm5-trtllm-mla"],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "estimate: provisional, 16–24 h — the gate fails on newer trees because the vendored patch no longer matches upstream (candidate 3 behaviorally, candidate 5 after the encoding re-pin). Blocks every future newer-tree build, not just arms 3/5.",
+      "provenance": "mad-science/GUIDANCE.md #1; mad-science/TODO.md §Retry queue — window 4 item 2"
+    }
+  ]
+}
