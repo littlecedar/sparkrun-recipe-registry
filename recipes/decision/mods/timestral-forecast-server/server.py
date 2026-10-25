@@ -137,15 +137,15 @@ def run_forecast(req: dict) -> dict:
     past = req.get("past")
     kwargs = {"prediction_length": horizon}
     if known is not None:
-        kn = np.asarray(_matrix(known, "known"), dtype=float)   # (C, T + h)
-        if kn.shape[1] != ctx.shape[1] + horizon:
+        kn = np.asarray(_matrix(known, "known"), dtype=float)[None]  # (1, C, T + h)
+        if kn.shape[-1] != ctx.shape[1] + horizon:
             raise ClientError("known must have T + horizon steps (%d), got %d"
-                              % (ctx.shape[1] + horizon, kn.shape[1]))
+                              % (ctx.shape[1] + horizon, kn.shape[-1]))
         kwargs["known_covariates"] = kn
     if past is not None:
-        pa = np.asarray(_matrix(past, "past"), dtype=float)     # (C, T)
-        if pa.shape[1] != ctx.shape[1]:
-            raise ClientError("past must have T steps (%d), got %d" % (ctx.shape[1], pa.shape[1]))
+        pa = np.asarray(_matrix(past, "past"), dtype=float)[None]  # (1, C, T)
+        if pa.shape[-1] != ctx.shape[1]:
+            raise ClientError("past must have T steps (%d), got %d" % (ctx.shape[1], pa.shape[-1]))
         kwargs["past_covariates"] = pa
 
     t0 = time.time()
