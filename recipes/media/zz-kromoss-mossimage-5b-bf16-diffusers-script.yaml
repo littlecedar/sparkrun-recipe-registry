@@ -1,0 +1,67 @@
+recipe_version: "2"
+model: lodestones/Kromoss
+model_revision: a4fe97449297af2e3be7841e1c18e431f3b06031
+# No sglang/vLLM engine exists for this checkpoint: `runtime: vllm` is the
+# family whose distribution + single-node launcher contract this command
+# satisfies (the engine is diffusers' `MOSSImagePipeline`, loaded at serve time
+# via `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True` — the
+# pipeline file ships inside the checkpoint, from MOSS-Image-SFT).
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE (authored 2026-10-24, cells not yet run) — lodestones/Kromoss, a 5.08B-param
+  MOSS-Image text-to-image full fine-tune (base OpenMOSS-Team/MOSS-Image-Base, 1024 px,
+  Qwen3.5-9B text encoder + FLUX.2-small VAE decoder), served on ONE DGX Spark by
+  diffusers' custom `MOSSImagePipeline` under a script launcher in the shape of the
+  Qwen-Image-2.1-Turbo arm. The bf16 diffusers route is the candidate (transformer
+  10.16 GB bf16 on disk + TE 16.79 GB + VAE 0.25 GB ≈ 27.2 GiB resident); the
+  int8_convrot single-file route is expected kernel-dead on sm_121 (same ConvRot-W8A8
+  class MiniMax-H3's INT8 boot-verified as rejected) and is not staged. The 8-step
+  turbo LoRA (`8-steps-dmd2-lora`, the card's recommended one) is applied UNMERGED
+  via the card's own forward-hook recipe — pass `-o lora=/cache/huggingface/hub/
+  models--lodestones--Kromoss/snapshots/a4fe97449297af2e3be7841e1c18e431f3b06031/
+  8-steps-dmd2-lora.safetensors` for the fast cell; the default runs the plain
+  50-step CFG-3 control. Apache-2.0 (weights and the bundled pipeline code).
+metadata:
+  model_url: https://huggingface.co/lodestones/Kromoss
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "5.08B"
+  model_dtype: bf16
+  tags: media, image, single_user, probe
+
+mods:
+  - "mods/kromoss-launcher"
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own server line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+readiness:
+  # No chat surface: readiness is the port plus the server's own /health, not
+  # an inference probe (the Qwen-Image script arm uses the same convention).
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1200
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Advertised id (never {model}, which renders the snapshot path on a launch).
+  served_model_name: lodestones/Kromoss
+  # `none` = the plain control path; a snapshot path applies the turbo LoRA unmerged.
+  lora: none
+  lora_strength: 1.0
+
+command: >
+  /cache/runtime/kromoss/venv/bin/python
+  /workspace/mods/kromoss-launcher/server.py
+  --model {model}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --sample-dir /cache/runtime/kromoss/samples
+  --lora {lora}
+  --lora-strength {lora_strength}
