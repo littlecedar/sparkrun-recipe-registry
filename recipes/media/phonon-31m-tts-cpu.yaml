@@ -71,3 +71,4 @@ command: >
   --model-dir /cache/runtime/phonon/model
   --revision {model_revision}
   --seed {seed}
+  --ptts /cache/runtime/phonon/venv/bin/ptts

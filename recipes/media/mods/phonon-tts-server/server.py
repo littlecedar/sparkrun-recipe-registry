@@ -58,7 +58,7 @@ def render(text: str, seed: int, lang: str) -> bytes:
     with tempfile.TemporaryDirectory(dir=str(Path(CFG["model_dir"]).parent)) as td:
         out = Path(td) / "out.wav"
         cmd = [
-            "ptts", "-l", lang, "-m", str(CFG["model_dir"]), "-s", str(seed),
+            CFG.get("ptts", "ptts"), "-l", lang, "-m", str(CFG["model_dir"]), "-s", str(seed),
             "-o", str(out), text,
         ]
         with LOCK:
@@ -118,10 +118,12 @@ def main() -> None:
     ap.add_argument("--revision", default=None)
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--lang", default=None)
+    ap.add_argument("--ptts", default="ptts")
     # Accepted and ignored: the runtime appends it to satisfy its model-binding check.
     ap.add_argument("--served-model-name", default=None)
     args = ap.parse_args()
     CFG["model_dir"] = Path(args.model_dir)
+    CFG["ptts"] = args.ptts
     if args.revision is not None:
         CFG["revision"] = args.revision
     if args.seed is not None:
