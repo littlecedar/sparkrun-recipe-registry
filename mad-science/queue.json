@@ -270,6 +270,20 @@
       "provenance": "window-4 single-lane finding 2026-10-26 (tp4-single) + serve-kev-dead.log receipt",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "pool-prefetch-missing-bodies",
+      "title": "Prefill the pool hub with dedup-stubbed model bodies (serial hf-download runner)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "running",
+      "model": "",
+      "node_cost": "single",
+      "notes": "2026-10-24 pool-migration dedup dropped weight bodies fleet-wide; stub census (~/benchmarks/tp4-single-20261026/pool-stub-census.json, 70 repos): drama-3 0-byte (fetch DONE, 41.5 GB @b2b5ee99, rc=0), Mellum GGUF (DONE by tp4-single 8 GB), Qwen-Image-2.1-Turbo @fc13ba19 (snapshot MISSING, ~32.5 GB, in runner), local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37 (3 husk shards of 41, ~9 GB, in runner), kev-0.8b (no snapshots; first attempt FAIL rc=1 root-owned .locks — chowned, retry running), LTX-2.5/MiniMax-H3/pyannote/humanizer queued as pre-check rows. Ledger: ~/benchmarks/cache-prefill-20261026/QUEUE.md (serial runner, du -sbL verify, DONE/FAIL kept). Budget: df /mnt/beegfs union 13.9 TB avail; ledger total ~150 GB — well inside the ~3.5 TB true-free caution. Flip done when every row carries DONE/FAIL.",
+      "provenance": "owner directive 2026-10-26 evening; skill wopr-hf-cache-prefill-queue; tp4-single stub findings",
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-25T23:53:14Z"
     }
   ]
 }
