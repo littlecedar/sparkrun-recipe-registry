@@ -126,6 +126,17 @@ check — copy the snapshot files first. Receipts: `~/benchmarks/tplt4-20261024/
 
 vLLM-Omni · **1 node (TP=1)** · **booted 2026-10-22 (`.34`), two boots**.
 
+- **Pool era (2026-10-26): the weight body is NOT pool-resident — re-fetch required before any boot.**
+  A window-4 boot on `.30` (task `sparkrun_c8829c3570d86002_1378d9c98cd5`) died with
+  `LocalEntryNotFoundError: Cannot find an appropriate cached snapshot folder` despite a correct
+  in-container env (`HF_HUB_CACHE=/cache/huggingface/hub`) and a visible snapshot dir: the pool's
+  `models--fishaudio--drama-3` is a stub (snapshot `b2b5ee99…` holds `config.json` only, blobs
+  empty, no refs) — on `.30`, every quartet node and the pool alike (5,535 B total), the 2026-10-24
+  migration dedup having dropped the 68 GB body everywhere, including the `.34` node-local copy the
+  2026-10-22 measurement used. Same failure class as the Mellum2.1 main GGUF. Diagnosis cost one
+  container; the engine's own error is accurate, and a boot against a stubbed repo fails in seconds.
+  Re-fetch owned by tp4-recovery (detached, done-marker under `~/benchmarks/tp4-single-20261026/`).
+
 > **LICENSE — revenue-gated.** `fishaudio/drama-3` is under the **FISH AUDIO COMMUNITY LICENSE
 > AGREEMENT v1.0**: non-commercial and research use only, and commercial use only below a USD
 > 500,000 annual-revenue threshold. Read `LICENSE.md` in the checkpoint before serving this to

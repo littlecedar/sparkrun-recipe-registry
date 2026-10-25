@@ -409,6 +409,17 @@ weights**.
   length — 2–4 is the steepest part of the loss. Probe arm
   `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` (`-o spec_draft_n_max=<n>`); receipt
   `~/benchmarks/mellum-mtp-draft-20261022/`.
+- **MTP n=1 retested on a current engine (2026-10-25, owner round-4 §7(c)): the rejection stands.**
+  Upstream moved 86 commits past the swept `a37cc4610` (HEAD `d854d98bae`, 2026-10-25; touches
+  `llama-graph`/`speculative`/ggml-cuda), so the probe arm was re-pinned to a fresh local build
+  (`upstream-d854d98-cu130`, both gates green) and the n=1 cell re-run with the sweep's own geometry:
+  **102.95 ± 3.20 t/s** against a same-window pooled baseline **98.44 ± 3.36** (+4.6 %) — and
+  acceptance 0.701 / mean accepted length 1.70 byte-identical to the 2026-10-22 cell, i.e. the
+  drafter behaves identically and n=1 remains the only non-worse length, still ~11 % under the
+  shipped arm's 114 t/s class. n≥2 was not retested. Receipt
+  `~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/`. Logistics note: the main GGUF had to be
+  re-fetched into the pool hub — the 2026-10-24 migration dedup dropped it fleet-wide (only the
+  hand-staged mtp head survived).
 - **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
   32k prompt can spend an arbitrary budget inside the think block — empty `content` at
   `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle

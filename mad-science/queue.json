@@ -193,10 +193,10 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "owner round-4 §7(c): single-node zz- probe; ordering by the queue weight formula only (round-5 §3 — no artificial tier/priority boost)",
+      "notes": "DONE 2026-10-26 (tp4-single): n=1 retest on current engine reproduces the 2026-10-22 result — upstream d854d98bae (86 commits past swept a37cc4610; llama-graph/speculative/ggml-cuda), local build on .35 (upstream-d854d98-cu130, image id 47d3efa2…, both gates green, tag-only pin commit bb4c67f). Cells on .35, sweep geometry: baseopen 97.19 ± 1.58 / n1 102.95 ± 3.20 (accept 0.701, mean len 1.70 — byte-identical to the 2026-10-22 cell) / baseclose 99.69 ± 4.59; pooled baseline 98.44 ± 3.36, n1 +4.6 % vs own baseline, −0.4 % vs the 103.38 ± 2.83 figure. Rejection stands; n≥2 untested per scope. Receipt ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/; docs: recipes/explore/README.md + attic/explore/AGENTS.md. Logistics: main GGUF re-fetched (pool dedup had dropped it fleet-wide); sweep cell.sh control-cache route dead in pool era (real-HOME + --cluster WOPR now).",
       "provenance": "owner round-4 §7(c); round-5 §3",
       "claimed_by": "",
       "claimed_at": ""
@@ -235,13 +235,13 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
-      "notes": "research-only + DEMO.md: drama-3 TTS sample, Qwen-Image 2.1 render pair, LTX-2.5 clip, Kokoro sample, humanizer rewrite, two zz- probes documented as probes; no addresses — artifacts referenced by head-side receipt paths",
+      "notes": "Progress 2026-10-26 (tp4-single): Kokoro demo DONE (artifact ~/benchmarks/tp4-single-20261026/media-demo/kokoro-sample.wav, RTF 0.64, RECEIPT-kokoro.md; fastapi image rejects the repo id — OpenAI-compatible model id is \"kokoro\"). humanizer demo DONE (RECEIPT-humanizer.md, 173 tokens @ ~18.7 t/s matching shipped 17.92 C1; prerequisite: Kokoro container had to stop first — sparkrun allocations are GPU-exclusive even for a CPU arm). drama-3 boot FAILED: pool stub — models--fishaudio--drama-3 is config.json-only fleet-wide (5,535 B; 2026-10-24 migration dedup dropped the 68 GB body everywhere incl. the .34 node-local copy); engine error LocalEntryNotFoundError with correct HF env is the signature; re-fetch owned by tp4-recovery (drama3-fetch.DONE marker = swap signal). Slot filled with kev-0.8b CPU decision arm meanwhile (sparkrun_a66bbd2049b3d70e_6a63edc310b6). Remaining: drama-3 sample, Qwen-Image render pair, LTX-2.5 clip — GPU arms, coordinated per mitigation contract; DEMO.md authored at the end.",
       "provenance": "owner round-5 §4",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "tp4-single",
+      "claimed_at": "2026-10-25T23:24:54Z"
     },
     {
       "id": "gguf-viability-triage",
@@ -249,13 +249,13 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
-      "notes": "case-by-case (owner round-5 §5); include trialing llama.cpp clones of shipped recipes as baselines; conversions are separate later tasks",
+      "notes": "LAUNCH FINDING (2026-10-26, load-bearing): $PWD/.local/sparkrun-home override fails for single-node boots against the pool-era WOPR cluster — bare -H dies in 10 s with 'Error: launch_inference failed: prepared model is not visible through the workload mounts' (boot-sol2b.log attempt 1); working form = head real HOME + --cluster WOPR -H <rail-IP> (fan-out skipped, node reads the shared pool cache). Recorded in recipes/ds4/README.md 'Launch caveats'. Baseline serve: Sol-2B decision2 GGUF Q8_0 on .35, image digest b4808c9a… verified, /health ok; ladder c1/2/5/10 single-pass vs the 2026-10-20 receipt (c1 5.228 req/s) — numbers in receipt.",
       "provenance": "owner round-5 §5",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "tp4-single",
+      "claimed_at": "2026-10-25T23:27:33Z"
     }
   ]
 }

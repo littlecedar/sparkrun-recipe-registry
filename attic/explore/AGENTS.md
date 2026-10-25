@@ -861,6 +861,22 @@ Probe arm kept as the reproducer: `recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-t
 sparkrun (one repository per recipe) — stage it on the node at
 `/cache/huggingface/hub/mellum-mtp-head/mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf`, sha256 `9c7b2c37…`.
 
+### The n=1 retest on a current engine (2026-10-26, tp4-single, window 4)
+
+Owner ruling round-4 §7(c) — "keep a zz- drafter probe arm and retest when upstream changes" —
+triggered 86 commits later: upstream HEAD `d854d98bae` (2026-10-25) touches `llama-graph.cpp`,
+`common/speculative.cpp` and ggml-cuda, and GHCR had no newer image than `upstream-a37cc46`, so a
+fresh local build on `.35` (`upstream-d854d98-cu130`, image id `47d3efa2b076…`, both build gates
+green, tag-only pin, commit `bb4c67f`) carried the retest. Same geometry, node `.35` (the sweep ran
+`.32`): baseopen **97.19 ± 1.58** / n1 **102.95 ± 3.20** (acceptance 0.701, mean len 1.70 —
+byte-identical to the 2026-10-22 cell) / baseclose **99.69 ± 4.59**; pooled baseline 98.44 ± 3.36,
+n1 **+4.6 %** over its own baseline and **−0.4 %** against the 2026-10-22 n1 figure. The n=1 result
+reproduces; the rejection stands; n≥2 untested (scope). Receipt:
+`~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/`. Two logistics facts recorded there: the
+2026-10-24 pool-migration dedup dropped the Mellum main GGUF fleet-wide (re-fetched, 8,071,295,264 B
+at pin `20b43942`), and the sweep's `cell.sh` control-cache distribution route is dead in the pool
+era — boots go through real-HOME + `--cluster WOPR -H <rail-IP>` with the `-hf`→`-m` pool rewrite
+(`recipes/ds4/README.md` launch caveat).
 
 ### The ref floor moved to `a37cc4610`, and why (same day)
 
