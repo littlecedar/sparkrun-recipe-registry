@@ -39,7 +39,7 @@ below are by design, not missing measurements.
 
 | arm | C1 / task rate | size · memory | tested surface | receipt |
 |---|---|---|---|---|
-| `drama-3-35b-a3b-fp8-vllm-omni-tts` | **RTF 0.848 ± 0.015** at 4.6 s audio; **0.813** at 28.7 s; streaming TTFA **0.646 s** | 36.88 GiB checkpoint · **37.69 GiB loaded** · TTR 437.0 s cold / 417.0 s warm | WAV integrity (44.1 kHz mono 16-bit, peak 0.48–0.95 FS), seeded byte-identical decodes; **intelligibility unmeasured** | `~/benchmarks/drama-20261022/` |
+| `drama-3-35b-a3b-fp8-vllm-omni-tts` | **RTF 0.848 ± 0.015** at 4.6 s audio; **0.813** at 28.7 s; streaming TTFA **0.646 s** | 36.88 GiB checkpoint · **37.69 GiB loaded** · TTR 437.0 s cold / 417.0 s warm | WAV integrity (44.1 kHz mono 16-bit, peak 0.48–0.95 FS), seeded byte-identical decodes; intelligibility now scored by the whistle instrument below (WER 0–1.2 % on this render set) | `~/benchmarks/drama-20261022/` |
 | `kokoro-82m-tts-cpu` | **RTF 0.588–0.601** (1.66–1.70× realtime) | 0.305 GiB ONNX weights · **1.55 GiB process RSS** · HTTP-ready 14.4 s | wav round-trip + `/health`; 24 kHz mono 16-bit | `~/benchmarks/kokoro-tts-20261019/` |
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **0.088 img/s** (11.33–11.41 s @1024²; **53.24 s @2048²**) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | single denoise lock, one request at a time | `~/benchmarks/qwen-image-20261014/`, `~/benchmarks/media-gen-20261018/REPORT.md` |
 | `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **8.610–8.704 s warm** (11.0 s first request of a boot) @1024² 8-step; **10/10 PNGs byte-identical** | same checkpoint · engine peak **34.91 GiB** (`peak_memory_mb` 35,748) · TTR **251 s cold / 209 s warm** | seeded renders deterministic across boots; **two-ink prompt violated** (6 hue families); 4/8/12 steps byte-identical; stopped, node back to 0 containers | `~/benchmarks/omni-qwen-image-20261022/` |
@@ -49,10 +49,31 @@ below are by design, not missing measurements.
 | `zz-minimax-h3-fl2va-t2va-tp4-sglang` | **measured negative 2026-10-24** — four-rank serve deadlocks in the first video request (denoise exchange; see the arm section) | 13.94 GiB/node resident at TP=4 | walls 1–2 fixed in-recipe; wall 3 is engine-side | `head:~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md` |
 | `zz-qwen-image-…-4step-diffusers-script` | 4-step request **6.365 s** on the launcher's native `sigmas` path | same peak as the shipped arm | probe only, not a shipped arm | `head:~/benchmarks/vllm-032-20261022/qwen-image/` |
 | `zz-pyannote-community-1-diarization-cpu` | **TTR 9.56 s**, RTF **0.247** (real two-voice dialogue) / 0.62 (30 s synthetic) on 5 cores, no GPU | 8.1M params, 33.7 MB repo, CPU only | **DER = JER 2.83 %** on `tier-b-two-voice.wav` (real speech, correct 2-speaker count, deterministic); **one speaker** on 2- and 3-voice synthetic tonal files (DER 50.0 / 69.9 %) | `.35:~/benchmarks-pyannote/` |
+| `whistle-asr-cpu` (probe, no recipe yet) | **WER 0.000** on c1/c2/c3/t0/para renders, **0.0118** on the 85-word long render (1 sub: "Rita"→"Reader"); transcripts **byte-identical 11/11** across runs; silence/−60 dBFS noise hard-rejected (exit 1, no hallucination) | 16.9 MB `whistle.cact` + 1.4 MB vendor `linux-arm64` needle binary, CPU only | vendor binary runs unmodified on GB10 aarch64; depth A/B (depth 2 = 2.6× faster, costs accuracy) | `~/benchmarks/tp4-lane-20261024/whistle/` |
 
 **What is not here.** MOSS-Image and indra-ocr are research-only entries in `mad-science/TODO.md`
 (no recipe, no download, no boot); Timestral is a time-series forecaster with no recipe at all.
 A recipe appears in this lane only once it is authored.
+
+## whistle ASR probe (no recipe yet)
+
+`Cactus-Compute/whistle` · **16.9 MB single-file ASR** · **probed 2026-10-24 (`.34`, CPU-only one-shot containers)**.
+
+- **What it is:** the lane's missing WER instrument — the pyannote diarizer answers speaker structure,
+  whistle answers word fidelity. Vendor `needle3` `linux-arm64` binary (sha256 `a7dd07f7…`) +
+  `whistle.cact` (sha256 `b6e02f04…`), Apache-2.0, ungated; runs unmodified on the GB10 aarch64 host
+  inside `python:3.12-slim@sha256:a6e34c598f24…` (the pyannote recipe's pinned base). No build, no GPU.
+- **Measured** (`~/benchmarks/tp4-lane-20261024/whistle/`, `REPORT.md`): WER 0.000 on c1-plain/-r3/-r4/-r5,
+  c2-clone, t0-r1, c3-tags (`[sighs]`/`[laughs]` neither rendered nor transcribed) and para-r1
+  ("ten percent" → "10 %" normalizes equal under the card's Whisper-normalizer convention);
+  **0.0118 on the 85-word long render** ("Rita" → "Reader", one sub). c1-plain-r2 scores 0.46 only
+  because that take is the known 2.368 s under-render — needle transcribed exactly the words present.
+  **Transcripts byte-identical 11/11** across independent runs. Digital silence and −60 dBFS noise are
+  hard-rejected (exit 1, `cannot read … (RIFF WAV)`) — no hallucination path. `--audio-depth` ladder:
+  depth 2 is ~2.6× faster on 28 s audio (1,419 vs 550 tok/s) and costs accuracy; full depth is the
+  instrument default. `needle whistle compare` is absent from this build's flag surface.
+- **Unblocks:** the phonon-31m item's full TTS-intelligibility cell (render → transcribe → WER).
+  A `whistle` serve recipe is a candidate once the instrument chain is exercised end-to-end.
 
 ## [drama-3-35b-a3b-fp8-vllm-omni-tts](drama-3-35b-a3b-fp8-vllm-omni-tts.yaml)
 
