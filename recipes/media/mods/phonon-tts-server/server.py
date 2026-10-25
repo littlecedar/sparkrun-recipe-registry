@@ -121,6 +121,7 @@ def main() -> None:
     # Accepted and ignored: the runtime appends it to satisfy its model-binding check.
     ap.add_argument("--served-model-name", default=None)
     args = ap.parse_args()
+    CFG["model_dir"] = Path(args.model_dir)
     if args.revision is not None:
         CFG["revision"] = args.revision
     if args.seed is not None:
