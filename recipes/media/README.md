@@ -550,6 +550,21 @@ Verdict: arg-plumbing and staging are solved and recorded in the recipe; the TP=
 cannot produce numbers on SGLang v0.5.22. Receipt:
 `head:~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md` (the full four-boot chain).
 
+**Re-confirmed under `--warmup-mode off` (window 3, 2026-10-25) and FILED upstream.** The retry
+(`sparkrun_05929de845c64661_6517f5f8884b`, NCCL `DEBUG=INFO`, hand-set `NCCL_SOCKET_IFNAME` +
+`NCCL_IB_HCA` + `NCCL_NVLS_ENABLE=0` — the same knob class that unblocked the GLM boot) booted
+clean through all six components, `workers_ready`, Uvicorn bound, `/liveness` 200 — and `/health`
+never reached 200 over 40+ min: the health gate's internal generation never returns. All four GPUs
+0 % utilization, **zero errors** in all four serve logs. NCCL init is provably clean (`Connected
+all rings/trees/binomial trees`, `Using network IB`) on every rank, so interface/transport
+selection is excluded; `Defaulting to Torch SDPA backend on SM12.x` stands as the (supported)
+attention path. Two independent boots, two different request issuers (engine warmup vs the health
+gate), same silent freeze — the wedge is the engine's first cross-node pure-Ulysses collective.
+**Filed as sgl-project/sglang#46390** (scrubbed; draft + receipt pointers in
+`head:~/benchmarks/tp4-window3-20261024/` — `h3-retry-node{1..4}-serve.log`,
+`h3-retry-launch.log`). The single-node proof on `.35` (window 2) is unaffected: the freeze needs
+the cross-node exchange.
+
 ## [humanizer-12b-q6k-llamacpp](humanizer-12b-q6k-llamacpp.yaml)
 
 llama.cpp · **1 node (TP=1)** · **kept 2026-10-22** — the lane's text-rewriting arm.

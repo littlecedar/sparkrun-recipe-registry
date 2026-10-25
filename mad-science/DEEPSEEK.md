@@ -1715,6 +1715,18 @@ carry the detail.
   warmup-staging fix (input saving must stay *enabled* at an absolute path on the four-rank serve),
   the first distributed video request **deadlocks** — four ranks at 0 % GPU, warmup frozen at
   `0/1`, zero errors. Receipt: `~/benchmarks/tp4-window-20261024/H3-TP4-CELL-RESULT.md`.
+- **`#7` H3 four-rank retry under `--warmup-mode off` — second independent reproduction, FILED
+  upstream as sgl-project/sglang#46390 (2026-10-25, window 3).** The recon's action-1 lever
+  (`NCCL_DEBUG=INFO` + hand-set `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA` + `NCCL_NVLS_ENABLE=0`) is now
+  exhausted: NCCL init is clean on every rank (`Connected all rings/trees/binomial trees`, `Using
+  network IB`) and the serve still wedges — this time with warmup OFF, so the health gate's own
+  internal generation never returns and `/health` never binds (40+ min, 4 × 0 % GPU, zero errors;
+  `sparkrun_05929de845c64661_6517f5f8884b`). Two boots, two request issuers (engine warmup; health
+  gate), same silent freeze ⇒ the wedge is the first cross-node pure-Ulysses collective, matching
+  the recon's "most likely mechanism". Torch SDPA fallback present as expected (#40558), and it
+  forces `ring_degree=1` on sm_121. Receipts `~/benchmarks/tp4-window3-20261024/`
+  (`h3-retry-node{1..4}-serve.log`, `h3-retry-launch.log`); upstream draft
+  `.scratch/tp4-window3/upstream-h3-a2a.md`. The `.35` single-node proof stands.
 - **GLM-5.3 3bpw TP=4 stall triage — H1/H2 refuted, H3 sharpened** (`recipes/glm/README.md`). The
   triage's one-boot 32k-window experiment ran the same window: the stall reproduces identically
   with **zero NVRM events** at a 17.0 GiB margin (H1, unified-memory exhaustion, refuted as the
