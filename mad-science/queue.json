@@ -150,7 +150,7 @@
       "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "estimate: provisional — the 2026-10-22 rebuild is behavior-identical but not byte-reproducible; no prior measurement of the fix's cost.",
+      "notes": "IN PROGRESS 2026-10-26 (tp4-single): deterministic delta designed + committed (ffee627) as the vendored file's third mechanical delta — ENV PYTHONDONTWRITEBYTECODE=1 from the top (kills build-time-mtimed .pyc from pip installs + gate RUNs), ARG SOURCE_DATE_EPOCH=1792886400 + a final payload mtime-normalization/__pycache__ layer (COPY preserves clone/extract-time mtimes); no command/order changes. Build #1 running detached on .30 from the aff52fa5 worktree ~/knapcio-aff52fa5 (Dockerfile scp'd in, tag dsv41-4x-spark:repro-test1, log ~/benchmarks/ds4-repro-20261026/build1.log — gate step #40 in progress, tests passing). Next: build #2 same args → compare image IDs (byte-identical = the fix works; the ID comparison IS the cost measurement the estimate lacked). Note: the ENV at the top invalidates all cached layers after FROM — this build measures the full rebuild cost.",
       "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5",
       "claimed_by": "tp4-single",
       "claimed_at": "2026-10-26T00:20:57Z"
@@ -438,10 +438,10 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "From the triage's verdict (mad-science/GGUF-VIABILITY-TRIAGE.md): the ONLY warranted conversion — official Q4_K_M GGUF with general.architecture = spark2_5 (loader landed 3ad1ba7336, 2026-09-06, present at a37cc4610 and later; verified in-source + byte-level header read, TODO record), ~16 GB fit on one GB10 with a 131k-class KV; expected benefit: a single-node serve of a checkpoint the registry currently serves only through quartet TP=4/labquant arms. Trial-boot FIRST on the current engine (d854d98bae image, present on .35 + head), measuring the same ladder geometry as the Sol-2B baseline (three 128-token greedy rows + serve-log eval cross-check) so the triage row gets its number. Body fetch is a prefill-queue-class operation (use the du -sbL pre-flight; coordinate with the prefill ledger if large). If the conversion itself exceeds 2 h, report partial state — an unconverted-path baseline or the next GGUF candidate's ladder is acceptable filler.",
+      "notes": "DONE 2026-10-26 (tp4-single): task pivoted mid-flight on a triage correction (the original premise conflated Qwen3.8-27B [dense, arch qwen35] with Qwen3.8-Flash-Next [arch qwen4exp, measured 111.3 GB at UD-Q4_K_XL — does not fit; deferred to a Q3-tier pass]; commit 624495d). EXECUTED: fetched unsloth/Qwen3.8-27B-GGUF UD-Q4_K_M to the pool (16,464,440,224 B, snapshot 4ca72078, arch qwen35 verified by range-read; no conversion needed — the artifact already exists) and TRIAL-BOOTED it on .35 on the current upstream engine d854d98bae: three 128-token greedy rows = 12.766/12.762/12.773 (mean 12.77 ± 0.01 t/s), TTFT 125-193 ms — ~10x slower than the 12B-A2.5B MoE's 121 t/s on the same engine/node; the triage row has its number. One boot-level failure fixed in place: the d854d98 build rejects --no-mmap (a37cc46-era spelling removal; --load-mode none substituted — consistent with the zz-mellum-mtp arm's comment). Receipt ~/benchmarks/tp4-single-20261026/gguf-triage/RECEIPT-qwen38-27b.md + qwen38-27b-trial.yaml; stopped by id, 0 containers. No recipe was added to the registry: at 12.8 t/s the dense-27B GGUF route is not a shipping candidate — the finding is the deliverable.",
       "provenance": "mad-science/GGUF-VIABILITY-TRIAGE.md; ship-landed resume directive 2026-10-26",
       "claimed_by": "",
       "claimed_at": ""
