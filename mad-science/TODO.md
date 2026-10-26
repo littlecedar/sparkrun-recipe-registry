@@ -890,6 +890,21 @@ together:
   S0 negative — claimed by `tp4-recovery` (`w4-b12x-parity` running), pre-boot probes passed,
   boot pending.)*
 
+### Owner advisories — survey answers (2026-10-26, late; collected in `.scratch/SURVEY.md` by `sparkrun-recipe--1368729`, folded here as the durable record — the scratch file is git-ignored and may not persist)
+
+1. **Metrics format (a): keep SGLang-shaped lines** — `Avg generation throughput: N tokens/s`, `Running: N reqs`, … is the accounting surface; vLLM v1 scraping already covers vLLM arms; llama.cpp arms keep their native log format. (The bridge `de99b52`+ is the implementation.)
+2. **Clocks — standing rule (owner corrected the premise): all nodes are configured with GPU clocks locked at 2236 MHz nominal. Any experiment that changes a clock must restore it to the configured state before it ends.** No permanent-lock/unlock decision exists to make. *(Clock note 2026-10-26 late: spares-lane set `-lgc 0,2200` on `.35` for the LTX-2.5 demo and is restoring the configured state — record the restore confirmation here once it lands.)*
+3. **Needle rungs: BOTH arms go in the h2h doc** — the 3bpw rungs in flight AND the Flash arm's rungs (chained next on the refetched 175.7 GB body).
+4. **ds4 adapter re-port: START NOW on the head**, in parallel with the window (not after the drain).
+5. **Parked window-2 items: re-queue H3 quartet retry, the 32768 prefill-chunk probe, and the main-image boot-gate; Beam staging (293.6 GB) stays parked.**
+6. **Image-ID reproducibility: DROPPED.** Content comparison is the verification path; image-ID equality only enables cluster-ID == local-build claims and the owner declined it.
+7. **Keep-alive dead-boot: expected sparkrun behavior — no upstream filing.** Do not rely on `docker ps` for serve liveness; write your own probe if needed. *(Folded into the existing lane observation below rather than a new row.)*
+8. **Mellum zz-probe: update the probe recipe file to the Q8_0 MTP head** (matches the measured 120.37 ± 1.92 t/s n=1 cell). Shipped arm unchanged (parity with the shipped fork at 121.27 ± 0.90, never beats it); the DFlash/DSpark drafter search is verified null — no drafter packs exist for Mellum (watch item in `DRAFTER-ALTERNATIVES-1026.md`).
+9. **`resolve_snapshot()`: apply proactively** to Kokoro, humanizer, drama-3 and other from_pretrained-style script arms, then troubleshoot why pool repos carry no `refs/main` — understand and correct if feasible.
+10. **Peer collision scope: none.** `sparkrun-recipe--1368729` is doing plugin verification + this survey only; it edited nothing outside `.scratch/SURVEY.md` and commits nothing else. No path fencing needed beyond that file.
+11. **Spares policy: worker discretion** — new single-node research rows need no per-row owner sign-off.
+12. **Bridge coverage: generalize to BOTH glm TensorFold launchers AND author a vLLM-OMNI media equivalent.**
+
 
 
 ## ds4
@@ -3123,6 +3138,8 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 `tokenary` and **`llama_cpp`** — while at the 2026-10-16 count every shipped recipe here was `runtime: vllm` or `sglang`
 (0 llama.cpp arms in `recipes/` — **the first shipped 2026-10-17, `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`, boot-verified**).
 - [ ] **Detection gap (lane observation, sparkrun-side): the keep-alive masks a dead serve** — observed 2026-10-26 on `.30`'s Qwen-Image boot: the serve process exited (diffusers `OfflineModeIsEnabled` + `OSError: … not fully cached locally`), yet the container stayed `Up` running only the `sleep infinity` keep-alive wrapper, so `docker ps` reads green for a dead boot and GPU util sampling read a transient 96 %. Detection needs a serve-pid liveness check (or a container-health probe on the serve process, not just the container), otherwise every future dead boot looks like a live one for the life of the reservation. Not fixed — recorded as a lane observation per the holder's instruction; the real fix belongs upstream in sparkrun's launch/readiness path. *(effort: short, sparkrun repo side)*
+
+  *(Owner answer 2026-10-26 (survey fold): this is expected sparkrun behavior — no upstream filing; do not rely on `docker ps` for serve liveness, write your own probe if needed. The observation stands, no fix owed.)*
 
 ## Concurrency ladder (registry-level)
 **The 2026-10-15 census here is stale and has moved to `SESSION-RECORD.md`; the live remaining list
