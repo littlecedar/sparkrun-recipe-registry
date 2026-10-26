@@ -1,23 +1,23 @@
-# Board — generated 2026-10-26 20:19 ET
+# Board — generated 2026-10-26 20:21 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **20:19 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — nothing live (no reservation); `.31`–`.34` — `sparkrun_c989632ede4f538e_06d0703ef003` up ~1 h, health: unhealthy (serve answers 200 — see the trial row), GPUs 0 % (cells complete, serve idle); `.35` — nothing live (no reservation) — **spare-node escalation fired in the 20:19 cycle report: both spares emptied while the adapter-trial ship is still pending** |
-| adapter-trial boot | tp4-recovery | queue `ds4-upstream-adapter-trial` (**running**, scheduler top; owner deadline: knapcio 1017 adoption shipped by 22:00 ET, hard midnight): cells **COMPLETE — TRIAL-DONE 20:07 ET**: trial ladder rc=0 (C1 tg 64.08 ≥ 64.0 bar; C10 tg 152.24 ≥ 110.5; C1 pp 3891 t/s), house 36/37 (easy 19/19, hard 17/18), needles 3/3 PASS (32768/131072/983040); docker healthcheck still `unhealthy` while rank-0 `/v1/models` answers 200 — serving-with-red-healthcheck, not a dead rank; awaiting the holder's ship commit (none on main as of 20:19) |
+| census | board-keeper | **20:21 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — nothing live (no reservation); `.31`–`.34` — `sparkrun_c989632ede4f538e_06d0703ef003` up ~1 h (adoption serve idle after TRIAL-DONE, GPUs 0 %); `.35` — nothing live (no reservation) — spares idle + no successor claimed on the idle quartet = **dead-time signature**, reported in the 20:21 cycle |
+| adoption boot (idle) | tp4-recovery | ship landed `0326719` (canary-roce-aff52fa5 is production); boot `c989632ede4f538e_06d0703ef003` still up with all cells complete and **no successor task claimed** — holder should stop it by task id or hand the quartet to the next claimant (flag-track rows re-based on the shipped overlay are the natural next work) |
 | tp4-single media/GGUF work | tp4-single | solo boots ended this hour: `.30` Kokoro demo boot and the `.35` Mellum-upstream boot are both down after their cells (media DEMO receipts `e32114c`, Mellum retest negative `edfb2ea`, GGUF/drafter docs `0212cb4`) |
 
 ## Work queue
 
-Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 18 tasks, at 19:56). Scheduler top: `ds4-upstream-adapter-trial` (**running**, w −2.00, blocks the flag track); then candidate 6, S1, S2, S3 (all blocked on it, w 1.50). Later: `mellum-mtp-zz-probe` **done** (upstream d854d98bae retest, rejection stands — `edfb2ea`); build-gated arms 3/5 (w 3.00); `ds4-knapcio-byte-reproducible` (w 4.00); `tp4-head-to-head-2025` (receipts-only doc landed `4447a7d`), `media-demo-workproduct`, `gguf-viability-triage` (doc landed `0212cb4`), `drafter-alternatives-search`; `dsv41-vllm-ship-recipe` and `b12x-vllm-tuning-round` withdrawn by `f75ae31` (b12x route retired to attic/ds4 — parity cancelled, C1 miss recorded 34.04 agg vs 64.0 bar, C10 aggregate identity broken at C≥5); `ds4-adapter-report-gate` rebased onto upstream HEAD. The b12x parity boot is DOWN, replaced by the adapter-trial boot above:
+Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 29 tasks, at 20:21). Ship landed: `ds4-upstream-adapter-trial` **done** (`f2e743c`, ship commit `0326719`); `w4-b12x-parity`, `dsv41-vllm-ship-recipe`, `b12x-vllm-tuning-round` withdrawn (`f75ae31`); `mellum-mtp-zz-probe`, `w4-s0-control`, Beam cells remainder, `h2h-ds4-needle-131k-983k-rerun` **done** (`5284211`). Flag track (candidate 6, S1, S2, S3) still carries `blocked` state in the ledger post-ship — mirrored below. Running/queued now: `ds4-knapcio-byte-reproducible` claims **running** on a single node but `.30`/`.35` are both empty — wedge-shaped-lie flagged; `ds4-adapter-report-gate` (the 20 h re-port, queued); build-gated arms 3/5 (queued, w 3.00); new h2h tiers (glm tools/needle/house/doc-refresh queued):
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. `ds4-upstream-adapter-trial` — canary-roce-aff52fa5 re-pin boot-verify on the shipped 1017 line | quartet `.31`–`.34` | tp4-recovery | **running** (boot live, health: unhealthy flagged above) |
-| 2. w4-candidate6-reasoning-effort | quartet | tp4-recovery | blocked by the adapter trial |
-| 3. w4-s1-cache-report | quartet | tp4-recovery | blocked by the adapter trial |
-*(Later scheduler rows: S2 lpm, S3 min-free-slots-delay (blocked, w 1.50); build-gated survey arms 3/5 (w 3.00); `ds4-knapcio-byte-reproducible` (w 4.00); `tp4-head-to-head-2025` (receipts-only, `4447a7d`), `media-demo-workproduct`, `gguf-viability-triage` (`0212cb4`), `drafter-alternatives-search`; `ds4-adapter-report-gate` rebased. `mellum-mtp-zz-probe` **done**; `w4-b12x-parity`, `dsv41-vllm-ship-recipe`, `b12x-vllm-tuning-round` withdrawn/cancelled by `f75ae31`; S0 and Beam cells remainder **done** in the ledger.)*
+| 1. `ds4-knapcio-byte-reproducible` — deterministic knapcio build (bytecode off, `SOURCE_DATE_EPOCH`) | single | tp4-recovery (claimed) | ledger says **running** but no container exists on `.30`/`.35` — flagged |
+| 2. w4-candidate6-reasoning-effort | quartet | tp4-recovery | blocked (ledger state post-ship — verify the blocker flipped) |
+| 3. w4-s1-cache-report | quartet | tp4-recovery | blocked (same) |
+*(Later rows: S2 lpm, S3 min-free-slots-delay (blocked, w 1.50); build-gated survey arms 3/5 (queued, w 3.00); h2h tiers — `h2h-glm-tools-leg` (w 1.50), `h2h-glm-needle-3rungs` (w 2.50), `h2h-glm-flash-house-recipe` (w 1.50), `h2h-doc-refresh` (w 0.50); `ds4-adapter-report-gate` (the 20 h re-port, w 14.00-class, queued); `ornith-toolcall-ohmympi-triage` (owner-directed, `43ef022`). Done in the ledger: adapter trial, mellum probe, S0, Beam remainder, needle rerun; withdrawn: b12x parity/ship-recipe/tuning-round.)*
 
 ## Landed this session
 
@@ -41,3 +41,9 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 18 tas
 | ~19:35 ET | `0212cb4` | GGUF viability triage + drafter alternatives survey land (`mad-science/GGUF-VIABILITY-TRIAGE.md`, `mad-science/DRAFTER-ALTERNATIVES-1026.md`); window-4 baseline boots receipted |
 | ~19:45 ET | `4447a7d` | TP=4 head-to-head receipts-only doc lands (`mad-science/TP4-HEAD-TO-HEAD-1025.md`), no new boots |
 | ~20:20 ET | *(this commit)* | **Knapcio 1017 adoption SHIPPED**: production overlay = `canary-roce-aff52fa5` (`sha256:3f4480818acb…`, gate green, health-port patch lesson recorded — first trial build `21d1bf34…` shipped unpatched boot.py, serving unaffected); adoption boot verdict on landed cells: C1 64.08 agg / C10 152.24 agg / house 36/37 / needles 32k+131k 10/10 — all bars clear; 983k rung still in flight, not a ship gate; bars/receipts in `recipes/ds4/README.md`, decision in `TODO.md`, record in `DEEPSEEK.md` §5; vLLM cancellation record carries the owner's verbatim words, `TODO:773` §2(a) annotated MOOTED |
+| ~20:14 ET | `4225e77` | kev-0.8b boot-killing port collision fixed (8008 = beegfs-mgmtd on mgmt nodes; moved to 8021) + `/health` route registered for sparkrun's probe |
+| ~20:16 ET | `43ef022` | Queue: `ornith-toolcall-ohmympi-triage` added (owner directive, tier 3) |
+| ~20:16 ET | `d91ea2f` | Queue: kev-bind-conflict-fix done; h2h gap tasks + mellum-speedup-search state |
+| ~20:17 ET | `5284211` | Queue: needle-131k/983k rerun done — adoption boot 32k/131k 10/10 on the shipped overlay; 983k appends when its wrapper lands |
+| ~20:18 ET | `e4b6128` | Adoption records: C1 edge caveat (64.08 clears ≥ 64.0 by +0.08, no headroom claimed), C10 152.24 |
+| ~20:18 ET | `f2e743c` | Queue: adapter trial done — adoption shipped `0326719`; flag track unblocked on the aff52fa5 overlay |
