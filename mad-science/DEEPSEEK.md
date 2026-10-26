@@ -650,6 +650,19 @@ ladder is closed.** Receipts `~/benchmarks/tp4-window3-20261024/` (`chunk4k-need
   chunk-size arms — `mem_fraction_static` stays pinned, the shrunken pool is reported as-is, no
   fraction compensation on any future arm.)*
 
+**REPROBED ON THE SHIPPED OVERLAY 2026-10-26 (window 4, quartet, same-window A/B, both arms fresh
+boots with true-readiness gating, 1M needle × 5 depths @512 each)** — the closed ladder's 32768 wall
+is WORSE on `aff52fa5`, and now breaks the product. Arm 16384 (shipped default): needle **5/5 PASS**,
+depths 507.95 / 204.28 / 200.67 / 208.78 / 207.98 s (mean **265.9**; depth 10 is the boot's first
+cold 1M), pool `max_total_num_tokens` **3,356,160**. Arm 32768 (`-o env.CHUNKED_PREFILL_SIZE=32768`,
+verified in-container): prefill IS faster — 350.24 / 224.72 / 190.20 / 196.33 / 197.08 s (mean
+**231.7**) — but the pool **collapses to 942,336** (−72 % vs 16384; the old image's collapse was
+−55 % to 1,356,288) and **all five needles return TRUNCATED** (suite verdict fail 5/5): the pool no
+longer holds the served 1,048,576 window. `mem_fraction_static` pinned per SURVEY #3, pool reported
+as-is. **Verdict: 32768 stays unshipped — the latency win is real but the arm fails its own context
+contract; the 16384 line is unchanged.** Receipts `~/benchmarks/tp4-window4-20261026/`
+(`chunkA2-needle/`, `chunkB-needle/`, `chunk{A2,B}-node0-serve.log`, `chunk-probe.log`).
+
 Related, and the reason the pool is a pin: a 1M prefill at 0.78 leaves the head **5.7 GiB**, at 0.80
 only **2.7 GiB** — which is why `mem_fraction_static` stays 0.78 and why a prefill-graph capture pool
 (~39 GB at a 16K capture on GB300) is plausibly infeasible here (§10, candidate 7).
