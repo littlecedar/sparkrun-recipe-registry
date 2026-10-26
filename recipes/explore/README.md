@@ -182,6 +182,7 @@ SGLang · **1 node (TP=1)** · **kept — accuracy leader (2026-10-19)**.
   `79不1-ALBATROSS` for `7901-ALBATROSS` in 96 tokens at `finish_reason` stop. **This supersedes the
   earlier "262k needle PASS".** Receipts `~/benchmarks/ladders-solo-20261018/` (`ling-suite/`,
   `ling-needle-262k-mt512/`).
+- **Second ladder (2026-10-26, spares-lane, `.35`, pool-era route):** C1 **42.0 ± 3.3 · C2 65.3 ± 6.5 · C5 104.9 ± 4.8 · C10 86.9 ± 4.1 t/s** (`~/benchmarks/spares-20261026/ling-ladder/RECEIPT.md`, 5 runs) — reproduces the 2026-10-18 row (49.7/66.2/100.2/85.9) inside the 7-25 % inter-boot floor, same peak-at-c5 shape. Two tooling notes this boot proved: the arm needs **~13 min to ready** on a first pool read (24 shards at ~25 s/shard), which is past the benchmark runner's readiness give-up — the harness tears the boot down mid-load and the cell must be measured with the runner's own tool manually (`uvx llama-benchy --base-url http://<node>:8030/v1 … --extra-body return_token_ids=false`, the sglang streaming suppression the runner otherwise applies itself; the base URL must carry `/v1` or the warmup 404s). A `readiness:` block in the recipe would re-enable harness-driven ladders.
 - **License:** MIT.
 
 ## [kolibri-1-apex-24bpw-llamacpp](kolibri-1-apex-24bpw-llamacpp.yaml)
@@ -221,6 +222,7 @@ measured headroom**.
   (6,425.7 s = 5.2 s/question). The serve's `/v1/models` advertises `capabilities: ["completion"]`
   only, yet the tools leg emits structured `tool_calls` — that field is cosmetic in llama-server and
   is not evidence of missing tool support.
+- **Second ladder (2026-10-26, spares-lane, `.30`, pool-era route):** C1 **62.1 ± 0.8 · C2 113.0 ± 1.1 · C5 97.5 ± 1.1 · C10 77.9 ± 0.9 t/s** (`~/benchmarks/spares-20261026/kolibri-ladder/RECEIPT.md`, 5 runs) — reproduces the 2026-10-18 row (63.83/113.35/98.30/78.62) within 1-2 % on every cell; the peak-at-C2-then-fall shape (c5/c10 oversubscribe the 4 slots) reconfirms.
 - **License:** base `Aleph-Alpha/Kolibri-1` Apache-2.0; the GGUF pack's own terms are on its card.
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
@@ -298,6 +300,7 @@ class that does) — 0.32.0 loads and serves it (below). 2026-10-16 engine-bump 
   argument errors (`value_error:string` 7, `value_error:others` 9, `wrong_count` 6+3,
   `type_error:nested` 4) plus 56 `irrelevance_error:decoder_success` (it called where it should not).
   This is a capability result: the arm emits one tool call per turn.
+- **Second ladder (2026-10-26, spares-lane, `.30`, pool-era route):** C1 **53.1 ± 2.3 · C2 81.1 ± 2.6 · C5 128.4 ± 1.0 · C10 131.4 ± 1.8 t/s** (`~/benchmarks/spares-20261026/laguna-xs-ladder/RECEIPT.md`, harness run, 5 rows of 5) — reproduces the 2026-10-17 suite ladder (55.3/83.1/133.7/141.3) within 1-7 %, still rising at c10. Logistics lesson from the first attempt: vLLM resolves `draft_model poolside/Laguna-XS-2.1-DFlash` by repo id and the drafter was absent from the pool — one governed prefill row (924,147,832 B, ledger `~/benchmarks/cache-prefill-20261026/QUEUE.md`) unblocked it. **A body preflight must `du`-check a recipe's draft/drafter repo too, not only the main model.**
 - **License:** OpenMDW-1.1 (target and draft).
 
 ## [poolside-laguna-m1-nvfp4-vllm-tp2](poolside-laguna-m1-nvfp4-vllm-tp2.yaml)
@@ -420,6 +423,14 @@ weights**.
   `~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/`. Logistics note: the main GGUF had to be
   re-fetched into the pool hub — the 2026-10-24 migration dedup dropped it fleet-wide (only the
   hand-staged mtp head survived).
+- **Quantized MTP heads measured (2026-10-26, spares-lane, `.35`, current `d854d98bae` engine): the rejection stands; the family closes at Q8_0 n=1.** The checkpoint's own quantized heads (pool rev
+  `4159d684`, bodies `du`-verified full) at the retest's geometry: Q8_0 n=1 **110.05 ± 3.31 t/s** (+6.9 % over the BF16 head's 102.95, +11.8 % over the same-window plain pooled baseline 98.44; acceptance
+  0.701 byte-identical — the drafter behaves identically, only its verify-pass traffic shrank), Q6_K n=1 **107.28 ± 4.12** (less draft traffic is not monotone better — the Q6_K draft's own decode cost
+  bites), Q8_0 n=2 **97.36 ± 8.43, acceptance 0.487** — at or below plain decoding, so **n=2 does not re-open with a quantized head** and the 2026-10-22 monotone decline stands at every quantization
+  measured. Every cell remains ~9 % under the shipped arm's 121.27 class. Receipt
+  `~/benchmarks/spares-20261026/mellum-mtp-head/RECEIPT.md` (receipt-local variants of the zz- probe arm serving the pool snapshot heads).
+- **Lever-5 knobs all rejected (2026-10-26, spares-lane, `.35`, shipped arm, same window).** KV q5_1 (k+v) **111.35 ± 2.33** (−8.2 %; with q8_0's −5.3 % the KV-quant direction is monotone negative on this MoE decode — keep fp16); ubatch 2048 **118.12 ± 1.51** (−2.6 %, never above baseline in any run); flash-attn forced `on` **112.16 ± 1.78** (−7.5 % — `auto` does not resolve to the plain `on` path on this
+  build, so do not pin it). The shipped configuration (fp16 KV, default ubatch, flash-attn auto) is the best measured configuration of this arm. Receipts `~/benchmarks/spares-20261026/mellum-{kv-q51,ubatch,fa}/`.
 - **The thinking-budget trap, this engine's form:** with thinking on (the template's default) a hard
   32k prompt can spend an arbitrary budget inside the think block — empty `content` at
   `finish_reason: length`. Raise `max_tokens` or send `enable_thinking: false`. Found here: the needle

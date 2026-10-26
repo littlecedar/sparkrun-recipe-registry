@@ -1145,6 +1145,19 @@ YAML comments are reported per recipe below; the moved text follows.
   `--speculative-draft-model-revision`, so the served draft is the one the lane measured (the repo's
   `main` moved 2026-10-12).
 
+### 2026-10-26 spares-lane closure note (Mellum levers 2/5, fill-item reproductions)
+
+Landed in `recipes/explore/README.md` and `mad-science/MELLUM-SPEEDUP-SEARCH.md`: the quantized-MTP
+head family is measured-closed (best cell Q8_0 n=1; n=2 does not re-open; a 9.4 % control-cache vs
+pool-snapshot n=1 discrepancy vs tp4-recovery's 120.37 is recorded unresolved — acceptance is
+byte-identical in both, so one same-window pair is owed before any number is quoted), and lever 5's
+knobs are all rejected (KV q5_1, ubatch 2048, flash-attn on). Two operating notes that generalize:
+(1) the pool-snapshot route (`-md` inside the recipe's own model repo at a sibling revision) works
+for drafter heads now that the pool holds them — the old hand-staged `/cache/huggingface/hub/mellum-mtp-head/`
+path is gone; (2) the fill-item "remaining" lists can go stale against the lane READMEs — kolibri,
+ling and laguna-XS already had 2026-10-17/18 ladders when the list was written, so check the lane
+README before booting a "fill" cell.
+
 [nem]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
 [nemd]: https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
 [ling]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
