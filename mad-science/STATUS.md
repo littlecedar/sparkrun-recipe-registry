@@ -1,24 +1,22 @@
-# Board — generated 2026-10-26 14:25 ET
+# Board — generated 2026-10-26 14:59 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **14:25 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps`)**: ALL SIX NODES EMPTY — 0 running containers on `.30`–`.35`; no workload probe available (nothing to probe). The c3 chain is TERMINAL (row below) and the ranks were handed back after the last boot stop (0 sparkrun containers verified) |
-| c3 chain (TERMINAL — NO-SHIP) | adapter-report-gate | **row 21** (att map in `c3-NOTES.md`): the candidate-block arm is BLOCKED on GB10 — DeepGEMM paged-sparse API is SM100-only, `Assertion error (/deepgemm/csrc/apis/attention.hpp:301): jit->device.get_arch_major() == 10` (GB10 = SM121); att8/att9 (images `644cb802`/`13f686b36ec3`) fixed the publish_decode path and booted but cannot clear the arch gate — no in-image fix exists. **Shipped `canary-roce-aff52fa5@sha256:3f4480818acb…` line STANDS**; row-20 ship-pin rules MOOT for this chain |
-| knob gates on the shipped line | tp4-recovery | per row 21: candidate6/S1-class gates run ONCE on the shipped `canary-roce-aff52fa5` line now; `w4-survey-arm3-indexer-scoring` and arm 5 trtllm are ARCH-BLOCKED (same SM100 gate) — not runnable; `ds4-repro-config-created` → WITHDRAWAL CHECK per the image-ID-DROPPED ruling |
-| queue deltas | tp4-recovery | survey round-4 folded as advisory row 20 (`865863e`); chunk-32768 reprobe DONE — 32768 prefill faster (231.7 vs 265.9 s mean) but pool collapses 3,356,160 → 942,336 (−72%) with 5/5 needles TRUNCATED — **NOT shippable**, 16384 line unchanged (`f3cf420`) |
+| census | board-keeper | **14:59 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + per-boot workload probe)**: ALL SIX NODES EMPTY — 0 running containers on `.30`–`.35` (ranks still handed back from the c3 terminal stop; the ornith-triage boot has not been fired; no spares boot live). No workload probe available (nothing to probe) |
+| knob gates on the shipped line (COMPLETE) | tp4-recovery | **both cells spent on the shipped `canary-roce-aff52fa5` line** (`0123dda`): S1 ship-line measurement reproduces the wiring-check evidence shape (cached-token 28928 @ 32k, 119552 @ 131k, TTFT collapse 15.22→0.28 s / 27.18→0.45 s); candidate6 house battery **37/37 both arms** (high-default vs `reasoning_effort=max` via chat-template kwargs), **0 paired flips — parity PASS → the knob SHIPS (high default stays)** |
+| launcher flag-collapse root cause (RECORDED) | quartet-holder | `-o extra_args=` is **INERT** on the sglang launcher (the value collapses at fold time) — the valueless flag must pass via `-o env.EXTRA_SGLANG_ARGS=…` (`0123dda` queue note, boot `…_7f5f562975f3`) |
+| c3 chain (TERMINAL — NO-SHIP) | adapter-report-gate | **row 21** (`a9bec51`): DeepGEMM paged-sparse API SM100-only (`attention.hpp:301` arch-major==10) vs GB10 SM121 — no in-image fix. The no-ship record is LANDED in DEEPSEEK §17/§19, queue, ds4 README (`6ffdda8`); shipped line STANDS; arm3 indexer-scoring + arm5 trtllm ARCH-GATED (same SM100 gate) |
+| queue deltas | tp4-recovery | `ds4-repro-config-created` **WITHDRAWN** (image-ID-DROPPED ruling — byte-repro suffices); `chunk-32768-overlay-reprobe` DONE NOT-SHIPPABLE (`f3cf420`); `glm-flash-concurrency-degradation-search` DEFERRED (row 19) |
 
-## Work queue
-
-Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 14:25). **Running**: `pool-prefetch-missing-bodies` only; `chunk-32768-overlay-reprobe` DONE NOT-SHIPPABLE (`f3cf420`); `glm-flash-concurrency-degradation-search` DEFERRED to next window (row 19). Scheduler top-3 (queued, tier dsv4.1-1017): `ds4-repro-config-created` (w 2.00 — withdrawal check pending), arm 5 trtllm (w 3.00 — ARCH-BLOCKED per row 21), `ornith-toolcall-ohmympi-triage` (w 3.00). Later: `tensorfold-metrics-bridge-generalization` (w 1.50), `h2h-glm-flash-house-recipe` (w 1.50), `h2h-doc-refresh` (w 0.50), `h2h-beam-house-and-bfcl-category` (w 2.50), idle-only `h3-quartet-retry`:
-
+Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 41 tasks, at 14:59). **Running**: `pool-prefetch-missing-bodies` only. Scheduler top-3 (queued, tier dsv4.1-1017): `ornith-toolcall-ohmympi-triage` (w 3.00), `tensorfold-metrics-bridge-generalization` (w 1.50), `h2h-glm-flash-house-recipe` (w 1.50). Later: `h2h-doc-refresh` (w 0.50), `h2h-beam-house-and-bfcl-category` (w 2.50), `glm-flash-concurrency-degradation-search` (w 5.00 — DEFERRED, row 19), idle-only `h3-quartet-retry`:
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. `chunk-32768-overlay-reprobe` — 32768 prefill-chunk probe on the aff52fa5 overlay | quartet | tp4-recovery | queued (w 2.00, scheduler top) |
-| 2. `ds4-repro-config-created` — pin the knapcio image config created stamp | single | tp4-recovery | queued (w 2.00) |
-| 3. `w4-survey-arm3-indexer-scoring` — SGLang PR #43401 candidate-only indexer scoring | quartet | tp4-recovery | queued (w 3.00, build-gated — the c3 chain above is its prerequisite) |
-*(Later rows: `ds4-adapter-report-gate` (w 14.00-class — c3 chain TERMINAL NO-SHIP, row 21); `tensorfold-metrics-bridge-generalization` (w 1.50); `h2h-glm-flash-house-recipe` (w 1.50); `glm-flash-concurrency-degradation-search` (w 5.00 — DEFERRED, row 19); `h2h-doc-refresh` (w 0.50); `h2h-beam-house-and-bfcl-category` (w 2.50); `ornith-toolcall-ohmympi-triage` (w 3.00); idle-only `h3-quartet-retry`. **Running**: `pool-prefetch-missing-bodies`. Done in the ledger: flag track (candidate6/S1/S2/S3), main-image-boot-gate, chunk-32768 reprobe (NOT shippable), H3 first four-rank cell, adapter trial, byte-reproducible, mellum probe + speedup levers, S0, Beam remainder, h2h-glm-needle-3rungs, h2h-glm-tools-leg; withdrawn: b12x parity/ship-recipe/tuning-round.)*
+| 1. `chunk-32768-overlay-reprobe` — 32768 prefill-chunk probe on the aff52fa5 overlay | quartet | tp4-recovery | DONE — NOT shippable (pool −72%, needles TRUNCATED, `f3cf420`) |
+| 2. `w4-survey-arm3-indexer-scoring` — SGLang PR #43401 candidate-only indexer scoring | quartet | tp4-recovery | ARCH-GATED (DeepGEMM SM100-only, row 21 — withdrawn) |
+| 3. `ds4-repro-config-created` — pin the knapcio image config created stamp | single | tp4-recovery | WITHDRAWN (image-ID-DROPPED ruling — byte-repro suffices) |
+*(Later rows: `ds4-adapter-report-gate` (w 14.00-class — c3 TERMINAL NO-SHIP, row 21); knob track DONE (S1 + candidate6 ships, `0123dda`). Done in the ledger: knob gates (S1 evidence + candidate6 parity PASS), c3 no-ship record (`6ffdda8`), flag-collapse root cause, flag track (candidate6/S1/S2/S3), main-image-boot-gate, chunk-32768 reprobe (NOT shippable), H3 first four-rank cell, adapter trial, byte-reproducible, mellum probe + speedup levers, S0, Beam remainder, h2h-glm-needle-3rungs, h2h-glm-tools-leg; withdrawn: b12x parity/ship-recipe/tuning-round, `ds4-repro-config-created`.)*
 
 ## Landed this session
 
@@ -86,3 +84,5 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 14:2
 | ~12:14 ET | `865863e` | TODO advisory row 20 (survey round-4 fold: bars-clear non-inferiority rule, ship digest `644cb802…`, chunk-32768 ships-after-battery-gate, sessions killed at drain) |
 | ~12:23 ET | `2fa8c59` | Board refresh 12:21 ET (chunk reprobe live, main-image-boot-gate PASS, attempt-8 staged) |
 | ~12:33 ET | `f3cf420` | chunk-32768 reprobe DONE — faster prefill but pool −72%, needles TRUNCATED: NOT shippable, 16384 line unchanged (DEEPSEEK s9 addendum) |
+| ~14:32 ET | `6ffdda8` | c3 re-port record: TERMINAL BLOCKED no-ship landed in DEEPSEEK §17/§19, queue, ds4 README (DeepGEMM SM100-only) |
+| ~14:41 ET | `0123dda` | ds4 knob gates spent once on the shipped line: S1 evidence shape reproduced; candidate6 battery 37/37 both arms, 0 flips — parity PASS, knob ships; `-o extra_args=` inert root cause noted |
