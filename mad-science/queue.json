@@ -311,13 +311,13 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "RUNNING (final legs). 3bpw arm: 32,768 PASS 10/10 (04:29Z), 131,072 PASS 10/10 (05:32Z), 983,040 WRAPPER-CAPPED, UNMEASURABLE IN-WINDOW — two attempts (7200 s cap ~07:33Z, 14400 s cap ~11:37Z), ~4 h of quartet per attempt, serve warm throughout, client never reached completion. Honest cost stated; NOT an arm failure; NOT re-launched a third time (owner-flagged contingency: a full 983k number is only worth an 8-h dedicated window if the owner asks — asked in the report). GLM-Flash arm: boots next on the refetched 175.7 GB body (~46-54 min load), runs 32,768 and 131,072 ONLY, its 983k marked capped-by-precedent. Both arms then carry full 32k/131k numbers plus a documented 983k cap — what the h2h doc can honestly carry. After the flash rungs: quartet released with a QUIET lock line to the re-port session (adapter-report-gate, c3 bars boot — BOOT-PLAN.md staged; its earlier RE-PORT-BOOT-DONE gate protocol superseded). Every stop literal-id; rc lines always recorded.",
+      "notes": "DONE 2026-10-26 (window 4, both GLM TP=4 arms through the recipe path, needle-haystack @512, 10 items/rung): 3bpw 753B arm — 32,768 **PASS 10/10** (19 min), 131,072 **PASS 10/10** (62 min), 983,040 **wrapper-capped x2** (7200 s ~07:33Z, 14400 s ~11:37Z; ~4 h quartet per attempt, serve warm throughout, client rc never reached completion — UNMEASURABLE IN-WINDOW, not an arm failure; third launch refused per the owner-flagged contingency). GLM-Flash arm (refetched 175,716,135,696 B body, tensorfold estimate passes) — 32,768 **PASS 10/10** (3 min), 131,072 **PASS 10/10** (8 min), 983,040 **capped-by-precedent**. Boot facts: 3bpw leg-1 rerun booted 03:23:55Z after the 02:11Z foreign-stop kill; flash boot 11:42:55Z after a literal-id stop of the 3bpw serve; flash load only ~3 min on the warm page cache. Records: h2h doc quality table + reading/open-cells lines updated (needle column + 983k-open-on-GLM statement); quartet released to the re-port session with the QUIET lock line at 11:56:43Z. A full 983k number is only worth an ~8-h dedicated quartet window if the owner orders it — flagged in the h2h doc and the report.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-26T02:42:24Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "h2h-glm-tools-leg",

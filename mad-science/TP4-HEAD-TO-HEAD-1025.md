@@ -32,8 +32,8 @@ elsewhere, per-run stds 6–16 t/s).
 | arm | house battery | needle | tools leg | receipts |
 |---|---|---|---|---|
 | DSv4.1-Flash-1017 knapcio TP=4 | **36/37** @4096 (easy 19/19, hard 17/18; miss `hard-rev`) | **3/3** @ 32,768 / 131,072 / 983,040 (top rung 981,950 prompt tokens) | **TEB 90** (tool-eval-bench, 15 scenarios: 13 pass, 1 partial, 1 fail `TC-03 wrong_args`) | `~/benchmarks/tp4-20261018/` (`REPO…` full-suite receipt, SESSION-RECORD.md §2026-10-18) |
-| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37** — the 2026-10-13 trial's, not through the recipe path (still unproven through it) | not measured | **WITHDRAWN 2026-10-26 (contaminated)** — the "14/15" pass I first recorded ran against the LINGERING 3bpw serve (`/v1/models` answered `GLM-5.3-EXL3-3.0bpw`), not the flash arm: the flash arm's checkpoint at the shipped pin `078455ff` is a **stub fleet-wide** (config.json only, 6,098 B; the launcher fails with `startup memory estimate needs the checkpoint tensor headers`). The Hub's pin is 175.7 GB across 95 files | re-run only after the 175.7 GB re-fetch lands; the retry reproduced the failure deterministically, so this is a body problem, not a load race |
-| GLM-5.3 EXL3 3bpw TP=4 (753B) | **37/37** @4096 thinking-on through the recipe path (easy 19/19, hard 18/18, 124.7 s) | not measured | **TEB 100 — 15/15 pass, 0 partial, 0 fail** — window 4 (`benchmark_glm-5.3-exl3-3bpw…tp4.{json,csv}`) | house: window 3 `~/benchmarks/tp4-window3-20261024/suite-glm/`; tools: window 4 `~/benchmarks/tp4-window4-20261026/` |
+| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37** — the 2026-10-13 trial's, not through the recipe path (still unproven through it) | **10/10 PASS** @512 at 32,768 (3 min) and 131,072 (8 min); 983,040 **capped-by-precedent** — window 4 through the recipe path (`~/benchmarks/tp4-window4-20261026/glm-needle/`) | **WITHDRAWN 2026-10-26 (contaminated)** — the "14/15" pass I first recorded ran against the LINGERING 3bpw serve (`/v1/models` answered `GLM-5.3-EXL3-3.0bpw`), not the flash arm: the flash arm's checkpoint at the shipped pin `078455ff` is a **stub fleet-wide** (config.json only, 6,098 B; the launcher fails with `startup memory estimate needs the checkpoint tensor headers`). The Hub's pin is 175.7 GB across 95 files | needle: window 4 on the refetched body; the withdrawn tools leg re-runs only after that 175.7 GB re-fetch verified into a fresh boot |
+| GLM-5.3 EXL3 3bpw TP=4 (753B) | **37/37** @4096 thinking-on through the recipe path (easy 19/19, hard 18/18, 124.7 s) | **10/10 PASS** @512 at 32,768 (19 min) and 131,072 (62 min); 983,040 **wrapper-capped ×2** (7200 s and 14400 s, ~4 h quartet per attempt, serve warm throughout — unmeasurable in-window, not an arm failure) — window 4 leg-1 rerun after the 02:11Z foreign-stop kill (`~/benchmarks/tp4-window4-20261026/glm-needle/`) | **TEB 100 — 15/15 pass, 0 partial, 0 fail** — window 4 (`benchmark_glm-5.3-exl3-3bpw…tp4.{json,csv}`) | house: window 3 `~/benchmarks/tp4-window3-20261024/suite-glm/`; needle+tools: window 4 `~/benchmarks/tp4-window4-20261026/` |
 | Beam-1.0-501B NVFP4 TP=4 | not measured through the recipe path (the pre-registered (b) cell became the needle rerun; window-3 boot-gate smoke 17×23=391 correct) | **20/20 PASS** @512 with `--needle-max-tokens 512` at 32,768 and 131,072, all depths (the window-3 0/3 shape was budget truncation — finish=length, the documented false-capability class) | **BFCL tools leg ran direct** (eval-suite wrapper stalls 52 min — instrument finding): per-case PASS/FAIL lines give **475 PASS / 40 FAIL** (`beam-b1-bfcl2.log`) and **182 PASS / 25 FAIL** (`beam-b1-bfcl3.log`) = **657/722 (91.0 %)** across the two populated logs; the harness's own category summary is absent from the logs, so the per-category split is open | `~/benchmarks/tp4-window4-20261026/beam-b1-needle-*-512.json`, `beam-b1-bfcl{2,3}.log`; queue `w4-beam-cells-remainder` notes |
 
 ## Reading (grounded in the rows above, no new claims)
@@ -42,15 +42,20 @@ elsewhere, per-run stds 6–16 t/s).
   The 1017 arm is the only ladder whose aggregate grows to 116 at C10 — it is the concurrency arm;
   GLM-Flash is the single-stream arm; GLM-753B is the capability arm that does not slow down under
   load; Beam is a probe with one quarter of the active parameters the others carry (23.4B active).
-- **Capability**: ds4-1017 is the only arm with the full triple (house + needle + tools through one
-  recipe path). Window 4 closed the GLM tools leg through the recipe path for both arms — GLM-753B
-  TEB 100 (15/15, the cleanest tools line on the table), GLM-Flash 14/15 (`TC-15 connection_error`,
-  cause unprobed) — and GLM-753B already matched the house score; GLM-Flash's 37/37 is still the
-  trial's; Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
+- **Capability**: ds4-1017 is the only arm with the full triple **on one boot** (house + needle +
+  tools through one recipe path, 2026-10-18). Window 4 closed the GLM gaps through the recipe path
+  across boots: both GLM arms now carry needle 32,768/131,072 **10/10 PASS** each (983,040
+  wrapper-capped on both — unmeasurable in-window at the 3bpw arm's prefill rate, capped-by-precedent
+  on the flash arm; a full 983k number is only worth an ~8-h dedicated window if the owner asks),
+  GLM-753B adds tools **TEB 100 (15/15)** and house **37/37**; GLM-Flash's tools leg stays WITHDRAWN
+  (contaminated first take; re-runs after the refetched body) and its 37/37 is still the trial's;
+  Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
 - **Open cells this table must not paper over**: no GLM Flash house through the recipe path, no
-  second-boot ladder for any arm, no Beam house/BFCL-category summary, and the 131k/983k needle rungs
-  exist for ds4-1017 only (its 131k/983k prefill legs were wrapper-clipped, not capability-missed —
-  `rc=124` wrapper-cap class, rerun needs `timeout 7200`).
+  second-boot ladder for any arm, no Beam house/BFCL-category summary, and the 983,040 needle rung
+  is **open on every arm but ds4-1017**: the GLM arms' 983k rungs are wrapper-capped
+  unmeasurable-in-window (two caps on the 3bpw arm at 7200/14400 s — the rung needs an ~8-h
+  dedicated quartet window at that arm's prefill rate; the flash arm took the cap-by-precedent), so
+  a 983k capability comparison is not on the table without the owner ordering that window.
 
 ## Provenance index
 
