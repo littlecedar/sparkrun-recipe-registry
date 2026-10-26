@@ -65,13 +65,13 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "running",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
+      "notes": "DONE 2026-10-26 (quartet-holder). FLAG boot sparkrun_c989632ede4f538e_7f5f562975f3 (-o env.EXTRA_SGLANG_ARGS=--enable-cache-report; NOTE -o extra_args= is INERT on the sglang runtime — 'no effect' warning, first flag boot 077c4716c199 stopped by literal id for it; enable_cache_report True verified in server_args). Non-stream probe (streaming chunks carry no usage): 32k rep1 cold 5.0 s then reps 2-8 cached_tokens 28928/28952 (99.8%), TTFT 0.29 s; 131k reps 2-8 cached 119552 (99.9%), TTFT 0.46-0.49 s. Falsifier (cached_tokens 0 every repeat) NOT fired. NOFLAG leg ran on the preceding plain boot c989632ede4f538e_d977b128e72f: cached_tokens unreported without the flag (usage field absent), TTFT collapse identical (32k 13.65->0.26, 131k 18.8->0.42). FINDING: the radix cache already reuses; §8.4's cached-token:0 was a REPORTING gap the flag closes, not a reuse gap; revisit is already ~0.3-0.5 s vs the 1.5 s target and 89 s historical. Serve logs harvested s1-flag-node{0..3}-serve.log pre-stop; stopped by literal id, 0 containers all ranks. Receipts: head ~/benchmarks/tp4-window4-20261026/s1-*.{json,log}, s1-chain.log, watchdog-s1-flag.log.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2",
-      "claimed_by": "quartet-holder",
-      "claimed_at": "2026-10-26T13:15:01Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-s2-lpm",
@@ -82,11 +82,13 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "DONE 2026-10-26 (quartet-holder). LPM boot sparkrun_c989632ede4f538e_71673bd58f24 (-o env.EXTRA_SGLANG_ARGS='--enable-cache-report --schedule-policy lpm'; schedule_policy lpm + enable_cache_report True verified in server_args). Probe = same 32k/131k x8 back-to-back non-stream as S1: hit fraction IDENTICAL to S1 (28928 at 32k reps 2-8, 119552 at 131k reps 2-8) and revisit TTFT identical (32k 0.285-0.31 s vs S1 0.286-0.31; 131k 0.456-0.477 vs S1 0.456-0.494). Verdict per pre-registration: NO CHANGE => lpm is a NULL on this serve/probe; radix reuse is already full-prefix. Serve logs s2-node{0..3}-serve.log harvested pre-stop; stopped by literal id; 0 containers all ranks. Receipts: head ~/benchmarks/tp4-window4-20261026/s1-probe-s2.json (tag s2), s2-probe.log, s2-chain.log, watchdog-s2.log.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2",
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-s3-min-free-slots-delay",
@@ -97,11 +99,13 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "DONE NEGATIVE 2026-10-26 (quartet-holder). Treatment boot sparkrun_c989632ede4f538e_245637604b3a (-o env.EXTRA_SGLANG_ARGS='--min-free-slots-delay 1'; min_free_slots_delay 1 verified in server_args — flag EXISTS in this tree, preregistration's absent-in-tree check passed). Same-line control boot sparkrun_c989632ede4f538e_fdd957ad478a (plain aff52fa5 arm). Depth0 ladder (ds4-sglang-depth0-ladder.yaml, 3 runs/cell, --fresh) A/B on the same serve line: C1 64.21+/-3.70 vs 46.07+/-25.37 (control C1 contaminated by a cold first run, std 25.4 — ambiguous); C4 104.20+/-6.08 vs 116.20+/-7.47 (-10.3%); C8 148.44+/-7.32 vs 159.61+/-8.71 (-7.0%); C16 135.61+/-12.44 vs 151.80+/-6.69 (-10.7%). Mechanism signal FAILED: achieved max running-req 15 treatment vs 16 control (delayer did not raise concurrency). The apparent C8/C16 gains vs the v2.4-era depth0 control (107.5/115.9) are the serve-line change (16384 chunks + fast loader + aff52fa5 overlay), proven by the plain-arm control at 159.6/151.8. Verdict: candidate 1 is a measured negative on the shipped line; do not ship. Serve logs s3-node{0..3} + s3-control-node{0..3}-serve.log harvested pre-stop; both boots stopped by literal id; 0 containers all ranks after each. Receipts: head ~/benchmarks/tp4-window4-20261026/s3-ladder.{csv,yaml}, s3-control-ladder.{csv,yaml}, s3-chain.log, watchdog-s3.log, watchdog-s3-control.log.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2",
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "w4-b12x-parity",
