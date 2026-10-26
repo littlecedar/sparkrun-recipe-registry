@@ -147,13 +147,13 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "IN PROGRESS 2026-10-26 (tp4-single): deterministic delta designed + committed (ffee627) as the vendored file's third mechanical delta — ENV PYTHONDONTWRITEBYTECODE=1 from the top (kills build-time-mtimed .pyc from pip installs + gate RUNs), ARG SOURCE_DATE_EPOCH=1792886400 + a final payload mtime-normalization/__pycache__ layer (COPY preserves clone/extract-time mtimes); no command/order changes. Build #1 running detached on .30 from the aff52fa5 worktree ~/knapcio-aff52fa5 (Dockerfile scp'd in, tag dsv41-4x-spark:repro-test1, log ~/benchmarks/ds4-repro-20261026/build1.log — gate step #40 in progress, tests passing). Next: build #2 same args → compare image IDs (byte-identical = the fix works; the ID comparison IS the cost measurement the estimate lacked). Note: the ENV at the top invalidates all cached layers after FROM — this build measures the full rebuild cost.",
+      "notes": "DONE-PARTIAL with measured mechanism 2026-10-26 (tp4-single): the delta (commit ffee627) achieves LAYER-CONTENT reproducibility — build1 vs build2 (no arg): 215/216 layers byte-identical, only the image-config layer differs. Cost measured: ~5.5 min per full --no-cache build. Residual blocker is ENGINE-SIDE: the config created stamp (build2 .Created = wall clock); passing --build-arg SOURCE_DATE_EPOCH pins created (verified) but engages BuildKit's SDE tar-rewrite path which is NON-deterministic on this engine (29.6.2) — build3 vs build4 diverge from layer 70 with the arg. Follow-up row added (ds4-repro-config-created) with the three options. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md (4 build logs + IDs); test images repro-test1..4 throwaway.",
       "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5",
-      "claimed_by": "tp4-single",
-      "claimed_at": "2026-10-26T00:20:57Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "ds4-adapter-report-gate",
@@ -392,7 +392,7 @@
       "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): deliverable authored as mad-science/MELLUM-SPEEDUP-SEARCH.md (indexed in mad-science/README.md) — ranked candidate list in the gguf-triage format, each with expected-benefit + trial-boot plan, boots/conversions separate: (1) engine-lineage bisect FIRST (a37cc4610..d854d98bae 86 commits, then the deferred b2e5e9b..a37cc4610 bisect; suspects named by the census: llama-graph/speculative/ggml-cuda; recovering ~15-19 percent beats every drafter win); (2) quantized MTP heads — NEW lever: the repo ships mtp/*-Q8_0/Q6_K/Q4_K_M/MXFP4.gguf and BOTH sweeps used the BF16 head; a Q8_0 head attacks the measured ~38 percent verify-pass cost at n=1-2; (3) MXFP4_MOE main GGUF (unmeasured); (4) quant ladder Q5/Q6/Q8 + bartowski imatrix set (Hub-verified); (5) llama.cpp knobs (cache-type/ubatch/FA; mmap already settled negative 2026-10-19); (6) drafter alternatives VERIFIED NULL on the Hub (no DFlash/DSpark/Medusa Mellum packs — search done this session). Hub listings verified via API 2026-10-26; measured baselines cited from this window's receipts.",
+      "notes": "Post-done fill-in measurements 2026-10-26 (tp4-single, .35, same geometry): lever 3 MXFP4_MOE main GGUF 112.29±0.25 t/s (−7.4% vs Q4_K_M 121.27, smaller 7.03 GB file, faster prefill 4.8 ms/token — not a decode win); lever 4 ladder completed: Q8_0 85.28±1.13 t/s (−30%), files 8.07/10.88/12.93 GB, monotone decline — shipped Q4_K_M confirmed fastest sensible tier. Recorded in MELLUM-SPEEDUP-SEARCH.md rows 3/4.",
       "provenance": "owner 2026-10-26 directive; mad-science/DRAFTER-ALTERNATIVES-1026.md; ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -457,6 +457,20 @@
       "node_cost": "quartet",
       "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg.",
       "provenance": "owner 2026-10-26 directive; mad-science/TP4-HEAD-TO-HEAD-1025.md ladder row; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ds4-repro-config-created",
+      "title": "Pin the knapcio image config created stamp (finish byte-reproducible IDs)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "Layer content is reproducible (ds4-knapcio-byte-reproducible: 215/216 layers identical with the ffee627 delta); the only residual is the image-config created stamp, and BuildKit's SOURCE_DATE_EPOCH arg path (which pins created) is itself non-deterministic on engine 29.6.2 (build3 vs build4 diverge from layer 70). Options: (a) engine/BuildKit escalation, (b) post-build config rewrite (skopeo-class re-stamp of created over the deterministic layer stack), (c) accept content-reproducibility + first-build ID pinning. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md.",
+      "provenance": "ds4-knapcio-byte-reproducible outcome 2026-10-26; ~/benchmarks/ds4-repro-20261026/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""
     }
