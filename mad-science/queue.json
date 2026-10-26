@@ -147,11 +147,13 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "dsv4.1-1017",
       "node_cost": "single",
       "notes": "estimate: provisional — the 2026-10-22 rebuild is behavior-identical but not byte-reproducible; no prior measurement of the fix's cost.",
-      "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5"
+      "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5",
+      "claimed_by": "tp4-single",
+      "claimed_at": "2026-10-26T00:20:57Z"
     },
     {
       "id": "ds4-adapter-report-gate",
@@ -357,10 +359,10 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "The existing 131k/983k rows are rc=124 wrapper-clips (timeout 2400), NOT capability misses — rerun with the fix parameters EXPLICIT: (1) cell wrapper gets `timeout 7200` (the 2400 s cap is what produced the clips — 'rerun and hope' without this reproduces the gap; measured 2026-10-26, boot-1 cell (b)); (2) prefill-safe needle flags: --needle-max-tokens 512 (the budget-truncation fix — reasoning arms spending the allowance inside the think block read as false capability misses); (3) same needle depths/grids as the 32k rung that passed 3/3; (4) receipts under a dated ~/benchmarks dir; then h2h-doc-refresh updates the head-to-head row.",
+      "notes": "DONE via the adoption boot (quartet c989632ede4f538e_06d0703ef003, canary-roce-aff52fa5, 2026-10-26): needle 32,768 10/10 and 131,072 10/10 with receipts in ~/benchmarks/tp4-window4-20261026/ on the head. The 983,040 rung was still in flight at ship under its 7,200 s wrapper (started 23:31Z) — its verdict appends to the same receipt when the wrapper lands; the row does not hold for it.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -427,6 +429,20 @@
       "node_cost": "single",
       "notes": "After each h2h-* row lands: update mad-science/TP4-HEAD-TO-HEAD-1025.md's open-cells note and the corresponding table row with the landed cell and its receipt pointer, so the open-cells note cannot silently go stale. Small edit per landing; commit with the row's own close-out.",
       "provenance": "owner 2026-10-26 directive (executable-h2h-rows review)",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "gguf-convert-qwen38-spark2_5-q4km",
+      "title": "Fetch, convert (if needed) and trial-boot the Qwen3.8 spark2_5 Q4_K_M GGUF on the current upstream engine",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "From the triage's verdict (mad-science/GGUF-VIABILITY-TRIAGE.md): the ONLY warranted conversion — official Q4_K_M GGUF with general.architecture = spark2_5 (loader landed 3ad1ba7336, 2026-09-06, present at a37cc4610 and later; verified in-source + byte-level header read, TODO record), ~16 GB fit on one GB10 with a 131k-class KV; expected benefit: a single-node serve of a checkpoint the registry currently serves only through quartet TP=4/labquant arms. Trial-boot FIRST on the current engine (d854d98bae image, present on .35 + head), measuring the same ladder geometry as the Sol-2B baseline (three 128-token greedy rows + serve-log eval cross-check) so the triage row gets its number. Body fetch is a prefill-queue-class operation (use the du -sbL pre-flight; coordinate with the prefill ledger if large). If the conversion itself exceeds 2 h, report partial state — an unconverted-path baseline or the next GGUF candidate's ladder is acceptable filler.",
+      "provenance": "mad-science/GGUF-VIABILITY-TRIAGE.md; ship-landed resume directive 2026-10-26",
       "claimed_by": "",
       "claimed_at": ""
     }
