@@ -314,7 +314,7 @@
       "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "RUNNING 2026-10-26: leg 1 (3bpw) rungs died to a FOREIGN global stop at 02:11Z (the glm-tools-auto.sh stop --all — banned pattern, script fixed) — rc=1s were that kill, not misses. Leg 2 (flash) first attempt FAILED with a distinct launcher error: rank-0 'tensorfold: CUDA startup memory geometry could not be established on every rank: ValueError: startup memory estimate needs the checkpoint tensor headers' (serve log stagnant; host memory clean — MemAvailable ~123 GB on all four ranks, 0 containers after teardown; this is NOT the 54-min slow-load class, which is real but separate). One retry launched with literal-id stops, rungs @timeout 7200; the 3bpw leg reruns behind it. If the retry repeats the ValueError, the standing wedge rule applies: one warm reboot of the implicated rank (.31), no iteration.",
+      "notes": "RUNNING (redo): root cause of the double flash-boot failure CLOSED with evidence — the pin 078455ff was a config-only stub fleet-wide (pool-dedup class); the 175.7 GB / 175,716,135,696 B body is refetched and preflighted on all four nodes (per-node du identical). Flash redo boot live: sparkrun_b55c050475ff4b3a_d2a52c3f241f (03:17:56Z, ready expected ~54 min); rungs 32k/131k/983k @7200 follow; then the 3bpw leg-1 rerun (its original rungs died to the 02:11Z foreign stop --all — script fixed). Every stop literal-id.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-26T02:42:24Z"
