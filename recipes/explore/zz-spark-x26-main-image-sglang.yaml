@@ -1,0 +1,63 @@
+recipe_version: "2"
+model: XHToken/Spark-X2.6-4B
+model_revision: 66e3ae7bee54e0a523d692cb8ef841f35409807b
+  # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+# MAIN-IMAGE BOOT-GATE probe arm (`zz-`, one-off): the shipped-line control
+# recipes/explore/spark-x2.6-4b-bf16-sglang.yaml with ONLY the container moved to
+# the main-tree build sglang-main-arm64:6563312 (image id fe903216..., 28.9 GB,
+# resident on the head). Gate question: can the main-line image carry our arms at
+# all? Compare against the shipped-line numbers for the same shape (2026-10-22,
+# task sparkrun_31a011c489646cf6_2d38dfc4605e, ~/benchmarks/spark-x26-20261022/:
+# d0 ladder C1/C2/C5/C10 = 20.38 / 46.38 / 99.27 / 156.20 t/s decode rows; house
+# 37/37 thinking-on @4096). Every other field is byte-identical to the control.
+description: >-
+  MAIN-IMAGE BOOT-GATE probe (`zz-`, one-off): the shipped Spark-X2.6-4B bf16
+  control shape with only the container moved to the main-tree build
+  `sglang-main-arm64:6563312` (28.9 GB, head-resident). The gate answers whether
+  the main-line image carries our arm shapes at all, against the shipped-line
+  control measured 2026-10-22 (d0 ladder C1/C2/C5/C10 20.38 / 46.38 / 99.27 /
+  156.20 t/s decode rows; house 37/37 thinking-on at 4096; receipt
+  ~/benchmarks/spark-x26-20261022/). Not shippable as-is: a zz- probe record.
+container: sglang-main-arm64:6563312
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/XHToken/Spark-X2.6-4B
+  model_params: "4B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: explore, probe, one-off
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: XHToken/Spark-X2.6-4B
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 32
+  chunked_prefill_size: 8192
+
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser spark25
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
