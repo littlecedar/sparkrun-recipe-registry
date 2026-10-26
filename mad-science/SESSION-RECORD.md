@@ -1760,3 +1760,29 @@ Appends made by this sweep (the only facts that had no surviving home):
    zz-EXL3-TP=4 + zz-MiniMax-H3-TP=4); final window re-measure: 948 tests OK (2 skipped), 70/70
    plain; strict NOT re-measured — the 18 accepted findings (17 `unpinned-model-revision`,
    1 `deprecated-topology`) stand.
+
+## ornith-toolcall-ohmympi-triage — NO FAILURE REPRODUCED (2026-10-26, window tp4-window4)
+
+- **Verdict: oh-my-pi tool-calling works on the shipped ornith line** — sglang
+  `v0.5.22@sha256:e3a4f060`, honed qwen3.8 template, `--reasoning-parser qwen3
+  --tool-call-parser qwen3_coder`, DFlash2 draft engaged. Boot
+  `sparkrun_78c7e2fa335a63e5_35f2cfc5f912` (TP=1 solo on `.31`, TRUE-READY TTR
+  414.0/428.6/428.7 s, watchdog healthy); preflight facts re-verified byte-exact
+  (model 23,460,228,712 B @94e431d9, draft 1,053,161,270 B @9b4852c0).
+- Scripted repro (`repro.py`): non-stream tool turn PASS (valid `tool_calls` args,
+  `finish_reason: tool_calls`), tool-result continuation PASS, streaming 30/30 PASS
+  on the warm serve. Real omp agent run through a capture proxy logging the harness's
+  exact request shape (`stream`+`stream_options.include_usage`, `reasoning_effort:
+  high`, `max_completion_tokens`, 11-tool array): smoke PASS, bash-tool task PASS,
+  5-turn multi-tool stress PASS — 7/7 captured SSE streams reached `finish_reason` +
+  usage + `[DONE]`. Nothing to fix; no upstream filing supported.
+- **Watch item (once-only, unreproduced):** the first repro streaming turn returned an
+  empty SSE body — server 200 OK with prefill+generation processed, client 0 bytes in
+  0.53 s, no traceback in the serve log; not seen again across 33 later streaming
+  requests on the same boot. An empty stream is exactly the class that breaks an agent
+  harness (no events at all); if it recurs on any ornith boot, capture the serve-log
+  window + request pair immediately.
+- Receipts `~/benchmarks/tp4-window4-20261026/ornith-toolcall/` (`RECEIPT.md`,
+  `repro-summary.json`, `capture/` request+stream pairs, `node0-serve-harvest.log`,
+  `launch.log`, `watchdog.log`); boot stopped by literal id, 0 containers verified
+  `.31`–`.34`, capture proxy + watchdog killed.
