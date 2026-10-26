@@ -229,6 +229,13 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   `diffusers.utils.load_image`) — its traceback goes to the log, never to the client. `/health`
   reports `attempts`/`failed` alongside `requests`, so a serve rejecting everything cannot read as
   idle. Full table: [`mods/qwen-image-2.1-turbo-launcher/README.md`](mods/qwen-image-2.1-turbo-launcher/README.md).
+- **Pool-era load trap, fixed in the launcher (2026-10-26, spares-lane):** under `HF_HUB_OFFLINE` a
+  hub repo id resolves only through cache ref files, which the pool's plain `snapshots/<sha>` dirs
+  do not carry — the first pool-era demo boot died `OfflineModeIsEnabled` / "not fully cached" at
+  `from_pretrained` even with the 32.49 GB body resident. The launcher now binds `--model`/
+  `--revision` to the full pinned snapshot dir itself (`resolve_snapshot`, fail-closed with the
+  cache listing when the body is absent) and hands diffusers a local path — **pool bodies must be
+  bound by snapshot path, not hub revision.** Receipt `~/benchmarks/spares-20261026/qwen-image-demo/`.
 - **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady (a same-boot control on the 2048² run
   read 11.240 s ± 0.008); a reference image fed back for editing +3.5 s; same prompt+seed → a
   byte-identical PNG. **2048² cell closed 2026-10-18**: **53.24 s/image** (mean of 3, σ 0.20) — 4×

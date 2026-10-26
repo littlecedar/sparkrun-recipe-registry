@@ -107,6 +107,58 @@ def log(msg: str) -> None:
     print("[qwen-image] %s" % msg, flush=True)
 
 
+def resolve_snapshot(model: str, revision: str | None) -> str:
+    """Bind a hub repo id to its full pinned snapshot dir; fail closed.
+
+    Under HF_HUB_OFFLINE a repo id cannot be resolved from the cache unless
+    the exact ref file exists; pool-era prefill rows write bodies as plain
+    snapshots/<sha> dirs with no refs/main, so the launcher must find the
+    pinned snapshot dir itself and hand from_pretrained a local path. Dies
+    loudly — with the cache listing — when the pinned body is absent,
+    instead of diffusers' opaque OfflineModeIsEnabled.
+    """
+    if os.path.isdir(model):
+        if revision and revision not in model:
+            raise SystemExit(
+                "revision mismatch: --revision %s is not in the model path %s"
+                % (revision, model)
+            )
+        return model
+    if "/" not in model:
+        raise SystemExit("cannot resolve non-path, non-repo model %r" % model)
+    repo_dir = "models--%s" % model.replace("/", "--")
+    roots = [
+        os.environ.get("HF_HUB_CACHE"),
+        os.path.join(os.environ["HF_HOME"], "hub") if os.environ.get("HF_HOME") else None,
+        "/cache/huggingface/hub",
+        os.path.expanduser("~/.cache/huggingface/hub"),
+    ]
+    looked: list[str] = []
+    for root in roots:
+        if not root:
+            continue
+        base = os.path.join(root, repo_dir, "snapshots")
+        if not os.path.isdir(base):
+            looked.append("%s (no snapshots dir)" % base)
+            continue
+        if revision:
+            cand = os.path.join(base, revision)
+            if os.path.isdir(cand):
+                return cand
+            looked.append("%s (snapshots: %s)" % (base, ", ".join(sorted(os.listdir(base))) or "empty"))
+        else:
+            entries = sorted(e for e in os.listdir(base) if os.path.isdir(os.path.join(base, e)))
+            if len(entries) == 1:
+                return os.path.join(base, entries[0])
+            looked.append("%s (snapshots: %s)" % (base, ", ".join(entries) or "empty"))
+    raise SystemExit(
+        "pool body for %s @ %s not found under any HF cache root; refusing to "
+        "load offline (the stub/missing-body class — check the prefill ledger). "
+        "Looked at:\n  %s" % (model, revision or "main", "\n  ".join(looked))
+    )
+
+
+
 def load_pipeline(model: str, device: str):
     import torch
     from diffusers import QwenImage21Pipeline
@@ -394,18 +446,17 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    STATE["model_path"] = args.model
+    # Bind the hub repo id (or prepared path) to its pinned snapshot dir
+    # BEFORE touching diffusers: under HF_HUB_OFFLINE the repo id resolves
+    # only through ref files the pool does not carry. The revision-mismatch
+    # assert lives inside resolve_snapshot (it holds for the dir case too).
+    model_path = resolve_snapshot(args.model, args.revision)
+    STATE["model_path"] = model_path
     STATE["model_id"] = args.served_model_name or os.path.basename(args.model.rstrip("/"))
-
-    if args.revision and os.path.isdir(args.model) and args.revision not in args.model:
-        raise SystemExit(
-            "revision mismatch: --revision %s is not in the model path %s"
-            % (args.revision, args.model)
-        )
     STATE["sample_dir"] = args.sample_dir
     STATE["device"] = args.device
 
-    pipe, load_s = load_pipeline(args.model, args.device)
+    pipe, load_s = load_pipeline(model_path, args.device)
     STATE["pipe"] = pipe
     STATE["load_s"] = load_s
 
