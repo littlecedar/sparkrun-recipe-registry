@@ -314,7 +314,7 @@
       "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "RUNNING (redo): root cause of the double flash-boot failure CLOSED with evidence — the pin 078455ff was a config-only stub fleet-wide (pool-dedup class); the 175.7 GB / 175,716,135,696 B body is refetched and preflighted on all four nodes (per-node du identical). Flash redo boot live: sparkrun_b55c050475ff4b3a_d2a52c3f241f (03:17:56Z, ready expected ~54 min); rungs 32k/131k/983k @7200 follow; then the 3bpw leg-1 rerun (its original rungs died to the 02:11Z foreign stop --all — script fixed). Every stop literal-id.",
+      "notes": "RUNNING. Correction (keeper-verified): the cells live NOW (task sparkrun_7d9a3a61b33a29e4_c7091cac7b11) are the **3bpw 753B arm** (its own log: serving GLM-5.3-EXL3-3.0bpw, loaded in 2714.8 s) — its leg-1 rungs were lost to the 02:11Z foreign stop and are being re-taken now. The FLASH arm's needle cells remain UNMEASURED: it failed twice on the config-only stub body (pin 078455ff, 6,098 B), the 175.7 GB / 175,716,135,696 B body was refetched and preflighted identically on all four nodes, and its needle boot is chained next (flash-leg2.sh, armed on GLM-NEEDLE-DONE) with a corrected readiness gate (/health ok AND non-empty data[0].id — /v1/models answers 200 before weights load, which burned one attempt). Rungs @timeout 7200; every stop literal-id. Also: metrics bridge added to the 3bpw launcher (de99b52) so the next GLM boot's live monitor scrape works — parity verified on that boot.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-26T02:42:24Z"
@@ -471,6 +471,20 @@
       "node_cost": "single",
       "notes": "Layer content is reproducible (ds4-knapcio-byte-reproducible: 215/216 layers identical with the ffee627 delta); the only residual is the image-config created stamp, and BuildKit's SOURCE_DATE_EPOCH arg path (which pins created) is itself non-deterministic on engine 29.6.2 (build3 vs build4 diverge from layer 70). Options: (a) engine/BuildKit escalation, (b) post-build config rewrite (skopeo-class re-stamp of created over the deterministic layer stack), (c) accept content-reproducibility + first-build ID pinning. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md.",
       "provenance": "ds4-knapcio-byte-reproducible outcome 2026-10-26; ~/benchmarks/ds4-repro-20261026/REPORT.md",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ltx-25-t2v-spare-demo",
+      "title": "LTX-2.5 T2V demo cell on a spare node (DEMO.md blocked row): gated weights prefilled (200.9 GB du-verified at pin 49b093a3)",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "PREREQUISITE before launch: sudo nvidia-smi -lgc 0,2200 on the target host (the sustained-load power-loss fix — every measured LTX cell was taken capped; recipes/media/DEMO.md row). Then boot recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml via the pool-era route (real HOME + --cluster WOPR -H rail-IP) and render the demo artifact; stop by literal task id.",
+      "provenance": "spares-lane 2026-10-26 (unblocked by cache-prefill-20261026 PREFILL-DONE)",
       "claimed_by": "",
       "claimed_at": ""
     }
