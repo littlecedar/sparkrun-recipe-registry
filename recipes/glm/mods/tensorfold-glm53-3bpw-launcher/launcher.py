@@ -101,41 +101,91 @@ def parse_tensorfold_metrics(text: str) -> dict[str, float]:
     return out
 
 
-def format_bridge_lines(vals: dict[str, float], gen_tps: float | None) -> list[str]:
-    """The log shapes the sparkrun monitor scraper matches (sglang's own lines)."""
-    tps = "0.00" if gen_tps is None else f"{gen_tps:.2f}"
-    return [
-        f"Avg generation throughput: {tps} tokens/s",
-        f"gen throughput (token/s): {tps}",
-        f"Running: {int(vals.get('tensorfold:requests_running', 0))} reqs",
-        f"Waiting: {int(vals.get('tensorfold:requests_waiting', 0))} reqs",
-    ]
+def build_metric_lines(
+    vals: dict[str, float],
+    prev_gen: float | None,
+    prev_t: float | None,
+    now: float,
+) -> tuple[list[str], float | None, float | None]:
+    """Scraper-shaped lines for one /metrics sample and the next delta state (pure).
+
+    Only what the sample actually carried is printed: a missing counter emits no
+    line, never a placeholder zero — invented zeros would corrupt accounting.
+    Throughput needs two samples of `tensorfold:generation_tokens_total`.
+    """
+    lines: list[str] = []
+    gen = vals.get("tensorfold:generation_tokens_total")
+    if gen is not None and prev_gen is not None and prev_t is not None and now > prev_t:
+        tps = (gen - prev_gen) / (now - prev_t)
+        lines.append(f"Avg generation throughput: {tps:.2f} tokens/s")
+        lines.append(f"gen throughput (token/s): {tps:.2f}")
+    running = vals.get("tensorfold:requests_running")
+    if running is not None:
+        lines.append(f"Running: {int(running)} reqs")
+    waiting = vals.get("tensorfold:requests_waiting")
+    if waiting is not None:
+        lines.append(f"Waiting: {int(waiting)} reqs")
+    return lines, gen, now
 
 
-def bridge_loop(port: int, period_s: float = 5.0) -> None:
-    """Poll this rank's /metrics and emit scraper-shaped lines. Fail-soft: any
-    error logs once and the thread ends; it never touches the serve."""
+def bridge_loop(
+    port: int,
+    period_s: float = 5.0,
+    backoff_cap_s: float = 30.0,
+    pre_ready_deadline_s: float = 3600.0,
+) -> None:
+    """Poll this rank's /metrics and emit scraper-shaped lines. Fail-soft.
+
+    The engine's HTTP listener binds only after the weight load (2715 s on the
+    GLM-5.3-Flash 4bpw arm), so connection refusals are the EXPECTED state for
+    most of the boot: retry with backoff (5 s doubling to 30 s) until the port
+    answers once. After first contact, N consecutive failures end the thread;
+    before it, an env-configurable deadline (TF_METRICS_BRIDGE_DEADLINE_S,
+    default 3600 s) bounds the wait. It never touches the serve.
+    """
     import time
     import urllib.request
 
+    deadline = time.time() + pre_ready_deadline_s
     prev_gen: float | None = None
     prev_t: float | None = None
+    delay = period_s
+    reached = False
+    misses_after_reach = 0
     while True:
-        time.sleep(period_s)
+        time.sleep(delay)
         try:
-            body = urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5).read().decode()
-            vals = parse_tensorfold_metrics(body)
-            gen = vals.get("tensorfold:generation_tokens_total")
-            now = time.time()
-            tps = None
-            if gen is not None and prev_gen is not None and prev_t is not None and now > prev_t:
-                tps = (gen - prev_gen) / (now - prev_t)
-            prev_gen, prev_t = gen, now
-            for line in format_bridge_lines(vals, tps):
-                print(line, flush=True)
+            body = urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/metrics", timeout=5
+            ).read().decode()
         except Exception as exc:  # noqa: BLE001 - fail-soft by design
-            print(f"[tensorfold-glm53-3bpw-launcher] metrics bridge disabled: {exc}", flush=True)
-            return
+            if reached:
+                misses_after_reach += 1
+                if misses_after_reach >= 3:
+                    print(
+                        f"[tensorfold-glm53-3bpw-launcher] metrics bridge disabled after "
+                        f"{misses_after_reach} post-contact failures: {exc}",
+                        flush=True,
+                    )
+                    return
+            elif time.time() > deadline:
+                print(
+                    f"[tensorfold-glm53-3bpw-launcher] metrics bridge disabled: /metrics "
+                    f"never answered before the deadline: {exc}",
+                    flush=True,
+                )
+                return
+            delay = min(delay * 2, backoff_cap_s)
+            continue
+        reached = True
+        misses_after_reach = 0
+        delay = period_s
+        now = time.time()
+        lines, prev_gen, prev_t = build_metric_lines(
+            parse_tensorfold_metrics(body), prev_gen, prev_t, now
+        )
+        for line in lines:
+            print(line, flush=True)
 
 
 
@@ -287,7 +337,16 @@ def main(argv: list[str] | None = None) -> int:
 
     proc = subprocess.Popen(cmd)
     if args.node_rank == 0 and os.environ.get("TF_METRICS_BRIDGE", "1") != "0":
-        threading.Thread(target=bridge_loop, args=(args.port,), daemon=True).start()
+        threading.Thread(
+            target=bridge_loop,
+            kwargs={
+                "port": args.port,
+                "pre_ready_deadline_s": float(
+                    os.environ.get("TF_METRICS_BRIDGE_DEADLINE_S", "3600")
+                ),
+            },
+            daemon=True,
+        ).start()
 
     def _forward(signum, _frame):
         proc.send_signal(signum)

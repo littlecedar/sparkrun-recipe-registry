@@ -67,28 +67,42 @@ class ParseTensorfoldMetrics(unittest.TestCase):
         self.assertEqual(self.mod.parse_tensorfold_metrics(""), {})
 
 
-class FormatBridgeLines(unittest.TestCase):
+class BuildMetricLines(unittest.TestCase):
     def setUp(self):
         self.mod = load_shim()
+        self.vals = self.mod.parse_tensorfold_metrics(SAMPLE)
 
-    def test_four_exact_shapes_with_rate(self):
-        lines = self.mod.format_bridge_lines(self.mod.parse_tensorfold_metrics(SAMPLE), 12.3456)
+    def test_exact_shapes_with_rate(self):
+        lines, gen, now = self.mod.build_metric_lines(self.vals, 200.0, 100.0, 104.0)
+        self.assertEqual(gen, 207.0)
+        self.assertEqual(now, 104.0)
         self.assertEqual(lines, [
-            "Avg generation throughput: 12.35 tokens/s",
-            "gen throughput (token/s): 12.35",
+            "Avg generation throughput: 1.75 tokens/s",
+            "gen throughput (token/s): 1.75",
             "Running: 1 reqs",
             "Waiting: 0 reqs",
         ])
 
-    def test_zero_rate_when_no_delta(self):
-        lines = self.mod.format_bridge_lines(self.mod.parse_tensorfold_metrics(SAMPLE), None)
-        self.assertEqual(lines[0], "Avg generation throughput: 0.00 tokens/s")
-        self.assertEqual(lines[1], "gen throughput (token/s): 0.00")
+    def test_first_sample_has_no_throughput_line(self):
+        lines, _, _ = self.mod.build_metric_lines(self.vals, None, None, 100.0)
+        self.assertEqual(lines, ["Running: 1 reqs", "Waiting: 0 reqs"])
+        joined = "\n".join(lines)
+        self.assertNotIn("tokens/s", joined)
+        self.assertNotIn("token/s", joined)
 
-    def test_missing_gauges_default_to_zero(self):
-        lines = self.mod.format_bridge_lines({}, 5.0)
-        self.assertEqual(lines[2], "Running: 0 reqs")
-        self.assertEqual(lines[3], "Waiting: 0 reqs")
+    def test_missing_generation_counter_emits_no_throughput(self):
+        # No fabricated zeros: a sample without the counter must not print a rate,
+        # even when a previous sample makes a delta computable.
+        vals = dict(self.vals)
+        del vals["tensorfold:generation_tokens_total"]
+        lines, gen, _ = self.mod.build_metric_lines(vals, 200.0, 100.0, 104.0)
+        self.assertIsNone(gen)
+        self.assertNotIn("tokens/s", "\n".join(lines))
+        self.assertNotIn("token/s", "\n".join(lines))
+
+    def test_missing_gauges_emit_no_lines(self):
+        lines, _, _ = self.mod.build_metric_lines({}, 200.0, 100.0, 104.0)
+        self.assertEqual(lines, [])
 
     def test_bridge_thread_starts_only_on_rank_zero_and_is_gated(self):
         # The gate is read from the environment at boot: default ON, TF_METRICS_BRIDGE=0 off.
@@ -97,6 +111,9 @@ class FormatBridgeLines(unittest.TestCase):
         self.assertIn("args.node_rank == 0", src)
         self.assertIn("proc = subprocess.Popen(cmd)", src)
         self.assertNotIn("os.execvp", src)
+        # Refusals before the listener binds are expected: backoff, not one-shot exit.
+        self.assertIn("backoff_cap_s", src)
+        self.assertIn("TF_METRICS_BRIDGE_DEADLINE_S", src)
 
 
 if __name__ == "__main__":
