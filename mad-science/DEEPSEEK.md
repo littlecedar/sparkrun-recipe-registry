@@ -1577,6 +1577,10 @@ the VQ route is a measured single-Spark TP=1 exception to §13's byte wall (Youn
 prefill 489 t/s / decode 30.7 t/s, 2026-09-28) — single-node only, no TP=4 path, but §13's "no
 1017-class body fits TP=1" should be read with it named.
 
+**2026-10-26 addendum:** the same-day c3 re-port chain (the other route to a faster 1017 line,
+survey arm 3 / §10.5) also closed **terminal-blocked** — DeepGEMM's paged-sparse logits family is
+SM100-only at csrc and GB10 is SM121; full record in §19.1. The shipped line is unchanged.
+
 ## 18. The community 1017 repo is our own stack — and the TP_PAD inference it suggested (refuted 2026-10-23, see §18.1)
 
 > **Falsified 2026-10-23 — the split is ON on the shipped pair; see §18.1.** Everything below is the
@@ -1909,3 +1913,47 @@ overlay is the quarantined lineage without the #41303 SWA-safety backport, and v
 measured wins on the tree we already build. Queued as `ds4-upstream-adapter-trial` (~4 h,
 GitHub-read evidence only — not boot-verified here).
 
+
+### 19.1 Addendum (2026-10-26): the c3 re-port chain is TERMINAL-BLOCKED on GB10 — no-ship
+
+**Verdict.** The c3 candidate line (PR #43401 candidate-block indexer scoring, DEEPSEEK §10.5,
+survey arm 3) did NOT ship, and the chain is closed. Nine boot attempts (att1–att9) never reached
+readiness; the shipped line is unchanged
+(`littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5@sha256:3f4480818acb…`).
+
+**Attempt map (every cause named before the next boot, receipts `~/builds/ds4-report/c3-NOTES.md`
+and `~/benchmarks/ds4-report-20261026/RECEIPT.md`):** att1 `ae89a20f` mod resolution; att2
+`d30906e1` sglang-kernel 0.4.9 wheel ABI-incompatible with the base torch 2.13.0+cu130 (reverted
+to 0.4.7 + `SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK`); att3 `705135a2` the configurer's
+`DEEPGEMM_BLACKWELL` gate was `is_sm100`-only and refused GB10 (extended to sm_120/121); att5
+`3f5d734b` the index-K pool page size gated on a sparse API path the candidate tree never takes on
+SM12x (`dsv41_index_page_size` → 64 always); att6 `41ed123a` the candidate adds
+`sqrtsoftplus_log1p` after `packed_out` (router_live signature anchor reconciled + probed green);
+att7 `41f74ed711e8`/att8 `644cb802` diagnosed as (wrongly, then rightly) the sparse-table decode
+publish crash; att9 `13f686b36ec3` got past that and hit the terminal wall.
+
+**The terminal wall.** `candidate_table.py:75` (`build_sparse_indexer_schedule`) calls
+`deep_gemm.get_paged_sparse_mqa_logits_metadata`, whose csrc asserts
+`jit->device.get_arch_major() == 10` (`apis/attention.hpp:301`): DeepGEMM's **paged-sparse logits
+family is SM100-only**, and GB10 is SM121. There is no tree fallback (single call site); the
+candidate author develops on SM100, so the path was never arch-portable as written. Porting the
+deep_gemm csrc plus the sparse kernels for SM12x is not a tonight fix and carries silent-numerics
+risk on an unmaintained arch path — refused under the no-blind-attempts rule.
+
+**One real fix worth keeping.** The SM120 tree hard-disables top-k v2 for
+`DeepseekV4ForCausalLM` (`arg_groups/model_hook.py:460` sets `SGLANG_OPT_USE_TOPK_V2=False`), so
+every `PagedIndexerMetadata` carries `topk_metadata = torch.empty((0,))` (1-D CPU float32) and the
+candidate's hardcoded `topk_transform_paged_v2` call dies in the jit plan matcher
+(`topk_v2.cuh:1027`, "expected 2 but got 1"). The reconciled fix dispatches on
+`metadata.use_topk_v2` and falls back to the v1 jit transform — the same fallback the tree's own
+dispatcher uses (`dsv4/indexer.py:955`) and the path the shipped line already runs on GB10, so it
+is hardware-proven. It is retained in image
+`dsv41-c3-reconciled:103ad321@sha256:13f686b36ec3d2e8…` and matters again the day DeepGEMM ships
+SM12x sparse support (arm-3/arm-5 rows stay arch-gated on exactly that event).
+
+**Process lessons recorded** (c3-NOTES.md): hand-back markers must be a stable token agreed at
+booking time; a shared TAG is not a shared IMAGE across nodes (per-rank digest verification is now
+permanent in BOOT-PLAN — the 16:35Z boot created containers before sparkrun's transfer finished
+and ran the stale digest); launch-error scans must anchor to fatal signatures only; and the round-4
+non-inferiority bars (C1 ≥ 60.42, C10 ≥ 138.36, house 36/37, needles 10/10) never had inputs — no
+boot reached readiness.

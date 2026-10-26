@@ -68,7 +68,7 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE 2026-10-26 (quartet-holder). FLAG boot sparkrun_c989632ede4f538e_7f5f562975f3 (-o env.EXTRA_SGLANG_ARGS=--enable-cache-report; NOTE -o extra_args= is INERT on the sglang runtime — 'no effect' warning, first flag boot 077c4716c199 stopped by literal id for it; enable_cache_report True verified in server_args). Non-stream probe (streaming chunks carry no usage): 32k rep1 cold 5.0 s then reps 2-8 cached_tokens 28928/28952 (99.8%), TTFT 0.29 s; 131k reps 2-8 cached 119552 (99.9%), TTFT 0.46-0.49 s. Falsifier (cached_tokens 0 every repeat) NOT fired. NOFLAG leg ran on the preceding plain boot c989632ede4f538e_d977b128e72f: cached_tokens unreported without the flag (usage field absent), TTFT collapse identical (32k 13.65->0.26, 131k 18.8->0.42). FINDING: the radix cache already reuses; §8.4's cached-token:0 was a REPORTING gap the flag closes, not a reuse gap; revisit is already ~0.3-0.5 s vs the 1.5 s target and 89 s historical. Serve logs harvested s1-flag-node{0..3}-serve.log pre-stop; stopped by literal id, 0 containers all ranks. Receipts: head ~/benchmarks/tp4-window4-20261026/s1-*.{json,log}, s1-chain.log, watchdog-s1-flag.log.",
+      "notes": "DONE 2026-10-26 (quartet-holder). FLAG boot sparkrun_c989632ede4f538e_7f5f562975f3 (-o env.EXTRA_SGLANG_ARGS=--enable-cache-report; NOTE -o extra_args= is INERT on the sglang runtime — 'no effect' warning, first flag boot 077c4716c199 stopped by literal id for it; enable_cache_report True verified in server_args). Non-stream probe (streaming chunks carry no usage): 32k rep1 cold 5.0 s then reps 2-8 cached_tokens 28928/28952 (99.8%), TTFT 0.29 s; 131k reps 2-8 cached 119552 (99.9%), TTFT 0.46-0.49 s. Falsifier (cached_tokens 0 every repeat) NOT fired. NOFLAG leg ran on the preceding plain boot c989632ede4f538e_d977b128e72f: cached_tokens unreported without the flag (usage field absent), TTFT collapse identical (32k 13.65->0.26, 131k 18.8->0.42). FINDING: the radix cache already reuses; §8.4's cached-token:0 was a REPORTING gap the flag closes, not a reuse gap; revisit is already ~0.3-0.5 s vs the 1.5 s target and 89 s historical. Serve logs harvested s1-flag-node{0..3}-serve.log pre-stop; stopped by literal id, 0 containers all ranks. Receipts: head ~/benchmarks/tp4-window4-20261026/s1-*.{json,log}, s1-chain.log, watchdog-s1-flag.log.\n\nWIRING CHECK ONLY — NOT the ship-line measurement (owner correction, 2026-10-26 ~17:40Z: the knob gates are measured ONCE on whichever line ships; the reconciled c3 candidate is still fixable, not a no-ship verdict). Boot sparkrun_c989632ede4f538e_2bb896be3cd4 on the shipped line proved the PLUMBING: server_args carries enable_cache_report True through the recipe command -> launcher SGLANG_EXTRA_BOOL_FLAGS -> boot.py EXTRA_SGLANG_ARGS, and the S1 evidence shape reproduces with NO -o override (non-stream cached_tokens 28928/28952 at 32k and 119552 at 131k on reps 2-8, TTFT collapse identical). Candidate6 battery NOT run (same once-only rule). Re-runs in ~30 min on whichever line ships. Receipts: s1-gate.log, s1gate-probe.log, s1gate-node0-serve.log, watchdog-s1gate.log on the head.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2",
       "claimed_by": "",
       "claimed_at": ""
@@ -122,17 +122,32 @@
       "claimed_at": ""
     },
     {
+      "id": "arch-deepgemm-sm12x-paged-sparse",
+      "title": "DeepGEMM SM12x support for the paged-sparse logits family (arch gate — closes when upstream ships it)",
+      "estimate_h": 0.0,
+      "blocks": [
+        "w4-survey-arm3-indexer-scoring",
+        "w4-survey-arm5-trtllm-mla"
+      ],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "EXTERNAL GATE (not our queue's work): deep_gemm's get_paged_sparse_mqa_logits_metadata and the sparse logits kernels assert arch_major == 10 in csrc (apis/attention.hpp:301) — SM100-only; GB10 is SM121. Closes when upstream DeepGEMM ships SM12x sparse support (then the retained v1-fallback c3 image dsv41-c3-reconciled:103ad321@sha256:13f686b36ec3d2e8 is the starting point). Recorded 2026-10-26 with the c3 re-port terminal verdict (DEEPSEEK.md §19.1).",
+      "provenance": "c3 re-port terminal verdict 2026-10-26; mad-science/DEEPSEEK.md §19.1; ~/builds/ds4-report/c3-NOTES.md"
+    },
+    {
       "id": "w4-survey-arm3-indexer-scoring",
       "title": "Survey arm 3 (build-gated): SGLang PR #43401 candidate-only indexer scoring (upstream −17% step time at 1M decode on 2×GB10)",
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [
-        "ds4-adapter-report-gate"
+        "arch-deepgemm-sm12x-paged-sparse"
       ],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Needs an image build from a tree newer than f80c91a4b; the build is blocked behind the adapter re-port + gate update. estimate: provisional.",
+      "notes": "ARCH-GATED 2026-10-26 (c3 re-port chain terminal, c3-NOTES.md att9): the candidate-block indexer-scoring arm (PR #43401 lineage) is blocked on DeepGEMM, NOT on the adapter re-port (that chain is now terminal — see ds4-adapter-report-gate). Its decode path calls deep_gemm.get_paged_sparse_mqa_logits_metadata, whose csrc asserts arch_major == 10 (apis/attention.hpp:301): the paged-sparse logits family is SM100-only and GB10 is SM121. Re-open only when DeepGEMM ships SM12x sparse support. estimate: provisional.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
     },
     {
@@ -141,12 +156,12 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [
-        "ds4-adapter-report-gate"
+        "arch-deepgemm-sm12x-paged-sparse"
       ],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Same build gate as arm 3. estimate: provisional.",
+      "notes": "ARCH-GATED 2026-10-26 alongside arm 3 (same re-port chain, terminal — see ds4-adapter-report-gate): the sparse-MLA backend build rides the same #43401 candidate lineage whose decode path needs DeepGEMM's paged-sparse logits family, SM100-only at csrc (apis/attention.hpp:301 arch_major == 10; GB10 is SM121). Re-open only when DeepGEMM ships SM12x sparse support. estimate: provisional.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
     },
     {
@@ -167,15 +182,12 @@
       "id": "ds4-adapter-report-gate",
       "title": "Re-port the knapcio adapter set to newer SGLang trees and update the in-image test gate to upstream's new shape (owner-directed path)",
       "estimate_h": 20.0,
-      "blocks": [
-        "w4-survey-arm3-indexer-scoring",
-        "w4-survey-arm5-trtllm-mla"
-      ],
+      "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
-      "node_cost": "single",
-      "notes": "REBASED (owner round-4 §1): the 20 h re-port must now rebase onto knapcio upstream HEAD (v2.5+ adapter set, 26-backport base, per-patch gate shape) rather than our v2.4 vendored copy. Estimate kept provisional: it may shrink if upstream's base already carries much of the vendored delta, or grow if the v2.4→v2.5 adapter rewrite diverges further; no measurement basis yet. Upstream survey (aff52fa5) pins SGLANG_CANARY_REF=f80c91a4b — no newer-tree adapter state exists upstream.",
+      "node_cost": "quartet",
+      "notes": "TERMINAL NO-SHIP 2026-10-26 (c3-NOTES.md att1-att9; DEEPSEEK.md §19 addendum): the reconciled c3 tree (9 boot attempts: mod resolution → sglang-kernel 0.4.9 ABI revert → DEEPGEMM_BLACKWELL SM120/121 configurer → dsv41_index_page_size=64 → router_live sqrtsoftplus_log1p anchor → sparse_table.publish_decode v1-fallback dispatch for the SM120 topk-v2 gate) never reached readiness. Terminal wall: DeepGEMM's paged-sparse mqa logits family is SM100-only at csrc (apis/attention.hpp:301 arch_major == 10; GB10 is SM121), required by the candidate-block feature (candidate_table.py:75) with no tree fallback. Porting deep_gemm csrc + sparse kernels tonight = silent-numerics risk — refused under the no-blind-attempts rule. The v1-fallback fix is retained in image dsv41-c3-reconciled:103ad321@sha256:13f686b36ec3d2e8 for the day DeepGEMM ships SM12x sparse support. Shipped line unchanged: canary-roce-aff52fa5@sha256:3f4480818acb….",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2"
     },
     {
@@ -414,10 +426,10 @@
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Arm: recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml (TP=4; model tag empty — ornith is outside the priority tiers). Scope: (1) REPRODUCE FIRST — drive the ornith serve with the oh-my-pi agent harness (its tool-calling loop) against a tool-bearing workload; capture raw /v1/chat/completions request/response pairs (tools: schema, streaming deltas) for a failing case; the failure signature (missing tool_calls, malformed JSON, dropped arguments, wrong role fields, or raw markup like the Beam <|channel|> parser class) determines everything downstream. (2) Read the arm's parser config + ornith lane docs for prior tool-call findings BEFORE changing anything; check --tool-call-parser matches the checkpoint's template and whether the dflash2 speculative path interacts with tool-call parsing (Beam sha-guard/drafter precedent: drafter configs can change output shapes). (3) Fix or file: recipe-level flag (parser name, template staging) → fix recipe + boot-verify; engine defect → file upstream with captured pairs + record issue number; oh-my-pi client-side assumption → record the finding with the minimal repro. (4) Verify with the minimal scripted repro first, then a real oh-my-pi agent run; receipts ~/benchmarks/tp4-window4-20261026/ornith-toolcall/. Runs on the quartet lane after the adapter-trial verdict; h2h tier order still governs unless the owner reprioritizes.",
+      "notes": "PARKED queued 2026-10-26 ~17:55Z (owner priority re-assert: c3 attempt-9 de-risked — in-image fix sha256:13f686b36ec3 gate green, V1/V2 smoke OK — the bars are the top item; ornith yields the quartet). RESUME STATE: boot sparkrun_78c7e2fa335a63e5_21496a58c55e (TP=1 on .31) was launched, STOPPED BY LITERAL ID while still loading (no cells ran, nothing measured, no findings yet — the row is untouched ground). PREFLIGHT DONE AND STILL VALID: .31 holds ornith-ai/Ornith-1.5-35B-A3B-NVFP4 @94e431d9 (du -sbL 23,460,228,712 B) + jzinno DFlash2 draft @9b4852c0 (1,053,161,270 B) + the sglang v0.5.22@sha256:e3a4f060 image (id fd8439732b16, present under the v0.5.22-cu130 tag — resolves by digest). PLAN (unchanged, row notes govern): (1) scripted tool-loop repro FIRST — script WRITTEN and staged at head ~/benchmarks/tp4-window4-20261026/ornith-toolcall/repro.py (raw request/response capture: non-stream tool turn, tool-result continuation turn, streaming variant with reconstructed deltas; discriminates missing tool_calls / malformed JSON args / dropped args / role fields / raw markup) — boot, watchdog (boot-watchdog needs --node <node alias> full form + --container sparkrun_<id>_solo), true-ready gate (200 AND 'fired up' log line), run repro.py; (2) lane docs read: tool-eval-bench v2.6.0 scored 100 (15/15) on 2026-10-15 AND 2026-10-16 — the instrument passes, so the omp failure is harness-side or shape-specific; qwen3 reasoning parser + qwen3_coder tool parser wired; dflash2 drafter interaction still unchecked (Beam sha-guard precedent); (3) real omp agent run after the scripted repro; (4) fix-or-file per the row. Prior evidence: 2026-10-15/16 standard passes on .34 single-node, C1 101.8 ladder, house 37/37.",
       "provenance": "owner 2026-10-26 directive; recipes/ornith/README.md",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "2026-10-26T17:28:42Z"
     },
     {
       "id": "h2h-doc-refresh",
@@ -474,10 +486,10 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "Layer content is reproducible (ds4-knapcio-byte-reproducible: 215/216 layers identical with the ffee627 delta); the only residual is the image-config created stamp, and BuildKit's SOURCE_DATE_EPOCH arg path (which pins created) is itself non-deterministic on engine 29.6.2 (build3 vs build4 diverge from layer 70). Options: (a) engine/BuildKit escalation, (b) post-build config rewrite (skopeo-class re-stamp of created over the deterministic layer stack), (c) accept content-reproducibility + first-build ID pinning. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md.",
+      "notes": "WITHDRAWN 2026-10-26 per the owner's image-ID-DROPPED ruling (survey answer 6, recorded in ds4-knapcio-byte-reproducible: content comparison is the verification path and no ID-repro task may be spawned off that row). Residual finding stands for the record: BuildKit's SOURCE_DATE_EPOCH arg path (which pins the image-config created stamp) is itself non-deterministic on engine 29.6.2; options (a) engine escalation / (b) skopeo-class post-build re-stamp / (c) first-build ID pinning are documented in ~/benchmarks/ds4-repro-20261026/REPORT.md and remain available if the ruling is ever reversed. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md.",
       "provenance": "ds4-knapcio-byte-reproducible outcome 2026-10-26; ~/benchmarks/ds4-repro-20261026/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""

@@ -50,6 +50,10 @@ The 983,040 rung landed after the ship (00:07Z, wrapper in full): **10/10 PASS**
 980,835 prompt tokens, finish `stop` on every item, 289.7 s at depth 10 — the full needle bar
 3/3 on the new overlay closes clean (`trial-needle-983040.json`).
 
+The c3 candidate line (the #43401 candidate-block indexer-scoring re-port, survey arm 3) **did not
+ship** — terminal arch gate: DeepGEMM's paged-sparse logits family is SM100-only at csrc and GB10
+is SM121 (`mad-science/DEEPSEEK.md` §19.1); the shipped line above is unchanged.
+
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
 experts, unchanged vision config), so the engine and the adapter carry over unchanged. Two things
