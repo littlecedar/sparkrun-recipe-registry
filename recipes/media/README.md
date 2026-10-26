@@ -236,6 +236,19 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
   `--revision` to the full pinned snapshot dir itself (`resolve_snapshot`, fail-closed with the
   cache listing when the body is absent) and hands diffusers a local path — **pool bodies must be
   bound by snapshot path, not hub revision.** Receipt `~/benchmarks/spares-20261026/qwen-image-demo/`.
+- **resolve_snapshot sweep over the other media arms (2026-10-26, spares-lane, owner survey answer
+  9): the failure class is structurally absent from all three named arms — exempt with evidence, no
+  code change.** `kokoro-82m-tts-cpu`: `distribution_config.models.enabled: false` and the weights
+  are baked into the image — there is no HF resolution surface at all. `humanizer-12b-q6k-llamacpp`:
+  llama.cpp runtime — sparkrun rebinds `-hf {model}` to the prepared snapshot path before render
+  (every llama-cpp serve log shows `-m /cache/.../snapshots/<pin>/...`), so a hub-revision string
+  never reaches the engine. `drama-3-35b-a3b-fp8-vllm-omni-tts`: the vLLM-Omni engine resolves the
+  repo id itself and booted fine this window because **the pool repo carries `refs/main`** — the
+  real root cause of the Qwen-Image failure: `hf download --revision <sha>` writes NO ref file
+  (sha-pinned pool fetches have empty `refs/`), while main-refetched repos carry `refs/main` and
+  offline default-main loads resolve. The pool's Qwen-Image refs/main was repaired in place to the
+  pin and the constraint is recorded in the prefill ledger. The `resolve_snapshot` pattern stays
+  where a Python launcher takes a repo id + revision (the qwen-image launcher — patched).
 - **Measured:** 1024² / 8-step CFG=1 → **11.3–11.4 s** steady (a same-boot control on the 2048² run
   read 11.240 s ± 0.008); a reference image fed back for editing +3.5 s; same prompt+seed → a
   byte-identical PNG. **2048² cell closed 2026-10-18**: **53.24 s/image** (mean of 3, σ 0.20) — 4×

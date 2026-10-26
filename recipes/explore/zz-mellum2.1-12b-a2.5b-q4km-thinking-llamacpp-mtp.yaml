@@ -19,12 +19,14 @@ description: >-
   own MTP (multi-token-prediction) draft head enabled, on the stock-upstream
   llama.cpp `d854d98bae` build (2026-10-25 HEAD; the 2026-10-22 sweep ran a37cc4610). The main GGUF (8,071,295,264 B) is the shipped
   file at the shipped pin; the head is a second GGUF in the same repo
-  (`mtp/Mellum2.1-12B-A2.5B-Thinking-MTP-BF16.gguf`, 25.17 GB — a FULL draft model, not a
-  small head; CORRECTED 2026-10-26 against the Hub tree, the earlier 1.77 GB figure was wrong)
-  which exists only at revision 4159d684 and must be staged on the node by hand
-  (`/cache/huggingface/hub/mellum-mtp-head/`) because sparkrun distributes one
-  repository per recipe. `--spec-draft-n-max` is the draft-length knob under
-  test. Apache-2.0.
+  (`mtp/Mellum2.1-12B-A2.5B-Thinking-MTP-Q8_0.gguf`, 13,381,030,880 B — a FULL draft model, not a
+  small head; RE-PINNED 2026-10-26 to the quantized head per owner survey answer 8: the Q8_0 draft
+  reaches fork-parity decode at n=1 (120.37 ± 1.92 control-cache route, 105-110 pool-snapshot route
+  — window-dependent, same-window pair proved the routes equivalent) but never beats the shipped
+  fork's 121.27 class, and the drafter-alternatives search is verified null) which exists only at
+  revision 4159d684 and is served straight from the pool snapshot (the dedup-era hand-staged
+  `/cache/huggingface/hub/mellum-mtp-head/` path is gone). `--spec-draft-n-max` is the draft-length
+  knob under test. Apache-2.0.
 metadata:
   model_url: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -74,7 +76,7 @@ command: >
   --flash-attn {flash_attn}
   --reasoning-format {reasoning_format}
   --jinja
-  -md /cache/huggingface/hub/mellum-mtp-head/mtp-Mellum2.1-12B-A2.5B-Thinking-BF16.gguf
+  -md /cache/huggingface/hub/models--JetBrains--Mellum2.1-12B-A2.5B-Thinking-GGUF/snapshots/4159d684ffdb09ba89dc2a58feb3e75c54eef036/mtp/Mellum2.1-12B-A2.5B-Thinking-MTP-Q8_0.gguf
   --spec-type draft-mtp
   --spec-draft-n-max {spec_draft_n_max}
   --no-webui
