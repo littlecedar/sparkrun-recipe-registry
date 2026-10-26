@@ -805,8 +805,10 @@ together:
   hard stop midnight").** Consequence: the shipped 1017 line's image is
   `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5@sha256:3f4480818acb…` (vendored
   `Dockerfile.knapcio-dsv41-aff52fa5`, full in-image gate green); adoption boot read on the landed
-  cell set only — ladder C1 64.08 agg (bar ≥ 64.0) / C10 152.24 agg, house 36/37, needles 32k/131k
-  10/10 each — every landed bar clear on the first boot, ship without waiting the 983k rung (in
+  cell set only — ladder C1 64.08 ± 3.66 agg (bar ≥ 64.0, clears by +0.08 — at the edge of the
+  bar's noise band) / C10 152.24 ± 13.88 agg, house 36/37, needles 32k/131k
+  10/10 each — every landed bar clear on the first boot (**matches the shipped bars, C1 at the
+  bar's edge — no headroom claimed**), ship without waiting the 983k rung (in
   flight, not a ship gate). The v2.4 overlay (`acfc331a…`) stays recorded as provenance
   (`DEEPSEEK.md` §5), not a fallback to revert to.
 

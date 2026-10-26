@@ -148,8 +148,9 @@ hardened RoCE diagnostics, upstream pytest trio 988 tests). The health-port patc
 `aff52fa5` (`boot.py:33` anchors untouched); the same lesson applies verbatim: a build without the
 applied patch (first trial build `21d1bf34…` — `git apply --check` run, apply forgotten) reads
 `unhealthy` on all ranks while serving and is NOT the shipped image. Adoption boot on the shipped 1017
-line (quartet `c989632ede4f538e_06d0703ef003`, 2026-10-26): ladder C1 **64.08 agg** (bar ≥ 64.0) /
-C10 **152.24 agg**, peak **202.8 t/s**; house **36/37** (hard 17/18); needles 32,768 **10/10**,
+line (quartet `c989632ede4f538e_06d0703ef003`, 2026-10-26): ladder C1 **64.08 ± 3.66 agg** (bar
+≥ 64.0 — clears by +0.08, at the edge of the bar's noise band) / C10 **152.24 ± 13.88 agg**, peak
+**202.8 t/s**; house **36/37** (hard 17/18); needles 32,768 **10/10**,
 131,072 **10/10**; 983,040 rung still in flight at ship (not a ship gate). Receipts
 `~/benchmarks/tp4-window4-20261026/`. The v2.4 records below stay as the provenance trail.
 

@@ -38,11 +38,13 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Boot-verified | 2026-10-18, warm relaunch **545.9 s** (weight load 300.6 s + DSpark draft 66.8 s, packed Engram on all four ranks), `/v1/models` = the 1017 id, chat answers, vision **3/3** + text control (`~/benchmarks/ds4-knapcio-1017-20261018/`). Standard suite on a later boot, one serve: house **36/37**, needle **3/3 at 32k / 131k / 983k**, tool-eval-bench **90** (`~/benchmarks/tp4-20261018/knapcio-suite/`) |
 
 **Adoption boot (2026-10-26, quartet `c989632ede4f538e_06d0703ef003`, canary-roce-aff52fa5):**
-ladder C1 **64.08 agg** (bar ≥ 64.0) / C10 **152.24 agg**, peak **202.8 t/s**; house **36/37**
+ladder C1 **64.08 ± 3.66 agg** (bar ≥ 64.0 — clears by **+0.08, i.e. at the edge of the bar's
+noise band**) / C10 **152.24 ± 13.88 agg**, peak **202.8 t/s**; house **36/37**
 (hard items 17/18); needles 32,768 **10/10** and 131,072 **10/10**; the 983,040 rung was still
 in flight at ship time (started 23:31Z, 7,200 s wrapper — not a ship gate). Receipts
 `~/benchmarks/tp4-window4-20261026/` on the head. Every landed bar cleared its threshold on the
-first boot — adoption confirmed, bars unchanged.
+first boot — adoption confirmed: **matches the shipped bars, C1 at the bar's edge** (no headroom
+claimed; the flag-track arms must keep the same-window paired comparison to read any C1 delta).
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
