@@ -48,10 +48,10 @@
       "blocked_by": [
         "ds4-upstream-adapter-trial"
       ],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "BLOCKED 2026-10-26: flag-level arm on the same stock main-tree base as S0 (reasoning_effort high); S0 answered NEGATIVE (no booting main-tree MoE backend at TP4 on GB10) — shipped-image fallback = owner decision.",
+      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
       "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
     },
     {
@@ -63,7 +63,7 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "BLOCKED 2026-10-26: designed to ride the stock main-tree base (S0 control); S0 answered NEGATIVE — no booting main-tree MoE backend exists (cutlass geometry reject, triton GPU OOM), so this flag has no in-survey base. Fallback = the shipped knapcio image (changes the control lineage) = owner decision; NOT released by S0-done.",
@@ -78,7 +78,7 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "BLOCKED 2026-10-26: same base dependency as w4-s1-cache-report — S0 negative (no booting main-tree MoE backend); shipped-image fallback = owner decision.",
@@ -93,7 +93,7 @@
         "ds4-upstream-adapter-trial",
         "w4-s0-control"
       ],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "BLOCKED 2026-10-26: same base dependency as w4-s1-cache-report — S0 negative (no booting main-tree MoE backend); shipped-image fallback = owner decision.",
@@ -327,13 +327,13 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
       "notes": "Both GLM arms; the ds4 arm's TEB 90 (13 pass/1 partial/1 fail TC-03) is the comparison row. Standard-suite tools leg through the recipe path.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "sparkrun-recipe-r-699593",
+      "claimed_at": "2026-10-26T00:21:36Z"
     },
     {
       "id": "h2h-beam-house-and-bfcl-category",
