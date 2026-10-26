@@ -375,6 +375,11 @@ files.
   same recipe+host task id) — **a `sparkrun benchmark performance` re-run against the same
   recipe+host re-serves recorded results; a genuine variance boot needs a different host set or a
   forced fresh run. Do not quote `b2/` as independent variance.**
+  **Second boot (`b30`, `.30`, 2026-10-26): C1 24.0 ± 2.2 · C2 40.7 ± 3.3 · C5 37.6 ± 2.1 · C10
+  32.2 ± 0.9 t/s — every cell within 5.5 % of boot 1, so the ladder is reproducible and the boot-1
+  C5 outlier is retired as noise** (a genuine variance boot required a different host set; the `.35`
+  re-run re-emitted recorded rows — see the b2 trap note). Receipt
+  `~/benchmarks/spares-20261026/orcacyber-157-ladder/b30/RECEIPT.md`.
 - **Why it beats the 17 t/s roofline, and why that is not free throughput.** 27.32B dense at 4.60 bpw
   streams ~15.7 GB per step, which at GB10's ~273 GB/s caps plain decode near 17 t/s. The log's own
   speculative counters read `draft acceptance 0.40–0.86 (mean len 2.19–3.57)` across the five cells,
