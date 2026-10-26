@@ -197,18 +197,32 @@ class LiteralShaConsistency(unittest.TestCase):
     (recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml, commit 3de5d70).
     The drafter has no top-level pin to check against; the target model's own
     snapshot tokens stay pinned by the rule.
+
+    Exemption (2026-10-26, mirrors 7fa352d): 40-hex tokens inside an
+    `-md <path>` literal name the llama.cpp draft head — the same
+    different-artifact class (the head lives at its own revision inside the
+    same model repo and has no top-level pin of its own;
+    recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml
+    serves the Q8_0 head from the pool snapshot at 4159d684 while the main
+    GGUF pins 20b43942). The main model's snapshot tokens stay pinned.
     """
 
     SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")
 
     @classmethod
     def _command_shas(cls, command_text: str) -> set[str]:
+        exempt_spans = []
         spec = re.search(r"--speculative-config\s*'[^']*'", command_text)
-        span = spec.span() if spec else (len(command_text), len(command_text))
+        if spec:
+            exempt_spans.append(spec.span())
+        # llama.cpp's draft-model flag: the head is its own artifact at its
+        # own revision (the MTP-head class, mirrors the drafter exemption).
+        for md in re.finditer(r"-md\s+\S+", command_text):
+            exempt_spans.append(md.span())
         return {
             m.group(0)
             for m in cls.SHA_RE.finditer(command_text)
-            if not (span[0] <= m.start() < span[1])
+            if not any(s <= m.start() < e for s, e in exempt_spans)
         }
 
     def test_command_shas_match_model_revision(self):
@@ -280,6 +294,40 @@ class LiteralShaConsistency(unittest.TestCase):
             "  vllm serve /cache/huggingface/hub/models--m--n/snapshots/" + "b" * 40 + "\n"
             "  --speculative-config '{\"model\":\"/cache/huggingface/hub/"
             "models--m--draft/snapshots/" + "d" * 40 + "\"}'\n"
+        )
+        command = re.search(
+            r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
+            strip_comment_lines(text), re.M | re.S,
+        )
+        self.assertEqual(self._command_shas(command.group(1)), {"b" * 40})
+
+    def test_mtp_head_token_is_exempt(self):
+        # The Mellum shape: the main GGUF snapshot matches the pin; the Q8_0
+        # MTP head rides its own pool snapshot inside the -md path.
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "model_revision: " + "a" * 40 + "\n"
+            "command: >\n"
+            "  llama-server -m /cache/huggingface/hub/models--m--n/snapshots/" + "a" * 40 + "\n"
+            "  -md /cache/huggingface/hub/models--m--n/snapshots/" + "d" * 40 + "/mtp/head.gguf\n"
+        )
+        command = re.search(
+            r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
+            strip_comment_lines(text), re.M | re.S,
+        )
+        self.assertEqual(self._command_shas(command.group(1)), {"a" * 40})
+
+    def test_mtp_head_does_not_shield_target_mismatch(self):
+        # Negative control: a stale TARGET snapshot must still fail even when
+        # the -md line also carries a foreign sha.
+        text = (
+            "recipe_version: 2\n"
+            "model: m/n\n"
+            "model_revision: " + "a" * 40 + "\n"
+            "command: >\n"
+            "  llama-server -m /cache/huggingface/hub/models--m--n/snapshots/" + "b" * 40 + "\n"
+            "  -md /cache/huggingface/hub/models--m--n/snapshots/" + "d" * 40 + "/mtp/head.gguf\n"
         )
         command = re.search(
             r"^command: *>(?:\n(.*?))?(?=^[a-z0-9_]+:|\Z)",
