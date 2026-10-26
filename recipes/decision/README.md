@@ -143,6 +143,11 @@ batching — the same shape the CPU arms show for a different reason. Receipt
 `~/benchmarks/sol2b-20261020/` (`teb-decision.log`, `runs/2026/10/*.md`, `build.log`, `build2.log`,
 `ladder.log`, `ladder.json`).
 
+Third ladder pass (2026-10-26, spares-lane, `.30`, pool-era route): **c1 5.199 / c2 5.581 / c5 5.570 /
+c10 5.552 req/s** — the three-boot spread across 2026-10-20 (`.34`-era, `--runs 5`), the b2 pass
+(`.35`) and this `.30` pass is ≤ 2.9 % on every cell, and the flat queues-does-not-batch shape
+reproduces on a second node. Receipt `~/benchmarks/spares-20261026/sol2b-b3/RECEIPT.md`.
+
 ### nox-4b-decision-vllm-srun
 
 | field | value |
