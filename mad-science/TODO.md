@@ -800,6 +800,15 @@ together:
   candidate is gated on a recorded viability check (the house precedent) AND an expected-benefit
   argument; llama.cpp clone baselines of shipped recipes are in scope as baseline tasks.
   *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §5 (file deleted after fold).)*
+- **Production overlay = knapcio upstream HEAD `aff52fa5` (owner deadline directive 2026-10-26
+  ~20:15 ET, verbatim core: "the knapcio 1017 adoption must be shipped tonight — target 22:00 ET,
+  hard stop midnight").** Consequence: the shipped 1017 line's image is
+  `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5@sha256:3f4480818acb…` (vendored
+  `Dockerfile.knapcio-dsv41-aff52fa5`, full in-image gate green); adoption boot read on the landed
+  cell set only — ladder C1 64.08 agg (bar ≥ 64.0) / C10 152.24 agg, house 36/37, needles 32k/131k
+  10/10 each — every landed bar clear on the first boot, ship without waiting the 983k rung (in
+  flight, not a ship gate). The v2.4 overlay (`acfc331a…`) stays recorded as provenance
+  (`DEEPSEEK.md` §5), not a fallback to revert to.
 
 - [x] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
   `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's

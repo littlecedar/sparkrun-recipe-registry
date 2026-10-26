@@ -138,6 +138,21 @@ now:** superseded. Upstream moved to **v2.4 `27616bec` (2026-10-12)**, and the l
 
 ## 5. Stack A — the image: build, pins, reproducibility
 
+**ADOPTION 2026-10-26 — the production overlay moved to upstream HEAD `aff52fa5` (v2.5+).**
+The adapter overlay re-pinned `27616bec` (v2.4) → `aff52fa5` on the same `f80c91a4b` tree (79 upstream
+commits; the quarantined v2.4 lineage is retired upstream after the Xid 13/43 prefix-cache faults, and
+the new line carries the SGLang #41303 SWA-safety backport plus ~26 zero-fuzz dsv41 backports — §19).
+Vendored build `Dockerfile.knapcio-dsv41-aff52fa5`, image **`canary-roce-aff52fa5@sha256:3f4480818acb…`**
+(base digest-pinned, full in-image gate green — per-patch verify/test pairs, `test_adapter_engine_pins`,
+hardened RoCE diagnostics, upstream pytest trio 988 tests). The health-port patch applied clean at
+`aff52fa5` (`boot.py:33` anchors untouched); the same lesson applies verbatim: a build without the
+applied patch (first trial build `21d1bf34…` — `git apply --check` run, apply forgotten) reads
+`unhealthy` on all ranks while serving and is NOT the shipped image. Adoption boot on the shipped 1017
+line (quartet `c989632ede4f538e_06d0703ef003`, 2026-10-26): ladder C1 **64.08 agg** (bar ≥ 64.0) /
+C10 **152.24 agg**, peak **202.8 t/s**; house **36/37** (hard 17/18); needles 32,768 **10/10**,
+131,072 **10/10**; 983,040 rung still in flight at ship (not a ship gate). Receipts
+`~/benchmarks/tp4-window4-20261026/`. The v2.4 records below stay as the provenance trail.
+
 **Base and tree.** `lmsysorg/sglang:dev-dsv41@sha256:4a5d132a06a77c8331e15845f2e925adc788b00105097ad55409afa3f4fa4860`
 (floating tag digest-pinned 2026-10-22 so the base cannot move under a rebuild) + the upstream `dsv4.1`
 branch at **`f80c91a4b` (2026-09-16)** replaced wholesale (`runtime/sglang-canary/python`, from a GitHub
