@@ -776,6 +776,10 @@ together:
   1017 recipe** with its own engine-variant filename, index row and flag, alongside the SGLang
   shipped arm. (The miss case stays §9's (a): keep experimenting.)
   *(Owner, 2026-10-26 (round 5), `GUIDANCE.md` §2 (file deleted after fold).)*
+  **MOOTED 2026-10-26 (owner cancellation of the vLLM route, same date):** the route was
+  cancelled ("That's horrible. Cancel it." — DEEPSEEK.md §17 carries the verbatim record and
+  the measured numbers) and retired to `attic/ds4/`; this advisory's pass case can no longer
+  fire — nobody ships a vLLM 1017 arm off it.
 - **Idle-node fill priority (owner decision 2026-10-26 (round 5), verbatim — `GUIDANCE.md` §3,
   file deleted after fold): "I provided a queuing strategy earlier, use that. All TP<4 work is
   normal priority at this time, so the queue strategy wins."** Consequence: no manual ordering —

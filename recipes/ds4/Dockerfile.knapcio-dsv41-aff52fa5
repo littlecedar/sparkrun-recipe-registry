@@ -11,10 +11,14 @@
 # Upstream in-image gate PASSES on this build (per-patch verify/test pairs,
 # test_adapter_engine_pins, hardened RoCE diagnostics incl. the runtime-source
 # COPY their Dockerfile.canary carries, upstream pytest trio): image
-# sha256:21d1bf34f974…, built 2026-10-26 on .30 from the aff52fa5 worktree
-# ~/knapcio-aff52fa5. The health-port patch applied clean at aff52fa5
-# (git apply --check verified; the boot.py:33 anchors were untouched by the 79
-# upstream commits). Build delta vs v2.4: upstream retired the quarantined v2.4
+# sha256:3f4480818acb…, built 2026-10-26 on .30 from the aff52fa5 worktree
+# ~/knapcio-aff52fa5 with the health-port patch APPLIED (git apply, not just
+# --check — an earlier same-tag build 21d1bf34… shipped the UNPATCHED boot.py:
+# its HEALTHCHECK probes 8888 and reads unhealthy while serving; serving is
+# unaffected — the patch touches only boot.py's health branch — and the trial
+# cells on it stand; the corrected build is the adoption image). The health-
+# port patch applied clean at aff52fa5 (the boot.py:33 anchors were untouched
+# by the 79 upstream commits).
 # lineage and carries the SGLang #41303 SWA-safety backport (upstream issue #16,
 # PR #18) plus ~26 zero-fuzz SGLang backports staged by scripts/fetch-sglang-
 # canary.sh onto the SAME f80c91a4b tree pin.
