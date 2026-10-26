@@ -67,10 +67,10 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 15:1
 | ~03:28 ET | `2ae0512` | Queue: 983k rung wrapper-capped (rc=124 = wrapper timeout, not an arm failure); re-run at 14400 s on the warm 3bpw serve |
 | ~07:17 ET | `a2740d6` | Queue: 983k recorded wrapper-capped ×2 (unmeasurable in-window); Flash arm takes 32k/131k only; quartet releases to the re-port |
 | ~07:58 ET | `0f0ee98` | h2h: GLM needle numbers folded — both arms 32k/131k 10/10 PASS; 983k wrapper-capped on both; needle row done; quartet released to the re-port |
-| ~02:07 ET | `3fe4457` | Boot watchdog lands: stdlib-only dead-boot killer (endpoint + serve-pid + io deltas, loading-vs-dead rule, grace before stop-by-id) with a 7-test decision-table guard |
+| ~02:07 ET | `6b3d483` | Boot watchdog lands: stdlib-only dead-boot killer (endpoint + serve-pid + io deltas, loading-vs-dead rule, grace before stop-by-id) with a 7-test decision-table guard — sha re-pointed after the 2026-10-27 rewrite (`3fe4457` superseded, see TODO row 22) |
 | ~02:1x ET | `4d88848` | Docs: boot watchdog made the standard boot chain (boot → pre-flight → watchdog → cells → stop by id; cold 510 GB load needs 1800 s grace) |
 | ~02:3x ET | `40e4911` | Reranker 2B solo measured under the boot watchdog |
-| ~02:4x ET | `cd9a9b4` | Boot watchdog: two literal rail IPs scrubbed from docstring/help (tracked-address-hygiene gate red since `3fe4457`; placeholders only) |
+| ~02:4x ET | *(folded into `6b3d483`)* | Boot watchdog: two literal rail IPs scrubbed from docstring/help — the `cd9a9b4` scrub commit was folded into `6b3d483` by the 2026-10-27 rebase (dropped-as-redundant; it no longer exists) |
 | ~09:4x ET | `9e63795` | Queue: candidate 6 done (2.96 % paired saving, knob wired, 10/10 both arms); S1 running |
 | ~09:5x ET | `d84fa37` | Queue: S1 done (cache-report = reporting fix, cache already reusing), S2 done (lpm null), S3 done-negative (min-free-slots-delay loses 7–11 % same-line) |
 | ~09:5x ET | `a70b1d4` | Docs: window-4 flag-track verdicts folded into tracked docs, dated entries with receipt pointers (gate 1005 OK) |
@@ -86,4 +86,5 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 15:1
 | ~12:33 ET | `f3cf420` | chunk-32768 reprobe DONE — faster prefill but pool −72%, needles TRUNCATED: NOT shippable, 16384 line unchanged (DEEPSEEK s9 addendum) |
 | ~14:32 ET | `6ffdda8` | c3 re-port record: TERMINAL BLOCKED no-ship landed in DEEPSEEK §17/§19, queue, ds4 README (DeepGEMM SM100-only) |
 | ~14:41 ET | `0123dda` | ds4 knob gates spent once on the shipped line: S1 evidence shape reproduced; candidate6 battery 37/37 both arms, 0 flips — parity PASS, knob ships; `-o extra_args=` inert root cause noted |
-| ~15:10 ET | `ea040a9` | ornith tool-call triage DONE: NO FAILURE REPRODUCED on the shipped line (30/30 streaming loops, 7/7 SSE streams through the omp harness; one once-only empty-SSE-body watch item) |
+| ~15:10 ET | `55b4f5a` | ornith tool-call triage DONE: NO FAILURE REPRODUCED on the shipped line (30/30 streaming loops, 7/7 SSE streams through the omp harness; one once-only empty-SSE-body watch item) — sha re-pointed after the rewrite (`ea040a9` superseded) |
+| ~15:25 ET | *(this commit)* | TODO row 22: survey round-5 drain/close fold — rewrite DONE (named commit only, `3fe4457`→`6b3d483`, `cd9a9b4` dropped-as-redundant), candidate6 decision-record-only (high 75 via `SGLANG_DSV41_REASONING_EFFORT`), next-window order named, empty-SSE watch-and-capture |
