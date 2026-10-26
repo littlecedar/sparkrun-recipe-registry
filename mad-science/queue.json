@@ -330,7 +330,7 @@
       "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "Both GLM arms; the ds4 arm's TEB 90 (13 pass/1 partial/1 fail TC-03) is the comparison row. Standard-suite tools leg through the recipe path.",
+      "notes": "LEG 1 MEASURED 2026-10-26 (glm-5.3-exl3-3bpw-tp4-1m-tensorfold, quartet boot, standard-suite core 15): TEB **100 — 15/15 pass, 0 partial, 0 fail** (vs the ds4 arm's TEB 90: 27/30, 13 pass/1 partial TC-14/1 fail TC-03). Receipts ~/benchmarks/tp4-window4-20261026/ on the head (benchmark_glm-5.3-exl3-3bpw..._tp4.{json,csv}). LEG 2 BLOCKER (recorded per the dead-time rule): the GLM-Flash arm's boot dies in the tensorfold launcher — the drafter incoai/GLM-5.3-Flash-DFlash2 @bf582e4e had NO pool snapshot (a dedup stub the stub census missed); body fetched to the pool 2026-10-26 (~2.34 GB), flash boots (tools leg 2 + flash-house + needle leg 2) resume behind the drafter DONE marker. Row stays running until the flash leg's TEB lands.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-26T00:53:20Z"
