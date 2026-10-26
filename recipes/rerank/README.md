@@ -54,6 +54,11 @@ serve score/rerank endpoints, not chat — read
 - **pooling caveat:** cross-encoder — the recipe pins `convert: classify` with the
   `Qwen3VLForSequenceClassification` / `classifier_from_token: ["no","yes"]` override;
   readiness is port + `/health` only.
+- **Solo ladder (2026-10-26, spares-lane, `.30`, first boot under `tools/boot-watchdog.py`):** the
+  reranker's half alone (no encoder co-resident) scores **C1 106.7 · C4 525.8 units/s** (10
+  docs/query, 128-token docs, 32/32 ok; p50 97.0/71.0 ms), with the intended cross-encoder
+  asymmetry (0.688) and an exact rank fixture (0.996/0.646/0.216) — the cells the shipped 119.29
+  C8 figure does not cover. Receipt `~/benchmarks/spares-20261026/qwen3vl-rerank-2b-solo/RECEIPT.md`.
 - **license:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-2B` card).
 
 ### `qwen3-vl-reranker-8b-vllm-b12x`
