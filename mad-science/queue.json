@@ -571,6 +571,20 @@
       "provenance": "spares-lane 2026-10-26 (owner survey answer 11 discretion)",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "kolibri-apex-battery-b2",
+      "title": "Kolibri-1 APEX house battery second boot (battery sigma on the current pin)",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "done",
+      "model": "",
+      "node_cost": "single",
+      "notes": "DONE 2026-10-26 (spares-lane, .35): easy 19/19 + hard 18/18 = 37/37 \u2014 exact reproduction of the 2026-10-20 receipt, battery sigma 0 across boots. Receipt ~/benchmarks/spares-20261026/kolibri-battery-b2/RECEIPT.md",
+      "provenance": "spares-lane 2026-10-26 (owner survey answer 11 discretion)",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }

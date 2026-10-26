@@ -223,6 +223,9 @@ measured headroom**.
   only, yet the tools leg emits structured `tool_calls` — that field is cosmetic in llama-server and
   is not evidence of missing tool support.
 - **Second ladder (2026-10-26, spares-lane, `.30`, pool-era route):** C1 **62.1 ± 0.8 · C2 113.0 ± 1.1 · C5 97.5 ± 1.1 · C10 77.9 ± 0.9 t/s** (`~/benchmarks/spares-20261026/kolibri-ladder/RECEIPT.md`, 5 runs) — reproduces the 2026-10-18 row (63.83/113.35/98.30/78.62) within 1-2 % on every cell; the peak-at-C2-then-fall shape (c5/c10 oversubscribe the 4 slots) reconfirms.
+  **Battery second boot (2026-10-26, spares-lane): easy 19/19 + hard 18/18 = 37/37 again** — exact
+  reproduction of the 2026-10-20 receipt on the same pin, so the battery score's boot variance is 0
+  (`~/benchmarks/spares-20261026/kolibri-battery-b2/RECEIPT.md`; the saturation caveat stands).
 - **License:** base `Aleph-Alpha/Kolibri-1` Apache-2.0; the GGUF pack's own terms are on its card.
 
 ## [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml)
