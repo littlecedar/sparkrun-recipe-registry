@@ -202,6 +202,16 @@ HOME="$H" sparkrun run <recipe> -H <node> -n | grep -- '--your-flag'
 `-v`/`-vv`/`-vvv`, `-q` for scripting. Lifecycle: `sparkrun status` → task IDs, `sparkrun logs <id>`,
 `sparkrun stop <id>` (**no `sparkrun stop all`**).
 
+**Every boot runs under a watchdog, not a human wait.** The sequence is boot → pre-flight →
+watchdog → cells → stop by id (owner directive 2026-10-26, the `21e5ec6` defect class: a keep-alive
+keeps a container "Up" after its serve child died, so a session waits on a boot that will never be
+ready). Detach `tools/boot-watchdog.py` next to every launch —
+`nohup python3 tools/boot-watchdog.py --endpoint http://<api-rank>:8000 --task-id <literal id>
+--node <host> --grace 1800 --log ~/benchmarks/<window>/watchdog-<id>.log &` — and record the pid in
+the receipt. Endpoint-down with the serve child alive is *loading* (io deltas logged), never dead;
+only a gone child plus a dead endpoint on two consecutive checks past the grace window triggers
+`sparkrun stop`. A cold ~510 GB body wants `--grace 1800`; a warm-cache load may take the default.
+
 ```bash
 HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \
   --output out.yaml          # flags: --solo --skip-run --no-stop --fresh --resume --timeout
