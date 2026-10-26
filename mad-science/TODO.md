@@ -3122,6 +3122,7 @@ Engine families the registry has not exercised. sparkrun 0.4.0 ships more runtim
 `sparkrun/runtimes/` holds `sglang`, `vllm_ray`, `vllm_distributed`, `trtllm`, `atlas`, `modular_max`,
 `tokenary` and **`llama_cpp`** — while at the 2026-10-16 count every shipped recipe here was `runtime: vllm` or `sglang`
 (0 llama.cpp arms in `recipes/` — **the first shipped 2026-10-17, `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`, boot-verified**).
+- [ ] **Detection gap (lane observation, sparkrun-side): the keep-alive masks a dead serve** — observed 2026-10-26 on `.30`'s Qwen-Image boot: the serve process exited (diffusers `OfflineModeIsEnabled` + `OSError: … not fully cached locally`), yet the container stayed `Up` running only the `sleep infinity` keep-alive wrapper, so `docker ps` reads green for a dead boot and GPU util sampling read a transient 96 %. Detection needs a serve-pid liveness check (or a container-health probe on the serve process, not just the container), otherwise every future dead boot looks like a live one for the life of the reservation. Not fixed — recorded as a lane observation per the holder's instruction; the real fix belongs upstream in sparkrun's launch/readiness path. *(effort: short, sparkrun repo side)*
 
 ## Concurrency ladder (registry-level)
 **The 2026-10-15 census here is stale and has moved to `SESSION-RECORD.md`; the live remaining list
