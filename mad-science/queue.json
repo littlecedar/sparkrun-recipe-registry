@@ -10,7 +10,7 @@
   "tasks": [
     {
       "id": "w4-s0-control",
-      "title": "Survey S0 control: boot the stock main-image tree (sglang-main-arm64:6563312) against the 1017 checkpoint — gates the whole flag track",
+      "title": "Survey S0 control: boot the stock main-image tree (sglang-main-arm64:6563312) against the 1017 checkpoint \u2014 gates the whole flag track",
       "estimate_h": 1.0,
       "blocks": [
         "w4-s1-cache-report",
@@ -21,8 +21,8 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE NEGATIVE 2026-10-26 by tp4-recovery (boot bb9f3743ec80ca1f_bbe16c378e11 + one owner-authorized retry bb9f3743ec80ca1f_17a8924a0f51). VERDICT: the stock main tree (sglang-main-arm64:6563312) does NOT serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE backend — (1) default cutlass: Mxfp4FlashinferCutlassMoEMethod.create_weights raises ValueError, hidden=5120 ok but moe_intermediate 2304/TP4=576 is not a multiple of 128 (s0-stock-tree-rank0-serve.log); (2) triton retry (-o extra_args=--moe-runner-backend triton, confirmed in engine server_args): got past geometry, died 16 s into weight load with NVRM NV_ERR_NO_MEMORY GPU OOM — the un-fused runner exceeds the 128 GB unified GPU materializing fp4 experts (s0-retry-node1-serve.log + spark-d325 kernel log 15:49:37). The recipe's pre-registered falsifier fired; the vendored pad/adapter set in the shipped overlay image is LOAD-BEARING for boot, not a convenience (matches recipes/ds4/README.md §\"The vendored adapter set\" — the GUIDANCE.md Background section was folded there; guidance-fold-4, cbede11). Flag-level arms fall back to the shipped image pending owner input. Receipts: s0-launch.log, s0-retry-node{1..4}-serve.log, s0-stock-tree-rank0-serve.log.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10",
+      "notes": "DONE NEGATIVE 2026-10-26 by tp4-recovery (boot bb9f3743ec80ca1f_bbe16c378e11 + one owner-authorized retry bb9f3743ec80ca1f_17a8924a0f51). VERDICT: the stock main tree (sglang-main-arm64:6563312) does NOT serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE backend \u2014 (1) default cutlass: Mxfp4FlashinferCutlassMoEMethod.create_weights raises ValueError, hidden=5120 ok but moe_intermediate 2304/TP4=576 is not a multiple of 128 (s0-stock-tree-rank0-serve.log); (2) triton retry (-o extra_args=--moe-runner-backend triton, confirmed in engine server_args): got past geometry, died 16 s into weight load with NVRM NV_ERR_NO_MEMORY GPU OOM \u2014 the un-fused runner exceeds the 128 GB unified GPU materializing fp4 experts (s0-retry-node1-serve.log + spark-d325 kernel log 15:49:37). The recipe's pre-registered falsifier fired; the vendored pad/adapter set in the shipped overlay image is LOAD-BEARING for boot, not a convenience (matches recipes/ds4/README.md \u00a7\"The vendored adapter set\" \u2014 the GUIDANCE.md Background section was folded there; guidance-fold-4, cbede11). Flag-level arms fall back to the shipped image pending owner input. Receipts: s0-launch.log, s0-retry-node{1..4}-serve.log, s0-stock-tree-rank0-serve.log.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2; mad-science/DEEPSEEK.md \u00a710",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -35,8 +35,8 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE 2026-10-26 by tp4-recovery. (b) needle@512: 20/20 PASS at 32768+131072 all depths (beam-b1-needle-*-512.json). (c) BFCL tools leg: direct bfcl-eval run (eval-suite wrapper stalls 52 min — instrument finding, beam-b1-bfcl*.log). (d) DFlash2 A/B: baseline C1 26.20/C2 40.66/C5 63.96/C10 69.80 vs treatment C1 31.57/C2 40.72/C5 58.86/C10 74.14 t/s aggregate decode (beam-b1-ladder.csv vs beam-b2-ladder.{csv,yaml}; per-run stds 6-16 t/s — deltas within noise except C1 +20%). Engagement: dflash2 CUDA graphs FULL captured, FlashInfer draft attention, 7 spec tokens (beam-b2-attempt8-node1-serve.log). Serve stopped by literal id, 0 containers.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 1",
+      "notes": "DONE 2026-10-26 by tp4-recovery. (b) needle@512: 20/20 PASS at 32768+131072 all depths (beam-b1-needle-*-512.json). (c) BFCL tools leg: direct bfcl-eval run (eval-suite wrapper stalls 52 min \u2014 instrument finding, beam-b1-bfcl*.log). (d) DFlash2 A/B: baseline C1 26.20/C2 40.66/C5 63.96/C10 69.80 vs treatment C1 31.57/C2 40.72/C5 58.86/C10 74.14 t/s aggregate decode (beam-b1-ladder.csv vs beam-b2-ladder.{csv,yaml}; per-run stds 6-16 t/s \u2014 deltas within noise except C1 +20%). Engagement: dflash2 CUDA graphs FULL captured, FlashInfer draft attention, 7 spec tokens (beam-b2-attempt8-node1-serve.log). Serve stopped by literal id, 0 containers.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 1",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -51,8 +51,8 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10"
+      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing \u00a712 ruling; old trial blocker cleared.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2; mad-science/DEEPSEEK.md \u00a710"
     },
     {
       "id": "w4-s1-cache-report",
@@ -66,8 +66,8 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing \u00a712 ruling; old trial blocker cleared.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2"
     },
     {
       "id": "w4-s2-lpm",
@@ -81,8 +81,8 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing \u00a712 ruling; old trial blocker cleared.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2"
     },
     {
       "id": "w4-s3-min-free-slots-delay",
@@ -96,8 +96,8 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing §12 ruling; old trial blocker cleared.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "RE-TARGETED on the shipped aff52fa5 overlay (2026-10-26, ship 0326719): runs as an -o override boot with a same-window no-flag A/B per the standing \u00a712 ruling; old trial blocker cleared.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2"
     },
     {
       "id": "w4-b12x-parity",
@@ -108,14 +108,14 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE — CANCELLED by owner decision 2026-10-26 (\"That's horrible. Cancel it.\" / \"Shove that shit into the attic.\"). Terminal two-axis verdict: DECODE MISS — C1 34.04 agg / 40.4 peak vs §17 bar 64.0 (~half the shipped SGLang C1 66.14 band), DSpark k=5 engagement PROVEN (B12X drafter backend line); C10 peak 113.8 ≥ 110.5 but the AGGREGATE column (the bar's definition, n=5 decode rows — same column as the shipped bands) reads 12.00 with the per-request identity broken at C≥5 (req 4.00×10=40 ≠ 12.0; no-spec b1 satisfies 7.31×10≈69.8) and mean ~10% of peak — spec scheduler starvation anomaly, recorded not tuned. CONTEXT/QUALITY PASS: /v1/models max_model_len 1048576; house 37/37 @4096 thinking-on; needle 32k 10/10; 131k/983k never measured (40-min wrapper clip; rerun cancelled with the route). The follow-on tasks b12x-vllm-tuning-round and dsv41-vllm-ship-recipe (round-4 §9(a)/round-5 §2(a)) are WITHDRAWN — the miss path and the pass case both died with the route; TODO.md:773 pass-case advisory is MOOT. Arm retired to attic/ds4/zz-ds4-1017-b12x-vllm-parity.yaml (hash-equal move, metrics in attic/ds4/AGENTS.md). Boot history: 5 boots, all stopped by literal id; boot 5 (limits-fixed, commit 7fa352d: nofile=524288 + memlock=-1:-1 from recipe executor_config) is the measured serve. Receipts: ~/benchmarks/tp4-window4-20261026/parity-ladder.{csv,yaml}, parity-suite/house.{log,json}, parity-needle-32768.json, parity-models.json, parity-final-node{1..4}-serve.log, parity-retry-node{1..4}-serve.log.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 item 3; mad-science/DEEPSEEK.md §17",
+      "notes": "DONE \u2014 CANCELLED by owner decision 2026-10-26 (\"That's horrible. Cancel it.\" / \"Shove that shit into the attic.\"). Terminal two-axis verdict: DECODE MISS \u2014 C1 34.04 agg / 40.4 peak vs \u00a717 bar 64.0 (~half the shipped SGLang C1 66.14 band), DSpark k=5 engagement PROVEN (B12X drafter backend line); C10 peak 113.8 \u2265 110.5 but the AGGREGATE column (the bar's definition, n=5 decode rows \u2014 same column as the shipped bands) reads 12.00 with the per-request identity broken at C\u22655 (req 4.00\u00d710=40 \u2260 12.0; no-spec b1 satisfies 7.31\u00d710\u224869.8) and mean ~10% of peak \u2014 spec scheduler starvation anomaly, recorded not tuned. CONTEXT/QUALITY PASS: /v1/models max_model_len 1048576; house 37/37 @4096 thinking-on; needle 32k 10/10; 131k/983k never measured (40-min wrapper clip; rerun cancelled with the route). The follow-on tasks b12x-vllm-tuning-round and dsv41-vllm-ship-recipe (round-4 \u00a79(a)/round-5 \u00a72(a)) are WITHDRAWN \u2014 the miss path and the pass case both died with the route; TODO.md:773 pass-case advisory is MOOT. Arm retired to attic/ds4/zz-ds4-1017-b12x-vllm-parity.yaml (hash-equal move, metrics in attic/ds4/AGENTS.md). Boot history: 5 boots, all stopped by literal id; boot 5 (limits-fixed, commit 7fa352d: nofile=524288 + memlock=-1:-1 from recipe executor_config) is the measured serve. Receipts: ~/benchmarks/tp4-window4-20261026/parity-ladder.{csv,yaml}, parity-suite/house.{log,json}, parity-needle-32768.json, parity-models.json, parity-final-node{1..4}-serve.log, parity-retry-node{1..4}-serve.log.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 3; mad-science/DEEPSEEK.md \u00a717",
       "claimed_by": "",
       "claimed_at": ""
     },
     {
       "id": "w4-survey-arm3-indexer-scoring",
-      "title": "Survey arm 3 (build-gated): SGLang PR #43401 candidate-only indexer scoring (upstream −17% step time at 1M decode on 2×GB10)",
+      "title": "Survey arm 3 (build-gated): SGLang PR #43401 candidate-only indexer scoring (upstream \u221217% step time at 1M decode on 2\u00d7GB10)",
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [
@@ -125,7 +125,7 @@
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "Needs an image build from a tree newer than f80c91a4b; the build is blocked behind the adapter re-port + gate update. estimate: provisional.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 (Build-gate drift advisory); mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2; mad-science/DEEPSEEK.md \u00a710.5"
     },
     {
       "id": "w4-survey-arm5-trtllm-mla",
@@ -139,7 +139,7 @@
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
       "notes": "Same build gate as arm 3. estimate: provisional.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 (Build-gate drift advisory); mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2; mad-science/DEEPSEEK.md \u00a710.7"
     },
     {
       "id": "ds4-knapcio-byte-reproducible",
@@ -150,8 +150,8 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (4-build study, receipt ~/benchmarks/ds4-repro-20261026/REPORT.md): deterministic delta committed ffee627 (PYTHONDONTWRITEBYTECODE=1 + SOURCE_DATE_EPOCH + payload mtime normalization); layer content deterministic across builds, but FULL image-ID reproducibility BLOCKED — BuildKit SOURCE_DATE_EPOCH normalization is non-deterministic on engine 29.6.2 (build3 vs build4 differ); verdict = content-reproducible only, ID-repro blocked pending an upstream BuildKit fix or a buildkitd version pin. Also: build-tag hypothesis UNCONFIRMED (build2 stalled at base-pull retry storm).",
-      "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5",
+      "notes": "DONE 2026-10-26 (4-build study, receipt ~/benchmarks/ds4-repro-20261026/REPORT.md): deterministic delta committed ffee627 (PYTHONDONTWRITEBYTECODE=1 + SOURCE_DATE_EPOCH + payload mtime normalization); layer content deterministic across builds, but FULL image-ID reproducibility BLOCKED \u2014 BuildKit SOURCE_DATE_EPOCH normalization is non-deterministic on engine 29.6.2 (build3 vs build4 differ); verdict = content-reproducible only, ID-repro blocked pending an upstream BuildKit fix or a buildkitd version pin. Also: build-tag hypothesis UNCONFIRMED (build2 stalled at base-pull retry storm).",
+      "provenance": "mad-science/TODO.md \u00a7ds4; mad-science/DEEPSEEK.md \u00a75",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -167,8 +167,8 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "REBASED (owner round-4 §1): the 20 h re-port must now rebase onto knapcio upstream HEAD (v2.5+ adapter set, 26-backport base, per-patch gate shape) rather than our v2.4 vendored copy. Estimate kept provisional: it may shrink if upstream's base already carries much of the vendored delta, or grow if the v2.4→v2.5 adapter rewrite diverges further; no measurement basis yet. Upstream survey (aff52fa5) pins SGLANG_CANARY_REF=f80c91a4b — no newer-tree adapter state exists upstream.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2"
+      "notes": "REBASED (owner round-4 \u00a71): the 20 h re-port must now rebase onto knapcio upstream HEAD (v2.5+ adapter set, 26-backport base, per-patch gate shape) rather than our v2.4 vendored copy. Estimate kept provisional: it may shrink if upstream's base already carries much of the vendored delta, or grow if the v2.4\u2192v2.5 adapter rewrite diverges further; no measurement basis yet. Upstream survey (aff52fa5) pins SGLANG_CANARY_REF=f80c91a4b \u2014 no newer-tree adapter state exists upstream.",
+      "provenance": "mad-science/TODO.md \u00a7Retry queue \u2014 window 4 (Build-gate drift advisory); mad-science/TODO.md \u00a7Retry queue \u2014 window 4 item 2"
     },
     {
       "id": "ds4-upstream-adapter-trial",
@@ -184,8 +184,8 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "ADOPTED + SHIPPED 2026-10-26 (~20:20 ET, commit 0326719): production overlay = canary-roce-aff52fa5 (sha256:3f4480818acb…, gate green). Verdict on the landed set: C1 64.08 agg / C10 152.24 agg / house 36/37 / needles 32k+131k 10/10 — all bars clear on the first boot; 983k rung in flight at ship, not a gate (watcher armed; verdict will be appended to the receipt). Healthcheck lesson recorded: first build 21d1bf34 shipped unpatched boot.py (apply forgotten after --check); corrected image distributed to all four ranks. Flag track (S1/S2/S3, candidate 6) now unblocked on the new overlay.",
-      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4",
+      "notes": "ADOPTED + SHIPPED 2026-10-26 (~20:20 ET, commit 0326719): production overlay = canary-roce-aff52fa5 (sha256:3f4480818acb\u2026, gate green). Verdict on the landed set: C1 64.08 agg / C10 152.24 agg / house 36/37 / needles 32k+131k 10/10 \u2014 all bars clear on the first boot; 983k rung in flight at ship, not a gate (watcher armed; verdict will be appended to the receipt). Healthcheck lesson recorded: first build 21d1bf34 shipped unpatched boot.py (apply forgotten after --check); corrected image distributed to all four ranks. Flag track (S1/S2/S3, candidate 6) now unblocked on the new overlay.",
+      "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md \u00a719 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md \u00a7Retry queue \u2014 window 4",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -198,8 +198,8 @@
       "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): n=1 retest on current engine reproduces the 2026-10-22 result — upstream d854d98bae (86 commits past swept a37cc4610; llama-graph/speculative/ggml-cuda), local build on .35 (upstream-d854d98-cu130, image id 47d3efa2…, both gates green, tag-only pin commit bb4c67f). Cells on .35, sweep geometry: baseopen 97.19 ± 1.58 / n1 102.95 ± 3.20 (accept 0.701, mean len 1.70 — byte-identical to the 2026-10-22 cell) / baseclose 99.69 ± 4.59; pooled baseline 98.44 ± 3.36, n1 +4.6 % vs own baseline, −0.4 % vs the 103.38 ± 2.83 figure. Rejection stands; n≥2 untested per scope. Receipt ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/; docs: recipes/explore/README.md + attic/explore/AGENTS.md. Logistics: main GGUF re-fetched (pool dedup had dropped it fleet-wide); sweep cell.sh control-cache route dead in pool era (real-HOME + --cluster WOPR now).",
-      "provenance": "owner round-4 §7(c); round-5 §3",
+      "notes": "DONE 2026-10-26 (tp4-single): n=1 retest on current engine reproduces the 2026-10-22 result \u2014 upstream d854d98bae (86 commits past swept a37cc4610; llama-graph/speculative/ggml-cuda), local build on .35 (upstream-d854d98-cu130, image id 47d3efa2\u2026, both gates green, tag-only pin commit bb4c67f). Cells on .35, sweep geometry: baseopen 97.19 \u00b1 1.58 / n1 102.95 \u00b1 3.20 (accept 0.701, mean len 1.70 \u2014 byte-identical to the 2026-10-22 cell) / baseclose 99.69 \u00b1 4.59; pooled baseline 98.44 \u00b1 3.36, n1 +4.6 % vs own baseline, \u22120.4 % vs the 103.38 \u00b1 2.83 figure. Rejection stands; n\u22652 untested per scope. Receipt ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/; docs: recipes/explore/README.md + attic/explore/AGENTS.md. Logistics: main GGUF re-fetched (pool dedup had dropped it fleet-wide); sweep cell.sh control-cache route dead in pool era (real-HOME + --cluster WOPR now).",
+      "provenance": "owner round-4 \u00a77(c); round-5 \u00a73",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -212,22 +212,22 @@
       "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "DONE 2026-10-26 (tp4-single): survey authored as mad-science/DRAFTER-ALTERNATIVES-1026.md (indexed in mad-science/README.md) — current drafter set per arm (DSpark k=5 on ds4, DFlash2 on GLM-Flash/Beam/qwen3.8, MTP graft/head on ornith/Mellum, ngram/UNO retired negative); families surfaced: DSpark (sglang#30261, ragged per-request verify + SPS cost table, dev-dspark image, high-batch trim win), DFlash/DFlash2/DLoop (block diffusion, beats EAGLE-3, adoption gated by per-checkpoint drafter weights), EAGLE/MTP (already represented), Medusa-style (vLLM coverage, no heads for our checkpoints), retrieval/tree family (our own negative precedent). Concrete next boot identified: check our ds4 engine for post-#30261 DSpark (SGLANG_RAGGED_VERIFY_MODE) — highest-value single boot. Read-only, no boots, sources cited.",
+      "notes": "DONE 2026-10-26 (tp4-single): survey authored as mad-science/DRAFTER-ALTERNATIVES-1026.md (indexed in mad-science/README.md) \u2014 current drafter set per arm (DSpark k=5 on ds4, DFlash2 on GLM-Flash/Beam/qwen3.8, MTP graft/head on ornith/Mellum, ngram/UNO retired negative); families surfaced: DSpark (sglang#30261, ragged per-request verify + SPS cost table, dev-dspark image, high-batch trim win), DFlash/DFlash2/DLoop (block diffusion, beats EAGLE-3, adoption gated by per-checkpoint drafter weights), EAGLE/MTP (already represented), Medusa-style (vLLM coverage, no heads for our checkpoints), retrieval/tree family (our own negative precedent). Concrete next boot identified: check our ds4 engine for post-#30261 DSpark (SGLANG_RAGGED_VERIFY_MODE) \u2014 highest-value single boot. Read-only, no boots, sources cited.",
       "provenance": "owner round-4",
       "claimed_by": "",
       "claimed_at": ""
     },
     {
       "id": "tp4-head-to-head-2025",
-      "title": "Author mad-science/TP4-HEAD-TO-HEAD-1025.md — Beam vs DSv4.1-Flash-1017 vs GLM-5.3/GLM-5.3-Flash",
+      "title": "Author mad-science/TP4-HEAD-TO-HEAD-1025.md \u2014 Beam vs DSv4.1-Flash-1017 vs GLM-5.3/GLM-5.3-Flash",
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): authored mad-science/TP4-HEAD-TO-HEAD-1025.md (indexed in mad-science/README.md) — receipts-only per owner round-5 §1(b): one row per arm per cell with receipt pointers for ds4-1017 knapcio TP=4 (+TP=2 comparison row), GLM-5.3-Flash 4bpw and GLM-5.3-753B 3bpw TF TP=4, Beam-1.0-501B NVFP4 ± DFlash2; ladder C1/C2/C5/C10 + house/needle/tools cells; receipt-backed shape notes (ds4 is the only monotone-aggregate ladder, GLM-Flash C2-peaked, GLM-753B flat per-request under load, Beam DFlash2 C1 +20 % within-noise elsewhere); open cells named (GLM-Flash house is the trial's, Beam house/BFCL-summary absent, ds4 131k/983k prefill wrapper-clipped). BFCL counts read from the logs: 657/722 (91.0 %) across beam-b1-bfcl2+3. Committed 0212cb4+.",
-      "provenance": "owner round-4 §8; round-5 §1",
+      "notes": "DONE 2026-10-26 (tp4-single): authored mad-science/TP4-HEAD-TO-HEAD-1025.md (indexed in mad-science/README.md) \u2014 receipts-only per owner round-5 \u00a71(b): one row per arm per cell with receipt pointers for ds4-1017 knapcio TP=4 (+TP=2 comparison row), GLM-5.3-Flash 4bpw and GLM-5.3-753B 3bpw TF TP=4, Beam-1.0-501B NVFP4 \u00b1 DFlash2; ladder C1/C2/C5/C10 + house/needle/tools cells; receipt-backed shape notes (ds4 is the only monotone-aggregate ladder, GLM-Flash C2-peaked, GLM-753B flat per-request under load, Beam DFlash2 C1 +20 % within-noise elsewhere); open cells named (GLM-Flash house is the trial's, Beam house/BFCL-summary absent, ds4 131k/983k prefill wrapper-clipped). BFCL counts read from the logs: 657/722 (91.0 %) across beam-b1-bfcl2+3. Committed 0212cb4+.",
+      "provenance": "owner round-4 \u00a78; round-5 \u00a71",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -240,8 +240,8 @@
       "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): demo index authored as recipes/media/DEMO.md (commit follows) — three artifacts landed (Kokoro wav RTF 0.64; humanizer rewrite ~18.7 t/s matching shipped C1; drama-3 seeded pair byte-identical sha f5ade9ab…, warm RTF 0.85 reproducing shipped 0.848 ± 0.015, pre-flight body check passed post-fetch), two arms explicitly BLOCKED with their prerequisites (Qwen-Image-2.1-Turbo: no pool snapshot at all, ~32.5 GB prefill row IN FLIGHT in cache-prefill-20261026/QUEUE.md row 4; LTX-2.5: gated weights row behind it + nvidia-smi -lgc 0,2200 prerequisite) — open rows named in DEMO.md so the owner sees the full state in one file. Standing rules recorded (pre-flight du -sbL body check, real-HOME + --cluster WOPR launch route, GPU-exclusive stop discipline, kev excluded as a demo row → kev-bind-conflict-fix). Remaining media work is strictly prefill-gated: render pair + LTX clip boot after the DONE markers.",
-      "provenance": "owner round-5 §4",
+      "notes": "DONE 2026-10-26 (tp4-single): demo index authored as recipes/media/DEMO.md (commit follows) \u2014 three artifacts landed (Kokoro wav RTF 0.64; humanizer rewrite ~18.7 t/s matching shipped C1; drama-3 seeded pair byte-identical sha f5ade9ab\u2026, warm RTF 0.85 reproducing shipped 0.848 \u00b1 0.015, pre-flight body check passed post-fetch), two arms explicitly BLOCKED with their prerequisites (Qwen-Image-2.1-Turbo: no pool snapshot at all, ~32.5 GB prefill row IN FLIGHT in cache-prefill-20261026/QUEUE.md row 4; LTX-2.5: gated weights row behind it + nvidia-smi -lgc 0,2200 prerequisite) \u2014 open rows named in DEMO.md so the owner sees the full state in one file. Standing rules recorded (pre-flight du -sbL body check, real-HOME + --cluster WOPR launch route, GPU-exclusive stop discipline, kev excluded as a demo row \u2192 kev-bind-conflict-fix). Remaining media work is strictly prefill-gated: render pair + LTX clip boot after the DONE markers.",
+      "provenance": "owner round-5 \u00a74",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -254,8 +254,8 @@
       "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): boot half = two baseline serves on .35 (Sol-2B decision2 GGUF: 5.121/5.433/5.411/5.419 req/s c1/2/5/10 single-pass, reproduces 2026-10-20 within 2 %; Ternary-Bonsai Q2_0 first decode rows 77.70 ± 0.85 t/s). Triage authored: mad-science/GGUF-VIABILITY-TRIAGE.md — one conversion warranted (qwen3.8 spark2_5 official Q4_K_M, engine at ref floor, ~16 GB fit, separate task), JEV GGUF not viable (no allowed_token_ids surface), Ornith measured-rejected, GLM/ds4 not viable, Mellum/Bonsai/Sol/Kolibri already served. Logistics finding: migration dedup drops large GGUF bodies (Mellum re-fetched this window; drama-3 68 GB stub — tp4-recovery re-fetching); pool-era launch route recorded in recipes/ds4/README.md. Receipts ~/benchmarks/tp4-single-20261026/gguf-triage/.",
-      "provenance": "owner round-5 §5",
+      "notes": "DONE 2026-10-26 (tp4-single): boot half = two baseline serves on .35 (Sol-2B decision2 GGUF: 5.121/5.433/5.411/5.419 req/s c1/2/5/10 single-pass, reproduces 2026-10-20 within 2 %; Ternary-Bonsai Q2_0 first decode rows 77.70 \u00b1 0.85 t/s). Triage authored: mad-science/GGUF-VIABILITY-TRIAGE.md \u2014 one conversion warranted (qwen3.8 spark2_5 official Q4_K_M, engine at ref floor, ~16 GB fit, separate task), JEV GGUF not viable (no allowed_token_ids surface), Ornith measured-rejected, GLM/ds4 not viable, Mellum/Bonsai/Sol/Kolibri already served. Logistics finding: migration dedup drops large GGUF bodies (Mellum re-fetched this window; drama-3 68 GB stub \u2014 tp4-recovery re-fetching); pool-era launch route recorded in recipes/ds4/README.md. Receipts ~/benchmarks/tp4-single-20261026/gguf-triage/.",
+      "provenance": "owner round-5 \u00a75",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -268,7 +268,7 @@
       "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): root cause = port collision, NOT a double server start — the container is host-networked and beegfs-mgmtd owns 8008 on .30 (the head's mgmtd duty); kev.serve loaded all 320 weights then died [Errno 98] on 0.0.0.0:8008 (two boots; the 2026-10-18 boot worked on .34, no mgmtd there). Fix (commit 4225e77): port 8008 -> 8021 (free fleet-wide) + a uvicorn.run wrapper in command: that registers GET /health before binding (pinned kev.serve has no health route — the documented never-reaches-ready state is closed). VERIFIED: boot sparkrun_238b33c8af687aaa_abd8a953bf4b on .30 reached ready through the FULL probe (port-open 63.1 s / HTTP-ready 63.2 s, first time ever); /health 200; decision-ladder smoke 20/20 cases, 100/100 decisions clean, 0.244 req/s (4.18 s/case CPU — smoke, not a benchmark). Stopped by id, 0 containers. Receipt: ~/benchmarks/tp4-single-20261026/media-demo/RECEIPT-kev-fix.md (+ kev-smoke.json). Render-checked: the placeholder renderer passes the wrapper's literal braces through; validate carries the accepted unpinned-model-revision + inline-script findings (the -c wrapper adds to the latter, documented in the commit).",
+      "notes": "DONE 2026-10-26 (tp4-single): root cause = port collision, NOT a double server start \u2014 the container is host-networked and beegfs-mgmtd owns 8008 on .30 (the head's mgmtd duty); kev.serve loaded all 320 weights then died [Errno 98] on 0.0.0.0:8008 (two boots; the 2026-10-18 boot worked on .34, no mgmtd there). Fix (commit 4225e77): port 8008 -> 8021 (free fleet-wide) + a uvicorn.run wrapper in command: that registers GET /health before binding (pinned kev.serve has no health route \u2014 the documented never-reaches-ready state is closed). VERIFIED: boot sparkrun_238b33c8af687aaa_abd8a953bf4b on .30 reached ready through the FULL probe (port-open 63.1 s / HTTP-ready 63.2 s, first time ever); /health 200; decision-ladder smoke 20/20 cases, 100/100 decisions clean, 0.244 req/s (4.18 s/case CPU \u2014 smoke, not a benchmark). Stopped by id, 0 containers. Receipt: ~/benchmarks/tp4-single-20261026/media-demo/RECEIPT-kev-fix.md (+ kev-smoke.json). Render-checked: the placeholder renderer passes the wrapper's literal braces through; validate carries the accepted unpinned-model-revision + inline-script findings (the -c wrapper adds to the latter, documented in the commit).",
       "provenance": "window-4 single-lane finding 2026-10-26 (tp4-single) + serve-kev-dead.log receipt",
       "claimed_by": "",
       "claimed_at": ""
@@ -282,7 +282,7 @@
       "state": "running",
       "model": "",
       "node_cost": "single",
-      "notes": "2026-10-24 pool-migration dedup dropped weight bodies fleet-wide; stub census (~/benchmarks/tp4-single-20261026/pool-stub-census.json, 70 repos): drama-3 0-byte (fetch DONE, 41.5 GB @b2b5ee99, rc=0), Mellum GGUF (DONE by tp4-single 8 GB), Qwen-Image-2.1-Turbo @fc13ba19 (snapshot MISSING, ~32.5 GB, in runner), local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37 (3 husk shards of 41, ~9 GB, in runner), kev-0.8b (no snapshots; first attempt FAIL rc=1 root-owned .locks — chowned, retry running), LTX-2.5/MiniMax-H3/pyannote/humanizer queued as pre-check rows. Ledger: ~/benchmarks/cache-prefill-20261026/QUEUE.md (serial runner, du -sbL verify, DONE/FAIL kept). Budget: df /mnt/beegfs union 13.9 TB avail; ledger total ~150 GB — well inside the ~3.5 TB true-free caution. Flip done when every row carries DONE/FAIL.",
+      "notes": "2026-10-24 pool-migration dedup dropped weight bodies fleet-wide; stub census (~/benchmarks/tp4-single-20261026/pool-stub-census.json, 70 repos): drama-3 0-byte (fetch DONE, 41.5 GB @b2b5ee99, rc=0), Mellum GGUF (DONE by tp4-single 8 GB), Qwen-Image-2.1-Turbo @fc13ba19 (snapshot MISSING, ~32.5 GB, in runner), local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37 (3 husk shards of 41, ~9 GB, in runner), kev-0.8b (no snapshots; first attempt FAIL rc=1 root-owned .locks \u2014 chowned, retry running), LTX-2.5/MiniMax-H3/pyannote/humanizer queued as pre-check rows. Ledger: ~/benchmarks/cache-prefill-20261026/QUEUE.md (serial runner, du -sbL verify, DONE/FAIL kept). Budget: df /mnt/beegfs union 13.9 TB avail; ledger total ~150 GB \u2014 well inside the ~3.5 TB true-free caution. Flip done when every row carries DONE/FAIL.",
       "provenance": "owner directive 2026-10-26 evening; skill wopr-hf-cache-prefill-queue; tp4-single stub findings",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-25T23:53:14Z"
@@ -299,7 +299,7 @@
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -314,8 +314,8 @@
       "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "RUNNING. Correction (keeper-verified): the cells live NOW (task sparkrun_7d9a3a61b33a29e4_c7091cac7b11) are the **3bpw 753B arm** (its own log: serving GLM-5.3-EXL3-3.0bpw, loaded in 2714.8 s) — its leg-1 rungs were lost to the 02:11Z foreign stop and are being re-taken now. The FLASH arm's needle cells remain UNMEASURED: it failed twice on the config-only stub body (pin 078455ff, 6,098 B), the 175.7 GB / 175,716,135,696 B body was refetched and preflighted identically on all four nodes, and its needle boot is chained next (flash-leg2.sh, armed on GLM-NEEDLE-DONE) with a corrected readiness gate (/health ok AND non-empty data[0].id — /v1/models answers 200 before weights load, which burned one attempt). Rungs @timeout 7200; every stop literal-id. Also: metrics bridge added to the 3bpw launcher (de99b52) so the next GLM boot's live monitor scrape works — parity verified on that boot.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "notes": "RUNNING. Correction (keeper-verified): the cells live NOW (task sparkrun_7d9a3a61b33a29e4_c7091cac7b11) are the **3bpw 753B arm** (its own log: serving GLM-5.3-EXL3-3.0bpw, loaded in 2714.8 s) \u2014 its leg-1 rungs were lost to the 02:11Z foreign stop and are being re-taken now. The FLASH arm's needle cells remain UNMEASURED: it failed twice on the config-only stub body (pin 078455ff, 6,098 B), the 175.7 GB / 175,716,135,696 B body was refetched and preflighted identically on all four nodes, and its needle boot is chained next (flash-leg2.sh, armed on GLM-NEEDLE-DONE) with a corrected readiness gate (/health ok AND non-empty data[0].id \u2014 /v1/models answers 200 before weights load, which burned one attempt). Rungs @timeout 7200; every stop literal-id. Also: metrics bridge added to the 3bpw launcher (de99b52) so the next GLM boot's live monitor scrape works \u2014 parity verified on that boot.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "tp4-recovery",
       "claimed_at": "2026-10-26T02:42:24Z"
     },
@@ -330,8 +330,8 @@
       "state": "done",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "LEG 1 VALID: 3bpw arm TEB 100 (15/15 pass, 0 partial, 0 fail) through the recipe path — the cleanest tools line on the table. LEG 2 WITHDRAWN AS CONTAMINATED (2026-10-26 ~03:0xZ): the 'flash 14/15' figure scored the LINGERING 3bpw serve — /v1/models returned GLM-5.3-EXL3-3.0bpw during the supposed flash run (the flash boot had failed and the old serve kept answering). ROOT CAUSE of the flash boot failure, verified independently of any single boot: the checkpoint pin Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold @078455ff is a STUB fleet-wide (config.json only, 6,098 B, no safetensors, no index; same on the pool and all four nodes), so the tensorfold launcher raises 'startup memory estimate needs the checkpoint tensor headers' and the serve dies — deterministic (reproduced on retry), not a memory wedge (host MemAvailable ~123 GB on all ranks). The Hub's pin totals 175.7 GB / 95 files; a full re-fetch to the pool is in flight (pid 2404432, log glmflash-body-fetch.log). The flash arm's tools/needle/house cells resume only after that body lands and a fresh boot serves the flash model id.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "notes": "LEG 1 VALID: 3bpw arm TEB 100 (15/15 pass, 0 partial, 0 fail) through the recipe path \u2014 the cleanest tools line on the table. LEG 2 WITHDRAWN AS CONTAMINATED (2026-10-26 ~03:0xZ): the 'flash 14/15' figure scored the LINGERING 3bpw serve \u2014 /v1/models returned GLM-5.3-EXL3-3.0bpw during the supposed flash run (the flash boot had failed and the old serve kept answering). ROOT CAUSE of the flash boot failure, verified independently of any single boot: the checkpoint pin Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold @078455ff is a STUB fleet-wide (config.json only, 6,098 B, no safetensors, no index; same on the pool and all four nodes), so the tensorfold launcher raises 'startup memory estimate needs the checkpoint tensor headers' and the serve dies \u2014 deterministic (reproduced on retry), not a memory wedge (host MemAvailable ~123 GB on all ranks). The Hub's pin totals 175.7 GB / 95 files; a full re-fetch to the pool is in flight (pid 2404432, log glmflash-body-fetch.log). The flash arm's tools/needle/house cells resume only after that body lands and a fresh boot serves the flash model id.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -346,8 +346,8 @@
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) \u2014 standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it \u2014 category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper \u2014 it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') \u2014 parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -362,14 +362,14 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "DONE via the adoption boot (quartet c989632ede4f538e_06d0703ef003, canary-roce-aff52fa5, 2026-10-26): needle 32,768 10/10 and 131,072 10/10 with receipts in ~/benchmarks/tp4-window4-20261026/ on the head. The 983,040 rung was still in flight at ship under its 7,200 s wrapper (started 23:31Z) — its verdict appends to the same receipt when the wrapper lands; the row does not hold for it.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "notes": "DONE via the adoption boot (quartet c989632ede4f538e_06d0703ef003, canary-roce-aff52fa5, 2026-10-26): needle 32,768 10/10 and 131,072 10/10 with receipts in ~/benchmarks/tp4-window4-20261026/ on the head. The 983,040 rung was still in flight at ship under its 7,200 s wrapper (started 23:31Z) \u2014 its verdict appends to the same receipt when the wrapper lands; the row does not hold for it.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
     },
     {
       "id": "h2h-second-boot-ladder",
-      "title": "One controlled second-boot ladder per arm (ds4-1017, GLM-Flash, GLM-753B, Beam) — the sigma column",
+      "title": "One controlled second-boot ladder per arm (ds4-1017, GLM-Flash, GLM-753B, Beam) \u2014 the sigma column",
       "estimate_h": 5.0,
       "blocks": [
         "h2h-doc-refresh"
@@ -378,8 +378,8 @@
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "BIGGEST ROW in this set — its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.",
-      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
+      "notes": "BIGGEST ROW in this set \u2014 its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md \u00a7Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -392,7 +392,7 @@
       "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "PROVENANCE WARNING 2026-10-26 (keeper-verified): tp4-single's final session report was confabulated (5/6 claims false vs disk). MEASURED by tp4-recovery before the spares-lane handover: lever 2 Q8_0-draft n=1 cell 120.37 ± 1.92 t/s on the upstream d854d98bae tree (vs BF16-draft 102.95, plain 98.44 — reaches fork-lineage speeds); lever 5 KV q8_0 knob rejected (114.85 ± 2.97, −5.3%); bisect leg 1 (a37cc4610..d854d98bae, 13 suspect commits) running with verdicts ~102 healthy so far; row 2 file-shape corrected (mtp/ = full draft models). The .30/.35 single-node lane is HANDED OVER to spares-lane: held at handover — .30 Sol-2B decision serve id sparkrun_e7ccf6a1af65d9b8_16dcacc6ab2b (ladder rerun needs --cases <vendored split>, see gguf-triage/RECEIPT.md); .35 empty (q8draft cell stopped clean 01:47:51Z).",
+      "notes": "PROVENANCE WARNING 2026-10-26 (keeper-verified): tp4-single's final session report was confabulated (5/6 claims false vs disk). MEASURED by tp4-recovery before the spares-lane handover: lever 2 Q8_0-draft n=1 cell 120.37 \u00b1 1.92 t/s on the upstream d854d98bae tree (vs BF16-draft 102.95, plain 98.44 \u2014 reaches fork-lineage speeds); lever 5 KV q8_0 knob rejected (114.85 \u00b1 2.97, \u22125.3%); bisect leg 1 (a37cc4610..d854d98bae, 13 suspect commits) running with verdicts ~102 healthy so far; row 2 file-shape corrected (mtp/ = full draft models). The .30/.35 single-node lane is HANDED OVER to spares-lane: held at handover \u2014 .30 Sol-2B decision serve id sparkrun_e7ccf6a1af65d9b8_16dcacc6ab2b (ladder rerun needs --cases <vendored split>, see gguf-triage/RECEIPT.md); .35 empty (q8draft cell stopped clean 01:47:51Z).",
       "provenance": "owner 2026-10-26 directive; mad-science/DRAFTER-ALTERNATIVES-1026.md; ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -406,7 +406,7 @@
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Arm: recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml (TP=4; model tag empty — ornith is outside the priority tiers). Scope: (1) REPRODUCE FIRST — drive the ornith serve with the oh-my-pi agent harness (its tool-calling loop) against a tool-bearing workload; capture raw /v1/chat/completions request/response pairs (tools: schema, streaming deltas) for a failing case; the failure signature (missing tool_calls, malformed JSON, dropped arguments, wrong role fields, or raw markup like the Beam <|channel|> parser class) determines everything downstream. (2) Read the arm's parser config + ornith lane docs for prior tool-call findings BEFORE changing anything; check --tool-call-parser matches the checkpoint's template and whether the dflash2 speculative path interacts with tool-call parsing (Beam sha-guard/drafter precedent: drafter configs can change output shapes). (3) Fix or file: recipe-level flag (parser name, template staging) → fix recipe + boot-verify; engine defect → file upstream with captured pairs + record issue number; oh-my-pi client-side assumption → record the finding with the minimal repro. (4) Verify with the minimal scripted repro first, then a real oh-my-pi agent run; receipts ~/benchmarks/tp4-window4-20261026/ornith-toolcall/. Runs on the quartet lane after the adapter-trial verdict; h2h tier order still governs unless the owner reprioritizes.",
+      "notes": "Arm: recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml (TP=4; model tag empty \u2014 ornith is outside the priority tiers). Scope: (1) REPRODUCE FIRST \u2014 drive the ornith serve with the oh-my-pi agent harness (its tool-calling loop) against a tool-bearing workload; capture raw /v1/chat/completions request/response pairs (tools: schema, streaming deltas) for a failing case; the failure signature (missing tool_calls, malformed JSON, dropped arguments, wrong role fields, or raw markup like the Beam <|channel|> parser class) determines everything downstream. (2) Read the arm's parser config + ornith lane docs for prior tool-call findings BEFORE changing anything; check --tool-call-parser matches the checkpoint's template and whether the dflash2 speculative path interacts with tool-call parsing (Beam sha-guard/drafter precedent: drafter configs can change output shapes). (3) Fix or file: recipe-level flag (parser name, template staging) \u2192 fix recipe + boot-verify; engine defect \u2192 file upstream with captured pairs + record issue number; oh-my-pi client-side assumption \u2192 record the finding with the minimal repro. (4) Verify with the minimal scripted repro first, then a real oh-my-pi agent run; receipts ~/benchmarks/tp4-window4-20261026/ornith-toolcall/. Runs on the quartet lane after the adapter-trial verdict; h2h tier order still governs unless the owner reprioritizes.",
       "provenance": "owner 2026-10-26 directive; recipes/ornith/README.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -441,7 +441,7 @@
       "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "DONE 2026-10-26 (tp4-single): task pivoted mid-flight on a triage correction (the original premise conflated Qwen3.8-27B [dense, arch qwen35] with Qwen3.8-Flash-Next [arch qwen4exp, measured 111.3 GB at UD-Q4_K_XL — does not fit; deferred to a Q3-tier pass]; commit 624495d). EXECUTED: fetched unsloth/Qwen3.8-27B-GGUF UD-Q4_K_M to the pool (16,464,440,224 B, snapshot 4ca72078, arch qwen35 verified by range-read; no conversion needed — the artifact already exists) and TRIAL-BOOTED it on .35 on the current upstream engine d854d98bae: three 128-token greedy rows = 12.766/12.762/12.773 (mean 12.77 ± 0.01 t/s), TTFT 125-193 ms — ~10x slower than the 12B-A2.5B MoE's 121 t/s on the same engine/node; the triage row has its number. One boot-level failure fixed in place: the d854d98 build rejects --no-mmap (a37cc46-era spelling removal; --load-mode none substituted — consistent with the zz-mellum-mtp arm's comment). Receipt ~/benchmarks/tp4-single-20261026/gguf-triage/RECEIPT-qwen38-27b.md + qwen38-27b-trial.yaml; stopped by id, 0 containers. No recipe was added to the registry: at 12.8 t/s the dense-27B GGUF route is not a shipping candidate — the finding is the deliverable.",
+      "notes": "DONE 2026-10-26 (tp4-single): task pivoted mid-flight on a triage correction (the original premise conflated Qwen3.8-27B [dense, arch qwen35] with Qwen3.8-Flash-Next [arch qwen4exp, measured 111.3 GB at UD-Q4_K_XL \u2014 does not fit; deferred to a Q3-tier pass]; commit 624495d). EXECUTED: fetched unsloth/Qwen3.8-27B-GGUF UD-Q4_K_M to the pool (16,464,440,224 B, snapshot 4ca72078, arch qwen35 verified by range-read; no conversion needed \u2014 the artifact already exists) and TRIAL-BOOTED it on .35 on the current upstream engine d854d98bae: three 128-token greedy rows = 12.766/12.762/12.773 (mean 12.77 \u00b1 0.01 t/s), TTFT 125-193 ms \u2014 ~10x slower than the 12B-A2.5B MoE's 121 t/s on the same engine/node; the triage row has its number. One boot-level failure fixed in place: the d854d98 build rejects --no-mmap (a37cc46-era spelling removal; --load-mode none substituted \u2014 consistent with the zz-mellum-mtp arm's comment). Receipt ~/benchmarks/tp4-single-20261026/gguf-triage/RECEIPT-qwen38-27b.md + qwen38-27b-trial.yaml; stopped by id, 0 containers. No recipe was added to the registry: at 12.8 t/s the dense-27B GGUF route is not a shipping candidate \u2014 the finding is the deliverable.",
       "provenance": "mad-science/GGUF-VIABILITY-TRIAGE.md; ship-landed resume directive 2026-10-26",
       "claimed_by": "",
       "claimed_at": ""
@@ -455,7 +455,7 @@
       "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg.",
+      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 \u00b1 24.01) and FALLS at C5 (79.49 \u00b1 11.34) and C10 (73.37 \u00b1 8.44) \u2014 the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69\u2192116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder \u2014 does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg.",
       "provenance": "owner 2026-10-26 directive; mad-science/TP4-HEAD-TO-HEAD-1025.md ladder row; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -480,10 +480,10 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "PREREQUISITE before launch: sudo nvidia-smi -lgc 0,2200 on the target host (the sustained-load power-loss fix — every measured LTX cell was taken capped; recipes/media/DEMO.md row). Then boot recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml via the pool-era route (real HOME + --cluster WOPR -H rail-IP) and render the demo artifact; stop by literal task id.",
+      "notes": "PREREQUISITE before launch: sudo nvidia-smi -lgc 0,2200 on the target host (the sustained-load power-loss fix \u2014 every measured LTX cell was taken capped; recipes/media/DEMO.md row). Then boot recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml via the pool-era route (real HOME + --cluster WOPR -H rail-IP) and render the demo artifact; stop by literal task id. | DONE 2026-10-26 (spares-lane): -lgc 0,2200 applied on .35 (driver accepts; applications readback stays 2418 \u2014 receipt records the caveat), boot healthy, render seed 42 1344x768 121f @24fps success wall 128.36 s cold-first-generate (row classes 78.1 warm / 100.13 cold), peak 83.37 GiB, artifact ffprobe-verified h264 121 frames + AAC 5.04 s (sha 39f5f7af). Receipt ~/benchmarks/spares-20261026/ltx25-demo/RECEIPT.md; DEMO.md row landed.",
       "provenance": "spares-lane 2026-10-26 (unblocked by cache-prefill-20261026 PREFILL-DONE)",
       "claimed_by": "",
       "claimed_at": ""
