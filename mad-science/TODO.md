@@ -904,6 +904,7 @@ together:
 10. **Peer collision scope: none.** `sparkrun-recipe--1368729` is doing plugin verification + this survey only; it edited nothing outside `.scratch/SURVEY.md` and commits nothing else. No path fencing needed beyond that file.
 11. **Spares policy: worker discretion** — new single-node research rows need no per-row owner sign-off.
 12. **Bridge coverage: generalize to BOTH glm TensorFold launchers AND author a vLLM-OMNI media equivalent.**
+13. **Pool deletion policy (owner directive 2026-10-26, verbatim intent): models must not be deleted from the pool while any shipped or exploration/test recipe requires them; a model may only be deleted if all references for it live in the attic — fully dereferenced by dev, test, and prod.** Recorded in `AGENTS.md` §Node hygiene (HF-cache pruning paragraph): no reference may remain in `recipes/`, `tests/`, `benchmarking/`, `mods/`, `tools/`, or `plugins/`; references confined to `attic/` do NOT protect a model; the `git grep` reference-scan and per-host allowlist rebuild stand; the mechanics (`hf cache rm model/<org>/<name>`, never `rm -rf` a `models--*` dir) are unchanged.
 
 
 

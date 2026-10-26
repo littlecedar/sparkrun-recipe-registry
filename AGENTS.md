@@ -255,7 +255,11 @@ remove what the session created** — a leftover is anything undocumented, unkno
   consumed by a shipped recipe or a shipped mod (draft models live in `speculative_draft_model:` and in
   `command:`, not only in `model:`).
 - The HF cache is pruned with `hf cache rm model/<org>/<name>` — never `rm -rf` a `models--*` directory,
-  which orphans blobs — and only for repos no shipped recipe or mod references.
+  which orphans blobs. **Deletion rule (owner directive 2026-10-26): a model may be deleted only when every
+  reference to it lives in `attic/` — fully dereferenced by dev, test, and prod.** Concretely, no reference may
+  remain in `recipes/` (shipped), `tests/`, `benchmarking/`, `mods/`, `tools/`, or `plugins/`; references confined
+  to `attic/` do NOT protect a model. The reference-scan rule stands: `git grep` against the current tree, and
+  rebuild the per-host allowlist on every host that prunes — never carry one host's list to another.
 - **Traps, all hit on 2026-10-14:** a listing-derived path is relative, so `rm <name>` against the wrong
   `cwd` deletes nothing and still prints success — build absolute paths, capture stderr, and re-count
   (`13 → 1`, not "looks clean"); cache internals are frequently **root-owned** (the containers wrote
