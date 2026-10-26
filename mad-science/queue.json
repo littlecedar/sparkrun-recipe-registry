@@ -311,13 +311,13 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "Both arms: GLM-5.3-Flash 4bpw and GLM-5.3 753B 3bpw — needle cells absent from every receipt. WRAPPER-TIMEOUT LESSON (window-4 precedent): the 131k/983k prefill legs exceed a 2400 s wrapper cap (rc=124 is the wrapper's cap, not a serve hang) — run with the adequate timeout (7200 s class), never 2400.",
+      "notes": "RUNNING 2026-10-26: leg 1 (3bpw) rungs died to a FOREIGN global stop at 02:11Z (the glm-tools-auto.sh stop --all — banned pattern, script fixed) — rc=1s were that kill, not misses. Leg 2 (flash) first attempt FAILED with a distinct launcher error: rank-0 'tensorfold: CUDA startup memory geometry could not be established on every rank: ValueError: startup memory estimate needs the checkpoint tensor headers' (serve log stagnant; host memory clean — MemAvailable ~123 GB on all four ranks, 0 containers after teardown; this is NOT the 54-min slow-load class, which is real but separate). One retry launched with literal-id stops, rungs @timeout 7200; the 3bpw leg reruns behind it. If the retry repeats the ValueError, the standing wedge rule applies: one warm reboot of the implicated rank (.31), no iteration.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "tp4-recovery",
+      "claimed_at": "2026-10-26T02:42:24Z"
     },
     {
       "id": "h2h-glm-tools-leg",
