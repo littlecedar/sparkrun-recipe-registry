@@ -699,6 +699,16 @@ corrected to this state.
 The pin is the other half of the receipt: an arm booted today silently runs a *different* SGLang
 build than the 2026-10-13/14 receipts did, which is what the digest pin now freezes.
 
+### 2026-10-26 spares-lane receipt note (arms 6 / 6-control)
+
+The 15.7G arm's C2/C5/C10 cells, its paired MTP-off control, and the 13G tier's second ladder are
+landed in `recipes/cybersec/README.md` (receipts `~/benchmarks/spares-20261026/orcacyber-{157-ladder,157-mtpoff,ladder}/`).
+Two durable notes for future cells: (1) a re-run of `sparkrun benchmark performance` against the
+same recipe+host re-serves recorded results instead of re-benchmarking — a variance boot needs a
+different host set or a forced fresh run; (2) the MTP-off control route is the `-o spec_type=none`
+override on the tracked recipe (`spec_type` is an overridable `defaults:` key), no variant file
+needed.
+
 ### Links (as referenced by the material above)
 
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4

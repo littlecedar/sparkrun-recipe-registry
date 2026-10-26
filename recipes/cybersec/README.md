@@ -361,12 +361,26 @@ files.
   `is_context_prefill_phase: false` (`bench_2e3d1141622c`; per-run 28.50 / 25.77 / 25.10 / 21.63 /
   27.10). **C2/C5/C10 are unmeasured** — one cell was this boot's budget, so the index row leaves
   them `—`.
+- **C2/C5/C10 filled + the MTP-off control landed (2026-10-26, spares-lane).** Ladder (`.35`, harness
+  run, 5 runs, `~/benchmarks/spares-20261026/orcacyber-157-ladder/RECEIPT.md`): **C1 25.4 ± 3.5 · C2
+  40.1 ± 1.7 · C5 36.2 ± 3.4 · C10 32.9 ± 1.0 t/s** — C1 reproduces the recorded 25.62 within noise;
+  peak at C2, queues past it (the 13G shape); C5 carries one low outlier run (30.6). The named
+  missing half above is landed: a paired **MTP-off control** boot (`-o spec_type=none`, `.30`,
+  `~/benchmarks/spares-20261026/orcacyber-157-mtpoff/RECEIPT.md`) decodes **13.05 ± 0.04 t/s** with
+  zero draft lines in the serve log — the in-file head is worth **+96 %** (1.96×) over plain, so the
+  MTP-on band (25-40 t/s) is 1.9-3.1× the measured plain rate and the attribution is paired, not
+  counter-based. Caveat kept: the pair is cross-node/cross-window (`.35` MTP-on vs `.30` control),
+  gap ~8× the noise floor; a same-boot paired re-run would only tighten it. A variance re-boot
+  attempt (`b2/`) re-emitted the first run's recorded results instead of re-benchmarking (~3 s wall,
+  same recipe+host task id) — **a `sparkrun benchmark performance` re-run against the same
+  recipe+host re-serves recorded results; a genuine variance boot needs a different host set or a
+  forced fresh run. Do not quote `b2/` as independent variance.**
 - **Why it beats the 17 t/s roofline, and why that is not free throughput.** 27.32B dense at 4.60 bpw
   streams ~15.7 GB per step, which at GB10's ~273 GB/s caps plain decode near 17 t/s. The log's own
   speculative counters read `draft acceptance 0.40–0.86 (mean len 2.19–3.57)` across the five cells,
   i.e. each weight read emits 2.2–3.6 tokens, and per-request decode lands at 21.6–28.5 t/s. That
-  attribution comes from the engine's counters, **not from a paired MTP-off control** — an
-  `-o spec_type=none` boot is the missing half of this measurement.
+  attribution now has its paired MTP-off control — plain decode **13.05 ± 0.04 t/s** (`-o spec_type=none`,
+  sibling bullet above), so the MTP-on band reads 1.9-3.1× the measured plain rate.
 - **The 13G tier is the control, never the default.** `:Mix-13G` is 12,993,304,352 B (12.10 GiB) at
   **3.80 bpw** (IQ4_XS 199 · Q6_K 96 · IQ3_S 122 · IQ3_XXS 39 · IQ2_S 24 · Q5_K 17 · Q4_K 8): ~2.5 GB
   smaller and faster per token, but it puts IQ2_S/IQ3_XXS on 63 tensors, which is a visible quality
@@ -403,6 +417,12 @@ default except the `model:` tier suffix and the `model_dtype` estimator key is i
   pair is indicative only). First boot attempt died pre-load on the post-migration cache gap (repo
   not in the BeeGFS pool, image has no TLS for `-hf`); fixed by staging the tier + mmproj into the
   pool at the pinned revision (`~/benchmarks/tp2-queue-20261024/ORCACYBER-13G-LADDER.md`).
+- **Second ladder (2026-10-26, spares-lane, `.30`, pool-era route):** C1 24.9 ± 5.8 (one 15.1 outlier
+  in five runs) · C2 33.6 ± 1.7 · C5 30.7 ± 1.1 · C10 30.1 ± 0.5 t/s
+  (`~/benchmarks/spares-20261026/orcacyber-ladder/RECEIPT.md`) — C2-C10 land 12-27 % under the
+  2026-10-24 `.35` warm-boot row, at or beyond the inter-boot floor, and the C1 spread is wide; it
+  is a cross-node reproduction-with-spread, not a same-window pair, and no tier verdict changes.
+  Shape matches: flat past C2.
 - **Quality / refusal / vision cells (2026-10-24, same boot).** House battery thinking-on **37/37**
   (easy 57/57 + hard 54/54 over 3 repeats, stable 19/19 + 18/18); thinking-off holds easy at 19/19
   and drops hard to 42/54 (stable 14/18) — the same drop the 15.7G arm shows, so it is
