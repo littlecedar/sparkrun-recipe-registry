@@ -1,23 +1,25 @@
-# Board — generated 2026-10-26 20:21 ET
+# Board — generated 2026-10-26 01:59 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **20:21 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — nothing live (no reservation); `.31`–`.34` — `sparkrun_c989632ede4f538e_06d0703ef003` up ~1 h (adoption serve idle after TRIAL-DONE, GPUs 0 %); `.35` — nothing live (no reservation) — spares idle + no successor claimed on the idle quartet = **dead-time signature**, reported in the 20:21 cycle |
-| adoption boot (idle) | tp4-recovery | ship landed `0326719` (canary-roce-aff52fa5 is production); boot `c989632ede4f538e_06d0703ef003` still up with all cells complete and **no successor task claimed** — holder should stop it by task id or hand the quartet to the next claimant (flag-track rows re-based on the shipped overlay are the natural next work) |
-| tp4-single media/GGUF work | tp4-single | solo boots ended this hour: `.30` Kokoro demo boot and the `.35` Mellum-upstream boot are both down after their cells (media DEMO receipts `e32114c`, Mellum retest negative `edfb2ea`, GGUF/drafter docs `0212cb4`) |
+| census | board-keeper | **01:59 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — nothing live (no reservation) (a 96 % GPU reading at the instant is the known teardown-sampling artifact; no compute app registered); `.31`–`.34` — `sparkrun_7d9a3a61b33a29e4_c7091cac7b11` up ~3 h, **all four GPUs 96 %** (GLM 3bpw needle rerun, 983k rung in flight under its 7200 s cap); `.35` — nothing live (no reservation) — spares-lane between cells: spares escalation fired (both spares empty while window work runs), re-queue work available |
+| glm-needle-3rungs rerun | tp4-recovery | queue `h2h-glm-needle-3rungs` (**running**): GLM 3bpw arm, rungs 32k **PASS** (rc=0, 04:29Z) and 131k **PASS** (rc=0, 05:31Z, ~62 min), 983k in flight (~30 min at last check); Flash arm's rungs chained next on the refetched 175.7 GB body (owner ruling: BOTH arms in the h2h doc) |
+| spares-lane close-out | spares-lane | media demo suite **closed — all five arms** landed (Kokoro RTF 0.64, humanizer, drama-3, Qwen-Image demo `22a6328`, LTX-2.5 T2V `ffa5518`); embed ladder measured (`qwen3vl-embed-ladder` RECEIPT, bench v3); Mellum levers 2/5 measured-closed, zz- probe re-pinned to the Q8_0 MTP head (`f532980`); both spares went idle after their cells — next single-node work is the re-queued window-2 rows |
+| adapter re-port | tp4-recovery | **STARTED** per owner ruling (survey #4): `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py` has uncommitted edits in flight (20 h estimate, re-port + gate update) |
+| window-2/3 re-queue holder | tp4-recovery | survey #5 re-queued `h3-quartet-retry`, `chunk-32768-overlay-reprobe`, `main-image-boot-gate` (`1643410`); Beam staging stays parked |
 
 ## Work queue
 
-Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 29 tasks, at 20:21). Ship landed: `ds4-upstream-adapter-trial` **done** (`f2e743c`, ship commit `0326719`); `w4-b12x-parity`, `dsv41-vllm-ship-recipe`, `b12x-vllm-tuning-round` withdrawn (`f75ae31`); `mellum-mtp-zz-probe`, `w4-s0-control`, Beam cells remainder, `h2h-ds4-needle-131k-983k-rerun` **done** (`5284211`). Flag track (candidate 6, S1, S2, S3) still carries `blocked` state in the ledger post-ship — mirrored below. Running/queued now: `ds4-knapcio-byte-reproducible` claims **running** on a single node but `.30`/`.35` are both empty — wedge-shaped-lie flagged; `ds4-adapter-report-gate` (the 20 h re-port, queued); build-gated arms 3/5 (queued, w 3.00); new h2h tiers (glm tools/needle/house/doc-refresh queued):
+Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 01:59). Owner survey folded (`d2adf8f`): window-2 rows re-queued (h3-quartet-retry, `chunk-32768-overlay-reprobe`, `main-image-boot-gate`; Beam staging stays parked), byte-repro narrowed to `ds4-repro-config-created` (image-ID repro dropped — content comparison is the path), bridge generalization sequenced, spares policy = worker discretion. Running: `h2h-glm-needle-3rungs` (boot above). Scheduler top-3 (all queued, tier dsv4.1-1017): candidate 6, S1 cache-report, S2 lpm (each w 1.50):
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. `ds4-knapcio-byte-reproducible` — deterministic knapcio build (bytecode off, `SOURCE_DATE_EPOCH`) | single | tp4-recovery (claimed) | ledger says **running** but no container exists on `.30`/`.35` — flagged |
-| 2. w4-candidate6-reasoning-effort | quartet | tp4-recovery | blocked (ledger state post-ship — verify the blocker flipped) |
-| 3. w4-s1-cache-report | quartet | tp4-recovery | blocked (same) |
-*(Later rows: S2 lpm, S3 min-free-slots-delay (blocked, w 1.50); build-gated survey arms 3/5 (queued, w 3.00); h2h tiers — `h2h-glm-tools-leg` (w 1.50), `h2h-glm-needle-3rungs` (w 2.50), `h2h-glm-flash-house-recipe` (w 1.50), `h2h-doc-refresh` (w 0.50); `ds4-adapter-report-gate` (the 20 h re-port, w 14.00-class, queued); `ornith-toolcall-ohmympi-triage` (owner-directed, `43ef022`). Done in the ledger: adapter trial, mellum probe, S0, Beam remainder, needle rerun; withdrawn: b12x parity/ship-recipe/tuning-round.)*
+| 1. w4-candidate6-reasoning-effort — `reasoning_effort` high on the main-image base | quartet | tp4-recovery | queued (w 1.50, scheduler top) |
+| 2. w4-s1-cache-report — prefix-cache truth (`--enable-cache-report`) | quartet | tp4-recovery | queued (w 1.50) |
+| 3. w4-s2-lpm — lpm alongside `--enable-cache-report` | quartet | tp4-recovery | queued (w 1.50) |
+*(Later rows: S3 min-free-slots-delay (queued, w 1.50); `chunk-32768-overlay-reprobe` (w 2.00) and `ds4-repro-config-created` (w 2.00); build-gated survey arms 3/5 (w 3.00); `ds4-adapter-report-gate` (the 20 h re-port, **started**, w 14.00-class); **running**: `h2h-glm-needle-3rungs` (w 2.50, boot above); `h2h-glm-flash-house-recipe` (w 1.50), `glm-flash-concurrency-degradation-search` (w 5.00), `h2h-doc-refresh` (w 0.50), `main-image-boot-gate` (w 1.50), `ornith-toolcall-ohmympi-triage` (w 3.00). Done in the ledger: adapter trial, byte-reproducible, mellum probe + speedup levers, S0, Beam remainder, ds4 needle rerun; withdrawn: b12x parity/ship-recipe/tuning-round.)*
 
 ## Landed this session
 
@@ -47,3 +49,17 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok**, 29 tas
 | ~20:17 ET | `5284211` | Queue: needle-131k/983k rerun done — adoption boot 32k/131k 10/10 on the shipped overlay; 983k appends when its wrapper lands |
 | ~20:18 ET | `e4b6128` | Adoption records: C1 edge caveat (64.08 clears ≥ 64.0 by +0.08, no headroom claimed), C10 152.24 |
 | ~20:18 ET | `f2e743c` | Queue: adapter trial done — adoption shipped `0326719`; flag track unblocked on the aff52fa5 overlay |
+| ~22:56 ET | `2fc54a7` | Records corrected: GLM-Flash 'TEB 14/15' WITHDRAWN as contaminated (it scored the lingering 3bpw serve); root cause = Flash checkpoint pin `078455ff` is a config-only stub fleet-wide (deterministic launcher ValueError, not a memory wedge); 175.7 GB body refetch flown |
+| ~23:07 ET | `f656e8d` | Mellum Q8_0 draft-head discrepancy resolved with a same-window pair |
+| ~23:21 ET | `0a3b4b6` | Queue: needle redo boot live on the refetched body (cause closed with per-node du evidence); 3bpw rerun chained |
+| ~00:23 ET | `de99b52` | GLM 3bpw launcher: metrics bridge (live monitor scrape for TensorFold arms) |
+| ~00:23 ET | `49714f2` | Qwen-Image launcher bound to the pinned snapshot dir offline (`resolve_snapshot()`) |
+| ~00:23 ET | `0211825` | Queue: needle row correction — live cells are the 3bpw arm; flash arm chained next |
+| ~00:32 ET | `22a6328` | Qwen-Image demo row landed; LTX-2.5 spare cell queued |
+| ~01:03 ET | `21e5ec6` | TODO Runtimes: keep-alive dead-boot detection gap recorded as a lane observation |
+| ~01:04 ET | `7c42590` | Metrics bridge: survive the pre-ready window; never print an unread number |
+| ~01:09 ET | `ffa5518` | Last blocked media demo row closed: LTX-2.5 T2V landed on `.35` |
+| ~01:24 ET | `1643410` | Queue: survey answers applied — h3-quartet-retry / chunk-32768-overlay-reprobe / main-image-boot-gate re-queued; byte-repro annotated (content comparison is the path); bridge generalization sequenced |
+| ~01:26 ET | `f532980` | Mellum zz- probe re-pinned to the Q8_0 MTP head, sweep recorded |
+| ~01:26 ET | `d2adf8f` | Survey answers folded into TODO dated advisories (12 rows) |
+| ~01:29 ET | `007a141` | Literal-sha guard exempts the `-md` draft-head sha (gate green again) |
