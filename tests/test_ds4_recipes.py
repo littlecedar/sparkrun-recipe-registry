@@ -1079,6 +1079,25 @@ class SglangLaneContract(unittest.TestCase):
             "--fp8-gemm-backend flashinfer_cutlass",
         )
 
+    def test_enable_cache_report_is_shipped(self):
+        # Owner ruling 2026-10-26 (window-4 S1): the radix cache reuses identical
+        # prefixes but `cached_tokens` is unreported without --enable-cache-report,
+        # so the shipped serve line reports the truth. The flag is VALUELESS (boot.py
+        # splits EXTRA_SGLANG_ARGS on whitespace), so it travels through the bool
+        # flag table, not the [flag, value] pairs.
+        self.assertIn("--enable-cache-report", self.r.command_template)
+        launcher_source = (SGLANG_MOD_DIR / "launcher.py").read_text()
+        self.assertIn('add_argument("--enable-cache-report"', launcher_source)
+        self.assertIn('env["ENABLE_CACHE_REPORT"] = "1"', launcher_source)
+        launcher = _launcher_module()
+        self.assertIn(("ENABLE_CACHE_REPORT", "--enable-cache-report"),
+                      launcher.SGLANG_EXTRA_BOOL_FLAGS)
+        self.assertEqual(
+            launcher.extra_sglang_args({"ENABLE_CACHE_REPORT": "1"}),
+            "--enable-cache-report",
+        )
+        self.assertEqual(launcher.extra_sglang_args({"ENABLE_CACHE_REPORT": "0"}), "")
+
     def test_nccl_buffsize_is_not_context_length(self):
         # NCCL_BUFFSIZE is a NCCL *connection buffer* size (pinned memory per
         # connection), unrelated to the token context length; it is a fixed byte

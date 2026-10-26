@@ -435,7 +435,16 @@ SGLANG_EXTRA_FLAGS = (
     # carries whatever the launch supplied.
     ("FP8_GEMM_BACKEND", "--fp8-gemm-backend"),
 )
+
+# Valueless serve flags: the env key ENABLES the bare flag (no argument follows).
+# --enable-cache-report ships since 2026-10-26 (owner ruling): the radix cache
+# reuses identical prefixes but the usage field `cached_tokens` is unreported
+# without the flag (window-4 S1 evidence), so production serves reportable truth.
+SGLANG_EXTRA_BOOL_FLAGS = (
+    ("ENABLE_CACHE_REPORT", "--enable-cache-report"),
+)
 # A value in this set disables its flag (the engine's own default applies).
+
 _DISABLED_VALUES = frozenset({"", "0", "off", "none", "false", "no"})
 
 
@@ -452,6 +461,10 @@ def extra_sglang_args(env: dict[str, str]) -> str:
         value = env.get(key, "").strip()
         if value.lower() not in _DISABLED_VALUES:
             flags += [flag, value]
+    for key, flag in SGLANG_EXTRA_BOOL_FLAGS:
+        # A bare flag: present when its env key is set to anything enabled.
+        if env.get(key, "").strip().lower() not in _DISABLED_VALUES:
+            flags.append(flag)
     extra = env.get("EXTRA_SGLANG_ARGS", "").strip()
     if extra:
         flags.append(extra)
@@ -764,6 +777,11 @@ def main(argv: list[str]) -> int:
                              "(MAPPED to FP8_GEMM_BACKEND). boot.py re-stamps the last "
                              "--fp8-gemm-backend itself, so this declares the value "
                              "instead of racing it")
+    parser.add_argument("--enable-cache-report", action="store_true",
+                        help="append the bare --enable-cache-report to "
+                             "boot.py's EXTRA_SGLANG_ARGS (shipped default; "
+                             "S1 window-4 finding: the radix cache reuses, "
+                             "the flag only makes cached_tokens reportable)")
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--model", default=None,
@@ -825,6 +843,12 @@ def main(argv: list[str]) -> int:
     # launcher default either -- the recipe is the single declaration.
     if args.fp8_gemm_backend:
         env["FP8_GEMM_BACKEND"] = args.fp8_gemm_backend
+
+    # Shipped by the recipe's command (the single declaration, like the backend);
+    # a launch can still disable via -o env.ENABLE_CACHE_REPORT=0 only when the
+    # recipe omits the arg — with the arg present the recipe wins.
+    if args.enable_cache_report:
+        env["ENABLE_CACHE_REPORT"] = "1"
 
     # Assemble boot.py's EXTRA_SGLANG_ARGS once every source has been applied
     # (RECIPE_ENV defaults, then a launch's `-o env.KEY=` override on top).
