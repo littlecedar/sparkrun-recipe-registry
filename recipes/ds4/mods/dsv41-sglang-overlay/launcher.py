@@ -390,6 +390,19 @@ def apply_recipe_env(env: dict[str, str]) -> None:
     never include the recipe-owned MODEL_PATH / DSV41_SOURCE / TP_SIZE. The
     AB_ENV exceptions are documented at the set.
     """
+    if env.get("DSV41_C3_EXCLUDES") == "1":
+        # c3 candidate tree (103ad321) rewired the branch internals these adapters
+        # pin: hc_fused's stock sinkhorn kernel arithmetic changed, the wo_a W8
+        # family wraps wo_a_bf16 kernels the tree replaced with jit wo_a.py, and
+        # prefill_sp wraps _hc_combine/_hc_mix_stats (gone in the mhc.HcState
+        # flow), and indexer_chunked_v3 wraps _low_ratio_index_topk_dense (the
+        # candidate restructured the dense indexer and builds budget chunking in
+        # natively). They refuse to install on drift and dead-end the tp-pad
+        # chain, so the c3 recipe opts into excluding them here.
+        for key in ("DSV41_HC_FUSED", "DSV41_WO_A_W8", "DSV41_WO_A_W8_MID",
+                    "DSV41_WO_A_W8_DROP", "DSV41_PREFILL_SP", "DSV41_PREFILL_SP_FP8",
+                    "DSV41_INDEXER_CHUNKED"):
+            RECIPE_ENV[key] = "0"
     for key, value in RECIPE_ENV.items():
         if key in AB_ENV:
             env.setdefault(key, value)
