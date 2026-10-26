@@ -1,12 +1,12 @@
-# Board — generated 2026-10-26 19:56 ET
+# Board — generated 2026-10-26 20:19 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **19:56 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — `sparkrun_2b9d589b15c3af46_915e0f0f8c03_solo` up ~8 min (Kokoro TTS serve on :8880, answers 200); `.31`–`.34` — `sparkrun_c989632ede4f538e_06d0703ef003` up ~32 min, **health: unhealthy** on all four ranks, GPUs 96/20/36/48 % (adapter-trial boot); `.35` — `sparkrun_c8829c3570d86002_da403d67d242_solo` up ~1 min (GPU 1 %, just starting) — both spares occupied, no idle-window trigger |
-| adapter-trial boot (unhealthy) | tp4-recovery | queue `ds4-upstream-adapter-trial` (**running**, scheduler top): canary-roce-aff52fa5 quartet boot + trial ladder and `llama-benchy` cells against `:8000`; **all four containers report `health: unhealthy` at 32 min** while GPUs are active — flagged for the holder to adjudicate |
-| tp4-single media/GGUF work | tp4-single | `.30` Kokoro TTS solo boot (answer /v1/models 200, `tts-1`/`kokoro` models) and `.35` solo boot starting; Mellum MTP retest landed negative per `edfb2ea` (rejection stands, arm stays `zz-`) |
+| census | board-keeper | **20:19 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` per node + `nvidia-smi`)**: `.30` — nothing live (no reservation); `.31`–`.34` — `sparkrun_c989632ede4f538e_06d0703ef003` up ~1 h, health: unhealthy (serve answers 200 — see the trial row), GPUs 0 % (cells complete, serve idle); `.35` — nothing live (no reservation) — **spare-node escalation fired in the 20:19 cycle report: both spares emptied while the adapter-trial ship is still pending** |
+| adapter-trial boot | tp4-recovery | queue `ds4-upstream-adapter-trial` (**running**, scheduler top; owner deadline: knapcio 1017 adoption shipped by 22:00 ET, hard midnight): cells **COMPLETE — TRIAL-DONE 20:07 ET**: trial ladder rc=0 (C1 tg 64.08 ≥ 64.0 bar; C10 tg 152.24 ≥ 110.5; C1 pp 3891 t/s), house 36/37 (easy 19/19, hard 17/18), needles 3/3 PASS (32768/131072/983040); docker healthcheck still `unhealthy` while rank-0 `/v1/models` answers 200 — serving-with-red-healthcheck, not a dead rank; awaiting the holder's ship commit (none on main as of 20:19) |
+| tp4-single media/GGUF work | tp4-single | solo boots ended this hour: `.30` Kokoro demo boot and the `.35` Mellum-upstream boot are both down after their cells (media DEMO receipts `e32114c`, Mellum retest negative `edfb2ea`, GGUF/drafter docs `0212cb4`) |
 
 ## Work queue
 
