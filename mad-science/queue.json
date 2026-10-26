@@ -179,13 +179,13 @@
         "w4-candidate6-reasoning-effort"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "ADOPTION PATH, not a probe (owner round-4 §1): re-pin 27616bec→aff52fa5 (knapcio upstream HEAD, carries SGLang #41303 bounded-replay SWA-safety backport); after boot-verifying the shipped bars the new overlay becomes the PRODUCTION line. Flag track (S1/S2/S3/candidate 6) re-bases on this overlay — each flag runs as an -o override with a same-window no-flag A/B. Hazard evidence target: upstream issue #16 documents Xid 13/43 CUDA faults under large prefix-cache hits (200k-966k) on the quarantined v2.4 lineage — any such crash on knapcio-line cells is recorded as the documented defect, not re-derived. WORKING: clone @ aff52fa5 + re-derived health-port patch + same f80c91a4b canary tree; upstream's own ~40-test in-image gate should pass on their HEAD (v2.5 repaired the adapter-drift class, 57a98886); boot-verify = shipped-bar ladder C1/C10 + house + needle on the quartet.",
+      "notes": "ADOPTED + SHIPPED 2026-10-26 (~20:20 ET, commit 0326719): production overlay = canary-roce-aff52fa5 (sha256:3f4480818acb…, gate green). Verdict on the landed set: C1 64.08 agg / C10 152.24 agg / house 36/37 / needles 32k+131k 10/10 — all bars clear on the first boot; 983k rung in flight at ship, not a gate (watcher armed; verdict will be appended to the receipt). Healthcheck lesson recorded: first build 21d1bf34 shipped unpatched boot.py (apply forgotten after --check); corrected image distributed to all four ranks. Flag track (S1/S2/S3, candidate 6) now unblocked on the new overlay.",
       "provenance": "knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (fetch-sglang-canary.sh, docs/issue-16-swa-crash.md, CHANGELOG.md v2.5); mad-science/DEEPSEEK.md §19 (upstream knapcio adapter update, 2026-10-26); mad-science/TODO.md §Retry queue — window 4",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-25T22:38:56Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "mellum-mtp-zz-probe",
