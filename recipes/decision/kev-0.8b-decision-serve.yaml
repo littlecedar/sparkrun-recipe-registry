@@ -25,15 +25,20 @@ metadata:
   model_dtype: bf16
   tags: decision, smol, cpu, classifier
 
-# No /health route: sparkrun's startup probe requires a 200 and cannot be
-# redirected, so this recipe never reaches ready. Serve the image by hand.
+# /health is provided by the uvicorn-run wrapper in `command:` (kev.serve's pinned code has no
+# health route; the wrapper adds one before uvicorn binds), so sparkrun's startup probe now
+# reaches ready instead of the documented never-ready state.
 readiness:
   inference: false
   port_timeout_s: 1800
   health_timeout_s: 1800
 
 defaults:
-  port: 8008
+  # NOT 8008: beegfs-mgmtd listens on 8008 on the head node (.30, the cluster's mgmtd duty) and
+  # the container runs host-networked, so a 8008 bind dies there with `[Errno 98] address already
+  # in use` AFTER the model loads — hit twice 2026-10-26 (task sparkrun_a66bbd2049b3d70e_*, receipt
+  # ~/benchmarks/tp4-single-20261026/media-demo/serve-kev-dead.log). 8021 is free across the fleet.
+  port: 8021
   host: 0.0.0.0
   # Empty on purpose: kev.serve's argparse exits on an unknown --served-model-name, which sparkrun appends for any non-empty value. Referenced below so the key is not inert.
   served_model_name: ""
@@ -53,7 +58,7 @@ command: >
   && chmod 755 /usr/local/bin/kill
   && pip install --no-cache-dir --quiet 'torch==2.8.0'
   && pip install --no-cache-dir --quiet 'kev[serve] @ https://github.com/jaredpalmer/kev/archive/{kev_code_revision}.tar.gz'
-  && HF_HUB_OFFLINE=0 taskset -c 0-4,10-14 python -m kev.serve
+  && HF_HUB_OFFLINE=0 taskset -c 0-4,10-14 python -c "import sys, uvicorn; _r = uvicorn.run; uvicorn.run = lambda app, *a, **k: (app.get('/health')(lambda: {'status': 'ok'}), _r(app, *a, **k))[1]; from kev.serve import main; main()"
   --run {model}
   --host {host}
   --port {port}
