@@ -71,14 +71,18 @@ defaults:
   # ranks). An absolute writable path satisfies both.
   input_save_path: /tmp/h3-inputs
   output_path: /tmp/h3-outputs
-
 readiness:
   inference: false
   port_timeout_s: 3000
   health_timeout_s: 2400
 
+# `--host` is load-bearing: sglang-diffusion binds 127.0.0.1 by default, so a
+# four-rank boot without it serves healthy on loopback only (2026-10-26: every
+# outside probe 000 while in-container /liveness read 200 — the window-3
+# "silent freeze" census confound). TP=4 probing must drive requests from outside.
 command: >
   sglang serve
+  --host {host}
   --model-path {model}
   --revision {model_revision}
   --model-variant {model_variant}
