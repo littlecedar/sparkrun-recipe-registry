@@ -596,6 +596,16 @@ gate), same silent freeze — the wedge is the engine's first cross-node pure-Ul
 `h3-retry-launch.log`). The single-node proof on `.35` (window 2) is unaffected: the freeze needs
 the cross-node exchange.
 
+**Census confound (window 4, 2026-10-26):** the retry arm's serve binds **127.0.0.1 by default**
+(`--host` unset → loopback), so in-container `/liveness` reads 200 while every outside probe —
+including the fleet census's endpoint check — reads 000. Window-4's arm-1 relaunch hit exactly
+this ("GPUs 0 % / health never binds" partially read as unbindable): the serve was up and
+liveness-green inside the container while the outside world saw nothing. The window-3 freeze
+finding stands (0 % GPU with warmup frozen past 40 min is a wedged engine, not a bind artifact),
+but any future census of this arm must probe the bind first or pass `--host {host}` explicitly
+(fix landed on the retry recipe, commit `640f937`). Evidence: arm-1 loopback serve logs
+`head:~/benchmarks/tp4-window4-20261026/h3-arm1-loopback-node{0..3}-serve.log`.
+
 ## [humanizer-12b-q6k-llamacpp](humanizer-12b-q6k-llamacpp.yaml)
 
 llama.cpp · **1 node (TP=1)** · **kept 2026-10-22** — the lane's text-rewriting arm.
