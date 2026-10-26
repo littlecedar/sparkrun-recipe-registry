@@ -32,8 +32,8 @@ elsewhere, per-run stds 6–16 t/s).
 | arm | house battery | needle | tools leg | receipts |
 |---|---|---|---|---|
 | DSv4.1-Flash-1017 knapcio TP=4 | **36/37** @4096 (easy 19/19, hard 17/18; miss `hard-rev`) | **3/3** @ 32,768 / 131,072 / 983,040 (top rung 981,950 prompt tokens) | **TEB 90** (tool-eval-bench, 15 scenarios: 13 pass, 1 partial, 1 fail `TC-03 wrong_args`) | `~/benchmarks/tp4-20261018/` (`REPO…` full-suite receipt, SESSION-RECORD.md §2026-10-18) |
-| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37** — the 2026-10-13 trial's, not through the recipe path (still unproven through it) | not measured | not measured | `~/benchmarks/glm53-flash-exl3-tp4-trial-20261013/`; `recipes/glm/README.md` ("Still unproven on this arm") |
-| GLM-5.3 EXL3 3bpw TP=4 | **37/37** @4096 thinking-on through the recipe path (easy 19/19, hard 18/18, 124.7 s) | not measured | not measured | window 3: `~/benchmarks/tp4-window3-20261024/suite-glm/` |
+| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37** — the 2026-10-13 trial's, not through the recipe path (still unproven through it) | not measured | **TEB 100** (15 scenarios: 14 pass, 1 fail `TC-15 connection_error`) — window 4 through the recipe path (`~/benchmarks/tp4-window4-20261026/benchmark_glm-5.3-flash-exl3…tp4.{json,csv}`; boot→ready ~54 min — slow load, not a hang) |
+| GLM-5.3 EXL3 3bpw TP=4 (753B) | **37/37** @4096 thinking-on through the recipe path (easy 19/19, hard 18/18, 124.7 s) | not measured | **TEB 100 — 15/15 pass, 0 partial, 0 fail** — window 4 (`benchmark_glm-5.3-exl3-3bpw…tp4.{json,csv}`) | house: window 3 `~/benchmarks/tp4-window3-20261024/suite-glm/`; tools: window 4 `~/benchmarks/tp4-window4-20261026/` |
 | Beam-1.0-501B NVFP4 TP=4 | not measured through the recipe path (the pre-registered (b) cell became the needle rerun; window-3 boot-gate smoke 17×23=391 correct) | **20/20 PASS** @512 with `--needle-max-tokens 512` at 32,768 and 131,072, all depths (the window-3 0/3 shape was budget truncation — finish=length, the documented false-capability class) | **BFCL tools leg ran direct** (eval-suite wrapper stalls 52 min — instrument finding): per-case PASS/FAIL lines give **475 PASS / 40 FAIL** (`beam-b1-bfcl2.log`) and **182 PASS / 25 FAIL** (`beam-b1-bfcl3.log`) = **657/722 (91.0 %)** across the two populated logs; the harness's own category summary is absent from the logs, so the per-category split is open | `~/benchmarks/tp4-window4-20261026/beam-b1-needle-*-512.json`, `beam-b1-bfcl{2,3}.log`; queue `w4-beam-cells-remainder` notes |
 
 ## Reading (grounded in the rows above, no new claims)
@@ -43,8 +43,10 @@ elsewhere, per-run stds 6–16 t/s).
   GLM-Flash is the single-stream arm; GLM-753B is the capability arm that does not slow down under
   load; Beam is a probe with one quarter of the active parameters the others carry (23.4B active).
 - **Capability**: ds4-1017 is the only arm with the full triple (house + needle + tools through one
-  recipe path). GLM-753B matches its house score through the recipe path; GLM-Flash's 37/37 is still
-  the trial's; Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
+  recipe path). Window 4 closed the GLM tools leg through the recipe path for both arms — GLM-753B
+  TEB 100 (15/15, the cleanest tools line on the table), GLM-Flash 14/15 (`TC-15 connection_error`,
+  cause unprobed) — and GLM-753B already matched the house score; GLM-Flash's 37/37 is still the
+  trial's; Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
 - **Open cells this table must not paper over**: no GLM Flash house through the recipe path, no
   second-boot ladder for any arm, no Beam house/BFCL-category summary, and the 131k/983k needle rungs
   exist for ds4-1017 only (its 131k/983k prefill legs were wrapper-clipped, not capability-missed —
