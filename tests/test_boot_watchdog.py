@@ -48,6 +48,14 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(bw.decide(False, False, 2), "dead")
         self.assertEqual(bw.decide(False, False, 3), "dead")
 
+    def test_serve_pattern_matches_plain_python_serves(self):
+        # Worker ruling 2026-10-26: a serve child running as plain `python`
+        # (not python3) was invisible to the pgrep pattern, so a live load read
+        # as "dead_candidate" until grace expiry. `python` must be in the
+        # pattern; the endpoint stays authoritative for the healthy verdict.
+        self.assertIn("python", bw.SERVE_PATTERN)
+        self.assertIn("python3", bw.SERVE_PATTERN)
+
 
 class TestParseIo(unittest.TestCase):
     def test_full_body(self):

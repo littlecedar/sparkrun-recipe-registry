@@ -33,7 +33,7 @@ import time
 import urllib.error
 import urllib.request
 
-SERVE_PATTERN = "tensorfold|llama-server|sglang|vllm|python3"
+SERVE_PATTERN = "tensorfold|llama-server|sglang|vllm|python3|python"
 
 
 def http_ok(url: str, timeout: float = 5.0) -> bool:
