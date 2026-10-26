@@ -445,6 +445,20 @@
       "provenance": "mad-science/GGUF-VIABILITY-TRIAGE.md; ship-landed resume directive 2026-10-26",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "glm-flash-concurrency-degradation-search",
+      "title": "Search for GLM-5.3-Flash variants that do not degrade as concurrency increases",
+      "estimate_h": 5.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg.",
+      "provenance": "owner 2026-10-26 directive; mad-science/TP4-HEAD-TO-HEAD-1025.md ladder row; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
