@@ -252,6 +252,21 @@ whereas the historical 69.28 came from a different node set. The clean test is a
 run in this window. C10 (116.86) is at the historical 116.27, so the shortfall is concentrated at
 low concurrency, which is what a busy head rank would cost first.
 
+### Measured: the `aff52fa5` overlay survey arms (2026-10-26 window 4)
+
+All four speedup-survey flag arms measured on this lane's shipped line (boots on `.31`–`.34`,
+receipts `~/benchmarks/tp4-window4-20261026/`, analysis in `mad-science/DEEPSEEK.md` §8.4/§10.3/§10.4/§10.8):
+
+| arm | lever | verdict |
+|:--|:--|:--|
+| candidate 6 — `reasoning_effort` high vs max | request-level, thinking on, paired 10 tasks × 2 rounds | **2.96 %** paired reasoning-token saving (878 → 852), pass 10/10 both arms, 0 flips — below the 10 % bar and the TP=2 precedent's 10.6 %; keep `high`, no ship case. The knob is wired: the template default IS `high` (chat-default ≡ high byte-identical; `max` moves `hard-rev` 82 → 119 tokens) |
+| S1 — `--enable-cache-report` | reporting only (reach via `-o env.EXTRA_SGLANG_ARGS=…`; a bare `-o extra_args=` is inert on the sglang runtime) | **the radix cache already reuses**: repeats 2–8 report `cached_tokens` 28,928/28,952 at 32K and 119,552 at 131K (99.8–99.9 %), revisit TTFT 0.29 s / 0.46 s; the no-flag boot collapses TTFT identically but reports nothing — the 2026-10-06 "zero-hit" read (§8.4) was the missing usage field, not a dead cache |
+| S2 — `--schedule-policy lpm` | alongside cache-report | **null** — hit fraction and revisit TTFT identical to S1 (28,928 / 119,552 cached; 0.29 s / 0.46 s); fcfs stays |
+| S3 — `--min-free-slots-delay 1` | same-line A/B vs a plain-arm control boot, depth0 ladder 3 runs/cell `--fresh` | **measured negative — do not ship**: C4 104.20 ± 6.08 vs 116.20 ± 7.47 (−10.3 %), C8 148.44 ± 7.32 vs 159.61 ± 8.71 (−7.0 %), C16 135.61 ± 12.44 vs 151.80 ± 6.69 (−10.7 %); max running-req 15 (treatment) vs 16 (control). The plain control's C8/C16 (159.6/151.8) also prove the shipped line's gain over the v2.4-era depth0 control (§7.4's 107.5/115.9) is the serve-line change, not any flag |
+
+The 2026-10-22 "online baseline" C1/C4 rows above are **not** comparable to the S3 A/B: that boot ran
+under fleet traffic on different ranks; the S3 pair is same-line, same-profile, back-to-back boots.
+
 ### What it serves
 
 A 1M-context chat/completions server for the official release weights, **including

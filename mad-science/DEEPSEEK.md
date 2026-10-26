@@ -542,6 +542,15 @@ the README's "warm context is near-instant" language with the same caveat. Candi
 measurement that would settle whether this is a real zero-hit path or a mis-read instrument; the 1M
 boots measured prefix-cache hits of 0 / 0 / 1.6 / 3.7 / 8.6 % (§9).
 
+**RESOLVED 2026-10-26 (window 4, quartet)** — §8.4's premise was half instrument, half wrong read: the
+radix cache on the shipped `aff52fa5` overlay DOES reuse identical back-to-back prompts. With
+`--enable-cache-report` the non-stream usage reports `cached_tokens` **28,928 of 28,952 at 32K and
+119,552 at 131K on repeats 2–8 (99.8–99.9 %)**, revisit TTFT 0.29 s / 0.46 s (receipt
+`~/benchmarks/tp4-window4-20261026/` `s1-probe-flag.json`); the no-flag boot shows the same TTFT
+collapse (13.65 → 0.26 s at 32K) but carries **no `cached_tokens` field at all** — the 2026-10-06
+"zero-hit" read was the missing reporting, and `--enable-cache-report` is what makes the cache
+observable, not faster. Boots `sparkrun_c989632ede4f538e_{d977b128e72f,7f5f562975f3}`.
+
 ### 8.5 Two closed deferrals and two closed negatives
 
 - `DSV41_CACHE_GIB=0` (third-party claim: +9 % KV pool): pool **9,381,376** vs 9,386,240 = −0.05 % — the
@@ -733,6 +742,18 @@ does not clear the control's 15-value range, **or** achieved concurrency stays a
 treatment arm. A C16 gain without a concurrency rise is a boot slot. *(Third-party receipt, one
 observation per cell, pool confound: `LIKELY`.)*
 
+**MEASURED NEGATIVE 2026-10-26 (window 4, quartet)** — same-line A/B on the shipped `aff52fa5` arm,
+depth0 profile, 3 runs/cell `--fresh` (boots `sparkrun_c989632ede4f538e_{245637604b3a,fdd957ad478a}`,
+receipt `s3-ladder.csv` + `s3-control-ladder.csv`): treatment C4 **104.20 ± 6.08** vs control
+**116.20 ± 7.47** (−10.3 %), C8 **148.44 ± 7.32** vs **159.61 ± 8.71** (−7.0 %), C16 **135.61 ± 12.44**
+vs **151.80 ± 6.69** (−10.7 %), C1 64.21 ± 3.70 vs 46.07 ± 25.37 (the control's cold first run
+contaminates its C1; ambiguous). Achieved max running-req **15 (treatment) vs 16 (control)** — the
+delayer did not raise concurrency, so the mechanism signal failed twice. The apparent C8/C16 gains of
+the shipped line over the v2.4-era depth0 control (107.5/115.9, §7.4) belong to the serve-line change
+(16,384 chunks + fast loader + overlay), proven by the plain control at 159.6/151.8. **Do not ship**;
+the sparkring +21 % third-party receipt stands as un-reproduced here. Falsifier fired: C16 mean does
+not clear the control's range.
+
 ### 10.4 Candidate 2 — prefix-cache truth (`--enable-cache-report`, `lpm`)
 
 **Mechanism.** The radix cache is supposed to reuse compressed KV plus indexer keys on a matching
@@ -758,6 +779,14 @@ must hit if the path works). Phase B, interleaved 2 boots/arm as a screen (exten
 lpm` vs `fcfs`, 32K with a shared 16K prefix, cached-token fraction and p50/p90 TTFT. **Falsifier:**
 `cached_tokens` 0 on every repeat with reporting enabled ⇒ the path is broken, stop and file it; in
 phase B, no change in hit fraction or TTFT ⇒ `lpm` is a null here.
+
+**MEASURED 2026-10-26 (window 4, quartet)** — Phase A settled it: **the cache hits; the instrument was
+the gap** (§8.4 resolution above; falsifier not fired — repeats 2–8 report 99.8–99.9 % `cached_tokens`
+with the flag on, boot `sparkrun_c989632ede4f538e_7f5f562975f3`). The reporting flag costs nothing
+measurable at revisit TTFT. Phase B (lpm vs fcfs, boot `sparkrun_c989632ede4f538e_71673bd58f24`,
+receipt `s1-probe-s2.json`): hit fraction and revisit TTFT **identical** to Phase A (28,928 / 119,552
+cached; 0.29 s / 0.46 s) ⇒ **`lpm` is a null on this serve** per the pre-registered falsifier. The
+1.5 s-vs-89 s prize is moot at this shape: revisits already land at ~0.3–0.5 s.
 
 ### 10.5 Candidate 3 — score candidate blocks only (upstream #43401)
 
@@ -830,6 +859,15 @@ prefill tokens without changing answer quality on the measured set. Source: Libe
 bpw model card (2026-10-19): on **3,738 jobs** `high` (75, the default) matched `max` (100) on quality at
 **0.55–0.8× the cost**, and `low` (50) matched too at **0.4–0.6×**. The lane measured **10.6 %** paired
 saving with house 37/37 on both arms (§11.4) — clears the 10 % bar by 0.6 points, carried by one task.
+
+**Measured on the shipped TP=4 overlay 2026-10-26 (window 4, quartet, boot
+`sparkrun_c989632ede4f538e_d977b128e72f`, receipt `cand6-effort-ab.json`)**: paired max-vs-high, 10
+hard/trick tasks × 2 rounds, arm order flipped per round, thinking on, temp 0, `max_tokens` 4096.
+Mapping probe: the template default IS `high` (chat-default byte-identical to `high`, 82 tokens on
+`hard-rev`; `max` moves it to 119) — the knob is wired on this serve. Paired saving **2.96 %** (878 vs
+852 reasoning tokens), pass **10/10 both arms, 0 flips** — below the 10 % bar and the TP=2 precedent's
+10.6 %; `hard-rev` again carries most of it. Recording: **keep `high` as the default; no ship case on
+this evidence.**
 
 ### 10.9 Candidate 7 — rebuild on a newer SGLang tree and CUDA 13.3
 
