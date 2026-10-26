@@ -289,7 +289,9 @@
       "id": "h2h-glm-flash-house-recipe",
       "title": "GLM-5.3-Flash 4bpw TP=4 house battery @4096 thinking-on through the recipe path",
       "estimate_h": 2.0,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "glm-5.3-flash",
@@ -303,7 +305,9 @@
       "id": "h2h-glm-needle-3rungs",
       "title": "Needle 3/3 at 32,768 / 131,072 / 983,040 on both GLM TP=4 arms (unmeasured)",
       "estimate_h": 3.0,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "glm-5.3",
@@ -317,7 +321,9 @@
       "id": "h2h-glm-tools-leg",
       "title": "tool-eval-bench on both GLM TP=4 arms (15 scenarios, same instrument as ds4 TEB 90)",
       "estimate_h": 2.0,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "glm-5.3",
@@ -331,12 +337,14 @@
       "id": "h2h-beam-house-and-bfcl-category",
       "title": "Beam-1.0 NVFP4: house @4096 through the recipe path + the BFCL category summary",
       "estimate_h": 3.0,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Two gaps in one boot cycle: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum); (b) run the BFCL harness so the CATEGORY split is recorded — the window-4 per-case logs give 657/722 = 91.0 percent (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25) but no category summary; also note the eval-suite wrapper stall (52 min) instrument finding when choosing the runner.",
+      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -345,12 +353,14 @@
       "id": "h2h-ds4-needle-131k-983k-rerun",
       "title": "ds4-1017 knapcio TP=4 needle at 131,072 and 983,040 with an adequate prefill timeout",
       "estimate_h": 2.5,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "The existing 131k/983k rows are rc=124 wrapper-clips (timeout 2400), NOT capability misses — rerun with timeout 7200-class so the rungs get real numbers; the 32k rung already passed 3/3.",
+      "notes": "The existing 131k/983k rows are rc=124 wrapper-clips (timeout 2400), NOT capability misses — rerun with the fix parameters EXPLICIT: (1) cell wrapper gets `timeout 7200` (the 2400 s cap is what produced the clips — 'rerun and hope' without this reproduces the gap; measured 2026-10-26, boot-1 cell (b)); (2) prefill-safe needle flags: --needle-max-tokens 512 (the budget-truncation fix — reasoning arms spending the allowance inside the think block read as false capability misses); (3) same needle depths/grids as the 32k rung that passed 3/3; (4) receipts under a dated ~/benchmarks dir; then h2h-doc-refresh updates the head-to-head row.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -359,7 +369,9 @@
       "id": "h2h-second-boot-ladder",
       "title": "One controlled second-boot ladder per arm (ds4-1017, GLM-Flash, GLM-753B, Beam) — the sigma column",
       "estimate_h": 5.0,
-      "blocks": [],
+      "blocks": [
+        "h2h-doc-refresh"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "",
@@ -375,10 +387,10 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "Lever inventory (do not re-derive): (1) ENGINE LINEAGE FIRST, biggest known lever — current upstream d854d98bae plain baseline 98.44 +/- 3.36 (pooled, sweep geometry) sits ~11-18% under the shipped arm's scitrera class (121.27 +/- 0.90 measured on .35 this window; 114.1/116.2 on 2026-10-22): the a37cc4610 ref-floor bisect is DEFERRED in attic/explore/AGENTS.md — extend it over the 86 commits a37cc4610..d854d98bae for the decode regression; recovering that beats any drafter win. (2) QUANT TIER LADDER — Q4_K_M shipped; measure Q5_K_M/Q6_K (or imatrix variants) decode/quality trade at the Mellum size, one boot each, same ladder geometry. (3) LLAMA.CPP KNOBS — flash-attention/cache-type flags, mmap on/off delta measured properly (the mmap variant exists: zz-...-mmap.yaml, 2026-10-19 A/B says shipped OFF wins at peak), ubatch size, KV cache type (q8_0/q5_1). (4) DRAFTER ROUTE (conditional) — MTP stays rejected at acceptance 0.701 (n=1 retested 2026-10-26, +4.6% vs own baseline only); DFlash/DSpark-style drafters gated on per-checkpoint drafter weights (DRAFTER-ALTERNATIVES-1026.md) — include 'does upstream ship Mellum drafter weights?' in the search. (5) OUTPUT: ranked candidate list with expected-benefit arguments (the gguf-triage format), each with a trial-boot plan; conversions/boots are separate later tasks.",
+      "notes": "DONE 2026-10-26 (tp4-single): deliverable authored as mad-science/MELLUM-SPEEDUP-SEARCH.md (indexed in mad-science/README.md) — ranked candidate list in the gguf-triage format, each with expected-benefit + trial-boot plan, boots/conversions separate: (1) engine-lineage bisect FIRST (a37cc4610..d854d98bae 86 commits, then the deferred b2e5e9b..a37cc4610 bisect; suspects named by the census: llama-graph/speculative/ggml-cuda; recovering ~15-19 percent beats every drafter win); (2) quantized MTP heads — NEW lever: the repo ships mtp/*-Q8_0/Q6_K/Q4_K_M/MXFP4.gguf and BOTH sweeps used the BF16 head; a Q8_0 head attacks the measured ~38 percent verify-pass cost at n=1-2; (3) MXFP4_MOE main GGUF (unmeasured); (4) quant ladder Q5/Q6/Q8 + bartowski imatrix set (Hub-verified); (5) llama.cpp knobs (cache-type/ubatch/FA; mmap already settled negative 2026-10-19); (6) drafter alternatives VERIFIED NULL on the Hub (no DFlash/DSpark/Medusa Mellum packs — search done this session). Hub listings verified via API 2026-10-26; measured baselines cited from this window's receipts.",
       "provenance": "owner 2026-10-26 directive; mad-science/DRAFTER-ALTERNATIVES-1026.md; ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -394,6 +406,27 @@
       "node_cost": "quartet",
       "notes": "Arm: recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml (TP=4; model tag empty — ornith is outside the priority tiers). Scope: (1) REPRODUCE FIRST — drive the ornith serve with the oh-my-pi agent harness (its tool-calling loop) against a tool-bearing workload; capture raw /v1/chat/completions request/response pairs (tools: schema, streaming deltas) for a failing case; the failure signature (missing tool_calls, malformed JSON, dropped arguments, wrong role fields, or raw markup like the Beam <|channel|> parser class) determines everything downstream. (2) Read the arm's parser config + ornith lane docs for prior tool-call findings BEFORE changing anything; check --tool-call-parser matches the checkpoint's template and whether the dflash2 speculative path interacts with tool-call parsing (Beam sha-guard/drafter precedent: drafter configs can change output shapes). (3) Fix or file: recipe-level flag (parser name, template staging) → fix recipe + boot-verify; engine defect → file upstream with captured pairs + record issue number; oh-my-pi client-side assumption → record the finding with the minimal repro. (4) Verify with the minimal scripted repro first, then a real oh-my-pi agent run; receipts ~/benchmarks/tp4-window4-20261026/ornith-toolcall/. Runs on the quartet lane after the adapter-trial verdict; h2h tier order still governs unless the owner reprioritizes.",
       "provenance": "owner 2026-10-26 directive; recipes/ornith/README.md",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "h2h-doc-refresh",
+      "title": "Update TP4-HEAD-TO-HEAD-1025.md's open-cells note as each h2h cell lands",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [
+        "h2h-beam-house-and-bfcl-category",
+        "h2h-ds4-needle-131k-983k-rerun",
+        "h2h-glm-flash-house-recipe",
+        "h2h-glm-needle-3rungs",
+        "h2h-glm-tools-leg",
+        "h2h-second-boot-ladder"
+      ],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "After each h2h-* row lands: update mad-science/TP4-HEAD-TO-HEAD-1025.md's open-cells note and the corresponding table row with the landed cell and its receipt pointer, so the open-cells note cannot silently go stale. Small edit per landing; commit with the row's own close-out.",
+      "provenance": "owner 2026-10-26 directive (executable-h2h-rows review)",
       "claimed_by": "",
       "claimed_at": ""
     }
