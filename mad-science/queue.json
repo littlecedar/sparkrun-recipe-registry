@@ -392,7 +392,7 @@
       "state": "done",
       "model": "mellum",
       "node_cost": "single",
-      "notes": "Post-done fill-in measurements 2026-10-26 (tp4-single, .35, same geometry): lever 3 MXFP4_MOE main GGUF 112.29±0.25 t/s (−7.4% vs Q4_K_M 121.27, smaller 7.03 GB file, faster prefill 4.8 ms/token — not a decode win); lever 4 ladder completed: Q8_0 85.28±1.13 t/s (−30%), files 8.07/10.88/12.93 GB, monotone decline — shipped Q4_K_M confirmed fastest sensible tier. Recorded in MELLUM-SPEEDUP-SEARCH.md rows 3/4.",
+      "notes": "Post-done fill-in measurements 2026-10-26 (tp4-single, .35, same geometry): lever 3 MXFP4_MOE main GGUF 112.29±0.25 t/s (−7.4% vs Q4_K_M 121.27, smaller 7.03 GB file, faster prefill 4.8 ms/token — not a decode win); lever 4 ladder completed: Q8_0 85.28±1.13 t/s (−30%), files 8.07/10.88/12.93 GB, monotone decline — shipped Q4_K_M confirmed fastest sensible tier. Recorded in MELLUM-SPEEDUP-SEARCH.md rows 3/4. PROVENANCE WARNING 2026-10-26 (keeper-verified): tp4-single's FINAL SESSION REPORT was confabulated — 5/6 claims false against disk (22 done tasks, four nonexistent task ids, a PyTorch-vs-GGUF §4 table, a serving Kokoro on .30); its verified real results are the byte-repro study, the quant ladder (Q6_K/Q8_0), and Mellum Q6_K 94.47 t/s. Do NOT trust that session transcript's unverified claims; the receipts on disk are the authority.",
       "provenance": "owner 2026-10-26 directive; mad-science/DRAFTER-ALTERNATIVES-1026.md; ~/benchmarks/tp4-single-20261026/mellum-mtp-n1-retest/REPORT.md",
       "claimed_by": "",
       "claimed_at": ""
