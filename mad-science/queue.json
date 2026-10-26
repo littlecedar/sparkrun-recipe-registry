@@ -150,7 +150,7 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "DONE-PARTIAL with measured mechanism 2026-10-26 (tp4-single): the delta (commit ffee627) achieves LAYER-CONTENT reproducibility — build1 vs build2 (no arg): 215/216 layers byte-identical, only the image-config layer differs. Cost measured: ~5.5 min per full --no-cache build. Residual blocker is ENGINE-SIDE: the config created stamp (build2 .Created = wall clock); passing --build-arg SOURCE_DATE_EPOCH pins created (verified) but engages BuildKit's SDE tar-rewrite path which is NON-deterministic on this engine (29.6.2) — build3 vs build4 diverge from layer 70 with the arg. Follow-up row added (ds4-repro-config-created) with the three options. Receipt ~/benchmarks/ds4-repro-20261026/REPORT.md (4 build logs + IDs); test images repro-test1..4 throwaway.",
+      "notes": "DONE 2026-10-26 (4-build study, receipt ~/benchmarks/ds4-repro-20261026/REPORT.md): deterministic delta committed ffee627 (PYTHONDONTWRITEBYTECODE=1 + SOURCE_DATE_EPOCH + payload mtime normalization); layer content deterministic across builds, but FULL image-ID reproducibility BLOCKED — BuildKit SOURCE_DATE_EPOCH normalization is non-deterministic on engine 29.6.2 (build3 vs build4 differ); verdict = content-reproducible only, ID-repro blocked pending an upstream BuildKit fix or a buildkitd version pin. Also: build-tag hypothesis UNCONFIRMED (build2 stalled at base-pull retry storm).",
       "provenance": "mad-science/TODO.md §ds4; mad-science/DEEPSEEK.md §5",
       "claimed_by": "",
       "claimed_at": ""
