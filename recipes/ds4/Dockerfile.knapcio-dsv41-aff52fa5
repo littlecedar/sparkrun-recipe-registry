@@ -2,12 +2,18 @@
 # VENDORED PROVENANCE (2026-10-26, ds4-upstream-adapter-trial): upstream-verbatim
 # from knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (v2.5+,
 # 2026-10-24) — https://github.com/knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 —
-# with exactly two local deltas, both mechanical:
+# with exactly three local deltas, all mechanical:
 #   1. ARG BASE_IMAGE digest-pinned (lmsysorg/sglang:dev-dsv41@sha256:4a5d132a…),
 #      the same local delta the v2.4 vendored file carries;
 #   2. the per-patch verify/test RUN lines are merged into && chains (12 per
 #      layer) — the aff52fa5 gate grew past the builder depth limit as one-RUN-
-#      per-verify lines; commands and order are unchanged, only layer count.
+#      per-verify lines; commands and order are unchanged, only layer count;
+#   3. deterministic-build controls (byte-reproducible task, 2026-10-26):
+#      PYTHONDONTWRITEBYTECODE=1 from the top (no .pyc with embedded build-time
+#      mtimes in any layer — pip installs and the gate RUNs would write them)
+#      and a SOURCE_DATE_EPOCH-pinned mtime normalization of every payload tree
+#      as the last content layer, because COPY preserves source mtimes and the
+#      tree's mtimes are clone/extract-time values. No command or order changes.
 # Upstream in-image gate PASSES on this build (per-patch verify/test pairs,
 # test_adapter_engine_pins, hardened RoCE diagnostics incl. the runtime-source
 # COPY their Dockerfile.canary carries, upstream pytest trio): image
@@ -45,6 +51,8 @@ FROM ${BASE_IMAGE}
 # Same mirror knob as Dockerfile.canary (Saolence, #6): --build-arg PIP_INDEX=<mirror>/simple
 ARG PIP_INDEX=https://pypi.org/simple
 RUN pip install --no-deps --no-cache-dir -i "$PIP_INDEX" "sglang-kernel==0.4.7" "sgl-deep-gemm==0.2.0"
+ARG SOURCE_DATE_EPOCH=1792886400
+ENV PYTHONDONTWRITEBYTECODE=1
 RUN rm -rf /sgl-workspace/sglang/python
 COPY runtime/sglang-canary/python /sgl-workspace/sglang/python
 RUN python3 -c "import sglang, sglang.srt.models.deepseek_v4, sglang.srt.layers.attention.deepseek_v4_backend, sglang.srt.models.deepseek_v4_dspark; print('import ok')"
@@ -182,6 +190,10 @@ ENV PYTHONPATH=/opt/dsv41/adapter:/opt/b12x:/opt/b12x_next \
     CARGO_NET_OFFLINE=true
 # Every hash-pinned adapter must install on this engine tree (a drift kills the head at boot).
 RUN CUDA_VISIBLE_DEVICES= python3 /opt/dsv41/tests/test_adapter_engine_pins.py
+RUN find /opt/dsv41 /opt/b12x /opt/b12x_next /sgl-workspace/sglang/python \
+    -exec touch -h -d @"$SOURCE_DATE_EPOCH" {} + \
+ && find /opt/dsv41 /opt/b12x /opt/b12x_next /sgl-workspace/sglang/python \
+    -depth -type d -name __pycache__ -exec rm -rf {} +
 EXPOSE 8888
 HEALTHCHECK --interval=30s --timeout=30s --start-period=30m --retries=3 \
     CMD ["python3", "-S", "/opt/dsv41/boot.py", "health"]
