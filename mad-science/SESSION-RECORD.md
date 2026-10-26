@@ -1786,3 +1786,23 @@ Appends made by this sweep (the only facts that had no surviving home):
   `repro-summary.json`, `capture/` request+stream pairs, `node0-serve-harvest.log`,
   `launch.log`, `watchdog.log`); boot stopped by literal id, 0 containers verified
   `.31`–`.34`, capture proxy + watchdog killed.
+
+## History rewrite record — 2026-10-27 (drain/close closeout)
+
+- **Old→new map (verbatim):** `3fe4457` → `6b3d48308712d29f3910b11c088f0f4ff9313468`
+  (subject "boot watchdog: stdlib-only dead-boot killer …" — three literal rail IPs
+  removed from the watchdog docstring/help, ZERO tree diff); tip `5ef4291` →
+  `16d2a6a824a03260c6a82b106639b478743c9102`; the `cd9a9b4` scrub commit was
+  **dropped-as-redundant** during the rebase (its content folded into `6b3d483`; it
+  no longer exists). Old SHA citations elsewhere in the tree are annotated, not
+  deleted, so they stay interpretable — see `mad-science/STATUS.md` and
+  `mad-science/TODO.md` row 22.
+- **Landing facts:** force-with-lease landed; head clone reconciled; `git fsck`
+  clean on both sides. Scope was the named watchdog commit only — no full
+  post-purge re-audit this pass (owner ruling, survey round 5).
+- **candidate6 wording ruling (2026-10-27):** rows saying the knob "SHIPS" mean a
+  **decision record only** — the shipped default stays **high (75) via
+  `SGLANG_DSV41_REASONING_EFFORT`**; do not ask for `reasoning_effort=max`; no
+  tooling edits. Earlier "knob ships / ships on a clean battery" wording
+  (STATUS board row, STATUS landed-table row `0123dda`, TODO row 18 item (4))
+  is annotated accordingly, superseded by `TODO.md` row 22.
