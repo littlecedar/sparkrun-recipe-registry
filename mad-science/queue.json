@@ -263,13 +263,13 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "Diagnose the double server start in recipes/decision/kev-0.8b-decision-serve.yaml's inline serve command (recipe header caveat: no /health route, sparkrun's 200-probe can never pass, 'serve the image by hand'). Boot sparkrun_a66bbd2049b3d70e_6a63edc310b6 on .30 loaded all 320 weights then died [Errno 98] address already in use on 0.0.0.0:8008 — uvicorn bound second; the recipe's model body itself resolves (snapshot bf75a6a8 fetched, 9 files in ~1 s — the pool-stub suspicion does NOT explain this death). Fix so sparkrun's startup probe reaches ready (add a /health route or drop the duplicate bind), boot-verify on a spare node, run the decision serve's own smoke. Receipt: ~/benchmarks/tp4-single-20261026/media-demo/serve-kev-dead.log (2,079 B).",
+      "notes": "DONE 2026-10-26 (tp4-single): root cause = port collision, NOT a double server start — the container is host-networked and beegfs-mgmtd owns 8008 on .30 (the head's mgmtd duty); kev.serve loaded all 320 weights then died [Errno 98] on 0.0.0.0:8008 (two boots; the 2026-10-18 boot worked on .34, no mgmtd there). Fix (commit 4225e77): port 8008 -> 8021 (free fleet-wide) + a uvicorn.run wrapper in command: that registers GET /health before binding (pinned kev.serve has no health route — the documented never-reaches-ready state is closed). VERIFIED: boot sparkrun_238b33c8af687aaa_abd8a953bf4b on .30 reached ready through the FULL probe (port-open 63.1 s / HTTP-ready 63.2 s, first time ever); /health 200; decision-ladder smoke 20/20 cases, 100/100 decisions clean, 0.244 req/s (4.18 s/case CPU — smoke, not a benchmark). Stopped by id, 0 containers. Receipt: ~/benchmarks/tp4-single-20261026/media-demo/RECEIPT-kev-fix.md (+ kev-smoke.json). Render-checked: the placeholder renderer passes the wrapper's literal braces through; validate carries the accepted unpinned-model-revision + inline-script findings (the -c wrapper adds to the latter, documented in the commit).",
       "provenance": "window-4 single-lane finding 2026-10-26 (tp4-single) + serve-kev-dead.log receipt",
-      "claimed_by": "tp4-single",
-      "claimed_at": "2026-10-26T00:02:19Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "pool-prefetch-missing-bodies",
