@@ -1047,6 +1047,37 @@ Ornith 1.5
   The d90 rung has passed 4 of 4 times since the two 2026-10-18 exits; the item stays open for the
   next failing boot, not for a retry. Per-attempt records: `SESSION-RECORD.md`.)*
 
+- [ ] **Give the Ornith-1.5-122B its missing decoders — an SGLang arm plus the `incoai` DFlash2 drafter** —
+  *owner request 2026-10-27.* The speedup is real and sized, not hoped for. Today the only 122B serve is the
+  vLLM TP=1 NVFP4 probe at C1 **27.11** / C10 **73.91** (house 37/37), and the one lever ever measured on it
+  is the checkpoint's own MTP head on vLLM: **C1 26.9 → 38.8 (+44 %)** at accept 2.43–2.60, C10 74.4 → 81.2
+  (+9 %, house 36/37). **SGLang has never been tried on this checkpoint at all** — every SGLang arm in the
+  lane is 9B or 35B — and the draft that route needs exists:
+  [`incoai/Ornith-1.5-122B-DFlash2`](https://huggingface.co/incoai/Ornith-1.5-122B-DFlash2), a **930.3 M**
+  `qwen3` block-diffusion DFlash2 draft, Apache-2.0, tagged `sglang` *and not* `vllm`, created 2026-10-19
+  (the same author's draft is what the 35B ships). On the 35B the lane records its own draft ratio — plain
+  ≈34 t/s against **100.8** with the draft, ≈**2.9×** — and applied to 27.1 that is **≈79 t/s C1, above the
+  owner's 69.28 easy-traffic bar**: the first lever here with a real shot at turning the 122B from capability
+  arm into a candidate. Hypothesis, not a claim — acceptance is prompt- and checkpoint-dependent and nobody
+  visible has benchmarked the 122B draft.
+  **Build:** a second `zz-` arm (leave the measured vLLM probe untouched) cloning the shipped 35B arm's spec
+  block — `--speculative-algorithm DFLASH`, `--speculative-draft-model-path <draft>`,
+  `--speculative-num-draft-tokens 4` — against `ornith-ai/Ornith-1.5-122B-NVFP4` (`f049036f…`, already in the
+  pool cache) on the digest-pinned `lmsysorg/sglang:v0.5.22`. **Do not inherit the 35B's memory knobs:** its
+  `mamba_full_memory_ratio: 3.51` is recorded in `attic/ornith/AGENTS.md` as a shared default with no
+  rationale, and it reallocates the pool toward linear-attention state — with 77.63 GB of weights the ratio
+  and `max_num_seqs` have to come from the serve log's own grant. **Traps:** the draft is fetched offline, so
+  seed its `refs/main` (a SHA-keyed fetch writes no `refs/`, and SGLang's offline draft lookup resolves only
+  `refs/main` — the 35B recipe's pre_exec hook is the pattern); a DFLASH boot that serves but logs accept ≈1
+  is a misconfiguration, not a win; and vLLM stays MTP-only because this draft carries no `vllm` tag.
+  **The other drafters the search turned up:** `kaivoss/Ornith-1.5-122B-DFlash2-GGUF` (a GGUF of that draft,
+  so the llama.cpp tier can spec-decode too — the shipped Q3_K_XL tier's C5 < C2 batching weakness is a
+  separate question) and `prithivMLmods/Ornith-1.5-122B-MTP-GGUF`; **no first-party `ornith-ai` 122B draft
+  exists**, so `incoai` is the only SGLang-targeted head. Pre-register the gate before the boot: one boot at
+  C1 ≥ 69.28 and C10 ≥ 116.27, house ≥ 36/37 at 4096 thinking-on, `Mean acceptance length > 1` in the serve
+  log. **Fences:** a whole node is needed (77.63 GB body plus KV) — `.35` is the idle candidate while the ds4
+  quartet holds `.31`–`.34`; re-census before every boot. *(effort: long)*
+
 ## qwen3
 Qwen 3.x
 *(all items completed — archived in `../attic/DONE.md`)*
@@ -2343,7 +2374,10 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   tag-pinned with no digest) is newer than `a37cc4610` and probably carries flint; assert `src/models/flint.cpp`
   rather than assume.
   **Roster, with the on-file cells the sweep must re-measure rather than quote across:**
-  - Flint `RecursiveSI/flint` — llama.cpp, UD-Q3_K_XL, 18.49 GB body. Nothing measured; no arm exists.
+  - Flint `RecursiveSI/flint` — llama.cpp, UD-Q3_K_XL, 18.49 GB body. Nothing measured; no arm exists. A
+    **DFlash2 draft landed 2026-10-26** (`incoai/Flint-DFlash2`, Apache-2.0, `sglang` tag, plus an
+    `incoai/Flint-DFlash2-GGUF` sibling) — four days after the tier research above was written, so the sweep
+    takes a spec-decode leg once the plain cell exists; the 35B lane's own draft ratio is ≈2.9×.
   - Mellum `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`
     — llama.cpp `b2e5e9b`, Q4_K_M. Ten-slot window: C1 **110.52 ± 1.77** · C2 154.30 · C5 208.29 · C10
     **185.96** t/s, house **36/37** @4096 thinking-on, TTR 25 s; the shipped 8-slot window reads 111.9 /
