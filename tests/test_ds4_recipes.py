@@ -1416,15 +1416,20 @@ class SglangLaneContract(unittest.TestCase):
         # c10 101.5 -> 123.5 with it off), so it is an opt-in multi-user knob.
         env: dict = {}
         mod.apply_recipe_env(env)
-        self.assertEqual(mod.extra_sglang_args(env), "--swa-prefix-tails 128")
+        self.assertEqual(mod.extra_sglang_args(env),
+                         "--swa-prefix-tails 128 --watchdog-timeout 1800 "
+                         "--sleep-on-idle --enable-deepseek-v4-fp4-indexer")
         self.assertEqual(env.get("PREFILL_DECODE_INTERVAL"), "0")
         interval_on = dict(env)
         interval_on["PREFILL_DECODE_INTERVAL"] = "2"
         self.assertEqual(mod.extra_sglang_args(interval_on),
-                         "--swa-prefix-tails 128 --prefill-decode-interval 2")
+                         "--swa-prefix-tails 128 --prefill-decode-interval 2 "
+                         "--watchdog-timeout 1800 --sleep-on-idle "
+                         "--enable-deepseek-v4-fp4-indexer")
         # Each knob individually disablable, and an empty env contributes
         # nothing (no stray EXTRA_SGLANG_ARGS = "" being passed as a flag).
-        for key in ("SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL"):
+        for key in ("SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL", "WATCHDOG_TIMEOUT",
+                    "SLEEP_ON_IDLE", "ENABLE_DEEPSEEK_V4_FP4_INDEXER"):
             off = dict(env)
             off[key] = "0"
             self.assertNotIn(key, mod.extra_sglang_args(off))
@@ -1435,8 +1440,8 @@ class SglangLaneContract(unittest.TestCase):
 
         # A launch-time override wins over the shipped default (AB_ENV), while
         # the image-baked keys stay launcher-owned. With the tails off and the
-        # interval left at its shipped 0, no flag is assembled at all; asking
-        # for the interval at launch time is what turns it back on.
+        # interval left at its shipped 0, only the aff52fa5 additions assemble;
+        # asking for the interval at launch time adds it to the front.
         launched = {"MEM_FRACTION_STATIC": "0.80", "CHUNKED_PREFILL_SIZE": "4096",
                     "SWA_PREFIX_TAILS": "0", "STATE_PATH": "/state"}
         mod.apply_recipe_env(launched)
@@ -1444,13 +1449,18 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(launched["CHUNKED_PREFILL_SIZE"], "4096")
         self.assertEqual(launched["STATE_PATH"], "/cache/runtime/state")
         self.assertEqual(launched["MAX_RUNNING_REQUESTS"], "16")
-        self.assertEqual(mod.extra_sglang_args(launched), "")
+        self.assertEqual(mod.extra_sglang_args(launched),
+                         "--watchdog-timeout 1800 --sleep-on-idle "
+                         "--enable-deepseek-v4-fp4-indexer")
         launched["PREFILL_DECODE_INTERVAL"] = "2"
         self.assertEqual(mod.extra_sglang_args(launched),
-                         "--prefill-decode-interval 2")
+                         "--prefill-decode-interval 2 --watchdog-timeout 1800 "
+                         "--sleep-on-idle --enable-deepseek-v4-fp4-indexer")
 
     def test_launcher_accepts_sparkruns_prepared_model_path(self):
         """A real launch hands `{model}` as the prepared on-disk snapshot path.
+
+
 
         `sparkrun/models/runtime.py:bind_runtime_models` sets
         `overrides["model"] = <snapshot path>` whenever the recipe carries a

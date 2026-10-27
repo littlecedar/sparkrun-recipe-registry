@@ -27,7 +27,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 | Engine | SGLang (`sglang.launch_server`), driven through the mod shim `recipes/ds4/mods/dsv41-sglang-overlay` |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) (native MXFP4/F8, official weights, 2026-10-17 refresh) |
 | Pin | `model_revision: 1bae0e10…` (the refresh's repo head, 2026-10-17) — all 48 shards are new objects vs the pre-refresh checkpoint, so the pin is what selects the refresh; the image's baked `fb2764a5…` is the superseded base and is never served |
-| Size / fit | 510 GB, `mem_fraction_static` 0.78, `chunked_prefill_size` 8192 |
+| Size / fit | 510 GB, `mem_fraction_static` 0.78, `chunked_prefill_size` 16384 (2026-10-24 cell; upstream production runs 8192 — see the deviations table below) |
 | Topology | TP=4, EP=1 — four GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served |
 | Spec decode | DSpark k=5, verify-all |
@@ -53,6 +53,39 @@ The 983,040 rung landed after the ship (00:07Z, wrapper in full): **10/10 PASS**
 The c3 candidate line (the #43401 candidate-block indexer-scoring re-port, survey arm 3) **did not
 ship** — terminal arch gate: DeepGEMM's paged-sparse logits family is SM100-only at csrc and GB10
 is SM121 (`mad-science/DEEPSEEK.md` §19.1); the shipped line above is unchanged.
+**Protocol comparability (upstream `aff52fa5`).** Upstream publishes two decode protocols whose c1
+figures are not interchangeable: sparkDash 1.8.8 prose c1 **91.3** (one prose prompt, 256 new tokens,
+temp 0, thinking off, median of 3 after two discarded warm-up runs) and speedbench 0.3 prose c1
+**64.7** (speedbench 0.3: 73 frozen prompts in six categories, c1, 256 tokens — 64.7 is the
+**prose category** geomean; the full-mode geomean over all 73 prompts is **87.5**). Our ladder C1
+**64.08 ± 3.66** (depth 0, pp 2048, tg 128, five runs, first run cold-contaminated at 19–39 t/s,
+§"Measured: the v2.4 serve line" (d)) matches neither: 91.3 differs in prompt, length and warm rule;
+64.7 differs in prompt set. Upstream's own two protocols **agreed** at v2.5 `c3fe50a8` (88.6 vs 85.9)
+and **diverge** at aff52fa5, so protocol explains part of any gap and a config deficit may remain —
+size both with the paired arms under [Run it](#run-it). Upstream also caps clocks at 2200 MHz; this
+fleet locks 2236 (~1.6 % in our favour, not emulated).
+
+**Adopted from the aff52fa5 production block (2026-10-26).** Defaults now ON in the launcher, each
+`AB_ENV`-overridable and disablable with `-o env.KEY=0` (flags accept `off` to omit the flag
+entirely): `DSV41_CERT_HEAD=1` + `DSV41_CERT_HEAD_M=6,12,18,24,30,36,42,48`,
+`DSV41_FAST_LOAD_EP_SIZE=1`, `DSV41_FAST_LOAD_N_EXPERTS=384`, `WATCHDOG_TIMEOUT=1800`,
+`SLEEP_ON_IDLE=1` (`--sleep-on-idle`), `ENABLE_DEEPSEEK_V4_FP4_INDEXER=1` (README: no effect on
+V4.1, kept for argument-line identity). `DSV41_ENGRAM_KEEPALIVE_MS` needs no env — the compiled
+default is 25 ms (`adapter/row_store.cpp:288`). Two production knobs ship **unset** by owner
+decision: `DSV41_PREFILL_BYPASS` (upstream's own `.env` calls it experimental) and
+`MIN_FREE_SLOTS_DELAY` (S3 A/B below measured it negative on the pre-adoption line) — both arm-only
+until a same-window win.
+
+**Shipped-line deviations from upstream's production block** (the strict-parity arm below restores
+all four):
+
+| knob | upstream production | shipped | why |
+|---|---|---|---|
+| `CHUNKED_PREFILL_SIZE` | 8192 | 16384 | 2026-10-24 #2 cell: 2.35× the 1M cold prefill (245.0 s vs ~576 s mean), needle 5/5 at ~999k |
+| `PREFILL_DECODE_INTERVAL` | 2 | 0 | 17–28 % ladder cost at 2 (measured 2026-10-18); multi-user latency knob, flip per launch |
+| `--min-free-slots-delay` | 1 | absent | S3 A/B on the pre-adoption line: C4 −10.3 / C8 −7.0 / C16 −10.7 % — re-measure on this line before adopting |
+| clock cap | 2200 MHz | 2236 MHz fleet lock | owner clock policy |
+
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
@@ -190,11 +223,12 @@ instead.`, `pd-off/boot-evidence.txt`, 21:33:43Z). A pin at or above the budget 
 clamped, so the pin became **6,850,000** (97.9 % of the measured budget). The confirm boot reports
 **6,849,792** with **no clamp line** — the pin floored to the engine's 256-token page
 (6,850,000 → 256 × 26,757) — and `available_gpu_mem` 17.53 GB against 16.70 GB at the clamp. The
-boot line to read is `max_total_num_tokens=…`, then `chunked_prefill_size=8192`,
+boot line to read is `max_total_num_tokens=…`, then `chunked_prefill_size=16384`
+(8192 on the pre-2026-10-24 receipts),
 `max_prefill_tokens=16384`, `max_running_requests=16`, `context_len=1048576`. The guard is
-`tests/test_ds4_recipes.py::test_launcher_v24_serve_line`: it asserts 0.78 / 8192 / 16, that the
+`tests/test_ds4_recipes.py::test_launcher_v24_serve_line`: it asserts 0.78 / 16384 / 16, that the
 pin is > 0 and **below 6,993,408** ("must stay under the MEASURED value"), that the default
-assembly is `--swa-prefix-tails 128` and nothing else, and that a launch-time `0` disables each
+assembly is `--swa-prefix-tails 128 --watchdog-timeout 1800 --sleep-on-idle --enable-deepseek-v4-fp4-indexer`, and that a launch-time `0` disables each
 knob. It deliberately does not pin the exact integer: any value under the measured budget is
 safe, and every boot re-derives it.
 
@@ -295,6 +329,23 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml
 sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
   -H <node1>,<node2>,<node3>,<node4>
 ```
+Two parity-verification arms for the `aff52fa5` comparison (booted back to back, measured with
+sparkDash + speedbench on the head; nodes named by real host/IP — dot-aliases crash sparkrun
+0.4.2's `socket.getaddrinfo`):
+
+```bash
+# Arm A — strict production parity: the seven adopted defaults are already ON;
+# add only the four contested knobs.
+sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
+  -H <node1>,<node2>,<node3>,<node4> \
+  -o env.DSV41_PREFILL_BYPASS=256 -o env.PREFILL_DECODE_INTERVAL=2 \
+  -o env.MIN_FREE_SLOTS_DELAY=1 -o env.CHUNKED_PREFILL_SIZE=8192
+# Arm B — current shipped line: disable exactly the seven adopted defaults.
+sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
+  -H <node1>,<node2>,<node3>,<node4> \
+  -o env.DSV41_CERT_HEAD=0 -o env.WATCHDOG_TIMEOUT=off \
+  -o env.SLEEP_ON_IDLE=off -o env.ENABLE_DEEPSEEK_V4_FP4_INDEXER=off
+```
 
 ### Requirements
 
@@ -335,18 +386,18 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   the plane-A/plane-B rail addresses.
 
 ### Knobs a user cannot infer
-
 - **`max_model_len` is per-request; the KV pool is separate and pinned.** The
-  overlay launcher pins `MAX_TOTAL_TOKENS=6,850,000` at `mem_fraction_static=0.78`
-  and `chunked_prefill_size=8192`; the engine profiles **6,849,792** at that line
-  and the pin must stay under the *measured* budget — a larger pin is *clamped*
-  (6,993,408 at a 7.5M pin), never refused. Re-derive it by reading
-  `max_total_num_tokens=` on every boot (see
+  overlay launcher pins `MAX_TOTAL_TOKENS` per mode (6,849,792 on the stock
+  loader; unpinned under the fast loader, where the engine's own profile is the
+  only accurate number) at `mem_fraction_static=0.78` and
+  `chunked_prefill_size=16384`; the stock-loader engine profiles **6,849,792**
+  at that line and the pin must stay under the *measured* budget — a larger pin
+  is *clamped* (6,993,408 at a 7.5M pin), never refused. Re-derive it by reading
   [the v2.4 section](#measured-the-v24-serve-line)); `-o env.MAX_TOTAL_TOKENS=0`
   unpins. The pool is **page-shared, not extent-reserved**: 16 concurrent requests
   each declaring ~1M tokens were all admitted (the bound is the
   `MAX_RUNNING_REQUESTS=16` cap and total actual tokens, not a per-stream
-  reservation). Keep `mem_fraction_static` at 0.78 — the 8192-token chunks need
+  reservation). Keep `mem_fraction_static` at 0.78 — the 16384-token chunks need
   the headroom (a 1M prefill at 0.78 leaves the head 5.7 GiB, at 0.80 only 2.7
   GiB), and higher has wedged nodes.
 - **The two v2.4 flags are per-launch switches.** `--swa-prefix-tails 128` ships on

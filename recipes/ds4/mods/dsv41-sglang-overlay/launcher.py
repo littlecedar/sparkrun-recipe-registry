@@ -351,6 +351,18 @@ RECIPE_ENV: dict[str, str] = {
     # `::` with an empty message = any message. Other FutureWarnings, and the
     # c10d debug logger, are untouched. Rollback is deleting this line.
     "PYTHONWARNINGS": ("ignore::FutureWarning:torch.distributed.c10d_logger"),
+    # --- aff52fa5 production block (adopted 2026-10-26) --------------------
+    # Upstream .env.tp4.example:560-571 + README "What the production profile
+    # runs". PREFILL_BYPASS and MIN_FREE_SLOTS_DELAY deliberately have NO
+    # default: upstream marks the former experimental, and our S3 A/B measured
+    # the latter negative on the pre-adoption line, so an arm supplies them.
+    "DSV41_CERT_HEAD": "1",
+    "DSV41_CERT_HEAD_M": "6,12,18,24,30,36,42,48",
+    "DSV41_FAST_LOAD_EP_SIZE": "1",
+    "DSV41_FAST_LOAD_N_EXPERTS": "384",
+    "WATCHDOG_TIMEOUT": "1800",
+    "SLEEP_ON_IDLE": "1",
+    "ENABLE_DEEPSEEK_V4_FP4_INDEXER": "1",
 }
 
 
@@ -377,6 +389,9 @@ AB_ENV: frozenset[str] = frozenset({
     # engine — measured 2026-10-24: with the key left as an override, the
     # launcher's RECIPE_ENV clobbered the override and the serve still logged
     # "DSV41 fast load ARMED" (the §6.2 RECIPE_ENV trap, third instance).
+    "DSV41_CERT_HEAD", "DSV41_CERT_HEAD_M",
+    "DSV41_FAST_LOAD_EP_SIZE", "DSV41_FAST_LOAD_N_EXPERTS",
+    "WATCHDOG_TIMEOUT", "SLEEP_ON_IDLE", "ENABLE_DEEPSEEK_V4_FP4_INDEXER",
     "DSV41_FAST_LOAD",
     "EP_SIZE",
 })
@@ -430,6 +445,8 @@ def apply_recipe_env(env: dict[str, str]) -> None:
 SGLANG_EXTRA_FLAGS = (
     ("SWA_PREFIX_TAILS", "--swa-prefix-tails"),
     ("PREFILL_DECODE_INTERVAL", "--prefill-decode-interval"),
+    ("WATCHDOG_TIMEOUT", "--watchdog-timeout"),
+    ("MIN_FREE_SLOTS_DELAY", "--min-free-slots-delay"),
     # Deliberately has NO RECIPE_ENV default: the backend is one value the recipe
     # declares in its own `command:` (see the guard note above), so this table only
     # carries whatever the launch supplied.
@@ -442,6 +459,8 @@ SGLANG_EXTRA_FLAGS = (
 # without the flag (window-4 S1 evidence), so production serves reportable truth.
 SGLANG_EXTRA_BOOL_FLAGS = (
     ("ENABLE_CACHE_REPORT", "--enable-cache-report"),
+    ("SLEEP_ON_IDLE", "--sleep-on-idle"),
+    ("ENABLE_DEEPSEEK_V4_FP4_INDEXER", "--enable-deepseek-v4-fp4-indexer"),
 )
 # A value in this set disables its flag (the engine's own default applies).
 

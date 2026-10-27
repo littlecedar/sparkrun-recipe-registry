@@ -1672,6 +1672,13 @@ adapter default (`prefill_empty_cache.py:30 @ 27616bec`), so their explicit pin 
 production carries **no** scheduler or cache flag we lack — `--min-free-slots-delay`, the fp4 indexer,
 `--sleep-on-idle` and `--enable-cache-report` appear only in their bridge experiment
 (`docs/tuning-log.md:64-70`) — and EP > 1 stays falsified on our hardware (§8.1).
+*(Annotated 2026-10-26, aff52fa5 adoption: the two claims above are v2.4-era (`27616bec`) and no
+longer describe the shipped line. `DSV41_CERT_HEAD` now ships `1` in the launcher's `RECIPE_ENV`
+(with `DSV41_CERT_HEAD_M`), so the "already effective 0" statement is history; and upstream's
+production block at aff52fa5 **does** carry scheduler/cache flags we adopted (`--watchdog-timeout
+1800`, `--sleep-on-idle`, `--enable-deepseek-v4-fp4-indexer`, CERT_HEAD). `--min-free-slots-delay`
+remains deliberately absent pending a same-window re-measure on this line (S3 A/B negative on the
+pre-adoption line). This §18 block describes the v2.4 comparison and stands as history.)*
 
 **Reproduction trap in their repo.** `recipe/production.yaml` is described as "the flattened,
 self-contained recipe" (`README.md:304`), yet it carries **no** `MEM_FRACTION_STATIC` and **no**
