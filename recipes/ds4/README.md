@@ -87,6 +87,37 @@ all four):
 | clock cap | 2200 MHz | 2236 MHz fleet lock | owner clock policy |
 
 
+### Measured: aff52fa5 parity A/B/C (2026-10-26 evening, quartet `.31`–`.34`)
+
+Three one-boot arms on the shipped image, same window, watchdog on every boot, serve logs harvested
+before each stop (receipts `~/benchmarks/ds4-1017-parity-20261027/` on the head; protocol tools:
+`sparkDash` prompt from MiaAI-Lab/sparkDash `754f40a` "Release 1.8.8" and speedbench `e95a638` =
+"0.3", both driven against the live endpoint). **A** = strict production parity (the seven adopted
+defaults plus the four contested knobs); **B** = the pre-adoption line (the seven disabled);
+**C** = the as-committed defaults (seven on, four off).
+
+| metric | A strict | C shipped | B old | upstream |
+|---|---:|---:|---:|---:|
+| speedbench ALL geomean (73 prompts) | **89.14** | **86.82** | 86.12 | 87.5 |
+| speedbench prose geomean | 66.43 | 64.50 | 63.77 | 64.7 |
+| speedbench longctx / code / structured / agentic / multilingual | 91.34 / 109.98 / 112.80 / 97.25 / 71.71 | 88.35 / 106.36 / 109.79 / 96.12 / 70.30 | 84.55 / 105.62 / 110.48 / 97.30 / 69.34 | 91.0 / 106.8 / 109.5 / 98.3 / 70.0 |
+| sparkDash prose c1, decode window (ttft excluded) | est. 94.8 | **90.77** | — | 91.3 |
+| sparkDash prose c1, wall incl. TTFT | 86.70 | 84.08 | 84.10 | — |
+| house 4096 thinking-on | 37/37 | — | 37/37 | — |
+| needle 32k / 131k | 10/10 / 10/10 | — | 10/10 / 10/10 | — |
+
+Verdicts: the **shipped line is at parity with upstream** — −0.8 % speedbench ALL, −0.3 % prose
+category, −0.6 % sparkDash prose decode window, every category within ±3 % (our 2236 MHz clock lock
+vs their 2200 cap is ≈ +1.6 % in our favour, so config-equal the residual is ≈ 2 %; no win claimed).
+The **seven adopted defaults are sub-threshold** on decode (C vs B +0.81 % ALL; longctx +4.5 % is the
+visible part) and ship as config identity. The **four contested knobs are a real decode gain**
+(A vs C +2.67 % ALL / +3.0 % prose) but cost what the table above does not show — 8192 chunks give up
+the 2.35× 1M-prefill win and interval 2 was 17–28 % of ladder throughput — so they stay arm-only
+until a concurrency+prefill cell pair exists. **Formula discipline:** wall-inclusive tok/s is not
+sparkDash's accounting (protocol ratio check: upstream 91.3/64.7 = 1.411, our wall numbers
+86.7/66.43 = 1.305, the ~8 % being the ~215 ms TTFT share of a ~2.95 s run; decode-window ratio
+90.77/64.5 = 1.407) — quote the decode-window figure only.
+
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
 experts, unchanged vision config), so the engine and the adapter carry over unchanged. Two things
