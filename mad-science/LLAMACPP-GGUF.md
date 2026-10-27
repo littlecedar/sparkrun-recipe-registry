@@ -23,7 +23,7 @@ digest:
 | engine | llama.cpp `0.1.2-dev (build 1, commit b2e5e9b)`, GNU 13.3.0 aarch64, CUDA 13.1.1 |
 | flags present | `--jinja` (default **enabled**), `--reasoning-format {none,deepseek,deepseek-legacy}` (default auto), `--reasoning [on\|off\|auto]`, `--chat-template-kwargs`, `--parallel`, `--kv-unified` (`-kvu`, default: enabled only when slots are auto), `--flash-attn [on\|off\|auto]`, `-ctk/-ctv` cache types, `--alias`, `--no-webui`, `--metrics` |
 | `rpc-server` | **absent** — the image ships `llama-server` only, so the experimental multi-node RPC path cannot be exercised with this tier |
-| `--no-mmap` | accepted but marked DEPRECATED in favour of `--load-mode`. **The GB10 platform's forced `{"mmap": False}` never reaches a template recipe** (see §3), so the arm passes `--no-mmap` itself |
+| `--no-mmap` | accepted but marked DEPRECATED in favour of `--load-mode`. **The GB10 platform's forced `{"mmap": False}` never reaches a template recipe** (see §3), so the arm asks for it itself — as `--load-mode none` since 2026-10-27 (same policy, `common/arg.cpp:2672`), because the deprecation warning's own "use `--load-mode mmap`" hint names the opposite mode |
 
 **The fast route is the ref, not the image** (VERIFIED 2026-10-22): `b2e5e9b` decodes **114.2 / 113.9 t/s**
 where `a37cc4610` gives **100.3 / 98.7** on the same bytes, same node and same flags, and this image
@@ -110,9 +110,10 @@ required, which is the bring-up cost the lane items must budget: `kolibri1` (Kol
 4. **First llama.cpp arm = bring-up, not a variation** (image pin + template + reasoning-format +
    slot/ctx shape), per `attic/explore/MELLUM-21.md` §5.
 5. **Keep the GB10 platform's forced `mmap: false`.** Measured 2026-10-19 in a same-window pair on
-   `.34` (a variant recipe that drops the arm's literal `--no-mmap`, since the flag-map key is inert
-   on a template arm): mmap ON is at or below OFF at every ladder cell — C1 108.80 vs 110.64, C2
-   151.78 vs 151.87, **C5 196.48 vs 208.28 (-5.7 %)**, C10 143.45 vs 144.82 — so the fault-through
+   `.34` (a variant recipe that drops the arm's literal no-mmap flag, spelled `--load-mode none`
+   since 2026-10-27, because the flag-map key is inert on a template arm): mmap ON is at or below
+   OFF at every ladder cell — C1 108.80 vs 110.64, C2 151.78 vs 151.87, **C5 196.48 vs 208.28
+   (-5.7 %)**, C10 143.45 vs 144.82 — so the fault-through
    -unified-pool cost the platform comment predicts is real. Receipt
    `~/benchmarks/mellum-mmap-20261019/`.
 

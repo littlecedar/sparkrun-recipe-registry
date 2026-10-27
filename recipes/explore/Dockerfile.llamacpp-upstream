@@ -131,7 +131,8 @@ COPY --from=build /opt/llama.cpp/build/bin/llama-cli /usr/local/bin/llama-cli
 # absence, not a fault), as the sibling images were probed:
 #   llama-server --version -> version: <x>-dev (build NNNNN, commit <LLAMA_REF>)
 #   llama-server --help    -> --spec-type (values include draft-mtp), -md/--spec-draft-model,
-#                             --spec-draft-n-max, --jinja, --no-mmap
+#                             --spec-draft-n-max, --jinja; the load flag is ref-dependent —
+#                             `--load-mode` from b2e5e9b on, `--no-mmap` deleted by a37cc4610
 #   rpc-server             -> absent (not built; single-node arms)
 
 WORKDIR /app
