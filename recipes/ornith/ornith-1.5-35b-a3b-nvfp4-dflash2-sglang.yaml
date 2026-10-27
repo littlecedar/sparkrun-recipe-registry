@@ -27,6 +27,7 @@ env:
   PYTHONUNBUFFERED: '1'
   TORCH_CUDA_ARCH_LIST: 12.1a
   FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  FASTSAFETENSORS_ODIRECT: 1
 
   # Seeds the pinned draft's refs/main: sparkrun's SHA-keyed fetch writes no refs/ entry and
   # SGLang's offline draft-config lookup resolves only refs/main, so the pin alone never boots.
