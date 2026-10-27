@@ -9,6 +9,34 @@
   ],
   "tasks": [
     {
+      "id": "flint-four-arm-comparison",
+      "title": "Flint 40B-A2.5B vs Mellum 12B-A2.5B, Ornith-1.5-35B-A3B and Ornith-1.5-122B on one instrument",
+      "estimate_h": 8.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "RecursiveSI/flint",
+      "node_cost": "single",
+      "notes": "Owner request 2026-10-27 (SURVEY6 Q1/Q7): one of the three items that must land next window; ships if it clears the easy-traffic gate (C1 >= 69.28, C10 >= 116.27, house >= 36/37 @4096 thinking-on), otherwise stays a zz-/capability arm with its cells recorded. No arm exists yet: download unsloth/flint-GGUF UD-Q3_K_XL (18.49 GB), author the llama.cpp recipe (LLAMA_REF >= a37cc4610; resident image upstream-a37cc46-cu130 @ sha256:ef2d4bc8... on .35), then ladder at d0 n=5 plus eval-suite on the same boot, per arm. Spec-decode leg via incoai/Flint-DFlash2 (published 2026-10-26) once a plain cell exists. Baselines and protocol: mad-science/TODO.md §explore, item 'Compare Flint 40B-A2.5B'.",
+      "provenance": "owner 2026-10-27 directive; mad-science/TODO.md §explore; SURVEY6 Q1/Q7 (TODO row 23)",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ornith-122b-decoders-route",
+      "title": "Ornith-1.5-122B: SGLang arm + incoai DFlash2 drafter (route verdict C1 >= 51, falsifier C1 < 45)",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "ornith-ai/Ornith-1.5-122B-NVFP4",
+      "node_cost": "single",
+      "notes": "Owner request 2026-10-27 (SURVEY6 Q1/Q8): one of the three items that must land next window; a route win promotes the arm to a shipped capability arm (index row with its measured cells, explicitly not easy traffic) whether or not it clears 69.28. Today's only 122B serve is vLLM TP=1 NVFP4 at C1 27.11 / C10 73.91; the in-file MTP head on vLLM already measured C1 38.8 (+44 %). Untried: SGLang v0.5.22 with --speculative-algorithm DFLASH against incoai/Ornith-1.5-122B-DFlash2 (930.3 M, sglang-tagged, vocab/layer/window verified compatible 2026-10-27). Traps: seed the draft's refs/main (offline lookup resolves only refs/main), derive mamba_full_memory_ratio from the serve-log grant (77.63 GB of weights), accept ~1 = misconfiguration. Design: mad-science/TODO.md §ornith, item 'missing decoders'.",
+      "provenance": "owner 2026-10-27 directive; mad-science/TODO.md §ornith; SURVEY6 Q1/Q8 (TODO row 23)",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
       "id": "ornith-omp-1000turn-longrun",
       "title": "Ornith-1.5-35B-A3B: 300-turn omp tool-calling run on a scratch project (extend to ~1,000 only if clean) — transient or reproducible?",
       "estimate_h": 4.0,
@@ -313,13 +341,13 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "2026-10-24 pool-migration dedup dropped weight bodies fleet-wide; stub census (~/benchmarks/tp4-single-20261026/pool-stub-census.json, 70 repos): drama-3 0-byte (fetch DONE, 41.5 GB @b2b5ee99, rc=0), Mellum GGUF (DONE by tp4-single 8 GB), Qwen-Image-2.1-Turbo @fc13ba19 (snapshot MISSING, ~32.5 GB, in runner), local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37 (3 husk shards of 41, ~9 GB, in runner), kev-0.8b (no snapshots; first attempt FAIL rc=1 root-owned .locks — chowned, retry running), LTX-2.5/MiniMax-H3/pyannote/humanizer queued as pre-check rows. Ledger: ~/benchmarks/cache-prefill-20261026/QUEUE.md (serial runner, du -sbL verify, DONE/FAIL kept). Budget: df /mnt/beegfs union 13.9 TB avail; ledger total ~150 GB — well inside the ~3.5 TB true-free caution. Flip done when every row carries DONE/FAIL.",
+      "notes": "2026-10-24 pool-migration dedup dropped weight bodies fleet-wide; stub census (~/benchmarks/tp4-single-20261026/pool-stub-census.json, 70 repos): drama-3 0-byte (fetch DONE, 41.5 GB @b2b5ee99, rc=0), Mellum GGUF (DONE by tp4-single 8 GB), Qwen-Image-2.1-Turbo @fc13ba19 (snapshot MISSING, ~32.5 GB, in runner), local-inference-lab/Qwen3.8-Flash-Next-NVFP4 @6c01ac37 (3 husk shards of 41, ~9 GB, in runner), kev-0.8b (no snapshots; first attempt FAIL rc=1 root-owned .locks — chowned, retry running), LTX-2.5/MiniMax-H3/pyannote/humanizer queued as pre-check rows. Ledger: ~/benchmarks/cache-prefill-20261026/QUEUE.md (serial runner, du -sbL verify, DONE/FAIL kept). Budget: df /mnt/beegfs union 13.9 TB avail; ledger total ~150 GB — well inside the ~3.5 TB true-free caution. Flip done when every row carries DONE/FAIL. FLIPPED DONE at the 2026-10-27 01:16 ET board tick: ledger rows 3-24 all DONE/FAIL, `PREFILL-DONE 2026-10-26T00:07:05Z` + `runner exiting rc-loop complete` (rows 21-22), no runner process alive; the `hf download unsloth/Qwen3.8-27B-GGUF` running on `.30` at 01:16 ET is a peer session's separate fetch, not this runner.",
       "provenance": "owner directive 2026-10-26 evening; skill wopr-hf-cache-prefill-queue; tp4-single stub findings",
-      "claimed_by": "tp4-recovery",
-      "claimed_at": "2026-10-25T23:53:14Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "h2h-glm-flash-house-recipe",
