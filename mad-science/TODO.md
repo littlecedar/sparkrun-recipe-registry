@@ -961,6 +961,20 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   Unblocker: a deterministic build step (bytecode off, `SOURCE_DATE_EPOCH` set). *(effort: medium;
   recorded 2026-10-22 01:10 ET)*
 
+- [ ] **Digest-pin the shipped knapcio container** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:9`
+  carries `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` with **no `@sha256`**, so a repointed tag
+  silently changes the production serve. Measured 2026-10-27 13:16 ET on `.31`: the running container's
+  image is `sha256:3f4480818acb…` and its `RepoDigests` is **empty** on the node — so a node cannot
+  name the registry digest it runs. The digest quoted in TODO rows 19/21
+  (`canary-roce-aff52fa5@sha256:3f4480818acb…`) is the image-ID form, not a manifest digest — verify it
+  before writing it into `container:`. The tag is not anonymously resolvable: `docker manifest inspect`
+  returns *denied* from the workstation and the head (neither holds docker credentials), so the digest
+  must come from where credentials exist, or after the package-visibility fix (skill
+  `ghcr-package-visibility`). Work: resolve the manifest digest, write
+  `container: <repo>:<tag>@sha256:<manifest>`, run the `sparkrun run -n` render check, and boot-verify at
+  the next production reboot — never displace the live serve (`QUESTIONS.md` `#4`). *(effort: short;
+  registered 2026-10-27 13:21 ET, board tick.)*
+
 - [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a **382.8 GB** "GSQ"
   mixed-precision strata-format GGUF of a 1017-class body that **no engine this lane ships can open**
   (`recipes/ds4/README.md:25`, `:349`), so its 180.0 GB weight-only body — the smallest measured — buys

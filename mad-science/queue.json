@@ -661,6 +661,20 @@
       "provenance": "spares-lane 2026-10-26 (owner survey answer 11 discretion; boot-watchdog directive)",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "ds4-shipped-container-digest-pin",
+      "title": "Digest-pin the shipped knapcio container (container: is tag-only today)",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "deepseek-v4.1-flash-1017",
+      "node_cost": "",
+      "notes": "recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:9 is tag-only (littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5, no @sha256) so a repointed tag silently changes the production serve. Registry-only work: resolve the tag's MANIFEST digest (it is not anonymously resolvable - docker manifest inspect returns denied from workstation and head), write container: <repo>:<tag>@sha256:<manifest>, render with sparkrun run -n. Boot-verify rides the next production reboot - never displace the live serve (QUESTIONS #4). Note the digest quoted in TODO rows 19/21 (3f4480818acb...) is the image-ID form seen on .31 (RepoDigests empty on the node), not a manifest digest.",
+      "provenance": "mad-science/TODO.md §ds4; mad-science/STATUS.md 13:10 ET board tick 2026-10-27",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }

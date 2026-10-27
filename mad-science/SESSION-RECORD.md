@@ -1827,3 +1827,27 @@ Appends made by this sweep (the only facts that had no surviving home):
 - **Watch item:** the meta/storage failure mode is a transient all-NIC-down window killing the
   daemons at restart time; if a node connectivity blip recurs, check `.30`'s
   `systemctl is-active beegfs-meta beegfs-storage` before blaming a recipe.
+
+## Landed rows retired at the 2026-10-27 13:10 ET board refresh (session boundary)
+
+The board's `Landed this session` table is cleared at a session boundary (skill rule 9); the eight
+rows the 02:00 ET board (`8c19eac`) carried have no other home — the underlying items live in
+`TODO.md` §explore and `attic/ornith/AGENTS.md`, and these clauses are the commit-ledger narrative.
+Verbatim as carried, retired by board commit `e472094`.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 00:40 ET | `7d2225e` | Flint four-arm comparison item added to `mad-science/TODO.md` §explore — roster with the on-file baselines flagged re-measure-not-quote, one instrument across all four arms, today's node fences |
+| 00:44 ET | `efa5ede` | Ornith-1.5-122B decoder item + queue row: an SGLang arm against `incoai/Ornith-1.5-122B-DFlash2`, sized at the 35B's own ~2.9× draft ratio (≈79 t/s vs the 69.28 bar) |
+| 00:47 ET | `ee6806b` | 122B route falsifier pre-registered before any boot (C1 ≥ 51 wins, C1 < 45 kills the route) and the draft's config read rather than assumed — vocab 248,320 / 48 layers / 262,144 window all match the target |
+| 00:48 ET | `7485d6f` | corrected the drafter's authorship (`incoai` publishes the DFlash2 method; the 35B's shipped head is `jzinno`'s) and refuted the stale "only Ornith DFlash2 drafter" line in `attic/ornith/AGENTS.md` with a dated pointer |
+| 00:55 ET | `8d23505` | 1,000-turn omp tool-calling trial added to the register and the queue — capture proxy, per-turn JSONL ledger, pre-registered verdicts, 12 h single node |
+| 01:15 ET | `e2ea46e` | round-6 owner rulings folded as `TODO.md` row 23 (`SURVEY6 Q1`–`Q8`): all three new items next window, `.30`+`.35` in parallel, run staged at 300 turns, pattern-not-count verdict, Flint and 122B ship bars |
+| 01:16 ET | `5abc1d6` | board tick: fresh probed census (quartet live, `.30`/`.35` idle), queue reconciled — `pool-prefetch-missing-bodies` closed on ledger evidence, `flint-four-arm-comparison` + `ornith-122b-decoders-route` added as scheduler rows |
+| 01:53 ET | `f70c3b5` *(peer session)* | ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml gains `FASTSAFETENSORS_ODIRECT: 1` (1 line) — recipe edit, boot verification pending as the solo `.30` boot above |
+
+Two corrections this retirement carries, both measured at the 13:10 ET tick: the quartet on `.31`–`.34`
+is the **production serve** (served id `deepseek-ai/DeepSeek-V4.1-Flash-1017`, live chat traffic from
+`.30`), not an unclaimed research window — so the "no `.scratch/fleet-window.lock`" escalation that
+the 01:16 and 02:00 ticks raised is withdrawn; and the `01:53 ET` row's boot verification question was
+already answered by `ba78d62` (buffered reads, i.e. the pre-`f70c3b5` recipe).
