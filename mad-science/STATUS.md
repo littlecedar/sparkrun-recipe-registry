@@ -1,11 +1,11 @@
-# Board — generated 2026-10-27 14:08 ET
+# Board — generated 2026-10-27 15:01 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| ds4 quartet, `.31`–`.34` | **production serve** — standing line, no research window declared and none owed (the lock rule binds declared research windows; `QUESTIONS.md` `#4` names this the production serve). sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — **the recipe's tag; re-verified 14:03 ET that `.31`'s copy reports an empty `RepoDigests`, so there is still no manifest digest to pin** (queue row `ds4-shipped-container-digest-pin`) — container created 00:14 ET, **`Up 14 hours (healthy)`** on all four ranks. Probed 14:03 ET: `.31` `/v1/models` **200** → `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576; `.32`–`.34` **`/health` 200 / `/v1/models` 404** (the follower shape), probed 14:07 ET |
-| census | this tick — session `…17-34-11Z_01a17e6d` | **14:00–14:04 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB (low `.34` 1218 G); BeeGFS pool **11 TB** free on every node (unchanged since 13:01; `ps` at 14:08 on all six nodes shows no `hf download`/`hf sync` process). Volumes: `.34` carried six orphan anonymous volumes (4 KB each, created 2026-10-18/10-21, no container mounts any of them) — removed by explicit id, live rank untouched; all six nodes now at **0 volumes** |
+| ds4 quartet, `.31`–`.34` | **production serve** — standing line, no research window declared and none owed (the lock rule binds declared research windows; `QUESTIONS.md` `#4` names this the production serve). sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — **the recipe's tag; re-verified 15:01 ET that `.31`'s copy still reports an empty `RepoDigests`** (only the local image id `sha256:3f4480818acb…`; no manifest digest exists to pin — queue row `ds4-shipped-container-digest-pin`) — container created 00:14 ET, **`Up 15 hours (healthy)`** on all four ranks. Probed 15:01 ET: `.31` `/v1/models` **200** → `deepseek-ai/DeepSeek-V4.1-Flash-1017`; `.32`–`.34` **`/health` 200 / `/v1/models` 404** (the follower shape) |
+| census | this tick — session `…17-34-11Z_01a17e6d` | **15:00–15:01 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 15 hours (healthy)`); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB (low `.34` 1218 G); BeeGFS pool **11 TB** free on every node, and `ps` at 15:01 ET shows **no `hf download`/`hf sync` process** on any of the six. Volumes **0 fleet-wide** — the six `.34` orphans cleared at 14:04 are still gone |
 
 ## Work queue
 
@@ -30,4 +30,4 @@
 
 | time ET | commit | one clause |
 |---|---|---|
-| — | — | *(session `…17-34-11Z_01a17e6d` opened 13:34 ET; no work landed yet. The previous session's rows are retired in `SESSION-RECORD.md` §"Landed rows retired at the 2026-10-27 14:04 ET board refresh")* |
+| 14:09 ET | `8fb4bf4` | re-measured the two figures `dc5bc48` had carried: `.32`–`.34` `/health` 200 / `/v1/models` 404 at 14:07 ET, and no `hf download`/`hf sync` process on any node at 14:08 ET |
