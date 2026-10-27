@@ -1073,10 +1073,24 @@ Ornith 1.5
   **The other drafters the search turned up:** `kaivoss/Ornith-1.5-122B-DFlash2-GGUF` (a GGUF of that draft,
   so the llama.cpp tier can spec-decode too — the shipped Q3_K_XL tier's C5 < C2 batching weakness is a
   separate question) and `prithivMLmods/Ornith-1.5-122B-MTP-GGUF`; **no first-party `ornith-ai` 122B draft
-  exists**, so `incoai` is the only SGLang-targeted head. Pre-register the gate before the boot: one boot at
-  C1 ≥ 69.28 and C10 ≥ 116.27, house ≥ 36/37 at 4096 thinking-on, `Mean acceptance length > 1` in the serve
-  log. **Fences:** a whole node is needed (77.63 GB body plus KV) — `.35` is the idle candidate while the ds4
-  quartet holds `.31`–`.34`; re-census before every boot. *(effort: long)*
+  exists**, so `incoai` is the only SGLang-targeted head. **The draft's config checks out against the target
+  (read 2026-10-27):** `DFlash2DraftModel`, 6 layers, hidden 3072, 8 KV heads, head_dim 128,
+  `max_position_embeddings: 262144`, `rope_type: default`, `sliding_window: 2048`, block size 16, reading
+  target layers `[1,7,14,20,26,32,39,45]`, vocab **248,320** — against the target's 248,320 at 48 layers, so
+  the sibling's "no per-draft rope override above 262k" negative **does not apply here**: the draft's window
+  equals the served window. The mismatch to watch instead is rope flavor — the target declares
+  `mrope_interleaved` with `partial_rotary_factor: 0.25` and the draft declares plain `default` rope; the 35B
+  sibling has the same shape and its draft serves, but an accept≈1 first boot points here before anything else.
+  **Pre-registered before any boot, as two separate verdicts.** (1) *The route* wins only if C1 clears the
+  measured vLLM MTP arm's **38.8** by more than the lane's recorded d0 spread (**≈12 t/s**) — i.e. **C1 ≥ 51**;
+  **C1 < 45 falsifies SGLang+DFLASH**, the vLLM MTP arm then stays the best 122B decoder, and the item closes
+  as a negative with no SGLang knob iteration. Note the bar still needs **1.79×** over that best measured
+  lever (2.56× over AR), so clearing the route verdict does not imply clearing the gate. (2) *The arm gate*
+  stays the owner's: one boot at C1 ≥ 69.28 and C10 ≥ 116.27, house ≥ 36/37 at 4096 thinking-on,
+  `Mean acceptance length > 1` in the serve log — and an accept≈1 boot is a misconfiguration, retuned once
+  (draft tokens 4, then the card's block size) before any negative is recorded. **Fences:** a whole node is
+  needed (77.63 GB body plus KV) — `.35` is the idle candidate while the ds4 quartet holds `.31`–`.34`;
+  re-census before every boot. *(effort: long)*
 
 ## qwen3
 Qwen 3.x
