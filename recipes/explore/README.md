@@ -352,9 +352,10 @@ weights**.
 - **Model:** `JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF` (Apache-2.0, ungated), quant `Q4_K_M` —
   8,067,705,856 B / 12,149,923,072 params (`/v1/models` meta: `ftype` `Q4_K - Medium`).
 - **Engine:** `scitrera/dgx-spark-llama-cpp:b10549-cu131@sha256:ad140554…` (digest-pinned; llama.cpp
-  `b2e5e9b`, CUDA 13.1); `n_ctx` 131,072 × 8 slots `kv_unified`; `--no-mmap` (GB10 forces it unless
-  opted back in); `--jinja`; `--reasoning-format deepseek` splits thinking into `reasoning_content`
-  while tool calls keep `finish_reason: tool_calls`.
+  `b2e5e9b`, CUDA 13.1); `n_ctx` 131,072 × 8 slots `kv_unified`; `--load-mode none` (no mmap; GB10
+  forces it unless opted back in — the deprecated `--no-mmap` spelling warns, and its
+  `--load-mode mmap` hint is the opposite policy); `--jinja`; `--reasoning-format deepseek` splits
+  thinking into `reasoning_content` while tool calls keep `finish_reason: tool_calls`.
 - **Boot:** 2026-10-17 on `.34`, TTR ≈ 100 s (launch → `/v1/models` 200); served id = the HF repo id
   (`--alias` renders from its own `served_model_name` key, not `{model}` — sparkrun rewrites
   `{model}` to a checkpoint path).
@@ -397,11 +398,12 @@ weights**.
   returned an **empty reply** in one of three repeats and `ZORBULON` in the other two, a serving-side
   empty-content event, not a retrieval miss. Thinking-off, recorded as extra: easy 54/57 · hard 42/54
   = **stable 31/37**, and it leaks raw `</think>` text into `content` — a separate defect.
-- **`--no-mmap` is verified, not assumed (2026-10-19).** A variant recipe with the flag removed (the
-  flag-map key is inert on a template arm, so only a variant can test it) measured **C1 108.80 vs
-  110.64, C2 151.78 vs 151.87, C5 196.48 vs 208.28, C10 143.45 vs 144.82** in a same-window pair,
-  mmap ON vs the shipped OFF — the platform's forced default wins, worst at the peak cell where a
-  mapped GGUF faults its expert pages through the unified pool. Probe archived
+- **`--no-mmap` is verified, not assumed (2026-10-19).** (Measured under that spelling; shipped today
+  as its exact successor `--load-mode none`, common/arg.cpp:2672.) A variant recipe with the flag
+  removed (the flag-map key is inert on a template arm, so only a variant can test it) measured
+  **C1 108.80 vs 110.64, C2 151.78 vs 151.87, C5 196.48 vs 208.28, C10 143.45 vs 144.82** in a
+  same-window pair, mmap ON vs the shipped OFF — the platform's forced default wins, worst at the peak
+  cell where a mapped GGUF faults its expert pages through the unified pool. Probe archived
   (`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`); receipt
   `~/benchmarks/mellum-mmap-20261019/`.
   `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).

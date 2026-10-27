@@ -43,7 +43,7 @@ defaults:
 # Four literals, not defaults: a `defaults:` key in the llama.cpp flag map is
 # only consumed on the command-less path (`runtimes/llama_cpp.py::_build_command`),
 # so `jinja:` / `webui:` / `mmap:` here would be silent drops. This probe simply
-# omits the shipped arm's `--no-mmap`, i.e. mmap stays at llama.cpp's default on.
+# omits the shipped arm's `--load-mode none`, i.e. mmap stays at llama.cpp's default on.
 command: >
   llama-server -hf {model}
   --alias {served_model_name}

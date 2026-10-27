@@ -120,7 +120,7 @@ class LlamaCppArm(unittest.TestCase):
         # engine needs must be named in the command itself.
         for key in ("jinja", "webui", "mmap", "cont_batching", "no_webui"):
             self.assertNotIn(key, self.keys, "%s must be a literal, not a defaults key" % key)
-        for flag in ("--jinja", "--no-webui", "--no-mmap", "--cont-batching"):
+        for flag in ("--jinja", "--no-webui", "--load-mode none", "--cont-batching"):
             self.assertIn(flag, self.command)
 
     def test_served_id_is_a_literal_rendered_from_its_own_key(self):
@@ -151,9 +151,9 @@ class NegativeControls(unittest.TestCase):
         with_default = self.text.replace("  top_k: 20\n", "  top_k: 20\n  jinja: true\n", 1)
         self.assertIn("jinja", defaults_keys(with_default))
 
-    def test_dropped_no_mmap_would_pass_the_literal_guard(self):
-        without = command_block(self.text).replace("--no-mmap", "")
-        self.assertNotIn("--no-mmap", without)
+    def test_dropped_load_mode_would_pass_the_literal_guard(self):
+        without = command_block(self.text).replace("--load-mode none", "")
+        self.assertNotIn("--load-mode none", without)
 
     def test_served_name_from_model_would_pass_the_rebinding_guard(self):
         rebound = command_block(self.text).replace("--alias {served_model_name}",

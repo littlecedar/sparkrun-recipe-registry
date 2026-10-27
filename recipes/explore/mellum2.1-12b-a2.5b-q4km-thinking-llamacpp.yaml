@@ -42,9 +42,9 @@ defaults:
 
 # Four literals, not defaults: a `defaults:` key in the llama.cpp flag map is
 # only consumed on the command-less path (`runtimes/llama_cpp.py::_build_command`),
-# so `jinja:` / `webui:` / `mmap:` here would be silent drops. `--no-mmap`
-# matches the GB10 platform default (which the template path never injects);
-# this build accepts it as deprecated in favour of `--load-mode`.
+# so `jinja:` / `webui:` / `mmap:` here would be silent drops. Keep `none`:
+# `--no-mmap` asks the same and is deprecated, but its warning's "use
+# --load-mode mmap" hint is the *opposite* policy (common/arg.cpp:2671-2672).
 command: >
   llama-server -hf {model}
   --alias {served_model_name}
@@ -61,5 +61,5 @@ command: >
   --reasoning-format {reasoning_format}
   --jinja
   --no-webui
-  --no-mmap
+  --load-mode none
   --cont-batching

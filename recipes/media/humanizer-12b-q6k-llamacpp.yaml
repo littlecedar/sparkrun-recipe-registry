@@ -59,9 +59,9 @@ defaults:
 
 # These sampling flags are literals, not defaults: a `defaults:` key in the
 # llama.cpp flag map is only consumed on the command-less path, so declared
-# values here would be silent drops. `--no-mmap` matches the GB10 platform
-# default (the template path never injects it); this build accepts it as
-# deprecated in favour of `--load-mode`.
+# values here would be silent drops. Keep `--load-mode none`: the deprecated
+# `--no-mmap` asks the same, and its warning's "use mmap" hint is the
+# opposite policy.
 command: >
   llama-server -hf {model}
   --alias {served_model_name}
@@ -78,5 +78,5 @@ command: >
   --repeat-penalty {repeat_penalty}
   --flash-attn {flash_attn}
   --no-webui
-  --no-mmap
+  --load-mode none
   --cont-batching
