@@ -1,90 +1,25 @@
-# Board — FINAL refresh 2026-10-26 15:15 ET (last pre-history-rewrite commit; fleet at rest for drain)
+# Board — generated 2026-10-26 20:13 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | board-keeper | **15:15 ET 2026-10-26, all six nodes (read-only `ssh` + `docker ps` + `nvidia-smi`)**: ALL SIX NODES EMPTY — 0 containers and 0 % GPU on `.30`–`.35`; quartet verified empty after the ornith boot stop. **FLEET AT REST FOR DRAIN** |
-| ornith-toolcall-ohmympi-triage (DONE) | quartet-holder | **NO FAILURE REPRODUCED** (`ea040a9`): oh-my-pi tool-calling WORKS on the shipped line — sglang v0.5.22@e3a4f060 + honed template + qwen3/qwen3_coder parsers pass the scripted non-stream/stream tool loops (30/30 streaming) and the real omp agent run through a capture proxy (stream+include_usage, reasoning_effort high, 11-tool array; **7/7 SSE streams** to finish_reason); ONE once-only empty-SSE-body response recorded as a **watch item** (capture discipline: not fileable without a repro); boot stopped by literal id |
-| knob gates (CLOSED) | tp4-recovery | S1 spent on the shipped line (cached-token 28928 @ 32k / 119552 @ 131k, TTFT collapse 15.22→0.28 s / 27.18→0.45 s, `0123dda`); candidate6 battery **37/37 both arms, 0 flips — parity PASS → knob SHIPS, high default stays** *(superseded 2026-10-27: decision record only — default stays high (75) via `SGLANG_DSV41_REASONING_EFFORT`, no `max`, no tooling edits; see `TODO.md` row 22)*; `-o extra_args=` inert root cause recorded (valueless flags via `-o env.EXTRA_SGLANG_ARGS=…`) |
-| c3 chain (TERMINAL — NO-SHIP) | adapter-report-gate | **row 21** (`a9bec51`, record `6ffdda8`): DeepGEMM paged-sparse SM100-only (`attention.hpp:301`) vs GB10 SM121 — no in-image fix; shipped `canary-roce-aff52fa5@sha256:3f4480818acb…` line STANDS; arm3/arm5 ARCH-GATED; `ds4-repro-config-created` WITHDRAWN (image-ID-DROPPED) |
-| ds4-1017 set | tp4-recovery | **COMPLETE on the shipped line** — the named set (bars + main-image-boot-gate PASS + chunk-32768 reprobe DONE-NOT-SHIPPABLE + knob gates CLOSED) plus fresh S1/candidate6 evidence all landed; no open cell remains on the 1017 tier |
+| census | DSV41F1017-Parity | **20:13 ET 2026-10-26, all six nodes (read-only ssh + `docker ps` + `nvidia-smi`)**: `.31`–`.34` carry exactly one container each (the Arm A serve; GPU 37–96 %), `.30` and `.35` 0 containers / 0 % GPU — the Arm A boot is the only fleet workload. Window claimed in `.scratch/fleet-window.lock` (`.31`–`.34`, 2026-10-26 evening → A/B close) |
+| ds4-1017 knapcio-parity A/B | DSV41F1017-Parity | **Arm A (strict aff52fa5 production parity) UP** on `.31`–`.34` (`sparkrun_c989632ede4f538e_4500a8b3cae2`, endpoint `http://10.0.4.31:8000`, TTR port-open 190.6 s): boot line verified `chunked_prefill_size=8192` / `max_running_requests=16` / `context_len=1048576` / pool `4,111,616`; server_args carry `watchdog_timeout=1800`, `sleep_on_idle=True`, `enable_deepseek_v4_fp4_indexer=True`, `prefill_decode_interval=2`, `min_free_slots_delay=1`; serve log shows `DSV41_PREFILL_BYPASS armed` (256 fresh / 32 candidates), `[cert_head] armed (mode 1, M [6,12,18,24,30,36,42,48])`, fast load ARMED. Boot-watchdog armed. Cells in flight: sparkDash prose c1, speedbench full (all-73 + prose geomeans), house 4096 thinking-on, needles 32k/131k. **Arm B (control, shipped line) boots after Arm A's cells** |
 
-Mirrors `mad-science/queue.json` via `tools/task-queue.py` (check **ok** at 15:15). **Running**: none — `pool-prefetch-missing-bodies` continues as the only background item; ornith triage DONE (`ea040a9`). Remaining queued: `tensorfold-metrics-bridge-generalization` (w 1.50), `h2h-glm-flash-house-recipe` (w 1.50), `h2h-doc-refresh` (w 0.50), `h2h-beam-house-and-bfcl-category` (w 2.50), `glm-flash-concurrency-degradation-search` (DEFERRED, row 19), idle-only `h3-quartet-retry`. **ENDGAME per row 20/4: drain-and-close — all four worker sessions killed with the window at drain; the next window starts fresh.**
+Mirrors `mad-science/queue.json` via `tools/task-queue.py`. **Running**: none in queue terms — the A/B is this session's window work. Open/blocked, per `TODO.md` row 22 next-window order (DeepGEMM SM12x watch first, then glm-flash, Beam staging, H3, spares):
+
 | job | node cost | holds | state |
 |---|---|---|---|
-| 1. `chunk-32768-overlay-reprobe` — 32768 prefill-chunk probe on the aff52fa5 overlay | quartet | tp4-recovery | DONE — NOT shippable (pool −72%, needles TRUNCATED, `f3cf420`) |
-| 2. `w4-survey-arm3-indexer-scoring` — SGLang PR #43401 candidate-only indexer scoring | quartet | tp4-recovery | ARCH-GATED (DeepGEMM SM100-only, row 21 — withdrawn) |
-| 3. `ds4-repro-config-created` — pin the knapcio image config created stamp | single | tp4-recovery | WITHDRAWN (image-ID-DROPPED ruling — byte-repro suffices) |
-*(Later rows: `ds4-adapter-report-gate` (w 14.00-class — c3 TERMINAL NO-SHIP, row 21); knob track DONE (S1 + candidate6 ships, `0123dda`) — candidate6's "ships" is decision-record-only per the 2026-10-27 ruling (see `TODO.md` row 22). Done in the ledger: knob gates (S1 evidence + candidate6 parity PASS), c3 no-ship record (`6ffdda8`), flag-collapse root cause, flag track (candidate6/S1/S2/S3), main-image-boot-gate, chunk-32768 reprobe (NOT shippable), H3 first four-rank cell, adapter trial, byte-reproducible, mellum probe + speedup levers, S0, Beam remainder, h2h-glm-needle-3rungs, h2h-glm-tools-leg; withdrawn: b12x parity/ship-recipe/tuning-round, `ds4-repro-config-created`.)*
+| `arch-deepgemm-sm12x-paged-sparse` — DeepGEMM SM12x for the paged-sparse logits family (upstream watch) | watch | queue | BLOCKED on upstream (row 21) — first in the next-window order |
+| `w4-survey-arm3-indexer-scoring` | quartet | — | ARCH-GATED behind SM12x (row 21) |
+| `w4-survey-arm5-trtllm-mla` | quartet | — | ARCH-GATED behind SM12x (row 21) |
+| `h3-quartet-retry` | quartet | — | queued, idle-only |
+| `glm-flash-concurrency-degradation-search` | quartet | — | DEFERRED (owner, row 19) |
+| Beam staging (`h2h-beam-house-and-bfcl-category` remainder) | spare | — | parked (owner, rows 19/22) |
 
 ## Landed this session
 
 | time ET | commit | one clause |
 |---|---|---|
-| 08:11 ET | `5141c20` | Beam arm: card's `--reasoning-parser beam`/`--tool-call-parser beam` added to `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml`; TODO gains §"Retry queue — window 4" (three tracks + owner advisories) |
-| 08:12 ET | `ab6078a` | Fleet-wide Docker seccomp change enables io_uring on all six nodes: `tools/enable-io-uring.{py,sh}` + guard test, probe-before/apply-after evidence recorded; b12x boot unblocked |
-| ~10:30 ET | `65f8fce` | Beam arm fix: cell-(d) comment lines had landed inside the folded command scalar and ran as engine argv (boot-2 attempt 2 crash) — notes moved above `command:`, fold cleaned |
-| ~10:35 ET | `3de5d70` | Beam DFlash2 drafter by pool snapshot path (vLLM SpeculativeConfig cannot resolve a repo id under `HF_HUB_OFFLINE`); snapshot `163b276b` verified |
-| ~11:00 ET | `689ee3b` | TODO window-4: owner's three dated rulings landed — drafter policy (DFlash2 stays), build-gate drift (durable re-port path), model priority (1017 primary) |
-| ~11:30 ET | `cd2a60a` | Owner-directed task queue: `tools/task-queue.py` weighted scheduler + `mad-science/queue.json` seed + `QUEUE.md` protocol + guard tests |
-| 16:26 ET | `7fa352d` | Beam sha guard exempts `--speculative-config` tokens + two controls; parity recipe carries BOTH ulimits (boots 2–4 proved each half alone is fatal) |
-| 17:34 ET | `055ab3d` | GUIDANCE adapter background folded into tracked records; only open questions remain |
-| 17:42 ET | `cbede11` | Owner answers §5–§12 folded into TODO dated advisories; GUIDANCE rewound to open questions |
-| 18:00 ET | `541d843` | Owner round-5 answers folded into TODO dated advisories; `mad-science/GUIDANCE.md` deleted |
-| ~18:30 ET | `0550ac7` | Queue ledger round-4/5 rulings folded: adapter trial becomes the adoption path blocking the flag track; 7 new tasks; ship-recipe state-blocked; S0 stale cite repointed to `recipes/ds4/README.md` |
-| ~18:45 ET | `f75ae31` | Owner cancels the vLLM b12x 1017 route — recipe hash-moved to attic/ds4, metrics landed there (C1 34.04 agg vs 64.0 bar; house 37/37; 1M context; needle 32k 10/10), queue rows withdrawn, root AGENTS counts re-measured (78 recipes / 44 modules / 988 tests) |
-| ~19:05 ET | `c3c3dd7` | ds4 trial re-pin to knapcio upstream HEAD `aff52fa5` (v2.5+, quarantined v2.4 lineage retired, #41303 backport): full in-image gate green, `Dockerfile.knapcio-dsv41-aff52fa5` vendored |
-| ~19:15 ET | `bb4c67f` | Mellum MTP probe re-pinned to upstream `d854d98bae` (2026-10-25 HEAD): local build on `.35`, both gates green; ds4 README gains the sparkrun-HOME single-node launch caveat |
-| ~19:25 ET | `edfb2ea` | Mellum MTP n=1 upstream retest: 102.95 ± 3.20 vs pooled baseline 98.44 ± 3.36, −0.4 % vs prior figure — rejection stands, probe arm stays `zz-`; media drama-3 pool-stub failure recorded; queue `mellum-mtp-zz-probe` done |
-| ~19:35 ET | `0212cb4` | GGUF viability triage + drafter alternatives survey land (`mad-science/GGUF-VIABILITY-TRIAGE.md`, `mad-science/DRAFTER-ALTERNATIVES-1026.md`); window-4 baseline boots receipted |
-| ~19:45 ET | `4447a7d` | TP=4 head-to-head receipts-only doc lands (`mad-science/TP4-HEAD-TO-HEAD-1025.md`), no new boots |
-| ~20:20 ET | *(this commit)* | **Knapcio 1017 adoption SHIPPED**: production overlay = `canary-roce-aff52fa5` (`sha256:3f4480818acb…`, gate green, health-port patch lesson recorded — first trial build `21d1bf34…` shipped unpatched boot.py, serving unaffected); adoption boot verdict on landed cells: C1 64.08 agg / C10 152.24 agg / house 36/37 / needles 32k+131k 10/10 — all bars clear; 983k rung still in flight, not a ship gate; bars/receipts in `recipes/ds4/README.md`, decision in `TODO.md`, record in `DEEPSEEK.md` §5; vLLM cancellation record carries the owner's verbatim words, `TODO:773` §2(a) annotated MOOTED |
-| ~20:14 ET | `4225e77` | kev-0.8b boot-killing port collision fixed (8008 = beegfs-mgmtd on mgmt nodes; moved to 8021) + `/health` route registered for sparkrun's probe |
-| ~20:16 ET | `43ef022` | Queue: `ornith-toolcall-ohmympi-triage` added (owner directive, tier 3) |
-| ~20:16 ET | `d91ea2f` | Queue: kev-bind-conflict-fix done; h2h gap tasks + mellum-speedup-search state |
-| ~20:17 ET | `5284211` | Queue: needle-131k/983k rerun done — adoption boot 32k/131k 10/10 on the shipped overlay; 983k appends when its wrapper lands |
-| ~20:18 ET | `e4b6128` | Adoption records: C1 edge caveat (64.08 clears ≥ 64.0 by +0.08, no headroom claimed), C10 152.24 |
-| ~20:18 ET | `f2e743c` | Queue: adapter trial done — adoption shipped `0326719`; flag track unblocked on the aff52fa5 overlay |
-| ~22:56 ET | `2fc54a7` | Records corrected: GLM-Flash 'TEB 14/15' WITHDRAWN as contaminated (it scored the lingering 3bpw serve); root cause = Flash checkpoint pin `078455ff` is a config-only stub fleet-wide (deterministic launcher ValueError, not a memory wedge); 175.7 GB body refetch flown |
-| ~23:07 ET | `f656e8d` | Mellum Q8_0 draft-head discrepancy resolved with a same-window pair |
-| ~23:21 ET | `0a3b4b6` | Queue: needle redo boot live on the refetched body (cause closed with per-node du evidence); 3bpw rerun chained |
-| ~00:23 ET | `de99b52` | GLM 3bpw launcher: metrics bridge (live monitor scrape for TensorFold arms) |
-| ~00:23 ET | `49714f2` | Qwen-Image launcher bound to the pinned snapshot dir offline (`resolve_snapshot()`) |
-| ~00:23 ET | `0211825` | Queue: needle row correction — live cells are the 3bpw arm; flash arm chained next |
-| ~00:32 ET | `22a6328` | Qwen-Image demo row landed; LTX-2.5 spare cell queued |
-| ~01:03 ET | `21e5ec6` | TODO Runtimes: keep-alive dead-boot detection gap recorded as a lane observation |
-| ~01:04 ET | `7c42590` | Metrics bridge: survive the pre-ready window; never print an unread number |
-| ~01:09 ET | `ffa5518` | Last blocked media demo row closed: LTX-2.5 T2V landed on `.35` |
-| ~01:24 ET | `1643410` | Queue: survey answers applied — h3-quartet-retry / chunk-32768-overlay-reprobe / main-image-boot-gate re-queued; byte-repro annotated (content comparison is the path); bridge generalization sequenced |
-| ~01:26 ET | `f532980` | Mellum zz- probe re-pinned to the Q8_0 MTP head, sweep recorded |
-| ~01:26 ET | `d2adf8f` | Survey answers folded into TODO dated advisories (12 rows) |
-| ~01:29 ET | `007a141` | Literal-sha guard exempts the `-md` draft-head sha (gate green again) |
-| ~02:05 ET | `4c222bf` | Pool-deletion policy (owner directive): models deletable only when every reference lives in attic — AGENTS.md Node hygiene carries the rule, TODO advisory row 13 quotes it |
-| ~02:07 ET | `3e14f4c` | c3-only dsv41 adapter exclusions gated behind `DSV41_C3_EXCLUDES` in the overlay launcher |
-| ~02:15 ET | `210d184` | 15.7G second-boot ladder landed; two authored spares rows |
-| ~02:20 ET | `8da1c85` | Kolibri battery second boot reproduces 37/37 |
-| ~03:28 ET | `2ae0512` | Queue: 983k rung wrapper-capped (rc=124 = wrapper timeout, not an arm failure); re-run at 14400 s on the warm 3bpw serve |
-| ~07:17 ET | `a2740d6` | Queue: 983k recorded wrapper-capped ×2 (unmeasurable in-window); Flash arm takes 32k/131k only; quartet releases to the re-port |
-| ~07:58 ET | `0f0ee98` | h2h: GLM needle numbers folded — both arms 32k/131k 10/10 PASS; 983k wrapper-capped on both; needle row done; quartet released to the re-port |
-| ~02:07 ET | `6b3d483` | Boot watchdog lands: stdlib-only dead-boot killer (endpoint + serve-pid + io deltas, loading-vs-dead rule, grace before stop-by-id) with a 7-test decision-table guard — sha re-pointed after the 2026-10-27 rewrite (`3fe4457` superseded, see TODO row 22) |
-| ~02:1x ET | `4d88848` | Docs: boot watchdog made the standard boot chain (boot → pre-flight → watchdog → cells → stop by id; cold 510 GB load needs 1800 s grace) |
-| ~02:3x ET | `40e4911` | Reranker 2B solo measured under the boot watchdog |
-| ~02:4x ET | *(folded into `6b3d483`)* | Boot watchdog: two literal rail IPs scrubbed from docstring/help — the `cd9a9b4` scrub commit was folded into `6b3d483` by the 2026-10-27 rebase (dropped-as-redundant; it no longer exists) |
-| ~09:4x ET | `9e63795` | Queue: candidate 6 done (2.96 % paired saving, knob wired, 10/10 both arms); S1 running |
-| ~09:5x ET | `d84fa37` | Queue: S1 done (cache-report = reporting fix, cache already reusing), S2 done (lpm null), S3 done-negative (min-free-slots-delay loses 7–11 % same-line) |
-| ~09:5x ET | `a70b1d4` | Docs: window-4 flag-track verdicts folded into tracked docs, dated entries with receipt pointers (gate 1005 OK) |
-| ~10:51 ET | `5315226` | Queue: h3-quartet-retry parked queued (priority yield) — first four-rank H3 cell COMPLETED (denoise 8/8, 113.9 s TP=4, #46390 refuted); bind fix + request shape recorded as resume state |
-| ~10:56 ET | `7864ab7` | TODO advisory row 18 + clock readout caveat (survey round-2 fold) |
-| ~10:57 ET | `ea0785c` | `--enable-cache-report` SHIPPED on the knapcio TP4 serve line (owner ruling): recipe + launcher valueless-flag table + guard both ways |
-| ~10:57 ET | `9e392bf` | Boot watchdog: plain python added to SERVE_PATTERN (plain-python serve children were invisible; endpoint stays authoritative) |
-| ~11:02 ET | `a481680` | zz- probe arm added for the main-image boot-gate (Spark-X2.6-4B bf16 on `sglang-main-arm64:6563312`, control numbers named) |
-| ~11:05 ET | `33f7336` | TODO advisory row 19 (survey round-3 fold: ship ruling pre-staged, battery base, continuation vs drain, Beam parked, spares through endgame) |
-| ~11:13 ET | `1a8f5e7` | Queue: main-image-boot-gate done **PASS** (main-tree image carries the Spark-X2.6 control shape at ladder+house parity, `.30`); glm-flash DEFERRED to next window (owner ruling) |
-| ~12:14 ET | `865863e` | TODO advisory row 20 (survey round-4 fold: bars-clear non-inferiority rule, ship digest `644cb802…`, chunk-32768 ships-after-battery-gate, sessions killed at drain) |
-| ~12:23 ET | `2fa8c59` | Board refresh 12:21 ET (chunk reprobe live, main-image-boot-gate PASS, attempt-8 staged) |
-| ~12:33 ET | `f3cf420` | chunk-32768 reprobe DONE — faster prefill but pool −72%, needles TRUNCATED: NOT shippable, 16384 line unchanged (DEEPSEEK s9 addendum) |
-| ~14:32 ET | `6ffdda8` | c3 re-port record: TERMINAL BLOCKED no-ship landed in DEEPSEEK §17/§19, queue, ds4 README (DeepGEMM SM100-only) |
-| ~14:41 ET | `0123dda` | ds4 knob gates spent once on the shipped line: S1 evidence shape reproduced; candidate6 battery 37/37 both arms, 0 flips — parity PASS, knob ships *(2026-10-27: decision record only — see `TODO.md` row 22)*; `-o extra_args=` inert root cause noted |
-| ~15:10 ET | `55b4f5a` | ornith tool-call triage DONE: NO FAILURE REPRODUCED on the shipped line (30/30 streaming loops, 7/7 SSE streams through the omp harness; one once-only empty-SSE-body watch item) — sha re-pointed after the rewrite (`ea040a9` superseded) |
-| ~15:25 ET | *(this commit)* | TODO row 22: survey round-5 drain/close fold — rewrite DONE (named commit only, `3fe4457`→`6b3d483`, `cd9a9b4` dropped-as-redundant), candidate6 decision-record-only (high 75 via `SGLANG_DSV41_REASONING_EFFORT`), next-window order named, empty-SSE watch-and-capture |
+| ~20:05 ET | `7be1a13` | aff52fa5 production block adopted in the dsv41-sglang-overlay launcher — `DSV41_CERT_HEAD=1` + M list, `DSV41_FAST_LOAD_EP_SIZE=1`, `DSV41_FAST_LOAD_N_EXPERTS=384`, `WATCHDOG_TIMEOUT=1800`, `--sleep-on-idle`, `--enable-deepseek-v4-fp4-indexer` as AB_ENV defaults (each disablable); `DSV41_PREFILL_BYPASS` + `MIN_FREE_SLOTS_DELAY` stay arm-only (upstream-experimental / S3 negative on the pre-adoption line); ds4 README gains the protocol-comparability note (sparkDash prose c1 91.3 vs speedbench prose 64.7 / all-73 87.5 vs cold-contaminated ladder 64.08), the two arm commands and the deviations table; DEEPSEEK §18 v2.4-era "cert_head already 0" and "no scheduler flag we lack" claims annotated; gate 1007 tests OK |
