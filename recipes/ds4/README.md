@@ -109,12 +109,18 @@ defaults plus the four contested knobs); **B** = the pre-adoption line (the seve
 Verdicts: the **shipped line is at parity with upstream** — −0.8 % speedbench ALL, −0.3 % prose
 category, −0.6 % sparkDash prose decode window, every category within ±3 % (our 2236 MHz clock lock
 vs their 2200 cap is ≈ +1.6 % in our favour, so config-equal the residual is ≈ 2 %; no win claimed).
-The **seven adopted defaults are sub-threshold** on decode (C vs B +0.81 % ALL; longctx +4.5 % is the
-visible part) and ship as config identity. The **four contested knobs are a real decode gain**
-(A vs C +2.67 % ALL / +3.0 % prose) but cost what the table above does not show — 8192 chunks give up
-the 2.35× 1M-prefill win and interval 2 was 17–28 % of ladder throughput — so they stay arm-only
-until a concurrency+prefill cell pair exists. **Formula discipline:** wall-inclusive tok/s is not
-sparkDash's accounting (protocol ratio check: upstream 91.3/64.7 = 1.411, our wall numbers
+**Only the within-boot comparisons against upstream are claimed.** The cross-arm deltas are
+**boot-order-confounded**: TTR degraded monotonically across the three boots (A 190.6 s → B 235.9 s →
+C 435.8 s, the last after the pool outage/remount), and Arm B's own five prose runs fall 85.66 →
+84.1 → 82.33 inside its boot while Arm A's are flat. So "A beats B" is partly "A ran first".
+What that leaves: the seven adopted defaults are **sub-threshold and not banked** (C vs B +0.8 % ALL,
+order-confounded on both sides); they ship as **config identity**, justified by C's own parity with
+upstream. The four contested knobs **stay arm-only** — not because a config win is refuted (A vs C
++2.7 % is order-confounded too) but because their measured costs elsewhere stand: 8192 chunks give up
+the 2.35× 1M-prefill win, interval 2 was 17–28 % of ladder throughput, delay 1 lost 7–11 % at C4–C16.
+A re-measure with arms interleaved (or C re-booted after A) is the prerequisite for any promotion.
+**Formula discipline:** wall-inclusive tok/s is not sparkDash's accounting (protocol ratio check:
+upstream 91.3/64.7 = 1.411, our wall numbers
 86.7/66.43 = 1.305, the ~8 % being the ~215 ms TTFT share of a ~2.95 s run; decode-window ratio
 90.77/64.5 = 1.407) — quote the decode-window figure only.
 
