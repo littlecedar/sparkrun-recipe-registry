@@ -948,6 +948,10 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   until the owner stands the production serve down, so the ds4 TP=4 candidates are queued, not runnable.
   Superseded: an earlier note here read "production stays stopped, the quartet serves the TP=4 queue" —
   production is **up**, on those ranks, since 04:49 ET.)*
+  *(Pointer 2026-10-27: the fence follows the **production serve**, never a fixed rank list — the serve
+  now sits on `.31`–`.34` (measured 13:16 ET: container created 00:14 ET, live chat traffic), so `.30`
+  and `.35` are free for the single-node jobs row 23 Q2 authorizes in parallel with the quartet. An idle
+  `.30` is work waiting to be scheduled, not a reserved node.)*
   *(Owner decision 2026-10-22: the 20–28 h block — qwen4 W6 then W12, the ds4 TP=4 candidates, then the
   four-node suite legs — is the intended order **once the serve is stood down**, and it is resumable, so
   a pause is never a loss. W6 (blocked at the engine) and W12 (served, TP=2 on `.31`/`.32`) both landed
@@ -963,17 +967,19 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
 
 - [ ] **Digest-pin the shipped knapcio container** — `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:9`
   carries `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` with **no `@sha256`**, so a repointed tag
-  silently changes the production serve. Measured 2026-10-27 13:16 ET on `.31`: the running container's
-  image is `sha256:3f4480818acb…` and its `RepoDigests` is **empty** on the node — so a node cannot
-  name the registry digest it runs. The digest quoted in TODO rows 19/21
-  (`canary-roce-aff52fa5@sha256:3f4480818acb…`) is the image-ID form, not a manifest digest — verify it
-  before writing it into `container:`. The tag is not anonymously resolvable: `docker manifest inspect`
-  returns *denied* from the workstation and the head (neither holds docker credentials), so the digest
-  must come from where credentials exist, or after the package-visibility fix (skill
-  `ghcr-package-visibility`). Work: resolve the manifest digest, write
-  `container: <repo>:<tag>@sha256:<manifest>`, run the `sparkrun run -n` render check, and boot-verify at
-  the next production reboot — never displace the live serve (`QUESTIONS.md` `#4`). *(effort: short;
-  registered 2026-10-27 13:21 ET, board tick.)*
+  silently changes the production serve. Measured 2026-10-27: this tag has **no registry digest anywhere** —
+  `docker images --digests` on the head prints `<none>` for it (the pushed siblings `canary-roce`,
+  `canary-roce-20261022` and `tensorfold-v06` all carry one) and `.31`'s running copy reports an empty
+  `RepoDigests`. It is a **local build**, created 2026-10-25 20:01 ET, 33.5 GB, labelled
+  `lmsysorg/sglang:dev-dsv41` (`da64c5cb`, upstream action run 34631178591), so the overlay is baked on
+  top of an upstream dev image and only exists on our disks. Consequence: there is nothing to copy — the
+  digest quoted in TODO row 21 (`canary-roce-aff52fa5@sha256:3f4480818acb…`) is the local **image ID**
+  and is unusable in `container:`; anonymous GHCR is denied, so the route is push-then-pin. Work: push
+  these exact bytes under a new tag (credentials required) or rebuild deterministically and push, take
+  the manifest digest from the push, write `container: <repo>:<tag>@sha256:<manifest>`, run
+  `sparkrun run -n`, and boot-verify at the next production reboot with the pinned image ID compared
+  against today's `sha256:3f4480818acb…` — never displace the live serve (`QUESTIONS.md` `#4`).
+  *(effort: short; registered 2026-10-27 13:21 ET, board tick.)*
 
 - [ ] **Research `kaushikvira/DeepSeek-V4.1-Flash-1017-GSQ-agentic-strata`** — a **382.8 GB** "GSQ"
   mixed-precision strata-format GGUF of a 1017-class body that **no engine this lane ships can open**
