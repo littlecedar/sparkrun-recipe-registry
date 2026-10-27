@@ -1054,8 +1054,11 @@ Ornith 1.5
   (+9 %, house 36/37). **SGLang has never been tried on this checkpoint at all** — every SGLang arm in the
   lane is 9B or 35B — and the draft that route needs exists:
   [`incoai/Ornith-1.5-122B-DFlash2`](https://huggingface.co/incoai/Ornith-1.5-122B-DFlash2), a **930.3 M**
-  `qwen3` block-diffusion DFlash2 draft, Apache-2.0, tagged `sglang` *and not* `vllm`, created 2026-10-19
-  (the same author's draft is what the 35B ships). On the 35B the lane records its own draft ratio — plain
+  `qwen3` block-diffusion DFlash2 draft, Apache-2.0, tagged `sglang` *and not* `vllm`, created 2026-10-19.
+  `incoai` publishes the DFlash2 method (`inco.ai` blog, arXiv 2602.06036) but is **not** the author of the
+  35B's shipped head, which is third-party `jzinno/Ornith-1.5-35B-A3B-DFlash2` — so the ratio below is the
+  shipped 35B draft's, not this one's, and it transfers as method precedent only. On the 35B the lane records
+  its own draft ratio — plain
   ≈34 t/s against **100.8** with the draft, ≈**2.9×** — and applied to 27.1 that is **≈79 t/s C1, above the
   owner's 69.28 easy-traffic bar**: the first lever here with a real shot at turning the 122B from capability
   arm into a candidate. Hypothesis, not a claim — acceptance is prompt- and checkpoint-dependent and nobody

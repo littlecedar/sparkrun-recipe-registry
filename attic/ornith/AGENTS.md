@@ -1186,7 +1186,11 @@ They are kept as provenance; the b12x API surfaces they referenced are not cover
 
 A model/runtime scan for this lane found **no superseding checkpoint**: `ornith-ai` has published no
 new base/quant revision since 2026-08-29, and the `jzinno` DFlash2 draft is unchanged since
-2026-08-23 (it remains the only Ornith DFlash2 drafter). What exists and what it means here:
+2026-08-23 (it remains the only Ornith DFlash2 drafter). *(Refuted 2026-10-19, noted 2026-10-27:
+[`incoai/Ornith-1.5-122B-DFlash2`](https://huggingface.co/incoai/Ornith-1.5-122B-DFlash2) is a second
+Ornith DFlash2 drafter — 930.3 M, `DFlash2DraftModel`, `sglang` tag, Apache-2.0 — published for the
+122B; the 35B's shipped head is still `jzinno`'s, and the claim above is left as the dated record.
+The 122B arm that would use it is `mad-science/TODO.md` §ornith, "missing decoders".)* What exists and what it means here:
 
 - **First-party plain-DFlash drafts for all three scales** (`ornith-ai/*-DFlash`, 2026-09-28) —
   plain `DFlashDraftModel`, not DFlash2, with **no published numbers**. Candidate only as the 397B
