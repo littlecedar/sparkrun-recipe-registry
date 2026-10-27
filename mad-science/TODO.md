@@ -915,6 +915,7 @@ together:
 20. **Survey round-4 answers (owner, 2026-10-27 — self-contained fold; the scratch file is consumed and deleted): (1) BARS-CLEAR RULE NAMED (pre-staging the ship gate): non-inferiority at point − 1σ — a cell clears when it lands ≥ point − 1σ, i.e. **C1 ≥ 60.42** (64.08 − 3.66) and **C10 ≥ 138.36** (152.24 − 13.88); house (36/37) and needles (32k/131k 10/10) bars are unchanged; in-band-below-point clears, below-1σ fails. The ship/no-ship call is mechanical from these numbers. (2) SHIP PIN: the shipped recipe pins the LATEST verified digest at ship time — `644cb802…` (empty-publish fix, in-image gate green) supersedes `6f93278a…`; whatever attempt-8 boots is the digest that ships. (3) chunk-32768 disposition: if the running reprobe confirms a benefit, the 32768 chunk setting SHIPS into the production line after its battery gate, same as the other knobs; if no benefit, it stays research-only for this window. (4) ENDGAME SESSION HANDLING: **all four worker sessions (keeper, quartet-holder, adapter-report-gate, spares-lane) are killed with the window at drain** — nothing lingers holding claims or locks; the next window starts fresh.**
 21. **c3 chain TERMINAL — NO-SHIP (2026-10-26 14:25 ET fold, owner directive): the candidate-block arm is BLOCKED on GB10 by an upstream DeepGEMM SM100-only dependency — `deep_gemm.get_paged_sparse_mqa_logits_metadata` asserts `jit->device.get_arch_major() == 10` (`/deepgemm/csrc/apis/attention.hpp:301`); GB10 is SM121. Attempt map att1–att9 recorded in `~/builds/ds4-report/c3-NOTES.md`: the image fixes held and the att8/att9 publish_decode topk dispatch fix was CORRECT (boot passed the publish path) but the fourth wall is the candidate-block feature itself — no in-image fix can clear it. **The shipped `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5@sha256:3f4480818acb…` production line STANDS unchanged**; the row-20 bars-clear rule and `644cb802…`/`13f686b36ec3` ship-pin discussion is MOOT for this chain. Knob gates (candidate6/S1-class) run ONCE on the shipped line now. `w4-survey-arm3-indexer-scoring` and arm 5 trtllm are ARCH-BLOCKED (same DeepGEMM SM100 gate) — not runnable on GB10; `ds4-repro-config-created` goes to a WITHDRAWAL CHECK per the image-ID-DROPPED ruling (byte-repro suffices; "why does this matter at all"). Ranks handed back, 0 sparkrun containers verified.**
 22. **Survey round-5 answers (owner, 2026-10-27 — drain/close fold; `.scratch/SURVEY.md` consumed and deleted): (1) HISTORY REWRITE DONE — scope = the named watchdog commit only, no full re-audit this pass; `3fe4457` → `6b3d48308712d29f3910b11c088f0f4ff9313468` (0 IP hits, ZERO tree diff), force-with-lease landed, head clone reconciled, fsck clean both sides; the `cd9a9b4` scrub commit was folded into `6b3d483` by the rebase (empty replay, dropped-as-redundant — it no longer exists). (2) candidate6 = DECISION RECORD ONLY — the shipped default stays **high (75) via `SGLANG_DSV41_REASONING_EFFORT`**; do not ask for `reasoning_effort=max`; NO tooling edits. (3) NEXT-WINDOW ORDER: DeepGEMM SM12x upstream watch → `glm-flash-concurrency-degradation-search` → Beam staging → H3 (idle-only) → spares authoring. (4) ornith empty-SSE body = WATCH-AND-CAPTURE on future ornith boots — no upstream filing on n=1. (5) History-rewrite record: `3fe4457`→`6b3d483`, zero tree diff, `cd9a9b4` dropped-as-redundant.**
+23. **Survey round-6 answers (owner, 2026-10-27 — collected in one `ask` call before the next window; `SURVEY6 Q<n>` is the sheet namespace and never a register number): (1) Q1 — ALL THREE new items land next window**: the 1,000-turn omp tool-calling run, the Flint comparison, and the 122B SGLang+DFlash route; no ordering is implied, so the window holder orders them. **(2) Q2 — two idle nodes may run in parallel**: single-node jobs on `.30` and `.35` concurrently while the ds4 quartet keeps `.31`–`.34`; the `.scratch/fleet-window.lock` row records both jobs, and the never-displace rule is unchanged. **(3) Q3 — the long run's project is a scratch stdlib Python copy** plus a 20–40 item backlog under `~/benchmarks/ornith-longrun-<date>/workspace/`, never this tree. **(4) Q4 — the harness under test is `omp/18.13.1`**, the installed build, recorded in the receipt. **(5) Q5 — the run is staged: 300 turns first, extended only if that pass is clean** — this supersedes the ~1,000-turn *first pass* (the total survives as the extension target) and drops the first-stage estimate to ~4 h. **(6) Q6 — only a REPEATABLE PATTERN counts as real**: a bare count is not a verdict (the item's "≥ 2 empty bodies / ≥ 3 bad tool turns" is superseded), a single event stays a *watch item* exactly as round-5 answer (4) set for the empty-SSE body, and a reproduction must correlate with a named trigger — first turn of a boot, first request after an idle gap, a depth threshold, or the post-compaction turn. **(7) Q7 — Flint ships if it clears the easy-traffic gate** (C1 ≥ 69.28, C10 ≥ 116.27, house ≥ 36/37 at 4096 thinking-on — the bars Mellum faced); otherwise it stays a `zz-`/capability arm with its cells recorded. **(8) Q8 — a 122B route win promotes it to a shipped capability arm**: an index row carrying its measured cells, explicitly not claimed as easy traffic, whether or not it clears 69.28; the `C1 ≥ 51` route verdict and `C1 < 45` falsifier are unchanged.**
 
 
 
@@ -1091,7 +1092,10 @@ Ornith 1.5
   lever (2.56× over AR), so clearing the route verdict does not imply clearing the gate. (2) *The arm gate*
   stays the owner's: one boot at C1 ≥ 69.28 and C10 ≥ 116.27, house ≥ 36/37 at 4096 thinking-on,
   `Mean acceptance length > 1` in the serve log — and an accept≈1 boot is a misconfiguration, retuned once
-  (draft tokens 4, then the card's block size) before any negative is recorded. **Fences:** a whole node is
+  (draft tokens 4, then the card's block size) before any negative is recorded. **Owner ruling
+  (`SURVEY6 Q8`):** a route win (C1 ≥ 51) promotes the arm to a **shipped capability arm** — an index row
+  carrying its measured cells, explicitly not claimed as easy traffic — whether or not it clears 69.28; the
+  `C1 < 45` falsifier still closes the item as a negative. **Fences:** a whole node is
   needed (77.63 GB body plus KV) — `.35` is the idle candidate while the ds4 quartet holds `.31`–`.34`;
   re-census before every boot. *(effort: long)*
 
@@ -1131,19 +1135,23 @@ Ornith 1.5
   work to do and `git diff` yields a per-turn trace. Run from `~/benchmarks/ornith-longrun-<date>/workspace/`
   so nothing lands in `$HOME` root or `/tmp` that the hygiene rule has to sweep later; delete the copy at
   closeout and keep the receipt.
-  **Pre-registered verdicts.** *Reproducible* on any of: the empty-body stream recurring **≥ 2 times**;
-  ≥ 3 turns whose `tool_calls` payload fails JSON-parse or schema validation; any 5xx from the serve; any
-  turn where the harness received zero events and retried. *Transient* if 1,000 turns hold **≥ 95 % clean
-  tool turns with zero empty bodies** — and then the next step is the harness's own logs from a failing owner
-  session, not more serving work. Report the **rate with its denominator**, never a verdict alone: 1/1,000
-  and 1/5 are different animals, and this item exists to buy the denominator. If the first run is clean, a
-  ~300-turn confirmation run on a **different node** (not just a second boot on the same one) separates
-  boot-transience from a node-local defect.
-  **Budget and fences.** ~12 h wall (1,000 turns at a ~30 s mean, plus boot and analysis); single node —
-  `.35` is idle today while the ds4 quartet holds `.31`–`.34`, so re-census before the boot and never
-  displace. This arm's TTR is ≈ 414–429 s, so the ordinary 1800 s watchdog grace applies (not the cold-body
-  case). Stop by literal task id, verify 0 containers, and kill proxy and watchdog in the closeout.
-  *(effort: long)*
+  **Pre-registered, per the owner's round-6 rulings (`SURVEY6 Q5`/`Q6`).** The run is **staged: 300 turns
+  first, extended only if that pass is clean** — the ~1,000-turn total survives as the extension target, not
+  as the first pass. **A bare count is not a verdict:** one bad turn or empty body stays a *watch item* (the
+  bar round 5 set), and *reproducible* requires a **repeatable pattern** — ≥ 2 occurrences that correlate
+  with a named trigger: the first turn of a boot, the first request after an idle gap, a depth threshold, or
+  the post-compaction turn. Log all four correlations per event so the pattern test can actually be applied.
+  *Reproducible* also covers any 5xx and any turn where the harness received zero events and retried.
+  *Transient* if the staged run holds ≥ 95 % clean tool turns with no repeatable-pattern event — and then
+  the next step is the harness's own logs from a failing owner session, not more serving work. Report the
+  **rate with its denominator** beside the pattern verdict: 1/300, 1/1,000 and 0/300 read differently, and
+  the denominator is what this item buys. If the 300-turn stage is clean, extend on a **different node**
+  rather than a second boot on the same one, so boot-transience and a node-local defect stay separable.
+  **Budget and fences.** ~4 h wall for the 300-turn stage (~30 s mean per turn plus boot and analysis), ~12 h
+  if it extends to 1,000. Single node — and **two single-node jobs may run concurrently on `.30` and `.35`**
+  (`SURVEY6 Q2`) while the quartet keeps `.31`–`.34`; re-census before the boot and never displace. This
+  arm's TTR is ≈ 414–429 s, so the ordinary 1800 s watchdog grace applies (not the cold-body case). Stop by
+  literal task id, verify 0 containers, and kill proxy and watchdog in the closeout. *(effort: long)*
 
 ## qwen3
 Qwen 3.x
@@ -2463,7 +2471,9 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   (54.9 Terminal-Bench 2.1, 89.7 SWE-bench Pro v2, 74.2 SWE-bench Verified, pass@1 over ≥5 attempts,
   temperature 1.0 / top-p 0.95 / top-k 20) are **vendor claims, not reproducible here**: no in-tree instrument
   covers them today, and whether to add a coding-agent leg is an open design question this item may answer.
-  **Fences:** a four-arm sweep is four sequential single-node boots. As of 2026-10-27 the ds4 knapcio quartet
+  **Owner ruling (`SURVEY6 Q7`):** if Flint clears the easy-traffic gate — C1 ≥ 69.28, C10 ≥ 116.27, house
+  ≥ 36/37 at 4096 thinking-on, the bars Mellum faced — it **ships**; below that it stays a `zz-`/capability
+  arm with its measured cells recorded. **Fences:** a four-arm sweep is four sequential single-node boots. As of 2026-10-27 the ds4 knapcio quartet
   holds `.31`–`.34`; idle are **`.30` and `.35`** — never displace the quartet, and re-census before each boot.
   Order the sweep Flint first (it is the arm that does not exist) then the three baselines in the round-5 board
   order, so a partial sweep still produces the new cell. *(effort: long)*
