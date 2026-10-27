@@ -13,7 +13,8 @@ description: >-
   DeepSeek-V4.1-Flash-1017 (2026-10-17 refresh) on 4x DGX Spark (GB10),
   SGLang, native MXFP4/F8 checkpoint with the Engram on NVMe, TP=4 EP=1,
   DSpark k=5, 1M context, RoCEnante RDMA transport. Adaptation of
-  knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 (downstream of
+  knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (v2.5+, 2026-10-24;
+  the image's vendored tree, downstream of
   MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
   design are theirs, kept under the upstream licenses). See AGENTS.md and
   README.md in this directory for provenance, boot gates and limits.
