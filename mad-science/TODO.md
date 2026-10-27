@@ -2330,6 +2330,43 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   (`recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`). Research first — no download, no
   boot, no receipt. *(effort: medium)*
 
+- [ ] **Compare Flint 40B-A2.5B against Mellum 12B-A2.5B, Ornith-1.5-35B-A3B and Ornith-1.5-122B on one
+  instrument** — *owner request 2026-10-27.* These four are the registry's small-active-MoE set: three sit at
+  ~2.5–3 B active per token (Flint A2.5B, Mellum A2.5B, Ornith-35B A3B) and the fourth (122B, ~8.9 B active)
+  is the capability ceiling for the same one-node footprint, so the cell that decides is quality per active
+  parameter per node-second — not raw t/s. Flint is `RecursiveSI/flint` (39.8B-A2.5B agentic-coding MoE,
+  Apache-2.0, 262k context) and has **no recipe, no download and no boot**; the two items above own the engine
+  and tier research, this item owns the measurement. Only route is llama.cpp + `unsloth/flint-GGUF`
+  **UD-Q3_K_XL (18.49 GB)** on `LLAMA_REF ≥ a37cc4610`; `littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130`
+  (`sha256:ef2d4bc8…`) is the build already resident on `.35`, and the 122B `zz-` GGUF arm pins the *same
+  digest*, so one image serves both. Settle the ref before authoring — `d854d98` (the 2026-10-25 MTP-probe ref,
+  tag-pinned with no digest) is newer than `a37cc4610` and probably carries flint; assert `src/models/flint.cpp`
+  rather than assume.
+  **Roster, with the on-file cells the sweep must re-measure rather than quote across:**
+  - Flint `RecursiveSI/flint` — llama.cpp, UD-Q3_K_XL, 18.49 GB body. Nothing measured; no arm exists.
+  - Mellum `recipes/explore/mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml`
+    — llama.cpp `b2e5e9b`, Q4_K_M. Ten-slot window: C1 **110.52 ± 1.77** · C2 154.30 · C5 208.29 · C10
+    **185.96** t/s, house **36/37** @4096 thinking-on, TTR 25 s; the shipped 8-slot window reads 111.9 /
+    151.1 / 208.0 / 146.4, so the two cannot be mixed.
+  - Ornith-35B `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`
+    — SGLang 0.5.22 + DFlash2 draft, shipped config. C1 **101.8 ± 8.7** · C2 153.1 · C5 217.4 · C10 **244.2**
+    t/s, house **37/37**, tool-eval-bench **100**, needles 3/3 at 32k/131k/262k.
+  - Ornith-122B `recipes/ornith/zz-ornith-1.5-122b-nvfp4-vllm.yaml` —
+    vLLM, TP=1 capability probe. C1 **27.11** · C10 **73.91**, house **37/37**, TTR 665.9 s.
+  **Protocol — one instrument across all four arms, one window per arm:** `benchmarking/concurrency-ladder.yaml`
+  at d0 (n=5) plus `tools/eval-suite.py` on the same boot (ladder `--skip-run`), then
+  `benchmarking/standard-suite.yaml` where the arm serves tool calls, plus the arm's own needles. Report C1/C2/
+  C5/C10, `E = C10/(C1 × 10)` (reported, never gated), TTR, and resident footprint, and state the engine next
+  to every number — llama.cpp keeps its native log format by owner advisory, vLLM and SGLang scrape their own,
+  so cross-engine t/s is a shape comparison and the *quality* legs are the claimable ones. Flint's card figures
+  (54.9 Terminal-Bench 2.1, 89.7 SWE-bench Pro v2, 74.2 SWE-bench Verified, pass@1 over ≥5 attempts,
+  temperature 1.0 / top-p 0.95 / top-k 20) are **vendor claims, not reproducible here**: no in-tree instrument
+  covers them today, and whether to add a coding-agent leg is an open design question this item may answer.
+  **Fences:** a four-arm sweep is four sequential single-node boots. As of 2026-10-27 the ds4 knapcio quartet
+  holds `.31`–`.34`; idle are **`.30` and `.35`** — never displace the quartet, and re-census before each boot.
+  Order the sweep Flint first (it is the arm that does not exist) then the three baselines in the round-5 board
+  order, so a partial sweep still produces the new cell. *(effort: long)*
+
 - [ ] **Probe Indra OCR — the registry's first document-AI arm, and its first non-LLM serve** — research-only so
   far: **no recipe, no download, no boot, no receipt.** `datalab-to/indra-ocr` (checked 2026-10-22) is
   `pipeline_tag: image-to-text`, `library_name: onnx`, **ungated**, 3,588 downloads, `lastModified`
