@@ -1095,6 +1095,56 @@ Ornith 1.5
   needed (77.63 GB body plus KV) — `.35` is the idle candidate while the ds4 quartet holds `.31`–`.34`;
   re-census before every boot. *(effort: long)*
 
+- [ ] **Re-run the omp tool-calling trial as a ~1,000-turn session on a real project, to say whether the
+  owner's "constantly struggling with tool calls" was transient or reproducible** — *owner request
+  2026-10-27.* The 2026-10-26 triage (`queue.json` `ornith-toolcall-ohmympi-triage`, receipts
+  `~/benchmarks/tp4-window4-20261026/ornith-toolcall/`) found **no failure**: a scripted 3-turn repro plus a
+  real 7-turn omp run, 7/7 captured SSE streams reaching `finish_reason` + usage + `[DONE]`. But every
+  on-file observation is ≤ 7 turns on a warm serve at tiny depth, while the session that failed for the owner
+  was a long real one — so the existing evidence cannot answer the question, and the single watch item is
+  exactly the class that breaks a harness: **one empty SSE body** (server 200 OK, prefill and generation
+  processed, client 0 bytes in 0.53 s, no serve-log traceback), never seen again across 33 later streaming
+  requests. A 1,000-turn run turns "never seen again" into a **rate**, and the rate is what decides transient
+  versus real.
+  **What the length is chosen to hit — none of it reachable in 7 turns:** (1) the empty-body stream recurring
+  under sustained load, after an idle gap, or only on a boot's first request; (2) tool-call argument
+  corruption at depth — JSON truncated at `max_completion_tokens`, or a `tool_calls` name outside the offered
+  set; (3) the honed template's thinking-block handling across compaction boundaries, where a long session
+  rewrites history the short runs never did; (4) per-turn TTFT and decode drift with depth, and the arm's
+  `max_mamba_cache_size` clamp over a long `extra_buffer_lazy` history; (5) harness-side retry storms
+  misread as model failures.
+  **Method — extend the triage's harness, do not re-invent it:** turn the triage's capture pattern into a
+  proxy ledger driven by **real omp** (installed `omp/18.13.1`; record the exact build and the `model` role
+  config pointed at the serve), not by a scripted client — the harness interaction is the thing under test,
+  and last time the proxy is what made the wire legible. Start from the durable pair in the receipt
+  (`~/benchmarks/tp4-window4-20261026/ornith-toolcall/`: `capture_proxy.py` + `repro.py`; the `.scratch/`
+  copy is the working one and may not persist). Per turn log to JSONL: index, prompt tokens, depth, TTFT,
+  decode t/s,
+  `finish_reason`, tool-call count, **JSON-parse and schema validity of every call**, call name against the
+  offered set, stream bytes, `[DONE]` presence, wall. Server side, stream the serve log to the host
+  (`docker exec <c> tail -F /tmp/sparkrun_serve.log` — not `docker logs -f`, which yields only the CUDA
+  banner on this arm) plus `docker events --filter event=die`, and run `tools/boot-watchdog.py`. Keep the raw
+  request/SSE pairs for every failing turn; gzip the rest.
+  **The project.** A real project with a verifiable loop, and **never this tree**: a scratch copy of a
+  stdlib-only Python project — the registry's own `tools/` + `tests/` pair is a good default, copied out,
+  `git init`, baseline tagged — plus a written backlog of 20–40 defects and features so 1,000 turns have
+  work to do and `git diff` yields a per-turn trace. Run from `~/benchmarks/ornith-longrun-<date>/workspace/`
+  so nothing lands in `$HOME` root or `/tmp` that the hygiene rule has to sweep later; delete the copy at
+  closeout and keep the receipt.
+  **Pre-registered verdicts.** *Reproducible* on any of: the empty-body stream recurring **≥ 2 times**;
+  ≥ 3 turns whose `tool_calls` payload fails JSON-parse or schema validation; any 5xx from the serve; any
+  turn where the harness received zero events and retried. *Transient* if 1,000 turns hold **≥ 95 % clean
+  tool turns with zero empty bodies** — and then the next step is the harness's own logs from a failing owner
+  session, not more serving work. Report the **rate with its denominator**, never a verdict alone: 1/1,000
+  and 1/5 are different animals, and this item exists to buy the denominator. If the first run is clean, a
+  ~300-turn confirmation run on a **different node** (not just a second boot on the same one) separates
+  boot-transience from a node-local defect.
+  **Budget and fences.** ~12 h wall (1,000 turns at a ~30 s mean, plus boot and analysis); single node —
+  `.35` is idle today while the ds4 quartet holds `.31`–`.34`, so re-census before the boot and never
+  displace. This arm's TTR is ≈ 414–429 s, so the ordinary 1800 s watchdog grace applies (not the cold-body
+  case). Stop by literal task id, verify 0 containers, and kill proxy and watchdog in the closeout.
+  *(effort: long)*
+
 ## qwen3
 Qwen 3.x
 *(all items completed — archived in `../attic/DONE.md`)*
