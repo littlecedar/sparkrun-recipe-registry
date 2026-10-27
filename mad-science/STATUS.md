@@ -1,12 +1,13 @@
-# Board — generated 2026-10-27 01:16 ET
+# Board — generated 2026-10-27 02:00 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| ds4 quartet, `.31`–`.34` | unattributed session — sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, up ~1 h, all four ranks healthy. Probed 01:16 ET rather than read off `docker ps`: `.31` `/v1/models` **HTTP 200**, serve child alive (`sglang.launch_server … --tp 4 --ep-size 1 --context-length 1048576 --max-running-requests 16 --speculative-algorithm DSPARK`), `/tmp/sparkrun_serve.log` 2,283 lines with an mtime of 01:16 ET |
-| host fetch, `.30` | unattributed peer session | `hf download unsloth/Qwen3.8-27B-GGUF` (pid 1013773), started after the 00:14 tick — the earlier fetch (pid 829385, recorded last cycle) is gone. No container, and nothing in `queue.json` owns it |
-| census | sparkrun-recipe--1209711 | **01:16 ET 2026-10-27, all six nodes (read-only ssh)**: 4 containers fleet-wide — `.31` `.32` `.33` `.34` **1 each** (the quartet), `.30` and `.35` **0, nothing live (no reservation)**. Root avail 1.2–1.9 TB; BeeGFS pool 11 TB avail. **Drift: a live four-rank job with no `.scratch/fleet-window.lock` in this tree**, and the holder named nowhere — escalated in the 01:16 cycle reply |
+| ds4 quartet, `.31`–`.34` | unattributed session — sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, up 2 h, all four ranks healthy. Probed 02:00 ET: `.31` `/v1/models` **HTTP 200**, `/tmp/sparkrun_serve.log` 3,385 lines with mtime 02:01 ET — writing, not dead. **Still no `.scratch/fleet-window.lock` in this tree** (see census drift) |
+| ornith solo, `.30` | unattributed peer session — sparkrun job `78c7e2fa335a63e5_6d11c3b8b5c1` | `@littlecedar/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` (tp=1) booted ~01:50 ET, container up 10 min at the census, image `sha256:fd8439732b16…`. Same task-id family as the 2026-10-26 tool-call triage boot (`…_35f2cfc5f912`). **Caveat recorded, not judged:** the recipe launched via the published-registry ref while commit `f70c3b5` (01:53 ET) added `FASTSAFETENSORS_ODIRECT: 1` to the worktree copy — whether this boot serves the ODIRECT line depends on the published clone's pull state |
+| host fetch, `.30` | unattributed peer session | `hf download unsloth/Qwen3.8-Flash-Next-GGUF` (pid 1021443); the earlier `unsloth/Qwen3.8-27B-GGUF` fetch (pid 1013773 at 01:16) finished and BeeGFS avail moved 11 TB → 10 TB. No container, nothing in `queue.json` owns it |
+| census | sparkrun-recipe--1209711 | **02:00 ET 2026-10-27, all six nodes (read-only ssh)**: 5 containers — `.30` **1** (ornith solo), `.31`–`.34` **1 each** (quartet), `.35` **0, nothing live (no reservation)**. Root avail 1.1–1.8 TB; BeeGFS pool 10 TB. **Drift, second cycle running: two live sparkrun jobs, zero `.scratch/fleet-window.lock`, both holders unnamed** — escalated 01:16 and again here |
 
 ## Work queue
 
@@ -36,3 +37,5 @@
 | 00:48 ET | `7485d6f` | corrected the drafter's authorship (`incoai` publishes the DFlash2 method; the 35B's shipped head is `jzinno`'s) and refuted the stale "only Ornith DFlash2 drafter" line in `attic/ornith/AGENTS.md` with a dated pointer |
 | 00:55 ET | `8d23505` | 1,000-turn omp tool-calling trial added to the register and the queue — capture proxy, per-turn JSONL ledger, pre-registered verdicts, 12 h single node |
 | 01:15 ET | `e2ea46e` | round-6 owner rulings folded as `TODO.md` row 23 (`SURVEY6 Q1`–`Q8`): all three new items next window, `.30`+`.35` in parallel, run staged at 300 turns, pattern-not-count verdict, Flint and 122B ship bars |
+| 01:16 ET | `5abc1d6` | board tick: fresh probed census (quartet live, `.30`/`.35` idle), queue reconciled — `pool-prefetch-missing-bodies` closed on ledger evidence, `flint-four-arm-comparison` + `ornith-122b-decoders-route` added as scheduler rows |
+| 01:53 ET | `f70c3b5` *(peer session)* | ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml gains `FASTSAFETENSORS_ODIRECT: 1` (1 line) — recipe edit, boot verification pending as the solo `.30` boot above |
