@@ -21,3 +21,4 @@
 # lane receipt root (AGENTS.md §Node hygiene): benchmark/serve evidence, incl. the salvaged
 # tool-eval-bench reports it writes relative to its CWD under runs/ and data/.
 /.scratch/
+/.omp/extensions/

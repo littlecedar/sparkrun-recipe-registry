@@ -19,8 +19,10 @@ a **tool-eval-bench** profile for `sparkrun benchmark tools` (see §Standard ext
 **Where tool-eval-bench's own output goes.** The instrument writes a state DB
 (`data/benchmarks.sqlite`: `scenario_runs` / `run_checkpoints` / `scenario_traces`) and one report per
 run (`runs/YYYY/MM/<run-id>.md`) **relative to its CWD**, so an invocation from a registry checkout
-litters the tree instead of the receipt. Neither path is ignored: the salvaged DB is
-`.scratch/benchmark-tooling/benchmarks.sqlite` and the per-run reports sit under
+litters the tree instead of the receipt. Neither path is ignored — the litter stays visible until it
+is harvested: the window-3 salvaged DB is `.scratch/benchmark-tooling/benchmarks.sqlite`, the
+window-4 GLM set (both arms' `benchmark_*_tp4.{yaml,json,csv}`, the run reports and that window's
+DB) is `.scratch/tp4-window4/glm-teb/`, and per-run reports sit under
 `.scratch/<lane>/*-teb-*/`, each named by the lane doc whose score it backs. Run the suite from a
 receipt dir (`~/benchmarks/<lane>-<date>/`), not from the repo root.
 
