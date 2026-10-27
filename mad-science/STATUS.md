@@ -1,21 +1,27 @@
-# Board — generated 2026-10-26 22:00 ET
+# Board — generated 2026-10-26 23:19 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | DSV41F1017-Parity | **22:00 ET 2026-10-26, all six nodes (read-only ssh + `docker ps` + `nvidia-smi`)**: ALL SIX EMPTY — 0 containers, 0 % GPU on `.30`–`.35`; no fleet-window lock exists and nothing is reserved |
-| nothing live | — | the ds4-1017 knapcio-parity window is **closed**: three arms (strict parity / old line / as-committed defaults) booted, measured, stopped; verdicts landed in `recipes/ds4/README.md` §"Measured: aff52fa5 parity A/B/C" |
+| census | sparkrun-recipe-re-34025 | **23:14 ET 2026-10-26, all six nodes (read-only ssh + `docker ps` + `nvidia-smi`)**: 0 containers and 0 % GPU on `.30`–`.35`; no `.scratch/fleet-window.lock` exists; root avail 1369–2028 GB, BeeGFS pool ~11.9 TB avail |
+| pool-prefetch host process | tp4-recovery | `.30` (head) runs `hf download Qwen/Qwen3.5-122B-A10B-FP8` (pid 694234) — the serial pool-prefill runner, no container; queue task `pool-prefetch-missing-bodies`, claimed 2026-10-25 23:53 UTC; ledger `~/benchmarks/cache-prefill-20261026/QUEUE.md` |
+
+## Work queue
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| `arch-deepgemm-sm12x-paged-sparse` — DeepGEMM SM12x for the paged-sparse logits family (upstream watch) | watch | queue | BLOCKED on upstream (row 21) — first in the next-window order |
-| `w4-survey-arm3-indexer-scoring` | quartet | — | ARCH-GATED behind SM12x (row 21) |
-| `w4-survey-arm5-trtllm-mla` | quartet | — | ARCH-GATED behind SM12x (row 21) |
-| `h3-quartet-retry` | quartet | — | queued, idle-only |
-| `glm-flash-concurrency-degradation-search` | quartet | — | DEFERRED (owner, row 19) |
-| Beam staging remainder | spare | — | parked (owner, rows 19/22) |
-| queue mirror | — | board-keeper | mirrors `mad-science/queue.json` (`tools/task-queue.py`); **Running**: none; open/blocked per `TODO.md` row 22 next-window order |
+| `arch-deepgemm-sm12x-paged-sparse` — DeepGEMM SM12x for the paged-sparse logits family (upstream watch) | watch | — | BLOCKED on upstream (TODO row 21); first in the next-window order |
+| `w4-survey-arm3-indexer-scoring` — SGLang PR #43401 candidate-only indexer scoring | quartet | — | BLOCKED: arch gate (SM12x) |
+| `w4-survey-arm5-trtllm-mla` — TRT-LLM sparse-MLA attention backend | quartet | — | BLOCKED: arch gate (SM12x) |
+| `h2h-glm-flash-house-recipe` — GLM-5.3-Flash 4bpw TP=4 house battery @4096 thinking-on | quartet | — | queued |
+| `glm-flash-concurrency-degradation-search` — GLM-5.3-Flash variants that do not degrade with concurrency | quartet | — | queued |
+| `h2h-doc-refresh` — TP4-HEAD-TO-HEAD open-cells note per landed cell | single | — | queued |
+| `tensorfold-metrics-bridge-generalization` — metrics bridge for both GLM TensorFold launchers + a vLLM-OMNI media equivalent | single | — | queued |
+| `pool-prefetch-missing-bodies` — pool hub dedup-stub bodies, serial hf-download runner | single | tp4-recovery | RUNNING |
+| `h2h-beam-house-and-bfcl-category` — Beam-1.0 NVFP4 house @4096 + BFCL category summary | quartet | — | queued |
+| `h3-quartet-retry` — MiniMax-H3 four-rank video probe (two unprobed axes) | quartet | — | queued, idle-only |
+| `h2h-second-boot-ladder` — controlled second-boot ladder per arm (sigma column) | quartet | — | queued |
 
 ## Landed this session
 
@@ -27,3 +33,4 @@
 | ~21:14 ET | `cedcf4a` | review fixes: disablable guard now asserts on flag names (the env-key form was vacuous) with presence checked only for enabled defaults; both README parity arm commands carry `--cluster WOPR` (bare `-H` anonymous-cluster fan-out trap); sparkDash accounting stated as ratio-inferred, not code-read; Arm A's decode-window cell labeled derived; speedbench identity verified (`0.3.0`, prompt set `speedbench-v1`, 73 prompts); the last plan cell measured — registry ladder on the shipped line C1 70.41 ± 10.66 / C10 160.88 ± 17.48 vs adoption 64.08/152.24, inside the 7–25 % inter-boot noise floor: continuity, no claim |
 | ~21:46 ET | `5e99497` | Root README refreshed to current numbers: ds4 knapcio row now carries the shipped line's 2026-10-26 evening ladder (C1 70.41 ± 10.66 / C10 160.88 ± 17.48, adoption 64.08/152.24 beside it, 7–25 % noise floor stated) + upstream-parity note (speedbench all-73 86.82 vs 87.5, prose 64.50 vs 64.7, sparkDash decode window 90.77 vs 91.3); superseded v2.3/v2.4 footnotes deleted; GLM 3bpw row superseded by window-3 ladder (28.83 C1, aggregates 37.4/76.3/145.8, house 37/37 — receipt JSON names `bertholomus/GLM-5.3-EXL3-3.0bpw`); CI "Issues disabled" corrected (has_issues verified true); ds4 lane pin-paragraph broken sentence repaired |
 | ~21:48 ET | `82dfb06` | ds4 index-note attribution fix: house 37/37 + needles 10/10 credited to Arms A and B (the committed-default arm's quality cells are `—`), against 36/37 on the adoption boot — no quality claim rests on the new defaults alone |
+| 23:09 ET | `1a00e94` | `mad-science/METHODOLOGY.md` + README "Mad Science" sub-bullet — how README cell numbers are derived; address-hygiene suite 7 tests OK |
