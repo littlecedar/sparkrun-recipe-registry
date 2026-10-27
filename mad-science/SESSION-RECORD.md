@@ -1851,3 +1851,24 @@ is the **production serve** (served id `deepseek-ai/DeepSeek-V4.1-Flash-1017`, l
 `.30`), not an unclaimed research window — so the "no `.scratch/fleet-window.lock`" escalation that
 the 01:16 and 02:00 ticks raised is withdrawn; and the `01:53 ET` row's boot verification question was
 already answered by `ba78d62` (buffered reads, i.e. the pre-`f70c3b5` recipe).
+
+## Landed rows retired at the 2026-10-27 14:04 ET board refresh (session boundary)
+
+Session `…16-46-35Z_01a17e41` closed at 13:29 ET without a clearing commit, so the four rows its board
+carried are retired here rather than lost, together with the two commits it landed after its last board
+write and never listed. The next session (`…17-34-11Z_01a17e6d`, opened 13:34 ET) starts its own
+`Landed this session` table empty. Verbatim row text as carried; retired by the 14:04 ET board commit.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 02:05 ET | `ba78d62` *(peer commit)* | the `.30` ornith solo's O_DIRECT question settled from its own serve log — it loaded with buffered reads, so it never served the `f70c3b5` line |
+| 12:54 ET | `787cb7e` | mellum + humanizer move off the deprecated `--no-mmap` to `--load-mode none` (same policy, `common/arg.cpp:2672`); the `.35` boot that raised the warning had launched the published ref, before this landed |
+| 12:55 ET | `9f065d4` | all 11 llama.cpp arms swept — none other carries the deprecated spelling; the upstream Dockerfile help note becomes ref-agnostic and the GGUF note gets dated pointers |
+| 13:04 ET | — (stops) | ornith solo `78c7e2fa…` and mellum `a16b25d0…` stopped by id at owner instruction; `.30`/`.35` verified at 0 containers and 0 volumes |
+
+Two commits landed after that board write, never listed on any board:
+
+| time ET | commit | one clause |
+|---|---|---|
+| 13:26 ET | `ec90005` | corrected the quartet's attribution (production serve, not an unclaimed research window) and registered the tag-only container pin as queue row `ds4-shipped-container-digest-pin` |
+| 13:29 ET | `5e4a15d` | measured the shipped image's provenance — a local overlay build (created 2026-10-25 20:01 ET, 33.5 GB, base `lmsysorg/sglang:dev-dsv41` `da64c5cb`, upstream action run 34631178591) with no registry digest on any host, so the digest route is push-then-pin and the `3f4480818acb…` in TODO row 21 is an image ID, not a manifest digest; also replaced the ds4 fence's fixed `.30`–`.33` rank list with a pointer that the fence follows the production serve. Verified at landing: 1007 tests (2 skipped), `task-queue.py check` green at 45 tasks |
