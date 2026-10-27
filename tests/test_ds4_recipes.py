@@ -1426,13 +1426,19 @@ class SglangLaneContract(unittest.TestCase):
                          "--swa-prefix-tails 128 --prefill-decode-interval 2 "
                          "--watchdog-timeout 1800 --sleep-on-idle "
                          "--enable-deepseek-v4-fp4-indexer")
-        # Each knob individually disablable, and an empty env contributes
+        # Each knob individually disablable (assert on the FLAG each env key
+        # contributes — the env key never appears in the assembled args, so an
+        # assertNotIn on the key would be vacuous), and an empty env contributes
         # nothing (no stray EXTRA_SGLANG_ARGS = "" being passed as a flag).
-        for key in ("SWA_PREFIX_TAILS", "PREFILL_DECODE_INTERVAL", "WATCHDOG_TIMEOUT",
-                    "SLEEP_ON_IDLE", "ENABLE_DEEPSEEK_V4_FP4_INDEXER"):
+        for key, flag in mod.SGLANG_EXTRA_FLAGS + mod.SGLANG_EXTRA_BOOL_FLAGS:
             off = dict(env)
             off[key] = "0"
-            self.assertNotIn(key, mod.extra_sglang_args(off))
+            assembled = mod.extra_sglang_args(off)
+            self.assertNotIn(flag, assembled, f"{flag} must be omittable via -o env.{key}=0")
+            if (key in mod.RECIPE_ENV
+                    and mod.RECIPE_ENV[key].strip().lower() not in mod._DISABLED_VALUES):
+                self.assertIn(flag, mod.extra_sglang_args(dict(env)),
+                              f"{flag} must be assembled from its shipped default")
         self.assertEqual(mod.extra_sglang_args({}), "")
         self.assertEqual(mod.extra_sglang_args(
             {"EXTRA_SGLANG_ARGS": "--watchdog-timeout 1800"}),

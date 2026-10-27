@@ -101,7 +101,7 @@ defaults plus the four contested knobs); **B** = the pre-adoption line (the seve
 | speedbench ALL geomean (73 prompts) | **89.14** | **86.82** | 86.12 | 87.5 |
 | speedbench prose geomean | 66.43 | 64.50 | 63.77 | 64.7 |
 | speedbench longctx / code / structured / agentic / multilingual | 91.34 / 109.98 / 112.80 / 97.25 / 71.71 | 88.35 / 106.36 / 109.79 / 96.12 / 70.30 | 84.55 / 105.62 / 110.48 / 97.30 / 69.34 | 91.0 / 106.8 / 109.5 / 98.3 / 70.0 |
-| sparkDash prose c1, decode window (ttft excluded) | est. 94.8 | **90.77** | — | 91.3 |
+| sparkDash prose c1, decode window (ttft excluded) | *(derived, not run:* 256/(2.953−0.215) ≈ 94.8*)* | **90.77** | — | 91.3 |
 | sparkDash prose c1, wall incl. TTFT | 86.70 | 84.08 | 84.10 | — |
 | house 4096 thinking-on | 37/37 | — | 37/37 | — |
 | needle 32k / 131k | 10/10 / 10/10 | — | 10/10 / 10/10 | — |
@@ -119,10 +119,13 @@ upstream. The four contested knobs **stay arm-only** — not because a config wi
 +2.7 % is order-confounded too) but because their measured costs elsewhere stand: 8192 chunks give up
 the 2.35× 1M-prefill win, interval 2 was 17–28 % of ladder throughput, delay 1 lost 7–11 % at C4–C16.
 A re-measure with arms interleaved (or C re-booted after A) is the prerequisite for any promotion.
-**Formula discipline:** wall-inclusive tok/s is not sparkDash's accounting (protocol ratio check:
-upstream 91.3/64.7 = 1.411, our wall numbers
-86.7/66.43 = 1.305, the ~8 % being the ~215 ms TTFT share of a ~2.95 s run; decode-window ratio
-90.77/64.5 = 1.407) — quote the decode-window figure only.
+**Formula discipline:** the decode-window comparison rests on an accounting **inferred from the
+ratio, not read from code** — DecodeBench is absent from the sparkDash 1.8.8 checkout, so its
+formula could not be inspected. The inference: upstream's own two protocols give 91.3/64.7 = 1.411;
+wall-inclusive tok/s (completion_tokens ÷ wall, TTFT included) gives us 86.7/66.43 = 1.305, with the
+missing ~8 % exactly the ~215 ms TTFT share of a ~2.95 s run; excluding TTFT gives 90.77/64.5 =
+1.407, matching upstream. If sparkDash's bench actually includes TTFT, the 91.3 comparison is
+invalid and the wall figure is the comparable one.
 
 **What the 1017 base needed that V4.1 did not.** Same architecture and same quant
 (`config.json` byte-identical between the two repos, sha256 `8be45ce0…`: fp8 block weights with fp4
@@ -135,6 +138,14 @@ image's `pack_engram.py` derives each rank's packed Engram shards from the check
 `76a05106…/9dc51433…` now, and `/cache/runtime/engram` must be empty (or re-packed) before the first
 boot on the new base. A packed shard is an *optional* acceleration whose absence costs the
 checkpoint fallback, not correctness, so the launcher re-packs per rank in the background.
+
+
+Ladder continuity (the c 1/2/5/10, depth 0, pp 2048, tg 128, 5-runs profile, run `--skip-run` on the
+same shipped-line boot): C1 **70.41 ± 10.66** (warm-4 66.02 ± 4.80), C2 83.44, C5 127.27, C10
+**160.88 ± 17.48** (warm-4 166.42) — against the adoption boot's 64.08 ± 3.66 / 152.24 ± 13.88 this
+is inside the profile's documented 7–25 % inter-boot noise floor: continuity, no claim. Within-boot
+C1 spread was 61.7–88.0, so single-boot ladder C1 numbers on this lane are weak evidence.
+Receipts `~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.{json,csv}`.
 
 ### Measured: TP=4 ladder and suite
 
@@ -367,19 +378,20 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
   -H <node1>,<node2>,<node3>,<node4>
 ```
 Two parity-verification arms for the `aff52fa5` comparison (booted back to back, measured with
-sparkDash + speedbench on the head; nodes named by real host/IP — dot-aliases crash sparkrun
-0.4.2's `socket.getaddrinfo`):
+sparkDash + speedbench on the head; launch via the WOPR cluster profile — a bare `-H` builds an
+anonymous cluster whose default model-distribution settings can attempt a 510 GB fan-out, and name
+hosts by real IP: dot-aliases crash sparkrun 0.4.2's `socket.getaddrinfo`):
 
 ```bash
 # Arm A — strict production parity: the seven adopted defaults are already ON;
 # add only the four contested knobs.
 sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
-  -H <node1>,<node2>,<node3>,<node4> \
+  --cluster WOPR -H <node1>,<node2>,<node3>,<node4> \
   -o env.DSV41_PREFILL_BYPASS=256 -o env.PREFILL_DECODE_INTERVAL=2 \
   -o env.MIN_FREE_SLOTS_DELAY=1 -o env.CHUNKED_PREFILL_SIZE=8192
 # Arm B — current shipped line: disable exactly the seven adopted defaults.
 sparkrun run recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml \
-  -H <node1>,<node2>,<node3>,<node4> \
+  --cluster WOPR -H <node1>,<node2>,<node3>,<node4> \
   -o env.DSV41_CERT_HEAD=0 -o env.WATCHDOG_TIMEOUT=off \
   -o env.SLEEP_ON_IDLE=off -o env.ENABLE_DEEPSEEK_V4_FP4_INDEXER=off
 ```

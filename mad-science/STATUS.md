@@ -7,8 +7,6 @@
 | census | DSV41F1017-Parity | **21:1x ET 2026-10-26, all six nodes (read-only ssh + `docker ps` + `nvidia-smi`)**: ALL SIX EMPTY — 0 containers, 0 % GPU on `.30`–`.35`; every arm of the parity A/B/C was stopped by literal task id and its serve log harvested first. Fleet-window lock released at close |
 | nothing live | — | the ds4-1017 knapcio-parity window is **closed**: three arms (strict parity / old line / as-committed defaults) booted, measured, stopped; verdicts landed in `recipes/ds4/README.md` §"Measured: aff52fa5 parity A/B/C" |
 
-Mirrors `mad-science/queue.json` via `tools/task-queue.py`. **Running**: none. Open/blocked, per `TODO.md` row 22 next-window order:
-
 | job | node cost | holds | state |
 |---|---|---|---|
 | `arch-deepgemm-sm12x-paged-sparse` — DeepGEMM SM12x for the paged-sparse logits family (upstream watch) | watch | queue | BLOCKED on upstream (row 21) — first in the next-window order |
@@ -17,6 +15,7 @@ Mirrors `mad-science/queue.json` via `tools/task-queue.py`. **Running**: none. O
 | `h3-quartet-retry` | quartet | — | queued, idle-only |
 | `glm-flash-concurrency-degradation-search` | quartet | — | DEFERRED (owner, row 19) |
 | Beam staging remainder | spare | — | parked (owner, rows 19/22) |
+| queue mirror | — | board-keeper | mirrors `mad-science/queue.json` (`tools/task-queue.py`); **Running**: none; open/blocked per `TODO.md` row 22 next-window order |
 
 ## Landed this session
 
