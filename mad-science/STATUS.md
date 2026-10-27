@@ -1,11 +1,11 @@
-# Board — generated 2026-10-27 15:01 ET
+# Board — generated 2026-10-27 16:01 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| ds4 quartet, `.31`–`.34` | **production serve** — standing line, no research window declared and none owed (the lock rule binds declared research windows; `QUESTIONS.md` `#4` names this the production serve). sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — **the recipe's tag; re-verified 15:01 ET that `.31`'s copy still reports an empty `RepoDigests`** (only the local image id `sha256:3f4480818acb…`; no manifest digest exists to pin — queue row `ds4-shipped-container-digest-pin`) — container created 00:14 ET, **`Up 15 hours (healthy)`** on all four ranks. Probed 15:01 ET: `.31` `/v1/models` **200** → `deepseek-ai/DeepSeek-V4.1-Flash-1017`; `.32`–`.34` **`/health` 200 / `/v1/models` 404** (the follower shape) |
-| census | this tick — session `…17-34-11Z_01a17e6d` | **15:00–15:01 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 15 hours (healthy)`); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB (low `.34` 1218 G); BeeGFS pool **11 TB** free on every node, and `ps` at 15:01 ET shows **no `hf download`/`hf sync` process** on any of the six. Volumes **0 fleet-wide** — the six `.34` orphans cleared at 14:04 are still gone |
+| ds4 quartet, `.31`–`.34` | **production serve** — standing line, no research window declared and none owed (the lock rule binds declared research windows; `QUESTIONS.md` `#4` names this the production serve). sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — **the recipe's tag; re-verified 16:00 ET that `.31`'s copy still reports an empty `RepoDigests`** (only the local image id `sha256:3f4480818acb…`; no manifest digest exists to pin — queue row `ds4-shipped-container-digest-pin`) — container created 00:14 ET, **`Up 16 hours (healthy)`** on all four ranks. Probed 16:00 ET: `.31` `/v1/models` **200** → `deepseek-ai/DeepSeek-V4.1-Flash-1017`; `.32`–`.34` **`/health` 200 / `/v1/models` 404** (the follower shape) |
+| census | this tick — session `…17-34-11Z_01a17e6d` | **16:00 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 16 hours (healthy)`); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB (low `.34` 1218 G); BeeGFS pool **11 TB** free on every node, and `ps` at 16:00 ET shows **no `hf download`/`hf sync` process** on any of the six. Volumes **0 fleet-wide** |
 
 ## Work queue
 
