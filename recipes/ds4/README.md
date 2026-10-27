@@ -442,8 +442,9 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   `chunked_prefill_size=16384`; the stock-loader engine profiles **6,849,792**
   at that line and the pin must stay under the *measured* budget — a larger pin
   is *clamped* (6,993,408 at a 7.5M pin), never refused. Re-derive it by reading
-  [the v2.4 section](#measured-the-v24-serve-line)); `-o env.MAX_TOTAL_TOKENS=0`
-  unpins. The pool is **page-shared, not extent-reserved**: 16 concurrent requests
+  `max_total_num_tokens=` on every boot (§"Measured: the v2.4 serve line" has the
+  method); `-o env.MAX_TOTAL_TOKENS=0` unpins.
+  The pool is **page-shared, not extent-reserved**: 16 concurrent requests
   each declaring ~1M tokens were all admitted (the bound is the
   `MAX_RUNNING_REQUESTS=16` cap and total actual tokens, not a per-stream
   reservation). Keep `mem_fraction_static` at 0.78 — the 16384-token chunks need
