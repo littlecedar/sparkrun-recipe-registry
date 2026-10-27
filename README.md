@@ -14,6 +14,7 @@ This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from
 
 - [Little Cedar Group][littlecedar] — our resilience-focused technology company
 - [Mad Science](mad-science/README.md) — Our autoresearch experiments and findings.
+  - [Testing Methodology](mad-science/METHODOLOGY.md) — How our performance numbers and benchmarks are derived.
 - [Spark Arena][spark-arena] — community benchmarking hub
 - [Sparkrun][sparkrun] — our favorite tool for AI workload management
 - [Sparkrun Docs][sparkrun-docs] — full Sparkrun documentation
