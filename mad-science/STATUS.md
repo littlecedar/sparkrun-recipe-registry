@@ -1,4 +1,4 @@
-# Board — generated 2026-10-28 14:12 ET
+# Board — generated 2026-10-28 14:20 ET
 
 ## In flight
 
@@ -10,7 +10,7 @@
 
 | job | node cost | holds | state |
 |---|---|---|---|
-| `tp12-campaign-staging` — stage the 32 gated TP≤2 arms (11 image pulls + 5 model fetches) and run them; 11 of 42 measured so far, all 9 TP=2 arms gated (6 h) | single | this session | **staging done 14:01 ET, verified per node**: all 11 digest refs present on `.30` and `.35` (only `eugr-nightly@cc47adc1` was actually missing), each tagged `staged-<short>` so a peer prune cannot take it; all 5 model repos present with **weights and tokenizer in every snapshot** (the 7B-uno failure class checked, 0 incomplete). Per-arm readiness NOT yet re-measured — the manifest's `img_ok`/`mod_ok` flags are stale and a ref-based recompute could not match, so no readiness count is claimed |
+| `tp12-campaign-staging` — stage the 32 gated TP≤2 arms and run them; 11 of 42 measured so far (6 h) | single | this session | **staging is a no-op: nothing gates these arms on images or models.** Verified by `docker image inspect` on the 14 distinct pinned refs — **14/14 present on both `.30` and `.35`** — and all model snapshots carry weights + tokenizer. The manifest's `img_ok`/`mod_ok` flags (30 false, 7 false) are **stale**: they mark `dsv41@fabbe861` absent while it is resident as `dsv41:latest`. Remaining gate is scheduling only — a free node and 6 h — and 4 of the 9 TP=2 arms are the untested half |
 | `flint-four-arm-comparison` — Flint 40B-A2.5B vs Mellum 12B-A2.5B, Ornith-1.5-35B-A3B and Ornith-1.5-122B on one instrument (8 h) | single | — | queued |
 | `ornith-122b-decoders-route` — SGLang arm + `incoai` DFlash2 drafter (route verdict C1 ≥ 51, falsifier C1 < 45) (3 h) | single | — | queued |
 | `ornith-omp-1000turn-longrun` — 300-turn omp tool-calling run on a scratch project, extended to ~1,000 only if clean (4 h) | single | — | **ended at 137/300** — the backlog was exhausted (30 items), not a failure: zero failures of the owner-reported class across all 137 turns. Extension needs a larger backlog (or a cold-boot / post-idle trigger set), so the stage is not closed and ~1,000 turns is not taken |
