@@ -1903,3 +1903,28 @@ found this clause on the board only, with no other home. Verbatim as carried:
   fast-forward pull will refuse. Report it to that clone's owner; never blanket-reset the head
   (`AGENTS.md` §Git, secrets, and the second writer) — the durable record here is what makes the
   divergence interpretable.
+
+## Landed rows retired at the 2026-10-28 00:30 ET board refresh (session boundary)
+
+The table the 2026-10-27 21:04 ET tick opened was carried through the 22:04 (`09e91a9`, rewritten
+from `3b52ab5`) and 23:04 (`08b707d`, then `4a50dda`) ticks and still held four rows at 00:25 ET.
+Those rows are session `…00-44-33Z_01a17ff7`'s work (opened 20:44 ET, last session-file write
+23:28 ET); the session writing this board (`.omp` session `…03-21-32Z_01a18086`, `PI_SESSION_ID`
+`01a18086-fa6a-758d-a435-c6b5c680f15a`, opened 23:21 ET) retires them rather than listing another
+session's work as its own. `git grep <sha> -- mad-science/` found `09e91a9` in this file's
+address-hygiene section and the other three on the board only, so they are carried here. Verbatim
+as carried:
+
+| time ET | commit | one clause |
+|---|---|---|
+| 21:05 ET | `f0cc94e` | board 21:04 ET: fresh six-node census (quartet at 21 h, `.30`/`.35` idle), queue reconciled to 14 open rows, prior session's `8fb4bf4` row retired to `SESSION-RECORD.md` |
+| 21:06 ET | `77e6e62` | named this tick's session (`PI_SESSION_ID` `01a17ff7…`) and the retiree's (`…17-34-11Z_01a17e6d`) in the census row and the boundary note |
+| 22:02 ET | `09e91a9` | board 22:04 ET with the live-traffic proof from rank0's serve log; amended from `3b52ab5` to drop the head node's address literal from the row and the message (record: `SESSION-RECORD.md` §Board commit rewritten) |
+| 22:04 ET | `c7188f2` | rewrite record for that amend: old→new map, `git log -S` clean, address guard 7 tests and the full suite 1007 (2 skipped) green |
+
+Two commits from that session never reached a board row, the 23:04 tick closing after them:
+
+| time ET | commit | one clause |
+|---|---|---|
+| 23:01 ET | `08b707d` | refreshed the board to 23:04 ET — quartet `Up 23 hours (healthy)`, live chat traffic on the line |
+| 23:02 ET | `4a50dda` | replaced the single tail line with a wide-slice client-request count in the quartet row |

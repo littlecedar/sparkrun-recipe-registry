@@ -1,11 +1,11 @@
-# Board — generated 2026-10-27 23:04 ET
+# Board — generated 2026-10-28 00:31 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| ds4 quartet, `.31`–`.34` | **production serve** — standing line; no research window declared and none owed (the lock rule binds declared research windows; settled `TODO.md` `#4` recognises these ranks serving the fleet's own inference, `#51` defines the stand-down). sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — `RepoDigests` still **0** on `.31` at 23:00 ET (local id `sha256:3f4480818acb…`, no manifest digest to pin — queue row `ds4-shipped-container-digest-pin`); container created 00:14 ET, **`Up 23 hours (healthy)`** on all four ranks at 23:00 ET. **Serving live traffic**: rank0 served **15** `POST /v1/chat/completions` **200** in the 400 log lines before 23:02 ET, latest **23:01:58 ET**, every one from `.30`; `Decode batch #running-req: 2`, `#full token: 289536`, `accept len: 4.13` (DSpark engaged) at 23:00:45 ET, Engram `lookups=790100 hit_rate=99.8 %` at 23:00:50 ET. The only non-client load on that rank is the container's own `GET /health` on loopback every ~30 s (23:01:06 / 23:01:37 / 23:02:08 ET), which is what produces the occasional 1-token prefill — not traffic; `.31` `/v1/models` **200** → `deepseek-ai/DeepSeek-V4.1-Flash-1017` with `max_model_len: 1048576`, `.32`–`.34` `/health` **200** / `/v1/models` **404** (TP=4 follower shape); serve-child pids matched in-container **6/5/5/5** at 23:00 ET |
-| census | this tick — session `…00-44-33Z_01a17ff7` (opened 20:44 ET) | **23:00 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 23 hours (healthy)`); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB (low `.34` 1218 G); BeeGFS pool **11 TB** free on every node; `ps` at 23:00 ET shows **no `hf download`/`hf sync` process** on any of the six. Volumes **0 fleet-wide** |
+| ds4 quartet, `.31`–`.34` | **production serve** — standing line; the lock rule binds declared research windows, and settled `TODO.md` `#4`/`#51` recognise these ranks serving the fleet's own inference. sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — `RepoDigests` still **0** on `.31` at 00:25 ET (local id `sha256:3f4480818acb…`, no manifest digest to pin — queue row `ds4-shipped-container-digest-pin`); **`Up 24 hours (healthy)`** on all four ranks at 00:25 ET. **Serving live traffic**: rank0's last 400 serve-log lines hold **95** `POST /v1/chat/completions` **200** against 23 loopback `GET /health` probes, latest **00:23:17 ET** from `.30`; decode at 00:23:31–36 ET `#running-req: 7`, 174–191 tok/s, accept len 3.27–3.59. Served id `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1,048,576 |
+| census | this tick — session `…03-21-32Z_01a18086` (opened 23:21 ET) | **00:25 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 24 hours (healthy)`); `.30` and `.35` **0, nothing live (no reservation)**. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB; BeeGFS pool **11 TB** free on every node; `ps` at 00:25:28 ET shows **no `hf download`/`hf sync` process** on any of the six; volumes **0 fleet-wide** |
 
 ## Work queue
 
@@ -30,7 +30,4 @@
 
 | time ET | commit | one clause |
 |---|---|---|
-| 21:05 ET | `f0cc94e` | board 21:04 ET: fresh six-node census (quartet at 21 h, `.30`/`.35` idle), queue reconciled to 14 open rows, prior session's `8fb4bf4` row retired to `SESSION-RECORD.md` |
-| 21:06 ET | `77e6e62` | named this tick's session (`PI_SESSION_ID` `01a17ff7…`) and the retiree's (`…17-34-11Z_01a17e6d`) in the census row and the boundary note |
-| 22:02 ET | `09e91a9` | board 22:04 ET with the live-traffic proof from rank0's serve log; amended from `3b52ab5` to drop the head node's address literal from the row and the message (record: `SESSION-RECORD.md` §Board commit rewritten) |
-| 22:04 ET | `c7188f2` | rewrite record for that amend: old→new map, `git log -S` clean, address guard 7 tests and the full suite 1007 (2 skipped) green |
+| 00:28 ET | `50167f7` | `plugins/plugin.toml` sidecar (`sparkrun = ">=0.4.2a0,<0.5"`): the pooling plugin's `sparkrun update` row renders a real range instead of `unknown`, and the `a0` floor is what admits the 0.4.2/0.4.3 alphas — the Python half stays `unknown` because the core reads it only from a distribution; verified at `spark-arena/sparkrun@561b14b`, suite 1007 OK (2 skipped) |
