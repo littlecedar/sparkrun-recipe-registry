@@ -1876,8 +1876,11 @@ Two commits landed after that board write, never listed on any board:
 ## Landed rows retired at the 2026-10-27 21:04 ET board refresh (session boundary)
 
 The table the 14:04 ET tick opened was carried unchanged through the 15:01 (`53b253d`) and 16:01
-(`e7eaab4`) ticks and still held one row at 21:00 ET, so the session writing the 21:04 ET board
-retires it here instead of listing another session's work as its own. `git grep 8fb4bf4 -- mad-science/`
+(`e7eaab4`) ticks and still held one row at 21:00 ET. That row is session `…17-34-11Z_01a17e6d`'s
+landed work (the session that wrote the 15:01 and 16:01 boards; its last session-file write is
+16:33 ET), so the session writing the 21:04 ET board (`.omp` session
+`…00-44-33Z_01a17ff7`, `PI_SESSION_ID` `01a17ff7-4450-767a-b571-79e370ad3f55`, opened 20:44 ET)
+retires it rather than listing another session's work as its own. `git grep 8fb4bf4 -- mad-science/`
 found this clause on the board only, with no other home. Verbatim as carried:
 
 | time ET | commit | one clause |
