@@ -1,11 +1,10 @@
-# Board — generated 2026-10-28 02:07 ET
+# Board — generated 2026-10-28 02:22 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| ds4 quartet, `.31`–`.34` | **production serve** — standing line; the lock rule binds declared research windows, and settled `TODO.md` `#4`/`#51` recognise these ranks serving the fleet's own inference. sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — `RepoDigests` still **0** (local id `sha256:3f4480818acb…`; queue row `ds4-shipped-container-digest-pin`), **`Up 26 hours (healthy)`** on all four at 02:00 ET. **Serving live traffic**: rank0's last 400 serve-log lines hold **75** `POST /v1/chat/completions` **200** against 16 loopback `GET /health`, latest **02:00:38 ET** from `.30`; decode `#running-req: 2`, accept len 3.15, 78.2 tok/s at 02:00:39 ET |
-| census | this tick — session `…03-21-32Z_01a18086` (opened 23:21 ET) | **02:05 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 26 hours (healthy)`); **`.30` and `.35` 0, nothing live (no reservation)** — the campaign's slots drained at 01:51 and 02:01 ET. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB; BeeGFS pool **11 TB** free on every node; volumes **0 fleet-wide** |
+| census | this tick — session `…03-21-32Z_01a18086` (opened 23:21 ET) | **02:21 ET, all six nodes (read-only ssh)**: **0 research containers fleet-wide**; the protected production serve on `.31`–`.34` is excluded from this count by directive, not absent. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB; BeeGFS pool **11 TB** free on every node; volumes **0 fleet-wide** |
 
 ## Work queue
 

@@ -389,7 +389,10 @@ keep a repo id's own spelling (the LTX release id `ltx-2.x-community-license-agr
 `SPDX-License-Identifier` headers, a card's `license:` field) exactly as its owner wrote it.
 
 **`mad-science/STATUS.md` is a table-only board.** Every entry is a row carrying its evidence and date, never a
-paragraph — the context belongs in the lane doc the row cites.
+paragraph — the context belongs in the lane doc the row cites. **Production workloads are protected and
+ignored by the board (owner directive, 2026-10-28):** a production serve is never an `In flight` row
+and is never counted by the census — the census counts *research* containers only and says so, so a
+protected serve must not be listed as work in progress nor inflate a container count.
 
 **Owner questions live in `mad-science/QUESTIONS.md` — the unresolved ones — and settled ones in
 `mad-science/TODO.md` §"Settled questions".** One table row per *unresolved* question, with its status, its
