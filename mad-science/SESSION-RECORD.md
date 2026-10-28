@@ -1872,3 +1872,14 @@ Two commits landed after that board write, never listed on any board:
 |---|---|---|
 | 13:26 ET | `ec90005` | corrected the quartet's attribution (production serve, not an unclaimed research window) and registered the tag-only container pin as queue row `ds4-shipped-container-digest-pin` |
 | 13:29 ET | `5e4a15d` | measured the shipped image's provenance — a local overlay build (created 2026-10-25 20:01 ET, 33.5 GB, base `lmsysorg/sglang:dev-dsv41` `da64c5cb`, upstream action run 34631178591) with no registry digest on any host, so the digest route is push-then-pin and the `3f4480818acb…` in TODO row 21 is an image ID, not a manifest digest; also replaced the ds4 fence's fixed `.30`–`.33` rank list with a pointer that the fence follows the production serve. Verified at landing: 1007 tests (2 skipped), `task-queue.py check` green at 45 tasks |
+
+## Landed rows retired at the 2026-10-27 21:04 ET board refresh (session boundary)
+
+The table the 14:04 ET tick opened was carried unchanged through the 15:01 (`53b253d`) and 16:01
+(`e7eaab4`) ticks and still held one row at 21:00 ET, so the session writing the 21:04 ET board
+retires it here instead of listing another session's work as its own. `git grep 8fb4bf4 -- mad-science/`
+found this clause on the board only, with no other home. Verbatim as carried:
+
+| time ET | commit | one clause |
+|---|---|---|
+| 14:09 ET | `8fb4bf4` | re-measured the two figures `dc5bc48` had carried: `.32`–`.34` `/health` 200 / `/v1/models` 404 at 14:07 ET, and no `hf download`/`hf sync` process on any node at 14:08 ET |
