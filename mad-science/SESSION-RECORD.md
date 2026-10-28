@@ -1886,3 +1886,20 @@ found this clause on the board only, with no other home. Verbatim as carried:
 | time ET | commit | one clause |
 |---|---|---|
 | 14:09 ET | `8fb4bf4` | re-measured the two figures `dc5bc48` had carried: `.32`–`.34` `/health` 200 / `/v1/models` 404 at 14:07 ET, and no `hf download`/`hf sync` process on any node at 14:08 ET |
+
+## Board commit rewritten for address hygiene — 2026-10-27 22:12 ET
+
+- **Old→new map:** `3b52ab5` → `09e91a9f2d4432c68a781df5394ffc2ca8fcfdc4`, the 22:04 ET board
+  commit only; its subject is unchanged. It carried the head node's literal management address in
+  one clause of the quartet row and in its own commit body; both now name `.30` (masked form, the
+  repo convention). No other path in that commit differs.
+- **Landing facts:** `git log -S` on the literal over the rewritten history returns nothing, so the
+  address is out of history rather than merely out of the tip; `git grep` over `mad-science/` is
+  clean; `tests.test_tracked_address_hygiene` 7 tests OK and the full suite 1007 tests OK
+  (2 skipped). Force-with-lease landed after confirming `origin/main` was still `3b52ab5`, so no
+  peer commit was overwritten. The behaviour the board reports is unchanged: rank0 served
+  `POST /v1/chat/completions` 200 at 22:00:40 ET with `#cached-token: 153856` prefix reuse.
+- **Peer note:** a clone that already fetched `3b52ab5` now holds a divergent `main` and a
+  fast-forward pull will refuse. Report it to that clone's owner; never blanket-reset the head
+  (`AGENTS.md` §Git, secrets, and the second writer) — the durable record here is what makes the
+  divergence interpretable.
