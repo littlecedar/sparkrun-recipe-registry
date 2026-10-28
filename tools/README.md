@@ -236,6 +236,22 @@ plugins:
 Only the head that drives the sweep imports it — never the serving nodes: the scheduler runs
 the instrument locally and hands it the endpoint URL.
 
+`plugins/plugin.toml` is the sidecar a *directory* plugin's compatibility row is read from
+(`sparkrun/core/plugin_metadata.py:21-32` → `core/plugin_compatibility.py:152-158`), so the
+row carries a real range instead of `Sparkrun compatibility unknown`:
+`sparkrun = ">=0.4.2a0,<0.5"`. **The `a0` floor is load-bearing** — every build in use is a
+PEP 440 pre-release (`0.4.2-alpha+g36d8a44`, `0.4.3-alpha+g561b14b`), and a pre-release is
+*outside* a plain `>=0.4.2`, so a "tidier" floor flips the row to `incompatible`. Python
+compatibility cannot be declared for a directory plugin: `plugin.package` is always `None`
+there (`core/plugin_inventory.py:234-246`) and `metadata_for_plugin` reads `Requires-Python`
+only from a distribution (`core/plugin_compatibility.py:159-162`), so the row reports
+`Python compatibility unknown`. That status is `unknown`, not `incompatible`, and only
+`incompatible` raises (`core/plugin_lifecycle.py:47-49`) — a warning to live with until the
+core learns to read a `python` key from the sidecar. Checked at the alpha tip
+`spark-arena/sparkrun@561b14b` (`upstream/develop-next`), where `plugin_compatibility.py`,
+`plugin_metadata.py` and `plugin_inventory.py` are byte-identical to the 0.4.2 install these
+line numbers belong to.
+
 Profile contract — one task per `concurrency` value, and `kind` is **required** because
 embed and rerank answer on different routes, so neither is a safe default:
 
