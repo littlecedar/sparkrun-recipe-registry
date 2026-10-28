@@ -20,7 +20,8 @@ TensorFold's spelling, applies the lane's production configuration (taken from
 the upstream launcher this lane was boot-verified with, MiaAI-Lab's
 `GLM-5.3-Flash-EXL3-2x-DGX-Sparks-TensorFold` branch `tp4` @ `d220030`,
 `scripts/config.sh` resolved at TP=4 / KV=fp8 / DENSE=q4 / VISION=1), resolves
-the checkpoint and the DFlash2 drafter, and `execve`s `tensorfold serve`.
+the checkpoint and the DFlash2 drafter, and runs it as a child so rank 0 can
+host the metrics bridge.
 
 Why this is the shipped mechanism (not a custom sparkrun runtime plugin): the
 TensorFold DSV41 lane (`mods/tensorfold-dsv41-launcher`) established the
@@ -58,7 +59,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
+import subprocess
 import sys
+import threading
 from pathlib import Path
 
 # In-container mount points (sparkrun's orchestration/primitives.py and
@@ -236,6 +240,120 @@ def served_model_name(value: str) -> str:
     return os.path.basename(value.rstrip("/")) or value
 
 
+# The bridge's log lines below; the boot lines keep their own literal.
+TAG = "[tensorfold-glm-launcher]"
+
+
+def parse_tensorfold_metrics(text: str) -> dict[str, float]:
+    """`tensorfold:*` lines of a /metrics body -> name -> float (pure)."""
+    out: dict[str, float] = {}
+    for line in text.splitlines():
+        if not line.startswith("tensorfold:"):
+            continue
+        name, _, raw = line.partition(" ")
+        try:
+            # Labels dropped: the bridge reads unlabeled counters, and a
+            # labelled series must not shadow its family name.
+            out[name.split("{", 1)[0]] = float(raw)
+        except ValueError:
+            pass
+    return out
+
+
+def build_metric_lines(
+    vals: dict[str, float],
+    prev_gen: float | None,
+    prev_t: float | None,
+    now: float,
+) -> tuple[list[str], float | None, float | None]:
+    """Scraper-shaped lines for one /metrics sample and the next delta state (pure).
+
+    Only what the sample actually carried is printed: a missing counter emits no
+    line, never a placeholder zero — invented zeros would corrupt accounting.
+    Throughput needs two samples of `tensorfold:generation_tokens_total`.
+    """
+    lines: list[str] = []
+    gen = vals.get("tensorfold:generation_tokens_total")
+    if gen is not None and prev_gen is not None and prev_t is not None and now > prev_t:
+        tps = (gen - prev_gen) / (now - prev_t)
+        lines.append(f"Avg generation throughput: {tps:.2f} tokens/s")
+        lines.append(f"gen throughput (token/s): {tps:.2f}")
+    running = vals.get("tensorfold:requests_running")
+    if running is not None:
+        lines.append(f"Running: {int(running)} reqs")
+    waiting = vals.get("tensorfold:requests_waiting")
+    if waiting is not None:
+        lines.append(f"Waiting: {int(waiting)} reqs")
+    return lines, gen, now
+
+
+def bridge_loop(
+    port: int,
+    period_s: float = 5.0,
+    backoff_cap_s: float = 30.0,
+    pre_ready_deadline_s: float = 3600.0,
+) -> None:
+    """Poll this rank's /metrics and emit scraper-shaped lines. Fail-soft.
+
+    The engine's HTTP listener binds only after the weight load (2715 s on the
+    GLM-5.3-Flash 4bpw arm), so connection refusals are the EXPECTED state for
+    most of the boot: retry with backoff (5 s doubling to 30 s) until the port
+    answers once. After first contact, N consecutive failures end the thread;
+    before it, an env-configurable deadline (TF_METRICS_BRIDGE_DEADLINE_S,
+    default 3600 s) bounds the wait. It never touches the serve.
+    """
+    import time
+    import urllib.request
+
+    deadline = time.time() + pre_ready_deadline_s
+    prev_gen: float | None = None
+    prev_t: float | None = None
+    delay = period_s
+    reached = False
+    announced = False
+    misses_after_reach = 0
+    while True:
+        time.sleep(delay)
+        try:
+            body = urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/metrics", timeout=5
+            ).read().decode()
+        except Exception as exc:  # noqa: BLE001 - fail-soft by design
+            if reached:
+                misses_after_reach += 1
+                if misses_after_reach >= 3:
+                    print(
+                        f"{TAG} metrics bridge disabled after "
+                        f"{misses_after_reach} post-contact failures: {exc}",
+                        flush=True,
+                    )
+                    return
+            elif time.time() > deadline:
+                print(
+                    f"{TAG} metrics bridge disabled: /metrics "
+                    f"never answered before the deadline: {exc}",
+                    flush=True,
+                )
+                return
+            delay = min(delay * 2, backoff_cap_s)
+            continue
+        reached = True
+        misses_after_reach = 0
+        delay = period_s
+        now = time.time()
+        vals = parse_tensorfold_metrics(body)
+        if not announced:
+            # Once per boot, after the first body: the matched names are the only
+            # evidence the scrape keys fit this engine image. An empty list means
+            # this image publishes no `tensorfold:*` series, and the bridge's cells
+            # stay blank rather than inventing zeros.
+            print(f"{TAG} metrics bridge: matched {sorted(vals)}", flush=True)
+            announced = True
+        lines, prev_gen, prev_t = build_metric_lines(vals, prev_gen, prev_t, now)
+        for line in lines:
+            print(line, flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--boot", action="store_true", help="accepted for parity with the other lane shims")
@@ -321,8 +439,31 @@ def main(argv: list[str] | None = None) -> int:
         f"comm={RECIPE_ENV['TF_GLM_COMM']} roce_hca={os.environ.get('TF_ROCE_HCA', 'engine default')}",
         flush=True,
     )
-    os.execvp(cmd[0], cmd)
-    return 0  # unreachable
+    # The engine runs as a CHILD (not execve) so rank 0 can host the metrics
+    # bridge thread: /metrics carries the tensorfold:* counters the sparkrun
+    # monitor scraper wants, but the engine logs no line shapes it matches.
+    # TF_METRICS_BRIDGE=0 disables the bridge without a repo edit. The shim
+    # relays SIGTERM/SIGINT and exits with the engine's code, so container
+    # stop semantics are unchanged.
+    proc = subprocess.Popen(cmd)
+    if args.node_rank == 0 and os.environ.get("TF_METRICS_BRIDGE", "1") != "0":
+        threading.Thread(
+            target=bridge_loop,
+            kwargs={
+                "port": args.port,
+                "pre_ready_deadline_s": float(
+                    os.environ.get("TF_METRICS_BRIDGE_DEADLINE_S", "3600")
+                ),
+            },
+            daemon=True,
+        ).start()
+
+    def _forward(signum, _frame):
+        proc.send_signal(signum)
+
+    signal.signal(signal.SIGTERM, _forward)
+    signal.signal(signal.SIGINT, _forward)
+    return proc.wait()
 
 
 if __name__ == "__main__":

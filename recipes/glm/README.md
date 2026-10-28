@@ -40,6 +40,12 @@ was attempted and archived as a proven-negative.
   TTFT 258.4 s, 1M window with DCP over 4 ranks. Two boot blockers it exposed are now guarded —
   an absent `TF_TP_WORLD` and a wheel that shipped no CUDA sources. The TP=2/TP=3 Flash topologies
   stay runbook-only launchers — they are not what this 4-node registry targets.
+- **Both launchers carry the metrics bridge.** The TensorFold serve logs no line the sparkrun monitor's
+  metrics scraper matches, so each launcher hosts a thread that reprints its `/metrics` counters in
+  those shapes (`TF_METRICS_BRIDGE=0` disables it). Fail-open: an absent counter prints nothing. **Not
+  yet observed on either arm** — the live boot predates the bridge, so the first boot's
+  `metrics bridge: matched [...]` line is what confirms the scrape keys, and the 4bpw patch tree's
+  names are equally unverified.
 - **Research** (checkpoint/engine/topology selection, measured numbers, license traps) is in
   [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
 

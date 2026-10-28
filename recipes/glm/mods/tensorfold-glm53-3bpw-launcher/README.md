@@ -30,8 +30,9 @@ ssh's into four Sparks, installs the fork editable at container start, and runs 
 
 `launcher.py` is the adapter. It consumes those three flags, maps them onto TensorFold's
 spelling, applies the lane's configuration, resolves the checkpoint to its prepared snapshot
-directory, and `execve`s `tensorfold serve`. Everything else sparkrun does for a real recipe —
-image and weight distribution to all four nodes, the InfiniBand/NCCL probe, the per-node runtime
+directory, and runs `tensorfold serve` as a child (rank 0 hosts the metrics
+bridge). Everything else sparkrun does for a real recipe — image and weight
+distribution to all four nodes, the InfiniBand/NCCL probe, the per-node runtime
 cache, readiness — is inherited unchanged.
 
 Same pattern as [`../tensorfold-glm-exl3-launcher`](../tensorfold-glm-exl3-launcher/README.md)
@@ -142,6 +143,26 @@ The 2026-10-18 TP=4 boot on `.30`–`.33` (receipt: `~/benchmarks/glm-3bpw-boot-
 
 Still open: a second boot (cold-JIT cache reuse), any rung past 100,559 prompt tokens, and quality
 either inside or outside sparkrun for this image.
+
+## Metrics bridge
+
+The sparkrun monitor scrapes a serve's log for four shapes (`Avg generation throughput: N tokens/s`,
+`Avg prompt throughput: N tokens/s`, `Running: N reqs`, `Waiting: N reqs`). The TensorFold serve logs
+none of them, so the shim runs `tensorfold serve` as a **child** and, on rank 0, hosts a daemon thread
+that reprints this rank's `/metrics` counters in those shapes.
+
+- Gated by `TF_METRICS_BRIDGE` (default on; `0` disables it without a repo edit) and
+  `TF_METRICS_BRIDGE_DEADLINE_S` (default 3600 s for the post-load wait).
+- Fail-open: it never touches the serve, and a counter the body does not carry prints **no line** —
+  never a zero.
+- The first `/metrics` body of a boot prints `metrics bridge: matched [...]`, the evidence that the
+  `tensorfold:*` scrape keys fit that arm's engine image.
+- The two GLM mods carry **bundled copies** of the same block (there is no shared library: sparkrun
+  ships only a mod's own directory). `tests/test_tensorfold_glm_metrics_bridge.py` pins them
+  byte-identical, so a fix must land in both.
+
+Status: shipped, **not yet observed printing on either arm** — the live 3.0bpw boot predates the
+bridge, and this build's `/metrics` names are unverified on the 4bpw patch tree.
 
 ## Not in this mod
 

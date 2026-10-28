@@ -10,8 +10,10 @@ when wrong: sparkrun gates the launch on the rendezvous port it put in
 `--master-port`), only the shim sees `--node-rank` (getting it wrong makes every
 rank think it is rank 0), and the drafter must resolve to a snapshot directory.
 
-The shim is exercised as a module with `os.execvp` captured, so the argv it
-would exec is asserted exactly. Stdlib only; no GPU, no image, no checkpoint.
+The shim is exercised as a module with the engine's `subprocess.Popen`, the
+bridge's `threading.Thread` and the signal handlers captured, so the argv it
+would exec is asserted exactly and no handler or thread outlives the test.
+Stdlib only; no GPU, no image, no checkpoint.
 """
 from __future__ import annotations
 
@@ -65,17 +67,19 @@ class ShimTestCase(unittest.TestCase):
         os.environ.pop("TF_ROCE_HCA", None)
 
     def exec_argv(self, argv: list[str]) -> list[str]:
-        """Run the shim with os.execvp captured; returns the argv it would exec."""
-        with mock.patch("os.execvp") as execvp:
+        """Run the shim with the engine's Popen captured; returns the argv it would exec."""
+        with mock.patch("subprocess.Popen") as popen, mock.patch("threading.Thread"), \
+                mock.patch("signal.signal"):
             rc = self.mod.main(argv)
-        self.assertTrue(execvp.called, f"the shim refused to start (rc={rc})")
-        return list(execvp.call_args.args[1])
+        self.assertTrue(popen.called, f"the shim refused to start (rc={rc})")
+        return list(popen.call_args.args[0])
 
     def exec_refusal(self, argv: list[str]) -> int:
         """Run the shim expecting a fail-closed refusal; returns its exit code."""
-        with mock.patch("os.execvp") as execvp:
+        with mock.patch("subprocess.Popen") as popen, mock.patch("threading.Thread"), \
+                mock.patch("signal.signal"):
             rc = self.mod.main(argv)
-        self.assertFalse(execvp.called, "the shim started on state it cannot serve")
+        self.assertFalse(popen.called, "the shim started on state it cannot serve")
         return rc
 
     def base_argv(self, extra: list[str] | None = None, **overrides) -> list[str]:
@@ -155,6 +159,38 @@ class Artifacts(ShimTestCase):
         # there must NOT silently serve whatever main points at.
         rc = self.exec_refusal(self.base_argv(drafter_revision="deadbeef"))
         self.assertEqual(2, rc)
+
+
+class MetricsBridge(ShimTestCase):
+    """The shadow telemetry is armed on the HTTP rank only, and only when asked."""
+
+    def run_main(self, node_rank: int, env: dict | None = None):
+        argv = self.base_argv(extra=["--nnodes", "4"], dist_init_addr=".30:25000",
+                              node_rank=node_rank)
+        with mock.patch("subprocess.Popen"), mock.patch("threading.Thread") as thread, \
+                mock.patch("signal.signal"), \
+                mock.patch.dict(os.environ, env or {}, clear=False):
+            self.mod.main(argv)
+        return thread
+
+    def test_the_head_rank_starts_the_bridge(self) -> None:
+        thread = self.run_main(0, {"TF_METRICS_BRIDGE": "1"})
+        self.assertTrue(thread.called)
+        self.assertEqual(8000, thread.call_args.kwargs["kwargs"]["port"])
+        self.assertEqual(3600.0, thread.call_args.kwargs["kwargs"]["pre_ready_deadline_s"])
+
+    def test_a_worker_rank_starts_no_bridge(self) -> None:
+        self.assertFalse(self.run_main(2, {"TF_METRICS_BRIDGE": "1"}).called)
+
+    def test_the_gate_disables_the_bridge(self) -> None:
+        self.assertFalse(self.run_main(0, {"TF_METRICS_BRIDGE": "0"}).called)
+
+    def test_the_deadline_is_env_tunable(self) -> None:
+        thread = self.run_main(0, {"TF_METRICS_BRIDGE_DEADLINE_S": "120"})
+        self.assertEqual(120.0, thread.call_args.kwargs["kwargs"]["pre_ready_deadline_s"])
+
+    def test_the_shim_does_not_exec_its_engine(self) -> None:
+        self.assertNotIn("os.execvp", SHIM.read_text())
 
 
 class ServedName(ShimTestCase):

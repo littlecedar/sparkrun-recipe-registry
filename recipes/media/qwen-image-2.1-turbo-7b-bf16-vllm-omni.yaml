@@ -30,16 +30,23 @@ description: >-
   Qwen/Qwen-Image-2.1-Turbo — text-to-image and image-editing checkpoint,
   8-step distilled schedule at CFG=1, served natively by vLLM-Omni on ONE DGX
   Spark (`vllm-omni serve --omni`, endpoint `POST /v1/images/generations`).
-  The engine ships its own `QwenImage21Pipeline`, so no launcher mod and no
-  staged venv: this is the ~24 % faster sibling of the Diffusers arm at the
-  same peak memory, and a different look (see recipes/media/README.md for the
-  two-ink adherence defect). LICENSE: qwen-research — NON-COMMERCIAL ONLY.
+  The engine ships its own `QwenImage21Pipeline`, so no venv staging and no
+  engine shim — only the metrics-bridge wrapper in front of `vllm-omni` (see
+  `mods/vllm-omni-metrics-bridge`): this is the ~24 % faster sibling of the
+  Diffusers arm at the same peak memory, and a different look (see
+  recipes/media/README.md for the two-ink adherence defect). LICENSE:
+  qwen-research — NON-COMMERCIAL ONLY.
 metadata:
   model_url: https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "7B"
   model_dtype: bf16
   tags: media, image, single_user
+
+# Ships the metrics-bridge wrapper the command below runs; a mod's own
+# directory is all sparkrun mounts at /workspace/mods.
+mods:
+  - "mods/vllm-omni-metrics-bridge"
 
 executor_config:
   # Clear the image's entrypoint so the recipe's own `vllm-omni` line runs —
@@ -60,8 +67,11 @@ defaults:
   served_model_name: Qwen/Qwen-Image-2.1-Turbo
   stage_init_timeout: 900  # measured TTR ~4 min against the engine's 300 s stage default
 
+# `vllm-omni` is not the process that runs: the wrapper hosts the metrics bridge
+# (a diffusion serve logs no shape the monitor scrapes) and forwards this line.
 command: >
-  vllm-omni serve
+  python3 /workspace/mods/vllm-omni-metrics-bridge/launcher.py
+  serve
   {model}
   --omni
   --served-model-name {served_model_name}

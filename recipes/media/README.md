@@ -309,7 +309,8 @@ diffusers engine (no `sglang`/vLLM serves it) + [`recipes/media/mods/qwen-image-
 
 ## [qwen-image-2.1-turbo-7b-bf16-vllm-omni](qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml)
 
-vLLM-Omni · **1 node (TP=1)** · **booted and measured 2026-10-22 (`.35`)**, four acceptance cells
+vLLM-Omni + [`recipes/media/mods/vllm-omni-metrics-bridge`](mods/vllm-omni-metrics-bridge) (metrics
+bridge only) · **1 node (TP=1)** · **booted and measured 2026-10-22 (`.35`)**, four acceptance cells
 closed.
 
 > **LICENSE — NON-COMMERCIAL ONLY.** Same checkpoint as the Diffusers arm, and the license follows
@@ -327,8 +328,8 @@ closed.
   image**, verified 2026-10-22 without running a container: exporting the pinned image's rootfs and
   reading it shows `vllm_omni/diffusion/registry.py` mapping `QwenImage21Pipeline` →
   `qwen_image_21` / `pipeline_qwen_image_21` / `QwenImage21Pipeline`, and
-  `models/qwen_image_21/pipeline_qwen_image_21.py:297` defining that class. No launcher mod and no
-  staged venv are needed.
+  `models/qwen_image_21/pipeline_qwen_image_21.py:297` defining that class. No engine shim and no
+  staged venv are needed — the only mod this arm ships is the metrics-bridge wrapper below.
 - **Tag trap, the reason for the pin:** `vllm/vllm-omni:latest` is 0.31.0rc1 and its diffusion
   registry has **`QwenImagePipeline` only**, while the checkpoint's `model_index.json` declares
   `_class_name: QwenImage21Pipeline` — a guaranteed dead boot, not a degraded one.
@@ -336,6 +337,14 @@ closed.
   Qwen/Qwen-Image-2.1-Turbo`; `POST /v1/images/generations` is the generation endpoint and `/health`
   answers `{"status":"healthy"}`, so `readiness.inference: false`. `stage_init_timeout: 900` ships
   because the measured TTR is ~4 min against the engine's 300 s stage default.
+- **Metrics bridge:** the command now runs through `mods/vllm-omni-metrics-bridge`'s wrapper
+  (`python3 /workspace/mods/vllm-omni-metrics-bridge/launcher.py serve …`), which forwards the line
+  verbatim and reprints `/metrics` in the four log shapes the monitor scrapes — a diffusion serve logs
+  none of them. Namespace-agnostic on purpose (this arm's families are `vllm_omni:`, the engine's
+  `vllm:`), fail-open (an absent series prints nothing), `OMNI_METRICS_BRIDGE=0` disables it.
+  **Not yet booted through the wrapper:** the first boot's `metrics bridge: matched …` line decides
+  which series a diffusion serve reports. `Running`/`Waiting` are the only cells this arm can honestly
+  fill — it reports no token counters, so no throughput line.
 - **Measured on this arm's own boots** — 2026-10-22, `.35`, task
   `sparkrun_ff85d35d30f290e3_64af2f7668b6` twice (`~/benchmarks/omni-qwen-image-20261022/`): TTR
   **251 s cold** (container start → `/v1/models` naming the served id; `StartedAt` 19:22:28.978Z,
@@ -739,6 +748,7 @@ to the recipe (`core/mods.py` rule 2):
 | [`qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) | the shipped Qwen-Image recipe and its 4-step probe |
 | [`qwen-image-sigmas`](mods/qwen-image-sigmas) | no recipe reference — the prior 4-step server, kept with the arm it was written for |
 | [`pyannote-diarize-server`](mods/pyannote-diarize-server) | the pyannote diarization recipe |
+| [`vllm-omni-metrics-bridge`](mods/vllm-omni-metrics-bridge) | the Qwen-Image vLLM-OMNI recipe (the wrapper its `command:` runs through) |
 
 ## Lane notes
 

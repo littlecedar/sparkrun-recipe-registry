@@ -19,7 +19,8 @@ them; it wants
 This shim is the adapter. It consumes sparkrun's three flags, maps them onto
 TensorFold's spelling, applies the lane's boot-verified configuration
 (`attic/glm/AGENTS.md` §"EXL3 3.0bpw", `attic/glm/GLM-5.3-RECOMMENDATIONS.md`
-§"A"), resolves the checkpoint, and `execve`s `tensorfold serve`.
+§"A"), resolves the checkpoint, and runs `tensorfold serve` as a child so rank 0
+can host the metrics bridge.
 
 The engine is `bertholomus/TensorFold` branch `glm-dsa-tp4` @ `ddfad35`
 (TensorFold 0.6.0) — a *different tree* from the 4bpw lane's 106-patch build:
@@ -84,6 +85,10 @@ CONSTANT_ENV = {
     # (cli_args.py), expanded in this process, so HOME covers it too.
     "HOME": RUNTIME_CACHE,
 }
+
+# The bridge's log lines below; the boot lines keep their own literal.
+TAG = "[tensorfold-glm53-3bpw-launcher]"
+
 
 def parse_tensorfold_metrics(text: str) -> dict[str, float]:
     """`tensorfold:*` lines of a /metrics body -> name -> float (pure)."""
@@ -151,6 +156,7 @@ def bridge_loop(
     prev_t: float | None = None
     delay = period_s
     reached = False
+    announced = False
     misses_after_reach = 0
     while True:
         time.sleep(delay)
@@ -163,14 +169,14 @@ def bridge_loop(
                 misses_after_reach += 1
                 if misses_after_reach >= 3:
                     print(
-                        f"[tensorfold-glm53-3bpw-launcher] metrics bridge disabled after "
+                        f"{TAG} metrics bridge disabled after "
                         f"{misses_after_reach} post-contact failures: {exc}",
                         flush=True,
                     )
                     return
             elif time.time() > deadline:
                 print(
-                    f"[tensorfold-glm53-3bpw-launcher] metrics bridge disabled: /metrics "
+                    f"{TAG} metrics bridge disabled: /metrics "
                     f"never answered before the deadline: {exc}",
                     flush=True,
                 )
@@ -181,12 +187,17 @@ def bridge_loop(
         misses_after_reach = 0
         delay = period_s
         now = time.time()
-        lines, prev_gen, prev_t = build_metric_lines(
-            parse_tensorfold_metrics(body), prev_gen, prev_t, now
-        )
+        vals = parse_tensorfold_metrics(body)
+        if not announced:
+            # Once per boot, after the first body: the matched names are the only
+            # evidence the scrape keys fit this engine image. An empty list means
+            # this image publishes no `tensorfold:*` series, and the bridge's cells
+            # stay blank rather than inventing zeros.
+            print(f"{TAG} metrics bridge: matched {sorted(vals)}", flush=True)
+            announced = True
+        lines, prev_gen, prev_t = build_metric_lines(vals, prev_gen, prev_t, now)
         for line in lines:
             print(line, flush=True)
-
 
 
 def lane_env(args: argparse.Namespace) -> dict[str, str]:
