@@ -1,17 +1,17 @@
-# Board — generated 2026-10-28 02:03 ET
+# Board — generated 2026-10-28 02:07 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
 | ds4 quartet, `.31`–`.34` | **production serve** — standing line; the lock rule binds declared research windows, and settled `TODO.md` `#4`/`#51` recognise these ranks serving the fleet's own inference. sparkrun job `c989632ede4f538e_b4e3c94ef77c` | `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (tp=4) on image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` — `RepoDigests` still **0** (local id `sha256:3f4480818acb…`; queue row `ds4-shipped-container-digest-pin`), **`Up 26 hours (healthy)`** on all four at 02:00 ET. **Serving live traffic**: rank0's last 400 serve-log lines hold **75** `POST /v1/chat/completions` **200** against 16 loopback `GET /health`, latest **02:00:38 ET** from `.30`; decode `#running-req: 2`, accept len 3.15, 78.2 tok/s at 02:00:39 ET |
-| TP≤2 campaign, `.30` | this tick — session `…03-21-32Z_01a18086`, 1 detached slot still alive | full breakfast per arm = `concurrency-ladder.yaml` + `standard-suite.yaml` on one boot (`--skip-run`), `--fresh` everywhere, litter harvested into `<arm>/teb/`. **8 of 10 runnable arms complete** (rows below); slot A finishing `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`'s house (ladder rc 0 at 02:00:13 ET). **1 arm failed its boot gate**: `k2-horizon-7b-fp8-uno-sglang` — sparkrun's readiness probe never saw a first non-empty token (`TimeoutError: port`), so it produced no numbers. **32 of 42 remain gated** (25 need an image pull, 2 a model fetch, 5 both); no TP=2 arm is runnable yet. Receipts `~/benchmarks/tp12-20261028/<arm>/`, ledger `.scratch/tp12-campaign/ledger.jsonl` |
-| census | this tick — session `…03-21-32Z_01a18086` (opened 23:21 ET) | **02:00 ET, all six nodes (read-only ssh)**: 5 containers — `.30` **1** (campaign slot A), `.31`–`.34` **1 each** (production quartet, `Up 26 hours (healthy)`), **`.35` 0, nothing live (no reservation)** after its slot drained at 01:51 ET. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB; BeeGFS pool **11 TB** free on every node; volumes **0 fleet-wide** |
+| census | this tick — session `…03-21-32Z_01a18086` (opened 23:21 ET) | **02:05 ET, all six nodes (read-only ssh)**: 4 containers — `.31`–`.34` **1 each** (production quartet, `Up 26 hours (healthy)`); **`.30` and `.35` 0, nothing live (no reservation)** — the campaign's slots drained at 01:51 and 02:01 ET. Root avail `.30`→`.35`: 1.7 / 1.9 / 1.9 / 1.8 / 1.2 / 1.3 TB; BeeGFS pool **11 TB** free on every node; volumes **0 fleet-wide** |
 
 ## Work queue
 
 | job | node cost | holds | state |
 |---|---|---|---|
+| `tp12-campaign-staging` — stage the 32 gated TP≤2 arms (11 image pulls + 5 model fetches) and run them; 10 of 42 measured so far, all 9 TP=2 arms gated (6 h) | single | — | queued |
 | `flint-four-arm-comparison` — Flint 40B-A2.5B vs Mellum 12B-A2.5B, Ornith-1.5-35B-A3B and Ornith-1.5-122B on one instrument (8 h) | single | — | queued |
 | `ornith-122b-decoders-route` — SGLang arm + `incoai` DFlash2 drafter (route verdict C1 ≥ 51, falsifier C1 < 45) (3 h) | single | — | queued |
 | `ornith-omp-1000turn-longrun` — 300-turn omp tool-calling run on a scratch project, extended to ~1,000 only if clean (4 h) | single | — | queued |
@@ -38,5 +38,6 @@
 | 01:10 ET | measurement | `spark-x2.6-4b-bf16-sglang` — ladder C1 **21.5** / C2 **49.2** / C5 **100.2** / C10 **158.8**, house **87** (12 / 2 / 1); C1 matches the historical 20.38 control on the same image |
 | 01:26 ET | measurement | `poolside-laguna-xs-2.1-nvfp4-dflash-vllm` — ladder C1 **53.4** / C2 **82.5** / C5 **129.6** / C10 **135.9**, house **83** (11 / 3 / 1); re-measured under `--fresh` after its first ladder turned out to be a benchmark-state re-emit, and it reproduces the cached figures within noise |
 | 01:26 ET | measurement | `spark-x2.6-4b-fp8-sglang` — ladder C1 **40.5** / C2 **76.5** / C5 **145.9** / C10 **218.1**, house **80** (11 / 2 / 2); roughly 2× the bf16 sibling's decode at every rung |
-| 01:44 ET | measurement | `zz-spark-x2.6-4b-fp8-ngram-sglang` — ladder C1 **38.9** / C2 **69.7** / C5 **133.6** / C10 **194.5**, house **0** (0 pass / 0 partial / **15 fail**): it serves and decodes, but fails every tool-call scenario — a probe result, not a shippable arm |
+| 01:44 ET | measurement | `zz-spark-x2.6-4b-fp8-ngram-sglang` — ladder C1 **38.9** / C2 **69.7** / C5 **133.6** / C10 **194.5**, house **0** (0 pass / 0 partial / **15 fail**): it serves and decodes, but every scenario ends `missing_step` after **42–60 s** each (passing siblings take 1–14 s), with no HTTP, timeout or connection error in the log — a behavioural failure of the ngram probe, not a transport artifact |
 | 01:51 ET | measurement | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang` — ladder C1 **79.6** / C2 **115.7** / C5 **143.7** / C10 **202.5**, house **97** (14 / 1 / 0); best house score of the campaign so far |
+| 02:01 ET | measurement | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` — ladder C1 **92.7** / C2 **151.9** / C5 **221.5** / C10 **252.5**, house **100** (15 / 0 / 0); the campaign's best arm on both axes, and its C1 is the highest measured in this run |

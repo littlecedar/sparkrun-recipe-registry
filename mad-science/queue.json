@@ -675,6 +675,20 @@
       "provenance": "mad-science/TODO.md §ds4; mad-science/STATUS.md 13:10 ET board tick 2026-10-27",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "tp12-campaign-staging",
+      "title": "Stage the 32 gated TP<=2 arms (11 image pulls + 5 model fetches) and run them",
+      "estimate_h": 6.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "10 of 42 runnable arms measured 2026-10-28 (9 complete, k2-horizon-7b-fp8-uno failed its boot gate). Gated: 25 need an image pull, 2 a model fetch, 5 both. Pull order by arm count: dgx-vllm-eugr-nightly-b12x (7 arms), sglang dev-cu13 (4), dev-cu13-qwen38-next-local (4), dgx-vllm-eugr-nightly (4). All 9 TP=2 arms are gated, so the first TP=2 pair needs both free nodes once two are staged.",
+      "provenance": "mad-science/STATUS.md 02:03 ET campaign row; .scratch/tp12-campaign/manifest.json readiness flags",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
