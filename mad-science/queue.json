@@ -678,14 +678,14 @@
     },
     {
       "id": "tp12-campaign-staging",
-      "title": "Stage the 32 gated TP<=2 arms (11 image pulls + 5 model fetches) and run them",
+      "title": "Run the TP<=2 arms through one instrument (ladder + standard suite) and record each cell",
       "estimate_h": 6.0,
       "blocks": [],
       "blocked_by": [],
       "state": "queued",
       "model": "",
       "node_cost": "single",
-      "notes": "10 of 42 runnable arms measured 2026-10-28 (9 complete, k2-horizon-7b-fp8-uno failed its boot gate). Gated: 25 need an image pull, 2 a model fetch, 5 both. Pull order by arm count: dgx-vllm-eugr-nightly-b12x (7 arms), sglang dev-cu13 (4), dev-cu13-qwen38-next-local (4), dgx-vllm-eugr-nightly (4). All 9 TP=2 arms are gated, so the first TP=2 pair needs both free nodes once two are staged.",
+      "notes": "16 of 42 measured as of 2026-10-29 17:00 ET. 2026-10-28: 10 (9 complete; k2-horizon-7b-fp8-uno failed its boot gate). 2026-10-29: six, each with ladder + standard-suite receipts under ~/benchmarks/tp12-20261029/ - nemotron-3.5-lightning-30b-a3b-nvfp4-vllm 90, qwen3-coder-next-int4-autoround-vllm 93, qwen3.8-27b-nvfp4-dflash2-sglang 97 (C5 -19 % flagged), ling-3.0-flash-int4-dspark-sglang 97 (serve frontend died after the run), qwen3.8-27b-uncensored-nvfp4-sglang 100, qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang 90 (crossed vs row); plus one ABORTED attempt, the TP=2 deepseek tensorfold arm at 2.9-3.1 tok/s, which published no cell and does not count. Staging turned out to be a no-op for today s picks: every image resolved by repo@digest on .30 and every model snapshot was complete in the pool, both verified per arm before launch. Still unexercised: the TP=2 arms (both free nodes at once) and the arms whose pins name images absent everywhere (queue row published-image-refs).",
       "provenance": "mad-science/STATUS.md 02:03 ET campaign row; .scratch/tp12-campaign/manifest.json readiness flags",
       "claimed_by": "",
       "claimed_at": ""
