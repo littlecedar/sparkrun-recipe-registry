@@ -2,7 +2,7 @@ recipe_version: "2"
 model: littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 model_revision: 48afcd1c4f2d73594d9d496b9f7bbb4559ddb9e8
 runtime: sglang
-container: littlecedar/dgx-spark-dsv41@sha256:fabbe8615bb91c61fdde4a5f451f324a7449d7335fb85d453cc439985c525495
+container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:19977a033c24964080e4796c1f88c5e97f19c0a95506dadda0301919c65a250b
 builder: docker-pull
 min_nodes: 2
 max_nodes: 2
