@@ -22,8 +22,17 @@ rc=0
 
 sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR > "$L/launch.log" 2>&1 &
 
+# The container lives on the TARGET node, which is not necessarily the host this
+# script runs on (the head launches onto either free node). Resolve it locally
+# when the target is this host, over ssh otherwise.
+if hostname -I 2>/dev/null | tr ' ' '\n' | grep -qx "$NODE"; then
+  on_node() { sh -c "$1"; }
+else
+  on_node() { ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "$1"; }
+fi
+
 for _ in $(seq 1 60); do
-  N=$(docker ps --format '{{.Names}}' | grep -m1 _solo || true)
+  N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 _solo" 2>/dev/null | tr -d '\r' || true)
   [ -n "$N" ] && break
   sleep 5
 done
