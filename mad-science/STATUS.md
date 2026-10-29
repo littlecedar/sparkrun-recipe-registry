@@ -1,4 +1,4 @@
-# Board — generated 2026-10-29 13:04 ET
+# Board — generated 2026-10-29 13:12 ET
 
 ## In flight
 
@@ -22,7 +22,7 @@
 | `h2h-doc-refresh` — TP4-HEAD-TO-HEAD open-cells note per landed cell (0.5 h) | single | — | queued |
 | `tensorfold-metrics-bridge-generalization` — metrics bridge for both GLM TensorFold launchers + a vLLM-OMNI media equivalent (1.5 h) | single | — | **queued and unbooted** — `mad-science/queue.json` lists it `queued` (re-read 2026-10-29 04:00 ET); the 2026-10-28 12:00 ET landed row records the code landed as `4aabfc8` with no arm booted. It closes when an arm prints the `metrics bridge: matched […]` line |
 | `h2h-beam-house-and-bfcl-category` — Beam-1.0 NVFP4 house @4096 + BFCL category summary (3 h) | quartet | — | queued |
-| `ds4-shipped-container-digest-pin` — push the local `canary-roce-aff52fa5` overlay under a registry tag, take the manifest digest, write it into `container:` (0.5 h) | — | — | **mostly landed 2026-10-29 13:01 ET** — pushed as `ghcr.io/littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, registry digest `sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c` in 96 layers, and the recipe now pins `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` (`0a49dbb`, which also fixed the old unqualified ref resolving to Docker Hub). **Still blocking:** the package is `visibility=internal` and `PATCH /orgs/…/packages/container/dgx-spark-dsv41` returns 404 with this token (needs `admin:org` or the package settings page), so no anonymous pull has been proven; two further images (`tensorfold-v06`, `pin-fabbe8615bb9`) are pushing and need the same pin+flip |
+| `ds4-shipped-container-digest-pin` — push the local ds4 overlays under registry tags, take the manifest digests, write them into `container:` | — | — | **pushed and pinned 2026-10-29 13:0x ET** (`0a49dbb`, `7ae854e`): three images uploaded under their own digests — `canary-roce-aff52fa5` → `sha256:7c3cb394…` (shipped arm), `tensorfold-v06` → `sha256:1e7a0165…` (both tensorfold recipes; same image the TP=2 attempt ran), `pin-fabbe8615bb9` → `sha256:19977a03…` (cybersec) — and all four `container:` lines now carry the `ghcr.io/` host, which fixes refs that otherwise resolved against Docker Hub. **Still blocking:** the package is `visibility=internal`; the registry refuses an anonymous pull token for it (`GET /token?scope=repository:littlecedar/dgx-spark-dsv41:pull` → **401 authentication required**) while the public `dgx-spark-llama-cpp` returns a 72-char token, and `PATCH /orgs/…/packages/container/dgx-spark-dsv41` returns 404 with this token (needs `admin:org` or the settings page). The pull claim closes when that 401 becomes a token; a `docker pull` on a fleet node proves nothing because the hosts hold credentials |
 | `h2h-second-boot-ladder` — controlled second-boot ladder per arm (sigma column) (5 h) | quartet | — | queued |
 
 ## Landed this session
