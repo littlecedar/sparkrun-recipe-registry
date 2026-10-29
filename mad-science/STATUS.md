@@ -1,10 +1,10 @@
-# Board — generated 2026-10-29 04:00 ET
+# Board — generated 2026-10-29 05:00 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **04:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — and it is **serving, not merely up**: serve child pid 280 alive on `.31` (`sglang.launch_server`, tp 4 / ep 1 / mem-fraction 0.78 / 1,048,576 ctx / DSPARK block 5 / `--enable-cache-report`) and `GET /v1/models` returns **200**. Shipped-arm serve, excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB since the 03:23 read |
+| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **05:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — and it is **serving, not merely up**: serve child pid 280 still alive on `.31` (`sglang.launch_server`, tp 4 / ep 1 / mem-fraction 0.78 / 1,048,576 ctx / DSPARK block 5 / `--enable-cache-report`) and `GET /v1/models` returns **200**. Shipped-arm serve, excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB across the 03:23, 04:00 and 05:00 reads |
 
 ## Work queue
 
