@@ -1990,3 +1990,21 @@ history at `07cecb7`; nothing below is re-measured.
 | 13:00 ET | measurement | omp tool-calling stage 1 on the yarn-1m arm: **137 turns, depth 4→535, zero failures of the owner-reported class** — no empty SSE body, no invalid tool-call argument JSON, no length-terminated turn; tool mix edit 65 / bash 40 / read 30 / write 3. TTFT rises monotonically with depth (372→775 ms p50) while failure rate stays at zero, so depth cost is latency, not corruption. Code consequence: 30/30 backlog items implemented, 178 new tests green. Ledger `~/benchmarks/ornith-longrun-20261028/stage1-ledger.jsonl` |
 | 14:00 ET | measurement | stopped the yarn-1m trial serve on `.30` by task id after the trial ended at 12:57 and the node carried an idle container with zero client traffic for an hour; re-verified on the node afterwards: **0 containers, 0 volumes**, root 1.5 TB free. Fleet research occupancy is now zero, which means the staging pulls for the TP≤2 campaign are the only thing standing between the queue and a working node |
 | 14:01 ET | measurement | staged the TP≤2 campaign: image pulls re-checked by digest on both nodes and model snapshots checked for completeness rather than repo presence — the 7B-uno class (a present-but-partial revision) does not recur in any of the five pool repos. Staging was already largely done, so the queued estimate of 11 missing refs was stale |
+
+## Push backlog — 2026-10-29 09:10 ET (seven board commits, deferred)
+
+The documentation session (opened 03:03 ET, `6867d1b`) has landed seven commits that reach this
+tree but not GitHub: `b215934`, `6a877a8`, `7086768`, `0cfef5f`, `f532c62`, `ed21c00`, `3298fdd`
+— the 03:25–09:00 ET board ticks. No host reachable from that session can push. The workstation has
+no credential helper, no `~/.git-credentials`, no `gh` and no GitHub SSH key; the head
+(`red@spark-41e1`) has `credential.helper=store` but its `~/.git-credentials` holds one
+**huggingface.co** line only, both `~/.ssh/id_ed25519*` keys are rejected by `git@github.com`
+(`Permission denied (publickey)`), `gh` is absent, and a push from the head's own clone fails with
+the same `could not read Username`. `origin/main` last moved at `3a6ee0a` (03:21 ET).
+
+The tail is not stranded: `.git` is syncthing-shared, so the head's clone already carries all seven
+(`git -C ~/src/sparkrun-recipe-registry log -1` = `3298fdd`, `main...origin/main [ahead 7]`), and
+that is the copy every fleet session reads. The clearing mechanism is proven rather than assumed —
+`6867d1b` and `3a6ee0a` are on origin and neither was pushed from this session; a peer's push
+carried them. Ticks therefore stop re-attempting the push each hour; the tail lands on the next
+credentialed push from any clone sharing these refs, and this section is the once-only record.
