@@ -1605,8 +1605,9 @@ class SglangLaneNegativeControls(unittest.TestCase):
         # A mutable tag (no digest, no trial-tag pin) must fail the
         # vendored-and-pinned guard. Anchored on the CURRENT trial tag; when the
         # registry digest pin returns, re-anchor on that digest form.
+        raw = _strip_comment_lines(SGLANG_RECIPE.read_text())
         r = self._mutated(
-            "container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c",
+            "container: " + _scalar(raw, "container"),
             "container: ghcr.io/littlecedar/dgx-spark-dsv41:latest",
         )
         with self.assertRaises(AssertionError):
@@ -2271,7 +2272,8 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
             self.assertEqual(int(r.default("max_model_len")), 1048576)
 
     def test_control_image_unpinned(self):
-        r = self._mutated(TF_IMAGE, "ghcr.io/littlecedar/dgx-spark-dsv41:tensorfold-tp2")
+        raw = _strip_comment_lines(TF_RECIPE.read_text())
+        r = self._mutated(_scalar(raw, "container"), "ghcr.io/littlecedar/dgx-spark-dsv41:tensorfold-tp2")
         with self.assertRaises(AssertionError):
             self.assertRegex(r.container, r"^ghcr\.io/littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$")
 
