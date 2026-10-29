@@ -2,7 +2,7 @@
 
 Lane guide for the IFM `K2-Horizon` recipes. Read this before working in this
 directory; it carries the state, the constraints, and the guards. Prose summaries
-live in [`README.md`](README.md); the durable research record is the two
+live in [`recipes/ifm/README.md`](../../recipes/ifm/README.md); the durable research record is the two
 `K2-*-MODEL-OPTIMIZATION-WORK.md` files (git-ignored) with their `K2-*-JOURNAL.md`
 narratives, and cross-agent traffic is in `COOP.md` — a git-ignored working
 ledger, not registry content (see the root `AGENTS.md`).
@@ -12,6 +12,26 @@ third parties. Internal node state belongs in the git-ignored journal/ledger,
 never here.
 
 ---
+
+## Contents
+
+- [1. Mission and state](#1-mission-and-state)
+- [2. Evidence locations](#2-evidence-locations)
+- [3. Hard constraints (each earned on hardware or in source)](#3-hard-constraints-each-earned-on-hardware-or-in-source)
+- [4. Falsified claims (do not re-assert)](#4-falsified-claims-do-not-re-assert)
+- [5. Guard suite](#5-guard-suite)
+- [6. Validation ritual](#6-validation-ritual)
+- [7. Sprawl policy](#7-sprawl-policy)
+- [8. Traps](#8-traps)
+- [9. Recipe research record (moved from recipe comments, 2026-10-10)](#9-recipe-research-record-moved-from-recipe-comments-2026-10-10)
+- [From recipes/ifm/README.md (2026-10-14)](#from-recipesifmreadmemd-2026-10-14)
+- [Why every lane is TP=1](#why-every-lane-is-tp1)
+- [Performance (measured)](#performance-measured)
+- [Accuracy (measured)](#accuracy-measured)
+- [Archived material](#archived-material)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+- [Session 2026-10-18 — the 36B-A4B D2 + E6 gate run, and the decision it hands back](#session-2026-10-18--the-36b-a4b-d2--e6-gate-run-and-the-decision-it-hands-back)
+- [Engine-bump adjudication — SGLang 0.5.20 → 0.5.22 (2026-10-22, on hardware)](#engine-bump-adjudication--sglang-0520--0522-2026-10-22-on-hardware)
 
 ## 1. Mission and state
 

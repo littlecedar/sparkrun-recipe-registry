@@ -18,7 +18,7 @@ Flags: 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
 
 - [qwen3-vl-embedding-2b-vllm-b12x](#qwen3-vl-embedding-2b-vllm-b12x)
 - [qwen3-vl-embedding-8b-awq-4bit-vllm-b12x](#qwen3-vl-embedding-8b-awq-4bit-vllm-b12x)
-- [Serving the encoder correctly](#serving-the-encoder-correctly-client-contract)
+- [Serving the encoder correctly (client contract)](#serving-the-encoder-correctly-client-contract)
 - [Attic index](#attic-index)
 
 ## qwen3-vl-embedding-2b-vllm-b12x

@@ -18,8 +18,8 @@ The **no-spec control** and the **DSpark arm** (measured, rejected: −16 % vs D
 `speculative_num_draft_tokens == gamma + 1`, i.e. 8 not 7) live in [`attic/qwen3/`](../../attic/qwen3/)
 with everything else the lane used to carry — see the manifest there.
 
-The four **Qwen3-VL embedding/reranking** recipes moved to [`recipes/embed/`](../embed/README.md)
-and [`recipes/rerank/`](../rerank/README.md) on 2026-10-10; `tests/test_qwen3_vl_embeddings.py`
+The four **Qwen3-VL embedding/reranking** recipes moved to [`recipes/embed/`](../../recipes/embed/README.md)
+and [`recipes/rerank/`](../../recipes/rerank/README.md) on 2026-10-10; `tests/test_qwen3_vl_embeddings.py`
 guards those lanes, **not** the recipes here.
 
 **Evidence vocabulary (repo convention).** **VERIFIED** — read from a primary artifact (a boot log,
@@ -29,6 +29,30 @@ into unlabelled fact. **Many numbers in the archived docs were retracted** — c
 retraction banner before quoting it.
 
 ---
+
+## Contents
+
+- [1. The model in one paragraph](#1-the-model-in-one-paragraph)
+- [2. Best measured state](#2-best-measured-state)
+- [3. Load-bearing constraints and traps](#3-load-bearing-constraints-and-traps)
+- [4. Why each shipped value is what it is](#4-why-each-shipped-value-is-what-it-is)
+- [5. The capacity model, and the divisor it used to get wrong](#5-the-capacity-model-and-the-divisor-it-used-to-get-wrong)
+- [6. The archived control — what it supplied, and the pairing rule](#6-the-archived-control--what-it-supplied-and-the-pairing-rule)
+- [7. Negative results — do not re-derive / re-run](#7-negative-results--do-not-re-derive--re-run)
+- [8. Open items (deliberately not closed)](#8-open-items-deliberately-not-closed)
+- [9. Where the evidence lives](#9-where-the-evidence-lives)
+- [10. Validation ritual (after every edit)](#10-validation-ritual-after-every-edit)
+- [11. References](#11-references)
+- [12. The TensorFold arm — the one strict warning, and why it is not the trap it names](#12-the-tensorfold-arm--the-one-strict-warning-and-why-it-is-not-the-trap-it-names)
+- [13. TP=2 on this engine is a runbook, not a recipe (the glm-lane precedent)](#13-tp2-on-this-engine-is-a-runbook-not-a-recipe-the-glm-lane-precedent)
+- [14. The 2026-10-15 suite pass — the loader fix moves capacity, not just TP=2](#14-the-2026-10-15-suite-pass--the-loader-fix-moves-capacity-not-just-tp2)
+- [From recipes/qwen3/README.md (2026-10-14)](#from-recipesqwen3readmemd-2026-10-14)
+- [Recipes](#recipes)
+- [Qwen3-Coder-Next — the empty-content trap (2026-10-11)](#qwen3-coder-next--the-empty-content-trap-2026-10-11)
+- [Qwen3.8-27B — what the numbers mean](#qwen38-27b--what-the-numbers-mean)
+- [Notes](#notes)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+- [15. TP=2 boots (2026-10-15, the same night as §14)](#15-tp2-boots-2026-10-15-the-same-night-as-14)
 
 ## 1. The model in one paragraph
 
@@ -323,7 +347,7 @@ for the ds4 lane (`launcher.py`, whose docstring is the reference for the port/r
 shipped arm is deliberately **TP=1 only** and declares no `tensor_parallel` default and no `--tp`
 flag, so `-o tensor_parallel=2` cannot render a half-broken TP=2 (guarded by
 `tests/test_qwen3_recipes.py::TensorFoldArm::test_no_tensor_parallel_flag`). TP=2 stays a runbook
-note, as the GLM-5.3 TensorFold lines did ([`recipes/glm/README.md`](../glm/README.md)).
+note, as the GLM-5.3 TensorFold lines did ([`recipes/glm/README.md`](../../recipes/glm/README.md)).
 
 Two sizing facts: the startup estimate is **37.77 GiB within 116.72 GiB**, measured here on `.30`
 (the upstream project's own figure is ~45 GiB at the serving defaults); and its `KV_POOL_GB=auto` (up
@@ -460,7 +484,7 @@ _Brought to you by Little Cedar Group._
 Shipped `sparkrun` recipes for the **Qwen3.8-27B** (SGLang, single DGX Spark) family.
 All run on NVIDIA DGX Spark (GB10, 128 GB unified memory), TP=1 unless stated. The four
 Qwen3-VL embedding/reranking recipes moved to their own lanes on 2026-10-10:
-[`recipes/embed/`](../embed/README.md) and [`recipes/rerank/`](../rerank/README.md).
+[`recipes/embed/`](../../recipes/embed/README.md) and [`recipes/rerank/`](../../recipes/rerank/README.md).
 
 > Working here? Read [`AGENTS.md`](AGENTS.md) first — it is the lane's durable guide (traps,
 > knob rationale, negative results, validation ritual). The deep research record is archived in

@@ -42,6 +42,13 @@ recipe by path — `AGENTS.md` §6 shows the by-path invocation), and note that 
 arms' bare `mods/patch-sglang-k2-horizon-fp8` reference only resolves once the mod is
 restored beside them (§ recovery footer).
 
+## Contents
+
+- [Manifest](#manifest)
+  - [Wave 1 — the 36B-A4B sub-lane withdrawal (archived 2026-10-08)](#wave-1--the-36b-a4b-sub-lane-withdrawal-archived-2026-10-08)
+  - [Wave 2 — the IFM 7B consolidation (archived 2026-10-09)](#wave-2--the-ifm-7b-consolidation-archived-2026-10-09)
+- [Provenance notes](#provenance-notes)
+
 ## Manifest
 
 ### Wave 1 — the 36B-A4B sub-lane withdrawal (archived 2026-10-08)

@@ -3,6 +3,17 @@
 Drop the **host** kernel page cache from a privileged sparkrun mod — and refuse to
 pretend when it cannot.
 
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What it does](#what-it-does)
+  - [The mechanism (why a privileged mod can drop the host cache)](#the-mechanism-why-a-privileged-mod-can-drop-the-host-cache)
+  - [Requirement: a trusted, rootful launch](#requirement-a-trusted-rootful-launch)
+- [Usage](#usage)
+- [Knobs](#knobs)
+- [Verification](#verification)
+- [Warning](#warning)
+
 ## Why this exists
 
 Many recipes in this registry list `@eugr/mods/drop-caches` (qwen4, ds4, qwen3,

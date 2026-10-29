@@ -3,7 +3,7 @@
 Serving recipes for **Ornith 1.5**, the self-improving agentic-coding family from the
 [Ornith Team](https://ornith.ai/ornith_1_5.html), on NVIDIA DGX Spark (GB10, SM121, 128 GB
 unified LPDDR5X per node, 200 GbE ConnectX-7 RoCE). Read this before touching a recipe, the mod,
-or the guards in this directory. The prose summary lives in [`README.md`](README.md); this file
+or the guards in this directory. The prose summary lives in [`recipes/ornith/README.md`](../../recipes/ornith/README.md); this file
 carries the state, the constraints, and the traps.
 
 **No hostnames or addresses in tracked files.** This registry is distributed to third parties;
@@ -30,6 +30,33 @@ secondary evidence. **SPECULATIVE** — reasoning without a source; do not build
 `LIKELY` into unlabelled fact. A number without a receipt is a claim, not a measurement.
 
 ---
+
+## Contents
+
+- [1. Lane state](#1-lane-state)
+- [2. Evidence locations](#2-evidence-locations)
+- [3. Hard constraints and traps](#3-hard-constraints-and-traps)
+- [4. Negative results — do not re-derive / re-run](#4-negative-results--do-not-re-derive--re-run)
+- [5. Quality](#5-quality)
+- [6. Open items (deliberately not closed)](#6-open-items-deliberately-not-closed)
+- [7. Validation ritual](#7-validation-ritual)
+- [8. References](#8-references)
+- [9. The YaRN ~1M arm — built 2026-10-15, booted 2026-10-18; gate 5/6 rungs, ships for ≤768k](#9-the-yarn-1m-arm--built-2026-10-15-booted-2026-10-18-gate-56-rungs-ships-for-768k)
+- [From recipes/ornith/README.md (2026-10-14)](#from-recipesornithreadmemd-2026-10-14)
+- [About the model](#about-the-model)
+- [ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml — the fast single-Spark lane](#ornith-15-35b-a3b-nvfp4-dflash2-sglangyaml--the-fast-single-spark-lane)
+- [Reasoning-loop investigation (2026-10-13)](#reasoning-loop-investigation-2026-10-13)
+- [Long-horizon agentic re-investigation (2026-10-14) — also a null, on the workload the ticket is about](#long-horizon-agentic-re-investigation-2026-10-14--also-a-null-on-the-workload-the-ticket-is-about)
+- [ornith-1.5-9b-nvfp4-dflash-sglang.yaml — the small single-Spark arm](#ornith-15-9b-nvfp4-dflash-sglangyaml--the-small-single-spark-arm)
+- [littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml — the flagship 4-node lane](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllmyaml--the-flagship-4-node-lane)
+- [Caveats](#caveats)
+- [Archived recipes](#archived-recipes)
+- [2026-10-10 update scan (no recipe changes)](#2026-10-10-update-scan-no-recipe-changes)
+- [Validation](#validation)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+- [Engine-bump adjudication — SGLang 0.5.18 → 0.5.21 (2026-10-21, repo-side)](#engine-bump-adjudication--sglang-0518--0521-2026-10-21-repo-side)
+- [Engine-bump adjudication — SGLang 0.5.21 → 0.5.22 (2026-10-22, on hardware)](#engine-bump-adjudication--sglang-0521--0522-2026-10-22-on-hardware)
+- [References](#references)
 
 ## 1. Lane state
 
@@ -72,7 +99,7 @@ checkpoint (`ornith-ai/Ornith-1.5-35B-A3B-NVFP4`, `model_type: qwen3_5_moe`, ful
   re-lists the *provided* requirement set, and the reasoning grows with the task rather than
   collapsing. House battery re-scored **37/37**; needle ladder 32k 3/3, 128k 3/3, 262,144 2/3 (the
   miss a completion-budget artifact — the model emits reasoning at long context even under the
-  served default). Detail and the detection limit are in §6 and [`README.md`](README.md); receipts
+  served default). Detail and the detection limit are in §6 and [`recipes/ornith/README.md`](../../recipes/ornith/README.md); receipts
   `~/benchmarks/ornith-horizon-20261014/`.
 - **Standard pass — 2026-10-15** (`.34`, one boot, job `dadfb04b5145d956_8ed3ce77d78f`): house
   **37/37**, needle 32k/128k/262k **3/3/3/3**, gsm8k **88.5%** / arc **93.0%**, BFCL v3 **86.9%**
@@ -118,7 +145,7 @@ spelling (block-size mismatch is warning-only), and the hybrid pool does **not**
 `max_num_seqs: 48` (`max_mamba_cache_size: 273`, `max_running_requests=48`). The draft is deliberately
 **unpinned**: a SHA pin writes no `refs/` entry and the container's `HF_HUB_OFFLINE=1` draft-config
 lookup resolves only `refs/main`, so a pinned draft never starts (see §3.12). Receipts:
-[`README.md`](README.md); `~/benchmarks/ornith-9b-20261014/`.
+[`recipes/ornith/README.md`](../../recipes/ornith/README.md); `~/benchmarks/ornith-9b-20261014/`.
 
 **35B YaRN 1M (`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`, 1 node, TP=1) — BUILT 2026-10-15, BOOTED
 2026-10-18, GATE 6/6 ACROSS THREE BOOTS, SHIPS FOR ≤768k.** The 35B-A3B checkpoint at the card's YaRN
@@ -145,7 +172,7 @@ to reproduce reported benchmarks.
 | question | where the answer lives |
 |---|---|
 | what a recipe *is* and why | §3 (constraints) plus the recipes' own short tunable comments |
-| the A/B ladder, confirm/void analysis, quality score | [`README.md`](README.md) — the durable record |
+| the A/B ladder, confirm/void analysis, quality score | [`recipes/ornith/README.md`](../../recipes/ornith/README.md) — the durable record |
 | the staged plans (9B arm, the two A/Bs, the quality set) and their acceptance criteria | [`NOTES.md`](NOTES.md) — working state, moved here into `README.md`/this file when a plan runs |
 | the honed-template delivery contract | [`recipes/ornith/mods/ornith-honed-chat-template/README.md`](../../recipes/ornith/mods/ornith-honed-chat-template/README.md) |
 | why `@eugr/mods/drop-caches` is inert | [`mods/drop-caches/README.md`](../../mods/drop-caches/README.md) |
@@ -401,7 +428,7 @@ house battery only (the named `tool-eval-bench` suite is now configured as
   run — same null, plus a worse empty-reply rate (0/3 needle hits at a 64-token budget, a
   reasoning-budget artifact, not lost retrieval). Full method, arm table, result, and the
   pre-registered bar are in
-  [`README.md`](README.md) §"Long-horizon agentic re-investigation (2026-10-14)" and
+  [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Long-horizon agentic re-investigation (2026-10-14)" and
   [`NOTES.md`](NOTES.md) §5; receipts `~/benchmarks/ornith-horizon-20261014/`.
 - **The 35B C1 re-measurement — CLOSED 2026-10-13.** Measured on `.35` with the pinned
   `benchmarking/decode-triage.yaml` (C1, n=5 per cell, decode-phase rows only): **99.6 t/s @ d0
@@ -686,10 +713,7 @@ for the pass, plus calibration; the tool's `--timeout` default of 3600 s exists 
 
 # Ornith 1.5 on DGX Spark — `ornith`
 
-Serving recipes for **Ornith 1.5**, the self-improving agentic-coding model family from the
-[Ornith Team](https://ornith.ai/ornith_1_5.html), on NVIDIA DGX Spark (GB10, SM121, 128 GB
-unified LPDDR5X per node, 200 GbE ConnectX-7 RoCE). This directory is the `ornith` lane; it
-ships **three** recipes, one per model scale:
+See [`../../recipes/ornith/README.md`](../../recipes/ornith/README.md) — same text.
 
 | Recipe                                            | Scale | Runtime | Nodes (TP) | C1 t/s |  Size |  Mem | Flags  | Model Cards                                                                                 |
 |:--------------------------------------------------|:------|:--------|:-----------|-------:|------:|-----:|:-------|:--------------------------------------------------------------------------------------------|
@@ -697,10 +721,8 @@ ships **three** recipes, one per model scale:
 | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | 397B | vLLM | 4 (TP=4) |  41.86 | 235GB | 0.80 | 🌲👀🧠🦾🔧     | [Model][model-397b-graft]                                                                   |
 | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`          | 9B | SGLang | 1 (TP=1) |     55 |  11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧     | [Model][model-9b] · [Draft][draft-9b]                                                       |
 
-`C1 t/s` is single-stream decode as recorded in the parent [`README.md`](../../README.md);
-`Size` is the per-node footprint the registry records and `Mem` is the recipe's
-`gpu_memory_utilization`. Flags are defined in [Model Flags](../../README.md#model-flags). A dash is
-an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
+See [`../../recipes/ornith/README.md`](../../recipes/ornith/README.md#ornith-lane--recipesornith) — same
+text (the column legend sits under the README's recipe table).
 
 ## About the model
 
@@ -1132,17 +1154,12 @@ by a house measurement of the same family. The registry `:latest` seen on 2026-1
 method swap a silent no-op; and (b) sparkrun reads the draft model+revision **out of that default**
 (`runtimes/_vllm_common.py::detect_spec_config_draft`) to distribute the draft to all four nodes, so an
 inline JSON leaves a DFlash draft undistributed (`Revision Not Found` at serve). The MTP arm renders
-byte-identically to the old inline JSON. The DFlash arm is then exactly:
-
-```bash
-sparkrun benchmark performance <recipe> -H <4 nodes> --profile benchmarking/decode-triage.yaml \
-  --output ~/benchmarks/ornith-397b-ab-<date>/armDFlash.json \
-  -o 'speculative_config={"method":"dflash","model":"ornith-ai/Ornith-1.5-397B-DFlash","revision":"db9c35a091e89f942c609880f98bb385019dc4f8","num_speculative_tokens":8}'
-```
+byte-identically to the old inline JSON. The DFlash arm is then exactly the command in
+[`../../recipes/ornith/README.md`](../../recipes/ornith/README.md#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm) — same text.
 
 The draft revision is pinned **inside that JSON** (vLLM's own `revision` field), never via
 `model_revision:` — that SHA does not exist in the target repo. Verified against sparkrun 0.4.0: the
-render distributes `ornith-ai/Ornith-1.5-397B-DFlash` alongside the target and emits the exact JSON above.
+render distributes `ornith-ai/Ornith-1.5-397B-DFlash` alongside the target and emits that exact JSON.
 
 ### The loader mod is inert for a DFlash draft (and needs no change)
 
@@ -1445,10 +1462,11 @@ the honest summary is "same numbers, current patch level".
 
 ## References
 
-- Ornith 1.5 announcement — <https://ornith.ai/ornith_1_5.html>
-- DFlash 2 — [Keep Drafting Parallel](https://inco.ai/blog/dflash2/) · [DFlash: Block Diffusion for Flash Speculative Decoding](https://arxiv.org/abs/2602.06036)
+See [`../../recipes/ornith/README.md`](../../recipes/ornith/README.md#references) — same text; the
+lane's annotated source list is [§8](#8-references) above.
 
 <!-- Links -->
+<!-- Copied from ../../recipes/ornith/README.md because this file's reference-style links resolve here. -->
 [model-35b]: https://huggingface.co/ornith-ai/Ornith-1.5-35B-A3B-NVFP4
 [model-397b-graft]: https://huggingface.co/littlecedar/Ornith-1.5-397B-NVFP4-MTP-Graft
 [model-9b]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4

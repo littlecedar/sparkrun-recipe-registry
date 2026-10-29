@@ -2,9 +2,9 @@
 """Aggregate per-model benchmark JSONs into a comparison table + markdown report.
 
 Reads `results/<model>.<bench>.<thinking>.json` produced by run_benchmarks.py and
-emits:
-  * results/summary.json  -- machine-readable comparison
-  * results/SUMMARY.md    -- the human table (same numbers, cited in the README)
+emits `results/summary.json`, a machine-readable comparison; the table it prints is
+the mid-tier view. The directory's measured score tables live in `results/RESULTS.md`
+(emitted by compare_all.py), so this script writes no markdown of its own.
 
 It also does reply-level diffing between two models on the same bench, because
 "same base model, different precision" means any *systematic* reply difference is
@@ -110,7 +110,6 @@ def main() -> int:
             d = summary["diffs"][b]
             lines.append(f"| {BENCH_LABEL.get(b, b)} | {d['identical']} | {d['differing']} | {d['one_sided']} |")
         lines.append("")
-    open(os.path.join(RESULTS, "SUMMARY.md"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
     return 0
 

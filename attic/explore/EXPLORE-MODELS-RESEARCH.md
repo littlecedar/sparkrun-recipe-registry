@@ -13,6 +13,23 @@ decision lane (see `../decision/DECISION-MODELS-RESEARCH.md`).
 
 Weighting: node count > speed > accuracy > memory (decisions #10/#11/#14).
 
+## Contents
+
+- [1. Shortlist](#1-shortlist)
+- [2. Top 3 and how to sequence them on the two free nodes](#2-top-3-and-how-to-sequence-them-on-the-two-free-nodes)
+  - [Verification checklists (per candidate, before any recipe ships)](#verification-checklists-per-candidate-before-any-recipe-ships)
+- [3. Corrections to attic/explore/EXPLORE-CANDIDATES.md (2026-10-10)](#3-corrections-to-atticexploreexplore-candidatesmd-2026-10-10)
+- [4. Battery note](#4-battery-note)
+- [5. Poolside Laguna family — queued 2026-10-13 (owner directive)](#5-poolside-laguna-family--queued-2026-10-13-owner-directive)
+  - [Verification checklist (before any Laguna recipe ships)](#verification-checklist-before-any-laguna-recipe-ships)
+- [6. Media-generation arms — queued 2026-10-13 (owner directive)](#6-media-generation-arms--queued-2026-10-13-owner-directive)
+  - [Verification checklist (before any media recipe ships)](#verification-checklist-before-any-media-recipe-ships)
+- [7. Text-rewriting arm — humanizer 12B (queued 2026-10-13, owner directive)](#7-text-rewriting-arm--humanizer-12b-queued-2026-10-13-owner-directive)
+  - [Verification checklist](#verification-checklist)
+- [8. Kolibri-1M constant-state release — tfwnotops/…-ConstantKV (queued 2026-10-16, owner](#8-kolibri-1m-constant-state-release--tfwnotops-constantkv-queued-2026-10-16-owner)
+  - [Verification checklist (before any boot — the item is non-shippable as it stands)](#verification-checklist-before-any-boot--the-item-is-non-shippable-as-it-stands)
+  - [8.1 SM121 verdict — 2026-10-18: (a) RUNNABLE eval arm; no arch guard exists anywhere in the release](#81-sm121-verdict--2026-10-18-a-runnable-eval-arm-no-arch-guard-exists-anywhere-in-the-release)
+
 ## 1. Shortlist
 
 | # | Model id | Params | Quant → size | Nodes | License | Runtime + GB10 status | Reasoning evidence | Tool-calling evidence |

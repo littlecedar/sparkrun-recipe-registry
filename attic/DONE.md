@@ -13,8 +13,85 @@ A fourth sweep followed on 2026-10-18, twice: that session's completed items are
 `# 2026-10-18 sweep` and, at the owner's close-out request, the late TP>2 block (glm5, ornith, qwen4,
 ifm) under `# 2026-10-18 sweep — late`, with items that were **dropped unrun** by owner policy marked
 as such rather than as completed.
+A fifth sweep followed on 2026-10-29: the two retry queues' completed `[x]` items — all seven of the
+2026-10-25 unparked block and window 4's Beam cells — plus one shipped explore item, archived under
+`# 2026-10-29 sweep` below, copied verbatim; the only transform is the checkbox `[x]` → `[X]`. Their
+`TODO.md` sections keep the preambles other docs cite by anchor and now carry the archive stub.
 Live planning stays in `mad-science/TODO.md`; dated session records live in
 `mad-science/SESSION-RECORD.md`.
+
+## Contents
+
+- [General Registry Maintenance](#general-registry-maintenance)
+- [ds4](#ds4)
+- [glm5](#glm5)
+- [ornith](#ornith)
+- [qwen3](#qwen3)
+- [qwen4](#qwen4)
+- [embed](#embed)
+- [rerank](#rerank)
+- [decision](#decision)
+- [explore](#explore)
+- [Session follow-ons (restated 2026-10-12)](#session-follow-ons-restated-2026-10-12)
+- [ifm](#ifm)
+- [cybersec](#cybersec)
+- [Concurrency ladder (registry-level)](#concurrency-ladder-registry-level)
+- [Session scaffolding (archived 2026-10-14)](#session-scaffolding-archived-2026-10-14)
+- [General Registry Maintenance](#general-registry-maintenance-1)
+- [ornith](#ornith-1)
+- [qwen3](#qwen3-1)
+- [qwen4](#qwen4-1)
+- [explore](#explore-1)
+- [Storage consolidation (registry-level)](#storage-consolidation-registry-level)
+- [embed](#embed-1)
+- [decision](#decision-1)
+- [rerank](#rerank-1)
+- [Model Flags](#model-flags)
+- [Benchmarking](#benchmarking)
+- [cybersec](#cybersec-1)
+- [Image pins (registry-level)](#image-pins-registry-level)
+- [ds4](#ds4-1)
+- [ds4 — closed 2026-10-18](#ds4--closed-2026-10-18)
+- [glm5 — closed 2026-10-18](#glm5--closed-2026-10-18)
+- [ifm — closed 2026-10-18](#ifm--closed-2026-10-18)
+- [embed — closed 2026-10-18](#embed--closed-2026-10-18)
+- [explore — closed 2026-10-18](#explore--closed-2026-10-18)
+- [cybersec — closed 2026-10-18](#cybersec--closed-2026-10-18)
+- [qwen3 — closed 2026-10-18](#qwen3--closed-2026-10-18)
+- [Concurrency ladder (registry-level) — closed 2026-10-18](#concurrency-ladder-registry-level--closed-2026-10-18)
+- [embed/rerank — closed 2026-10-18](#embedrerank--closed-2026-10-18)
+- [decision — closed 2026-10-18](#decision--closed-2026-10-18)
+- [ds4](#ds4-2)
+- [glm5](#glm5-1)
+- [ornith](#ornith-2)
+- [qwen4](#qwen4-2)
+- [ifm](#ifm-1)
+- [ifm](#ifm-2)
+- [qwen4](#qwen4-3)
+- [Concurrency ladder](#concurrency-ladder)
+- [ornith](#ornith-3)
+- [embed](#embed-2)
+- [ornith](#ornith-4)
+- [ds4](#ds4-3)
+- [Recipe schema & documentation (registry-level)](#recipe-schema--documentation-registry-level)
+- [explore](#explore-2)
+- [decision](#decision-2)
+- [ifm](#ifm-3)
+- [Concurrency ladder (registry-level)](#concurrency-ladder-registry-level-1)
+- [Runtimes (registry-level)](#runtimes-registry-level)
+- [explore](#explore-3)
+- [cybersec](#cybersec-2)
+- [explore](#explore-4)
+- [ds4](#ds4-4)
+- [ornith](#ornith-5)
+- [qwen4](#qwen4-4)
+- [explore](#explore-5)
+- [Recipe schema & documentation (registry-level)](#recipe-schema--documentation-registry-level-1)
+- [Shared storage (registry-level)](#shared-storage-registry-level)
+- [Image pins and advisories (registry-level)](#image-pins-and-advisories-registry-level)
+- [Retry queue — unparked 2026-10-25 (owner directive)](#retry-queue--unparked-2026-10-25-owner-directive)
+- [Retry queue — window 4 (declared 2026-10-26)](#retry-queue--window-4-declared-2026-10-26)
+- [explore](#explore-6)
 
 ## General Registry Maintenance
 - **DONE 2026-10-13** — Move all completed TODO.md `- [ ]` items to @attic/DONE.md . *(Every completed item was archived verbatim to `attic/DONE.md`; this file is now `[X]`-free.)*
@@ -1132,4 +1209,173 @@ image/digest, so validate the other ornith arms on the new digest before shippin
   and re-adding one later would need the same care about which history it fetches. Gate at the new tip:
   **940 tests OK** (2 skipped), **67/67** plain validate, **49/67** strict (the same 18 accepted
   findings).)* *(effort: medium)*
+
+# 2026-10-29 sweep
+
+Archived 2026-10-29 from `mad-science/TODO.md`, copied verbatim — nested bodies and attached owner-decision
+notes included, the only transform being the checkbox `[x]` → `[X]`. Document order is TODO order, so the
+unparked block keeps its schedule order 1→7. `TODO.md` keeps both queue sections' preambles — the owner
+rulings and the `§Retry queue` anchors `DEEPSEEK.md`, `queue.json` and `recipes/ds4/README.md` cite — and
+carries the archive stub in place of the items.
+
+## Retry queue — unparked 2026-10-25 (owner directive)
+
+- [X] **1. H3 quartet retry (stage 4, MiniMax-H3 four-rank video probe)** — the stage-4 retry parked at the
+  `.31`–`.34` (window 2) board row (`STATUS.md:24`; receipts `.scratch/tp4-window2/progress.md`,
+  `~/benchmarks/tp4-window2-20261024/`). The retry's hypothesis list carries the two unprobed axes from the
+  `#7` close (`STATUS.md:23`): the **SDPA-on-SM12x attention-backend fallback** and **NCCL
+  init/transport selection** (instrument per tp4-window3: `NCCL_DEBUG=INFO`, NVLS off, grep both axes in
+  the four serve logs before any stop). Node cost: four ranks.
+  *(RAN 2026-10-25 (window 3): SECOND INDEPENDENT DEADLOCK REPRO under `--warmup-mode off` — the
+  recon's action-1 lever is exhausted (NCCL init clean on every rank) and the serve still wedges:
+  with warmup off, the health gate's own generation never returns and `/health` never binds
+  (40+ min, 4 × 0 % GPU, zero errors). FILED upstream as sgl-project/sglang#46390 — a terminal
+  negative per the owner's ruling; no further iterations planned on this route. Record:
+  `DEEPSEEK.md` §18.3 and `recipes/media/README.md` §"The four-rank probe"; receipts
+  `~/benchmarks/tp4-window3-20261024/` (`h3-retry-node{1..4}-serve.log`, `h3-retry-launch.log`);
+  upstream draft `.scratch/tp4-window3/upstream-h3-a2a.md`.)*
+- [X] **2. 32768 prefill-chunk probe (ds4 knapcio)** — the follow-up the settled `QUESTIONS.md #2` row
+  called a follow-up that was not queued and not a promise (that row is now amended to point here); now
+  queued. One ds4 boot with `-o env.CHUNKED_PREFILL_SIZE=32768`, five cold ~999k needle requests, the
+  primary metric cold prefill
+  latency vs the 16384 bar (mean 245.0 s, ~4.09k t/s); §9's arithmetic (`DEEPSEEK.md` §9, addendum —
+  122 eager launches at 8192, halved to 61 at 16384) says 32768 halves the launch count again, each
+  further doubling shrinking the pool-sizing margin at the same `mem_fraction_static`. Node cost: four ranks.
+  *(RAN 2026-10-25 (window 3): 32768 lost — mean cold prefill 263.6 s / ~3.79k t/s vs the 16384
+  bar's 245.0 s / 4.09k t/s (−7.6 %), pool collapsed 3,042,304 → 1,356,288 at the same 0.78;
+  the owner-directed 4096 control also lost (309.3 s), so 16384 is bracketed and the chunk ladder
+  is closed — record in `DEEPSEEK.md` §9. Owner decision 2026-10-25 (SURVEY #3): the precedent is
+  confirmed as the standing rule for chunk-size arms — `mem_fraction_static` stays pinned, the
+  shrunken pool is reported as-is, no fraction compensation on any future arm.)*
+- [X] **3. Beam staging (293.6 GB) + quartet boot-gate** — parked at the `.31`–`.34` (window 2) board row
+  (`STATUS.md:24`). Leg 1, staging: `reflection/Beam-1.0-501B-A23B-NVFP4` to the shared BeeGFS pool
+  (293,648,862,719 B, matching the TODO byte figure exactly; staged in flight on `.30` per
+  `.scratch/tp4-window3/progress.md`), staging being its own item per `#50` (TODO §explore Beam item,
+  line 1257). Leg 2, boot-gate: `vllm/vllm-openai:reflection-beam` (arm64, 16.78 GB, **not** in the
+  RepoDigest pin set) on the quartet against the pre-registered cells in the Beam item (line 1181).
+  Node cost: staging is control-side; the boot-gate is four ranks.
+  *(RAN 2026-10-25 (window 3): BOTH LEGS COMPLETE. Staging: pool snapshot `f8ecac0e…`, `du -sbL`
+  293,654,945,142 B vs the card's usedStorage 293,648,862,719 (+6 MB overhead); image
+  `vllm/vllm-openai:reflection-beam` pulled to the head (RepoDigest `sha256:c1a6be6ad080…` — the
+  pull-time `7fc940745c…` above no longer matches the tag). Boot-gate: the probe arm
+  `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (`7afcafb`, entrypoint fix `debb1eb`
+  — the image declares `ENTRYPOINT ["vllm","serve"]`), task `sparkrun_30078b4aa125dd7d_b2f8c6e5117c`,
+  `/v1/models` 200 at 05:11:26Z (TTR ~18 min), smoke correct (17×23=391); **the kernel falsifier
+  never fired — the marlin retry was not needed.** One knob gap: the card's
+  `--reasoning-parser beam`/`--tool-call-parser beam` are not in the recipe, so raw
+  modified-Harmony `<|channel|>` markers show in the smoke content — follow-up for any full cell.
+  Cells (b)–(d) of the Beam item above (house+needle, BFCL, DFlash2 A/B) are NOT run — the TP=4
+  queue exhausted here and the session drains. Record: `DEEPSEEK.md` §18.4; receipts
+  `~/benchmarks/tp4-window3-20261024/beam-gate-*`.)*
+- [X] **4. Main-image boot-gate (`sglang-main-arm64:6563312`)** — parked at the `.31`–`.34` (window 2)
+  board row (`STATUS.md:24`); build state: the image completed on the head (28.9 GB,
+  `.scratch/tp4-window3/progress.md`). Gate = boot the resident Spark-X2.6-4B bf16 control shape
+  (`recipes/explore/spark-x2.6-4b-bf16-sglang.yaml`) on the main-line image and compare against the
+  `v0.5.22` control (C1 20.38). Node cost: one node.
+  *(Owner decision 2026-10-25 (SURVEY #4): the C1-only pass is NOT sufficient — the adoption bar
+  is the full English breakfast, ladder + house on `sglang-main-arm64:6563312`, before the image
+  becomes a candidate base; a worker is queued for the full pass.)*
+  *(RAN 2026-10-25 (window 3): the FULL BREAKFAST PASSES — on `.30` (single-node arm, like-for-like
+  with the 2026-10-22 control measured on the same node; owner directive): ladder n=5 decode rows
+  **C1 20.88 / C2 49.53 / C5 99.30 / C10 159.43** vs the v0.5.22 control 20.38/46.38/99.27/156.20
+  (deltas +2.5/+6.8/+0.0/+2.1 %, inside the run-to-run band) and **house @4096 thinking-on 37/37**
+  (134.1 s). Verdict: the main image is indistinguishable from the `v0.5.22` pin on this arm and
+  passes the adoption bar. Attempt 1 exposed a pool hole — the `XHToken/Spark-X2.6-4B` snapshot
+  held only `config.json` after the BeeGFS dedup; one refetch restored 8,239,287,315 B. Record:
+  `recipes/explore/README.md` §"The main-image gate"; task `sparkrun_31a011c489646cf6_d250d3ad4a0c`,
+  stopped by literal id, 0 containers; receipts `~/benchmarks/tp4-window3-20261024/` (`gate-full-*`,
+  `suite-gate-full/`, `gate-main-image-launch{,2}.log`).)*
+- [X] **5. Ornith-1.5-122B NVFP4 completion — the pre-registered spec-decode cell** — parked at the
+  `TP<4 (tplt4 lane)` board row (`STATUS.md:28`, "parked for the production-restart session"; the unpark
+  ruling supersedes). Cell 4 of the plan in TODO §explore (lines 1426-1434): re-run ladder + house with
+  the checkpoint's own MTP head on a `--speculative-config '{"method":"mtp","num_speculative_tokens":3}'
+  probe arm, gate on serve-log `Mean acceptance length > 1`, falsifier fires below C1 17 t/s.
+  Node cost: one node.
+  *(RAN 2026-10-25 (tplt4, `.35`, paired same-window control): **MTP is a real lever — C1 +44 %**.
+  MTP n=3: C1 **38.8** / C2 48.9 / C5 71.8 / C10 81.2 vs the plain control boot in the same window
+  C1 26.9 / C2 39.3 / C5 60.9 / C10 74.4 (reproduces the 2026-10-22 numbers within 1 %, so the delta
+  is spec decode); serve-log **mean acceptance 2.43–2.60**; house MTP **36/37** (easy 18/19) vs
+  plain-in-window **37/37** — both at the ≥36 bar. Above the 17 t/s falsifier with 2.3× margin, but
+  still 56 % of the 69.28 easy-traffic bar — the arm stays a capability arm; **DFlash2 alternative
+  not needed** (it was only owed if MTP missed). Recipe:
+  `recipes/ornith/zz-ornith-1.5-122b-nvfp4-mtp-vllm.yaml`; two launch traps recorded — an explicit
+  `command:` template consumes only placeholders (a bare `-o speculative_config=…` is consumed
+  nowhere; two boots rendered `speculative_config=None`), and JSON-valued placeholders must be
+  single-quoted in the template. Lane section: `recipes/ornith/README.md` §"The 122B one-node probe";
+  receipts `~/benchmarks/tplt4-20261024/ornith122b/`.)*
+- [X] **6. Spark-X2.6-4B remaining open cells (the board's "Spark-X2.6 MTP" job)** — parked at the
+  `TP<4 (tplt4 lane)` board row (`STATUS.md:28`). The arm's still-open, worth-one-boot cells (TODO
+  §explore): the FP8 fast tier's **tool-call contract** and the **clamp cell**.
+  Node cost: one node.
+  *(RAN 2026-10-25 (tplt4, `.30` as a normal worker node — the paired-in-window plain control
+  reproduced the 2026-10-22 `.33` numbers within 1.3 %): **tool-call contract PASS** — 3/3 reps
+  `finish_reason: tool_calls` with populated arguments (`get_weather({"city":"Lisbon"})`, `spark25`
+  parser, `temperature: 0`); **clamp cell closed negative** — `--max-running-requests 96` sweep
+  reads c32 294.5 / c48 272.2 / c64 291.9 / c96 294.7 tg t/s, flat within ±4 % (c96 +0.07 % on
+  c32), so the shipped `max_num_seqs: 32` stays; the pool arithmetic (779,390 ÷ 96 ≈ 8.1k/seq)
+  never became the constraint. The job's "MTP" half is resolved by **absence**: the checkpoint has
+  no mtp/nextn/draft keys and the 16-repo family census has no drafter, so the only spec route was
+  **NGRAM — probed and measured-rejected** (`zz-spark-x2.6-4b-fp8-ngram-sglang.yaml`, flag shape
+  from the retired IFM NGRAM arm): NGRAM **38.0 / 69.6 / 134.7 / 189.0** vs plain-in-window
+  **40.3 / 75.7 / 143.8 / 214.8** — slower at every rung (−5.7 % C1 to −12 % C10); the
+  pre-registered falsifier (spec C1 ≤ plain C1) fired, no breadth sweep. Lane sections:
+  `recipes/explore/README.md` §spark-x2.6-4b-fp8 + §zz-ngram; receipts
+  `~/benchmarks/tplt4-20261024/sparkx26/`.)*
+- [X] **7. kokoro-shaped recipe arm (phonon)** — the mechanical follow-up the kokoro-vs-phonon A/B named;
+  pointer `recipes/media/README.md` §A/B, receipts `~/benchmarks/tplt4-20261024/ab/`). Author the
+  phonon-31m CPU recipe on the `recipes/decision/kokoro-82m-tts-cpu.yaml` shape. Node cost: one node.
+  *(DONE 2026-10-25: `recipes/media/phonon-31m-tts-cpu.yaml` + `recipes/media/mods/phonon-tts-server/`
+  (stdlib server + ptts venv + real-file model copy, kokoro shape: `runtime: vllm` as the launcher
+  contract, `readiness.inference: false`, kill shim, `distribution_config.models.enabled: false`);
+  boot-verified on `.35` from the committed file — TTR **8.2 s**, c1 render **0.622 s wall / 4.56 s
+  audio (RTF 0.136)**, h01 0.776 s / 7.52 s (RTF 0.103); root README index row added. Boot chain
+  fixes recorded in the recipe history: server accepts the runtime-appended
+  `--served-model-name`, render names the venv's `ptts` binary explicitly, `--model-dir` feeds the
+  render config, and `mods:` uses the house `mods/<name>` ref form (the guards'
+  `ModsResolveAdjacent` + `InertDefaults` caught the first draft post-commit). Receipts
+  `~/benchmarks/tplt4-20261024/phonon-arm/`.)*
+
+## Retry queue — window 4 (declared 2026-10-26)
+
+- [X] **1. Beam cells (b)–(d)** — prerequisite: the gated arm
+  `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` is missing the card's
+  `--reasoning-parser beam`/`--tool-call-parser beam` (window-3 smoke showed raw modified-Harmony
+  `<|channel|>` markers); add them to `command:` and commit before the boot. Cells, per the
+  pre-registered definitions in the §explore Beam item above: (b) house battery 37 @4096
+  thinking-on + needle at ≥131k; (c) BFCL tools leg (`tools/bfcl-eval.py`, the tool-eval profile's
+  condition per `tools/README.md` §bfcl-eval.py); (d) DFlash2 A/B (`num_speculative_tokens 7`,
+  `enable_adaptive_verification`) last. Rigor: screen-then-extend. Parser-engagement check: the
+  markers disappear from responses. Record outcomes in `recipes/explore/README.md` + this item.
+  *(Owner drafter policy 2026-10-26, advisories above: the DFlash2 A/B is measured and
+  recorded, and the drafter STAYS on the recipe even if the delta is flat — no keeper
+  threshold. Window 4 note: the drafter must be named by its POOL SNAPSHOT PATH — vLLM's
+  SpeculativeConfig cannot resolve a repo id under `HF_HUB_OFFLINE` (attempt-4 failure).)*
+  **DONE 2026-10-26 (tp4-recovery)**: (b) needle 20/20 at 32768 + 131072 all depths after the
+  512-budget rerun (the 0/3 was budget truncation, finish=length); (c) BFCL tools leg ran direct
+  (`tools/bfcl-eval.py`) after the eval-suite wrapper stalled 52 min — instrument finding, not a
+  serve defect; (d) DFlash2 A/B: baseline C1 26.20/C2 40.66/C5 63.96/C10 69.80 vs treatment
+  C1 31.57/C2 40.72/C5 58.86/C10 74.14 t/s aggregate decode — deltas within the per-run noise
+  (stds 6–16 t/s) except C1 +20 %. Engagement proven (dflash2 CUDA graphs FULL, FlashInfer draft
+  attention, 7 spec tokens). DFlash2 STAYS on the recipe per the owner's drafter policy; the
+  A/B numbers are recorded, no keeper threshold. Receipts: `beam-b1-*`/`beam-b2-*` files +
+  `recipes/explore/README.md` (commit `23bda60`).
+
+## explore
+
+- [X] **Ship the OrcaCyber arm at the 15.7G tier, 13G as the A/B control — `QUESTIONS.md` `#12`,
+  answered 2026-10-22** — the ship decision is taken, the tier is not to be re-litigated: default tier
+  **`orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G`** (15,695,148,832 B ≈ 14.62 GiB, 4.60 bpw mixed, imatrix,
+  gated `auto`), control **`:Mix-13G`** (12,993,304,352 B ≈ 12.10 GiB, 3.80 bpw) — the control, not the
+  default. **Landed 2026-10-22 in `66612be`** — the 15.7G arm is shipped as
+  `recipes/cybersec/orcacyber-nano-1.0-15.7g-gguf-llamacpp.yaml` (the `zz-` draft it was promoted from no
+  longer exists), pinned to `1af1635a…` with the 927,606,848 B F16 `mmproj` and the in-file MTP head as
+  `--spec-type draft-mtp --spec-draft-n-max 3`. Its first boot on `.35` (task
+  `f5f1433d7dd0b74e_a4bf874feb5a`) read **TTR 30.29 s warm**, one warm C1 call **25.62 ± 2.31** t/s
+  (prefill 742.9 ± 72.0, ttfr 2,399 ms), and the serve log's counters — acceptance 0.40–0.86, mean len
+  2.19–3.57 — are what carry 27.32B dense at 4.60 bpw past the ~17 t/s weight-streaming roofline; that
+  attribution comes from the engine, not a paired MTP-off control, which is unmeasured. **CLOSED AS
+  LANDED — Owner decision 2026-10-25 (SURVEY #5):** the 13G control's quality/refusal/vision cells ran
+  on the same 2026-10-24 boot (house 37/37 thinking-on, 0/4 refusals, vision 2/2 exact; receipts
+  `~/benchmarks/tp2-queue-20261024/`, recorded in `recipes/cybersec/README.md`), so the earlier
+  "cells open" note was stale, not unfulfilled — nothing is owed. *(effort: medium)*
 

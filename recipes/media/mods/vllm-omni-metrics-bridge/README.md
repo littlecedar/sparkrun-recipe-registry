@@ -1,7 +1,14 @@
 # vllm-omni-metrics-bridge
 
 Metrics-bridge wrapper for the media lane's Qwen-Image-2.1-Turbo vLLM-Omni arm
-([`recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml`](../../../recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml)).
+([`recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml`](../../qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml)).
+
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What it does and does not report](#what-it-does-and-does-not-report)
+- [Gates and failure modes](#gates-and-failure-modes)
+- [Why a copy, not a shared module](#why-a-copy-not-a-shared-module)
 
 ## Why this exists
 

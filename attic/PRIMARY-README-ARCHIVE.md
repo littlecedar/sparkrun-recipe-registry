@@ -7,6 +7,15 @@ are `recipes/`-relative (e.g. `qwen4/README.md`) and do not resolve from this fi
 have been swapped where a target moved to an `attic/` directory; for the rest, resolve them from
 `recipes/`.
 
+## Contents
+
+- [Qwen 3x](#qwen-3x)
+- [Qwen 4x](#qwen-4x)
+- [IFM K2-Horizon](#ifm-k2-horizon)
+- [GLM 5.3](#glm-53)
+- [Explore](#explore)
+- [Cybersec](#cybersec)
+
 ## Qwen 3x
 
 The C1 column's `50` for dflash2 is the measured **c=2 aggregate** (tg=128, pp=256), not a
@@ -18,7 +27,7 @@ MLX affine-4-bit weights plus the DFlash2 drafter, FP8 KV cache and vision — o
 public image. **Booted and measured 2026-10-14** on `.30` (`benchmarking/decode-triage.yaml`):
 **41.3 ± 4.0 t/s @ d0** and 41.7 ± 2.4 @ d8192, house battery **37/37** — above the DFlash2 arm's
 33.8 at the same c=1. There is no `Mem` knob (the engine sizes its own budget); upstream's own
-numbers and the launch caveats are in [`qwen3/README.md`](qwen3/README.md). Upstream's pinned KV
+numbers and the launch caveats are in [`qwen3/README.md`](../recipes/qwen3/README.md). Upstream's pinned KV
 pool is reachable at launch with `-e TENSORFOLD_KV_POOL_GIB=<n>`.
 
 ## Qwen 4x
@@ -28,7 +37,7 @@ both on the `local-inference-lab` export; the other four arms measured in the 20
 archived to [`../attic/qwen4/arms/`](../attic/qwen4/arms/) with a manifest row (two labquant TP=2
 variants tied with the survivor at C1 but carrying an unverified 1M seat or a larger pool; the slower
 RadixArk reference; and the SGLang solo route, ~42% below the vLLM solo). See
-[`qwen4/README.md`](qwen4/README.md) for the cut table, the receipts and the lane rationale.
+[`qwen4/README.md`](../recipes/qwen4/README.md) for the cut table, the receipts and the lane rationale.
 
 _C1 t/s is single-stream (concurrency 1, depth 0) decode from the lane's measurement record: the
 **TP=2** survivor (labquant balanced base, 262k context) reads **40.3 ± 1.9 @ d0 / 43.3 ± 2.7 @
@@ -55,13 +64,13 @@ NGRAM arms were retired to [`../attic/ifm/arms/`](../attic/ifm/arms/) (plain is
 dominated by both spec arms; NGRAM is slower at d0 and at c=8, its only edge, at
 d8k, falling inside the lane's inter-boot noise floor). The lane also carries
 **measured accuracy** for both dense models (house / gsm8k / arc) and a
-`page-size` / `fa4` / cuda-graph arm sweep — see [`ifm/README.md`](ifm/README.md).
+`page-size` / `fa4` / cuda-graph arm sweep — see [`ifm/README.md`](../recipes/ifm/README.md).
 The withdrawn 36B-A4B sub-lane (4 arms + the `patch-sglang-k2-horizon-fp8` gate mod)
 is archived under [`../attic/ifm/`](../attic/ifm/)._
 
 ## GLM 5.3
 
-**No shipped recipe** — the lane ships TensorFold **runbook notes** ([`glm/README.md`](glm/README.md)). Its one recipe, `glm-5.3-flash-nvfp4-dflash-vllm`, was **archived to [`../attic/glm/`](../attic/glm/ARMS-MANIFEST.md) 2026-10-13** (owner decision) as a **proven-negative on the pinned public image**: five boots on `.30-.33` all died in the container serve log (the image's SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose `concat_and_cache_mla` needs a 64-dim RoPE tail while the checkpoint is NoPE MLA; DFlash2 also needs an absent `SupportsEagle3`). The boot-verified serving lines are our `bertholomus` EXL3 3.0bpw TP4 (C1 35.7 t/s @ d0, MTP-3 acceptance 63.4 %) and the MiaAI-Lab Flash EXL3 4bpw launcher at TP=2 (C1 58.5/60.5, quality 37/37, needle 2/2 at 1M), TP=3 (C1 65.4/65.1) and TP=4 (C1 98.4 t/s @ d0, DFlash2 acceptance 76.6 %). The DFlash2 drafter is CC BY-NC-ND (acceptable for this non-commercial cluster).
+**No shipped recipe** — the lane ships TensorFold **runbook notes** ([`glm/README.md`](../recipes/glm/README.md)). Its one recipe, `glm-5.3-flash-nvfp4-dflash-vllm`, was **archived to [`../attic/glm/`](../attic/glm/ARMS-MANIFEST.md) 2026-10-13** (owner decision) as a **proven-negative on the pinned public image**: five boots on `.30-.33` all died in the container serve log (the image's SM120 sparse-MLA backend forces the `fp8_ds_mla` KV layout, whose `concat_and_cache_mla` needs a 64-dim RoPE tail while the checkpoint is NoPE MLA; DFlash2 also needs an absent `SupportsEagle3`). The boot-verified serving lines are our `bertholomus` EXL3 3.0bpw TP4 (C1 35.7 t/s @ d0, MTP-3 acceptance 63.4 %) and the MiaAI-Lab Flash EXL3 4bpw launcher at TP=2 (C1 58.5/60.5, quality 37/37, needle 2/2 at 1M), TP=3 (C1 65.4/65.1) and TP=4 (C1 98.4 t/s @ d0, DFlash2 acceptance 76.6 %). The DFlash2 drafter is CC BY-NC-ND (acceptable for this non-commercial cluster).
 
 ## Explore
 
@@ -72,14 +81,14 @@ selection: the queued **Poolside Laguna-XS-2.1** (faster and smaller than both k
 genuine battery miss below Kolibri), **Laguna-S-2.1** (a capped-context 120k single-tenant entry),
 the off-brief **humanizer-12b** text-rewriting arm, and the two **media-gen** arms outside the lane's
 brief — **Qwen-Image-2.1-Turbo** (image; non-commercial license, shipped banner-marked eval-only) and
-**LTX-2.5** (video+audio; gated, shipped as a [runbook](explore/ltx-2.5-runbook/README.md)). Their
-receipts are in [`explore/README.md`](explore/README.md)._
+**LTX-2.5** (video+audio; gated, shipped as a [runbook](../recipes/media/ltx-2.5-runbook/README.md)). Their
+receipts are in [`explore/README.md`](../recipes/explore/README.md)._
 
 _Nemotron-262k (archived 2026-10-13): 1 node, 20.8 GB NVFP4 weights. **BOOT-VERIFIED 2026-10-11** (TP=1) with the
 DSpark draft engaged (acceptance length 3.67, 88.9% rate). **Measured C1: 77.7 t/s @ d0** (σ 9.8, n=5)
 and 76.3 @ d8k (σ 26.0) on `benchmarking/decode-triage.yaml` — below the 93-96 t/s third-party figure on
 this node, so quote ours. Quality: **33/37** house battery. Lane research:
-[`attic/explore/EXPLORE-MODELS-RESEARCH.md`](attic/explore/EXPLORE-MODELS-RESEARCH.md)._
+[`attic/explore/EXPLORE-MODELS-RESEARCH.md`](explore/EXPLORE-MODELS-RESEARCH.md)._
 
 **Nemotron 1M arm (2026-10-12 — archived 2026-10-13):** the card's 1M-context claim confirmed on GB10 — boots at the
 card's util 0.91 (KV 87.27 GiB → 21.3M tokens), 1M-window needle **PASS** at depths 10/50/90
@@ -106,7 +115,7 @@ checkpoints. A *capability* lane: every arm answers prompts its base model refus
 supplies the guardrails. **All five are gated on the Hub (`gated: auto`)** — each runner node needs an
 `HF_TOKEN` whose user has accepted that repo's release (arms 2 and 5 pull two gated repos each; both
 are *overlays* that ship a chat template / sidecar and no weights). Lane guide:
-[`cybersec/README.md`](cybersec/README.md) + [`attic/cybersec/AGENTS.md`](../attic/cybersec/AGENTS.md).
+[`cybersec/README.md`](../recipes/cybersec/README.md) + [`attic/cybersec/AGENTS.md`](../attic/cybersec/AGENTS.md).
 
 _C1 t/s is single-stream (concurrency 1, depth 0) decode from `benchmarking/decode-triage.yaml`. The
 three positives serve their repo id at `GET /v1/models`; the two negatives are documented SGLang engine

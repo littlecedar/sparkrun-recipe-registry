@@ -16,6 +16,21 @@ reasoning/tool-calling brief); research and the per-arm verification checklist
 are `EXPLORE-MODELS-RESEARCH.md` §6. This file is the lane's measurement record
 for it.
 
+## Contents
+
+- [What shipped](#what-shipped)
+- [Design decisions worth not re-deriving](#design-decisions-worth-not-re-deriving)
+- [Traps re-checked (§6(d))](#traps-re-checked-6d)
+- [Measurement — booted and measured 2026-10-14](#measurement--booted-and-measured-2026-10-14)
+  - [Step count and custom schedules (measured 2026-10-21)](#step-count-and-custom-schedules-measured-2026-10-21)
+- [vLLM-OMNI route (measured 2026-10-21)](#vllm-omni-route-measured-2026-10-21)
+  - [The two probes that saved a dead boot](#the-two-probes-that-saved-a-dead-boot)
+  - [The step knob lies harder here than in the Diffusers mod](#the-step-knob-lies-harder-here-than-in-the-diffusers-mod)
+  - [Operator review of both 8-step images (2026-10-21, corrected 2026-10-21 late)](#operator-review-of-both-8-step-images-2026-10-21-corrected-2026-10-21-late)
+  - [Why it was not an arm on 2026-10-21 — and what changed](#why-it-was-not-an-arm-on-2026-10-21--and-what-changed)
+  - [§6 acceptance criterion, item by item](#6-acceptance-criterion-item-by-item)
+  - [Verdict](#verdict)
+
 ## What shipped
 
 | file | role |

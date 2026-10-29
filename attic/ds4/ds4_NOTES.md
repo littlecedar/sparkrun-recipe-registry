@@ -8,6 +8,21 @@
 Session log for `model_symbol=ds4`. Durable facts graduate into `AGENTS.md` and
 `README.md`; this file is pruned. Read `AGENTS.md` first.
 
+## Contents
+
+- [Prior session (2026-09-27/28) — the max_num_seqs=16 / gmu 0.85 retune](#prior-session-2026-09-2728--the-max_num_seqs16--gmu-085-retune)
+- [Prior session (2026-10-01) — spark-arena-v2 long-context "collapse" — CLOSED](#prior-session-2026-10-01--spark-arena-v2-long-context-collapse--closed)
+- [Session 2026-10-02 — NEW SECOND LANE: knapcio DSV41 SGLang (TP=4, native MXFP4)](#session-2026-10-02--new-second-lane-knapcio-dsv41-sglang-tp4-native-mxfp4)
+- [Session 2026-10-02 (cont.) — PORTABILITY: no host bind mounts](#session-2026-10-02-cont--portability-no-host-bind-mounts)
+- [Session 2026-10-03 (cont.) — env: slimmed: redundant dropped, rest migrated to the launcher](#session-2026-10-03-cont--env-slimmed-redundant-dropped-rest-migrated-to-the-launcher)
+- [Session 2026-10-03 (cont.) — comm env fully un-pinned (portability)](#session-2026-10-03-cont--comm-env-fully-un-pinned-portability)
+- [Session 2026-10-03 (cont.) — checkpoint path removed from env: entirely](#session-2026-10-03-cont--checkpoint-path-removed-from-env-entirely)
+- [Session 2026-10-03 (cont.) — TP via defaults→command; env: removed entirely](#session-2026-10-03-cont--tp-via-defaultscommand-env-removed-entirely)
+- [Session 2026-10-03 (cont.) — HF cache is NO LONGER SHARED (NFS removed)](#session-2026-10-03-cont--hf-cache-is-no-longer-shared-nfs-removed)
+- [Session 2026-10-02 (cont.) — VENDORED IMAGE (build + push to Docker Hub)](#session-2026-10-02-cont--vendored-image-build--push-to-docker-hub)
+- [Session 2026-10-02 (cont.) — CHECKPOINT MOVED (dba1be0a → 2cba9e42)](#session-2026-10-02-cont--checkpoint-moved-dba1be0a--2cba9e42)
+- [Session 2026-10-03 (cont.) — context-length wired; "(unhealthy)" root-caused](#session-2026-10-03-cont--context-length-wired-unhealthy-root-caused)
+
 ## Prior session (2026-09-27/28) — the `max_num_seqs=16` / `gmu 0.85` retune
 
 Four recipes (`…exl3-{tp4,tp4-1m,tp6,tp6-1m}`) retuned to `max_num_seqs: 16`,

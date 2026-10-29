@@ -14,6 +14,29 @@ Evidence vocabulary: **VERIFIED** = read from a primary artifact or measured on 
 
 ---
 
+## Contents
+
+- [1. What the runtime cache is, and how sparkrun prunes it](#1-what-the-runtime-cache-is-and-how-sparkrun-prunes-it)
+  - [There is a prune path, and it is two paths](#there-is-a-prune-path-and-it-is-two-paths)
+  - [Why the register thought the DS4 trees could not be split](#why-the-register-thought-the-ds4-trees-could-not-be-split)
+  - [VERIFIED: which tree belongs to which recipe](#verified-which-tree-belongs-to-which-recipe)
+  - [2026-10-17 — the Engram dedup moves arm 5's key](#2026-10-17--the-engram-dedup-moves-arm-5s-key)
+  - [The fleet runtime-cache, measured 2026-10-15](#the-fleet-runtime-cache-measured-2026-10-15)
+  - [The position](#the-position)
+- [2. Reclaim list — absolute paths, sizes, provenance](#2-reclaim-list--absolute-paths-sizes-provenance)
+  - [Executed 2026-10-16 — the reclaim above, applied](#executed-2026-10-16--the-reclaim-above-applied)
+- [3. Per-node cache budget, and what enforces it](#3-per-node-cache-budget-and-what-enforces-it)
+  - [What the nodes actually hold (measured 2026-10-15)](#what-the-nodes-actually-hold-measured-2026-10-15)
+  - [A retired repo id that is not free: incoai/Qwen3.8-27B-DFlash2 on .30, .32, .35 — reclaim](#a-retired-repo-id-that-is-not-free-incoaiqwen38-27b-dflash2-on-30-32-35--reclaim)
+  - [The budget](#the-budget)
+  - [Enforcement — the mechanism this repo can actually hold](#enforcement--the-mechanism-this-repo-can-actually-hold)
+  - [Reclaim list for this policy (the census-backed set)](#reclaim-list-for-this-policy-the-census-backed-set)
+- [4. Qwen3.8-27B "same model, three packs": license verdict, and no sidecar](#4-qwen38-27b-same-model-three-packs-license-verdict-and-no-sidecar)
+  - [License, read from the primary artifacts (2026-10-15)](#license-read-from-the-primary-artifacts-2026-10-15)
+  - [Recommendation: keep the full exports — a sidecar is not available](#recommendation-keep-the-full-exports--a-sidecar-is-not-available)
+- [5. Owner decisions (2026-10-16)](#5-owner-decisions-2026-10-16)
+- [Evidence](#evidence)
+
 ## 1. What the runtime cache is, and how sparkrun prunes it
 
 `${WOPR_USER_CACHE}/sparkrun/runtime-cache/` (i.e. `$HOME/.cache/sparkrun/runtime-cache/` on each
@@ -466,7 +489,7 @@ Cloud"` (`https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/LICENSE`, sha256
 
 | pack | declaration | license file | redistribution |
 |---|---|---|---|
-| RadixArk | card front-matter `license: apache-2.0`, `base_model: Qwen/Qwen3.8-27B`; card §"License/Terms of Use: [Apache License 2.0](./LICENSE)" | `LICENSE` **byte-identical** to Qwen's (same sha256) | **clearly permitted** |
+| RadixArk | card front-matter `license: apache-2.0`, `base_model: Qwen/Qwen3.8-27B`; card §"License/Terms of Use: \[Apache License 2.0\](./LICENSE)" | `LICENSE` **byte-identical** to Qwen's (same sha256) | **clearly permitted** |
 | orcarouter | card `license: apache-2.0`, `base_model: Qwen/Qwen3.8-27B` (`quantized`); card §License: *"**Apache 2.0**, inherited from the base model … Abliteration and quantization do not change the underlying license obligations."* | `LICENSE` byte-identical to Qwen's (fetched with the node's own `HF_TOKEN`, repo is `gated: auto`; same sha256) | **clearly permitted** |
 | sakamakismile (AEON) | card `license: apache-2.0`, `base_model: AEON-7/Qwen3.8-27B-AEON-ULTIMATE-UNCENSORED-BF16`; the AEON-7 pack's card §License: *"Apache 2.0 (inherited from Qwen/Qwen3.8-27B)."* | **no `LICENSE` file in either repo** — the license is declared in the card only | permitted by the declared license, with a caveat |
 

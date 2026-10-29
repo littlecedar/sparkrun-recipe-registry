@@ -20,6 +20,15 @@ human-diffable); the tool is `tools/task-queue.py` (stdlib-only; `tools/README.m
 carries the command reference and exit codes). `TODO.md` remains the work record; the queue is the
 scheduler's view of the same work (§Relationship to TODO.md).
 
+## Contents
+
+- [Task schema](#task-schema)
+- [Weight](#weight)
+- [Priority tiers (the owner's standing override)](#priority-tiers-the-owners-standing-override)
+- [Session protocol](#session-protocol)
+- [Fail-closed contract](#fail-closed-contract)
+- [Relationship to TODO.md](#relationship-to-todomd)
+
 ## Task schema
 
 Top level of `queue.json`: `priority_models` (the tier list, below) and `tasks` (the list). Every

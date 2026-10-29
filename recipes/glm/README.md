@@ -10,44 +10,13 @@ was attempted and archived as a proven-negative.
 
 ## Contents
 
-- [Status](#status)
 - [Shipped arm](#shipped-arm)
-- [Boot receipt](#boot-receipt-2026-10-18)
+- [Boot receipt (2026-10-18)](#boot-receipt-2026-10-18)
 - [Boot-verified serving lines](#boot-verified-serving-lines)
 - [License](#license)
 - [Runbook notes and revision pins](#runbook-notes-and-revision-pins)
 - [Revision pins](#revision-pins)
 - [Attic index](#attic-index)
-
-- **One recipe, booted 2026-10-18.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` realizes the
-  Flash EXL3 4bpw TP=4 line in the recipe schema: the engine image is the upstream `tp4` build,
-  digest-pinned, and the multi-node prepare/ssh/topology logic is replaced by sparkrun's own
-  distribution + rendezvous plus the lane's launcher mod
-  ([`mods/tensorfold-glm-exl3-launcher/`](mods/tensorfold-glm-exl3-launcher/README.md)). It booted on
-  `.30`–`.33` and served; see [Boot receipt](#boot-receipt-2026-10-18). What a boot does **not**
-  settle — a quality battery, a second boot's ladder, and the trial's 98.4 t/s — is listed there.
-- **One archived arm.** `glm-5.3-flash-nvfp4-dflash-vllm.yaml` was **archived 2026-10-13** to
-  [`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) as a proven-negative (owner decision): it is repo
-  B's independently validated TP=4 formula, image- and checkpoint-pinned, but the pinned public image
-  blocks it (its SM120 sparse-MLA backend forces an `fp8_ds_mla` KV layout the NoPE-MLA checkpoint
-  cannot use). Do not re-add it without a public image that can serve this checkpoint. Full rationale:
-  [`attic/glm/ARMS-MANIFEST.md`](../../attic/glm/ARMS-MANIFEST.md),
-  [`attic/glm/AGENTS.md`](../../attic/glm/AGENTS.md#from-recipesglmreadmemd-2026-10-14).
-- **Two recipes, both booted.** The EXL3 3.0bpw 753B line is
-  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` plus its own launcher mod, over a **vendored
-  engine image built the same day** (source build of the unreleased fork branch; pin and derivation
-  under [Revision pins](#revision-pins)). It booted on `.30`–`.33` and served: C1 31.7 t/s, 100,559-token
-  TTFT 258.4 s, 1M window with DCP over 4 ranks. Two boot blockers it exposed are now guarded —
-  an absent `TF_TP_WORLD` and a wheel that shipped no CUDA sources. The TP=2/TP=3 Flash topologies
-  stay runbook-only launchers — they are not what this 4-node registry targets.
-- **Both launchers carry the metrics bridge.** The TensorFold serve logs no line the sparkrun monitor's
-  metrics scraper matches, so each launcher hosts a thread that reprints its `/metrics` counters in
-  those shapes (`TF_METRICS_BRIDGE=0` disables it). Fail-open: an absent counter prints nothing. **Not
-  yet observed on either arm** — the live boot predates the bridge, so the first boot's
-  `metrics bridge: matched [...]` line is what confirms the scrape keys, and the 4bpw patch tree's
-  names are equally unverified.
-- **Research** (checkpoint/engine/topology selection, measured numbers, license traps) is in
-  [`attic/glm/GLM-5.3-RECOMMENDATIONS.md`](../../attic/glm/GLM-5.3-RECOMMENDATIONS.md).
 
 ## Shipped arm
 
@@ -216,7 +185,7 @@ re-fetch costs under revision pins).
 | EXL3 3.0bpw checkpoint | `bertholomus/GLM-5.3-EXL3-3.0bpw@7f057383` (`main`) | 3.0bpw recipe's `model_revision:` — ~273 GB/node re-fetch after the 2026-10-14 reclamation |
 | archived Flash NVFP4 | `RedHatAI/GLM-5.3-Flash-NVFP4@36c184c6` — gone from all nodes, `main` is now `18d55bfd` | archived arm only |
 | TensorFold engine | `bertholomus/TensorFold@glm-dsa-tp4` = `ddfad356` (TensorFold 0.6.0) | the 3.0bpw image's build arg; the commit is the whole provenance anchor (that branch carries no patch set) |
-| **3.0bpw engine image** | `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:25bb6806…` | the 3.0bpw recipe's `container:` pin |
+| **3.0bpw engine image** | `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35@sha256:366c2d4e…` | the 3.0bpw recipe's `container:` pin (read back from the recipe, 2026-10-29; the earlier `25bb6806…` build is superseded) |
 
 The image row is new (2026-10-18): a **source build** of the unreleased fork branch over
 `lmsysorg/sglang:dev-cu13` arm64 manifest `e9aa22ad`, from

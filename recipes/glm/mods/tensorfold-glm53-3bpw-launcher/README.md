@@ -13,6 +13,16 @@ line the lane's other recipe serves.
 | Image | built from [`../../Dockerfile.tensorfold-glm53-3bpw`](../../Dockerfile.tensorfold-glm53-3bpw) over `lmsysorg/sglang:dev-cu13` arm64 manifest `sha256:e9aa22adaad2b1fa30130d9d033f7f0d3e706e2780973eca849827d5aed983d6`. **Pushed 2026-10-18** to `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35`, registry digest **`sha256:366c2d4e0d0a066f909650c4aa8df49c4a467b47a082a3cd177bef59d2b7f076`** — that is the pin the recipe carries, read back from the registry with `docker buildx imagetools inspect`. It is the tag's **second** push: the first (`sha256:25bb6806…`) shipped no `*.cu` — `pip install --no-deps .` carries no package data — and died at the first JIT kernel compile on `.../families/glm_moe_dsa/cuda/latent_rows.cu`. The Dockerfile now mirrors all 25 kernel sources from `/opt/tensorfold/src/tensorfold` onto the installed package root (verified: `find <pkg> -name '*.cu' | wc -l` → 25; receipt: `~/benchmarks/glm-3bpw-image-20261018/rebuild.log`). Never cite a local manifest id (`aabe1cac210f`, `44e478f1`) as the pin. |
 | Verified | **Booted 2026-10-18**, TP=4 on `.30`–`.33` via `sparkrun run … --transfer-mode local`, image digest `sha256:366c2d4e…`. `/v1/models` answered **240 s** after launch (engine self-report `loaded in 308.7s`); four CUDA extensions compiled at first start; smoke completion 32 tokens / 1.66 s (`prefill_s 0.2471`, `decode_s 1.3909`, 19/34 drafts accepted). 397-token/128-output ladder: c1 24.2, c2 25.3, c4 40.6 aggregate output tok/s (per-request decode 31.7 / 14.5 / 11.4). Long-context TTFT 258.4 s at 100,559 prompt tokens. Receipt: `~/benchmarks/glm-3bpw-boot-20261018/RECEIPT.md`. One boot, one ladder — a repeat boot and the 1M-window rungs remain open (see [Boot-deferred claims](#boot-deferred-claims)). |
 
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [The CLI surface actually mapped](#the-cli-surface-actually-mapped)
+- [Mechanics](#mechanics)
+- [What the 4bpw mod does that this one must not](#what-the-4bpw-mod-does-that-this-one-must-not)
+- [Claims the boot did and did not settle](#claims-the-boot-did-and-did-not-settle)
+- [Metrics bridge](#metrics-bridge)
+- [Not in this mod](#not-in-this-mod)
+
 ## Why it exists
 
 The 3.0bpw line was a runbook: repo A's
@@ -145,6 +155,9 @@ Still open: a second boot (cold-JIT cache reuse), any rung past 100,559 prompt t
 either inside or outside sparkrun for this image.
 
 ## Metrics bridge
+
+The only documented copy of this block: the 4bpw launcher's README links here
+([`../tensorfold-glm-exl3-launcher/README.md#metrics-bridge`](../tensorfold-glm-exl3-launcher/README.md#metrics-bridge)).
 
 The sparkrun monitor scrapes a serve's log for four shapes (`Avg generation throughput: N tokens/s`,
 `Avg prompt throughput: N tokens/s`, `Running: N reqs`, `Waiting: N reqs`). The TensorFold serve logs

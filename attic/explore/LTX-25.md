@@ -8,6 +8,14 @@ documented per-node `HF_TOKEN` + acceptance prerequisite (cybersec
 precedent). **Shipped as a runbook** (no sparkrun recipe): runtime is ComfyUI
 (no `sglang|vllm` engine) and access is per-user gated.
 
+## Contents
+
+- [Access](#access)
+- [What was verified on hardware (2026-10-14, .35)](#what-was-verified-on-hardware-2026-10-14-35)
+  - [Measured (receipts ~/benchmarks/ltx25-20261014/ on the head)](#measured-receipts-benchmarksltx25-20261014-on-the-head)
+- [Traps re-learned (precedent for the next media arm)](#traps-re-learned-precedent-for-the-next-media-arm)
+- [Deliverables](#deliverables)
+
 ## Access
 
 `gated: auto`, license `ltx-2.x-community-license-agreement`. Token

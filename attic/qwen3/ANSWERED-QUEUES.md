@@ -12,6 +12,13 @@ experiment was re-run — once at **8 boots' cost** — because the closed recor
 analyzer but **not the profile**, and searching the doc by profile name was therefore impossible.
 **Before queueing anything, search this file for the profile name, not just the question.**
 
+## Contents
+
+- [Reading order](#reading-order)
+- [Closed items relocated from §6](#closed-items-relocated-from-6)
+- [§6.2 item detail, relocated 2026-09-21](#62-item-detail-relocated-2026-09-21)
+- [§6.2 items C and 10, relocated verbatim 2026-09-22](#62-items-c-and-10-relocated-verbatim-2026-09-22)
+
 ## Reading order
 
 1. `QWEN3-MODEL-OPTIMIZATION-WORK.md` §6.1 for what to do next.

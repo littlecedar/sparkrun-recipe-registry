@@ -22,6 +22,16 @@ cache change is ever wanted, the bounded reader fix (§3B) is the only viable on
 
 ---
 
+## Contents
+
+- [1. What is settled (do not re-open)](#1-what-is-settled-do-not-re-open)
+- [2. Where the host memory actually goes (the measured picture)](#2-where-the-host-memory-actually-goes-the-measured-picture)
+- [3. Recommendation](#3-recommendation)
+- [4. Action plan for the implementation agent](#4-action-plan-for-the-implementation-agent)
+- [5. Guardrails the implementation agent should assume](#5-guardrails-the-implementation-agent-should-assume)
+- [6. Provenance](#6-provenance)
+- [7. Implementation (2026-09-27) — mods/bound-engram-cache](#7-implementation-2026-09-27--modsbound-engram-cache)
+
 ## 1. What is settled (do not re-open)
 
 - **`instanttensor` does not work here — CLOSED, with a boot-free repro.** The

@@ -17,6 +17,21 @@
 > recipe change**. Headline: the recipe is healthy; `spark-arena-v2` at `depth>0`
 > measures cold prefill, and no tuning knob examined gives a clean throughput win.
 
+## Contents
+
+- [0. TL;DR](#0-tldr)
+- [1. What the benchmark reported](#1-what-the-benchmark-reported)
+- [2. Evidence](#2-evidence)
+- [3. Root-cause hypothesis](#3-root-cause-hypothesis)
+- [3A. Experiments run (live, 2026-10-01, this session)](#3a-experiments-run-live-2026-10-01-this-session)
+- [4. Suggested solutions (ranked, for the solutions agent)](#4-suggested-solutions-ranked-for-the-solutions-agent)
+- [5. Reproduction commands](#5-reproduction-commands)
+- [6. Open questions for the solutions agent](#6-open-questions-for-the-solutions-agent)
+- [7. Follow-up to §1–§6 (independent re-derivation, 2026-10-01)](#7-follow-up-to-16-independent-re-derivation-2026-10-01)
+- [8. Update 2026-10-01 — the TP=4 1M sibling reproduces the symptoms (user-reported)](#8-update-2026-10-01--the-tp4-1m-sibling-reproduces-the-symptoms-user-reported)
+- [9. RESOLVED (mechanism) — 2026-10-01, live TP=4 1M + controlled warm/cold A/B](#9-resolved-mechanism--2026-10-01-live-tp4-1m--controlled-warmcold-ab)
+- [10. SOLUTIONS (2026-10-01, live TP=4 1M A/B) — mechanism confirmed, no recipe change](#10-solutions-2026-10-01-live-tp4-1m-ab--mechanism-confirmed-no-recipe-change)
+
 ## 0. TL;DR
 
 The recipe is **not** globally slow — at short context and at single-stream it

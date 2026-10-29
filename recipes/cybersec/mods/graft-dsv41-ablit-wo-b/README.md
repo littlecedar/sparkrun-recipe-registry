@@ -11,6 +11,14 @@ serve an abliterated EXL3 pack without a second checkpoint on the Hub.
 | License | AGPL-3.0-or-later (this repo). |
 | Source | `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` (gated: auto, revision pinned) |
 
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [Which sidecar (do not mix)](#which-sidecar-do-not-mix)
+- [Mechanics](#mechanics)
+- [The budget constraint (why this is synchronous)](#the-budget-constraint-why-this-is-synchronous)
+- [Knobs](#knobs)
+
 ## Why it exists
 
 The overlay repo ships **no weights**: two small sidecars plus the author's graft scripts. The

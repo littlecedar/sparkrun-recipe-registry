@@ -15,6 +15,8 @@ lane; the recipe YAML keeps only the crucial operational notes.
 ## Contents
 
 - [Selection (2026-10-22)](#selection-2026-10-22)
+- [whistle ASR probe (no recipe yet)](#whistle-asr-probe-no-recipe-yet)
+- [phonon-31m TTS probe (no recipe yet)](#phonon-31m-tts-probe-no-recipe-yet)
 - [drama-3-35b-a3b-fp8-vllm-omni-tts](#drama-3-35b-a3b-fp8-vllm-omni-tts)
 - [kokoro-82m-tts-cpu](#kokoro-82m-tts-cpu)
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
@@ -29,8 +31,6 @@ lane; the recipe YAML keeps only the crucial operational notes.
 - [phonon-31m-tts-cpu](#phonon-31m-tts-cpu)
 - [Mods](#mods)
 - [Lane notes](#lane-notes)
-
----
 
 ## Selection (2026-10-22)
 
@@ -765,7 +765,7 @@ The humanizer bf16 sibling and the media-gen probes that never shipped remain ar
 [`attic/explore/`](../../attic/explore/) — the archive is frozen provenance, so a retired arm is
 not resurrected into this lane.
 
-## Lane notes (pyannote arm, 2026-10-22)
+### Pyannote arm (2026-10-22)
 
 - **A `--check` that compares sha256 proves byte-stability, not shape.** The fixture builder wrote raw
   PCM frames under a `.wav` name, so `--check` and the determinism cells both passed on files no

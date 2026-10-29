@@ -1,12 +1,44 @@
 # Cybersec lane — operating guide
 
 Durable guide for `recipes/cybersec/`. Read before editing anything here. Human-facing summary
-(arm table, gating notice, reproduce commands): [`README.md`](README.md).
+(arm table, gating notice, reproduce commands): [`recipes/cybersec/README.md`](../../recipes/cybersec/README.md).
 
 This lane serves **abliterated / cybersecurity-unlocked** checkpoints. The engineering is ordinary
 sparkrun work; the *policy* is not — see §1.
 
 ---
+
+## Contents
+
+- [1. Gating and the token prerequisite](#1-gating-and-the-token-prerequisite)
+- [2. The served-id convention (lane-wide, non-negotiable)](#2-the-served-id-convention-lane-wide-non-negotiable)
+- [3. Revisions](#3-revisions)
+- [4. Artifact facts worth not re-deriving](#4-artifact-facts-worth-not-re-deriving)
+- [5. The two overlay mods](#5-the-two-overlay-mods)
+- [6. Arm 5 in more detail](#6-arm-5-in-more-detail)
+- [7. Validation ritual](#7-validation-ritual)
+- [8. Receipts](#8-receipts)
+  - [Arm 1 — qwen3.8-27b-uncensored-nvfp4-sglang — POSITIVE (TP=1)](#arm-1--qwen38-27b-uncensored-nvfp4-sglang--positive-tp1)
+  - [Arm 2 — qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang — POSITIVE (TP=1)](#arm-2--qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang--positive-tp1)
+  - [Arm 3 — vLLM route: blocked on image distribution (not on the model)](#arm-3--vllm-route-blocked-on-image-distribution-not-on-the-model)
+  - [Arm 3 — nex-n2.5-mini-uncensored-nvfp4-sglang — NEGATIVE (TP=1)](#arm-3--nex-n25-mini-uncensored-nvfp4-sglang--negative-tp1)
+  - [Arm 4 — qwen3.8-flash-next-uncensored-nvfp4-sglang — NEGATIVE (TP=2)](#arm-4--qwen38-flash-next-uncensored-nvfp4-sglang--negative-tp2)
+  - [Arms 3 and 4 — the card-documented vLLM routes (2026-10-15)](#arms-3-and-4--the-card-documented-vllm-routes-2026-10-15)
+  - [Arm 5 — deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang — POSITIVE (TP=2)](#arm-5--deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang--positive-tp2)
+  - [Arm 6 — orcacyber-nano-1.0-15.7g-gguf-llamacpp — POSITIVE (TP=1)](#arm-6--orcacyber-nano-10-157g-gguf-llamacpp--positive-tp1)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+  - [qwen3.8-27b-uncensored-nvfp4-sglang.yaml](#qwen38-27b-uncensored-nvfp4-sglangyaml)
+  - [qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglangyaml)
+- [From recipes/cybersec/README.md (2026-10-14)](#from-recipescybersecreadmemd-2026-10-14)
+  - [Old pointer line](#old-pointer-line)
+  - [The arm table (with measurements)](#the-arm-table-with-measurements)
+  - [Two of the five arms are overlays](#two-of-the-five-arms-are-overlays)
+  - [Served model id — the convention](#served-model-id--the-convention)
+  - [Reproduce](#reproduce)
+  - [Other surfaced arms (not shipped)](#other-surfaced-arms-not-shipped)
+- [2026-10-16 re-measure: the SGLang engine gate changed form (arm 3, nex)](#2026-10-16-re-measure-the-sglang-engine-gate-changed-form-arm-3-nex)
+  - [2026-10-26 spares-lane receipt note (arms 6 / 6-control)](#2026-10-26-spares-lane-receipt-note-arms-6--6-control)
+  - [Links (as referenced by the material above)](#links-as-referenced-by-the-material-above)
 
 ## 1. Gating and the token prerequisite
 
@@ -133,7 +165,8 @@ boot.
 **The graft cannot exceed the pre-exec hook.** The graft rewrites every shard carrying
 `layers.10-35 attn.wo_b` (~26 shards × ~5 GiB) and must finish inside sparkrun's hard-coded
 **600 s** hook budget (`sparkrun/orchestration/hooks.py::run_pre_exec`) — a recipe cannot raise
-it. It is therefore synchronous and fail-closed in `run.sh`; once a graft exists the mod is a
+it. *(SUPERSEDED 2026-10-29: 0.4.3 makes the deadline `hooks.timeout_s`, default 3600 s, with a
+per-entry `timeout:` override and `timeout: 0` = unbounded; the hardcoded cap was removed upstream.)* It is therefore synchronous and fail-closed in `run.sh`; once a graft exists the mod is a
 no-op and the boot pays only TensorFold's rank-cache build.
 
 Deferring it was tried and **does not work on a cluster launch**: sparkrun holds the head on its
@@ -478,7 +511,8 @@ another lane's workload when this was written.
 
 ### Arm 5 — `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang` — POSITIVE (TP=2)
 
-**The graft fits the 600 s pre-exec hook budget, measured, not assumed.**
+**The graft fits the 600 s pre-exec hook budget, measured, not assumed.** *(0.4.3 raises the
+budget to `hooks.timeout_s`, default 3600 s; the measured 148 s / 137 s stands.)*
 
 - Boot: task on `.32`+`.33`; `GET /v1/models` →
   `{"id":"drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed","owned_by":"tensorfold","max_model_len":1048576}`.
@@ -618,7 +652,7 @@ survive inside the combined pack) and is named as such in `mad-science/STORAGE-P
 
 `[bracketed]` links resolve at the bottom of this section. Every arm is one recipe; the measured
 receipts (boot id, `GET /v1/models` answer, `decode-triage` run, house battery) live in
-[`AGENTS.md`](/attic/cybersec/AGENTS.md) §8 so this table stays readable.
+`attic/cybersec/AGENTS.md` §8 so this table stays readable.
 
 ### Two of the five arms are overlays
 

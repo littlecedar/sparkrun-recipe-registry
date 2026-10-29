@@ -1,8 +1,21 @@
 # Mellum2.1-12B-A2.5B-Thinking — Explore-lane arm (built and boot-verified 2026-10-15)
 
-Per-arm record for [`recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
+Per-arm record for [`recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../attic/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
 Companion to [`EXPLORE-MODELS-RESEARCH.md`](EXPLORE-MODELS-RESEARCH.md) (the lane's ranked candidate
 research) and to the lane's shipped set in [`recipes/explore/README.md`](../../recipes/explore/README.md).
+
+## Contents
+
+- [1. Why this arm exists](#1-why-this-arm-exists)
+- [2. The checkpoint (read from the pinned revision's own files)](#2-the-checkpoint-read-from-the-pinned-revisions-own-files)
+  - [Chat template and reasoning behaviour (source: chat_template.jinja at the pin)](#chat-template-and-reasoning-behaviour-source-chat_templatejinja-at-the-pin)
+  - [Card claims (self-reported by JetBrains, not verified here)](#card-claims-self-reported-by-jetbrains-not-verified-here)
+- [3. Architecture support in the pinned image (the reason this can ship without a mod)](#3-architecture-support-in-the-pinned-image-the-reason-this-can-ship-without-a-mod)
+- [4. Decisions](#4-decisions)
+- [5. The GGUF route (recorded, not shipped)](#5-the-gguf-route-recorded-not-shipped)
+- [6. What the first boot had to prove — status after the 2026-10-15 boot](#6-what-the-first-boot-had-to-prove--status-after-the-2026-10-15-boot)
+- [7. Build record (2026-10-15)](#7-build-record-2026-10-15)
+- [Boot receipt (2026-10-15, .35)](#boot-receipt-2026-10-15-35)
 
 ## 1. Why this arm exists
 

@@ -1,10 +1,11 @@
 # Mechanics
 
 Recipe-schema reference for the `littlecedar` registry, written against **sparkrun
-0.4.2-alpha+g36d8a44** — the installed build at
-`/home/siv/.local/share/uv/tools/sparkrun/lib/python3.12/site-packages/sparkrun/`.
-Every `file.py:line` cite is relative to that package tree. Re-derive a line before
-trusting it after an upgrade; `sparkrun --version` names the build you have.
+0.4.2-alpha+g36d8a44**; the installed build is **0.4.3** (upgraded 2026-10-29), at
+`/home/siv/.local/share/uv/tools/sparkrun/lib/python3.14/site-packages/sparkrun/`.
+Every `file.py:line` cite is relative to that package tree, whose line numbers can move
+between builds; re-derive a line before trusting it after an upgrade, and let
+`sparkrun --version` name the build you have.
 
 **Cite provenance.** The cites re-derived against 0.4.2 on 2026-10-21 are: every cite in
 §[The one rule](#the-one-rule-that-decides-whether-a-knob-works), and in §Key reference
@@ -17,6 +18,29 @@ it. The module paths themselves (`core/launcher.py`, `core/recipe.py`,
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
 (`core/recipe.py:80-122`): **41 keys**, counted from the literal set. A key outside
 it is either plugin-owned or swept into `runtime_config`.
+
+## Contents
+
+- [The one rule that decides whether a knob works](#the-one-rule-that-decides-whether-a-knob-works)
+- [Key reference (41)](#key-reference-41)
+  - [Format and identity](#format-and-identity)
+  - [Model and serving](#model-and-serving)
+  - [Runtimes and what each consumes](#runtimes-and-what-each-consumes)
+  - [Topology](#topology)
+  - [Container and lifecycle](#container-and-lifecycle)
+  - [Build, execution, placement](#build-execution-placement)
+  - [Plugin-owned keys](#plugin-owned-keys)
+- [Notes](#notes)
+  - [0.4.0 binds {model} to the prepared path](#040-binds-model-to-the-prepared-path)
+  - [The served model id](#the-served-model-id)
+  - [Placeholders and JSON](#placeholders-and-json)
+  - [What recipe validate can see](#what-recipe-validate-can-see)
+  - [Pooling (embedding / reranker) recipes](#pooling-embedding--reranker-recipes)
+  - [CLI mechanics](#cli-mechanics)
+  - [Env, portability, and distribution](#env-portability-and-distribution)
+  - [Engine flag semantics — SGLang/vLLM](#engine-flag-semantics--sglangvllm)
+  - [Checkpoint and model-path mechanics](#checkpoint-and-model-path-mechanics)
+- [Per-family agent guides](#per-family-agent-guides)
 
 ## The one rule that decides whether a knob works
 

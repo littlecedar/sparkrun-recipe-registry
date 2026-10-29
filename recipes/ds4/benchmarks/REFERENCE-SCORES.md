@@ -46,6 +46,21 @@ effort. Mixing them up is the single easiest way to make a local number look
 
 ---
 
+## Contents
+
+- [1. Base model (pretraining checkpoint, not the instruct model)](#1-base-model-pretraining-checkpoint-not-the-instruct-model)
+- [2. Instruct model — reasoning & knowledge](#2-instruct-model--reasoning--knowledge)
+- [3. Instruct model — agentic & coding](#3-instruct-model--agentic--coding)
+- [4. Third-party independent evaluations](#4-third-party-independent-evaluations)
+  - [4a. Artificial Analysis Intelligence Index](#4a-artificial-analysis-intelligence-index)
+  - [4b. Vals AI (independent agentic harness, mostly proprietary benchmarks)](#4b-vals-ai-independent-agentic-harness-mostly-proprietary-benchmarks)
+  - [4c. MathArena (independent)](#4c-matharena-independent)
+  - [4d. LiveBench (aggregated by llmrun.dev)](#4d-livebench-aggregated-by-llmrundev)
+  - [4e. Aggregator composites (use with care)](#4e-aggregator-composites-use-with-care)
+- [5. Conflicts and things that look misattributed](#5-conflicts-and-things-that-look-misattributed)
+- [6. What is NOT published for the EXL3 2.9bpw checkpoint](#6-what-is-not-published-for-the-exl3-29bpw-checkpoint)
+- [7. Does this make our local numbers sane?](#7-does-this-make-our-local-numbers-sane)
+
 ## 1. Base model (pretraining checkpoint, not the instruct model)
 
 Source: model card + technical report Table 1. All "scores within 0.3 are
@@ -284,9 +299,12 @@ any row above.
 
 ## 7. Does this make our local numbers sane?
 
-What our directory measures (see [`README.md`](README.md)) is **GSM8K 0-shot,
-ARC-Challenge 0-shot, and a 37-item house battery**, on both the official-weights
-lane (`deepseek`) and the EXL3 2.9 bpw lane (`deepseek-turbo`).
+What our directory measures — method and harnesses in [`README.md`](README.md),
+every measured score in [`results/RESULTS.md`](results/RESULTS.md) — is **GSM8K
+0-shot, ARC-Challenge 0-shot, a 37-item house battery**, plus the hard battery
+(**HLE, GPQA Diamond, MMLU-Pro, MATH-500, AIME 2022-24, HumanEval, MBPP**), on
+both the official-weights lane (`deepseek`) and the EXL3 2.9 bpw lane
+(`deepseek-turbo`).
 
 Sanity frame from the published numbers:
 

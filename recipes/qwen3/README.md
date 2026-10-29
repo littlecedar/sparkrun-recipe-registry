@@ -12,10 +12,10 @@ bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to 
 
 ## Contents
 
-- [`qwen3.8-27b-nvfp4-dflash2-sglang`](#qwen38-27b-nvfp4-dflash2-sglang) — shipping; Qwen3.8-27B NVFP4 + DFLASH2 spec decode (SGLang)
-- [`qwen3-coder-next-int4-autoround-vllm`](#qwen3-coder-next-int4-autoround-vllm) — Intel/Qwen3-Coder-Next int4 (vLLM); the lane's fastest decode
-- [`qwen3.8-27b-mlx4bit-tensorfold-sglang`](#qwen38-27b-mlx4bit-tensorfold-sglang) — MLX 4-bit TensorFold engine behind the `runtime: sglang` shim
-- [Flags](#flags)
+  - [qwen3.8-27b-nvfp4-dflash2-sglang](#qwen38-27b-nvfp4-dflash2-sglang)
+  - [qwen3-coder-next-int4-autoround-vllm](#qwen3-coder-next-int4-autoround-vllm)
+  - [qwen3.8-27b-mlx4bit-tensorfold-sglang](#qwen38-27b-mlx4bit-tensorfold-sglang)
+  - [Flags](#flags)
 - [Attic index](#attic-index)
 
 ### qwen3.8-27b-nvfp4-dflash2-sglang

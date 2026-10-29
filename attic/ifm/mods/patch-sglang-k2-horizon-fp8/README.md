@@ -15,6 +15,16 @@ mods/patch-sglang-k2-horizon-fp8/
 No `REQUIREMENTS.txt`: stdlib and coreutils only. `pyyaml` is not needed because the
 mod never parses the checkpoint — it edits one Python file.
 
+## Contents
+
+- [What it patches](#what-it-patches)
+- [Why relaxing them is safe rather than hopeful](#why-relaxing-them-is-safe-rather-than-hopeful)
+- [Why not just rewrite the checkpoint's metadata instead](#why-not-just-rewrite-the-checkpoints-metadata-instead)
+- [Failure modes and what they mean](#failure-modes-and-what-they-mean)
+- [Escape hatches](#escape-hatches)
+- [Verifying](#verifying)
+- [Scope](#scope)
+
 ## What it patches
 
 Both sites are in `python/sglang/srt/models/xllm.py` (line numbers at

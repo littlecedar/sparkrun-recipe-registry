@@ -9,6 +9,17 @@ accepted terms are a prerequisite sparkrun cannot assume), and the license is
 Entity threshold; read the 2.x text before shipping to third parties —
 `https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x`).
 
+## Contents
+
+- [Status](#status)
+- [Measured (2026-10-14, .35, clock-capped at 2200 MHz)](#measured-2026-10-14-35-clock-capped-at-2200-mhz)
+- [Prerequisites (per node)](#prerequisites-per-node)
+- [Install (once per node)](#install-once-per-node)
+- [Weights](#weights)
+- [Graph](#graph)
+- [Run (one node, clock-capped)](#run-one-node-clock-capped)
+- [Traps (paid for on 2026-10-14)](#traps-paid-for-on-2026-10-14)
+
 ## Status
 
 - Booted 2026-10-14 on `.35`, node idle, ComfyUI v0.34.0

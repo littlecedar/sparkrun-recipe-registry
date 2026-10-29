@@ -7,6 +7,12 @@ snapshots cited below.
 Evidence vocabulary: **VERIFIED** = read from source at the image's reported base commit, or measured
 on a boot; **HYPOTHESIS** = code-derived, not observed.
 
+## Contents
+
+- [1. The shared-expert _scale blocker — understood, and its fix ships](#1-the-shared-expert-_scale-blocker--understood-and-its-fix-ships)
+- [2. The QSA-prefill CUDA-graph crash — not the projection, not the leaves](#2-the-qsa-prefill-cuda-graph-crash--not-the-projection-not-the-leaves)
+- [Consequences for the register](#consequences-for-the-register)
+
 ## 1. The shared-expert `_scale` blocker — understood, and its fix ships
 
 **Symptom (VERIFIED, recorded traceback).** `RuntimeError: a Tensor with 51200 elements cannot be

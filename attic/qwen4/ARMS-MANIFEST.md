@@ -23,6 +23,17 @@ globs `recipes/qwen4/*.yaml` in a way that a move breaks. **Do not re-add these 
 run them by path from here.** `sparkrun` runs a recipe by path, and `AGENTS.md` §6 shows the by-path
 invocation.
 
+## Contents
+
+- [Manifest](#manifest)
+  - [Wave 1 — zz- experiment variants (archived 2026-10-04, first harvest)](#wave-1--zz--experiment-variants-archived-2026-10-04-first-harvest)
+  - [Wave 2 — closed-question arms (archived 2026-10-04, second harvest)](#wave-2--closed-question-arms-archived-2026-10-04-second-harvest)
+  - [Wave 3 — production-directory narrowing (archived 2026-10-04, third pass)](#wave-3--production-directory-narrowing-archived-2026-10-04-third-pass)
+  - [Wave 4 — production-directory cut to one TP=1 + one TP=2 arm (archived 2026-10-14)](#wave-4--production-directory-cut-to-one-tp1--one-tp2-arm-archived-2026-10-14)
+  - [Wave 5 — the TP=4 shape closed (archived 2026-10-22)](#wave-5--the-tp4-shape-closed-archived-2026-10-22)
+- [Provenance notes](#provenance-notes)
+- [Benchmarking profiles archived with these arms (2026-10-15)](#benchmarking-profiles-archived-with-these-arms-2026-10-15)
+
 ## Manifest
 
 ### Wave 1 — `zz-` experiment variants (archived 2026-10-04, first harvest)

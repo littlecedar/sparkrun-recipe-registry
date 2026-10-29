@@ -13,7 +13,7 @@ ships **three** recipes, one per model scale:
 
 `C1 t/s` is single-stream decode as recorded in the parent [`README.md`](../../README.md);
 `Size` is the per-node footprint the registry records and `Mem` is the recipe's
-`gpu_memory_utilization`. Flags are defined in [Model Flags](../../README.md#model-flags). A dash is
+`gpu_memory_utilization`. Flags are defined in [Recipe Flags](../../README.md#recipe-flags). A dash is
 an **unmeasured** arm, not a zero. All three recipes are `sparkrun recipe validate`-clean.
 
 A **fourth** arm, [`ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang`](#the-yarn-1m-arm), serves the same 35B
@@ -39,13 +39,16 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 
 ## Contents
 
-- [`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm`](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm) — flagship 397B MoE, 4 nodes TP=4 (vLLM)
-- [`ornith-1.5-35b-a3b-nvfp4-dflash2-sglang`](#ornith-15-35b-a3b-nvfp4-dflash2-sglang) — 35B-A3B MoE, the fast single-Spark lane (SGLang)
-- [`ornith-1.5-9b-nvfp4-dflash-sglang`](#ornith-15-9b-nvfp4-dflash-sglang) — small dense 9B single-Spark arm (SGLang)
-- [The YaRN 1M arm](#the-yarn-1m-arm) — the card's long-context route on the 35B; **ships for ≤768k, 1M supported to depth 50 % — the 1M d90 rung failed twice**
-- [The 122B one-node probe](#the-122b-one-node-probe-measured-not-shipped) — draft arms, out of the shipped surface; **both quant tiers fail the owner's easy-traffic gate on single-node decode**
+  - [littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm)
+  - [ornith-1.5-35b-a3b-nvfp4-dflash2-sglang](#ornith-15-35b-a3b-nvfp4-dflash2-sglang)
+  - [ornith-1.5-9b-nvfp4-dflash-sglang](#ornith-15-9b-nvfp4-dflash-sglang)
+- [The YaRN 1M arm](#the-yarn-1m-arm)
+- [Engine bump to SGLang 0.5.21 (executed 2026-10-21 — all three arms validated)](#engine-bump-to-sglang-0521-executed-2026-10-21--all-three-arms-validated)
+- [Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)](#engine-bump-to-sglang-0522-executed-2026-10-22--all-three-arms-validated)
+- [The 122B one-node probe (measured, not shipped)](#the-122b-one-node-probe-measured-not-shipped)
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
+- [References](#references)
 
 ### littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm
 

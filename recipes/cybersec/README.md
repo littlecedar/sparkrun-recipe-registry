@@ -11,14 +11,14 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 ## Contents
 
 - [Gating and the token prerequisite](#gating-and-the-token-prerequisite)
-- [`qwen3.8-27b-uncensored-nvfp4-sglang`](#qwen38-27b-uncensored-nvfp4-sglang) — arm 1, positive (TP=1)
-- [`qwen3.8-27b-uncensored-nvfp4-nextn-sglang`](#qwen38-27b-uncensored-nvfp4-nextn-sglang) — arm 1's spec-decode sibling, positive (TP=1)
-- [`qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang`](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang) — arm 2, positive (TP=1), overlay
-- [`nex-n2.5-mini-uncensored-nvfp4-sglang`](#nex-n25-mini-uncensored-nvfp4-sglang) — arm 3, negative under SGLang; vLLM route unblocked (+ `nex-n2.5-mini-uncensored-nvfp4-vllm`)
-- [`qwen3.8-flash-next-uncensored-nvfp4-sglang`](#qwen38-flash-next-uncensored-nvfp4-sglang) — arm 4, negative under SGLang; vLLM route unblocked (+ `qwen3.8-flash-next-uncensored-nvfp4-vllm`)
-- [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang) — arm 5, positive (TP=2), graft
-- [`orcacyber-nano-1.0-15.7g-gguf-llamacpp`](#orcacyber-nano-10-157g-gguf-llamacpp) — arm 6, positive (TP=1), the lane's only llama.cpp arm (GGUF 15.7G tier)
-- [`orcacyber-nano-1.0-13g-gguf-llamacpp`](#orcacyber-nano-10-13g-gguf-llamacpp) — arm 6's tier A/B control (TP=1, llama.cpp, GGUF 13G tier)
+- [qwen3.8-27b-uncensored-nvfp4-sglang](#qwen38-27b-uncensored-nvfp4-sglang)
+- [qwen3.8-27b-uncensored-nvfp4-nextn-sglang](#qwen38-27b-uncensored-nvfp4-nextn-sglang)
+- [qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang)
+- [nex-n2.5-mini-uncensored-nvfp4-sglang](#nex-n25-mini-uncensored-nvfp4-sglang)
+- [qwen3.8-flash-next-uncensored-nvfp4-sglang](#qwen38-flash-next-uncensored-nvfp4-sglang)
+- [deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang)
+- [orcacyber-nano-1.0-15.7g-gguf-llamacpp](#orcacyber-nano-10-157g-gguf-llamacpp)
+- [orcacyber-nano-1.0-13g-gguf-llamacpp](#orcacyber-nano-10-13g-gguf-llamacpp)
 - [Attic index](#attic-index)
 
 ## Gating and the token prerequisite
@@ -272,7 +272,8 @@ that line.
   K=5 sidecar** that `recipes/cybersec/mods/graft-dsv41-ablit-wo-b` grafts onto that pack under
   `/cache/runtime/dsv41-ablit` (104 tensors edited; L0-9, L36-39, MTP, embed/head, experts stay
   stock), synchronously and fail-closed inside the 600 s pre-exec hook budget (measured 148 s /
-  137 s per node on the combined stock, 2026-10-17).
+  137 s per node on the combined stock, 2026-10-17). *0.4.3 raises that budget to
+  `hooks.timeout_s` (default 3600 s), so the margin is now larger than measured here.*
 - Runtime sglang shim → `mods/tensorfold-dsv41-launcher` (reused unchanged from the ds4 lane).
   The command carries `--stock-model {model}`: the validator's identity token **and** the pack
   the launcher reads the Engram tables from. Served id:

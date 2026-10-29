@@ -4,6 +4,12 @@ Moved here 2026-10-14, verbatim, from `recipes/glm/README.md`. The lane ships **
 the operator-facing runbook notes, the archived arm's rationale, and the revision pins the lane README
 used to carry. The lane README is now a short shipped-recipes-only index that points here.
 
+## Contents
+
+- [From recipes/glm/README.md (2026-10-14)](#from-recipesglmreadmemd-2026-10-14)
+- [Revision pins (verified 2026-10-14, Hub API + every node's HF cache)](#revision-pins-verified-2026-10-14-hub-api--every-nodes-hf-cache)
+- [Notes](#notes)
+
 ## From recipes/glm/README.md (2026-10-14)
 
 Two model lines, both documented in

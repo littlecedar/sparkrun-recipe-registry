@@ -1,5 +1,37 @@
 *(Moved verbatim from `mad-science/TODO.md` on 2026-10-13 — the TODO now references this file).*
 
+## Contents
+
+- [Session record](#session-record)
+- [2026-10-22 — the register becomes a board; the refresh, engine and CI block](#2026-10-22--the-register-becomes-a-board-the-refresh-engine-and-ci-block)
+- [Workstation tooling (measured 2026-10-21, time not recorded, after sparkrun landed there and reported 0.4.2-alpha+g36d8a44)](#workstation-tooling-measured-2026-10-21-time-not-recorded-after-sparkrun-landed-there-and-reported-042-alphag36d8a44)
+- [Planning preamble and resourcing (2026-10-15/18/19)](#planning-preamble-and-resourcing-2026-10-151819)
+- [Session progress, policy, cluster state (2026-10-18/19)](#session-progress-policy-cluster-state-2026-10-1819)
+- [Closed no-boot items note (2026-10-19)](#closed-no-boot-items-note-2026-10-19)
+- [qwen4 backlog progress (2026-10-18/19)](#qwen4-backlog-progress-2026-10-1819)
+- [qwen4 W6/W12 progress (2026-10-22)](#qwen4-w6w12-progress-2026-10-22)
+- [decision candidates progress (2026-10-18..20)](#decision-candidates-progress-2026-10-1820)
+- [decision closed sub-items (2026-10-18/22)](#decision-closed-sub-items-2026-10-1822)
+- [explore reasoning-candidates recheck + Muse closure (2026-10-21)](#explore-reasoning-candidates-recheck--muse-closure-2026-10-21)
+- [media-gen cells progress and closures (2026-10-18..21)](#media-gen-cells-progress-and-closures-2026-10-1821)
+- [Spark-X2.6 cell-1 progress note (2026-10-22)](#spark-x26-cell-1-progress-note-2026-10-22)
+- [cybersec vLLM-route progress (2026-10-19/21)](#cybersec-vllm-route-progress-2026-10-1921)
+- [Concurrency-ladder stale census (2026-10-15/18)](#concurrency-ladder-stale-census-2026-10-1518)
+- [Concurrency-ladder corrections (2026-10-18)](#concurrency-ladder-corrections-2026-10-18)
+- [Standard-suite early progress (2026-10-18)](#standard-suite-early-progress-2026-10-18)
+- [Standard-suite tail progress (2026-10-19/20)](#standard-suite-tail-progress-2026-10-1920)
+- [Cluster-config change record (2026-10-24)](#cluster-config-change-record-2026-10-24)
+- [Advisory pass record (2026-10-15)](#advisory-pass-record-2026-10-15)
+- [Board restructure (2026-10-25, 23:20 ET)](#board-restructure-2026-10-25-2320-et)
+- [ornith-toolcall-ohmympi-triage — NO FAILURE REPRODUCED (2026-10-26, window tp4-window4)](#ornith-toolcall-ohmympi-triage--no-failure-reproduced-2026-10-26-window-tp4-window4)
+- [History rewrite record — 2026-10-27 (drain/close closeout)](#history-rewrite-record--2026-10-27-drainclose-closeout)
+- [BeeGFS pool outage + recovery — 2026-10-26 ~19:28 ET (session DSV41F1017-Parity)](#beegfs-pool-outage--recovery--2026-10-26-1928-et-session-dsv41f1017-parity)
+- [Landed rows retired at the 2026-10-27 13:10 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-27-1310-et-board-refresh-session-boundary)
+- [Landed rows retired at the 2026-10-27 14:04 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-27-1404-et-board-refresh-session-boundary)
+- [Landed rows retired at the 2026-10-27 21:04 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-27-2104-et-board-refresh-session-boundary)
+- [Board commit rewritten for address hygiene — 2026-10-27 22:12 ET](#board-commit-rewritten-for-address-hygiene--2026-10-27-2212-et)
+- [Landed rows retired at the 2026-10-28 00:30 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-28-0030-et-board-refresh-session-boundary)
+
 ## Session record
 
 **2026-10-11 wrap (snapshot at 12:41 — superseded by the refresh below):** gate **384 tests OK** (skipped=1); all 23 shipped recipes validate plain; `bash -n` + `py_compile` clean. Independent audit of the day's recipe/mod/test changes: no blockers; all findings fixed (unconsumed `draft_model` removed, README typos, a negative control that proved nothing, stale `NOT boot-verified` prose in two recipe descriptions, raw node IPs masked to the `.34`/`.35` shorthand, plus a new `LiteralShaConsistency` guard). At that snapshot all work was committed and pushed.

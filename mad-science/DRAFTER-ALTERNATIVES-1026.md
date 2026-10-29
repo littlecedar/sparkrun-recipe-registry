@@ -4,6 +4,13 @@ tp4-single, 2026-10-26, window 4. Read-only survey; no boots. Question: beyond t
 already run, what drafter families exist, which are engine-supported in the images we actually pin,
 and which have drafter weights for our checkpoints?
 
+## Contents
+
+- [What our arms run today (the baseline set)](#what-our-arms-run-today-the-baseline-set)
+- [The drafter families the search surfaced](#the-drafter-families-the-search-surfaced)
+- [Concrete next steps (each a separate task, none blocking)](#concrete-next-steps-each-a-separate-task-none-blocking)
+- [Sources](#sources)
+
 ## What our arms run today (the baseline set)
 
 | arm | engine | drafter | status |

@@ -4,6 +4,24 @@ Durable, non-catalogue notes for the `recipes/decision/` lane, moved out of the 
 `README.md` (2026-10-14) so the README speaks to shipped recipes only. The lane's candidate
 research lives beside this file: [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
 
+## Contents
+
+- [From recipes/decision/README.md (2026-10-14)](#from-recipesdecisionreadmemd-2026-10-14)
+- [Verified surfaces (2026-10-11)](#verified-surfaces-2026-10-11)
+- [JEV-9B official score (2026-10-12)](#jev-9b-official-score-2026-10-12)
+- [vllm-srun arms: Kai-0.6B + Sol-2B (2026-10-12)](#vllm-srun-arms-kai-06b--sol-2b-2026-10-12)
+- [CPU+GPU tandem probe (2026-10-13)](#cpugpu-tandem-probe-2026-10-13)
+- [Ensemble productized, and the req/s ladder (2026-10-15)](#ensemble-productized-and-the-reqs-ladder-2026-10-15)
+- [What these models are](#what-these-models-are)
+- [Co-location](#co-location)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+  - [kai-0.6b-decision-vllm-srun.yaml](#kai-06b-decision-vllm-srunyaml)
+  - [clef-flash-decision-sglang.yaml](#clef-flash-decision-sglangyaml)
+  - [jev-9b-decision-vllm.yaml](#jev-9b-decision-vllmyaml)
+- [kev-0.8b and d3-edge (2026-10-18)](#kev-08b-and-d3-edge-2026-10-18)
+  - [kev-0.8b — the serve is healthy, the launch gate cannot pass](#kev-08b--the-serve-is-healthy-the-launch-gate-cannot-pass)
+  - [vllm-sr/d3-edge — two independent image-side blockers, both measured](#vllm-srd3-edge--two-independent-image-side-blockers-both-measured)
+
 ## From recipes/decision/README.md (2026-10-14)
 
 # Decision lane
@@ -15,10 +33,10 @@ is in [`DECISION-MODELS-RESEARCH.md`](DECISION-MODELS-RESEARCH.md).
 
 | recipe | runtime | model | status |
 |---|---|---|---|
-| [`jev-9b-decision-vllm.yaml`](jev-9b-decision-vllm.yaml) | vLLM | [autotrust/JEV-9B][jev] + the `jev-decision` LoRA | **BOOT-VERIFIED 2026-10-11** |
-| [`clef-flash-decision-sglang.yaml`](clef-flash-decision-sglang.yaml) | SGLang | [Cloudflare/clef-flash][clef] | **BOOT-VERIFIED 2026-10-11** |
-| [`kai-0.6b-decision-vllm-srun.yaml`](kai-0.6b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Kai-0.6B][kai] | **BOOT-VERIFIED 2026-10-13** |
-| [`sol-2b-decision-vllm-srun.yaml`](sol-2b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Sol-2B][sol] | **BOOT-VERIFIED 2026-10-13** |
+| [`jev-9b-decision-vllm.yaml`](../../recipes/decision/jev-9b-decision-vllm.yaml) | vLLM | [autotrust/JEV-9B][jev] + the `jev-decision` LoRA | **BOOT-VERIFIED 2026-10-11** |
+| [`clef-flash-decision-sglang.yaml`](../../recipes/decision/clef-flash-decision-sglang.yaml) | SGLang | [Cloudflare/clef-flash][clef] | **BOOT-VERIFIED 2026-10-11** |
+| [`kai-0.6b-decision-vllm-srun.yaml`](../../recipes/decision/kai-0.6b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Kai-0.6B][kai] | **BOOT-VERIFIED 2026-10-13** |
+| [`sol-2b-decision-vllm-srun.yaml`](../../recipes/decision/sol-2b-decision-vllm-srun.yaml) | vllm-srun (CPU) | [vllm-sr/Decision-2.0-Sol-2B][sol] | **BOOT-VERIFIED 2026-10-13** |
 
 ## Verified surfaces (2026-10-11)
 

@@ -44,6 +44,12 @@ which raises `KeyError: 'quantization'` and SIGQUITs the engine during model loa
 Reproduced VERIFIED in `lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c…`
 (branch `qwen4-main-squashed`, HEAD `9b2aee2283`).
 
+## Contents
+
+- [The fix](#the-fix)
+- [What this mod does NOT claim](#what-this-mod-does-not-claim)
+- [Failure mode](#failure-mode)
+
 ## The fix
 
 The model card states there is **no KV-cache quantization metadata**, and we run

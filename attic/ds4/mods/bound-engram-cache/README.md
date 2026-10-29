@@ -12,6 +12,14 @@ applies mods per node).
 | License | AGPL-3.0-or-later (this repo). |
 | Verified against | the shipped reader `mods/mount-dsv41-exl3-patches/files/engram.py`, 2026-09-27 (offline: `--check` → compatible → apply → `already patched`); **and BOOTED live** on 4 Sparks `.32`–`.35` — mod applied, 48/48 weights, ready, KV 4.11M vs 3.97M baseline (noise), `27*43→1161`, ~33 t/s C1. |
 
+## Contents
+
+- [Why it exists — and why it is optional](#why-it-exists--and-why-it-is-optional)
+- [Why a post-patch mod, not an edit to the sibling](#why-a-post-patch-mod-not-an-edit-to-the-sibling)
+- [Mechanics (fail-closed)](#mechanics-fail-closed)
+- [Usage](#usage)
+- [What the patch adds](#what-the-patch-adds)
+
 ## Why it exists — and why it is optional
 
 On GB10 the page cache is the *same* 128 GB pool as the weights and KV. Engram

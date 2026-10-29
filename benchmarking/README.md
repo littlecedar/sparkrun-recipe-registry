@@ -44,6 +44,21 @@ reporting a number, and `--framework pooling-bench` under that category is refus
 
 ---
 
+## Contents
+
+- [Rules that matter more than any individual profile](#rules-that-matter-more-than-any-individual-profile)
+- [Smoke / validation](#smoke--validation)
+- [Paired depth control](#paired-depth-control)
+- [Decode measurement](#decode-measurement)
+- [Capacity / concurrency](#capacity--concurrency)
+- [Pooling ladder (embed / rerank)](#pooling-ladder-embed--rerank)
+- [Batch / max_num_seqs cliff family (qwen4)](#batch--max_num_seqs-cliff-family-qwen4)
+- [Depth-cost / prefill-attribution family (qwen3, 2026-09-21/22)](#depth-cost--prefill-attribution-family-qwen3-2026-09-2122)
+- [Instrumented arms (qwen4 gauges)](#instrumented-arms-qwen4-gauges)
+- [Non-qwen4](#non-qwen4)
+- [Standard external suite (tool-eval-bench)](#standard-external-suite-tool-eval-bench)
+- [Adding a profile](#adding-a-profile)
+
 ## Rules that matter more than any individual profile
 
 Both were learned expensively here.

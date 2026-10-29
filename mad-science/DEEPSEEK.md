@@ -10,6 +10,28 @@ they disagree with this page, and each is cited rather than copied.
 The question this document answers without opening five files: **what these stacks are, what was
 measured, what failed and why, and what is still open.**
 
+## Contents
+
+- [1. Provenance and citation discipline](#1-provenance-and-citation-discipline)
+- [2. The family boundary](#2-the-family-boundary)
+- [3. Stack A — what the knapcio TP=4 stack is](#3-stack-a--what-the-knapcio-tp4-stack-is)
+- [4. Upstream provenance and the post-pin delta (2026-10-10)](#4-upstream-provenance-and-the-post-pin-delta-2026-10-10)
+- [5. Stack A — the image: build, pins, reproducibility](#5-stack-a--the-image-build-pins-reproducibility)
+- [6. Stack A — the launcher, the overlay, and who owns which value](#6-stack-a--the-launcher-the-overlay-and-who-owns-which-value)
+- [7. Stack A — measured: ladders, accuracy, and how to read them](#7-stack-a--measured-ladders-accuracy-and-how-to-read-them)
+- [8. Stack A — what failed, and why](#8-stack-a--what-failed-and-why)
+- [9. Stack A — the 1M prefill-chunk accounting (2026-10-22)](#9-stack-a--the-1m-prefill-chunk-accounting-2026-10-22)
+- [10. The speedup survey (2026-10-19) — candidates, rejects, and the A/B rules](#10-the-speedup-survey-2026-10-19--candidates-rejects-and-the-ab-rules)
+- [11. Stack B — the TensorFold EXL3 TP=2 line](#11-stack-b--the-tensorfold-exl3-tp2-line)
+- [12. TP=2 vs TP=4 — what the data supports](#12-tp2-vs-tp4--what-the-data-supports)
+- [13. The TP=1 byte wall](#13-the-tp1-byte-wall)
+- [14. Open work and open unknowns](#14-open-work-and-open-unknowns)
+- [15. Other artifacts for this model](#15-other-artifacts-for-this-model)
+- [16. Receipts index](#16-receipts-index)
+- [17. A vLLM route to the shipped bar — what exists, what it costs, and the test that settles it (2026-10-23)](#17-a-vllm-route-to-the-shipped-bar--what-exists-what-it-costs-and-the-test-that-settles-it-2026-10-23)
+- [18. The community 1017 repo is our own stack — and the TP_PAD inference it suggested (refuted 2026-10-23, see §18.1)](#18-the-community-1017-repo-is-our-own-stack--and-the-tp_pad-inference-it-suggested-refuted-2026-10-23-see-181)
+- [19. Upstream knapcio adapter update — findings (2026-10-26)](#19-upstream-knapcio-adapter-update--findings-2026-10-26)
+
 ## 1. Provenance and citation discipline
 
 | section | fed by | date / commit |

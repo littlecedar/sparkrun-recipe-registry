@@ -13,6 +13,17 @@ online Hugging Face repo**, so the lane no longer depends on someone having
 copied 189 GiB of checkpoint shards (`model-00047/48-of-00048.safetensors`) into
 the node's HF cache by hand.
 
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What runs](#what-runs)
+- [Knobs](#knobs)
+- [Cost and verified behaviour](#cost-and-verified-behaviour)
+- [Why the mod never blocks (and never fails the launch)](#why-the-mod-never-blocks-and-never-fails-the-launch)
+- [Pre-warming outside the recipe (recommended on slow links)](#pre-warming-outside-the-recipe-recommended-on-slow-links)
+- [Distributing instead of fetching (multi-node / slow links)](#distributing-instead-of-fetching-multi-node--slow-links)
+- [Running it by hand](#running-it-by-hand)
+
 ## Why this exists
 
 The EXL3 conversions carry **no Engram tables** — the quantizer dropped them — while the 1017

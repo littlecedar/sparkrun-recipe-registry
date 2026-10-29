@@ -12,10 +12,11 @@ indexed below. The deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` /
 ## Contents
 
 - [Checkpoints](#checkpoints)
-- [`k2-horizon-0.9b-bf16-sglang`](#k2-horizon-09b-bf16-sglang)
-- [`k2-horizon-0.9b-bf16-uno-sglang`](#k2-horizon-09b-bf16-uno-sglang)
-- [`k2-horizon-7b-fp8-uno-sglang`](#k2-horizon-7b-fp8-uno-sglang)
+- [k2-horizon-0.9b-bf16-sglang](#k2-horizon-09b-bf16-sglang)
+- [k2-horizon-0.9b-bf16-uno-sglang](#k2-horizon-09b-bf16-uno-sglang)
+- [k2-horizon-7b-fp8-uno-sglang](#k2-horizon-7b-fp8-uno-sglang)
 - [Container](#container)
+- [Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)](#engine-bump-to-sglang-0522-executed-2026-10-22--all-three-arms-validated)
 - [Attic index](#attic-index)
 
 ## Checkpoints

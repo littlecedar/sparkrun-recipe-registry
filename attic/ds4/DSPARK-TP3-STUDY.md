@@ -15,6 +15,22 @@ SPECULATIVE.
 
 ---
 
+## Contents
+
+- [1. The question](#1-the-question)
+- [2. Verdict](#2-verdict)
+- [3. Verified facts (the evidence base)](#3-verified-facts-the-evidence-base)
+- [4. Root-cause chain (one paragraph)](#4-root-cause-chain-one-paragraph)
+- [5. Negative result: draft_tensor_parallel_size=1 does NOT work for DSpark](#5-negative-result-draft_tensor_parallel_size1-does-not-work-for-dspark)
+- [6. Why not other designs](#6-why-not-other-designs)
+- [7. The design (what the mod-writing agent should build)](#7-the-design-what-the-mod-writing-agent-should-build)
+- [8. Expected memory and throughput (planning numbers, labelled)](#8-expected-memory-and-throughput-planning-numbers-labelled)
+- [9. Guards to update in the same change](#9-guards-to-update-in-the-same-change)
+- [10. Open questions and risks (ranked)](#10-open-questions-and-risks-ranked)
+- [11. Handoff checklist](#11-handoff-checklist)
+- [12. Implementation record (2026-09-27)](#12-implementation-record-2026-09-27)
+- [13. Evidence index](#13-evidence-index)
+
 ## 1. The question
 
 The TP=3 and TP=6 recipes ship **no-spec**: the DSpark drafter's own dimensions (64

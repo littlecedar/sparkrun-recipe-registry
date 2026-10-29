@@ -7,7 +7,7 @@ new session should read first; it holds the current state, the constraints that 
 (`QWEN4-MODEL-OPTIMIZATION-WORK.md`, git-ignored, `§N` cite-target), the journal (`JOURNAL.md`,
 git-ignored), the status memos (`status/`), and every archived
 recipe arm (`arms/`, with [`ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.md)). See
-[`README.md`](README.md) for the recipe/lane summary.
+[`README.md`](../../recipes/qwen4/README.md) for the recipe/lane summary.
 
 > **Reading order for a new agent:** this file → `README.md` (the recipes) → the lane's
 > `COOP.md` working ledger (git-ignored; claims, locks, node assignment) → the `§N` sections named next to your workstream. Do **not** re-read the
@@ -17,6 +17,26 @@ recipe arm (`arms/`, with [`ARMS-MANIFEST.md`](../../attic/qwen4/ARMS-MANIFEST.m
 > (`VERIFIED` / `LIKELY` / `SPECULATIVE`), a source (`file.py:line`, a bench id, a boot log) or an
 > explicit "unmeasured". A confident unsourced sentence is a defect. See WORK doc §8 (retraction
 > register) before repeating any number from an old section — several were withdrawn.
+
+## Contents
+
+- [1. Mission and current state](#1-mission-and-current-state)
+- [2. Where the evidence lives](#2-where-the-evidence-lives)
+- [3. Hard constraints](#3-hard-constraints)
+- [4. The action plan — parallel workstreams](#4-the-action-plan--parallel-workstreams)
+- [5. Coordination — how agents talk to each other](#5-coordination--how-agents-talk-to-each-other)
+- [6. Runbook](#6-runbook)
+- [7. Traps that cost the most, in one place](#7-traps-that-cost-the-most-in-one-place)
+- [8. Sprawl policy](#8-sprawl-policy)
+- [9. Validation ritual (after every edit)](#9-validation-ritual-after-every-edit)
+- [10. Recipe-comment evidence (moved out of the shipped YAMLs, 2026-10-10)](#10-recipe-comment-evidence-moved-out-of-the-shipped-yamls-2026-10-10)
+- [From recipes/qwen4/README.md (2026-10-14)](#from-recipesqwen4readmemd-2026-10-14)
+- [What was measured, and the cut](#what-was-measured-and-the-cut)
+- [The TP=2 recipe — labquant balanced base (SGLang, 2 nodes)](#the-tp2-recipe--labquant-balanced-base-sglang-2-nodes)
+- [The TP=1 recipe — vLLM solo (1 node)](#the-tp1-recipe--vllm-solo-1-node)
+- [Performance (measured, both survivors)](#performance-measured-both-survivors)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+- [Node clean-up casualty (2026-10-14)](#node-clean-up-casualty-2026-10-14)
 
 ## 1. Mission and current state
 
@@ -35,7 +55,7 @@ TP=2; 1M droppable) the lane ships **one TP=1 and one TP=2 recipe**, both on the
 
 The TP=2 arm was chosen out of three C1-tied labquant arms on the owner's priority order (equal
 speed → memory ↓ / accuracy-safe context); the TP=1 arm wins on priority 1 (node count) despite
-being ~18% slower at C1. **See [`README.md`](README.md) for the cut table, the receipts, and the
+being ~18% slower at C1. **See [`README.md`](../../recipes/qwen4/README.md) for the cut table, the receipts, and the
 lane rationale.** Everything else that used to live here is archived under `../../attic/qwen4/arms/`
 (§8) with a row in `../../attic/qwen4/ARMS-MANIFEST.md`: the two other labquant TP=2 lanes
 (`…-highcon-`, `…-longctx-`), the RadixArk TP=2 reference and its solo SGLang route, the contributor
@@ -291,8 +311,10 @@ convention the `ds4` lane uses.
 - **Naming:** `zz-` prefix is the conventional marker that a recipe exists only to define an arm
   variant, not a shippable recipe. Never ship a `zz-` file.
 - **`benchmarking/*.yaml`** was cleaned to its curated library on 2026-10-04; the 78 single-use
-  experiment arms are archived in [`../../attic/benchmarking/`](../../attic/benchmarking/) with a
-  manifest. A profile whose recipe no longer exists is dead — put it there, not here.
+  experiment arms were archived under `attic/benchmarking/` with a manifest, and that archive was
+  itself deleted from the tree in commit `5acda89` (2026-10-06) — so `attic/benchmarking/` is in git
+  history only: recover a profile with `git show 5acda89^:attic/benchmarking/<name>.yaml`. A profile
+  whose recipe no longer exists is dead — put it there, not here.
 - **Internal IPs never enter the tracked `attic/`.** The record and journal are git-ignored for that
   reason; a working ledger such as `COOP.md` is likewise never tracked.
 - **Condense, do not just delete.** Before moving a file, confirm (a) nothing in `recipes/`,
@@ -670,14 +692,14 @@ benchmark pair with [`benchmarking/decode-triage.yaml`](../../benchmarking/decod
 
 | recipe | nodes | checkpoint | runtime | role |
 |---|---|---|---|---|
-| [`qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`](qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml) | **1** | local-inference-lab | vLLM | TP=1 — one Spark, PLE table streamed from disk (`VLLM_PLE_TABLE_MEMORY=disk`) |
-| [`qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`](qwen3.8-flash-next-nvfp4-labquant-sglang.yaml) | **2** | local-inference-lab | SGLang | TP=2 — the pair, 262k context, the lane's balanced config |
+| [`qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`](../../recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml) | **1** | local-inference-lab | vLLM | TP=1 — one Spark, PLE table streamed from disk (`VLLM_PLE_TABLE_MEMORY=disk`) |
+| [`qwen3.8-flash-next-nvfp4-labquant-sglang.yaml`](../../recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml) | **2** | local-inference-lab | SGLang | TP=2 — the pair, 262k context, the lane's balanced config |
 
 > **This directory runs as a git-distributed artifact.** Read [`AGENTS.md`](AGENTS.md) before editing
 > anything here — it is the condensed operating guide (constraints, traps, runbook, validation
 > ritual). Long-form evidence lives in the lane record,
-> [`../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md`](../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md)
-> (`§N` cite-target, git-ignored).
+> `../../attic/qwen4/QWEN4-MODEL-OPTIMIZATION-WORK.md` (`§N` cite-target; not in the tree — a
+> git-ignored working file, never tracked).
 
 ---
 

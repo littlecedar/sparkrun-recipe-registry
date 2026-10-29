@@ -2,12 +2,19 @@
 
 **One page. State plainly what is done and what is blocked.**
 
+## Contents
+
+- [Verdict: DONE (code) · SMOKED live (main session, 2026-10-04) · BLOCKED (release-grade soak)](#verdict-done-code--smoked-live-main-session-2026-10-04--blocked-release-grade-soak)
+- [Upstream status — VERIFIED 2026-10-04 (API value.state)](#upstream-status--verified-2026-10-04-api-valuestate)
+- [The exact command a cluster operator should run](#the-exact-command-a-cluster-operator-should-run)
+- [Provenance](#provenance)
+
 ## Verdict: DONE (code) · SMOKED live (main session, 2026-10-04) · BLOCKED (release-grade soak)
 
 | deliverable | state | artifact |
 |---|---|---|
-| Correctness soak gate | **DONE / self-tested** | [`tools/gate-37111.py`](../../tools/gate-37111.py) |
-| Design memo (failure mode, toggle ladder, PASS limits, upstream status) | **DONE** | [`tools/gate-37111-design.md`](../../tools/gate-37111-design.md) |
+| Correctness soak gate | **DONE / self-tested** | [`tools/gate-37111.py`](../../../tools/gate-37111.py) |
+| Design memo (failure mode, toggle ladder, PASS limits, upstream status) | **DONE** | [`tools/gate-37111-design.md`](../../../tools/gate-37111-design.md) |
 | Reduced live smoke on a real TP=2 boot | **DONE — PASS** (negative result) | `.scratch/q4/W4-gate-smoke.json` |
 | Full 1–2 h @ ~100k release soak | **STILL OWED** — the 2026-10-18 TP=2 window closed before the shipped-arm boot it was to run on (`.34`/`.35` returned clean, 0 containers) | — |
 

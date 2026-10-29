@@ -8,6 +8,15 @@ measured-but-not-selected arm or a closed-question variant there is clutter and 
 reader, who cannot tell a live recipe from a dead one. See `attic/qwen4/ARMS-MANIFEST.md` for the same
 policy stated at length.
 
+## Contents
+
+- [Selection 2026-10-19 (owner directive)](#selection-2026-10-19-owner-directive)
+- [Why these and not the rest](#why-these-and-not-the-rest)
+- [Unmeasured tiers — recorded, no file to move](#unmeasured-tiers--recorded-no-file-to-move)
+- [Selection history (2026-10-13)](#selection-history-2026-10-13)
+- [Manifest](#manifest)
+- [Archived mods and build files](#archived-mods-and-build-files)
+
 ## Selection 2026-10-19 (owner directive)
 
 **Top candidates are optimized for generation speed, concurrency, accuracy and small size; the rest

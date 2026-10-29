@@ -16,6 +16,17 @@ The image is **vendored**: `littlecedar/dgx-spark-dsv41:canary-roce` on Docker H
 the image by default (its `distribution_config` default is `containers.enabled:
 true`), so the recipe carries no `distribution_config:` block.
 
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [Mechanics (fail-closed)](#mechanics-fail-closed)
+- [The chat template (1017 ships none)](#the-chat-template-1017-ships-none)
+- [Portability (the whole point of the /cache/runtime wiring)](#portability-the-whole-point-of-the-cacheruntime-wiring)
+- [Docker's HEALTHCHECK and the served port](#dockers-healthcheck-and-the-served-port)
+- [PyTorch 2.13 collective-rename warning (silenced)](#pytorch-213-collective-rename-warning-silenced)
+- [The production env lives here, not in the recipe](#the-production-env-lives-here-not-in-the-recipe)
+- [Not in this mod (and why)](#not-in-this-mod-and-why)
+
 ## Why it exists
 
 The image is built from

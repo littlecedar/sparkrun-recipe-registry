@@ -5,6 +5,16 @@ measurement, and the evidence-doc pointers that used to live in
 [`recipes/rerank/README.md`](../../recipes/rerank/README.md). The lane README now speaks
 to the shipped recipes only. Nothing here was edited in the move.
 
+## Contents
+
+- [From recipes/rerank/README.md (2026-10-14)](#from-recipesrerankreadmemd-2026-10-14)
+  - [Retired table shape](#retired-table-shape)
+- [Serving the reranker correctly (client contract)](#serving-the-reranker-correctly-client-contract)
+- [8B reranker (quality tier)](#8b-reranker-quality-tier)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+  - [qwen3-vl-reranker-8b-vllm-b12x.yaml](#qwen3-vl-reranker-8b-vllm-b12xyaml)
+  - [qwen3-vl-reranker-2b-vllm-b12x.yaml](#qwen3-vl-reranker-2b-vllm-b12xyaml)
+
 ## From recipes/rerank/README.md (2026-10-14)
 
 ### Retired table shape

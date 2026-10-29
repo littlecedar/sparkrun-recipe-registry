@@ -9,14 +9,28 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 ## Contents
 
 - [deepseek-v4.1-flash-knapcio-tp4-1m-sglang](#deepseek-v41-flash-knapcio-tp4-1m-sglang)
-  — SGLang, TP=4, official MXFP4/F8 weights, RoCEnante RDMA, native vision.
-- [deepseek-v4.1-flash-tensorfold-tp2-1m-sglang](#deepseek-v41-flash-tensorfold-tp2-1m-sglang)
-  — TensorFold, TP=2, EXL3 2.9 bpw, single-user.
-- [Quality benchmarks](#quality-benchmarks)
-- [Measured: TP=4 ladder and suite](#measured-tp4-ladder-and-suite)
-- [Measured: the v2.4 serve line](#measured-the-v24-serve-line)
+  - [Measured: aff52fa5 parity A/B/C (2026-10-26 evening, quartet .31–.34)](#measured-aff52fa5-parity-abc-2026-10-26-evening-quartet-3134)
+  - [Measured: TP=4 ladder and suite](#measured-tp4-ladder-and-suite)
+  - [Measured: the v2.4 serve line](#measured-the-v24-serve-line)
+  - [Measured: 2026-10-22 live baseline boot (online, scheduler-placed)](#measured-2026-10-22-live-baseline-boot-online-scheduler-placed)
+  - [Measured: the aff52fa5 overlay survey arms (2026-10-26 window 4)](#measured-the-aff52fa5-overlay-survey-arms-2026-10-26-window-4)
+  - [What it serves](#what-it-serves)
+  - [Run it](#run-it)
+  - [Requirements](#requirements)
+  - [Knobs a user cannot infer](#knobs-a-user-cannot-infer)
+  - [A healthy boot](#a-healthy-boot)
+  - [License](#license)
+  - [Launch caveats](#launch-caveats)
 - [The vendored adapter set](#the-vendored-adapter-set)
-  — what the knapcio adapter overlay is, component by component, and what its build gate protects.
+- [deepseek-v4.1-flash-tensorfold-tp2-1m-sglang](#deepseek-v41-flash-tensorfold-tp2-1m-sglang)
+  - [Rebuild](#rebuild)
+  - [What it serves](#what-it-serves-1)
+  - [Run it](#run-it-1)
+  - [Knobs a user cannot infer](#knobs-a-user-cannot-infer-1)
+  - [License](#license-1)
+  - [Launch caveats](#launch-caveats-1)
+- [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
+- [Quality benchmarks](#quality-benchmarks)
 - [Attic index](#attic-index)
 
 ## deepseek-v4.1-flash-knapcio-tp4-1m-sglang

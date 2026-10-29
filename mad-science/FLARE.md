@@ -9,6 +9,22 @@ URL for each handle is in §11.
 **Scope:** what `flare agent` is, what the `gb10` artifact is, why the APT install is not forced by
 container limits, and whether installing it on the fleet should be authorized.
 
+## Contents
+
+- [Status & provenance](#status--provenance)
+- [1. Which "FLARE"](#1-which-flare)
+- [2. What flare agent actually is](#2-what-flare-agent-actually-is)
+- [3. The gb10 package](#3-the-gb10-package)
+- [4. Containerization: possible, and why it is still not the route](#4-containerization-possible-and-why-it-is-still-not-the-route)
+- [5. The authorization ask (two nodes, not four)](#5-the-authorization-ask-two-nodes-not-four)
+- [6. What acceptance grants](#6-what-acceptance-grants)
+- [7. Preconditions before the first apt install](#7-preconditions-before-the-first-apt-install)
+- [8. What a yes buys — and does not](#8-what-a-yes-buys--and-does-not)
+- [9. If the answer is no](#9-if-the-answer-is-no)
+- [10. What would change the recommendation](#10-what-would-change-the-recommendation)
+- [11. Sources](#11-sources)
+- [12. The container route, re-run as the primary option (owner-directed 2026-10-24)](#12-the-container-route-re-run-as-the-primary-option-owner-directed-2026-10-24)
+
 ## Status & provenance
 
 This document replaces two notes that covered the same artifact from different angles — what

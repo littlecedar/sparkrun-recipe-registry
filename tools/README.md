@@ -38,6 +38,30 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `task-queue.py` | the research programme's scheduling (any lane's queued work) | registry-level like `cache-audit.py`: weighs `mad-science/queue.json` by the owner's blocking policy and orders it by model-priority tier; the protocol is `mad-science/QUEUE.md`; guarded by `tests/test_task_queue_tool.py` |
 | `boot-watchdog.py` | every boot on the shared fleet (any lane) | the keep-alive-masks-dead-serve defect (`21e5ec6`): endpoint `/v1/models` + in-container serve-pid liveness + `/proc/<pid>/io` deltas separate *loading* from *dead*, so no session sits on a boot that will never be ready; 2 consecutive dead checks + `--grace` before `sparkrun stop <literal id>`, evidence log, exit 3 = dead+killed / 0 = healthy; guarded by `tests/test_boot_watchdog.py` |
 
+## Contents
+
+- [eval-suite.py (the SOP pass)](#eval-suitepy-the-sop-pass)
+- [safe_text.py](#safe_textpy)
+- [pooling-bench.py](#pooling-benchpy)
+- [plugins/pooling_bench_framework.py](#pluginspooling_bench_frameworkpy)
+- [quality-battery.py](#quality-batterypy)
+- [build-dsv41-engram.py](#build-dsv41-engrampy)
+- [build-dsv41-combined.py](#build-dsv41-combinedpy)
+- [needle-haystack.py](#needle-haystackpy)
+- [gate-37111.py](#gate-37111py)
+- [qwen4-quality-eval.py](#qwen4-quality-evalpy)
+- [jev-decision-bench.py](#jev-decision-benchpy)
+- [decision-tandem.py](#decision-tandempy)
+- [decision-ensemble.py](#decision-ensemblepy)
+- [decision-ladder.py](#decision-ladderpy)
+- [synthetic_png.py](#synthetic_pngpy)
+- [bfcl-eval.py](#bfcl-evalpy)
+- [cache-audit.py](#cache-auditpy)
+- [refresh-sweep.py](#refresh-sweeppy)
+- [diarize-score.py / diarize-fixture.py](#diarize-scorepy--diarize-fixturepy)
+- [enable-io-uring.py / enable-io-uring.sh](#enable-io-uringpy--enable-io-uringsh)
+- [task-queue.py](#task-queuepy)
+
 ## eval-suite.py (the SOP pass)
 
 One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chosen with `--checks`

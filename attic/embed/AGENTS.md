@@ -3,7 +3,18 @@
 Durable guide for `recipes/embed/`. Everything here was cut from `recipes/embed/README.md`
 (2026-10-14) so that README could speak to shipped recipes only. The README carries the
 per-recipe facts (repo id, size, caps, flags, license, client contract) and the
-[attic index](../embed/README.md#attic-index) points here.
+[attic index](../../recipes/embed/README.md#attic-index) points here.
+
+## Contents
+
+- [From recipes/embed/README.md (2026-10-14)](#from-recipesembedreadmemd-2026-10-14)
+  - [Cross-lane facts](#cross-lane-facts)
+  - [b12x block size (both recipes)](#b12x-block-size-both-recipes)
+  - [8B-AWQ encoder (quality tier)](#8b-awq-encoder-quality-tier)
+  - [Retired 8B BF16 tier (measured, never shipped) — owner decision 2026-10-18](#retired-8b-bf16-tier-measured-never-shipped--owner-decision-2026-10-18)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+  - [recipes/embed/qwen3-vl-embedding-2b-vllm-b12x.yaml](#recipesembedqwen3-vl-embedding-2b-vllm-b12xyaml)
+  - [recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml](#recipesembedqwen3-vl-embedding-8b-awq-4bit-vllm-b12xyaml)
 
 ## From recipes/embed/README.md (2026-10-14)
 

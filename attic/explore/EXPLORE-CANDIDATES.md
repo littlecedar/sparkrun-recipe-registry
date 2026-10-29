@@ -9,6 +9,13 @@ GLM 5.3, Ornith 1.5, Qwen3.8-27B and Qwen3.8-Flash-Next — none of those are re
 
 Selection priorities (owner's order): node count ↓, speed ↑, accuracy ↑, memory ↓.
 
+## Contents
+
+- [Ranked candidates](#ranked-candidates)
+- [Per-candidate notes](#per-candidate-notes)
+- [Fit arithmetic note](#fit-arithmetic-note)
+- [What would need an owner decision before recipes](#what-would-need-an-owner-decision-before-recipes)
+
 ## Ranked candidates
 
 | # | Model | Params (total/active) | Quant → size | Nodes | License | DGX-Spark precedent |

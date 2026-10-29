@@ -14,6 +14,15 @@ the fleet-constraints brief drawn from [`DEEPSEEK.md`](DEEPSEEK.md),
 the 1.65T MoE) — a different model from the served DeepSeek-V4.1-Flash (`deepseek_v41`) stack, and
 no figure from this file transfers to it without its own boot.
 
+## Contents
+
+- [1. Architecture brief (all from the base config + cards)](#1-architecture-brief-all-from-the-base-config--cards)
+- [2. The fleet envelope (MEASURED, fleet docs)](#2-the-fleet-envelope-measured-fleet-docs)
+- [3. Fit table — every whole-model artifact](#3-fit-table--every-whole-model-artifact)
+- [4. The llama.cpp multi-node question — answered](#4-the-llamacpp-multi-node-question--answered)
+- [5. Ranked feasibility list](#5-ranked-feasibility-list)
+- [6. Provenance](#6-provenance)
+
 ## 1. Architecture brief (all from the base config + cards)
 
 `deepseek-ai/DeepSeek-V4-Pro-0813` (MIT, ungated; config.json + cards, read 2026-10-24):
@@ -128,11 +137,11 @@ image this fleet pins today, and at an expected heavy throughput penalty.**
    (https://github.com/ggml-org/llama.cpp/blob/master/src/llama-arch.h). The 6block card's pin —
    llama.cpp @ `4ed2b13`, "needs `LLM_ARCH_DEEPSEEK4`; older builds reject `deepseek4`" — is
    satisfied by current master, and the pinned GB10 image's stock arch map already lists
-   `deepseek4` as loadable ([`LLAMACPP-GGUF.md`](LLAMACPP-GGUF.md):58).
+   `deepseek4` as loadable ([`LLAMACPP-GGUF.md`](LLAMACPP-GGUF.md):71).
 3. **But the pinned image cannot do multi-node**: `scitrera/dgx-spark-llama-cpp:b10549-cu131` ships
    `llama-server` only — "`rpc-server` **absent** — the image ships `llama-server` only, so the
    experimental multi-node RPC path cannot be exercised with this tier"
-   ([`LLAMACPP-GGUF.md`](LLAMACPP-GGUF.md):25). Multi-node GGUF therefore costs a **self-built
+   ([`LLAMACPP-GGUF.md`](LLAMACPP-GGUF.md):38). Multi-node GGUF therefore costs a **self-built
    image** (`-DGGML_RPC=ON` + CUDA) — consistent with the standing owner direction to build our own
    containers rather than install third-party packages (`QUESTIONS.md #6`). Until that build
    exists, every llama.cpp arm in this fleet is single-node, which caps it at 103.7 GiB — no

@@ -4,8 +4,8 @@
 the constraints that bite, and the **action plan divided into parallel workstreams** with a
 coordination mechanism. Everything long-form is a `§N` cite-target in the sibling evidence docs.
 
-**Reading order for a new agent:** this file → [`COOP.md`](COOP.md) (live node/bench claims) →
-[`README.md`](README.md) (the shipped recipes, for a human audience) → the `§N` section named next to
+**Reading order for a new agent:** this file → `COOP.md` (removed; never tracked) — live node/bench claims →
+[`README.md`](../../recipes/qwen3/README.md) (the shipped recipes, for a human audience) → the `§N` section named next to
 your workstream. **Do not re-read the WORK/DEPTH docs front-to-back — they are written for targeted
 lookup** and run to 3,300 / 3,800 lines.
 
@@ -15,6 +15,18 @@ from the artifact that decides it) / `LIKELY` / `SPECULATIVE`, with a source (`�
 the docs were retracted** — check a section's retraction banner before quoting it.
 
 ---
+
+## Contents
+
+- [1. Mission and current state](#1-mission-and-current-state)
+- [2. Where the evidence lives](#2-where-the-evidence-lives)
+- [3. Hard constraints and traps](#3-hard-constraints-and-traps)
+- [4. The action plan — parallel workstreams](#4-the-action-plan--parallel-workstreams)
+- [5. Coordination mechanism](#5-coordination-mechanism)
+- [6. Sprawl reduction (secondary task — running log)](#6-sprawl-reduction-secondary-task--running-log)
+- [7. Known drift (fix when touched)](#7-known-drift-fix-when-touched)
+- [8. Validation ritual (after every edit)](#8-validation-ritual-after-every-edit)
+- [9. Open questions — pointer, not a copy](#9-open-questions--pointer-not-a-copy)
 
 ## 1. Mission and current state
 
@@ -124,7 +136,7 @@ experiment has been re-run at 8 boots' cost for lack of a recorded profile name.
 
 ## 5. Coordination mechanism
 
-[`COOP.md`](COOP.md) is the cross-agent ledger. The protocol (full text in that file):
+`COOP.md` (removed; never tracked) is the cross-agent ledger. The protocol (full text in that file):
 
 1. **Claim before you work** — add your agent id + workstream to the ownership table.
 2. **BENCH LOCK** — one line in Live state before launching; remove it when done.
@@ -159,7 +171,7 @@ Done this session:
   identities and `§N` cross-references re-verified after the edit (`doc_check.py`, `doc_arith.py`).
 - Unstaged an accidental `tests/__pycache__/` (18 `.pyc`, unrelated to qwen3) from the shared git
   index — per root `AGENTS.md` `py_compile` leaves untracked `__pycache__/`.
-- Added [`README.md`](README.md) (human/lane summary) and [`NOTES.md`](NOTES.md) (agent entry point).
+- Added [`README.md`](../../recipes/qwen3/README.md) (human/lane summary) and [`NOTES.md`](NOTES.md) (agent entry point).
 
 **What is deliberately retained, not deleted (the docs are the evidence).** `WORK` / `DEPTH-COST` /
 `SSM` / `ANSWERED-QUEUES` are large *on purpose*: they hold the derivation trail, the retraction

@@ -9,8 +9,9 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  DRAFT — never booted, no measurements, not a shipped arm.
-  InternScience/Sage-A1.5-FP8, the vendor's own W8A8 float-quantized export of
+  DRAFT probe — served on `.34` 2026-10-22 and measured-rejected at C1 39.25 t/s
+  (bar 40); not a shipped arm. InternScience/Sage-A1.5-FP8, the vendor's own
+  W8A8 float-quantized export of
   Sage-A1.5 (35.95B-parameter / 3B-active hybrid linear-attention MoE VLM,
   262,144-token window, Apache-2.0) on ONE DGX Spark through SGLang.
   The vision tower stays BF16 (the export's compressed-tensors `ignore` list

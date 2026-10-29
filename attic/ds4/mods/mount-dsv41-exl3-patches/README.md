@@ -10,6 +10,13 @@ per node).
 | License | Repo MIT; the vendored `vllm/`-derived files are `SPDX: Apache-2.0` (vLLM upstream). See `files/` headers. |
 | Verified against | image `littlecedar/dgx-spark-dsv41:exl3a` (probe 2026-09-23: vLLM `0.28.1rc1.dev388+g8a728663c`, `cuda_exl3` 1.0.x) |
 
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [Mechanics (fail-closed)](#mechanics-fail-closed)
+- [Knobs](#knobs)
+- [Caveat](#caveat)
+
 ## Why it exists
 
 The image ships the `deepseek_v4_1` model tree and the `cuda-exl3` plugin, but

@@ -4,6 +4,36 @@ This document explains how the performance figures in the main `README.md` are m
 
 The intended audience is scientific: a reader comfortable with high-school physics or lab practice and basic Python, but not necessarily an expert in GPU inference engines. Where a term has a precise technical meaning, it is defined on first use.
 
+## Contents
+
+- [1. The Philosophy: Measured, Not Modelled](#1-the-philosophy-measured-not-modelled)
+- [2. The Measurement Cell](#2-the-measurement-cell)
+  - [Reading the receipt, not the table](#reading-the-receipt-not-the-table)
+- [3. The Concurrency Ladder: C1, C2, C5, C10](#3-the-concurrency-ladder-c1-c2-c5-c10)
+  - [Flavors of cell in the tables](#flavors-of-cell-in-the-tables)
+- [4. Core Metric Derivations](#4-core-metric-derivations)
+  - [Throughput in tokens per second (t/s)](#throughput-in-tokens-per-second-ts)
+  - [Size in gigabytes (GB)](#size-in-gigabytes-gb)
+  - [Memory utilization (Mem%)](#memory-utilization-mem)
+  - [Tensor parallelism (TP)](#tensor-parallelism-tp)
+  - [Time to first token (TTFT) and prefill speed](#time-to-first-token-ttft-and-prefill-speed)
+- [5. Benchmark Profiles and Instruments](#5-benchmark-profiles-and-instruments)
+  - [5.1 The standard suite: tool-eval-bench](#51-the-standard-suite-tool-eval-bench)
+  - [5.2 The house battery: quality-battery.py](#52-the-house-battery-quality-batterypy)
+  - [5.3 The long-context probe: needle-haystack.py](#53-the-long-context-probe-needle-haystackpy)
+  - [5.4 Tool calling and decision lanes: bfcl-eval.py and decision-ladder.py](#54-tool-calling-and-decision-lanes-bfcl-evalpy-and-decision-ladderpy)
+  - [5.5 Embedding and reranking: pooling-bench.py](#55-embedding-and-reranking-pooling-benchpy)
+  - [5.6 Media lane: the arm's own task rate](#56-media-lane-the-arms-own-task-rate)
+  - [5.7 The SOP pass: eval-suite.py](#57-the-sop-pass-eval-suitepy)
+  - [5.8 The llama-benchy profiles](#58-the-llama-benchy-profiles)
+  - [5.9 The "house" metrics in lane READMEs](#59-the-house-metrics-in-lane-readmes)
+- [6. Provenance and Validation](#6-provenance-and-validation)
+  - [The two-record trap, in full](#the-two-record-trap-in-full)
+  - [Prometheus gauges](#prometheus-gauges)
+- [7. What Each Lane's Columns Mean](#7-what-each-lanes-columns-mean)
+- [8. Reading a Footnote](#8-reading-a-footnote)
+- [9. Validation Checklist Before Quoting a Number](#9-validation-checklist-before-quoting-a-number)
+
 ## 1. The Philosophy: Measured, Not Modelled
 
 Every cell in the README tables represents an actual boot and an actual request sequence. A number is published only after the motivating gate closes on real hardware — "the completion gate" is "is there a boot/run behind it?", not "does the reasoning hold?" A device-free probe is necessary but not sufficient. If no boot or run exists, the cell stays `—`.

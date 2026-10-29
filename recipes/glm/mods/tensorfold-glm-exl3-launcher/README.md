@@ -11,6 +11,16 @@ patches), used by
 | License | AGPL-3.0-or-later (this repo). |
 | Verified | **Not yet booted as a sparkrun recipe.** The engine, checkpoint, drafter and configuration are the ones the lane boot-verified outside sparkrun on `.30`–`.33` 2026-10-13 (`recipes/glm/README.md`, `attic/glm/AGENTS.md`); the recipe path needs a TP=4 window. Boot-deferred claims are listed below. |
 
+## Contents
+
+- [Why it exists](#why-it-exists)
+- [Mechanics](#mechanics)
+- [The shim's three load-bearing behaviours](#the-shims-three-load-bearing-behaviours)
+- [Environment](#environment)
+- [Metrics bridge](#metrics-bridge)
+- [Not in this mod](#not-in-this-mod)
+- [Boot-deferred claims (a TP=4 window settles these)](#boot-deferred-claims-a-tp4-window-settles-these)
+
 ## Why it exists
 
 The upstream launcher
@@ -125,23 +135,11 @@ Two values are rank-local and are **not** in `RECIPE_ENV`:
 
 ## Metrics bridge
 
-The sparkrun monitor scrapes a serve's log for four shapes (`Avg generation throughput: N tokens/s`,
-`Avg prompt throughput: N tokens/s`, `Running: N reqs`, `Waiting: N reqs`). The TensorFold serve logs
-none of them, so the shim runs `tensorfold serve` as a **child** and, on rank 0, hosts a daemon thread
-that reprints this rank's `/metrics` counters in those shapes.
-
-- Gated by `TF_METRICS_BRIDGE` (default on; `0` disables it without a repo edit) and
-  `TF_METRICS_BRIDGE_DEADLINE_S` (default 3600 s for the post-load wait).
-- Fail-open: it never touches the serve, and a counter the body does not carry prints **no line** —
-  never a zero.
-- The first `/metrics` body of a boot prints `metrics bridge: matched [...]`, the evidence that the
-  `tensorfold:*` scrape keys fit that arm's engine image.
-- The two GLM mods carry **bundled copies** of the same block (there is no shared library: sparkrun
-  ships only a mod's own directory). `tests/test_tensorfold_glm_metrics_bridge.py` pins them
-  byte-identical, so a fix must land in both.
-
-Status: shipped, **not yet observed printing on either arm** — the live 3.0bpw boot predates the
-bridge, and this build's `/metrics` names are unverified on the 4bpw patch tree.
+The shim carries the same bundled bridge block as the 3.0bpw mod; its contract —
+`TF_METRICS_BRIDGE` / `TF_METRICS_BRIDGE_DEADLINE_S`, fail-open printing, the first-body `matched [...]`
+evidence line, and the test that pins the two copies byte-identical — is documented once in
+[`../tensorfold-glm53-3bpw-launcher/README.md#metrics-bridge`](../tensorfold-glm53-3bpw-launcher/README.md#metrics-bridge).
+This arm's copy is unobserved: the build's `/metrics` names are unverified on the 4bpw patch tree.
 
 ## Not in this mod
 

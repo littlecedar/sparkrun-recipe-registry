@@ -18,6 +18,24 @@ source. Numbers this note derives are marked "computed here".
 
 ---
 
+## Contents
+
+- [1. The claim, traced](#1-the-claim-traced)
+- [2. Where the gate lives in SGLang (why 4× PCIe SM120 does nothing by default)](#2-where-the-gate-lives-in-sglang-why-4-pcie-sm120-does-nothing-by-default)
+- [3. Why the claim does not transfer to ds4](#3-why-the-claim-does-not-transfer-to-ds4)
+- [4. What is actually load-bearing here (so we price a "5%" correctly)](#4-what-is-actually-load-bearing-here-so-we-price-a-5-correctly)
+- [5. Experiments worth running](#5-experiments-worth-running)
+  - [E1 — Confirm the baseline (no change; do this first)](#e1--confirm-the-baseline-no-change-do-this-first)
+  - [E2 — Re-price the RoCEnante baseline as a control](#e2--re-price-the-rocenante-baseline-as-a-control)
+  - [E3 — Sweep RoCEnante coverage (SGLANG_ROCE_MAX_SIZE) — the actually relevant knob](#e3--sweep-rocenante-coverage-sglang_roce_max_size--the-actually-relevant-knob)
+  - [E4 — Residual broadcast path (the only collectives RoCEnante does not cover)](#e4--residual-broadcast-path-the-only-collectives-rocenante-does-not-cover)
+  - [E5 — Full-RDMA "oneshot" parity check (the transferable idea)](#e5--full-rdma-oneshot-parity-check-the-transferable-idea)
+  - [Explicitly NOT worth doing](#explicitly-not-worth-doing)
+- [6. Traps](#6-traps)
+- [7. Measurement discipline for any "5%" claim on this lane](#7-measurement-discipline-for-any-5-claim-on-this-lane)
+- [8. Provenance and references](#8-provenance-and-references)
+- [9. How to update this doc](#9-how-to-update-this-doc)
+
 ## 1. The claim, traced
 
 - **Origin:** Zach Mueller (Hugging Face), X post 2026-10-03: *"There's a free 5% boost

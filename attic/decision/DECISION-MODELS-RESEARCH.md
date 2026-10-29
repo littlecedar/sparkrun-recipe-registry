@@ -9,6 +9,16 @@ Selection weighting (`mad-science/TODO.md` decisions #11): node count > speed >
 accuracy > memory footprint. Core lane constraint: co-location with the shipped
 embed + rerank 2B pair (and eventually TTS) on ONE GB10 node.
 
+## Contents
+
+- [1. Owner leads — resolution](#1-owner-leads--resolution)
+  - [Lead A — "Cloudflare/Clef": RESOLVES as an open-weight family](#lead-a--cloudflareclef-resolves-as-an-open-weight-family)
+  - [Lead B — "Jev distillations on HF": RESOLVES, asymmetrically](#lead-b--jev-distillations-on-hf-resolves-asymmetrically)
+- [2. Shortlist (8 candidates beyond the leads)](#2-shortlist-8-candidates-beyond-the-leads)
+- [3. Co-location budget (one GB10 node)](#3-co-location-budget-one-gb10-node)
+- [4. Recommended first three recipes](#4-recommended-first-three-recipes)
+- [5. Cross-cutting facts the recipes must handle](#5-cross-cutting-facts-the-recipes-must-handle)
+
 ## 1. Owner leads — resolution
 
 ### Lead A — "Cloudflare/Clef": RESOLVES as an open-weight family

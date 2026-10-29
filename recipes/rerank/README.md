@@ -9,12 +9,10 @@ DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of `recipes/qwen3/` on
 ## Contents
 
 - [Shipped recipes](#shipped-recipes)
-  - [`qwen3-vl-reranker-2b-vllm-b12x`](#qwen3-vl-reranker-2b-vllm-b12x)
-  - [`qwen3-vl-reranker-8b-vllm-b12x`](#qwen3-vl-reranker-8b-vllm-b12x)
+  - [qwen3-vl-reranker-2b-vllm-b12x](#qwen3-vl-reranker-2b-vllm-b12x)
+  - [qwen3-vl-reranker-8b-vllm-b12x](#qwen3-vl-reranker-8b-vllm-b12x)
 - [Pooling endpoints — the client contract](#pooling-endpoints--the-client-contract)
 - [Attic index](#attic-index)
-
-Flags: 🚀 fast (C1 > 50 u/s) · 🌲 lcg_favorite · 👀 vision · 🔃 reranking · 🤏 smol.
 
 ## Shipped recipes
 

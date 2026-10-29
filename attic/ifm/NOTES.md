@@ -4,10 +4,42 @@ Tracked working notes for the IFM K2-Horizon lane. The deep records the lane use
 keep beside this file — git-ignored `K2-*-MODEL-OPTIMIZATION-WORK.md` (the model,
 numbers, derivations) and `K2-*-JOURNAL.md` (dated narrative) — are **absent from this
 tree**; every number that matters has been folded into the sessions below, into
-[`README.md`](README.md) / [`AGENTS.md`](AGENTS.md). The cross-model ledger
+[`recipes/ifm/README.md`](../../recipes/ifm/README.md) / [`AGENTS.md`](AGENTS.md). The cross-model ledger
 (`COOP.md`) is a git-ignored working file, not part of the tree.
 
 **No hostnames or IPs here** — this registry ships to third parties.
+
+## Contents
+
+- [Session 2026-10-08 — first hardware run](#session-2026-10-08--first-hardware-run)
+  - [Decode throughput (t/s) — aggregate tg_throughput.mean](#decode-throughput-ts--aggregate-tg_throughputmean)
+  - [Same cells, per-request (t/s) — tg_req_throughput.mean](#same-cells-per-request-ts--tg_req_throughputmean)
+  - [Accuracy — LOWER BOUNDS, truncated instrument](#accuracy--lower-bounds-truncated-instrument)
+  - [Bench ids](#bench-ids)
+  - [What broke, and what it taught](#what-broke-and-what-it-taught)
+  - [Still open](#still-open)
+  - [Sources — perishable](#sources--perishable)
+- [Session 2026-10-09 — instrument repair, accuracy re-measure, arm sweep](#session-2026-10-09--instrument-repair-accuracy-re-measure-arm-sweep)
+  - [1. The accuracy numbers above were an instrument artifact — now fixed](#1-the-accuracy-numbers-above-were-an-instrument-artifact--now-fixed)
+  - [2. Arm sweep — 0.9B (decode-triage, one boot per arm, same window)](#2-arm-sweep--09b-decode-triage-one-boot-per-arm-same-window)
+  - [3. Arm sweep — 7B-FP8 (decode-triage, one node, same window)](#3-arm-sweep--7b-fp8-decode-triage-one-node-same-window)
+  - [4. Spec-arm accuracy — both arms are lossless](#4-spec-arm-accuracy--both-arms-are-lossless)
+  - [5. Context ceiling and the cuda-graph flag names](#5-context-ceiling-and-the-cuda-graph-flag-names)
+  - [Still open](#still-open-1)
+  - [Sources — perishable](#sources--perishable-1)
+- [Session 2026-10-09 (continued) — the UNO campaign, and UNO promoted](#session-2026-10-09-continued--the-uno-campaign-and-uno-promoted)
+  - [Single-stream — decode-triage (tg=128, 5 runs, c=1), tg_throughput.mean](#single-stream--decode-triage-tg128-5-runs-c1-tg_throughputmean)
+  - [Aggregate — concurrency-sweep (tg=256)](#aggregate--concurrency-sweep-tg256)
+  - [What else the sweep said (all inside the noise floor — not ranked)](#what-else-the-sweep-said-all-inside-the-noise-floor--not-ranked)
+  - [Decision](#decision)
+  - [Still open (this session)](#still-open-this-session)
+  - [Sources](#sources)
+- [Session 2026-10-09 (continued) — the lane consolidated to one 7B recipe](#session-2026-10-09-continued--the-lane-consolidated-to-one-7b-recipe)
+- [Session 2026-10-14 — re-pin to main](#session-2026-10-14--re-pin-to-main)
+- [Session 2026-10-15 — the shipped profile's missing ladder cells](#session-2026-10-15--the-shipped-profiles-missing-ladder-cells)
+- [Session 2026-10-18 — the 36B D2 numerics gate and E6 (fp8-KV, scored)](#session-2026-10-18--the-36b-d2-numerics-gate-and-e6-fp8-kv-scored)
+  - [D2 — PASS, and identical on all three arms](#d2--pass-and-identical-on-all-three-arms)
+  - [E6 — fp8 KV: the pool doubles and quality holds; the throughput claim does NOT](#e6--fp8-kv-the-pool-doubles-and-quality-holds-the-throughput-claim-does-not)
 
 ## Session 2026-10-08 — first hardware run
 

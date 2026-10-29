@@ -27,6 +27,17 @@ same 160-wide table. Per shard:
 | labquant | `…shard_N.weight_scale` | `F8_E4M3` | `[2500012, 10]` | 25 MB |
 | RadixArk | `ngram_embedding.shard_N.weight` | `F8_E4M3` | `[2500012, 160]` | 400 MB |
 
+## Contents
+
+- [The packing contract (VERIFIED empirically, not assumed)](#the-packing-contract-verified-empirically-not-assumed)
+  - [weight_scale_2 — SUPERSEDED. It IS applied, and not applying it broke the model.](#weight_scale_2--superseded-it-is-applied-and-not-applying-it-broke-the-model)
+  - [Why the old probe misled us, stated precisely (and it was not the metric)](#why-the-old-probe-misled-us-stated-precisely-and-it-was-not-the-metric)
+- [What the mod does](#what-the-mod-does)
+- [Why unpack rather than patch the loader](#why-unpack-rather-than-patch-the-loader)
+- [What this mod does NOT claim](#what-this-mod-does-not-claim)
+- [Revision layouts (pinned 7c4f1bc1 vs step-5500 6c01ac37)](#revision-layouts-pinned-7c4f1bc1-vs-step-5500-6c01ac37)
+- [Failure mode](#failure-mode)
+
 ## The packing contract (VERIFIED empirically, not assumed)
 
 Established by comparing labquant's dequantised table against RadixArk's **independent**

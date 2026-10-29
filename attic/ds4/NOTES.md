@@ -1,5 +1,21 @@
 # ds4 work notes
 
+## Contents
+
+- [Combined local HF repo (EXL3 + upstream Engram + prompt) — BUILT](#combined-local-hf-repo-exl3--upstream-engram--prompt--built)
+  - [What ships in it](#what-ships-in-it)
+  - [Why the tables are in engram/, not the root](#why-the-tables-are-in-engram-not-the-root)
+  - [Wiring](#wiring)
+  - [Verified (2026-10-06)](#verified-2026-10-06)
+  - [Boot-verified (2026-10-07, .34/.35) — cold boot from the combined repo](#boot-verified-2026-10-07-3435--cold-boot-from-the-combined-repo)
+  - [Adjacent fixes (2026-10-07, after the boot)](#adjacent-fixes-2026-10-07-after-the-boot)
+- [Engram-from-HF builder (TP=2) — DONE, boot-verified](#engram-from-hf-builder-tp2--done-boot-verified)
+  - [Deliverables](#deliverables)
+  - [Timeout / slow-link changes (this round)](#timeout--slow-link-changes-this-round)
+  - [Distribution (verified mechanism)](#distribution-verified-mechanism)
+  - [Boot verification (2026-10-06, engrams deleted first)](#boot-verification-2026-10-06-engrams-deleted-first)
+  - [Open / notes](#open--notes)
+
 ## Combined local HF repo (EXL3 + upstream Engram + prompt) — BUILT
 
 One local HF repo carrying **everything** the TensorFold TP=2 lane needs, so a

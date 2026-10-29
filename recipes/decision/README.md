@@ -11,39 +11,24 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
 
 ## Contents
 
-- [jev-9b-decision-vllm](#jev-9b-decision-vllm)
-- [clef-flash-decision-sglang](#clef-flash-decision-sglang)
-- [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
-- [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
-- [sol-2b-decision2-gguf-llamacpp](#sol-2b-decision2-gguf-llamacpp)
-- [nox-4b-decision-vllm-srun](#nox-4b-decision-vllm-srun)
-- [kev-0.8b-decision-serve](#kev-0.8b-decision-serve)
-- [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
-- [timestral-209m-forecast-cpu](#timestral-209m-forecast-cpu)
+  - [jev-9b-decision-vllm](#jev-9b-decision-vllm)
+  - [clef-flash-decision-sglang](#clef-flash-decision-sglang)
+  - [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
+  - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
+  - [sol-2b-decision2-gguf-llamacpp](#sol-2b-decision2-gguf-llamacpp)
+  - [nox-4b-decision-vllm-srun](#nox-4b-decision-vllm-srun)
+  - [kev-0.8b-decision-serve](#kev-08b-decision-serve)
+  - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
+  - [timestral-209m-forecast-cpu](#timestral-209m-forecast-cpu)
 - [Operating constraints](#operating-constraints)
-  - [The `vllm-srun` runtime (Kai + Sol)](#the-vllm-srun-runtime-kai--sol)
+  - [The vllm-srun runtime (Kai + Sol)](#the-vllm-srun-runtime-kai--sol)
   - [Served-id caveat](#served-id-caveat)
   - [Co-location budget](#co-location-budget)
 - [The clef + Kai ensemble](#the-clef--kai-ensemble)
-- [A `req/s` ladder, not a `t/s` ladder](#a-reqs-ladder-not-a-ts-ladder)
+  - [Reproduce it](#reproduce-it)
+- [A req/s ladder, not a t/s ladder](#a-reqs-ladder-not-a-ts-ladder)
   - [Concurrency ladder](#concurrency-ladder)
 - [Attic index](#attic-index)
-
-Accuracy on the shared instrument (`tool-eval-bench` v2.8.0, Typed Decisions test split — 400
-cases / 2000 decisions): **clef-flash 70.3% > Nox-4B 67.8% > JEV-9B 67.0% > Sol-2B 55.0% > Kai-0.6B
-47.5%**; the candidate `kev-0.8b` sits below that ranking at **46.0%** and `d3-edge` has no score (their
-sections follow).
-
-One shipped arm sits outside that instrument entirely: `timestral-209m-forecast-cpu` is a
-probabilistic forecaster, not a classifier — it is scored by its own pre-registered
-instrument, not `tool-eval-bench` (section below).
-
-Two measurements sit outside that ranking and have their own sections below: the lane's
-accuracy record is **not** clef-flash alone but the **clef + Kai ensemble at 71.6%** (pooling
-the two arms' per-question distributions — [§The clef + Kai
-ensemble](#the-clef--kai-ensemble)), and the index's C-columns for this lane are `req/s`
-ladders, not decode `t/s` ([§A `req/s` ladder, not a `t/s`
-ladder](#a-reqs-ladder-not-a-ts-ladder)).
 
 ### jev-9b-decision-vllm
 

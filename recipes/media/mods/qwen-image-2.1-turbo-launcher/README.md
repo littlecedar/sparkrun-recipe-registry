@@ -1,7 +1,17 @@
 # qwen-image-2.1-turbo-launcher
 
 Pre-launch mod for the media lane's Qwen-Image-2.1-Turbo arm
-([`recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../../recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
+([`recipes/media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml`](../../qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml)).
+
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What the mod does](#what-the-mod-does)
+- [Version floor](#version-floor)
+- [Server surface](#server-surface)
+  - [Status codes: a 4xx is never a broken serve](#status-codes-a-4xx-is-never-a-broken-serve)
+- [Logs](#logs)
+- [Traps (re-checked in server.py)](#traps-re-checked-in-serverpy)
 
 ## Why this exists
 

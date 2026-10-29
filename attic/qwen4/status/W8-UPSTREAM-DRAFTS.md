@@ -9,6 +9,16 @@
 > date, or our WORK doc `§N` / `file:line`. Upstream state read **2026-10-04** via the public GitHub
 > REST API (unauthenticated).
 
+## Contents
+
+- [Container images cited (read from recipe files)](#container-images-cited-read-from-recipe-files)
+- [Item 1 — issue sgl-project/sglang#37111](#item-1--issue-sgl-projectsglang37111)
+- [Item 2 — issue #38319 (and fix PR #38355)](#item-2--issue-38319-and-fix-pr-38355)
+- [Item 3 — duplicated fastsafetensors PRs: #26597 vs #29717 (+ #29272, #31859, #40065, #32199)](#item-3--duplicated-fastsafetensors-prs-26597-vs-29717--29272-31859-40065-32199)
+- [Item 4 — SM121 GDN decode silently falls back to Triton (no matching upstream item verified in scope)](#item-4--sm121-gdn-decode-silently-falls-back-to-triton-no-matching-upstream-item-verified-in-scope)
+- [Fact bank — SM121 QSA guard worth contributing (candidate (a))](#fact-bank--sm121-qsa-guard-worth-contributing-candidate-a)
+- [Open gaps / unverified assumptions](#open-gaps--unverified-assumptions)
+
 ## Container images cited (read from recipe files)
 
 | fact | value | source |

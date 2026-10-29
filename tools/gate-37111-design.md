@@ -5,6 +5,15 @@ ladder that would localise the two upstream correctness bugs, why each
 discriminator can falsify a hypothesis, and what a PASS does *not* prove.
 Upstream state below was read **2026-10-04** from the GitHub API/HTML.
 
+## Contents
+
+- [1. The claimed failure mode (WORK §14)](#1-the-claimed-failure-mode-work-14)
+- [2. Upstream status — VERIFIED 2026-10-04 (do not re-derive from memory)](#2-upstream-status--verified-2026-10-04-do-not-re-derive-from-memory)
+- [3. The discriminator — why warm-vs-cold falsifies the hypothesis](#3-the-discriminator--why-warm-vs-cold-falsifies-the-hypothesis)
+- [4. The toggle ladder (localise before patching — §14 step 3)](#4-the-toggle-ladder-localise-before-patching--14-step-3)
+- [5. What a PASS proves — and does not](#5-what-a-pass-proves--and-does-not)
+- [6. Run it](#6-run-it)
+
 ## 1. The claimed failure mode (WORK §14)
 
 WORK doc §14, *"Correctness risks that outrank every throughput knob"* (`LIKELY`

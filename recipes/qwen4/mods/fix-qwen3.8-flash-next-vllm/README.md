@@ -3,6 +3,14 @@
 Patches vLLM's `qwen3_8_flash_next` PLE embedding layer so a FP8 PLE checkpoint can be
 served with `VLLM_PLE_FP8_CHECKPOINT=1`.
 
+## Contents
+
+- [What it patches](#what-it-patches)
+- [Why it lives here, not in mods/](#why-it-lives-here-not-in-mods)
+- [Provenance](#provenance)
+- [Repairs made on restore](#repairs-made-on-restore)
+- [Guard](#guard)
+
 ## What it patches
 
 `/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py`,

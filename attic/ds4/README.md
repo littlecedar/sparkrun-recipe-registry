@@ -23,34 +23,9 @@ recipe was chosen for go-live.
 
 ## Contents
 
-The retired **EXL3 / vLLM recipes** (all `runtime: vllm`, container
-`littlecedar/dgx-spark-dsv41:exl3a`, checkpoint
-`bot-lab-21/DeepSeek-V4.1-Flash-EXL3-3.5bpw-Pollard`; all five booted and
-served, measured 2026-09-24/25/26, retuned 2026-09-27):
-
-- `deepseek-v4.1-flash-exl3-tp3-vllm.yaml` — TP=3, 300K context (3 nodes).
-- `deepseek-v4.1-flash-exl3-tp4-vllm.yaml` — TP=4, 300K context (4 nodes).
-- `deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml` — TP=4, 1M context (4 nodes).
-- `deepseek-v4.1-flash-exl3-tp6-vllm.yaml` — TP=6, 300K context (6 nodes).
-- `deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml` — TP=6, 1M context (6 nodes).
-
-The documentation:
-
-- `AGENTS.md` — the former consolidated agent/developer guide for the whole ds4
-  family. Its EXL3/vLLM content is the bulk of it. Cross-cutting sections that
-  are still referenced: the model anatomy (Engram, MXFP4 experts), the
-  residency/memory analysis, the DSpark k-sweep, the SGLang lane section, and
-  the References.
-- `DSPARK-TP3-STUDY.md` — feasibility study for DSpark speculative decoding at
-  TP=3 and TP=6, where the drafter's head and expert counts do not divide the TP
-  degree. Verdict: feasible; implemented and booted 2026-09-27.
-- `MEMORY-RECLAIM-PLAN.md` — host-memory reclaim recommendation. The
-  `instanttensor` question is closed (incompatible with this checkpoint) and
-  cache drops are not a mitigation.
-- `PERF-ISSUES.md` — long-context performance triage of the EXL3 1M arms under
-  `sparkrun benchmark performance --profile spark-arena-v2`. Resolved: the
-  observed collapse is the cost of a cold deep prefill, not decode starvation.
-- `ds4_NOTES.md` — the session working record for the EXL3 lane.
+- [Why it is archived](#why-it-is-archived)
+- [Status](#status)
+- [Restoring a file](#restoring-a-file)
 
 ## Status
 

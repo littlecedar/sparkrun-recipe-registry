@@ -23,6 +23,15 @@ mount owner is inferred from `stat`), `log`/`log_var`/`log_cmd`, and log rotatio
 | `fix-fastsafetensors-tp2-sglang` | Patch SGLang's fastsafetensors reader for multi-node TP: local-rank device selection + release the staged device buffer (`~26.9 GB` on GB10) | cybersec (1), qwen3 (1) |
 | `tensorfold-dsv41-launcher` | Fail-closed pre-launch gate + runtime-cache setup for the TensorFold DSV41 TP=2 shim | ds4 (1), cybersec (1) |
 
+## Contents
+
+- [mod-template](#mod-template)
+- [drop-caches](#drop-caches)
+- [pip-install-fastsafetensors](#pip-install-fastsafetensors)
+- [pip-install-orjson](#pip-install-orjson)
+- [tensorfold-dsv41-launcher](#tensorfold-dsv41-launcher)
+- [Unmounted mods](#unmounted-mods)
+
 ## mod-template
 
 Not a CLI and not a runnable mod — a **scaffold**: copy `mod-template/run.sh` as the starting point for

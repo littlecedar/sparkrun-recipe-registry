@@ -6,18 +6,30 @@ below was booted here — every node held another workstream during the authorin
 phase, so the numbers quoted are prior receipts, not new measurements.
 
 Read [`AGENTS.md`](AGENTS.md) first for the lane's constraints and traps; the
-durable record is [`README.md`](README.md). This file is the *plan*; when a plan
+durable record is [`recipes/ornith/README.md`](../../recipes/ornith/README.md). This file is the *plan*; when a plan
 runs, its result moves into `README.md`/`AGENTS.md` and the entry here is closed.
 
 **No hostnames or addresses in tracked files.** Node shorthand `.30`–`.35` only.
 
 ---
 
+## Contents
+
+- [0. What this session produced](#0-what-this-session-produced)
+- [1. Boot hygiene (applies to every arm below)](#1-boot-hygiene-applies-to-every-arm-below)
+- [2. The 9B arm — BOOTED 2026-10-14 (CLOSED)](#2-the-9b-arm--booted-2026-10-14-closed)
+- [3. Plan A — 35B: first-party DFlash head vs the shipped jzinno DFlash2 — CLOSED 2026-10-14](#3-plan-a--35b-first-party-dflash-head-vs-the-shipped-jzinno-dflash2--closed-2026-10-14)
+- [4. Plan B — 397B: first-party DFlash head vs the checkpoint's MTP head — CLOSED 2026-10-14 (MTP ships)](#4-plan-b--397b-first-party-dflash-head-vs-the-checkpoints-mtp-head--closed-2026-10-14-mtp-ships)
+- [5. Plan C — quality confidence — EXECUTED 2026-10-14 (owner ratifies the bar)](#5-plan-c--quality-confidence--executed-2026-10-14-owner-ratifies-the-bar)
+- [6. Root index (README.md) — the row to add (not edited here)](#6-root-index-readmemd--the-row-to-add-not-edited-here)
+- [7. Open questions (state after the 9B boot)](#7-open-questions-state-after-the-9b-boot)
+- [8. Plan D — the YaRN ~1M arm — BUILT 2026-10-15, GATE RUN 2026-10-18](#8-plan-d--the-yarn-1m-arm--built-2026-10-15-gate-run-2026-10-18)
+
 ## 0. What this session produced
 
 | artifact | state |
 |---|---|
-| [`ornith-1.5-9b-nvfp4-dflash-sglang.yaml`](ornith-1.5-9b-nvfp4-dflash-sglang.yaml) | **booted + measured 2026-10-14** (§2, closed); the draft pin was dropped to make it serve |
+| [`ornith-1.5-9b-nvfp4-dflash-sglang.yaml`](../../recipes/ornith/ornith-1.5-9b-nvfp4-dflash-sglang.yaml) | **booted + measured 2026-10-14** (§2, closed); the draft pin was dropped to make it serve |
 | [`../../tests/test_ornith_recipes.py`](../../tests/test_ornith_recipes.py) | lane guards O1–O4; the lane had none before |
 | plan A — 35B first-party DFlash vs shipped DFlash2 | §3, **executed + closed 2026-10-14** (null; shipped draft pinned) |
 | plan B — 397B DFlash head vs the checkpoint MTP head | §4, ready to execute |
@@ -65,7 +77,7 @@ batches), house battery **37/37** (19/19 + 18/18), and C1 **51.7 / 56.6 t/s** (c
 **59.4 / 54.1 t/s** (warm) at d0 / d8192 — n=5 per cell, decode-phase rows, two
 same-window sweeps on one boot. The numbers, the receipts, and the design rationale (no
 `mamba_*`/`moe_runner_backend`, no honed template, alias spelling, unpinned draft) now
-live in [`README.md`](README.md) §"the small single-Spark arm" and [`AGENTS.md`](AGENTS.md)
+live in [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"the small single-Spark arm" and [`AGENTS.md`](AGENTS.md)
 §1 / §3.12; raw evidence is `~/benchmarks/ornith-9b-20261014/`.
 
 **The one design change the boot forced.** The arm as authored pinned the draft
@@ -104,7 +116,7 @@ stands — the null is the result** (criterion 6). The winner's draft is pinned
 with a `pre_exec` hook seeding its `refs/main` — the pin alone leaves no `refs/` and the offline
 draft-config lookup needs `refs/main`; verified cold (both caches stripped) on `.31`, and the pinned
 boot scored the house battery **37/37**. Result, mechanism, and receipts now live in
-[`README.md`](README.md) §"First-party DFlash head A/B" and [`AGENTS.md`](AGENTS.md) §1 / §3.12;
+[`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"First-party DFlash head A/B" and [`AGENTS.md`](AGENTS.md) §1 / §3.12;
 raw evidence is `~/benchmarks/ornith-dflash-ab-20261014/`.
 
 **The question.** The lane ships the *third-party* draft
@@ -308,7 +320,7 @@ the 9B arm — by
 `~/benchmarks/ornith-horizon-20261014/agentic_horizon_probe.py` (a long-horizon scheduling agent
 with a growing transcript; per-message and session 25-word-window repeat scoring, cross-turn 8-word
 shingle overlap, `finish_reason`), `tools/needle-haystack.py`, and `tools/quality-battery.py`. Full
-method, arm table, and result are in [`README.md`](README.md) §"Long-horizon agentic
+method, arm table, and result are in [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"Long-horizon agentic
 re-investigation (2026-10-14)"; receipts are `~/benchmarks/ornith-horizon-20261014/`.
 
 **Pre-registered experiment set (C1–C5).**
@@ -431,14 +443,14 @@ Still open (Plan B, §4):
 ## 8. Plan D — the YaRN ~1M arm — BUILT 2026-10-15, GATE RUN 2026-10-18
 
 **Booted; the gate is measured and the arm ships for ≤768k with 1M to depth 50 %.** The gate table,
-the d90 ERROR ×2 diagnosis and the four boot grants are in [`README.md`](README.md) §"The YaRN 1M arm"
+the d90 ERROR ×2 diagnosis and the four boot grants are in [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"The YaRN 1M arm"
 and [`AGENTS.md`](AGENTS.md) §9.1; receipts `~/benchmarks/ornith-trials-20261018/` and
 `~/benchmarks/ornith-yarn-1m-20261018/`. `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` —
 the 35B checkpoint (same pin as the sibling, `94e431d9…` = Hub `main`) at the model card's YaRN factor-4.0
 route with `max_model_len: 1000000` and **no DFlash2 draft**. Build record, the card
 quote, the engine citations (`sglang v0.5.18` `configs/model_config.py:819-843`, `:328-336`, `:590`,
 `utils/hf_transformers/config.py:266-275`, `environ.py:298`) and the KV arithmetic:
-[`AGENTS.md`](AGENTS.md) §9. Read [`README.md`](README.md) §"The YaRN 1M arm" for the arm itself.
+[`AGENTS.md`](AGENTS.md) §9. Read [`recipes/ornith/README.md`](../../recipes/ornith/README.md) §"The YaRN 1M arm" for the arm itself.
 
 **The three things that make it a boot and not a flag change:** (1) the YaRN override must nest under
 `text_config.rope_parameters` **and** restate the mrope keys — a flat form is silently ignored, a

@@ -4,6 +4,15 @@ Workstream W3: quality eval for the `local-inference-lab/Qwen3.8-Flash-Next-NVFP
 ("labquant") export (`attic/qwen4/AGENTS.md`, WORK §6 item 5 at lines
 2491–2496). Owner: `sub-q4-w3` (`COOP.md:37`).
 
+## Contents
+
+- [RESULTS — live paired run, 2026-10-04 (added by the main session)](#results--live-paired-run-2026-10-04-added-by-the-main-session)
+- [DONE (off-cluster, this session)](#done-off-cluster-this-session)
+- [BLOCKED — needs the cluster (a live server)](#blocked--needs-the-cluster-a-live-server)
+- [Doc discrepancy found (not silently propagated)](#doc-discrepancy-found-not-silently-propagated)
+- [Not verified (explicitly unmeasured)](#not-verified-explicitly-unmeasured)
+- [Re-run 2026-10-14 — the re-pinned (6c01ac37) survivor, one frozen battery, --repeat 3](#re-run-2026-10-14--the-re-pinned-6c01ac37-survivor-one-frozen-battery---repeat-3)
+
 ## RESULTS — live paired run, 2026-10-04 (added by the main session)
 
 Both arms were booted TP=2 on `.34/.35` and scored with `tools/qwen4-quality-eval.py`

@@ -3,6 +3,20 @@
 Probe: allow SGLang's native **UNO** speculative decoding to use the `fa4`
 attention backend on NVIDIA GB10 (DGX Spark, compute capability 12.1).
 
+## Contents
+
+- [What it changes](#what-it-changes)
+- [Why](#why)
+- [Probe step](#probe-step)
+- [Re-running with a different backend set](#re-running-with-a-different-backend-set)
+- [Permissions](#permissions)
+- [Usage](#usage)
+- [Two lanes, different justifications](#two-lanes-different-justifications)
+- [Knobs](#knobs)
+- [Failure modes, all informative](#failure-modes-all-informative)
+- [Verification](#verification)
+- [Provenance](#provenance)
+
 ## What it changes
 
 One comparison, in `python/sglang/srt/arg_groups/speculative_hook.py`:

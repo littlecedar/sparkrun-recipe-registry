@@ -7,6 +7,13 @@ Every number below is quoted from a tracked doc or receipt listed in the pointer
 is newly measured. Decode rows are per-request t/s unless marked aggregate; house/needle/tools cells
 carry the instrument and its config in the pointer.
 
+## Contents
+
+- [Ladder cells (decode t/s)](#ladder-cells-decode-ts)
+- [Quality / capability cells](#quality--capability-cells)
+- [Reading (grounded in the rows above, no new claims)](#reading-grounded-in-the-rows-above-no-new-claims)
+- [Provenance index](#provenance-index)
+
 ## Ladder cells (decode t/s)
 
 | arm | C1 | C2 | C5 | C10 | receipts |

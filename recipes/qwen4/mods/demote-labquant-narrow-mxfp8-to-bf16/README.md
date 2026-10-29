@@ -8,6 +8,14 @@ BF16, so the server boots at all.
 **Runs after:** `recipes/qwen4/mods/fix-labquant-modelopt-mixed-flat-schema`,
 `recipes/qwen4/mods/unpack-labquant-ple-nvfp4-to-fp8`. **Layers onto:** `/cache/runtime/labq-patched`.
 
+## Contents
+
+- [The blocker](#the-blocker)
+- [Why config alone cannot do it](#why-config-alone-cannot-do-it)
+- [Why the shard bytes must be rewritten too](#why-the-shard-bytes-must-be-rewritten-too)
+- [Exactness, not approximation](#exactness-not-approximation)
+- [Scope, and what it costs](#scope-and-what-it-costs)
+
 ## The blocker
 
 ```

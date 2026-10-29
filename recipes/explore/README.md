@@ -27,15 +27,22 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [ling-3.0-flash-int4-dspark-sglang](#ling-30-flash-int4-dspark-sglang)
 - [kolibri-1-apex-24bpw-llamacpp](#kolibri-1-apex-24bpw-llamacpp)
 - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](#poolside-laguna-xs-21-nvfp4-dflash-vllm)
+- [poolside-laguna-m1-nvfp4-vllm-tp2](#poolside-laguna-m1-nvfp4-vllm-tp2)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
+- [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mmap)
+- [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mtp)
 - [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
+- [zz-spark-x26-main-image-sglang](#zz-spark-x26-main-image-sglang)
 - [spark-x2.6-4b-fp8-sglang](#spark-x26-4b-fp8-sglang)
+- [zz-spark-x2.6-4b-fp8-ngram-sglang](#zz-spark-x26-4b-fp8-ngram-sglang)
+- [zz-spark-x2.6-4b-int8-sglang](#zz-spark-x26-4b-int8-sglang)
 - [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
+- [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
+- [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
+- [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
 - [Attic index](#attic-index)
-
----
 
 ## Easy-traffic selection (2026-10-22)
 
@@ -407,6 +414,9 @@ weights**.
   (`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`); receipt
   `~/benchmarks/mellum-mmap-20261019/`.
   `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).
+  SUPERSEDED 2026-10-29: a maintained copy also stands in this lane
+  (`recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`, updated 2026-10-27 for
+  the `--load-mode none` spelling) and has its own section below.
 - **MTP is measured-rejected across draft lengths (2026-10-22).** The checkpoint's own BF16 MTP head needs
   the stock-upstream `a37cc4610` build (the shipped `b2e5e9b` pin has no `graph_mtp` for `mellum`), so it
   was swept there: `--spec-type draft-mtp --spec-draft-n-max 1…8` gives **103.4 ± 2.8 t/s at `n-max 1`**
@@ -447,6 +457,25 @@ weights**.
 - **License:** Apache-2.0.
 - **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
   suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
+
+## [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml)
+
+llama.cpp · **1 node (TP=1)** · **probe, not shippable — the A side of the GB10 mmap A/B**.
+
+The shipped Q4_K_M Mellum arm with the shipped `--load-mode none` left off, so the GGUF stays mapped
+at llama.cpp's default. What to watch: it exists only to price mmap against the shipped arm, so read
+it as a same-window pair (the verdict and the receipt are in the parent section above) and never as a
+solo number.
+
+## [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp](zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml)
+
+llama.cpp (stock-upstream build) · **1 node (TP=1)** · **probe, not shippable — the MTP draft-length harness**.
+
+The Mellum Q4_K_M arm plus the checkpoint's own MTP head — a full draft model in the same repo, served
+from the pool snapshot — on the upstream build the shipped pin has no `graph_mtp` for. What to watch:
+`-o spec_draft_n_max=<n>` is the knob under test, and the arm is measured-rejected at every draft
+length and quantization tried (parent section); its standing use is the retest harness for the next
+upstream move.
 
 ## [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml)
 
@@ -584,6 +613,16 @@ bar**; both `.30` measurements carry the controller-load caveat, but the control
 the comparison holds. Receipts `head:~/benchmarks/tp4-window3-20261024/`
 (`gate-main-image-launch{,2}.log`, `gate-c1.*`, `gate-full-ladder.*`, `suite-gate-full/`,
 `gate-full-node30-serve.log`), tasks `…_57452cfd0e37` / `…_d250d3ad4a0c`, 0 containers after.
+
+## [zz-spark-x26-main-image-sglang](zz-spark-x26-main-image-sglang.yaml)
+
+SGLang (main-tree build) · **1 node (TP=1)** · **one-off `zz-` boot-gate arm — not shippable**.
+
+The bf16 control with exactly one field moved: the container, to the local main-tree build resident
+on the head. What to watch: it carries no arm of its own — it answers one gate question ("can the main
+line carry our arm shapes?"), so read the verdict, the ladder and the receipts in
+[the main-image gate above](#the-main-image-gate-2026-10-25-window-3--this-arm-is-the-instrument),
+not the recipe.
 
 ## [spark-x2.6-4b-fp8-sglang](spark-x2.6-4b-fp8-sglang.yaml)
 
@@ -768,6 +807,26 @@ candidate. Boot-gate PASSED window 3 (kernel falsifier never fired; record `DEEP
 
 Receipts: `head:~/benchmarks/tp4-window4-20261026/` (preregistrations, per-attempt serve
   logs, ladder/BFCL/needle JSON). TODO item: `mad-science/TODO.md` §Retry queue window 4.
+
+## [zz-sage-a1.5-35b-a3b-fp8-sglang](zz-sage-a1.5-35b-a3b-fp8-sglang.yaml)
+
+SGLang `v0.5.22` · **1 node (TP=1)** · **DRAFT — not in the selection record**.
+
+`InternScience/Sage-A1.5-FP8`, the vendor's W8A8 compressed-tensors export of the 35.95B-A3B hybrid
+linear-attention MoE VLM, at its native 262,144-token window, vision tower left BF16 and the
+in-checkpoint MTP head carried. What to watch: `max_num_seqs: 32` is an **unmeasured admission cap** —
+the granted concurrency is the hybrid state pool, so read `max_mamba_cache_size` out of the serve log
+instead of trusting the literal. The gate plan, the falsifiers and every number this arm has are in
+the `mad-science/TODO.md` item **Probe `InternScience/Sage-A1.5`**.
+
+## [zz-sage-a1.5-35b-a3b-q4km-llamacpp](zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml)
+
+llama.cpp · **1 node (TP=1)** · **DRAFT — the GGUF tier of the same probe, not in the selection record**.
+
+The vendor's own Q4_K_M GGUF of Sage-A1.5 — trunk plus the bundled vision projector, architecture
+`qwen35moe` — on the resident scitrera pin. What to watch: `entrypoint: ""` is load-bearing (the image
+keeps `llama-server` as its ENTRYPOINT, which would swallow sparkrun's appended command), and this arm
+runs **without** speculative decode, so the in-GGUF MTP block is untested here.
 
 ## Attic index
 

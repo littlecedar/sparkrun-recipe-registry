@@ -12,6 +12,19 @@ Provenance keys used below: `[IDX n]` = `README.md` line n;
 Priorities (`mad-science/TODO.md`, order confirmed 2026-10-11): 1. node count ↓,
 2. speed ↑, 3. accuracy ↑, 4. memory footprint ↓.
 
+## Contents
+
+- [Delta 2026-10-11 — facts that moved after the snapshot](#delta-2026-10-11--facts-that-moved-after-the-snapshot)
+- [2026-10-11 session outcomes (selection pass)](#2026-10-11-session-outcomes-selection-pass)
+- [2026-10-14 delta — qwen4 cut to two (owner decision)](#2026-10-14-delta--qwen4-cut-to-two-owner-decision)
+- [ds4 — DeepSeek V4.1-Flash](#ds4--deepseek-v41-flash)
+- [ornith](#ornith)
+- [qwen3 (27B, single-Spark TP=1 all arms)](#qwen3-27b-single-spark-tp1-all-arms)
+- [qwen4 (Qwen3.8-Flash-Next)](#qwen4-qwen38-flash-next)
+- [embed](#embed)
+- [rerank](#rerank)
+- [Cross-lane summary for the Phase 5 live decision](#cross-lane-summary-for-the-phase-5-live-decision)
+
 ## Delta 2026-10-11 — facts that moved after the snapshot
 
 The tables below are the 2026-10-10 snapshot kept verbatim for provenance.
@@ -81,14 +94,11 @@ the `local-inference-lab` export. Five were measured in one window on `.34/.35` 
 the sixth (`…-solo-sglang`) failed readiness there and was re-measured later the same day on `.34`
 (`~/benchmarks/q4-solo-sglang2-triage_1014.*`).
 
-| arm | nodes | C1 d=0 / d=8192 (tok/s) | outcome |
-|---|---|---|---|
-| `…-labquant-sglang` | 2 | 41.32 / 38.58 (pre-pin); 40.32 / 43.29 (re-pinned `6c01ac37`) | **kept — TP=2** |
-| `…-labquant-longctx-sglang` | 2 | 42.47 / 39.04 | attic (1M quality unverified; 1M droppable) |
-| `…-labquant-highcon-sglang` | 2 | 40.10 / 41.92 | attic (C1-tied; larger pool) |
-| `…-nvfp4-sglang` (RadixArk) | 2 | 36.84 / 34.44 | attic (~12% slower) |
-| `…-solo-vllm-b12x` | 1 | 33.92 / 34.35 | **kept — TP=1** |
-| `…-solo-sglang` | 1 | 19.82 ± 2.06 / 20.97 ± 1.02 | attic (~42% below the TP=1 pick; measured after a readiness fix, `bench_253dd84c9a78`) |
+Per-arm node counts, C1 means and kept/attic rows are not repeated here — the canonical arm list owns
+them: [`ARMS-MANIFEST.md` § Wave 4](ARMS-MANIFEST.md#wave-4--production-directory-cut-to-one-tp1--one-tp2-arm-archived-2026-10-14)
+carries this window's decode-phase C1 means (all six arms) and each arm's `why archived` row. The
+re-pinned base's **40.32 ± 1.94 / 43.29 ± 2.68** pair is not in that table: it lives in `AGENTS.md`
+§10.7 and `NOTES.md` of this lane.
 
 This resolves — for qwen4 — the earlier "no attic move was warranted" call under the frozen ranking:
 the frozen table's ranks 1–4 were four arms of one checkpoint, three of them C1-tied, and rank 5 (the

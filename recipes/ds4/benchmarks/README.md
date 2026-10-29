@@ -16,6 +16,22 @@ quality on tasks we care about, relative to the baseline `deepseek`?**
 Endpoint: `http://<head-node>:4000/v1` (OpenAI-compatible;
 only `/v1/chat/completions` is routed — `/v1/completions` returns HTTP 400).
 
+## Contents
+
+- [Headline](#headline)
+  - [Mid-tier result — thinking off, greedy (temperature=0)](#mid-tier-result--thinking-off-greedy-temperature0)
+  - [Sizing the token budget (truncation is not a wrong answer)](#sizing-the-token-budget-truncation-is-not-a-wrong-answer)
+  - [Secondary — thinking on (diagnostic only)](#secondary--thinking-on-diagnostic-only)
+  - [Secondary — latency (same GSM8K run, thinking off)](#secondary--latency-same-gsm8k-run-thinking-off)
+- [Hard benchmark battery](#hard-benchmark-battery)
+  - [Measured result (thinking off, greedy)](#measured-result-thinking-off-greedy)
+  - [Secondary / diagnostic arms](#secondary--diagnostic-arms)
+- [Honest reading — what this does and does not show](#honest-reading--what-this-does-and-does-not-show)
+- [Provenance](#provenance)
+- [Reproduce](#reproduce)
+- [Files](#files)
+  - [A note on the scorer (why rescore.py exists)](#a-note-on-the-scorer-why-rescorepy-exists)
+
 ## Headline
 
 > Across **11 benchmarks and ~1,900 paired items** — GSM8K, ARC, HLE, GPQA
@@ -41,26 +57,11 @@ second, **additive** knob: `--reasoning-effort {default,high,medium,low}`
 (`default` sends no such key). It merges `reasoning_effort` into the same
 `chat_template_kwargs` *alongside* whatever `--thinking` set; it never replaces
 it, because the two models compared here genuinely honour `enable_thinking` and
-that control is what makes the table below a like-for-like comparison.
+that control is what makes the comparison a like-for-like one.
 
-### Sizing the token budget (truncation is not a wrong answer)
-
-A template that always opens a reasoning block spends its first tokens thinking,
-so a cap too small to reach the visible answer records a truncation as a miss.
-The base caps — **house 1024, gsm8k 2048, arc 1024** — are sized for that, and
-`--max-tokens-scale <float>` (default `1.0`) multiplies each of them so a caller
-can size budgets without editing code. Every summary JSON records the
-`reasoning_effort` used, the `finish_reasons` histogram, and an `empty_replies`
-count, which is how a truncation is told apart from a real answer; each
-`_raw/*.jsonl` record carries its effort too, so a resume is self-describing.
-
-| Benchmark | `deepseek` | `deepseek-turbo` | Δ | items |
-|:--|--:|--:|--:|--:|
-| house battery (easy tier) | 19/19 | 19/19 | 0 | 19 |
-| house battery (hard tier) | 17/18 | 17/18 | 0 | 18 |
-| **house battery (total)** | **36/37 = 97.3 %** | **36/37 = 97.3 %** | **+0.0 pp** | 37 |
-| **GSM8K** (0-shot) | **194/200 = 97.0 %** | **197/200 = 98.5 %** | **+1.5 pp** | 200 |
-| **ARC-Challenge** (0-shot) | **186/200 = 93.0 %** | **186/200 = 93.0 %** | **+0.0 pp** | 200 |
+The per-benchmark row for every suite in this directory — scores, Δ, discordant
+count split, McNemar p and verdict — is tabulated once, in
+[`results/RESULTS.md`](results/RESULTS.md).
 
 - **House battery** = [`tools/quality-battery.py`](../../../tools/quality-battery.py),
   imported verbatim (same tasks, same scorer as earlier `ds4` runs). Both models
@@ -73,15 +74,28 @@ count, which is how a truncation is told apart from a real answer; each
 - **ARC-Challenge** = official `allenai/ai2_arc` `ARC-Challenge`/`test`, 200 of
   1172 items (same seed), 0-shot, letter-match.
 
+### Sizing the token budget (truncation is not a wrong answer)
+
+A template that always opens a reasoning block spends its first tokens thinking,
+so a cap too small to reach the visible answer records a truncation as a miss.
+The base caps — **house 1024, gsm8k 2048, arc 1024** — are sized for that, and
+`--max-tokens-scale <float>` (default `1.0`) multiplies each of them so a caller
+can size budgets without editing code. Every summary JSON records the
+`reasoning_effort` used, the `finish_reasons` histogram, and an `empty_replies`
+count, which is how a truncation is told apart from a real answer; each
+`_raw/*.jsonl` record carries its effort too, so a resume is self-describing.
+
 ### Secondary — thinking on (diagnostic only)
 
 Forced `enable_thinking=true`, GSM8K n=60. This is *not* the headline config; it
-exists to show the default-mode divergence and its cost.
+exists to show the default-mode divergence and its cost. Scores are in
+[`results/RESULTS.md`](results/RESULTS.md) (secondary arms, `on.thinkON`); the
+columns here are the diagnostics the primary tables do not carry.
 
-| model | score | empty replies | mean reasoning tokens | mean latency |
-|:--|--:|--:|--:|--:|
-| `deepseek` | 54/60 = 90.0 % | 6 | n/a (`reasoning_tokens` not reported) | 4.4 s |
-| `deepseek-turbo` | 55/60 = 91.7 % | 5 | 184 | 3.2 s |
+| model | empty replies | mean reasoning tokens | mean latency |
+|:--|--:|--:|--:|
+| `deepseek` | 6 | n/a (`reasoning_tokens` not reported) | 4.4 s |
+| `deepseek-turbo` | 5 | 184 | 3.2 s |
 
 Both models score *lower* with thinking on than off on this tier, and both lose
 items to the same failure: multi-step prompts that think past the GSM8K cap
@@ -111,36 +125,29 @@ The hard tier below is built to: **HLE**, **GPQA Diamond**, **MMLU-Pro**,
 quant-vs-official question at the difficulty where a 2.9 bpw quant would show a
 deficit if it had one.
 
-| Benchmark | Harness | Grader | n run | published (unquantised) |
-|:--|:--|:--|--:|:--|
-| HLE (text-only) | `bench_reason.py` | MCQ letter / math_verify / strict text | 200 of 2370 | 36.8 (39.1 text-only) |
-| GPQA Diamond | `bench_reason.py` | letter | 198 (all) | 90.9 |
-| MMLU-Pro | `bench_reason.py` | 10-way letter | 400 of 12032 | 74.1 (base, 5-shot) |
-| MATH-500 | `bench_reason.py` | `math_verify` (symbolic), numeric, text | 200 of 500 | not published (MATH 61.1 base) |
-| AIME 2022-24 | `bench_reason.py` | integer | 90 (all) | AIME 2026 100 (report) |
-| HumanEval | `bench_code.py` | **code execution** (dataset tests) | 164 (all) | 79.4 (base, 0-shot) |
-| MBPP (sanitized) | `bench_code.py` | **code execution** (dataset asserts) | 257 (all) | not published |
+| Benchmark | Harness | Grader | n run |
+|:--|:--|:--|--:|
+| HLE (text-only) | `bench_reason.py` | MCQ letter / math_verify / strict text | 200 of 2370 |
+| GPQA Diamond | `bench_reason.py` | letter | 198 (all) |
+| MMLU-Pro | `bench_reason.py` | 10-way letter | 400 of 12032 |
+| MATH-500 | `bench_reason.py` | `math_verify` (symbolic), numeric, text | 200 of 500 |
+| AIME 2022-24 | `bench_reason.py` | integer | 90 (all) |
+| HumanEval | `bench_code.py` | **code execution** (dataset tests) | 164 (all) |
+| MBPP (sanitized) | `bench_code.py` | **code execution** (dataset asserts) | 257 (all) |
 
-Reference scores are the *unquantised* model's, gathered with sources and
-confidence labels in [`REFERENCE-SCORES.md`](REFERENCE-SCORES.md); they are a
-sanity frame, not an apples-to-apples comparison (different shot counts,
-harnesses, and `reasoning_effort`). The measured numbers for both models are in
-[`results/RESULTS.md`](results/RESULTS.md).
+The published score for each of these benchmarks is tabulated once — with source
+URL, shots, date, and confidence label — in
+[`REFERENCE-SCORES.md`](REFERENCE-SCORES.md); [`results/RESULTS.md`](results/RESULTS.md)
+prints it in a column beside each measured row. Those reference scores are the
+*unquantized* model's, a sanity frame, not an apples-to-apples comparison
+(different shot counts, harnesses, and `reasoning_effort`). The measured numbers
+for both models are in [`results/RESULTS.md`](results/RESULTS.md).
 
 ### Measured result (thinking off, greedy)
 
-| Benchmark | `deepseek` | `deepseek-turbo` | Δ | discordant (ds / turbo) | McNemar p | verdict |
-|:--|--:|--:|--:|:--:|--:|:--|
-| House battery (37) | 36/37 = 97.3% | 36/37 = 97.3% | +0.0 | 0 / 0 | 1.00 | **tie** |
-| GSM8K (200) | 194/200 = 97.0% | 197/200 = 98.5% | +1.5 | 0 / 3 | 0.25 | **tie** |
-| ARC-Challenge (200) | 186/200 = 93.0% | 186/200 = 93.0% | +0.0 | 1 / 1 | 1.00 | **tie** |
-| HLE text-only (200) | 13/200 = 6.5% | 13/200 = 6.5% | +0.0 | 7 / 7 | 1.00 | **tie** |
-| GPQA Diamond (198) | 142/198 = 71.7% | 138/198 = 69.7% | −2.0 | 17 / 13 | 0.58 | **tie** |
-| MMLU-Pro (400) | 328/400 = 82.0% | 321/400 = 80.2% | −1.8 | 13 / 6 | 0.17 | **tie** |
-| MATH-500 (200) | 191/200 = 95.5% | 188/200 = 94.0% | −1.5 | 5 / 2 | 0.45 | **tie** |
-| AIME 2022-24 (90) | 51/90 = 56.7% | 55/90 = 61.1% | +4.4 | 6 / 10 | 0.45 | **tie** |
-| HumanEval (164, exec) | 159/164 = 97.0% | 157/164 = 95.7% | −1.2 | 3 / 1 | 0.62 | **tie** |
-| MBPP (257, exec) | 200/257 = 77.8% | 198/257 = 77.0% | −0.8 | 3 / 1 | 0.62 | **tie** |
+The full ten-row table — scores, Δ, discordant counts, exact McNemar p, verdict,
+and the published reference beside each row — is tabulated once, in
+[`results/RESULTS.md`](results/RESULTS.md).
 
 **Verdict: no benchmark separates the two at any conventional significance
 level.** The largest raw gap is +4.4 pp (AIME, favouring the quantised lane),
@@ -301,8 +308,9 @@ numbers reflect a single sequential driver, not concurrent load.
 | `data/`, `data_code/` | staged datasets (regenerable) |
 | `results/_raw/` | append-only per-item records + run logs (the audit trail) |
 | `results/<model>.<bench>.<thinking>[.<effort>][.<tag>].json` | per-model scored results (what the READMEs quote); `<effort>` appears only when `--reasoning-effort` is not `default`. The model id is slugged (`/`→`_`) for the **filename only**; the raw id is kept in the payload and on the wire |
-| `results/RESULTS.md`, `results/summary_all.json` | the full cross-model comparison with p-values |
-| `results/SUMMARY.md`, `results/summary.json` | the earlier mid-tier-only comparison |
+| `results/RESULTS.md`, `results/summary_all.json` | the full cross-model comparison with p-values — **the single home of this directory's measured score tables** |
+| `results/summary.json` | machine-readable mid-tier comparison (reply-level divergence counts) behind `RESULTS.md` |
+| `results/SUMMARY.md` | tombstone — its tables were merged into `RESULTS.md` on 2026-10-29; `compare_results.py` still emits this path, so a re-run of it restores the duplicate tables |
 
 ### A note on the scorer (why `rescore.py` exists)
 

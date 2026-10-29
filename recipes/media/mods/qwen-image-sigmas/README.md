@@ -6,6 +6,14 @@ lane's Qwen-Image-2.1-Turbo arm. Companion to
 stages the diffusers venv and ships the server) and to the probe recipe
 [`zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml`](../../zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml).
 
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [What the mod does](#what-the-mod-does)
+- [API contract (POST /generate)](#api-contract-post-generate)
+- [Boot check (the falsifier)](#boot-check-the-falsifier)
+- [Logs and paths](#logs-and-paths)
+
 ## Why this exists
 
 The launcher's `/generate` already forwards `num_inference_steps` into

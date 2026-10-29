@@ -4,6 +4,9 @@
 draft strategy to build for the 4× NVIDIA DGX Spark (GB10) cluster.
 **Status:** rewritten 2026-10-10. Supersedes the 2026-09-12 version, which compared only two 753B
 NVFP4 checkpoints and got three load-bearing facts wrong (see [What changed](#what-changed)).
+SUPERSEDED 2026-10-29: shipped state, boot receipts and revision pins are owned by
+[`recipes/glm/README.md`](../../recipes/glm/README.md); this file is the selection research and the
+negative-results record behind those recipes.
 
 **Evidence vocabulary (house rule).** **VERIFIED** — read from a primary artifact (a pinned repo
 file, a live Hub listing, a boot log) or measured. **LIKELY** — strong secondary evidence.
@@ -11,6 +14,20 @@ file, a live Hub listing, a boot log) or measured. **LIKELY** — strong seconda
 an external repo carries a pin; nothing here has been measured on our hardware.
 
 ---
+
+## Contents
+
+- [What changed](#what-changed)
+- [The two model lines](#the-two-model-lines)
+- [The four checkpoints](#the-four-checkpoints)
+- [Topology arithmetic (why node count decides the lane)](#topology-arithmetic-why-node-count-decides-the-lane)
+- [Engines and spec-decode](#engines-and-spec-decode)
+- [Two concrete serving configurations (to write a recipe from)](#two-concrete-serving-configurations-to-write-a-recipe-from)
+- [Recommendations](#recommendations)
+- [Licensing map](#licensing-map)
+- [Platform risks](#platform-risks)
+- [What these sources do not give us (do not infer)](#what-these-sources-do-not-give-us-do-not-infer)
+- [Sources](#sources)
 
 ## What changed
 
@@ -121,6 +138,12 @@ gate** (the reasoning gate is sampling-sensitive and explicitly not attributable
 | 8-node full 753B NVFP4 | incoai or RadixArk @ TP8 | vendor-published topology; no GB10 measurement exists |
 | Commercial use, clean license | Flash line (MIT) with **MTP/EAGLE**, not DFlash2 | DFlash2 is CC BY-NC-ND |
 
+SUPERSEDED 2026-10-29: the "today-shippable" pick did not hold — the Flash NVFP4 vLLM arm was
+ARCHIVED 2026-10-13 as a proven-negative on the pinned public image, and the two shipped 4-node arms
+are TensorFold EXL3 lines (Flash 4bpw, full 753B 3.0bpw). Shipped status, receipts and pins:
+[`recipes/glm/README.md`](../../recipes/glm/README.md); archived arm:
+[`ARMS-MANIFEST.md`](ARMS-MANIFEST.md).
+
 **What we can and cannot ship:** the Flash vLLM lane's image blocker is CLOSED — **2026-10-11: `vllm/vllm-openai:glm53-flash`
 exists on Docker Hub** (pushed 2026-09-09; amd64 digest `sha256:0674a3ea3c971706cea310bca71daadff68ea1717c758d2f54affa5def001b86`,
 8.7 GB; verified via the Hub v2 registry API). Pin the recipe as
@@ -128,6 +151,10 @@ exists on Docker Hub** (pushed 2026-09-09; amd64 digest `sha256:0674a3ea3c971706
 The EXL3 lane's engine is an **unreleased fork branch** (`glm-dsa-tp4` @ `ddfad35`, TensorFold 0.6.0) —
 it needs a source image build before a recipe can ship; the owner is unaware of any existing builds
 (2026-10-11).
+SUPERSEDED 2026-10-29: both EXL3 engines are built, pushed and pinned by a shipped recipe — the 3.0bpw
+fork image `littlecedar/dgx-spark-tensorfold-glm53-exl3-3bpw:0.6.0-ddfad35` and the Flash 4bpw upstream
+`tp4` build `ghcr.io/miaai-lab/…@sha256:eb17e092…`; digests and boot receipts:
+[`recipes/glm/README.md`](../../recipes/glm/README.md).
 
 **Guard constraints for any GLM recipe here** (ds4 lane precedent, `attic/ds4/AGENTS.md` §6, guarded
 by `tests/test_ds4_recipes.py`): no host device names in `env` (`NCCL_IB_HCA`, `NCCL_SOCKET_IFNAME`);
@@ -153,8 +180,13 @@ default `NCCL_IB_GID_INDEX=5` must **not** be copied.
 ## Platform risks
 
 - Flash lane: reference image has **no public digest** → not byte-reproducible yet.
+  SUPERSEDED 2026-10-29: the digest is public (`sha256:0674a3ea…`, above) and that NVFP4 lane is
+  archived; the shipped Flash arm is the EXL3 4bpw TensorFold line.
 - EXL3 lane: engine pinned to an **unreleased fork branch** (`glm-dsa-tp4`) → maintenance/pin risk;
   cold-boot time unpublished (our DSV41 TensorFold lane boots ~511 s cold).
+  SUPERSEDED 2026-10-29: cold boot is published — **309.6 s** TTR for the Flash 4bpw recipe
+  (2026-10-18) and **2538.9 s** port-open for the 3.0bpw recipe (window 3, 2026-10-25); the fork
+  image is digest-pinned, so the residual risk is a re-push, not an unpinned branch.
 - Thermals: repo A saw **86 °C** on one node in the 1M config — airflow matters.
 - Repo B ships **eager** execution; our own ds4 measurement recorded eager at a ~4× decode penalty
   with graphs working, and repo A's engine precaptures 50 CUDA graphs for that reason. Treat "eager"
@@ -171,6 +203,12 @@ default `NCCL_IB_GID_INDEX=5` must **not** be copied.
 - **No EXL3-vs-NVFP4 head-to-head on the same hardware** — any "EXL3 is better/smaller" claim is
   inference from size, not a measurement.
 - **No guard suite and no recipe** exist for this lane yet; this file is research only.
+
+SUPERSEDED 2026-10-29: those two bullets are closed — both shipped arms cold-boot (309.6 s / 2538.9 s,
+above) and carry recipes, launch mods and shim guard tests
+(`tests/test_glm_launcher_shim.py`, `tests/test_glm_3bpw_shim.py`); state and receipts:
+[`recipes/glm/README.md`](../../recipes/glm/README.md). The NVFP4-on-GB10 gap and the
+EXL3-vs-NVFP4 head-to-head stand.
 
 ---
 

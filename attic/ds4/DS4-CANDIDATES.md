@@ -13,6 +13,15 @@ a primary artifact or measured on GB10; **LIKELY** = strong secondary evidence o
 measurement; **SPECULATIVE** = reasoning without a source. Hub card claims are treated as **LIKELY**
 until a file census or boot confirms them.
 
+## Contents
+
+- [1. The fit frame](#1-the-fit-frame)
+- [2. Candidates](#2-candidates)
+- [3. Screened, not candidates (post-2026-10-17 Hub sweep, one line each)](#3-screened-not-candidates-post-2026-10-17-hub-sweep-one-line-each)
+- [4. Ranked recommendation — top 3 to boot-test in the next window](#4-ranked-recommendation--top-3-to-boot-test-in-the-next-window)
+- [5. Settled-negative — falsified variants (do not re-propose)](#5-settled-negative--falsified-variants-do-not-re-propose)
+- [6. Method and limits](#6-method-and-limits)
+
 ## 1. The fit frame
 
 | anchor | value | provenance |

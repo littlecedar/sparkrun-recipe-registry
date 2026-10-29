@@ -20,6 +20,13 @@ which is the maintained guide and holds the distilled findings.
 > masked before archiving (`[.NN]` node shorthand, `/home/<operator>/…`); the full addresses live in
 > the untracked `.local/CONFIDENTIAL.md`.
 
+## Contents
+
+- [Recipes](#recipes)
+- [Mods](#mods)
+- [Research record (§N cite-targets; section numbers were not renumbered)](#research-record-n-cite-targets-section-numbers-were-not-renumbered)
+- [Benchmarking profiles archived with the lane (2026-10-15)](#benchmarking-profiles-archived-with-the-lane-2026-10-15)
+
 ## Recipes
 
 | file | why archived | where its facts now live |

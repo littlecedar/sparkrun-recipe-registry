@@ -4,6 +4,15 @@ Workstream W3 (`attic/qwen4/AGENTS.md`, WORK §6 item 5).
 Artifact under this memo: `tools/qwen4-quality-eval.py` (fixed 38-task battery).
 Every claim carries a provenance label; an unsourced sentence is a defect.
 
+## Contents
+
+- [1. What the eval measures](#1-what-the-eval-measures)
+- [2. What the eval CANNOT conclude](#2-what-the-eval-cannot-conclude)
+- [3. Exact A/B protocol (pre-registered)](#3-exact-ab-protocol-pre-registered)
+- [4. Sample size for a paired exact-match comparison](#4-sample-size-for-a-paired-exact-match-comparison)
+- [5. Pre-registered decision rule (fixed before any data)](#5-pre-registered-decision-rule-fixed-before-any-data)
+- [6. Standing](#6-standing)
+
 ## 1. What the eval measures
 
 - Exact-match accuracy on a **fixed, version-controlled 38-task battery** at

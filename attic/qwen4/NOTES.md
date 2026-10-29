@@ -2,13 +2,23 @@
 
 **Purpose.** A one-page, kept-current state-of-play for `../../recipes/qwen4`. This is the *working* note
 — short, revised often, never a second research record. Durable guidance is in
-[`AGENTS.md`](AGENTS.md); the public-facing summary is [`README.md`](README.md); the lane's archive
+[`AGENTS.md`](AGENTS.md); the public-facing summary is [`README.md`](../../recipes/qwen4/README.md); the lane's archive
 (evidence, journal) is [`../../attic/qwen4/`](../../attic/qwen4/)
 (`QWEN4-MODEL-OPTIMIZATION-WORK.md` `§N`, `JOURNAL.md`, `status/`, `arms/`; the `COOP.md`
 ledger is a git-ignored working file, removed from git 2026-10-10).
 **If it is long, it is in the wrong file.**
 
 _Last condensed: 2026-10-04 (session 3 — lane harvest)._
+
+## Contents
+
+- [State in five lines](#state-in-five-lines)
+- [Session 2026-10-04 (3) — lane harvest, in brief](#session-2026-10-04-3--lane-harvest-in-brief)
+- [What a new session should do first](#what-a-new-session-should-do-first)
+- [Next checks, cheapest first](#next-checks-cheapest-first)
+- [Open questions, with the discriminating arm](#open-questions-with-the-discriminating-arm)
+- [Do-not-re-derive (the short list)](#do-not-re-derive-the-short-list)
+- [Hygiene / standing](#hygiene--standing)
 
 ## State in five lines
 

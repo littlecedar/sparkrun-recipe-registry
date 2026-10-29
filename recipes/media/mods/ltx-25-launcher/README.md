@@ -1,12 +1,22 @@
 # ltx-25-launcher
 
 Pre-launch mod + launcher server for the LTX-2.5 T2V arm
-([`recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`](../../../recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)).
+([`recipes/media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml`](../../ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml)).
 **Booted 2026-10-21 on `.35`**: the cold stage (ComfyUI + venv + 36.9 GB of gated
 weights) completed inside the port budget, `/v1/models` answered, and the T2V cell
 landed at 100.13 s cold / 78.1 s warm, peak 84.00 / 83.45 GiB — the runbook's own
 cells (100.3 / 78.1 s, 83.6 GiB). Receipt `~/benchmarks/ltx25-recipe-20261021/`;
 the arm's measured provenance is [`recipes/media/ltx-2.5-runbook/`](../../ltx-2.5-runbook/).
+
+## Contents
+
+- [Why this exists](#why-this-exists)
+- [The unit that is pinned](#the-unit-that-is-pinned)
+- [Two-phase staging (why it is detached)](#two-phase-staging-why-it-is-detached)
+- [Gated weights: the exact prerequisite](#gated-weights-the-exact-prerequisite)
+- [Server surface](#server-surface)
+- [Operational notes](#operational-notes)
+- [Checks](#checks)
 
 ## Why this exists
 

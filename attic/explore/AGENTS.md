@@ -5,6 +5,43 @@ the `explore` lane — everything that is not a shipped recipe. The shipped reci
 directory's index) are documented in
 [`recipes/explore/README.md`](../../recipes/explore/README.md).
 
+## Contents
+
+- [From recipes/explore/README.md (2026-10-14)](#from-recipesexplorereadmemd-2026-10-14)
+- [Measured](#measured)
+  - [Ling-3.0-flash-int4 (2026-10-11)](#ling-30-flash-int4-2026-10-11)
+  - [Ling-3.0-flash-int4 — 262k closure (2026-10-12)](#ling-30-flash-int4--262k-closure-2026-10-12)
+  - [Ling-3.0-flash-int4 — served-id fix (2026-10-13)](#ling-30-flash-int4--served-id-fix-2026-10-13)
+  - [Ling-3.0-flash-int4 — draft re-pin (2026-10-14)](#ling-30-flash-int4--draft-re-pin-2026-10-14)
+  - [Nemotron-3.5-Lightning — 1M-context arm (2026-10-12)](#nemotron-35-lightning--1m-context-arm-2026-10-12)
+  - [Kolibri-1 (2026-10-12)](#kolibri-1-2026-10-12)
+  - [Kolibri-1 — re-pin to 258cae8f (2026-10-14)](#kolibri-1--re-pin-to-258cae8f-2026-10-14)
+  - [humanizer-12b-vllm — text-rewriting arm (2026-10-14)](#humanizer-12b-vllm--text-rewriting-arm-2026-10-14)
+  - [Poolside Laguna-XS-2.1-NVFP4 + DFlash (2026-10-14)](#poolside-laguna-xs-21-nvfp4--dflash-2026-10-14)
+  - [Poolside Laguna-S-2.1-NVFP4 + DFlash (2026-10-14)](#poolside-laguna-s-21-nvfp4--dflash-2026-10-14)
+  - [Qwen-Image-2.1-Turbo — media-gen arm (2026-10-14)](#qwen-image-21-turbo--media-gen-arm-2026-10-14)
+  - [LTX-2.5 — media-gen runbook (2026-10-14)](#ltx-25--media-gen-runbook-2026-10-14)
+  - [LTX-2.5 — the three unrun cells + the expander defects (2026-10-18)](#ltx-25--the-three-unrun-cells--the-expander-defects-2026-10-18)
+  - [Mellum2.1-12B-A2.5B-Thinking — boot-verified 2026-10-15](#mellum21-12b-a25b-thinking--boot-verified-2026-10-15)
+  - [Muse-Glimmer-30B NVFP4 + DFlash — boot-verified 2026-10-21, NOT selected](#muse-glimmer-30b-nvfp4--dflash--boot-verified-2026-10-21-not-selected)
+  - [Muse-Glimmer-30B bf16 control — 2026-10-21, the checkpoint is at fault](#muse-glimmer-30b-bf16-control--2026-10-21-the-checkpoint-is-at-fault)
+- [Engine bump — vLLM 0.30.0 (2026-10-16)](#engine-bump--vllm-0300-2026-10-16)
+- [Engine bump — upstream llama.cpp (2026-10-22)](#engine-bump--upstream-llamacpp-2026-10-22)
+  - [Measured on .34, 2026-10-22 — the 9df0b73c7 tree decodes 12× slower; a37cc4610 is healthy](#measured-on-34-2026-10-22--the-9df0b73c7-tree-decodes-12-slower-a37cc4610-is-healthy)
+  - [The draft-length sweep — the rejection holds as a curve, and it was never the shipped engine (2026-10-22, same day)](#the-draft-length-sweep--the-rejection-holds-as-a-curve-and-it-was-never-the-shipped-engine-2026-10-22-same-day)
+  - [The n=1 retest on a current engine (2026-10-26, tp4-single, window 4)](#the-n1-retest-on-a-current-engine-2026-10-26-tp4-single-window-4)
+  - [The ref floor moved to a37cc4610, and why (same day)](#the-ref-floor-moved-to-a37cc4610-and-why-same-day)
+- [Selection (2026-10-13)](#selection-2026-10-13)
+- [Serving and measurement traps this lane hit (traps 1–4 are fixed in the recipe)](#serving-and-measurement-traps-this-lane-hit-traps-14-are-fixed-in-the-recipe)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+  - [qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml](#qwen-image-21-turbo-7b-bf16-diffusers-scriptyaml)
+  - [poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml](#poolside-laguna-s-21-nvfp4-dflash-vllmyaml)
+  - [kolibri-1-78b-fp8-vllm.yaml](#kolibri-1-78b-fp8-vllmyaml)
+  - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml](#poolside-laguna-xs-21-nvfp4-dflash-vllmyaml)
+  - [humanizer-12b-vllm.yaml](#humanizer-12b-vllmyaml)
+  - [ling-3.0-flash-int4-dspark-sglang.yaml](#ling-30-flash-int4-dspark-sglangyaml)
+  - [2026-10-26 spares-lane closure note (Mellum levers 2/5, fill-item reproductions)](#2026-10-26-spares-lane-closure-note-mellum-levers-25-fill-item-reproductions)
+
 ## From recipes/explore/README.md (2026-10-14)
 
 # Explore lane
@@ -21,7 +58,7 @@ four and moved the rest to the attic). Full candidate research — 8 families, f
 | recipe | runtime | model | nodes | C1 t/s | status |
 |---|---|---|---|---|---|
 | [`ling-3.0-flash-int4-dspark-sglang.yaml`](../../recipes/explore/ling-3.0-flash-int4-dspark-sglang.yaml) | SGLang | [inclusionAI/Ling-3.0-flash-int4][ling] + [DSpark draft][lingd] (draft pinned `d60b0e12`) | 1 | **45.5** | **BOOT-VERIFIED 2026-10-11** (quality 37/37; 262k needle-verified at 0.80) — **KEPT (rank 1, accuracy)**; draft re-pinned 2026-10-14 (re-verified 54.7 t/s, 37/37) |
-| [`kolibri-1-78b-fp8-vllm.yaml`](../../recipes/explore/kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] (pinned `258cae8f`) | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via the plugin mod) — **KEPT (rank 2, near-tie accuracy; smaller + faster)**; re-pinned 2026-10-14 (re-verified 47.4 t/s, 37/37 @4096) |
+| [`kolibri-1-78b-fp8-vllm.yaml`](../../attic/explore/kolibri-1-78b-fp8-vllm.yaml) | vLLM 0.29 + plugin | [Aleph-Alpha/Kolibri-1][kol] (pinned `258cae8f`) | 1 | **47.3** | **BOOT-VERIFIED 2026-10-12** (quality 36/37 @4096; `kolibri1` parsers via the plugin mod) — **KEPT (rank 2, near-tie accuracy; smaller + faster)**; re-pinned 2026-10-14 (re-verified 47.4 t/s, 37/37 @4096) |
 
 **Archived 2026-10-13** (measured but not selected; manifest [`attic/explore/ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)):
 [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) and
@@ -179,8 +216,8 @@ free and swaps".
 
 ### Kolibri-1 (2026-10-12)
 
-New recipe [`kolibri-1-78b-fp8-vllm.yaml`](../../recipes/explore/kolibri-1-78b-fp8-vllm.yaml) +
-[`recipes/explore/mods/install-kolibri-plugin`](../../recipes/explore/mods/install-kolibri-plugin): the vendor's
+New recipe [`kolibri-1-78b-fp8-vllm.yaml`](../../attic/explore/kolibri-1-78b-fp8-vllm.yaml) +
+[`attic/explore/mods/install-kolibri-plugin`](../../attic/explore/mods/install-kolibri-plugin): the vendor's
 own container image is amd64-only, so the recipe serves on the **stock
 multi-arch `vllm/vllm-openai:v0.29.0`** (digest-pinned) with Aleph Alpha's
 pure-Python plugin installed by a sparkrun mod
@@ -241,7 +278,7 @@ import/entry-point failure and is idempotent via a content marker).
 - **Boot (node .30, 2026-10-14)**: task `2d49ec39cad5a528_2d38dfc4605e`, clean; TTR port-open
   **611.1 s** (HTTP-ready 611.1 s), weight load 500.0 s (73.48 GiB), KV pool at util 0.78
   **18.99 GiB → 1,859,922 tokens**. `GET /v1/models` → `Aleph-Alpha/Kolibri-1` (262144 ctx).
-- **Plugin mod re-confirmed on the re-pinned revision**: `recipes/explore/mods/install-kolibri-plugin` installed
+- **Plugin mod re-confirmed on the re-pinned revision**: `attic/explore/mods/install-kolibri-plugin` installed
   `aleph-alpha-inference==1.0.0` and its live import + entry-point gate passed
   (`plugin OK: ['aleph_alpha_inference', …]`); the strict gate re-runs the install on every boot,
   so the 2026-10-13 stale-marker defect does not recur. `kolibri1` parsers re-verified end-to-end:
@@ -379,7 +416,7 @@ ladder with the template's thinking-off default and scored lower but ordered ide
 
 ### Poolside Laguna-S-2.1-NVFP4 + DFlash (2026-10-14)
 
-New recipe [`poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml`](../../recipes/explore/poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
+New recipe [`poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml`](../../attic/explore/poolside-laguna-s-2.1-nvfp4-dflash-vllm.yaml)
 — the queued rank-2 Poolside arm (research doc §5): `poolside/Laguna-S-2.1-NVFP4` (117.6B total / 8.5B
 active MoE, 256 experts, 3:1 SWA, native 1,048,576 context, OpenMDW-1.1) on ONE Spark (TP=1) with the
 quantization-matched `poolside/Laguna-S-2.1-DFlash-NVFP4` draft (2.2 GB BF16). Same digest-pinned
@@ -556,7 +593,7 @@ untouched):
 
 - **Owner-added, outside the ranking**: the `JetBrains/mellum21` collection was added to this lane
   directly (2026-10-15), so this arm has no §1 shortlist row and no selection record. Recipe:
-  [`mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../recipes/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
+  [`mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml`](../../attic/explore/mellum2.1-12b-a2.5b-bf16-thinking-vllm.yaml).
 - Pin `92ddae9fc7665e9f801d141d2e5a6b2caf2460c4` (`main`, 2026-10-07; ungated, Apache-2.0); 12B/2.5B-active
   MoE, 131,072 ctx, 24.3 GB bf16, TP=1, `gpu_memory_utilization: 0.55` (headroom choice — since measured: the arm scales cleanly to c10).
 - **No mod needed**: vLLM 0.29 ships `MellumForCausalLM` (a Qwen3-MoE subclass with per-layer sliding

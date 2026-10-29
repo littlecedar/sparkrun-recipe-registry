@@ -3,6 +3,17 @@
 Fetch and verify the `IFM/K2-Horizon-7B-Uno` conditional-LoRA adapter at a fixed
 in-container path, so a recipe can pass it to `--uno-lora-path`.
 
+## Contents
+
+- [Why a mod is needed at all](#why-a-mod-is-needed-at-all)
+- [Why not the HF cache](#why-not-the-hf-cache)
+- [Pinned artifact](#pinned-artifact)
+- [Behaviour](#behaviour)
+- [Why adapter_config.json is mandatory](#why-adapter_configjson-is-mandatory)
+- [Knobs](#knobs)
+- [Ordering](#ordering)
+- [Provenance](#provenance)
+
 ## Why a mod is needed at all
 
 A recipe distributes exactly **one** artifact: its `model:` field. SGLang's native

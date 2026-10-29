@@ -31,6 +31,48 @@ Never promote a `LIKELY` into an unlabelled fact.
 
 ---
 
+## Contents
+
+- [1. Objective coverage](#1-objective-coverage)
+- [2. The model](#2-the-model)
+- [3. The residency wall (load-bearing)](#3-the-residency-wall-load-bearing)
+- [4. Roofline and the decode model](#4-roofline-and-the-decode-model)
+- [5. The Engram-on-disk mod — the one non-negotiable piece](#5-the-engram-on-disk-mod--the-one-non-negotiable-piece)
+- [6. Recipe mechanics, shared failure modes, and boot discipline](#6-recipe-mechanics-shared-failure-modes-and-boot-discipline)
+- [7. The EXL3 / vLLM lane — what we measured](#7-the-exl3--vllm-lane--what-we-measured)
+- [8. Guards, layout ABI, and the verification ritual](#8-guards-layout-abi-and-the-verification-ritual)
+- [9. Dead ends and negative results (do not re-try)](#9-dead-ends-and-negative-results-do-not-re-try)
+- [10. Open questions, ranked](#10-open-questions-ranked)
+- [11. Measurement discipline](#11-measurement-discipline)
+- [12. References](#12-references)
+- [From recipes/ds4/AGENTS.md (2026-10-14)](#from-recipesds4agentsmd-2026-10-14)
+- [1. The design in one paragraph](#1-the-design-in-one-paragraph)
+- [2. Files and the call chain](#2-files-and-the-call-chain)
+- [3. Recipe invariants (all guarded)](#3-recipe-invariants-all-guarded)
+- [4. The mod (recipes/ds4/mods/dsv41-sglang-overlay/)](#4-the-mod-recipesds4modsdsv41-sglang-overlay)
+- [5. The image](#5-the-image)
+- [6. Fabric and NCCL](#6-fabric-and-nccl)
+- [7. Deliberately off](#7-deliberately-off)
+- [8. Boot gates (in order) and timings](#8-boot-gates-in-order-and-timings)
+- [9. Guards and the verification ritual](#9-guards-and-the-verification-ritual)
+- [10. Measurement discipline (this lane)](#10-measurement-discipline-this-lane)
+- [11. Negative results and do-not-retry](#11-negative-results-and-do-not-retry)
+- [12. TensorFold TP=2 lane (deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml)](#12-tensorfold-tp2-lane-deepseek-v41-flash-tensorfold-tp2-1m-sglangyaml)
+- [13. Quality benchmarks (benchmarks/)](#13-quality-benchmarks-benchmarks)
+- [14. References](#14-references)
+- [From recipes/ds4/README.md (2026-10-14)](#from-recipesds4readmemd-2026-10-14)
+- [What this is](#what-this-is)
+- [Requirements](#requirements)
+- [Run it](#run-it)
+- [What a healthy boot looks like](#what-a-healthy-boot-looks-like)
+- [Measured performance](#measured-performance)
+- [Caveats & Limitations with Explanations](#caveats--limitations-with-explanations)
+- [TensorFold TP=2 lane (two nodes)](#tensorfold-tp2-lane-two-nodes)
+- [Quality (measured)](#quality-measured)
+- [Retired material](#retired-material)
+- [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
+- [The vLLM b12x parity arm (zz-ds4-1017-b12x-vllm-parity.yaml) — measured, then retired (2026-10-26)](#the-vllm-b12x-parity-arm-zz-ds4-1017-b12x-vllm-parityyaml--measured-then-retired-2026-10-26)
+
 ## 1. Objective coverage
 
 The objective asked for recipes at TP=4, TP=3 and TP=2 "where possible", ≥1M
@@ -1662,7 +1704,7 @@ measured 2026-10-14 on the head: image `dd9d1c3c…`, digest `ac9bc917…`, whos
 `(unhealthy)`-on-any-port-other-than-8888. **Never push that as `canary-roce`.**
 With the patch applied, the cached build reproduces image `18e36391…` / digest
 `4e5002ab…` exactly (patched `boot.py` sha256 `6d2b4898…`). The patch is
-vendored here as [`boot.py.health-port.patch`](boot.py.health-port.patch): a
+vendored here as [`boot.py.health-port.patch`](../../recipes/ds4/boot.py.health-port.patch): a
 byte-exact `boot.py.pre-healthport` → `boot.py` unified diff that applies
 cleanly to pristine `boot.py` @ `58f2321`.
 
@@ -1681,7 +1723,7 @@ To build locally instead of pulling, retag the result
 | Image ID | `sha256:18e36391488edb088cc70e2f8d9a3e16eb82f653496fa565526a6ffd6b7c6890` |
 | Base | `lmsysorg/sglang:dev-dsv41` |
 | Upstream overlay | knapcio `58f2321`, SGLang `dsv4.1` @ `f80c91a4b` |
-| Local patch | [`boot.py.health-port.patch`](boot.py.health-port.patch) — runtime port discovery for the dynamic HEALTHCHECK (**not** upstream) |
+| Local patch | [`boot.py.health-port.patch`](../../recipes/ds4/boot.py.health-port.patch) — runtime port discovery for the dynamic HEALTHCHECK (**not** upstream) |
 | Built | 2026-10-03 on `.30` (rebuilt for the dynamic HEALTHCHECK) |
 | Size | 33.5 GB (arm64) |
 
@@ -2323,6 +2365,12 @@ the synchronous fetch is timeout-bounded (below).
    detached (`setsid nohup`) with a wrapper that re-owns the output and records the exit
    code; `MOD_ENGRAM_WAIT` is accepted but ignored. The engine serves degraded until the
    tables land and uses them next boot, so no launch is ever killed by the fetch.
+
+   SUPERSEDED 2026-10-29: the 600 s cap is gone. sparkrun 0.4.3 bounds a hook by
+   `hooks.timeout_s` (default 3600) or the entry's own `timeout:` (`0` = unbounded)
+   — `sparkrun/orchestration/hooks.py:181-187`, upstream issue #326. The
+   detached-fetch default is unchanged and still the right choice for slow links;
+   the *rationale* above is what expired, not the mod's behavior.
 2. *Pre-warm out-of-band on slow links.* `tools/build-dsv41-engram.py` is a standalone
    CLI (`--detach` launches it in the background, `--status` polls it, `--check` verifies
    it offline) and writes the host HF cache the container bind-mounts when run on a node
@@ -3688,6 +3736,12 @@ the executed recipe fetched all 189 GiB on-node (820 s, 236 MiB/s), a fresh boot
 ~70 s, and **both** engine ranks held `TF_DS_ENGRAM` with the fetched `engram-l1/l14.safetensors`
 open — the served engine uses the fetched tables, not the degraded fallback.
 
+SUPERSEDED 2026-10-29: there is no hard 600 s pre-serve/pre-exec limit any more.
+sparkrun 0.4.3 bounds a hook by `hooks.timeout_s` (default 3600) or the entry's own
+`timeout:` (`0` = unbounded) — `sparkrun/orchestration/hooks.py:181-187`, upstream
+issue #326. The detached-fetch default stands on its own merits (a slow link can
+still take hours); the stated reason does not.
+
 For a fresh or slow-link deployment there are two better paths than waiting on the per-node
 fetch. **Pre-warm out-of-band**: `python3 tools/build-dsv41-engram.py --detach` on each node (then
 `--status`), which resumes across interruptions and needs no container. Or let **sparkrun
@@ -3806,10 +3860,10 @@ EXL3 2.9 bpw), greedy, thinking off on both:
 exact, p ≥ 0.05 on every one); the largest gap is +4.4 pp (AIME, favouring turbo)
 with a 6-vs-10 discordant split (p = 0.45). The sign of the tiny gaps is not even
 consistent across benchmarks — the signature of noise. The complete method,
-caveats, and reproduction steps are in [`benchmarks/README.md`](benchmarks/README.md);
+caveats, and reproduction steps are in [`benchmarks/README.md`](../../recipes/ds4/benchmarks/README.md);
 raw results and the paired-test table are under `benchmarks/results/`, and
 published reference scores for the unquantised model are in
-[`benchmarks/REFERENCE-SCORES.md`](benchmarks/REFERENCE-SCORES.md).
+[`benchmarks/REFERENCE-SCORES.md`](../../recipes/ds4/benchmarks/REFERENCE-SCORES.md).
 
 ## Retired material
 

@@ -26,6 +26,16 @@ on this recipe" is FALSE at high concurrency. It was ruled out from a single-str
 error, so it is stated here as well as there.
 
 
+## Contents
+
+- [12.4 mamba_ssm_dtype: the flag works; the interesting part is what it overrides](#124-mamba_ssm_dtype-the-flag-works-the-interesting-part-is-what-it-overrides)
+- [12.11 Does mamba_ssm_dtype bfloat16 change what the model outputs? — phases 12 and 14, and the answer is about the instrument](#1211-does-mamba_ssm_dtype-bfloat16-change-what-the-model-outputs--phases-12-and-14-and-the-answer-is-about-the-instrument)
+- [12.12 Phases 22–23: bfloat16 state is bit-identical on the path that READS the state](#1212-phases-2223-bfloat16-state-is-bit-identical-on-the-path-that-reads-the-state)
+- [12.14 Reading the state pool directly: the perturbation is real and ~1.7e-3, and my first explanation of the null was a metric artifact](#1214-reading-the-state-pool-directly-the-perturbation-is-real-and-17e-3-and-my-first-explanation-of-the-null-was-a-metric-artifact)
+- [12.18 Reading MambaPool.__init__ on the device: the state-pool ceiling is dead code, and two of my own explanations were wrong](#1218-reading-mambapool__init__-on-the-device-the-state-pool-ceiling-is-dead-code-and-two-of-my-own-explanations-were-wrong)
+- [12.19 Prefix-reuse floor measured at 64 tokens, the cross-node null is EXACTLY zero, and a ProbeBlind escape that killed phase 21](#1219-prefix-reuse-floor-measured-at-64-tokens-the-cross-node-null-is-exactly-zero-and-a-probeblind-escape-that-killed-phase-21)
+- [12.20 Re-grounding §12.18 against the image that is actually running: the core formulas hold, the citations do not](#1220-re-grounding-1218-against-the-image-that-is-actually-running-the-core-formulas-hold-the-citations-do-not)
+
 ### 12.4 `mamba_ssm_dtype`: the flag works; the interesting part is what it overrides
 
 `server_args.py:2617-2624` accepts `{float32, bfloat16, float16}` (`:2621`), **default `None`**

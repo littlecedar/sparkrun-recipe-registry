@@ -6,6 +6,23 @@ read from a primary artifact or measured here; **LIKELY** = strong secondary evi
 reasoning without a source. Nothing here is authoritative over the shipped `recipes/`, `mods/`, or
 `benchmarking/` docs — where they disagree, the shipped doc wins.
 
+## Contents
+
+- [Register protocol](#register-protocol)
+- [Long-form evidence — the digest behind the one-line rules](#long-form-evidence--the-digest-behind-the-one-line-rules)
+  - [Recipe grammar and placeholder resolution](#recipe-grammar-and-placeholder-resolution)
+  - [CLI and launch mechanics](#cli-and-launch-mechanics)
+  - [Mod authoring mechanics and failure modes](#mod-authoring-mechanics-and-failure-modes)
+  - [Env, portability, and distribution](#env-portability-and-distribution)
+  - [Engine flag semantics — SGLang](#engine-flag-semantics--sglang)
+  - [Engine flag semantics — vLLM (cross-engine reference)](#engine-flag-semantics--vllm-cross-engine-reference)
+  - [Checkpoint and model-path mechanics](#checkpoint-and-model-path-mechanics)
+  - [Measurement discipline before shipping a default change](#measurement-discipline-before-shipping-a-default-change)
+  - [Guard, test, and harness conventions](#guard-test-and-harness-conventions)
+  - [Stale claims — read critically](#stale-claims--read-critically)
+  - [Keeping this digest accurate](#keeping-this-digest-accurate)
+- [Known-stale flags — verify before quoting](#known-stale-flags--verify-before-quoting)
+
 ## Register protocol
 
 **Register protocol, one line:** a new question goes to [`QUESTIONS.md`](QUESTIONS.md), work goes to
@@ -65,7 +82,7 @@ Long-form evidence behind the one-line rules in [`../AGENTS.md`](../AGENTS.md): 
 - **Never import the inference engine (or any JIT-heavy library) from a `pre_exec` hook** — the highest-cost trap here. `import sglang` triggers flashinfer JIT, which writes root-owned build artifacts under `/cache/runtime`; the uid-1000 server then dies at launch with `PermissionError`, and **every later launch of that recipe fails identically** because the poisoning persists. Recovery needs `sudo chown -R 1000:1000 <runtime-cache dir>`. `torch` + `safetensors` are safe for byte-level checkpoint rewriting; if an import is unavoidable, `chown -R` the **whole** runtime-cache mount (reowning only your subdirectory misses the JIT cache).
 - The mod harness is copy-pasted, not shared: sparkrun ships only the mod's own directory, so `mods/common.sh` would not exist at launch. Copy `mods/mod-template/run.sh`.
 - Three ways a `pre_exec` mod passes dry-run and dies on the cluster: a `python3 - <<'PY'` heredoc has its own scope, so the bash `warn`/`die` helpers are invisible (`NameError`); `find` on a nonexistent directory aborts the whole mod under `set -euo pipefail` (fires on a first boot — `mkdir -p` first and comment it as load-bearing); and a **self-deleting** config-file workaround splits the group, because `pre_exec` runs once **per node** against one shared host-mounted dir — the first node gets the override and every later node the default, surfacing as a numerical mystery.
-- A `pre_exec` hook is killed at a hard 600 s (`pre_exec[2] failed … TIMEOUT after 600s`), and a mod's own `MOD_TIMEOUT` cannot extend it. A fetch or pack that can outlive the hook must detach (`setsid nohup`) and be resumable.
+- A `pre_exec` hook is killed at a hard 600 s (`pre_exec[2] failed … TIMEOUT after 600s`), and a mod's own `MOD_TIMEOUT` cannot extend it. A fetch or pack that can outlive the hook must detach (`setsid nohup`) and be resumable. *(SUPERSEDED 2026-10-29: 0.4.3 bounds a hook by `hooks.timeout_s` (default 3600) or the entry's own `timeout:` (`timeout: 0` = unbounded); the hardcoded 600 s cap was removed upstream — `sparkrun/orchestration/hooks.py:181-187`, issue #326. The paragraph above is what 0.4.2-alpha did.)*
 - Verify a mod's effect from the artifact it wrote in the runtime cache, never from its log or exit status: a pidfile or a started loop reads as success while the actual write never happened.
 - Fail closed, and assert numeric contracts: unknown state → `die`; refuse to patch when anchors are missing rather than guessing. A vendored patcher must prove its anchor byte-matches the **real** file extracted from the image (`--check` → compatible → apply → `--check` → already patched), md5 the file, and back the target up once. Read a vendored mod's README for its **own no-op condition** before claiming it helps.
 - A mod that looks alive can be doing nothing. `drop_caches` failed twice over: sparkrun defaults `rootless=True`, so `/proc/sys` is read-only and the write errors while the loop keeps looking alive; and `echo 3 > /proc/sys/vm/drop_caches >> log 2>&1` applies redirects left-to-right with the last winning, so the `3` went to the log and the file got nothing. Cache hygiene belongs at point of use as `posix_fadvise(DONTNEED)`, not as a node-wide drop.
@@ -155,7 +172,7 @@ A remembered fact is the most dangerous kind: each item was true at some point a
 - "The HF cache is a shared NFS mount" is stale. Each runner node now has its own node-local cache and sparkrun distributes every model to each node (cutover dated 2026-10-03). Any doc or comment still saying "shared HF cache" / "NFS cache" is wrong.
 - A flat "cap `gpu_memory_utilization` at 0.85" is superseded by a per-lane, per-engine rule: the fraction is relative to free memory at that engine's boot, and on GB10 the value is a unified-memory hazard.
 - The K2-Horizon MoVA-36B sub-lane is withdrawn: it lives under `attic/ifm/` and is no longer auto-discovered, so any "ship it" framing is stale.
-- A mod's `MOD_TIMEOUT` does not bound the hook — the runtime enforces a hard 600 s pre-exec timeout on top, which `MOD_TIMEOUT` cannot extend.
+- A mod's `MOD_TIMEOUT` does not bound the hook — the runtime enforces a hard 600 s pre-exec timeout on top, which `MOD_TIMEOUT` cannot extend. *(SUPERSEDED 2026-10-29: on 0.4.3 the hook deadline is `hooks.timeout_s`, default 3600, overridable per entry; `timeout: 0` is unbounded. See the 600 s bullet above.)*
 - `distribution_config.models.enabled: true` (remembered) and "omit the `distribution_config:` block" ([`../attic/ds4/AGENTS.md`](../attic/ds4/AGENTS.md) §5) name opposite actions but are behaviorally equivalent when relying on sparkrun's default. Prefer the shipped doc's "omit the block".
 - `runs/*.json` vs the `--output` file: [`../benchmarking/README.md`](../benchmarking/README.md) says to read `runs/*.json`, while measurement practice says `runs/` is scratch and reaped and the durable citation is the `--output` file (same records). Hold both: read `runs/` while it exists, cite the `--output` file for anything you may need later.
 - `recipe validate` as the gate does not prove a recipe launches — it does not resolve mods. A green gate plus a clean dry-run is still not a boot.

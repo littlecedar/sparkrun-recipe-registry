@@ -180,6 +180,21 @@ instruction (`QUESTIONS.md` `#20`, now settled) and §11's gates. Receipts:
   verified read-only: `~/.cache/huggingface` is a symlink to `/mnt/beegfs/huggingface` on `.30` and
   `.34`, identical 56-repo listings.
 
+## Contents
+
+- [11. The migration plan — one canonical body per repo on the pool, read-only per-node mounts](#11-the-migration-plan--one-canonical-body-per-repo-on-the-pool-read-only-per-node-mounts)
+- [1. What the cache is today](#1-what-the-cache-is-today)
+- [2. The design being costed](#2-the-design-being-costed)
+- [3. Resource cost](#3-resource-cost)
+- [4. What it would break or degrade](#4-what-it-would-break-or-degrade)
+- [5. Performance impact, measured](#5-performance-impact-measured)
+- [6. Verdict](#6-verdict)
+- [7. When to revisit](#7-when-to-revisit)
+- [8. What would overturn this verdict](#8-what-would-overturn-this-verdict)
+- [9. Getting a body onto a node: fetch once, fan out on the fabric (measured 2026-10-22)](#9-getting-a-body-onto-a-node-fetch-once-fan-out-on-the-fabric-measured-2026-10-22)
+- [10. The two-node pilot, .34/.35 (run 2026-10-22)](#10-the-two-node-pilot-3435-run-2026-10-22)
+- [How these numbers were taken](#how-these-numbers-were-taken)
+
 ## 11. The migration plan — one canonical body per repo on the pool, read-only per-node mounts
 **(2026-10-24; census run this day, nothing moved, nothing deleted, no recipe changed at the time of
 writing. The plan was **executed later the same day — see the round-5 completion addendum above**;
