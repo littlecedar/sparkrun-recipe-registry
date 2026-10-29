@@ -668,7 +668,7 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "deepseek-v4.1-flash-1017",
       "node_cost": "",
       "notes": "recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:9 is tag-only (littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5, no @sha256) so a repointed tag silently changes the production serve. MEASURED 2026-10-27: no registry digest exists for that tag - docker images --digests on the head prints <none> (siblings canary-roce / canary-roce-20261022 / tensorfold-v06 all carry digests) and .31's running copy has empty RepoDigests; it is a local overlay build (created 2026-10-25 20:01 ET, 33.5 GB, base lmsysorg/sglang:dev-dsv41 @ da64c5cb). The digest in TODO row 21 (3f4480818acb...) is the local IMAGE ID and is unusable in container:. Route = push these exact bytes under a new tag (credentials required; anonymous ghcr is denied) or rebuild deterministically and push, take the manifest digest from the push, write container: <repo>:<tag>@sha256:<manifest>, render with sparkrun run -n, and boot-verify at the next production reboot by comparing the pinned image ID to 3f4480818acb... Never write the image ID into container: and never displace the live serve (QUESTIONS #4).",
