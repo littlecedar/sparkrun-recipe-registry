@@ -1,10 +1,10 @@
-# Board — generated 2026-10-29 10:00 ET
+# Board — generated 2026-10-29 11:00 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **10:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes, **no `.scratch/fleet-window.lock`** — the running quartet is a shipped-arm serve, not a declared research window. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — **healthy on every rank**: serve children alive in all four containers (pids 280 / 306 / 301 / 301, unchanged) and `GET /v1/models` → **200**; the head's newest receipt dir is still `~/benchmarks/tp12-20261028/`, so no boot has run since the window closed. Excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB across the 03:23–10:00 reads. `origin/main` is still `3a6ee0a`; the growing local tail is recorded in `SESSION-RECORD.md` §"Push backlog — 2026-10-29 09:10 ET" |
+| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **11:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes, **no `.scratch/fleet-window.lock`** — the running quartet is a shipped-arm serve, not a declared research window. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — **healthy on every rank**: serve children alive in all four containers (pids 280 / 306 / 301 / 301, unchanged) and `GET /v1/models` → **200**; the head's newest receipt dir is still `~/benchmarks/tp12-20261028/`, so no boot has run since the window closed. Excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB across the 03:23–11:00 reads. `origin/main` is still `3a6ee0a`; the growing local tail is recorded in `SESSION-RECORD.md` §"Push backlog — 2026-10-29 09:10 ET" |
 
 ## Work queue
 
