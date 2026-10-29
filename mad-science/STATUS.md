@@ -1,10 +1,10 @@
-# Board — generated 2026-10-29 07:00 ET
+# Board — generated 2026-10-29 08:00 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **07:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes, and **no `.scratch/fleet-window.lock`** — the running quartet is a shipped-arm serve, not a declared research window. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — **healthy on every rank**: serve children alive in all four containers (pids 280 / 306 / 301 / 301, unchanged, each the shipped `sglang.launch_server` line: tp 4 / ep 1 / mem-fraction 0.78 / 1,048,576 ctx / DSPARK block 5 / `--enable-cache-report`) and `GET /v1/models` → **200**. Excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB across the 03:23, 04:00, 05:00, 06:00 and 07:00 reads |
+| census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **08:00 ET, all six nodes (read-only ssh)**: **no research containers fleet-wide**, 0 volumes, **no `.scratch/fleet-window.lock`** — the running quartet is a shipped-arm serve, not a declared research window. `.31`–`.34` run the production serve — task `c989632ede4f538e_b4e3c94ef77c` (TP=4), image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, `Up 2 days (healthy)` — **healthy on every rank**: serve children alive in all four containers (pids 280 / 306 / 301 / 301, unchanged) and `GET /v1/models` → **200**; the head's newest receipt dir is still `~/benchmarks/tp12-20261028/`, so no boot has run since the window closed. Excluded from research accounting by directive. `.30` (head) and `.35`: **nothing live (no reservation)**. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged to the GB across the 03:23–08:00 reads |
 
 ## Work queue
 
