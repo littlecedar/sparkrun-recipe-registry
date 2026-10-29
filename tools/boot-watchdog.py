@@ -27,6 +27,7 @@ Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error.
 """
 
 import argparse
+import shlex
 import subprocess
 import sys
 import time
@@ -74,17 +75,45 @@ def decide(endpoint_ok: bool, pid_alive: bool, consecutive_dead: int) -> str:
     return "dead" if consecutive_dead >= 2 else "dead_candidate"
 
 
+def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
+    """Sampled `PID <n>` + `/proc/<n>/io` blocks -> (alive, io of the busiest reader).
+
+    The serve process is not always the one reading: a vLLM serve keeps its
+    `EngineCore` in a child, so `pgrep | head -1` reported the parent and logged
+    `io_delta=0` through a 52-shard weight load. Take the pid with the largest
+    `rchar` instead — it is the reader, and it is the same pid on the next
+    sample, so the delta stays a delta.
+    """
+    best: tuple[int, int] | None = None
+    alive = False
+    for chunk in text.split("PID ")[1:]:
+        pid_text, _, body = chunk.partition("\n")
+        if pid_text.strip():
+            # pgrep matched it, so the serve is up even if /proc io is unreadable
+            # (the process exited between the two reads) — never report gone.
+            alive = True
+        io = parse_io(body)
+        if io is None:
+            continue
+        if best is None or io[0] > best[0]:
+            best = io
+    return alive, best
+
+
 def serve_state(
     node: str, container: str, pattern: str
 ) -> tuple[bool, tuple[int, int] | None]:
     """(pid_alive, io) for the serve child inside the container, via ssh."""
+    # The script is fed on stdin so neither the pattern nor its own quotes need
+    # escaping through ssh's argument passing.
     script = (
-        f'docker exec {container} sh -c \'pid=$(pgrep -f "{pattern}" | head -1); '
-        '[ -n \\"$pid\\" ] && cat /proc/$pid/io 2>/dev/null || echo NO-PID\''
+        "PAT=" + shlex.quote(pattern) + "\n"
+        "for p in $(pgrep -f \"$PAT\"); do echo \"PID $p\"; cat /proc/$p/io 2>/dev/null; done\n"
     )
     try:
         out = subprocess.run(
-            ["ssh", "-n", "-o", "BatchMode=yes", f"red@{node}", script],
+            ["ssh", "-o", "BatchMode=yes", f"red@{node}", f"docker exec -i {container} sh -s"],
+            input=script,
             capture_output=True,
             text=True,
             timeout=30,
@@ -92,9 +121,7 @@ def serve_state(
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return False, None
-    if "NO-PID" in out or not out.strip():
-        return False, None
-    return True, parse_io(out)
+    return pick_io(out)
 
 
 def pick_container(names: list[str], task_id: str) -> str:

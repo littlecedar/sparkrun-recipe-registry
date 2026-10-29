@@ -66,6 +66,28 @@ class TestParseIo(unittest.TestCase):
         self.assertIsNone(bw.parse_io("NO-PID\n"))
 
 
+class TestPickIo(unittest.TestCase):
+    """The io sample must follow the reader, not the process pgrep lists first.
+
+    A vLLM serve loads its shards in a child `EngineCore`, so taking `head -1`
+    logged io_delta=0 through the whole load — the evidence line that exists to
+    prove a slow load is progressing.
+    """
+
+    def test_the_reading_child_wins_over_the_parent(self):
+        sample = f"PID 75\n{IO_BODY}PID 374\nrchar: 98765432100\nwchar: 100\n"
+        self.assertEqual(bw.pick_io(sample), (True, (98765432100, 100)))
+
+    def test_no_matching_process_is_not_alive(self):
+        self.assertEqual(bw.pick_io(""), (False, None))
+
+    def test_a_match_without_io_counters_is_alive_but_io_less(self):
+        # pgrep found it, /proc/<pid>/io was unreadable (exited between the two):
+        # alive must stay True, or a loading serve reads as gone at grace expiry.
+        self.assertEqual(bw.pick_io("PID 75\n"), (True, None))
+        self.assertEqual(bw.pick_io("PID 9\nrchar: 5\nPID 10\nwchar: 7\n"), (True, None))
+
+
 class TestContainerResolution(unittest.TestCase):
     """A TP=1 task's container is `<prefix>_solo`, not `_node_0` (2026-10-29 defect).
 

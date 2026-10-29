@@ -1385,6 +1385,14 @@ carries the archive stub in place of the items.
 Item 3 moved verbatim from `mad-science/TODO.md` on 2026-10-29 (checkbox `[ ]` → `[X]` only).
 Item 2 of that section stays open in TODO.md; the other tracks closed earlier.
 
+**Closing status (2026-10-29):** the boot in item 3 *did* run — the item's last in-flight line
+below ("boot pending") predates it. Boot 5 `…f31ef03f5cb9` served the fork on the quartet on
+2026-10-26, measured ~half the shipped SGLang C1, house 37/37, needle 32,768 10/10 (131,072 and
+983,040 clipped by the wrapper timeout, never measured), and the owner retired the route the same
+day. The measured record is `attic/ds4/AGENTS.md` §"The vLLM b12x parity arm
+(`zz-ds4-1017-b12x-vllm-parity.yaml`) — measured, then retired (2026-10-26)" and
+`recipes/ds4/README.md` (`:796`).
+
 - [X] **3. b12x parity boot** — **UNBLOCKED 2026-10-26: the fleet-wide seccomp change landed on all
   six nodes** (`tools/enable-io-uring.sh`, owner decision 2026-10-26 above). Evidence, same probe on
   every node: before `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)` with host
