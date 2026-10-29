@@ -1007,7 +1007,7 @@ class SglangLaneContract(unittest.TestCase):
         # this the production line; a bar failure reverts the pin to acfc331a….
         self.assertEqual(
             self.r.container,
-            "littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5",
+            "ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c",
         )
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash-1017")
         self.assertEqual(self.r.min_nodes, 4)
@@ -1157,16 +1157,15 @@ class SglangLaneContract(unittest.TestCase):
     def test_image_is_vendored_and_pinned(self):
         # The image is published to littlecedar and pinned, so a node pulls the
         # exact bytes rather than building or resolving a mutable tag.
-        # 2026-10-26: the shipped digest pin (canary-roce@sha256:acfc331a…) is
-        # re-pinned to the ds4-upstream-adapter-trial build as the TAG pin
-        # `canary-roce-aff52fa5` (local-built image sha256:21d1bf34f974…; the
-        # registry digest form returns when cluster DNS to the registry
-        # recovers). The guard accepts the trial tag OR the digest form —
-        # any other tag still fails (control: test_control_image_unpinned).
+        # 2026-10-29: the tag pin `canary-roce-aff52fa5` became a registry digest
+        # pin once the image was pushed to GHCR — `ghcr.io/…@sha256:7c3cb394…`.
+        # The host is part of the guard, not decoration: an unqualified
+        # `littlecedar/…` ref resolves against Docker Hub, so a bare ref could
+        # only ever boot where the image was already resident. A tag of any
+        # spelling still fails (control: test_control_image_unpinned).
         self.assertRegex(
             self.r.container,
-            r"^littlecedar/dgx-spark-dsv41:(canary-roce@sha256:[0-9a-f]{64}"
-            r"|canary-roce-aff52fa5)$",
+            r"^ghcr\.io/littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$",
         )
 
     def test_distribution_config_omitted(self):
@@ -1607,14 +1606,13 @@ class SglangLaneNegativeControls(unittest.TestCase):
         # vendored-and-pinned guard. Anchored on the CURRENT trial tag; when the
         # registry digest pin returns, re-anchor on that digest form.
         r = self._mutated(
-            "container: littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5",
-            "container: littlecedar/dgx-spark-dsv41:latest",
+            "container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c",
+            "container: ghcr.io/littlecedar/dgx-spark-dsv41:latest",
         )
         with self.assertRaises(AssertionError):
             self.assertRegex(
                 r.container,
-                r"^littlecedar/dgx-spark-dsv41:(canary-roce@sha256:[0-9a-f]{64}"
-                r"|canary-roce-aff52fa5)$",
+                r"^ghcr\.io/littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$",
             )
 
     def test_control_sps_table_set(self):
@@ -1701,8 +1699,8 @@ class SglangLaneNegativeControls(unittest.TestCase):
 
 TF_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml"
 TF_MOD_DIR = REPO_ROOT / "mods" / "tensorfold-dsv41-launcher"
-TF_IMAGE = ("littlecedar/dgx-spark-dsv41@sha256:d6e4c10d4c0ec329196104dc98f77492"
-            "f2ce648400671bbae78dc46e7e04fe66")
+TF_IMAGE = ("ghcr.io/littlecedar/dgx-spark-dsv41@sha256:1e7a01659f10dcc6"
+            "c4e002161585dfa5728b169bce4c39871e819b1f4554315a")
 TF_MOD_REF = "@littlecedar/mods/tensorfold-dsv41-launcher"
 # The two TensorFold flags the shim MUST emit, and where their values come from.
 TF_RENDEZVOUS_FLAGS = ("--master", "--master-port", "--rank")
@@ -1796,9 +1794,11 @@ class TensorfoldLaneContract(unittest.TestCase):
         )
 
     def test_image_is_vendored_and_pinned(self):
+        # Qualified as well as digest-pinned: an unqualified `littlecedar/…` ref
+        # resolves against Docker Hub, where this image does not exist.
         self.assertRegex(
             self.r.container,
-            r"^littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$",
+            r"^ghcr\.io/littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$",
         )
 
     def test_builder_is_docker_pull(self):
@@ -2271,9 +2271,9 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
             self.assertEqual(int(r.default("max_model_len")), 1048576)
 
     def test_control_image_unpinned(self):
-        r = self._mutated(TF_IMAGE, "littlecedar/dgx-spark-dsv41:tensorfold-tp2")
+        r = self._mutated(TF_IMAGE, "ghcr.io/littlecedar/dgx-spark-dsv41:tensorfold-tp2")
         with self.assertRaises(AssertionError):
-            self.assertRegex(r.container, r"^littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$")
+            self.assertRegex(r.container, r"^ghcr\.io/littlecedar/dgx-spark-dsv41@sha256:[0-9a-f]{64}$")
 
     def test_control_official_mxfp4_checkpoint(self):
         # Swapping in the official (MXFP4) checkpoint must fail the model guard:
