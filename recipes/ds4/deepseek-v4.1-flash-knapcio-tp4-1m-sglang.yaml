@@ -6,7 +6,7 @@ model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # template-less checkpoint with no mod template is refused (exit 2), not served.
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 runtime: sglang
-container: littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5
+container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c
 min_nodes: 4
 
 description: >-
