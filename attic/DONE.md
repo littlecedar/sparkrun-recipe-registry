@@ -1379,3 +1379,32 @@ carries the archive stub in place of the items.
   `~/benchmarks/tp2-queue-20261024/`, recorded in `recipes/cybersec/README.md`), so the earlier
   "cells open" note was stale, not unfulfilled — nothing is owed. *(effort: medium)*
 
+
+## Retry queue — window 4 (2026-10-29 sweep)
+
+Item 3 moved verbatim from `mad-science/TODO.md` on 2026-10-29 (checkbox `[ ]` → `[X]` only).
+Item 2 of that section stays open in TODO.md; the other tracks closed earlier.
+
+- [X] **3. b12x parity boot** — **UNBLOCKED 2026-10-26: the fleet-wide seccomp change landed on all
+  six nodes** (`tools/enable-io-uring.sh`, owner decision 2026-10-26 above). Evidence, same probe on
+  every node: before `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)` with host
+  `kernel.io_uring_disabled=0`, after `fd=3 allowed` + `io_uring_enter(426)` `ret=0` +
+  `io_uring_register(427)` `errno=14` (EINVAL = allowed, no buffers registered), `docker info`
+  `seccomp,profile=/etc/docker/seccomp-profiles/io-uring.json`; GPU containers and the BeeGFS
+  services survived the daemon restarts. Re-check any time with
+  `tools/enable-io-uring.sh --probe-only`. Then boot the fork image per
+  the `DEEPSEEK.md` §17 sketch (k=5 DSpark, 16 slots, 1M declared, disk-Engram config) on the
+  quartet and run the §17 parity acceptance: `/v1/models` shows `max_model_len 1048576`; C1 ≥ 64.0
+  and C10 ≥ 110.5 t/s (n=5 decode rows, `--fresh`); house ≥ 36/37 @4096 thinking-on; needle 3/3 at
+  32,768/131,072/983,040. Any miss is a decode-parity or context miss — record which; no
+  iterations without the owner's say-so.
+  *(Window-4 sequencing, 2026-10-26: the parity boot additionally WAITS for the owner's relay
+  that the director's queueing system has landed — the holder's retry-policy answer is pending
+  with it — and the model-priority ruling (advisories above) puts the 1017 flag-level S0
+  control boot ahead of it at the boot boundary. Pre-boot probes PASSED 2026-10-26:
+  `~/benchmarks/tp4-window4-20261026/B12X-PREBOOT-PROBES.md` — `table_memory` True,
+  `disk_resident_scales` True, `--load-format b12x` supported, fork pin 8244d1c4 confirmed in
+  the image.)*
+  *(Window-4 status, tp4-recovery 2026-10-26: this is the queue's next runnable item after the
+  S0 negative — claimed by `tp4-recovery` (`w4-b12x-parity` running), pre-boot probes passed,
+  boot pending.)*

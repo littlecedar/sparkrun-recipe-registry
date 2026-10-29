@@ -771,29 +771,14 @@ together:
   so queue rows `w4-s{1,2,3}` + `w4-candidate6` are BLOCKED with that reason, not released.
   Candidates 3/5 stay build-gate-blocked. Receipts: `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`,
   `s0-retry-node{1..4}-serve.log`, `s0-launch.log`, `s0-retry-launch.log`.)*
-- [ ] **3. b12x parity boot** — **UNBLOCKED 2026-10-26: the fleet-wide seccomp change landed on all
-  six nodes** (`tools/enable-io-uring.sh`, owner decision 2026-10-26 above). Evidence, same probe on
-  every node: before `io_uring_setup(425): ret=-1 errno=1 (Operation not permitted)` with host
-  `kernel.io_uring_disabled=0`, after `fd=3 allowed` + `io_uring_enter(426)` `ret=0` +
-  `io_uring_register(427)` `errno=14` (EINVAL = allowed, no buffers registered), `docker info`
-  `seccomp,profile=/etc/docker/seccomp-profiles/io-uring.json`; GPU containers and the BeeGFS
-  services survived the daemon restarts. Re-check any time with
-  `tools/enable-io-uring.sh --probe-only`. Then boot the fork image per
-  the `DEEPSEEK.md` §17 sketch (k=5 DSpark, 16 slots, 1M declared, disk-Engram config) on the
-  quartet and run the §17 parity acceptance: `/v1/models` shows `max_model_len 1048576`; C1 ≥ 64.0
-  and C10 ≥ 110.5 t/s (n=5 decode rows, `--fresh`); house ≥ 36/37 @4096 thinking-on; needle 3/3 at
-  32,768/131,072/983,040. Any miss is a decode-parity or context miss — record which; no
-  iterations without the owner's say-so.
-  *(Window-4 sequencing, 2026-10-26: the parity boot additionally WAITS for the owner's relay
-  that the director's queueing system has landed — the holder's retry-policy answer is pending
-  with it — and the model-priority ruling (advisories above) puts the 1017 flag-level S0
-  control boot ahead of it at the boot boundary. Pre-boot probes PASSED 2026-10-26:
-  `~/benchmarks/tp4-window4-20261026/B12X-PREBOOT-PROBES.md` — `table_memory` True,
-  `disk_resident_scales` True, `--load-format b12x` supported, fork pin 8244d1c4 confirmed in
-  the image.)*
-  *(Window-4 status, tp4-recovery 2026-10-26: this is the queue's next runnable item after the
-  S0 negative — claimed by `tp4-recovery` (`w4-b12x-parity` running), pre-boot probes passed,
-  boot pending.)*
+  *(2026-10-29 status — item stays OPEN: no flag-level arm has been measured, because the S0 control
+  ran NEGATIVE (above) and candidates 3/5 are still build-gate-blocked; candidates 1/2/6 have no
+  main-tree base until the owner rules on the control-lineage change. Item 3 of this section (the
+  b12x parity boot) ran, was retired by the 2026-10-26 ruling, and was archived today:
+  `../attic/DONE.md` §"Retry queue — window 4 (2026-10-29 sweep)".)*
+*(Item 3, the b12x parity boot, ran and was retired by the owner's 2026-10-26 ruling — archived
+verbatim in `../attic/DONE.md` §"Retry queue — window 4 (2026-10-29 sweep)". The run-and-retired
+record is `recipes/ds4/README.md`.)*
 
 ### Owner advisories — survey answers (2026-10-26, late; collected in `.scratch/SURVEY.md` by `sparkrun-recipe--1368729`, folded here as the durable record — the scratch file is git-ignored and may not persist)
 
@@ -1077,6 +1062,11 @@ Ornith 1.5
   (`SURVEY6 Q2`) while the quartet keeps `.31`–`.34`; re-census before the boot and never displace. This
   arm's TTR is ≈ 414–429 s, so the ordinary 1800 s watchdog grace applies (not the cold-body case). Stop by
   literal task id, verify 0 containers, and kill proxy and watchdog in the closeout. *(effort: long)*
+  *(Owner decision 2026-10-29: **REOPEN with a larger backlog** — the 137-turn stage stands as the
+  negative-triage baseline (zero failures of the owner-reported class, backlog exhausted at 30
+  items), and the ~1,000-turn target is kept as the extension, not dropped. The next run needs a
+  bigger written backlog (or a cold-boot / post-idle trigger set) so the turns have work to do;
+  queue state stays `queued` until then. Do not re-read the 137-turn result as a failure.)*
 
 ## qwen3
 Qwen 3.x

@@ -2008,3 +2008,15 @@ that is the copy every fleet session reads. The clearing mechanism is proven rat
 `6867d1b` and `3a6ee0a` are on origin and neither was pushed from this session; a peer's push
 carried them. Ticks therefore stop re-attempting the push each hour; the tail lands on the next
 credentialed push from any clone sharing these refs, and this section is the once-only record.
+
+**Correction, same day 11:05 ET: the premise above was wrong — the workstation could push all
+along.** Its git config lives at `/home/siv/.gitconfig` (`credential.https://github.com.helper =
+!/usr/bin/gh auth git-credential`; `gh` 2.102.1 at `/usr/bin/gh`, logged in as `padthaitofuhot`),
+but the session's tool shell had exported `HOME=$PWD/.local/sparkrun-home` for the sparkrun
+`recipe validate` gate, and that sandbox HOME has neither the gitconfig nor the gh auth, so
+`git push` prompted for a username with no terminal and failed. The owner's push from their own
+shell landed the tail (`origin/main` = `102d36f`), and every later git call in this session must
+set `HOME=/home/siv`. The head is genuinely credential-free (its `store` helper holds only a
+`huggingface.co` line and both `id_ed25519*` keys are rejected), so the fleet-reading argument
+above still holds — only "no reachable host" was false. Keep the sandbox HOME for `sparkrun`,
+never for `git`/`gh`.
