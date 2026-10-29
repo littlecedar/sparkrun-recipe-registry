@@ -703,6 +703,20 @@
       "provenance": "refresh-sweep --exit-code rows of 2026-10-29 (container-floating); AGENTS.md Published artifacts must be public; asked 2026-10-29",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "mistral-large-4-1t-feasibility",
+      "title": "Feasibility: mistralai/Mistral-Large-4-1T-A52B-NVFP4 (1T total / 52B active MoE) on the WOPR fleet",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "mistral-large-4-1t",
+      "node_cost": "quartet",
+      "notes": "Study, not a boot. Measured from the Hub API 2026-10-29: 610.03 GB of weights (index total_size 610030457408; 32 x ~20 GB consolidated shards, 44 files), ungated/public, Mistral Ecosystem Open-Weight License (modified MIT, commercial use allowed, MaaS resale needs a separate license). Shape from params.json: 72 layers, dim 6144, MoE hidden_dim 24576, 64 heads / 64 kv heads with MLA (kv_lora_rank 512, qk_rope 64, qk_nope 64, v_head_dim 128), DeepSeek-style DSA sparse attention (topk 2048, 32 heads), kv_sharing across layers, 1M context (yarn factor 2048), an embedded DSpark speculative draft head, and multimodal text+image input. ARITHMETIC THAT DECIDES IT: a node is 128 GB unified, so TP=4 puts 152.5 GB of weights on each rank before any KV, activation or CUDA-graph reservation - infeasible with no room to argue; TP=6 would be 101.7 GB/rank but 64 heads do not divide by 6, and it still leaves ~26 GB/rank for the KV of up to 1M context; TP=8 exceeds the six nodes. Deliverable: a short verdict with the three candidate paths and their costs - (a) further quantization to ~2.5-3 bpw to reach ~4 ranks (checkpoint conversion project, needs a bits-per-weight target derived from the 128 GB budget minus KV), (b) a rented 8-rank box where the published NVFP4 checkpoint fits as-is, (c) park it. Also record what the DSpark draft head and DSA would need from SGLang/vLLM versions, since a mismatch is a second, independent blocker.",
+      "provenance": "hub API models/mistralai/Mistral-Large-4-1T-A52B-NVFP4 (+params.json, consolidated.safetensors.index.json, LICENSE) read 2026-10-29; node memory from AGENTS.md; asked by owner 2026-10-29",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
