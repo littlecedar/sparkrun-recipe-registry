@@ -31,6 +31,7 @@
 - [Landed rows retired at the 2026-10-27 21:04 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-27-2104-et-board-refresh-session-boundary)
 - [Board commit rewritten for address hygiene — 2026-10-27 22:12 ET](#board-commit-rewritten-for-address-hygiene--2026-10-27-2212-et)
 - [Landed rows retired at the 2026-10-28 00:30 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-28-0030-et-board-refresh-session-boundary)
+- [Landed rows retired at the 2026-10-29 03:10 ET board refresh (session boundary)](#landed-rows-retired-at-the-2026-10-29-0310-et-board-refresh-session-boundary)
 
 ## Session record
 
@@ -1748,7 +1749,7 @@ Swept content → destination:
   `attic/qwen4/AGENTS.md:614`; llama.cpp ref floor `recipes/explore/Dockerfile.llamacpp-upstream:24`
   + `attic/explore/AGENTS.md:865`; registry-ref trap `AGENTS.md:124`; untagged-pull trap
   `AGENTS.md:136`; readiness.inference false-green `mad-science/TODO.md:1834-1836` +
-  `recipes/MECHANICS.md:430`; Mellum MTP rejection `recipes/explore/README.md:401-410`; licence
+  `recipes/MECHANICS.md:430`; Mellum MTP rejection `recipes/explore/README.md:401-410`; license
   banners `mad-science/TODO.md:2031-2036` (indra-ocr) + `:2154` (Timestral) + the recipes' own
   banners; chunk-bound prefill `mad-science/DEEPSEEK.md:561-578` (§9); b12x closure
   `mad-science/TODO.md:263-265`; transfer authority → **appended to `AGENTS.md` §Node hygiene**
@@ -1960,3 +1961,32 @@ Two commits from that session never reached a board row, the 23:04 tick closing 
 |---|---|---|
 | 23:01 ET | `08b707d` | refreshed the board to 23:04 ET — quartet `Up 23 hours (healthy)`, live chat traffic on the line |
 | 23:02 ET | `4a50dda` | replaced the single tail line with a wide-slice client-request count in the quartet row |
+
+## Landed rows retired at the 2026-10-29 03:10 ET board refresh (session boundary)
+
+The board session `.omp` `…03-21-32Z_01a18086` (opened 2026-10-27 23:21 ET) closed before this
+tick; the session writing the board is `.omp` `…05-41-35Z_01a1862d` (opened 2026-10-29 01:41 ET),
+so its `Landed this session` table carries none of the previous session's sixteen rows. Verification
+before clearing: `git show 07cecb7:mad-science/STATUS.md` holds every row below, and
+`git grep` over this file returned nothing for `50167f7`, `4aabfc8`, `137 turns`, `tp12` and
+`14:00`/`14:01 ET`, so the rows are carried here verbatim. The board's own copy is also in git
+history at `07cecb7`; nothing below is re-measured.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 00:28 ET | `50167f7` | `plugins/plugin.toml` sidecar (`sparkrun = ">=0.4.2a0,<0.5"`): the pooling plugin's `sparkrun update` row renders a real range instead of `unknown`, and the `a0` floor is what admits the 0.4.2/0.4.3 alphas — the Python half stays `unknown` because the core reads it only from a distribution; verified at `spark-arena/sparkrun@561b14b`, suite 1007 OK (2 skipped) |
+| 00:55 ET | measurement | `k2-horizon-0.9b-bf16-sglang` full breakfast — ladder C1 **78.3** / C2 **175.4** / C5 **340.5** / C10 **498.8** tg t/s (5 runs per cell), house **70** (9 pass / 3 partial / 3 fail) |
+| 00:58 ET | measurement | `ornith-1.5-9b-nvfp4-dflash-sglang` — ladder C1 **53.3** / C2 **91.4** / C5 **149.7** / C10 **144.5** (C5→C10 degrades, σ 3.8), house **97** (14 / 1 / 0) |
+| 01:08 ET | measurement | `k2-horizon-0.9b-bf16-uno-sglang` — ladder C1 **121.1** / C2 **220.8** / C5 **383.8** / C10 **516.3**, house **83** (11 / 3 / 1); UNO beats the plain bf16 sibling at every rung |
+| 01:10 ET | measurement | `spark-x2.6-4b-bf16-sglang` — ladder C1 **21.5** / C2 **49.2** / C5 **100.2** / C10 **158.8**, house **87** (12 / 2 / 1); C1 matches the historical 20.38 control on the same image |
+| 01:26 ET | measurement | `poolside-laguna-xs-2.1-nvfp4-dflash-vllm` — ladder C1 **53.4** / C2 **82.5** / C5 **129.6** / C10 **135.9**, house **83** (11 / 3 / 1); re-measured under `--fresh` after its first ladder turned out to be a benchmark-state re-emit, and it reproduces the cached figures within noise |
+| 01:26 ET | measurement | `spark-x2.6-4b-fp8-sglang` — ladder C1 **40.5** / C2 **76.5** / C5 **145.9** / C10 **218.1**, house **80** (11 / 2 / 2); roughly 2× the bf16 sibling's decode at every rung |
+| 01:44 ET | measurement | `zz-spark-x2.6-4b-fp8-ngram-sglang` — ladder C1 **38.9** / C2 **69.7** / C5 **133.6** / C10 **194.5**, house **0** (0 pass / 0 partial / **15 fail**): it serves and decodes, but every scenario ends `missing_step` after **42–60 s** each (passing siblings take 1–14 s), with no HTTP, timeout or connection error in the log — a behavioural failure of the ngram probe, not a transport artifact |
+| 01:51 ET | measurement | `ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang` — ladder C1 **79.6** / C2 **115.7** / C5 **143.7** / C10 **202.5**, house **97** (14 / 1 / 0); best house score of the campaign so far |
+| 02:01 ET | measurement | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang` — ladder C1 **92.7** / C2 **151.9** / C5 **221.5** / C10 **252.5**, house **100** (15 / 0 / 0); the campaign's best arm on both axes, and its C1 is the highest measured in this run |
+| 11:18 ET | measurement | `k2-horizon-7b-fp8-uno-sglang` boot failure root-caused: not the node, not transient — the pool's copy of pinned revision `ea739ec8…` held only `config.json`, so the tokenizer fell back to a slow class with no `sentencepiece`/`tiktoken` and the serve died before opening the port (`ValueError: Couldn't instantiate the backend tokenizer`). Upstream that revision has 13 files and the pin is sound; `hf download --revision` completed 13/13. **The class generalises**: a present-but-partial revision surfaces as an engine error, so a staging census must verify snapshot file counts, not repo presence |
+| 11:22 ET | measurement | `k2-horizon-7b-fp8-uno-sglang` **measured after the cache repair** — ladder C1 **32.5** / C2 **54.0** / C5 **91.2** / C10 **120.8** tg t/s (per-request 32.5 / 31.2 / 23.4 / 17.0), house **90** (deployability 81, responsiveness 60); ladder rc=0, house rc=0, stopped by task id, node released with 0 containers and 0 volumes |
+| 12:00 ET | `4aabfc8` | metrics bridge generalized to the 4bpw GLM arm and the vLLM-OMNI media arm — both GLM TensorFold launchers now carry the same block (TAG plus a one-per-boot `metrics bridge: matched […]` announcement, pinned byte-identical by a test), the 4bpw shim moved from `execve` to child process + signal relay, and a new lane-local `recipes/media/mods/vllm-omni-metrics-bridge` wraps the diffusion serve. The ds4 premise was false: that arm serves SGLang, which prints the scraped shapes natively, so the 3bpw implementation was generalized instead. Gate re-run by the parent: 1047 tests OK (2 skipped), 78 recipes validate, `bash -n`/`py_compile` clean, media render re-verified through the wrapper, 7 negative controls fire. **No arm booted**, so the matched-series line is still unobserved |
+| 13:00 ET | measurement | omp tool-calling stage 1 on the yarn-1m arm: **137 turns, depth 4→535, zero failures of the owner-reported class** — no empty SSE body, no invalid tool-call argument JSON, no length-terminated turn; tool mix edit 65 / bash 40 / read 30 / write 3. TTFT rises monotonically with depth (372→775 ms p50) while failure rate stays at zero, so depth cost is latency, not corruption. Code consequence: 30/30 backlog items implemented, 178 new tests green. Ledger `~/benchmarks/ornith-longrun-20261028/stage1-ledger.jsonl` |
+| 14:00 ET | measurement | stopped the yarn-1m trial serve on `.30` by task id after the trial ended at 12:57 and the node carried an idle container with zero client traffic for an hour; re-verified on the node afterwards: **0 containers, 0 volumes**, root 1.5 TB free. Fleet research occupancy is now zero, which means the staging pulls for the TP≤2 campaign are the only thing standing between the queue and a working node |
+| 14:01 ET | measurement | staged the TP≤2 campaign: image pulls re-checked by digest on both nodes and model snapshots checked for completeness rather than repo presence — the 7B-uno class (a present-but-partial revision) does not recur in any of the five pool repos. Staging was already largely done, so the queued estimate of 11 missing refs was stale |
