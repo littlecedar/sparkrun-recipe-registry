@@ -2058,3 +2058,44 @@ presence test (both other ds4 pins resolve via `repo@digest` to `a8ccece6` / `78
 recipes' `container:` refs are **unqualified**, which docker resolves against Docker Hub — they only
 work on the fleet because the image is resident, and each must become `ghcr.io/littlecedar/…@sha256:…`
 before a fresh node can pull it.
+
+## Node hygiene sweep — 2026-10-29 19:0x ET (owner: "clean up after yourself")
+
+Scope: all six nodes, `$HOME` and `/tmp`, classified against the tracked tree before anything was
+removed (the AGENTS rule: grep the repo for the basename, because worker-side paths get cited too).
+
+**Loose files: 88 → 39 on the head, and the same shape on the others (19/19/11/13/13).** The
+classification kept 27 names and deleted 49. Kept because cited: `cand6.log`, `chain.log`,
+`chunk-probe.log`, `gate.log`, `h3-chain.log`, `s1/s2/s3-chain.log`, `hf-verify.log`,
+`tf-tp2-boot.log` (queue/DEEPSEEK/attic provenance), `depth_ttft.py`, `disk_isolate.py`,
+`measure_arm.py`, `probe_ttft.py`, `warm_cold.py`, `p3.sh` (attic perf notes), `api.py` (TODO), plus
+plumbing that is not scratch: `bashrc`, `etc-hosts`, `nfs-fstab`, `rollback.bash`, `setup-nfs.bash`,
+`detect_and_configure_cluster_networking.py`, `run_cluster.sh`, `concurrency-ladder.yaml`,
+`ornith-nvfp4-recipe.yaml`. Deleted as uncited scratch: the `*-prefetch.log` / `pull-*.log` pull
+trails, `bw.py`/`bw2.py`/`fst_leak.py`/`poison.sh`/`samp.sh`/`qa.py`-class one-offs,
+`drive_embed.sh`/`drive_rerank.sh`, the `laguna-*.sh` set, `ornith-watch.sh`, `copy-engram.sh`,
+`ds4_probe*.sh`, `*.pid`, `spark_diag_*.ndjson`, and 12 `/tmp` scratch files.
+
+**Staging leftovers: 96 GB.** `~/dsv41-engram` on `.34` and `.35` (48 GB each) held per-rank
+`engram-l{1,14}-r2of4.bin` shards. No code references `r2of4`; every path in `mods/` and the launcher
+reads `/cache/huggingface/hub/dsv41-engram`, i.e. the pool (189 GB, present). Both copies dated
+Oct 2–5; the repo's own history records the same pre-warms already removed on `.32`/`.33`
+(`attic/cybersec/AGENTS.md:578`). Also removed: `~/scratch` on `.34` (628 MB) and `.35` (8.7 MB,
+root-owned files needed `sudo -n`), `~/ornith-diag`, `~/modwork`, `~/q4mods`, `~/build`, `~/bisect-ctx`.
+
+**Stale runtime-cache trees: 299 GB, free nodes only.** `cache-audit.py` over a fresh
+`sparkrun setup prune-runtime-cache --all --dry-run` census (215 trees, 2588.8 GB) names trees "no
+shipped or attic model@revision hashes to". On the two free nodes that set included the previous
+revision of the TP=2 arm's checkpoint and the combined EXL3+engram pack:
+`LibertAIDAI__...-f236b776` (100 GB on `.30`, 100 GB on `.35`, markers Oct 17–18) and
+`littlecedar__...-2bd42ac5` (100 GB on `.35`, marker Oct 7). Current-pin trees (`-55410efc`, marker
+today) and every marker inside 72 h were left alone.
+
+**Result by node** (`df -BG` before → after): `.30` 1509 → **1608 GB**; `.35` 1233 → **1478 GB**;
+`.34` 1164 → **1212 GB**. `.31`–`.33` untouched. Fleet-wide: 0 containers, 0 volumes.
+
+**Left for a production window, not judgement:** `.31`–`.34` still hold
+`deepseek-ai__DeepSeek-V4.1-Flash-11826f49` (426.8 GB), a `DeepSeek-V4.1-Flash` tree the audit cannot
+attribute to any shipped pin — the four ranks running the production serve are not a place to delete
+runtime caches from on inference. Also unclaimed: a root-owned `IFM__K2-Horizon-MoVA-36B-A4B-FP8`
+tree on `.35` from the retired K2 MoVA lane (`attid/ifm` archive), unreadable to `du` as the red user.
