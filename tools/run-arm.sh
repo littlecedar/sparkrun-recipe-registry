@@ -39,6 +39,12 @@ fi
 TID=${N#sparkrun_}; TID=${TID%_solo}
 echo "arm=$NAME container=$N task=$TID"
 
+# Whatever happens to this script -- SIGINT, SIGTERM, an early exit, a timeout --
+# the task does not outlive it. The explicit stop below is the normal path; this
+# trap is the one that covers the script being killed mid-measurement, which is
+# the same class of leak as forgetting the stop entirely.
+trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
+
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:8000" --task-id "$TID" \
   --node "$NODE" --container "$N" --grace 1800 --log "$L/watchdog.log" &
 WD=$!
