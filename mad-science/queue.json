@@ -689,6 +689,20 @@
       "provenance": "mad-science/STATUS.md 02:03 ET campaign row; .scratch/tp12-campaign/manifest.json readiness flags",
       "claimed_by": "sparkrun-recipe--boarddocs-20261029",
       "claimed_at": "2026-10-29T16:25:59Z"
+    },
+    {
+      "id": "published-image-refs",
+      "title": "Three container refs in shipped recipes resolve to nothing: qualify or retire them",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "Measured 2026-10-29 while repinning the ds4 family. (1) recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml pins littlecedar/dgx-spark-llama-cpp:upstream-d854d98-cu130 - unqualified (so it resolves against Docker Hub) and that tag does not exist in GHCR either; the package's only tag is upstream-a37cc46, a different llama.cpp commit, so repinning to it changes the engine and needs a boot. (2) recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml and recipes/explore/zz-spark-x26-main-image-sglang.yaml pin sglang-main-arm64:6563312, a build that exists only as a local tag on the fleet (no registry), so neither arm can pull on a fresh node. The sweep reports all three as container-floating; a non-public or absent ghcr ref would instead be container-unresolvable and exit 2. Fix is a push under a pin, a repin plus boot, or retirement to attic/.",
+      "provenance": "refresh-sweep --exit-code rows of 2026-10-29 (container-floating); AGENTS.md Published artifacts must be public; asked 2026-10-29",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
