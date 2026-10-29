@@ -66,6 +66,33 @@ class TestParseIo(unittest.TestCase):
         self.assertIsNone(bw.parse_io("NO-PID\n"))
 
 
+class TestContainerResolution(unittest.TestCase):
+    """A TP=1 task's container is `<prefix>_solo`, not `_node_0` (2026-10-29 defect).
+
+    The default name made every solo boot read `serve_pid=gone` — the container
+    did not exist under that name — so a slow solo load could be stopped at
+    grace expiry. The node's own `docker ps` is the source.
+    """
+
+    def test_solo_container_wins_over_the_node_0_default(self):
+        self.assertEqual(
+            bw.pick_container(["sparkrun_7522c749bf81cc03_bd45c6067dae_solo"], "7522c749bf81cc03_bd45c6067dae"),
+            "sparkrun_7522c749bf81cc03_bd45c6067dae_solo",
+        )
+
+    def test_multi_rank_rank_0_is_picked_regardless_of_listing_order(self):
+        names = ["sparkrun_abc123_node_1", "sparkrun_abc123_node_0"]
+        self.assertEqual(bw.pick_container(names, "abc123"), "sparkrun_abc123_node_0")
+
+    def test_no_running_container_falls_back_to_node_0(self):
+        self.assertEqual(bw.pick_container([], "abc123"), "sparkrun_abc123_node_0")
+
+    def test_a_foreign_task_is_never_adopted(self):
+        self.assertEqual(
+            bw.pick_container(["sparkrun_othertask_solo"], "abc123"), "sparkrun_abc123_node_0"
+        )
+
+
 class TestParser(unittest.TestCase):
     def test_required_args(self):
         with self.assertRaises(SystemExit):

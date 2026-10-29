@@ -97,6 +97,41 @@ def serve_state(
     return True, parse_io(out)
 
 
+def pick_container(names: list[str], task_id: str) -> str:
+    """The task's container from `docker ps` names; falls back to the multi-rank default.
+
+    A TP=1 task names its single container `<prefix>_solo`, so the old
+    `sparkrun_<task-id>_node_0` default read "serve_pid=gone" on every solo boot
+    (the container simply did not exist under that name) and could stop a
+    slow-loading solo serve at grace expiry.
+    """
+    for name in names:
+        if task_id in name and name.endswith("_node_0"):
+            return name
+    for name in names:
+        if task_id in name:
+            return name
+    return f"sparkrun_{task_id}_node_0"
+
+
+def resolve_container(node: str, task_id: str) -> str:
+    """Ask the node which container the task is running as (ssh)."""
+    try:
+        out = subprocess.run(
+            [
+                "ssh", "-n", "-o", "BatchMode=yes", f"red@{node}",
+                f"docker ps --filter name=sparkrun_{task_id} --format '{{{{.Names}}}}'",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        out = ""
+    return pick_container([n.strip() for n in out.splitlines() if n.strip()], task_id)
+
+
 def stop_task(task_id: str, log) -> None:
     subprocess.run(
         ["sparkrun", "stop", task_id],
@@ -124,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--container",
         default="",
-        help="container name (default sparkrun_<task-id>_node_0)",
+        help="container name (default: resolved on the node; `_solo` for TP=1, `_node_0` multi-rank)",
     )
     ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument(
@@ -137,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--log", default="")
     args = ap.parse_args(argv)
 
-    container = args.container or f"sparkrun_{args.task_id}_node_0"
+    container = args.container or resolve_container(args.node, args.task_id)
     log = open(args.log, "a", encoding="utf-8") if args.log else sys.stdout  # noqa: SIM115 (whole-run handle)
     started = time.time()
     consecutive_dead = 0
