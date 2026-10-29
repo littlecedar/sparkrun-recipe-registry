@@ -107,6 +107,27 @@ unchanged (Δ ≈ +1.7 pp for turbo). Operationally the important fact is that
 (observed: `reasoning_tokens=400` on a one-line request). Callers who want the
 terse baseline behaviour must pass `enable_thinking=false`.
 
+### Reply-level divergence (temperature 0)
+
+Per-benchmark reply diffs over the stored replies — `compare_results.py` prints
+this table and writes the machine-readable copy to `results/summary.json`. It is
+a diagnostic, not a score table, so it lives here rather than in the generated
+`results/RESULTS.md`. `identical` + `differing` = the row's n; `one-sided`
+counts replies only one model produced.
+
+| benchmark | identical | differing | one-sided |
+|:--|--:|--:|--:|
+| aime | 0 | 90 | 0 |
+| ARC-Challenge (0-shot) | 198 | 2 | 0 |
+| gpqa | 0 | 192 | 0 |
+| GSM8K (0-shot) | 8 | 192 | 0 |
+| hle | 0 | 200 | 0 |
+| house battery | 36 | 1 | 0 |
+| humaneval | 95 | 69 | 0 |
+| math500 | 3 | 197 | 0 |
+| mbpp | 186 | 71 | 0 |
+| mmlu_pro | 10 | 390 | 0 |
+
 ### Secondary — latency (same GSM8K run, thinking off)
 
 Not a throughput benchmark (that is the recipe's performance lane) but a useful

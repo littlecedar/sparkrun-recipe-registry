@@ -8,7 +8,7 @@ Why this file exists
 --------------------
 The Timestral item (`mad-science/TODO.md`, researched 2026-10-22) pre-registered this
 generator: the registry has no probabilistic-forecast instrument, no third-party series
-is redistributed (GIFT-Eval / TIME / fev-bench licences differ and their numbers are
+is redistributed (GIFT-Eval / TIME / fev-bench licenses differ and their numbers are
 leaderboard aggregates a handful of series cannot reproduce), and a committed generator
 plus seed is byte-reproducible and yields an oracle the leaderboards cannot.
 

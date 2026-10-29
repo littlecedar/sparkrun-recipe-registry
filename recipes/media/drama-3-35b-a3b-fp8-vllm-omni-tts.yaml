@@ -7,7 +7,7 @@
 # takes. `temperature` is not a request field on this API (server default; only
 # `seed`, `max_new_tokens`, `speed`, `response_format`, … are). Intelligibility is
 # unmeasured — no ASR/speaker model on the node; the owner's ears are the open cell.
-# `fishaudio/drama-3` is licence-gated: the FISH AUDIO COMMUNITY LICENSE AGREEMENT
+# `fishaudio/drama-3` is license-gated: the FISH AUDIO COMMUNITY LICENSE AGREEMENT
 # v1.0 allows non-commercial and research use, and commercial use only below a
 # USD 500,000 annual-revenue threshold; read LICENSE.md in the checkpoint before
 # serving this to anyone. Weights stay in the HF cache, never in the image.

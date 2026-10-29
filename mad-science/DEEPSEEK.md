@@ -1930,9 +1930,9 @@ number is upstream's own claim, cited to its commit.
   upstream tests run in-image (`Dockerfile.canary` delta), packaging/provenance tests
   (`tests/test_adapter_engine_pins.py`), and the prefill-bypass gate still runs with
   `DSV41_PREFILL_BYPASS_EXPECT=supported` against the tree's own managers code.
-- Provenance/licence: new code is credited and documented — the `NOTICE` delta adds SGLang #39665
+- Provenance/license: new code is credited and documented — the `NOTICE` delta adds SGLang #39665
   `deepseekv41_detector.py` vendored unmodified and the NCCL #2393 AArch64 CTS-fence patch, both
-  Apache-2.0; the repo licence is AGPL-3.0; `docs/upstream-watch.md` records per-PR carry/HOLD
+  Apache-2.0; the repo license is AGPL-3.0; `docs/upstream-watch.md` records per-PR carry/HOLD
   decisions with mechanisms.
 
 **Consequence for our queue.** Upstream has no adapter state for trees newer than `f80c91a4b`, so

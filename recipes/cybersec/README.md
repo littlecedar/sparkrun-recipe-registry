@@ -397,7 +397,7 @@ files.
   what those cells show. *(Owner decision 2026-10-25 (SURVEY #5): the tier A/B item is closed as
   landed; the earlier "has not been booted" sentence was stale.)*
 - **Gating:** the repo is `gated: auto` and the card says `license: other` / `license_name: qwen`
-  with no `LICENSE` file in the tree, so the licence position is the card's declaration only — same
+  with no `LICENSE` file in the tree, so the license position is the card's declaration only — same
   shape as the AEON arm. Each node needs an `HF_TOKEN` with that release accepted.
 - **One footgun in this route:** llama.cpp warns on load that `Qwen-VL models require at minimum
   1024 image tokens` (`--image-min-tokens 1024`). The arm serves without the flag, so a vision cell

@@ -3,8 +3,8 @@
 #
 # MiniMaxAI/MiniMax-H3 is licensed under the **MiniMax H3 Community License
 # Agreement** (card `license: other`, `license_name:
-# minimax-h3-community-license-agreement`). It is not a revenue licence and not
-# an open licence: it is a **territorial** one. Verbatim, LICENSE:3 and :5:
+# minimax-h3-community-license-agreement`). It is not a revenue license and not
+# an open license: it is a **territorial** one. Verbatim, LICENSE:3 and :5:
 #   "5. "Excluded Territories" means the European Union, the United Kingdom,
 #        the Republic of Korea and the United States of America."
 #   "3. "Applicable Territory" means worldwide, excluding the Excluded
@@ -17,7 +17,7 @@
 # so the run is inside the Applicable Territory and the condition is met BY THE
 # DEPLOYMENT LOCATION. A boot is permitted at a non-US site and NOT permitted
 # at a US site; the node that runs this recipe must therefore be a non-US one.
-# Do not re-litigate the licence — enforce the location.
+# Do not re-litigate the license — enforce the location.
 #
 # Obligations that still bind on any use, US or not:
 #   IV.1  separate written authorization (api@minimax.io) above 20M USD/yr
