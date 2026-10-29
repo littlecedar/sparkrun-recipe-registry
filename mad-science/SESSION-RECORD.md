@@ -2020,3 +2020,41 @@ set `HOME=/home/siv`. The head is genuinely credential-free (its `store` helper 
 `huggingface.co` line and both `id_ed25519*` keys are rejected), so the fleet-reading argument
 above still holds — only "no reachable host" was false. Keep the sandbox HOME for `sparkrun`,
 never for `git`/`gh`.
+
+## TP12 campaign + GHCR push — 2026-10-29 12:20–13:30 ET
+
+Owner authorisations this window: keep running TP12 arms back to back (no per-arm sign-off), push
+the shipped ds4 image to GHCR **and make the package public**, and route the blocked-queue questions
+into `mad-science/CLR-BRIEF.md` instead of chat.
+
+**Arms.** `nemotron-3.5-lightning-30b-a3b-nvfp4-vllm` (TP=1) measured at 11:47–11:58 ET — ladder
+C1 63.86 ± 1.78 / C2 93.73 / C5 122.74 / C10 144.64 t/s, standard suite **90**, every cell inside the
+shipped row's spread, so the row stands. `qwen3-coder-next-int4-autoround-vllm` (TP=1, vLLM) measured
+at 12:43–12:52 — C1 68.77 ± 0.17 / C2 111.91 / C5 180.82 / C10 243.69, suite **93**, again within ~3 %
+of the shipped row (70.4 / 114.0 / 177.1 / 249.5), and the first live exercise of the io-probe fix
+(`58d602f`): the watchdog followed the `EngineCore` child's 309 MB of reads, not the `vllm serve`
+parent. Campaign count 12 of 42 measured; receipts `~/benchmarks/tp12-20261029/{nemotron,qwen3-coder-next}/`.
+
+**The TP=2 ds4 attempt was aborted and published nothing.** `deepseek-v4.1-flash-tensorfold-tp2-1m-sglang`
+on `.30`+`.35` booted in 63.8 s and served the full 1048576 context, but its own log showed decode at
+**2.9–3.1 tok/s** (128 tokens over 45–48 speculative rounds, `accepted=82/142`, ttft 20–34 s including
+6.6 s prefill) against the row's C1 66.4. No OOM, no restart (`RestartCount=0`, `OOMKilled=false`);
+batched CUDA graphs were captured (`--parallel warm-up: 64 round graphs, 4 drafter graphs`) while the
+single-stream warm-up printed `decode graphs {}`; Engram is on (`/cache/huggingface/hub/dsv41-engram`)
+and cold pool reads are the leading, unproven hypothesis. The row's own C2/C5/C10 also come from the
+**0.6.3 engine** while the shipped image moved to v0.6 on 2026-10-21, so a clean re-run needs both
+engines re-measured before any cell is comparable. Receipt `~/benchmarks/tp12-20261029/ds4-tp2/REPORT.md`.
+
+**GHCR.** The org's package list (`gh api /orgs/littlecedar/packages?package_type=container`) held only
+four packages, none of them `dgx-spark-dsv41`: the shipped image had never been pushed, and every
+anonymous probe said `denied` because GHCR never reveals existence to anonymous callers (a public
+package answers `manifest unknown` for a wrong tag instead). The workstation token carried
+`gist, read:org, repo, workflow` and no `write:packages`; two device-flow codes expired before the
+owner could enter them (`1940-BA7A`, `7C37-121D` — codes live ~15 min and the first attempt was killed
+by a 45 s shell timeout, so the flow must run as a persistent service). After the grant
+(`write:packages`) the head logged in and `docker push ghcr.io/littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`
+started. Two traps recorded for the next pusher: a bare `sha256:<manifest digest>` inspect is **not** a
+presence test (both other ds4 pins resolve via `repo@digest` to `a8ccece6` / `788c3654`), and the
+recipes' `container:` refs are **unqualified**, which docker resolves against Docker Hub — they only
+work on the fleet because the image is resident, and each must become `ghcr.io/littlecedar/…@sha256:…`
+before a fresh node can pull it.
