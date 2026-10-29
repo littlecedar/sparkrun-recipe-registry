@@ -771,10 +771,15 @@ together:
   so queue rows `w4-s{1,2,3}` + `w4-candidate6` are BLOCKED with that reason, not released.
   Candidates 3/5 stay build-gate-blocked. Receipts: `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`,
   `s0-retry-node{1..4}-serve.log`, `s0-launch.log`, `s0-retry-launch.log`.)*
-  *(2026-10-29 status — item stays OPEN: no flag-level arm has been measured, because the S0 control
-  ran NEGATIVE (above) and candidates 3/5 are still build-gate-blocked; candidates 1/2/6 have no
-  main-tree base until the owner rules on the control-lineage change. Item 3 of this section (the
-  b12x parity boot) ran, was retired by the 2026-10-26 ruling, and was archived today:
+  *(2026-10-29 status — item stays OPEN, but **not** for the flag-level arms: those ran and closed on
+  2026-10-26 on the plain shipped `aff52fa5` arm, and their four verdicts are row 16 of this section
+  (`:801`) — candidate 6 keep-high, S1 FINDING, S2 NULL, S3 NEGATIVE. An earlier version of this line
+  said "no flag-level arm has been measured"; that was stale when written and is corrected here. What
+  keeps the item open is the two build-gated arms: candidates 3/5 wait on DeepGEMM's SM12x paged-sparse
+  kernels (`arch_major == 10`, SM100, vs GB10 at SM121 — queue row
+  `arch-deepgemm-sm12x-paged-sparse`), and that gate plus the credential for the local-only production
+  image are the only two owner questions left, both in `../CLR-BRIEF.md`. Item 3 of this section (the
+  b12x parity boot) ran, was retired by the 2026-10-26 ruling, and was archived on 2026-10-29:
   `../attic/DONE.md` §"Retry queue — window 4 (2026-10-29 sweep)".)*
 *(Item 3, the b12x parity boot, ran and was retired by the owner's 2026-10-26 ruling — archived
 verbatim in `../attic/DONE.md` §"Retry queue — window 4 (2026-10-29 sweep)". The run-and-retired
