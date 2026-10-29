@@ -2077,15 +2077,27 @@ trails, `bw.py`/`bw2.py`/`fst_leak.py`/`poison.sh`/`samp.sh`/`qa.py`-class one-o
 `ds4_probe*.sh`, `*.pid`, `spark_diag_*.ndjson`, and 12 `/tmp` scratch files.
 
 **Staging leftovers: 96 GB.** `~/dsv41-engram` on `.34` and `.35` (48 GB each) held per-rank
-`engram-l{1,14}-r2of4.bin` shards. No code references `r2of4`; every path in `mods/` and the launcher
-reads `/cache/huggingface/hub/dsv41-engram`, i.e. the pool (189 GB, present). Both copies dated
-Oct 2–5; the repo's own history records the same pre-warms already removed on `.32`/`.33`
-(`attic/cybersec/AGENTS.md:578`). Also removed: `~/scratch` on `.34` (628 MB) and `.35` (8.7 MB,
+`engram-l{1,14}-r2of4.bin` shards. **Correction, 2026-10-29 19:4x ET — these are not duplicates of the
+pool, and the first wording said so wrongly.** The pool holds a *different artifact*
+(`engram-l1/14.safetensors`, the format the TensorFold TP=2 lane reads via `TF_DS_ENGRAM`); the `.bin`
+files are knapcio's packed 264-byte-record TP=4 shards, which
+`recipes/cybersec/mods/dsv41-engram-fetch/README.md:153-154` describes as something the builder
+"emits … should another lane need them". So the honest basis for removal is: (a) no code path in
+`recipes/`, `mods/` or `tools/` names `r2of4`, (b) every launcher path resolves to the pool, (c) the
+knapcio TP=4 production serve is running without them, and (d) they are **regenerable byte-identically**
+from the official repo with `build-dsv41-engram.py --format packed --tensor-parallel 4 --rank R` — it is
+a repack, not a derived tuning artifact. Both copies dated Oct 2–5; the repo's own history records the
+same pre-warms already removed on `.32`/`.33` (`attic/cybersec/AGENTS.md:578`). If a lane ever needs the
+packed format again, that command rebuilds it; nothing was irreplaceable. Also removed: `~/scratch` on `.34` (628 MB) and `.35` (8.7 MB,
 root-owned files needed `sudo -n`), `~/ornith-diag`, `~/modwork`, `~/q4mods`, `~/build`, `~/bisect-ctx`.
 
 **Stale runtime-cache trees: 299 GB, free nodes only.** `cache-audit.py` over a fresh
-`sparkrun setup prune-runtime-cache --all --dry-run` census (215 trees, 2588.8 GB) names trees "no
-shipped or attic model@revision hashes to". On the two free nodes that set included the previous
+`sparkrun setup prune-runtime-cache --all --dry-run` census (215 trees, 2588.8 GB — but the tree count
+flatters the total: most `llama-cpp` leaves are 0-byte stubs, while three sglang trees carry ~1 TB
+between them). `--all` was used **only** for the read-only census; nothing was applied from it. The
+deletions came from the audit's attribution, and every tree with a marker inside 72 h was left alone —
+`--all` would have taken today's warm trees too and re-paid their torch.compile/Triton warms on the next
+launch. The audit names trees"no On the two free nodes that set included the previous
 revision of the TP=2 arm's checkpoint and the combined EXL3+engram pack:
 `LibertAIDAI__...-f236b776` (100 GB on `.30`, 100 GB on `.35`, markers Oct 17–18) and
 `littlecedar__...-2bd42ac5` (100 GB on `.35`, marker Oct 7). Current-pin trees (`-55410efc`, marker
