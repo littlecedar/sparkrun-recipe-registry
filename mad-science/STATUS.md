@@ -5,6 +5,7 @@
 | where | owner | what |
 |---|---|---|
 | census | this tick — documentation session (opened 2026-10-29, first commit `6867d1b` at 03:03 ET) | **13:04 ET, all six nodes (read-only ssh)**: **no research containers** — the dflash2 boot ran 12:50–13:03 on `.30` and was stopped by task id; `.30` and `.35` both 0 containers / 0 volumes, 0 volumes fleet-wide. `.31`–`.34` run the production serve (`c989632ede4f538e_b4e3c94ef77c`, shipped pin, `Up 2 days (healthy)`, rank-0 `/v1/models` 200, serve-child pids 280 / 306 / 301 / 301 unchanged all day) — excluded from research accounting. Root avail `.30`→`.35`, exact: 1510 / 1789 / 1844 / 1740 / 1164 / 1233 GB — unchanged across every read today. No `.scratch/fleet-window.lock` (all three boots were single-node jobs). `origin/main` = `0a49dbb` |
+| TP12 boot — `ling-3.0-flash-int4-dspark-sglang` (TP=1, `.30`) | this session (`sparkrun-recipe--boarddocs-20261029`, campaign row `running`) | task `3effce2e30113dd9_6542300e1f8e`, container `…_solo`, image `lmsysorg/sglang:dev-Ling-3.0-flash@sha256:880d81d4…`, model `inclusionAI/Ling-3.0-flash-int4` @ `7a27e9eb…` (24 shards from the pool, local-snapshot hit); loading since 13:17 ET, watchdog armed (`_solo` resolved, grace 1800), ladder + standard suite queued behind a readiness gate; receipts `~/benchmarks/tp12-20261029/ling-3.0/` |
 
 ## Work queue
 
