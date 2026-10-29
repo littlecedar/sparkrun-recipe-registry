@@ -1,4 +1,4 @@
-# Board — generated 2026-10-29 13:12 ET
+# Board — generated 2026-10-29 14:14 ET
 
 ## In flight
 
@@ -22,7 +22,7 @@
 | `h2h-doc-refresh` — TP4-HEAD-TO-HEAD open-cells note per landed cell (0.5 h) | single | — | queued |
 | `tensorfold-metrics-bridge-generalization` — metrics bridge for both GLM TensorFold launchers + a vLLM-OMNI media equivalent (1.5 h) | single | — | **queued and unbooted** — `mad-science/queue.json` lists it `queued` (re-read 2026-10-29 04:00 ET); the 2026-10-28 12:00 ET landed row records the code landed as `4aabfc8` with no arm booted. It closes when an arm prints the `metrics bridge: matched […]` line |
 | `h2h-beam-house-and-bfcl-category` — Beam-1.0 NVFP4 house @4096 + BFCL category summary (3 h) | quartet | — | queued |
-| `ds4-shipped-container-digest-pin` — push the local ds4 overlays under registry tags, take the manifest digests, write them into `container:` | — | — | **pushed and pinned 2026-10-29 13:0x ET** (`0a49dbb`, `7ae854e`): three images uploaded under their own digests — `canary-roce-aff52fa5` → `sha256:7c3cb394…` (shipped arm), `tensorfold-v06` → `sha256:1e7a0165…` (both tensorfold recipes; same image the TP=2 attempt ran), `pin-fabbe8615bb9` → `sha256:19977a03…` (cybersec) — and all four `container:` lines now carry the `ghcr.io/` host, which fixes refs that otherwise resolved against Docker Hub. **Still blocking:** the package is `visibility=internal`; the registry refuses an anonymous pull token for it (`GET /token?scope=repository:littlecedar/dgx-spark-dsv41:pull` → **401 authentication required**) while the public `dgx-spark-llama-cpp` returns a 72-char token, and `PATCH /orgs/…/packages/container/dgx-spark-dsv41` returns 404 with this token (needs `admin:org` or the settings page). The pull claim closes when that 401 becomes a token; a `docker pull` on a fleet node proves nothing because the hosts hold credentials |
+| `ds4-shipped-container-digest-pin` — push the local ds4 overlays under registry tags, take the manifest digests, write them into `container:` | — | — | **done 2026-10-29 14:1x ET** — three images pushed and pinned (`0a49dbb`, `7ae854e`): `canary-roce-aff52fa5` → `sha256:7c3cb394…`, `tensorfold-v06` → `sha256:1e7a0165…`, `pin-fabbe8615bb9` → `sha256:19977a03…`, all four `container:` lines now `ghcr.io/…@digest`. The package is **public** (owner flip) and anonymous pull is proven: the registry mints an unauthenticated pull token (200, was 401), all three digests HEAD **200**, and a clean-`DOCKER_CONFIG` `docker manifest inspect` returns the manifest whose config digest is the original `3f448081…`. The package is also repo-linked via `org.opencontainers.image.source`, and the rule is now written into `AGENTS.md` §"Published artifacts must be public" with that two-call gate |
 | `h2h-second-boot-ladder` — controlled second-boot ladder per arm (sigma column) (5 h) | quartet | — | queued |
 
 ## Landed this session

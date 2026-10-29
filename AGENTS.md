@@ -461,6 +461,31 @@ answer, so the question is not re-opened.
   register first — this paragraph permits eval-only shipping, it does not decide whether a given
   license allows it.
 
+### Published artifacts must be public (a rule)
+
+**Anything this repo publishes to GitHub Packages is PUBLIC — not `internal`, not `private`.**
+That is the point of the registry: a public record of recipes and research that a third party can
+actually run. An `internal` package is a defect even though it looks harmless: any GitHub account
+can pull it, so it passes every check a fleet node can perform while failing the only one that
+matters.
+
+Measured 2026-10-29: the shipped ds4 image sat `internal` after its first push and every
+fleet-side probe passed, because those hosts hold credentials. The honest gate is anonymous and
+takes two calls — the registry will not mint a pull token for a non-public package:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'https://ghcr.io/token?scope=repository:littlecedar/<package>:pull'   # 200 public, 401 not
+DOCKER_CONFIG=$(mktemp -d) docker manifest inspect \
+  ghcr.io/littlecedar/<package>@sha256:<digest>                        # no creds in that config
+```
+
+Changing visibility needs `admin:org` (a `write:packages` token gets `404 Not Found` from
+`PATCH /orgs/<org>/packages/container/<package>`, which is GitHub masking the permission failure),
+or one click at `https://github.com/orgs/<org>/packages/container/<package>/settings`. Push the
+label `org.opencontainers.image.source=https://github.com/littlecedar/sparkrun-recipe-registry` so
+the package links to this repo and is findable from it.
+
 ### Recipe comments
 
 **A recipe is a runnable artifact, not a research record — and its comments are no exception.** A
