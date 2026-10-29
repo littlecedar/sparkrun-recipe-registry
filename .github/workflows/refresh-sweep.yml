@@ -43,6 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Without a Hub token the sweep compares pins anonymously, and any repo
+      # that answers 401 to an anonymous compare becomes `model-unresolvable`,
+      # which the tool escalates to exit 2 ("could not run") and labels
+      # `sweep-broken`. Eight pins sat in that class on 2026-10-29.
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
       APPLY: ${{ inputs.apply }}
       FAIL_ON_DRIFT: ${{ inputs.exit_code_on_drift }}
     steps:
