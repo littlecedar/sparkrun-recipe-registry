@@ -160,13 +160,28 @@ else
 fi
 
 # Always tear down: an idle serve is a held node, which is the defect this
-# script exists to prevent.
+# script exists to prevent. `sparkrun stop` can be refused when its resource
+# claim bookkeeping is stale ("held by pid ... which has exited without
+# releasing it"), which left a measured arm's container Up for eight minutes on
+# 2026-10-29 -- so the stop is verified and, failing that, this launch's own
+# container is removed by name. Only a container this script resolved is ever
+# removed.
 sparkrun stop "$TID" 2>&1 | tail -1
 kill "$WD" 2>/dev/null
 sleep 5
+if [ -n "${N:-}" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+     "docker ps --format '{{.Names}}'" 2>/dev/null | grep -qx "$N"; then
+  echo "container survived sparkrun stop; removing $N by name"
+  ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "docker rm -f $N" >/dev/null 2>&1
+  sleep 3
+fi
 for n in 30 35; do
-  ssh -o ConnectTimeout=4 -o BatchMode=yes "red@10.0.4.$n" \
-    "printf '%s ctns=%s vols=%s\n' \$(hostname) \$(docker ps -aq | wc -l) \$(docker volume ls -q | wc -l)"
+  left=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@10.0.4.$n" \
+    "printf '%s ctns=%s vols=%s\n' \$(hostname) \$(docker ps -aq | wc -l) \$(docker volume ls -q | wc -l)")
+  echo "$left"
+  # A held node is the defect this script exists to prevent, so leftover state
+  # is a failure, not a line of trivia in an otherwise green run.
+  case "$left" in *"ctns=0 vols=0") ;; *) echo "leftover state on .$n: $left"; rc=6 ;; esac
 done
 echo "ARM DONE $NAME rc=$rc"
 exit "$rc"

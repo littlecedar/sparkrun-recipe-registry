@@ -108,6 +108,14 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_a_surviving_container_is_removed_and_fails_the_run(self):
+        """`sparkrun stop` can be refused; the node must not stay held."""
+        text = read_tool()
+        self.assertIn('container survived sparkrun stop', text, "no stop retry")
+        self.assertIn('docker rm -f $N', text, "no by-name removal of this launch's container")
+        self.assertIn('rc=6', text, "leftover state does not fail the run")
+        self.assertIn('leftover state on', text, "no leftover report")
+
     def test_a_leftover_container_of_the_same_recipe_is_cleared_first(self):
         """Two containers of one recipe collide on the port; the old one answers."""
         text = read_tool()
