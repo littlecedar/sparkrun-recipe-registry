@@ -79,6 +79,20 @@ artifacts() {
   done
 }
 
+# A claim left behind by a dead sparkrun process refuses every launch on the fleet
+# ("*: held by pid N, which has exited without releasing it") -- hit four times on
+# 2026-10-29, once with both nodes idle. Reconcile only claims whose owner is dead;
+# a live claim belongs to another session's run and must not be touched.
+for owner in $(sparkrun daemon resources list 2>/dev/null \
+    | python3 -c 'import json,sys
+try: rows = json.load(sys.stdin)
+except Exception: sys.exit(0)
+print("\n".join(r.get("owner","") for r in rows if not r.get("alive", True) and r.get("owner")))' \
+    | tr -d '"'); do
+  echo "releasing a claim whose owner has exited: $owner"
+  sparkrun daemon resources reconcile "$owner" --acknowledge-effects 2>&1 | tail -1
+done
+
 sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR > "$L/launch.log" 2>&1 &
 LAUNCH=$!
 

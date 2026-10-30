@@ -108,6 +108,12 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_a_dead_owners_claim_is_released_before_launching(self):
+        """A dead claim refuses every launch; the recovery is documented and safe."""
+        text = read_tool()
+        self.assertIn('sparkrun daemon resources reconcile', text, "no claim reconcile")
+        self.assertIn('not r.get("alive", True)', text, "live claims are not excluded")
+
     def test_a_foreign_container_holding_the_port_refuses_the_launch(self):
         """A dead peer's container on the port makes this arm measure nothing."""
         text = read_tool()
