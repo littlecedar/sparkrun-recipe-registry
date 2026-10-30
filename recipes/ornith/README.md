@@ -726,6 +726,13 @@ the shipped surface.
 Owner-requested arm (2026-10-30). The NVFP4 122B target with `incoai/Ornith-1.5-122B-DFlash2`
 as the speculative draft, pinned `9baefc1b…`, 15 draft tokens (the card's block size is 16).
 
+**Layer geometry verified before the boot, not assumed.** The NVFP4 export's `config.json` carries
+no `num_hidden_layers`, so the drafter's `target_layer_ids: [1, 7, 14, 20, 26, 32, 39, 45]` were
+checked against `model.safetensors.index.json` instead: the export holds **48 layers (0–47)**, all
+eight indices exist, and the per-layer tensors are **unfused** (`mlp.experts.<n>.{up,gate,down}_proj`
+individually, plus `shared_expert_gate`), so the drafter reads the layers it was trained against
+rather than a renumbered or packed equivalent.
+
 **Why the drafter should work here, and what could stop it.** DFlash 2 drafts a whole block
 in one pass and the card is explicit that decoding is lossless — greedy output matches the
 target and sampling preserves its distribution — so a C1 win costs no quality. Two things can
@@ -735,9 +742,12 @@ degrade it on this arm and both are in the receipt for the first boot:
   the target's hidden states at `target_layer_ids: [1, 7, 14, 20, 26, 32, 39, 45]`; an NVFP4
   export changes those states slightly, so acceptance is measured, never assumed. The
   card-exact bf16/TP=2 variant is the reference if acceptance looks low.
-- **GGUF targets only** need `mask_embedding.safetensors` (an exact BF16 copy of the target's
+- **GGUF targets** need `mask_embedding.safetensors` (an exact BF16 copy of the target's
   mask-token row, in this repo, 6.4 KB) because Q8_0/K-quants store that row as zeros and
-  acceptance roughly halves. A safetensors or NVFP4 target does not need it.
+  acceptance roughly halves. An NVFP4 target keeps its embedding table in high precision, so it
+  does **not** need the override — but if this arm's acceptance lands near half of the card's
+  published 5–9, check the row before blaming the drafter: that is the failure mode the override
+  exists for, and quantised exports are exactly where it hides.
 
 The draft snapshot must be seeded into `refs/main` (the recipe's `pre_exec` does it): SGLang
 resolves the draft through `refs/main`, and sparkrun's SHA-keyed fetch writes no refs entry.

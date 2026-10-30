@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 TOOL = Path(__file__).resolve().parents[1] / "tools" / "py-runtime-bench.py"
-CASES = ("loop", "json", "detok", "httparse", "asyncio")
+CASES = ("loop", "json", "detok", "pydetok", "httparse", "asyncio")
 
 
 def run(*args: str) -> subprocess.CompletedProcess[str]:

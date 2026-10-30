@@ -19,7 +19,12 @@ What it measures (each reported as ns/op plus total wall time):
               effect, with no allocation to hide behind
   json        `json.dumps` of a streaming delta chunk, the shape an SSE path writes per
               token
-  detok       bytes -> str decode of a token piece, as the detokenizer does per token
+  detok       bytes -> str decode of a token piece, as a C-backed detokenizer does per token
+  pydetok     a PURE-PYTHON detokenizer: vocab dict lookup, Ġ->space substitution and a
+              join over 16 token ids. Rust `tokenizers` runs in Rust, so 3.14's interpreter
+              cannot show there; an executor whose detokenizer is Python (or that falls back
+              to one) pays this cost per token instead, and that is where a newer interpreter
+              could actually land.
   asyncio     1 000 concurrent coroutines each doing 20 awaits — the scheduler and
               event-loop wake-up cost that grows with concurrency
   httparse    parsing a small JSON request body, as the front end does per request
@@ -50,6 +55,7 @@ import time
 LOOP_ITERS = 3_000_000
 JSON_ITERS = 200_000
 DETOK_ITERS = 200_000
+PYDETOK_ITERS = 50_000
 ASYNCIO_TASKS = 1_000
 ASYNCIO_AWAITS = 20
 HTTPARSE_ITERS = 100_000
@@ -66,6 +72,13 @@ BODY = (
     b'"max_tokens":64,"temperature":0,"stream":true}'
 )
 PIECE = " tokenization".encode()
+
+# A byte-level BPE piece set, as the vocabulary side of a Python detokenizer looks.
+_VOCAB = {i: piece for i, piece in enumerate(
+    ("He", "llo", "Ġwor", "ld", "Ġto", "ken", "iza", "tion", "Ġthe", "Ġa", "Ġof", "Ġand",
+     "Ġis", "Ġin", "Ġthat", "Ġit")
+)}
+_IDS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 
 
 def _time(ns_per_op_fn, iters: int) -> float:
@@ -93,6 +106,14 @@ def bench_json(iters: int) -> None:
 def bench_detok(iters: int) -> None:
     for _ in range(iters):
         PIECE.decode("utf-8", "replace")
+
+
+def bench_pydetok(iters: int) -> None:
+    """A detokenizer that lives in Python: dict lookups, replace, join."""
+    vocab = _VOCAB
+    ids = _IDS
+    for _ in range(iters):
+        "".join(vocab[i] for i in ids).replace("\u0120", " ")
 
 
 def bench_httparse(iters: int) -> None:
@@ -126,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         ("loop", lambda: _time(bench_loop, LOOP_ITERS), LOOP_ITERS),
         ("json", lambda: _time(bench_json, JSON_ITERS), JSON_ITERS),
         ("detok", lambda: _time(bench_detok, DETOK_ITERS), DETOK_ITERS),
+        ("pydetok", lambda: _time(bench_pydetok, PYDETOK_ITERS), PYDETOK_ITERS),
         ("httparse", lambda: _time(bench_httparse, HTTPARSE_ITERS), HTTPARSE_ITERS),
         ("asyncio", lambda: _time(bench_asyncio, 1) * 1e3 / ASYNCIO_TASKS, ASYNCIO_TASKS * ASYNCIO_AWAITS),
     ]
