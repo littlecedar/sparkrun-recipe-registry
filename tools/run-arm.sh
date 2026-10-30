@@ -48,11 +48,24 @@ done
 # resolved the int8 container as its own and measured a dead serve. Refuse instead
 # of removing: the container may be another session's, and silently killing it is
 # the mistake this register has made before.
-BLOCKER=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@$NODE" \
-  "for n in \$(docker ps --format '{{.Names}}'); do
-     p=\$(docker port \$n 2>/dev/null | grep -o ':$PORT$' | head -1)
-     [ -n \"\$p\" ] && echo \$n
-   done" 2>/dev/null | head -1)
+# Containers are not the only holders: on .30 the BeeGFS management daemon owns
+# *:8010 (`beegfs-mgmtd`), so any recipe serving on 8010 -- every embed and rerank
+# arm defaults to it -- can never bind there. Measured 2026-10-30: vLLM died with
+# `OSError: [Errno 98] Address already in use` while `docker port` showed nothing.
+# The probe is fed on stdin so no quoting layer has to agree with another.
+BLOCKER=$(ssh -o BatchMode=yes -o ConnectTimeout=4 "red@$NODE" "PORT=$PORT sh -s" <<'PROBE' 2>/dev/null | head -1
+for n in $(docker ps --format '{{.Names}}'); do
+  if docker port "$n" 2>/dev/null | grep -qE ":$PORT$"; then echo "$n (container)"; fi
+done
+if command -v ss >/dev/null 2>&1; then
+  # Name the owning process when sudo allows it, and never fail the probe when it does
+  # not: the refusal is the point, the name is a courtesy.
+  line=$(sudo -n ss -ltnp 2>/dev/null | grep -E ":$PORT\b" | head -1)
+  [ -n "$line" ] || line=$(ss -ltn 2>/dev/null | grep -E ":$PORT\b" | head -1)
+  [ -n "$line" ] && echo "a host socket: $(echo "$line" | tr -s ' ')"
+fi
+PROBE
+)
 if [ -n "$BLOCKER" ]; then
   echo "ARM FAIL $NAME: port $PORT on $NODE is held by $BLOCKER"
   echo "stop it (or pick another node) before relaunching; nothing was launched"

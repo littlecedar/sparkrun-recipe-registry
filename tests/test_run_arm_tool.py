@@ -118,6 +118,8 @@ class RunArmContract(unittest.TestCase):
         """A dead peer's container on the port makes this arm measure nothing."""
         text = read_tool()
         self.assertIn('is held by $BLOCKER', text, "no port-conflict refusal")
+        # Containers are not the only holders: beegfs-mgmtd owns *:8010 on .30.
+        self.assertIn('host socket', text, "a non-container holder is not detected")
         self.assertIn('exit 7', text, "the refusal does not stop the run")
         self.assertNotIn('docker rm -f $BLOCKER', text, "a foreign container is removed")
 
