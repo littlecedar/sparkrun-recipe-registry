@@ -1,0 +1,65 @@
+recipe_version: "2"
+model: ornith-ai/Ornith-1.5-122B-NVFP4
+model_revision: f049036f794622db10bb69855bf9819207334626
+# Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Ornith-1.5-122B-NVFP4 on SGLang with NO speculative decoding: the baseline the
+  DFlash2 arm (`zz-ornith-1.5-122b-nvfp4-dflash2-sglang`) needs to be attributable.
+  Without it the only comparison available is cross-engine (vLLM arms), where an
+  engine difference and a drafter difference cannot be separated.
+
+metadata:
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/ornith-ai/Ornith-1.5-122B-NVFP4
+  model_params: "122B-A9B"
+  model_dtype: nvfp4
+  kv_dtype: fp8_e4m3
+  tags: fast, reasoning, agent, tools
+
+mods:
+  - "@eugr/mods/drop-caches"
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: ornith-ai/Ornith-1.5-122B-NVFP4
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 32
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: marlin
+  # Distribution-only: SGLang has no serve flag for the draft head, so this pin reaches
+  # distribution, not the serve line — paired with the pre_exec refs/main seed above.
+  # The card's block size is 16 (15 draft tokens per verification step).
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
