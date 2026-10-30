@@ -148,6 +148,19 @@ class RunArmContract(unittest.TestCase):
         text = read_tool()
         self.assertIn('.prev-$(date +%H%M%S)', text, "no receipt copy-aside")
 
+    def test_benchmark_verbosity_is_opt_in(self):
+        """A missing writer leaves no trace without -v, and -v everywhere is noise."""
+        text = read_tool()
+        self.assertEqual(text.count('${BENCH_VERBOSE:+-v}'), 2, "both benchmarks must honour it")
+        self.assertNotIn(' -v >', text, "verbosity must not be unconditional")
+
+    def test_a_missing_ladder_is_transcribed_rather_than_lost(self):
+        """Printed numbers are real; a labelled transcription beats a lost cell."""
+        text = read_tool()
+        self.assertIn('bench-table-to-json.py', text, "no transcription fallback")
+        self.assertIn('ladder.transcribed.json', text, "the transcription is not labelled")
+        self.assertIn('house.transcribed.txt', text, "no suite fallback")
+
     def test_rc_zero_requires_machine_readable_artifacts(self):
         """A printed table with no yaml/json is not a measurement."""
         text = read_tool()

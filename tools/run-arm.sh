@@ -75,7 +75,28 @@ rc=0
 # tool can read, never that a table scrolled past.
 artifacts() {
   for f in "$@"; do
-    [ -s "$f" ] || { echo "no artifact: $f (the tables may exist only in the logs)"; rc=5; }
+    [ -s "$f" ] && continue
+    # llama-benchy sometimes prints a complete table and writes nothing (four times on
+    # 2026-10-29, with no `CSV output` line in its own log). Transcribe it into the same
+    # JSON shape, labelled with its provenance, so the receipt carries machine-readable
+    # numbers that cannot be mistaken for the framework's own file.
+    case "$f" in
+      */ladder.yaml|*/ladder.json)
+        logs=$(dirname "$f")/ladder.log
+        if [ -s "$logs" ] && python3 tools/bench-table-to-json.py "$logs" \
+             --json "$(dirname "$f")/ladder.transcribed.json" >/dev/null 2>&1; then
+          echo "note: $f missing; transcribed the printed table into ladder.transcribed.json"
+          continue
+        fi ;;
+      */house.yaml)
+        logs=$(dirname "$f")/house.log
+        if [ -s "$logs" ] && grep -q "score" "$logs"; then
+          grep -hE "pass;|score" "$logs" | tail -1 > "$(dirname "$f")/house.transcribed.txt"
+          echo "note: $f missing; kept the suite's own summary in house.transcribed.txt"
+          continue
+        fi ;;
+    esac
+    echo "no artifact: $f (and the log held nothing to transcribe)"; rc=5
   done
 }
 
@@ -178,10 +199,10 @@ if [ "$ready" = yes ]; then
       ;;
     *)
       sparkrun benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" ${BENCH_VERBOSE:+-v} > "$L/ladder.log" 2>&1 \
         || { echo "ladder failed for $NAME"; rc=2; }
       sparkrun benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" ${BENCH_VERBOSE:+-v} > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
       artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;
