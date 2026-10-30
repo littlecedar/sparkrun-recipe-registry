@@ -27,6 +27,7 @@ Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error.
 """
 
 import argparse
+import http.client
 import shlex
 import subprocess
 import sys
@@ -42,7 +43,11 @@ def http_ok(url: str, timeout: float = 5.0) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             return 200 <= resp.status < 300
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        # A serve that answers with something un-HTTP (measured 2026-10-30: a vLLM
+        # pooling arm raised `BadStatusLine`) is DOWN, not a reason to kill the
+        # monitor -- an uncaught HTTPException ends the watchdog and the boot loses
+        # its only liveness evidence.
         return False
 
 

@@ -146,5 +146,27 @@ class LogGrowth(unittest.TestCase):
         self.assertIn("LOGSIZE", text, "the sample does not ask for the log size")
 
 
+class MalformedReplies(unittest.TestCase):
+    """A probe must never kill the monitor.
+
+    Measured 2026-10-30: a vLLM pooling arm answered its port with something un-HTTP,
+    `urlopen` raised `http.client.BadStatusLine`, and the watchdog died -- leaving a
+    live boot with no liveness evidence at all. Un-HTTP is DOWN, not fatal.
+    """
+
+    def test_a_bad_status_line_reads_as_down(self):
+        import http.client
+        import unittest.mock as mock
+
+        with mock.patch("urllib.request.urlopen", side_effect=http.client.BadStatusLine("")):
+            self.assertFalse(bw.http_ok("http://127.0.0.1:1/v1/models"))
+
+    def test_a_reset_connection_reads_as_down(self):
+        import unittest.mock as mock
+
+        with mock.patch("urllib.request.urlopen", side_effect=ConnectionResetError()):
+            self.assertFalse(bw.http_ok("http://127.0.0.1:1/v1/models"))
+
+
 if __name__ == "__main__":
     unittest.main()
