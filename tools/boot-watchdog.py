@@ -107,14 +107,24 @@ def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
 
 def serve_state(
     node: str, container: str, pattern: str
-) -> tuple[bool, tuple[int, int] | None, int | None]:
-    """(pid_alive, io, serve_log_size) for the serve child inside the container."""
+) -> tuple[bool, tuple[int, int] | None, int | None, int | None]:
+    """(pid_alive, io, serve_log_size, container_memory) for the serve child."""
     # The script is fed on stdin so neither the pattern nor its own quotes need
     # escaping through ssh's argument passing.
+    # The probe's own `sh -c` command line CONTAINS the pattern, so `pgrep -f` matches
+    # itself; the busiest-reader rule then flips between the serve and a transient
+    # wrapper every sample and `io_delta` becomes meaningless. Measured 2026-10-30 on a
+    # 122B load: io_delta=0 for five minutes while shards loaded at 80 s each.
     script = (
         "PAT=" + shlex.quote(pattern) + "\n"
-        "for p in $(pgrep -f \"$PAT\"); do echo \"PID $p\"; cat /proc/$p/io 2>/dev/null; done\n"
+        "for p in $(pgrep -f \"$PAT\"); do\n"
+        "  case \"$(tr \\0 ' ' < /proc/$p/cmdline 2>/dev/null)\" in\n"
+        "    *pgrep*|*boot-watchdog*|*\"sh -c\"*|*\"sh -s\"*) continue ;;\n"
+        "  esac\n"
+        "  echo \"PID $p\"; cat /proc/$p/io 2>/dev/null\n"
+        "done\n"
         "echo \"LOGSIZE $(wc -c < /tmp/sparkrun_serve.log 2>/dev/null || echo 0)\"\n"
+        "echo \"MEM $(cat /sys/fs/cgroup/memory.current 2>/dev/null || cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null || echo 0)\"\n"
     )
     try:
         out = subprocess.run(
@@ -126,9 +136,27 @@ def serve_state(
             check=False,
         ).stdout
     except (subprocess.SubprocessError, OSError):
-        return False, None, None
+        return False, None, None, None
     alive, io = pick_io(out)
-    return alive, io, parse_logsize(out)
+    return alive, io, parse_logsize(out), parse_mem(out)
+
+
+def parse_mem(text: str) -> int | None:
+    """`MEM <bytes>` from the sample -> int, or None.
+
+    vLLM loads shards through a child whose command line does not match the serve
+    pattern, so `/proc/<pid>/io` can read zero while 70 GB lands in RAM (measured
+    2026-10-30 on a 122B load at 4/8 shards: io_delta and log_delta both 0 for five
+    minutes). Container memory moves for any loader, which is what makes it the third
+    signal rather than a fourth way to be wrong.
+    """
+    for line in text.splitlines():
+        if line.startswith("MEM "):
+            try:
+                return int(line.split()[1])
+            except (IndexError, ValueError):
+                return None
+    return None
 
 
 def parse_logsize(text: str) -> int | None:
@@ -229,9 +257,10 @@ def main(argv: list[str] | None = None) -> int:
     consecutive_dead = 0
     prev_io: tuple[int, int] | None = None
     prev_logsize: int | None = None
+    prev_mem: int | None = None
     while True:
         ok = http_ok(args.endpoint + "/v1/models")
-        alive, io, logsize = serve_state(args.node, container, args.serve_pattern)
+        alive, io, logsize, mem = serve_state(args.node, container, args.serve_pattern)
         delta = -1
         if io is not None and prev_io is not None:
             delta = (io[0] - prev_io[0]) + (io[1] - prev_io[1])
@@ -240,6 +269,10 @@ def main(argv: list[str] | None = None) -> int:
         if logsize is not None and prev_logsize is not None:
             log_delta = logsize - prev_logsize
         prev_logsize = logsize
+        mem_delta = -1
+        if mem is not None and prev_mem is not None:
+            mem_delta = mem - prev_mem
+        prev_mem = mem
         if not alive and not ok:
             consecutive_dead += 1
         else:
@@ -248,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         elapsed = int(time.time() - started)
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
-            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta}",
+            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta} mem_delta={mem_delta}",
             file=log,
             flush=True,
         )

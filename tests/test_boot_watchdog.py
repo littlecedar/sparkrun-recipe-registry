@@ -168,5 +168,26 @@ class MalformedReplies(unittest.TestCase):
             self.assertFalse(bw.http_ok("http://127.0.0.1:1/v1/models"))
 
 
+class MemorySignal(unittest.TestCase):
+    """Zero io and zero log growth does not mean stalled: a 122B load shows both."""
+
+    def test_memory_is_parsed(self):
+        self.assertEqual(bw.parse_mem("MEM 8951476224\n"), 8951476224)
+
+    def test_missing_memory_is_none(self):
+        self.assertIsNone(bw.parse_mem("LOGSIZE 12\n"))
+
+    def test_malformed_memory_is_none(self):
+        self.assertIsNone(bw.parse_mem("MEM lots\n"))
+
+    def test_the_line_carries_all_three_signals(self):
+        import pathlib
+
+        text = pathlib.Path(TOOL_PATH).read_text()
+        for sig in ("io_delta={delta}", "log_delta={log_delta}", "mem_delta={mem_delta}"):
+            self.assertIn(sig, text, f"{sig} missing from the check line")
+        self.assertIn("/sys/fs/cgroup/memory.current", text, "memory is not sampled")
+
+
 if __name__ == "__main__":
     unittest.main()
