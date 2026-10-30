@@ -197,6 +197,20 @@ if [ "$ready" = yes ]; then
         > "$L/teb-decision.log" 2>&1 || { echo "decision bench failed for $NAME"; rc=3; }
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
+    */embed/*|*/rerank/*)
+      # A pooling engine has no /chat/completions, so llama-benchy fails its first task
+      # and tool-eval-bench has no rows -- the gap the pooling lane documents. These arms
+      # are measured by `benchmark pooling` against the shipped ladder profile, and the
+      # chat suite does not apply to them at all.
+      kind=embed; case "$RECIPE" in */rerank/*) kind=rerank ;; esac
+      sparkrun ${BENCH_VERBOSE:+-v} benchmark pooling "$RECIPE" \
+        --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run \
+        -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        || { echo "pooling ladder failed for $NAME"; rc=2; }
+      echo "suite: n/a (pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank)" \
+        > "$L/house.log"
+      artifacts "$L/ladder.yaml"
+      ;;
     *)
       sparkrun ${BENCH_VERBOSE:+-v} benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
         --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \

@@ -151,7 +151,8 @@ class RunArmContract(unittest.TestCase):
     def test_benchmark_verbosity_is_opt_in(self):
         """A missing writer leaves no trace without -v, and -v everywhere is noise."""
         text = read_tool()
-        self.assertEqual(text.count('${BENCH_VERBOSE:+-v}'), 2, "both benchmarks must honour it")
+        # Three benchmark invocations: the chat ladder, the chat suite, the pooling ladder.
+        self.assertEqual(text.count('${BENCH_VERBOSE:+-v}'), 3, "every benchmark must honour it")
         # It must sit before the subcommand: `benchmark performance` has no -v and aborts
         # the whole run with "No such option" (measured 2026-10-30, one arm lost).
         self.assertIn('sparkrun ${BENCH_VERBOSE:+-v} benchmark', text, "the flag is not global")
@@ -173,6 +174,13 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('artifacts "$L/ladder.json" "$L/teb-decision.log"', text,
                       "the decision branch does not assert its outputs")
         self.assertIn('rc=5', text, "a missing artifact does not set a status")
+
+    def test_pooling_arms_use_the_pooling_ladder(self):
+        """An encoder has no /chat/completions; llama-benchy fails its first task."""
+        text = read_tool()
+        self.assertIn('*/embed/*|*/rerank/*)', text, "no pooling branch")
+        self.assertIn('benchmark pooling', text, "the pooling subcommand is not used")
+        self.assertIn('pooling-ladder-$kind.yaml', text, "the profile is not chosen per lane")
 
     def test_decision_arms_use_the_decision_instruments(self):
         """llama-benchy and the chat suite cannot read /v1/systemone."""
