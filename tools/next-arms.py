@@ -220,8 +220,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip:
             print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")
         if pairs:
-            print(f"  TP=2 waiting: {len(pairs)} arm(s) need two free nodes together, and")
-            print("               fewer than two were free:")
+            # No claim about why: an arm lands here when the remaining node budget cannot fit it,
+            # which may be zero nodes or one -- and the old wording asserted "fewer than two were
+            # free" in runs that had just placed a pair on exactly two.
+            print(f"  TP=2 not placed: {len(pairs)} arm(s) did not fit the remaining node budget:")
             for entry in pairs[:4]:
                 print(f"                 {entry.get('arm')}")
         for row in plan:
