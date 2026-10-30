@@ -15,7 +15,10 @@ it must be explicit: an empty or unreadable `research:` list is an error, never 
 
 Three gates stand between a plan and a launch:
 
-  * `.scratch/fleet-window.lock` — a declared window means hands off, no matter how idle a node looks.
+  * `.local/fleet-window.lock` — a declared window means hands off, no matter how idle a node looks.
+    The legacy `.scratch/` path is still read: syncthing's `**/.scratch` ignore means a lock written
+    there never leaves the clone that wrote it, which is how a window declared on the head was invisible
+    to every other checkout (measured 2026-10-30).
   * a receipt already carrying numbers — `next-arms.py` owns that predicate; this does not re-derive it.
   * this tool's own ledger (`.local/drip-state.json`) — an arm launched a minute ago has a receipt
     directory with no numbers in it yet, so the receipt predicate cannot see it.  Pids are checked
@@ -50,7 +53,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 TOOL = REPO / "tools" / "next-arms.py"
-LOCK = REPO / ".scratch" / "fleet-window.lock"
+#: Canonical first, legacy second. `.local/` is synced (git-ignored, so untracked) while `.scratch/`
+#: is in syncthing's ignore list -- a lock there is host-local, and a coordination mechanism one host
+#: can see is not a coordination mechanism.
+LOCK_PATHS = (REPO / ".local" / "fleet-window.lock", REPO / ".scratch" / "fleet-window.lock")
 STATE = REPO / ".local" / "drip-state.json"
 LOGDIR = REPO / ".local" / "drip-logs"
 
@@ -213,6 +219,11 @@ def launch(row: dict) -> int:
     return proc.pid
 
 
+def declared_window() -> Path | None:
+    """The lock path that holds a declaration, or None."""
+    return next((p for p in LOCK_PATHS if p.exists()), None)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--config", type=Path, default=REPO / ".local" / "fleet.yaml")
@@ -228,8 +239,9 @@ def main(argv: list[str]) -> int:
         return 2
 
     while True:
-        if LOCK.exists():
-            print(f"drip: {LOCK} is present -- a window is declared, hands off")
+        declared = declared_window()
+        if declared is not None:
+            print(f"drip: {declared} is present -- a window is declared, hands off")
             return 3
         try:
             state = read_state(args.state)

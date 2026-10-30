@@ -143,19 +143,31 @@ class Planning(unittest.TestCase):
 
 
 class Windows(unittest.TestCase):
+    def test_the_legacy_scratch_path_is_still_honoured(self):
+        """A lock written before the path moved must not be ignored."""
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = Path(tmp) / "fleet-window.lock"
+            legacy.write_text("session: other\n")
+            orig = drip.LOCK_PATHS
+            drip.LOCK_PATHS = (Path(tmp) / "absent.lock", legacy)
+            try:
+                self.assertEqual(drip.declared_window(), legacy)
+            finally:
+                drip.LOCK_PATHS = orig
+
     def test_a_declared_window_stops_the_drip(self):
         """The lock outranks an idle node: a window is a promise to the other sessions."""
         with tempfile.TemporaryDirectory() as tmp:
             lock = Path(tmp) / "fleet-window.lock"
             lock.write_text("session: other; nodes: all\n")
             cfg = _config(tmp, "research:\n  - node-a\n")
-            orig = drip.LOCK
-            drip.LOCK = lock
+            orig = drip.LOCK_PATHS
+            drip.LOCK_PATHS = (lock,)
             try:
                 rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
                                 "--once", "--dry-run"])
             finally:
-                drip.LOCK = orig
+                drip.LOCK_PATHS = orig
         self.assertEqual(rc, 3, "a declared window must refuse, not plan")
 
 

@@ -314,10 +314,14 @@ remove what the session created** — a leftover is anything undocumented, unkno
   outside the declared set: name the hosts with `-H` and their real IPs (dot-aliases like `.34` crash
   sparkrun 0.4.2 in `socket.getaddrinfo`).
 - **A four-rank window is claimed with a lock file, not a message.** Before booting any node, write
-  `.scratch/fleet-window.lock` naming your session, the node set, the declared window and a timestamp;
+  **`.local/fleet-window.lock`** naming your session, the node set, the declared window and a timestamp;
   delete it when the window ends. A session that finds the lock must not boot on the named nodes —
   report and wait. Until an agent-chat system exists, this file is the coordination mechanism
-  (`TP4-BGFS Q20`).
+  (`TP4-BGFS Q20`). **It lives in `.local/`, not `.scratch/`** — syncthing's `**/.scratch` ignore
+  means a lock written there never leaves the clone that wrote it, so a window declared on the head was
+  invisible to every other checkout (measured 2026-10-30); `.local/` is synced and git-ignored, which
+  is what a shared, untracked claim needs. `tools/queue-drip.py` reads both paths so an older lock is
+  still honoured.
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
   and one interconnect shape — and a node's controller or mgmtd duty is never a reason to exclude it
