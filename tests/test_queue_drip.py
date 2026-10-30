@@ -41,7 +41,7 @@ class Config(unittest.TestCase):
         """`reseearch:` would otherwise parse as a fleet with nothing to do."""
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(drip.ConfigError):
-                drip.load_config(_config(tmp, "reseearch:\n  - 10.0.0.1\nresearch:\n  - 10.0.0.2\n"))
+                drip.load_config(_config(tmp, "reseearch:\n  - node-a\nresearch:\n  - node-b\n"))
 
     def test_a_duplicate_key_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -110,7 +110,7 @@ class Windows(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             lock = Path(tmp) / "fleet-window.lock"
             lock.write_text("session: other; nodes: all\n")
-            cfg = _config(tmp, "research:\n  - 10.0.0.1\n")
+            cfg = _config(tmp, "research:\n  - node-a\n")
             orig = drip.LOCK
             drip.LOCK = lock
             try:
