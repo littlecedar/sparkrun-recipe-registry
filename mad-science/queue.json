@@ -1,5 +1,6 @@
 {
   "priority_models": [
+    "python-runtime",
     [
       "ornith-ai/Ornith-1.5-122B",
       "ornith-1.5-122b"
@@ -745,6 +746,18 @@
       "node_cost": "",
       "notes": "OWNER REQUEST 2026-10-30 (normal priority). Question: which 122B quantisations and finetunes pair well with incoai/Ornith-1.5-122B-DFlash2, and is there an uncensored/abliterated/cybersecurity finetune or quant that does? Method: (1) enumerate Hub candidates for the 122B base and its finetunes (nvfp4/fp8/awq/gguf, plus abliterated/uncensored/cyber derivatives) and record architecture + hidden_size + layer count, because the drafter hard-codes hidden_size 3072 and target_layer_ids [1,7,14,20,26,32,39,45] — a finetune with a different depth or width cannot use it at all; (2) acceptance is a property of the target's hidden states, so a finetune must keep the same layer geometry; (3) GGUF targets need mask_embedding.safetensors wired in or draft acceptance roughly halves (card, 'GGUF targets'); (4) rank candidates and hand the top three to a boot arm. Deliverable: a table in recipes/ornith/README.md plus one drafted recipe per viable candidate.",
       "provenance": "owner interjection 2026-10-30; drafter card constraints"
+    },
+    {
+      "id": "py314-executor-overhead",
+      "title": "Does Python 3.14 beat 3.12 for vLLM/SGLang? Measure the interpreter's share of serving",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "python-runtime",
+      "node_cost": "single",
+      "notes": "OWNER REQUEST 2026-10-30 (high priority). Question: does Python 3.14 reduce the Python-side overhead that caps a GPU-bound executor, and does it show up in a serving cell? Wheel survey done first (PyPI, 2026-10-30): torch 2.15.0 has **8 cp314 wheels**, triton 3.9.0 ships cp314 and cp314t (free-threaded), tokenizers 0.23.3 has 7 cp314, uvloop 0.23.0 has 12 — so the runtime layer is available. **The engines are not:** sglang 0.5.23 publishes 0 cp314 (2 cp312), vllm 0.32.0 publishes no cp31x wheels at all on PyPI, and flashinfer-python / sgl-kernel publish none for either — so Leg B needs a source build of the engine plus flashinfer against cp314. Leg A (cheap, no GPU image): microbenchmark the Python-side per-token work under 3.12 vs 3.14 vs 3.14t on the same host — tokenizer/detokenizer round-trip, SSE chunk JSON encode, an asyncio request loop at 1k-10k QPS, and the specializing-interpreter/JIT effect on plain loops. Report each as ns/op with the 3.12 baseline, because that is the ceiling any serving gain can have. Leg B (expensive): source-build sglang (or vllm) under cp312 and cp314 in one CUDA base, same model and profile, then the campaign ladder extended to **c1/c2/c5/c10/c50/c100** — Python overhead grows with concurrency, so c10 alone cannot see it — plus a short-output shape where per-token Python cost dominates. **One node, alternating boots** (A/B interleaved) so node variance cannot be mistaken for an interpreter effect; two nodes would confound it. Falsifier: no serving cell outside +/-3 % of the 3.12 baseline while the Leg A microbench shows gains => conclude the limiter is GPU/scheduler, not the interpreter, and record that as the answer. Also test 3.14t: a no-GIL build trades single-thread speed for concurrency, which is exactly the detokenizer/scheduler contention shape. LEG A RESULT (measured 2026-10-30 on the workstation, uv-managed interpreters on both sides so build flags cannot explain the delta; `tools/py-runtime-bench.py`, best of 3, ns/op): pure-Python loop 80.9 -> 48.6 (-40 %), request-body json.loads 3347 -> 3163 (-5.5 %), **streaming-delta json.dumps 3462 -> 3515 (+1.5 %)**, detokenize bytes->str 106.8 -> 112.2 (+5 %), asyncio scheduler 251 424 -> 214 333 (-15 %). Free-threaded 3.14t: loop -39 %, but json.dumps +8.3 %, detok +4.3 % and **asyncio +10 %** -- the no-GIL build loses exactly where a serving front end needs it. Reading: the per-token hot path is DOMINATED by JSON encode (~3.5 us per delta chunk, 30x the detokenize), and 3.14 does not improve it, so a 3.14 engine can only win where its Python work is loop- or scheduler-bound. That sets Leg B's expectation: no c1 gain, possible high-concurrency gain, and 3.14t looks wrong for streaming despite the appealing concurrency story. Method note: a first pass compared the distro 3.14 build against uv's 3.12 and read 3.14 slower on every case -- build config, not the interpreter; never compare mixed builds.",
+      "provenance": "owner interjection 2026-10-30; PyPI wheel survey 2026-10-30 (torch/triton/tokenizers/uvloop cp314 present; sglang/vllm/flashinfer absent)"
     }
   ]
 }
