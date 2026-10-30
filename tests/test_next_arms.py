@@ -175,6 +175,47 @@ class Placement(unittest.TestCase):
         self.assertEqual(plan[0]["launch"], "./tools/run-arm.sh recipes/x/narrow.yaml node-a")
 
 
+class Summary(unittest.TestCase):
+    """The human-readable path must not crash where the JSON path works."""
+
+    def test_the_summary_renders_with_a_free_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.json"
+            path.write_text(json.dumps([{"arm": "solo", "path": "recipes/x/s.yaml", "tp": 1}]))
+            orig = na.free_nodes
+            na.free_nodes = lambda nodes: ["node-a"]
+            try:
+                rc = na.main(["--nodes", "node-a", "--manifest", str(path)])
+            finally:
+                na.free_nodes = orig
+        self.assertEqual(rc, 0)
+
+    def test_the_summary_renders_when_the_fleet_is_full(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.json"
+            path.write_text(json.dumps([{"arm": "solo", "path": "recipes/x/s.yaml", "tp": 1}]))
+            orig = na.free_nodes
+            na.free_nodes = lambda nodes: []
+            try:
+                rc = na.main(["--nodes", "node-a", "--manifest", str(path)])
+            finally:
+                na.free_nodes = orig
+        self.assertEqual(rc, 0, "a busy fleet has nothing unplaced, so it is not an error")
+
+    def test_a_free_node_with_nothing_to_run_is_the_error_case(self):
+        """Exit 1 is the idle-node signal, not a general failure."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.json"
+            path.write_text("[]")
+            orig = na.free_nodes
+            na.free_nodes = lambda nodes: ["node-a"]
+            try:
+                rc = na.main(["--nodes", "node-a", "--manifest", str(path)])
+            finally:
+                na.free_nodes = orig
+        self.assertEqual(rc, 1)
+
+
 class Reporting(unittest.TestCase):
     """The CLI must explain a short plan rather than assert one."""
 

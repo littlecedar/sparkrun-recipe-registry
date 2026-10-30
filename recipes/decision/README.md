@@ -475,18 +475,22 @@ Sol-2B is not ladded (the same `vllm-srun` CPU shape as Kai, so Kai's row is its
 cells stay `—`.
 
 **JEV-9B has now been ladded (2026-10-30, `.35`, `--api completions` + the adapter's
-`decision_head.json`, 500 cases per cell, one pass)** — the first run of a harness line that had
-been documented here but never executed:
+`decision_head.json`, `--limit 100`, one pass)** — the first run of a harness line that had
+been documented here but never executed. On the JEV path one **request is one question**, so 100
+cases × 5 questions = **500 requests per cell**:
 
 | JEV-9B (GPU) | c1 | c2 | c5 | c10 |
 |---|---:|---:|---:|---:|
 | `req/s` (= decisions/s) | 9.29 | 10.11 | 20.34 | 21.19 |
 | p50 per question | 108 ms | 201 ms | 246 ms | 471 ms |
 
-Clean at every level (500/500 responses, 500/500 decisions, `errors: {}`). Throughput rises to c5
-and flattens while p50 scales ~linearly with offered concurrency: the same one-slot-and-a-queue
-shape as the CPU arms, on a GPU, because the contract is one request per question and there is no
-batch to fill. Receipt: `~/benchmarks/tp12-20261030/jev-9b-decision-vllm/REPORT.md`.
+Clean at every level (500/500 responses, 500/500 decisions, `errors: {}`). **It does not serialize.**
+Throughput rises 2.28× from c1 to c10 while p50 inflates 4.35× — a strictly single-slot server would
+hold throughput flat and inflate latency exactly linearly, and this arm does neither. So requests do
+overlap on the GPU, just at sublinear efficiency: each doubling of offered concurrency buys less
+throughput than the last while latency keeps climbing. That is a **different mechanism** from the
+CPU arms above, which *lose* throughput under load (Kai −32 % at c10); it is not the same shape.
+Receipt: `~/benchmarks/tp12-20261030/jev-9b-decision-vllm/REPORT.md`.
 
 Ladders taken 2026-10-15 on `.34` with the arms booted solo, each level a **single** closed-loop
 pass (offer N, count completions; `--runs 1`, which was the only mode then and is no longer the

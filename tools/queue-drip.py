@@ -21,6 +21,12 @@ Three gates stand between a plan and a launch:
     directory with no numbers in it yet, so the receipt predicate cannot see it.  Pids are checked
     with `kill(pid, 0)`: ESRCH is dead, EPERM is alive (a different user's process is not reclaimable).
 
+Run it on the **head**, not a workstation: the receipt predicate reads `~/benchmarks/tp12-*`, and off
+the head that set is empty, so every already-measured arm looks unmeasured.  A driver that dies
+without its trap (SIGKILL) leaves its container running -- bash defers a TERM trap until the
+foreground command returns, and a spinning instrument can hold it forever -- so after killing one by
+hand, `sparkrun stop <task-id>` the container it left behind or the node never frees.
+
 Usage
 -----
     tools/queue-drip.py --once --dry-run     # what would launch now
@@ -35,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -120,12 +127,31 @@ def read_state(path: Path) -> dict:
         raise ConfigError(f"{path} is not valid JSON: {exc}") from exc
 
 
+#: `run-arm.sh <recipe> <node>` -- argv carries the recipe path, which is the exact key the plan
+#: uses, so a match needs no name parsing.
+_DRIVER = re.compile(r"run-arm\.sh\s+(\S+\.yaml)")
+
+
 def in_flight(state: dict) -> dict:
     return {arm: ent for arm, ent in state.items() if pid_alive(int(ent.get("pid") or 0))}
 
 
-def drop_in_flight(plan: list, running: dict) -> list:
-    return [row for row in plan if row.get("arm") not in running]
+def live_driver_paths() -> set:
+    """Recipe paths with a driver process right now, whoever started it.
+
+    The ledger only knows what this tool launched, and the receipt predicate only sees arms that
+    already have numbers -- so an arm a human started a minute ago is invisible to both and would be
+    launched a second time on the next free node. The processes are the truth; `ps` is cheap.
+    """
+    out = subprocess.run(["ps", "-eo", "args"], capture_output=True, text=True, check=False)
+    return {m.group(1) for m in _DRIVER.finditer(out.stdout)}
+
+
+def drop_in_flight(plan: list, running: dict, drivers: set = frozenset()) -> list:
+    return [
+        row for row in plan
+        if row.get("arm") not in running and row.get("path") not in drivers
+    ]
 
 
 def plan_pass(cfg: dict) -> list:
@@ -176,7 +202,7 @@ def main(argv: list[str]) -> int:
         try:
             state = read_state(args.state)
             running = in_flight(state)
-            plan = drop_in_flight(plan_pass(cfg), running)
+            plan = drop_in_flight(plan_pass(cfg), running, live_driver_paths())
         except ConfigError as exc:
             print(f"drip: {exc}", file=sys.stderr)
             return 2

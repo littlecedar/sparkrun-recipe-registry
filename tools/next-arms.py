@@ -181,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"free nodes: {', '.join(free) if free else 'none'}")
         print(f"measured arms on disk: {len(done)} | unmeasured in manifest: {len(todo)}"
-              f" | runnable on {len(free)} free node(s): {len(ready)}")
+              f" | runnable on {len(free)} free node(s): {len(plan)}")
         # Exclusion accounting: "nothing runnable" must be explainable.
         if args.skip:
             print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")

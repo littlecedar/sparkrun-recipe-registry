@@ -80,6 +80,18 @@ class Planning(unittest.TestCase):
         kept = drip.drop_in_flight(plan, {"a": {"pid": os.getpid()}})
         self.assertEqual([row["arm"] for row in kept], ["b"])
 
+    def test_a_driver_started_by_hand_also_blocks_its_arm(self):
+        """The ledger and the receipts both miss an arm that started a minute ago."""
+        plan = [{"arm": "jev", "path": "recipes/decision/jev.yaml", "node": "n1"},
+                {"arm": "other", "path": "recipes/x/other.yaml", "node": "n2"}]
+        kept = drip.drop_in_flight(plan, {}, {"recipes/decision/jev.yaml"})
+        self.assertEqual([row["arm"] for row in kept], ["other"])
+
+    def test_driver_paths_come_from_the_process_table(self):
+        found = drip.live_driver_paths()
+        self.assertIsInstance(found, set)
+        self.assertFalse(any(" " in p for p in found), "a captured path must be one argument")
+
     def test_malformed_state_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "state.json"
