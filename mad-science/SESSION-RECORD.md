@@ -2111,3 +2111,35 @@ today) and every marker inside 72 h were left alone.
 attribute to any shipped pin — the four ranks running the production serve are not a place to delete
 runtime caches from on inference. Also unclaimed: a root-owned `IFM__K2-Horizon-MoVA-36B-A4B-FP8`
 tree on `.35` from the retired K2 MoVA lane (`attid/ifm` archive), unreadable to `du` as the red user.
+
+## Free-node last-occupant rows retired at the 2026-10-30 13:00 ET board refresh
+
+The board contract keeps `## In flight` to live state — active boots/serves plus one census row — and the
+two free nodes had each accumulated a "last occupant" paragraph. Both rows are retired here verbatim;
+their live state at 13:00 ET (0 containers / 0 volumes, no reservation) is in the census row.
+
+- `.30` — **nothing live (no reservation)** — 0 containers / 0 volumes at 12:00, and no research window is
+  declared, so the node is free for any arm. Last occupant was rank 0 of
+  `deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`, task `38aaa36e56a717b8_4a5369625a71` (the
+  07:52:59 boot), container `sparkrun_38aaa36e56a717b8_4a5369625a71_node_0`, image
+  `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:19977a03…` (sglang `0.0.0.dev1+g09daea94a`), model
+  `littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram` @ `48afcd1c…` with the `drowzeys` abliterated
+  layer graft, context 1048576, engram on: it readied in **57.6 s** off the warm rank cache (`weights in
+  25 s`, `DSpark (3 stages) loaded`, `DSpark 5 drafts`, allocator ceiling 106.5 GiB) and the watchdog saw
+  `healthy endpoint=ok` at `t=62 s`, but both instruments then **replayed recorded state instead of
+  measuring** — `llama-benchy` logged `Prior benchmark state for bench_e5219f05b245 is COMPLETE —
+  re-emitting its recorded results; no requests will be sent` and wrote no `ladder.json`, and
+  `tool-eval-bench` logged the same for `bench_8d872f6df1ff` and wrote no `house.json`, so the whole
+  07:54:08–07:54:19 artefact set is a transcription of the 06:04 boot's cells. The still-open measurement
+  is the one waiting on `QUESTIONS.md` #55.
+- `.35` — **nothing live (no reservation)** — 0 containers / 0 volumes at 12:00; no research window is
+  declared, so it is free too. Last occupant was the 09:13 boot of `qwen3-vl-reranker-2b-vllm-b12x` (TP=1,
+  served on this node, port 8011), which ran the pooling rerank ladder as `bench_2f1db32c19c9` and was
+  stopped after the fourth cell — the node re-counts 0/0 by this census. Before it, rank 1 of the 07:52:59
+  TP=2 boot (`…_node_1`, task `38aaa36e56a717b8_4a5369625a71`, `restart=0 oom=false`), whose per-rank log
+  is **not** in that receipt: the every-host harvest (`d20c526`) landed at 07:56, four minutes *after* that
+  boot launched, so only rank 0's 2 002 B banner was captured and rank 1 is evidenced only through rank 0's
+  log line `rendezvous=…` plus the ready pair — the every-host walk has still not run live on a **pair**
+  (the 09:13 harvest did write a 147 KB `serve-solo.log`, but that is a TP=1 arm). Its earlier rank-1
+  figures stand as history: `rank 1: weights in 316 s (written to the rank cache)`, `allocator ceiling
+  107.0 GiB`, `rank 1 ready in 506.1 s, following rank 0`.
