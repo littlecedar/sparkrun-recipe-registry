@@ -151,9 +151,14 @@ def pid_is_driver(pid: int, arm: str, path: str = "") -> bool:
         cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace")
     except OSError:
         return False
-    if "run-arm.sh" not in cmd:
+    # argv elements, not a substring of the flattened cmdline: `arm in cmd` matches any arm whose
+    # name is a prefix of another's, and the 2026-10-29 ledger kept two finished arms "in flight"
+    # this way. `/proc/<pid>/cmdline` is NUL-separated, so split it instead of trusting the join.
+    argv = [a for a in cmd.split("\0") if a]
+    if not any(os.path.basename(a) == "run-arm.sh" for a in argv):
         return False
-    return (path in cmd) if path else (arm in cmd)
+    want = path or arm
+    return any(a == want or os.path.basename(a) == want for a in argv)
 
 
 def in_flight(state: dict) -> dict:

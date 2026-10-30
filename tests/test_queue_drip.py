@@ -84,13 +84,31 @@ class Liveness(unittest.TestCase):
             child.wait()
 
     def test_a_driver_shaped_cmdline_is_accepted(self):
-        child = subprocess.Popen(["bash", "-c", "exec -a run-arm.sh sleep 5"])
+        # A real driver is invoked as `run-arm.sh <recipe> <hosts>`, so the arm name is an argv
+        # element. The previous fixture omitted it and passed only because "arm" is a substring of
+        # "run-arm.sh" -- the exact false positive the argv comparison exists to reject.
+        # python3, not `sleep`: `sleep 5 arm` exits on the bad argument before the poll sees it.
+        child = subprocess.Popen(
+            ["bash", "-c", "exec -a run-arm.sh python3 -c 'import time; time.sleep(5)' arm"]
+        )
         try:
             # Popen returns before bash execs, so poll -- asserting immediately is the flake.
             deadline = time.time() + 2.0
             while time.time() < deadline and not drip.pid_is_driver(child.pid, "arm", ""):
                 time.sleep(0.02)
             self.assertTrue(drip.pid_is_driver(child.pid, "arm", ""))
+        finally:
+            child.kill()
+            child.wait()
+
+    def test_a_prefix_of_the_program_name_is_not_an_arm(self):
+        """`arm` occurs inside `run-arm.sh`; that must not read as "this pid drives arm"."""
+        child = subprocess.Popen(["bash", "-c", "exec -a run-arm.sh sleep 5"])
+        try:
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not drip.pid_alive(child.pid):
+                time.sleep(0.02)
+            self.assertFalse(drip.pid_is_driver(child.pid, "arm", ""))
         finally:
             child.kill()
             child.wait()
