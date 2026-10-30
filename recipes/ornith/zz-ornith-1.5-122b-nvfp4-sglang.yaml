@@ -41,6 +41,7 @@ defaults:
   chunked_prefill_size: 4096
   attention_backend: flashinfer
   moe_runner_backend: marlin
+  mamba_radix_cache_strategy: extra_buffer
   # Distribution-only: SGLang has no serve flag for the draft head, so this pin reaches
   # distribution, not the serve line — paired with the pre_exec refs/main seed above.
   # The card's block size is 16 (15 draft tokens per verification step).
@@ -63,3 +64,4 @@ command: >
   --mem-fraction-static {gpu_memory_utilization}
   --attention-backend {attention_backend}
   --moe-runner-backend {moe_runner_backend}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
