@@ -110,7 +110,7 @@ Load-bearing contracts:
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
 | `tests/` | 46 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
-| `tools/` | 28 stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue |
+| `tools/` | 30 stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `benchmarking/` | 35 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile, + the 2-profile `pooling-bench` ladder) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -612,7 +612,7 @@ matching.
 - `benchmarking/README.md` — profile index plus two rules learned expensively: printed `tg t/s` is
   an aggregate across streams, and results must be read from `runs/*.json` (the printed table has no
   header and shows only the decode row), selecting the phase via `is_context_prefill_phase`.
-- `tools/README.md` — tool index (`tools/` holds 28 stdlib scripts as of 2026-10-29; `safe_text.py`
+- `tools/README.md` — tool index (`tools/` holds 30 stdlib scripts as of 2026-10-30; `safe_text.py`
   added 2026-10-07, the
   standard-suite trio 2026-10-15, `refresh-sweep.py` 2026-10-22; the three before `safe_text.py`
   describe behaviour and caveats only — this repo records measured results next to the arm that
