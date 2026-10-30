@@ -264,5 +264,61 @@ class Cli(unittest.TestCase):
         self.assertIn("no nodes", p.stderr)
 
 
+class PairPlacement(unittest.TestCase):
+    """A TP=2 arm takes two nodes and launches once; a pair must never be stranded idle.
+
+    `place` used to return pairs as an unplaceable backlog, so every free-node report read
+    "NOTHING RUNNABLE" while seven TP=2 arms waited -- the tool could only ever spend a node on
+    single-node work.
+    """
+
+    def _tool(self):
+        return self._mod
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("na_pairs", TOOL)
+        cls._mod = importlib.util.module_from_spec(spec)
+        sys.modules["na_pairs"] = cls._mod
+        spec.loader.exec_module(cls._mod)
+
+    def test_a_pair_takes_two_nodes_and_launches_once(self):
+        todo = [{"arm": "p1", "path": "r/p1.yaml", "tp": 2}]
+        plan, waiting = self._tool().place(["n1", "n2"], todo)
+        self.assertEqual(waiting, [])
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0]["nodes"], ["n1", "n2"])
+        self.assertTrue(plan[0]["launch"].endswith("r/p1.yaml n1,n2"), plan[0]["launch"])
+
+    def test_a_pair_waits_rather_than_landing_on_one_node(self):
+        """One free node is a wrong measurement (TP=1 in disguise), not a fallback."""
+        todo = [{"arm": "p1", "path": "r/p1.yaml", "tp": 2}]
+        plan, waiting = self._tool().place(["n1"], todo)
+        self.assertEqual(plan, [])
+        self.assertEqual([e["arm"] for e in waiting], ["p1"])
+
+    def test_a_single_arm_still_fills_a_second_node(self):
+        todo = [{"arm": "p1", "path": "r/p1.yaml", "tp": 2},
+                {"arm": "s1", "path": "r/s1.yaml", "tp": 1}]
+        plan, _ = self._tool().place(["n1", "n2", "n3"], todo)
+        self.assertEqual([(r["arm"], r["nodes"]) for r in plan],
+                         [("p1", ["n1", "n2"]), ("s1", ["n3"])])
+
+    def test_json_mode_exits_cleanly(self):
+        """`--json` is how queue-drip calls this tool: an exception here breaks every drip pass."""
+        out = subprocess.run([sys.executable, TOOL, "--nodes", "unreachable.invalid", "--json"],
+                             capture_output=True, text=True, check=False)
+        self.assertNotIn("Traceback", out.stderr, out.stderr)
+        self.assertIn("{", out.stdout)
+
+    def test_no_node_is_planned_twice(self):
+        todo = [{"arm": f"a{i}", "path": f"r/a{i}.yaml", "tp": 2 if i % 2 else 1}
+                for i in range(6)]
+        plan, _ = self._tool().place(["n1", "n2", "n3", "n4"], todo)
+        used = [n for row in plan for n in row["nodes"]]
+        self.assertEqual(len(used), len(set(used)), used)
+        self.assertLessEqual(len(used), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

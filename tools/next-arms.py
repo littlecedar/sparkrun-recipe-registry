@@ -105,23 +105,42 @@ class ManifestError(RuntimeError):
 
 
 def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
-    """One arm per free node. TP=1 only; TP=2 arms come back as a pair backlog."""
-    ready = [e for e in todo if e.get("tp") == 1]
-    pairs = [e for e in todo if e.get("tp") == 2]
-    rows = [
-        {
-            "node": node,
+    """Place arms on the free nodes, pairs included.
+
+    A TP=2 arm takes TWO nodes and is launched once with both hosts, so a plan can be shorter
+    than the node list without anything being idle. Leaving pairs unplaceable made every
+    free-node report read "NOTHING RUNNABLE" while seven TP=2 arms waited -- the direction is
+    to keep unfenced nodes busy, not to keep them busy with TP=1 work only.
+
+    Order matters: whichever arm sorts first takes the nodes it needs, so a pair that fits the
+    remaining nodes is placed before a single-node arm can strand one of them.
+    """
+    remaining = list(free)
+    rows: list[dict] = []
+    pairs_unplaced: list[dict] = []
+    for entry in todo:
+        tp = entry.get("tp")
+        need = 2 if tp == 2 else 1
+        if tp not in (1, 2):
+            continue
+        if len(remaining) < need:
+            if tp == 2:
+                pairs_unplaced.append(entry)
+            continue
+        hosts = remaining[:need]
+        del remaining[:need]
+        rows.append({
+            "nodes": hosts,
+            "node": hosts[0],
             "arm": entry.get("arm"),
             "path": entry.get("path"),
-            "tp": entry.get("tp"),
-            "launch": f"./tools/run-arm.sh {entry.get('path')} {node}",
+            "tp": tp,
+            "launch": f"./tools/run-arm.sh {entry.get('path')} {','.join(hosts)}",
             # Per-arm instrument env travels with the arm: `run-arm.sh` reads these from its own
             # environment, and a JEV arm's decision head differs per model.
             "env": entry.get("env") or {},
-        }
-        for node, entry in zip(free, ready)
-    ]
-    return rows, pairs
+        })
+    return rows, pairs_unplaced
 
 
 def candidates(manifest: str, done: set[str], skip: set[str], free_count: int) -> list[dict]:
@@ -182,6 +201,12 @@ def main(argv: list[str] | None = None) -> int:
     # wrong guess -- so those are reported as a pair backlog instead of being planned.
     plan, pairs = place(free, todo)
 
+    # Computed before the branch, not inside it: the exit status depends on it and `--json` is
+    # how queue-drip calls this tool, so a value defined only for humans fails every drip pass
+    # with an UnboundLocalError that reads like a planner refusal.
+    placed = {n for row in plan for n in row["nodes"]}
+    stranded = [n for n in free if n not in placed]
+
     if args.json:
         print(json.dumps({"free_nodes": free, "measured": len(done), "plan": plan}, indent=2))
     else:
@@ -192,19 +217,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip:
             print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")
         if pairs:
-            print(f"  TP=2 backlog: {len(pairs)} arm(s) need a free node PAIR; this tool places one")
-            print("               arm per node, so they are listed, never planned:")
+            print(f"  TP=2 waiting: {len(pairs)} arm(s) need two free nodes together, and")
+            print("               fewer than two were free:")
             for entry in pairs[:4]:
                 print(f"                 {entry.get('arm')}")
         for row in plan:
-            print(f"  {row['node']}  (TP={row['tp']})  {row['arm']}")
+            label = ",".join(row["nodes"]) if row["tp"] == 2 else row["node"]
+            print(f"  {label}  (TP={row['tp']})  {row['arm']}")
             print(f"      {row['launch']}")
-        if len(free) > len(plan):
-            for node in free[len(plan):]:
-                print(f"  {node}  -- NOTHING RUNNABLE. The queue is dry for this node count,")
-                print("            so either widen the manifest or record that fact on the board.")
+        for node in stranded:
+            print(f"  {node}  -- NOTHING RUNNABLE. The queue is dry for this node count,")
+            print("            so either widen the manifest or record that fact on the board.")
 
-    return 0 if len(plan) == len(free) else 1
+    return 0 if not stranded else 1
 
 
 if __name__ == "__main__":
