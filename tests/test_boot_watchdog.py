@@ -121,5 +121,30 @@ class TestParser(unittest.TestCase):
             bw.main(["--endpoint", "http://x:8000"])  # missing --task-id/--node
 
 
+class LogGrowth(unittest.TestCase):
+    """A zero io delta is ambiguous unless the serve log is sampled too.
+
+    Measured 2026-10-29 on the sage arm: `/proc/<pid>/io` showed no reads for
+    several checks while the engine was capturing CUDA graphs and logging
+    progress, which reads exactly like the keep-alive-over-a-dead-serve class.
+    The log size is the discriminator.
+    """
+
+    def test_a_log_size_is_parsed(self):
+        self.assertEqual(bw.parse_logsize("PID 1\nLOGSIZE 4096\n"), 4096)
+
+    def test_no_log_size_is_none(self):
+        self.assertIsNone(bw.parse_logsize("PID 1\nrchar: 7\n"))
+
+    def test_a_malformed_size_is_none(self):
+        self.assertIsNone(bw.parse_logsize("LOGSIZE nope\n"))
+
+    def test_the_log_delta_is_reported_next_to_the_io_delta(self):
+        text = TOOL_PATH.read_text()
+        self.assertIn("log_delta={log_delta}", text, "the log delta is not logged")
+        self.assertIn("prev_logsize", text, "no previous log size to diff")
+        self.assertIn("LOGSIZE", text, "the sample does not ask for the log size")
+
+
 if __name__ == "__main__":
     unittest.main()

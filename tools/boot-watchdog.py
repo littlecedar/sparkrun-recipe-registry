@@ -102,13 +102,14 @@ def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
 
 def serve_state(
     node: str, container: str, pattern: str
-) -> tuple[bool, tuple[int, int] | None]:
-    """(pid_alive, io) for the serve child inside the container, via ssh."""
+) -> tuple[bool, tuple[int, int] | None, int | None]:
+    """(pid_alive, io, serve_log_size) for the serve child inside the container."""
     # The script is fed on stdin so neither the pattern nor its own quotes need
     # escaping through ssh's argument passing.
     script = (
         "PAT=" + shlex.quote(pattern) + "\n"
         "for p in $(pgrep -f \"$PAT\"); do echo \"PID $p\"; cat /proc/$p/io 2>/dev/null; done\n"
+        "echo \"LOGSIZE $(wc -c < /tmp/sparkrun_serve.log 2>/dev/null || echo 0)\"\n"
     )
     try:
         out = subprocess.run(
@@ -120,8 +121,26 @@ def serve_state(
             check=False,
         ).stdout
     except (subprocess.SubprocessError, OSError):
-        return False, None
-    return pick_io(out)
+        return False, None, None
+    alive, io = pick_io(out)
+    return alive, io, parse_logsize(out)
+
+
+def parse_logsize(text: str) -> int | None:
+    """`LOGSIZE <bytes>` from the sample -> int, or None when absent.
+
+    `/proc/<pid>/io` reads 0 delta through phases that do no file IO, notably
+    sglang's CUDA-graph capture, so a zero delta is ambiguous: initializing, or
+    wedged. The serve log grows during real progress and stops when the child
+    stops, which is the discriminator this supplies.
+    """
+    for line in text.splitlines():
+        if line.startswith("LOGSIZE "):
+            try:
+                return int(line.split()[1])
+            except (IndexError, ValueError):
+                return None
+    return None
 
 
 def pick_container(names: list[str], task_id: str) -> str:
@@ -204,13 +223,18 @@ def main(argv: list[str] | None = None) -> int:
     started = time.time()
     consecutive_dead = 0
     prev_io: tuple[int, int] | None = None
+    prev_logsize: int | None = None
     while True:
         ok = http_ok(args.endpoint + "/v1/models")
-        alive, io = serve_state(args.node, container, args.serve_pattern)
+        alive, io, logsize = serve_state(args.node, container, args.serve_pattern)
         delta = -1
         if io is not None and prev_io is not None:
             delta = (io[0] - prev_io[0]) + (io[1] - prev_io[1])
         prev_io = io
+        log_delta = -1
+        if logsize is not None and prev_logsize is not None:
+            log_delta = logsize - prev_logsize
+        prev_logsize = logsize
         if not alive and not ok:
             consecutive_dead += 1
         else:
@@ -219,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
         elapsed = int(time.time() - started)
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
-            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta}",
+            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta}",
             file=log,
             flush=True,
         )
