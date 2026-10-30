@@ -127,7 +127,10 @@ print("\n".join(r.get("owner","") for r in rows if not r.get("alive", True) and 
   sparkrun daemon resources reconcile "$owner" --acknowledge-effects 2>&1 | tail -1
 done
 
-sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR > "$L/launch.log" 2>&1 &
+# ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
+# draft-token count). Without it every setting needs its own recipe file.
+# shellcheck disable=SC2086
+sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
 LAUNCH=$!
 
 # The container lives on the TARGET node, which is not necessarily the host this
