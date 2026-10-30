@@ -93,6 +93,13 @@ class RunArmContract(unittest.TestCase):
         verify_at = text.find("docker ps -aq | wc -l", stop_at)
         self.assertGreater(verify_at, stop_at, "no per-node re-count after the stop")
 
+    def test_refused_launch_fails_fast(self):
+        """A launch that exits at once must not sit in the container-wait loop."""
+        text = read_tool()
+        self.assertRegex(text, r"LAUNCH=\$!", "the launcher pid is not captured")
+        self.assertIn('kill -0 "$LAUNCH"', text, "the wait loop does not poll the launcher")
+        self.assertRegex(text, r"exit 5", "a refused launch has no distinct exit status")
+
     def test_failed_steps_set_a_nonzero_exit(self):
         text = read_tool()
         self.assertRegex(text, r"rc=[1-9]", "no failure status is recorded")
@@ -117,6 +124,10 @@ class NegativeControls(unittest.TestCase):
         text = STOP_RE.sub(lambda m: "  sparkrun stop ", read_tool())
         top_level = [m for m in STOP_RE.finditer(text) if m.group(1) == ""]
         self.assertEqual(top_level, [], "an unindented stop survived the mutation")
+
+    def test_removing_the_fail_fast_fails_its_guard(self):
+        text = read_tool().replace('kill -0 "$LAUNCH"', 'true')
+        self.assertNotIn('kill -0 "$LAUNCH"', text)
 
     def test_removing_the_trap_fails_the_trap_guard(self):
         text = TRAP_RE.sub("", read_tool())

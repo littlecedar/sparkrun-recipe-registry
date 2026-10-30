@@ -21,6 +21,7 @@ cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0
 
 sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR > "$L/launch.log" 2>&1 &
+LAUNCH=$!
 
 # The container lives on the TARGET node, which is not necessarily the host this
 # script runs on (the head launches onto either free node). Resolve it locally
@@ -34,6 +35,15 @@ fi
 for _ in $(seq 1 60); do
   N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 _solo" 2>/dev/null | tr -d '\r' || true)
   [ -n "$N" ] && break
+  # A refused launch (a stale resource claim, a missing recipe, a placement
+  # failure) exits at once. Waiting the full five minutes for a container that
+  # will never appear burns another lane's window -- measured 2026-10-29 when a
+  # dead pid's reservation blocked `.35` and the script spun anyway.
+  if ! kill -0 "$LAUNCH" 2>/dev/null; then
+    echo "ARM FAIL $NAME: launcher exited with no container. Last lines:"
+    tail -5 "$L/launch.log"
+    exit 5
+  fi
   sleep 5
 done
 if [ -z "$NODE" ]; then
