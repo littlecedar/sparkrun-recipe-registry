@@ -177,6 +177,17 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   ran `gh`. State the command, state where it ran, and for anything pushed, read the run:
   `HOME=/home/siv gh run list --repo littlecedar/sparkrun-recipe-registry --limit 1 --json headSha,conclusion`.
 
+- **A causal claim must name its discriminator, not only its command.** The sibling of the rule above:
+  a sentence that attributes a cause — "the tool is broken", "the engine got slower", "the node is
+  degraded" — is not finished until the one command that would print something *different* if that cause
+  were absent has run, and its real output is quoted. Register the falsifier *before* the explanation
+  forms; when the story makes the instrument wrong rather than the world surprising, run the instrument's
+  own self-check first — all four self-inflicted diagnoses of 2026-10-30 had that shape, each fell to a
+  single `command -v`/`ls`/grep, and two wrong claims shipped. The durable form of the fix is a gate,
+  never a note: `tools/run-arm.sh:271-276` (`rc=7`, `REPLAYED, NOT MEASURED`) is the model, because the
+  replay that cost two boots can no longer be reported as a measurement. Procedure: skill
+  `falsify-before-claiming`.
+
 - **Plain `validate` is the gate, not `--strict`**: all 79 tracked recipes pass plain; 21/79 fail
   strict on accepted findings (re-measured 2026-10-29; the 2026-10-22 table below lists the
   then-18 files — the two added since are `recipes/ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml`
