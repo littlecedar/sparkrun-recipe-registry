@@ -183,6 +183,8 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('*/embed/*|*/rerank/*)', text, "no pooling branch")
         self.assertIn('benchmark pooling', text, "the pooling subcommand is not used")
         self.assertIn('pooling-ladder-$kind.yaml', text, "the profile is not chosen per lane")
+        # The profile hardcodes the 8B encoder's 4096; a 2B arm fails every reply otherwise.
+        self.assertIn("dimension_check=2048", text, "no 2B dimension override")
 
     def test_decision_arms_use_the_decision_instruments(self):
         """llama-benchy and the chat suite cannot read /v1/systemone."""

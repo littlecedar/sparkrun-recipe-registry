@@ -216,9 +216,15 @@ if [ "$ready" = yes ]; then
       # are measured by `benchmark pooling` against the shipped ladder profile, and the
       # chat suite does not apply to them at all.
       kind=embed; case "$RECIPE" in */rerank/*) kind=rerank ;; esac
+      # The ladder profile checks reply dimensions against the shipped 8B encoder (4096);
+      # its own note says a 2B arm needs -b dimension_check=2048 or EVERY reply fails the
+      # shape check -- measured 2026-10-30: [1/4] FAILED in 3.1 s with no traceback.
+      pooling_args=()
+      case "$NAME" in *-2b-*|*2b-*) pooling_args=(-b dimension_check=2048) ;; esac
       sparkrun ${BENCH_VERBOSE:+-v} benchmark pooling "$RECIPE" \
         --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run \
-        -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        -H "$NODE" --cluster WOPR "${pooling_args[@]}" \
+        --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "pooling ladder failed for $NAME"; rc=2; }
       echo "suite: n/a (pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank)" \
         > "$L/house.log"
