@@ -318,12 +318,16 @@ that line.
   10.80 / 10.76 / 10.60 / 10.66 on the current pin, with house **93** (14 pass / 1 fail) on both. **No matched control on `.34`+`.35` exists**, so this row
   may not be used as a bar for `.30`+`.35` arms.
 
-  Two ad-hoc direct probes I took during that boot read 3.80 and 6.16 tok/s, and they must **not** be
-  quoted against a ladder cell: `tg` is decode-only — (N-1) over the first-to-last content chunk, N from
-  the server's `usage.completion_tokens` (`llama_benchy/results.py:67-82,302-322`) — while those probes
-  were end-to-end wall clock taken **while a cell was in flight**, so they reproduce the loaded
-  per-request rate the same file records (`tg_req_throughput` 3.83 at c5, 3.37 at c10), not a c1 decode
-  rate. The instrument's token count is exact on this route: sparkrun disables `return_token_ids` only
+  Two ad-hoc direct probes I took during that boot read 3.80 and 6.16 tok/s and must **not** be quoted
+  against a ladder cell. `tg` is decode-only — (N-1) over the first-to-last content chunk, N from the
+  server's `usage.completion_tokens` (`llama_benchy/results.py:67-82,302-322`) — while those probes were
+  end-to-end wall clock issued after the ladder finished and before the arm ended, i.e. while the house
+  suite held the same serve: `ladder.log` mtime 06:59:33, `house.log` mtime 07:07:00, and the second
+  probe was killed by the arm's teardown (exit 137). They therefore carry TTFT plus whatever queueing
+  the suite caused, and fit a **~12.9 s per-request constant plus ~61 ms/token** — not a decode rate.
+  They do not reproduce a per-request cell rate either: 3.80 against `tg_req_throughput` 3.83 at c5 is
+  one term coinciding, and 6.16 against 3.37 at c10 is not a match at all. What they establish is only
+  that a hand probe of a busy serve measures the load. The instrument's token count is exact on this route: sparkrun disables `return_token_ids` only
   for the sglang family (`sparkrun/benchmarking/llama_benchy.py:230-239`), which interpolates *arrival
   times* while totals still come from `usage`, and `tensorfold serve` runs no reasoning parser that could
   strip a channel. So there is no instrument inflation, `tg` is mutually comparable across this
