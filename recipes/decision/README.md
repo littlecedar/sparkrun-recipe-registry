@@ -471,9 +471,22 @@ does not scale.
 That is the honest close for this lane's C2/C5/C10 cells: the ladder exists and is
 flat-to-negative, so the columns can carry the measured `req/s` above (with the unit and the
 flatness stated) or stay `—` — but a `t/s`-shaped number here would be a category error.
-Sol-2B and JEV-9B are not ladded (Sol is the same `vllm-srun` CPU shape as Kai, so Kai's row is
-its shape; JEV's one-request-per-question contract is supported by the harness below through
-`--api completions`, but it has not been run), so their cells stay `—`.
+Sol-2B is not ladded (the same `vllm-srun` CPU shape as Kai, so Kai's row is its shape), so its
+cells stay `—`.
+
+**JEV-9B has now been ladded (2026-10-30, `.35`, `--api completions` + the adapter's
+`decision_head.json`, 500 cases per cell, one pass)** — the first run of a harness line that had
+been documented here but never executed:
+
+| JEV-9B (GPU) | c1 | c2 | c5 | c10 |
+|---|---:|---:|---:|---:|
+| `req/s` (= decisions/s) | 9.29 | 10.11 | 20.34 | 21.19 |
+| p50 per question | 108 ms | 201 ms | 246 ms | 471 ms |
+
+Clean at every level (500/500 responses, 500/500 decisions, `errors: {}`). Throughput rises to c5
+and flattens while p50 scales ~linearly with offered concurrency: the same one-slot-and-a-queue
+shape as the CPU arms, on a GPU, because the contract is one request per question and there is no
+batch to fill. Receipt: `~/benchmarks/tp12-20261030/jev-9b-decision-vllm/REPORT.md`.
 
 Ladders taken 2026-10-15 on `.34` with the arms booted solo, each level a **single** closed-loop
 pass (offer N, count completions; `--runs 1`, which was the only mode then and is no longer the
