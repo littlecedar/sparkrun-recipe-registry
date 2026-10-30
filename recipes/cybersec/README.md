@@ -315,11 +315,19 @@ that line.
   — `stat -f` reads the managed runtime cache as ext3 on 2026-10-30, so the runtime tree is innocent.
   Every post-migration reading of the arm is a `.30`+`.35` boot: **13.72 / 11.02 / 10.62 / 10.59 t/s** at
   c1/c2/c5/c10 on the pre-repin container (`zz-abliterated-cyber-tp2-fabbe861-probe`) and
-  10.80 / 10.76 / 10.60 / 10.66 on the current pin, with house **93** (14 pass / 1 fail) on both; a
-  direct client inside rank 0's container reads **3.80 tok/s** (64 tokens / 16.837 s) and **6.16 tok/s**
-  (128 tokens / 20.765 s) on the same idle serve, against the instrument's 13.72 at c1. **No matched
-  control on `.34`+`.35` exists**, so this row may not be used as a bar for `.30`+`.35` arms; the
-  instrument's `tg` arithmetic is under audit and no inflation claim is adopted here. Receipts
+  10.80 / 10.76 / 10.60 / 10.66 on the current pin, with house **93** (14 pass / 1 fail) on both. **No matched control on `.34`+`.35` exists**, so this row
+  may not be used as a bar for `.30`+`.35` arms.
+
+  Two ad-hoc direct probes I took during that boot read 3.80 and 6.16 tok/s, and they must **not** be
+  quoted against a ladder cell: `tg` is decode-only — (N-1) over the first-to-last content chunk, N from
+  the server's `usage.completion_tokens` (`llama_benchy/results.py:67-82,302-322`) — while those probes
+  were end-to-end wall clock taken **while a cell was in flight**, so they reproduce the loaded
+  per-request rate the same file records (`tg_req_throughput` 3.83 at c5, 3.37 at c10), not a c1 decode
+  rate. The instrument's token count is exact on this route: sparkrun disables `return_token_ids` only
+  for the sglang family (`sparkrun/benchmarking/llama_benchy.py:230-239`), which interpolates *arrival
+  times* while totals still come from `usage`, and `tensorfold serve` runs no reasoning parser that could
+  strip a channel. So there is no instrument inflation, `tg` is mutually comparable across this
+  registry's engines, and the 13.72-vs-67.02 gap is a real decode gap. Receipts
   `~/benchmarks/tp12-20261030/zz-abliterated-cyber-tp2-fabbe861-probe/REPORT.md` and
   `~/benchmarks/tp12-20261030/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/REPORT.md`.
   **Leading mechanism (measured, not closed):** the serve reads **0.91 MiB of storage per token**
