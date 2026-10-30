@@ -108,6 +108,19 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_decision_arms_use_the_decision_instruments(self):
+        """llama-benchy and the chat suite cannot read /v1/systemone."""
+        text = read_tool()
+        self.assertIn('*/decision/*)', text, "no decision branch")
+        self.assertIn('tools/decision-ladder.py', text, "the ladder is not the lane's")
+        self.assertIn('--decision-bench-only', text, "no decision accuracy instrument")
+        self.assertIn('DECISION_CASES', text, "the case split is not configurable")
+
+    def test_readiness_outlasts_the_watchdog_grace(self):
+        """A 1350 s ceiling under a 1800 s grace stops a serve still loading."""
+        text = read_tool()
+        self.assertIn('seq 1 150', text, "readiness ceiling is below the watchdog's grace")
+
     def test_failed_steps_set_a_nonzero_exit(self):
         text = read_tool()
         self.assertRegex(text, r"rc=[1-9]", "no failure status is recorded")
@@ -132,6 +145,10 @@ class NegativeControls(unittest.TestCase):
         text = STOP_RE.sub(lambda m: "  sparkrun stop ", read_tool())
         top_level = [m for m in STOP_RE.finditer(text) if m.group(1) == ""]
         self.assertEqual(top_level, [], "an unindented stop survived the mutation")
+
+    def test_sending_a_decision_arm_to_the_chat_suite_fails_its_guard(self):
+        text = read_tool().replace('*/decision/*)', '*/nothing/*)')
+        self.assertNotIn('*/decision/*)', text)
 
     def test_a_hardcoded_port_fails_the_port_guard(self):
         text = read_tool().replace('"http://$NODE:$PORT/v1/models"', '"http://$NODE:8000/v1/models"')

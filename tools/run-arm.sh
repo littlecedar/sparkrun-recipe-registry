@@ -23,6 +23,9 @@ L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
 PORT=$(sed -n -e 's/^[[:space:]]*port:[[:space:]]*"\([0-9][0-9]*\)".*/\1/p' \
                 -e 's/^[[:space:]]*port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RECIPE" | head -1)
 PORT=${PORT:-8000}
+# The decision lane's 400-case split as the instrument ships it (gzip);
+# decision-ladder.py accepts .jsonl.gz directly.
+DECISION_CASES=${DECISION_CASES:-$HOME/benchmarks/jev27-20261021/test.jsonl.gz}
 mkdir -p "$L"
 cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0
@@ -76,7 +79,7 @@ python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" 
 WD=$!
 
 ready=no
-for _ in $(seq 1 90); do
+for _ in $(seq 1 150); do
   if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
   fi
@@ -84,13 +87,40 @@ for _ in $(seq 1 90); do
 done
 echo "readiness=$ready"
 
+# A decision arm answers /v1/systemone (or JEV's /v1/completions), never
+# /chat/completions, so llama-benchy and tool-eval-bench's chat suite both fail
+# its first task -- the same instrument gap the pooling lanes document. Measured
+# 2026-10-29: clef-flash readied in 239 s and then scored rc=3 with [1/1] FAILED.
+# Its instruments are the lane's own: decision-ladder.py for the cells and
+# tool-eval-bench --decision-bench-only for the accuracy number.
+SERVED=$(curl -s -m 10 "http://$NODE:$PORT/v1/models" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])' 2>/dev/null)
+
 if [ "$ready" = yes ]; then
-  sparkrun benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-    --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
-    || { echo "ladder failed for $NAME"; rc=2; }
-  sparkrun benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-    --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
-    || { echo "suite failed for $NAME"; rc=3; }
+  case "$RECIPE" in
+    */decision/*)
+      api=${ARM_LADDER_API:-systemone}
+      head_opt=()
+      [ -n "${ARM_DECISION_HEAD:-}" ] && head_opt=(--decision-head "$ARM_DECISION_HEAD")
+      if [ "$api" = completions ] && [ ${#head_opt[@]} -eq 0 ]; then
+        echo "note: $NAME serves /v1/completions; set ARM_DECISION_HEAD to score it"
+      fi
+      python3 tools/decision-ladder.py --base-url "http://$NODE:$PORT" --api "$api" \
+        --model "$SERVED" --cases "$DECISION_CASES" --concurrency 1,2,5,10 \
+        --runs 1 --limit 100 "${head_opt[@]}" --json "$L/ladder.json" \
+        > "$L/ladder.log" 2>&1 || { echo "ladder failed for $NAME"; rc=2; }
+      uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
+        > "$L/teb-decision.log" 2>&1 || { echo "decision bench failed for $NAME"; rc=3; }
+      ;;
+    *)
+      sparkrun benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        || { echo "ladder failed for $NAME"; rc=2; }
+      sparkrun benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
+        || { echo "suite failed for $NAME"; rc=3; }
+      ;;
+  esac
 else
   rc=4
 fi
