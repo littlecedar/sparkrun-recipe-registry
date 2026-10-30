@@ -100,6 +100,14 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('kill -0 "$LAUNCH"', text, "the wait loop does not poll the launcher")
         self.assertRegex(text, r"exit 5", "a refused launch has no distinct exit status")
 
+    def test_a_node_pair_reaches_every_sparkrun_call(self):
+        """A TP=2 arm needs both hosts; the endpoint/watchdog/container must use the API rank only."""
+        text = read_tool()
+        self.assertIn('HOSTS=${2:-${ARM_NODE:-}}', text)
+        self.assertIn("NODE=${HOSTS%%,*}", text)
+        self.assertEqual(text.count('-H "$HOSTS"'), 4, "every sparkrun call site must pass the pair")
+        self.assertEqual(text.count('-H "$NODE"'), 0, "a leftover single-host site breaks TP=2")
+
     def test_serve_port_comes_from_the_recipe(self):
         """Probing 8000 on an 8020 arm looks like a boot that never readies."""
         text = read_tool()

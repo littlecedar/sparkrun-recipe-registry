@@ -12,8 +12,12 @@
 # exit status records which step failed.
 set -uo pipefail
 
-RECIPE=${1:?usage: run-arm.sh <recipe-path> [node]}
-NODE=${2:-${ARM_NODE:-}}
+RECIPE=${1:?usage: run-arm.sh <recipe-path> [node[,node...]]}
+# A TP=2 arm needs a PAIR: pass `a,b` and sparkrun gets both hosts while the endpoint, watchdog and
+# container resolution use the FIRST (the API rank). Single-node arms are unaffected -- `HOSTS` is
+# just `NODE` there, so every `-H` site stays the same expression.
+HOSTS=${2:-${ARM_NODE:-}}
+NODE=${HOSTS%%,*}
 # ARM_TAG suffixes the receipt name (`-d4`, `-d8`): a sweep re-runs ONE recipe with different
 # `-o` overrides, and without a tag every leg writes the same directory and rotates the previous
 # leg to `.prev-<HHMMSS>` -- the numbers survive but the attribution does not.
@@ -133,7 +137,7 @@ done
 # ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
 # draft-token count). Without it every setting needs its own recipe file.
 # shellcheck disable=SC2086
-sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
+sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
 LAUNCH=$!
 
 # The container lives on the TARGET node, which is not necessarily the host this
@@ -242,7 +246,7 @@ if [ "$ready" = yes ]; then
       case "$NAME" in *-2b-*|*2b-*) pooling_args=(-b dimension_check=2048) ;; esac
       sparkrun ${BENCH_VERBOSE:+-v} benchmark pooling "$RECIPE" \
         --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run \
-        -H "$NODE" --cluster WOPR "${pooling_args[@]}" \
+        -H "$HOSTS" --cluster WOPR "${pooling_args[@]}" \
         --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "pooling ladder failed for $NAME"; rc=2; }
       echo "suite: n/a (pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank)" \
@@ -251,10 +255,10 @@ if [ "$ready" = yes ]; then
       ;;
     *)
       sparkrun ${BENCH_VERBOSE:+-v} benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        --skip-run -H "$HOSTS" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "ladder failed for $NAME"; rc=2; }
       sparkrun ${BENCH_VERBOSE:+-v} benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
+        --skip-run -H "$HOSTS" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
       artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;
