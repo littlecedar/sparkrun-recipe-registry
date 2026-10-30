@@ -2143,3 +2143,24 @@ their live state at 13:00 ET (0 containers / 0 volumes, no reservation) is in th
   (the 09:13 harvest did write a 147 KB `serve-solo.log`, but that is a TP=1 arm). Its earlier rank-1
   figures stand as history: `rank 1: weights in 316 s (written to the rank cache)`, `allocator ceiling
   107.0 GiB`, `rank 1 ready in 506.1 s, following rank 0`.
+
+## The board's skip set named a recipe that does not exist — 2026-10-30 17:20 ET
+
+The census row and the `tp12-campaign-staging` row carried, from the 15:00 tick (`44e21c7`, whose own
+subject reads "name the campaign's skip set, which nothing persists") through the 16:05 and 17:05 ticks, a
+skip set written as `qwen3.8-flash-next-uncensored-nvfp4-{sglang,vllm,solo-vllm-b12x}`,
+`nex-n2.5-mini-uncensored-nvfp4-sglang`, `zz-spark-x2.6-4b-int8-sglang`, plus the claim that "nothing
+persists that list, so each run recomposes it". Both halves were wrong:
+
+- `qwen3.8-flash-next-uncensored-nvfp4-solo-vllm-b12x` exists nowhere in the tree. The brace group fused
+  two different names — the real recipe is `recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml`,
+  which is *not* an uncensored arm — while `nex-n2.5-mini-uncensored-nvfp4-vllm`, a live skip entry, was
+  omitted.
+- The list is persisted: the untracked `.local/fleet.yaml` `skip:` holds those five and
+  `tools/queue-drip.py:plan_pass` hands them to `next-arms.py` on every pass. "Nothing persists it" was
+  false; what happened is that the drip was not running, so the tick passed the set by hand.
+
+The rows now name the five from the config, cite the drip as the consumer, and state that
+`zz-spark-x2.6-4b-int8-sglang` is `tp: 1` — it is *skipped*, not counted, and the five counted-unmeasured
+arms are the TP=2 set. Re-derived 17:00 ET on the head, not carried: manifest `tp` split 33 / 9 of 42, 45
+measured receipt arms, 5 unmeasured.
