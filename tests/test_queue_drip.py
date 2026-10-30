@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 import sys
 import tempfile
 import unittest
@@ -85,6 +86,10 @@ class Liveness(unittest.TestCase):
     def test_a_driver_shaped_cmdline_is_accepted(self):
         child = subprocess.Popen(["bash", "-c", "exec -a run-arm.sh sleep 5"])
         try:
+            # Popen returns before bash execs, so poll -- asserting immediately is the flake.
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not drip.pid_is_driver(child.pid, "arm", ""):
+                time.sleep(0.02)
             self.assertTrue(drip.pid_is_driver(child.pid, "arm", ""))
         finally:
             child.kill()

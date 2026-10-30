@@ -782,6 +782,20 @@
       "node_cost": "single",
       "notes": "Follow-up to the 2026-10-30 A/B, where the drafter was +21.6 % at c1 but -24/-41/-47 % at c2/c5/c10 and prefill collapsed 1800 -> 661 by c2, while the no-spec baseline RISES (28.95 -> 48.97). Hypothesis: a 15-token draft block cannot be amortised across a batch, so verification contention eats the gain — MTP's 3 tokens DID scale on vLLM (39.3 -> 81.9). Method: three boots of zz-ornith-1.5-122b-nvfp4-dflash2-sglang with -o speculative_draft_tokens=4 / 8 / 15, same window and node, ladder to c10 each; compare each against the baseline's cells in the same window, never across nights. Outcome that would matter: a setting that keeps most of the +22 % c1 win while staying within ~10 % of the baseline at c5. If no setting does, record that DFLASH cannot batch on this engine and stop spending boots on it.",
       "provenance": "2026-10-30 within-engine A/B (zz-ornith-1.5-122b-nvfp4-sglang vs ...-dflash2-sglang)"
+    },
+    {
+      "id": "refresh-weights-and-runtime-repin",
+      "title": "Every shipped recipe: check for newer weights and runtimes, repin on green, A/B the runtimes",
+      "estimate_h": 40.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "fleet",
+      "node_cost": "single",
+      "notes": "Owner instruction 2026-10-30. For EVERY shipped recipe (79 tracked as of 2026-10-29), survey two axes and act on the combination. (1) Newer model weights only -> test the new pin and repin when green: boot, cells, house suite; the pin moves only on evidence, never on the survey alone (AGENTS.md: a model re-pin is boot-gated by lane policy). (2) Newer runtime only -> A/B the current runtime against the updated one on the SAME weights and the same node, and ship the winner, preferring the updated runtime when the two are inside noise. (3) Both newer -> pin the new weights first, then A/B the two runtimes on those weights, ship the winner preferring the updated runtime. In every branch the receipt carries: image digest, model revision, the A/B pair, per-cell numbers from the same window, and the house score, because an arm measured on different weights across two runtimes is not an A/B. NODE COST is one single-node arm at a time (`.30`/`.35`), but the quartet arms (glm-5.3 TP=4 set, ds4 knapcio TP=4) need a declared four-rank window and are therefore gated, not skipped. The SURVEY is already built and is not this task: tools/refresh-sweep.py reports per-arm model_revision and container drift nightly (issue #1, no drift ever fails the run). This is the ACTION layer on that report: boots, A/Bs, and repins with receipts. Pre-requisites inside it: the three arms whose container refs resolve to nothing (queue: published-image-refs) cannot be A/B'd until their image exists. Index cells (README flag/pointer table) move only when the A/B or the repin clears; a cell that improves inside noise stays put and the receipt says so.",
+      "provenance": "owner instruction 2026-10-30; tools/refresh-sweep.py survey + AGENTS.md repin policy",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
