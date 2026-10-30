@@ -334,8 +334,13 @@ class PairPlacement(unittest.TestCase):
 
     def test_json_mode_exits_cleanly(self):
         """`--json` is how queue-drip calls this tool: an exception here breaks every drip pass."""
-        out = subprocess.run([sys.executable, TOOL, "--nodes", "unreachable.invalid", "--json"],
-                             capture_output=True, text=True, check=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text(json.dumps(
+                [{"arm": "solo", "path": "recipes/x/solo.yaml", "tp": 1}]))
+            out = subprocess.run([sys.executable, TOOL, "--nodes", "unreachable.invalid",
+                                  "--json", "--manifest", str(manifest)],
+                                 capture_output=True, text=True, check=False)
         self.assertNotIn("Traceback", out.stderr, out.stderr)
         self.assertIn("{", out.stdout)
 
