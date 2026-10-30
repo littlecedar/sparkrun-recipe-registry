@@ -108,6 +108,13 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_a_foreign_container_holding_the_port_refuses_the_launch(self):
+        """A dead peer's container on the port makes this arm measure nothing."""
+        text = read_tool()
+        self.assertIn('is held by $BLOCKER', text, "no port-conflict refusal")
+        self.assertIn('exit 7', text, "the refusal does not stop the run")
+        self.assertNotIn('docker rm -f $BLOCKER', text, "a foreign container is removed")
+
     def test_the_leftover_gate_is_per_arm_not_per_node(self):
         """A peer arm on the other free node is not this arm's leftover."""
         text = read_tool()

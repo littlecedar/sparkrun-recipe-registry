@@ -42,6 +42,23 @@ for old in $LEFTOVER; do
     "red@$NODE" "docker rm -f $old" >/dev/null 2>&1
 done
 
+# A container of a DIFFERENT recipe holding the serve port collides just as hard,
+# and the same-recipe probe above cannot see it. Measured 2026-10-29: a dead int8
+# container held 8000 on .35, this arm's launcher bound nothing, and the runner then
+# resolved the int8 container as its own and measured a dead serve. Refuse instead
+# of removing: the container may be another session's, and silently killing it is
+# the mistake this register has made before.
+BLOCKER=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@$NODE" \
+  "for n in \$(docker ps --format '{{.Names}}'); do
+     p=\$(docker port \$n 2>/dev/null | grep -o ':$PORT$' | head -1)
+     [ -n \"\$p\" ] && echo \$n
+   done" 2>/dev/null | head -1)
+if [ -n "$BLOCKER" ]; then
+  echo "ARM FAIL $NAME: port $PORT on $NODE is held by $BLOCKER"
+  echo "stop it (or pick another node) before relaunching; nothing was launched"
+  exit 7
+fi
+
 # A relaunch of the same arm would overwrite the earlier receipt, so an
 # instrument that failed partway silently becomes a truncated one.
 if [ -n "$(ls -A "$L" 2>/dev/null)" ]; then
