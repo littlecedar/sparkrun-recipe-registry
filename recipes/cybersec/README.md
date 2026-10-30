@@ -309,9 +309,11 @@ that line.
   (`bench_44534d5024c0`).
 - **Provenance caveat on that row (2026-10-30):** the 67.02 / 52.95 / 47.75 / 46.78 ladder is a
   **`.34`+`.35`** measurement — the 2026-10-19 `launch.log` names `.34` and `.35`, with
-  `Placement: 2 hosts from --hosts` — and it was taken **before** the 2026-10-24 move of this arm's
-  runtime tree (`/cache/runtime/dsv41-ablit`) onto BeeGFS, when `/cache/runtime` was node-local. Every
-  post-migration reading of the arm is a `.30`+`.35` boot: **13.72 / 11.02 / 10.62 / 10.59 t/s** at
+  `Placement: 2 hosts from --hosts` — and it was taken **before** the 2026-10-24 migration that moved
+  the HF cache (`~/.cache/huggingface` → `/mnt/beegfs/huggingface`) onto the pool, which is where this
+  arm's **Engram tables** live; **`/cache/runtime`** (rank cache, graft tree) is **not** on the pool
+  — `stat -f` reads the managed runtime cache as ext3 on 2026-10-30, so the runtime tree is innocent.
+  Every post-migration reading of the arm is a `.30`+`.35` boot: **13.72 / 11.02 / 10.62 / 10.59 t/s** at
   c1/c2/c5/c10 on the pre-repin container (`zz-abliterated-cyber-tp2-fabbe861-probe`) and
   10.80 / 10.76 / 10.60 / 10.66 on the current pin, with house **93** (14 pass / 1 fail) on both; a
   direct client inside rank 0's container reads **3.80 tok/s** (64 tokens / 16.837 s) and **6.16 tok/s**
@@ -320,6 +322,41 @@ that line.
   instrument's `tg` arithmetic is under audit and no inflation claim is adopted here. Receipts
   `~/benchmarks/tp12-20261030/zz-abliterated-cyber-tp2-fabbe861-probe/REPORT.md` and
   `~/benchmarks/tp12-20261030/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/REPORT.md`.
+- **Mechanism of the `.30`+`.35` deficit (2026-10-30) — likely, not closed.** Measured: a 64-token reply
+  moves **61,052,864 B** of serve-side storage reads (`/proc/*/io read_bytes` delta) = **0.91 MiB/token**;
+  pool random reads from `.30` on `engram-l1.safetensors` (94.42 GiB, snapshot `48afcd1c…`) with
+  `posix_fadvise(DONTNEED)` before each give p50 **2.285 ms at 4 KiB** (p90 3.85, max 12.66) and
+  **2.719 ms at 256 KiB** — 64× the bytes for 19 % more latency, i.e. the pool is **latency-bound, not
+  bandwidth-bound**; true decode on the same serve is **3.80 tok/s** (64 tok / 16.837 s) and
+  **6.16 tok/s** (128 tok / 20.765 s), or 162-262 ms/token. The arithmetic: 0.91 MiB/token ÷ 4 KiB is
+  ~230 storage pages per token, and at ~2.3-2.7 ms per pool read that is the same order as the entire
+  per-token budget, where node-local NVMe costs tens of microseconds per read. What sits between this
+  and the 67.02 row is the **2026-10-24 cache migration**: that row is `.34`+`.35`, `bench_484eb77839b4`,
+  on the same image `fabbe861…`, the same rendered command, the same `09daea94` build and the same
+  `48afcd1c…` checkpoint, and on 2026-10-24 the HF cache moved to the BeeGFS pool — verified today,
+  `readlink -f ~/.cache/huggingface` = `/mnt/beegfs/huggingface` with `stat -f` = `fhgfs` — which is
+  exactly where this arm's Engram tables live, the only per-token artifact the migration touched. The
+  runtime cache (container `/cache/runtime`, host `~/.cache/sparkrun/runtime-cache`) is `ext2/ext3`,
+  node-local, so the graft tree is not implicated. Excluded along the way, each by a measurement: the
+  container pin (13.72 t/s on `fabbe861…` vs 10.80 on `19977a03…`, house 93 both), `.35` as a node
+  (reranker-2b 72.0/79.6 there vs 73.1/79.8 on `.30`), fabric bandwidth (13 202 MB/s ≈ 106 Gb/s) and
+  latency (`ib_write_lat` 2.48 µs avg), `decode graphs {}` (the ds4 TP=2 boot logs the same, so it is
+  normal for this launcher), and a cold-page-cache explanation. **Not closed:** no `majflt`-per-token
+  count during a live decode was taken; that is the one step that would close it. **Recommendation, not
+  executed** (owner's call, `mad-science/QUESTIONS.md` `#55` route B): stage this model's ~94 GB
+  `engram/` on node-local NVMe per rank — each node has 1.2-1.8 TB free — and let the pool stay the
+  source of truth and the store for every other model. That restores the arm without displacing a
+  production serve; the production-window question stands only for arms whose **weights** are read
+  per token from the pool.
+  **Leading mechanism (measured, not closed):** the serve reads **0.91 MiB of storage per token**
+  (`/proc/*/io` `read_bytes`, 61,052,864 B over 64 tokens) and a random **4 KiB** read of the pool's
+  Engram table costs **p50 2.285 ms** while 256 KiB costs 2.719 ms — the pool is latency-bound, so the
+  same ~230 pages/token that cost tens of microseconds on node-local NVMe dominate a 162–263 ms/token
+  budget. Falsified on the way: node `.35` (reranker-2b 72.0 units/s there vs 73.1 on `.30`), fabric
+  bandwidth (13 202 MB/s ≈ 106 Gb/s) and latency (`ib_write_lat` 2.48 µs), container pin (above), and
+  `decode graphs {}` (the ds4 TP=2 boot logs the same, so it is normal). The unrun closing step is a
+  `majflt`-per-token count during a live decode. Candidate fix, not executed: stage this model's ~94 GB
+  `engram/` on node-local NVMe per rank (1.2–1.8 TB free per node), leaving the pool the source of truth.
 - **Standard suite — all five legs landed (2026-10-20 / 2026-10-21, one serve each).** contract ok
   (`max_model_len` 1,048,576, ready, `finish=stop`); house **37/37** (easy 19/19, hard 18/18); needle
   **3/3 at 32,768 / 131,072 / 262,144** (depth 10, `PASS` each); hard **ARC 188/200 (94.0 %)** and
