@@ -93,9 +93,12 @@ def measured_arms(home: str, windows: tuple[str, ...] = (RECEIPTS,)) -> set[str]
             arm = os.path.basename(arm_dir.rstrip("/"))
             if ".prev-" in arm:
                 continue
+            # Machine-readable artefacts only. The old `*.yaml` fallback counted ANY yaml in the
+            # receipt as a measurement, and `run-arm.sh` writes `ladder.yaml` as soon as a
+            # benchmark starts -- so an arm that died before its first cell could mark itself
+            # measured and never be retried (no receipt carried a yaml-only artefact when this
+            # was tightened on 2026-10-30, on either the workstation or the head).
             if any(os.path.exists(os.path.join(arm_dir, f)) for f in MEASURED_ARTEFACTS):
-                done.add(arm)
-            elif glob.glob(os.path.join(arm_dir, "*.yaml")):
                 done.add(arm)
     return done
 

@@ -264,6 +264,34 @@ class Cli(unittest.TestCase):
         self.assertIn("no nodes", p.stderr)
 
 
+class MeasuredPredicate(unittest.TestCase):
+    """A receipt that recorded a start is not a receipt that recorded a cell."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("na_measured", TOOL)
+        cls._mod = importlib.util.module_from_spec(spec)
+        sys.modules["na_measured"] = cls._mod
+        spec.loader.exec_module(cls._mod)
+
+    def test_a_yaml_alone_does_not_count_as_measured(self):
+        with tempfile.TemporaryDirectory() as home:
+            win = os.path.join(home, "benchmarks", "tp12-x")
+            arm = os.path.join(win, "dead-arm")
+            os.makedirs(arm)
+            open(os.path.join(arm, "ladder.yaml"), "w").close()
+            open(os.path.join(arm, "launch.log"), "w").close()
+            self.assertEqual(self._mod.measured_arms(home, ("benchmarks/tp12-*",)), set())
+
+    def test_a_machine_readable_artefact_does(self):
+        with tempfile.TemporaryDirectory() as home:
+            win = os.path.join(home, "benchmarks", "tp12-x")
+            arm = os.path.join(win, "good-arm")
+            os.makedirs(arm)
+            open(os.path.join(arm, "ladder.json"), "w").close()
+            self.assertEqual(self._mod.measured_arms(home, ("benchmarks/tp12-*",)), {"good-arm"})
+
+
 class PairPlacement(unittest.TestCase):
     """A TP=2 arm takes two nodes and launches once; a pair must never be stranded idle.
 
