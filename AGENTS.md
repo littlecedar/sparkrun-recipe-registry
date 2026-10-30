@@ -170,6 +170,12 @@ for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run py
 find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
 ```
 
+- **A green claim must name its command and its machine.** On 2026-10-30 five consecutive commits were
+  reported green off a local suite while CI failed every one: the new test ran a tool with no `--manifest`,
+  so it read an untracked `.scratch/` file that exists on the workstation and nowhere else. The failure was
+  environment-dependent, which means the report could not be falsified by the reporter — only by a reader who
+  ran `gh`. State the command, state where it ran, and for anything pushed, read the run.
+
 - **Plain `validate` is the gate, not `--strict`**: all 79 tracked recipes pass plain; 21/79 fail
   strict on accepted findings (re-measured 2026-10-29; the 2026-10-22 table below lists the
   then-18 files — the two added since are `recipes/ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml`

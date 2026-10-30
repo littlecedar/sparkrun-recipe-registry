@@ -162,6 +162,14 @@ def main(argv: list[str] | None = None) -> int:
         need += bad
         print(f"{arm:56s} {img:28s} {snap}{'' if not bad else '   <-- STAGE'}")
     print(f"\n{len(arms)} arms, {need} needing staging")
+    # Named because a green line here was read as readiness on 2026-10-30 and the next boot died on
+    # `ImportError: Other method (CompressedTensorsW4A16Sparse24) is not supported now`. It cannot be
+    # predicted from the checkpoint: the pinned config for that arm declares 8-bit/channel and
+    # 4-bit/tensor_group groups and no sparsity marker at all, while the engine demanded a Sparse24
+    # class -- the scheme name is the engine's own construction, not a field. So this tool must state
+    # the dimension it does not cover instead of growing a predictor that would guess.
+    print("NOTE: this audits bytes -- image digest present, snapshot entry count, weight size. It does")
+    print("      NOT test that the engine can execute the checkpoint's quantisation scheme.")
     return 1 if need else 0
 
 
