@@ -191,3 +191,21 @@ class MemorySignal(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class StallIsNotLoading(unittest.TestCase):
+    """A live child that reads nothing and logs nothing is stuck, and must be stopped."""
+
+    def test_a_frozen_boot_past_grace_is_stalled(self):
+        self.assertTrue(bw.is_stalled(False, True, elapsed=1900, grace=1800, idle=1800, stall=600))
+
+    def test_a_boot_inside_its_grace_is_not_stalled(self):
+        self.assertFalse(bw.is_stalled(False, True, elapsed=300, grace=1800, idle=300, stall=600))
+
+    def test_recent_progress_is_not_a_stall(self):
+        self.assertFalse(bw.is_stalled(False, True, elapsed=1900, grace=1800, idle=60, stall=600))
+
+    def test_a_dead_child_is_the_other_path(self):
+        self.assertFalse(bw.is_stalled(False, False, elapsed=1900, grace=1800, idle=1800, stall=600))
+
+    def test_a_healthy_endpoint_is_never_stalled(self):
+        self.assertFalse(bw.is_stalled(True, True, elapsed=1900, grace=1800, idle=1800, stall=600))

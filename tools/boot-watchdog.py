@@ -80,6 +80,26 @@ def decide(endpoint_ok: bool, pid_alive: bool, consecutive_dead: int) -> str:
     return "dead" if consecutive_dead >= 2 else "dead_candidate"
 
 
+def is_stalled(
+    endpoint_ok: bool, pid_alive: bool, elapsed: float, grace: float, idle: float, stall: float
+) -> bool:
+    """A live child that has made no progress at all is stuck, not loading (pure).
+
+    The `21e5ec6` defect masks a *dead* serve with a keep-alive; this is its sibling and it cost a
+    node for 30 minutes on 2026-10-30: a vLLM boot froze at `Capturing CUDA graphs 0/102` with
+    `io_delta=0` and `log_delta=0` for half an hour. `pid_alive` kept the verdict at `loading`, so
+    the dead-candidate path never fired and nothing ever stopped it.
+
+    Both deltas must be zero, the grace window must have passed, and the whole stall window must
+    have elapsed with no evidence — a slow 45-minute weight load logs or reads something.
+    """
+    if endpoint_ok or not pid_alive:
+        return False
+    if elapsed < grace or idle < stall:
+        return False
+    return True
+
+
 def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
     """Sampled `PID <n>` + `/proc/<n>/io` blocks -> (alive, io of the busiest reader).
 
@@ -247,6 +267,13 @@ def main(argv: list[str] | None = None) -> int:
         default=600.0,
         help="seconds after which a dead candidate may be stopped (2 checks still required)",
     )
+    ap.add_argument(
+        "--stall",
+        type=float,
+        default=600.0,
+        help="seconds of zero io AND zero log growth, past --grace, after which a live child is "
+             "declared stuck and stopped (a real load logs or reads something)",
+    )
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument("--log", default="")
     args = ap.parse_args(argv)
@@ -258,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     prev_io: tuple[int, int] | None = None
     prev_logsize: int | None = None
     prev_mem: int | None = None
+    last_progress = time.monotonic()
     while True:
         ok = http_ok(args.endpoint + "/v1/models")
         alive, io, logsize, mem = serve_state(args.node, container, args.serve_pattern)
@@ -279,15 +307,22 @@ def main(argv: list[str] | None = None) -> int:
             consecutive_dead = 0
         verdict = decide(ok, alive, consecutive_dead)
         elapsed = int(time.time() - started)
+        if ok or delta > 0 or log_delta > 0:
+            last_progress = time.monotonic()
+        idle = time.monotonic() - last_progress
+        stalled = is_stalled(ok, alive, elapsed, args.grace, idle, args.stall)
+        if stalled:
+            verdict = "stalled"
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
-            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta} mem_delta={mem_delta}",
+            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta} "
+            f"mem_delta={mem_delta} idle={int(idle)}s",
             file=log,
             flush=True,
         )
         if verdict == "healthy":
             return 0
-        if verdict == "dead" and elapsed >= args.grace:
+        if verdict in ("dead", "stalled") and elapsed >= args.grace:
             stop_task(args.task_id, log)
             return 3
         time.sleep(args.interval)
