@@ -43,7 +43,7 @@ LEFTOVER=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@$NODE" \
      [ \"\$r\" = \"$RECIPE\" ] && echo \$n
    done" 2>/dev/null)
 for old in $LEFTOVER; do
-  old_tid=${old#sparkrun_}; old_tid=${old_tid%_solo}
+  old_tid=${old#sparkrun_}; old_tid=${old_tid%_node_*}; old_tid=${old_tid%_solo}
   echo "stopping leftover container of this recipe: $old"
   sparkrun stop "$old_tid" >/dev/null 2>&1 || ssh -o ConnectTimeout=4 -o BatchMode=yes \
     "red@$NODE" "docker rm -f $old" >/dev/null 2>&1
@@ -150,7 +150,11 @@ else
 fi
 
 for _ in $(seq 1 60); do
-  N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 _solo" 2>/dev/null | tr -d '\r' || true)
+  # Both container shapes: `_solo` for TP=1, `_node_<rank>` for a multi-rank launch. Matching only
+  # `_solo` made every TP=2 launch print ARM FAIL 301 s in while its containers booted happily
+  # underneath (measured 2026-10-30, first pair run) -- same class as the boot-watchdog `_solo` fix,
+  # opposite direction.
+  N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 -E '_solo|_node_0'" 2>/dev/null | tr -d '\r' || true)
   [ -n "$N" ] && break
   # A refused launch (a stale resource claim, a missing recipe, a placement
   # failure) exits at once. Waiting the full five minutes for a container that
@@ -172,7 +176,7 @@ if [ -z "${N:-}" ]; then
   echo "ARM FAIL $NAME: no container appeared (see $L/launch.log)"
   exit 1
 fi
-TID=${N#sparkrun_}; TID=${TID%_solo}
+TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
 echo "arm=$NAME container=$N task=$TID port=$PORT"
 
 # Whatever happens to this script -- SIGINT, SIGTERM, an early exit, a timeout --

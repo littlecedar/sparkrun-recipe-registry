@@ -100,6 +100,13 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('kill -0 "$LAUNCH"', text, "the wait loop does not poll the launcher")
         self.assertRegex(text, r"exit 5", "a refused launch has no distinct exit status")
 
+    def test_container_resolution_matches_both_launch_shapes(self):
+        """`_solo` alone made every TP=2 launch report ARM FAIL while its ranks were booting."""
+        text = read_tool()
+        self.assertIn("_solo|_node_0", text, "a multi-rank container must resolve")
+        self.assertIn("${TID%_node_*}", text, "the task id must strip the rank suffix")
+        self.assertIn("${old_tid%_node_*}", text, "leftover cleanup must strip it too")
+
     def test_a_node_pair_reaches_every_sparkrun_call(self):
         """A TP=2 arm needs both hosts; the endpoint/watchdog/container must use the API rank only."""
         text = read_tool()
