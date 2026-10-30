@@ -114,8 +114,61 @@ class Candidates(unittest.TestCase):
         self.assertIn("solo", names)
         self.assertIn("pair", names)
 
-    def test_a_missing_manifest_is_empty_not_an_exception(self):
-        self.assertEqual(na.candidates("/nonexistent/manifest.json", set(), set(), 2), [])
+
+
+
+class NoSilentEmpties(unittest.TestCase):
+    """A tool that certifies "nothing to do" wrongly is worse than no tool."""
+
+    def test_a_missing_manifest_raises(self):
+        with self.assertRaises(na.ManifestError):
+            na.candidates("/nonexistent/manifest.json", set(), set(), 2)
+
+    def test_a_malformed_manifest_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "m.json"
+            bad.write_text("{not json")
+            with self.assertRaises(na.ManifestError):
+                na.candidates(str(bad), set(), set(), 2)
+
+    def test_a_manifest_that_is_not_a_list_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "m.json"
+            bad.write_text('{"arms": []}')
+            with self.assertRaises(na.ManifestError):
+                na.candidates(str(bad), set(), set(), 2)
+
+    def test_a_measured_arm_does_not_mask_its_longer_sibling(self):
+        """Substring matching reported 'nothing runnable' on the ornith family."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.json"
+            path.write_text(json.dumps([
+                {"arm": "zz-ornith-1.5-122b-nvfp4-sglang", "path": "recipes/o/a.yaml", "tp": 1},
+                {"arm": "zz-ornith-1.5-122b-nvfp4-dflash2-sglang", "path": "recipes/o/b.yaml", "tp": 1},
+            ]))
+            names = [e["arm"] for e in na.candidates(str(path), {"zz-ornith-1.5-122b-nvfp4-sglang"}, set(), 2)]
+        self.assertEqual(names, ["zz-ornith-1.5-122b-nvfp4-dflash2-sglang"])
+
+    def test_a_hand_named_receipt_is_honoured_through_the_alias_table(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.json"
+            path.write_text(json.dumps([{"arm": "nemotron-3.5-lightning-30b-a3b-nvfp4-vllm",
+                                         "path": "recipes/e/n.yaml", "tp": 1}]))
+            self.assertEqual(na.candidates(str(path), {"nemotron"}, set(), 2), [])
+
+
+class Reporting(unittest.TestCase):
+    """The CLI must explain a short plan rather than assert one."""
+
+    def test_a_bad_manifest_exits_two_with_a_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = subprocess.run(
+                [sys.executable, str(TOOL), "--nodes", "127.0.0.1", "--manifest",
+                 str(Path(tmp) / "missing.json")],
+                capture_output=True, text=True, check=False,
+            )
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("cannot plan", p.stderr)
 
 
 class Cli(unittest.TestCase):

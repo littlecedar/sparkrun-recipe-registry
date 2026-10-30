@@ -14,7 +14,10 @@ set -uo pipefail
 
 RECIPE=${1:?usage: run-arm.sh <recipe-path> [node]}
 NODE=${2:-${ARM_NODE:-}}
-NAME=$(basename "$RECIPE" .yaml)
+# ARM_TAG suffixes the receipt name (`-d4`, `-d8`): a sweep re-runs ONE recipe with different
+# `-o` overrides, and without a tag every leg writes the same directory and rotates the previous
+# leg to `.prev-<HHMMSS>` -- the numbers survive but the attribution does not.
+NAME=$(basename "$RECIPE" .yaml)${ARM_TAG:+-$ARM_TAG}
 L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
 # The serve port is the recipe's, not always 8000 -- the decision lane uses
 # 8020 and the ling arm 8030. Probing the wrong port looks exactly like a boot

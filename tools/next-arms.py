@@ -42,6 +42,23 @@ MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "h
 #: supports end to end, so they are ordinary candidates.
 ANY_TP = (1, 2)
 
+#: Receipt directories are usually named after the recipe, but a few were hand-named earlier in
+#: the campaign. Exact matching plus this table is deliberate: substring matching once let
+#: `zz-ornith-1.5-122b-nvfp4-sglang` mask `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` and report
+#: "nothing runnable", which is the failure this tool exists to prevent.
+ALIASES = {
+    "aeon-cyber": "qwen3.8-27b-aeon-ultimate-nvfp4-sglang",
+    "ling-3.0": "ling-3.0-flash-int4-dspark-sglang",
+    "nemotron": "nemotron-3.5-lightning-30b-a3b-nvfp4-vllm",
+    "ornith-122b-mtp": "zz-ornith-1.5-122b-nvfp4-mtp-vllm",
+    "qwen3-coder-next": "qwen3-coder-next-int4-autoround-vllm",
+    "qwen38-27b-dflash2": "qwen3.8-27b-nvfp4-dflash2-sglang",
+    "qwen38-27b-uncensored": "qwen3.8-27b-uncensored-nvfp4-sglang",
+}
+#: The table reads receipt-dir -> recipe arm, because that is how the dirs were named; the check
+#: needs the other direction.
+RECEIPT_FOR = {recipe: directory for directory, recipe in ALIASES.items()}
+
 
 def sh(argv: list[str], timeout: int = 30) -> tuple[int, str]:
     try:
@@ -80,19 +97,26 @@ def measured_arms(home: str, windows: tuple[str, ...] = (RECEIPTS,)) -> set[str]
     return done
 
 
+class ManifestError(RuntimeError):
+    """The manifest could not be read. Never silently "nothing to do"."""
+
+
 def candidates(manifest: str, done: set[str], skip: set[str], free_count: int) -> list[dict]:
     try:
-        entries = json.load(open(manifest))
-    except (OSError, ValueError):
-        return []
+        with open(manifest, encoding="utf-8") as fh:
+            entries = json.load(fh)
+    except OSError as exc:
+        raise ManifestError(f"cannot read {manifest}: {exc}") from exc
+    except ValueError as exc:
+        raise ManifestError(f"{manifest} is not valid JSON: {exc}") from exc
     if not isinstance(entries, list):
-        return []
+        raise ManifestError(f"{manifest} must hold a list of arms")
     out = []
     for entry in entries:
         arm = entry.get("arm") or ""
         if not arm or arm in skip:
             continue
-        if any(d == arm or d in arm or arm in d for d in done):
+        if arm in done or RECEIPT_FOR.get(arm) in done:
             continue
         tp = entry.get("tp")
         if tp not in ANY_TP:
@@ -125,7 +149,11 @@ def main(argv: list[str] | None = None) -> int:
     # The queue is a property of the fleet, not of the moment: ask what is runnable at the
     # fleet's real capacity (two free nodes) and report that even when none is free, so an
     # idle node never hides a backlog and a full fleet still shows what comes next.
-    todo = candidates(args.manifest, done, set(args.skip), max(len(nodes), 2))
+    try:
+        todo = candidates(args.manifest, done, set(args.skip), max(len(nodes), 2))
+    except ManifestError as exc:
+        print(f"cannot plan: {exc}", file=sys.stderr)
+        return 2
     ready = [e for e in todo if isinstance(e.get("tp"), int) and e["tp"] <= len(free)] or []
 
     plan = []
@@ -144,6 +172,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"free nodes: {', '.join(free) if free else 'none'}")
         print(f"measured arms on disk: {len(done)} | unmeasured in manifest: {len(todo)}"
               f" | runnable on {len(free)} free node(s): {len(ready)}")
+        # Exclusion accounting: "nothing runnable" must be explainable.
+        if args.skip:
+            print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")
         for row in plan:
             print(f"  {row['node']}  (TP={row['tp']})  {row['arm']}")
             print(f"      {row['launch']}")
