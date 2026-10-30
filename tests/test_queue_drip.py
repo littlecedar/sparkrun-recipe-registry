@@ -101,6 +101,11 @@ class Liveness(unittest.TestCase):
             child.kill()
             child.wait()
 
+    def test_a_pair_row_names_both_hosts(self):
+        """A TP=2 row occupies two nodes; a ledger that records one under-reports the window."""
+        self.assertEqual(drip.hosts_of({"nodes": ["n1", "n2"], "node": "n1"}), ["n1", "n2"])
+        self.assertEqual(drip.hosts_of({"node": "n1"}), ["n1"])
+
     def test_a_ledger_row_without_a_path_still_identifies_its_driver(self):
         """Old ledger rows carry only the arm name; the driver's argv carries the recipe path."""
         child = subprocess.Popen(

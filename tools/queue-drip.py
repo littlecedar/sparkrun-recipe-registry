@@ -214,6 +214,11 @@ def plan_pass(cfg: dict, busy: set = frozenset()) -> list:
     return json.loads(out.stdout).get("plan", [])
 
 
+def hosts_of(row: dict) -> list[str]:
+    """Every node a plan row occupies. A TP=2 row carries `nodes`; older rows carry `node`."""
+    return list(row.get("nodes") or ([row["node"]] if row.get("node") else []))
+
+
 def launch(row: dict) -> int:
     LOGDIR.mkdir(parents=True, exist_ok=True)
     log = LOGDIR / f"{row['arm']}.log"
@@ -267,17 +272,18 @@ def main(argv: list[str]) -> int:
             print(f"drip: nothing to launch ({len(running)} arm(s) already in flight)")
         for row in plan:
             if args.dry_run:
-                print(f"drip: would launch {row['arm']} on {row['node']}")
+                print(f"drip: would launch {row['arm']} on {','.join(hosts_of(row))}")
                 continue
             pid = launch(row)
             state[row["arm"]] = {
-                "pid": pid, "node": row["node"], "path": row.get("path") or "",
+                "pid": pid, "node": row["node"], "nodes": hosts_of(row),
+                "path": row.get("path") or "",
                 "started": int(time.time()),
             }
             args.state.parent.mkdir(parents=True, exist_ok=True)
             live = in_flight(state)
             args.state.write_text(json.dumps(live, indent=2) + "\n", encoding="utf-8")
-            print(f"drip: launched {row['arm']} on {row['node']} pid={pid}")
+            print(f"drip: launched {row['arm']} on {','.join(hosts_of(row))} pid={pid}")
         if args.once or args.dry_run:
             return 0
         time.sleep(cfg["poll_seconds"])
