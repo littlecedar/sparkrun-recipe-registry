@@ -278,6 +278,21 @@ fi
 # 2026-10-29 -- so the stop is verified and, failing that, this launch's own
 # container is removed by name. Only a container this script resolved is ever
 # removed.
+# Harvest the engine's own log BEFORE the stop. `/tmp/sparkrun_serve.log` lives inside the
+# container and dies with it, and it is the only place the acceptance / decode lines exist --
+# without it a cell cannot be adjudicated against the lane's row, and the 2026-10-30 TP=2
+# investigation burned three boots on receipts that could not answer "did the drafts land?".
+# Best-effort on purpose: a failed copy must never fail an arm that measured fine.
+for c in $(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+             "docker ps --format '{{.Names}}' | grep -F '${TID}'" 2>/dev/null); do
+  h=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+        "docker exec $c hostname" 2>/dev/null || echo "$NODE")
+  ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+    "docker cp '$c:/tmp/sparkrun_serve.log' /tmp/serve-$c.log" >/dev/null 2>&1 \
+    && scp -q -o BatchMode=yes "red@$NODE:/tmp/serve-$c.log" "$L/serve-$(echo $c | sed 's/.*_//').log" 2>/dev/null \
+    && echo "harvested serve log from $c"
+done
+
 sparkrun stop "$TID" 2>&1 | tail -1
 kill "$WD" 2>/dev/null
 sleep 5

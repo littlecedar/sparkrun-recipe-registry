@@ -40,8 +40,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL = REPO_ROOT / "tools" / "run-arm.sh"
 # The explicit stop is a `sparkrun stop` line at the start of a line (optionally
 # indented); the trap installs its own, and is asserted separately.
-STOP_RE = re.compile(r"^(\s*)sparkrun stop ", re.MULTILINE)
-TRAP_RE = re.compile(r"^\s*trap\b[^\n]*sparkrun stop[^\n]*\bEXIT\b", re.MULTILINE)
+# `[ \t]*`, not `\s*`: `\s` matches newlines, so `^(\s*)sparkrun stop` also matches from the
+# blank line above a top-level stop and reports it as indented -- a false failure that appears the
+# moment anyone puts a blank line (or a comment block) between the `fi` and the stop.
+STOP_RE = re.compile(r"^([ \t]*)sparkrun stop ", re.MULTILINE)
+TRAP_RE = re.compile(r"^[ \t]*trap\b[^\n]*sparkrun stop[^\n]*\bEXIT\b", re.MULTILINE)
 
 
 def read_tool() -> str:
