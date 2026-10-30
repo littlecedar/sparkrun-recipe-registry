@@ -369,6 +369,14 @@ that line.
   serve log**, so acceptance is unavailable — the next boot must harvest `/tmp/sparkrun_serve.log` before
   the container stops, and `run-arm.sh` does not do that today. That gap, not the pool, is the thing to fix
   before another TP=2 cell is worth measuring.
+  **Which receipt holds the measurement (verified 2026-10-30, 08:2x ET).** Receipt directories rotate, so the
+  canonical path is not always the measurement: `…/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/`
+  currently holds a **replay** (07:54), while the measured 06:04 cells live in the sibling
+  `…-sglang.prev-071125/` — `ladder.log` mtime 06:04, zero `Prior benchmark state` lines, `ladder.json` reading
+  10.80 / 10.76 / 10.60 / 10.66. The other three: `zz-abliterated-cyber-tp2-fabbe861-probe/` **measured**
+  (06:59, clean header — this is what makes the two-pin comparison real rather than one boot replayed twice),
+  `…-sglang.prev-075259/` replay (07:12), `…-sglang/` replay (07:54). Discriminator is two greps, not trust:
+  `grep -c "Prior benchmark state" ladder.log` and the file mtime.
   **Two of the four `.30`+`.35` boots measured nothing (found 2026-10-30, 08:0x ET).** The 07:11 and 07:52 boots
   replayed sparkrun's cached bench state — `Prior benchmark state for bench_… is COMPLETE - re-emitting its
   recorded results; no requests will be sent` in both `ladder.log` and `house.log` — and wrote no per-cell
