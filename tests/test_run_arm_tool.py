@@ -100,6 +100,14 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('kill -0 "$LAUNCH"', text, "the wait loop does not poll the launcher")
         self.assertRegex(text, r"exit 5", "a refused launch has no distinct exit status")
 
+    def test_serve_port_comes_from_the_recipe(self):
+        """Probing 8000 on an 8020 arm looks like a boot that never readies."""
+        text = read_tool()
+        self.assertIn('PORT=$(sed -n', text, "the port is not parsed from the recipe")
+        self.assertIn('PORT=${PORT:-8000}', text, "no default when the recipe omits a port")
+        self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
+        self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
+
     def test_failed_steps_set_a_nonzero_exit(self):
         text = read_tool()
         self.assertRegex(text, r"rc=[1-9]", "no failure status is recorded")
@@ -124,6 +132,10 @@ class NegativeControls(unittest.TestCase):
         text = STOP_RE.sub(lambda m: "  sparkrun stop ", read_tool())
         top_level = [m for m in STOP_RE.finditer(text) if m.group(1) == ""]
         self.assertEqual(top_level, [], "an unindented stop survived the mutation")
+
+    def test_a_hardcoded_port_fails_the_port_guard(self):
+        text = read_tool().replace('"http://$NODE:$PORT/v1/models"', '"http://$NODE:8000/v1/models"')
+        self.assertIn(':8000/v1/models', text)
 
     def test_removing_the_fail_fast_fails_its_guard(self):
         text = read_tool().replace('kill -0 "$LAUNCH"', 'true')

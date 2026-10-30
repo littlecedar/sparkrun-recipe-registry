@@ -16,6 +16,13 @@ RECIPE=${1:?usage: run-arm.sh <recipe-path> [node]}
 NODE=${2:-${ARM_NODE:-}}
 NAME=$(basename "$RECIPE" .yaml)
 L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
+# The serve port is the recipe's, not always 8000 -- the decision lane uses
+# 8020 and the ling arm 8030. Probing the wrong port looks exactly like a boot
+# that never becomes ready, which cost two arms a full 22-minute wait on
+# 2026-10-29 before the port was even suspected.
+PORT=$(sed -n -e 's/^[[:space:]]*port:[[:space:]]*"\([0-9][0-9]*\)".*/\1/p' \
+                -e 's/^[[:space:]]*port:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RECIPE" | head -1)
+PORT=${PORT:-8000}
 mkdir -p "$L"
 cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0
@@ -56,7 +63,7 @@ if [ -z "${N:-}" ]; then
   exit 1
 fi
 TID=${N#sparkrun_}; TID=${TID%_solo}
-echo "arm=$NAME container=$N task=$TID"
+echo "arm=$NAME container=$N task=$TID port=$PORT"
 
 # Whatever happens to this script -- SIGINT, SIGTERM, an early exit, a timeout --
 # the task does not outlive it. The explicit stop below is the normal path; this
@@ -64,13 +71,13 @@ echo "arm=$NAME container=$N task=$TID"
 # the same class of leak as forgetting the stop entirely.
 trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
 
-python3 tools/boot-watchdog.py --endpoint "http://$NODE:8000" --task-id "$TID" \
+python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \
   --node "$NODE" --container "$N" --grace 1800 --log "$L/watchdog.log" &
 WD=$!
 
 ready=no
 for _ in $(seq 1 90); do
-  if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:8000/v1/models")" = 200 ]; then
+  if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
   fi
   sleep 15
