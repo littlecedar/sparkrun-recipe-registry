@@ -341,28 +341,20 @@ that line.
   budget. Falsified on the way: node `.35` (reranker-2b 72.0 units/s there vs 73.1 on `.30`), fabric
   bandwidth (13 202 MB/s ≈ 106 Gb/s) and latency (`ib_write_lat` 2.48 µs), container pin (above), and
   `decode graphs {}` (the ds4 TP=2 boot logs the same, so it is normal). The unrun closing step is a
-  `majflt`-per-token count during a live decode. Candidate fix, not executed — and the knob is the symlink, not an env var: the served tree's
-  `engram` entry is a **symlink into the pool**
-  (`/cache/runtime/dsv41-ablit/engram -> …/snapshots/48afcd1c…/engram`, verified 2026-10-30) and it is
-  the resolver's **first**-priority slot (`mods/tensorfold-dsv41-launcher/launcher.py:132`), so staging
-  the ~94 GB on node-local NVMe per rank and repointing that one symlink restores the pre-migration
-  read path with no pool edit and no recipe change. `TENSORFOLD_ENGRAM_DIR` cannot do it: the resolver
-  reaches it only after `model_dir` and `stock_dir` (`:135`), and both carry `engram/`, so it is dead
-  for this arm; `TF_DS_ENGRAM` is a launcher *output*, never read as input.
-  **A stronger competing explanation, found after the above (2026-10-30):** 67 t/s at c1 needs
-  speculation, not bandwidth. 552B at 2.9 bpw is ~200 GB of weights, ~13 GB read per token for a
-  DeepSeek-class active set, and two GB10s cannot stream that faster than ~40 tok/s — so the row was only
-  reachable with the launcher's `--mtp-drafts 5 --parallel 4` landing drafts, each verified step paying for
-  one weight pass and yielding several tokens. The launcher has not changed since the row was taken
-  (`git log --since=2026-10-19 -- mods/tensorfold-dsv41-launcher/` is empty), so the *configuration*
-  matches; what is unmeasured is the **acceptance rate**, and that is the deciding number. Cross-check that
-  makes this the leading candidate: the shipped Laguna-M.1 TP=2 vLLM arm — 225B, no speculation multiplier
-  in its row — reads **12.85 t/s at c1** (`recipes/explore/README.md:344`), essentially today's 13.72 on the
-  same class of pair. A TP=2 GB10 pair at c1 yields ~13 t/s with speculation doing nothing for the score;
-  the row's 67 then stands or falls on drafts landing. **No receipt for any of these boots carries the
-  serve log**, so acceptance is unavailable — the next boot must harvest `/tmp/sparkrun_serve.log` before
-  the container stops, and `run-arm.sh` does not do that today. That gap, not the pool, is the thing to fix
-  before another TP=2 cell is worth measuring.
+  `majflt`-per-token count during a live decode. Candidate fix, **unvalidated** — and the knob is not established: two lines from the same boot
+  disagree about which Engram directory the engine read. The launcher's own boot line prints
+  `engram=/cache/runtime/dsv41-ablit/engram` (a symlink into the pool), while its modlog for the same
+  run prints `Engram: 2 shard(s) at /cache/huggingface/hub/dsv41-engram` — the *default* path, which
+  the resolver reaches only after `model_dir` and `stock_dir` come up empty
+  (`mods/tensorfold-dsv41-launcher/launcher.py:132-136`). Until that is reconciled, do **not** stage the
+  ~94 GB onto local disk and repoint the symlink: the snapshot's `engram/` (94.42 GiB, `engram-l1` /
+  `engram-l14`) and whatever the hub path holds are not proven to be the same tables, so the change could
+  alter model output rather than only read latency. `TENSORFOLD_ENGRAM_DIR` is a genuine knob but sits
+  *below* both candidates (`:135`); `TF_DS_ENGRAM` is a launcher output, never an input.
+  Also unanswered by the same harvest: the engine logs **no acceptance accounting at default verbosity**
+  (`serve-0.log`, 2 002 B, carries the banner and `DSpark 5 drafts` but no accept rate), so the
+  speculation hypothesis cannot be settled from a normal boot — it needs the engine started with a debug
+  log level, which no recipe does today.
   Recorded in the same window, unexplained: `NVRM … NV_ERR_NO_MEMORY` from `_memdescAllocInternal` at
   **05:44:48-49** on `.30`, as the ladder opened, against a boot that reserved 102.98 of a 106.5 GiB
   ceiling. The same message appears at 04:00:46 in an unrelated run, so it is logged as allocator

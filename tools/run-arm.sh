@@ -283,15 +283,25 @@ fi
 # without it a cell cannot be adjudicated against the lane's row, and the 2026-10-30 TP=2
 # investigation burned three boots on receipts that could not answer "did the drafts land?".
 # Best-effort on purpose: a failed copy must never fail an arm that measured fine.
-for c in $(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
-             "docker ps --format '{{.Names}}' | grep -F '${TID}'" 2>/dev/null); do
-  h=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
-        "docker exec $c hostname" 2>/dev/null || echo "$NODE")
-  ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
-    "docker cp '$c:/tmp/sparkrun_serve.log' /tmp/serve-$c.log" >/dev/null 2>&1 \
-    && scp -q -o BatchMode=yes "red@$NODE:/tmp/serve-$c.log" "$L/serve-$(echo $c | sed 's/.*_//').log" 2>/dev/null \
-    && echo "harvested serve log from $c"
+# Every host the arm runs on, not just $NODE: a TP=2 arm's rank 1 lives on the second host,
+# and the first version of this loop harvested rank 0 only -- losing exactly the log the
+# investigation needed. A zero count is printed because a silent no-op reads as success.
+harvested=0
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  for c in $(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+               "docker ps --format '{{.Names}}' | grep -F '${TID}'" 2>/dev/null); do
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+         "docker cp '$c:/tmp/sparkrun_serve.log' /tmp/serve-$c.log" >/dev/null 2>&1 \
+       && scp -q -o BatchMode=yes "red@$hn:/tmp/serve-$c.log" \
+            "$L/serve-$(echo "$c" | sed 's/.*_//').log" 2>/dev/null; then
+      harvested=$((harvested + 1))
+      echo "harvested serve log from $c on $hn"
+    fi
+    # Node hygiene: $HOME and /tmp on every node are shared, so the staging copy goes.
+    ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "rm -f /tmp/serve-$c.log" >/dev/null 2>&1
+  done
 done
+echo "serve logs harvested: $harvested (expected one per running rank; 0 means the log was gone)"
 
 sparkrun stop "$TID" 2>&1 | tail -1
 kill "$WD" 2>/dev/null
