@@ -546,3 +546,23 @@ Currently the directory holds one file:
 [Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw]: https://huggingface.co/Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
 [combined pack]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [drowzeys DeepSeek-V4.1-Flash-Abliterated…Unleashed]: https://huggingface.co/drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
+
+## Proven negative: `qwen3.8-flash-next-uncensored-nvfp4-sglang` on the pinned image (2026-10-30)
+
+Booted on `.30`+`.35` under the `--fresh` runner and **cannot serve**: both ranks die ~35 s in with
+
+```
+ImportError: Other method (CompressedTensorsW4A16Sparse24) is not supported now
+```
+
+(`Scheduler hit an exception` on TP0 and TP1, then `Killed`). The checkpoint's quantization scheme is not
+implemented by the pinned `lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c…`, so this is a hard
+incompatibility, not slowness: the serve never reached `/v1/models` and the arm produced no cell.
+
+**`stage-audit.py` passed this arm** — image resolvable by digest on both nodes, pinned revision at 32
+entries, weights over 1 MB — which is the tool doing its job and also its limit: presence is not
+compatibility. An audit that could read the checkpoint's `quant_method` against the engine's supported set
+would have caught it; that is the next thing worth adding to the tool, and until it exists a green audit
+means "the bytes are there", never "the engine can run them".
+
+Arm retired to the skip list; receipt `~/benchmarks/tp12-20261030/qwen3.8-flash-next-uncensored-nvfp4-sglang/`.
