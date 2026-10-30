@@ -355,6 +355,27 @@ that line.
   (`serve-0.log`, 2 002 B, carries the banner and `DSpark 5 drafts` but no accept rate), so the
   speculation hypothesis cannot be settled from a normal boot — it needs the engine started with a debug
   log level, which no recipe does today.
+**A stronger competing explanation, found after the above (2026-10-30):** 67 t/s at c1 needs
+  speculation, not bandwidth. 552B at 2.9 bpw is ~200 GB of weights, ~13 GB read per token for a
+  DeepSeek-class active set, and two GB10s cannot stream that faster than ~40 tok/s — so the row was only
+  reachable with the launcher's `--mtp-drafts 5 --parallel 4` landing drafts, each verified step paying for
+  one weight pass and yielding several tokens. The launcher has not changed since the row was taken
+  (`git log --since=2026-10-19 -- mods/tensorfold-dsv41-launcher/` is empty), so the *configuration*
+  matches; what is unmeasured is the **acceptance rate**, and that is the deciding number. Cross-check that
+  makes this the leading candidate: the shipped Laguna-M.1 TP=2 vLLM arm — 225B, no speculation multiplier
+  in its row — reads **12.85 t/s at c1** (`recipes/explore/README.md:344`), essentially today's 13.72 on the
+  same class of pair. A TP=2 GB10 pair at c1 yields ~13 t/s with speculation doing nothing for the score;
+  the row's 67 then stands or falls on drafts landing. **No receipt for any of these boots carries the
+  serve log**, so acceptance is unavailable — the next boot must harvest `/tmp/sparkrun_serve.log` before
+  the container stops, and `run-arm.sh` does not do that today. That gap, not the pool, is the thing to fix
+  before another TP=2 cell is worth measuring.
+  **Two of the four `.30`+`.35` boots measured nothing (found 2026-10-30, 08:0x ET).** The 07:11 and 07:52 boots
+  replayed sparkrun's cached bench state — `Prior benchmark state for bench_… is COMPLETE - re-emitting its
+  recorded results; no requests will be sent` in both `ladder.log` and `house.log` — and wrote no per-cell
+  artefact, so their receipts carry the 06:04 cells. Only two boots are measurements (13.72 c1 on the pre-repin
+  pin, 10.80 on the shipped one). `tools/run-arm.sh` had no `--fresh`, so re-running an arm could not produce a
+  second cell at all; it now passes `--fresh` on all three `sparkrun benchmark` invocations and sets `rc=7` when
+  a receipt still shows a replay line. Read a receipt's mtime and log header before quoting a number from it.
   Recorded in the same window, unexplained: `NVRM … NV_ERR_NO_MEMORY` from `_memdescAllocInternal` at
   **05:44:48-49** on `.30`, as the ladder opened, against a boot that reserved 102.98 of a 106.5 GiB
   ceiling. The same message appears at 04:00:46 in an unrelated run, so it is logged as allocator

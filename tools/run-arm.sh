@@ -249,7 +249,7 @@ if [ "$ready" = yes ]; then
       pooling_args=()
       case "$NAME" in *-2b-*|*2b-*) pooling_args=(-b dimension_check=2048) ;; esac
       sparkrun ${BENCH_VERBOSE:+-v} benchmark pooling "$RECIPE" \
-        --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run \
+        --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run --fresh \
         -H "$HOSTS" --cluster WOPR "${pooling_args[@]}" \
         --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "pooling ladder failed for $NAME"; rc=2; }
@@ -259,12 +259,22 @@ if [ "$ready" = yes ]; then
       ;;
     *)
       sparkrun ${BENCH_VERBOSE:+-v} benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-        --skip-run -H "$HOSTS" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        --skip-run --fresh -H "$HOSTS" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "ladder failed for $NAME"; rc=2; }
       sparkrun ${BENCH_VERBOSE:+-v} benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-        --skip-run -H "$HOSTS" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
+        --skip-run --fresh -H "$HOSTS" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
-      artifacts "$L/ladder.yaml" "$L/house.yaml"
+      # A state-key match means the engine was never asked: sparkrun re-emits the previous cells and
+# writes no per-cell artefact. Reporting that as a measurement is worse than reporting nothing --
+# two boots on 2026-10-30 were spent this way (07:11 and 07:52), and their receipts carry the
+# 06:04 numbers. `--fresh` above should make this unreachable; the check stays as the backstop.
+for f in "$L/ladder.log" "$L/house.log"; do
+  if grep -qi "Prior benchmark state for .* is COMPLETE" "$f" 2>/dev/null; then
+    echo "REPLAYED, NOT MEASURED: $f re-emitted cached state -- cells in this receipt are stale"
+    rc=7
+  fi
+done
+artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;
   esac
 else
