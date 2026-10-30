@@ -307,6 +307,19 @@ that line.
   (68.6 / 48.1 / 44.6 / 42.1) — with per-request decode 50.19 / 38.24 / 34.29 t/s at c2/5/10.
   This C1 (engram ON) supersedes the 63.7 decode-triage figure from the engram-OFF 2026-10-17 boot
   (`bench_44534d5024c0`).
+- **Provenance caveat on that row (2026-10-30):** the 67.02 / 52.95 / 47.75 / 46.78 ladder is a
+  **`.34`+`.35`** measurement — the 2026-10-19 `launch.log` names `.34` and `.35`, with
+  `Placement: 2 hosts from --hosts` — and it was taken **before** the 2026-10-24 move of this arm's
+  runtime tree (`/cache/runtime/dsv41-ablit`) onto BeeGFS, when `/cache/runtime` was node-local. Every
+  post-migration reading of the arm is a `.30`+`.35` boot: **13.72 / 11.02 / 10.62 / 10.59 t/s** at
+  c1/c2/c5/c10 on the pre-repin container (`zz-abliterated-cyber-tp2-fabbe861-probe`) and
+  10.80 / 10.76 / 10.60 / 10.66 on the current pin, with house **93** (14 pass / 1 fail) on both; a
+  direct client inside rank 0's container reads **3.80 tok/s** (64 tokens / 16.837 s) and **6.16 tok/s**
+  (128 tokens / 20.765 s) on the same idle serve, against the instrument's 13.72 at c1. **No matched
+  control on `.34`+`.35` exists**, so this row may not be used as a bar for `.30`+`.35` arms; the
+  instrument's `tg` arithmetic is under audit and no inflation claim is adopted here. Receipts
+  `~/benchmarks/tp12-20261030/zz-abliterated-cyber-tp2-fabbe861-probe/REPORT.md` and
+  `~/benchmarks/tp12-20261030/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/REPORT.md`.
 - **Standard suite — all five legs landed (2026-10-20 / 2026-10-21, one serve each).** contract ok
   (`max_model_len` 1,048,576, ready, `finish=stop`); house **37/37** (easy 19/19, hard 18/18); needle
   **3/3 at 32,768 / 131,072 / 262,144** (depth 10, `PASS` each); hard **ARC 188/200 (94.0 %)** and
