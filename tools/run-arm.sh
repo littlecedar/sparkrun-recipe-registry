@@ -198,11 +198,11 @@ if [ "$ready" = yes ]; then
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
     *)
-      sparkrun benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" ${BENCH_VERBOSE:+-v} > "$L/ladder.log" 2>&1 \
+      sparkrun ${BENCH_VERBOSE:+-v} benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
         || { echo "ladder failed for $NAME"; rc=2; }
-      sparkrun benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" ${BENCH_VERBOSE:+-v} > "$L/house.log" 2>&1 \
+      sparkrun ${BENCH_VERBOSE:+-v} benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
+        --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
       artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;

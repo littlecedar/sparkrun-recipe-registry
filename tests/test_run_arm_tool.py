@@ -152,7 +152,10 @@ class RunArmContract(unittest.TestCase):
         """A missing writer leaves no trace without -v, and -v everywhere is noise."""
         text = read_tool()
         self.assertEqual(text.count('${BENCH_VERBOSE:+-v}'), 2, "both benchmarks must honour it")
-        self.assertNotIn(' -v >', text, "verbosity must not be unconditional")
+        # It must sit before the subcommand: `benchmark performance` has no -v and aborts
+        # the whole run with "No such option" (measured 2026-10-30, one arm lost).
+        self.assertIn('sparkrun ${BENCH_VERBOSE:+-v} benchmark', text, "the flag is not global")
+        self.assertNotIn('--output "$L/ladder.yaml" ${BENCH_VERBOSE', text, "the flag trails the command")
 
     def test_a_missing_ladder_is_transcribed_rather_than_lost(self):
         """Printed numbers are real; a labelled transcription beats a lost cell."""
