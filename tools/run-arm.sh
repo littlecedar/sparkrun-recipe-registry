@@ -212,8 +212,12 @@ if [ "$ready" = yes ]; then
         --model "$SERVED" --cases "$DECISION_CASES" --concurrency 1,2,5,10 \
         --runs 1 --limit 100 "${head_opt[@]}" --json "$L/ladder.json" \
         > "$L/ladder.log" 2>&1 || { echo "ladder failed for $NAME"; rc=2; }
+      # --model is mandatory here: an arm that serves a base plus a LoRA adapter lists TWO models,
+      # and the instrument's model picker then blocks on a prompt nothing will answer -- measured
+      # 2026-10-30 on jev-9b, which sat at "Select model [1-2]:" until the run was killed.
       uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
-        > "$L/teb-decision.log" 2>&1 || { echo "decision bench failed for $NAME"; rc=3; }
+        --model "$SERVED" > "$L/teb-decision.log" 2>&1 \
+        || { echo "decision bench failed for $NAME"; rc=3; }
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
     */embed/*|*/rerank/*)
