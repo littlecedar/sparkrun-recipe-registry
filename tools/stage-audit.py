@@ -25,11 +25,14 @@ Stdlib only; runs on the head, reads the manifest, ssh's to the free nodes.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 
 MANIFEST = ".scratch/tp12-campaign/manifest.json"
-FREE = ("10.0.4.30", "10.0.4.35")
+# Nodes come from --nodes/$STAGE_NODES: this file is tracked and the registry
+# forbids cluster addresses in tracked text (tests/test_tracked_address_hygiene.py).
+DEFAULT_NODES = ""
 POOL = "/mnt/beegfs/huggingface/hub"
 STUB_BYTES = 1 << 20  # a weight file smaller than this is a pointer, not weights
 
@@ -58,12 +61,12 @@ def upstream_file_count(model: str, revision: str) -> int | None:
         return None
 
 
-def snapshot_state(model: str, revision: str) -> str:
+def snapshot_state(model: str, revision: str, pool_node: str) -> str:
     """`entries=<n>/<upstream> weights=<ok|SHORT>` for the pinned revision on the pool."""
     repo = "models--" + model.replace("/", "--")
     path = f"{POOL}/{repo}/snapshots/{revision}"
     rc, out = node_sh(
-        "10.0.4.30",
+        pool_node,
         # Recursive: the Hub's `siblings` list is recursive, so a top-level `ls`
         # under-counts any repo with a subdirectory and cries INCOMPLETE on a
         # complete snapshot (measured: spark-x2.6-4b read 19/24 for an intact tree).
@@ -81,19 +84,32 @@ def snapshot_state(model: str, revision: str) -> str:
     return f"entries={entries} weights={weights}"
 
 
-def image_state(container: str) -> str:
+def image_state(container: str, nodes: tuple[str, ...]) -> str:
     """Where the pinned image resolves, by digest, on the free nodes."""
     if "@sha256:" not in container:
         return "tag-only(no digest pin)"
     have = []
-    for node in FREE:
+    for node in nodes:
         rc, _ = node_sh(node, f"docker image inspect {container} >/dev/null 2>&1")
         if rc == 0:
             have.append(node.rsplit(".", 1)[-1])
     return "on ." + ",.".join(have) if have else "MISSING on both free nodes"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Prove manifest arms can launch before a window is spent.")
+    ap.add_argument(
+        "--nodes",
+        default=os.environ.get("STAGE_NODES", DEFAULT_NODES),
+        help="comma-separated free nodes to probe (or $STAGE_NODES)",
+    )
+    args = ap.parse_args(argv)
+    nodes = tuple(n.strip() for n in args.nodes.split(",") if n.strip())
+    if not nodes:
+        print("no nodes: pass --nodes a,b or set $STAGE_NODES", file=sys.stderr)
+        return 2
     try:
         arms = json.load(open(MANIFEST))
     except (OSError, ValueError) as exc:
@@ -132,8 +148,8 @@ def main() -> int:
             need += 1
             continue
         upstream = upstream_file_count(model, revision)
-        snap = snapshot_state(model, revision)
-        img = image_state(container) if container else "no container in the manifest"
+        snap = snapshot_state(model, revision, nodes[0])
+        img = image_state(container, nodes) if container else "no container in the manifest"
         bad = ("weights=SHORT" in snap) or ("MISSING" in img) or snap.startswith("probe-failed")
         if upstream is not None and "entries=" in snap:
             try:
