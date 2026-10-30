@@ -754,3 +754,17 @@ resolves the draft through `refs/main`, and sparkrun's SHA-keyed fetch writes no
 
 **Gate:** serve-log acceptance length > 1 and a C1 cell at or above the plain 122B arm
 (`zz-ornith-1.5-122b-nvfp4-vllm`, C1 17.9 tg t/s). **Falsifier:** no C1 gain over that arm.
+
+**Result (2026-10-30, `.35`): the gate passes and the draft block is the finding.** C1 37.7 tg t/s,
+C10 48.9 total, prefill 1614/1798 t/s at c1/c2 — against the no-drafter control's 28.95/48.97, i.e.
+**+30 % at C1 and parity at C10**. With the recipe's own 15 draft tokens the same arm measured
+35.2/29.1/27.4/25.8 across c1/c2/c5/c10 and prefill collapsed to 661 t/s at c2: the batching
+degradation is an **over-large draft block**, not the drafter.
+
+That extends a closed negative rather than reopening one: [`attic/ornith/AGENTS.md`](../../attic/ornith/AGENTS.md)
+§4 already rejected `speculative_draft_tokens` 4 → 10 on quality (86.5/85.5 against a 99.3/99.2
+control, ~19 % loss), and this arm's 15 is the same direction with a throughput penalty on top.
+**Do not spend a boot re-deriving it upward** — d8 and d20 are the rejected direction, and the
+corroboration is the result. The open leg is the *matched-window* control: baseline and d4 in the
+same window, since the cross-table comparison above carries boot variance. Receipt:
+`~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md`.
