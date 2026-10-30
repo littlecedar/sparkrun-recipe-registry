@@ -26,6 +26,28 @@ PORT=${PORT:-8000}
 # The decision lane's 400-case split as the instrument ships it (gzip);
 # decision-ladder.py accepts .jsonl.gz directly.
 DECISION_CASES=${DECISION_CASES:-$HOME/benchmarks/jev27-20261021/test.jsonl.gz}
+# A leftover container of this recipe still running on the target holds the serve
+# port, so the new engine never binds while the OLD one answers /v1/models -- a
+# plausible 200 attributed to the wrong boot, which is what happened on .35 on
+# 2026-10-29. The recipe path is a container label, so this is exact, not a guess.
+LEFTOVER=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@$NODE" \
+  "for n in \$(docker ps --format '{{.Names}}'); do
+     r=\$(docker inspect --format '{{index .Config.Labels \"sparkrun.recipe\"}}' \$n 2>/dev/null)
+     [ \"\$r\" = \"$RECIPE\" ] && echo \$n
+   done" 2>/dev/null)
+for old in $LEFTOVER; do
+  old_tid=${old#sparkrun_}; old_tid=${old_tid%_solo}
+  echo "stopping leftover container of this recipe: $old"
+  sparkrun stop "$old_tid" >/dev/null 2>&1 || ssh -o ConnectTimeout=4 -o BatchMode=yes \
+    "red@$NODE" "docker rm -f $old" >/dev/null 2>&1
+done
+
+# A relaunch of the same arm would overwrite the earlier receipt, so an
+# instrument that failed partway silently becomes a truncated one.
+if [ -n "$(ls -A "$L" 2>/dev/null)" ]; then
+  PREV="$L.prev-$(date +%H%M%S)"
+  mv "$L" "$PREV" && echo "previous receipt moved to $PREV"
+fi
 mkdir -p "$L"
 cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0

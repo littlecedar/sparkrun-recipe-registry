@@ -108,6 +108,18 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_a_leftover_container_of_the_same_recipe_is_cleared_first(self):
+        """Two containers of one recipe collide on the port; the old one answers."""
+        text = read_tool()
+        self.assertIn('sparkrun.recipe', text, "the leftover probe does not use the recipe label")
+        self.assertIn('stopping leftover container', text, "no leftover stop")
+        self.assertIn('LEFTOVER=', text, "no leftover probe")
+
+    def test_an_existing_receipt_is_moved_aside(self):
+        """A relaunch overwrote a failed instrument's receipt with a truncated one."""
+        text = read_tool()
+        self.assertIn('.prev-$(date +%H%M%S)', text, "no receipt copy-aside")
+
     def test_decision_arms_use_the_decision_instruments(self):
         """llama-benchy and the chat suite cannot read /v1/systemone."""
         text = read_tool()
@@ -145,6 +157,10 @@ class NegativeControls(unittest.TestCase):
         text = STOP_RE.sub(lambda m: "  sparkrun stop ", read_tool())
         top_level = [m for m in STOP_RE.finditer(text) if m.group(1) == ""]
         self.assertEqual(top_level, [], "an unindented stop survived the mutation")
+
+    def test_dropping_the_leftover_probe_fails_its_guard(self):
+        text = read_tool().replace('stopping leftover container', 'starting')
+        self.assertNotIn('stopping leftover container', text)
 
     def test_sending_a_decision_arm_to_the_chat_suite_fails_its_guard(self):
         text = read_tool().replace('*/decision/*)', '*/nothing/*)')
