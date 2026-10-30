@@ -52,6 +52,16 @@ mkdir -p "$L"
 cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0
 
+# A benchmark can print a complete table and still leave no machine-readable
+# output (measured 2026-10-29: the 9B dflash arm exited 0 with both tables in its
+# logs and no yaml/json on disk). rc=0 must mean the numbers are in files another
+# tool can read, never that a table scrolled past.
+artifacts() {
+  for f in "$@"; do
+    [ -s "$f" ] || { echo "no artifact: $f (the tables may exist only in the logs)"; rc=5; }
+  done
+}
+
 sparkrun run "$RECIPE" -H "$NODE" --cluster WOPR > "$L/launch.log" 2>&1 &
 LAUNCH=$!
 
@@ -133,6 +143,7 @@ if [ "$ready" = yes ]; then
         > "$L/ladder.log" 2>&1 || { echo "ladder failed for $NAME"; rc=2; }
       uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
         > "$L/teb-decision.log" 2>&1 || { echo "decision bench failed for $NAME"; rc=3; }
+      artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
     *)
       sparkrun benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
@@ -141,6 +152,7 @@ if [ "$ready" = yes ]; then
       sparkrun benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
         --skip-run -H "$NODE" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
+      artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;
   esac
 else

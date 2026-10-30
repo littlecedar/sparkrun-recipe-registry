@@ -120,6 +120,16 @@ class RunArmContract(unittest.TestCase):
         text = read_tool()
         self.assertIn('.prev-$(date +%H%M%S)', text, "no receipt copy-aside")
 
+    def test_rc_zero_requires_machine_readable_artifacts(self):
+        """A printed table with no yaml/json is not a measurement."""
+        text = read_tool()
+        self.assertIn('artifacts() {', text, "no artifact assertion")
+        self.assertIn('artifacts "$L/ladder.yaml" "$L/house.yaml"', text,
+                      "the chat branch does not assert its outputs")
+        self.assertIn('artifacts "$L/ladder.json" "$L/teb-decision.log"', text,
+                      "the decision branch does not assert its outputs")
+        self.assertIn('rc=5', text, "a missing artifact does not set a status")
+
     def test_decision_arms_use_the_decision_instruments(self):
         """llama-benchy and the chat suite cannot read /v1/systemone."""
         text = read_tool()
