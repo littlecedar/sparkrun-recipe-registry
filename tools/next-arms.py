@@ -72,9 +72,12 @@ def free_nodes(nodes: list[str]) -> list[str]:
     """Nodes with no container at all. A node mid-teardown is not free."""
     free = []
     for node in nodes:
+        # No pipe: `docker ps -aq | wc -l` turns a docker failure -- daemon down, socket permission,
+        # anything -- into a confident "0 containers", and a node the probe cannot inspect would be
+        # handed a launch. Reading docker's own exit status fails closed instead.
         rc, out = sh(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", f"red@{node}",
-                      "docker ps -aq | wc -l"])
-        if rc == 0 and out.strip() == "0":
+                      "docker ps -aq"])
+        if rc == 0 and not out.strip():
             free.append(node)
     return free
 
@@ -112,6 +115,9 @@ def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
             "path": entry.get("path"),
             "tp": entry.get("tp"),
             "launch": f"./tools/run-arm.sh {entry.get('path')} {node}",
+            # Per-arm instrument env travels with the arm: `run-arm.sh` reads these from its own
+            # environment, and a JEV arm's decision head differs per model.
+            "env": entry.get("env") or {},
         }
         for node, entry in zip(free, ready)
     ]

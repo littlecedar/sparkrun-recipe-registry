@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -68,9 +69,36 @@ class Liveness(unittest.TestCase):
         os.waitpid(pid, 0)
         self.assertFalse(drip.pid_alive(pid))
 
-    def test_an_arm_whose_process_exited_is_not_in_flight(self):
-        state = {"arm-a": {"pid": 0, "node": "n1"}, "arm-b": {"pid": os.getpid(), "node": "n2"}}
-        self.assertEqual(list(drip.in_flight(state)), ["arm-b"])
+    def test_a_recycled_pid_is_not_our_driver(self):
+        """A live pid whose command line is something else must not keep an arm "in flight"."""
+        self.assertFalse(drip.pid_is_driver(os.getpid(), "some-arm"))
+
+    def test_a_process_that_is_not_a_driver_is_rejected_even_when_alive(self):
+        child = subprocess.Popen(["sleep", "5"])
+        try:
+            self.assertTrue(drip.pid_alive(child.pid))
+            self.assertFalse(drip.pid_is_driver(child.pid, "any-arm"))
+        finally:
+            child.kill()
+            child.wait()
+
+    def test_a_driver_shaped_cmdline_is_accepted(self):
+        child = subprocess.Popen(["bash", "-c", "exec -a run-arm.sh sleep 5"])
+        try:
+            self.assertTrue(drip.pid_is_driver(child.pid, "arm", ""))
+        finally:
+            child.kill()
+            child.wait()
+
+    def test_the_ledger_keeps_only_arms_whose_driver_is_really_alive(self):
+        state = {"arm-a": {"pid": 0, "node": "n1"}, "arm-b": {"pid": 4242, "node": "n2"},
+                 "arm-c": {"pid": 4243, "node": "n3"}}
+        orig = drip.pid_is_driver
+        drip.pid_is_driver = lambda pid, arm, path="": pid == 4242
+        try:
+            self.assertEqual(list(drip.in_flight(state)), ["arm-b"])
+        finally:
+            drip.pid_is_driver = orig
 
 
 class Planning(unittest.TestCase):
@@ -86,6 +114,11 @@ class Planning(unittest.TestCase):
                 {"arm": "other", "path": "recipes/x/other.yaml", "node": "n2"}]
         kept = drip.drop_in_flight(plan, {}, {"recipes/decision/jev.yaml"})
         self.assertEqual([row["arm"] for row in kept], ["other"])
+
+    def test_an_in_flight_arm_is_passed_to_the_planner_not_just_dropped(self):
+        """A dropped row would leave its free node idle; the planner must be able to pick the next."""
+        arms = drip.in_flight_arms({"recipes/decision/jev.yaml", "recipes/x/other.yaml"})
+        self.assertEqual(arms, {"jev", "other"})
 
     def test_driver_paths_come_from_the_process_table(self):
         found = drip.live_driver_paths()

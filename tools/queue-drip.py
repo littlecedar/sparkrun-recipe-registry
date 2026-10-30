@@ -132,8 +132,29 @@ def read_state(path: Path) -> dict:
 _DRIVER = re.compile(r"run-arm\.sh\s+(\S+\.yaml)")
 
 
+def pid_is_driver(pid: int, arm: str, path: str = "") -> bool:
+    """A live pid is only ours if its command line still says so.
+
+    A pid number alone is not identity: once a finished arm's pid is recycled by an unrelated head
+    process, the entry reads "in flight" forever and that arm is never launched again -- a silent
+    stall of exactly the kind the ledger exists to prevent.
+    """
+    if not pid_alive(pid):
+        return False
+    try:
+        cmd = Path(f"/proc/{pid}/cmdline").read_bytes().decode("utf-8", "replace")
+    except OSError:
+        return False
+    if "run-arm.sh" not in cmd:
+        return False
+    return (path in cmd) if path else (arm in cmd)
+
+
 def in_flight(state: dict) -> dict:
-    return {arm: ent for arm, ent in state.items() if pid_alive(int(ent.get("pid") or 0))}
+    return {
+        arm: ent for arm, ent in state.items()
+        if pid_is_driver(int(ent.get("pid") or 0), arm, ent.get("path") or "")
+    }
 
 
 def live_driver_paths() -> set:
@@ -154,9 +175,19 @@ def drop_in_flight(plan: list, running: dict, drivers: set = frozenset()) -> lis
     ]
 
 
-def plan_pass(cfg: dict) -> list:
+def in_flight_arms(drivers: set) -> set:
+    """Arm names for every live driver, so the planner can pass over them and reach the next arm.
+
+    Dropping an in-flight row after the fact leaves a free node idle: the plan holds one row per
+    free node, so a dropped row is a lost slot. Excluding them at the planner instead lets the next
+    queued arm take that slot, which is the whole point of the loop.
+    """
+    return {Path(path).stem for path in drivers}
+
+
+def plan_pass(cfg: dict, busy: set = frozenset()) -> list:
     cmd = [sys.executable, str(TOOL), "--nodes", ",".join(cfg["research"]), "--json"]
-    for arm in cfg["skip"]:
+    for arm in sorted(set(cfg["skip"]) | set(busy)):
         cmd += ["--skip", arm]
     out = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, check=False)
     if out.returncode == 2:
@@ -173,6 +204,7 @@ def launch(row: dict) -> int:
         proc = subprocess.Popen(
             shlex.split(row["launch"]),
             cwd=REPO,
+            env={**os.environ, **(row.get("env") or {})},
             stdout=fh,
             stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
@@ -202,7 +234,8 @@ def main(argv: list[str]) -> int:
         try:
             state = read_state(args.state)
             running = in_flight(state)
-            plan = drop_in_flight(plan_pass(cfg), running, live_driver_paths())
+            drivers = live_driver_paths()
+            plan = drop_in_flight(plan_pass(cfg, in_flight_arms(drivers)), running, drivers)
         except ConfigError as exc:
             print(f"drip: {exc}", file=sys.stderr)
             return 2
@@ -214,9 +247,13 @@ def main(argv: list[str]) -> int:
                 print(f"drip: would launch {row['arm']} on {row['node']}")
                 continue
             pid = launch(row)
-            state[row["arm"]] = {"pid": pid, "node": row["node"], "started": int(time.time())}
+            state[row["arm"]] = {
+                "pid": pid, "node": row["node"], "path": row.get("path") or "",
+                "started": int(time.time()),
+            }
             args.state.parent.mkdir(parents=True, exist_ok=True)
-            args.state.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+            live = in_flight(state)
+            args.state.write_text(json.dumps(live, indent=2) + "\n", encoding="utf-8")
             print(f"drip: launched {row['arm']} on {row['node']} pid={pid}")
         if args.once or args.dry_run:
             return 0

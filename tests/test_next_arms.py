@@ -158,6 +158,31 @@ class NoSilentEmpties(unittest.TestCase):
             self.assertEqual(na.candidates(str(path), {"nemotron"}, set(), 2), [])
 
 
+class FreeNodes(unittest.TestCase):
+    """A node the probe cannot inspect is not free."""
+
+    def _probe(self, replies):
+        orig = na.sh
+        na.sh = lambda argv, timeout=30: replies[next(a for a in argv if a.startswith("red@")).removeprefix("red@")]
+        try:
+            return na.free_nodes(list(replies))
+        finally:
+            na.sh = orig
+
+    def test_an_empty_inspectable_node_is_free(self):
+        self.assertEqual(self._probe({"node-a": (0, "")}), ["node-a"])
+
+    def test_a_node_with_a_container_is_busy(self):
+        self.assertEqual(self._probe({"node-a": (0, "abc123")}), [])
+
+    def test_a_failed_docker_call_is_busy_not_empty(self):
+        """`docker ps -aq | wc -l` would have printed 0 here and called the node free."""
+        self.assertEqual(self._probe({"node-a": (1, "")}), [])
+
+    def test_an_unreachable_node_is_busy(self):
+        self.assertEqual(self._probe({"node-a": (255, "")}), [])
+
+
 class Placement(unittest.TestCase):
     """A TP=2 arm must never be handed one host."""
 
