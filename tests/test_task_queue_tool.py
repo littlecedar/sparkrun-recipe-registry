@@ -203,3 +203,29 @@ class Done(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AtomicSave(unittest.TestCase):
+    """A torn write here does not look like corruption -- JSON stays valid while rows vanish."""
+
+    def test_a_failed_replace_leaves_the_register_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps({"priority_models": [], "tasks": [task("a", 1.0)]}), encoding="utf-8")
+            before = path.read_bytes()
+            orig = tq.os.replace
+            tq.os.replace = lambda *a, **k: (_ for _ in ()).throw(OSError("boom"))
+            try:
+                with self.assertRaises(OSError):
+                    tq._save(path, {"priority_models": []}, [task("a", 1.0), task("b", 2.0)])
+            finally:
+                tq.os.replace = orig
+            self.assertEqual(path.read_bytes(), before, "the register must be unchanged")
+            self.assertEqual([p.name for p in Path(tmp).iterdir()], ["queue.json"], "no temp file left")
+
+    def test_the_saved_register_keeps_its_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text("{}", encoding="utf-8")
+            path.chmod(0o640)
+            tq._save(path, {"priority_models": []}, [task("a", 1.0)])
+            self.assertEqual(path.stat().st_mode & 0o777, 0o640)

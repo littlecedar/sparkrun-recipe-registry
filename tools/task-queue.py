@@ -54,6 +54,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -226,8 +227,27 @@ def ordering(data: dict) -> list[dict]:
 # ---------------------------------------------------------------- commands
 
 def _save(path: Path, data: dict, tasks: list[dict]) -> None:
+    """Write the register atomically: tmp file, then `os.replace`.
+
+    This file is syncthing-shared with a live second writer, and a torn write here does NOT read as
+    corruption -- JSON stays syntactically valid while task rows silently vanish, which is the one
+    failure mode nobody notices. `write_text` truncates first, so a sync in that window publishes a
+    half file; rename is atomic on the same filesystem, so a reader (or syncthing) sees either the old
+    register or the new one.
+    """
     data["tasks"] = tasks
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    body = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
+    try:
+        tmp.write_text(body, encoding="utf-8")
+        try:
+            os.chmod(tmp, path.stat().st_mode & 0o777)  # keep the register's mode
+        except OSError:
+            pass
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _find(tasks: list[dict], task_id: str) -> dict:
