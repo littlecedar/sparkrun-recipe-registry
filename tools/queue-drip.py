@@ -157,8 +157,14 @@ def pid_is_driver(pid: int, arm: str, path: str = "") -> bool:
     argv = [a for a in cmd.split("\0") if a]
     if not any(os.path.basename(a) == "run-arm.sh" for a in argv):
         return False
-    want = path or arm
-    return any(a == want or os.path.basename(a) == want for a in argv)
+    if path:
+        # The ledger recorded the recipe path, and that is what the driver's argv carries.
+        return any(a == path or os.path.basename(a) == os.path.basename(path) for a in argv)
+    # A ledger row written before `path` was recorded carries only the arm name, while the live
+    # driver's argument is `recipes/<lane>/<arm>.yaml`. Compare stems, not substrings: exactness
+    # was too strict here (a real driver read as dead on 2026-10-30 and its arm was nearly
+    # re-planned onto the node already running it), and `in` was too loose.
+    return any(os.path.splitext(os.path.basename(a))[0] == arm for a in argv)
 
 
 def in_flight(state: dict) -> dict:

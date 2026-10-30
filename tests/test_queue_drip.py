@@ -101,6 +101,22 @@ class Liveness(unittest.TestCase):
             child.kill()
             child.wait()
 
+    def test_a_ledger_row_without_a_path_still_identifies_its_driver(self):
+        """Old ledger rows carry only the arm name; the driver's argv carries the recipe path."""
+        child = subprocess.Popen(
+            ["bash", "-c",
+             "exec -a run-arm.sh python3 -c 'import time; time.sleep(5)' recipes/rerank/arm.yaml"]
+        )
+        try:
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not drip.pid_is_driver(child.pid, "arm", ""):
+                time.sleep(0.02)
+            self.assertTrue(drip.pid_is_driver(child.pid, "arm", ""))
+            self.assertFalse(drip.pid_is_driver(child.pid, "other-arm", ""))
+        finally:
+            child.kill()
+            child.wait()
+
     def test_a_prefix_of_the_program_name_is_not_an_arm(self):
         """`arm` occurs inside `run-arm.sh`; that must not read as "this pid drives arm"."""
         child = subprocess.Popen(["bash", "-c", "exec -a run-arm.sh sleep 5"])
