@@ -22,3 +22,5 @@
 # tool-eval-bench reports it writes relative to its CWD under runs/ and data/.
 /.scratch/
 /.omp/extensions/
+/data/
+/runs/
