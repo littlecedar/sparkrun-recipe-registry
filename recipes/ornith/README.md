@@ -9,6 +9,7 @@ ships **three** recipes, one per model scale:
 |:--------------------------------------------------|:------|:--------|:-----------|-------:|------:|-----:|:-------|:--------------------------------------------------------------------------------------------|
 | `littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | 397B | vLLM | 4 (TP=4) |  41.86 | 235GB | 0.80 | 🌲👀🧠🦾🔧     | [Model][model-397b-graft]                                                                   |
 | `ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`    | 35B-A3B | SGLang | 1 (TP=1) |    100 |  45GB | 0.85 | ✨🚀🌲👀🧠🦾🔧 | [Model][model-35b] · [Draft][draft-dflash2]                                                 |
+| `zz-ornith-1.5-122b-nvfp4-dflash2-sglang.yaml`       | 122B-A9B | SGLang | 1 (TP=1) |   —   |  75GB | 0.80 | 🚀🧠🦾🔧       | [drafter](https://huggingface.co/incoai/Ornith-1.5-122B-DFlash2) |
 | `ornith-1.5-9b-nvfp4-dflash-sglang.yaml`          | 9B | SGLang | 1 (TP=1) |     55 |  11GB | 0.85 | ✨🚀🤏👀🧠🦾🔧     | [Model][model-9b] · [Draft][draft-9b]                                                       |
 
 `C1 t/s` is single-stream decode as recorded in the parent [`README.md`](../../README.md);
@@ -719,3 +720,27 @@ the shipped surface.
 [model-9b]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-NVFP4
 [draft-dflash2]: https://huggingface.co/jzinno/Ornith-1.5-35B-A3B-DFlash2
 [draft-9b]: https://huggingface.co/ornith-ai/Ornith-1.5-9B-DFlash
+
+## `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` — 122B with the DFlash2 block-diffusion drafter
+
+Owner-requested arm (2026-10-30). The NVFP4 122B target with `incoai/Ornith-1.5-122B-DFlash2`
+as the speculative draft, pinned `9baefc1b…`, 15 draft tokens (the card's block size is 16).
+
+**Why the drafter should work here, and what could stop it.** DFlash 2 drafts a whole block
+in one pass and the card is explicit that decoding is lossless — greedy output matches the
+target and sampling preserves its distribution — so a C1 win costs no quality. Two things can
+degrade it on this arm and both are in the receipt for the first boot:
+
+- **Quantised targets.** The card's reference run is a bf16 target at TP=2. The drafter reads
+  the target's hidden states at `target_layer_ids: [1, 7, 14, 20, 26, 32, 39, 45]`; an NVFP4
+  export changes those states slightly, so acceptance is measured, never assumed. The
+  card-exact bf16/TP=2 variant is the reference if acceptance looks low.
+- **GGUF targets only** need `mask_embedding.safetensors` (an exact BF16 copy of the target's
+  mask-token row, in this repo, 6.4 KB) because Q8_0/K-quants store that row as zeros and
+  acceptance roughly halves. A safetensors or NVFP4 target does not need it.
+
+The draft snapshot must be seeded into `refs/main` (the recipe's `pre_exec` does it): SGLang
+resolves the draft through `refs/main`, and sparkrun's SHA-keyed fetch writes no refs entry.
+
+**Gate:** serve-log acceptance length > 1 and a C1 cell at or above the plain 122B arm
+(`zz-ornith-1.5-122b-nvfp4-vllm`, C1 17.9 tg t/s). **Falsifier:** no C1 gain over that arm.
