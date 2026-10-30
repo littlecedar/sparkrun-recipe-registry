@@ -322,32 +322,6 @@ that line.
   instrument's `tg` arithmetic is under audit and no inflation claim is adopted here. Receipts
   `~/benchmarks/tp12-20261030/zz-abliterated-cyber-tp2-fabbe861-probe/REPORT.md` and
   `~/benchmarks/tp12-20261030/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/REPORT.md`.
-- **Mechanism of the `.30`+`.35` deficit (2026-10-30) — likely, not closed.** Measured: a 64-token reply
-  moves **61,052,864 B** of serve-side storage reads (`/proc/*/io read_bytes` delta) = **0.91 MiB/token**;
-  pool random reads from `.30` on `engram-l1.safetensors` (94.42 GiB, snapshot `48afcd1c…`) with
-  `posix_fadvise(DONTNEED)` before each give p50 **2.285 ms at 4 KiB** (p90 3.85, max 12.66) and
-  **2.719 ms at 256 KiB** — 64× the bytes for 19 % more latency, i.e. the pool is **latency-bound, not
-  bandwidth-bound**; true decode on the same serve is **3.80 tok/s** (64 tok / 16.837 s) and
-  **6.16 tok/s** (128 tok / 20.765 s), or 162-262 ms/token. The arithmetic: 0.91 MiB/token ÷ 4 KiB is
-  ~230 storage pages per token, and at ~2.3-2.7 ms per pool read that is the same order as the entire
-  per-token budget, where node-local NVMe costs tens of microseconds per read. What sits between this
-  and the 67.02 row is the **2026-10-24 cache migration**: that row is `.34`+`.35`, `bench_484eb77839b4`,
-  on the same image `fabbe861…`, the same rendered command, the same `09daea94` build and the same
-  `48afcd1c…` checkpoint, and on 2026-10-24 the HF cache moved to the BeeGFS pool — verified today,
-  `readlink -f ~/.cache/huggingface` = `/mnt/beegfs/huggingface` with `stat -f` = `fhgfs` — which is
-  exactly where this arm's Engram tables live, the only per-token artifact the migration touched. The
-  runtime cache (container `/cache/runtime`, host `~/.cache/sparkrun/runtime-cache`) is `ext2/ext3`,
-  node-local, so the graft tree is not implicated. Excluded along the way, each by a measurement: the
-  container pin (13.72 t/s on `fabbe861…` vs 10.80 on `19977a03…`, house 93 both), `.35` as a node
-  (reranker-2b 72.0/79.6 there vs 73.1/79.8 on `.30`), fabric bandwidth (13 202 MB/s ≈ 106 Gb/s) and
-  latency (`ib_write_lat` 2.48 µs avg), `decode graphs {}` (the ds4 TP=2 boot logs the same, so it is
-  normal for this launcher), and a cold-page-cache explanation. **Not closed:** no `majflt`-per-token
-  count during a live decode was taken; that is the one step that would close it. **Recommendation, not
-  executed** (owner's call, `mad-science/QUESTIONS.md` `#55` route B): stage this model's ~94 GB
-  `engram/` on node-local NVMe per rank — each node has 1.2-1.8 TB free — and let the pool stay the
-  source of truth and the store for every other model. That restores the arm without displacing a
-  production serve; the production-window question stands only for arms whose **weights** are read
-  per token from the pool.
   **Leading mechanism (measured, not closed):** the serve reads **0.91 MiB of storage per token**
   (`/proc/*/io` `read_bytes`, 61,052,864 B over 64 tokens) and a random **4 KiB** read of the pool's
   Engram table costs **p50 2.285 ms** while 256 KiB costs 2.719 ms — the pool is latency-bound, so the
@@ -355,8 +329,18 @@ that line.
   budget. Falsified on the way: node `.35` (reranker-2b 72.0 units/s there vs 73.1 on `.30`), fabric
   bandwidth (13 202 MB/s ≈ 106 Gb/s) and latency (`ib_write_lat` 2.48 µs), container pin (above), and
   `decode graphs {}` (the ds4 TP=2 boot logs the same, so it is normal). The unrun closing step is a
-  `majflt`-per-token count during a live decode. Candidate fix, not executed: stage this model's ~94 GB
-  `engram/` on node-local NVMe per rank (1.2–1.8 TB free per node), leaving the pool the source of truth.
+  `majflt`-per-token count during a live decode. Candidate fix, not executed — and the knob is the symlink, not an env var: the served tree's
+  `engram` entry is a **symlink into the pool**
+  (`/cache/runtime/dsv41-ablit/engram -> …/snapshots/48afcd1c…/engram`, verified 2026-10-30) and it is
+  the resolver's **first**-priority slot (`mods/tensorfold-dsv41-launcher/launcher.py:132`), so staging
+  the ~94 GB on node-local NVMe per rank and repointing that one symlink restores the pre-migration
+  read path with no pool edit and no recipe change. `TENSORFOLD_ENGRAM_DIR` cannot do it: the resolver
+  reaches it only after `model_dir` and `stock_dir` (`:135`), and both carry `engram/`, so it is dead
+  for this arm; `TF_DS_ENGRAM` is a launcher *output*, never read as input.
+  Recorded in the same window, unexplained: `NVRM … NV_ERR_NO_MEMORY` from `_memdescAllocInternal` at
+  **05:44:48-49** on `.30`, as the ladder opened, against a boot that reserved 102.98 of a 106.5 GiB
+  ceiling. The same message appears at 04:00:46 in an unrelated run, so it is logged as allocator
+  pressure at the ceiling rather than promoted to the cause.
 - **Standard suite — all five legs landed (2026-10-20 / 2026-10-21, one serve each).** contract ok
   (`max_model_len` 1,048,576, ready, `finish=stop`); house **37/37** (easy 19/19, hard 18/18); needle
   **3/3 at 32,768 / 131,072 / 262,144** (depth 10, `PASS` each); hard **ARC 188/200 (94.0 %)** and
