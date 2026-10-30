@@ -215,9 +215,18 @@ if [ "$ready" = yes ]; then
       # --model is mandatory here: an arm that serves a base plus a LoRA adapter lists TWO models,
       # and the instrument's model picker then blocks on a prompt nothing will answer -- measured
       # 2026-10-30 on jev-9b, which sat at "Select model [1-2]:" until the run was killed.
-      uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
-        --model "$SERVED" > "$L/teb-decision.log" 2>&1 \
-        || { echo "decision bench failed for $NAME"; rc=3; }
+      # And its decision mode speaks ONLY /v1/systemone (its own error text says so), so a JEV arm
+      # on /v1/completions cannot be scored by it at all -- that is a gap in the instrument, not a
+      # failure of the arm, and it made a clean cell run report rc=3.
+      if [ "$api" = completions ]; then
+        echo "accuracy: tool-eval-bench --decision-bench-only speaks /v1/systemone only; this arm" \
+             "answers /v1/completions, so no score is taken (the cells are the result)" \
+             > "$L/teb-decision.log"
+      else
+        uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
+          --model "$SERVED" > "$L/teb-decision.log" 2>&1 \
+          || { echo "decision bench failed for $NAME"; rc=3; }
+      fi
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
     */embed/*|*/rerank/*)

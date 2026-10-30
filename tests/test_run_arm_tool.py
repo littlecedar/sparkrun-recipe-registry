@@ -194,6 +194,14 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('--decision-bench-only', text, "no decision accuracy instrument")
         self.assertIn('DECISION_CASES', text, "the case split is not configurable")
 
+    def test_a_completions_arm_is_not_scored_by_a_systemone_instrument(self):
+        """tool-eval-bench's decision mode speaks /v1/systemone only; rc=3 on a clean JEV run was the gap."""
+        text = read_tool()
+        self.assertIn('if [ "$api" = completions ]', text)
+        skip = text.index('if [ "$api" = completions ]')
+        teb = text.index("uvx tool-eval-bench@2.8.0")
+        self.assertLess(skip, teb, "the skip must guard the instrument call, not follow it")
+
     def test_readiness_outlasts_the_watchdog_grace(self):
         """A 1350 s ceiling under a 1800 s grace stops a serve still loading."""
         text = read_tool()
