@@ -176,12 +176,15 @@ if [ -n "${N:-}" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
   sleep 3
 fi
 for n in 30 35; do
-  left=$(ssh -o ConnectTimeout=4 -o BatchMode=yes "red@10.0.4.$n" \
-    "printf '%s ctns=%s vols=%s\n' \$(hostname) \$(docker ps -aq | wc -l) \$(docker volume ls -q | wc -l)")
-  echo "$left"
-  # A held node is the defect this script exists to prevent, so leftover state
-  # is a failure, not a line of trivia in an otherwise green run.
-  case "$left" in *"ctns=0 vols=0") ;; *) echo "leftover state on .$n: $left"; rc=6 ;; esac
+  ssh -o ConnectTimeout=4 -o BatchMode=yes "red@10.0.4.$n" \
+    "printf '%s ctns=%s vols=%s\n' \$(hostname) \$(docker ps -aq | wc -l) \$(docker volume ls -q | wc -l)"
 done
+# Gate on THIS arm's container, never on a node-wide count: the other free node
+# may be running a different arm at the same time, and counting its container as
+# leftover failed a perfectly clean run (2026-10-29, bf16 control vs int8).
+if [ -n "${N:-}" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+     "docker ps --format '{{.Names}}'" 2>/dev/null | grep -qx "$N"; then
+  echo "this arm's container is still running after teardown: $N"; rc=6
+fi
 echo "ARM DONE $NAME rc=$rc"
 exit "$rc"

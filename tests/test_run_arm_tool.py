@@ -108,13 +108,20 @@ class RunArmContract(unittest.TestCase):
         self.assertNotIn(':8000/v1/models', text, "a hardcoded 8000 endpoint survived")
         self.assertIn('"http://$NODE:$PORT/v1/models"', text, "the probe does not use $PORT")
 
+    def test_the_leftover_gate_is_per_arm_not_per_node(self):
+        """A peer arm on the other free node is not this arm's leftover."""
+        text = read_tool()
+        self.assertIn("gate on this arm's container", text.lower(), "no note of the scoping")
+        self.assertNotIn('case "$left" in', text, "a node-wide count still gates the run")
+        self.assertIn('this arm\'s container is still running', text, "the gate does not name the container")
+
     def test_a_surviving_container_is_removed_and_fails_the_run(self):
         """`sparkrun stop` can be refused; the node must not stay held."""
         text = read_tool()
         self.assertIn('container survived sparkrun stop', text, "no stop retry")
         self.assertIn('docker rm -f $N', text, "no by-name removal of this launch's container")
         self.assertIn('rc=6', text, "leftover state does not fail the run")
-        self.assertIn('leftover state on', text, "no leftover report")
+        self.assertIn("this arm's container is still running", text, "no leftover report")
 
     def test_a_leftover_container_of_the_same_recipe_is_cleared_first(self):
         """Two containers of one recipe collide on the port; the old one answers."""
