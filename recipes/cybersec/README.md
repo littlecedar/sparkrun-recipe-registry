@@ -567,6 +567,17 @@ means "the bytes are there", never "the engine can run them".
 
 Arm retired to the skip list; receipt `~/benchmarks/tp12-20261030/qwen3.8-flash-next-uncensored-nvfp4-sglang/`.
 
+**Why no pre-boot quantisation check exists (three measurements, 2026-10-30).** The obvious gate — read the
+checkpoint's scheme and grep the engine for it — was tried and refused by the data. (1) The pinned revision's
+`quantization_config` holds `sparsity_config: {}` and `block_structure: null` on both groups, so the engine's
+`…W4A16Sparse24` class does **not** follow from a sparsity field; the only `spars` strings in the file are
+that empty key and the model's `qwen_sparse_attention` variant name. (2) The declared group formats are real
+data — `naive-quantized` (8-bit/channel) and `nvfp4-pack-quantized` (4-bit/tensor_group) — but grepping either
+pinned image for `nvfp4-pack-quantized` finds it in **2 files under sglang and 5 under vLLM**, so
+format-presence passes an arm that then dies. (3) The failing class name appears only in the traceback.
+Conclusion: for this failure class a green audit is impossible and an advisory column would be a coin flip —
+which is why `stage-audit.py` prints its own blind spot instead of growing a predictor.
+
 **Its vLLM sibling is retired on evidence, not on a boot.** `qwen3.8-flash-next-uncensored-nvfp4-vllm` pins the
 same checkpoint at the same revision, so the question is whether *that* engine implements the scheme. Inside
 the pinned image (`dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…`, vLLM `0.1.dev21830+g8244d1c44`):
