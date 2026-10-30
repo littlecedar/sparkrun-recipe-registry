@@ -566,3 +566,11 @@ would have caught it; that is the next thing worth adding to the tool, and until
 means "the bytes are there", never "the engine can run them".
 
 Arm retired to the skip list; receipt `~/benchmarks/tp12-20261030/qwen3.8-flash-next-uncensored-nvfp4-sglang/`.
+
+**Its vLLM sibling is retired on evidence, not on a boot.** `qwen3.8-flash-next-uncensored-nvfp4-vllm` pins the
+same checkpoint at the same revision, so the question is whether *that* engine implements the scheme. Inside
+the pinned image (`dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…`, vLLM `0.1.dev21830+g8244d1c44`):
+`grep -rl Sparse24` over `vllm/` returns **0 files** while `compressed_tensors/` returns 2 — the config
+library knows the scheme and the runner does not. That is weaker than the sglang arm's traceback (a string
+search, not a serve), so it is recorded as such: the sibling is skipped with the reason stated, and a future
+boot is justified only if the engine gains W4A16_Sparse24 support.

@@ -60,7 +60,7 @@ from pathlib import Path
 
 DEFAULT_QUEUE = Path("mad-science/queue.json")
 STATES = ("queued", "running", "blocked", "done")
-NODE_COSTS = ("", "single", "quartet")
+NODE_COSTS = ("", "single", "pair", "quartet")
 REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
 
 
@@ -286,6 +286,12 @@ def _relink(tasks: list[dict]) -> None:
 
 def cmd_update(args, path: Path) -> None:
     data = load(path)
+    # Relink BEFORE validating: `blocked_by` is derived from `blocks`, so a register whose mirror
+    # drifted (the state `check` reports as "rerun update") failed validation on the very line
+    # before the repair, and every rerun died identically. Measured 2026-10-30: three attempts.
+    tasks = data.get("tasks")
+    if isinstance(tasks, list):
+        _relink(tasks)
     tasks = validate(data)
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,

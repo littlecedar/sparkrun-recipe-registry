@@ -186,6 +186,28 @@ class FailClosed(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
 
 
+class UpdateRepairsDrift(unittest.TestCase):
+    def test_update_relinks_before_validating(self):
+        """`check` tells the reader to rerun `update`; that must be able to succeed.
+
+        The mirror is derived from `blocks`, so a register whose `blocked_by` drifted is exactly the
+        state `update` exists to repair -- and it used to validate first, so every rerun died on the
+        same line. Measured 2026-10-30: three attempts, each printing the same instruction.
+        """
+        payload = data([task("a", 1.0, ["b"]), task("b", 2.0, [])], priority_models=["x"])
+        payload["tasks"][1]["blocked_by"] = []          # a drift the mirror says should be ["a"]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(payload))
+            self.assertNotEqual(tq.main(["--file", str(path), "check"]), 0)
+            self.assertEqual(tq.main(["--file", str(path), "update", "--id", "b", "--notes", "x"]), 0)
+            self.assertEqual(tq.main(["--file", str(path), "check"]), 0)
+
+    def test_pair_is_a_valid_node_cost(self):
+        """A TP=2 arm is a pair; the checklist predated it and forced a caveat in `notes`."""
+        self.assertIn("pair", tq.NODE_COSTS)
+
+
 class Done(unittest.TestCase):
     def test_done_removes_task_and_releases_blocked_credit(self):
         # a (4 h) gates b (2 h) and c (2 h): a weighs 0 and floats. Marking c done drops c
