@@ -319,6 +319,11 @@ vLLM · **2 nodes (TP=2)** · **the family's two-node ceiling reference**, boote
 - **Model:** `poolside/Laguna-M.1-NVFP4` (225B total / 23B active agentic-coding MoE, 70 layers, 262,144
   native) pinned `e4f3ba80…`; engine pin **`vllm/vllm-openai:v0.32.0` (bumped 2026-10-22, not
   re-booted on it — see below); every measurement in this section is the 2026-10-20 `v0.29.0` boot.**
+- **Engine pin: re-booted and verified 2026-10-30** on `.30`+`.35` under the `--fresh` runner — the
+  outstanding item above is closed. Serve asserted before quoting: `/v1/models` = `poolside/Laguna-M.1-NVFP4`
+  at `max_model_len` 262,144. Decode ladder **12.98 ± 0.03 · 22.18 ± 0.06 · 33.59 ± 0.78 · 34.96 ± 0.31 t/s**
+  at c1/c2/c5/c10, i.e. within ~1.5 % of the `v0.29.0` row, so `v0.32.0` cost nothing measurable and the
+  cells are quotable. Receipt `~/benchmarks/tp12-20261030/poolside-laguna-m1-nvfp4-vllm-tp2/`.
 - **Engine pin (2026-10-22): BUMPED, NOT RE-BOOTED — the 2026-10-20 numbers remain `v0.29.0`
   measurements.** The recipe's `container:` moved to `vllm/vllm-openai:v0.32.0` (index `befccf0e…`)
   for the CVE reason only: 0.29.0 carried 23 OSV records / 16 CVEs, and the XS sibling boot-verifies

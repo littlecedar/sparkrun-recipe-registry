@@ -355,6 +355,15 @@ that line.
   (`serve-0.log`, 2 002 B, carries the banner and `DSpark 5 drafts` but no accept rate), so the
   speculation hypothesis cannot be settled from a normal boot — it needs the engine started with a debug
   log level, which no recipe does today.
+**The pair is exonerated by a shipped control (2026-10-30, 10:4x ET).** `poolside-laguna-m1-nvfp4-vllm-tp2`
+  — a 225B MoE on vLLM whose row was measured on a *different* pair — was booted on `.30`+`.35` under the
+  `--fresh` runner and reproduced itself: **12.98 / 22.18 / 33.59 / 34.96 t/s** at c1/c2/c5/c10 against the
+  shipped **12.85 / 21.85 / 34.15 / 34.64**, all within ~1.5 %. Serve asserted before any cell was quoted:
+  `/v1/models` = `poolside/Laguna-M.1-NVFP4` at `max_model_len` 262,144. Neither the node pair nor the fabric
+  depresses a TP=2 arm here, and ~13 t/s at c1 is ordinary for this hardware class — so the 67.02 row is the
+  sole outlier and the reason to borrow a production rank for it (`mad-science/QUESTIONS.md` #55 route A) is
+  gone. Corollary, outstanding since 2026-10-22: this is that arm's first boot on the pinned
+  `vllm/vllm-openai:v0.32.0`, and its cells match the `v0.29.0` row, so the CVE bump cost nothing measurable.
 **A stronger competing explanation, found after the above (2026-10-30):** 67 t/s at c1 needs
   speculation, not bandwidth. 552B at 2.9 bpw is ~200 GB of weights, ~13 GB read per token for a
   DeepSeek-class active set, and two GB10s cannot stream that faster than ~40 tok/s — so the row was only
