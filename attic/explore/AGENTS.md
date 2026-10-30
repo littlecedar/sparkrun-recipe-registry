@@ -1200,3 +1200,27 @@ README before booting a "fill" cell.
 [ling]: https://huggingface.co/inclusionAI/Ling-3.0-flash-int4
 [lingd]: https://huggingface.co/inclusionAI/Ling-3.0-flash-dspark
 [kol]: https://huggingface.co/Aleph-Alpha/Kolibri-1
+
+## `zz-spark-x26-main-image-sglang` — main-image boot-gate probe: CLOSED, retired 2026-10-30
+
+The probe asked one question: **can the main-line image carry our arm shapes at all?** It answered
+yes, twice, with numbers that cannot be told apart from the shipped-line control.
+
+| run | ladder d0 C1 / C2 / C5 / C10 (tg t/s) | house |
+|---|---|---|
+| 2026-10-22 (task `sparkrun_31a011c489646cf6_2d38dfc4605e`, `~/benchmarks/spark-x26-20261022/`) | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | 37/37 thinking-on @4096 |
+| 2026-10-30 (`~/benchmarks/tp12-20261029/zz-spark-x26-main-image-sglang/`, full yaml+json+csv) | 21.1 / 47.4 / 98.9 / **158.0** | **87/100** (12 pass, 2 partial, 1 fail) |
+
+The control — `spark-x2.6-4b-bf16-sglang`, same model `XHToken/Spark-X2.6-4B`, same
+`model_revision: 66e3ae7b…`, differing **only** in `container:` — measured **21.0 / 48.1 / 99.4 /
+157.8** and **87/100** in the same window. Every cell agrees within 0.3 %, so the main-tree image
+and the lane's pinned image are indistinguishable on this shape.
+
+**Why it is retired rather than kept as a probe:** the gate it existed for is answered, and its
+`container:` names a build that exists only as a local tag on the fleet
+(`sglang-main-arm64:6563312`, image id `fe903216…`, 28.9 GB) with no registry behind it, so no
+fresh node can pull it. That is the `published-image-refs` defect, not a tuning option. Anything
+further about the main tree belongs in a probe pinned to a pushed digest.
+
+Moving this file out of `recipes/explore/` leaves the shipped pair (`spark-x2.6-4b-bf16-sglang`,
+`spark-x2.6-4b-fp8-sglang`) untouched: the bf16 control is the arm, and this was its echo.

@@ -34,7 +34,6 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
-- [zz-spark-x26-main-image-sglang](#zz-spark-x26-main-image-sglang)
 - [spark-x2.6-4b-fp8-sglang](#spark-x26-4b-fp8-sglang)
 - [zz-spark-x2.6-4b-fp8-ngram-sglang](#zz-spark-x26-4b-fp8-ngram-sglang)
 - [zz-spark-x2.6-4b-int8-sglang](#zz-spark-x26-4b-int8-sglang)
@@ -614,15 +613,16 @@ the comparison holds. Receipts `head:~/benchmarks/tp4-window3-20261024/`
 (`gate-main-image-launch{,2}.log`, `gate-c1.*`, `gate-full-ladder.*`, `suite-gate-full/`,
 `gate-full-node30-serve.log`), tasks `…_57452cfd0e37` / `…_d250d3ad4a0c`, 0 containers after.
 
-## [zz-spark-x26-main-image-sglang](zz-spark-x26-main-image-sglang.yaml)
+## `zz-spark-x26-main-image-sglang` — retired 2026-10-30
 
-SGLang (main-tree build) · **1 node (TP=1)** · **one-off `zz-` boot-gate arm — not shippable**.
+The main-image boot-gate probe is **closed and moved to `attic/explore/`**: the gate is answered
+(the main-tree image carries the shape indistinguishably from the pinned one — every ladder cell
+within 0.3 %, suite 87 both) and its `container:` is a fleet-local tag with no registry behind it, so
+no fresh node can pull it. The measurements, both windows and the disposition are in
+[`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md#zz-spark-x26-main-image-sglang--main-image-boot-gate-probe-closed-retired-2026-10-30).
 
-The bf16 control with exactly one field moved: the container, to the local main-tree build resident
-on the head. What to watch: it carries no arm of its own — it answers one gate question ("can the main
-line carry our arm shapes?"), so read the verdict, the ladder and the receipts in
-[the main-image gate above](#the-main-image-gate-2026-10-25-window-3--this-arm-is-the-instrument),
-not the recipe.
+The arm itself — `spark-x2.6-4b-bf16-sglang` — is untouched, and the gate section above stays as the
+record of how the probe was run.
 
 ## [spark-x2.6-4b-fp8-sglang](spark-x2.6-4b-fp8-sglang.yaml)
 
