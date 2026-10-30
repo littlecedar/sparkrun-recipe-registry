@@ -30,6 +30,9 @@ defaults:
   tensor_parallel: 1
   max_model_len: 32768
   max_lora_rank: 32
+  # vLLM's 0.9 default asks for 109.5 GiB of the 121.69 GiB device; a bare node offers 109.07, so
+  # engine init dies before any graph capture (measured 2026-10-30). 0.85 fits with room for a 32k KV.
+  gpu_memory_utilization: 0.85
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -47,6 +50,7 @@ command: >
   --port {port}
   --tensor-parallel-size {tensor_parallel}
   --max-model-len {max_model_len}
+  --gpu-memory-utilization {gpu_memory_utilization}
   --enable-lora
   --max-lora-rank {max_lora_rank}
   --lora-modules jev-decision=/cache/huggingface/hub/models--autotrust--JEV-27B/snapshots/14b425269ed24452e0a5ad5a8f3e51d139647a88/adapter_vllm

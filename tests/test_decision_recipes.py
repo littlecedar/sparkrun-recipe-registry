@@ -369,8 +369,15 @@ class NegativeControls(unittest.TestCase):
                       cpu_violations(parse_text(raw)))
 
     def test_unbounded_gpu_arm_fails_the_gpu_guard(self):
+        """An unbounded arm is one with a large window AND no declared residency.
+
+        The control strips the `gpu_memory_utilization` key by name rather than anchoring on its
+        value: the shipped arm now declares 0.85, and a control that pasted that number would break
+        at the next retune -- the fragility the guard rules forbid.
+        """
         raw = (DECISION / JEV).read_text(encoding="utf-8")
         raw = mutate(raw, "  max_model_len: 32768", "  max_model_len: 262144")
+        raw = re.sub(r"(?m)^\s*gpu_memory_utilization:.*\n", "", raw)
         self.assertIn("GPU residency is not deliberate",
                       " ".join(gpu_violations(parse_text(raw))))
 
