@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -155,6 +156,23 @@ class NoSilentEmpties(unittest.TestCase):
             path.write_text(json.dumps([{"arm": "nemotron-3.5-lightning-30b-a3b-nvfp4-vllm",
                                          "path": "recipes/e/n.yaml", "tp": 1}]))
             self.assertEqual(na.candidates(str(path), {"nemotron"}, set(), 2), [])
+
+
+class Placement(unittest.TestCase):
+    """A TP=2 arm must never be handed one host."""
+
+    def test_only_tp1_arms_are_planned_onto_a_node(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / "m.json"
+            p.write_text(json.dumps([
+                {"arm": "wide", "path": "recipes/x/wide.yaml", "tp": 2},
+                {"arm": "narrow", "path": "recipes/x/narrow.yaml", "tp": 1},
+            ]))
+            todo = na.candidates(str(p), set(), set(), 2)
+        plan, pairs = na.place(["node-a"], todo)
+        self.assertEqual([row["arm"] for row in plan], ["narrow"])
+        self.assertEqual([e["arm"] for e in pairs], ["wide"])
+        self.assertEqual(plan[0]["launch"], "./tools/run-arm.sh recipes/x/narrow.yaml node-a")
 
 
 class Reporting(unittest.TestCase):

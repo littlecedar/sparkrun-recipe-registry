@@ -101,6 +101,23 @@ class ManifestError(RuntimeError):
     """The manifest could not be read. Never silently "nothing to do"."""
 
 
+def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
+    """One arm per free node. TP=1 only; TP=2 arms come back as a pair backlog."""
+    ready = [e for e in todo if e.get("tp") == 1]
+    pairs = [e for e in todo if e.get("tp") == 2]
+    rows = [
+        {
+            "node": node,
+            "arm": entry.get("arm"),
+            "path": entry.get("path"),
+            "tp": entry.get("tp"),
+            "launch": f"./tools/run-arm.sh {entry.get('path')} {node}",
+        }
+        for node, entry in zip(free, ready)
+    ]
+    return rows, pairs
+
+
 def candidates(manifest: str, done: set[str], skip: set[str], free_count: int) -> list[dict]:
     try:
         with open(manifest, encoding="utf-8") as fh:
@@ -154,17 +171,10 @@ def main(argv: list[str] | None = None) -> int:
     except ManifestError as exc:
         print(f"cannot plan: {exc}", file=sys.stderr)
         return 2
-    ready = [e for e in todo if isinstance(e.get("tp"), int) and e["tp"] <= len(free)] or []
-
-    plan = []
-    for node, entry in zip(free, ready):
-        plan.append({
-            "node": node,
-            "arm": entry.get("arm"),
-            "path": entry.get("path"),
-            "tp": entry.get("tp"),
-            "launch": f"./tools/run-arm.sh {entry.get('path')} {node}",
-        })
+    # Placement is one arm per free node, so only TP=1 is placeable here. A TP=2 arm handed a
+    # single host would either refuse or silently serve at TP=1 -- a wrong measurement, not a
+    # wrong guess -- so those are reported as a pair backlog instead of being planned.
+    plan, pairs = place(free, todo)
 
     if args.json:
         print(json.dumps({"free_nodes": free, "measured": len(done), "plan": plan}, indent=2))
@@ -175,6 +185,11 @@ def main(argv: list[str] | None = None) -> int:
         # Exclusion accounting: "nothing runnable" must be explainable.
         if args.skip:
             print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")
+        if pairs:
+            print(f"  TP=2 backlog: {len(pairs)} arm(s) need a free node PAIR; this tool places one")
+            print("               arm per node, so they are listed, never planned:")
+            for entry in pairs[:4]:
+                print(f"                 {entry.get('arm')}")
         for row in plan:
             print(f"  {row['node']}  (TP={row['tp']})  {row['arm']}")
             print(f"      {row['launch']}")
