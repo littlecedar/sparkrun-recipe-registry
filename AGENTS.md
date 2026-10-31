@@ -6,12 +6,12 @@ cluster and to third parties, and is consumed by the `sparkrun` CLI as the `litt
 (`Trusted=yes`, so recipe mods run unprompted at launch). There is no compiled application here:
 the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
-Counts in this document were verified 2026-10-15 against the working tree; the recipe, guard-module,
-suite and strict-validate counts were re-measured **2026-10-29** (the 2026-10-26 window-4 close and
-the 2026-10-22 `240ecd6` re-measure are superseded by recipe adds/moves since): **79 tracked
-recipes, 46 test modules (suite 1047 tests, 2 skipped), 20/78 strict**. Facts drift — re-measure
-(`git ls-files 'recipes/*/*.yaml'`, test discovery) before trusting a number;
-the working tree can carry in-flight drafts that git does not, so `ls recipes/*/*.yaml` overcounts.
+Counts in this document are derived, not remembered: `python3 tools/doc-census.py` prints the tracked
+recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.py` fails when this
+file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. What only
+a run can know stays a *dated snapshot*: **2026-10-31 — 80/80 recipes pass plain `validate`, 20/80
+strict, suite 1172 tests (2 skipped)**. The working tree can carry in-flight drafts that git does not,
+so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
 ## Contents
 
@@ -21,6 +21,7 @@ the working tree can carry in-flight drafts that git does not, so `ls recipes/*/
 - [Development Commands](#development-commands)
   - [Node hygiene — clean up after yourself (a rule)](#node-hygiene--clean-up-after-yourself-a-rule)
 - [Code Conventions & Common Patterns](#code-conventions--common-patterns)
+  - [Documentation zones (a rule)](#documentation-zones-a-rule)
   - [Recipes](#recipes)
   - [Published artifacts must be public (a rule)](#published-artifacts-must-be-public-a-rule)
   - [Recipe comments](#recipe-comments)
@@ -33,7 +34,7 @@ the working tree can carry in-flight drafts that git does not, so `ls recipes/*/
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 79 tracked files in 12 family dirs, tracked = on-disk as measured 2026-10-29) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 80 tracked files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -68,7 +69,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 79 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 80 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -109,8 +110,8 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs), their EXL3 patch/cache mods, and the 2026-10-26-retired vLLM b12x parity arm `zz-ds4-1017-b12x-vllm-parity.yaml` (metrics in `attic/ds4/AGENTS.md`) in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 46 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
-| `tools/` | 30 stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue |
+| `tests/` | 51 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
+| `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `benchmarking/` | 35 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile, + the 2-profile `pooling-bench` ladder) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
@@ -188,11 +189,9 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   replay that cost two boots can no longer be reported as a measurement. Procedure: skill
   `falsify-before-claiming`.
 
-- **Plain `validate` is the gate, not `--strict`**: all 79 tracked recipes pass plain; 21/79 fail
-  strict on accepted findings (re-measured 2026-10-29; the 2026-10-22 table below lists the
-  then-18 files — the two added since are `recipes/ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml`
-  and `recipes/media/kromoss-mossimage-5b-bf16-diffusers-script.yaml`).
-  Seventeen carry `unpinned-model-revision` —
+- **Plain `validate` is the gate, not `--strict`**: all 80 tracked recipes pass plain; 20/80 fail
+  strict on accepted findings (re-measured 2026-10-31; the table below is the full roster).
+  Nineteen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 
   | Recipe | Findings |
@@ -202,10 +201,12 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   | `decision/laya-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
   | `media/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
   | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
+  | `media/kromoss-mossimage-5b-bf16-diffusers-script.yaml` | `unpinned-model-revision`, `restated-managed-path` |
   | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
   | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
   | `ornith/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | `unpinned-model-revision` |
@@ -443,6 +444,35 @@ a question that has since settled. A question never stays buried in a lane READM
 body — it either lands as a row in `QUESTIONS.md` or it does not exist. A row the owner answered keeps its
 answer, so the question is not re-opened.
 
+### Documentation zones (a rule)
+
+The tree's documentation is three zones with different obligations, and the zone is decided by path,
+not by intent:
+
+| zone | paths | obligation |
+|---|---|---|
+| **live** | `recipes/`, `mods/`, `tools/`, `benchmarking/`, `tuning/`, `plugins/`, `.omp/`, and the root files | describes the tree as it is now |
+| **frozen** | `attic/` | provenance, frozen at its date; never updated to match a later tree, never pruned for being out of date |
+| **ledger** | `mad-science/` | working notes and receipts; append then retire, and never the source of a *current* fact |
+
+Journal/work docs (`*JOURNAL.md`, `*-WORK.md`, `.local/`) are git-ignored and outside all three.
+
+Rules that follow:
+
+- **A global count is derived, never remembered.** `tools/doc-census.py` counts the four facts that are
+  exactly derivable — tracked recipes, test modules, benchmark profiles, `SKILL.md` dirs — and
+  `tests/test_doc_hygiene.py` fails when `AGENTS.md` or `README.md` states one the tracked tree
+  contradicts. Fix a stale number with `python3 tools/doc-census.py --fix`, not by hand. A count that
+  needs a run to know (the suite's test total, `validate --strict` passes) is a dated snapshot and is
+  deliberately not checked.
+- **A second restatement is a drift bug.** Link the doc that owns the fact instead. Lane-scoped counts
+  ("15/15 pass") are a different claim and are not checked.
+- **A dated snapshot belongs in the ledger or `attic/`.** Updating a live doc with a past measurement
+  makes it read as current.
+- **Pruning is a decision with evidence, not a tidy-up.** `python3 tools/doc-census.py` prints the
+  per-zone census (files, lines, largest docs) so "how much is there?" costs one command; a doc leaves
+  the tree when its content is archived or contradicted, and `attic/` is where archived content goes.
+
 ### Recipes
 
 - **Name = filename minus `.yaml`; a `name:` key is banned.** The v1 topology keys are deprecated:
@@ -648,10 +678,9 @@ matching.
 - **Python ≥ 3.12 via `uv`** (local venv is 3.14.7, uv 0.12.23). Run Python as
   `uv run python -B ...`. Only runtime deps are `jinja2` and `netifaces` (the latter sdist-only).
 - **`sparkrun` 0.4.3** is the installed build (upgraded 2026-10-29; the validate gate was
-  re-measured under it — 79/79 recipes pass plain, the same 20 fail strict, so no findings moved),
-  on PATH outside uv (`uv tool install sparkrun` if missing); all invocations require the
-  `HOME="$PWD/.local/sparkrun-home"` override. Boot and benchmark receipts here were measured on
-  0.4.2-alpha+g36d8a44. Schema citations in
+  re-measured under it and no finding moved), on PATH outside uv (`uv tool install sparkrun` if
+  missing); all invocations require the `HOME="$PWD/.local/sparkrun-home"` override. Boot and
+  benchmark receipts here were measured on 0.4.2-alpha+g36d8a44. Schema citations in
   [`recipes/MECHANICS.md`](recipes/MECHANICS.md) are line numbers in that installed package,
   re-derived for 0.4.2 on 2026-10-21 — the 0.4.3 upgrade can move them, so re-grep before trusting a
   cite; a cite outside that list still carries 0.4.0-alpha+g29f53fb numbering until it is re-derived.
@@ -722,8 +751,8 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1047 tests,
-  all passing 2026-10-29 (2 skipped:** the IFM research docs absent on a
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1172 tests,
+  all passing 2026-10-31 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is

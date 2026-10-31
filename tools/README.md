@@ -5,7 +5,7 @@ cannot reach, plus the DeepSeek-V4.1 artifact builders and the one shared module
 (`synthetic_png.py`) that the measurement tools import. `safe_text.py` is the safety filter
 that has to run *before* anything else here reads a log or a chat template.
 
-Every tool here serves a live recipe lane; nothing in this directory is archival —
+Every tool here serves a live recipe lane or the tree's own documentation; nothing in this directory is archival —
 retired-lane instruments are archived with their lane (e.g. `attic/ifm/k2_36b_arith.py`).
 Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agentic-horizon-probe.py`, `horizon-analyze.py`) added 2026-10-15:
 
@@ -44,6 +44,7 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `bench-table-to-json.py` | any arm whose `sparkrun benchmark` printed a table and wrote no `--output` file (four on 2026-10-29) | transcribes llama-benchy's printed cells into `ladder.json`'s shape with a `source` field naming the log and stating the framework wrote nothing, so a receipt can carry machine-readable numbers whose provenance is checkable; `run-arm.sh` calls it when an expected output is missing. Guarded by `tests/test_bench_table_to_json.py` |
 | `py-runtime-bench.py` | any executor whose interpreter we might change (the py314 experiment) | measures the **Python-side** serving work in isolation — pure loop, streaming-delta `json.dumps`, detokenize, request-body `json.loads`, asyncio scheduler — under whichever interpreter runs it, so an engine's gain can be bounded by what these pieces gain. Stdlib only; run it under each candidate with `--json`. Guarded by `tests/test_py_runtime_bench.py` |
 | `boot-watchdog.py` | every boot on the shared fleet (any lane) | the keep-alive-masks-dead-serve defect (`21e5ec6`): endpoint `/v1/models` + in-container serve-pid liveness + `/proc/<pid>/io` deltas separate *loading* from *dead*, so no session sits on a boot that will never be ready; 2 consecutive dead checks + `--grace` before `sparkrun stop <literal id>`, evidence log, exit 3 = dead+killed / 0 = healthy; guarded by `tests/test_boot_watchdog.py` |
+| `doc-census.py` | the documentation corpus itself — the live-zone entry points that state global counts | derives the four exactly-derivable counts (tracked recipes, test modules, benchmark profiles, `SKILL.md` dirs) and fails `--check` when `AGENTS.md` or `README.md` disagrees with the tracked tree; `--fix` rewrites the digits; prints the per-zone census (files, lines, largest docs); guarded by `tests/test_doc_hygiene.py`; the zone policy is `AGENTS.md` §"Documentation zones" |
 
 ## Contents
 
