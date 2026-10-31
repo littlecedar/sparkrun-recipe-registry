@@ -472,6 +472,10 @@ Rules that follow:
 - **Pruning is a decision with evidence, not a tidy-up.** `python3 tools/doc-census.py` prints the
   per-zone census (files, lines, largest docs) so "how much is there?" costs one command; a doc leaves
   the tree when its content is archived or contradicted, and `attic/` is where archived content goes.
+  A doc that nothing *names* is not therefore dead: `.omp/skills/*/SKILL.md` is discovered by its
+  directory name and a mod `README.md` is read by adjacency to its `run.sh`, so a path-reference count
+  reports both sets as unreachable (measured 2026-10-31: 19 skills and every mod README) and is never
+  a pruning reason on its own.
 
 ### Recipes
 
