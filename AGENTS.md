@@ -474,8 +474,7 @@ Rules that follow:
   the tree when its content is archived or contradicted, and `attic/` is where archived content goes.
   A doc that nothing *names* is not therefore dead: `.omp/skills/*/SKILL.md` is discovered by its
   directory name and a mod `README.md` is read by adjacency to its `run.sh`, so a path-reference count
-  reports both sets as unreachable (measured 2026-10-31: 19 skills and every mod README) and is never
-  a pruning reason on its own.
+  reports both sets as unreachable (measured 2026-10-31) and is never a pruning reason on its own.
 
 ### Recipes
 
