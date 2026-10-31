@@ -2168,15 +2168,15 @@ measured receipt arms, 5 unmeasured.
 ## Landed rows retired at the 2026-10-31 03:00 ET board refresh (session boundary)
 
 The board carried **121 rows** in `Landed this session` at its 02:00 ET generation (`bb590b5`), accumulated
-without a boundary since the 2026-10-29 03:10 ET clear. Every session that wrote them had closed before this
-tick: the interactive documentation session opened 2026-10-29 03:03 ET (`6867d1b`) last wrote at 01:18 ET and
-no peer session was live at 03:00 ET (the tick itself is a one-shot `omp -p --no-session`). Skill rule 9 applies,
-so the table is retired here verbatim and the new tick opens its own empty boundary.
+without a boundary since the 2026-10-29 03:10 ET clear. No single session can own that span: the rows run from
+2026-10-29 03:03 ET to 2026-10-31 01:05 ET, while the only peer session still resident (pid 1575174, opened
+2026-10-30 12:52 ET) last wrote 01:18 ET and the tick itself runs `omp -p --no-session`. Keeping the table would
+leave the contract's "current session only" unsatisfiable for every writer, so it is retired here instead.
 
-**Preservation audit, run before the deletion:** every backticked SHA in the table was checked against this file
-and **81 of 86 were absent** — the sections above narrate the same work (the TP12 campaign, the node sweep, the
-skip-set correction) but rarely carry the SHA. Rows are unedited, in board order; measurement rows without a SHA
-are included on the same footing.
+Its preservation was audited before the deletion: every backticked SHA was checked against this file and
+**81 of 86 were absent** — the sections above narrate the same work (the TP12 campaign, the node sweep, the
+skip-set correction) but rarely carry the SHA. Rows are unedited, in board order, so a few clauses do restate a
+narrative that already has a home above; the per-commit mapping does not.
 
 | 03:03 ET | `6867d1b` | "Consolidate documentation: contents blocks, dedupe, stale facts" — this session's archive sweep: nine completed items copied verbatim into `attic/DONE.md` under a new `# 2026-10-29 sweep` (the seven 2026-10-25 unparked retry-queue items, window-4's Beam cells (b)–(d), the OrcaCyber 15.7G ship), the unparked queue section reduced to the archive stub, `QUESTIONS.md` `#18` settled into `TODO.md` §"Settled questions", and five broken relative links repaired (`TODO.md` 3445→3310, `attic/DONE.md` 1206→1382, `QUESTIONS.md` 20→19 lines); line-set check over the original reads 0 unaccounted except the five repaired link lines. One continuity line added to `TODO.md` §Retry queue window 4 at 03:09 ET sits in the working tree, after that commit |
 | 03:15 ET | working tree | board refresh — cleared the `Landed this session` table per the session-boundary rule (the prior session's sixteen rows are retired verbatim in `SESSION-RECORD.md` §"Landed rows retired at the 2026-10-29 03:10 ET board refresh", verified there against `git show 07cecb7:mad-science/STATUS.md`), dropped the `h3-quartet-retry` row because `TODO.md` archived that item today as a terminal negative (`attic/DONE.md` §`# 2026-10-29 sweep`: second deadlock repro, filed sgl-project/sglang#46390), and kept the 03:10 ET census and the manifest re-derivation unchanged |
