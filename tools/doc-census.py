@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
                     return m.group(0)[:start] + str(facts[key]) + m.group(0)[end:]
                 text = re.sub(pattern, repl, text)
             path.write_text(text)
-        print(f"doc-census: rewrote {len(stale)} stale count(s) in {', '.join(ROSTER)}")
+        print(f"doc-census: rewrote {len(stale)} stale count(s)")
         stale = []
 
     if args.json:
