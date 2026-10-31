@@ -2299,3 +2299,27 @@ narrative that already has a home above; the per-commit mapping does not.
 | 00:35 ET | `f68e47a` | "Let the census gate catch its own first drift" — adding `tests/test_doc_hygiene.py` moved the derived test-module count 51 → 52 while `AGENTS.md` still said 51, and `--check` failed on the very next run: the gate's first real catch was the commit that introduced it, which is the proof it bites. `--fix` rewrote the row, and the fixer no longer claims to have edited both roster files — it now names what actually changed, the same restatement-the-constant defect the tool exists to kill. Verified at the time: `doc-census.py --check` exit 0, suite **1172 tests OK (2 skipped)** |
 | 00:43 ET | `58a23d1` | "Drop a second restatement of the skill count" — `a5b81cf` had written the 19-skill literal into the pruning rule, the same fact the Key Directories row states and `doc-census.py --fix` keeps current, so the next skill added would have left that line stale while the gate stayed green; the checked sentence keeps its date and drops the literal. `tests.test_doc_hygiene` 6 tests OK, `doc-census.py --check` exit 0 |
 | 01:05 ET | `0f03b9d` | "Refresh status board 01:00 ET: census unchanged, four doc-gate rows landed" — the 01:00 tick's own publish (census, quartet probe, and the four documentation-gate rows `20207e2`/`a5b81cf`/`f68e47a`/`58a23d1`); `gate` **success** on GitHub at this SHA (`gh run list`, run created 2026-10-31T05:10:03Z). Recorded here because the tick appended it to the board without a row of its own |
+
+## Tick ledger, 2026-10-31 03:09–11:05 ET (gap closed at the 12:00 ET tick)
+
+Every refresh between the 02:00 publish (`bb590b5`) and the 11:00 one left its own commit in the git
+ledger with no row here: two session-boundary corrections, three board-prose corrections, and eight
+refreshes. The board's `Landed this session` table is state and was replaced by later cycles, so this
+section is the only per-commit record. Appended at the 12:00 ET tick, one row per commit, from
+`git log` bodies rather than recollection.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 03:09 ET | `fe07176` | "Refresh status board 03:00 ET and open a session boundary, retiring 121 rows" — the `Landed this session` table had not been cleared since the 2026-10-29 03:10 ET boundary, so it carried 121 rows no live session could claim; they are retired verbatim in §"Landed rows retired at the 2026-10-31 03:00 ET board refresh" above, after a substring check found **81 of the table's 86 backticked SHAs absent from this file**. The 03:00 census was bit-identical to the 02:00 read, the quartet probed on all four ranks (pids 280/306/301/301, rank-0 `/v1/models` 200), the planning blocker re-derived through `candidates()` so the alias table applies (45 measured receipt arms, 5 unmeasured of 42, all TP=2), queue 21 open, `task-queue.py check` green. Author's verification: 1172 tests OK (2 skipped) |
+| 03:15 ET | `2cdb4b3` | "Correct what the retirement section can claim about session liveness" — the section said the 2026-10-29 session last wrote at 01:18 ET and that no peer was live; both halves were wrong (that transcript belongs to the session opened 2026-10-30 12:52 ET, pid 1575174, still resident and idle). It now claims only what was verified and states why the clear stood regardless: the rows span 2026-10-29 03:03 to 2026-10-31 01:05 ET, so no live session could own them |
+| 04:05 ET | `994dbbd` | "Refresh status board 04:00 ET: fourteenth identical census, state cells aligned to queue" — a no-change tick whose only edit beyond the timestamps was aligning Work-queue state cells to `queue.json` (8 lines) |
+| 05:03 ET | `e64be14` | "Refresh status board 05:00 ET: census and probe unchanged, nothing landed" — no-change tick; the free pair's idle cycle and the two dead drip pids were the only live facts |
+| 06:02 ET | `762ff76` | "Refresh status board 06:00 ET: census, probe and queue re-read unchanged" — no-change tick |
+| 06:05 ET | `f103d5a` | "Correct the census row's container count: four containers in total, all the shipped pin" — the row's per-node listing read as though more containers existed than the four production ranks it had just counted |
+| 07:01 ET | `4c864fe` | "Refresh status board 07:00 ET: census, probe and queue re-read unchanged" — no-change tick |
+| 08:02 ET | `3202d9e` | "Refresh status board 08:00 ET: census, probe and queue re-read unchanged" — no-change tick |
+| 08:07 ET | `ca6fd15` | "Drop the cross-cycle pid comparison from the board's serve row: state only" — the row compared this cycle's serve pids with the previous cycle's, which is history on a state board; it now states pids and health only |
+| 09:01 ET | `c7d8d3e` | "Refresh status board 09:00 ET: census, probe and queue re-read unchanged" — no-change tick |
+| 10:01 ET | `8b45940` | "Refresh status board 10:00 ET: census, probe and queue re-read unchanged" — no-change tick |
+| 11:02 ET | `63c5afc` | "Refresh status board 11:00 ET: census, probe and queue re-read unchanged" — no-change tick; the 11:00 census, the quartet probe and the `tp12` re-derivation (manifest 42 arms, 33 TP=1 / 9 TP=2; 5-arm persisted skip set) reproduced the prior cycle exactly |
+| 11:05 ET | `0cd51c2` | "Correct the census row's pid-probe provenance: check each drip pid on its own node" — the row reported both drip pids as `kill -0` → `ESRCH` without saying where each was probed; it now says each was checked on its own node, the only form that separates a dead pid from a pid that never existed on the host you asked |
