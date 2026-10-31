@@ -2302,7 +2302,7 @@ narrative that already has a home above; the per-commit mapping does not.
 
 ## Tick ledger, 2026-10-31 03:09–11:05 ET (gap closed at the 12:00 ET tick)
 
-Every refresh between the 02:00 publish (`bb590b5`) and the 11:00 one left its own commit in the git
+Every refresh after the 02:00 publish (`bb590b5`, which does have its own row) left its commit in the git
 ledger with no row here: two session-boundary corrections, three board-prose corrections, and eight
 refreshes. The board's `Landed this session` table is state and was replaced by later cycles, so this
 section is the only per-commit record. Appended at the 12:00 ET tick, one row per commit, from
