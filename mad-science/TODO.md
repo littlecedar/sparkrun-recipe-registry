@@ -1103,7 +1103,13 @@ IFM K2-Horizon
 *(all items completed — archived in `../attic/DONE.md`)*
 ## embed
 Any embed model
-*(all items completed — archived in `../attic/DONE.md`)*
+- [ ] **Add a `Qwen/Qwen3-Embedding-0.6B` text arm** — text-only, Apache-2.0, 28 layers, 1024-d,
+  32k context (card + `config.json` read 2026-11-02): the lane's cheap/fast tier next to the VL
+  pairs, single node on the pooling route — port `8010` and ladder via `sparkrun benchmark pooling`
+  with `benchmarking/pooling-ladder-embed.yaml` (a pooling engine has no `/chat/completions`, so
+  `benchmark performance` fails its first task). Owner request 2026-11-02, next mad-science session.
+  *(effort: small)*
+*(earlier items completed — archived in `../attic/DONE.md`)*
 
 ## rerank
 Any rerank model
