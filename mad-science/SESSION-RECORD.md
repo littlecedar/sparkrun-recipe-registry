@@ -2300,7 +2300,7 @@ narrative that already has a home above; the per-commit mapping does not.
 | 00:43 ET | `58a23d1` | "Drop a second restatement of the skill count" — `a5b81cf` had written the 19-skill literal into the pruning rule, the same fact the Key Directories row states and `doc-census.py --fix` keeps current, so the next skill added would have left that line stale while the gate stayed green; the checked sentence keeps its date and drops the literal. `tests.test_doc_hygiene` 6 tests OK, `doc-census.py --check` exit 0 |
 | 01:05 ET | `0f03b9d` | "Refresh status board 01:00 ET: census unchanged, four doc-gate rows landed" — the 01:00 tick's own publish (census, quartet probe, and the four documentation-gate rows `20207e2`/`a5b81cf`/`f68e47a`/`58a23d1`); `gate` **success** on GitHub at this SHA (`gh run list`, run created 2026-10-31T05:10:03Z). Recorded here because the tick appended it to the board without a row of its own |
 
-## Tick ledger, 2026-10-31 03:09–12:07 ET (gap closed at the 12:00 ET tick; tail folded at later ticks, most recently the 2026-11-02 05:00 ET one)
+## Tick ledger, 2026-10-31 03:09–12:07 ET (gap closed at the 12:00 ET tick; tail folded at later ticks, most recently the 2026-11-02 12:00 ET one)
 
 Every refresh after the 02:00 publish (`bb590b5`, which does have its own row) left its commit in the git
 ledger with no row here: two session-boundary corrections, three board-prose corrections, and eight
