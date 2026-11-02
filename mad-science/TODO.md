@@ -1104,10 +1104,14 @@ IFM K2-Horizon
 ## embed
 Any embed model
 - [ ] **Add a `Qwen/Qwen3-Embedding-0.6B` text arm** — text-only, Apache-2.0, 28 layers, 1024-d,
-  32k context (card + `config.json` read 2026-11-02): the lane's cheap/fast tier next to the VL
-  pairs, single node on the pooling route — port `8010` and ladder via `sparkrun benchmark pooling`
-  with `benchmarking/pooling-ladder-embed.yaml` (a pooling engine has no `/chat/completions`, so
-  `benchmark performance` fails its first task). Owner request 2026-11-02, next mad-science session.
+  32k context (card + `config.json` read 2026-11-02), single node. Four traps the tree already
+  documents: `tools/run-arm.sh:240` routes `*/embed/*` to `sparkrun benchmark pooling` with
+  `benchmarking/pooling-ladder-embed.yaml`, never `benchmark performance`; that profile's
+  `dimension_check: 4096` is the shipped 8B encoder's width, so this arm needs
+  `-b dimension_check=1024` and the runner's `*-2b-*` shorthand will not supply it; `:8010` is held
+  by `beegfs-mgmtd` on `.30` (`tools/run-arm.sh:58-61`), so boot it on another node or move the
+  port; and the new recipe joins `RECIPES` in `tests/test_qwen3_vl_embeddings.py` or that guard
+  covers only the four shipped arms. Owner request 2026-11-02, next mad-science session.
   *(effort: small)*
 *(earlier items completed — archived in `../attic/DONE.md`)*
 
