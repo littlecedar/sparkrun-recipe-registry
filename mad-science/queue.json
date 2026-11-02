@@ -374,9 +374,7 @@
       "id": "h2h-glm-needle-3rungs",
       "title": "Needle 3/3 at 32,768 / 131,072 / 983,040 on both GLM TP=4 arms (unmeasured)",
       "estimate_h": 3.0,
-      "blocks": [
-        "h2h-doc-refresh"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3",
@@ -390,9 +388,7 @@
       "id": "h2h-glm-tools-leg",
       "title": "tool-eval-bench on both GLM TP=4 arms (15 scenarios, same instrument as ds4 TEB 90)",
       "estimate_h": 2.0,
-      "blocks": [
-        "h2h-doc-refresh"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3",
@@ -422,9 +418,7 @@
       "id": "h2h-ds4-needle-131k-983k-rerun",
       "title": "ds4-1017 knapcio TP=4 needle at 131,072 and 983,040 with an adequate prefill timeout",
       "estimate_h": 2.5,
-      "blocks": [
-        "h2h-doc-refresh"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "dsv4.1-1017",
@@ -485,10 +479,7 @@
       "blocks": [],
       "blocked_by": [
         "h2h-beam-house-and-bfcl-category",
-        "h2h-ds4-needle-131k-983k-rerun",
         "h2h-glm-flash-house-recipe",
-        "h2h-glm-needle-3rungs",
-        "h2h-glm-tools-leg",
         "h2h-second-boot-ladder"
       ],
       "state": "queued",
