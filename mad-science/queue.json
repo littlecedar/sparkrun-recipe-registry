@@ -819,6 +819,20 @@
       "provenance": "recipes/cybersec/README.md §'Leading mechanism'; mad-science/STATUS.md 12:00 ET TP=2 row; asked 2026-10-30",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "embed-qwen3-embedding-0.6b-text-arm",
+      "title": "Qwen3-Embedding-0.6B text arm for the embed lane (pooling route, ladder via pooling-ladder-embed)",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "node_cost": "single",
+      "notes": "Text-only Apache-2.0, 28 layers, 1024-d, 32k context (card + config.json read 2026-11-02): the cheap/fast text tier next to the shipped VL pairs. Pooling route on port 8010; ladder is sparkrun benchmark pooling with benchmarking/pooling-ladder-embed.yaml, since a pooling engine has no /chat/completions and benchmark performance fails its first task. Not booted, not measured.",
+      "provenance": "owner 2026-11-02 request; mad-science/TODO.md §embed (18e8f3f)",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
