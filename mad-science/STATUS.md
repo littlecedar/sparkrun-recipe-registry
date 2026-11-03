@@ -47,3 +47,4 @@
 | time ET | commit | one clause |
 |---|---|---|
 | — | — | session opened 13:02 ET; this tick held no landed row of its own, the fold for `258827d`, `4e3eda9` and `beba90f` lives in `mad-science/SESSION-RECORD.md`, and the previous session's rows are cleared from this table because all of them now have ledger rows |
+| 13:08 ET | — (measurement, no commit) | DFlash2 draft-token sweep ran to completion on `.30`, three legs rc=0 (12:22 / 12:43 / 13:08, `=== sweep complete 13:08:40`): ladder `tg128` aggregate c1 / c5 / c10 = **d4 38.36 / 54.35 / 51.12**, **d8 44.59 / 40.64 / 40.06**, **d15 31.04 / 27.95 / 26.83** t/s (read back from each leg's `ladder.csv`), house 29/30 on every leg — only the 4-token block keeps rising with concurrency. Verdict stays the holder's: the register row remains `running` with these cells in its notes |
