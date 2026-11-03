@@ -1457,6 +1457,99 @@ Any model with multimedia output, diarization, TTS, STT, or other multimedia cap
   fired. `needle whistle compare` is absent from this build's flag surface. The phonon item's full
   TTS-intelligibility cell (render → whistle → WER) is now unblocked.)*
 
+## 3d
+Any model that emits geometry — Three.js/WebGL scene code, a mesh, or parametric CAD
+- [ ] **Build the lane's first arm `ccore/Qwen3.5-4B-3D-Coder`** — independent Apache-2.0 fine-tune
+  of `Qwen/Qwen3.5-4B`, ungated early preview, **not an official Qwen release** (card + `config.json`
+  read 2026-11-02). Output is **one self-contained HTML file drawing the scene with Three.js from a
+  pinned cdnjs core ES module** — no mesh — so the arm is measured by a headless browser render, and
+  the card's system prompt (core module only, no addons, camera controls inline) is part of the arm,
+  not a suggestion. Routes: GGUF in-repo (`Q4_K_M` 2.7 GB, `Q8_0` 4.5 GB, plus
+  `mmproj-Qwen3.5-4B-BF16.gguf` 675,568,768 B for image input; the card's own line is llama.cpp
+  `b11889` with `--ctx-size 65536 --parallel 1`) and FP16 (four shards, 9,078,619,400 B; `qwen3_5`
+  hybrid 3:1 linear attention + mRoPE + a 24-layer vision tower, so the vLLM/SGLang build must carry
+  `qwen3_5` support matching Transformers 5.20.2 — do not assume a 0.5.x-era nightly has it). Traps:
+  sampling is fixed by the card (temp 0.6–0.8, top-p 0.90–0.95, top-k 20–40, rep 1.0) and a runtime
+  that enables **MTP by default must disable it**; the dominant failure mode is duplicate variable
+  names, which the render gate sees as `SyntaxError`/`ReferenceError`. Quality battery is free:
+  `ccore/ThreeJS-3D-Scenes` (MIT) ships 213 validation prompts with complete reference HTML/JS
+  replies and optional `previews` renders, so score (a) renders clean, (b) non-empty geometry,
+  (c) import constraint honoured. File it `zz-` until it clears that gate; no eval-only banner
+  needed (Apache-2.0 weights, MIT dataset). Owner request 2026-11-02. Lane doc:
+  `recipes/3d/README.md`. *(effort: small)*
+- [ ] **Survey models capable of 3D modelling — one recipe-exploration row per candidate** — no node
+  time; the deliverable is `3d-<slug>-arm` queue rows, not boots. Axes: (1) **text→scene code**
+  (Three.js/WebGL/WebGPU/GLSL emitters — Hub tags `threejs`, `webgpu`, `glsl`, `3d`, `procedural`);
+  (2) **text or image→mesh** (TRELLIS, Hunyuan3D, SPAR3D/TripoSR, PartCrafter classes — diffusers or
+  vLLM-OMNI route, `GLB` out); (3) **CAD/parametric code** (CAD-Coder / Text2CAD class — the reply is
+  a script). Exclude captured-scene reconstruction (NeRF/Gaussian splatting) and pixel-only
+  generators, which belong to `media/`. A row is filed only when all four gates pass: public weights
+  with a license that permits serving (non-commercial ⇒ eval-only banner, `QUESTIONS.md` `#11`); the
+  index `total_size` byte sum fits **one** Spark; a runtime this tree already exercises (llama.cpp,
+  SGLang, vLLM, or the media lane's Diffusers/vLLM-OMNI script pattern); and a **mechanical** quality
+  metric exists (a reference dataset, or headless render / `GLB` parse success) — no vibes column.
+  Seed families to verify against the Hub before filing, unverified here: TRELLIS-2, Hunyuan3D 3.x,
+  SPAR3D/TripoSR, PartCrafter, CAD-Coder. Record a rejected candidate and its failing gate in the
+  lane doc, so the sweep is not re-run. Owner request 2026-11-02. *(effort: small)*
+
+## liquidai
+Liquid AI LFM3 — hybrid `conv` + `sliding_attention` + `full_attention`, `transformers` custom code,
+1.7B–2.2B, and the `d1-*` system-one siblings
+- [ ] **`LiquidAI/LFM3-1.7B` text arm — the lane's first recipe** — `lfm3`, 1728.8M, 15 languages, 24
+  layers, hidden 2048, 16 heads / 4 KV, vocab 128,000, 262,144 context, sandwich norm, transformers
+  5.12.1 (config read 2026-11-02). Hybrid stack is **12 `conv` (7-slot cache) + 6 `sliding_attention`
+  (window 256) + 6 `full_attention`**, so `mem-fraction-static` × context under-counts the non-KV
+  state — measure the footprint, do not compute it — and `trust_remote_code` is mandatory (`auto_map`
+  → `configuration_lfm3.py`/`modeling_lfm3.py`). Routes: llama.cpp on `LiquidAI/LFM3-1.7B-GGUF`
+  (Q4_K_M 1,099,627,808 B … BF16 3,466,626,336 B, plus `leap/*.json` vendor LEAP quant metadata) —
+  verify the resident image's llama.cpp commit knows `lfm3`; and vLLM/SGLang on the bf16 repo, where
+  `lfm3` support is **unverified** (LFM2 was upstream in vLLM; LFM3 has not been checked). Cells are
+  the text-lane instrument (ladder + standard suite, one boot), never the audio or decision one.
+  Lane doc: `recipes/liquidai/README.md`. *(effort: small)*
+- [ ] **`LiquidAI/LFM3-1.7B-Base` control arm** — no chat template of its own (raw completion), and
+  the vendor GGUF mirror is the **instruct** arm's, so do not assume those GGUFs are base weights:
+  convert from bf16 or serve FP16. Exists only to give every fine-tune comparison in
+  `liquidai-finetune-toolkits` a baseline; keep it `zz-`. *(effort: small)*
+- [ ] **`LiquidAI/LFM3-VL-2B` vision arm** — `lfm3_vl`, 1918.2M, `AutoModelForImageTextToText`, mirror
+  `LiquidAI/LFM3-VL-2B-GGUF`. The 1.7B stack plus a vision tower: footprint measured (tower resident,
+  image tokens share context), and the text arm's ladder numbers do not transfer. Find the mirror's
+  exact `mmproj-*.gguf` rather than guessing; vLLM/SGLang `lfm3_vl` unverified. *(effort: small)*
+- [ ] **`LiquidAI/LFM3-Audio-2B` audio arm** — `lfm3_audio`, 2002.3M, `AutoModelForMultimodalLM`,
+  `any-to-any` (ASR + TTS), 18 languages, mirror `LiquidAI/LFM3-Audio-2B-GGUF`. Decide first whether
+  the engine exposes an audio content part at all, or the card's inference script is the only route —
+  that decides recipe-vs-script (the media lane's Diffusers split). Instrument is the **media** lane's:
+  WER on its TTS renders via `Cactus-Compute/whistle`, open TTS leaderboard as external reference,
+  silence-must-return-empty control. A llama-benchy `C1 t/s` here is a category error. *(effort:
+  medium)*
+- [ ] **`LiquidAI/LFM3-Omni-2B` omni arm** — `lfm3_omni`, 2166.9M, vision + speech in, 23 languages,
+  mirror `LiquidAI/LFM3-Omni-2B-GGUF`. Heaviest of the family: measure, never sum. **Two cells on one
+  boot** — vision (standard suite) and audio (media WER) — because one number measures half a model.
+  Sequence after the VL and Audio arms so both instruments exist. *(effort: medium)*
+- [ ] **`LiquidAI/d1-2B` system-one decision arm** — `lfm3_vl`, 1918.2M, class `AutoModel` (**not** a
+  causal LM), fine-tuned from `LFM3-VL-2B`. Prefill-only scorer: use `tools/jev-decision-bench.py` /
+  the decision lane's ladder and **never** llama-benchy, which finds no chat completion to drive.
+  First gate is semantic, not performance: what the head emits (label logits? typed decision object?)
+  and whether the served route needs a custom endpoint — the shipped decision arms use
+  `/v1/systemone`, so this may not be an OpenAI-chat server at all. *(effort: small)*
+- [ ] **`LiquidAI/d1-Omni-2B` decision arm with audio input** — `lfm3_omni`, 2166.9M, class
+  `AutoModel`, `audio-text-to-text`, fine-tuned from `LFM3-Omni-2B`. Same instrument as the `d1-2B`
+  arm plus a media-lane audio fixture to drive it; sequence after it so the endpoint question is
+  answered once. *(effort: small)*
+- [ ] **Survey fine-tuning toolkits for LFM3 → `recipes/liquidai/finetuning/`** — record each usable
+  toolkit in that directory's entry format. Four gates, all required: (1) loads the `auto_map`
+  custom-code class with `trust_remote_code=True` and trains LoRA/QLoRA without hand-patching
+  attention (the `conv` layers are where it breaks); (2) runs on GB10 — `bitsandbytes`/`flash-attn`/
+  torch-floor wheels are the usual killers, CPU-offload-only is a rejection; (3) 1.7B/2.2B bf16 full
+  FT + optimizer state fits one 128 GB node (if only QLoRA fits, record the measured figure);
+  (4) exports something servable — merged bf16, a `peft` adapter, or GGUF. Candidates first: Liquid's
+  own tooling (implied by `leap/*.json` in the GGUF mirrors), `transformers`+`peft`+`trl` as the
+  baseline, Unsloth, Axolotl, LLaMA-Factory, ms-swift, torchtune. No toolkit recorded from its README
+  — an entry without a receipt path is not an entry — and record rejects with their failing gate.
+  *(effort: medium)*
+  *(Ship posture for the whole lane is open: all seven repos are `license: other` = **LFM Open License
+  v1.0**, a license class this registry has not shipped — `QUESTIONS.md` `#56`. Internal evaluation
+  is not gated; shipping a serve default is. Neither lane doc nor row claims any of it is measured.)*
+
 ## explore
 Any model with reasoning and tool-calling capabilities
 - [ ] **Scope `prism-ml/Ternary-Bonsai-2-9B-gguf` as a 2.4 GB ternary vision-reasoner on one Spark** —
