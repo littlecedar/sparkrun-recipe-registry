@@ -448,16 +448,28 @@ weights**.
   −28.7 % / −25.9 % / −26.9 % — invariant in draft length — while n=3 is worst at every rung (c1
   −10 %), which matches the 2026-10-22 single-stream finding that longer drafts lose. n=1 (the recipe
   default and the vendor's recommended value) stays the setting.
-  **The dip is the model at concurrency, and the drafter neither causes nor amplifies it.** Measured
-  same-engine (2026-11-03, `.35`, `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46.yaml` — the
-  shipped arm with only its container moved to the MTP legs' digest): no drafter at all gives
-  **97.48 / 136.32 / 188.40 / 135.97** across c1/c2/c5/c10, a c5→c10 fall of **−27.8 %** against the
-  MTP legs' −28.7 %. So this supersedes the earlier reading of the 2026-10-22 plain pair (−10.7 %,
-  208.3 → 186.0): that difference was the **older `d854d98` build**, not the absence of a drafter —
-  a cross-engine comparison that the same-engine control has now falsified. MTP's actual worth on this
-  build is small and consistent: +1.2 / +1.4 / +5.4 / +4.1 % at c1/c2/c5/c10, with a *worse* house
-  battery (13 pass of 15 against the control's 12 — both poor). Explaining the dip is a model-level
-  question and belongs to a Mellum lane experiment, not to spec-decode.
+  **The dip is mostly SLOT STARVATION, and with valid slots the drafter does steepen it.** Three recipes
+  in this lane ship `parallel: 8`, so every c10 cell measured on them asks 10 streams of an 8-slot grant —
+  the confound this lane already discarded once (146.4 at 8 slots → 186.0 at ten). Same engine, same arm
+  pair, one hour apart, with the grant read back out of the serve log (`n_slots = 10`):
+
+  | arm | c1 | c2 | c5 | c10 | c5→c10 | slots |
+  |---|---|---|---|---|---|---|
+  | plain (no drafter) | 95.30 | 137.02 | 185.13 | **176.30** | **−4.8 %** | 10 |
+  | MTP n=1 | 106.90 | 143.61 | 194.85 | **169.85** | **−12.8 %** | 10 |
+  | plain, earlier run | 97.48 | 136.32 | 188.40 | 135.97 | −27.8 % | **8** |
+  | MTP n=1, earlier run | 98.65 | 138.22 | 198.64 | 141.59 | −28.7 % | **8** |
+
+  Two corrections, and the second undoes the first. The 8-slot cells showed ~−28 % for both arms, which I
+  read as the model dipping at concurrency; at ten real slots the plain arm falls only **−4.8 %**, so that
+  reading was an artefact of the grant. But at ten slots the **drafter's fall is 2.7x the plain arm's**
+  (−12.8 % against −4.8 %), so the amplification claim I had withdrawn is restored on valid cells. What the
+  drafter buys on this build: +12.2 % at c1, +4.8 % at c2, +5.2 % at c5 and **−3.7 % at c10** — worth
+  having at low concurrency, a loss at the top rung.
+
+  Owner decision the same session: **slots ≥ rung is the standard** (`mad-science/METHODOLOGY.md` §3), so
+  every ladder containing c10 serves with `parallel >= 10` and states the grant beside the cell; an earlier
+  c10 figure whose grant is unknown is treated as slot-limited, not as a concurrency cell.
   Repeatability datum from the same window: n=2 ran twice (17:21 and 17:33) and gave 97.53 vs 103.70
   at c1 — **5.9 % boot-to-boot at c1**, 2.9 % at c5 and 2.6 % at c10 — so single-stream cells on this
   arm carry several percent of noise and no ranking should rest on a <3 % difference at c1. Receipts

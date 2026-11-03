@@ -70,6 +70,18 @@ The columns **C1**, **C2**, **C5**, and **C10** are the throughput measured at 1
 
 **Aggregate, not per-stream.** A C10 cell reading 160.9 t/s means the system generated 160.9 tokens per second across all ten streams combined. The per-stream rate is roughly one-tenth of that. The published columns are aggregates. The per-stream figure is in `tg_req_throughput`. This distinction is the single most common misreading of the tables.
 
+**Slots must be at least the rung (owner decision 2026-11-03).** A ladder cell at concurrency *c* is a
+measurement of the server only if the server grants at least *c* slots; otherwise the surplus requests
+queue and the cell reports the slot limit. `llama.cpp` makes this easy to get wrong because `--parallel`
+defaults to a small number and three Mellum recipes ship `parallel: 8` — so their c10 cells are 10
+streams over 8 slots. Measured on one arm, same engine, one hour apart: **c10 135.97 t/s at 8 slots
+against 176.30 t/s at 10 slots (n_slots = 10 read out of the serve log)**, a 30 % difference that looks
+exactly like a model's concurrency behaviour. So any ladder that includes c10 serves with `parallel >= 10`,
+and the granted slot count is stated beside the cell. Cells measured before this rule that cannot show
+their grant are *slot-unknown*, and a c10 figure among them is not a concurrency cell. This is the same
+defect the explore lane already paid for once (`146.4` at 8 slots → `186.0` re-measured at ten), which is
+why it is a rule now rather than a note.
+
 **Concurrency does not clamp the server.** Offering c = 40 to a server whose pool grants 20 produces 20 running requests plus a queue. Capacity is judged from `#running-req` and `full token usage` in the server log, never from the profile's own concurrency field.
 
 ### Flavors of cell in the tables
