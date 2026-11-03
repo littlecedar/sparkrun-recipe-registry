@@ -448,10 +448,16 @@ weights**.
   −28.7 % / −25.9 % / −26.9 % — invariant in draft length — while n=3 is worst at every rung (c1
   −10 %), which matches the 2026-10-22 single-stream finding that longer drafts lose. n=1 (the recipe
   default and the vendor's recommended value) stays the setting.
-  **The dip itself is a model/engine property that the drafter amplifies**: the plain arm without MTP
-  dips −10.7 % (208.3 → 186.0, 2026-10-22) where every MTP setting dips ~−26 %, so it is not the
-  drafter's invention but the drafter does make it worse. Explaining the dip needs a plain-arm ladder
-  on a current engine, not another draft-length sweep.
+  **The dip is the model at concurrency, and the drafter neither causes nor amplifies it.** Measured
+  same-engine (2026-11-03, `.35`, `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46.yaml` — the
+  shipped arm with only its container moved to the MTP legs' digest): no drafter at all gives
+  **97.48 / 136.32 / 188.40 / 135.97** across c1/c2/c5/c10, a c5→c10 fall of **−27.8 %** against the
+  MTP legs' −28.7 %. So this supersedes the earlier reading of the 2026-10-22 plain pair (−10.7 %,
+  208.3 → 186.0): that difference was the **older `d854d98` build**, not the absence of a drafter —
+  a cross-engine comparison that the same-engine control has now falsified. MTP's actual worth on this
+  build is small and consistent: +1.2 / +1.4 / +5.4 / +4.1 % at c1/c2/c5/c10, with a *worse* house
+  battery (13 pass of 15 against the control's 12 — both poor). Explaining the dip is a model-level
+  question and belongs to a Mellum lane experiment, not to spec-decode.
   Repeatability datum from the same window: n=2 ran twice (17:21 and 17:33) and gave 97.53 vs 103.70
   at c1 — **5.9 % boot-to-boot at c1**, 2.9 % at c5 and 2.6 % at c10 — so single-stream cells on this
   arm carry several percent of noise and no ranking should rest on a <3 % difference at c1. Receipts

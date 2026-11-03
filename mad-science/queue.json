@@ -1066,13 +1066,14 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF",
       "node_cost": "single",
-      "notes": "OWNER DECISION 2026-11-03 ('measure it once'). The MTP family dips -26% from c5 to c10 at every draft length (n=1/2/3), and the plain arm without any drafter measured -10.7% (208.3 -> 186.0) on 2026-10-22 - but that pair came from engine d854d98 while today's MTP legs run a37cc46, so the comparison is cross-engine and cannot say whether the dip is the model at concurrency or the older build. Control: `recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46.yaml` - the shipped Q4_K_M arm with ONLY its container moved to the same digest the MTP legs used - full ladder on `.35`. Outcome that matters: if the dip reproduces (~-10% or worse) the shape is the model at concurrency and belongs in every Mellum number's caveat; if it vanishes, the 2026-10-22 plain pair was an artefact of the older build and the MTP comparison must be restated against today's control instead. Receipt `~/benchmarks/dip-20261103/` on the head.",
+      "notes": "OWNER DECISION 2026-11-03 ('measure it once'). The MTP family dips -26% from c5 to c10 at every draft length (n=1/2/3), and the plain arm without any drafter measured -10.7% (208.3 -> 186.0) on 2026-10-22 - but that pair came from engine d854d98 while today's MTP legs run a37cc46, so the comparison is cross-engine and cannot say whether the dip is the model at concurrency or the older build. Control: `recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46.yaml` - the shipped Q4_K_M arm with ONLY its container moved to the same digest the MTP legs used - full ladder on `.35`. Outcome that matters: if the dip reproduces (~-10% or worse) the shape is the model at concurrency and belongs in every Mellum number's caveat; if it vanishes, the 2026-10-22 plain pair was an artefact of the older build and the MTP comparison must be restated against today's control instead. Receipt `~/benchmarks/dip-20261103/` on the head.\n\nRESULT 2026-11-03: the dip is the MODEL at concurrency, and my earlier 'the drafter amplifies it' reading is REFUTED. Same-engine control (shipped arm, container moved to the MTP legs' digest, `.35`): no drafter gives 97.48 / 136.32 / 188.40 / 135.97 across c1/c2/c5/c10 = a c5->c10 fall of -27.8%, against the MTP legs' -28.7%. The 2026-10-22 plain pair (-10.7%, 208.3 -> 186.0) differed because of the older d854d98 BUILD, not because it lacked a drafter - a cross-engine comparison, exactly the hazard flagged when the claim was made. MTP's worth on this build is small and consistent (+1.2 / +1.4 / +5.4 / +4.1% at c1/c2/c5/c10) with a worse house battery (13 pass of 15, control 12 - both poor). Two traps paid for here: the control needed `executor_config: entrypoint: \"\"` that the scitrera-image arm does not (rc=5, 'launcher exited with no container'), and a first attempt failed for that reason before the recipe was fixed.",
       "provenance": "owner decision 2026-11-03; queue row ornith-122b-dflash2-draft-token-sweep (the n sweep); recipes/explore/README.md MTP section (the -10.7% pair and the -26% family)",
-      "claimed_by": "siv-session-20261103",
-      "claimed_at": ""
+      "claimed_by": "",
+      "claimed_at": "",
+      "evidence": "recipes/explore/README.md (MTP section, same-engine control); receipt ~/benchmarks/tp12-20261103/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46/"
     }
   ],
   "questions": []
