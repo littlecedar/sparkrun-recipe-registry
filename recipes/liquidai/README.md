@@ -67,4 +67,9 @@ open TTS leaderboard as the external reference; and the decision ladder for `d1-
 
 `finetuning/` is where the toolkit survey lands — one entry per toolkit that can actually train an
 `lfm3` custom-code, conv-hybrid stack on aarch64/Blackwell, with the blocker that decided it. See
-[`finetuning/README.md`](finetuning/README.md). No toolkit is recorded as usable yet.
+[`finetuning/README.md`](finetuning/README.md). Position as of 2026-11-03: the
+`transformers`+`peft`+`trl` reference path is **usable** and was measured on CPU; Axolotl 0.21.1 is a
+usable patch with `sample_packing: false`; five other candidates are rejected with their failing gate
+recorded. The binding constraint is not the conv layers — it is that `lfm3` ships outside
+`transformers` entirely and its custom code needs `transformers>=5.18.0` (5.15/5.16 load but fail on
+the first forward, 5.17.0 fails at config load).
