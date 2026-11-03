@@ -1,0 +1,102 @@
+recipe_version: "2"
+# DRAFT (2026-11-03): authored from the Hub survey in README.md §"122B quantisation and
+# finetune survey"; NEVER booted. Not in the root README index and not claimed to serve.
+#
+# EVAL-ONLY by house policy. `devsecllm/Ornith-1.5-122B-NVFP4-ablated` has its refusal
+# direction removed (24 of 113,047 tensors, rank-3 Heretic merge, refusal rate 97 % -> 4.44 %)
+# and is published for blue-team / detection-engineering work. Licence is MIT, unmodified
+# from the vendor NVFP4 checkpoint. It answers requests the base refuses, so it never gets
+# a promoted arm or untrusted users.
+model: devsecllm/Ornith-1.5-122B-NVFP4-ablated
+model_revision: e80d38d75f1d1222a1e7aca520316437827cc21e
+# Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT / EVAL-ONLY - the ablated 122B (`devsecllm/Ornith-1.5-122B-NVFP4-ablated`, a
+  weights-only derivative of `ornith-ai/Ornith-1.5-122B-NVFP4`: tokenizer, chat template and
+  config byte-identical, 24 tensors re-merged, index total 77,612,366,084 B unchanged) with the
+  published DFlash2 drafter. Geometry is the vendor export's, 48 x 3072, so the drafter's
+  `target_layer_ids: [1,7,14,20,26,32,39,45]` all exist and the width matches; the open
+  question is whether an abliteration that moves 1.7-2.1 % of the attention weight norm shifts
+  the hidden states enough to cost draft acceptance. The card requires
+  `moe_runner_backend: marlin` on SM121 and recommends top_k 20 on this hardware; both wired.
+  MIT, eval-only.
+metadata:
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/devsecllm/Ornith-1.5-122B-NVFP4-ablated
+  draft_model: incoai/Ornith-1.5-122B-DFlash2
+  model_params: "122B"
+  model_dtype: nvfp4
+  model_draft_dtype: bf16
+  kv_dtype: fp8_e4m3
+  license: mit
+  eval_only: "true"
+  tags: uncensored, cybersecurity, reasoning, agent, tools
+
+mods:
+  - "@eugr/mods/drop-caches"
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+pre_exec:
+  # SGLang resolves the draft through refs/main, and sparkrun's SHA-keyed fetch writes no
+  # refs entry, so the pin alone never boots (measured on the 35B dflash2 arm).
+  - >-
+    set -e; R=/cache/huggingface/hub/models--incoai--Ornith-1.5-122B-DFlash2;
+    S=$R/snapshots/{speculative_draft_model_revision};
+    test -d "$S" || { echo "draft snapshot missing: $S" >&2; exit 1; };
+    mkdir -p "$R/refs"; printf %s {speculative_draft_model_revision} > "$R/refs/main"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: devsecllm/Ornith-1.5-122B-NVFP4-ablated
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 32
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: marlin
+  mamba_radix_cache_strategy: extra_buffer
+  speculative_algorithm: DFLASH
+  speculative_draft_model: incoai/Ornith-1.5-122B-DFlash2
+  # Distribution-only: SGLang has no serve flag for the draft head, so this pin reaches
+  # distribution, not the serve line — paired with the pre_exec refs/main seed above.
+  speculative_draft_model_revision: 9baefc1bec85c08193ab442e0ca5f7057669b61d
+  # 4, not the card's 15: the lane measured this drafter at 15 draft tokens degrading C2-C10
+  # with a prefill collapse (35.2/29.1/27.4/25.8 t/s) and at 4 giving C1 37.7 / C10 48.9
+  # against a 28.95/48.97 no-drafter control. Receipt
+  # ~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md.
+  speculative_draft_tokens: 4
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --speculative-algorithm {speculative_algorithm}
+  --speculative-draft-model-path {speculative_draft_model}
+  --speculative-num-draft-tokens {speculative_draft_tokens}

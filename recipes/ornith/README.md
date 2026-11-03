@@ -47,6 +47,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 - [Engine bump to SGLang 0.5.21 (executed 2026-10-21 — all three arms validated)](#engine-bump-to-sglang-0521-executed-2026-10-21--all-three-arms-validated)
 - [Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)](#engine-bump-to-sglang-0522-executed-2026-10-22--all-three-arms-validated)
 - [The 122B one-node probe (measured, not shipped)](#the-122b-one-node-probe-measured-not-shipped)
+- [122B quantisations and finetunes — drafter compatibility survey (2026-11-03)](#122b-quantisations-and-finetunes--drafter-compatibility-survey-2026-11-03)
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
 - [References](#references)
@@ -768,3 +769,204 @@ control, ~19 % loss), and this arm's 15 is the same direction with a throughput 
 corroboration is the result. The open leg is the *matched-window* control: baseline and d4 in the
 same window, since the cross-table comparison above carries boot variance. Receipt:
 `~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md`.
+
+## 122B quantisations and finetunes — drafter compatibility survey (2026-11-03)
+
+Owner question (2026-10-30): which 122B quantisations and finetunes pair with the published
+drafter `incoai/Ornith-1.5-122B-DFlash2`, and is there an uncensored, abliterated or
+cybersecurity derivative that does? This section is the survey; it **boots nothing**. Every Hub
+figure was read **2026-11-03** from the repo's own `config.json`, its
+`model.safetensors.index.json` (`metadata.total_size`) or a GGUF header read over an HTTP range
+request; the machine-readable evidence — per-repo licence, geometry, byte totals, and a
+`weight_map` layer census — is `.scratch/ornith/hub-survey-20261103/` (`survey.json`,
+`gate-safetensors.json`, `gate-gguf.json`, `cards/`). Bytes are decimal GB.
+
+**Census.** The base repo's `base_model:*` tags plus a family name search return **67 derivative
+repos** for 122B (9 finetune-tagged, 47 quantized-tagged, the rest re-splits and draft heads), so
+the list below is complete as of that date, not a sample.
+
+### The gate the drafter imposes — hard reject, not "works worse"
+
+`incoai/Ornith-1.5-122B-DFlash2` `config.json` (read 2026-11-03):
+
+| field | value | consequence for a target |
+|---|---|---|
+| `hidden_size` | **3072** | the selector projects `len(target_layer_ids) × hidden_size` from the *draft's* width, so a target of another width dies on a shape mismatch at load |
+| `target_layer_ids` | **[1, 7, 14, 20, 26, 32, 39, 45]** | SGLang indexes the target's layers by these ids: `resolve_target_layer_ids` raises `ValueError("DFLASH target_layer_ids contains an out-of-range layer id")` for any id ≥ the target's layer count (`sglang/v0.5.22`, `python/sglang/srt/speculative/dflash_utils.py`) |
+| `num_target_layers` | 48 | the depth it was trained against |
+| `vocab_size` / `mask_token_id` | 248320 / 248077 | tokenizer and embedding table must be the family's |
+| `dflash_config.block_size` | 16 | 15 draft tokens at the card's setting; this lane serves 4 (measured) |
+
+**A finetune that changes depth or width cannot use the drafter at all.** The drafter's acceptance
+property is a function of the *target's* hidden states at those eight indices; there is no engine
+knob that remaps or pads them, and no fallback that keeps it lossless.
+
+**No such finetune exists in this family.** All 67 derivatives keep `qwen3_5_moe`,
+`text_config.hidden_size 3072`, `num_hidden_layers 48`, `vocab_size 248320`; every GGUF header
+reads `qwen35moe`, `embedding_length 3072`, `block_count 49` (48 language layers + 1 NextN) except
+the expert-pruned REAP50 file (`block_count 48`, no NextN). So the geometry gate rejects **nothing**
+in the family today — the reject path is proven in engine source, not exercised by a candidate.
+
+**Fit budget.** 128 GB unified per node, `gpu_memory_utilization: 0.80` → ~102 GB for weights plus
+KV; fp8 KV on this hybrid is 10,240 B/token (10 GiB per 1M tokens, `attn` layers only), so a
+≤ 90 GB checkpoint leaves ≥ 1.2M tokens of KV and a > 100 GB one does not fit at all.
+
+### Candidates SGLang / vLLM can load (safetensors)
+
+Every row reads `qwen3_5_moe` (`Qwen3_5MoeForConditionalGeneration`), `hidden_size` 3072,
+48 layers, vocab 248,320, and carries the `mtp` head; the "drafter" column is about *acceptance*,
+not geometry, unless it says otherwise. Every cell in the next three tables was read from the Hub
+**2026-11-03**; "bytes" is `metadata.total_size` (index), a `tree` size sum, or a GGUF file length.
+
+| candidate | repo id | quant / format | bytes (source) | arch · hidden / layers | drafter-compatible | fits one 128 GB node | license | verdict |
+|---|---|---|---|---|---:|---|---|---|
+| bf16 base | `ornith-ai/Ornith-1.5-122B` | bf16, 62 shards, **fused** expert tensors (`experts.gate_up_proj`) | 250.17 (index) | qwen3_5_moe · 3072 / 48 | geometry yes, unmeasured | **no** — needs TP=2 minimum | MIT | reject on fit: the drafter's own reference target, not a one-node arm |
+| vendor FP8 | `ornith-ai/Ornith-1.5-122B-FP8` | W8A8 fp8, token-dynamic activations | 132.94 (index) | qwen3_5_moe · 3072 / 48 | geometry yes, unmeasured | **no** — 133 GB > 128 GB unified | MIT | reject on fit: the card's own TP2 reference pairing is this one, so it stays a 2-node question |
+| vendor NVFP4 | `ornith-ai/Ornith-1.5-122B-NVFP4` | modelopt mixed: FP8 attention / linear-attn, NVFP4 experts | 77.61 (index) | qwen3_5_moe · 3072 / 48 | **measured**: C1 37.7 t/s, accept > 1 (d4) | yes — ~24.8 GB KV | MIT | **baseline**, already in the lane |
+| cyankiwi | `cyankiwi/Ornith-1.5-122B-AWQ-INT4` | compressed-tensors **int4, group 32, asymmetric**; attention / linear-attn / shared expert / `lm_head` in `ignore`, experts quantized | 85.29 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; acceptance is the open question | yes — ~17.1 GB KV | MIT | **boot arm 3** — the quant-family control |
+| dealignai uncensored | `dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` | modelopt NVFP4, refusal direction projected out, **bundles the upstream drafter** under `dflash2/` (1.86 GB) | 75.65 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; vendor's own vLLM check ran at ~37.8 t/s, not a speedup claim | yes — ~26.7 GB KV | MIT | **boot arm 1** — answers both halves of the question |
+| devsecllm ablated | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` | vendor NVFP4 with 24 of 113,047 tensors re-merged (rank-3 Heretic merge); config / tokenizer / template byte-identical | 77.61 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; ablation moves 1.7–2.1 % of the attention weight norm, acceptance unmeasured | yes — ~24.8 GB KV | MIT | **boot arm 2** — the cybersecurity one |
+| Sherlock-Comms | `Sherlock-Comms/Ornith-1.5-122B-NVFP4-DFlash2-RTX-Spark` | vendor NVFP4 with `lm_head` **dequantized to bf16** (nothing else changed) | 78.71 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; the bf16 head fixes the **vLLM** drafter gate, which SGLang does not have | yes — ~23.7 GB KV | MIT | ranked 4, not drafted: SGLang already boots the quantized head, so it cannot answer a question the baseline has not |
+| halt95 Merlin | `halt95/Ornith-1.5-122B-A10B-W4A16-Merlin` | int4 experts (g128) in 48 per-layer files + partial shards + `kv_scales`, custom loader | 71.28 (index) | qwen3_5_moe · 3072 / 48 | geometry yes | yes | MIT (+ bundled Qwen notice) | **reject** — served by the Merlin engine, a vLLM 0.32 fork with sm_86 profiles; no stock SGLang or vLLM loader |
+| dealignai `ABLITERATED-NVFP4`, `ABLITERATED-GGUF` | `dealignai/Ornith-1.5-122B-ABLITERATED-*` | README + `.gitattributes` only, **no weights** | 0 | n/a | n/a | n/a | MIT | **reject** — empty repos (alternate listings of the UNCENSORED pair) |
+
+### Candidates for the GGUF route (llama.cpp)
+
+GGUF targets are the one place the drafter's own card warns about a **degraded** pairing, and the
+warning applies to every row here (next subsection). Header reads: `qwen35moe`,
+`embedding_length 3072`, `block_count 49` = 48 language layers + 1 NextN, `qwen35moe.nextn_predict_layers 1`.
+
+| candidate | repo id | quants (GB) | arch · hidden / layers | drafter-compatible | fits one 128 GB node | license | verdict |
+|---|---|---|---|---|---|---|---|
+| official | `ornith-ai/Ornith-1.5-122B-GGUF` | BF16 249.36 · Q8_0 132.56 · Q6_K 102.38 · Q5_K_M 88.71 · **Q4_K_M 75.84** (+mmproj 0.91) | qwen35moe · 3072 / 49 | geometry yes — **mask gate** | Q4_K_M and Q5_K_M yes; Q6_K/Q8_0 no | MIT | viable GGUF, **no arm drafted**: the mask row is store-zeroed and no engine we run can substitute it |
+| unsloth (dynamic) | `unsloth/Ornith-1.5-122B-GGUF` | UD-IQ1_M 40.36 · UD-IQ2_XXS 41.97 · UD-Q2_K_XL 44.53 · UD-IQ3_XXS 49.52 · **UD-Q3_K_XL 59.76** · UD-Q4_K_XL 79.71 · UD-Q5_K_XL 94.61 · UD-Q6_K_XL 114.22 · Q8_0 132.56 | qwen35moe · 3072 / 49 | geometry yes — mask gate | ≤ UD-Q4_K_XL yes; UD-Q5_K_XL 94.61 leaves ~7 GB KV; UD-Q6_K_XL no | MIT | lane's existing GGUF family (`zz-…-ud-q3k-xl-llamacpp`); same gate |
+| mradermacher | `mradermacher/Ornith-1.5-122B-GGUF`, `…-i1-GGUF` | Q3_K_S 54.01 · Q3_K_M 59.81 · Q4_K_S 71.08 · Q4_K_M 75.84 · Q5_K_S 85.93 · Q5_K_M 88.71; i1-IQ3_M 54.88 · i1-IQ4_XS 66.80 · i1-Q4_K_M 75.84 | qwen35moe · 3072 / 49 | geometry yes — mask gate | yes ≤ Q5_K_S | MIT | viable |
+| bartowski | `bartowski/Ornith-1.5-122B-GGUF` | IQ3_M 67.64 · IQ4_XS 70.21 · **Q4_K_M 78.93** · Q5_K_M 94.94 · Q6_K 109.30 · Q8_0 132.56 | qwen35moe · 3072 / 49 | geometry yes — mask gate | ≤ Q4_K_M yes; Q5_K_M 94.94 leaves ~7 GB KV; Q6_K/Q8_0 no | MIT | viable |
+| AtomicChat (dynamic) | `AtomicChat/Ornith-1.5-122B-GGUF` | AD-IQ3_XXS 54.28 · **AD-IQ4_XS_S 71.22** · AD-Q5_K-Q4_K 78.46 · AD-Q6_K 104.47 · Q8_0 132.56 | qwen35moe · 3072 / 49 | geometry yes — mask gate | yes ≤ AD-Q5_K-Q4_K; AD-Q6_K 104.47 and Q8_0 do not fit | MIT | viable |
+| AtomicChat uncensored | `AtomicChat/Ornith-1.5-122B-Uncensored-GGUF` | AD-IQ3_XXS 54.28 · **AD-IQ4_XS_S 71.22** | qwen35moe · 3072 / 49 | geometry yes — mask gate; refusal direction projected out in all 48 blocks, MTP head untouched | yes | MIT | uncensored GGUF option; **eval-only by policy**, no arm drafted |
+| rax4901 | `rax4901/Ornith-1.5-122B-Uncensored-GGUF` | the same two builds re-split into 31 / 38 shards | qwen35moe · 3072 / 49 | as above | yes | MIT | **duplicate** of AtomicChat's uncensored pair (byte totals equal) — no separate row value |
+| dealignai uncensored | `dealignai/Ornith-1.5-122B-UNCENSORED-GGUF` | **IQ2_XXS 44.07** · Q4_K_M 79.37 · + ships `dflash2/Ornith-1.5-122B-DFlash2-Q8_0.gguf` 1.00 | qwen35moe · 3072 / 49 | geometry yes — **the only pairing with a published GB10 measurement**: 26.23 t/s with the drafter vs 26.27 without (parity), Q4_K_M failed their quality check | yes | MIT | **the GGUF reference point** — a real arm would reproduce a known tie, so none is drafted |
+| zephel01 | `zephel01/Ornith-1.5-122B-IQ3_XXS-16G64G-GGUF` | IQ3_XXS 51.71 (`token_embd` at IQ3_S by design) | qwen35moe · 3072 / 49 | geometry yes — mask gate | yes | MIT | viable |
+| tsaipifong | `tsaipifong/Ornith-1.5-122B-MXFP4-GGUF` | MXFP4 experts 70.77 (2 shards) | qwen35moe · 3072 / 49 | geometry yes — mask gate | yes | MIT | viable |
+| fajardc | `fajardc/Ornith-1.5-122B-GSQ-RCO-GGUF` | IQ3_S 53.38 with a rotation pre-pass | qwen35moe · 3072 / 49 | geometry yes — mask gate | yes | MIT | viable |
+| prithivMLmods | `prithivMLmods/Ornith-1.5-122B-NVFP4-GGUF`, `…-MXFP4-MoE-MTP-GGUF` | NVFP4-derived 80.92 (+mmproj 0.91) · MXFP4_MOE 69.67 | qwen35moe · 3072 / 49 | geometry yes — mask gate; NVFP4→GGUF is a second quantisation on top of the vendor one | yes | MIT | viable, weakest provenance of the set |
+| dongnhdev | `dongnhdev/Ornith-1.5-122B-MTP-GGUF` | IQ2-MTP 37.36, ships `mask_row_248077.f32` (12 KB) as a **reference fixture** | qwen35moe · 3072 / 49 | geometry yes — mask gate; the fixture is not an engine input | yes | Apache-2.0 | viable; the fixture names the row the mask gate is about |
+| anik-jha | `anik-jha/Ornith-1.5-122B-24GB-GGUF` | REAP50 UD-IQ2_XXS 21.42 | qwen35moe · 3072 / **48 layers, NextN removed** | geometry yes, but **half the experts pruned** — a different model | yes | MIT | not a drafter test: capability arm only, and its own card says MTP is gone |
+| GGUF drafters | `kaivoss/Ornith-1.5-122B-DFlash2-GGUF` | DFlash2 draft 0.14–3.73 (Q4_K_M 0.55 is the card's default) | `dflash` arch, 6 layers | the draft itself | yes | Apache-2.0 | the llama.cpp-side drafter for any row above |
+| MTP heads (not targets) | `ToPo-ToPo/Ornith-1.5-122B-MTP-bf16` 5.05 (MLX), `SizorCloud/Ornith-1.5-122B-MTP` Q8_0 GGUF 2.69 | draft heads split out of the checkpoint | 6-layer MTP / `qwen3_5_mtp` | alternative spec-decode lever, not a DFlash2 target | yes | MIT / MIT | recorded, not candidates |
+
+### The mask-embedding override exists as an artifact, and no engine we run reads it
+
+The drafter loads the target's mask-token embedding (id 248077). Ornith stores that row at a scale
+around 1e-6, below what fp16 block scales hold, so **every GGUF build of the target stores it as
+zeros and draft acceptance roughly halves** (drafter card, read 2026-11-03). The card ships
+`mask_embedding.safetensors` (an exact bf16 copy of the row) in the drafter repo, "which an engine
+can read in its place". Neither engine this lane runs can, as of today:
+
+- **SGLang v0.5.22** merges only `mask_embedding.pt` — the filename is a literal in
+  `_maybe_merge_trained_mask_embedding` (`python/sglang/srt/speculative/dflash_worker_v2.py`), and
+  it also requires a `mask_token_id` field and a `per_position` flag the safetensors artifact does
+  not carry.
+- **llama.cpp at this lane's pin** (`a37cc4610`, the build every GGUF arm here uses) reads the mask
+  token's row from the **target's own token-embedding tensor** and has no mask-embedding input at
+  all: `llama_vocab_mask` resolves the id in `common/speculative.cpp`, and the graph takes
+  `model_other->tok_embd`. There is no `--mask-embd`-style flag in `common/arg.cpp`.
+
+So every GGUF row above carries the same caveat, and a GGUF DFlash2 arm is postponed rather than
+drafted: the one pairing with a published GB10 measurement (dealignai's IQ2_XXS) came out **at
+parity** (26.23 vs 26.27 t/s), which is what a halved acceptance looks like, and the row that would
+benefit — a 4-bit-or-better target — cannot get the row substituted on either engine. The engine
+work that would unlock it is a `mask_embedding.safetensors` reader (`.pt`→safetensors in SGLang, a
+new input in llama.cpp); until then the honest GGUF answer to the owner's question is "the drafter
+runs, and buys nothing".
+
+### Container- and engine-specific exports, rejected on format
+
+Geometry is fine in every case (3072 / 48 as declared in the repo's `config.json`); the format is
+what fails. None of these can be loaded by SGLang or vLLM on GB10 without a new engine.
+
+| family | repos (bytes, GB) | format | drafter-compatible | license | fits one node | verdict |
+|---|---|---|---|---|---|---|
+| radiance `.rad` (AMD RDNA4) | `keptn/ornith-1.5-122b-fp8` 126.70 · `…-fp8-dflash2` 124.88 · `…-w4a8` 69.37 · `…-w4a8-dflash2` 68.72 | single-file radiance container; the `-dflash2` pair even merges the drafter in as MXFP4, 15 draft tokens | only inside radiance | MIT (drafter Apache-2.0) | fp8 pair no; w4a8 pair yes | **reject** — engine-specific, needs 4 RDNA4 cards |
+| Infernix `.infernix` | `wallawalla47/Ornith-1.5-122B-NVFP4-Infernix` 75.33 · `…-UNCENSORED-NVFP4-Infernix` 75.87 | 3-part Infernix artifact carrying MTP + the DFlash2 drafter + a Q4 proposal head | only inside Infernix | MIT (drafter Apache-2.0) | yes | **reject** — engine-specific; its own card records `--spec dflash2` **losing 16 %** at two requests |
+| cortiq `.cmf` | `infosave/Ornith-1.5-122B-cmf` q2tp 48.10 · q4tp 67.90 · q8_2f 125.06 | cortiq container, one physical MTP block kept | no | MIT | q2tp/q4tp yes, q8_2f no | **reject** — engine-specific |
+| ExLlamaV3 | `Mia-AiLab/…-EXL3-EAQv1-4-bpw` 65.63 · `0xBakeer/…-EXL3-4.0` 64.73 · `vcruz305/…-EXL3-SAGE-2.58bpw` 45.17 · `davetha/…-EXL3-3bpw-mixed` 51.70 · `scorpoon/…-exl3-SC` 0 (empty) | EXL3 | no | MIT | all four non-empty yes | **reject** — no CUDA/SGLang path on this stack |
+| Apple MLX | `ornith-ai/Ornith-1.5-122B-MLX` 245.16 · `-MLX-8bit` 130.68 · `-MLX-4bit` 69.65 · `ToPo-ToPo/…-mlx-4bit` 72.70 · `…-mlx-8bit` 130.68 · `araysuter/…-MLX-mixed-2bit` 40.65 · `…-down3` 45.48 · `…-group32` 47.89 · `BobClawblaw/…-MLX-4bit` 69.64 · `Duckets/…-MLX-4bit` 69.64 · `ezoushen/…-mlx-4bit` 69.64 · `…-mlx-mixed-4.46bpw` 69.03 · `pgmharikrishnan/…-MLX-Serve-mixed-4-8bit` 71.79 · `hermitdave/…-MLX-Imatrix-Mixed-MTP` 47.40 · `…-MLX-Mixed2-3-8bit-MTP` 49.05 | MLX safetensors | no | MIT (hermitdave Apache-2.0) | 4-bit class yes, 8-bit/bf16 no | **reject** — Apple Silicon only |
+| JANG / oQ (MLX affine) | `OsaurusAI/…-JANGH2` 42.63 · `…-JANG_4M` 73.91 · `scottlowry/…-oQ4e-mtp` 72.97 · `…-oQ4e-fp16-mtp` 73.88 · `…-oQ5e-mtp` 87.94 · `…-oQ5e-fp16-mtp` 88.84 · `…-oQ6e-mtp` 103.04 · `…-oQ6e-fp16-mtp` 103.98 · `…-oQ8e-mtp` 133.29 · `…-oQ8e-fp16-mtp` 134.20 · `krisfremen/…-oQ2e` 43.35 | oMLX/JANG affine quantisation (`library_name: mlx`) | no | OsaurusAI MIT; **`scottlowry` and `krisfremen` declare no licence** | mixed: the ≤ 73.88 GB builds yes, oQ8e/oQ6e-fp16 no | **reject** — Apple side, and the no-licence repos could not be shipped even on a working format |
+| ROCmFPX | `Harsha001/Ornith-1.5-122B-ROCmFPX` 146.15 | ROCm FPX | no | MIT | no | **reject** — AMD |
+| not weights | `raahemnabeel/ornith-1.5-122b` 2.06 | 782 files of container image blobs (`image/blobs/sha256/…`) | n/a | MIT | n/a | **reject** — no checkpoint |
+
+### The security question: uncensored, abliterated, cybersecurity at 122B
+
+A full-family name sweep (`hf://models` search over 1008 `Ornith*` repos, 2026-11-03) with the
+refusal-removal vocabulary (abliterat, uncensor, heretic, obliterat, unfiltered, cyber, dealign,
+devsec) leaves **six** 122B repos — two of them the same weights re-split — and two empty alternate
+listings:
+
+| repo | what it is | pairs with the drafter? | how it was measured |
+|---|---|---|---|
+| `devsecllm/Ornith-1.5-122B-NVFP4-ablated` | rank-3 Heretic ablation of the vendor NVFP4 export, 24 tensors, `KL 0.0191`, refusal 97 % → 4.44 %; published **for blue-team / detection engineering** | yes — byte-identical layout to the vendor export, so the geometry gate passes by construction | its own card: HumanEval 93.3 (both), CyberBench 62.5 vs 61.3 base (McNemar p ≈ 0.28), NIAH 20/20 at 8k–196k |
+| `dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` | refusal direction projected out of all 48 blocks (weights abliteration, not a SFT), MMLU −1.69 pp, HarmBench 309/320 comply; **ships the upstream drafter** under `dflash2/` | yes — and it is the only security build whose card ran the drafter on GB10 (`vLLM 0.31.1rc1`, 7 draft tokens, 37.84 t/s end-to-end; explicitly **not** a speedup claim) | its own card, bounded 4-response integration check |
+| `dealignai/Ornith-1.5-122B-UNCENSORED-GGUF` | the same edit stacked as Q4_K_M / IQ2_XXS with the drafter as a GGUF under `dflash2/` | geometry yes, mask gate applies: IQ2_XXS tied the no-drafter baseline (26.23 vs 26.27 t/s), Q4_K_M failed their quality check | its own card |
+| `AtomicChat/Ornith-1.5-122B-Uncensored-GGUF` | refusal-direction projection in all 48 blocks, MMLU 83.65 → 83.90 (p = 0.72), expert-only AD layouts; `rax4901`'s repo is the same two builds re-split | geometry yes, mask gate applies | its own card (KL 0.0274 for the AD-IQ4_XS_S layout) |
+| `wallawalla47/Ornith-1.5-122B-UNCENSORED-NVFP4-Infernix` | the dealignai edit packed for Infernix | only inside Infernix | its own card; `--spec dflash2` lost 16 % at two requests |
+
+**There is no 122B cybersecurity *finetune*** — no SFT on security corpora, no `Cyber-`, no
+`OBLITERATED`, no `heretic` at this scale. That naming exists only on the 9B, 35B and 397B siblings
+(`Cyber-Ornith-1.5-9B-OBLITERATED`, `Huihui-Ornith-1.5-35B-A3B-abliterated`,
+`ressl/Ornith-1.5-397B-uncensored-*`), each of which needs its *own* drafter (9B DFlash, 35B
+DFlash2, 397B DFlash) and is out of scope here. At 122B the closest thing is
+`devsecllm`'s blue-team ablation, and it is an ablation of a quantisation, not a domain finetune.
+
+**Licence verdicts.** Every 122B candidate above is **MIT** (`devsecllm`, `dealignai` — whose
+bundled drafter is Apache-2.0, `AtomicChat`, `rax4901`, `wallawalla47`, `cyankiwi`, the official and
+community GGUF repos), except `dongnhdev/…-MTP-GGUF` (Apache-2.0) and the two oQ owner repos that
+declare **no** licence at all. **No non-commercial or otherwise restricted 122B licence exists in
+the census**, so no arm is eval-only *because of its licence*. The two uncensored arms below are
+eval-only by house policy instead — a refusal-removed model has to be deployed by whoever wrote the
+guardrails, and promoting it out of a registry would be handing that decision to someone who never
+read the card. Both carry the banner in `description:` and `metadata.eval_only`; the third arm
+(`cyankiwi`, untouched alignment) is a plain MIT arm with no banner.
+
+### Ranking and the three boot arms
+
+| rank | arm | recipe | why it ranks here | falsifier (declared before the boot) |
+|---|---|---|---|---|
+| 1 | `dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` + DFlash2 | `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | answers both halves of the question in one boot: the smallest fitting target in the set (75.65 GB) **and** the uncensored build; its `dflash2/` copy means the same arm can also be run with no second repo staged | serve-log mean acceptance ≤ 1.05, or C1 below the shipped NVFP4 arm's 37.7 t/s → the abliteration costs acceptance; re-run against the bundled draft copy to separate "draft path wrong" from "weights changed" |
+| 2 | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` + DFlash2 | `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | the only 122B build published for cybersecurity work, and the highest prior of acceptance in the set: the export is byte-identical to the vendor NVFP4 apart from 24 tensors (index total equal to the byte) | same acceptance gate; plus a house battery at `--max-tokens 4096` thinking-on — this family's uncensored replies run 2-3× longer, so a short `max_tokens` reads as a capability miss |
+| 3 | `cyankiwi/Ornith-1.5-122B-AWQ-INT4` + DFlash2 | `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | the quant-family control: every other arm here is modelopt NVFP4, so this is the only row that can answer whether the drafter tolerates a *different* 4-bit family (compressed-tensors int4 g32 asymmetric) at the same geometry | boot fails to resolve the mixed-precision layout on `qwen3_5_moe`/SM121, or acceptance < 1.5 → the pairing is quant-family-specific, and the "any 4-bit target works" reading is dead |
+
+Ranked 4 and **not** drafted: `Sherlock-Comms/…-NVFP4-DFlash2-RTX-Spark`. Its whole change is a bf16
+`lm_head`, which fixes the **vLLM** gate where the official NVFP4 head makes vLLM refuse the draft.
+SGLang already runs the quantized head (the shipped arm's 37.7 t/s), so this arm cannot answer a
+question the baseline leaves open — it becomes interesting only if a matched-window comparison
+shows the bf16 head lifting acceptance on SGLang too.
+
+Each arm is one SGLang boot on a free node plus a decode ladder; there is no needle or long-context
+leg registered for them, and the numbers they produce are single-window.
+
+```bash
+# one arm, one boot, one window; the gate is two numbers off the serve log and the ladder
+sparkrun benchmark performance recipes/ornith/<arm>.yaml -H .35 --fresh \
+  --profile benchmarking/decode-triage.yaml \
+  --output ~/benchmarks/ornith122b-survey-20261103/<arm>.json
+# acceptance: "Mean acceptance length" on the decode-batch lines (> 1 means engaged)
+# cross-check: C1 against the shipped NVFP4 arm's 37.7 t/s and its no-drafter control at 28.95
+```
+
+### Recipes added by this survey
+
+| recipe | target pin | drafter | bytes | status |
+|---|---|---|---|---|
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | `e6a1c178…` | `incoai/…-DFlash2` `9baefc1b…`, 4 draft tokens | 75.65 GB | DRAFT, never booted, **eval-only** |
+| `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | `e80d38d7…` | same | 77.61 GB | DRAFT, never booted, **eval-only** |
+| `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | `f37c82fd…` | same | 85.29 GB | DRAFT, never booted |
+
+All three copy the shipped `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` structure — same digest-pinned
+`lmsysorg/sglang:v0.5.22`, same `pre_exec` `refs/main` seed for the pinned draft, same
+`mamba_radix_cache_strategy: extra_buffer` — and set `speculative_draft_tokens: 4` rather than the
+card's 15, because this lane measured 15 degrading C2–C10 with a prefill collapse and 4 winning C1
+(`…-dflash2-sglang-d4` receipt). They are `zz-` drafts: not in the root README index, not claimed to
+serve, and `sparkrun recipe validate`-clean. The shipped 122B DFlash2 arm keeps its 15 until the
+registered matched-window control boot moves it — that knob should change with a measurement, not
+with this survey.
