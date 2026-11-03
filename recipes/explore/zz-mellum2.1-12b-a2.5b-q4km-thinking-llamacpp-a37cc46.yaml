@@ -1,0 +1,72 @@
+recipe_version: "2"
+model: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M
+model_revision: 20b439426f1e997ba575eaccaf4856ac0f76f5d5
+runtime: llama-cpp
+# Pin both: the scitrera tier retags `latest` per build (458 tags), so the tag
+# names the build inside (llama.cpp 0.1.2-dev, commit b2e5e9b, CUDA 13.1.1,
+# no rpc-server binary) and the digest names the bytes.
+# Deliberately the SAME engine digest the MTP sweep legs run, so the only variable against them
+# is the drafter. The shipped arm keeps its own scitrera pin.
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Same-engine control for the MTP draft-length sweep: the shipped Q4_K_M arm with
+  its container moved to `upstream-a37cc46-cu130`, so its ladder is comparable to
+  `zz-mellum2.1-...-mtp` on the same engine with the drafter as the only variable.
+  Answers whether the c5→c10 decode dip (−10.7 % measured 2026-10-22) is the model
+  at concurrency or an artefact of the older pinned build.
+  Mellum2.1-12B-A2.5B-Thinking on ONE DGX Spark through llama.cpp — the
+  registry's first llama-cpp arm. The card-recommended Q4_K_M GGUF
+  (8,071,295,264 B) of the 12B / 2.5B-active MoE coding model, 131,072 ctx,
+  served by llama-server from the checkpoint's own template (--jinja).
+  Thinking is ON by default (the template writes an empty think block only
+  for enable_thinking false) and is split into `reasoning_content`.
+  Apache-2.0.
+metadata:
+  model_url: https://huggingface.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "12B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: explore, reasoning, tools, fast
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF
+  # file, so the served id would be the cache path (-n hides this).
+  served_model_name: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF
+  ctx_size: 131072
+  parallel: 8
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+
+# Four literals, not defaults: a `defaults:` key in the llama.cpp flag map is
+# only consumed on the command-less path (`runtimes/llama_cpp.py::_build_command`),
+# so `jinja:` / `webui:` / `mmap:` here would be silent drops. Keep `none`:
+# `--no-mmap` asks the same and is deprecated, but its warning's "use
+# --load-mode mmap" hint is the *opposite* policy (common/arg.cpp:2671-2672).
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  --no-webui
+  --load-mode none
+  --cont-batching

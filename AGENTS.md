@@ -9,12 +9,13 @@ the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 Counts in this document are derived, not remembered: `python3 tools/doc-census.py` prints the tracked
 recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.py` fails when this
 file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. What only
-a run can know stays a *dated snapshot*: **2026-11-03 — 83/83 recipes pass plain `validate`, and
-20/83 fail `--strict` on the same accepted roster (both re-measured over every tracked file after
-four arms landed that day; the roster itself is unchanged, because none of the new arms fails
-strict); suite 1193 tests (2 skipped) the same day, re-taken once the sweep's tag-resolution guard
-landed its six tests**. The snapshot is one run over the tracked
-tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are added or retired. The working tree can carry in-flight drafts that git does not,
+a run can know stays a *dated snapshot*: **2026-11-03 — every tracked recipe passes plain
+`validate`, and the `--strict` findings are exactly the roster below (unchanged since 2026-10-31:
+no arm added since appears in it); suite 1193 tests (2 skipped) the same day**. The snapshot is one
+run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
+added or retired. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
+matched group, so a fraction silently becomes a false statement the moment a recipe lands. The
+working tree can carry in-flight drafts that git does not,
 so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
 ## Contents
@@ -73,7 +74,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 83 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 84 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -193,10 +194,10 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   replay that cost two boots can no longer be reported as a measurement. Procedure: skill
   `falsify-before-claiming`.
 
-- **Plain `validate` is the gate, not `--strict`**: all 83 tracked recipes pass plain; 20/83 fail
-  strict on accepted findings (both counts re-measured 2026-11-03 over all 83 tracked files; the
-  roster below is unchanged, and none of the four arms added that day appears in it; this table is
-  the full roster).
+- **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain, and the
+  `--strict` findings are exactly the roster below — re-measured 2026-11-03 over the whole tracked
+  tree, and none of the arms added that day appears in it. No denominator is written here for the
+  reason the snapshot paragraph gives: a fraction that scales with the tree goes stale silently.
   Nineteen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 

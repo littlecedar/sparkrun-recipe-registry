@@ -362,10 +362,10 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.",
+      "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -406,10 +406,10 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.",
+      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -436,10 +436,10 @@
         "h2h-doc-refresh"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "",
       "node_cost": "quartet",
-      "notes": "BIGGEST ROW in this set — its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.",
+      "notes": "BIGGEST ROW in this set — its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive",
       "claimed_by": "",
       "claimed_at": ""
@@ -510,10 +510,10 @@
       "estimate_h": 5.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg. | DEFERRED to the next window (owner ruling, survey round 3, 2026-10-26): after ds4-1017 completes the quartet goes to ornith-toolcall-ohmympi-triage; this 5 h search waits. Levers and measured problem above stand unchanged.",
+      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg. | DEFERRED to the next window (owner ruling, survey round 3, 2026-10-26): after ds4-1017 completes the quartet goes to ornith-toolcall-ohmympi-triage; this 5 h search waits. Levers and measured problem above stand unchanged.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.",
       "provenance": "owner 2026-10-26 directive; mad-science/TP4-HEAD-TO-HEAD-1025.md ladder row; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md",
       "claimed_by": "",
       "claimed_at": ""
@@ -1058,6 +1058,20 @@
       "notes": "Found while fixing the container class (2026-11-03): `tools/refresh-sweep.py` `classify_image_build_input` (from :679) still returns `build-input-floating` for a digest-less `FROM tag` WITHOUT asking any registry - the exact defect shape just removed from `classify_container`. `test_tag_only_from_is_floating` currently asserts that behaviour, so the fix re-pins that test rather than extending it. Same three-way outcome as the container path: tag exists -> floating (non-gating, record the digest in `observed`); 404 -> `build-input-unresolvable` (gating, exit 2); registry unreachable -> floating with 'tag existence unverified' so a network blip never pages. Reuse the container fix's helpers and its negative-control test idiom (mutated-source revert proving the pre-fix module passes the missing-tag fixture). Socket only: no Dockerfile is edited, and the sweep stays report-only.",
       "provenance": "queue row published-image-refs (the same defect, container family); tools/refresh-sweep.py classify_image_build_input :679; tests/test_refresh_sweep.py test_tag_only_from_is_floating",
       "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "mellum-plain-c10-dip",
+      "title": "Same-engine control: is the Mellum c5->c10 decode dip the model or the old build?",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "running",
+      "model": "JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF",
+      "node_cost": "single",
+      "notes": "OWNER DECISION 2026-11-03 ('measure it once'). The MTP family dips -26% from c5 to c10 at every draft length (n=1/2/3), and the plain arm without any drafter measured -10.7% (208.3 -> 186.0) on 2026-10-22 - but that pair came from engine d854d98 while today's MTP legs run a37cc46, so the comparison is cross-engine and cannot say whether the dip is the model at concurrency or the older build. Control: `recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-a37cc46.yaml` - the shipped Q4_K_M arm with ONLY its container moved to the same digest the MTP legs used - full ladder on `.35`. Outcome that matters: if the dip reproduces (~-10% or worse) the shape is the model at concurrency and belongs in every Mellum number's caveat; if it vanishes, the 2026-10-22 plain pair was an artefact of the older build and the MTP comparison must be restated against today's control instead. Receipt `~/benchmarks/dip-20261103/` on the head.",
+      "provenance": "owner decision 2026-11-03; queue row ornith-122b-dflash2-draft-token-sweep (the n sweep); recipes/explore/README.md MTP section (the -10.7% pair and the -26% family)",
+      "claimed_by": "siv-session-20261103",
       "claimed_at": ""
     }
   ],
