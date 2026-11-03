@@ -1033,13 +1033,5 @@
       "claimed_at": ""
     }
   ],
-  "questions": [
-    {
-      "id": 55,
-      "summary": "Reconcile the abliterated TP=2 arm's 10.6-13.7 t/s against its 67.02 t/s row: the variable is ENGRAM cache hit rate, not the storage tier - a 4 KiB engram block costs 1497.7 us cold and 0.5 us hot (n=200 on `.35`), while node-local staging was withdrawn once the cold/hot gap was measured. Owner directive: if there is no engram cache, add one, as production DeepSeek has (row engram-cache-hit-rate)",
-      "status": "open - reframed 2026-11-03: route B (node-local staging) is withdrawn; the variable is engram cache hit rate (cold 1.5 ms vs hot 0.5 us), and the owner directs that a missing cache be added, as production has one",
-      "provenance": "recipes/cybersec/README.md:303-319; queue rows engram-pool-latency-probe (RESULT + CORRECTION) and engram-cache-hit-rate",
-      "asked": "2026-10-30"
-    }
-  ]
+  "questions": []
 }

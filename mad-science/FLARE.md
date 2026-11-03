@@ -297,6 +297,8 @@ root-capable source on the ranks that must not be disturbed. **A yes should be r
 authorization, not as an answer to the four-node wording** — the row's scope needs that amendment when it
 closes.
 
+**Recorded 2026-11-03 — the scope amendment asked for above is now the ruling, and it is wider and narrower at once.** The owner authorized the install on *every* node, phased: `.30` and `.35` first, then the production ranks once the agent is proven harmless, via the vendor APT repository (`TODO.md` §"Settled questions" `#6`). What this document argued for survives as an ordering rule rather than a two-node ceiling: **the repository key travels with the agent.** `.30` and `.35` get the source and the package now; a production node acquires the root-capable key only when FLARE is extended to it, after that proof — so the fence this section was built around is never pre-empted by supply-chain convenience, and reasons 1 and 3 above still hold for as long as the agent is absent from a rank. Reason 2 (port 8000 against the production serve) remains an install-time check on every node that ever runs an Orbit launch, `.34` included.
+
 Pair by code on those two nodes, not `--accept-first`: the first controller to reach 29900 owns the node
 `[gb10:55-57]`. Keep the controller key on one host.
 
