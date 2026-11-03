@@ -506,6 +506,21 @@ push starts private — `AGENTS.md` §"Published artifacts must be public"). The
 recorded build in `attic/explore/AGENTS.md` §"engine bump" with `LLAMA_REF=d854d98bae…`, pushed as
 `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-d854d98`.
 
+- **Re-measured on the published pin (2026-11-03, `.35`, same recipe, no override).** The repin to
+  `upstream-a37cc46-cu130@sha256:ef2d4bc8…` changed the *engine commit*, so the `d854d98` cells above
+  are not carried forward and this is a new measurement, not a relabel. Decode `tg128`: **98.65 ± 6.50
+  (c1) / 138.22 ± 2.84 (c2) / 198.64 ± 10.08 (c5) / 141.59 ± 0.75 (c10)**; prefill `pp2048`:
+  **3458 / 3237 / 3134 / 2010** t/s. Effective streams (`aggregate / per-request`) are 1.93 / 4.23 /
+  4.25 at c2/c5/c10, so unlike the 122B DFlash2 case this drafter *does* batch — and it still falls
+  28 % from its own c5 peak at c10, which is the shape to explain before any of these numbers is
+  called a setting. House: **13 pass / 1 partial / 1 fail** of 15 (`TC-13` did not adapt after an empty
+  search response — `wrong_args`; `TC-14` recovered with `web_search` but did not acknowledge the
+  error), so this arm is not shippable on quality regardless of its decode. Receipt
+  `~/benchmarks/tp12-20261103/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp/` on the head.
+  Engine identity verified from the image, not the tag: `sha256:a28fde60…` carries RepoDigest
+  `…@sha256:ef2d4bc8…` with empty `RepoTags` (digest pulls store untagged) and was re-tagged
+  `upstream-a37cc46-cu130` immediately, because an untagged image is what a peer's prune deletes.
+
 ## [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml)
 
 vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node chat arm here**.
