@@ -17,8 +17,8 @@ dated decisions live in `TODO.md` §"Retry queue — window 4"):
 
 This document is that schema and protocol. The data is `mad-science/queue.json` (tracked, JSON,
 human-diffable); the tool is `tools/task-queue.py` (stdlib-only; `tools/README.md` §task-queue.py
-carries the command reference and exit codes). `TODO.md` remains the work record; the queue is the
-scheduler's view of the same work (§Relationship to TODO.md).
+carries the command reference and exit codes). Since **2026-11-03 the queue is the register** and
+`TODO.md` is a frozen archive (§Relationship to TODO.md); the board's work queue is rendered from it.
 
 ## Contents
 
@@ -118,9 +118,24 @@ still carrying claim fields. There are no silent defaults anywhere in the tool.
 
 ## Relationship to TODO.md
 
-`TODO.md` stays the work record: item text, owner decisions, receipts, and history live there and
-only there. `queue.json` is the scheduler's view — ids, estimates, and edges — and every queue row
-must cite its `TODO.md` (or lane-doc) section in `provenance`. `render` emits the markdown table
-pasted into `TODO.md`/`STATUS.md` when a section wants the live ordering; re-run it after every
-re-sort rather than editing the pasted table by hand. Work is added to both: the descriptive item
-in `TODO.md`, the schedulable row in `queue.json`, linked by the `provenance` pointer.
+`mad-science/TODO.md` is a **frozen archive since 2026-11-03**. It is not read by a board tick, a
+closeout or a planning round, because it is 3,400+ lines and ~93k tokens; the register is
+`queue.json`, and the queue's `notes`/`provenance` carry what a session needs. The archive retains
+item text, owner decisions, receipts and history as **evidence**, and its open items are
+grandfathered — `orphans` pins their count (`tests/test_task_queue_tool.py`
+`test_archive_does_not_grow`), so a new `- [ ]` line there is a defect, not a shortcut.
+
+Rules that follow:
+
+- **New work goes to the queue only**: `task-queue.py add` with an estimate, `node_cost`, `notes`
+  and `provenance`. There is no second copy of the item in `TODO.md`, because two restatements of
+  one fact drift (the same rule as `AGENTS.md` §"Documentation zones").
+- **A settled question or decision stays prose.** `QUESTIONS.md` keeps the unresolved rows,
+  `TODO.md` §"Settled questions" and `# DECISIONS` keep the answered ones — they are read by a human
+  chasing a citation, not by a tick, so they are correctly outside the JSON.
+- **The board is derived.** `task-queue.py render --board` emits the `## Work queue` table that
+  `STATUS.md` carries; a tick copies it instead of re-typing it, and `render` (no flag) still emits
+  the weighted ordering table for a human.
+- **Coverage is checkable.** `task-queue.py orphans --todo mad-science/TODO.md` reports open archive
+  items with no live queue marker, and markers that name an unknown id. It exits non-zero on either,
+  which is how the archive's freeze is enforced rather than remembered.

@@ -251,3 +251,68 @@ class AtomicSave(unittest.TestCase):
             path.chmod(0o640)
             tq._save(path, {"priority_models": []}, [task("a", 1.0)])
             self.assertEqual(path.stat().st_mode & 0o777, 0o640)
+
+
+class BoardAndArchive(unittest.TestCase):
+    """`render --board` and `orphans`: the queue is the register, TODO.md is the archive."""
+
+    def test_board_emits_the_status_columns(self):
+        payload = data([task("b", 1.0), task("a", 2.0, ["b"])])
+        rows = tq.board_rows(payload)
+        self.assertEqual(rows[0], "| job | node cost | holds | state |")
+        self.assertTrue(all(r.count("|") == 5 for r in rows), "four columns, as the board has")
+        body = "\n".join(rows[2:])
+        self.assertIn("`a`", body)
+        self.assertIn("`b`", body)
+        self.assertIn("queued", body)
+
+    def test_board_carries_notes_and_evidence(self):
+        t = task("a", 1.0)
+        t["notes"] = "why this arm exists"
+        t["evidence"] = "~/benchmarks/lane-20261103/REPORT.md"
+        body = "\n".join(tq.board_rows(data([t])))
+        self.assertIn("why this arm exists", body)
+        self.assertIn("evidence: `~/benchmarks/lane-20261103/REPORT.md`", body)
+
+    def test_evidence_must_be_a_string(self):
+        # Negative control: a non-string evidence is a data defect, never silently ignored.
+        payload = data([task("a", 1.0)])
+        payload["tasks"][0]["evidence"] = ["a", "list"]
+        with self.assertRaises(tq.QueueError):
+            tq.validate(payload)
+
+    def test_orphans_flags_an_unmarked_item(self):
+        text = "## lane\n- [ ] **Fix the thing** — detail\n"
+        orphans, dead = tq.todo_orphans(text, [task("a", 1.0)])
+        self.assertEqual([t for _line, t in orphans], ["Fix the thing"])
+        self.assertEqual(dead, [])
+
+    def test_orphans_accepts_a_live_marker_on_the_next_line(self):
+        text = "- [ ] **Fix the thing** — detail\n  <!-- queue: a -->\n"
+        orphans, dead = tq.todo_orphans(text, [task("a", 1.0)])
+        self.assertEqual((orphans, dead), ([], []))
+
+    def test_orphans_flags_a_dead_marker(self):
+        # A renamed task must not silently orphan the text its old marker covered.
+        text = "- [ ] **Fix the thing** <!-- queue: renamed-away -->\n"
+        orphans, dead = tq.todo_orphans(text, [task("a", 1.0)])
+        self.assertEqual(orphans, [])
+        self.assertEqual([ref for _line, _t, ref in dead], ["renamed-away"])
+
+    def test_archive_does_not_grow(self):
+        """TODO.md is frozen: its open-item count may not move without a queue row.
+
+        52 is the archive's open-item count at the 2026-11-03 freeze, when the register
+        became `mad-science/queue.json` and the board began rendering from it. The count
+        is pinned rather than matched item-by-item because the archive's text is evidence,
+        not schedule — importing it into JSON would be a second restatement of prose. A
+        genuinely new item goes to the queue; if one legitimately lands in the archive,
+        import it and bump this number in the same commit.
+        """
+        todo = REPO_ROOT / "mad-science" / "TODO.md"
+        payload = json.loads((REPO_ROOT / "mad-science" / "queue.json").read_text(encoding="utf-8"))
+        orphans, dead = tq.todo_orphans(todo.read_text(encoding="utf-8"), tq.validate(payload))
+        self.assertEqual(dead, [], "a marker naming an unknown task")
+        self.assertEqual(len(orphans), 52,
+                         "the archive grew (or shrank without a marker): " +
+                         "; ".join(t for _line, t in orphans[:5]))

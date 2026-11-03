@@ -1429,12 +1429,15 @@ Commands (`uv run python -B tools/task-queue.py <command>`; `--file` overrides t
 uv run python -B tools/task-queue.py queue        # the ordered queue: tier, weight, est, blocked sum
 uv run python -B tools/task-queue.py check        # validate only
 uv run python -B tools/task-queue.py weight --id X  # one task's arithmetic, line by line
-uv run python -B tools/task-queue.py render       # markdown table for pasting into TODO/STATUS
+uv run python -B tools/task-queue.py render       # weighted table, for a human
+uv run python -B tools/task-queue.py render --board  # the STATUS.md `## Work queue` table (derived)
+uv run python -B tools/task-queue.py orphans      # open TODO.md items with no live queue row
 uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
     # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists
+    # --evidence PATH records the receipt that proves the task landed
 uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
-    # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
+ # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared
 uv run python -B tools/task-queue.py block --id X     # manual external gate (state flip, not an edge)
 uv run python -B tools/task-queue.py unblock --id X   # back to queued

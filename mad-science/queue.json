@@ -170,18 +170,18 @@
     },
     {
       "id": "arch-deepgemm-sm12x-paged-sparse",
-      "title": "DeepGEMM SM12x support for the paged-sparse logits family (arch gate — closes when upstream ships it)",
-      "estimate_h": 0.0,
+      "title": "Patch DeepGEMM for SM121 paged-sparse MQA-logits kernels in a fork image",
+      "estimate_h": 8.0,
       "blocks": [
         "w4-survey-arm3-indexer-scoring",
         "w4-survey-arm5-trtllm-mla"
       ],
       "blocked_by": [],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "EXTERNAL GATE (not our queue's work): deep_gemm's get_paged_sparse_mqa_logits_metadata and the sparse logits kernels assert arch_major == 10 in csrc (apis/attention.hpp:301) — SM100-only; GB10 is SM121. Closes when upstream DeepGEMM ships SM12x sparse support (then the retained v1-fallback c3 image dsv41-c3-reconciled:103ad321@sha256:13f686b36ec3d2e8 is the starting point). Recorded 2026-10-26 with the c3 re-port terminal verdict (DEEPSEEK.md §19.1).",
-      "provenance": "c3 re-port terminal verdict 2026-10-26; mad-science/DEEPSEEK.md §19.1; ~/builds/ds4-report/c3-NOTES.md"
+      "notes": "OWNER RULING 2026-11-03 (QUESTIONS.md #53, answering CLR-BRIEF Q1 option c): build it ourselves rather than track upstream. This was the external gate blocking two survey arms; it is now the work itself. Scope: DeepGEMM asserts `arch_major == 10` (SM100) in `csrc/apis/attention.hpp:301` for the paged-sparse MQA-logits kernels, and GB10 is SM121. Start from the retained v1-fallback build `dsv41-c3-reconciled:103ad321@sha256:13f686b3...` - the 2026-10-26 c3 re-port verdict already failed on this same assert, so its tree is the natural base. Deliverables: (1) read the assert's neighbourhood and decide whether it guards a real hard-coded assumption (tile shapes, TMA descriptors); if it does, this is writing kernels for a new architecture, not patching a line, and that verdict is itself the finding to report before more GPU time goes in; (2) if the guard is conservative, patch it, keep the negative controls, and prove kernel numerics against the SM100 reference on a shape that fits one node; (3) publish the fork image and record its digest so `w4-survey-arm3-indexer-scoring` and `w4-survey-arm5-trtllm-mla` can start. Gate policy: the image is the artifact - a boot is not proof, a numeric comparison is. Day-scale with unknown risk; if step (1) says the assumption is real, come back with that finding and a cost estimate rather than burning the day.",
+      "provenance": "owner ruling 2026-11-03 on QUESTIONS.md #53 (CLR-BRIEF Q1 option c); mad-science/CLR-BRIEF.md Q1; receipts of the 2026-10-26 c3 re-port verdict"
     },
     {
       "id": "w4-survey-arm3-indexer-scoring",
@@ -971,6 +971,48 @@
       "node_cost": "single",
       "notes": "Desk work plus one node proof. Find the toolkits that can actually fine-tune `lfm3*` custom-code, hybrid conv/attention checkpoints on aarch64 + Blackwell (`sm_121`), and record each in `recipes/liquidai/finetuning/README.md` in that file's entry format (license, verdict, load, hardware blocker, memory, export, receipt). Four gates, all required: (1) loads the `auto_map` custom-code class with `trust_remote_code=True` and trains LoRA/QLoRA without hand-patching attention - the conv layers are where it breaks; (2) runs on GB10, where `bitsandbytes`/`flash-attn`/torch-floor wheels are the usual blockers and CPU-offload-only is a rejection; (3) 1.7B/2.2B bf16 full FT plus optimizer state fits one 128 GB node (if only QLoRA fits, record the measured figure); (4) exports something servable - merged bf16, a `peft` adapter, or GGUF. Candidates to check first: Liquid's own tooling (implied by the `leap/*.json` quant metadata inside the GGUF mirrors), `transformers`+`peft`+`trl` as the reference baseline, Unsloth, Axolotl, LLaMA-Factory, ms-swift, torchtune. Rules: no toolkit recorded from its README (an entry without a receipt path is not an entry), record rejects with their failing gate so the sweep is not re-run, and a PUBLISHED fine-tune is a redistribution under LFM Open License v1.0, which the LFM shipping ruling (QUESTIONS.md #56) does not cover.",
       "provenance": "owner 2026-11-02 request; recipes/liquidai/finetuning/README.md gates; mad-science/TODO.md §liquidai",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "engram-pool-latency-probe",
+      "title": "Test the abliterated TP=2 arm's slowness mechanism before staging any NVMe",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "No model bytes move, no NVMe consumed, ~20 min on `.35`. QUESTIONS #55 offered \"stage ~94 GB engram/ node-local\" as the fix; the owner pointed out that production ds4-1017 already runs engram tables off the same BeeGFS pool and performs well, which makes pool latency one of FOUR candidate causes rather than the cause. Probe both, in one sitting: (1) from inside a container on `.35`, measure random 4 KiB read latency against the pool path that serves `/cache` (the lane recorded 4 KiB p50 2.285 ms, latency-bound, ~230 pages per token - reproduce or refute that number, with n and a distribution, not a single take); (2) diff the abliterated TP=2 arm's rendered serve argv against the production TP=4 arm's - tensor-parallel size, quantisation path (EXL3/TensorFold vs NVFP4), engram flags, `--chunked-prefill-size`, any RW/prefetch knob - because a TP=2 shape or a slower dequant path looks exactly like a bandwidth wall. Outcome: a statement of which candidates are eliminated, and only then a decision on staging. Route A (a 25-minute production window on `.34`) is ruled OUT by the owner: `.34` is production; `.30` and `.35` are the mad-science nodes.",
+      "provenance": "owner ruling 2026-11-03 on QUESTIONS.md #55 (probe the mechanism first); recipes/cybersec/README.md:310 row; receipts ~/benchmarks/tp12-20261030/",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "flare-agent-rollout",
+      "title": "Install the FLARE gb10 agent on `.30` and `.35` by `.deb` file, then extend",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "pair",
+      "notes": "Owner ruling 2026-11-03: install on every node, starting with `.30` and `.35` (the mad-science nodes) and extending once the agent is proven harmless; `.34` is production and must not be disrupted. Method chosen for that constraint: install the vendor `.deb` BY FILE on every node - do NOT add the vendor APT repository anywhere. The repo key is root on any node that later runs `apt upgrade`, so on `.34` it would be a standing risk to the production serve; a file install gives the same binary and no upgrade surface. Per node: verify the package hash, `dpkg -i` (or `dpkg -x` plus a staged tree if deps are unmet), enable the per-user systemd unit with lingering, confirm the agent registers, and record package version plus sha256 in the receipt. FLARE.md section 4's two known blockers still apply - amd64-only vendor tags (this fleet is aarch64) and disk-Engram's `io_uring`, which Docker's default seccomp profile blocks; `tools/enable-io-uring.py` is the precedent for that leg but it mutates a daemon and must never run on `.34`. Do `.30` and `.35` first, write the per-node receipt, and only then ask about extending to `.31`-`.33`.",
+      "provenance": "owner ruling 2026-11-03 on QUESTIONS.md #6; mad-science/FLARE.md sections 4-5; tools/enable-io-uring.py precedent for the seccomp leg",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "media-omni-nightly-repin",
+      "title": "Re-pin both vllm-omni media arms to `nightly-0c5dab18...` and boot each",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Both arms pin `vllm/vllm-omni:nightly-15bce345...@sha256:f3473cb3...`, a tag upstream deleted on 2026-11-02; the digest still pulls, so the sweep reports them `container-tag-retired` (drift, exit 1 - never `-unresolvable`, never `current`). OWNER DIRECTIVE: keep tracking new upstream nightly artifacts while they are available, until a stable artifact carries every patch the lane needs for optimal performance - so the fix is a forward move, not a freeze. Newest at filing: `vllm/vllm-omni:nightly-0c5dab181d46a455a379e7fbf05182ab45ad1825` (index `sha256:84f7a372f56d...`, 2026-11-02T07:19; arm64 child tag `nightly-aarch64`, `sha256:6159e9865c4b...`). Sequence, and it is a pin change so it is boot-gated: pull by digest and re-tag at once (an untagged pull is garbage-collected by a peer's `docker image prune`), boot `media/drama-3-35b-a3b-fp8-vllm-omni-tts` on a free node under the boot watchdog, confirm the engine still loads `fish_omni` and the output is still RIFF/WAVE, then boot `media/qwen-image-2.1-turbo-7b-bf16-vllm-omni` the same way. Commit the `container:` lines only after both boots answer. The standing policy lives in `recipes/media/README.md`; the reminder is structural - the next nightly rotation shows up as drift on its own, so no cron entry is needed.",
+      "provenance": "owner directive 2026-11-03 (keep testing upstream nightly artifacts until a stable one carries the needed patches); tools/refresh-sweep.py container-tag-retired class; recipes/media/README.md",
       "claimed_by": "",
       "claimed_at": ""
     }

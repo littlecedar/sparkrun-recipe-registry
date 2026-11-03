@@ -45,6 +45,15 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py unblock --id X        # back to queued
     uv run python -B tools/task-queue.py weight --id X         # one task's arithmetic
     uv run python -B tools/task-queue.py render                # markdown table for TODO/STATUS
+    uv run python -B tools/task-queue.py render --board        # the STATUS.md `## Work queue` table
+    uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
+
+Since 2026-11-03 the queue is the register and `mad-science/TODO.md` is a frozen archive
+(`mad-science/QUEUE.md` §"Relationship to TODO.md").  `render --board` is what a board tick
+copies, so the work queue is derived rather than re-typed, and `orphans` is the one-pass
+importer's fail-closed half: an open TODO item is covered only by `<!-- queue: <id> -->`
+naming a task that exists, so a new item cannot quietly live in the archive instead of the
+register.
 
 Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse).
 """
@@ -55,6 +64,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -140,6 +150,9 @@ def validate(data: dict) -> list[dict]:
             raise QueueError(f"{tid}: 'state' must be one of {STATES}, got {task.get('state')!r}")
         if task.get("node_cost") not in NODE_COSTS:
             raise QueueError(f"{tid}: 'node_cost' must be one of {NODE_COSTS}, got {task.get('node_cost')!r}")
+        evidence = task.get("evidence")
+        if evidence is not None and not isinstance(evidence, str):
+            raise QueueError(f"{tid}: 'evidence' must be a receipt path (string) when present")
         for field in ("blocks", "blocked_by"):
             value = task.get(field)
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
@@ -267,7 +280,9 @@ def cmd_add(args, path: Path) -> None:
         "blocks": args.blocks.split(",") if args.blocks else [],
         "blocked_by": [], "state": "queued", "model": args.model or "",
         "node_cost": args.node_cost or "", "notes": args.notes or "",
-        "provenance": args.provenance or "", "claimed_by": "", "claimed_at": "",
+        "provenance": args.provenance or "",
+        "evidence": getattr(args, "evidence", "") or "",
+        "claimed_by": "", "claimed_at": "",
     }
     for b in (args.blocked_by.split(",") if args.blocked_by else []):
         _find(tasks, b)["blocks"].append(args.id)
@@ -295,7 +310,8 @@ def cmd_update(args, path: Path) -> None:
     tasks = validate(data)
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,
-             "node_cost": args.node_cost, "notes": args.notes, "provenance": args.provenance}
+             "node_cost": args.node_cost, "notes": args.notes, "provenance": args.provenance,
+             "evidence": getattr(args, "evidence", None)}
     for field, value in flips.items():
         if value is not None:
             task[field] = value
@@ -367,6 +383,10 @@ def cmd_check(args, path: Path) -> None:
 
 def cmd_render(args, path: Path) -> None:
     data = load(path)
+    if getattr(args, "board", False):
+        for line in board_rows(data):
+            print(line)
+        return
     ordered = ordering(data)
     tasks = {t["id"]: t for t in data["tasks"]}
     tiers = _tiers(data["priority_models"])
@@ -377,6 +397,76 @@ def cmd_render(args, path: Path) -> None:
         print(f"| {tier} | {weight:.2f} | {task['estimate_h']:.2f} | {sum(blocked.values()):.2f} | "
               f"{task['state']} | {task['model'] or '—'} | {task['node_cost'] or '—'} | "
               f"**{task['id']}** — {task['title']} |")
+
+
+def board_rows(data: dict) -> list[str]:
+    """The STATUS.md `## Work queue` table, derived from the register.
+
+    Columns are the board's own: job, node cost, holds, state.  `holds` is the task's
+    `blocked_by` (what must clear first), and the state cell carries the task's notes,
+    because that justification text IS the row's notes — a second copy in TODO.md is the
+    drift this replaces, not a convenience.
+    """
+    ordered = ordering(data)
+    tiers = _tiers(data["priority_models"])
+    lines = ["| job | node cost | holds | state |", "|---|---|---|---|"]
+    for _tier, task in enumerate_tasks_with_tier(ordered, tiers):
+        state = task["state"]
+        if task.get("notes"):
+            state = f"{state} — {task['notes']}"
+        if task.get("evidence"):
+            state = f"{state} — evidence: `{task['evidence']}`"
+        lines.append(f"| `{task['id']}` — {task['title']} | {task['node_cost'] or '—'} "
+                     f"| {', '.join(task['blocked_by']) or '—'} | {state} |")
+    return lines
+
+
+TODO_ITEM_RE = re.compile(r"^\s*- \[ \] \*\*(.+?)\*\*")
+QUEUE_MARK_RE = re.compile(r"<!--\s*queue:\s*([A-Za-z0-9._-]+)\s*-->")
+
+
+def todo_orphans(text: str, tasks: list[dict]) -> tuple[list[tuple[int, str]], list[tuple[int, str, str]]]:
+    """`(line, title)` for open TODO items with no live marker; `(line, title, id)` for dead ones.
+
+    Fail-closed in the direction that matters: an item counts as covered only by an explicit
+    `<!-- queue: <id> -->` marker, on the item's line or the line after it, naming a task that
+    exists.  A marker naming a dead id is reported separately — a renamed task must not
+    silently orphan the text it used to cover.
+    """
+    known = {t["id"] for t in tasks}
+    orphans: list[tuple[int, str]] = []
+    dead: list[tuple[int, str, str]] = []
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        match = TODO_ITEM_RE.match(line)
+        if not match:
+            continue
+        marker = QUEUE_MARK_RE.search(line)
+        if marker is None and i + 1 < len(lines):
+            marker = QUEUE_MARK_RE.search(lines[i + 1])
+        if marker is None:
+            orphans.append((i + 1, match.group(1)))
+        elif marker.group(1) not in known:
+            dead.append((i + 1, match.group(1), marker.group(1)))
+    return orphans, dead
+
+
+def cmd_orphans(args, path: Path) -> None:
+    data = load(path)
+    tasks = validate(data)
+    todo = Path(args.todo)
+    try:
+        text = todo.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise QueueError(f"cannot read --todo {todo}: {exc}") from None
+    orphans, dead = todo_orphans(text, tasks)
+    for line, title in orphans:
+        print(f"{todo}:{line}: open item has no queue row — {title}")
+    for line, title, ref in dead:
+        print(f"{todo}:{line}: marker names unknown task {ref!r} — {title}")
+    print(f"{todo}: {len(orphans)} orphan(s), {len(dead)} dead marker(s), {len(tasks)} task(s)")
+    if orphans or dead:
+        raise QueueError("open TODO items must live in the register, not the archive")
 
 
 # ---------------------------------------------------------------- entry point
@@ -395,6 +485,7 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--node-cost", default="")
     p_add.add_argument("--notes", default="")
     p_add.add_argument("--provenance", default="")
+    p_add.add_argument("--evidence", default="", help="receipt path that proves the task landed")
     p_add.add_argument("--blocked-by", default="", help="comma-separated ids that block this task")
     p_add.set_defaults(fn=cmd_add)
     p_upd = sub.add_parser("update", help="update fields / claim (--claimed-by stamps claimed_at)")
@@ -424,6 +515,12 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--blocks", default=None, help="comma-separated ids this task blocks")
         p.set_defaults(fn=None, _fixed_state=state)
     sub.add_parser("render", help="markdown table for TODO/STATUS").set_defaults(fn=cmd_render)
+    p_board = sub.choices["render"]
+    p_board.add_argument("--board", action="store_true",
+                         help="emit the STATUS.md `## Work queue` table instead of the weighted one")
+    p_orph = sub.add_parser("orphans", help="open TODO items with no live queue row")
+    p_orph.add_argument("--todo", default="mad-science/TODO.md", help="the archive to scan")
+    p_orph.set_defaults(fn=cmd_orphans)
     p_w = sub.add_parser("weight", help="explain one task's arithmetic")
     p_w.add_argument("--id", required=True)
     p_w.set_defaults(fn=cmd_weight)

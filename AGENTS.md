@@ -437,9 +437,12 @@ protected serve must not be listed as work in progress nor inflate a container c
 
 **Owner questions live in `mad-science/QUESTIONS.md` — the unresolved ones — and settled ones in
 `mad-science/TODO.md` §"Settled questions".** One table row per *unresolved* question, with its status, its
-`path:line` provenance and the date it was asked, grouped by subject. `mad-science/TODO.md` holds work, its
-`# DECISIONS` block the decisions already taken, and §"Settled questions" the answered rows moved there
-verbatim; numbering is stable across both files, so a citation such as `QUESTIONS.md #9` still resolves for
+`path:line` provenance and the date it was asked, grouped by subject. Since **2026-11-03 the register
+is `mad-science/queue.json`** (`QUEUE.md` the protocol, `tools/task-queue.py render --board` the board's
+`## Work queue`); `TODO.md` is a frozen archive holding item text as evidence, its `# DECISIONS` block
+the decisions already taken, and §"Settled questions" the answered rows moved there verbatim — a new
+open `- [ ]` item belongs in the queue, and `task-queue.py orphans` reports one that lands in the
+archive instead. Numbering is stable across both files, so a citation such as `QUESTIONS.md #9` still resolves for
 a question that has since settled. A question never stays buried in a lane README, a board cell or a commit
 body — it either lands as a row in `QUESTIONS.md` or it does not exist. A row the owner answered keeps its
 answer, so the question is not re-opened.
