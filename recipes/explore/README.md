@@ -431,6 +431,16 @@ weights**.
   length — 2–4 is the steepest part of the loss. Probe arm
   `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` (`-o spec_draft_n_max=<n>`); receipt
   `~/benchmarks/mellum-mtp-draft-20261022/`.
+- **Disposition (owner, 2026-11-03): retained as the retest harness, not retired.** The mechanism
+  stays measured-rejected — ~2-5 % at C1, a loss at every batched rung, across n=1…8, three
+  quantised heads, KV quant and ubatch — but the arm is kept because its own contract is `-o
+  spec_draft_n_max=<n>` plus a ladder at the next engine move, which is cheaper than re-authoring the
+  harness. Two things a future retest must not repeat: the historical n-sweep was **single-stream
+  only**, so draft length × concurrency was untested until the n=2/n=3 ladders run on 2026-11-03; and
+  the c5→c10 fall is **not MTP's** — the plain Mellum GGUF arm shows the same shape with no drafter
+  (c5 208.3, c10 186.0, measured 2026-10-22), so a retest that blames the drafter for it is measuring
+  the model. Quality stays a standing refusal: 13 pass / 1 partial / 1 fail of 15 on the published
+  pin (2026-11-03).
 - **MTP n=1 retested on a current engine (2026-10-25, owner round-4 §7(c)): the rejection stands.**
   Upstream moved 86 commits past the swept `a37cc4610` (HEAD `d854d98bae`, 2026-10-25; touches
   `llama-graph`/`speculative`/ggml-cuda), so the probe arm was re-pinned *for the retest* to a fresh
