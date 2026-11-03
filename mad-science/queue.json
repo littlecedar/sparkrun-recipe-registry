@@ -694,13 +694,14 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "single",
-      "notes": "Measured 2026-10-29 while repinning the ds4 family. (1) recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml pins littlecedar/dgx-spark-llama-cpp:upstream-d854d98-cu130 - unqualified (so it resolves against Docker Hub) and that tag does not exist in GHCR either; the package's only tag is upstream-a37cc46, a different llama.cpp commit, so repinning to it changes the engine and needs a boot. (2) recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml pins sglang-main-arm64:6563312, a build that exists only as a local tag on the fleet (no registry), so that arm cannot pull on a fresh node (explore/zz-spark-x26-main-image-sglang carried the same pin until it was retired to attic/explore/ on 2026-10-30, so it is out of shipped scope). The sweep reports both remaining refs as container-floating, exactly 2 rows in run 41311430057 (2026-11-01); a non-public or absent ghcr ref would instead be container-unresolvable and exit 2. Fix is a push under a pin, a repin plus boot, or retirement to attic/.",
+      "notes": "Measured 2026-10-29 while repinning the ds4 family. (1) recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml pins littlecedar/dgx-spark-llama-cpp:upstream-d854d98-cu130 - unqualified (so it resolves against Docker Hub) and that tag does not exist in GHCR either; the package's only tag is upstream-a37cc46, a different llama.cpp commit, so repinning to it changes the engine and needs a boot. (2) recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml pins sglang-main-arm64:6563312, a build that exists only as a local tag on the fleet (no registry), so that arm cannot pull on a fresh node (explore/zz-spark-x26-main-image-sglang carried the same pin until it was retired to attic/explore/ on 2026-10-30, so it is out of shipped scope). The sweep reports both remaining refs as container-floating, exactly 2 rows in run 41311430057 (2026-11-01); a non-public or absent ghcr ref would instead be container-unresolvable and exit 2. Fix is a push under a pin, a repin plus boot, or retirement to attic/.\n\nDONE 2026-11-03. CORRECTION to the 2026-10-29 note: 'the package's only tag is upstream-a37cc46' was true of GHCR only - Docker Hub carries five tags, four of them the same a37cc46 engine, so a same-engine pin had been published all along and the broken ref named a build nobody pushed. MTP arm re-pinned to `upstream-a37cc46-cu130@sha256:ef2d4bc8...` (the digest this lane measured 2026-10-22 and three sibling stock-upstream arms already pull); anonymous pull verified 200 by tag and by digest with an empty DOCKER_CONFIG. ds4 S0 retired to `attic/ds4/` - `sglang-main-arm64:6563312` has no registry anywhere and its question closed negative 2026-10-26, so there was nothing to re-pin. All 79 shipped `container:` pins now carry an @sha256 digest (scripted check). ROOT CAUSE LEFT OPEN: `refresh-sweep.py` returns `container-floating` for a tag-without-digest BEFORE any registry call, which is why two unresolvable refs stayed invisible to the nightly sweep - worth its own row.",
       "provenance": "refresh-sweep --exit-code rows of 2026-10-29 (container-floating); AGENTS.md Published artifacts must be public; asked 2026-10-29",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "recipes/explore/README.md (pin, engine note, CI dispatch command); recipes/ds4/README.md + attic/ds4/AGENTS.md (S0 retirement); commit 2608930"
     },
     {
       "id": "mistral-large-4-1t-feasibility",
@@ -708,12 +709,12 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "mistral-large-4-1t",
       "node_cost": "",
       "notes": "Study, not a boot. Measured from the Hub API 2026-10-29: 610.03 GB of weights (index total_size 610030457408; 32 x ~20 GB consolidated shards, 44 files), ungated/public, Mistral Ecosystem Open-Weight License (modified MIT, commercial use allowed, MaaS resale needs a separate license). Shape from params.json: 72 layers, dim 6144, MoE hidden_dim 24576, 64 heads / 64 kv heads with MLA (kv_lora_rank 512, qk_rope 64, qk_nope 64, v_head_dim 128), DeepSeek-style DSA sparse attention (topk 2048, 32 heads), kv_sharing across layers, 1M context (yarn factor 2048), an embedded DSpark speculative draft head, and multimodal text+image input. ARITHMETIC THAT DECIDES IT: a node is 128 GB unified, so TP=4 puts 152.5 GB of weights on each rank before any KV, activation or CUDA-graph reservation - infeasible with no room to argue; TP=6 across ALL SIX nodes is the only shape that could carry the weights (101.7 GB/rank, ~26 GB/rank left for KV, activations and CUDA graphs) - and 64 heads do not divide by 6, so even that needs an engine-side answer first; TP=8 exceeds the fleet. Note the displacement cost of any TP=6 attempt: it takes every node including the four running the production serve, so it is a declared full-fleet window with production stopped, not a background job. node_cost is blank on purpose: this row is a STUDY with no node time. Deliverable: a short verdict with the three candidate paths and their costs - (a) further quantization to ~2.5-3 bpw to reach ~4 ranks (checkpoint conversion project, needs a bits-per-weight target derived from the 128 GB budget minus KV), (b) a rented 8-rank box where the published NVFP4 checkpoint fits as-is, (c) park it. Also record what the DSpark draft head and DSA would need from SGLang/vLLM versions, since a mismatch is a second, independent blocker.",
       "provenance": "hub API models/mistralai/Mistral-Large-4-1T-A52B-NVFP4 (+params.json, consolidated.safetensors.index.json, LICENSE) read 2026-10-29; node memory from AGENTS.md; asked by owner 2026-10-29",
-      "claimed_by": "",
+      "claimed_by": "subagent MistralLargeFeasibility",
       "claimed_at": ""
     },
     {
@@ -734,11 +735,12 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "ornith-ai/Ornith-1.5-122B",
       "node_cost": "",
       "notes": "OWNER REQUEST 2026-10-30 (normal priority). Question: which 122B quantisations and finetunes pair well with incoai/Ornith-1.5-122B-DFlash2, and is there an uncensored/abliterated/cybersecurity finetune or quant that does? Method: (1) enumerate Hub candidates for the 122B base and its finetunes (nvfp4/fp8/awq/gguf, plus abliterated/uncensored/cyber derivatives) and record architecture + hidden_size + layer count, because the drafter hard-codes hidden_size 3072 and target_layer_ids [1,7,14,20,26,32,39,45] — a finetune with a different depth or width cannot use it at all; (2) acceptance is a property of the target's hidden states, so a finetune must keep the same layer geometry; (3) GGUF targets need mask_embedding.safetensors wired in or draft acceptance roughly halves (card, 'GGUF targets'); (4) rank candidates and hand the top three to a boot arm. Deliverable: a table in recipes/ornith/README.md plus one drafted recipe per viable candidate.",
-      "provenance": "owner interjection 2026-10-30; drafter card constraints"
+      "provenance": "owner interjection 2026-10-30; drafter card constraints",
+      "claimed_by": "subagent OrnithDrafterSurvey"
     },
     {
       "id": "py314-executor-overhead",
@@ -861,13 +863,14 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "Desk study, no node time: the deliverable is rows, not boots. Axes: (1) text->scene code - Three.js/WebGL/WebGPU/GLSL emitters (Hub tags `threejs`, `webgpu`, `glsl`, `3d`, `procedural`); (2) text or image->mesh - TRELLIS / Hunyuan3D / SPAR3D / TripoSR / PartCrafter classes, diffusers or vLLM-OMNI route, GLB out; (3) CAD/parametric code - CAD-Coder / Text2CAD class. Exclude captured-scene reconstruction (NeRF/Gaussian splatting) and pixel-only generators (media lane). File a candidate only when all four gates pass: public weights with a servable license (non-commercial => eval-only banner, QUESTIONS.md #11); index `total_size` byte sum fits one Spark; a runtime this tree already exercises (llama.cpp / SGLang / vLLM / the media Diffusers script pattern); and a mechanical quality metric exists (reference dataset, or headless render / GLB parse success) - no vibes column. Seed families to verify on the Hub, unverified here: TRELLIS-2, Hunyuan3D 3.x, SPAR3D/TripoSR, PartCrafter, CAD-Coder. Record rejects with their failing gate in `recipes/3d/README.md` so the sweep is not re-run.",
+      "notes": "Desk study, no node time: the deliverable is rows, not boots. Axes: (1) text->scene code - Three.js/WebGL/WebGPU/GLSL emitters (Hub tags `threejs`, `webgpu`, `glsl`, `3d`, `procedural`); (2) text or image->mesh - TRELLIS / Hunyuan3D / SPAR3D / TripoSR / PartCrafter classes, diffusers or vLLM-OMNI route, GLB out; (3) CAD/parametric code - CAD-Coder / Text2CAD class. Exclude captured-scene reconstruction (NeRF/Gaussian splatting) and pixel-only generators (media lane). File a candidate only when all four gates pass: public weights with a servable license (non-commercial => eval-only banner, QUESTIONS.md #11); index `total_size` byte sum fits one Spark; a runtime this tree already exercises (llama.cpp / SGLang / vLLM / the media Diffusers script pattern); and a mechanical quality metric exists (reference dataset, or headless render / GLB parse success) - no vibes column. Seed families to verify on the Hub, unverified here: TRELLIS-2, Hunyuan3D 3.x, SPAR3D/TripoSR, PartCrafter, CAD-Coder. Record rejects with their failing gate in `recipes/3d/README.md` so the sweep is not re-run.\n\nDONE 2026-11-03. Six candidates filed, twelve rejects recorded with their failing gate. Three findings that change the lane's plan: (1) `ccore/Qwen3.5-4B-GLB-3D-Coder` is a NEW sibling that emits a downloadable GLB rather than only a scene, so it is the first axis-1 arm with a parseable artifact; (2) `Zhengyi/LLaMA-Mesh` turns text into OBJ *tokens*, so mesh generation rides llama.cpp with no new image - but its card BODY carries NSCLv1 non-commercial despite a Hub tag that says only llama3.1, so it ships eval-only per QUESTIONS.md #11; (3) **Hunyuan3D 3.x does not exist on the Hub as of 2026-11-03** (newest is tencent/Hunyuan3D-2.1, whose licence excludes EU/UK/KR above 1M MAU = gate (a) fail, though its runtime would have passed). TRELLIS.2 and TripoSR fail only gate (c) - both need nvcc at build time and the serving image base is cuda:*-base - so one 3D image class with nvcc reopens both plus Hunyuan shape.",
       "provenance": "owner 2026-11-02 request; HF card + config.json read 2026-11-02; mad-science/TODO.md §3d; recipes/3d/README.md",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "recipes/3d/README.md (candidates + rejects tables)"
     },
     {
       "id": "liquidai-lfm3-1.7b-arm",
@@ -973,12 +976,12 @@
       "estimate_h": 4.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
       "notes": "Desk work plus one node proof. Find the toolkits that can actually fine-tune `lfm3*` custom-code, hybrid conv/attention checkpoints on aarch64 + Blackwell (`sm_121`), and record each in `recipes/liquidai/finetuning/README.md` in that file's entry format (license, verdict, load, hardware blocker, memory, export, receipt). Four gates, all required: (1) loads the `auto_map` custom-code class with `trust_remote_code=True` and trains LoRA/QLoRA without hand-patching attention - the conv layers are where it breaks; (2) runs on GB10, where `bitsandbytes`/`flash-attn`/torch-floor wheels are the usual blockers and CPU-offload-only is a rejection; (3) 1.7B/2.2B bf16 full FT plus optimizer state fits one 128 GB node (if only QLoRA fits, record the measured figure); (4) exports something servable - merged bf16, a `peft` adapter, or GGUF. Candidates to check first: Liquid's own tooling (implied by the `leap/*.json` quant metadata inside the GGUF mirrors), `transformers`+`peft`+`trl` as the reference baseline, Unsloth, Axolotl, LLaMA-Factory, ms-swift, torchtune. Rules: no toolkit recorded from its README (an entry without a receipt path is not an entry), record rejects with their failing gate so the sweep is not re-run, and a PUBLISHED fine-tune is a redistribution under LFM Open License v1.0, which the LFM shipping ruling (QUESTIONS.md #56) does not cover.",
       "provenance": "owner 2026-11-02 request; recipes/liquidai/finetuning/README.md gates; mad-science/TODO.md §liquidai",
-      "claimed_by": "",
+      "claimed_by": "subagent LiquidFinetuneToolkits",
       "claimed_at": ""
     },
     {
