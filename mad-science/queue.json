@@ -1044,6 +1044,20 @@
       "provenance": "owner directive 2026-11-03 (engram cache); queue row engram-pool-latency-probe correction; attic/ds4/mods/bound-engram-cache; mad-science/TODO.md section ds4",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "sweep-build-input-tag-resolution",
+      "title": "Teach `classify_image_build_input` the same tag resolution the container sweep now does",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Found while fixing the container class (2026-11-03): `tools/refresh-sweep.py` `classify_image_build_input` (from :679) still returns `build-input-floating` for a digest-less `FROM tag` WITHOUT asking any registry - the exact defect shape just removed from `classify_container`. `test_tag_only_from_is_floating` currently asserts that behaviour, so the fix re-pins that test rather than extending it. Same three-way outcome as the container path: tag exists -> floating (non-gating, record the digest in `observed`); 404 -> `build-input-unresolvable` (gating, exit 2); registry unreachable -> floating with 'tag existence unverified' so a network blip never pages. Reuse the container fix's helpers and its negative-control test idiom (mutated-source revert proving the pre-fix module passes the missing-tag fixture). Socket only: no Dockerfile is edited, and the sweep stays report-only.",
+      "provenance": "queue row published-image-refs (the same defect, container family); tools/refresh-sweep.py classify_image_build_input :679; tests/test_refresh_sweep.py test_tag_only_from_is_floating",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []

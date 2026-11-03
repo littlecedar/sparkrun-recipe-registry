@@ -735,8 +735,9 @@ owner).
 `container: sglang-main-arm64:6563312` is a local build on the fleet only (image id `fe903216cd88`,
 still resident as a tag on `.35`); no registry has it — Docker Hub's `library/sglang-main-arm64`
 answers 404 and GHCR has no such package (both probed 2026-11-03). It floated without a digest, which
-is also why the nightly pin sweep never resolved it (`tools/refresh-sweep.py` classifies a
-tag-without-digest pin as `container-floating` without contacting a registry). Nothing published is
+is also why the nightly pin sweep never resolved it: until 2026-11-03 `tools/refresh-sweep.py`
+classified a tag-without-digest pin as `container-floating` **without contacting any registry** (now
+it asks, and a 404 makes the pin `container-unresolvable` and gating — `tools/README.md`). Nothing published is
 boot-equivalent — the only images that carry the dsv41 padding this arm needed are the knapcio
 overlay images — and the question it existed to answer is closed negative (above), so the file moved
 rather than gaining a pin. Restore with `git mv attic/ds4/<file> recipes/ds4/<file>`; the publish

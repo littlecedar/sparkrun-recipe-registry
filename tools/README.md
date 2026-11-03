@@ -1213,6 +1213,17 @@ branch has moved past, `build-input-floating` for a tag with no digest (the actu
 defect), and `build-input-newer-release` for a tag the registry no longer publishes (report-only,
 never applied).
 
+**A tag with no digest is resolved, not assumed.** `container: repo:tag` is still
+`container-floating` — the tie-break a re-push destroys, never auto-resolved — but only after its
+registry is asked: the tag resolving through the manifest API keeps the class and records the digest
+in `observed`; a tag the registry answers **404** for is `container-unresolvable`, because no fresh
+node can pull it, so it gates like any other broken pin. A registry that cannot answer (timeout, 5xx,
+token failure) is *not* evidence of a missing tag: that pin stays `container-floating` with
+"tag existence unverified" and the fetch error in the reason, so a wifi blip cannot escalate the run
+to exit 2. Only Docker Hub and ghcr have an adapter; any other host stays floating-unverified. Every
+shipped pin carries a digest (83 refs, 2026-11-03), so the nightly run makes no extra calls; the
+number of lookups tracks the number of tag-only pins.
+
 **Fail closed.** A pin the tool could not check is `*-unresolvable`, never silent cleanliness: an
 unparseable recipe is an error, an empty selection is an error, an empty diff behind a moved head is
 an error (the state is contradictory, so nothing is claimed), and a registry 404 on **both** the

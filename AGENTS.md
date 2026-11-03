@@ -544,7 +544,7 @@ DOCKER_CONFIG=$(mktemp -d) docker manifest inspect \
   ghcr.io/littlecedar/<package>@sha256:<digest>                        # no creds in that config
 ```
 
-**This is enforced nightly, not remembered.** `tools/refresh-sweep.py` mints an anonymous pull token per ghcr repo (`ghcr_token`, `:349-357` — it raises `FetchError` when the registry returns no token) and resolves every `ghcr.io/…@sha256:` container pin through it (`classify_container`, `:584-596`). A non-public package therefore becomes a `container-unresolvable` row, and `run()` escalates any `-unresolvable` class to **exit 2 → `sweep-broken`** on the pin-drift issue. Measured 2026-10-29 after the flip: all four repinned ds4 arms classify `container-current` with their pinned digests, which is the same evidence as the two-call probe above.
+**This is enforced nightly, not remembered.** `tools/refresh-sweep.py` mints an anonymous pull token per ghcr repo (`ghcr_token`, `:349-357` — it raises `FetchError` when the registry returns no token) and resolves every `ghcr.io/…@sha256:` container pin through it (`classify_container`, `:593-678`). A non-public package therefore becomes a `container-unresolvable` row, and `run()` escalates any `-unresolvable` class to **exit 2 → `sweep-broken`** on the pin-drift issue. Measured 2026-10-29 after the flip: all four repinned ds4 arms classify `container-current` with their pinned digests, which is the same evidence as the two-call probe above.
 
 Changing visibility needs `admin:org` (a `write:packages` token gets `404 Not Found` from
 `PATCH /orgs/<org>/packages/container/<package>`, which is GitHub masking the permission failure),

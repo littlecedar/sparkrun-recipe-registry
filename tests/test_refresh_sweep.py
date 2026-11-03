@@ -117,6 +117,13 @@ def hub_rules(namespace, name, tag, tag_digest, newest="newest-tag"):
     ]
 
 
+def tag_only_rules(manifest, tag="t", repo="ns/img"):
+    """Registry pull token + one manifest answer: what a tag-only pin resolves."""
+    return [("auth.docker.io/token?service=registry.docker.io"
+             f"&scope=repository:{repo}:pull", (200, {}, json.dumps({"token": "t"}))),
+            (f"registry-1.docker.io/v2/{repo}/manifests/{tag}", manifest)]
+
+
 def hf_rules(repo, head, diff=""):
     return [
         (f"huggingface.co/api/models/{repo}?blobs=false",
@@ -379,8 +386,68 @@ class Containers(unittest.TestCase):
                          sweep_tool.CONTAINER_UNRESOLVABLE)
 
     def test_tag_without_digest_is_floating(self):
+        # Registry cannot answer (FakeFetch 599) is not evidence the tag is gone.
         row = self._classify("ns/img:t", [])
         self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
+        self.assertIn("unverified", row["reason"])
+        self.assertNotIn("appliable", row)
+
+    def test_tag_only_with_live_tag_stays_floating_but_observed(self):
+        row = self._classify(
+            "ns/img:t", tag_only_rules((200, {"docker-content-digest": NEW_DIGEST}, "{}")))
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
+        self.assertEqual(row["observed"], NEW_DIGEST, "the answer is evidence, not a guess")
+
+    def test_tag_only_with_missing_tag_is_unresolvable(self):
+        row = self._classify(
+            "ns/img:gone",
+            tag_only_rules(sweep_tool.FetchError("x", "HTTP 404", 404), tag="gone"))
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_UNRESOLVABLE)
+        self.assertIn("docker.io/ns/img:gone", row["reason"], "name the missing tag")
+        self.assertIn(sweep_tool.CONTAINER_UNRESOLVABLE, sweep_tool.DRIFT_CLASSES)
+
+    def test_tag_only_registry_error_is_not_a_missing_tag(self):
+        # A 503 is an unreachable registry, not a dead tag: it must never gate 2.
+        for failure in (sweep_tool.FetchError("x", "HTTP 503", 503),
+                        sweep_tool.FetchError("x", "URLError: timed out")):
+            row = self._classify("ns/img:t", tag_only_rules(failure))
+            self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
+            self.assertIn("unverified", row["reason"])
+            self.assertIn("tag without a digest", row["reason"])
+
+    def test_tag_only_ghcr_tag_is_resolved_too(self):
+        rules = [("ghcr.io/token?scope=repository:ns/name:pull",
+                  (200, {}, json.dumps({"token": "t"}))),
+                 ("ghcr.io/v2/ns/name/manifests/gone",
+                  (200, {"docker-content-digest": NEW_DIGEST}, "{}"))]
+        row = self._classify("ghcr.io/ns/name:gone", rules)
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
+        self.assertEqual(row["observed"], NEW_DIGEST)
+        rules[1] = ("ghcr.io/v2/ns/name/manifests/gone",
+                    sweep_tool.FetchError("x", "HTTP 404", 404))
+        self.assertEqual(self._classify("ghcr.io/ns/name:gone", rules)["class"],
+                         sweep_tool.CONTAINER_UNRESOLVABLE)
+
+    def test_control_tag_only_pin_is_not_resolved(self):
+        """Negative control: with the registry lookup reverted to an assumption,
+        the missing tag passes silently as `container-floating` (exit 1)."""
+        import types
+
+        src = TOOL.read_text(encoding="utf-8")
+        broken = src.replace(
+            'lookup = {"docker.io": hub_manifest_digest,\n'
+            '                  "ghcr.io": ghcr_manifest_digest}.get(host)',
+            'lookup = None')
+        self.assertNotEqual(broken, src, "tag lookup vanished; update the control")
+        module = types.ModuleType("refresh_sweep_pre_fix")
+        module.__file__ = str(TOOL)
+        exec(compile(broken, module.__file__, "exec"), module.__dict__)
+        rules = tag_only_rules(sweep_tool.FetchError("x", "HTTP 404", 404), tag="gone")
+        row = module.classify_container("ns/img:gone", module.Fetcher(fetch=FakeFetch(rules)),
+                                        "recipe", "r.yaml")
+        self.assertEqual(row["class"], module.CONTAINER_FLOATING)
+        self.assertEqual(self._classify("ns/img:gone", rules)["class"],
+                         sweep_tool.CONTAINER_UNRESOLVABLE)
 
     def test_ghcr_moved_tag(self):
         ref = "ghcr.io/ns/name:t@sha256:" + "0" * 64
@@ -700,6 +767,22 @@ class Apply(unittest.TestCase):
                                 sweep_tool.FetchError("x", "HTTP 503", 503))])
             code, _report = run_quiet(["--exit-code"], fetch=FakeFetch(rules), root=tmp)
             self.assertEqual(code, 2)
+
+    def test_tag_naming_no_image_gates_as_2(self):
+        # The 2026-11-03 defect: `littlecedar/…:upstream-d854d98-cu130` and
+        # `sglang-main-arm64:6563312` name nothing, yet read as mere drift.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            arm = "recipes/lane/a.yaml"
+            git_repo(root, {arm: self.ARM.replace(
+                "ns/img:t@sha256:" + "0" * 64, "ns/img:gone")})
+            rules = all_rules(hf_rules("Org/Model", PIN) + tag_only_rules(
+                sweep_tool.FetchError("x", "HTTP 404", 404), tag="gone"))
+            code, report = run_quiet(["--exit-code"], fetch=FakeFetch(rules), root=tmp)
+            self.assertEqual(code, 2)
+            row = [r for r in report["rows"] if r["field"] == "container"][0]
+            self.assertEqual(row["class"], sweep_tool.CONTAINER_UNRESOLVABLE)
+            self.assertIn("ns/img:gone", row["reason"])
 
 
 if __name__ == "__main__":

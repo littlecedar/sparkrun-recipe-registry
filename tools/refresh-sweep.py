@@ -18,7 +18,10 @@ What it answers, per pin:
 * **containers** — recipe `container:` refs against Docker Hub and ghcr; a tag
   whose resolved digest moved is `container-newer-release` and is the only
   thing `--apply` will rewrite.  A tag without a digest is `container-floating`
-  (the tie-break a re-push destroys) and is never auto-resolved.
+  (the tie-break a re-push destroys) and is never auto-resolved — unless its
+  registry does not have the tag at all, which is `container-unresolvable`
+  (a tag naming no image cannot boot).  A registry that cannot answer leaves
+  the pin `container-floating` with "tag existence unverified" in the reason.
 * **build inputs** — Dockerfile `ARG BASE_IMAGE`, `FROM …@sha256:` / `FROM tag`,
   and `ARG <NAME>_REF` paired with `ARG <NAME>_REPO` (llama.cpp, TensorFold).
 * **llama.cpp** — the dedicated section: our fork refs, upstream head + date,
@@ -594,7 +597,29 @@ def classify_container(ref, fetcher, scope, path, field="container"):
         return _row(CONTAINER_UNRESOLVABLE, scope, path, field, ref, reason=info["error"])
     digest, tag, repo, host = info["digest"], info["tag"], info["repo"], info["host"]
     if not digest:
-        return _row(CONTAINER_FLOATING, scope, path, field, ref, observed="",
+        # Ask the registry whether the tag exists instead of assuming it: two
+        # shipped 2026-11-03 pins named images that resolve to nothing and sat
+        # in the report as `container-floating` (exit 1) instead of gating.
+        lookup = {"docker.io": hub_manifest_digest,
+                  "ghcr.io": ghcr_manifest_digest}.get(host)
+        if lookup is None:
+            return _row(CONTAINER_FLOATING, scope, path, field, ref,
+                        reason="tag without a digest: a re-push silently moves the "
+                        f"arm; no registry adapter for {host!r}, so tag existence "
+                        "unverified")
+        try:
+            got = lookup(repo, tag, fetcher)
+        except FetchError as exc:
+            if exc.status == 404:
+                return _row(CONTAINER_UNRESOLVABLE, scope, path, field, ref,
+                            reason=f"tag without a digest, and {host}/{repo}:{tag} "
+                            "does not exist in its registry: no arm can pull it")
+            # An unreachable registry is not evidence of a missing tag.
+            return _row(CONTAINER_FLOATING, scope, path, field, ref,
+                        reason="tag without a digest: a re-push silently moves the "
+                        f"arm; tag existence unverified ({exc.reason})")
+        return _row(CONTAINER_FLOATING, scope, path, field, ref,
+                    observed=got["digest"], cached_at=got["cached_at"],
                     reason="tag without a digest: a re-push silently moves the arm")
     try:
         if host == "docker.io":
