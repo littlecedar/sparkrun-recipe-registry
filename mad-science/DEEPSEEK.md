@@ -31,6 +31,7 @@ measured, what failed and why, and what is still open.**
 - [17. A vLLM route to the shipped bar — what exists, what it costs, and the test that settles it (2026-10-23)](#17-a-vllm-route-to-the-shipped-bar--what-exists-what-it-costs-and-the-test-that-settles-it-2026-10-23)
 - [18. The community 1017 repo is our own stack — and the TP_PAD inference it suggested (refuted 2026-10-23, see §18.1)](#18-the-community-1017-repo-is-our-own-stack--and-the-tp_pad-inference-it-suggested-refuted-2026-10-23-see-181)
 - [19. Upstream knapcio adapter update — findings (2026-10-26)](#19-upstream-knapcio-adapter-update--findings-2026-10-26)
+- [20. The DeepGEMM SM121 paged-sparse verdict (2026-11-03) — real architecture, already ported off-branch](#20-the-deepgemm-sm121-paged-sparse-verdict-2026-11-03--real-architecture-already-ported-off-branch)
 
 ## 1. Provenance and citation discipline
 
@@ -45,7 +46,8 @@ measured, what failed and why, and what is still open.**
 | §17 | vLLM's own DeepSeek-V4.1 recipe and model-registry entries; the `local-inference-lab/vllm` b12x fork's Engram config, disk table and four-Spark launchers; the `spark-vllm-docker` 4x recipe and image tag; the retired `attic/ds4/` vLLM verdicts; the 1017 model card | study 2026-10-23, no boot — upstream `main` @ `d561af5d`, fork `dev/karmic-kraken` @ `8244d1c4` |
 | §18 | `MashieSaldana/DeepSeek-V4.1-Flash-1017-4x-DGX-Spark` @ `ec61f23` (recipe, docs, benchmark CSVs); knapcio `403a5aa2` vs our `27616bec`; the git-ignored `.scratch/ds4/knapcio/logs/boot9-head-serve.log` | study 2026-10-23, no boot |
 | §18.1 | the 2026-10-23 TP=4 window's receipts (`~/benchmarks/tp4-pad-20261023/` on the head: `a1-control-*`, `b1-treatment*`) | measured 2026-10-23, four boots attempted (one clean serve) |
-| §19 | the uncommitted owner-guidance file's upstream survey: GitHub API/raw reads of `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` against our overlay pin `27616bec`, upstream HEAD `aff52fa5` | survey 2026-10-26, no boot |
+| §19 | uncommitted owner-guidance file's upstream survey: GitHub API/raw reads `knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4` against our overlay pin `27616bec`, upstream HEAD `aff52fa5` | survey 2026-10-26, no boot |
+| §20 | read-only code read of `deepseek-ai/DeepGEMM` `main` `5081f8513a` (2026-10-20), `public-sync-20261014` `d810967a`, `nv_dev` `b64107f` (2026-09-24), `sgl-project/DeepGEMM` `dev` `5dab72f` (2026-11-03); CUDA Programming Guide v13.4.2 §5.1 Tables 28–33, `developer.nvidia.com/cuda/gpus`, CCCL PTX index, CUTLASS issue #3227 | read 2026-11-03, no boot, no patch, no build |
 
 The three source notes were deleted (`git rm`) in the same commit that created this document; the
 filenames above are provenance, not live paths. Everything they stated is in the sections named, and
@@ -1986,3 +1988,202 @@ permanent in BOOT-PLAN — the 16:35Z boot created containers before sparkrun's 
 and ran the stale digest); launch-error scans must anchor to fatal signatures only; and the round-4
 non-inferiority bars (C1 ≥ 60.42, C10 ≥ 138.36, house 36/37, needles 10/10) never had inputs — no
 boot reached readiness.
+
+## 20. The DeepGEMM SM121 paged-sparse verdict (2026-11-03) — real architecture, already ported off-branch
+
+**Read-only verdict — no boot, no patch, no image build.** It answers step (1) of queue row
+`arch-deepgemm-sm12x-paged-sparse` before any GPU time goes into step (2): does `arch_major == 10`
+guard a real hard-coded assumption, or is it merely conservative?
+
+| tree | commit | committed | read |
+|---|---|---|---|
+| `deepseek-ai/DeepGEMM` `main` | `5081f8513a` | 2026-10-20 | 2026-11-03 |
+| `deepseek-ai/DeepGEMM` `public-sync-20261014` | `d810967a` | 2026-10-14 | 2026-11-03 |
+| `deepseek-ai/DeepGEMM` `nv_dev` | `b64107f` | 2026-09-24 | 2026-11-03 |
+| `sgl-project/DeepGEMM` `dev` | `5dab72f` | 2026-11-03 | 2026-11-03 |
+
+Hardware and instruction-set claims come from the CUDA Programming Guide v13.4.2 §5.1 (Tables 28–33),
+the CUDA GPU compute-capability list, the CCCL PTX index, and CUTLASS issue #3227, all read
+2026-11-03. GB10 is compute capability **12.1** (`developer.nvidia.com/cuda/gpus`, read 2026-11-03:
+the 12.1 row names "NVIDIA GB10 (DGX Spark), NVIDIA RTX Spark N1X"); the lane's own record agrees
+(`attic/ds4/AGENTS.md` §9.1: SM121 answers `Unsupported architecture`, and the qwen4 lane's note that
+GB10 reports 12.1 where DeepGEMM's UE8M0 gate wants 12.0 exactly).
+
+### 20.1 The assert is a family gate with no fallback behind it
+
+`csrc/apis/attention.hpp` on `main`, read 2026-11-03:
+
+```text
+:313  DG_HOST_ASSERT(jit->device.get_arch_major() == 10);   // get_sparse_mqa_logits_metadata
+:344  DG_HOST_ASSERT(jit->device.get_arch_major() == 10);   // get_paged_sparse_mqa_logits_metadata
+:380  DG_HOST_ASSERT(jit->device.get_arch_major() == 10 and q_sf_optional.has_value());  // fp8_fp4_sparse_mqa_logits
+:414  DG_HOST_ASSERT(jit->device.get_arch_major() == 10 and q_sf_optional.has_value());  // fp8_fp4_paged_sparse_mqa_logits
+```
+
+The row cites `:301`; that is the line in the image's own pin. Both public branches read today carry
+the same four asserts at `:313`, `:344`, `:380` and `:414`, which is line drift, not a different guard.
+The c3 chain died in the second one (`candidate_table.py:75` → `get_paged_sparse_mqa_logits_metadata`,
+§19.1).
+
+It is not a tile-shape check. It is the visible edge of a dispatch table with exactly two branches: the
+paged *dense* family branches `arch_major == 10` / `== 9` and ends in
+`DG_HOST_UNREACHABLE("Unsupported architecture")` (`attention.hpp:120-131`, `:153-168`, `:279`), while
+the *sparse* family does not branch at all — both logits entry points call
+`launch_sm100_sparse_mqa_logits` unconditionally (`attention.hpp:400-401`, `:439-440`). So the assert is
+the only thing between a GB10 caller and a JIT compile of an SM100-only kernel. There is no SM12x path
+to fall into and no SM90 sparse kernel to substitute: `deep_gemm/include/deep_gemm/impls/` holds
+`sm90_fp8_mqa_logits.cuh` and `sm90_fp8_paged_mqa_logits.cuh` (both dense) and no `sm90_*sparse*`.
+
+### 20.2 What the SM100 sparse kernel actually uses, against what SM121 has
+
+`deep_gemm/include/deep_gemm/impls/sm100_sparse_mqa_logits.cuh`, read 2026-11-03:
+
+| facility | where | SM121 (GB10, CC 12.1) |
+|---|---|---|
+| tensor-memory alloc/free (`cute::TMEM::Allocator1Sm`) | `:244`, `:641` | **absent** — `tcgen05.alloc` lists `SM_100a/100f, 103a/103f, 107a/107f, 110a/110f` only (CCCL PTX index, read 2026-11-03) |
+| block-scaled MMA `ptx::SM100_MMA_MXF4_SS` / `MXF8F6F4_SS` | `:373-375`, `:405` | **absent** — `tcgen05.mma` carries the same target list |
+| accumulation read-back `ptx::tmem_load_32dp32b`, `fence_view_async_tmem_load` | `:609-611` | **absent** (tensor memory) |
+| scale-factor upload `cute::SM100_UTCCP_4x32dp128bit_1cta` | `:348` | **absent** (`tcgen05.cp`) |
+| MMA completion `ptx::umma_arrive_no_elect` | `:409`, `:411` | **absent** (`tcgen05.commit`) |
+| UMMA smem descriptors and block-scaled instruction descriptors with SF ids (`mma::sm100::make_umma_desc`, `make_instr_desc_block_scaled`, `make_runtime_instr_desc_with_sf_id`) | `:374`, `:400-404` | **absent** — these encode tcgen05 operands, not TMA boxes |
+| TMA (`make_tma_2d_desc`, `tma::copy`, `prefetch_tma_descriptor`) | host `sm100_sparse_mqa_logits.hpp:58-71`; device `:285-290` | **present** |
+| mbarrier, `ClusterTransactionBarrier`, `NamedBarrier` | layout `:106`, `:128-136`; device `:639` | **present** (hardware split arrive/wait barrier, Table 29) |
+| `cute::elect_one_sync` | `:215`, `:282`, `:316`, `:346`, `:372`, `:439` | **present** |
+| warpgroup register reallocation (`setmaxnreg`) | `:264`, `:324`, `:371`, `:418`, `:552` | **present** — `setmaxnreg` lists `SM_120a, SM_120f, SM_121a, SM_121f` among its targets (CCCL PTX index, read 2026-11-03) |
+| CTA-pair / cluster | none: `grid_dim = num_sms`, one CTA, `cluster_dim` unset (`sm100_sparse_mqa_logits.hpp:115-116`) | **no dependency** |
+
+The TMA descriptors, barriers, clusters, `elect.sync` and warp specialization all port; the
+tensor-memory plus block-scaled-UMMA core does not. Table 29 of the same guide puts TMA, thread block
+clusters, distributed shared memory and the hardware async barrier on every 12.x part, which is why the
+supporting machinery is not the obstacle.
+
+### 20.3 The shared-memory budget alone kills this kernel on GB10
+
+`SM100ArchSpec::smem_capacity = 232448` (`csrc/jit_kernels/heuristics/sm100.hpp:16`) is the SM100
+sparse kernel's design point: `sm100_sparse_mqa_logits.hpp:73-80` sizes `SharedStorage` to it and
+asserts `num_smem_bytes <= SM100ArchSpec::smem_capacity`, and `:166` applies the same ceiling to the
+metadata kernel. GB10's ceiling is **99 KiB per block and 100 KiB per SM** (CUDA guide v13.4.2 Table 31,
+12.x column, read 2026-11-03). 232448 B = 227 KiB = 2.29× the per-block limit, so
+`cudaFuncSetAttribute(MaxDynamicSharedMemorySize)` cannot be satisfied for this kernel's shared-memory
+plan on a GB10 CTA even if the instructions existed. The SM120 sibling avoids the trap by querying the
+device instead (`jit->device.get_num_smem_bytes()`, `sm120_fp8_fp4_sparse_mqa_logits.hpp:104-106` on
+`nv_dev`).
+
+A second contract narrows too: the SM100 kernel accepts 4–32 heads (`:192`, `kNumMaxHeads = 32` at
+`layout/sparse_mqa_logits.cuh:13`), while the SM120 kernel is fixed at exactly 32 heads with
+`head_dim == 128` and `BLOCK_Q == 2` (`sm120_fp8_fp4_sparse_mqa_logits.cuh:297`).
+
+### 20.4 Verdict: real architectural dependency
+
+The assert guards a genuine hard-coded assumption, and it is the smallest of them: the kernel is a
+tensor-memory, `tcgen05`, block-scaled-UMMA program written against a 227 KiB shared-memory budget.
+Relieving the four asserts buys nothing:
+
+- the sparse logits entry points then JIT-compile `sm100_sparse_mqa_logits` for the local target, and
+  `ptxas` rejects the `tcgen05.*` PTX — no `tcgen05` target accepts `sm_121a`;
+- routing to the SM90 path is impossible, because no SM90 sparse kernel exists;
+- substituting the dense paged logits changes the algorithm, which is the opposite of arm 3's premise
+  (score candidate blocks only, §10.5).
+
+The naive reading of the row ("patch the assert and the sparse kernels for SM12x") is therefore 40–80 h
+of kernel authoring for an architecture the kernel was never written for, with silent-numerics risk —
+and that size is exactly why the existing port below should be priced first.
+
+### 20.5 Where the port already exists, and where it does not
+
+`deepseek-ai/DeepGEMM@nv_dev` (`b64107f`, 2026-09-24) carries it, read 2026-11-03:
+
+- `deep_gemm/include/deep_gemm/impls/sm120_fp8_fp4_sparse_mqa_logits.cuh` (570 lines) plus the launcher
+  `csrc/jit_kernels/impls/sm120_fp8_fp4_sparse_mqa_logits.hpp`;
+- `mma/sm120.cuh:47-70` emits
+  `mma.sync.aligned.kind::mxf8f6f4.block_scale.scale_vec::1X.m16n8k32`. Hand-written PTX of that form
+  compiles for `.target sm_121a` (`ptxas --gpu-name=sm_121a`, exit 0 — CUTLASS issue #3227, read
+  2026-11-03), which is how the SM120 family reaches FP4/FP8 tensor cores without tensor memory
+  (CUDA guide Table 33 puts FP4, FP6 and FP8 tensor-core inputs on 12.x);
+- the four gates become `DG_HOST_ASSERT(arch_major == 10 or arch_major == 12)` with a device-major
+  cross-check (`attention.hpp:291`, `:328`, `:370`, `:426`), and the dispatch splits
+  `if (arch_major == 10) … else launch_sm120_…` (`:405-410`, `:465-470`);
+- the Python API is unchanged (`attention.hpp` registers the same sparse symbols with the same argument
+  names, for example `m.def("get_paged_sparse_mqa_logits_metadata", …)` at `:728`), and the metadata
+  format is shared: both families include the same `layout/sparse_mqa_logits.cuh`, and the metadata
+  kernel issues no MMA (atomics, `cp.async`, `elect_one`, no `tcgen05` in
+  `scheduler/sm100_sparse_mqa_logits_metadata.cuh`), so the SGLang call site needs no change;
+- `common/sm120_utils.cuh:27-28` requires CUDA 13 or newer
+  (`#error "DeepGEMM SM120 kernels require CUDA 13.0 or newer"`), and the kernel body is guarded
+  `#if (__CUDA_ARCH__ >= 1200 and __CUDA_ARCH__ < 1300)` (`sm120_fp8_fp4_sparse_mqa_logits.cuh:539`),
+  which does cover GB10's 1210; the `#else` trap reads "This kernel only supports SM120 family"
+  (`:566`).
+
+**The hole.** `sgl-project/DeepGEMM@dev` (`5dab72f`, 2026-11-03), the tree an SGLang image actually
+pins, has SM120 for the dense and *paged* MQA logits (`sm120_fp8_mqa_logits.cuh`,
+`sm120_fp8_paged_mqa_logits.cuh`, the `sm120_fp4_*` pair) but **no `sm120_*sparse*` kernel and no
+`arch_major == 12` on the sparse gates** (`attention.hpp:382` still reads
+`get_arch_major() == 10`). Sparse SM12x support exists only on `nv_dev`, which is six weeks behind that
+tree and lacks the fork's own additions (for example `sm100_mega_moe_pre_dispatch.cuh`,
+`sm90_fp8_mega_moe.cuh`).
+
+Five caveats belong to that finding, and none of them is resolvable from this host:
+
+- **No upstream test coverage.** `nv_dev`'s own sparse test still filters SM100:
+  `tests/test_attention.py:573` reads `@test_filter(lambda: get_arch_major() == 10)`. The SM120 sparse
+  path is implemented and unreached by the suite, which is the largest risk in §20.6 and the reason a
+  kernel-level numerics gate must precede any serve boot.
+- **The one published GB10 data point is negative.** DeepGEMM `nv_dev` on dual DGX Spark failed with
+  `CUDA_ERROR_INVALID_IMAGE` at JIT time in the PR #324 thread (comment 2026-06-25, tree `2073ddb`), on
+  the scale-layout path. That predates the sparse kernel, so it neither refutes nor confirms it;
+  `[INFERENCE]` that a 2026-09-24 tree behaves differently — §20.7 settles it.
+- **The JIT target string is not visible from here.** Whether `deep_jit` emits `sm_121a` (correct) or
+  `sm_120a` (a cubin GB10 cannot load, the shape of that June failure) decides the first attempt.
+  `[INFERENCE]`; one compile-log line settles it.
+- **A page-stride precondition.** The SM120 launcher asserts `kv.stride(0) % 512 == 0` over rows of
+  `row_bytes + 4` bytes (`sm120_fp8_fp4_sparse_mqa_logits.hpp:79-81`); the SM100 path needs only
+  `% 128 == 0` (`attention.hpp:431`). Arithmetic: `page_kv = 64` gives 64 × 132 = 8,448 B for FP8
+  (8,448 mod 512 = 256, fails) and 64 × 68 = 4,352 B for MXFP4 (mod 512 = 256, fails), while
+  `page_kv = 128` gives 16,896 B and 8,704 B (both mod 512 = 0, pass). Note att5's
+  `dsv41_index_page_size → 64` in §19.1.
+- **The rest of the paged contract is unchanged:** one token per row (`q.size(1) == 1`), `page_kv` a
+  multiple of `sparse_block_kv ∈ {8, 16}`, and the same `num_max_sparse_blocks` limits
+  (`sm120_fp8_fp4_sparse_mqa_logits.hpp:43-81`). SGLang's flattened varlen rows satisfy the first by
+  construction. `[INFERENCE]` on the caller side, because the candidate tree is not on this host;
+  settled by the arm-3 boot's first `build_sparse_indexer_schedule` call once the kernel gate in §20.7
+  passes.
+
+### 20.6 Cost, three options
+
+| option | what it is | hours | risk |
+|---|---|---|---|
+| patch the four asserts only | dead end; `ptxas` rejects `tcgen05` for `sm_121a` (§20.4) | 0.5, to prove it cannot work | — |
+| **A — pin the image's DeepGEMM to `nv_dev` `b64107f`** | one source swap plus a `_C` rebuild; kernels are JIT-compiled per arch at run time (`csrc/runtime/jit.hpp:20-30`, every launcher calls `jit->compile`), so there is no per-arch kernel build | **6–10 to first sparse-kernel numerics on one GB10**, 1–2 days to a green arm-3 boot | six weeks of API drift against `sgl-project/DeepGEMM@dev` may break imports; the JIT target string; the 512-byte page stride |
+| **B — backport the sparse SM120 kernel onto `sgl-project/DeepGEMM@dev`** | copy `impls/sm120_fp8_fp4_sparse_mqa_logits.cuh`, `mma/sm120.cuh`, `common/sm120_utils.cuh` and the launcher, then reconcile the newer layout contract (`kNumMaxHeads` rename, `MetadataHeader.num_sms`, `kPartialTailFlag` — handle it or assert it off) | **10–16 to the same first-numerics point** | lands on the tree SGLang already integrates; adaptation bugs confined to the contiguous tail-flag path, not the paged path arm 3 needs |
+
+Either way the gate before a serve boot is DeepGEMM's own sparse case — `num_heads = 32`,
+`head_dim = 128`, `sparse_block_kv = 8`, `page_kv = 128`, paged, `next_n = 1` — checked against the
+torch reference and the dense-path cross-check (`nv_dev`'s `tests/test_attention.py:725-727` already
+runs the sparse kernel beside full logits on the same inputs).
+
+### 20.7 The falsifier
+
+**One measurement, one idle GB10, no serve and no quartet:** in the retained image
+`dsv41-c3-reconciled:103ad321@sha256:13f686b3…`, apply option A or B, then run the sparse case above at
+kernel level and read two outputs — the `ptxas`/JIT line naming the emitted arch, and the numerics diff
+against the torch reference.
+
+- **Port confirmed** (target is `sm_121a`, diff inside DeepGEMM's own tolerance): this verdict stands,
+  and step (2) is a pin swap or a backport.
+- **Port refuted** (the `#else` trap fires, a load fails as an invalid image, or the diff is dirty):
+  the cheap half of this verdict is wrong, the SM120 sparse kernel is not usable on GB10 as shipped, and
+  the row reverts to kernel authoring at the 40–80 h figure or to waiting on `sgl-project/DeepGEMM`.
+
+Nothing softer settles it: every open question here is a property of one kernel on one part.
+
+### 20.8 What the two blocked rows gain
+
+- **`w4-survey-arm3-indexer-scoring`** — its only architecture-blocking call
+  (`build_sparse_indexer_schedule` → `get_paged_sparse_mqa_logits_metadata`, §19.1) starts returning
+  metadata on GB10, so the −17 %-at-1M candidate becomes bootable and measurable on the quartet instead
+  of walled. Its mechanism also has a route that never touches the sparse family — §10.5's independent
+  2× GB10 lane measured −17.4 % with in-place indexer scoring — which is the fallback if the port
+  stalls.
+- **`w4-survey-arm5-trtllm-mla`** — the TRT-LLM sparse-MLA build rides the same candidate lineage whose
+  decode publishes the sparse table, so the 2.26× kernel-geomean arm gets a bootable image and can be
+  measured at C5/C10/128K.
