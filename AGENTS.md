@@ -10,8 +10,9 @@ Counts in this document are derived, not remembered: `python3 tools/doc-census.p
 recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.py` fails when this
 file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. What only
 a run can know stays a *dated snapshot*: **2026-11-03 — every tracked recipe passes plain
-`validate`, and the `--strict` findings are exactly the roster below (unchanged since 2026-10-31:
-no arm added since appears in it); suite 1193 tests (2 skipped) the same day**. The snapshot is one
+`validate`, and the `--strict` findings are exactly the roster below (both re-measured 2026-11-03 over
+the whole tracked tree; the roster itself is unchanged since 2026-10-31, because no arm added since
+appears in it); suite 1193 tests (2 skipped) the same day**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
 matched group, so a fraction silently becomes a false statement the moment a recipe lands. The
@@ -195,8 +196,8 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   `falsify-before-claiming`.
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain, and the
-  `--strict` findings are exactly the roster below — re-measured 2026-11-03 over the whole tracked
-  tree, and none of the arms added that day appears in it. No denominator is written here for the
+  `--strict` findings are exactly the roster below — same 2026-11-03 re-measure the snapshot paragraph
+  names, and none of the arms added that day appears in it. No denominator is written here for the
   reason the snapshot paragraph gives: a fraction that scales with the tree goes stale silently.
   Nineteen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:

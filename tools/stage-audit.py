@@ -30,9 +30,8 @@ import subprocess
 import sys
 
 MANIFEST = ".scratch/tp12-campaign/manifest.json"  # default; --manifest overrides
-# The default is the tp12 campaign's file, and it is the one every other session reads: auditing a
-# DIFFERENT arm set used to mean overwriting it, which cost this repo a 42-entry manifest on 2026-11-03
-# (restored byte-identically from a peer clone, same sha256). Pass --manifest for any other set.
+# Never overwrite the default to audit a different arm set -- pass --manifest (tools/README.md owns the
+# incident that made this a flag).
 # Nodes come from --nodes/$STAGE_NODES: this file is tracked and the registry
 # forbids cluster addresses in tracked text (tests/test_tracked_address_hygiene.py).
 DEFAULT_NODES = ""
