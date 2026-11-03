@@ -11,6 +11,12 @@ container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc
 min_nodes: 1
 max_nodes: 1
 
+# entrypoint: "" — this image keeps llama-server as ENTRYPOINT, which would eat the launcher command
+# (the MTP arm and the decision-lane precedent carry the same). The shipped arm's scitrera image does
+# not need it, which is why copying that recipe alone fails with `executor_config: entrypoint: ""`.
+executor_config:
+  entrypoint: ""
+
 description: >-
   Same-engine control for the MTP draft-length sweep: the shipped Q4_K_M arm with
   its container moved to `upstream-a37cc46-cu130`, so its ladder is comparable to

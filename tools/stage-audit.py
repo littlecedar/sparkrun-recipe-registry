@@ -29,7 +29,10 @@ import os
 import subprocess
 import sys
 
-MANIFEST = ".scratch/tp12-campaign/manifest.json"
+MANIFEST = ".scratch/tp12-campaign/manifest.json"  # default; --manifest overrides
+# The default is the tp12 campaign's file, and it is the one every other session reads: auditing a
+# DIFFERENT arm set used to mean overwriting it, which cost this repo a 42-entry manifest on 2026-11-03
+# (restored byte-identically from a peer clone, same sha256). Pass --manifest for any other set.
 # Nodes come from --nodes/$STAGE_NODES: this file is tracked and the registry
 # forbids cluster addresses in tracked text (tests/test_tracked_address_hygiene.py).
 DEFAULT_NODES = ""
@@ -101,6 +104,11 @@ def main(argv: list[str] | None = None) -> int:
 
     ap = argparse.ArgumentParser(description="Prove manifest arms can launch before a window is spent.")
     ap.add_argument(
+        "--manifest",
+        default=MANIFEST,
+        help=f"arm manifest to audit (default: {MANIFEST}); pass this instead of overwriting it",
+    )
+    ap.add_argument(
         "--nodes",
         default=os.environ.get("STAGE_NODES", DEFAULT_NODES),
         help="comma-separated free nodes to probe (or $STAGE_NODES)",
@@ -110,10 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     if not nodes:
         print("no nodes: pass --nodes a,b or set $STAGE_NODES", file=sys.stderr)
         return 2
+    manifest = args.manifest
     try:
-        arms = json.load(open(MANIFEST))
+        arms = json.load(open(manifest))
     except (OSError, ValueError) as exc:
-        print(f"cannot read {MANIFEST}: {exc}", file=sys.stderr)
+        print(f"cannot read {manifest}: {exc}", file=sys.stderr)
         return 2
     if not isinstance(arms, list) or not arms:
         print("manifest is not a non-empty list", file=sys.stderr)
