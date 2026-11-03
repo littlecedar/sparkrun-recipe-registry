@@ -215,6 +215,41 @@ documentation.
 | runtime package (weights, cubins, graphs) | cache on each host, mounted read-only | none — data | yes, a bind mount | `[container.md:45-48]`, `[gb10:167-173]` |
 | Ignition (preparation) | not needed to serve | Python + CUDA toolkit | out of scope; the vendor keeps it out of both the image and the `.deb` | `[debian.md:7-10]`, `[container.md:3-7]` |
 
+## 3.4 Rollout executed — `.30` and `.35`, 2026-11-03
+
+Owner ruling applied: vendor APT repository, package installed like any other system package, agent
+enabled per-host. **Production nodes were not touched** (`.31`–`.34` still carry no key), per the
+scope ruling that the key travels with the agent.
+
+| step | `.30` (head) | `.35` |
+|---|---|---|
+| `io_uring` probe | **already ALLOWED** (`io_uring_setup(425): fd=3 allowed`, Docker 29.6.2) | **already ALLOWED** (same) |
+| key fingerprint | `22C46BE0A4C3F708F74C1E75213A79D33E50FC06` — matches §6 exactly | same |
+| installed | `flare-inference 0.1.0~git20261030013211.a161b17f-1` arm64 | same |
+| `flare --version` | `flare 0.1.0` | `flare 0.1.0` |
+| agent | `flare-agent.service` enabled + running, linger on, `0.0.0.0:29900` | same |
+| node fingerprint | `5de34464ec3b14bdc4c08fa858149cb8d39a770b360db3f52e846275460dd187` | see receipt |
+
+**The `io_uring` mutation was not needed.** `tools/enable-io-uring.py --probe-only` reports the
+syscall already allowed on both nodes under Docker 29.6.2, so the daemon seccomp profile was not
+changed and no container privilege widened. If a future Docker upgrade restores the stock profile,
+disk-Engram becomes the conversation again — that is the condition to re-probe, and `--probe-only`
+is the zero-risk way to check.
+
+**The reviewed build had rotated out of the archive.** §7's precondition to pin
+`0.1.0~git20261021004534.bb204798-1` could not be honoured: the index now offers
+`…20261030013211.a161b17f-1` (candidate) and `…20261027170349.7c22369f-1` only. The reviewed `.deb`
+still downloads (HTTP 200), so the old artefact was not lost — it simply is not what `apt install`
+gives you. Installed instead is the newest, `a161b17f` (`Source-Commit:
+a161b17f3ef3ac5c0cd3e219719f7d1d36a01175`), verified the same way the reviewed one was: **no
+maintainer scripts** (its control archive holds only `control` and `md5sums`), same maintainer and
+`Homepage` field, 7,835,720 B versus the reviewed build's 6,455,036 B. So the root-privilege surface
+is unchanged in shape — `dpkg` runs nothing at install — while the binary itself is nine days newer
+than anything this document reviewed. That gap is the accepted risk §5 names, now realised once.
+
+Receipts: `~/benchmarks/flare-rollout-20261103/` on the head (per-node install logs, join codes
+redacted there rather than in this tracked file).
+
 ## 4. Containerization: possible, and why it is still not the route
 
 The container is skipped for three reasons — the vendor publishes one container shape (a single-host
