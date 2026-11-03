@@ -67,6 +67,9 @@ MODEL_UNRESOLVABLE = "model-unresolvable"
 CONTAINER_CURRENT = "container-current"
 CONTAINER_NEWER_RELEASE = "container-newer-release"
 CONTAINER_FLOATING = "container-floating"
+#: The tag is gone upstream but the pinned digest still serves, so the arm pulls
+#: by digest.  Drift a human should re-pin, not a broken pin.
+CONTAINER_TAG_RETIRED = "container-tag-retired"
 CONTAINER_UNRESOLVABLE = "container-unresolvable"
 BUILD_INPUT_CURRENT = "build-input-current"
 BUILD_INPUT_NEWER_RELEASE = "build-input-newer-release"
@@ -79,7 +82,7 @@ CLASSES = (
     MODEL_CURRENT, MODEL_STALE_WEIGHTS, MODEL_STALE_DOCS, MODEL_UNPINNED,
     MODEL_UNRESOLVABLE,
     CONTAINER_CURRENT, CONTAINER_NEWER_RELEASE, CONTAINER_FLOATING,
-    CONTAINER_UNRESOLVABLE,
+    CONTAINER_TAG_RETIRED, CONTAINER_UNRESOLVABLE,
     BUILD_INPUT_CURRENT, BUILD_INPUT_NEWER_RELEASE, BUILD_INPUT_FLOATING,
     BUILD_INPUT_STALE, BUILD_INPUT_UNRESOLVABLE,
     STALE_ACCEPTANCE,
@@ -611,10 +614,11 @@ def classify_container(ref, fetcher, scope, path, field="container"):
                 # on the Hub API while its pinned digest still serves — the two
                 # media OMNI arms were reported dead for it.
                 got = hub_manifest_digest(repo, digest, fetcher)
-                return _row(CONTAINER_CURRENT, scope, path, field, ref,
+                return _row(CONTAINER_TAG_RETIRED, scope, path, field, ref,
                             observed=got["digest"], cached_at=got["cached_at"],
                             reason=f"{repo}:{tag} retired upstream; the pinned digest "
-                                   "still resolves, so the arm still pulls")
+                                   "still pulls, but the tag a reader sees is gone - "
+                                   "re-pin to a live tag when the lane next moves")
             newest = hub_newest_tag(repo, fetcher)
             notes = {"newest_tag": newest["name"],
                      "newest_tag_at": newest["last_updated"]}

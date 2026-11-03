@@ -13,12 +13,11 @@ The negative controls below pin exactly that:
 
 * `revision:` is not a model pin, so a recipe carrying only `revision:` must
   come out **unpinned**, never "pinned" (`test_stray_revision_is_not_a_pin`);
-* a missing tag at the registry is `container-unresolvable` — never
-  `container-current` — unless the registry still serves the pinned digest,
-  which the fallback verifies and reports with its reason
-  (`test_missing_tag_is_unresolvable`,
-  `test_retired_tag_with_live_digest_is_current`,
-  `test_tag_lookup_failure_is_not_hidden_by_the_fallback`);
+* a missing tag at the registry is `container-unresolvable`, never
+  `container-current` (`test_missing_tag_is_unresolvable`), and a tag whose
+  pinned digest *does* still serve is its own drift class,
+  `container-tag-retired` — never "current", and never an error
+  (`test_retired_tag_with_live_digest_is_tag_retired_not_current`);
 * a tree with no parseable recipe raises instead of reporting an empty sweep
   (`test_empty_selection_raises`, `test_unparseable_recipe_raises`);
 * `--apply` refuses a dirty worktree, and on a clean one it touches the
@@ -326,15 +325,9 @@ class Containers(unittest.TestCase):
         self.assertEqual(row["new_tag"], "t")
 
     def test_missing_tag_is_unresolvable(self):
-        # Negative control: no matching tag must NOT read as current.  With the
-        # digest fallback, "unresolvable" now has to be proven twice — the tag
-        # is gone *and* the registry will not serve the pinned digest.
+        # Negative control: no matching tag must NOT read as current.
         ref = "ns/img:gone@sha256:" + "0" * 64
         rules = [("hub.docker.com/v2/repositories/ns/img/tags/gone",
-                  sweep_tool.FetchError("x", "HTTP 404", 404)),
-                 ("auth.docker.io/token?service=registry.docker.io&scope=repository:ns/img:pull",
-                  (200, {}, json.dumps({"token": "t"}))),
-                 ("registry-1.docker.io/v2/ns/img/manifests/",
                   sweep_tool.FetchError("x", "HTTP 404", 404)),
                  ("hub.docker.com/v2/repositories/ns/img/tags?", (200, {}, json.dumps(
                      {"results": [{"name": "other", "digest": NEW_DIGEST,
@@ -342,11 +335,11 @@ class Containers(unittest.TestCase):
         self.assertEqual(self._classify(ref, rules)["class"],
                          sweep_tool.CONTAINER_UNRESOLVABLE)
 
-    def test_retired_tag_with_live_digest_is_current(self):
-        # The nightly tag rotated out of the upstream window; the digest did
-        # not.  A digest-pinned ref still pulls, so this is neither drift nor
-        # a fault — it is the state two media OMNI arms were reported dead in
-        # on 2026-11-02 (`vllm/vllm-omni:nightly-15bce345…`).
+    def test_retired_tag_with_live_digest_is_tag_retired_not_current(self):
+        # The nightly tag rotated out of upstream's window; the digest did not.
+        # A digest-pinned ref still pulls, so this is not an error - but it is
+        # not "current" either, because the tag a reader sees in the recipe no
+        # longer exists.  Its own class, and that class must gate drift.
         ref = "ns/img:gone@" + OLD_DIGEST
         rules = [("hub.docker.com/v2/repositories/ns/img/tags/gone",
                   sweep_tool.FetchError("x", "HTTP 404", 404)),
@@ -355,13 +348,30 @@ class Containers(unittest.TestCase):
                  (f"registry-1.docker.io/v2/ns/img/manifests/{OLD_DIGEST}",
                   (200, {"docker-content-digest": OLD_DIGEST}, "{}"))]
         row = self._classify(ref, rules)
-        self.assertEqual(row["class"], sweep_tool.CONTAINER_CURRENT)
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_TAG_RETIRED)
+        self.assertNotEqual(row["class"], sweep_tool.CONTAINER_CURRENT)
+        self.assertEqual(row["observed"], OLD_DIGEST)
         self.assertFalse(row.get("appliable"), "a retired tag has nothing to bump to")
         self.assertIn("retired upstream", row["reason"])
+        self.assertIn(sweep_tool.CONTAINER_TAG_RETIRED, sweep_tool.DRIFT_CLASSES,
+                      "a retired tag is drift, not cleanliness")
+
+    def test_retired_tag_with_dead_digest_is_unresolvable(self):
+        # The second half of the negative control: a tag 404 alone must never
+        # be enough.  With the digest gone too the pin cannot be pulled at all.
+        ref = "ns/img:gone@" + OLD_DIGEST
+        rules = [("hub.docker.com/v2/repositories/ns/img/tags/gone",
+                  sweep_tool.FetchError("x", "HTTP 404", 404)),
+                 ("auth.docker.io/token?service=registry.docker.io&scope=repository:ns/img:pull",
+                  (200, {}, json.dumps({"token": "t"}))),
+                 (f"registry-1.docker.io/v2/ns/img/manifests/{OLD_DIGEST}",
+                  sweep_tool.FetchError("x", "HTTP 404", 404))]
+        self.assertEqual(self._classify(ref, rules)["class"],
+                         sweep_tool.CONTAINER_UNRESOLVABLE)
 
     def test_tag_lookup_failure_is_not_hidden_by_the_fallback(self):
         # Fail closed on the instrument too: a 5xx on the tag listing must stay
-        # an error, never become "current" through the digest route.
+        # an error, never become a class through the digest route.
         ref = "ns/img:t@" + OLD_DIGEST
         rules = [("hub.docker.com/v2/repositories/ns/img/tags/t",
                   sweep_tool.FetchError("x", "HTTP 503", 503))]

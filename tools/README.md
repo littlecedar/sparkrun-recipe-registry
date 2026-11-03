@@ -1196,7 +1196,7 @@ tools/refresh-sweep.py --accept-file tools/refresh-sweep-accepted.json --exit-co
 **What it answers.** Per pin, a class from a fixed vocabulary — `model-current`,
 `model-stale-weights`, `model-stale-docs`, `model-unpinned`, `model-unresolvable`,
 `container-current`, `container-newer-release`, `container-floating`,
-`container-unresolvable`, `build-input-current`, `build-input-newer-release`,
+`container-tag-retired`, `container-unresolvable`, `build-input-current`, `build-input-newer-release`,
 `build-input-floating`, `build-input-stale`, `build-input-unresolvable`, and
 `stale-acceptance` — printed verbatim in the table, the JSON and the markdown so an issue
 body can be assembled from it. Stale models are split **weights** vs **docs** by the unified diff
@@ -1220,11 +1220,14 @@ pinned tag and its digest is `container-unresolvable`. The tag 404 alone is not 
 digest-pinned ref pulls by digest: `repo:tag@sha256:…` is first resolved through the Hub's tag
 listing, and when that tag has been retired (a rotated `nightly-…`, a deleted release tag) the pin is
 re-checked against the registry's manifest API by digest — a surviving digest classifies
-`container-current` with the reason recorded, a missing one fails closed. Measured 2026-11-02: two
-media OMNI arms pinned `vllm/vllm-omni:nightly-15bce345…@sha256:f3473cb3…`; the tag had been retired
-upstream (Hub API and registry tag lookup both 404) while the digest still served, and the sweep's
-tag-only reading had escalated the whole nightly run to exit 2. Exit codes, which CI depends on: **0**
-no drift class present, **1** drift present, **2** the sweep could not run (network, parse, git).
+**`container-tag-retired`**, a missing one fails closed. That class is drift, not cleanliness: the
+arm still pulls, but the tag a reader sees in the recipe no longer exists upstream, so the lane should
+re-pin to a live tag when it next moves. Measured 2026-11-02: two media OMNI arms pinned
+`vllm/vllm-omni:nightly-15bce345…@sha256:f3473cb3…`; the tag had been retired upstream (Hub API and
+registry tag lookup both 404) while the digest — an **index** digest, hence the OCI image-index and
+manifest-list media types in the `Accept` list — still served, and the sweep's tag-only reading had
+escalated the whole nightly run to exit 2. Exit codes, which CI depends on: **0** no drift class
+present, **1** drift present, **2** the sweep could not run (network, parse, git).
 `--only` narrows both the report and the gate to the classes named, so a container-only job cannot be
 failed by model drift; an exit of 2 is *always* 2, with or without `--exit-code`, so a broken sweep
 can never read as clean.
