@@ -2371,7 +2371,7 @@ section is the only per-commit record. Appended at the 12:00 ET tick, one row pe
 | 00:04 ET | `477ada5` | "Refresh status board 00:04 ET: census, serve probe and queue re-derived unchanged" — twentieth 2026-11-02 board tick, run at 2026-11-03 00:04 ET, nothing moved: census `.30`→`.35` = 0/0, 1/0, 1/0, 1/0, 1/0, 0/0 with whole-GB root avail 1375 / 1782 / 1834 / 1733 / 1202 / 1448 GB (`.30` 1 GB under its 23:01 read of 1376, stated not explained); four containers of the shipped production pin probed per rank (pids 280 / 306 / 301 / 301, rank-0 `/v1/models` 200, workers 404); no research window, no `queue-drip` or `boot-watchdog` process on either host, both `drip-state.json` pids absent on their own nodes; 32 open register tasks (29 queued + 3 blocked), zero stale claims, `check` green over 67. Re-derived, not carried: tp12 manifest 42 arms (33 TP=1 / 9 TP=2) and the persisted 5-arm skip set, head's 3 tp12 receipt roots against 0 here, the two unresolved shipped container refs, and the embed arm's recipe/tool/test tree unchanged since `014cf89` (only `tools/refresh-sweep.py`, `tools/README.md`, `tests/test_refresh_sweep.py` and docs moved) |
 
 The three rows above were written by this tick's fold, which also replaced the footer that had named the 23:14 correction the open tail. Rows now run through the 00:04 publish (`477ada5`); this fold's own commit cannot record itself, so it is the current open tail — next fold's job.
-|
+
 ## Tick ledger, 2026-11-03 (opened at the 01:04 ET tick; the 2026-11-02 section's footer named `1c884bf` the open tail, and four commits landed after it with no row)
 
 | time ET | commit | one clause |
