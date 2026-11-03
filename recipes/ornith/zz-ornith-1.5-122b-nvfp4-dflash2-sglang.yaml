@@ -59,8 +59,10 @@ defaults:
   # Distribution-only: SGLang has no serve flag for the draft head, so this pin reaches
   # distribution, not the serve line — paired with the pre_exec refs/main seed above.
   speculative_draft_model_revision: 9baefc1bec85c08193ab442e0ca5f7057669b61d
-  # The card's block size is 16 (15 draft tokens per verification step).
-  speculative_draft_tokens: 15
+  # 4, not the card's block-size default of 15: the same-window sweep (lane README) measures 15
+  # below the no-drafter control past C2, and 4 ahead of it at every rung. Override to 15 for the
+  # card baseline.
+  speculative_draft_tokens: 4
 
 command: >
   taskset -c 5-9,15-19 sglang serve

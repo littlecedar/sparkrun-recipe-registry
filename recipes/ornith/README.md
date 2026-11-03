@@ -726,7 +726,9 @@ the shipped surface.
 ## `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` — 122B with the DFlash2 block-diffusion drafter
 
 Owner-requested arm (2026-10-30). The NVFP4 122B target with `incoai/Ornith-1.5-122B-DFlash2`
-as the speculative draft, pinned `9baefc1b…`, 15 draft tokens (the card's block size is 16).
+as the speculative draft, pinned `9baefc1b…`, **4 draft tokens** — the card's block size is 16, but
+the 2026-11-03 same-window sweep (below) measures 15 below the no-drafter control at every rung past
+C2 and 4 above it at all four, so the arm ships the measured value and 15 is now an `-o` override.
 
 **Layer geometry verified before the boot, not assumed.** The NVFP4 export's `config.json` carries
 no `num_hidden_layers`, so the drafter's `target_layer_ids: [1, 7, 14, 20, 26, 32, 39, 45]` were
