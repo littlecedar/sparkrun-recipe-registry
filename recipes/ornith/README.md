@@ -48,6 +48,7 @@ archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Atti
 - [Engine bump to SGLang 0.5.22 (executed 2026-10-22 — all three arms validated)](#engine-bump-to-sglang-0522-executed-2026-10-22--all-three-arms-validated)
 - [The 122B one-node probe (measured, not shipped)](#the-122b-one-node-probe-measured-not-shipped)
 - [122B quantisations and finetunes — drafter compatibility survey (2026-11-03)](#122b-quantisations-and-finetunes--drafter-compatibility-survey-2026-11-03)
+- [DFlash2 draft-token sweep — matched-window result (2026-11-03)](#dflash2-draft-token-sweep--matched-window-result-2026-11-03)
 - [Lane caveats](#lane-caveats)
 - [Attic index](#attic-index)
 - [References](#references)
