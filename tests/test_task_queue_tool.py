@@ -299,6 +299,21 @@ class BoardAndArchive(unittest.TestCase):
         self.assertEqual(orphans, [])
         self.assertEqual([ref for _line, _t, ref in dead], ["renamed-away"])
 
+    def test_orphans_allow_permits_grandfathered_but_not_growth(self):
+        # The bound is the cutover, not an amnesty: the archive's pre-freeze items are
+        # tolerated, one new unmarked item is not.
+        with tempfile.TemporaryDirectory() as tmp:
+            queue = Path(tmp) / "queue.json"
+            queue.write_text(json.dumps(data([task("a", 1.0)])), encoding="utf-8")
+            todo = Path(tmp) / "TODO.md"
+            todo.write_text("- [ ] **one**\n- [ ] **two**\n", encoding="utf-8")
+            argv = ["--file", str(queue), "orphans", "--todo", str(todo), "--allow", "2"]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(tq.main(argv), 0, "the frozen count is tolerated")
+                with open(todo, "a", encoding="utf-8") as fh:
+                    fh.write("- [ ] **three**\n")
+                self.assertEqual(tq.main(argv), 1, "growth past the bound is the defect")
+
     def test_archive_does_not_grow(self):
         """TODO.md is frozen: its open-item count may not move without a queue row.
 

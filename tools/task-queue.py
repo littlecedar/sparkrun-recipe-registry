@@ -460,13 +460,19 @@ def cmd_orphans(args, path: Path) -> None:
     except OSError as exc:
         raise QueueError(f"cannot read --todo {todo}: {exc}") from None
     orphans, dead = todo_orphans(text, tasks)
+    allow = max(0, getattr(args, "allow", 0))
     for line, title in orphans:
         print(f"{todo}:{line}: open item has no queue row — {title}")
     for line, title, ref in dead:
         print(f"{todo}:{line}: marker names unknown task {ref!r} — {title}")
-    print(f"{todo}: {len(orphans)} orphan(s), {len(dead)} dead marker(s), {len(tasks)} task(s)")
-    if orphans or dead:
-        raise QueueError("open TODO items must live in the register, not the archive")
+    print(f"{todo}: {len(orphans)} orphan(s) (allowed {allow}), {len(dead)} dead marker(s), "
+          f"{len(tasks)} task(s)")
+    # The bound is the cutover: the archive carries its pre-freeze items with no marker, so the
+    # gate is *growth*, not presence.  A dead marker always fails — a renamed task must not
+    # silently orphan the text its old marker covered.
+    if len(orphans) > allow or dead:
+        raise QueueError(f"{todo}: {len(orphans)} orphan(s) exceeds the allowed {allow}" if dead == []
+                         else f"{todo}: {len(dead)} marker(s) name an unknown task")
 
 
 # ---------------------------------------------------------------- entry point
@@ -520,6 +526,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="emit the STATUS.md `## Work queue` table instead of the weighted one")
     p_orph = sub.add_parser("orphans", help="open TODO items with no live queue row")
     p_orph.add_argument("--todo", default="mad-science/TODO.md", help="the archive to scan")
+    p_orph.add_argument("--allow", type=int, default=0,
+                        help="grandfathered orphans tolerated (the archive's frozen count, 52)")
     p_orph.set_defaults(fn=cmd_orphans)
     p_w = sub.add_parser("weight", help="explain one task's arithmetic")
     p_w.add_argument("--id", required=True)

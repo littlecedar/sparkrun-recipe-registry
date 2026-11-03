@@ -27,6 +27,7 @@ carries the command reference and exit codes). Since **2026-11-03 the queue is t
 - [Priority tiers (the owner's standing override)](#priority-tiers-the-owners-standing-override)
 - [Session protocol](#session-protocol)
 - [Fail-closed contract](#fail-closed-contract)
+- [Deliberate omission: `decisions` and `questions` are not JSON arrays](#deliberate-omission-decisions-and-questions-are-not-json-arrays)
 - [Relationship to TODO.md](#relationship-to-todomd)
 
 ## Task schema
@@ -115,6 +116,30 @@ the offending id) on: duplicate ids; a dangling id in `blocks` or `blocked_by`; 
 `blocks` (no well-defined weight exists); a missing, non-numeric, or negative `estimate_h`; a bad
 `state` or `node_cost`; a stored `blocked_by` out of sync with the derived mirror; a `done` task
 still carrying claim fields. There are no silent defaults anywhere in the tool.
+
+## Deliberate omission: `decisions` and `questions` are not JSON arrays
+
+The 2026-10-30 migration row named three schema additions; two shipped (`evidence` per task,
+`render --board`) and two did not. That is a deviation from the instruction, recorded here rather
+than left in a session's reply:
+
+- **`questions`** live in `mad-science/QUESTIONS.md`: 22 lines, one row per *unresolved* question,
+  read whole by anyone who needs it. An array in `queue.json` would be a second copy of that table —
+  and `queue.json` is read by every command, so the copy would be paid for on every invocation to
+  avoid reading 22 lines.
+- **`decisions`** live in `TODO.md` `# DECISIONS`: roughly 500 lines of numbered rationale, with the
+  numbered ids cited from lane docs, `attic/`, and commit bodies. No board tick, closeout or
+  scheduler reads them; whoever needs one greps the id. Importing them would make the register the
+  largest file in the repo and still leave the prose as the record.
+
+The property the row actually wanted — **numbering that is never reused** — is already enforced by
+practice: `QUESTIONS.md` and `TODO.md` share one number space and a settled row keeps its number
+verbatim, so `QUESTIONS.md #9` still resolves after the move. Nothing in the tooling would gain a
+check from a JSON twin, because the twin would be written by the same hand that writes the prose.
+
+If the owner wants the arrays anyway, the shape is cheap — `{id, summary, status, provenance}` per
+row, prose staying authoritatively in markdown — but it should be a deliberate choice rather than a
+side-effect of a migration.
 
 ## Relationship to TODO.md
 

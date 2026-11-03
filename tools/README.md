@@ -1431,7 +1431,9 @@ uv run python -B tools/task-queue.py check        # validate only
 uv run python -B tools/task-queue.py weight --id X  # one task's arithmetic, line by line
 uv run python -B tools/task-queue.py render       # weighted table, for a human
 uv run python -B tools/task-queue.py render --board  # the STATUS.md `## Work queue` table (derived)
-uv run python -B tools/task-queue.py orphans      # open TODO.md items with no live queue row
+uv run python -B tools/task-queue.py orphans # open TODO.md items with no live queue row
+ # --allow N tolerates the archive's N grandfathered items (52 at the 2026-11-03 freeze);
+ # anything past that bound, or a marker naming an unknown id, exits 1
 uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
     # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists
