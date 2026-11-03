@@ -12,7 +12,8 @@ file disagrees with the tree — run the tool's `--fix` rather than editing a nu
 a run can know stays a *dated snapshot*: **2026-11-03 — 83/83 recipes pass plain `validate`, and
 20/83 fail `--strict` on the same accepted roster (both re-measured over every tracked file after
 four arms landed that day; the roster itself is unchanged, because none of the new arms fails
-strict); suite 1187 tests (2 skipped) the same day**. The snapshot is one run over the tracked
+strict); suite 1193 tests (2 skipped) the same day, re-taken once the sweep's tag-resolution guard
+landed its six tests**. The snapshot is one run over the tracked
 tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are added or retired. The working tree can carry in-flight drafts that git does not,
 so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
@@ -762,13 +763,14 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1172 tests,
-  all passing 2026-10-31 (2 skipped:** the IFM research docs absent on a
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1193 tests,
+  all passing 2026-11-03 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
-  why this count is 2 skips and not the 3 recorded earlier the same day). The
-  count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it.
+  why this count is 2 skips and not the 3 recorded earlier on 2026-10-31). The
+  count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it, and
+  the two places in this file that state it move together.
   The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;

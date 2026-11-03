@@ -407,8 +407,10 @@ class Containers(unittest.TestCase):
         self.assertIn(sweep_tool.CONTAINER_UNRESOLVABLE, sweep_tool.DRIFT_CLASSES)
 
     def test_tag_only_registry_error_is_not_a_missing_tag(self):
-        # A 503 is an unreachable registry, not a dead tag: it must never gate 2.
+        # A 503/429 is an unreachable registry, not a dead tag: it must never gate 2.
+        # 429 is the case that matters on a hosted runner -- Hub rate-limits the nightly.
         for failure in (sweep_tool.FetchError("x", "HTTP 503", 503),
+                        sweep_tool.FetchError("x", "HTTP 429", 429),
                         sweep_tool.FetchError("x", "URLError: timed out")):
             row = self._classify("ns/img:t", tag_only_rules(failure))
             self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
