@@ -60,7 +60,9 @@ One `##` section per toolkit, in this shape — the same facts every time, so tw
 
 - **No toolkit is recorded from its README.** A row without a receipt path is not an entry.
 - The vendor's license is **LFM Open License v1.0** (not Apache/MIT): a *published* fine-tune is a
-  redistribution, which is `mad-science/QUESTIONS.md` `#56`, not a local decision. Training for
-  internal evaluation is not gated.
+  redistribution under Liquid's terms, not a local decision. Serving is settled — the owner ruled the
+  arms ship as ordinary arms (`QUESTIONS.md` `#56`, settled 2026-11-02) — but that ruling is about a
+  serve default, not about republishing derived weights, so a published fine-tune still gets its own
+  read before it leaves a node.
 - Keep the registry tidy at the edge: a converted GGUF or merged checkpoint is node-local evidence,
   never something committed here.

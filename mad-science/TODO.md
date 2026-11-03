@@ -529,6 +529,23 @@ the TP≤2 queue when production inference restarts on `.30`–`.33`. The TP=2 h
   (two nodes), not with this window. *(Owner decision 2026-10-25 (SURVEY #1): the drain ruling
   stands — the session closes when the TP=4 queue is exhausted, with TP≤2 items possibly
   unfinished; the unpark does not extend the session.)*
+- **#54 — May a GHCR credential be granted so the shipped ds4 image can be pushed and made
+public?** *Answered 2026-11-02: it had already landed.* The 2026-10-29 approval's device-code grant
+was never the blocker the row read as — all four `recipes/ds4/*.yaml` now pin
+`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:…`, and the package mints an anonymous pull token
+(`https://ghcr.io/token?scope=repository:littlecedar/dgx-spark-dsv41:pull` → **200**), which is the
+evidence the row said was missing. The row keeps its answer and is not re-opened. — provenance:
+the four `recipes/ds4/` container pins; `AGENTS.md` §"Published artifacts must be public" (the
+2026-10-29 visibility flip); `mad-science/CLR-BRIEF.md` Q2; asked 2026-10-29, settled 2026-11-02.
+- **#56 — May this registry ship Liquid AI LFM3 arms as serve defaults?** *Answered 2026-11-02:
+**yes, as ordinary arms*** — no eval-only banner. The `LiquidAI/lfm3` collection's seven repos all
+carry `license: other` = **LFM Open License v1.0**, a class this registry had not shipped, so `AGENTS.md`
+sent it to the register instead of a lane decision. The owner ruled it shipable on the same footing as
+the Apache-2.0 and MIT arms, which means the seven `liquidai-*` rows and `liquidai-finetune-toolkits`
+carry no banner requirement. A *published* fine-tune is still a redistribution under Liquid's own
+terms — that stays the fine-tuning entry's business, not a recipe flag. — provenance:
+`recipes/liquidai/README.md` (roster + license posture), `recipes/liquidai/finetuning/README.md`,
+`LiquidAI/LFM3-1.7B-GGUF/LICENSE` read 2026-11-02; asked and settled 2026-11-02.
 
 
 # TODO list
@@ -1546,9 +1563,10 @@ Liquid AI LFM3 — hybrid `conv` + `sliding_attention` + `full_attention`, `tran
   baseline, Unsloth, Axolotl, LLaMA-Factory, ms-swift, torchtune. No toolkit recorded from its README
   — an entry without a receipt path is not an entry — and record rejects with their failing gate.
   *(effort: medium)*
-  *(Ship posture for the whole lane is open: all seven repos are `license: other` = **LFM Open License
-  v1.0**, a license class this registry has not shipped — `QUESTIONS.md` `#56`. Internal evaluation
-  is not gated; shipping a serve default is. Neither lane doc nor row claims any of it is measured.)*
+  *(Ship posture settled: all seven repos are `license: other` = **LFM Open License v1.0**, a class
+  this registry had not shipped, and the owner ruled 2026-11-02 that these arms **ship as ordinary
+  arms** — no eval-only banner (`QUESTIONS.md` `#56`, in `TODO.md` §"Settled questions"). Neither
+  lane doc nor row claims any of it is measured.)*
 
 ## explore
 Any model with reasoning and tool-calling capabilities

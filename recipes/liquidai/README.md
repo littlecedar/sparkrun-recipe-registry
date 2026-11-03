@@ -48,11 +48,11 @@ i.e. 13 conv + 6 full + 5 sliding. Consequences an operator will otherwise trip 
 
 All seven repos carry `license: other`; the GGUF mirror's `LICENSE` file is **LFM Open License
 v1.0**, Liquid AI's own terms with the usual use/control definitions. That is a license class this
-registry has not shipped before, so per `AGENTS.md` ("a new license class goes to the register
-first") the ship posture is an open owner question — `mad-science/QUESTIONS.md` `#56`. Building and
-booting an arm for internal evaluation is not gated by that question; **shipping it as a serve
-default is**, and if it lands eval-only it needs the mandatory license banner in the recipe and the
-note in `description:`.
+registry had not shipped, so per `AGENTS.md` ("a new license class goes to the register first") the
+ship posture went to the owner rather than a lane — **ruling 2026-11-02: ship as ordinary arms**,
+no eval-only banner, recorded as `mad-science/QUESTIONS.md` `#56` (settled, in
+`mad-science/TODO.md` §"Settled questions"). A *published fine-tune* is still a redistribution under
+Liquid's own terms, which is `finetuning/`'s business and not a recipe flag.
 
 ## Instruments — one per modality, and they are not interchangeable
 
