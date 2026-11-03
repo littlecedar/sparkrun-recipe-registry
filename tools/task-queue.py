@@ -503,6 +503,7 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("--node-cost")
     p_upd.add_argument("--notes")
     p_upd.add_argument("--provenance")
+    p_upd.add_argument("--evidence", help="receipt path that proves the task landed")
     p_upd.add_argument("--claimed-by")
     p_upd.add_argument("--state", choices=STATES)
     p_upd.set_defaults(fn=cmd_update)
