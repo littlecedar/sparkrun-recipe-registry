@@ -441,6 +441,21 @@ weights**.
   (c5 208.3, c10 186.0, measured 2026-10-22), so a retest that blames the drafter for it is measuring
   the model. Quality stays a standing refusal: 13 pass / 1 partial / 1 fail of 15 on the published
   pin (2026-11-03).
+- **Draft length does NOT change the batched math (measured 2026-11-03, `.30`, published `a37cc46`
+  engine, full ladders).** The historical n-sweep was single-stream only, so this axis was open; it
+  is now closed. Decode `tg128` aggregate, n = 1 / 2 / 3: **c1 98.65 / 103.70 / 88.63**, c2 138.22 /
+  134.18 / 113.57, c5 198.64 / 190.73 / 182.91, **c10 141.59 / 141.28 / 133.78**. The c5→c10 fall is
+  −28.7 % / −25.9 % / −26.9 % — invariant in draft length — while n=3 is worst at every rung (c1
+  −10 %), which matches the 2026-10-22 single-stream finding that longer drafts lose. n=1 (the recipe
+  default and the vendor's recommended value) stays the setting.
+  **The dip itself is a model/engine property that the drafter amplifies**: the plain arm without MTP
+  dips −10.7 % (208.3 → 186.0, 2026-10-22) where every MTP setting dips ~−26 %, so it is not the
+  drafter's invention but the drafter does make it worse. Explaining the dip needs a plain-arm ladder
+  on a current engine, not another draft-length sweep.
+  Repeatability datum from the same window: n=2 ran twice (17:21 and 17:33) and gave 97.53 vs 103.70
+  at c1 — **5.9 % boot-to-boot at c1**, 2.9 % at c5 and 2.6 % at c10 — so single-stream cells on this
+  arm carry several percent of noise and no ranking should rest on a <3 % difference at c1. Receipts
+  `~/benchmarks/tp12-20261103/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp{,-n2,-n2.prev-173510,-n3}/`.
 - **MTP n=1 retested on a current engine (2026-10-25, owner round-4 §7(c)): the rejection stands.**
   Upstream moved 86 commits past the swept `a37cc4610` (HEAD `d854d98bae`, 2026-10-25; touches
   `llama-graph`/`speculative`/ggml-cuda), so the probe arm was re-pinned *for the retest* to a fresh
