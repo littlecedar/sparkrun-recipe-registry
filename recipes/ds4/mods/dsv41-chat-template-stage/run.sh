@@ -8,7 +8,7 @@ set -euo pipefail
 # README
 #####################################################################
 # Chat-template staging for the MAIN-tree probe arm
-# (`zz-ds4-1017-main-tree-sglang.yaml`), which serves the 1017 checkpoint
+# (`attic/ds4/zz-ds4-1017-main-tree-sglang.yaml`, retired 2026-11-03), which served the 1017 checkpoint
 # on the stock `sglang-main-arm64:6563312` build instead of the knapcio
 # overlay image. The 2026-10-17 refresh ships no `chat_template.jinja` by
 # design (its card replaces the Jinja template with `encoding/encoding.py`),

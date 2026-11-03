@@ -3989,4 +3989,53 @@ C1 gap was not iterated on (owner cancelled at first sight of the ladder); the
 tuning levers recorded in the queue notes (drafter/verify config, slot count,
 scheduler defaults) died with the route.
 
+## The stock-main-tree S0 arm (`zz-ds4-1017-main-tree-sglang.yaml`) — measured NEGATIVE, then retired (2026-11-03)
+
+**What the arm was.** Stock main-line SGLang `6563312` (`sgl-project/sglang` @
+`656331295619a4d0267b40b7da0b5cd5b549fcbc`, 2026-10-24) serving
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` @ `1bae0e10…` at TP=4, carrying the lane's chat-template
+staging mod and **no** knapcio adapter overlay: the S0 control of the candidate survey, and the
+vehicle the flag-level arms (candidates 1, 2, 6) were expected to ride.
+
+**Measured NEGATIVE, 2026-10-26** (receipts `~/benchmarks/tp4-window4-20261026/`). Cutlass rejects the
+geometry — `Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition
+to be multiples of 128 (got hidden=5120, intermediate=576)`, the checkpoint's 2304/4 — and the
+owner-authorized `--moe-runner-backend triton` retry cleared that check, then OOM'd 16 s into weight
+load (`NV_ERR_NO_MEMORY`, 108.83 GB available). So the vendored fused/packed MoE path is load-bearing
+for **memory fit**, not a convenience, and the adapter set is not optional for boot. Tracebacks and
+the reading: `recipes/ds4/README.md` §"The vendored adapter set".
+
+**Why the file moved here instead of gaining a registry pin (2026-11-03).** Its `container:
+sglang-main-arm64:6563312` is a bare local tag on the fleet — image id `fe903216cd88`, 28.9 GB, still
+resident on `.35` (read 2026-11-03) — and no registry carries it: Docker Hub's
+`library/sglang-main-arm64` answers 404, and `ghcr.io/littlecedar/sglang-main-arm64` is not a package
+(token 403). It also carried **no digest**, which is why the nightly pin sweep never resolved it:
+`tools/refresh-sweep.py::classify_container` returns `container-floating` for a tag without a digest
+*before* contacting any registry — a dead pin of that shape sits in the tree looking harmless. No
+published artifact is boot-equivalent (only the knapcio overlay images carry the dsv41 pad/selection
+path) and the arm's question is closed, so retirement was the disposition, not a re-pin. There is no
+Dockerfile in this tree that builds `sglang-main-arm64`; the base commit above is the only build
+record.
+
+**Publishing it, if a future tree-bisect wants the stock-main-tree control back.** The image is still
+on `.35` and nothing else holds it:
+
+```bash
+# on the node holding the local tag — `.35` on 2026-11-03 (hostname spark-383f)
+docker tag sglang-main-arm64:6563312 ghcr.io/littlecedar/sglang-main-arm64:main-6563312
+docker push ghcr.io/littlecedar/sglang-main-arm64:main-6563312
+docker inspect --format '{{index .RepoDigests 0}}' \
+  ghcr.io/littlecedar/sglang-main-arm64:main-6563312
+```
+
+That needs a `write:packages` token on the pushing host, and the package must then be flipped
+**public** (a first push starts private — `AGENTS.md` §"Published artifacts must be public") before a
+node without credentials can pull it. Then restore with
+`git mv attic/ds4/zz-ds4-1017-main-tree-sglang.yaml recipes/ds4/` and pin
+`ghcr.io/littlecedar/sglang-main-arm64@sha256:…`.
+
+**Fleet consequence, stated because `container:` doubles as prune protection.** Nothing in the tree
+names `sglang-main-arm64:6563312` any more, so a prune pass on `.35` may delete it. Accepted: it is
+28.9 GB of image no recipe can reach.
+
 

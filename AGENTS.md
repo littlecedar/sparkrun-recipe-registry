@@ -9,8 +9,10 @@ the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 Counts in this document are derived, not remembered: `python3 tools/doc-census.py` prints the tracked
 recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.py` fails when this
 file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. What only
-a run can know stays a *dated snapshot*: **2026-10-31 — 80/80 recipes pass plain `validate`, 20/80
-strict, suite 1172 tests (2 skipped)**. The working tree can carry in-flight drafts that git does not,
+a run can know stays a *dated snapshot*: **2026-11-03 — 79/79 recipes pass plain `validate`
+(the 2026-10-31 run's 80/80 set minus the arm retired since, plus today's re-validate of the one
+edited); `--strict` last taken 2026-10-31 at 20 of 80, not re-run; suite 1172 tests (2 skipped)
+on that run**. The working tree can carry in-flight drafts that git does not,
 so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
 ## Contents
@@ -69,7 +71,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 80 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 79 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -189,8 +191,10 @@ find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} 
   replay that cost two boots can no longer be reported as a measurement. Procedure: skill
   `falsify-before-claiming`.
 
-- **Plain `validate` is the gate, not `--strict`**: all 80 tracked recipes pass plain; 20/80 fail
-  strict on accepted findings (re-measured 2026-10-31; the table below is the full roster).
+- **Plain `validate` is the gate, not `--strict`**: all 79 tracked recipes pass plain; 20/79 fail
+  strict on accepted findings (roster re-measured 2026-10-31; the roster is unchanged and the
+  denominator restated 2026-11-03 for the one arm retired to `attic/ds4/`, which the roster never
+  listed; this table is the full roster).
   Nineteen carry `unpinned-model-revision` —
   the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
 

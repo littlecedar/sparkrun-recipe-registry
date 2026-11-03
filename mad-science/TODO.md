@@ -803,14 +803,15 @@ together:
   build recipe); commit each build's pin/tag before any boot — **BUT BOTH ARE BLOCKED on the
   build-gate re-port (owner ruling 2026-10-26, in the advisories above; window-4 evidence:
   `~/benchmarks/tp4-window4-20261026/build-c{3,5}.log`).** The S0 control boot of
-  `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` gates the whole flag-level track (the stock
+  `attic/ds4/zz-ds4-1017-main-tree-sglang.yaml` gates the whole flag-level track (the stock
   tree must serve the 1017 at all). A/B discipline (`DEEPSEEK.md`
   §10.1): `--fresh` every bench, assert `/v1/models`, pre-register target cell + falsifier BEFORE
   each arm, hold the pool/pin constant, alternate A/B/A/B; a delta counts only if the mean clears
   the control's 15-value range AND the mechanism signal moves. Screen-then-extend. Keep the
   quartet saturated during the ~45–60 min knapcio-class TTRs: prep the next arm while a boot runs.
   *(Window-4 status, tp4-recovery 2026-10-26: the S0 control boot
-  `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` ran NEGATIVE — the stock main tree
+  `attic/ds4/zz-ds4-1017-main-tree-sglang.yaml` — retired there 2026-11-03, its stock-tree build
+  exists only as a fleet-local tag, see `recipes/ds4/README.md` — ran NEGATIVE — the stock main tree
   (`sglang-main-arm64:6563312`) does not serve the 1017 checkpoint on GB10 TP4 at any in-arm MoE
   backend: the default `Mxfp4FlashinferCutlassMoEMethod` rejects the checkpoint's
   per-partition intermediate (2304/TP4 = 576, not a multiple of 128), and the owner-authorized

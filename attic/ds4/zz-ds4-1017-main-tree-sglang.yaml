@@ -1,4 +1,10 @@
 # ===========================================================================
+# RETIRED 2026-11-03 (moved out of recipes/ds4/, not shippable, frozen here).
+# Its `container:` below is a fleet-local tag with no registry: nothing can
+# pull it on a fresh node. S0 answered NEGATIVE (see recipes/ds4/README.md,
+# attic/ds4/AGENTS.md §"The stock-main-tree S0 arm") and no published image is
+# boot-equivalent, so it was retired rather than re-pinned.
+# ===========================================================================
 # DRAFT probe arm (`zz-`) — candidate-survey instrument, never a shipped arm.
 # Serves deepseek-ai/DeepSeek-V4.1-Flash-1017 on the STOCK main-line SGLang
 # build `sglang-main-arm64:6563312` (built 2026-10-25 from sgl-project/sglang

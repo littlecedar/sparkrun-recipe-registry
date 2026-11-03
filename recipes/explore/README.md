@@ -433,8 +433,10 @@ weights**.
   `~/benchmarks/mellum-mtp-draft-20261022/`.
 - **MTP n=1 retested on a current engine (2026-10-25, owner round-4 §7(c)): the rejection stands.**
   Upstream moved 86 commits past the swept `a37cc4610` (HEAD `d854d98bae`, 2026-10-25; touches
-  `llama-graph`/`speculative`/ggml-cuda), so the probe arm was re-pinned to a fresh local build
-  (`upstream-d854d98-cu130`, both gates green) and the n=1 cell re-run with the sweep's own geometry:
+  `llama-graph`/`speculative`/ggml-cuda), so the probe arm was re-pinned *for the retest* to a fresh
+  local build (`upstream-d854d98-cu130`, both gates green — never published, so the recipe cannot
+  carry it: see the arm's own section for the pin it ships and the CI route that would publish this
+  engine) and the n=1 cell re-run with the sweep's own geometry:
   **102.95 ± 3.20 t/s** against a same-window pooled baseline **98.44 ± 3.36** (+4.6 %) — and
   acceptance 0.701 / mean accepted length 1.70 byte-identical to the 2026-10-22 cell, i.e. the
   drafter behaves identically and n=1 remains the only non-worse length, still ~11 % under the
@@ -480,6 +482,29 @@ from the pool snapshot — on the upstream build the shipped pin has no `graph_m
 `-o spec_draft_n_max=<n>` is the knob under test, and the arm is measured-rejected at every draft
 length and quantization tried (parent section); its standing use is the retest harness for the next
 upstream move.
+
+**Engine pin (re-pinned 2026-11-03).** `container:` is
+`littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8…` — the stock-upstream
+`a37cc4610` build, the engine every 2026-10-22 cell in the parent section ran on, and the one image
+the tree's other stock-upstream arms already share. The pin it replaces,
+`…:upstream-d854d98-cu130`, resolved to no registry at all: unqualified (so Docker Hub) and that tag
+is absent there (5 tags, all `a37cc46`/`9df0b73` — read 2026-11-03) *and* in
+`ghcr.io/littlecedar/dgx-spark-llama-cpp`, whose only tag is `upstream-a37cc46` (`sha256:09f8ec22…`,
+a build this lane has never booted). The `d854d98bae` build was made locally on `.35` and never
+pushed; it still sits there as a tag-only image (`upstream-d854d98-cu130`, id `47d3efa2b076`, seen
+2026-11-03). Consequences, stated rather than implied: **the 2026-10-26 retest and quantized-head
+cells in the parent section are that unpublished engine's**, not this pin's, and the acceptance
+number reproduces across both (0.701 / mean len 1.70 byte-identical), so the rejection verdict is
+unaffected; and moving the pin **drops the prune protection** the old tag gave that `.35` image.
+
+To pin `d854d98` again, publish it through the existing CI route — no node and no local registry
+credentials needed (Actions → `llamacpp-engine` → Run workflow, `llama_ref`
+`d854d98bae598388ecea1ed84396587e5edc326d`), which builds
+`ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-d854d98` and prints the digest; pin it qualified,
+`ghcr.io/littlecedar/dgx-spark-llama-cpp@sha256:…`, and flip the package public (the workflow's first
+push starts private — `AGENTS.md` §"Published artifacts must be public"). The local equivalent is the
+recorded build in `attic/explore/AGENTS.md` §"engine bump" with `LLAMA_REF=d854d98bae…`, pushed as
+`ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-d854d98`.
 
 ## [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](nemotron-3.5-lightning-30b-a3b-nvfp4-vllm.yaml)
 

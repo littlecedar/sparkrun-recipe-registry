@@ -686,7 +686,7 @@ by an in-image test suite before a boot is allowed.
   textual-placeholder anchor in SGLang's `encoding_dsv41.py` has drifted. The newer trees moved this
   file: the candidate builds had to re-derive anchor 1 because upstream dropped the
   `_validate_no_image_sp_tokens` docstring line the anchor matched
-  (`recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml:14-16`), and candidate 5's tree dropped
+  (`attic/ds4/zz-ds4-1017-main-tree-sglang.yaml:20-22`), and candidate 5's tree dropped
   `encoding_dsv41.py` entirely, forcing the re-pin to the #41603 merge commit `620c76f2`
   (window-4 evidence: build receipts `~/benchmarks/tp4-window4-20261026/build-c{3,5}.log`;
   `mad-science/TODO.md` §Retry queue — window 4, Build-gate drift advisory). **Verdict:
@@ -705,9 +705,9 @@ by an in-image test suite before a boot is allowed.
   **Verdict: load-bearing** for sparkrun's boot and health lifecycle.
 
 **Would the arm run without the adapter set? No, on no stock main tree and at neither MoE backend — measured
-2026-10-26.** The S0 control boot of `recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml` (the stock
+2026-10-26.** The S0 control boot of `attic/ds4/zz-ds4-1017-main-tree-sglang.yaml` (the stock
 main tree `6563312` with the staging mod and no knapcio overlay —
-`recipes/ds4/zz-ds4-1017-main-tree-sglang.yaml:5-6,28-29`;
+`attic/ds4/zz-ds4-1017-main-tree-sglang.yaml:11-12,34-35`;
 `recipes/ds4/mods/dsv41-chat-template-stage/run.sh:12`; the knapcio `boot.py` is not in that image,
 which is why the overlay launcher exits rc=2 there) FAILED at engine init on rank 0:
 `ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and
@@ -730,6 +730,17 @@ so the adapter set is not optional for boot. Both tracebacks: cutlass
 launch-side failure in `s0-retry-launch.log` (record: `mad-science/TODO.md:749-763`; queue verdict
 e84ce8d, S0 DONE NEGATIVE; any shipped-image fallback is a control-lineage change reserved to the
 owner).
+
+**Retired to `attic/ds4/` 2026-11-03, one reason: its engine was never published.** The arm's
+`container: sglang-main-arm64:6563312` is a local build on the fleet only (image id `fe903216cd88`,
+still resident as a tag on `.35`); no registry has it — Docker Hub's `library/sglang-main-arm64`
+answers 404 and GHCR has no such package (both probed 2026-11-03). It floated without a digest, which
+is also why the nightly pin sweep never resolved it (`tools/refresh-sweep.py` classifies a
+tag-without-digest pin as `container-floating` without contacting a registry). Nothing published is
+boot-equivalent — the only images that carry the dsv41 padding this arm needed are the knapcio
+overlay images — and the question it existed to answer is closed negative (above), so the file moved
+rather than gaining a pin. Restore with `git mv attic/ds4/<file> recipes/ds4/<file>`; the publish
+command, if a tree-bisect wants it later, is in `attic/ds4/AGENTS.md` §"The stock-main-tree S0 arm".
 Upstream knapcio (checked 2026-10-26, HEAD `aff52fa5`) carries no guard or pad for this
 MoE-divisibility case on stock trees — its whole patch stack is pinned to the same `f80c91a4b`
 dsv4.1 branch, where the vendored selection applies (see `mad-science/DEEPSEEK.md` §19).
@@ -991,13 +1002,14 @@ Nothing here is shipped or covered by `recipes/` guards. Restore a file with
 
 | File | What it holds / the question it answers |
 |:--|:--|
-| `README.md` | The attic's own index: why the EXL3/vLLM material was archived, the five retired recipes, each doc's role, and how to restore a file. |
+| `README.md` | The attic's own index: why the EXL3/vLLM material was archived, the retired recipes, each doc's role, and how to restore a file. |
 | `AGENTS.md` | Three documents, appended newest-last: the former ds4-family agent guide (EXL3/vLLM era — model anatomy, the 203 GB Engram residency wall, the DSpark k-sweep, §1–§14); the live-lane guide for the knapcio + TensorFold lanes (§1–§14); and the pre-rewrite `recipes/ds4/README.md`. All §N numbering preserved so existing `§N` citations still resolve. |
 | `NOTES.md` | Appended 2026-10-14 from `recipes/ds4/NOTES.md`: the combined local HF repo (EXL3 + Engram + prompt) build/boot record and the Engram-from-HF builder notes for the TP=2 lane. |
 | `ds4_NOTES.md` | The session working record for the retired EXL3/vLLM lane. |
 | `DSPARK-TP3-STUDY.md` | Feasibility study for DSpark speculative decoding at TP=3/TP=6, where the drafter's head and expert counts do not divide the TP degree. Verdict: feasible; implemented and booted 2026-09-27. |
 | `MEMORY-RECLAIM-PLAN.md` | Host-memory reclaim analysis for the EXL3 lane: the `instanttensor` load path is closed (incompatible with this checkpoint) and cache drops are not a mitigation. |
 | `PERF-ISSUES.md` | Long-context performance triage of the EXL3 1M arms: the observed collapse is the cost of a cold deep prefill, not decode starvation. |
+| `zz-ds4-1017-main-tree-sglang.yaml` | Retired 2026-11-03 — the S0 control arm: stock main-tree SGLang `6563312`, no adapter overlay, flag-level survey vehicle. Measured NEGATIVE at both MoE backends (cutlass ÷128 geometry, triton OOM: the 1017 cannot boot without the vendored padding). Its `container:` is a fleet-local tag, never published — why the file moved instead of gaining a registry pin (the publish command is in `AGENTS.md`). |
 | `deepseek-v4.1-flash-exl3-tp3-vllm.yaml` | Retired EXL3/vLLM recipe — TP=3, 300K context (3 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 300K context (4 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 1M context (4 nodes). |
