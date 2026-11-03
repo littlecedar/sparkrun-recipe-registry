@@ -457,9 +457,14 @@ def board_rows(data: dict) -> list[str]:
             state = f"{state} — {task['notes']}"
         if task.get("evidence"):
             state = f"{state} — evidence: `{task['evidence']}`"
-        lines.append(f"| `{task['id']}` — {task['title']} | {task['node_cost'] or '—'} "
-                     f"| {', '.join(task['blocked_by']) or '—'} | {state} |")
+        lines.append(f"| `{task['id']}` — {_cell(task['title'])} | {task['node_cost'] or '—'} "
+                     f"| {_cell(', '.join(task['blocked_by']) or '—')} | {_cell(state)} |")
     return lines
+
+
+def _cell(text: str) -> str:
+    """One line, no cell breakers: notes are prose and carry newlines and pipes."""
+    return " ".join(str(text).split()).replace("|", r"\|")
 
 
 TODO_ITEM_RE = re.compile(r"^\s*- \[ \] \*\*(.+?)\*\*")

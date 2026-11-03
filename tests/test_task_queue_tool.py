@@ -35,6 +35,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -330,6 +331,16 @@ class BoardAndArchive(unittest.TestCase):
         body = "\n".join(tq.board_rows(data([t])))
         self.assertIn("why this arm exists", body)
         self.assertIn("evidence: `~/benchmarks/lane-20261103/REPORT.md`", body)
+
+    def test_board_survives_multiline_and_piped_notes(self):
+        # A note is prose: a newline here ends the markdown table, a raw pipe splits the cell.
+        t = task("a", 1.0)
+        t["notes"] = "first line\n\nFraming: `p50` vs NVMe | staging withdrawn"
+        rows = tq.board_rows(data([t]))
+        self.assertEqual(len(rows), 3, "one row per task, never a wrapped line")
+        self.assertTrue(all(len(re.split(r"(?<!\\)\|", r)) == 6 for r in rows), "four cells per row")
+        self.assertIn(r"vs NVMe \| staging", rows[2])
+        self.assertIn("first line Framing:", rows[2])
 
     def test_evidence_must_be_a_string(self):
         # Negative control: a non-string evidence is a data defect, never silently ignored.
