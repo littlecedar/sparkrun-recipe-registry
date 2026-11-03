@@ -32,7 +32,7 @@ lane's prefill-only ladder (`tools/jev-decision-bench.py`, `recipes/decision/REA
 context, `tie_word_embeddings`, sandwich norm, `transformers_version` 5.12.1. The stack is
 **hybrid, not transformer-uniform**: `conv` layers with a 7-slot cache, `sliding_attention` at
 window 256, and `full_attention` — the shipped pattern is `conv, conv, full, conv, sliding, …`,
-i.e. 12 conv + 6 full + 6 sliding. Consequences an operator will otherwise trip on:
+i.e. 13 conv + 6 full + 5 sliding. Consequences an operator will otherwise trip on:
 
 - **`trust_remote_code` is mandatory.** The repo ships `configuration_lfm3.py` / `modeling_lfm3.py`
   via `auto_map`; a server that refuses remote code cannot load the arm at all.

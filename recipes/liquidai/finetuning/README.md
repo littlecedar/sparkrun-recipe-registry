@@ -7,8 +7,8 @@ directory, and an entry appears only after its gates were actually run.
 ## Why this is not a generic LoRA question
 
 An `lfm3` checkpoint is a `transformers` **custom-code** architecture: `auto_map` points at
-`configuration_lfm3.py` / `modeling_lfm3.py` in the repo, and the stack is hybrid — 12 `conv`
-layers (7-slot cache), 6 `sliding_attention` layers (window 256), 6 `full_attention` layers. A
+`configuration_lfm3.py` / `modeling_lfm3.py` in the repo, and the stack is hybrid — 13 `conv`
+layers (7-slot cache), 6 `full_attention` layers, 5 `sliding_attention` layers (window 256). A
 training toolkit that assumes `transformers`' built-in attention classes has to be taught this
 model, and one that pads sequences for bucketing flatly breaks the conv state. Expect the failures
 to be at load and at gradient-checkpointing boundaries, not at the loss curve.

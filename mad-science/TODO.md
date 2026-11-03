@@ -1497,8 +1497,8 @@ Liquid AI LFM3 — hybrid `conv` + `sliding_attention` + `full_attention`, `tran
 1.7B–2.2B, and the `d1-*` system-one siblings
 - [ ] **`LiquidAI/LFM3-1.7B` text arm — the lane's first recipe** — `lfm3`, 1728.8M, 15 languages, 24
   layers, hidden 2048, 16 heads / 4 KV, vocab 128,000, 262,144 context, sandwich norm, transformers
-  5.12.1 (config read 2026-11-02). Hybrid stack is **12 `conv` (7-slot cache) + 6 `sliding_attention`
-  (window 256) + 6 `full_attention`**, so `mem-fraction-static` × context under-counts the non-KV
+  5.12.1 (config read 2026-11-02). Hybrid stack is **13 `conv` (7-slot cache) + 6 `full_attention`
+  + 5 `sliding_attention` (window 256)**, so `mem-fraction-static` × context under-counts the non-KV
   state — measure the footprint, do not compute it — and `trust_remote_code` is mandatory (`auto_map`
   → `configuration_lfm3.py`/`modeling_lfm3.py`). Routes: llama.cpp on `LiquidAI/LFM3-1.7B-GGUF`
   (Q4_K_M 1,099,627,808 B … BF16 3,466,626,336 B, plus `leap/*.json` vendor LEAP quant metadata) —
