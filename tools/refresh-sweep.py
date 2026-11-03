@@ -358,7 +358,10 @@ def ghcr_token(repo, fetcher):
     return token
 
 
-GHCR_ACCEPT = (", ".join((
+# One accept list for every registry: registry APIs answer with the digest of
+# whatever representation they choose, so all four manifest media types are
+# offered and the caller reads `docker-content-digest` back.
+MANIFEST_ACCEPT = (", ".join((
     "application/vnd.oci.image.index.v1+json",
     "application/vnd.docker.distribution.manifest.list.v2+json",
     "application/vnd.docker.distribution.manifest.v2+json",
@@ -367,13 +370,41 @@ GHCR_ACCEPT = (", ".join((
 
 def ghcr_manifest_digest(repo, reference, fetcher):
     headers = {"Authorization": f"Bearer {ghcr_token(repo, fetcher)}",
-               "Accept": GHCR_ACCEPT}
+               "Accept": MANIFEST_ACCEPT}
     status, hdrs, _body, cached_at = fetcher.get(
         f"https://ghcr.io/v2/{repo}/manifests/{urllib.parse.quote(reference, safe=':')}",
         headers)
     digest = (hdrs.get("docker-content-digest") or hdrs.get("Docker-Content-Digest") or "")
     if not DIGEST_RE.match(digest):
         raise FetchError(f"ghcr manifest {repo}@{reference}", f"no digest (status {status})")
+    return {"digest": digest, "cached_at": cached_at}
+
+
+def hub_token(repo, fetcher):
+    key = ("hub-token", repo)
+    if key in fetcher.memo:
+        return fetcher.memo[key]
+    payload, _ = fetcher.json(
+        f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{repo}:pull")
+    token = payload.get("token") or payload.get("access_token") or ""
+    if not token:
+        raise FetchError(f"docker hub token {repo}", "no token in response")
+    fetcher.memo[key] = token
+    return token
+
+
+def hub_manifest_digest(repo, reference, fetcher):
+    """A Docker Hub manifest by digest or tag.  Pullable is a registry answer,
+    not a Hub-listing answer: a retired tag can still serve its digest."""
+    headers = {"Authorization": f"Bearer {hub_token(repo, fetcher)}",
+               "Accept": MANIFEST_ACCEPT}
+    status, hdrs, _body, cached_at = fetcher.get(
+        f"https://registry-1.docker.io/v2/{repo}/manifests/"
+        f"{urllib.parse.quote(reference, safe=':')}", headers)
+    digest = (hdrs.get("docker-content-digest") or hdrs.get("Docker-Content-Digest") or "")
+    if not DIGEST_RE.match(digest):
+        raise FetchError(f"docker hub manifest {repo}@{reference}",
+                         f"no digest (status {status})", status)
     return {"digest": digest, "cached_at": cached_at}
 
 
@@ -568,7 +599,22 @@ def classify_container(ref, fetcher, scope, path, field="container"):
                 return _row(CONTAINER_CURRENT, scope, path, field, ref,
                             reason="digest-only pin; no tag tracked, so no release "
                                    "comparison is possible")
-            current = hub_tag_digest(repo, tag, fetcher)
+            try:
+                current = hub_tag_digest(repo, tag, fetcher)
+            except FetchError as exc:
+                if exc.status != 404:
+                    raise
+                # A retired tag is not a dead pin: `repo:tag@sha256:…` pulls by
+                # digest, so the arm still boots. The registry, not the tag
+                # listing, is the authority on whether the digest survives.
+                # Measured 2026-11-02: `vllm/vllm-omni:nightly-15bce345…` 404s
+                # on the Hub API while its pinned digest still serves — the two
+                # media OMNI arms were reported dead for it.
+                got = hub_manifest_digest(repo, digest, fetcher)
+                return _row(CONTAINER_CURRENT, scope, path, field, ref,
+                            observed=got["digest"], cached_at=got["cached_at"],
+                            reason=f"{repo}:{tag} retired upstream; the pinned digest "
+                                   "still resolves, so the arm still pulls")
             newest = hub_newest_tag(repo, fetcher)
             notes = {"newest_tag": newest["name"],
                      "newest_tag_at": newest["last_updated"]}
