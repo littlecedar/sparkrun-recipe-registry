@@ -773,11 +773,14 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "ornith-ai/Ornith-1.5-122B",
       "node_cost": "single",
-      "notes": "Follow-up to the 2026-10-30 A/B, where the drafter was +21.6 % at c1 but -24/-41/-47 % at c2/c5/c10 and prefill collapsed 1800 -> 661 by c2, while the no-spec baseline RISES (28.95 -> 48.97). Hypothesis: a 15-token draft block cannot be amortised across a batch, so verification contention eats the gain — MTP's 3 tokens DID scale on vLLM (39.3 -> 81.9). Method: three boots of zz-ornith-1.5-122b-nvfp4-dflash2-sglang with -o speculative_draft_tokens=4 / 8 / 15, same window and node, ladder to c10 each; compare each against the baseline's cells in the same window, never across nights. Outcome that would matter: a setting that keeps most of the +22 % c1 win while staying within ~10 % of the baseline at c5. If no setting does, record that DFLASH cannot batch on this engine and stop spending boots on it.",
-      "provenance": "2026-10-30 within-engine A/B (zz-ornith-1.5-122b-nvfp4-sglang vs ...-dflash2-sglang)"
+      "notes": "Follow-up to the 2026-10-30 A/B, where the drafter was +21.6 % at c1 but -24/-41/-47 % at c2/c5/c10 and prefill collapsed 1800 -> 661 by c2, while the no-spec baseline RISES (28.95 -> 48.97). Hypothesis: a 15-token draft block cannot be amortised across a batch, so verification contention eats the gain — MTP's 3 tokens DID scale on vLLM (39.3 -> 81.9). Method: three boots of zz-ornith-1.5-122b-nvfp4-dflash2-sglang with -o speculative_draft_tokens=4 / 8 / 15, same window and node, ladder to c10 each; compare each against the baseline's cells in the same window, never across nights. Outcome that would matter: a setting that keeps most of the +22 % c1 win while staying within ~10 % of the baseline at c5. If no setting does, record that DFLASH cannot batch on this engine and stop spending boots on it.\n\nLAUNCHED 2026-11-03 12:01 ET, on the head and nowhere else. Preflight: `.30`/`.35` both at 0 containers, no `.local/fleet-window.lock` (single-node job needs no window); image `lmsysorg/sglang:v0.5.22@sha256:e3a4f060...` present on `.30`; both snapshots complete (Ornith-1.5-122B-NVFP4 21 entries, incoai/Ornith-1.5-122B-DFlash2 5 entries, 0 `.incomplete`); render verified `--speculative-num-draft-tokens 4` in the served command, so `-o speculative_draft_tokens=N` really reaches the engine (the default is 15 with a placeholder). TRAP, cost one 8-second failed attempt: `tools/run-arm.sh` hardcodes `--cluster WOPR`, and the workstation defines NO cluster (`sparkrun cluster list` -> 'No saved clusters.'), so the driver dies with `Error: Cluster 'WOPR' not found`; `WOPR.yaml` lives on `.30`, which is the head. Run the driver there, from `~/src/sparkrun-recipe-registry`. Three legs, one node, one window, 30 s between them; each leg boots, ladders, stops its task by id and re-counts containers and volumes.",
+      "provenance": "2026-10-30 within-engine A/B (zz-ornith-1.5-122b-nvfp4-sglang vs ...-dflash2-sglang)",
+      "claimed_by": "siv-session-20261103",
+      "claimed_at": "2026-11-03T16:58:55Z",
+      "evidence": "`.30` head: `~/benchmarks/tp12-20261103/` (sweep.log, leg-d{4,8,15}.log, per-leg receipts under the arm name); driver `~/benchmarks/tp12-20261103/drive.sh`, pid 2703756; leg d4 task `9c83eedea8de8c60_fddcfe541701`"
     },
     {
       "id": "refresh-weights-and-runtime-repin",
