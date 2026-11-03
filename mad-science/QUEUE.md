@@ -27,7 +27,7 @@ carries the command reference and exit codes). Since **2026-11-03 the queue is t
 - [Priority tiers (the owner's standing override)](#priority-tiers-the-owners-standing-override)
 - [Session protocol](#session-protocol)
 - [Fail-closed contract](#fail-closed-contract)
-- [Deliberate omission: `decisions` and `questions` are not JSON arrays](#deliberate-omission-decisions-and-questions-are-not-json-arrays)
+- [Deliberate omission: `decisions` is not a JSON array](#deliberate-omission-decisions-is-not-a-json-array)
 - [Relationship to TODO.md](#relationship-to-todomd)
 
 ## Task schema
@@ -117,29 +117,25 @@ the offending id) on: duplicate ids; a dangling id in `blocks` or `blocked_by`; 
 `state` or `node_cost`; a stored `blocked_by` out of sync with the derived mirror; a `done` task
 still carrying claim fields. There are no silent defaults anywhere in the tool.
 
-## Deliberate omission: `decisions` and `questions` are not JSON arrays
+## Deliberate omission: `decisions` is not a JSON array
 
-The 2026-10-30 migration row named three schema additions; two shipped (`evidence` per task,
-`render --board`) and two did not. That is a deviation from the instruction, recorded here rather
-than left in a session's reply:
+The 2026-10-30 migration row named three schema additions. All three landed — `evidence` per task,
+`render --board`, and (owner ruling 2026-11-03) the **`questions`** array above — except one:
+`decisions`. That exception is a deviation from the instruction, recorded rather than left in a
+session's reply.
 
-- **`questions`** live in `mad-science/QUESTIONS.md`: 22 lines, one row per *unresolved* question,
-  read whole by anyone who needs it. An array in `queue.json` would be a second copy of that table —
-  and `queue.json` is read by every command, so the copy would be paid for on every invocation to
-  avoid reading 22 lines.
-- **`decisions`** live in `TODO.md` `# DECISIONS`: roughly 500 lines of numbered rationale, with the
-  numbered ids cited from lane docs, `attic/`, and commit bodies. No board tick, closeout or
-  scheduler reads them; whoever needs one greps the id. Importing them would make the register the
-  largest file in the repo and still leave the prose as the record.
+`decisions` live in `TODO.md` `# DECISIONS`: roughly 500 lines of numbered rationale, with the
+numbered ids cited from lane docs, `attic/`, and commit bodies. No board tick, closeout or scheduler
+reads them; whoever needs one greps the id. Importing them would make the register the largest file in
+the repo and still leave the prose as the record.
 
-The property the row actually wanted — **numbering that is never reused** — is already enforced by
-practice: `QUESTIONS.md` and `TODO.md` share one number space and a settled row keeps its number
-verbatim, so `QUESTIONS.md #9` still resolves after the move. Nothing in the tooling would gain a
-check from a JSON twin, because the twin would be written by the same hand that writes the prose.
+`questions` earned its array for the opposite reason: it is read *by tools*, it is small, and the open
+set is exactly what a session must see before asking again. The asymmetry is deliberate — an array for
+the machine-read register, prose for the human-read record.
 
-If the owner wants the arrays anyway, the shape is cheap — `{id, summary, status, provenance}` per
-row, prose staying authoritatively in markdown — but it should be a deliberate choice rather than a
-side-effect of a migration.
+If the owner wants `decisions` in JSON anyway, the shape is cheap (`{id, summary, date, provenance}`
+per row, prose staying authoritative) but it should be a deliberate choice rather than a side-effect of
+a migration.
 
 ## Relationship to TODO.md
 
@@ -161,6 +157,13 @@ Rules that follow:
 - **The board is derived.** `task-queue.py render --board` emits the `## Work queue` table that
   `STATUS.md` carries; a tick copies it instead of re-typing it, and `render` (no flag) still emits
   the weighted ordering table for a human.
-- **Coverage is checkable.** `task-queue.py orphans --todo mad-science/TODO.md` reports open archive
-  items with no live queue marker, and markers that name an unknown id. It exits non-zero on either,
-  which is how the archive's freeze is enforced rather than remembered.
+- **Coverage is checkable, and bounded at the freeze.** `task-queue.py orphans --todo
+  mad-science/TODO.md` reads the `<!-- archive-frozen: <sha> -->` marker in the archive and reports only
+  open items **added since that commit** (plus markers naming an unknown id); it exits non-zero on
+  either. A count bound was rejected: removing one grandfathered item while adding a new one would net
+  out, and the archive's 52 pre-freeze items would need a permanent amnesty.
+- **The open owner questions are a register array too.** `queue.json` `questions` carries
+  `{id, summary, status, provenance, asked}` with numbering that only grows; a settled row leaves the
+  array for the prose record, so `task-queue.py questions` answers "what is waiting on the owner"
+  without reading `QUESTIONS.md`. Rationale for the asymmetry (questions in JSON, decisions in prose)
+  is the next section.

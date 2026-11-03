@@ -50,10 +50,11 @@ Stdlib only.  Usage:
 
 Since 2026-11-03 the queue is the register and `mad-science/TODO.md` is a frozen archive
 (`mad-science/QUEUE.md` §"Relationship to TODO.md").  `render --board` is what a board tick
-copies, so the work queue is derived rather than re-typed, and `orphans` is the one-pass
-importer's fail-closed half: an open TODO item is covered only by `<!-- queue: <id> -->`
-naming a task that exists, so a new item cannot quietly live in the archive instead of the
-register.
+copies, so the work queue is derived rather than re-typed, and `orphans` is the archive's fail-closed
+half: it reads the `<!-- archive-frozen: <sha> -->` marker and reports only open items *added since*
+that commit, so an item cannot quietly live in the archive instead of the register (a count bound was
+rejected — removing one grandfathered item while adding another would net out).  `questions` prints
+the open owner questions from the register's `questions` array.
 
 Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse).
 """
@@ -65,6 +66,7 @@ import datetime as dt
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -193,6 +195,30 @@ def validate(data: dict) -> list[dict]:
     for t in tasks:
         if color[t["id"]] == WHITE:
             visit(t["id"], [])
+
+    # The owner-question register, when present: numbering only grows, and a row must name
+    # what decides it.  A settled row leaves the array (it moves to the prose record), so
+    # the array is the *open* set and `questions` can answer "what is waiting on the owner"
+    # without reading the markdown.
+    questions = data.get("questions")
+    if questions is not None:
+        if not isinstance(questions, list):
+            raise QueueError("'questions' must be a list")
+        last = 0
+        for i, question in enumerate(questions):
+            where = f"questions[{i}]"
+            if not isinstance(question, dict):
+                raise QueueError(f"{where}: not an object")
+            qid = question.get("id")
+            if isinstance(qid, bool) or not isinstance(qid, int) or qid <= 0:
+                raise QueueError(f"{where}: 'id' must be a positive integer (never reused)")
+            if qid <= last:
+                raise QueueError(f"questions: id {qid} does not come after {last} — numbering only grows")
+            last = qid
+            for field in ("summary", "status", "provenance", "asked"):
+                value = question.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    raise QueueError(f"questions#{qid}: '{field}' must be a non-empty string")
     return tasks
 
 
@@ -352,6 +378,21 @@ def enumerate_tasks_with_tier(ordered, tiers):
         yield tier_index(task["model"], tiers), task
 
 
+def cmd_questions(args, path: Path) -> None:
+    """The open owner questions, from the register rather than the markdown."""
+    data = load(path)
+    validate(data)
+    rows = data.get("questions") or []
+    open_rows = [q for q in rows if not q["status"].startswith("answered")]
+    print("| # | summary | status | provenance | asked |")
+    print("|---|---|---|---|---|")
+    for question in open_rows:
+        print(f"| {question['id']} | {question['summary']} | {question['status']} "
+              f"| {question['provenance']} | {question['asked']} |")
+    print(f"{len(open_rows)} open of {len(rows)} question row(s); the prose record is "
+          f"`mad-science/QUESTIONS.md` and `TODO.md` §\"Settled questions\"")
+
+
 def cmd_weight(args, path: Path) -> None:
     data = load(path)
     tasks = validate(data)
@@ -423,9 +464,27 @@ def board_rows(data: dict) -> list[str]:
 
 TODO_ITEM_RE = re.compile(r"^\s*- \[ \] \*\*(.+?)\*\*")
 QUEUE_MARK_RE = re.compile(r"<!--\s*queue:\s*([A-Za-z0-9._-]+)\s*-->")
+ARCHIVE_FROZEN_RE = re.compile(r"<!--\s*archive-frozen:\s*([0-9a-f]{7,40})\s*-->")
 
 
-def todo_orphans(text: str, tasks: list[dict]) -> tuple[list[tuple[int, str]], list[tuple[int, str, str]]]:
+def todo_added_since(root: Path, todo: Path, rev: str) -> list[str]:
+    """Text of every line added to `todo` since `rev`, as a synthetic document.
+
+    The bound exists because the frozen archive keeps its pre-freeze items with no markers:
+    scanning the whole file reports a wall of grandfathered orphans forever, which cannot
+    gate anything.  `git diff --unified=0` answers the only question that matters — did a
+    new open item land in the archive instead of the register?
+    """
+    proc = subprocess.run(["git", "-C", str(root), "diff", "--unified=0", rev, "--",
+                           str(todo.relative_to(root))],
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise QueueError(f"git diff {rev} -- {todo}: {proc.stderr.strip()[:200]}")
+    return [line[1:] for line in proc.stdout.splitlines()
+            if line.startswith("+") and not line.startswith("+++")]
+
+
+def todo_orphans(text: str, tasks: list[dict], offset: int = 0) -> tuple[list[tuple[int, str]], list[tuple[int, str, str]]]:
     """`(line, title)` for open TODO items with no live marker; `(line, title, id)` for dead ones.
 
     Fail-closed in the direction that matters: an item counts as covered only by an explicit
@@ -451,6 +510,14 @@ def todo_orphans(text: str, tasks: list[dict]) -> tuple[list[tuple[int, str]], l
     return orphans, dead
 
 
+def repo_root(path: Path) -> Path:
+    proc = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise QueueError(f"not a git worktree: {path}")
+    return Path(proc.stdout.strip())
+
+
 def cmd_orphans(args, path: Path) -> None:
     data = load(path)
     tasks = validate(data)
@@ -459,8 +526,17 @@ def cmd_orphans(args, path: Path) -> None:
         text = todo.read_text(encoding="utf-8")
     except OSError as exc:
         raise QueueError(f"cannot read --todo {todo}: {exc}") from None
+    since = getattr(args, "since", None)
+    if since is None:
+        marker = ARCHIVE_FROZEN_RE.search(text)
+        since = marker.group(1) if marker else None
+    if since:
+        absolute = todo.resolve()
+        text = "\n".join(todo_added_since(repo_root(absolute), absolute, since))
+        allow = 0
+    else:
+        allow = max(0, getattr(args, "allow", 0))
     orphans, dead = todo_orphans(text, tasks)
-    allow = max(0, getattr(args, "allow", 0))
     for line, title in orphans:
         print(f"{todo}:{line}: open item has no queue row — {title}")
     for line, title, ref in dead:
@@ -529,11 +605,15 @@ def main(argv: list[str] | None = None) -> int:
     p_orph.add_argument("--todo", default="mad-science/TODO.md", help="the archive to scan")
     p_orph.add_argument("--allow", type=int, default=0,
                         help="grandfathered orphans tolerated (the archive's frozen count, 52)")
+    p_orph.add_argument("--since", default=None,
+                        help="bound the scan at a rev: only items ADDED since it are orphans "
+                             "(default: the archive-frozen marker in the file, else unbounded)")
     p_orph.set_defaults(fn=cmd_orphans)
     p_w = sub.add_parser("weight", help="explain one task's arithmetic")
     p_w.add_argument("--id", required=True)
     p_w.set_defaults(fn=cmd_weight)
     sub.add_parser("queue", help="print the ordered queue with computed weights").set_defaults(fn=cmd_queue)
+    sub.add_parser("questions", help="open owner questions from the register").set_defaults(fn=cmd_questions)
     sub.add_parser("check", help="validate: ids, refs, cycles, estimates").set_defaults(fn=cmd_check)
 
     args = parser.parse_args(argv)

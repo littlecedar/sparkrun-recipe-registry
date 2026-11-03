@@ -208,6 +208,63 @@ class UpdateRepairsDrift(unittest.TestCase):
         self.assertIn("pair", tq.NODE_COSTS)
 
 
+class QuestionsAndCommitBound(unittest.TestCase):
+    """The two schema additions chosen 2026-11-03: a questions register, and a commit-bounded
+    archive scan (the count bound netted out when one item was removed as another arrived)."""
+
+    def _repo(self, tmp):
+        import subprocess
+        root = Path(tmp)
+        (root / "q.json").write_text(json.dumps(data([task("a", 1.0)])), encoding="utf-8")
+        (root / "TODO.md").write_text("- [ ] **old item**\n", encoding="utf-8")
+        env = ["-c", "user.email=g@example.invalid", "-c", "user.name=g"]
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(["git", *env, "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", *env, "commit", "-qm", "freeze"], cwd=root, check=True)
+        return root
+
+    def test_orphans_since_bounds_the_scan(self):
+        # Only items ADDED after the boundary count: the frozen file's own item is not an orphan.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._repo(tmp)
+            todo = root / "TODO.md"
+            with open(todo, "a", encoding="utf-8") as fh:
+                fh.write("- [ ] **new item**\n")
+            argv = ["--file", str(root / "q.json"), "orphans", "--todo", str(todo), "--since", "HEAD"]
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                code = tq.main(argv)
+            self.assertEqual(code, 1, "a post-cutover item is the defect")
+            self.assertIn("new item", out.getvalue())
+            self.assertNotIn("old item", out.getvalue())
+
+    def test_question_numbering_only_grows(self):
+        payload = data([task("a", 1.0)])
+        row = {"id": 5, "summary": "s", "status": "open", "provenance": "p", "asked": "2026-11-03"}
+        payload["questions"] = [row, dict(row, id=3)]
+        with self.assertRaises(tq.QueueError):
+            tq.validate(payload)
+        payload["questions"] = [row, dict(row)]
+        with self.assertRaises(tq.QueueError):
+            tq.validate(payload)
+
+    def test_questions_command_lists_only_open_rows(self):
+        payload = data([task("a", 1.0)])
+        payload["questions"] = [
+            {"id": 1, "summary": "settled thing", "status": "answered 2026-11-02",
+             "provenance": "p", "asked": "2026-11-01"},
+            {"id": 2, "summary": "open thing", "status": "open", "provenance": "p",
+             "asked": "2026-11-03"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(tq.main(["--file", str(path), "questions"]), 0)
+            text = out.getvalue()
+            self.assertIn("open thing", text)
+            self.assertNotIn("settled thing", text, "a settled row leaves the array")
+
+
 class Done(unittest.TestCase):
     def test_done_removes_task_and_releases_blocked_credit(self):
         # a (4 h) gates b (2 h) and c (2 h): a weighs 0 and floats. Marking c done drops c

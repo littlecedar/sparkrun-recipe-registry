@@ -7,6 +7,8 @@
 > below are grandfathered as evidence; the board's `## Work queue` is rendered from the queue, not
 > copied from here.
 
+<!-- archive-frozen: 04d309c -->
+
 This file is the interface for planning rounds:
 
 1. **Live questions for the owner live only in [`QUESTIONS.md`](QUESTIONS.md)** — one question per row,
@@ -554,16 +556,17 @@ terms — that stays the fine-tuning entry's business, not a recipe flag. — pr
 `recipes/liquidai/README.md` (roster + license posture), `recipes/liquidai/finetuning/README.md`,
 `LiquidAI/LFM3-1.7B-GGUF/LICENSE` read 2026-11-02; asked and settled 2026-11-02.
 - **#6 — May a third-party APT repository and a per-host `flare agent` service be installed on four
-nodes to evaluate the FLARE `gb10` package?** *Answered 2026-11-03: **install it, phased, and not by
-APT repository.*** Order: `.30` and `.35` (the mad-science nodes) first, extend once the agent is
-proven harmless; `.34` is production and must not be disrupted. Method: the vendor `.deb` **by file**
-on every node, with **no** vendor APT repository added anywhere — the earlier objection stands and is
-now the reason for the method, not a blocker: that repository's key is root on any node that later
-runs `apt upgrade`, so on `.34` it would be a standing risk to the production serve while a file
-install gives the same binary and no upgrade surface. The row's two known blockers (amd64-only vendor
-tags on an aarch64 fleet, and disk-Engram's `io_uring` against Docker's default seccomp profile) are
-install-time work items on the rollout row, with `tools/enable-io-uring.py` as the precedent — and a
-mutation that must never run on `.34`. — provenance: `mad-science/FLARE.md` §4–§5, `e1c32a2`,
+nodes to evaluate the FLARE `gb10` package?** *Answered 2026-11-03: **install it, phased, via the
+vendor APT repository*** — the owner's second reading, the same day, of the mechanism: upstream
+intends its package to be installed and upgraded like any other system package, so the repository is
+added and `flare-inference` installed from it. Order: `.30` and `.35` (the mad-science nodes) first,
+extend once the agent is proven harmless; `.34` is production and its serve must not be disrupted by
+the install. The earlier objection is recorded as accepted risk rather than resolved: that
+repository's key is root on every node carrying it, production included, so a future vendor upgrade
+can land during a routine `apt upgrade`. The row's two known blockers (amd64-only vendor tags on an
+aarch64 fleet, and disk-Engram's `io_uring` against Docker's default seccomp profile) are install-time
+work items on the rollout row, with `tools/enable-io-uring.py` as the precedent — and a mutation that
+must never run on `.34`. — provenance: `mad-science/FLARE.md` §4–§5, `e1c32a2`,
 `1db2090`; queue row `flare-agent-rollout`; asked 2026-10-22, settled 2026-11-03.
 - **#53 — May we patch DeepGEMM's SM12x gap ourselves (or should the two arch-gated survey arms be
 retired and tracked upstream instead)?** *Answered 2026-11-03: **patch it ourselves*** (CLR-BRIEF Q1
