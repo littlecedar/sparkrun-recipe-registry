@@ -1140,19 +1140,38 @@ score and it is the same prefill story: 12 s to first token at c10.
 
 That makes this arm the 122B family's first finetune that both serves coherently and measures well — and
 it makes the dealignai negative cheap to believe, because the two arms differ only in export layout.
-##### `zz-cyankiwi-…-AWQ-INT4` — boot failed, cause not captured (2026-11-03)
+##### `zz-cyankiwi-…-AWQ-INT4` — boot failed in the weight loader (2026-11-03)
 
-`rc=4` (never ready) after 38 minutes on `.30`, and **`serve logs harvested: 0`** — the container was
-gone before teardown could copy them, so there is no error to read. That is a missing instrument, not a
-verdict: the export's scheme is supported on paper (`compressed-tensors`, `pack-quantized`, 4-bit,
-group 32, `actorder: null`, and `CompressedTensorsWNA16` accepts exactly that shape at v0.5.22 —
-`compressed_tensors.py:656-658,742-743`, whose only rejection is `actorder` *with* the Triton WNA16 MoE
-backend at `:916-921`). So the next attempt must capture `docker logs` while the container lives rather
-than relying on the receipt's copy, and until it does, this arm has **no** result — neither negative nor
-positive. It is queued behind the current sweep; both nodes are busy with the TP≤2 campaign.
+`rc=4` (never ready) after 38 minutes on `.30` (`20:07:26 → 20:45:22`), container
+`sparkrun_d66c127293e3b566_7fa77063f678_solo` on `lmsysorg/sglang:v0.5.22@sha256:e3a4f060…`.
 
-**It keeps `zz-` until someone decides its disposition**: it is an abliterated model, so anyone serving it
-takes its guardrail on themselves, and promotion is the owner's call rather than a numbers question.
+**The cause is captured, and this section once said it was not.** The boot's own receipt carried no serve
+log (`serve logs harvested: 0` — the container was gone before teardown could copy them), but the
+launcher's capture in a *different* receipt root kept the traceback:
+`~/benchmarks/tp12-20261103/zz-cyankiwi-…-dflash2-sglang/launch.log` (28,903 B) ends at
+`[2026-11-04 01:09:07]` UTC with
+
+```
+RuntimeError: The size of tensor a (384) must match the size of tensor b (32) at non-singleton dimension 1
+```
+
+raised at `fused_moe_triton/layer.py:890` `_load_w2` → `expert_data.copy_(loaded_weight)`, reached from
+`qwen3_5.py:2873 load_weights` → `_load_model_weight_or_group_weight_scale`, 43 s into an 18-shard load.
+So it fails **in weight loading, before any forward pass**: the checkpoint's expert `w2` tensor and the
+slot the fused-MoE loader allocates for `qwen3_5_moe` disagree at dimension 1 (384 vs 32) under
+`--moe-runner-backend marlin` at TP=1. It is not a readiness, drafter or template fault, so `docker logs`
+while the container lives would have added nothing; a receipt that claims no error must be checked
+against the launch capture before it becomes a documented unknown.
+
+**What it settles:** the family's third export family (AWQ int4, compressed-tensors `pack-quantized`,
+group 32) does **not** load through the fused-MoE loader its scheme drives at v0.5.22, whatever
+`quantization_config` claims support on paper — so the quant-family control answers its question
+negatively and keeps no cell. **What it does not settle:** whether the drafter tolerates a different
+4-bit family, because acceptance is never reached; that needs a compressed-tensors int4 export that
+loads, or a fix in the loader.
+
+**It keeps `zz-` whatever a future boot shows**: its alignment is untouched (plain MIT arm, no eval-only
+banner — see the licence paragraph above), so it is an ordinary arm once it measures, not a guarded one.
 
 #### Ranked hypotheses, each with the one probe that decides it
 
