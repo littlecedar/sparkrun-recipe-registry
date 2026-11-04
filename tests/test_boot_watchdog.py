@@ -44,9 +44,13 @@ class TestDecide(unittest.TestCase):
     def test_first_dead_sighting_is_candidate_only(self):
         self.assertEqual(bw.decide(False, False, 1), "dead_candidate")
 
-    def test_second_dead_sighting_is_dead(self):
-        self.assertEqual(bw.decide(False, False, 2), "dead")
-        self.assertEqual(bw.decide(False, False, 3), "dead")
+    def test_a_child_never_seen_alive_stays_a_candidate(self):
+        # Changed 2026-11-03: two naked sightings used to mean `dead`. They now mean "the
+        # probe has never found the child", which is also what a serve-pid fingerprint miss
+        # looks like — so it stays a candidate and is timed by --dead-grace instead of
+        # being stopped on a sighting that may be the instrument's fault.
+        self.assertEqual(bw.decide(False, False, 2), "dead_candidate")
+        self.assertEqual(bw.decide(False, False, 9), "dead_candidate")
 
     def test_serve_pattern_matches_plain_python_serves(self):
         # Worker ruling 2026-10-26: a serve child running as plain `python`
@@ -220,14 +224,31 @@ class CrashIsAnEdgeNotATimer(unittest.TestCase):
     the keep-alive meant `sparkrun run` never returned either.
     """
 
-    def test_a_child_we_watched_go_is_dead_on_the_first_sighting(self):
-        # Negative control: the pre-fix rule needed two naked sightings *and* the grace
-        # clock; the same inputs now act immediately because the transition is observed.
-        self.assertEqual(bw.decide(False, False, 1), "dead_candidate")
-        self.assertEqual(bw.decide(False, False, 1, seen_alive=True), "dead")
+    def test_a_child_we_watched_go_is_dead_on_the_second_sighting(self):
+        # Negative control: the pre-fix rule needed the grace clock too. One sighting is
+        # still a candidate (a pgrep miss across a re-exec), the second is a death.
+        self.assertEqual(bw.decide(False, False, 1, seen_alive=True), "dead_candidate")
+        self.assertEqual(bw.decide(False, False, 2, seen_alive=True), "dead")
+        self.assertEqual(bw.decide(False, False, 2), "dead_candidate")
+
+    def test_a_failed_probe_is_never_a_death(self):
+        """The destructive case: ssh times out on a healthy, still-loading boot.
+
+        `serve_state` returns `alive=None` for a broken instrument, and a loading boot has
+        the endpoint down by definition, so reading silence as a sighting would kill a good
+        boot at the second check. This is why `None` is distinct from `False` everywhere.
+        """
+        self.assertEqual(bw.decide(False, None, 0), "no_probe")
+        self.assertEqual(bw.decide(False, None, 5, seen_alive=True, fatal="cuda error"), "no_probe")
+        self.assertFalse(bw.should_stop("no_probe", grace=1800, elapsed=1900, dead_grace=120, dead_for=500))
+
+    def test_a_missing_container_is_observed_absence_not_a_failed_probe(self):
+        # `docker exec` on a vanished container says so; that is evidence, not silence.
+        self.assertIn("No such container", "Error response from daemon: No such container: x")
 
     def test_a_fatal_line_explains_a_gone_child_rather_than_overriding_a_live_one(self):
-        self.assertEqual(bw.decide(False, False, 1, fatal="cuda error"), "dead")
+        self.assertEqual(bw.decide(False, False, 2, fatal="cuda error"), "dead")
+        self.assertEqual(bw.decide(False, False, 1, fatal="cuda error"), "dead_candidate")
         # A live child still reads as loading even with a fatal in its tail: its supervisor
         # may be restarting it, and `is_stalled` owns the live-but-frozen shape.
         self.assertEqual(bw.decide(False, True, 0, seen_alive=True, fatal="notimplementederror"),

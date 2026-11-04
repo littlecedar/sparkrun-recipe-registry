@@ -254,12 +254,16 @@ ready). Detach `tools/boot-watchdog.py` next to every launch —
 `nohup python3 tools/boot-watchdog.py --endpoint http://<api-rank>:8000 --task-id <literal id>
 --node <host> --grace 1800 --log ~/benchmarks/<window>/watchdog-<id>.log &` — and record the pid in
 the receipt. Endpoint-down with the serve child alive is *loading* (io deltas logged), never dead. A
-death the probe actually **observes** — the child gone after it was seen alive, or a fatal last line in
-`/tmp/sparkrun_serve.log` — is stopped at once, because a crash is an edge, not a duration; only a child
-that was *never* found (a serve-pid fingerprint miss) waits `--dead-grace` (120 s), and a live-but-frozen
-child waits `--grace`+`--stall`. A cold ~510 GB body wants `--grace 1800` for the loading window; that
-number no longer delays reaping a dead serve (measured 2026-11-03: an int8 arm died at t=98 s and sat 28
-minutes because the window gated the dead verdict too).
+death the probe **observes** — the child gone after it was seen alive, or a fatal last line in
+`/tmp/sparkrun_serve.log` — is stopped on the second consecutive observation (~2 probes at
+`--interval 10`), because a crash is an edge, not a duration; a probe that *fails* (`ssh`/exec error)
+is `no_probe` and never counts as a sighting, since a loading boot's endpoint is down too and one ssh
+timeout must not kill it. `--dead-grace` (120 s) covers only a child that was never found (a serve-pid
+fingerprint miss), and `--grace`+`--stall` cover a live-but-frozen child. A cold ~510 GB body wants
+`--grace 1800` for the loading window; that number no longer delays reaping a dead serve (measured
+2026-11-03: an int8 arm died at t=98 s and sat 28 minutes because the window gated the dead verdict
+too). `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
+ends the arm in one probe instead of the loop's 2250 s.
 
 ```bash
 HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \

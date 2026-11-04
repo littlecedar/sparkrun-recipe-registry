@@ -228,6 +228,20 @@ for _ in $(seq 1 150); do
   if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
   fi
+  # The watchdog is the liveness instrument; poll it, not just the endpoint. Without this
+  # the loop sat out its full 2250 s after the watchdog had already declared the serve
+  # dead and stopped it (measured 2026-11-03: 28 min on a boot that died at t=98 s).
+  if ! kill -0 "$WD" 2>/dev/null; then
+    wait "$WD"; wd_rc=$?
+    case "$wd_rc" in
+      0) ready=yes ;;                                   # watchdog saw the endpoint answer
+      3) echo "watchdog: serve dead and stopped (rc=3) at t=$((SECONDS))s -- never ready"
+         ready=no; break ;;                             # rc=4 below, then harvest + teardown:
+                                                        # a dead arm's serve log is the evidence
+      *) echo "watchdog exited rc=$wd_rc (its own error); continuing to poll" ;;
+    esac
+    [ "$ready" = yes ] && break
+  fi
   sleep 15
 done
 echo "readiness=$ready"

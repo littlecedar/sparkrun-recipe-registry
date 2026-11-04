@@ -11,23 +11,29 @@ session then sits on a boot that will never be ready. This watchdog makes the
 distinction explicit and acts on it:
 
   * endpoint answers (`GET /v1/models` 200)                    -> healthy
+  * the probe itself failed (ssh/exec error, no `LOGSIZE`)     -> no_probe: no evidence
+    either way. Silence is never death: a loading boot's endpoint is *also* down, so
+    reading a 30 s ssh timeout as a sighting would kill a healthy boot.
   * serve child alive (`pgrep` in the container)               -> loading
     (its `/proc/<pid>/io` deltas are logged so a 45-min GLM weight load is
     visibly progressing, never misread as dead)
   * child **gone after we watched it alive**, or its serve log ends on a fatal
     line (`Traceback`, `NotImplementedError`, `CUDA error`, `Received sigquit`,
-    `Killed`, `out of memory`)                                 -> dead, acted on at once
+    `Killed`, `out of memory`), on the 2nd consecutive *observed* absence
+                                                               -> dead, stopped at once
   * child gone and endpoint dead but never seen alive (a serve-pid fingerprint
     miss)                                                      -> dead_candidate, timed
   * child alive, endpoint dead, no io and no log growth past
     `--grace`+`--stall`                                        -> stalled
   dead/stalled: `sparkrun stop <task-id>` (literal id), evidence to --log, exit 3.
 
-The distinction between the third and fourth lines is the 2026-11-03 lesson: death is
-an edge, not a duration. An arm whose serve died at t=98 s was classified `dead` at
-t=123 s and then held 1,677 s more by a grace window that exists for *loading*
-ambiguity, because the window gated the dead verdict too. Only "the child was never
-found" is ambiguous enough to deserve a clock.
+Two floors, both cheap at `--interval 10`: the second observed check rides out one bad
+sighting (a pgrep miss across a re-exec), and `no_probe` keeps a broken instrument out of
+the count entirely. What the 2026-11-03 lesson removed is the *loading* clock from the
+death path: an arm whose serve died at t=98 s was classified `dead` at t=123 s and then
+held 1,677 s more because `--grace 1800` — a number that exists for a 510 GB weight load —
+gated the dead verdict too. Only "the child was never found" is ambiguous enough to
+deserve a clock.
 
 Stdlib only, no deps. Launch detached next to every boot:
 
@@ -79,7 +85,7 @@ def parse_io(text: str) -> tuple[int, int] | None:
 
 def decide(
     endpoint_ok: bool,
-    pid_alive: bool,
+    pid_alive: bool | None,
     consecutive_dead: int,
     seen_alive: bool = False,
     fatal: str | None = None,
@@ -87,23 +93,31 @@ def decide(
     """One check's classification (pure).
 
     healthy        : endpoint 200.
+    no_probe       : the probe itself failed (ssh / docker-exec error), so this check has
+                     no evidence either way. Silence is never death — a 30 s ssh timeout on
+                     a healthy but still-loading boot is exactly when the endpoint is also
+                     down, so reading it as a sighting would kill a good boot.
     loading        : serve child alive (progress is reported separately via io).
-    dead           : the child is gone and **we watched it alive**, or its serve log
-                     ends on a fatal line, or (as before) the second consecutive naked
-                     sighting. A crash is a transition, not a duration: on 2026-11-03 an
-                     arm whose serve died at t=98 s was classified correctly at t=123 s
-                     and then held another 1677 s by a grace window meant for loading.
-    dead_candidate : child gone and endpoint dead, and we never saw it alive — the
-                     serve-pid fingerprint miss this now exists for. Timed, because
-                     "the child was never found" is the one ambiguous shape.
+    dead           : the child is gone **and** we watched it alive or its serve log ends on
+                     a fatal line, on the second consecutive *observed* absence. Two checks
+                     survive one bad sighting (a pgrep miss across a re-exec); the count is
+                     of observations, never of probe failures. Death is an edge, not a
+                     duration: on 2026-11-03 an arm whose serve died at t=98 s was classified
+                     correctly at t=123 s and then held another 1677 s by a grace window
+                     meant for loading.
+    dead_candidate : child gone and endpoint dead and we never saw it alive — the serve-pid
+                     fingerprint miss. Nothing here is evidence of a crash, so it stays
+                     timed by `--dead-grace`.
     """
     if endpoint_ok:
         return "healthy"
+    if pid_alive is None:
+        return "no_probe"
     if pid_alive:
         return "loading"
-    if seen_alive or fatal:
+    if (seen_alive or fatal) and consecutive_dead >= 2:
         return "dead"
-    return "dead" if consecutive_dead >= 2 else "dead_candidate"
+    return "dead_candidate"
 
 
 def is_stalled(
@@ -153,8 +167,13 @@ def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
 
 def serve_state(
     node: str, container: str, pattern: str
-) -> tuple[bool, tuple[int, int] | None, int | None, int | None, str | None]:
-    """(pid_alive, io, serve_log_size, container_memory, fatal_line) for the serve child."""
+) -> tuple[bool | None, tuple[int, int] | None, int | None, int | None, str | None]:
+    """(pid_alive, io, serve_log_size, container_memory, fatal_line) for the serve child.
+
+    `pid_alive is None` means the probe failed — ssh or the container exec errored, or the
+    node went away mid-flight. It is deliberately distinct from `False` (probed, and there
+    is no serve child): the caller must never read its own broken instrument as a death.
+    """
     # The script is fed on stdin so neither the pattern nor its own quotes need
     # escaping through ssh's argument passing.
     # The probe's own `sh -c` command line CONTAINS the pattern, so `pgrep -f` matches
@@ -176,16 +195,24 @@ def serve_state(
         "echo \"FATAL $(tail -n 5 /tmp/sparkrun_serve.log 2>/dev/null | grep -oiE 'traceback \\(most recent|notimplementederror|cuda error|received sigquit|killed|runtimeerror|assertionerror|segmentation fault|out of memory' | head -1)\"\n"
     )
     try:
-        out = subprocess.run(
+        proc = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", f"red@{node}", f"docker exec -i {container} sh -s"],
             input=script,
             capture_output=True,
             text=True,
             timeout=30,
             check=False,
-        ).stdout
+        )
     except (subprocess.SubprocessError, OSError):
+        return None, None, None, None, None
+    out, err = proc.stdout, proc.stderr or ""
+    if "No such container" in err or "is not running" in err:
+        # Docker names the absence on stderr: the container is gone, so there is nothing to
+        # serve. That is observed absence (evidence), not a broken instrument.
         return False, None, None, None, None
+    if "LOGSIZE" not in out:
+        # Our script never ran (ssh failed, or docker refused): no evidence either way.
+        return None, None, None, None, None
     alive, io = pick_io(out)
     return alive, io, parse_logsize(out), parse_mem(out), parse_fatal(out)
 
@@ -383,7 +410,9 @@ def main(argv: list[str] | None = None) -> int:
         if mem is not None and prev_mem is not None:
             mem_delta = mem - prev_mem
         prev_mem = mem
-        if not alive and not ok:
+        # Only an *observed* absence counts. `alive is None` is a broken probe, and
+        # `not None` would be True here — a killed boot is the one mistake this cannot make.
+        if alive is False and not ok:
             consecutive_dead += 1
         else:
             consecutive_dead = 0
@@ -397,7 +426,8 @@ def main(argv: list[str] | None = None) -> int:
             verdict = "stalled"
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
-            f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta} "
+            f"serve_pid={('alive' if alive else 'gone') if alive is not None else 'unprobed'} io_delta={delta} "
+            f"log_delta={log_delta} "
             f"mem_delta={mem_delta} idle={int(idle)}s" + (f" cause={fatal!r}" if fatal else ""),
             file=log,
             flush=True,
