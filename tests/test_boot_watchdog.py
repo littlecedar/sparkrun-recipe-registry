@@ -209,3 +209,53 @@ class StallIsNotLoading(unittest.TestCase):
 
     def test_a_healthy_endpoint_is_never_stalled(self):
         self.assertFalse(bw.is_stalled(True, True, elapsed=1900, grace=1800, idle=1800, stall=600))
+
+class CrashIsAnEdgeNotATimer(unittest.TestCase):
+    """A serve we watched working and then lost is dead at once — no grace window.
+
+    Measured 2026-11-03: `zz-spark-x2.6-4b-int8-sglang` died at t=98 s
+    (`NotImplementedError: No implemented int8_scaled_mm for current compute capability`),
+    the watchdog classified it `dead` at t=123 s, printed that verdict every 30 s, and was
+    forbidden to stop it until `--grace 1800` expired — 28 minutes of a blocked stream, and
+    the keep-alive meant `sparkrun run` never returned either.
+    """
+
+    def test_a_child_we_watched_go_is_dead_on_the_first_sighting(self):
+        # Negative control: the pre-fix rule needed two naked sightings *and* the grace
+        # clock; the same inputs now act immediately because the transition is observed.
+        self.assertEqual(bw.decide(False, False, 1), "dead_candidate")
+        self.assertEqual(bw.decide(False, False, 1, seen_alive=True), "dead")
+
+    def test_a_fatal_line_explains_a_gone_child_rather_than_overriding_a_live_one(self):
+        self.assertEqual(bw.decide(False, False, 1, fatal="cuda error"), "dead")
+        # A live child still reads as loading even with a fatal in its tail: its supervisor
+        # may be restarting it, and `is_stalled` owns the live-but-frozen shape.
+        self.assertEqual(bw.decide(False, True, 0, seen_alive=True, fatal="notimplementederror"),
+                         "loading")
+
+    def test_an_answering_endpoint_outranks_every_death_signal(self):
+        self.assertEqual(bw.decide(True, False, 5, seen_alive=True, fatal="runtimeerror"), "healthy")
+
+    def test_dead_stops_at_once_while_the_loading_grace_is_untouched(self):
+        # Same elapsed time, two windows: 123 s is 1677 s short of --grace, and irrelevant
+        # to a death the probe observed.
+        self.assertTrue(bw.should_stop("dead", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
+        self.assertFalse(bw.should_stop("loading", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
+        self.assertFalse(bw.should_stop("dead_candidate", grace=1800, elapsed=123, dead_grace=120, dead_for=60))
+        self.assertTrue(bw.should_stop("dead_candidate", grace=1800, elapsed=123, dead_grace=120, dead_for=121))
+        self.assertFalse(bw.should_stop("stalled", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
+        self.assertTrue(bw.should_stop("stalled", grace=1800, elapsed=1801, dead_grace=120, dead_for=None))
+
+    def test_a_fingerprint_miss_is_still_timed(self):
+        # The one ambiguous shape: the container never named a matching child. It must not
+        # be stopped on sight, because the pid pattern can miss a serve that is loading.
+        self.assertEqual(bw.decide(False, False, 1, seen_alive=False), "dead_candidate")
+        self.assertFalse(bw.should_stop("dead_candidate", grace=1800, elapsed=60, dead_grace=120, dead_for=30))
+
+    def test_the_probe_reports_the_engines_own_last_word(self):
+        sample = "MEM 123\nFATAL notimplementederror\n"
+        self.assertEqual(bw.parse_fatal(sample), "notimplementederror")
+        # No match is not a verdict: an empty marker must never read as a cause.
+        self.assertIsNone(bw.parse_fatal("MEM 123\nFATAL \n"))
+        self.assertIsNone(bw.parse_fatal("PID 42\nMEM 123\n"))
+

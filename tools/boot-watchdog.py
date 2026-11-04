@@ -14,8 +14,20 @@ distinction explicit and acts on it:
   * serve child alive (`pgrep` in the container)               -> loading
     (its `/proc/<pid>/io` deltas are logged so a 45-min GLM weight load is
     visibly progressing, never misread as dead)
-  * child gone AND endpoint dead for 2 consecutive checks      -> dead:
-    `sparkrun stop <task-id>` (literal id), evidence to --log, exit 3.
+  * child **gone after we watched it alive**, or its serve log ends on a fatal
+    line (`Traceback`, `NotImplementedError`, `CUDA error`, `Received sigquit`,
+    `Killed`, `out of memory`)                                 -> dead, acted on at once
+  * child gone and endpoint dead but never seen alive (a serve-pid fingerprint
+    miss)                                                      -> dead_candidate, timed
+  * child alive, endpoint dead, no io and no log growth past
+    `--grace`+`--stall`                                        -> stalled
+  dead/stalled: `sparkrun stop <task-id>` (literal id), evidence to --log, exit 3.
+
+The distinction between the third and fourth lines is the 2026-11-03 lesson: death is
+an edge, not a duration. An arm whose serve died at t=98 s was classified `dead` at
+t=123 s and then held 1,677 s more by a grace window that exists for *loading*
+ambiguity, because the window gated the dead verdict too. Only "the child was never
+found" is ambiguous enough to deserve a clock.
 
 Stdlib only, no deps. Launch detached next to every boot:
 
@@ -65,18 +77,32 @@ def parse_io(text: str) -> tuple[int, int] | None:
     return None
 
 
-def decide(endpoint_ok: bool, pid_alive: bool, consecutive_dead: int) -> str:
+def decide(
+    endpoint_ok: bool,
+    pid_alive: bool,
+    consecutive_dead: int,
+    seen_alive: bool = False,
+    fatal: str | None = None,
+) -> str:
     """One check's classification (pure).
 
     healthy        : endpoint 200.
     loading        : serve child alive (progress is reported separately via io).
-    dead           : child gone, endpoint dead, and this is the >=2nd such check.
-    dead_candidate : child gone and endpoint dead, first sighting.
+    dead           : the child is gone and **we watched it alive**, or its serve log
+                     ends on a fatal line, or (as before) the second consecutive naked
+                     sighting. A crash is a transition, not a duration: on 2026-11-03 an
+                     arm whose serve died at t=98 s was classified correctly at t=123 s
+                     and then held another 1677 s by a grace window meant for loading.
+    dead_candidate : child gone and endpoint dead, and we never saw it alive — the
+                     serve-pid fingerprint miss this now exists for. Timed, because
+                     "the child was never found" is the one ambiguous shape.
     """
     if endpoint_ok:
         return "healthy"
     if pid_alive:
         return "loading"
+    if seen_alive or fatal:
+        return "dead"
     return "dead" if consecutive_dead >= 2 else "dead_candidate"
 
 
@@ -127,8 +153,8 @@ def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
 
 def serve_state(
     node: str, container: str, pattern: str
-) -> tuple[bool, tuple[int, int] | None, int | None, int | None]:
-    """(pid_alive, io, serve_log_size, container_memory) for the serve child."""
+) -> tuple[bool, tuple[int, int] | None, int | None, int | None, str | None]:
+    """(pid_alive, io, serve_log_size, container_memory, fatal_line) for the serve child."""
     # The script is fed on stdin so neither the pattern nor its own quotes need
     # escaping through ssh's argument passing.
     # The probe's own `sh -c` command line CONTAINS the pattern, so `pgrep -f` matches
@@ -145,6 +171,9 @@ def serve_state(
         "done\n"
         "echo \"LOGSIZE $(wc -c < /tmp/sparkrun_serve.log 2>/dev/null || echo 0)\"\n"
         "echo \"MEM $(cat /sys/fs/cgroup/memory.current 2>/dev/null || cat /sys/fs/cgroup/memory/memory.usage_in_bytes 2>/dev/null || echo 0)\"\n"
+        # The serve log ends on the reason a crash happened. Only the LAST lines count:
+        # an engine that logged a warning and carried on is not dead.
+        "echo \"FATAL $(tail -n 5 /tmp/sparkrun_serve.log 2>/dev/null | grep -oiE 'traceback \\(most recent|notimplementederror|cuda error|received sigquit|killed|runtimeerror|assertionerror|segmentation fault|out of memory' | head -1)\"\n"
     )
     try:
         out = subprocess.run(
@@ -156,9 +185,9 @@ def serve_state(
             check=False,
         ).stdout
     except (subprocess.SubprocessError, OSError):
-        return False, None, None, None
+        return False, None, None, None, None
     alive, io = pick_io(out)
-    return alive, io, parse_logsize(out), parse_mem(out)
+    return alive, io, parse_logsize(out), parse_mem(out), parse_fatal(out)
 
 
 def parse_mem(text: str) -> int | None:
@@ -176,6 +205,22 @@ def parse_mem(text: str) -> int | None:
                 return int(line.split()[1])
             except (IndexError, ValueError):
                 return None
+    return None
+
+
+def parse_fatal(text: str) -> str | None:
+    """The engine's own last word on how it died -> the matched text, or None.
+
+    The child going quiet is a transition the watchdog can see but not explain; the serve
+    log names the cause in its last lines (`NotImplementedError: No implemented
+    int8_scaled_mm for current compute capability`, 2026-11-03). Reading it from the probe
+    that already runs keeps this at one round trip per check, and matching only the log's
+    tail keeps a recovered warning from reading as a death.
+    """
+    for line in text.splitlines():
+        if line.startswith("FATAL "):
+            value = line[len("FATAL ") :].strip()
+            return value or None
     return None
 
 
@@ -242,6 +287,28 @@ def stop_task(task_id: str, log) -> None:
     print(f"WATCHDOG: sparkrun stop {task_id}", file=log, flush=True)
 
 
+def should_stop(verdict: str, grace: float, elapsed: float, dead_grace: float, dead_for: float | None) -> bool:
+    """Whether a check may act, as two separate windows (pure).
+
+    The grace window exists for *loading* ambiguity — a 510 GB body reads and logs
+    for tens of minutes with the endpoint still down — so it gates `stalled` only.
+    A gone child is never loading: `is_stalled` already refuses that case, and
+    `decide` already required two consecutive sightings. Gating `dead` on the same
+    window cost 26 throttled minutes on 2026-11-03, when an arm whose serve died at
+    t=98 s was declared `dead` at t=123 s and then held until t=1800 s.
+
+    `dead_grace` is the short separate window on `dead`: it rides out a serve-pid
+    fingerprint miss (the class at `resolve_container`), not a slow load.
+    """
+    if verdict == "dead":
+        return True
+    if verdict == "dead_candidate":
+        return dead_for is not None and dead_for >= dead_grace
+    if verdict == "stalled":
+        return elapsed >= grace
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Boot watchdog (endpoint + serve-child liveness)."
@@ -268,6 +335,14 @@ def main(argv: list[str] | None = None) -> int:
         help="seconds after which a dead candidate may be stopped (2 checks still required)",
     )
     ap.add_argument(
+        "--dead-grace",
+        type=float,
+        default=120.0,
+        help="seconds a never-seen-alive `dead_candidate` must persist before stopping; "
+        "a `dead` verdict (child we watched go, or one whose log ends on a fatal line) "
+        "acts at once, and `--grace` is the *loading* window (a gone child is not loading)",
+    )
+    ap.add_argument(
         "--stall",
         type=float,
         default=600.0,
@@ -286,9 +361,16 @@ def main(argv: list[str] | None = None) -> int:
     prev_logsize: int | None = None
     prev_mem: int | None = None
     last_progress = time.monotonic()
+    dead_since: float | None = None
+    # `seen_alive` is what makes a crash a transition instead of a timer: a child we
+    # watched working and then lost is dead, full stop. Only a child we never found
+    # (the fingerprint miss) needs a confirmation window.
+    seen_alive = False
     while True:
         ok = http_ok(args.endpoint + "/v1/models")
-        alive, io, logsize, mem = serve_state(args.node, container, args.serve_pattern)
+        alive, io, logsize, mem, fatal = serve_state(args.node, container, args.serve_pattern)
+        if alive:
+            seen_alive = True
         delta = -1
         if io is not None and prev_io is not None:
             delta = (io[0] - prev_io[0]) + (io[1] - prev_io[1])
@@ -305,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
             consecutive_dead += 1
         else:
             consecutive_dead = 0
-        verdict = decide(ok, alive, consecutive_dead)
+        verdict = decide(ok, alive, consecutive_dead, seen_alive=seen_alive, fatal=fatal)
         elapsed = int(time.time() - started)
         if ok or delta > 0 or log_delta > 0:
             last_progress = time.monotonic()
@@ -316,13 +398,19 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
             f"serve_pid={'alive' if alive else 'gone'} io_delta={delta} log_delta={log_delta} "
-            f"mem_delta={mem_delta} idle={int(idle)}s",
+            f"mem_delta={mem_delta} idle={int(idle)}s" + (f" cause={fatal!r}" if fatal else ""),
             file=log,
             flush=True,
         )
+        if verdict == "dead_candidate":
+            if dead_since is None:
+                dead_since = time.monotonic()
+        else:
+            dead_since = None
+        dead_for = None if dead_since is None else time.monotonic() - dead_since
         if verdict == "healthy":
             return 0
-        if verdict in ("dead", "stalled") and elapsed >= args.grace:
+        if should_stop(verdict, args.grace, elapsed, args.dead_grace, dead_for):
             stop_task(args.task_id, log)
             return 3
         time.sleep(args.interval)

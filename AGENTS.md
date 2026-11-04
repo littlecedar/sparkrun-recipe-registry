@@ -253,9 +253,13 @@ keeps a container "Up" after its serve child died, so a session waits on a boot 
 ready). Detach `tools/boot-watchdog.py` next to every launch —
 `nohup python3 tools/boot-watchdog.py --endpoint http://<api-rank>:8000 --task-id <literal id>
 --node <host> --grace 1800 --log ~/benchmarks/<window>/watchdog-<id>.log &` — and record the pid in
-the receipt. Endpoint-down with the serve child alive is *loading* (io deltas logged), never dead;
-only a gone child plus a dead endpoint on two consecutive checks past the grace window triggers
-`sparkrun stop`. A cold ~510 GB body wants `--grace 1800`; a warm-cache load may take the default.
+the receipt. Endpoint-down with the serve child alive is *loading* (io deltas logged), never dead. A
+death the probe actually **observes** — the child gone after it was seen alive, or a fatal last line in
+`/tmp/sparkrun_serve.log` — is stopped at once, because a crash is an edge, not a duration; only a child
+that was *never* found (a serve-pid fingerprint miss) waits `--dead-grace` (120 s), and a live-but-frozen
+child waits `--grace`+`--stall`. A cold ~510 GB body wants `--grace 1800` for the loading window; that
+number no longer delays reaping a dead serve (measured 2026-11-03: an int8 arm died at t=98 s and sat 28
+minutes because the window gated the dead verdict too).
 
 ```bash
 HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \
