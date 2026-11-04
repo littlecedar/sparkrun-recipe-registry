@@ -1082,12 +1082,12 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
       "notes": "MEASURED 2026-11-03: the tp12 campaign booted zz-spark-x2.6-4b-int8-sglang on .30 (21:46:01) — the arm its own lane doc measured-rejected on 2026-10-22 with 'Do not re-boot INT8 on v0.5.22-cu130', same error text (NotImplementedError: No implemented int8_scaled_mm) and same image — and paid 98 s of load plus 28 minutes of a blocked stream for it. The nex-n2.5 pair is the same class (attic/cybersec/AGENTS.md records four boots on the same digest). Work: give the manifest derivation a skip source it can check — a tracked list of arm ids with their recorded verdict and the doc that holds it, consumed by the campaign's --skip plumbing and by tools/next-arms.py — rather than a prose rule a scheduler cannot read. Acceptance: a campaign started from scratch prints 'skip: <arm> (measured-rejected, <doc>:<line>)' and boot nothing for it; a control asserts an unlisted arm still runs.",
       "provenance": "recipes/explore/README.md:812,828 (zz-spark-x2.6-4b-int8-sglang measured-rejected 2026-10-22); tp12 sweep 2026-11-03",
-      "evidence": "",
+      "evidence": "commit b30370c (tools/measured-rejected.json + tools/next-arms.py skip wiring; guard tests/test_next_arms.py::SkippedByVerdict)",
       "claimed_by": "",
       "claimed_at": ""
     }
