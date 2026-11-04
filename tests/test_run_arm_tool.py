@@ -30,9 +30,12 @@ happy path and every test here would still pass.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -45,6 +48,10 @@ TOOL = REPO_ROOT / "tools" / "run-arm.sh"
 # moment anyone puts a blank line (or a comment block) between the `fi` and the stop.
 STOP_RE = re.compile(r"^([ \t]*)sparkrun stop ", re.MULTILINE)
 TRAP_RE = re.compile(r"^[ \t]*trap\b[^\n]*sparkrun stop[^\n]*\bEXIT\b", re.MULTILINE)
+# The readiness loop, from its poll-interval knob to its verdict echo, taken verbatim
+# and run in a temp script: the loop's control flow is what is under test, not its text.
+LOOP_START = "POLL_SLEEP=${ARM_POLL_SLEEP:-15}"
+LOOP_END = 'echo "readiness=$ready"'
 
 
 def read_tool() -> str:
@@ -55,6 +62,13 @@ def read_tool() -> str:
 def stop_offsets(text: str) -> list[int]:
     """Offsets of every explicit `sparkrun stop` line."""
     return [m.start() for m in STOP_RE.finditer(text)]
+
+
+def readiness_loop(text: str) -> str:
+    """The readiness loop verbatim, so a harness can drive the real control flow."""
+    start = text.index(LOOP_START)
+    end = text.index(LOOP_END, start) + len(LOOP_END)
+    return text[start:end]
 
 
 class RunArmContract(unittest.TestCase):
@@ -276,6 +290,112 @@ class NegativeControls(unittest.TestCase):
     def test_removing_the_trap_fails_the_trap_guard(self):
         text = TRAP_RE.sub("", read_tool())
         self.assertIsNone(TRAP_RE.search(text), "the trap line survived the mutation")
+
+
+class ReadinessLoopBehaviour(unittest.TestCase):
+    """Runs the extracted readiness loop against a stub `$WD`; no network, no Docker.
+
+    A text assertion cannot tell a loop that reaps its watchdog once from one that
+    re-`wait`s a reaped pid every iteration, so these two cases execute it.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        if not shutil.which("bash"):
+            raise unittest.SkipTest("bash not on PATH")
+        cls.loop = readiness_loop(read_tool())
+
+    @staticmethod
+    def interpreters() -> list[str]:
+        """bash as the arm runs it, plus POSIX mode -- the shell that says `rc=127`."""
+        return [sh for sh in ("bash", "sh") if shutil.which(sh)]
+
+    @staticmethod
+    def run_loop(watchdog_exit: int, interpreter: str) -> tuple[str, int, float]:
+        """Run the loop with a `$WD` that exits <watchdog_exit>; return out, probes, seconds."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            wd = tmp / "watchdog.sh"
+            wd.write_text(f"#!/usr/bin/env bash\nexit {watchdog_exit}\n")
+            probes = tmp / "probe.log"
+            script = tmp / "loop.sh"
+            script.write_text(
+                f"""#!/usr/bin/env bash
+set -uo pipefail
+NODE=127.0.0.1
+PORT=1
+# The endpoint probe is the only stub: an instrument, never a server, so what is
+# measured is the loop's own control flow. `probes=` counts iterations.
+curl() {{ echo probe >> {probes}; printf '000'; }}
+bash {wd} &
+WD=$!
+# Let bash reap the exited stub, else its zombie still answers `kill -0`.
+sleep 0.3
+{ReadinessLoopBehaviour.loop}
+echo "probes=$(wc -l < {probes})"
+"""
+            )
+            started = time.monotonic()
+            out = subprocess.run(
+                [interpreter, str(script)],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={**os.environ, "ARM_POLL_SLEEP": "0"},
+                timeout=60,
+            )
+            elapsed = time.monotonic() - started
+            probes_run = int(re.search(r"^probes=(\d+)$", out.stdout, re.M).group(1))
+            return out.stdout + out.stderr, probes_run, elapsed
+
+    def test_a_watchdog_that_dies_of_its_own_error_warns_once_and_keeps_polling(self):
+        """Pre-fix this fails: the loop re-`wait`ed the already-reaped child every pass.
+
+        Against the unfixed block (`f18bf70`, `wait "$WD"` with no one-shot flag) the
+        first pass reaps the child; every later pass' `kill -0` fails, so it re-enters
+        the branch, re-waits and re-warns once per iteration -- measured 150 identical
+        `watchdog exited rc=4 (its own error); continuing to poll` lines against 3
+        lines fixed. The `== 1` warning assertion below therefore fails on that file,
+        so this is a real control and not decoration.
+
+        The rc=127 spelling of the same defect is what a POSIX-mode shell reports for
+        the repeated `wait` (bash 5.3.20: `wait $p` twice gives `w1=4`, then
+        `wait: pid ... is not a child of this shell`, `w2=127`); plain bash caches the
+        status instead. Either spelling is one warning per iteration against a boot
+        that has lost its liveness instrument, so both are asserted.
+        """
+        for interpreter in self.interpreters():
+            with self.subTest(shell=interpreter):
+                out, probes, elapsed = self.run_loop(4, interpreter)
+                self.assertNotIn("rc=127", out, "the loop re-waited a reaped pid")
+                self.assertEqual(
+                    out.count("watchdog exited rc="), 1, "the watchdog's own error must warn once"
+                )
+                self.assertIn(
+                    "watchdog exited rc=4", out, "the reaped status was not the stub's own"
+                )
+                self.assertIn("no liveness instrument", out, "the warning does not name the loss")
+                self.assertIn(
+                    "readiness=no", out, "a watchdog error must not declare the arm ready"
+                )
+                self.assertEqual(probes, 150, "a watchdog bug must not end a possibly healthy boot")
+                self.assertLess(elapsed, 30, "the loop did not finish quickly")
+
+    def test_a_dead_serve_breaks_the_loop_instead_of_spinning_to_the_ceiling(self):
+        """rc=3 is the real verdict: stop asking, keep `ready=no`, fall through to rc=4."""
+        for interpreter in self.interpreters():
+            with self.subTest(shell=interpreter):
+                out, probes, _ = self.run_loop(3, interpreter)
+
+                self.assertIn("readiness=no", out, "a stopped serve must not be reported ready")
+                self.assertEqual(
+                    out.count("serve dead and stopped (rc=3)"), 1, "the verdict is not printed once"
+                )
+                self.assertNotIn("watchdog exited rc=", out, "an rc=3 verdict is not its own error")
+                self.assertLessEqual(
+                    probes, 2, "the loop spun on after the watchdog declared the serve dead"
+                )
+                self.assertNotIn("readiness=yes", out, "a dead arm was declared ready")
 
 
 if __name__ == "__main__":

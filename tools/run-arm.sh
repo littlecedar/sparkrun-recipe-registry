@@ -223,7 +223,10 @@ python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" 
   --node "$NODE" --container "$N" --interval 10 --log "$L/watchdog.log" &
 WD=$!
 
+# Only so the readiness-loop guard can drive this loop at 0 s; 15 s in a real arm.
+POLL_SLEEP=${ARM_POLL_SLEEP:-15}
 ready=no
+wd_done=0
 for _ in $(seq 1 150); do
   if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
@@ -231,18 +234,22 @@ for _ in $(seq 1 150); do
   # The watchdog is the liveness instrument; poll it, not just the endpoint. Without this
   # the loop sat out its full 2250 s after the watchdog had already declared the serve
   # dead and stopped it (measured 2026-11-03: 28 min on a boot that died at t=98 s).
-  if ! kill -0 "$WD" 2>/dev/null; then
-    wait "$WD"; wd_rc=$?
+  # One shot only: `wait` reaps the child, so a second `kill -0` always fails and a second
+  # `wait` warns forever (rc=127 under a POSIX shell, the cached status under bash) --
+  # ~150 lines, against a loop that then has no liveness instrument at all.
+  if [ "$wd_done" = 0 ] && ! kill -0 "$WD" 2>/dev/null; then
+    wait "$WD"; wd_rc=$?; wd_done=1
     case "$wd_rc" in
       0) ready=yes ;;                                   # watchdog saw the endpoint answer
       3) echo "watchdog: serve dead and stopped (rc=3) at t=$((SECONDS))s -- never ready"
          ready=no; break ;;                             # rc=4 below, then harvest + teardown:
                                                         # a dead arm's serve log is the evidence
-      *) echo "watchdog exited rc=$wd_rc (its own error); continuing to poll" ;;
+      *) echo "watchdog exited rc=$wd_rc (its own error) -- this boot has no liveness" \
+              "instrument left; polling the endpoint only" ;;
     esac
     [ "$ready" = yes ] && break
   fi
-  sleep 15
+  sleep "$POLL_SLEEP"
 done
 echo "readiness=$ready"
 
