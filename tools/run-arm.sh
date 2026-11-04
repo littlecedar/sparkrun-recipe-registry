@@ -310,6 +310,18 @@ if [ "$ready" = yes ]; then
         || { echo "pooling ladder failed for $NAME"; rc=2; }
       echo "suite: n/a (pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank)" \
         > "$L/house.log"
+      # A campaign driver calls an arm finished on a machine-readable `house.yaml|json|csv`
+      # beside a ladder artefact, so the log line above left three completed pooling arms
+      # looking unfinished on 2026-11-04 (each re-booted for nothing). Say the same n/a in a
+      # file such a consumer can read -- but only once the ladder artefact exists, because the
+      # rc=2 above does not exit and file presence must never mean "finished" for an arm whose
+      # ladder died. No numbers: the chat suite has no rows for a pooling engine.
+      if [ -s "$L/ladder.yaml" ]; then
+        echo "suite: n/a" > "$L/house.yaml"
+        echo "reason: pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank" >> "$L/house.yaml"
+        echo "kind: $kind" >> "$L/house.yaml"
+        echo "ladder: ok" >> "$L/house.yaml"
+      fi
       artifacts "$L/ladder.yaml"
       ;;
     *)

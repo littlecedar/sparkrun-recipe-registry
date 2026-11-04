@@ -20,6 +20,9 @@ that the next edit keeps the promise, so the properties are pinned here:
   (`test_verification_follows_the_stop`);
 * a failed benchmark is reported in the exit status rather than swallowed
   (`test_failed_steps_set_a_nonzero_exit`);
+* a pooling arm's receipt carries a machine-readable `suite: n/a` beside its ladder, and
+  carries no suite marker at all when its ladder failed
+  (`PoolingReceipt`, which executes the branch against a stub `sparkrun`);
 * the script is syntactically valid bash (`test_bash_syntax`).
 
 Every assertion here needs its negative control: a copy with the stop line
@@ -397,6 +400,187 @@ echo "probes=$(wc -l < {probes})"
                     probes, 2, "the loop spun on after the watchdog declared the serve dead"
                 )
                 self.assertNotIn("readiness=yes", out, "a dead arm was declared ready")
+
+
+# ---------------------------------------------------------------------------
+# A pooling arm's receipt: the files a consumer may read, and the ones it must not.
+# ---------------------------------------------------------------------------
+
+# The arm body, not its `)` label: slices are executed, so what is under test is the
+# file's own control flow rather than a restatement of it in Python.
+POOLING_ARM_AT = 'kind=embed; case "$RECIPE" in */rerank/*) kind=rerank ;; esac'
+CASE_ARM_END = "\n      ;;\n"
+POOLING_REASON = "the chat suite cannot address /v1/embeddings or /v1/rerank"
+# A stub, not a server: it writes `--output` the way sparkrun's exporter does (primary yaml
+# plus the json sidecar) and exits 2 for the failed-ladder case, writing nothing.
+SPARKRUN_STUB = """#!/usr/bin/env bash
+out=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output) out=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ -n "$out" ] || exit 0
+printf 'framework: pooling-bench\\nruns: []\\n' > "$out"
+printf '{"runs": []}\\n' > "${out%.yaml}.json"
+"""
+FAILED_LADDER_STUB = "#!/usr/bin/env bash\nexit 2\n"
+
+
+def case_arm(text: str, start_marker: str) -> str:
+    """One `case` arm body, without its `)` label and `;;` terminator."""
+    at = text.index(start_marker)
+    start = text.rindex("\n", 0, at) + 1
+    return text[start : text.index(CASE_ARM_END, at)] + "\n"
+
+
+def chat_arm(text: str) -> str:
+    """The default arm — the one the pooling branch must not disturb."""
+    at = text.index(POOLING_ARM_AT)
+    start = text.index("\n    *)\n", at) + len("\n    *)\n")
+    return text[start : text.index(CASE_ARM_END, start)] + "\n"
+
+
+def artifacts_function(text: str) -> str:
+    start = text.index("artifacts() {")
+    return text[start : text.index("\n}\n", start) + 3]
+
+
+def run_case_arm(arm: str, ladder_ok: bool = True) -> tuple[dict[str, str], str]:
+    """Execute *arm* in a temp receipt and return its file name -> text map, and its output."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        receipt = tmp / "receipt"
+        receipt.mkdir()
+        stub = tmp / "sparkrun"
+        stub.write_text(SPARKRUN_STUB if ladder_ok else FAILED_LADDER_STUB)
+        stub.chmod(0o755)
+        script = tmp / "arm.sh"
+        script.write_text(
+            "#!/usr/bin/env bash\nset -uo pipefail\n"
+            f"L={receipt}\n"
+            "RECIPE=recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml\n"
+            "NAME=qwen3-vl-embedding-8b-awq-4bit-vllm-b12x\n"
+            "HOSTS=127.0.0.1\n"
+            "BENCH_VERBOSE=\n"
+            "rc=0\n" + artifacts_function(read_tool()) + "\n" + arm + 'echo "rc=$rc"\n'
+        )
+        out = subprocess.run(
+            ["bash", str(script)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "PATH": f"{tmp}:{os.environ['PATH']}"},
+            timeout=120,
+        )
+        if out.returncode != 0:
+            raise AssertionError(f"arm harness exited {out.returncode}: {out.stdout}{out.stderr}")
+        files = {path.name: path.read_text(errors="replace") for path in sorted(receipt.iterdir())}
+    return files, out.stdout + out.stderr
+
+
+def pooling_contract_errors(receipt: dict[str, str]) -> list[str]:
+    """Every way a pooling receipt fails the contract a consumer reads it by."""
+    errors = []
+    if "ladder.yaml" not in receipt:
+        errors.append("ladder.yaml missing")
+    if "ladder.csv" in receipt:
+        errors.append("ladder.csv was manufactured; pooling-bench exports no csv")
+    for name in ("house.json", "house.csv"):
+        if name in receipt:
+            errors.append(f"{name} claims a suite this arm cannot run")
+    house = receipt.get("house.yaml")
+    if house is None:
+        errors.append(
+            "house.yaml missing; a driver whose arm-finished predicate wants a house artefact re-runs it"
+        )
+    else:
+        for needle in ("suite: n/a", POOLING_REASON, "kind: embed", "ladder: ok"):
+            if needle not in house:
+                errors.append(f"house.yaml does not state {needle!r}")
+    return errors
+
+
+class BashArmHarness(unittest.TestCase):
+    """A TestCase with bash, and nothing else: `run_case_arm` execs the script's own slice."""
+
+    def setUp(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash not on PATH")
+
+
+class PoolingReceipt(BashArmHarness):
+    """A pooling arm's receipt, executed: no sparkrun, no serve, no GPU.
+
+    The measured pre-fix receipt — `git show HEAD:tools/run-arm.sh` before this fix,
+    three rc=0 arms on 2026-11-04 (`qwen3-vl-embedding-8b-awq-4bit-vllm-b12x`,
+    `qwen3-vl-reranker-2b-vllm-b12x`, `qwen3-vl-reranker-8b-vllm-b12x`) — held
+    `ladder.yaml`, `ladder.json`, `ladder.log` and the `house.log` stub, and no
+    `house.yaml`/`house.json`/`house.csv`. A driver whose "arm finished" predicate wants a
+    ladder artefact *and* a house one therefore read three finished arms as unfinished and
+    re-booted them. Run against that same text here, `test_a_completed_pooling_arm_states_
+    its_own_gap` fails on `house.yaml missing; a driver whose arm-finished predicate wants a
+    house artefact re-runs it`; against the arm with its `[ -s "$L/ladder.yaml" ]` guard
+    weakened to `true`, `test_a_failed_ladder_leaves_no_suite_marker` fails because a
+    `house.yaml` saying `ladder: ok` is written for an arm whose ladder never ran.
+    """
+
+    def test_a_completed_pooling_arm_states_its_own_gap(self):
+        """Both sides of the driver's predicate are present, and nothing is invented."""
+        receipt, out = run_case_arm(case_arm(read_tool(), POOLING_ARM_AT))
+        self.assertEqual(pooling_contract_errors(receipt), [], f"receipt={sorted(receipt)} output={out}")
+        self.assertIn("suite: n/a (pooling arm", receipt.get("house.log", ""), "the human line is gone")
+
+    def test_a_failed_ladder_leaves_no_suite_marker(self):
+        """The ladder's `rc=2` does not exit, so presence must not mean "finished"."""
+        receipt, out = run_case_arm(case_arm(read_tool(), POOLING_ARM_AT), ladder_ok=False)
+        self.assertIn("pooling ladder failed", out, "the ladder failure was swallowed")
+        self.assertNotIn("ladder.yaml", receipt, "the stub wrote a ladder artefact it should not")
+        for name in ("house.yaml", "house.json", "house.csv"):
+            self.assertNotIn(name, receipt, f"{name} would read as a finished arm whose ladder died")
+        self.assertIn("rc=5", out, "the missing ladder artefact set no status")
+
+    def test_the_chat_arm_is_unchanged(self):
+        """The pooling marker must not leak into the arm that does run the suite."""
+        receipt, out = run_case_arm(chat_arm(read_tool()))
+        self.assertEqual(out.strip().splitlines()[-1], "rc=0", out)
+        self.assertIn("house.yaml", receipt, "the chat arm's own suite artefact is missing")
+        self.assertNotIn("suite: n/a", receipt.get("house.yaml", ""), "a pooling marker reached the chat arm")
+
+
+class PoolingReceiptNegativeControls(BashArmHarness):
+    """The same contract, against the two receipts that caused the defect."""
+
+    def test_the_pre_fix_receipt_fails_the_contract(self):
+        """The measured 2026-11-04 shape, rebuilt from the fix minus its marker block."""
+        arm = case_arm(read_tool(), POOLING_ARM_AT)
+        # From the marker's first comment line to its closing `fi`: the arm as it stood
+        # before this fix, nothing else removed.
+        start = arm.index("      # A campaign driver calls an arm finished")
+        end = arm.index("\n      fi\n", start) + len("\n      fi\n")
+        block = arm[start:end]
+        self.assertIn('> "$L/house.yaml"', block, "the marker block was not found; the control is vacuous")
+        pre_fix = arm.replace(block, "")
+        self.assertNotIn("house.yaml", pre_fix, "the pre-fix arm still writes a marker")
+
+        files, _ = run_case_arm(pre_fix)
+        self.assertEqual(sorted(files), ["house.log", "ladder.json", "ladder.log", "ladder.yaml"])
+        errors = pooling_contract_errors(files)
+        self.assertTrue(errors, "the pre-fix receipt passed the contract")
+        self.assertIn("house.yaml missing", " ".join(errors))
+
+    def test_an_unconditional_marker_fails_the_failed_ladder_guard(self):
+        """The defect the ladder guard prevents: a marker on an arm that measured nothing."""
+        arm = case_arm(read_tool(), POOLING_ARM_AT).replace(
+            'if [ -s "$L/ladder.yaml" ]; then', "if true; then"
+        )
+        receipt, out = run_case_arm(arm, ladder_ok=False)
+        self.assertIn("pooling ladder failed", out)
+        self.assertIn(
+            "house.yaml", receipt, "the weakened guard wrote no marker, so the control proves nothing"
+        )
+        self.assertIn("ladder: ok", receipt["house.yaml"], "the marker claims a ladder that never ran")
 
 
 if __name__ == "__main__":
