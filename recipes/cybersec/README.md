@@ -590,3 +590,19 @@ the pinned image (`dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a53…`, vLLM `0.1.dev
 library knows the scheme and the runner does not. That is weaker than the sglang arm's traceback (a string
 search, not a serve), so it is recorded as such: the sibling is skipped with the reason stated, and a future
 boot is justified only if the engine gains W4A16_Sparse24 support.
+
+**Both flash-next arms re-ran on 2026-11-04, and the sibling's failure is not the one predicted above.**
+`qwen3.8-flash-next-uncensored-nvfp4-sglang` reproduced its documented death (`rc=4` in 78 s; the watchdog
+saw the serve child gone at t=32 s — no serve log was captured, so the failing line itself is not
+re-captured in that receipt). The vLLM sibling was booted for the first time and fails one layer earlier,
+in config validation: `rc=4` after 74 s, before any weight is read, because vLLM's `ModelConfig` rejects
+the checkpoint's `layer_types` — they contain `qwen_sparse_attention`, which is outside the pinned image's
+attention-backend vocabulary (`full_attention`, `sliding_attention`, `chunked_attention`, `window_attention`,
+`indexed_attention`, `compressed_sparse_attention`, `heavily_compressed_attention`, `minimax_m3_sparse`,
+`conv`, `moe`, `hybrid`, `hybrid_sliding`, `linear_attention`; pydantic `ValidationError` in `serve-0.log`).
+So the 2026-10-30 Sparse24 string search never got exercised and cannot predict this arm's boot behaviour:
+**"retired on evidence" stands as the verdict, but the observed reason is now the `layer_types` vocabulary
+mismatch** — a newer image could pass this validation and still not serve the checkpoint, which needs
+another boot to learn. Receipts `~/benchmarks/tp12-20261104/qwen3.8-flash-next-uncensored-nvfp4-sglang/`
+(launch + watchdog) and `~/benchmarks/tp12-20261104/qwen3.8-flash-next-uncensored-nvfp4-vllm/`
+(`serve-0.log` holds the traceback).

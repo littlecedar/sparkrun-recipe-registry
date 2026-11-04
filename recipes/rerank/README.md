@@ -57,6 +57,11 @@ serve score/rerank endpoints, not chat — read
   docs/query, 128-token docs, 32/32 ok; p50 97.0/71.0 ms), with the intended cross-encoder
   asymmetry (0.688) and an exact rank fixture (0.996/0.646/0.216) — the cells the shipped 119.29
   C8 figure does not cover. Receipt `~/benchmarks/spares-20261026/qwen3vl-rerank-2b-solo/RECEIPT.md`.
+- **Campaign ladder (2026-11-03, tp12, `.35`):** **C1 71.70 · C2 79.72 · C5 82.88 · C10 83.18
+  units/s** (10 docs/query, 256-token documents, 100 requests = 1,000 scored documents per cell;
+  100/100 ok at every cell, p50 137.5 / 252.5 / 605.1 / 1,148.4 ms) — house: n/a (pooling lane,
+  the chat suite cannot address `/v1/rerank`). Receipt
+  `~/benchmarks/tp12-20261103/qwen3-vl-reranker-2b-vllm-b12x/` (`ladder.json`, `house.log`).
 - **license:** Apache-2.0 (`Qwen/Qwen3-VL-Reranker-2B` card).
 
 ### `qwen3-vl-reranker-8b-vllm-b12x`

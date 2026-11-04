@@ -189,6 +189,12 @@ SGLang · **1 node (TP=1)** · **kept — accuracy leader (2026-10-19)**.
   earlier "262k needle PASS".** Receipts `~/benchmarks/ladders-solo-20261018/` (`ling-suite/`,
   `ling-needle-262k-mt512/`).
 - **Second ladder (2026-10-26, spares-lane, `.35`, pool-era route):** C1 **42.0 ± 3.3 · C2 65.3 ± 6.5 · C5 104.9 ± 4.8 · C10 86.9 ± 4.1 t/s** (`~/benchmarks/spares-20261026/ling-ladder/RECEIPT.md`, 5 runs) — reproduces the 2026-10-18 row (49.7/66.2/100.2/85.9) inside the 7-25 % inter-boot floor, same peak-at-c5 shape. Two tooling notes this boot proved: the arm needs **~13 min to ready** on a first pool read (24 shards at ~25 s/shard), which is past the benchmark runner's readiness give-up — the harness tears the boot down mid-load and the cell must be measured with the runner's own tool manually (`uvx llama-benchy --base-url http://<node>:8030/v1 … --extra-body return_token_ids=false`, the sglang streaming suppression the runner otherwise applies itself; the base URL must carry `/v1` or the warmup 404s). A `readiness:` block in the recipe would re-enable harness-driven ladders.
+- **Campaign ladder (2026-11-03, tp12, `.30`):** C1 **47.30 ± 7.26** · C2 **67.73 ± 9.54** · C5
+  **109.70 ± 4.40** · C10 **89.82 ± 2.95 t/s** @ d0, pp 2048 / tg 128, n=5 — reproduces the
+  2026-10-18 row (49.7 / 66.2 / 100.2 / 85.9) inside the inter-boot floor and keeps its
+  peak-at-c5, dip-at-c10 shape; standard suite **97**/100 (15/15, `tool-eval-bench` 2.6.0;
+  deployability 89, responsiveness 69). Receipt
+  `~/benchmarks/tp12-20261103/ling-3.0-flash-int4-dspark-sglang/` (`ladder.json`, `house.json`).
 - **License:** MIT.
 
 ## [kolibri-1-apex-24bpw-llamacpp](kolibri-1-apex-24bpw-llamacpp.yaml)
@@ -594,6 +600,12 @@ vLLM · **1 node (TP=1)** · **kept 2026-10-21 — fastest C1 of any single-node
   (57.4), Kolibri-1 (47.3) and Laguna-M.1 TP=2 (12.85 C1) in this lane, at 20.1 GiB of weights.
   Ladder **63.27 / 90.81 / 122.27 / 144.15** t/s at c1/2/5/10 (still rising at c10); prefill flat
   **6,142 ± 34 → 6,235 ± 10** t/s; e2e ttft 335.8 → 2,048.3 ms.
+- **Campaign ladder (2026-11-03, tp12, `.35`):** C1 **63.37 ± 1.60** · C2 **93.32 ± 1.83** · C5
+  **122.71 ± 1.30** · C10 **145.01 ± 1.23 t/s** @ d0, pp2048/tg128, n=5 — reproduces the shipped
+  row (63.27 / 90.81 / 122.27 / 144.15) within 3 %, still rising at c10; standard suite
+  **87**/100 (15/15, `tool-eval-bench` 2.6.0; deployability 82, responsiveness 69). Receipt
+  `~/benchmarks/tp12-20261103/nemotron-3.5-lightning-30b-a3b-nvfp4-vllm/` (`ladder.json`,
+  `house.json`).
 - **Quality:** house **37/37** (easy 19/19, hard 18/18) with `--max-tokens 2048`. **The budget is part of
   the result:** the first pass at 1024 scored 36/37, missing only `big-1` (`11111` for `1111111110`) —
   re-asked at 2048 the same greedy request answers correctly after **1018 reasoning tokens** with

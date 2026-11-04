@@ -85,6 +85,13 @@ instead. This encoder colocates with `Qwen/Qwen3-VL-Reranker-8B` on one GB10:
 32.80 + 32.24 = **65.03 GiB of 121.69 GiB (53%)** at the shipped 0.30/0.30 caps, ~57 GiB
 still free.
 
+- **Pooling ladder (2026-11-03, tp12, `.35`):** **C1 15.50 · C2 17.39 · C5 20.84 · C10 22.20
+  units/s** (100 embed requests per cell, 256-token texts, batch 1, instructed chat template;
+  100/100 ok at every cell, p50 65.0 / 115.7 / 241.9 / 453.1 ms) — house: n/a (pooling lane, the
+  chat suite cannot address `/v1/embeddings`). Receipt
+  `~/benchmarks/tp12-20261103/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x/` (`ladder.json`,
+  `house.log`).
+
 ## Serving the encoder correctly (client contract)
 
 The checkpoint ships `config_sentence_transformers.json` with

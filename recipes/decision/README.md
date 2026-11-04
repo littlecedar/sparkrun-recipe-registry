@@ -492,6 +492,21 @@ throughput than the last while latency keeps climbing. That is a **different mec
 CPU arms above, which *lose* throughput under load (Kai −32 % at c10); it is not the same shape.
 Receipt: `~/benchmarks/tp12-20261030/jev-9b-decision-vllm/REPORT.md`.
 
+**clef now carries the same campaign ladder (2026-11-03, tp12, `.30`, `tools/decision-ladder.py`,
+`/v1/systemone`, first 100 cases of the split, one pass)** — one request is one question and five
+decisions, so 100 requests = 500 decisions per cell:
+
+| clef (GPU) | c1 | c2 | c5 | c10 |
+|---|---:|---:|---:|---:|
+| `req/s` | 5.73 | 5.97 | 5.81 | 6.42 |
+| `decisions/s` | 28.6 | 29.9 | 29.1 | 32.1 |
+| p50 per request | 174 ms | 331 ms | 820 ms | 1,552 ms |
+
+Clean every level (100/100 responses, 500/500 decisions each). **It does not serialize either**,
+and more sharply than JEV-9B: 10× offered concurrency buys 1.12× throughput for 8.9× p50.
+Receipt `~/benchmarks/tp12-20261103/clef-flash-decision-sglang/` (`ladder.json`,
+`teb-decision.log`; house: n/a for a decision arm, the decision bench is its accuracy instrument).
+
 Ladders taken 2026-10-15 on `.34` with the arms booted solo, each level a **single** closed-loop
 pass (offer N, count completions; `--runs 1`, which was the only mode then and is no longer the
 default):

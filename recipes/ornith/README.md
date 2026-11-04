@@ -671,6 +671,14 @@ a bare `-o speculative_config=…` is consumed nowhere (two boots rendered
 Receipts: `~/benchmarks/tplt4-20261024/ornith122b/` (`ladder-mtp.*`, `ladder-plain-ctl.*`,
 `house-mtp.json`, `house-plain-ctl.json`, launch logs).
 
+**Campaign re-measure of the MTP arm (2026-11-03, tp12, `.35`, no paired control):** C1
+**37.40 ± 2.29** · C2 **51.05 ± 1.58** · C5 **70.86 ± 1.86** · C10 **83.05 ± 3.63 t/s** @ d0,
+pp2048/tg128, n=5 — reproduces the 2026-10-25 MTP cells (38.8 / 48.9 / 71.8 / 81.2) inside the
+inter-boot band, so against the 2026-10-30 no-drafter control (C1 26.84) the drafter still buys
+~+39 % C1. Standard suite (TEB 2.6.0, 15 scenarios) **97/100**, deployability 81, responsiveness
+45. Receipt `~/benchmarks/tp12-20261103/zz-ornith-1.5-122b-nvfp4-mtp-vllm/` (`ladder.json`,
+`house.json`).
+
 ## Lane caveats
 
 - **The YaRN long-context route is now an arm, and only that arm enables it.** Both model cards
