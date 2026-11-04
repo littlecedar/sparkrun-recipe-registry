@@ -2556,3 +2556,20 @@ nowhere, so they existed only on the board.
 | 04:43 ET | `8038ad1` | The driver row records the presence-only `have()` predicate (`drive.sh:32-38`) that makes the driver and the planner read the same receipt differently. |
 | 04:48 ET | `36e8e30` | Suite snapshot 1241 → **1247 tests (2 skipped)**, re-derived by a run rather than copied. |
 | 04:53 ET | `ec9f088` | `AGENTS.md` gains the pathspec-commit hazard — `git commit -- <paths>` publishes the file's whole content, so a shared file ships a peer's half-finished hunk under this session's subject, measured twice today (`ab82517`, `8038ad1`). |
+## 2026-11-04 afternoon — nine commits after the 04:53 close-out, recovered at the 16:00 ET tick
+
+Nothing below was measured by the tick that wrote this section; each clause is its own commit's, and the reason it is here is that the nine landed after the table above closed and existed only in commit bodies.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 13:03 ET | `fcf1b43` | The 13:01 census row's 1174 → 1173 GB drop keeps its verdict and gains its discriminator: `df -BG` rounds up, so a 1174 display means avail sat above 1173 GiB, so the decrease is real but bounded at 14 MiB to 1 GiB, and its cause stays unestablished (`mad-science/STATUS.md`). |
+| 14:05 ET | `94a09f4` | `.34`'s bytes are read rather than a rounded display being called byte-identical: at 14:04:39 ET it holds 1,259,470,364,672 B, 13.3 MiB below the 13:01 read inside an unchanged 1173 GB cell, while the five nodes with no earlier byte read keep GB-level equality and say so. |
+| 15:04 ET | `cd230c7` | Board refreshed at 15:00 ET — idle census re-read from the head, `.34`'s byte delta 23,146,496 B below the 14:04 read, quartet probed rather than assumed; its own census row then corrected by `245db94`. |
+| 15:08 ET | `245db94` | The 15:00 census row corrected on two counts: five zeros stood against six whole-GB values, and the probe's `pgrep -c -f` through `sh -c` matched the wrapper's own command line, so the row now names one serve pid per rank. |
+| 15:24 ET | `3b59eb9` | Owner round promotes the campaign driver to the register's top-priority epic — `campaign-driver-service`, 16 h provisional, gated on a written checklist plus one unattended multi-arm campaign — and boots stop until that gate clears (`mad-science/queue.json`). |
+| 15:39 ET | `d523ae2` | `tools/measured-rejected.json` deleted as a derived file: each of the six refusals now rides its own recipe as `metadata.measured_rejected`, which `next-arms.py` reads with the repo's YAML-subset parser, because the same key at top level is swept into `runtime_config`. |
+| 15:43 ET | `ed0e14c` | The ablated 122B arm moves from `recipes/ornith/` to `recipes/cybersec/`, the lane that documents a refusal-removed posture, and loses a DRAFT header claiming it was never booted when it measured `rc=0` on 2026-11-03. |
+| 15:46 ET | `58639cd` | The stated suite total is derived instead of remembered: `test_doc_hygiene.SuiteTotal` compares both `AGENTS.md` statements against `defaultTestLoader.discover("tests").countTestCases()` and fails naming the stale line — no test executed. |
+| 15:48 ET | `fe6a7ca` | Three register rows that cited the deleted skip file keep their history byte-identical; only the one live instruction changes, `tp12-remainder-8-arms`' acceptance now asking for the recipe's own `metadata.measured_rejected` marker. |
+| 15:49 ET | `03edafb` | A nightly close-out in `mad-science/SESSION-RECORD.md` becomes a rule, because a commit body explains one change and cannot record what was tried and abandoned or which question is still open. |
+| 15:53 ET | `1ca4e35` | Register row for a `--strict` roster gap the lane move exposed: `restated-managed-path` on the moved arm predates the move, so `AGENTS.md`'s \"exactly this roster\" claim was already false — the roster is to be re-measured, not patched by hand. |
