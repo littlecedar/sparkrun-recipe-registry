@@ -56,6 +56,13 @@ jobs:
           echo "SKIPPED: uv sync (netifaces sdist / toolchain) — running the stdlib suite on the runner's python3 instead"
           python3 -B -m unittest discover -s tests
 
+      - name: Campaign driver suite (its own uv project, zero dependencies)
+        # The campaign tree is a second project with its own lockfile. It needs no GPU, no sparkrun,
+        # no docker and no node: the suite drives the director through a fake fleet and fixture
+        # receipts, so a hosted runner covers it. `-t campaign` is what puts `sparkrun_campaign/` on
+        # sys.path (the project is deliberately not installed -- see campaign/DESIGN.md).
+        run: uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign
+
       - name: Validate recipes (degrades honestly)
         # sparkrun is not a guaranteed PyPI package here. Attempt to install it; if that fails,
         # say so and do not fail the job — a skipped check must be visible, not silently green.
@@ -90,6 +97,18 @@ jobs:
           PY="python3"
           if [ "${{ steps.sync.outcome }}" = "success" ]; then PY="uv run python"; fi
           for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do
+            $PY -m py_compile "$p"
+          done
+
+      - name: py_compile over the campaign tree
+        # Its own step because it is its own project: the loop above is what AGENTS.md documents and
+        # `tests/test_ci_workflows.py` pins verbatim. Without this, a syntax or import-time error in
+        # the campaign package would land on main unopposed -- no other glob reaches that tree.
+        run: |
+          set -e
+          PY="python3"
+          if [ "${{ steps.sync.outcome }}" = "success" ]; then PY="uv run python"; fi
+          for p in campaign/*/*.py; do
             $PY -m py_compile "$p"
           done
 
