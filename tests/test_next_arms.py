@@ -4,8 +4,9 @@
 The tool exists because an idle free node with queued work went unnoticed for an hour. Its
 value is entirely in two predicates, so those are what the tests pin, offline:
 
-  * an arm counts as measured only when its receipt carries a machine-readable artefact (or a
-    `*.yaml`), and a `.prev-*` directory is history rather than a measurement;
+  * an arm counts as measured only when a ladder artefact parses with cells and the receipt's
+    `house.yaml` marker does not report a failed ladder, and a `.prev-*` directory is history
+    rather than a measurement;
   * a candidate's `tp` must fit the nodes available, and a TP=2 arm must never be planned onto
     one free node.
 
@@ -39,27 +40,32 @@ def load():
 
 na = load()
 
+#: A ladder that parses with a cell in it. `{}` is deliberately not used: a receipt whose ladder
+#: parses to nothing is the truncated-artefact defect, so the stub that stands for "measured" has
+#: to look like a measurement.
+LADDER = json.dumps({"benchmarks": [{"model": "m", "max_concurrency": 1}]})
+
 
 class MeasuredArms(unittest.TestCase):
     def test_a_receipt_with_a_ladder_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
             arm = Path(tmp) / "benchmarks" / "tp12-20261030" / "arm-a"
             arm.mkdir(parents=True)
-            (arm / "ladder.json").write_text("{}")
+            (arm / "ladder.json").write_text(LADDER)
             self.assertIn("arm-a", na.measured_arms(tmp, windows=("benchmarks/tp12-*",)))
 
     def test_a_transcribed_ladder_counts(self):
         with tempfile.TemporaryDirectory() as tmp:
             arm = Path(tmp) / "benchmarks" / "tp12-20261030" / "arm-b"
             arm.mkdir(parents=True)
-            (arm / "ladder.transcribed.json").write_text("{}")
+            (arm / "ladder.transcribed.json").write_text(LADDER)
             self.assertIn("arm-b", na.measured_arms(tmp, windows=("benchmarks/tp12-*",)))
 
     def test_a_previous_receipt_is_history_not_a_measurement(self):
         with tempfile.TemporaryDirectory() as tmp:
             arm = Path(tmp) / "benchmarks" / "tp12-20261030" / "arm-c.prev-101010"
             arm.mkdir(parents=True)
-            (arm / "ladder.json").write_text("{}")
+            (arm / "ladder.json").write_text(LADDER)
             self.assertNotIn("arm-c.prev-101010", na.measured_arms(tmp, windows=("benchmarks/tp12-*",)))
 
     def test_a_logs_only_receipt_is_not_a_measurement(self):
@@ -343,6 +349,70 @@ class SkippedByVerdict(unittest.TestCase):
             self.assertTrue(list((root / "recipes").glob(f"*/{entry['arm']}.yaml")), entry["arm"])
 
 
+class MarkerFields(unittest.TestCase):
+    """`house.yaml`'s `ladder:` field is the outcome; the file's presence is only "finished".
+
+    Two defects, one predicate: a ladder that died partway left a truncated `ladder.json` behind
+    and its arm counted measured and was never retried, while a decision or pooling arm whose
+    only machine-readable receipt is the `house.yaml` marker was re-booted although it had
+    measured. Each direction costs a node window, so both are pinned here.
+    """
+
+    def _arm(self, home: str, name: str, **files: str) -> str:
+        arm = Path(home) / "benchmarks" / "tp12-x" / name
+        arm.mkdir(parents=True)
+        for filename, body in files.items():
+            (arm / filename).write_text(body)
+        return str(arm)
+
+    def _done(self, home: str) -> set[str]:
+        return na.measured_arms(home, windows=("benchmarks/tp12-*",))
+
+    def test_a_marker_saying_ok_is_measured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "ok-arm", **{"ladder.json": LADDER,
+                                        "house.yaml": "ladder: ok\naccuracy_status: taken\n"})
+            self.assertIn("ok-arm", self._done(tmp))
+
+    def test_a_failed_marker_is_not_measured_even_with_a_partial_ladder(self):
+        """Red on the presence-only predicate: this arm's `ladder.json` is non-empty."""
+        partial = json.dumps({"model": "m", "benchmarks": [{"model": "m", "cells": []}]})
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "failed-arm", **{
+                "ladder.json": partial,
+                "house.yaml": "ladder: failed (rc=2) — the artifact is partial\n"})
+            self.assertNotIn("failed-arm", self._done(tmp))
+
+    def test_an_unparseable_ladder_is_not_measured_whatever_else_is_there(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "truncated", **{"ladder.json": '{"benchmarks": [{"model": "m"',
+                                           "house.json": "{}"})
+            self.assertNotIn("truncated", self._done(tmp))
+
+    def test_a_legacy_house_json_without_a_marker_is_still_measured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "legacy", **{"house.json": "{}"})
+            self.assertIn("legacy", self._done(tmp))
+
+    def test_a_decision_arm_is_measured_from_its_marker_alone(self):
+        """Red before this fix: no `house.json`, and `house.yaml` was not in the artefact list."""
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "decision", **{
+                "teb-decision.log": "score 7/10\n",
+                "house.yaml": "suite: n/a\nladder: ok\naccuracy_status: taken — scored\n"})
+            self.assertIn("decision", self._done(tmp))
+
+    def test_a_contradictory_marker_is_not_measured_and_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._arm(tmp, "twice", **{"ladder.json": LADDER,
+                                       "house.yaml": "ladder: ok\nladder: failed (rc=3)\n"})
+            err = io.StringIO()
+            with redirect_stderr(err):
+                done = self._done(tmp)
+        self.assertNotIn("twice", done)
+        self.assertIn("appears twice", err.getvalue())
+
+
 class Cli(unittest.TestCase):
     def test_no_nodes_is_an_error(self):
         env = {"PATH": "/usr/bin:/bin"}
@@ -371,12 +441,13 @@ class MeasuredPredicate(unittest.TestCase):
             open(os.path.join(arm, "launch.log"), "w").close()
             self.assertEqual(self._mod.measured_arms(home, ("benchmarks/tp12-*",)), set())
 
-    def test_a_machine_readable_artefact_does(self):
+    def test_a_ladder_with_a_cell_does(self):
         with tempfile.TemporaryDirectory() as home:
             win = os.path.join(home, "benchmarks", "tp12-x")
             arm = os.path.join(win, "good-arm")
             os.makedirs(arm)
-            open(os.path.join(arm, "ladder.json"), "w").close()
+            with open(os.path.join(arm, "ladder.json"), "w") as fh:
+                fh.write(LADDER)
             self.assertEqual(self._mod.measured_arms(home, ("benchmarks/tp12-*",)), {"good-arm"})
 
 

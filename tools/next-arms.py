@@ -41,6 +41,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -48,7 +49,22 @@ MANIFEST = ".scratch/tp12-campaign/manifest.json"
 RECEIPTS = "benchmarks/tp12-*"
 #: Tracked skip source: arms the tree already measured and refused, each with its citation.
 REJECTED = "tools/measured-rejected.json"
+#: Machine-readable artefacts only. The old `*.yaml` fallback counted ANY yaml in the receipt as a
+#: measurement, and `run-arm.sh` writes `ladder.yaml` as soon as a benchmark starts -- so an arm
+#: that died before its first cell could mark itself measured and never be retried (no receipt
+#: carried a yaml-only artefact when this was tightened on 2026-10-30, on either the workstation
+#: or the head).
 MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "house.transcribed.txt")
+#: The marker `run-arm.sh` appends to: top-level `ladder:` / `accuracy_status:` fields whose value
+#: carries the outcome. It is also a full benchmark document for the chat suite, so only the
+#: unindented keys are outcome -- nested `ladder` keys are payload.
+MARKER = "house.yaml"
+LADDERS = ("ladder.json", "ladder.transcribed.json")
+#: Cell tables the instruments write: the ladder's `benchmarks`, the decision ladder's `cells`,
+#: and the pooling exporter's `runs`. A file that parses to none of these has no cell in it.
+CELL_KEYS = ("benchmarks", "cells", "runs")
+_TOP_KEY = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):[ \t]*(.*)$")
+_LADDER_VALUE = re.compile(r"^(ok|failed \(rc=\d+\))")
 #: Arms whose recipes live under these paths are measured by instruments the runner now
 #: supports end to end, so they are ordinary candidates.
 ANY_TP = (1, 2)
@@ -93,8 +109,96 @@ def free_nodes(nodes: list[str]) -> list[str]:
     return free
 
 
+class MarkerError(RuntimeError):
+    """A marker could not be read, or contradicts itself. Never "done" on a guess."""
+
+
+def read_marker(arm_dir: str) -> dict[str, str] | None:
+    """Top-level `key: value` fields of `house.yaml`, or None when there is no marker.
+
+    Nested keys are payload, not outcome. An unreadable or self-contradicting marker raises:
+    a guess of "measured" leaves an arm that must be re-run, and a guess of "not measured"
+    re-boots an arm that already has its numbers, so neither is a safe default.
+    """
+    path = os.path.join(arm_dir, MARKER)
+    if not os.path.exists(path):
+        return None
+    fields: dict[str, str] = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                found = _TOP_KEY.match(line)
+                if not found:
+                    continue
+                key, value = found.group(1), found.group(2).strip()
+                if key in fields and fields[key] != value:
+                    raise MarkerError(f"{path}: {key} appears twice ({fields[key]!r} and {value!r})")
+                fields[key] = value
+    except OSError as exc:
+        raise MarkerError(f"{path}: {exc}") from exc
+    return fields
+
+
+def ladder_failure(arm_dir: str) -> str | None:
+    """Why the ladder artefact is not a measurement, or None when it parses with content.
+
+    Presence alone was the defect: a ladder that dies partway leaves a truncated `ladder.json`
+    behind, and the arm was counted measured and never retried. A `ladder.yaml` that starts a
+    benchmark is exactly the same trap, which is why no yaml is evidence here.
+    """
+    for name in LADDERS:
+        path = os.path.join(arm_dir, name)
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError) as exc:
+            return f"{name} does not parse ({exc.__class__.__name__})"
+        if isinstance(data, dict):
+            tables = [data[k] for k in CELL_KEYS if isinstance(data.get(k), list)]
+            if tables and not any(tables):
+                return f"{name} parses to no cell"
+            if not data:
+                return f"{name} parses to an empty object"
+        elif isinstance(data, list):
+            if not data:
+                return f"{name} parses to an empty list"
+        else:
+            return f"{name} parses to a {type(data).__name__}, not a cell table"
+    return None
+
+
+def arm_measured(arm_dir: str) -> tuple[bool, str]:
+    """(done, reason). A reason is always printed, so a non-receipt is visible in the plan log."""
+    arm = os.path.basename(arm_dir.rstrip("/"))
+    try:
+        marker = read_marker(arm_dir)
+    except MarkerError as exc:
+        return False, f"{arm}: marker unreadable, not measured: {exc}"
+    ladder = ladder_failure(arm_dir)
+    verdict = (marker or {}).get("ladder", "")
+    if verdict:
+        found = _LADDER_VALUE.match(verdict)
+        if not found:
+            return False, (f"{arm}: {MARKER} ladder field {verdict!r} is neither 'ok' nor"
+                           f" 'failed (rc=N)'; not measured")
+        if found.group(1) != "ok":
+            # The one state where re-attempting is right: the boot finished, the ladder did not.
+            return False, f"{arm}: ladder failed, so the arm is unmeasured ({verdict})"
+        if ladder:
+            # `ok` beside a broken artefact contradicts itself; the artefact loses the tie.
+            return False, f"{arm}: ladder says ok but the artefact is not a measurement: {ladder}"
+        return True, ""
+    if ladder:
+        return False, f"{arm}: {ladder}; not measured"
+    if any(os.path.exists(os.path.join(arm_dir, f)) for f in MEASURED_ARTEFACTS):
+        return True, ""
+    return False, ""
+
+
 def measured_arms(home: str, windows: tuple[str, ...] = (RECEIPTS,)) -> set[str]:
-    """Arms whose receipt already carries a machine-readable artefact.
+    """Arms whose receipt says a ladder ran and that ladder carries cells.
 
     `windows` exists so a test can point at a temp tree without globbing the real receipts.
     """
@@ -104,13 +208,11 @@ def measured_arms(home: str, windows: tuple[str, ...] = (RECEIPTS,)) -> set[str]
             arm = os.path.basename(arm_dir.rstrip("/"))
             if ".prev-" in arm:
                 continue
-            # Machine-readable artefacts only. The old `*.yaml` fallback counted ANY yaml in the
-            # receipt as a measurement, and `run-arm.sh` writes `ladder.yaml` as soon as a
-            # benchmark starts -- so an arm that died before its first cell could mark itself
-            # measured and never be retried (no receipt carried a yaml-only artefact when this
-            # was tightened on 2026-10-30, on either the workstation or the head).
-            if any(os.path.exists(os.path.join(arm_dir, f)) for f in MEASURED_ARTEFACTS):
+            ok, reason = arm_measured(arm_dir)
+            if ok:
                 done.add(arm)
+            elif reason:
+                print(f"unmeasured: {reason}", file=sys.stderr)
     return done
 
 
