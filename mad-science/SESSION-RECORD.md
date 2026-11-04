@@ -2556,9 +2556,9 @@ nowhere, so they existed only on the board.
 | 04:43 ET | `8038ad1` | The driver row records the presence-only `have()` predicate (`drive.sh:32-38`) that makes the driver and the planner read the same receipt differently. |
 | 04:48 ET | `36e8e30` | Suite snapshot 1241 → **1247 tests (2 skipped)**, re-derived by a run rather than copied. |
 | 04:53 ET | `ec9f088` | `AGENTS.md` gains the pathspec-commit hazard — `git commit -- <paths>` publishes the file's whole content, so a shared file ships a peer's half-finished hunk under this session's subject, measured twice today (`ab82517`, `8038ad1`). |
-## 2026-11-04 afternoon — nine commits after the 04:53 close-out, recovered at the 16:00 ET tick
+## 2026-11-04 afternoon — eleven commits after the 04:53 close-out, recovered at the 16:00 ET tick
 
-Nothing below was measured by the tick that wrote this section; each clause is its own commit's, and the reason it is here is that the nine landed after the table above closed and existed only in commit bodies.
+Nothing below was measured by the tick that wrote this section; each clause is its own commit's, and the reason it is here is that the eleven landed after the table above closed and existed only in commit bodies. Two of them (`fcf1b43`, `94a09f4`) were added by the 16:05 tick, which found them homeless by grepping every board row's SHA against this file.
 
 | time ET | commit | one clause |
 |---|---|---|
@@ -2572,4 +2572,4 @@ Nothing below was measured by the tick that wrote this section; each clause is i
 | 15:46 ET | `58639cd` | The stated suite total is derived instead of remembered: `test_doc_hygiene.SuiteTotal` compares both `AGENTS.md` statements against `defaultTestLoader.discover("tests").countTestCases()` and fails naming the stale line — no test executed. |
 | 15:48 ET | `fe6a7ca` | Three register rows that cited the deleted skip file keep their history byte-identical; only the one live instruction changes, `tp12-remainder-8-arms`' acceptance now asking for the recipe's own `metadata.measured_rejected` marker. |
 | 15:49 ET | `03edafb` | A nightly close-out in `mad-science/SESSION-RECORD.md` becomes a rule, because a commit body explains one change and cannot record what was tried and abandoned or which question is still open. |
-| 15:53 ET | `1ca4e35` | Register row for a `--strict` roster gap the lane move exposed: `restated-managed-path` on the moved arm predates the move, so `AGENTS.md`'s \"exactly this roster\" claim was already false — the roster is to be re-measured, not patched by hand. |
+| 15:53 ET | `1ca4e35` | Register row for a `--strict` roster gap the lane move exposed: `restated-managed-path` on the moved arm predates the move, so `AGENTS.md`'s "exactly this roster" claim was already false — the roster is to be re-measured, not patched by hand. |
