@@ -306,12 +306,12 @@ class ReadinessLoopBehaviour(unittest.TestCase):
         cls.loop = readiness_loop(read_tool())
 
     @staticmethod
-    def interpreters() -> list[str]:
-        """bash as the arm runs it, plus POSIX mode -- the shell that says `rc=127`."""
-        return [sh for sh in ("bash", "sh") if shutil.which(sh)]
+    def interpreters() -> list[list[str]]:
+        """bash as the arm runs it, plus bash's POSIX mode -- the shell that says `rc=127`."""
+        return [["bash"], ["bash", "--posix"]]
 
     @staticmethod
-    def run_loop(watchdog_exit: int, interpreter: str) -> tuple[str, int, float]:
+    def run_loop(watchdog_exit: int, interpreter: list[str]) -> tuple[str, int, float]:
         """Run the loop with a `$WD` that exits <watchdog_exit>; return out, probes, seconds."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -337,7 +337,7 @@ echo "probes=$(wc -l < {probes})"
             )
             started = time.monotonic()
             out = subprocess.run(
-                [interpreter, str(script)],
+                [*interpreter, str(script)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -358,14 +358,15 @@ echo "probes=$(wc -l < {probes})"
         lines fixed. The `== 1` warning assertion below therefore fails on that file,
         so this is a real control and not decoration.
 
-        The rc=127 spelling of the same defect is what a POSIX-mode shell reports for
-        the repeated `wait` (bash 5.3.20: `wait $p` twice gives `w1=4`, then
-        `wait: pid ... is not a child of this shell`, `w2=127`); plain bash caches the
-        status instead. Either spelling is one warning per iteration against a boot
-        that has lost its liveness instrument, so both are asserted.
+        The rc=127 spelling of the same defect is what POSIX mode reports for the
+        repeated `wait` (bash 5.3.20: `bash --posix`, `wait $p` twice gives `w1=4`,
+        then `wait: pid ... is not a child of this shell`, `w2=127`); plain bash
+        re-reports the cached status instead. Both shells are run, so the `rc=127`
+        assertion is a control too, and it stays on the same bash the arm needs
+        (`sh` here is dash, which the script cannot run under at all).
         """
         for interpreter in self.interpreters():
-            with self.subTest(shell=interpreter):
+            with self.subTest(shell=" ".join(interpreter)):
                 out, probes, elapsed = self.run_loop(4, interpreter)
                 self.assertNotIn("rc=127", out, "the loop re-waited a reaped pid")
                 self.assertEqual(
@@ -384,7 +385,7 @@ echo "probes=$(wc -l < {probes})"
     def test_a_dead_serve_breaks_the_loop_instead_of_spinning_to_the_ceiling(self):
         """rc=3 is the real verdict: stop asking, keep `ready=no`, fall through to rc=4."""
         for interpreter in self.interpreters():
-            with self.subTest(shell=interpreter):
+            with self.subTest(shell=" ".join(interpreter)):
                 out, probes, _ = self.run_loop(3, interpreter)
 
                 self.assertIn("readiness=no", out, "a stopped serve must not be reported ready")
