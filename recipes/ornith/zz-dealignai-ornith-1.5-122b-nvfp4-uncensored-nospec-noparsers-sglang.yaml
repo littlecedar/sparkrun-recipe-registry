@@ -1,0 +1,83 @@
+recipe_version: "2"
+# DRAFT (2026-11-03): probe authored for the incoherence triage after
+# `zz-dealignai-…-uncensored-dflash2-sglang` reached readiness on `.30` and answered token
+# salad; NEVER booted. Not in the root README index and not claimed to serve.
+#
+# Probe B of two. Drafter absent, chat template in the loop as normal, and BOTH output
+# parsers removed — the only difference from probe A is the parser surface, so a pair of
+# results decides the chat path: coherent on B as well as A means the chat template and the
+# parsers are innocent (the parent arm's salad came from the drafter or the export);
+# coherent on A and salad on B means the `qwen3` reasoning parser or the chat template is
+# the defect. Query with `chat_template_kwargs.enable_thinking=false` — this family's card
+# says the thinking channel carries the whole answer, so a thinking-on probe at short
+# `max_tokens` reads as garbled content when it is simply a cut-off reasoning trace.
+#
+# EVAL-ONLY by house policy: refusal direction projected out (`dealignai`), MIT licence,
+# no guardrail. Same banner as its parent arm; never promoted.
+model: dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4
+model_revision: e6a1c1785949cc6e1ccd8af766f0a6148f575e6b
+# Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
+container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT / EVAL-ONLY - incoherence probe B for the uncensored 122B
+  (`dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4`). Same target, engine digest, weights and
+  knob set as probe A `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang`,
+  with `--reasoning-parser` and `--tool-call-parser` dropped and nothing else changed: the
+  tokenizer's own chat template is applied to the prompt and no parser touches the output,
+  so whatever comes back is exactly what the model wrote. Query the chat endpoint with
+  `chat_template_kwargs.enable_thinking=false`. Scope is diagnosis, not throughput — no
+  decode number from this arm is recordable.
+
+metadata:
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_url: https://huggingface.co/dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4
+  model_params: "122B"
+  model_dtype: nvfp4
+  kv_dtype: fp8_e4m3
+  license: mit
+  eval_only: "true"
+  tags: uncensored, reasoning, agent, tools
+
+mods:
+  - "@eugr/mods/drop-caches"
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4
+  gpu_memory_utilization: 0.80
+  max_model_len: 262144
+  max_num_seqs: 32
+  kv_cache_dtype: fp8_e4m3
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  moe_runner_backend: marlin
+  mamba_radix_cache_strategy: extra_buffer
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --trust-remote-code
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --kv-cache-dtype {kv_cache_dtype}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --moe-runner-backend {moe_runner_backend}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}

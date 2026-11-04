@@ -973,3 +973,180 @@ card's 15, because this lane measured 15 degrading C2–C10 with a prefill colla
 serve, and `sparkrun recipe validate`-clean. The shipped 122B DFlash2 arm keeps its 15 until the
 registered matched-window control boot moves it — that knob should change with a measurement, not
 with this survey.
+
+### 122B finetunes: incoherence triage (2026-11-03)
+
+**Symptom.** Only `zz-dealignai-…-uncensored-dflash2-sglang` has booted. On `.30` it loaded, reached
+readiness, and then failed llama-benchy's coherence probe; direct HTTP probes returned **token
+salad** — mixed-script fragments and repeated `.pass` — both with and without
+`chat_template_kwargs.enable_thinking=false`. The other two arms (`devsecllm`, `cyankiwi`) have not
+been booted. Nothing here is a throughput result: **no decode rate is recordable on any 122B finetune
+arm until one serves coherently**, and a boot that emits salad has no C1 to compare against the
+shipped arm's 37.7 t/s.
+
+Owner directive: keep the arms and debug them, template and parsers first. Template first is cheap —
+it is answered below from bytes already on the Hub, without a boot.
+
+#### The template is not what changed
+
+Every 122B repository in this family that serves today (`ornith-ai/…-NVFP4`, and `devsecllm/…-ablated`
+which the vendor export is byte-identical to) and every finetune arm uses the same `--trust-remote-code`
+and the same two parser flags. Reading the four repos over the Hub API on 2026-11-03:
+
+| file | base (serves coherent) | `dealignai` finetune | verdict |
+|---|---|---|---|
+| `tokenizer.json` (12.8 MB) | `7b607479…` | `7b607479…` | identical |
+| `vocab.json` (6.7 MB) | `4e976260…` | `4e976260…` | identical |
+| `merges.txt` | `bc43d7e0…` | `bc43d7e0…` | identical |
+| `tokenizer_config.json` | `53de78b0…` | `53de78b0…` | identical, incl. embedded `chat_template` (`94f89e03…` md5, 7,756 B, all four repos) |
+| `chat_template.jinja` | 7,594 B | 7,593 B | **differ by a trailing newline**; the only other diff is an `loop.index0 > ns.last_query_index` branch on reasoning replay that base and finetune share the same way |
+| `special_tokens_map.json` | absent | absent | markers come from `tokenizer_config.added_tokens_decoder`: `248068 <think>`, `248069 </think>`, `248045 <|im_start|>`, `248046 <|im_end|>` |
+| `.py` modules | none | none | `--trust-remote-code` resolves the same `Qwen2Tokenizer` in both; there is no custom tokenizer class to pick |
+
+None of the four repos ships a `chat_template.json`; each ships a standalone `chat_template.jinja`
+alongside a `chat_template` string inside `tokenizer_config.json` (7,756 B, md5 `94f89e03…` in all
+four). Whichever of the two the loader prefers, the base and the finetune differ in it the same way,
+so the choice cannot separate the arm that serves coherent from the arm that emits salad.
+
+So the tokenizer, the special-token table and the rendered prompt bytes are the **same on the arm
+that serves coherent and the arm that emits salad**. Template and parser-knob hypotheses cannot
+explain arm 1 by themselves; they stay on the ladder because the owner asked for them to be excluded
+by measurement and because the chat path is the one variable nobody has isolated on this export.
+
+#### What did change: the quantization layout
+
+Both repos declare `quant_method: modelopt`, `quant_algo: MIXED_PRECISION`, 48 × 3072, vocab
+248,320 — the same. The per-layer algo map is not:
+
+| | vendor NVFP4 (serves) | `dealignai` finetune (salad) |
+|---|---|---|
+| routed experts, 48 layers | `W4A16_NVFP4` | `W4A16_NVFP4` |
+| attention q/k/v/o, `linear_attn` projections | `FP8` (156 layers) | **`FP8_PER_CHANNEL_PER_TOKEN`** |
+| shared expert gate/up/down | `W4A16_NVFP4` | **`FP8_PER_CHANNEL_PER_TOKEN`** |
+| `lm_head` | `W4A16_NVFP4` (global + block scales) | **`FP8_PER_CHANNEL_PER_TOKEN`**, no `weight_scale_2` |
+| `mtp` head | BF16, excluded via `ignore: ["mtp*"]` | quantized, `mtp.layers.0.mlp.experts` = **`FP8_PB_WO`**, 768 `weight_scale_inv` tensors |
+| `config_groups`, `kv_cache_scheme` | present | **absent** |
+| index total / shards | 77,612,366,084 B / 8 | 75,647,330,784 B / 50 |
+
+`FP8_PER_CHANNEL_PER_TOKEN` is the number that matters. SGLang v0.5.22's
+`ModelOptMixedPrecisionConfig.get_quant_method` dispatches on the per-layer algo name and implements
+exactly `FP8`, `FP8_PB_WO`/`FP8_BLOCK_SCALES`, `MXFP8`, `NVFP4`, `W4A16_NVFP4`
+(`python/sglang/srt/layers/quantization/modelopt_quant.py`, read at the pinned tag). Every other name
+falls through to `UnquantizedLinearMethod()` for a linear or LM head and to `None` for a fused MoE
+layer — silently, no warning in the dispatch. `FP8_PER_CHANNEL_PER_TOKEN` appears nowhere in that
+module, in `fp8.py`, in `compressed_tensors/`, or in the quantization `__init__.py`.
+`FP8_PB_WO` *is* implemented (`_BLOCK_FP8_ALGOS`), so the quantized MTP block is not the offender.
+
+That gives a mechanism, not a guess: 308 layers of this export — including the head that every logit
+passes through — would load as unquantized bf16 from fp8-serialized weights, dropping their
+per-channel `weight_scale`. The server loads, reaches readiness, and emits garbage for every token,
+which is exactly the observed signature. It also predicts why the base export is fine: its attention
+is plain `FP8` and its head is `W4A16_NVFP4`, both implemented.
+
+#### Confirmation, and the control that is already running (measured 2026-11-03 ~19:50 ET)
+
+Two independent readings turned hypothesis 1 from the most likely into the established one, and they
+also collapse hypotheses 2 and 3 into it.
+
+**The algo is missing from the whole dispatch path, not one file.** Grepped at the pinned tag:
+`FP8_PER_CHANNEL_PER_TOKEN` occurs **0 times** in `modelopt_quant.py` — where the per-layer dispatch
+`ModelOptMixedPrecisionConfig.get_quant_method` ends in a bare `return UnquantizedLinearMethod()`
+(`:1040`) after trying `FP8`, `_BLOCK_FP8_ALGOS`, `MXFP8`, `NVFP4`, `W4A16_NVFP4` — and **0 times** in
+`fp8.py`, `compressed_tensors/compressed_tensors.py` and the quantization `__init__.py`. There is no
+second home for it. The fused-MoE dispatch (`:1059-1069`) ends in `return None`, so a MoE layer with
+that name gets no quant method at all.
+
+**The failed arm's own serve log shows the consequence at the drafter.** Read from the live container
+(`docker exec … grep 'accept rate' /tmp/sparkrun_serve.log`): `accept len: 1.00, accept rate: 0.00` on
+every decode step. The DFLASH drafter borrows the target's `lm_head`, so a head loaded unquantized from
+fp8 weights produces logits the target never agrees with — a 0.00 acceptance rate is what hypothesis 1
+*predicts*, and it removes the drafter as an independent suspect: hypothesis 2's symptom is a downstream
+effect of the same defect, not a competing cause. This is why no probe on the failed arm is on the
+critical path any more.
+
+**The control was already queued.** The two remaining arms differ in export layout, measured the same
+way:
+
+| arm | `quantized_layers` algos | layers | implementable at v0.5.22 |
+|---|---|---|---|
+| `dealignai/…-UNCENSORED-NVFP4` | `FP8_PER_CHANNEL_PER_TOKEN` 308, `W4A16_NVFP4` 48, `FP8_PB_WO` 1 | 349 | **no** — 308 name an algo no branch handles |
+| `devsecllm/…-NVFP4-ablated` | `W4A16_NVFP4` 193, `FP8` 156 | 349 | yes, all of them; `lm_head` is `W4A16_NVFP4` |
+| `cyankiwi/…-AWQ-INT4` | `compressed-tensors`, `pack-quantized`, 4-bit group 32 | — | different loader entirely (`CompressedTensorsConfig`), not this dispatch |
+
+So the devsecllm arm **is** the falsifier, at no extra cost: same drafter, same template, same parser
+pair, clean algo map. Coherent devsecllm with salad dealignai confirms hypothesis 1 outright and retires
+the two probe arms; salad on both would push the cause back to the target/drafter pairing and the probes
+then earn their boots. The cyankiwi arm answers a different question — whether the family's third export
+family loads at all through compressed-tensors. No decode rate is recordable on any of the three until
+one serves coherently.
+
+#### Ranked hypotheses, each with the one probe that decides it
+
+The two probe arms below differ from the failed arm in one direction each, and both drop the drafter,
+because the drafter is the only component the coherent base arm and this export do not share in
+identical form:
+
+| # | hypothesis | mechanism | decided by |
+|---|---|---|---|
+| 1 | **export quant dispatch** (most likely) | `FP8_PER_CHANNEL_PER_TOKEN` has no branch in `ModelOptMixedPrecisionConfig`, so 308 layers incl. `lm_head` load unquantized and lose their per-channel scale | probe A: **salad on raw completion with no drafter and no template** |
+| 2 | **drafter / FP8 head** | DFLASH has no head of its own and borrows the target `lm_head`; `is_dense_head_weight` accepts only fp16/bf16/fp32, and this export's head is fp8, so the draft falls to `_greedy_sample_from_quantized_head` → `lm_head.quant_method.apply` (`speculative/dflash_worker_v2.py`). The vendor only ever validated DFlash2 on this export under vLLM, where sharing the FP8 head is called out as a build requirement | probes A **and** B coherent (drafter is then the only remaining delta to the salad arm) |
+| 3 | **chat template** | a finetune ships its own template | already falsified on bytes: identical prompt for the arm that serves coherent. Probe B settles it by measurement |
+| 4 | **`--reasoning-parser qwen3` / `qwen3_coder`** | `Qwen3Detector` splits on `<think>`/`</think>`, which are real special tokens here (248068/248069), so it is not mis-anchored; the known behavior on this family is reasoning text landing in `content`, as the model card itself reports | probe B: no parsers, template still applied — salad there means the chat path, not the parser |
+| 5 | **`--trust-remote-code`** | a custom tokenizer/model class overriding the family's | falsified: no `.py` file in any of the four repos, `tokenizer_class` is `Qwen2Tokenizer` in all of them |
+
+The pairing is deliberate: A is the weights with nothing else in the path, B is the chat path with no
+parser. Coherent on A alone means the export is sound and the drafter's head handling is the defect
+(hypothesis 2), so the fix is to serve this target with no drafter until SGLang supports an fp8 head
+in the DFLASH draft sampler, or to use the export that dequantizes `lm_head` to bf16
+(`Sherlock-Comms/…-DFlash2-RTX-Spark`, ranked 4 in the survey). Salad on A means the export itself is
+the defect (hypothesis 1) and no drafter, template or parser work can rescue it: the arm stays a
+recorded negative, and the follow-ups are an engine bump that implements the algo, or a re-export
+whose `quantization_config` only uses implemented names. Salad on B but coherent on A means the defect
+is in the chat path, which is the cheapest outcome to fix — drop the parser or pin
+`enable_thinking=false` and re-measure.
+
+#### The two probe arms
+
+Both `sparkrun recipe validate`-clean, both no-drafter (speculative keys absent, not neutralised), both
+carrying the eval-only banner and pin from their parent arm:
+
+| recipe | drafter | template | parsers | probe |
+|---|---|---|---|---|
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | DFlash2, 4 tokens | on | both | failed: salad |
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml` | **none** | **bypassed** (raw completion) | both | A |
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml` | **none** | on | **none** | B |
+
+There is no SGLang serve flag that turns the tokenizer's template off, so A's template knob is
+exercised at probe time: it is queried on `/v1/completions` with a literal prompt. Its parser flags
+stay on the serve line only so the two arms differ in exactly one place.
+
+```bash
+# probe A — one node, free and non-production (.31-.34 are serving)
+sparkrun run recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml -H .35
+# rendered serve line (validated, no spec flags):
+#   taskset -c 5-9,15-19 sglang serve --model-path dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4 \
+#     --served-model-name dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4 \
+#     --revision e6a1c1785949cc6e1ccd8af766f0a6148f575e6b --trust-remote-code \
+#     --reasoning-parser qwen3 --tool-call-parser qwen3_coder --host 0.0.0.0 --port 8000 --tp 1 \
+#     --context-length 262144 --max-running-requests 32 --kv-cache-dtype fp8_e4m3 \
+#     --chunked-prefill-size 4096 --mem-fraction-static 0.80 --attention-backend flashinfer \
+#     --moe-runner-backend marlin --mamba-radix-cache-strategy extra_buffer
+curl -sS localhost:8000/v1/completions -H 'content-type: application/json' -d '{
+  "model": "dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4",
+  "prompt": "The capital of France is", "max_tokens": 64, "temperature": 0 }'
+
+# probe B — same target and engine, no parser flags
+sparkrun run recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml -H .35
+# rendered serve line: identical to A minus `--reasoning-parser qwen3 --tool-call-parser qwen3_coder`
+curl -sS localhost:8000/v1/chat/completions -H 'content-type: application/json' -d '{
+  "model": "dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4",
+  "messages": [{"role": "user", "content": "The capital of France is"}],
+  "max_tokens": 64, "temperature": 0,
+  "chat_template_kwargs": {"enable_thinking": false} }'
+
+sparkrun stop <cluster-id> -H .35   # and copy the serve log first: `sparkrun stop --all` removes it
+```
+
+Only two cells are needed: A's completion text and B's chat text. llama-benchy runs on one coherent
+arm afterwards, never on a salad one. Both arms are `zz-` drafts: not in the root README index, no
+decode number claimed, and neither is promoted by a coherence pass alone.
