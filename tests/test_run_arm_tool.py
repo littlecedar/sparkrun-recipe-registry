@@ -459,6 +459,75 @@ def artifacts_function(text: str) -> str:
     return text[start : text.index("\n}\n", start) + 3]
 
 
+# ---------------------------------------------------------------------------
+# A decision arm's receipt: a ladder plus an accuracy log, and now a marker saying so.
+# ---------------------------------------------------------------------------
+
+DECISION_ARM_AT = "api=${ARM_LADDER_API:-systemone}"
+# Stubs, not tools: `decision-ladder.py` writes its `--json` artefact, `tool-eval-bench` prints
+# a score the marker must name the location of rather than copy.
+LADDER_STUB = """#!/usr/bin/env bash
+out=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --json) out=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ -n "$out" ] || exit 0
+printf '{"runs": []}\\n' > "$out"
+"""
+FAILED_LADDER_STUB_JSON = "#!/usr/bin/env bash\nexit 2\n"
+ACCURACY_STUB = "#!/usr/bin/env bash\nprintf 'DECISION ACCURACY 0.42\\n'\n"
+
+
+def decision_arm(text: str) -> str:
+    """The decision arm body: ladder, accuracy instrument, receipt artefacts."""
+    return case_arm(text, DECISION_ARM_AT)
+
+
+def run_decision_arm(
+    arm: str, ladder_ok: bool = True, api: str = ""
+) -> tuple[dict[str, str], str]:
+    """Execute *arm* in a temp receipt; return its file map and its output."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        receipt = tmp / "receipt"
+        receipt.mkdir()
+        bins = tmp / "bin"
+        bins.mkdir()
+        for name, body in (
+            ("python3", LADDER_STUB if ladder_ok else FAILED_LADDER_STUB_JSON),
+            ("uvx", ACCURACY_STUB),
+        ):
+            stub = bins / name
+            stub.write_text(body)
+            stub.chmod(0o755)
+        script = tmp / "arm.sh"
+        script.write_text(
+            "#!/usr/bin/env bash\nset -uo pipefail\n"
+            f"L={receipt}\n"
+            "RECIPE=recipes/decision/jev-9b-decision-vllm.yaml\n"
+            "NAME=decision-arm\nNODE=head.test\nPORT=8020\nSERVED=jev-9b\n"
+            "DECISION_CASES=/dev/null\n"
+            "BENCH_VERBOSE=\n"
+            "rc=0\n" + artifacts_function(read_tool()) + "\n" + arm + 'echo "rc=$rc"\n'
+        )
+        env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}"}
+        if api:
+            env["ARM_LADDER_API"] = api
+        out = subprocess.run(
+            ["bash", str(script)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+            timeout=120,
+        )
+        files = {path.name: path.read_text(errors="replace") for path in sorted(receipt.iterdir())}
+    return files, out.stdout + out.stderr
+
+
 def run_case_arm(arm: str, ladder_ok: bool = True) -> tuple[dict[str, str], str]:
     """Execute *arm* in a temp receipt and return its file name -> text map, and its output."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -736,6 +805,74 @@ ssh() {
         self.assertIn("cannot list containers on rank1.test", out, "the sweep failed silently")
         self.assertIn("cannot verify containers on rank1.test", out, "the gate failed silently")
         self.assertIn("ARM DONE teardown-arm rc=0", out, "an unreachable host failed a measured arm")
+
+
+class DecisionReceipt(BashArmHarness):
+    """A decision arm's receipt states its own gap and never invents a score.
+
+    Measured 2026-11-04: the lane wrote `ladder.json` + `teb-decision.log` and no `house.*`, so
+    a driver whose arm-finished predicate wants a house artefact called four finished arms
+    incomplete (`clef-flash-decision-sglang` rc=0, `jev-9b-decision-vllm`,
+    `jev-27b-decision-vllm`, `zz-jev-9b-decision-coloc-vllm` rc=3) and re-booted them.
+
+    The marker mirrors the pooling one — `suite: n/a`, a reason, `ladder: ok` — and then the
+    accuracy half: the instrument's name, the file its output lives in, and whether it was taken
+    at all, because `tool-eval-bench --decision-bench-only` speaks `/v1/systemone` only and a
+    `/v1/completions` arm legitimately has no score. The score is never copied into the marker:
+    a number there can drift from the log that measured it.
+
+    The extraction runs the arm's real text against stub `decision-ladder.py` and
+    `tool-eval-bench`, so these are behavioural; the failed-ladder control is the same mutation
+    the pooling marker needed, `if [ -s "$L/ladder.json" ]` weakened to `if true`.
+    """
+
+    def test_a_completed_decision_arm_names_its_instrument_and_log(self):
+        """Both sides of the predicate are present, and the score stays in its own file."""
+        files, out = run_decision_arm(decision_arm(read_tool()))
+        house = files.get("house.yaml", "")
+
+        self.assertTrue(house, f"no house.yaml; receipt={sorted(files)} output={out}")
+        self.assertIn("suite: n/a", house)
+        self.assertIn("the chat suite cannot address /v1/systemone", house)
+        self.assertIn("ladder: ok", house)
+        self.assertIn("accuracy: tool-eval-bench --decision-bench-only", house)
+        self.assertIn("accuracy_log: teb-decision.log", house)
+        self.assertIn("accuracy_status: taken", house)
+        self.assertNotIn("0.42", house, "the marker copied a score instead of naming where it lives")
+        self.assertIn("DECISION ACCURACY 0.42", files.get("teb-decision.log", ""), out)
+        self.assertEqual(out.strip().splitlines()[-1], "rc=0", out)
+
+    def test_a_failed_ladder_leaves_no_marker(self):
+        """The ladder's `rc=2` does not exit, so a marker on presence would read as finished."""
+        files, out = run_decision_arm(decision_arm(read_tool()), ladder_ok=False)
+
+        self.assertIn("ladder failed", out, "the ladder failure was swallowed")
+        for name in ("house.yaml", "house.json", "house.csv"):
+            self.assertNotIn(name, files, f"{name} would read as a finished arm whose ladder died")
+        self.assertIn("rc=5", out, "the missing ladder artefact set no status")
+
+
+    def test_a_completions_arm_says_the_instrument_could_not_address_it(self):
+        """No score is legitimate here, and the marker must not read as a scored arm."""
+        files, out = run_decision_arm(decision_arm(read_tool()), api="completions")
+        house = files.get("house.yaml", "")
+
+        self.assertIn("accuracy_status: not-taken", house, "a /v1/completions arm claims a score")
+        self.assertIn("/v1/systemone", house, "the marker does not name what the instrument needs")
+        self.assertNotIn("the score is in", house, "not-taken must not also say the score is there")
+        self.assertIn("no score is taken", files.get("teb-decision.log", ""), out)
+        self.assertIn("ladder: ok", house, "the ladder did run, whatever the accuracy half says")
+
+    def test_an_unconditional_marker_fails_the_failed_ladder_guard(self):
+        """The defect the guard prevents: a marker on an arm whose ladder never measured."""
+        arm = decision_arm(read_tool())
+        self.assertIn('if [ -s "$L/ladder.json" ]; then', arm, "the guard was not found; control vacuous")
+        weakened = arm.replace('if [ -s "$L/ladder.json" ]; then', "if true; then")
+
+        files, out = run_decision_arm(weakened, ladder_ok=False)
+        self.assertIn("ladder failed", out)
+        self.assertIn("house.yaml", files, "the weakened guard wrote no marker, so the control proves nothing")
+        self.assertIn("ladder: ok", files["house.yaml"], "the marker claims a ladder that never ran")
 
 
 if __name__ == "__main__":

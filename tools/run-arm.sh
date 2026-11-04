@@ -290,6 +290,24 @@ if [ "$ready" = yes ]; then
           --model "$SERVED" > "$L/teb-decision.log" 2>&1 \
           || { echo "decision bench failed for $NAME"; rc=3; }
       fi
+      # The decision lane wrote `ladder.json` + `teb-decision.log` and no `house.*` at all, so a
+      # driver whose arm-finished predicate wants a house artefact re-booted four finished arms
+      # on 2026-11-04 (three rc=3 whose accuracy log is real, one rc=0). Same shape as the
+      # pooling marker: machine-readable, written only once the ladder artefact exists because
+      # the rc=2 above does not exit -- presence must not mean "finished" for a dead ladder. It
+      # names the accuracy instrument and the file its output lives in rather than copying the
+      # score: a number transcribed into a marker can drift from the log that measured it.
+      if [ -s "$L/ladder.json" ]; then
+        echo "suite: n/a" > "$L/house.yaml"
+        echo "reason: decision arm — the chat suite cannot address /v1/systemone" >> "$L/house.yaml"
+        echo "ladder: ok" >> "$L/house.yaml"
+        echo "accuracy: tool-eval-bench --decision-bench-only" >> "$L/house.yaml"
+        echo "accuracy_log: teb-decision.log" >> "$L/house.yaml"
+        case "$api" in
+          completions) echo "accuracy_status: not-taken — the instrument speaks /v1/systemone only and this arm answers /v1/completions" >> "$L/house.yaml" ;;
+          *) echo "accuracy_status: taken — the score is in teb-decision.log" >> "$L/house.yaml" ;;
+        esac
+      fi
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
     */embed/*|*/rerank/*)

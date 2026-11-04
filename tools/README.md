@@ -112,6 +112,19 @@ predicate re-attempted each of them. Guarded by `tests/test_run_arm_tool.py` `Po
 executes the branch against a stub `sparkrun` and carries controls that rebuild the pre-fix receipt
 and a marker written without the ladder guard.
 
+**The three shapes a campaign receipt can have — a driver must read the lane's shape, not one fixed
+file list.** **Chat** arms (`*)`) write the ladder artefact (`ladder.yaml`, plus whatever sidecars
+sparkrun's exporter adds) and `house.yaml` from the standard suite; **pooling** arms write
+`ladder.yaml` + `ladder.json` and the `suite: n/a` marker above; **decision** arms (`*/decision/*`)
+write `ladder.json` and `teb-decision.log`, the output of the lane's accuracy instrument
+(`tool-eval-bench --decision-bench-only`), and a marker naming both — with `accuracy_status: taken`,
+or `not-taken` when the arm answers `/v1/completions`, which that instrument cannot address. In all
+three, a missing `house.yaml` means the ladder did not measure, because every marker is gated on its
+ladder artefact, and no marker carries a score transcribed out of the log that measured it. The
+decision half was measured on 2026-11-04: four finished arms (`clef-flash-decision-sglang` rc=0,
+`jev-9b-decision-vllm`, `jev-27b-decision-vllm`, `zz-jev-9b-decision-coloc-vllm` rc=3) held
+`ladder.json` + `teb-decision.log` and no `house.*`, and the same predicate re-booted them.
+
 ## eval-suite.py (the SOP pass)
 
 One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chosen with `--checks`
