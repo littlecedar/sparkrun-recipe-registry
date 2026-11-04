@@ -134,11 +134,45 @@ print("\n".join(r.get("owner","") for r in rows if not r.get("alive", True) and 
   sparkrun daemon resources reconcile "$owner" --acknowledge-effects 2>&1 | tail -1
 done
 
+# A c10 rung over fewer than ten slots measures the slot limit, not the model: the same arm read
+# 135.97 t/s at `parallel: 8` and 176.30 at `parallel: 10` an hour later (2026-11-03). The ladder this
+# script runs includes c10, so fail closed unless the recipe grants >= 10, ARM_OPTS raises it, or a
+# caller deliberately waives it. Durable form of the rule: mad-science/METHODOLOGY.md section 3.
+if [ -z "${ARM_ALLOW_FEW_SLOTS:-}" ]; then
+  RECIPE_SLOTS=$(sed -n 's/^[[:space:]]*parallel:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RECIPE" | head -1)
+  OPT_SLOTS=$(printf '%s' "${ARM_OPTS:-}" | tr ' ' '\n' | sed -n 's/^parallel=\([0-9][0-9]*\)$/\1/p' | tail -1)
+  SLOTS=${OPT_SLOTS:-${RECIPE_SLOTS:-}}
+  if [ -n "$SLOTS" ] && [ "$SLOTS" -lt 10 ]; then
+    echo "ARM REFUSED $NAME: ladder includes c10 but the grant is parallel=$SLOTS."
+    echo "  A c10 cell over $SLOTS slots measures the slot limit, not the model (135.97 vs 176.30 t/s,"
+    echo "  2026-11-03). Pass ARM_OPTS=\"-o parallel=10\", raise the recipe default, or set"
+    echo "  ARM_ALLOW_FEW_SLOTS=1 to record a deliberately slot-limited cell."
+    exit 8
+  fi
+fi
+
 # ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
 # draft-token count). Without it every setting needs its own recipe file.
-# shellcheck disable=SC2086
-sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
-LAUNCH=$!
+launch_arm() {
+  # shellcheck disable=SC2086
+  sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
+  LAUNCH=$!
+}
+launch_arm
+for attempt in 1 2 3; do
+  # Give the launcher a moment to fail fast on a held claim before deciding it is fine.
+  for _ in $(seq 1 12); do
+    kill -0 "$LAUNCH" 2>/dev/null || break
+    sleep 1
+  done
+  grep -q "Execution resources are busy" "$L/launch.log" 2>/dev/null || break
+  echo "claim busy (attempt $attempt): waiting for the holder to release $NODE"
+  for _ in $(seq 1 60); do
+    if ! sparkrun daemon resources list 2>/dev/null | grep -q '"resource": "\*"'; then break; fi
+    sleep 5
+  done
+  launch_arm
+done
 
 # The container lives on the TARGET node, which is not necessarily the host this
 # script runs on (the head launches onto either free node). Resolve it locally
