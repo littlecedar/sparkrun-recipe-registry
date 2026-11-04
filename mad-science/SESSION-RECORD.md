@@ -2519,3 +2519,21 @@ future clear cannot lose them.
 | 02:26 ET | — (state change, no commit) | The campaign driver drained and exited — `=== sweep complete 2026-11-04T02:26:09` in `sweep.log`, pids 3408112 / 3408114 gone, both working nodes released — and `tp12-campaign-staging` moves `running` → `queued` in `mad-science/queue.json` carrying the derived 26-of-42 figure. |
 | 03:04 ET | `866353c` | `tools/run-arm.sh` reaps **every** host for the task id's own containers — names anchored on `sparkrun_${TID}_solo` / `…_node_*`, no `docker ps -aq`, no xargs, no prune — and the leak gate re-lists every host so a rank-1 survivor ends the arm `rc=6`; tonight's leak (rank 1 still up 39 s after the stop and 4 s after `ARM DONE`) is the negative control, 155 new lines in `tests/test_run_arm_tool.py`. |
 | 03:06 ET | `fa38d28` | The campaign row stopped repeating the driver's plan echo as a measurement: tonight's 26 arms (derived from `sweep.log`'s `rc=` lines) hold, but the older "16" came from `driver.log` — the echo the receipt census contradicts, since 6 of 42 arms have no receipt at all — so the receipt-derived census (26 both legs, 36 at least one) is the denominator. |
+
+## Board landed rows, 2026-11-04 03:07–04:12 ET
+
+Copied verbatim from `mad-science/STATUS.md` at the 04:16 ET board tick, because the
+03:33 ET preservation run (`958de91`) predated them: these eight rows existed only on
+the board, which concurrent ticks rewrite whole, and the 04:08 write reproduced them
+without any ledger copy.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 03:07 ET | `adcec18` | Merged the two `02:25 ET` rows for `zz-qwen38-next-vllm-tp2-pinned` into one measurement, so the table reads one row per event — the cells and the house leg’s cause (recipe passes neither `--enable-auto-tool-choice` nor `--tool-call-parser`, so all 15 scenarios returned 400 and no completion was generated) now sit together. |
+| 03:32 ET | `aac6ccb` | Suite total re-derived by a run instead of copied: 1223 → **1234 tests (2 skipped)** printed by `unittest discover` on the workstation, both `AGENTS.md` statements moved with their own date. |
+| 03:33 ET | `958de91` | 18 of the board’s 60 landed rows existed nowhere but the board — 11 of them measurement/state rows carrying no SHA, which a SHA-only check cannot see — so each was copied verbatim into `mad-science/SESSION-RECORD.md`; the re-run detector reports 0 homeless rows. |
+| 03:33 ET | `3d27fc1` | Merge of `origin/main`, bringing in the peer commits a credentialless session had left for the next credentialed push; no local content of its own. |
+| 03:51 ET | `4d268f9` | The decision branch now writes the receipt marker the campaign driver looks for (`suite: n/a` naming `/v1/systemone`, `ladder: ok`, `accuracy_status`), so four finished arms are not re-booted as incomplete; `tools/README.md` lists all three receipt shapes. |
+| 03:53 ET | `7ccac4f` | `tp12-campaign-staging` states its attempt tally instead of “unfinished” (26 arms: 26 start and 26 `rc=` lines, `rc=0` ×14 · `rc=3` ×3 · `rc=4` ×6 · `rc=5` ×2 · `rc=7` ×1) and stays `queued` because only 26 of 42 carry both legs; the three findings are filed as their own rows, each carrying the acceptance test that defines done. |
+| 04:08 ET | `059c08f` | The decision marker now derives `accuracy_status` from the run instead of from configuration — `taken` on success, `failed (rc=N)` when the instrument ran and failed, `not-taken` for the `/v1/completions` arm — so a receipt cannot claim a score an `rc=3` arm never got. |
+| 04:12 ET | `7bce136` | Suite snapshot re-taken after three guard commits landed: 1234 → **1239 tests (2 skipped)**, printed by `unittest discover` on the workstation after `059c08f`; both `AGENTS.md` statements moved together with the date unchanged, since the run is today’s. |
