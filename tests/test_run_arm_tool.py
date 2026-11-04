@@ -479,6 +479,7 @@ printf '{"runs": []}\\n' > "$out"
 """
 FAILED_LADDER_STUB_JSON = "#!/usr/bin/env bash\nexit 2\n"
 ACCURACY_STUB = "#!/usr/bin/env bash\nprintf 'DECISION ACCURACY 0.42\\n'\n"
+FAILED_ACCURACY_STUB = "#!/usr/bin/env bash\necho 'tool-eval-bench: every request failed' >&2\nexit 3\n"
 
 
 def decision_arm(text: str) -> str:
@@ -487,7 +488,7 @@ def decision_arm(text: str) -> str:
 
 
 def run_decision_arm(
-    arm: str, ladder_ok: bool = True, api: str = ""
+    arm: str, ladder_ok: bool = True, api: str = "", accuracy_ok: bool = True
 ) -> tuple[dict[str, str], str]:
     """Execute *arm* in a temp receipt; return its file map and its output."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -498,7 +499,7 @@ def run_decision_arm(
         bins.mkdir()
         for name, body in (
             ("python3", LADDER_STUB if ladder_ok else FAILED_LADDER_STUB_JSON),
-            ("uvx", ACCURACY_STUB),
+            ("uvx", ACCURACY_STUB if accuracy_ok else FAILED_ACCURACY_STUB),
         ):
             stub = bins / name
             stub.write_text(body)
@@ -851,6 +852,28 @@ class DecisionReceipt(BashArmHarness):
             self.assertNotIn(name, files, f"{name} would read as a finished arm whose ladder died")
         self.assertIn("rc=5", out, "the missing ladder artefact set no status")
 
+
+    def test_a_failed_instrument_is_reported_not_hidden(self):
+        """The marker's field carries the outcome; the file still exists because the arm finished.
+
+        A decision arm that measured its ladder and then had `tool-eval-bench` fail is complete as
+        a boot — the accuracy number is missing, and re-booting it does not fix that. So the marker
+        must exist (suppressing it would re-create the 2026-11-04 re-boot defect inside its own
+        fix) and `accuracy_status` must say `failed (rc=3)`, not `taken` off the `$api` value.
+
+        Against the `$api`-derived marker (`git show HEAD:tools/run-arm.sh`) this test fails: that
+        marker reads `accuracy_status: taken — the score is in teb-decision.log` for a run whose
+        bench exited 3, so the field claimed a score the arm never got.
+        """
+        files, out = run_decision_arm(decision_arm(read_tool()), accuracy_ok=False)
+        house = files.get("house.yaml", "")
+
+        self.assertTrue(house, f"a finished arm's marker was suppressed; receipt={sorted(files)}")
+        self.assertIn("ladder: ok", house, "the ladder did measure, whatever the bench did")
+        self.assertIn("accuracy_status: failed (rc=3)", house, "a failed bench reads as scored")
+        self.assertNotIn("accuracy_status: taken", house, "the run's outcome was not consulted")
+        self.assertIn("accuracy_log: teb-decision.log", house, "the log is still the evidence")
+        self.assertEqual(out.strip().splitlines()[-1], "rc=3", out)
 
     def test_a_completions_arm_says_the_instrument_could_not_address_it(self):
         """No score is legitimate here, and the marker must not read as a scored arm."""

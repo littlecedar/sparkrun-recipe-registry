@@ -281,14 +281,21 @@ if [ "$ready" = yes ]; then
       # And its decision mode speaks ONLY /v1/systemone (its own error text says so), so a JEV arm
       # on /v1/completions cannot be scored by it at all -- that is a gap in the instrument, not a
       # failure of the arm, and it made a clean cell run report rc=3.
+      accuracy_rc=0
       if [ "$api" = completions ]; then
         echo "accuracy: tool-eval-bench --decision-bench-only speaks /v1/systemone only; this arm" \
              "answers /v1/completions, so no score is taken (the cells are the result)" \
              > "$L/teb-decision.log"
       else
+        # The marker's accuracy_status is this command's outcome, not the configuration that
+        # chose to run it: `taken` off `$api` alone claimed a score for an instrument run that
+        # failed (same defect class as any marker derived from configuration rather than work).
         uvx tool-eval-bench@2.8.0 --base-url "http://$NODE:$PORT" --decision-bench-only \
-          --model "$SERVED" > "$L/teb-decision.log" 2>&1 \
-          || { echo "decision bench failed for $NAME"; rc=3; }
+          --model "$SERVED" > "$L/teb-decision.log" 2>&1 || {
+            accuracy_rc=$?
+            echo "decision bench failed for $NAME"
+            rc=3
+          }
       fi
       # The decision lane wrote `ladder.json` + `teb-decision.log` and no `house.*` at all, so a
       # driver whose arm-finished predicate wants a house artefact re-booted four finished arms
@@ -297,16 +304,22 @@ if [ "$ready" = yes ]; then
       # the rc=2 above does not exit -- presence must not mean "finished" for a dead ladder. It
       # names the accuracy instrument and the file its output lives in rather than copying the
       # score: a number transcribed into a marker can drift from the log that measured it.
+      # Presence says the arm finished; `accuracy_status` says what the instrument did. They are
+      # deliberately not inferred from each other: a failed bench still leaves a finished arm (and
+      # its log), and suppressing the marker for it would re-boot a measured arm.
       if [ -s "$L/ladder.json" ]; then
         echo "suite: n/a" > "$L/house.yaml"
         echo "reason: decision arm — the chat suite cannot address /v1/systemone" >> "$L/house.yaml"
         echo "ladder: ok" >> "$L/house.yaml"
         echo "accuracy: tool-eval-bench --decision-bench-only" >> "$L/house.yaml"
         echo "accuracy_log: teb-decision.log" >> "$L/house.yaml"
-        case "$api" in
-          completions) echo "accuracy_status: not-taken — the instrument speaks /v1/systemone only and this arm answers /v1/completions" >> "$L/house.yaml" ;;
-          *) echo "accuracy_status: taken — the score is in teb-decision.log" >> "$L/house.yaml" ;;
-        esac
+        if [ "$api" = completions ]; then
+          echo "accuracy_status: not-taken — the instrument speaks /v1/systemone only and this arm answers /v1/completions" >> "$L/house.yaml"
+        elif [ "$accuracy_rc" = 0 ]; then
+          echo "accuracy_status: taken — the score is in teb-decision.log" >> "$L/house.yaml"
+        else
+          echo "accuracy_status: failed (rc=$accuracy_rc) — the instrument ran and failed; its output is in teb-decision.log" >> "$L/house.yaml"
+        fi
       fi
       artifacts "$L/ladder.json" "$L/teb-decision.log"
       ;;
