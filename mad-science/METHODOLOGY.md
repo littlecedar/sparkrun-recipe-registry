@@ -82,6 +82,14 @@ their grant are *slot-unknown*, and a c10 figure among them is not a concurrency
 defect the explore lane already paid for once (`146.4` at 8 slots → `186.0` re-measured at ten), which is
 why it is a rule now rather than a note.
 
+**Two engines, two knobs, and the remedy does not travel between them (2026-11-03).** For llama.cpp the
+grant is `--parallel` and raising it is free — same weights, same per-stream state — so `-o parallel=10` is
+the right fix and `tools/run-arm.sh` now **refuses (rc=8)** a c10 rung under a smaller grant rather than
+file it as a cell. For sglang and vLLM the grant is `max_num_seqs`, and four arms ship it at 8, 8, 8 and 6
+because the mamba/GDN state pool binds concurrency: raising it trades a measurement for an OOM, so those
+c10 rungs stay **slot-limited and footnoted**, never overridden. The 42-arm TP≤2 manifest contains no
+llama.cpp arm, which is why the same rule has an enforcement in one engine and a footnote in the other.
+
 **Concurrency does not clamp the server.** Offering c = 40 to a server whose pool grants 20 produces 20 running requests plus a queue. Capacity is judged from `#running-req` and `full token usage` in the server log, never from the profile's own concurrency field.
 
 ### Flavors of cell in the tables

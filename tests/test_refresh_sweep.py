@@ -485,6 +485,15 @@ class BuildInputs(unittest.TestCase):
         row = self._classify("ns/img:t@" + OLD_DIGEST, hub_rules("ns", "img", "t", OLD_DIGEST))
         self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_CURRENT)
 
+    def test_tagless_container_pin_asks_the_registry_nothing(self):
+        """`container: ubuntu` has neither tag nor digest; an empty reference is not a lookup."""
+        fetch = FakeFetch({})
+        row = sweep_tool.classify_container("ubuntu", sweep_tool.Fetcher(fetch=fetch),
+                                           "recipes/x/a.yaml", "container")
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_FLOATING)
+        self.assertIn("no tag and no digest", row["reason"])
+        self.assertEqual(fetch.calls, [])
+
     def test_tag_only_from_with_live_tag_is_floating_but_observed(self):
         row = self._classify("ns/img:t",
                              tag_only_rules((200, {"docker-content-digest": NEW_DIGEST}, "{}")))

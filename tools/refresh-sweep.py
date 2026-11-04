@@ -602,6 +602,12 @@ def classify_container(ref, fetcher, scope, path, field="container"):
         # in the report as `container-floating` (exit 1) instead of gating.
         lookup = {"docker.io": hub_manifest_digest,
                   "ghcr.io": ghcr_manifest_digest}.get(host)
+        if not tag:
+            # `container: ubuntu` carries neither half. Asking the registry for an empty
+            # reference would answer about nothing, so say what is actually wrong.
+            return _row(CONTAINER_FLOATING, scope, path, field, ref,
+                        reason="no tag and no digest: a re-push silently moves the arm "
+                        "and no reference is pinned to compare")
         if lookup is None:
             return _row(CONTAINER_FLOATING, scope, path, field, ref,
                         reason="tag without a digest: a re-push silently moves the "
