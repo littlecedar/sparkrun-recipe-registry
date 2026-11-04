@@ -124,20 +124,23 @@ finished arms (`clef-flash-decision-sglang` rc=0, `jev-9b-decision-vllm`, `jev-2
 the same predicate re-booted them.
 
 **Presence and value mean different things: the file says the arm finished, its fields say what the
-work did.** A decision arm is four states, and a consumer reads them off the receipt instead of
-deriving one from the other:
+work did.** A marker is emitted whenever its ladder artifact exists and is non-empty — and both
+ladder writers emit incrementally, so a run that died partway leaves exactly that. The `ladder`
+field is what distinguishes measurement from failure. A consumer reads these states, never one
+derived from the other:
 
 | receipt | meaning | driver action |
 |---|---|---|
 | no `house.yaml` | still running, or the ladder never measured | not complete — may re-attempt |
+| `house.yaml`, `ladder: failed (rc=N)` | finished, **not measured** — the artifact is partial and is not a cell | may re-attempt; the boot itself need not be repeated |
 | `house.yaml`, `ladder: ok`, `accuracy_status: taken` | measured, instrument scored | complete |
 | `house.yaml`, `ladder: ok`, `accuracy_status: failed (rc=N)` | measured, **instrument ran and failed** | complete as a boot; the accuracy number is missing and re-booting does not fix it |
 | `house.yaml`, `accuracy_status: not-taken — …` | measured, instrument cannot address this endpoint by design | complete for this lane |
 
-The pooling marker's emission rule makes presence and value coincide there: it is written only when
-`ladder.yaml` is non-empty and then always says `ladder: ok`, so a partially written ladder reads as
-*unfinished*, never as a measured arm whose ladder failed. Every marker remains gated on its ladder
-artefact, because each ladder's failure path sets `rc` without exiting.
+The decision and pooling markers share this one convention: emission is gated on the ladder artifact
+alone (a dead ladder's `rc=2` does not exit, so file presence must never mean "measured"), and the
+`ladder` field carries the command's own exit status. `ladder: failed (rc=N)` is therefore the
+re-attempt shape in both branches — the only state where re-running the arm is the right move.
 
 ## eval-suite.py (the SOP pass)
 

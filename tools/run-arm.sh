@@ -271,10 +271,15 @@ if [ "$ready" = yes ]; then
       if [ "$api" = completions ] && [ ${#head_opt[@]} -eq 0 ]; then
         echo "note: $NAME serves /v1/completions; set ARM_DECISION_HEAD to score it"
       fi
+      ladder_rc=0
       python3 tools/decision-ladder.py --base-url "http://$NODE:$PORT" --api "$api" \
         --model "$SERVED" --cases "$DECISION_CASES" --concurrency 1,2,5,10 \
         --runs 1 --limit 100 "${head_opt[@]}" --json "$L/ladder.json" \
-        > "$L/ladder.log" 2>&1 || { echo "ladder failed for $NAME"; rc=2; }
+        > "$L/ladder.log" 2>&1 || {
+          ladder_rc=$?
+          echo "ladder failed for $NAME"
+          rc=2
+        }
       # --model is mandatory here: an arm that serves a base plus a LoRA adapter lists TWO models,
       # and the instrument's model picker then blocks on a prompt nothing will answer -- measured
       # 2026-10-30 on jev-9b, which sat at "Select model [1-2]:" until the run was killed.
@@ -310,7 +315,14 @@ if [ "$ready" = yes ]; then
       if [ -s "$L/ladder.json" ]; then
         echo "suite: n/a" > "$L/house.yaml"
         echo "reason: decision arm — the chat suite cannot address /v1/systemone" >> "$L/house.yaml"
-        echo "ladder: ok" >> "$L/house.yaml"
+        if [ "$ladder_rc" = 0 ]; then
+          echo "ladder: ok" >> "$L/house.yaml"
+        else
+          # `-s` above only proves the file is non-empty: `decision-ladder.py --json` writes as it
+          # goes, so a run that died partway leaves a partial artifact that the gate cannot see.
+          # The field is what says the measurement failed, and presence still means "finished".
+          echo "ladder: failed (rc=$ladder_rc) — the artifact is partial and is not a cell; re-attempt" >> "$L/house.yaml"
+        fi
         echo "accuracy: tool-eval-bench --decision-bench-only" >> "$L/house.yaml"
         echo "accuracy_log: teb-decision.log" >> "$L/house.yaml"
         if [ "$api" = completions ]; then
@@ -334,11 +346,15 @@ if [ "$ready" = yes ]; then
       # shape check -- measured 2026-10-30: [1/4] FAILED in 3.1 s with no traceback.
       pooling_args=()
       case "$NAME" in *-2b-*|*2b-*) pooling_args=(-b dimension_check=2048) ;; esac
+      pooling_rc=0
       sparkrun ${BENCH_VERBOSE:+-v} benchmark pooling "$RECIPE" \
         --profile "benchmarking/pooling-ladder-$kind.yaml" --skip-run --fresh \
         -H "$HOSTS" --cluster WOPR "${pooling_args[@]}" \
-        --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
-        || { echo "pooling ladder failed for $NAME"; rc=2; }
+        --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 || {
+          pooling_rc=$?
+          echo "pooling ladder failed for $NAME"
+          rc=2
+        }
       echo "suite: n/a (pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank)" \
         > "$L/house.log"
       # A campaign driver calls an arm finished on a machine-readable `house.yaml|json|csv`
@@ -351,7 +367,14 @@ if [ "$ready" = yes ]; then
         echo "suite: n/a" > "$L/house.yaml"
         echo "reason: pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank" >> "$L/house.yaml"
         echo "kind: $kind" >> "$L/house.yaml"
-        echo "ladder: ok" >> "$L/house.yaml"
+        if [ "$pooling_rc" = 0 ]; then
+          echo "ladder: ok" >> "$L/house.yaml"
+        else
+          # Same convention as the decision marker: `-s` only proves the file is non-empty, and
+          # sparkrun's exporter writes as it runs, so a ladder that died partway can leave a
+          # partial artifact. The field carries the outcome; presence carries "finished".
+          echo "ladder: failed (rc=$pooling_rc) — the artifact is partial and is not a cell; re-attempt" >> "$L/house.yaml"
+        fi
       fi
       artifacts "$L/ladder.yaml"
       ;;

@@ -438,6 +438,9 @@ printf 'framework: pooling-bench\\nruns: []\\n' > "$out"
 printf '{"runs": []}\\n' > "${out%.yaml}.json"
 """
 FAILED_LADDER_STUB = "#!/usr/bin/env bash\nexit 2\n"
+# Writes the artifacts the way sparkrun's exporter does, then fails: the presence gate passes and
+# only the command's status can say the measurement died partway.
+PARTIAL_LADDER_STUB = SPARKRUN_STUB + "exit 2\n"
 
 
 def case_arm(text: str, start_marker: str) -> str:
@@ -478,6 +481,9 @@ done
 printf '{"runs": []}\\n' > "$out"
 """
 FAILED_LADDER_STUB_JSON = "#!/usr/bin/env bash\nexit 2\n"
+# A ladder that died partway: the artifact exists and is non-empty, so `-s` passes and only the
+# command's own status can say the measurement failed. Both writers emit incrementally.
+PARTIAL_LADDER_STUB_JSON = LADDER_STUB + "exit 2\n"
 ACCURACY_STUB = "#!/usr/bin/env bash\nprintf 'DECISION ACCURACY 0.42\\n'\n"
 FAILED_ACCURACY_STUB = "#!/usr/bin/env bash\necho 'tool-eval-bench: every request failed' >&2\nexit 3\n"
 
@@ -488,7 +494,11 @@ def decision_arm(text: str) -> str:
 
 
 def run_decision_arm(
-    arm: str, ladder_ok: bool = True, api: str = "", accuracy_ok: bool = True
+    arm: str,
+    ladder_ok: bool = True,
+    api: str = "",
+    accuracy_ok: bool = True,
+    ladder_body: str | None = None,
 ) -> tuple[dict[str, str], str]:
     """Execute *arm* in a temp receipt; return its file map and its output."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -497,8 +507,9 @@ def run_decision_arm(
         receipt.mkdir()
         bins = tmp / "bin"
         bins.mkdir()
+        ladder_stub = ladder_body or (LADDER_STUB if ladder_ok else FAILED_LADDER_STUB_JSON)
         for name, body in (
-            ("python3", LADDER_STUB if ladder_ok else FAILED_LADDER_STUB_JSON),
+            ("python3", ladder_stub),
             ("uvx", ACCURACY_STUB if accuracy_ok else FAILED_ACCURACY_STUB),
         ):
             stub = bins / name
@@ -529,14 +540,16 @@ def run_decision_arm(
     return files, out.stdout + out.stderr
 
 
-def run_case_arm(arm: str, ladder_ok: bool = True) -> tuple[dict[str, str], str]:
+def run_case_arm(
+    arm: str, ladder_ok: bool = True, stub_body: str | None = None
+) -> tuple[dict[str, str], str]:
     """Execute *arm* in a temp receipt and return its file name -> text map, and its output."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         receipt = tmp / "receipt"
         receipt.mkdir()
         stub = tmp / "sparkrun"
-        stub.write_text(SPARKRUN_STUB if ladder_ok else FAILED_LADDER_STUB)
+        stub.write_text(stub_body or (SPARKRUN_STUB if ladder_ok else FAILED_LADDER_STUB))
         stub.chmod(0o755)
         script = tmp / "arm.sh"
         script.write_text(
@@ -652,8 +665,26 @@ class PoolingReceiptNegativeControls(BashArmHarness):
         self.assertTrue(errors, "the pre-fix receipt passed the contract")
         self.assertIn("house.yaml missing", " ".join(errors))
 
+    def test_a_partial_ladder_artifact_is_not_reported_as_ok(self):
+        """Same convention as the decision marker: presence is not measurement.
+
+        Against HEAD's text this fixture produced `suite: n/a` / `reason: pooling arm …` /
+        **`ladder: ok`** for a ladder that exited 2 after writing a partial artifact, so a
+        consumer read a half-written file as a measured cell.
+        """
+        receipt, out = run_case_arm(
+            case_arm(read_tool(), POOLING_ARM_AT), stub_body=PARTIAL_LADDER_STUB
+        )
+        house = receipt.get("house.yaml", "")
+
+        self.assertTrue(house, f"presence must survive a partial artifact; receipt={sorted(receipt)}")
+        self.assertIn("ladder: failed (rc=2)", house, "a partial artifact was reported as measured")
+        self.assertNotIn("ladder: ok", house, "the failed ladder still reads as ok")
+        self.assertIn("not a cell", house, "the field does not tell a consumer what the artifact is")
+        self.assertIn("pooling ladder failed", out)
+
     def test_an_unconditional_marker_fails_the_failed_ladder_guard(self):
-        """The defect the ladder guard prevents: a marker on an arm that measured nothing."""
+        """The defect the guard prevents: a marker on an arm that measured nothing."""
         arm = case_arm(read_tool(), POOLING_ARM_AT).replace(
             'if [ -s "$L/ladder.yaml" ]; then', "if true; then"
         )
@@ -662,7 +693,11 @@ class PoolingReceiptNegativeControls(BashArmHarness):
         self.assertIn(
             "house.yaml", receipt, "the weakened guard wrote no marker, so the control proves nothing"
         )
-        self.assertIn("ladder: ok", receipt["house.yaml"], "the marker claims a ladder that never ran")
+        self.assertIn(
+            "ladder: failed (rc=2)",
+            receipt["house.yaml"],
+            "a marker exists for an arm whose ladder never measured; the defect is presence itself",
+        )
 
 
 class TeardownReapsEveryRank(BashArmHarness):
@@ -853,6 +888,27 @@ class DecisionReceipt(BashArmHarness):
         self.assertIn("rc=5", out, "the missing ladder artefact set no status")
 
 
+    def test_a_partial_ladder_artifact_is_not_reported_as_ok(self):
+        """`-s` proves the file is non-empty, not that the ladder finished; the field decides.
+
+        Both writers emit incrementally, so a ladder that dies partway leaves a non-empty artifact,
+        the presence gate passes, and a field derived from presence alone would call it measured.
+        Against HEAD's text this fixture produces exactly that receipt — `suite: n/a` /
+        `reason: decision arm …` / **`ladder: ok`** / `accuracy: …` / `accuracy_log:
+        teb-decision.log` / `accuracy_status: taken …` — for a ladder that exited 2, so a consumer
+        would read a partial artifact as a cell. That is the accuracy bug's mirror, one field over.
+        """
+        files, out = run_decision_arm(
+            decision_arm(read_tool()), ladder_body=PARTIAL_LADDER_STUB_JSON
+        )
+        house = files.get("house.yaml", "")
+
+        self.assertTrue(house, f"presence must survive a partial artifact; receipt={sorted(files)}")
+        self.assertIn("ladder: failed (rc=2)", house, "a partial artifact was reported as measured")
+        self.assertNotIn("ladder: ok", house, "the failed ladder still reads as ok")
+        self.assertIn("not a cell", house, "the field does not tell a consumer what the artifact is")
+        self.assertIn("ladder failed", out)
+
     def test_a_failed_instrument_is_reported_not_hidden(self):
         """The marker's field carries the outcome; the file still exists because the arm finished.
 
@@ -895,7 +951,11 @@ class DecisionReceipt(BashArmHarness):
         files, out = run_decision_arm(weakened, ladder_ok=False)
         self.assertIn("ladder failed", out)
         self.assertIn("house.yaml", files, "the weakened guard wrote no marker, so the control proves nothing")
-        self.assertIn("ladder: ok", files["house.yaml"], "the marker claims a ladder that never ran")
+        self.assertIn(
+            "ladder: failed (rc=2)",
+            files["house.yaml"],
+            "a marker exists for an arm whose ladder never measured; the defect is presence itself",
+        )
 
 
 if __name__ == "__main__":
