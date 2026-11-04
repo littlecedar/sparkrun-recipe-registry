@@ -467,6 +467,11 @@ weights**.
   drafter buys on this build: +12.2 % at c1, +4.8 % at c2, +5.2 % at c5 and **−3.7 % at c10** — worth
   having at low concurrency, a loss at the top rung.
 
+  With the grant valid, the draft-length axis closes on three rungs: MTP n=1 **−12.8 %**, n=2 **−13.2 %**,
+  n=3 **−10.3 %** — invariant within noise, and all of them roughly double the plain arm's −4.8 %. So the
+  earlier "invariant in draft length" reading survives the slot correction, but its *baseline* was wrong:
+  the drafter is worth +12.2 % at c1 and costs 8 points of dip at c10, not the other way round.
+
   Owner decision the same session: **slots ≥ rung is the standard** (`mad-science/METHODOLOGY.md` §3), so
   every ladder containing c10 serves with `parallel >= 10` and states the grant beside the cell; an earlier
   c10 figure whose grant is unknown is treated as slot-limited, not as a concurrency cell.
