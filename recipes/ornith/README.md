@@ -1103,6 +1103,34 @@ names. `devsecllm/…-NVFP4-ablated` is the family's first 122B finetune that se
 disposition (promote past `zz-`, or keep as an eval-only probe) waits on its ladder and suite numbers.
 Nothing above is a decode rate: those are the benches' to produce, and they are running.
 
+##### `zz-devsecllm-…-ablated` — first 122B measurement (TP=1, one GB10, 2026-11-03)
+
+Booted alone on `.30`, `--max-running-requests 32`, so every rung below including c10 ran under a grant
+larger than its concurrency — these are concurrency cells, not slot-limited ones. All figures are the
+decode record of the ladder (`ladder.csv`), `tg128` aggregate first and per-stream second:
+
+| rung | tg128 agg t/s | per stream | pp2048 agg t/s | e2e TTFT |
+|---|---|---|---|---|
+| c1 | **41.35** | 41.35 | 1608.6 | 1.28 s |
+| c2 | 57.40 | 29.75 | 1758.0 | 2.31 s |
+| c5 | 54.94 | 22.82 | 944.8 | 5.96 s |
+| c10 | 51.02 | 17.82 | 902.2 | 11.95 s |
+
+Peak instantaneous aggregate climbs to 74.8 (c5) and then falls at c10 (67.6), so this arm's knee is
+**c5**, the same shape the other 122B-class arms show. Prefill is the constraint, not decode: 2048-token
+prefill holds ~1.6–1.8 k t/s to c2 and then roughly halves, and the c5/c10 e2e TTFTs (6 s / 12 s) are
+what a 122B on one GB10 looks like under concurrency — unified-memory bandwidth, per the lane's existing
+finding.
+
+The house suite scored **97/100, ★★★★★ Excellent** (deployability 84, responsiveness 54, 15/15
+scenarios, `tool_eval_bench` 2.6.0, run `2026-11-04T01-04-29Z_4a6541c5`). Responsiveness is the soft
+score and it is the same prefill story: 12 s to first token at c10.
+
+That makes this arm the 122B family's first finetune that both serves coherently and measures well — and
+it makes the dealignai negative cheap to believe, because the two arms differ only in export layout.
+**It keeps `zz-` until someone decides its disposition**: it is an abliterated model, so anyone serving it
+takes its guardrail on themselves, and promotion is the owner's call rather than a numbers question.
+
 #### Ranked hypotheses, each with the one probe that decides it
 
 The two probe arms below differ from the failed arm in one direction each, and both drop the drafter,
