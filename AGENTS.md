@@ -177,10 +177,12 @@ The repo-mandated gate after every edit:
 set -e
 H=$PWD/.local/sparkrun-home
 uv run python -B -m unittest discover -s tests
+uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign
 for f in recipes/*/*.yaml; do HOME="$H" sparkrun recipe validate "$f" >/dev/null; done
 for s in mods/*/*.sh recipes/*/mods/*/*.sh; do bash -n "$s"; done
 for p in mods/*/*.py recipes/*/mods/*/*.py tools/*.py plugins/*.py; do uv run python -m py_compile "$p"; done
-find mods recipes tools tests plugins -name __pycache__ -type d -exec rm -rf {} +
+for p in campaign/*/*.py; do uv run python -m py_compile "$p"; done
+find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec rm -rf {} +
 ```
 
 - **A green claim must name its command and its machine.** On 2026-10-30 five consecutive commits were
