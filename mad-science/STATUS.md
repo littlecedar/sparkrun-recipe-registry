@@ -1,10 +1,10 @@
-# Board — generated 2026-11-04 06:02 ET
+# Board — generated 2026-11-04 07:01 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 06:01:20 ET census and 06:01:38 ET per-rank probe, 3.4 s + 2.6 s wall | **2026-11-04 06:01:20 ET (11:01:20Z), all six nodes from head (read-only ssh):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volume counts **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — eighth identical read since 02:32, every count and every whole-GB figure repeated. The protected production serve stays out of that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the 06:01:38 ET probe finds `sglang.launch_server` alive in **all four** rank containers (pids 280 / 306 / 301 / 301) plus `/v1/models` **200** from rank 0. `.local/fleet-window.lock` absent — it governs research windows, and this is a production serve whose task id (`c989632ede4f538e`) no session has named. |
+| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 07:01:01 ET census and 07:01:32 ET per-rank probe, 3.0 s + 2.3 s wall | **2026-11-04 07:01:01 ET (12:01:01Z), all six nodes from head (read-only ssh):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volume counts **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — ninth identical read since 02:32, every count and every whole-GB figure repeated. The protected production serve stays out of that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the 07:01:32 ET probe finds `sglang.launch_server` alive in **all four** rank containers (pids 280 / 306 / 301 / 301) plus `/v1/models` **200** from rank 0. `.local/fleet-window.lock` absent — it governs research windows, and this is a production serve whose task id (`c989632ede4f538e`) no session has named. |
 | none | — | **No research workload is live and nothing is claimed.** `.30` and `.35` have read 0 containers / 0 volumes on every census since the tp12 driver exited at 02:26:09. The register holds **24 queued + 6 blocked** of 77 tasks (`task-queue.py check` ok) and no open row carries a `claimed_by`; the priority queue's top runnable row is `arch-deepgemm-sm12x-paged-sparse` at `queued` (tier 2, 7.0 weight), with its two survey-arm consumers still `blocked` behind it. |
 
 
