@@ -142,6 +142,21 @@ alone (a dead ladder's `rc=2` does not exit, so file presence must never mean "m
 `ladder` field carries the command's own exit status. `ladder: failed (rc=N)` is therefore the
 re-attempt shape in both branches — the only state where re-running the arm is the right move.
 
+**Three consumers read this, and only one of them lives in the repo.** The tracked planner
+(`tools/next-arms.py`) reads the fields: `ladder: ok` beside a ladder that parses with cells counts
+as measured, `ladder: failed (rc=N)` does not, and a truncated or cell-less ladder never counts
+whatever else the receipt holds. The campaign driver's `have()` is a scratch script on the head that
+still tests file presence and non-empty size only, so a driver can call a failed-ladder arm complete
+until that script is rewritten (`driver-consults-skip-source` in `mad-science/queue.json`). A human
+reading the table is the third consumer, and the only one that sees all five states at once.
+
+**The two fields are independent readings of two different instruments, so every combination is
+possible.** `ladder` reports the concurrency ladder; `accuracy_status` reports the decision bench
+(`tool-eval-bench --decision-bench-only`). `ladder: failed (rc=2)` beside `accuracy_status: taken`
+is therefore not a contradiction: the bench scored and the ladder died afterwards, so the receipt
+carries an accuracy number and no cells. Each field means exactly what it says — never derive one
+from the other, and do not invent a sixth state for the pair.
+
 ## eval-suite.py (the SOP pass)
 
 One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chosen with `--checks`
