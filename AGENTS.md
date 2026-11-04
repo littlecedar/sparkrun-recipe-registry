@@ -663,6 +663,22 @@ matching.
 - This working tree is syncthing-shared with a **live second writer**: `git add` explicit pathspecs
   only — never `git add -A`, directory adds, or bare globs — and review `git diff --cached --stat`
   first.
+
+**A named path is the worktree's content, not yours.** `git commit -- <paths>` publishes whatever is
+*in the file* at that moment, so if two sessions edit the same file in overlapping turns, whoever
+commits first takes the other's half-finished edit and ships it under their own message. Measured
+twice on 2026-11-04: `ab82517` swept a pooling-receipts paragraph into a commit whose subject is
+about serve-log capture, and `8038ad1` swept a peer's second `task-queue.py` update of
+`mad-science/queue.json`. No bytes were lost and no history was rewritten in either — the damage is
+a commit whose message does not describe its content, which is how a later reader concludes the
+wrong thing about why a file changed. That is why this outranks tidiness: the commit subject is the
+only index most readers use, so a swept hunk makes a *correct* tree read as an *incorrect*
+explanation, and the next session re-derives work that is already done. Mitigations, in order:
+
+- Serialise writers per **file** (not per directory) when dispatching parallel work.
+- Check `git status --porcelain <paths>` immediately before committing, not after.
+- When a file must be shared, use the throwaway `GIT_INDEX_FILE` + `write-tree`/`commit-tree` route
+  so the commit carries only your hunks.
 - Journal/work docs are git-ignored by design (`**/*JOURNAL.md`, `**/*-WORK.md`,
   `**/*-WORK-ARCHIVE.md`, `.local/`) because they hold internal IPs and this registry is distributed
   to third parties. Never `git add -f` them; keep hostnames/IPs out of tracked files.
