@@ -399,3 +399,77 @@ class BoardAndArchive(unittest.TestCase):
         self.assertEqual(len(orphans), 52,
                          "the archive grew (or shrank without a marker): " +
                          "; ".join(t for _line, t in orphans[:5]))
+
+
+class MarkdownLint(unittest.TestCase):
+    """`lint`: a table that GFM will not render is refused before it is published.
+
+    The defect this exists for shipped twice (2026-10-22 and 2026-11-03, `6f19662` and the
+    landed table below): a header row followed straight by data rows, with no
+    `|---|---|---|` delimiter, which GFM does not read as a table at all — every row becomes
+    one paragraph of literal pipes. `render --board` now refuses its own output, and the
+    board itself is linted here because the tick that writes the rest of the file runs
+    outside this repo.
+    """
+
+    # The board's landed table as it was published on 2026-11-03: header, then a data row.
+    BROKEN = (
+        "## Landed session\n\n"
+        "| time ET | commit | one clause |\n"
+        "| 16:32 ET | `15f5bcd` | a clause |\n"
+        "| 16:34 ET | `c4e5d53` | another clause |\n"
+    )
+
+    def test_missing_delimiter_is_caught(self):
+        # Negative control: the pre-fix block above must be flagged, or the guard proves nothing.
+        rules = [r for _line, r, _d in tq.lint_markdown(self.BROKEN)]
+        self.assertEqual(rules, ["table-missing-delimiter"])
+
+    def test_delimiter_makes_the_same_block_render(self):
+        fixed = self.BROKEN.replace("| one clause |\n", "| one clause |\n|---|---|---|\n")
+        self.assertEqual(tq.lint_markdown(fixed), [])
+
+    def test_ragged_row_is_caught(self):
+        text = "| a | b | c |\n|---|---|---|\n| 1 | 2 |\n"
+        self.assertEqual([r for _l, r, _d in tq.lint_markdown(text)], ["table-ragged"])
+
+    def test_pipe_inside_a_code_span_is_caught(self):
+        # GFM splits cells before parsing inline markup, so a piped shell command needs `\\|`.
+        text = "| a | b |\n|---|---|\n| `find . -name x | wc -l` | y |\n"
+        rules = [r for _l, r, _d in tq.lint_markdown(text)]
+        self.assertIn("pipe-in-code-span", rules)
+        escaped = text.replace("-name x | wc", r"-name x \| wc")
+        self.assertEqual(tq.lint_markdown(escaped), [])
+
+    def test_unclosed_fence_is_caught(self):
+        rules = [r for _l, r, _d in tq.lint_markdown("```\nnot a table | x |\n")]
+        self.assertEqual(rules, ["unclosed-fence"])
+
+    def test_generated_board_lints_clean(self):
+        payload = data([task("a", 1.0, model="glm-5.3"),
+                        task("b", 2.0, model="deepseek-v4.1-flash-1017", state="blocked")])
+        t = payload["tasks"][0]
+        t["notes"] = "a pipe | and a newline\ninside prose"
+        rows = tq.board_rows(payload)
+        self.assertEqual(tq.lint_markdown("\n".join(rows)), [])
+
+    def test_render_refuses_markdown_it_would_break(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(tq.QueueError):
+                tq._emit(["| a | b |", "| 1 | 2 |"], "test table")
+
+    def test_the_board_renders(self):
+        """The published board: every table it carries must parse."""
+        board = REPO_ROOT / "mad-science" / "STATUS.md"
+        self.assertEqual(tq.lint_markdown(board.read_text(encoding="utf-8")), [])
+
+    def test_live_zone_docs_this_guard_owns_render(self):
+        # Files this guard fixed and now protects. NOT the whole tree: `attic/` is frozen
+        # provenance, and SESSION-RECORD's ledger fragments are mid-table continuations whose
+        # header lives elsewhere — minting headers there would rewrite history, not fix it.
+        for rel in ("tools/README.md",
+                    "recipes/ornith/README.md",
+                    "recipes/glm/mods/tensorfold-glm53-3bpw-launcher/README.md"):
+            with self.subTest(file=rel):
+                path = REPO_ROOT / rel
+                self.assertEqual(tq.lint_markdown(path.read_text(encoding="utf-8")), [])

@@ -47,6 +47,7 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py render                # markdown table for TODO/STATUS
     uv run python -B tools/task-queue.py render --board        # the STATUS.md `## Work queue` table
     uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
+    uv run python -B tools/task-queue.py lint [FILE ...]       # markdown that will not render (default: the board)
 
 Since 2026-11-03 the queue is the register and `mad-science/TODO.md` is a frozen archive
 (`mad-science/QUEUE.md` §"Relationship to TODO.md").  `render --board` is what a board tick
@@ -71,6 +72,7 @@ import sys
 from pathlib import Path
 
 DEFAULT_QUEUE = Path("mad-science/queue.json")
+DEFAULT_BOARD = Path("mad-science/STATUS.md")
 STATES = ("queued", "running", "blocked", "done")
 NODE_COSTS = ("", "single", "pair", "quartet")
 REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
@@ -422,22 +424,133 @@ def cmd_check(args, path: Path) -> None:
     print(f"ok: {len(tasks)} task(s), priority_models={data['priority_models']}")
 
 
+_TABLE_DELIM = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
+
+
+def _table_cells(row: str) -> list[str]:
+    """Split a table row the way GFM does: every unescaped `|` ends a cell.
+
+    Deliberately blind to code spans — that is the trap, not an oversight: GFM
+    splits the row before it parses inline markup, so a `|` written inside a
+    code span still becomes a column break and the row renders ragged.
+    """
+    out: list[str] = []
+    cur: list[str] = []
+    i = 0
+    while i < len(row):
+        if row[i] == "\\" and i + 1 < len(row):
+            cur.append(row[i:i + 2])
+            i += 2
+            continue
+        if row[i] == "|":
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(row[i])
+        i += 1
+    out.append("".join(cur))
+    if out and not out[0].strip():
+        out.pop(0)
+    if out and not out[-1].strip():
+        out.pop()
+    return out
+
+
+def lint_markdown(text: str) -> list[tuple[int, str, str]]:
+    """`(line, rule, detail)` for markdown that will not render as written.
+
+    Fenced code is skipped. The rules are the defects a table actually dies of:
+    a header with no delimiter row (GFM then renders every row as one paragraph
+    of pipes — measured on `mad-science/STATUS.md`'s landed table, 2026-11-03),
+    a row whose cell count disagrees with its header, a `|` inside a cell's code
+    span, an odd backtick count in a cell, and a fence left open at EOF.
+    """
+    problems: list[tuple[int, str, str]] = []
+    lines = text.split("\n")
+    in_fence = False
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            i += 1
+            continue
+        if in_fence or not line.lstrip().startswith("|"):
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and lines[j].lstrip().startswith("|"):
+            j += 1
+        block = lines[i:j]
+        header = _table_cells(block[0])
+        if len(block) < 2 or not _TABLE_DELIM.match(block[1]) or len(_table_cells(block[1])) != len(header):
+            problems.append((i + 1, "table-missing-delimiter",
+                             f"{len(block)} row(s) begin here but line {i + 2} is not a "
+                             f"{len(header)}-column delimiter row (|---|---|); GFM renders the "
+                             "whole block as one paragraph"))
+        else:
+            for k, row in enumerate(block[2:], start=i + 3):
+                n = len(_table_cells(row))
+                if n != len(header):
+                    problems.append((k, "table-ragged", f"{n} cells, header has {len(header)}"))
+        for k, row in enumerate(block, start=i + 1):
+            bare = row.replace(r"\|", "\0")
+            if any("|" in span for span in re.findall(r"`([^`]*)`", bare)):
+                problems.append((k, "pipe-in-code-span",
+                                 "a `|` inside a code span still splits the cell; escape it as \\|"))
+            if any(cell.count("`") % 2 for cell in _table_cells(row)):
+                problems.append((k, "unbalanced-backticks",
+                                 "an odd number of ` in a cell renders literally"))
+        i = j
+    if in_fence:
+        problems.append((len(lines), "unclosed-fence", "a ``` fence is never closed"))
+    return problems
+
+
+def _emit(lines: list[str], what: str) -> None:
+    """Print generated markdown, refusing it if it will not render."""
+    problems = lint_markdown("\n".join(lines))
+    if problems:
+        for line, rule, detail in problems:
+            print(f"task-queue: {what}:{line}: {rule}: {detail}", file=sys.stderr)
+        raise QueueError(f"refusing to emit {what}: {len(problems)} markdown problem(s) above")
+    print("\n".join(lines))
+
+
+def cmd_lint(args, path: Path) -> None:
+    """Lint markdown files; the board is the default because it is hand-written."""
+    paths = [Path(p) for p in (args.paths or [DEFAULT_BOARD])]
+    total = 0
+    for target in paths:
+        try:
+            problems = lint_markdown(target.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            raise QueueError(f"no such markdown file: {target}")
+        for line, rule, detail in problems:
+            print(f"{target}:{line}: {rule}: {detail}")
+        total += len(problems)
+    if total:
+        raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
+    print(f"ok: {len(paths)} markdown file(s) render")
+
+
 def cmd_render(args, path: Path) -> None:
     data = load(path)
     if getattr(args, "board", False):
-        for line in board_rows(data):
-            print(line)
+        _emit(board_rows(data), "board table")
         return
     ordered = ordering(data)
     tasks = {t["id"]: t for t in data["tasks"]}
     tiers = _tiers(data["priority_models"])
-    print("| Tier | Weight | Est (h) | Blocked (h) | State | Model | Node | Task |")
-    print("|---|---|---|---|---|---|---|---|")
+    lines = ["| Tier | Weight | Est (h) | Blocked (h) | State | Model | Node | Task |",
+             "|---|---|---|---|---|---|---|---|"]
     for tier, task in enumerate_tasks_with_tier(ordered, tiers):
         weight, blocked = compute_weight(task, list(tasks.values()))
-        print(f"| {tier} | {weight:.2f} | {task['estimate_h']:.2f} | {sum(blocked.values()):.2f} | "
-              f"{task['state']} | {task['model'] or '—'} | {task['node_cost'] or '—'} | "
-              f"**{task['id']}** — {task['title']} |")
+        lines.append(
+            f"| {tier} | {weight:.2f} | {task['estimate_h']:.2f} | {sum(blocked.values()):.2f} | "
+            f"{task['state']} | {task['model'] or '—'} | {task['node_cost'] or '—'} | "
+            f"**{task['id']}** — {_cell(task['title'])} |")
+    _emit(lines, "weighted table")
 
 
 def board_rows(data: dict) -> list[str]:
@@ -620,6 +733,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("queue", help="print the ordered queue with computed weights").set_defaults(fn=cmd_queue)
     sub.add_parser("questions", help="open owner questions from the register").set_defaults(fn=cmd_questions)
     sub.add_parser("check", help="validate: ids, refs, cycles, estimates").set_defaults(fn=cmd_check)
+    p_lint = sub.add_parser("lint", help="markdown that will not render (tables, fences)")
+    p_lint.add_argument("paths", nargs="*", default=None,
+                        help=f"markdown files (default {DEFAULT_BOARD})")
+    p_lint.set_defaults(fn=cmd_lint)
 
     args = parser.parse_args(argv)
     path = Path(args.file)

@@ -1012,7 +1012,7 @@ and the same two parser flags. Reading the four repos over the Hub API on 2026-1
 | `merges.txt` | `bc43d7e0…` | `bc43d7e0…` | identical |
 | `tokenizer_config.json` | `53de78b0…` | `53de78b0…` | identical, incl. embedded `chat_template` (`94f89e03…` md5, 7,756 B, all four repos) |
 | `chat_template.jinja` | 7,594 B | 7,593 B | **differ by a trailing newline**; the only other diff is an `loop.index0 > ns.last_query_index` branch on reasoning replay that base and finetune share the same way |
-| `special_tokens_map.json` | absent | absent | markers come from `tokenizer_config.added_tokens_decoder`: `248068 <think>`, `248069 </think>`, `248045 <|im_start|>`, `248046 <|im_end|>` |
+| `special_tokens_map.json` | absent | absent | markers come from `tokenizer_config.added_tokens_decoder`: `248068 <think>`, `248069 </think>`, `248045 <\|im_start\|>`, `248046 <\|im_end\|>` |
 | `.py` modules | none | none | `--trust-remote-code` resolves the same `Qwen2Tokenizer` in both; there is no custom tokenizer class to pick |
 
 None of the four repos ships a `chat_template.json`; each ships a standalone `chat_template.jinja`

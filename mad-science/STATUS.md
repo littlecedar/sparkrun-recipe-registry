@@ -44,6 +44,7 @@
 ## Landed session
 
 | time ET | commit | one clause |
+|---|---|---|
 | 16:32 ET | `15f5bcd` | Ornith-122B arm ships the measured draft count, 15 → 4; count and receipt in `recipes/ornith/README.md`. |
 | 16:34 ET | `c4e5d53` | Queue row retitled so the MTP re-boot reads as a re-measurement, not a relabel (`mad-science/queue.json`). |
 | 16:37 ET | `8bddfcf` | MTP arm set to run on its published engine instead of relabelling the old cells; rationale in `recipes/explore/README.md`. |
