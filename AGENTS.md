@@ -12,7 +12,7 @@ file disagrees with the tree — run the tool's `--fix` rather than editing a nu
 a run can know stays a *dated snapshot*: **2026-11-03 — every tracked recipe passes plain
 `validate`, and the `--strict` findings are exactly the roster below (both re-measured 2026-11-03 over
 the whole tracked tree; the roster itself is unchanged since 2026-10-31, because no arm added since
-appears in it); suite 1239 tests (2 skipped) measured 2026-11-04**. The snapshot is one
+appears in it); suite 1241 tests (2 skipped) measured 2026-11-04**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
 matched group, so a fraction silently becomes a false statement the moment a recipe lands. The
@@ -773,7 +773,7 @@ matching.
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1239 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1241 tests,
   all passing 2026-11-04 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
