@@ -494,6 +494,10 @@ Rules that follow:
   ("15/15 pass") are a different claim and are not checked.
 - **A dated snapshot belongs in the ledger or `attic/`.** Updating a live doc with a past measurement
   makes it read as current.
+- **A session closes in the ledger, not in a commit body.** Every session appends a close-out to
+  `mad-science/SESSION-RECORD.md` — what landed, what was decided, and what remains — instead of
+  leaving its history only in commit messages. A body explains one change; it cannot say what was
+  tried and abandoned, or which question is still open.
 - **Pruning is a decision with evidence, not a tidy-up.** `python3 tools/doc-census.py` prints the
   per-zone census (files, lines, largest docs) so "how much is there?" costs one command; a doc leaves
   the tree when its content is archived or contradicted, and `attic/` is where archived content goes.
