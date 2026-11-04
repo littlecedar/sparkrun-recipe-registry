@@ -8,13 +8,18 @@ the "source" is recipe YAML, bash mods, and stdlib-only Python tools and guards.
 
 Counts in this document are derived, not remembered: `python3 tools/doc-census.py` prints the tracked
 recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.py` fails when this
-file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. What only
-a run can know stays a *dated snapshot*: **2026-11-03 — every tracked recipe passes plain
-`validate`, and the `--strict` findings are exactly the roster below (both re-measured 2026-11-03 over
-the whole tracked tree; the roster itself is unchanged since 2026-10-31, because no arm added since
-appears in it); suite 1247 tests (2 skipped) measured 2026-11-04**. The snapshot is one
+file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. **The
+suite total is derived the same way**: `SuiteTotal` in that same test module compares every stated
+total against `unittest.defaultTestLoader.discover("tests").countTestCases()` (under a second, no test
+executed) and fails naming the stale line, so the number cannot rot; only its skip count needs a run,
+which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-03
+— every tracked recipe passes plain `validate`, and the `--strict` findings are exactly the roster
+below (both re-measured 2026-11-03 over the whole tracked tree; the roster itself is unchanged since
+2026-10-31, because no arm added since appears in it); suite 1252 tests (guard-checked) and 2 skipped,
+dated 2026-11-04, the run that produced them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
-added or retired. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
+added or retired, and every number in it carries the date of the run that produced it, never the date
+it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
 matched group, so a fraction silently becomes a false statement the moment a recipe lands. The
 working tree can carry in-flight drafts that git does not,
 so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
@@ -481,9 +486,10 @@ Rules that follow:
 - **A global count is derived, never remembered.** `tools/doc-census.py` counts the four facts that are
   exactly derivable — tracked recipes, test modules, benchmark profiles, `SKILL.md` dirs — and
   `tests/test_doc_hygiene.py` fails when `AGENTS.md` or `README.md` states one the tracked tree
-  contradicts. Fix a stale number with `python3 tools/doc-census.py --fix`, not by hand. A count that
-  needs a run to know (the suite's test total, `validate --strict` passes) is a dated snapshot and is
-  deliberately not checked.
+  contradicts. Fix a stale number with `python3 tools/doc-census.py --fix`, not by hand. The suite
+  total is derived as well — `SuiteTotal` in that same module counts the discovered tests and fails
+  naming the stale line — so only what a run alone can produce (`validate --strict` findings, the skip
+  count) is a dated snapshot, and only that is deliberately not checked.
 - **A second restatement is a drift bug.** Link the doc that owns the fact instead. Lane-scoped counts
   ("15/15 pass") are a different claim and are not checked.
 - **A dated snapshot belongs in the ledger or `attic/`.** Updating a live doc with a past measurement
@@ -789,14 +795,16 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1247 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1252 tests,
   all passing 2026-11-04 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
   pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
-  why this count is 2 skips and not the 3 recorded earlier on 2026-10-31). The
-  count is a snapshot taken as the lanes land guards; a session that adds tests re-measures it, and
-  the two places in this file that state it move together.
+  why this count is 2 skips and not the 3 recorded earlier on 2026-10-31). The total is no longer a
+  remembered snapshot: `tests/test_doc_hygiene.py::SuiteTotal` compares every stated total against the
+  discovered test count and fails naming the stale line, so a session that adds or removes tests takes
+  the number from that failure's message and both statements in this file move together. Only the
+  **skip count is a snapshot**, and it keeps the date of the run that produced it.
   The K2 MoVA-36B lane's 64-test guard lives in
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
