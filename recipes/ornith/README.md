@@ -1080,6 +1080,29 @@ then earn their boots. The cyankiwi arm answers a different question — whether
 family loads at all through compressed-tensors. No decode rate is recordable on any of the three until
 one serves coherently.
 
+##### Result: the layout was the defect, and the family has a servable finetune
+
+Measured 2026-11-03 20:15 ET on `.30`, one boot each, identical serving flags, same drafter:
+
+| arm | export algo map | probe (`The capital of France is…`) | draft acceptance |
+|---|---|---|---|
+| `zz-dealignai-…-uncensored-dflash2-sglang` | `FP8_PER_CHANNEL_PER_TOKEN` ×308 incl. head | token salad | **0.00** |
+| `zz-devsecllm-…-ablated-dflash2-sglang` | `W4A16_NVFP4` ×193 + `FP8` ×156, head W4A16 | *"The capital of France is Paris."* | **0.62–0.64** |
+
+That is hypothesis 1 confirmed and hypotheses 2–4 retired in one comparison: with the drafter, the
+template and both parser flags held constant, only the export layout differs, and it alone separates
+salad from coherent text. The drafter is not merely innocent — 0.63 acceptance is a healthy figure for
+this family, so the pairing is good and the salad arm's `0.00` was the unquantized head, exactly as
+predicted. **The two authored probe arms are therefore retired unspent** and stay in the tree only as
+the falsifiers to reach for if a *future* export misbehaves the same way.
+
+`dealignai/…-UNCENSORED-NVFP4` becomes a recorded negative with a precise cause. Two follow-ups could
+reopen it, neither of which is work this lane should start on a hunch: an engine that implements
+`FP8_PER_CHANNEL_PER_TOKEN`, or a re-export whose `quantization_config` uses only implemented algo
+names. `devsecllm/…-NVFP4-ablated` is the family's first 122B finetune that serves, and its own
+disposition (promote past `zz-`, or keep as an eval-only probe) waits on its ladder and suite numbers.
+Nothing above is a decode rate: those are the benches' to produce, and they are running.
+
 #### Ranked hypotheses, each with the one probe that decides it
 
 The two probe arms below differ from the failed arm in one direction each, and both drop the drafter,
