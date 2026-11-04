@@ -63,6 +63,11 @@ usable at util 0.85, two ≈ 218 GB. Boot and measurement receipts for every arm
   `max_running_requests=24`, so ten concurrent 2048-in/128-out requests never queue and the
   aggregate is 10 × 7.6 t/s. Same boot: battery **easy 19/19 + hard 18/18 = 37/37**
   (`cybersec-unc-battery.json`).
+- **Campaign re-measure (2026-11-03, one GB10, shipped chain): C1 9.90 ± 0.00 · C2 19.57 ± 0.46 ·
+  C5 40.58 ± 1.91 · C10 80.48 ± 4.49 t/s** @ d=0, pp 2048, tg 128, n=5 — the 2026-10-18 ladder
+  above reproduces (top rung +6 %), and the standard suite scores **100**/100, 15/15 scenarios
+  (`tool-eval-bench` 2.6.0; deployability 74, responsiveness 15). Receipt
+  `~/benchmarks/tp12-20261103/qwen3.8-27b-uncensored-nvfp4-sglang/` (`ladder.json`, `house.json`).
 - **Standard suite (legs 2026-10-19, tools leg 2026-10-19/20).** The suite was relaunched tools-only
   after its first run was killed for a cap that could not hold BFCL, so this boot has **no
   machine-readable `contract` line**; the other four legs are in
