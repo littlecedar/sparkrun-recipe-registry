@@ -220,10 +220,17 @@ class RunArmContract(unittest.TestCase):
         teb = text.index("uvx tool-eval-bench@2.8.0")
         self.assertLess(skip, teb, "the skip must guard the instrument call, not follow it")
 
-    def test_readiness_outlasts_the_watchdog_grace(self):
-        """A 1350 s ceiling under a 1800 s grace stops a serve still loading."""
+    def test_readiness_covers_the_slowest_healthy_boot_and_watches_the_watchdog(self):
+        """The ceiling must outlast a real load, and a dead boot must not wait it out.
+
+        150 x 15 s = 2250 s against the slowest healthy boot measured on the fleet
+        (1076 s, a 122B load, 2026-11-03). The watchdog's own pid is what ends the loop
+        early now — there is no `--grace` for the ceiling to sit under any more, and the
+        arm that died at t=98 s would otherwise have held the loop until 2250 s.
+        """
         text = read_tool()
-        self.assertIn('seq 1 150', text, "readiness ceiling is below the watchdog's grace")
+        self.assertIn("seq 1 150", text, "readiness ceiling is below the slowest measured boot")
+        self.assertIn('kill -0 "$WD"', text, "the readiness loop ignores the watchdog's verdict")
 
     def test_failed_steps_set_a_nonzero_exit(self):
         text = read_tool()

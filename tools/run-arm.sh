@@ -220,7 +220,7 @@ echo "arm=$NAME container=$N task=$TID port=$PORT"
 trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
 
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \
-  --node "$NODE" --container "$N" --grace 1800 --interval 10 --log "$L/watchdog.log" &
+  --node "$NODE" --container "$N" --interval 10 --log "$L/watchdog.log" &
 WD=$!
 
 ready=no

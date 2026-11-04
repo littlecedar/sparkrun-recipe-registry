@@ -252,17 +252,17 @@ watchdog → cells → stop by id (owner directive 2026-10-26, the `21e5ec6` def
 keeps a container "Up" after its serve child died, so a session waits on a boot that will never be
 ready). Detach `tools/boot-watchdog.py` next to every launch —
 `nohup python3 tools/boot-watchdog.py --endpoint http://<api-rank>:8000 --task-id <literal id>
---node <host> --grace 1800 --log ~/benchmarks/<window>/watchdog-<id>.log &` — and record the pid in
+--node <host> --interval 10 --log ~/benchmarks/<window>/watchdog-<id>.log &` — and record the pid in
 the receipt. Endpoint-down with the serve child alive is *loading* (io deltas logged), never dead. A
 death the probe **observes** — the child gone after it was seen alive, or a fatal last line in
 `/tmp/sparkrun_serve.log` — is stopped on the second consecutive observation (~2 probes at
 `--interval 10`), because a crash is an edge, not a duration; a probe that *fails* (`ssh`/exec error)
 is `no_probe` and never counts as a sighting, since a loading boot's endpoint is down too and one ssh
-timeout must not kill it. `--dead-grace` (120 s) covers only a child that was never found (a serve-pid
-fingerprint miss), and `--grace`+`--stall` cover a live-but-frozen child. A cold ~510 GB body wants
-`--grace 1800` for the loading window; that number no longer delays reaping a dead serve (measured
-2026-11-03: an int8 arm died at t=98 s and sat 28 minutes because the window gated the dead verdict
-too). `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
+timeout must not kill it. `--dead-grace` (120 s) covers only a child that was never found (a serve-pid fingerprint miss), and
+`--stall` covers a live-but-frozen child: 600 s of zero io AND zero log growth, which is 4x the 150 s
+worst silence measured across the 46 boots that reached healthy (2026-11-03). **There is no `--grace`
+any more** — a 1800 s loading window was gating verdicts that only fire on evidence, and it cost an
+int8 arm 28 minutes after its serve died at t=98 s. `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
 ends the arm in one probe instead of the loop's 2250 s.
 
 ```bash

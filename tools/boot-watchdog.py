@@ -23,17 +23,17 @@ distinction explicit and acts on it:
                                                                -> dead, stopped at once
   * child gone and endpoint dead but never seen alive (a serve-pid fingerprint
     miss)                                                      -> dead_candidate, timed
-  * child alive, endpoint dead, no io and no log growth past
-    `--grace`+`--stall`                                        -> stalled
+  * child alive, endpoint dead, no io and no log growth for
+    `--stall` (600 s; 4x the worst silence measured on a healthy boot) -> stalled
   dead/stalled: `sparkrun stop <task-id>` (literal id), evidence to --log, exit 3.
 
 Two floors, both cheap at `--interval 10`: the second observed check rides out one bad
 sighting (a pgrep miss across a re-exec), and `no_probe` keeps a broken instrument out of
-the count entirely. What the 2026-11-03 lesson removed is the *loading* clock from the
-death path: an arm whose serve died at t=98 s was classified `dead` at t=123 s and then
-held 1,677 s more because `--grace 1800` — a number that exists for a 510 GB weight load —
-gated the dead verdict too. Only "the child was never found" is ambiguous enough to
-deserve a clock.
+the count entirely. There is no `--grace`: the old 1800 s loading window gated verdicts
+that only fire on evidence, and it cost 26 throttled minutes on 2026-11-03 (an arm whose
+serve died at t=98 s, correctly called `dead` at t=123 s, held until t=1800 s), plus a
+frozen 4B arm the same 40 minutes. Only "the child was never found" is ambiguous enough
+to deserve a clock.
 
 Stdlib only, no deps. Launch detached next to every boot:
 
@@ -120,9 +120,7 @@ def decide(
     return "dead_candidate"
 
 
-def is_stalled(
-    endpoint_ok: bool, pid_alive: bool, elapsed: float, grace: float, idle: float, stall: float
-) -> bool:
+def is_stalled(endpoint_ok: bool, pid_alive: bool, idle: float, stall: float) -> bool:
     """A live child that has made no progress at all is stuck, not loading (pure).
 
     The `21e5ec6` defect masks a *dead* serve with a keep-alive; this is its sibling and it cost a
@@ -130,14 +128,15 @@ def is_stalled(
     `io_delta=0` and `log_delta=0` for half an hour. `pid_alive` kept the verdict at `loading`, so
     the dead-candidate path never fired and nothing ever stopped it.
 
-    Both deltas must be zero, the grace window must have passed, and the whole stall window must
-    have elapsed with no evidence — a slow 45-minute weight load logs or reads something.
+    Both deltas must be zero for the whole stall window — a slow 45-minute weight load logs or
+    reads something. No loading clock gates this: measured across 46 boots that reached healthy
+    (2026-11-03, every watchdog receipt on the head), the longest silent stretch was **150 s**, so
+    `--stall 600` carries a 4x margin and an `elapsed >= grace` gate on top decided nothing but
+    delay. A frozen 4B arm is stopped in ~10 minutes instead of 40.
     """
     if endpoint_ok or not pid_alive:
         return False
-    if elapsed < grace or idle < stall:
-        return False
-    return True
+    return idle >= stall
 
 
 def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
@@ -274,7 +273,7 @@ def pick_container(names: list[str], task_id: str) -> str:
     A TP=1 task names its single container `<prefix>_solo`, so the old
     `sparkrun_<task-id>_node_0` default read "serve_pid=gone" on every solo boot
     (the container simply did not exist under that name) and could stop a
-    slow-loading solo serve at grace expiry.
+    slow-loading solo serve on a sighting that was the resolver's own bug.
     """
     for name in names:
         if task_id in name and name.endswith("_node_0"):
@@ -314,25 +313,26 @@ def stop_task(task_id: str, log) -> None:
     print(f"WATCHDOG: sparkrun stop {task_id}", file=log, flush=True)
 
 
-def should_stop(verdict: str, grace: float, elapsed: float, dead_grace: float, dead_for: float | None) -> bool:
-    """Whether a check may act, as two separate windows (pure).
+def should_stop(verdict: str, dead_grace: float, dead_for: float | None) -> bool:
+    """Whether a check may act (pure). Every window is now evidence-backed, not a load clock.
 
-    The grace window exists for *loading* ambiguity — a 510 GB body reads and logs
-    for tens of minutes with the endpoint still down — so it gates `stalled` only.
-    A gone child is never loading: `is_stalled` already refuses that case, and
-    `decide` already required two consecutive sightings. Gating `dead` on the same
-    window cost 26 throttled minutes on 2026-11-03, when an arm whose serve died at
-    t=98 s was declared `dead` at t=123 s and then held until t=1800 s.
+    `dead`       — two consecutive observed absences with a witness (seen alive or a fatal
+                   line): act on the check that reaches the second.
+    `stalled`    — `is_stalled` already required the whole stall window of zero io AND zero
+                   log growth (4x the worst silence measured on a healthy boot).
+    `dead_candidate` — never seen alive, which is also what a serve-pid fingerprint miss
+                   looks like, so it alone keeps a clock (`--dead-grace`, 120 s).
 
-    `dead_grace` is the short separate window on `dead`: it rides out a serve-pid
-    fingerprint miss (the class at `resolve_container`), not a slow load.
+    There is no `--grace` any more: a 1800 s loading window was gating a verdict that only
+    fires on evidence, and it cost 26 throttled minutes on 2026-11-03 (an arm whose serve
+    died at t=98 s, declared `dead` at t=123 s and held to t=1800 s).
     """
     if verdict == "dead":
         return True
     if verdict == "dead_candidate":
         return dead_for is not None and dead_for >= dead_grace
     if verdict == "stalled":
-        return elapsed >= grace
+        return True
     return False
 
 
@@ -356,25 +356,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument(
-        "--grace",
-        type=float,
-        default=600.0,
-        help="seconds after which a dead candidate may be stopped (2 checks still required)",
-    )
-    ap.add_argument(
         "--dead-grace",
         type=float,
         default=120.0,
         help="seconds a never-seen-alive `dead_candidate` must persist before stopping; "
         "a `dead` verdict (child we watched go, or one whose log ends on a fatal line) "
-        "acts at once, and `--grace` is the *loading* window (a gone child is not loading)",
+        "acts on the check that completes its second observation",
     )
     ap.add_argument(
         "--stall",
         type=float,
         default=600.0,
-        help="seconds of zero io AND zero log growth, past --grace, after which a live child is "
-             "declared stuck and stopped (a real load logs or reads something)",
+        help="seconds of zero io AND zero log growth after which a live child is declared "
+             "stuck and stopped; 600 is 4x the 150 s worst case measured across 46 healthy "
+             "boots (2026-11-03)",
     )
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument("--log", default="")
@@ -421,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
         if ok or delta > 0 or log_delta > 0:
             last_progress = time.monotonic()
         idle = time.monotonic() - last_progress
-        stalled = is_stalled(ok, alive, elapsed, args.grace, idle, args.stall)
+        stalled = is_stalled(ok, alive, idle, args.stall)
         if stalled:
             verdict = "stalled"
         print(
@@ -440,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
         dead_for = None if dead_since is None else time.monotonic() - dead_since
         if verdict == "healthy":
             return 0
-        if should_stop(verdict, args.grace, elapsed, args.dead_grace, dead_for):
+        if should_stop(verdict, args.dead_grace, dead_for):
             stop_task(args.task_id, log)
             return 3
         time.sleep(args.interval)

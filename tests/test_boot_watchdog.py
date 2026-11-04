@@ -200,22 +200,25 @@ class StallIsNotLoading(unittest.TestCase):
     """A live child that reads nothing and logs nothing is stuck, and must be stopped."""
 
     def test_a_frozen_boot_past_grace_is_stalled(self):
-        self.assertTrue(bw.is_stalled(False, True, elapsed=1900, grace=1800, idle=1800, stall=600))
+        self.assertTrue(bw.is_stalled(False, True, idle=1800, stall=600))
 
-    def test_a_boot_inside_its_grace_is_not_stalled(self):
-        self.assertFalse(bw.is_stalled(False, True, elapsed=300, grace=1800, idle=300, stall=600))
+    def test_a_silent_boot_inside_the_stall_window_is_not_stalled(self):
+        # Measured 2026-11-03 over 46 healthy boots: the longest zero-io AND zero-log
+        # stretch was 150 s, so 600 s is the 4x margin this test pins.
+        self.assertFalse(bw.is_stalled(False, True, idle=300, stall=600))
+        self.assertFalse(bw.is_stalled(False, True, idle=150, stall=600))
 
     def test_recent_progress_is_not_a_stall(self):
-        self.assertFalse(bw.is_stalled(False, True, elapsed=1900, grace=1800, idle=60, stall=600))
+        self.assertFalse(bw.is_stalled(False, True, idle=60, stall=600))
 
     def test_a_dead_child_is_the_other_path(self):
-        self.assertFalse(bw.is_stalled(False, False, elapsed=1900, grace=1800, idle=1800, stall=600))
+        self.assertFalse(bw.is_stalled(False, False, idle=1800, stall=600))
 
     def test_a_healthy_endpoint_is_never_stalled(self):
-        self.assertFalse(bw.is_stalled(True, True, elapsed=1900, grace=1800, idle=1800, stall=600))
+        self.assertFalse(bw.is_stalled(True, True, idle=1800, stall=600))
 
 class CrashIsAnEdgeNotATimer(unittest.TestCase):
-    """A serve we watched working and then lost is dead at once — no grace window.
+    """A serve we watched working and then lost is dead on the second observed check.
 
     Measured 2026-11-03: `zz-spark-x2.6-4b-int8-sglang` died at t=98 s
     (`NotImplementedError: No implemented int8_scaled_mm for current compute capability`),
@@ -240,7 +243,7 @@ class CrashIsAnEdgeNotATimer(unittest.TestCase):
         """
         self.assertEqual(bw.decide(False, None, 0), "no_probe")
         self.assertEqual(bw.decide(False, None, 5, seen_alive=True, fatal="cuda error"), "no_probe")
-        self.assertFalse(bw.should_stop("no_probe", grace=1800, elapsed=1900, dead_grace=120, dead_for=500))
+        self.assertFalse(bw.should_stop("no_probe", dead_grace=120, dead_for=500))
 
     def test_a_missing_container_is_observed_absence_not_a_failed_probe(self):
         # `docker exec` on a vanished container says so; that is evidence, not silence.
@@ -257,21 +260,20 @@ class CrashIsAnEdgeNotATimer(unittest.TestCase):
     def test_an_answering_endpoint_outranks_every_death_signal(self):
         self.assertEqual(bw.decide(True, False, 5, seen_alive=True, fatal="runtimeerror"), "healthy")
 
-    def test_dead_stops_at_once_while_the_loading_grace_is_untouched(self):
-        # Same elapsed time, two windows: 123 s is 1677 s short of --grace, and irrelevant
-        # to a death the probe observed.
-        self.assertTrue(bw.should_stop("dead", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
-        self.assertFalse(bw.should_stop("loading", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
-        self.assertFalse(bw.should_stop("dead_candidate", grace=1800, elapsed=123, dead_grace=120, dead_for=60))
-        self.assertTrue(bw.should_stop("dead_candidate", grace=1800, elapsed=123, dead_grace=120, dead_for=121))
-        self.assertFalse(bw.should_stop("stalled", grace=1800, elapsed=123, dead_grace=120, dead_for=None))
-        self.assertTrue(bw.should_stop("stalled", grace=1800, elapsed=1801, dead_grace=120, dead_for=None))
+    def test_each_window_acts_on_its_own_evidence(self):
+        # No loading clock survives: a death and a stall each carry their evidence in the
+        # verdict, and only the never-seen-alive candidate keeps a timer.
+        self.assertTrue(bw.should_stop("dead", dead_grace=120, dead_for=None))
+        self.assertFalse(bw.should_stop("loading", dead_grace=120, dead_for=None))
+        self.assertFalse(bw.should_stop("dead_candidate", dead_grace=120, dead_for=60))
+        self.assertTrue(bw.should_stop("dead_candidate", dead_grace=120, dead_for=121))
+        self.assertTrue(bw.should_stop("stalled", dead_grace=120, dead_for=None))
 
     def test_a_fingerprint_miss_is_still_timed(self):
         # The one ambiguous shape: the container never named a matching child. It must not
         # be stopped on sight, because the pid pattern can miss a serve that is loading.
         self.assertEqual(bw.decide(False, False, 1, seen_alive=False), "dead_candidate")
-        self.assertFalse(bw.should_stop("dead_candidate", grace=1800, elapsed=60, dead_grace=120, dead_for=30))
+        self.assertFalse(bw.should_stop("dead_candidate", dead_grace=120, dead_for=30))
 
     def test_the_probe_reports_the_engines_own_last_word(self):
         sample = "MEM 123\nFATAL notimplementederror\n"
