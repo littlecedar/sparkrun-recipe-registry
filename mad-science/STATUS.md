@@ -1,12 +1,11 @@
-# Board — generated 2026-11-04 09:01 ET
+# Board — generated 2026-11-04 10:01 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 09:00:50 ET census and 09:01:01 ET per-rank probe, 3.0 s + 4.0 s wall | **2026-11-04 09:00:50 ET (14:00:50Z), all six nodes from head (read-only ssh):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volume counts **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — eleventh identical read since 02:32, every count and every whole-GB figure repeated. The protected production serve stays out of that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the 09:01:01 ET probe finds `sglang.launch_server` alive in **all four** rank containers (pids 280 / 306 / 301 / 301) with rank 0 answering `/v1/models` **HTTP 200**. No `.local/fleet-window.lock` exists, so no research window is declared — and the pin that is live is the shipped production one, a different class from an unnamed research job. |
-| none | — | **No research workload is live and nothing is claimed.** `.30` and `.35` have read 0 containers / 0 volumes on every census since the tp12 driver exited at 02:26:09. The register holds **24 queued + 6 blocked** of 77 tasks (`task-queue.py check` ok) and no open row carries a `claimed_by`; the priority queue’s top runnable row is `arch-deepgemm-sm12x-paged-sparse` at `queued` (tier 2, 7.0 weight), with its two survey-arm consumers still `blocked` behind it. |
-
+| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 10:00:44 ET census and 10:00:53 ET per-rank probe | **2026-11-04 10:00:44 ET (15:00:44Z), all six nodes from head (read-only ssh, 3.0 s):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volume counts **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — twelfth identical read since 02:32, every count and every whole-GB figure repeated. The protected production serve stays out of that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the 10:00:53 ET probe (2.7 s) finds `sglang.launch_server` alive in **all four** rank containers (pids 280 / 306 / 301 / 301) with `/v1/models` answering **200** from rank 0. No `.local/fleet-window.lock` is present — this is a production serve, not a declared research window, so no window is idle. |
+| none | — | **No research workload is live and nothing is claimed.** `.30` and `.35` have read 0 containers / 0 volumes on every census since the tp12 driver exited at 02:26:09. The register holds **24 queued + 6 blocked** of 77 tasks (`task-queue.py check` ok, 30 open rows = the 30 below) and no open row carries a `claimed_by`; the priority queue’s top runnable row is `arch-deepgemm-sm12x-paged-sparse` at `queued` (tier 2, 7.00 weight, 13.0 est h), with its two survey-arm consumers still `blocked` behind it. |
 
 ## Work queue
 
