@@ -124,6 +124,7 @@ Load-bearing contracts:
 | `tests/` | 52 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
 | `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
+| `campaign/` | The campaign director: `sparkrun_campaign/` (protocol, evidence readers, persisted state, director, worker), its acceptance tests, `DESIGN.md` and `systemd/sparkrun-campaign.service`. A **second uv project** with its own `pyproject.toml`/`uv.lock` and third-party deps allowed (it takes none), deliberately not stdlib-only like `tools/`: `tools/run-arm.sh` stays the per-arm executor and `tools/next-arms.py`'s evidence readers are mirrored rather than imported. Live-zone obligations apply — `DESIGN.md` is the current description, and the gate runs its suite with `uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign` |
 | `benchmarking/` | 35 profiles (32 llama-benchy + `standard-suite.yaml`, the one `tool-eval-bench` profile, + the 2-profile `pooling-bench` ladder) + README index (flat, recipe-agnostic); the families stranded by the lane cuts live in `attic/qwen4/profiles/` and `attic/qwen3/profiles/` |
 | `.sparkrun/registry.yaml` | Registry manifest: `recipes: recipes`, `tuning: tuning`, `benchmarks: benchmarking`, `mods: mods` |
 | `.local/` | Git-ignored: `CONFIDENTIAL.md` (defines `${WOPR_*}` cluster vars), `sparkrun-home/` (HOME override) |
@@ -475,7 +476,7 @@ not by intent:
 
 | zone | paths | obligation |
 |---|---|---|
-| **live** | `recipes/`, `mods/`, `tools/`, `benchmarking/`, `tuning/`, `plugins/`, `.omp/`, and the root files | describes the tree as it is now |
+| **live** | `recipes/`, `mods/`, `tools/`, `benchmarking/`, `tuning/`, `plugins/`, `campaign/`, `.omp/`, and the root files | describes the tree as it is now |
 | **frozen** | `attic/` | provenance, frozen at its date; never updated to match a later tree, never pruned for being out of date |
 | **ledger** | `mad-science/` | working notes and receipts; append then retire, and never the source of a *current* fact |
 
