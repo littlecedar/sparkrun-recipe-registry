@@ -1,0 +1,14 @@
+[project]
+name = "sparkrun-campaign"
+version = "0.1.0"
+description = "Campaign director: owns a multi-arm measurement plan, workers poll it for assignments."
+requires-python = ">=3.12"
+# Empty on purpose. Everything here is stdlib (socket, socketserver, subprocess, json, argparse);
+# DESIGN.md §Dependencies records what was considered and why nothing was taken.
+dependencies = []
+
+[tool.uv]
+# A non-package project: `uv run --project campaign` gives an isolated interpreter and venv
+# without building or installing anything, so no build backend (and no network) is needed and the
+# tree stays importable by path -- `discover -t campaign` puts `sparkrun_campaign/` on sys.path.
+package = false

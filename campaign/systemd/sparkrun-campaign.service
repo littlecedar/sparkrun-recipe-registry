@@ -1,0 +1,43 @@
+# Per-user systemd unit for the campaign director. Install and verify with the exact commands in
+# `campaign/DESIGN.md` §Supervision; nothing here assumes root.
+#
+# Why a user unit: the campaign runs as the account that owns the registry checkout and the
+# cluster's SSH keys, and no step of it needs privilege. `loginctl enable-linger` is what keeps it
+# alive after the last SSH session closes.
+#
+# Nothing about a run is baked into this file. The manifest, the node set and the campaign root come
+# from an EnvironmentFile outside the tracked tree, because a node set written here would publish
+# cluster addresses to a third party -- `tests/test_tracked_address_hygiene.py` fails the gate for
+# exactly that, and it reads tracked files only.
+
+[Unit]
+Description=sparkrun campaign director (multi-arm measurement plan)
+Documentation=file:%h/src/sparkrun-recipe-registry/campaign/DESIGN.md
+# A campaign is hours long: a slow mount or a flapping network must not end it at start-up.
+After=network-online.target
+Wants=network-online.target
+# The default start limit refuses the sixth start in ten seconds. A campaign that keeps crashing
+# should keep resuming -- every start re-reads receipts and reaps stale leases -- until a human
+# reads the journal, so the limiter is off on purpose.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/sparkrun-campaign.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=%h/src/sparkrun-recipe-registry/campaign
+# `/usr/bin/env` resolves `uv` through the PATH above; a hardcoded uv path is wrong on any head
+# that installed it somewhere else. `--frozen` keeps a running campaign on its committed lockfile.
+ExecStart=/usr/bin/env uv run --project %h/src/sparkrun-recipe-registry/campaign --frozen python -m sparkrun_campaign.director serve --manifest ${CAMPAIGN_MANIFEST} --hosts ${CAMPAIGN_HOSTS} --root ${CAMPAIGN_ROOT}
+# A crash is safe to retry: start-up re-reads receipts, expires stale leases and reaps their hosts.
+# A drained campaign exits 0 and stays down -- that is the completion signal, so this is
+# `on-failure`, never `always`.
+Restart=on-failure
+RestartSec=15
+# SIGTERM goes to the director, which signals each worker's process group; `run-arm.sh`'s own trap
+# stops the serve. The grace window is the time that trap needs to run `sparkrun stop`.
+KillMode=mixed
+TimeoutStopSec=120
+
+[Install]
+WantedBy=default.target
