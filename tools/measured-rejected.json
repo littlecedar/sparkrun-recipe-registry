@@ -1,5 +1,5 @@
 {
- "note": "Arms the tree has already measured and refused, for tools/next-arms.py. `arm` is the recipe filename minus `.yaml`; `doc` is the `path:line` whose text records the verdict, and it must be a line that reads as a rejection -- not a plan, a caveat, or a maybe. The planner then prints `skip: <arm> (verdict, doc)` and never places the arm. An entry whose recipe file is gone is reported as `stale-skip` and gates, so a hold cannot outlive the arm it suppressed. Boots already spent are receipted in the cited doc; an entry is deleted when its blocker is measured gone, not when the arm looks interesting again.",
+ "note": "Arms the tree has already refused -- measured-rejected by a boot, or retired on the lane doc's own evidence -- for tools/next-arms.py. `arm` is the recipe filename minus `.yaml`; `verdict` is the lane's word for the refusal; `doc` is the `path:line` whose text records it, and it must be a line that reads as a rejection -- not a plan, a caveat, or a maybe. The planner then prints `skip: <arm> (<verdict>, <doc>:<line>)` and never places the arm. An entry whose recipe file is gone is reported as `stale-skip` and gates, so a hold cannot outlive the arm it suppressed. Boots already spent are receipted in the cited doc; an entry is deleted when its blocker is measured gone, not when the arm looks interesting again.",
  "rejected": [
   {
    "arm": "zz-spark-x2.6-4b-int8-sglang",
@@ -18,6 +18,24 @@
    "verdict": "measured-rejected",
    "doc": "attic/cybersec/AGENTS.md:372",
    "since": "2026-10-15"
+  },
+  {
+   "arm": "zz-spark-x2.6-4b-fp8-ngram-sglang",
+   "verdict": "measured-rejected",
+   "doc": "recipes/explore/README.md:791",
+   "since": "2026-10-25"
+  },
+  {
+   "arm": "qwen3.8-flash-next-uncensored-nvfp4-sglang",
+   "verdict": "measured-rejected",
+   "doc": "recipes/cybersec/README.md:550",
+   "since": "2026-10-30"
+  },
+  {
+   "arm": "qwen3.8-flash-next-uncensored-nvfp4-vllm",
+   "verdict": "retired on evidence",
+   "doc": "recipes/cybersec/README.md:581",
+   "since": "2026-10-30"
   }
  ]
 }

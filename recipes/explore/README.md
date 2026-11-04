@@ -827,6 +827,10 @@ risk.
   cell was measurable, and the only unlock is a newer `sgl_kernel` carrying an sm_121 `int8_scaled_mm`.
   Do not re-boot INT8 on `v0.5.22-cu130`; the FP8 tier already gives the same 4.47 GB footprint with a
   working kernel at 2× the bf16 control's C1.
+- **Re-booted anyway on 2026-11-03 (21:46:01, one free node) and failed identically** — serve died
+  t=98 s on the same `NotImplementedError: No implemented int8_scaled_mm current compute capability`,
+  so the verdict above still stands; the arm is now gated by `tools/measured-rejected.json` (the
+  campaign planner prints this citation and plans nothing for it).
 - **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). Task
   `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`, container removed, 0 containers after.
 

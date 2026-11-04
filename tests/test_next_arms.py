@@ -318,6 +318,9 @@ class SkippedByVerdict(unittest.TestCase):
                 na.free_nodes = orig
         self.assertEqual(rc, 2)
         self.assertIn("stale-skip: no-such-arm-in-tree", err.getvalue())
+        # The message must name the file the entry lives in: "delete the entry" is only one edit
+        # if the operator does not have to find the file first.
+        self.assertIn(rejects, err.getvalue())
 
     def test_an_entry_without_its_citation_is_refused(self):
         """`arm` + `verdict` alone would be an uncited hold; the skip must carry `doc`."""

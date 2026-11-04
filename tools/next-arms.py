@@ -255,8 +255,11 @@ def main(argv: list[str] | None = None) -> int:
     stale = stale_rejections(rejected)
     if stale:
         for entry in stale:
+            # Names the file and the arm so the entry can be deleted in one edit: an operator
+            # reading a drip log should not have to grep the tree to find what to remove.
             print(f"stale-skip: {entry['arm']} ({entry['verdict']}, {entry['doc']})"
-                  " -- no recipe file, so it suppresses nothing", file=sys.stderr)
+                  f" -- no recipes/*/{entry['arm']}.yaml, so it suppresses nothing;"
+                  f" delete the entry from {args.reject_file}", file=sys.stderr)
         return 2
 
     free = free_nodes(nodes)
