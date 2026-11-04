@@ -2537,3 +2537,22 @@ without any ledger copy.
 | 03:53 ET | `7ccac4f` | `tp12-campaign-staging` states its attempt tally instead of “unfinished” (26 arms: 26 start and 26 `rc=` lines, `rc=0` ×14 · `rc=3` ×3 · `rc=4` ×6 · `rc=5` ×2 · `rc=7` ×1) and stays `queued` because only 26 of 42 carry both legs; the three findings are filed as their own rows, each carrying the acceptance test that defines done. |
 | 04:08 ET | `059c08f` | The decision marker now derives `accuracy_status` from the run instead of from configuration — `taken` on success, `failed (rc=N)` when the instrument ran and failed, `not-taken` for the `/v1/completions` arm — so a receipt cannot claim a score an `rc=3` arm never got. |
 | 04:12 ET | `7bce136` | Suite snapshot re-taken after three guard commits landed: 1234 → **1239 tests (2 skipped)**, printed by `unittest discover` on the workstation after `059c08f`; both `AGENTS.md` statements moved together with the date unchanged, since the run is today’s. |
+
+## Board landed rows, 2026-11-04 04:22–04:53 ET
+
+Copied verbatim from the `mad-science/STATUS.md` 14:00 ET board (skill preservation rule), because
+the 04:22 ET run (`2bce09b`) predated these ten: each SHA was grepped in this file and found
+nowhere, so they existed only on the board.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 04:22 ET | `2bce09b` | Eight board-only landings copied verbatim into `mad-science/SESSION-RECORD.md`; the re-run detector reads 0 homeless over 68 rows. |
+| 04:27 ET | `9b27ad4` | The solo Flash-Next ladder's "defect-shaped" number gets its cause: a ~62 s PLE disk-table read per engine step — 40 stall blocks, 2,494 s of the 6,499 s ladder — with the pool's 851/18,512 reads/s at depth 1/64 against node-local 4,559/74,986, so the missing factor is the reader's io_uring depth (`recipes/qwen4/README.md`). |
+| 04:29 ET | `b668b72` | The pooling and decision receipt markers carry the ladder's own exit status, so a partial artifact reads `ladder: failed (rc=N)` instead of `ok`; the partial-artifact fixture is the negative control (`tools/run-arm.sh`, `tests/test_run_arm_tool.py`). |
+| 04:32 ET | `899f907` | Suite snapshot 1239 → **1241 tests (2 skipped)**, both `AGENTS.md` statements moved together. |
+| 04:34 ET | `437718b` | `tools/next-arms.py` decides a re-attempt from parsed ladder cells plus the marker's failure field instead of file presence, so a truncated ladder and a marker-only decision arm both count correctly — the 82 real ladders on the head yield the same 62 measured arms before and after (`tests/test_next_arms.py`). |
+| 04:39 ET | `cfd8ca5` | The receipt-state table names its three readers and states that `ladder` and `accuracy_status` are independent instruments, so a failed ladder beside a taken score is not a contradiction (`tools/README.md`). |
+| 04:41 ET | `d1d0d07` | `ple-disk-read-regression` narrows to the one open number — the reader's effective io_uring depth on BeeGFS — with a no-boot iodepth sweep as the acceptance test and its estimate 4 h → 2 h. |
+| 04:43 ET | `8038ad1` | The driver row records the presence-only `have()` predicate (`drive.sh:32-38`) that makes the driver and the planner read the same receipt differently. |
+| 04:48 ET | `36e8e30` | Suite snapshot 1241 → **1247 tests (2 skipped)**, re-derived by a run rather than copied. |
+| 04:53 ET | `ec9f088` | `AGENTS.md` gains the pathspec-commit hazard — `git commit -- <paths>` publishes the file's whole content, so a shared file ships a peer's half-finished hunk under this session's subject, measured twice today (`ab82517`, `8038ad1`). |
