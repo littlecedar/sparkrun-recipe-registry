@@ -2141,6 +2141,29 @@ Five caveats belong to that finding, and none of them is resolvable from this ho
   (8,448 mod 512 = 256, fails) and 64 × 68 = 4,352 B for MXFP4 (mod 512 = 256, fails), while
   `page_kv = 128` gives 16,896 B and 8,704 B (both mod 512 = 0, pass). Note att5's
   `dsv41_index_page_size → 64` in §19.1.
+- **RESOLVED 2026-11-03 — the stride is a pitch guard, not a kernel contract, and `dev` does not have it
+  at all.** Read at both trees: the `% 512` assertion exists only in `deepseek-ai/DeepGEMM@nv_dev`
+  (`sm120_fp8_fp4_sparse_mqa_logits.hpp:81`), while `sgl-project/DeepGEMM@dev` — the backport target —
+  carries **no** SM120 sparse kernel and no 512 rule anywhere; its sparse entry points still assert
+  `arch_major == 10` (`csrc/apis/attention.hpp:358,389,425,459,494`) and its SM120 *paged MQA-logits*
+  launcher takes the page pitch from the tensor, gated only by a 16-byte global-stride check
+  (`runtime_utils.hpp:179-181`) and a `% 128` page rule (`attention.hpp:474-478`). 512 is not a hardware
+  requirement: the kernel addresses pages as `page_idx * page_stride`
+  (`sm120_fp8_fp4_sparse_mqa_logits.cuh:97-108`) and copies KV as 16-byte `cp.async` (`:247,262-280`), and
+  nv_dev's own test satisfies its assert at `page_kv = 64` simply by padding the pitch to
+  `ceil(page_bytes, 512) * 512` while dev's sibling test pads to only 128 (`tests/test_attention.py`
+  674-681 both trees). So the arithmetic above is right and the conclusion from it was wrong: the fix is
+  the guard, one line — `% 512` → `% 128` at `sm120_fp8_fp4_sparse_mqa_logits.hpp:81` — not a page-size
+  change, a tensor-map change or a re-layout. **And the real gate is elsewhere**: SGLang's
+  `configurer.py:54` sets `DEEPGEMM_BLACKWELL = is_sm100`, which excludes SM121 (`is_sm100_supported`
+  majors `[10]` vs `is_sm120_supported` `[12]`, `utils/common.py:284-293`), so today the backported kernel
+  would be unreachable on GB10 no matter how it is built. That flag is the first thing to change, and it
+  is why flipping the sparse path on is a two-part edit: kernel present, gate opened.
+- **Note the consumer's page is not 64 bytes.** `dsv41_index_page_size()` returns **128** whenever
+  `DEEPGEMM_PAGED_SPARSE_MQA_LOGITS` is on (`deepseek_v4_memory_pool.py:534-542`), which yields 8,704 /
+  16,896 B pitches — both exact multiples of 512. Page 64 is the *sparse-off* value, so with the flag
+  flipped the 512 guard would pass even unpatched; the `% 128` relaxation is what keeps the intent
+  legible (and is what `dev` itself uses for the same layout).
 - **The rest of the paged contract is unchanged:** one token per row (`q.size(1) == 1`), `page_kv` a
   multiple of `sparse_block_kv ∈ {8, 16}`, and the same `num_max_sparse_blocks` limits
   (`sm120_fp8_fp4_sparse_mqa_logits.hpp:43-81`). SGLang's flattened varlen rows satisfy the first by
