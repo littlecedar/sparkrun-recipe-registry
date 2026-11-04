@@ -683,7 +683,9 @@ def classify_image_build_input(ref, fetcher, path, field):
     the same tag resolving elsewhere is `build-input-current` with the live
     digest recorded — only a *retired* tag (the release series moved on) is
     `build-input-newer-release`, and that is report-only (never `--apply`).
-    A tag with no digest is the reproducibility defect: `build-input-floating`.
+    A tag with no digest is a reproducibility defect: `build-input-floating`,
+    but whether the tag exists is the registry's answer: a 404 gates as
+    `build-input-unresolvable`, an unreachable registry stays floating.
     """
     info = parse_container_ref(ref)
     if info["error"]:
@@ -691,8 +693,31 @@ def classify_image_build_input(ref, fetcher, path, field):
                     reason=info["error"])
     host, repo, tag, digest = info["host"], info["repo"], info["tag"], info["digest"]
     if not digest:
+        if not tag:
+            return _row(BUILD_INPUT_FLOATING, "dockerfile", path, field, ref,
+                        reason="no tag and no digest: build is not reproducible")
+        # Same registry answer `classify_container` asks for: a tag nothing
+        # publishes cannot build at all, an unreachable registry proves nothing.
+        lookup = {"docker.io": hub_manifest_digest,
+                  "ghcr.io": ghcr_manifest_digest}.get(host)
+        if lookup is None:
+            return _row(BUILD_INPUT_FLOATING, "dockerfile", path, field, ref,
+                        reason="tag without digest: build is not reproducible; "
+                               f"no registry adapter {host!r}, so tag existence "
+                               "unverified")
+        try:
+            got = lookup(repo, tag, fetcher)
+        except FetchError as exc:
+            if exc.status == 404:
+                return _row(BUILD_INPUT_UNRESOLVABLE, "dockerfile", path, field, ref,
+                            reason=f"tag without digest, and {host}/{repo}:{tag} "
+                                   "does not exist in registry: no build can pull it")
+            return _row(BUILD_INPUT_FLOATING, "dockerfile", path, field, ref,
+                        reason="tag without digest: build is not reproducible; "
+                               f"tag existence unverified ({exc.reason})")
         return _row(BUILD_INPUT_FLOATING, "dockerfile", path, field, ref,
-                    reason="tag without a digest: the build is not reproducible")
+                    observed=got["digest"], cached_at=got["cached_at"],
+                    reason="tag without digest: build is not reproducible")
     if not tag:
         return _row(BUILD_INPUT_CURRENT, "dockerfile", path, field, ref,
                     reason="digest-only pin; no tag tracked, so nothing can move")

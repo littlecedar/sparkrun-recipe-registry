@@ -485,12 +485,60 @@ class BuildInputs(unittest.TestCase):
         row = self._classify("ns/img:t@" + OLD_DIGEST, hub_rules("ns", "img", "t", OLD_DIGEST))
         self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_CURRENT)
 
-    def test_tag_only_from_is_floating(self):
+    def test_tag_only_from_with_live_tag_is_floating_but_observed(self):
+        row = self._classify("ns/img:t",
+                             tag_only_rules((200, {"docker-content-digest": NEW_DIGEST}, "{}")))
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_FLOATING)
+        self.assertEqual(row["observed"], NEW_DIGEST, "the answer is evidence, not a guess")
+        self.assertNotIn("unverified", row["reason"])
+
+    def test_tag_only_from_with_missing_tag_is_unresolvable(self):
+        row = self._classify("ns/img:gone",
+                             tag_only_rules(sweep_tool.FetchError("x", "HTTP 404", 404),
+                                            tag="gone"))
+        self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_UNRESOLVABLE)
+        self.assertIn("docker.io/ns/img:gone", row["reason"], "name the missing tag")
+        self.assertIn(sweep_tool.BUILD_INPUT_UNRESOLVABLE, sweep_tool.DRIFT_CLASSES)
+
+    def test_tag_only_from_registry_error_is_not_a_missing_tag(self):
+        # A 503/429 unreachable registry, not a dead tag: must never gate 2.
+        # 429 matters on a hosted runner — the Hub rate-limits nightly.
+        for failure in (sweep_tool.FetchError("x", "HTTP 503", 503),
+                        sweep_tool.FetchError("x", "HTTP 429", 429),
+                        sweep_tool.FetchError("x", "URLError: timed out")):
+            row = self._classify("ns/img:t", tag_only_rules(failure))
+            self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_FLOATING)
+            self.assertIn("unverified", row["reason"])
+            self.assertIn("tag without digest", row["reason"])
+
+    def test_tagless_from_stays_floating_without_a_probe(self):
+        # `FROM ubuntu` names no tag to ask the registry about.
         fetch = FakeFetch([])
         row = sweep_tool.classify_image_build_input(
-            "ns/img:t", sweep_tool.Fetcher(fetch=fetch), "df", "FROM")
+            "ubuntu", sweep_tool.Fetcher(fetch=fetch), "df", "FROM")
         self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_FLOATING)
-        self.assertEqual(fetch.calls, [], "a floating ref needs no registry call")
+        self.assertEqual(fetch.calls, [], "nothing to resolve without a tag")
+
+    def test_control_tag_only_from_is_not_resolved(self):
+        """Negative control: with the registry lookup reverted to an assumption,
+        a missing tag passes silently as `build-input-floating` (exit 1)."""
+        import types
+
+        src = TOOL.read_text(encoding="utf-8")
+        broken = src.replace(
+            'lookup = {"docker.io": hub_manifest_digest,\n'
+            '                  "ghcr.io": ghcr_manifest_digest}.get(host)',
+            "lookup = None")
+        self.assertNotEqual(broken, src, "tag lookup vanished; update control")
+        module = types.ModuleType("refresh_sweep_pre_fix")
+        module.__file__ = str(TOOL)
+        exec(compile(broken, module.__file__, "exec"), module.__dict__)
+        rules = tag_only_rules(sweep_tool.FetchError("x", "HTTP 404", 404), tag="gone")
+        row = module.classify_image_build_input(
+            "ns/img:gone", module.Fetcher(fetch=FakeFetch(rules)), "df", "FROM")
+        self.assertEqual(row["class"], module.BUILD_INPUT_FLOATING)
+        self.assertEqual(self._classify("ns/img:gone", rules)["class"],
+                         sweep_tool.BUILD_INPUT_UNRESOLVABLE)
 
     def test_retired_tag_is_newer_release(self):
         rules = [("hub.docker.com/v2/repositories/ns/img/tags/gone",
@@ -526,6 +574,23 @@ class BuildInputs(unittest.TestCase):
             rows = [r for r in report["rows"] if r["scope"] == "dockerfile"]
             self.assertEqual([r["class"] for r in rows], [sweep_tool.BUILD_INPUT_CURRENT])
             self.assertEqual(report["totals"]["build_inputs"], 1)
+
+    def test_tag_only_from_naming_no_image_gates_as_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_tree(root, {
+                "recipes/lane/a.yaml": RECIPE.format(pin=PIN, container="ns/img:t@" + OLD_DIGEST),
+                "recipes/lane/Dockerfile.x": "FROM ns/img:gone AS build\n",
+            })
+            rules = all_rules(
+                hub_rules("ns", "img", "t", OLD_DIGEST)
+                + tag_only_rules(sweep_tool.FetchError("x", "HTTP 404", 404), tag="gone")
+                + hf_rules("Org/Model", PIN))
+            code, report = run_quiet(["--exit-code"], fetch=FakeFetch(rules), root=tmp)
+            self.assertEqual(code, 2)
+            row = [r for r in report["rows"] if r["scope"] == "dockerfile"][0]
+            self.assertEqual(row["class"], sweep_tool.BUILD_INPUT_UNRESOLVABLE)
+            self.assertIn("ns/img:gone", row["reason"])
 
 
 class Acceptance(unittest.TestCase):
