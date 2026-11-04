@@ -1212,6 +1212,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "strict-roster-remeasure",
+      "title": "Re-measure the --strict finding roster so the AGENTS.md claim is exactly true",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "python-runtime",
+      "node_cost": "single",
+      "notes": "FOUND 2026-11-04 while moving the ablated 122B arm: 'sparkrun recipe validate --strict' on that arm reports suggestion 'restated-managed-path' (its pre_exec refs/main seed), and the arm is not in the AGENTS.md roster, which states the --strict findings are EXACTLY that roster. The finding is path-independent and predates the move, so the roster was already incomplete — the move only made it noticeable. Work: run --strict over every tracked recipe under the register's own HOME override (/home/siv/src/sparkrun-recipe-registry/.local/sparkrun-home, the gate's command), diff the findings against the roster table, and rewrite the table to what the run prints, re-stamping the dated snapshot with the day of that run. Do not add an exemption for this arm without checking whether it is one of the documented deliberate warnings — a suggestion that means 'deliberate /cache/runtime path' may be the known false-positive class, in which case say so in the roster instead of dropping it. Acceptance: a re-run of the gate's validate loop produces exactly the roster's rows, and the roster's date is the run's date. Falsifier: a --strict finding on any tracked recipe that the roster does not name.",
+      "provenance": "recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml (moved from ornith/ in ed0e14c); AGENTS.md:18 roster",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
