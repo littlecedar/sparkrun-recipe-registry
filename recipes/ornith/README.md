@@ -984,6 +984,18 @@ been booted. Nothing here is a throughput result: **no decode rate is recordable
 arm until one serves coherently**, and a boot that emits salad has no C1 to compare against the
 shipped arm's 37.7 t/s.
 
+The same `Expected 'Paris'. Got: ...` print also arises from a harness limit rather than a model
+fault: llama-benchy v0.4.0's coherence probe asks for **100 tokens** and grades
+`content + reasoning + reasoning_content`, so a thinking model whose preamble runs past 100 tokens
+fails the gate with an empty `content` — measured on a different lane's arm on 2026-11-03, not this
+one. **This arm is not that case.** Its reasoning channel held token salad (`ess-de chose midstinal
+二是.pass.appe…` recorded with `content` empty, `chat_template_kwargs` omitted), and a probe that
+concatenates all three channels before grading cannot mistake salad for a truncated preamble: had
+100 tokens of coherent reasoning arrived, `full_content` would have carried them. The empty `content`
+here is a second symptom of the same corruption, not a budget artefact. So every conversation about
+this arm has to quote `reasoning_content`, never `content` alone — the failure print shows only the
+latter.
+
 Owner directive: keep the arms and debug them, template and parsers first. Template first is cheap —
 it is answered below from bytes already on the Hub, without a boot.
 
@@ -1128,6 +1140,17 @@ score and it is the same prefill story: 12 s to first token at c10.
 
 That makes this arm the 122B family's first finetune that both serves coherently and measures well — and
 it makes the dealignai negative cheap to believe, because the two arms differ only in export layout.
+##### `zz-cyankiwi-…-AWQ-INT4` — boot failed, cause not captured (2026-11-03)
+
+`rc=4` (never ready) after 38 minutes on `.30`, and **`serve logs harvested: 0`** — the container was
+gone before teardown could copy them, so there is no error to read. That is a missing instrument, not a
+verdict: the export's scheme is supported on paper (`compressed-tensors`, `pack-quantized`, 4-bit,
+group 32, `actorder: null`, and `CompressedTensorsWNA16` accepts exactly that shape at v0.5.22 —
+`compressed_tensors.py:656-658,742-743`, whose only rejection is `actorder` *with* the Triton WNA16 MoE
+backend at `:916-921`). So the next attempt must capture `docker logs` while the container lives rather
+than relying on the receipt's copy, and until it does, this arm has **no** result — neither negative nor
+positive. It is queued behind the current sweep; both nodes are busy with the TP≤2 campaign.
+
 **It keeps `zz-` until someone decides its disposition**: it is an abliterated model, so anyone serving it
 takes its guardrail on themselves, and promotion is the owner's call rather than a numbers question.
 

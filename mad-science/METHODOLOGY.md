@@ -90,6 +90,18 @@ because the mamba/GDN state pool binds concurrency: raising it trades a measurem
 c10 rungs stay **slot-limited and footnoted**, never overridden. The 42-arm TP≤2 manifest contains no
 llama.cpp arm, which is why the same rule has an enforcement in one engine and a footnote in the other.
 
+**The coherence probe is a 100-token, single-turn, one-word test — read it, do not just count it
+(2026-11-03).** `llama_benchy/client.py:191-219` (v0.4.0) asks *"What is the capital of France? Please
+reply with one word only"* with `max_tokens=100`, sends **no** `chat_template_kwargs`, and accepts
+"paris" from `content`, `reasoning` or `reasoning_content`; the `Got: …` in the report is
+`content[:200]` followed by a literal ellipsis, so `Got: ...` means the content channel was **empty**,
+not that it was short. Two consequences for a failing arm: a thinking model can spend the whole 100
+tokens reasoning and return empty content while being perfectly coherent (so a lone empty-`Got` failure
+is a harness question, re-probe with 512 tokens and `enable_thinking=false` before writing a negative),
+and genuine degeneration looks different — `ductductduct…` or mixed-script fragments is the weights,
+which no re-probe rescues. Both 122B finetune outcomes above were confirmed this way: the salad was
+visible garbage at 60 tokens, the coherent arm answered in 8.
+
 **Concurrency does not clamp the server.** Offering c = 40 to a server whose pool grants 20 produces 20 running requests plus a queue. Capacity is judged from `#running-req` and `full token usage` in the server log, never from the profile's own concurrency field.
 
 ### Flavors of cell in the tables
