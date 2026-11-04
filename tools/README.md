@@ -46,8 +46,19 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 | `boot-watchdog.py` | every boot on the shared fleet (any lane) | the keep-alive-masks-dead-serve defect (`21e5ec6`): endpoint `/v1/models` + in-container serve-pid liveness + `/proc/<pid>/io` deltas separate *loading* from *dead*, so no session sits on a boot that will never be ready. A death the probe observes — the child gone after it was seen alive, or `/tmp/sparkrun_serve.log` ending on a fatal line — is stopped on the second consecutive observation, no loading grace; a *failed* probe (`ssh`/exec error, no `LOGSIZE`) is `no_probe` and never counts, because a loading boot's endpoint is down too; `--dead-grace` (120 s) covers only a child never found, and `--stall` (600 s of zero io AND zero log — 4x the 150 s worst silence measured over 46 healthy boots) a live-but-frozen one (`--interval 10` from `run-arm.sh`, which also polls this pid so a dead boot ends the arm in one probe rather than its 2250 s loop); evidence log, exit 3 = dead+killed / 0 = healthy; guarded by `tests/test_boot_watchdog.py` |
 | `doc-census.py` | the documentation corpus itself — the live-zone entry points that state global counts | derives the four exactly-derivable counts (tracked recipes, test modules, benchmark profiles, `SKILL.md` dirs) and fails `--check` when `AGENTS.md` or `README.md` disagrees with the tracked tree; `--fix` rewrites the digits; prints the per-zone census (files, lines, largest docs); guarded by `tests/test_doc_hygiene.py`; the zone policy is `AGENTS.md` §"Documentation zones" |
 
+**A watchdog stop captures the serve log first.** `boot-watchdog.py` copies the container's
+`/tmp/sparkrun_serve.log` into `serve-reaped-<container>.log` beside its own `--log` (first line:
+size and mtime) **before** it issues `sparkrun stop`, because that stop removes the container and
+`run-arm.sh`'s post-readiness harvest then finds nothing: measured 2026-11-04, an arm whose serve
+died at t=32 s was stopped at t=43 s and reported `serve logs harvested: 0`, losing its rank-0
+crash text. The capture is best-effort — a failed copy is logged with its outcome and never delays
+or blocks the stop. **Its limit is one host:** a TP=2 arm's rank-1 container lives on the other
+node, so only rank 0's log is preserved; `--node` names a single host and probing both is out of
+scope for now.
+
 ## Contents
 
+- [run-arm.sh pooling receipts](#runarmsh-pooling-receipts)
 - [eval-suite.py (the SOP pass)](#eval-suitepy-the-sop-pass)
 - [safe_text.py](#safe_textpy)
 - [pooling-bench.py](#pooling-benchpy)
@@ -69,6 +80,37 @@ Disposition audited 2026-10-11; the standard-suite trio (`eval-suite.py`, `agent
 - [diarize-score.py / diarize-fixture.py](#diarize-scorepy--diarize-fixturepy)
 - [enable-io-uring.py / enable-io-uring.sh](#enable-io-uringpy--enable-io-uringsh)
 - [task-queue.py](#task-queuepy)
+
+## run-arm.sh pooling receipts
+
+An embed/rerank arm takes no chat suite, so `run-arm.sh` gives it a deliberately different receipt
+from every other arm, and a consumer deciding whether the arm is finished has to read it by that
+contract rather than by "a house file exists". A completed pooling receipt holds `ladder.yaml` (plus
+the `ladder.json` sidecar sparkrun's exporter adds, `plugins/pooling_bench_framework.py` returning a
+`json` payload), `ladder.log`, `house.log` — the human line, `suite: n/a (pooling arm …)` — and
+`house.yaml`, the machine-readable statement of the same gap:
+
+```yaml
+suite: n/a
+reason: pooling arm — the chat suite cannot address /v1/embeddings or /v1/rerank
+kind: embed          # embed | rerank
+ladder: ok
+```
+
+**It deliberately holds no `ladder.csv` and no `house.json`/`house.csv`.** The pooling framework's
+`parse_results` returns `{"json", "stdout"}` and no `csv` string, and the exporter writes a sidecar
+only for a format the framework handed it — so a csv here would be columns nothing measured, the same
+reason the suite side is a statement instead of numbers: a pooling engine answers `/v1/embeddings` or
+`/v1/score`, never `/chat/completions`, so the suite has no rows at all. **And a failed ladder writes
+no `house.yaml`**, because the ladder's `rc=2` does not exit: a marker written unconditionally would
+let a presence test read a pooling arm whose ladder died as finished, and the `ladder: ok` inside it
+would be a false claim. So read the field when the question is whether the ladder measured, and read
+a missing `house.yaml` as unfinished. The defect this replaced is measured, not hypothetical: three
+`rc=0` pooling arms on 2026-11-04 (`qwen3-vl-embedding-8b-awq-4bit-vllm-b12x` and both
+`qwen3-vl-reranker-*` arms) carried `house.log` only, so the campaign driver's ladder-plus-house
+predicate re-attempted each of them. Guarded by `tests/test_run_arm_tool.py` `PoolingReceipt`, which
+executes the branch against a stub `sparkrun` and carries controls that rebuild the pre-fix receipt
+and a marker written without the ladder guard.
 
 ## eval-suite.py (the SOP pass)
 

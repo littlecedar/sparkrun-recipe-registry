@@ -25,7 +25,10 @@ distinction explicit and acts on it:
     miss)                                                      -> dead_candidate, timed
   * child alive, endpoint dead, no io and no log growth for
     `--stall` (600 s; 4x the worst silence measured on a healthy boot) -> stalled
-  dead/stalled: `sparkrun stop <task-id>` (literal id), evidence to --log, exit 3.
+  dead/stalled: the container's `/tmp/sparkrun_serve.log` is captured to
+    `serve-reaped-<container>.log` beside --log FIRST (the stop destroys it, and a
+    fast-reaped arm's crash text is the whole diagnosis), then `sparkrun stop <task-id>`
+    (literal id); evidence to --log, exit 3.
 
 Two floors, both cheap at `--interval 10`: the second observed check rides out one bad
 sighting (a pgrep miss across a re-exec), and `no_probe` keeps a broken instrument out of
@@ -52,6 +55,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 SERVE_PATTERN = "tensorfold|llama-server|sglang|vllm|python3|python"
 
@@ -302,6 +306,76 @@ def resolve_container(node: str, task_id: str) -> str:
     return pick_container([n.strip() for n in out.splitlines() if n.strip()], task_id)
 
 
+def capture_serve_log(node: str, container: str, out_dir: Path, log) -> Path | None:
+    """Copy the serve log out of the container before the stop makes it unreachable.
+
+    `run-arm.sh` harvests `/tmp/sparkrun_serve.log` after readiness, but a watchdog-driven
+    stop removes the container first, so the arms that die fastest -- exactly the ones whose
+    log names the cause -- arrived as `serve logs harvested: 0 (0 means the log was gone)`
+    (measured 2026-11-04: a negative arm booted, died at t=32 s, was stopped at t=43 s, and
+    its rank-0 crash text was lost). Written beside this watchdog's own `--log` as
+    `serve-reaped-<container>.log`, first line carrying the log's size and mtime, so the
+    receipt can say whether the capture happened. Best-effort by construction: every failure
+    is logged and returns None, and it must never delay or prevent the stop that follows.
+
+    LIMIT: this captures the one node the probe runs against. A TP=2 arm's rank-1 container
+    lives on the other host, so its serve log is still lost -- `--node` names a single host
+    and probing a second one is out of scope here.
+    """
+    script = (
+        "f=/tmp/sparkrun_serve.log\n"
+        'if [ -r "$f" ]; then\n'
+        '  echo "META $(wc -c < "$f") $(stat -c %Y "$f")"\n'
+        '  cat "$f"\n'
+        "else\n"
+        '  echo "MISSING"\n'
+        "fi\n"
+    )
+    try:
+        proc = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", f"red@{node}", f"docker exec -i {container} sh -s"],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        print(f"WATCHDOG: serve-log capture for {container} failed: {exc}", file=log, flush=True)
+        return None
+    out = proc.stdout or ""
+    if not out.startswith("META "):
+        detail = (
+            "serve log absent in the container"
+            if out.startswith("MISSING")
+            else (proc.stderr or "").strip()[:160] or "no output from docker exec"
+        )
+        print(
+            f"WATCHDOG: serve-log capture for {container}: nothing captured ({detail})",
+            file=log,
+            flush=True,
+        )
+        return None
+    dest = out_dir / f"serve-reaped-{container}.log"
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        dest.write_text(out, encoding="utf-8")
+    except OSError as exc:
+        print(
+            f"WATCHDOG: serve-log capture for {container} could not write {dest}: {exc}",
+            file=log,
+            flush=True,
+        )
+        return None
+    meta = " ".join(out.splitlines()[0][len("META ") :].split())
+    print(
+        f"WATCHDOG: serve log captured for {container}: {dest} (size/mtime={meta})",
+        file=log,
+        flush=True,
+    )
+    return dest
+
+
 def stop_task(task_id: str, log) -> None:
     subprocess.run(
         ["sparkrun", "stop", task_id],
@@ -377,6 +451,9 @@ def main(argv: list[str] | None = None) -> int:
 
     container = args.container or resolve_container(args.node, args.task_id)
     log = open(args.log, "a", encoding="utf-8") if args.log else sys.stdout  # noqa: SIM115 (whole-run handle)
+    # A stop tears the container down, so a serve log captured after it does not exist:
+    # the evidence file lands beside this watchdog's own log (cwd when --log is unset).
+    log_dir = Path(args.log).expanduser().resolve().parent if args.log else Path.cwd()
     started = time.time()
     consecutive_dead = 0
     prev_io: tuple[int, int] | None = None
@@ -436,6 +513,7 @@ def main(argv: list[str] | None = None) -> int:
         if verdict == "healthy":
             return 0
         if should_stop(verdict, args.dead_grace, dead_for):
+            capture_serve_log(args.node, container, log_dir, log)
             stop_task(args.task_id, log)
             return 3
         time.sleep(args.interval)

@@ -10,8 +10,11 @@ lines are also pinned, since they are what proves a load progressing.
 """
 
 import importlib.util
+import subprocess
 import sys
+import tempfile
 import unittest
+import unittest.mock as mock
 from pathlib import Path
 
 TOOL_PATH = Path(__file__).resolve().parents[1] / "tools" / "boot-watchdog.py"
@@ -281,4 +284,100 @@ class CrashIsAnEdgeNotATimer(unittest.TestCase):
         # No match is not a verdict: an empty marker must never read as a cause.
         self.assertIsNone(bw.parse_fatal("MEM 123\nFATAL \n"))
         self.assertIsNone(bw.parse_fatal("PID 42\nMEM 123\n"))
+
+
+class ServeLogIsCapturedBeforeTheStop(unittest.TestCase):
+    """A watched death must leave the log that explains it, and the stop destroys that log.
+
+    Measured 2026-11-04 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`): the boot died at
+    t=32 s, the watchdog correctly stopped it at t=43 s, and the arm then reported
+    `serve logs harvested: 0 (expected one per running rank; 0 means the log was gone)` --
+    rank 0's crash text was never written down. The arms that fail fastest are exactly the
+    ones whose evidence matters most, so capture runs ahead of the stop.
+
+    Asserted behaviourally, by the recorded call order: the capture (`ssh ... docker exec`)
+    must come before `sparkrun stop`. Against the pre-fix file
+    (`git show HEAD:tools/boot-watchdog.py`) the only recorded call is the stop, so the
+    capture assertion fails there — these are controls, not restatements of the source.
+    """
+
+    CAPTURE = "META 12 1700000000\nTraceback (most recent call last):\n"
+
+    def drive_to_one_dead_verdict(
+        self, capture_stdout: str = CAPTURE, capture_error: BaseException | None = None
+    ) -> tuple[int, list[list[str]], Path]:
+        """Run main() until it stops the task; return (rc, recorded argv, receipt dir)."""
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **_kwargs):
+            calls.append(list(argv))
+            if argv[0] == "ssh":
+                if capture_error is not None:
+                    raise capture_error
+                return mock.Mock(stdout=capture_stdout, stderr="")
+            return mock.Mock(stdout="", stderr="")
+
+        tmp = Path(tempfile.mkdtemp())
+        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+        with (
+            mock.patch.object(bw, "subprocess", fake),
+            mock.patch.object(bw, "http_ok", return_value=False),
+            # Child gone and never seen alive: a `dead_candidate`, which `--dead-grace 0`
+            # stops on its first observation — the fast-reap shape this guard is about.
+            mock.patch.object(bw, "serve_state", return_value=(False, None, 0, None, None)),
+        ):
+            rc = bw.main([
+                "--endpoint", "http://127.0.0.1:1",
+                "--task-id", "abc123",
+                "--node", "n1",
+                "--container", "sparkrun_abc123_solo",
+                "--interval", "0",
+                "--dead-grace", "0",
+                "--log", str(tmp / "watchdog.log"),
+            ])
+        return rc, calls, tmp
+
+    def test_the_capture_precedes_the_stop(self):
+        rc, calls, tmp = self.drive_to_one_dead_verdict()
+
+        self.assertEqual(rc, 3, "a dead boot must exit 3")
+        stops = [i for i, argv in enumerate(calls) if argv[:2] == ["sparkrun", "stop"]]
+        captures = [i for i, argv in enumerate(calls) if argv[0] == "ssh"]
+        self.assertEqual(len(stops), 1, "the task must be stopped exactly once")
+        self.assertTrue(captures, "no serve-log capture was attempted; the stop erases it")
+        self.assertLess(captures[0], stops[0], "the stop ran before the capture, losing the log")
+
+        written = (tmp / "serve-reaped-sparkrun_abc123_solo.log").read_text()
+        self.assertTrue(
+            written.startswith("META 12 1700000000"), "the capture does not record size and mtime"
+        )
+        self.assertIn("Traceback", written, "the capture is not the container's serve log")
+        log_text = (tmp / "watchdog.log").read_text()
+        self.assertIn("serve log captured for sparkrun_abc123_solo", log_text)
+        self.assertIn(str(tmp / "serve-reaped-sparkrun_abc123_solo.log"), log_text)
+
+    def test_a_failed_capture_never_prevents_the_stop(self):
+        """Best-effort by construction: a broken ssh, an absent log, a refused exec."""
+        cases = {
+            "ssh error": {"capture_error": OSError("ssh: command not found")},
+            "log absent": {"capture_stdout": "MISSING\n"},
+            "refused exec": {"capture_stdout": ""},
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(case=name):
+                rc, calls, tmp = self.drive_to_one_dead_verdict(**kwargs)
+                self.assertEqual(rc, 3, "the stop must happen whatever the capture does")
+                self.assertIn(
+                    ["sparkrun", "stop", "abc123"], calls, "a failed capture blocked the stop"
+                )
+                self.assertIn("serve-log capture for sparkrun_abc123_solo", (tmp / "watchdog.log").read_text(),
+                              "the watchdog log does not say whether the capture happened")
+                self.assertFalse(
+                    (tmp / "serve-reaped-sparkrun_abc123_solo.log").exists(),
+                    "an empty capture was written as if it were evidence",
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()
 
