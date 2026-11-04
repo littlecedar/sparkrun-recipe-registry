@@ -1,4 +1,4 @@
-# Board — generated 2026-11-04 02:19 ET
+# Board — generated 2026-11-04 02:37 ET
 
 ## In flight
 
@@ -98,3 +98,4 @@
 | 01:54 ET | `94a793d` | 29 of the board's landed rows named a SHA that appeared nowhere in the ledger, so each was copied verbatim into `mad-science/SESSION-RECORD.md` before the table is cleared at handoff; the same append records that `5d96c80`'s `git commit --amend -- <path>` swept a peer's staged hunks. |
 | 01:55 ET | `ab82517` | `tools/boot-watchdog.py` copies the container's `/tmp/sparkrun_serve.log` beside the watchdog log before stopping it, because a stop at t=43 s had already deleted the diagnosis of a serve that died at t=32 s; the rank-1 gap of a TP=2 arm is stated rather than assumed (`tests/test_boot_watchdog.py`). |
 | 02:15 ET | `0c8e50b` | Tonight's `rc=0` campaign arms get their cells in their own lane docs — ling-3.0 47.30/67.73/109.70/89.82 and nemotron 63.37/93.32/122.71/145.01 t/s, the 122B MTP arm 37.40/51.05/70.86/83.05 t/s +39 % C1 over its no-drafter control, the pooling pair 15.50/17.39/20.84/22.20 and 71.70/79.72/82.88/83.18 units/s, clef-flash 5.73–6.42 req/s — and the cybersec vLLM sibling's recorded reason is corrected: it dies in `ModelConfig` on `layer_types: qwen_sparse_attention`, absent from the pinned image's backend vocabulary (`recipes/{explore,ornith,embed,rerank,decision,cybersec,qwen4}/README.md`). |
+| 02:26 ET | — (measurement, no commit) | **The tp12 campaign finished** — `zz-qwen38-next-vllm-tp2-pinned` closed `rc=0` at 02:25:39, `=== stream tp2 drained (8 arm(s))` and `=== sweep complete` at 02:26:09, and `.30`+`.35` read 0 containers at the 02:32:10 census. Every one of the 26 arms `remaining.tsv` listed at 21:18 has a terminal line in `sweep.log` (intersected by name, not by counting starts): **14 `rc=0`** and **12 boot-gate deaths** (3×`rc=3`, 6×`rc=4`, 2×`rc=5`, 1×`rc=7`), the last three of those being labquant siblings that each died in 63–78 s (`…-labquant-highcon-sglang` 01:55:34, `…-labquant-sglang` 01:57:17, `zz-labq-no-diag` 01:59:00). The driver's own echo still reads “16 complete, 26 remaining”, so it was never the progress source. |
