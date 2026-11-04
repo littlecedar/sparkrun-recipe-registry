@@ -267,86 +267,111 @@ class SkippedByVerdict(unittest.TestCase):
     """An arm a lane doc already records as rejected is never planned again.
 
     The defect: the planner booted `zz-spark-x2.6-4b-int8-sglang` on 2026-11-03 while
-    `recipes/explore/README.md:812` had called it measured-rejected since 2026-10-22 and `:828`
-    said not to re-boot INT8 on that exact build. The boot cost a node window and returned no
-    number the doc did not already carry.
+    `recipes/explore/README.md:840` had said not to re-boot INT8 on that build since 2026-10-22.
+    The boot cost a node window and returned no number the doc did not already carry.
+
+    The verdict travels inside the recipe now (`metadata.measured_rejected`), so the guards are
+    the marker's three failure modes: a key outside `metadata:` is swept into `runtime_config`
+    and refuses nothing, a value that does not parse is an unreadable hold, and a citation whose
+    `path:line` no longer resolves is a verdict pointing at nothing.
     """
 
-    def _rejects(self, tmp: str, entries: list) -> str:
-        path = Path(tmp) / "rejected.json"
-        path.write_text(json.dumps({"rejected": entries}))
+    MARKER = '  measured_rejected: "2026-10-22 — no sm_121 INT8 GEMM (recipes/explore/README.md:2)"'
+
+    def _tree(self, tmp: str, marker: str | None = MARKER,
+              doc_lines: int | None = 3) -> str:
+        """A recipe tree whose refused arm cites `recipes/explore/README.md`, plus one sibling."""
+        root = Path(tmp)
+        (root / "recipes" / "explore").mkdir(parents=True)
+        if doc_lines is not None:
+            (root / "recipes" / "explore" / "README.md").write_text("verdict\n" * doc_lines)
+        block = "" if marker is None else f"metadata:\n{marker}\n"
+        (root / "recipes" / "explore" / "int8.yaml").write_text(
+            block + "model: XHToken/Spark-X2.6-4B-INT8\n")
+        (root / "recipes" / "explore" / "fp8.yaml").write_text("model: XHToken/Spark-X2.6-4B-FP8\n")
+        return str(root)
+
+    def _manifest(self, tmp: str) -> str:
+        path = Path(tmp) / "m.json"
+        path.write_text(json.dumps([
+            {"arm": "int8", "path": "recipes/explore/int8.yaml", "tp": 1},
+            {"arm": "fp8", "path": "recipes/explore/fp8.yaml", "tp": 1},
+        ]))
         return str(path)
 
+    def _plan(self, tmp: str, root: str) -> tuple[int, str, str]:
+        orig = na.free_nodes
+        na.free_nodes = lambda nodes: ["node-a"]
+        out, err = io.StringIO(), io.StringIO()
+        try:
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = na.main(["--nodes", "node-a", "--manifest", self._manifest(tmp),
+                              "--root", root])
+        finally:
+            na.free_nodes = orig
+        return rc, out.getvalue(), err.getvalue()
+
     def test_the_rejected_arm_is_absent_and_its_sibling_still_runs(self):
-        """Control in the same plan: the skip list excludes one arm, not the lane."""
+        """Control in the same plan: the marker excludes one arm, not the lane."""
         with tempfile.TemporaryDirectory() as tmp:
-            manifest = Path(tmp) / "m.json"
-            manifest.write_text(json.dumps([
-                {"arm": "zz-spark-x2.6-4b-int8-sglang", "path": "recipes/explore/i.yaml", "tp": 1},
-                {"arm": "spark-x2.6-4b-fp8-sglang", "path": "recipes/explore/f.yaml", "tp": 1},
-            ]))
-            rejects = self._rejects(tmp, [{
-                "arm": "zz-spark-x2.6-4b-int8-sglang", "verdict": "measured-rejected",
-                "doc": "recipes/explore/README.md:812", "since": "2026-10-22"}])
-            orig = na.free_nodes
-            na.free_nodes = lambda nodes: ["node-a"]
-            out = io.StringIO()
-            try:
-                with redirect_stdout(out):
-                    rc = na.main(["--nodes", "node-a", "--manifest", str(manifest),
-                                  "--reject-file", rejects])
-            finally:
-                na.free_nodes = orig
-        printed = out.getvalue()
+            rc, printed, _ = self._plan(tmp, self._tree(tmp))
         self.assertEqual(rc, 0, printed)
-        self.assertNotIn("./tools/run-arm.sh recipes/explore/i.yaml", printed,
+        self.assertNotIn("./tools/run-arm.sh recipes/explore/int8.yaml", printed,
                          "a recorded negative was planned onto a node")
-        self.assertIn("./tools/run-arm.sh recipes/explore/f.yaml node-a", printed)
-        self.assertIn("skip: zz-spark-x2.6-4b-int8-sglang "
-                      "(measured-rejected, recipes/explore/README.md:812)", printed)
+        self.assertIn("./tools/run-arm.sh recipes/explore/fp8.yaml node-a", printed)
+        self.assertIn("skip: int8 (measured-rejected, recipes/explore/README.md:2)", printed)
 
-    def test_an_entry_whose_recipe_is_gone_gates_before_any_node_is_probed(self):
-        """A hold that outlived its arm suppresses nothing; it must not sit there silently."""
+    def test_removing_the_marker_plans_the_arm(self):
+        """Negative control: the guard is the marker, not the recipe's name or location."""
         with tempfile.TemporaryDirectory() as tmp:
-            manifest = Path(tmp) / "m.json"
-            manifest.write_text("[]")
-            rejects = self._rejects(tmp, [{
-                "arm": "no-such-arm-in-tree", "verdict": "measured-rejected",
-                "doc": "recipes/explore/README.md:812", "since": "2026-10-22"}])
-            orig = na.free_nodes
-            na.free_nodes = lambda nodes: self.fail("stale-skip must gate before the fleet probe")
-            err = io.StringIO()
-            try:
-                with redirect_stderr(err):
-                    rc = na.main(["--nodes", "node-a", "--manifest", str(manifest),
-                                  "--reject-file", rejects])
-            finally:
-                na.free_nodes = orig
-        self.assertEqual(rc, 2)
-        self.assertIn("stale-skip: no-such-arm-in-tree", err.getvalue())
-        # The message must name the file the entry lives in: "delete the entry" is only one edit
-        # if the operator does not have to find the file first.
-        self.assertIn(rejects, err.getvalue())
+            rc, printed, _ = self._plan(tmp, self._tree(tmp, marker=None))
+        self.assertEqual(rc, 0, printed)
+        self.assertIn("./tools/run-arm.sh recipes/explore/int8.yaml node-a", printed)
+        self.assertNotIn("skip:", printed)
 
-    def test_an_entry_without_its_citation_is_refused(self):
-        """`arm` + `verdict` alone would be an uncited hold; the skip must carry `doc`."""
+    def test_a_top_level_key_is_not_a_marker(self):
+        """sparkrun sweeps an unknown top-level key into `runtime_config`: it refuses nothing."""
         with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "recipes" / "explore").mkdir(parents=True)
+            (root / "recipes" / "explore" / "int8.yaml").write_text(
+                self.MARKER.strip() + "\nmodel: XHToken/Spark-X2.6-4B-INT8\n")
+            self.assertEqual(na.rejected_arms(str(root)), {})
+
+    def test_a_marker_that_does_not_parse_raises(self):
+        """A value without date, reason and citation is not a verdict anyone can check."""
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = '  measured_rejected: "2026-10-22 kernel has no INT8 GEMM"'
             with self.assertRaises(na.RejectError):
-                na.rejected_arms(self._rejects(tmp, [{"arm": "a", "verdict": "measured-rejected"}]))
+                na.rejected_arms(self._tree(tmp, marker=marker))
 
-    def test_an_unreadable_skip_source_raises_rather_than_planning_everything(self):
-        with self.assertRaises(na.RejectError):
-            na.rejected_arms("/nonexistent/rejected.json")
+    def test_two_markers_in_one_block_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = self.MARKER + "\n" + self.MARKER.replace("2026-10-22", "2026-11-04")
+            with self.assertRaises(na.RejectError):
+                na.rejected_arms(self._tree(tmp, marker=marker))
 
-    def test_the_tracked_file_cites_lines_that_exist(self):
-        """A citation is the entry's whole value: the doc and the arm must both be real."""
+    def test_a_citation_past_the_end_of_the_doc_gates(self):
+        """The one thing the marker's location cannot prevent: the doc moved under it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _, err = self._plan(tmp, self._tree(tmp, doc_lines=1))
+        self.assertEqual(rc, 2, err)
+        self.assertIn("stale-citation", err)
+        self.assertIn("recipes/explore/README.md:2", err)
+
+    def test_a_citation_to_a_missing_doc_gates(self):
+        marker = self.MARKER.replace("README.md", "GONE.md")
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, _, err = self._plan(tmp, self._tree(tmp, marker=marker, doc_lines=None))
+        self.assertEqual(rc, 2, err)
+        self.assertIn("recipes/explore/GONE.md:2", err)
+
+    def test_the_tracked_markers_cite_lines_that_exist(self):
+        """A citation is the marker's whole value: the doc and the line must both be real."""
         root = Path(__file__).resolve().parents[1]
-        tracked = json.loads((root / "tools" / "measured-rejected.json").read_text())
-        for entry in tracked["rejected"]:
-            doc, _, line = entry["doc"].rpartition(":")
-            self.assertTrue(doc and line.isdigit(), entry["doc"])
-            self.assertTrue((root / doc).exists(), entry["doc"])
-            self.assertTrue(list((root / "recipes").glob(f"*/{entry['arm']}.yaml")), entry["arm"])
+        rejected = na.rejected_arms(str(root))
+        self.assertTrue(rejected, "no recipe carries a verdict marker: a vacuous pass is not a pass")
+        self.assertEqual(na.citation_problems(rejected, str(root)), [])
 
 
 class MarkerFields(unittest.TestCase):

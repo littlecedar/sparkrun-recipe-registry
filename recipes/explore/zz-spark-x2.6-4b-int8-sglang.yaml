@@ -26,6 +26,7 @@ description: >-
   Do not re-boot on this container; a newer sgl_kernel with an sm_121 INT8 GEMM is the only unlock,
   and the FP8 tier (which does ship, at 40.80 ± 0.09 C1 and house 37/37) is the fast tier meanwhile.
 metadata:
+  measured_rejected: "2026-10-22 — int8_scaled_mm unimplemented for sm_121 in the pinned build, do not re-boot INT8 on v0.5.22-cu130 (recipes/explore/README.md:840)"
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/XHToken/Spark-X2.6-4B-INT8
   model_params: "4B"

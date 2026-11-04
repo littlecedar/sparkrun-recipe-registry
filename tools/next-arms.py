@@ -11,18 +11,21 @@ free node:
 
   * which nodes are free      — container count 0 on each, over ssh
   * what is already measured  — a receipt carrying `ladder.json`, `ladder.transcribed.json`,
-                                `house.json` or any `*.yaml` under `~/benchmarks/tp12-*/<arm>/`
+                                `house.json` or `house.transcribed.txt`
+                                under `~/benchmarks/tp12-*/<arm>/`
   * what is runnable now     — the campaign manifest, filtered by `tp` (a TP=2 arm needs two
                                 free nodes) and by an explicit `--skip` list for arms that are
                                 known dead (a proven-negative, a broken upload)
 
-and one thing more, because a node window is the scarce resource: the **recorded verdicts** in
-`tools/measured-rejected.json` (`--reject-file`). Each entry is an arm, its verdict, the
-`path:line` that records it, and the date. Such an arm is never placed, and the plan prints
-`skip: <arm> (<verdict>, <doc>:<line>)` so the reason is checkable without reading this tool. A
-lane doc already recording a negative is the whole evidence; re-booting it buys nothing. An entry
-whose recipe file is gone is reported `stale-skip` and gates (exit 2), the same rule
-`refresh-sweep.py` applies to a dead acceptance.
+and one thing more, because a node window is the scarce resource: the **recorded verdicts**, which
+travel inside the recipe they refuse. A refused arm carries
+`metadata.measured_rejected: "<date> — <reason> (<doc>:<line>)"`, so a rename or a retirement to
+`attic/` carries the verdict with it and deleting the recipe deletes the hold. Such an arm is
+never placed, and the plan prints `skip: <arm> (<verdict>, <doc>:<line>)` so the reason is
+checkable without reading this tool: a lane doc already recording a negative is the whole
+evidence, and re-booting it buys nothing. A marker that does not parse, or whose cited `path:line`
+no longer resolves (a doc rewrite moved the line the verdict was recorded on), gates with exit 2
+— the one failure the marker's own location cannot prevent.
 
 Nodes come from `--nodes`/`$STAGE_NODES`: this file is tracked and the registry forbids cluster
 addresses in tracked text.
@@ -30,8 +33,8 @@ addresses in tracked text.
     python3 tools/next-arms.py --nodes <a>,<b> --skip nex-n2.5-mini-uncensored-nvfp4-sglang
 
 Exit codes: 0 printed a plan for every free node; 1 at least one free node has no runnable arm
-(an honest "the queue is dry", not an error); 2 the tool could not run — including an unreadable
-skip source or one naming an arm the tree no longer carries.
+(an honest "the queue is dry", not an error); 2 the tool could not run — including a verdict
+marker that does not parse, repeats itself, or cites a `path:line` that no longer resolves.
 
 Stdlib only.
 """
@@ -47,8 +50,16 @@ import sys
 
 MANIFEST = ".scratch/tp12-campaign/manifest.json"
 RECEIPTS = "benchmarks/tp12-*"
-#: Tracked skip source: arms the tree already measured and refused, each with its citation.
-REJECTED = "tools/measured-rejected.json"
+#: The verdict lives in the recipe it refuses, as `metadata.measured_rejected: "<date> — <reason>
+#: (<doc>:<line>)"` -- `metadata` and not a top-level key (sparkrun sweeps an unknown top-level key
+#: into `runtime_config` and reports it) and not a recipe comment (`AGENTS.md` §Recipe comments bans
+#: provenance there). The key is the recipe schema's snake_case; `VERDICT` is the word the plan
+#: prints, the repo's hyphenated spelling of the same refusal.
+REJECT_MARKER = "measured_rejected"
+VERDICT = "measured-rejected"
+#: `<date> — <reason> (<path>:<line>)`, the whole marker. The path may not contain a parenthesis,
+#: because the marker itself is delimited by one.
+CITATION = re.compile(r"^(\d{4}-\d{2}-\d{2}) — (.+?) \(([^()\s]+):(\d+)\)$")
 #: Machine-readable artefacts only. The old `*.yaml` fallback counted ANY yaml in the receipt as a
 #: measurement, and `run-arm.sh` writes `ladder.yaml` as soon as a benchmark starts -- so an arm
 #: that died before its first cell could mark itself measured and never be retried (no receipt
@@ -263,41 +274,98 @@ def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
     return rows, pairs_unplaced
 
 
-def rejected_arms(path: str = REJECTED) -> dict[str, dict]:
-    """Recorded measured negatives, keyed by arm, from the tracked skip source.
+def metadata_value(text: str, key: str) -> str | None:
+    """The `key:` value inside a recipe's top-level `metadata:` block, or None.
 
-    An arm the tree has already measured and refused is not a candidate: booting it again spends
-    a node window and produces no new number. The verdict lives in a file rather than in this
-    tool because the citation (a `path:line` in a lane doc) is evidence, not code.
+    Hand-rolled YAML subset, like the guards in `tests/`: the block is the indented run after
+    `metadata:` at column 0, a block-level key is indented exactly two spaces, and the value may
+    be double-quoted. A key that appears twice raises -- two markers on one arm are a
+    contradiction and neither is a safe default.
     """
-    try:
-        with open(path, encoding="utf-8") as fh:
-            payload = json.load(fh)
-    except OSError as exc:
-        raise RejectError(f"cannot read {path}: {exc}") from exc
-    except ValueError as exc:
-        raise RejectError(f"{path} is not valid JSON: {exc}") from exc
-    entries = payload.get("rejected") if isinstance(payload, dict) else None
-    if not isinstance(entries, list):
-        raise RejectError(f'{path} must hold {{"rejected": [...]}}')
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines)
+                  if re.fullmatch(r"metadata:[ \t]*", line)), None)
+    if start is None:
+        return None
+    prefix = f"  {key}:"
+    found = []
+    for line in lines[start + 1:]:
+        if line.strip() and not line.startswith(" "):
+            break
+        if line.startswith(prefix):
+            found.append(line[len(prefix):].strip().strip('"'))
+    if len(found) > 1:
+        raise RejectError(f"`metadata.{key}` appears twice ({found[0]!r} and {found[1]!r})")
+    return found[0] if found else None
+
+
+def tracked(root: str) -> set[str] | None:
+    """Every tracked path under `root`, or None when `root` is not a checkout.
+
+    A citation into an untracked scratch path is not evidence a clone can check, so it is
+    refused -- but that question is only askable inside a git work tree, which a test fixture
+    is not.
+    """
+    rc, out = sh(["git", "-C", root, "ls-files"])
+    if rc != 0:
+        return None
+    return set(out.splitlines()) or None
+
+
+def rejected_arms(root: str = ".") -> dict[str, dict]:
+    """Recorded measured negatives, keyed by arm, read from the recipes themselves.
+
+    An arm the tree already measured and refused is not a candidate: booting it spends node
+    window and produces no new number. The verdict lives in the recipe it refuses, so a rename
+    or a retirement to `attic/` carries it and a deletion removes it -- there is no separate
+    file to go stale. The citation (`path:line` in a lane doc) is the evidence, not the code.
+    """
     out: dict[str, dict] = {}
-    for entry in entries:
-        if not isinstance(entry, dict) or not (entry.get("arm") and entry.get("verdict")
-                                               and entry.get("doc")):
-            raise RejectError(f"{path}: every entry needs `arm`, `verdict` and `doc`: {entry!r}")
-        out[entry["arm"]] = entry
+    for path in sorted(glob.glob(os.path.join(root, "recipes", "*", "*.yaml"))):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            raise RejectError(f"cannot read {path}: {exc}") from exc
+        value = metadata_value(text, REJECT_MARKER)
+        if value is None:
+            continue
+        found = CITATION.match(value)
+        if not found:
+            raise RejectError(
+                f'{path}: metadata.{REJECT_MARKER} must read "<YYYY-MM-DD> — <reason>'
+                f' (<path>:<line>)", not {value!r}')
+        arm = os.path.basename(path)[: -len(".yaml")]
+        out[arm] = {
+            "arm": arm,
+            "verdict": VERDICT,
+            "doc": f"{found.group(3)}:{found.group(4)}",
+            "since": found.group(1),
+        }
     return out
 
 
-def stale_rejections(rejected: dict[str, dict]) -> list[dict]:
-    """Entries naming an arm whose recipe file no longer exists.
+def citation_problems(rejected: dict[str, dict], root: str = ".") -> list[str]:
+    """Markers whose cited `path:line` no longer resolves, as printable lines.
 
-    A skip entry that outlives its arm suppresses nothing while still reading as a live hold --
-    the defect `refresh-sweep.py` reports as `stale-acceptance`. Callers gate on this rather
-    than dropping the entry, so the file cannot silently rot.
+    The `stale-skip` check is gone because it is now structurally impossible: the marker travels
+    inside the recipe, so nothing can suppress an arm the tree no longer carries. What can still
+    rot is the citation, which a doc rewrite moves out from under the verdict it records.
     """
-    return [entry for arm, entry in rejected.items()
-            if not glob.glob(os.path.join("recipes", "*", f"{arm}.yaml"))]
+    known = tracked(root)
+    problems = []
+    for arm, entry in sorted(rejected.items()):
+        doc, _, line = entry["doc"].rpartition(":")
+        path = os.path.join(root, doc)
+        if known is not None and doc not in known:
+            problems.append(f"{arm} cites {entry['doc']}, which is not a tracked file")
+        elif not os.path.isfile(path):
+            problems.append(f"{arm} cites {entry['doc']}, which is not a file")
+        else:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                if len(fh.read().splitlines()) < int(line):
+                    problems.append(f"{arm} cites {entry['doc']}, past the end of that file")
+    return problems
 
 
 def candidates(manifest: str, done: set[str], skip: set[str], free_count: int) -> list[dict]:
@@ -335,9 +403,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="where the tp12-* receipt windows live (default: $HOME)")
     ap.add_argument("--skip", action="append", default=[],
                     help="arm to exclude (dead upload, proven negative); repeatable")
-    ap.add_argument("--reject-file", default=REJECTED,
-                    help="recorded measured negatives the planner must never place"
-                         " (default: %(default)s)")
+    ap.add_argument("--root", default=".",
+                    help="tree whose recipes carry the verdict markers (default: %(default)s)")
     ap.add_argument("--json", action="store_true", help="machine-readable plan")
     args = ap.parse_args(argv)
 
@@ -346,22 +413,21 @@ def main(argv: list[str] | None = None) -> int:
         print("no nodes: pass --nodes a,b or set $STAGE_NODES", file=sys.stderr)
         return 2
 
-    # Read before the fleet probe: a skip file that cannot be read or has rotted is a config
-    # defect, and failing here costs no ssh -- the plan would otherwise be built without the very
-    # exclusions that keep a measured negative off a node.
+    # Read before the fleet probe: a marker that does not parse, or a citation that no longer
+    # resolves, is a config defect, and failing here costs no ssh -- the plan would otherwise be
+    # built without the very exclusions that keep a measured negative off a node.
     try:
-        rejected = rejected_arms(args.reject_file)
+        rejected = rejected_arms(args.root)
     except RejectError as exc:
         print(f"cannot plan: {exc}", file=sys.stderr)
         return 2
-    stale = stale_rejections(rejected)
-    if stale:
-        for entry in stale:
-            # Names the file and the arm so the entry can be deleted in one edit: an operator
-            # reading a drip log should not have to grep the tree to find what to remove.
-            print(f"stale-skip: {entry['arm']} ({entry['verdict']}, {entry['doc']})"
-                  f" -- no recipes/*/{entry['arm']}.yaml, so it suppresses nothing;"
-                  f" delete the entry from {args.reject_file}", file=sys.stderr)
+    problems = citation_problems(rejected, args.root)
+    if problems:
+        for problem in problems:
+            # Names the arm, the doc and the marker's home: re-pointing a citation is one edit in
+            # the recipe, and a drip log should say which one without a grep.
+            print(f"stale-citation: {problem}; the verdict line has moved or the doc is gone, so"
+                  f" re-point metadata.{REJECT_MARKER} in the recipe", file=sys.stderr)
         return 2
 
     free = free_nodes(nodes)

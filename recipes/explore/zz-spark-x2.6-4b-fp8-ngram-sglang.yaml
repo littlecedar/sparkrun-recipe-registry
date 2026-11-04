@@ -29,6 +29,7 @@ description: >-
   probe; the ladder/house cells are the deliverable, paired with a same-window
   NGRAM-off control. Apache-2.0.
 metadata:
+  measured_rejected: "2026-10-25 — NGRAM spec decode slower than plain decoding at every rung, no breadth sweep (recipes/explore/README.md:813)"
   model_url: https://huggingface.co/XHToken/Spark-X2.6-4B-FP8
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "4B"

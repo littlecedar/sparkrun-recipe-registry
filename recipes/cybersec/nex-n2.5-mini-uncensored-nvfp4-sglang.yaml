@@ -6,6 +6,7 @@ container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154def
 
 description: Nex-N2.5-mini-Uncensored-NVFP4 - abliterated 35B-A3.5B MoE (qwen3_5_moe, NVFP4 experts / BF16 rest), single DGX Spark
 metadata:
+  measured_rejected: "2026-10-16 — checkpoint degenerate on every SGLang shape measured, one repeated token (attic/cybersec/AGENTS.md:729)"
   model_url: https://huggingface.co/orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "35B"
