@@ -1,10 +1,10 @@
-# Board — generated 2026-11-04 04:08 ET
+# Board — generated 2026-11-04 04:16 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 04:07:14–04:07:19 ET census and per-rank probe, 5.0 s wall | **2026-11-04 04:07:14–04:07:19 ET, all six nodes from head (read-only ssh):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volumes **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — fifth identical read since 02:32 ET. The protected production serve is excluded from that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the per-rank probe finds `sglang.launch_server` alive in all four rank containers (pids 280 / 306 / 301 / 301) with rank-0 `/v1/models` answering **200**. `.local/fleet-window.lock` is absent — no research window is declared, which is not escalated next to a production-pin serve. |
+| census | this tick — hourly board tick (one-shot `omp -p --no-session`), 04:15:50 ET census and 04:16:08 ET per-rank probe, 3.2 s + 2.6 s wall | **2026-11-04 04:15:50 ET (09:15:50Z), all six nodes from head (read-only ssh):** **research** containers `.30`→`.35` **0 / 0 / 0 / 0 / 0 / 0**, volume counts **0** on every node, whole-GB root avail **1342 / 1752 / 1802 / 1700 / 1174 / 1415 GB** — sixth identical read since 02:32, every count and every whole-GB figure repeated. The protected production serve stays out of that count: `.31`–`.34` hold one container each of `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (TP=4, `Up 8 days (healthy)`), and the 04:16:08 ET probe finds `sglang.launch_server` alive in **all four** rank containers (pids 280 / 306 / 301 / 301) with rank-0 `/v1/models` answering **200**. `.local/fleet-window.lock` is absent, which is expected beside a production serve and is not escalated. |
 | none | — | **No research workload is live and nothing is claimed.** `.30` and `.35` have read 0 containers / 0 volumes on every census since the tp12 driver exited at 02:26:09. The register holds **24 queued + 6 blocked** of 77 tasks (`task-queue.py check` ok) and no open row carries a `claimed_by`; its top row is `tp12-campaign-staging` at `queued`, 26 of 42 arms carrying both legs. |
 
 ## Work queue
