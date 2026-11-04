@@ -389,16 +389,52 @@ if [ -n "${N:-}" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
   ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "docker rm -f $N" >/dev/null 2>&1
   sleep 3
 fi
+# `$N` above is the API rank only, so a TP=2 arm's rank 1 was never even looked at: on
+# 2026-11-04 it was still running on the second host 39 s after the stop and 4 s after ARM
+# DONE. Sweep every host in $HOSTS instead, matching the container-NAMING grammar anchored
+# (`sparkrun_${TID}_solo`, `sparkrun_${TID}_node_*`) and only over names the task-id filter
+# returned. The harvest loop above greps the bare id because it only READS -- that substring
+# form is deliberately not reused for removal, where a hit could name another task whose id
+# contains ours. No `docker ps -aq`, no xargs, no prune: a blanket remove on a shared node
+# has already deleted a peer's containers once. Best-effort -- nothing to remove is the
+# normal case, and a failed ssh must print and continue, never fail an arm that measured.
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  if ! left=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+      "docker ps -a --filter name=$TID --format '{{.Names}}'" 2>/dev/null); then
+    echo "teardown: cannot list containers on $hn (ssh failed); continuing"
+    continue
+  fi
+  for c in $left; do
+    case "$c" in
+      "sparkrun_${TID}_solo"|"sparkrun_${TID}_node_"*)
+        echo "removing leftover $c on $hn"
+        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker rm -f $c" >/dev/null 2>&1 \
+          || echo "could not remove $c on $hn; continuing" ;;
+      *) echo "teardown: leaving $c on $hn (not this arm's container)" ;;
+    esac
+  done
+done
 for n in 30 35; do
   ssh -o ConnectTimeout=4 -o BatchMode=yes "red@10.0.4.$n" \
     "printf '%s ctns=%s vols=%s\n' \$(hostname) \$(docker ps -aq | wc -l) \$(docker volume ls -q | wc -l)"
 done
-# Gate on THIS arm's container, never on a node-wide count: the other free node
-# may be running a different arm at the same time, and counting its container as
-# leftover failed a perfectly clean run (2026-10-29, bf16 control vs int8).
-if [ -n "${N:-}" ] && ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
-     "docker ps --format '{{.Names}}'" 2>/dev/null | grep -qx "$N"; then
-  echo "this arm's container is still running after teardown: $N"; rc=6
-fi
+# Gate on THIS arm's containers, never on a node-wide count: the other free node may be
+# running a different arm, and counting its container as leftover failed a clean run
+# (2026-10-29, bf16 control vs int8). Every host in $HOSTS, though: checking only $NODE/$N
+# left a rank-1 survivor on the second host reported by nothing, so the arm ended rc=0
+# (2026-11-04) and a monitor noticed an hour later.
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  if ! left=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+      "docker ps -a --filter name=$TID --format '{{.Names}}'" 2>/dev/null); then
+    echo "teardown: cannot verify containers on $hn (ssh failed); continuing"
+    continue
+  fi
+  for c in $left; do
+    case "$c" in
+      "sparkrun_${TID}_solo"|"sparkrun_${TID}_node_"*)
+        echo "this arm's container is still running after teardown: $c on $hn"; rc=6 ;;
+    esac
+  done
+done
 echo "ARM DONE $NAME rc=$rc"
 exit "$rc"

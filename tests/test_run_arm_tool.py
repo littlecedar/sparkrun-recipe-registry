@@ -74,6 +74,18 @@ def readiness_loop(text: str) -> str:
     return text[start:end]
 
 
+# The teardown, from the stop call to its verdict line: stop, leftover removal, census, gate.
+TEARDOWN_START = 'sparkrun stop "$TID" 2>&1 | tail -1'
+TEARDOWN_END = 'echo "ARM DONE $NAME rc=$rc"'
+
+
+def teardown_region(text: str) -> str:
+    """The teardown slice verbatim: what an arm does after its measurement is recorded."""
+    start = text.index(TEARDOWN_START)
+    end = text.index(TEARDOWN_END, start) + len(TEARDOWN_END)
+    return text[start:end]
+
+
 class RunArmContract(unittest.TestCase):
     def test_bash_syntax(self):
         bash = shutil.which("bash")
@@ -581,6 +593,149 @@ class PoolingReceiptNegativeControls(BashArmHarness):
             "house.yaml", receipt, "the weakened guard wrote no marker, so the control proves nothing"
         )
         self.assertIn("ladder: ok", receipt["house.yaml"], "the marker claims a ladder that never ran")
+
+
+class TeardownReapsEveryRank(BashArmHarness):
+    """A TP=2 stop that misses rank 1 must not end `ARM DONE rc=0`.
+
+    Measured 2026-11-04 (`qwen3.8-flash-next-uncensored-nvfp4-sglang`): `sparkrun stop` left
+    rank 1 running on the second host — `docker ps` still listed it 39 s after the stop and
+    4 s after this script printed ARM DONE, and it was gone ~100 s later. The script resolved
+    one container name (`docker ps | grep -m1 -E '_solo|_node_0'`) and its hygiene block and
+    its leak gate both looked at `$NODE`/`$N` only, so there was no rank-1 path at all and
+    the arm reported rc=0 while it leaked.
+
+    The teardown slice is extracted verbatim and executed with `ssh`/`sparkrun` stubbed, so
+    this exercises the real gate rather than restating it. Removal must also be anchored on
+    the container-naming grammar (`sparkrun_${TID}_solo`, `sparkrun_${TID}_node_*`), because
+    `docker ps --filter name=$TID` is a substring match and another task's id can contain
+    ours — that is the near-miss case below, and it is the one that matters: a fix that
+    removes anything it sees is worse than the bug.
+
+    Against the pre-fix file (`git show 0c8e50b:tools/run-arm.sh`) the rank-1 assertions fail:
+    `test_a_rank_1_leftover_on_the_second_host_is_removed` and
+    `test_a_survivor_on_the_second_host_fails_the_arm` both end `ARM DONE teardown-arm rc=0`
+    with `sparkrun_abc123_node_1` still listed on rank1.test — the leak tonight, reproduced.
+    """
+
+    HOSTS = ("head.test", "rank1.test")
+    TID = "abc123"
+
+    # A stub node, not a fleet: `ssh` answers from per-host files, so the recorded set of
+    # removals is the assertion. Braces here are shell, not f-string — this template is
+    # concatenated with the extracted slice, never formatted.
+    HARNESS = """#!/usr/bin/env bash
+set -uo pipefail
+TID=abc123
+NAME=teardown-arm
+NODE=head.test
+HOSTS=head.test,rank1.test
+N=sparkrun_abc123_node_0
+WD=
+rc=0
+sleep() { :; }
+sparkrun() { echo "stopped $2"; }
+ssh() {
+  local host="${@: -2:1}" cmd="${@: -1}"
+  host="${host#red@}"
+  if grep -qxF "$host" "$FAIL_HOSTS" 2>/dev/null; then return 255; fi
+  case "$cmd" in
+    *"docker rm -f "*)
+      local c="${cmd##*docker rm -f }"
+      if grep -qxF "$c" "$FAIL_REMOVE" 2>/dev/null; then
+        echo "removal refused for $c" >&2
+        return 1
+      fi
+      echo "$c on $host" >> "$REMOVED"
+      grep -vxF "$c" "$STATE/$host" > "$STATE/$host.new" 2>/dev/null
+      mv "$STATE/$host.new" "$STATE/$host" 2>/dev/null
+      return 0 ;;
+    *--filter*|*"docker ps --format"*) cat "$STATE/$host" 2>/dev/null; return 0 ;;
+    *) return 0 ;;
+  esac
+}
+"""
+
+    def run_teardown(
+        self,
+        state: dict[str, list[str]],
+        fail_remove: tuple[str, ...] = (),
+        fail_hosts: tuple[str, ...] = (),
+    ) -> tuple[str, list[str]]:
+        """Run the real teardown slice against stub nodes; return its output and removals."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            state_dir = tmp / "state"
+            state_dir.mkdir()
+            for host in self.HOSTS:
+                names = state.get(host, [])
+                (state_dir / host).write_text("".join(f"{n}\n" for n in names))
+            removed = tmp / "removed.log"
+            removed.write_text("")
+            fail_remove_path = tmp / "fail-remove"
+            fail_remove_path.write_text("".join(f"{n}\n" for n in fail_remove))
+            fail_hosts_path = tmp / "fail-hosts"
+            fail_hosts_path.write_text("".join(f"{h}\n" for h in fail_hosts))
+            script = tmp / "teardown.sh"
+            script.write_text(self.HARNESS + teardown_region(read_tool()) + "\n")
+            out = subprocess.run(
+                ["bash", str(script)],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={
+                    **os.environ,
+                    "STATE": str(state_dir),
+                    "REMOVED": str(removed),
+                    "FAIL_REMOVE": str(fail_remove_path),
+                    "FAIL_HOSTS": str(fail_hosts_path),
+                },
+                timeout=60,
+            )
+            return out.stdout + out.stderr, removed.read_text().split()
+
+    def test_a_rank_1_leftover_on_the_second_host_is_removed(self):
+        name = f"sparkrun_{self.TID}_node_1"
+        out, removed = self.run_teardown({
+            self.HOSTS[0]: [f"sparkrun_{self.TID}_node_0"],
+            self.HOSTS[1]: [name],
+        })
+
+        self.assertIn(f"removing leftover {name} on rank1.test", out, "rank 1 was never reaped")
+        self.assertIn(f"{name} on rank1.test", " ".join(removed), "no removal was recorded")
+        self.assertIn("ARM DONE teardown-arm rc=0", out, "both ranks gone, so the arm is clean")
+
+    def test_a_foreign_container_whose_name_contains_the_task_id_is_left_alone(self):
+        foreign = f"sparkrun_{self.TID}ff_node_1"  # another task id with ours as a prefix
+        out, removed = self.run_teardown({self.HOSTS[0]: [], self.HOSTS[1]: [foreign]})
+
+        self.assertNotIn(foreign, removed, "a substring match removed a foreign container")
+        self.assertIn(f"leaving {foreign} on rank1.test", out, "the sweep did not say what it spared")
+        self.assertIn("ARM DONE teardown-arm rc=0", out, "a foreign container is not this arm's leak")
+
+    def test_a_survivor_on_the_second_host_fails_the_arm(self):
+        name = f"sparkrun_{self.TID}_node_1"
+        out, _ = self.run_teardown(
+            {self.HOSTS[0]: [], self.HOSTS[1]: [name]}, fail_remove=(name,)
+        )
+
+        self.assertIn(
+            f"this arm's container is still running after teardown: {name} on rank1.test",
+            out,
+            "the leak went unreported, which is how tonight's rank 1 survived into rc=0",
+        )
+        self.assertIn("ARM DONE teardown-arm rc=6", out, "a surviving rank did not fail the arm")
+        self.assertIn(f"could not remove {name} on rank1.test", out, "a failed removal was silent")
+
+    def test_a_failed_ssh_prints_and_continues(self):
+        """Non-fatal by construction: nothing to remove is normal, an unreachable host is not fatal."""
+        out, _ = self.run_teardown(
+            {self.HOSTS[0]: [], self.HOSTS[1]: []}, fail_hosts=(self.HOSTS[1],)
+        )
+
+        self.assertIn("cannot list containers on rank1.test", out, "the sweep failed silently")
+        self.assertIn("cannot verify containers on rank1.test", out, "the gate failed silently")
+        self.assertIn("ARM DONE teardown-arm rc=0", out, "an unreachable host failed a measured arm")
 
 
 if __name__ == "__main__":
