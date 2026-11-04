@@ -1,7 +1,4 @@
 recipe_version: "2"
-# DRAFT (2026-11-03): authored from the Hub survey in README.md §"122B quantisation and
-# finetune survey"; NEVER booted. Not in the root README index and not claimed to serve.
-#
 # EVAL-ONLY by house policy. `devsecllm/Ornith-1.5-122B-NVFP4-ablated` has its refusal
 # direction removed (24 of 113,047 tensors, rank-3 Heretic merge, refusal rate 97 % -> 4.44 %)
 # and is published for blue-team / detection-engineering work. Licence is MIT, unmodified

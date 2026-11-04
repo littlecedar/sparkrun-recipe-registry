@@ -836,7 +836,7 @@ not geometry, unless it says otherwise. Every cell in the next three tables was 
 | vendor NVFP4 | `ornith-ai/Ornith-1.5-122B-NVFP4` | modelopt mixed: FP8 attention / linear-attn, NVFP4 experts | 77.61 (index) | qwen3_5_moe · 3072 / 48 | **measured**: C1 37.7 t/s, accept > 1 (d4) | yes — ~24.8 GB KV | MIT | **baseline**, already in the lane |
 | cyankiwi | `cyankiwi/Ornith-1.5-122B-AWQ-INT4` | compressed-tensors **int4, group 32, asymmetric**; attention / linear-attn / shared expert / `lm_head` in `ignore`, experts quantized | 85.29 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; acceptance is the open question | yes — ~17.1 GB KV | MIT | **boot arm 3** — the quant-family control |
 | dealignai uncensored | `dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` | modelopt NVFP4, refusal direction projected out, **bundles the upstream drafter** under `dflash2/` (1.86 GB) | 75.65 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; vendor's own vLLM check ran at ~37.8 t/s, not a speedup claim | yes — ~26.7 GB KV | MIT | **boot arm 1** — answers both halves of the question |
-| devsecllm ablated | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` | vendor NVFP4 with 24 of 113,047 tensors re-merged (rank-3 Heretic merge); config / tokenizer / template byte-identical | 77.61 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; ablation moves 1.7–2.1 % of the attention weight norm, acceptance unmeasured | yes — ~24.8 GB KV | MIT | **boot arm 2** — the cybersecurity one |
+| devsecllm ablated | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` | vendor NVFP4 with 24 of 113,047 tensors re-merged (rank-3 Heretic merge); config / tokenizer / template byte-identical | 77.61 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; ablation moves 1.7–2.1 % of the attention weight norm, acceptance **measured 0.62–0.64** | yes — ~24.8 GB KV | MIT | **served, measured and moved to the cybersec lane** on 2026-11-04: acceptance 0.62–0.64, C1 41.35 t/s (`recipes/cybersec/`) |
 | Sherlock-Comms | `Sherlock-Comms/Ornith-1.5-122B-NVFP4-DFlash2-RTX-Spark` | vendor NVFP4 with `lm_head` **dequantized to bf16** (nothing else changed) | 78.71 (index) | qwen3_5_moe · 3072 / 48 | geometry yes; the bf16 head fixes the **vLLM** drafter gate, which SGLang does not have | yes — ~23.7 GB KV | MIT | ranked 4, not drafted: SGLang already boots the quantized head, so it cannot answer a question the baseline has not |
 | halt95 Merlin | `halt95/Ornith-1.5-122B-A10B-W4A16-Merlin` | int4 experts (g128) in 48 per-layer files + partial shards + `kv_scales`, custom loader | 71.28 (index) | qwen3_5_moe · 3072 / 48 | geometry yes | yes | MIT (+ bundled Qwen notice) | **reject** — served by the Merlin engine, a vLLM 0.32 fork with sm_86 profiles; no stock SGLang or vLLM loader |
 | dealignai `ABLITERATED-NVFP4`, `ABLITERATED-GGUF` | `dealignai/Ornith-1.5-122B-ABLITERATED-*` | README + `.gitattributes` only, **no weights** | 0 | n/a | n/a | n/a | MIT | **reject** — empty repos (alternate listings of the UNCENSORED pair) |
@@ -944,7 +944,7 @@ read the card. Both carry the banner in `description:` and `metadata.eval_only`;
 | rank | arm | recipe | why it ranks here | falsifier (declared before the boot) |
 |---|---|---|---|---|
 | 1 | `dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` + DFlash2 | `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | answers both halves of the question in one boot: the smallest fitting target in the set (75.65 GB) **and** the uncensored build; its `dflash2/` copy means the same arm can also be run with no second repo staged | serve-log mean acceptance ≤ 1.05, or C1 below the shipped NVFP4 arm's 37.7 t/s → the abliteration costs acceptance; re-run against the bundled draft copy to separate "draft path wrong" from "weights changed" |
-| 2 | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` + DFlash2 | `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | the only 122B build published for cybersecurity work, and the highest prior of acceptance in the set: the export is byte-identical to the vendor NVFP4 apart from 24 tensors (index total equal to the byte) | same acceptance gate; plus a house battery at `--max-tokens 4096` thinking-on — this family's uncensored replies run 2-3× longer, so a short `max_tokens` reads as a capability miss |
+| 2 | `devsecllm/Ornith-1.5-122B-NVFP4-ablated` + DFlash2 | `recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` (moved 2026-11-04) | the only 122B build published for cybersecurity work, and the highest prior of acceptance in the set: the export is byte-identical to the vendor NVFP4 apart from 24 tensors (index total equal to the byte) | same acceptance gate; plus a house battery at `--max-tokens 4096` thinking-on — this family's uncensored replies run 2-3× longer, so a short `max_tokens` reads as a capability miss |
 | 3 | `cyankiwi/Ornith-1.5-122B-AWQ-INT4` + DFlash2 | `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | the quant-family control: every other arm here is modelopt NVFP4, so this is the only row that can answer whether the drafter tolerates a *different* 4-bit family (compressed-tensors int4 g32 asymmetric) at the same geometry | boot fails to resolve the mixed-precision layout on `qwen3_5_moe`/SM121, or acceptance < 1.5 → the pairing is quant-family-specific, and the "any 4-bit target works" reading is dead |
 
 Ranked 4 and **not** drafted: `Sherlock-Comms/…-NVFP4-DFlash2-RTX-Spark`. Its whole change is a bf16
@@ -970,7 +970,7 @@ sparkrun benchmark performance recipes/ornith/<arm>.yaml -H .35 --fresh \
 | recipe | target pin | drafter | bytes | status |
 |---|---|---|---|---|
 | `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | `e6a1c178…` | `incoai/…-DFlash2` `9baefc1b…`, 4 draft tokens | 75.65 GB | DRAFT, never booted, **eval-only** |
-| `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | `e80d38d7…` | same | 77.61 GB | DRAFT, never booted, **eval-only** |
+| `recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | `e80d38d7…` | same | 77.61 GB | **moved to `recipes/cybersec/` 2026-11-04** — booted and measured, **eval-only** |
 | `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | `f37c82fd…` | same | 85.29 GB | DRAFT, never booted |
 
 All three copy the shipped `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` structure — same digest-pinned
@@ -1123,31 +1123,17 @@ names. `devsecllm/…-NVFP4-ablated` is the family's first 122B finetune that se
 disposition (promote past `zz-`, or keep as an eval-only probe) waits on its ladder and suite numbers.
 Nothing above is a decode rate: those are the benches' to produce, and they are running.
 
-##### `zz-devsecllm-…-ablated` — first 122B measurement (TP=1, one GB10, 2026-11-03)
+##### `zz-devsecllm-…-ablated` — measured, and now served out of the cybersec lane
 
-Booted alone on `.30`, `--max-running-requests 32`, so every rung below including c10 ran under a grant
-larger than its concurrency — these are concurrency cells, not slot-limited ones. All figures are the
-decode record of the ladder (`ladder.csv`), `tg128` aggregate first and per-stream second:
-
-| rung | tg128 agg t/s | per stream | pp2048 agg t/s | e2e TTFT |
-|---|---|---|---|---|
-| c1 | **41.35** | 41.35 | 1608.6 | 1.28 s |
-| c2 | 57.40 | 29.75 | 1758.0 | 2.31 s |
-| c5 | 54.94 | 22.82 | 944.8 | 5.96 s |
-| c10 | 51.02 | 17.82 | 902.2 | 11.95 s |
-
-Peak instantaneous aggregate climbs to 74.8 (c5) and then falls at c10 (67.6), so this arm's knee is
-**c5**, the same shape the other 122B-class arms show. Prefill is the constraint, not decode: 2048-token
-prefill holds ~1.6–1.8 k t/s to c2 and then roughly halves, and the c5/c10 e2e TTFTs (6 s / 12 s) are
-what a 122B on one GB10 looks like under concurrency — unified-memory bandwidth, per the lane's existing
-finding.
-
-The house suite scored **97/100, ★★★★★ Excellent** (deployability 84, responsiveness 54, 15/15
-scenarios, `tool_eval_bench` 2.6.0, run `2026-11-04T01-04-29Z_4a6541c5`). Responsiveness is the soft
-score and it is the same prefill story: 12 s to first token at c10.
-
-That makes this arm the 122B family's first finetune that both serves coherently and measures well — and
-it makes the dealignai negative cheap to believe, because the two arms differ only in export layout.
+Booted alone on `.30` on 2026-11-03 under `--max-running-requests 32`: ladder `d0` tg128 aggregate
+**C1 41.35 / C2 57.40 / C5 54.94 / C10 51.02 t/s** with the knee at c5, and the house battery
+**97/100**. It is the 122B family's first finetune that both serves coherently and measures well,
+which is what makes the dealignai negative cheap to believe: the two arms differ only in export
+layout. The recipe moved to
+`recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` on 2026-11-04 so
+the arm is documented by the lane that serves it; its full cells and receipt are
+[`recipes/cybersec/README.md`](../cybersec/README.md#zz-devsecllm-ornith-15-122b-nvfp4-ablated-dflash2-sglang).
+This lane keeps the weights survey above, which is where the candidate came from.
 ##### `zz-cyankiwi-…-AWQ-INT4` — boot failed in the weight loader (2026-11-03)
 
 `rc=4` (never ready) after 38 minutes on `.30` (`20:07:26 → 20:45:22`), container

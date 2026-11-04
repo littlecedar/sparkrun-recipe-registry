@@ -19,6 +19,7 @@ Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../att
 - [deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang)
 - [orcacyber-nano-1.0-15.7g-gguf-llamacpp](#orcacyber-nano-10-157g-gguf-llamacpp)
 - [orcacyber-nano-1.0-13g-gguf-llamacpp](#orcacyber-nano-10-13g-gguf-llamacpp)
+- [zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang](#zz-devsecllm-ornith-15-122b-nvfp4-ablated-dflash2-sglang)
 - [Attic index](#attic-index)
 
 ## Gating and the token prerequisite
@@ -530,6 +531,44 @@ default except the `model:` tier suffix and the `model_dtype` estimator key is i
   mode-dependent, not tier-dependent; refusal probe **0/4 refusals**; vision **2/2 exact** (3 and 7
   circles). The 13G control matches the 15.7G default on every quality leg measured so far
   (`~/benchmarks/tp2-queue-20261024/{battery-13g-{on,off}.json, vision-refusal-{13g,157}.json}`).
+
+## `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang`
+
+**Arm 7 — POSITIVE (TP=1), moved in from the ornith lane 2026-11-04.** Weights checkpoint plus that
+family's published DFlash2 drafter; no overlay. A weights-only derivative of
+`ornith-ai/Ornith-1.5-122B-NVFP4`: 24 of 113,047 tensors re-merged by a rank-3 Heretic merge
+(refusal rate 97 % → 4.44 %), config / tokenizer / template byte-identical. **MIT, and eval-only by
+house policy** — a refusal-removed model is deployed by whoever wrote the guardrails, and the card
+publishes it for blue-team / detection-engineering work. The candidate survey, licence verdict and
+the export-layout contrast that exonerated the drafter stay in
+[`recipes/ornith/README.md`](../ornith/README.md#the-security-question-uncensored-abliterated-cybersecurity-at-122b),
+which is where the arm came from.
+
+- Model: `devsecllm/Ornith-1.5-122B-NVFP4-ablated` at `e80d38d7…`; draft
+  `incoai/Ornith-1.5-122B-DFlash2` at `9baefc1b…`, 4 draft tokens (the lane's own measurement, not
+  the card's 15). Export algo map `W4A16_NVFP4` ×193 + `FP8` ×156 with `lm_head` in `W4A16_NVFP4` —
+  every name implemented on the pinned `lmsysorg/sglang:v0.5.22@sha256:e3a4f060…`, unlike its
+  dealignai sibling's `FP8_PER_CHANNEL_PER_TOKEN` ×308, which is why this arm serves and that one
+  returned token salad at **0.00** draft acceptance. This arm's acceptance is **0.62–0.64**.
+- **Ladder (2026-11-03, `.30`, TP=1, `--max-running-requests 32`).** Booted alone, so every rung
+  including c10 ran under a grant larger than its concurrency — concurrency cells, not slot-limited
+  ones. `tg128` aggregate first, per-stream second:
+
+| rung | tg128 agg t/s | per stream | pp2048 agg t/s | e2e TTFT |
+|---|---|---|---|---|
+| c1 | **41.35** | 41.35 | 1608.6 | 1.28 s |
+| c2 | 57.40 | 29.75 | 1758.0 | 2.31 s |
+| c5 | 54.94 | 22.82 | 944.8 | 5.96 s |
+| c10 | 51.02 | 17.82 | 902.2 | 11.95 s |
+
+  Peak instantaneous aggregate climbs to 74.8 (c5) and then falls at c10 (67.6), so this arm's knee
+  is **c5**, the shape every 122B-class arm shows. Prefill is the constraint, not decode: 2048-token
+  prefill holds ~1.6–1.8 k t/s to c2 and then roughly halves, and the 6 s / 12 s c5/c10 e2e TTFTs
+  are what a 122B on one GB10 looks like under concurrency — unified-memory bandwidth.
+- **House (same boot):** **97/100, ★★★★★ Excellent** — deployability 84, responsiveness 54, 15/15
+  scenarios, `tool_eval_bench` 2.6.0, run `2026-11-04T01-04-29Z_4a6541c5`. Responsiveness is the soft
+  score and it is the same prefill story: 12 s to first token at c10.
+- **Receipt:** `~/benchmarks/tp12-20261103/zz-devsecllm-…-ablated-dflash2-sglang/`.
 
 ## Attic index
 
