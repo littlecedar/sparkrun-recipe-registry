@@ -686,7 +686,8 @@
       "notes": "26 of 42 arms carry both legs as of 2026-11-04 02:35 ET, derived from the receipt roots rather than the driver echo (36 carry at least one leg: 8 are ladder-only because the embed/rerank/decision lanes have no house leg, 2 are house-only, 6 have no receipt at all); the 2026-11-03/04 sweep attempted 26 arms tonight with 14 rc=0 and the driver exited at 02:26:09, leaving those 6 to the next run. Prior: 16 of 42 measured as of 2026-10-29 17:00 ET. 2026-10-28: 10 (9 complete; k2-horizon-7b-fp8-uno failed its boot gate). 2026-10-29: six, each with ladder + standard-suite receipts under ~/benchmarks/tp12-20261029/ - nemotron-3.5-lightning-30b-a3b-nvfp4-vllm 90, qwen3-coder-next-int4-autoround-vllm 93, qwen3.8-27b-nvfp4-dflash2-sglang 97 (C5 -19 % flagged), ling-3.0-flash-int4-dspark-sglang 97 (serve frontend died after the run), qwen3.8-27b-uncensored-nvfp4-sglang 100, qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang 90 (crossed vs row); plus one ABORTED attempt, the TP=2 deepseek tensorfold arm at 2.9-3.1 tok/s, which published no cell and does not count. Staging turned out to be a no-op for today s picks: every image resolved by repo@digest on .30 and every model snapshot was complete in the pool, both verified per arm before launch. Still unexercised: the TP=2 arms (both free nodes at once) and the arms whose pins name images absent everywhere (queue row published-image-refs). | PORT MAP (verified 2026-10-30, both free nodes): `.30` has a listener on 8010 held by beegfs-mgmtd, `.35` has none — so **embed/rerank arms (default port 8010) run on `.35` only**, and that is a scheduling fact, not a defect. A launch that would collide is refused with rc=7 naming the holder (container or host socket).\n\nSCOPE CONFIRMED 2026-11-03 (owner): **finish all 26 remaining arms** through the one instrument rather than closing at 16/42. The partial state is itself a cost: an arm nobody measured is indistinguishable from one nobody got to. SWEEP COMPLETE 2026-11-04 02:26:09 ET, derived from sweep.log's own `rc=` lines rather than driver.log's echo: 26 of 26 remaining arms attempted over 5 h 08 m (21:18:03 - 02:26:09) - 14 rc=0 / 6 rc=4 / 3 rc=3 / 2 rc=5 / 1 rc=7 (tp1 stream 18 arms, 11 clean; tp2 stream 8 arms, 3 clean) - so tonight's sweep accounted for every one of the 26 arms it was handed; the manifest's other 16 are the 2026-10-28/29 campaigns' arms per driver.log's plan echo, which this note does not independently verify - the receipt-derived census is the better denominator (26 of 42 carry both legs, 36 carry at least one, 6 no receipt at all). 0c8e50b folded every rc=0 arm up to 02:15; the last one, zz-qwen38-next-vllm-tp2-pinned, closed rc=0 at 02:25:39 with cells 41.70 / 50.66 / 71.42 / 92.20 t/s at c1/c2/c5/c10 (effective streams 1.00 / 1.73 / 3.43 / 5.80, ~/.cache/sparkrun/benchmarks/bench_9d0f2bf763f1/runs/) and a standard suite reading final_score 0, deployability 30, responsiveness 100 over 15 scenarios (bench_89ae001b0765, recorded verbatim) - that arm has no lane doc yet, so the row is queued for that fold rather than closed.",
       "provenance": "mad-science/STATUS.md 02:03 ET campaign row; .scratch/tp12-campaign/manifest.json readiness flags",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "26 arms attempted 2026-11-03/04: rc=0 x14, rc=3 x3, rc=4 x6, rc=5 x2, rc=7 x1 (26 start and 26 rc lines plus 2 nex 'skipped, attempt already completed today'); driver exited via its own trap at '=== sweep complete 2026-11-04T02:26:09-05:00', 0 containers on both free nodes. Receipts ~/benchmarks/tp12-20261103/ and ~/benchmarks/tp12-20261104/. 26 of 42 now carry both legs; 8 more are ladder-only because their lane has no house leg (complete for those lanes); 8 lack data (2 house-only + 6 with no receipt at all) — so the row stays queued, not done"
     },
     {
       "id": "published-image-refs",
@@ -1088,6 +1089,51 @@
       "notes": "MEASURED 2026-11-03: the tp12 campaign booted zz-spark-x2.6-4b-int8-sglang on .30 (21:46:01) — the arm its own lane doc measured-rejected on 2026-10-22 with 'Do not re-boot INT8 on v0.5.22-cu130', same error text (NotImplementedError: No implemented int8_scaled_mm) and same image — and paid 98 s of load plus 28 minutes of a blocked stream for it. The nex-n2.5 pair is the same class (attic/cybersec/AGENTS.md records four boots on the same digest). Work: give the manifest derivation a skip source it can check — a tracked list of arm ids with their recorded verdict and the doc that holds it, consumed by the campaign's --skip plumbing and by tools/next-arms.py — rather than a prose rule a scheduler cannot read. Acceptance: a campaign started from scratch prints 'skip: <arm> (measured-rejected, <doc>:<line>)' and boot nothing for it; a control asserts an unlisted arm still runs.",
       "provenance": "recipes/explore/README.md:812,828 (zz-spark-x2.6-4b-int8-sglang measured-rejected 2026-10-22); tp12 sweep 2026-11-03",
       "evidence": "commit b30370c (tools/measured-rejected.json + tools/next-arms.py skip wiring; guard tests/test_next_arms.py::SkippedByVerdict)",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ple-disk-read-regression",
+      "title": "Attribute the solo Flash-Next PLE disk-read regression before tuning the arm",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "local-inference-lab/Qwen3.8-Flash-Next-NVFP4",
+      "node_cost": "single",
+      "notes": "MEASURED 2026-11-03 (tp12, .30): qwen3.8-flash-next-nvfp4-solo-vllm-b12x ladder is a regression, not a model property — prefill 33.96/32.22/35.85/30.53 t/s and ttfr 60.5/127.0/262.3/442.2 s at c1/2/5/10 against 1864/1896/2059/1150 t/s and 1.1-8.5 s on 2026-10-18, same image digest and same recipe; decode falls with concurrency (8.98/8.34/3.66/2.41 t/s), and the serve log carries 40 engine-stall blocks, all inside the ladder window. Mechanism named: a ~62 s disk read of the PLE embedding table per stall, b12x fork b12x_ple.py:625 prepare_disk -> disk_table.py:361 _read_staged -> ple_reader_run, with VLLM_PLE_TABLE_MEMORY=disk the recipe's shipped knob. The storage path changed six days after the control (HF cache moved to BeeGFS 2026-10-24), so three causes are live and not yet separated: pool storage path, PLE cache mode, recipe drift. Receipt ~/benchmarks/tp12-20261103/qwen3.8-flash-next-nvfp4-solo-vllm-b12x/ (ladder.json, house.json, serve-solo.log). Acceptance: one boot per candidate cause — PLE table read from a node-local copy, VLLM_PLE_TABLE_MEMORY=ram or device where the table fits, and a recipe diff against the 2026-10-18 boot — leaves the prefill/ttfr gap attributable; the winning cause is written into recipes/qwen4/README.md with its receipt, and the arm is either fixed (ladder back inside the 2026-10-18 band) or marked defective with the mechanism, so nobody tunes the model for a disk. Falsifier: a node-local PLE copy that still stalls 40 times makes storage not the cause and points at PLE cache mode.",
+      "provenance": "~/benchmarks/tp12-20261103/qwen3.8-flash-next-nvfp4-solo-vllm-b12x/{ladder.json,house.json,serve-solo.log}; recipes/qwen4/README.md 2026-10-18 ladder row for the control; mad-science/STATUS.md 00:31 ET row for the ttfr and stall observation",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "driver-consults-skip-source",
+      "title": "Make the campaign driver consume the recorded-negative skip source",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "MEASURED 2026-11-04: tonight's driver (~/benchmarks/tp12-campaign-20261103/drive.sh, its own inline derive()) never read tools/measured-rejected.json, so the plan it executed still contained recorded negatives: qwen3.8-flash-next-uncensored-nvfp4-sglang (rc=4 in 78 s) and its vLLM sibling (rc=4 in 74 s) each reproduced a documented failure — two boots spent to learn nothing. tools/next-arms.py already implements the read (rejected_arms(), stale_rejections(), prints 'skip: <arm> (<verdict>, <doc>:<line>)') and register row tp12-skip-measured-rejected is done for that path; the gap is the driver duplicating the derivation instead of calling it. Acceptance: a campaign started from scratch prints 'skip: <arm> (<verdict>, <doc>:<line>)' for every recorded negative and boots none of them, while a control asserts an unlisted arm still runs; the check is a guard whose negative control fails against tonight's driver text. Falsifier: a driver that prints the lines yet still plans a rejected arm fails the 'boots none' half even though the print half passes.",
+      "provenance": "tools/measured-rejected.json; tools/next-arms.py:164,190; ~/benchmarks/tp12-campaign-20261103/drive.sh (derive(), LAD/HOU tuples); mad-science/SESSION-RECORD.md:2432",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "driver-stream-work-stealing",
+      "title": "Steal work between the driver's node streams so a free node never idles",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "pair",
+      "notes": "MEASURED 2026-11-04: the campaign lost 2.02 node-hours on .35, and not from an imbalanced split — 9 rows each, .35 drained at 22:50 while .30 still worked, because one arm took 132 min while a whole node sat idle. Sizing from tonight's start/rc lines: median start->rc 9 m 45 s (n=17), 7 m 50 s (n=13) once the four arms over 30 min are excluded, so a queued arm is normally short enough to be worth handing to a free stream. Acceptance: a free node is never idle while the other stream still holds work — the driver hands the next queued arm to whichever node is free, and the row records the wall-time saved against tonight's 2.02 node-hours. Falsifier: a run in which the free stream's next arm is always longer than the busy stream's remainder saves nothing, and the row must say so rather than claim the win.",
+      "provenance": "~/benchmarks/tp12-campaign-20261103/sweep.log (start/rc timestamps; '=== stream .35 drained (8 arm(s))' at 22:50); mad-science/STATUS.md 02:35 ET campaign row",
+      "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
     }
