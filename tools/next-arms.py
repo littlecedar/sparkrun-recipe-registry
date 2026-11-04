@@ -16,13 +16,22 @@ free node:
                                 free nodes) and by an explicit `--skip` list for arms that are
                                 known dead (a proven-negative, a broken upload)
 
+and one thing more, because a node window is the scarce resource: the **recorded verdicts** in
+`tools/measured-rejected.json` (`--reject-file`). Each entry is an arm, its verdict, the
+`path:line` that records it, and the date. Such an arm is never placed, and the plan prints
+`skip: <arm> (<verdict>, <doc>:<line>)` so the reason is checkable without reading this tool. A
+lane doc already recording a negative is the whole evidence; re-booting it buys nothing. An entry
+whose recipe file is gone is reported `stale-skip` and gates (exit 2), the same rule
+`refresh-sweep.py` applies to a dead acceptance.
+
 Nodes come from `--nodes`/`$STAGE_NODES`: this file is tracked and the registry forbids cluster
 addresses in tracked text.
 
     python3 tools/next-arms.py --nodes <a>,<b> --skip nex-n2.5-mini-uncensored-nvfp4-sglang
 
 Exit codes: 0 printed a plan for every free node; 1 at least one free node has no runnable arm
-(an honest "the queue is dry", not an error); 2 the tool could not run.
+(an honest "the queue is dry", not an error); 2 the tool could not run — including an unreadable
+skip source or one naming an arm the tree no longer carries.
 
 Stdlib only.
 """
@@ -37,6 +46,8 @@ import sys
 
 MANIFEST = ".scratch/tp12-campaign/manifest.json"
 RECEIPTS = "benchmarks/tp12-*"
+#: Tracked skip source: arms the tree already measured and refused, each with its citation.
+REJECTED = "tools/measured-rejected.json"
 MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "house.transcribed.txt")
 #: Arms whose recipes live under these paths are measured by instruments the runner now
 #: supports end to end, so they are ordinary candidates.
@@ -107,6 +118,10 @@ class ManifestError(RuntimeError):
     """The manifest could not be read. Never silently "nothing to do"."""
 
 
+class RejectError(RuntimeError):
+    """The skip source could not be read. Never silently plan a recorded negative."""
+
+
 def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
     """Place arms on the free nodes, pairs included.
 
@@ -146,6 +161,43 @@ def place(free: list[str], todo: list[dict]) -> tuple[list[dict], list[dict]]:
     return rows, pairs_unplaced
 
 
+def rejected_arms(path: str = REJECTED) -> dict[str, dict]:
+    """Recorded measured negatives, keyed by arm, from the tracked skip source.
+
+    An arm the tree has already measured and refused is not a candidate: booting it again spends
+    a node window and produces no new number. The verdict lives in a file rather than in this
+    tool because the citation (a `path:line` in a lane doc) is evidence, not code.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except OSError as exc:
+        raise RejectError(f"cannot read {path}: {exc}") from exc
+    except ValueError as exc:
+        raise RejectError(f"{path} is not valid JSON: {exc}") from exc
+    entries = payload.get("rejected") if isinstance(payload, dict) else None
+    if not isinstance(entries, list):
+        raise RejectError(f'{path} must hold {{"rejected": [...]}}')
+    out: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not (entry.get("arm") and entry.get("verdict")
+                                               and entry.get("doc")):
+            raise RejectError(f"{path}: every entry needs `arm`, `verdict` and `doc`: {entry!r}")
+        out[entry["arm"]] = entry
+    return out
+
+
+def stale_rejections(rejected: dict[str, dict]) -> list[dict]:
+    """Entries naming an arm whose recipe file no longer exists.
+
+    A skip entry that outlives its arm suppresses nothing while still reading as a live hold --
+    the defect `refresh-sweep.py` reports as `stale-acceptance`. Callers gate on this rather
+    than dropping the entry, so the file cannot silently rot.
+    """
+    return [entry for arm, entry in rejected.items()
+            if not glob.glob(os.path.join("recipes", "*", f"{arm}.yaml"))]
+
+
 def candidates(manifest: str, done: set[str], skip: set[str], free_count: int) -> list[dict]:
     try:
         with open(manifest, encoding="utf-8") as fh:
@@ -181,6 +233,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="where the tp12-* receipt windows live (default: $HOME)")
     ap.add_argument("--skip", action="append", default=[],
                     help="arm to exclude (dead upload, proven negative); repeatable")
+    ap.add_argument("--reject-file", default=REJECTED,
+                    help="recorded measured negatives the planner must never place"
+                         " (default: %(default)s)")
     ap.add_argument("--json", action="store_true", help="machine-readable plan")
     args = ap.parse_args(argv)
 
@@ -189,13 +244,28 @@ def main(argv: list[str] | None = None) -> int:
         print("no nodes: pass --nodes a,b or set $STAGE_NODES", file=sys.stderr)
         return 2
 
+    # Read before the fleet probe: a skip file that cannot be read or has rotted is a config
+    # defect, and failing here costs no ssh -- the plan would otherwise be built without the very
+    # exclusions that keep a measured negative off a node.
+    try:
+        rejected = rejected_arms(args.reject_file)
+    except RejectError as exc:
+        print(f"cannot plan: {exc}", file=sys.stderr)
+        return 2
+    stale = stale_rejections(rejected)
+    if stale:
+        for entry in stale:
+            print(f"stale-skip: {entry['arm']} ({entry['verdict']}, {entry['doc']})"
+                  " -- no recipe file, so it suppresses nothing", file=sys.stderr)
+        return 2
+
     free = free_nodes(nodes)
     done = measured_arms(args.home)
     # The queue is a property of the fleet, not of the moment: ask what is runnable at the
     # fleet's real capacity (two free nodes) and report that even when none is free, so an
     # idle node never hides a backlog and a full fleet still shows what comes next.
     try:
-        todo = candidates(args.manifest, done, set(args.skip), max(len(nodes), 2))
+        todo = candidates(args.manifest, done, set(args.skip) | set(rejected), max(len(nodes), 2))
     except ManifestError as exc:
         print(f"cannot plan: {exc}", file=sys.stderr)
         return 2
@@ -210,12 +280,21 @@ def main(argv: list[str] | None = None) -> int:
     placed = {n for row in plan for n in row["nodes"]}
     stranded = [n for n in free if n not in placed]
 
+    skipped = [{"arm": arm, "verdict": e["verdict"], "doc": e["doc"]}
+               for arm, e in sorted(rejected.items())]
+
     if args.json:
-        print(json.dumps({"free_nodes": free, "measured": len(done), "plan": plan}, indent=2))
+        print(json.dumps({"free_nodes": free, "measured": len(done), "skipped": skipped,
+                          "plan": plan}, indent=2))
     else:
         print(f"free nodes: {', '.join(free) if free else 'none'}")
         print(f"measured arms on disk: {len(done)} | unmeasured in manifest: {len(todo)}"
               f" | runnable on {len(free)} free node(s): {len(plan)}")
+        # Printed even when nothing else is: the reason an arm is absent must be checkable
+        # without reading this tool, and a boot that spends a window to learn nothing is the
+        # defect this list exists to prevent.
+        for entry in skipped:
+            print(f"skip: {entry['arm']} ({entry['verdict']}, {entry['doc']})")
         # Exclusion accounting: "nothing runnable" must be explainable.
         if args.skip:
             print(f"  excluded by --skip: {', '.join(sorted(args.skip))}")

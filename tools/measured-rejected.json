@@ -1,0 +1,23 @@
+{
+ "note": "Arms the tree has already measured and refused, for tools/next-arms.py. `arm` is the recipe filename minus `.yaml`; `doc` is the `path:line` whose text records the verdict, and it must be a line that reads as a rejection -- not a plan, a caveat, or a maybe. The planner then prints `skip: <arm> (verdict, doc)` and never places the arm. An entry whose recipe file is gone is reported as `stale-skip` and gates, so a hold cannot outlive the arm it suppressed. Boots already spent are receipted in the cited doc; an entry is deleted when its blocker is measured gone, not when the arm looks interesting again.",
+ "rejected": [
+  {
+   "arm": "zz-spark-x2.6-4b-int8-sglang",
+   "verdict": "measured-rejected",
+   "doc": "recipes/explore/README.md:812",
+   "since": "2026-10-22"
+  },
+  {
+   "arm": "nex-n2.5-mini-uncensored-nvfp4-sglang",
+   "verdict": "measured-rejected",
+   "doc": "attic/cybersec/AGENTS.md:729",
+   "since": "2026-10-16"
+  },
+  {
+   "arm": "nex-n2.5-mini-uncensored-nvfp4-vllm",
+   "verdict": "measured-rejected",
+   "doc": "attic/cybersec/AGENTS.md:372",
+   "since": "2026-10-15"
+  }
+ ]
+}
