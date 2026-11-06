@@ -2583,3 +2583,9 @@ The 2026-11-04 16:18–17:02 board rows were written by ticks and never mirrored
 - **16:52 ET** `b2bd76f` — The gate runs the campaign suite and a `py_compile` loop over `campaign/*/*.py` as their own step, since the tree sits outside every existing glob (`.github/workflows/gate.yml`).
 - **16:53 ET** `b6e3554` — `campaign/` joins the live documentation zone and the key-directory table, with its second-uv-project and gate-command rules (`AGENTS.md`).
 - **17:02 ET** `da5aaca` — `AGENTS.md`'s documented gate block gains the campaign suite command and a `py_compile` pass over `campaign/*/*.py`, with the `__pycache__` cleanup line extended to the new tree, so a locally reported green covers the two steps CI now runs over `campaign/`.
+
+## 2026-11-06 16:04 ET — two landings today's ticks never ledgered
+Neither landing was ever on a board `Landed session` table — the 14:00 and 15:0x ticks edited the board in place — so these two clauses existed only in a commit body and in a census row that the next refresh overwrites.
+
+- **14:05 ET** `aa60c79` — The production serve leaves `In flight` for the census row, per the owner directive that a production workload is never an In-flight row and never counted; the disclosure moved rather than dropped — pin attribution, restart time, per-rank child probe and the 200 all stay in the census row.
+- **14:11 ET** `d25021f` — The quartet's image is bound to the shipped pin by **config digest**, not by local tag: the pinned ghcr manifest `sha256:7c3cb394…` carries config digest `sha256:3f4480818acb…`, exactly the running container's image ID, while local `canary-roce-aff52fa5` carries no `RepoDigests`. Measured without pulling the 33 GB body (`docker buildx imagetools inspect --raw` on `.31`), and the container's own `sparkrun.recipe` label names the registry ref it launched from.
