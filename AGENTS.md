@@ -818,6 +818,12 @@ explanation, and the next session re-derives work that is already done. Mitigati
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
+  **`test_doc_hygiene` reads the worktree's `AGENTS.md`, so on this syncthing-shared clone a peer's
+  uncommitted count edit makes the guard pass against bytes you are not committing** — before pushing
+  a test-adding commit, compare the two numbers your commit will actually carry:
+  `unittest.defaultTestLoader.discover("tests").countTestCases()` against the suite total in
+  `git show HEAD:AGENTS.md`, and move both statements in the same commit; otherwise the gate goes red
+  one commit later (measured 2026-11-06: seven new tests landed under a stated 1252).
 - **`COOP.md` ledgers are working files, not registry content.** The two that had been committed
   (`attic/qwen4/COOP.md`, `recipes/ifm/COOP.md`, the latter a 2026-10-07 reconstruction) were
   **removed from git on 2026-10-10** and `**/COOP.md` is now git-ignored, so a fresh clone cannot
