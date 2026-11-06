@@ -48,6 +48,7 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py render --board        # the STATUS.md `## Work queue` table
     uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
     uv run python -B tools/task-queue.py lint [FILE ...]       # markdown that will not render (default: the board)
+    uv run python -B tools/task-queue.py publish < new-board   # write the board unless the one on disk is newer
 
 Since 2026-11-03 the queue is the register and `mad-science/TODO.md` is a frozen archive
 (`mad-science/QUEUE.md` §"Relationship to TODO.md").  `render --board` is what a board tick
@@ -64,11 +65,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 DEFAULT_QUEUE = Path("mad-science/queue.json")
@@ -517,21 +520,131 @@ def _emit(lines: list[str], what: str) -> None:
     print("\n".join(lines))
 
 
+BOARD_TITLE = re.compile(r"^#\s+Board\s+—\s+generated\s+(\d{4}-\d\d-\d\d \d\d:\d\d) ET", re.M)
+
+
+def board_title(text: str) -> str | None:
+    """The board's own generation stamp as `YYYY-MM-DD HH:MM` (sorts chronologically)."""
+    m = BOARD_TITLE.search(text)
+    return m.group(1) if m else None
+
+
+def committed_text(path: Path) -> str | None:
+    """The file as HEAD has it, or `None` when it is untracked or outside a repository."""
+    top = subprocess.run(
+        ["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True)
+    if top.returncode:
+        return None
+    repo = Path(top.stdout.strip())
+    try:
+        rel = path.resolve().relative_to(repo)
+    except ValueError:
+        return None
+    show = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
+                          capture_output=True, text=True)
+    return show.stdout if show.returncode == 0 else None
+
+
 def cmd_lint(args, path: Path) -> None:
     """Lint markdown files; the board is the default because it is hand-written."""
     paths = [Path(p) for p in (args.paths or [DEFAULT_BOARD])]
     total = 0
     for target in paths:
         try:
-            problems = lint_markdown(target.read_text(encoding="utf-8"))
+            text = target.read_text(encoding="utf-8")
         except FileNotFoundError:
             raise QueueError(f"no such markdown file: {target}")
+        problems = lint_markdown(text)
         for line, rule, detail in problems:
             print(f"{target}:{line}: {rule}: {detail}")
         total += len(problems)
+        # A concurrent tick fixes its census before taking the board lock, so it can publish a
+        # whole-file rewrite whose title is older than the one already committed.  Three such
+        # regressions landed on 2026-11-06 (15:00 -> 13:56, 15:49 -> 15:28); refusing them here
+        # is the only check that runs before the commit, since lint is the tick's own last step.
+        prior = board_title(committed_text(target) or "")
+        mine = board_title(text)
+        if mine and prior and mine < prior:
+            print(f"{target}:1: title-regression: title says {mine}, HEAD says {prior} — a stale "
+                  "full-file write replaced a fresher board; re-read it and regenerate")
+            total += 1
     if total:
         raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
     print(f"ok: {len(paths)} markdown file(s) render")
+
+
+_STAMP = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?) ET")
+
+
+def _stamp(text: str) -> dt.datetime:
+    return dt.datetime.strptime(text, "%Y-%m-%d %H:%M:%S" if text.count(":") == 2 else "%Y-%m-%d %H:%M")
+
+
+def board_stamp(text: str) -> dt.datetime:
+    """The board's own measurement time: newest `| census |` row stamp, the title as fallback.
+
+    Census first, deliberately: the title is when the tick wrote and the census is what it measured, so
+    a board can carry a fresh title over a stale read (measured 2026-11-06, three ticks inside 50 minutes).
+    """
+    stamps = [_stamp(m.group(1)) for line in text.splitlines() if line.startswith("| census |")
+              for m in _STAMP.finditer(line)]
+    if not stamps:
+        title = board_title(text)
+        if not title:
+            raise QueueError("no census or title timestamp: cannot tell which board is newer")
+        stamps.append(_stamp(title))
+    return max(stamps)
+
+
+def _lock(handle, seconds: float) -> None:
+    """Bounded exclusive flock: a wedged holder is reported, never waited on.
+
+    Measured 2026-11-06: an eval kernel inherited the lock fd and held `.local/status-board.lock` for
+    more than an hour, every later writer timed out, and one tick that gave up instead committed a
+    stale board.  A blocked publish says so and exits; the operator inspects `fuser -v`.
+    """
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                raise QueueError(
+                    f"{handle.name} still locked after {seconds:g}s — a holder is wedged; inspect "
+                    f"with `fuser -v {handle.name}` and do not publish on a stale read")
+            time.sleep(0.5)
+
+
+def cmd_publish(args, path: Path) -> None:
+    """Write a regenerated board from stdin, refusing one older than the board already on disk.
+
+    A peer tick that takes its census early and writes late has twice replaced a newer board with an
+    older one (2026-11-06: a 13:56 ET census landed over a 15:15 ET title).  `flock` serializes writers
+    but cannot stop a slow one, so the freshness comparison has to happen inside the lock.
+    """
+    text = sys.stdin.read()
+    problems = lint_markdown(text)
+    for line, rule, detail in problems:
+        print(f"stdin:{line}: {rule}: {detail}", file=sys.stderr)
+    if problems:
+        raise QueueError(f"refusing publish: {len(problems)} markdown problem(s) above")
+    incoming = board_stamp(text)
+    board = Path(args.board)
+    lock = Path(args.lock)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock, "w") as handle:
+        _lock(handle, args.lock_wait)
+        disk = board_stamp(board.read_text(encoding="utf-8")) if board.exists() else None
+        if disk is not None and disk > incoming:
+            raise QueueError(
+                f"refusing publish: {board} on disk carries {disk} ET, newer than this read's "
+                f"{incoming} ET — re-read the census, do not overwrite it")
+        tmp = board.with_name(board.name + ".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, board)
+    print(f"published {board}: {incoming} ET" + (f" (disk was {disk} ET)" if disk else ""))
 
 
 def cmd_render(args, path: Path) -> None:
@@ -737,6 +850,13 @@ def main(argv: list[str] | None = None) -> int:
     p_lint.add_argument("paths", nargs="*", default=None,
                         help=f"markdown files (default {DEFAULT_BOARD})")
     p_lint.set_defaults(fn=cmd_lint)
+    p_pub = sub.add_parser("publish", help="write a board from stdin unless the one on disk is newer")
+    p_pub.add_argument("--board", default=str(DEFAULT_BOARD), help=f"board file (default {DEFAULT_BOARD})")
+    p_pub.add_argument("--lock", default=".local/status-board.lock",
+                       help="lock file shared with every other board writer (default .local/status-board.lock)")
+    p_pub.add_argument("--lock-wait", type=float, default=90.0,
+                       help="seconds to wait for the lock before refusing (default 90)")
+    p_pub.set_defaults(fn=cmd_publish)
 
     args = parser.parse_args(argv)
     path = Path(args.file)

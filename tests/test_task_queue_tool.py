@@ -32,6 +32,7 @@ the properties.
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import importlib.util
 import io
 import json
@@ -311,6 +312,46 @@ class AtomicSave(unittest.TestCase):
             self.assertEqual(path.stat().st_mode & 0o777, 0o640)
 
 
+class TitleMonotonicity(unittest.TestCase):
+    """A tick fixes its census before taking the board lock, so its whole-file rewrite can carry
+    an older title than the committed board.  Three such regressions landed on 2026-11-06
+    (15:00 -> 13:56 and 15:49 -> 15:28 measured), each reverting rows a fresher board held."""
+
+    BOARD = (
+        "# Board — generated {stamp} ET\n\n"
+        "## In flight\n\n"
+        "| where | owner | what |\n|---|---|---|\n| census | tick | 0 containers |\n"
+    )
+
+    def _repo(self, tmp, stamp):
+        import subprocess
+        root = Path(tmp)
+        path = root / "STATUS.md"
+        path.write_text(self.BOARD.format(stamp=stamp), encoding="utf-8")
+        env = ["-c", "user.email=g@example.invalid", "-c", "user.name=g"]
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(["git", *env, "add", "-A"], cwd=root, check=True)
+        subprocess.run(["git", *env, "commit", "-qm", "board"], cwd=root, check=True)
+        return path
+
+    def test_a_stale_title_is_refused(self):
+        # Negative control: the pre-fix `lint` only checked markdown and passed this rewrite.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._repo(tmp, "2026-11-06 15:49")
+            path.write_text(self.BOARD.format(stamp="2026-11-06 13:56"), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()) as out, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(tq.main(["lint", str(path)]), 1)
+            self.assertIn("title-regression", out.getvalue())
+
+    def test_a_fresh_title_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._repo(tmp, "2026-11-06 15:49")
+            path.write_text(self.BOARD.format(stamp="2026-11-06 16:04"), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(tq.main(["lint", str(path)]), 0)
+
+
 class BoardAndArchive(unittest.TestCase):
     """`render --board` and `orphans`: the queue is the register, TODO.md is the archive."""
 
@@ -473,3 +514,85 @@ class MarkdownLint(unittest.TestCase):
             with self.subTest(file=rel):
                 path = REPO_ROOT / rel
                 self.assertEqual(tq.lint_markdown(path.read_text(encoding="utf-8")), [])
+
+
+def board_text(census, title=None):
+    """Minimal board carrying one census stamp — the only part `publish` reads."""
+    title = title or census[:16]
+    return (f"# Board — generated {title} ET\n\n"
+            "## In flight\n\n| where | owner | what |\n|---|---|---|\n"
+            f"| census | this tick | **{census} ET** measured |\n\n"
+            "## Work queue\n\n| job | node cost | holds | state |\n|---|---|---|---|\n\n"
+            "## Landed session\n\n| time ET | commit | one clause |\n|---|---|---|\n")
+
+
+class BoardPublish(unittest.TestCase):
+    """`publish`: a board older than the one on disk is refused, never written.
+
+    The defect it exists for is measured, not hypothetical: on 2026-11-06 three ticks landed inside
+    50 minutes and a peer whose census read 13:56 ET wrote it *after* a 15:15 ET board, so the file
+    went backwards. `flock` serializes writers and cannot stop a slow one, so the freshness
+    comparison has to happen inside the lock, against the board's own census stamp.
+    """
+
+    OLD = "2026-11-06 13:56:04"
+    NEW = "2026-11-06 16:02:09"
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.board = self.dir / "STATUS.md"
+        self.lock = self.dir / "board.lock"
+
+    def publish(self, text, wait=None):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            saved, sys.stdin = sys.stdin, io.StringIO(text)
+            try:
+                argv = ["publish", "--board", str(self.board), "--lock", str(self.lock)]
+                if wait is not None:
+                    argv += ["--lock-wait", wait]
+                return tq.main(argv)
+            finally:
+                sys.stdin = saved
+
+    def test_newer_census_replaces_the_board(self):
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW)), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
+
+    def test_older_census_is_refused_and_leaves_the_board_bytes_alone(self):
+        # Negative control: the pre-guard behaviour overwrote here and regressed the board.
+        self.board.write_text(board_text(self.NEW), encoding="utf-8")
+        before = self.board.read_bytes()
+        self.assertEqual(self.publish(board_text(self.OLD)), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_same_census_is_idempotent(self):
+        self.board.write_text(board_text(self.NEW), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW).replace("this tick", "re-run")), 0)
+
+    def test_census_stamp_decides_over_a_newer_title(self):
+        """A fresh title over a stale census is the shape of the defect, so the census is what counts."""
+        self.board.write_text(board_text(self.OLD, title="2026-11-06 18:00"), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW, title="2026-11-06 16:04")), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
+
+    def test_a_board_with_no_stamp_fails_closed(self):
+        self.board.write_text(board_text(self.NEW), encoding="utf-8")
+        before = self.board.read_bytes()
+        self.assertEqual(self.publish("| where |\n|---|\n| x |\n"), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_markdown_that_will_not_render_is_refused(self):
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        broken = board_text(self.NEW).replace("|---|---|---|\n", "", 1)
+        self.assertEqual(self.publish(broken), 1)
+        self.assertIn(self.OLD, self.board.read_text(encoding="utf-8"))
+
+    def test_a_wedged_lock_refuses_instead_of_waiting(self):
+        """Measured 2026-11-06: an inherited lock fd held the board lock for over an hour."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        before = self.board.read_bytes()
+        with open(self.lock, "w") as holder:
+            fcntl.flock(holder, fcntl.LOCK_EX)
+            self.assertEqual(self.publish(board_text(self.NEW), wait="0"), 1)
+        self.assertEqual(self.board.read_bytes(), before)
