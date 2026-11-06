@@ -2589,3 +2589,25 @@ Neither landing was ever on a board `Landed session` table — the 14:00 and 15:
 
 - **14:05 ET** `aa60c79` — The production serve leaves `In flight` for the census row, per the owner directive that a production workload is never an In-flight row and never counted; the disclosure moved rather than dropped — pin attribution, restart time, per-rank child probe and the 200 all stay in the census row.
 - **14:11 ET** `d25021f` — The quartet's image is bound to the shipped pin by **config digest**, not by local tag: the pinned ghcr manifest `sha256:7c3cb394…` carries config digest `sha256:3f4480818acb…`, exactly the running container's image ID, while local `canary-roce-aff52fa5` carries no `RepoDigests`. Measured without pulling the 33 GB body (`docker buildx imagetools inspect --raw` on `.31`), and the container's own `sparkrun.recipe` label names the registry ref it launched from.
+
+## 2026-11-06 16:20 ET — the board's writer race, and the gate that now refuses it
+The board is not being refreshed on a cadence this afternoon: several `omp -p` tick sessions launched
+hourly since 03:00 are still alive, and each publishes a **whole-file** rewrite computed from its own
+census taken before it takes `.local/status-board.lock`. The lock therefore serialises writes without
+ordering them, which is why the file has been going backwards.
+
+- **Titles regressed three times in one hour.** `2d91650` (15:19) published `# Board — generated
+  2026-11-06 13:56 ET` over a board whose own census row cited `15:22:46 ET`; the worktree at 16:00
+  held a `15:28` title against HEAD `5afac71`'s `15:49`; and a repair this tick wrote under the lock at
+  15:26 ET was replaced by a stale whole-file write `2m` later. `2d91650` also re-added a `.31`–`.34`
+  production-serve `In flight` row that the 2026-10-28 owner directive forbids, undoing `aa60c79`.
+- **The evidence backend is `ps`, not the board**: tick processes from 03:00, 04:00, 05:00 … 12:00 are
+  all still running, so this is a backlog of sessions, not a burst.
+- **Gate landed** (`tools/task-queue.py`): `lint` now refuses `title-regression` when the worktree
+  board's title is older than the one at HEAD, since lint is every tick's last step before its commit
+  and no markdown rule can see a backwards clock; `tests/test_task_queue_tool.py::TitleMonotonicity`
+  carries the pre-fix control (the same rewrite linted clean before the rule) and a fresh-title pass.
+- **Facts a rewrite can erase, recorded here**: the production ds4 TP=4 quartet on `.31`–`.34` is
+  serving, not idle — `/v1/models` 200 naming `deepseek-ai/DeepSeek-V4.1-Flash-1017` at
+  `max_model_len` 1,048,576, one `python3 -m sglang.launch_server` child per rank, and its in-container
+  `/tmp/sparkrun_serve.log` grew **1,484,193 → 1,868,700 B** between 13:56 and 15:26 ET.
