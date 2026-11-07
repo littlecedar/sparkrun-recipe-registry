@@ -99,8 +99,9 @@ still free.
 [Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) — text-only
 embedding encoder, the lane's cheap/fast tier next to the two VL pairs. Pinned to commit
 `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` (public, Apache-2.0, `lastModified`
-2026-04-20). **Authored, not yet booted** — no cell exists for it; the C1–C10 columns stay `—`
-until a boot fills them.
+2026-04-20). **Measured 2026-11-07** on `.35` through the campaign driver — **C1 41.2 · C2 59.6 ·
+C5 141.4 · C10 198.7 units/s**, 100/100 ok on every rung; the cells, the quality pass and the
+cold-cache lesson are in §Measurement below.
 | | |
 |---|---|
 | params / dtype | 0.6B (~596M: 1.19 GB of bf16 weights), `hidden_size` 1024, 28 layers · bf16 |
@@ -152,6 +153,33 @@ Boot traps a first launch has to clear:
 - **Launch-log check.** vLLM must not print a bare generative resolution for this checkpoint;
   after readiness, `/v1/embeddings` must answer **1024** floats per input (the ladder's
   dimension check fails loudly if not) and `/v1/models` must list `Qwen/Qwen3-Embedding-0.6B`.
+
+### Measurement (2026-11-07)
+
+Pooling ladder on `.35` through the campaign driver, 100 requests per rung, 256-token texts, batch 1,
+`-b dimension_check=1024`: **C1 41.2 (p50 23.8 ms) · C2 59.6 · C5 141.4 · C10 198.7 units/s**, with
+**100/100 ok on every rung** and no parse errors. One unit here is one request on a 100-request
+rung, so units/s and request/s coincide on this cell — that is a property of the rung, not of the
+arm, and it is why these cells are quoted in the lane's units and never as decode t/s. The quality
+pass on the same serve: **1024-d on all 11 vectors**, distinct-input cosine **0.0959**, same-input
+distance **0.000** (< 1e-3) — the shape and repeat-stability checks this encoder's contract needs,
+not a retrieval score. Receipt
+`~/benchmarks/embed2-20261107/receipts/qwen3-embedding-0.6b-vllm-b12x.json`; window
+`~/benchmarks/tp12-20261107/qwen3-embedding-0.6b-vllm-b12x/`.
+
+**Cold-cache lesson, and why the command carries `--revision`.** The first boot of this arm failed
+with `LocalEntryNotFoundError`: the pinned revision was in the shared cache as a bare snapshot, with
+no weight files, no `refs/main` and no `trees` entry, so the engine's offline lookup resolved
+nothing. It was fixed **cache-side** — the weights, `refs/main` and the trees entry written for the
+pin — and the arm re-ran to the cells above; the failed attempt is kept as
+`…/qwen3-embedding-0.6b-vllm-b12x.prev-052912/`, with the root `embed-20261107` window holding the
+failure. The command now passes `--revision {model_revision}` so the engine resolves the pinned
+commit directly instead of depending on `refs/main`; the measured weights are that same snapshot, so
+the cells above stay valid.
+
+**The two VL encoders still omit `--revision`** and rely on `refs/main`, i.e. the same cold-cache
+exposure, unmeasured. Add the flag there when each is next boot-gated; do not edit them just for
+this.
 
 ## Serving the encoder correctly (client contract)
 

@@ -150,13 +150,13 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                   | Flags | C1 u/s | C2 u/s | C5 u/s | C10 u/s |   Size | Mem% |            API | TP | Model Cards                                    |
 |:-----------------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|---------------:|---:|:-----------------------------------------------|
-| qwen3-embedding-0.6b-vllm-b12x           | 🌲📶🤏   |      — |      — |      — |       — | 1.19GB |  15% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-Embedding-0.6B]            |
+| qwen3-embedding-0.6b-vllm-b12x           | 🌲📶🤏   |   41.2 |   59.6 |  141.4 |   198.7 | 1.19GB |  15% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-Embedding-0.6B]            |
 | qwen3-vl-embedding-2b-vllm-b12x          | 🌲👀📶🤏 |   38.2 |   45.5 |   85.2 |   102.4 | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🌲👀📶🤏 |   15.9 |      — |      — |       — | 6.01GB |  30% | /v1/embeddings |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
 
 * _The 2B row's C1–C10 are 2026-10-16 units/s from `benchmarking/pooling-ladder-embed.yaml` (c 1/2/5/10, 100 requests, ~256-token inputs, 5 warmups, salted, `-b dimension_check=2048`) — `~/benchmarks/pins-20261016/embed2b-ladder.json`. That is **not** the 8B row's shape, so the two rows' cells are not comparable._
 * _C1 is from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
-* _The 0.6B text row's cells are `—` by absence: authored 2026-11-07, not yet booted. Its ladder takes `-b dimension_check=1024` (1024-d), so its cells will not be comparable with either VL row either._
+* _The 0.6B text row's C1–C10 are the 2026-11-07 campaign ladder (`benchmarking/pooling-ladder-embed.yaml`, c 1/2/5/10, 100 requests, ~256-token texts, `-b dimension_check=1024`, `.35`) — `~/benchmarks/embed2-20261107/receipts/qwen3-embedding-0.6b-vllm-b12x.json`. One unit is one request on a 100-request rung, so these cells are also request/s; the 8B row above is a C1-only sweep of a different shape, and the 2B row was a different day's boot._
 
 ## Rerank
 

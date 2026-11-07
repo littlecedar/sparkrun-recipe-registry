@@ -38,8 +38,11 @@ defaults:
   # Pin the pooling/embed conversion: config.json declares the plain generative
   # `Qwen3ForCausalLM`, which would otherwise auto-resolve through vLLM's default table.
   convert: embed
+# `--revision` resolves the pin itself; a cache holding the snapshot without refs/main resolves
+# nothing (LocalEntryNotFoundError, measured 2026-11-07). The two VL arms still rely on refs/main.
 command: >
   taskset -c {cpu_mask} vllm serve {model}
+  --revision {model_revision}
   --served-model-name {served_model_name}
   --runner pooling
   --convert {convert}

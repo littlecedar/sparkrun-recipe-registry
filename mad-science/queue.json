@@ -841,13 +841,14 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "Qwen/Qwen3-Embedding-0.6B",
       "node_cost": "single",
       "notes": "Text-only Apache-2.0, 28 layers, 1024-d, 32k context (card + config.json read 2026-11-02): the cheap/fast text tier next to the shipped VL pairs. Pooling route on port 8010; ladder is sparkrun benchmark pooling with benchmarking/pooling-ladder-embed.yaml, since a pooling engine has no /chat/completions and benchmark performance fails its first task. Not booted, not measured.",
       "provenance": "owner 2026-11-02 request; mad-science/TODO.md §embed (18e8f3f)",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "Measured 2026-11-07 on .35 through the campaign driver: pool ladder 41.2 / 59.6 / 141.4 / 198.7 units/s at c1/c2/c5/c10 (100 requests per rung, 256-token texts, -b dimension_check=1024), 100/100 ok on every rung, c1 p50 23.8 ms; quality pass on the same serve 1024-d on all 11 vectors, distinct-input cosine 0.0959, same-input distance 0.000 (<1e-3), no parse errors. Tabulated with the cold-cache lesson in recipes/embed/README.md §qwen3-embedding-0.6b-vllm-b12x 'Measurement (2026-11-07)'; root README index row and footnote now carry the cells. First boot failed LocalEntryNotFoundError because the pinned revision had no weights/refs/main/trees in the shared cache — fixed cache-side and re-ran, and the command now passes --revision {model_revision}. Receipt ~/benchmarks/embed2-20261107/receipts/qwen3-embedding-0.6b-vllm-b12x.json; window ~/benchmarks/tp12-20261107/qwen3-embedding-0.6b-vllm-b12x/ (failed attempt .prev-052912; root embed-20261107 keeps the failure)."
     },
     {
       "id": "3d-qwen35-4b-3d-coder-arm",
