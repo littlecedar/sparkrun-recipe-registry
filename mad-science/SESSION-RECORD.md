@@ -3248,3 +3248,31 @@ Fleet total for the interval: −39,632,896 B (−37.80 MiB, 45,400 B/s across s
 nodes), of which `.30` contributes 15.5% and `.35`'s booting ornith serve 7.6%
 (−2,998,272 B, 3,434 B/s) — the pool-write class (18.49 GB in one body) remains
 four orders away, so nothing here is a body copy in progress.
+
+## 2026-11-07 10:25 ET — tick: `.30`'s unnamed fall is the `.35` longrun's capture spool
+
+The 09:26 section left `.30`'s ~7 kB/s with **no writer named** and named the falsifier: per-node
+io accounting over a fixed window. This tick ran a coarse version of it, and the writer has an
+author. `.30` is the head, and it hosts the run-2 capture proxy for the `.35` ornith longrun,
+which spools every SSE body into `~/benchmarks/ornith-longrun-20261107/`; the node itself runs
+**0 containers and 0 volumes** at the 10:02:31, 10:05:50 and 10:20 reads.
+
+| window (ET, stamped on the head in the same call) | receipt dir (`du -sb`) | `df -B1` on `/` | spool share |
+|---|---|---|---|
+| 10:24:33 → 10:25:03 (30 s) | 34,344,208 → 34,619,295 B (**+275,087**) | 1,453,644,304,384 → 1,453,644,009,472 B (**−294,912**) | **93%** (9,170 B/s of the node's 9,830 B/s) |
+| cumulative to 10:20:31 | 31,125,808 B over 673 `.sse` files + 544,291 B `ledger.jsonl` | −11,280,384 B since 10:06:01 (12,966 B/s) | rate-tracking, not a fixed ratio |
+| an earlier pair in this tick, no minute stamped | +73,037 B | −86,016 B | 85% |
+
+So the "background churn" is a named spool whose rate follows the run's traffic — the 8.7 kB/s
+and the 12,966 B/s windows are its quieter and busier phases, not a second mystery. What stays
+unattributed is small and bounded: ~660 B/s of head churn at the 10:24 window, and the
+`.31`–`.34` storage-node fall, which at 3,694–3,844 B/s reads **above** the 1.4–1.5 kB/s floor
+`89d8b01` recorded at 09:19. A read-only tick cannot attribute io to the quartet's four ranks, so
+that one remains unwitnessed rather than explained — the same distinction §09:26 drew.
+
+Run 2 of the longrun itself, read from `ledger.jsonl` at 10:06: **572 rows**, last row at
+depth 340 / 119,100 prompt tokens / ttft 0.285 s / decode 73.76 t/s / `done_seen: true` / no
+`error_events` — advancing, not stalled. Task `78c7e2fa335a63e5_916638841df1_solo`, container
+`057bd8ab5565`; `916638841df1` is the middle segment of the container's **name**, not its id (a
+peer board row read it as the id at 10:07 and `docker ps -a --format 'ID={{.ID}} NAME={{.Names}}'`
+falsified that). Run 1's container `…_26fe38ad05c8` is gone from the node.
