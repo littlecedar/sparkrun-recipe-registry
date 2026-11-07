@@ -5,10 +5,10 @@ Liquid AI's LFM3 family and its `d1-*` system-one siblings: small (1.7B–2.2B) 
 custom-code architectures (`auto_map` → `trust_remote_code` required) with vendor GGUF mirrors
 carrying LEAP quantization metadata.
 
-**Two arms ship, neither booted yet.** `LFM3-1.7B` has a llama.cpp arm on the vendor's Q4_K_M
-GGUF and a bf16 vLLM arm; both are authored (2026-11-07) and their first boots are the
-engine-support tests — see §Arms. The remaining collection members are queue rows in
-`mad-science/queue.json`.
+**One arm ships, not yet booted.** `LFM3-1.7B` has a llama.cpp arm on the vendor's Q4_K_M GGUF,
+authored 2026-11-07; its first boot is the engine-support test — see §Arms. A bf16 vLLM arm was
+authored and retired the same day, because the pinned vLLM predates the architecture
+(§Engine routes). The remaining collection members are queue rows in `mad-science/queue.json`.
 
 ## Roster — the `LiquidAI/lfm3` collection, read 2026-11-02
 
@@ -69,44 +69,50 @@ open TTS leaderboard as the external reference; and the decision ladder for `d1-
 
 | recipe | engine / pin | weights | what the first boot decides |
 |---|---|---|---|
-|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|whether that build loads `lfm3` at all, and whether its Jinja path parses the embedded template's `<tool_call><function=…>` form|
-|[`liquidai-lfm3-1.7b-fp16-vllm.yaml`](liquidai-lfm3-1.7b-fp16-vllm.yaml)|vLLM — the lane's `dgx-vllm-eugr-nightly-b12x` digest|HF bf16 safetensors, 3,456,635,448 B|whether that image's vLLM/transformers pair runs the checkpoint's `trust_remote_code` class at all|
+|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…`, built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|whether that build serves `lfm3` in practice as well as in its source tree, and whether its Jinja path parses the embedded template's `<tool_call><function=…>` form|
 
-Both ship as **ordinary arms**, not eval-only: LFM Open License v1.0 (`license: other`) went to the
-owner rather than a lane, and the 2026-11-02 ruling (`mad-science/QUESTIONS.md` `#56`) is ship
-ordinary — §License posture above. Neither has a measured cell; the root index's C1–C10 for these
-rows are `—` because no boot has happened.
+It ships as an **ordinary arm**, not eval-only: LFM Open License v1.0 (`license: other`) went to
+the owner rather than a lane, and the 2026-11-02 ruling (`mad-science/QUESTIONS.md` `#56`) is ship
+ordinary — §License posture above. It has no measured cell; the root index's C1–C10 for the row
+are `—` because no boot has happened.
 
-**The llama.cpp arm does not use the resident scitrera pin, and that is a finding, not a
-preference.** `scitrera/dgx-spark-llama-cpp:b10549-cu131` carries llama.cpp `b2e5e9b`
-(2026-08-21), and `lfm3` did not exist in llama.cpp until `19cce691` (2026-10-27, PR #31252
-`model : add LiquidAI/LFM3-1.7B and LiquidAI/LFM3-VL-2B`); the registry's own previous
-`upstream-a37cc46` build is 2026-10-21, also short of it. The GGUF itself declares
-`general.architecture = lfm3` (read from the pinned file's header), so either older image would die
-in model load with an unknown architecture, not test anything. The arm therefore pins
-`ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130`, built by this repo's
-`llamacpp-engine` workflow at the 2026-11-05 ref that also carries the later LFM3 work
-(#31598 spec-decode, #31608 NVFP4 GGUF, #31683 KV-shift fix), and takes
-`executor_config: entrypoint: ""` because that image keeps `llama-server` as its `ENTRYPOINT`.
+**The arm does not use the resident scitrera pin, and that is a finding, not a preference.**
+`scitrera/dgx-spark-llama-cpp:b10549-cu131` carries llama.cpp `b2e5e9b` (2026-08-21), and `lfm3`
+did not exist in llama.cpp until `19cce691` (2026-10-27, PR #31252 `model : add
+LiquidAI/LFM3-1.7B and LiquidAI/LFM3-VL-2B`); the registry's own previous `upstream-a37cc46`
+build is 2026-10-21, also short of it. The GGUF itself declares `general.architecture = lfm3`
+(read from the pinned file's header), so either older image would die in model load with an
+unknown architecture rather than test anything. The arm therefore pins the 2026-11-05 ref, which
+also carries the later LFM3 work (#31598 spec-decode, #31608 NVFP4 GGUF, #31683 KV-shift fix), and
+takes `executor_config: entrypoint: ""` because that image keeps `llama-server` as its
+`ENTRYPOINT`.
 
-Both commands are deliberately the **honest test**: nothing is passed that a successful boot would
-make true by assertion. The vLLM arm carries `--trust-remote-code` plus an explicit
-`--chat-template {model}/chat_template.jinja` (this checkpoint's `tokenizer_config.json` has no
-`chat_template` field; the template is a sidecar file), and **no** `--tool-call-parser` /
-`--reasoning-parser` — no LFM3 parser name is evidenced for this engine, and Liquid's vLLM
-deployment page documents `lfm2`/LFM2.5 flags only. The llama.cpp arm passes `--jinja` and no
-`--reasoning-format`, for the same reason: the GGUF embeds the current template (12,129 B,
+The command is deliberately the **honest test**: nothing is passed that a successful boot would
+make true by assertion. It uses `--jinja` and no `--reasoning-format`, for the same reason no
+parser flag exists anywhere in the arm — the GGUF embeds the current template (12,129 B,
 byte-identical to the repo's `chat_template.jinja`), but whether a thinking trace is split into
 `reasoning_content` or the `<tool_call>` XML is parsed into `tool_calls` is the boot's answer.
 
-**Instruments — the text lane's, and one boot each.** Ladder:
+**Engine routes (2026-11-07 survey).** llama.cpp is the only LFM3-capable *pinned* engine this
+registry holds: the `upstream-6023692-cu130` image carries `LLM_ARCH_LFM3` and covers the whole
+family — text, the `lfm3vl` projector, `lfm3a`/`lfm3a_gen` audio, and `d1` through
+`/v1/systemone`. Three other routes are closed at their current pins: the pinned vLLM b12x image
+(`cf5a2a53…`) is vLLM `0.1.dev21830+g8244d1c44` (2026-10-15) and its model registry carries only
+`Lfm2`/`Lfm2Moe` — upstream vLLM added LFM3 text on 2026-11-06 (`c96e5f60bb`, PR #65826), after
+that image, which is why the bf16 vLLM arm authored alongside this one was retired unshipped
+rather than queued; SGLang v0.5.22 has no `Lfm` entry at all; and the resident scitrera llama.cpp
+pin predates LFM3 (above). A vLLM or SGLang arm becomes viable only on a re-pin. Two instrument
+gaps follow from the same survey: `benchmarking/standard-suite.yaml` is **text-only** — it has no
+VL cells, so a VL queue row's "standard suite" wording overstates what exists today — and audio
+arms need the media lane's `Cactus-Compute/whistle` WER chain (§Instruments).
+
+**Instruments — the text lane's, and one boot.** Ladder:
 `sparkrun benchmark performance <recipe> --profile benchmarking/concurrency-ladder.yaml`
-(`llama-benchy`, d0 pp2048/tg128, n=5). Suite: `benchmarking/standard-suite.yaml`
-(`tool-eval-bench` core 15, greedy, 8 turns) — the same pair every text arm in this registry reads,
-so a `C1 t/s` and a house score from these arms compare with the Explore and Orphan lanes. A
-tool-calling cell of 0 on the first boot is a **parser** question before it is a model question:
-check the serve log's template/tool lines, then add a parser flag only if the engine lists one for
-this template. Receipts belong in `~/benchmarks/liquidai-<date>/`.
+(`llama-benchy`, c 1/2/5/10, depth 0, pp 2048, tg 128, five runs). Suite:
+`benchmarking/standard-suite.yaml` (`tool-eval-bench` core 15, greedy, 8 turns). A tool-calling
+cell of 0 on the first boot is a **parser** question before it is a model question: check the
+serve log's template/tool lines, then add a parser flag only if the engine lists one for this
+template. Receipts belong in `~/benchmarks/liquidai-<date>/`.
 
 ## Fine-tuning
 

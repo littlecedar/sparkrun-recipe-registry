@@ -303,9 +303,8 @@ measurement.
 ## Liquid AI
 | Recipe | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s | Size | Mem% | API | TP | Model Cards |
 |:----------------------------------------------|:------|------------:|-------:|-------:|--------:|---------------------:|------:|---------------------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| liquidai-lfm3-1.7b-q4km-llamacpp | ✨🤗📜 | — | — | — | — | 1.10GB | — | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B-GGUF] |
-| liquidai-lfm3-1.7b-fp16-vllm | ✨🤗📜 | — | — | — | — | 3.46GB | 30% | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B] |
-* _Both rows are **authored 2026-11-07 and never booted**: C1–C10 are `—` by absence, not a failed bench. Each first boot is an **engine-support test** for the `lfm3` custom-code architecture — llama.cpp gained `lfm3` on 2026-10-27 (`ggml-org/llama.cpp@19cce691`, PR #31252), *after* the registry's resident scitrera pin (`b2e5e9b`, 2026-08-21) and its own `upstream-a37cc46` build (2026-10-21), so the llama.cpp arm pins a 2026-11-05 build instead; vLLM support is vendor-documented but never exercised on this image. Instrument for both: `benchmarking/concurrency-ladder.yaml` plus `benchmarking/standard-suite.yaml`, and neither has a cell. License class: LFM Open License v1.0 (`other`) ships as an ordinary arm on the owner's 2026-11-02 ruling. Lane: [`recipes/liquidai/README.md`](recipes/liquidai/README.md#arms--authored-2026-11-07-not-yet-booted)._
+| liquidai-lfm3-1.7b-q4km-llamacpp | ✨🤏📜 | — | — | — | — | 1.10GB | — | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B-GGUF] |
+* _The row is **authored 2026-11-07 and never booted**: C1–C10 are `—` by absence, not a failed bench. Its first boot is an **engine-support test** for the `lfm3` custom-code architecture — llama.cpp gained `lfm3` on 2026-10-27 (`ggml-org/llama.cpp@19cce691`, PR #31252), *after* the registry's resident scitrera pin (`b2e5e9b`, 2026-08-21) and its own `upstream-a37cc46` build (2026-10-21), so the arm pins a 2026-11-05 build instead. llama.cpp is the only LFM3-capable pinned engine here: the pinned vLLM b12x image predates LFM3 (vLLM `0.1.dev21830+g8244d1c44`, model registry has `Lfm2`/`Lfm2Moe` only; upstream added LFM3 text on 2026-11-06) and SGLang v0.5.22 has no `Lfm` entry, so a bf16 vLLM arm authored the same day was retired unshipped. Instrument: `benchmarking/concurrency-ladder.yaml` plus the text-only `benchmarking/standard-suite.yaml`; neither has a cell. License class: LFM Open License v1.0 (`other`) ships as an ordinary arm on the owner's 2026-11-02 ruling. Lane: [`recipes/liquidai/README.md`](recipes/liquidai/README.md#arms--authored-2026-11-07-not-yet-booted)._
 
 ## Cybersec
 
@@ -362,8 +361,6 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 * https://spark-arena.com
 
 <!-- Links -->
-[LiquidAI/LFM3-1.7B]: https://huggingface.co/LiquidAI/LFM3-1.7B
-
 [LiquidAI/LFM3-1.7B-GGUF]: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
 
 [littlecedar]: https://littlecedar.net
