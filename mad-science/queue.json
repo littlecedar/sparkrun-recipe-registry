@@ -902,13 +902,13 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "LiquidAI/LFM3-1.7B-Base",
       "node_cost": "single",
-      "notes": "`lfm3`, 1728.8M base checkpoint: low ship value on its own, but every fine-tune comparison in `liquidai-finetune-toolkits` needs the base's own cells, so the arm exists as a control and stays `zz-`. Same architecture, `trust_remote_code` gate, license (`other` = LFM Open License v1.0, ships as an ordinary arm per QUESTIONS.md #56) and instrument as `liquidai-lfm3-1.7b-arm`. Two deltas: no chat template of its own, so the serve is raw completion (the instruct template must not be applied); and the vendor GGUF mirror is the INSTRUCT arm's (`LiquidAI/LFM3-1.7B-GGUF`) - do not assume those GGUFs are base weights; either convert from the bf16 repo or serve FP16 on vLLM/SGLang.",
+      "notes": "`lfm3`, 1728.8M base checkpoint: low ship value on its own, but every fine-tune comparison in `liquidai-finetune-toolkits` needs the base's own cells, so the arm exists as a control and stays `zz-`. Same architecture, `trust_remote_code` gate, license (`other` = LFM Open License v1.0, ships as an ordinary arm per QUESTIONS.md #56) and instrument as `liquidai-lfm3-1.7b-arm`. Two deltas: no chat template of its own, so the serve is raw completion (the instruct template must not be applied); and the vendor GGUF mirror is the INSTRUCT arm's (`LiquidAI/LFM3-1.7B-GGUF`) - do not assume those GGUFs are base weights; either convert from the bf16 repo or serve FP16 on vLLM/SGLang. DONE 2026-11-07 on `.30`, recipe as committed in `e8c76af`, task `sparkrun_8570e971ede06a8c_1bf4b73daabb`: pool entry verified before launch and nothing downloaded - `refs/main` `7bca5038…` with the snapshot's `LFM3-1.7B-Base-F16.gguf` resolving to **3,466,613,856 B**, the size the recipe documents. Raw `/completion` with no `--jinja`: c1 n=5 **pp 10,197.23 / tg 63.77 t/s**, c10 n=10 **pp 2,270.66 / tg 37.48** (medians, every sample in `ladder.json`), `prompt_n` 2,201 / `predicted_n` 128, well-formed continuation. `accuracy_status: n/a` and `suite: n/a` in `house.yaml` with the reason recorded: the base weights carry no chat template, so the house battery and tool suite would measure the absence of a template, and `run-arm.sh` was deliberately not used. Stays `zz-` - it is the `liquidai-finetune-toolkits` control, not a shipping arm. Receipt `~/benchmarks/tp12-20261107/zz-liquidai-lfm3-1.7b-base-f16-llamacpp/` (`REPORT.md`, `ladder.json`, `house.yaml`).",
       "provenance": "owner 2026-11-02 request; HF collection + cards + LFM3-1.7B config read 2026-11-02; mad-science/TODO.md §liquidai; recipes/liquidai/README.md",
-      "claimed_by": "campaign-operator",
-      "claimed_at": "2026-11-07T17:04:06Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "liquidai-lfm3-vl-2b-arm",
@@ -973,13 +973,13 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "LiquidAI/d1-Omni-2B",
       "node_cost": "single",
-      "notes": "`lfm3_omni`, 2166.9M, class `AutoModel`, task `audio-text-to-text`, tags `decision`/`calibration`/`system-one`, fine-tuned from `LiquidAI/LFM3-Omni-2B`, GGUF mirror `LiquidAI/d1-Omni-2B-GGUF`. Same instrument rule as `liquidai-d1-2b-arm` plus an audio input, so it needs a fixture from the media lane (drama-3 render or the needle whistle clips) to drive it. Sequence after `liquidai-d1-2b-arm`: that arm answers the endpoint/head-semantics question once, and this one should only add the modality. License `other` = LFM Open License v1.0, and the owner ruled it ships as an ordinary arm (QUESTIONS.md #56).",
+      "notes": "`lfm3_omni`, 2166.9M, class `AutoModel`, task `audio-text-to-text`, tags `decision`/`calibration`/`system-one`, fine-tuned from `LiquidAI/LFM3-Omni-2B`, GGUF mirror `LiquidAI/d1-Omni-2B-GGUF`. Same instrument rule as `liquidai-d1-2b-arm` plus an audio input, so it needs a fixture from the media lane (drama-3 render or the needle whistle clips) to drive it. Sequence after `liquidai-d1-2b-arm`: that arm answers the endpoint/head-semantics question once, and this one should only add the modality. License `other` = LFM Open License v1.0, and the owner ruled it ships as an ordinary arm (QUESTIONS.md #56). DONE 2026-11-07 on `.35`, port 8020, recipe as committed in `e8c76af`, task `sparkrun_484956f99d685e0f_38adfbf5198a`; pool prefetched because absent - `LiquidAI/d1-Omni-2B-GGUF@36707287…`, Q8_0 1,846,241,184 B + mmproj 326,104,096 B. Decision cells, same instrument and shape as the d1 text arm (100 cases, 500 decisions, 500/500 parsed at every rung): c1 8.868 req/s / 44.34 dec/s, ttft p50 112.8 ms; c2 9.316 / 46.58; c5 9.399 / 47.00; c10 9.458 / 47.29 (ttft p50 1,050.8 ms) - 0-4 percent below the d1 text arm's 9.204 / 9.609 / 9.641 / 9.641 req/s, so the audio-capable body costs nothing measurable on the text path. THE AUDIO CELL IS NOT A RESULT, and the row closes with the gap declared rather than a fabricated number: `/v1/systemone` with the audio part returned HTTP 500 `input (364286 tokens) is too large to process` because the WAV's 557,116-character base64 was tokenized as text (this build does not decode `input_audio` even though `--mmproj` loads), and `/v1/chat/completions` answers 501 `This model is a decision model without text generation`. The text control with `type: choice` answers `{choice: yes, confidence 0.978}`, so the label path works; the probe's text cell asks `type: noul`, which this arm answers with a probability (0.9439) and never a label, so the probe's `--expect` cannot match - that probe/extractor gap in `tools/omni-audio-probe.py` is the author's fix and is the second reason the audio cell is not a result. Receipt `~/benchmarks/tp12-20261107/zz-liquidai-d1-omni-2b-q8-systemone-llamacpp/` (`REPORT.md`, `audio-shapes.log`, `omni-audio.json`).",
       "provenance": "owner 2026-11-02 request; HF collection + cards + LFM3-1.7B config read 2026-11-02; mad-science/TODO.md §liquidai; recipes/liquidai/README.md",
-      "claimed_by": "campaign-operator",
-      "claimed_at": "2026-11-07T17:04:06Z"
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "liquidai-finetune-toolkits",
