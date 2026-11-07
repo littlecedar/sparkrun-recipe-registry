@@ -3398,7 +3398,7 @@ in order:
 
 Two facts from the 11:26 tick that belong with them rather than on the board: the
 longrun's capture proxy is **still listening** on the head (`127.0.0.1:4101` →
-`10.0.4.35:8000`, pid 457040) and its target is now the TP=2 engram pair's serve,
+`.35:8000`, pid 457040) and its target is now the TP=2 engram pair's serve,
 so any future connection would append foreign-boot rows to a ledger that ended at
 `index 1098` — the ledger is **clean as at 11:24:39 ET** (1,098 rows, all HTTP
 200, mtime 10:59:49, unchanged since), and the idle listener is reported rather
@@ -3409,23 +3409,3 @@ for both `engram-l1`/`engram-l14` on **both** ranks at 11:11:04–05 — zero en
 pages resident after a 57.9 s load that read weights from the rank cache — which
 bears on `engram-cache-hit-rate`'s premise and on `d484dbd`'s correction; the
 post-ladder sample is still owed (ladder in flight since 11:11:06).
-
-## 2026-11-07 11:20 ET — tick: the Kromoss weights A/B, homed before its board row is swept
-
-`refresh-weights-and-runtime-repin`'s one genuine weight move — `media/kromoss-mossimage-5b-bf16-diffusers-script`,
-`a4fe9744…` → `0c5417ec…` — was booted both sides on `.30` by the repin holder (`~/benchmarks/kromoss-ab.sh`,
-10:46) and finished at 10:59. Recorded here because its numbers otherwise live only in
-`head:~/benchmarks/kromoss-ab-all.log` and in an In-flight row the next tick deletes:
-
-| leg | revision | load | generate (50 steps, cfg 3.0, seed 42) | node |
-|---|---|---|---|---|
-| old | `a4fe97449297af2e3be7841e1c18e431f3b06031` | 197.9 s, peak alloc 25.33 GiB | `rc=0`, 136.76 s, peak alloc 28.19 GiB | `.30` (`kromoss-ab-old`) |
-| new | `0c5417ec89301cb82da9ee164f8ed696523910a9` | 183.5 s, peak alloc 25.33 GiB | `rc=0`, 137.264 s, peak alloc 28.19 GiB | `.30` (`kromoss-ab-new`) |
-
-Both legs wrote a 1024×1024 PNG and were stopped (`cn ts=0 vols=0` after each); `PIL` is absent in the
-image, so the receipt's dimensions line is its file header only, not a decode check. Read as: the new
-weights do not regress load (−14.4 s) or generate (+0.5 s, 0.4 %), which is what the repin needed from
-this leg; the row stays `running` for its remaining moving-tag A/Bs (`lmsysorg/sglang:dev-cu13` on five
-arms, `python:3.12-slim` on four), each owed its own boot. Receipts
-`head:~/benchmarks/tp12-20261107/kromoss-ab-{old,new}/`.
-
