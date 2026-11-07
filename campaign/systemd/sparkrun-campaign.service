@@ -25,19 +25,23 @@ StartLimitIntervalSec=0
 Type=simple
 EnvironmentFile=%h/.config/sparkrun-campaign.env
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+SyslogIdentifier=sparkrun-campaign
 WorkingDirectory=%h/src/sparkrun-recipe-registry/campaign
 # `/usr/bin/env` resolves `uv` through the PATH above; a hardcoded uv path is wrong on any head
 # that installed it somewhere else. `--frozen` keeps a running campaign on its committed lockfile.
-ExecStart=/usr/bin/env uv run --project %h/src/sparkrun-recipe-registry/campaign --frozen python -m sparkrun_campaign.director serve --manifest ${CAMPAIGN_MANIFEST} --hosts ${CAMPAIGN_HOSTS} --root ${CAMPAIGN_ROOT}
+ExecStart=/usr/bin/env uv run --project %h/src/sparkrun-recipe-registry/campaign --frozen python -B -m sparkrun_campaign.director serve --manifest ${CAMPAIGN_MANIFEST} --hosts ${CAMPAIGN_HOSTS} --root ${CAMPAIGN_ROOT}
 # A crash is safe to retry: start-up re-reads receipts, expires stale leases and reaps their hosts.
 # A drained campaign exits 0 and stays down -- that is the completion signal, so this is
 # `on-failure`, never `always`.
 Restart=on-failure
+RestartPreventExitStatus=2
 RestartSec=15
 # SIGTERM goes to the director, which signals each worker's process group; `run-arm.sh`'s own trap
 # stops the serve. The grace window is the time that trap needs to run `sparkrun stop`.
 KillMode=mixed
-TimeoutStopSec=120
+TimeoutStopSec=180
 
 [Install]
 WantedBy=default.target

@@ -10,6 +10,7 @@ leftover paths run for real against test data. Nothing here starts a process.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import shutil
@@ -122,6 +123,9 @@ class SkipSource(CampaignCase):
         self.assertIn("skip: negative (measured-rejected, docs/lane.md:2)", text)
         self.assertNotIn("assign:", text, "nothing may be assigned before the skip source is printed")
         self.assertEqual(campaign.arm("negative")["status"], "skipped")
+        fields = self.receipt_fields("negative")
+        self.assertEqual(fields["status"], "skipped")
+        self.assertIn("measured-rejected", fields["reason"])
 
         lease = leader.handle(protocol.poll("w1"))["lease"]
         self.assertEqual(lease["arm"], "arm-one")
@@ -131,6 +135,57 @@ class SkipSource(CampaignCase):
         leader, _ = self.build()
         with self.assertRaises(plan.PlanError):
             leader.prepare()
+
+
+class Validate(CampaignCase):
+    def make(self, root: Path, hosts=("node-a", "node-b")):
+        campaign = state.Campaign.open(root / "state.json", campaign="test", hosts=hosts,
+                                        max_parallel=2)
+        self.addCleanup(campaign.close)
+        return director_module.Director(
+            campaign, [], root=root, receipts_root=self.receipts, repo_root=self.repo,
+            run_arm_sh=self.repo / "tools" / "run-arm.sh", clock=self.clock, spawn=False,
+            out=self.out, fleet_reap=self.fleet.reap)
+
+    def test_duplicate_hosts_are_refused(self) -> None:
+        with self.assertRaises(state.StateError):
+            self.make(self.tmp / "duplicate", hosts=("node-a", "node-a")).validate()
+
+    def test_a_missing_executor_is_refused(self) -> None:
+        with self.assertRaises(state.StateError):
+            self.build()[0].validate()
+
+    def test_an_executable_executor_passes(self) -> None:
+        tool = self.repo / "tools" / "run-arm.sh"
+        tool.parent.mkdir(parents=True, exist_ok=True)
+        tool.write_text("#!/bin/sh\n", encoding="utf-8")
+        tool.chmod(0o755)
+        self.build()[0].validate()
+
+    def test_an_overlong_socket_path_is_refused(self) -> None:
+        with self.assertRaises(state.StateError):
+            self.make(self.tmp / ("x" * 120)).validate()
+
+
+class Status(CampaignCase):
+    def test_state_is_readable_while_a_run_owns_the_lock(self) -> None:
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"])
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(director_module.status_campaign(self.root), 0)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(lines[0], "campaign test: 1 pending, 1 measured, 1 skipped")
+        self.assertTrue(any(line.startswith("  measured arm-one") for line in lines), lines)
+        self.assertTrue(any(line.startswith("  pending  arm-two") for line in lines), lines)
+        self.assertTrue(any(line.startswith("  skipped  negative") for line in lines), lines)
+
+    def test_a_missing_state_file_returns_2(self) -> None:
+        self.assertEqual(director_module.status_campaign(self.tmp / "nope"), 2)
 
 
 class CompletionIsReadFromReceipts(CampaignCase):

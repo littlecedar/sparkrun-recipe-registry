@@ -22,6 +22,7 @@ Three decisions carry the acceptance checklist:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import socket
@@ -31,6 +32,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
@@ -102,6 +104,17 @@ class Director:
         self.spawned: dict[int, float] = {}
         self._stop = False
 
+    def validate(self) -> None:
+        """Refuse a deployment that cannot work, before state is touched or a worker spawned."""
+        hosts = list(self.campaign.data.get("hosts", []))
+        if len(set(hosts)) != len(hosts):
+            raise StateError(f"duplicate hosts in {hosts!r}; one host cannot hold two ranks")
+        if not self.run_arm_sh.is_file() or not os.access(self.run_arm_sh, os.X_OK):
+            raise StateError(f"no executable per-arm executor at {self.run_arm_sh}")
+        if len(str(self.socket)) > 107:
+            raise StateError(f"{self.socket} is {len(str(self.socket))} bytes; a unix socket path "
+                             "limit is 107")
+
     # --- start-up ----------------------------------------------------------------------------
 
     def prepare(self) -> None:
@@ -133,7 +146,11 @@ class Director:
 
         for arm in self.campaign.order:
             if arm in verdicts:
-                self.campaign.record_skip(arm, verdicts[arm])
+                verdict = verdicts[arm]
+                self.campaign.record_skip(arm, verdict)
+                self._write_receipt(arm, status=SKIPPED, rc=None,
+                                    note=f"{verdict['verdict']} ({verdict['doc']})",
+                                    mdir="", hosts=[], lease_id="", started=None, leftovers=[])
 
         # A reboot or a killed director leaves both leases and possibly live containers behind.
         # The lease expiry is what makes the arm assignable again; the reap is what makes that safe.
@@ -290,7 +307,7 @@ class Director:
             if now - self.spawned.get(index, 0.0) < RESPAWN_DELAY:
                 continue
             command = [
-                sys.executable, "-m", "sparkrun_campaign.worker",
+                sys.executable, "-B", "-m", "sparkrun_campaign.worker",
                 "--socket", str(self.socket),
                 "--worker", f"w{index + 1}",
                 "--run-arm", str(self.run_arm_sh),
@@ -314,7 +331,8 @@ class Director:
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             except (OSError, ProcessLookupError):
                 continue
-        deadline = time.monotonic() + 30.0
+        # The unit's TimeoutStopSec=180 leaves the executor's trap time to run `sparkrun stop`.
+        deadline = time.monotonic() + 100.0
         for process in self.workers.values():
             remaining = max(0.0, deadline - time.monotonic())
             try:
@@ -442,7 +460,9 @@ class Director:
                 name for name in evidence.MEASURED_ARTEFACTS + ("ladder.yaml",)
                 if (Path(mdir) / name).exists()
             ]
-            fields["serve_logs"] = sorted(path.name for path in Path(mdir).glob("serve-*.log"))
+            fields["serve_logs"] = sorted(
+                path.name for path in Path(mdir).glob("serve-*.log")
+            ) + sorted(path.name for path in Path(mdir).glob("docker-*.log"))
             fields["watchdog"] = _last_watchdog_verdict(Path(mdir) / "watchdog.log")
         write_json(self.root / "receipts" / f"{arm}.json", fields)
 
@@ -470,7 +490,31 @@ class _Handler(socketserver.StreamRequestHandler):
         self.wfile.flush()
 
 
+def status_campaign(root: Path) -> int:
+    """Read state.json without the director's flock: an operator may look while a run owns it."""
+    path = Path(root) / "state.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        order = list(data["order"])
+        arms = data["arms"]
+        name = data["campaign"]
+        counts = Counter(arms[arm]["status"] for arm in order)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"cannot read {path}: {exc}", file=sys.stderr)
+        return 2
+    summary = ", ".join(f"{counts[status]} {status}" for status in
+                        (PENDING, LEASED, MEASURED, FAILED, SKIPPED, BLOCKED) if counts[status])
+    print(f"campaign {name}: {summary or 'no arms'}")
+    for arm in order:
+        record = arms[arm]
+        reason = (record.get("last") or {}).get("reason", "")
+        print(f"  {record['status']:<9}{arm}" + (f"  -- {reason}" if reason else ""))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     ap = argparse.ArgumentParser(prog="sparkrun_campaign.director",
                                  description="Own a campaign plan and hand arms to workers.")
     commands = ap.add_subparsers(dest="command", required=True)
@@ -492,11 +536,20 @@ def main(argv: list[str] | None = None) -> int:
                        help="per-arm executor (default: tools/run-arm.sh in --repo-root)")
     serve.add_argument("--dry-run", action="store_true",
                        help="read the evidence, print the plan, do not bind or spawn")
+    status = commands.add_parser("status",
+                                 help="print a campaign's per-arm state without taking the lock")
+    status.add_argument("--root", required=True, help="campaign directory holding state.json")
     args = ap.parse_args(argv)
+
+    if args.command == "status":
+        return status_campaign(Path(args.root).expanduser())
 
     hosts = [host.strip() for host in args.hosts.split(",") if host.strip()]
     if not hosts:
         print("no hosts: pass --hosts a,b", file=sys.stderr)
+        return 2
+    if len(set(hosts)) != len(hosts):
+        print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
     root = Path(args.root).expanduser()
     try:
@@ -520,6 +573,7 @@ def main(argv: list[str] | None = None) -> int:
         run_arm_sh=Path(args.run_arm),
     )
     try:
+        director.validate()
         if args.dry_run:
             director.prepare()
             print("dry run: no socket bound, no worker spawned", file=director.out)

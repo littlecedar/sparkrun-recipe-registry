@@ -34,10 +34,14 @@ FAILED = "failed"     # a receipt does not; retryable while `failures <= retries
 SKIPPED = "skipped"   # the recipe records this arm as a measured negative
 BLOCKED = "blocked"   # a human must look: an unverifiable leftover, or a reap that could not run
 
-#: A worker beats every few seconds; 120 s is six missed beats. Deliberately generous: a false
-#: reclaim costs a second boot of a 20-130 minute arm, which is the waste this design prevents,
-#: while detection latency of two minutes is noise against an arm.
-LEASE_TTL = 120.0
+#: A worker beats every 20 s; 300 s is fifteen missed beats. The bound that decides this number is
+#: the director's longest in-request stall, not a dead worker's detection latency: `_report` runs a
+#: leftover reap before it answers, and that reap is two listing probes, one `sparkrun stop`
+#: (bounded at 60 s), per-container removals and the verifying re-probe -- under 160 s worst case.
+#: A lease that expired while another worker's report was being reaped would re-boot a live arm,
+#: which is the waste this design exists to prevent; 300 s keeps that margin, and five minutes of
+#: detection latency is noise against a 20-130 minute arm.
+LEASE_TTL = 300.0
 #: Diagnostics only -- the last events per arm; the authoritative record of a measurement is the
 #: receipt on disk, never this history.
 HISTORY_CAP = 40

@@ -89,7 +89,7 @@ def leftovers(hosts: list[str], recipe: str, run: Runner = ssh) -> list[tuple[st
     return out
 
 
-def stop_task(task: str, timeout: float = 120.0) -> None:
+def stop_task(task: str, timeout: float = 60.0) -> None:
     """Ask the launcher to stop one task; a missing CLI is not an error, the fallback handles it."""
     try:
         _ = subprocess.run(["sparkrun", "stop", task], capture_output=True, text=True,

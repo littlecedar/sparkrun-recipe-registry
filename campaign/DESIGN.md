@@ -82,11 +82,14 @@ Director → worker:
 worker blocks on the executor for 20–130 minutes and a blocking worker cannot prove it is alive.
 Polls are one local round trip; their cost is noise against an arm.
 
-**Lease and reclaim.** The lease TTL is 120 s: six missed beats. Deliberately generous — a false
-reclaim costs a *second boot* of a long arm, which is the waste this design exists to prevent, while
-two minutes of detection latency is nothing against an arm. A short axis is chosen the other way
-everywhere else in this tree (the watchdog counts observations, not durations); here the asymmetry
-of the two mistakes decides it.
+**Lease and reclaim.** The lease TTL is 300 s: fifteen missed beats. The bound that decides it is
+the director's longest in-request stall, not a dead worker's detection latency — `_report` reaps
+before it answers, and that reap is two listing probes, one `sparkrun stop` (bounded at 60 s),
+per-container removals and the verifying re-probe, under 160 s worst case. A lease that expired
+while another worker's report was being reaped would re-boot a live arm, which is the waste this
+design exists to prevent; five minutes of detection latency is noise against a 20–130 minute arm.
+A short axis is chosen the other way everywhere else in this tree (the watchdog counts observations,
+not durations); here the asymmetry of the two mistakes decides it.
 
 A lease past its deadline is expired by the director, and the arm comes back **pending but not
 assignable** until its hosts are proven clean (`needs_reap`). The reclaim path is the same
@@ -103,7 +106,7 @@ restart retries, and a successful reap returns it to the queue.
 
 The wire protocol is deliberately not where readiness lives. The director never probes an endpoint:
 readiness, the dead-serve verdict and the serve-log capture belong to `run-arm.sh` and
-`tools/boot-watchdog.py`, and the director's two-minute lease clock must never be able to kill a
+`tools/boot-watchdog.py`, and the director's five-minute lease clock must never be able to kill a
 loading boot.
 
 ## Persisted state and resume
@@ -300,9 +303,18 @@ ps -o lstart= -p "$(systemctl --user show -p MainPID --value sparkrun-campaign.s
 
 Stopping: `systemctl --user stop sparkrun-campaign.service`. SIGTERM goes to the director, which
 signals each worker's process group; `run-arm.sh`'s own trap stops the serve, and whatever it could
-not finish is reaped on the next start. `KillMode=mixed` plus `TimeoutStopSec=120` give that trap
-time. `Restart=on-failure` retries a crash (safe: every start resumes); a drained campaign exits 0
-and stays down, which is the completion signal.
+not finish is reaped on the next start. `KillMode=mixed` plus `TimeoutStopSec=180` give the
+director's 100 s worker grace and then that trap time to run `sparkrun stop`. `Restart=on-failure`
+retries a crash (safe: every start resumes), while `RestartPreventExitStatus=2` keeps a refusal — a
+stale citation, a bad host set, a missing executor — failed for a human instead of restarting every
+15 s. A drained campaign exits 0 and stays down, which is the completion signal.
+
+While a run owns the state lock, an operator reads it through the same module without disturbing it:
+
+```bash
+cd <checkout>/campaign
+uv run --frozen python -m sparkrun_campaign.director status --root "$CAMPAIGN_ROOT"
+```
 
 Deliberately not done: a system-wide unit (needs root for no benefit), a timer (a campaign is
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart
@@ -322,6 +334,33 @@ One unattended campaign over the declared node set, covering the whole checklist
   without re-booting a measured arm;
 - the campaign ends drained, with the node-hour accounting the old driver lost: no node idle while
   a pending arm existed.
+
+## Acceptance campaign (2026-11-07)
+
+Phase 2's run, executed as one unattended service campaign over the declared pair. The manifest has
+seven arms; five are answered by the skip source and must never be assigned, and two are boots:
+
+| Arm | TP | Expected |
+|---|---|---|
+| `zz-labq-no-diag` | 2 | boot; dies before the engine writes `/tmp/sparkrun_serve.log`, so its `docker-*.log` is the only cause |
+| `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang` | 1 | boot; the retry the live capture exists for |
+| `zz-spark-x2.6-4b-int8-sglang` | 1 | skipped, `recipes/explore/README.md` |
+| `nex-n2.5-mini-uncensored-nvfp4-sglang` | 1 | skipped, `attic/cybersec/AGENTS.md` |
+| `nex-n2.5-mini-uncensored-nvfp4-vllm` | 1 | skipped, `attic/cybersec/AGENTS.md` |
+| `qwen3.8-flash-next-uncensored-nvfp4-sglang` | 2 | skipped, `recipes/cybersec/README.md` |
+| `qwen3.8-flash-next-uncensored-nvfp4-vllm` | 2 | skipped, `recipes/cybersec/README.md` |
+
+Restart point: the service is stopped and started again as soon as the first boot's receipt exists,
+so the resume path is exercised while the second arm is pending. The proof is that the second arm is
+booted once, the first is not booted again, the same plan is reported, and no lease is handed out
+before its hosts are cleared.
+
+Each checklist item's evidence: the five `skip:` lines before the first `assign:` and five
+`skipped` receipts (items 1 and 8); a `watchdog: dead` receipt with its harvested `serve-node_*.log`
+(items 3 and 4); the `docker-*.log` from the live follower (phase 2's added capture); a TP=2 receipt
+naming both hosts and an end-of-arm probe that asked both (items 5 and 6); the restart's journal and
+the absence of a second assignment for the measured arm (item 7); and a post-campaign probe of both
+declared hosts with no `sparkrun_*` container.
 
 ## Non-goals of phase 1
 

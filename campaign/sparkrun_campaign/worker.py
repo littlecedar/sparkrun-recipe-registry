@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="per-arm executor (default: tools/run-arm.sh)")
     ap.add_argument("--log-dir", required=True, help="where each attempt's executor log lands")
     ap.add_argument("--beat", type=float, default=20.0, help="lease heartbeat period, seconds")
-    ap.add_argument("--poll-timeout", type=float, default=120.0,
+    ap.add_argument("--poll-timeout", type=float, default=300.0,
                     help="how long one poll may wait on a director busy reaping")
     ap.add_argument("--max-misses", type=int, default=12,
                     help="consecutive unreachable polls before this slot stops itself")
@@ -134,7 +134,9 @@ def main(argv: list[str] | None = None) -> int:
         if beats.revoked:
             note += f"; lease revoked: {beats.revoked}"
         try:
-            protocol.request(args.socket, protocol.report(lease["id"], rc, note), timeout=60.0)
+            # The director reaps before answering; a stop can hold this request for a minute, and
+            # a client timeout must not read as a lost report.
+            protocol.request(args.socket, protocol.report(lease["id"], rc, note), timeout=300.0)
         except (OSError, protocol.ProtocolError) as exc:
             # The director reclaims an unreported lease after its TTL and reaps the hosts, so the
             # numbers are still recoverable from the receipt window on the next start.
