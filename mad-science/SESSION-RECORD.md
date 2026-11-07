@@ -3409,3 +3409,24 @@ for both `engram-l1`/`engram-l14` on **both** ranks at 11:11:04–05 — zero en
 pages resident after a 57.9 s load that read weights from the rank cache — which
 bears on `engram-cache-hit-rate`'s premise and on `d484dbd`'s correction; the
 post-ladder sample is still owed (ladder in flight since 11:11:06).
+
+## 2026-11-07 14:16 ET — correction: which commit carries the 14:08 census rewrite
+
+`8cfc4a6`'s pushed body says the board on disk "carried a peer tick's 14:08
+rewrite, uncommitted" and that the peer's census row "is kept verbatim".
+Wrong by one commit, and the correction cannot be amended because
+origin/main carries it: the peer landed that rewrite itself as
+`d0100b2` ("Refreshed the board on a 14:01 census, 381 s paired, register
+at 10 open") while this tick was staging, so the peer's 14:08 census row
+— its 14:01:21/14:03:41/14:07:42 byte series and its `/var/log/journal`
+attribution of the `.30`/`.35` ~8.8 MB falls — is `d0100b2`'s content,
+not this one's. `8cfc4a6`'s own staged diff was `3 ++-`: the title bump to
+14:13 ET and the single `23b4d44` landed row. Recorded here on the
+`4ae2749` precedent, which corrected two of its own predecessor's claims
+the same way rather than rewriting history.
+
+The attribution itself stands as `d0100b2` read it: this tick's own
+135 s pair over the same window (fleet −9,453,568 B, pool −9,437,184 B,
+70 kB/s) had inferred a shared chunk-store tail, and the peer's longer
+381 s pair plus the journald mtimes replaced that inference with a named
+writer on the two nodes that moved.
