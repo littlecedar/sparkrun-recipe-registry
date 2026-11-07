@@ -2983,3 +2983,38 @@ the file or the tool source before publishing to a live doc. The corrected
 board carries a 07:20:43 ET census, so no row needs a "corrected" marker on a
 surface whose contract is state, not history; that is why the disclosure lives
 here.
+## 2026-11-07 07:31 ET — `.30`'s two research boots, and this tick's close-out
+Both boots ran on `.30` inside the 07:00 hour and ended before the 07:14
+census, so neither belongs in the board's in-flight table — it is state, and
+they were not live. Neither carried a register claim either: both
+`media-omni-nightly-repin` and `liquidai-d1-2b-arm` are still `queued` with
+empty `claimed_by`/`claimed_at`, which makes this the only record of what they
+produced.
+- **06:57:11 → 07:02:18**, `recipes/media/qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml`
+  (image `vllm/vllm-omni:nightly-0c5dab18-repin` @ `sha256:84f7a372…`, task
+  `2876392aa08b45c1_5c2f21e0524d`): `readiness=yes gate_s=281`, `/v1/models`
+  served `Qwen/Qwen-Image-2.1-Turbo`, one render cell at 13.655 s wall
+  (`serving_time_to_first_output_ms` 13,550.8, denoise 1,693.5 ms/step,
+  1,048,576 px) producing a **4,196,804 B** PNG, sha256
+  `af0b630e31195b15…`, `probe_rc=0`, `stop rc=0`, `ARM DONE
+  2026-11-07T07:02:18-05:00`. Receipts `~/benchmarks/omni-repin-20261107/qwen-image/`
+  (`boot.log`, `probe.json`, `qwen-image.png`, `launch.log`, `watchdog.log`).
+- earlier in the same directory, the drama-3 arm booted and was stopped at
+  06:55 with a 372,780 B `drama.wav` plus `probe.json`
+  (`~/benchmarks/omni-repin-20261107/drama/`).
+- **07:04 → 07:05**, campaign `d1-20261107`, arm
+  `liquidai-d1-2b-q8-systemone-llamacpp` on `.30` (task
+  `c7b507471a8e547b_4ffbd839d35f`): `readiness=yes`, `ARM DONE … rc=0`,
+  state `measured`, one attempt and no failures, director exited with the plan
+  drained. Arm receipts `~/benchmarks/tp12-20261107/liquidai-d1-2b-q8-systemone-llamacpp/`,
+  which is `tools/run-arm.sh:29`'s per-day root; director state, journal and
+  receipts index are under `~/benchmarks/d1-20261107/`.
+Tick close-out: the board was regenerated at 07:31 ET on a **07:28:52 ET**
+census — counts `0 / 1 / 1 / 1 / 1 / 0`, volumes 0 everywhere, quartet
+`/health` 200 on all four ranks with pids 280/311/310/312 unchanged since 02:01
+ET and `restarts=0` — with the register unchanged at 22 open. Two further
+defects of mine were fixed in this third write: the census row said "five of
+the six" fell in the same band when only four did, and the register row named
+the 07:02 board for a close its successor `201bdb0` had folded (07:02 was 23
+open, 07:08 was 22). Owed by whoever owns those two queue rows: a `claimed_by`
+or a state move — the board cannot name a holder the register does not.
