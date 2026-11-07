@@ -5,10 +5,11 @@ Liquid AI's LFM3 family and its `d1-*` system-one siblings: small (1.7B–2.2B) 
 custom-code architectures (`auto_map` → `trust_remote_code` required) with vendor GGUF mirrors
 carrying LEAP quantization metadata.
 
-**One arm ships, not yet booted.** `LFM3-1.7B` has a llama.cpp arm on the vendor's Q4_K_M GGUF,
-authored 2026-11-07; its first boot is the engine-support test — see §Arms. A bf16 vLLM arm was
-authored and retired the same day, because the pinned vLLM predates the architecture
-(§Engine routes). The remaining collection members are queue rows in `mad-science/queue.json`.
+**One arm ships, booted and measured 2026-11-07.** `LFM3-1.7B` runs on llama.cpp from the
+vendor's Q4_K_M GGUF (§Arms, §Measurement): c1 137.51 tg t/s, house 93, and the boot was the
+engine-support test that mattered — the pinned image loads `lfm3`. A bf16 vLLM arm was authored
+and retired the same day, because the pinned vLLM predates the architecture (§Engine routes).
+The remaining collection members are queue rows in `mad-science/queue.json`.
 
 ## Roster — the `LiquidAI/lfm3` collection, read 2026-11-02
 
@@ -65,16 +66,17 @@ picks the instrument the deliverable needs: `benchmarking/llama-benchy/*` and
 open TTS leaderboard as the external reference; and the decision ladder for `d1-*`. Reporting a
 `C1 t/s` from an audio model would be a category error, not a measurement.
 
-## Arms — authored 2026-11-07, not yet booted
+## Arms — measured 2026-11-07
 
-| recipe | engine / pin | weights | what the first boot decides |
+| recipe | engine / pin | weights | result |
 |---|---|---|---|
-|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…`, built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|whether that build serves `lfm3` in practice as well as in its source tree, and whether its Jinja path parses the embedded template's `<tool_call><function=…>` form|
+|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…`, built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|**loaded and served `lfm3`** (no unknown-arch), ladder and house below|
 
 It ships as an **ordinary arm**, not eval-only: LFM Open License v1.0 (`license: other`) went to
 the owner rather than a lane, and the 2026-11-02 ruling (`mad-science/QUESTIONS.md` `#56`) is ship
-ordinary — §License posture above. It has no measured cell; the root index's C1–C10 for the row
-are `—` because no boot has happened.
+ordinary — §License posture above. It is booted and measured (§Measurement); the root index's
+C1–C10 for the row stay `—` anyway, because this arm serves one slot and its `c > 1` cells time
+queuing, not concurrency — a number there would not be the index's shape.
 
 **The arm does not use the resident scitrera pin, and that is a finding, not a preference.**
 `scitrera/dgx-spark-llama-cpp:b10549-cu131` carries llama.cpp `b2e5e9b` (2026-08-21), and `lfm3`
@@ -87,11 +89,42 @@ also carries the later LFM3 work (#31598 spec-decode, #31608 NVFP4 GGUF, #31683 
 takes `executor_config: entrypoint: ""` because that image keeps `llama-server` as its
 `ENTRYPOINT`.
 
-The command is deliberately the **honest test**: nothing is passed that a successful boot would
-make true by assertion. It uses `--jinja` and no `--reasoning-format`, for the same reason no
-parser flag exists anywhere in the arm — the GGUF embeds the current template (12,129 B,
-byte-identical to the repo's `chat_template.jinja`), but whether a thinking trace is split into
-`reasoning_content` or the `<tool_call>` XML is parsed into `tool_calls` is the boot's answer.
+The command was authored as the **honest test**: nothing is passed that a successful boot would
+make true by assertion. It uses `--jinja` and no `--reasoning-format`, and no parser flag exists
+anywhere in the arm — the GGUF embeds the current template (12,129 B, byte-identical to the repo's
+`chat_template.jinja`). The boot answered the parser question in passing: the suite's 15 scenarios
+came back with **0 failures**, so the Jinja path does drive `<tool_call><function=…>` tool calls
+without a `--tool-call-parser` flag; whether a thinking trace is split into `reasoning_content`
+versus left in content is still unrecorded (see below).
+
+**Measurement (2026-11-07).** First boot, `.30`, through the campaign driver (180 s, rc=0). The
+GGUF header reads `general.architecture = lfm3` with 24 blocks and 16 heads, and the pinned
+`upstream-6023692-cu130` image — llama.cpp at `6023692`, the ref that carries `LLM_ARCH_LFM3` —
+loaded and served it, so the engine-support question this arm existed to answer is **yes**. The
+checkpoint is pinned `cd0c74c5` and was pre-staged on the node's shared cache as
+`HuggingFace/LiquidAI/LFM3-1.7B-GGUF@cd0c74c5…` (Q4_K_M, 1,099,627,808 B; `refs/main` and trees
+written), the image pulled by digest.
+
+Ladder, `benchmarking/concurrency-ladder.yaml` (depth 0, pp 2048, tg 128, five runs):
+| cell | pp t/s | tg t/s | ttfr |
+|---|---:|---:|---:|
+|c1|12762.8 ± 99.6|**137.51 ± 2.90**|143.9 ms|
+|c2|3099.9 ± 71.8|127.56 ± 2.64|681.2 ms|
+|c5|2123.6 ± 27.1|121.37 ± 1.03|2295.3 ms|
+|c10|1921.7 ± 12.6|121.16 ± 1.27|4927.7 ms|
+
+**Read the `c > 1` cells as queue time, not as concurrency.** The arm serves `parallel: 1`, so
+every extra request waits for the single slot: the drop from 137.5 to 121 t/s while ttfr grows
+0.14 s → 4.9 s is one slot serialising work, not a throughput ceiling. The ladder was taken with
+`ARM_ALLOW_FEW_SLOTS=1` for that reason; a `parallel: 8` variant would be a different arm and a
+different claim, and none of these cells belongs in the root index's concurrency columns.
+
+House: **score 93** — 15 scenarios, 13 pass, 2 partial (`TC-11`, `TC-14`), 0 fail. The engine's
+own timings agree with the instrument (serve log: prompt 1,831 tokens at 13,630 t/s; decode 128
+tokens at 133.65 t/s). Receipt
+`~/benchmarks/liquidai-20261107/receipts/liquidai-lfm3-1.7b-q4km-llamacpp.json`, window
+`~/benchmarks/tp12-20261107/liquidai-lfm3-1.7b-q4km-llamacpp/`, campaign journal in the campaign
+root.
 
 **Engine routes (2026-11-07 survey).** llama.cpp is the only LFM3-capable *pinned* engine this
 registry holds: the `upstream-6023692-cu130` image carries `LLM_ARCH_LFM3` and covers the whole
