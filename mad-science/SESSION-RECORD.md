@@ -3477,3 +3477,163 @@ campaign at `<CAMPAIGN_ROOT>` = `~/benchmarks/d1-20261107` holds **0 lease
 records** in `state.json` and reports `1 measured`, with the unit inactive,
 so it is drained and not a wedged lease; the register's two `running` rows
 are dispatch claims from `4782ff6` (14:31:09 ET), not live containers.
+
+## 2026-11-07 — campaign lifecycle, lane sweep, and the last three blockers
+
+### 1. The director became a production service, and its acceptance campaign drained
+
+`8cbbadb` gave the director the lifecycle a long unattended run needs: a **300 s lease** (a report can
+hold a request ~160 s, so a shorter reaper would re-boot a live arm), `stop_task` bounded at **60 s**
+in `campaign/sparkrun_campaign/fleet.py:92`, start-up validation that refuses a stale citation or a
+bad host set, `RestartPreventExitStatus=2` so a refusal fails for a human instead of restarting every
+15 s, and the **lock-free `status`** subcommand an operator reads while a run owns `state.json`. `99f2647`
+then made the executor follow each rank's `docker logs` live, because the engine writes
+`/tmp/sparkrun_serve.log` and the container stdout held only the entrypoint banner.
+
+The acceptance campaign on `.30`+`.35` (`~/benchmarks/campaign-acceptance-20261107/`, 7-arm manifest,
+unit `sparkrun-campaign.service`) **drained clean**: five recorded-negative arms skipped before any
+assignment, the two live arms failed for their own reasons (`zz-labq-no-diag` rc=4, watchdog `dead` at
+t=43 s; `zz-cyankiwi-…` rc=4 on the `fused_moe_triton` `tensor a 384` vs `tensor b 32` mismatch),
+`ExecMainStatus 0`, **5 skipped + 2 failed receipt files written**. A restart mid-run at 01:00:45
+proved the resume path: the new director honoured the outstanding lease's remaining TTL, reaped it,
+re-booted the arm exactly once, and never re-booted the already-failed one. The four checklist hardware
+items are legible in the receipts themselves — `watchdog: dead` on both failed arms, `serve_logs` named
+on both, the TP=2 arm's end-of-arm probe naming **both** hosts, and `leftovers: []` on all seven with a
+post-campaign container/volume count of 0. One real defect fell out and was fixed: the executor read
+the recipe's `port:` before `cd`-ing into the tree, silently defaulting 8000.
+
+### 2. Two live-state defects, and the structural fixes
+
+The owner caught the same class twice, and neither was a tick bug.
+
+**The tick derived window state from the lock alone.** `status-board-refresh` read
+`.local/fleet-window.lock` and reported an idle fleet while the director held nodes — the director
+never writes that lock. The managed skill now reads `<CAMPAIGN_ROOT>/state.json` plus the head unit,
+classifies the campaign **active / drained / absent / unread** (an unreachable head is `unread`, never
+`absent`), renders one `## In flight` row per live lease with hosts and attempt, and **escalates a live
+lease whose declared hosts read 0 containers**, every cycle it persists. `AGENTS.md` now says in the
+lock's own paragraph that "no lock is not an idle fleet". `tools/queue-drip.py` got the same gate in
+code (`f730a05`): it discovers roots from `--campaign-root` and the head's env file, treats an
+unexpired lease or an outstanding `needs_reap` as a holder, removes held hosts from the list it hands
+`next-arms.py`, refuses with exit 3 when every node is held and **exit 2 when campaign state cannot be
+read** — unreadable is a refusal, never a free host.
+
+**The board's "no register claim" row was the register, not the tick.** Every live boot now carries a
+`running` claim with a dispatch sentence naming the recipe, node, port and probes; the seven claims
+this session wrote (`59e0c1e`, `eb2a144`, `34f5178`, `4782ff6`) are dispatch state, cleared by whoever
+closes the row, and the row itself says so rather than leaving it to a commit message.
+`arch-deepgemm-sm12x-paged-sparse` had no `claimed_by`/`claimed_at` keys at all, which is how it sat
+claimed-but-blank.
+
+### 3. The lane sweep, row by row
+
+- **sage A1.5 Q4_K_M probe** — first boot through the campaign driver on `.30`, no recipe change:
+  prefill `pp2048` **1,986.1 ± 53.8** t/s at c1, 1,854.5 at c2, 1,032.3 at c5, 1,025.7 at c10; decode
+  `tg128` **73.98 ± 0.67** t/s at c1, **102.19 ± 0.94** c2, 85.70 ± 0.87 c5, 73.77 ± 0.44 c10; house
+  **15/15, score 100**. c10 is slot-limited, not a model result: the recipe ships `parallel: 4` and the
+  executor refuses a c10 rung under ten slots, so the run waived the gate with `ARM_ALLOW_FEW_SLOTS=1`
+  and **c5 is the aggregate peak**. Receipt
+  `~/benchmarks/tp12-campaign-20261107/receipts/zz-sage-a1.5-35b-a3b-q4km-llamacpp.json`, window with
+  `ladder.json`/`house.json`/`serve-solo.log` beside it; the probe stays `zz-`. Notes in
+  `recipes/explore/README.md` §`zz-sage-a1.5-35b-a3b-q4km-llamacpp`.
+- **TP=2 acceptance at log level** — request-level **10,526/18,028 = 58.39 %** accepted, **1.86**
+  accepted tokens per round, matching the 2026-11-04 boot's 58.45 % / 1.86 within noise; the decode
+  gap is verification cost, not a broken drafter. Depth and confidence curves are in
+  `recipes/cybersec/README.md:390`; the 67.02 row's provenance is corrected beside it.
+- **embed 0.6b** — pooling ladder on `.35`: **C1 41.2 · C2 59.6 · C5 141.4 · C10 198.7 units/s** at
+  100/100 ok per rung, 1024-d on all 11 vectors, distinct-input cosine 0.0959, same-input distance
+  0.000. The first boot failed `LocalEntryNotFoundError` because the pinned snapshot had no weight
+  files, `refs/main` or `trees`; fixed cache-side and the command now passes `--revision`
+  (`recipes/embed/README.md` §Measurement, window `~/benchmarks/tp12-20261107/qwen3-embedding-0.6b-vllm-b12x/`).
+- **LiquidAI LFM3 text** — llama.cpp route landed on the pinned image: **c1 137.51 ± 2.90 tg t/s**
+  at `parallel: 1`, **house 93** (13 pass / 2 partial / 0 fail); the vLLM route is retired because the
+  pinned b12x image predates `LFM3`. `recipes/liquidai/README.md` §Measurement.
+- **d1 text** — the vendor `/v1/systemone` body serves; **9.204 / 9.609 / 9.641 / 9.641 req/s** at
+  c1..c10 with 100/100 requests and 500/500 decisions per rung, `accuracy_status: n/a` with its reason
+  recorded. `recipes/decision/README.md` §Measurement.
+- **vLLM-Omni repin** — both arms moved to `vllm/vllm-omni:nightly-0c5dab18`@
+  `sha256:84f7a372…` and booted serially: drama-3 fish_omni WAV 372,780 B / 44.1 kHz / 4.226 s, PCM
+  ttfa 0.661 s, RTF 0.637; qwen-image PNG 4,196,804 B with a 13.655 s first request (+24 % on the
+  dev29 band, one sample). `recipes/media/README.md` §Repin boot results.
+- **PLE disk-read** — the row's own falsifier fired: 4 KiB `O_DIRECT` random reads against the pool
+  reach **103,071–110,863/s at depth 64** (403–433 MiB/s) against an assumed 18,512/s, so **queue
+  depth is not the factor**. Next suspect recorded, not chased: the Python layer holds an `RLock` across
+  `_read_staged` and its CUDA sync.
+- **Flint** — cleared the easy-traffic gate on one boot: **C1 73.0 / C2 119.5 / C5 173.2 / C10 133.7
+  t/s**, house **37/37**, so it ships 2026-11-07 as a **gate-passing alternative**, not the SELECTED
+  arm (Mellum2.1 keeps that row); a second independent boot read C1 73.7 / C10 132.1 inside the same
+  spread (`recipes/explore/README.md:365`, `db815af`).
+- **ornith 1,001-turn longrun** — `997/1001 = 99.6 %` clean, compaction **reached** at ledger idx 706
+  with 392/392 clean after it, two omp self-cancellations, 0 5xx, 0/898 malformed tool arguments:
+  **transient**. Receipt `~/benchmarks/ornith-longrun-20261107/`.
+- **engram pair** — residency **0.000000** in every state because 103.5 GiB of weights on a 121 GiB
+  frame cannot hold a 188.83 GiB table pair; `rchar` flat across a 954 s ladder, so decode never reads
+  the shards; 67 t/s is not reachable in this shape — the baseline was a different engine wrapper
+  (pp 982/820/778 against 493/293/241). Receipt `~/benchmarks/tp12-20261107/engram-pair-1103/REPORT.md`.
+- **90-recipe repin survey** — 90 verdict rows (17 + 53 + 20) close the completion test; the one weight
+  candidate's A/B rendered **byte-identical** (md5 `8414bbf9…`), a no-op, no pin moved; the two moving
+  tags remain deliberate accepted holds. `~/benchmarks/repin-survey-20261107/`.
+- **LiquidAI multimodal set** — base control 63.77/37.48 tg t/s; d1-Omni decision cells 8.868→9.458
+  req/s with its **audio cell declared negative** (the decision surface tokenised the base64 as text);
+  VL **258 image tokens (1.6 %, 63 fit), pp 1,546.67 / tg 144.35, 0.496× image prefill, 0.87 GiB**;
+  standalone audio ASR and round-trip **WER 0.0** with a 238,124 B / 4.96 s TTS render; omni both cells,
+  where the **same fixture transcribes exactly** — so the audio gap was the decision surface, not the
+  audio tower. Receipts under `~/benchmarks/tp12-20261107/zz-liquidai-*`.
+- **SM121 DeepGEMM** — `dsv41-sm121-dg:0.2.0` (`sha256:1778ec42…`, local only) built on the head in
+  ~70 s from `dsv41-c3-reconciled:103ad321`; kernel gate **8/8 PASS** (`calc_diff` 1.3e-05 vs FP32
+  torch reference, negative control caught, `sm_121a`/`sm_121f` compile), image prints
+  `DEEPGEMM_PAGED_SPARSE_MQA_LOGITS` True. Both survey arms are re-scoped to **technically cleared,
+  blocked on the owner's quartet window** — not on the kernel.
+
+### 4. Traps worth carrying
+
+- `-o container=` is **ignored** by the vllm-distributed runtime; the flag is `--image`.
+- A launch that names no cluster builds an **anonymous cluster** with safe defaults and still fans out
+  models — name it (`--cluster WOPR`) or launch against the cluster's own host set. `tools/run-arm.sh`
+  hardcodes `--cluster WOPR`, so on a head whose config lacks it the first attempt dies
+  `Error: Cluster 'WOPR' not found` before any boot.
+- **`@littlecedar/<name>` resolves the *published* registry clone, not the worktree**, so a recipe whose
+  `container:` line was just edited silently launches the previous image; pass the recipe file path,
+  and commit + refresh the clone before trusting a registry-qualified ref.
+- A cold-cache arm needs `refs/main` **and** the trees entry, not just the snapshot directory; until
+  then the offline lookup resolves nothing (the embed arm's `LocalEntryNotFoundError`).
+- The llama.cpp image's `llama-server` has **no HTTPS client** (`get_repo_commit: error: HTTPS is not
+  supported`), so a pool prefetch is mandatory for every GGUF arm; the same launch also needs
+  `refs/main` written.
+- Stale sparkrun claim bookkeeping can refuse a relaunch (`held by pid …, exited without releasing
+  it`); reconcile by id (`sparkrun daemon resources reconcile <id> --acknowledge-effects`), not by
+  waiting.
+- The engram image has **no `DONTNEED`**, and `attic/ds4/mods/bound-engram-cache` targets another
+  engine's file layout — it is a no-op here, not a missing half.
+- `cgroup io.stat` is **blind to BeeGFS network reads**; `/proc/<pid>/io` `rchar` is the counter, and
+  per-rung `io-summary.txt` numbers must not be read as pool traffic.
+
+### 5. Instrument corrections
+
+- **Vision has no in-tree quality cell.** `benchmarking/standard-suite.yaml` is `tool-eval-bench`'s
+  core 15 **text** tool-calling scenarios; `pooling-bench`'s `image_url` is embedding math and
+  `synthetic_png` only synthesises fixtures. The VL and omni rows therefore promise **throughput,
+  footprint and acceptance** (image part taken, reply non-blank) plus the audio probe — never an
+  accuracy score — and say so in their state cells.
+- **Probe fixes.** The omni decision probe's `type:noul` cell returns a probability, never a label, so
+  its `--expect` could not match; and the VL probe's default `--max-tokens` was too small for a
+  thinking model, so a healthy arm read as an empty reply with the budget spent in `reasoning_content`.
+  Both are recorded in the rows as instrument defects, not arm defects.
+- **The 3D render gate is a real instrument** — headless Chromium over CDP, checking a clean render,
+  non-empty geometry and the import constraint, with a six-fixture selftest; it also states what it
+  does not measure (visual fidelity: a cube passes the cathedral prompt).
+
+### 6. What remains, exactly
+
+- The **3D battery is in flight** on `.30` (row `3d-qwen35-4b-3d-coder-arm` stays `running`): the
+  16-prompt smoke rendered **9/16 clean** (`render-gate-smoke16.json`: 9 clean, 9 non-empty geometry,
+  16/16 import constraint) at ~90 s per reply, and the battery is resuming against the **213-prompt**
+  denominator — 21 done at ~107 s/reply when this was written, so ≈5–6 h left. Nothing else is
+  measurable on the two free nodes until it ends.
+- `h2h-doc-refresh` and `tensorfold-metrics-bridge-generalization` are queued but each waits on a
+  quartet row; six rows are quartet-blocked (`w4-survey-arm3-indexer-scoring`,
+  `w4-survey-arm5-trtllm-mla`, `h2h-glm-flash-house-recipe`, `h2h-beam-house-and-bfcl-category`,
+  `h2h-second-boot-ladder`, `glm-flash-concurrency-degradation-search`).
+- `dsv41-sm121-dg:0.2.0` is **local on the head** and awaits a window; the next step is to move it to
+  the four nodes and **record its digest**, not to push it.
+- Register at close-out: **82 tasks, 73 done, 9 open** = 2 queued, 6 blocked, 1 running.
