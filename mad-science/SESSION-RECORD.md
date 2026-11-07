@@ -3018,3 +3018,17 @@ the six" fell in the same band when only four did, and the register row named
 the 07:02 board for a close its successor `201bdb0` had folded (07:02 was 23
 open, 07:08 was 22). Owed by whoever owns those two queue rows: a `claimed_by`
 or a state move — the board cannot name a holder the register does not.
+
+## 2026-11-07 08:07 ET — board landed rows homed (session boundary)
+
+The 08:06 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a session boundary. All five rows it carried were **missing** from this record (`git grep -c <sha> -- mad-science/SESSION-RECORD.md` returned nothing for each), so their clauses are carried here verbatim, copied out of `git show HEAD:mad-science/STATUS.md` rather than retyped:
+
+| time ET | commit | one clause |
+|---|---|---|
+| 06:18 ET | `30c88b5` | Ledgered the 06:01 double tick: two ticks took a 06:01 census and `publish` replaced a peer's whole board because its freshness guard refuses only a *strictly newer* census stamp, so an equal stamp passes — no row known lost, the peer's own bytes never compared, and the durable fix is the skill bullet to re-read and diff the board immediately before publishing (`mad-science/SESSION-RECORD.md`). |
+| 06:36 ET | `9018a38` | Opened the decision lane's `d1-2B` systemone arm: Liquid's scorer answers `/v1/systemone` in one forward pass on the lane's pinned llama.cpp `6023692` build, and because `--decision-bench-only` replays a different case shape the recipe declares `metadata.decision_accuracy: none` and `tools/run-arm.sh` obeys it (`accuracy: none` in `house.yaml`) — three executed guards, nothing booted (`recipes/decision/README.md`). |
+| 06:40 ET | `ca3ff01` | Corrected the d1 section's metadata keys to what the pinned GGUF header carries — `lfm3.decision.type = lfm3-d1` plus per-question-type calibration temperatures, not the `general.architecture.decision.*` form the section claimed. |
+| 06:45 ET | `0247118` | Narrowed the d1 accuracy gap to the question contract, not the envelope: `tools/decision-ladder.py --api systemone` forwards the case's `state` and `questions` verbatim, so the missing score is the `noul`/`choice`/`score`-only contract against the wider JEV case set — wording only, marker and `rc` semantics unchanged. |
+| 07:08 ET | `6415191` | Closed `ornith-122b-decoders-route` on the measurement it pre-registered as its falsifier — the 2026-10-30 SGLang v0.5.22 + DFLASH + `incoai/Ornith-1.5-122B-DFlash2` boot reads **C1 37.7 tg t/s** (C10 48.9, +30 % over the no-drafter control at C1, parity at C10) against a `C1 < 45` verdict, so the lane section now states that beside the result instead of only the arm-level gate; receipt `~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md`, no boot. |
+
+One further commit from that window is homed here because no board ever folded it: `4a46ced` (07:17 ET) moved the three Mellum llama.cpp arms and their family revision constant to the MTP head's revision `4159d684…` once the quants proved byte-identical and the newer revision adds the `mtp/` draft GGUFs, with no boot and no cell rewritten — it landed between the 07:08 and 07:31 boards and the 07:31 tick did not carry it.
