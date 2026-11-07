@@ -2918,3 +2918,46 @@ inherited 05:11 row's byte column is that tick's **05:01** operands, so the comp
 spanned two ticks. Neither convention reconciles against the 05:02 board's own numbers,
 so the corrected figures stand — 1.15–3.52 GiB of fall, `.35` (3.52) ahead of `.30`
 (3.30), all six display cells moved, no drop a rounding artefact.
+
+## 2026-11-07 07:02 ET — board landed rows homed (session boundary)
+
+The 07:02 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a session boundary.
+All six rows it carried were **missing** from this record (`git grep -c <sha> --
+mad-science/SESSION-RECORD.md` returned nothing for each of the six), so all six are appended
+verbatim from the board:
+
+- **05:25 ET** `3d7d5f1` — Said the acceptance figure is pooled, not a per-request average: the
+  `logdebug2` receipt's 0.584 sums 10,526 accepted of 18,028 draft tokens over 138 requests and
+  5,663 rounds, so the row names the pooling and its operands instead of leaving the arithmetic to
+  the reader.
+- **05:40 ET** `3e9d995` — Recorded the TP=2 arm's acceptance shape and closed
+  `tp2-acceptance-log-level`: 58.39 % pooled (10,526 of 18,028 draft tokens) at 1.86 per round
+  matches the 2026-11-04 boot's 58.45 % / 1.86, so the ~13 t/s decode is verification cost and not
+  rejected drafts; the per-depth kept table and confidence curve are in `recipes/cybersec/README.md`,
+  and the row's 67.02 is relabelled a TP=4 quartet figure, not like-for-like.
+- **05:42 ET** `d576427` — Retired the `LFM3-1.7B` vLLM arm unmeasured — the pinned b12x image is
+  vLLM of 2026-10-15 whose registry has only `Lfm2`/`Lfm2Moe`, while upstream added LFM3 text on
+  2026-11-06 (`c96e5f60bb`) — and replaced the lane's two-arm table with a dated route survey:
+  llama.cpp `upstream-6023692-cu130` is the only LFM3-capable pinned engine.
+- **05:58 ET** `cc1fee0` — Measured and pinned the 0.6B text embed arm on `.35` through the campaign
+  driver: pooling ladder **41.2 / 59.6 / 141.4 / 198.7 requests/s** at c1/c2/c5/c10 (100/100 ok on
+  every rung, p50 23.8 ms at c1) plus a quality pass on the same serve, with the command now passing
+  `--revision {model_revision}` after the first boot missed on a bare cache snapshot in the shared
+  pool.
+- **05:58 ET** `1eed9b6` — Added the rule that a `@littlecedar/mods/<name>` ref is served from a
+  per-host registry clone that pins no commit, so fetch/pull before a boot meant to pick up a
+  shared-mod edit — a stale clone's launcher silently ignored `--serve-debug acceptance` while the
+  campaign still reported `rc=0` measured.
+- **06:13 ET** `6c7b8fe` — Recorded the `LFM3-1.7B` llama.cpp arm's first measurement and closed
+  `liquidai-lfm3-1.7b-arm` — the pinned `upstream-6023692-cu130` engine loaded and served the GGUF's
+  `lfm3` architecture at c1 **137.51 ± 2.90 tg t/s** (pp 12,762.8, ttfr 143.9 ms), house **93**
+  (13 pass, 2 partial, 0 fail) — and left the index's C1–C10 empty on purpose, because the arm serves
+  `parallel: 1`, so its c2/c5/c10 cells time queuing for one slot rather than concurrency.
+
+Census at 07:02 ET, read fresh: container counts `.30`→`.35` **0 / 1 / 1 / 1 / 1 / 0**, volumes 0 on
+every node, so research containers are 0 and the four `.31`–`.34` containers are the protected
+production serve. Absolute root-avail bytes carried here because the board's census row is
+overwritten each tick: `.30` 1,458,455,433,216 / `.31` 1,870,994,518,016 / `.32` 1,926,551,728,128 /
+`.33` 1,814,651,465,728 / `.34` 1,255,348,281,344 / `.35` 1,507,351,621,632. Quartet `/health`
+200/200/200/200 with serve pids 280/311/310/312 unchanged, `StartedAt` 2026-11-06T03:16:44–45Z and
+`restarts=0` on every rank, so no rank restarted in the hour.
