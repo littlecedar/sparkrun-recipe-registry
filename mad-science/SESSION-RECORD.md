@@ -2780,9 +2780,11 @@ board as rows for the next tick to retire.
 The 04:06 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a session boundary:
 its three rows (`461fa52`, `a268d81`, `7f0c7aa`) were **already homed** in the 03:02 ET section above
 — verified `git grep -c <sha> -- mad-science/SESSION-RECORD.md`, one line each — so nothing was
-re-appended. Five commits landed after that refresh and carried no SHA anywhere in this file; their
-clauses are homed here verbatim from the board rows, and they sit on the board for the next tick to
-retire:
+re-appended. Six commits landed after that refresh and carried no SHA anywhere in this file — the
+sixth, `59832cc`, landed at 04:11 ET inside the tick's own window, after the `git log` that seeded
+the fold and after the board's first composed table, so it is homed here; the board names it in the register row rather than
+as a landed row. Their clauses are homed verbatim from the board rows, and
+they sit on the board for the next tick to retire:
 
 - **03:16 ET** `b328e0a` — Corrected the 03:02 board's epic closure time: `campaign-driver-service`
   closed at 01:26 in `c2d39d1`, not at 02:50 (`a268d81`, the commit that re-applied two dependent
@@ -2798,6 +2800,10 @@ retire:
 - **03:58 ET** `82c1b18` — TensorFold launcher shim gained a debug knob, because the engine exposes
   no serve log level — the mechanism `tp2-acceptance-log-level` needs before it can read an
   acceptance rate.
+- **04:11 ET** `59832cc` — Closed `ornith-122b-nonablated-hunt` on the arm already measured, with no
+  boot: the vendor NVFP4 export `ornith-ai/Ornith-1.5-122B-NVFP4` @ `f049036f` keeps its alignment
+  and serves at C1 37.7 / C10 48.9, and the Sherlock-Comms export was shown to differ only by a
+  BF16 `lm_head` the drafter never reads. Register 27 → 26 open.
 
 Census at 04:06 ET, re-read rather than carried: 0/1/1/1/1/0 containers and 0 volumes on all six
 nodes (the four are the protected production serve, so research containers are 0 everywhere);
