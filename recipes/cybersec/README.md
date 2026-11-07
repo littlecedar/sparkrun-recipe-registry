@@ -384,6 +384,38 @@ that line.
   serve log**, so acceptance is unavailable — the next boot must harvest `/tmp/sparkrun_serve.log` before
   the container stops, and `run-arm.sh` does not do that today. That gap, not the pool, is the thing to fix
   before another TP=2 cell is worth measuring.
+  **Acceptance shape (2026-11-07).** The debug-log-level boot closed that question: acceptance is
+  **not** the loss. Both ranks' launcher lines carry `serve_debug=acceptance` and the engine printed
+  15 `drafts kept by depth` reports. Request level: **138 requests** with accepted/drafted
+  **10,526/18,028 = 58.39 %**, **1.86 accepted per speculative round** — identical to the 2026-11-04
+  boot's 58.45 % / 1.86 within noise, so the drafter behaves the same on both and the arm, not the
+  run, is what moved. That boot's ladder reads **14.64 / 13.13 / 12.94 / 12.69 t/s** at c1/c2/c5/c10
+  (tg128), prefill `pp2048` **493.0 / 312.2 / 232.1 t/s** at c2/c5/c10, house **93**.
+
+  | depth | kept / drafted (cumulative, 200-round rank-0 samples) | rate |
+  |---|---|---|
+  | d1 | 4,331 / 5,537 | 78.2 % |
+  | d2 | 3,025 / 4,284 | 70.6 % |
+  | d3 | 1,835 / 2,763 | 66.4 % |
+  | d4 | 633 / 779 | 81.3 % |
+  | d5 | 443 / 516 | 85.9 % |
+  | total | 10,267 / 13,879 | 74.0 % |
+
+  | draft confidence | 0.1 | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.9 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | kept | 19.2 % | 30.3 % | 42.6 % | 46.0 % | 51.3 % | 59.7 % | 72.7 % | 84.5 % | 97.6 % |
+
+  Draft length `k` is chosen per stream, and the run's own 15 report lines are in the window.
+
+  **Verdict: verification cost, not rejected drafts.** At ~48 rounds per 128-token reply and ~13 t/s,
+  a round costs ~200 ms — the weight pass plus checking the drafts that landed — so the decode loss
+  sits in the verify step. **Caveat:** the row's 67.02 is a TP=4 quartet figure and this boot is the
+  TP=2 pair, so the two are not like-for-like; the like-for-like acceptance comparison is against the
+  2026-11-04 TP=2 boot (58.45 %, 1.86). Receipt
+  `~/benchmarks/tp2-logdebug2-20261107/receipts/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2.json`;
+  window `~/benchmarks/tp12-20261107/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2/`.
+  The earlier `logdebug1` run is kept beside it as the stale-cache trap evidence:
+  `~/benchmarks/tp2-logdebug-20261107/` and its window.
   **Which receipt holds the measurement (verified 2026-10-30, 08:2x ET).** Receipt directories rotate, so the
   canonical path is not always the measurement: `…/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang/`
   currently holds a **replay** (07:54), while the measured 06:04 cells live in the sibling

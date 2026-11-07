@@ -826,13 +826,14 @@
         "tp12-campaign-staging"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram",
       "node_cost": "pair",
       "notes": "Why: the abliterated TP=2 arm reads 10.6-13.7 tg t/s on .30+.35 where its lane row says 67.02, and the pair is exonerated (poolside-laguna-m1-nvfp4-vllm-tp2 reproduced its shipped row within 1.5 % on the same pair, 2026-10-30). The only mechanism left that can turn one weight pass into several tokens is --mtp-drafts 5, and its effectiveness is the acceptance rate, which the engine does not log at default verbosity (harvested serve-0.log is 2 002 B of banner). Work: start tensorfold serve with a debug log level through the launcher mod, harvest /tmp/sparkrun_serve.log, record acceptance per step. Then either the 67.02 row is a pre-migration artefact to retire, or acceptance is degraded and the arm is a lane finding. Not a boot until the log level changes -- four boots have reproduced the same figure without touching the question. Source: recipes/cybersec/README.md 'Leading mechanism'.",
       "provenance": "recipes/cybersec/README.md §'Leading mechanism'; mad-science/STATUS.md 12:00 ET TP=2 row; asked 2026-10-30",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "Acceptance measured 2026-11-07 on the engaged logdebug2 boot (both ranks' launcher lines carry serve_debug=acceptance, 15 'drafts kept by depth' reports): 138 requests, accepted/drafted 10526/18028 = 58.39 %, 1.86 accepted per round — matches 2026-11-04 (58.45 % / 1.86) within noise, so the drafter is unchanged; same-boot ladder 14.64/13.13/12.94/12.69 t/s c1/c2/c5/c10 tg128, pp2048 c2 493.0/c5 312.2/c10 232.1, house 93. Per-depth kept 78.2/70.6/66.4/81.3/85.9 % (d1..d5, 10267/13879 = 74.0 %) and the confidence curve 19.2 %->97.6 % are tabulated in recipes/cybersec/README.md §'deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang' **Acceptance shape (2026-11-07)**; verdict there is verification cost (~200 ms per round at ~48 rounds/reply), not rejected drafts, with the TP=4-vs-TP2 not-like-for-like caveat. Receipt ~/benchmarks/tp2-logdebug2-20261107/receipts/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2.json; window ~/benchmarks/tp12-20261107/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2/; logdebug1 stale-cache trap ~/benchmarks/tp2-logdebug-20261107/."
     },
     {
       "id": "embed-qwen3-embedding-0.6b-text-arm",
