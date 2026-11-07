@@ -12,13 +12,15 @@ routes, LTX-2.5, humanizer Q6_K, Kromoss image) and three probe/draft arms (`zz-
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
 
-**The two `vllm-omni` arms track upstream nightlies, on purpose.** `vllm/vllm-omni` publishes nightly
-tags and no stable release that carries the patches this lane needs, so both arms pin
-`nightly-<commit>@sha256:<digest>` and the owner directive (2026-11-03) is to keep moving them forward
-while that holds. A tag upstream deletes while its digest still serves is reported
+**The two `vllm-omni` arms move once, then hold.** `vllm/vllm-omni` publishes nightly tags and no
+stable release that carries the patches this lane needs yet, so both arms pin
+`nightly-<commit>@sha256:<digest>`. The owner's 2026-11-06 answer ends the perpetual chase: forward-move
+both arms once to `nightly-0c5dab18…` and boot each, then hold there (`TODO.md` §Settled questions
+`#65`) — the next move is to a **stable** artifact if one ever appears carrying the patches, never to
+the following nightly. A tag upstream deletes while its digest still serves is reported
 **`container-tag-retired`** by `tools/refresh-sweep.py` — drift to re-pin, never a broken pin, and
-never `current` — so the next rotation surfaces on its own, with no cron entry; the re-pin itself stays
-boot-gated (queue row `media-omni-nightly-repin`).
+never `current` — so a rotation still surfaces on its own, with no cron entry, and the re-pin itself
+stays boot-gated (queue row `media-omni-nightly-repin`).
 
 ## Contents
 
