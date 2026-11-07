@@ -55,50 +55,71 @@ Q4_K_M in-repo GGUF (2,709,000,000 B class) plus the BF16 projector, `ctx 65536`
 speculative flags** so the MTP block stays idle. Weights are not in the shared pool and the image's
 `llama-server` has no HTTPS, so prefill before launching (same rule as the rest of the tree).
 
+**First boot: the cell failed, and the sampling was the cause, not the weights (2026-11-07).** At the
+card's settings (temp 0.6 / top-p 0.95 / top-k 20 / rep 1.0) with `max_tokens 8192`, the reply came
+back `finish_reason=length`, **0 characters of content and 24,244 of `reasoning_content`** after 152.6 s.
+A cap ladder confirmed the shape rather than a one-off: 12,288 → 1,041 chars of *prose* ("Save this as
+index.html…") plus 35,375 of reasoning, still `length`; 16,384 → 0 content, 69,877 reasoning, still
+inside the trace. The 12,288 reply's render gate read **clean=True, draws=0, vertices=0 → fail**: prose
+is not geometry, which is the gate doing its job. The 213-prompt battery was **not** run — it would have
+scored 213 empty replies.
+
+Two fixes, both at the arm so a client cannot forget them:
+
+- **Thinking off through the template.** The GGUF's own `chat_template` tests
+  `enable_thinking is defined and enable_thinking is false` (read from the file), and this pin's
+  `--chat-template-kwargs` feeds exactly that variable — `common/arg.cpp` declares the flag,
+  `server-common.cpp` merges a request's `chat_template_kwargs` over that default — so the recipe now
+  carries `--chat-template-kwargs '{"enable_thinking": false}'` as a *default* and the trace never
+  exists to spend the budget on.
+- **Output-only instruction on the card's system prompt.** The 12,288 reply answered in prose, so the
+  system prompt gains one line: *reply with the complete HTML file and nothing else — no prose, no
+  markdown fence*. The gate also unwraps a fenced reply (`stripped_fence`) and records `prose_chars`,
+  so a model that still explains itself is readable as a delivery habit rather than a rendering
+  failure; a prose-only reply with no `<html>` still fails, and must.
+
+**The battery, its denominator and its wall time.** Window 65536, decode measured at ~58–61 t/s. Cap
+**16384 tokens** per reply: worst case is 16,384 / 58 ≈ 4.7 min per prompt, and a typical scene file
+is a few thousand tokens, so the declared run is **all 213 validation prompts, at 213/213 as the
+denominator**, expected ≈ 5 h (median ≈ 90 s per reply), ceiling ≈ 16 h if every reply runs to the
+cap. A **16-prompt smoke first** (~25 min) is the cheap falsifier: if the smoke scores 0/16 on
+geometry, the full run is cancelled rather than burning a window. A subset run is always labelled by
+its own N — never reported as "the battery".
+
 **The cell, exactly.** Serve, ask for a scene with the card's system prompt, then load the reply in
 headless Chromium:
 
 ```bash
 sparkrun run recipes/3d/zz-qwen35-4b-3d-coder-q4km-llamacpp.yaml -H <node> --cluster WOPR
 
-# 1. ask (the system prompt is the card's, and it is load-bearing)
+# 1. ask (system prompt is the card's, plus the output-only line; thinking is off server-side)
 python3 - <<'EOF'
 import json, urllib.request
 SYS = ("Use only the Three.js core ES module from\n"
        "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js.\n"
        "Do not import addons or legacy examples/js paths;\n"
-       "implement any camera controls directly inside the HTML.")
+       "implement any camera controls directly inside the HTML.\n"
+       "Reply with the complete HTML file and nothing else: no prose, no markdown fence.")
 body = json.dumps({
     "model": "ccore/Qwen3.5-4B-3D-Coder",
     "messages": [{"role": "system", "content": SYS},
                  {"role": "user", "content": "a medieval cathedral made of voxels"}],
     "temperature": 0.6, "top_p": 0.95, "top_k": 20,
-    "repeat_penalty": 1.0, "max_tokens": 8192, "cache_prompt": False,
+    "repeat_penalty": 1.0, "max_tokens": 16384, "cache_prompt": False,
+    # the recipe sets this server-side too; sending it keeps a hand-run client honest
+    "chat_template_kwargs": {"enable_thinking": False},
 }).encode()
 r = urllib.request.urlopen(urllib.request.Request(
     "http://127.0.0.1:8031/v1/chat/completions", body,
     {"Content-Type": "application/json"}), timeout=1800)
-html = json.load(r)["choices"][0]["message"]["content"]
-open("scene.html", "w").write(html)
+choice = json.load(r)["choices"][0]
+open("scene.html", "w").write(choice["message"]["content"])
+print(choice.get("finish_reason"), len(choice["message"]["content"]))
 EOF
 
-# 2. render it
+# 2. render it (unwrap a fence if the model added one; prose length is recorded)
 python3 tools/threejs-render-check.py --html scene.html --json scene.json
 ```
-
-The **213 validation prompts** in `ccore/ThreeJS-3D-Scenes` give the same cell at scale: generate a
-reply per prompt with the system prompt above (sampling unchanged), keep the replies in JSONL under a
-`response` field, and score the file:
-
-```bash
-python3 tools/threejs-render-check.py --jsonl threejs-validation.jsonl --html-field response \
-  --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-qwen35-4b-3d-coder-q4km-llamacpp/render-gate.json
-```
-
-The dataset ships as parquet; the conversion to JSONL is a one-liner with pandas and belongs in the
-runbook, not in the tool: `uv run --no-project --with pandas --with pyarrow python -c "import pandas
-as pd; pd.read_parquet('validation-00000.parquet').to_json('threejs-validation.jsonl',
-orient='records', lines=True)"`.
 
 **Render gate — what it measures and what it does not.** `tools/threejs-render-check.py` drives
 headless Chromium over the DevTools protocol with stdlib only (a minimal WebSocket client, no npm, no

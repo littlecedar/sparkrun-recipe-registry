@@ -1,6 +1,9 @@
 recipe_version: "2"
-# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. The lane's first arm: a single-file
-# Three.js scene generator. Arch verified against the pinned image before authoring, not assumed:
+# PROBE ARM, `zz-`. The lane's first arm: a single-file Three.js scene generator. Booted once on
+# 2026-11-07 and its cell FAILED on sampling, not weights: at the card's sampling with thinking on,
+# the trace ate the whole budget (0 content, 24,244 reasoning chars at max_tokens 8192; 16,384 still
+# 0 content). Two arm-level fixes below — `enable_thinking: false` through the template kwargs and an
+# output-only line on the system prompt — and the cap/denominator are stated in the lane README. Arch verified against the pinned image before authoring, not assumed:
 # the GGUF declares `general.architecture = qwen35` (the pin's binary carries that string 81
 # times, alongside `qwen35moe`), and its projector is a `clip` GGUF with
 # `clip.projector_type = qwen3vl_merger` (the pin carries `qwen3vl`), so this route exists on the
@@ -29,7 +32,12 @@ metadata:
   kv_dtype: fp16
   tags: 3d, vision, code, apache-2.0
   caveats: >-
-    The render gate scores mechanics, never looks: a cube where a cathedral was asked for passes.
+    Thinking must stay off: the card's sampling with the trace enabled spends every token on
+    reasoning and returns empty content (measured, 2026-11-07), which is why the arm sets
+    `enable_thinking: false` server-side. The model also answers in prose by habit ("save this as
+    index.html"), so the system prompt carries an output-only line; the gate unwraps a fenced reply
+    and records prose length, but a prose-only reply still fails as no geometry. The render gate
+    scores mechanics, never looks: a cube where a cathedral was asked for passes.
     What it measures is that the reply is valid enough to execute, produces WebGL draw calls with
     vertices, and imports only the pinned cdnjs Three.js core module — the card's system prompt is
     load-bearing and is sent by the client, not by this recipe. Visual fidelity would need the
@@ -58,6 +66,12 @@ defaults:
   top_k: 20
   repeat_penalty: 1.0
   load_mode: none
+  # Thinking off, at the arm rather than per request: the GGUF's own template tests
+  # `enable_thinking is defined and enable_thinking is false`, and this pin's
+  # `--chat-template-kwargs` feeds exactly that variable (server-common.cpp reads the flag's
+  # object as template kwargs; a request's `chat_template_kwargs` merges over it). Kept as a
+  # default so no client can forget it — the first boot proved why: the trace ate the whole cap.
+  template_kwargs: '{"enable_thinking": false}'
 # No speculative flags anywhere: the GGUF carries one MTP layer and the card warns that a runtime
 # enabling MTP by default misbehaves, so this arm runs plain decode and leaves the block idle.
 command: >
@@ -75,6 +89,7 @@ command: >
   --top-p {top_p}
   --top-k {top_k}
   --repeat-penalty {repeat_penalty}
+  --chat-template-kwargs '{template_kwargs}'
   --jinja
   --no-webui
   --load-mode {load_mode}

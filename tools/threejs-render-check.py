@@ -15,6 +15,9 @@ stdlib only, no npm, no Puppeteer — and reports three things per document:
 * **non-empty geometry** — WebGL draw calls with a non-zero vertex count. The
   hook wraps ``drawElements``/``drawArrays`` before the page runs, so it does
   not care what the model named its renderer or scene.
+* **delivery, recorded not scored** — a fenced reply is unwrapped (`stripped_fence`) and prose around
+  the document is measured (`prose_chars`), because code models explain themselves; a reply with no
+  `<html>`/`<!doctype>` at all is left as-is and fails the geometry cell.
 * **import constraint** — every module specifier is the pinned core URL
   ``https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js``.
   Addons, ``examples/js`` paths, other CDNs and bare specifiers fail: the card's
@@ -307,6 +310,33 @@ class Browser:
                 self._proc.kill()
 
 
+FENCE = re.compile(r"```[a-zA-Z]*\s*\n(.*?)```", re.S)
+DOC_START = re.compile(r"<(!doctype\s+html|html)[^>]*>", re.I)
+
+
+def extract_document(text: str) -> tuple[str, dict[str, Any]]:
+    """Unwrap the delivery habits a code model actually has, and record them.
+
+    A fenced reply (`````html <!doctype html>… `````) is still a scene, and prose around it is
+    still a scene with a broken delivery, so both are unwrapped here and the wrapper is
+    reported as ``stripped_fence`` / ``prose_chars`` — a receipt must never imply the model
+    emitted a clean file when it explained itself instead. A reply with no ``<html>`` or
+    ``<!doctype>`` at all is returned unchanged: the page then renders nothing and fails the
+    geometry cell, which is the correct verdict for prose.
+    """
+    notes: dict[str, Any] = {"stripped_fence": False, "prose_chars": 0}
+    body = text
+    fence = FENCE.search(body)
+    if fence and "<" in fence.group(1):
+        body = fence.group(1)
+        notes["stripped_fence"] = True
+    start = DOC_START.search(body)
+    if start:
+        notes["prose_chars"] = len(body[:start.start()].strip())
+        body = body[start.start():]
+    return body, notes
+
+
 def import_violations(html: str) -> tuple[list[str], list[str]]:
     """-> (specifiers, violations). Only the pinned core module may be imported."""
     specifiers = [m.group(2) for m in SPEC_RE.finditer(html)]
@@ -353,8 +383,9 @@ def _first_line(text: str, limit: int = 200) -> str:
 
 
 def check_document(browser: Browser, html: str, settle: float, timeout: float) -> dict[str, Any]:
-    specifiers, bad_imports = import_violations(html)
-    rendered = browser.render(html, settle, timeout)
+    clean_html, delivery = extract_document(html)
+    specifiers, bad_imports = import_violations(clean_html)
+    rendered = browser.render(clean_html, settle, timeout)
     stats = rendered["stats"] or {}
     errors = failures_from_events(rendered["events"])
     draw_calls = int(stats.get("drawCalls") or 0)
@@ -370,6 +401,7 @@ def check_document(browser: Browser, html: str, settle: float, timeout: float) -
         "import_constraint": not bad_imports,
         "errors": errors,
         "import_violations": bad_imports,
+        **delivery,
     }
     result["verdict"] = "pass" if (result["renders_clean"] and result["non_empty_geometry"]
                                   and result["import_constraint"] and result["loaded"]) else "fail"
@@ -413,9 +445,13 @@ def selftest(chrome: str | None) -> int:
     if not binary:
         print("selftest needs Chrome (set CHROME or install one); none found", file=sys.stderr)
         return 2
-    expectations = {"good": "pass", "duplicate_const": "fail", "no_geometry": "fail", "addons": "fail"}
+    FIXTURES["fenced"] = "Here is the scene:\n```html\n" + FIXTURES["good"] + "\n```\n"
+    FIXTURES["prose_only"] = ("Save this as index.html and open it in a browser.\n"
+                              "The scene uses a cube, a camera and a renderer.\n")
+    expectations = {"good": "pass", "duplicate_const": "fail", "no_geometry": "fail",
+                    "addons": "fail", "fenced": "pass", "prose_only": "fail"}
     failures: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="threejs-gate-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="threejs-gate-", ignore_cleanup_errors=True) as tmp:
         browser = Browser(binary, Path(tmp))
         try:
             for name, html in FIXTURES.items():
@@ -432,6 +468,12 @@ def selftest(chrome: str | None) -> int:
                     failures.append("empty scene counted as geometry")
                 if name == "addons" and result["import_constraint"]:
                     failures.append("addon import not flagged")
+                if name == "fenced" and not result.get("stripped_fence"):
+                    failures.append("fenced reply was not unwrapped (or not recorded)")
+                if name == "fenced" and not result["non_empty_geometry"]:
+                    failures.append("fenced scene drew no geometry")
+                if name == "prose_only" and result["non_empty_geometry"]:
+                    failures.append("a prose reply was scored as geometry")
         finally:
             browser.close()
     for failure in failures:
@@ -487,7 +529,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     results: list[dict[str, Any]] = []
-    with tempfile.TemporaryDirectory(prefix="threejs-gate-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="threejs-gate-", ignore_cleanup_errors=True) as tmp:
         browser = Browser(binary, Path(tmp))
         try:
             for name, html in docs:
