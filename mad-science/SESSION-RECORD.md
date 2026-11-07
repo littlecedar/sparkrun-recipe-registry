@@ -3056,3 +3056,43 @@ Related: the same boundary produced **two** retirement sections for the same
 five SHAs — this tick's bullet form at 08:10 and the peer's verbatim table plus
 the `4a46ced` paragraph at 08:07. The 08:10 one was a strict subset and was
 deleted, so the five rows are homed once.
+
+## 2026-11-07 08:14 ET — board refresh over a live probe loop on `.30`, and `f04c0d1` folded
+Published at 08:14 ET on a **08:09:07 ET** census — counts
+`0 / 1 / 1 / 1 / 1 / 0`, volumes 0, quartet `/health` 200 on all four ranks with
+one `sglang.launch_server` child each (pids 280/311/310/312, unchanged since
+02:01 ET), `.31` answering `/v1/models` and a 1-token chat completion 200, and
+no `claimed_by` on any of the 20 open rows — newer than the 08:06:16 read the
+08:07 board carried, so `publish` printed `(disk was 2026-11-07 08:06:16 ET)`
+and took it.
+
+**`.30` is not quiet between reads, and the board now says so.** A peer session
+loops short-lived `docker run --rm` containers of
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324…`:
+`docker events --since 20m` shows at least ten create→start→die→destroy cycles,
+each container alive 0–8 s under docker auto-names (`boring_dewdney` …
+`recursing_rhodes`). One (`42ce8474e3d0`) was caught up 18 s by the 08:07:02
+census and was gone by 08:09:07 — which is why two census reads four minutes
+apart disagree on that node's count, and why "0 containers" alone is not the
+same claim as "nothing is happening". No `sparkrun.recipe` label and no stable
+id, so it is a scripted probe rather than a serve and no arm receipt exists yet.
+Single-node work, so no fleet-window lock is owed. The same window ran a
+read-only fleet-wide `find / -xdev -newermt -45 minutes -size +5…` sweep against
+`.31`–`.35`, and `.30` load sat at 3.4.
+
+`f04c0d1` (07:31) was homeless: the 08:07 tick folded `564fff9` and `1f32b34`
+but not it, and it did change tracked bytes — the two `.30` boot narratives
+moved out of the in-flight table into this record. Folded as a row on the 08:14
+board rather than leaving a third commit no board carried; `4a46ced` needed no
+row, its clause is already here. The five pre-session rows were already homed by
+the 08:07 tick in `05fee3a` (verified: `git grep -c` finds each SHA here), so
+this tick added no second copy and did not re-retire them.
+
+Byte series, all three reads this tick's own: `.30` fell 1,913,757,696 B over
+the 41 min but rose 49,152 B over the last 125 s; `.31` −12,267,520 / −196,608;
+`.32` −21,340,160 / −184,320; `.33` −29,708,288 / −8,577,024; `.34`
+−29,716,480 / −8,568,832; `.35` −11,874,304 / −167,936 B. The two 8.57 MB drops
+on the serving ranks over 125 s are the pair writing as it serves, and `.30`'s
+1.78 GiB lands inside that activity, which a repeated `docker run` does not
+normally write; its cause was **not probed**, and the board records the operand
+rather than an attribution.
