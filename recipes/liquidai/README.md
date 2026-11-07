@@ -262,12 +262,39 @@ shape, and a base decoder's `tg` over a filler prompt is not the same measuremen
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml -H <node> --cluster WOPR
 ```
 
-## Audio arm — `zz-liquidai-lfm3-audio-2b-llamacpp` (authored 2026-11-07, not booted)
+## Audio arm — `zz-liquidai-lfm3-audio-2b-llamacpp` (booted 2026-11-07)
 
 The family's speech member — `LiquidAI/LFM3-Audio-2B`, ASR and TTS in one 2B hybrid
 conv+attention body. Recipe
-[`zz-liquidai-lfm3-audio-2b-llamacpp.yaml`](zz-liquidai-lfm3-audio-2b-llamacpp.yaml), `zz-` until a
-boot produces cells.
+[`zz-liquidai-lfm3-audio-2b-llamacpp.yaml`](zz-liquidai-lfm3-audio-2b-llamacpp.yaml); it keeps `zz-`
+until a second boot reproduces the cells.
+
+**Measurement (2026-11-07, `.35`, port 8022, F16 body + F16 projector).** One fixture, the drama-3
+render, one boot:
+
+| cell | result |
+|---|---|
+| ASR | `/v1/audio/transcriptions` 200 in **0.589 s**, **WER 0.000** against the known text (ceiling 0.25) — exact transcript |
+| TTS | `/tts` 200 in **1.596 s** → 238,124 B WAV, **24 kHz mono 16-bit, 4.96 s**, peak 0.63 FS |
+| round trip | 200 in **0.464 s**, **WER 0.000** against the text asked for (ceiling 0.40) |
+
+Footprint, both readings rather than whichever flatters: **cgroup 1.14 GiB** for the container;
+`llama-server`'s own `VmHWM` 1,223,532 kB (≈ 1.17 GiB) against a whole-container sample of 1,499,716
+kB (≈ 1.43 GiB) that includes the shell and sampler around it. The cgroup number is the arm's cost;
+the wider sample is what a co-tenant would see. Receipt
+`~/benchmarks/tp12-20261107/zz-liquidai-lfm3-audio-2b-llamacpp/`.
+
+**Two facts the boot surfaced.** The engine logs an **"audio input experimental"** warning on this
+build: the endpoints work and are measured, but upstream treats the path as such, so an upstream
+change may move it without a version bump this lane notices. And the load line names
+`LFM3-Audio-2B-BF16.gguf` although the recipe asks for `:F16` — the repo ships `F16` and `BF16` at an
+identical 3,466,624,544 B, so `:F16` resolved the BF16 name first. Same bytes, no measurement impact,
+recorded because a receipt that silently disagreed with its own load line would be a trap later.
+
+**Fixture honesty, unchanged by a pass.** One clean sentence from one voice, no accent, noise,
+overlap, long-form or second language; the round trip is bounded by the same model on both ends, so it
+measures mutual intelligibility of its own render — never a MOS. A 0.000 here says the towers are
+wired and this clip was heard, not that the arm is a good transcriber.
 
 **Route decided from evidence, and it is the server — not the card's `llama-tts` script.** The card
 documents `llama cli --audio` and a `llama-tts -o out.wav` binary; this image ships neither

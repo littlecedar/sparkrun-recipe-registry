@@ -219,10 +219,11 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
-  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-07, the same run the
-  snapshot paragraph dates: nineteen rows carry `unpinned-model-revision` — the pin never reaches the
-  engine as `--revision` — one carries `deprecated-topology` instead, and every other row carries
-  suggestions only, which never gate. No denominator is written here for the reason the snapshot
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-07 over the current 96
+  tracked recipes, the LiquidAI and 3D arms included, so the snapshot was re-taken rather than
+  adjusted: nineteen rows carry `unpinned-model-revision` — the pin never reaches the engine as
+  `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
+  only, which never gate. No denominator is written here for the reason the snapshot
   paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
   the order `validate` prints them, `n×` where the same suggestion fires more than once:
 

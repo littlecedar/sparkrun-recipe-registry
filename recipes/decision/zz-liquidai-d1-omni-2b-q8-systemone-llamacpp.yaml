@@ -28,6 +28,8 @@ metadata:
   model_dtype: q8_0
   kv_dtype: fp16
   tags: decision, smol, audio, license
+  # The shipped d1 text arm keeps this inside metadata; top level fell into runtime_config.
+  decision_accuracy: none
   caveats: >-
     The audio cell asserts ACCEPTANCE and CONSISTENCY, never understanding. What it can prove: the
     endpoint takes an `input_audio` part (base64 PCM/WAV data URL), returns a schema-valid typed
@@ -45,7 +47,6 @@ readiness:
   inference: false
   port_timeout_s: 600
   health_timeout_s: 600
-decision_accuracy: none
 defaults:
   port: 8020
   host: 0.0.0.0
