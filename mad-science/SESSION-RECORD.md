@@ -3032,3 +3032,27 @@ The 08:06 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a 
 | 07:08 ET | `6415191` | Closed `ornith-122b-decoders-route` on the measurement it pre-registered as its falsifier — the 2026-10-30 SGLang v0.5.22 + DFLASH + `incoai/Ornith-1.5-122B-DFlash2` boot reads **C1 37.7 tg t/s** (C10 48.9, +30 % over the no-drafter control at C1, parity at C10) against a `C1 < 45` verdict, so the lane section now states that beside the result instead of only the arm-level gate; receipt `~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md`, no boot. |
 
 One further commit from that window is homed here because no board ever folded it: `4a46ced` (07:17 ET) moved the three Mellum llama.cpp arms and their family revision constant to the MTP head's revision `4159d684…` once the quants proved byte-identical and the newer revision adds the `mtp/` draft GGUFs, with no boot and no cell rewritten — it landed between the 07:08 and 07:31 boards and the 07:31 tick did not carry it.
+
+## 2026-11-07 08:10 ET — two ticks composed the same minute, and a shared `/tmp` path decided which one published
+The 08:10 tick took its own read-only census at **08:01:22 ET** (counts
+`.30`→`.35` `0 / 1 / 1 / 1 / 1 / 0`, volumes 0 everywhere, one
+`sglang.launch_server` child per quartet rank, `.31` `/v1/models` 200, no
+`claimed_by` on any of the 20 open queue rows) and composed a board from it,
+while a concurrent tick published a **08:07-titled board on an 08:06:16 ET**
+census. No row was lost and nothing was destroyed, but the mechanism is worth
+recording: the composed board was written to the fixed path
+`/tmp/board-new.md`, the peer tick overwrote that same path with its own
+composition, and `publish` therefore wrote the peer's bytes back to
+`mad-science/STATUS.md` — identical sha256 to the file it read, equal census
+stamp `08:06:16` printed on both sides of the `(disk was …)` tail, and the
+fresher 08:06 census is what stands. The two boards agreed on every checkable
+figure (counts, quartet ids `9c04c1a5…` / `07ba16fa…` / `00de3d85…` /
+`888b2a0f…` with pids 280/311/310/312, register 20 open, both folded commits),
+so the loss was the earlier census, not a claim.
+**Rule this buys:** tick sessions run on one shared workstation, so a fixed
+`/tmp` filename is a shared mutable cell — compose to a per-session path
+(`/tmp/board-$(date +%H%M)-$$.md`) or the peer's file decides what you publish.
+Related: the same boundary produced **two** retirement sections for the same
+five SHAs — this tick's bullet form at 08:10 and the peer's verbatim table plus
+the `4a46ced` paragraph at 08:07. The 08:10 one was a strict subset and was
+deleted, so the five rows are homed once.
