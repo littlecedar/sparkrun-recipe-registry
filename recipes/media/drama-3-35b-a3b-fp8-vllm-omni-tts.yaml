@@ -19,8 +19,8 @@
 # must name fishaudio/drama-3; a foreign listener once satisfied a port probe).
 recipe_version: "2"
 model: fishaudio/drama-3
-model_revision: b2b5ee998034b2975720906c815e7fb0e9f007bd
-container: vllm/vllm-omni:nightly-15bce345863c6e2db882534876b8977f5b1ae1e3@sha256:f3473cb3ee7577d4e2595aa6c33eebe6734f79df26cb76c1f03f35542cab5a45
+model_revision: 78e5ab79e49aa9a25abe8799eff2c4d73a1c3216
+container: vllm/vllm-omni:nightly-0c5dab181d46a455a379e7fbf05182ab45ad1825@sha256:84f7a372f56d984cbde1dc4a886920113f4734703ce0071d3556eb0bbd9e00c7
 runtime: vllm
 min_nodes: 1
 max_nodes: 1

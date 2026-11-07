@@ -305,6 +305,12 @@ HOME="$H" sparkrun run <recipe> -H <node> -n | grep -- '--your-flag'
 `-v`/`-vv`/`-vvv`, `-q` for scripting. Lifecycle: `sparkrun status` → task IDs, `sparkrun logs <id>`,
 `sparkrun stop <id>` (**no `sparkrun stop all`**).
 
+**An image override is `--image`, never `-o container=`.** The `vllm-distributed` runtime does not read
+the `container` key off the `-o` override layer (measured 2026-11-07: the media lane's repin launches ran
+the recipe's own pinned image while `-o container=<ref>` sat unread), so a session that "checks" a new
+digest that way measures the old one. Use `--image <ref>`; treat `-o container=` as unverified for any
+runtime whose image is not the one the override layer was shown to reach.
+
 **Every boot runs under a watchdog, not a human wait.** The sequence is boot → pre-flight →
 watchdog → cells → stop by id (owner directive 2026-10-26, the `21e5ec6` defect class: a keep-alive
 keeps a container "Up" after its serve child died, so a session waits on a boot that will never be

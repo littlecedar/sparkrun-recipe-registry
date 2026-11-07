@@ -12,19 +12,20 @@ routes, LTX-2.5, humanizer Q6_K, Kromoss image) and three probe/draft arms (`zz-
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
 
-**The two `vllm-omni` arms move once, then hold.** `vllm/vllm-omni` publishes nightly tags and no
+**The two `vllm-omni` arms moved once and now hold.** `vllm/vllm-omni` publishes nightly tags and no
 stable release that carries the patches this lane needs yet, so both arms pin
-`nightly-<commit>@sha256:<digest>`. The owner's 2026-11-06 answer ends the perpetual chase: forward-move
-both arms once to `nightly-0c5dab18…` and boot each, then hold there (`TODO.md` §Settled questions
-`#65`) — the next move is to a **stable** artifact if one ever appears carrying the patches, never to
-the following nightly. A tag upstream deletes while its digest still serves is reported
-**`container-tag-retired`** by `tools/refresh-sweep.py` — drift to re-pin, never a broken pin, and
-never `current` — so a rotation still surfaces on its own, with no cron entry, and the re-pin itself
-stays boot-gated (queue row `media-omni-nightly-repin`).
+`nightly-<commit>@sha256:<digest>`. The owner's 2026-11-06 answer ended the perpetual chase: both
+arms forward-moved to `nightly-0c5dab18…` and were booted 2026-11-07 (§Repin boot results), and
+they stay there (`TODO.md` §Settled questions `#65`) — the next move is to a **stable** artifact if
+one ever appears carrying the patches, never to the following nightly. A tag upstream deletes while
+its digest still serves is reported **`container-tag-retired`** by `tools/refresh-sweep.py` — drift
+to re-pin, never a broken pin, and never `current` — so rotation still surfaces on its own with no
+cron entry, and any re-pin stays boot-gated.
 
 ## Contents
 
 - [Selection (2026-10-22)](#selection-2026-10-22)
+- [Repin boot results (2026-11-07)](#repin-boot-results-2026-11-07)
 - [whistle ASR probe (no recipe yet)](#whistle-asr-probe-no-recipe-yet)
 - [phonon-31m TTS probe (no recipe yet)](#phonon-31m-tts-probe-no-recipe-yet)
 - [drama-3-35b-a3b-fp8-vllm-omni-tts](#drama-3-35b-a3b-fp8-vllm-omni-tts)
@@ -41,6 +42,49 @@ stays boot-gated (queue row `media-omni-nightly-repin`).
 - [phonon-31m-tts-cpu](#phonon-31m-tts-cpu)
 - [Mods](#mods)
 - [Lane notes](#lane-notes)
+
+## Repin boot results (2026-11-07)
+
+Both `vllm-omni` arms took the one forward move the owner authorized, serialized on `.30`, each pulled by
+digest and re-tagged `nightly-0c5dab18-repin`:
+`vllm/vllm-omni:nightly-0c5dab181d46a455a379e7fbf05182ab45ad1825` index
+`sha256:84f7a372f56d984cbde1dc4a886920113f4734703ce0071d3556eb0bbd9e00c7`, arm64 child
+`sha256:6159e986…`.
+
+| arm | boot result |
+|---|---|
+| `drama-3-35b-a3b-fp8-vllm-omni-tts` | `fish_omni` loads through the two-stage `AsyncOmni`; WAV 372,780 B RIFF/WAVE 44.1 kHz mono 16-bit, 4.226 s, peak 0.899 FS, RMS 0.1985; PCM TTFA **0.661 s**, **RTF 0.637** |
+| `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | `QwenImage21Pipeline` with the 32-block regional compile; PNG 4,196,804 B with PNG magic; first request **13.655 s** wall (stage_gen 13,548 ms, denoise 1,693.5 ms, 1,048,576 px) |
+
+**Caveats, so these boots are read for what they are:**
+- **qwen-image's first request is +24 % over the recorded band and is not that band.** 13.655 s against
+  the 10.995 / 11.084 s first requests this arm recorded on the older digest (`dev29`; the new build
+  reads `dev311`). One sample, and the **warm band was not re-measured** — the shipped 8.610–8.704 s
+  cells stand on the old pin until a warm ladder runs on this one. 13.655 s is not a rate.
+- **drama-3's 0.637 RTF is a different render**, not a re-measurement: 4.226 s of audio from an unseeded
+  prompt, against the shipped 0.848 ± 0.015 band at ~4.6 s and 0.813 at 28.7 s.
+
+**drama-3's weights moved too, and that boot answered yes.** The same operator round checked the upstream
+checkpoint ahead of the pin: `-o model_revision=78e5ab79e49aa9a25abe8799eff2c4d73a1c3216` reached the
+serve line with no override warning, the engine resolved `snapshots/78e5ab79…` (25 files, 41.50 GB:
+15 safetensors shards + `codec.pth` 1.87 GB), `fish_omni` loaded, and a seeded WAV came back RIFF/WAVE
+44.1 kHz mono 16-bit, 4.737 s, peak 0.849 FS, RMS 0.1476, TTFA **0.650 s**, RTF **0.634** — no
+regression against the old-weights render (RTF 0.637, TTFA 0.661 s), and TTR fell 541 s → 490 s. The
+revision is a re-shard, not a re-export: `config.json` carries the same content (the only byte difference
+is a dropped trailing newline). **The committed pin is the durable half:** `-o model_revision=` moves the
+engine only, while sparkrun's staging stays on the recipe's own `model_revision`, so a cold host or a
+cache prune would have served the old SHA — hence the top-level pin in the recipe, moved in the same
+commit as the image.
+- **The `metrics bridge: matched …` line is absent here because nothing scraped `/metrics`.** The wrapper
+  is fail-open by design and prints only series a scrape returned, so absence says "no scrape", not "no
+  bridge". The bridge's own open cell is unchanged: one scrape decides the line.
+
+**Two operator traps this repin hit, both launch-side:**
+- **`-o container=<ref>` is ignored by the `vllm-distributed` runtime.** The image has to be overridden
+  with the top-level `--image <ref>`; the `-o` key sits unread while the launch runs the recipe's own pin.
+- **A launch without `--cluster WOPR` dies** with `prepared model is not visible through the workload
+  mounts` — the model path is mounted by the cluster config, so a bare `-H <node>` boot of these arms is
+  a guaranteed dead boot, not a slow one.
 
 ## Selection (2026-10-22)
 
@@ -152,10 +196,13 @@ vLLM-Omni · **1 node (TP=1)** · **booted 2026-10-22 (`.34`), two boots**.
 > 500,000 annual-revenue threshold. Read `LICENSE.md` in the checkpoint before serving this to
 > anyone. Weights stay in the HF cache, never in the image.
 
-- **Model:** `fishaudio/drama-3` (pinned `b2b5ee99…`) — 35B total / 3B active TTS with a 10-codebook
-  audio decoder, served by `vllm-omni serve --omni` on one DGX Spark.
-- **Engine / knobs:** `vllm/vllm-omni:nightly-15bce345…` digest-pinned; two-stage omni pipeline (AR
-  backbone + DAC codec stage), util split `0.55` / `0.06`. `--stage-init-timeout 1800` ships because
+- **Model:** `fishaudio/drama-3` (weights pinned `78e5ab79…`, moved 2026-11-07 from `b2b5ee99…` —
+  §Repin boot results) — 35B total / 3B active TTS with a 10-codebook audio decoder, served by
+  `vllm-omni serve --omni` on one DGX Spark.
+- **Engine / knobs:** `vllm/vllm-omni:nightly-0c5dab18…@sha256:84f7a372…` digest-pinned, forward-moved
+  2026-11-07 from `nightly-15bce345…` and booted on the new digest (§Repin boot results; the RTF band
+  below is from the older one); two-stage omni pipeline (AR backbone + DAC codec stage), util split
+  `0.55` / `0.06`. `--stage-init-timeout 1800` ships because
   the engine's 300 s default is a deadline for the load+compile budget, not a load time.
 - **Boot trap, worth keeping:** the first boot loaded the model in 242.84 s and was killed 2 s after
   `torch.compile` finished, because cold load + compile was ~298 s against the 300 s default. A port
@@ -331,10 +378,12 @@ closed.
 
 - **Model:** `Qwen/Qwen-Image-2.1-Turbo` (pinned `fc13ba1986`) — the same 8-step distilled,
   CFG=1 checkpoint and revision as the Diffusers arm, so the two arms differ only in route.
-- **Engine:** `vllm/vllm-omni:nightly-15bce345…@sha256:f3473cb3…`, **digest-pinned** (index digest;
-  arm64 child `sha256:9c155dff…`, 11.23 GB). It carries `vllm_omni 0.32.0rc2.dev29+g15bce3458` —
-  the version the OMNI measurement reported, and the version the drama-3 boot read inside the same
-  digest on `.34` (`docker run … python -c "import vllm, vllm_omni"`). **The pipeline is in the
+- **Engine:** `vllm/vllm-omni:nightly-0c5dab18…@sha256:84f7a372…`, **digest-pinned**, forward-moved
+  2026-11-07 from `nightly-15bce345…@sha256:f3473cb3…` (arm64 child `sha256:6159e986…`) and booted on
+  the new digest (§Repin boot results). The moved-*from* build was `vllm_omni
+  0.32.0rc2.dev29+g15bce3458` — the version the OMNI measurement and the drama-3 `.34` boot both read,
+  and the one **every cell below was taken on**; the new build reads `dev311` and its first request is
+  13.655 s (one sample), so the warm band here is not yet re-measured on it. **The pipeline is in the
   image**, verified 2026-10-22 without running a container: exporting the pinned image's rootfs and
   reading it shows `vllm_omni/diffusion/registry.py` mapping `QwenImage21Pipeline` →
   `qwen_image_21` / `pipeline_qwen_image_21` / `QwenImage21Pipeline`, and
@@ -352,9 +401,9 @@ closed.
   verbatim and reprints `/metrics` in the four log shapes the monitor scrapes — a diffusion serve logs
   none of them. Namespace-agnostic on purpose (this arm's families are `vllm_omni:`, the engine's
   `vllm:`), fail-open (an absent series prints nothing), `OMNI_METRICS_BRIDGE=0` disables it.
-  **Not yet booted through the wrapper:** the first boot's `metrics bridge: matched …` line decides
-  which series a diffusion serve reports. `Running`/`Waiting` are the only cells this arm can honestly
-  fill — it reports no token counters, so no throughput line.
+  **Booted through the wrapper 2026-11-07, but no `/metrics` scrape ran**, so the `metrics bridge:
+  matched …` line is still unread: the wrapper prints only what a scrape returns. `Running`/`Waiting`
+  are the only cells this arm can honestly fill — it reports no token counters, so no throughput line.
 - **Measured on this arm's own boots** — 2026-10-22, `.35`, task
   `sparkrun_ff85d35d30f290e3_64af2f7668b6` twice (`~/benchmarks/omni-qwen-image-20261022/`): TTR
   **251 s cold** (container start → `/v1/models` naming the served id; `StartedAt` 19:22:28.978Z,
