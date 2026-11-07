@@ -1,0 +1,91 @@
+recipe_version: "2"
+# GATE CANDIDATE, AUTHORED 2026-11-07 AND NOT YET BOOTED. It keeps this name and earns a root
+# README index row only if ONE boot clears the easy-traffic gate (TODO.md §DECISIONS #49/#50,
+# owner 2026-10-27 SURVEY6 Q7): C1 >= 69.28 t/s and C10 >= 116.27 t/s from
+# benchmarking/concurrency-ladder.yaml at d0, n=5, ten real slots, plus house >= 36/37 from
+# tools/eval-suite.py at --house-max-tokens 4096 with thinking on. Below either bar it renames
+# to zz- and stays a capability arm with its cells recorded.
+model: unsloth/flint-GGUF:UD-Q3_K_XL
+model_revision: 20468edfc38ab43d6914cc88b08cbecb05d0fc62
+runtime: llama-cpp
+max_nodes: 1
+# llama.cpp `6023692` (2026-11-05): this is the build that carries flint. The GGUF's
+# general.architecture reads `flint` (verified from the file header before any boot), upstream
+# registered `LLM_ARCH_FLINT` in `src/llama-arch.cpp` at `a37cc4610` (2026-10-21, the lane's
+# ref floor), and `src/models/flint.cpp` is present at 6023692 - so the image is not merely
+# "newer than the floor", it is the commit the loader was checked against.
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+description: >-
+  RecursiveSI/flint preview — 39.8B-A2.5B agentic-coding MoE, Apache-2.0 "flint-preview"
+  licence, vendor's Unsloth dynamic UD-Q3_K_XL GGUF (18,494,977,472 B, 3.72 bit/weight) on ONE
+  DGX Spark through llama.cpp. 49 layers (2 dense then 47 MoE), 256 routed experts top-6 plus
+  2 always-active shared, 32 query / 4 KV heads at head_dim 128, 35 sliding-window (513) and
+  14 full-attention no-RoPE layers, vocab 150,144, native context 262,144. Serves the GGUF's
+  own embedded template (--jinja) and splits its `<think>` block into `reasoning_content`.
+metadata:
+  model_url: https://huggingface.co/unsloth/flint-GGUF
+  base_model: https://huggingface.co/RecursiveSI/flint
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "39.8B"
+  # Unsloth dynamic tier, 3.72 bit/weight mixed: the accuracy checker's recognised set has no
+  # dynamic-GGUF label, so `int4` is the honest bit class here (same call as the 122B UD-Q3_K_XL
+  # arm).
+  model_dtype: int4
+  kv_dtype: fp16
+  tags: explore, code, agent, reasoning, tools
+  caveats: >-
+    Every quality figure on the model card (54.9 % Terminal-Bench 2.1, 89.7 % SWE-bench Pro v2,
+    74.2 % SWE-bench Verified, pass@1 over >= 5 attempts at temperature 1.0 / top-p 0.95 /
+    top-k 20) is a VENDOR CLAIM with no in-tree instrument covering it — this arm measures the
+    house battery and the ladder, nothing more. The peer comparison is per active parameter per
+    node-second, not raw t/s. A DFlash2 spec-decode leg (incoai/Flint-DFlash2) is a separate
+    step once this plain cell exists.
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it, or sparkrun's appended `bash -c <cmd>`
+  # is parsed by llama-server as its own flags (measured on this image family 2026-10-22).
+  entrypoint: ""
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on real launch sparkrun rebinds it to the staged GGUF file, so the served id
+  # is a cache path (-n hides this). --alias carries the client-visible id.
+  served_model_name: unsloth/flint-GGUF
+  # Native window. Weights 18.5 GB; the 14 full-attention layers cost ~2048 B/token each
+  # (~7.5 GB at full depth) and the 35 sliding-window ones hold 513 tokens, so the deepest
+  # serve still fits the 128 GB frame with room for the ten slots.
+  ctx_size: 262144
+  # Ten real slots: the gate's C10 bar was set on a ten-slot window, and tools/run-arm.sh refuses
+  # a c10 rung below ten slots (rc=8). `--kv-unified` keeps that from multiplying the KV.
+  parallel: 10
+  n_gpu_layers: 999
+  flash_attn: auto
+  # `deepseek` is the format whose own documentation names `<think>` tags — this model emits a
+  # `<think>...</think>` block straight after `<|assistant|>` and its template exposes no
+  # `enable_thinking` variable, so there is no thinking switch to flip: it thinks by default and
+  # the parser is the only thing that decides whether the block lands in content or
+  # reasoning_content.
+  reasoning_format: deepseek
+  # Card's and the GGUF's own general.sampling.* preset: 1.0 / 0.95 / 20.
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+# Four literals, not defaults: the `defaults:` block in the llama.cpp flag map is only consumed on
+# the command-less path, so `jinja:` / `webui:` / `load_mode:` there would be silent drops.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --jinja
+  --no-webui
+  --load-mode none
+  --cont-batching
