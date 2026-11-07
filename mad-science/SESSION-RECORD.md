@@ -2674,3 +2674,18 @@ quartet untouched, the campaign gate seated on `.30`+`.35` with its blocked depe
 `ple-disk-read-regression` unblocked on its own no-boot logic, the labquant fourth boot gated on a
 lever, the 122B row closable on a survey verdict, the repin campaign split by lane, the vllm-omni
 arms pinned and held, and a tick-backlog kill the census proved moot).
+
+## 2026-11-07 01:03 ET — board landed rows homed (session boundary)
+- **00:56 ET** `8cbbadb` — Campaign director gains a production lifecycle: 300 s lease (a
+report can hold a request for ~160 s, so a reaper could re-boot a live arm), `stop_task`
+bounded at 60 s in `campaign/sparkrun_campaign/fleet.py:92`, start-up validation that refuses
+duplicate hosts / missing executor / over-long socket path (exit 2, unit's new
+`RestartPreventExitStatus`), lock-free `status`, skip receipts carrying the reviewer checklist,
+and `serve_logs` including the executor's `docker-*.log`; unit creates 0600 files and allows
+100 s to stop workers under a 180 s `TimeoutStopSec`.
+- **00:56 ET** `99f2647` — `tools/run-arm.sh` starts one `docker logs -f` follower per host as
+soon as the arm's container exists, writing `docker-<host>.log` into the receipt window, and
+kills the followers before `sparkrun stop`: a boot that dies in a `pre_exec` hook used to leave
+no `/tmp/sparkrun_serve.log` at all, which is why the 2026-11-03 cyankiwi and 2026-11-04
+labquant boots left no cause. Guard module 50 tests green; the live capture is only proven by
+the next dead boot.
