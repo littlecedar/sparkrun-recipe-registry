@@ -3096,3 +3096,41 @@ on the serving ranks over 125 s are the pair writing as it serves, and `.30`'s
 1.78 GiB lands inside that activity, which a repeated `docker run` does not
 normally write; its cause was **not probed**, and the board records the operand
 rather than an attribution.
+
+## 2026-11-07 08:38 ET — the 18.7 GB fleet-wide disk mystery was the pool's own traffic
+Board refreshed at 08:38 ET on an **08:30:41 ET** census, superseding the 08:27
+board's 08:19:03 read (counts unchanged `0 / 1 / 1 / 1 / 1 / 0`, volumes 0,
+quartet `/health` 200 ×4 with pids 280/311/310/312, register 19 open, no
+`claimed_by`). Only the census and `.30`/`.35` rows were rewritten; the 08:27
+tick's quartet, register, queue and landed rows were kept verbatim, so no
+figure was re-derived from a stale read and nothing of theirs was dropped.
+
+**The finding:** `df -B1 --output=avail /` on the six nodes fell
+**18,735,349,760 B** between 07:28:52 and 08:30:41, and it was not a local
+writer. The shared HF pool is BeeGFS, whose chunk store `/srv/beegfs/storage`
+sits on each node's **root** filesystem — and it is **root-read-only**, so the
+user-level `find / -xdev -newermt … -size +100M` that ran on `.31` and `.35`
+returned nothing and read like a negative. That void reading is exactly how a
+pool write impersonates an unexplained disk leak, and it nearly shipped as
+"cause unestablished". The writer was the `unsloth/flint-GGUF` body staged into
+the pool at 08:2x: `flint-UD-Q3_K_XL.gguf`, commit `20468edf…`,
+**18,494,977,472 B**, sha256 `91b8d85a…` = the Hub LFS oid, recorded in
+`flint-four-arm-comparison`'s row evidence the same hour. Chunk placement split
+it `.31` / `.32` / `.35` 4.63 GB each and `.30` 2.83 GB, with `.33`/`.34` at
+1.9 MB each; the bytes stay, because it is a cached body the Flint arm needs.
+
+**Rule it buys:** a multi-GB fall on several nodes at once with no container, no
+image pull and no large touched file is **pool traffic**, so read
+`/mnt/beegfs/huggingface/hub` mtimes — and `du` there is not a size oracle
+(it reported 9.5 KB for that 18.49 GB entry, since the client does not count the
+chunk store's blocks) — before hunting a local writer. Also: the burst had
+already stopped, so a falling series needs one more read before it is described
+as a live writer (12 KB/25 s on `.35`, 0.5 MB/20 s on the pool).
+
+The `.30` probe loop is likewise identified: repeated `docker run --rm` of
+`ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324…`, one
+container per depth rung of the PLE sweep `0a08660` closed on, receipt
+`~/benchmarks/ple-depth-20261107/`. `flint-four-arm-comparison` remains
+`queued` with an empty `claimed_by` while its prepare visibly ran — its own
+evidence says "Prepared 2026-11-07, NOT booted", so the row is honest; the
+missing piece is a claim, which is reported, not assigned.
