@@ -13,12 +13,17 @@ It never decides *which* nodes it may use.  That is a config file of this sessio
 (`.local/fleet.yaml`, untracked by design, so it can hold addresses and the tracked tree cannot), and
 it must be explicit: an empty or unreadable `research:` list is an error, never "nothing to do".
 
-Three gates stand between a plan and a launch:
+Four gates stand between a plan and a launch:
 
   * `.local/fleet-window.lock` — a declared window means hands off, no matter how idle a node looks.
     The legacy `.scratch/` path is still read: syncthing's `**/.scratch` ignore means a lock written
     there never leaves the clone that wrote it, which is how a window declared on the head was invisible
     to every other checkout (measured 2026-10-30).
+  * an active campaign — the director (`campaign/sparkrun_campaign`) holds hosts through leases in
+    `<CAMPAIGN_ROOT>/state.json` and never writes that lock, so a gate that honoured only the lock would
+    plan a second boot onto a leased host. Roots come from `--campaign-root` and the head's
+    `~/.config/sparkrun-campaign.env` (`CAMPAIGN_ROOT`); a host under a live lease or an outstanding reap
+    is not free, and state that cannot be read is a refusal — "free" is a claim about state somebody read.
   * a receipt already carrying numbers — `next-arms.py` owns that predicate; this does not re-derive it.
   * this tool's own ledger (`.local/drip-state.json`) — an arm launched a minute ago has a receipt
     directory with no numbers in it yet, so the receipt predicate cannot see it.  Pids are checked
@@ -34,9 +39,11 @@ Usage
 -----
     tools/queue-drip.py --once --dry-run     # what would launch now
     tools/queue-drip.py                      # loop forever
+    tools/queue-drip.py --campaign-root ~/benchmarks/campaign-x --once --dry-run
     setsid nohup tools/queue-drip.py >/tmp/drip.log 2>&1 &
 
-Exit codes: 0 pass (or dry run) completed, 2 unusable config, 3 a declared window is open.
+Exit codes: 0 pass (or dry run) completed, 2 unusable config (including campaign state that could not
+be read), 3 a declared window or a campaign lease holds the nodes.
 """
 
 from __future__ import annotations
@@ -59,6 +66,10 @@ TOOL = REPO / "tools" / "next-arms.py"
 LOCK_PATHS = (REPO / ".local" / "fleet-window.lock", REPO / ".scratch" / "fleet-window.lock")
 STATE = REPO / ".local" / "drip-state.json"
 LOGDIR = REPO / ".local" / "drip-logs"
+#: The director's run definition on the head (`campaign/DESIGN.md` §Supervision): one
+#: `CAMPAIGN_ROOT=<dir>` line among the manifest and host set. Untracked because it carries addresses,
+#: so it is read for the root only; absent on a clone with no campaign installed, which is not an error.
+CAMPAIGN_ENV = Path.home() / ".config" / "sparkrun-campaign.env"
 
 #: Fail closed on an unknown key: a typo such as `reseearch:` would otherwise parse as no nodes at
 #: all and read exactly like a fleet with nothing to do.
@@ -202,8 +213,8 @@ def in_flight_arms(drivers: set) -> set:
     return {Path(path).stem for path in drivers}
 
 
-def plan_pass(cfg: dict, busy: set = frozenset()) -> list:
-    cmd = [sys.executable, str(TOOL), "--nodes", ",".join(cfg["research"]), "--json"]
+def plan_pass(cfg: dict, busy: set = frozenset(), nodes: list | None = None) -> list:
+    cmd = [sys.executable, str(TOOL), "--nodes", ",".join(nodes or cfg["research"]), "--json"]
     for arm in sorted(set(cfg["skip"]) | set(busy)):
         cmd += ["--skip", arm]
     out = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, check=False)
@@ -240,12 +251,91 @@ def declared_window() -> Path | None:
     return next((p for p in LOCK_PATHS if p.exists()), None)
 
 
+def campaign_roots(env: Path, extra: list) -> list:
+    """Every campaign root a pass must honour: `--campaign-root` first, then the head's env file.
+
+    A missing env file is the truth -- this tool also runs on clones with no campaign installed -- while
+    an unreadable one is an error: it may name a root, and refusing beats guessing whose hosts are free.
+    """
+    roots = list(extra)
+    try:
+        text = env.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return roots
+    except OSError as exc:
+        raise ConfigError(f"cannot read {env}: {exc}") from exc
+    for raw in text.splitlines():
+        if raw.strip().startswith("CAMPAIGN_ROOT="):
+            value = raw.split("=", 1)[1].strip().strip("'\"")
+            if value:
+                roots.append(Path(value).expanduser())
+    return roots
+
+
+def campaign_holders(roots: list, now: float) -> dict:
+    """host -> why it is held, read from each root's `state.json` without the director's lock.
+
+    Two of the director's own records hold hosts: a lease that has not expired owns its declared hosts,
+    and a record that still `needs_reap` owns the hosts its leftovers may sit on. An expired lease holds
+    nothing -- the director's `expire()` clears it -- and a root with no `state.json` is absent, not
+    broken. Anything else is a refusal: "free" is a claim about state somebody read.
+    """
+    held: dict = {}
+    for root in roots:
+        path = Path(root) / "state.json"
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as exc:
+            raise ConfigError(f"cannot read campaign state {path}: {exc}") from exc
+        try:
+            name = data.get("campaign") or str(root)
+            arms = data["arms"]
+            records = list(arms.items())
+        except (AttributeError, KeyError, TypeError) as exc:
+            raise ConfigError(f"{path} is not a campaign state document: {exc}") from exc
+        for arm, record in records:
+            lease = record.get("lease")
+            if lease:
+                expiry = float(lease.get("expires_at") or 0)
+                if expiry > now:
+                    when = time.strftime("%H:%M:%S", time.localtime(expiry))
+                    for host in lease.get("hosts") or []:
+                        held.setdefault(host, f"campaign {name} holds {host} -- {arm} attempt "
+                                              f"{record.get('attempts')}, lease expires {when}")
+            for host in record.get("needs_reap") or []:
+                held.setdefault(host, f"campaign {name} holds {host} -- {arm} still needs a reap "
+                                      f"({record.get('status')})")
+    return held
+
+
+def free_nodes(nodes: list, held: dict) -> list:
+    """The nodes this session may use right now.
+
+    Hosts are compared literally: `.local/fleet.yaml` and `CAMPAIGN_HOSTS` both carry the management-plane
+    address form (verified 2026-11-07). A name on one side and an address on the other is a hole here, not
+    a match -- so the fleet file is the wrong place to rename a node.
+    """
+    return [node for node in nodes if node not in held]
+
+
+def drop_held(plan: list, held: dict) -> list:
+    """Never launch onto a held host, even if the planner was handed the wrong node list."""
+    return [row for row in plan if not set(hosts_of(row)) & set(held)]
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--config", type=Path, default=REPO / ".local" / "fleet.yaml")
     ap.add_argument("--state", type=Path, default=STATE)
     ap.add_argument("--once", action="store_true", help="one pass, then exit")
     ap.add_argument("--dry-run", action="store_true", help="print the plan, launch nothing")
+    ap.add_argument("--campaign-root", type=Path, action="append", default=[], metavar="ROOT",
+                    help="campaign root whose state.json may hold hosts (repeatable); the root in "
+                         "--campaign-env is always read too")
+    ap.add_argument("--campaign-env", type=Path, default=CAMPAIGN_ENV, metavar="FILE",
+                    help=f"file naming CAMPAIGN_ROOT (default {CAMPAIGN_ENV})")
     args = ap.parse_args(argv)
 
     try:
@@ -260,10 +350,21 @@ def main(argv: list[str]) -> int:
             print(f"drip: {declared} is present -- a window is declared, hands off")
             return 3
         try:
+            held = campaign_holders(campaign_roots(args.campaign_env, args.campaign_root), time.time())
+            free = free_nodes(cfg["research"], held)
+            if not free:
+                for why in sorted(set(held.values())):
+                    print(f"drip: {why}")
+                print("drip: every node this session may use is held -- hands off")
+                return 3
+            for node in cfg["research"]:
+                if node in held:
+                    print(f"drip: {held[node]}")
             state = read_state(args.state)
             running = in_flight(state)
             drivers = live_driver_paths()
-            plan = drop_in_flight(plan_pass(cfg, in_flight_arms(drivers)), running, drivers)
+            plan = drop_held(
+                drop_in_flight(plan_pass(cfg, in_flight_arms(drivers), free), running, drivers), held)
         except ConfigError as exc:
             print(f"drip: {exc}", file=sys.stderr)
             return 2

@@ -9,6 +9,9 @@ import time
 import sys
 import tempfile
 import unittest
+import contextlib
+import io
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
@@ -208,6 +211,145 @@ class Windows(unittest.TestCase):
             finally:
                 drip.LOCK_PATHS = orig
         self.assertEqual(rc, 3, "a declared window must refuse, not plan")
+
+
+class Campaign(unittest.TestCase):
+    """The director holds hosts through leases and never writes the window lock."""
+
+    @staticmethod
+    def _root(tmp: str, arms: dict, name: str = "d1") -> Path:
+        root = Path(tmp) / "campaign"
+        root.mkdir()
+        (root / "state.json").write_text(
+            json.dumps({"campaign": name, "order": sorted(arms), "arms": arms}), encoding="utf-8")
+        return root
+
+    @staticmethod
+    def _lease(hosts: list, expires_in: float) -> dict:
+        now = time.time()
+        return {"id": "a@1", "arm": "a", "path": "recipes/x/a.yaml", "tp": len(hosts), "env": {},
+                "worker": "worker-0", "hosts": hosts, "issued_at": now - 60,
+                "heartbeat_at": now - 5, "expires_at": now + expires_in}
+
+    def test_a_live_lease_holds_its_hosts_and_an_expired_lease_holds_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._root(tmp, {
+                "live": {"status": "leased", "attempts": 1, "lease": self._lease(["node-a"], 600)},
+                "old": {"status": "leased", "attempts": 1, "lease": self._lease(["node-c"], -1)},
+                "reaping": {"status": "pending", "attempts": 1, "lease": None,
+                            "needs_reap": ["node-b"]},
+            })
+            held = drip.campaign_holders([root], time.time())
+        self.assertEqual(sorted(held), ["node-a", "node-b"],
+                         "an expired lease is cleared by the director, so it holds nothing")
+        self.assertIn("attempt 1", held["node-a"])
+        self.assertIn("lease expires", held["node-a"])
+        self.assertIn("needs a reap", held["node-b"])
+
+    def test_a_held_host_is_not_planned_and_the_free_one_is(self):
+        """The point of the gate: one node is owned by a lease, the other is still workable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._root(tmp, {
+                "live": {"status": "leased", "attempts": 1, "lease": self._lease(["node-a"], 600)},
+            })
+            env = Path(tmp) / "campaign.env"
+            env.write_text(f"CAMPAIGN_ROOT={root}\n", encoding="utf-8")
+            cfg = _config(tmp, "research:\n  - node-a\n  - node-c\n")
+            seen = []
+
+            def fake_plan(cfg, busy=frozenset(), nodes=None):
+                seen.append(list(nodes))
+                return [{"arm": "free-arm", "node": "node-c", "nodes": ["node-c"],
+                         "launch": "true"}]
+
+            orig = drip.plan_pass
+            drip.plan_pass = fake_plan
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(env), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 0)
+        self.assertEqual(seen, [["node-c"]], "a leased host must not reach the planner")
+        printed = out.getvalue()
+        self.assertIn("would launch free-arm on node-c", printed)
+        self.assertIn("campaign d1 holds node-a", printed)
+
+    def test_every_node_held_is_a_refusal_not_an_empty_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._root(tmp, {
+                "live": {"status": "leased", "attempts": 2, "lease": self._lease(["node-a"], 600)},
+            })
+            cfg = _config(tmp, "research:\n  - node-a\n")
+
+            def refuse(cfg, busy=frozenset(), nodes=None):
+                raise AssertionError("the planner must not be asked when every node is held")
+
+            orig = drip.plan_pass
+            drip.plan_pass = refuse
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--campaign-root", str(root), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 3)
+        self.assertIn("attempt 2", out.getvalue())
+
+    def test_no_campaign_state_plans_as_before(self):
+        """Negative control: no env file and no root is absent, not unreadable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(tmp, "research:\n  - node-a\n  - node-c\n")
+            seen = []
+
+            def fake_plan(cfg, busy=frozenset(), nodes=None):
+                seen.append(list(nodes))
+                return []
+
+            orig = drip.plan_pass
+            drip.plan_pass = fake_plan
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 0)
+        self.assertEqual(seen, [["node-a", "node-c"]])
+
+    def test_unreadable_campaign_state_is_a_refusal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "campaign"
+            root.mkdir()
+            (root / "state.json").write_text("{not json", encoding="utf-8")
+            cfg = _config(tmp, "research:\n  - node-a\n")
+
+            def refuse(cfg, busy=frozenset(), nodes=None):
+                raise AssertionError("unreadable state must refuse before planning")
+
+            orig = drip.plan_pass
+            drip.plan_pass = refuse
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--campaign-root", str(root), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot read campaign state", err.getvalue())
+
+    def test_a_dropped_row_is_the_last_resort(self):
+        """If the planner ever ignores the node list, the row is still not launched."""
+        held = {"node-a": "campaign d1 holds it"}
+        plan = [{"arm": "a", "nodes": ["node-a"]}, {"arm": "b", "node": "node-c"}]
+        self.assertEqual([row["arm"] for row in drip.drop_held(plan, held)], ["b"])
 
 
 if __name__ == "__main__":
