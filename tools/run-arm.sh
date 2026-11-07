@@ -217,7 +217,28 @@ echo "arm=$NAME container=$N task=$TID port=$PORT"
 # the task does not outlive it. The explicit stop below is the normal path; this
 # trap is the one that covers the script being killed mid-measurement, which is
 # the same class of leak as forgetting the stop entirely.
-trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
+LOGFOLLOW=()
+trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done; exit' EXIT INT TERM
+
+# Each rank's own stdout/stderr, captured from the moment its container exists. `/tmp/sparkrun_serve.log`
+# is written by the engine after the hooks, so a boot that dies in a pre_exec hook leaves no serve
+# log at all (2026-11-03 cyankiwi, 2026-11-04 labquant trio). `docker logs` is the only copy that
+# survives the container, and reading it live is what the cyankiwi retry is for.
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  (
+    for _ in $(seq 1 60); do
+      c=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+            "docker ps --format '{{.Names}}' | grep -F '$TID' | head -1" 2>/dev/null)
+      if [ -n "$c" ]; then
+        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs -f '$c'" \
+          > "$L/docker-$(echo "$hn" | tr '.' '_').log" 2>&1
+        break
+      fi
+      sleep 5
+    done
+  ) &
+  LOGFOLLOW+=("$!")
+done
 
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \
   --node "$NODE" --container "$N" --interval 10 --log "$L/watchdog.log" &
@@ -434,6 +455,7 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
 done
 echo "serve logs harvested: $harvested (expected one per running rank; 0 means the log was gone)"
 
+for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done
 sparkrun stop "$TID" 2>&1 | tail -1
 kill "$WD" 2>/dev/null
 sleep 5

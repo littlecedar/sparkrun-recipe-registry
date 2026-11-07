@@ -275,6 +275,33 @@ class RunArmContract(unittest.TestCase):
             self.assertIn("--skip-run", text[at - 250: at + 250], f"{profile} without --skip-run")
 
 
+class DockerLogCapture(unittest.TestCase):
+    """A boot that dies before the engine writes its log must still leave its own stdout."""
+    KILL = 'for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done'
+    HARVEST = 'echo "serve logs harvested:'
+    STOP = 'sparkrun stop "$TID" 2>&1'
+
+    def pre_stop_slice(self, text: str) -> str:
+        start = text.index(self.HARVEST)
+        return text[start:text.index(self.STOP, start)]
+
+    def test_every_rank_is_streamed_and_the_follower_is_killed_before_the_stop(self):
+        text = read_tool()
+        self.assertIn("docker logs -f", text, "no rank is streamed")
+        self.assertLess(text.index("LOGFOLLOW=()"), text.index("docker logs -f"))
+        self.assertLess(text.index("docker logs -f"), text.index(self.STOP))
+        self.assertIn(self.KILL, self.pre_stop_slice(text),
+                      "the follower is not killed before the stop")
+
+    def test_removing_the_pre_stop_kill_fails_the_guard(self):
+        text = read_tool()
+        start = text.index(self.HARVEST)
+        end = text.index(self.STOP, start)
+        mutated = text[:start] + text[start:end].replace(self.KILL, "", 1) + text[end:]
+        self.assertNotIn(self.KILL, self.pre_stop_slice(mutated),
+                         "the pre-stop kill survived the mutation")
+
+
 class NegativeControls(unittest.TestCase):
     def test_removing_the_stop_fails_the_teardown_guard(self):
         text = STOP_RE.sub(r"\1true ", read_tool())
