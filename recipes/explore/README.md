@@ -930,12 +930,25 @@ the `mad-science/TODO.md` item **Probe `InternScience/Sage-A1.5`**.
 
 ## [zz-sage-a1.5-35b-a3b-q4km-llamacpp](zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml)
 
-llama.cpp · **1 node (TP=1)** · **DRAFT — the GGUF tier of the same probe, not in the selection record**.
+llama.cpp · **1 node (TP=1)** · **PROBE — measured once through the campaign driver, not in the
+selection record**.
 
 The vendor's own Q4_K_M GGUF of Sage-A1.5 — trunk plus the bundled vision projector, architecture
 `qwen35moe` — on the resident scitrera pin. What to watch: `entrypoint: ""` is load-bearing (the image
 keeps `llama-server` as its ENTRYPOINT, which would swallow sparkrun's appended command), and this arm
 runs **without** speculative decode, so the in-GGUF MTP block is untested here.
+
+**Campaign measurement (2026-11-07).** First boot through the new campaign driver, `.30`, no
+recipe change: prefill `pp2048` **1986.1 ± 53.8** t/s at c1, **1854.5** at c2 (941.4 per stream),
+**1032.3** at c5 (426.7), **1025.7** at c10 (271.9); decode `tg128` **73.98 ± 0.67** t/s at c1,
+**102.19 ± 0.94** at c2, **85.70 ± 0.87** at c5, **73.77 ± 0.44** at c10; house **15/15
+scenarios, score 100**. The c10 cells are slot-limited, not a model result: the recipe ships
+`parallel: 4` and the executor refuses a c10 rung under ten slots, so this run waived that gate
+with `ARM_ALLOW_FEW_SLOTS=1` — ten streams over four slots, which makes **c5 the aggregate peak**
+(prefill 1032.3, decode 85.70). Receipt
+`head:~/benchmarks/tp12-campaign-20261107/receipts/zz-sage-a1.5-35b-a3b-q4km-llamacpp.json`;
+window `head:~/benchmarks/tp12-20261107/zz-sage-a1.5-35b-a3b-q4km-llamacpp/` (`ladder.json`,
+`house.json`, `ladder.yaml`, `serve-solo.log`, `docker-10_0_4_30.log`).
 
 ## Attic index
 

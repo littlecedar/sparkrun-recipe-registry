@@ -10,7 +10,8 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  DRAFT — never booted, no measurements, not a shipped arm.
+  PROBE (not shippable) — measured 2026-11-07 through the campaign driver; see
+  recipes/explore/README.md.
   The vendor's own Q4_K_M GGUF of Sage-A1.5 (21.71 GB trunk + 0.90 GB vision
   projector, `general.architecture = qwen35moe`) on ONE DGX Spark through
   llama.cpp, with the vision tower enabled via the bundled mmproj. The in-GGUF
