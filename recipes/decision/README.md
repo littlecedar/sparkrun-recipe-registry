@@ -146,9 +146,38 @@ reproduces on a second node. Receipt `~/benchmarks/spares-20261026/sol2b-b3/RECE
 | image | `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` — llama.cpp `6023692` (2026-11-05). Upstream documents d1 from **b11960 / v0.8.0** on; this ref also carries the lfm3-d1 decision path itself (`tools/server/server-decision.cpp`, `is_lfm3_d1`) and the `lfm3vl` projector |
 | accuracy | `—` — **no accuracy instrument matches this arm.** `tool-eval-bench --decision-bench-only` replays the Typed Decisions/JEV case set, while d1 answers only the vendor's `noul`/`choice`/`score` contract, so a score from it would measure the instrument. The recipe declares `metadata.decision_accuracy: none` and `tools/run-arm.sh` records `accuracy_status: n/a` with that reason instead of running it |
 | API | `/v1/systemone` — choice / score / noul over a text or JSON state, pictures and video; one forward pass per case, calibrated probabilities, **no generated tokens**, no chat surface |
-| status | **authored 2026-11-07, not booted** — cells and house are absent by design, not by failure |
+| status | **MEASURED 2026-11-07** (`.30`, campaign driver, rc=0, 69 s) — ladder cells and the `/v1/systemone` semantic gate below; accuracy stays `—` because the declaration held, not because a run failed |
 
-**The semantic contract the first boot has to confirm** (read from the vendor card and llama.cpp
+**Measurement (2026-11-07).** First boot on `.30` through the campaign driver, rc=0 in 69 s.
+Receipt `~/benchmarks/d1-20261107/receipts/liquidai-d1-2b-q8-systemone-llamacpp.json`, window
+`~/benchmarks/tp12-20261107/liquidai-d1-2b-q8-systemone-llamacpp/`, probe
+`~/benchmarks/d1-20261107/systemone-probe.json`.
+
+| cell | requests / decisions | req/s | decisions/s | ttft p50 / p95 |
+|---|---|---:|---:|---:|
+|c1|100/100 · 500/500|**9.204**|46.02|107.3 / 111.0 ms|
+|c2|100/100 · 500/500|9.609|48.05|208.2 / 212.0 ms|
+|c5|100/100 · 500/500|9.641|48.20|518.4 / 525.5 ms|
+|c10|100/100 · 500/500|9.641|48.20|1036.9 / 1047.3 ms|
+
+Throughput is flat from c2 while ttft scales ~linearly with offered concurrency: **one slot
+queues, it does not batch** — the shape the lane predicts for every decision arm, and here it is
+the `no_batching = is_lfm3_d1()` line doing it. Every rung returned every decision (500/500), so a
+cell is a measurement and not a survivor rate.
+
+**The semantic gate passed on the vendor's own body.** `POST /v1/systemone` with
+`{"state": <first JEV-split case>, "questions": …, "model": "LiquidAI/d1-2B-Q8_0"}` answered
+**HTTP 200 in 0.179 s** with top keys `model` / `answers` / `usage` and **five typed answers**:
+`action` choice `continue` 0.9037, `needs_review` noul 0.0201, `outcome` choice `success` 0.8518,
+`risk` score 1.0 confidence 0.585, `urgency` score 1.0 confidence 0.635. No schema error, no
+generated tokens.
+
+**The declared accuracy gap held in the receipt, not just in the recipe.** `house.yaml` carries
+`accuracy_status: n/a — …`, `teb-decision.log` carries the reason, and no numeric score appears
+anywhere in the window — which is the point: an arm with no matching instrument says so instead of
+borrowing one.
+
+**The semantic contract the first boot had to confirm** (read from the vendor card and llama.cpp
 source, not from a run here):
 
 - Body is the vendor's own `{"state": <text or null>, "questions": {"<id>": {"type":
