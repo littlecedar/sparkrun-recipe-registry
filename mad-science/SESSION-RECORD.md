@@ -2869,3 +2869,25 @@ the acceptance report `82c1b18`'s knob was added for now prints per request (`ac
 26 rounds, `accepted=157/202` over 47). Neither `tp2-acceptance-log-level` nor `engram-cache-hit-rate`
 carries a `claimed_by`, so the director owns a boot the register says nobody owns — reported on the
 board's register row for the third consecutive tick.
+
+## 2026-11-07 06:01 ET — board landed rows homed (session boundary)
+
+The 06:01 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at session boundary. Both
+rows it carried were **missing** from this record (`git grep -c 0645598 -- mad-science/SESSION-RECORD.md`
+returned nothing), so both are appended here verbatim:
+
+- **05:09 ET** measurement — The `logdebug2` retake leg finished on `.30`+`.35` and was stopped by its
+  own campaign (`rc=0`, `1 measured`, plan drained, unit inactive 05:09:29). tp128 ladder aggregate
+  **14.64 / 13.13 / 12.94 / 12.69 t/s** at c1/c2/c5/c10 with prefill **493.0 ± 8.3 / 312.2 ± 27.6 /
+  232.1 ± 7.4 t/s** at c2/c5/c10 — the 04:35 leg's shape reproduced on a second boot; house battery
+  **14/15 pass (28/30 points)**, the single failure TC-12 `missing_step`, which did not refuse the
+  unsupported email-deletion request. The `serve_debug=acceptance` knob `82c1b18` added prints per
+  request: **pooled across the leg's 138 requests, 10,526 of 18,028 speculative draft tokens accepted
+  over 5,663 rounds (0.584 — a ratio of sums, not an average of the per-request rates)**. Receipt
+  `~/benchmarks/tp12-20261107/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2/`
+  (`ladder.csv`, `house.csv`, `serve-0.log`).
+- **05:11 ET** `0645598` — Opened the Liquid AI lane's first arms — `LFM3-1.7B` Q4_K_M on llama.cpp
+  (`llama-server` ENTRYPOINT cleared, a 2026-11-05 engine pin because the resident 2026-08 and 2026-10
+  builds predate `lfm3` landing upstream) and bf16 on vLLM, both TP=1 and pinned; ships as an ordinary
+  arm on the 2026-11-02 ruling (`QUESTIONS.md` #56). Register untouched (`queue.json` unchanged), so
+  26 open.
