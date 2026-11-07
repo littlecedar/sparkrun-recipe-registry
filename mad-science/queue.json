@@ -1054,13 +1054,14 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
       "notes": "Found while fixing the container class (2026-11-03): `tools/refresh-sweep.py` `classify_image_build_input` (from :679) still returns `build-input-floating` for a digest-less `FROM tag` WITHOUT asking any registry - the exact defect shape just removed from `classify_container`. `test_tag_only_from_is_floating` currently asserts that behaviour, so the fix re-pins that test rather than extending it. Same three-way outcome as the container path: tag exists -> floating (non-gating, record the digest in `observed`); 404 -> `build-input-unresolvable` (gating, exit 2); registry unreachable -> floating with 'tag existence unverified' so a network blip never pages. Reuse the container fix's helpers and its negative-control test idiom (mutated-source revert proving the pre-fix module passes the missing-tag fixture). Socket only: no Dockerfile is edited, and the sweep stays report-only.",
       "provenance": "queue row published-image-refs (the same defect, container family); tools/refresh-sweep.py classify_image_build_input :679; tests/test_refresh_sweep.py test_tag_only_from_is_floating",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "Already landed 2026-11-03 in e102c8d ('Resolve a Dockerfile's tag-only build input against its registry too'); row was left open. Verified on workstation 2026-11-07 against current HEAD+queue: tools/refresh-sweep.py classify_image_build_input (:685) does the three-way split -- tag resolves -> build-input-floating with digest in observed; 404 -> build-input-unresolvable (in DRIFT_CLASSES, sweep --exit-code 2); FetchError 503/429/timeout -> floating 'tag existence unverified'. Old test_tag_only_from_is_floating was re-pinned, not weakened, to test_tag_only_from_with_live_tag_is_floating_but_observed asserting observed digest; negative control test_control_tag_only_from_is_not_resolved mutates the lookup to None in an exec'd copy and shows pre-fix code calling ns/img:gone floating; end-to-end test_tag_only_from_naming_no_image_gates_as_2 asserts exit 2. No Codefile/Dockerfile edits, sweep stays report-only (build-input rows carry no appliable). Gate: uv run python -B -m unittest tests.test_refresh_sweep 61 tests OK; full suite uv run python -B -m unittest discover -s tests 1266 OK 2 skipped; no files changed by this row."
     },
     {
       "id": "mellum-plain-c10-dip",
