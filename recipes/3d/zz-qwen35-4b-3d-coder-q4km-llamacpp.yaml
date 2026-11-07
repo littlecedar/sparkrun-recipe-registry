@@ -1,0 +1,81 @@
+recipe_version: "2"
+# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. The lane's first arm: a single-file
+# Three.js scene generator. Arch verified against the pinned image before authoring, not assumed:
+# the GGUF declares `general.architecture = qwen35` (the pin's binary carries that string 81
+# times, alongside `qwen35moe`), and its projector is a `clip` GGUF with
+# `clip.projector_type = qwen3vl_merger` (the pin carries `qwen3vl`), so this route exists on the
+# ref we already hold. No image build.
+model: ccore/Qwen3.5-4B-3D-Coder:Qwen3.5-4B-3D-Coder-Q4_K_M.gguf
+model_revision: 4b9f05f3a0382725b679c5e32a338b88acaf0064
+runtime: llama-cpp
+max_nodes: 1
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+# The card's own line loads the projector for image-guided scenes; it is 675,568,768 B and shared
+# by both GGUF quants, so the arm keeps it even though the first cell is prompt-only.
+mmproj: mmproj-Qwen3.5-4B-BF16.gguf
+description: >-
+  ccore/Qwen3.5-4B-3D-Coder — an independent Apache-2.0 fine-tune of Qwen/Qwen3.5-4B that writes a
+  single self-contained HTML file drawing a Three.js scene, on ONE DGX Spark through llama-server.
+  Not an official Qwen release. The arm's cell is a browser render, not a chat score: the reply is
+  loaded headless and scored on clean render, non-empty geometry and the import constraint the
+  card's system prompt demands. LFM-style licence caveats do not apply (Apache-2.0 weights, MIT
+  dataset), so this is an ordinary arm, not eval-only.
+metadata:
+  model_url: https://huggingface.co/ccore/Qwen3.5-4B-3D-Coder
+  base_model: https://huggingface.co/Qwen/Qwen3.5-4B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "4.2B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: 3d, vision, code, apache-2.0
+  caveats: >-
+    The render gate scores mechanics, never looks: a cube where a cathedral was asked for passes.
+    What it measures is that the reply is valid enough to execute, produces WebGL draw calls with
+    vertices, and imports only the pinned cdnjs Three.js core module — the card's system prompt is
+    load-bearing and is sent by the client, not by this recipe. Visual fidelity would need the
+    dataset's reference renders and an image comparison this registry does not have. Duplicate
+    variable names are the card's stated failure mode and land as SyntaxError in the gate.
+executor_config:
+  entrypoint: ""
+readiness:
+  port_timeout_s: 900
+  health_timeout_s: 900
+defaults:
+  port: 8031
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds the staged GGUF file, so the served id would
+  # be the cache path.
+  served_model_name: ccore/Qwen3.5-4B-3D-Coder
+  # The card's line: 65536 tokens, because a scene is a long file and its thinking trace sits in
+  # the same window. Native context is 262,144.
+  ctx_size: 65536
+  batch: 2048
+  parallel: 1
+  n_gpu_layers: 999
+  flash_attn: "on"
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  repeat_penalty: 1.0
+  load_mode: none
+# No speculative flags anywhere: the GGUF carries one MTP layer and the card warns that a runtime
+# enabling MTP by default misbehaves, so this arm runs plain decode and leaves the block idle.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b {batch}
+  -ub {batch}
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --flash-attn {flash_attn}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --repeat-penalty {repeat_penalty}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching

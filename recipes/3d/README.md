@@ -45,6 +45,73 @@ Facts that decide the boot:
 - **Known failure mode**, from the card: duplicate variable names rather than structural breakage —
   which a render gate sees immediately as a `SyntaxError`/`ReferenceError`.
 
+**Route verified against the image we hold, 2026-11-07.** The GGUF declares
+`general.architecture = qwen35` and its projector `clip.projector_type = qwen3vl_merger`; the pinned
+`upstream-6023692` `llama-server` carries both (`qwen35` 81 times in the binary, `qwen3vl` 64), so the
+llama.cpp route needs **no image build** — the card's `b11889` floor is met by a ref we already ship.
+Arm authored as [`zz-qwen35-4b-3d-coder-q4km-llamacpp.yaml`](zz-qwen35-4b-3d-coder-q4km-llamacpp.yaml):
+Q4_K_M in-repo GGUF (2,709,000,000 B class) plus the BF16 projector, `ctx 65536`, `--parallel 1`,
+`--flash-attn on`, card sampling (temp 0.6 / top-p 0.95 / top-k 20 / rep 1.0), `--jinja`, and **no
+speculative flags** so the MTP block stays idle. Weights are not in the shared pool and the image's
+`llama-server` has no HTTPS, so prefill before launching (same rule as the rest of the tree).
+
+**The cell, exactly.** Serve, ask for a scene with the card's system prompt, then load the reply in
+headless Chromium:
+
+```bash
+sparkrun run recipes/3d/zz-qwen35-4b-3d-coder-q4km-llamacpp.yaml -H <node> --cluster WOPR
+
+# 1. ask (the system prompt is the card's, and it is load-bearing)
+python3 - <<'EOF'
+import json, urllib.request
+SYS = ("Use only the Three.js core ES module from\n"
+       "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js.\n"
+       "Do not import addons or legacy examples/js paths;\n"
+       "implement any camera controls directly inside the HTML.")
+body = json.dumps({
+    "model": "ccore/Qwen3.5-4B-3D-Coder",
+    "messages": [{"role": "system", "content": SYS},
+                 {"role": "user", "content": "a medieval cathedral made of voxels"}],
+    "temperature": 0.6, "top_p": 0.95, "top_k": 20,
+    "repeat_penalty": 1.0, "max_tokens": 8192, "cache_prompt": False,
+}).encode()
+r = urllib.request.urlopen(urllib.request.Request(
+    "http://127.0.0.1:8031/v1/chat/completions", body,
+    {"Content-Type": "application/json"}), timeout=1800)
+html = json.load(r)["choices"][0]["message"]["content"]
+open("scene.html", "w").write(html)
+EOF
+
+# 2. render it
+python3 tools/threejs-render-check.py --html scene.html --json scene.json
+```
+
+The **213 validation prompts** in `ccore/ThreeJS-3D-Scenes` give the same cell at scale: generate a
+reply per prompt with the system prompt above (sampling unchanged), keep the replies in JSONL under a
+`response` field, and score the file:
+
+```bash
+python3 tools/threejs-render-check.py --jsonl threejs-validation.jsonl --html-field response \
+  --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-qwen35-4b-3d-coder-q4km-llamacpp/render-gate.json
+```
+
+The dataset ships as parquet; the conversion to JSONL is a one-liner with pandas and belongs in the
+runbook, not in the tool: `uv run --no-project --with pandas --with pyarrow python -c "import pandas
+as pd; pd.read_parquet('validation-00000.parquet').to_json('threejs-validation.jsonl',
+orient='records', lines=True)"`.
+
+**Render gate — what it measures and what it does not.** `tools/threejs-render-check.py` drives
+headless Chromium over the DevTools protocol with stdlib only (a minimal WebSocket client, no npm, no
+Puppeteer) and reports three mechanical facts per document: no page exception or `console.error`; a
+non-zero WebGL draw call count with non-zero vertices, counted by wrapping `drawElements`/`drawArrays`
+*before* the page runs so the model's variable names do not matter; and every module specifier being
+the pinned cdnjs core URL (addons, `examples/js`, other CDNs, bare specifiers all fail). It does not
+look at the picture — a cube where a cathedral was asked for passes. Visual fidelity needs the
+reference renders and an image comparison this registry does not have, so the pass/fail column stays
+mechanical and the lane says so in every receipt. The tool's `--selftest` is a control pair: a
+known-good cube must pass, and a duplicated `const`, an empty scene and an addon import must each
+fail.
+
 ## The quality battery
 
 `ccore/ThreeJS-3D-Scenes` (MIT, public since 2026-10-29) is the reference material: 4,146 examples —
