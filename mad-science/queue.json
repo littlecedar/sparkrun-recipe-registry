@@ -1115,12 +1115,12 @@
       "blocked_by": [
         "campaign-driver-service"
       ],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
       "notes": "MEASURED 2026-11-04: tonight's driver (~/benchmarks/tp12-campaign-20261103/drive.sh, its own inline derive()) never read tools/measured-rejected.json, so the plan it executed still contained recorded negatives: qwen3.8-flash-next-uncensored-nvfp4-sglang (rc=4 in 78 s) and its vLLM sibling (rc=4 in 74 s) each reproduced a documented failure — two boots spent to learn nothing. tools/next-arms.py already implements the read (rejected_arms(), stale_rejections(), prints 'skip: <arm> (<verdict>, <doc>:<line>)') and register row tp12-skip-measured-rejected is done for that path; the gap is the driver duplicating the derivation instead of calling it. Acceptance: a campaign started from scratch prints 'skip: <arm> (<verdict>, <doc>:<line>)' for every recorded negative and boots none of them, while a control asserts an unlisted arm still runs; the check is a guard whose negative control fails against tonight's driver text. Falsifier: a driver that prints the lines yet still plans a rejected arm fails the 'boots none' half even though the print half passes. Its done predicate is presence-only, grounded verbatim at drive.sh:32-38: LAD = (ladder.yaml, ladder.json, ladder.csv), HOU = (house.yaml, house.json, house.csv), have() = is_file() and size > 0, an arm counted done only when LAD AND HOU hold, and nothing reads a field. That is now a live hazard rather than a cosmetic one: the pooling and decision branches emit the house.yaml marker whenever the ladder artefact is non-empty, so a partial-ladder arm (marker 'ladder: failed (rc=N)') looks complete to have() while the tracked planner refuses it — same receipt, two answers. The planner is already correct (tools/next-arms.py arm_measured reads the marker, refusing failed and truncated ladders), so this row is a driver gap, not a repo one. Acceptance therefore also requires the driver's completion predicate to read the field — accept 'ladder: ok', refuse 'ladder: failed (rc=N)' — exactly as arm_measured does, with the same receipt answered the same way by driver and planner as the control. FOLDED INTO THE EPIC 2026-11-04 (owner round): reading the skip source is acceptance item (1) of `campaign-driver-service`, because the untracked `drive.sh` this row patches is being replaced wholesale rather than repaired. Left open and blocked_by the epic so its 1.5 h keeps counting toward the epic's blocking credit; closing the epic closes this row.",
       "provenance": "tools/measured-rejected.json; tools/next-arms.py:164,190; ~/benchmarks/tp12-campaign-20261103/drive.sh (derive(), LAD/HOU tuples); mad-science/SESSION-RECORD.md:2432",
-      "evidence": "",
+      "evidence": "campaign-acceptance-20261107: journal skip: lines before any assign + 5 skipped receipts; campaign evidence.skips parity test passes over the tree (2026-11-07)",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -1184,12 +1184,12 @@
       "blocked_by": [
         "campaign-driver-service"
       ],
-      "state": "blocked",
+      "state": "done",
       "model": "cyankiwi/Ornith-1.5-122B-AWQ-INT4",
       "node_cost": "single",
       "notes": "OWNER ROUND 2026-11-04: ONE re-boot of `recipes/ornith/zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` that captures `docker logs` LIVE while the container is up, instead of reading the teardown copy. Grounds: the 2026-11-03 boot spent 38 minutes (`20:07:26 -> 20:45:22` on `.30`, `rc=4`, never ready) and produced no readable cause from its own receipt - `serve logs harvested: 0`, because the container was gone before teardown could copy them. The lane doc has since homed a traceback in the launcher capture of a different receipt root (`fused_moe_triton/layer.py:890` `_load_w2`, `tensor a (384)` vs `tensor b (32)` at dim 1, 43 s into an 18-shard load) and argues live logs would add nothing; this boot TESTS that claim rather than assuming it, and captures the in-container timeline around the load that a launcher-side capture cannot see.\n\nThe scheme is supported on paper, so the boot is worth its hour: the checkpoint's `quantization_config` is `compressed-tensors` `pack-quantized`, 4-bit, group 32, `actorder: null` - a shape v0.5.22's `CompressedTensorsConfig` names. Falsifier: the same `384 vs 32` failure with the live log showing the fused-MoE path, which makes the export a recorded negative and removes the quant-family question from the lane.\n\nAcceptance: `docker logs -f <container> > <receipt>/docker-logs.txt` (or equivalent live capture) holds the load timeline, `/tmp/sparkrun_serve.log` is copied while it still exists, and the receipt states the cause or the recorded negative. estimate: provisional. HELD 2026-11-04 (owner round): no boot until `campaign-driver-service` clears - the driver gates all boots, so this row is state=blocked as well as blocked_by the epic (`unblock` it when the epic is done).",
       "provenance": "recipes/ornith/README.md section 'zz-cyankiwi-AWQ-INT4 - boot failed in the weight loader (2026-11-03)'; recipes/ornith/zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml; ~/benchmarks/ornith122b-20261103/WATCH-SUMMARY.txt",
-      "evidence": "",
+      "evidence": "tp12-20261107/zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang: docker-10_0_4_30.log (live follower, banner only) + serve-reaped-*_solo.log (26 KB, engine traceback _load_w2 layer.py:890 tensor a 384 vs b 32); rc=4 in 2m11s, watchdog dead t=95s; recorded negative recipes/ornith/README.md:1170",
       "claimed_by": "",
       "claimed_at": ""
     },
