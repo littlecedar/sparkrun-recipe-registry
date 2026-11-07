@@ -53,6 +53,10 @@ defaults:
   # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
   # path, so the served model id would be the cache path (-n does not show this).
   served_model_name: drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed
+  # Engine instrumentation the launcher maps onto the engine's own telemetry env; `none` keeps
+  # the shipped serve line byte-identical. `-o serve_debug=acceptance` (a sweep leg, ARM_TAG-tagged)
+  # turns on TF_DS_CONF_LOG: drafts kept per depth and per confidence tenth, every 200 rounds.
+  serve_debug: none
 
 command: >
   python3 /workspace/mods/tensorfold-dsv41-launcher/launcher.py
@@ -63,6 +67,7 @@ command: >
   --tp {tensor_parallel}
   --served-model-name {served_model_name}
   --context {max_model_len}
+  --serve-debug {serve_debug}
 
 readiness:
   inference: true

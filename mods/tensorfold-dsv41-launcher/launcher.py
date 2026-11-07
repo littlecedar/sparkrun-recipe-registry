@@ -70,6 +70,19 @@ on the placeholder the engine's own vision path inserts
 HTTP 400 on every image request; a `--vision` boot therefore serves from a
 symlink farm of the checkpoint (`RUNTIME_CACHE/model-overlay`) whose
 `chat_template.jinja` is this mod's patched copy.
+
+Debug instrumentation. `tensorfold serve` has no `--log-level` and no
+`--log-requests` flag -- every serve flag it parses is defined in the pinned
+engine's `src/tensorfold/cli_args.py` -- so raising a log level is not a lever
+this engine has. What it does have is its own acceptance telemetry, off by
+default and enabled by env: `TF_DS_CONF_LOG=1` prints the DSpark acceptance
+report (drafts kept per depth, and per confidence tenth) on rank 0 every 200
+rounds. `--serve-debug acceptance` sets that env; the default `none` adds
+nothing, so the shipped serve line stays byte-identical. The profile is gated:
+before setting the env the launcher reads the installed engine's source for
+the env name and for the report it gates, and refuses the serve if either is
+absent, because an engine build without them ignores the env silently and the
+boot would produce no numbers.
 """
 from __future__ import annotations
 
@@ -178,6 +191,56 @@ RECIPE_ENV = {
     # cache and snapshot dir do not land in a read-only `/`.
     "HOME": RUNTIME_CACHE,
 }
+
+# Engine instrumentation `--serve-debug` may turn on. `acceptance` is the
+# engine's own DSpark acceptance report (`families/deepseek_v41/cuda/multi.py`,
+# `TF_DS_CONF_LOG`): drafts verified and kept per draft depth and per confidence
+# tenth, printed on rank 0 every 200 rounds.
+SERVE_DEBUG_ENV = {"acceptance": {"TF_DS_CONF_LOG": "1"}}
+# Strings the installed engine's source must carry before the knob is set: the
+# env name, and the report it gates.
+SERVE_DEBUG_MARKERS = {"acceptance": ("TF_DS_CONF_LOG", "drafts kept by depth")}
+
+
+def engine_source_dir() -> Path | None:
+    """The installed engine's package directory, found without importing it."""
+    import importlib.util
+
+    try:
+        spec = importlib.util.find_spec("tensorfold")
+    except (ImportError, ValueError):
+        return None
+    found = list((spec.submodule_search_locations or []) if spec is not None else [])
+    return Path(found[0]) if found else None
+
+
+def serve_debug_env(profile: str) -> tuple[dict[str, str], str]:
+    """The env a ``--serve-debug`` profile adds, or a refusal and no env.
+
+    The refusal is the point: the engine ignores an env it does not know, so a
+    profile the pinned build cannot honour must stop the boot rather than run a
+    measured arm with no instrument in it.
+    """
+    if profile == "none":
+        return {}, ""
+    root = engine_source_dir()
+    if root is None:
+        return {}, (f"[tensorfold-launcher] --serve-debug {profile}: the tensorfold package is "
+                    "not importable, so the engine would not start either")
+    missing = list(SERVE_DEBUG_MARKERS[profile])
+    try:
+        for path in root.rglob("*.py"):
+            source = path.read_text(encoding="utf-8", errors="replace")
+            missing = [marker for marker in missing if marker not in source]
+            if not missing:
+                break
+    except OSError as exc:
+        return {}, f"[tensorfold-launcher] --serve-debug {profile}: cannot read the engine at {root}: {exc}"
+    if missing:
+        return {}, (f"[tensorfold-launcher] --serve-debug {profile}: the engine at {root} does not "
+                    f"carry {', '.join(missing)} in its source, so the knob would be ignored "
+                    "silently (mods/README.md section tensorfold-dsv41-launcher)")
+    return dict(SERVE_DEBUG_ENV[profile]), ""
 
 
 def resolve_checkpoint(repo: str) -> str:
@@ -318,6 +381,8 @@ def main(argv: list[str] | None = None) -> int:
     # degraded arm answers normally at a materially worse PPL, so every shipped
     # arm that needs the tables passes this.
     parser.add_argument("--require-engram", action="store_true")
+    # Debug instrumentation for a read-only pass; `none` is the shipped serve.
+    parser.add_argument("--serve-debug", default="none", choices=("none", "acceptance"))
     # sparkrun appends its rendezvous flags; capture them here so the shim owns
     # the mapping, and tolerate anything else the runtime may add.
     parser.add_argument("--dist-init-addr", default="")
@@ -329,6 +394,11 @@ def main(argv: list[str] | None = None) -> int:
 
     prepare_runtime_cache()
     env = dict(RECIPE_ENV)
+    debug_env, refusal = serve_debug_env(args.serve_debug)
+    if refusal:
+        print(refusal + "; refusing this serve, its instrument would be missing", flush=True)
+        return 2
+    env.update(debug_env)
     # The checkpoint must be resolved before the Engram tables, because a
     # combined local repo carries the tables in a subdir of the model dir.
     model_dir = resolve_checkpoint(args.model)
@@ -425,7 +495,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"[tensorfold-launcher] boot: node_rank={args.node_rank}/{args.tp} "
         f"rendezvous={master or '127.0.0.1'}:{master_port} model={model_dir} "
-        f"serving=0.0.0.0:{args.port} context={args.context} engram={env.get('TF_DS_ENGRAM', 'OFF')}",
+        f"serving=0.0.0.0:{args.port} context={args.context} engram={env.get('TF_DS_ENGRAM', 'OFF')} "
+        f"serve_debug={args.serve_debug}",
         flush=True,
     )
     os.execvp(cmd[0], cmd)

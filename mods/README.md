@@ -91,6 +91,22 @@ file. The recipe's command runs `launcher.py --boot`, which maps sparkrun's per-
 onto `tensorfold serve`. Mounted by the ds4 TP=2 lane and the cybersec abliterated TP=2 lane (reused
 unchanged, carrying `--stock-model` instead of `--revision`).
 
+**Opt-in `--serve-debug` (2026-11-07).** The engine has **no `--log-level` and no `--log-requests`**:
+every flag `tensorfold serve` parses is defined in its own `src/tensorfold/cli_args.py`, checked at
+both pinned refs (`d5d7bb38` 0.6.3, `3825f62` 0.6.6), so "raise the log level" is not a lever this
+engine offers. Its speculation numbers come from two places instead: a per-request
+`rounds=… accepted=X/Y` line that is printed unconditionally (`server/app.py`), and the DSpark
+acceptance report gated by `TF_DS_CONF_LOG=1` — drafts verified and kept per draft depth and per
+confidence tenth, on rank 0 every 200 rounds (`families/deepseek_v41/cuda/multi.py`). `launcher.py
+--serve-debug acceptance` sets that env; the default `none` adds nothing, so the shipped serve line
+stays byte-identical. It **fails closed** on three counts: argparse `choices` refuses an unknown
+profile, the launcher refuses if the `tensorfold` package cannot be located, and — before setting
+the env — it reads the installed engine's source for both `TF_DS_CONF_LOG` and the report string
+`drafts kept by depth`, refusing the serve when either is absent, because an engine build without
+them ignores the env silently and the boot would produce no numbers. The cybersec abliterated TP=2
+recipe carries the knob as `defaults.serve_debug: none` and passes `--serve-debug {serve_debug}`, so
+one leg is `-o serve_debug=acceptance` with an `ARM_TAG`, not a second recipe.
+
 **Opt-in `--vision` (shipped 2026-10-15).** `launcher.py --vision` enables image input: the shim appends
 `--vision` to `tensorfold serve` and points `TF_DS_VISION_EXTRA` at its own directory, where it ships
 `vl_bias.safetensors` (the 43 `*.ffn.gate.bias_vl` tensors the EXL3 checkpoint omits; `attach_vl_bias()`
