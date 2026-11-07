@@ -2726,3 +2726,24 @@ the next dead boot.
   lost). The chdir now runs first, with a positional guard and its negative control.
 - **Remaining**: the ornith 122B boot decision is open; `ple-disk-read-regression` is queued and was
   not part of this manifest.
+
+## 2026-11-07 02:04 ET — board landed rows homed (session boundary)
+
+The 02:04 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at the session boundary. Its
+two 00:56 ET rows (`8cbbadb`, `99f2647`) were **already homed** in the 01:03 ET section above — verified by
+`git grep -c <sha> -- mad-science/SESSION-RECORD.md` returning 2 and 4 — so nothing was re-appended for
+them. Two commits landed after that section was written and carried no SHA anywhere in this file; their
+clauses are homed here.
+
+- **01:26 ET** `c2d39d1` — Record the campaign acceptance run: five recorded negatives skipped before any
+  assignment, both boots failed (`zz-labq-no-diag` watchdog-dead at t=43 s with no engine log and empty
+  `modlogs/`; `zz-cyankiwi…` reproduced the fused-MoE `_load_w2` failure, tensor a 384 vs tensor b 32 at
+  `fused_moe_triton/layer.py:890`, in 2 min 11 s), the live `docker logs` follower shown to hold only the
+  entrypoint banner because the engine writes `/tmp/sparkrun_serve.log`, and the executor's
+  `port:`-before-`cd` defect fixed with a positional guard and its negative control. Register rows
+  `campaign-driver-service` and `tp12-remainder-8-arms` closed with it.
+- **01:36 ET** `3651a74` — Correct the run's evidence claims: the cyankiwi marker now names the watchdog's
+  pre-stop copy (the live `docker logs` holds only the CUDA banner), `campaign/DESIGN.md` states the
+  restarted director's lease grace with its receipt (`attempt: 2`, 01:05:45), the labquant negative gains
+  the daemon/kernel absence-of-OOM record rather than a claimed cause, and the follower appends
+  `docker inspect` exit/oom/status after the follow, with a guard and negative control.
