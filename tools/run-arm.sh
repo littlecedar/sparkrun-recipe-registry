@@ -324,7 +324,7 @@ if [ "$ready" = yes ]; then
       # failure wearing a number, so none is taken and the cells stay the result.
       accuracy_gap=""
       if grep -qE '^[[:space:]]*decision_accuracy:[[:space:]]*none[[:space:]]*$' "$RECIPE" 2>/dev/null; then
-        accuracy_gap="tool-eval-bench --decision-bench-only speaks the Typed Decisions/JEV case schema, and this arm takes the vendor's own {state, questions} body"
+        accuracy_gap="tool-eval-bench --decision-bench-only speaks the Typed Decisions/JEV case set, and this arm answers only the vendor's noul/choice/score contract — a score from it would measure the instrument, not the model"
       fi
       accuracy_rc=0
       if [ "$api" = completions ]; then

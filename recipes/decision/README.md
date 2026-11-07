@@ -144,17 +144,21 @@ reproduces on a second node. Receipt `~/benchmarks/spares-20261026/sol2b-b3/RECE
 | repo id | `LiquidAI/d1-2B-GGUF` — `d1-2B-Q8_0.gguf`, 1,846,240,576 B, pinned `4a181094…`; projector `mmproj-d1-2B-Q8_0.gguf`, 203,031,584 B (`clip.vision.projector_type = lfm3vl`) |
 | recipe | [`liquidai-d1-2b-q8-systemone-llamacpp.yaml`](liquidai-d1-2b-q8-systemone-llamacpp.yaml) — llama.cpp, TP=1, one node, port 8020 |
 | image | `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` — llama.cpp `6023692` (2026-11-05). Upstream documents d1 from **b11960 / v0.8.0** on; this ref also carries the lfm3-d1 decision path itself (`tools/server/server-decision.cpp`, `is_lfm3_d1`) and the `lfm3vl` projector |
-| accuracy | `—` — **no instrument speaks this arm's schema.** `tool-eval-bench --decision-bench-only` sends the Typed Decisions/JEV case shape; d1 takes the vendor's own `{state, questions}` body. The recipe declares `metadata.decision_accuracy: none`, and `tools/run-arm.sh` records `accuracy_status: n/a` with that reason instead of running an instrument that cannot address the arm |
+| accuracy | `—` — **no accuracy instrument matches this arm.** `tool-eval-bench --decision-bench-only` replays the Typed Decisions/JEV case set, while d1 answers only the vendor's `noul`/`choice`/`score` contract, so a score from it would measure the instrument. The recipe declares `metadata.decision_accuracy: none` and `tools/run-arm.sh` records `accuracy_status: n/a` with that reason instead of running it |
 | API | `/v1/systemone` — choice / score / noul over a text or JSON state, pictures and video; one forward pass per case, calibrated probabilities, **no generated tokens**, no chat surface |
 | status | **authored 2026-11-07, not booted** — cells and house are absent by design, not by failure |
 
 **The semantic contract the first boot has to confirm** (read from the vendor card and llama.cpp
 source, not from a run here):
 
-- Body is the vendor's own, **not** the Typed Decisions split: `{"state": <text or null>,
-  "questions": {"<id>": {"type": "noul"|"choice"|"score", "instructions": "...",
-  "criteria": {...} or [...]}}}`, with `images` / `files` data-URIs beside `state` when a case
-  carries media. `state` may be `null` when the media is the whole state.
+- Body is the vendor's own `{"state": <text or null>, "questions": {"<id>": {"type":
+  "noul"|"choice"|"score", "instructions": "...", "criteria": {...} or [...]}}}`, with
+  `images` / `files` data-URIs beside `state` when a case carries media; `state` may be `null`
+  when the media is the whole state. That envelope is exactly what `tools/decision-ladder.py
+  --api systemone` forwards, which is why the ladder can address this arm. What is narrower is
+  the question contract: `noul` / `choice` / `score` only — the card lists multiple choice,
+  extraction, estimates and boxes as unsupported, and the Typed Decisions case set exercises
+  the wider one.
 - A 200 body is an `answers` map keyed by question id. `tools/decision-ladder.py --api systemone`
   counts `body["answers"]` against `len(questions)` per request and prints a cell FAILED when they
   disagree, so a wrong response shape reads as a failed cell rather than as a rate.
