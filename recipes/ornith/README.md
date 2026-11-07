@@ -192,6 +192,22 @@ injected snapshot fails `wrong_size` at distribution.
 multimodal (image-text-to-text; config carries a `vision_config` and image/video token ids) and is
 served with no `--limit-mm-per-prompt` cap.
 
+**Tool-calling long run (2026-11-07 — transient, 1,001 turns).** Real `omp` drove this arm through
+the lane's capture proxy in an isolated agent dir over a stdlib scratch project: **307 + 694 =
+1,001 turns, 997 clean = 99.6 %**, deep enough to reach the checkpoint's own **compaction at
+225,189 -> 42,325 prompt tokens** (ledger idx 706) with **392/392 turns clean after it**. The only
+two bad rows are `omp` cancelling its own request — idx 80 after a complete `tool_calls` turn, and
+idx 699 mid-stream on a hedged duplicate started while a sibling request was still in flight — with
+**0 5xx** in the serve log, no zero-event retry and **0/898 malformed tool arguments** (bash 384,
+read 240, edit 171, grep 24, glob 5, write 2). No trigger correlates (not boot-first, not
+first-after-idle, not a depth threshold, not post-compaction), so the "omp struggles tool calls on
+this line" report stays **transient** at 99.6 %, and the run-1 empty-SSE watch item is the same
+class: a client-side cancel, not a serve fault. Harness note: the run used **omp 18.17.0** on the
+workstation over an SSH tunnel to the head's proxy — the head carries no `omp` binary and is
+aarch64 against the workstation's x86_64 — so the build differs from the 18.13.1 the queue row
+pinned; the verdict is about the serve. Receipt `~/benchmarks/ornith-longrun-20261107/`
+(`RECEIPT.md` §Extension run/§Verdict, `ledger.jsonl` 1,098 rows).
+
 ### ornith-1.5-9b-nvfp4-dflash-sglang
 
 | | |

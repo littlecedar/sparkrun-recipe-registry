@@ -409,8 +409,9 @@ that line.
 
   **Verdict: verification cost, not rejected drafts.** At ~48 rounds per 128-token reply and ~13 t/s,
   a round costs ~200 ms — the weight pass plus checking the drafts that landed — so the decode loss
-  sits in the verify step. **Caveat:** the row's 67.02 is a TP=4 quartet figure and this boot is the
-  TP=2 pair, so the two are not like-for-like; the like-for-like acceptance comparison is against the
+  sits in the verify step. **Caveat:** the 67.02 row is TP=2 on `.34`+`.35` (2026-10-19,
+  pre-cache-move) and this boot is a TP=2 pair on `.30`+`.35`, so the two are not like-for-like on
+  nodes or cache state; the like-for-like acceptance comparison is against the
   2026-11-04 TP=2 boot (58.45 %, 1.86). Receipt
   `~/benchmarks/tp2-logdebug2-20261107/receipts/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2.json`;
   window `~/benchmarks/tp12-20261107/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug2/`.
@@ -446,6 +447,19 @@ that line.
   legs, plus the tools attempt drained at 116/1,240) and
   `~/benchmarks/cybersec-arm5-tools-20261021/` (`REPORT.md` merges all five, `bfcl.json`).
 - Boots (1M ctx, `GET /v1/models` = the overlay repo id); receipts in attic AGENTS.md §8.
+- **Engram residency is 0 in every state, and the 67 t/s row is not reachable in this shape
+  (2026-11-07, TP=2 on `.30`+`.35`, one boot).** The engram shard pair is **188.83 GiB** and the
+  node holds **103.5 GiB** of weights in a 121 GiB frame (host `Cached` 2.72–2.88 GiB, `SwapPss`
+  2.87 GiB), so the pair can never be resident: `mincore()` over the shard ranges reads
+  **0.000000 on both ranks** cold after load, mid-ladder and after it. Decode never reads the
+  shards at all — per-rank `rchar` **108.03 GB / 9.31M reads, flat across the 954 s ladder** — so
+  the collapse to ~13–15 t/s is not per-token storage reads, and no cache bound, `fadvise` change
+  or node-local stage can move it. Cells this boot: tg128 **c1 14.70 · c2 13.30 · c5 12.70 · c10
+  13.20 t/s**, pp2048 **c2 493 · c5 293 · c10 241**, ttfr 36.9–52.1 ms; the 67.02 c1 row came from
+  a different wrapper (pp 982/820/778 against today's 493/293/241, pre-move `.34`+`.35`), so that
+  gap is engine shape, not cache-hit rate. Instrument trap: `cgroup io.stat` is **blind to BeeGFS
+  network reads** — use `/proc/<pid>/io` `rchar`. Receipt
+  `~/benchmarks/tp12-20261107/engram-pair-1103/REPORT.md`.
 
 ## `orcacyber-nano-1.0-15.7g-gguf-llamacpp`
 
