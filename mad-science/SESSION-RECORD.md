@@ -3729,13 +3729,16 @@ record for them. The table is cleared on the board in the same commit.
 | 15:29 ET | `1481589` | Named `.30`'s reclaim — `/` gains **+147,595,264 B** at 15:15:22 after the burst, so the net over 15:02:19 → 15:16:40 is written as −432,209,920 B over 861 s rather than as a rate — and replaced the "void, not negative" clauses with `sudo -n` measurements of the two root-gated trees (`/var/lib/docker` 536,531,975,736 B, `/srv/beegfs/storage` 1,264,982,154,472 B, byte-identical 15:24:29 → 15:26:07). |
 | 15:29 ET | `eae79c5` | Closed `arch-deepgemm-sm12x-paged-sparse`: image `dsv41-sm121-dg:0.2.0` (`sha256:1778ec42…`, local only) built rc=0 in ~70 s as guard-widening plus the SM120 kernel ported from `nv_dev b64107f2`, kernel gate 8/8 PASS at the consumer's strides (calc_diff 1.3e-05, negative control caught) printing `DEEPGEMM_PAGED_SPARSE_MQA_LOGITS True`, and both survey rows re-scoped to blocked only on a quartet window on `.31`–`.34`. |
 
-### Commits after the table's last rowed SHA (16:10–16:41 ET, unrowed until now)
+### Commits after the table's last rowed SHA (16:10–16:41 ET)
+
+Rows as the peer's 17:11 ET board carried them, which is richer than a summary and is
+therefore what survives.
 
 | time ET | commit | one clause |
 |---|---|---|
-| 16:10 ET | `dfcf1fd` | Refreshed the board on the 16:03 census and rowed `.30`'s live 3D re-boot, not a claim — and its "20/213" progress reading was corrected one minute later by `1c7474d`. |
-| 16:11 ET | `1c7474d` | Corrected that clause: 20 is the battery's **resume index**, not the count, so four replies had landed at 111.6 s/reply and the driver's own average agrees with the elapsed span — the instrument was not broken. |
-| 16:12 ET | `0d89f64` | Folded a second overlapping byte pair (16:04:08 → 16:07:02, 174 s, 9,204 B/s, every node inside 1.36–1.88 kB/s) into the peer's 16:03 census row instead of replacing that board. |
-| 16:22 ET | `2633ee7` | Appended the previous session's close-out to this file — campaign lifecycle and its drained acceptance campaign, the lane sweep, three remaining blockers, eight traps — 160 lines, no existing line touched. |
-| 16:36 ET | `e0fc4e1` | Put the standalone audio arm's measured cells beside the recipe where an operator reads them (ASR and round-trip WER 0.000, 4.96 s / 24 kHz wav, 1.14 GiB at readiness) and re-took the strict recipe snapshot. |
-| 16:41 ET | `840df69` | Said what that re-taken snapshot actually covered — 96 tracked recipes scanned, 53 printing a finding, 20 of them with a warning — instead of asserting the roster was printed. |
+| 16:10 ET | `dfcf1fd` | Refreshed the board on the 16:03 census — containers 1/1/1/1/1/0, volumes 0, `/health` 200 on `.31`–`.34` with 3 engine pids per rank, a 146 s byte pair at 10,988 B/s — and rowed the `.30` 3D re-boot: task `460a519f1044e748_63b9c668eed3` started 15:33:12 at cgroup 7.77 GiB with its 213-prompt battery open. |
+| 16:11 ET | `1c7474d` | Corrected that row's progress clause: the driver's `20/213` is a resume index, not a count — `run.log` records `rows=16` from the smoke pass, so replies 17–20 are the four that landed, summing 446.26 s and giving the driver's own 111.6 s/reply; nothing about the instrument was broken. |
+| 16:12 ET | `0d89f64` | Folded a second overlapping byte pair into the 16:03 census row (174 s, fleet 9,204 B/s, every node 1.36–1.88 kB/s) and put `.30`'s 31,727,616 B fall over 2,861 s into the hour's burst shape; no landed row added. |
+| 16:22 ET | `2633ee7` | Appended the session close-out to `SESSION-RECORD.md` as a 160-line append-only section — the director's production lifecycle and drained acceptance campaign, two live-state defects with their structural fixes, the lane sweep, and the three remaining blockers; suite 1,275 ok / 2 skipped. |
+| 16:36 ET | `e0fc4e1` | Folded the standalone audio arm's cells into `recipes/liquidai/README.md` — ASR 200 in 0.589 s at WER 0.000, `/tts` 200 as a 238,124 B 24 kHz 4.96 s wav, round trip 200 at WER 0.000, cgroup 1.14 GiB — with the experimental-audio warning and the `:F16`→BF16-named-file trap, and re-took the `--strict` snapshot. |
+| 16:41 ET | `840df69` | Said what that re-taken snapshot actually measured: 96 tracked recipes scanned, 53 printing a finding (20 carrying a warning, the rest suggestions only), and that the LiquidAI and 3D arms add no row because an accuracy declaration belongs inside `metadata:`. |
