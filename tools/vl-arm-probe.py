@@ -22,6 +22,14 @@ Footprint is measured from the boot's own log rather than guessed: pass
 and ``model buffer size`` lines. Without it, the footprint cell reports
 ``not_provided`` instead of an estimate.
 
+Thinking models spend the answer budget before they answer. The default
+``--max-tokens`` is 512 for that reason, and a reply with empty ``content`` but
+non-empty ``reasoning_content`` is reported as an **instrument warning** — the
+budget used, the reasoning length, the finish reason — not as a failed arm: the
+first VL boot on this registry lost exactly that way, at 64 tokens, and the
+probe blamed a healthy serve. Empty content with empty reasoning is still a
+failure, because then nothing was produced at all.
+
 Usage
 -----
 ::
@@ -174,19 +182,26 @@ def _body(model: str, prompt: str, image_b64: str | None, max_tokens: int) -> di
     }
 
 
-def _cell(status: int, payload: Any, wall: float) -> dict[str, Any]:
-    cell: dict[str, Any] = {"status": status, "wall_s": round(wall, 3)}
+def _cell(status: int, payload: Any, wall: float, max_tokens: int) -> dict[str, Any]:
+    cell: dict[str, Any] = {"status": status, "wall_s": round(wall, 3), "max_tokens": max_tokens}
     if status != 200 or not isinstance(payload, dict):
         cell["problem"] = str(payload)
         return cell
     usage = payload.get("usage") or {}
     timings = payload.get("timings") or {}
     choices = payload.get("choices") or []
-    reply = ""
+    message: dict[str, Any] = {}
+    finish = None
     if choices and isinstance(choices[0], dict):
-        reply = ((choices[0].get("message") or {}).get("content") or "").strip()
+        message = choices[0].get("message") or {}
+        finish = choices[0].get("finish_reason")
+    reply = (message.get("content") or "").strip()
+    reasoning = (message.get("reasoning_content") or message.get("reasoning") or "").strip()
     cell["reply"] = reply
     cell["reply_chars"] = len(reply)
+    cell["finish_reason"] = finish
+    if reasoning:
+        cell["reasoning_chars"] = len(reasoning)
     if isinstance(usage.get("prompt_tokens"), int):
         cell["prompt_tokens"] = usage["prompt_tokens"]
     if isinstance(usage.get("completion_tokens"), int):
@@ -195,8 +210,18 @@ def _cell(status: int, payload: Any, wall: float) -> dict[str, Any]:
                      ("prompt_n", "prompt_n"), ("predicted_n", "predicted_n")):
         if isinstance(timings.get(src), (int, float)):
             cell[dst] = round(float(timings[src]), 2)
-    if not reply:
-        cell["problem"] = f"empty reply ({sorted(payload)})"
+    if not reply and reasoning:
+        # A thinking model that spent the whole budget before answering. The arm is healthy and
+        # this is the instrument's budget, so it is a warning on the cell, never a failed cell.
+        cell["warning"] = {
+            "kind": "content-empty-reasoning-only",
+            "reasoning_chars": len(reasoning),
+            "max_tokens": max_tokens,
+            "finish_reason": finish,
+            "fix": "raise --max-tokens so the answer survives the reasoning budget",
+        }
+    elif not reply:
+        cell["problem"] = f"empty reply and no reasoning ({sorted(payload)})"
     return cell
 
 
@@ -210,7 +235,7 @@ def probe(base: str, model: str, prompt: str, png: Path | None, max_tokens: int,
     for name, with_image in (("image", True), ("text", False)):
         status, payload, wall = _post(base, _body(model, prompt, image_b64 if with_image else None,
                                                  max_tokens))
-        out["cells"][name] = _cell(status, payload, wall)
+        out["cells"][name] = _cell(status, payload, wall, max_tokens)
 
     img, txt = out["cells"]["image"], out["cells"]["text"]
     if "prompt_tokens" in img and "prompt_tokens" in txt:
@@ -242,7 +267,7 @@ def probe(base: str, model: str, prompt: str, png: Path | None, max_tokens: int,
 class _Stub(BaseHTTPRequestHandler):
     """Serves a chat endpoint whose image path costs tokens, a text path that does not."""
 
-    mode = "good"  # good | blank | reject-image
+    mode = "good"  # good | blank | reasoning | reject-image
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - base signature
         return
@@ -273,9 +298,14 @@ class _Stub(BaseHTTPRequestHandler):
         if with_image and self.mode == "reject-image":
             return self._send({"error": {"message": "this model does not support images"}}, 400)
         prompt_tokens = 1500 if with_image else 40
-        reply = "" if self.mode == "blank" else "a blue rectangle"
+        reply = "" if self.mode in ("blank", "reasoning") else "a blue rectangle"
+        message: dict[str, Any] = {"content": reply}
+        finish = "stop"
+        if self.mode == "reasoning":
+            message["reasoning_content"] = "looking at the pixels, they are uniformly blue, " * 20
+            finish = "length"
         return self._send({
-            "choices": [{"message": {"content": reply}}],
+            "choices": [{"message": message, "finish_reason": finish}],
             "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": 8},
             "timings": {"prompt_n": prompt_tokens, "predicted_n": 8,
                         "prompt_per_second": 900.0 if with_image else 2500.0,
@@ -325,6 +355,24 @@ def selftest() -> int:
         if blank["footprint"]["status"] != "not_provided":
             failures.append("absent serve log invented a footprint")
 
+        _Stub.mode = "reasoning"
+        thinking = probe(base, "stub/vl", "describe this", None, 32, None)
+        img_cell = thinking["cells"]["image"]
+        if thinking["verdict"] != "ok":
+            failures.append(f"reasoning-only reply failed a healthy arm: {thinking['failures']}")
+        warning = img_cell.get("warning") or {}
+        if warning.get("kind") != "content-empty-reasoning-only":
+            failures.append(f"reasoning budget not reported as a warning: {img_cell}")
+        if warning.get("max_tokens") != 32 or warning.get("finish_reason") != "length":
+            failures.append(f"warning lost the budget it was spent on: {warning}")
+        if img_cell.get("problem"):
+            failures.append("reasoning-only reply was also flagged as a problem")
+
+        _Stub.mode = "blank"
+        both_empty = probe(base, "stub/vl", "describe this", None, 32, None)
+        if both_empty["verdict"] != "failed":
+            failures.append("empty content with empty reasoning passed")
+
         _Stub.mode = "reject-image"
         dead = probe(base, "stub/vl", "describe this", None, 32, None)
         if dead["cells"]["image"]["status"] != 400:
@@ -362,7 +410,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--prompt", default="Describe this image in one sentence.")
     p.add_argument("--png", default=None,
                    help="a real image; default is a synthetic solid-colour fixture")
-    p.add_argument("--max-tokens", type=int, default=64)
+    p.add_argument("--max-tokens", type=int, default=512,
+                   help="budget for the answer; reasoning models spend some of it before replying")
     p.add_argument("--serve-log", default=None, help="the boot's serve log, for the footprint cell")
     p.add_argument("--json", help="write the full result here")
     p.add_argument("--selftest", action="store_true")
@@ -399,6 +448,11 @@ def main(argv: list[str] | None = None) -> int:
               + (f" problem={cell['problem']}" if cell.get("problem") else ""))
         if cell.get("problem"):
             print(f"  endpoint said: {cell['problem']}", file=sys.stderr)
+        if cell.get("warning"):
+            w = cell["warning"]
+            print(f"  instrument warning: content empty, {w['reasoning_chars']} chars of reasoning "
+                  f"at max_tokens={w['max_tokens']} (finish={w['finish_reason']}) — {w['fix']}",
+                  file=sys.stderr)
     if "image_tokens" in result:
         print(f"image cost: {result['image_tokens']} tokens"
               + (f" ({result['image_context_share']:.1%} of n_ctx, "

@@ -327,14 +327,38 @@ python3 tools/audio-asr-tts-probe.py \
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-audio-2b-llamacpp.yaml -H <node> --cluster WOPR
 ```
 
-## Vision arm — `zz-liquidai-lfm3-vl-2b-llamacpp` (authored 2026-11-07, not booted)
+## Vision arm — `zz-liquidai-lfm3-vl-2b-llamacpp` (booted 2026-11-07)
 
-`LiquidAI/LFM3-VL-2B` — the lane's 1.7B body plus a 189M vision tower, vendors' Q4_K_M weights and
-the release's smallest projector (Q8_0). Recipe
-[`zz-liquidai-lfm3-vl-2b-llamacpp.yaml`](zz-liquidai-lfm3-vl-2b-llamacpp.yaml).
+`LiquidAI/LFM3-VL-2B` — the lane's 1.7B body plus a 189M vision tower, the vendor's Q4_K_M weights
+and the release's smallest projector (Q8_0). Recipe
+[`zz-liquidai-lfm3-vl-2b-llamacpp.yaml`](zz-liquidai-lfm3-vl-2b-llamacpp.yaml). It keeps `zz-` until
+a second boot reproduces the cells below.
 
-**Cells it produces, and nothing more.** No image-quality instrument exists here (§Instruments), so
-the arm is measured on cost and acceptance:
+**Measurement (2026-11-07, `.35`, task `sparkrun_7811ff72bdbb3263_72e5480a15ca`, port 8023).** One
+synthetic 512×512 solid-colour fixture, `temperature 0`, `cache_prompt: false`, engine-native
+timings:
+
+| cell | image + text | text only |
+|---|---:|---:|
+| prefill | **1546.67 t/s** | 767.39 t/s |
+| decode | **144.35 t/s** | 143.48 t/s |
+| image tokens | **258** | — |
+| reply | "single, uniform solid blue color…" | "I don't see an image attached…" |
+
+Image prefill runs at **0.496×** the text-only rate — the tower's encoder work is what the picture
+costs. 258 tokens is **1.6 %** of the served 16384 window, so **63** images fit beside one prompt at
+this resolution. Footprint: **0.87 GiB** resident in the container (trunk 1,099,627,808 B +
+203,031,872 B projector), `n_ctx` 16384, **1 slot**. Receipt
+`~/benchmarks/tp12-20261107/zz-liquidai-lfm3-vl-2b-llamacpp/`.
+
+**The first run's empty reply was the instrument, not the arm.** At the old 64-token default this
+model spent the whole budget in `reasoning_content` and returned 200 with empty `content`, so the
+probe failed a healthy serve. `tools/vl-arm-probe.py` now defaults to `--max-tokens 512` and reports
+that shape as an instrument warning carrying the budget, the reasoning length and the finish reason —
+only empty content *with* empty reasoning is a failed cell.
+
+**Cells this arm produces, and nothing more.** No image-quality instrument exists here
+(§Instruments), so the arm is measured on cost and acceptance:
 
 | cell | instrument | asserts |
 |---|---|---|
@@ -344,31 +368,65 @@ the arm is measured on cost and acceptance:
 | acceptance | the same probe | the `image_url` part was taken and the reply was non-blank |
 
 **What acceptance is not.** A model that ignored the image answers non-blank too, so a pass here
-proves the request was served, never that it was understood. The fixture is a synthetic solid colour
-from `tools/synthetic_png.py` — the same patch grid a photograph presents to the tower, so token
-count and prefill cost are fair; flat pixels say nothing about answering photographic content.
-`accuracy_status: n/a`, and no standard-suite number is claimed: that suite is text tool-calling.
+proves the request was served, never that it was understood. This arm passed the control honestly —
+asked with no image attached it said "I don't see an image attached", which is the behaviour the omni
+arm below got wrong. The fixture is a synthetic solid colour from `tools/synthetic_png.py` — the same
+patch grid a photograph presents to the tower, so token count and prefill cost are fair; flat pixels
+say nothing about answering photographic content. `accuracy_status: n/a`, and no standard-suite
+number is claimed: that suite is text tool-calling.
 
 ```bash
 python3 tools/vl-arm-probe.py --selftest        # offline stub, ~1 s
 python3 tools/vl-arm-probe.py \
   --base-url http://<node>:8023 \
-  --prompt "Describe this image in one sentence." \
+  --prompt "Describe this image in one sentence." --max-tokens 512 \
   --serve-log ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-lfm3-vl-2b-llamacpp/serve.log \
   --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-lfm3-vl-2b-llamacpp/vl.json
 ```
 
-**Launch (ready for the operator's next `.30` slot):**
+**Launch (ready for the operator's next `.35` slot):**
 
 ```bash
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-vl-2b-llamacpp.yaml -H <node> --cluster WOPR
 ```
 
-## Omni arm — `zz-liquidai-lfm3-omni-2b-llamacpp` (authored 2026-11-07, not booted)
+## Omni arm — `zz-liquidai-lfm3-omni-2b-llamacpp` (booted 2026-11-07)
 
 `LiquidAI/LFM3-Omni-2B` — vision and speech in, through one 475M projector that carries both towers
 (the GGUF reads `clip.has_vision_encoder = 1` **and** `clip.has_audio_encoder = 1`, arch `lfm3`, so
 this pin loads it). Recipe [`zz-liquidai-lfm3-omni-2b-llamacpp.yaml`](zz-liquidai-lfm3-omni-2b-llamacpp.yaml).
+It keeps `zz-` until a second boot reproduces the cells.
+
+**Measurement (2026-11-07, `.35`, task `sparkrun_3c7350680b8ab93f_133f565f8169`, port 8024).**
+`/props` reports `modalities: vision, video, audio` all true — the projector's both towers are live.
+
+| cell | image + text | text only |
+|---|---:|---:|
+| prefill | **1524.64 t/s** | 775.87 t/s |
+| decode | **152.18 t/s** | 151.06 t/s |
+| image tokens | **258** (0.509× prefill cost) | — |
+| reply | image description | **an invented image description** |
+
+**The difference worth recording:** asked with no image attached, this arm described one anyway,
+while the VL arm above answered "I don't see an image attached". Same tower family, same fixture, same
+prompt — so performance cells do **not** transfer a hallucination tendency between the two arms, and
+this is exactly the kind of thing an acceptance-only instrument cannot score.
+
+**Speech half, and it is reachable here.** `tools/audio-asr-tts-probe.py` against the same port:
+
+| cell | result |
+|---|---|
+| ASR | 200 in 0.192 s, **WER 0.000** against the drama fixture's text (ceiling 0.25) — exact transcript |
+| TTS | 200 in 0.934 s → 222,764 B WAV, 24 kHz mono 16-bit, **4.64 s**, peak 0.44 FS |
+| round trip | 200 in 0.300 s, **WER 0.000** against the text asked for (ceiling 0.40) |
+
+Footprint **0.87 GiB** container resident with the Q4_K_M body (1,099,630,080 B) and the 506,842,528 B
+projector. Receipt `~/benchmarks/tp12-20261107/zz-liquidai-lfm3-omni-2b-llamacpp/`.
+
+**The finding this boot buys:** the *same* drama fixture that d1-Omni's `/v1/systemone` tokenised as
+text (364,286 tokens, 500) transcribes **exactly** here, through `/v1/audio/transcriptions`. So the
+d1-Omni audio gap was the decision surface, not the audio tower — recorded in the decision lane with
+this arm as the cross-check.
 
 **Two cells, one boot**, which is the whole point of the row:
 
@@ -377,14 +435,15 @@ this pin loads it). Recipe [`zz-liquidai-lfm3-omni-2b-llamacpp.yaml`](zz-liquida
 | vision | `tools/vl-arm-probe.py`, port 8024 | image token cost, image-vs-text prefill, footprint from the serve log, acceptance |
 | speech | `tools/audio-asr-tts-probe.py` against the same port | `/v1/audio/transcriptions` WER on the drama fixture, `/tts` returns real audio, round-trip WER |
 
-**The audio half is a measurement, not an assumption.** d1-Omni-2B's `/v1/systemone` refused audio on
-this build by tokenising the base64 as text (364,286 tokens, 500). This arm asks a different endpoint —
-the generative chat/mtmd path and `/v1/audio/transcriptions` — so it may work; if it does not, the
-probe records the endpoint's own body and the cell fails loudly. Either answer is the result, and
-neither is written down as expected here.
+**The audio half was measured, not assumed — and it works here.** d1-Omni-2B's `/v1/systemone`
+refused the same fixture on this build by tokenising the base64 as text (364,286 tokens, 500). This
+arm asks the generative path instead and comes back exact: ASR WER 0.000, TTS a real 4.64 s wav,
+round trip WER 0.000. So the missing piece in the decision lane was that endpoint's media handling,
+not the audio tower — the cross-check the d1 arm's gap needed.
 
-`accuracy_status: n/a` for vision for the same reason as the arm above, and a reachable audio cell
-still scores one known-text fixture only.
+`accuracy_status: n/a` for vision for the same reason as the arm above, and the audio cells still
+score one known-text fixture only: exact on this sentence says the towers are wired, not that the
+model is a good transcriber.
 
 ```bash
 python3 tools/vl-arm-probe.py --base-url http://<node>:8024 --serve-log <receipt>/serve.log \
@@ -395,11 +454,20 @@ python3 tools/audio-asr-tts-probe.py --base-url http://<node>:8024 \
   --lang en --json <receipt>/asr-tts.json
 ```
 
-**Launch (ready for the operator's next `.30` slot):**
+**Launch (ready for the operator's next `.35` slot):**
 
 ```bash
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-omni-2b-llamacpp.yaml -H <node> --cluster WOPR
 ```
+
+**Weights must be in the pool — the image cannot fetch them.** Both repos were absent from the shared
+cache and the runtime image's `llama-server` has no HTTPS support, so a launch on a cold pool dies in
+about 9.5 s with `HTTPS is not supported` rather than downloading. Prefilled before these boots:
+`LFM3-VL-2B-Q4_K_M.gguf` 1,099,627,808 B + `mmproj-LFM3-VL-2B-Q8_0.gguf` 203,031,872 B, and
+`LFM3-Omni-2B-Q4_K_M.gguf` 1,099,630,080 B + `mmproj-LFM3-Omni-2B-Q8_0.gguf` 506,842,528 B, both with
+`refs/main` written to the pinned heads. A stale `sparkrun` claim also refused the omni's first launch
+and was reconciled (`.35`, one container at a time). Same rule as every pool-mounted arm: prefill
+first, then launch.
 
 ## Fine-tuning
 
