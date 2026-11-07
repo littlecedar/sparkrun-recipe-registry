@@ -32,7 +32,7 @@ metadata:
   # arm).
   model_dtype: int4
   kv_dtype: fp16
-  tags: explore, code, agent, reasoning, tools
+  tags: explore, code, agent, reasoning, tools, fast
   caveats: >-
     Every quality figure on the model card (54.9 % Terminal-Bench 2.1, 89.7 % SWE-bench Pro v2,
     74.2 % SWE-bench Verified, pass@1 over >= 5 attempts at temperature 1.0 / top-p 0.95 /

@@ -28,6 +28,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [kolibri-1-apex-24bpw-llamacpp](#kolibri-1-apex-24bpw-llamacpp)
 - [poolside-laguna-xs-2.1-nvfp4-dflash-vllm](#poolside-laguna-xs-21-nvfp4-dflash-vllm)
 - [poolside-laguna-m1-nvfp4-vllm-tp2](#poolside-laguna-m1-nvfp4-vllm-tp2)
+- [flint-40b-a2.5b-ud-q3k-xl-llamacpp](#flint-40b-a25b-ud-q3k-xl-llamacpp)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
 - [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mmap)
 - [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mtp)
@@ -360,6 +361,56 @@ vLLM · **2 nodes (TP=2)** · **the family's two-node ceiling reference**, boote
   first call only. Structured calls parse fine (554 single-call questions passed), so this is a
   capability result for the arm, measured on the same instrument as every other lane arm.
 - **License:** OpenMDW-1.1 (checkpoint family terms on its card).
+
+## [flint-40b-a2.5b-ud-q3k-xl-llamacpp](flint-40b-a2.5b-ud-q3k-xl-llamacpp.yaml)
+
+llama.cpp (registry build upstream `6023692`) · **1 node (TP=1)** · **shipped 2026-11-07 — passes the
+easy-traffic gate** (C1 >= 69.28, C10 >= 116.27, house >= 36/37 all cleared); a gate-passing alternative,
+not the selected arm — Mellum2.1 keeps the SELECTED row.
+
+- **Gate result (2026-11-07, one `.30` boot):** `benchmarking/concurrency-ladder.yaml` @ d0, pp 2048,
+  tg 128, n=5, ten real slots reads **C1 73.0 / C2 119.5 / C5 173.2 / C10 133.7 t/s** (prefill 2297-2386
+  t/s, ttfr 781 / 1474 / 3268 / 5537 ms); house **37/37** (easy 19/19 + hard 18/18) at
+  `--max-tokens 4096` thinking-on; contract ok — `max_model_len` 262,144, `finish_reason` stop, content
+  head `READY`. `E = C10 / (C1 x 10)` = **0.183**, reported and never gated. The shape peaks at five
+  streams (C5 above C10), which the amended gate leg (2) allows because the ten-slot C10 clears the
+  absolute bar.
+- **Two boots, not two verdicts.** The gate number is the boot above (ladder plus house/contract on the
+  same serve). A second, independent `tools/run-arm.sh` boot read **C1 73.7 / C2 119.9 / C5 176.4 /
+  C10 132.1** and tool-eval-bench **97** (15 scenarios: 14 pass, 1 partial, 0 fail) — every cell inside
+  the first boot's spread, so the arm's shape is 73-74 C1 into ~130 C10 either way. TTR was not carried
+  in the operator's report, and no needle leg was run; the served window is 262,144 if one is wanted.
+- **Thinking is the model's default, not a switch.** The GGUF template exposes no `enable_thinking`
+  variable and emits a bare `<|assistant|>`, so the model opens its own `<think>` block and
+  `--reasoning-format deepseek` is what moves it into `reasoning_content` (contract recorded content
+  head `READY`, content length 5). Do not add a thinking toggle to this arm; there is nothing to toggle.
+- **Risks checked on the boot:** `--load-mode none` showed no cold-copy stall, `--kv-unified` shared one
+  cache across the ten slots (`n_slots` 10), `--flash-attn auto` raised no errors.
+- **Four-arm comparison** (queue row `flint-four-arm-comparison`, owner 2026-10-27): one instrument, one
+  window per arm, engine named beside every cell. The two A2.5B-active arms are the like pair; the 122B
+  is the capability ceiling.
+
+| arm | active / total | C1 | C2 | C5 | C10 | house @4096 thinking-on | tools |
+|:--|:--|--:|--:|--:|--:|:--|--:|
+| Flint 40B-A2.5B, llama.cpp UD-Q3_K_XL | 2.5B / 39.8B | **73.0** | 119.5 | 173.2 | **133.7** | **37/37** | 97 |
+| Mellum2.1 12B-A2.5B, llama.cpp Q4_K_M (ten-slot window) | 2.5B / 12B | 110.52 ± 1.77 | 154.30 | 208.29 | 185.96 ± 2.31 | 36/37 | — |
+| Ornith-1.5-35B-A3B, SGLang NVFP4 + DFlash2 | 3B / 35B | 101.8 ± 8.7 | 153.1 | 217.4 | 244.2 | 37/37 | 100 |
+| Ornith-1.5-122B, vLLM NVFP4 TP=1 | ~8.9B / 125B | 27.11 | — | — | 73.91 | 37/37 | — |
+
+- **What the comparison says.** Flint sits at 66 % of Mellum's C1 and 72 % of its C10 while carrying
+  3.3x the total body at the same 2.5B active per token, and it scores one item higher on the house
+  battery (37/37 against 36/37) — the same quality band as the two Ornith arms at a third of the 122B's
+  body. So on this instrument it buys quality per active parameter, not throughput per node-second; its
+  decode sits below both Ornith arms. The house battery is a 37-item tripwire, not a capability
+  benchmark: the card's SWE-bench and Terminal-Bench figures remain vendor claims with no in-tree
+  instrument, so nothing here speaks to them.
+- **One trap, inherited from the arm's ancestors:** launch against `--cluster WOPR`. A bare `-H` launch
+  builds an anonymous cluster whose GGUF matcher sees every quant in the repo (`UD-Q3_K_XL` among nine
+  tiers) and can refuse the selection.
+- **Receipts:** `head:~/benchmarks/tp12-20261107/flint-40b-a2.5b-ud-q3k-xl-llamacpp/` (gate boot: ladder,
+  house, contract) and `...-house/` (the run-arm ladder + tool-eval-bench boot). Artifact: pool
+  `models--unsloth--flint-GGUF@20468edf`, `flint-UD-Q3_K_XL.gguf`, 18,494,977,472 B, sha256
+  `91b8d85a…`. Repin survey rowed it 2026-11-07 as `no change` at that revision.
 
 ## [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml)
 
