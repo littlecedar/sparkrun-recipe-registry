@@ -2624,3 +2624,44 @@ appeared anywhere in this file. Their clauses are carried here in full.
   rather than a local tag: the pinned ghcr manifest `sha256:7c3cb394…` carries config digest
   `sha256:3f4480818acb…`, the image ID all four ranks run, while local `canary-roce-aff52fa5` carries
   no `RepoDigests`.
+
+## 2026-11-06 17:0x ET — owner round: ten questions asked and answered in one session
+
+The instruction was to census the questions still open, rank them by the queue's own priority rule,
+ask them five at a time, re-ask anything bounced, and fold only after every answer was in. The census
+is the finding: **the register was empty**. `mad-science/QUESTIONS.md` carried `unanswered: none`
+(#55 and #53 settled 2026-11-03), `tools/task-queue.py questions` printed `0 open of 0`, and
+`orphans` printed 0 over 82 tasks — so the live decision surface was the **10 `blocked` queue rows**,
+and they split three ways: six are gate-blocked *work* (two behind the DeepGEMM SM12x arm, four behind
+the campaign epic), and four are parked on the owner's 2026-11-03 "no window yet" call.
+
+Ten questions went out in two batches of five and **none bounced**; all ten are settled as `#57`–`#66`
+in `TODO.md` §"Settled questions" and folded into the rows they govern, not merely answered in chat.
+
+- **`.31`-`.34` stay production.** The four h2h rows keep `blocked` with a re-dated reason, and the
+  ds4 TP=4 quartet is left untouched indefinitely — no research window is opened by stopping it, and
+  no `.local/fleet-window.lock` is written in anticipation.
+- **The campaign gate got a shape.** Phase 2 runs on `.30`+`.35` (the only nodes not serving
+  production) and that single run also carries the rows the epic blocks — `tp12-remainder-8-arms`,
+  `cyankiwi-live-log-retry`, `ornith-122b-nonablated-hunt` — so one campaign clears the gate and them.
+  The labquant trio earns a fourth boot only if a lever exists; otherwise each is recorded as a
+  boot-gate negative in its own `metadata.measured_rejected` and the campaign drains the other five.
+- **One row was unblocked on its own logic**, not on leniency: `ple-disk-read-regression` sits behind
+  a gate that forbids *boots*, and its 2026-11-04 narrowing made its acceptance test a no-boot
+  io_uring depth sweep. It is now `queued` with the epic's `blocks` edge removed — both sides, since
+  `blocked_by` is a derived mirror (`tools/task-queue.py:177-181`) and cutting one side fails `check`.
+- **Two long-running shapes changed.** `refresh-weights-and-runtime-repin` splits by lane into
+  resumable per-lane manifests instead of one 80-row 40 h campaign, seated on `.30`+`.35`. The
+  vllm-omni arms forward-move to `nightly-0c5dab18…` and **hold**, with a switch to a stable artifact
+  only if one ever carries the lane's patches — the perpetual nightly chase ends.
+- **The one operational approval was moot, and the census is the answer.** The owner authorised
+  killing the stale hourly tick backlog the 16:20 ET entry above described. At 17:05–17:07 ET there
+  was nothing to kill: no `omp` process on the head (`crontab` empty, `~/.omp` absent, head account
+  `red`, `$HOME=/home/red`), only this live session plus two `__omp_worker_daemon_broker` pids on the
+  workstation, and `.local/status-board.lock` present but **unheld** (`fuser` empty). Nothing was
+  signalled — `pkill -f omp` would have ended this session, since the only substring matches on the
+  workstation were `kcompactd0`, `kworker/R-bio_complete` and this session itself.
+- **A leftover worth naming, not removing**: `python3 .scratch/tp12-campaign/ornith-omp/proxy.py` has
+  been up since 2026-10-28 (pid 2872715) on the workstation, proxying the production serve's API port.
+  It predates this session, is not named by any current harness, and is left alone rather than swept —
+  but it is a candidate for the next hygiene pass if no receipt cites it.

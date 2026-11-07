@@ -583,6 +583,64 @@ controls, and prove numerics against the SM100 reference. — provenance: owner 
 `mad-science/CLR-BRIEF.md` Q1; `mad-science/DEEPSEEK.md` §10.5/§10.7; asked 2026-10-29, settled
 2026-11-03.
 
+## Owner round 2026-11-06 — ten questions asked and answered in one session
+
+The register held **0 open rows** when the round opened (`task-queue.py questions` → 0 of 0,
+`orphans` → 0), so the census came from the 10 `blocked` queue rows: six are arch- or
+campaign-gated work and four were parked on the 2026-11-03 "no window yet" ruling. The answers are
+folded into the rows they govern; these rows keep them citable.
+
+- **#57 — Is a four-rank window available now for the parked h2h rows?** *Answered 2026-11-06:
+  **no, keep parked.*** `h2h-glm-flash-house-recipe`, `h2h-beam-house-and-bfcl-category`,
+  `h2h-second-boot-ladder` and `glm-flash-concurrency-degradation-search` stay `blocked` with a
+  re-dated reason; `.local/fleet-window.lock` is written only when a slot is named, never in
+  anticipation. — provenance: `mad-science/queue.json` (four rows), `mad-science/STATUS.md`;
+  asked and settled 2026-11-06.
+- **#58 — Disposition of the production ds4 TP=4 quartet on `.31`-`.34` (up 7+ days)?** *Answered
+  2026-11-06: **untouched indefinitely*** — it is never stopped to open a research window, and the
+  quartet rows wait for a slot rather than creating one. — provenance: `mad-science/STATUS.md`
+  census row, owner directive 2026-10-28 (a production serve is never an `In Flight` row); asked and
+  settled 2026-11-06.
+- **#59 — May the campaign gate's phase-2 acceptance run use `.30`+`.35`?** *Answered 2026-11-06:
+  **yes** — the only two nodes not serving production, so the run is single-node and TP=2 arms only.
+  — provenance: `campaign/DESIGN.md` §"Phase 2"; `mad-science/queue.json` row
+  `campaign-driver-service`; asked and settled 2026-11-06.
+- **#60 — Does that one campaign also carry the rows the gate blocks?** *Answered 2026-11-06:
+  **yes, all of them*** — `tp12-remainder-8-arms`, `cyankiwi-live-log-retry` and
+  `ornith-122b-nonablated-hunt` (`ple-disk-read-regression` left by `#61`), so one run clears the gate
+  and them. — provenance: same row; asked and settled 2026-11-06.
+- **#61 — Does the boot gate hold `ple-disk-read-regression`, whose acceptance test is a no-boot
+  io_uring sweep?** *Answered 2026-11-06: **unblock it now*** — the gate forbids boots and this row
+  boots nothing, so it was unblocked (state `queued`, the epic's `blocks` edge removed, which also
+  clears the derived `blocked_by` mirror) instead of absorbed into the campaign. — provenance:
+  `mad-science/queue.json` rows `campaign-driver-service`/`ple-disk-read-regression`; asked and
+  settled 2026-11-06.
+- **#62 — Does the labquant trio in `tp12-remainder-8-arms` earn a fourth boot?** *Answered
+  2026-11-06: **only if a lever exists*** — something changed in the image, the recipe, or the
+  observed cause since 2026-11-04; with no lever each is recorded as a boot-gate negative in its own
+  `metadata.measured_rejected` and the campaign drains the other five arms. — provenance: the row's
+  own acceptance clause; `SESSION-RECORD.md` 2026-11-04 01:55–01:59 ET rows; asked and settled
+  2026-11-06.
+- **#63 — May `ornith-122b-nonablated-hunt` close on a survey verdict?** *Answered 2026-11-06:
+  **yes*** — if no servable non-abliterated 122B matches the DFlash2 drafter geometry (48 layers ×
+  3072 hidden, `target_layer_ids`), the per-candidate geometry result is the close and no boot is
+  owed. — provenance: `recipes/ornith/README.md` candidate table; asked and settled 2026-11-06.
+- **#64 — Shape of `refresh-weights-and-runtime-repin` (40 h, 80 verdict rows)?** *Answered
+  2026-11-06: **split by lane*** — one lane-scoped manifest per run (ornith, qwen4, explore, …), each
+  ending with that lane's verdict rows and resumable between runs, seated on `.30`+`.35`. —
+  provenance: owner instruction 2026-10-30; asked and settled 2026-11-06.
+- **#65 — Continue the vllm-omni nightly chase?** *Answered 2026-11-06: **pin the newest and accept a
+  stable artifact if one appears*** — both media arms forward-move to `nightly-0c5dab18…` and hold;
+  the drift row remains the reminder, no cron entry. — provenance: `recipes/media/README.md`
+  standing policy; `mad-science/queue.json` row `media-omni-nightly-repin`; asked and settled
+  2026-11-06.
+- **#66 — May the stale hourly tick backlog on the head be killed?** *Answered 2026-11-06:
+  **yes** — and the answer is **moot**: the census at 17:05–17:07 ET found no `omp` process on the
+  head (`crontab` empty, `~/.omp` absent, head account `red`), only this live session plus two broker
+  daemons on the workstation, and `.local/status-board.lock` unheld. Nothing was signalled — a
+  pattern kill would have ended this session. — provenance: `SESSION-RECORD.md` 2026-11-06 16:20 ET
+  entry (the backlog it described is gone); asked and settled 2026-11-06.
+
 
 # TODO list
 
