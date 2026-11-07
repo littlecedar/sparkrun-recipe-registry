@@ -2774,3 +2774,33 @@ board as rows for the next tick to retire.
   validates the mirror, not whether a blocker is still open). `task-queue.py update --id
   campaign-driver-service --blocks` with an empty list cut both sides; the other three dependents
   were already `done`, so nothing else moved. Register now reads 29 open of 82.
+
+## 2026-11-07 04:06 ET — board refresh: landed rows homed and folded (session boundary)
+
+The 04:06 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a session boundary:
+its three rows (`461fa52`, `a268d81`, `7f0c7aa`) were **already homed** in the 03:02 ET section above
+— verified `git grep -c <sha> -- mad-science/SESSION-RECORD.md`, one line each — so nothing was
+re-appended. Five commits landed after that refresh and carried no SHA anywhere in this file; their
+clauses are homed here verbatim from the board rows, and they sit on the board for the next tick to
+retire:
+
+- **03:16 ET** `b328e0a` — Corrected the 03:02 board's epic closure time: `campaign-driver-service`
+  closed at 01:26 in `c2d39d1`, not at 02:50 (`a268d81`, the commit that re-applied two dependent
+  rows a shared writer had overwritten); counts, work table and cleanups left as they were.
+- **03:49 ET** `b43de60` — `--strict` roster made the run's own output: all 53 arms printing any
+  finding named in printed order, replacing the warning-only 20-arm subset; prose now says
+  `--strict` adds no finding of its own and exits non-zero on the 20 warning rows; gate on the
+  workstation, 86/86 plain `validate` rc=0, suite 1266.
+- **03:50 ET** `9269e7a` — Closed `strict-roster-remeasure` on that re-measure — register 29 → 28
+  open.
+- **03:51 ET** `bedc2f0` — Closed `sweep-build-input-tag-resolution` on `e102c8d` — register 28 → 27
+  open.
+- **03:58 ET** `82c1b18` — TensorFold launcher shim gained a debug knob, because the engine exposes
+  no serve log level — the mechanism `tp2-acceptance-log-level` needs before it can read an
+  acceptance rate.
+
+Census at 04:06 ET, re-read rather than carried: 0/1/1/1/1/0 containers and 0 volumes on all six
+nodes (the four are the protected production serve, so research containers are 0 everywhere);
+`/health` 200 on all four ranks with unchanged serve pids 280/311/310/312, so no rank restarted in
+the hour. Root avail fell a near-identical 5.08–5.29 GiB on `.31`/`.32`/`.33`/`.35`, 243 MiB on
+`.34` and 328 MiB on `.30`; recorded as measured, with no cause attributed.
