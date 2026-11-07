@@ -1,0 +1,68 @@
+recipe_version: "2"
+# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. LFM3's any-to-any member: vision AND
+# speech in, on the same llama.cpp build as the lane's other arms. Arch read before authoring:
+# the GGUF's `general.architecture` is `lfm3` (carried by this pin, so it loads) and its
+# projector is a `clip` GGUF carrying BOTH `clip.has_vision_encoder = 1` and
+# `clip.has_audio_encoder = 1` (475M) — one tower, two inputs, which is why one boot can run two
+# cells. No quality cell exists for vision (see lane README §Instruments), and the audio path is
+# untested on this build: d1-Omni-2B's decision endpoint refused audio by tokenising the base64 as
+# text, so this arm's audio cell is a measurement to take, not a claim to repeat.
+model: LiquidAI/LFM3-Omni-2B-GGUF:Q4_K_M
+model_revision: d508b88f08a5b4286f2d2805a6a8d69a0ff44c72
+runtime: llama-cpp
+max_nodes: 1
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+mmproj: mmproj-LFM3-Omni-2B-Q8_0.gguf
+description: >-
+  LiquidAI/LFM3-Omni-2B — vision and speech in, text (and speech) out, on ONE DGX Spark through
+  llama-server: 24-layer LFM3 body, 128k window, a single 475M projector carrying both towers.
+  Two cells, one boot: the vision half through `/v1/chat/completions` (image cost, prefill,
+  footprint, acceptance) and the speech half through `/v1/audio/transcriptions` and `/tts`, which
+  may or may not be reachable served on this ref. LFM Open License v1.0 (ordinary arm —
+  `mad-science/QUESTIONS.md` #56).
+metadata:
+  model_url: https://huggingface.co/LiquidAI/LFM3-Omni-2B-GGUF
+  base_model: https://huggingface.co/LiquidAI/LFM3-Omni-2B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "2B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: vision, audio, license
+  caveats: >-
+    Both cells assert acceptance and cost, never quality. Vision: non-blank is not correct, and
+    no image-quality instrument exists here, so `accuracy_status: n/a` and no standard-suite
+    claim. Audio: whether this build decodes the audio half is exactly what the probe measures —
+    if it answers by tokenising the base64 as text the probe records that endpoint body and the
+    cell fails loudly, which is the d1-Omni-2B finding re-tested rather than assumed. A reachable
+    audio cell still scores only one known-text fixture, not ASR quality.
+executor_config:
+  entrypoint: ""
+readiness:
+  port_timeout_s: 900
+  health_timeout_s: 900
+defaults:
+  port: 8024
+  host: 0.0.0.0
+  served_model_name: LiquidAI/LFM3-Omni-2B
+  # Native 128k; 16k holds one image plus a minute of speech tokens for the audio cell.
+  ctx_size: 16384
+  batch: 2048
+  parallel: 1
+  n_gpu_layers: 999
+  temperature: 0.0
+  load_mode: none
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b {batch}
+  -ub {batch}
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching

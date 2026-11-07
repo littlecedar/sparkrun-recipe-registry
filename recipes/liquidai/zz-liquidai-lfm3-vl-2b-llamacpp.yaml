@@ -1,0 +1,70 @@
+recipe_version: "2"
+# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. LFM3's vision member on the same
+# llama.cpp build the lane's other arms run. No quality cell exists to score it with (see the
+# lane README §Instruments: the standard suite is text tool-calling, and nothing in this tree
+# scores image understanding), so this arm exists for what IS measurable — what an image costs
+# in context and prefill, what the tower leaves resident, and whether a request carrying an
+# image is served at all. Accuracy is declared n/a rather than faked from a chat battery.
+model: LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M
+model_revision: 1add221a5ea6c047fcf1eaaf2d247939d7cf8849
+runtime: llama-cpp
+max_nodes: 1
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+# 189M vision tower beside a Q4_K_M body — the vendor's own quant tiers for this release pair
+# the projector at Q8_0/BF16 only, so Q8_0 is the smallest faithful option.
+mmproj: mmproj-LFM3-VL-2B-Q8_0.gguf
+description: >-
+  LiquidAI/LFM3-VL-2B — the 1.7B hybrid conv+attention body with an added vision tower, on ONE
+  DGX Spark through llama-server. Cells this boot produces: image-vs-text prefill and decode
+  from the engine's own per-request timings, the image's token cost in the served window, the
+  resident tower and KV sizes read from the serve log, and an acceptance check that an
+  `image_url` part is taken and answered. Not an accuracy arm: no image-quality instrument exists
+  in this registry. LFM Open License v1.0 (ordinary arm — `mad-science/QUESTIONS.md` #56).
+metadata:
+  model_url: https://huggingface.co/LiquidAI/LFM3-VL-2B-GGUF
+  base_model: https://huggingface.co/LiquidAI/LFM3-VL-2B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "2B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: vision, license
+  caveats: >-
+    Non-blank is not correct. The probe's acceptance cell proves the image part was accepted and
+    answered; a model that ignored the picture entirely passes it, and only a fixed image-question
+    set with known answers could tell the difference — this tree has none, so `accuracy_status:
+    n/a` and no standard-suite number is claimed (`benchmarking/standard-suite.yaml` is text
+    tool-calling). The fixture is a synthetic solid colour: the same patch grid a photograph would
+    present to the tower, so prefill cost and token count are fair, but it can say nothing about
+    answering photographic content.
+executor_config:
+  entrypoint: ""
+readiness:
+  port_timeout_s: 900
+  health_timeout_s: 900
+defaults:
+  port: 8023
+  host: 0.0.0.0
+  served_model_name: LiquidAI/LFM3-VL-2B
+  # The window is native 128k; the cells are one image and one sentence, and a smaller window
+  # keeps the KV footprint number meaningful instead of dominating it.
+  ctx_size: 16384
+  batch: 2048
+  parallel: 1
+  n_gpu_layers: 999
+  temperature: 0.0
+  load_mode: none
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b {batch}
+  -ub {batch}
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching

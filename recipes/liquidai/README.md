@@ -327,6 +327,80 @@ python3 tools/audio-asr-tts-probe.py \
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-audio-2b-llamacpp.yaml -H <node> --cluster WOPR
 ```
 
+## Vision arm — `zz-liquidai-lfm3-vl-2b-llamacpp` (authored 2026-11-07, not booted)
+
+`LiquidAI/LFM3-VL-2B` — the lane's 1.7B body plus a 189M vision tower, vendors' Q4_K_M weights and
+the release's smallest projector (Q8_0). Recipe
+[`zz-liquidai-lfm3-vl-2b-llamacpp.yaml`](zz-liquidai-lfm3-vl-2b-llamacpp.yaml).
+
+**Cells it produces, and nothing more.** No image-quality instrument exists here (§Instruments), so
+the arm is measured on cost and acceptance:
+
+| cell | instrument | asserts |
+|---|---|---|
+| image cost | [`tools/vl-arm-probe.py`](../../tools/vl-arm-probe.py): the same prompt twice, with and without the picture | `usage.prompt_tokens` difference = the image's token cost; `n_ctx` ÷ cost = how many images fit |
+| prefill / decode | the engine's own per-request `timings`, `cache_prompt: false` | image prefill t/s against text-only prefill t/s (the ratio is what an image costs in wall time), plus decode parity |
+| footprint | the boot's serve log, parsed — `model size`, `KV self size`, `model buffer size` | resident trunk + tower and KV for the served window, measured not estimated |
+| acceptance | the same probe | the `image_url` part was taken and the reply was non-blank |
+
+**What acceptance is not.** A model that ignored the image answers non-blank too, so a pass here
+proves the request was served, never that it was understood. The fixture is a synthetic solid colour
+from `tools/synthetic_png.py` — the same patch grid a photograph presents to the tower, so token
+count and prefill cost are fair; flat pixels say nothing about answering photographic content.
+`accuracy_status: n/a`, and no standard-suite number is claimed: that suite is text tool-calling.
+
+```bash
+python3 tools/vl-arm-probe.py --selftest        # offline stub, ~1 s
+python3 tools/vl-arm-probe.py \
+  --base-url http://<node>:8023 \
+  --prompt "Describe this image in one sentence." \
+  --serve-log ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-lfm3-vl-2b-llamacpp/serve.log \
+  --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-lfm3-vl-2b-llamacpp/vl.json
+```
+
+**Launch (ready for the operator's next `.30` slot):**
+
+```bash
+sparkrun run recipes/liquidai/zz-liquidai-lfm3-vl-2b-llamacpp.yaml -H <node> --cluster WOPR
+```
+
+## Omni arm — `zz-liquidai-lfm3-omni-2b-llamacpp` (authored 2026-11-07, not booted)
+
+`LiquidAI/LFM3-Omni-2B` — vision and speech in, through one 475M projector that carries both towers
+(the GGUF reads `clip.has_vision_encoder = 1` **and** `clip.has_audio_encoder = 1`, arch `lfm3`, so
+this pin loads it). Recipe [`zz-liquidai-lfm3-omni-2b-llamacpp.yaml`](zz-liquidai-lfm3-omni-2b-llamacpp.yaml).
+
+**Two cells, one boot**, which is the whole point of the row:
+
+| half | instrument | what it asserts |
+|---|---|---|
+| vision | `tools/vl-arm-probe.py`, port 8024 | image token cost, image-vs-text prefill, footprint from the serve log, acceptance |
+| speech | `tools/audio-asr-tts-probe.py` against the same port | `/v1/audio/transcriptions` WER on the drama fixture, `/tts` returns real audio, round-trip WER |
+
+**The audio half is a measurement, not an assumption.** d1-Omni-2B's `/v1/systemone` refused audio on
+this build by tokenising the base64 as text (364,286 tokens, 500). This arm asks a different endpoint —
+the generative chat/mtmd path and `/v1/audio/transcriptions` — so it may work; if it does not, the
+probe records the endpoint's own body and the cell fails loudly. Either answer is the result, and
+neither is written down as expected here.
+
+`accuracy_status: n/a` for vision for the same reason as the arm above, and a reachable audio cell
+still scores one known-text fixture only.
+
+```bash
+python3 tools/vl-arm-probe.py --base-url http://<node>:8024 --serve-log <receipt>/serve.log \
+  --json <receipt>/vl.json
+python3 tools/audio-asr-tts-probe.py --base-url http://<node>:8024 \
+  --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \
+  --statement "The quarterly report is due on Thursday, so please finish it by noon." \
+  --lang en --json <receipt>/asr-tts.json
+```
+
+**Launch (ready for the operator's next `.30` slot):**
+
+```bash
+sparkrun run recipes/liquidai/zz-liquidai-lfm3-omni-2b-llamacpp.yaml -H <node> --cluster WOPR
+```
+
 ## Fine-tuning
 
 `finetuning/` is where the toolkit survey lands — one entry per toolkit that can actually train an
