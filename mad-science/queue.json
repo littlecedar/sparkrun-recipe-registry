@@ -902,13 +902,13 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "LiquidAI/LFM3-1.7B-Base",
       "node_cost": "single",
       "notes": "`lfm3`, 1728.8M base checkpoint: low ship value on its own, but every fine-tune comparison in `liquidai-finetune-toolkits` needs the base's own cells, so the arm exists as a control and stays `zz-`. Same architecture, `trust_remote_code` gate, license (`other` = LFM Open License v1.0, ships as an ordinary arm per QUESTIONS.md #56) and instrument as `liquidai-lfm3-1.7b-arm`. Two deltas: no chat template of its own, so the serve is raw completion (the instruct template must not be applied); and the vendor GGUF mirror is the INSTRUCT arm's (`LiquidAI/LFM3-1.7B-GGUF`) - do not assume those GGUFs are base weights; either convert from the bf16 repo or serve FP16 on vLLM/SGLang.",
       "provenance": "owner 2026-11-02 request; HF collection + cards + LFM3-1.7B config read 2026-11-02; mad-science/TODO.md §liquidai; recipes/liquidai/README.md",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "campaign-operator",
+      "claimed_at": "2026-11-07T17:04:06Z"
     },
     {
       "id": "liquidai-lfm3-vl-2b-arm",
@@ -973,13 +973,13 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "LiquidAI/d1-Omni-2B",
       "node_cost": "single",
       "notes": "`lfm3_omni`, 2166.9M, class `AutoModel`, task `audio-text-to-text`, tags `decision`/`calibration`/`system-one`, fine-tuned from `LiquidAI/LFM3-Omni-2B`, GGUF mirror `LiquidAI/d1-Omni-2B-GGUF`. Same instrument rule as `liquidai-d1-2b-arm` plus an audio input, so it needs a fixture from the media lane (drama-3 render or the needle whistle clips) to drive it. Sequence after `liquidai-d1-2b-arm`: that arm answers the endpoint/head-semantics question once, and this one should only add the modality. License `other` = LFM Open License v1.0, and the owner ruled it ships as an ordinary arm (QUESTIONS.md #56).",
       "provenance": "owner 2026-11-02 request; HF collection + cards + LFM3-1.7B config read 2026-11-02; mad-science/TODO.md §liquidai; recipes/liquidai/README.md",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "campaign-operator",
+      "claimed_at": "2026-11-07T17:04:06Z"
     },
     {
       "id": "liquidai-finetune-toolkits",
