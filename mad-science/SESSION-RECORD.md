@@ -3756,3 +3756,30 @@ This tick published no board of its own: a peer tick committed `4d6e32d` at 18:1
 | 17:10 ET | `810adb4` | Replaced two weaker board claims with their operands: eight `state.json` roots on the head carrying **0 leases** with every arm terminal (not "no lease printed"), and the battery's 50 as the **resume index** so 34 replies at 111.4 s/reply reconcile with the driver's own rate. |
 | 17:22 ET | `fddce3c` | Folded three fixes onto the peer's 17:20 board without replacing it (its census prose, campaign-lease operands and battery resume-index correction kept verbatim): a second overlapping byte pair (17:02:24→17:03:53, 89 s, fleet −616,496 B = 6,927 B/s), six absolute `df -B1` values, the zero-lease campaign claim re-counted over eight roots, the 3D cgroup figure named as two states of one boot, and the 72 inherited landed rows cleared once `2efa5d8` homed them in `SESSION-RECORD.md`. |
 | 17:26 ET | `3e37df5` | Closed `lint`'s other direction: a title stamped ahead of the wall clock made every later honest stamp read as `title-regression`, so `future-stamp` now refuses it at minute resolution — two tests with the pre-fix pass as the negative control, in `tools/task-queue.py` + `tests/test_task_queue_tool.py` with the `AGENTS.md` suite statements. |
+
+## 2026-11-07 18:26 ET — correction: the pair-3 census clause straddled `.33`'s burst
+
+`e8df6d8` published a third byte pair (18:02:23→18:06:44, 261 s) and read it as evidence that `.33`'s
+fall "decayed rather than stopped", attributing "~2.8 MB over the remaining 144 s" to a writer still
+running. **That inference was wrong, and the operand that falsifies it was already in the same row.**
+`.33` fell 8,765,440 B across my window, but the row carried `.33`'s absolute at 18:03:41, so the window
+decomposes as **8,482,816 B in the 78 s before that read (108,754 B/s)** and **282,624 B in the 183 s
+after it (1,544 B/s)**. The burst ended before the peer's second read; a 33,584 B/s average is what a
+window drawn across a boundary produces, and the ~2.8 MB belonged to the burst, not to anything after it.
+
+Same defect, second clause: the row called all six nodes "back inside the 1.4–2.0 kB/s band". Over the
+post-burst 183 s `.30` ran at 4,633 B/s — the one node above the floor. It is not the battery's serve log
+either: that log grew **51,883 B across the whole 20 min, 43 B/s**, so `.30`'s share is unattributed too.
+
+A later pair does show a set above the floor, and it is transient rather than a writer: **pair 4,
+18:06:44→18:19:53 (789 s), fleet −33,841,152 B = 42,891 B/s** with `.30` 14,235 · `.31` 12,236 · `.32`
+12,070 B/s while `.33`/`.34`/`.35` sat at 1,402–1,490; then **pair 5, 18:19:53→18:23:33 (220 s), fleet
+−2,179,072 B = 9,905 B/s with all six back at 1,508–2,141 B/s**. Pair 5 is what settles pair 4: the rate
+stopped, so it was a burst and not a sustained writer. The pool probe names nothing — no
+`/mnt/beegfs/huggingface/hub` directory changed in the 25 min before it, and the 48.9 GB of `.incomplete`
+blobs under `models--unsloth--Qwen3.8-27B-GGUF` are dated **2026-10-27**, dead partials rather than a
+download in flight.
+
+Carried forward as a rule for the next tick: a pair's average means nothing if a known boundary falls
+inside it — check the previous row's absolutes before folding a new pair into the same sentence — and one
+pair cannot separate a burst from a writer without a later read showing the rate stopped.
