@@ -12,11 +12,12 @@ file disagrees with the tree — run the tool's `--fix` rather than editing a nu
 suite total is derived the same way**: `SuiteTotal` in that same test module compares every stated
 total against `unittest.defaultTestLoader.discover("tests").countTestCases()` (under a second, no test
 executed) and fails naming the stale line, so the number cannot rot; only its skip count needs a run,
-which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-03
-— every tracked recipe passes plain `validate`, and the `--strict` findings are exactly the roster
-below (both re-measured 2026-11-03 over the whole tracked tree; the roster itself is unchanged since
-2026-10-31, because no arm added since appears in it); suite 1266 tests (guard-checked) and 2 skipped,
-dated 2026-11-07, the run that produced them**. The snapshot is one
+which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-07
+— every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
+the whole tracked tree (re-measured 2026-11-07, the date on this line; the roster names every arm
+that prints any finding, warnings and suggestions alike, not only the warning arms it listed
+before); suite 1266 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced
+them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -203,38 +204,74 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   replay that cost two boots can no longer be reported as a measurement. Procedure: skill
   `falsify-before-claiming`.
 
-- **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain, and the
-  `--strict` findings are exactly the roster below — same 2026-11-03 re-measure the snapshot paragraph
-  names, and none of the arms added that day appears in it. No denominator is written here for the
-  reason the snapshot paragraph gives: a fraction that scales with the tree goes stale silently.
-  Nineteen carry `unpinned-model-revision` —
-  the pin never reaches the engine as `--revision` — and one carries `deprecated-topology` instead:
+- **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
+  `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-07, the same run the
+  snapshot paragraph dates: nineteen rows carry `unpinned-model-revision` — the pin never reaches the
+  engine as `--revision` — one carries `deprecated-topology` instead, and every other row carries
+  suggestions only, which never gate. No denominator is written here for the reason the snapshot
+  paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
+  the order `validate` prints them, `n×` where the same suggestion fires more than once:
 
   | Recipe | Findings |
   |---|---|
   | `cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata`, `restated-managed-path` |
+  | `cybersec/qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml` | 2× `restated-managed-path` |
+  | `cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | `restated-managed-path` |
+  | `decision/d3-edge-decision-vllm-srun.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
+  | `decision/jev-27b-decision-vllm.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
+  | `decision/jev-9b-decision-vllm.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
+  | `decision/kai-0.6b-decision-vllm-srun.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
   | `decision/kev-0.8b-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
   | `decision/laya-decision-serve.yaml` | `unpinned-model-revision`, `inline-script` |
-  | `media/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
-  | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
-  | `media/kromoss-mossimage-5b-bf16-diffusers-script.yaml` | `unpinned-model-revision`, `restated-managed-path` |
-  | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
-  | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `decision/nox-4b-decision-vllm-srun.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
+  | `decision/sol-2b-decision-vllm-srun.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
+  | `decision/timestral-209m-forecast-cpu.yaml` | `inline-script`, `restated-managed-path` |
+  | `decision/zz-jev-9b-decision-coloc-vllm.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
-  | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
-  | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` (`model_dtype: exl3`) |
+  | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` | `restated-managed-path` |
+  | `explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml` | `recipe-metadata`, `restated-managed-path` |
+  | `explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` | `restated-managed-path` |
+  | `explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` | `restated-managed-path` |
+  | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `ifm/k2-horizon-0.9b-bf16-uno-sglang.yaml` | `restated-managed-path` |
+  | `ifm/k2-horizon-7b-fp8-uno-sglang.yaml` | `restated-managed-path` |
+  | `media/kokoro-82m-tts-cpu.yaml` | `unpinned-model-revision` |
+  | `media/kromoss-mossimage-5b-bf16-diffusers-script.yaml` | `unpinned-model-revision`, `restated-managed-path` |
+  | `media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml` | `restated-managed-path` |
+  | `media/phonon-31m-tts-cpu.yaml` | `recipe-metadata`, `restated-managed-path` |
+  | `media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` | `restated-managed-path` |
+  | `media/zz-minimax-h3-fl2va-t2va-sglang.yaml` | 3× `restated-managed-path` |
+  | `media/zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml` | 3× `restated-managed-path` |
+  | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
+  | `media/zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml` | `restated-managed-path` |
   | `ornith/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm.yaml` | `unpinned-model-revision` |
+  | `ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` | 2× `restated-managed-path` |
+  | `ornith/ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang.yaml` | `restated-managed-path` |
+  | `ornith/zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | `restated-managed-path` |
+  | `ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | `restated-managed-path` |
+  | `ornith/zz-ornith-1.5-122b-nvfp4-dflash2-sglang.yaml` | `recipe-metadata`, `restated-managed-path` |
+  | `ornith/zz-ornith-1.5-122b-nvfp4-nospec-sglang.yaml` | `recipe-metadata` |
+  | `ornith/zz-ornith-1.5-122b-nvfp4-sglang.yaml` | `recipe-metadata` |
+  | `qwen3/qwen3-coder-next-int4-autoround-vllm.yaml` | `restated-model-arg` |
   | `qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` | `unpinned-model-revision` |
-  | `qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | `deprecated-topology` (`cluster_only`), `restated-managed-path` |
+  | `qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | `deprecated-topology`, `restated-managed-path` |
+  | `qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | `restated-managed-path` |
+  | `qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `qwen4/zz-labq-no-diag.yaml` | `restated-managed-path` |
   | `qwen4/zz-qwen38-next-vllm-tp2-pinned.yaml` | `unpinned-model-revision`, 2× `restated-platform-env` |
-  | `rerank/qwen3-vl-reranker-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
-  | `rerank/qwen3-vl-reranker-8b-vllm-b12x.yaml` | `unpinned-model-revision` |
+  | `rerank/qwen3-vl-reranker-2b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
+  | `rerank/qwen3-vl-reranker-8b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
 
-  These arms either pass the prepared path through `{model}` or serve a model set baked into the image
-  (`kokoro`), so the missing `--revision` does not select a different artifact;
+  The nineteen `unpinned-model-revision` arms either pass the prepared path through `{model}` or serve
+  a model set baked into the image (`kokoro`), so the missing `--revision` does not select a
+  different artifact;
   `unpinned-model-revision` is the known false positive the lanes document, not a boot risk
   (`sparkrun/core/validation.py:837-914`). Never edit a recipe merely to clear a `suggestion` (such as
   deliberate `/cache/runtime` paths flagged `restated-managed-path`) or a documented, deliberate
