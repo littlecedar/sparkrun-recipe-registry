@@ -2891,3 +2891,30 @@ returned nothing), so both are appended here verbatim:
   builds predate `lfm3` landing upstream) and bf16 on vLLM, both TP=1 and pinned; ships as an ordinary
   arm on the 2026-11-02 ruling (`QUESTIONS.md` #56). Register untouched (`queue.json` unchanged), so
   26 open.
+
+
+## 2026-11-07 06:01 ET — two ticks in one minute, and the equal-stamp replace
+
+Two 06:01 ET ticks ran concurrently on the shared clone. This one read the board at
+its 05:11 bytes, took its own census, and published ~6 minutes later; between that
+read and the locked write the peer tick had put its own 06:01 board on disk.
+`task-queue.py publish` printed `(disk was 2026-11-07 06:01:00 ET)` and wrote anyway,
+because the freshness guard refuses only a *strictly newer* `| census |` stamp — an
+equal stamp passes — so the whole-file `os.replace` dropped the peer's board.
+
+Nothing is known lost: the peer rebuilt on the published bytes (`7bb32a5`) and the
+board on disk equals `HEAD` line for line, including `/tmp/merged-board.md`, the copy
+the other writer made at 06:10:37. The peer's original bytes were never compared, so
+a row only it carried cannot be ruled out from the tree — the disclosure is that the
+replace happened, not that nothing was in it. `11f8917` was already on `origin/main`,
+so it was not amended on a syncthing-shared branch; the durable fix is a bullet in the
+`status-board-refresh` skill: re-read `mad-science/STATUS.md` and diff it against `HEAD`
+*immediately* before publishing (the census is seconds, the lint/guard/commit tail is
+minutes), and treat a disk stamp equal to your own title as a clobber to fold rather
+than overwrite.
+
+The census deltas this session published were re-based by the peer in `03d10bf`: the
+inherited 05:11 row's byte column is that tick's **05:01** operands, so the comparison
+spanned two ticks. Neither convention reconciles against the 05:02 board's own numbers,
+so the corrected figures stand — 1.15–3.52 GiB of fall, `.35` (3.52) ahead of `.30`
+(3.30), all six display cells moved, no drop a rounding artefact.
