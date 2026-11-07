@@ -275,6 +275,23 @@ class RunArmContract(unittest.TestCase):
             self.assertIn("--skip-run", text[at - 250: at + 250], f"{profile} without --skip-run")
 
 
+class RecipePathResolution(unittest.TestCase):
+    """The campaign passes paths relative to the repo root, not the caller's cwd."""
+    CD = 'cd "$HOME/src/sparkrun-recipe-registry" || exit 1'
+
+    def resolves_before_port(self, text: str) -> bool:
+        return text.index(self.CD) < text.index("PORT=$(sed")
+
+    def test_the_recipe_is_resolved_before_its_port_is_read(self):
+        self.assertTrue(self.resolves_before_port(read_tool()),
+                        "the port is read before the recipe path resolves; it silently defaults")
+
+    def test_moving_the_chdir_below_the_port_parse_fails_the_guard(self):
+        text = read_tool().replace(self.CD + "\n", "", 1)
+        text = text.replace('mkdir -p "$L"\n', 'mkdir -p "$L"\n' + self.CD + "\n", 1)
+        self.assertFalse(self.resolves_before_port(text), "the guard passed a broken ordering")
+
+
 class DockerLogCapture(unittest.TestCase):
     """A boot that dies before the engine writes its log must still leave its own stdout."""
     KILL = 'for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done'

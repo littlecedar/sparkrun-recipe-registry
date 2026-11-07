@@ -13,6 +13,7 @@ description: >-
   assert at qwen4_exp.py:2136), the mod is now deleted from the shipped arms, and
   this file stays as the record of the control.
 metadata:
+  measured_rejected: "2026-11-07 — serve child exits about 32 s before the engine writes its log; live docker logs and modlogs are empty; no observable cause (recipes/qwen4/README.md:67)"
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

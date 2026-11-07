@@ -1167,6 +1167,15 @@ loads, or a fix in the loader.
 **It keeps `zz-` whatever a future boot shows**: its alignment is untouched (plain MIT arm, no eval-only
 banner — see the licence paragraph above), so it is an ordinary arm once it measures, not a guarded one.
 
+**Live retry (2026-11-07).** The acceptance campaign's `docker logs -f` follower reproduced the
+failure in 2 min 11 s: `_load_w2` at `fused_moe_triton/layer.py:890` again raised
+`size tensor a (384) must match size tensor b (32) non-singleton dimension 1`, 41 s into the
+18-shard load. The follower's own `docker-10_0_4_30.log` holds only the entrypoint's CUDA banner —
+the engine writes to `/tmp/sparkrun_serve.log`, not container stdout — while the watchdog's pre-stop
+capture preserved that file (26 KB, `serve-reaped-…_solo.log`). So the live capture confirms the
+launcher-side traceback and adds the in-container timeline, and the export remains a recorded
+negative for this image.
+
 #### Ranked hypotheses, each with the one probe that decides it
 
 The two probe arms below differ from the failed arm in one direction each, and both drop the drafter,

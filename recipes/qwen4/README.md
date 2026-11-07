@@ -64,6 +64,15 @@ fired). **It is retired from both arms and now lives at
 `unplaced`/`AssertionError`, `~/benchmarks/qwen4-nodiag-20261020/`), and the highcon arm — the last
 holder — booted diag-free on 2026-10-21 with the same result (`~/benchmarks/qwen4-highcon-20261021/`).
 
+**Boot-gate negative (2026-11-07).** All three labquant arms still die in the same place: the serve
+child exits about 32 s after container start, before the engine writes `/tmp/sparkrun_serve.log`.
+The acceptance campaign's fourth boot (`zz-labq-no-diag`, `.30`+`.35`, receipt
+`~/benchmarks/tp12-20261107/zz-labq-no-diag/`) reproduced the 2026-11-04 timeline with the new live
+capture in place: `docker-10_0_4_30.log` holds only the entrypoint's CUDA banner, the watchdog
+recorded `verdict=dead` at t=43 s with the serve log absent inside the container, and the runtime
+tree's `modlogs/` is empty. No image, recipe or observed-cause lever exists, so the three arms are
+recorded boot-gate negatives and get no further boots.
+
 **The failure mode it watched for, kept because an operator still needs it:** the loader dies on a
 bare assert at `qwen4_exp.py:2136` when a `_scale` tensor has no destination in the tree it is
 loading. That is what the export's `.weight_scale` suffix (vs the engine's `weight_scale_inv`) caused;

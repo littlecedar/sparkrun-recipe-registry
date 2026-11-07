@@ -2689,3 +2689,40 @@ kills the followers before `sparkrun stop`: a boot that dies in a `pre_exec` hoo
 no `/tmp/sparkrun_serve.log` at all, which is why the 2026-11-03 cyankiwi and 2026-11-04
 labquant boots left no cause. Guard module 50 tests green; the live capture is only proven by
 the next dead boot.
+
+## 2026-11-07 01:20 ET — campaign director deployed, acceptance campaign drained
+
+- **Landed** `8cbbadb` (lifecycle bounds, start-up validation, lock-free `status`, skipped-arm
+  receipts, unit hardening) and `99f2647` (live per-rank `docker logs` in the executor); gate run
+  `42344851444` green on `99f2647`.
+- **Deployed on the head** (`.30`, account `red`): checkout at `99f2647`, campaign suite
+  86 tests / 5 skipped green, root `~/benchmarks/campaign-acceptance-20261107`, env
+  `~/.config/sparkrun-campaign.env` mode 600, 7-arm manifest, `systemd-analyze --user verify` rc=0,
+  unit enabled (linger already yes). Dry run printed the five recorded-negative skips before any
+  assignment: `2 pending, 5 skipped`.
+- **Run** started 00:59:22 ET. `zz-labq-no-diag` (TP=2, both hosts) rc=4 at 01:00:44 — watchdog
+  `dead` at t=43 s, serve log absent in the container, live `docker-*.log` on both ranks holds only
+  the entrypoint CUDA banner, runtime-tree `modlogs/` empty. The restart watcher stopped/started the
+  unit at 01:00:45/48; the same plan resumed and the failed arm was not re-booted. The restarted
+  director honoured the outstanding cyankiwi lease for its remaining TTL, reaped it at 01:05:45
+  (0 containers) and re-booted that arm once. `zz-cyankiwi…` rc=4 at 01:07:56 after 2 min 11 s:
+  `_load_w2` at `fused_moe_triton/layer.py:890` again raised `tensor a 384` vs `tensor b 32`, and
+  the watchdog preserved the 26 KB engine log before reaping at t=95 s. The live follower again saw
+  only the entrypoint banner — the engine writes `/tmp/sparkrun_serve.log`, not container stdout.
+  Drained 01:07:56, `ExecMainStatus 0`, 5 skipped + 2 failed receipts; `journal.log` saved in the
+  root.
+- **Post-run**: `.30` and `.35` both 0 containers / 0 volumes. The production quartet on
+  `.31`–`.34` was untouched: 4 containers Up 27 h healthy, `/health` 200 on every rank,
+  `/v1/models` and a 1-token chat completion 200 on `.31`.
+- **Folded**: the labquant trio and cyankiwi carry `metadata.measured_rejected` with cause
+  citations (`recipes/qwen4/README.md:67`, `recipes/ornith/README.md:1170`); `campaign/DESIGN.md`
+  checklist rows 1–8 are green with this run's evidence; queue rows `campaign-driver-service`,
+  `driver-consults-skip-source`, `cyankiwi-live-log-retry` and `tp12-remainder-8-arms` are done.
+  `ornith-122b-nonablated-hunt` was left queued: the Hub re-check found no *new* servable
+  non-abliterated export, but fitting candidates exist (vendor FP8 at TP=2, the already-measured
+  vendor NVFP4 `zz-` arm, Sherlock-Comms NVFP4), so no "no candidate" negative is claimed.
+- **Defect found and fixed**: the executor read the recipe's `port:` before its `cd` to the repo,
+  so a campaign-relative path silently defaulted to 8000 (both arms here are 8000, so no number was
+  lost). The chdir now runs first, with a positional guard and its negative control.
+- **Remaining**: the ornith 122B boot decision is open; `ple-disk-read-regression` is queued and was
+  not part of this manifest.

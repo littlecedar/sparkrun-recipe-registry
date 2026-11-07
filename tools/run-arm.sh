@@ -12,6 +12,10 @@
 # exit status records which step failed.
 set -uo pipefail
 
+# Resolve the recipe's relative path before anything reads it: the campaign passes manifest paths
+# relative to the repo root, and the caller's cwd is the campaign directory.
+cd "$HOME/src/sparkrun-recipe-registry" || exit 1
+
 RECIPE=${1:?usage: run-arm.sh <recipe-path> [node[,node...]]}
 # A TP=2 arm needs a PAIR: pass `a,b` and sparkrun gets both hosts while the endpoint, watchdog and
 # container resolution use the FIRST (the API rank). Single-node arms are unaffected -- `HOSTS` is
@@ -86,7 +90,6 @@ if [ -n "$(ls -A "$L" 2>/dev/null)" ]; then
   mv "$L" "$PREV" && echo "previous receipt moved to $PREV"
 fi
 mkdir -p "$L"
-cd "$HOME/src/sparkrun-recipe-registry" || exit 1
 rc=0
 
 # A benchmark can print a complete table and still leave no machine-readable

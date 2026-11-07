@@ -218,21 +218,20 @@ Checklist to test map:
 
 | Item | Where | State |
 |---|---|---|
-| 1. reads the skip source, prints `skip: <arm> (<verdict>, <doc>:<line>)` before any boot | `test_evidence.SkipSource`, `test_director.SkipSource.test_skip_lines_are_printed_before_anything_can_be_assigned` | **green** |
+| 1. reads the skip source, prints `skip: <arm> (<verdict>, <doc>:<line>)` before any boot | `test_evidence.SkipSource`, `test_director.SkipSource.test_skip_lines_are_printed_before_anything_can_be_assigned`; journal + 5 `skipped` receipts, 2026-11-07 | **green** |
 | 2. reads receipt FIELDS, not file presence | `test_evidence.ReceiptFields`, `test_director.CompletionIsReadFromReceipts` | **green** |
-| 3. reaps a dead serve in ≤ 2 probes | `test_checklist_hardware` (skipped) + `tools/boot-watchdog.py` | pending a real arm |
-| 4. preserves the serve log across that reap | receipt records the harvested logs (`test_director...test_the_receipt_keeps_the_serve_log_of_a_watchdog_reaped_arm`); live capture skipped | half green |
-| 5. reaps every rank | grammar and listing (`test_fleet.Leftovers`); live teardown skipped | half green |
-| 6. no container behind on any host | block-and-record (`test_director.Leftovers`); live absence skipped | half green |
-| 7. resumes a half-finished campaign after a reboot | `test_state.Leases`, `test_director.Resume` | **green** |
-| 8. writes per-arm receipts | `test_director` (`receipts/<arm>.json` after every arm, and for an arm found measured at start) | **green** |
+| 3. reaps a dead serve in ≤ 2 probes | `test_checklist_hardware` (skipped) + `tools/boot-watchdog.py`; `verdict=dead` at t=43 s (labquant) and t=95 s (cyankiwi), 2026-11-07 | **green** |
+| 4. preserves the serve log across that reap | cyankiwi's 26 KB `serve-reaped-*.log`; labquant's log was absent in the container and its live `docker-*.log` was retained instead, 2026-11-07 | **green** |
+| 5. reaps every rank | grammar and listing (`test_fleet.Leftovers`); TP=2 labquant's rank-1 container removed on the second host, 2026-11-07 | **green** |
+| 6. no container behind on any host | block-and-record (`test_director.Leftovers`); post-campaign probe 0 containers / 0 volumes on both hosts, 2026-11-07 | **green** |
+| 7. resumes a half-finished campaign after a reboot | `test_state.Leases`, `test_director.Resume`; service stopped/started at the first receipt, same plan resumed and no terminal arm re-booted, 2026-11-07 | **green** |
+| 8. writes per-arm receipts | `test_director`; 7 receipts (5 skipped, 2 failed) in the 2026-11-07 campaign | **green** |
 
 Every off-hardware item carries a negative control: presence-only completion accepts a partial
 ladder, a manifest-only plan boots a recorded negative, a static slice strands a node, a resume that
 trusts the state file re-boots a live arm, and a rank-0-only leftover check reports clean with rank
-1 alive. The four hardware items are skipped tests in `test_checklist_hardware.py`, each naming the
-receipt evidence the campaign run must produce, so the checklist lives in the suite rather than in
-prose.
+1 alive. The four hardware items still have their skipped harness tests in
+`test_checklist_hardware.py`; the 2026-11-07 run is the evidence that closed them.
 
 ## Per-arm receipts
 
@@ -361,6 +360,15 @@ Each checklist item's evidence: the five `skip:` lines before the first `assign:
 naming both hosts and an end-of-arm probe that asked both (items 5 and 6); the restart's journal and
 the absence of a second assignment for the measured arm (item 7); and a post-campaign probe of both
 declared hosts with no `sparkrun_*` container.
+
+**Outcome (2026-11-07).** The campaign drained with 5 skipped and 2 failed, exit 0. Both boots died:
+`zz-labq-no-diag` exited before the engine wrote its log (`watchdog: dead` at t=43 s; its live
+`docker-*.log` holds only the entrypoint banner), and `zz-cyankiwi…` reproduced the fused-MoE
+`384 vs 32` weight-loader failure with the watchdog preserving a 26 KB serve log (`verdict=dead` at
+t=95 s). The restart point fired at the first receipt: the service stopped and started, the new
+director honoured the outstanding lease for its remaining TTL, then reaped it (0 containers) and
+re-booted that one arm once; the failed labquant arm was not touched. Post-run probes: 0 containers
+and 0 volumes on both campaign hosts. Receipts: 5 skipped, 2 failed.
 
 ## Non-goals of phase 1
 

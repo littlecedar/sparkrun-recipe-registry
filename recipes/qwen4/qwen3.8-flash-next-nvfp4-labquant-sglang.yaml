@@ -7,6 +7,7 @@ min_nodes: 2
 
 description: Qwen3.8-Flash-Next NVFP4 (local-inference-lab export) - MXFP8 attention/GDN + FP8 PLE, lower weight bytes/token
 metadata:
+  measured_rejected: "2026-11-07 — serve child exits about 32 s before the engine writes its log; live docker logs and modlogs are empty; no observable cause (recipes/qwen4/README.md:67)"
   model_url: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "180B"

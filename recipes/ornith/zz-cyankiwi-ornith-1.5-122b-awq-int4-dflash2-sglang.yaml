@@ -24,6 +24,7 @@ description: >-
   mixed-precision layout on `qwen3_5_moe` and SM121 at all, and then acceptance tells us
   whether the quant family, not the bit count, is what the drafter cares about. MIT.
 metadata:
+  measured_rejected: "2026-11-07 — weight loader _load_w2 raises tensor a 384 vs tensor b 32 at dim 1 on the fused-MoE path; live docker log caught the traceback (recipes/ornith/README.md:1170)"
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/cyankiwi/Ornith-1.5-122B-AWQ-INT4
   draft_model: incoai/Ornith-1.5-122B-DFlash2
