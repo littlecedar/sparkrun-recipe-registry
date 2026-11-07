@@ -2732,7 +2732,8 @@ the next dead boot.
 The 02:04 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at the session boundary. Its
 two 00:56 ET rows (`8cbbadb`, `99f2647`) were **already homed** in the 01:03 ET section above — verified by
 `git grep -c <sha> -- mad-science/SESSION-RECORD.md` returning 2 and 4 — so nothing was re-appended for
-them. Two commits landed after that section was written and carried no SHA anywhere in this file; their
+them — only the pre-session rows were retired. Two commits landed after that section was written and
+carried no SHA anywhere in this file; they sit on the board as rows for the next tick to retire, and their
 clauses are homed here.
 
 - **01:26 ET** `c2d39d1` — Record the campaign acceptance run: five recorded negatives skipped before any
