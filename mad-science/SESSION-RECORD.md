@@ -2961,3 +2961,25 @@ overwritten each tick: `.30` 1,458,455,433,216 / `.31` 1,870,994,518,016 / `.32`
 `.33` 1,814,651,465,728 / `.34` 1,255,348,281,344 / `.35` 1,507,351,621,632. Quartet `/health`
 200/200/200/200 with serve pids 280/311/310/312 unchanged, `StartedAt` 2026-11-06T03:16:44–45Z and
 `restarts=0` on every rank, so no rank restarted in the hour.
+## 2026-11-07 07:22 ET — two false claims in `06c32e7`, corrected within the hour
+The 07:15 ET board commit published two statements that were wrong. Both are
+corrected in the board itself (four rows rewritten through `publish`, nothing
+else touched, no row added or dropped):
+1. "the 07:08 row's right-hand column is truncated in the file" was false. The
+   file carried `.34` 1,255,347,712,000 and `.35` 1,507,351,072,768 in full; the
+   truncation was the reading tool's display cut. So the 07:08 read was a usable
+   baseline all along, and the true 07:08→07:14 deltas are -1,036,288 /
+   -569,344 / -528,384 / -524,288 / -524,288 / -512,000 B — not the deltas
+   against 07:02 that the row printed.
+2. "the receipt sits under the previous campaign's dated root" was false.
+   `tools/run-arm.sh:29` sets the receipt root to
+   `$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME`, so `tp12-20261107` is today's
+   own root by design, which is also where `tools/README.md` documents it. The
+   clause asserting a tooling defect is gone; the row now names the campaign
+   dir for director state and the run-arm root for arm receipts.
+Both were inferences — one from a truncated tool display, one from a path that
+looked wrong next to the campaign directory — and neither was checked against
+the file or the tool source before publishing to a live doc. The corrected
+board carries a 07:20:43 ET census, so no row needs a "corrected" marker on a
+surface whose contract is state, not history; that is why the disclosure lives
+here.
