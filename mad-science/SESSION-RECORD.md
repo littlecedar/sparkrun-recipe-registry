@@ -2665,3 +2665,12 @@ in `TODO.md` §"Settled questions" and folded into the rows they govern, not mer
   been up since 2026-10-28 (pid 2872715) on the workstation, proxying the production serve's API port.
   It predates this session, is not named by any current harness, and is left alone rather than swept —
   but it is a candidate for the next hygiene pass if no receipt cites it.
+
+## 2026-11-06 22:06 ET — board landed rows retired (session boundary)
+
+- **21:57 ET** `17342ee` — A ten-question owner round was asked and answered in one session and
+folded into the rows it governs — `#57`–`#66` settled (four h2h rows still parked, the production
+quartet untouched, the campaign gate seated on `.30`+`.35` with its blocked dependents folded in,
+`ple-disk-read-regression` unblocked on its own no-boot logic, the labquant fourth boot gated on a
+lever, the 122B row closable on a survey verdict, the repin campaign split by lane, the vllm-omni
+arms pinned and held, and a tick-backlog kill the census proved moot).
