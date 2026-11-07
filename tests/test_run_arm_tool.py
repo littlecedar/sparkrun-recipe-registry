@@ -297,6 +297,11 @@ class DockerLogCapture(unittest.TestCase):
     KILL = 'for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done'
     HARVEST = 'echo "serve logs harvested:'
     STOP = 'sparkrun stop "$TID" 2>&1'
+    INSPECT = "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}'"
+
+    def follower_slice(self, text: str) -> str:
+        start = text.index("docker logs -f")
+        return text[start:text.index("python3 tools/boot-watchdog.py", start)]
 
     def pre_stop_slice(self, text: str) -> str:
         start = text.index(self.HARVEST)
@@ -307,8 +312,15 @@ class DockerLogCapture(unittest.TestCase):
         self.assertIn("docker logs -f", text, "no rank is streamed")
         self.assertLess(text.index("LOGFOLLOW=()"), text.index("docker logs -f"))
         self.assertLess(text.index("docker logs -f"), text.index(self.STOP))
+        self.assertIn(self.INSPECT, self.follower_slice(text),
+                      "a silent death leaves only the banner; the exit state is not captured")
         self.assertIn(self.KILL, self.pre_stop_slice(text),
                       "the follower is not killed before the stop")
+
+    def test_removing_the_exit_state_fails_the_guard(self):
+        text = read_tool().replace(self.INSPECT, "")
+        self.assertNotIn(self.INSPECT, self.follower_slice(text),
+                         "the exit-state inspect survived the mutation")
 
     def test_removing_the_pre_stop_kill_fails_the_guard(self):
         text = read_tool()

@@ -235,6 +235,12 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
       if [ -n "$c" ]; then
         ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs -f '$c'" \
           > "$L/docker-$(echo "$hn" | tr '.' '_').log" 2>&1
+        # A silent death (OOM kill, non-zero exit with no stderr) leaves `docker logs` holding only
+        # the entrypoint banner. Append the container's own state while it still exists; if the
+        # watchdog or the stop already removed it, the inspect error is itself the record.
+        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+          "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}' '$c'" \
+          >> "$L/docker-$(echo "$hn" | tr '.' '_').log" 2>&1
         break
       fi
       sleep 5

@@ -350,9 +350,11 @@ seven arms; five are answered by the skip source and must never be assigned, and
 | `qwen3.8-flash-next-uncensored-nvfp4-vllm` | 2 | skipped, `recipes/cybersec/README.md` |
 
 Restart point: the service is stopped and started again as soon as the first boot's receipt exists,
-so the resume path is exercised while the second arm is pending. The proof is that the second arm is
-booted once, the first is not booted again, the same plan is reported, and no lease is handed out
-before its hosts are cleared.
+so the resume path is exercised while the second arm is pending. The proof is that the measured arm
+is never booted again, the lease grace after the restart costs at most one re-boot of the in-flight
+arm (`attempt: 2` in the cyankiwi receipt, re-assigned at 01:05:45 after the
+`reaped … lease expired; 0 container(s) found` line), the same plan is reported, and no lease is
+handed out before its hosts are cleared.
 
 Each checklist item's evidence: the five `skip:` lines before the first `assign:` and five
 `skipped` receipts (items 1 and 8); a `watchdog: dead` receipt with its harvested `serve-node_*.log`

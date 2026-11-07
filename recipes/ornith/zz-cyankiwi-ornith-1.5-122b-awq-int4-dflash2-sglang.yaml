@@ -1,7 +1,5 @@
 recipe_version: "2"
-# DRAFT (2026-11-03): authored from the Hub survey in README.md §"122B quantisation and
-# finetune survey"; NEVER booted. Not in the root README index and not claimed to serve.
-#
+
 # The quant-family arm: every other 122B DFlash2 arm on this lane targets a modelopt NVFP4
 # export. This one is a compressed-tensors int4 pack (4-bit, group 32, asymmetric, int8 zero
 # points) over the routed experts with attention / linear-attention / shared-expert / lm_head
@@ -24,7 +22,7 @@ description: >-
   mixed-precision layout on `qwen3_5_moe` and SM121 at all, and then acceptance tells us
   whether the quant family, not the bit count, is what the drafter cares about. MIT.
 metadata:
-  measured_rejected: "2026-11-07 — weight loader _load_w2 raises tensor a 384 vs tensor b 32 at dim 1 on the fused-MoE path; live docker log caught the traceback (recipes/ornith/README.md:1170)"
+  measured_rejected: "2026-11-07 — weight loader _load_w2 raises tensor a 384 vs tensor b 32 at dim 1 on the fused-MoE path; watchdog-captured serve log holds the traceback (recipes/ornith/README.md:1170)"
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_url: https://huggingface.co/cyankiwi/Ornith-1.5-122B-AWQ-INT4
   draft_model: incoai/Ornith-1.5-122B-DFlash2

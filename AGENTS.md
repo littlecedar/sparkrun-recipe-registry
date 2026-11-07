@@ -15,7 +15,7 @@ executed) and fails naming the stale line, so the number cannot rot; only its sk
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-03
 — every tracked recipe passes plain `validate`, and the `--strict` findings are exactly the roster
 below (both re-measured 2026-11-03 over the whole tracked tree; the roster itself is unchanged since
-2026-10-31, because no arm added since appears in it); suite 1265 tests (guard-checked) and 2 skipped,
+2026-10-31, because no arm added since appears in it); suite 1266 tests (guard-checked) and 2 skipped,
 dated 2026-11-07, the run that produced them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
@@ -802,7 +802,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1265 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1266 tests,
   all passing 2026-11-07 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the

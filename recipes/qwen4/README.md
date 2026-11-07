@@ -71,7 +71,9 @@ The acceptance campaign's fourth boot (`zz-labq-no-diag`, `.30`+`.35`, receipt
 capture in place: `docker-10_0_4_30.log` holds only the entrypoint's CUDA banner, the watchdog
 recorded `verdict=dead` at t=43 s with the serve log absent inside the container, and the runtime
 tree's `modlogs/` is empty. No image, recipe or observed-cause lever exists, so the three arms are
-recorded boot-gate negatives and get no further boots.
+recorded boot-gate negatives and get no further boots. The docker and containerd journals record the
+container task delete at 01:00:35 with no exit status, and the kernel log has no OOM line, so the
+negative is an absence of evidence, not a hidden cause.
 
 **The failure mode it watched for, kept because an operator still needs it:** the loader dies on a
 bare assert at `qwen4_exp.py:2136` when a `_scale` tensor has no destination in the tree it is
