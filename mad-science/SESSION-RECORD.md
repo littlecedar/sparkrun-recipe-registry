@@ -3430,3 +3430,50 @@ The attribution itself stands as `d0100b2` read it: this tick's own
 70 kB/s) had inferred a shared chunk-store tail, and the peer's longer
 381 s pair plus the journald mtimes replaced that inference with a named
 writer on the two nodes that moved.
+
+## 2026-11-07 15:09 ET — tick: the 3D arm's first boot, homed before its board rows are swept
+
+The 15:01 tick folded two measurements into the board's landed table that no
+commit carries, and they exist nowhere else — so they are homed here rather
+than left to a table clear. Both are on `.30`, from the
+`recipes/3d/zz-qwen35-4b-3d-coder-q4km-llamacpp.yaml` arm authored at
+`353096b`, with receipts under `head:~/benchmarks/tp12-20261107/` and the
+harness scripts beside them (`threejs-arm.sh`, `threejs-cell.py`,
+`threejs-diagnose.py`).
+
+**14:40 ET, first boot** (task `sparkrun_460a519f1044e748_d7fd9732ce62`,
+`.30:8031`, `Q4_K_M` plus the BF16 projector at ctx 65536): readiness in
+15 s, model loaded, cgroup `memory.current` 1.44 GiB, served id
+`ccore/Qwen3.5-4B-3D-Coder`, node 108 GB free. The acceptance cell then ran
+**152.55 s** to `finish_reason: length` on **8,192** completion tokens with
+**0 content characters against 24,244 reasoning characters** — usage
+`{'completion_tokens': 8192, 'prompt_tokens': 77, 'total_tokens': 8269}` —
+so no HTML was emitted and `tools/threejs-render-check.py` had no document
+to check. The cell script then died on `KeyError: 'usage'` at
+`threejs-cell.py:87`, so the run recorded no `_gen` block: an instrument
+defect in a head-side scratch script (not in-tree), which is why the first
+cell is quoted from the request's own printed usage rather than from the
+record.
+
+**14:57 ET, diagnose pair** on the same serve, at 12,288 and 16,384 caps:
+**1,041** content characters after 35,375 reasoning characters in 270.83 s,
+then **0** content characters after 69,877 reasoning characters in
+407.77 s, both `finish_reason: length`. The arm spends its whole budget in
+reasoning at every cap tried, so the render gate still has nothing to
+render. Whether that is the arm's behaviour or a sampling/template
+mismatch is **unestablished** — the recommended next discriminator is the
+card's own chat template and sampling applied through a client that skips
+the reasoning channel, which this cell does not do.
+
+Boot stopped 14:58:43 (`sparkrun stop` by task id), `ctns=0 vols=0`
+verified on `.30`, so nothing of this boot remains on the node.
+
+**Two probe facts from the same tick, also board-only until now.** The
+protected production quartet answers `/v1/models` **200 on the API rank
+(`.31`)** and **404 on `.32`–`.34`** at the 15:08:54 probe — route absence
+on non-API ranks, not a dead serve — while `/health` is 200 on all four and
+each rank runs its engine (`pgrep -c '^/opt/sglang/bin/python3'` = 3). The
+campaign at `<CAMPAIGN_ROOT>` = `~/benchmarks/d1-20261107` holds **0 lease
+records** in `state.json` and reports `1 measured`, with the unit inactive,
+so it is drained and not a wedged lease; the register's two `running` rows
+are dispatch claims from `4782ff6` (14:31:09 ET), not live containers.
