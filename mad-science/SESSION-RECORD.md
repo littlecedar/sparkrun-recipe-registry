@@ -2854,8 +2854,13 @@ and 04:43 ticks left standing were appended, verbatim:
 Census at 05:02 ET, re-read rather than carried: 1/1/1/1/1/1 containers and 0 volumes on all six
 nodes, so research containers are 2 (the `.30`/`.35` pair below) and the four `.31`–`.34` containers
 are the protected production serve, `/health` 200 on every rank with serve pids 280/311/310/312
-unchanged, so no rank restarted. Root avail fell on all six nodes — 1.60 MiB `.31`, 1.60 MiB `.32`,
-2.65 MiB `.30`, 9.5 MiB `.33` and `.34`, 11.0 MiB `.35` — and no whole-GiB display cell moved.
+unchanged across six probes since 02:01 ET, so no rank restarted. Root avail fell on all six nodes —
+1.63 MiB `.31`, 1.52 MiB `.32`, 2.65 MiB `.30`, 9.5 MiB `.33` and `.34`, 11.0 MiB `.35` — and no
+display cell moved. The read it is measured against, carried here because the board's census row is
+overwritten each tick: 04:43 ET bytes `.30` 1,464,336,613,376 / `.31` 1,874,033,897,472 / `.32`
+1,927,849,992,192 / `.33` 1,817,724,665,856 / `.34` 1,258,111,475,712 / `.35` 1,511,826,526,208. Note
+the unit: `df -BG`'s `G` is 1024³, so its figures are GiB (`.30` 1,464,336,613,376 B = 1363.8 GiB,
+printed 1364) and a "GB" label on them is wrong, not the value.
 
 The pair boot itself is the campaign's `logdebug2` retake: director `tp2-logdebug2-20261107` started
 04:46:05 ET, one arm, `-o serve_debug=acceptance`. Ladder ran 04:47–04:56 at **14.6 / 13.1 / 12.9 /
