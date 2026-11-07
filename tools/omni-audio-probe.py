@@ -4,52 +4,42 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Audio-input probe for an omni decision arm served at ``/v1/systemone``.
 
-The decision lane's text arms are probed by ``decision-ladder.py``; an omni arm
-adds a surface that tool has no cell for: a **spoken** state. This probe sends
-the same statement twice — once as text, once as the fixture WAV — and asks the
-same typed question about it, so the audio path is compared against its own text
-control rather than against a number nobody measured.
-
-What a PASS proves, and what it cannot
---------------------------------------
-Proves: the endpoint accepts an ``input_audio`` part (base64 WAV, data URL or
-bare), returns a schema-valid typed answer over it inside the served window, and
-gives the same label as the same statement typed out. That last one is the real
-falsifier — a decoder that ignored the audio would answer from the question text
-alone, and a decoder that heard noise would answer differently from its own text
-control.
+What it proves: the endpoint takes a spoken state (an ``input_audio`` content
+part carrying a base64 WAV), answers with a schema-valid typed decision inside
+the served window, and gives the same answer as the same statement typed out.
 
 Cannot prove: transcription fidelity, word error rate, robustness to accent or
-noise, or that a matching label came from the speech rather than from a language
-prior on the question. One fixture sentence is not an audio benchmark, and no
-in-tree instrument scores audio understanding. A disagreement is a signal; an
-agreement is not a certificate.
+noise, or that a matching answer came from the speech language prior on the
+question. One fixture sentence is not an audio benchmark.
 
-Request shape (llama.cpp ``server-decision.cpp`` at 6023692)
-------------------------------------------------------------
-A spoken state or question carries ``input_audio`` as a content part beside the
-usual text parts, and the decision endpoint loads it through the same media
-path it uses for images::
+Two cell shapes, because the endpoint answers them differently and a probe that
+read only one would report a pass it never observed:
 
-    {"model": "<served id>", "state": [{"type": "input_audio",
-        "input_audio": {"data": "data:audio/wav;base64,..."}}],
-     "questions": {"q1": {"type": "noul", "instructions": "<question>",
-                          "criteria": {}}}}
+* ``choice`` — a label plus confidence (``{"choice": "yes", "confidence": 0.978}``).
+  This is the acceptance cell: a label exists, so ``--expect`` can hold or miss.
+* ``noul`` — a probability over ``true``/``false`` (``{"true": 0.944}``), never a
+  label. The probe reads the distribution's direction and records the
+  probability; it never invents a label for it.
+
+A booted d1-Omni-2B on this image answered ``choice`` on text and refused the
+spoken state at ``/v1/systemone`` (the WAV's base64 was tokenised as text —
+364,286 tokens against an 8192 window), so the audio cell now carries the
+endpoint's own body into the result and prints it on failure: a null label with
+no endpoint text is the silent pass this probe must not produce.
 
 Usage
 -----
 ::
 
-    python3 tools/omni-audio-probe.py \\
-        --base-url http://<node>:8020 \\
-        --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \\
-        --statement "The quarterly report is due on Thursday, so please finish it by noon." \\
-        --question "Is the quarterly report due on Thursday?" --expect yes \\
-        --json omni-audio.json
+  python3 tools/omni-audio-probe.py --selftest            # offline stub, ~1 s
+  python3 tools/omni-audio-probe.py \\
+      --base-url http://<node>:8020 \\
+      --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \\
+      --statement "The quarterly report is due on Thursday, so please finish it by noon." \\
+      --question "Is the quarterly report due on Thursday?" --expect yes \\
+      --json omni-audio.json
 
-    python3 tools/omni-audio-probe.py --selftest     # offline, stub server, ~1 s
-
-Exit codes: ``0`` both cells answered and agree (and ``--expect`` held, when
+Exit codes: ``0`` both cells answered and agree (and ``--expect`` held, if
 given), ``1`` a cell failed or the two cells disagree, ``2`` bad flags or an
 unreadable fixture.
 """
@@ -61,6 +51,7 @@ import base64
 import json
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -68,12 +59,12 @@ from pathlib import Path
 from typing import Any
 
 TIMEOUT = 300.0
+ACCEPT_QID = "accept-1"
+NOUL_QID = "noul-1"
 
 
 def _post(base: str, body: dict[str, Any], timeout: float = TIMEOUT) -> tuple[int, dict[str, Any] | str, float]:
     """-> (status, parsed body or raw text, wall seconds)."""
-    import time
-
     url = base.rstrip("/") + "/v1/systemone"
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
@@ -103,18 +94,45 @@ def _served_id(base: str, timeout: float = 30.0) -> str | None:
         return None
 
 
-def _label(body: dict[str, Any], question_id: str) -> tuple[str | None, str]:
-    """-> (label or None, why). Accepts the endpoint's answers map."""
+def _slot(body: dict[str, Any], question_id: str) -> tuple[dict[str, Any] | None, str]:
     answers = body.get("answers") if isinstance(body, dict) else None
     if not isinstance(answers, dict):
         return None, "response carries no answers map"
     slot = answers.get(question_id)
     if not isinstance(slot, dict):
         return None, f"answers has no {question_id!r}"
-    for key in ("noul", "answer", "choice", "label", "result"):
-        if key in slot and isinstance(slot[key], (str, bool)):
-            return str(slot[key]), ""
-    return None, f"answers[{question_id!r}] carries no label ({sorted(slot)})"
+    return slot, ""
+
+
+def _choice(slot: dict[str, Any]) -> tuple[str | None, float | None, str]:
+    """-> (label, confidence, why) from a ``type:choice`` answer slot."""
+    for key in ("choice", "answer", "label"):
+        if isinstance(slot.get(key), str):
+            conf = slot.get("confidence")
+            return slot[key], (float(conf) if isinstance(conf, (int, float)) else None), ""
+    return None, None, f"choice slot carries no label ({sorted(slot)})"
+
+
+def _noul(slot: dict[str, Any]) -> tuple[bool | None, float | None, str]:
+    """-> (direction, p_true, why) from a ``type:noul`` answer slot.
+
+    The endpoint answers noul with a probability, so this reads the
+    distribution — ``{"true": 0.944}``, or the same under ``probabilities`` —
+    and reports the argmax direction. A slot holding an explicit ``noul``
+    number is that probability (``p(true)``), read the same way.
+    """
+    dist = slot.get("probabilities") or slot.get("distribution") or slot.get("answer_distribution")
+    if not isinstance(dist, dict):
+        dist = {k: v for k, v in slot.items() if k in ("true", "false", "yes", "no")}
+    if not dist and isinstance(slot.get("noul"), (int, float)):
+        dist = {"true": float(slot["noul"]), "false": 1.0 - float(slot["noul"])}
+    vals = {k: float(v) for k, v in dist.items() if isinstance(v, (int, float))}
+    if not vals:
+        return None, None, f"noul slot carries no probability ({sorted(slot)})"
+    p_true = vals.get("true", vals.get("yes"))
+    if p_true is None:
+        return None, None, f"noul distribution is not true/false keyed ({sorted(vals)})"
+    return p_true > 0.5, p_true, ""
 
 
 def _wav_data_url(path: Path) -> str:
@@ -124,23 +142,27 @@ def _wav_data_url(path: Path) -> str:
     return "data:audio/wav;base64," + base64.b64encode(raw).decode("ascii")
 
 
+def _questions(question: str) -> dict[str, Any]:
+    return {
+        ACCEPT_QID: {
+            "type": "choice",
+            "instructions": question,
+            "criteria": {"yes": "the statement is true", "no": "the statement is false"},
+        },
+        NOUL_QID: {"type": "noul", "instructions": question, "criteria": {}},
+    }
+
+
 def _audio_body(model: str, spoken: str, question: str) -> dict[str, Any]:
     return {
         "model": model,
         "state": [{"type": "input_audio", "input_audio": {"data": spoken}}],
-        "questions": {QID: {"type": "noul", "instructions": question, "criteria": {}}},
+        "questions": _questions(question),
     }
 
 
 def _text_body(model: str, statement: str, question: str) -> dict[str, Any]:
-    return {
-        "model": model,
-        "state": statement,
-        "questions": {QID: {"type": "noul", "instructions": question, "criteria": {}}},
-    }
-
-
-QID = "audio-1"
+    return {"model": model, "state": statement, "questions": _questions(question)}
 
 
 def probe(base: str, model: str, wav: Path, statement: str, question: str, expect: str | None) -> dict[str, Any]:
@@ -159,34 +181,44 @@ def probe(base: str, model: str, wav: Path, statement: str, question: str, expec
         ("audio", _audio_body(model, data_url, question)),
         ("text", _text_body(model, statement, question)),
     )
-    labels: dict[str, str | None] = {}
     for name, body in checks:
         status, payload, elapsed = _post(base, body)
         cell: dict[str, Any] = {"status": status, "wall_s": round(elapsed, 3)}
         if status == 200 and isinstance(payload, dict):
-            label, why = _label(payload, QID)
-            cell["label"] = label
+            slot, why = _slot(payload, ACCEPT_QID)
+            if slot is not None:
+                label, conf, why = _choice(slot)
+                cell["label"] = label
+                if conf is not None:
+                    cell["confidence"] = conf
+            noul_slot, _ = _slot(payload, NOUL_QID)
+            if noul_slot is not None:
+                direction, p_true, _ = _noul(noul_slot)
+                cell["noul_true"] = direction
+                if p_true is not None:
+                    cell["noul_p_true"] = round(p_true, 4)
             cell["answers"] = payload.get("answers")
             cell["usage"] = payload.get("usage")
-            if why:
+            if "label" not in cell:
                 cell["problem"] = why
         else:
-            cell["problem"] = str(payload)[:400]
-        labels[name] = cell.get("label")
+            # Loud, not silent: the endpoint's own body is the finding.
+            cell["problem"] = str(payload)
         out["cells"][name] = cell
 
     ok = all(c.get("status") == 200 and c.get("label") is not None for c in out["cells"].values())
-    agree = labels.get("audio") is not None and labels.get("audio") == labels.get("text")
+    audio_label = out["cells"]["audio"].get("label")
+    agree = audio_label is not None and audio_label == out["cells"]["text"].get("label")
     out["verdict"] = "ok" if ok and agree else ("disagree" if ok else "failed")
     if expect is not None:
-        out["expect_held"] = labels.get("audio") == expect
+        out["expect_held"] = audio_label == expect
         if not out["expect_held"]:
             out["verdict"] = "expect-missed"
     return out
 
 
 class _Stub(BaseHTTPRequestHandler):
-    mode = "good"  # good | disagree | audio-400
+    mode = "good"  # good | disagree | audio-400 | audio-tokenflood
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - base signature
         return
@@ -212,10 +244,22 @@ class _Stub(BaseHTTPRequestHandler):
         )
         if spoken and self.mode == "audio-400":
             return self._send({"error": {"message": "this model has no audio input"}}, 400)
+        if spoken and self.mode == "audio-tokenflood":
+            return self._send(
+                {"error": {"message": "the prompt is too long: 364286 tokens > 8192 n_ctx"}}, 500
+            )
         label = "yes"
+        p_true = 0.944
         if spoken and self.mode == "disagree":
-            label = "no"
-        return self._send({"answers": {QID: {"noul": label, "probabilities": {"yes": 0.9, "no": 0.1}}}})
+            label, p_true = "no", 0.05
+        return self._send(
+            {
+                "answers": {
+                    ACCEPT_QID: {"choice": label, "confidence": 0.978},
+                    NOUL_QID: {"true": p_true, "false": round(1.0 - p_true, 4)},
+                }
+            }
+        )
 
 
 def selftest() -> int:
@@ -232,6 +276,10 @@ def selftest() -> int:
         good = probe(base, "stub/omni", wav, "a statement", "a question", "yes")
         if good["verdict"] != "ok" or not good.get("expect_held"):
             failures.append(f"good run not ok: {good['verdict']}")
+        if good["cells"]["text"].get("noul_true") is not True:
+            failures.append("noul probability direction not read as true")
+        if good["cells"]["text"].get("label") != "yes":
+            failures.append("choice label not read from a choice slot")
 
         _Stub.mode = "disagree"
         bad = probe(base, "stub/omni", wav, "a statement", "a question", None)
@@ -242,11 +290,29 @@ def selftest() -> int:
         dead = probe(base, "stub/omni", wav, "a statement", "a question", None)
         if dead["verdict"] != "failed" or dead["cells"]["audio"]["status"] != 400:
             failures.append(f"audio 400 not surfaced: {dead['verdict']}")
+        if "no audio input" not in dead["cells"]["audio"].get("problem", ""):
+            failures.append("audio 400 lost the endpoint's own text")
+
+        _Stub.mode = "audio-tokenflood"
+        flood = probe(base, "stub/omni", wav, "a statement", "a question", None)
+        if "364286 tokens" not in flood["cells"]["audio"].get("problem", ""):
+            failures.append("audio 500 lost the endpoint's token-count text")
+        if flood["cells"]["audio"].get("label") is not None:
+            failures.append("failed audio cell produced a label")
 
         _Stub.mode = "good"
         missed = probe(base, "stub/omni", wav, "a statement", "a question", "no")
         if missed["verdict"] != "expect-missed":
             failures.append(f"expect miss not flagged: {missed['verdict']}")
+
+        if _noul({"true": 0.9, "false": 0.1})[:2] != (True, 0.9):
+            failures.append("noul distribution shape not read")
+        if _noul({"noul": 0.2})[:2] != (False, 0.2):
+            failures.append("noul scalar shape not read")
+        if _noul({"probabilities": {"true": 0.6, "false": 0.4}})[0] is not True:
+            failures.append("noul under probabilities not read")
+        if _noul({"unrelated": 1.0})[0] is not None:
+            failures.append("noul invented a direction from an unreadable slot")
 
         bad_wav = Path(__file__).with_name(".selftest-notwav.wav")
         bad_wav.write_bytes(b"not a wav")
@@ -258,15 +324,9 @@ def selftest() -> int:
         finally:
             bad_wav.unlink(missing_ok=True)
 
-        empty = Path(__file__).with_name(".selftest-dead.wav")
-        empty.write_bytes(wav.read_bytes())
-        try:
-            _Stub.mode = "good"
-            down = probe("http://127.0.0.1:1", "stub/omni", empty, "s", "q", None)
-            if down["verdict"] != "failed":
-                failures.append(f"dead endpoint not failed: {down['verdict']}")
-        finally:
-            empty.unlink(missing_ok=True)
+        down = probe("http://127.0.0.1:1", "stub/omni", wav, "s", "q", None)
+        if down["verdict"] != "failed":
+            failures.append(f"dead endpoint not failed: {down['verdict']}")
     finally:
         server.shutdown()
         wav.unlink(missing_ok=True)
@@ -313,8 +373,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         Path(args.json).write_text(json.dumps(result, indent=1))
     for name, cell in result["cells"].items():
-        print(f"{name:5s} status={cell['status']} label={cell.get('label')!r} "
-              f"wall={cell['wall_s']}s" + (f" problem={cell['problem']}" if cell.get("problem") else ""))
+        line = (f"{name:5s} status={cell['status']} label={cell.get('label')!r} "
+                f"noul_true={cell.get('noul_true')} p_true={cell.get('noul_p_true')} "
+                f"wall={cell['wall_s']}s")
+        print(line + (f" problem={cell['problem']}" if cell.get("problem") else ""))
+        if cell.get("problem") and cell["status"] != 200:
+            print(f"  endpoint said: {cell['problem']}", file=sys.stderr)
     print(f"verdict: {result['verdict']}"
           + (f" (expect {result['expect']} → {result.get('expect_held')})" if args.expect else ""))
     return 0 if result["verdict"] == "ok" else 1

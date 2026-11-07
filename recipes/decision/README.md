@@ -238,21 +238,48 @@ accuracy number — an honest gap, marked as one in the receipt.
 | arch | **verified before authoring, and it is not what the name suggests:** the GGUF's `general.architecture` reads `lfm3` (not `lfm3_omni`), with `lfm3.decision.type = lfm3-d1-omni`; the image's `llama-server` carries `lfm3-d1-omni`, `input_audio`, `lfm3a`, `lfm3vl` and `systemone` in its strings, so upstream's decision endpoint and the LFM3 audio encoder are both in this ref |
 | accuracy | `—` — same declaration as the text arm (`metadata.decision_accuracy: none`): the house battery speaks chat, the JEV case set speaks another schema, and `run-arm.sh` records `accuracy_status: n/a` rather than a score over the wrong instrument |
 | API | `/v1/systemone` — typed decisions over a **text, JSON, image, video or spoken** state; the audio path is the surface this arm exists to probe |
-| status | **authored 2026-11-07, not booted** — `zz-` until a boot produces its cells |
+| status | **booted 2026-11-07 (`.35`, task `sparkrun_484956f99d685e0f_38adfbf5198a`)** — text path measured below, audio path **not reachable on this build**; keeps `zz-` |
 
-**What the audio cell can and cannot assert.** It proves acceptance and consistency: the endpoint
-takes a spoken state (an `input_audio` content part carrying a base64 WAV) through the same media path
-images use, answers with a schema-valid typed decision inside the served window, and gives the **same
-label as the same statement typed out** — that last one is the real falsifier, because a decoder that
-ignored the audio would answer from the question alone while a decoder fed garbage would disagree with
-its own text control. It does not prove transcription fidelity, WER, robustness to accent or noise, or
-that an agreeing label came from the speech rather than a language prior on the question. One fixture
-sentence is not an audio benchmark, and no instrument in this tree scores audio understanding.
+**Measurement (2026-11-07, `.35`, task `sparkrun_484956f99d685e0f_38adfbf5198a`).** The typed path
+behaves like its text sibling, slightly under it:
+
+| cell | req/s | decisions/s | ttft p50 |
+|---|---:|---:|---:|
+|c1|8.868|44.34|112.8 ms|
+|c2|9.316|46.58|—|
+|c5|9.399|47.00|—|
+|c10|9.458|47.29|1050.8 ms|
+
+500/500 decisions parsed. Every cell sits 0–4 % below
+[`liquidai-d1-2b-q8-systemone-llamacpp`](liquidai-d1-2b-q8-systemone-llamacpp.yaml) — the omni body is
+the same head on a larger checkpoint, so this is a floor, not a regression story.
+
+**The audio cell failed, and the failure is the finding.** Served on this build, `/v1/systemone` did
+take the request and answered a schema-valid decision — but it tokenised the WAV's base64 as **text**,
+364,286 tokens against the recipe's 8192-token window, and returned 500 rather than a decision. The
+endpoint does not decode `input_audio` in this llama.cpp ref even though the projector loads and the
+binary carries `input_audio` and `lfm3a`. So this arm's audio path is **not reachable served**: the
+probe records no audio result, the text cells stand alone, and the arm does not get an audio claim
+until an engine ref feeds the decision endpoint through the mtmd media path. (Text `type:choice`
+answers `{choice: yes, confidence 0.978}`; `type:noul` answers a probability `{noul: 0.9439}` — the
+probe reads both shapes and never invents a label for the second.)
+
+**What the audio cell can and cannot assert**, once some engine does reach it: it proves acceptance and
+consistency — the endpoint takes a spoken state (an `input_audio` content part carrying a base64 WAV)
+through the same media path images use, answers with a schema-valid typed decision inside the served
+window, and gives the **same answer as the same statement typed out**. That last one is the real
+falsifier: a decoder that ignored the audio would answer from the question alone, while a decoder fed
+garbage would disagree with its own text control. It does not prove transcription fidelity, WER,
+robustness to accent or noise, or that an agreeing answer came from the speech rather than a language
+prior on the question. One fixture sentence is not an audio benchmark.
 
 **Probe.** [`tools/omni-audio-probe.py`](../../tools/omni-audio-probe.py) sends both cells and compares
-them; `--expect` turns a wrong label into `expect-missed` instead of a quiet pass, and `--selftest` runs
-four offline controls (agree, disagree, audio-400, non-WAV fixture). The fixture is the drama-3 render
-already on the head — it speaks
+them: the acceptance cell asks a `type:choice` question (a label, so `--expect` can hold or miss), and
+a second `noul` cell records the probability and its direction — the endpoint answers noul with a
+number, never a label. A non-200 audio cell carries the endpoint's own body into the result and prints
+it, so the token-count 500 above is the recorded output rather than a silent null. `--selftest` covers
+both answer shapes plus agree, disagree, audio-400, audio token-flood and a non-WAV fixture. The
+fixture is the drama-3 render already on the head — it speaks
 
 > "The quarterly report is due on Thursday, so please finish it by noon."
 

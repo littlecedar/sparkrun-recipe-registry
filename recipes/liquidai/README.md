@@ -60,11 +60,25 @@ Liquid's own terms, which is `finetuning/`'s business and not a recipe flag.
 ## Instruments — one per modality, and they are not interchangeable
 
 A 1.7B text model, a VL shim, an ASR/TTS model and an omni model do not share a ladder. The lane
-picks the instrument the deliverable needs: `benchmarking/llama-benchy/*` and
-`benchmarking/standard-suite.yaml` for the text and VL arms; the media lane's WER instrument (the
-`Cactus-Compute/whistle` needle route, `recipes/media/README.md`) for `LFM3-Audio-2B`, with the
-open TTS leaderboard as the external reference; and the decision ladder for `d1-*`. Reporting a
-`C1 t/s` from an audio model would be a category error, not a measurement.
+picks the instrument the deliverable needs: `benchmarking/concurrency-ladder.yaml`
+(`llama-benchy`) and `benchmarking/standard-suite.yaml` for the **text** arms; the decision ladder
+(`tools/decision-ladder.py`, `tools/jev-decision-bench.py`) for `d1-*`; and for `LFM3-Audio-2B` a
+word error rate against known text — [`tools/audio-asr-tts-probe.py`](../../tools/audio-asr-tts-probe.py)
+scores `/v1/audio/transcriptions` against the sentence the clip is known to speak, then speaks that
+sentence back through `/tts` and scores the round trip. Reporting a `C1 t/s` from an audio model
+would be a category error, not a measurement.
+
+**Vision has no instrument yet, and that is a scope fact rather than a gap to paper over.**
+`benchmarking/standard-suite.yaml` is tool-eval-bench's core 15 — text tool-calling, greedy, 8
+turns — and carries no image or audio task; nothing else in this tree scores image understanding
+(`tools/pooling-bench.py`'s `image_url` paths feed *embedding and rerank* arithmetic, not a VLM
+answer, and `tools/synthetic_png.py` synthesises solid-colour fixtures for those). So
+`liquidai-lfm3-vl-2b-arm` and `liquidai-lfm3-omni-2b-arm` can honestly produce throughput and
+**acceptance** — the request took an image part and the reply was not blank — never an accuracy
+number, and a queue row promising them a "standard suite" score overstates what exists. The media
+lane's whistle chain is speech in, not vision. The speech member is the only one of the three with
+a real quality cell, which is why `zz-liquidai-lfm3-audio-2b-llamacpp` is the only one of them
+authored so far.
 
 ## Arms — measured 2026-11-07
 
@@ -154,11 +168,11 @@ cell of 0 on the first boot is a **parser** question before it is a model questi
 serve log's template/tool lines, then add a parser flag only if the engine lists one for this
 template. Receipts belong in `~/benchmarks/liquidai-<date>/`.
 
-## Control arm — `zz-liquidai-lfm3-1.7b-base-f16-llamacpp` (authored 2026-11-07, not booted)
+## Control arm — `zz-liquidai-lfm3-1.7b-base-f16-llamacpp` (booted 2026-11-07)
 
 The fine-tune control for this lane's instruct pair: `LiquidAI/LFM3-1.7B-Base`, the same tokenizer
-and conv+attention body without instruction training. It stays `zz-` until a boot produces its
-cells. Recipe [`zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml`](zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml).
+and conv+attention body without instruction training. It keeps `zz-` until a second boot
+reproduces the cells below. Recipe [`zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml`](zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml).
 
 **Why an F16 GGUF and not a vendor mirror.** No first-party base GGUF exists —
 `LiquidAI/LFM3-1.7B-GGUF` carries the *instruct* weights only (BF16/F16/NVFP4/Q4_K_M/Q5_K_M/Q6_K/Q8_0/
@@ -226,10 +240,91 @@ python3 raw-ladder.py     # repeat at c=1 n=5 and quote medians, never one sampl
 absence of a template, not the model. `tools/run-arm.sh` should not drive this arm either: its generic
 branch runs the chat ladder and the standard suite, both of which address `/v1/chat/completions`.
 
+**Measurement (2026-11-07, `.30`, task `sparkrun_8570e971ede06a8c_1bf4b73daabb`).** First boot,
+`raw-ladder.py` against the live serve, medians of five runs per cell, `cache_prompt: false`:
+
+| cell | pp t/s | tg t/s |
+|---|---:|---:|
+|c1 (n=5)|10,197.23|63.77|
+|c10 (n=5)|2,270.66|37.48|
+
+`prompt_n` 2201, `predicted_n` 128 — engine-native timings, so the cells are the model's own
+prefill and decode rather than a harness's view. Read `c10` as serialisation, not concurrency: the
+arm serves `parallel: 1`. `accuracy_status: n/a` is recorded for the reason above — the house and
+tool batteries speak chat and would score a missing template. Receipt
+`~/benchmarks/tp12-20261107/zz-liquidai-lfm3-1.7b-base-f16-llamacpp/`. No instruct comparison is
+claimed from these numbers alone: the instruct arms were measured under `llama-benchy`'s depth-0
+shape, and a base decoder's `tg` over a filler prompt is not the same measurement.
+
 **Launch (ready for the operator's next `.30` slot):**
 
 ```bash
 sparkrun run recipes/liquidai/zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml -H <node> --cluster WOPR
+```
+
+## Audio arm — `zz-liquidai-lfm3-audio-2b-llamacpp` (authored 2026-11-07, not booted)
+
+The family's speech member — `LiquidAI/LFM3-Audio-2B`, ASR and TTS in one 2B hybrid
+conv+attention body. Recipe
+[`zz-liquidai-lfm3-audio-2b-llamacpp.yaml`](zz-liquidai-lfm3-audio-2b-llamacpp.yaml), `zz-` until a
+boot produces cells.
+
+**Route decided from evidence, and it is the server — not the card's `llama-tts` script.** The card
+documents `llama cli --audio` and a `llama-tts -o out.wav` binary; this image ships neither
+(`/usr/local/bin` holds `llama-server` and `llama-cli` only), so a script arm would be unrunnable and
+an image build would be unjustified. What the pin actually contains, read before authoring:
+
+| evidence | reading |
+|---|---|
+| GGUF `general.architecture = lfm3`, 24 blocks, 128,000 ctx, 2,048 embed | the decoder is the same `lfm3` body the text arms already load |
+| projector GGUF `general.architecture = clip`, `clip.has_audio_encoder = 1`, 285M | audio goes in through the ordinary mtmd media path, not a bespoke one |
+| GGUF carries `tokenizer.chat_template` (9,328 B) **and** `chat_template.tts` (875 B, language-name map) | the renderer the endpoints need ships in the file |
+| `tools/server/server.cpp` at `6023692` registers `POST /v1/audio/transcriptions`, `POST /tts`, WS `/v1/realtime` | both directions are HTTP surface of the pinned server |
+| `common/chat.cpp` at the pin has `lfm3_asr_system_prompt()` (ISO code → language name, auto-detect when absent) and `common_chat_get_tts_prompt()` reading the model's `tts` template; `server-context.cpp` names **LFM3-Audio** as the model that renders its TTS prompt from that template | first-class support for this family, not a generic audio toy |
+| binary strings: `/v1/audio/speech` absent, `/tts` present, no `llama-tts` executable | TTS is `/tts`, not the OpenAI speech route, and not a second process |
+
+So the arm is a server recipe: `--mmproj` beside the weights, ASR at
+`/v1/audio/transcriptions`, TTS at `/tts`. F16 weights and F16 projector on purpose — this is the
+lane's measurement arm for speech, and quantisation noise has no business in a word-error-rate cell.
+
+**Cells, and what they can assert.** [`tools/audio-asr-tts-probe.py`](../../tools/audio-asr-tts-probe.py)
+runs three against one boot:
+
+| cell | request | asserts |
+|---|---|---|
+| `asr` | multipart `/v1/audio/transcriptions` with the drama-3 clip | transcript scores **WER ≤ 0.25** against the sentence the clip is known to speak |
+| `tts` | `POST /tts {"input": <that sentence>, "lang": "en", "response_format": "wav"}` | a RIFF/WAVE body with a real duration, a sample rate and non-silent PCM — not an HTTP 200 |
+| `roundtrip` | the synthesised wav back through the ASR endpoint | **WER ≤ 0.40** against the text it was asked to speak |
+
+Falsifiers, all in the tool's `--selftest`: a transcript produced without hearing the audio scores
+1.0 against the ground truth and fails the cell; a round trip whose transcript is a paraphrase crosses
+its threshold; silence is rejected by the wav check rather than counted as speech; a server that
+answers `/tts` with 501 "does not support audio generation" surfaces that body instead of a null.
+
+**Cannot prove.** This is one clean sentence from one voice. It says nothing about accent, noise,
+overlap, long-form or another language, and the round trip is bounded by the same model on both
+ends, so it measures mutual intelligibility of its own render — never a MOS or a listener's verdict.
+A low WER here is the arm being alive and hearing one fixture, not an ASR benchmark. The media lane's
+whistle chain is the reference instrument when renders have no ground-truth text.
+
+**`accuracy_status: n/a`** for the house battery for the same reason as the omni arm: the battery
+speaks chat tool-calling and cannot address a speech arm.
+
+```bash
+python3 tools/audio-asr-tts-probe.py --selftest        # offline stub, ~1 s
+
+# the cells
+python3 tools/audio-asr-tts-probe.py \
+  --base-url http://<node>:8022 \
+  --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \
+  --statement "The quarterly report is due on Thursday, so please finish it by noon." \
+  --lang en --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-lfm3-audio-2b-llamacpp/asr-tts.json
+```
+
+**Launch (ready for the operator's next `.30` slot):**
+
+```bash
+sparkrun run recipes/liquidai/zz-liquidai-lfm3-audio-2b-llamacpp.yaml -H <node> --cluster WOPR
 ```
 
 ## Fine-tuning

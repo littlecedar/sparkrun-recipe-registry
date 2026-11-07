@@ -1,0 +1,75 @@
+recipe_version: "2"
+# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. LFM3's ASR+TTS member on the
+# llama.cpp build the lane's other LFM3 arms run. Route decided from evidence, not the card's
+# prose: the GGUF's `general.architecture` is `lfm3` (the same body the text arms load), its
+# projector is a `clip` GGUF with `clip.has_audio_encoder = 1`, and llama.cpp `6023692` carries
+# both audio endpoints (`tools/server/server.cpp` routes), the LFM3 ASR system prompt and a
+# `chat_template.tts` renderer. So this is a SERVER arm, not the card's script route: ASR is
+# `POST /v1/audio/transcriptions`, TTS is `POST /tts`, no `llama-tts` binary needed (the image
+# ships only `llama-server` and `llama-cli` anyway).
+model: LiquidAI/LFM3-Audio-2B-GGUF:F16
+model_revision: 39670cb5c42e9c4bfe046519ba7ffbe47f9552ad
+runtime: llama-cpp
+max_nodes: 1
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+# audio tower + speech codec. The GGUF's own `tokenizer.chat_template` (9,328 B) and
+# `chat_template.tts` (875 B, carries the language-name map) are what the endpoints render
+# through, so the arm needs the projector beside the weights and nothing else.
+mmproj: mmproj-LFM3-Audio-2B-F16.gguf
+description: >-
+  LiquidAI/LFM3-Audio-2B — the LFM3 family's speech member (24-layer hybrid conv+attention
+  body, 128k window, 12-codebook speech decoder) on ONE DGX Spark through llama-server:
+  speech in through `/v1/audio/transcriptions`, text in through the same endpoint, and
+  speech out through `/tts`. Sized as the measurement arm of the family, so it takes F16
+  weights and F16 projector rather than the card's Q4_K_M run line — quantisation noise has
+  no business in a word-error-rate cell. LFM Open License v1.0 (ordinary arm —
+  `mad-science/QUESTIONS.md` #56).
+metadata:
+  model_url: https://huggingface.co/LiquidAI/LFM3-Audio-2B-GGUF
+  base_model: https://huggingface.co/LiquidAI/LFM3-Audio-2B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "2B"
+  model_dtype: fp16
+  kv_dtype: fp16
+  tags: audio, asr, tts, license
+  caveats: >-
+    Cells assert acceptance and word error rate on ONE known-text fixture, not ASR quality:
+    no accent, noise, overlap or long-form condition, and the round trip is bounded by the
+    same model on both ends. A low WER here says this clip was heard, nothing about another
+    speaker. `accuracy_status: n/a` for the house battery, which speaks chat tool-calling and
+    cannot address a speech arm; the media lane's whistle chain (`recipes/media/README.md`)
+    is the reference instrument once renders have no ground-truth text.
+executor_config:
+  entrypoint: ""
+readiness:
+  port_timeout_s: 900
+  health_timeout_s: 900
+defaults:
+  port: 8022
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds the staged GGUF file, so the served id
+  # would be the cache path.
+  served_model_name: LiquidAI/LFM3-Audio-2B
+  # 128k is native, but both cells are one clip and one sentence; 16k holds a minute of
+  # speech tokens with room for the transcript.
+  ctx_size: 16384
+  batch: 2048
+  parallel: 1
+  n_gpu_layers: 999
+  temperature: 0.0
+  load_mode: none
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b {batch}
+  -ub {batch}
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching
