@@ -50,5 +50,3 @@
 
 | time ET | commit | one clause |
 |---|---|---|
-| 15:52 ET | `b1d85af` | The board's `register` row now stamps the queue-verification time the tick actually ran (15:51 ET) instead of a 15:50 ET figure borrowed from the 15:03 copy; `check` and `render --board` prove the table itself identical. |
-| 15:54 ET | `8521874` | The census row names the quartet's image and proves it against the registry rather than a local tag: the pinned ghcr manifest `sha256:7c3cb394…` carries config digest `sha256:3f4480818acb…`, the image ID all four ranks run, while local `canary-roce-aff52fa5` carries no `RepoDigests`. |

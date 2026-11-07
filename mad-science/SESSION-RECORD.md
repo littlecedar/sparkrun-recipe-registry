@@ -2611,3 +2611,16 @@ ordering them, which is why the file has been going backwards.
   serving, not idle — `/v1/models` 200 naming `deepseek-ai/DeepSeek-V4.1-Flash-1017` at
   `max_model_len` 1,048,576, one `python3 -m sglang.launch_server` child per rank, and its in-container
   `/tmp/sparkrun_serve.log` grew **1,484,193 → 1,868,700 B** between 13:56 and 15:26 ET.
+
+## 2026-11-06 19:05 ET — board landed rows retired (session boundary)
+The 19:01 ET tick swept the board's two `Landed session` rows: each tick is its own one-shot
+`omp -p --no-session` session, so both rows predated the tick that cleared them, and neither SHA
+appeared anywhere in this file. Their clauses are carried here in full.
+
+- **15:52 ET** `b1d85af` — The board's `register` row now stamps the queue-verification time the tick
+  actually ran (15:51 ET) instead of a 15:50 ET figure borrowed from the 15:03 copy; `check` and
+  `render --board` prove the table itself identical.
+- **15:54 ET** `8521874` — The census row names the quartet's image and proves it against the registry
+  rather than a local tag: the pinned ghcr manifest `sha256:7c3cb394…` carries config digest
+  `sha256:3f4480818acb…`, the image ID all four ranks run, while local `canary-roce-aff52fa5` carries
+  no `RepoDigests`.
