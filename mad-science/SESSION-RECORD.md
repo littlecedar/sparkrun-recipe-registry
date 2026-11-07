@@ -3173,3 +3173,39 @@ falls is withdrawn (`.31`/`.32` serve identically and moved ~190 kB), and §08:3
 `du` mechanism is replaced — the under-report is the HF cache's **symlink** layout
 into `hub/blobs/<xx>/<sha>`, measured with `stat -L`, not a client accounting
 quirk. The pool attribution itself stands and is unchanged.
+
+## 2026-11-07 09:20 ET — tick: the storage fall tapers, and the sentence that missed the board
+
+Two extra reads on the four-rank storage nodes (`.32` / `.33` / `.34`) turn the
+fleet-wide root fall into a rate series, and it is decaying, not steady:
+
+| interval | seconds | per-node fall on `.32` / `.33` / `.34` | rate |
+|---|---|---|---|
+| 08:48:40 → 09:01:48 | 788 | −9,539,584 B each | 12,106 B/s |
+| 09:01:48 → 09:02:07 | 19 | −53,248 / −61,440 / −57,344 B | 2,802 / 3,234 / 3,018 B/s |
+| 09:02:07 → 09:09:17 | 430 | −634,880 / −634,880 / −638,976 B | 1,476 / 1,476 / 1,486 B/s |
+
+A monotonically tapering rate is what a finished write's tail looks like, so the
+honest statement is "still measurable, decelerating, no writer named" — not
+"ongoing write traffic". No session container existed on any of those nodes at
+either read (container counts `0 / 1 / 1 / 1 / 1 / 1`, volumes `0`), and the
+quartet answered `/health` **200** on all four ranks with one
+`sglang.launch_server` child each (pids 280 / 311 / 310 / 312) and `/v1/models`
+**200** on `.31`; `.35`'s ornith boot was healthy at 18 minutes.
+
+**That sentence never reached the board.** This tick published it at 09:10 into
+`mad-science/STATUS.md`, but a peer tick's full-file publish replaced the file
+at 09:12, and `git commit -- mad-science/STATUS.md` then snapshotted the
+worktree as it stood — so `1b0f24d`, whose subject says "Board 09:10: storage
+fall tapers", carries the 09:12 board instead, and `c13ae31` records the
+attribution from the other side. Bytes are intact and no history was rewritten;
+what is wrong is that `1b0f24d`'s message describes a census sentence its tree
+does not contain. The measurement now lives here, which is where a figure that
+has left current state belongs.
+
+Two smaller notes from the same reads. `df -BG` display cells stayed
+1354 / 1739 / 1790 / 1690 / 1170 / 1400 across every read of the hour — rounding,
+not stasis; the byte column is the figure. And the earlier reading of a peer's
+row that `refresh-weights-and-runtime-repin` was "left untouched by `f5e7afd`"
+was itself wrong in the other direction: the commit did rewrite that row's notes
+with lane set 1's verdicts, and only the `queued` state token stayed.
