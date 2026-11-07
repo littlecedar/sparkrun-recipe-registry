@@ -3742,3 +3742,17 @@ therefore what survives.
 | 16:22 ET | `2633ee7` | Appended the session close-out to `SESSION-RECORD.md` as a 160-line append-only section — the director's production lifecycle and drained acceptance campaign, two live-state defects with their structural fixes, the lane sweep, and the three remaining blockers; suite 1,275 ok / 2 skipped. |
 | 16:36 ET | `e0fc4e1` | Folded the standalone audio arm's cells into `recipes/liquidai/README.md` — ASR 200 in 0.589 s at WER 0.000, `/tts` 200 as a 238,124 B 24 kHz 4.96 s wav, round trip 200 at WER 0.000, cgroup 1.14 GiB — with the experimental-audio warning and the `:F16`→BF16-named-file trap, and re-took the `--strict` snapshot. |
 | 16:41 ET | `840df69` | Said what that re-taken snapshot actually measured: 96 tracked recipes scanned, 53 printing a finding (20 carrying a warning, the rest suggestions only), and that the LiquidAI and 3D arms add no row because an accuracy declaration belongs inside `metadata:`. |
+
+## 2026-11-07 18:15 ET — board landed rows homed (session boundary)
+
+Each hourly tick is its own one-shot session, so the rows the 17:21 ET board (`fddce3c`) opened belong to the session before this one. `git grep -c <sha> -- mad-science/SESSION-RECORD.md` returned nothing for every SHA in the table, so all five are carried here verbatim out of `mad-science/STATUS.md` before the table is cleared: the three the previous session wrote plus the two it landed afterwards (`fddce3c`, `3e37df5`), which the 18:10 ET tick added.
+
+This tick published no board of its own: a peer tick committed `4d6e32d` at 18:11:12 on the same 18:01 ET census, so its board is kept and corrected in place rather than replaced (one wrong operand fixed — the battery row paired index 74 with 75 reply rows, which cannot both hold when 16 of those rows are the copied smoke prefix).
+
+| time ET | commit | one clause |
+|---|---|---|
+| 17:06 ET | `2efa5d8` | Homed the 72 `Landed session` rows the previous session left on the board plus the six commits after their last rowed SHA — 48 of the 74 unique SHAs had no mention in `SESSION-RECORD.md` and 44 appear nowhere else in the tree — so this table could be cleared without orphaning anything. |
+| 17:07 ET | `78e4c3f` | Refreshed the same 17:02 census with the 3D battery's index at 50/213 and the render gate's 24/46 clean at N=46. |
+| 17:10 ET | `810adb4` | Replaced two weaker board claims with their operands: eight `state.json` roots on the head carrying **0 leases** with every arm terminal (not "no lease printed"), and the battery's 50 as the **resume index** so 34 replies at 111.4 s/reply reconcile with the driver's own rate. |
+| 17:22 ET | `fddce3c` | Folded three fixes onto the peer's 17:20 board without replacing it (its census prose, campaign-lease operands and battery resume-index correction kept verbatim): a second overlapping byte pair (17:02:24→17:03:53, 89 s, fleet −616,496 B = 6,927 B/s), six absolute `df -B1` values, the zero-lease campaign claim re-counted over eight roots, the 3D cgroup figure named as two states of one boot, and the 72 inherited landed rows cleared once `2efa5d8` homed them in `SESSION-RECORD.md`. |
+| 17:26 ET | `3e37df5` | Closed `lint`'s other direction: a title stamped ahead of the wall clock made every later honest stamp read as `title-regression`, so `future-stamp` now refuses it at minute resolution — two tests with the pre-fix pass as the negative control, in `tools/task-queue.py` + `tests/test_task_queue_tool.py` with the `AGENTS.md` suite statements. |
