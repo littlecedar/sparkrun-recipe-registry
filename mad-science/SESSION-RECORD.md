@@ -3091,11 +3091,13 @@ this tick added no second copy and did not re-retire them.
 Byte series, all three reads this tick's own: `.30` fell 1,913,757,696 B over
 the 41 min but rose 49,152 B over the last 125 s; `.31` −12,267,520 / −196,608;
 `.32` −21,340,160 / −184,320; `.33` −29,708,288 / −8,577,024; `.34`
-−29,716,480 / −8,568,832; `.35` −11,874,304 / −167,936 B. The two 8.57 MB drops
-on the serving ranks over 125 s are the pair writing as it serves, and `.30`'s
-1.78 GiB lands inside that activity, which a repeated `docker run` does not
-normally write; its cause was **not probed**, and the board records the operand
-rather than an attribution.
+−29,716,480 / −8,568,832; `.35` −11,874,304 / −167,936 B. The 8.57 MB drops on
+`.33`/`.34` over 125 s have **no established cause**, and the first draft's "the
+serve writing as it serves" is withdrawn: `.31`/`.32` run the same serve and moved
+~190 kB in that same window, so the operands contradict it. `.30`'s 1.78 GiB lands
+inside the probe-loop window and a repeated `docker run` does not normally write
+that much, so it too is recorded as an operand; §08:38 accounts for the hour's
+total as pool traffic, not as either node's local writer.
 
 ## 2026-11-07 08:38 ET — the 18.7 GB fleet-wide disk mystery was the pool's own traffic
 Board refreshed at 08:38 ET on an **08:30:41 ET** census, superseding the 08:27
@@ -3121,11 +3123,25 @@ it `.31` / `.32` / `.35` 4.63 GB each and `.30` 2.83 GB, with `.33`/`.34` at
 
 **Rule it buys:** a multi-GB fall on several nodes at once with no container, no
 image pull and no large touched file is **pool traffic**, so read
-`/mnt/beegfs/huggingface/hub` mtimes — and `du` there is not a size oracle
-(it reported 9.5 KB for that 18.49 GB entry, since the client does not count the
-chunk store's blocks) — before hunting a local writer. Also: the burst had
-already stopped, so a falling series needs one more read before it is described
-as a live writer (12 KB/25 s on `.35`, 0.5 MB/20 s on the pool).
+`/mnt/beegfs/huggingface/hub` mtimes before hunting a local writer. And `du`
+there is not a size oracle: it reported 9.5 KB (4.9 KB apparent) for that
+18,494,977,472 B body because the cache directory holds **symlinks** into a
+shared `hub/blobs/<xx>/<sha>` store and `du` does not follow them — `stat -L` on
+the snapshot file gives size 18,494,977,472 B, blocks 36,123,003, so the bytes
+are real and allocated. (First draft of this paragraph blamed the BeeGFS client
+not counting chunk-store blocks; that mechanism was invented, not measured, and
+the symlink layout is the observed cause.) Also: the burst had already stopped,
+so a falling series needs one more read before it is described as a live writer
+(12 KB/25 s on `.35`, 0.5 MB/20 s on the pool).
+
+**And a guard defect worth carrying:** `tools/task-queue.py`'s `board_stamp`
+parses `YYYY-MM-DD HH:MM[:SS] ET` out of `| census |` lines, so a census cell
+that stamps a *range* (`2026-11-07 08:38:56–08:39:03 ET`) matches nothing and
+the freshness guard silently falls back to comparing titles — the exact stale-read
+overwrite it exists to prevent. It was live for two publishes this hour (both
+printed a title, not a census, in their `(disk was …)` tail). The 08:52 board
+writes one parseable stamp and says why; a tick that reads a range form should
+re-stamp it rather than trust the guard.
 
 The `.30` probe loop is likewise identified: repeated `docker run --rm` of
 `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324…`, one
@@ -3134,3 +3150,26 @@ container per depth rung of the PLE sweep `0a08660` closed on, receipt
 `queued` with an empty `claimed_by` while its prepare visibly ran — its own
 evidence says "Prepared 2026-11-07, NOT booted", so the row is honest; the
 missing piece is a claim, which is reported, not assigned.
+
+## 2026-11-07 08:52 ET — `.35` booted the ornith DFlash2 arm, and a parseable census stamp
+The 08:52 board carries an **08:48:40 ET** census (counts `0 / 1 / 1 / 1 / 1 / 1`,
+volumes 0, register 19 open, no `claimed_by`) and one new in-flight row: `.35` is
+running a **research boot**, `sparkrun` task `78c7e2fa335a63e5_26fe38ad05c8`,
+recipe `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml`, started
+08:44:52 ET, `/health` 200 and `/v1/models` serving
+`ornith-ai/Ornith-1.5-35B-A3B-NVFP4` — ready, and no register row claims it.
+
+**Probing lesson, because it nearly produced a false negative:** the serve is
+`/opt/sglang/bin/sglang serve …`, the new CLI, so `pgrep -f sglang.launch_server`
+inside a perfectly healthy rank returns **zero** processes; read the argv (or
+`/v1/models`) rather than matching a launch pattern. On the production quartet the
+same check is the old `-m sglang.launch_server` form, so the two classes need
+different patterns — which is why the quartet row's pid evidence and this row's
+`/v1/models` evidence are not interchangeable.
+
+Two corrections to earlier sections of this record, both mine and both published
+the same hour: §08:14's "the serve writing as it serves" for `.33`/`.34`'s 8.57 MB
+falls is withdrawn (`.31`/`.32` serve identically and moved ~190 kB), and §08:38's
+`du` mechanism is replaced — the under-report is the HF cache's **symlink** layout
+into `hub/blobs/<xx>/<sha>`, measured with `stat -L`, not a client accounting
+quirk. The pool attribution itself stands and is unchanged.
