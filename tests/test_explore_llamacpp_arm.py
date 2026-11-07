@@ -42,11 +42,13 @@ RECIPE = (REPO_ROOT / "recipes" / "explore"
           / "mellum2.1-12b-a2.5b-q4km-thinking-llamacpp.yaml")
 
 # The GGUF sibling of the lane's bf16 arm. Revision read from the Hub 2026-10-16
-# (attic/explore/MELLUM-21.md §5); `general.architecture = mellum` re-verified by
+# (attic/explore/MELLUM-21.md §5) and moved 2026-11-07 to 4159d684 with the whole
+# family — that revision's shipped quants are byte-identical at blob level and it
+# adds the MTP BF16/draft GGUFs; `general.architecture = mellum` re-verified by
 # a Range-read of the Q4_K_M header 2026-10-17 (mad-science/LLAMACPP-GGUF.md §2).
 MODEL = "JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF"
 QUANT = "Q4_K_M"
-MODEL_REVISION = "20b439426f1e997ba575eaccaf4856ac0f76f5d5"
+MODEL_REVISION = "4159d684ffdb09ba89dc2a58feb3e75c54eef036"
 
 # Tag AND digest: `b10549-cu131` is what the digest contains, `:latest` is the
 # same bytes today and not tomorrow.

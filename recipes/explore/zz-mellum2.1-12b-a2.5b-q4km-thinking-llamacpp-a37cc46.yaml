@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M
-model_revision: 20b439426f1e997ba575eaccaf4856ac0f76f5d5
+model_revision: 4159d684ffdb09ba89dc2a58feb3e75c54eef036
 runtime: llama-cpp
 # Pin both: the scitrera tier retags `latest` per build (458 tags), so the tag
 # names the build inside (llama.cpp 0.1.2-dev, commit b2e5e9b, CUDA 13.1.1,

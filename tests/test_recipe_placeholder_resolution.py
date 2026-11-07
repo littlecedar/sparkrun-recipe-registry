@@ -200,11 +200,12 @@ class LiteralShaConsistency(unittest.TestCase):
 
     Exemption (2026-10-26, mirrors 7fa352d): 40-hex tokens inside an
     `-md <path>` literal name the llama.cpp draft head — the same
-    different-artifact class (the head lives at its own revision inside the
-    same model repo and has no top-level pin of its own;
+    different-artifact class (the head can live at its own revision inside
+    the same model repo and has no top-level pin of its own;
     recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml
-    serves the Q8_0 head from the pool snapshot at 4159d684 while the main
-    GGUF pins 20b43942). The main model's snapshot tokens stay pinned.
+    names the Q8_0 head's snapshot path, which since the 2026-11-07 family
+    move is the same revision the main GGUF pins). The main model's
+    snapshot tokens stay pinned.
     """
 
     SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])")

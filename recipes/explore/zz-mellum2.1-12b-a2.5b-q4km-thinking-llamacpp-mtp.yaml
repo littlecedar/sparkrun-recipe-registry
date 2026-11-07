@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M
-model_revision: 20b439426f1e997ba575eaccaf4856ac0f76f5d5
+model_revision: 4159d684ffdb09ba89dc2a58feb3e75c54eef036
 runtime: llama-cpp
 # PROBE (not shippable) — the Mellum llama-cpp arm plus the checkpoint's own MTP
 # draft head, on the stock-upstream `a37cc4610` build (the digest is fixed below).
