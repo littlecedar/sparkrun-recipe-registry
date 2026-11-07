@@ -420,7 +420,10 @@ remove what the session created** — a leftover is anything undocumented, unkno
   means a lock written there never leaves the clone that wrote it, so a window declared on the head was
   invisible to every other checkout (measured 2026-10-30); `.local/` is synced and git-ignored, which
   is what a shared, untracked claim needs. `tools/queue-drip.py` reads both paths so an older lock is
-  still honoured.
+  still honoured. **A campaign holds nodes without writing this lock** (`campaign/DESIGN.md`
+  §Supervision): its claim is `<CAMPAIGN_ROOT>/state.json` on the head plus
+  `systemctl --user is-active sparkrun-campaign.service`, so "no lock" is not an idle fleet — read the
+  campaign state before planning onto its hosts, and never boot onto a live lease.
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
   and one interconnect shape — and a node's controller or mgmtd duty is never a reason to exclude it
