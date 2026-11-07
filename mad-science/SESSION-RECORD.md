@@ -2810,3 +2810,19 @@ nodes (the four are the protected production serve, so research containers are 0
 `/health` 200 on all four ranks with unchanged serve pids 280/311/310/312, so no rank restarted in
 the hour. Root avail fell a near-identical 5.08–5.29 GiB on `.31`/`.32`/`.33`/`.35`, 243 MiB on
 `.34` and 328 MiB on `.30`; recorded as measured, with no cause attributed.
+
+## 2026-11-07 04:17 ET — the 04:17 census finds a research pair live, with no claim on it
+The 04:17 ET tick's census is the first read today that is not four-containers-only: container counts
+`.30`→`.35` came back **1 / 1 / 1 / 1 / 1 / 1** where the 04:02 and 04:06 reads had **0 / 1 / 1 / 1 / 1 / 0**,
+because a research **pair** boot went live at 04:11:55 ET — task
+`sparkrun_38aaa36e56a717b8_63f75ad1f338`, recipe label
+`recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml` (a worktree path, so
+it was launched from a working tree and not from the published registry), `tensorfold serve
+/cache/runtime/dsv41-ablit --tp 2 --mtp-drafts 5 --context 1048576 --parallel 4`, rank 0 on `.30` and
+rank 1 on `.35`. Probe at 04:20 ET: `/health` 200 on `.30` and 000 on `.35`, `/v1/models` 200 and a
+1-token chat completion 200 from `.30`; the rank-0 serve log is `/tmp/sparkrun_serve.log` inside the
+container, and `/cache/runtime/modlogs/tensorfold-dsv41-launcher.log` is the launcher's. **The tick did
+not assign it an owner:** neither `tp2-acceptance-log-level` nor `engram-cache-hit-rate` — the two
+register rows that could claim it — carries `claimed_by`, and no `.local/fleet-window.lock` exists
+(a pair, not the quartet set). Both facts are on the board's census and register rows; this paragraph
+is the durable copy of them.
