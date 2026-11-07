@@ -39,6 +39,7 @@ This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from
   - [Decision](#decision)
   - [Media](#media)
   - [Explore](#explore)
+  - [Liquid AI](#liquid-ai)
   - [Cybersec](#cybersec)
 - [CI](#ci)
 - [License Policy](#license-policy)
@@ -299,6 +300,13 @@ measurement.
 * _The **Laguna-M.1** row is the family's **two-node ceiling reference** (2026-10-20 test pair, `bench_6ca06d393d60`, 129.75 GiB staged, 259.51 GiB distributed): C1 **12.85 ± 0.08** → C10 **34.64 ± 0.06** t/s, flattening past c5; house 37/37, needle 3/3 at 262,144, tools 60.5 % (the whole loss is `parallel`/`parallel_multiple` emitting one call per response). The recipe's `container:` was bumped to `vllm-openai:v0.32.0` on 2026-10-22 for a CVE and has **not** been re-booted on it — every cell here is the `v0.29.0` boot. Receipt `~/benchmarks/laguna-m1-20261020/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#poolside-laguna-m1-nvfp4-vllm-tp2)._
 * _The **Spark-X2.6** rows are the lane's 2026-10-22 tier A/B (`~/benchmarks/spark-x26-20261022/`): bf16 is the accuracy control (house **37/37** thinking-on, 30/37 thinking-off) and FP8 the shipped fast tier (C1 +100 % / C10 +39 % over it, house 37/37 on the rerun). The FP8 recipe carries no `metadata.tags`, so its Flags cell stays `—`. Its one rated risk: `trick-2` runs away at a 4096-token cap (`max_tokens` ≥ 8192 answers 3/3, 0 empty)._
 
+## Liquid AI
+| Recipe | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s | Size | Mem% | API | TP | Model Cards |
+|:----------------------------------------------|:------|------------:|-------:|-------:|--------:|---------------------:|------:|---------------------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| liquidai-lfm3-1.7b-q4km-llamacpp | ✨🤗📜 | — | — | — | — | 1.10GB | — | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B-GGUF] |
+| liquidai-lfm3-1.7b-fp16-vllm | ✨🤗📜 | — | — | — | — | 3.46GB | 30% | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B] |
+* _Both rows are **authored 2026-11-07 and never booted**: C1–C10 are `—` by absence, not a failed bench. Each first boot is an **engine-support test** for the `lfm3` custom-code architecture — llama.cpp gained `lfm3` on 2026-10-27 (`ggml-org/llama.cpp@19cce691`, PR #31252), *after* the registry's resident scitrera pin (`b2e5e9b`, 2026-08-21) and its own `upstream-a37cc46` build (2026-10-21), so the llama.cpp arm pins a 2026-11-05 build instead; vLLM support is vendor-documented but never exercised on this image. Instrument for both: `benchmarking/concurrency-ladder.yaml` plus `benchmarking/standard-suite.yaml`, and neither has a cell. License class: LFM Open License v1.0 (`other`) ships as an ordinary arm on the owner's 2026-11-02 ruling. Lane: [`recipes/liquidai/README.md`](recipes/liquidai/README.md#arms--authored-2026-11-07-not-yet-booted)._
+
 ## Cybersec
 
 | Recipe                                                      | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                               |
@@ -354,6 +362,10 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 * https://spark-arena.com
 
 <!-- Links -->
+[LiquidAI/LFM3-1.7B]: https://huggingface.co/LiquidAI/LFM3-1.7B
+
+[LiquidAI/LFM3-1.7B-GGUF]: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
+
 [littlecedar]: https://littlecedar.net
 [sparkrun]: https://sparkrun.dev
 [sparkrun-docs]: https://sparkrun.dev/getting-started/quick-start/

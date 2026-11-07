@@ -1,0 +1,61 @@
+recipe_version: "2"
+model: LiquidAI/LFM3-1.7B-GGUF:Q4_K_M
+model_revision: cd0c74c575b5c416f3011b5b4c298077f26ca8c2
+runtime: llama-cpp
+max_nodes: 1
+# Not the resident scitrera pin: that image carries llama.cpp `b2e5e9b` (2026-08-21) and
+# `lfm3` only landed upstream on 2026-10-27 (`19cce691`, PR #31252), so it cannot load this
+# GGUF at all. Built by this repo's llamacpp-engine workflow at 6023692 (2026-11-05).
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+description: LiquidAI/LFM3-1.7B — 1.7B hybrid conv+attention chat model as the vendor's own Q4_K_M GGUF on ONE DGX Spark through llama.cpp; whether this build loads `lfm3` is what the first boot decides
+metadata:
+  model_url: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
+  model_params: "1.7B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: official, smol, license
+
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's appended
+  # `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF file, so the
+  # served id would be the cache path (-n hides this).
+  served_model_name: LiquidAI/LFM3-1.7B-GGUF
+  # Native window; 1.10 GB of weights plus ~3.2 GB of full-attention KV at this depth.
+  ctx_size: 262144
+  parallel: 1
+  n_gpu_layers: 999
+  flash_attn: auto
+  # The card's "general (chat, tool use, agents, coding)" preset, and the same three values
+  # the GGUF's own general.sampling.* metadata carries.
+  temperature: 0.1
+  top_k: 50
+  repeat_penalty: 1.1
+
+# These are literals, not defaults: a `defaults:` key in the llama.cpp flag map is only
+# consumed on the command-less path, so `jinja:` / `webui:` / `load_mode:` here would be
+# silent drops. Keep `--load-mode none`: the deprecated `--no-mmap` asks the same and its
+# "use --load-mode mmap" warning hint is the opposite policy.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-k {top_k}
+  --repeat-penalty {repeat_penalty}
+  --flash-attn {flash_attn}
+  --jinja
+  --no-webui
+  --load-mode none
+  --cont-batching

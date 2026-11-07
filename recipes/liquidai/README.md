@@ -5,8 +5,10 @@ Liquid AI's LFM3 family and its `d1-*` system-one siblings: small (1.7B–2.2B) 
 custom-code architectures (`auto_map` → `trust_remote_code` required) with vendor GGUF mirrors
 carrying LEAP quantization metadata.
 
-**No arm ships yet.** The lane opens with one recipe row per collection member plus a
-fine-tuning-toolkit survey row, all in `mad-science/queue.json`; measured cells land here.
+**Two arms ship, neither booted yet.** `LFM3-1.7B` has a llama.cpp arm on the vendor's Q4_K_M
+GGUF and a bf16 vLLM arm; both are authored (2026-11-07) and their first boots are the
+engine-support tests — see §Arms. The remaining collection members are queue rows in
+`mad-science/queue.json`.
 
 ## Roster — the `LiquidAI/lfm3` collection, read 2026-11-02
 
@@ -62,6 +64,49 @@ picks the instrument the deliverable needs: `benchmarking/llama-benchy/*` and
 `Cactus-Compute/whistle` needle route, `recipes/media/README.md`) for `LFM3-Audio-2B`, with the
 open TTS leaderboard as the external reference; and the decision ladder for `d1-*`. Reporting a
 `C1 t/s` from an audio model would be a category error, not a measurement.
+
+## Arms — authored 2026-11-07, not yet booted
+
+| recipe | engine / pin | weights | what the first boot decides |
+|---|---|---|---|
+|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|whether that build loads `lfm3` at all, and whether its Jinja path parses the embedded template's `<tool_call><function=…>` form|
+|[`liquidai-lfm3-1.7b-fp16-vllm.yaml`](liquidai-lfm3-1.7b-fp16-vllm.yaml)|vLLM — the lane's `dgx-vllm-eugr-nightly-b12x` digest|HF bf16 safetensors, 3,456,635,448 B|whether that image's vLLM/transformers pair runs the checkpoint's `trust_remote_code` class at all|
+
+Both ship as **ordinary arms**, not eval-only: LFM Open License v1.0 (`license: other`) went to the
+owner rather than a lane, and the 2026-11-02 ruling (`mad-science/QUESTIONS.md` `#56`) is ship
+ordinary — §License posture above. Neither has a measured cell; the root index's C1–C10 for these
+rows are `—` because no boot has happened.
+
+**The llama.cpp arm does not use the resident scitrera pin, and that is a finding, not a
+preference.** `scitrera/dgx-spark-llama-cpp:b10549-cu131` carries llama.cpp `b2e5e9b`
+(2026-08-21), and `lfm3` did not exist in llama.cpp until `19cce691` (2026-10-27, PR #31252
+`model : add LiquidAI/LFM3-1.7B and LiquidAI/LFM3-VL-2B`); the registry's own previous
+`upstream-a37cc46` build is 2026-10-21, also short of it. The GGUF itself declares
+`general.architecture = lfm3` (read from the pinned file's header), so either older image would die
+in model load with an unknown architecture, not test anything. The arm therefore pins
+`ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130`, built by this repo's
+`llamacpp-engine` workflow at the 2026-11-05 ref that also carries the later LFM3 work
+(#31598 spec-decode, #31608 NVFP4 GGUF, #31683 KV-shift fix), and takes
+`executor_config: entrypoint: ""` because that image keeps `llama-server` as its `ENTRYPOINT`.
+
+Both commands are deliberately the **honest test**: nothing is passed that a successful boot would
+make true by assertion. The vLLM arm carries `--trust-remote-code` plus an explicit
+`--chat-template {model}/chat_template.jinja` (this checkpoint's `tokenizer_config.json` has no
+`chat_template` field; the template is a sidecar file), and **no** `--tool-call-parser` /
+`--reasoning-parser` — no LFM3 parser name is evidenced for this engine, and Liquid's vLLM
+deployment page documents `lfm2`/LFM2.5 flags only. The llama.cpp arm passes `--jinja` and no
+`--reasoning-format`, for the same reason: the GGUF embeds the current template (12,129 B,
+byte-identical to the repo's `chat_template.jinja`), but whether a thinking trace is split into
+`reasoning_content` or the `<tool_call>` XML is parsed into `tool_calls` is the boot's answer.
+
+**Instruments — the text lane's, and one boot each.** Ladder:
+`sparkrun benchmark performance <recipe> --profile benchmarking/concurrency-ladder.yaml`
+(`llama-benchy`, d0 pp2048/tg128, n=5). Suite: `benchmarking/standard-suite.yaml`
+(`tool-eval-bench` core 15, greedy, 8 turns) — the same pair every text arm in this registry reads,
+so a `C1 t/s` and a house score from these arms compare with the Explore and Orphan lanes. A
+tool-calling cell of 0 on the first boot is a **parser** question before it is a model question:
+check the serve log's template/tool lines, then add a parser flag only if the engine lists one for
+this template. Receipts belong in `~/benchmarks/liquidai-<date>/`.
 
 ## Fine-tuning
 
