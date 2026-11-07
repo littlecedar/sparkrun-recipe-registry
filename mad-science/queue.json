@@ -1203,12 +1203,12 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "python-runtime",
       "node_cost": "single",
       "notes": "FOUND 2026-11-04 while moving the ablated 122B arm: 'sparkrun recipe validate --strict' on that arm reports suggestion 'restated-managed-path' (its pre_exec refs/main seed), and the arm is not in the AGENTS.md roster, which states the --strict findings are EXACTLY that roster. The finding is path-independent and predates the move, so the roster was already incomplete — the move only made it noticeable. Work: run --strict over every tracked recipe under the register's own HOME override (/home/siv/src/sparkrun-recipe-registry/.local/sparkrun-home, the gate's command), diff the findings against the roster table, and rewrite the table to what the run prints, re-stamping the dated snapshot with the day of that run. Do not add an exemption for this arm without checking whether it is one of the documented deliberate warnings — a suggestion that means 'deliberate /cache/runtime path' may be the known false-positive class, in which case say so in the roster instead of dropping it. Acceptance: a re-run of the gate's validate loop produces exactly the roster's rows, and the roster's date is the run's date. Falsifier: a --strict finding on any tracked recipe that the roster does not name.",
       "provenance": "recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml (moved from ornith/ in ed0e14c); AGENTS.md:18 roster",
-      "evidence": "",
+      "evidence": "2026-11-07 re-measure on workstation: validate --strict over all 86 tracked recipes under HOME=$PWD/.local/sparkrun-home prints findings for 53 arms (20 exit 1: 19 unpinned-model-revision, 1 deprecated-topology); AGENTS.md roster now names all 53 in printed order (was the 20 warning arms only, missing e.g. cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang) and the claim says --strict adds no finding of its own; commit b43de60. Gate: plain validate 86/86 rc=0, uv run python -B -m unittest discover -s tests 1266 OK 2 skipped, bash -n mods+recipes mods sh, py_compile mods/recipes/tools/plugins py, python3 tools/task-queue.py check ok.",
       "claimed_by": "",
       "claimed_at": ""
     }
