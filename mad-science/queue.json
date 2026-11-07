@@ -1112,9 +1112,7 @@
       "title": "Make the campaign driver consume the recorded-negative skip source",
       "estimate_h": 1.5,
       "blocks": [],
-      "blocked_by": [
-        "campaign-driver-service"
-      ],
+      "blocked_by": [],
       "state": "done",
       "model": "",
       "node_cost": "single",
@@ -1143,12 +1141,7 @@
       "id": "campaign-driver-service",
       "title": "Rewrite the campaign driver as a tracked Python director service with polling workers, systemd-supervised",
       "estimate_h": 16.0,
-      "blocks": [
-        "tp12-remainder-8-arms",
-        "cyankiwi-live-log-retry",
-        "ornith-122b-nonablated-hunt",
-        "driver-consults-skip-source"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "python-runtime",
@@ -1164,9 +1157,7 @@
       "title": "Re-attempt the 8 campaign arms that hold no data: 6 never-ready + 2 no-artifact",
       "estimate_h": 3.0,
       "blocks": [],
-      "blocked_by": [
-        "campaign-driver-service"
-      ],
+      "blocked_by": [],
       "state": "done",
       "model": "",
       "node_cost": "single",
@@ -1181,9 +1172,7 @@
       "title": "Re-boot the cyankiwi AWQ-int4 122B arm once, capturing docker logs live",
       "estimate_h": 1.0,
       "blocks": [],
-      "blocked_by": [
-        "campaign-driver-service"
-      ],
+      "blocked_by": [],
       "state": "done",
       "model": "cyankiwi/Ornith-1.5-122B-AWQ-INT4",
       "node_cost": "single",
@@ -1198,9 +1187,7 @@
       "title": "Find and boot a real non-abliterated ornith-1.5-122B DFlash2 arm",
       "estimate_h": 4.0,
       "blocks": [],
-      "blocked_by": [
-        "campaign-driver-service"
-      ],
+      "blocked_by": [],
       "state": "queued",
       "model": "ornith-ai/Ornith-1.5-122B",
       "node_cost": "single",

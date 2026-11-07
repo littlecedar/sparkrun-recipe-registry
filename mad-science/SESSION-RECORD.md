@@ -2748,3 +2748,29 @@ clauses are homed here.
   restarted director's lease grace with its receipt (`attempt: 2`, 01:05:45), the labquant negative gains
   the daemon/kernel absence-of-OOM record rather than a claimed cause, and the follower appends
   `docker inspect` exit/oom/status after the follow, with a guard and negative control.
+## 2026-11-07 03:02 ET — board landed rows homed (session boundary)
+The 03:02 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at a session boundary.
+The two 02:04 ET rows (`c2d39d1`, `3651a74`) were **already homed** in the 02:04 ET section above —
+verified with `git grep -c <sha> -- mad-science/SESSION-RECORD.md`, one line each — so nothing was
+re-appended and only pre-session rows were retired. Three commits landed after that section was
+written and carried no SHA anywhere in this file; their clauses are homed here, and they sit on the
+board as rows for the next tick to retire.
+- **02:06 ET** `461fa52` — Census cell made checkable: the "byte-identical to the 01:01 read" claim
+  was replaced by the four unchanged whole-GiB cells plus the single `.33`/`.34` drift of
+  13,754,368 B and `.33`'s position 2.5 MiB below the 1698 GiB edge, because nothing on the 01:01
+  board could discriminate the stronger sentence; the two post-board commits folded in the same
+  commit.
+- **02:50 ET** `a268d81` — Re-applied the two queue closes (`driver-consults-skip-source`,
+  `cyankiwi-live-log-retry`) that a shared writer's copy had overwritten, so the register read
+  `queued`/`blocked` after the campaign acceptance run had recorded both done; the epic and
+  `tp12-remainder-8-arms` had kept their updates, so only those two needed re-applying.
+- **02:58 ET** `7f0c7aa` — Dropped the head SSH alias from the board's census cell, which
+  `tests/test_tracked_address_hygiene.py` rejects in any tracked file: the gate went red on the
+  board commit and stayed red on the queue-only commit after it.
+- **03:02 ET, no commit of its own** — Cut a stale epic block the tooling cannot flag:
+  `campaign-driver-service` closed as `done` at 02:50 yet still listed
+  `ornith-122b-nonablated-hunt` in its `blocks`, and since `blocked_by` is a derived mirror the
+  live row stayed held behind a finished epic while `task-queue.py check` reported green (it
+  validates the mirror, not whether a blocker is still open). `task-queue.py update --id
+  campaign-driver-service --blocks` with an empty list cut both sides; the other three dependents
+  were already `done`, so nothing else moved. Register now reads 29 open of 82.
