@@ -232,6 +232,9 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('pooling-ladder-$kind.yaml', text, "the profile is not chosen per lane")
         # The profile hardcodes the 8B encoder's 4096; a 2B arm fails every reply otherwise.
         self.assertIn("dimension_check=2048", text, "no 2B dimension override")
+        # The text 0.6B tier is 1024-d; without its own mapping it takes the 4096 default
+        # and every reply fails the shape check.
+        self.assertIn("dimension_check=1024", text, "no 0.6B dimension override")
 
     def test_decision_arms_use_the_decision_instruments(self):
         """llama-benchy and the chat suite cannot read /v1/systemone."""

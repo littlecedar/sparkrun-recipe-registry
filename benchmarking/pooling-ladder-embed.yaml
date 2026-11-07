@@ -5,7 +5,8 @@ metadata:
     columns are named for, on the lane's instructed request shape
     (embed-v1-chat, 100 requests, ~256-token inputs, 5 warmups, salted payloads).
     dimension_check 4096 is the shipped 8B AWQ encoder; the 2B arm needs
-    -b dimension_check=2048 or every reply fails the shape check. This is NOT the
+    -b dimension_check=2048 and the text 0.6B arm 1024, or every reply fails
+    the shape check. This is NOT the
     shape behind the lane's published c = 1/4/8/16/32 units/s cells, so a cell
     from here and one from there are different shapes and must never be pooled.
     Needs the out-of-tree plugin registered (tools/README.md §plugins/) and must

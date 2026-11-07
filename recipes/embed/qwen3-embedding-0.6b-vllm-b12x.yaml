@@ -1,0 +1,56 @@
+recipe_version: "2"
+model: Qwen/Qwen3-Embedding-0.6B
+model_revision: 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x@sha256:cf5a2a5324af897e1b576eecb3018331d2df0fad2285d61d4b109743be6434d8
+description: Qwen/Qwen3-Embedding-0.6B — text-only embedding encoder, cheap/fast tier next to the lane's VL pairs on one DGX Spark
+metadata:
+  model_url: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
+  model_params: "0.6B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: lcg_favorite, embedding, smol
+# pooling engine has no chat endpoint, so the default chat-completion probe can only time
+# out — `sparkrun run` then exits 1 on a healthy server. Port + /health readiness only.
+readiness:
+  inference: false
+defaults:
+  port: 8010
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Repo id, not {model}: a launch rebinds {model} to the prepared snapshot path, which
+  # would advertise the cache path as the served id.
+  served_model_name: Qwen/Qwen3-Embedding-0.6B
+  # Absolute device cap on total usage: 1.19 GB of weights, the rest is 32k-context KV.
+  gpu_memory_utilization: 0.15
+  max_model_len: 32768
+  max_num_batched_tokens: 16384
+  max_num_seqs: 32
+  dtype: bfloat16
+  # One unsharded model.safetensors, so the lane's instanttensor path loads it.
+  load_format: instanttensor
+  attention_backend: b12x
+  # b12x refuses vLLM's default block size — accepts only 64 or 128.
+  block_size: 128
+  cpu_mask: 5-9,15-19
+  # Pin the pooling/embed conversion: config.json declares the plain generative
+  # `Qwen3ForCausalLM`, which would otherwise auto-resolve through vLLM's default table.
+  convert: embed
+command: >
+  taskset -c {cpu_mask} vllm serve {model}
+  --served-model-name {served_model_name}
+  --runner pooling
+  --convert {convert}
+  --dtype {dtype}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  -tp {tensor_parallel}
+  --host {host}
+  --port {port}
+  --max-model-len {max_model_len}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --max-num-seqs {max_num_seqs}
+  --attention-backend {attention_backend}
+  --block-size {block_size}
+  --load-format {load_format}

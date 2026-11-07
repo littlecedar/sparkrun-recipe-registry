@@ -34,11 +34,13 @@ RERANK_DIR = REPO_ROOT / "recipes" / "rerank"
 
 EMBED_2B = EMBED_DIR / "qwen3-vl-embedding-2b-vllm-b12x.yaml"
 EMBED_8B = EMBED_DIR / "qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml"
+# Text-only tier: same pooling contract, no vision side, 1024-d.
+EMBED_0_6B = EMBED_DIR / "qwen3-embedding-0.6b-vllm-b12x.yaml"
 RERANK_2B = RERANK_DIR / "qwen3-vl-reranker-2b-vllm-b12x.yaml"
 # The 8B reranker is derived from the 2B one (same hf_overrides, same template mod), so it is
 # held to the same invariants rather than to a separate standard.
 RERANK_8B = RERANK_DIR / "qwen3-vl-reranker-8b-vllm-b12x.yaml"
-RECIPES = [EMBED_2B, EMBED_8B, RERANK_2B, RERANK_8B]
+RECIPES = [EMBED_2B, EMBED_8B, EMBED_0_6B, RERANK_2B, RERANK_8B]
 
 # Assembled rather than written as one literal, so a redacting tool in the pipeline
 # cannot silently rewrite it and so a reader can check it character by character.

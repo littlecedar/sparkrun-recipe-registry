@@ -149,11 +149,13 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 
 | Recipe                                   | Flags | C1 u/s | C2 u/s | C5 u/s | C10 u/s |   Size | Mem% |            API | TP | Model Cards                                    |
 |:-----------------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|---------------:|---:|:-----------------------------------------------|
+| qwen3-embedding-0.6b-vllm-b12x           | 🌲📶🤏   |      — |      — |      — |       — | 1.19GB |  15% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-Embedding-0.6B]            |
 | qwen3-vl-embedding-2b-vllm-b12x          | 🌲👀📶🤏 |   38.2 |   45.5 |   85.2 |   102.4 | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🌲👀📶🤏 |   15.9 |      — |      — |       — | 6.01GB |  30% | /v1/embeddings |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
 
 * _The 2B row's C1–C10 are 2026-10-16 units/s from `benchmarking/pooling-ladder-embed.yaml` (c 1/2/5/10, 100 requests, ~256-token inputs, 5 warmups, salted, `-b dimension_check=2048`) — `~/benchmarks/pins-20261016/embed2b-ladder.json`. That is **not** the 8B row's shape, so the two rows' cells are not comparable._
-* _C1 from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
+* _C1 is from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
+* _The 0.6B text row's cells are `—` by absence: authored 2026-11-07, not yet booted. Its ladder takes `-b dimension_check=1024` (1024-d), so its cells will not be comparable with either VL row either._
 
 ## Rerank
 
@@ -359,6 +361,7 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [spark-arena]: https://spark-arena.com
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
+[Qwen/Qwen3-Embedding-0.6B]: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
 [Qwen/Qwen3-VL-Embedding-2B]: https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B
 [gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit]: https://huggingface.co/gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit
 [Qwen/Qwen3-VL-Reranker-2B]: https://huggingface.co/Qwen/Qwen3-VL-Reranker-2B

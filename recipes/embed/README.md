@@ -2,12 +2,13 @@
 
 _Brought to you by Little Cedar Group._
 
-Multimodal embedding encoders (Qwen3-VL family), served with vLLM's pooling runner on a
-single DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of `recipes/qwen3/` on
-2026-10-10; the companion rerankers live in [`recipes/rerank/`](../rerank/README.md).
+Embedding encoders — two multimodal Qwen3-VL arms and one text-only Qwen3 arm — served with
+vLLM's pooling runner on a single DGX Spark (GB10, 128 GB unified memory, TP=1). Moved out of
+`recipes/qwen3/` on 2026-10-10; the companion rerankers live in
+[`recipes/rerank/`](../rerank/README.md).
 
-Both encoders are **pooling engines**: they expose `/v1/embeddings` (+ vLLM's Cohere
-`/v2/embed`), `/health`, and `/v1/models` — and **no `/chat/completions`**. Both recipes
+All three encoders are **pooling engines**: they expose `/v1/embeddings` (+ vLLM's Cohere
+`/v2/embed`), `/health`, and `/v1/models` — and **no `/chat/completions`**. All three recipes
 therefore disable sparkrun's default inference probe (`readiness: inference: false`, port +
 `/health` only); the chat-completion probe can only time out, and `sparkrun run` would then
 exit 1 on a healthy server.
@@ -18,6 +19,7 @@ Flags: 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
 
 - [qwen3-vl-embedding-2b-vllm-b12x](#qwen3-vl-embedding-2b-vllm-b12x)
 - [qwen3-vl-embedding-8b-awq-4bit-vllm-b12x](#qwen3-vl-embedding-8b-awq-4bit-vllm-b12x)
+- [qwen3-embedding-0.6b-vllm-b12x](#qwen3-embedding-06b-vllm-b12x)
 - [Serving the encoder correctly (client contract)](#serving-the-encoder-correctly-client-contract)
 - [Attic index](#attic-index)
 
@@ -91,6 +93,65 @@ still free.
   chat suite cannot address `/v1/embeddings`). Receipt
   `~/benchmarks/tp12-20261103/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x/` (`ladder.json`,
   `house.log`).
+
+## qwen3-embedding-0.6b-vllm-b12x
+
+[Qwen/Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) — text-only
+embedding encoder, the lane's cheap/fast tier next to the two VL pairs. Pinned to commit
+`97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` (public, Apache-2.0, `lastModified`
+2026-04-20). **Authored, not yet booted** — no cell exists for it; the C1–C10 columns stay `—`
+until a boot fills them.
+| | |
+|---|---|
+| params / dtype | 0.6B (~596M: 1.19 GB of bf16 weights), `hidden_size` 1024, 28 layers · bf16 |
+| weights on disk | 1.19 GB (single `model.safetensors`, 1,191,586,416 bytes) |
+| embedding width | **1024** (`1_Pooling/config.json` `word_embedding_dimension`; last-token pooling + Normalize in `modules.json`) |
+| TP / nodes | 1 / 1 |
+| port | 8010 (the lane's embed slot; never co-resident with the 2B/8B encoders — an alternative tier, not a co-tenant) |
+| `gpu_memory_utilization` | 0.15 |
+| context / batching | `max_model_len: 32768`, `max_num_batched_tokens: 16384`, `max_num_seqs: 32` |
+| cpu_mask | `5-9,15-19` (whole fast X925 cluster; solo arm) |
+| flags | `--runner pooling --convert embed --attention-backend b12x --block-size 128 --load-format instanttensor` |
+| tags | 🌲 lcg_favorite · 📶 embedding · 🤏 smol |
+| license | Apache-2.0 |
+`--convert embed` is load-bearing for the same reason it is on the VL arms: `config.json`
+declares the plain generative `Qwen3ForCausalLM`, so without the pin vLLM auto-resolves through
+its default table. `--limit-mm-per-prompt` and `--trust-remote-code` are deliberately absent —
+this checkpoint has no multimodal placeholders and no `auto_map`. The served id is declared, not
+rendered from `{model}`: a launch rebinds `{model}` to the prepared snapshot path, which would
+advertise the cache path instead of `Qwen/Qwen3-Embedding-0.6B`.
+```bash
+sparkrun run @littlecedar/qwen3-embedding-0.6b-vllm-b12x
+```
+### Measuring it
+```bash
+sparkrun benchmark pooling recipes/embed/qwen3-embedding-0.6b-vllm-b12x.yaml \
+  --profile benchmarking/pooling-ladder-embed.yaml --skip-run --fresh -H <node> --cluster WOPR \
+  -b dimension_check=1024 --output <dir>/ladder.yaml
+```
+`-b dimension_check=1024` is mandatory: the profile checks reply width against the 8B encoder's
+4096 and refuses every reply otherwise. `tools/run-arm.sh` supplies it from the arm name (the
+`*-0.6b-*` case), so a campaign boot takes it automatically. Two more instrument facts for a
+quality pass rather than a cell:
+- **Prompt shape.** This checkpoint's `config_sentence_transformers.json` publishes `query`
+  (`Instruct: Given a web search query, retrieve relevant passages that answer the query` +
+  `Query:`) and `document` (`""`) prefixes with `default_prompt_name: null` — there is **no
+  `default` prefix**, so `/v2/embed` with `input_type: "default"` is not this model's contract;
+  send the query prefix as the chat form's system message (the shape §Serving the encoder
+  correctly describes).
+- **Instruction default.** `tools/pooling-bench.py` defaults `--instruction` to the VL encoder's
+  `Represent the user's input.` Cells are unaffected (it changes a handful of prompt tokens, not
+  the instrument), but a retrieval-quality comparison must pass this model's own prefix — the
+  `prompts.query` value verbatim, real newline before `Query:` included:
+  `-b instruction=$'Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:'`.
+
+Boot traps a first launch has to clear:
+- **`:8010` on `.30`** is held by `beegfs-mgmtd`, so this arm can never bind there;
+  `tools/run-arm.sh` refuses that node by name instead of launching into `EADDRINUSE`. Schedule
+  it elsewhere.
+- **Launch-log check.** vLLM must not print a bare generative resolution for this checkpoint;
+  after readiness, `/v1/embeddings` must answer **1024** floats per input (the ladder's
+  dimension check fails loudly if not) and `/v1/models` must list `Qwen/Qwen3-Embedding-0.6B`.
 
 ## Serving the encoder correctly (client contract)
 
