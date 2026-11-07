@@ -41,7 +41,7 @@ Usage
 ::
 
     python3 tools/omni-audio-probe.py \\
-        --base-url http://10.0.4.30:8020 \\
+        --base-url http://<node>:8020 \\
         --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \\
         --statement "The quarterly report is due on Thursday, so please finish it by noon." \\
         --question "Is the quarterly report due on Thursday?" --expect yes \\
