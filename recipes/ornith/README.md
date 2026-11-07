@@ -781,6 +781,10 @@ corroboration is the result. The open leg is the *matched-window* control: basel
 same window, since the cross-table comparison above carries boot variance. Receipt:
 `~/benchmarks/tp12-20261030/zz-ornith-1.5-122b-nvfp4-dflash2-sglang-d4/REPORT.md`.
 
+**Route verdict (2026-11-07): falsified.** The decoders-route item's pre-registered falsifier was
+C1 < 45 t/s, and this arm's 37.7 is below it, so the SGLang-DFLASH-on-122B route is a recorded
+negative for promotion even though it clears the arm-level gate above.
+
 ## 122B quantisations and finetunes — drafter compatibility survey (2026-11-03)
 
 Owner question (2026-10-30): which 122B quantisations and finetunes pair with the published
