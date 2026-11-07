@@ -2826,3 +2826,41 @@ not assign it an owner:** neither `tp2-acceptance-log-level` nor `engram-cache-h
 register rows that could claim it — carries `claimed_by`, and no `.local/fleet-window.lock` exists
 (a pair, not the quartet set). Both facts are on the board's census and register rows; this paragraph
 is the durable copy of them.
+
+## 2026-11-07 05:02 ET — board landed rows homed (session boundary)
+
+The 05:02 ET tick cleared `mad-science/STATUS.md`'s `Landed session` table at session boundary. Its
+04:11 ET row (`59832cc`) was **already homed** in the 04:06 ET section above — verified with
+`git grep -c 59832cc -- mad-science/SESSION-RECORD.md`, two lines — so only the three rows the 04:25
+and 04:43 ticks left standing were appended, verbatim:
+
+- **04:27 ET** `db2e8b8` — Recorded the `zz-sage-a1.5-35b-a3b-q4km-llamacpp` arm's first
+  campaign-driver measurement on `.30` — decode 73.98 / 102.19 / 85.70 / 73.77 t/s at c1/c2/c5/c10,
+  prefill 1986.1 ± 53.8 at c1, house 15/15 score 100, with c10 taken under `ARM_ALLOW_FEW_SLOTS=1`
+  beside the shipped `parallel: 4` so it measures the slot limit, not the model
+  (`recipes/explore/README.md`); the arm's `description:` no longer claims it was never booted.
+  Register unchanged: no queue row opens or closes.
+- **04:32 ET** `ce1b4ea` — Added the `Qwen3-Embedding-0.6B` text arm to the embed lane with its 1024-d
+  ladder width; the register row `embed-qwen3-embedding-0.6b-text-arm` is still `queued` and
+  unclaimed, so the arm exists before its row says what is left to measure.
+- **04:35 ET** measurement — The `tp2-logdebug` leg finished on `.30`+`.35` and was stopped by its own
+  campaign (`1 measured`, rc=0, campaign service stopped 04:35:27). tp128 ladder aggregate
+  **14.61 / 12.18 / 13.17 / 13.00 t/s** at c1/c2/c5/c10 (per-stream 14.61 / 7.67 / 4.75 / 4.23) and
+  the house battery ran on the same boot; the acceptance report the leg existed for printed per
+  request (`accepted=80/137`, 47 rounds) without any log-level change. Receipt
+  `~/benchmarks/tp12-20261107/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang-logdebug/`
+  (`ladder.csv`, `house.csv`, `serve-0.log`).
+
+Census at 05:02 ET, re-read rather than carried: 1/1/1/1/1/1 containers and 0 volumes on all six
+nodes, so research containers are 2 (the `.30`/`.35` pair below) and the four `.31`–`.34` containers
+are the protected production serve, `/health` 200 on every rank with serve pids 280/311/310/312
+unchanged, so no rank restarted. Root avail fell on all six nodes — 1.60 MiB `.31`, 1.60 MiB `.32`,
+2.65 MiB `.30`, 9.5 MiB `.33` and `.34`, 11.0 MiB `.35` — and no whole-GiB display cell moved.
+
+The pair boot itself is the campaign's `logdebug2` retake: director `tp2-logdebug2-20261107` started
+04:46:05 ET, one arm, `-o serve_debug=acceptance`. Ladder ran 04:47–04:56 at **14.6 / 13.1 / 12.9 /
+12.7 t/s aggregate** c1/c2/c5/c10 (prefill 493.0 / 312.2 / 232.1 t/s at c2/c5/c10, 5 runs per cell);
+the acceptance report `82c1b18`'s knob was added for now prints per request (`accepted=85/110` over
+26 rounds, `accepted=157/202` over 47). Neither `tp2-acceptance-log-level` nor `engram-cache-hit-rate`
+carries a `claimed_by`, so the director owns a boot the register says nobody owns — reported on the
+board's register row for the third consecutive tick.
