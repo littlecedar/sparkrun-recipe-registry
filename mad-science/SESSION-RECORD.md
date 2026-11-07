@@ -3276,3 +3276,51 @@ depth 340 / 119,100 prompt tokens / ttft 0.285 s / decode 73.76 t/s / `done_seen
 `057bd8ab5565`; `916638841df1` is the middle segment of the container's **name**, not its id (a
 peer board row read it as the id at 10:07 and `docker ps -a --format 'ID={{.ID}} NAME={{.Names}}'`
 falsified that). Run 1's container `…_26fe38ad05c8` is gone from the node.
+
+## 2026-11-07 11:07 ET — tick: the `.35` longrun ends at 11:02:19, and a TP=2 engram pair takes its node
+
+The `.35` ornith longrun serve — task `78c7e2fa335a63e5_916638841df1_solo`, container
+`057bd8ab5565`, image `fd8439732b16` — **died at 11:02:19 ET** with `exitCode=137` and
+`execDuration=4622` s (≈77 min from its 09:45:13 boot), read from the head's own
+`~/benchmarks/ornith-longrun-20261107/docker-events.log`. The container was then removed:
+`docker ps -aq` on `.35` read 0 at 11:02 and 1 at 11:07, the one being the pair boot's, and
+`/tmp/sparkrun_serve.log` was absent on the node at 11:04 — so a read-only tick cannot recover the
+last line, and `137` (SIGKILL) does not by itself separate a deliberate `sparkrun stop` from an OOM.
+Run 1's container carried the same code at 09:39:01, and its own `RECEIPT.md` records a deliberate
+stop, so the code is not the discriminator.
+
+What the run did leave, on the head, under `~/benchmarks/ornith-longrun-20261107/`:
+
+- `RECEIPT.md` (09:40) carries the **300-turn half**: 307 tool-offering turns (49 auxiliary
+  depth-1 omp calls, all completed), 304 clean = **99.0 %** (304/305 = 99.7 % excluding two
+  requests the driver itself cancelled at closeout), one genuine event at `idx 80` — a complete
+  tool call with valid arguments that omp closed the socket on, proxy recording `client-disconnect`,
+  no `[DONE]` — no 5xx, no zero-event retry, no repeatable trigger (not first-of-boot, not
+  first-after-idle, not depth: depth ran 621 messages / 215 k prompt tokens, no compaction),
+  decode median 76.0 t/s (37.2–104.7), TTFT median 0.39 s with one 85.5 s outlier from two
+  concurrent *uncached* 190 k prefills. Verdict **TRANSIENT**, extension to ~1,000 turns
+  **warranted**, untested boundary compaction (the 300 turns peaked at 215 k of a 262 k window).
+- `ledger.jsonl` reached index **1098**, last write 10:59, so the extension was live when the serve
+  died; its tail row reads depth 859 messages / 142,434 prompt tokens / ttft 0.385 s / decode
+  111.05 t/s / `done_seen: true` / no `error_events`, and the rows before it carry valid tool calls
+  (`finish_reason: tool_calls`, `json_valid: true`, `name_offered: true`).
+- `capture/` holds **40,521,659 B** and froze at 10:59 with the serve; `capture_proxy.py`
+  (pid 457040, started 09:48:14) is still alive on the head and idle — which is also why `.30`'s
+  root fall eased from the ~8.7 kB/s §10:25 measured to ~3.9 kB/s at this tick.
+
+**56 s later** the same node pair booted a TP=2 research arm, `~/benchmarks/engram-pair.sh` →
+task `38aaa36e56a717b8_56e588e846e8` on `.30` (rank 0) + `.35` (rank 1),
+`recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`, image
+`sha256:788c36544f1e`, started 11:03:12 ET: rank 0 `200` on `/health` and `/v1/models` serving
+`drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` at 1,048,576 context, rank 1
+ready in 51.6 s and following rank 0 with **no listener by design** (its probe reads `000`).
+Neither declaration mechanism covers it — `.local/fleet-window.lock` is absent, and campaign
+`d1-20261107` is **drained** (`sparkrun-campaign.service` inactive, its single arm
+`liquidai-d1-2b-q8-systemone-llamacpp` `measured`, no lease) — and the register row it serves,
+`engram-cache-hit-rate`, is still `queued` with no `claimed_by`. Both facts are reported on the
+board; the register's two `running` rows stay as their holder (`campaign-operator`) left them.
+
+Second writer class named this cycle, for the record: the ~867 MB root fall on each of `.32`–`.35`
+over 11:01:40→11:07:11 is the shared pool, not a local writer — `models--littlecedar--LFM3-1.7B-Base-GGUF`
+was staged at 11:05–11:06 (**3.3 GB** apparent, `blobs/` 11:05, `refs/`+`trees/` 11:06), and the four
+sums to ≈3.47 GB. No `hf` process remained at 11:07.
