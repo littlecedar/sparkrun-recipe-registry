@@ -3209,3 +3209,42 @@ not stasis; the byte column is the figure. And the earlier reading of a peer's
 row that `refresh-weights-and-runtime-repin` was "left untouched by `f5e7afd`"
 was itself wrong in the other direction: the commit did rewrite that row's notes
 with lane set 1's verdicts, and only the `queued` state token stayed.
+
+## 2026-11-07 09:26 ET — tick: the taper floors, it does not fade to zero
+
+A fourth read of the same three storage nodes does not fit "monotonically
+decaying", so the series gets its intermediate point and the inference gets
+corrected. Absolutes at 09:03:13 ET come from the board's own census row
+(`mad-science/STATUS.md`, commit `69245cb`); the 09:02:07 and 09:09:17 values
+are the ones §09:20 derived.
+
+| interval | seconds | per-node fall on `.32` / `.33` / `.34` | rate |
+|---|---|---|---|
+| 08:48:40 → 09:01:48 | 788 | −9,539,584 B each | 12,106 B/s |
+| 09:01:48 → 09:02:07 | 19 | −53,248 / −61,440 / −57,344 B | 2,802 / 3,234 / 3,018 B/s |
+| 09:02:07 → 09:03:13 | 66 | −90,112 / −86,016 / −90,112 B | 1,365 / 1,303 / 1,365 B/s |
+| 09:03:13 → 09:09:17 | 364 | −544,768 / −548,864 / −548,864 B | 1,497 / 1,508 / 1,508 B/s |
+
+So the fall drops an order of magnitude in 95 s and then **sits at roughly
+1.4 kB/s per node** instead of continuing toward zero: 1,365 → 1,497 on `.32`
+and `.34`, 1,303 → 1,508 on `.33`, i.e. the last two intervals overlap within
+10%. That is a floor, not a tail finishing — §09:20's "a finished write's tail"
+is the wrong shape and stays as the record of what the three-point series
+supported at the time. The honest current statement is: decelerating hard over
+the first ~800 s, then a steady ~1.4–1.5 kB/s per storage node with **no
+container on the node to account for it**.
+
+`.30` sharpens the same question. Across the identical 873 s it fell
+6,156,288 B (7,052 B/s) with **0 containers and 0 volumes**, re-sampled twice
+3 s apart at 0 / 0 — four to five times the storage nodes' plateau and the
+largest per-node rate of the interval, on the one node with nothing running.
+So "no writer named" is not an artifact of looking at the wrong node; a quiet
+node still loses ~7 kB/s and nothing in this tick's reads explains it. Unnamed,
+not unexplained-forever: the falsifier is per-node io accounting
+(`/proc/diskstats`, a `du` of `$HOME` and `/var/log` over a fixed window),
+which no read this hour took.
+
+Fleet total for the interval: −39,632,896 B (−37.80 MiB, 45,400 B/s across six
+nodes), of which `.30` contributes 15.5% and `.35`'s booting ornith serve 7.6%
+(−2,998,272 B, 3,434 B/s) — the pool-write class (18.49 GB in one body) remains
+four orders away, so nothing here is a body copy in progress.
