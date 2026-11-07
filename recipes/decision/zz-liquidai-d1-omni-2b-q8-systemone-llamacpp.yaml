@@ -1,0 +1,72 @@
+recipe_version: "2"
+# PROBE ARM, `zz-` and AUTHORED 2026-11-07, not booted. The vendor's omni decision model on the
+# same llama.cpp build the d1 text arm uses, carrying an AUDIO input path the text arm lacks.
+# Arch verified before authoring, not assumed: the GGUF's `general.architecture` reads `lfm3` (not
+# `lfm3_omni`) with `lfm3.decision.type = lfm3-d1-omni`, and the pinned image's llama-server carries
+# `lfm3-d1-omni`, `input_audio`, `lfm3a`, `lfm3vl` and `systemone` in its symbol/data strings — so
+# the upstream decision endpoint and the LFM3 audio encoder are both in this build.
+model: LiquidAI/d1-Omni-2B-GGUF:Q8_0
+model_revision: 36707287af55fc9ab03e34bda6a6cc82075499b1
+runtime: llama-cpp
+max_nodes: 1
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+# The audio/vision projector the decision endpoint loads media through; sparkrun resolves it beside
+# the weights and injects `--mmproj`. Q8_0 matches the quantised body — the projector is the
+# 0.33 GB tier of the same release.
+mmproj: mmproj-d1-Omni-2B-Q8_0.gguf
+description: >-
+  LiquidAI/d1-Omni-2B — the omni sibling of this lane's d1 text decision model, on ONE DGX Spark
+  through llama-server: 24-layer LFM3 body, 128k context, typed decisions (noul / choice / score)
+  answered in one forward pass over text OR a spoken question. Served at /v1/systemone like the
+  text arm, plus the audio path this arm exists to probe. LFM Open License v1.0 (ordinary arm —
+  `mad-science/QUESTIONS.md` #56).
+metadata:
+  model_url: https://huggingface.co/LiquidAI/d1-Omni-2B-GGUF
+  base_model: https://huggingface.co/LiquidAI/LFM3-Omni-2B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "2B"
+  model_dtype: q8_0
+  kv_dtype: fp16
+  tags: decision, smol, audio, license
+  caveats: >-
+    The audio cell asserts ACCEPTANCE and CONSISTENCY, never understanding. What it can prove: the
+    endpoint takes an `input_audio` part (base64 PCM/WAV data URL), returns a schema-valid typed
+    decision within the served window, and — the real falsifier — answers the same question asked
+    as text with the same decision label. What it cannot prove: transcription fidelity, WER, or that
+    a matching label came from the speech rather than from the text-rendered prompt; one fixture
+    sentence is not an audio benchmark, and no in-tree instrument scores audio understanding.
+    `accuracy_status: n/a` for the same reason the text arm carries it — the house battery speaks
+    chat and the JEV case set speaks a different schema.
+executor_config:
+  entrypoint: ""
+# The decision lane's port (embed 8010, rerank 8011); alternatives, never co-resident.
+readiness:
+  # /v1/systemone is the surface: no chat endpoint, and no /v1/completions either.
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+decision_accuracy: none
+defaults:
+  port: 8020
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF file, so the served id
+  # is the cache path (-n hides this).
+  served_model_name: LiquidAI/d1-Omni-2B-Q8_0
+  # One decision is one prefill batch; the card's run line uses 8192-token batches and a picture or
+  # a clip may take up to half of `-ub`.
+  ctx_size: 8192
+  parallel: 1
+  n_gpu_layers: 999
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b 8192
+  -ub 8192
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --no-webui
+  --load-mode none
+  --cont-batching

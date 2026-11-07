@@ -154,6 +154,84 @@ cell of 0 on the first boot is a **parser** question before it is a model questi
 serve log's template/tool lines, then add a parser flag only if the engine lists one for this
 template. Receipts belong in `~/benchmarks/liquidai-<date>/`.
 
+## Control arm — `zz-liquidai-lfm3-1.7b-base-f16-llamacpp` (authored 2026-11-07, not booted)
+
+The fine-tune control for this lane's instruct pair: `LiquidAI/LFM3-1.7B-Base`, the same tokenizer
+and conv+attention body without instruction training. It stays `zz-` until a boot produces its
+cells. Recipe [`zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml`](zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml).
+
+**Why an F16 GGUF and not a vendor mirror.** No first-party base GGUF exists —
+`LiquidAI/LFM3-1.7B-GGUF` carries the *instruct* weights only (BF16/F16/NVFP4/Q4_K_M/Q5_K_M/Q6_K/Q8_0/
+QAD-Q4_0), so the instruct mirror is exactly what a base control must not use. The base weights were
+therefore converted here: llama.cpp `6023692`'s own `conversion/lfm3.py` registers
+`Lfm3ForCausalLM` and even names `LiquidAI/LFM3-1.7B-Base` as its example. The conversion runs
+**outside** the runtime image, because that image ships no Python (only `llama-server` and
+`llama-cli`):
+
+```bash
+# one-shot, CPU only, no GPU and no cluster: ~3.5 min once torch is in the env
+curl -sL https://codeload.github.com/ggml-org/llama.cpp/tar.gz/6023692 | tar xz
+cd llama.cpp-6023692
+uv run --no-project --with torch --with numpy --with transformers --with huggingface_hub \
+       --with requests python convert_hf_to_gguf.py --outtype f16 --remote LiquidAI/LFM3-1.7B-Base \
+       --outfile LFM3-1.7B-Base-F16.gguf
+```
+
+The result is 3,466,613,856 B / 287 tensors, `general.architecture = lfm3`,
+`general.finetune = 7bca5038…`, 24 blocks, native context 262,144, sliding window 256, gpt2 BPE
+tokenizer, **no embedded chat template** — and it is the same byte size as the vendor's instruct F16,
+which is the shape check that the conversion is faithful. sha256
+`86bfa3eb5f6cf0c297e4b84b26049db064ce829d64ec39d20dbdb90884626eef`.
+
+**Where the file lives.** The shared pool, as a hand-placed cache entry:
+`/mnt/beegfs/huggingface/hub/models--littlecedar--LFM3-1.7B-Base-GGUF/` with `blobs/86bfa3eb…`,
+`snapshots/7bca5038…/LFM3-1.7B-Base-F16.gguf`, `refs/main` and `trees/7bca5038….json`. The recipe's
+`model:` names that repo id, so **publish `littlecedar/LFM3-1.7B-Base-GGUF` with this file before any
+host that is not pool-mounted boots the arm** — sparkrun's offline probe resolves the pool copy, its
+download path cannot.
+
+**The cells this arm can honestly produce.** A base model has no chat template and no instruction
+following, so the lane's house battery and tool suite would measure their own 400. The arm serves raw
+completions, and its cells come from llama.cpp's own per-request `timings` — engine-native, the same
+instrument class the lane's llama.cpp rule already names. Save this beside the receipt and run it
+against the live serve (prompt is a ~2,000-token filler so pp is a real prefill, and
+`cache_prompt: false` keeps it from being a cache hit):
+
+```bash
+cat > raw-ladder.py <<'EOF'
+import json, statistics, threading, time, urllib.request
+B, M = "http://<node>:8000", "LiquidAI/LFM3-1.7B-Base"
+prompt = "the quick brown fox jumps over the lazy dog. " * 220
+def one(n=128):
+    body = json.dumps({"prompt": prompt, "n_predict": n, "temperature": 0,
+                       "cache_prompt": False}).encode()
+    r = urllib.request.urlopen(urllib.request.Request(
+        B + "/v1/completions", body, {"Content-Type": "application/json"}), timeout=600)
+    t = (json.load(r).get("timings") or {})
+    return t.get("prompt_per_second"), t.get("predicted_per_second")
+for c in (1, 10):
+    cells, lock = [], threading.Lock()
+    def work():
+        got = one()
+        with lock: cells.append(got)
+    ts = [threading.Thread(target=work) for _ in range(c)]
+    [t.start() for t in ts]; [t.join() for t in ts]
+    pp = [x[0] for x in cells if x[0]]; tg = [x[1] for x in cells if x[1]]
+    print(f"c={c}: pp {statistics.median(pp):.1f} t/s, tg {statistics.median(tg):.1f} t/s (n={len(cells)})")
+EOF
+python3 raw-ladder.py     # repeat at c=1 n=5 and quote medians, never one sample
+```
+
+`accuracy_status: n/a` — base weights, raw completions; a score from a chat battery would measure the
+absence of a template, not the model. `tools/run-arm.sh` should not drive this arm either: its generic
+branch runs the chat ladder and the standard suite, both of which address `/v1/chat/completions`.
+
+**Launch (ready for the operator's next `.30` slot):**
+
+```bash
+sparkrun run recipes/liquidai/zz-liquidai-lfm3-1.7b-base-f16-llamacpp.yaml -H <node> --cluster WOPR
+```
+
 ## Fine-tuning
 
 `finetuning/` is where the toolkit survey lands — one entry per toolkit that can actually train an

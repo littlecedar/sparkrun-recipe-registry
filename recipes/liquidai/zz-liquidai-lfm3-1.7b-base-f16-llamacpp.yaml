@@ -1,0 +1,74 @@
+recipe_version: "2"
+# CONTROL ARM, `zz-` and AUTHORED 2026-11-07, not booted. It is the fine-tune baseline for this
+# lane's LFM3 instruct pair: same tokenizer, same conv+attention body, no instruction training.
+# Base weights have no chat template of their own, so the arm serves RAW COMPLETIONS ONLY
+# (/v1/completions): no `--jinja`, no chat template, no house battery and no tool suite — those
+# instruments address /v1/chat/completions and would measure their own 400. The cells this arm can
+# honestly produce are decode/prefill rates from llama.cpp's own per-request `timings`, recorded
+# from a raw-completion ladder; `recipes/liquidai/README.md` §LFM3-1.7B-Base carries the exact probe.
+model: littlecedar/LFM3-1.7B-Base-GGUF:F16
+# The vendor repo's commit the GGUF was converted from, not a Hub revision of the GGUF itself.
+model_revision: 7bca5038823c0d0f14efe06439109354a10e014c
+runtime: llama-cpp
+max_nodes: 1
+# llama.cpp `6023692` (2026-11-05) is the build whose own `conversion/lfm3.py` produced this file and
+# whose runtime loads `lfm3`; the vendor's instruct F16 is the same byte size, which is the shape
+# check that the conversion is faithful.
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+description: >-
+  LiquidAI/LFM3-1.7B-Base — the 1.7B LFM3 hybrid conv+attention base model vendor's bf16
+  checkpoint, converted to an F16 GGUF by this image's own llama.cpp converter, on ONE DGX Spark
+  through llama-server in raw-completion mode. 24 layers, 2048 hidden, sliding window 256, native
+  context 262,144, gpt2 BPE tokenizer with 128k vocab. LFM Open License v1.0 (ordinary arm —
+  `mad-science/QUESTIONS.md` #56, no eval-only banner).
+metadata:
+  model_url: https://huggingface.co/LiquidAI/LFM3-1.7B-Base
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "1.7B"
+  model_dtype: fp16
+  kv_dtype: fp16
+  tags: liquidai, license, smol, control
+  caveats: >-
+    A base model: no instruction following, no chat behaviour, and therefore NO accuracy figure.
+    Any score taken over a chat battery or a tool suite would measure the absence of a template,
+    not the model, so the arm reports `accuracy_status: n/a` (raw completion, base weights) instead
+    of a number. The GGUF is a local conversion, not a Hub artifact: it lives in the shared pool as
+    a hand-placed cache entry under `littlecedar/LFM3-1.7B-Base-GGUF` (sha256
+    `86bfa3eb5f6cf0c297e4b84b26049db064ce829d64ec39d20dbdb90884626eef`), so a host that is not
+    pool-mounted needs that repo published before it can stage the file.
+executor_config:
+  entrypoint: ""
+readiness:
+  # No chat endpoint exists on this arm; readiness is the port and /v1/models.
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF file, so the served id
+  # is a cache path (-n hides this). --alias carries the client-visible id.
+  served_model_name: LiquidAI/LFM3-1.7B-Base
+  # Native window is 262,144, but this arm is a throughput control: 32,768 keeps the KV small and
+  # the ladder's prefill cells inside one chunk. Raise it only if a long-context cell is wanted.
+  ctx_size: 32768
+  # Ten slots so a c10 rung measures batching rather than the slot limit.
+  parallel: 10
+  n_gpu_layers: 999
+  flash_attn: auto
+# Literals, not defaults: the llama.cpp flag map's `defaults:` block is only consumed on the
+# command-less path, so `jinja:` / `webui:` / `load_mode:` there would be silent drops. `--jinja` is
+# deliberately absent: this arm must not pretend to have a template.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --flash-attn {flash_attn}
+  --no-webui
+  --load-mode none
+  --cont-batching

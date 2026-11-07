@@ -228,6 +228,53 @@ curl http://<node>:8020/v1/systemone -H 'Content-Type: application/json' -d '{
 incompatibility. Until an instrument that speaks d1's body exists, this arm carries cells and no
 accuracy number — an honest gap, marked as one in the receipt.
 
+### zz-liquidai-d1-omni-2b-q8-systemone-llamacpp
+
+| field | value |
+|---|---|
+| repo id | `LiquidAI/d1-Omni-2B-GGUF` — `d1-Omni-2B-Q8_0.gguf`, 1.846 GB, pinned `36707287…`; projector `mmproj-d1-Omni-2B-Q8_0.gguf`, 0.33 GB |
+| recipe | [`zz-liquidai-d1-omni-2b-q8-systemone-llamacpp.yaml`](zz-liquidai-d1-omni-2b-q8-systemone-llamacpp.yaml) — llama.cpp, TP=1, one node, port 8020 |
+| image | `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` — the same build the d1 text arm runs |
+| arch | **verified before authoring, and it is not what the name suggests:** the GGUF's `general.architecture` reads `lfm3` (not `lfm3_omni`), with `lfm3.decision.type = lfm3-d1-omni`; the image's `llama-server` carries `lfm3-d1-omni`, `input_audio`, `lfm3a`, `lfm3vl` and `systemone` in its strings, so upstream's decision endpoint and the LFM3 audio encoder are both in this ref |
+| accuracy | `—` — same declaration as the text arm (`metadata.decision_accuracy: none`): the house battery speaks chat, the JEV case set speaks another schema, and `run-arm.sh` records `accuracy_status: n/a` rather than a score over the wrong instrument |
+| API | `/v1/systemone` — typed decisions over a **text, JSON, image, video or spoken** state; the audio path is the surface this arm exists to probe |
+| status | **authored 2026-11-07, not booted** — `zz-` until a boot produces its cells |
+
+**What the audio cell can and cannot assert.** It proves acceptance and consistency: the endpoint
+takes a spoken state (an `input_audio` content part carrying a base64 WAV) through the same media path
+images use, answers with a schema-valid typed decision inside the served window, and gives the **same
+label as the same statement typed out** — that last one is the real falsifier, because a decoder that
+ignored the audio would answer from the question alone while a decoder fed garbage would disagree with
+its own text control. It does not prove transcription fidelity, WER, robustness to accent or noise, or
+that an agreeing label came from the speech rather than a language prior on the question. One fixture
+sentence is not an audio benchmark, and no instrument in this tree scores audio understanding.
+
+**Probe.** [`tools/omni-audio-probe.py`](../../tools/omni-audio-probe.py) sends both cells and compares
+them; `--expect` turns a wrong label into `expect-missed` instead of a quiet pass, and `--selftest` runs
+four offline controls (agree, disagree, audio-400, non-WAV fixture). The fixture is the drama-3 render
+already on the head — it speaks
+
+> "The quarterly report is due on Thursday, so please finish it by noon."
+
+```bash
+python3 tools/omni-audio-probe.py --selftest          # offline, ~1 s
+python3 tools/omni-audio-probe.py \
+  --base-url http://<node>:8020 \
+  --wav ~/benchmarks/omni-repin-20261107/drama-weights/drama.wav \
+  --statement "The quarterly report is due on Thursday, so please finish it by noon." \
+  --question "Is the quarterly report due on Thursday?" --expect yes \
+  --json ~/benchmarks/tp12-$(date +%Y%m%d)/zz-liquidai-d1-omni-2b-q8-systemone-llamacpp/omni-audio.json
+```
+
+The text arm's ladder and its `/v1/systemone` semantic gate apply unchanged to this arm's typed path;
+only the audio cell needs the probe.
+
+**Launch (ready for the operator's next `.30` slot):**
+
+```bash
+sparkrun run recipes/decision/zz-liquidai-d1-omni-2b-q8-systemone-llamacpp.yaml -H <node> --cluster WOPR
+```
+
 ### nox-4b-decision-vllm-srun
 
 | field | value |
