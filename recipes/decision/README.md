@@ -159,8 +159,10 @@ source, not from a run here):
   counts `body["answers"]` against `len(questions)` per request and prints a cell FAILED when they
   disagree, so a wrong response shape reads as a failed cell rather than as a rate.
 - The head is a **typed decision, not logits over the vocabulary**: llama.cpp reads it from the
-  GGUF's `general.architecture.decision.*` metadata, renders the model's own `systemone` template,
-  and answers in one forward pass. It serves one slot and sets `no_batching = is_lfm3_d1()` — the
+  GGUF's own decision metadata, renders the model's own `systemone` template, and answers in one
+  forward pass. The pinned file carries `lfm3.decision.type = lfm3-d1` — the key that selects the
+  `is_lfm3_d1()` path in `server-decision.cpp` — plus a calibration temperature per question type
+  (`lfm3.decision.temperature.{noul,choice,score}`, all `1.3373984` in this export). It serves one slot and sets `no_batching = is_lfm3_d1()` — the
   short convs hold no per-sequence state to separate a batch — so offered concurrency queues.
 - `-b 8192 -ub 8192` is a **correctness** knob: one question is read in a single prefill batch, and
   a picture may take up to half of `-ub` (4096 tokens). A state that overflows the batch is
