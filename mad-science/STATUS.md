@@ -1,4 +1,4 @@
-# Board — generated 2026-11-07 14:08 ET
+# Board — generated 2026-11-07 14:13 ET
 
 ## In flight
 | where | owner | what |
@@ -76,3 +76,4 @@
 | 13:32 ET | `c3fc2d5` | Attributed the hour's largest root fall to both Liquid bodies and closed the VL gap: `LFM3-VL-2B-GGUF` 15,856,080,128 B + `LFM3-Omni-2B-GGUF` 13,897,434,272 B = 98.1 % of the 29,195,776,000 B window, zero `*.incomplete`, and the two `hf download` jobs (pids 2250964/2250965) named. |
 | 13:37 ET | `4ae2749` | Labelled the audio footprint by state instead of as one number — **1.14 GiB at readiness before any request** versus **1,499,716 kB `VmHWM`** after ASR/TTS — and corrected two earlier claims it had inferred (`.35` rank-1 bind, the 137 kill's OOM event). |
 | 14:02 ET | `1a11398` | Closed all three Liquid multimodal boots with their gaps declared — VL 258 image tokens (×0.496 prefill) at accuracy n/a, Omni two cells (image ×0.509, audio WER 0.0 both directions), audio 1.14 GiB — clearing the claims and taking the register to 72 done / 10 open. |
+| 14:09 ET | `23b4d44` | Recorded both vision boots' cells — VL 258 image tokens at image prefill **0.496×** with decode 144.35 against text-only 143.48 and the no-image control answering honestly, Omni **0.509×** / 152.18 and **inventing** a description with no image attached — and fixed the probe defect behind the VL arm's first empty reply: `tools/vl-arm-probe.py` now defaults `--max-tokens 512` and reports content-less-but-reasoning-full as an instrument warning, with the prefetch requirement (that image's llama-server has no HTTPS) stated beside the launch commands. |
