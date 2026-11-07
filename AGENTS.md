@@ -14,10 +14,12 @@ total against `unittest.defaultTestLoader.discover("tests").countTestCases()` (u
 executed) and fails naming the stale line, so the number cannot rot; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-07
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-07, the date on this line; the roster names every arm
-that prints any finding, warnings and suggestions alike, not only the warning arms it listed
-before); suite 1275 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced
-them**. The snapshot is one
+the whole tracked tree (re-measured 2026-11-07, the date on this line: 96 tracked recipes scanned,
+53 of them printing a finding, 20 with a warning and the rest suggestions only; the LiquidAI and 3D
+arms that landed after the previous snapshot add no row, because an accuracy declaration belongs
+inside `metadata:` where `unknown-top-level-key` does not fire; the roster names every arm that
+prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
+suite 1275 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
