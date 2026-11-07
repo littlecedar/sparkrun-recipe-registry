@@ -163,6 +163,19 @@ digest, and the engine reported `sglang: 0.5.21`) while the same command with
 `recipes/ornith/ornith-1.5-35b-a3b-nvfp4-dflash2-sglang.yaml` booted the new one.
 Use a registry ref only when the published copy is what you mean to serve.
 
+**And refresh the registry clone before booting a changed shared mod.** A `@littlecedar/mods/<name>`
+ref is served from that registry's per-host clone — named registries live at
+`~/.cache/sparkrun/registries/<name>` (`sparkrun/core/registry.py:1196`; URL-added ones under
+`_url_<hash>`) — and the registry manifest pins **no commit**, so the clone is whatever that host last
+fetched. Refresh it before the boot:
+`git -C ~/.cache/sparkrun/registries/littlecedar fetch --prune origin && git -C … pull --ff-only`.
+When `pull` refuses with `unable to update local ref` or `Cannot fast-forward to multiple branches`
+(two tracking refs for one remote), take the branch explicitly:
+`git fetch origin main && git merge --ff-only FETCH_HEAD`. Measured 2026-11-07: a stale clone's
+launcher silently ignored `--serve-debug acceptance` and the campaign still reported **rc=0 measured**;
+refreshing the clone on all three hosts (head, `.30`, `.35`) is what engaged the instrument. This
+applies to any shared-mod edit a boot must pick up, not only to a pin bump.
+
 **And extend that to the pin itself: commit before you boot, re-tag after a pull.** Two ways a bump
 campaign silently measures the previous engine, both hit on 2026-10-22. (1) `docker pull
 repo:tag@sha256:…` stores the image **untagged** — a peer's `docker image prune` on the shared fleet
