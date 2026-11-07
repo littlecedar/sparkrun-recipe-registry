@@ -14,7 +14,7 @@ max_nodes: 1
 # registered `LLM_ARCH_FLINT` in `src/llama-arch.cpp` at `a37cc4610` (2026-10-21, the lane's
 # ref floor), and `src/models/flint.cpp` is present at 6023692 - so the image is not merely
 # "newer than the floor", it is the commit the loader was checked against.
-container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
 description: >-
   RecursiveSI/flint preview — 39.8B-A2.5B agentic-coding MoE, Apache-2.0 "flint-preview"
   licence, vendor's Unsloth dynamic UD-Q3_K_XL GGUF (18,494,977,472 B, 3.72 bit/weight) on ONE

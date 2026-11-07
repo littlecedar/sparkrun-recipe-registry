@@ -6,7 +6,7 @@ max_nodes: 1
 # Same pinned build the lane's text arm runs: llama.cpp `6023692` (2026-11-05) carries both
 # `LLM_ARCH_LFM3` and the lfm3-d1 decision path (`tools/server/server-decision.cpp`,
 # `is_lfm3_d1`), plus the `lfm3vl` projector this mirror ships.
-container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
 mmproj: mmproj-d1-2B-Q8_0.gguf
 description: LiquidAI/d1-2B — 1.9B LFM3-VL system-one decision model (choice / score / noul over text, JSON, pictures, video) as the vendor's own Q8_0 GGUF on ONE DGX Spark; answers POST /v1/systemone in one forward pass and generates no tokens
 metadata:

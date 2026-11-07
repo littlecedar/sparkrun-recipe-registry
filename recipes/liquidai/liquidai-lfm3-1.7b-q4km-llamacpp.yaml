@@ -6,7 +6,7 @@ max_nodes: 1
 # Not the resident scitrera pin: that image carries llama.cpp `b2e5e9b` (2026-08-21) and
 # `lfm3` only landed upstream on 2026-10-27 (`19cce691`, PR #31252), so it cannot load this
 # GGUF at all. Built by this repo's llamacpp-engine workflow at 6023692 (2026-11-05).
-container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
 description: LiquidAI/LFM3-1.7B — 1.7B hybrid conv+attention chat model as the vendor's own Q4_K_M GGUF on ONE DGX Spark through llama.cpp; whether this build loads `lfm3` is what the first boot decides
 metadata:
   model_url: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF

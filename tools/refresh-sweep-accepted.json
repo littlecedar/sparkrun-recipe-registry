@@ -12,12 +12,6 @@
       "class": "container-newer-release",
       "reason": "the kev/laya decision arms `pip install` their released server at boot, so the base image is only an interpreter: a Docker Hub rollup of 3.12-slim cannot change what is served. Bump it opportunistically with those arms' next boot, not as drift (2 arms)",
       "since": "2026-10-22"
-    },
-    {
-      "ref": "mellum2\\.1-12b-a2\\.5b-q4km-thinking-llamacpp\\.yaml",
-      "class": "model-stale-weights",
-      "reason": "the post-pin commits add `mtp/*` draft GGUFs only — the shipped `Q4_K_M` (8,071,295,264 B) is byte-identical (`ecc4d5b8…`). The MTP path needs the Mellum-MTP image and a draft staging step before it is servable, so the pin stays until that arm exists",
-      "since": "2026-10-22"
     }
   ]
 }
