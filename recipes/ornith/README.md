@@ -1246,3 +1246,25 @@ sparkrun stop <cluster-id> -H .35   # and copy the serve log first: `sparkrun st
 Only two cells are needed: A's completion text and B's chat text. llama-benchy runs on one coherent
 arm afterwards, never on a salad one. Both arms are `zz-` drafts: not in the root README index, no
 decode number claimed, and neither is promoted by a coherence pass alone.
+
+### 2026-11-07 survey verdict — the non-abliterated arm already exists
+
+**2026-11-07 survey verdict.** No new boot is owed: the non-abliterated 122B DFlash2 arm the queue row
+asks for is the one this lane measured on 2026-10-30, `zz-ornith-1.5-122b-nvfp4-dflash2-sglang` — vendor
+NVFP4 `ornith-ai/Ornith-1.5-122B-NVFP4` @ `f049036f794622db10bb69855bf9819207334626` (MIT,
+77,612,366,084 B = 77.61 GB) plus drafter `incoai/Ornith-1.5-122B-DFlash2` @
+`9baefc1bec85c08193ab442e0ca5f7057669b61d` (Apache-2.0, 1,870,568,336 B), alignment untouched,
+**C1 37.7 / C10 48.9 t/s** with acceptance above 1.
+The one alternative that fits one node, `Sherlock-Comms/Ornith-1.5-122B-NVFP4-DFlash2-RTX-Spark` @
+`5c45c807ff15a76acd5e6a4c0a681ede6ddd0dcf` (MIT, index total 78,708,947,200 B = 78.71 GB, target only),
+is the same checkpoint with `lm_head` dequantized to BF16 and nothing else — its shards 1–7 carry the
+vendor export's own LFS sha256, and shard 8 differs by exactly `lm_head.weight` `U8[248320,1536]` plus two
+scale tensors becoming `BF16[248320,3072]` — so on SGLang v0.5.22, which already runs a quantized head
+(the dequantized head exists to lift the vLLM drafter gate), it can only reproduce the number above, at
+1.10 GB more weights; it was read at code and tensor level, not booted.
+`ornith-ai/Ornith-1.5-122B-FP8` @ `40f77767b14a2a70bdbafa0ff26a0bfae1aedf3b` (MIT, 132,938,985,952 B =
+132.94 GB / 123.8 GiB) stays rejected on fit, since the weights alone exceed the node's addressable
+memory, and its drafter card names no FP8 pairing — bf16 `ornith-ai/Ornith-1.5-122B` at TP=2 only.
+The same-day Hub re-check (`?search=Ornith&sort=createdAt` and `author=ornith-ai`) found no newer
+non-abliterated safetensors export: the post-2026-11-03 122B additions are GGUF, MLX, and a
+container-blob repo.
