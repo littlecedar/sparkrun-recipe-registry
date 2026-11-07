@@ -32,6 +32,7 @@ the properties.
 from __future__ import annotations
 
 import contextlib
+import datetime as dt
 import fcntl
 import importlib.util
 import io
@@ -348,6 +349,26 @@ class TitleMonotonicity(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._repo(tmp, "2026-11-06 15:49")
             path.write_text(self.BOARD.format(stamp="2026-11-06 16:04"), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(tq.main(["lint", str(path)]), 0)
+
+    def test_a_title_ahead_of_the_clock_is_refused(self):
+        # Negative control: pre-fix `lint` passed a future title, and the next tick then lost nine
+        # minutes because title-regression refused its honest stamp (measured 2026-11-07 17:10).
+        ahead = (dt.datetime.now() + dt.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._repo(tmp, "2026-11-06 15:49")
+            path.write_text(self.BOARD.format(stamp=ahead), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                self.assertEqual(tq.main(["lint", str(path)]), 1)
+            self.assertIn("future-stamp", out.getvalue())
+
+    def test_the_current_minute_is_not_future(self):
+        now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._repo(tmp, "2026-11-06 15:49")
+            path.write_text(self.BOARD.format(stamp=now), encoding="utf-8")
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(tq.main(["lint", str(path)]), 0)
 

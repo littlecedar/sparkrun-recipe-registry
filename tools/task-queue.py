@@ -569,6 +569,17 @@ def cmd_lint(args, path: Path) -> None:
             print(f"{target}:1: title-regression: title says {mine}, HEAD says {prior} — a stale "
                   "full-file write replaced a fresher board; re-read it and regenerate")
             total += 1
+        # The mirror defect, and the reason the rule above needs it: a stamp *ahead* of the clock
+        # wedges every tick, because title-regression then refuses any honest title until wall time
+        # passes the bogus one. Measured 2026-11-07: a board committed 17:10 carried `generated
+        # 17:20 ET`, and the next tick lost nine minutes waiting rather than lying about the time.
+        # Resolution is the minute, so a legitimately stamped title is never ahead of the clock.
+        clock = dt.datetime.now()
+        if mine and _stamp(mine) > clock.replace(second=0, microsecond=0):
+            print(f"{target}:1: future-stamp: title says {mine}, clock says "
+                  f"{clock:%Y-%m-%d %H:%M} — a stamp ahead of the clock wedges every tick's "
+                  "title-regression check until wall time passes it; stamp the real time")
+            total += 1
     if total:
         raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
     print(f"ok: {len(paths)} markdown file(s) render")
