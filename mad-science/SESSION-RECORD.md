@@ -3313,7 +3313,9 @@ task `38aaa36e56a717b8_56e588e846e8` on `.30` (rank 0) + `.35` (rank 1),
 `recipes/cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml`, image
 `sha256:788c36544f1e`, started 11:03:12 ET: rank 0 `200` on `/health` and `/v1/models` serving
 `drowzeys/DeepSeek-V4.1-Flash-Abliterated-Cybersecurity-Unleashed` at 1,048,576 context, rank 1
-ready in 51.6 s and following rank 0 with **no listener by design** (its probe reads `000`).
+ready in 51.6 s and following rank 0, and it **binds nothing on `:8000`** — `ss -ltn` filtered to
+that port prints no line on the node or inside the container (`grep` rc=1 both), while its serve
+process (pid 890982) is alive; the probe reads `000` for that reason, not for a dead rank.
 Neither declaration mechanism covers it — `.local/fleet-window.lock` is absent, and campaign
 `d1-20261107` is **drained** (`sparkrun-campaign.service` inactive, its single arm
 `liquidai-d1-2b-q8-systemone-llamacpp` `measured`, no lease) — and the register row it serves,
@@ -3323,4 +3325,87 @@ board; the register's two `running` rows stay as their holder (`campaign-operato
 Second writer class named this cycle, for the record: the ~867 MB root fall on each of `.32`–`.35`
 over 11:01:40→11:07:11 is the shared pool, not a local writer — `models--littlecedar--LFM3-1.7B-Base-GGUF`
 was staged at 11:05–11:06 (**3.3 GB** apparent, `blobs/` 11:05, `refs/`+`trees/` 11:06), and the four
-sums to ≈3.47 GB. No `hf` process remained at 11:07.
+sums to ≈3.47 GB. No `hf` process remained at 11:07. Both halves of that attribution are measured
+rather than argued: `findmnt` shows `/mnt/beegfs` as its own `beegfs` mount while `/srv/beegfs/storage`
+is a plain directory on `/dev/nvme0n1p2` — the device `df /` measures — so a pool body does spend root
+avail on the storage nodes; and for the longrun's `137`, docker emitted **no `container oom` event**
+for either container (run-1 and run-2 event logs carry `die` only), so the kill did not come through
+the container cgroup's OOM path. The cause therefore sits outside the container's memory accounting,
+and the one process that outlived the boot is the idle `capture_proxy.py` (pid 457040), whose spool
+stopped at 10:59: no driver process survives on the workstation or the head, so the extension did not
+keep running against the dead serve.
+
+## 2026-11-07 11:20 ET — tick: the Kromoss weights A/B, homed before its board row is swept
+
+`refresh-weights-and-runtime-repin`'s one genuine weight move — `media/kromoss-mossimage-5b-bf16-diffusers-script`,
+`a4fe9744…` → `0c5417ec…` — was booted both sides on `.30` by the repin holder (`~/benchmarks/kromoss-ab.sh`,
+10:46) and finished at 10:59. Recorded here because its numbers otherwise live only in
+`head:~/benchmarks/kromoss-ab-all.log` and in an In-flight row the next tick deletes:
+
+| leg | revision | load | generate (50 steps, cfg 3.0, seed 42) | node |
+|---|---|---|---|---|
+| old | `a4fe97449297af2e3be7841e1c18e431f3b06031` | 197.9 s, peak alloc 25.33 GiB | `rc=0`, 136.76 s, peak alloc 28.19 GiB | `.30` (`kromoss-ab-old`) |
+| new | `0c5417ec89301cb82da9ee164f8ed696523910a9` | 183.5 s, peak alloc 25.33 GiB | `rc=0`, 137.264 s, peak alloc 28.19 GiB | `.30` (`kromoss-ab-new`) |
+
+Both legs wrote a 1024×1024 PNG and were stopped (`cn ts=0 vols=0` after each); `PIL` is absent in the
+image, so the receipt's dimensions line is its file header only, not a decode check. Read as: the new
+weights do not regress load (−14.4 s) or generate (+0.5 s, 0.4 %), which is what the repin needed from
+this leg; the row stays `running` for its remaining moving-tag A/Bs (`lmsysorg/sglang:dev-cu13` on five
+arms, `python:3.12-slim` on four), each owed its own boot. Receipts
+`head:~/benchmarks/tp12-20261107/kromoss-ab-{old,new}/`.
+
+## 2026-11-07 11:26 ET — tick: five board-mechanics commits homed, and `.30`'s writer claim expires
+
+The board's `Landed session` table never carried the five commits that landed
+corrections between 10:11 and 10:27 — they were board mechanics, and each
+successor tick folded their content rather than rowing them. They would have
+gone homeless when the table is cleared, so their clauses are recorded here,
+in order:
+
+- `b7d355d` (10:11) **Refresh board: 10:05 census, `.35` ornith relaunch, 18 open** —
+  the 10:05:50 census was retaken across all six nodes rather than carried:
+  containers `0/1/1/1/1/1`, volumes 0 on every node, root avail down 111,333,376 B
+  (106 MiB) in 3,759 s since the 09:03:13 read, which is four orders below
+  `a96e872`'s 18.5 GB pooled body, so no pool-write class landed in that window.
+- `d9d2ec5` (10:15) **Fix `.35` container id and confirm 10:05 census twice** —
+  the `.35` research boot's container is `057bd8ab5565` (full
+  `057bd8ab556513099416a8d8`), not the launch segment
+  `sparkrun_78c7e2fa335a63e5_916638841df1_solo` the row had named, so an operator
+  can `docker exec` what the row says; the census was re-read twice to confirm it.
+- `5bc0bba` (10:22) **Correct census rate claim and carry 10:18 peer rows** — the
+  10:18 board's parenthetical claimed the storage nodes held "~1.4 kB/s", which
+  is 2.5× the floor it cited; the node's own delta over the same 3,759 s window
+  reads `.31` 3,844 B/s and `.32`–`.34` 3,694–3,697 B/s, and the range had
+  silently dropped `.31`, the highest rank.
+- `c11a567` (10:26) **Name `.30`'s writer: `.35` longrun spool 93% its fall** —
+  the 09:26 record left the head's ~7 kB/s with no writer named and named the
+  falsifier (per-node io accounting over a fixed window); the coarse version ran:
+  the head hosts run 2's capture proxy for the `.35` ornith longrun, which spools
+  every SSE body into `~/benchmarks/ornith-longrun-20261107/` while the node
+  itself runs 0 containers and 0 volumes, and a paired 30 s read put that spool
+  at 93% of the node's fall. **That attribution has since expired**, which is why
+  it is written here with its term: the spool froze at 10:59 (40,521,659 B,
+  0 B growth across a later 30 s pair), the longrun's serve died 11:02:19 ET, and
+  `.30` still fell 69,632 B / 30 s (**2.3 kB/s**) at 11:09:33→11:10:03 with the
+  capture dir static — so the residual's writer is unnamed again, and the third
+  census read of this hour shows `.32`–`.35` each falling **exactly −167,936 B**
+  over 110 s, a uniform floor rather than a burst.
+- `e205911` (10:27) **Bump board's title past read carries and cite mount check** —
+  the 10:23 title predated the 10:24:33–10:25:03 paired read that its own `.30`
+  row quoted, so the file claimed a generation earlier than its evidence; the
+  title now names the write's minute while the census stamp stays the peer tick's
+  10:05:50 and the census row keeps its own read time, which governs.
+
+Two facts from the 11:26 tick that belong with them rather than on the board: the
+longrun's capture proxy is **still listening** on the head (`127.0.0.1:4101` →
+`10.0.4.35:8000`, pid 457040) and its target is now the TP=2 engram pair's serve,
+so any future connection would append foreign-boot rows to a ledger that ended at
+`index 1098` — the ledger is **clean as at 11:24:39 ET** (1,098 rows, all HTTP
+200, mtime 10:59:49, unchanged since), and the idle listener is reported rather
+than killed because the harness is not this tick's. And the engram pair's
+measurement half, re-run as `~/benchmarks/engram-measure.sh` at 11:11:03, returned
+`total_gib 188.83` with `total_resident_pages: 0` and `resident_fraction: 0.000000`
+for both `engram-l1`/`engram-l14` on **both** ranks at 11:11:04–05 — zero engram
+pages resident after a 57.9 s load that read weights from the rank cache — which
+bears on `engram-cache-hit-rate`'s premise and on `d484dbd`'s correction; the
+post-ladder sample is still owed (ladder in flight since 11:11:06).
