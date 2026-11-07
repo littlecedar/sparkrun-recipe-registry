@@ -126,6 +126,13 @@ tokens at 133.65 t/s). Receipt
 `~/benchmarks/tp12-20261107/liquidai-lfm3-1.7b-q4km-llamacpp/`, campaign journal in the campaign
 root.
 
+**The family's decision members live in the decision lane.** `d1-2B` ships as
+[`recipes/decision/liquidai-d1-2b-q8-systemone-llamacpp.yaml`](../decision/liquidai-d1-2b-q8-systemone-llamacpp.yaml)
+because its instrument does — a prefill-only `/v1/systemone` scorer measured by
+`tools/decision-ladder.py`, never `llama-benchy`. It is a `lfm3_vl` fine-tune of `LFM3-VL-2B`, so
+it also needs the `lfm3vl` projector, which the same pinned llama.cpp build carries; a d1 arm
+alone covers the endpoint and head-semantics question that `d1-Omni-2B` then extends with audio.
+
 **Engine routes (2026-11-07 survey).** llama.cpp is the only LFM3-capable *pinned* engine this
 registry holds: the `upstream-6023692-cu130` image carries `LLM_ARCH_LFM3` and covers the whole
 family — text, the `lfm3vl` projector, `lfm3a`/`lfm3a_gen` audio, and `d1` through

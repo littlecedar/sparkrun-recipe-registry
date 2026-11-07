@@ -552,14 +552,31 @@ def decision_arm(text: str) -> str:
     return case_arm(text, DECISION_ARM_AT)
 
 
+# What a d1 arm declares instead of an accuracy instrument: `tool-eval-bench
+# --decision-bench-only` sends the Typed Decisions/JEV case shape, and a Liquid d1 arm takes
+# the vendor's own `{state, questions}` body, so the recipe says so and the executor obeys.
+D1_RECIPE = (
+    'recipe_version: "2"\n'
+    "model: LiquidAI/d1-2B-GGUF:Q8_0\n"
+    "runtime: llama-cpp\n"
+    "metadata:\n"
+    "  decision_accuracy: none\n"
+)
+
+
 def run_decision_arm(
     arm: str,
     ladder_ok: bool = True,
     api: str = "",
     accuracy_ok: bool = True,
     ladder_body: str | None = None,
+    recipe_text: str | None = None,
 ) -> tuple[dict[str, str], str]:
-    """Execute *arm* in a temp receipt; return its file map and its output."""
+    """Execute *arm* in a temp receipt; return its file map and its output.
+
+    *recipe_text* writes a temp recipe and points ``$RECIPE`` at it, which is how a test asks
+    the branch to read a declaration the shipped JEV recipe does not carry.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         receipt = tmp / "receipt"
@@ -574,12 +591,18 @@ def run_decision_arm(
             stub = bins / name
             stub.write_text(body)
             stub.chmod(0o755)
+        if recipe_text is None:
+            recipe_line = "RECIPE=recipes/decision/jev-9b-decision-vllm.yaml\n"
+        else:
+            recipe = tmp / "arm-recipe.yaml"
+            recipe.write_text(recipe_text, encoding="utf-8")
+            recipe_line = f"RECIPE={recipe}\n"
         script = tmp / "arm.sh"
         script.write_text(
             "#!/usr/bin/env bash\nset -uo pipefail\n"
             f"L={receipt}\n"
-            "RECIPE=recipes/decision/jev-9b-decision-vllm.yaml\n"
-            "NAME=decision-arm\nNODE=head.test\nPORT=8020\nSERVED=jev-9b\n"
+            + recipe_line
+            + "NAME=decision-arm\nNODE=head.test\nPORT=8020\nSERVED=jev-9b\n"
             "DECISION_CASES=/dev/null\n"
             "BENCH_VERBOSE=\n"
             "rc=0\n" + artifacts_function(read_tool()) + "\n" + arm + 'echo "rc=$rc"\n'
@@ -1014,6 +1037,54 @@ class DecisionReceipt(BashArmHarness):
             "ladder: failed (rc=2)",
             files["house.yaml"],
             "a marker exists for an arm whose ladder never measured; the defect is presence itself",
+        )
+
+class DecisionAccuracyGap(BashArmHarness):
+    """A d1 arm has no accuracy instrument, and its receipt must say that in words.
+
+    `tool-eval-bench --decision-bench-only` sends the Typed Decisions/JEV case shape; a Liquid
+    d1 arm takes the vendor's own `{state, questions}` body, so a run of it measures the
+    instrument's failure, not the model. The recipe declares `metadata.decision_accuracy: none`
+    and the executor obeys the recipe rather than manufacturing a number.
+    """
+
+    def test_a_d1_arm_takes_no_jev_shaped_score(self):
+        files, out = run_decision_arm(decision_arm(read_tool()), recipe_text=D1_RECIPE)
+        house = files.get("house.yaml", "")
+
+        self.assertIn("ladder: ok", house, "the ladder did run; only the accuracy half is absent")
+        self.assertIn("accuracy: none —", house, "the marker names an instrument that did not run")
+        self.assertIn("accuracy_status: n/a —", house, "not-taken must not read as scored")
+        self.assertNotIn("accuracy_status: taken", house, "a score is claimed for the wrong schema")
+        self.assertIn("Typed Decisions/JEV", files.get("teb-decision.log", ""), out)
+        self.assertEqual(out.strip().splitlines()[-1], "rc=0", out)
+
+    def test_a_decision_arm_without_the_marker_still_runs_the_bench(self):
+        """Negative control: the skip follows the recipe's declaration, it is not a blanket."""
+        files, _ = run_decision_arm(decision_arm(read_tool()))
+        house = files.get("house.yaml", "")
+
+        self.assertIn("accuracy_status: taken", house, "the shipped decision arm lost its score")
+        self.assertIn("accuracy: tool-eval-bench", house)
+        self.assertIn("DECISION ACCURACY", files.get("teb-decision.log", ""), "the instrument never ran")
+
+
+class DecisionAccuracyGapNegativeControls(BashArmHarness):
+    def test_ignoring_the_declaration_takes_a_score_the_arm_never_had(self):
+        """The defect the guard prevents: one score for every decision arm, schema or not."""
+        arm = decision_arm(read_tool())
+        marker_read = (
+            "if grep -qE '^[[:space:]]*decision_accuracy:[[:space:]]*none[[:space:]]*$' "
+            '"$RECIPE" 2>/dev/null; then'
+        )
+        self.assertIn(marker_read, arm, "the marker read was not found; control vacuous")
+        weakened = arm.replace(marker_read, "if false; then")
+
+        files, _ = run_decision_arm(weakened, recipe_text=D1_RECIPE)
+        self.assertIn(
+            "accuracy_status: taken",
+            files.get("house.yaml", ""),
+            "a d1 arm whose declaration was ignored still reports taken; the control proves nothing",
         )
 
 

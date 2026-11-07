@@ -16,7 +16,7 @@ which is why that half carries a date. What only a run can know stays a *dated s
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
 the whole tracked tree (re-measured 2026-11-07, the date on this line; the roster names every arm
 that prints any finding, warnings and suggestions alike, not only the warning arms it listed
-before); suite 1266 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced
+before); suite 1269 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced
 them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
@@ -46,7 +46,7 @@ so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 88 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 89 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -81,7 +81,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 88 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 89 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -852,7 +852,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1266 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1269 tests,
   all passing 2026-11-07 (2 skipped:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the

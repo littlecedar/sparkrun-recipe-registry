@@ -4,7 +4,10 @@ Small models that make classification / routing / judgment calls — **prefill-o
 chat models** — co-located with the shipped embed + rerank pair on **one** DGX Spark (the lane's
 core constraint: nodes are at a premium). This README covers the seven shipped recipes plus the two
 candidate CPU arms measured 2026-10-18 — `kev-0.8b` serves and scores but cannot pass sparkrun's
-launch gate, and `d3-edge` cannot load on a staged offline node. The
+launch gate, and `d3-edge` cannot load on a staged offline node. A Liquid `d1-2B` GGUF arm was
+added 2026-11-07: it answers `/v1/systemone` but takes the vendor's own case schema, so it ships
+cells and no accuracy number (§[liquidai-d1-2b-q8-systemone-llamacpp](#liquidai-d1-2b-q8-systemone-llamacpp)).
+The
 candidate research, verified surfaces, official scores, the CPU+GPU tandem probe and the
 revision-drift determination are archived under [`attic/decision/`](../../attic/decision/)
 (indexed at the end).
@@ -16,6 +19,7 @@ revision-drift determination are archived under [`attic/decision/`](../../attic/
   - [kai-0.6b-decision-vllm-srun](#kai-06b-decision-vllm-srun)
   - [sol-2b-decision-vllm-srun](#sol-2b-decision-vllm-srun)
   - [sol-2b-decision2-gguf-llamacpp](#sol-2b-decision2-gguf-llamacpp)
+- [liquidai-d1-2b-q8-systemone-llamacpp](#liquidai-d1-2b-q8-systemone-llamacpp)
   - [nox-4b-decision-vllm-srun](#nox-4b-decision-vllm-srun)
   - [kev-0.8b-decision-serve](#kev-08b-decision-serve)
   - [d3-edge-decision-vllm-srun](#d3-edge-decision-vllm-srun)
@@ -132,6 +136,62 @@ Third ladder pass (2026-10-26, spares-lane, `.30`, pool-era route): **c1 5.199 /
 c10 5.552 req/s** — the three-boot spread across 2026-10-20 (`.34`-era, `--runs 5`), the b2 pass
 (`.35`) and this `.30` pass is ≤ 2.9 % on every cell, and the flat queues-does-not-batch shape
 reproduces on a second node. Receipt `~/benchmarks/spares-20261026/sol2b-b3/RECEIPT.md`.
+
+### liquidai-d1-2b-q8-systemone-llamacpp
+
+| field | value |
+|---|---|
+| repo id | `LiquidAI/d1-2B-GGUF` — `d1-2B-Q8_0.gguf`, 1,846,240,576 B, pinned `4a181094…`; projector `mmproj-d1-2B-Q8_0.gguf`, 203,031,584 B (`clip.vision.projector_type = lfm3vl`) |
+| recipe | [`liquidai-d1-2b-q8-systemone-llamacpp.yaml`](liquidai-d1-2b-q8-systemone-llamacpp.yaml) — llama.cpp, TP=1, one node, port 8020 |
+| image | `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` — llama.cpp `6023692` (2026-11-05). Upstream documents d1 from **b11960 / v0.8.0** on; this ref also carries the lfm3-d1 decision path itself (`tools/server/server-decision.cpp`, `is_lfm3_d1`) and the `lfm3vl` projector |
+| accuracy | `—` — **no instrument speaks this arm's schema.** `tool-eval-bench --decision-bench-only` sends the Typed Decisions/JEV case shape; d1 takes the vendor's own `{state, questions}` body. The recipe declares `metadata.decision_accuracy: none`, and `tools/run-arm.sh` records `accuracy_status: n/a` with that reason instead of running an instrument that cannot address the arm |
+| API | `/v1/systemone` — choice / score / noul over a text or JSON state, pictures and video; one forward pass per case, calibrated probabilities, **no generated tokens**, no chat surface |
+| status | **authored 2026-11-07, not booted** — cells and house are absent by design, not by failure |
+
+**The semantic contract the first boot has to confirm** (read from the vendor card and llama.cpp
+source, not from a run here):
+
+- Body is the vendor's own, **not** the Typed Decisions split: `{"state": <text or null>,
+  "questions": {"<id>": {"type": "noul"|"choice"|"score", "instructions": "...",
+  "criteria": {...} or [...]}}}`, with `images` / `files` data-URIs beside `state` when a case
+  carries media. `state` may be `null` when the media is the whole state.
+- A 200 body is an `answers` map keyed by question id. `tools/decision-ladder.py --api systemone`
+  counts `body["answers"]` against `len(questions)` per request and prints a cell FAILED when they
+  disagree, so a wrong response shape reads as a failed cell rather than as a rate.
+- The head is a **typed decision, not logits over the vocabulary**: llama.cpp reads it from the
+  GGUF's `general.architecture.decision.*` metadata, renders the model's own `systemone` template,
+  and answers in one forward pass. It serves one slot and sets `no_batching = is_lfm3_d1()` — the
+  short convs hold no per-sequence state to separate a batch — so offered concurrency queues.
+- `-b 8192 -ub 8192` is a **correctness** knob: one question is read in a single prefill batch, and
+  a picture may take up to half of `-ub` (4096 tokens). A state that overflows the batch is
+  truncated, not queued.
+- The recipe declares `mmproj:` rather than a literal `--mmproj`, because sparkrun resolves the
+  projector beside the staged GGUF and injects the flag (`runtimes/llama_cpp.py`
+  `_inject_mmproj`). A text-only case does not need it; an image or video case does.
+
+Lane instruments, and the one that does not apply:
+
+```bash
+# cells: the lane's own concurrent ladder, the vendor's schema, one case per request
+python3 tools/decision-ladder.py --api systemone --base-url http://<node>:8020 \
+  --model LiquidAI/d1-2B-Q8_0 --cases <vendored test split>.jsonl \
+  --concurrency 1,2,5,10 --runs 5 --json ladder.json
+# vendor smoke, straight from the card: three question types over one text state
+curl http://<node>:8020/v1/systemone -H 'Content-Type: application/json' -d '{
+  "state": "I was charged twice this month, please refund one of them.",
+  "questions": {
+    "refund": {"type": "noul", "instructions": "Is the customer asking for a refund?"},
+    "team": {"type": "choice", "instructions": "Which team should handle this?",
+             "criteria": {"billing": "Charges, refunds, invoices",
+                          "technical": "App or site faults"}},
+    "urgency": {"type": "score", "instructions": "How urgent is this?",
+                "criteria": ["Can wait", "Today", "Blocking customer now"]}}}'
+```
+
+`uvx tool-eval-bench@2.8.0 --decision-bench-only` is **not** one of them: it speaks
+`/v1/systemone` but replays the Typed Decisions/JEV case shape, so it would score the instrument's
+incompatibility. Until an instrument that speaks d1's body exists, this arm carries cells and no
+accuracy number — an honest gap, marked as one in the receipt.
 
 ### nox-4b-decision-vllm-srun
 

@@ -229,6 +229,7 @@ means "not run", not "fast enough to skip". Per-arm detail and the co-location b
 | nox-4b-decision-vllm-srun   | 🤏🖥🚮   |    67.8% |    0.044 |    0.044 |    0.044 |         — |  9.7GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Nox-4B]   |
 | d3-edge-decision-vllm-srun  | 🤏🖥🚮   |        — |        — |        — |        — |         — | 1.19GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/d3-edge]               |
 | sol-2b-decision2-gguf-llamacpp | 🤏🚮  |    55.0% |     5.2 |      5.4 |      5.4 |       5.4 |  2.0GB |    — |   /v1/systemone |  1 | [Model][vllm-sr/Decision-2.0-Sol-2B-GGUF] |
+| liquidai-d1-2b-q8-systemone-llamacpp | 🤏🚮📜 |       — |        — |        — |        — |         — | 2.05GB |    — |   /v1/systemone |  1 | [Model][LiquidAI/d1-2B-GGUF] |
 | kev-0.8b-decision-serve     | 🤏🖥🚮   |    46.0% |    0.234 |    0.235 |        — |         — | 0.06GiB |    — |   /v1/systemone |  1 | [Model][jaredpalmer/kev-0.8b]          |
 | laya-decision-serve         | 🤏🖥🚮   |    36.1% |    0.449 |        — |        — |         — |      — |    — |   /v1/systemone |  1 | [Model][convaiinnovations/laya]        |
 | timestral-209m-forecast-cpu | 🤏🖥    |        — |        — |        — |        — |         — | 0.84GB |    — |   POST /forecast |  1 | [Model][mistralai/Timestral-209M]      |
@@ -237,6 +238,7 @@ means "not run", not "fast enough to skip". Per-arm detail and the co-location b
 * _The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
 * _The **timestral-209m** row is a CPU probabilistic forecaster, not a classifier: its Accuracy cell is `—` by design (no classification instrument applies) and its req/s columns are `—` — its own rate is a 1.18–1.44 s wall per forecast at the 4,096-step context. Load 1.9 s, peak RSS 2.26 GiB; every pre-registered quantile cell passes (six monotone 21-quantile grids, CRPS beats seasonal-naive on all series). Weights are Modified MIT (USD $20M/month cap, owner-accepted). Receipt `~/benchmarks/tp4-lane-20261024/timestral/`; lane section [`recipes/decision/README.md`](recipes/decision/README.md#timestral-209m-forecast-cpu)._
 * _The **kev** and **laya** rows are CPU Python serves (`kev.serve`, `laya-serve`) whose rates are the lane's `tools/decision-ladder.py` cells: `kev` **0.234 / 0.235 req/s** at c1/c2 (flat throughput at doubled per-request latency, instrument p50 5,403 ms), `laya` **0.449 req/s** at c1 (instrument 36.1 % = 723/2000 at p50 4,290 ms). `kev`'s open item is sparkrun's launch gate, not the serve. Receipts `~/benchmarks/decision-arms2-20261018/`; lane sections [`recipes/decision/README.md`](recipes/decision/README.md#kev-08b-decision-serve)._
+* _The **d1-2B** row is **authored 2026-11-07, not booted**, so its req/s cells are `—` by absence. Its Accuracy cell is `—` **by design**: the arm answers `/v1/systemone` in the vendor's own `{state, questions}` body, while `tool-eval-bench --decision-bench-only` replays the Typed Decisions/JEV case shape — so the recipe declares `metadata.decision_accuracy: none` and `tools/run-arm.sh` records `accuracy_status: n/a` with that reason instead of a score taken over the wrong schema. Engine: llama.cpp `6023692` on `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130` (upstream documents d1 from b11960), with the `lfm3vl` projector beside the Q8_0 GGUF. Route and semantic contract: [`recipes/decision/README.md`](recipes/decision/README.md#liquidai-d1-2b-q8-systemone-llamacpp)._
 * _**jev-27b** and **d3-edge** are listed without measured cells. The 27B arm ships as a recipe with no lane section and no receipt yet (52 GB of bf16 weights, solo-only on one GB10); `d3-edge` has never booted — its runtime refuses the staged offline node and the golden `/health` gate, both blockers re-probed unchanged 2026-10-22._
 
 ## Media
@@ -362,6 +364,8 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 
 <!-- Links -->
 [LiquidAI/LFM3-1.7B-GGUF]: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
+
+[LiquidAI/d1-2B-GGUF]: https://huggingface.co/LiquidAI/d1-2B-GGUF
 
 [littlecedar]: https://littlecedar.net
 [sparkrun]: https://sparkrun.dev

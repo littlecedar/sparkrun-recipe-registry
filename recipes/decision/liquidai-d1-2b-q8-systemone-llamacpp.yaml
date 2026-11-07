@@ -1,0 +1,58 @@
+recipe_version: "2"
+model: LiquidAI/d1-2B-GGUF:Q8_0
+model_revision: 4a181094d1b6addfaa3a0956f78e7ab2aa406a0c
+runtime: llama-cpp
+max_nodes: 1
+# Same pinned build the lane's text arm runs: llama.cpp `6023692` (2026-11-05) carries both
+# `LLM_ARCH_LFM3` and the lfm3-d1 decision path (`tools/server/server-decision.cpp`,
+# `is_lfm3_d1`), plus the `lfm3vl` projector this mirror ships.
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+mmproj: mmproj-d1-2B-Q8_0.gguf
+description: LiquidAI/d1-2B — 1.9B LFM3-VL system-one decision model (choice / score / noul over text, JSON, pictures, video) as the vendor's own Q8_0 GGUF on ONE DGX Spark; answers POST /v1/systemone in one forward pass and generates no tokens
+metadata:
+  model_url: https://huggingface.co/LiquidAI/d1-2B-GGUF
+  model_params: "1.9B"
+  model_dtype: q8_0
+  kv_dtype: fp16
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  tags: decision, smol, classifier, license
+  # No accuracy instrument speaks this arm's schema: `tool-eval-bench --decision-bench-only`
+  # sends the Typed Decisions/JEV case shape, d1 takes the vendor's own `{state, questions}`
+  # body, and a score over the wrong schema is the instrument failing, not the model. The
+  # executor reads this key and records `accuracy_status: n/a` with its reason instead.
+  decision_accuracy: none
+# /v1/systemone is the surface: no chat endpoint, and no /v1/completions either.
+readiness:
+  inference: false
+  port_timeout_s: 600
+  health_timeout_s: 600
+executor_config:
+  # ENTRYPOINT ["/usr/local/bin/llama-server"]: clear it or sparkrun's appended
+  # `bash -c <cmd>` is parsed as llama-server's own flags.
+  entrypoint: ""
+defaults:
+  # The decision lane's port (embed 8010, rerank 8011); alternatives, never co-resident.
+  port: 8020
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF file.
+  served_model_name: LiquidAI/d1-2B-Q8_0
+  ctx_size: 8192
+  parallel: 1
+  n_gpu_layers: 999
+# The vendor's own run line is `llama-server -hf LiquidAI/d1-2B-GGUF:Q8_0 -b 8192 -ub 8192`
+# (llama.cpp b11960 / v0.8.0 and newer). `-b`/`-ub` stay literal: one question is read in a
+# single prefill batch, and a picture may take up to half of `-ub`. `--n-gpu-layers` is the
+# one addition — the card states no offload and llama.cpp would otherwise stay on CPU.
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  -b 8192
+  -ub 8192
+  -np {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --no-webui
+  --load-mode none
+  --cont-batching

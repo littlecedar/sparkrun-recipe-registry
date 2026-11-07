@@ -316,10 +316,23 @@ if [ "$ready" = yes ]; then
       # And its decision mode speaks ONLY /v1/systemone (its own error text says so), so a JEV arm
       # on /v1/completions cannot be scored by it at all -- that is a gap in the instrument, not a
       # failure of the arm, and it made a clean cell run report rc=3.
+      # An arm whose accuracy instrument has no schema for it says so in its own recipe
+      # (`metadata.decision_accuracy: none`), and this branch must obey the recipe instead of
+      # running the instrument anyway: `tool-eval-bench --decision-bench-only` sends the Typed
+      # Decisions/JEV case shape, while a Liquid d1 arm takes the vendor's own
+      # `{state, questions}` body. A score produced over the wrong schema is the instrument's
+      # failure wearing a number, so none is taken and the cells stay the result.
+      accuracy_gap=""
+      if grep -qE '^[[:space:]]*decision_accuracy:[[:space:]]*none[[:space:]]*$' "$RECIPE" 2>/dev/null; then
+        accuracy_gap="tool-eval-bench --decision-bench-only speaks the Typed Decisions/JEV case schema, and this arm takes the vendor's own {state, questions} body"
+      fi
       accuracy_rc=0
       if [ "$api" = completions ]; then
         echo "accuracy: tool-eval-bench --decision-bench-only speaks /v1/systemone only; this arm" \
              "answers /v1/completions, so no score is taken (the cells are the result)" \
+             > "$L/teb-decision.log"
+      elif [ -n "$accuracy_gap" ]; then
+        echo "accuracy: no score taken — $accuracy_gap (the cells are the result)" \
              > "$L/teb-decision.log"
       else
         # The marker's accuracy_status is this command's outcome, not the configuration that
@@ -353,10 +366,16 @@ if [ "$ready" = yes ]; then
           # The field is what says the measurement failed, and presence still means "finished".
           echo "ladder: failed (rc=$ladder_rc) — the artifact is partial and is not a cell; re-attempt" >> "$L/house.yaml"
         fi
-        echo "accuracy: tool-eval-bench --decision-bench-only" >> "$L/house.yaml"
+        if [ -n "$accuracy_gap" ]; then
+          echo "accuracy: none — $accuracy_gap" >> "$L/house.yaml"
+        else
+          echo "accuracy: tool-eval-bench --decision-bench-only" >> "$L/house.yaml"
+        fi
         echo "accuracy_log: teb-decision.log" >> "$L/house.yaml"
         if [ "$api" = completions ]; then
           echo "accuracy_status: not-taken — the instrument speaks /v1/systemone only and this arm answers /v1/completions" >> "$L/house.yaml"
+        elif [ -n "$accuracy_gap" ]; then
+          echo "accuracy_status: n/a — $accuracy_gap" >> "$L/house.yaml"
         elif [ "$accuracy_rc" = 0 ]; then
           echo "accuracy_status: taken — the score is in teb-decision.log" >> "$L/house.yaml"
         else
