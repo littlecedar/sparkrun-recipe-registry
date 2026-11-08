@@ -1833,6 +1833,22 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": null
+    },
+    {
+      "id": "metrics-flag-boot-verification",
+      "title": "Boot one representative arm per runtime to prove the metrics flags are accepted, /metrics reads captured, and a real client cell still lands",
+      "estimate_h": 2,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "The 2026-11-08 metrics sweep (origin 66d4f7d) adds flags to ~90 recipes and its guard tests the recipe text only; `recipe validate` does not exercise argparse inside the engine, so an unrecognised flag on an unverified pin would be a boot failure rather than a no-op (that is why the five absent-pin arms are declared instrumented: false). The flags change RESPONSE BODIES, not just scrape surfaces -- `--enable-force-include-usage` forces `usage` (and `continuous_usage_stats`) into streamed responses, sglang's `--enable-cache-report` adds `usage.prompt_tokens_details`, and `--enable-per-request-metrics` adds a `metrics` field -- so the realistic failure is a CLIENT rejecting a response shape, not the engine refusing to start. An arm that boots and answers /metrics while its clients silently fail would be recorded as verified and then blamed on the model weeks later. Acceptance, per representative arm of each of the four families, three checks: (1) the engine's own server_args/argv shows the flag present; (2) the arm's `metrics-status.txt` reads `captured` with a non-empty per-host body and the runtime family prefix visible in it; (3) a real cell still LANDS -- a `ladder:` with its rows or a `house:` score, not merely \"status ok\". If a client errors, that is the finding and it names the client: the four that touch response bodies are `tools/bfcl-eval.py`, `tools/h2h-client.py` (its `completions` cell parses `usage` and treats empty text as failure), `tools/eval-suite.py` and `tools/needle-haystack.py`. Families: sglang engine, sglang ds4 overlay (EXTRA_SGLANG_ARGS route), vLLM vllm-serve (three usage/metric flags), llama-cpp (--metrics). Candidate arms: cybersec/qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang, ds4/zz-ds4-1017-sm121-arm3-control-marlin (env route, already scaffolded), qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x, explore/ternary-bonsai-2-9b-q2_0-llamacpp. Diagnose in the right order: because the flags sit on ~90 recipes at once, a client-side break appears as a CROSS-FAMILY pattern, so the first suspect when any of those four reports an unexpected failure after this rollout is the flag set, not the model. Rollback: removing the appended flags from the recipe returns the response shape to baseline without touching the engine pin. Cannot run until the pool serves again (QUESTIONS.md #67 context) -- a cell from a wedge window is invalid, and a boot with an empty /cache proves nothing.",
+      "provenance": "origin 66d4f7d (9 sweep commits + census); tools/README.md; QUESTIONS.md #67",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": null
     }
   ],
   "questions": [
