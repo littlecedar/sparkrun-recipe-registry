@@ -3944,3 +3944,42 @@ the board text.
   its arm's own receipt says `measured` — finished work whose holder died before `done --evidence`.
   `41a1788` added the two SM121 survey arms (`w4-survey-arm3-sm121-boot`, `w4-survey-arm5-sm121-boot`)
   as queued, and the two DeepGEMM-gated arms now hold on them.
+
+## 2026-11-07 23:26 ET — byte series through the h2h restart, and 27.6 GB on `.35` with no node-local author
+
+A tick cycle that could not own the board (a peer republished it three times inside eight minutes) lands
+its measurements here instead. All reads are this cycle's own, read-only, from the head.
+
+- **Containers stayed at zero through 23:13:49** (23:00:48, 23:02:07, 23:13:49 reads: `0` containers and
+  `0` volumes on all six nodes), then the campaign's GLM-753B **attempt 2** appeared on `.30`–`.33`
+  (containers created 23:14:41 ET, image ID `sha256:cffb3c3f6216…`, label
+  `recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`), still loading at the 23:21:15 read.
+- **Root avail byte series** (B, `.30` `.31` `.32` `.33` `.34` `.35`): 23:00:48 — 1,439,373,541,376 ·
+  1,853,010,464,768 · 1,905,182,380,032 · 1,797,326,393,344 · 1,241,363,488,768 · 1,485,429,747,712;
+  23:13:49 — 1,439,362,538,496 · 1,853,009,391,616 · 1,905,181,302,784 · 1,797,325,328,384 ·
+  1,241,149,190,144 · 1,457,812,086,784; 23:21:15 — 1,439,361,003,520 · 1,852,999,716,864 ·
+  1,905,180,020,736 · 1,797,324,038,144 · 1,241,148,534,784 · 1,457,811,435,520. Through the
+  container-free window (23:05:02 → 23:13:49, 527 s) the fleet fell **27,835,528,192 B (52.8 MB/s)** of
+  which **`.35` alone lost 27,617,275,904 B (52.4 MB/s)** and `.34` 213,917,696 B; the other four moved
+  kilobytes. Through the booting window (23:15:01 → 23:21:15, 374 s) the quartet lost 11,788,288 B in
+  total, i.e. the fleet's drain was **not** the boot.
+- **The pool moved with it.** `/mnt/beegfs` free on the head: 10,922,880,925,696 B at 23:13,
+  10,912,721,272,832 at 23:16:24, **10,903,047,634,944 at 23:17:23** — a 60 s window measuring
+  **−9,673,637,888 B (161 MB/s)** — then **10,922,869,391,360 at 23:21:15**, i.e. ~19.8 GB released
+  within four minutes. That shape (write, then release without a body appearing) is consistent with the
+  runtime cache of attempt 1 being reaped and attempt 2 restaged, which the director's own log states:
+  `reaped glm-5.3-exl3-… outstanding previous run; 0 container(s) found`.
+- **What is *not* explained:** `.35`'s 27.6 GB fall happened **before any container existed**, and no
+  node-local writer accounts for it. Exclusions, each a command run this cycle: `ps` on all six nodes
+  shows no `rsync`, no `hf`/`huggingface` download and no `docker pull`; `docker image ls` on `.35`
+  lists only two-week-old images and `journalctl -u docker --since "-25 min"` shows no pull or load;
+  the HF hub cache gained nothing (no `.cache` dir, newest repo dir 14:35); `find / -xdev -newermt
+  "-45 minutes" -size +200M` on `.35` returns nothing (and `/var/lib/docker` is 4.0 K there, so the
+  docker data root is not on `/`). What does live on `.35`'s root is the beeGFS chunk store —
+  `/srv/beegfs/storage/{buddymir,chunks}` — which grows with pool traffic regardless of local
+  processes, so **pool traffic is the likely cause (LIKELY, unverified)** and the numbers above are the
+  evidence a later reader can use. Pool free was 10.9 TB throughout, so nothing was at risk; the
+  finding is recorded rather than escalated as an incident.
+- **Board ownership, for the record:** this cycle published once (23:06, census stamp 23:00:48, commit
+  `5a882bd`) and then lost the base to peer republishes at 23:18 and 23:21 while probing. The landed
+  board is the peer's; nothing from this cycle was dropped, because everything it measured is here.
