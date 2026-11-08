@@ -172,16 +172,26 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("required: " + ", ".join("--" + name.replace("_", "-") for name in missing))
 
     base = api_root(args.base_url)
+    arm_dir = os.path.abspath(os.path.expanduser(args.outdir))
+    # The client proves a cell, not the image: run-arm exports the rank-0 image id and writes
+    # <arm>/image.txt, so name it in the receipt (env first, file as the fallback).
+    image_id = os.environ.get("ARM_IMAGE_ID", "").strip()
+    if not image_id:
+        try:
+            with open(os.path.join(arm_dir, "image.txt"), encoding="utf-8") as fh:
+                image_id = fh.read().strip()
+        except OSError:
+            image_id = ""
     try:
         model = args.model if args.model != "auto" else served_model(base, args.timeout)
     except (OSError, ValueError, KeyError) as exc:
         print("h2h-client: endpoint unreachable: %s: %s" % (type(exc).__name__, exc),
               file=sys.stderr)
         return 1
-    outdir = os.path.join(os.path.abspath(os.path.expanduser(args.outdir)), "client")
+    outdir = os.path.join(arm_dir, "client")
     os.makedirs(outdir, exist_ok=True)
-    print("h2h-client: cell=%s base=%s model=%s out=%s" % (args.cell, base, model, outdir),
-          flush=True)
+    print("h2h-client: cell=%s base=%s model=%s image=%s out=%s"
+          % (args.cell, base, model, image_id or "unrecorded", outdir), flush=True)
 
     py = sys.executable or "python3"
     results: list[dict[str, object]] = []
@@ -205,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest = {
         "tool": "h2h-client", "cell": args.cell, "base_url": base, "model": model,
+        "image_id": image_id,
         "receipts_dir": os.path.dirname(outdir),
         "started_utc": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "steps": results, "rc": first_failure,
