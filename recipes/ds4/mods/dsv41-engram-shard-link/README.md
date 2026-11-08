@@ -81,6 +81,13 @@ idempotent no-op, regular-file shape, empty hub). Case 4's shard-6 link resolves
 97,710,505,984 B sparse blob under `stat -Lc`, and case 5 logs `no-op`. `truncate -s` keeps the
 floor check honest without writing 91 GiB; the symlink cases are the ones that used to fail.
 
+The cross-repo fallback — the mod's actual reason for existing — was exercised separately: with
+the Engram present **only** in another repo's symlinked snapshot
+(`models--littlecedar--…-with-engram/snapshots/other/…`), the mod found it (`rc=0`, `SOURCE=` that
+path), linked it into the Coder's `IQ2_XXS/`, and the link resolved to the same 97,710,505,984 B.
+Before the `find -L` fix that path exited `3` ("no Engram on this node") with the file sitting right
+there.
+
 Two guard shapes here are deliberate, because both silently converted an intended exit into `rc 1`
 during the first draft's own testing: an unmatched glob in a `for` body (`[[ -f "$x" ]] && y=…`)
 leaves a failing status behind and `set -e` exits, and a failing `find` used as an assignment
