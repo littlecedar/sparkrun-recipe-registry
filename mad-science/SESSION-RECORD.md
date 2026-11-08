@@ -5266,3 +5266,29 @@ verdict with no falsifier behind it is a guess wearing the register's vocabulary
   Campaign unit active, `state.json` 11:11:15, plan 9 measured / 8 blocked over 17 arms, no lease
   — every bootable row is blocked, so the poller has nothing to place and all six nodes stay
   idle. That is the empty-eligible-set state, not a drained campaign.
+
+## 2026-11-08 11:23 ET — rule: a publisher diffs its read against the file on disk before it writes
+
+**Measured twice today, which is why it is a rule and not a story.** The 11:20 section records the
+sharper case — an in-place peer edit under an unchanged 11:08 title, replaced at 11:13, sha
+`437f78fb` unrecoverable. This tick's case is the bounded one: the board was copied at 11:07
+(stamped 11:04, `.local/board-cur.md` and `.local/board-base.md`), composed and published at 11:09
+to a file whose stamp had moved to 11:08. Diffing the 11:04 snapshot against the committed board at
+`61fb124` shows **every row that peer added present** (11:06, 11:13, 11:14, 11:16, 11:18) and only
+this tick's own older rows superseded, so nothing stayed lost there — but their next tick saved it,
+not the discipline.
+
+**The rule.** A publisher compares the file it read with the file on disk immediately before writing;
+any non-blank line present on disk and absent from the text being published is a peer write, and it
+means **merge, never regenerate**. Regenerating from a stale base is how a board loses a claim, a
+census or a landed SHA that no commit records — `437f78fb` is what that costs.
+
+**The cheap guard, because "sha CAS" is the expensive one.** `tools/task-queue.py publish` can
+express the body-side check in about six lines: after the freshness comparison and inside the lock,
+`missing = {line for line in disk_text.splitlines() if line.strip()} - set(incoming.splitlines())`;
+if non-empty, raise `PeerWriteInFlight(QueueError)` naming up to five missing lines and map it to
+**exit 3**, so a tick can tell "a peer wrote, merge first" from exit 1 ("your markdown, your stamp or
+your register is wrong"). The disk text is already read for `board_stamp`, so the check adds no I/O,
+and it catches the same-title case the stamp comparison cannot see. It is the body sibling of the
+title guard `cmd_lint` already carries (`tools/README.md:44`). **Not implemented this pass**:
+proposed with its check and exit code so it lands as its own change with its own test.
