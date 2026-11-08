@@ -5045,3 +5045,42 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
 - **Not written by this tick:** `mad-science/queue.json` (the campaign's own close-out bytes, still
   uncommitted, `sha256 087e58b5…` on head and workstation) and the campaign unit (never started,
   stopped or restarted here).
+## 2026-11-08 08:27 ET — the llama-cpp pin is alive, and the fleet's root fall is pool traffic, not drift
+- **The `GSQ-RCO image 404` gate is stale, not a dead image — falsified three ways.** The 07:45:42
+  refusal read `manifest for littlecedar/dgx-spark-llama-cpp@sha256:f2579b80… not found`. Probes this
+  tick: the anonymous pull-token call (`https://ghcr.io/token?scope=repository:littlecedar/dgx-spark-llama-cpp:pull`)
+  returns **200** with no credentials; `docker manifest inspect` on the pinned digest, in a fresh
+  empty `DOCKER_CONFIG`, returns rc=0 with a 2,687 B manifest; the tag `upstream-6023692` resolves to
+  that **same** digest; and both probes re-run from `.30`'s own daemon (which holds a `ghcr.io` auth
+  entry) also return rc=0. So the pin is public and resolvable, the ~ten tracked recipes sharing it
+  (five `recipes/liquidai/*-llamacpp.yaml`, `3d/zz-qwen35-4b-3d-coder`, `decision/liquidai-d1-2b` +
+  `zz-d1-omni-2b`, `ds4/…-gsq-rco`, `explore/flint-40b`) are **not** unbootable, and the arm's row
+  should be re-probed at boot time rather than re-blocked on an image that exists. The refused pull was
+  a transient at 07:45, and the nightly sweep's `container-unresolvable`/`sweep-broken` legs would have
+  fired if the package had really gone.
+- **The 07:45 dspark drafter body now exists.** `models--LithosAI--Kimi-K3.1-Pro-DSpark` has snapshot
+  files written 08:08–08:11 (`du -sL` 4 291 MiB); the arm's `Provide a valid Hugging Face repository ID`
+  refusal was a pre-staging read, not a bad repo id.
+- **The fleet-wide root fall is shared-pool traffic, and one part of it is still unattributed.**
+  08:07:20 → 08:24:35 ET: `.30` −1.06 GiB, `.32` −1.07, `.35` −1.06, `.34` **−20.5 GiB**, `.31` −1.4 MB,
+  `.33` −21.1 MB, with `0` containers and `0` volumes on all six throughout. Each of `.30`/`.32`/`.34`/`.35`
+  gained exactly one ~1.128 GB new file in `/srv/beegfs/storage/chunks` (≈4.5 GB, the DSpark staging).
+  The remaining ~16 GiB, all on `.34`, produced **no new file above 300 MB** under `/var/lib/docker`
+  (`du -sx` 493 253 MiB) or `/srv/beegfs` (1 272 764 MiB) and journal 676.7 M, while `.34` runs
+  `beegfs-storage` — the signature of pool data written into existing storage-target buddy files rather
+  than a local writer. The fall stopped between 08:17 and 08:24 (`.34` flat to 0.1 MB across two reads),
+  no container, no download process and no deleted-open file holds it (`lsof +L1` n=1, 0 B). Carried as
+  unattributed and watched on the board, not called drift.
+- **Correction to the previous section.** Its census bullet called a sub-MB per-node fall "node-root
+  journal drift" — true at that scale for 0.48–8.48 MB, but the same measurement over the next 17
+  minutes is GB-scale pool traffic, so the label must not be carried forward: a fleet-wide fall is
+  attributed by summing per-node deltas against a staged body, never by the size of the previous delta.
+- **Two board rows corrected, both active-state misreadings.** The campaign row said `drained` while the
+  unit was `active` — drained means the unit exited 0 with every arm terminal, so a live queue-mode
+  poller with 9 measured / 8 blocked and no lease is an **empty eligible set**, and that distinction is
+  what makes four declared nodes idle a register defect rather than a completion. The queue-mode row now
+  names the row that should be runnable: `h2h-beam-house-and-bfcl-category`, `node_cost: quartet`, its
+  only `blocked_by` parent (`h2h-beam-house-boot`) `done`, and **no `recipe:` key** — the fix is its
+  owner's register edit, not a boot.
+- **Not written by this tick:** `mad-science/queue.json` (still the campaign's uncommitted bytes,
+  `sha256 932224e2…`), the campaign unit, and `.local/fleet-window.lock`.
