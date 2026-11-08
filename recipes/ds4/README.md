@@ -34,6 +34,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
   - [Launch caveats](#launch-caveats-1)
 - [deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp](#deepseek-v41-flash-1017-gsq-rco-coder-gguf-llamacpp)
 - [SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)](#sm121-survey-arms-zz--deepgemm-gate-cleared-2026-11-07)
+- [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
 - [Quality benchmarks](#quality-benchmarks)
 - [Attic index](#attic-index)
@@ -1167,8 +1168,7 @@ measurement — read such a boot as a kernel refusal, never as an MLA or indexer
 
 The launcher is not the difference: both arms mount `mods/dsv41-sglang-overlay`, which names no MoE
 backend, and the shipped knapcio arm mounts the same mod and serves this checkpoint at 1M. So this
-is a launcher/config difference, not an engine capability gap — and the lever it names is now
-measured: `marlin` loads past initialisation and then runs the host out of memory (below).
+is a launcher/config difference, not an engine capability gap — and it has a lever, untried.
 
 **Where the block actually is.** This image is SGLang-based; the failing class is
 `/sgl-workspace/…/sglang/srt/layers/quantization/mxfp4_flashinfer_cutlass_moe.py:66-73`, a hard
@@ -1203,29 +1203,74 @@ The lane's verdict therefore moves from "needs an engine rebuild" to **"config l
 device-allowed"**, and the boot has now been taken.
 
 **Measured on the second 2026-11-08 boot — `sparkrun_1c0dffa45afa6e47_6f3b0212e939`, the marlin
-variant `zz-ds4-1017-sm121-arm3-control-marlin.yaml` at 11:25 ET: selectable and loading, then out
-of host memory.** VERIFIED that the flag reaches the engine and the marlin method is constructed:
-`Init parallel ends 38.02 s`, `Load weight begin avail mem=112.08 GB`, and the ÷128 guard that ends
-the flashinfer path never fires. Measured NEGATIVE on fit: the padded/repacked buffers (576 → 640,
-plus repack overhead) do not fit at TP=4 against the 119.21 GiB pool, and the failure mode is a
-**global** host OOM, not a cgroup kill — `dmesg` `oom-kill:constraint=CONSTRAINT_NONE,…,global_oom`
-took `ssh` and `NetworkManager` down on `.30`, the container read `running 0 true` (OOMKilled) 58 s
-into load, and no engine traceback exists. No throughput or accuracy number is obtainable this way,
-and a repeat attempt is an operator decision because it can take the host it runs on offline. The
-flashinfer path's measured negative — the ÷128 geometry refusal above — is a different failure and
-stands.
+variant `zz-ds4-1017-sm121-arm3-control-marlin.yaml` at 11:25 ET: selectable and loading, then out of
+host memory.** VERIFIED that the flag reaches the
+engine and the marlin method is constructed: `Init parallel ends 38.02 s`, `Load weight begin avail
+mem=112.08 GB`, and the ÷128 guard that ends the flashinfer path never fires. Measured NEGATIVE on
+fit: the padded/repacked buffers (576 → 640, plus repack overhead) do not fit at TP=4 against the
+119.21 GiB pool, and the failure mode is a **global** host OOM, not a cgroup kill — `dmesg`
+`oom-kill:constraint=CONSTRAINT_NONE,…,global_oom` took `ssh` and `NetworkManager` down on `.30`, the
+container read `running 0 true` (OOMKilled) 58 s into load, and no engine traceback exists. No
+throughput or accuracy number is obtainable this way, and a repeat attempt is an operator decision
+because it can take the host it runs on offline. The flashinfer path's measured negative — the ÷128
+geometry refusal above — is a different failure and stands.
 
 **Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
 check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
 an unfused-runner capacity failure, on a different image (stock main tree), with attention never
 exercised. It is not evidence against `marlin`, and the lane should stop citing it as one.
-**Untried is not blocked**: one control boot with `marlin` is ordered, and the arm3/arm5 cells
-unlock on its result.
 
 Arm 3's indexer-scoring arm failed for an unrelated reason on the same digest:
 `AttributeError: module 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
 'spec_supports_inline_system'`, the forward-port gap the overlay launcher now shims on
 `PYTHONPATH`; its next boot is what says whether indexer scoring is reachable at all.
+
+**LIKELY — the ÷128 refusal is a limit of this stack, not of GB10.** The third-party
+`github.com/christopherowen/spark-ds41f` vLLM stack (revision
+`cc20ed18be1f7cbf5c6c53cdee945f7cc77d5fc5`, surveyed 2026-11-08, **not compiled or run here**)
+carries `patches/tilelang/0001-sm121-block-scaled-mma.patch`: GB10 does run the SM120 warp-level
+block-scaled MMA, but TileLang's NVF4 wrapper gated it on `CUTLASS_ARCH_MMA_SM120A_ENABLED`, which
+CUTLASS defines only when `__CUDA_ARCH__ == 1200`, so on sm_121a every
+`tl::sm120_mma_sync_blockscaled` compiled to `BPT.TRAP` instead of `OMMA.SF`;
+`patches/tilelang/0003-sm120-mxfp4-block-scaled-mma.patch` then supplies a working
+`mma.sync.m16n8k64.kind::mxf4nvf4` block-scaled GEMM, reported exact on sm_121a. So the 128-multiple
+guard, the `flashinfer_cutlass` exclusion and the marlin padding/OOM above are properties of the
+sglang image we run — a patched TileLang gives exact MXFP4 on sm_121a (LIKELY; our measured negative
+on this image stands).
+
+**No attention-compute pin is missing on our path (checked, not assumed).** Their
+`VLLM_DS41_ATTENTION_COMPUTE` exists because their fork's B12X V4.1 attention tuner may pick FP8
+internals (Q and P quantized, cache re-encoded, ~3 % relative error vs DeepSeek's reference) — a claim
+about their vLLM fork. Our image defaults to BF16 sparse prefill: `dsv4_prefill_backend` is `auto` =
+BF16 (`arg_groups/fields/exec_.py:233-242` in `:0.2.1`), and the FP8-Q path runs only when
+`flashmla_sparse_q8` or `SGLANG_DSV4_Q8KV8_PREFILL` asks for it
+(`layers/attention/dsv4/sparse_prefill_utils.py:51,60`), which neither the overlay launcher nor any
+recipe does; the arm's own arg dump agrees (`~/benchmarks/ds4-1017-parity-20261027/armA/`, on the
+head; `armA-speedbench.json:417` `"dsv4_prefill_backend": "auto"`, `:807`
+`"dsv4_attn_backend": "auto"`, `:232` `"kv_cache_dtype": "fp8_e4m3"`). KV cache is the checkpoint's
+native FP8 layout, not a re-encode, and the decode kernels take bf16 q
+(`kernels/ops/attention/dsv4/decode_attention_sm100.py:31,119`). Needle/vision cells are therefore
+not exposed by default; anything FP8 inside the decode kernel beyond that native cache stays
+SPECULATIVE — not confirmed on our stack.
+
+## External stack: spark-ds41f (survey, 2026-11-08)
+
+The stack inspected above is a fully engineered **vLLM** stack for the identical checkpoint and
+revision (`DeepSeek-V4.1-Flash-1017`, `1bae0e10`) on the same GB10/sm_121 hardware, TP4 ring: ~47
+engine, 6 TileLang, 15 b12x and 7 NCCL patches, image never published — knowledge, not code. Its
+release table's 78.3 output tok/s at one stream, 198.4 at c8 and 5,549 tok/s prefill at 1M come from
+their client and prompt shape, not ours, and our `tg t/s` is llama-benchy's **aggregate across
+streams** (`benchmarking/README.md` rules 1–2; ladder C1/C2/C5/C10 = 67.18 / 89.9 / 113.4 / 115.4,
+depth 0), so those figures are not comparable to that ladder without a same-window cell. The ~2× c8
+appearance is a cell-and-units trap, not a measured gap: our nearest same-cell aggregate is the
+shipped line's depth-0 **C8 159.61 ± 8.71** (S3 control), which their 198.4 exceeds by ~24 %; the
+named falsifier is one same-window arm with their client shape against our line. Leads: the glibc
+malloc pin is adopted as `zz-ds4-1017-malloc-pin-sglang.yaml`, A/B control the shipped canary and its
+own receipts; the TileLang block-scaled-MMA patch says exact MXFP4 is reachable on sm_121a (LIKELY,
+above); the attention-compute pin is answered above. Do **not** copy their
+`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — our launcher sets `False` deliberately
+(`launcher.py:332-334`): expandable segments produced NaN logits above 64 prefill query tokens on
+V4.1.
 
 ## Upgrade candidates (measured elsewhere, not queued)
 
