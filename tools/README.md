@@ -1632,6 +1632,16 @@ uv run python -B tools/task-queue.py check        # validate only
 uv run python -B tools/task-queue.py weight --id X  # one task's arithmetic, line by line
 uv run python -B tools/task-queue.py render       # weighted table, for a human
 uv run python -B tools/task-queue.py render --board  # the STATUS.md `## Work queue` table (derived)
+uv run python -B tools/task-queue.py graph       # fenced mermaid block: open rows, row + question edges
+    # derived from the register, never from the table; --max-nodes (default 30) collapses the
+    # remainder into one node and prints `%% truncated: N shown of M`. Edges are what the register
+    # records: the blocking row's `blocks` (17 over 11 rows on 2026-11-08, 3 of them between open
+    # rows) and `q<n> --> row` for each row whose notes or provenance cite an open question. A
+    # blocked row with neither draws dashed `no-recorded-edge` — gated by prose, not by a row —
+    # and the header comment (`12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question`)
+    # is how a sparse graph is told from a wrong one: a tick that records real edges moves
+    # `edges`. `blocked_by` is a mirror `_relink` rewrites from `blocks`, so `graph` reads
+    # `blocks` and warns when the two disagree.
 uv run python -B tools/task-queue.py orphans # open items ADDED since the archive-frozen marker
  # --since <rev> overrides the marker; only items added after it count, so the frozen
  # archive's pre-cutover items are never orphans and a removal cannot net one out

@@ -41,6 +41,7 @@ import json
 import re
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -83,6 +84,17 @@ def data(tasks, priority_models=(["deepseek-v4.1-flash-1017", "dsv4.1-1017"], "g
 
 def ids(ordered):
     return [t["id"] for t in ordered]
+
+
+def qdata(tasks, questions=()):
+    """A register with an open `questions[]` array, deliberately NOT relinked.
+
+    `relink` would repair the stored/derived drift the graph must tolerate and report, so the
+    graph fixtures build their `blocked_by` by hand.
+    """
+    return {"priority_models": ["x"], "tasks": list(tasks),
+            "questions": [{"id": q, "status": "open", "summary": f"owner question {q}",
+                           "provenance": "test", "asked": "2026-11-08"} for q in questions]}
 
 
 class WeightArithmetic(unittest.TestCase):
@@ -521,6 +533,21 @@ class MarkdownLint(unittest.TestCase):
             with self.assertRaises(tq.QueueError):
                 tq._emit(["| a | b |", "| 1 | 2 |"], "test table")
 
+    def test_a_mermaid_fence_under_the_work_queue_heading_renders(self):
+        """The board carries `graph`'s block directly under `## Work queue`: lint must accept it.
+
+        The fence is skipped by the table walker, which is the smallest change that works --
+        what is pinned here is that a fenced block never turns into a phantom table, and that a
+        real board (graph rows + the rendered table) lint-clean in one file.
+        """
+        graph, _ = tq.graph_body(data([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked")]))
+        rows = tq.board_rows(data([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked")]))
+        board = ("## Work queue\n\n```mermaid\n" + "\n".join(graph) + "\n```\n\n" + "\n".join(rows))
+        self.assertEqual(tq.lint_markdown(board), [])
+        # ...and a header with no delimiter row is still refused, fence or not.
+        broken = board + "\n\n| a | b |\n| 1 | 2 |\n"
+        self.assertIn("table-missing-delimiter", [r for _l, r, _d in tq.lint_markdown(broken)])
+
     def test_the_board_renders(self):
         """The published board: every table it carries must parse."""
         board = REPO_ROOT / "mad-science" / "STATUS.md"
@@ -536,6 +563,96 @@ class MarkdownLint(unittest.TestCase):
             with self.subTest(file=rel):
                 path = REPO_ROOT / rel
                 self.assertEqual(tq.lint_markdown(path.read_text(encoding="utf-8")), [])
+
+
+class DependencyGraph(unittest.TestCase):
+    """`graph`: the register's open work as one mermaid block, edges from what it records.
+
+    A `blocked_by`-only graph would draw ~25 disconnected boxes and assert that nothing depends
+    on anything: measured 2026-11-08, every *open* blocked row stores `blocked_by: []` while its
+    gate is an owner-question citation (`QUESTIONS.md #67`, the TP1/TP2 freeze). The sparse
+    register is therefore the case that matters, and the counts comment is what tells a sparse
+    graph from a wrong one.
+    """
+
+    def test_sparse_register_still_draws_the_question_edges(self):
+        rows = [task("blocked-a", 1.0, state="blocked"), task("blocked-b", 1.0, state="blocked")]
+        rows[0]["notes"] = "waiting on host policy (QUESTIONS.md #67)"
+        rows[1]["notes"] = "gated by prose, no citation"
+        body, warnings = tq.graph_body(qdata(rows, [67]))
+        text = "\n".join(body)
+        self.assertIn('Q67 · owner question 67', text)
+        self.assertIn("q67 --> t1", text)                 # the citation is a real edge
+        self.assertIn("no-recorded-edge", text)           # and the uncited row says so
+        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question", text)
+        self.assertEqual(warnings, [])
+
+    def test_a_row_citing_nothing_gets_no_edge_and_its_own_class(self):
+        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]))
+        text = "\n".join(body)
+        self.assertNotIn("-->", text)
+        self.assertIn('· blocked · owner"]:::no-recorded-edge', text)
+
+    def test_the_counts_line_matches_the_drawn_nodes(self):
+        rows = [task("a", 1.0), task("b", 1.0, state="blocked"),
+                task("c", 1.0, state="blocked"), task("d", 1.0, state="done")]
+        rows[1]["notes"] = "#67"
+        body, _ = tq.graph_body(qdata(rows, [67]))
+        drawn = [l for l in body if '"]:::' in l]
+        self.assertEqual(len(drawn), 4, "three open rows plus the one question; done is not drawn")
+        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question",
+                      "\n".join(body))
+
+    def test_a_diamond_has_exactly_its_four_edges(self):
+        tasks = relink([task("a", 1.0, ["b", "c"]), task("b", 1.0, ["d"]),
+                        task("c", 1.0, ["d"]), task("d", 1.0)])
+        body, warnings = tq.graph_body({"priority_models": ["x"], "tasks": tasks})
+        self.assertEqual([l.strip() for l in body if "-->" in l],
+                         ["t1 --> t2", "t1 --> t3", "t2 --> t4", "t3 --> t4"])
+        self.assertEqual(warnings, [])
+
+    def test_a_mirror_disagreement_warns_and_blocks_stays_authoritative(self):
+        """`blocked_by` is `_relink`'s mirror of `blocks`; a mismatch is a register mid-edit."""
+        a = task("aa", 1.0, ["bb"])
+        b = task("bb", 1.0)
+        b["blocked_by"] = ["cc"]          # a parent that does not name it back
+        c = task("cc", 1.0)
+        body, warnings = tq.graph_body({"priority_models": ["x"], "tasks": [a, b, c]})
+        self.assertIn("aa -> bb: in aa.blocks, but blocked_by does not name it", warnings)
+        self.assertIn("cc -> bb: in blocked_by, but cc.blocks does not name it", warnings)
+        self.assertEqual([l.strip() for l in body if "-->" in l], ["t1 --> t2"],
+                         "only the authoritative `blocks` edge is drawn")
+
+    def test_max_nodes_collapses_the_rest_into_one_node(self):
+        rows = [task(f"row-{i:02d}", 1.0) for i in range(10)]
+        body, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows}, max_nodes=5)
+        text = "\n".join(body)
+        self.assertIn("%% truncated: 4 shown of 10", text)
+        self.assertIn('tn["… 6 more open rows (see the table)"]:::done', text)
+
+    def test_output_is_byte_deterministic_and_sorted_by_id(self):
+        rows = [task("z", 1.0, state="blocked"), task("m", 1.0), task("a", 1.0)]
+        first, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows})
+        second, _ = tq.graph_body({"priority_models": ["x"], "tasks": [rows[2], rows[0], rows[1]]})
+        self.assertEqual(first, second, "dict order must not reach the output")
+        self.assertTrue(first[2].startswith('  t1["a · '), first[2])
+
+    def test_an_empty_register_emits_a_block_that_says_so(self):
+        body, warnings = tq.graph_body({"priority_models": [], "tasks": []})
+        self.assertIn("no open rows in the register", "\n".join(body))
+        self.assertEqual(warnings, [])
+
+    def test_the_cli_prints_exactly_one_fence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(qdata([task("a", 1.0, state="blocked")], [67])),
+                            encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                tq.cmd_graph(types.SimpleNamespace(max_nodes=tq.GRAPH_BUDGET), path)
+        lines = out.getvalue().splitlines()
+        self.assertEqual(lines[0], "```mermaid")
+        self.assertEqual([l for l in lines if l.startswith("```")], ["```mermaid", "```"])
 
 
 class AddressLint(unittest.TestCase):
