@@ -776,6 +776,11 @@ Syncthing file versioning is **off** in this tree (no `.stversions` anywhere), s
 uncommitted file is neither traceable nor recoverable: journal work under `.local/` or the
 `**/*-WORK.md` forms and commit real work promptly, rather than relying on file history to return it.
 
+**Never run `git worktree add` from the shared clone**: it writes `[core] worktree = …` into the
+shared `.git/config`, after which every git command in every session dies on `fatal: Invalid path …`
+until that line is deleted — use `git clone --no-hardlinks <repo> /tmp/<dir>` for a throwaway
+checkout, or `git archive HEAD | tar -x -C /tmp/<dir>` when only the tree is needed.
+
 **A named path is the worktree's content, not yours.** `git commit -- <paths>` publishes whatever is
 *in the file* at that moment, so if two sessions edit the same file in overlapping turns, whoever
 commits first takes the other's half-finished edit and ships it under their own message. Measured
