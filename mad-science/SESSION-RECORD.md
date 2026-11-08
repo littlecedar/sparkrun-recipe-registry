@@ -5728,3 +5728,32 @@ Two defects found while folding this hour's board, both cheap to state and neith
   read-only source grep (`focused_babbage`, `lmsysorg/sglang:dev-cu13@sha256:0b3e3970…`, started
   13:18:40) is the 13:26 board's `.35` row; the two are disjoint in time, so neither accounts for the
   other's byte slice.
+
+## 2026-11-08 13:46 ET — retraction: `.35`'s movement is a deletion, not a pull, and the §13:33 attribution was wrong twice over
+
+- **The §13:33 claim that `.35`'s rise was the vLLM-nightly image arriving is withdrawn.** One read
+  settles it and contradicts both halves of the story: `docker image inspect
+  ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x` on `.35` returns size **18 186 256 536 B = 18.2 GB**
+  (tag resolves to `sha256:cf5a2a53…`, image id `sha256:e90182b5…`, `.Created`
+  **2026-10-15T09:48:34**), and `docker image ls --digests` shows the same digest on the node now. So
+  the 50 s container reused an image already present: it pulled nothing, and **18.2 GB could not appear
+  as a 3.45 GiB slice** in any case.
+- **The direction was read backwards, and that is the instructive part.** `df --output=avail` **rising**
+  means space was **freed**. `.35` did rise — `+3.699 GB` across the peer's 13:01:21→13:07:00 pair and
+  `+45 846 528 B` across this tick's 58 s 13:06:08→13:07:06 pair — so the node **reclaimed** ~3.7 GB in
+  that window, and the 13:07 board's "unattributed rise" was a deletion all along, not a write that had
+  yet to find an author.
+- **The timing splits the one candidate into a small part.** The bulk (~3.65 GB) is already gone by the
+  13:06:08 read, i.e. **before** the container was created at 13:06:16; the remaining ~43.7 MiB is freed
+  while it existed, which its own removal can account for. So the container explains at most the tail,
+  and the ~3.65 GB belongs to whoever removed an image or container on `.35` between 13:01:21 and
+  13:06:08 — unnamed by anything this tick read, and not attributable from `docker image ls`, which
+  shows what remains rather than what was deleted.
+- **What still stands from §13:33**: the container itself (created 13:06:16, `Up 11 seconds` at the
+  13:06 read, gone by 13:07:06, no `sparkrun.recipe` label, no volume) and the campaign's settled counts
+  (9 measured / 9 blocked / no lease at 13:08:07 and 13:30, marlin at `attempts=11`). Only the causal
+  sentence is withdrawn.
+- **The general lesson, worth keeping beside the `du -sb` trap**: a `df` byte series carries a sign, and
+  a *rise* in available bytes is never evidence of a writer. Both this tick and the 13:07 one carried
+  the number as "unattributed movement" without applying its direction, which is how a deletion got
+  offered an author as a download.
