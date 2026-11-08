@@ -299,15 +299,26 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   mp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
              "MP='$MP_PATH' WAIT='$POOL_WAIT' POLL='$POOL_POLL' sh -s" 2>/dev/null <<'PROBE'
 units= fault=
+# The mount names its server (`sysMgmtdHost`); the host does not. So the mgmtd/meta requirement
+# is derived by asking whether this host owns that address -- moving the mgmtd to another node
+# re-hosts the requirement instead of leaving the gate green everywhere. `beegfs-meta=failed`
+# with no metadata directory is the standing state on the five client hosts (since 2026-11-05),
+# and it is not a fault there.
+mgmtd=$(mount 2>/dev/null | sed -n 's/.*sysMgmtdHost=\([0-9.]*\).*/\1/p' | head -1)
+role=client
+if [ -n "$mgmtd" ] && ip -4 -o addr show 2>/dev/null | grep -qw "$mgmtd"; then role=mgmtd; fi
 for u in beegfs-mgmtd beegfs-meta beegfs-storage; do
   s=$(systemctl is-active "$u" 2>&1 | head -1)
   case "$s" in
-    active) units="$units $u=active" ;;
-    *"could not be found"*|*"not-found"*|*"No such file"*) units="$units $u=absent" ;;
-    *) units="$units $u=$s"; fault="$fault,unit-$u-$s" ;;
+    active) units="$units $u=active"; continue ;;
+    *"could not be found"*|*"not-found"*|*"No such file"*) units="$units $u=absent"; continue ;;
+  esac
+  case "$u" in
+    beegfs-storage) units="$units $u=$s"; fault="$fault,unit-$u-$s" ;;
+    *) if [ "$role" = mgmtd ]; then units="$units $u=$s"; fault="$fault,unit-$u-$s"
+       else units="$units $u=$s-no-role"; fi ;;
   esac
 done
-mgmtd=$(mount 2>/dev/null | sed -n 's/.*sysMgmtdHost=\([0-9.]*\).*/\1/p' | head -1)
 mport=n/a
 if [ -n "$mgmtd" ]; then
   if timeout 4 python3 -c 'import socket,sys
@@ -327,6 +338,7 @@ socket.create_connection(("127.0.0.1", 8003), 2).close()' 2>/dev/null; then
       sport=closed; fault="$fault,storage-port"
     fi ;;
 esac
+echo "ROLE=$role"
 echo "UNITS=$units"
 echo "PORTS=mgmtd=$mport storage=$sport"
 if [ -n "$fault" ]; then echo "POOL=pool-unhealthy"; echo "DETAIL=$fault"; exit 0; fi
@@ -345,6 +357,7 @@ while :; do
 done
 PROBE
 )
+  mp_role=$(printf '%s\n' "$mp_out" | sed -n 's/^ROLE=//p' | head -1)
   mp_units=$(printf '%s\n' "$mp_out" | sed -n 's/^UNITS=//p' | head -1)
   mp_ports=$(printf '%s\n' "$mp_out" | sed -n 's/^PORTS=//p' | head -1)
   mp_detail=$(printf '%s\n' "$mp_out" | sed -n 's/^DETAIL=//p' | head -1)
@@ -353,9 +366,9 @@ PROBE
     entries) mp_status=pool-ready ;;
     *) mp_status=${mp_kind%%:*} ;;
   esac
-  printf '%s units=%s ports=%s status=%s detail=%s view=host\n' "$hn" \
-    "${mp_units:-unknown}" "${mp_ports:-unknown}" "${mp_status:-unknown}" "${mp_detail:--}" \
-    >> "$L/pool-preflight.txt"
+  printf '%s role=%s units=%s ports=%s status=%s detail=%s view=host\n' "$hn" \
+    "${mp_role:-unknown}" "${mp_units:-unknown}" "${mp_ports:-unknown}" "${mp_status:-unknown}" \
+    "${mp_detail:--}" >> "$L/pool-preflight.txt"
   case "$mp_kind" in
     entries:0) printf '%s status=empty path=%s entries=0 view=host\n' "$hn" "$MP_PATH" \
                  >> "$L/model-preflight.txt"; MP_MISS+=("$hn (entries=0)") ;;

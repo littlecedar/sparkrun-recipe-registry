@@ -1676,6 +1676,11 @@ sed -n 1p "$NODES/${DP_HOST:-?}.mount" 2>/dev/null
 exit 0
 """
 
+NODE_IP_STUB = """#!/usr/bin/env bash
+cat "$NODES/${DP_HOST:-?}.ip" 2>/dev/null
+exit 0
+"""
+
 NODE_PYTHON_STUB = """#!/usr/bin/env bash
 exit "$(sed -n 1p "$NODES/${DP_HOST:-?}.port" 2>/dev/null || echo 0)"
 """
@@ -1687,7 +1692,10 @@ POOL_TIMEOUT = "124\n"
 POOL_EMPTY = "0\n"
 UNITS_ACTIVE = "beegfs-mgmtd=active\nbeegfs-meta=active\nbeegfs-storage=active\n"
 UNITS_STORAGE_FAILED = "beegfs-mgmtd=active\nbeegfs-meta=active\nbeegfs-storage=failed\n"
+UNITS_CLIENT_IDLE = "beegfs-mgmtd=inactive\nbeegfs-meta=failed\nbeegfs-storage=active\n"
 MOUNT_LINE = "192.0.2.10:/mnt/beegfs on /mnt/beegfs type beegfs (rw,sysMgmtdHost=192.0.2.10)\n"
+SERVER_IP_LINE = "2: eth0    inet 192.0.2.10/24 brd 192.0.2.255 scope global eth0\n"
+CLIENT_IP_LINE = "2: eth0    inet 192.0.2.11/24 brd 192.0.2.255 scope global eth0\n"
 PORT_OK = "0\n"
 PORT_CLOSED = "1\n"
 HUB_CONFIG = "distribution:\n  hf_cache: /fake/pool/huggingface\n"
@@ -1728,7 +1736,7 @@ class ExecutedBlock(unittest.TestCase):
             for name, stub in (("ssh", SSH_STUB), ("docker", DOCKER_STUB), ("curl", CURL_STUB),
                                ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB),
                                ("systemctl", NODE_SYSTEMCTL_STUB), ("mount", NODE_MOUNT_STUB),
-                               ("python3", NODE_PYTHON_STUB)):
+                               ("ip", NODE_IP_STUB), ("python3", NODE_PYTHON_STUB)):
                 stub_path = bins / name
                 stub_path.write_text(stub)
                 stub_path.chmod(0o755)
@@ -2007,10 +2015,11 @@ class PoolGate(ExecutedBlock):
     def block(self):
         return block_region(read_tool(), MP_START, MP_END)
 
-    def run_pool(self, ls_fixture, units=UNITS_ACTIVE, mount=MOUNT_LINE, port=PORT_OK, **kwargs):
+    def run_pool(self, ls_fixture, units=UNITS_ACTIVE, mount=MOUNT_LINE, port=PORT_OK,
+                 ip=SERVER_IP_LINE, **kwargs):
         kwargs.setdefault("recipe", MODEL_RECIPE)
         files = {"head.test.ls": ls_fixture, "head.test.units": units,
-                 "head.test.mount": mount, "head.test.port": port}
+                 "head.test.mount": mount, "head.test.port": port, "head.test.ip": ip}
         files.update(kwargs.pop("files", {}))
         return self.run_block(self.block(), files=files, **kwargs)
 
@@ -2048,6 +2057,37 @@ class PoolGate(ExecutedBlock):
         self.assertIn("unhealthy", out)
         self.assertIn("unit-beegfs-storage-failed", files["pool-preflight.txt"])
         self.assertNotIn("NEXT", out)
+
+    def test_a_client_host_with_an_idle_mgmtd_is_pool_ready(self):
+        """mgmtd/meta are a .30-only role: the five client hosts carry the package and never ran
+        a server (`beegfs-meta=failed`, no metadata directory, standing since 2026-11-05). A
+        healthy fleet must read pool-ready on those hosts, or no client host can ever boot."""
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, units=UNITS_CLIENT_IDLE, ip=CLIENT_IP_LINE)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
+        pool = files["pool-preflight.txt"]
+        self.assertIn("role=client", pool)
+        self.assertIn("status=pool-ready", pool)
+        self.assertIn("beegfs-meta=failed-no-role", pool, "a client's idle meta unit read as a fault")
+        self.assertIn("beegfs-mgmtd=inactive-no-role", pool)
+
+    def test_the_host_that_owns_sysmgmtdhost_carries_the_unit_requirement(self):
+        """Moving the mgmtd re-hosts the requirement: the mount names the server, not the host."""
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, units=UNITS_CLIENT_IDLE, ip=SERVER_IP_LINE)
+        self.assertEqual(rc, 11, out)
+        pool = files["pool-preflight.txt"]
+        self.assertIn("role=mgmtd", pool)
+        self.assertIn("unit-beegfs-mgmtd-inactive", pool)
+
+    def test_negative_control_dropping_the_role_check_refuses_a_client(self):
+        """The defect the role check prevents: three units required on every host."""
+        mutated = self.block().replace('if [ "$role" = mgmtd ]; then', "if true; then")
+        self.assertNotEqual(mutated, self.block(), "the role check moved; control vacuous")
+        rc, out, _, _ = self.run_block(
+            mutated, files={"head.test.ls": POOL_PRESENT, "head.test.units": UNITS_CLIENT_IDLE,
+                            "head.test.mount": MOUNT_LINE, "head.test.port": PORT_OK,
+                            "head.test.ip": CLIENT_IP_LINE})
+        self.assertEqual(rc, 11, out)  # the role guard is what keeps a healthy client green
 
     def test_a_closed_mgmtd_port_refuses_at_11(self):
         rc, out, files, _ = self.run_pool(POOL_PRESENT, port=PORT_CLOSED)
@@ -2093,7 +2133,7 @@ class PoolGate(ExecutedBlock):
                    "rank1.test.port": PORT_OK})
         self.assertEqual(rc, 11, out)
         self.assertIn("rank1.test", out)
-        self.assertIn("head.test units=", files["pool-preflight.txt"])
+        self.assertIn("head.test role=mgmtd units=", files["pool-preflight.txt"])
 
     def test_the_verdict_is_not_a_df(self):
         """`df`/`ls` are client-connectivity probes; the verdict must come from units and ports."""
