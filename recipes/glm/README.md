@@ -11,6 +11,7 @@ was attempted and archived as a proven-negative.
 ## Contents
 
 - [Shipped arm](#shipped-arm)
+- [Harness: the stall rule cannot see this arm (2026-11-08)](#harness-the-stall-rule-cannot-see-this-arm-2026-11-08)
 - [Boot receipt (2026-10-18)](#boot-receipt-2026-10-18)
 - [Boot-verified serving lines](#boot-verified-serving-lines)
 - [License](#license)
@@ -75,6 +76,29 @@ prepared snapshot *path* via `{model}`, so there is no `--revision` for the vali
 (`--parallel 8`, `--max-tokens 32768`, `--vision`) live in the mod, not the recipe, because they are
 the upstream launcher's production constants rather than per-launch choices; the mod README inventories
 them, and its `RECIPE_ENV` is upstream `scripts/config.sh` at TP=4.
+
+## Harness: the stall rule cannot see this arm (2026-11-08)
+**A healthy 3.0bpw boot is indistinguishable from a frozen one to `tools/boot-watchdog.py --stall`.** Measured
+on attempt 5 (task `sparkrun_7d9a3a61b33a29e4_7e44b438d751`, `.30`–`.33`, receipt dir
+`~/benchmarks/h2h-20261107/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang/`): `watchdog.log` ends
+`WATCHDOG t=2532s verdict=stalled endpoint=down serve_pid=alive io_delta=0 log_delta=0 idle=603s`, then the
+watchdog captured the serve log and ran `sparkrun stop` — **7 s before this arm's measured TTR of 2538.9 s**
+(§Shipped arm), so the boot was killed before readiness was even due. Three readings taken inside the
+reported idle window say the engine was working:
+
+- rank 0 **GPU 96 % util, cgroup CPU 308 %**, container block io **967 MB** (`nvidia-smi`, `docker stats`);
+- `/tmp/sparkrun_serve.log` is **1103 B total** and never grows past the launcher banner, and the mod's own
+  log is **0 B for the whole boot** — `.cache/sparkrun/runtime-cache/sglang/bertholomus__GLM-5.3-EXL3-3.0bpw-*/modlogs/tensorfold-glm53-3bpw-launcher.log`.
+  There is no progress log to measure, so `log_delta=0` is structural, not a symptom;
+- the weights stream from the BeeGFS pool rather than a node-local disk, and docker's blkio counters do not
+  see that traffic, so `io_delta=0` is structural too.
+
+**Consequence: `--stall` must be raised above this arm's TTR or disabled for it** (or the criterion replaced by
+something the arm actually emits — GPU/NVLink counters, or the container's net io), otherwise attempt 6 dies
+the same way at ~42 min and the arm never reaches a verdict. Same instrument class as the `serve logs
+harvested: 0` under-count: healthy silence is reported as death. Related probe trap: this line's serve process
+is `/opt/sglang/bin/tensorfold serve`, so `pgrep -f sglang.launch_server` reads empty on a healthy rank — probe
+argv (`ps -eo args | grep -E 'launcher\.py|tensorfold serve'`), never that pattern.
 
 ## Concurrency probes (2026-11-07, not booted)
 
