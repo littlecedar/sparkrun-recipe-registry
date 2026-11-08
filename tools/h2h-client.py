@@ -69,8 +69,11 @@ def served_model(base: str, timeout: float) -> str:
 
 
 def plan(cell: str, base: str, model: str, outdir: str, py: str, *,
-         house_max_tokens: int, bfcl_data_dir: str, bfcl_max_tokens: int) -> list[tuple[str, list[str]]]:
+         house_max_tokens: int, bfcl_data_dir: str, bfcl_max_tokens: int,
+         image_id: str = "") -> list[tuple[str, list[str]]]:
     """(step, argv) for one cell -- pure, so the self-test needs no serve."""
+    # A cell without the image it ran on is not a result: longctx-cell echoes it into its JSON.
+    image = ["--image-id", image_id] if image_id else []
     house = [py, os.path.join(HERE, "quality-battery.py"), base, "--model", model,
              "--tier", "both", "--max-tokens", str(house_max_tokens),
              "--json", os.path.join(outdir, "house.json")]
@@ -84,11 +87,12 @@ def plan(cell: str, base: str, model: str, outdir: str, py: str, *,
         "lc-1m": [("longctx", [py, "-B", longctx, "--base-url", base, "--model", model,
                                "--context-length", "1039999", "--concurrency", "1",
                                "--max-tokens", "128",
-                               "--json", os.path.join(outdir, "longctx-1m.json")])],
+                               "--json", os.path.join(outdir, "longctx-1m.json")] + image)],
         "lc-128k-c5c10": [("longctx", [py, "-B", longctx, "--base-url", base, "--model", model,
                                        "--context-length", "131072", "--concurrency", "5,10",
                                        "--max-tokens", "8",
-                                       "--json", os.path.join(outdir, "longctx-128k-c5c10.json")])],
+                                       "--json", os.path.join(outdir, "longctx-128k-c5c10.json")]
+                          + image)],
     }
     return cells[cell]
 
