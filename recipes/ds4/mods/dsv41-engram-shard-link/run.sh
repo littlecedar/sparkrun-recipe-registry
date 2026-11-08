@@ -92,7 +92,9 @@ if [[ -z "${SHARD1}" ]]; then
   done
 fi
 if [[ -z "${SHARD1}" ]]; then
-  SHARD1="$(find "${REPO_DIR}/snapshots" -mindepth 1 -maxdepth 4 \
+  # Snapshot entries are symlinks into models--*/blobs on the shared cache, so the
+  # walk must dereference them (`-L`), or it sees no file at all.
+  SHARD1="$(find -L "${REPO_DIR}/snapshots" -mindepth 1 -maxdepth 4 \
     -name "${SHARD_NAME}" -type f -print 2>/dev/null | sort | tail -n 1 || true)"
 fi
 if [[ -z "${SHARD1}" ]]; then
@@ -110,7 +112,7 @@ log_var LINK
 # (the unpruned GSQ-RCO release ships the same bytes as its own shard 6).
 SOURCE="${SNAPSHOT_DIR}/${ENGRAM_NAME}"
 if [[ ! -s "${SOURCE}" ]]; then
-  SOURCE="$(find "${HFHUB}" -mindepth 4 -maxdepth 4 -name "${ENGRAM_NAME}" -type f \
+  SOURCE="$(find -L "${HFHUB}" -mindepth 4 -maxdepth 4 -name "${ENGRAM_NAME}" -type f \
     -size +1G -printf '%s %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2- || true)"
 fi
 if [[ -z "${SOURCE}" || ! -s "${SOURCE}" ]]; then
@@ -123,7 +125,9 @@ if [[ -z "${SOURCE}" || ! -s "${SOURCE}" ]]; then
 fi
 log_var SOURCE
 
-SIZE="$(stat -c '%s' "${SOURCE}")"
+# Snapshot entries are symlinks into models--*/blobs: size the target, not the link
+# (a symlink's own stat is the target path's length, ~76 B here).
+SIZE="$(stat -Lc '%s' "${SOURCE}")"
 if (( SIZE < MIN_ENGRAM_BYTES )); then
   log "FATAL: ${SOURCE} is ${SIZE} B, below the ${MIN_ENGRAM_BYTES} B floor for the two"
   log "       Engram tables (card: 110.60 GB). Refusing to boot on a truncated file."

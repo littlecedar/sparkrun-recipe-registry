@@ -1008,15 +1008,17 @@ the container) holds everything the arm reads, at the pinned revision:
 Every snapshot entry is a symlink into `models--…/blobs`, as the pool's `hf` cache always is, so
 sizes must be read with `stat -L`.
 
-**Named defect in the link mod (measured, not fixed here).** `mods/dsv41-engram-shard-link` sizes
+**The link mod's symlink defect — found 2026-11-08, fixed the same day.** The first version sized
 the Engram with `stat -c '%s'`, which reports the *symlink* (76 B on this snapshot) rather than the
-blob, and its pool-search fallback uses `find -type f`, which skips symlinked snapshots. On this
-cache layout that makes the mod exit **4** ("below the 90 GiB floor") with the Engram fully staged.
-Reproduced 2026-11-08 in a temp hub shaped like the pool's cache (Engram symlink → 97.7 GB sparse
-blob): `rc=4`, log line `… is 18 B, below the 96636764160 B floor`. The fix is `stat -Lc` (and a
-symlink-aware fallback search); until it lands, **the shard-6 boot gate cannot pass**, so this arm
-stays authored-not-booted for a tooling reason, not a model or engine one. Run on the real pool the
-mod also fails to create the link — the snapshot has five `IQ2_XXS/` entries, no `00006`.
+110,595,290,816 B blob, and its pool-search fallback used `find -type f`, which skips symlinked
+snapshots. On this cache layout that made the mod exit **4** ("below the 90 GiB floor") with the
+Engram fully staged — reproduced in a temp hub shaped like the pool's cache: `rc=4`, log `… is 18 B,
+below the 96636764160 B floor`. The fix is `stat -Lc` for the floor check plus `find -L` for both
+walks (shard 1 and the Engram); exit codes are unchanged, and the offline harness now covers the pool
+shape (symlinked shard 1 and Engram) as well as the old regular-file one — seven cases, results
+`2 / 3 / 4 / 0 / 0 / 0 / 2`, in the mod README's §Offline self-check. What the fix does *not* prove
+is the real pool: the snapshot still has five `IQ2_XXS/` entries and no `00006` until a boot's
+pre-exec creates it, so the arm remains authored-not-booted for measurements, not for tooling.
 
 ### Prerequisites (both verified before the arm may claim bootability)
 
@@ -1026,9 +1028,9 @@ mod also fails to create the link — the snapshot has five `IQ2_XXS/` entries, 
    (2026-11-05, eleven days past b11870) and carries `--reasoning`, `--reasoning-effort`,
    `--load-mode`, `--mmproj` and `--jinja` at that commit — checked in `common/arg.cpp`, not assumed
    from the tag name.
-2. **The Engram shard-6 link**, which the mod above creates pre-exec — and which, as measured
-   above, it currently *cannot* create on this fleet's symlinked cache (`stat` without `-L` reads
-   the link and exits 4). That is a tooling defect, recorded; the fix is one flag.
+2. **The Engram shard-6 link**, which the mod above creates pre-exec. Its 2026-11-08 symlink-size
+   defect is fixed (`stat -Lc`, `find -L`) and the pool-shaped harness passes; the link itself is
+   still created only at boot, so the snapshot shows five `IQ2_XXS/` entries until one runs.
 
 Either missing makes the arm authored-not-booted with that exact blocker. What is *not* yet verified
 is the model side: no boot has proved the image's `deepseek4`/DSV4.1 loader agrees with this GGUF's
