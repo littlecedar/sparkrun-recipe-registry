@@ -1267,10 +1267,14 @@ shipped line's depth-0 **C8 159.61 ± 8.71** (S3 control), which their 198.4 exc
 named falsifier is one same-window arm with their client shape against our line. Leads: the glibc
 malloc pin is adopted as `zz-ds4-1017-malloc-pin-sglang.yaml`, A/B control the shipped canary and its
 own receipts; the TileLang block-scaled-MMA patch says exact MXFP4 is reachable on sm_121a (LIKELY,
-above); the attention-compute pin is answered above. Do **not** copy their
-`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — our launcher sets `False` deliberately
-(`launcher.py:332-334`): expandable segments produced NaN logits above 64 prefill query tokens on
-V4.1.
+above); the attention-compute pin is answered above. Verify an env-carried knob with
+`sparkrun export recipe <recipe>`: `sparkrun run … -n` renders only the serve command, so its
+byte-identity to the canary is the **argv** half of the A/B and never the env half. A `command:`-line
+flag can also be dropped unread by the launcher's `parse_known_args` (`launcher.py:907`) while the env
+route reaches `boot.py`, so "the dry run looked identical" proves nothing about an env knob.
+**Do not** copy their `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — our launcher sets `False`
+deliberately (`launcher.py:332-334`): expandable segments produced NaN logits above 64 prefill query
+tokens on V4.1.
 
 ## Upgrade candidates (measured elsewhere, not queued)
 
