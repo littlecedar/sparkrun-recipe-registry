@@ -10,6 +10,11 @@
 # Receipts land in ~/benchmarks/tp12-<YYYYMMDD>/<arm>/. A failed benchmark does
 # not skip the stop: everything after the readiness gate is attempted, and the
 # exit status records which step failed.
+#
+# Readiness ceiling: ARM_READY_TIMEOUT seconds (default 2250 = the historical 150 polls
+# x 15 s) drives the poll count together with ARM_POLL_SLEEP; a boot still loading at the
+# ceiling exits 4 and the message names the effective ceiling. GLM-753B's measured TTR is
+# 2538.9 s (~42 min, recipes/glm/README.md), so a campaign sets 3000 for that arm.
 set -uo pipefail
 
 # Resolve the recipe's relative path before anything reads it: the campaign passes manifest paths
@@ -230,6 +235,26 @@ echo "arm=$NAME container=$N task=$TID port=$PORT"
 LOGFOLLOW=()
 trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done; exit' EXIT INT TERM
 
+# The image cell belongs to every receipt, not to the arms that happen to carry a quality client:
+# the concurrency rows had to smuggle an image-id gate into ARM_EXTRA_CLIENT because this block
+# used to live inside the hook. The value is the container's own config sha
+# (`docker inspect -f '{{.Image}}'`), never a registry manifest digest this host cannot know.
+# A miss is a visible failure, not an "unknown" placeholder: a receipt that looks complete while
+# naming no image cannot be audited, and three reads cover one ssh hiccup.
+IMAGE_ID=""
+for _ in $(seq 1 3); do
+  IMAGE_ID=$(on_node "docker inspect -f '{{.Image}}' '$N'" 2>/dev/null | tr -d '\r' || true)
+  [ -n "$IMAGE_ID" ] && break
+  sleep 2
+done
+if [ -z "$IMAGE_ID" ]; then
+  echo "ARM FAIL $NAME: no image id from container $N on $NODE; the receipt cannot name what ran"
+  exit 5
+fi
+printf '%s\n' "$IMAGE_ID" > "$L/image.txt"
+export ARM_IMAGE_ID="$IMAGE_ID"
+echo "image=$IMAGE_ID"
+
 # Each rank's own stdout/stderr, captured from the moment its container exists. `/tmp/sparkrun_serve.log`
 # is written by the engine after the hooks, so a boot that dies in a pre_exec hook leaves no serve
 # log at all (2026-11-03 cyankiwi, 2026-11-04 labquant trio). `docker logs` is the only copy that
@@ -262,9 +287,24 @@ WD=$!
 
 # Only so the readiness-loop guard can drive this loop at 0 s; 15 s in a real arm.
 POLL_SLEEP=${ARM_POLL_SLEEP:-15}
+# Readiness ceiling, in seconds. The historical literal was 150 polls x 15 s = 2250 s, which
+# rejected a legitimately loading arm: GLM-753B's own measured TTR is 2538.9 s (42 min,
+# recipes/glm/README.md), so a campaign recorded rc=4 "never ready" on a boot that was still
+# loading. The ceiling is now a knob; the poll count follows from it.
+READY_TIMEOUT=${ARM_READY_TIMEOUT:-2250}
+# A zero poll interval is the readiness guard's instant-loop device, not an arm setting: a ratio
+# needs a positive denominator, so keep the historical 150 attempts for it. Otherwise
+# ceil(timeout / interval), never below one attempt.
+POLLS=$(awk -v t="$READY_TIMEOUT" -v s="$POLL_SLEEP" 'BEGIN {
+  if (s + 0 <= 0) { print 150; exit }
+  n = int(t / s)
+  if (n * s < t - 1e-9) n++
+  if (n < 1) n = 1
+  print n
+}')
 ready=no
 wd_done=0
-for _ in $(seq 1 150); do
+for _ in $(seq 1 "$POLLS"); do
   if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
   fi
@@ -469,12 +509,9 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     extra_timeout=${ARM_EXTRA_TIMEOUT:-1800}
     # The hook gets the launch facts, never a node address in the tracked row: ARM_HOSTS is the
     # exact host list this arm runs on, ARM_RECIPE its tracked path, ARM_RECEIPT_DIR its receipt.
-    # The resolved image id is a fact only the running container can supply -- a survey arm's
-    # local-only tag is not a digest, so the receipt must carry what actually ran.
-    extra_image=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
-      "docker inspect -f '{{.Image}}' '$N'" 2>/dev/null) || extra_image=""
-    printf '%s\n' "${extra_image:-unknown}" > "$L/image.txt"
-    export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L" ARM_IMAGE_ID="$extra_image"
+    # ARM_IMAGE_ID comes from the unconditional image cell above, so every arm has it with or
+    # without a client.
+    export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"
     echo "extra client: $ARM_EXTRA_CLIENT (timeout ${extra_timeout}s)"
     extra_rc=0
     # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.
@@ -487,6 +524,8 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     echo "extra client rc=$extra_rc"
   fi
 else
+  echo "ARM FAIL $NAME: /v1/models never answered 200 within ${READY_TIMEOUT}s" \
+       "(${POLLS} polls at ${POLL_SLEEP}s) on $NODE:$PORT"
   rc=4
 fi
 

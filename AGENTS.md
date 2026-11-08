@@ -19,7 +19,7 @@ the whole tracked tree (re-measured 2026-11-07, the date on this line: 104 track
 arms that landed after the previous snapshot add no row, because an accuracy declaration belongs
 inside `metadata:` where `unknown-top-level-key` does not fire; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1329 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced them**. The snapshot is one
+suite 1341 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -358,7 +358,7 @@ timeout must not kill it. `--dead-grace` (120 s) covers only a child that was ne
 worst silence measured across the 46 boots that reached healthy (2026-11-03). **There is no `--grace`
 any more** — a 1800 s loading window was gating verdicts that only fire on evidence, and it cost an
 int8 arm 28 minutes after its serve died at t=98 s. `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
-ends the arm in one probe instead of the loop's 2250 s.
+ends the arm in one probe instead of waiting out the readiness ceiling (`ARM_READY_TIMEOUT`, 2250 s default; the ceiling is a knob because GLM-753B's own TTR is 2538.9 s, and its rc=4 line names the effective value).
 
 ```bash
 HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \
@@ -892,7 +892,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1329 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1341 tests,
   2 skipped on 2026-11-07:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the

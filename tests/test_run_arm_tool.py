@@ -24,6 +24,12 @@ that the next edit keeps the promise, so the properties are pinned here:
   carries no suite marker at all when its ladder failed
   (`PoolingReceipt`, which executes the branch against a stub `sparkrun`);
 * the script is syntactically valid bash (`test_bash_syntax`).
+* the readiness ceiling is a knob, not a literal: `ARM_READY_TIMEOUT` (default 2250 s) drives
+  the poll count with `ARM_POLL_SLEEP`, the unset path is bounded, and the rc=4 line names
+  the effective ceiling (`ReadinessCeiling`);
+* every booting row writes `image.txt`/`ARM_IMAGE_ID` from the container's own config sha,
+  client or no client, and a missing id fails visibly instead of writing `unknown`
+  (`ImageCell`).
 
 Every assertion here needs its negative control: a copy with the stop line
 deleted, one with it indented, and one with the trap removed must each fail the
@@ -265,13 +271,18 @@ class RunArmContract(unittest.TestCase):
     def test_readiness_covers_the_slowest_healthy_boot_and_watches_the_watchdog(self):
         """The ceiling must outlast a real load, and a dead boot must not wait it out.
 
-        150 x 15 s = 2250 s against the slowest healthy boot measured on the fleet
-        (1076 s, a 122B load, 2026-11-03). The watchdog's own pid is what ends the loop
-        early now — there is no `--grace` for the ceiling to sit under any more, and the
-        arm that died at t=98 s would otherwise have held the loop until 2250 s.
+        The historical 150 x 15 s = 2250 s was below GLM-753B's own measured TTR (2538.9 s,
+        recipes/glm/README.md), so a campaign recorded rc=4 "never ready" on a boot that was
+        still loading. The ceiling is now a knob and the poll count is derived from it
+        (`ReadinessCeiling` executes the arithmetic); the watchdog's pid is still what ends
+        the loop early -- there is no `--grace` for the ceiling to sit under any more, and
+        the arm that died at t=98 s would otherwise have held the loop until the ceiling.
         """
         text = read_tool()
-        self.assertIn("seq 1 150", text, "readiness ceiling is below the slowest measured boot")
+        self.assertIn("READY_TIMEOUT=${ARM_READY_TIMEOUT:-2250}", text,
+                      "the readiness ceiling lost its default")
+        self.assertIn('seq 1 "$POLLS"', text, "the loop does not follow the derived ceiling")
+        self.assertNotIn("seq 1 150", text, "a literal ceiling outlived the knob")
         self.assertIn('kill -0 "$WD"', text, "the readiness loop ignores the watchdog's verdict")
 
     def test_failed_steps_set_a_nonzero_exit(self):
@@ -1193,6 +1204,187 @@ class ExtraClientHook(BashArmHarness):
         self.assertNotIn("house.yaml", files,
                          "a house.yaml from the client would read as a finished arm")
         self.assertIn("extra-client: rc=0", files["extra-client.log"])
+
+
+# ---------------------------------------------------------------------------
+# The readiness ceiling and the image cell, executed from their own slices.
+#
+# GLM-753B's measured TTR is 2538.9 s (recipes/glm/README.md), against a hardcoded
+# 150 x 15 s = 2250 s ceiling: a campaign recorded rc=4 "never ready" on a boot that
+# was still loading. The ceiling is now a knob, and the image cell moved out of the
+# ARM_EXTRA_CLIENT branch because every receipt must name what ran -- the concurrency
+# rows had to smuggle an image-id gate into the client env to get one.
+
+POLLS_END = 'for _ in $(seq 1 "$POLLS"); do'
+IMAGE_START = "# The image cell belongs to every receipt"
+IMAGE_END = 'echo "image=$IMAGE_ID"'
+
+
+def ceiling_slice(text: str) -> str:
+    start = text.index(LOOP_START)
+    end = text.index(POLLS_END, start)
+    return text[start:end]
+
+
+def image_slice(text: str) -> str:
+    start = text.index(IMAGE_START)
+    return text[start : text.index(IMAGE_END, start) + len(IMAGE_END)]
+
+
+def clean_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """The harness environment without the knobs under test, so a developer's shell cannot leak them."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ARM_READY_TIMEOUT", "ARM_POLL_SLEEP", "ARM_EXTRA_CLIENT")}
+    env.update(extra or {})
+    return env
+
+
+class ReadinessCeiling(unittest.TestCase):
+    """ARM_READY_TIMEOUT drives the poll count; the default is the old 2250 s, bounded."""
+
+    def polls(self, extra_env: dict[str, str] | None = None,
+              text: str | None = None) -> int:
+        script = ("set -uo pipefail\n" + ceiling_slice(text or read_tool())
+                  + '\nprintf "%s\\n" "$POLLS"\n')
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                             check=False, env=clean_env(extra_env), timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return int(out.stdout.strip())
+
+    def run_loop(self, extra_env: dict[str, str]) -> tuple[str, int, float]:
+        """Execute the real loop with a `$WD` that dies of its own error, so it polls to the ceiling."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            wd = tmp / "watchdog.sh"
+            wd.write_text("#!/usr/bin/env bash\nexit 4\n")
+            probes = tmp / "probe.log"
+            script = tmp / "loop.sh"
+            script.write_text(
+                f"""#!/usr/bin/env bash
+set -uo pipefail
+NODE=127.0.0.1
+PORT=1
+curl() {{ echo probe >> {probes}; printf '000'; }}
+bash {wd} &
+WD=$!
+sleep 0.3
+{readiness_loop(read_tool())}
+echo "probes=$(wc -l < {probes})"
+"""
+            )
+            started = time.monotonic()
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=clean_env(extra_env), timeout=120)
+            elapsed = time.monotonic() - started
+        probes_run = int(re.search(r"^probes=(\d+)$", out.stdout, re.M).group(1))
+        return out.stdout + out.stderr, probes_run, elapsed
+
+    def test_the_default_is_the_old_2250s_ceiling(self):
+        self.assertIn("READY_TIMEOUT=${ARM_READY_TIMEOUT:-2250}", read_tool())
+        self.assertEqual(self.polls({"ARM_POLL_SLEEP": "15"}), 150)
+
+    def test_3000s_at_15s_poll_is_200_polls(self):
+        self.assertEqual(self.polls({"ARM_READY_TIMEOUT": "3000",
+                                     "ARM_POLL_SLEEP": "15"}), 200)
+
+    def test_a_short_ceiling_still_makes_one_attempt(self):
+        self.assertEqual(self.polls({"ARM_READY_TIMEOUT": "1",
+                                     "ARM_POLL_SLEEP": "10"}), 1)
+
+    def test_a_fractional_poll_interval_rounds_up(self):
+        self.assertEqual(self.polls({"ARM_READY_TIMEOUT": "3",
+                                     "ARM_POLL_SLEEP": "0.5"}), 6)
+
+    def test_negative_control_the_default_is_load_bearing(self):
+        """Emptied, the ceiling collapses to one attempt -- the positive cases above catch it."""
+        text = read_tool().replace("${ARM_READY_TIMEOUT:-2250}", "${ARM_READY_TIMEOUT:-}")
+        self.assertNotEqual(self.polls({"ARM_POLL_SLEEP": "15"}, text=text), 150)
+
+    def test_the_unset_path_is_bounded(self):
+        """Not silently unbounded: the historical instant-loop device still ends at 150 probes."""
+        out, probes, elapsed = self.run_loop({"ARM_POLL_SLEEP": "0"})
+        self.assertEqual(probes, 150, out)
+        self.assertLess(elapsed, 30, "the unset ceiling did not terminate quickly")
+        self.assertIn("readiness=no", out)
+
+    def test_the_ceiling_drives_the_real_loop(self):
+        out, probes, elapsed = self.run_loop({"ARM_READY_TIMEOUT": "3",
+                                              "ARM_POLL_SLEEP": "1"})
+        self.assertEqual(probes, 3, out)
+        self.assertLess(elapsed, 10, "the configured ceiling did not bound the loop")
+
+    def test_the_rc_4_message_names_the_effective_ceiling(self):
+        text = read_tool()
+        self.assertIn("never answered 200 within ${READY_TIMEOUT}s", text)
+        self.assertIn('(${POLLS} polls at ${POLL_SLEEP}s)', text)
+        # Negative control: a literal in the message would hide a raised ceiling.
+        mutated = text.replace("within ${READY_TIMEOUT}s", "within 2250s")
+        self.assertNotIn("never answered 200 within ${READY_TIMEOUT}s", mutated)
+
+
+class ImageCell(unittest.TestCase):
+    """Every booting row writes image.txt / ARM_IMAGE_ID, client or no client."""
+
+    def run_image_block(self, stub_image: str) -> tuple[str, int, dict[str, object]]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            receipt = tmp / "receipt"
+            receipt.mkdir()
+            calls = tmp / "calls.log"
+            script = tmp / "image.sh"
+            script.write_text(
+                f"""#!/usr/bin/env bash
+set -uo pipefail
+L={receipt}
+NODE=127.0.0.1
+N=sparkrun_test_solo
+NAME=test
+IMAGE_STUB={stub_image!r}
+sleep() {{ :; }}
+on_node() {{ echo x >> {calls}; [ -n "$IMAGE_STUB" ] && printf '%s\\n' "$IMAGE_STUB"; }}
+{image_slice(read_tool())}
+printf 'IMAGE_ENV=%s\\n' "${{ARM_IMAGE_ID:-unset}}"
+"""
+            )
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, timeout=30)
+            retries = len(calls.read_text().splitlines())
+            written = receipt / "image.txt"
+            snapshot = {"exists": written.is_file(),
+                        "text": written.read_text().strip() if written.is_file() else ""}
+            return out.stdout + out.stderr, retries, snapshot
+
+    def test_a_plain_boot_writes_the_image_cell_without_a_client(self):
+        sha = "sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95"
+        out, retries, receipt = self.run_image_block(sha)
+        self.assertEqual(receipt["text"], sha)
+        self.assertIn("IMAGE_ENV=" + sha, out, "the id is not exported to the hook")
+        self.assertIn("image=" + sha, out)
+        self.assertEqual(retries, 1)
+
+    def test_the_value_is_the_container_config_sha_not_a_manifest_digest(self):
+        block = image_slice(read_tool())
+        self.assertIn("docker inspect -f '{{.Image}}'", block)
+        self.assertNotIn("RepoDigests", block)
+        self.assertNotIn("manifest inspect", block)
+
+    def test_a_missing_id_fails_visibly_and_writes_no_placeholder(self):
+        out, retries, receipt = self.run_image_block("")
+        self.assertIn("no image id", out)
+        self.assertNotIn("unknown", out)
+        self.assertFalse(receipt["exists"],
+                         "a placeholder image.txt would let the receipt look complete")
+        self.assertEqual(retries, 3, "the read is not retried")
+        # The slice's exit status is the mechanism: executed alone it must be non-zero.
+        script = f"set -uo pipefail\nL=/tmp\nNODE=127.0.0.1\nN=c\nNAME=t\nsleep(){{ :; }}\non_node(){{ :; }}\n{image_slice(read_tool())}\n"
+        rc = subprocess.run(["bash", "-c", script], capture_output=True, text=True,
+                            check=False, timeout=30).returncode
+        self.assertNotEqual(rc, 0)
+
+    def test_one_writer_the_extra_client_hook_does_not_race_it(self):
+        text = read_tool()
+        self.assertEqual(text.count('> "$L/image.txt"'), 1)
+        self.assertNotIn("image.txt", extra_client_block(text))
 
 
 if __name__ == "__main__":
