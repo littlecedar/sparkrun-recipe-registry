@@ -4725,7 +4725,7 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   correction). `6bf6ef1` read the `Execution resources are busy … held by pid 1883449` refusals as a
   stale claim that had cleared; that reading was wrong. The discriminator is
   `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.prev-040944/launch.log`: the launcher ran 414.7 s
-  and ended `Registry image distribution failed on: 10.0.4.30, .31, .32, .33` (637.1 MiB at
+  and ended `Registry image distribution failed on: the four rank hosts (`.30`–`.33`), addresses masked from the launcher verdict` (637.1 MiB at
   1.6 MiB/s, 2.4 GiB delivered) at 04:11:25, while `run-arm.sh` had already declared
   `no container appeared` at 04:09:09 — an executor that stops observing and leaves its launcher
   holding four hosts. `ps -p 1883449` returning NO_SUCH_PID at 04:13 only proves it had exited.
