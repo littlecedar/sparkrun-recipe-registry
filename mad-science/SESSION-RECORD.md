@@ -5757,3 +5757,51 @@ Two defects found while folding this hour's board, both cheap to state and neith
   a *rise* in available bytes is never evidence of a writer. Both this tick and the 13:07 one carried
   the number as "unattributed movement" without applying its direction, which is how a deletion got
   offered an author as a download.
+
+## 2026-11-08 13:41 ET — the 12:59:14 kill, the daemon refusal, and a board split no CAS can see
+
+**The two head events are not evidenced as one mechanism, and the board said they were.**
+At 11:27:57 systemd logged `Failed with result 'oom-kill'`; at 12:59:14 it logged
+`Failed with result 'signal'` with the same `status=9/KILL`, `NRestarts=0`, `Restart=no`.
+The 12:59:14 window carries the kernel's show_mem dump (`Node 0 Normal: 206240kB` free,
+`Unreclaimable slab info`) and `systemd-journald[579]: Missed 30225 kernel messages`, so
+no `invoked oom-killer` or `Killed process` line survives anywhere. What is measured is
+memory exhaustion immediately followed by SIGKILL: the pressure is evidenced, the killer's
+identity is not. `beegfs-mgmtd`, `beegfs-meta` and `beegfs-storage` died in it and the
+weights pool has been unreadable since; earlyoom's next line (13:00:46) reads
+`mem avail 118650 of 124608 MiB (95.22 %)`, i.e. the kills freed the memory rather than a
+shortage persisting.
+
+**A hung BeeGFS client cannot be timed out.** `stat -f -c %T /mnt/beegfs` on the head
+blocks in an unkillable D state, so `timeout 5`/`timeout 8` never reaps it and the whole
+remote command hangs — two whole census attempts died that way (13:09:08, 13:10:19) before
+the loop dropped every `/mnt` probe. `ConnectTimeout` bounds the connect, not the command.
+
+**The daemon preflight's refusal has an effect but no established cause.**
+`run-arm.sh` refused marlin attempts @10/@11 at 13:08:00 and 13:08:07 (`rc=9`,
+`no running sparkrun daemon on .30 .31 .33`, evidence `daemon-preflight.txt`) — the shape
+`9ef01bc` predicted, and the first live case of a refusal replacing a wasted boot. But
+`sparkrun daemon status` answered `running: true` on all four rank hosts at 13:15, and the
+daemon processes alive at 13:31:05-13:31:08 carry that start time, so they restarted at
+least once after the refusal and no pid predating it was found. What is verified is the
+effect (no rank could take a distribution); the cause stays unattributed.
+
+**The board split across lineages, and `--expect-sha` cannot notice.** Measured 13:41: the
+local clone's board (title 13:39) carries 253 landed rows, `origin/main`'s (title 13:36)
+carries 178, with 84 rows local-only and 9 origin-only — among the 9 this tick's
+`13:35 correction, the 12:59:14 attribution` row. `git rev-list --left-right --count
+origin/main...HEAD` read 30/21. `publish --expect-sha` compares this clone's file against
+this clone's own read, so it guards a peer *inside* one clone and is blind to a second
+lineage: a whole-file push between them replaces 84 rows in one direction and 9 in the
+other, silently. The landed table is the durable record, so the repair is a union merge
+(row-keyed, exact strings) and not another regeneration; `0dc9764` registers the same
+class from the register side ("the two clones hold one row in opposite states, and no CAS
+notices").
+
+**Armed state at 13:41.** Register: 112 tasks, 89 done, 11 queued + 12 blocked, zero
+claims, `check` green. Campaign `h2h-20261107`: unit active, no lease, 9 measured / 8
+blocked, and `zz-ds4-1017-sm121-arm3-control-marlin` failed at `attempts=11` with
+`state.json` `failed` against a register row that reads `blocked`. Fleet: no container
+running anywhere, one never-started `sm121m` `Created` on `.30` since 10:32, roots flat.
+Nothing is bootable while the pool is down, and the pool needs a manual
+mgmtd -> meta -> storage restart because all three units carry `Restart=no`.
