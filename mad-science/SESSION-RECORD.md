@@ -4567,3 +4567,46 @@ the same serve), **arm 3 longctx** (`w4-survey-arm3-sm121-boot`: the 1,039,999-t
 the **survey triad** (arm 3, arm 5, and arm 5's same-digest control), the **three concurrency rows**
 (`dflash2-k`, `no-drafter`, `scheduler-knob`), and **`tensorfold-metrics-bridge-generalization`** /
 **`h2h-doc-refresh`**, which land behind the rows they summarise.
+
+## 2026-11-08 03:18 ET — board landed rows homed while a peer tick owns the board
+
+The 03:0x board's `Landed session` table was **not** cleared at this tick's session boundary: a peer tick
+republished and committed the board twice inside the same hour (`66e48d3` at 03:09:32, `f93f4cf` at
+03:14:27), and clearing rows a peer had just written is the non-monotone table edit the handoff rule exists
+to avoid. Every row without a home here is homed instead, so a later boundary can clear the table without
+losing a clause. Verified per SHA with `git grep -c <sha> -- mad-science/SESSION-RECORD.md`: `351c93c` and
+`26582bc` were already carried by the 02:36 ET close-out above; the eight below returned nothing.
+
+- **02:17 ET** `534cac4` — the 753B register note deduped to one verdict clause instead of the reconciler's
+  appended copies, and the board's queue row re-rendered from the register rather than hand-edited.
+- **02:29 ET** `d77ddd5` — 753B second boot closed `measured-rejected` never-ready on the artefact
+  discriminator (four attempts, none carrying `ladder.*` or `house.*`).
+- **02:31 ET** `351c93c` — that close reversed: `rc=4` is the readiness ceiling, so the row returns to
+  `queued` with the timeout and client hook its next attempt needs. *(Already logged in the 02:36 close-out.)*
+- **02:35 ET** `1034cac` — three GLM-Flash concurrency rows registered, each carrying the recipe it boots
+  and an image-id gate, so a lever cannot be measured through an unidentified image.
+- **02:36 ET** `26582bc` — reconciliation adopts a row's `env` for every next attempt, not only the first:
+  it froze env whenever `attempts != 0`, so a reopened row's new readiness ceiling never reached its boot.
+  *(Already logged in the 02:36 close-out.)*
+- **02:42 ET** `2b768e8` — the 753B re-boot gated on `ARM_READY_TIMEOUT=3000`, the readiness ceiling the
+  measured TTR (2,538.9 s) exceeds the 2,250 s default by.
+- **02:46 ET** `e557ce7` — `tools/run-arm.sh`'s readiness ceiling became a duration knob that names its
+  effective value on `rc=4`, and the image cell is now written for every booting row as the container's own
+  config sha, not only for extra-client arms.
+- **02:49 ET** `88b4b34` — the 02:36 session closed in this file and the board published on the 02:45:07
+  census.
+- **02:52 ET** `d4c3ffe` — the close-out's suite count stated as **1341** against the tree it lands on; the
+  brief carried 1329 from three commits earlier, and `tools/h2h-client.py`'s guard plus the campaign's state
+  tests are what moved it.
+- **02:55 ET** `b74094f` — the campaign's evidence readers taught the receipt shape the arms actually write
+  (`campaign/sparkrun_campaign/evidence.py`, its tests, `DESIGN.md`), the measured h2h cells landed in
+  `mad-science/TP4-HEAD-TO-HEAD-1025.md` (ds4-1017 second boot, GLM-Flash boot2, GLM-Flash's first client
+  house 37/37, Beam boot2 with its quality cell left open), and both TensorFold launcher READMEs updated.
+
+**Two lock timeouts this tick were self-inflicted, not a wedged holder.** `flock -o -w 90/240
+.local/status-board.lock` wrapped `task-queue.py publish`, which takes that same lock itself, so `publish`
+waited behind its own caller's lock and exited naming a wedged holder at 03:17:45 and 03:19:41. `fuser -v`
+on the lock returned **nothing** both times, which is the discriminator: a peer holder would have shown a
+pid. The outer `flock` is therefore wrong for this path — the read-modify-write serialisation the skill asks
+for cannot be layered outside `publish`'s own lock on the same file, and a CAS re-read of the board's sha
+immediately before `publish` is what actually guards the fold window.
