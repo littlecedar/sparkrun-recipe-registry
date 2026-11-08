@@ -10,6 +10,7 @@ carry the instrument and its config in the pointer.
 ## Contents
 
 - [Ladder cells (decode t/s)](#ladder-cells-decode-ts)
+- [Second boots and first clients (2026-11-08, campaign h2h-20261107)](#second-boots-and-first-clients-2026-11-08-campaign-h2h-20261107)
 - [Quality / capability cells](#quality--capability-cells)
 - [Reading (grounded in the rows above, no new claims)](#reading-grounded-in-the-rows-above-no-new-claims)
 - [Provenance index](#provenance-index)
@@ -34,14 +35,37 @@ per-request from C1 through C10 (MTP-3 sustains under load) while aggregate scal
 Beam's ladder rises with concurrency in both arms and DFlash2 buys +20 % at C1 (deltas within noise
 elsewhere, per-run stds 6–16 t/s).
 
+## Second boots and first clients (2026-11-08, campaign `h2h-20261107`)
+
+One controlled second boot per arm, measured on the live campaign root at
+`head:/home/red/benchmarks/h2h-20261107/`. Cells are `ladder.json` `tg_throughput` (mean ± sample sd
+over the run's five samples) and are **not** interchangeable with the 2026-10-18/26 rows above —
+different boot, same recipe. The campaign's `house.*` artefact is the standard-suite
+(`benchmarking/standard-suite.yaml`, framework `tool-eval-bench`) run, so its score is the table's
+"tools leg" number, not the 37/37 quality battery; the battery ran only as the first client below.
+
+| arm | C1 | C2 | C5 | C10 | standard suite (TEB) | receipts |
+|---|---|---|---|---|---|---|
+| DSv4.1-Flash-1017 knapcio SGLang TP=4, second boot | 51.11 ± 16.24 | 91.79 ± 3.92 | 128.88 ± 4.59 | 159.88 ± 10.14 | **93** | `~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang/{ladder.json,house.json}`; campaign receipt `receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json` |
+| GLM-5.3-Flash EXL3 4bpw TF TP=4, boot2 | 105.90 ± 5.68 | 120.46 ± 28.43 | 96.80 ± 1.92 | 86.87 ± 1.16 | **100** | `~/benchmarks/h2h-20261107/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/{ladder.json,house.json}`; `receipts/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.json` |
+| GLM-5.3-Flash, first client (same arm, other boot) | — (client cell, not a ladder) | — | — | — | house battery **37/37** (easy 19/19, hard 18/18) @4096 thinking-on; image `sha256:7f8f1b38…` | `…/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang/client/{client.json,house.json}` |
+| Beam-1.0-501B NVFP4 vLLM TP=4, no drafter, boot2 | 33.09 ± 2.50 | 44.91 ± 3.50 | 59.71 ± 10.50 | 69.86 ± 7.41 | open — the same boot's standard-suite artefact scores 0/"Poor", which is not a quality verdict | `~/benchmarks/h2h-20261107/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/{ladder.json,house.json}` |
+| GLM-5.3 EXL3 3bpw TP=4 (753B) | not measured — first boot rejected by the harness readiness ceiling (2250 s vs measured TTR 2538.9 s); re-boot pending `ARM_READY_TIMEOUT` | | | | | campaign receipt `receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json` (rc=4); `tools/run-arm.sh:290-294`, `recipes/glm/README.md:57-58` |
+
+Boot-to-boot spread is the finding these rows carry: ds4's C1 is 51.11 against the first boot's
+69.28, GLM-Flash's 105.90 against 83.03, Beam's 33.09 against 26.20 — 25-30 % at C1 in both
+directions, so a single-boot C1 is a boot's number, not the arm's. Signatures survive: ds4 still
+rises monotonically to C10, GLM-Flash still peaks at C2 and falls, Beam still rises with
+concurrency.
+
 ## Quality / capability cells
 
 | arm | house battery | needle | tools leg | receipts |
 |---|---|---|---|---|
-| DSv4.1-Flash-1017 knapcio TP=4 | **36/37** @4096 (easy 19/19, hard 17/18; miss `hard-rev`) | **3/3** @ 32,768 / 131,072 / 983,040 (top rung 981,950 prompt tokens) | **TEB 90** (tool-eval-bench, 15 scenarios: 13 pass, 1 partial, 1 fail `TC-03 wrong_args`) | `~/benchmarks/tp4-20261018/` (`REPO…` full-suite receipt, SESSION-RECORD.md §2026-10-18) |
-| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37** — the 2026-10-13 trial's, not through the recipe path (still unproven through it) | **10/10 PASS** @512 at 32,768 (3 min) and 131,072 (8 min); 983,040 **capped-by-precedent** — window 4 through the recipe path (`~/benchmarks/tp4-window4-20261026/glm-needle/`) | **WITHDRAWN 2026-10-26 (contaminated)** — the "14/15" pass I first recorded ran against the LINGERING 3bpw serve (`/v1/models` answered `GLM-5.3-EXL3-3.0bpw`), not the flash arm: the flash arm's checkpoint at the shipped pin `078455ff` is a **stub fleet-wide** (config.json only, 6,098 B; the launcher fails with `startup memory estimate needs the checkpoint tensor headers`). The Hub's pin is 175.7 GB across 95 files | needle: window 4 on the refetched body; the withdrawn tools leg re-runs only after that 175.7 GB re-fetch verified into a fresh boot. The contaminated "14/15" artifacts (14/15 csv + 100/100-marked report) stay as negative evidence under `.scratch/tp4-window4/glm-teb/` |
+| DSv4.1-Flash-1017 knapcio TP=4 | **36/37** @4096 (easy 19/19, hard 17/18; miss `hard-rev`) | **3/3** @ 32,768 / 131,072 / 983,040 (top rung 981,950 prompt tokens) | **TEB 93** on the 2026-11-08 second boot (standard-suite); the earlier boot scored 90 (13 pass, 1 partial, 1 fail `TC-03 wrong_args`) | `~/benchmarks/tp4-20261018/` (`REPO…` full-suite receipt, SESSION-RECORD.md §2026-10-18) |
+| GLM-5.3-Flash EXL3 4bpw TP=4 | **37/37 through the recipe path** — 2026-11-08 first client on the live boot (easy 19/19, hard 18/18, @4096 thinking-on, image `sha256:7f8f1b38…`); the 2026-10-13 trial's 37/37 predated it | **10/10 PASS** @512 at 32,768 (3 min) and 131,072 (8 min); 983,040 **capped-by-precedent** — window 4 through the recipe path (`~/benchmarks/tp4-window4-20261026/glm-needle/`) | **TEB 100 — measured 2026-11-08 on boot2 (standard-suite)**; supersedes the withdrawn take below ( — the "14/15" pass I first recorded ran against the LINGERING 3bpw serve (`/v1/models` answered `GLM-5.3-EXL3-3.0bpw`), not the flash arm: the flash arm's checkpoint at the shipped pin `078455ff` is a **stub fleet-wide** (config.json only, 6,098 B; the launcher fails with `startup memory estimate needs the checkpoint tensor headers`). The Hub's pin is 175.7 GB across 95 files | needle: window 4 on the refetched body; the withdrawn tools leg re-runs only after that 175.7 GB re-fetch verified into a fresh boot. The contaminated "14/15" artifacts (14/15 csv + 100/100-marked report) stay as negative evidence under `.scratch/tp4-window4/glm-teb/` |
 | GLM-5.3 EXL3 3bpw TP=4 (753B) | **37/37** @4096 thinking-on through the recipe path (easy 19/19, hard 18/18, 124.7 s) | **10/10 PASS** @512 at 32,768 (19 min) and 131,072 (62 min); 983,040 **wrapper-capped ×2** (7200 s and 14400 s, ~4 h quartet per attempt, serve warm throughout — unmeasurable in-window, not an arm failure) — window 4 leg-1 rerun after the 02:11Z foreign-stop kill (`~/benchmarks/tp4-window4-20261026/glm-needle/`) | **TEB 100 — 15/15 pass, 0 partial, 0 fail** — window 4 (`benchmark_glm-5.3-exl3-3bpw…tp4.{json,csv}`, `.scratch/tp4-window4/glm-teb/`) | house: window 3 `~/benchmarks/tp4-window3-20261024/suite-glm/`; needle+tools: window 4 `~/benchmarks/tp4-window4-20261026/` |
-| Beam-1.0-501B NVFP4 TP=4 | not measured through the recipe path (the pre-registered (b) cell became the needle rerun; window-3 boot-gate smoke 17×23=391 correct) | **20/20 PASS** @512 with `--needle-max-tokens 512` at 32,768 and 131,072, all depths (the window-3 0/3 shape was budget truncation — finish=length, the documented false-capability class) | **BFCL tools leg ran direct** (eval-suite wrapper stalls 52 min — instrument finding): per-case PASS/FAIL lines give **475 PASS / 40 FAIL** (`beam-b1-bfcl2.log`) and **182 PASS / 25 FAIL** (`beam-b1-bfcl3.log`) = **657/722 (91.0 %)** across the two populated logs; the harness's own category summary is absent from the logs, so the per-category split is open | `~/benchmarks/tp4-window4-20261026/beam-b1-needle-*-512.json`, `beam-b1-bfcl{2,3}.log`; queue `w4-beam-cells-remainder` notes |
+| Beam-1.0-501B NVFP4 TP=4 | open — the 2026-11-08 second boot ran the standard suite but its artefact scores 0/"Poor", a harness artefact rather than a quality verdict; the pre-registered (b) cell became the needle rerun (window-3 smoke 17×23=391 correct) | **20/20 PASS** @512 with `--needle-max-tokens 512` at 32,768 and 131,072, all depths (the window-3 0/3 shape was budget truncation — finish=length, the documented false-capability class) | **BFCL tools leg ran direct** (eval-suite wrapper stalls 52 min — instrument finding): per-case PASS/FAIL lines give **475 PASS / 40 FAIL** (`beam-b1-bfcl2.log`) and **182 PASS / 25 FAIL** (`beam-b1-bfcl3.log`) = **657/722 (91.0 %)** across the two populated logs; the harness's own category summary is absent from the logs, so the per-category split is open | `~/benchmarks/tp4-window4-20261026/beam-b1-needle-*-512.json`, `beam-b1-bfcl{2,3}.log`; queue `w4-beam-cells-remainder` notes |
 
 ## Reading (grounded in the rows above, no new claims)
 
@@ -54,15 +78,20 @@ elsewhere, per-run stds 6–16 t/s).
   across boots: both GLM arms now carry needle 32,768/131,072 **10/10 PASS** each (983,040
   wrapper-capped on both — unmeasurable in-window at the 3bpw arm's prefill rate, capped-by-precedent
   on the flash arm; a full 983k number is only worth an ~8-h dedicated window if the owner asks),
-  GLM-753B adds tools **TEB 100 (15/15)** and house **37/37**; GLM-Flash's tools leg stays WITHDRAWN
-  (contaminated first take; re-runs after the refetched body) and its 37/37 is still the trial's;
-  Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
-- **Open cells this table must not paper over**: no GLM Flash house through the recipe path, no
-  second-boot ladder for any arm, no Beam house/BFCL-category summary, and the 983,040 needle rung
-  is **open on every arm but ds4-1017**: the GLM arms' 983k rungs are wrapper-capped
-  unmeasurable-in-window (two caps on the 3bpw arm at 7200/14400 s — the rung needs an ~8-h
-  dedicated quartet window at that arm's prefill rate; the flash arm took the cap-by-precedent), so
-  a 983k capability comparison is not on the table without the owner ordering that window.
+  GLM-753B adds tools **TEB 100 (15/15)** and house **37/37**; GLM-Flash now has both through the
+  recipe path as well — the 2026-11-08 first client scored house **37/37** and that arm's boot2 wrote
+  a standard-suite **TEB 100**, superseding the withdrawn contaminated take; Beam's needle 20/20@512 clears its rung set with the truncation trap handled.
+- **Open cells this table must not paper over**: the Beam house battery and BFCL-category summary
+  (the boot's standard-suite artefact is 0/"Poor" and proves nothing); the GLM-753B ladder, house and
+  tools cells (first boot rejected by the harness readiness ceiling, re-boot pending
+  `ARM_READY_TIMEOUT`); the survey arms' cells (arm 3 indexer scoring and arm 5 TRT-LLM sparse MLA,
+  receipts not yet landed); and one second boot is not a sigma — the 2026-11-08 rows are single
+  second boots per arm, so the boot-to-boot spreads they show are *observed differences*, not
+  estimates of variance. The 983,040 needle rung stays **open on every arm but ds4-1017**: the GLM
+  arms' 983k rungs are wrapper-capped unmeasurable-in-window (two caps on the 3bpw arm at
+  7200/14400 s — the rung needs an ~8-h dedicated quartet window at that arm's prefill rate; the
+  flash arm took the cap-by-precedent), so a 983k capability comparison is not on the table without
+  the owner ordering that window.
 
 ## Provenance index
 

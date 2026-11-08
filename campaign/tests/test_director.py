@@ -219,6 +219,9 @@ class CompletionIsReadFromReceipts(CampaignCase):
         self.assertEqual(fields["serve_logs"], ["serve-node_0.log", "serve-node_1.log"])
         self.assertEqual(fields["watchdog"], "loading")
         self.assertEqual(fields["leftovers"], [])
+        # The receipt states which house.yaml shape produced its outcome fields.
+        self.assertEqual(fields["marker_shape"], "run-arm")
+        self.assertEqual(fields["client"], {})
 
     def test_the_receipt_keeps_the_serve_log_of_a_watchdog_reaped_arm(self) -> None:
         leader, _ = self.build()

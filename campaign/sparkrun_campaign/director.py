@@ -660,6 +660,12 @@ class Director:
             "serve_logs": [],
             "ladder": "",
             "accuracy_status": "",
+            # Which house.yaml shape the outcome fields came from (`run-arm` or
+            # `sparkrun_benchmark`, empty when there is no marker). The nested sidecar has no
+            # ladder field, so ladder/accuracy above stay empty rather than being invented.
+            "marker_shape": "",
+            "house_score": "",
+            "client": {},
             "watchdog": "",
             "leftovers": [f"{name} on {host}" for host, name in leftovers],
         }
@@ -671,6 +677,14 @@ class Director:
                 fields["marker_error"] = str(exc)
             fields["ladder"] = marker.get("ladder", "")
             fields["accuracy_status"] = marker.get("accuracy_status", "")
+            fields["marker_shape"] = marker.get("shape", "")
+            fields["house_score"] = marker.get("house_score", "")
+            try:
+                client = evidence.client_receipt(mdir)
+            except evidence.EvidenceError as exc:
+                client = None
+                fields["client_error"] = str(exc)
+            fields["client"] = client or {}
             fields["artefacts"] = [
                 name for name in evidence.MEASURED_ARTEFACTS + ("ladder.yaml",)
                 if (Path(mdir) / name).exists()

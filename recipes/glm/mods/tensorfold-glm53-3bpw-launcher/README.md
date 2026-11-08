@@ -174,8 +174,11 @@ that reprints this rank's `/metrics` counters in those shapes.
   ships only a mod's own directory). `tests/test_tensorfold_glm_metrics_bridge.py` pins them
   byte-identical, so a fix must land in both.
 
-Status: shipped, **not yet observed printing on either arm** — the live 3.0bpw boot predates the
-bridge, and this build's `/metrics` names are unverified on the 4bpw patch tree.
+Status: shipped and **observed on the 4bpw arm, 2026-11-08** — the boot2 serve log prints
+`metrics bridge: matched` with 13 `tensorfold:*` families, including every one the four scraper
+shapes need (`generation_tokens_total`, `requests_running`, `requests_waiting`). The two copies are
+pinned byte-identical by `tests/test_tensorfold_glm_metrics_bridge.py`, so this lane's copy carries
+the same evidence; the 3bpw lane's own serve has not booted since the bridge landed.
 
 ## Not in this mod
 

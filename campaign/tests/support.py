@@ -35,6 +35,48 @@ def manifest(path: str | Path, arms: list[tuple[str, str, int]]) -> Path:
     return write(path, json.dumps(rows, indent=1) + "\n")
 
 
+def sidecar_receipt(
+    root: str | Path,
+    arm: str,
+    *,
+    cells: int = 2,
+    score: str | None = "93",
+    window: str = "tp12-20260101",
+    client: dict | None = None,
+) -> Path:
+    """An arm directory shaped like sparkrun's own benchmark, not run-arm's marker.
+
+    `house.yaml` is the nested `sparkrun_benchmark` sidecar (the shape the sglang branch and the
+    TensorFold arms both wrote on 2026-11-08): outcome under `benchmark`/`results`, no flat
+    ladder field. `score=None` drops the results block, the control for "a sidecar alone is not
+    a measurement".
+    """
+    arm_dir = receipt(root, arm, cells=cells, ladder="", window=window)
+    lines = [
+        "sparkrun_benchmark:",
+        "  version: '1'",
+        "  benchmark:",
+        "    framework: tool-eval-bench",
+        "    profile: benchmarking/standard-suite.yaml",
+    ]
+    if score is None:
+        lines += ["  results:", "    json: {}"]
+    else:
+        lines += ["  results:", "    json:", f"      final_score: {score}"]
+    write(arm_dir / "house.yaml", "\n".join(lines) + "\n")
+    if client is not None:
+        write(
+            arm_dir / "client" / "client.json",
+            json.dumps({
+                "tool": "h2h-client",
+                "cell": client.get("cell", "house4096"),
+                "image_id": client.get("image_id", "sha256:abc"),
+                "rc": client.get("rc", 0),
+            }) + "\n",
+        )
+    return arm_dir
+
+
 def receipt(
     root: str | Path,
     arm: str,

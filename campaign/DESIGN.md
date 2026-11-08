@@ -337,7 +337,14 @@ trusts the state file re-boots a live arm, and a rank-0-only leftover check repo
 `<campaign-root>/receipts/<arm>.json`, written atomically at the end of every arm — measured,
 failed, blocked, or found measured on disk at start-up. Fields: campaign, arm, recipe path, tp,
 hosts, lease id, attempt, start/end, `rc`, `status`, `reason`, `measurement_dir`, `measured`,
-`artefacts`, `serve_logs`, `ladder`, `accuracy_status`, `watchdog`, `leftovers`. The numbers
+`artefacts`, `serve_logs`, `ladder`, `accuracy_status`, `marker_shape`, `house_score`, `client`,
+`watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the outcome fields came
+from: `run-arm`'s flat marker (`suite`/`ladder`/`accuracy_status`) or sparkrun's nested
+`sparkrun_benchmark` sidecar, whose outcome lives under `benchmark`/`results` and which carries
+no ladder field — for it `ladder`/`accuracy_status` stay empty and `house_score` carries the
+sidecar's own `results.json.final_score`, because a fabricated `ladder: ok` would let a sidecar
+recording a failed run read as measured. `client` is the arm-scoped extra client's receipt
+(`client/client.json`: cell, image_id, rc), empty when the arm ran no extra client. The numbers
 themselves stay where the executor wrote them (`~/benchmarks/tp12-<date>/<arm>/`); the receipt is
 the campaign's own account of the arm and points at them, so a reader never has to guess which
 window a status refers to.

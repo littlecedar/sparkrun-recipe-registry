@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sparkrun_campaign import evidence
 
-from .support import lane_doc, receipt, recipe
+from .support import lane_doc, receipt, recipe, sidecar_receipt
 
 REPO = Path(__file__).resolve().parents[2]
 MARKER = "2026-11-01 \u2014 died at engine load (docs/lane.md:2)"
@@ -118,6 +118,41 @@ class ReceiptFields(unittest.TestCase):
         ok, reason = evidence.done(arm_dir)
         self.assertFalse(ok)
         self.assertIn("no marker and no machine-readable artefact", reason)
+
+    def test_the_nested_sidecar_is_read_with_its_shape(self) -> None:
+        # The 2026-11-08 arms wrote sparkrun's own sidecar, not run-arm's flat marker; the reader
+        # must take the shape that exists and say so instead of inventing a ladder field.
+        arm_dir = sidecar_receipt(self.root, "arm", score="100")
+        fields = evidence.marker_fields(arm_dir)
+        self.assertEqual(fields["shape"], "sparkrun_benchmark")
+        self.assertEqual(fields["house_score"], "100")
+        self.assertEqual(fields["suite"], "benchmarking/standard-suite.yaml")
+        self.assertNotIn("ladder", fields, "a sidecar must not gain a fabricated ladder field")
+        self.assertEqual(evidence.done(arm_dir), (True, ""))
+
+    def test_a_sidecar_without_a_result_is_not_a_measurement(self) -> None:
+        empty_ladder = evidence.done(sidecar_receipt(self.root, "arm", cells=0, score=None))
+        self.assertFalse(empty_ladder[0])
+        self.assertIn("sparkrun_benchmark", empty_ladder[1])
+        self.assertIn("not a measurement", empty_ladder[1])
+        arm_dir = sidecar_receipt(self.root, "bare", score=None)
+        (arm_dir / "ladder.json").unlink()
+        bare = evidence.done(arm_dir)
+        self.assertFalse(bare[0])
+        self.assertIn("no house score", bare[1])
+
+    def test_a_marker_with_neither_shape_raises(self) -> None:
+        arm_dir = receipt(self.root, "arm", ladder="")
+        (arm_dir / "house.yaml").write_text("something_else: yes\n", encoding="utf-8")
+        with self.assertRaises(evidence.EvidenceError):
+            evidence.marker_fields(arm_dir)
+
+    def test_the_client_receipt_carries_the_image_id(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", client={"image_id": "sha256:7f8f1b38", "rc": 0})
+        client = evidence.client_receipt(arm_dir)
+        self.assertEqual(client["image_id"], "sha256:7f8f1b38")
+        self.assertEqual(client["cell"], "house4096")
+        self.assertIsNone(evidence.client_receipt(receipt(self.root, "plain")))
 
     def test_the_accuracy_status_field_is_readable(self) -> None:
         arm_dir = receipt(self.root, "arm", accuracy="taken \u2014 the score is in teb-decision.log")

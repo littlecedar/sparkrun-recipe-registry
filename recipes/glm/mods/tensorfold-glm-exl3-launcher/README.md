@@ -170,7 +170,11 @@ The shim carries the same bundled bridge block as the 3.0bpw mod; its contract â
 `TF_METRICS_BRIDGE` / `TF_METRICS_BRIDGE_DEADLINE_S`, fail-open printing, the first-body `matched [...]`
 evidence line, and the test that pins the two copies byte-identical â€” is documented once in
 [`../tensorfold-glm53-3bpw-launcher/README.md#metrics-bridge`](../tensorfold-glm53-3bpw-launcher/README.md#metrics-bridge).
-This arm's copy is unobserved: the build's `/metrics` names are unverified on the 4bpw patch tree.
+This arm's copy is **observed**: the 2026-11-08 boot2 serve log prints `metrics bridge: matched` with 13
+`tensorfold:*` families (`generation_tokens_total`, `prompt_tokens_total`, `requests_running`,
+`requests_waiting`, `kv_cache_usage_ratio`, `mtp_accepted_total`, `mtp_drafted_total`, the two
+latency histograms), i.e. every family the four scraper shapes need. Receipt:
+`head:~/benchmarks/h2h-20261107/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/serve-0.log`.
 
 ## Not in this mod
 

@@ -38,6 +38,15 @@ MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "h
 #: The marker `run-arm.sh` appends outcome fields to; nested `ladder` keys are payload, so only the
 #: unindented keys are read.
 MARKER = "house.yaml"
+#: The flat marker's own keys. A house.yaml carrying only `sparkrun_benchmark` is sparkrun's nested
+#: sidecar instead: it has no ladder/accuracy field, and reading one into existence would be a
+#: fabricated verdict.
+FLAT_KEYS = frozenset({"suite", "ladder", "accuracy_status"})
+#: The nested sidecar sparkrun's benchmark writes: one top-level mapping, outcome under
+#: `benchmark` / `results`.
+SIDECAR = "sparkrun_benchmark"
+#: `client/client.json`, the arm-scoped extra client's own receipt.
+CLIENT = ("client", "client.json")
 LADDERS = ("ladder.json", "ladder.transcribed.json")
 #: Cell tables the instruments write: the ladder's `benchmarks`, the decision ladder's `cells`, and
 #: the pooling exporter's `runs`. A file that parses to none of these has no cell in it.
@@ -159,30 +168,92 @@ def skip_line(entry: Verdict) -> str:
 # --- receipts -----------------------------------------------------------------------------------
 
 
-def marker_fields(arm_dir: str | Path) -> dict[str, str] | None:
-    """Top-level `key: value` fields of `house.yaml`, or None when there is no marker.
+_NESTED_KEY = re.compile(r"^( +)([A-Za-z_][A-Za-z0-9_]*):[ \t]*(.*)$")
 
-    Nested keys are payload, not outcome. An unreadable or self-contradicting marker raises: a
-    guess of "measured" leaves an arm that must be re-run, and a guess of "not measured" re-boots
-    an arm that already has its numbers, so neither is a safe default.
+
+def _nested_scalars(lines: list[str]) -> dict[str, str]:
+    """``a.b.c: value`` for scalar keys under a top-level mapping, keyed by their indent path."""
+    out: dict[str, str] = {}
+    stack: list[tuple[int, str]] = []
+    for line in lines:
+        found = _NESTED_KEY.match(line)
+        if not found:
+            continue
+        indent, key, value = len(found.group(1)), found.group(2), found.group(3).strip()
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        path = ".".join([name for _, name in stack] + [key])
+        value = value.strip("'").strip()
+        if value:
+            out[path] = value
+        else:
+            stack.append((indent, key))
+    return out
+
+
+def marker_fields(arm_dir: str | Path) -> dict[str, str] | None:
+    """Outcome fields of ``house.yaml``, plus the shape they were read from.
+
+    Two shapes reach an arm directory and both are legitimate:
+
+    * ``run-arm``'s flat marker -- ``suite`` / ``ladder`` / ``accuracy_status`` at column 0.
+    * sparkrun's nested ``sparkrun_benchmark`` sidecar -- ``benchmark`` and ``results`` nested,
+      with no ladder field at all. It is reported as ``house_score`` + ``suite`` and the reply says
+      ``shape: sparkrun_benchmark``; inventing a ``ladder: ok`` for it would let a sidecar that
+      records a failed run read as measured.
+
+    An unreadable, contradictory, or third-shape marker raises: a guess of "measured" leaves an
+    arm that must be re-run, and a guess of "not measured" re-boots an arm that has its numbers.
     """
     path = Path(arm_dir) / MARKER
     if not path.exists():
         return None
-    fields: dict[str, str] = {}
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         raise EvidenceError(f"{path}: {exc}") from exc
-    for line in text.splitlines():
+    lines = text.splitlines()
+    flat: dict[str, str] = {}
+    for line in lines:
         found = _TOP_KEY.match(line)
         if not found:
             continue
         key, value = found.group(1), found.group(2).strip()
-        if key in fields and fields[key] != value:
-            raise EvidenceError(f"{path}: {key} appears twice ({fields[key]!r} and {value!r})")
-        fields[key] = value
-    return fields
+        if key in flat and flat[key] != value:
+            raise EvidenceError(f"{path}: {key} appears twice ({flat[key]!r} and {value!r})")
+        flat[key] = value
+    if SIDECAR in flat:
+        nested = _nested_scalars(lines)
+        fields = {"shape": SIDECAR}
+        if nested.get("benchmark.profile"):
+            fields["suite"] = nested["benchmark.profile"]
+        if nested.get("benchmark.framework"):
+            fields["framework"] = nested["benchmark.framework"]
+        if nested.get("results.json.final_score"):
+            fields["house_score"] = nested["results.json.final_score"]
+        return fields
+    if not flat.keys() & FLAT_KEYS:
+        raise EvidenceError(f"{path}: neither a run-arm marker nor a {SIDECAR} sidecar")
+    flat["shape"] = "run-arm"
+    return flat
+
+
+def client_receipt(arm_dir: str | Path) -> dict[str, object] | None:
+    """The arm-scoped extra client's own receipt (``client/client.json``), or None."""
+    path = Path(arm_dir).joinpath(*CLIENT)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise EvidenceError(f"{path}: {exc.__class__.__name__}") from exc
+    if not isinstance(data, dict):
+        raise EvidenceError(f"{path}: a {type(data).__name__}, not a client receipt")
+    return {
+        "cell": str(data.get("cell") or ""),
+        "image_id": str(data.get("image_id") or ""),
+        "rc": data.get("rc"),
+    }
 
 
 def measurement_problem(arm_dir: str | Path) -> str | None:
@@ -217,6 +288,15 @@ def done(arm_dir: str | Path) -> tuple[bool, str]:
     except EvidenceError as exc:
         return False, f"{arm}: marker unreadable, not measured: {exc}"
     problem = measurement_problem(arm_dir)
+    if (fields or {}).get("shape") == SIDECAR:
+        # No ladder field exists in this shape; the score or a non-empty cell table is the
+        # witness. Never synthesise one -- the receipt keeps ladder/accuracy empty and says
+        # which shape it read.
+        if problem:
+            return False, f"{arm}: {SIDECAR} sidecar, but the ladder artefact is not a measurement: {problem}"
+        if any((Path(arm_dir) / name).exists() for name in LADDERS) or (fields or {}).get("house_score"):
+            return True, ""
+        return False, f"{arm}: {SIDECAR} sidecar carries no house score and no ladder cell; not measured"
     verdict = (fields or {}).get("ladder", "")
     if verdict:
         found = _LADDER_VALUE.match(verdict)
