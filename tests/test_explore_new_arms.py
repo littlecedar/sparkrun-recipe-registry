@@ -74,14 +74,23 @@ RIPPLE_ARMS = (
     "zz-ripple-65b-preview-bf16-tp2-vllm.yaml",
 )
 RIPPLE_DFLASH = "zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml"
+RIPPLE_BF16 = "zz-ripple-65b-preview-bf16-tp2-vllm.yaml"
 RIPPLE_DRAFT = "ricursiveAI/Ripple-65B-Preview-DFlash2"
 RIPPLE_ENGINE = "sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7"
+# The BF16 cell booted the fleet-local relayed copy of the same arm64 child
+# (image id == that child's config digest), pinned by its full relay tag with
+# distribution disabled: deliberate, not an unpinned pull (lane README trade).
+RIPPLE_LOCAL_TAG = (
+    "oci-relay/pinned:"
+    "4856ba8c07d52fa0df316413a70d8a14ea8e75a9e9590962bd80a71c4cc7d16f"
+)
 
 # The arms allowed to declare two nodes (min/max 2, TP=2).
 TWO_NODE = (LAGUNA_M1, "zz-ripple-65b-preview-bf16-tp2-vllm.yaml")
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"@sha256:[0-9a-f]{64}\b")
+LOCAL_ONLY = re.compile(r"(?m)^distribution_config:\n  containers:\n    enabled: false$")
 HUB_ID = re.compile(
     r"(?<![\w./-])([A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*)"
     r"(?![\w./-])"
@@ -119,10 +128,16 @@ def revision_violations(r: dict) -> list[str]:
 
 
 def digest_violations(r: dict) -> list[str]:
+    """Digest-pinned, or explicitly local-only.
+
+    `distribution_config.containers.enabled: false` is the SM121 survey arms'
+    shape: sparkrun will not pull the tag, so a fleet-local image is deliberate
+    rather than an unpinned pull.  Anything else must carry a digest.
+    """
     container = r["top"].get("container", "")
-    return [] if DIGEST.search(container) else [
-        f"container {container!r} is not @sha256 digest-pinned"
-    ]
+    if DIGEST.search(container) or LOCAL_ONLY.search(r.get("stripped", "")):
+        return []
+    return [f"container {container!r} is not @sha256 digest-pinned"]
 
 
 def unconsumed(r: dict) -> list[str]:
@@ -283,8 +298,17 @@ class RippleArms(unittest.TestCase):
     """The 2026-11-08 Ripple probes stay comparable to each other."""
 
     def test_engine_pin_is_shared_by_all_three_cells(self):
-        pins = {arm(n)["top"]["container"] for n in RIPPLE_ARMS}
-        self.assertEqual(pins, {"vllm/vllm-openai:nightly@" + RIPPLE_ENGINE})
+        # The two TP=1 cells pin the registry digest; the BF16 cell that booted
+        # pins the relayed copy of that digest's arm64 child, distribution off.
+        registry = {arm(n)["top"]["container"]
+                    for n in RIPPLE_ARMS if n != RIPPLE_BF16}
+        self.assertEqual(registry, {"vllm/vllm-openai:nightly@" + RIPPLE_ENGINE})
+        bf16 = arm(RIPPLE_BF16)
+        self.assertEqual(bf16["top"]["container"], RIPPLE_LOCAL_TAG)
+        self.assertTrue(LOCAL_ONLY.search(bf16["stripped"]))
+        # The relay tag's suffix is its full 64-hex name; a short form does not
+        # resolve, so a "tidy" `:4856ba8c` tag would be a phantom pin.
+        self.assertRegex(RIPPLE_LOCAL_TAG, r":[0-9a-f]{64}$")
 
     def test_the_drafter_cell_pins_the_draft(self):
         self.assertEqual(dflash_violations(arm(RIPPLE_DFLASH)), [])
@@ -329,6 +353,13 @@ class NegativeControls(unittest.TestCase):
 
     def test_unquoted_digest_fails_the_container_guard(self):
         raw = mutate(self.raw, "@sha256:", ":sha256:")
+        self.assertTrue(digest_violations(parse_text(raw)))
+
+    def test_local_tag_without_distribution_disabled_fails_the_guard(self):
+        # The local-only exemption is the explicit block, not the tag shape:
+        # drop the block and the same local tag becomes a violation.
+        raw = (EXPLORE / RIPPLE_BF16).read_text(encoding="utf-8")
+        raw = mutate(raw, "distribution_config:", "distribution_disabled:")
         self.assertTrue(digest_violations(parse_text(raw)))
 
     def test_solo_shape_on_the_two_node_arm_fails_the_node_guard(self):

@@ -1,10 +1,29 @@
 recipe_version: "2"
 model: ricursiveAI/Ripple-65B-Preview
 model_revision: da94cc013a8fda04a502f0a185083c7099ea06c1
-# Same nightly engine pin as the NVFP4 probes (the fleet's release pin
-# `vllm-openai:v0.32.0` has no `ricursive`): manifest list resolved 2026-11-08,
-# linux/arm64 child `sha256:0d69205f…`.
-container: vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7
+# Local-only fleet copy of the same nightly engine. It was relayed 2026-11-08
+# 06:34 UTC through the oci-relay path because the registry form could not be
+# pulled inside the window; the image ID is byte-identical to the registry
+# arm64 child's config digest:
+#   `vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7`
+#   -> arm64 child manifest sha256:0d69205f3227e47b750b05789f117abbd929b67eccc46060e0d22ce4021c0318
+#   -> config `sha256:e84c490d39a5fb09b06afc25fa0926447a568c5fa64b94be7573c1ca636f8d3d`.
+# Image ID (local, byte-identifies artifact; nothing pushed, no RepoDigest):
+# sha256:e84c490d39a5fb09b06afc25fa0926447a568c5fa64b94be7573c1ca636f8d3d
+# The tag's suffix is the relay's full 64-hex name; there is no short
+# `:4856ba8c` tag (verified 2026-11-08: `docker image inspect` answers no such
+# image). Present on head `.30` and `.31` only, so every node that boots a rank
+# needs the carry below, then must print the same ID:
+#   docker save oci-relay/pinned:4856ba8c07d52fa0df316413a70d8a14ea8e75a9e9590962bd80a71c4cc7d16f \
+#     | ssh red@<node> 'docker load'
+#   docker image inspect -f '{{.Id}}' oci-relay/pinned:4856ba8c07d52fa0df316413a70d8a14ea8e75a9e9590962bd80a71c4cc7d16f
+# distribution_config disables sparkrun's image distribution, which would try
+# to pull a local tag from a registry. A third party cloning this registry
+# cannot run the arm until the image is published and repinned by digest.
+container: oci-relay/pinned:4856ba8c07d52fa0df316413a70d8a14ea8e75a9e9590962bd80a71c4cc7d16f
+distribution_config:
+  containers:
+    enabled: false
 runtime: vllm
 min_nodes: 2
 max_nodes: 2
@@ -19,7 +38,9 @@ description: >-
   ~60.4 GiB of weights, leaving ~42 GiB for a 32 KiB/token KV split (~1.36M
   tokens). No drafter: the BF16 arm is the control the NVFP4+drafter cell is
   compared against, and the card's own BF16 vLLM recipe carries none.
-  Apache-2.0.
+  Apache-2.0. The engine is the fleet-local relayed copy of the pinned nightly
+  (comment above `container:`); until that image is published with a RepoDigest,
+  only a host that carries it can boot this arm.
 metadata:
   model_url: https://huggingface.co/ricursiveAI/Ripple-65B-Preview
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

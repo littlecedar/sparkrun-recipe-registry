@@ -1325,9 +1325,32 @@ holds here too.
 `vLLM >= 0.33.0 (unreleased — nightly wheel, cu130 only)`, including the `ripple` reasoning/tool
 parsers and a native `dflash` speculative method. The fleet's release pin
 (`vllm-openai:v0.32.0`) predates the PR and cannot load this architecture at all. All three probes
-therefore pin one digest, `vllm/vllm-openai:nightly@sha256:390a656b…` (resolved 2026-11-08;
-manifest list, linux/arm64 child `sha256:0d69205f…`, **11.29 GB** — no node holds it, so the first
-boot pays that pull), so a C1 on one cell is comparable with a C5 on another.
+target one engine build. The two TP=1 cells pin the registry digest
+`vllm/vllm-openai:nightly@sha256:390a656b…` (manifest list resolved 2026-11-08, linux/arm64 child
+`sha256:0d69205f…`). The BF16 cell that actually booted pins the fleet-local relayed copy of that
+same child instead, with the trade stated below — the engine bytes are identical, so a C1 on one
+cell is still comparable with a C5 on another.
+
+**Local-only image pin: a deliberate trade (2026-11-08).** No node holds the registry form
+(`docker images --digests` on `.30`–`.35`: no `390a656b`, no `0d69205f`), so the only bootable copy
+on the head is the one the serve ran: `oci-relay/pinned:4856ba8c07d52fa0…` (image ID
+`sha256:e84c490d39a5…`, 26.96 GB, relayed 06:34 UTC). The arm pins that tag with
+`distribution_config.containers.enabled: false`, the same shape the SM121 survey arms use, because
+sparkrun's distribution would otherwise try to pull a local tag from a registry. **This buys
+bootability on the head and gives up runnability from another host** until the image is published
+with a RepoDigest: a third party cloning this registry cannot run the arm, and a repin by digest is
+impossible while only the local ID exists. Publishing it to GHCR and repinning by the resulting
+RepoDigest restores both. Identity is not lost meanwhile — the image ID equals the registry arm64
+child's config digest (manifest `0d69205f…` → config `e84c490d…`), so a publish ships the
+byte-identical artifact. Note the tag's suffix is the relay's full 64-hex name: there is no short
+`:4856ba8c` tag (verified — `docker image inspect` answers no such image), which is exactly the
+phantom-tag failure the llama.cpp arms already paid for. The recipe comment carries the tag chain,
+the ID and the `docker save … | ssh red@<node> 'docker load'` carry command.
+
+**The two `sleep infinity` containers seen in that window are not strays.** They were this arm's
+oci-relay staging pair — the local image had to be relayed onto both rank nodes before the TP=2
+boot — and they were gone after the run. Do not re-diagnose them as a leak.
+
 The vendor's SGLang route is real but not servable here as-is: `inference/server/serve.py` pins
 `sglang==0.5.19`, registers `RicursiveForCausalLM` into `ModelRegistry` from its own `model.py`,
 and runs TRT-LLM attention at TP=2 on B200s; the GB10 path (`inference/local/spark.py`) is an
@@ -1356,8 +1379,8 @@ GiB/rank → ~1.36M tokens, so it carries the card's `1048576`. **The card's 1M 
 TP=2 cell, not a one-Spark one**, and TP=4 would only split 60 GiB into 30 GiB ranks for no
 bandwidth gain past two nodes.
 
-**Measured 2026-11-08, BF16 TP=2 boot** (engine `v0.33.0rc1.dev1030+gcf5cea2da` from the pinned
-nightly digest; source: the arm's `launch.log`): the card's 1M context is **real at TP=2** —
+**Measured 2026-11-08, BF16 TP=2 boot** (engine `v0.33.0rc1.dev1030+gcf5cea2da` from the relayed
+copy of the pinned nightly; source: the arm's `launch.log`): the card's 1M context is **real at TP=2** —
 `Available KV cache memory: 41.3 GiB` on the TP0 worker, `GPU KV cache size: 1,281,286 tokens`,
 `Maximum concurrency 1,048,576 tokens per request: 1.22x`, `kv cache group sizes (64, 64, 64, 64,
 64)`. The ~1.36M estimate above was 6 % optimistic, not wrong. **The launcher's own fit block is a
