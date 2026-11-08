@@ -20,7 +20,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1427 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1427 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (2 in this clone, which carries the untracked `.local/fleet.yaml`; all three are named in §Testing & QA), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -922,11 +922,13 @@ explanation, and the next session re-derives work that is already done. Mitigati
 ## Testing & QA
 
 - Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1427 tests,
-  2 skipped on 2026-11-08:** the IFM research docs absent on a
-  fresh clone and the
-  qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
-  pooling guard's real-`sparkrun` case runs here now that `sparkrun` is on the workstation, which is
-  why this count is 2 skips and not the 3 recorded earlier on 2026-10-31). The total is no longer a
+  3 skipped on 2026-11-08** in a clean checkout of the tracked tree, and 2 in this clone (it carries
+  the untracked `.local/fleet.yaml`). The three, by name and cause: `test_ifm_recipes`'
+  research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
+  `test_pooling_bench_framework`'s real-`sparkrun` case (`sparkrun` is not importable in the repo
+  venv — only the `sparkrun` *binary* is on PATH, which is why the qwen3-VL guard runs and is not
+  in this list); `test_queue_drip`'s shipped-config case (no `.local/fleet.yaml` outside this
+  clone, which is the whole of the difference between 3 and 2). The total is no longer a
   remembered snapshot: `tests/test_doc_hygiene.py::SuiteTotal` compares every stated total against the
   discovered test count and fails naming the stale line, so a session that adds or removes tests takes
   the number from that failure's message and both statements in this file move together. Only the
