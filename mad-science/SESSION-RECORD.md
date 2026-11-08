@@ -4289,8 +4289,10 @@ slide — `docker ps -q | wc -l` on its own line.
 ## 2026-11-08 01:00 ET — the last un-homed board row: `a5286e7`
 
 The previous board's 00:10 row was the only landed clause with no home: `git grep a5286e7` over the
-whole tree matched `mad-science/STATUS.md` alone, so the handoff that cleared the Landed table would
-have deleted it. Homed here as it stood (the 00:16 row was already carried at the sections above):
+whole tree matched `mad-science/STATUS.md` alone. That row has already been dropped once by board
+churn — `2155b5b`'s board (00:13 title, 1 landed row) is where it appeared, `2166ef5`'s 15-row rebuild
+of 01:04 did not carry it, `5a0587a` folded it back (17 rows) — so the clause is homed here rather than
+left to the next whole-file publish (the 00:16 row was already carried at the sections above):
 
 - **`a5286e7` "Record the board rows that existed only on the board"** — a peer tick's commit, and it
   carried this tick chain's 00:08 homing section in with its own (107 inserted lines, both sections):
@@ -4335,8 +4337,9 @@ to this tick's own render) and all 19 landed rows stand.
 **Correction, 01:12 ET: that board was published already falsified, and the republish is the second half of this section.**
 Run 5 started at 01:04:4x (`director serve --queue … --max-parallel 1 --retries 1 --receipts-root`), and its
 quartet `sparkrun_7d9a3a61b33a29e4_574ac1a0d398_node_0..3` was created 01:04:51–54 on `.30`–`.33`. So the
-all-idle census adopted above (read 01:03:38, `0 / 0 / 0 / 0 / 0 / 0`) described the fleet as it stood 40 s
-*before* the boot, not as it stood at publish 90 s later. The 01:11:10 read — **1 / 1 / 1 / 1 / 0 / 0**,
+all-idle census adopted above (read 01:03:38, `0 / 0 / 0 / 0 / 0 / 0`) described the fleet **73–76 s**
+*before* the quartet's creation (01:04:51–54), not as it stood at that board's **01:09:00** publish —
+**5.4 min** later. The 01:11:10 read — **1 / 1 / 1 / 1 / 0 / 0**,
 `/v1/models` **000** on every rank, lease `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang` **attempt 4** with
 `expires_in` 290 s, register row re-claimed `06:04:42Z` — is what this tick republished at 01:11:10. **A peer's
 01:13 publish (census 01:12:49) then superseded it**, and that board is the fresher read of the same state:
@@ -4347,9 +4350,16 @@ corrected state stands on the board and nothing from this tick's read was lost i
   later publish, and adopting it verbatim moved a three-minute-old read into a 01:09 board. Adopting the
   peer's **landed rows** was right (they are history and cannot go stale); adopting its **census** was not.
   A fold takes the peer's rows and the folder's own read.
-- The peer's 01:06 section above already carries the bracket that makes this legible on the record: 01:01:52
-  all six at zero, 01:06:07 at `1 / 1 / 1 / 1 / 0 / 0`, with the quartet's creation timestamp inside the gap
-  — the pause's zeros and run 5's ones are both true reads of the same minute-scale transition.
+- The peer's 01:06 section, **below** this one, already carries the bracket that makes this legible on the
+  record: 01:01:52 all six at zero, 01:06:07 at `1 / 1 / 1 / 1 / 0 / 0`, with the quartet's creation
+  timestamp inside the gap — the pause's zeros and run 5's ones are both true reads of the same
+  minute-scale transition.
+- **Disclosure: `5c9e64e` carried two peer sections along with this one.** It added 103 lines to this
+  file; ~44 are the section above and its correction, and the rest are the peer's `## 2026-11-08 01:00 ET
+  — last un-homed board row: `a5286e7`` (~44 lines) and `## 2026-11-08 01:06 ET — fifth h2h run started on
+  the reconciled model…` (~27 lines), which were sitting unstaged in the worktree when the path was
+  staged. Their bytes are intact and correct — this note is the record, not a rewrite: a `git commit --
+  <path>` publishes whatever is in the file at that moment, which is the `ab82517`/`8038ad1` class.
 
 ## 2026-11-08 01:06 ET — fifth h2h run started on the reconciled model; the pause's kills cost work, not measurement
 
