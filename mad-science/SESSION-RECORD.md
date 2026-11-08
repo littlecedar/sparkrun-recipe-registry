@@ -4172,16 +4172,12 @@ at 00:09, before that publish, so its rows were never read for a fold. Nothing m
 the same state is in the 00:11 census: director back, arm on attempt 3, four ranks at the image-carry
 stage.
 
-## 2026-11-08 00:14 ET — a director stop is not a clean stop, and the env file names the wrong campaign
+## 2026-11-08 00:14 ET — an env file that names the wrong campaign, and a ctime answer for `.30`'s dip
 
-- **SIGTERM killed the director inside its own handler.** The `h2h-20261107` director took
-  signal 15 at 00:02:00 ET and died with `RuntimeError: reentrant call inside
-  <_io.BufferedWriter name='<stdout>'>` (`campaign/sparkrun_campaign/director.py:546`) instead of
-  shutting down. Its lease `glm-5.3-flash-…-boot2@2` then stayed in `state.json` for five minutes
-  with **0 containers** on its four hosts — the exact shape the board skill calls a wedged holder —
-  and only the *next* run cleared it (`reaped … (lease expired; 0 container(s) found)`). A restart,
-  not a stop, is what clears a director's lease; read `ps` for the director before believing a lease
-  that no container supports.
+- **The orphaned lease above is only cleared by a restart, which is what happened.** The director
+  killed at 00:02:00 left `glm-5.3-flash-…-boot2@2` live-looking on `.30`–`.33` with **0 containers**
+  until the 00:04:34 run reaped it (`reaped … (lease expired; 0 container(s) found)`) and assigned
+  attempt 3. Read `ps` for the director before believing a lease no container supports.
 - **The head's env file points at a different campaign.** `~/.config/sparkrun-campaign.env` carries
   `CAMPAIGN_ROOT=/home/red/benchmarks/d1-20261107` on a two-host set, so an env-rooted
   `director status` prints `campaign d1-20261107: 1 measured` and **no lease** while `h2h-20261107`
@@ -4196,6 +4192,6 @@ stage.
 - **The image carry is complete on all six nodes.** `dsv41-sm121-dg:0.2.0` (`sha256:1778ec42…`) and
   `:0.2.1` (`sha256:85c1ffc3…`) are tagged on `.30`–`.35`, measured 00:05; the 23:48 board's "no tag
   on `.31`–`.33`" rows were superseded by the survey-transfer carry's own 00:02 gate clearance.
-- **Board handoff.** The 00:04 board's seven landed rows were already mirrored here (`:4072-4090`),
-  so this tick cleared the table and replaced its census (the fleet was empty at 00:03:12, and reads
-  1/1/1/1 again at 00:09:29 only as relay receivers).
+- **This tick folded into the peer's board rather than republishing.** Its own census is 00:09:29 and
+  the published board's is 00:11:03, so the fresher row stands and two clauses were appended to it: the
+  ctime scan that turns "transient carry" into evidence, and the tag-form confirmation of the carry.
