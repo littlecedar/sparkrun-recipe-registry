@@ -3815,3 +3815,22 @@ subset.
 | 19:19 ET | `7cc9aff` | Settled `.30`'s burst with a pair and sized its writer rather than inferring it: the 19:03:52 → 19:04:55 pair caught **184.6 kB/s on `.30` alone** while `.31`–`.35` sat at 1,365–1,560 B/s, a 19:09:16 → 19:10:17 pair put `.30` back on the floor, and the r2 receipt dir grew **96,632 B in 60 s = 1,610 B/s** — with the container's writable layer (+1 kB in 45 s) and unchanged pool mtimes as negative discriminators and the root-owned docker json log recorded as a VOID read. |
 | 19:51 ET | `fdea9c7` | Added the machine-runnable triple to the register so a director can boot from it: `tools/task-queue.py` takes optional `recipe`/`tp`/`env` (recipe must be a tracked `recipes/<lane>/<arm>.yaml`, `tp` one of 1/2/4 and equal to `node_cost`'s host count, env an object of strings), every read path validates, `queue --json` prints the table's own weighted order, and absence means an authoring row no scheduler may boot; verified on the workstation (suite 1,291 tests / 2 skipped, `check` green over 82 rows) with no existing row rewritten. |
 | 19:52 ET | `88ecd24` | Taught the campaign director to pull the register: `serve --queue [path]` builds its plan from queued rows that name a recipe and `tp`, in the register's own weighted order, writes its claim through the tool **before** any lease exists, resumes an in-flight claim as `running`, and in drained state polls every 30 s printing "no runnable rows" once per quiet spell (`--once` runs one pass and exits 0); the declared-host rule stays, and blocked rows, other sessions' running claims, authoring rows and `tp` beyond the declared host count are skipped by name rather than truncated. |
+
+## 2026-11-07 20:35 ET — the moving root-avail share is the pool's own chunk placement, measured
+The 20:22 section decomposed two ~9 MB rank falls into different windows and left the writer unnamed.
+This tick read the BeeGFS pool **beside** the nodes, which closes that question for the whole class:
+over **20:14:24 → 20:16:27 ET (123 s)** the pool went 10,951,088,668,672 → 10,951,078,707,200 B =
+**9,961,472 B = 80,988 B/s**, while the six nodes' combined root fall was **9,990,144 B = 81,221 B/s,
+ratio 1.0029**. The roots are recording the pool's writes and nothing else, so no node-level writer
+need be found when a rank's root falls; four windows then show the share migrating rather than sitting:
+51,816 B/s (449 s, `.31`+`.32` leading), 155,850 B/s (162 s, `.30` 96 kB/s + `.32` 53 kB/s), 81,221 B/s
+(123 s, `.35` 69,765 B/s), and **50,628 B/s over 938 s with `.33` and `.34` at 19,366 / 19,371 B/s
+(18.17 MB each) while `.30` and `.35` — the two nodes actually generating — sat at 7,262 and 1,524 B/s**.
+That inversion is the second discriminator: the node doing the work is not the node losing the bytes.
+**Correction to `7cc9aff`'s mechanism, arithmetic only:** that row read `.30`'s 11.6 MB fall as the
+battery's own receipt writes, but its own `du` puts that tree at 1,610 B/s — 0.09 MB/min, **0.8 %** of
+the fall it was invoked to explain, so the mechanism cannot carry the magnitude. Pool writer still
+unattributed, with `find /mnt/beegfs/huggingface -maxdepth 4 -newermt '-25 minutes' -type f` returning
+nothing (`hub` unchanged since 14:31, and depth 4 covers every `blobs/` path), and the only `.incomplete`
+blobs on the pool — 8 under `models--Comfy-Org--MiniMax-H3` — dated **2026-10-24**, 0–336,904,078 B,
+byte-identical across a 45 s re-stat: dead partials, not a live download.
