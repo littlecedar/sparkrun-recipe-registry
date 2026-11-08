@@ -92,7 +92,7 @@ command: >
   --speculative-draft-model-path {speculative_draft_model}
   --speculative-num-draft-tokens {speculative_draft_tokens}
   --kv-cache-dtype {kv_cache_dtype}
-  {extra_args}
-
   --enable-metrics
   --enable-cache-report
+  {extra_args}
+

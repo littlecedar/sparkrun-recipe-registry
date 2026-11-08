@@ -70,7 +70,7 @@ command: >
   --reasoning-parser qwen3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
-  {extra_args}
   --enable-force-include-usage
   --enable-prompt-tokens-details
   --enable-per-request-metrics
+  {extra_args}

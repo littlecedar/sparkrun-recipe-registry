@@ -91,6 +91,6 @@ command: >
   --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
   --mamba-ssm-dtype {mamba_ssm_dtype}
   --model-loader-extra-config '{ "enable_gds": false }'
-  {extra_args}
   --enable-metrics
   --enable-cache-report
+  {extra_args}

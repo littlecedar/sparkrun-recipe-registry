@@ -65,6 +65,6 @@ command: >
   --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
   --mamba-ssm-dtype {mamba_ssm_dtype}
   --kv-cache-dtype {kv_cache_dtype}
-  {extra_args}
   --enable-metrics
   --enable-cache-report
+  {extra_args}

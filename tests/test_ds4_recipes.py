@@ -1012,15 +1012,17 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash-1017")
         self.assertEqual(self.r.min_nodes, 4)
 
-    def test_recipe_env_is_empty(self):
-        # The recipe's env: is EMPTY. Everything -- the production config AND the
-        # checkpoint location -- lives in recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and
-        # the serve parameters (model, tp, context, port) ride in the command
-        # template from defaults. In particular SERVER_PORT is NOT set here: the
-        # serve port (8000, the recipes' default base port) rides in via the
-        # command template and the rebuilt image HEALTHCHECK discovers it at
-        # runtime, so no container-level env is needed at all.
-        self.assertEqual(self.r.env, {})
+    def test_recipe_env_carries_only_the_metrics_flag(self):
+        # The recipe's env: carries ONE key since the 2026-11-08 metrics rollout:
+        # EXTRA_SGLANG_ARGS=--enable-metrics. Everything else -- the production
+        # config AND the checkpoint location -- lives in
+        # recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and the serve
+        # parameters (model, tp, context, port) ride in the command template from
+        # defaults. In particular SERVER_PORT is NOT set here: the serve port
+        # (8000, the recipes' default base port) rides in via the command template
+        # and the rebuilt image HEALTHCHECK discovers it at runtime, so no other
+        # container-level env is needed at all.
+        self.assertEqual(self.r.env, {"EXTRA_SGLANG_ARGS": "--enable-metrics"})
         for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
             self.assertNotIn(key, self.r.env)
 
@@ -1033,9 +1035,10 @@ class SglangLaneContract(unittest.TestCase):
         # override, so the fix is in the IMAGE: the 2026-10-03 rebuild (digest
         # 4e5002ab…) makes `boot.py health` DISCOVER the served port at runtime
         # (env override -> persisted port file -> the engine's own --port -> a
-        # LISTEN port from /proc/net/tcp). Guard the recipe-side half: no env, and
-        # the launcher persists the port for the probe.
-        self.assertEqual(self.r.env, {})
+        # LISTEN port from /proc/net/tcp). Guard the recipe-side half: no env
+        # beyond the metrics rollout's flag, and the launcher persists the port
+        # for the probe.
+        self.assertEqual(self.r.env, {"EXTRA_SGLANG_ARGS": "--enable-metrics"})
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         self.assertIn("HEALTH_PORT_FILE", launcher)
         self.assertIn("/tmp/sparkrun_health_port", launcher)
@@ -1764,14 +1767,15 @@ class MarlinVariantRidesEnv(unittest.TestCase):
 
     def test_control_carries_neither(self):
         env_value, argv = _marlin_channels(load(ARM3_CONTROL))
-        self.assertEqual(env_value, "", "the control must stay byte-comparable")
+        self.assertEqual(env_value, "--enable-metrics",
+                         "the control must carry only the rollout's metrics flag")
         self.assertNotIn(MARLIN_FLAG, argv)
 
     def test_negative_control_argv_borne_flag_is_rejected(self):
         # The regression rebuilt in memory: env entry gone, flag on `command:`.
         # Both guards above must fail on it, or they cannot catch it again.
         broken = MARLIN_RECIPE.read_text().replace(
-            '  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin"\n', "")
+            '  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin --enable-metrics"\n', "")
         broken = broken.replace(
             "--fp8-gemm-backend flashinfer_cutlass",
             "--fp8-gemm-backend flashinfer_cutlass\n  --moe-runner-backend marlin")

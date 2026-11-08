@@ -51,6 +51,6 @@ command: >
   --kv-cache-dtype {kv_cache_dtype}
   --reasoning-parser k2_horizon
   --tool-call-parser k2_horizon
-  {extra_args}
   --enable-metrics
   --enable-cache-report
+  {extra_args}

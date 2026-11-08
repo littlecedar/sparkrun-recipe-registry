@@ -77,6 +77,6 @@ command: >
   --uno-lora-path {uno_lora_path}
   --speculative-eagle-topk {speculative_eagle_topk}
   --speculative-num-draft-tokens {speculative_num_draft_tokens}
-  {extra_args}
   --enable-metrics
   --enable-cache-report
+  {extra_args}

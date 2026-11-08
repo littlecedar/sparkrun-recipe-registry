@@ -101,10 +101,10 @@ command: >
   --reasoning-parser beam
   --tool-call-parser beam
   --speculative-config '{"method":"dflash","model":"/cache/huggingface/hub/models--reflection--Beam-1.0-501B-A23B-DFlash2/snapshots/163b276be744c8ce2b8385ea85de54edb3088211","num_speculative_tokens":7,"attention_backend":"FLASHINFER","enable_adaptive_verification":false}'
-  {extra_args}
   --enable-force-include-usage
   --enable-prompt-tokens-details
   --enable-per-request-metrics
+  {extra_args}
 
 readiness:
   inference: true
