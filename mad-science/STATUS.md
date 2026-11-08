@@ -1,4 +1,4 @@
-# Board — generated 2026-11-08 03:30 ET
+# Board — generated 2026-11-08 03:31 ET
 ## In flight
 | where | owner | what |
 |---|---|---|
@@ -42,3 +42,4 @@
 | 02:52 | `d4c3ffe` | the close-out's suite count stated as 1341 against the tree it lands on |
 | 02:55 | `b74094f` | the receipt shape arms actually write read, and the measured h2h cells landed against it |
 | 03:15 | receipt `zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.json` | Beam-1.0 501B TP=4 arm landed `rc=0` with house **15/15 = 100** and client HARD **18/18 = 100 %**, workload stopped on 4 hosts; its BFCL category cell ended `rc=241` with no `bfcl.json` (log stops mid-`multiple` at `multiple_196`, two `[FAIL] … value_error:string` before it), so that cell stays open in the register rather than being read as a result |
+| 03:30 | `28fc675`, `a192fa2` | board refresh on the 03:19:04–06 read: the fleet fall discriminated to the pool's chunk store on the node roots, then the census cell collapsed to one read series and one attribution — body 24.02 GB against the ~10.8 GB shard-write window — with the Kimi lane's missing register row recorded as the gap. |

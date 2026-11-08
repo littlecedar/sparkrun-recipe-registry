@@ -4575,7 +4575,7 @@ republished and committed the board twice inside the same hour (`66e48d3` at 03:
 03:14:27), and clearing rows a peer had just written is the non-monotone table edit the handoff rule exists
 to avoid. Every row without a home here is homed instead, so a later boundary can clear the table without
 losing a clause. Verified per SHA with `git grep -c <sha> -- mad-science/SESSION-RECORD.md`: `351c93c` and
-`26582bc` were already carried by the 02:36 ET close-out above; the eight below returned nothing.
+`26582bc` were already carried by the 02:36 ET close-out above, so of the ten rows below eight are un-homed.
 
 - **02:17 ET** `534cac4` — the 753B register note deduped to one verdict clause instead of the reconciler's
   appended copies, and the board's queue row re-rendered from the register rather than hand-edited.
@@ -4609,4 +4609,20 @@ waited behind its own caller's lock and exited naming a wedged holder at 03:17:4
 on the lock returned **nothing** both times, which is the discriminator: a peer holder would have shown a
 pid. The outer `flock` is therefore wrong for this path — the read-modify-write serialisation the skill asks
 for cannot be layered outside `publish`'s own lock on the same file, and a CAS re-read of the board's sha
-immediately before `publish` is what actually guards the fold window.
+immediately before `publish` is what actually guards the fold window. Recorded as a correction in
+`status-board-refresh/SKILL.md` so the next tick does not spend the same two waits.
+
+Three facts this tick measured that no board carries, each stamped with its own read:
+
+- **03:01:38–41 ET — a second independent census**, 42 s after the peer tick's 03:00:58 one, reproducing
+  containers **1 / 1 / 1 / 1 / 0 / 0**, volumes **0**, `/v1/models` **200**, and fleet root
+  **−18,116,608 B over 993 s** (per node 1.3–9.7 MB, `.35` largest at 9,711,616 B with nothing on it).
+- **03:02:31 state read — lease heartbeat expiry 03:07:24 ET** (293 s residual) for
+  `zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm` attempt 1; the director process is pid 3838066, started 01:04:38.
+- **03:05:27 ET — the BFCL leg at `[PASS] simple_392 (simple)`**, mid-run, `bfcl-eval.py` pid 1032815 at
+  750 s. It never completed: the arm ended at 03:15:50 and the client's `bfcl` step exit is **`rc=-15`**
+  (`client/client.json`), so `client/bfcl.log` stops at `multiple_196` and **no `client/bfcl.json` exists**.
+  `simple_392` is therefore a midpoint of a killed run, not a position on a finished one, and the BFCL
+  category cell stays open in the register (`h2h-beam-house-and-bfcl-category`, `queued`). The arm's own
+  receipt did land: `measured: true`, `rc: 0`, `artefacts: [ladder.json, house.json, ladder.yaml]`,
+  `accuracy_status: ''`, `ladder: ''`.
