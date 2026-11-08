@@ -1076,11 +1076,22 @@ gamma must equal the exported `block_size: 5` (1 current + 4 drafts); the card's
 number needs block 8, which this config does not declare. 16k context because the draft adds
 ~4.5 GiB/rank over the plain arm's 105.75 GiB.
 
-Two unverified links are in the recipe's caveats, not hidden: (1) the nightly image must also carry
-`dspark` in its method literal and `Qwen3DSparkModel` in its registry (both verified upstream on main
-2026-11-08); (2) the draft was trained against the **unpruned** base (the card declares no base
-revision) while this target has 75 % of its experts pruned, so the card's 3.448 mean acceptance
-length is not transferable to this body — it is a first-boot measurement, not an assumption.
+The engine side is verified rather than assumed: the pinned image's `config/speculative.py` declares
+`DSparkModelTypes = Literal["dspark"]` and its registry maps both `Qwen3DSparkModel` → `qwen3_dspark`
+and a Kimi-native `K3DSparkModel` → `vllm/models/kimi_k3/nvidia/dspark_mla`. Two things remain open,
+and neither is papered over:
+
+1. **The drafter's binding is unproven.** The LithosAI draft declares `architectures:
+   Qwen3DSparkModel` — the Qwen3-shaped DSpark skeleton — while its config targets 93-layer Kimi
+   layers `[7, 23, 67, 83, 91]` and Kimi's 163,840 vocab. Until a boot shows that speculator
+   initialising against this target **and** its acceptance counters moving, the arm has measured no
+   drafter: a refusal, or zero counters, is the finding "Qwen3-shaped draft is not bindable to a Kimi
+   target", and the route then needs a Kimi-native `K3DSparkModel` checkpoint that vLLM can load but
+   which nobody has published yet. So this arm may not claim speculative acceptance until then.
+2. **Cross-checkpoint acceptance.** The draft was trained against the unpruned base (the card
+   declares no base revision) while this target has 75 % of its experts pruned, so the card's 3.448
+   mean acceptance length is not transferable to this body — a first-boot measurement, not an
+   assumption.
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 
