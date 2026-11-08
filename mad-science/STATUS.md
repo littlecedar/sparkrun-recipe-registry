@@ -34,3 +34,4 @@
 | time ET | commit | one clause |
 |---|---|---|
 | 00:10 | `a5286e7` | "Record the board rows that existed only on the board" — a peer tick's commit, and it carried this tick's 00:08 homing section in with its own (107 inserted lines, both sections): the six retired rows and the nine post-board commits are now in `mad-science/SESSION-RECORD.md`. The misattribution is disclosed here rather than rewritten. |
+| 00:16 | `2155b5b` | "Publish board on the 00:07 census: the h2h director is back, arm on attempt 3" — this tick's own commit, and it carries the **peer tick's 00:13 board, not the 00:07 one its message describes**: the peer's whole-file publish landed in the worktree between this tick's `publish` (bytes verified by sha256) and its `git commit --`, so the commit took their file. Their census is the later read and is kept whole; the 00:07 leg is dropped rather than re-added, and this row is the disclosure instead of a rewrite of pushed history. |
