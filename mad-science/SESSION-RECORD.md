@@ -4774,3 +4774,58 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   them in this file, so its 04:2x–05:22 rows are genuinely un-homed — the close-out gap belongs to
   the session that wrote them (its worker is still alive), not to a read-only tick, and clearing the
   table here would have required homing ~45 clauses in the same commit.
+
+## 2026-11-08 06:13 ET — the Ripple pair ended unrecorded; both Kimi arms died in `CacheConfig`
+
+- **Census (own read, 06:12:15 ET):** containers `.30`→`.33` **1 / 1 / 1 / 1**, `.34`/`.35`
+  **0 / 0**; volumes **0** everywhere. All four ranks carry task
+  `sparkrun_7d9a3a61b33a29e4_bac2e432c20f_node_0..3`, label
+  `recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml`, image `cffb3c3f6216`, `Up 3 minutes`
+  — the 753B 3bpw arm's **attempt 6**, leased by the campaign after its 06:08:23 restart. Liveness
+  measured, not inferred from `Up`: the serve child is alive on every rank (`pgrep` pids 808 / 676 /
+  678 / 676), rank-0 `/v1/models` answers **000** (loading, not ready), and rank 0's serve log is the
+  same inert **1103 B** recorded for this arm (790 B on ranks 1–3) — so the log is not a progress
+  signal and nothing here is a readiness claim. Root avail bytes moved −2.75 MiB (`.30`) and
+  −0.95 MiB (`.31`–`.33`) over the 249 s since my 06:08:06 read: the weights arrive over BeeGFS
+  and write nothing to the node roots.
+- **The Ripple-65B BF16 TP=2 pair reached readiness and then ended with no record.** At 06:00:42 the
+  pair still ran task `b631dae1dc7bf3d6_693d01660f8b` on `.30`+`.31`: containers started 10:32:47Z,
+  rank-0 `/v1/models` **200** naming `ricursiveAI/Ripple-65B-Preview` at `max_model_len` 1048576,
+  rank 1's engine log `Extended KV cache 20416 blocks (39.88 GiB)`, `launch.log` `TTR HTTP-ready
+  409.948 s`. By **06:08:06** all six nodes read **0 containers** — and not merely stopped: no
+  exited container, volumes 0. **No process on the head wrote a record of the ending**: campaign
+  `state.json` mtime 05:32:21, the receipt's `launch.log` mtime 05:39:37, no register claim, no
+  `sparkrun daemon resources list` entry. `journalctl -u docker` on both ranks and `dmesg` printed
+  nothing, which is **not** a negative here (`sudo -n` unavailable on those nodes, the daemon at
+  default log level), so the ending stays unexplained rather than attributed. Net effect: the one
+  cell the register's `ripple-65b-bf16-tp2` row exists for — the 1M-context BF16 control — booted
+  ready and was lost unmeasured, because the arm had already been closed `failed` on
+  `tools/run-arm.sh`'s 300 s container-appearance window (rows `run-arm-appearance-window-300s` and
+  `executor-release-host-claim-on-failure`).
+- **Both Kimi-K3.1-Pro pruned75 arms died in vLLM's `CacheConfig`, not on their model.** Their reaped
+  serve logs (`serve-reaped-…_node_0.log`, attempts on `.30`–`.33`, 05:19–05:32 ET) end
+  `Value error, Invalid kv_cache_dtype: 'bf16'. Valid values are: ['auto', 'float16', 'bfloat16',
+  …]` — the recipes shipped `kv_cache_dtype: bf16`, which renders straight into
+  `--kv-cache-dtype`. The abort is in argument validation, so neither arm loaded a weight and the
+  dspark sibling's **drafter-binding gate is still unproven, not refuted**; the plain arm's engine
+  gate (does the nightly resolve `KimiK31ForConditionalGeneration`) is likewise still unrun. Fixed at
+  the mechanism: `kv_cache_dtype: bfloat16` in both recipes plus the lane-doc finding
+  (`recipes/explore/README.md` §Kimi), commit `d41a3df8`; `validate` passes on both. No boot since,
+  so both register rows stay open.
+- **Register:** added `run-arm-appearance-window-300s` (§above) rather than a second note on the
+  `ripple-65b-bf16-tp2` row — the mechanism is the runner's window, not the arm's.
+- **Publication:** board republished on the 06:12:15 ET census (`publish`: `disk was 2026-11-08
+  06:10:20 ET`, a peer board) — title, census cell and work queue regenerated, the peer's other
+  In-flight rows preserved verbatim, one landed row appended for `d41a3df8`. The board's earlier
+  Ripple row is gone with the pair, which is why this section carries the ending.
+- **The register's live claim was overwritten mid-cycle, and that is escalated rather than repaired.**
+  The head's copy (`~/src/sparkrun-recipe-registry/mad-science/queue.json`, the file the campaign
+  writes) read **107 tasks / 22 open / one claim** — `h2h-second-boot-glm-753b` →
+  `sparkrun-campaign:h2h-20261107` — at ~06:11. At 06:16:48 it read **106 / 21 / no claim**, its
+  mtime **06:14:05.712**, which is the workstation copy's mtime to the microsecond, while the campaign
+  still holds that arm's lease and its containers run on `.30`–`.33` (census above). So a whole-file
+  write from this side replaced the head's register and took the live arm's claim with it. Three
+  consecutive head reads 4 s apart show the 106/21/no-claim state stable, so it is not a read race.
+  The claim lifecycle belongs to the campaign, so this tick recorded it and left the row alone; the
+  consequence to watch is a close-out that later refuses its own arm as a stale claim, and a second
+  writer publishing a register that cannot see the lease.
