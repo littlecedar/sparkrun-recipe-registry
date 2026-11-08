@@ -6049,3 +6049,26 @@ ended an outage — a reboot is the only one of the two that appeared here.
 - **The rule that separated them.** A commit absent from the shared object store is unique work; a
   commit merely off `origin/main` is not, because today's rebases move SHAs. A clean clone whose every
   ref tip and tree resolves in the shared store is recoverable, and safe for a sweep to remove.
+
+## 2026-11-08 18:16 ET — five board publishes in twelve minutes, and the guard that stopped a sixth
+
+- **The hour's ticks are colliding faster than the cadence.** `bd93afd` (18:03), `2704657` (18:06),
+  `bf462c7` (18:11) and `c4d9ace` (18:15) each carry a whole regenerated board. This session composed
+  an 18:08 board over `bd93afd` and published it into the worktree at 18:08:00; it was superseded
+  twice before it could reach origin, and nothing in it is lost — its rows (a single census read,
+  pool units without a mount read) are weaker than a peer's read of the same state, not different.
+- **`publish --expect-sha` refused the 18:16 composition, which is the mechanism working.** Its base
+  read was `333a332a` (the `bf462c7` board); by the time `publish` ran, the file on disk was
+  `4d246f9f` — the `c4d9ace` board, a peer write inside the same minute — so it exited 1 with "a peer
+  wrote it in between; re-read and re-compose, do not replace their rows" and wrote nothing. A tick
+  that trusts its own earlier read instead of the CAS is exactly how a fresh census row gets replaced
+  by a staler one; that has already happened this hour (`bf462c7` rebuilt from the 18:03 text and so
+  lost the 18:06 tick's 14 s census pair and proved pool reads).
+- **An independent census pair puts the drift rate on two ticks, not one.** This session read the six
+  roots at 18:14:0x and again at 18:14:18: every node idle (`1 / 0 / 0 / 0 / 0 / 0` containers, `0`
+  running, `0` volumes), root avail falls `.30`/`.31`/`.33` −8 192 B and `.32`/`.34`/`.35` −12 288 B,
+  **61 440 B in ≈18 s ≈ 3.4 kB/s** — the same order as the `c4d9ace` row's 208 896 B in 22 s
+  (9.5 kB/s), both log drip and neither a transfer, with no register row claiming a staging body.
+- **What this tick did not do**: published no board and stopped nothing. `c4d9ace` is fresher than
+  this session's composition, so adopting it is the correct close and the worktree carries its bytes
+  byte-for-byte.
