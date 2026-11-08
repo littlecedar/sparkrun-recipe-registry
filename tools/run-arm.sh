@@ -198,6 +198,36 @@ launch_arm() {
 # numbers (2026-11-08: a marlin `--moe-runner-backend` trial left no such record). `(none)` when
 # unset: an absent file is indistinguishable from evidence that was never written.
 printf '%s\n' "${ARM_OPTS:-(none)}" > "$L/arm_opts.txt"
+# An engine that dies during init takes its own stdout with it: sparkrun launches containers
+# `--rm` (auto_remove defaults true, orchestration/executors/docker.py:555), so the daemon
+# deletes one ~26 ms after its `die` event -- measured on the fleet head 2026-11-08, where a
+# `docker logs` started on that event already answered "No such container". The marlin trial
+# lost both lines it had printed exactly that way. Arm the capture on every host BEFORE the
+# launch: it attaches `docker logs -f` at `create` (docker replays the log from the start) and
+# takes the exit code off the `die` event, so the text is on the node's disk before the
+# container can be removed. Scoped by the recipe label, so a peer's boot on a shared node is
+# not captured.
+CAPTURE_DIR="/tmp/sparkrun-exitcap.$$"
+CAPTURE=()
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+    "bash -s -- '$CAPTURE_DIR' '$(( ${ARM_READY_TIMEOUT:-2250} + 900 ))' 'sparkrun.recipe=$RECIPE'" \
+    < tools/engine-exit-capture.sh &
+  CAPTURE+=("$!")
+done
+# The watcher writes <dir>/pid before it starts `docker events`, and docker answers no
+# subscription check, so give each host this settle before a container can exist.
+sleep 1
+# The watcher is its own docker client and does not end with the boot: kill it by the pid it
+# wrote, and its EXIT trap takes `docker events` with it. ConnectTimeout bounds this when a
+# node is unreachable, so it cannot hang a teardown.
+stop_capture() {
+  for hn in $(echo "$HOSTS" | tr ',' ' '); do
+    ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+      "kill \$(cat '$CAPTURE_DIR/pid' 2>/dev/null) 2>/dev/null" 2>/dev/null
+  done
+  for p in ${CAPTURE[@]+"${CAPTURE[@]}"}; do kill "$p" 2>/dev/null; done
+}
 launch_arm
 for attempt in 1 2 3; do
   # Give the launcher a moment to fail fast on a held claim before deciding it is fine.
@@ -257,8 +287,7 @@ echo "arm=$NAME container=$N task=$TID port=$PORT"
 # the task does not outlive it. The explicit stop below is the normal path; this
 # trap is the one that covers the script being killed mid-measurement, which is
 # the same class of leak as forgetting the stop entirely.
-LOGFOLLOW=()
-trap 'sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done; exit' EXIT INT TERM
+trap 'stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
 
 # The image cell belongs to every receipt, not to the arms that happen to carry a quality client:
 # the concurrency rows had to smuggle an image-id gate into ARM_EXTRA_CLIENT because this block
@@ -280,38 +309,12 @@ printf '%s\n' "$IMAGE_ID" > "$L/image.txt"
 export ARM_IMAGE_ID="$IMAGE_ID"
 echo "image=$IMAGE_ID"
 
-# Each rank's own stdout/stderr, captured from the moment its container exists. `/tmp/sparkrun_serve.log`
-# is written by the engine after the hooks, so a boot that dies in a pre_exec hook leaves no serve
-# log at all (2026-11-03 cyankiwi, 2026-11-04 labquant trio). `docker logs` is the only copy that
-# survives the container, and reading it live is what the cyankiwi retry is for.
-for hn in $(echo "$HOSTS" | tr ',' ' '); do
-  (
-    for _ in $(seq 1 60); do
-      c=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
-            "docker ps --format '{{.Names}}' | grep -F '$TID' | head -1" 2>/dev/null)
-      if [ -n "$c" ]; then
-        f="$L/docker-$(echo "$hn" | tr '.' '_').log"
-        # docker's own errors go to a sidecar, never into the log: a reap mid-stream once left
-        # "no such object" as the file's only content, which reads as engine output.
-        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs -f '$c'" \
-             >> "$f" 2> "$f.err"; then
-          echo "# capture: docker logs -f for $c on $hn ended with docker's error (in $(basename "$f").err); anything below is not engine output" >> "$f"
-        fi
-        # A silent death (OOM kill, non-zero exit with no stderr) leaves `docker logs` holding only
-        # the entrypoint banner. Append the container's own state while it still exists; if the
-        # watchdog or the stop already removed it, say so instead of leaving the raw error.
-        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
-             "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}' '$c'" \
-             >> "$f" 2>> "$f.err"; then
-          echo "# capture: container $c gone before the exit-state inspect; the banner above is all of its stdout that survives" >> "$f"
-        fi
-        break
-      fi
-      sleep 5
-    done
-  ) &
-  LOGFOLLOW+=("$!")
-done
+# The per-rank stdout the follower used to stream is owned by the exit capture armed before the
+# launch: it attaches at `create` (the follower waited for `docker ps` to see the container, which
+# a boot that dies in ~1 s never allows) and its text survives the `--rm` removal. `/tmp/sparkrun_serve.log`
+# is still written by the engine after the hooks, so a boot that dies in a pre_exec hook leaves no
+# serve log at all (2026-11-03 cyankiwi, 2026-11-04 labquant trio) -- the harvest below is the copy
+# of that file, and the capture is the only copy of the engine's own stdout.
 
 # Every rank in the lease, not just the API rank: on a TP=4 rendezvous rank 0 can sit quiet
 # while ranks 1-3 stream shards, and a rank-0-only watchdog stops that boot as stalled. Ranks
@@ -591,21 +594,35 @@ fi
 # and the first version of this loop harvested rank 0 only -- losing exactly the log the
 # investigation needed. A zero count is printed because a silent no-op reads as success.
 harvested=0
+captured=0
 for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  # The engine's own stdout comes from the capture armed before the launch, not from a read taken
+  # here: a boot that died is gone from the node (`--rm`), and a reaped one answers `docker logs`
+  # with docker's own error, which then reads as engine output. One file per container on the
+  # node, merged into the receipt's per-rank `docker-<rank>.log` with the exit state the `die`
+  # event carried. A host with no stream says so in cap-<host>.log; an absent file would read as
+  # "the engine printed nothing", which is the one thing this block exists to disprove.
+  capfiles=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+               "ls -1 '$CAPTURE_DIR' 2>/dev/null | grep -v -x pid" 2>/dev/null)
+  [ -n "$capfiles" ] || echo "# capture failed: no engine-exit capture on $hn for this arm" \
+                          "($CAPTURE_DIR is empty or the host is unreachable); the engine's stdout" \
+                          "for this host is lost" > "$L/cap-$hn.log"
+  for f in $capfiles; do
+    case "$f" in
+      *.log)
+        rank=${f%.log}; rank=${rank##*_}
+        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+          "cat '$CAPTURE_DIR/$f' '$CAPTURE_DIR/${f%.log}.die'" > "$L/docker-$rank.log" 2>/dev/null
+        captured=$((captured + 1))
+        echo "capture: $f on $hn -> docker-$rank.log" ;;
+      *.die) : ;;                        # merged into its log above
+      *)
+        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+          "cat '$CAPTURE_DIR/$f'" >> "$L/cap-$hn.log" 2>/dev/null ;;
+    esac
+  done
   for c in $(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
                "docker ps --format '{{.Names}}' | grep -F '${TID}'" 2>/dev/null); do
-    # The rank's own stdout/stderr, taken while the container still exists. The live follower
-    # ends with the container and its last write is docker's own error ("no such object" on the
-    # 2026-11-08 753B boot), which read as engine output; this snapshot is the copy that survives
-    # a reap, and a failure says so in the file rather than leaving that error to be mistaken
-    # for a crash.
-    ranklog="$L/docker-$(echo "$c" | sed 's/.*_//').log"
-    if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs '$c'" \
-         > "$ranklog" 2>> "$ranklog.err"; then
-      echo "snapshotted docker logs from $c on $hn"
-    else
-      echo "# capture failed: docker logs for $c on $hn errored (see $(basename "$ranklog").err); no engine stdout survives" > "$ranklog"
-    fi
     if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
          "docker cp '$c:/tmp/sparkrun_serve.log' /tmp/serve-$c.log" >/dev/null 2>&1 \
        && scp -q -o BatchMode=yes "red@$hn:/tmp/serve-$c.log" \
@@ -618,8 +635,9 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   done
 done
 echo "serve logs harvested: $harvested (expected one per running rank; 0 means the log was gone)"
+echo "engine stdout captured: $captured container stream(s) (a boot that died has no other copy)"
 
-for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done
+stop_capture
 sparkrun stop "$TID" 2>&1 | tail -1
 kill "$WD" 2>/dev/null
 sleep 5

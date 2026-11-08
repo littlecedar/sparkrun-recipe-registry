@@ -316,86 +316,86 @@ class RecipePathResolution(unittest.TestCase):
         self.assertFalse(self.resolves_before_port(text), "the guard passed a broken ordering")
 
 
-class DockerLogCapture(unittest.TestCase):
-    """A boot that dies before the engine writes its log must still leave its own stdout."""
-    KILL = 'for p in ${LOGFOLLOW[@]:-}; do kill "$p" 2>/dev/null; done'
-    HARVEST = 'echo "serve logs harvested:'
+class EngineExitCapture(unittest.TestCase):
+    """A boot that dies before the engine writes its own log must still leave its stdout.
+
+    Measured 2026-11-08: the marlin trial on `zz-ds4-1017-sm121-arm3-control` printed
+    `Auto-detected DSV4 routed-expert layout: is_fp4_experts=True` and `[TP0] Init parallel
+    begin.`, then the container was gone ~1 s later and both lines went with it. sparkrun
+    launches containers `--rm` (`auto_remove` defaults true,
+    `orchestration/executors/docker.py:555`), so the daemon removes one ~26 ms after its `die`
+    event and every post-mortem `docker logs` answers "No such container". Nothing that runs
+    after the exit can read the log: the capture is armed before the launch, attaches at
+    `create`, and its files are harvested before the teardown.
+    """
+
+    ARM = "tools/engine-exit-capture.sh"
+    ARM_DIR = 'CAPTURE_DIR="/tmp/sparkrun-exitcap.$$"'
+    LAUNCH_CALL = "\nlaunch_arm\n"
+    CAPTURED = 'echo "engine stdout captured:'
     STOP = 'sparkrun stop "$TID" 2>&1'
-    INSPECT = "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}'"
-
-    def follower_slice(self, text: str) -> str:
-        start = text.index("docker logs -f")
-        return text[start:text.index("python3 tools/boot-watchdog.py", start)]
-
-    def pre_stop_slice(self, text: str) -> str:
-        start = text.index(self.HARVEST)
-        return text[start:text.index(self.STOP, start)]
-
-    def test_every_rank_is_streamed_and_the_follower_is_killed_before_the_stop(self):
-        text = read_tool()
-        self.assertIn("docker logs -f", text, "no rank is streamed")
-        self.assertLess(text.index("LOGFOLLOW=()"), text.index("docker logs -f"))
-        self.assertLess(text.index("docker logs -f"), text.index(self.STOP))
-        self.assertIn(self.INSPECT, self.follower_slice(text),
-                      "a silent death leaves only the banner; the exit state is not captured")
-        self.assertIn(self.KILL, self.pre_stop_slice(text),
-                      "the follower is not killed before the stop")
-
-    def test_removing_the_exit_state_fails_the_guard(self):
-        text = read_tool().replace(self.INSPECT, "")
-        self.assertNotIn(self.INSPECT, self.follower_slice(text),
-                         "the exit-state inspect survived the mutation")
-
-    SNAPSHOT = "docker logs '$c'"
     MISSED = "# capture failed:"
-    FOLLOW_MARKER = "# capture: docker logs -f"
 
-    def pre_reap_slice(self, text: str) -> str:
-        """The harvest loop and everything after it, up to the stop that reaps the containers."""
+    def arm_slice(self, text: str) -> str:
+        """The arming block: what has to be live before any container can be created."""
+        start = text.index(self.ARM_DIR)
+        return text[start:text.index(self.LAUNCH_CALL, start)]
+
+    def armed_before_launch(self, text: str) -> bool:
+        return text.index(self.ARM_DIR) < text.index(self.LAUNCH_CALL)
+
+    def harvest_slice(self, text: str) -> str:
         start = text.index("harvested=0")
         return text[start:text.index(self.STOP, start)]
 
-    def test_each_rank_is_snapshotted_while_its_container_still_exists(self):
-        """2026-11-08: a reaped 753B boot's `docker-10_0_4_30.log` held only "no such object".
-
-        The live follower ends when the container does, and its last write was docker's own
-        error, read as engine output. The pre-stop snapshot is the copy that survives, and a
-        snapshot that fails says so in the file instead of leaving that error behind.
-        """
+    def test_the_capture_is_armed_on_every_host_before_the_launch(self):
         text = read_tool()
-        pre = self.pre_reap_slice(text)
-        self.assertIn(self.SNAPSHOT, pre, "no docker logs snapshot before the stop")
-        self.assertIn(self.MISSED, pre, "a failed snapshot is not marked in the log")
-        self.assertLess(text.index(self.SNAPSHOT), text.index(self.STOP),
-                        "the snapshot runs after the container is reaped")
+        self.assertTrue(self.armed_before_launch(text),
+                        "the capture is armed after the launch it must cover")
+        arm = self.arm_slice(text)
+        self.assertIn('for hn in $(echo "$HOSTS"', arm,
+                      "one host is captured, not the whole lease")
+        self.assertIn("'sparkrun.recipe=$RECIPE'", arm,
+                      "the capture is not scoped to this arm's containers")
+        self.assertIn("'$(( ${ARM_READY_TIMEOUT:-2250} + 900 ))'", arm,
+                      "the watcher's deadline is not tied to the readiness ceiling")
 
-    def test_docker_errors_never_land_in_the_rank_log(self):
-        text = read_tool()
-        follower = self.follower_slice(text)
-        self.assertIn('2> "$f.err"', follower, "docker's stderr is not separated from the log")
-        self.assertIn(self.FOLLOW_MARKER, follower, "a failed follow is not marked in the log")
+    def test_moving_the_capture_below_the_launch_fails_the_guard(self):
+        mutated = read_tool().replace(self.ARM_DIR, self.LAUNCH_CALL.lstrip("\n") + "\n" + self.ARM_DIR, 1)
+        self.assertFalse(self.armed_before_launch(mutated), "the arming survived the mutation")
 
-    def test_moving_the_snapshot_after_the_stop_fails_the_guard(self):
+    def test_the_capture_is_harvested_and_stopped_before_the_teardown(self):
         text = read_tool()
-        start = text.index("harvested=0")
+        self.assertLess(text.index(self.CAPTURED), text.index(self.STOP),
+                        "the harvest runs after the stop reaped the containers")
+        self.assertIn("\nstop_capture\n", text, "nothing stops the watcher")
+        self.assertLess(text.index("\nstop_capture\n"), text.index(self.STOP),
+                        "the watcher keeps its event stream open across the teardown")
+
+    def test_a_host_without_a_stream_says_so_in_the_receipt(self):
+        """An absent file reads as "the engine printed nothing", which is the claim under test."""
+        pre = self.harvest_slice(read_tool())
+        self.assertIn(self.MISSED, pre, "a host with no capture leaves no marker")
+        self.assertIn("$L/cap-$hn.log", pre, "the marker does not land in the receipt")
+
+    def test_moving_the_harvest_after_the_stop_fails_the_guard(self):
+        text = read_tool()
+        start = text.index(self.CAPTURED)
         end = text.index(self.STOP, start)
-        mutated = text[:start] + text[start:end].replace(self.SNAPSHOT, "", 1) + text[end:]
-        mutated = mutated.replace(self.STOP, self.STOP + "\n" + self.SNAPSHOT, 1)
-        self.assertNotIn(self.SNAPSHOT, self.pre_reap_slice(mutated),
-                         "the guard passed a snapshot that runs after the stop")
+        block = text[start:end]
+        mutated = text[:start] + text[end:] + block
+        self.assertGreater(mutated.index(self.CAPTURED), mutated.index(self.STOP),
+                           "the harvest survived the mutation")
 
-    def test_folding_docker_stderr_back_into_the_log_fails_the_guard(self):
-        mutated = read_tool().replace('2> "$f.err"', "2>&1", 1)
-        self.assertNotIn('2> "$f.err"', self.follower_slice(mutated),
-                         "the stderr split survived the mutation")
-
-    def test_removing_the_pre_stop_kill_fails_the_guard(self):
+    def test_the_trap_kills_the_capture(self):
+        """The watcher outlives the boot: a killed script must not leave a docker client behind."""
         text = read_tool()
-        start = text.index(self.HARVEST)
-        end = text.index(self.STOP, start)
-        mutated = text[:start] + text[start:end].replace(self.KILL, "", 1) + text[end:]
-        self.assertNotIn(self.KILL, self.pre_stop_slice(mutated),
-                         "the pre-stop kill survived the mutation")
+        trap = TRAP_RE.search(text)
+        assert trap is not None, "no `trap ... sparkrun stop ... EXIT` line"
+        self.assertIn("stop_capture;", trap.group(0),
+                      "a killed script leaves its `docker events` client on the node")
+        mutated = text.replace("trap 'stop_capture; ", "trap '", 1)
+        self.assertNotIn("trap 'stop_capture;", mutated, "the trap kill survived the mutation")
 
 
 class WatchdogGetsTheWholeLease(unittest.TestCase):
