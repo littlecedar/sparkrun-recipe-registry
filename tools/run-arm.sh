@@ -246,6 +246,92 @@ if [ ${#DP_DOWN[@]} -gt 0 ]; then
 fi
 # daemon-preflight: end
 
+# The shared cache presents an empty mount, not an error, when BeeGFS is unhealthy: after a slow
+# pool mount a container can see an empty `/cache` instead of a failure, so a boot can pass
+# readiness and hand the engine a model that is not there (AGENTS.md, shared-cache section). The
+# live case is sharp: with `beegfs-storage` down, every path under `/mnt/beegfs` answered
+# `Communication error on send` while the launch went on to plan.
+# The host path is the same one sparkrun resolves: `<hf_cache>/hub/models--<org>--<name>/snapshots/
+# <revision>` (`models/acquisition.py:49`, `models/_cache_agent.py:68`; GGUF specs drop their
+# `:quant` suffix, `models/download.py:model_cache_path`). `<hf_cache>` comes from the cluster
+# profile's `distribution.hf_cache` (this script already launches with `--cluster WOPR`), which is
+# the host dir bind-mounted at the container's `/cache/huggingface` (`runtimes/base.py:787`).
+# Three outcomes, matching the daemon preflight's style: the probe times out or the mount answers
+# ECOMM ("pool not answering", exit 11); the pool answers but the snapshot is absent or empty
+# ("never staged", exit 12); the snapshot is present (proceed). `timeout` bounds a hung `ls`, so a
+# wedged pool can never be read as a missing model -- the inversion that would make this gate
+# blame the recipe. The probe is HOST-SIDE by construction: no container exists yet, so it cannot
+# see a container-only mount divergence, and model-preflight.txt records `view=host` to say so.
+# model-path: start
+MP_MODEL=$(sed -n 's/^model:[[:space:]]*//p' "$RECIPE" | head -1)
+MP_MODEL=${MP_MODEL%%:*}   # a GGUF spec is repo:quant; the snapshot lives under the repo
+MP_REV=$(sed -n 's/^model_revision:[[:space:]]*//p' "$RECIPE" | head -1)
+MP_HUB=$(sed -n 's/^[[:space:]]*hf_cache:[[:space:]]*//p' \
+           "$HOME/.config/sparkrun/clusters/WOPR.yaml" 2>/dev/null | head -1)
+MP_HUB=${MP_HUB%/}
+MP_PATH=
+if [ -n "$MP_HUB" ] && [ -n "$MP_MODEL" ]; then
+  MP_PATH="$MP_HUB/hub/models--${MP_MODEL%%/*}--${MP_MODEL#*/}/snapshots${MP_REV:+/$MP_REV}"
+fi
+: > "$L/model-preflight.txt"
+printf '# hub=%s model=%s revision=%s path=%s view=host\n' \
+  "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" >> "$L/model-preflight.txt"
+if [ -z "$MP_PATH" ]; then
+  echo "ARM REFUSED $NAME: the model path could not be resolved (hub=${MP_HUB:--}," \
+       "model=${MP_MODEL:--}); a boot would hand the engine whatever an empty cache holds."
+  echo "  Probe evidence: $L/model-preflight.txt"
+  exit 11
+fi
+MP_BAD=() MP_MISS=()
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  mp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "MP='$MP_PATH' sh -s" 2>/dev/null <<'PROBE'
+out=$(timeout 10 ls -A "$MP" 2>&1); rc=$?
+if [ "$rc" -eq 124 ]; then echo "POOL=timeout"; exit 0; fi
+case "$out" in
+  *"Communication error on send"*|*"Transport endpoint is not connected"*|\
+  *"Stale file handle"*|*"Input/output error"*)
+    echo "POOL=unhealthy:$(printf '%s' "$out" | head -1 | cut -c1-100)"; exit 0 ;;
+  *"No such file or directory"*) echo "POOL=absent"; exit 0 ;;
+esac
+if [ "$rc" -ne 0 ]; then
+  echo "POOL=unhealthy:ls-rc-$rc:$(printf '%s' "$out" | head -1 | cut -c1-100)"; exit 0
+fi
+echo "POOL=entries:$(printf '%s\n' "$out" | grep -c .)"
+PROBE
+)
+  mp_kind=${mp_out#POOL=}
+  case "$mp_kind" in
+    entries:0) printf '%s status=empty path=%s entries=0 view=host\n' "$hn" "$MP_PATH" \
+                 >> "$L/model-preflight.txt"; MP_MISS+=("$hn (entries=0)") ;;
+    entries:*) printf '%s status=present path=%s entries=%s view=host\n' \
+                 "$hn" "$MP_PATH" "${mp_kind#entries:}" >> "$L/model-preflight.txt" ;;
+    absent) printf '%s status=absent path=%s entries=- view=host\n' "$hn" "$MP_PATH" \
+              >> "$L/model-preflight.txt"; MP_MISS+=("$hn (absent)") ;;
+    timeout) printf '%s status=pool-unhealthy path=%s entries=- detail=timeout view=host\n' \
+               "$hn" "$MP_PATH" >> "$L/model-preflight.txt"; MP_BAD+=("$hn (timeout)") ;;
+    unhealthy:*) printf '%s status=pool-unhealthy path=%s entries=- detail=%s view=host\n' \
+                   "$hn" "$MP_PATH" "${mp_kind#unhealthy:}" >> "$L/model-preflight.txt"
+                 MP_BAD+=("$hn (${mp_kind#unhealthy:})") ;;
+    *) printf '%s status=pool-unhealthy path=%s entries=- detail=ssh-or-empty view=host\n' \
+         "$hn" "$MP_PATH" >> "$L/model-preflight.txt"; MP_BAD+=("$hn (probe unreadable)") ;;
+  esac
+done
+if [ ${#MP_BAD[@]} -gt 0 ]; then
+  echo "ARM REFUSED $NAME: the shared model cache does not answer on ${MP_BAD[*]};"
+  echo "  the mount is unhealthy, so an empty cache is indistinguishable from a missing model."
+  echo "  Check the BeeGFS pool before blaming the recipe. Path: $MP_PATH"
+  echo "  Probe evidence: $L/model-preflight.txt"
+  exit 11
+fi
+if [ ${#MP_MISS[@]} -gt 0 ]; then
+  echo "ARM REFUSED $NAME: the model snapshot is missing or empty on ${MP_MISS[*]};"
+  echo "  the pool answers, so the model was never staged at this revision."
+  echo "  Path: $MP_PATH (revision=${MP_REV:--})"
+  echo "  Probe evidence: $L/model-preflight.txt"
+  exit 12
+fi
+# model-path: end
+
 launch_arm() {
   sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR "${ARM_OPTS_ARR[@]}" > "$L/launch.log" 2>&1 &
   LAUNCH=$!
