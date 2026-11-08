@@ -4718,3 +4718,55 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   read. The workstation and head copies of `mad-science/queue.json` were byte-identical by 04:13
   (`17b22b72…`) after the brief divergence that made the 04:04 head claim look absent on the
   workstation; no divergent claim survived.
+
+## 2026-11-08 06:06 ET — board published on the 06:00:41 census; an engine the campaign closed as failed is the one serving, because the appearance window is shorter than a pair distribution
+
+- **Board:** published 06:06 ET on the **06:00:41 ET** census (commit `59601d81`); `publish`
+  reported `disk was 06:00:41 ET`, which is this session's own previous write, so no peer board was
+  replaced. Lint green; `tests.test_tracked_address_hygiene` + `tests.test_task_queue_tool` 81 tests
+  OK.
+- **Census (own read, 06:00:41 ET):** containers `.30`/`.31` **1 / 1**, `.32`/`.33`/`.34`/`.35`
+  **0 / 0 / 0 / 0**; volumes **0** on every node; the standing serve is a research container, so no
+  production serve needed excluding from the count. Root avail bytes: `.30` 1327624802304,
+  `.31` 1729446686720, `.32` 1809248493568, `.33` 1684320743424, `.34` 1172466966528,
+  `.35` 1412550152192 — recorded as the next tick's baseline, no delta claimed, because this tick
+  holds no earlier byte read of its own.
+- **The boot class this cycle's head fact is about — an unowned engine.** A serving vLLM is live on
+  `.30`+`.31`: task `sparkrun_b631dae1dc7bf3d6_693d01660f8b_node_0..1`, label
+  `recipes/explore/zz-ripple-65b-preview-bf16-tp2-vllm.yaml`, containers started **05:32:47 ET**,
+  rank-0 `/v1/models` **200** naming `ricursiveAI/Ripple-65B-Preview` at `max_model_len` 1048576,
+  rank-0 argv pinning `--revision da94cc013a8fda04a502f0a185083c7099ea06c1 --tensor-parallel-size 2
+  --max-model-len 1048576 --max-num-seqs 8 --gpu-memory-utilization 0.85`, and `launch.log` reading
+  `TTR HTTP-ready 409.948 s` inside a 749.2 s launch. **Nothing holds it**: `state.json` carries no
+  lease object (all 17 arms terminal), and no register row carries a claim, so the label — not the
+  campaign — decides the holder. It is research and unleased, i.e. an unnamed holder, not a campaign
+  boot.
+- **Why the campaign believes that same arm failed, measured to the second.** Director log
+  05:27:05 `assign: zz-ripple-65b-preview-bf16-tp2-vllm -> w1 on .30,.31 (lease …@3)`, then 05:32:21
+  `zz-ripple-65b-preview-bf16-tp2-vllm: rc=1 -> failed (… no marker and no machine-readable
+  artefact)` and `queue: no runnable rows; polling every 30s for new ones`. The container appeared at
+  **05:32:47**, i.e. **26 s after** the arm was declared failed and **342 s** after its assignment.
+  Mechanism, read in the source: `tools/run-arm.sh:201-218` polls `for _ in $(seq 1 60) … sleep 5`
+  (**300 s**), exits 1 at `:225` before `TID` is parsed at `:228`, so the stop trap is not yet armed
+  and the launcher runs on to a healthy engine. A peer registered the same finding as
+  `run-arm-appearance-window-300s` (worktree copy, uncommitted at this read), so this tick added no
+  duplicate row. This joins the `run-arm-conflates-stall-with-death` and
+  `run-arm-harvest-counts-reaped-log` class: the receipt's verdict and the engine's state disagree,
+  and the engine is the ground truth.
+- **Campaign, own read 06:02–06:06:** `8 measured, 9 failed, 0 leased, 0 pending` over 17 arms;
+  unit `active`, worker `w1` (pid 2119608) alive since 04:26:49. Nine arms have now closed with no
+  cell; the last four failed on instrument classes (753B readiness ceiling, the SM121 MXFP4 kernel
+  `multiples of 128` limit, the reference server's `--served-model-name` refusal, and this appearance
+  window), not on a model reading.
+- **Register, own read 06:07:** 106 tasks, **21 open = 15 queued + 6 blocked**, `check` green, **no
+  row carrying a claim**. Re-read after the count moved under the tick, so the 06:02 figure (105
+  tasks, 20 open with 14 queued) was dropped rather than stated. Drift: `ripple-65b-bf16-tp2` still
+  reads `queued` while its own recipe is the one serving, so the next plan pass could boot a second
+  copy on the free hosts; the three `w4-survey-*` rows flipped `queued`→`blocked` on their own
+  MXFP4-kernel notes, which stops the director re-booting them every pass.
+- **Session boundary, decided not assumed:** the `Landed session` table was left as the live campaign
+  session wrote it and no row was added for this tick. Verified before deciding: `git grep` for six
+  of its SHAs (`576b85ad`, `e20cc88`, `7c39c02`, `4401e6f`, `22ee5f8`, `d1fb57e`) finds **none** of
+  them in this file, so its 04:2x–05:22 rows are genuinely un-homed — the close-out gap belongs to
+  the session that wrote them (its worker is still alive), not to a read-only tick, and clearing the
+  table here would have required homing ~45 clauses in the same commit.
