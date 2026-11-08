@@ -4860,3 +4860,58 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   (loading against a 2538.9 s TTR, rank-0 log still 1103 B), and the landed table's `d41a3df8` row was
   corrected: the engine aborted in `CacheConfig` at startup and the *arm* closed `rc=4` at t=334 s —
   "died at ~334 s" reads as a load-time failure that it was not.
+
+## 2026-11-08 07:18 ET — 753B arm served at last: ladder and 15/15 house battery landed; a fresher peer board took the write, and the ladder's aggregate column is not a result
+- **Board:** published 07:08 ET on this tick's own **07:03:09 / 07:03:44 ET** census (commit
+  `0af2bd7a`; `publish` reported `disk was 07:02:37 ET`, a peer's board, so the peer's rows were
+  read and folded rather than overwritten — its metrics-bridge verification and its note that the
+  register's prose still says *attempt 5* both survive in the published copy). A peer then
+  published on a **07:09:59** census (commit `bacdbc36`) carrying the same cycle facts plus the
+  `.35` idle-node drift attribution, and **this tick wrote no second board**: its composed 07:11
+  copy had a 50 s fresher census and nothing else the peer lacked, so a whole-file replace would
+  have been a net loss. The composed file was discarded, not published.
+- **The arm this campaign never got past loading finally served.** Attempt 6 of
+  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang` logged `readiness=yes` at **06:50:57 ET** with
+  `TTFT 2534.208 s` (launch total 2543.6 s) against the arm's measured 2538.9 s TTR, and
+  `boot-watchdog.py` recorded `WATCHDOG t=2539s verdict=healthy endpoint=ok serve_pid=alive
+  io_delta=153788229 log_delta=319 ranks=4 peer_moved=3 unprobeable=0` — the same silence the
+  per-container stall rule killed at t=2532 s in attempt 5. So `3e6c8ed9`'s group-scoped progress
+  judgment is now **field-verified on the arm it was written for**, not only on its own tests.
+- **Both measurement cells landed.** Ladder complete 07:04:37 ET, four cells × 5 runs; house
+  battery complete 07:09:25 ET with **15 scenarios, 15 pass, 0 partial, 0 fail, score 100**
+  (tool-eval-bench 2.6.0, `final_score` 100, ★★★★★, deployability 76, responsiveness 21, 287.4 s,
+  run `2026-11-08T12-04-39.495432Z_5d0e805d`). `h2h-client.py --cell house4096` (pid 4066279)
+  then started against the same serve and was still running at 07:10:58. The arm has no verdict
+  yet — it holds an open `h2h-second-boot-glm-753b` claim and a live lease.
+- **The ladder's aggregate column is an artefact, and this is the cycle's own trap.** CSV
+  `t_s_mean` runs **30.27 / 18.90 / 15.95 / 15.16** while `t_s_req_mean` stays **30.27 / 28.70 /
+  29.61 / 29.32** at C1/C2/C5/C10, and `ladder.json`'s per-cell `tg_throughput` series holds
+  **n=2** points (c1 mean 16.07 over samples ≈30.27 and ≈1.88), so `t_s_mean` is a two-sample mean
+  whose ramp sample drags it down. The printed ladder table is worse than unhelpful: its C1 row
+  prints **5.3** in the `tg` column, which is the ttfr field, and a peer board read that 5.3 as C1
+  decode before this cycle. Per-request tg and pp (**301.4 / 256.3 / 243.3** t/s) are the quotable
+  fields; an aggregate from this ladder needs a `-b extra_body=return_token_ids=true` re-run, and
+  `ladder.log`'s interpolation warning (`return_token_ids=false`) is why.
+- **Census (own reads, read-only):** 07:03:09, 07:03:44 and 07:10:49 ET. Containers `.30`→`.33`
+  **1 / 1 / 1 / 1**, `.34`/`.35` **0 / 0** on all three; volumes **0** on all six. Root avail GiB
+  `.30` 1236.6, `.31` 1610.8, `.32` 1685.0, `.33` 1568.6, `.34` 1091.9, `.35` 1315.5; the fleet
+  sum fell **131,072 B** across the 33 s pair and a further **14,946,304 B (14.3 MiB)** over the
+  7 min 05 s to the third read, of which `.35` (holding no container) accounts for **8,982,528 B**
+  — unattributed here, the peer board's idle-node reading is the better one.
+- **Register (own read, 07:02–07:07):** 107 tasks, **22 open = 15 queued + 1 running + 6
+  blocked**, `check` green, one claim (`h2h-second-boot-glm-753b` →
+  `sparkrun-campaign:h2h-20261107`, claimed 11:22:23Z) matching the live quartet. The head's copy
+  and the workstation's are **byte-identical** (`sha256 1b93bd28…`), so the clobber class
+  registered as `task-queue-write-clobbers-live-claim` did not fire this cycle; the claim's row
+  prose still naming attempt 5 is reported, not edited, exactly because `queue.json` is the
+  campaign's write surface.
+- **Landed-table homing: verified, and left to the writing session.** This tick appended rows and
+  cleared nothing, so the row-by-row homing obligation did not trigger; re-checked anyway, and
+  **23 commit SHAs in the table appear nowhere in this file** — `28fc675`, `a192fa2`, `aaabd2a`,
+  `e9effb8`, `0f482bd`, `5cef9fc`, `cdddf35`, `57734fc`, `b0e6bcd`, `0dfc19c`, `ca38a34`,
+  `f1400d3`, `fff29f9`, `601ef7c`, `ada13a7`, `555aeac`, `1ebfa6c1`, `00361e6a`, `c6204710`,
+  `4927a7fe`, `896d0193`, `3e6c8ed9`, `2b6f82a7` (all resolve as commits — the `4ceb6c60` and
+  `2119564` strings in the table are an image short-id and a pid, not commits). The 06:06 ET
+  section already decided that a read-only tick does not home the writing session's rows; the gap
+  therefore stands as that session's close-out debt, and this entry exists so a later clear cannot
+  say the gap was never named.
