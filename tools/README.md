@@ -176,7 +176,7 @@ forms: plain (`-o parallel=10`, word-split) and unit-separated (`$'\x1f'` betwee
 field one argv entry, so `extra_args=--moe-runner-backend marlin` survives as the single value
 sparkrun's `--option/-o` expects). The array channel fixes argv shape only. `-o extra_args=…`
 is a vLLM-runtime convention: a recipe whose `command:` renders no placeholder for it accepts
-the override and ignores it silently (reach rules: `AGENTS.md` §load-bearing contracts).
+the override and ignores it silently (reach rule: `AGENTS.md`, "Load-bearing contracts").
 `arm_opts.txt` proves only what reached `sparkrun`; the authoritative check is the engine's own
 `server_args` block in the arm's serve log. `ARM_RECEIPTS_ROOT` moves the whole receipt
 to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/tp12-<date>/<arm>`. Guarded by
