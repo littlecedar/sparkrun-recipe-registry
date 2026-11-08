@@ -492,8 +492,8 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   multi-user latency feature (`-o env.PREFILL_DECODE_INTERVAL=2` to enable). Both
   are `AB_ENV` keys, and `0` omits the flag rather than passing it.
 - **`DSV41_FAST_LOAD` lives in the launcher, not the recipe** — there is no
-  recipe-side knob (the recipe carries no `env:` block; everything is the
-  launcher's `RECIPE_ENV`). Shipped `"1"` as of 2026-10-22 (owner decision:
+  recipe-side knob (the recipe's only `env:` key is the metrics rollout's
+  `EXTRA_SGLANG_ARGS`; everything else is the launcher's `RECIPE_ENV`). Shipped `"1"` as of 2026-10-22 (owner decision:
   ~220 s saved per boot over the pool). The eager path cuts engine start from
   343 s to ~124 s but shrinks the host's allowed KV budget; upstream's own docs
   quote 3–6 % at EP2 (`docs/fast-load.md`) and the older 3–13 % in its README

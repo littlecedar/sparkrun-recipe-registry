@@ -59,6 +59,8 @@ env:
   # also isolates the tree delta in the A/B. Divergence recorded in
   # ~/builds/ds4-report/c3-NOTES.md.
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
+  # Metrics rollout 2026-11-08: /metrics on the API port (instrumented boot).
+  EXTRA_SGLANG_ARGS: "--enable-metrics"
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot

@@ -34,6 +34,11 @@ executor_config:
   entrypoint: ""
   shm_size: 32gb
 
+env:
+  # Metrics rollout 2026-11-08: /metrics on the API port, engine flags ride
+  # EXTRA_SGLANG_ARGS because the launcher owns argv (launcher.py:471-502).
+  EXTRA_SGLANG_ARGS: "--enable-metrics"
+
 defaults:
   port: 8000
   host: 0.0.0.0

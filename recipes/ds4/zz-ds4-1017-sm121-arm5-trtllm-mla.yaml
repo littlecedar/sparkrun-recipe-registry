@@ -65,7 +65,7 @@ env:
   # kernel (0.4.7) and skips the gate.
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
   # The treatment.
-  EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"
+  EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm --enable-metrics"
   # Section 10.7's control design: replay OFF in both arms. The launcher turns
   # this into --no-enable-decoder-swa-bounded-replay, which wins because boot.py
   # appends its own --enable-... earlier in argv.

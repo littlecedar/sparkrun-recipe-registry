@@ -42,6 +42,8 @@ env:
   # shared 128 GB pool; A/B control is the shipped canary's receipts.
   MALLOC_ARENA_MAX: "2"
   MALLOC_MMAP_THRESHOLD_: "1048576"
+  # Metrics rollout 2026-11-08: /metrics on the API port (instrumented boot).
+  EXTRA_SGLANG_ARGS: "--enable-metrics"
 # The rest of the serve line is the canary's own. Keep --fp8-gemm-backend
 # declared: boot.py's required_sglang_args() strips and re-stamps it last.
 command: >
