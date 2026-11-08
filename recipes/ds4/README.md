@@ -1094,6 +1094,20 @@ with decoder SWA bounded replay OFF (section 10.7's control design; the launcher
 appends its own `--enable-...` earlier in argv). The knob must stay unset on the shipped canary:
 that image's arg has no `--no-` form and would reject it.
 
+**Marlin MoE variant (2026-11-08).** `zz-ds4-1017-sm121-arm3-control.yaml` stays byte-identical, so
+its receipt stays comparable; the backend probe is its own file,
+`zz-ds4-1017-sm121-arm3-control-marlin.yaml`, differing only in
+`env.EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin"`. A sglang-runtime `command:` spells its own
+argv and has no `{extra_args}` slot, so `-o extra_args=…` reaches nothing; the launcher appends a
+supplied `EXTRA_SGLANG_ARGS` verbatim to boot.py's argv (`launcher.py:479-503`) and the
+`required_sglang_args()` guard strips only `--fp8-gemm-backend`. Evidence, no boot:
+`sparkrun export recipe recipes/ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml | grep
+EXTRA_SGLANG_ARGS` prints `EXTRA_SGLANG_ARGS: --moe-runner-backend marlin`, while `sparkrun run <same
+file> -H <four nodes> -n` prints the control's serve command unchanged — the flag rides container
+env, not argv.
+
+would reject it.
+
 ### Measurement: one command per arm
 
 `tools/run-arm.sh` stops the serve after its own ladder, so a survey client rides the executor's

@@ -460,6 +460,7 @@ class ServedModelNameNotRebound(unittest.TestCase):
         "ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
         "ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
         "ds4/zz-ds4-1017-sm121-arm3-control.yaml",
+        "ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml",
     }
     REBOUND = re.compile(r"--served-model-name\s+\{model\}")
 
