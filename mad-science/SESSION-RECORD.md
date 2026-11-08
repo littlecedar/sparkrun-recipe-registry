@@ -3983,3 +3983,64 @@ its measurements here instead. All reads are this cycle's own, read-only, from t
 - **Board ownership, for the record:** this cycle published once (23:06, census stamp 23:00:48, commit
   `5a882bd`) and then lost the base to peer republishes at 23:18 and 23:21 while probing. The landed
   board is the peer's; nothing from this cycle was dropped, because everything it measured is here.
+
+## 2026-11-07 23:33 ET — probe round 2: the writer scan re-run for real, the house reconciled, the chunk store constant
+
+The 23:26 section above rests one exclusion on a scan that was vacuous — its node variable expanded
+empty, so the six `ssh` calls went nowhere and their silence read as "no writer". Re-run with a literal
+address per host, and the other two open items closed with their own probes:
+
+- **Writer scan, literal hosts, 23:27:43 ET.** `.30`–`.33` carry only the quartet's own child:
+  `/opt/sglang/bin/python3 /opt/sglang/bin/tensorfold serve /cache/huggingface/hub/models--bertholomus--GLM-5.3-EXL3-3.0bpw/snapshots/7f0573836c44803030912…`
+  (pids 2499133, 191735, 164156, 130191). `.34` and `.35` return **nothing** for `rsync|hf|huggingface|docker pull|oras|dd if=`.
+  **Limit, stated plainly:** this is a later window; the 23:05:02→23:13:49 window cannot be re-probed
+  after the fact, so that window's exclusion rests on the reads taken at 23:17 (docker image list,
+  `journalctl -u docker --since "-25 min"`, absent hub `.cache`) plus this scan — not on a direct
+  process read of the window itself.
+- **The chunk store did not move.** `sudo -n du -sb /srv/beegfs/storage` on `.35` returned
+  **1,370,155,678,247 B at 04:27:43Z and the identical byte count at 04:28:43Z**, while `.35`'s root
+  avail fell 77,824 B and the head's pool avail fell 13,631,488 B across a longer span. So the
+  `buddymir/`+`chunks/` directory existing is **not** evidence of a resync, and pool chunk growth is
+  **not** what is draining `.35` now. The earlier LIKELY attribution is downgraded: the pool's
+  161 MB/s dip and its ~19.8 GB release bracket the GLM attempt-1 reap / attempt-2 restage
+  (`reaped … outstanding previous run`), while `.35`'s 27,617,275,904 B fall **has not recovered** —
+  `.35` root read 1,457,810,915,328 B at 23:27:43 against 1,485,429,747,712 B at 23:00:48 — so the two
+  movements are not the same bytes and the root fall is still unattributed.
+- **The ds4 second boot's house battery reconciles with its own clock.** `house.csv` carries 15
+  scenario rows (13 pass, 2 partial), **Σ duration 37.1 s**, 31 turns, 3,056 completion tokens → 82.3
+  completion tok/s; `ladder.csv` has 9 lines. Artefact mtimes: `launch.log` 22:56:47, `ladder.json`
+  22:59:00, `house.json` 22:59:41, and `watchdog.log`'s last verdict is `t=521s verdict=healthy` — i.e.
+  readiness at ~22:55:57, then 20 ladder requests and 31 house turns in the 3 m 44 s to 22:59:41. The
+  house is not a 15-scenario battery crammed into 61 s: it is 37.1 s of scenario wall on the serve that
+  had just become healthy, so the ladder cells and the house score **do** belong to one boot.
+
+## 2026-11-07 23:44 ET — supersedes the `.35` attribution above: it is an overlay2 image layer, not beeGFS
+
+The 23:26 section called pool traffic "the likely cause" of `.35`'s 27,617,275,904 B root fall and the
+23:33 section downgraded but kept that reading. Both are **falsified**, and the mechanism is now measured:
+
+- **No chunk was written.** `sudo -n find /srv/beegfs/storage/chunks -type f -newermt "2026-11-07
+  23:04:00" ! -newermt "2026-11-07 23:15:00"` counts **0 files**, and the newest chunk anywhere in the
+  store has mtime **14:38**. The chunk store is 3,005 files / 1,370,155,678,247 B and has been quiet for
+  nine hours, so `buddymir/`+`chunks/` existing says nothing about a resync and the pool dip was the
+  campaign's own attempt-1 reap / attempt-2 restage, which fully recovered (pool avail 23:13
+  10,922,880,925,696 → 23:21 10,922,869,391,360, i.e. flat).
+- **The bytes are an overlay2 diff layer.** Scanning by **ctime**, which `mv` and `cp -a` do not
+  preserve, finds in that window **358,150 files / 26,898,269,170 B (26.90 GB)**, every one of them
+  under `/var/lib/docker/overlay2/9ff2471cf410c0c6a98249bf995e271846586468f009e6b4b16749c53c547acb/diff/opt/sglang/…`
+  — `libcublasLt.so.13`, `libtriton.so`, `libtorch_cuda.so`, `libcudnn_engines_precompiled.so.9` and the
+  rest of the engine image being materialised on `.35` between 23:04 and 23:15, i.e. **in the eight
+  minutes before the quartet's containers were created at 23:14:41**. It is the boot's own image
+  distribution, and `.34`'s 213,917,696 B is the same thing in miniature.
+- **Why the earlier probes missed it, stated so the next reader does not repeat them.** An
+  mtime-scanned `find … -newermt` window sees nothing, because an image layer lands with the *image's*
+  build mtimes (two weeks old); only **ctime** marks the materialisation. `docker image ls` also looked
+  innocent because a relay-imported image keeps its build date in `Created` — the entries reading
+  "2 weeks ago" are exactly the `oci-relay/pinned:<digest>` form such an import produces, and
+  `journalctl -u docker | grep -E "pull|import|load|unpack"` does not carry a client-side `docker load`
+  in the daemon log. `du -sxb --max-depth=N` is likewise a silent no-op (`-s` conflicts with
+  `--max-depth`), which is why two probes printed nothing.
+- **Net effect on the board:** nothing to escalate. `.35`'s free space stays 27.6 GB lower because the
+  image layer stays, which is normal launch state, not litter: the images already named by recipes outlive
+  the boot (AGENTS.md §Node hygiene). The "161 MB/s pool write with no visible author" clause is withdrawn;
+  the pool transient has the campaign's own log line as its author.
