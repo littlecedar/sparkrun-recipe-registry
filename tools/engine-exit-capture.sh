@@ -40,16 +40,12 @@ filters=(--filter type=container --filter event=create --filter event=die)
 FIFO="$CAP.fifo"
 rm -f "$FIFO"
 mkfifo "$FIFO" 2>/dev/null || { echo "engine-exit-capture: cannot create $FIFO" >&2; exit 1; }
-docker events "${filters[@]}" \
-  --format '{{.Action}} {{.Actor.ID}} {{.Actor.Attributes.name}} {{.Actor.Attributes.exitCode}}' \
-  < /dev/null > "$FIFO" 2> "$CAP/events.err" &
-EV=$!
-# Read-write open never blocks: a docker that fails to start must not hang the capture.
 exec 3<> "$FIFO"
 
 FOLLOW=()
+EV=
 cleanup() {
-  kill "$EV" 2>/dev/null
+  [ -n "$EV" ] && kill "$EV" 2>/dev/null
   for p in ${FOLLOW[@]+"${FOLLOW[@]}"}; do kill "$p" 2>/dev/null; done
   rm -f "$FIFO"
 }
@@ -59,39 +55,87 @@ declare -A died=()
 start=$SECONDS
 last=$SECONDS
 created=0
-while :; do
-  if read -r -t 5 act id name code <&3; then
-    last=$SECONDS
-    case "$act" in
-      create)
-        created=$((created + 1))
-        unset "died[$name]"
-        printf '# capture: create %s %s\n' "$name" "$id" >> "$CAP/$name.log"
-        ( docker logs -f "$id" < /dev/null >> "$CAP/$name.log" 2>> "$CAP/$name.err" \
-            || printf "# capture failed: docker logs -f %s ended in docker's error (see %s.err); the container was removed before or during the attach\n" \
-                 "$id" "$name" >> "$CAP/$name.log" ) &
-        FOLLOW+=($!)
-        ;;
-      die)
-        [ "$code" = "<no value>" ] && code=unknown
-        printf '# capture: die exit=%s\n' "$code" >> "$CAP/$name.die"
-        died[$name]=1
-        ;;
-    esac
-    continue
-  fi
-  rc=$?
-  if [ "$rc" -le 128 ]; then break; fi     # not a timeout: the stream itself failed
-  kill -0 "$EV" 2>/dev/null || break        # docker events exited
+deadline=0
+
+# The read loop records `read`'s own status, and the event client is restarted rather than
+# trusted. On the 2026-11-08 marlin lease (7 boots, 4 nodes) every capture said "no container
+# ... in 5 s" with an empty stderr, because the old loop took `rc=$?` AFTER `if read ...; then
+# ...; fi` -- the status of the `if` statement, always 0 when no branch runs -- so the first idle
+# read timeout looked like a dead stream and the watcher stopped after exactly one 5 s wait while
+# `docker events` was still alive (`bash -x` shows `read -r -t 5` / `rc=0` / `[ 0 -le 128 ]` /
+# `break`; the liveness check never ran). A timeout is the normal idle case: only `kill -0`
+# decides whether the instrument is broken, and a broken one is recorded in events.err and
+# restarted -- the container it was armed for has not existed yet, so its absence is not a
+# verdict.
+while [ "$deadline" -eq 0 ]; do
+  # Checked here as well as in the read loop: a client that dies instantly must not spin past
+  # the deadline (a dead docker daemon would otherwise restart the stream forever).
   [ $((SECONDS - start)) -ge "$MAX" ] && break
-  if [ "$created" -gt 0 ] && [ "${#died[@]}" -ge "$created" ] && [ $((SECONDS - last)) -ge "$IDLE_EXIT" ]; then
+  docker events "${filters[@]}" \
+    --format '{{.Action}} {{.Actor.ID}} {{.Actor.Attributes.name}} {{.Actor.Attributes.exitCode}}' \
+    < /dev/null > "$FIFO" 2> "$CAP/events.stream.err" &
+  EV=$!
+  stream_start=$SECONDS
+  while :; do
+    kill -0 "$EV" 2>/dev/null || break      # the client died: a broken instrument, not a verdict
+    read -r -t 5 act id name code <&3
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      # `read -t` returns success with no fields when a reaped child interrupts it (the
+      # `docker logs -f` attach is such a child on the first event): not an event.
+      [ -z "${act:-}" ] && continue
+      last=$SECONDS
+      case "$act" in
+        create)
+          created=$((created + 1))
+          unset "died[$name]"
+          printf '# capture: create %s %s\n' "$name" "$id" >> "$CAP/$name.log"
+          ( docker logs -f "$id" < /dev/null >> "$CAP/$name.log" 2>> "$CAP/$name.err" \
+              || printf "# capture failed: docker logs -f %s ended in docker's error (see %s.err); the container was removed before or during the attach\n" \
+                   "$id" "$name" >> "$CAP/$name.log" ) &
+          FOLLOW+=($!)
+          ;;
+        die)
+          [ "$code" = "<no value>" ] && code=unknown
+          printf '# capture: die exit=%s\n' "$code" >> "$CAP/$name.die"
+          died[$name]=1
+          ;;
+      esac
+      continue
+    fi
+    # Classify the failure before the deadline is considered: a client that died is a broken
+    # instrument and must be named in events.err even when the deadline falls inside the same
+    # read timeout, or a broken capture reads as "no container was created".
+    if ! kill -0 "$EV" 2>/dev/null; then break; fi
+    if [ $((SECONDS - start)) -ge "$MAX" ]; then deadline=1; break; fi
+    if [ "$rc" -gt 128 ]; then
+      if [ "$created" -gt 0 ] && [ "${#died[@]}" -ge "$created" ] \
+         && [ $((SECONDS - last)) -ge "$IDLE_EXIT" ]; then deadline=1; break; fi
+      continue
+    fi
+    break                                    # stream ended (EOF, or the client died)
+  done
+  [ "$deadline" -eq 1 ] && break
+  if [ "$created" -gt 0 ]; then
+    # Containers were seen; a stream that then ends is the shape the old script exited on too.
+    # Record it and stop: their logs are already on disk.
+    printf '# capture: docker events ended after %s s (%s container(s) captured)\n' \
+      "$((SECONDS - stream_start))" "$created" >> "$CAP/events.err"
     break
   fi
+  wait "$EV" 2>/dev/null
+  printf '# capture: docker events exited rc=%s with no container after %s s; docker said: %s; restarting\n' \
+    "$?" "$((SECONDS - stream_start))" "$(sed -n '1p' "$CAP/events.stream.err" 2>/dev/null)" \
+    >> "$CAP/events.err"
+  kill "$EV" 2>/dev/null
+  sleep 2
 done
+kill "$EV" 2>/dev/null
 
 if [ "$created" -eq 0 ]; then
-  detail=$(sed -n '1p' "$CAP/events.err" 2>/dev/null)
-  printf '# capture failed: no container%s was created in %s s of watching %s; docker said: %s\n' \
-    "${LABEL:+ carrying $LABEL}" "$((SECONDS - start))" "$CAP" "${detail:-nothing}" \
-    > "$CAP/no-capture.txt"
+  said=$(sed -n '1p' "$CAP/events.stream.err" 2>/dev/null)
+  watch=$(sed -n '1p' "$CAP/events.err" 2>/dev/null)
+  printf '# capture failed: no container%s was created in %s s of watching %s; docker said: %s%s\n' \
+    "${LABEL:+ carrying $LABEL}" "$((SECONDS - start))" "$CAP" "${said:-nothing}" \
+    "${watch:+; watch: $watch}" > "$CAP/no-capture.txt"
 fi
