@@ -274,8 +274,9 @@ fi
 MP_MODEL=$(sed -n 's/^model:[[:space:]]*//p' "$RECIPE" | head -1)
 MP_MODEL=${MP_MODEL%%:*}   # a GGUF spec is repo:quant; the snapshot lives under the repo
 MP_REV=$(sed -n 's/^model_revision:[[:space:]]*//p' "$RECIPE" | head -1)
-MP_HUB=$(sed -n 's/^[[:space:]]*hf_cache:[[:space:]]*//p' \
-           "$HOME/.config/sparkrun/clusters/WOPR.yaml" 2>/dev/null | head -1)
+MP_CLUSTER="$HOME/.config/sparkrun/clusters/WOPR.yaml"
+MP_DRIVER=$(hostname 2>/dev/null || echo unknown)
+MP_HUB=$(sed -n 's/^[[:space:]]*hf_cache:[[:space:]]*//p' "$MP_CLUSTER" 2>/dev/null | head -1)
 MP_HUB=${MP_HUB%/}
 MP_PATH=
 if [ -n "$MP_HUB" ] && [ -n "$MP_MODEL" ]; then
@@ -285,9 +286,26 @@ POOL_WAIT=${ARM_POOL_WAIT:-60}
 POOL_POLL=${ARM_POOL_POLL:-10}
 : > "$L/pool-preflight.txt"
 : > "$L/model-preflight.txt"
-printf '# hub=%s model=%s revision=%s path=%s wait=%ss view=host\n' \
-  "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" "$POOL_WAIT" > "$L/model-preflight.txt"
+printf '# hub=%s model=%s revision=%s path=%s wait=%ss driver=%s view=host\n' \
+  "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" "$POOL_WAIT" "$MP_DRIVER" \
+  > "$L/model-preflight.txt"
 printf '# wait=%ss view=host\n' "$POOL_WAIT" > "$L/pool-preflight.txt"
+# A cluster-less host cannot name the cache root, and reporting that as "the model path could not
+# be resolved" sends the reader hunting staging instead of a missing definition. A launch always
+# names `--cluster WOPR` and never falls back to an anonymous cluster -- that would fan the weights
+# out per node and measure a different arm -- so this host is simply not a driver for this arm, and
+# the fix is to run it where the definition lives (the head). Its own exit code, so a workstation
+# refusal can never be read as a model fault.
+if [ ! -f "$MP_CLUSTER" ]; then
+  printf 'cluster=absent driver=%s view=host\n' "$MP_DRIVER" >> "$L/model-preflight.txt"
+  echo "ARM REFUSED $NAME: not a launch host -- no WOPR cluster definition here ($MP_CLUSTER)."
+  echo "  \`sparkrun cluster list\` shows no cluster on this host, and the WOPR profile (its hf_cache"
+  echo "  and skip_fan_out) lives on the head. Run this arm from the head: the anonymous-cluster"
+  echo "  path would fan the weights out per node and measure a different arm."
+  echo "  Driver host: $MP_DRIVER"
+  echo "  Probe evidence: $L/model-preflight.txt"
+  exit 14
+fi
 if [ -z "$MP_PATH" ]; then
   echo "ARM REFUSED $NAME: the model path could not be resolved (hub=${MP_HUB:--}," \
        "model=${MP_MODEL:--}); a boot would hand the engine whatever an empty cache holds."

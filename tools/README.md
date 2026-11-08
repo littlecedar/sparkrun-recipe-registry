@@ -90,6 +90,13 @@ scope for now.
 
 ## run-arm.sh pooling receipts
 
+**`run-arm.sh` requires the `WOPR` profile on the host it runs from**
+(`~/.config/sparkrun/clusters/WOPR.yaml`, in practice the head). The profile carries both the
+pool's `hf_cache` and `distribution.model.enabled: false` / `skip_fan_out: true`, and the script
+launches with `--cluster WOPR` and never falls back to an anonymous cluster — that path fans the
+weights out per node and measures a different arm. A host without the profile refuses by design,
+with its own code and a "not a launch host" message rather than a model-shaped one.
+
 An embed/rerank arm takes no chat suite, so `run-arm.sh` gives it a deliberately different receipt
 from every other arm, and a consumer deciding whether the arm is finished has to read it by that
 contract rather than by "a house file exists". A completed pooling receipt holds `ladder.yaml` (plus

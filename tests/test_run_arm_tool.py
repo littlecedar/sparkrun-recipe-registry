@@ -1721,7 +1721,7 @@ class ExecutedBlock(unittest.TestCase):
             self.skipTest("bash not on PATH")
 
     def run_block(self, body, hosts=("head.test",), files=None, recipe="runtime: vllm\n",
-                  ready="yes", house=False, hub=True, env_extra=None, timeout=60):
+                  ready="yes", house=False, hub=True, hub_text=None, env_extra=None, timeout=60):
         files = files or {}
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -1732,7 +1732,7 @@ class ExecutedBlock(unittest.TestCase):
             if hub:
                 clusters = home / ".config" / "sparkrun" / "clusters"
                 clusters.mkdir(parents=True)
-                (clusters / "WOPR.yaml").write_text(HUB_CONFIG)
+                (clusters / "WOPR.yaml").write_text(hub_text or HUB_CONFIG)
             for name, stub in (("ssh", SSH_STUB), ("docker", DOCKER_STUB), ("curl", CURL_STUB),
                                ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB),
                                ("systemctl", NODE_SYSTEMCTL_STUB), ("mount", NODE_MOUNT_STUB),
@@ -2034,6 +2034,7 @@ class PoolGate(ExecutedBlock):
         self.assertIn("status=present", model)
         self.assertIn("entries=3", model)
         self.assertIn("view=host", model)
+        self.assertIn("driver=", model, "the launch host is not recorded in the receipt")
         pool = files["pool-preflight.txt"]
         self.assertIn("status=pool-ready", pool)
         self.assertIn("beegfs-storage=active", pool)
@@ -2111,11 +2112,41 @@ class PoolGate(ExecutedBlock):
         self.assertIn("NEXT", out)
         self.assertIn("status=present", files["model-preflight.txt"])
 
-    def test_an_unresolvable_hub_refuses_rather_than_skipping(self):
+    def test_a_host_without_the_cluster_definition_refuses_at_14_as_a_host_fault(self):
+        """A workstation has no WOPR profile: that is "not a launch host", never a model fault.
+
+        The anonymous-cluster fallback is refused on purpose -- it fans the weights out per node
+        and measures a different arm -- so off the head the correct behaviour is a loud refusal.
+        """
         rc, out, files, _ = self.run_pool(POOL_PRESENT, hub=False)
+        self.assertEqual(rc, 14, out)
+        self.assertIn("not a launch host", out)
+        self.assertIn("sparkrun cluster list", out)
+        self.assertIn("head", out)
+        self.assertNotIn("model path could not be resolved", out)
+        self.assertNotIn("missing or empty", out)
+        self.assertNotIn("NEXT", out, "the arm continued off a non-launch host")
+        self.assertIn("cluster=absent", files["model-preflight.txt"])
+        self.assertIn("driver=", files["model-preflight.txt"],
+                      "the expected launch host is not recorded")
+
+    def test_a_defined_cluster_without_hf_cache_is_still_a_model_path_fault(self):
+        rc, out, files, _ = self.run_pool(
+            POOL_PRESENT, hub_text="distribution:\n  model:\n    enabled: false\n")
         self.assertEqual(rc, 11, out)
         self.assertIn("could not be resolved", out)
+        self.assertNotIn("not a launch host", out)
         self.assertIn("# hub=-", files["model-preflight.txt"])
+
+    def test_negative_control_dropping_the_cluster_guard_falls_through_to_the_model_fault(self):
+        """Without the guard a cluster-less host reads as 11 with the model-shaped message."""
+        mutated = self.block().replace('if [ ! -f "$MP_CLUSTER" ]; then', "if false; then")
+        self.assertNotEqual(mutated, self.block(), "the guard moved; control vacuous")
+        rc, out, _, _ = self.run_block(
+            mutated, recipe=MODEL_RECIPE, hub=False,
+            files={"head.test.ls": POOL_PRESENT})
+        self.assertEqual(rc, 11, out)
+        self.assertIn("could not be resolved", out)
 
     def test_a_gguf_spec_drops_its_quant_suffix(self):
         rc, out, files, _ = self.run_pool(
