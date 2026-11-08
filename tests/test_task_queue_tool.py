@@ -609,6 +609,18 @@ class BoardPublish(unittest.TestCase):
         self.assertEqual(self.publish(broken), 1)
         self.assertIn(self.OLD, self.board.read_text(encoding="utf-8"))
 
+    def test_a_cluster_address_in_the_board_is_refused_pre_push(self):
+        # Measured twice on 2026-11-08: a tick quoted a host verbatim and CI redded the tip
+        # for every session after it, so publish now refuses before the write.
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        before = self.board.read_bytes()
+        leaking = board_text(self.NEW).replace(
+            "this tick", "held " + ".".join(("10", "0", "4", "30")) + " while waiting")
+        self.assertEqual(self.publish(leaking), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+        masked = board_text(self.NEW).replace("this tick", "held the rank host (`.30`)")
+        self.assertEqual(self.publish(masked), 0)
+
     def test_a_wedged_lock_refuses_instead_of_waiting(self):
         """Measured 2026-11-06: an inherited lock fd held the board lock for over an hour."""
         self.board.write_text(board_text(self.OLD), encoding="utf-8")

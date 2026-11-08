@@ -624,6 +624,26 @@ def lint_markdown(text: str) -> list[tuple[int, str, str]]:
     return problems
 
 
+def address_problems(text: str) -> list[tuple[int, str]]:
+    """`(line, hit)` for cluster addresses or the head hostname in board prose.
+
+    Same per-branch octet counts as `tests/test_tracked_address_hygiene.py`: masked forms
+    (`.30`, `192.168.0.x`) are the convention and stay legal. Checked at publish so a tick
+    cannot push a literal that reds CI for every session after it.
+    """
+    out: list[tuple[int, str]] = []
+    for n, line in enumerate(text.split("\n"), 1):
+        for m in _ADDRESS_LITERAL.finditer(line):
+            out.append((n, m.group(0)))
+        for m in _HEAD_HOST.finditer(line):
+            out.append((n, m.group(0)))
+    return out
+
+
+_ADDRESS_LITERAL = re.compile(r"\b(10\.\d+|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\b")
+_HEAD_HOST = re.compile(r"\bspark-head\b")
+
+
 def _emit(lines: list[str], what: str) -> None:
     """Print generated markdown, refusing it if it will not render."""
     problems = lint_markdown("\n".join(lines))
@@ -755,6 +775,14 @@ def cmd_publish(args, path: Path) -> None:
         print(f"stdin:{line}: {rule}: {detail}", file=sys.stderr)
     if problems:
         raise QueueError(f"refusing publish: {len(problems)} markdown problem(s) above")
+    leaks = address_problems(text)
+    for line, hit in leaks[:5]:
+        print(f"stdin:{line}: cluster-address: {hit}", file=sys.stderr)
+    if leaks:
+        # Board ships to third parties; the gate reds CI after the push, so refuse here instead.
+        raise QueueError(
+            f"refusing publish: {len(leaks)} cluster address(es) in board text — mask to "
+            "`.30`–`.33`-style shorthand")
     incoming = board_stamp(text)
     board = Path(args.board)
     lock = Path(args.lock)
