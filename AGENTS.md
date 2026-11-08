@@ -19,7 +19,7 @@ the whole tracked tree (re-measured 2026-11-07, the date on this line: 98 tracke
 arms that landed after the previous snapshot add no row, because an accuracy declaration belongs
 inside `metadata:` where `unknown-top-level-key` does not fire; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1308 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced them**. The snapshot is one
+suite 1317 tests (guard-checked) and 2 skipped, dated 2026-11-07, the run that produced them**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the

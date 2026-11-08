@@ -184,8 +184,6 @@ def _bootable(task: dict, root: Path | None, tracked: set[str] | None) -> None:
         isinstance(key, str) and isinstance(value, str) for key, value in env.items()
     )):
         raise QueueError(f"{tid}: 'env' must be an object of string values, got {env!r}")
-    if root is None:
-        raise QueueError(f"{tid}: 'recipe' cannot be resolved — no register path to find the checkout from")
     if recipe not in (tracked if tracked is not None else tracked_recipes(root)):
         raise QueueError(f"{tid}: recipe {recipe} is not a tracked file under {root}")
     if not (root / recipe).is_file():
@@ -196,8 +194,9 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
     """Fail closed: every defect exits with a message naming the task.  Returns tasks.
 
     `path` is the register file: a row that names a `recipe` must resolve against the checkout that
-    file lives in, so the scheduler-shaped fields are verified where they are read. Without it
-    (pure data in a unit test) the shapes are checked and the filesystem resolution is not.
+    file lives in, so the scheduler-shaped fields are verified where they are read. Without it the
+    tool's own checkout is the reference — a library caller handing over live register data gets
+    the same resolution the CLI does, and only a register *outside* any worktree fails.
     """
     tasks = data["tasks"]
     seen: set[str] = set()
@@ -245,9 +244,8 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
                              f"still carries claimed_by/claimed_at — rerun update")
         if not resolved and any(task.get(key) is not None for key in ("recipe", "tp", "env")):
             resolved = True
-            if path is not None:
-                root = repo_root(path)
-                tracked = tracked_recipes(root)
+            root = repo_root(path if path is not None else Path(__file__).resolve())
+            tracked = tracked_recipes(root)
         _bootable(task, root, tracked)
 
     known = seen
