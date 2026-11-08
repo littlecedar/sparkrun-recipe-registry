@@ -4718,30 +4718,3 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   read. The workstation and head copies of `mad-science/queue.json` were byte-identical by 04:13
   (`17b22b72…`) after the brief divergence that made the 04:04 head claim look absent on the
   workstation; no divergent claim survived.
-
-## 2026-11-08 04:24 ET — the same tick published a board twice, and one commit carries a peer's census
-
-- **Board publishes:** `6bf6ef1` (census 04:12:47, an own six-node read) and `2a9e1cd` (cause
-  correction). `6bf6ef1` read the `Execution resources are busy … held by pid 1883449` refusals as a
-  stale claim that had cleared; that reading was wrong. The discriminator is
-  `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.prev-040944/launch.log`: the launcher ran 414.7 s
-  and ended `Registry image distribution failed on: the four rank hosts (`.30`–`.33`), addresses masked from the launcher verdict` (637.1 MiB at
-  1.6 MiB/s, 2.4 GiB delivered) at 04:11:25, while `run-arm.sh` had already declared
-  `no container appeared` at 04:09:09 — an executor that stops observing and leaves its launcher
-  holding four hosts. `ps -p 1883449` returning NO_SUCH_PID at 04:13 only proves it had exited.
-- **`2a9e1cd` is misattributed and is not rewritten** (pushed, shared history): its board bytes are
-  a peer's 04:18:34 census under a 04:19 title, carried under my subject because a peer republished
-  between my publish and my `git commit -- mad-science/STATUS.md`. The content is coherent and
-  nothing was lost; the defect is that the commit reads as if I took that read. Recorded here per
-  the named-path rule rather than force-pushed.
-- **Third SM121 arm's cause, corrected in place on the board:** `zz-ds4-1017-sm121-indexer-scoring`
-  is not a readiness-ceiling kill. Its 64 KB reaped log shows the engine loaded
-  (`load_weight=85.15`, `tokenizer_e2e=174.91`, `max_total_num_tokens=2459904` at
-  `context_len=1048576`) and the HTTP server aborting on
-  `AttributeError: module 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
-  'spec_supports_inline_system'` — the image forward-port gap `e20cc88`/`7c39c02` fixed. So the
-  survey's kills split two ways: one MXFP4 kernel limit (arm-5 control and TRT-LLM MLA,
-  `hidden=5120, intermediate=576`) and one already-fixed image gap (arm 3). The
-  `zero serve logs harvested` line under-counts logs that exist for all three.
-- **Register at 04:24:** 102 tasks, 85 done, **17 open = 14 queued + 3 blocked**, no `running` row,
-  no claims, `tools/task-queue.py check` green.

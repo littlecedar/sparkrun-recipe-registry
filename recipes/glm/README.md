@@ -254,6 +254,22 @@ launch; the pins above remain the runbook's. Verified 2026-10-15 against the Hub
 resolves (97 files, 2026-10-02) and DFlash2 `main` is still `bf582e4e`, and the engine image digest
 resolves from the cluster (a read-only `docker manifest inspect` from the head).
 
+## The 2026-11-08 second boot was stopped by the watchdog, not by the engine
+
+Attempt 5 of the 753B second boot ended at t=2532 s, **7 s before this arm's documented 2538.9 s
+TTR**, with the serve pid still alive: the watchdog's own log reads `verdict=stalled`,
+`serve_pid=alive`, `mem_delta=-598016`, `idle=603s`, then `WATCHDOG: sparkrun stop 7d9a…`. The
+serve's death is that stop, not an engine crash. Cause: `tools/boot-watchdog.py:493` resets
+`last_progress` on **io and log only** (`if ok or delta > 0 or log_delta > 0:`), while the same
+file's docstring (:224-232) names container memory as the third signal for exactly the
+`io_delta=0, log_delta=0` mmap-load signature. The mem_delta series on this boot was never flat
+(t=2330 −90,214,400; t=2405 +1,028,096; t=2457 +1,298,432; t=2468 −1,372,160; t=2500 +548,864;
+t=2510 +348,160; t=2521 +12,288) and is never consulted. The 1103 B watchdog capture holds no
+error line — it stops after the boot banner. Fix the progress test (count container memory) before
+another 753B boot; a `stalled` verdict with a live pid and a moving mem_delta is a watchdog false
+stop, not a wedged context. Also fix the capture order: `docker logs` answered `no such object`
+because the container was removed before the capture, losing the final stdout.
+
 ## Attic index
 
 Everything below lives in [`attic/glm/`](../../attic/glm/) and answers a question the lane README no
