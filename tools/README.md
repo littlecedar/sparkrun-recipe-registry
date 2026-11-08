@@ -214,6 +214,9 @@ status=9/KILL`), and systemd's teardown of the user manager kills everything und
 and every `sparkrun cluster monitor` or TUI that a shell on that host started — so run monitors and
 interactive work from a node outside the boot set, or from the workstation; journald dropped 30225 kernel
 messages in the second event, so a process absent from `journalctl -k` has not been shown to survive.
+Before a quartet boot, prove the pool answers — `df -h /mnt/beegfs`, or a `timeout 5 ls` of a snapshot
+directory under it — because a dead pool presents as a launch frozen in `Planning: probing hardware,
+querying cluster occupancy and model metadata…`, which is a fleet condition and not an arm failure.
 `sparkrun run --memory-limit`, and the portable `executor_config.memory_limit` behind it, exists and
 bounds only the container's host-side anonymous memory: useful against a repack copy, never against the
 weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
