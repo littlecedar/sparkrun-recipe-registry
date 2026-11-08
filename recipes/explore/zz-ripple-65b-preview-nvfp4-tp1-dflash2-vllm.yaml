@@ -29,6 +29,10 @@ metadata:
   draft_model: ricursiveAI/Ripple-65B-Preview-DFlash2
   model_draft_dtype: bf16
   tags: explore, reasoning, tools, large_context, agent
+  # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
+  # metrics rollout, so its flags are unverified for this digest; an unknown flag
+  # is an argparse boot failure. Instrument only after a per-pin --help read.
+  instrumented: false
 executor_config:
   entrypoint: ""
 env:

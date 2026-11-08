@@ -55,6 +55,10 @@ metadata:
   model_dtype: mxfp4
   kv_dtype: bf16
   tags: large_context
+  # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
+  # metrics rollout, so its flags are unverified for this digest; an unknown flag
+  # is an argparse boot failure. Instrument only after a per-pin --help read.
+  instrumented: false
   caveats: >
     License `other` / `kimi-k3.1-pro`, inherited from moonshotai/Kimi-K3.1-Pro with
     the LICENSE linked from the card — not Apache-2.0. Pruning is calibration-free

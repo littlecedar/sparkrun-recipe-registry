@@ -50,6 +50,10 @@ metadata:
   kv_dtype: bf16
   draft_model: LithosAI/Kimi-K3.1-Pro-DSpark
   tags: large_context, speculative-decode
+  # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
+  # metrics rollout, so its flags are unverified for this digest; an unknown flag
+  # is an argparse boot failure. Instrument only after a per-pin --help read.
+  instrumented: false
   caveats: >
     One verified link, one open, recorded not hidden. (1) ENGINE: verified against the
     pinned image itself (2026-11-08, arm64 pull + inspection): its config/speculative.py

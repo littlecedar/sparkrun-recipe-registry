@@ -14,6 +14,10 @@ metadata:
   model_mtp_dtype: bfp16
   kv_dtype: fp8
   tags: lcg_favorite, vision, reasoning, agent, tools
+  # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
+  # metrics rollout, so its flags are unverified for this digest; an unknown flag
+  # is an argparse boot failure. Instrument only after a per-pin --help read.
+  instrumented: false
 
 mods:
   - "@eugr/mods/drop-caches"
