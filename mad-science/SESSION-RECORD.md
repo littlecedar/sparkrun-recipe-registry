@@ -5465,6 +5465,9 @@ proposed with its check and exit code so it lands as its own change with its own
   is now dangling** — `9606127` is reachable from no ref here and is not on `origin/main`, because
   the same content was re-applied onto the remote tip and pushed as `8668667` when the direct push
   was refused; cite `8668667`, which is the commit `origin/main` carried.
+
+## 2026-11-08 12:21 ET — the pool as read by the tick that found it already back (appended inside the section above)
+
 - **The pool came back at 12:19 and the body survived the crash byte-intact**: `.30`'s three units read
   `active active active` at 12:20:37 ET, `df` 23T/14T used/9.0T avail at 60%, `ls` 111 entries, 96
   safetensors shards, zero `.incomplete`, and `du -sL --apparent-size -B1` on the revision-`fc72e5a1…`
@@ -5481,6 +5484,9 @@ proposed with its check and exit code so it lands as its own change with its own
   field and reported `dedup=0.00 GiB` over the 112 files the same pipeline had just counted — which
   reads exactly like an empty body. Use `du -sL --apparent-size -B1` (the sanctioned instrument) or a
   python payload, and never trust a remote total that disagrees with its own file count.
+
+## 2026-11-08 12:22 ET — corrections to both readings above, and the gate that would have caught attempts 4–6
+
 - **Correction to the two bullets above, in the direction they both point.** The 17.3 MiB gap between
   this tick's `find -L` sum over `*.safetensors` (`475 507 835 896 B`) and the sanctioned
   `du -sL --apparent-size -B1` tree total (`475 525 935 884 B`) is **the 16 non-shard files** —
@@ -5494,6 +5500,22 @@ proposed with its check and exit code so it lands as its own change with its own
   section (`12:18 ET`) names the same `12:06:46` `ActiveEnterTimestamp` it observed rather than
   caused. Two sessions disagreeing about who wrote a timestamp is the reason the start command and
   its two timestamps are recorded here in full.
+- **The gate that would have saved attempts 4–6, and why it is not in this commit.** The failure is
+  detectable before `[3/6] Distributing resources`: the arm never reached `sparkrun`'s registry step,
+  it died resolving `~/.cache/huggingface/token`, which is pool-backed. The shape that fits this
+  harness is the one `rc=7 REPLAYED, NOT MEASURED` already uses
+  (`tools/run-arm.sh:543-545`): a pre-flight `test -r` on the resolved cache root mapped to its own
+  exit code, worded so it can never be read as an arm verdict — and **not `rc=8`**, which the slot
+  gate already owns (`:188`). Not landed here because `tools/run-arm.sh`'s test module
+  (`tests/test_run_arm_tool.py`) and `tools/README.md` are both modified by peer sessions in this
+  same minute: a gate without its test is a half-change, and a half-change in that file set is the
+  clobber shape this ledger keeps recording. The row to land it belongs in `queue.json` when that
+  file is quiescent, with the code and the test in one commit.
+- **The alternative remedy to a bare restart, for whoever owns `.30`'s units.** `Result=oom-kill`
+  with `NRestarts=0` means systemd did exactly what it was configured to do — nothing. Protecting
+  the storage daemons (`OOMPolicy=`, `OOMScoreAdjust=-900`) or keeping quartet ranks off `.30` are
+  both real options; a restart alone is the option that already failed once at 11:27:57 and would
+  fail again under the same pressure.
 
 ## 2026-11-08 12:22 ET — the board's pool row after the correction
 
@@ -5568,6 +5590,30 @@ Two defects found while folding this hour's board, both cheap to state and neith
   delimiter row is intact — the defect is per-row, not per-table. The fix belongs in the renderer
   (escape `\|`), not in the notes: a note is prose and an operator will type a pipe again.
 
+## 2026-11-08 12:34 ET — the head clone is diverged, not merely stale
+
+- **`d99c3e2` ("Ledger: the pool is back and the body survived the OOM byte-intact", the head's
+  `HEAD` at 12:26) is not an ancestor of `origin/main`** — `git merge-base --is-ancestor d99c3e2
+  origin/main` fails on the workstation, and `git diff --stat origin/main d99c3e2` is not empty
+  (11 files, 42 insertions / 444 deletions travelling backwards), so the head clone carries a local
+  commit whose content was re-applied differently on the remote. Its upstream ref is also gone
+  (`## main...origin/main [gone]`), so `git pull` there fails before it can merge anything. Reported,
+  not touched: rewriting refs on the syncthing source of truth is the operation this repo forbids
+  outright, and the content is already reachable on `origin/main` under the commits that were
+  pushed. The board's `head clone` row carries the measurement.
+
+## 2026-11-08 12:42 ET — the chore-row reconciliation gets a home off the board
+
+- **`03f7b695`'s clause is the only landed row on the 12:xx boards with no other home** (`git grep`
+  finds it nowhere but `STATUS.md`; `619e786`'s dependency-gap and 7,303 B facts already live in
+  `recipes/explore/README.md` and the DSpark recipe, and `8a4aab6`'s `read-tree`/census-gap facts are
+  already below): it reconciled the six chore rows by evidence — three closed against `4aabfc87` and
+  `3e6c8ed9`, one narrowed to `task-queue.py`'s `_save` having no compare-and-swap (now the open
+  `task-queue-write-clobbers-live-claim` row), two verified open with `file:line` gaps — and cleared
+  nine finished rows' `blocks` pointers so four trackers stopped reading as gated by done work. The
+  register is the artifact and carries the resulting state; this line carries the reasoning, since a
+  board regeneration would take it.
+
 ## 2026-11-08 12:38 ET — a launch can fail for reasons that read as arm failures, and a capture that quits early is not evidence
 
 - **Infrastructure failure wore the arm's own vocabulary.** Leases @3–@6 of
@@ -5592,9 +5638,32 @@ Two defects found while folding this hour's board, both cheap to state and neith
   observed it: name the instrument in the receipt (a daemon status, a capture window), and when the
   instrument did not run or quit early, the row says `unattributable`/`untried`, never `failed`.
 
+## 2026-11-08 12:42 ET — one window held two faults, and the error string names only one of them
+
+- **The 12:38 section and this tick's 12:20 section are both true about attempts 4–6, and the
+  difference matters for the next failure of the same shape.** Measured by this tick before any fix:
+  the BeeGFS servers were `Result=oom-kill` from **11:27:57** and `ls /mnt/beegfs` returned ECOMM on
+  all six nodes until **12:07:21**, i.e. across the whole 12:06:35–12:07:04 lease window. Measured by
+  the 12:38 tick: the per-node `sparkrun` daemons were `inactive`, and `sparkrun daemon start` let
+  the next lease reach `[6/7]`. Both conditions were live at once, so neither reading is wrong — but
+  the **error string discriminates**: `[Errno 70] Communication error on send` is the BeeGFS client's
+  ECOMM (`errno 70`, `ECOMM`), raised by `stat` on a pool-backed path, and a stopped local daemon
+  does not produce it. What a stopped daemon produces is a *different* failure at the same step.
+- **So the pre-flight owed is not one check but two, and they belong at different layers.** A pool
+  probe (`test -r` on the resolved cache root, mapped to its own exit code so it can never read as
+  an arm verdict) covers ECOMM; a daemon-status probe covers the `inactive` case the 12:38 tick
+  found, which `9ef01bc` is already adding as a one-status-per-host preflight. Neither substitutes
+  for the other, and a receipt that names only one of them will mis-file the next occurrence.
+- **The discriminator that would settle it, for whoever repeats this:** with the pool up and the
+  daemon down, the token `stat` succeeds and the failure moves to the distribution step's daemon
+  call; with the pool down and the daemon up, it is ECOMM on the token path. One lease on each side
+  separates them in ten minutes, and the second half is already available — attempt 7 ran after both
+  repairs, so its failure is neither of these classes.
+
 ---
 
 ## 2026-11-08 12:45 ET — the pruned75 body is complete the way a boot needs, and `.30`'s storage server is the quartet's co-tenant
+
 - **The entry count the board quotes both ways is one file, and that file is hidden.** The board
   carries **112** entries from the 11:05 pre-outage read and **111** from the post-recovery reads,
   which reads like the outage cost something. It did not: `ls -a` on
@@ -5618,75 +5687,44 @@ Two defects found while folding this hour's board, both cheap to state and neith
   but not against the 38 G a storage server there can claim, and the cost of getting that wrong is
   fleet-wide: the OOM took the weights away from every node, not just that arm. Either move storage
   off `.30` or budget the host explicitly before the next quartet boot.
+
 ---
 
-## 2026-11-08 13:09 ET — a flag is in effect at the engine's argument dump, not at the command that carried it
+## 2026-11-08 12:44 ET — `nice_perlman` stopped itself, and the probe body went with it
 
-- **Six attempts inferred the marlin lever from the launcher side; one read of the engine settled it.**
-  The arm's receipt env reads `EXTRA_SGLANG_ARGS=--moe-runner-backend marlin` (`state.json`), and that
-  is what the previous attempts were judged on — a launcher that passed the string was read as an
-  engine that had received it. It is not the same statement. The proof is the engine's own argument
-  dump: `'moe_runner_backend': 'marlin'` in
-  `zz-ds4-1017-sm121-arm3-control-marlin.prev-113207/launch.log` (11:26, the boot that then overran
-  the host) and again in `.prev-130235/launch.log` (12:57). The propagation point is the dump, and
-  the earlier `-o extra_args` lesson is the same lesson one layer down: a channel that silently
-  drops an option looks identical to an option that arrived, until the engine prints its argv.
-- **The rule.** When a lever's effect is the question, the receipt must carry the *consumer's* view of
-  it — the engine's argument dump, the resolved config, the loaded method — not the producer's
-  intent. "The flag was passed" is a claim about our command line; "the flag is in effect" is a claim
-  about the engine, and only the second one can overturn a fit-negative.
-- **What stays open.** Whether a marlin-served quartet boot fits the host is unmeasured: the flag
-  reaching the engine is not the arm fitting, and the earlier input-pressure death is provisional
-  until a boot that carries marlin at the dump survives weight load.
+- **The 12:04:47→12:06:28 gap resolved from `.30`'s own event stream** (the daemon has run since
+  2026-11-05, so `docker events --since 2026-11-08T11:55:00 --until 2026-11-08T12:09:00` still
+  replays it; a bare `--since 12:00` is refused, it wants a full timestamp or a duration):
+  `nice_perlman` (`ghcr.io/littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`) ran
+  `/opt/dsv41/boot.py health` on a ~5 s loop, **nine `exec_die exit=1`** up to 12:06:14, then
+  **`die exit=0` at 12:06:19** and `destroy` the same second. A graceful exit and auto-remove, not a
+  kill and not an OOM: the earlier wording ("came and went") under-described it, and "failed on the
+  empty pool" would over-claim, because the health probe's own body was removed with the container and
+  nothing names why the gate returned 1. What is established: while it ran, all six nodes answered
+  `Communication error on send` on `/mnt/beegfs/huggingface/hub`, so it never loaded weights.
+  Board row corrected in place at 12:43; a peer's `attempt 7` and `pool` rows on the same board carry
+  the watchdog series and the `ActiveEnterTimestamp` recovery, so only this cell was mine to change.
 
-## 2026-11-08 13:22 ET — pre-registration: a cell timestamped in either pool-down window is invalid, not weak
+## 2026-11-08 13:33 ET — `.35`'s unattributed root rise had an author, and the campaign's counts moved past the row that quoted them
 
-The rule is written before the run that would test it, because the alternative is deciding afterwards
-whether a number we already have is allowed to stand.
-
-- **Window A — invalid: `11:27:56` to `~12:07:30`.** Opened by the 11:27:57 global OOM: the head's
-  `mgmtd`/`meta`/`storage` were killed, and `.31`'s storage died with `Result=oom-kill` at 11:27:57.
-  It closed when those units were started again — `mgmtd` `ActiveEnter 12:06:46`, `meta` and `storage`
-  12:07:21 — and the client's last transient error of that episode is the head kernel's `12:07:28 …
-  Communication error. Node: node_storage_1`. With no verified snapshot read inside the gap, the
-  conservative close is **12:07:30**.
-- **Window B — invalid: `12:57:32` until closed, still open.** Degradation began with the arm's own
-  OOM at 12:57:32–42 (`.31` storage `Result=oom-kill` 12:57:42, `.33` 12:57:33, while `.32`/`.34`/`.35`
-  storage stayed up, so the pool was degraded rather than unreadable for those ~100 s) and became a
-  full outage at 12:59:14, when the head's `mgmtd`/`meta`/`storage` all exited `Result=signal`.
-  Nothing restarted them (`Restart=no`, `NRestarts=0`), so there is **no close yet**.
-- **Admissible: `12:07:30` to `12:57:31`.** This is the interval worth protecting from a blanket
-  quarantine: the marlin `@8` boot ran inside it and died host-side from the OOM, which is a separate,
-  already-recorded cause and not a pool artefact.
-
-**The rule.** A cell timestamped inside `11:27:56–12:07:30` **or** at/after `12:57:32` is **invalid,
-not weak**: a dead pool mount presents as an empty `/cache`, so an arm can pass readiness and produce
-cells against weights it could not read. Such a receipt is not quoted as a measurement, and the lane
-and board say "invalid — pool window" rather than leaving a number standing. Because B's close is
-unknown, its candidates are invalid now and are re-opened only if their cell predates a verified
-snapshot read on their own host.
-
-**What closes a window** — all three, on the host that will boot an arm, after the owner authorises the
-service restart: `timeout 10 ls /mnt/beegfs/huggingface/hub/<a model that recipe names>/snapshots/`
-succeeds, `df -h /mnt/beegfs` answers, and `systemctl is-active beegfs-storage` reads `active` there.
-"The mount exists" is not the proof, and recovery is an owner-authorised service action, not a rebuild:
-the payload is intact (`/srv/beegfs/storage` 1,377,231,104,535 B, `meta` logged `Root directory loaded.`)
-and the address question is closed (the head's RDMA rail address answers on the rail; `:8008` refuses
-because nothing listens).
-
-**Candidates, by side of the line — and none of them carries a cell.** A `find` over `~/benchmarks`
-for `ladder.csv`/`ladder.json`/`house.json`/`house.csv`/`client.json` newer than 11:27 returns nothing:
-the post-window work was all boot attempts, and their directories hold launch logs and run-arm receipts
-only. Every `ladder.*`/`house.*` artefact on the shared root therefore predates window A, and nothing
-is retracted by this rule today. Per arm, so a later reader can place each one:
-
-- **Window A** — marlin attempt 1 (`zz-ds4-1017-sm121-arm3-control-marlin.prev-113207`, launch 11:26,
-  the boot whose `Load weight begin` preceded the OOM), `@2` (11:36), and `@3`–`@6`
-  (12:06:35–12:07:04): **no cells**. The `@3`–`@6` failures (`[3/6] Distributing resources`, `Errno 70`
-  on the HF token path) sit inside A's tail, which is the pool's signature — this **revises** the earlier
-  daemon attribution in this record: those four leases are explained by the window without it, and the
-  daemon-preflight work stands on its own evidence, not on them.
-- **Admissible middle** — `@7` (12:10–12:13, watchdog `serve dead … rc=3` at t=135 s) and `@8` (12:55:48
-  start, interrupted at `Step 6/7`): **no cells**, so the interval stays admissible without a cell to test it.
-- **Window B** — attempt 9 (13:02:35) and later leases (13:07–13:08 receipts): **no cells**, and nothing
-  from here may be quoted until the restart proof exists.
+- **A 50 s vLLM-nightly container ran on `.35` between two census reads and nothing in the repo names
+  it.** Created **13:06:16**, `Up 11 seconds` at the 13:06:08-adjacent inspect, gone by the 13:07:06
+  read: image `ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x` at `sha256:cf5a2a53…`, image id
+  `sha256:e90182b5…`, `Config.Labels` carrying **no** `sparkrun.recipe`, and `docker volume ls` empty
+  on the node — a bare `docker run`/`--rm`, not a sparkrun task, started in the same window the pool
+  went unreadable. It is the author of the fall-to-rise that the 13:07 board carried unattributed:
+  the 58 s byte pair `.35 +45 846 528 B` (43.7 MiB) is that image's tail, and the earlier
+  13:01:21→13:07:00 pair's `+3.699 GB` is the same pull arriving (the nightly layer, ~3.4 GiB). So
+  that column needs no per-node mystery; only `.34`'s −192.8 MiB remains unattributed. The tick
+  removed nothing, and the container had already removed itself.
+- **The campaign row's counts are a mid-window read, and the settled numbers are different.** The
+  13:26 board quotes `9 measured / 8 blocked / 1 leased` from **13:02:54**; at **13:08:07** and again
+  at **13:30** `director status` reads **9 measured, 9 blocked, no lease**, `state.json` 13:13:38,
+  every arm `lease None`, the marlin arm at **`attempts=11`** and back from `failed` to `blocked` on
+  the register reconciliation. The direction the row states (nothing plannable) is right either way,
+  which is why this is a count correction and not a finding: a lease-read taken mid-flight describes
+  the flight, not the state. Left as an appended row rather than a rewrite of the peer's cell.
+- **`.35`'s later container is a different one and does not supersede the above.** A peer session's
+  read-only source grep (`focused_babbage`, `lmsysorg/sglang:dev-cu13@sha256:0b3e3970…`, started
+  13:18:40) is the 13:26 board's `.35` row; the two are disjoint in time, so neither accounts for the
+  other's byte slice.
