@@ -245,6 +245,9 @@ def parse(argv):
     ap.add_argument("--chars-per-token", type=float, default=None,
                     help="skip calibration and size the haystack with this ratio")
     ap.add_argument("--json", default=None, help="write the full result here")
+    ap.add_argument("--image-id", default=None,
+                    help="served image id/ref, echoed into the report so a receipt "
+                         "pins the image its cell ran on")
     ap.add_argument("--selftest", action="store_true", help="offline mock; no serve needed")
     ap.add_argument("--version", action="version", version="longctx-cell " + VERSION)
     return ap
@@ -294,7 +297,8 @@ def main(argv=None):
     report = {
         "tool_version": VERSION, "base_url": args.base_url, "model": model,
         "context_length": args.context_length, "max_tokens": args.max_tokens,
-        "chars_per_token": round(cpt, 4), "cells": cells, "problems": problems,
+        "chars_per_token": round(cpt, 4), "image_id": args.image_id,
+        "cells": cells, "problems": problems,
     }
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:

@@ -76,5 +76,17 @@ class Summary(unittest.TestCase):
         self.assertIn("unverified", " ".join(TOOL.verdict([unverified], 200_000)))
 
 
+class ImageId(unittest.TestCase):
+    def test_flag_is_echoed(self):
+        # A receipt has to pin the image its cell ran on; the id travels through
+        # the tool rather than being reconstructed from the log.
+        args = TOOL.parse([]).parse_args([
+            "--base-url", "http://x", "--context-length", "8k",
+            "--image-id", "sha256:1778ec42"])
+        self.assertEqual(args.image_id, "sha256:1778ec42")
+        bare = TOOL.parse([]).parse_args(["--base-url", "http://x",
+                                          "--context-length", "8k"])
+        self.assertIsNone(bare.image_id)
+
 if __name__ == "__main__":
     unittest.main()

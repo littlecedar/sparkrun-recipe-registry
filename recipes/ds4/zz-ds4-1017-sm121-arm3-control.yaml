@@ -1,0 +1,75 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# Same launcher contract as the shipped production recipe: SKIP_PREPARE=1 and
+# the snapshot sparkrun renders from {model} decides the weights, so pin -- not
+# the image's baked REVISION. 1017 ships no chat template; the mod stages the
+# patched copy (a template-less checkpoint with no mod template is refused).
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: sglang
+# Local-only SM121 image, rebuilt 2026-11-07 as the arm-5 unblock (same
+# DeepGEMM v0.2.0 + SM120 paged-sparse MQA-logits port as 0.2.0, plus the arch
+# widen for capability major 12 and BooleanOptionalAction on
+# --enable-decoder-swa-bounded-replay). Built from
+# ~/builds/deepgemm-sm121/ctx/Dockerfile.sm121.
+# Image ID (local, byte-identifies the artifact; nothing pushed):
+#   sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7
+# It exists only on the head; carry it with the command in recipes/ds4/README.md
+# "SM121 survey arms" before a boot. distribution_config disables sparkrun's
+# image distribution, which would try to pull this local tag from a registry.
+container: dsv41-sm121-dg:0.2.1
+distribution_config:
+  containers:
+    enabled: false
+min_nodes: 4
+description: >-
+  Arm-5's paired CONTROL (`zz-` trial): arm 3's tree and serve line on the SAME
+  digest as `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`dsv41-sm121-dg:0.2.1`),
+  with decoder SWA bounded replay OFF in both arms per DEEPSEEK.md section 10.7,
+  so the only difference between the pair is `--dsv4-attn-backend trtllm`.
+  This is NOT the indexer-scoring arm: that measurement is
+  `zz-ds4-1017-sm121-indexer-scoring.yaml` on `:0.2.0` (its own control is the
+  shipped canary-roce-aff52fa5 line), and its run must not be read as arm 5's
+  control -- the two images differ.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: trial
+mods:
+  - "mods/dsv41-sglang-overlay"
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  dspark_block_size: 5
+env:
+  # c3 adapter exclusions (see apply_recipe_env in the overlay launcher).
+  DSV41_C3_EXCLUDES: "1"
+  # The candidate tree floors sglang-kernel at 0.4.9, whose aarch64 wheel is ABI-
+  # incompatible with the base's torch 2.13.0+cu130; this arm holds the shipped
+  # kernel (0.4.7) and skips the gate.
+  SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
+  # The control half of section 10.7's replay-off requirement.
+  SWA_BOUNDED_REPLAY: "0"
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+readiness:
+  # inference must stay false: /health answers 200 the moment the server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600

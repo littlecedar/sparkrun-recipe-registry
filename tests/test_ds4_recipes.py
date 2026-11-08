@@ -1098,6 +1098,23 @@ class SglangLaneContract(unittest.TestCase):
         )
         self.assertEqual(launcher.extra_sglang_args({"ENABLE_CACHE_REPORT": "0"}), "")
 
+    def test_replay_disable_knob_emits_the_negated_flag(self):
+        # Section 10.7 needs --no-enable-decoder-swa-bounded-replay on the arm-5
+        # pair; the knob is the launcher-side spelling so both recipes set it the
+        # same way. Unset and enabled must contribute nothing (the shipped canary
+        # has no --no- form).
+        launcher = _launcher_module()
+        self.assertIn(('SWA_BOUNDED_REPLAY', '--no-enable-decoder-swa-bounded-replay'),
+                      launcher.SGLANG_EXTRA_NEGATED_FLAGS)
+        self.assertNotIn("--no-enable-decoder-swa-bounded-replay",
+                         launcher.extra_sglang_args({}))
+        self.assertNotIn("--no-enable-decoder-swa-bounded-replay",
+                         launcher.extra_sglang_args({"SWA_BOUNDED_REPLAY": "1"}))
+        self.assertEqual(
+            launcher.extra_sglang_args({"SWA_BOUNDED_REPLAY": "0"}),
+            "--no-enable-decoder-swa-bounded-replay",
+        )
+
     def test_nccl_buffsize_is_not_context_length(self):
         # NCCL_BUFFSIZE is a NCCL *connection buffer* size (pinned memory per
         # connection), unrelated to the token context length; it is a fixed byte

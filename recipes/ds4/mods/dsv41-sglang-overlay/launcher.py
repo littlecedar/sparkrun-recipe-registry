@@ -464,6 +464,15 @@ SGLANG_EXTRA_BOOL_FLAGS = (
 )
 # A value in this set disables its flag (the engine's own default applies).
 
+# Flags whose OFF state is a --no- form: the env key with a disabled value appends
+# the negated flag, overriding the flag boot.py appends unconditionally. Requires
+# an image whose arg carries BooleanOptionalAction (dsv41-sm121-dg:0.2.1+); the
+# shipped canary's arg has no --no- form and would reject it, so leave the key
+# unset there.
+SGLANG_EXTRA_NEGATED_FLAGS = (
+    ("SWA_BOUNDED_REPLAY", "--no-enable-decoder-swa-bounded-replay"),
+)
+
 _DISABLED_VALUES = frozenset({"", "0", "off", "none", "false", "no"})
 
 
@@ -483,6 +492,10 @@ def extra_sglang_args(env: dict[str, str]) -> str:
     for key, flag in SGLANG_EXTRA_BOOL_FLAGS:
         # A bare flag: present when its env key is set to anything enabled.
         if env.get(key, "").strip().lower() not in _DISABLED_VALUES:
+            flags.append(flag)
+    for key, flag in SGLANG_EXTRA_NEGATED_FLAGS:
+        # Disabled value -> append the --no- form; unset/enabled contributes nothing.
+        if env.get(key, "").strip().lower() in _DISABLED_VALUES - {""}:
             flags.append(flag)
     extra = env.get("EXTRA_SGLANG_ARGS", "").strip()
     if extra:

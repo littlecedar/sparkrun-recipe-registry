@@ -953,57 +953,81 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 
 ## SM121 survey arms (`zz-`, DeepGEMM gate cleared 2026-11-07)
 
-Two trial arms on one local-only image, authored for queue rows
-`w4-survey-arm3-indexer-scoring` and `w4-survey-arm5-trtllm-mla`. Neither is a ship candidate;
-both ride the same production environment as the shipped recipe (`DSV41_C3_EXCLUDES=1`, kernel
-0.4.7 held, `--fp8-gemm-backend flashinfer_cutlass`, DSpark k=5, 1M window).
+Trial arms on two local-only images. Neither is a ship candidate; all ride the production
+environment (`DSV41_C3_EXCLUDES=1`, kernel 0.4.7 held, `--fp8-gemm-backend flashinfer_cutlass`,
+DSpark k=5, 1M window).
 
-| | |
-|:--|:--|
-| Arm 3 | `zz-ds4-1017-sm121-indexer-scoring.yaml` — candidate-block indexer scoring (DEEPSEEK.md section 10.5); control is the shipped `canary-roce-aff52fa5` line |
-| Arm 5 | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` — same image plus `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"` (section 10.7); control is arm 3, so the DeepGEMM half is held fixed |
-| Image | `dsv41-sm121-dg:0.2.0`, ID `sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b` — built on the head from `dsv41-c3-reconciled:103ad321`; Dockerfile and patch provenance in `~/builds/deepgemm-sm121/ctx/` (`Dockerfile.sm121`, `src/PROVENANCE.md`). Local tag only, nothing pushed, so both recipes set `distribution_config.containers.enabled: false`. |
-| Carry | 33.9 GB, image exists only on the head: `docker save dsv41-sm121-dg:0.2.0 \| ssh red@<node> 'docker load'`, once per node that boots a rank; then `docker image inspect -f '{{.Id}}' dsv41-sm121-dg:0.2.0` on each node must print the ID above. A `docker save` of 33.9 GB over the fabric is minutes, not a window. |
+| image | id (local, byte-identifies the artifact) | what it is |
+|:--|:--|:--|
+| `dsv41-sm121-dg:0.2.0` | `sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b` | `dsv41-c3-reconciled:103ad321` + DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel (nv_dev `b64107f2`) and the gate widened to majors 10 or 12. |
+| `dsv41-sm121-dg:0.2.1` | `sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7` (33,678,733,557 B) | 0.2.0 plus the two arm-5 tree gates: `arg_groups/deepseek_v4_hook.py` admits capability major 12 (GB10 is 12,1) and `arg_groups/fields/exec_.py` declares `--enable-decoder-swa-bounded-replay` with `BooleanOptionalAction`, so `--no-enable-decoder-swa-bounded-replay` parses. |
+
+Both are built on the head from `~/builds/deepgemm-sm121/ctx/Dockerfile.sm121` (patch provenance in
+`src/PROVENANCE.md`, the two tree patches in `patch_sm121_tree.py`; the build RUNs them, so an
+anchor mismatch fails the build rather than shipping a half-patched tree). Local tags only, nothing
+pushed, so every recipe here sets `distribution_config.containers.enabled: false`.
+
+**Both images pass the kernel gate**: 0.2.1 re-ran `sm121_sparse_paged_ref_gate.py` on the head
+2026-11-07, 8/8 cells, `calc_diff` 1.31e-05 (MXFP8) / 1.32e-05 (MXFP4) against the FP32 torch
+reference, `GATE PASS`.
+
+**Carry.** Each image is 33.7-33.9 GB and exists only on the head:
+
+```sh
+docker save dsv41-sm121-dg:<tag> | ssh red@<node> 'docker load'
+```
+
+once per node that boots a rank; then `docker image inspect -f '{{.Id}}' dsv41-sm121-dg:<tag>` on
+each node must print that image's id. `survey-transfer` owns the movement — coordinate before
+booting, and carry `:0.2.1` only for the arm-5 pair below.
+
+| arm | recipe | control |
+|:--|:--|:--|
+| 3, indexer scoring (section 10.5) | `zz-ds4-1017-sm121-indexer-scoring.yaml` (`:0.2.0`) | the shipped `canary-roce-aff52fa5` line |
+| 3, arm-5's paired control | `zz-ds4-1017-sm121-arm3-control.yaml` (`:0.2.1`, replay off) | — |
+| 5, TRT-LLM sparse MLA (section 10.7) | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) |
+
+The `:0.2.0` arm-3 run is **indexer-scoring evidence, not arm 5's control**: it is a different
+image from the treatment, so reading its cells as the arm-5 control would fold an image delta into
+the backend delta. The arm-5 pair is `arm5-trtllm-mla` vs `arm3-control`, both on `:0.2.1`, both
+with decoder SWA bounded replay OFF (section 10.7's control design; the launcher turns
+`SWA_BOUNDED_REPLAY=0` into `--no-enable-decoder-swa-bounded-replay`, which wins because boot.py
+appends its own `--enable-...` earlier in argv). The knob must stay unset on the shipped canary:
+that image's arg has no `--no-` form and would reject it.
 
 ### Measurement: one command per arm
 
 `tools/run-arm.sh` stops the serve after its own ladder, so a survey client rides the executor's
-`ARM_EXTRA_CLIENT` hook (runs after ladder/house, before the unconditional stop; the string is
-shell-evaluated there, so `$L`, `$NODE`, `$PORT`, `$SERVED` are in scope). `tools/longctx-cell.py`
-is that one command: it builds a unique synthetic retrieval haystack at the requested length, plants
-one access code at ~50 %, sends it greedily as a streaming request, and reports median ms/step (the
-SSE chunk gap, which is one decode step under speculative decoding), per-request tok/s, aggregate
-tok/s, the server's own `usage.prompt_tokens`, and the needle result. Exit `0` every cell passed,
-`3` a measured cell failed a check (needle miss, prompt shorter than requested, request error).
-
-Arm 3 — 1M decode step plus retrieval:
+`ARM_EXTRA_CLIENT` hook (after ladder/house, before the unconditional stop; the string is evaluated
+there, so `$L`, `$NODE`, `$PORT`, `$SERVED` are in scope). `tools/longctx-cell.py` is that command:
+it builds a unique synthetic retrieval haystack at the requested length, plants one access code at
+~50 %, sends it greedily as a streaming request, and reports median ms/step (the SSE chunk gap, one
+decode step under speculative decoding), per-request and aggregate tok/s, the server's own
+`usage.prompt_tokens`, the needle result, and the `--image-id` it was given. Exit `0` every cell
+passed, `3` a measured cell failed a check, `1` endpoint unreachable. Every survey receipt must
+carry the image id; pass it from the head so the receipt pins the artifact:
 
 ```sh
-ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 1039999 --concurrency 1 --max-tokens 128 --json "$L/longctx-1m.json"' \
+IMG=$(docker image inspect -f '{{.Id}}' dsv41-sm121-dg:<tag>)   # same id on every node
+```
+
+Arm 3 — 1M decode step plus retrieval (add `--image-id "$IMG"`):
+
+```sh
+ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 1039999 --concurrency 1 --max-tokens 128 --image-id "$IMG" --json "$L/longctx-1m.json"' \
 ARM_EXTRA_TIMEOUT=3600
 ```
 
-Arm 5 — 128K at C5 and C10:
+Arm 5 and its control — 128K at C5 and C10, same command for both boots:
 
 ```sh
-ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 131072 --concurrency 5,10 --max-tokens 8 --json "$L/longctx-128k.json"'
+ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id "$IMG" --json "$L/longctx-128k.json"'
 ```
 
 Falsifiers. Arm 3: 1M ms/step does not fall by >=5 % against the control while the short ladder is
 flat, or the needle stops being found. Arm 5: C5/C10 does not clear the control's range, or the
 needle misses. The 1M cold prefill measured 235-270 s in window 4, so arm 3 needs the raised hook
 timeout; the default 1800 s is enough for 128K.
-
-### Arm 5 preflight gate (read before spending a slot)
-
-The tree refuses the flag on GB10. `srt/arg_groups/deepseek_v4_hook.py` asserts
-`is_sm100_supported()` ("--dsv4-attn-backend trtllm requires an SM100/SM103 (Blackwell) GPU") and
-`srt/utils/common.py` defines that predicate as capability major 10 only, so a GB10 (12,1) launch
-aborts during argument assembly. Verified against the image on the head 2026-11-07
-(`docker run --rm ... python3`), not by boot. Second divergence from section 10.7: `boot.py`
-appends `--enable-decoder-swa-bounded-replay` unconditionally and the arg has no `--no-` form, so
-"replay off in both arms" is not reachable from this launcher. Both need a tree/launcher change
-before arm 5 can measure anything; arm 3 has no such gate.
 
 ## Upgrade candidates (measured elsewhere, not queued)
 

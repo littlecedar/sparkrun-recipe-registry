@@ -6,33 +6,38 @@ model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # patched copy (a template-less checkpoint with no mod template is refused).
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 runtime: sglang
-# Local-only SM121 image (queue row arch-deepgemm-sm12x-paged-sparse, receipt
-# mad-science/SESSION-RECORD.md 2026-11-07 + ~/builds/deepgemm-sm121/ctx):
-# DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel backported from
-# deepseek-ai/DeepGEMM nv_dev b64107f2 and the arch gate widened to 10 or 12.
+# Local-only SM121 image, rebuilt 2026-11-07 as the arm-5 unblock (same
+# DeepGEMM v0.2.0 + SM120 paged-sparse MQA-logits port as 0.2.0, plus two tree
+# patches recorded in the lane README: the trtllm backend's arch gate accepts
+# capability major 12, and --enable-decoder-swa-bounded-replay gained
+# BooleanOptionalAction). Built from ~/builds/deepgemm-sm121/ctx/Dockerfile.sm121
+# (patch_sm121_tree.py + probe_replay_flag.py are RUN in the build).
 # Image ID (local, byte-identifies the artifact; nothing pushed):
-#   sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b
+#   sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7
 # It exists only on the head; carry it with the command in recipes/ds4/README.md
 # "SM121 survey arms" before a boot. distribution_config disables sparkrun's
 # image distribution, which would try to pull this local tag from a registry.
-container: dsv41-sm121-dg:0.2.0
+container: dsv41-sm121-dg:0.2.1
 distribution_config:
   containers:
     enabled: false
 min_nodes: 4
 description: >-
-  Survey arm 5 (`zz-` trial, queue row w4-survey-arm5-trtllm-mla): the same
-  SM121 DeepGEMM image and c3 tree, switching DeepSeek V4 attention to the
-  TRT-LLM-GEN sparse-MLA backend (DEEPSEEK.md section 10.7: 2.26x kernel
-  geomean at C5/C10/128K on GB10). Control is arm 3 on this same image, so
-  the DeepGEMM half is held fixed and only the backend flag moves.
-  PREFLIGHT GATE, read before spending a slot: the tree refuses this flag on
-  GB10 -- srt/arg_groups/deepseek_v4_hook.py asserts is_sm100_supported()
-  ('requires an SM100/SM103 (Blackwell) GPU') and is_sm100_supported() matches
-  capability major 10 only, so a GB10 (12,1) launch aborts during arg
-  assembly. Also: boot.py appends --enable-decoder-swa-bounded-replay
-  unconditionally and the arg has no --no- form, so section 10.7's
-  replay-off-in-both-arms control is not reachable from this launcher.
+  Survey arm 5 (`zz-` trial, queue row w4-survey-arm5-trtllm-mla): the SM121
+  DeepGEMM image with DeepSeek V4 attention switched to the TRT-LLM-GEN
+  sparse-MLA backend (DEEPSEEK.md section 10.7: 2.26x kernel geomean at
+  C5/C10/128K on GB10).
+  CONTROL IS ARM 3 ON THE SAME DIGEST (`dsv41-sm121-dg:0.2.1`), replay off in
+  both arms -- `zz-ds4-1017-sm121-arm3-control.yaml`. The earlier arm-3 run on
+  `:0.2.0` (`zz-ds4-1017-sm121-indexer-scoring.yaml`) is indexer-scoring
+  evidence, NOT this arm's control: an image delta must not be read as the
+  backend delta.
+  Image 0.2.1 carries the two gates this arm needed: the trtllm backend's
+  arch assert accepts capability major 12 (GB10 is 12,1) and the replay flag
+  parses `--no-enable-decoder-swa-bounded-replay`, which the launcher appends
+  when `SWA_BOUNDED_REPLAY=0` (the shipped canary's arg has no --no- form, so
+  the knob is unset everywhere else). Requires 0.2.1 carried to the four rank
+  nodes.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -56,15 +61,15 @@ env:
   # c3 adapter exclusions (see apply_recipe_env in the overlay launcher).
   DSV41_C3_EXCLUDES: "1"
   # The candidate tree floors sglang-kernel at 0.4.9, whose aarch64 wheel is ABI-
-  # incompatible with the base's torch 2.13.0+cu130 (undefined
-  # c10::cuda::CUDAErrorLogCapture on import) and no compatible wheel exists, so
-  # this arm holds the shipped kernel (0.4.7) and skips the gate; holding it
-  # also isolates the tree delta in the A/B. Divergence recorded in
-  # ~/builds/ds4-report/c3-NOTES.md.
+  # incompatible with the base's torch 2.13.0+cu130; this arm holds the shipped
+  # kernel (0.4.7) and skips the gate.
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
-  # The treatment. boot.py splits EXTRA_SGLANG_ARGS on whitespace and appends
-  # it to its own argv, so the backend flag rides without editing the launcher.
+  # The treatment.
   EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"
+  # Section 10.7's control design: replay OFF in both arms. The launcher turns
+  # this into --no-enable-decoder-swa-bounded-replay, which wins because boot.py
+  # appends its own --enable-... earlier in argv.
+  SWA_BOUNDED_REPLAY: "0"
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot
