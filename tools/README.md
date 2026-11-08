@@ -168,9 +168,13 @@ same rc is appended to `house.yaml` when that marker exists — never manufactur
 bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the client's
 result and never changes the arm's own status or cells. The hook receipt also carries `image.txt`
 (the resolved container image id, from `docker inspect` on rank 0) — a local-only survey tag is not a
-digest, so the receipt names what ran. `ARM_RECEIPTS_ROOT` moves the whole receipt
+digest, so the receipt names what ran. `arm_opts.txt` beside it holds the effective `ARM_OPTS`
+verbatim (or `(none)`), because a row's `env` reaches this script as environment and `-o …` is a
+CLI argument: `docker inspect` cannot recover an override that produced the numbers, and a marlin
+`--moe-runner-backend` trial on 2026-11-08 left no record of it. `ARM_RECEIPTS_ROOT` moves the whole receipt
 to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/tp12-<date>/<arm>`. Guarded by
-`ExtraClientHook` in `tests/test_run_arm_tool.py` (ordering, unset no-op, rc recording, timeout
+`ExtraClientHook` and `OverrideEvidence` in `tests/test_run_arm_tool.py` (ordering, unset no-op,
+rc recording, timeout
 bound, no fabricated marker).
 
 **Three consumers read this, and only one of them lives in the repo.** The tracked planner
@@ -1591,6 +1595,9 @@ uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     # --recipe PATH --tp N --env KEY=VALUE (repeatable) make the row machine-runnable: a campaign
     # boots exactly those rows, so `recipe` must be a tracked `recipes/<lane>/<arm>.yaml`, `tp`
     # 1/2/4 and equal to --node-cost, and half a triple (tp without recipe) is refused
+    # `env` reaches run-arm as environment, so a one-off override needs no new recipe:
+    # --env 'ARM_OPTS=-o extra_args=--moe-runner-backend marlin' (recorded verbatim in the
+    # receipt's arm_opts.txt, `(none)` when unset)
 uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
  # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared

@@ -167,12 +167,19 @@ if [ -z "${ARM_ALLOW_FEW_SLOTS:-}" ]; then
 fi
 
 # ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
-# draft-token count). Without it every setting needs its own recipe file.
+# draft-token count). Without it every setting needs its own recipe file. A campaign row's `env`
+# reaches this script as environment, so `ARM_OPTS` is the row's launch-override field: no
+# stop/edit/boot ritual for one trial.
 launch_arm() {
   # shellcheck disable=SC2086
   sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
   LAUNCH=$!
 }
+# The effective overrides verbatim: `-o ...` is a CLI argument, not container env, so
+# `docker inspect` cannot recover it and the receipt would not say which knob produced its
+# numbers (2026-11-08: a marlin `--moe-runner-backend` trial left no such record). `(none)` when
+# unset: an absent file is indistinguishable from evidence that was never written.
+printf '%s\n' "${ARM_OPTS:-(none)}" > "$L/arm_opts.txt"
 launch_arm
 for attempt in 1 2 3; do
   # Give the launcher a moment to fail fast on a held claim before deciding it is fine.
