@@ -3849,3 +3849,28 @@ cleared. Each is homed here with the one clause its own body carries; nothing in
 | 20:33 ET | `1a99f3c` | Made `52f9ce5`'s own repair reachable: `cmd_update` pre-validated, so a queued row carrying a claim failed on the very `update --state queued` the error text prescribes and no command could clear it (`check`, `queue --json` and the director's whole plan failed identically). The target row's claim is now cleared after `_relink` and before the pre-validate when its current state is not running; only the named row is excused. |
 | 20:38 ET | `994dd92` | Regenerated the board on its own 20:32 census (containers 1/1/1/1/1/1, volumes 0), added `.35`'s row for the 19:20 re-split (157 + 56 = 213), probed both halves fresh (136/157 and 36/56 at 20:36, `/health` and `/v1/models` 200, `restarts=0`), re-probed the quartet and campaign rather than carrying them, re-rendered the register (9 open of 82), and read the BeeGFS pool beside the nodes. |
 | 20:42 ET | `1308de8` | Corrected the battery burst operand: `.30`'s 162 s fall is 1,439,483,092,992 − 1,439,467,532,288 = **15,560,704 B**, not the 15,561,728 B the row said (and what its own 96,054 B/s × 162 s implies), because a figure wrong by 1 KB still reads as measured; restored the peer tick's clause that `director status --root d1-20261107` prints `1 measured`, which the "absent status line is not evidence of no lease" rule rests on. |
+
+## 2026-11-07 21:19 ET — the 21:07 board row's writer attribution corrected (third recurrence)
+The 21:07 census row (`0498062`) read `.30`'s 17,877 → 22,791 B/s fall as "the battery's own writes" and
+`.31`'s 29,402 B/s as a burst. Both are the mechanism `7cc9aff` had already been corrected for, and the
+battery cannot carry it: its receipts — `battery.log`, `battery-35.log`, `serve*.log`,
+`threejs-replies*.jsonl`, the render-gate JSONs — all live in the head's
+`~/benchmarks/tp12-20261107/zz-qwen35-4b-3d-coder-q4km-llamacpp-r2/`, and that tree's `du` is 1,610 B/s,
+**0.8 %** of the fall it was invoked to explain. This is the third regression of the same attribution
+(the 20:35 section, then `7cc9aff`, now `0498062`), so the fix was to measure the discriminator in the
+same tick instead of carrying the established ratio forward:
+
+- **pool beside roots, same pair, 21:14:14 → 21:16:47 ET (153 s):** pool `/mnt/beegfs`
+  10,950,946,586,624 → 10,950,926,139,392 = **20,447,232 B (133,642 B/s)**; the six roots
+  20,496,384 B (133,963 B/s); **ratio 1.00240**, against 20:35's 1.0029.
+- per-node shares, same pair: `.30` 126,815 · `.31` 1,526 · `.32` 1,419 · `.33` 1,392 · `.34` 1,392 ·
+  `.35` 1,419 B/s. The fall is the pool's placement on whichever node holds the chunk, not local work.
+- pool writer still unattributed, and the read says why: `/mnt/beegfs/huggingface/hub` last changed
+  14:35 (top entry `models--ccore--Qwen3.5-4B-3D-Coder`), nothing under it newer than the 15 min to
+  21:17:20, no `.incomplete` blob — not a download in flight.
+
+Corrected in `75e448d`. State at the same read: `.30` battery **COMPLETE 157/157 at 21:14** (125 s/reply
+avg, container up 6 h and idle, `/health` 200), `.35` **51/56 at 21:15** (133 s/reply avg) → 208/213
+replies, ~11 min left. Quartet re-probed 21:16:38: `/health` 200/200/200/200, `/v1/models` 200 on `.31`
+and 404 on `.32`–`.34`, up 47 h 00 m, `restarts=0`. Campaign inactive with 0 live leases across all
+eight `state.json` roots; register 9 open of 82, `check`/`orphans` green.
