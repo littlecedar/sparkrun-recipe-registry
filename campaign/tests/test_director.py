@@ -21,7 +21,7 @@ from pathlib import Path
 from sparkrun_campaign import director as director_module
 from sparkrun_campaign import plan, protocol, state
 
-from .support import lane_doc, manifest, receipt, recipe
+from .support import lane_doc, manifest, receipt, recipe, sidecar_receipt
 
 
 def presence_only(arm_dir: str | Path) -> bool:
@@ -222,6 +222,32 @@ class CompletionIsReadFromReceipts(CampaignCase):
         # The receipt states which house.yaml shape produced its outcome fields.
         self.assertEqual(fields["marker_shape"], "run-arm")
         self.assertEqual(fields["client"], {})
+
+    def test_a_sidecar_receipt_names_the_ladder_it_was_measured_from(self) -> None:
+        # 2026-11-08: this arm's receipt said measured with ladder "" while the artefact held
+        # seven rows; the sidecar has no ladder field, so the field is read from the artefact.
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        sidecar_receipt(self.receipts, lease["arm"], cells=7, score="100")
+        reply = leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        self.assertEqual(reply["status"], "measured")
+        fields = self.receipt_fields("arm-one")
+        self.assertEqual(fields["marker_shape"], "sparkrun_benchmark")
+        self.assertEqual(fields["ladder"], "measured \u2014 ladder.json (7 rows)")
+        self.assertEqual(fields["house_score"], "100")
+
+    def test_a_sidecar_without_a_ladder_artefact_says_absent_not_blank(self) -> None:
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        arm_dir = sidecar_receipt(self.receipts, lease["arm"], score="100")
+        (arm_dir / "ladder.json").unlink()
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        fields = self.receipt_fields("arm-one")
+        self.assertEqual(fields["ladder"], "absent \u2014 no ladder artefact in this receipt")
 
     def test_the_receipt_keeps_the_serve_log_of_a_watchdog_reaped_arm(self) -> None:
         leader, _ = self.build()

@@ -341,9 +341,16 @@ hosts, lease id, attempt, start/end, `rc`, `status`, `reason`, `measurement_dir`
 `watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the outcome fields came
 from: `run-arm`'s flat marker (`suite`/`ladder`/`accuracy_status`) or sparkrun's nested
 `sparkrun_benchmark` sidecar, whose outcome lives under `benchmark`/`results` and which carries
-no ladder field — for it `ladder`/`accuracy_status` stay empty and `house_score` carries the
-sidecar's own `results.json.final_score`, because a fabricated `ladder: ok` would let a sidecar
-recording a failed run read as measured. `client` is the arm-scoped extra client's receipt
+no ladder field of its own. `house_score` carries the sidecar's own `results.json.final_score`,
+because a fabricated `ladder: ok` would let a sidecar recording a failed run read as measured.
+`ladder` is never left blank: a flat marker's own verdict is copied verbatim, and for any other
+shape the field names the artefact the cells came from and its row count
+(`measured — ladder.json (7 rows)`), says `absent — no ladder artefact in this receipt`, or names
+the defect (`not a measurement — ladder.json parses to no cell`). The 753B second boot measured
+seven rows into `ladder.json` while its receipt read `ladder: ""`, so the cells had to be
+recovered from the CSV; the field is a receipt account, not the verdict — `done()` still decides
+measurability, and a sidecar's house score can measure an arm whose ladder is absent without the
+ladder reading as `ok`. `client` is the arm-scoped extra client's receipt
 (`client/client.json`: cell, image_id, rc), empty when the arm ran no extra client. The numbers
 themselves stay where the executor wrote them (`~/benchmarks/tp12-<date>/<arm>/`); the receipt is
 the campaign's own account of the arm and points at them, so a reader never has to guess which

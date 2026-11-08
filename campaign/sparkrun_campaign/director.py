@@ -662,7 +662,8 @@ class Director:
             "accuracy_status": "",
             # Which house.yaml shape the outcome fields came from (`run-arm` or
             # `sparkrun_benchmark`, empty when there is no marker). The nested sidecar has no
-            # ladder field, so ladder/accuracy above stay empty rather than being invented.
+            # ladder field of its own, so the field is read from the artefact instead (below):
+            # a receipt never carries a blank ladder beside `measured: true`.
             "marker_shape": "",
             "house_score": "",
             "client": {},
@@ -672,10 +673,12 @@ class Director:
         if mdir:
             try:
                 marker = evidence.marker_fields(mdir) or {}
+                ladder = evidence.ladder_status(mdir)
             except evidence.EvidenceError as exc:
                 marker = {}
+                ladder = f"unreadable marker — {exc}"
                 fields["marker_error"] = str(exc)
-            fields["ladder"] = marker.get("ladder", "")
+            fields["ladder"] = ladder
             fields["accuracy_status"] = marker.get("accuracy_status", "")
             fields["marker_shape"] = marker.get("shape", "")
             fields["house_score"] = marker.get("house_score", "")

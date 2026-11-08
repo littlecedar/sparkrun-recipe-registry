@@ -280,6 +280,49 @@ def measurement_problem(arm_dir: str | Path) -> str | None:
     return None
 
 
+def _ladder_rows(path: Path) -> int | None:
+    """Rows in a ladder artefact's first cell table, or None when the file is not one."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if isinstance(data, list):
+        return len(data)
+    if isinstance(data, dict):
+        for key in CELL_KEYS:
+            table = data.get(key)
+            if isinstance(table, list) and table:
+                return len(table)
+    return None
+
+
+def ladder_status(arm_dir: str | Path) -> str:
+    """The receipt's ``ladder`` field: the marker's verdict, or the artefact's own truth.
+
+    A ``sparkrun_benchmark`` sidecar has no ladder field, so a receipt that copied only the marker
+    left ``ladder: ""`` beside ``measured: true`` while ``ladder.json`` held seven rows -- real
+    numbers the receipt looked like it had lost (2026-11-08, the 753B second boot; the cells were
+    recovered from the CSV). So the field is never a blank: the artefact carrying the cells is
+    named with its row count, and a missing or broken artefact says so in the field. This is a
+    receipt field, not the verdict -- ``done()`` still decides measurability, and a sidecar's own
+    house score can measure an arm whose ladder is absent without the ladder reading as ``ok``.
+    """
+    fields = marker_fields(arm_dir) or {}
+    verdict = fields.get("ladder", "")
+    if verdict:
+        return verdict
+    for name in LADDERS:
+        path = Path(arm_dir) / name
+        if not path.exists():
+            continue
+        problem = measurement_problem(arm_dir)
+        if problem:
+            return f"not a measurement — {problem}"
+        rows = _ladder_rows(path)
+        return f"measured — {name} ({rows} rows)" if rows is not None else f"measured — {name}"
+    return "absent — no ladder artefact in this receipt"
+
+
 def done(arm_dir: str | Path) -> tuple[bool, str]:
     """(measured, reason). A reason is always produced, so a non-receipt is visible in the log."""
     arm = Path(str(arm_dir).rstrip("/")).name

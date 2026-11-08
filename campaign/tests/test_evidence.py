@@ -167,6 +167,52 @@ class ReceiptFields(unittest.TestCase):
         self.assertIn("tp12-20260101", arm_dir)
 
 
+class LadderField(unittest.TestCase):
+    """The receipt's `ladder` field names its evidence; it is never blank beside `measured`.
+
+    Measured 2026-11-08: the 753B sidecar arm's receipt read `marker_shape: sparkrun_benchmark`
+    with `ladder: ""` while `ladder.json` held seven rows, so the cells had to be recovered from
+    the CSV. A sidecar has no ladder field of its own; the field is read from the artefact.
+    """
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+    def test_a_sidecar_names_the_artefact_and_its_rows(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", cells=7, score="100")
+        self.assertEqual(evidence.ladder_status(arm_dir), "measured \u2014 ladder.json (7 rows)")
+
+    def test_a_sidecar_without_a_ladder_says_absent(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", score="100")
+        (arm_dir / "ladder.json").unlink()
+        self.assertEqual(
+            evidence.ladder_status(arm_dir),
+            "absent \u2014 no ladder artefact in this receipt",
+        )
+
+    def test_a_broken_ladder_artefact_is_named_not_hidden(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", cells=0, score=None)
+        self.assertTrue(
+            evidence.ladder_status(arm_dir).startswith("not a measurement \u2014 ladder.json"),
+            evidence.ladder_status(arm_dir),
+        )
+
+    def test_a_flat_marker_verdict_is_copied_verbatim(self) -> None:
+        self.assertEqual(evidence.ladder_status(receipt(self.root, "ok", ladder="ok")), "ok")
+        self.assertEqual(
+            evidence.ladder_status(receipt(self.root, "failed", ladder="failed (rc=2)")),
+            "failed (rc=2)",
+        )
+
+    def test_negative_control_the_marker_copy_leaves_the_sidecar_ladder_blank(self) -> None:
+        # The pre-fix receipt: copying only the marker's own field left it empty on a sidecar.
+        arm_dir = sidecar_receipt(self.root, "arm", cells=7, score="100")
+        self.assertEqual((evidence.marker_fields(arm_dir) or {}).get("ladder", ""), "",
+                         "the control must reproduce the blank-ladder receipt")
+        self.assertNotEqual(evidence.ladder_status(arm_dir), "")
+
+
 class NegativeControls(unittest.TestCase):
     """The predicates tonight's driver used. Each must fail on the input the campaign refuses."""
 
