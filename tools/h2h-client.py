@@ -260,7 +260,10 @@ def _completions_request(base: str, model: str, prompt: str, max_tokens: int,
     decode_s = (rec["wall_s"] - rec["ttft_s"]) if rec["ttft_s"] is not None else rec["wall_s"]
     tokens = rec["completion_tokens"]
     if isinstance(tokens, int) and tokens > 0 and decode_s and decode_s > 0:
-        rec["tok_per_s"] = round(tokens / decode_s, 2)
+        rate = tokens / decode_s
+        # Two decimals would round a real rate to 0.0 on a slow runner's wall, which reads
+        # as "no throughput" when tokens were produced; keep the digits below 0.01.
+        rec["tok_per_s"] = round(rate, 2) if rate >= 0.01 else round(rate, 6)
     rec["text"] = rec["text"].strip()
     return rec
 

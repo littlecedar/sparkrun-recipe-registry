@@ -14,6 +14,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL_PATH = REPO_ROOT / "tools" / "h2h-client.py"
@@ -244,10 +245,25 @@ class CompletionsCell(unittest.TestCase):
         plain = report["prompts"][0]["plain"]
         self.assertEqual(plain["text"], "5")
         self.assertEqual((plain["prompt_tokens"], plain["completion_tokens"]), (7, 2))
-        self.assertGreater(plain["wall_s"], 0)
-        self.assertGreater(plain["tok_per_s"], 0)
+        # The rate and the wall are the runner's clock, not the stub's contract: assert the
+        # shape, never that a rounded timing-derived rate is above zero.
+        self.assertIsInstance(plain["wall_s"], float)
+        self.assertIsInstance(plain["tok_per_s"], float)
+        self.assertGreaterEqual(plain["tok_per_s"], 0)
         self.assertIsNone(plain["ttft_s"])
         self.assertEqual(report["verdict"], "PASS", report["problems"])
+
+    def test_a_slow_request_keeps_its_rate_above_zero(self):
+        # Pins the regression: two tokens over a nine-minute wall used to round to 0.0 and
+        # read as "no throughput". The clock is faked so the assertion owns the timing.
+        ticks = iter([0.0] + [900.0] * 8)
+        with StubServe(fail=False, text="5") as base, \
+                mock.patch.object(TOOL.time, "perf_counter", lambda: next(ticks)):
+            _rc, _arm, report = self._run(base, "plain", ["Complete the sequence: 1 2 3 4"])
+        plain = report["prompts"][0]["plain"]
+        self.assertEqual(plain["completion_tokens"], 2)
+        self.assertGreater(plain["tok_per_s"], 0, plain)
+        self.assertLess(plain["tok_per_s"], 0.01, plain)
 
     def test_streaming_accumulates_text_and_yields_a_first_token_time(self):
         with StubServe(fail=False, text="42") as base:
