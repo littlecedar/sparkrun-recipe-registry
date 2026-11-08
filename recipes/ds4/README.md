@@ -961,7 +961,7 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml` |
 | Model | [`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF`](https://huggingface.co/ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF) pinned `54229d38` — card MIT (the base model's licence) |
-| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` |
+| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` |
 | Weights | 763.2 B params overall, 551.9 B in the transformer. 192 of 384 routed experts per layer removed by RCO; the surviving 192 keep the IQ2_XXS build's per-tensor types — 72.12 GB on disk, **1.05 bpw** against the original transformer (card's arithmetic; retained parameters average 2.06 bpw) |
 | Engram | 110.60 GB, `DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf` — the Coder's shard 6, byte-identical to the unpruned release's. Two IQ4_NL lookup tables, read one row per token, memory-mapped, **not resident** |
 | Vision | `mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf`, 0.97 GB, also the unpruned release's file |

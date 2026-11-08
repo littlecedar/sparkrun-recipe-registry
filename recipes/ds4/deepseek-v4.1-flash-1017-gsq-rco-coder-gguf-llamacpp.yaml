@@ -5,7 +5,7 @@ runtime: llama-cpp
 # upstream-6023692 (2026-11-05) is the first llama.cpp image the lane has that is
 # past the card's b11870 floor (74bca395, 2026-10-25, "model: DSV4.1 flash"): its
 # commit is eleven days later. The lane's pinned upstream-a37cc46 build predates it.
-container: littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+container: littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
 min_nodes: 1
 max_nodes: 1
 
