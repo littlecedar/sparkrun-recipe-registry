@@ -48,10 +48,14 @@ untouched, so the pair still applies.
 - **Idempotent from the artifact**: a completed graft carries `ABLIT_META.json` with
   `n_edited == 104`; that short-circuits the whole mod.
 - Resolves the stock pack in the container's HF cache (`refs/main` first, else the newest
-  config-bearing snapshot) — the recipe never spells a snapshot hash. That ref is not a pin, so
-  the no-op path compares the tree's own copied metadata (`config.json`, `tokenizer_config.json`,
-  `model.safetensors.index.json`, `quantization_config.json`, `chat_template.jinja`) with the
-  snapshot it resolved: a moved `main` must not pair a new table set with the tree's old weights.
+launchable snapshot) — the recipe never spells a snapshot hash. That ref is not a pin, so the
+no-op path compares the tree's own copied metadata (`config.json`, `tokenizer_config.json`,
+`model.safetensors.index.json`, `quantization_config.json`, `chat_template.jinja`) with the
+snapshot it resolved: a moved `main` must not pair a new table set with the tree's old weights.
+A candidate must carry a top-level `*.safetensors` whose `stat` size (symlinks followed — a xet
+body counts as its real bytes) clears a 1 MiB floor: a `config.json`-only stub is a staging state,
+not a pack, and the mod dies naming its path, entry count and resolved bytes rather than grafting
+onto a tree the engine cannot load. `tests/test_snapshot_stub_guard.py` guards that.
 - Fetches the author's script + sidecar from the gated overlay at the pinned revision, using
   the node token at `/cache/huggingface/token`.
 - Runs the author's script unchanged, with a **symlink view of the stock dir as `--src`** and

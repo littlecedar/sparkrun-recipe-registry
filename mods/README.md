@@ -91,6 +91,14 @@ file. The recipe's command runs `launcher.py --boot`, which maps sparkrun's per-
 onto `tensorfold serve`. Mounted by the ds4 TP=2 lane and the cybersec abliterated TP=2 lane (reused
 unchanged, carrying `--stock-model` instead of `--revision`).
 
+**Snapshot stub check.** `resolve_checkpoint` accepts a tree only when it holds a top-level
+`*.safetensors` whose `stat` size — symlinks followed, so an xet body counts as its real bytes —
+clears a 1 MiB floor; a `config.json`-only tree is a staged stub, and the launcher refuses it
+(exit 2) naming the path, entry count and resolved bytes instead of letting the engine die inside
+the model load. A repo id with no local tree is still handed on as the bare id, but now logs the
+resolved value, `entries=0 bytes=0` at WARN. `tests/test_snapshot_stub_guard.py` guards both, with
+a negative control.
+
 **Opt-in `--serve-debug` (2026-11-07).** The engine has **no `--log-level` and no `--log-requests`**:
 every flag `tensorfold serve` parses is defined in its own `src/tensorfold/cli_args.py`, checked at
 both pinned refs (`d5d7bb38` 0.6.3, `3825f62` 0.6.6), so "raise the log level" is not a lever this

@@ -93,6 +93,14 @@ marker file absent → the gate dies; the `--tp` choices line reverted to
 `(1, 2)` → the gate dies. `tests/test_glm_launcher_shim.py` guards the shim's
 half of the contract (rendezvous mapping, rank, artifacts, fail-closed paths).
 
+**Snapshot stub check.** `resolve_model_dir` and `resolve_drafter` accept a tree
+only when it holds a top-level `*.safetensors` whose `stat` size — symlinks
+followed, so an xet body counts as its real bytes — clears a 1 MiB floor. A
+`config.json`-only tree is a staged stub (the pool has produced a 7,303 B one),
+and the shim refuses it naming the path, entry count and resolved bytes instead
+of letting the engine die inside the model load. `tests/test_snapshot_stub_guard.py`
+guards that, with a negative control.
+
 ## The shim's three load-bearing behaviours
 
 - **The rendezvous port.** sparkrun's cluster launch gates on the port it puts

@@ -243,8 +243,32 @@ def serve_debug_env(profile: str) -> tuple[dict[str, str], str]:
     return dict(SERVE_DEBUG_ENV[profile]), ""
 
 
-def resolve_checkpoint(repo: str) -> str:
-    """Resolve the EXL3 checkpoint to a local snapshot directory.
+STUB_BYTES = 1 << 20  # a weight file smaller than this is a pointer, not weights
+
+
+def stub_detail(path: Path) -> str:
+    """``entries=<n> bytes=<b>`` when *path* holds no weight file above STUB_BYTES, else "".
+
+    `config.json` present is not a staged model. The pool has served a 7,303 B
+    config-only stub past a presence check, and the boot died inside the engine's
+    model load with nothing naming the staging state. So a candidate must also hold
+    a top-level `*.safetensors` (where the engine's own non-recursive glob looks)
+    whose `stat` size -- symlinks followed, so an xet body counts as its real bytes
+    -- clears the floor; `du`/`ls` on an HF cache measure link paths, not bytes
+    (`tools/stage-audit.py:13-18`).
+    """
+    entries = sum(1 for entry in path.rglob("*") if not entry.is_dir())
+    biggest = 0
+    for shard in path.glob("*.safetensors"):
+        try:
+            biggest = max(biggest, shard.stat().st_size)
+        except OSError:
+            continue
+    return "" if biggest >= STUB_BYTES else f"entries={entries} bytes={biggest}"
+
+
+def resolve_checkpoint(repo: str) -> str | None:
+    """Resolve the EXL3 checkpoint to a local snapshot directory, or None for a stub.
 
     `{model}` reaches this process as the **prepared on-disk snapshot path** on a
     real launch -- sparkrun rewrites the placeholder for any recipe with a
@@ -255,21 +279,59 @@ def resolve_checkpoint(repo: str) -> str:
     `models--<org>--<name>/snapshots/<hash>` here rather than spelling a snapshot
     hash in the recipe, so a cache re-resolving to a new hash cannot break the
     recipe. An absolute path (a pre-placed model) is used as-is.
+
+    None means a local tree exists but is a config-only stub -- the caller must
+    stop, because the engine would die inside the model load. A repo id with no
+    local tree still comes back as the id, with a WARN naming it.
     """
     direct = Path(repo)
     if direct.is_dir():
-        return str(direct)
+        if not (direct / "config.json").is_file():
+            return str(direct)
+        detail = stub_detail(direct)
+        if not detail:
+            return str(direct)
+        print(
+            f"[tensorfold-launcher] STUB checkpoint {direct}: {detail}, no *.safetensors "
+            f"above {STUB_BYTES} B -- config.json alone is a staged stub, not weights; "
+            "refusing it, the engine would die inside the model load. Stage the full "
+            "tree and relaunch.",
+            flush=True,
+        )
+        return None
     root = Path(HF_HUB) / ("models--" + repo.replace("/", "--"))
+    stub = ""
     ref = root / "refs" / "main"
     if ref.is_file():
         snap = root / "snapshots" / ref.read_text().strip()
         if (snap / "config.json").is_file():
-            return str(snap)
+            detail = stub_detail(snap)
+            if not detail:
+                return str(snap)
+            stub = stub or f"{snap}: {detail}"
     snapshots = sorted((root / "snapshots").glob("*")) if (root / "snapshots").is_dir() else []
     for snap in reversed(snapshots):
         if (snap / "config.json").is_file():
-            return str(snap)
+            detail = stub_detail(snap)
+            if not detail:
+                return str(snap)
+            stub = stub or f"{snap}: {detail}"
+    if stub:
+        print(
+            f"[tensorfold-launcher] STUB checkpoint {stub}, no *.safetensors above "
+            f"{STUB_BYTES} B -- config.json alone is a staged stub, not weights; refusing "
+            "it, the engine would die inside the model load. Stage the full snapshot "
+            "(sparkrun's model sync) and relaunch.",
+            flush=True,
+        )
+        return None
     # Nothing local: hand the id back and let the engine try its own resolution.
+    print(
+        f"[tensorfold-launcher] WARN no local snapshot for {repo}: resolved={repo} "
+        f"entries=0 bytes=0 under {HF_HUB}/models--{repo.replace('/', '--')}; the engine "
+        "resolves the id itself, and a config-only tree here would have been refused.",
+        flush=True,
+    )
     return repo
 
 
@@ -402,12 +464,18 @@ def main(argv: list[str] | None = None) -> int:
     # The checkpoint must be resolved before the Engram tables, because a
     # combined local repo carries the tables in a subdir of the model dir.
     model_dir = resolve_checkpoint(args.model)
+    if model_dir is None:
+        # The resolver already named the stub (path, entries, bytes): a stub tree
+        # must not reach the engine, where the failure is unattributable.
+        return 2
     # Keyed on the served tree, and taken BEFORE --vision may swap model_dir for
     # the shared `model-overlay` dir (see rank_cache_dir).
     rank_cache = rank_cache_dir(model_dir)
     Path(rank_cache).mkdir(parents=True, exist_ok=True)
     env["TF_DS_RANK_CACHE"] = rank_cache
     stock_dir = resolve_checkpoint(args.stock_model) if args.stock_model else None
+    if args.stock_model and stock_dir is None:
+        return 2
     engram = resolve_engram_dir(model_dir, stock_dir)
     if engram:
         env["TF_DS_ENGRAM"] = engram

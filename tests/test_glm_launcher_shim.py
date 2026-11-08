@@ -39,11 +39,19 @@ def load_shim():
 
 
 def snapshot(hub: Path, repo: str, revision: str) -> Path:
-    """Materialize an HF-cache-shaped snapshot (config.json + refs) under *hub*."""
+    """Materialize an HF-cache-shaped snapshot (config.json + one shard + refs) under *hub*.
+
+    The shard is not decoration: the resolver refuses a config-only tree as a staging
+    stub, so a fixture without weights is the defect, not a model.
+    """
     root = hub / ("models--" + repo.replace("/", "--"))
     snap = root / "snapshots" / revision
     snap.mkdir(parents=True)
     (snap / "config.json").write_text("{}")
+    shard = snap / "model-00001-of-00001.safetensors"
+    with open(shard, "wb") as fh:
+        fh.seek((1 << 20) + 1)  # sparse: the guard reads stat, never contents
+        fh.write(b"\0")
     (root / "refs").mkdir(exist_ok=True)
     (root / "refs" / "main").write_text(revision)
     return snap

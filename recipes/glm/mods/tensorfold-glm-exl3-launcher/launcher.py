@@ -179,6 +179,45 @@ def recipe_env(process_env: dict[str, str]) -> dict[str, str]:
     return env
 
 
+STUB_BYTES = 1 << 20  # a weight file smaller than this is a pointer, not weights
+
+
+def stub_detail(path: Path) -> str:
+    """``entries=<n> bytes=<b>`` when *path* holds no weight file above STUB_BYTES, else "".
+
+    `config.json` present is not a staged model. The pool has served a 7,303 B
+    config-only stub past a presence check, and the boot died inside the engine's
+    model load with nothing naming the staging state. So a candidate must also hold
+    a top-level `*.safetensors` (where the engine's own non-recursive glob looks)
+    whose `stat` size -- symlinks followed, so an xet body counts as its real bytes
+    -- clears the floor; `du`/`ls` on an HF cache measure link paths, not bytes
+    (`tools/stage-audit.py:13-18`).
+    """
+    entries = sum(1 for entry in path.rglob("*") if not entry.is_dir())
+    biggest = 0
+    for shard in path.glob("*.safetensors"):
+        try:
+            biggest = max(biggest, shard.stat().st_size)
+        except OSError:
+            continue
+    return "" if biggest >= STUB_BYTES else f"entries={entries} bytes={biggest}"
+
+
+def launchable(snap: Path, what: str) -> str | None:
+    """*snap* as a path string when it carries real weights, else a loud None."""
+    detail = stub_detail(snap)
+    if not detail:
+        return str(snap)
+    print(
+        f"[tensorfold-glm-launcher] STUB {what} {snap}: {detail}, no *.safetensors above "
+        f"{STUB_BYTES} B -- config.json alone is a staged stub, not weights; refusing it, "
+        "the engine would die inside the model load. Stage the full snapshot "
+        "(sparkrun's model sync) and relaunch.",
+        flush=True,
+    )
+    return None
+
+
 def resolve_model_dir(model: str) -> str | None:
     """Resolve `--model` to a local checkpoint directory, or None.
 
@@ -194,17 +233,21 @@ def resolve_model_dir(model: str) -> str | None:
     """
     direct = Path(model)
     if (direct / "config.json").is_file():
-        return str(direct)
+        return launchable(direct, "checkpoint")
     root = Path(HF_HUB) / ("models--" + model.replace("/", "--"))
     ref = root / "refs" / "main"
     if ref.is_file():
         snap = root / "snapshots" / ref.read_text().strip()
         if (snap / "config.json").is_file():
-            return str(snap)
+            resolved = launchable(snap, "checkpoint")
+            if resolved:
+                return resolved
     snapshots = sorted((root / "snapshots").glob("*")) if (root / "snapshots").is_dir() else []
     for snap in reversed(snapshots):
         if (snap / "config.json").is_file():
-            return str(snap)
+            resolved = launchable(snap, "checkpoint")
+            if resolved:
+                return resolved
     return None
 
 
@@ -222,7 +265,7 @@ def resolve_drafter(repo: str, revision: str = "") -> str | None:
     """
     direct = Path(repo)
     if (direct / "config.json").is_file():
-        return str(direct)
+        return launchable(direct, "drafter")
     root = Path(HF_HUB) / ("models--" + repo.replace("/", "--"))
     snapshots = sorted((root / "snapshots").glob("*"), reverse=True) if (root / "snapshots").is_dir() else []
     ref = root / "refs" / "main"
@@ -232,7 +275,9 @@ def resolve_drafter(repo: str, revision: str = "") -> str | None:
         wanted = [root / "snapshots" / ref.read_text().strip()] if ref.is_file() else []
     for snap in wanted + ([] if revision else snapshots):
         if (snap / "config.json").is_file():
-            return str(snap)
+            resolved = launchable(snap, "drafter")
+            if resolved:
+                return resolved
     return None
 
 

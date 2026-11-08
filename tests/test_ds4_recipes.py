@@ -1748,6 +1748,15 @@ def _run_tf_launcher(argv, checkpoint_dir, cache_dir, engram_dir=None, mutate=No
     mod = _tf_launcher()
     mod.RUNTIME_CACHE = cache_dir
     mod.ENGRAM_DIR = engram_dir if engram_dir is not None else str(Path(cache_dir) / "engram")
+    # The launcher refuses a config-only checkpoint as a staging stub now, so a fixture
+    # snapshot carries one shard above its floor. A test that wants the refusal builds
+    # its own stub (tests/test_snapshot_stub_guard.py).
+    if (Path(checkpoint_dir) / "config.json").is_file():
+        shard = Path(checkpoint_dir) / "model-00001-of-00001.safetensors"
+        if not shard.exists():
+            with open(shard, "wb") as fh:
+                fh.seek(mod.STUB_BYTES + 1)  # sparse: the guard reads stat, never contents
+                fh.write(b"\0")
     mod.RECIPE_ENV = dict(mod.RECIPE_ENV)
     mod.RECIPE_ENV["TF_DS_RANK_CACHE"] = str(Path(cache_dir) / "rank-cache")
     mod.RECIPE_ENV["TORCH_EXTENSIONS_DIR"] = str(Path(cache_dir) / "torch-extensions")
@@ -2350,6 +2359,11 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
             model = Path(d) / "model"
             model.mkdir()
             (model / "config.json").write_text("{}")
+            # Weights, so the control reaches execvp instead of stopping at the
+            # staging-stub gate (which would also abort a config-only tree).
+            with open(model / "model-00001-of-00001.safetensors", "wb") as fh:
+                fh.seek((1 << 20) + 1)
+                fh.write(b"\0")
             captured = {}
 
             def fake_execvp(prog, args):
@@ -2415,6 +2429,11 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
             model = Path(d) / "model"
             model.mkdir()
             (model / "config.json").write_text("{}")
+            # Weights, so this control still proves the BIAS gate and not the newer
+            # staging-stub gate (which would also abort a config-only tree).
+            with open(model / "model-00001-of-00001.safetensors", "wb") as fh:
+                fh.seek((1 << 20) + 1)
+                fh.write(b"\0")
 
             mod = _tf_launcher()
             mod.__file__ = str(empty / "launcher.py")

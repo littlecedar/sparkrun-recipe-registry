@@ -112,6 +112,13 @@ configuration than the one this lane measured. In-container, it asserts:
 that is the recipe's image digest, and `org.opencontainers.image.revision = ddfad35…` is
 readable only from the host (`docker image inspect`).
 
+**Snapshot stub check.** `resolve_model_dir` accepts a tree only when it holds a top-level
+`*.safetensors` whose `stat` size — symlinks followed, so an xet body counts as its real
+bytes — clears a 1 MiB floor. A `config.json`-only tree is a staged stub (the pool has
+produced a 7,303 B one), and the shim refuses it naming the path, entry count and resolved
+bytes instead of letting the engine die inside the model load.
+`tests/test_snapshot_stub_guard.py` guards that, with a negative control.
+
 ## What the 4bpw mod does that this one must not
 
 The sibling [`tensorfold-glm-exl3-launcher`](../tensorfold-glm-exl3-launcher/README.md) targets

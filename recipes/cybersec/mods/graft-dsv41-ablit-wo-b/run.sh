@@ -139,27 +139,55 @@ SIDECAR="${WORKDIR}/mia_exl3_wo_b_l10_35.safetensors"
 [[ -s "${SIDECAR}" ]] || die "sidecar missing"
 
 # 2) Locate the stock pack in the container's HF cache (refs/main first, else newest
-#    config-bearing snapshot). The recipe's `{model}` is not what the launcher serves, so this
+#    launchable snapshot). The recipe's `{model}` is not what the launcher serves, so this
 #    resolves independently -- same mechanism as the tensorfold launcher's resolver. That ref is
 #    not a pin, so the no-op path below re-checks the tree's copied metadata against whatever it
 #    resolves here: a moved `main` must not pair a new table set with the tree's old weights.
+#    `config.json` alone is a staged stub, not a pack: the graft built on one boots and dies
+#    later inside the engine, so a candidate must also hold a top-level `*.safetensors` whose
+#    `stat` size (symlinks followed -- a xet body counts as its real bytes; `du`/`ls` on an HF
+#    cache measure link paths) clears the 1 MiB floor (`tools/stage-audit.py:13-18`).
 STOCK="$(python3 - "$HF_HUB" "$STOCK_REPO" <<'PY'
 import sys
 from pathlib import Path
+STUB_BYTES = 1 << 20  # a weight file smaller than this is a pointer, not weights
 hub, repo = sys.argv[1], sys.argv[2]
 root = Path(hub) / ("models--" + repo.replace("/", "--"))
+
+
+def stub_detail(snap):
+    entries = sum(1 for entry in snap.rglob("*") if not entry.is_dir())
+    biggest = 0
+    for shard in snap.glob("*.safetensors"):
+        try:
+            biggest = max(biggest, shard.stat().st_size)
+        except OSError:
+            continue
+    return "" if biggest >= STUB_BYTES else f"entries={entries} bytes={biggest}"
+
+
+candidates = []
 ref = root / "refs" / "main"
 if ref.is_file():
-    snap = root / "snapshots" / ref.read_text().strip()
-    if (snap / "config.json").is_file():
+    candidates.append(root / "snapshots" / ref.read_text().strip())
+if (root / "snapshots").is_dir():
+    candidates += sorted((root / "snapshots").glob("*"), reverse=True)
+stub = ""
+for snap in candidates:
+    if not (snap / "config.json").is_file():
+        continue
+    detail = stub_detail(snap)
+    if not detail:
         print(snap); raise SystemExit(0)
-snaps = sorted((root / "snapshots").glob("*")) if (root / "snapshots").is_dir() else []
-for snap in reversed(snaps):
-    if (snap / "config.json").is_file():
-        print(snap); raise SystemExit(0)
+    stub = stub or f"{snap}: {detail}"
+if stub:
+    print(f"[graft-dsv41-ablit-wo-b] STUB stock snapshot {stub}, no *.safetensors above "
+          f"{STUB_BYTES} B -- config.json alone cannot be grafted; stage the full pack",
+          file=sys.stderr)
+    raise SystemExit(3)
 raise SystemExit(1)
 PY
-)" || die "stock pack ${STOCK_REPO} not found under ${HF_HUB}"
+)" || die "stock pack ${STOCK_REPO}: no launchable snapshot under ${HF_HUB} (the STUB line above, if any, names the incomplete tree; entries and bytes included). Run sparkrun's model sync and relaunch."
 log "stock: ${STOCK}"
 
 # Never write through the stock directory: the author's script also refuses this.
