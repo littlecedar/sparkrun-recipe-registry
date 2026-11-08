@@ -195,10 +195,11 @@ class RunArmContract(unittest.TestCase):
     def test_the_receipt_root_can_be_scoped_to_a_campaign(self):
         """A campaign's numbers belong beside its state, not in the fleet-wide dated tree."""
         text = read_tool()
-        self.assertIn('L="${ARM_RECEIPTS_ROOT:+$ARM_RECEIPTS_ROOT/}$NAME"', text,
+        self.assertIn('L="$ARM_RECEIPTS_ROOT/$NAME"', text,
                       "the executor ignores ARM_RECEIPTS_ROOT")
-        self.assertIn('L="${L:-$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME}"', text,
+        self.assertIn('L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"', text,
                       "the default window was lost")
+        self.assertNotIn('L="${L:-', text, "an unset root must not fall through to the cwd")
         self.assertIn('.prev-$(date +%H%M%S)', text, "the copy-aside must still be scoped to $L")
 
     def test_an_existing_receipt_is_moved_aside(self):
@@ -1136,7 +1137,9 @@ class ExtraClientHook(BashArmHarness):
             script = receipt / "hook.sh"
             script.write_text(
                 "#!/usr/bin/env bash\nset -uo pipefail\n"
-                f"L={receipt}\nHOSTS=10.0.0.1,10.0.0.2\nRECIPE=recipes/x/arm.yaml\nrc=0\n"
+                f"L={receipt}\nHOSTS=head.test,rank1.test\nRECIPE=recipes/x/arm.yaml\n"
+                "NODE=rank0.test\nN=container-1\n"
+                "ssh() { printf 'sha256:testimage\\n'; }\nrc=0\n"
                 + extra_client_block(read_tool())
                 + 'echo "rc=$rc"\n'
             )
@@ -1154,6 +1157,12 @@ class ExtraClientHook(BashArmHarness):
         text = read_tool()
         self.assertIn('export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"', text,
                       "the hook cannot derive its endpoint without the launch host list")
+
+    def test_the_hook_receipt_records_the_resolved_image(self):
+        """A local-only survey tag is not a digest; the receipt must name what ran."""
+        text = read_tool()
+        self.assertIn("> \"$L/image.txt\"", text, "the image id is not captured into the receipt")
+        self.assertIn("ARM_IMAGE_ID=", text, "the client cannot record the image identity")
 
     def test_unset_is_the_previous_executor(self):
         files, out = self.run_hook({})

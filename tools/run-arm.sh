@@ -29,8 +29,11 @@ NAME=$(basename "$RECIPE" .yaml)${ARM_TAG:+-$ARM_TAG}
 # Receipt root: a campaign may own its measurements (`ARM_RECEIPTS_ROOT`), so the arm's numbers sit
 # at `<root>/<arm>` beside the campaign's state instead of in the fleet-wide dated tree that
 # `next-arms.py` and the drip scan. Default keeps the historical ~/benchmarks/tp12-<date>/<arm>.
-L="${ARM_RECEIPTS_ROOT:+$ARM_RECEIPTS_ROOT/}$NAME"
-L="${L:-$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME}"
+if [ -n "${ARM_RECEIPTS_ROOT:-}" ]; then
+  L="$ARM_RECEIPTS_ROOT/$NAME"
+else
+  L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
+fi
 # The serve port is the recipe's, not always 8000 -- the decision lane uses
 # 8020 and the ling arm 8030. Probing the wrong port looks exactly like a boot
 # that never becomes ready, which cost two arms a full 22-minute wait on
@@ -466,7 +469,12 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     extra_timeout=${ARM_EXTRA_TIMEOUT:-1800}
     # The hook gets the launch facts, never a node address in the tracked row: ARM_HOSTS is the
     # exact host list this arm runs on, ARM_RECIPE its tracked path, ARM_RECEIPT_DIR its receipt.
-    export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"
+    # The resolved image id is a fact only the running container can supply -- a survey arm's
+    # local-only tag is not a digest, so the receipt must carry what actually ran.
+    extra_image=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+      "docker inspect -f '{{.Image}}' '$N'" 2>/dev/null) || extra_image=""
+    printf '%s\n' "${extra_image:-unknown}" > "$L/image.txt"
+    export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L" ARM_IMAGE_ID="$extra_image"
     echo "extra client: $ARM_EXTRA_CLIENT (timeout ${extra_timeout}s)"
     extra_rc=0
     # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.

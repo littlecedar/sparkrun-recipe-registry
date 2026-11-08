@@ -1257,7 +1257,7 @@
       "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
       "tp": 4,
       "env": {
-        "ARM_EXTRA_CLIENT": "python3 /home/red/src/sparkrun-recipe-registry/tools/eval-suite.py --checks house --house-tier both --house-max-tokens 4096 --base-url http://$NODE:$PORT --model $SERVED --outdir $HOME/benchmarks/h2h-20261107/$NAME/house",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "3600",
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
       }
@@ -1281,7 +1281,7 @@
       "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml",
       "tp": 4,
       "env": {
-        "ARM_EXTRA_CLIENT": "sh -c \"python3 /home/red/src/sparkrun-recipe-registry/tools/eval-suite.py --checks house --house-tier both --house-max-tokens 4096 --base-url http://$NODE:$PORT --model $SERVED --outdir $HOME/benchmarks/h2h-20261107/$NAME/house; python3 /home/red/src/sparkrun-recipe-registry/tools/bfcl-eval.py --base-url http://$NODE:$PORT --model $SERVED --data-dir /home/red/bfcl --max-tokens 4096 --json $HOME/benchmarks/h2h-20261107/$NAME/bfcl.json\"",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house-bfcl --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "21600",
         "ARM_OPTS": "-o extra_args=--enable-auto-tool-choice",
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
@@ -1300,7 +1300,7 @@
       "node_cost": "quartet",
       "notes": "estimate: provisional — controlled second boot of the arm in TP4-HEAD-TO-HEAD-1025.md; same cells, same window; ladder only, no extra client. — campaign: deepseek-v4.1-flash-knapcio-tp4-1m-sglang: no marker and no machine-readable artefact\n\nRECEIPT MOVED 2026-11-07 23:06 ET: the arm finished before the campaign receipt root was set, so its window was moved to ~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang and state.json + the campaign receipt were repointed; the evidence field names the campaign receipt.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window",
-      "evidence": "/home/red/benchmarks/h2h-20261107/receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json",
+      "evidence": "receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json under ~/benchmarks/h2h-20261107 (rc=0 measured 23:00:05 ET); artefacts ladder.{json,yaml,csv} + house.{json,yaml,csv} + serve-0..3.log in ~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang/ (harvested at 23:06); ladder C1 51.11 / C2 91.79 / C5 128.88 / C10 159.88, house 93",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
@@ -1339,14 +1339,14 @@
         "h2h-second-boot-ladder"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "glm-5.3",
       "node_cost": "quartet",
       "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "sparkrun-campaign:h2h-20261107",
+      "claimed_at": "2026-11-08T04:14:25Z",
       "recipe": "recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml",
       "tp": 4,
       "env": {
@@ -1387,7 +1387,7 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — local-only image dsv41-sm121-dg:0.2.0 (sha256:1778ec42…); carry to the quartet before boot (distribution_config.containers.enabled=false). Extra client is tools/longctx-cell.py at 1,039,999 tokens, C1: ms/step + needle witness; serve must report max_model_len >= 1,040,191 (ds4 1M reports 1,048,576).",
+      "notes": "estimate: provisional — local-only image dsv41-sm121-dg:0.2.0 (sha256:1778ec42…); carry to the quartet before boot (distribution_config.containers.enabled=false). A/B role: this 0.2.0 boot is the indexer-scoring evidence in its own right, control = the shipped canary line; it is NOT arm5's control (arm5 runs 0.2.1, and a different image would confound the backend flag). Extra client is tools/h2h-client.py cell lc-1m (longctx 1,039,999 tokens, C1: ms/step + needle witness; serve must report max_model_len >= 1,040,191). The arm receipt's image.txt carries the resolved container image id, which the client records; the local tag is not a digest. Precondition: survey-transfer's carry of the image onto the placed quartet.",
       "provenance": "queue w4-survey-arm3-indexer-scoring; mad-science/DEEPSEEK.md §10.5; recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1396,7 +1396,7 @@
       "tp": 4,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --concurrency 1 --max-tokens 128 --json $L/longctx-1m.json\"",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell lc-1m --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
@@ -1420,7 +1420,7 @@
       "tp": 4,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --json $HOME/benchmarks/h2h-20261107/$NAME/longctx-128k-c5-c10.json\"",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell lc-128k-c5c10 --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
