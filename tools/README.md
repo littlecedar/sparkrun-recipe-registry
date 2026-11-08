@@ -171,7 +171,10 @@ result and never changes the arm's own status or cells. The hook receipt also ca
 digest, so the receipt names what ran. `arm_opts.txt` beside it holds the effective `ARM_OPTS`
 verbatim (or `(none)`), because a row's `env` reaches this script as environment and `-o …` is a
 CLI argument: `docker inspect` cannot recover an override that produced the numbers, and a marlin
-`--moe-runner-backend` trial on 2026-11-08 left no record of it. `ARM_RECEIPTS_ROOT` moves the whole receipt
+`--moe-runner-backend` trial on 2026-11-08 left no record of it. `ARM_OPTS` has two documented
+forms: plain (`-o parallel=10`, word-split) and unit-separated (`$'\x1f'` between fields, each
+field one argv entry, so `extra_args=--moe-runner-backend marlin` survives as the single value
+sparkrun's `--option/-o` expects). `ARM_RECEIPTS_ROOT` moves the whole receipt
 to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/tp12-<date>/<arm>`. Guarded by
 `ExtraClientHook` and `OverrideEvidence` in `tests/test_run_arm_tool.py` (ordering, unset no-op,
 rc recording, timeout
@@ -1596,8 +1599,10 @@ uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     # boots exactly those rows, so `recipe` must be a tracked `recipes/<lane>/<arm>.yaml`, `tp`
     # 1/2/4 and equal to --node-cost, and half a triple (tp without recipe) is refused
     # `env` reaches run-arm as environment, so a one-off override needs no new recipe:
-    # --env 'ARM_OPTS=-o extra_args=--moe-runner-backend marlin' (recorded verbatim in the
-    # receipt's arm_opts.txt, `(none)` when unset)
+    # --env 'ARM_OPTS=-o parallel=10' (plain, word-split) or, for a value containing spaces,
+    # --env $'ARM_OPTS=-o\x1fextra_args=--moe-runner-backend marlin' (unit-separated $'\x1f'
+    # between fields, each taken whole). Recorded verbatim in the receipt's arm_opts.txt,
+    # `(none)` when unset.
 uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
  # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared

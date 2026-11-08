@@ -149,13 +149,36 @@ print("\n".join(r.get("owner","") for r in rows if not r.get("alive", True) and 
   sparkrun daemon resources reconcile "$owner" --acknowledge-effects 2>&1 | tail -1
 done
 
+# ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
+# draft-token count). Without it every setting needs its own recipe file. A campaign row's `env`
+# reaches this script as environment, so `ARM_OPTS` is the row's launch-override field: no
+# stop/edit/boot ritual for one trial. Two documented forms:
+#   * plain -- `-o parallel=10`, word-split exactly as the old code did;
+#   * unit-separated ($'\x1f' between fields) -- `$'-o\x1fextra_args=--moe-runner-backend marlin'`,
+#     fields taken whole so a value containing a space stays ONE argv entry.
+# Unquoted word-splitting cannot express the second form: it hands `-o` the truncated value and
+# leaves `marlin` a stray positional, which sparkrun's parser rejects (`--option/-o` is click's
+# `multiple=True`, one value per occurrence; `cli/_common.py:1499-1504`). Measured 2026-11-08:
+# the marlin `-o extra_args=--moe-runner-backend marlin` row would have split exactly that way.
+ARM_OPTS_ARR=()
+if [ -n "${ARM_OPTS:-}" ]; then
+  if [[ "$ARM_OPTS" == *$'\x1f'* ]]; then
+    IFS=$'\x1f' read -r -a ARM_OPTS_ARR <<< "$ARM_OPTS"
+  else
+    read -r -a ARM_OPTS_ARR <<< "$ARM_OPTS"
+  fi
+fi
+
 # A c10 rung over fewer than ten slots measures the slot limit, not the model: the same arm read
 # 135.97 t/s at `parallel: 8` and 176.30 at `parallel: 10` an hour later (2026-11-03). The ladder this
 # script runs includes c10, so fail closed unless the recipe grants >= 10, ARM_OPTS raises it, or a
 # caller deliberately waives it. Durable form of the rule: mad-science/METHODOLOGY.md section 3.
 if [ -z "${ARM_ALLOW_FEW_SLOTS:-}" ]; then
   RECIPE_SLOTS=$(sed -n 's/^[[:space:]]*parallel:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$RECIPE" | head -1)
-  OPT_SLOTS=$(printf '%s' "${ARM_OPTS:-}" | tr ' ' '\n' | sed -n 's/^parallel=\([0-9][0-9]*\)$/\1/p' | tail -1)
+  OPT_SLOTS=
+  for opt in ${ARM_OPTS_ARR[@]+"${ARM_OPTS_ARR[@]}"}; do
+    case "$opt" in parallel=[0-9]*) OPT_SLOTS=${opt#parallel=} ;; esac
+  done
   SLOTS=${OPT_SLOTS:-${RECIPE_SLOTS:-}}
   if [ -n "$SLOTS" ] && [ "$SLOTS" -lt 10 ]; then
     echo "ARM REFUSED $NAME: ladder includes c10 but the grant is parallel=$SLOTS."
@@ -166,13 +189,8 @@ if [ -z "${ARM_ALLOW_FEW_SLOTS:-}" ]; then
   fi
 fi
 
-# ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
-# draft-token count). Without it every setting needs its own recipe file. A campaign row's `env`
-# reaches this script as environment, so `ARM_OPTS` is the row's launch-override field: no
-# stop/edit/boot ritual for one trial.
 launch_arm() {
-  # shellcheck disable=SC2086
-  sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR ${ARM_OPTS:-} > "$L/launch.log" 2>&1 &
+  sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR "${ARM_OPTS_ARR[@]}" > "$L/launch.log" 2>&1 &
   LAUNCH=$!
 }
 # The effective overrides verbatim: `-o ...` is a CLI argument, not container env, so

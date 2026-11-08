@@ -433,19 +433,22 @@ class WatchdogGetsTheWholeLease(unittest.TestCase):
 
 
 class OverrideEvidence(unittest.TestCase):
-    """A row-env ARM_OPTS reaches `sparkrun run` and is recorded verbatim in the receipt.
+    """A row-env ARM_OPTS reaches `sparkrun run` with its values whole and is recorded verbatim.
 
-    Measured 2026-11-08: a marlin `-o extra_args=--moe-runner-backend marlin` trial produced
-    numbers and nothing in the receipt named the override, because `-o` is a CLI argument and
-    never container env -- `docker inspect` cannot recover it. A campaign row's `env` map reaches
-    this script as environment (queue-drip and the campaign worker export it), so ARM_OPTS is the
-    row's override field and its effective value is launch evidence beside image.txt.
+    2026-11-08: a marlin `-o extra_args=--moe-runner-backend marlin` trial's override could not
+    survive the old `${ARM_OPTS:-}` expansion — word-splitting gave `-o` the truncated value and
+    left `marlin` a stray positional, which sparkrun's click parser rejects (`--option/-o` is
+    `multiple=True`, one value per occurrence; `cli/_common.py:1499-1504`). The unit-separated
+    form ($'\\x1f' between fields) keeps a spaced value as ONE argv entry; the plain form still
+    word-splits, so the historical `-o parallel=10` usage is unchanged. Either way the effective
+    value lands in `arm_opts.txt` beside `image.txt`.
     """
 
-    FLAGS = "-o extra_args=--moe-runner-backend marlin"
+    SEPARATED = "-o\x1fextra_args=--moe-runner-backend marlin"
+    NAIVE = "-o extra_args=--moe-runner-backend marlin"
 
     def run_launch(self, arm_opts: str | None) -> tuple[list[str], str, str]:
-        """Run the launch block with a stub `sparkrun`, as a row env would supply ARM_OPTS."""
+        """Run the launch block against a stub `sparkrun`, as a row env would supply ARM_OPTS."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             receipt = tmp / "receipt"
@@ -455,7 +458,6 @@ class OverrideEvidence(unittest.TestCase):
             stub = bins / "sparkrun"
             stub.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGV\"\nexit 0\n")
             stub.chmod(0o755)
-            supplied = "" if arm_opts is None else f"export ARM_OPTS={arm_opts!r}"
             script = tmp / "launch.sh"
             script.write_text(
                 f"""#!/usr/bin/env bash
@@ -465,12 +467,16 @@ RECIPE=recipes/lane/arm.yaml
 HOSTS=node-a,node-b
 L={receipt}
 NAME=test
-{supplied}
 {override_slice(read_tool())}
 wait
 """
             )
-            env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}"}
+            env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}",
+                   # The slot gate reads the recipe file; the harness is about the launch argv.
+                   "ARM_ALLOW_FEW_SLOTS": "1"}
+            env.pop("ARM_OPTS", None)
+            if arm_opts is not None:
+                env["ARM_OPTS"] = arm_opts
             out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
                                  check=False, env=env, timeout=60)
             self.assertEqual(out.returncode, 0, out.stderr)
@@ -479,19 +485,34 @@ wait
             text = recorded.read_text().strip() if recorded.is_file() else "<absent>"
             return argv, text, out.stdout + out.stderr
 
-    def test_the_override_reaches_the_launch_and_is_recorded_verbatim(self):
-        argv, recorded, out = self.run_launch(self.FLAGS)
+    def test_a_spaced_value_stays_one_argv_entry(self):
+        argv, recorded, out = self.run_launch(self.SEPARATED)
         self.assertEqual(argv[:2], ["run", "recipes/lane/arm.yaml"], out)
-        self.assertIn("extra_args=--moe-runner-backend", argv, f"the flag did not reach sparkrun: {argv}")
-        self.assertEqual(argv.count("-o"), 1)
-        self.assertEqual(recorded, self.FLAGS, "the receipt does not name the override that ran")
+        self.assertEqual(argv[-2:], ["-o", "extra_args=--moe-runner-backend marlin"],
+                         f"the override was split: {argv}")
+        self.assertNotIn("marlin", argv, "the value leaked as a stray positional")
+        self.assertEqual(recorded, self.SEPARATED, "the receipt does not name the override that ran")
+
+    def test_the_plain_form_still_word_splits(self):
+        argv, recorded, _out = self.run_launch("-o parallel=10")
+        self.assertEqual(argv[-2:], ["-o", "parallel=10"])
+        self.assertEqual(recorded, "-o parallel=10")
+
+    def test_negative_control_the_naive_space_form_breaks_the_value(self):
+        # The shape the old unquoted expansion produced: sparkrun's click parser would take the
+        # truncated `-o` value and reject the stray positional. Pinned so it cannot return.
+        argv, recorded, _out = self.run_launch(self.NAIVE)
+        self.assertEqual(argv[-3:], ["-o", "extra_args=--moe-runner-backend", "marlin"])
+        self.assertNotIn("extra_args=--moe-runner-backend marlin", argv,
+                         "unquoted expansion produced a whole value; the control is void")
+        self.assertEqual(recorded, self.NAIVE, "the verbatim record must not depend on the form")
 
     def test_the_evidence_precedes_the_launch(self):
         text = read_tool()
         self.assertLess(text.index('> "$L/arm_opts.txt"'), text.index("\nlaunch_arm\n"),
                         "the override is recorded after the launch it describes")
 
-    def test_negative_control_an_arm_without_overrides_launches_bare_and_records_none(self):
+    def test_an_unset_override_launches_bare_and_records_none(self):
         argv, recorded, _out = self.run_launch(None)
         self.assertEqual(argv, ["run", "recipes/lane/arm.yaml", "-H", "node-a,node-b",
                                 "--cluster", "WOPR"])
