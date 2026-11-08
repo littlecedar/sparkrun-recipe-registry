@@ -5916,3 +5916,24 @@ says:
   reservation)** — never with a reason attached.
 - **Quartets remain reserved for `tensor_parallel: 4`** — that part of the clause above stands unchanged, as does
   its board wording: the window cell reads "reserved for TP=4 arms", never "idle", and never "`.30` excluded".
+
+## 2026-11-08 — the first TP=4 boot is gated on earlyoom tuning being live, not on permission
+
+"TP4 allowed" reads as "go" to whoever picks up the board next, so the precondition is written down **as a proof to
+produce, not a box already ticked**.
+
+- **What protection exists now, and only this much:** `OOMScoreAdjust=-1000` on `beegfs-mgmtd`, `beegfs-meta` and
+  `beegfs-storage`, live in `/proc/<pid>/oom_score_adj` (drop-ins written 16:03), with `Restart=on-failure` taking
+  effect at the next unit start. That stops the pool being **reaped** when the kernel OOMs.
+- **What is still missing:** earlyoom's live argv is still `-m 1 -s 70`, so it will not fire before the kernel does —
+  a quartet boot that overruns still reaches the kernel's global OOM first. **The proof required before any quartet
+  lease** is `/proc/$(pgrep -o earlyoom)/cmdline` showing the **raised minimums on each node in the lease**, together
+  with an `earlyoom --dryrun` quote for that node. A tuned unit file that has not been started is not the proof, and a
+  board row saying "earlyoom tuned" is not the proof either.
+- **Permission is not re-runnability.** The marlin control and the `kimi-pruned75` pair stay **blocked** with their
+  measured negatives: host global OOM at ~111.7 GiB available, and 110.71 GiB/rank against a 119.21 GiB pool. A TP=4
+  allowance does not reset a measurement — advancing either arm clears those numbers first.
+- **Node choice follows availability and fit, never role.** `.30` is a normal worker; an idle node reads **nothing live
+  (no reservation)** and carries no reason. The only role-shaped statement in force is the narrative above: a boot
+  whose per-rank fit is unproven prefers a client-only host, because an overrun there costs one storage target instead
+  of the mgmtd+meta pair.
