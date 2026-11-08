@@ -196,11 +196,14 @@
         "arch-deepgemm-sm12x-paged-sparse",
         "w4-survey-arm3-sm121-boot"
       ],
-      "state": "blocked",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "ARCH-GATED 2026-10-26 (c3 re-port chain terminal, c3-NOTES.md att9): the candidate-block indexer-scoring arm (PR #43401 lineage) is blocked on DeepGEMM, NOT on the adapter re-port (that chain is now terminal — see ds4-adapter-report-gate). Its decode path calls deep_gemm.get_paged_sparse_mqa_logits_metadata, whose csrc asserts arch_major == 10 (apis/attention.hpp:301): the paged-sparse logits family is SM100-only and GB10 is SM121. ARCH-GATED HALF CLEARED 2026-11-07: `arch-deepgemm-sm12x-paged-sparse` shipped `dsv41-sm121-dg:0.2.0` (`sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b`, local tag only) whose image prints `DEEPGEMM_PAGED_SPARSE_MQA_LOGITS` True and whose kernel gate passed 8/8 at the consumer's strides (`calc_diff` 1.3e-05 against an FP32 torch reference, negative control caught) - the kernel is no longer the blocker. What blocks this row now is a **production quartet window** on `.31`-`.34`, which are serving, so it stays `blocked` for that, not for DeepGEMM. Next step when a window opens: move the image to the four nodes (`docker load`, or pull once it is pushed) and RECORD THE DIGEST, copy `zz-ds4-1017-c3-indexer-scoring.yaml` to an `-sm121.yaml` with `container: dsv41-sm121-dg:0.2.0`; no SGLang code change in this tree. estimate: provisional.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5"
+      "notes": "SUPERSEDED 2026-11-08 by `w4-survey-arm3-sm121-boot` (window declared 2026-11-08: all six nodes are research; image `dsv41-sm121-dg:0.2.1` = sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7 carried and tag-verified on all six, and both 0.2.0/0.2.1 are present). The child row is the boot and carries recipe/tp/env; this row is retired, not reopened, so the quartet arm cannot be scheduled twice. ORIGINAL: ARCH-GATED 2026-10-26 (c3 re-port chain terminal, c3-NOTES.md att9): candidate-block indexer-scoring arm (PR #43401 lineage) blocked on DeepGEMM, not on adapter re-port. Decode calls deep_gemm.get_paged_sparse_mqa_logits_metadata, csrc asserted arch_major == 10 (apis/attention.hpp:301), SM100-only vs GB10 SM121. CLEARED TWICE: 2026-11-07 kernel port shipped 0.2.0 (gate 8/8, calc_diff 1.3e-05, DEEPGEMM_PAGED_SPARSE_MQA_LOGITS True); 2026-11-08 owner declared the six-node research window, so the quartet blocker is gone. Estimate provisional.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.5",
+      "claimed_by": "",
+      "claimed_at": "",
+      "evidence": "w4-survey-arm3-sm121-boot"
     },
     {
       "id": "w4-survey-arm5-trtllm-mla",
@@ -212,11 +215,14 @@
         "w4-survey-arm5-control-boot",
         "w4-survey-arm5-sm121-boot"
       ],
-      "state": "blocked",
+      "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "ARCH-GATED 2026-10-26 alongside arm 3 (same re-port chain, terminal — see ds4-adapter-report-gate): the sparse-MLA backend build rides the same #43401 candidate lineage whose decode path needs DeepGEMM's paged-sparse logits family, SM100-only at csrc (apis/attention.hpp:301 arch_major == 10; GB10 is SM121). ARCH-GATED HALF CLEARED 2026-11-07: `arch-deepgemm-sm12x-paged-sparse` shipped `dsv41-sm121-dg:0.2.0` (`sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b`, local tag only) whose image prints `DEEPGEMM_PAGED_SPARSE_MQA_LOGITS` True and whose kernel gate passed 8/8 at the consumer's strides - the shared DeepGEMM half is done, so the row stays `blocked` on the **production quartet window** for `.31`-`.34` only, never on the kernel. Next step when a window opens: move the image to the four nodes (`docker load`, or pull once pushed) and RECORD THE DIGEST, copy the arm-3 `-sm121.yaml` shape with `container: dsv41-sm121-dg:0.2.0` and add `--dsv4-attn-backend trtllm` for this backend; no SGLang code change in this tree. estimate: provisional.",
-      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7"
+      "notes": "SUPERSEDED 2026-11-08 by `w4-survey-arm5-sm121-boot` + `w4-survey-arm5-control-boot` (window declared 2026-11-08: all six nodes research; image dsv41-sm121-dg:0.2.1 = sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7 carried and tag-verified on all six). Both 0.2.1 gates are gone (arch assert admits major 12; replay negatable via SWA_BOUNDED_REPLAY=0). The pair boots on the SAME digest with replay off in both arms; the 0.2.0 arm-3 run is indexer-scoring evidence, not this control. Children carry recipe/tp/env; this row is retired, not reopened. Kernel cleared 2026-11-07 (0.2.0 gate 8/8); backend gates cleared 2026-11-08 by the 0.2.1 tree patches.",
+      "provenance": "mad-science/TODO.md §Retry queue — window 4 (Build-gate drift advisory); mad-science/TODO.md §Retry queue — window 4 item 2; mad-science/DEEPSEEK.md §10.7",
+      "claimed_by": "",
+      "claimed_at": "",
+      "evidence": "w4-survey-arm5-sm121-boot, w4-survey-arm5-control-boot"
     },
     {
       "id": "ds4-knapcio-byte-reproducible",
@@ -1388,7 +1394,7 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "image gate cleared 2026-11-08 00:02 ET: tag-form inspect on all six hosts shows dsv41-sm121-dg:0.2.0=sha256:1778ec42… and :0.2.1=sha256:85c1ffc3… with exact RepoTags (survey-transfer carry rc=0, 156 s).",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Recipe repinned to dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), the same digest as the arm-5 pair, so one digest covers all three survey boots. Cell: 1039999-token C1 decode, image id in the receipt. Original gate note: 0.2.0/0.2.1 tag-form inspect on all six, survey-transfer carry rc=0 (156 s).",
       "provenance": "queue w4-survey-arm3-indexer-scoring; mad-science/DEEPSEEK.md §10.5; recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1403,7 +1409,7 @@
     },
     {
       "id": "w4-survey-arm5-sm121-boot",
-      "title": "Survey arm 5 SM121 boot: TRT-LLM sparse-MLA backend, C5/C10 @128K cell (preflight-gated)",
+      "title": "Survey arm 5 SM121 boot: TRT-LLM sparse-MLA backend, C5/C10 @128K cell",
       "estimate_h": 1.5,
       "blocks": [
         "w4-survey-arm5-trtllm-mla"
@@ -1412,7 +1418,7 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "image gate cleared 2026-11-08 00:02 ET: tag-form inspect on all six hosts shows dsv41-sm121-dg:0.2.0=sha256:1778ec42… and :0.2.1=sha256:85c1ffc3… with exact RepoTags (survey-transfer carry rc=0, 156 s).",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7); the two 0.2.1 tree gates that blocked this arm are gone (arch assert admits major 12; replay flag negatable, recipe sets SWA_BOUNDED_REPLAY=0). Control is w4-survey-arm5-control-boot on the SAME digest.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; mad-science/DEEPSEEK.md §10.7; recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1505,7 +1511,7 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "image gate cleared 2026-11-08 00:02 ET: tag-form inspect on all six hosts shows dsv41-sm121-dg:0.2.0=sha256:1778ec42… and :0.2.1=sha256:85c1ffc3… with exact RepoTags (survey-transfer carry rc=0, 156 s).",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), replay off (SWA_BOUNDED_REPLAY=0), same measurement as the treatment. Must not be replaced by the 0.2.0 arm-3 run: that one is indexer-scoring evidence.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; arm-author-2 commit 6bc48f8; DEEPSEEK.md §10.7",
       "evidence": "",
       "claimed_by": "",

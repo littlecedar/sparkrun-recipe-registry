@@ -6,16 +6,18 @@ model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # patched copy (a template-less checkpoint with no mod template is refused).
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 runtime: sglang
-# Local-only SM121 image (queue row arch-deepgemm-sm12x-paged-sparse, receipt
-# mad-science/SESSION-RECORD.md 2026-11-07 + ~/builds/deepgemm-sm121/ctx):
-# DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel backported from
-# deepseek-ai/DeepGEMM nv_dev b64107f2 and the arch gate widened to 10 or 12.
+# Local-only SM121 image (0.2.1, carried to all six nodes 2026-11-08 and
+# tag-verified): DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel
+# backported from deepseek-ai/DeepGEMM nv_dev b64107f2 and the arch gate widened
+# to majors 10 or 12. 0.2.1 adds the arm-5 gates (trtllm arch check admits major
+# 12, replay flag negatable); both are inert here -- this arm sets neither, so
+# its control stays the shipped canary-roce-aff52fa5 line.
 # Image ID (local, byte-identifies the artifact; nothing pushed):
-#   sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b
+#   sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7
 # It exists only on the head; carry it with the command in recipes/ds4/README.md
 # "SM121 survey arms" before a boot. distribution_config disables sparkrun's
 # image distribution, which would try to pull this local tag from a registry.
-container: dsv41-sm121-dg:0.2.0
+container: dsv41-sm121-dg:0.2.1
 distribution_config:
   containers:
     enabled: false
