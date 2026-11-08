@@ -246,7 +246,9 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `decision/zz-jev-9b-decision-coloc-vllm.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
-  | `ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml`\n`unpinned-model-revision`,`ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml`\n`unpinned-model-revision`,`ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` | `unpinned-model-revision` |
+  | `ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` | `unpinned-model-revision` |
+  | `ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `embed/qwen3-vl-embedding-2b-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` | `restated-managed-path` |
