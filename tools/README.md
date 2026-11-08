@@ -214,9 +214,19 @@ status=9/KILL`), and systemd's teardown of the user manager kills everything und
 and every `sparkrun cluster monitor` or TUI that a shell on that host started — so run monitors and
 interactive work from a node outside the boot set, or from the workstation; journald dropped 30225 kernel
 messages in the second event, so a process absent from `journalctl -k` has not been shown to survive.
-Before a quartet boot, prove the pool answers — `df -h /mnt/beegfs`, or a `timeout 5 ls` of a snapshot
-directory under it — because a dead pool presents as a launch frozen in `Planning: probing hardware,
-querying cluster occupancy and model metadata…`, which is a fleet condition and not an arm failure.
+Before a quartet boot, prove the pool answers — but read the probe for what it is: `df -h /mnt/beegfs`
+and a `timeout 5 ls` of a snapshot directory under it are **client-connectivity** tests, and the client
+only retries within `connCommRetrySecs=600`, so a `df` seconds after mgmtd returns can still answer
+`Communication error on send` on a healthy pool, and calling that "the pool is still dead" is the
+instrument talking. The authoritative check is server-side — `systemctl is-active` on the mgmtd, meta and
+storage units, the listening ports (`8008` mgmtd, `8003` storage) and the daemons' own registration lines —
+because `beegfs-ctl` and `beegfs-check-servers` are **not installed** on this fleet (`/opt/beegfs/sbin`
+holds server binaries only). A dead pool then presents as a launch frozen in `Planning: probing hardware,
+querying cluster occupancy and model metadata…`, which is a fleet condition and not an arm failure. A unit
+that refuses to start after an OOM kill is usually blocked by the stale `lock.pid` the kill left in the
+storage or meta directory (found dated 12:07 after the 12:59 restart attempts): clear that first, and do
+not read a failed start as a damaged payload — `/srv/beegfs/storage` measured 1,377,231,104,535 B and the
+meta log still carried `Root directory loaded.` and `I got root`.
 `sparkrun run --memory-limit`, and the portable `executor_config.memory_limit` behind it, exists and
 bounds only the container's host-side anonymous memory: useful against a repack copy, never against the
 weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
