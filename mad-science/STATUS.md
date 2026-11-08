@@ -1,4 +1,4 @@
-# Board — generated 2026-11-08 11:07 ET
+# Board — generated 2026-11-08 11:08 ET
 
 ## In flight
 
@@ -143,3 +143,4 @@
 | 10:53 | `5668269` | ledger section: the five blockers that were cheap conditions (readiness ceiling, memory-blind watchdog, rank-0-only probe, phantom `-cu130` tag, SM121 ÷128 as a dispatch choice), the three inferences corrected (pruned75 tokenizer false / 7,303 B stub, DSpark config bound at 4,598,107,009 params, residuals scheduled), and the standing rule that a potential blocker gets a falsifier queued ahead of it |
 | 10:57 | `5f10e5a8` | `run-arm.sh` reads `ARM_OPTS` as unit-separated fields (`\x1f`) so a spaced override reaches sparkrun as one argv entry, with the plain form still word-split so historical usage and the parallel slot gate are unchanged, and the evidence test re-pinned to the one-entry shape |
 | 11:05 | board refresh | census re-read at 11:01:03/11:02:54 ET (pool flat, the one `.30` container `created` and not running), the campaign's 10:45→10:47 lease and close folded into `In flight`, and the queue table re-rendered from the register (20 rows) |
+| 11:07 | `40675ff` | the window row's hour count replaced with its evidence — every board since 08:11 has carried the declared-window escalation |
