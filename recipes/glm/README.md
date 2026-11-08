@@ -76,6 +76,24 @@ prepared snapshot *path* via `{model}`, so there is no `--revision` for the vali
 the upstream launcher's production constants rather than per-launch choices; the mod README inventories
 them, and its `RECIPE_ENV` is upstream `scripts/config.sh` at TP=4.
 
+## Concurrency probes (2026-11-07, not booted)
+
+The shipped Flash arm's ladder peaks at C2 and falls at C5/C10
+(`102.36 / 79.49 / 73.37` t/s). Two `zz-` probes isolate the mechanism; both are
+one-line-diff copies of the shipped arm and neither has booted:
+
+| Recipe | Lever | Boot |
+|---|---|---|
+| [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml) | DFlash2 removed: the shim maps `--drafter-repo none` onto the engine's `--no-drafts`, at the mod's `--parallel 8` | ladder; C2-peak vs flat tells whether the drafter's verify window is the shape |
+| [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml) | slot cap promoted to a key: `--parallel {parallel}` (engine range 1–8) | one boot per `-o parallel=N` |
+
+A third lever — the DFlash2 draft-chain length (`TF_GLM_DFLASH_POLICY`, e.g.
+`fnc5:0.3`) and the shared verify window's rows (`TF_GLM_MULTI_WINDOW`) — is
+**not reachable from a recipe**: the shim sets both itself through
+`os.environ.update(RECIPE_ENV)`, so `-e`/`env:` is overwritten, and `serve` has no
+flag for either (see the mod README §Environment). `-o speculative_draft_model=none`
+is also not a no-drafter lever: sparkrun then prepares a model named `none`.
+
 ## Boot receipt (2026-10-18)
 
 First boot of the recipe as a sparkrun recipe, on `.30`–`.33` (task

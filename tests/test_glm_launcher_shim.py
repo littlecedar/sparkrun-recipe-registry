@@ -142,9 +142,12 @@ class Artifacts(ShimTestCase):
         argv = self.exec_argv(self.base_argv())
         self.assertEqual(str(self.drafter_snap), argv[argv.index("--drafter") + 1])
 
-    def test_drafter_none_is_passed_through(self) -> None:
+    def test_drafter_none_becomes_the_engine_no_drafts_reference(self) -> None:
+        # TensorFold patch 0070 refuses --parallel > 1 with no drafter unless
+        # --no-drafts is passed; `--drafter auto` is not that flag.
         argv = self.exec_argv(self.base_argv(drafter_repo="none"))
-        self.assertEqual("auto", argv[argv.index("--drafter") + 1])
+        self.assertIn("--no-drafts", argv)
+        self.assertNotIn("--drafter", argv)
 
     def test_unresolvable_checkpoint_fails_closed(self) -> None:
         rc = self.exec_refusal(self.base_argv(model="Nobody/No-Such-Checkpoint"))

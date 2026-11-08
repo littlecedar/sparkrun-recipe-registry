@@ -397,7 +397,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     drafter = "auto"
-    if args.drafter_repo and args.drafter_repo != "none":
+    # `--drafter-repo none` is the engine's serial reference: patch 0070 refuses
+    # `--parallel` > 1 with no drafter unless `--no-drafts` is passed (the MTP head
+    # drafts one request at a time), and `--drafter auto` is not that flag.
+    no_drafts = args.drafter_repo == "none"
+    if args.drafter_repo and not no_drafts:
         resolved = resolve_drafter(args.drafter_repo, args.drafter_revision)
         if resolved is None:
             # Fail closed: the boot-verified numbers are DFlash2's (76.6 %
@@ -422,8 +426,11 @@ def main(argv: list[str] | None = None) -> int:
         # Only rank 0 serves HTTP (upstream start.sh: the workers' command stops
         # at --master-port; no --name/--host/--port).
         cmd += ["--name", served_model_name(args.served_model_name), "--host", args.host, "--port", str(args.port)]
+    if no_drafts:
+        cmd.append("--no-drafts")
+    else:
+        cmd += ["--drafter", drafter]
     cmd += [
-        "--drafter", drafter,
         "--context", str(args.context),
         "--parallel", str(args.parallel),
         "--max-tokens", str(args.max_tokens),
@@ -433,7 +440,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"[tensorfold-glm-launcher] boot: node_rank={args.node_rank}/{args.tp} "
-        f"rendezvous={master or '127.0.0.1'}:{master_port} model={model_dir} drafter={drafter} "
+        f"rendezvous={master or '127.0.0.1'}:{master_port} model={model_dir} "
+        f"drafter={'no-drafts' if no_drafts else drafter} "
         f"serving={'0.0.0.0:' + str(args.port) if args.node_rank == 0 else 'no (worker rank)'} "
         f"context={args.context} parallel={args.parallel} kv={RECIPE_ENV['TF_GLM_KV']} "
         f"comm={RECIPE_ENV['TF_GLM_COMM']} roce_hca={os.environ.get('TF_ROCE_HCA', 'engine default')}",
