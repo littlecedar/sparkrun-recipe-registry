@@ -1734,6 +1734,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "run-arm-appearance-window-300s",
+      "title": "run-arm.sh must not call 'no container appeared' inside a fixed 300 s window: a 129.6 GB pair distribution takes 340 s to produce a container",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-08 05:27-05:39 ET on zz-ripple-65b-preview-bf16-tp2-vllm attempt 3 (.30/.31, task b631dae1dc7bf3d6_693d01660f8b): tools/run-arm.sh's appearance loop is `seq 1 60` x `sleep 5` = 300 s (tools/run-arm.sh:199-219) and it exits 1 at :225 with 'no container appeared' BEFORE it parses TID at :228 -- so the stop-trap is not yet installed and the launcher runs on. Its receipt log (zz-ripple-65b-preview-bf16-tp2-vllm@3.log, 05:32) reads ARM FAIL while the launch completed: containers started 10:32:47Z, launch.log records 'Endpoint ready ... TTR port-open 409.921s, HTTP-ready 409.948s' and /v1/models answers {id: ricursiveAI/Ripple-65B-Preview, max_model_len: 1048576}, rank1 'Extended KV cache 20416 blocks (39.88 GiB)'. Result: a boot that reached readiness was recorded 'no marker and no machine-readable artefact' by the director and left an unowned live serve on .30/.31 while the register row ripple-65b-bf16-tp2 still reads queued. Fix: derive the appearance ceiling from the launch's own distribution time (ARM_CONTAINER_APPEAR_TIMEOUT, default >= 900 s for a multi-rank body), require the launcher pid to be gone AND no container before failing, and install the stop-trap before the appearance loop so an abandoned launch cannot outlive the executor -- and have that trap kill the launcher pid too, not only the task: launch_arm backgrounds `sparkrun run` and keeps it in `$LAUNCH` (tools/run-arm.sh:173-177), while the trap at :238 stops only `$TID`, which is unset on this path, so an earlier trap alone still leaves the launcher running and its containers unowned.",
+      "provenance": "board tick 2026-11-08 06:00 ET; /home/red/benchmarks/h2h-20261107/logs/zz-ripple-65b-preview-bf16-tp2-vllm@3.log + its launch.log",
+      "evidence": "benchmarks/h2h-20261107/zz-ripple-65b-preview-bf16-tp2-vllm/launch.log",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
