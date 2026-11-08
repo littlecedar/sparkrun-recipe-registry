@@ -57,12 +57,21 @@ def _snapshot_root(hub: Path, repo: str, revision: str) -> Path:
 
 
 def complete_snapshot(hub: Path, repo: str = REPO, revision: str = REVISION) -> Path:
-    """A launchable tree: config plus one shard above the floor."""
+    """A launchable tree: config plus one shard above the floor, as the HF cache links it.
+
+    The shard is a symlink into `blobs/`, exactly as a real cache stores an xet body, so
+    "complete tree accepted" also proves the guard measures the *target's* bytes -- the
+    trap that made `du`/`ls` read a complete 39 GB snapshot as 6.7 MB.
+    """
     snap = _snapshot_root(hub, repo, revision)
     (snap / "config.json").write_text("{}")
-    with open(snap / "model-00001-of-00001.safetensors", "wb") as fh:
+    blob = snap.parent.parent / "blobs" / "deadbeef"
+    blob.parent.mkdir(parents=True, exist_ok=True)
+    with open(blob, "wb") as fh:
         fh.seek(FLOOR + 1)  # sparse: the guard reads stat, never contents
         fh.write(b"\0")
+    (snap / "model-00001-of-00001.safetensors").symlink_to(
+        Path("..", "..", "blobs", "deadbeef"))  # relative, as the cache writes it
     return snap
 
 
