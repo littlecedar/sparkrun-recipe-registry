@@ -130,9 +130,10 @@ class QueueCase(unittest.TestCase):
         self.fleet = FakeFleet()
         self.out = io.StringIO()
 
-    def build(self, hosts=("node-a", "node-b"), once: bool = False):
+    def build(self, hosts=("node-a", "node-b"), once: bool = False,
+              retries: int | None = None):
         campaign = state.Campaign.open(self.root / "state.json", campaign="test",
-                                        hosts=hosts, max_parallel=2)
+                                        hosts=hosts, max_parallel=2, retries=retries)
         self.addCleanup(campaign.close)
         leader = director_module.Director(
             campaign,
@@ -431,22 +432,18 @@ class Reconciliation(QueueCase):
         lease = leader.handle(protocol.poll("w1"))["lease"]
         self.assertEqual(lease["env"]["ARM_EXTRA_CLIENT"], "python3 -B tools/new-client.py")
 
-    def test_a_leased_arm_keeps_the_env_it_ran_with(self) -> None:
+    def test_a_live_lease_keeps_the_env_it_was_assigned_with(self) -> None:
         self.rows({"ARM_EXTRA_CLIENT": "old-client"})
         leader, campaign = self.build()
         leader.prepare()
         self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["env"]["ARM_EXTRA_CLIENT"],
                          "old-client")
-        campaign.close()
 
-        self.clock.now += state.LEASE_TTL + 1
         self.rows({"ARM_EXTRA_CLIENT": "new-client"})
-        leader, campaign = self.build()
-        leader.prepare()
-        self.assertEqual(campaign.arm("one")["attempts"], 1)
-        self.assertEqual(campaign.arm("one")["env"]["ARM_EXTRA_CLIENT"], "old-client")
-        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["env"]["ARM_EXTRA_CLIENT"],
-                         "old-client")
+        leader.refresh()                       # the poll-mode re-read while the arm is running
+        self.assertEqual(campaign.arm("one")["status"], "leased")
+        self.assertEqual(campaign.arm("one")["env"]["ARM_EXTRA_CLIENT"], "old-client",
+                         "a running arm's launch fields are frozen until its next attempt")
 
     def test_a_measured_arm_keeps_the_env_it_ran_with(self) -> None:
         self.rows({"ARM_EXTRA_CLIENT": "old-client"})
@@ -463,6 +460,29 @@ class Reconciliation(QueueCase):
         leader.prepare()
         self.assertEqual(campaign.arm("one")["status"], "measured")
         self.assertEqual(campaign.arm("one")["env"]["ARM_EXTRA_CLIENT"], "old-client")
+
+    def test_a_failed_arms_next_attempt_adopts_the_rows_new_env_cells(self) -> None:
+        self.rows({"ARM_ALLOW_FEW_SLOTS": "1"})
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=0)        # the attempt failed its ladder
+        self.assertEqual(leader.handle(protocol.report(lease["id"], 0, "log run.log"))["status"],
+                         "failed")
+        self.assertEqual(campaign.arm("one")["attempts"], 1)
+        campaign.close()
+
+        # The row is reopened with a readiness ceiling and a client hook: they belong to the next
+        # boot, not to the one already receipted, so the retry lease must carry them.
+        self.rows({"ARM_ALLOW_FEW_SLOTS": "1", "ARM_READY_TIMEOUT": "3000",
+                   "ARM_EXTRA_CLIENT": "python3 -B tools/client.py"})
+        leader, campaign = self.build(retries=1)
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["env"]["ARM_READY_TIMEOUT"], "3000")
+        resumed = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(resumed["id"], "one@2")
+        self.assertEqual(resumed["env"]["ARM_READY_TIMEOUT"], "3000")
+        self.assertEqual(resumed["env"]["ARM_EXTRA_CLIENT"], "python3 -B tools/client.py")
 
     def test_a_blocked_arm_runs_when_its_row_is_queued_again(self) -> None:
         self.rows()

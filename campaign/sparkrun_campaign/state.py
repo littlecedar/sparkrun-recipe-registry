@@ -224,17 +224,24 @@ class Campaign:
 
     def refresh(self, arm: str, *, path: str, tp: int, env: dict[str, str],
                 task: str) -> bool:
-        """Adopt a register row's current launch fields for an arm this campaign has not started.
+        """Adopt a register row's current launch fields for an arm that is not running now.
 
-        Queue mode's precedence: while no lease has been issued, the register row is the newer
-        decision (it may have gained an `env` cell or changed its recipe/tp), so it replaces the
-        record. An arm that has been leased keeps the record it ran with -- rewriting it would
-        make the state disagree with the receipt it already produced.
+        Queue mode's precedence: the row is the current launch plan, so an arm awaiting its next
+        attempt (pending, failed inside the retry budget, or blocked with its row runnable again)
+        takes the row's `env` -- a client hook or a readiness timeout added since the last attempt
+        must reach the next boot, not the one already recorded. A leased, measured or skipped arm
+        keeps the record it ran with, because that record is what its receipt describes.
+
+        `path`/`tp`/`task` move only when no reap is outstanding: the containers a reap must find
+        are labelled with the path that launched them, so the old path stays until `prepare` has
+        proved the hosts clear (`Campaign.cleared`).
         """
         record = self.arm(arm)
-        if record["attempts"] or record["status"] not in (PENDING, BLOCKED):
+        if record["status"] in (LEASED, MEASURED, SKIPPED):
             return False
-        fresh = {"path": path, "tp": int(tp), "env": dict(env), "task": task}
+        fresh: dict[str, Any] = {"env": dict(env)}
+        if not record["needs_reap"]:
+            fresh.update({"path": path, "tp": int(tp), "task": task})
         changed = sorted(key for key, value in fresh.items() if record.get(key) != value)
         if not changed:
             return False

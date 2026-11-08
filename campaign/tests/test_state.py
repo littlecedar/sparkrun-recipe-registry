@@ -128,5 +128,50 @@ class Leases(unittest.TestCase):
         self.assertEqual(len(self.campaign.arm("one")["history"]), state.HISTORY_CAP)
 
 
+class Reconciliation(unittest.TestCase):
+    """Launch fields follow the newer decision; only a running or answered arm is frozen."""
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.campaign = state.Campaign.open(self.root / "state.json", campaign="test",
+                                            hosts=("node-a", "node-b"))
+        self.addCleanup(self.campaign.close)
+        self.campaign.add("one", "recipes/lane/one.yaml", env={"OLD": "1"}, task="t1")
+        self.campaign.add("two", "recipes/lane/two.yaml", task="t2")
+
+    def test_a_pending_arm_adopts_the_rows_fields_once(self) -> None:
+        self.assertTrue(self.campaign.refresh("one", path="recipes/lane/one.yaml", tp=1,
+                                              env={"NEW": "2"}, task="t1"))
+        self.assertEqual(self.campaign.arm("one")["env"], {"NEW": "2"})
+        self.assertFalse(self.campaign.refresh("one", path="recipes/lane/one.yaml", tp=1,
+                                               env={"NEW": "2"}, task="t1"))
+        self.assertEqual(self.campaign.arm("one")["history"][-1]["kind"], "reconcile")
+
+    def test_a_failed_arm_adopts_the_cells_for_its_next_attempt(self) -> None:
+        self.campaign.assign("two", "w1", ["node-a"], now=10.0)
+        self.campaign.finish("two", status=state.FAILED, rc=0, reason="partial ladder")
+        self.assertTrue(self.campaign.refresh("two", path="recipes/lane/two.yaml", tp=1,
+                                              env={"ARM_READY_TIMEOUT": "3000"}, task="t2"))
+        self.assertEqual(self.campaign.arm("two")["env"], {"ARM_READY_TIMEOUT": "3000"})
+        self.assertEqual(self.campaign.arm("two")["attempts"], 1)
+
+    def test_a_reap_outstanding_keeps_the_path_the_containers_are_labelled_with(self) -> None:
+        self.campaign.assign("two", "w1", ["node-a"], now=10.0)
+        self.campaign.expire(10.0 + state.LEASE_TTL + 1)     # pending with needs_reap [node-a]
+        self.assertTrue(self.campaign.refresh("two", path="recipes/lane/elsewhere.yaml", tp=1,
+                                              env={"ARM_READY_TIMEOUT": "3000"}, task="t2"))
+        record = self.campaign.arm("two")
+        self.assertEqual(record["path"], "recipes/lane/two.yaml")
+        self.assertEqual(record["env"], {"ARM_READY_TIMEOUT": "3000"},
+                         "env moves with the next attempt; the label a reap must find does not")
+
+    def test_a_leased_or_measured_arm_keeps_its_record(self) -> None:
+        self.campaign.assign("two", "w1", ["node-a"], now=10.0)
+        self.assertFalse(self.campaign.refresh("two", path="x", tp=1, env={}, task="t2"))
+        self.campaign.mark_measured("one", str(self.root), "fixture")
+        self.assertFalse(self.campaign.refresh("one", path="x", tp=1, env={}, task="t1"))
+
+
 if __name__ == "__main__":
     unittest.main()

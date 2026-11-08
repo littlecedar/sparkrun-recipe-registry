@@ -219,8 +219,8 @@ Three writers can disagree about one arm, so one precedence rule decides, newest
 |---|---|---|
 | `--retries` on the command line | every arm, at open | The operator restarting to retry a terminal arm is the newer decision; an omitted flag keeps the number the previous life stored instead of resetting it to `0`. |
 | `--receipts-root` on the command line | `ARM_RECEIPTS_ROOT` in every arm that can still run | It is this run's decision and the evidence readers look under it; an executor writing elsewhere produces numbers the campaign cannot attribute. |
-| The register row (queue mode) | `path`, `tp`, `env`, `task` of an arm that has never been leased | The row may have gained an `env` cell (a client hook, a receipts root) or changed its recipe/tp since adoption; `Campaign.refresh` adopts it, idempotently. |
-| The state record | every field of an arm that has been leased, measured or skipped | The record is what actually ran; rewriting it would make the state disagree with the receipt it produced. |
+| The register row (queue mode) | `env`, and `path`/`tp`/`task` while no reap is outstanding, for an arm that is not leased, measured or skipped | The row is the current launch plan: a client hook or readiness timeout added since the last attempt must reach the next boot. `path` waits for the reap because the containers a reap must find are labelled with the path that launched them. |
+| The state record | every field of an arm that is leased, measured or skipped | The record is what is running or what ran; rewriting it would make the state disagree with the receipt it produced. A new attempt is a new decision, so the row's `env` applies to it. |
 | The register no longer carrying a state arm | block, never boot | A dropped row means another session or a human closed that work; the campaign's own state cannot see why. |
 | A blocked arm | retried on a restart only (`prepare`), and only with `needs_reap == []` | A running director does not retry a blocked arm; a row flipped back to `queued` says the external gate opened, not that the hosts are clean. |
 
