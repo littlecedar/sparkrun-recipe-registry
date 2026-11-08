@@ -97,6 +97,20 @@ launches with `--cluster WOPR` and never falls back to an anonymous cluster — 
 weights out per node and measures a different arm. A host without the profile refuses by design,
 with its own code and a "not a launch host" message rather than a model-shaped one.
 
+**Every arm receipt says who killed the serve.** After the launch, `run-arm.sh` reads each lease
+host's `journalctl -u earlyoom` over the arm's own window and writes `oom-watchdog.txt`: a
+`# oom_watchdog=<state> … evidence=<journal line>` header plus one
+`<host> exit=… journal=ok|unreadable line=… view=host` line per host, and one `oom_watchdog:`
+field into `house.yaml` when the arm wrote one. The three values are the contract —
+`earlyoom-terminated` (the journal line names the process; earlyoom sends SIGTERM, so the engine
+exits 143), `clean` (readable journal, exit outside {137,143}, result artifact present) and
+`unknown` (a 137/143 with no journal line, an unreadable journal, or no artifact — never a default
+to `clean`). The campaign receipt carries the same verdict, read from the artifact, so a 143 death
+is attributable without opening `launch.log`. The gate's first production green on the pooling path
+was taken on the healthy fleet revision: `.30` reads `role=mgmtd` with all three units active,
+`.31`–`.35` read `role=client units=…-no-role … storage=active`, and every host verdict is
+`pool-ready` (2026-11-08, receipt in `.scratch/pool-preflight-live-2026-11-08.txt`).
+
 An embed/rerank arm takes no chat suite, so `run-arm.sh` gives it a deliberately different receipt
 from every other arm, and a consumer deciding whether the arm is finished has to read it by that
 contract rather than by "a house file exists". A completed pooling receipt holds `ladder.yaml` (plus

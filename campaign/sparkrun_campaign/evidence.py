@@ -49,6 +49,15 @@ _METRICS_LINE = re.compile(r"^(captured|absent|no_probe|wrong_port)\s+(.*)$")
 #: Severity order `run-arm.sh` aggregates with: an unverifiable probe outranks a wrong listener,
 #: which outranks a capture, which outranks "the engine exposes nothing".
 _METRICS_RANK = {"absent": 0, "captured": 1, "wrong_port": 2, "no_probe": 3}
+#: `run-arm.sh`'s earlyoom reader, written on every exit after the launch: one header line
+#: `# oom_watchdog=<state> since=@… exit=… unread=… artifact=… evidence=…` then one
+#: `<host> exit=… journal=ok|unreadable line=… view=host` per lease host. An earlyoom kill is a
+#: SIGTERM, so the engine exits 143 and prints no traceback; the journal line is the only evidence
+#: of the killer, and `unknown` is a real answer (a 137/143 with no line is never a clean death).
+#: Read directly, never through the marker: a `sparkrun_benchmark` sidecar drops every flat key.
+OOM_WATCHDOG = "oom-watchdog.txt"
+_OOM_HEADER = re.compile(r"^# oom_watchdog=(earlyoom-terminated|clean|unknown)\b(.*)$")
+_OOM_STATES = frozenset({"earlyoom-terminated", "clean", "unknown"})
 #: The flat marker's own keys. A house.yaml carrying only `sparkrun_benchmark` is sparkrun's nested
 #: sidecar instead: it has no ladder/accuracy field, and reading one into existence would be a
 #: fabricated verdict.
@@ -415,6 +424,43 @@ def metrics_status(arm_dir: str | Path) -> dict[str, object] | None:
     detail = " ".join(part for part in (top["url"], top["reason"]) if part and part != "-")
     return {"status": top["status"], "reason": detail or "no reason",
             "hosts": len(verdicts), "captured": witnessed}
+
+
+def oom_watchdog(arm_dir: str | Path) -> dict[str, str] | None:
+    """The receipt's ``oom_watchdog`` field: who killed the serve, or None when nothing launched.
+
+    A sibling reader to :func:`metrics_status` for the sibling artifact `run-arm.sh` writes on
+    every exit after the launch. earlyoom kills with SIGTERM, so the engine exits 143 and prints
+    no traceback; the journal line is the only evidence of the killer, and the three states are
+    the whole contract. ``unknown`` is a real answer, never a fallback to ``clean``: a 137/143
+    with no journal line, an unreadable journal or no result artifact all read ``unknown``.
+    """
+    path = Path(arm_dir) / OOM_WATCHDOG
+    if not path.exists():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise EvidenceError(f"{path}: {exc}") from exc
+    for line in text.splitlines():
+        found = _OOM_HEADER.match(line)
+        if not found:
+            continue
+        state = found.group(1)
+        if state not in _OOM_STATES:  # regex pins the set; a widened pattern must not slip through
+            break
+        # `evidence=` carries the journal line verbatim, spaces included, so it is split off
+        # before the whitespace-separated key=value facts.
+        head, _, tail = found.group(2).partition(" evidence=")
+        facts = dict(part.split("=", 1) for part in head.split() if "=" in part)
+        reason = " ".join(
+            f"{key}={facts[key]}" for key in ("exit", "unread", "artifact") if key in facts
+        )
+        evidence = tail.rsplit(" view=host", 1)[0].strip() if tail else "-"
+        if state == "earlyoom-terminated" and evidence not in ("", "-"):
+            reason = f"{reason}; {evidence}"
+        return {"state": state, "reason": reason or "no facts"}
+    return {"state": "unknown", "reason": f"{OOM_WATCHDOG} carries no oom_watchdog header"}
 
 
 def done(arm_dir: str | Path) -> tuple[bool, str]:

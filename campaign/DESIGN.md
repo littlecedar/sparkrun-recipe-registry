@@ -411,7 +411,7 @@ failed module. The totals themselves stay in `AGENTS.md`, which owns them.
 failed, blocked, or found measured on disk at start-up. Fields: campaign, arm, recipe path, tp,
 hosts, lease id, attempt, start/end, `rc`, `status`, `reason`, `measurement_dir`, `measured`,
 `artefacts`, `serve_logs`, `ladder`, `accuracy_status`, `marker_shape`, `house_score`, `client`,
-`metrics_status`, `watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the
+`metrics_status`, `oom_watchdog`, `watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the
 outcome fields came from: `run-arm`'s flat marker (`suite`/`ladder`/`accuracy_status`) or
 sparkrun's nested
 `sparkrun_benchmark` sidecar, whose outcome lives under `benchmark`/`results` and which carries
@@ -429,7 +429,7 @@ ladder reading as `ok`. `metrics_status` is read from the scrape's own artifacts
 `metrics-<host>.txt` bodies — and never through the marker, because a `sparkrun_benchmark`
 sidecar discards every flat key. `captured` needs that host's own non-empty body or the field
 says `disagrees — …`; a missing artifact is `{"status": "", "reason": "no artifact"}`, so a
-scrape that never ran is never `absent` (the engine exposing nothing). `client` is the
+scrape that never ran is never `absent` (the engine exposing nothing). `oom_watchdog` is the earlyoom verdict, read from `oom-watchdog.txt` beside the marker: `earlyoom-terminated` (a journal line names the process; earlyoom sends SIGTERM, so the engine exits 143), `clean` (a readable journal, an exit outside {137,143}, a result artifact) or `unknown` (a 137/143 with no line, an unreadable journal, no artifact — never a default to `clean`), with the quoting line and the exit/unread/artifact facts in `reason`. `client` is the
 arm-scoped extra client's receipt (`client/client.json`: cell, image_id, rc), empty when the arm
 ran no extra client. The numbers themselves stay where the executor wrote them
 (`~/benchmarks/tp12-<date>/<arm>/`); the receipt is the campaign's own account of the arm and

@@ -133,3 +133,24 @@ def metrics(
         lines.append(line)
         write(Path(arm_dir) / f"metrics-{host}.txt", line + "\n" + body)
     write(Path(arm_dir) / "metrics-status.txt", "\n".join(lines) + "\n")
+
+
+def oom_watchdog(
+    arm_dir: str | Path,
+    *,
+    state: str = "clean",
+    exit_codes: str = "0",
+    unread: int = 0,
+    artifact: str = "yes",
+    evidence_line: str = "-",
+    hosts: dict[str, tuple[str, str]] | None = None,
+) -> None:
+    """The earlyoom reader `run-arm.sh` writes: one header carrying the arm's verdict, then one
+    line per host with the journal state and the matching line verbatim (`hosts` maps
+    host -> (journal, line)).
+    """
+    lines = [f"# oom_watchdog={state} since=@1762613000 hosts=node-a exit={exit_codes} "
+             f"unread={unread} artifact={artifact} evidence={evidence_line} view=host"]
+    for host, (journal, line) in (hosts or {}).items():
+        lines.append(f"{host} exit={exit_codes} journal={journal} line={line} view=host")
+    write(Path(arm_dir) / "oom-watchdog.txt", "\n".join(lines) + "\n")

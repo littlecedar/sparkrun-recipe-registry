@@ -21,7 +21,7 @@ from pathlib import Path
 from sparkrun_campaign import director as director_module
 from sparkrun_campaign import plan, protocol, state
 
-from .support import lane_doc, manifest, metrics, receipt, recipe, sidecar_receipt
+from .support import lane_doc, manifest, metrics, oom_watchdog, receipt, recipe, sidecar_receipt
 
 
 def presence_only(arm_dir: str | Path) -> bool:
@@ -290,6 +290,29 @@ class CompletionIsReadFromReceipts(CampaignCase):
 
         self.assertEqual(self.receipt_fields("arm-one")["metrics_status"],
                          {"status": "", "reason": "no artifact"})
+
+    def test_the_receipt_carries_the_earlyoom_verdict(self) -> None:
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        arm_dir = receipt(self.receipts, lease["arm"], cells=2)
+        oom_watchdog(arm_dir, state="earlyoom-terminated", exit_codes="143",
+                     evidence_line="earlyoom: low memory!", hosts={"node-a": ("ok", "-")})
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        verdict = self.receipt_fields("arm-one")["oom_watchdog"]
+        self.assertEqual(verdict["state"], "earlyoom-terminated")
+        self.assertIn("exit=143", verdict["reason"])
+
+    def test_a_receipt_without_an_oom_artifact_says_no_artifact(self) -> None:
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=2)
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        self.assertEqual(self.receipt_fields("arm-one")["oom_watchdog"],
+                         {"state": "", "reason": "no artifact"})
 
     def test_the_receipt_keeps_the_serve_log_of_a_watchdog_reaped_arm(self) -> None:
         leader, _ = self.build()

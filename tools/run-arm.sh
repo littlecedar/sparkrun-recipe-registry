@@ -469,6 +469,68 @@ stop_capture() {
   done
   for p in ${CAPTURE[@]+"${CAPTURE[@]}"}; do kill "$p" 2>/dev/null; done
 }
+# oom-watchdog: start
+# earlyoom kills with SIGTERM, so the engine exits 143 (128+15) and prints no traceback: a dead
+# boot reads clean-but-unexplained and the next fit verdict blames the engine. 137 is SIGKILL (a
+# cgroup OOM or docker's own kill). The journal is the only place that names the killer, so this
+# reads it per lease host over the arm's own window and records the matching line verbatim in
+# `oom-watchdog.txt`. `house.yaml` gets one field, `oom_watchdog`, whose three values are the
+# contract: `clean` needs a readable journal, an exit outside {137,143} and a result artifact;
+# anything else is `unknown`, and `earlyoom-terminated` needs a journal line, never suspicion.
+oom_watchdog_check() {
+  [ -n "${OOM_SINCE:-}" ] || return 0        # never launched: there is no window to read
+  [ -z "${OOM_DONE:-}" ] || return 0         # INT then TERM must not append the field twice
+  OOM_DONE=1
+  local hn j jrc jbody hit jstate line= unread=0 exit_codes= artifact= state=
+  exit_codes=$( { sed -n 's/^# capture: die exit=\([0-9][0-9]*\)$/\1/p' "$L"/docker-*.log 2>/dev/null
+                  sed -n 's/.*exit status \([0-9][0-9]*\).*/\1/p' "$L/launch.log" 2>/dev/null
+                } | sort -u | tr '\n' ',' | sed 's/,$//' )
+  for f in "$L/house.yaml" "$L/ladder.yaml" "$L/ladder.json" "$L/teb-decision.log"; do
+    [ -s "$f" ] && { artifact=yes; break; }
+  done
+  : > "$L/oom-watchdog.txt.hosts"
+  for hn in $(echo "$HOSTS" | tr ',' ' '); do
+    j=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+          "journalctl --since '@$OOM_SINCE' -u earlyoom -o cat --no-pager 2>&1; echo \"__rc=\$?\"" \
+          2>/dev/null)
+    jrc=$(printf '%s\n' "$j" | sed -n 's/^__rc=//p' | head -1)
+    jbody=$(printf '%s\n' "$j" | sed '/^__rc=/d')
+    hit= jstate=unreadable
+    if [ "$jrc" = 0 ]; then
+      jstate=ok
+      hit=$(printf '%s\n' "$jbody" | grep -i -m1 'sending SIGTERM\|low memory' || true)
+    else
+      unread=$((unread + 1))
+    fi
+    [ -n "$hit" ] && line=$hit
+    printf '%s exit=%s journal=%s line=%s view=host\n' "$hn" "${exit_codes:--}" "$jstate" \
+      "${hit:--}" >> "$L/oom-watchdog.txt.hosts"
+  done
+  if [ -n "$line" ]; then
+    state=earlyoom-terminated
+  elif [ "$unread" -gt 0 ] || [ -z "$artifact" ] || [ -z "$exit_codes" ]; then
+    state=unknown
+  else
+    case ",$exit_codes," in
+      *,137,*|*,143,*) state=unknown ;;   # a kill with no journal line is not a clean death
+      *) state=clean ;;
+    esac
+  fi
+  printf '# oom_watchdog=%s since=@%s hosts=%s exit=%s unread=%s artifact=%s evidence=%s view=host\n' \
+    "$state" "$OOM_SINCE" "$HOSTS" "${exit_codes:--}" "$unread" "${artifact:-no}" "${line:--}" \
+    > "$L/oom-watchdog.txt"
+  cat "$L/oom-watchdog.txt.hosts" >> "$L/oom-watchdog.txt"
+  rm -f "$L/oom-watchdog.txt.hosts"
+  if [ -e "$L/house.yaml" ]; then
+    printf 'oom_watchdog: %s\n' "$state" >> "$L/house.yaml"
+  fi
+  echo "oom-watchdog: $state (exit=${exit_codes:--} unread=$unread artifact=${artifact:-no})"
+}
+# oom-watchdog: end
+# The OOM window opens at the launch: a boot killed by earlyoom leaves its only trace in the
+# journal, timed from here. The check itself runs in the EXIT trap, so a dead boot (exit 4) is
+# attributed the same way a finished arm is.
+OOM_SINCE=$(date +%s)
 launch_arm
 for attempt in 1 2 3; do
   # Give the launcher a moment to fail fast on a held claim before deciding it is fine.
@@ -508,6 +570,9 @@ for _ in $(seq 1 60); do
   if ! kill -0 "$LAUNCH" 2>/dev/null; then
     echo "ARM FAIL $NAME: launcher exited with no container. Last lines:"
     tail -5 "$L/launch.log"
+    # The trap is not installed yet, and this is exactly the marlin shape: an engine killed during
+    # init leaves no container, so its 137/143 is attributable only from here.
+    oom_watchdog_check
     exit 5
   fi
   sleep 5
@@ -519,6 +584,7 @@ fi
 
 if [ -z "${N:-}" ]; then
   echo "ARM FAIL $NAME: no container appeared (see $L/launch.log)"
+  oom_watchdog_check
   exit 1
 fi
 TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
@@ -528,7 +594,7 @@ echo "arm=$NAME container=$N task=$TID port=$PORT"
 # the task does not outlive it. The explicit stop below is the normal path; this
 # trap is the one that covers the script being killed mid-measurement, which is
 # the same class of leak as forgetting the stop entirely.
-trap 'stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
+trap 'oom_watchdog_check; stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
 
 # The image cell belongs to every receipt, not to the arms that happen to carry a quality client:
 # the concurrency rows had to smuggle an image-id gate into ARM_EXTRA_CLIENT because this block

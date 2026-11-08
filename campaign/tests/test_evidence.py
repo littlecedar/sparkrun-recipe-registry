@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sparkrun_campaign import evidence
 
-from .support import lane_doc, metrics, receipt, recipe, sidecar_receipt, write
+from .support import lane_doc, metrics, oom_watchdog, receipt, recipe, sidecar_receipt, write
 
 REPO = Path(__file__).resolve().parents[2]
 MARKER = "2026-11-01 \u2014 died at engine load (docs/lane.md:2)"
@@ -319,6 +319,53 @@ class MetricsField(unittest.TestCase):
             "hosts": 2,
             "captured": 0,
         })
+
+
+class OomWatchdogField(unittest.TestCase):
+    """The receipt's `oom_watchdog` field: who killed the serve, read from its own artifact.
+
+    earlyoom kills with SIGTERM, so the engine exits 143 and prints no traceback; a default of
+    `clean` is how a kill gets attributed to the engine. `unknown` is a real answer (a 137/143 with
+    no journal line, an unreadable journal, no result artifact), and the artifact is read directly
+    because a `sparkrun_benchmark` sidecar drops every flat marker key.
+    """
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+    def test_an_earlyoom_kill_carries_the_line_it_was_read_from(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        line = ('earlyoom: low memory! sending SIGTERM to process 4242 uid 1000 "python3"')
+        oom_watchdog(arm_dir, state="earlyoom-terminated", exit_codes="143",
+                     evidence_line=line, hosts={"node-a": ("ok", line)})
+        verdict = evidence.oom_watchdog(arm_dir)
+        self.assertEqual(verdict["state"], "earlyoom-terminated")
+        self.assertIn(line, verdict["reason"], "the journal line is not quoted")
+        self.assertIn("exit=143", verdict["reason"])
+
+    def test_unknown_is_kept_verbatim_and_is_never_clean(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        oom_watchdog(arm_dir, state="unknown", exit_codes="143",
+                     hosts={"node-a": ("ok", "-")})
+        self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "unknown")
+        self.assertEqual(evidence.oom_watchdog(arm_dir)["reason"],
+                         "exit=143 unread=0 artifact=yes")
+
+    def test_no_artifact_is_none_not_unknown(self) -> None:
+        self.assertIsNone(evidence.oom_watchdog(receipt(self.root, "arm")))
+
+    def test_an_artifact_without_the_header_reads_unknown(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        write(arm_dir / "oom-watchdog.txt", "truncated before the verdict\n")
+        self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "unknown")
+
+    def test_a_sidecar_marker_does_not_swallow_the_artifact(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", cells=2)
+        oom_watchdog(arm_dir, state="earlyoom-terminated", exit_codes="143",
+                     evidence_line="earlyoom: low memory!", hosts={"node-a": ("ok", "-")})
+        self.assertEqual(evidence.marker_fields(arm_dir)["shape"], "sparkrun_benchmark")
+        self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "earlyoom-terminated")
 
 
 class NegativeControls(unittest.TestCase):

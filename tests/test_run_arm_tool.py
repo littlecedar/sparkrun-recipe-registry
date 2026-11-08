@@ -1610,6 +1610,8 @@ DP_START = "# daemon-preflight: start"
 DP_END = "# daemon-preflight: end"
 MP_START = "# model-path: start"
 MP_END = "# model-path: end"
+OOM_START = "# oom-watchdog: start"
+OOM_END = "# oom-watchdog: end"
 M_START = "# metrics-scrape: start"
 M_END = "# metrics-scrape: end"
 
@@ -1685,6 +1687,14 @@ NODE_PYTHON_STUB = """#!/usr/bin/env bash
 exit "$(sed -n 1p "$NODES/${DP_HOST:-?}.port" 2>/dev/null || echo 0)"
 """
 
+# A host's earlyoom journal: <exit code> on line 1, then the lines the unit wrote. No fixture is
+# an unreadable journal (journalctl failed), which is the `unknown` case, never "no line".
+NODE_JOURNALCTL_STUB = """#!/usr/bin/env bash
+f="$NODES/${DP_HOST:-?}.journal"
+[ -f "$f" ] || { echo "journalctl: Failed to open journal: no such file" >&2; exit 1; }
+ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}"
+"""
+
 POOL_PRESENT = "0\nconfig.json\nmodel-00001-of-00002.safetensors\nmodel-00002-of-00002.safetensors\n"
 POOL_ABSENT = "2\nls: cannot access '/fake/pool/huggingface': No such file or directory\n"
 POOL_ECOMM = "2\nls: cannot access '/fake/pool/huggingface': Communication error on send\n"
@@ -1721,7 +1731,8 @@ class ExecutedBlock(unittest.TestCase):
             self.skipTest("bash not on PATH")
 
     def run_block(self, body, hosts=("head.test",), files=None, recipe="runtime: vllm\n",
-                  ready="yes", house=False, hub=True, hub_text=None, env_extra=None, timeout=60):
+                  ready="yes", house=False, hub=True, hub_text=None, env_extra=None, timeout=60,
+                  receipt_extra=None):
         files = files or {}
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -1736,6 +1747,7 @@ class ExecutedBlock(unittest.TestCase):
             for name, stub in (("ssh", SSH_STUB), ("docker", DOCKER_STUB), ("curl", CURL_STUB),
                                ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB),
                                ("systemctl", NODE_SYSTEMCTL_STUB), ("mount", NODE_MOUNT_STUB),
+                               ("journalctl", NODE_JOURNALCTL_STUB),
                                ("ip", NODE_IP_STUB), ("python3", NODE_PYTHON_STUB)):
                 stub_path = bins / name
                 stub_path.write_text(stub)
@@ -1748,6 +1760,8 @@ class ExecutedBlock(unittest.TestCase):
             recipe_path = tmp / "recipe.yaml"; recipe_path.write_text(recipe)
             if house:
                 (receipt / "house.yaml").write_text("suite: ok\n")
+            for name, text in (receipt_extra or {}).items():
+                (receipt / name).write_text(text)
             script = tmp / "arm.sh"
             script.write_text(
                 "#!/usr/bin/env bash\nset -uo pipefail\n"
@@ -2185,6 +2199,90 @@ class PoolGate(ExecutedBlock):
         self.assertLess(text.index(DP_END), at, "the daemon probe must run first")
         self.assertLess(at, text.index("CAPTURE_DIR="), "the capture is armed before the gate")
         self.assertLess(at, text.index("\nlaunch_arm\n"), "the launch precedes the gate")
+
+
+class OomWatchdog(ExecutedBlock):
+    """An earlyoom kill is a SIGTERM: exit 143, no traceback, and no trace in the receipt.
+
+    The field is the whole contract (`earlyoom-terminated` / `clean` / `unknown`), and the failure
+    this class exists for is a default to `clean`: the engine then reads as having died for its own
+    reasons and the next fit verdict blames it. Every case below asserts the evidence line as well
+    as the label, because a label with no line is suspicion.
+    """
+
+    EARLYOOM = ('earlyoom: low memory! sending SIGTERM to process 4242 uid 1000 '
+                'pdeath_signal=0 "python3"')
+    DIE_143 = "# capture: die exit=143\n"
+
+    def block(self):
+        return block_region(read_tool(), OOM_START, OOM_END) + "\noom_watchdog_check"
+
+    def run_oom(self, journal="0\n", exits=DIE_143, house=True, hosts=("head.test",), files=None):
+        extra = dict(files or {})
+        for host in hosts:
+            if journal is not None:
+                extra[f"{host}.journal"] = journal
+        return self.run_block(
+            self.block(), hosts=hosts, files=extra, house=house,
+            receipt_extra={"docker-rank0.log": exits},
+            env_extra={"OOM_SINCE": "1762613000"})
+
+    def test_an_earlyoom_line_in_the_window_is_named_and_quoted(self):
+        rc, out, files, _ = self.run_oom(journal=f"0\n{self.EARLYOOM}\n", house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=earlyoom-terminated", files["oom-watchdog.txt"])
+        self.assertIn(self.EARLYOOM, files["oom-watchdog.txt"], "the line is not quoted verbatim")
+        self.assertIn("oom_watchdog: earlyoom-terminated", files["house.yaml"])
+        self.assertIn("head.test exit=143 journal=ok line=", files["oom-watchdog.txt"])
+
+    def test_a_clean_exit_with_a_readable_journal_and_an_artifact_is_clean(self):
+        rc, out, files, _ = self.run_oom(journal="0\n", exits="# capture: die exit=0\n", house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=clean", files["oom-watchdog.txt"])
+        self.assertIn("oom_watchdog: clean", files["house.yaml"])
+
+    def test_143_without_an_earlyoom_line_is_unknown_not_clean(self):
+        rc, out, files, _ = self.run_oom(journal="0\n", house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
+        self.assertIn("oom_watchdog: unknown", files["house.yaml"])
+        self.assertNotIn("oom_watchdog=clean", files["oom-watchdog.txt"])
+
+    def test_137_with_an_unreadable_journal_is_unknown(self):
+        rc, out, files, _ = self.run_oom(
+            journal=None, exits="# capture: die exit=137\n", house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
+        self.assertIn("head.test exit=137 journal=unreadable line=-", files["oom-watchdog.txt"])
+
+    def test_a_missing_result_artifact_is_unknown_even_on_a_clean_exit(self):
+        rc, out, files, _ = self.run_oom(journal="0\n", exits="# capture: die exit=0\n", house=False)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
+        self.assertNotIn("oom_watchdog=clean", files["oom-watchdog.txt"])
+
+    def test_negative_control_ignoring_the_journal_reads_a_kill_as_clean(self):
+        """The defect the field exists for: 143 + an earlyoom line, recorded as a clean death."""
+        mutated = self.block().replace('if [ -n "$line" ]; then', "if false; then")
+        at = mutated.index("*,137,*|*,143,*)")
+        mutated = mutated[:at] + mutated[mutated.index("\n", at) + 1:]
+        self.assertNotIn("*,137,*|*,143,*)", mutated, "the defect arm survived the mutation")
+        self.assertNotEqual(mutated, self.block(), "the classifier moved; this control is vacuous")
+        rc, out, files, _ = self.run_block(
+            mutated, hosts=("head.test",),
+            files={"head.test.journal": f"0\n{self.EARLYOOM}\n"}, house=True,
+            receipt_extra={"docker-rank0.log": self.DIE_143},
+            env_extra={"OOM_SINCE": "1762613000"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=clean", files["oom-watchdog.txt"],
+                      "the mutation did not reproduce a clean read")
+
+    def test_the_check_runs_in_the_exit_trap_and_before_it_on_the_early_exits(self):
+        text = read_tool()
+        self.assertIn("oom_watchdog_check; stop_capture", text, "the trap does not record the death")
+        self.assertIn("exit 5", text)
+        self.assertLess(text.index("oom_watchdog_check\n    exit 5"),
+                        text.index("trap 'oom_watchdog_check"), "the early exit is not covered")
 
 
 if __name__ == "__main__":

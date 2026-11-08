@@ -765,6 +765,10 @@ class Director:
             # `sparkrun_benchmark`, empty when there is no marker). The nested sidecar has no
             # ladder field of its own, so the field is read from the artefact instead (below):
             # a receipt never carries a blank ladder beside `measured: true`.
+            # The earlyoom reader, from its own artifact for the same reason: `earlyoom-terminated`
+            # says a SIGTERM (exit 143) killed the serve, and `unknown` says nobody could tell --
+            # never a default to `clean`, which is how a kill gets blamed on the engine.
+            "oom_watchdog": {},
             "marker_shape": "",
             "house_score": "",
             "client": {},
@@ -783,6 +787,8 @@ class Director:
             fields["accuracy_status"] = marker.get("accuracy_status", "")
             fields["metrics_status"] = evidence.metrics_status(mdir) or {
                 "status": "", "reason": "no artifact"}
+            fields["oom_watchdog"] = evidence.oom_watchdog(mdir) or {
+                "state": "", "reason": "no artifact"}
             fields["marker_shape"] = marker.get("shape", "")
             fields["house_score"] = marker.get("house_score", "")
             try:
