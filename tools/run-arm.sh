@@ -265,14 +265,21 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
       c=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
             "docker ps --format '{{.Names}}' | grep -F '$TID' | head -1" 2>/dev/null)
       if [ -n "$c" ]; then
-        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs -f '$c'" \
-          > "$L/docker-$(echo "$hn" | tr '.' '_').log" 2>&1
+        f="$L/docker-$(echo "$hn" | tr '.' '_').log"
+        # docker's own errors go to a sidecar, never into the log: a reap mid-stream once left
+        # "no such object" as the file's only content, which reads as engine output.
+        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs -f '$c'" \
+             >> "$f" 2> "$f.err"; then
+          echo "# capture: docker logs -f for $c on $hn ended with docker's error (in $(basename "$f").err); anything below is not engine output" >> "$f"
+        fi
         # A silent death (OOM kill, non-zero exit with no stderr) leaves `docker logs` holding only
         # the entrypoint banner. Append the container's own state while it still exists; if the
-        # watchdog or the stop already removed it, the inspect error is itself the record.
-        ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
-          "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}' '$c'" \
-          >> "$L/docker-$(echo "$hn" | tr '.' '_').log" 2>&1
+        # watchdog or the stop already removed it, say so instead of leaving the raw error.
+        if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+             "docker inspect -f 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}}' '$c'" \
+             >> "$f" 2>> "$f.err"; then
+          echo "# capture: container $c gone before the exit-state inspect; the banner above is all of its stdout that survives" >> "$f"
+        fi
         break
       fi
       sleep 5
@@ -281,8 +288,22 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   LOGFOLLOW+=("$!")
 done
 
+# Every rank in the lease, not just the API rank: on a TP=4 rendezvous rank 0 can sit quiet
+# while ranks 1-3 stream shards, and a rank-0-only watchdog stops that boot as stalled. Ranks
+# are numbered by their position in $HOSTS, which is the order sparkrun launches them in; rank 0
+# stays --node/--container (it owns the endpoint and the death evidence).
+RANK_ARGS=()
+_rank=0
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  if [ "$_rank" -gt 0 ]; then
+    RANK_ARGS+=(--rank "$hn:sparkrun_${TID}_node_$_rank")
+  fi
+  _rank=$((_rank + 1))
+done
+
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \
-  --node "$NODE" --container "$N" --interval 10 --log "$L/watchdog.log" &
+  --node "$NODE" --container "$N" --interval 10 \
+  "${RANK_ARGS[@]}" --log "$L/watchdog.log" &
 WD=$!
 
 # Only so the readiness-loop guard can drive this loop at 0 s; 15 s in a real arm.
@@ -548,6 +569,18 @@ harvested=0
 for hn in $(echo "$HOSTS" | tr ',' ' '); do
   for c in $(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
                "docker ps --format '{{.Names}}' | grep -F '${TID}'" 2>/dev/null); do
+    # The rank's own stdout/stderr, taken while the container still exists. The live follower
+    # ends with the container and its last write is docker's own error ("no such object" on the
+    # 2026-11-08 753B boot), which read as engine output; this snapshot is the copy that survives
+    # a reap, and a failure says so in the file rather than leaving that error to be mistaken
+    # for a crash.
+    ranklog="$L/docker-$(echo "$c" | sed 's/.*_//').log"
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "docker logs '$c'" \
+         > "$ranklog" 2>> "$ranklog.err"; then
+      echo "snapshotted docker logs from $c on $hn"
+    else
+      echo "# capture failed: docker logs for $c on $hn errored (see $(basename "$ranklog").err); no engine stdout survives" > "$ranklog"
+    fi
     if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
          "docker cp '$c:/tmp/sparkrun_serve.log' /tmp/serve-$c.log" >/dev/null 2>&1 \
        && scp -q -o BatchMode=yes "red@$hn:/tmp/serve-$c.log" \

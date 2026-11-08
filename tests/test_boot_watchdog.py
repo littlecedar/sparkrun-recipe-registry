@@ -149,7 +149,7 @@ class LogGrowth(unittest.TestCase):
     def test_the_log_delta_is_reported_next_to_the_io_delta(self):
         text = TOOL_PATH.read_text()
         self.assertIn("log_delta={log_delta}", text, "the log delta is not logged")
-        self.assertIn("prev_logsize", text, "no previous log size to diff")
+        self.assertIn("prev_rank", text, "no previous sample to diff the log size against")
         self.assertIn("LOGSIZE", text, "the sample does not ask for the log size")
 
 
@@ -219,6 +219,175 @@ class StallIsNotLoading(unittest.TestCase):
 
     def test_a_healthy_endpoint_is_never_stalled(self):
         self.assertFalse(bw.is_stalled(True, True, idle=1800, stall=600))
+
+class MemoryIsProgress(unittest.TestCase):
+    """A memory-only load is progress, not a stall — twice measured, once as a false stop.
+
+    2026-10-30: a 122B vLLM load kept `io_delta=0` and `log_delta=0` for five minutes while
+    shards landed in RAM, which is why `parse_mem` exists. 2026-11-08: a 753B boot was declared
+    `stalled` at t≈2532 s against a documented 2538.9 s TTR. The progress reset read io and log
+    only, so the third signal was sampled, printed, and never consulted.
+
+    The memory signal needs a floor, not a nonzero test: that boot's own series was allocator
+    jitter (+548K, -598K, +1.29M, one -90M outlier), and resetting on it would mask the frozen
+    boot `is_stalled` exists to catch. `MEM_PROGRESS_FLOOR` is 128 MiB: above the whole jitter
+    envelope, below a real load's ~282 MB per 10 s check.
+    """
+
+    def drive(self, per_rank, stall="25", ranks=()):
+        """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
+
+        `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
+        queue is consumed in call order, then repeats the gone sample. The clock step makes the
+        difference visible without a 600 s wait: the fixed predicate resets the idle clock every
+        check (idle 10 s < 25 s), the io+log-only one lets it accumulate (10 s, 20 s, 30 s …)
+        and fires inside four samples.
+        """
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **_kwargs):
+            calls.append(list(argv))
+            return mock.Mock(stdout="", stderr="")
+
+        if isinstance(per_rank, list):
+            per_rank = {"n1": per_rank}
+        queues = {node: list(samples) for node, samples in per_rank.items()}
+
+        def sampler(node, _ctn, _pattern):
+            queue = queues.get(node, [])
+            return queue.pop(0) if queue else self.GONE
+
+        class Clock:
+            t = 1000.0
+            step = 10.0
+
+            def monotonic(self):
+                self.t += self.step
+                return self.t
+
+            def time(self):
+                return self.t
+
+            def sleep(self, _seconds):
+                pass
+
+        tmp = Path(tempfile.mkdtemp())
+        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+        with (
+            mock.patch.object(bw, "time", Clock()),
+            mock.patch.object(bw, "subprocess", fake),
+            mock.patch.object(bw, "http_ok", return_value=False),
+            mock.patch.object(bw, "serve_state", side_effect=sampler),
+        ):
+            rc = bw.main([
+                "--endpoint", "http://127.0.0.1:1",
+                "--task-id", "abc123",
+                "--node", "n1",
+                "--container", "sparkrun_abc123_solo",
+                "--interval", "0",
+                "--dead-grace", "0",
+                "--stall", stall,
+                *(f"--rank={rank}" for rank in ranks),
+                "--log", str(tmp / "watchdog.log"),
+            ])
+        return rc, calls, (tmp / "watchdog.log").read_text()
+
+    GONE = (False, None, 0, None, None)
+    # The 753B boot's own memory series per check: allocator jitter, not load progress.
+    JITTER = (548_000, -598_000, 1_290_000, -(90 << 20))
+    BASE = 8 << 30
+
+    def loading(self, mems):
+        """serve_state returns with io and log frozen, memory at `mems`, then the child gone."""
+        return [(True, (100, 200), 4096, mem, None) for mem in mems] + [self.GONE] * 2
+
+    def climbing(self):
+        # GB-scale movement per check: a load, and progress even with io and log flat.
+        return self.loading([self.BASE + ((k + 1) << 30) for k in range(4)])
+
+    def jittering(self):
+        mems, mem = [], self.BASE
+        for delta in self.JITTER:
+            mem += delta
+            mems.append(mem)
+        return self.loading(mems)
+
+    def flat(self):
+        return self.loading([self.BASE] * 4)
+
+    def test_memory_past_the_floor_is_progress(self):
+        self.assertTrue(bw.progressed(False, 0, 0, 1 << 30))
+        self.assertTrue(bw.progressed(False, 0, 0, bw.MEM_PROGRESS_FLOOR))
+        self.assertTrue(bw.progressed(False, 0, 0, -bw.MEM_PROGRESS_FLOOR))
+
+    def test_jitter_below_the_floor_is_not_progress(self):
+        for delta in self.JITTER:
+            with self.subTest(delta=delta):
+                self.assertFalse(bw.progressed(False, 0, 0, delta))
+
+    def test_all_three_flat_is_not_progress(self):
+        self.assertFalse(bw.progressed(False, 0, 0, 0))
+
+    def test_negative_control_the_naive_nonzero_rule_counts_the_jitter(self):
+        # Negative control for the floor itself: a bare `mem_delta != 0` would reset on every
+        # one of these samples, which is the frozen-boot masking this guard exists to prevent.
+        naive = lambda ok, io, log, mem: ok or io > 0 or log > 0 or mem != 0  # noqa: E731
+        self.assertTrue(all(naive(False, 0, 0, d) for d in self.JITTER))
+        self.assertFalse(any(bw.progressed(False, 0, 0, d) for d in self.JITTER))
+
+    def test_a_memory_only_load_is_never_declared_stalled(self):
+        rc, _calls, log = self.drive(self.climbing())
+        self.assertNotIn("verdict=stalled", log, "a memory-only load was stopped as stuck")
+        self.assertEqual(log.count("verdict=loading"), 4)
+        self.assertIn("mem_delta=1073741824", log, "memory did not move in the samples")
+        self.assertEqual(rc, 3, "the loop must still reach the observed death that follows")
+
+    def test_jitter_does_not_reset_the_stall_clock(self):
+        # Sub-floor movement while io and log are flat: the idle clock must keep climbing.
+        rc, calls, log = self.drive(self.jittering())
+        self.assertIn("verdict=stalled", log, "sub-floor jitter was read as load progress")
+        self.assertIn(["sparkrun", "stop", "abc123"], calls)
+        self.assertEqual(rc, 3)
+
+    def test_a_flat_boot_is_stalled(self):
+        _rc, _calls, log = self.drive(self.flat())
+        self.assertIn("verdict=stalled", log)
+
+    def test_a_quiet_rank_0_with_a_moving_peer_is_not_stalled(self):
+        # The TP=4 shape the single-node predicate could not judge: rank 0's io and log are flat
+        # and its memory only jitters, while rank 1 climbs 1 GiB per check.
+        _rc, _calls, log = self.drive(
+            {"n1": self.jittering(), "n2": self.climbing()},
+            ranks=["n2:sparkrun_abc123_node_1"],
+        )
+        self.assertIn("ranks=2", log)
+        self.assertIn("peer_moved=1", log, "the peer's movement was not counted as progress")
+        self.assertNotIn("verdict=stalled", log, "rank 0's silence was read as a stall")
+
+    def test_all_ranks_flat_is_stalled(self):
+        _rc, _calls, log = self.drive(
+            {"n1": self.flat(), "n2": self.flat()}, ranks=["n2:sparkrun_abc123_node_1"]
+        )
+        self.assertIn("verdict=stalled", log, "a flat group was left loading")
+
+    def test_an_unprobeable_rank_fabricates_no_progress_and_blocks_the_stall(self):
+        unprobeable = (None, None, None, None, None)
+        _rc, _calls, log = self.drive(
+            {"n1": self.flat(), "n2": [unprobeable] * 6}, ranks=["n2:sparkrun_abc123_node_1"]
+        )
+        self.assertIn("unprobeable=1", log, "the broken peer probe is not reported")
+        self.assertNotIn("peer_moved=1", log, "an unprobeable rank fabricated progress")
+        self.assertNotIn("verdict=stalled", log, "a no_probe rank was read as evidence of a stall")
+
+    def test_negative_control_the_io_and_log_only_rule_stalls_the_loading_samples(self):
+        # The pre-fix predicate, injected: the same GB-climbing samples stop inside four checks.
+        with mock.patch.object(
+            bw, "progressed", lambda ok, io, log, mem: ok or io > 0 or log > 0
+        ):
+            _rc, calls, log = self.drive(self.climbing())
+        self.assertIn("verdict=stalled", log, "the old predicate must declare this load stalled")
+        self.assertIn(["sparkrun", "stop", "abc123"], calls)
+
 
 class CrashIsAnEdgeNotATimer(unittest.TestCase):
     """A serve we watched working and then lost is dead on the second observed check.

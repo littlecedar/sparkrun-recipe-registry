@@ -346,6 +346,49 @@ class DockerLogCapture(unittest.TestCase):
         self.assertNotIn(self.INSPECT, self.follower_slice(text),
                          "the exit-state inspect survived the mutation")
 
+    SNAPSHOT = "docker logs '$c'"
+    MISSED = "# capture failed:"
+    FOLLOW_MARKER = "# capture: docker logs -f"
+
+    def pre_reap_slice(self, text: str) -> str:
+        """The harvest loop and everything after it, up to the stop that reaps the containers."""
+        start = text.index("harvested=0")
+        return text[start:text.index(self.STOP, start)]
+
+    def test_each_rank_is_snapshotted_while_its_container_still_exists(self):
+        """2026-11-08: a reaped 753B boot's `docker-10_0_4_30.log` held only "no such object".
+
+        The live follower ends when the container does, and its last write was docker's own
+        error, read as engine output. The pre-stop snapshot is the copy that survives, and a
+        snapshot that fails says so in the file instead of leaving that error behind.
+        """
+        text = read_tool()
+        pre = self.pre_reap_slice(text)
+        self.assertIn(self.SNAPSHOT, pre, "no docker logs snapshot before the stop")
+        self.assertIn(self.MISSED, pre, "a failed snapshot is not marked in the log")
+        self.assertLess(text.index(self.SNAPSHOT), text.index(self.STOP),
+                        "the snapshot runs after the container is reaped")
+
+    def test_docker_errors_never_land_in_the_rank_log(self):
+        text = read_tool()
+        follower = self.follower_slice(text)
+        self.assertIn('2> "$f.err"', follower, "docker's stderr is not separated from the log")
+        self.assertIn(self.FOLLOW_MARKER, follower, "a failed follow is not marked in the log")
+
+    def test_moving_the_snapshot_after_the_stop_fails_the_guard(self):
+        text = read_tool()
+        start = text.index("harvested=0")
+        end = text.index(self.STOP, start)
+        mutated = text[:start] + text[start:end].replace(self.SNAPSHOT, "", 1) + text[end:]
+        mutated = mutated.replace(self.STOP, self.STOP + "\n" + self.SNAPSHOT, 1)
+        self.assertNotIn(self.SNAPSHOT, self.pre_reap_slice(mutated),
+                         "the guard passed a snapshot that runs after the stop")
+
+    def test_folding_docker_stderr_back_into_the_log_fails_the_guard(self):
+        mutated = read_tool().replace('2> "$f.err"', "2>&1", 1)
+        self.assertNotIn('2> "$f.err"', self.follower_slice(mutated),
+                         "the stderr split survived the mutation")
+
     def test_removing_the_pre_stop_kill_fails_the_guard(self):
         text = read_tool()
         start = text.index(self.HARVEST)
@@ -353,6 +396,40 @@ class DockerLogCapture(unittest.TestCase):
         mutated = text[:start] + text[start:end].replace(self.KILL, "", 1) + text[end:]
         self.assertNotIn(self.KILL, self.pre_stop_slice(mutated),
                          "the pre-stop kill survived the mutation")
+
+
+class WatchdogGetsTheWholeLease(unittest.TestCase):
+    """A TP=4 rendezvous must be judged on every rank, not the API rank alone.
+
+    Measured 2026-11-08: a 753B TP=4 boot was declared stalled on rank 0's flat io/log while
+    ranks 1-3 could not be ruled out (their captures returned 70 B "no such object"). The
+    watchdog probes each rank in the lease and stalls only when the group is flat.
+    """
+
+    BUILD = 'RANK_ARGS+=(--rank "$hn:sparkrun_${TID}_node_$_rank")'
+    LAUNCH = "python3 tools/boot-watchdog.py"
+    PASS = '"${RANK_ARGS[@]}"'
+
+    def launch_slice(self, text: str) -> str:
+        start = text.index(self.LAUNCH)
+        return text[start:text.index("WD=$!", start)]
+
+    def test_every_rank_after_zero_is_named_to_the_watchdog(self):
+        text = read_tool()
+        self.assertIn(self.BUILD, text, "no peer rank is computed for the lease")
+        self.assertLess(text.index(self.BUILD), text.index(self.LAUNCH),
+                        "the ranks are computed after the watchdog is launched")
+        self.assertIn(self.PASS, self.launch_slice(text),
+                      "the watchdog is launched rank-0-only")
+
+    def test_dropping_the_peer_ranks_fails_the_guard(self):
+        mutated = read_tool().replace(self.BUILD, "", 1)
+        self.assertNotIn(self.BUILD, mutated, "the peer-rank build survived the mutation")
+
+    def test_dropping_the_launch_argument_fails_the_guard(self):
+        mutated = read_tool().replace(self.PASS + " ", "", 1)
+        self.assertNotIn(self.PASS, self.launch_slice(mutated),
+                         "the rank argument survived the mutation")
 
 
 class NegativeControls(unittest.TestCase):

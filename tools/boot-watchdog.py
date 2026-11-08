@@ -23,8 +23,11 @@ distinction explicit and acts on it:
                                                                -> dead, stopped at once
   * child gone and endpoint dead but never seen alive (a serve-pid fingerprint
     miss)                                                      -> dead_candidate, timed
-  * child alive, endpoint dead, no io and no log growth for
-    `--stall` (600 s; 4x the worst silence measured on a healthy boot) -> stalled
+  * no rank in the lease shows io, log or memory progress for `--stall`
+    (600 s; 4x the worst silence measured on a healthy boot)      -> stalled
+    Group-scoped: any rank's progress resets the clock (a TP=4 rendezvous leaves rank 0
+    quiet while peers stream shards), memory counts only past a 128 MiB floor (allocator
+    jitter is sub-MB), and an unprobeable rank blocks the verdict rather than faking it.
   dead/stalled: the container's `/tmp/sparkrun_serve.log` is captured to
     `serve-reaped-<container>.log` beside --log FIRST (the stop destroys it, and a
     fast-reaped arm's crash text is the whole diagnosis), then `sparkrun stop <task-id>`
@@ -124,23 +127,51 @@ def decide(
     return "dead_candidate"
 
 
-def is_stalled(endpoint_ok: bool, pid_alive: bool, idle: float, stall: float) -> bool:
-    """A live child that has made no progress at all is stuck, not loading (pure).
+MEM_PROGRESS_FLOOR = 128 << 20  # 128 MiB
+
+
+def progressed(ok: bool, io_delta: int, log_delta: int, mem_delta: int) -> bool:
+    """Whether this check saw the load move (pure).
+
+    Memory counts for the reason `parse_mem` samples it: a vLLM mmap load can read and log
+    nothing for minutes while tens of GiB land in RAM — and a 753B boot was declared `stalled`
+    at t≈2532 s against a documented 2538.9 s TTR while its memory was moving. But a bare
+    nonzero test resets the stall clock on allocator jitter (that same boot moved +548K, -598K,
+    +1.29M and one -90M outlier per check) and would re-open the 2026-10-30 frozen-boot class
+    (`is_stalled`). So memory counts only past `MEM_PROGRESS_FLOOR` (128 MiB): above that boot's
+    whole jitter envelope, including the -90 MiB outlier, and below a real load's per-check
+    movement (70 GB over the 2538.9 s TTR is ~282 MB per 10 s check). Any one counter past its
+    floor is progress; all flat is the frozen shape.
+    """
+    return ok or io_delta > 0 or log_delta > 0 or abs(mem_delta) >= MEM_PROGRESS_FLOOR
+
+
+def group_stalled(endpoint_ok: bool, alives: list[bool | None], idle: float, stall: float) -> bool:
+    """No probed rank has progressed for the whole stall window (pure).
 
     The `21e5ec6` defect masks a *dead* serve with a keep-alive; this is its sibling and it cost a
     node for 30 minutes on 2026-10-30: a vLLM boot froze at `Capturing CUDA graphs 0/102` with
     `io_delta=0` and `log_delta=0` for half an hour. `pid_alive` kept the verdict at `loading`, so
     the dead-candidate path never fired and nothing ever stopped it.
 
-    Both deltas must be zero for the whole stall window — a slow 45-minute weight load logs or
-    reads something. No loading clock gates this: measured across 46 boots that reached healthy
-    (2026-11-03, every watchdog receipt on the head), the longest silent stretch was **150 s**, so
-    `--stall 600` carries a 4x margin and an `elapsed >= grace` gate on top decided nothing but
-    delay. A frozen 4B arm is stopped in ~10 minutes instead of 40.
+    The test is group-scoped, not rank-0-scoped: on a TP=4 rendezvous a quiet rank 0 while its peers
+    stream shards is normal, and no rank-0 threshold tells "waiting on a peer" from "dead". So the
+    idle clock resets on any rank's progress, and a stall needs *every* rank alive and flat. Fails
+    closed on an unprobeable rank (`None`): a broken probe is `no_probe`, never evidence of a stall.
+
+    No loading clock gates this: measured across 46 boots that reached healthy (2026-11-03, every
+    watchdog receipt on the head), the longest silent stretch was **150 s**, so `--stall 600` carries
+    a 4x margin and an `elapsed >= grace` gate on top decided nothing but delay. A frozen 4B arm is
+    stopped in ~10 minutes instead of 40.
     """
-    if endpoint_ok or not pid_alive:
+    if endpoint_ok or not alives or any(a is not True for a in alives):
         return False
     return idle >= stall
+
+
+def is_stalled(endpoint_ok: bool, pid_alive: bool, idle: float, stall: float) -> bool:
+    """`group_stalled` for the single-rank shape, kept for the arms that run one container."""
+    return group_stalled(endpoint_ok, [pid_alive], idle, stall)
 
 
 def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
@@ -236,6 +267,14 @@ def parse_mem(text: str) -> int | None:
             except (IndexError, ValueError):
                 return None
     return None
+
+
+def parse_rank(spec: str) -> tuple[str, str]:
+    """`NODE:CONTAINER` -> (node, container). Neither a hostname nor a container name has a colon."""
+    node, sep, ctn = spec.partition(":")
+    if not sep or not node or not ctn:
+        raise SystemExit(f"--rank wants NODE:CONTAINER, got {spec!r}")
+    return node, ctn
 
 
 def parse_fatal(text: str) -> str | None:
@@ -392,8 +431,8 @@ def should_stop(verdict: str, dead_grace: float, dead_for: float | None) -> bool
 
     `dead`       — two consecutive observed absences with a witness (seen alive or a fatal
                    line): act on the check that reaches the second.
-    `stalled`    — `is_stalled` already required the whole stall window of zero io AND zero
-                   log growth (4x the worst silence measured on a healthy boot).
+    `stalled`    — `is_stalled` already required the whole stall window of zero io, log AND
+                   memory growth (4x the worst silence measured on a healthy boot).
     `dead_candidate` — never seen alive, which is also what a serve-pid fingerprint miss
                    looks like, so it alone keeps a clock (`--dead-grace`, 120 s).
 
@@ -441,9 +480,18 @@ def main(argv: list[str] | None = None) -> int:
         "--stall",
         type=float,
         default=600.0,
-        help="seconds of zero io AND zero log growth after which a live child is declared "
+        help="seconds of zero io, log AND memory growth after which a live child is declared "
              "stuck and stopped; 600 is 4x the 150 s worst case measured across 46 healthy "
              "boots (2026-11-03)",
+    )
+    ap.add_argument(
+        "--rank",
+        action="append",
+        default=[],
+        metavar="NODE:CONTAINER",
+        help="another rank in the same lease (repeatable). Rank 0 is --node/--container and owns "
+        "the endpoint and the death evidence; peers widen the progress/stall test, so a TP=4 "
+        "rendezvous is judged on the whole group rather than a quiet rank 0",
     )
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument("--log", default="")
@@ -456,9 +504,9 @@ def main(argv: list[str] | None = None) -> int:
     log_dir = Path(args.log).expanduser().resolve().parent if args.log else Path.cwd()
     started = time.time()
     consecutive_dead = 0
-    prev_io: tuple[int, int] | None = None
-    prev_logsize: int | None = None
-    prev_mem: int | None = None
+    ranks = [(args.node, container)] + [parse_rank(spec) for spec in args.rank]
+    # Per rank: (io, log size, memory) of the previous check, so each delta stays a delta.
+    prev_rank: dict[tuple[str, str], tuple[tuple[int, int] | None, int | None, int | None]] = {}
     last_progress = time.monotonic()
     dead_since: float | None = None
     # `seen_alive` is what makes a crash a transition instead of a timer: a child we
@@ -467,21 +515,38 @@ def main(argv: list[str] | None = None) -> int:
     seen_alive = False
     while True:
         ok = http_ok(args.endpoint + "/v1/models")
-        alive, io, logsize, mem, fatal = serve_state(args.node, container, args.serve_pattern)
+        samples = [serve_state(node, ctn, args.serve_pattern) for node, ctn in ranks]
+        alive, _io, _logsize, _mem, fatal = samples[0]
         if alive:
             seen_alive = True
-        delta = -1
-        if io is not None and prev_io is not None:
-            delta = (io[0] - prev_io[0]) + (io[1] - prev_io[1])
-        prev_io = io
-        log_delta = -1
-        if logsize is not None and prev_logsize is not None:
-            log_delta = logsize - prev_logsize
-        prev_logsize = logsize
-        mem_delta = -1
-        if mem is not None and prev_mem is not None:
-            mem_delta = mem - prev_mem
-        prev_mem = mem
+        delta = log_delta = mem_delta = -1
+        peer_moved = 0
+        unprobeable = 0
+        moved = ok
+        # Every rank in the lease: any rank's progress is the group loading (a TP=4 rendezvous
+        # leaves rank 0 quiet while its peers stream shards), and an unprobeable rank is
+        # `no_probe` — it contributes no progress and blocks the stall verdict below.
+        for i, ((node, ctn), (rank_alive, rank_io, rank_log, rank_mem, _f)) in enumerate(
+            zip(ranks, samples)
+        ):
+            if rank_alive is None:
+                unprobeable += 1
+            prev = prev_rank.get((node, ctn))
+            rd = rl = rm = -1
+            if prev is not None:
+                if rank_io is not None and prev[0] is not None:
+                    rd = (rank_io[0] - prev[0][0]) + (rank_io[1] - prev[0][1])
+                if rank_log is not None and prev[1] is not None:
+                    rl = rank_log - prev[1]
+                if rank_mem is not None and prev[2] is not None:
+                    rm = rank_mem - prev[2]
+            prev_rank[(node, ctn)] = (rank_io, rank_log, rank_mem)
+            if progressed(False, rd, rl, rm):
+                moved = True
+                if i:
+                    peer_moved += 1
+            if i == 0:
+                delta, log_delta, mem_delta = rd, rl, rm
         # Only an *observed* absence counts. `alive is None` is a broken probe, and
         # `not None` would be True here — a killed boot is the one mistake this cannot make.
         if alive is False and not ok:
@@ -490,17 +555,19 @@ def main(argv: list[str] | None = None) -> int:
             consecutive_dead = 0
         verdict = decide(ok, alive, consecutive_dead, seen_alive=seen_alive, fatal=fatal)
         elapsed = int(time.time() - started)
-        if ok or delta > 0 or log_delta > 0:
+        if moved:
             last_progress = time.monotonic()
         idle = time.monotonic() - last_progress
-        stalled = is_stalled(ok, alive, idle, args.stall)
+        stalled = group_stalled(ok, [sample[0] for sample in samples], idle, args.stall)
         if stalled:
             verdict = "stalled"
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
             f"serve_pid={('alive' if alive else 'gone') if alive is not None else 'unprobed'} io_delta={delta} "
             f"log_delta={log_delta} "
-            f"mem_delta={mem_delta} idle={int(idle)}s" + (f" cause={fatal!r}" if fatal else ""),
+            f"mem_delta={mem_delta} idle={int(idle)}s ranks={len(ranks)} "
+            f"peer_moved={peer_moved} unprobeable={unprobeable}"
+            + (f" cause={fatal!r}" if fatal else ""),
             file=log,
             flush=True,
         )
