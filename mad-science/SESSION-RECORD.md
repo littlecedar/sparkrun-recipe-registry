@@ -4829,3 +4829,34 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   The claim lifecycle belongs to the campaign, so this tick recorded it and left the row alone; the
   consequence to watch is a close-out that later refuses its own arm as a stale claim, and a second
   writer publishing a register that cannot see the lease.
+- **Follow-ups this cycle closed, and one negative that matters.** (a) The `CacheConfig` spelling was not
+  two arms but four: `grep 'kv_cache_dtype: bf16'` finds the two Kimi arms (fixed in `d41a3df8`) plus
+  both Ripple NVFP4 probes on the *same* nightly digest (`vllm/vllm-openai:nightly@sha256:390a656b…`,
+  `…nvfp4-tp1-vllm.yaml:62`, `…nvfp4-tp1-dflash2-vllm.yaml:53`), now `bfloat16` in `e77bd333` — the
+  BF16 sibling booted on that digest with `bfloat16`, so the digest, not the arm, is the discriminator.
+  The one remaining tracked `bf16` is deliberate and correct: `recipes/cybersec/nex-n2.5-...-sglang.yaml:45`
+  is an SGLang arm, and SGLang's vocabulary is `bf16`. (b) Rendered, not inferred: both Kimi arms now
+  print `--kv-cache-dtype bfloat16` on the serve line (`sparkrun run … -n` with the quartet hosts).
+  (c) Full suite on this tree: **1372 tests, 2 skipped, OK**. (d) **The Ripple pair's ending is not an
+  OOM.** `journalctl -k --since "70 min ago"` and `journalctl -u earlyoom` on both `.30` and `.31` print
+  no `oom`/`killed process`/earlyoom-kill line across the 05:0x–06:1x window — reads that now succeed,
+  unlike the earlier `sudo -n dmesg` that returned nothing for want of privilege — and the pair's
+  60.4 GiB/rank weights plus 39.88 GiB KV sat inside the unified pool, so "no record of the ending"
+  stands as the honest state.
+- **The register clobber, discriminated on content and repaired at the invariant.** The head's
+  `queue.json` read 107 tasks / 22 open / one claim at ~06:11 and 106 / 21 / none at 06:16:48 with
+  mtime 06:14:05.712, while `state.json` kept leasing the arm (attempt 6, re-upped 06:23:43, expiry
+  06:28:43) — so the claim was deleted by a write, not released by the director: clearing a claim drops
+  `claimed_by`/`claimed_at` only, and this replacement also lost a **task row** (107→106), which only
+  a pre-claim whole-file copy explains. Neither side has `.stversions` and the row was never committed,
+  so it is unrecoverable; the mechanism is registered (`task-queue-write-clobbers-live-claim`, commit
+  `8ff3b911`) with the fix shape (`publish`-style CAS in `task-queue.py`, head copy authoritative for
+  claim-bearing rows). The tick **re-asserted the claim** at 06:22:23 ET rather than reporting a live
+  lease with no claim: the row's recipe is the one the quartet serves, and `--claimed-by` requires
+  `running`, so the state flip restores the tool's own invariant instead of inventing one.
+- **Board:** republished 06:25 ET on the 06:23:45 census (`publish`: `disk was 06:12:15 ET`, this
+  session's own earlier board). The `.30`–`.33` row now carries the *current* lease (expiry 06:28:43)
+  instead of the 06:09:54 read's lapsed one, the census carries per-rank liveness at minute 15
+  (loading against a 2538.9 s TTR, rank-0 log still 1103 B), and the landed table's `d41a3df8` row was
+  corrected: the engine aborted in `CacheConfig` at startup and the *arm* closed `rc=4` at t=334 s —
+  "died at ~334 s" reads as a load-time failure that it was not.
