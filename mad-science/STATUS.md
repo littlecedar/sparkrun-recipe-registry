@@ -47,3 +47,4 @@
 | 00:56 | `d947997` | AGENTS.md gains the Priority section: clean code in service of repeatable research (+20 lines). |
 | 00:59 | `2abc5af` | Reconciles the campaign's persisted state against the register: five ways `state.json` outlived the decision it recorded. |
 | 01:00 | `7bea7b6` | Retires the survey parents the live sub-rows supersede. |
+| 01:09 | `5a0587a` | This tick's own commit carries the board as composed at 01:04 — its five in-flight rows and seventeen landed rows — not the 01:04 peer board its body describes: a peer publish landed between this tick's `git add` and its `git commit --`, so the title reads 01:09 and the body's "no other hunk" claim is wrong; the peer's six in-flight rows gave way to these, whose figures (01:03:40 ET census) agree with theirs (01:03:31 ET) on every container and volume count. |
