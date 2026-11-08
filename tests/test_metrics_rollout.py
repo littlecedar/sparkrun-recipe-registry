@@ -225,8 +225,6 @@ def violations(recipe: dict[str, Any]) -> list[str]:
         return problems
     if runtime == "sglang":
         required = SGLANG_FLAGS
-        if shape == "overlay":
-            required = ("--enable-metrics",)
     elif runtime == "vllm":
         required = VLLM_FLAGS
     elif runtime == "llama-cpp":
@@ -351,7 +349,7 @@ class NegativeControls(unittest.TestCase):
     OVERLAY: str = (
         "runtime: sglang\n"
         "env:\n"
-        '  EXTRA_SGLANG_ARGS: "--enable-metrics"\n'
+        '  EXTRA_SGLANG_ARGS: "--enable-metrics --enable-cache-report"\n'
         "command: >\n"
         "  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py --boot\n"
     )
@@ -392,8 +390,9 @@ class NegativeControls(unittest.TestCase):
         self.assertIn("instrumented: false", " ".join(violations(parse_text(text))))
 
     def test_an_overlay_with_the_env_value_emptied_is_reported(self):
-        text = self.OVERLAY.replace('EXTRA_SGLANG_ARGS: "--enable-metrics"',
-                                    'EXTRA_SGLANG_ARGS: ""')
+        text = self.OVERLAY.replace(
+            'EXTRA_SGLANG_ARGS: "--enable-metrics --enable-cache-report"',
+            'EXTRA_SGLANG_ARGS: ""')
         self.assertIn("--enable-metrics", " ".join(violations(parse_text(text))))
 
     def test_a_tensorfold_arm_with_its_bridge_disabled_is_reported(self):

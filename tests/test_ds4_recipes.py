@@ -1767,15 +1767,15 @@ class MarlinVariantRidesEnv(unittest.TestCase):
 
     def test_control_carries_neither(self):
         env_value, argv = _marlin_channels(load(ARM3_CONTROL))
-        self.assertEqual(env_value, "--enable-metrics",
-                         "the control must carry only the rollout's metrics flag")
+        self.assertEqual(env_value, "--enable-metrics --enable-cache-report",
+                         "the control must carry only the rollout's metrics set")
         self.assertNotIn(MARLIN_FLAG, argv)
 
     def test_negative_control_argv_borne_flag_is_rejected(self):
         # The regression rebuilt in memory: env entry gone, flag on `command:`.
         # Both guards above must fail on it, or they cannot catch it again.
         broken = MARLIN_RECIPE.read_text().replace(
-            '  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin --enable-metrics"\n', "")
+            '  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin --enable-metrics --enable-cache-report"\n', "")
         broken = broken.replace(
             "--fp8-gemm-backend flashinfer_cutlass",
             "--fp8-gemm-backend flashinfer_cutlass\n  --moe-runner-backend marlin")

@@ -61,7 +61,7 @@ env:
   # The marlin variant of this control: `command:` reaches launcher.py, whose
   # parser ignores unknown argv flags (`:922`), so engine flags ride
   # EXTRA_SGLANG_ARGS (`:471-502`), which boot.py splits on whitespace.
-  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin --enable-metrics"
+  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin --enable-metrics --enable-cache-report"
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
   --boot
