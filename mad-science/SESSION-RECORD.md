@@ -5805,3 +5805,29 @@ blocked, and `zz-ds4-1017-sm121-arm3-control-marlin` failed at `attempts=11` wit
 running anywhere, one never-started `sm121m` `Created` on `.30` since 10:32, roots flat.
 Nothing is bootable while the pool is down, and the pool needs a manual
 mgmtd -> meta -> storage restart because all three units carry `Restart=no`.
+
+## 2026-11-08 15:29:55 ET — window B closes on a verified read, not on a restart
+
+**The rule this closes.** The 13:22 clause makes a cell timestamped in either pool-down window invalid, not weak. Window
+A closed on a restart (`mgmtd` `ActiveEnter 12:06:46`, `meta`/`storage` 12:07:21, last client transient 12:07:28); window B
+had no close at all, so every cell at or after `12:57:32` was invalid by default. It now has a close instant with the
+evidence behind it.
+
+- **Units, on all six hosts:** `beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` `active (running)` since **15:29:55**,
+  `Result=success`, `ExecMainExitTimestamp` **empty**, `NRestarts=0`. `mgmtd` listens on `:8008` and `:8010`, every
+  storage on `:8003`.
+- **Registrations complete at 15:29:55:** `beegfs-meta` logged `Root directory loaded.` and
+  `I got root (by possession of root directory)`; every storage logged `Node registration successful.` and
+  `Registration and management info download complete.`, with node IDs 1–6 for `.30`–`.35`.
+- **Every host reads the pool, which is the proof the old clause demanded:** all six list **111 hub entries** and return
+  rc=0 on a shipped recipe's snapshot (`…/DeepSeek-V4.1-Flash-1017/snapshots/1bae0e1088…`); `df -B1` answers
+  **22.0 TiB total / 9.0 TiB available on every host**; no host landed in either ECOMM error class, and the head
+  reattached **without a remount** (no `umount` was needed).
+- **Nothing lost:** `.30` storage is **byte-identical to the pre-outage read, `1,377,231,104,535 B`**, and no stale
+  `lock.pid` survives — every one was rewritten 15:29/15:30.
+- **Admissibility now:** a cell **at or after `15:29:55` on a host that read the snapshot** is admissible. Cells between
+  `12:57:32` and `15:29:54` remain **invalid — window B**, and the 13:22 window A range is unchanged.
+- **Caveat that must travel with any refusal from here on:** `tools/run-arm.sh`'s pool gate is currently **red on healthy
+  clients** — it demands `mgmtd`/`meta` on *every* host, which `.31`–`.35` never ran — so until that fix lands a receipt
+  refused "pool does not answer" is **not** evidence of an outage, and reading it as one would contradict the units above.
+  Another session owns the fix; the clause stays until a green gate run exists.
