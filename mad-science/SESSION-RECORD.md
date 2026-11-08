@@ -5084,3 +5084,30 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   owner's register edit, not a boot.
 - **Not written by this tick:** `mad-science/queue.json` (still the campaign's uncommitted bytes,
   `sha256 932224e2…`), the campaign unit, and `.local/fleet-window.lock`.
+
+## 2026-11-08 09:13 ET — correction: `.34`'s pre-08:24 slice has no write behind it, and the pool hides a body's size from two of three instruments
+
+Two corrections to `6d9138e1` (the 09:04 board), both from trying to harden its claims. The second is
+new evidence; the first extends a peer tick's 09:09 board correction with a falsifier it had not run.
+
+- **The `.34` −20.5 GiB slice (08:07:20→08:24:35) is not the pruned75 download, and has no write
+  behind it at all.** A peer tick already pulled the timestamp half on the 09:09 board; this adds the
+  whole-root falsifier. The download's pid started 08:26:19, *after* that window closed, and the pool's
+  Hub received only **4.20 GiB** in 08:00–08:27 — the 4.50 GB DSpark blob at 08:08 plus pruned75
+  metadata at 08:21–08:23; every pruned75 shard body is dated 08:27 or later. A `sudo` whole-root
+  scan of `.34` (`find / -xdev`; ext4 root, and `/srv/beegfs/storage` chunks included because that
+  path is on the root device) finds **1.06 GiB** written in 08:05–08:26: one BeeGFS chunk of
+  1,124,792,578 B at 08:08 plus kilobyte metadata. So no writer consumed 20 GiB there. The slice is
+  a question about the *reading series*, not about an author — the 08:07:20 point is the suspect, and
+  the next `.34` dip must be read twice, minutes apart, before anything is attributed to it.
+- **Three instruments disagree on the staged body by 60×.** At 09:1x the pruned75 snapshot tree held
+  `find -type f` = **4.54 GiB**, `du -s` (no `-L`) = **4.88 GB**, `du -sL` = 297 GB, and an
+  inode-deduped `os.stat` walk of the snapshot entries = **277.16 GiB over 59 of 96 shards**. The
+  bodies are symlinks into the pool's shared store (`hub/blobs/<xx>/<hash>`), so anything that does
+  not follow symlinks under-reads by ~60×; `du -sL` is safe because GNU `du` dedupes by inode. With
+  that number the attribution closes: cumulative fall since 08:24:35 is 213.2 GiB (to 09:01:05) plus
+  65.0 GiB (to 09:12:20) = **278.2 GiB against 277.16 GiB staged, 0.4 %** — the fall is the body.
+- **An inner `ssh` whose quoting collapses runs its command on the head, and the number still looks
+  plausible.** A `.34` probe returned 1197.1 GiB avail while `.34`'s real read was 1025.3 GiB — the
+  1197.1 GiB was `.30`, the head, which the probe's own `hostname` confirmed. Two reads two minutes apart "disagreeing by 171 GiB"
+  was the label, not the disk. Print `hostname` remotely in the same command that prints the number.
